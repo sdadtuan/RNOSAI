@@ -63,6 +63,9 @@ else
   bash "$ROOT/scripts/apply_pg_ddl_v3.sh"
 fi
 
+echo "==> Apply domain_events idempotency (required for LeadScored / LeadScoreOverridden emit)"
+bash "$ROOT/scripts/apply_pg_ddl_v3_events_idempotency.sh" 2>/dev/null || true
+
 echo "==> Apply Revenue OS AI DDL"
 APPLY=1 bash "$ROOT/scripts/rnos01_pg_ddl_gate.sh" || bash "$ROOT/scripts/apply_pg_ddl_revenue_os_ai.sh"
 

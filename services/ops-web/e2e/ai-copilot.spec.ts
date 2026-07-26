@@ -128,7 +128,7 @@ test.describe('RNOS-39 AI Copilot E2E', () => {
     await loginAsStaff(page);
     await page.goto(`/crm/leads/${leadId}`);
 
-    await page.getByRole('tab', { name: 'AI' }).click();
+    await page.getByRole('tab', { name: 'AI' }).click({ force: true });
     await expect(copilotPanel(page)).toBeVisible({ timeout: 15_000 });
     await assertNoOutboundSendButtons(page);
   });
@@ -188,5 +188,99 @@ test.describe('RNOS-39 follow-up draft API (RNOS-07)', () => {
     const acceptBody = (await accept.json()) as { data?: { status?: string; activity_id?: number } };
     expect(acceptBody.data?.status).toBe('accepted');
     expect(acceptBody.data?.activity_id).toBeGreaterThan(0);
+  });
+});
+
+test.describe('AI-UC-006 — GDKD override score (UI-R1-08)', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  const OVERRIDE_REASON = 'E2E GDKD điều chỉnh score — VIP khách ưu tiên cao';
+  const OVERRIDE_SCORE = 77;
+
+  test('API — override score persists overridden_by + audit', async ({ request }) => {
+    test.skip(!(await apiReachable(request)), 'Nest AI API not reachable');
+
+    const leadId = await resolveLeadId(request);
+    await ensureLeadScored(request, leadId);
+    const token = await staffToken(request);
+
+    const override = await request.post(`${API_URL}/api/v1/ai/scores/lead/override`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: {
+        lead_id: leadId,
+        score: OVERRIDE_SCORE,
+        override_reason: OVERRIDE_REASON,
+      },
+    });
+    expect(
+      override.ok(),
+      `override score: ${override.status()} ${await override.text()}`,
+    ).toBeTruthy();
+    const overrideBody = (await override.json()) as {
+      data?: { score?: number; model_name?: string; score_id?: string };
+    };
+    expect(overrideBody.data?.score).toBe(OVERRIDE_SCORE);
+    expect(overrideBody.data?.model_name).toBe('manual_override');
+    expect(overrideBody.data?.score_id).toBeTruthy();
+
+    const scores = await request.get(
+      `${API_URL}/api/v1/ai/scores?entity_type=lead&entity_id=${leadId}&limit=1`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    expect(scores.ok()).toBeTruthy();
+    const scoresBody = (await scores.json()) as {
+      data?: {
+        latest?: {
+          score_value?: number;
+          overridden_by?: string | null;
+          override_reason?: string | null;
+          model_name?: string | null;
+        } | null;
+      };
+    };
+    expect(scoresBody.data?.latest?.score_value).toBe(OVERRIDE_SCORE);
+    expect(scoresBody.data?.latest?.overridden_by).toBeTruthy();
+    expect(scoresBody.data?.latest?.override_reason).toBe(OVERRIDE_REASON);
+    expect(scoresBody.data?.latest?.model_name).toBe('manual_override');
+  });
+
+  test('API — rejects override_reason shorter than 10 chars', async ({ request }) => {
+    test.skip(!(await apiReachable(request)), 'Nest AI API not reachable');
+
+    const leadId = await resolveLeadId(request);
+    const token = await staffToken(request);
+
+    const res = await request.post(`${API_URL}/api/v1/ai/scores/lead/override`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: { lead_id: leadId, score: 50, override_reason: 'ngắn' },
+    });
+    expect(res.status()).toBe(400);
+    const body = (await res.json()) as { error?: string };
+    expect(body.error).toBe('override_reason_too_short');
+  });
+
+  test('UI — override modal updates score badge GDKD điều chỉnh', async ({ page, request }) => {
+    test.skip(!(await apiReachable(request)), 'Nest AI API not reachable');
+
+    const leadId = await resolveLeadId(request);
+    await ensureLeadScored(request, leadId);
+
+    await loginAsStaff(page);
+    await page.goto(`/crm/leads/${leadId}`);
+    await expect(copilotPanel(page)).toBeVisible({ timeout: 20_000 });
+    await waitForScoreCard(page);
+
+    const scoreSection = copilotPanel(page).getByRole('region', { name: 'Điểm lead' });
+    await scoreSection.getByRole('button', { name: 'Điều chỉnh score' }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'Điều chỉnh điểm lead' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel('Điểm override 0-100').fill(String(OVERRIDE_SCORE));
+    await dialog.getByLabel('Lý do điều chỉnh score').fill(OVERRIDE_REASON);
+    await dialog.getByRole('button', { name: 'Lưu điều chỉnh' }).click();
+
+    await expect(scoreSection.locator('.ai-score-override-badge')).toBeVisible({ timeout: 15_000 });
+    await expect(scoreSection.locator('.ai-score-gauge__value')).toHaveText(String(OVERRIDE_SCORE));
+    await expect(scoreSection.getByText(/Đã lưu điều chỉnh GDKD/i)).toBeVisible();
   });
 });

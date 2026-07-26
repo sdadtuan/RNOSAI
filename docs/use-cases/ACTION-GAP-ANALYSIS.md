@@ -79,6 +79,7 @@
 | **AI copilot trên lead detail** | **AI-UC-002…005, CRM-002** | ⚠ **GAP-AI-01** — Doc + 90-day plan; UI `/crm/leads/[id]` copilot chưa ship |
 | **Lead score async ≤30s** | **AI-UC-001** | ⚠ **GAP-AI-02** — DDL ready; worker + `/api/v1/ai/score/lead` chưa ship |
 | **Follow-up draft approve (no auto-send)** | **AI-UC-004** | ⚠ **GAP-AI-03** — BR-AI-01 trong spec; API + approve flow pending |
+| **GDKD override score copilot** | **AI-UC-006** | ✅ **UI-R1-08** — `ScoreOverrideModal` + `POST /api/v1/ai/scores/lead/override` |
 
 ---
 
@@ -111,7 +112,7 @@
 | **GAP-AI-02** | Async lead score + explainability | AI-UC-001, AI-UC-005 | Manual hot/warm tag; target `/api/v1/ai/score/lead` |
 | **GAP-AI-03** | Follow-up draft approve (no send) | AI-UC-004 | CSKH soạn tay; target RNOS-07 |
 | **GAP-AI-04** | Admin UI audit runs | AI-UC-009 | SQL `ai_agent_runs`; target `/admin/ai/runs` |
-| **GAP-AI-05** | Manager override score UI | AI-UC-006 | Stretch tuần 11; GDKD dùng note manual |
+| **GAP-AI-05** | ~~Manager override score UI~~ | AI-UC-006 | ✅ **UI-R1-08** — `ScoreOverrideModal` + override API (BR-AI-05) |
 
 ### GAP-P2 — Pilot / optional
 

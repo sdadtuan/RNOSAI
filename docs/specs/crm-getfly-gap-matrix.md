@@ -171,7 +171,7 @@
 | 4.5 | [x] Copilot: dismiss draft modal + feedback (UI-R2-06) | R2 | RNOS-29 gate green |
 | 4.6 | [ ] Copilot: trust footer BR-AI copy | UI-R1 | Text spec §15 |
 | 4.7 | [ ] Mobile tab **AI** không regress (RNOS-39 E2E) | P0-1 | CI green |
-| 4.8 | [ ] GDKD **override score** modal | UI-R1-08 | `overridden_by` API |
+| 4.8 | [x] GDKD **override score** modal | UI-R1-08 | AI-UC-006 — `POST /api/v1/ai/scores/lead/override` + badge |
 
 **Không yêu cầu PR:** Nút “Gửi Zalo/Email trực tiếp” (🚫 BR-AI-01 — dùng follow-up draft).
 

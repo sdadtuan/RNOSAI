@@ -7,6 +7,7 @@ import {
   LEAD_SCORE_IDEMPOTENCY_MINUTES,
   LEAD_SCORE_MODEL,
   LEAD_SCORE_MODEL_VERSION,
+  LEAD_SCORE_OVERRIDE_MODEL,
 } from './lead-score.types';
 
 function mapScoreRow(row: Record<string, unknown>): AiScoreRecord {
@@ -90,6 +91,53 @@ export class AiScoresRepository implements OnModuleDestroy {
     );
     const row = result.rows[0];
     return row ? mapScoreRow(row as Record<string, unknown>) : null;
+  }
+
+  async insertOverrideScore(input: {
+    clientId?: string | null;
+    entityType: string;
+    entityId: string;
+    scoreType: string;
+    scoreValue: number;
+    confidence: number;
+    features: Record<string, unknown>;
+    explainability: LeadScoreExplainability;
+    agentRunId?: string | null;
+    overriddenBy: string;
+    overrideReason: string;
+  }): Promise<AiScoreRecord> {
+    const result = await this.db.query(
+      `INSERT INTO ai_scores (
+         client_id, entity_type, entity_id, score_type, score_value, confidence,
+         features_json, explainability_json, model_name, model_version, agent_run_id,
+         overridden_by, overridden_at, override_reason
+       ) VALUES (
+         $1::uuid, $2, $3, $4, $5, $6,
+         $7::jsonb, $8::jsonb, $9, $10, $11::uuid,
+         $12, NOW(), $13
+       )
+       RETURNING
+         id::text, client_id::text, entity_type, entity_id, score_type, score_value,
+         confidence, features_json, explainability_json, model_name, model_version,
+         agent_run_id::text, overridden_by, overridden_at::text, override_reason,
+         calculated_at::text, created_at::text`,
+      [
+        input.clientId ?? null,
+        input.entityType,
+        input.entityId,
+        input.scoreType,
+        input.scoreValue,
+        input.confidence,
+        JSON.stringify(input.features),
+        JSON.stringify(input.explainability),
+        LEAD_SCORE_OVERRIDE_MODEL,
+        LEAD_SCORE_MODEL_VERSION,
+        input.agentRunId ?? null,
+        input.overriddenBy,
+        input.overrideReason,
+      ],
+    );
+    return mapScoreRow(result.rows[0] as Record<string, unknown>);
   }
 
   async insertScore(input: {

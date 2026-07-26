@@ -2279,6 +2279,25 @@ body:has(.ops-sidebar) main {
   gap: 0.5rem;
 }
 
+.ai-score-card__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.ai-score-override-badge {
+  display: inline-block;
+  margin: 0 0 0.5rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ai-override, #7c3aed);
+  background: color-mix(in srgb, var(--ai-override, #7c3aed) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ai-override, #7c3aed) 35%, transparent);
+}
+
 .ai-score-card__title {
   margin: 0;
   font-size: 0.92rem;

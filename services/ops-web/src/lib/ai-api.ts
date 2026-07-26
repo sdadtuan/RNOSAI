@@ -31,6 +31,9 @@ export interface AiScoreRecord {
   model_name: string | null;
   model_version?: string;
   calculated_at: string;
+  overridden_by?: string | null;
+  override_reason?: string | null;
+  overridden_at?: string | null;
 }
 
 export interface AiScoresListResponse {
@@ -158,6 +161,40 @@ export async function fetchAiScores(
   const body = await parseJson<AiScoresListResponse & { error?: string; message?: string }>(res);
   if (!res.ok) {
     throw new ApiError(body.error ?? body.message ?? 'Fetch scores failed', res.status);
+  }
+  return body;
+}
+
+/** AI-UC-006 / UI-R1-08 — GDKD manual score override. */
+export interface ScoreLeadOverrideData {
+  score_id: string;
+  lead_id: number;
+  score: number;
+  confidence: number;
+  score_band: 'hot' | 'warm' | 'cold';
+  explainability: AiExplainability;
+  model_name: string;
+  calculated_at: string;
+}
+
+export interface ScoreLeadOverrideResponse {
+  data: ScoreLeadOverrideData;
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export async function postAiScoreOverride(
+  token: string,
+  input: { lead_id: number; score: number; override_reason: string },
+): Promise<ScoreLeadOverrideResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/scores/lead/override`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const body = await parseJson<ScoreLeadOverrideResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Override score failed', res.status);
   }
   return body;
 }

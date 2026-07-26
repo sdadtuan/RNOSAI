@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
@@ -18,6 +19,10 @@ import {
   AiScoresListResponse,
   LEAD_SCORE_MODEL,
   LEAD_SCORE_MODEL_VERSION,
+  LEAD_SCORE_OVERRIDE_MODEL,
+  OverrideLeadScoreRequest,
+  OverrideLeadScoreResponse,
+  ScoreBand,
   ScoreLeadRequest,
   ScoreLeadResponse,
 } from './lead-score.types';
@@ -119,6 +124,129 @@ export class AiLeadScoreService {
     return this.toScoreResponse(row, input.leadId, requestId, false, wrapped.runId);
   }
 
+  /** AI-UC-006 / UI-R1-08 — GDKD manual score override (BR-AI-05). */
+  async overrideLeadScore(input: OverrideLeadScoreRequest): Promise<OverrideLeadScoreResponse> {
+    if (!(await this.scores.tableReady())) {
+      throw new ServiceUnavailableException({
+        error: 'ai_scores_not_ready',
+        message: 'Apply RNOS-01 DDL before scoring',
+      });
+    }
+
+    const scoreValue = Number(input.score);
+    if (!Number.isFinite(scoreValue) || scoreValue < 0 || scoreValue > 100) {
+      throw new BadRequestException({ error: 'score_out_of_range', message: 'score must be 0–100' });
+    }
+
+    const reason = String(input.overrideReason ?? '').trim();
+    if (reason.length < 10) {
+      throw new BadRequestException({
+        error: 'override_reason_too_short',
+        message: 'override_reason must be at least 10 characters',
+      });
+    }
+
+    const actorId = String(input.actorId ?? input.actorEmail ?? 'gdkd').trim();
+    if (!actorId) {
+      throw new BadRequestException({ error: 'actor_required' });
+    }
+
+    const requestId = input.correlationId?.trim() || this.audit.newRequestId();
+    const entityId = String(input.leadId);
+
+    const lead = await this.leads.getLeadById(input.leadId);
+    if (!lead) {
+      throw new NotFoundException({ error: 'lead_not_found', lead_id: input.leadId });
+    }
+
+    const previous = await this.scores.getLatest('lead', entityId);
+    const previousExplain = previous?.explainability_json ?? {
+      factors: [],
+      flags: [],
+      score_band: 'warm' as ScoreBand,
+    };
+    const roundedScore = Math.round(scoreValue);
+    const explainability = {
+      factors: [
+        ...(previousExplain.factors ?? []),
+        {
+          key: 'gdkd_override',
+          label: `GDKD điều chỉnh: ${reason.slice(0, 120)}`,
+          delta: 0,
+          sign: '+' as const,
+        },
+      ],
+      flags: [...(previousExplain.flags ?? []), 'manual_override'],
+      score_band: this.scoreBand(roundedScore),
+    };
+
+    const wrapped = await this.audit.wrap(
+      {
+        useCase: AI_USE_CASE.OVERRIDE_SCORE,
+        entityType: 'lead',
+        entityId,
+        clientId: input.clientId ?? previous?.client_id ?? null,
+        actorId,
+        correlationId: requestId,
+        modelName: LEAD_SCORE_OVERRIDE_MODEL,
+        input: {
+          lead_id: input.leadId,
+          score: roundedScore,
+          override_reason: reason,
+          previous_score_id: previous?.id ?? null,
+        },
+      },
+      async () => ({
+        data: { score: roundedScore, override_reason: reason },
+        output: {
+          score: roundedScore,
+          overridden_by: actorId,
+          score_band: explainability.score_band,
+        },
+        modelName: LEAD_SCORE_OVERRIDE_MODEL,
+        tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      }),
+    );
+
+    const row = await this.scores.insertOverrideScore({
+      clientId: input.clientId ?? previous?.client_id ?? null,
+      entityType: 'lead',
+      entityId,
+      scoreType: 'lead',
+      scoreValue: roundedScore,
+      confidence: previous?.confidence ?? 0.85,
+      features: {
+        source: 'manual_override',
+        previous_score_id: previous?.id ?? null,
+        previous_score_value: previous?.score_value ?? null,
+      },
+      explainability,
+      agentRunId: wrapped.runId,
+      overriddenBy: actorId,
+      overrideReason: reason,
+    });
+
+    await this.events.emit(
+      'LeadScoreOverridden',
+      'lead',
+      entityId,
+      {
+        lead_id: input.leadId,
+        score_id: row.id,
+        score: row.score_value,
+        overridden_by: actorId,
+        override_reason: reason,
+        previous_score_id: previous?.id ?? null,
+        agent_run_id: wrapped.runId,
+        canonical_event: 'ai.score.overridden',
+      },
+      requestId,
+      `LeadScoreOverridden:lead:${entityId}:${row.id}`,
+    );
+
+    return this.toScoreResponse(row, input.leadId, requestId, false, wrapped.runId);
+  }
+
   async listScores(
     entityType: string,
     entityId: string,
@@ -201,6 +329,12 @@ export class AiLeadScoreService {
       }
     }
     return allowed;
+  }
+
+  private scoreBand(score: number): ScoreBand {
+    if (score >= 70) return 'hot';
+    if (score >= 40) return 'warm';
+    return 'cold';
   }
 
   private toScoreResponse(

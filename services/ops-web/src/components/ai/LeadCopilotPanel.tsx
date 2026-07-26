@@ -9,6 +9,7 @@ import {
   type AiScoreRecord,
 } from '@/lib/ai-api';
 import { ApiError } from '@/lib/api';
+import { hasCap } from '@/lib/auth';
 import { AiErrorBoundary } from './AiErrorBoundary';
 import { AiFeatureGate } from './AiFeatureGate';
 import { ConfidenceBanner } from './ConfidenceBanner';
@@ -117,6 +118,14 @@ export function LeadCopilotPanel({
             error={scoreError}
             onRefresh={() => void onRefreshScore()}
             refreshing={refreshing}
+            canOverride={hasCap(user, 'crm_leads', 'assign')}
+            leadId={leadId}
+            token={token}
+            onScoreUpdated={(next) => {
+              setScore(next);
+              setScorePending(false);
+            }}
+            onError={onCopilotError}
           />
 
           <LeadBriefSection token={token} leadId={leadId} onError={onCopilotError} />

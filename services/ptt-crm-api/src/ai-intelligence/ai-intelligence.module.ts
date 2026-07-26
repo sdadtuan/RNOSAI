@@ -29,6 +29,7 @@ import { StaffAiAdminGuard } from './guards/staff-ai-admin.guard';
 import { StaffAiCopilotGuard } from './guards/staff-ai-copilot.guard';
 import { StaffAiDealAccessGuard } from './guards/staff-ai-deal-access.guard';
 import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
+import { StaffAiScoreOverrideGuard } from './guards/staff-ai-score-override.guard';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
 
 @Module({
@@ -66,6 +67,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     StaffAiAdminGuard,
     StaffAiLeadAccessGuard,
     StaffAiDealAccessGuard,
+    StaffAiScoreOverrideGuard,
   ],
   exports: [
     AiIntelligenceConfigService,
@@ -88,6 +90,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     StaffAiAdminGuard,
     StaffAiLeadAccessGuard,
     StaffAiDealAccessGuard,
+    StaffAiScoreOverrideGuard,
   ],
 })
 export class AiIntelligenceModule {}

@@ -28,6 +28,7 @@ import { StaffAiCopilotGuard } from './guards/staff-ai-copilot.guard';
 import { StaffAiAdminGuard } from './guards/staff-ai-admin.guard';
 import { StaffAiDealAccessGuard } from './guards/staff-ai-deal-access.guard';
 import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
+import { StaffAiScoreOverrideGuard } from './guards/staff-ai-score-override.guard';
 
 interface ScoreDealBody {
   deal_id: number;
@@ -44,6 +45,12 @@ interface NextBestActionBody {
 interface ScoreLeadBody {
   lead_id: number;
   force?: boolean;
+}
+
+interface OverrideLeadScoreBody {
+  lead_id: number;
+  score: number;
+  override_reason: string;
 }
 
 interface SummarizeBody {
@@ -150,6 +157,37 @@ export class AiIntelligenceController {
       leadId: Number(body.lead_id),
       force: Boolean(body.force),
       actorId,
+      correlationId: rid,
+    });
+  }
+
+  /** AI-UC-006 / UI-R1-08 — GDKD manual score override (BR-AI-05). */
+  @Post('scores/lead/override')
+  @UseGuards(
+    StaffOrInternalKeyGuard,
+    StaffAiCopilotGuard,
+    StaffAiLeadAccessGuard,
+    StaffAiScoreOverrideGuard,
+  )
+  overrideLeadScore(
+    @Body() body: OverrideLeadScoreBody,
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<ScoreLeadResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    const actorEmail = req.staffUser?.email ?? null;
+    return this.leadScore.overrideLeadScore({
+      leadId: Number(body.lead_id),
+      score: Number(body.score),
+      overrideReason: body.override_reason ?? '',
+      actorId,
+      actorEmail,
       correlationId: rid,
     });
   }

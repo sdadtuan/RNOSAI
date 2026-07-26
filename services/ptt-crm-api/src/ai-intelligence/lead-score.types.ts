@@ -106,5 +106,18 @@ export type AiScoresBatchResponse = {
 };
 
 export const LEAD_SCORE_MODEL = 'rules-v1';
+export const LEAD_SCORE_OVERRIDE_MODEL = 'manual_override';
 export const LEAD_SCORE_MODEL_VERSION = 'lead-v1';
 export const LEAD_SCORE_IDEMPOTENCY_MINUTES = 5;
+
+export interface OverrideLeadScoreRequest {
+  leadId: number;
+  score: number;
+  overrideReason: string;
+  actorId?: string | null;
+  actorEmail?: string | null;
+  correlationId?: string | null;
+  clientId?: string | null;
+}
+
+export type OverrideLeadScoreResponse = ScoreLeadResponse;
