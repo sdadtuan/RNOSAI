@@ -128,6 +128,71 @@ export class CustomersSqliteRepository implements OnModuleDestroy {
     return rows.map((r) => this.mapCustomer(r));
   }
 
+  findLinkedLeadIds(customerId: number): number[] {
+    const customer = this.getCustomerById(customerId);
+    if (!customer) {
+      return [];
+    }
+    const ids = new Set<number>();
+    const phone = String(customer.phone ?? '').trim();
+    const email = String(customer.email ?? '').trim().toLowerCase();
+
+    const placeholder = this.database
+      .prepare('SELECT placeholder_lead_id FROM crm_customers WHERE id = ? LIMIT 1')
+      .get(customerId) as { placeholder_lead_id?: number | null } | undefined;
+    if (placeholder?.placeholder_lead_id && Number(placeholder.placeholder_lead_id) > 0) {
+      ids.add(Number(placeholder.placeholder_lead_id));
+    }
+
+    if (phone) {
+      const rows = this.database
+        .prepare(
+          `SELECT id FROM crm_leads
+           WHERE trim(coalesce(phone, '')) = ?
+           ORDER BY id DESC
+           LIMIT 20`,
+        )
+        .all(phone) as Array<{ id: number }>;
+      for (const row of rows) {
+        ids.add(Number(row.id));
+      }
+    }
+
+    if (email) {
+      const rows = this.database
+        .prepare(
+          `SELECT id FROM crm_leads
+           WHERE lower(trim(coalesce(email, ''))) = ?
+           ORDER BY id DESC
+           LIMIT 20`,
+        )
+        .all(email) as Array<{ id: number }>;
+      for (const row of rows) {
+        ids.add(Number(row.id));
+      }
+    }
+
+    try {
+      const lifecycleRows = this.database
+        .prepare(
+          `SELECT lead_id FROM crm_service_lifecycle
+           WHERE customer_id = ? AND lead_id IS NOT NULL
+           ORDER BY id DESC
+           LIMIT 20`,
+        )
+        .all(customerId) as Array<{ lead_id: number }>;
+      for (const row of lifecycleRows) {
+        if (Number(row.lead_id) > 0) {
+          ids.add(Number(row.lead_id));
+        }
+      }
+    } catch {
+      /* lifecycle table optional in older DBs */
+    }
+
+    return [...ids];
+  }
+
   getCustomerById(id: number): CustomerRow | null {
     const row = this.database
       .prepare('SELECT * FROM crm_customers WHERE id = ?')

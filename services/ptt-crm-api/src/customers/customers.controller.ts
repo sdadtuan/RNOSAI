@@ -118,6 +118,29 @@ export class CustomersController {
     return this.customers.patchIssue(id, issueId, body);
   }
 
+  @Get(':id/timeline')
+  timeline(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('event_source') eventSource?: string,
+  ) {
+    return this.customers.customerTimeline(id, {
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+      event_source: eventSource as
+        | 'crm'
+        | 'meta'
+        | 'zalo'
+        | 'email'
+        | 'seo'
+        | 'call'
+        | 'system'
+        | 'ai'
+        | undefined,
+    });
+  }
+
   @Get(':id')
   detail(@Param('id', ParseIntPipe) id: number) {
     return this.customers.detail(id);

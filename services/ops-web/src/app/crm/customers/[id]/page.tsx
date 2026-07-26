@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
+import { CustomerTimelinePanel } from '@/components/crm/CustomerTimelinePanel';
 import {
   createCustomerIssue,
   createCustomerRelation,
@@ -43,6 +44,7 @@ export default function CrmCustomerDetailPage() {
   const [relationName, setRelationName] = useState('');
   const [relationPhone, setRelationPhone] = useState('');
   const [issueTitle, setIssueTitle] = useState('');
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -60,6 +62,7 @@ export default function CrmCustomerDetailPage() {
         setError('Không có quyền xem khách hàng');
         return null;
       }
+      setAccessToken(access);
       return access;
     } catch {
       const refresh = getRefreshToken();
@@ -71,9 +74,11 @@ export default function CrmCustomerDetailPage() {
       const out = await staffRefresh(refresh);
       updateAccessToken(out.access_token);
       access = out.access_token;
+      setAccessToken(access);
       const me = await staffMe(access);
       setUser(me);
       updateStoredUser(me);
+      setAccessToken(access);
       return access;
     }
   }, [router]);
@@ -371,6 +376,16 @@ export default function CrmCustomerDetailPage() {
               </button>
             </form>
           </div>
+
+          {accessToken ? (
+            <div className="card" style={{ marginTop: '1rem' }}>
+              <CustomerTimelinePanel
+                token={accessToken}
+                customerId={customerId}
+                showCompleteness={hasCap(user, 'crm_leads', 'assign')}
+              />
+            </div>
+          ) : null}
         </>
       ) : null}
     </main>

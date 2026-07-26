@@ -59,6 +59,26 @@ export interface TimelineCompletenessReport {
   sample_limit: number;
 }
 
+export interface CustomerTimelineViewEvent extends CustomerTimelineEvent {
+  linked_lead_id?: number;
+}
+
+export interface CustomerTimelineViewResult {
+  customer_id: number;
+  linked_lead_ids: number[];
+  events: CustomerTimelineViewEvent[];
+  total: number;
+  limit: number;
+  offset: number;
+  timeline_ready: boolean;
+}
+
+export interface TimelineBackfillResult {
+  leads_processed: number;
+  events_mirrored: number;
+  leads_remaining: number;
+}
+
 export interface CustomerTimelineApiEnvelope<T> {
   data: T;
   meta: { request_id: string };

@@ -3,6 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { CustomerTimelineService } from '../customer-timeline/customer-timeline.service';
+import { TimelineEventSource } from '../customer-timeline/customer-timeline.constants';
 import { CustomersSqliteRepository } from './customers-sqlite.repository';
 import {
   CreateCustomerBody,
@@ -18,7 +20,10 @@ import {
 
 @Injectable()
 export class CustomersService {
-  constructor(private readonly sqlite: CustomersSqliteRepository) {}
+  constructor(
+    private readonly sqlite: CustomersSqliteRepository,
+    private readonly timeline: CustomerTimelineService,
+  ) {}
 
   list(q?: string, limit?: number) {
     const lim = limit ? Number(limit) : 200;
@@ -170,5 +175,23 @@ export class CustomersService {
       stub: true,
       brief: { summary: 'AI brief stub — configure ANTHROPIC_API_KEY' },
     };
+  }
+
+  async customerTimeline(
+    customerId: number,
+    opts?: { limit?: number; offset?: number; event_source?: TimelineEventSource },
+  ) {
+    this.ensureCustomer(customerId);
+    const linkedLeadIds = this.sqlite.findLinkedLeadIds(customerId);
+    const envelope = await this.timeline.getCustomerTimelineEnvelope(
+      customerId,
+      linkedLeadIds,
+      {
+        limit: opts?.limit,
+        offset: opts?.offset,
+        eventSource: opts?.event_source,
+      },
+    );
+    return envelope.data;
   }
 }

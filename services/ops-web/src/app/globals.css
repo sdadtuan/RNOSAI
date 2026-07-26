@@ -3843,6 +3843,98 @@ body:has(.ops-sidebar) main {
   font-size: 0.88rem;
 }
 
+.customer-timeline-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.customer-timeline-panel__meta {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+}
+
+.customer-timeline-gate {
+  display: inline-block;
+  font-size: 0.82rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  margin-bottom: 0.75rem;
+}
+
+.customer-timeline-gate--pass {
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+}
+
+.customer-timeline-gate--warn {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
+
+.customer-timeline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.customer-timeline-item {
+  border-left: 3px solid var(--border);
+  padding-left: 0.75rem;
+}
+
+.customer-timeline-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  margin-bottom: 0.25rem;
+}
+
+.customer-timeline-item strong {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.customer-timeline-item p {
+  margin: 0;
+  color: var(--text);
+}
+
+.customer-timeline-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: var(--surface-soft, rgba(15, 23, 42, 0.06));
+}
+
+.customer-timeline-chip--type {
+  font-weight: 600;
+}
+
+.customer-timeline-chip--meta {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.customer-timeline-chip--zalo {
+  background: rgba(14, 165, 233, 0.12);
+}
+
+.customer-timeline-chip--call {
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.customer-timeline-chip--ai {
+  background: rgba(168, 85, 247, 0.12);
+}
+
 /* RNOS-11 / UI-R2-07 — Global CRM search bar */
 .global-search-bar {
   position: relative;

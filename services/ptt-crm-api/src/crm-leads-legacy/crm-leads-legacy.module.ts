@@ -11,7 +11,7 @@ import { CrmLeadsSqliteRepository } from './crm-leads-sqlite.repository';
   imports: [
     StaffAuthModule,
     LeadsModule,
-    CustomerTimelineModule,
+    forwardRef(() => CustomerTimelineModule),
     forwardRef(() => LeadsFunnelModule),
   ],
   controllers: [CrmLeadsLegacyController],

@@ -13,6 +13,8 @@ import {
   CustomerTimelineApiEnvelope,
   CustomerTimelineEvent,
   CustomerTimelineListQuery,
+  CustomerTimelineViewResult,
+  TimelineBackfillResult,
   TimelineCompletenessReport,
 } from './customer-timeline.types';
 
@@ -108,6 +110,69 @@ export class CustomerTimelineService {
   async completenessReport(sampleLimit = 500): Promise<TimelineCompletenessReport> {
     await this.assertReady();
     return this.repo.completenessReport(sampleLimit);
+  }
+
+  async listLeadIdsMissingTimeline(limit = 50): Promise<number[]> {
+    if (!(await this.repo.tableReady())) {
+      return [];
+    }
+    return this.repo.listLeadIdsWithoutTimeline(limit);
+  }
+
+  async countLeadsMissingTimeline(): Promise<number> {
+    if (!(await this.repo.tableReady())) {
+      return 0;
+    }
+    return this.repo.countLeadsWithoutTimeline();
+  }
+
+  async getCustomerTimelineEnvelope(
+    customerId: number,
+    linkedLeadIds: number[],
+    query: { limit?: number; offset?: number; eventSource?: CustomerTimelineListQuery['eventSource'] },
+    requestId?: string,
+  ): Promise<CustomerTimelineApiEnvelope<CustomerTimelineViewResult>> {
+    const ready = await this.repo.tableReady();
+    const limit = Math.min(Math.max(query.limit ?? 50, 1), 200);
+    const offset = Math.max(query.offset ?? 0, 0);
+
+    if (!ready || !linkedLeadIds.length) {
+      return {
+        data: {
+          customer_id: customerId,
+          linked_lead_ids: linkedLeadIds,
+          events: [],
+          total: 0,
+          limit,
+          offset,
+          timeline_ready: ready,
+        },
+        meta: { request_id: requestId ?? this.newRequestId() },
+        errors: [],
+      };
+    }
+
+    const result = await this.repo.listEventsForLeadIds(
+      linkedLeadIds.map(String),
+      query,
+    );
+
+    return {
+      data: {
+        customer_id: customerId,
+        linked_lead_ids: linkedLeadIds,
+        events: result.rows.map((row) => ({
+          ...row,
+          linked_lead_id: Number(row.entity_id),
+        })),
+        total: result.total,
+        limit,
+        offset,
+        timeline_ready: true,
+      },
+      meta: { request_id: requestId ?? this.newRequestId() },
+      errors: [],
+    };
   }
 
   /** Mirror CRM activity → timeline (RNOS-16). */

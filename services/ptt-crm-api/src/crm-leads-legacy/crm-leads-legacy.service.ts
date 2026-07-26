@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { catalogTs } from '../catalog/catalog-slug.util';
 import { CustomerTimelineService } from '../customer-timeline/customer-timeline.service';
+import { TimelineBackfillResult } from '../customer-timeline/customer-timeline.types';
 import { LeadsRepository } from '../leads/leads.repository';
 import { LeadsWriteService } from '../leads/leads-write.service';
 import { LeadV1 } from '../leads/leads.types';
@@ -134,5 +135,38 @@ export class CrmLeadsLegacyService {
         ts,
       );
     }
+  }
+
+  /** AI-UC-008 — mirror legacy SQLite activities / ingest rows for leads missing timeline. */
+  async backfillTimelineBatch(limit = 50): Promise<TimelineBackfillResult> {
+    const batchLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
+    const leadIds = await this.timeline.listLeadIdsMissingTimeline(batchLimit);
+    let eventsMirrored = 0;
+
+    for (const leadId of leadIds) {
+      const activities = this.sqlite.listActivities(leadId, 200);
+      if (activities.length) {
+        for (const activity of activities) {
+          const row = await this.timeline.recordActivityFromLegacy(leadId, activity);
+          if (row) {
+            eventsMirrored += 1;
+          }
+        }
+        continue;
+      }
+
+      const pgLead = await this.leadsRepo.getLeadById(leadId);
+      if (pgLead) {
+        await this.timeline.recordLeadCreatedFromV1(pgLead);
+        eventsMirrored += 1;
+      }
+    }
+
+    const leadsRemaining = await this.timeline.countLeadsMissingTimeline();
+    return {
+      leads_processed: leadIds.length,
+      events_mirrored: eventsMirrored,
+      leads_remaining: leadsRemaining,
+    };
   }
 }

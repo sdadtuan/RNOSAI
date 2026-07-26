@@ -143,6 +143,83 @@ export class CustomerTimelineRepository implements OnModuleDestroy {
     };
   }
 
+  async listEventsForLeadIds(
+    leadIds: string[],
+    query: { limit?: number; offset?: number; eventSource?: CustomerTimelineListQuery['eventSource'] },
+  ): Promise<CustomerTimelineListResult> {
+    const ids = [...new Set(leadIds.map((id) => String(id).trim()).filter(Boolean))].slice(0, 50);
+    if (!ids.length) {
+      return { rows: [], total: 0 };
+    }
+
+    const limit = Math.min(Math.max(query.limit ?? 50, 1), 200);
+    const offset = Math.max(query.offset ?? 0, 0);
+    const params: unknown[] = ['lead', ids];
+    let idx = 3;
+    let sourceClause = '';
+    if (query.eventSource) {
+      sourceClause = ` AND event_source = $${idx++}`;
+      params.push(query.eventSource);
+    }
+
+    const countResult = await this.db.query(
+      `SELECT COUNT(*)::int AS total
+       FROM customer_timeline_events
+       WHERE entity_type = $1 AND entity_id = ANY($2::text[])${sourceClause}`,
+      params,
+    );
+    const total = Number(countResult.rows[0]?.total ?? 0);
+
+    const listParams = [...params, limit, offset];
+    const result = await this.db.query(
+      `SELECT
+         id::text, client_id::text, entity_type, entity_id, event_type, event_source,
+         title, body, payload, occurred_at::text, actor_id, external_ref, created_at::text
+       FROM customer_timeline_events
+       WHERE entity_type = $1 AND entity_id = ANY($2::text[])${sourceClause}
+       ORDER BY occurred_at DESC
+       LIMIT $${idx++} OFFSET $${idx++}`,
+      listParams,
+    );
+
+    return {
+      rows: result.rows.map((r) => mapRow(r as Record<string, unknown>)),
+      total,
+    };
+  }
+
+  async listLeadIdsWithoutTimeline(limit = 50): Promise<number[]> {
+    const lim = Math.min(Math.max(limit, 1), 500);
+    const result = await this.db.query(
+      `SELECT rl.sqlite_lead_id::int AS lead_id
+       FROM crm_leads rl
+       WHERE COALESCE(rl.is_duplicate, FALSE) IS NOT TRUE
+         AND NOT EXISTS (
+           SELECT 1 FROM customer_timeline_events t
+           WHERE t.entity_type = 'lead' AND t.entity_id = rl.sqlite_lead_id::text
+         )
+       ORDER BY rl.created_at DESC NULLS LAST
+       LIMIT $1`,
+      [lim],
+    );
+    return result.rows
+      .map((row) => Number(row.lead_id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+  }
+
+  async countLeadsWithoutTimeline(): Promise<number> {
+    const result = await this.db.query(
+      `SELECT COUNT(*)::int AS total
+       FROM crm_leads rl
+       WHERE COALESCE(rl.is_duplicate, FALSE) IS NOT TRUE
+         AND NOT EXISTS (
+           SELECT 1 FROM customer_timeline_events t
+           WHERE t.entity_type = 'lead' AND t.entity_id = rl.sqlite_lead_id::text
+         )`,
+    );
+    return Number(result.rows[0]?.total ?? 0);
+  }
+
   async getLeadClientId(leadId: number): Promise<string | null> {
     try {
       const result = await this.db.query(

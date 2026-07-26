@@ -71,4 +71,11 @@ describe('CustomerTimelineService', () => {
     repo.tableReady.mockResolvedValueOnce(false);
     await expect(service.buildAiContext('lead', '1')).resolves.toEqual([]);
   });
+
+  it('getCustomerTimelineEnvelope returns empty when no linked leads', async () => {
+    const out = await service.getCustomerTimelineEnvelope(42, [], { limit: 10 }, 'req-1');
+    expect(out.data.customer_id).toBe(42);
+    expect(out.data.events).toEqual([]);
+    expect(out.data.timeline_ready).toBe(true);
+  });
 });

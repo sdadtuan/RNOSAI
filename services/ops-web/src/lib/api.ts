@@ -769,6 +769,38 @@ export interface CustomerDetailBundle {
   };
 }
 
+export interface CustomerTimelineEventRow {
+  id: string;
+  entity_type: string;
+  entity_id: string;
+  event_type: string;
+  event_source: string;
+  title: string | null;
+  body: string | null;
+  payload: Record<string, unknown>;
+  occurred_at: string;
+  actor_id: string | null;
+  linked_lead_id?: number;
+}
+
+export interface CustomerTimelineView {
+  customer_id: number;
+  linked_lead_ids: number[];
+  events: CustomerTimelineEventRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  timeline_ready: boolean;
+}
+
+export interface TimelineCompletenessView {
+  total_leads: number;
+  leads_with_timeline: number;
+  completeness_pct: number;
+  sample_limit: number;
+  gate_pass: boolean;
+}
+
 export interface IntakeSessionRow {
   id: number;
   lead_id: number | null;
@@ -815,6 +847,31 @@ export async function fetchCustomers(
 
 export async function fetchCustomerDetail(token: string, id: number): Promise<CustomerDetailBundle> {
   return crmFetch<CustomerDetailBundle>(token, `/api/crm/customers/${id}`);
+}
+
+export async function fetchCustomerTimeline(
+  token: string,
+  customerId: number,
+  params?: { limit?: number; offset?: number; event_source?: string },
+): Promise<CustomerTimelineView> {
+  const qs = new URLSearchParams();
+  if (params?.limit != null) qs.set('limit', String(params.limit));
+  if (params?.offset != null) qs.set('offset', String(params.offset));
+  if (params?.event_source) qs.set('event_source', params.event_source);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return crmFetch<CustomerTimelineView>(token, `/api/crm/customers/${customerId}/timeline${suffix}`);
+}
+
+export async function fetchTimelineCompleteness(
+  token: string,
+  sampleLimit = 500,
+): Promise<TimelineCompletenessView> {
+  const qs = new URLSearchParams({ sample_limit: String(sampleLimit) });
+  const out = await crmFetch<{ data: TimelineCompletenessView }>(
+    token,
+    `/api/v1/ai/timeline/completeness?${qs.toString()}`,
+  );
+  return out.data;
 }
 
 export async function patchCustomer(

@@ -23,4 +23,5 @@ export type TimelineEventSource = (typeof TIMELINE_EVENT_SOURCE)[number];
 
 export const TIMELINE_ENTITY = {
   LEAD: 'lead',
+  CUSTOMER: 'customer',
 } as const;

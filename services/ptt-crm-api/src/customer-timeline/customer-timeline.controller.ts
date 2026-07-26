@@ -1,10 +1,12 @@
-import { Controller, Get, Headers, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Headers, Post, Param, Query, UseGuards, Body } from '@nestjs/common';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
+import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
 import { TimelineEventSource } from './customer-timeline.constants';
 import { CustomerTimelineService } from './customer-timeline.service';
 import {
   CustomerTimelineApiEnvelope,
   TimelineCompletenessReport,
+  TimelineBackfillResult,
 } from './customer-timeline.types';
 
 @Controller('api/v1/timeline')
@@ -37,7 +39,10 @@ export class CustomerTimelineController {
 
 @Controller('api/v1/ai/timeline')
 export class AiTimelineController {
-  constructor(private readonly timeline: CustomerTimelineService) {}
+  constructor(
+    private readonly timeline: CustomerTimelineService,
+    private readonly legacyLeads: CrmLeadsLegacyService,
+  ) {}
 
   /** AI context builder input — RNOS-16 / RNOS-03 prep. */
   @Get('context')
@@ -77,6 +82,24 @@ export class AiTimelineController {
         gate_pass: report.completeness_pct >= 70,
       },
       meta: { request_id: requestId ?? this.timeline.newRequestId() },
+      errors: [],
+    };
+  }
+
+  /** AI-UC-008 — one-time legacy activity mirror to raise completeness ≥70%. */
+  @Post('backfill')
+  @UseGuards(StaffOrInternalKeyGuard)
+  async backfill(
+    @Body() body: { limit?: number },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<CustomerTimelineApiEnvelope<TimelineBackfillResult>> {
+    const result = await this.legacyLeads.backfillTimelineBatch(
+      body?.limit ? Number(body.limit) : 50,
+    );
+    return {
+      data: result,
+      meta: { request_id: correlationId?.trim() || requestId?.trim() || this.timeline.newRequestId() },
       errors: [],
     };
   }
