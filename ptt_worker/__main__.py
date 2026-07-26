@@ -168,6 +168,10 @@ def run_worker(*, poll_interval: float = 1.0, once: bool = False) -> int:
                 from ptt_jobs.handlers.churn_health_scan import run_churn_health_scan_job
 
                 run_churn_health_scan_job(job)
+            elif job_type == "coach_digest":
+                from ptt_jobs.handlers.coach_digest import run_coach_digest_job
+
+                run_coach_digest_job(job)
             elif job_type == "seo_gsc_sync":
                 from ptt_jobs.handlers.seo_gsc_sync import run_seo_gsc_sync_job
 

@@ -76,6 +76,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/sales': 'Kinh doanh',
   '/crm/kpi': 'KPI',
   '/crm/ai/insights': 'AI Insights',
+  '/crm/ai/coach': 'Manager Coach',
   '/crm/automation': 'Workflow automation',
   '/crm/playbooks': 'Playbook library',
   '/crm/staff-kpi': 'KPI AM/SP',
@@ -234,6 +235,9 @@ function buildSections(
   if (hasCap(user, 'crm_kpi_records', 'view')) {
     hr.push({ href: '/crm/kpi', label: 'KPI' });
     hr.push({ href: '/crm/ai/insights', label: 'AI Insights' });
+    hr.push({ href: '/crm/ai/coach', label: 'Coach digest' });
+  } else if (hasCap(user, 'crm_business_dashboard', 'view')) {
+    hr.push({ href: '/crm/ai/coach', label: 'Coach digest' });
   }
   if (hasCap(user, 'crm_staff_kpi_am_sp', 'view')) {
     hr.push({ href: '/crm/staff-kpi', label: 'KPI AM/SP' });

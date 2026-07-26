@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { InsightsInboxTable } from '@/components/ai/InsightsInboxTable';
 import { PipelineRiskPanel } from '@/components/ai/PipelineRiskPanel';
 import { OpsNav } from '@/components/OpsNav';
@@ -37,9 +37,10 @@ const STATUS_OPTIONS = [
 
 export default function CrmAiInsightsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [days, setDays] = useState(7);
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(() => searchParams.get('status') ?? '');
   const [metrics, setMetrics] = useState<AiAcceptanceMetrics | null>(null);
   const [rows, setRows] = useState<AiRecommendationInboxItem[]>([]);
   const [total, setTotal] = useState(0);

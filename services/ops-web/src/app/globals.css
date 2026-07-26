@@ -4500,3 +4500,62 @@ body:has(.ops-sidebar) main {
   margin-top: 1rem;
 }
 
+.coach-digest-panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.coach-digest-panel__error {
+  color: #b91c1c;
+}
+
+.coach-digest-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.coach-digest-cards {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.coach-digest-card-item {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  background: #fafafa;
+}
+
+.coach-digest-card-item__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-bottom: 0.35rem;
+}
+
+.coach-digest-email-preview {
+  margin-top: 1rem;
+}
+
+.coach-digest-email-preview__body {
+  white-space: pre-wrap;
+  font-size: 0.82rem;
+  background: #f8fafc;
+  padding: 0.75rem;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.coach-digest-card__updated {
+  margin-top: 1rem;
+}
+

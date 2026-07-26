@@ -2,6 +2,7 @@ import { ConfigModule } from '../config/config.module';
 import { Module, forwardRef } from '@nestjs/common';
 import { PlaybooksRepository } from '../playbooks/playbooks.repository';
 import { CasesModule } from '../cases/cases.module';
+import { CskhBoardModule } from '../cskh-board/cskh-board.module';
 import { AgencyModule } from '../agency/agency.module';
 import { ServiceLifecycleModule } from '../service-lifecycle/service-lifecycle.module';
 import { CrmConfigModule } from '../crm-config/crm-config.module';
@@ -26,11 +27,13 @@ import { PipelineRiskService } from './pipeline-risk.service';
 import { AiForecastService } from './ai-forecast.service';
 import { RenewalAgentService } from './renewal-agent.service';
 import { AiChurnHealthService } from './ai-churn-health.service';
+import { ManagerCoachService } from './manager-coach.service';
 import { RevenueForecastRepository } from './revenue-forecast.repository';
 import { RenewalContractContextRepository } from './renewal-contract-context.repository';
 import { RenewalOpportunitiesRepository } from './renewal-opportunities.repository';
 import { ChurnHealthContextRepository } from './churn-health-context.repository';
 import { CustomerHealthScoresRepository } from './customer-health-scores.repository';
+import { AiInsightsRepository } from './ai-insights.repository';
 import { AiPromptsRepository } from './ai-prompts.repository';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiRecommendationsRepository } from './ai-recommendations.repository';
@@ -49,6 +52,7 @@ import { StaffAiForecastViewGuard } from './guards/staff-ai-forecast-view.guard'
 import { StaffAiRenewalViewGuard } from './guards/staff-ai-renewal-view.guard';
 import { StaffAiRenewalWriteGuard } from './guards/staff-ai-renewal-write.guard';
 import { StaffAiChurnHealthViewGuard } from './guards/staff-ai-churn-health-view.guard';
+import { StaffAiCoachViewGuard } from './guards/staff-ai-coach-view.guard';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
 
 @Module({
@@ -60,6 +64,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     LeadsModule,
     CrmConfigModule,
     CasesModule,
+    CskhBoardModule,
     forwardRef(() => AgencyModule),
     ServiceLifecycleModule,
     forwardRef(() => CrmLeadsLegacyModule),
@@ -80,11 +85,13 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     AiForecastService,
     RenewalAgentService,
     AiChurnHealthService,
+    ManagerCoachService,
     RevenueForecastRepository,
     RenewalContractContextRepository,
     RenewalOpportunitiesRepository,
     ChurnHealthContextRepository,
     CustomerHealthScoresRepository,
+    AiInsightsRepository,
     PlaybooksRepository,
     AiSummarizeService,
     AiRecommendationService,
@@ -106,6 +113,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     StaffAiRenewalViewGuard,
     StaffAiRenewalWriteGuard,
     StaffAiChurnHealthViewGuard,
+    StaffAiCoachViewGuard,
   ],
   exports: [
     AiIntelligenceConfigService,
@@ -122,11 +130,13 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     AiForecastService,
     RenewalAgentService,
     AiChurnHealthService,
+    ManagerCoachService,
     RevenueForecastRepository,
     RenewalContractContextRepository,
     RenewalOpportunitiesRepository,
     ChurnHealthContextRepository,
     CustomerHealthScoresRepository,
+    AiInsightsRepository,
     AiSummarizeService,
     AiRecommendationService,
     AiFeedbackAnalyticsService,
@@ -144,6 +154,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     StaffAiRenewalViewGuard,
     StaffAiRenewalWriteGuard,
     StaffAiChurnHealthViewGuard,
+    StaffAiCoachViewGuard,
   ],
 })
 export class AiIntelligenceModule {}

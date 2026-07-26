@@ -11,6 +11,7 @@ import { PipelineRiskService } from './pipeline-risk.service';
 import { AiForecastService } from './ai-forecast.service';
 import { RenewalAgentService } from './renewal-agent.service';
 import { AiChurnHealthService } from './ai-churn-health.service';
+import { ManagerCoachService } from './manager-coach.service';
 import { AiSummarizeService } from './ai-summarize.service';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiFeedbackAnalyticsService } from './ai-feedback-analytics.service';
@@ -38,6 +39,10 @@ import {
   ChurnHealthDashboardResponse,
   ChurnScoreResponse,
 } from './churn-health.types';
+import {
+  CoachDigestCurrentResponse,
+  CoachDigestGenerateResponse,
+} from './coach-digest.types';
 import { AiScoresBatchResponse, AiScoresListResponse, ScoreLeadResponse } from './lead-score.types';
 import { SummarizeResponse } from './summarize.types';
 import {
@@ -60,6 +65,7 @@ import { StaffAiForecastViewGuard } from './guards/staff-ai-forecast-view.guard'
 import { StaffAiRenewalViewGuard } from './guards/staff-ai-renewal-view.guard';
 import { StaffAiRenewalWriteGuard } from './guards/staff-ai-renewal-write.guard';
 import { StaffAiChurnHealthViewGuard } from './guards/staff-ai-churn-health-view.guard';
+import { StaffAiCoachViewGuard } from './guards/staff-ai-coach-view.guard';
 
 interface ScoreDealBody {
   deal_id: number;
@@ -121,6 +127,7 @@ export class AiIntelligenceController {
     private readonly forecast: AiForecastService,
     private readonly renewal: RenewalAgentService,
     private readonly churnHealth: AiChurnHealthService,
+    private readonly managerCoach: ManagerCoachService,
   ) {}
 
   /** RNOS-02 — public smoke; records ai_agent_runs when schema ready (RNOS-05). */
@@ -735,6 +742,41 @@ export class AiIntelligenceController {
   ): Promise<ChurnHealthClientResponse> {
     const rid = correlationId?.trim() || requestId?.trim() || undefined;
     return this.churnHealth.getClientHealth(clientId, rid);
+  }
+
+  /** RNOS-21 / AI-UC-018 — generate manager coach weekly digest (Mon 08:00 cron). */
+  @Post('coach/generate')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiCoachViewGuard)
+  generateCoachDigest(
+    @Body() body: { team_id?: string; force?: boolean },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<CoachDigestGenerateResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.managerCoach.generateDigest({
+      team_id: body?.team_id,
+      force: Boolean(body?.force),
+      actorId,
+      correlationId: rid,
+    });
+  }
+
+  /** RNOS-21 / UI-R3-05 — GDKD coach digest dashboard. */
+  @Get('coach/current')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiCoachViewGuard)
+  getCoachDigestCurrent(
+    @Query('team_id') teamId?: string,
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<CoachDigestCurrentResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    return this.managerCoach.getCurrentDigest(teamId, rid);
   }
 
   /** Guard wiring check — requires copilot flag + pilot cohort (BR-AI-04 prep). */

@@ -1063,3 +1063,83 @@ export async function postChurnScore(
   }
   return body;
 }
+
+export interface CoachDigestCard {
+  key: 'sla' | 'ai_acceptance' | 'pipeline_risk';
+  title: string;
+  summary: string;
+  severity: 'info' | 'warning' | 'critical';
+  metrics: Record<string, number | string | null>;
+  drill_href: string;
+}
+
+export interface CoachDigestSnapshot {
+  week_key: string;
+  week_label: string;
+  week_start: string;
+  week_end: string;
+  team_id: string;
+  narrative: string;
+  severity: 'info' | 'warning' | 'critical';
+  cards: CoachDigestCard[];
+  email_preview: string;
+}
+
+export interface CoachDigestRecord {
+  id: string;
+  team_id: string;
+  week_key: string;
+  snapshot: CoachDigestSnapshot;
+  agent_run_id: string | null;
+  created_at: string;
+}
+
+export interface CoachDigestCurrentResponse {
+  data: CoachDigestRecord | null;
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export interface CoachDigestGenerateResponse {
+  data: {
+    created: boolean;
+    skipped: boolean;
+    digest: CoachDigestRecord | null;
+    agent_run_id: string;
+    generated_at: string;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export async function fetchCoachDigestCurrent(
+  token: string,
+  teamId?: string,
+): Promise<CoachDigestCurrentResponse> {
+  const qs = teamId ? `?team_id=${encodeURIComponent(teamId)}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/coach/current${qs}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<CoachDigestCurrentResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch coach digest failed', res.status);
+  }
+  return body;
+}
+
+export async function postCoachDigestGenerate(
+  token: string,
+  input?: { team_id?: string; force?: boolean },
+): Promise<CoachDigestGenerateResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/coach/generate`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(input ?? {}),
+  });
+  const body = await parseJson<CoachDigestGenerateResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Coach digest generate failed', res.status);
+  }
+  return body;
+}
