@@ -12,6 +12,7 @@ import {
   THRESHOLD_DEFAULTS,
   THRESHOLD_ENV_KEYS,
 } from './finance-kpi.util';
+import { getBusinessDashboardExecutive } from './business-dashboard.util';
 import { getFinancialIntelligence } from './finance-intelligence.util';
 import {
   getArAging,
@@ -56,6 +57,7 @@ export class FinanceSqliteRepository implements OnModuleDestroy {
       exec_metrics: bundle.exec_metrics,
       kpi_alerts: collectFinanceKpiAlerts(db, year, month, bundle),
       trends: getFinanceKpiTrends(db, year, month, trendMonths),
+      executive: getBusinessDashboardExecutive(db, year, month),
       thresholds: getAlertThresholds(db),
       kpi_inbox: getFinanceKpiInboxSummary(db),
       ...bundle,
