@@ -160,6 +160,12 @@ export class KpiService {
   }
 
   patchStaffKpiProgress(kpiId: number, body: PatchStaffKpiProgressBody) {
+    if ('actual_value' in body && body.actual_value != null) {
+      const av = Number(body.actual_value);
+      if (!Number.isFinite(av) || av < 0) {
+        throw new BadRequestException({ error: 'actual_value phải ≥ 0' });
+      }
+    }
     const updated = this.sqlite.patchStaffKpiProgress(kpiId, body);
     if (!updated) {
       throw new NotFoundException({ error: 'Không tìm thấy KPI' });

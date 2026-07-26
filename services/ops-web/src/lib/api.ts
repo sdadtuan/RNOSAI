@@ -1735,6 +1735,36 @@ export async function fetchKpiChart(
   return crmFetch<KpiChartData>(token, `/api/crm/kpi/chart?${qs.toString()}`);
 }
 
+export interface StaffKpiGridEntry {
+  id: number;
+  staff_id: number;
+  staff_name: string;
+  staff_code: string;
+  metric_id: number;
+  metric_name: string;
+  metric_code: string;
+  metric_unit: string;
+  metric_higher_is_better: number;
+  target_value: number | null;
+  actual_value: number | null;
+  status: string;
+  year: number;
+  month: number;
+}
+
+export async function fetchStaffKpi(
+  token: string,
+  params?: { year?: number; month?: number; staff_id?: number },
+): Promise<StaffKpiGridEntry[]> {
+  const qs = new URLSearchParams();
+  if (params?.year != null) qs.set('year', String(params.year));
+  if (params?.month != null) qs.set('month', String(params.month));
+  if (params?.staff_id != null) qs.set('staff_id', String(params.staff_id));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const out = await crmFetch<{ staff_kpi: StaffKpiGridEntry[] }>(token, `/api/crm/staff/kpi${suffix}`);
+  return out.staff_kpi ?? [];
+}
+
 export async function exportStaffKpi(
   token: string,
   params?: { year?: number; month?: number; staff_id?: number },

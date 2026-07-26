@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardShell } from '@/components/kpi/DashboardShell';
+import { KpiEditableGrid } from '@/components/kpi/KpiEditableGrid';
 import {
   KpiAlertList,
   KpiBarChart,
@@ -17,10 +18,13 @@ import {
   fetchKpiChart,
   fetchKpiMetricTrend,
   fetchKpiMetrics,
+  fetchStaffKpi,
+  patchStaffKpiProgress,
   staffMe,
   staffRefresh,
   type KpiChartData,
   type KpiMetricRow,
+  type StaffKpiGridEntry,
 } from '@/lib/api';
 import { fetchAiAcceptanceMetrics, type AiAcceptanceMetrics } from '@/lib/ai-api';
 import { formatPct } from '@/lib/kpi/format';
@@ -48,6 +52,7 @@ export default function CrmKpiPage() {
   const [trendLabels, setTrendLabels] = useState<string[]>([]);
   const [trendSeries, setTrendSeries] = useState<number[]>([]);
   const [aiAcceptance, setAiAcceptance] = useState<AiAcceptanceMetrics | null>(null);
+  const [gridRows, setGridRows] = useState<StaffKpiGridEntry[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -111,13 +116,15 @@ export default function CrmKpiPage() {
       setLoading(true);
       setError('');
       try {
-        const [metricRows, boardOut, aiMetricsOut] = await Promise.all([
+        const [metricRows, boardOut, aiMetricsOut, staffKpiRows] = await Promise.all([
           fetchKpiMetrics(access),
           fetchKpiBoard(access, { year, month }),
           fetchAiAcceptanceMetrics(access, { days: 7 }).catch(() => null),
+          fetchStaffKpi(access, { year, month }).catch(() => []),
         ]);
         setMetrics(metricRows);
         setBoard(boardOut);
+        setGridRows(staffKpiRows);
         setAiAcceptance(aiMetricsOut?.data ?? null);
         const nextMetricId = chartMetricId || (metricRows[0] ? String(metricRows[0].id) : '');
         if (!chartMetricId && metricRows[0]) {
@@ -182,6 +189,18 @@ export default function CrmKpiPage() {
     }
   }
 
+  async function onGridSaved() {
+    const access = getAccessToken();
+    if (!access) return;
+    await loadPage(access);
+  }
+
+  async function onPatchGridActual(kpiId: number, actual: number | null) {
+    const access = getAccessToken();
+    if (!access) throw new Error('Phiên đăng nhập hết hạn');
+    await patchStaffKpiProgress(access, kpiId, { actual_value: actual });
+  }
+
   function logout() {
     clearSession();
     router.push('/login');
@@ -222,6 +241,8 @@ export default function CrmKpiPage() {
       },
     ];
   }, [board, metrics.length, year, month, aiAcceptance]);
+
+  const canEditKpi = hasCap(user, 'crm_kpi_records', 'edit');
 
   const chartItems = useMemo(() => {
     if (!chartData) return [];
@@ -317,6 +338,16 @@ export default function CrmKpiPage() {
           <h3 className="kpi-section-title">Cảnh báo tháng</h3>
           <KpiAlertList alerts={board?.alerts ?? []} />
         </div>
+      </section>
+
+      <section className="kpi-page__section">
+        <h3 className="kpi-section-title">Nhập actual KPI</h3>
+        <KpiEditableGrid
+          rows={gridRows}
+          canEdit={canEditKpi}
+          onPatch={onPatchGridActual}
+          onSaved={onGridSaved}
+        />
       </section>
 
       <details className="kpi-page__metrics-details">

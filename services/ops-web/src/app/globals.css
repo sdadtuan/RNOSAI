@@ -3252,3 +3252,67 @@ body:has(.ops-sidebar) main {
 .financials-lifecycle-table th[data-sortable='true']:hover {
   color: var(--primary, #2563eb);
 }
+
+.kpi-editable-grid__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.kpi-editable-grid__hint {
+  margin: 0;
+  flex: 1 1 220px;
+}
+
+.kpi-editable-grid__saved {
+  margin: 0 0 0.5rem;
+}
+
+.kpi-editable-grid__table th,
+.kpi-editable-grid__table td {
+  vertical-align: middle;
+}
+
+.kpi-editable-grid__actual-input {
+  width: 6.5rem;
+  text-align: right;
+}
+
+.kpi-editable-grid__row--dirty {
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.kpi-editable-grid__code {
+  font-size: 0.85em;
+}
+
+.kpi-grid-status {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.kpi-grid-status--ok {
+  background: rgba(34, 197, 94, 0.15);
+  color: #15803d;
+}
+
+.kpi-grid-status--warn {
+  background: rgba(234, 179, 8, 0.18);
+  color: #a16207;
+}
+
+.kpi-grid-status--missed {
+  background: rgba(239, 68, 68, 0.15);
+  color: #b91c1c;
+}
+
+.kpi-grid-status--draft {
+  background: rgba(148, 163, 184, 0.2);
+  color: #475569;
+}

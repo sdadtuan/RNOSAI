@@ -244,6 +244,7 @@
 | 12.3 | [x] Alerts list giữ + badge severity màu | ○ | UX polish |
 | 12.4 | [x] Export staff KPI Excel (giữ + polish UI) | P0-2 | Button rõ ràng |
 | 12.5 | [x] Widget **AI acceptance rate** (G6) | RNOS-29 | SQL + tile |
+| 12.6 | [x] **Editable grid** nhập actual (target/actual/%) | RNOS-44 | PATCH + bulk save |
 
 **PR title gợi ý:** `RNOS-42: /crm/kpi dashboard v1`
 
