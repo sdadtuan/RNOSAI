@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AgencyModule } from '../agency/agency.module';
 import { PortalAuthController } from './portal-auth.controller';
 import { PortalAuthService } from './portal-auth.service';
@@ -17,7 +17,7 @@ import { PortalSettingsRepository } from './portal-settings.repository';
 import { PortalSettingsService } from './portal-settings.service';
 
 @Module({
-  imports: [AgencyModule],
+  imports: [forwardRef(() => AgencyModule)],
   controllers: [PortalAuthController, PortalSettingsController, PortalNotificationController],
   providers: [
     PortalAuthService,
@@ -42,6 +42,7 @@ import { PortalSettingsService } from './portal-settings.service';
     PortalNotifyWebhookService,
     CampaignMilestoneNotifyService,
     PortalPasswordResetService,
+    forwardRef(() => AgencyModule),
   ],
 })
 export class PortalModule {}

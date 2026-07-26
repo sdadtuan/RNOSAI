@@ -32,7 +32,7 @@ import { InternalKeyGuard } from '../auth/internal-key.guard';
 @Module({
   imports: [
     StaffAuthModule,
-    PerformanceModule,
+    forwardRef(() => PerformanceModule),
     EventsModule,
     WebhooksModule,
     WorkflowsModule,
