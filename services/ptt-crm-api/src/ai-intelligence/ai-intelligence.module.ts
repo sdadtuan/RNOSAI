@@ -20,6 +20,7 @@ import { AiIntelligenceService } from './ai-intelligence.service';
 import { AiLeadScoreService } from './ai-lead-score.service';
 import { AiLlmClient } from './ai-llm.client';
 import { AiNbaService } from './ai-nba.service';
+import { PipelineRiskService } from './pipeline-risk.service';
 import { AiPromptsRepository } from './ai-prompts.repository';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiRecommendationsRepository } from './ai-recommendations.repository';
@@ -58,6 +59,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     AiLeadScoreService,
     AiDealScoreService,
     AiNbaService,
+    PipelineRiskService,
     PlaybooksRepository,
     AiSummarizeService,
     AiRecommendationService,
@@ -86,6 +88,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     AiLeadScoreService,
     AiDealScoreService,
     AiNbaService,
+    PipelineRiskService,
     AiSummarizeService,
     AiRecommendationService,
     AiFeedbackAnalyticsService,

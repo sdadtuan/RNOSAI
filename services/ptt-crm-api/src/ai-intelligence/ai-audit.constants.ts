@@ -9,6 +9,7 @@ export const AI_USE_CASE = {
   PLAYBOOK_RAG: 'playbook_rag',
   FOLLOW_UP_DRAFT: 'follow_up_draft',
   OVERRIDE_SCORE: 'override_score',
+  PIPELINE_RISK_SCAN: 'pipeline_risk_scan',
 } as const;
 
 export type AiUseCase = (typeof AI_USE_CASE)[keyof typeof AI_USE_CASE];

@@ -7,12 +7,17 @@ import { AiAgentRunsService, AiAgentRunDetailResponse, AiAgentRunListResponse } 
 import { AiDealScoreService } from './ai-deal-score.service';
 import { AiLeadScoreService } from './ai-lead-score.service';
 import { AiNbaService } from './ai-nba.service';
+import { PipelineRiskService } from './pipeline-risk.service';
 import { AiSummarizeService } from './ai-summarize.service';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiFeedbackAnalyticsService } from './ai-feedback-analytics.service';
 import { AiIntelligenceService } from './ai-intelligence.service';
 import { AiAgentRunStatus, AiHealthResponse } from './ai-intelligence.types';
 import { ScoreDealResponse } from './deal-score.types';
+import {
+  PipelineRiskListResponse,
+  PipelineRiskScanResponse,
+} from './pipeline-risk.types';
 import { AiScoresBatchResponse, AiScoresListResponse, ScoreLeadResponse } from './lead-score.types';
 import { SummarizeResponse } from './summarize.types';
 import {
@@ -87,6 +92,7 @@ export class AiIntelligenceController {
     private readonly summarize: AiSummarizeService,
     private readonly recommendations: AiRecommendationService,
     private readonly feedbackAnalytics: AiFeedbackAnalyticsService,
+    private readonly pipelineRisk: PipelineRiskService,
   ) {}
 
   /** RNOS-02 — public smoke; records ai_agent_runs when schema ready (RNOS-05). */
@@ -444,6 +450,41 @@ export class AiIntelligenceController {
       actorUserId,
       correlationId: rid,
     });
+  }
+
+  /** RNOS-23 / AI-UC-015 — daily pipeline risk scan (internal cron or GDKD). */
+  @Post('pipeline-risk/scan')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiDealAccessGuard)
+  scanPipelineRisk(
+    @Body() body: { limit?: number },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<PipelineRiskScanResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.pipelineRisk.scanDaily({
+      limit: body?.limit,
+      actorId,
+      correlationId: rid,
+    });
+  }
+
+  /** RNOS-23 / AI-UC-015 — at-risk deals for GDKD insights. */
+  @Get('pipeline-risk/at-risk')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiDealAccessGuard)
+  listPipelineRiskDeals(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ): Promise<PipelineRiskListResponse> {
+    return this.pipelineRisk.listAtRiskDeals(
+      limit ? Number(limit) : undefined,
+      offset ? Number(offset) : undefined,
+    );
   }
 
   /** Guard wiring check — requires copilot flag + pilot cohort (BR-AI-04 prep). */

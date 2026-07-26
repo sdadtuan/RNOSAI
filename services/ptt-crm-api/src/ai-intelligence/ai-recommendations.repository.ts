@@ -143,6 +143,94 @@ export class AiRecommendationsRepository implements OnModuleDestroy {
     return result.rows.map((row) => mapRow(row as Record<string, unknown>));
   }
 
+  async findRecentPendingByType(
+    entityType: string,
+    entityId: string,
+    recommendationType: string,
+    withinHours = 24,
+  ): Promise<AiRecommendationRecord | null> {
+    const result = await this.db.query(
+      `SELECT
+         id::text, client_id::text, entity_type, entity_id, recommendation_type,
+         recommendation_text, action_json, confidence, status, dismissed_reason,
+         accepted_by, accepted_at::text, agent_run_id::text,
+         created_at::text, updated_at::text
+       FROM ai_recommendations
+       WHERE entity_type = $1
+         AND entity_id = $2
+         AND recommendation_type = $3
+         AND status = 'pending'
+         AND created_at >= NOW() - ($4::text || ' hours')::interval
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [entityType, entityId, recommendationType, String(withinHours)],
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapRow(row) : null;
+  }
+
+  async listPendingByType(
+    recommendationType: string,
+    limit = 50,
+    offset = 0,
+  ): Promise<{ rows: AiRecommendationRecord[]; total: number }> {
+    const capped = Math.min(Math.max(limit, 1), 200);
+    const off = Math.max(offset, 0);
+    const countResult = await this.db.query(
+      `SELECT COUNT(*)::int AS total
+       FROM ai_recommendations
+       WHERE recommendation_type = $1 AND status = 'pending'`,
+      [recommendationType],
+    );
+    const total = Number(countResult.rows[0]?.total ?? 0);
+    const result = await this.db.query(
+      `SELECT
+         id::text, client_id::text, entity_type, entity_id, recommendation_type,
+         recommendation_text, action_json, confidence, status, dismissed_reason,
+         accepted_by, accepted_at::text, agent_run_id::text,
+         created_at::text, updated_at::text
+       FROM ai_recommendations
+       WHERE recommendation_type = $1 AND status = 'pending'
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [recommendationType, capped, off],
+    );
+    return {
+      rows: result.rows.map((row) => mapRow(row as Record<string, unknown>)),
+      total,
+    };
+  }
+
+  async dismissPendingByTypeForEntity(
+    entityType: string,
+    entityId: string,
+    recommendationType: string,
+    reason: string,
+  ): Promise<number> {
+    const result = await this.db.query(
+      `UPDATE ai_recommendations
+       SET status = 'dismissed',
+           dismissed_reason = $4,
+           updated_at = NOW()
+       WHERE entity_type = $1
+         AND entity_id = $2
+         AND recommendation_type = $3
+         AND status = 'pending'`,
+      [entityType, entityId, recommendationType, reason.slice(0, 120)],
+    );
+    return result.rowCount ?? 0;
+  }
+
+  async latestScanTimestamp(recommendationType: string): Promise<string | null> {
+    const result = await this.db.query(
+      `SELECT MAX(created_at)::text AS scanned_at
+       FROM ai_recommendations
+       WHERE recommendation_type = $1`,
+      [recommendationType],
+    );
+    return (result.rows[0]?.scanned_at as string | undefined) ?? null;
+  }
+
   async updateStatus(args: {
     id: string;
     status: RecommendationStatus;

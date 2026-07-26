@@ -33,6 +33,7 @@ interface Props {
   stages: string[];
   onRowUpdate?: (dealId: number, patch: Partial<PipelineCaseRow>) => void;
   canSortByScore?: boolean;
+  initialDealId?: number | null;
 }
 
 type ScoreSummary = { score_value: number; score_band: string };
@@ -75,6 +76,7 @@ export function SalesPipelineFunnelPanel({
   stages,
   onRowUpdate,
   canSortByScore = false,
+  initialDealId = null,
 }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [scoreMap, setScoreMap] = useState<Record<string, ScoreSummary>>({});
@@ -198,6 +200,16 @@ export function SalesPipelineFunnelPanel({
     },
     [mergeScore, token],
   );
+
+  const initialDealOpenedRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!initialDealId || !rows.length) return;
+    if (initialDealOpenedRef.current === initialDealId) return;
+    const exists = rows.some((row) => row.id === initialDealId);
+    if (!exists) return;
+    initialDealOpenedRef.current = initialDealId;
+    void openDeal(initialDealId);
+  }, [initialDealId, openDeal, rows]);
 
   const refreshDealScore = useCallback(
     async (dealId: number, force = false) => {

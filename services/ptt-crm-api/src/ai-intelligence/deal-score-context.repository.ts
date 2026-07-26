@@ -68,4 +68,21 @@ export class DealScoreContextRepository {
       status: String(row.status ?? ''),
     };
   }
+
+  listOpenDealIds(limit = 200): number[] {
+    const runtime = this.crmConfig.toPipelineRuntime();
+    const terminal = [...runtime.terminalStages, ...TERMINAL_STAGES];
+    const placeholders = terminal.map(() => '?').join(',');
+    const capped = Math.min(Math.max(limit, 1), 500);
+    const rows = this.database
+      .prepare(
+        `SELECT c.id
+         FROM crm_cases c
+         WHERE COALESCE(c.pipeline_stage, 'moi') NOT IN (${placeholders})
+         ORDER BY c.updated_at DESC, c.id DESC
+         LIMIT ?`,
+      )
+      .all(...terminal, capped) as Array<{ id: number }>;
+    return rows.map((r) => Number(r.id)).filter((id) => Number.isFinite(id) && id > 0);
+  }
 }

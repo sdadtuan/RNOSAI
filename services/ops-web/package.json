@@ -28,7 +28,8 @@
     "test:e2e:ai-feedback": "playwright test e2e/ai-feedback-rnos29.spec.ts",
     "test:e2e:leads-excel": "playwright test e2e/leads-excel-p02.spec.ts",
     "test:e2e:leads-score": "playwright test e2e/leads-score-ui-r1-10.spec.ts",
-    "test:e2e:customer-timeline": "playwright test e2e/customer-timeline-rnos16.spec.ts"
+    "test:e2e:customer-timeline": "playwright test e2e/customer-timeline-rnos16.spec.ts",
+    "test:e2e:pipeline-risk": "playwright test e2e/pipeline-risk-rnos23.spec.ts"
   },
   "engines": {
     "node": ">=22.0.0"

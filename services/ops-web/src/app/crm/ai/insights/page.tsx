@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { InsightsInboxTable } from '@/components/ai/InsightsInboxTable';
+import { PipelineRiskPanel } from '@/components/ai/PipelineRiskPanel';
 import { OpsNav } from '@/components/OpsNav';
 import { KpiTileGrid, type KpiTileProps } from '@/components/kpi/KpiDashboardUi';
 import {
   fetchAiAcceptanceMetrics,
   fetchAiRecommendationsInbox,
+  fetchPipelineRiskAtRisk,
   type AiAcceptanceMetrics,
   type AiRecommendationInboxItem,
+  type PipelineRiskDealRow,
   type RecommendationStatus,
 } from '@/lib/ai-api';
 import {
@@ -40,6 +43,9 @@ export default function CrmAiInsightsPage() {
   const [metrics, setMetrics] = useState<AiAcceptanceMetrics | null>(null);
   const [rows, setRows] = useState<AiRecommendationInboxItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [atRiskDeals, setAtRiskDeals] = useState<PipelineRiskDealRow[]>([]);
+  const [atRiskTotal, setAtRiskTotal] = useState(0);
+  const [lastScanAt, setLastScanAt] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -82,17 +88,25 @@ export default function CrmAiInsightsPage() {
       setLoading(true);
       setError('');
       try {
-        const [metricsOut, inboxOut] = await Promise.all([
+        const [metricsOut, inboxOut, riskOut] = await Promise.all([
           fetchAiAcceptanceMetrics(access, { days }),
           fetchAiRecommendationsInbox(access, {
             days,
             status: (status || undefined) as RecommendationStatus | undefined,
             limit: 100,
           }),
+          fetchPipelineRiskAtRisk(access, { limit: 50 }).catch(() => ({
+            data: { deals: [], total: 0, last_scan_at: null },
+            meta: { request_id: '' },
+            errors: [] as [],
+          })),
         ]);
         setMetrics(metricsOut.data);
         setRows(inboxOut.data.recommendations);
         setTotal(inboxOut.data.total);
+        setAtRiskDeals(riskOut.data.deals);
+        setAtRiskTotal(riskOut.data.total);
+        setLastScanAt(riskOut.data.last_scan_at);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải AI insights thất bại');
       } finally {
@@ -208,6 +222,8 @@ export default function CrmAiInsightsPage() {
         {error ? <p className="error">{error}</p> : null}
 
         <KpiTileGrid tiles={tiles} />
+
+        <PipelineRiskPanel rows={atRiskDeals} total={atRiskTotal} lastScanAt={lastScanAt} />
 
         <section className="ai-insights-page__section">
           <h3 className="kpi-section-title">Inbox gợi ý AI ({total})</h3>

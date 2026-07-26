@@ -3258,6 +3258,28 @@ body:has(.ops-sidebar) main {
   vertical-align: top;
 }
 
+.pipeline-risk-panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.pipeline-risk-panel__meta {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.pipeline-risk-panel__deal-link {
+  color: var(--primary, #2563eb);
+  text-decoration: none;
+}
+
+.pipeline-risk-panel__deal-link:hover {
+  text-decoration: underline;
+}
+
 .dashboard-shell__period {
   margin-top: 0;
 }

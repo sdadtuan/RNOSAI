@@ -636,3 +636,76 @@ export async function fetchAiAgentRunById(token: string, id: string): Promise<Ai
   }
   return body;
 }
+
+export interface PipelineRiskDealRow {
+  deal_id: number;
+  title: string;
+  pipeline_stage: string;
+  stalled_days: number;
+  deal_score: number;
+  score_band: string;
+  recommendation_id: string;
+  staff_name: string | null;
+  customer_name: string | null;
+  scanned_at: string;
+  status: string;
+}
+
+export interface PipelineRiskListResponse {
+  data: {
+    deals: PipelineRiskDealRow[];
+    total: number;
+    last_scan_at: string | null;
+  };
+  meta: { request_id: string };
+  errors: [];
+}
+
+export interface PipelineRiskScanResponse {
+  data: {
+    scanned: number;
+    at_risk_found: number;
+    alerts_created: number;
+    alerts_skipped: number;
+    alerts_cleared: number;
+    agent_run_id: string;
+    scanned_at: string;
+  };
+  meta: { request_id: string };
+  errors: [];
+}
+
+export async function fetchPipelineRiskAtRisk(
+  token: string,
+  params?: { limit?: number; offset?: number },
+): Promise<PipelineRiskListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.limit != null) qs.set('limit', String(params.limit));
+  if (params?.offset != null) qs.set('offset', String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/pipeline-risk/at-risk${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<PipelineRiskListResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch pipeline risk failed', res.status);
+  }
+  return body;
+}
+
+export async function postPipelineRiskScan(
+  token: string,
+  input?: { limit?: number },
+): Promise<PipelineRiskScanResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/pipeline-risk/scan`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(input ?? {}),
+  });
+  const body = await parseJson<PipelineRiskScanResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Pipeline risk scan failed', res.status);
+  }
+  return body;
+}

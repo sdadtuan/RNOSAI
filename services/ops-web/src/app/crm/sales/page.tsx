@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
 import { SalesPipelineFunnelPanel, type PipelineCaseRow } from '@/components/sales/SalesPipelineFunnelPanel';
 import {
@@ -36,9 +36,12 @@ type SalesTab = 'plans' | 'funnel' | 'partners' | 'trainings' | 'market' | 'repo
 
 export default function CrmSalesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const dealIdParam = searchParams.get('deal_id');
+  const initialDealId = dealIdParam && Number.isFinite(Number(dealIdParam)) ? Number(dealIdParam) : null;
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [tab, setTab] = useState<SalesTab>('plans');
+  const [tab, setTab] = useState<SalesTab>(initialDealId ? 'funnel' : 'plans');
   const [plans, setPlans] = useState<SalesPlanRow[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
@@ -307,6 +310,7 @@ export default function CrmSalesPage() {
               stages={pipelineStages}
               stageLabels={pipelineLabels}
               canSortByScore={hasCap(user, 'crm_leads', 'assign')}
+              initialDealId={initialDealId}
               onRowUpdate={(dealId, patch) => {
                 setRows((prev) =>
                   prev.map((row) => (Number(row.id) === dealId ? { ...row, ...patch } : row)),
