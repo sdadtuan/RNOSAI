@@ -23,6 +23,8 @@ import { LeadsRepository } from '../leads/leads.repository';
 import { LeadsWriteService } from '../leads/leads-write.service';
 import { PatchLeadV1Body } from '../leads/leads.types';
 import { CrmLeadsLegacyService } from './crm-leads-legacy.service';
+import { LeadAttributionService } from '../leads/lead-attribution.service';
+import { LeadAttributionResponse } from '../leads/lead-attribution.types';
 import { AssignLeadBody, CreateLeadActivityBody } from './crm-leads-legacy.types';
 
 @Controller('api/crm/leads')
@@ -32,10 +34,21 @@ export class CrmLeadsLegacyController {
     private readonly legacy: CrmLeadsLegacyService,
     private readonly leadsRepo: LeadsRepository,
     private readonly leadsWrite: LeadsWriteService,
+    private readonly attribution: LeadAttributionService,
   ) {}
 
   private actor(req: Request & { staffUser?: StaffJwtPayload }): string {
     return String(req.staffUser?.email ?? req.headers['x-ptt-actor'] ?? 'staff');
+  }
+
+  @Get(':id/attribution')
+  async attributionForLead(@Param('id', ParseIntPipe) id: number): Promise<LeadAttributionResponse> {
+    const data = await this.attribution.getLeadAttribution(id);
+    return {
+      data,
+      meta: { request_id: this.attribution.newRequestId() },
+      errors: [],
+    };
   }
 
   @Get(':id/activities')

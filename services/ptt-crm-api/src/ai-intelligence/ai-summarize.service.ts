@@ -177,11 +177,17 @@ export class AiSummarizeService {
     }
 
     const timelineBlock = await this.formatTimelineContext('lead', String(leadId), 15);
-    const metaCampaign = ctx.campaignId ? `campaign_id=${ctx.campaignId}` : '';
+    const campaignParts = [
+      ctx.campaignId ? `campaign_id=${ctx.campaignId}` : '',
+      ctx.campaignName ? `campaign_name=${ctx.campaignName}` : '',
+      ctx.cplVnd != null ? `cpl_vnd=${ctx.cplVnd}` : '',
+      ctx.targetCplVnd != null ? `target_cpl_vnd=${ctx.targetCplVnd}` : '',
+      ctx.cplOverTarget ? 'cpl_status=over_target' : ctx.cplVnd != null ? 'cpl_status=on_target' : '',
+    ].filter(Boolean);
     const lines = [
       `LEAD_ID: ${leadId}`,
       `NAME_CHANNEL: ${ctx.channel ?? 'unknown'} / ${ctx.source ?? 'unknown'}`,
-      metaCampaign,
+      campaignParts.length ? `CAMPAIGN_CPL: ${campaignParts.join(' · ')}` : '',
       `STATUS: ${ctx.status ?? 'new'}`,
       `EXTERNAL: ${ctx.externalLeadId ?? 'n/a'}`,
       `DUPLICATE: ${ctx.isDuplicate ? 'yes' : 'no'}`,

@@ -310,6 +310,38 @@ export async function fetchLead(token: string, id: number): Promise<LeadRow> {
   return body;
 }
 
+export interface LeadAttributionData {
+  lead_id: number;
+  campaign_id: string | null;
+  campaign_name: string | null;
+  channel: string | null;
+  client_id: string | null;
+  hub_mapped: boolean;
+  cpl_vnd: number | null;
+  target_cpl_vnd: number | null;
+  cpl_vs_target_pct: number | null;
+  cpl_over_target: boolean;
+  period_days: number;
+  hub_href: string;
+  ads_hub_href: string | null;
+  ads_hub_label: string | null;
+}
+
+export async function fetchLeadAttribution(
+  token: string,
+  leadId: number,
+): Promise<LeadAttributionData> {
+  const res = await fetch(`${API_BASE}/api/crm/leads/${leadId}/attribution`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<{ data: LeadAttributionData; error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Lead attribution fetch failed', res.status);
+  }
+  return body.data;
+}
+
 export interface PatchLeadBody {
   owner_id?: number | null;
   status?: string;

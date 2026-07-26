@@ -59,4 +59,18 @@ describe('computeLeadScoreV1', () => {
     expect(result.score).toBeGreaterThanOrEqual(0);
     expect(result.score).toBeLessThanOrEqual(100);
   });
+
+  it('penalizes CPL over target in explainability', () => {
+    const result = computeLeadScoreV1(
+      {
+        ...baseCtx,
+        cplVnd: 150_000,
+        targetCplVnd: 100_000,
+        cplOverTarget: true,
+      },
+      new Date('2026-07-26T09:00:00Z'),
+    );
+    expect(result.explainability.factors.some((f) => f.key === 'cpl_over_target')).toBe(true);
+    expect(result.explainability.flags).toContain('cpl_over_target');
+  });
 });

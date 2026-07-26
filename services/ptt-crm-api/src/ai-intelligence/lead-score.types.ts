@@ -28,6 +28,10 @@ export interface LeadScoreContext {
   timelineEventCount: number;
   meta: Record<string, unknown>;
   estimatedDealValueVnd: number | null;
+  campaignName?: string | null;
+  cplVnd?: number | null;
+  targetCplVnd?: number | null;
+  cplOverTarget?: boolean;
 }
 
 export interface LeadScoreEngineResult {

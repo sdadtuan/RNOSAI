@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
 import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
+import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
 import { LeadContractPanel } from '@/components/LeadContractPanel';
 import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
 import { aiCopilotEnabled } from '@/lib/ai-flags';
@@ -14,6 +15,7 @@ import {
   fetchCatalogBundle,
   fetchLead,
   fetchLeadActivities,
+  fetchLeadAttribution,
   fetchLeadAudit,
   patchLeadLegacy,
   staffMe,
@@ -21,6 +23,7 @@ import {
   type CatalogStaffOption,
   type LeadActivityRow,
   type LeadAssignmentLogRow,
+  type LeadAttributionData,
   type LeadAuditBundle,
   type LeadRow,
   type LeadStatusLogRow,
@@ -99,6 +102,7 @@ export default function CrmLeadDetailPage() {
 
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [lead, setLead] = useState<LeadRow | null>(null);
+  const [attribution, setAttribution] = useState<LeadAttributionData | null>(null);
   const [staffOptions, setStaffOptions] = useState<CatalogStaffOption[]>([]);
   const [activities, setActivities] = useState<LeadActivityRow[]>([]);
   const [audit, setAudit] = useState<LeadAuditBundle | null>(null);
@@ -176,11 +180,13 @@ export default function CrmLeadDetailPage() {
       setLoading(true);
       setError('');
       try {
-        const [row, catalog] = await Promise.all([
+        const [row, catalog, attr] = await Promise.all([
           fetchLead(access, leadId),
           fetchCatalogBundle(access).catch(() => null),
+          fetchLeadAttribution(access, leadId).catch(() => null),
         ]);
         setLead(row);
+        setAttribution(attr);
         setStatus(row.status || 'moi');
         if (catalog?.staff?.length) {
           setStaffOptions(catalog.staff);
@@ -392,6 +398,7 @@ export default function CrmLeadDetailPage() {
               <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>
                 #{lead.id} · {lead.full_name || '—'}
               </h2>
+              <LeadAttributionChips attribution={attribution} />
               <p style={{ margin: '0 0 1rem' }}>
                 <Link href={`/crm/intake?lead_id=${lead.id}`} className="nav-link">
                   Mở Lead Intake →

@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { CrmLeadsSqliteRepository } from '../crm-leads-legacy/crm-leads-sqlite.repository';
 import { CustomerTimelineRepository } from '../customer-timeline/customer-timeline.repository';
+import { LeadAttributionService } from '../leads/lead-attribution.service';
 import { LeadScoreContext } from './lead-score.types';
 
 function parseDate(value: unknown): Date | null {
@@ -48,6 +49,7 @@ export class LeadScoreContextRepository implements OnModuleDestroy {
     private readonly config: AppConfigService,
     private readonly sqlite: CrmLeadsSqliteRepository,
     private readonly timeline: CustomerTimelineRepository,
+    private readonly attribution: LeadAttributionService,
   ) {}
 
   private get db(): Pool {
@@ -84,7 +86,7 @@ export class LeadScoreContextRepository implements OnModuleDestroy {
         return null;
       }
       const receivedAt = new Date();
-      return {
+      return this.enrichWithAttribution({
         leadId,
         clientId: null,
         channel: null,
@@ -99,7 +101,7 @@ export class LeadScoreContextRepository implements OnModuleDestroy {
         timelineEventCount: 0,
         meta: {},
         estimatedDealValueVnd: null,
-      };
+      });
     }
 
     const meta = parseMeta(pgRow.meta_json);
@@ -115,7 +117,7 @@ export class LeadScoreContextRepository implements OnModuleDestroy {
       timelineEventCount = listed.total;
     }
 
-    return {
+    return this.enrichWithAttribution({
       leadId,
       clientId: (pgRow.client_id as string | null) ?? null,
       channel: (pgRow.channel as string | null) ?? null,
@@ -130,6 +132,22 @@ export class LeadScoreContextRepository implements OnModuleDestroy {
       timelineEventCount,
       meta,
       estimatedDealValueVnd: parseDealValue(meta),
-    };
+    });
+  }
+
+  private async enrichWithAttribution(ctx: LeadScoreContext): Promise<LeadScoreContext> {
+    try {
+      const attr = await this.attribution.getLeadAttribution(ctx.leadId);
+      return {
+        ...ctx,
+        campaignId: ctx.campaignId ?? attr.campaign_id,
+        campaignName: attr.campaign_name,
+        cplVnd: attr.cpl_vnd,
+        targetCplVnd: attr.target_cpl_vnd,
+        cplOverTarget: attr.cpl_over_target,
+      };
+    } catch {
+      return ctx;
+    }
   }
 }

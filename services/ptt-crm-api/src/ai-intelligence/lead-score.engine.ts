@@ -136,6 +136,35 @@ function timelineBonus(ctx: LeadScoreContext, factors: LeadScoreFactor[]): numbe
   return 0;
 }
 
+function formatVndShort(value: number): string {
+  if (value >= 1_000_000) return `${Math.round(value / 1_000_000)}M`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)}K`;
+  return String(Math.round(value));
+}
+
+function cplAttributionScore(ctx: LeadScoreContext, factors: LeadScoreFactor[], flags: string[]): number {
+  if (ctx.cplVnd == null || ctx.targetCplVnd == null || ctx.targetCplVnd <= 0) {
+    return 0;
+  }
+  if (ctx.cplOverTarget) {
+    flags.push('cpl_over_target');
+    factors.push({
+      key: 'cpl_over_target',
+      label: `− CPL ${formatVndShort(ctx.cplVnd)} > target ${formatVndShort(ctx.targetCplVnd)}`,
+      delta: 8,
+      sign: '-',
+    });
+    return -8;
+  }
+  factors.push({
+    key: 'cpl_on_target',
+    label: `+ CPL ${formatVndShort(ctx.cplVnd)} trong target`,
+    delta: 5,
+    sign: '+',
+  });
+  return 5;
+}
+
 function computeConfidence(ctx: LeadScoreContext, flags: string[]): number {
   let confidence = 0.45;
   if (ctx.channel) confidence += 0.1;
@@ -162,7 +191,8 @@ export function computeLeadScoreV1(
     baseSourceScore(ctx, factors, flags) +
     slaBonus(ctx, factors) +
     valueBonus(ctx, factors) +
-    timelineBonus(ctx, factors) -
+    timelineBonus(ctx, factors) +
+    cplAttributionScore(ctx, factors, flags) -
     duplicatePenalty(ctx, factors) -
     stalePenalty(ctx, factors, now);
 
@@ -181,6 +211,9 @@ export function computeLeadScoreV1(
       channel: ctx.channel,
       source: ctx.source,
       campaign_id: ctx.campaignId,
+      campaign_name: ctx.campaignName ?? null,
+      cpl_vnd: ctx.cplVnd ?? null,
+      target_cpl_vnd: ctx.targetCplVnd ?? null,
       is_duplicate: ctx.isDuplicate,
       hours_since_received: Math.round(hoursSince(ctx.receivedAt, now) * 10) / 10,
       timeline_events: ctx.timelineEventCount,

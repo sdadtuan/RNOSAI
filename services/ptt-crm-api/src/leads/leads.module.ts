@@ -7,6 +7,7 @@ import { MetaTrackingModule } from '../meta-tracking/meta-tracking.module';
 import { PerformanceModule } from '../performance/performance.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { LeadsIoService } from './leads-io.service';
+import { LeadAttributionService } from './lead-attribution.service';
 import { LeadsController } from './leads.controller';
 import { LeadsRepository } from './leads.repository';
 import { LeadsService } from './leads.service';
@@ -33,6 +34,7 @@ import { WriteEnabledGuard } from './guards/write-enabled.guard';
     LeadsService,
     LeadsWriteService,
     LeadsIoService,
+    LeadAttributionService,
     LeadsRepository,
     SqliteLeadsRepository,
     PgLeadsRepository,
@@ -41,6 +43,6 @@ import { WriteEnabledGuard } from './guards/write-enabled.guard';
     StaffLeadsWriteGuard,
     StaffLeadsViewGuard,
   ],
-  exports: [LeadsRepository, LeadsWriteService, StaffLeadsViewGuard, StaffLeadsWriteGuard],
+  exports: [LeadsRepository, LeadsWriteService, LeadAttributionService, StaffLeadsViewGuard, StaffLeadsWriteGuard],
 })
 export class LeadsModule {}
