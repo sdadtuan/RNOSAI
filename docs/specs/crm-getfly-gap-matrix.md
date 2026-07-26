@@ -296,9 +296,9 @@
 
 | # | PR checklist | Parity | Done when |
 |---|--------------|--------|-----------|
-| 16.1 | [ ] **AR aging chart** (bucket 30/60/90) | ○ | Visual |
-| 16.2 | [ ] Drill lifecycle → `/crm/service-delivery/[id]` | ○ | Link |
-| 16.3 | [ ] Copy footer: “Không thay ERP MISA” | 🚫 | FAQ §20.6 |
+| 16.1 | [x] **AR aging chart** (bucket 30/60/90) | ○ | Visual |
+| 16.2 | [x] Drill lifecycle → `/crm/service-delivery/[id]` | ○ | Link |
+| 16.3 | [x] Copy footer: “Không thay ERP MISA” | 🚫 | FAQ §20.6 |
 
 **🚫 Không PR:** Sổ cái, HĐ GTGT, tồn kho — export connector riêng.
 

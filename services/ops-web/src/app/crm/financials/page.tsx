@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { DashboardShell } from '@/components/kpi/DashboardShell';
+import { FinancialLifecycleTable } from '@/components/kpi/FinancialLifecycleTable';
 import {
   ArAgingPanel,
   KpiTileGrid,
@@ -104,7 +105,10 @@ export default function CrmFinancialsPage() {
     router.push('/login');
   }
 
-  const summaryTiles = useMemo(() => financialSummaryTiles(financials), [financials]);
+  const summaryTiles = useMemo(
+    () => financialSummaryTiles(financials, arAging),
+    [financials, arAging],
+  );
   const rows = (financials?.rows ?? []) as Array<Record<string, unknown>>;
 
   if (!user) {
@@ -116,85 +120,47 @@ export default function CrmFinancialsPage() {
   }
 
   return (
-    <main className="kpi-page" style={{ maxWidth: 1080, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <div className="kpi-page__head">
-          <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Financials — lifecycle margin</h2>
-          <div className="kpi-page__filters">
-            <input
-              type="number"
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-              className="kpi-input"
-              aria-label="Năm"
-            />
-            <input
-              type="number"
-              min={1}
-              max={12}
-              value={month}
-              onChange={(e) => setMonth(Number(e.target.value))}
-              className="kpi-input kpi-input--month"
-              aria-label="Tháng"
-            />
-          </div>
-        </div>
+    <DashboardShell
+      user={user}
+      onLogout={logout}
+      title="Financials — lifecycle margin"
+      periodHint={`Kỳ ${periodLabel(year, month)} · front-office view`}
+      loading={loading}
+      error={error}
+      filters={
+        <>
+          <input
+            type="number"
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+            className="kpi-input"
+            aria-label="Năm"
+          />
+          <input
+            type="number"
+            min={1}
+            max={12}
+            value={month}
+            onChange={(e) => setMonth(Number(e.target.value))}
+            className="kpi-input kpi-input--month"
+            aria-label="Tháng"
+          />
+        </>
+      }
+      footer="Front-office only — không thay ERP MISA (sổ cái, HĐ GTGT, tồn kho). Xuất connector riêng nếu cần."
+    >
+      <KpiTileGrid tiles={summaryTiles} />
 
-        <p className="muted" style={{ marginTop: 0 }}>
-          Kỳ {periodLabel(year, month)}
-        </p>
-
-        {loading ? <p className="muted">Đang tải…</p> : null}
-        {error ? <p className="error">{error}</p> : null}
-
-        <KpiTileGrid tiles={summaryTiles} />
-
-        <section className="kpi-page__section">
+      <section className="kpi-page__section kpi-page__section--split">
+        <div>
           <h3 className="kpi-section-title">Lifecycle ({rows.length})</h3>
-          <div className="crm-leads-table-wrap">
-            <table className="perf-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Dịch vụ</th>
-                  <th>KH</th>
-                  <th style={{ textAlign: 'right' }}>Margin</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="muted">
-                      Chưa có lifecycle active
-                    </td>
-                  </tr>
-                ) : (
-                  rows.map((row, i) => (
-                    <tr key={String(row.lifecycle_id ?? i)}>
-                      <td>{String(row.lifecycle_id ?? '—')}</td>
-                      <td>{String(row.service_label ?? row.service_slug ?? '—')}</td>
-                      <td>{String(row.customer_name ?? '—')}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        {row.margin_pct != null
-                          ? `${Number(row.margin_pct).toFixed(1)}%`
-                          : row.margin_vnd != null
-                            ? `${Number(row.margin_vnd).toLocaleString('vi-VN')} ₫`
-                            : '—'}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="kpi-page__section">
+          <FinancialLifecycleTable rows={rows} />
+        </div>
+        <div>
           <h3 className="kpi-section-title">AR aging</h3>
           <ArAgingPanel arAging={arAging} />
-        </section>
-      </div>
-    </main>
+        </div>
+      </section>
+    </DashboardShell>
   );
 }
