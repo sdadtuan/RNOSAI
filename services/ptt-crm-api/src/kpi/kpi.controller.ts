@@ -48,6 +48,16 @@ export class KpiController {
     return this.kpi.chart(metricId, year, month, staffId);
   }
 
+  @Get('trend')
+  trend(
+    @Query('metric_id') metricId?: string,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('months') months?: string,
+  ) {
+    return this.kpi.metricTrend(metricId, year, month, months);
+  }
+
   @Get('metrics')
   listMetrics(@Query('include_inactive') includeInactive?: string) {
     const raw = String(includeInactive ?? '').trim().toLowerCase();

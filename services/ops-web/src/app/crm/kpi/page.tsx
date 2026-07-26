@@ -2,18 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { DashboardShell } from '@/components/kpi/DashboardShell';
 import {
   KpiAlertList,
   KpiBarChart,
   KpiTileGrid,
+  KpiTrendPanel,
   type KpiTileProps,
 } from '@/components/kpi/KpiDashboardUi';
 import { periodLabel } from '@/lib/kpi/format';
 import {
-  exportStaffKpi,
+  downloadStaffKpiXlsx,
   fetchKpiBoard,
   fetchKpiChart,
+  fetchKpiMetricTrend,
   fetchKpiMetrics,
   staffMe,
   staffRefresh,
@@ -43,6 +45,8 @@ export default function CrmKpiPage() {
   const [board, setBoard] = useState<Awaited<ReturnType<typeof fetchKpiBoard>> | null>(null);
   const [chartMetricId, setChartMetricId] = useState('');
   const [chartData, setChartData] = useState<KpiChartData | null>(null);
+  const [trendLabels, setTrendLabels] = useState<string[]>([]);
+  const [trendSeries, setTrendSeries] = useState<number[]>([]);
   const [aiAcceptance, setAiAcceptance] = useState<AiAcceptanceMetrics | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -81,6 +85,27 @@ export default function CrmKpiPage() {
     }
   }, [router]);
 
+  const loadTrend = useCallback(async (access: string, metricId: string) => {
+    if (!metricId) {
+      setTrendLabels([]);
+      setTrendSeries([]);
+      return;
+    }
+    try {
+      const trend = await fetchKpiMetricTrend(access, {
+        metric_id: Number(metricId),
+        year,
+        month,
+        months: 6,
+      });
+      setTrendLabels(trend.labels ?? []);
+      setTrendSeries(trend.avg_achievement_pct ?? []);
+    } catch {
+      setTrendLabels([]);
+      setTrendSeries([]);
+    }
+  }, [year, month]);
+
   const loadPage = useCallback(
     async (access: string) => {
       setLoading(true);
@@ -105,8 +130,11 @@ export default function CrmKpiPage() {
             month,
           });
           setChartData(chart);
+          await loadTrend(access, nextMetricId);
         } else {
           setChartData(null);
+          setTrendLabels([]);
+          setTrendSeries([]);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải KPI thất bại');
@@ -114,7 +142,7 @@ export default function CrmKpiPage() {
         setLoading(false);
       }
     },
-    [year, month],
+    [year, month, chartMetricId, loadTrend],
   );
 
   useEffect(() => {
@@ -137,26 +165,20 @@ export default function CrmKpiPage() {
           month,
         }),
       );
+      await loadTrend(access, nextMetricId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tải biểu đồ thất bại');
     }
   }
 
-  async function onExport() {
+  async function onExportExcel() {
     const access = getAccessToken();
     if (!access) return;
     setError('');
     try {
-      const bundle = await exportStaffKpi(access, { year, month });
-      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `staff-kpi-export-${year}-${String(month).padStart(2, '0')}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await downloadStaffKpiXlsx(access, { year, month });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Export thất bại');
+      setError(err instanceof Error ? err.message : 'Export Excel thất bại');
     }
   }
 
@@ -220,45 +242,41 @@ export default function CrmKpiPage() {
   }
 
   return (
-    <main className="kpi-page" style={{ maxWidth: 1080, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <div className="kpi-page__head">
-          <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Chỉ tiêu KPI</h2>
-          <div className="kpi-page__filters">
-            <input
-              type="number"
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-              aria-label="Năm"
-              className="kpi-input"
-            />
-            <input
-              type="number"
-              min={1}
-              max={12}
-              value={month}
-              onChange={(e) => setMonth(Number(e.target.value))}
-              aria-label="Tháng"
-              className="kpi-input kpi-input--month"
-            />
-            <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onExport()}>
-              Export staff KPI (JSON)
-            </button>
-          </div>
-        </div>
+    <DashboardShell
+      user={user}
+      onLogout={logout}
+      title="Chỉ tiêu KPI"
+      periodHint={`Kỳ ${periodLabel(year, month)} · xu hướng 6 tháng theo chỉ tiêu đã chọn`}
+      loading={loading}
+      error={error}
+      filters={
+        <>
+          <input
+            type="number"
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+            aria-label="Năm"
+            className="kpi-input"
+          />
+          <input
+            type="number"
+            min={1}
+            max={12}
+            value={month}
+            onChange={(e) => setMonth(Number(e.target.value))}
+            aria-label="Tháng"
+            className="kpi-input kpi-input--month"
+          />
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onExportExcel()}>
+            Export Excel
+          </button>
+        </>
+      }
+    >
+      <KpiTileGrid tiles={tiles} />
 
-        {loading ? <p className="muted">Đang tải…</p> : null}
-        {error ? <p className="error">{error}</p> : null}
-
-        <KpiTileGrid tiles={tiles} />
-
-        <section className="kpi-page__section">
-          <h3 className="kpi-section-title">Cảnh báo tháng</h3>
-          <KpiAlertList alerts={board?.alerts ?? []} />
-        </section>
-
-        <section className="kpi-page__section">
+      <section className="kpi-page__section kpi-page__section--split">
+        <div>
           <div className="kpi-page__chart-head">
             <h3 className="kpi-section-title">So sánh NV theo chỉ tiêu</h3>
             <div className="kpi-page__filters">
@@ -288,21 +306,31 @@ export default function CrmKpiPage() {
             unit="%"
             maxValue={100}
           />
-        </section>
+          <KpiTrendPanel
+            title="TB đạt KPI (6 tháng)"
+            labels={trendLabels}
+            series={trendSeries}
+            valueFormatter={(v) => formatPct(v)}
+          />
+        </div>
+        <div>
+          <h3 className="kpi-section-title">Cảnh báo tháng</h3>
+          <KpiAlertList alerts={board?.alerts ?? []} />
+        </div>
+      </section>
 
-        <details className="kpi-page__metrics-details">
-          <summary className="muted">Danh sách metric định nghĩa ({metrics.length})</summary>
-          <ul className="kpi-metric-list">
-            {metrics.map((m) => (
-              <li key={m.id}>
-                {m.code ? `[${m.code}] ` : ''}
-                {m.name}
-                {m.unit ? ` (${m.unit})` : ''}
-              </li>
-            ))}
-          </ul>
-        </details>
-      </div>
-    </main>
+      <details className="kpi-page__metrics-details">
+        <summary className="muted">Danh sách metric định nghĩa ({metrics.length})</summary>
+        <ul className="kpi-metric-list">
+          {metrics.map((m) => (
+            <li key={m.id}>
+              {m.code ? `[${m.code}] ` : ''}
+              {m.name}
+              {m.unit ? ` (${m.unit})` : ''}
+            </li>
+          ))}
+        </ul>
+      </details>
+    </DashboardShell>
   );
 }

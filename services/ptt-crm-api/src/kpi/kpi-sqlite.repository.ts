@@ -343,6 +343,41 @@ export class KpiSqliteRepository implements OnModuleDestroy {
     };
   }
 
+  fetchMetricTrend(metricId: number, year: number, month: number, monthCount: number) {
+    const metric = this.getMetricById(metricId);
+    if (!metric) return null;
+    const capped = Math.min(Math.max(monthCount, 2), 12);
+    const labels: string[] = [];
+    const avgAchievementPct: number[] = [];
+    let y = year;
+    let m = month;
+    for (let i = 0; i < capped; i += 1) {
+      const chart = this.fetchKpiChart(metricId, y, m);
+      const pcts = ((chart?.achievement_pct ?? []) as Array<number | null>).filter(
+        (value): value is number => value != null && Number.isFinite(value),
+      );
+      const avg =
+        pcts.length > 0 ? Math.round((pcts.reduce((sum, value) => sum + value, 0) / pcts.length) * 10) / 10 : 0;
+      labels.unshift(`${String(m).padStart(2, '0')}/${y}`);
+      avgAchievementPct.unshift(avg);
+      if (m === 1) {
+        y -= 1;
+        m = 12;
+      } else {
+        m -= 1;
+      }
+    }
+    return {
+      metric_id: metricId,
+      metric_name: metric.name,
+      year,
+      month,
+      months: capped,
+      labels,
+      avg_achievement_pct: avgAchievementPct,
+    };
+  }
+
   getStaffKpiById(kpiId: number): StaffKpiEntryRow | null {
     const row = this.database
       .prepare(

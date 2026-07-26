@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { KpiSqliteRepository } from './kpi-sqlite.repository';
+import { buildStaffKpiXlsx } from './kpi-export.util';
 import {
   CreateKpiMetricBody,
   PatchKpiMetricBody,
@@ -115,6 +116,34 @@ export class KpiService {
       throw new NotFoundException({ error: 'Không tìm thấy chỉ tiêu' });
     }
     return chart;
+  }
+
+  metricTrend(metricIdRaw?: string, year?: string, month?: string, monthsRaw?: string) {
+    const metricId = Number(metricIdRaw ?? 0);
+    if (!Number.isFinite(metricId) || metricId <= 0) {
+      throw new BadRequestException({ error: 'Cần metric_id' });
+    }
+    const parsed = this.parseYearMonth(year, month, true);
+    const months = Math.min(Math.max(Number(monthsRaw ?? 6) || 6, 2), 12);
+    const trend = this.sqlite.fetchMetricTrend(metricId, parsed.year, parsed.month, months);
+    if (!trend) {
+      throw new NotFoundException({ error: 'Không tìm thấy chỉ tiêu' });
+    }
+    return trend;
+  }
+
+  async exportStaffKpiXlsx(year?: string, month?: string, staffId?: string) {
+    const parsed = this.parseYearMonth(year, month, true);
+    let sid: number | undefined;
+    if (staffId) {
+      const n = Number(staffId);
+      if (!Number.isFinite(n) || n <= 0) {
+        throw new BadRequestException({ error: 'staff_id không hợp lệ' });
+      }
+      sid = n;
+    }
+    const rows = this.sqlite.listStaffKpi(parsed.year, parsed.month, sid);
+    return buildStaffKpiXlsx(rows, parsed.year, parsed.month);
   }
 
   exportStaffKpi(year?: string, month?: string, staffId?: string) {

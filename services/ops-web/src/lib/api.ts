@@ -1747,6 +1747,39 @@ export async function exportStaffKpi(
   return crmFetch(token, `/api/crm/staff/kpi/export${suffix}`);
 }
 
+export interface KpiMetricTrend {
+  metric_id: number;
+  metric_name: string;
+  year: number;
+  month: number;
+  months: number;
+  labels: string[];
+  avg_achievement_pct: number[];
+}
+
+export async function fetchKpiMetricTrend(
+  token: string,
+  params: { metric_id: number; year?: number; month?: number; months?: number },
+): Promise<KpiMetricTrend> {
+  const qs = new URLSearchParams({ metric_id: String(params.metric_id) });
+  if (params.year != null) qs.set('year', String(params.year));
+  if (params.month != null) qs.set('month', String(params.month));
+  if (params.months != null) qs.set('months', String(params.months));
+  return crmFetch<KpiMetricTrend>(token, `/api/crm/kpi/trend?${qs.toString()}`);
+}
+
+export async function downloadStaffKpiXlsx(
+  token: string,
+  params?: { year?: number; month?: number; staff_id?: number },
+): Promise<void> {
+  const qs = new URLSearchParams();
+  if (params?.year != null) qs.set('year', String(params.year));
+  if (params?.month != null) qs.set('month', String(params.month));
+  if (params?.staff_id != null) qs.set('staff_id', String(params.staff_id));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  await downloadBinary(token, `/api/crm/staff/kpi/export.xlsx${suffix}`, 'staff-kpi-export.xlsx');
+}
+
 export async function patchStaffKpiProgress(
   token: string,
   kpiId: number,

@@ -3233,6 +3233,22 @@ body:has(.ops-sidebar) main {
   vertical-align: top;
 }
 
-.ai-insights-table__text {
-  max-width: 280px;
+.dashboard-shell__period {
+  margin-top: 0;
+}
+
+.dashboard-shell__footer {
+  margin-top: 1.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  font-size: 0.88rem;
+}
+
+.financials-lifecycle-table th[data-sortable='true'] {
+  cursor: pointer;
+  user-select: none;
+}
+
+.financials-lifecycle-table th[data-sortable='true']:hover {
+  color: var(--primary, #2563eb);
 }

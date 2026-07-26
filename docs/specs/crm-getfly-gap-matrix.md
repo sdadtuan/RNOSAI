@@ -239,10 +239,10 @@
 
 | # | PR checklist | Parity | Done when |
 |---|--------------|--------|-----------|
-| 12.1 | [ ] **KPI tiles** (4–6 chỉ số tháng) | ○ | RNOS-42 |
-| 12.2 | [ ] **Line/bar chart** thay `JSON.stringify` | ○ | Chart library |
-| 12.3 | [ ] Alerts list giữ + badge severity màu | ○ | UX polish |
-| 12.4 | [ ] Export staff KPI Excel (giữ + polish UI) | P0-2 | Button rõ ràng |
+| 12.1 | [x] **KPI tiles** (4–6 chỉ số tháng) | ○ | RNOS-42 |
+| 12.2 | [x] **Line/bar chart** thay `JSON.stringify` | ○ | Chart library |
+| 12.3 | [x] Alerts list giữ + badge severity màu | ○ | UX polish |
+| 12.4 | [x] Export staff KPI Excel (giữ + polish UI) | P0-2 | Button rõ ràng |
 | 12.5 | [x] Widget **AI acceptance rate** (G6) | RNOS-29 | SQL + tile |
 
 **PR title gợi ý:** `RNOS-42: /crm/kpi dashboard v1`
@@ -296,9 +296,9 @@
 
 | # | PR checklist | Parity | Done when |
 |---|--------------|--------|-----------|
-| 16.1 | [ ] **AR aging chart** (bucket 30/60/90) | ○ | Visual |
-| 16.2 | [ ] Drill lifecycle → `/crm/service-delivery/[id]` | ○ | Link |
-| 16.3 | [ ] Copy footer: “Không thay ERP MISA” | 🚫 | FAQ §20.6 |
+| 16.1 | [x] **AR aging chart** (bucket 30/60/90) | ○ | Visual |
+| 16.2 | [x] Drill lifecycle → `/crm/service-delivery/[id]` | ○ | Link |
+| 16.3 | [x] Copy footer: “Không thay ERP MISA” | 🚫 | FAQ §20.6 |
 
 **🚫 Không PR:** Sổ cái, HĐ GTGT, tồn kho — export connector riêng.
 

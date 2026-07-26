@@ -200,6 +200,12 @@ export function KpiAlertList({
         const title = String(alert.title ?? alert.message ?? alert.metric_name ?? 'Cảnh báo');
         const detail = String(alert.message ?? alert.reason ?? '');
         const staff = alert.staff_name ? String(alert.staff_name) : '';
+        const staffIdRaw = alert.staff_id;
+        const staffId =
+          staffIdRaw != null && staffIdRaw !== '' && Number.isFinite(Number(staffIdRaw))
+            ? Number(staffIdRaw)
+            : null;
+        const metricName = alert.metric_name ? String(alert.metric_name) : '';
         return (
           <li key={String(alert.alert_id ?? alert.kpi_id ?? alert.id ?? index)} className={`kpi-alert kpi-alert--${tone}`}>
             <span className={`kpi-alert__badge kpi-alert__badge--${tone}`}>
@@ -207,8 +213,19 @@ export function KpiAlertList({
             </span>
             <div className="kpi-alert__body">
               <strong>{title}</strong>
+              {metricName ? <p className="muted kpi-alert__meta">{metricName}</p> : null}
               {detail && detail !== title ? <p className="muted kpi-alert__detail">{detail}</p> : null}
-              {staff ? <p className="muted kpi-alert__meta">{staff}</p> : null}
+              {staff ? (
+                staffId ? (
+                  <p className="kpi-alert__meta">
+                    <Link href={`/crm/staff/${staffId}`} className="nav-link">
+                      {staff} →
+                    </Link>
+                  </p>
+                ) : (
+                  <p className="muted kpi-alert__meta">{staff}</p>
+                )
+              ) : null}
             </div>
           </li>
         );
@@ -469,13 +486,23 @@ export function ArAgingPanel({ arAging }: { arAging: Record<string, unknown> | n
   );
 }
 
-export function financialSummaryTiles(financials: Record<string, unknown> | null): KpiTileProps[] {
+export function financialSummaryTiles(
+  financials: Record<string, unknown> | null,
+  arAging?: Record<string, unknown> | null,
+): KpiTileProps[] {
   const rows = (financials?.rows ?? []) as Array<Record<string, unknown>>;
+  const totalReceived = rows.reduce((sum, row) => sum + Number(row.received_revenue ?? 0), 0);
+  const totalExpenses = rows.reduce((sum, row) => sum + Number(row.total_expenses ?? 0), 0);
   const margins = rows
     .map((row) => Number(row.margin_pct))
     .filter((value) => Number.isFinite(value));
   const avgMargin =
     margins.length > 0 ? margins.reduce((sum, value) => sum + value, 0) / margins.length : null;
+  const ar = (arAging ?? (financials?.ar_aging as Record<string, unknown> | undefined) ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const overdue = Number(ar.total_overdue_vnd ?? 0);
   return [
     {
       label: 'Lifecycle active',
@@ -483,9 +510,27 @@ export function financialSummaryTiles(financials: Record<string, unknown> | null
       hint: 'Dịch vụ đang chạy',
     },
     {
+      label: 'Doanh thu thu',
+      value: formatVnd(totalReceived),
+      hint: 'Tổng received lifecycle',
+    },
+    {
+      label: 'Chi phí',
+      value: formatVnd(totalExpenses),
+      hint: 'Delivery + presales',
+      tone: totalExpenses > totalReceived ? 'warning' : 'default',
+    },
+    {
       label: 'Margin TB',
       value: avgMargin == null ? '—' : formatPct(avgMargin),
       tone: avgMargin != null && avgMargin >= 30 ? 'success' : 'warning',
+    },
+    {
+      label: 'AR quá hạn',
+      value: formatVnd(overdue),
+      hint: `Chờ thu: ${formatVnd(ar.total_pending_vnd)}`,
+      tone: overdue > 0 ? 'critical' : 'success',
+      href: '/crm/hub',
     },
   ];
 }
