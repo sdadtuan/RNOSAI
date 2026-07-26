@@ -148,6 +148,10 @@ def run_worker(*, poll_interval: float = 1.0, once: bool = False) -> int:
                 from ptt_jobs.handlers.capi_dispatch import run_capi_dispatch_job
 
                 run_capi_dispatch_job(job)
+            elif job_type == "score_lead":
+                from ptt_jobs.handlers.score_lead import run_score_lead_job
+
+                run_score_lead_job(job)
             elif job_type == "seo_gsc_sync":
                 from ptt_jobs.handlers.seo_gsc_sync import run_seo_gsc_sync_job
 

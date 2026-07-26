@@ -589,6 +589,8 @@ Target Phase 0: **≥70%**.
 | [`vps-production-operations.md`](./vps-production-operations.md) | VPS systemd restart |
 | [`vps-full-system-deploy.md`](./vps-full-system-deploy.md) | Deploy greenfield |
 | `./scripts/apply_pg_ddl_revenue_os_ai.sh` | Apply DDL |
+| [`rnos01-ddl-apply.md`](./rnos01-ddl-apply.md) | **RNOS-01** runbook + gate |
+| `./scripts/rnos01_pg_ddl_gate.sh` | Gate report JSON |
 
 ---
 

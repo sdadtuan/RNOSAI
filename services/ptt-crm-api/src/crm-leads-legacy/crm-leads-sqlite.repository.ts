@@ -209,6 +209,24 @@ export class CrmLeadsSqliteRepository implements OnModuleDestroy {
     }));
   }
 
+  getFirstStaffContactAt(leadId: number): Date | null {
+    if (!this.leadExists(leadId)) {
+      return null;
+    }
+    const row = this.database
+      .prepare(
+        `SELECT MIN(created_at) AS first_at
+         FROM crm_lead_activities
+         WHERE lead_id = ? AND activity_type != 'system'`,
+      )
+      .get(leadId) as { first_at?: string } | undefined;
+    if (!row?.first_at) {
+      return null;
+    }
+    const d = new Date(String(row.first_at));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
   firstCallAtByLeadIds(leadIds: number[]): Map<number, string> {
     const out = new Map<number, string>();
     if (!leadIds.length) return out;

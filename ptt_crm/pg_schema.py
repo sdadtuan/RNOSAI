@@ -28,6 +28,7 @@ DDL_V6_META_INSIGHTS_LEVEL_REL = Path("docs/specs/2026-07-24-postgresql-ddl-v6-m
 DDL_V7_META_ADVANCED_REL = Path("docs/specs/2026-07-24-postgresql-ddl-v7-meta-advanced.sql")
 DDL_V8_META_INSIGHTS_BREAKDOWN_REL = Path("docs/specs/2026-07-24-postgresql-ddl-v8-meta-insights-breakdown.sql")
 DDL_V9_META_CREATIVE_REGISTRY_REL = Path("docs/specs/2026-07-25-postgresql-ddl-v9-meta-creative-registry.sql")
+DDL_REVENUE_OS_AI_REL = Path("docs/specs/2026-07-26-postgresql-ddl-revenue-os-ai.sql")
 KPI_DICTIONARY_SEED_REL = Path("docs/specs/2026-07-17-kpi-dictionary-seed.sql")
 MIGRATION_VERSION = "2026-07-17-v2-leads"
 MIGRATION_V3_OLTP = "2026-07-17-v3-leads-oltp"
@@ -49,6 +50,36 @@ MIGRATION_V6_META_INSIGHTS_LEVEL = "2026-07-24-v6-meta-insights-level"
 MIGRATION_V7_META_ADVANCED = "2026-07-24-v7-meta-advanced"
 MIGRATION_V8_META_INSIGHTS_BREAKDOWN = "2026-07-24-v8-meta-insights-breakdown"
 MIGRATION_V9_META_CREATIVE_REGISTRY = "2026-07-25-v9-meta-creative-registry"
+MIGRATION_REVENUE_OS_AI = "2026-07-26-revenue-os-ai"
+
+# RNOS-01 — tables created by 2026-07-26-postgresql-ddl-revenue-os-ai.sql
+REVENUE_OS_AI_TABLES: tuple[str, ...] = (
+    "ai_prompts",
+    "ai_agent_runs",
+    "ai_scores",
+    "ai_insights",
+    "ai_recommendations",
+    "ai_model_predictions",
+    "customer_timeline_events",
+    "customer_events",
+    "behavior_signals",
+    "revenue_actions",
+    "revenue_forecast_snapshots",
+    "automation_workflows",
+    "automation_workflow_nodes",
+    "automation_workflow_executions",
+    "customer_health_scores",
+    "renewal_opportunities",
+)
+
+# R1 P0 subset — Gate Phase 0 / copilot dependency
+REVENUE_OS_AI_R1_CORE_TABLES: tuple[str, ...] = (
+    "ai_prompts",
+    "ai_agent_runs",
+    "ai_scores",
+    "ai_recommendations",
+    "customer_timeline_events",
+)
 
 CRM_LEADS_COLUMNS: tuple[str, ...] = (
     "sqlite_lead_id",
@@ -174,6 +205,11 @@ def ddl_v8_meta_insights_breakdown_path() -> Path:
 def ddl_v9_meta_creative_registry_path() -> Path:
     base = Path(__file__).resolve().parents[1]
     return base / DDL_V9_META_CREATIVE_REGISTRY_REL
+
+
+def ddl_revenue_os_ai_path() -> Path:
+    base = Path(__file__).resolve().parents[1]
+    return base / DDL_REVENUE_OS_AI_REL
 
 
 def _apply_sql_file(path: Path) -> None:
@@ -987,4 +1023,131 @@ def pg_meta_ad_creative_links_ready() -> bool:
 
 def apply_ddl_v9_meta_creative_registry(*, ddl_path: Path | None = None) -> bool:
     _apply_sql_file(ddl_path or ddl_v9_meta_creative_registry_path())
+    return True
+
+
+def pg_revenue_os_ai_prerequisites_ready() -> bool:
+    """RNOS-01 pre-check: clients, domain_events, crm_leads (v1 + v3)."""
+    try:
+        from ptt_jobs.db import pg_available, pg_connection
+
+        if not pg_available():
+            return False
+        required = ("clients", "domain_events", "crm_leads")
+        with pg_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT COUNT(*)::int FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = ANY(%s)
+                    """,
+                    (list(required),),
+                )
+                return int(cur.fetchone()[0] or 0) >= len(required)
+    except Exception as exc:
+        logger.debug("pg_revenue_os_ai_prerequisites_ready: %s", exc)
+        return False
+
+
+def pg_revenue_os_ai_migration_applied() -> bool:
+    try:
+        from ptt_jobs.db import pg_available, pg_connection
+
+        if not pg_available():
+            return False
+        with pg_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM schema_migrations WHERE version = %s LIMIT 1",
+                    (MIGRATION_REVENUE_OS_AI,),
+                )
+                return cur.fetchone() is not None
+    except Exception as exc:
+        logger.debug("pg_revenue_os_ai_migration_applied: %s", exc)
+        return False
+
+
+def _pg_revenue_os_ai_tables_present(table_names: tuple[str, ...]) -> bool:
+    try:
+        from ptt_jobs.db import pg_available, pg_connection
+
+        if not pg_available():
+            return False
+        with pg_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT COUNT(*)::int FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = ANY(%s)
+                    """,
+                    (list(table_names),),
+                )
+                return int(cur.fetchone()[0] or 0) >= len(table_names)
+    except Exception as exc:
+        logger.debug("_pg_revenue_os_ai_tables_present: %s", exc)
+        return False
+
+
+def pg_revenue_os_ai_r1_core_ready() -> bool:
+    """True when R1 P0 AI tables exist (RNOS-01 core)."""
+    return _pg_revenue_os_ai_tables_present(REVENUE_OS_AI_R1_CORE_TABLES)
+
+
+def pg_revenue_os_ai_ready() -> bool:
+    """True when full Revenue OS AI DDL applied + migration recorded."""
+    if not pg_revenue_os_ai_migration_applied():
+        return False
+    return _pg_revenue_os_ai_tables_present(REVENUE_OS_AI_TABLES)
+
+
+def pg_revenue_os_ai_table_counts() -> dict[str, int]:
+    """Row counts for gate report (empty tables OK after fresh apply)."""
+    out: dict[str, int] = {}
+    if not pg_revenue_os_ai_r1_core_ready():
+        return out
+    try:
+        from ptt_jobs.db import pg_connection
+
+        with pg_connection() as conn:
+            with conn.cursor() as cur:
+                for table in REVENUE_OS_AI_R1_CORE_TABLES:
+                    cur.execute(f"SELECT COUNT(*)::int FROM {table}")
+                    out[table] = int(cur.fetchone()[0] or 0)
+    except Exception as exc:
+        logger.debug("pg_revenue_os_ai_table_counts: %s", exc)
+    return out
+
+
+def pg_revenue_os_ai_smoke_insert_ok() -> bool:
+    """Insert/delete probe row in ai_agent_runs (RNOS-01 acceptance)."""
+    if not pg_revenue_os_ai_r1_core_ready():
+        return False
+    try:
+        from ptt_jobs.db import pg_connection
+
+        with pg_connection() as conn:
+            conn.autocommit = False
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO ai_agent_runs (
+                        agent_name, use_case, status, input_json, output_json
+                    ) VALUES (
+                        'rnos01_gate', 'ddl_smoke', 'succeeded', '{}'::jsonb, '{}'::jsonb
+                    )
+                    RETURNING id::text
+                    """
+                )
+                run_id = cur.fetchone()[0]
+                cur.execute("DELETE FROM ai_agent_runs WHERE id = %s::uuid", (run_id,))
+            conn.commit()
+        return True
+    except Exception as exc:
+        logger.debug("pg_revenue_os_ai_smoke_insert_ok: %s", exc)
+        return False
+
+
+def apply_ddl_revenue_os_ai(*, ddl_path: Path | None = None) -> bool:
+    """Apply RNOS-01 Revenue OS + AI DDL (idempotent)."""
+    _apply_sql_file(ddl_path or ddl_revenue_os_ai_path())
     return True

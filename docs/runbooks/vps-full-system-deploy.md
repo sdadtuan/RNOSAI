@@ -206,6 +206,10 @@ export DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5432/ptt_agency
 ./scripts/apply_pg_ddl_v5_campaign_writes.sh
 ./scripts/apply_pg_ddl_staff_auth.sh
 
+# RNOS-01 — Revenue OS + AI (Phase 0, trước ai-intelligence module)
+./scripts/apply_pg_ddl_revenue_os_ai.sh
+# Gate: ./scripts/rnos01_pg_ddl_gate.sh — see docs/runbooks/rnos01-ddl-apply.md
+
 # Email marketing (nếu dùng module Email)
 ./scripts/apply_pg_ddl_email_mkt.sh
 ./scripts/apply_pg_ddl_email_mkt_em1.sh

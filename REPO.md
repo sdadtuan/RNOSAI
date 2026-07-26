@@ -19,7 +19,9 @@ Revenue Operating System + AI layer — PTT Agency Platform.
 ```bash
 git clone https://github.com/sdadtuan/RNOSAI.git
 cd RNOSAI
-./scripts/github_labels.sh   # default sdadtuan/RNOSAI
+docker compose up -d postgres   # DB: rnosaidb
+source deploy/env.local.example
+./scripts/github_labels.sh
 ```
 
 Production: `ops.pttads.vn` · `portal.pttads.vn`

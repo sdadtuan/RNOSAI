@@ -450,8 +450,8 @@ Triển khai AI **không thay thế** backlog production còn lại. Chạy song
 | **Use case** | [`use-cases/09-AI-REVENUE-OS.md`](../use-cases/09-AI-REVENUE-OS.md) |
 | **UAT actions** | [`use-cases/actions/09-AI-ACTIONS.md`](../use-cases/actions/09-AI-ACTIONS.md) |
 | **UI architecture** | [`SPEC_UI_UX_AI_REVENUE_OS.md`](../SPEC_UI_UX_AI_REVENUE_OS.md) |
-| **DDL** | [`2026-07-26-postgresql-ddl-revenue-os-ai.sql`](2026-07-26-postgresql-ddl-revenue-os-ai.sql) |
-| **Runbook** | [`runbooks/ai-service-operations.md`](../runbooks/ai-service-operations.md) |
+| **DDL** | [`2026-07-26-postgresql-ddl-revenue-os-ai.sql`](2026-07-26-postgresql-ddl-revenue-os-ai.sql) · [`runbooks/rnos01-ddl-apply.md`](../runbooks/rnos01-ddl-apply.md) |
+| **Runbook** | [`runbooks/ai-service-operations.md`](../runbooks/ai-service-operations.md) · [`runbooks/rnos01-ddl-apply.md`](../runbooks/rnos01-ddl-apply.md) (RNOS-01) |
 | **Pricing (sales)** | [`2026-07-26-rnosai-pricing-draft.md`](2026-07-26-rnosai-pricing-draft.md) |
 | **PR checklist (dev)** | [PR checklist](https://github.com/sdadtuan/RNOSAI/blob/main/docs/templates/pr-checklist-rnos-uc-ui-uat.md) · [PR template](https://github.com/sdadtuan/RNOSAI/blob/main/.github/pull_request_template.md) |
 | **GitHub** | https://github.com/sdadtuan/RNOSAI · [Issues](https://github.com/sdadtuan/RNOSAI/issues) · [Contributing](https://github.com/sdadtuan/RNOSAI/blob/main/.github/CONTRIBUTING.md) · [github-setup.md](https://github.com/sdadtuan/RNOSAI/blob/main/docs/templates/github-setup.md) |

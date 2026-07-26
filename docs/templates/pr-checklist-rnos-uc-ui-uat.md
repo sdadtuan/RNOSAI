@@ -107,7 +107,9 @@
 | ☐ | Apply **staging** trước; backup plan ghi trong PR |
 | ☐ | Bảng tối thiểu: `ai_agent_runs`, `ai_scores`, `ai_recommendations`, `customer_timeline_events`, … |
 | ☐ | Không breaking change CRM tables hiện có |
-| ☐ | `scripts/apply_pg_ddl_revenue_os_ai.sh` chạy OK (hoặc migration Nest tương đương) |
+| ☐ | `./scripts/apply_pg_ddl_revenue_os_ai.sh` chạy OK |
+| ☐ | `./scripts/rnos01_pg_ddl_gate.sh` → `.local-dev/rnos01-gate-report.json` `"ok": true` |
+| ☐ | Runbook [`rnos01-ddl-apply.md`](../runbooks/rnos01-ddl-apply.md) reviewed |
 
 **Reviewer:** Gate Phase 0 checklist · timeline table exists.
 

@@ -1,0 +1,193 @@
+import {
+  LeadScoreContext,
+  LeadScoreEngineResult,
+  LeadScoreExplainability,
+  LeadScoreFactor,
+  ScoreBand,
+} from './lead-score.types';
+
+function clamp(min: number, max: number, value: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function scoreBand(score: number): ScoreBand {
+  if (score >= 70) return 'hot';
+  if (score >= 40) return 'warm';
+  return 'cold';
+}
+
+function hoursSince(from: Date, to: Date): number {
+  return Math.max(0, (to.getTime() - from.getTime()) / 3_600_000);
+}
+
+function baseSourceScore(ctx: LeadScoreContext, factors: LeadScoreFactor[], flags: string[]): number {
+  const channel = String(ctx.channel ?? ctx.source ?? '')
+    .trim()
+    .toLowerCase();
+  const hasCampaign = Boolean(ctx.campaignId?.trim());
+
+  if (channel === 'meta' || channel === 'facebook') {
+    if (hasCampaign) {
+      factors.push({ key: 'source_meta_campaign', label: '+ Nguồn Meta Ads (có campaign)', delta: 20, sign: '+' });
+      return 20;
+    }
+    factors.push({ key: 'source_meta', label: '+ Nguồn Meta Ads', delta: 12, sign: '+' });
+    flags.push('attribution_incomplete');
+    factors.push({ key: 'no_campaign', label: '− Chưa map campaign', delta: 5, sign: '-' });
+    return 7;
+  }
+
+  if (channel === 'zalo') {
+    factors.push({ key: 'source_zalo', label: '+ Nguồn Zalo OA/Form', delta: 15, sign: '+' });
+    if (!hasCampaign) {
+      flags.push('attribution_incomplete');
+      factors.push({ key: 'no_campaign', label: '− Chưa map campaign', delta: 3, sign: '-' });
+      return 12;
+    }
+    return 15;
+  }
+
+  if (channel === 'google') {
+    factors.push({ key: 'source_google', label: '+ Nguồn Google Ads', delta: 12, sign: '+' });
+    return 12;
+  }
+
+  if (!channel) {
+    flags.push('attribution_incomplete');
+    factors.push({ key: 'unknown_source', label: '− Chưa xác định nguồn', delta: 5, sign: '-' });
+    return 5;
+  }
+
+  factors.push({ key: 'source_other', label: '+ Nguồn CRM/webhook', delta: 8, sign: '+' });
+  return 8;
+}
+
+function slaBonus(ctx: LeadScoreContext, factors: LeadScoreFactor[]): number {
+  if (!ctx.firstContactAt) {
+    return 0;
+  }
+  const minutes = (ctx.firstContactAt.getTime() - ctx.receivedAt.getTime()) / 60_000;
+  if (minutes <= 15) {
+    factors.push({ key: 'sla_15m', label: '+ Liên hệ trong 15 phút', delta: 10, sign: '+' });
+    return 10;
+  }
+  if (minutes <= 60) {
+    factors.push({ key: 'sla_60m', label: '+ Liên hệ trong 1 giờ', delta: 5, sign: '+' });
+    return 5;
+  }
+  return 0;
+}
+
+function valueBonus(ctx: LeadScoreContext, factors: LeadScoreFactor[]): number {
+  const value = ctx.estimatedDealValueVnd;
+  if (value == null || value <= 0) {
+    return 0;
+  }
+  if (value >= 100_000_000) {
+    factors.push({ key: 'value_high', label: '+ Giá trị deal cao', delta: 15, sign: '+' });
+    return 15;
+  }
+  if (value >= 50_000_000) {
+    factors.push({ key: 'value_mid', label: '+ Giá trị deal trung bình', delta: 10, sign: '+' });
+    return 10;
+  }
+  if (value >= 20_000_000) {
+    factors.push({ key: 'value_low', label: '+ Có ngân sách ước tính', delta: 5, sign: '+' });
+    return 5;
+  }
+  return 0;
+}
+
+function duplicatePenalty(ctx: LeadScoreContext, factors: LeadScoreFactor[]): number {
+  if (!ctx.isDuplicate) {
+    return 0;
+  }
+  factors.push({ key: 'duplicate', label: '− Lead trùng lặp', delta: 30, sign: '-' });
+  return 30;
+}
+
+function stalePenalty(ctx: LeadScoreContext, factors: LeadScoreFactor[], now: Date): number {
+  const hours = hoursSince(ctx.receivedAt, now);
+  if (hours < 24) {
+    return 0;
+  }
+  const days = Math.floor(hours / 24);
+  const penalty = Math.min(20, days * 5);
+  if (penalty > 0) {
+    factors.push({
+      key: 'stale',
+      label: `− Lead cũ (${days} ngày)`,
+      delta: penalty,
+      sign: '-',
+    });
+  }
+  return penalty;
+}
+
+function timelineBonus(ctx: LeadScoreContext, factors: LeadScoreFactor[]): number {
+  if (ctx.timelineEventCount >= 3) {
+    factors.push({ key: 'timeline_rich', label: '+ Nhiều tương tác timeline', delta: 5, sign: '+' });
+    return 5;
+  }
+  if (ctx.timelineEventCount >= 1) {
+    factors.push({ key: 'timeline_present', label: '+ Có timeline context', delta: 2, sign: '+' });
+    return 2;
+  }
+  return 0;
+}
+
+function computeConfidence(ctx: LeadScoreContext, flags: string[]): number {
+  let confidence = 0.45;
+  if (ctx.channel) confidence += 0.1;
+  if (ctx.campaignId) confidence += 0.1;
+  if (ctx.firstContactAt) confidence += 0.1;
+  if (ctx.timelineEventCount > 0) confidence += 0.05;
+  if (flags.includes('attribution_incomplete')) confidence -= 0.08;
+  return clamp(0.35, 0.92, Math.round(confidence * 1000) / 1000);
+}
+
+/** RNOS-04 rules engine v1 — deterministic, no LLM. */
+export function computeLeadScoreV1(
+  ctx: LeadScoreContext,
+  now: Date = new Date(),
+): LeadScoreEngineResult {
+  const factors: LeadScoreFactor[] = [];
+  const flags: string[] = [];
+
+  const base = 35;
+  factors.push({ key: 'base', label: 'Điểm nền lead mới', delta: base, sign: '+' });
+
+  const total =
+    base +
+    baseSourceScore(ctx, factors, flags) +
+    slaBonus(ctx, factors) +
+    valueBonus(ctx, factors) +
+    timelineBonus(ctx, factors) -
+    duplicatePenalty(ctx, factors) -
+    stalePenalty(ctx, factors, now);
+
+  const score = clamp(0, 100, Math.round(total));
+  const explainability: LeadScoreExplainability = {
+    factors,
+    flags,
+    score_band: scoreBand(score),
+  };
+
+  return {
+    score,
+    confidence: computeConfidence(ctx, flags),
+    explainability,
+    features: {
+      channel: ctx.channel,
+      source: ctx.source,
+      campaign_id: ctx.campaignId,
+      is_duplicate: ctx.isDuplicate,
+      hours_since_received: Math.round(hoursSince(ctx.receivedAt, now) * 10) / 10,
+      timeline_events: ctx.timelineEventCount,
+      first_contact_minutes: ctx.firstContactAt
+        ? Math.round((ctx.firstContactAt.getTime() - ctx.receivedAt.getTime()) / 60_000)
+        : null,
+      estimated_deal_value_vnd: ctx.estimatedDealValueVnd,
+    },
+  };
+}

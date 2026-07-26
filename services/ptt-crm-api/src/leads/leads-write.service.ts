@@ -5,7 +5,9 @@ import {
   Injectable,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { AiScoreAsyncService } from '../ai-intelligence/ai-score-async.service';
 import { DomainEventService } from '../events/domain-event.service';
+import { CustomerTimelineService } from '../customer-timeline/customer-timeline.service';
 import { MetaConversionSideEffectsService } from '../meta-tracking/meta-conversion-side-effects.service';
 import { PerformanceService } from '../performance/performance.service';
 import { PgLeadsWriteRepository } from './pg-leads-write.repository';
@@ -16,8 +18,10 @@ export class LeadsWriteService {
   constructor(
     private readonly writeRepo: PgLeadsWriteRepository,
     private readonly events: DomainEventService,
+    private readonly timeline: CustomerTimelineService,
     private readonly conversionFx: MetaConversionSideEffectsService,
     private readonly performance: PerformanceService,
+    private readonly scoreAsync: AiScoreAsyncService,
   ) {}
 
   async createLead(body: CreateLeadV1Body): Promise<LeadV1> {
@@ -26,7 +30,7 @@ export class LeadsWriteService {
     }
     try {
       const lead = await this.writeRepo.createLead(body);
-      await this.events.emit(
+      const correlationId = await this.events.emit(
         'LeadCreated',
         'lead',
         String(lead.id),
@@ -35,8 +39,15 @@ export class LeadsWriteService {
           channel: body.channel?.trim() || lead.channel || 'staging',
           client_id: body.client_id ?? lead.client_id ?? null,
           external_lead_id: body.external_lead_id ?? lead.external_lead_id ?? null,
+          canonical_event: 'tenant.lead.created',
         },
       );
+      await this.timeline.recordLeadCreatedFromV1(lead);
+      await this.scoreAsync.enqueueAfterLeadCreated({
+        leadId: lead.id,
+        clientId: body.client_id ?? lead.client_id ?? null,
+        correlationId,
+      });
       return lead;
     } catch (err) {
       this.rethrowPg(err);
@@ -77,6 +88,13 @@ export class LeadsWriteService {
           newStatus: body.status,
           receivedAt: result.lead.received_at,
           createdAt: result.lead.created_at,
+        });
+        await this.timeline.recordStatusChange({
+          leadId,
+          from: result.previous_status,
+          to: body.status,
+          actorId: actor ?? null,
+          clientId: result.lead.client_id,
         });
       }
       return result.lead;

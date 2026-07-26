@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { CustomerTimelineModule } from '../customer-timeline/customer-timeline.module';
 import { LeadsModule } from '../leads/leads.module';
 import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
@@ -7,9 +8,14 @@ import { CrmLeadsLegacyService } from './crm-leads-legacy.service';
 import { CrmLeadsSqliteRepository } from './crm-leads-sqlite.repository';
 
 @Module({
-  imports: [StaffAuthModule, LeadsModule, forwardRef(() => LeadsFunnelModule)],
+  imports: [
+    StaffAuthModule,
+    LeadsModule,
+    CustomerTimelineModule,
+    forwardRef(() => LeadsFunnelModule),
+  ],
   controllers: [CrmLeadsLegacyController],
   providers: [CrmLeadsLegacyService, CrmLeadsSqliteRepository],
-  exports: [CrmLeadsLegacyService],
+  exports: [CrmLeadsLegacyService, CrmLeadsSqliteRepository],
 })
 export class CrmLeadsLegacyModule {}

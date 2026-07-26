@@ -13,6 +13,8 @@ import { CustomersModule } from './customers/customers.module';
 import { IntakeModule } from './intake/intake.module';
 import { MetaTrackingModule } from './meta-tracking/meta-tracking.module';
 import { MetaAlertsModule } from './meta-alerts/meta-alerts.module';
+import { AiIntelligenceModule } from './ai-intelligence/ai-intelligence.module';
+import { CustomerTimelineModule } from './customer-timeline/customer-timeline.module';
 import { MetaIntelligenceModule } from './meta-intelligence/meta-intelligence.module';
 import { MetaCreativeRegistryModule } from './meta-creative-registry/meta-creative-registry.module';
 import { MetaComplianceModule } from './meta-compliance/meta-compliance.module';
@@ -125,6 +127,8 @@ import { WorkflowsModule } from './workflows/workflows.module';
     PerformanceModule,
     MetaTrackingModule,
     MetaAlertsModule,
+    AiIntelligenceModule,
+    CustomerTimelineModule,
     MetaIntelligenceModule,
     MetaCreativeRegistryModule,
     MetaComplianceModule,

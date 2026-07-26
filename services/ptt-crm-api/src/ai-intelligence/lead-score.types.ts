@@ -1,0 +1,101 @@
+export type ScoreBand = 'hot' | 'warm' | 'cold';
+
+export interface LeadScoreFactor {
+  key: string;
+  label: string;
+  delta: number;
+  sign: '+' | '-';
+}
+
+export interface LeadScoreExplainability {
+  factors: LeadScoreFactor[];
+  flags: string[];
+  score_band: ScoreBand;
+}
+
+export interface LeadScoreContext {
+  leadId: number;
+  clientId: string | null;
+  channel: string | null;
+  source: string | null;
+  campaignId: string | null;
+  externalLeadId: string | null;
+  status: string | null;
+  isDuplicate: boolean;
+  receivedAt: Date;
+  createdAt: Date;
+  firstContactAt: Date | null;
+  timelineEventCount: number;
+  meta: Record<string, unknown>;
+  estimatedDealValueVnd: number | null;
+}
+
+export interface LeadScoreEngineResult {
+  score: number;
+  confidence: number;
+  explainability: LeadScoreExplainability;
+  features: Record<string, unknown>;
+}
+
+export interface AiScoreRecord {
+  id: string;
+  client_id: string | null;
+  entity_type: string;
+  entity_id: string;
+  score_type: string;
+  score_value: number;
+  confidence: number | null;
+  features_json: Record<string, unknown>;
+  explainability_json: LeadScoreExplainability;
+  model_name: string | null;
+  model_version: string;
+  agent_run_id: string | null;
+  overridden_by: string | null;
+  overridden_at: string | null;
+  override_reason: string | null;
+  calculated_at: string;
+  created_at: string;
+}
+
+export interface ScoreLeadRequest {
+  leadId: number;
+  force?: boolean;
+  actorId?: string | null;
+  correlationId?: string | null;
+  clientId?: string | null;
+}
+
+export interface ScoreLeadResponseData {
+  score_id: string;
+  lead_id: number;
+  score: number;
+  confidence: number;
+  score_band: ScoreBand;
+  explainability: LeadScoreExplainability;
+  model_name: string;
+  model_version: string;
+  agent_run_id: string;
+  calculated_at: string;
+  idempotent_replay: boolean;
+}
+
+export type ScoreLeadResponse = {
+  data: ScoreLeadResponseData;
+  meta: { request_id: string };
+  errors: unknown[];
+};
+
+export type AiScoresListResponse = {
+  data: {
+    entity_type: string;
+    entity_id: string;
+    scores: AiScoreRecord[];
+    latest: AiScoreRecord | null;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+};
+
+export const LEAD_SCORE_MODEL = 'rules-v1';
+export const LEAD_SCORE_MODEL_VERSION = 'lead-v1';
+export const LEAD_SCORE_IDEMPOTENCY_MINUTES = 5;

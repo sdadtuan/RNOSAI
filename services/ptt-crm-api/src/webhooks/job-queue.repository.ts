@@ -79,17 +79,45 @@ export class JobQueueRepository implements OnModuleDestroy {
     return null;
   }
 
+  /** RNOS-08 — async lead score consumer (AI-UC-001). */
+  async enqueueScoreLeadJob(input: {
+    leadId: number;
+    clientId?: string | null;
+    correlationId?: string;
+  }): Promise<EnqueuedJob | null> {
+    if (!this.config.jobsEnabled) {
+      return null;
+    }
+    const leadId = Number(input.leadId);
+    if (!Number.isFinite(leadId) || leadId <= 0) {
+      return null;
+    }
+    return this.enqueueJobRecord({
+      jobType: 'score_lead',
+      payload: {
+        lead_id: leadId,
+        client_id: input.clientId ?? null,
+      },
+      idempotencyKey: `score_lead:lead:${leadId}`,
+      correlationId: input.correlationId,
+      clientId: this.normalizeClientUuid(input.clientId ?? undefined),
+      maxAttempts: 3,
+    });
+  }
+
   private async enqueueJobRecord(input: {
     jobType: string;
     payload: Record<string, unknown>;
     idempotencyKey: string;
     correlationId?: string;
     clientId: string | null;
+    maxAttempts?: number;
   }): Promise<EnqueuedJob> {
+    const maxAttempts = input.maxAttempts ?? 5;
     const insert = await this.db.query(
       `INSERT INTO job_queue (
          job_type, payload, idempotency_key, correlation_id, client_id, max_attempts, status
-       ) VALUES ($1, $2::jsonb, $3, $4, $5::uuid, 5, 'pending')
+       ) VALUES ($1, $2::jsonb, $3, $4, $5::uuid, $6, 'pending')
        ON CONFLICT (idempotency_key) DO NOTHING
        RETURNING id, job_type, status, idempotency_key, correlation_id`,
       [
@@ -98,6 +126,7 @@ export class JobQueueRepository implements OnModuleDestroy {
         input.idempotencyKey,
         input.correlationId ?? null,
         input.clientId,
+        maxAttempts,
       ],
     );
     if (insert.rows[0]) {

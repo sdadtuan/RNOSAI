@@ -442,9 +442,27 @@ def process_ingest_lead_payload_pg(
                 "client_id": client_id_norm,
                 "external_lead_id": lead_dict.get("external_lead_id"),
                 "write_path": "pg_primary",
+                "canonical_event": "tenant.lead.created",
             },
             correlation_id=correlation_id,
         )
+        try:
+            from ptt_crm.timeline_events import (
+                build_attribution_from_legacy_item,
+                record_lead_ingested_timeline,
+            )
+
+            record_lead_ingested_timeline(
+                lead_id=int(lead_id),
+                channel=channel,
+                client_id=client_id_norm,
+                external_lead_id=str(lead_dict.get("external_lead_id") or "") or None,
+                source=source,
+                attribution=build_attribution_from_legacy_item(legacy_item, channel),
+                correlation_id=correlation_id,
+            )
+        except Exception as exc:
+            logger.debug("timeline after pg ingest skipped: %s", exc)
         if client_id_norm:
             try:
                 from ptt_meta.capi_dispatch import enqueue_capi_lead_dispatch
@@ -457,6 +475,16 @@ def process_ingest_lead_payload_pg(
                 )
             except Exception as exc:
                 logger.debug("capi enqueue skipped: %s", exc)
+        try:
+            from ptt_crm.ai_score_enqueue import enqueue_score_lead_job
+
+            enqueue_score_lead_job(
+                lead_id=int(lead_id),
+                client_id=client_id_norm,
+                correlation_id=correlation_id,
+            )
+        except Exception as exc:
+            logger.debug("score_lead enqueue skipped: %s", exc)
 
     return {
         "ok": True,

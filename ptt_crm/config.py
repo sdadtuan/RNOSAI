@@ -25,6 +25,11 @@ def nest_internal_key() -> str | None:
     return key or None
 
 
+def ai_score_async_enabled() -> bool:
+    """RNOS-08 — async score via job_queue after LeadCreated."""
+    return _truthy("PTT_AI_SCORE_ASYNC", "1")
+
+
 def dual_run_timeout_sec() -> float:
     try:
         return max(0.5, float(os.environ.get("PTT_DUAL_RUN_TIMEOUT_SEC", "2.0")))

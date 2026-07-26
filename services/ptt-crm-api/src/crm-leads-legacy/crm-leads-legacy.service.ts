@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { catalogTs } from '../catalog/catalog-slug.util';
+import { CustomerTimelineService } from '../customer-timeline/customer-timeline.service';
 import { LeadsRepository } from '../leads/leads.repository';
 import { LeadsWriteService } from '../leads/leads-write.service';
 import { LeadV1 } from '../leads/leads.types';
@@ -22,6 +23,7 @@ export class CrmLeadsLegacyService {
     private readonly sqlite: CrmLeadsSqliteRepository,
     private readonly leadsRepo: LeadsRepository,
     private readonly leadsWrite: LeadsWriteService,
+    private readonly timeline: CustomerTimelineService,
   ) {}
 
   private async assertLead(leadId: number): Promise<void> {
@@ -45,6 +47,7 @@ export class CrmLeadsLegacyService {
   ): Promise<{ activity: LeadActivityRow }> {
     await this.assertLead(leadId);
     const activity = this.sqlite.createActivity(leadId, body, actor, userId);
+    await this.timeline.recordActivityFromLegacy(leadId, activity);
     return { activity };
   }
 
@@ -87,12 +90,13 @@ export class CrmLeadsLegacyService {
     if (this.sqlite.leadExists(leadId)) {
       this.sqlite.syncOwner(leadId, toId, actor, ts);
       this.sqlite.logAssignment(leadId, fromId, toId, reason, actor, ts);
-      this.sqlite.createActivity(
+      const assignActivity = this.sqlite.createActivity(
         leadId,
         { activity_type: 'system', content: `Phân lại lead: ${reason}` },
         actor,
         toId,
       );
+      await this.timeline.recordActivityFromLegacy(leadId, assignActivity);
     }
 
     return { lead };
@@ -110,6 +114,14 @@ export class CrmLeadsLegacyService {
     if (next.status && prev.status !== next.status) {
       this.sqlite.syncStatus(leadId, next.status, actor, ts);
       this.sqlite.logStatusChange(leadId, prev.status, next.status, actor, note, ts);
+      await this.timeline.recordStatusChange({
+        leadId,
+        from: prev.status,
+        to: next.status,
+        actorId: actor,
+        note,
+        occurredAt: ts,
+      });
     }
     if (prev.owner_id !== next.owner_id && next.owner_id != null) {
       this.sqlite.syncOwner(leadId, next.owner_id, actor, ts);

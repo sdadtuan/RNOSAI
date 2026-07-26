@@ -53,10 +53,11 @@ cp .env.example .env
 ```bash
 brew install postgresql@15
 brew services start postgresql@15
-createuser -s ptt 2>/dev/null || true
-createdb -O ptt ptt_agency 2>/dev/null || true
-psql postgresql://ptt@127.0.0.1:5432/ptt_agency -f docs/specs/2026-07-17-postgresql-ddl-v1.sql
-export DATABASE_URL=postgresql://ptt@127.0.0.1:5432/ptt_agency
+chmod +x scripts/create_rnosaidb.sh
+./scripts/create_rnosaidb.sh
+export DATABASE_URL=postgresql://ptt:ptt_dev@127.0.0.1:5432/rnosaidb
+psql "$DATABASE_URL" -f docs/specs/2026-07-17-postgresql-ddl-v1.sql
+psql "$DATABASE_URL" -f docs/specs/2026-07-17-postgresql-ddl-v2-leads.sql
 ./scripts/local_phase1_up.sh brew
 ```
 
