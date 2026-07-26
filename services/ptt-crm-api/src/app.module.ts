@@ -16,6 +16,7 @@ import { IntakeModule } from './intake/intake.module';
 import { MetaTrackingModule } from './meta-tracking/meta-tracking.module';
 import { MetaAlertsModule } from './meta-alerts/meta-alerts.module';
 import { AiIntelligenceModule } from './ai-intelligence/ai-intelligence.module';
+import { AutomationWorkflowsModule } from './automation-workflows/automation-workflows.module';
 import { CustomerTimelineModule } from './customer-timeline/customer-timeline.module';
 import { MetaIntelligenceModule } from './meta-intelligence/meta-intelligence.module';
 import { MetaCreativeRegistryModule } from './meta-creative-registry/meta-creative-registry.module';
@@ -132,6 +133,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     MetaTrackingModule,
     MetaAlertsModule,
     AiIntelligenceModule,
+    AutomationWorkflowsModule,
     CustomerTimelineModule,
     MetaIntelligenceModule,
     MetaCreativeRegistryModule,

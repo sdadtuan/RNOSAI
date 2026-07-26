@@ -61,6 +61,7 @@ import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
     AiAuditService,
     AiAgentRunsService,
     AiScoresRepository,
+    LeadScoreContextRepository,
     AiLeadScoreService,
     AiSummarizeService,
     AiRecommendationService,

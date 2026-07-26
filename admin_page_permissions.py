@@ -122,6 +122,13 @@ ADMIN_CRM_SECTIONS: tuple[dict[str, Any], ...] = (
         "page": "/admin/ai/runs",
         "description": "Bảng ai_agent_runs — filter date/status/use case (RNOS-05).",
     },
+    {
+        "id": "automation_workflows",
+        "label": "AI — Workflow automation",
+        "group": "CRM — Automation",
+        "page": "/crm/automation",
+        "description": "Workflow builder + AI nodes + simulate (RNOS-13…15).",
+    },
     # —— SOP ——
     {
         "id": "crm_sop_runs",

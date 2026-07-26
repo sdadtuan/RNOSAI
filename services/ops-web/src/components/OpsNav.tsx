@@ -75,6 +75,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/sales': 'Kinh doanh',
   '/crm/kpi': 'KPI',
   '/crm/ai/insights': 'AI Insights',
+  '/crm/automation': 'Workflow automation',
   '/crm/staff-kpi': 'KPI AM/SP',
   '/crm/staff': 'Nhân viên',
   '/crm/proposals': 'Đề xuất dịch vụ',
@@ -264,6 +265,12 @@ function buildSections(
     aiAdmin.push({ href: '/admin/ai/runs', label: 'AI agent runs' });
   }
   if (aiAdmin.length) sections.push({ label: 'AI · Admin', links: aiAdmin });
+
+  const automation: NavLink[] = [];
+  if (hasCap(user, 'automation_workflows', 'view')) {
+    automation.push({ href: '/crm/automation', label: 'Workflows' });
+  }
+  if (automation.length) sections.push({ label: 'AI · Automation', links: automation });
 
   const agency: NavLink[] = [];
   if (hasCap(user, 'crm_agency', 'view')) {

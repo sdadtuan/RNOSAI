@@ -1,6 +1,6 @@
 # Ma trận gap CRM vs Getfly — checklist PR theo màn hình
 
-> **Phiên bản:** 1.3 · **Ngày:** 2026-07-26  
+> **Phiên bản:** 1.4 · **Ngày:** 2026-07-26  
 > **Mục đích:** Checklist PR khi nâng cấp ops-web `/crm/*` để đạt **table stakes ~80% CRM** (spec §20.5) so với [Getfly CRM](https://getfly.vn) — **không** copy ERP/LP builder.  
 > **Traceability:** [`SPEC_AI_REVENUE_OPERATING_SYSTEM.md`](../SPEC_AI_REVENUE_OPERATING_SYSTEM.md) §4, §20 · [`SPEC_RNOSAI_MASTER.md`](../SPEC_RNOSAI_MASTER.md) · [`SPEC_UI_UX_PTT.md`](../SPEC_UI_UX_PTT.md)  
 > **PR template chung:** [`docs/templates/pr-checklist-rnos-uc-ui-uat.md`](../templates/pr-checklist-rnos-uc-ui-uat.md)
@@ -355,7 +355,7 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 | # | PR checklist | Parity | Done when |
 |---|--------------|--------|-----------|
 | 20.1 | [ ] `/crm/marketing-plan/[id]`: form đủ field plan | ○ | Not stub |
-| 20.2 | [ ] `/crm/sop`: link tới workflow template (P0-3) | P0-3 | RNOS-13 defer |
+| 20.2 | [x] **`/crm/automation`** workflow builder + AI nodes + simulate | P0-3 / UI-R2-04 | RNOS-13…15 |
 | 20.3 | [ ] E2E regression creatives / campaign-writes | ➕ | CI optional |
 
 **Không so Getfly 1:1** — đây là moat agency.
@@ -458,7 +458,7 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 | Ngày | Phiên bản | Ghi chú |
 |------|-----------|---------|
 | 2026-07-26 | 1.0 | Ma trận ban đầu — as-is ops-web `main` post RNOS-39 |
-| 2026-07-26 | 1.3 | §23.1 complete — UI-R1-09 `/admin/ai/runs` audit table + `ai_admin.view` RBAC |
+| 2026-07-26 | 1.4 | §20.2 complete — RNOS-13…15 workflow builder `/crm/automation` + simulate dry-run |
 
 ---
 

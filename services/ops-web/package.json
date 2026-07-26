@@ -18,6 +18,7 @@
     "test:e2e:financials-intelligence": "playwright test e2e/financials-intelligence-rnos45.spec.ts",
     "test:e2e:kpi-grid": "playwright test e2e/kpi-grid-rnos44.spec.ts",
     "test:e2e:admin-ai-runs": "playwright test e2e/admin-ai-runs-ui-r1-09.spec.ts",
+    "test:e2e:automation-workflows": "playwright test e2e/automation-workflows-rnos13.spec.ts",
     "test:e2e:business-dashboard-executive": "playwright test e2e/business-dashboard-rnos46.spec.ts",
     "test:e2e:crm-config": "playwright test e2e/crm-config-rnos35.spec.ts",
     "test:e2e:crm-tickets": "playwright test e2e/crm-tickets-rnos24.spec.ts",
