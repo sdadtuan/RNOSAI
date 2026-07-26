@@ -33,7 +33,7 @@ type CreativeRow = {
   title: string;
   status: string;
   version: number;
-  channel: string;
+  channel?: string;
   external_campaign_id: string | null;
   external_campaign_name: string | null;
   submitted_at: string;
@@ -171,6 +171,7 @@ export function CrmCreativesContent() {
       client_id: row.client_id,
       external_campaign_id: row.external_campaign_id ?? '',
       external_campaign_name: row.external_campaign_name ?? '',
+      channel: row.channel ?? 'meta',
       title: row.title,
       description: '',
       asset_url: '',
