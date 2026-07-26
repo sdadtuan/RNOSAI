@@ -96,6 +96,17 @@
 | 0b.2 | [x] **RAG query** `POST /api/v1/ai/playbooks/rag/query` | R2 | answer + citations |
 | 0b.3 | [x] Vector store `ai_playbook_chunks.embedding_json` | R2 | PG only (no SQLite) |
 
+### 0c. Copilot — Dismiss reason modal (RNOS-29 / UI-R2-06)
+
+**Getfly:** —  
+**RNOS as-is:** ✅ Follow-up draft dismiss → preset reason → `ai_recommendations.dismissed_reason` + analytics.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 0c.1 | [x] **DismissReasonModal** trên copilot follow-up | R2 | preset radio + PATCH dismissed |
+| 0c.2 | [x] API `PATCH /api/v1/ai/recommendations/:id` + `dismiss_reason` | R2 | lưu PG |
+| 0c.3 | [x] Analytics G6 tile + inbox `/crm/ai/insights` | R2 | acceptance rate + top reasons |
+
 ---
 
 ### 1. `/` — Bảng điều khiển
@@ -157,9 +168,10 @@
 | 4.2 | [ ] @mention staff trong activity (optional) | ○ | Notify hoặc highlight |
 | 4.3 | [ ] Chip **campaign / CPL** → deep link Meta hub | ○ | Spec UI §12 attribution |
 | 4.4 | [ ] Nút **copy SĐT / Zalo** (không auto-send) | ○ | Clipboard |
-| 4.5 | [ ] Copilot: trust footer BR-AI copy | UI-R1 | Text spec §15 |
-| 4.6 | [ ] Mobile tab **AI** không regress (RNOS-39 E2E) | P0-1 | CI green |
-| 4.7 | [ ] GDKD **override score** modal | UI-R1-08 | `overridden_by` API |
+| 4.5 | [x] Copilot: dismiss draft modal + feedback (UI-R2-06) | R2 | RNOS-29 gate green |
+| 4.6 | [ ] Copilot: trust footer BR-AI copy | UI-R1 | Text spec §15 |
+| 4.7 | [ ] Mobile tab **AI** không regress (RNOS-39 E2E) | P0-1 | CI green |
+| 4.8 | [ ] GDKD **override score** modal | UI-R1-08 | `overridden_by` API |
 
 **Không yêu cầu PR:** Nút “Gửi Zalo/Email trực tiếp” (🚫 BR-AI-01 — dùng follow-up draft).
 
@@ -485,6 +497,7 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 | 2026-07-26 | 1.5 | §9.3 complete — RNOS-09 deal score + RNOS-10 NBA on sales funnel |
 | 2026-07-26 | 1.6 | §0 complete — RNOS-11 OpenSearch global search bar + search API |
 | 2026-07-26 | 1.7 | §0b complete — RNOS-12/36 playbook library + RAG at /crm/playbooks |
+| 2026-07-26 | 1.8 | §0c complete — RNOS-29 dismiss reason modal on copilot (UI-R2-06) |
 
 ---
 
