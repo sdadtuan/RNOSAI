@@ -98,7 +98,7 @@ flowchart LR
 | Nest module | `services/ptt-crm-api/src/ai-intelligence/` |
 | Controller | `ai-intelligence.controller.ts` → `/api/v1/ai/*` |
 | Worker (optional) | `ptt_jobs/handlers/ai_lead_score.py` hoặc Nest queue |
-| ops-web UI | `services/ops-web/src/components/LeadCopilotPanel.tsx` |
+| ops-web UI | `services/ops-web/src/components/ai/LeadCopilotPanel.tsx` |
 | Lead page | `services/ops-web/src/app/crm/leads/[id]/page.tsx` |
 | E2E | `services/ops-web/e2e/ai-copilot.spec.ts` |
 | DDL | `docs/specs/2026-07-26-postgresql-ddl-revenue-os-ai.sql` |
@@ -114,38 +114,40 @@ flowchart LR
 
 ## 3. Biến môi trường
 
-Đặt trên VPS trong env Nest (`ptt-crm-api.service`) và ops-web build-time nếu cần flag UI.
+**Mẫu đầy đủ:** [`deploy/env.ai.example`](../../deploy/env.ai.example) — copy vào VPS `EnvironmentFile`, không commit secrets.
 
-```bash
-# ── Feature gate ──
-PTT_AI_COPILOT_ENABLED=0              # 1 = bật API + UI copilot
-PTT_AI_PILOT_USER_IDS=uuid1,uuid2     # optional allowlist (5–8 CSKH pilot)
+**Pilot cohort template:** [`deploy/pilot-cohort.example.json`](../../deploy/pilot-cohort.example.json) (5–8 user; điền UUID thật → `pilot-cohort.json` gitignore).
 
-# ── LLM provider ──
-AI_LLM_API_KEY=                       # Vault / không commit repo
-PTT_AI_LLM_PROVIDER=openai            # openai | azure | anthropic
-PTT_AI_LLM_MODEL=gpt-4o-mini          # summarize + brief v1
-PTT_AI_LLM_TIMEOUT_MS=8000
-PTT_AI_LLM_MAX_TOKENS=2048
+### 3.1. Nest (`ptt-crm-api`)
 
-# ── Scoring ──
-PTT_AI_SCORE_ASYNC=1                  # queue score sau lead.created
-PTT_AI_SCORE_IDEMPOTENCY_WINDOW_SEC=300
+| Biến | Mặc định | Mô tả |
+|------|----------|-------|
+| `PTT_AI_COPILOT_ENABLED` | `0` | `1` = bật guarded `/api/v1/ai/*` (trừ health) |
+| `PTT_AI_PILOT_USER_IDS` | *(rỗng)* | CSV staff `sub`; rỗng = mọi staff có cap (staging) |
+| `PTT_AI_LLM_PROVIDER` | `openai` | Provider label (audit) |
+| `PTT_AI_LLM_MODEL` | `gpt-4o-mini` | Model summarize/brief/draft |
+| `PTT_AI_LLM_TIMEOUT_MS` | `8000` | LLM HTTP timeout ms |
+| `AI_LLM_API_KEY` | — | Vault; rỗng → stub mode dev |
+| `PTT_AI_LOG_PII` | `0` | **Prod bắt buộc 0** (Gate R1 #5) |
+| `PTT_AI_LOG_PROMPTS` | `0` | **Prod bắt buộc 0** |
+| `PTT_AI_SCORE_ASYNC` | `1` | RNOS-08 async score consumer |
+| `PTT_AI_SUMMARIZE_RATE_LIMIT_PER_MIN` | `20` | Per-actor summarize/draft limit |
+| `PTT_AI_SUMMARIZE_MIN_TEXT` | `50` | Min chars activity summarize |
+| `PTT_CRM_INTERNAL_KEY` | — | **Staging/prod:** bắt buộc để JWT guard + pilot cohort hoạt động (không bypass internal) |
+| `PTT_STAFF_JWT_SECRET` | — | Staff JWT verify |
 
-# ── Safety & audit ──
-PTT_AI_LOG_PII=0                      # prod BẮT BUỘC 0
-PTT_AI_LOG_PROMPTS=0                  # prod: hash only trong ai_agent_runs
-PTT_AI_RATE_LIMIT_PER_USER=30         # requests / 15 min /user
+### 3.2. ops-web (build-time)
 
-# ── Degraded mode ──
-PTT_AI_RULES_ONLY=0                   # 1 = skip LLM; score rules-only
-```
+| Biến | Mặc định | Mô tả |
+|------|----------|-------|
+| `NEXT_PUBLIC_PTT_AI_COPILOT_ENABLED` | `0` | Ẩn Copilot panel khi `0` |
+| `NEXT_PUBLIC_PTT_AI_PILOT_USER_IDS` | *(rỗng)* | Phải khớp Nest cohort prod pilot |
 
-**Mẫu deploy (target):** `deploy/env.ai.example` — copy vào VPS, không commit secrets.
+**Quy tắc:** Khi bật pilot prod, set **cả Nest và ops-web** cùng lúc rồi restart/rebuild.
 
 | Biến | Staging | Production pilot |
 |------|---------|------------------|
-| `PTT_AI_COPILOT_ENABLED` | `1` (full team) | `1` + cohort only |
+| `PTT_AI_COPILOT_ENABLED` | `1` | `1` + cohort |
 | `PTT_AI_LOG_PII` | `0` | `0` |
 | `AI_LLM_API_KEY` | dev key | Vault rotation 90d |
 
@@ -158,7 +160,7 @@ PTT_AI_RULES_ONLY=0                   # 1 = skip LLM; score rules-only
 - [ ] Backup PostgreSQL (`pg_dump`) trước DDL
 - [ ] CRM lead ingest regression test pass (webhook smoke)
 - [ ] LLM billing/quota approved
-- [ ] Pilot CSKH list (5–8 user UUID) từ `/admin/staff` hoặc DB
+- [ ] Pilot CSKH list (5–8 user UUID) — xem [`deploy/pilot-cohort.example.json`](../../deploy/pilot-cohort.example.json)
 
 ### 4.2. Apply DDL (RNOS-01)
 
@@ -229,9 +231,9 @@ curl -sS -X POST "https://ops.pttads.vn/api/v1/ai/summarize" \
 Verify audit:
 
 ```sql
-SELECT id, action, model, latency_ms, status, created_at
+SELECT id, use_case, model_name, status, latency_ms, error_message, started_at
 FROM ai_agent_runs
-ORDER BY created_at DESC
+ORDER BY started_at DESC
 LIMIT 5;
 ```
 
@@ -245,10 +247,24 @@ LIMIT 5;
 
 ```bash
 cd services/ops-web
-OPS_E2E_API_URL=https://ops-staging.pttads.vn npx playwright test e2e/ai-copilot.spec.ts
+OPS_E2E_API_URL=http://127.0.0.1:3000 npx playwright test e2e/ai-copilot.spec.ts
 ```
 
-### 5.5. BR-AI-01 verify (manual)
+### 5.5. RNOS-40 gate & rollback drill
+
+```bash
+# Rollback drill only (flag off, cohort block, prompt SQL read)
+bash scripts/rnos40_rollback_drill.sh
+# → .local-dev/rnos40-rollback-drill.json
+
+# Full gate: artifacts + drill + RNOS-06 UAT smoke
+bash scripts/rnos40_gate.sh
+# → .local-dev/rnos40-gate-report.json
+```
+
+Chạy trước khi bật pilot cohort hoặc ký Gate R1 §12.
+
+### 5.6. BR-AI-01 verify (manual)
 
 1. Generate follow-up draft trên copilot.
 2. **Duyệt**.
@@ -260,14 +276,21 @@ OPS_E2E_API_URL=https://ops-staging.pttads.vn npx playwright test e2e/ai-copilot
 
 ### 6.1. Bật pilot (5–8 CSKH)
 
-**Cách A — env cohort:**
+**Cách A — env cohort (prod pilot):**
+
+Dùng template [`deploy/pilot-cohort.example.json`](../../deploy/pilot-cohort.example.json) → điền UUID thật:
 
 ```bash
 PTT_AI_COPILOT_ENABLED=1
-PTT_AI_PILOT_USER_IDS=uuid-a,uuid-b,uuid-c
+PTT_AI_PILOT_USER_IDS=uuid-a,uuid-b,uuid-c,uuid-d,uuid-e
+# ops-web rebuild:
+# NEXT_PUBLIC_PTT_AI_COPILOT_ENABLED=1
+# NEXT_PUBLIC_PTT_AI_PILOT_USER_IDS=uuid-a,uuid-b,...
 ```
 
-Restart Nest + ops-web.
+Restart Nest + rebuild/restart ops-web.
+
+**User ngoài cohort:** API `403 pilot_cohort_required`; UI hiển thị gate message (UAT RNOS-40).
 
 **Cách B — flag global (staging):**
 
@@ -332,7 +355,7 @@ Channel alert: `#ai-alerts` Slack (hoặc log dashboard tương đương).
 |---------|----------|----------------|------------|
 | Error rate AI >5% / 1h | P1 | `PTT_AI_COPILOT_ENABLED=0` | None |
 | PII trong log prod | P1 | Flag off + rotate keys + fix redaction | None |
-| LLM provider outage | P2 | `PTT_AI_RULES_ONLY=1` hoặc flag off | Score rules-only optional |
+| LLM provider outage | P2 | Flag off §8.2; score rules vẫn chạy qua `POST /score/lead` | Score manual OK |
 | Summarize latency >10s P95 | P2 | Flag off hoặc giảm rate limit | None |
 | CSKH report sai fact nghiêm trọng | P1 | Flag off + incident | None |
 | Score job backlog >1h | P2 | Pause async; manual hot/warm tags | None |
@@ -351,20 +374,11 @@ Verify:
 
 - Copilot panel **ẩn** trên `/crm/leads/[id]`.
 - Lead create / webhook / CSKH board **bình thường**.
-- `POST /api/v1/ai/summarize` → 403/503 (acceptable).
+- `POST /api/v1/ai/summarize` → 503 `ai_copilot_disabled` (acceptable)
 
-### 8.3. Procedure — degraded rules-only
+**Drill tự động:** `bash scripts/rnos40_rollback_drill.sh` (mô phỏng trên port 3010).
 
-Khi LLM down nhưng muốn giữ **score rules**:
-
-```bash
-PTT_AI_COPILOT_ENABLED=1
-PTT_AI_RULES_ONLY=1
-```
-
-UI: summarize/brief hiển thị "Tạm ngưng AI — thử lại sau"; score vẫn chạy rules engine.
-
-### 8.4. Post-rollback
+### 8.3. Post-rollback (không còn rules-only flag riêng)
 
 - [ ] Thông báo #ai-alerts + CSKH pilot lead
 - [ ] Ghi incident + root cause
@@ -393,23 +407,23 @@ sudo systemctl restart ptt-crm-api.service
 
 ### 9.2. Rollback prompt version
 
-Prompts lưu tại `ai_prompts` (key + version):
+Prompts lưu tại `ai_prompts` (`use_case` + `version`):
 
 ```sql
 -- Xem prompt active
-SELECT prompt_key, version, is_active, updated_at
+SELECT use_case, version, is_active, updated_at
 FROM ai_prompts
-WHERE prompt_key IN ('summarize_activity', 'lead_brief', 'follow_up_draft')
-ORDER BY prompt_key, version DESC;
+WHERE use_case IN ('summarize', 'lead_brief', 'follow_up_draft')
+ORDER BY use_case, version DESC;
 
 -- Activate version trước (ví dụ lead_brief v2 → v1)
 BEGIN;
-UPDATE ai_prompts SET is_active = false WHERE prompt_key = 'lead_brief' AND is_active = true;
-UPDATE ai_prompts SET is_active = true  WHERE prompt_key = 'lead_brief' AND version = 1;
+UPDATE ai_prompts SET is_active = false WHERE use_case = 'lead_brief' AND is_active = true;
+UPDATE ai_prompts SET is_active = true  WHERE use_case = 'lead_brief' AND version = 1;
 COMMIT;
 ```
 
-Không cần restart Nest nếu app đọc `is_active` mỗi request; nếu cache — restart API.
+Nếu bảng trống, app dùng `DEFAULT_PROMPTS` trong code (`ai-prompts.repository.ts`) — rollback prompt prod = redeploy tag trước hoặc insert version mới.
 
 ### 9.3. Rollback scoring rules
 
@@ -452,7 +466,7 @@ Rules có thể trong code (`scoring-rules.ts`) hoặc config JSON:
 1. Check `latency_ms` p95 trong `ai_agent_runs`.
 2. Giảm input length cap; truncate activity text.
 3. Switch model nhẹ hơn (`gpt-4o-mini`).
-4. Rate limit abuse — check user gọi quá `PTT_AI_RATE_LIMIT_PER_USER`.
+4. Rate limit abuse — check `PTT_AI_SUMMARIZE_RATE_LIMIT_PER_MIN` (429 responses).
 
 ### 10.5. P3 — CSKH dismiss rate cao
 
@@ -470,13 +484,13 @@ Không rollback tự động — product review:
 
 ```sql
 SELECT
-  DATE_TRUNC('hour', created_at) AS hour,
-  action,
+  DATE_TRUNC('hour', started_at) AS hour,
+  use_case,
   COUNT(*) AS calls,
-  COUNT(*) FILTER (WHERE status != 'ok') AS errors,
+  COUNT(*) FILTER (WHERE status != 'succeeded') AS errors,
   ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms)) AS p95_ms
 FROM ai_agent_runs
-WHERE created_at >= NOW() - INTERVAL '24 hours'
+WHERE started_at >= NOW() - INTERVAL '24 hours'
 GROUP BY 1, 2
 ORDER BY 1 DESC, 2;
 ```
@@ -485,9 +499,9 @@ ORDER BY 1 DESC, 2;
 
 ```sql
 SELECT
-  ROUND(100.0 * COUNT(*) FILTER (WHERE status != 'ok') / NULLIF(COUNT(*), 0), 2) AS error_pct
+  ROUND(100.0 * COUNT(*) FILTER (WHERE status != 'succeeded') / NULLIF(COUNT(*), 0), 2) AS error_pct
 FROM ai_agent_runs
-WHERE created_at >= NOW() - INTERVAL '1 hour';
+WHERE started_at >= NOW() - INTERVAL '1 hour';
 ```
 
 **Rollback nếu `error_pct > 5`.**
@@ -495,11 +509,11 @@ WHERE created_at >= NOW() - INTERVAL '1 hour';
 ### 11.3. Recent failures
 
 ```sql
-SELECT id, action, model, status, error_code, error_message, latency_ms, created_at
+SELECT id, use_case, model_name, status, error_message, latency_ms, started_at
 FROM ai_agent_runs
-WHERE status != 'ok'
-  AND created_at >= NOW() - INTERVAL '6 hours'
-ORDER BY created_at DESC
+WHERE status != 'succeeded'
+  AND started_at >= NOW() - INTERVAL '6 hours'
+ORDER BY started_at DESC
 LIMIT 20;
 ```
 
@@ -532,8 +546,8 @@ GROUP BY 1;
 ### 11.6. Audit completeness (Gate R1 #4)
 
 ```sql
--- So sánh số API calls (nginx/access log) vs ai_agent_runs — spot check
-SELECT COUNT(*) FROM ai_agent_runs WHERE created_at >= CURRENT_DATE;
+-- Spot check hôm nay
+SELECT COUNT(*) FROM ai_agent_runs WHERE started_at >= CURRENT_DATE;
 ```
 
 Kỳ vọng: **100%** LLM/score operations có row tương ứng.
@@ -590,7 +604,12 @@ Target Phase 0: **≥70%**.
 | [`vps-full-system-deploy.md`](./vps-full-system-deploy.md) | Deploy greenfield |
 | `./scripts/apply_pg_ddl_revenue_os_ai.sh` | Apply DDL |
 | [`rnos01-ddl-apply.md`](./rnos01-ddl-apply.md) | **RNOS-01** runbook + gate |
-| `./scripts/rnos01_pg_ddl_gate.sh` | Gate report JSON |
+| [`rnos40-ai-gate.md`](./rnos40-ai-gate.md) | **RNOS-40** gate quick reference |
+| `./scripts/rnos01_pg_ddl_gate.sh` | RNOS-01 DDL gate JSON |
+| `./scripts/rnos40_gate.sh` | **RNOS-40** gate + rollback drill + UAT smoke |
+| `./scripts/rnos40_rollback_drill.sh` | Rollback drill JSON report |
+| [`deploy/env.ai.example`](../../deploy/env.ai.example) | Env template |
+| [`deploy/pilot-cohort.example.json`](../../deploy/pilot-cohort.example.json) | Pilot 5–8 users |
 
 ---
 
