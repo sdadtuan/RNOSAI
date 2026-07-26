@@ -115,6 +115,13 @@ ADMIN_CRM_SECTIONS: tuple[dict[str, Any], ...] = (
         "page": "/admin/crm/custom-fields",
         "description": "Định nghĩa custom field và stage pipeline sales.",
     },
+    {
+        "id": "ai_admin",
+        "label": "AI — Audit agent runs",
+        "group": "CRM — Admin",
+        "page": "/admin/ai/runs",
+        "description": "Bảng ai_agent_runs — filter date/status/use case (RNOS-05).",
+    },
     # —— SOP ——
     {
         "id": "crm_sop_runs",

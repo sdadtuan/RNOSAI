@@ -3425,3 +3425,71 @@ body:has(.ops-sidebar) main {
 .business-drill-table__path {
   white-space: normal;
 }
+
+/* UI-R1-09 — Admin AI agent runs */
+.admin-ai-runs-panel__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+.admin-ai-runs-panel__filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 140px;
+}
+
+.admin-ai-runs-panel__meta {
+  margin: 0 0 0.75rem;
+}
+
+.admin-ai-runs-panel__pager {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.admin-ai-runs-table__row--active {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.ai-run-status {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.ai-run-status--ok {
+  background: rgba(34, 197, 94, 0.15);
+  color: #15803d;
+}
+
+.ai-run-status--fail {
+  background: rgba(239, 68, 68, 0.14);
+  color: #b91c1c;
+}
+
+.ai-run-status--run {
+  background: rgba(59, 130, 246, 0.14);
+  color: #1d4ed8;
+}
+
+.ai-run-status--muted {
+  background: rgba(148, 163, 184, 0.2);
+  color: #475569;
+}
+
+.admin-ai-runs-detail__json pre {
+  max-height: 280px;
+  overflow: auto;
+  font-size: 0.78rem;
+  background: rgba(15, 23, 42, 0.04);
+  padding: 0.65rem;
+  border-radius: 8px;
+}

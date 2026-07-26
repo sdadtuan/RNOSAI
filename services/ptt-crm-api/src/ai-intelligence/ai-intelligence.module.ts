@@ -22,6 +22,7 @@ import { AiPromptsRepository } from './ai-prompts.repository';
 import { AiSummarizeRateLimitService } from './ai-summarize-rate-limit.service';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
 import { StaffAiCopilotGuard } from './guards/staff-ai-copilot.guard';
+import { StaffAiAdminGuard } from './guards/staff-ai-admin.guard';
 import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
 
 @Module({
@@ -51,6 +52,7 @@ import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
     AiExecutionService,
     AiIntelligenceService,
     StaffAiCopilotGuard,
+    StaffAiAdminGuard,
     StaffAiLeadAccessGuard,
   ],
   exports: [
@@ -67,6 +69,7 @@ import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
     AiExecutionService,
     AiIntelligenceService,
     StaffAiCopilotGuard,
+    StaffAiAdminGuard,
     StaffAiLeadAccessGuard,
   ],
 })

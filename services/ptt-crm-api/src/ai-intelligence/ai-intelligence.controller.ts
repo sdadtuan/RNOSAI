@@ -22,6 +22,7 @@ import {
   AiRecommendationInboxResponse,
 } from './feedback-analytics.types';
 import { StaffAiCopilotGuard } from './guards/staff-ai-copilot.guard';
+import { StaffAiAdminGuard } from './guards/staff-ai-admin.guard';
 import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
 
 interface ScoreLeadBody {
@@ -72,7 +73,7 @@ export class AiIntelligenceController {
 
   /** RNOS-05 / AI-UC-009 — admin audit trail (BR-AI-05 redaction applied). */
   @Get('runs')
-  @UseGuards(StaffOrInternalKeyGuard)
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiAdminGuard)
   listRuns(
     @Query('from') from?: string,
     @Query('to') to?: string,
@@ -103,7 +104,7 @@ export class AiIntelligenceController {
   }
 
   @Get('runs/:id')
-  @UseGuards(StaffOrInternalKeyGuard)
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiAdminGuard)
   getRun(
     @Param('id') id: string,
     @Headers('x-request-id') requestId?: string,

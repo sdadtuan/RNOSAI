@@ -428,3 +428,91 @@ export async function fetchAiRecommendationsInbox(
   }
   return body;
 }
+
+export type AiAgentRunStatus = 'running' | 'succeeded' | 'failed' | 'cancelled';
+
+export interface AiAgentRunRow {
+  id: string;
+  client_id: string | null;
+  agent_name: string;
+  use_case: string | null;
+  model_name: string | null;
+  prompt_hash: string | null;
+  input_json: Record<string, unknown>;
+  output_json: Record<string, unknown>;
+  status: AiAgentRunStatus;
+  latency_ms: number | null;
+  token_usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+  error_message: string | null;
+  correlation_id: string | null;
+  actor_id: string | null;
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
+  prompt_visible: boolean;
+}
+
+export interface AiAgentRunsListResponse {
+  data: {
+    rows: AiAgentRunRow[];
+    total: number;
+    limit: number;
+    offset: number;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export interface AiAgentRunDetailResponse {
+  data: AiAgentRunRow;
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export async function fetchAiAgentRuns(
+  token: string,
+  params?: {
+    from?: string;
+    to?: string;
+    use_case?: string;
+    actor_id?: string;
+    entity_type?: string;
+    entity_id?: string;
+    status?: AiAgentRunStatus;
+    limit?: number;
+    offset?: number;
+  },
+): Promise<AiAgentRunsListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.from) qs.set('from', params.from);
+  if (params?.to) qs.set('to', params.to);
+  if (params?.use_case) qs.set('use_case', params.use_case);
+  if (params?.actor_id) qs.set('actor_id', params.actor_id);
+  if (params?.entity_type) qs.set('entity_type', params.entity_type);
+  if (params?.entity_id) qs.set('entity_id', params.entity_id);
+  if (params?.status) qs.set('status', params.status);
+  if (params?.limit != null) qs.set('limit', String(params.limit));
+  if (params?.offset != null) qs.set('offset', String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/runs${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<AiAgentRunsListResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch AI agent runs failed', res.status);
+  }
+  return body;
+}
+
+export async function fetchAiAgentRunById(token: string, id: string): Promise<AiAgentRunDetailResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/runs/${encodeURIComponent(id)}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<AiAgentRunDetailResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch AI agent run failed', res.status);
+  }
+  return body;
+}

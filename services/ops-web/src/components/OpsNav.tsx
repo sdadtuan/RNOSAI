@@ -259,6 +259,12 @@ function buildSections(
   }
   if (admin.length) sections.push({ label: 'CRM · Admin', links: admin });
 
+  const aiAdmin: NavLink[] = [];
+  if (hasCap(user, 'ai_admin', 'view')) {
+    aiAdmin.push({ href: '/admin/ai/runs', label: 'AI agent runs' });
+  }
+  if (aiAdmin.length) sections.push({ label: 'AI · Admin', links: aiAdmin });
+
   const agency: NavLink[] = [];
   if (hasCap(user, 'crm_agency', 'view')) {
     agency.push({ href: '/agency', label: 'Agency' });

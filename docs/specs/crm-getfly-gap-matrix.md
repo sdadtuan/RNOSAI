@@ -1,6 +1,6 @@
 # Ma trận gap CRM vs Getfly — checklist PR theo màn hình
 
-> **Phiên bản:** 1.0 · **Ngày:** 2026-07-26  
+> **Phiên bản:** 1.3 · **Ngày:** 2026-07-26  
 > **Mục đích:** Checklist PR khi nâng cấp ops-web `/crm/*` để đạt **table stakes ~80% CRM** (spec §20.5) so với [Getfly CRM](https://getfly.vn) — **không** copy ERP/LP builder.  
 > **Traceability:** [`SPEC_AI_REVENUE_OPERATING_SYSTEM.md`](../SPEC_AI_REVENUE_OPERATING_SYSTEM.md) §4, §20 · [`SPEC_RNOSAI_MASTER.md`](../SPEC_RNOSAI_MASTER.md) · [`SPEC_UI_UX_PTT.md`](../SPEC_UI_UX_PTT.md)  
 > **PR template chung:** [`docs/templates/pr-checklist-rnos-uc-ui-uat.md`](../templates/pr-checklist-rnos-uc-ui-uat.md)
@@ -396,7 +396,7 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 
 | # | PR checklist | Parity | Done when |
 |---|--------------|--------|-----------|
-| 23.1 | [ ] **`/admin/ai/runs`** table + filter | UI-R1-09 | RBAC admin |
+| 23.1 | [x] **`/admin/ai/runs`** table + filter | UI-R1-09 | RBAC admin |
 | 23.2 | [ ] **`/admin/crm/custom-fields`** CRUD | P1-1 | RNOS-35 |
 | 23.3 | [ ] **`/admin/crm/pipeline`** stage editor | P1-1 | RNOS-35 |
 | 23.4 | [ ] **`/crm/calendar`** month view + reminder | P1-2 | RNOS calendar |
@@ -424,7 +424,7 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 | **P0** | RNOS-41 | PWA §22 | P0-1 |
 | **P0** | Import/export | `/crm/leads` §3.1–3.2 | P0-2 |
 | **P1** | RNOS-42 KPI UX | §12, §15 | Dashboard |
-| **P1** | UI-R1-09 | §23.1 AI admin runs | R1 |
+| **P1** | ~~UI-R1-09~~ ✅ | §23.1 AI admin runs | R1 |
 | **P1** | Leads UX | §3.3–3.6 filter chips, tabs, bulk | Getfly F2 |
 | **P2** | RNOS-35 | §23.2–23.3 | Custom field |
 | **P2** | RNOS-24 | §23.5 | Ticket |
@@ -458,7 +458,7 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 | Ngày | Phiên bản | Ghi chú |
 |------|-----------|---------|
 | 2026-07-26 | 1.0 | Ma trận ban đầu — as-is ops-web `main` post RNOS-39 |
-| 2026-07-26 | 1.2 | §14 complete — RNOS-46 12-week sparkline + attribution drill |
+| 2026-07-26 | 1.3 | §23.1 complete — UI-R1-09 `/admin/ai/runs` audit table + `ai_admin.view` RBAC |
 
 ---
 
