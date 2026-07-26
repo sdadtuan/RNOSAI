@@ -4,12 +4,15 @@ import { Request } from 'express';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { AiAgentRunsService, AiAgentRunDetailResponse, AiAgentRunListResponse } from './ai-agent-runs.service';
+import { AiDealScoreService } from './ai-deal-score.service';
 import { AiLeadScoreService } from './ai-lead-score.service';
+import { AiNbaService } from './ai-nba.service';
 import { AiSummarizeService } from './ai-summarize.service';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiFeedbackAnalyticsService } from './ai-feedback-analytics.service';
 import { AiIntelligenceService } from './ai-intelligence.service';
 import { AiAgentRunStatus, AiHealthResponse } from './ai-intelligence.types';
+import { ScoreDealResponse } from './deal-score.types';
 import { AiScoresBatchResponse, AiScoresListResponse, ScoreLeadResponse } from './lead-score.types';
 import { SummarizeResponse } from './summarize.types';
 import {
@@ -23,7 +26,20 @@ import {
 } from './feedback-analytics.types';
 import { StaffAiCopilotGuard } from './guards/staff-ai-copilot.guard';
 import { StaffAiAdminGuard } from './guards/staff-ai-admin.guard';
+import { StaffAiDealAccessGuard } from './guards/staff-ai-deal-access.guard';
 import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
+
+interface ScoreDealBody {
+  deal_id: number;
+  force?: boolean;
+}
+
+interface NextBestActionBody {
+  deal_id?: number;
+  entity_type?: string;
+  entity_id?: string | number;
+  force?: boolean;
+}
 
 interface ScoreLeadBody {
   lead_id: number;
@@ -57,6 +73,8 @@ export class AiIntelligenceController {
     private readonly ai: AiIntelligenceService,
     private readonly runs: AiAgentRunsService,
     private readonly leadScore: AiLeadScoreService,
+    private readonly dealScore: AiDealScoreService,
+    private readonly nba: AiNbaService,
     private readonly summarize: AiSummarizeService,
     private readonly recommendations: AiRecommendationService,
     private readonly feedbackAnalytics: AiFeedbackAnalyticsService,
@@ -136,6 +154,54 @@ export class AiIntelligenceController {
     });
   }
 
+  /** RNOS-09 — deal score rules v1 (AI-UC-012). */
+  @Post('score/deal')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiDealAccessGuard)
+  scoreDeal(
+    @Body() body: ScoreDealBody,
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<ScoreDealResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.dealScore.scoreDeal({
+      dealId: Number(body.deal_id),
+      force: Boolean(body.force),
+      actorId,
+      correlationId: rid,
+    });
+  }
+
+  /** RNOS-10 — next best action for stalled deal (AI-UC-011). */
+  @Post('next-best-action')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiDealAccessGuard)
+  nextBestAction(
+    @Body() body: NextBestActionBody,
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.nba.suggestNextBestAction({
+      deal_id: body.deal_id ?? Number(body.entity_id),
+      entity_type: body.entity_type,
+      entity_id: body.entity_id,
+      force: Boolean(body.force),
+      actorId,
+      correlationId: rid,
+    });
+  }
+
   /** RNOS-03 — summarize activity / lead brief (AI-UC-002, AI-UC-003). */
   @Post('summarize')
   @UseGuards(StaffOrInternalKeyGuard, StaffAiCopilotGuard, StaffAiLeadAccessGuard)
@@ -164,8 +230,8 @@ export class AiIntelligenceController {
 
   /** RNOS-04 — poll latest scores for Copilot (ops-web). */
   @Get('scores/batch')
-  @UseGuards(StaffOrInternalKeyGuard, StaffAiCopilotGuard)
-  listScoresBatch(
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiCopilotGuard, StaffAiLeadAccessGuard)
+  async listScoresBatch(
     @Query('entity_type') entityType: string,
     @Query('entity_ids') entityIdsRaw: string,
     @Req()
@@ -173,17 +239,23 @@ export class AiIntelligenceController {
     @Headers('x-request-id') requestId?: string,
     @Headers('x-correlation-id') correlationId?: string,
   ): Promise<AiScoresBatchResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const type = entityType || 'lead';
     const entityIds = String(entityIdsRaw ?? '')
       .split(',')
       .map((part) => Number(part.trim()))
       .filter((id) => Number.isFinite(id) && id > 0);
-    return this.leadScore.listScoresBatch(
-      entityType || 'lead',
-      entityIds,
-      req.staffUser,
-      req.staffAuthVia,
-      correlationId?.trim() || requestId?.trim() || undefined,
-    );
+
+    if (type === 'deal') {
+      const scoresByEntityId = await this.dealScore.listDealScoresBatch(entityIds, rid);
+      return {
+        data: { entity_type: 'deal', scores_by_entity_id: scoresByEntityId },
+        meta: { request_id: rid ?? randomUUID() },
+        errors: [],
+      };
+    }
+
+    return this.leadScore.listScoresBatch(type, entityIds, req.staffUser, req.staffAuthVia, rid);
   }
 
   /** RNOS-04 — poll latest scores for Copilot (ops-web). */

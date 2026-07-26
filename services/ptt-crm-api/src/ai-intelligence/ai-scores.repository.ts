@@ -69,6 +69,7 @@ export class AiScoresRepository implements OnModuleDestroy {
   async findRecentAutoScore(
     entityType: string,
     entityId: string,
+    scoreType = 'lead',
     windowMinutes = LEAD_SCORE_IDEMPOTENCY_MINUTES,
   ): Promise<AiScoreRecord | null> {
     const result = await this.db.query(
@@ -80,12 +81,12 @@ export class AiScoresRepository implements OnModuleDestroy {
        FROM ai_scores
        WHERE entity_type = $1
          AND entity_id = $2
-         AND score_type = 'lead'
+         AND score_type = $3
          AND overridden_by IS NULL
-         AND calculated_at >= NOW() - ($3::text || ' minutes')::interval
+         AND calculated_at >= NOW() - ($4::text || ' minutes')::interval
        ORDER BY calculated_at DESC
        LIMIT 1`,
-      [entityType, entityId, String(windowMinutes)],
+      [entityType, entityId, scoreType, String(windowMinutes)],
     );
     const row = result.rows[0];
     return row ? mapScoreRow(row as Record<string, unknown>) : null;

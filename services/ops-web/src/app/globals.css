@@ -3609,3 +3609,135 @@ body:has(.ops-sidebar) main {
   color: #b91c1c;
 }
 
+.sales-pipeline-panel {
+  margin-top: 0.5rem;
+}
+
+.sales-pipeline-kanban {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.sales-pipeline-column h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.sales-pipeline-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sales-pipeline-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  background: var(--bg, #fff);
+  cursor: pointer;
+}
+
+.sales-pipeline-card.is-selected {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.sales-pipeline-card strong {
+  display: block;
+  font-size: 0.9rem;
+}
+
+.sales-pipeline-drawer {
+  margin-top: 1rem;
+}
+
+.deal-score-mini {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.deal-score-mini__track {
+  flex: 1;
+  height: 6px;
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.deal-score-mini__fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.deal-score-mini__fill--hot {
+  background: #dc2626;
+}
+
+.deal-score-mini__fill--warm {
+  background: #f59e0b;
+}
+
+.deal-score-mini__fill--cold {
+  background: #64748b;
+}
+
+.deal-score-mini__value {
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.nba-card {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  border-radius: 10px;
+  background: rgba(234, 179, 8, 0.08);
+}
+
+.nba-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.nba-card__badge {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.nba-card__title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.nba-card__reason {
+  margin: 0.35rem 0;
+  font-size: 0.88rem;
+}
+
+.nba-card__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.sales-pipeline-panel__message {
+  color: #15803d;
+  font-size: 0.88rem;
+}
+

@@ -12,6 +12,7 @@ import { AiAuditService } from './ai-audit.service';
 import { AiIntelligenceConfigService } from './ai-intelligence.config';
 import { AiLlmClient } from './ai-llm.client';
 import { AiPromptsRepository } from './ai-prompts.repository';
+import { AiNbaService } from './ai-nba.service';
 import { AiRecommendationsRepository } from './ai-recommendations.repository';
 import { AiSummarizeRateLimitService } from './ai-summarize-rate-limit.service';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
@@ -37,6 +38,7 @@ export class AiRecommendationService {
     private readonly timeline: CustomerTimelineService,
     private readonly leadContext: LeadScoreContextRepository,
     private readonly recommendations: AiRecommendationsRepository,
+    private readonly nba: AiNbaService,
     private readonly crmLegacy: CrmLeadsLegacyService,
   ) {}
 
@@ -170,7 +172,7 @@ export class AiRecommendationService {
     }
 
     const finalText = input.finalText?.trim() || rec.recommendation_text;
-    if (status === 'accepted' && finalText.length < 10) {
+    if (status === 'accepted' && rec.recommendation_type !== 'nba' && finalText.length < 10) {
       throw new BadRequestException({
         error: 'final_text_too_short',
         message: 'final_text must be at least 10 characters when accepting',
@@ -178,7 +180,10 @@ export class AiRecommendationService {
     }
 
     let activityId: number | undefined;
-    if (status === 'accepted' && rec.entity_type === 'lead') {
+    let caseEventId: number | undefined;
+    if (status === 'accepted' && rec.recommendation_type === 'nba') {
+      caseEventId = (await this.nba.executeNbaAccept(id, input.actorName ?? input.actorId ?? 'staff')) ?? undefined;
+    } else if (status === 'accepted' && rec.entity_type === 'lead') {
       activityId = await this.createAcceptedActivity(rec, finalText, input);
     }
 
@@ -197,6 +202,7 @@ export class AiRecommendationService {
     return this.toResponse(updated, {
       requestId,
       activityId,
+      caseEventId,
       stubMode: Boolean(rec.action_json?.stub_mode),
     });
   }
@@ -307,7 +313,7 @@ export class AiRecommendationService {
 
   private toResponse(
     record: NonNullable<Awaited<ReturnType<AiRecommendationsRepository['findById']>>>,
-    opts: { requestId: string; latencyMs?: number; stubMode?: boolean; activityId?: number },
+    opts: { requestId: string; latencyMs?: number; stubMode?: boolean; activityId?: number; caseEventId?: number },
   ): RecommendationResponse {
     const channelHint = this.resolveChannel(String(record.action_json?.channel_hint ?? 'note'));
     const subject =
@@ -328,6 +334,7 @@ export class AiRecommendationService {
         agent_run_id: record.agent_run_id ?? '',
         stub_mode: Boolean(opts.stubMode ?? record.action_json?.stub_mode),
         ...(opts.activityId != null ? { activity_id: opts.activityId } : {}),
+        ...(opts.caseEventId != null ? { case_event_id: opts.caseEventId } : {}),
       },
       meta: {
         request_id: opts.requestId,

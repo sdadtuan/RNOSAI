@@ -14,6 +14,6 @@ import { StaffCasesViewGuard, StaffCasesWriteGuard } from './guards/staff-cases.
     StaffCasesViewGuard,
     StaffCasesWriteGuard,
   ],
-  exports: [CasesService],
+  exports: [CasesService, CasesSqliteRepository],
 })
 export class CasesModule {}

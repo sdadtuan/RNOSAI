@@ -117,10 +117,12 @@ export interface AiRecommendationListResponse {
     entity_id: string;
     recommendations: Array<{
       id: string;
+      recommendation_type?: string;
       recommendation_text: string;
       status: RecommendationStatus;
-      action_json?: { channel_hint?: FollowUpChannelHint; subject?: string | null };
+      action_json?: Record<string, unknown>;
       confidence: number | null;
+      agent_run_id?: string | null;
       created_at: string;
     }>;
   };
@@ -191,6 +193,70 @@ export async function fetchAiScoresBatch(
     };
   }
   return out;
+}
+
+export interface ScoreDealResponse {
+  data: {
+    deal_id: number;
+    score: number;
+    confidence: number;
+    score_band: 'hot' | 'warm' | 'cold';
+    explainability: AiExplainability;
+    cached: boolean;
+    agent_run_id: string;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export interface NextBestActionResponse {
+  data: {
+    recommendation_id: string;
+    deal_id: number;
+    action: string;
+    action_label: string;
+    reason: string;
+    confidence: number;
+    status: string;
+    recommendation_text: string;
+    agent_run_id: string;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export async function postAiScoreDeal(
+  token: string,
+  dealId: number,
+  force = false,
+): Promise<ScoreDealResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/score/deal`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deal_id: dealId, force }),
+  });
+  const body = await parseJson<ScoreDealResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Score deal failed', res.status);
+  }
+  return body;
+}
+
+export async function postAiNextBestAction(
+  token: string,
+  dealId: number,
+  force = false,
+): Promise<NextBestActionResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/next-best-action`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deal_id: dealId, entity_type: 'deal', entity_id: dealId, force }),
+  });
+  const body = await parseJson<NextBestActionResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'NBA failed', res.status);
+  }
+  return body;
 }
 
 export async function postAiSummarize(

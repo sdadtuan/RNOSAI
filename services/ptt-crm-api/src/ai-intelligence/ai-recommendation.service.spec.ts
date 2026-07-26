@@ -86,6 +86,10 @@ describe('AiRecommendationService', () => {
     createActivity: jest.fn().mockResolvedValue({ activity: { id: 501 } }),
   };
 
+  const nba = {
+    executeNbaAccept: jest.fn(),
+  };
+
   let service: AiRecommendationService;
 
   beforeEach(() => {
@@ -99,6 +103,7 @@ describe('AiRecommendationService', () => {
       timeline as never,
       leadContext as never,
       recommendations as never,
+      nba as never,
       crmLegacy as never,
     );
   });

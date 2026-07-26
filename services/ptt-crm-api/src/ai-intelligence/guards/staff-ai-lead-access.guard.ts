@@ -39,6 +39,33 @@ export class StaffAiLeadAccessGuard implements CanActivate {
       throw new UnauthorizedException({ error: 'Unauthorized' });
     }
 
+    const entityTypeHint = String(req.body?.entity_type ?? req.query?.entity_type ?? '').trim();
+    if (entityTypeHint === 'deal') {
+      const me = await this.staffAuth.me(req.staffUser);
+      if (
+        this.staffAuth.hasCap(me.caps, 'crm_sales_funnel', 'view') ||
+        this.staffAuth.hasCap(me.caps, 'crm_sales_overview', 'view')
+      ) {
+        return true;
+      }
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_sales_funnel', action: 'view' });
+    }
+
+    const recIdEarly = req.params?.id?.trim();
+    if (recIdEarly) {
+      const recEarly = await this.recommendations.findById(recIdEarly);
+      if (recEarly?.entity_type === 'deal') {
+        const me = await this.staffAuth.me(req.staffUser);
+        if (
+          this.staffAuth.hasCap(me.caps, 'crm_sales_funnel', 'view') ||
+          this.staffAuth.hasCap(me.caps, 'crm_sales_overview', 'view')
+        ) {
+          return true;
+        }
+        throw new ForbiddenException({ error: 'missing_cap', section: 'crm_sales_funnel', action: 'view' });
+      }
+    }
+
     const leadId = await this.resolveLeadId(req);
     if (!leadId) {
       const body = req.body;

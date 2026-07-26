@@ -1,6 +1,6 @@
 # Ma trận gap CRM vs Getfly — checklist PR theo màn hình
 
-> **Phiên bản:** 1.4 · **Ngày:** 2026-07-26  
+> **Phiên bản:** 1.5 · **Ngày:** 2026-07-26  
 > **Mục đích:** Checklist PR khi nâng cấp ops-web `/crm/*` để đạt **table stakes ~80% CRM** (spec §20.5) so với [Getfly CRM](https://getfly.vn) — **không** copy ERP/LP builder.  
 > **Traceability:** [`SPEC_AI_REVENUE_OPERATING_SYSTEM.md`](../SPEC_AI_REVENUE_OPERATING_SYSTEM.md) §4, §20 · [`SPEC_RNOSAI_MASTER.md`](../SPEC_RNOSAI_MASTER.md) · [`SPEC_UI_UX_PTT.md`](../SPEC_UI_UX_PTT.md)  
 > **PR template chung:** [`docs/templates/pr-checklist-rnos-uc-ui-uat.md`](../templates/pr-checklist-rnos-uc-ui-uat.md)
@@ -202,7 +202,7 @@
 |---|--------------|--------|-----------|
 | 9.1 | [ ] Tab **funnel**: Kanban kéo thả stage (optional) | ○ | PATCH status |
 | 9.2 | [ ] Tab **reports**: chart thay JSON | ○ | Visual report |
-| 9.3 | [ ] Deal **score** badge khi RNOS-09 ship | R2 | API + UI |
+| 9.3 | [x] Deal **score** badge + NBA card (RNOS-09/10) | R2 | `/crm/sales` funnel |
 
 **Defer PR:** Đơn hàng bán lẻ → RNOS-25.
 
@@ -458,7 +458,7 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 | Ngày | Phiên bản | Ghi chú |
 |------|-----------|---------|
 | 2026-07-26 | 1.0 | Ma trận ban đầu — as-is ops-web `main` post RNOS-39 |
-| 2026-07-26 | 1.4 | §20.2 complete — RNOS-13…15 workflow builder `/crm/automation` + simulate dry-run |
+| 2026-07-26 | 1.5 | §9.3 complete — RNOS-09 deal score + RNOS-10 NBA on sales funnel |
 
 ---
 

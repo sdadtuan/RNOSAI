@@ -4,6 +4,8 @@ export const AI_USE_CASE = {
   SUMMARIZE: 'summarize',
   LEAD_BRIEF: 'lead_brief',
   SCORE_LEAD: 'score_lead',
+  SCORE_DEAL: 'score_deal',
+  NEXT_BEST_ACTION: 'next_best_action',
   FOLLOW_UP_DRAFT: 'follow_up_draft',
   OVERRIDE_SCORE: 'override_score',
 } as const;

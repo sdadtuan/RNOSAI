@@ -14,14 +14,15 @@ interface Props {
   error?: string | null;
   onRefresh?: () => void;
   refreshing?: boolean;
+  title?: string;
 }
 
-export function ScoreCard({ score, pending, error, onRefresh, refreshing }: Props) {
+export function ScoreCard({ score, pending, error, onRefresh, refreshing, title = 'Điểm lead' }: Props) {
   if (pending) {
     return (
       <section className="ai-score-card" aria-busy="true" aria-label="Điểm lead đang cập nhật">
         <div className="ai-score-card__header">
-          <h4 className="ai-score-card__title">Điểm lead</h4>
+          <h4 className="ai-score-card__title">{title}</h4>
         </div>
         <div className="ai-skeleton ai-skeleton--score" />
         <p className="muted ai-score-card__pending">Score đang cập nhật…</p>
@@ -33,7 +34,7 @@ export function ScoreCard({ score, pending, error, onRefresh, refreshing }: Prop
     return (
       <section className="ai-score-card" aria-label="Điểm lead">
         <div className="ai-score-card__header">
-          <h4 className="ai-score-card__title">Điểm lead</h4>
+          <h4 className="ai-score-card__title">{title}</h4>
           {onRefresh ? (
             <button type="button" className="btn btn-sm btn-secondary" onClick={onRefresh} disabled={refreshing}>
               {refreshing ? '…' : '↻'}
@@ -49,7 +50,7 @@ export function ScoreCard({ score, pending, error, onRefresh, refreshing }: Prop
     return (
       <section className="ai-score-card" aria-label="Điểm lead">
         <div className="ai-score-card__header">
-          <h4 className="ai-score-card__title">Điểm lead</h4>
+          <h4 className="ai-score-card__title">{title}</h4>
           {onRefresh ? (
             <button type="button" className="btn btn-sm btn-secondary" onClick={onRefresh} disabled={refreshing}>
               {refreshing ? '…' : '↻'}
@@ -72,7 +73,7 @@ export function ScoreCard({ score, pending, error, onRefresh, refreshing }: Prop
   return (
     <section className="ai-score-card" aria-label="Điểm lead">
       <div className="ai-score-card__header">
-        <h4 className="ai-score-card__title">Điểm lead</h4>
+        <h4 className="ai-score-card__title">{title}</h4>
         {onRefresh ? (
           <button
             type="button"

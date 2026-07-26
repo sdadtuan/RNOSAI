@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
+import { SalesPipelineFunnelPanel, type PipelineCaseRow } from '@/components/sales/SalesPipelineFunnelPanel';
 import {
   createSalesMarketEntry,
   createSalesPartner,
@@ -36,6 +37,7 @@ type SalesTab = 'plans' | 'funnel' | 'partners' | 'trainings' | 'market' | 'repo
 export default function CrmSalesPage() {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [tab, setTab] = useState<SalesTab>('plans');
   const [plans, setPlans] = useState<SalesPlanRow[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -45,9 +47,23 @@ export default function CrmSalesPage() {
   const [newPartnerName, setNewPartnerName] = useState('');
   const [newTrainingTitle, setNewTrainingTitle] = useState('');
   const [newMarketTitle, setNewMarketTitle] = useState('');
-  const [error, setError] = useState('');
+  const [pipelineStages, setPipelineStages] = useState<string[]>([
+    'moi',
+    'dang_lien_he',
+    'mql',
+    'sql',
+    'bao_gia',
+  ]);
+  const [pipelineLabels, setPipelineLabels] = useState<Record<string, string>>({
+    moi: 'Mới',
+    dang_lien_he: 'Đang liên hệ',
+    mql: 'MQL',
+    sql: 'SQL',
+    bao_gia: 'Báo giá',
+  });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -65,6 +81,7 @@ export default function CrmSalesPage() {
         setError('Không có quyền kinh doanh');
         return null;
       }
+      setAccessToken(access);
       return access;
     } catch {
       const refresh = getRefreshToken();
@@ -76,6 +93,7 @@ export default function CrmSalesPage() {
       const out = await staffRefresh(refresh);
       updateAccessToken(out.access_token);
       access = out.access_token;
+      setAccessToken(access);
       const me = await staffMe(access);
       setUser(me);
       updateStoredUser(me);
@@ -95,7 +113,13 @@ export default function CrmSalesPage() {
           setRows([]);
           setReport(null);
         } else if (nextTab === 'funnel') {
-          setRows(await fetchSalesPipelineCases(access));
+          const cases = await fetchSalesPipelineCases(access);
+          setRows(cases);
+          const summary = await fetchSalesSummary(access);
+          const labels = (summary as { pipeline_labels?: Record<string, string> }).pipeline_labels;
+          const stages = (summary as { pipeline_stages?: string[] }).pipeline_stages;
+          if (labels) setPipelineLabels(labels);
+          if (stages?.length) setPipelineStages(stages.filter((s) => s !== 'chot' && s !== 'mat'));
         } else if (nextTab === 'partners') {
           setRows(await fetchSalesPartners(access));
         } else if (nextTab === 'trainings') {
@@ -276,14 +300,14 @@ export default function CrmSalesPage() {
         ) : null}
 
         {tab === 'funnel' ? (
-          <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-            {rows.map((r, i) => (
-              <li key={String(r.id ?? i)}>
-                {String(r.title ?? '—')} · {String(r.pipeline_stage ?? '—')} ·{' '}
-                {Number(r.deal_value_vnd ?? 0).toLocaleString('vi-VN')} VND
-              </li>
-            ))}
-          </ul>
+          accessToken ? (
+            <SalesPipelineFunnelPanel
+              token={accessToken}
+              rows={rows as unknown as PipelineCaseRow[]}
+              stages={pipelineStages}
+              stageLabels={pipelineLabels}
+            />
+          ) : null
         ) : null}
 
         {tab === 'partners' ? (

@@ -1,4 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { CasesModule } from '../cases/cases.module';
+import { CrmConfigModule } from '../crm-config/crm-config.module';
 import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.module';
 import { CustomerTimelineModule } from '../customer-timeline/customer-timeline.module';
 import { EventsModule } from '../events/events.module';
@@ -7,23 +9,27 @@ import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { AiAgentRunsRepository } from './ai-agent-runs.repository';
 import { AiAgentRunsService } from './ai-agent-runs.service';
 import { AiAuditService } from './ai-audit.service';
+import { AiDealScoreService } from './ai-deal-score.service';
 import { AiExecutionService } from './ai-execution.service';
-import { AiLeadScoreService } from './ai-lead-score.service';
-import { AiSummarizeService } from './ai-summarize.service';
-import { AiRecommendationService } from './ai-recommendation.service';
-import { AiRecommendationsRepository } from './ai-recommendations.repository';
-import { AiScoresRepository } from './ai-scores.repository';
 import { AiFeedbackAnalyticsService } from './ai-feedback-analytics.service';
 import { AiIntelligenceConfigService } from './ai-intelligence.config';
 import { AiIntelligenceController } from './ai-intelligence.controller';
 import { AiIntelligenceService } from './ai-intelligence.service';
+import { AiLeadScoreService } from './ai-lead-score.service';
 import { AiLlmClient } from './ai-llm.client';
+import { AiNbaService } from './ai-nba.service';
 import { AiPromptsRepository } from './ai-prompts.repository';
+import { AiRecommendationService } from './ai-recommendation.service';
+import { AiRecommendationsRepository } from './ai-recommendations.repository';
+import { AiScoresRepository } from './ai-scores.repository';
 import { AiSummarizeRateLimitService } from './ai-summarize-rate-limit.service';
-import { LeadScoreContextRepository } from './lead-score-context.repository';
-import { StaffAiCopilotGuard } from './guards/staff-ai-copilot.guard';
+import { AiSummarizeService } from './ai-summarize.service';
+import { DealScoreContextRepository } from './deal-score-context.repository';
 import { StaffAiAdminGuard } from './guards/staff-ai-admin.guard';
+import { StaffAiCopilotGuard } from './guards/staff-ai-copilot.guard';
+import { StaffAiDealAccessGuard } from './guards/staff-ai-deal-access.guard';
 import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
+import { LeadScoreContextRepository } from './lead-score-context.repository';
 
 @Module({
   imports: [
@@ -31,6 +37,8 @@ import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
     CustomerTimelineModule,
     EventsModule,
     LeadsModule,
+    CrmConfigModule,
+    CasesModule,
     forwardRef(() => CrmLeadsLegacyModule),
   ],
   controllers: [AiIntelligenceController],
@@ -41,7 +49,10 @@ import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
     AiAgentRunsService,
     AiScoresRepository,
     LeadScoreContextRepository,
+    DealScoreContextRepository,
     AiLeadScoreService,
+    AiDealScoreService,
+    AiNbaService,
     AiSummarizeService,
     AiRecommendationService,
     AiFeedbackAnalyticsService,
@@ -54,6 +65,7 @@ import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
     StaffAiCopilotGuard,
     StaffAiAdminGuard,
     StaffAiLeadAccessGuard,
+    StaffAiDealAccessGuard,
   ],
   exports: [
     AiIntelligenceConfigService,
@@ -62,7 +74,10 @@ import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
     AiAgentRunsService,
     AiScoresRepository,
     LeadScoreContextRepository,
+    DealScoreContextRepository,
     AiLeadScoreService,
+    AiDealScoreService,
+    AiNbaService,
     AiSummarizeService,
     AiRecommendationService,
     AiFeedbackAnalyticsService,
@@ -72,6 +87,7 @@ import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
     StaffAiCopilotGuard,
     StaffAiAdminGuard,
     StaffAiLeadAccessGuard,
+    StaffAiDealAccessGuard,
   ],
 })
 export class AiIntelligenceModule {}
