@@ -44,6 +44,21 @@ export interface AiScoresListResponse {
   errors: unknown[];
 }
 
+export interface AiScoresBatchResponse {
+  data: {
+    entity_type: string;
+    scores_by_entity_id: Record<string, AiScoreRecord>;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export interface LeadScoreSummary {
+  score_value: number;
+  score_band: 'hot' | 'warm' | 'cold';
+  confidence: number | null;
+}
+
 export interface AiSummarizeExtracted {
   intent: string | null;
   objections: string[];
@@ -143,6 +158,39 @@ export async function fetchAiScores(
     throw new ApiError(body.error ?? body.message ?? 'Fetch scores failed', res.status);
   }
   return body;
+}
+
+/** UI-R1-10 — batch latest scores for leads list column. */
+export async function fetchAiScoresBatch(
+  token: string,
+  entityType: string,
+  entityIds: Array<string | number>,
+): Promise<Record<string, LeadScoreSummary>> {
+  const ids = [...new Set(entityIds.map((id) => String(id).trim()).filter(Boolean))].slice(0, 50);
+  if (!ids.length) {
+    return {};
+  }
+  const qs = new URLSearchParams({
+    entity_type: entityType,
+    entity_ids: ids.join(','),
+  });
+  const res = await fetch(`${API_BASE}/api/v1/ai/scores/batch?${qs.toString()}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<AiScoresBatchResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Fetch scores batch failed', res.status);
+  }
+  const out: Record<string, LeadScoreSummary> = {};
+  for (const [entityId, row] of Object.entries(body.data.scores_by_entity_id ?? {})) {
+    out[entityId] = {
+      score_value: row.score_value,
+      score_band: row.explainability_json?.score_band ?? 'warm',
+      confidence: row.confidence,
+    };
+  }
+  return out;
 }
 
 export async function postAiSummarize(

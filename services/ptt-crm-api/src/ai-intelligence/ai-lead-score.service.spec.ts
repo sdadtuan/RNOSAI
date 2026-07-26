@@ -15,6 +15,7 @@ describe('AiLeadScoreService', () => {
       agent_run_id: 'run-1',
     }),
     listScores: jest.fn(),
+    listLatestForEntities: jest.fn().mockResolvedValue([]),
   };
 
   const contextRepo = {
@@ -55,6 +56,15 @@ describe('AiLeadScoreService', () => {
     emit: jest.fn().mockResolvedValue('ev-1'),
   };
 
+  const leads = {
+    getLeadById: jest.fn(),
+  };
+
+  const staffAuth = {
+    me: jest.fn(),
+    hasCap: jest.fn().mockReturnValue(true),
+  };
+
   let service: AiLeadScoreService;
 
   beforeEach(() => {
@@ -64,6 +74,8 @@ describe('AiLeadScoreService', () => {
       contextRepo as never,
       audit as never,
       events as never,
+      leads as never,
+      staffAuth as never,
     );
   });
 

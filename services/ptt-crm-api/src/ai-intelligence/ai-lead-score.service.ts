@@ -4,6 +4,9 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { DomainEventService } from '../events/domain-event.service';
+import { LeadsRepository } from '../leads/leads.repository';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
+import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { AI_USE_CASE } from './ai-audit.constants';
 import { AiAuditService } from './ai-audit.service';
 import { AiScoreRecord } from './lead-score.types';
@@ -11,6 +14,7 @@ import { AiScoresRepository } from './ai-scores.repository';
 import { computeLeadScoreV1 } from './lead-score.engine';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
 import {
+  AiScoresBatchResponse,
   AiScoresListResponse,
   LEAD_SCORE_MODEL,
   LEAD_SCORE_MODEL_VERSION,
@@ -25,6 +29,8 @@ export class AiLeadScoreService {
     private readonly contextRepo: LeadScoreContextRepository,
     private readonly audit: AiAuditService,
     private readonly events: DomainEventService,
+    private readonly leads: LeadsRepository,
+    private readonly staffAuth: StaffAuthService,
   ) {}
 
   async scoreLead(input: ScoreLeadRequest): Promise<ScoreLeadResponse> {
@@ -133,6 +139,68 @@ export class AiLeadScoreService {
       meta: { request_id: requestId ?? this.audit.newRequestId() },
       errors: [],
     };
+  }
+
+  /** UI-R1-10 — batch latest scores for leads list (BR-AI-04 filtered). */
+  async listScoresBatch(
+    entityType: string,
+    entityIds: number[],
+    staffUser: StaffJwtPayload | undefined,
+    authVia: 'internal' | 'jwt' | undefined,
+    requestId?: string,
+  ): Promise<AiScoresBatchResponse> {
+    if (!(await this.scores.tableReady())) {
+      throw new ServiceUnavailableException({ error: 'ai_scores_not_ready' });
+    }
+
+    const uniqueIds = [...new Set(entityIds.filter((id) => Number.isFinite(id) && id > 0))].slice(0, 50);
+    const allowedIds = await this.filterAccessibleLeadIds(uniqueIds, staffUser, authVia);
+    const rows = await this.scores.listLatestForEntities(entityType || 'lead', allowedIds.map(String));
+
+    const scoresByEntityId: Record<string, AiScoreRecord> = {};
+    for (const row of rows) {
+      scoresByEntityId[row.entity_id] = row;
+    }
+
+    return {
+      data: {
+        entity_type: entityType || 'lead',
+        scores_by_entity_id: scoresByEntityId,
+      },
+      meta: { request_id: requestId ?? this.audit.newRequestId() },
+      errors: [],
+    };
+  }
+
+  private async filterAccessibleLeadIds(
+    leadIds: number[],
+    staffUser: StaffJwtPayload | undefined,
+    authVia: 'internal' | 'jwt' | undefined,
+  ): Promise<number[]> {
+    if (!leadIds.length) {
+      return [];
+    }
+    if (authVia === 'internal') {
+      return leadIds;
+    }
+    if (!staffUser) {
+      return [];
+    }
+
+    const me = await this.staffAuth.me(staffUser);
+    if (this.staffAuth.hasCap(me.caps, 'crm_leads', 'assign')) {
+      return leadIds;
+    }
+
+    const staffId = Number(staffUser.sub);
+    const allowed: number[] = [];
+    for (const leadId of leadIds) {
+      const lead = await this.leads.getLeadById(leadId);
+      if (lead?.owner_id != null && lead.owner_id === staffId) {
+        allowed.push(leadId);
+      }
+    }
+    return allowed;
   }
 
   private toScoreResponse(

@@ -161,4 +161,25 @@ export class AiScoresRepository implements OnModuleDestroy {
     const rows = await this.listScores(entityType, entityId, 1);
     return rows[0] ?? null;
   }
+
+  /** UI-R1-10 — latest score per entity for leads list column. */
+  async listLatestForEntities(entityType: string, entityIds: string[]): Promise<AiScoreRecord[]> {
+    const ids = [...new Set(entityIds.map((id) => String(id).trim()).filter(Boolean))];
+    if (!ids.length) {
+      return [];
+    }
+    const capped = ids.slice(0, 50);
+    const result = await this.db.query(
+      `SELECT DISTINCT ON (entity_id)
+         id::text, client_id::text, entity_type, entity_id, score_type, score_value,
+         confidence, features_json, explainability_json, model_name, model_version,
+         agent_run_id::text, overridden_by, overridden_at::text, override_reason,
+         calculated_at::text, created_at::text
+       FROM ai_scores
+       WHERE entity_type = $1 AND entity_id = ANY($2::text[])
+       ORDER BY entity_id, calculated_at DESC`,
+      [entityType, capped],
+    );
+    return result.rows.map((row) => mapScoreRow(row as Record<string, unknown>));
+  }
 }

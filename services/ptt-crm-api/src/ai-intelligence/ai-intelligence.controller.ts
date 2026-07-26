@@ -9,7 +9,7 @@ import { AiSummarizeService } from './ai-summarize.service';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiIntelligenceService } from './ai-intelligence.service';
 import { AiAgentRunStatus, AiHealthResponse } from './ai-intelligence.types';
-import { AiScoresListResponse, ScoreLeadResponse } from './lead-score.types';
+import { AiScoresBatchResponse, AiScoresListResponse, ScoreLeadResponse } from './lead-score.types';
 import { SummarizeResponse } from './summarize.types';
 import {
   RecommendationListResponse,
@@ -153,6 +153,30 @@ export class AiIntelligenceController {
       actorId,
       correlationId: rid,
     });
+  }
+
+  /** RNOS-04 — poll latest scores for Copilot (ops-web). */
+  @Get('scores/batch')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiCopilotGuard)
+  listScoresBatch(
+    @Query('entity_type') entityType: string,
+    @Query('entity_ids') entityIdsRaw: string,
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<AiScoresBatchResponse> {
+    const entityIds = String(entityIdsRaw ?? '')
+      .split(',')
+      .map((part) => Number(part.trim()))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    return this.leadScore.listScoresBatch(
+      entityType || 'lead',
+      entityIds,
+      req.staffUser,
+      req.staffAuthVia,
+      correlationId?.trim() || requestId?.trim() || undefined,
+    );
   }
 
   /** RNOS-04 — poll latest scores for Copilot (ops-web). */

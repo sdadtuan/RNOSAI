@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import type { LeadRow } from '@/lib/api';
+import type { LeadScoreSummary } from '@/lib/ai-api';
+import { LeadScoreBadge } from '@/components/ai/LeadScoreBadge';
 
 interface Props {
   rows: LeadRow[];
@@ -7,9 +9,21 @@ interface Props {
   selectedIds: Set<number>;
   onToggleSelect: (id: number) => void;
   onToggleAll: (checked: boolean) => void;
+  showScores?: boolean;
+  scoreMap?: Record<string, LeadScoreSummary>;
+  scoresPending?: boolean;
 }
 
-export function CrmLeadsList({ rows, loading, selectedIds, onToggleSelect, onToggleAll }: Props) {
+export function CrmLeadsList({
+  rows,
+  loading,
+  selectedIds,
+  onToggleSelect,
+  onToggleAll,
+  showScores = false,
+  scoreMap = {},
+  scoresPending = false,
+}: Props) {
   const allSelected = rows.length > 0 && rows.every((row) => selectedIds.has(row.id));
   const someSelected = rows.some((row) => selectedIds.has(row.id));
 
@@ -36,6 +50,7 @@ export function CrmLeadsList({ rows, loading, selectedIds, onToggleSelect, onTog
               <th>Trạng thái</th>
               <th>Nguồn</th>
               <th>Kênh</th>
+              {showScores ? <th>AI Score</th> : null}
               <th>Ngày</th>
             </tr>
           </thead>
@@ -60,12 +75,17 @@ export function CrmLeadsList({ rows, loading, selectedIds, onToggleSelect, onTog
                 <td>{lead.status}</td>
                 <td>{lead.source}</td>
                 <td>{lead.channel || '—'}</td>
+                {showScores ? (
+                  <td>
+                    <LeadScoreBadge score={scoreMap[String(lead.id)]} pending={scoresPending} />
+                  </td>
+                ) : null}
                 <td>{lead.created_at?.slice(0, 10) ?? '—'}</td>
               </tr>
             ))}
             {!loading && rows.length === 0 ? (
               <tr>
-                <td colSpan={8} className="muted">
+                <td colSpan={showScores ? 9 : 8} className="muted">
                   Không có lead
                 </td>
               </tr>
@@ -88,7 +108,12 @@ export function CrmLeadsList({ rows, loading, selectedIds, onToggleSelect, onTog
             <Link href={`/crm/leads/${lead.id}`} className="crm-leads-card__link">
               <div className="crm-leads-card__head">
                 <strong>{lead.full_name || `Lead #${lead.id}`}</strong>
-                <span className="meta-badge">{lead.status}</span>
+                <span className="crm-leads-card__badges">
+                  {showScores ? (
+                    <LeadScoreBadge score={scoreMap[String(lead.id)]} pending={scoresPending} />
+                  ) : null}
+                  <span className="meta-badge">{lead.status}</span>
+                </span>
               </div>
               <div className="crm-leads-card__meta muted">
                 <span>#{lead.id}</span>

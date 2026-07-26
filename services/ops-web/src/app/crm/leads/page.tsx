@@ -7,6 +7,8 @@ import { CrmLeadsImportExport } from '@/components/crm/CrmLeadsImportExport';
 import { CrmLeadsList } from '@/components/crm/CrmLeadsList';
 import { fetchLeads, staffMe, staffRefresh } from '@/lib/api';
 import type { LeadRow } from '@/lib/api';
+import { aiCopilotEnabled, isAiPilotUser } from '@/lib/ai-flags';
+import { useLeadScoresMap } from '@/hooks/useLeadScoresMap';
 import {
   clearSession,
   getAccessToken,
@@ -141,6 +143,12 @@ export default function CrmLeadsPage() {
   }
 
   const selectedList = useMemo(() => [...selectedIds], [selectedIds]);
+  const leadIds = useMemo(() => rows.map((row) => row.id), [rows]);
+  const showScores = useMemo(
+    () => aiCopilotEnabled() && isAiPilotUser(user?.id),
+    [user?.id],
+  );
+  const { scores: scoreMap, pending: scoresPending } = useLeadScoresMap(token, leadIds, showScores);
 
   if (!user) {
     return (
@@ -203,6 +211,9 @@ export default function CrmLeadsPage() {
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
           onToggleAll={toggleAll}
+          showScores={showScores}
+          scoreMap={scoreMap}
+          scoresPending={scoresPending}
         />
 
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>

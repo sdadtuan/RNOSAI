@@ -96,6 +96,15 @@ export type AiScoresListResponse = {
   errors: unknown[];
 };
 
+export type AiScoresBatchResponse = {
+  data: {
+    entity_type: string;
+    scores_by_entity_id: Record<string, AiScoreRecord>;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+};
+
 export const LEAD_SCORE_MODEL = 'rules-v1';
 export const LEAD_SCORE_MODEL_VERSION = 'lead-v1';
 export const LEAD_SCORE_IDEMPOTENCY_MINUTES = 5;

@@ -2320,6 +2320,54 @@ body:has(.ops-sidebar) main {
   color: #1d4ed8;
 }
 
+.lead-score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.lead-score-badge__value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.lead-score-badge__band {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+}
+
+.lead-score-badge--hot .lead-score-badge__band {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
+
+.lead-score-badge--warm .lead-score-badge__band {
+  background: rgba(234, 179, 8, 0.15);
+  color: #a16207;
+}
+
+.lead-score-badge--cold .lead-score-badge__band {
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
+}
+
+.lead-score-badge--pending {
+  min-width: 1.5rem;
+}
+
+.crm-leads-card__badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .ai-explain-chips {
   list-style: none;
   margin: 0;
