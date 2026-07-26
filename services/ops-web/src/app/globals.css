@@ -3316,3 +3316,59 @@ body:has(.ops-sidebar) main {
   background: rgba(148, 163, 184, 0.2);
   color: #475569;
 }
+
+.financial-intelligence-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.financial-intelligence-panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.financial-intelligence-panel__trends {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+
+.financial-intelligence-trend {
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 10px;
+  background: rgba(248, 250, 252, 0.7);
+}
+
+.financial-intelligence-panel__range {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.financial-intelligence-panel__actions {
+  margin-top: 0.25rem;
+}
+
+.kpi-sparkline--cost {
+  color: #dc2626;
+}
+
+.financials-payment-gate {
+  display: inline-block;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.financials-payment-gate--blocked {
+  background: rgba(239, 68, 68, 0.14);
+  color: #b91c1c;
+}

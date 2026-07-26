@@ -2327,6 +2327,18 @@ export async function fetchFinanceFinancials(
   return crmFetch(token, `/api/crm/finance/financials${suffix}`);
 }
 
+export async function fetchFinanceIntelligence(
+  token: string,
+  params?: { year?: number; month?: number; months?: number },
+): Promise<Record<string, unknown>> {
+  const qs = new URLSearchParams();
+  if (params?.year != null) qs.set('year', String(params.year));
+  if (params?.month != null) qs.set('month', String(params.month));
+  if (params?.months != null) qs.set('months', String(params.months));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return crmFetch(token, `/api/crm/finance/intelligence${suffix}`);
+}
+
 export async function fetchFinanceArAging(token: string): Promise<Record<string, unknown>> {
   return crmFetch(token, '/api/crm/finance/ar-aging');
 }

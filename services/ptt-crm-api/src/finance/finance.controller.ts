@@ -87,6 +87,16 @@ export class FinanceController {
     return this.finance.kpiTrends(year, month, months);
   }
 
+  @Get('intelligence')
+  @UseGuards(StaffFinanceViewGuard)
+  intelligence(
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('months') months?: string,
+  ) {
+    return this.finance.intelligence(year, month, months);
+  }
+
   @Get('kpi-config')
   @UseGuards(StaffFinanceViewGuard)
   kpiConfigGet() {

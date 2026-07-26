@@ -12,6 +12,7 @@ import {
   THRESHOLD_DEFAULTS,
   THRESHOLD_ENV_KEYS,
 } from './finance-kpi.util';
+import { getFinancialIntelligence } from './finance-intelligence.util';
 import {
   getArAging,
   getCacMetrics,
@@ -107,6 +108,10 @@ export class FinanceSqliteRepository implements OnModuleDestroy {
 
   kpiTrends(year: number, month: number, months: number): Record<string, unknown> {
     return getFinanceKpiTrends(this.database, year, month, months);
+  }
+
+  financialIntelligence(year: number, month: number, months: number): Record<string, unknown> {
+    return getFinancialIntelligence(this.database, year, month, months);
   }
 
   kpiConfigGet(): Record<string, unknown> {

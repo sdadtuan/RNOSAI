@@ -15,6 +15,7 @@
     "test:e2e:kpi": "playwright test e2e/kpi-rnos42.spec.ts",
     "test:e2e:kpi-dashboard-v2": "playwright test e2e/kpi-dashboard-rnos43a.spec.ts",
     "test:e2e:financials-dashboard-v2": "playwright test e2e/financials-dashboard-rnos43b.spec.ts",
+    "test:e2e:financials-intelligence": "playwright test e2e/financials-intelligence-rnos45.spec.ts",
     "test:e2e:kpi-grid": "playwright test e2e/kpi-grid-rnos44.spec.ts",
     "test:e2e:crm-config": "playwright test e2e/crm-config-rnos35.spec.ts",
     "test:e2e:crm-tickets": "playwright test e2e/crm-tickets-rnos24.spec.ts",

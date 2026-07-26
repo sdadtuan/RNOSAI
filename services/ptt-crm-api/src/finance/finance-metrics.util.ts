@@ -54,7 +54,7 @@ export function resolvePaymentDueOn(payment: Record<string, unknown>): string {
   return recv ?? '';
 }
 
-function deliveryPhaseSql(): string {
+export function deliveryPhaseSql(): string {
   return "COALESCE(cost_phase, 'delivery') = 'delivery'";
 }
 

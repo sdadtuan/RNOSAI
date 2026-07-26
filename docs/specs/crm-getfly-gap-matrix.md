@@ -300,6 +300,11 @@
 | 16.1 | [x] **AR aging chart** (bucket 30/60/90) | ○ | Visual |
 | 16.2 | [x] Drill lifecycle → `/crm/service-delivery/[id]` | ○ | Link |
 | 16.3 | [x] Copy footer: “Không thay ERP MISA” | 🚫 | FAQ §20.6 |
+| 16.4 | [x] Tile **Burn rate** + runway aggregate | RNOS-45 | Intelligence API |
+| 16.5 | [x] Tile **Margin at risk** (count + VND) | RNOS-45 | Threshold from KPI config |
+| 16.6 | [x] Sparkline doanh thu vs chi phí 6 tháng | RNOS-45 | Intelligence trends |
+| 16.7 | [x] Section **Cần xử lý** (margin đỏ + AR &gt;30d) | RNOS-45 | Action list |
+| 16.8 | [x] Badge **Blocked** payment gate trên lifecycle AR overdue | RNOS-45 | GAP-P1-01 hook |
 
 **🚫 Không PR:** Sổ cái, HĐ GTGT, tồn kho — export connector riêng.
 

@@ -53,11 +53,12 @@ export function FinancialLifecycleTable({
               <th>KH</th>
               <th style={{ textAlign: 'right' }}>Doanh thu</th>
               <th style={{ textAlign: 'right' }}>Margin</th>
+              <th>Gate</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td colSpan={5} className="muted">
+              <td colSpan={6} className="muted">
                 Chưa có lifecycle active
               </td>
             </tr>
@@ -83,12 +84,15 @@ export function FinancialLifecycleTable({
             <th data-sortable="true" onClick={() => toggleSort('margin_pct')} style={{ textAlign: 'right' }}>
               Margin{sortIndicator('margin_pct')}
             </th>
+            <th>Gate</th>
           </tr>
         </thead>
         <tbody>
           {sorted.map((row, i) => {
             const lifecycleId = row.lifecycle_id ?? row.id;
             const marginPct = row.margin_pct != null ? Number(row.margin_pct) : null;
+            const arOverdue = Number(row.ar_overdue_vnd ?? 0);
+            const paymentBlocked = arOverdue > 0;
             return (
               <tr key={String(lifecycleId ?? i)}>
                 <td>
@@ -109,6 +113,15 @@ export function FinancialLifecycleTable({
                     : row.margin_vnd != null
                       ? formatVnd(row.margin_vnd)
                       : '—'}
+                </td>
+                <td>
+                  {paymentBlocked ? (
+                    <span className="financials-payment-gate financials-payment-gate--blocked" title="AR quá hạn — payment gate">
+                      Blocked
+                    </span>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
                 </td>
               </tr>
             );

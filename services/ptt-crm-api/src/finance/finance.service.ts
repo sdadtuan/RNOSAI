@@ -80,6 +80,14 @@ export class FinanceService {
     return this.sqlite.kpiTrends(year, month, months);
   }
 
+  intelligence(yearRaw?: string, monthRaw?: string, monthsRaw?: string) {
+    const { year, month } = this.parseYearMonth(yearRaw, monthRaw, true);
+    let months = Number(monthsRaw ?? 6);
+    if (!Number.isFinite(months)) months = 6;
+    months = Math.max(2, Math.min(Math.trunc(months), 12));
+    return this.sqlite.financialIntelligence(year, month, months);
+  }
+
   kpiConfigGet() {
     return this.sqlite.kpiConfigGet();
   }

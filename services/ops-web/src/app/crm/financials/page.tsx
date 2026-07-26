@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardShell } from '@/components/kpi/DashboardShell';
+import { FinancialIntelligencePanel, type FinanceIntelligenceData } from '@/components/kpi/FinancialIntelligencePanel';
 import { FinancialLifecycleTable } from '@/components/kpi/FinancialLifecycleTable';
 import {
   ArAgingPanel,
@@ -13,6 +14,7 @@ import { periodLabel } from '@/lib/kpi/format';
 import {
   fetchFinanceArAging,
   fetchFinanceFinancials,
+  fetchFinanceIntelligence,
   staffMe,
   staffRefresh,
 } from '@/lib/api';
@@ -35,6 +37,7 @@ export default function CrmFinancialsPage() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [financials, setFinancials] = useState<Record<string, unknown> | null>(null);
   const [arAging, setArAging] = useState<Record<string, unknown> | null>(null);
+  const [intelligence, setIntelligence] = useState<FinanceIntelligenceData | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -77,12 +80,14 @@ export default function CrmFinancialsPage() {
       setLoading(true);
       setError('');
       try {
-        const [fin, ar] = await Promise.all([
+        const [fin, ar, intel] = await Promise.all([
           fetchFinanceFinancials(access, { year, month }),
           fetchFinanceArAging(access),
+          fetchFinanceIntelligence(access, { year, month, months: 6 }),
         ]);
         setFinancials(fin);
         setArAging(ar.buckets ? ar : (fin.ar_aging as Record<string, unknown>) ?? ar);
+        setIntelligence(intel as FinanceIntelligenceData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải financials thất bại');
       } finally {
@@ -124,7 +129,7 @@ export default function CrmFinancialsPage() {
       user={user}
       onLogout={logout}
       title="Financials — lifecycle margin"
-      periodHint={`Kỳ ${periodLabel(year, month)} · front-office view`}
+      periodHint={`Kỳ ${periodLabel(year, month)} · burn rate · margin at risk · front-office view`}
       loading={loading}
       error={error}
       filters={
@@ -150,6 +155,10 @@ export default function CrmFinancialsPage() {
       footer="Front-office only — không thay ERP MISA (sổ cái, HĐ GTGT, tồn kho). Xuất connector riêng nếu cần."
     >
       <KpiTileGrid tiles={summaryTiles} />
+
+      <section className="kpi-page__section">
+        <FinancialIntelligencePanel data={intelligence} />
+      </section>
 
       <section className="kpi-page__section kpi-page__section--split">
         <div>
