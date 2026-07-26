@@ -2487,3 +2487,96 @@ body:has(.ops-sidebar) main {
   color: var(--success, #2e7d4f);
 }
 
+/* RNOS-41 — PWA install banner */
+.pwa-install-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 9998;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--card, #fff);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.pwa-install-banner p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.pwa-install-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* RNOS-41 — Lead list mobile cards (Getfly P0-1) */
+.crm-leads-cards {
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.crm-leads-card {
+  margin-bottom: 0.65rem;
+}
+
+.crm-leads-card__link {
+  display: block;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  text-decoration: none;
+  color: inherit;
+}
+
+.crm-leads-card__link:hover {
+  border-color: var(--accent, #398b43);
+}
+
+.crm-leads-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.crm-leads-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  font-size: 0.82rem;
+}
+
+.crm-leads-card--empty {
+  padding: 1rem;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+@media (max-width: 768px) {
+  .crm-leads-table-wrap {
+    display: none;
+  }
+
+  .crm-leads-cards {
+    display: block;
+  }
+}
+
+@media (min-width: 769px) {
+  .crm-leads-cards {
+    display: none;
+  }
+}
+

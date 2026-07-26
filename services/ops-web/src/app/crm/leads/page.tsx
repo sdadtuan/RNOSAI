@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
+import { CrmLeadsList } from '@/components/crm/CrmLeadsList';
 import { fetchLeads, staffMe, staffRefresh } from '@/lib/api';
 import type { LeadRow } from '@/lib/api';
 import {
@@ -151,45 +151,7 @@ export default function CrmLeadsPage() {
 
         {error ? <p className="error">{error}</p> : null}
 
-        <div style={{ overflowX: 'auto' }}>
-          <table className="perf-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Tên</th>
-                <th>SĐT</th>
-                <th>Trạng thái</th>
-                <th>Nguồn</th>
-                <th>Kênh</th>
-                <th>Ngày</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((lead) => (
-                <tr key={lead.id}>
-                  <td>
-                    <Link href={`/crm/leads/${lead.id}`} className="nav-link">
-                      {lead.id}
-                    </Link>
-                  </td>
-                  <td>{lead.full_name || '—'}</td>
-                  <td>{lead.phone || '—'}</td>
-                  <td>{lead.status}</td>
-                  <td>{lead.source}</td>
-                  <td>{lead.channel || '—'}</td>
-                  <td>{lead.created_at?.slice(0, 10) ?? '—'}</td>
-                </tr>
-              ))}
-              {!loading && rows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="muted">
-                    Không có lead
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+        <CrmLeadsList rows={rows} loading={loading} />
 
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
           <button

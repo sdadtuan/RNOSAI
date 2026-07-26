@@ -16,7 +16,7 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  webServer: process.env.OPS_E2E_SKIP_SERVER
+  webServer: process.env.OPS_E2E_SKIP_SERVER === '1'
     ? undefined
     : {
         command: process.env.OPS_E2E_USE_DEV === '0' ? 'npm run start' : 'npm run dev',
@@ -37,6 +37,7 @@ export default defineConfig({
           NEXT_PUBLIC_PTT_META_ANOMALY_ENABLED: process.env.NEXT_PUBLIC_PTT_META_ANOMALY_ENABLED ?? '0',
           NEXT_PUBLIC_PTT_META_ROAS_ENABLED: process.env.NEXT_PUBLIC_PTT_META_ROAS_ENABLED ?? '0',
           NEXT_PUBLIC_PTT_AI_COPILOT_ENABLED: process.env.NEXT_PUBLIC_PTT_AI_COPILOT_ENABLED ?? '1',
+          NEXT_PUBLIC_PWA_ENABLED: process.env.NEXT_PUBLIC_PWA_ENABLED ?? '1',
         },
       },
 });

@@ -4827,7 +4827,7 @@ export async function createEmailGovernanceRule(
     enabled?: boolean;
   },
 ): Promise<{ ok: boolean; rule: EmailGovernanceRule }> {
-  return agencyFetch(token, '/api/v1/email/governance/rules', {
+  return agencyMutate(token, '/api/v1/email/governance/rules', {
     method: 'POST',
     body: JSON.stringify(body),
   });
@@ -4838,7 +4838,7 @@ export async function patchEmailGovernanceRule(
   ruleId: string,
   body: { config_json?: Record<string, unknown>; priority?: number; enabled?: boolean },
 ): Promise<{ ok: boolean; rule: EmailGovernanceRule }> {
-  return agencyFetch(token, `/api/v1/email/governance/rules/${ruleId}`, {
+  return agencyMutate(token, `/api/v1/email/governance/rules/${ruleId}`, {
     method: 'PATCH',
     body: JSON.stringify(body),
   });
@@ -4848,7 +4848,7 @@ export async function deleteEmailGovernanceRule(
   token: string,
   ruleId: string,
 ): Promise<{ ok: boolean }> {
-  return agencyFetch(token, `/api/v1/email/governance/rules/${ruleId}`, { method: 'DELETE' });
+  return agencyMutate(token, `/api/v1/email/governance/rules/${ruleId}`, { method: 'DELETE' });
 }
 
 export async function fetchEmailBiStatus(token: string): Promise<EmailBiStatus> {

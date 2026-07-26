@@ -10,7 +10,8 @@
     "lint": "next lint",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:ai-copilot": "playwright test e2e/ai-copilot.spec.ts"
+    "test:e2e:ai-copilot": "playwright test e2e/ai-copilot.spec.ts",
+    "test:e2e:pwa": "playwright test e2e/pwa-rnos41.spec.ts"
   },
   "engines": {
     "node": ">=22.0.0"
