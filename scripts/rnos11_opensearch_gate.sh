@@ -72,6 +72,12 @@ else
   log_fail "npm-script" 'Add test:e2e:global-search script'
 fi
 
+if grep -q 'opensearch_required: true' "$ROOT/services/ptt-crm-api/src/crm-search/crm-search.service.ts"; then
+  log_ok "opensearch-only" "Search requires OpenSearch (no SQLite fallback)"
+else
+  log_fail "opensearch-only" "Search must not use SQLite fallback"
+fi
+
 echo "==> ptt-crm-api unit tests (crm-search.service)"
 if (cd "$ROOT/services/ptt-crm-api" && npm test -- crm-search.service.spec.ts --passWithNoTests 2>/dev/null); then
   log_ok "api-unit" "crm-search.service.spec.ts PASS"

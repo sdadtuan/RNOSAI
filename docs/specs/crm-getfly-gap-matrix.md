@@ -77,7 +77,7 @@
 ### 0. Shell topbar — Global search (RNOS-11 / UI-R2-07)
 
 **Getfly:** Tìm nhanh KH / deal / ticket.  
-**RNOS as-is:** ✅ Topbar search bar + `/api/v1/search` (SQLite fallback; OpenSearch khi `OPENSEARCH_URL`).
+**RNOS as-is:** ✅ Topbar search bar + `/api/v1/search` (OpenSearch only — `OPENSEARCH_URL` bắt buộc).
 
 | # | PR checklist | Parity | Done when |
 |---|--------------|--------|-----------|

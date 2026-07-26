@@ -21,9 +21,7 @@ export class CrmSearchIndexerService {
     if (entityType && entityId) {
       const mapped = this.mapEventEntity(entityType);
       if (!mapped) return;
-      const doc = this.documents
-        .collectAll(500)
-        .find((d) => d.entity_type === mapped && d.entity_id === String(entityId));
+      const doc = (await this.documents.collectAll(500)).find((d) => d.entity_type === mapped && d.entity_id === String(entityId));
       if (doc) {
         await this.opensearch.bulkUpsert([doc]);
       }
@@ -36,7 +34,7 @@ export class CrmSearchIndexerService {
     if (!this.opensearch.isConfigured() || !(await this.opensearch.ping())) {
       return 0;
     }
-    const docs = this.documents.collectAll(300);
+    const docs = await this.documents.collectAll(300);
     return this.opensearch.bulkUpsert(docs);
   }
 

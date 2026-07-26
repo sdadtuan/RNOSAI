@@ -22,7 +22,7 @@ export interface GlobalSearchResponse {
     entity_type: SearchEntityType | null;
     hits: GlobalSearchHit[];
     total: number;
-    engine: 'opensearch' | 'sqlite';
+    engine: 'opensearch';
     index: string;
   };
   meta: { request_id: string; latency_ms?: number };

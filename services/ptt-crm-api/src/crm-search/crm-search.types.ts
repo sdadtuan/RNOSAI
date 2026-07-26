@@ -42,7 +42,7 @@ export interface SearchResponse {
     entity_type: SearchEntityType | null;
     hits: SearchHit[];
     total: number;
-    engine: 'opensearch' | 'sqlite';
+    engine: 'opensearch';
     index: string;
   };
   meta: { request_id: string; latency_ms?: number };
@@ -55,7 +55,7 @@ export interface SearchHealthResponse {
     index: string;
     opensearch_url: string | null;
     opensearch_reachable: boolean;
-    sqlite_fallback: boolean;
+    opensearch_required: boolean;
     document_count_estimate?: number;
   };
   meta: { request_id: string };
@@ -65,7 +65,7 @@ export interface SearchHealthResponse {
 export interface ReindexResponse {
   data: {
     indexed: number;
-    engine: 'opensearch' | 'sqlite';
+    engine: 'opensearch';
     index: string;
   };
   meta: { request_id: string };

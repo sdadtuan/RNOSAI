@@ -33,9 +33,12 @@ test.describe('RNOS-11 OpenSearch global search', () => {
     const ok = await request.get(`${API_URL}/api/v1/search?q=lead&limit=5`, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    if (ok.status() === 503) {
+      test.skip(true, 'OpenSearch not configured — set OPENSEARCH_URL');
+    }
     expect(ok.ok(), `search: ${ok.status()}`).toBeTruthy();
     const body = (await ok.json()) as { data?: { hits?: unknown[]; engine?: string } };
     expect(Array.isArray(body.data?.hits)).toBeTruthy();
-    expect(['sqlite', 'opensearch']).toContain(body.data?.engine);
+    expect(body.data?.engine).toBe('opensearch');
   });
 });

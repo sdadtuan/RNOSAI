@@ -47,7 +47,8 @@ export function GlobalSearchBar() {
       setEngine(out.data.engine);
       setOpen(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Tìm kiếm thất bại');
+      const msg = e instanceof Error ? e.message : 'Tìm kiếm thất bại';
+      setError(msg.includes('503') || msg.toLowerCase().includes('opensearch') ? 'OpenSearch chưa sẵn sàng — cần OPENSEARCH_URL' : msg);
       setHits([]);
     } finally {
       setBusy(false);

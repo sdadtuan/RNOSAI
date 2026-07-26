@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { OpensearchClient } from './opensearch.client';
 import { SearchDocumentProvider } from './search-document.provider';
@@ -7,7 +7,6 @@ import {
   SearchHealthResponse,
   SearchQuery,
   SearchResponse,
-  SearchHit,
   normalizeSearchEntityType,
 } from './crm-search.types';
 
@@ -17,6 +16,21 @@ export class CrmSearchService {
     private readonly opensearch: OpensearchClient,
     private readonly documents: SearchDocumentProvider,
   ) {}
+
+  private async assertOpenSearchReady(): Promise<void> {
+    if (!this.opensearch.isConfigured()) {
+      throw new ServiceUnavailableException({
+        error: 'opensearch_not_configured',
+        message: 'OpenSearch is required — set OPENSEARCH_URL',
+      });
+    }
+    if (!(await this.opensearch.ping())) {
+      throw new ServiceUnavailableException({
+        error: 'opensearch_unreachable',
+        message: 'OpenSearch cluster is not reachable',
+      });
+    }
+  }
 
   async search(input: SearchQuery, requestId?: string): Promise<SearchResponse> {
     const started = Date.now();
@@ -33,16 +47,8 @@ export class CrmSearchService {
     }
     const limit = Math.min(Math.max(Number(input.limit ?? 20) || 20, 1), 50);
 
-    let hits: SearchHit[] = [];
-    let engine: 'opensearch' | 'sqlite' = 'sqlite';
-    if (this.opensearch.isConfigured() && (await this.opensearch.ping())) {
-      hits = await this.opensearch.search(q, entityType ?? undefined, limit);
-      engine = 'opensearch';
-    }
-    if (!hits.length) {
-      hits = this.documents.searchLocal(q, entityType ?? undefined, limit);
-      engine = 'sqlite';
-    }
+    await this.assertOpenSearchReady();
+    const hits = await this.opensearch.search(q, entityType ?? undefined, limit);
 
     return {
       data: {
@@ -50,7 +56,7 @@ export class CrmSearchService {
         entity_type: entityType,
         hits,
         total: hits.length,
-        engine,
+        engine: 'opensearch',
         index: this.opensearch.indexName,
       },
       meta: { request_id: requestId?.trim() || randomUUID(), latency_ms: Date.now() - started },
@@ -68,8 +74,8 @@ export class CrmSearchService {
         index: this.opensearch.indexName,
         opensearch_url: this.opensearch.baseUrl,
         opensearch_reachable: reachable,
-        sqlite_fallback: true,
-        document_count_estimate: this.documents.estimateDocumentCount(),
+        opensearch_required: true,
+        document_count_estimate: reachable ? await this.documents.estimateDocumentCount() : undefined,
       },
       meta: { request_id: requestId?.trim() || randomUUID() },
       errors: [],
@@ -77,17 +83,13 @@ export class CrmSearchService {
   }
 
   async reindex(requestId?: string): Promise<ReindexResponse> {
-    const docs = this.documents.collectAll(300);
-    let indexed = 0;
-    let engine: 'opensearch' | 'sqlite' = 'sqlite';
-    if (this.opensearch.isConfigured() && (await this.opensearch.ping())) {
-      indexed = await this.opensearch.bulkUpsert(docs);
-      engine = 'opensearch';
-    }
+    await this.assertOpenSearchReady();
+    const docs = await this.documents.collectAll(300);
+    const indexed = await this.opensearch.bulkUpsert(docs);
     return {
       data: {
-        indexed: indexed || docs.length,
-        engine,
+        indexed,
+        engine: 'opensearch',
         index: this.opensearch.indexName,
       },
       meta: { request_id: requestId?.trim() || randomUUID() },

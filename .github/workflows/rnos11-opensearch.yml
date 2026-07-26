@@ -40,7 +40,16 @@ jobs:
         run: |
           npm ci
           npx playwright install chromium --with-deps
+      - name: Start OpenSearch
+        run: |
+          docker compose -f docker-compose.opensearch.yml up -d
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:9200/ && break
+            sleep 2
+          done
       - name: Run RNOS-11 gate
+        env:
+          OPENSEARCH_URL: http://127.0.0.1:9200
         run: |
           chmod +x scripts/rnos11_opensearch_gate.sh scripts/playwright_ops_global_search_e2e.sh
           bash scripts/rnos11_opensearch_gate.sh
