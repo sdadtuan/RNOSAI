@@ -1,9 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
-import { fetchCrmStaffList, fetchStaffKpiAutoMetrics, staffMe, staffRefresh } from '@/lib/api';
+import { KpiBarChart, KpiProgressList } from '@/components/kpi/KpiDashboardUi';
+import { periodLabel } from '@/lib/kpi/format';
+import {
+  fetchCrmStaffList,
+  fetchKpiChart,
+  fetchKpiMetrics,
+  fetchStaffKpiAutoMetrics,
+  staffMe,
+  staffRefresh,
+  type KpiChartData,
+  type KpiMetricRow,
+} from '@/lib/api';
 import {
   clearSession,
   getAccessToken,
@@ -15,19 +26,23 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 
+type StaffMetric = { key: string; label: string; value: number; target?: number | null };
+
 export default function CrmStaffKpiPage() {
   const router = useRouter();
+  const now = new Date();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [staffOptions, setStaffOptions] = useState<Array<{ id: number; name: string }>>([]);
   const [staffId, setStaffId] = useState('');
   const [role, setRole] = useState('am');
-  const [metrics, setMetrics] = useState<Array<{ key: string; label: string; value: number; target?: number }>>([]);
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [metrics, setMetrics] = useState<StaffMetric[]>([]);
+  const [metricDefs, setMetricDefs] = useState<KpiMetricRow[]>([]);
+  const [compareMetricId, setCompareMetricId] = useState('');
+  const [compareChart, setCompareChart] = useState<KpiChartData | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -69,10 +84,12 @@ export default function CrmStaffKpiPage() {
       if (!access) return;
       setLoading(true);
       try {
-        const out = await fetchCrmStaffList(access);
-        const opts = (out.staff ?? []).map((s) => ({ id: s.id, name: s.name }));
+        const [staffOut, metricRows] = await Promise.all([fetchCrmStaffList(access), fetchKpiMetrics(access)]);
+        const opts = (staffOut.staff ?? []).map((s) => ({ id: s.id, name: s.name }));
         setStaffOptions(opts);
+        setMetricDefs(metricRows);
         if (opts[0]) setStaffId(String(opts[0].id));
+        if (metricRows[0]) setCompareMetricId(String(metricRows[0].id));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải thất bại');
       } finally {
@@ -81,25 +98,54 @@ export default function CrmStaffKpiPage() {
     })();
   }, [ensureAuth]);
 
-  async function loadMetrics() {
+  const loadMetrics = useCallback(async () => {
     const access = getAccessToken();
     if (!access || !staffId) return;
     setLoading(true);
     setError('');
     try {
       const out = await fetchStaffKpiAutoMetrics(access, Number(staffId), { role, year, month });
-      setMetrics((out.metrics as typeof metrics) ?? []);
+      setMetrics((out.metrics as StaffMetric[]) ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tải metrics thất bại');
     } finally {
       setLoading(false);
     }
-  }
+  }, [staffId, role, year, month]);
+
+  const loadCompareChart = useCallback(async () => {
+    const access = getAccessToken();
+    if (!access || !compareMetricId) return;
+    try {
+      setCompareChart(
+        await fetchKpiChart(access, {
+          metric_id: Number(compareMetricId),
+          year,
+          month,
+        }),
+      );
+    } catch {
+      setCompareChart(null);
+    }
+  }, [compareMetricId, year, month]);
 
   useEffect(() => {
     if (staffId) void loadMetrics();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [staffId, role]);
+  }, [staffId, role, year, month, loadMetrics]);
+
+  useEffect(() => {
+    if (compareMetricId) void loadCompareChart();
+  }, [compareMetricId, year, month, loadCompareChart]);
+
+  const compareItems = useMemo(() => {
+    if (!compareChart) return [];
+    const staffIds = compareChart.staff_ids ?? [];
+    return (compareChart.labels ?? []).map((label, index) => ({
+      label,
+      value: compareChart.achievement_pct?.[index] ?? null,
+      href: staffIds[index] ? `/crm/staff/${staffIds[index]}` : undefined,
+    }));
+  }, [compareChart]);
 
   function logout() {
     clearSession();
@@ -115,57 +161,71 @@ export default function CrmStaffKpiPage() {
   }
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem' }}>
+    <main className="kpi-page" style={{ maxWidth: 1080, margin: '0 auto', padding: '1.5rem' }}>
       <OpsNav user={user} onLogout={logout} />
       <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>KPI AM / SP</h2>
-        {error ? <p className="error">{error}</p> : null}
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <select
-            value={staffId}
-            onChange={(e) => setStaffId(e.target.value)}
-            style={{
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.55rem 0.75rem',
-              color: 'var(--text)',
-            }}
-          >
-            {staffOptions.map((s) => (
-              <option key={s.id} value={String(s.id)}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            style={{
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.55rem 0.75rem',
-              color: 'var(--text)',
-            }}
-          >
-            <option value="am">AM</option>
-            <option value="sp">SP</option>
-          </select>
-          <span className="muted">
-            {month}/{year}
-          </span>
+        <div className="kpi-page__head">
+          <h2 style={{ margin: 0, fontSize: '1.15rem' }}>KPI AM / SP</h2>
+          <div className="kpi-page__filters">
+            <select value={staffId} onChange={(e) => setStaffId(e.target.value)} className="kpi-select" aria-label="Nhân viên">
+              {staffOptions.map((s) => (
+                <option key={s.id} value={String(s.id)}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            <select value={role} onChange={(e) => setRole(e.target.value)} className="kpi-select" aria-label="Vai trò">
+              <option value="am">AM</option>
+              <option value="sp">SP</option>
+            </select>
+            <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} className="kpi-input" aria-label="Năm" />
+            <input
+              type="number"
+              min={1}
+              max={12}
+              value={month}
+              onChange={(e) => setMonth(Number(e.target.value))}
+              className="kpi-input kpi-input--month"
+              aria-label="Tháng"
+            />
+          </div>
         </div>
+
+        <p className="muted" style={{ marginTop: 0 }}>
+          Kỳ {periodLabel(year, month)}
+        </p>
+
         {loading ? <p className="muted">Đang tải…</p> : null}
-        {metrics.length === 0 && !loading ? <p className="muted">Chưa có số liệu.</p> : null}
-        <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-          {metrics.map((m) => (
-            <li key={m.key}>
-              {m.label}: {m.value}
-              {m.target != null ? ` / ${m.target}` : ''}
-            </li>
-          ))}
-        </ul>
+        {error ? <p className="error">{error}</p> : null}
+
+        <section className="kpi-page__section">
+          <h3 className="kpi-section-title">Tiến độ vs target</h3>
+          <KpiProgressList items={metrics} staffHref={staffId ? `/crm/staff/${staffId}` : undefined} />
+        </section>
+
+        <section className="kpi-page__section">
+          <div className="kpi-page__chart-head">
+            <h3 className="kpi-section-title">So sánh NV cùng role</h3>
+            <select
+              value={compareMetricId}
+              onChange={(e) => setCompareMetricId(e.target.value)}
+              className="kpi-select"
+              aria-label="Chỉ tiêu so sánh"
+            >
+              {metricDefs.map((m) => (
+                <option key={m.id} value={String(m.id)}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <KpiBarChart
+            title={String(compareChart?.metric?.name ?? 'Đạt KPI (%)')}
+            items={compareItems}
+            unit="%"
+            maxValue={100}
+          />
+        </section>
       </div>
     </main>
   );

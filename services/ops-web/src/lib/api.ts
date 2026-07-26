@@ -1513,6 +1513,25 @@ export interface KpiMetricRow {
   sort_order: number;
 }
 
+export interface KpiBoardSummary {
+  year: number;
+  month: number;
+  summary: { critical: number; warn: number };
+  staff_count: number;
+  kpi_count: number;
+  alerts: Array<Record<string, unknown>>;
+}
+
+export interface KpiChartData {
+  metric: Record<string, unknown>;
+  higher_is_better: boolean;
+  year: number;
+  month: number;
+  labels: string[];
+  achievement_pct: Array<number | null>;
+  staff_ids: number[];
+}
+
 export async function fetchSalesSummary(token: string): Promise<SalesSummary> {
   return crmFetch<SalesSummary>(token, '/api/crm/sales/summary');
 }
@@ -1625,15 +1644,26 @@ export async function fetchKpiAlerts(
   return out.alerts ?? [];
 }
 
+export async function fetchKpiBoard(
+  token: string,
+  params?: { year?: number; month?: number },
+): Promise<KpiBoardSummary> {
+  const qs = new URLSearchParams();
+  if (params?.year != null) qs.set('year', String(params.year));
+  if (params?.month != null) qs.set('month', String(params.month));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return crmFetch<KpiBoardSummary>(token, `/api/crm/kpi/board${suffix}`);
+}
+
 export async function fetchKpiChart(
   token: string,
   params: { metric_id: number; year?: number; month?: number; staff_id?: number },
-): Promise<Record<string, unknown>> {
+): Promise<KpiChartData> {
   const qs = new URLSearchParams({ metric_id: String(params.metric_id) });
   if (params.year != null) qs.set('year', String(params.year));
   if (params.month != null) qs.set('month', String(params.month));
   if (params.staff_id != null) qs.set('staff_id', String(params.staff_id));
-  return crmFetch(token, `/api/crm/kpi/chart?${qs.toString()}`);
+  return crmFetch<KpiChartData>(token, `/api/crm/kpi/chart?${qs.toString()}`);
 }
 
 export async function exportStaffKpi(
