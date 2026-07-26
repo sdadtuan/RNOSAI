@@ -1143,3 +1143,76 @@ export async function postCoachDigestGenerate(
   }
   return body;
 }
+
+export interface NlQueryCatalogEntry {
+  id: string;
+  label: string;
+  aliases: string[];
+  category: string;
+  result_kind: 'table' | 'chart';
+  description: string;
+}
+
+export interface NlQueryColumn {
+  key: string;
+  label: string;
+  type?: 'number' | 'string' | 'currency' | 'pct';
+}
+
+export interface NlQueryChart {
+  type: 'bar' | 'line';
+  labels: string[];
+  series: Array<{ key: string; label: string; values: number[] }>;
+}
+
+export interface NlQueryResultPayload {
+  intent_id: string;
+  label: string;
+  narrative: string;
+  result_kind: 'table' | 'chart';
+  columns: NlQueryColumn[];
+  rows: Array<Record<string, unknown>>;
+  chart?: NlQueryChart;
+  read_only: true;
+  drill_href?: string;
+}
+
+export interface NlQueryCatalogResponse {
+  data: { intents: NlQueryCatalogEntry[]; total: number };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export interface NlQueryRunResponse {
+  data: NlQueryResultPayload;
+  meta: { request_id: string; agent_run_id?: string };
+  errors: unknown[];
+}
+
+export async function fetchNlQueryCatalog(token: string): Promise<NlQueryCatalogResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/query/catalog`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<NlQueryCatalogResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch NL query catalog failed', res.status);
+  }
+  return body;
+}
+
+export async function postNlQuery(
+  token: string,
+  input: { intent_id?: string; question?: string },
+): Promise<NlQueryRunResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/query`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const body = await parseJson<NlQueryRunResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'NL query failed', res.status);
+  }
+  return body;
+}

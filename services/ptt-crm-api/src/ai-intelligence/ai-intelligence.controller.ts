@@ -12,6 +12,11 @@ import { AiForecastService } from './ai-forecast.service';
 import { RenewalAgentService } from './renewal-agent.service';
 import { AiChurnHealthService } from './ai-churn-health.service';
 import { ManagerCoachService } from './manager-coach.service';
+import { AiNlQueryService } from './ai-nl-query.service';
+import {
+  NlQueryCatalogResponse,
+  NlQueryRunResponse,
+} from './nl-query.types';
 import { AiSummarizeService } from './ai-summarize.service';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiFeedbackAnalyticsService } from './ai-feedback-analytics.service';
@@ -66,6 +71,7 @@ import { StaffAiRenewalViewGuard } from './guards/staff-ai-renewal-view.guard';
 import { StaffAiRenewalWriteGuard } from './guards/staff-ai-renewal-write.guard';
 import { StaffAiChurnHealthViewGuard } from './guards/staff-ai-churn-health-view.guard';
 import { StaffAiCoachViewGuard } from './guards/staff-ai-coach-view.guard';
+import { StaffAiNlQueryGuard } from './guards/staff-ai-nl-query.guard';
 
 interface ScoreDealBody {
   deal_id: number;
@@ -128,6 +134,7 @@ export class AiIntelligenceController {
     private readonly renewal: RenewalAgentService,
     private readonly churnHealth: AiChurnHealthService,
     private readonly managerCoach: ManagerCoachService,
+    private readonly nlQuery: AiNlQueryService,
   ) {}
 
   /** RNOS-02 — public smoke; records ai_agent_runs when schema ready (RNOS-05). */
@@ -777,6 +784,40 @@ export class AiIntelligenceController {
   ): Promise<CoachDigestCurrentResponse> {
     const rid = correlationId?.trim() || requestId?.trim() || undefined;
     return this.managerCoach.getCurrentDigest(teamId, rid);
+  }
+
+  /** RNOS-22 / AI-UC-016 — curated NL analytics catalog (read-only whitelist). */
+  @Get('query/catalog')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiNlQueryGuard)
+  getNlQueryCatalog(
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): NlQueryCatalogResponse {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    return this.nlQuery.getCatalog(rid);
+  }
+
+  /** RNOS-22 / AI-UC-016 — run curated NL query (no free SQL). */
+  @Post('query')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiNlQueryGuard)
+  runNlQuery(
+    @Body() body: { intent_id?: string; question?: string },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<NlQueryRunResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.nlQuery.runQuery({
+      intent_id: body?.intent_id,
+      question: body?.question,
+      actorId,
+      correlationId: rid,
+    });
   }
 
   /** Guard wiring check — requires copilot flag + pilot cohort (BR-AI-04 prep). */

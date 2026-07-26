@@ -4559,3 +4559,101 @@ body:has(.ops-sidebar) main {
   margin-top: 1rem;
 }
 
+.nl-query-panel__head {
+  margin-bottom: 1rem;
+}
+
+.nl-query-panel__error {
+  color: var(--danger, #c0392b);
+  margin-bottom: 0.75rem;
+}
+
+.nl-query-panel__layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 960px) {
+  .nl-query-panel__layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nl-query-panel__sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.nl-query-panel__filter input,
+.nl-query-panel__question input {
+  width: 100%;
+  margin-top: 0.35rem;
+}
+
+.nl-query-panel__presets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.nl-query-panel__presets li + li {
+  margin-top: 0.35rem;
+}
+
+.nl-query-panel__presets button {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface, #fff);
+  cursor: pointer;
+}
+
+.nl-query-panel__presets button.is-active {
+  border-color: var(--primary, #2563eb);
+  background: color-mix(in srgb, var(--primary, #2563eb) 8%, white);
+}
+
+.nl-query-panel__presets button strong {
+  display: block;
+}
+
+.nl-query-panel__main {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.nl-query-panel__question {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.nl-query-result__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.nl-query-result__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.nl-query-chart {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: var(--surface-muted, #f8fafc);
+}
+

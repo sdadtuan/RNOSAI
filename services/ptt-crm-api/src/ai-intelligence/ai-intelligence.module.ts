@@ -28,6 +28,8 @@ import { AiForecastService } from './ai-forecast.service';
 import { RenewalAgentService } from './renewal-agent.service';
 import { AiChurnHealthService } from './ai-churn-health.service';
 import { ManagerCoachService } from './manager-coach.service';
+import { AiNlQueryService } from './ai-nl-query.service';
+import { NlQueryContextRepository } from './nl-query-context.repository';
 import { RevenueForecastRepository } from './revenue-forecast.repository';
 import { RenewalContractContextRepository } from './renewal-contract-context.repository';
 import { RenewalOpportunitiesRepository } from './renewal-opportunities.repository';
@@ -53,6 +55,7 @@ import { StaffAiRenewalViewGuard } from './guards/staff-ai-renewal-view.guard';
 import { StaffAiRenewalWriteGuard } from './guards/staff-ai-renewal-write.guard';
 import { StaffAiChurnHealthViewGuard } from './guards/staff-ai-churn-health-view.guard';
 import { StaffAiCoachViewGuard } from './guards/staff-ai-coach-view.guard';
+import { StaffAiNlQueryGuard } from './guards/staff-ai-nl-query.guard';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
 
 @Module({
@@ -86,6 +89,8 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     RenewalAgentService,
     AiChurnHealthService,
     ManagerCoachService,
+    AiNlQueryService,
+    NlQueryContextRepository,
     RevenueForecastRepository,
     RenewalContractContextRepository,
     RenewalOpportunitiesRepository,
@@ -114,6 +119,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     StaffAiRenewalWriteGuard,
     StaffAiChurnHealthViewGuard,
     StaffAiCoachViewGuard,
+    StaffAiNlQueryGuard,
   ],
   exports: [
     AiIntelligenceConfigService,
@@ -131,6 +137,8 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     RenewalAgentService,
     AiChurnHealthService,
     ManagerCoachService,
+    AiNlQueryService,
+    NlQueryContextRepository,
     RevenueForecastRepository,
     RenewalContractContextRepository,
     RenewalOpportunitiesRepository,
@@ -155,6 +163,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     StaffAiRenewalWriteGuard,
     StaffAiChurnHealthViewGuard,
     StaffAiCoachViewGuard,
+    StaffAiNlQueryGuard,
   ],
 })
 export class AiIntelligenceModule {}

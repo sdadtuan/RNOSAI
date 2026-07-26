@@ -17,6 +17,7 @@ export const AI_USE_CASE = {
   RENEWAL_APPROVE: 'renewal_approve',
   CHURN_SCORE: 'churn_score',
   COACH_DIGEST_GENERATE: 'coach_digest_generate',
+  NL_QUERY: 'nl_query',
 } as const;
 
 export type AiUseCase = (typeof AI_USE_CASE)[keyof typeof AI_USE_CASE];

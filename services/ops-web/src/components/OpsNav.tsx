@@ -77,6 +77,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/kpi': 'KPI',
   '/crm/ai/insights': 'AI Insights',
   '/crm/ai/coach': 'Manager Coach',
+  '/crm/ai/query': 'NL Analytics',
   '/crm/automation': 'Workflow automation',
   '/crm/playbooks': 'Playbook library',
   '/crm/staff-kpi': 'KPI AM/SP',
@@ -256,6 +257,9 @@ function buildSections(
     finance.push({ href: '/crm/business-dashboard', label: 'Dashboard KD' });
     finance.push({ href: '/crm/forecast', label: 'Forecast' });
     finance.push({ href: '/crm/financials', label: 'Tài chính' });
+    finance.push({ href: '/crm/ai/query', label: 'NL Analytics' });
+  } else if (hasCap(user, 'ai_analytics', 'query')) {
+    finance.push({ href: '/crm/ai/query', label: 'NL Analytics' });
   }
   if (hasCap(user, 'crm_agency', 'view') || hasCap(user, 'crm_board', 'view') || hasCap(user, 'ai_admin', 'view')) {
     finance.push({ href: '/crm/health', label: 'CS Health' });
