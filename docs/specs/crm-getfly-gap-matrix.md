@@ -1,6 +1,6 @@
 # Ma trận gap CRM vs Getfly — checklist PR theo màn hình
 
-> **Phiên bản:** 1.0 · **Ngày:** 2026-07-26  
+> **Phiên bản:** 1.1 · **Ngày:** 2026-07-26  
 > **Mục đích:** Checklist PR khi nâng cấp ops-web `/crm/*` để đạt **table stakes ~80% CRM** (spec §20.5) so với [Getfly CRM](https://getfly.vn) — **không** copy ERP/LP builder.  
 > **Traceability:** [`SPEC_AI_REVENUE_OPERATING_SYSTEM.md`](../SPEC_AI_REVENUE_OPERATING_SYSTEM.md) §4, §20 · [`SPEC_RNOSAI_MASTER.md`](../SPEC_RNOSAI_MASTER.md) · [`SPEC_UI_UX_PTT.md`](../SPEC_UI_UX_PTT.md)  
 > **PR template chung:** [`docs/templates/pr-checklist-rnos-uc-ui-uat.md`](../templates/pr-checklist-rnos-uc-ui-uat.md)
@@ -105,17 +105,17 @@
 ### 3. `/crm/leads` — Quản lý Lead (danh sách)
 
 **Getfly F2:** Tab trạng thái, bộ lọc lưu, bulk, import/export, chọn cột.  
-**RNOS as-is:** ○ Bảng + search + pagination 50.
+**RNOS as-is:** ○ Bảng + search + pagination 50 + **import/export Excel** + **cột AI Score**; thiếu filter chips / bulk / column picker.
 
 | # | PR checklist | Parity | Done when |
 |---|--------------|--------|-----------|
-| 3.1 | [ ] **Import Excel** lead (template + validate) | P0-2 | E2E hoặc script gate |
-| 3.2 | [ ] **Export Excel** (filter hiện tại / selected) | P0-2 | File tải được |
+| 3.1 | [x] **Import Excel** lead (template + validate) | P0-2 | E2E hoặc script gate |
+| 3.2 | [x] **Export Excel** (filter hiện tại / selected) | P0-2 | File tải được |
 | 3.3 | [ ] Filter chips: **owner**, **status**, **source**, **channel** | ○ | URL query persist |
 | 3.4 | [ ] Tab / view: **Tất cả** · **Của tôi** · **Chưa phân** | ○ | Match Getfly “người phụ trách” |
 | 3.5 | [ ] **Bulk assign** + bulk export | ○ | Chọn checkbox hàng |
 | 3.6 | [ ] **Cột tùy chọn** (⚙): owner, SLA, score | ○ | LocalStorage prefs |
-| 3.7 | [ ] Cột **AI Score** + badge hot/warm/cold | UI-R1-10 | Poll `/ai/scores` |
+| 3.7 | [x] Cột **AI Score** + badge hot/warm/cold | UI-R1-10 | Poll `/ai/scores` |
 | 3.8 | [ ] Empty state + CTA ingest doc | ○ | Link runbook ingest |
 
 **PR title gợi ý:** `crm/leads: import/export Excel (P0-2)` · `crm/leads: score column (UI-R1-10)`
@@ -133,8 +133,8 @@
 | 4.2 | [ ] @mention staff trong activity (optional) | ○ | Notify hoặc highlight |
 | 4.3 | [ ] Chip **campaign / CPL** → deep link Meta hub | ○ | Spec UI §12 attribution |
 | 4.4 | [ ] Nút **copy SĐT / Zalo** (không auto-send) | ○ | Clipboard |
-| 4.5 | [ ] Copilot: trust footer BR-AI copy | UI-R1 | Text spec §15 |
-| 4.6 | [ ] Mobile tab **AI** không regress (RNOS-39 E2E) | P0-1 | CI green |
+| 4.5 | [x] Copilot: trust footer BR-AI copy | UI-R1 | Text spec §15 |
+| 4.6 | [x] Mobile tab **AI** không regress (RNOS-39 E2E) | P0-1 | CI green |
 | 4.7 | [ ] GDKD **override score** modal | UI-R1-08 | `overridden_by` API |
 
 **Không yêu cầu PR:** Nút “Gửi Zalo/Email trực tiếp” (🚫 BR-AI-01 — dùng follow-up draft).
@@ -235,18 +235,18 @@
 ### 12. `/crm/kpi` — KPI
 
 **Getfly F7:** Conversion charts, nguồn → tương tác.  
-**RNOS as-is:** ○ List + **JSON chart**.
+**RNOS as-is:** ✅ **Dashboard v2** (RNOS-42/43A/44): tiles, trend chart, alerts, Excel export, editable grid.
 
 | # | PR checklist | Parity | Done when |
 |---|--------------|--------|-----------|
 | 12.1 | [x] **KPI tiles** (4–6 chỉ số tháng) | ○ | RNOS-42 |
-| 12.2 | [x] **Line/bar chart** thay `JSON.stringify` | ○ | Chart library |
-| 12.3 | [x] Alerts list giữ + badge severity màu | ○ | UX polish |
-| 12.4 | [x] Export staff KPI Excel (giữ + polish UI) | P0-2 | Button rõ ràng |
+| 12.2 | [x] **Line/bar chart** thay `JSON.stringify` | ○ | RNOS-43A |
+| 12.3 | [x] Alerts list giữ + badge severity màu | ○ | RNOS-43A |
+| 12.4 | [x] Export staff KPI Excel (giữ + polish UI) | P0-2 | RNOS-43A |
 | 12.5 | [x] Widget **AI acceptance rate** (G6) | RNOS-29 | SQL + tile |
 | 12.6 | [x] **Editable grid** nhập actual (target/actual/%) | RNOS-44 | PATCH + bulk save |
 
-**PR title gợi ý:** `RNOS-42: /crm/kpi dashboard v1`
+**Shipped:** RNOS-42 → RNOS-43A → RNOS-44 (gates 13/13 + 12/12 PASS).
 
 ---
 
@@ -266,14 +266,14 @@
 ### 14. `/crm/business-dashboard` — Dashboard kinh doanh
 
 **Getfly:** Executive reports.  
-**RNOS as-is:** ○ **JSON blocks**.
+**RNOS as-is:** ○ **Dashboard v2 partial** (RNOS-42): tiles + trend panels + drill links; thiếu sparkline 12 tuần và drill path hub→campaign→lead.
 
 | # | PR checklist | Parity | Done when |
 |---|--------------|--------|-----------|
-| 14.1 | [ ] Layout **2×2 cards**: revenue, AR, retention, alerts | ○ | RNOS-42 |
+| 14.1 | [x] Layout **2×2 cards**: revenue, AR, retention, alerts | ○ | RNOS-42 |
 | 14.2 | [ ] Trend sparkline 12 tuần | ○ | Chart |
 | 14.3 | [ ] Drill ≤3 click → hub → campaign → lead | ○ | Spec §12 |
-| 14.4 | [ ] Không còn `<pre>` JSON làm UI chính | ○ | Reviewer screenshot |
+| 14.4 | [x] Không còn `<pre>` JSON làm UI chính | ○ | RNOS-42 |
 
 ---
 
@@ -293,19 +293,20 @@
 ### 16. `/crm/financials` — Tài chính (front-office)
 
 **Getfly:** Module kế toán ERP.  
-**RNOS as-is:** ○ Lifecycle margin table + JSON AR.
+**RNOS as-is:** ✅ **Dashboard v2** (RNOS-43B/45): lifecycle table, AR aging, intelligence panel, payment gate badge.
 
 | # | PR checklist | Parity | Done when |
 |---|--------------|--------|-----------|
-| 16.1 | [x] **AR aging chart** (bucket 30/60/90) | ○ | Visual |
-| 16.2 | [x] Drill lifecycle → `/crm/service-delivery/[id]` | ○ | Link |
-| 16.3 | [x] Copy footer: “Không thay ERP MISA” | 🚫 | FAQ §20.6 |
+| 16.1 | [x] **AR aging chart** (bucket 30/60/90) | ○ | RNOS-43B |
+| 16.2 | [x] Drill lifecycle → `/crm/service-delivery/[id]` | ○ | RNOS-43B |
+| 16.3 | [x] Copy footer: “Không thay ERP MISA” | 🚫 | RNOS-43B |
 | 16.4 | [x] Tile **Burn rate** + runway aggregate | RNOS-45 | Intelligence API |
 | 16.5 | [x] Tile **Margin at risk** (count + VND) | RNOS-45 | Threshold from KPI config |
 | 16.6 | [x] Sparkline doanh thu vs chi phí 6 tháng | RNOS-45 | Intelligence trends |
 | 16.7 | [x] Section **Cần xử lý** (margin đỏ + AR &gt;30d) | RNOS-45 | Action list |
 | 16.8 | [x] Badge **Blocked** payment gate trên lifecycle AR overdue | RNOS-45 | GAP-P1-01 hook |
 
+**Shipped:** RNOS-43B → RNOS-45 (gates 12/12 + 13/13 PASS).  
 **🚫 Không PR:** Sổ cái, HĐ GTGT, tồn kho — export connector riêng.
 
 ---
@@ -375,30 +376,31 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 ### 22. PWA / Mobile (cross-cutting)
 
 **Getfly:** App iOS/Android.  
-**RNOS as-is:** ❌ PWA; ○ responsive + tab AI.
+**RNOS as-is:** ✅ **PWA v1** (RNOS-41): `manifest.ts`, SW, mobile lead cards; ○ responsive + tab AI.
 
 | # | PR checklist | Parity | Done when |
 |---|--------------|--------|-----------|
-| 22.1 | [ ] `manifest.json` + icons + install prompt | P0-1 | Lighthouse installable |
-| 22.2 | [ ] Service worker: shell + cached lead list read | P0-1 | Offline smoke |
-| 22.3 | [ ] `/crm/leads` card list mobile | P0-1 | Screenshot 390px |
-| 22.4 | [ ] RNOS-39 E2E mobile tab AI | ✅ | CI green |
+| 22.1 | [x] `manifest.json` + icons + install prompt | P0-1 | `manifest.ts` + icons |
+| 22.2 | [x] Service worker: shell + cached lead list read | P0-1 | `public/sw.js` |
+| 22.3 | [x] `/crm/leads` card list mobile | P0-1 | RNOS-41 E2E |
+| 22.4 | [x] RNOS-39 E2E mobile tab AI | ✅ | CI green |
 
-**PR title gợi ý:** `RNOS-41: PWA lead care v1`
+**Shipped:** RNOS-41 (gate PASS).
 
 ---
 
-### 23. Admin & settings (chưa có route)
+### 23. Admin & settings
 
-**Getfly:** Cài đặt → Định nghĩa dữ liệu, pipeline admin.
+**Getfly:** Cài đặt → Định nghĩa dữ liệu, pipeline admin.  
+**RNOS as-is:** ○ Custom fields + pipeline admin + tickets lite **shipped**; thiếu `/admin/ai/runs` và calendar.
 
 | # | PR checklist | Parity | Done when |
 |---|--------------|--------|-----------|
 | 23.1 | [ ] **`/admin/ai/runs`** table + filter | UI-R1-09 | RBAC admin |
-| 23.2 | [ ] **`/admin/crm/custom-fields`** CRUD | P1-1 | RNOS-35 |
-| 23.3 | [ ] **`/admin/crm/pipeline`** stage editor | P1-1 | RNOS-35 |
+| 23.2 | [x] **`/admin/crm/custom-fields`** CRUD | P1-1 | RNOS-35 |
+| 23.3 | [x] **`/admin/crm/pipeline`** stage editor | P1-1 | RNOS-35 |
 | 23.4 | [ ] **`/crm/calendar`** month view + reminder | P1-2 | RNOS calendar |
-| 23.5 | [ ] **`/crm/tickets`** lite CRUD | P1-3 | RNOS-24 |
+| 23.5 | [x] **`/crm/tickets`** lite CRUD | P1-3 | RNOS-24 |
 
 ---
 
@@ -418,13 +420,16 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 
 | Ưu tiên | PR bundle | Màn | Parity |
 |---------|-----------|-----|--------|
-| **P0** | Gate R1 pilot | `/crm/leads/[id]` copilot prod | R1 |
-| **P0** | RNOS-41 | PWA §22 | P0-1 |
-| **P0** | Import/export | `/crm/leads` §3.1–3.2 | P0-2 |
-| **P1** | RNOS-42 KPI UX | §12–§15 | Dashboard |
-| **P1** | UI-R1-09/10 | §3.7, §23.1 | AI admin + score column |
-| **P2** | RNOS-35 | §23.2–23.3 | Custom field |
-| **P2** | RNOS-24 | §23.5 | Ticket |
+| **P0** | UI-R1-09 | `/admin/ai/runs` §23.1 | AI audit UI |
+| **P1** | Business dashboard | §14.2–14.3 sparkline + drill path | Executive |
+| **P1** | Leads UX | §3.3–3.6 filter chips, tabs, bulk | Getfly F2 |
+| **P1** | Staff KPI | §13 bar chart + drill | Dashboard |
+| **P1** | Owner weekly | §15.1–15.2 in-ready layout | Executive |
+| **P1** | Home widgets | §1 lead/SLA/copilot DAU | Launcher |
+| **P2** | Calendar | §23.4 month view | P1-2 |
+| **P2** | Phase D (optional) | Gộp business-dashboard + kpi + financials tabs | Executive |
+
+**Đã ship (không còn trong backlog P0):** RNOS-41 PWA §22 · P0-2 import/export §3.1–3.2 · UI-R1-10 score §3.7 · RNOS-35 §23.2–23.3 · RNOS-24 §23.5 · RNOS-42/43A/44 §12 · RNOS-43B/45 §16.
 
 ---
 
@@ -455,6 +460,7 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 | Ngày | Phiên bản | Ghi chú |
 |------|-----------|---------|
 | 2026-07-26 | 1.0 | Ma trận ban đầu — as-is ops-web `main` post RNOS-39 |
+| 2026-07-26 | 1.1 | Sync as-is + tick checklist: P0-2, UI-R1-10, RNOS-35/41/43A–45/44, business-dashboard partial §14 |
 
 ---
 
