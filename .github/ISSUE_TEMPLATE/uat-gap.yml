@@ -1,0 +1,80 @@
+name: UAT / Gap
+description: Ghi nhận gap UC vs UI thực tế hoặc bước UAT fail
+title: "[UAT] "
+labels:
+  - uat
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Dùng khi **actions doc** mô tả bước nhưng UI/API chưa đáp ứng, hoặc pilot walkthrough fail.
+
+        Tham chiếu: [ACTION-GAP-ANALYSIS.md](https://github.com/sdadtuan/RNOSAI/blob/main/docs/use-cases/ACTION-GAP-ANALYSIS.md) · [09-AI-ACTIONS.md](https://github.com/sdadtuan/RNOSAI/blob/main/docs/use-cases/actions/09-AI-ACTIONS.md)
+
+  - type: input
+    id: uc
+    attributes:
+      label: Use case
+      placeholder: AI-UC-002 · CRM-UC-001
+    validations:
+      required: true
+
+  - type: input
+    id: action_step
+    attributes:
+      label: Actions § / bước #
+      placeholder: "§002 bước 3 · Pilot §4"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: gap_type
+    attributes:
+      label: Loại gap
+      options:
+        - GAP-AI — AI layer chưa ship
+        - Thiếu UI / bước click
+        - API sai contract vs spec
+        - UAT fail trên staging
+        - Doc stale (UC ≠ thực tế)
+        - Khác
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Theo spec / actions — mong đợi
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Thực tế trên hệ thống
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround hiện tại (nếu có)
+    validations:
+      required: false
+
+  - type: input
+    id: rnos
+    attributes:
+      label: RNOS fix target (nếu đã xác định)
+      placeholder: RNOS-06
+    validations:
+      required: false
+
+  - type: checkboxes
+    attributes:
+      label: Follow-up
+      options:
+        - label: Cần tạo RNOS Deliverable issue riêng để fix
+          required: false
+        - label: Cần cập nhật doc (UC/actions) nếu spec đổi
+          required: false
