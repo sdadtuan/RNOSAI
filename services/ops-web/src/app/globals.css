@@ -2580,6 +2580,69 @@ body:has(.ops-sidebar) main {
   }
 }
 
+/* P0-2 — Lead import/export Excel */
+.crm-leads-page__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.crm-leads-io__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.crm-leads-io__summary {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.crm-leads-io__summary p {
+  margin: 0;
+}
+
+.crm-leads-io__errors {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+}
+
+.crm-leads-row--selected {
+  background: color-mix(in srgb, var(--accent, #398b43) 8%, transparent);
+}
+
+.crm-leads-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.crm-leads-card__select {
+  padding-top: 0.85rem;
+}
+
+.crm-leads-card--empty {
+  display: block;
+}
+
+@media (min-width: 769px) {
+  .crm-leads-card__select {
+    display: none;
+  }
+
+  .crm-leads-card {
+    display: block;
+  }
+}
+
 /* RNOS-42 — KPI dashboard UX */
 .kpi-page__head {
   display: flex;

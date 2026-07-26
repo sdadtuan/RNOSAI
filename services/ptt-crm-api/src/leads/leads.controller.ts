@@ -11,13 +11,21 @@ import {
   Patch,
   Post,
   Query,
+  Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
+import { memoryStorage } from 'multer';
 import { InternalKeyGuard } from '../auth/internal-key.guard';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { WriteEnabledGuard } from './guards/write-enabled.guard';
 import { StaffLeadsWriteGuard } from './guards/staff-leads-write.guard';
+import { StaffLeadsViewGuard } from './guards/staff-leads-view.guard';
 import { LeadNotInReviewQueueGuard } from '../leads-funnel/guards/lead-not-in-review-queue.guard';
+import { LeadsIoService } from './leads-io.service';
 import { LeadsService } from './leads.service';
 import { LeadsWriteService } from './leads-write.service';
 import {
@@ -32,7 +40,72 @@ export class LeadsController {
   constructor(
     private readonly leadsService: LeadsService,
     private readonly leadsWriteService: LeadsWriteService,
+    private readonly leadsIo: LeadsIoService,
   ) {}
+
+  @Get('import/template.xlsx')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async downloadImportTemplate(@Res({ passthrough: false }) res: Response) {
+    const { buffer, filename } = await this.leadsIo.buildTemplate();
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  }
+
+  @Get('export.xlsx')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async exportLeads(
+    @Res({ passthrough: false }) res: Response,
+    @Query('client_id') clientId?: string,
+    @Query('status') status?: string,
+    @Query('source') source?: string,
+    @Query('channel') channel?: string,
+    @Query('q') q?: string,
+    @Query('ids') ids?: string,
+    @Query('hide_review_queue') hideReviewQueue?: string,
+  ) {
+    const truthy = (v?: string) => v === '1' || v === 'true';
+    const hideExplicitFalse = hideReviewQueue === '0' || hideReviewQueue === 'false';
+    const parsedIds = ids
+      ? ids
+          .split(',')
+          .map((part) => Number(part.trim()))
+          .filter((id) => Number.isFinite(id) && id > 0)
+      : undefined;
+
+    const { buffer, filename } = await this.leadsIo.exportXlsx({
+      client_id: clientId,
+      status,
+      source,
+      channel,
+      q,
+      hide_review_queue: hideExplicitFalse ? false : undefined,
+      ids: parsedIds?.length ? parsedIds : undefined,
+    });
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  }
+
+  @Post('import')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  importLeads(@UploadedFile() file: Express.Multer.File) {
+    return this.leadsIo.importXlsx(file);
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -52,7 +125,7 @@ export class LeadsController {
   }
 
   @Get()
-  @UseGuards(StaffOrInternalKeyGuard)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
   async listLeads(
     @Query('client_id') clientId?: string,
     @Query('status') status?: string,

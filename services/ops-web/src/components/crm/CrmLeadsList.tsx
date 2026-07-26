@@ -4,15 +4,32 @@ import type { LeadRow } from '@/lib/api';
 interface Props {
   rows: LeadRow[];
   loading: boolean;
+  selectedIds: Set<number>;
+  onToggleSelect: (id: number) => void;
+  onToggleAll: (checked: boolean) => void;
 }
 
-export function CrmLeadsList({ rows, loading }: Props) {
+export function CrmLeadsList({ rows, loading, selectedIds, onToggleSelect, onToggleAll }: Props) {
+  const allSelected = rows.length > 0 && rows.every((row) => selectedIds.has(row.id));
+  const someSelected = rows.some((row) => selectedIds.has(row.id));
+
   return (
     <>
       <div className="crm-leads-table-wrap" style={{ overflowX: 'auto' }}>
         <table className="perf-table">
           <thead>
             <tr>
+              <th style={{ width: 36 }}>
+                <input
+                  type="checkbox"
+                  aria-label="Chọn tất cả trang"
+                  checked={allSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = !allSelected && someSelected;
+                  }}
+                  onChange={(e) => onToggleAll(e.target.checked)}
+                />
+              </th>
               <th>ID</th>
               <th>Tên</th>
               <th>SĐT</th>
@@ -24,7 +41,15 @@ export function CrmLeadsList({ rows, loading }: Props) {
           </thead>
           <tbody>
             {rows.map((lead) => (
-              <tr key={lead.id}>
+              <tr key={lead.id} className={selectedIds.has(lead.id) ? 'crm-leads-row--selected' : undefined}>
+                <td>
+                  <input
+                    type="checkbox"
+                    aria-label={`Chọn lead ${lead.id}`}
+                    checked={selectedIds.has(lead.id)}
+                    onChange={() => onToggleSelect(lead.id)}
+                  />
+                </td>
                 <td>
                   <Link href={`/crm/leads/${lead.id}`} className="nav-link">
                     {lead.id}
@@ -40,7 +65,7 @@ export function CrmLeadsList({ rows, loading }: Props) {
             ))}
             {!loading && rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="muted">
+                <td colSpan={8} className="muted">
                   Không có lead
                 </td>
               </tr>
@@ -52,6 +77,14 @@ export function CrmLeadsList({ rows, loading }: Props) {
       <ul className="crm-leads-cards" aria-label="Danh sách lead (mobile)">
         {rows.map((lead) => (
           <li key={lead.id} className="crm-leads-card">
+            <div className="crm-leads-card__select">
+              <input
+                type="checkbox"
+                aria-label={`Chọn lead ${lead.id}`}
+                checked={selectedIds.has(lead.id)}
+                onChange={() => onToggleSelect(lead.id)}
+              />
+            </div>
             <Link href={`/crm/leads/${lead.id}`} className="crm-leads-card__link">
               <div className="crm-leads-card__head">
                 <strong>{lead.full_name || `Lead #${lead.id}`}</strong>

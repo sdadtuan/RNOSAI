@@ -6,6 +6,7 @@ import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
 import { MetaTrackingModule } from '../meta-tracking/meta-tracking.module';
 import { PerformanceModule } from '../performance/performance.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
+import { LeadsIoService } from './leads-io.service';
 import { LeadsController } from './leads.controller';
 import { LeadsRepository } from './leads.repository';
 import { LeadsService } from './leads.service';
@@ -31,6 +32,7 @@ import { WriteEnabledGuard } from './guards/write-enabled.guard';
   providers: [
     LeadsService,
     LeadsWriteService,
+    LeadsIoService,
     LeadsRepository,
     SqliteLeadsRepository,
     PgLeadsRepository,

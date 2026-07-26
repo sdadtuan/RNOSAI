@@ -124,6 +124,75 @@ export async function fetchLeads(
   return body;
 }
 
+export interface LeadImportResult {
+  ok: boolean;
+  created: number;
+  skipped: number;
+  leads: LeadRow[];
+  errors: Array<{ row: number; message: string }>;
+}
+
+function filenameFromDisposition(header: string | null, fallback: string): string {
+  if (!header) return fallback;
+  const match = /filename="?([^";]+)"?/i.exec(header);
+  return match?.[1] ?? fallback;
+}
+
+async function downloadBinary(
+  token: string,
+  path: string,
+  fallbackFilename: string,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string; message?: string }>(res);
+    throw new ApiError(body.error ?? body.message ?? 'Download failed', res.status);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filenameFromDisposition(res.headers.get('Content-Disposition'), fallbackFilename);
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadLeadsImportTemplate(token: string): Promise<void> {
+  await downloadBinary(token, '/api/v1/leads/import/template.xlsx', 'lead-import-template.xlsx');
+}
+
+export async function exportLeadsXlsx(
+  token: string,
+  params?: { q?: string; status?: string; source?: string; channel?: string; ids?: number[] },
+): Promise<void> {
+  const qs = new URLSearchParams();
+  if (params?.q) qs.set('q', params.q);
+  if (params?.status) qs.set('status', params.status);
+  if (params?.source) qs.set('source', params.source);
+  if (params?.channel) qs.set('channel', params.channel);
+  if (params?.ids?.length) qs.set('ids', params.ids.join(','));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  await downloadBinary(token, `/api/v1/leads/export.xlsx${suffix}`, 'leads-export.xlsx');
+}
+
+export async function importLeadsXlsx(token: string, file: File): Promise<LeadImportResult> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${API_BASE}/api/v1/leads/import`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: form,
+  });
+  const body = await parseJson<LeadImportResult & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Import failed', res.status);
+  }
+  return body;
+}
+
 export interface CskhBoardRow {
   id: number;
   full_name: string;
