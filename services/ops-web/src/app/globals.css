@@ -3161,3 +3161,7 @@ body:has(.ops-sidebar) main {
   display: flex;
   gap: 0.35rem;
 }
+
+.crm-tickets-table__status {
+  min-width: 150px;
+}

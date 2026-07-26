@@ -61,6 +61,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/': 'Bảng điều khiển',
   '/crm': 'Bảng CSKH',
   '/crm/cskh-board': 'Bảng CSKH SLA',
+  '/crm/tickets': 'Ticket CS',
   '/crm/leads': 'Quản lý Lead',
   '/crm/catalog': 'CRM Catalog',
   '/crm/customers': 'Khách hàng',
@@ -185,6 +186,9 @@ function buildSections(
       });
     }
     care.push({ href: '/crm/catalog', label: 'Catalog' });
+  }
+  if (hasCap(user, 'crm_board', 'view')) {
+    care.push({ href: '/crm/tickets', label: 'Ticket CS' });
   }
   if (hasCap(user, 'crm_board_customers', 'view')) {
     care.push({ href: '/crm/customers', label: 'Khách hàng' });

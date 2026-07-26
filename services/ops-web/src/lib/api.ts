@@ -5930,3 +5930,89 @@ export async function saveCrmSalesPipelineStages(
     body: JSON.stringify({ stages }),
   });
 }
+
+export interface CrmTicketRow {
+  id: number;
+  customer_id: number;
+  customer_name: string;
+  ticket_type: string;
+  ticket_type_label: string;
+  status: string;
+  status_label: string;
+  priority: string;
+  priority_label: string;
+  channel: string;
+  channel_label: string;
+  title: string;
+  description: string;
+  resolution: string;
+  assigned_staff_id: number | null;
+  assigned_staff_name: string;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string;
+}
+
+export async function fetchCrmTickets(
+  token: string,
+  params?: {
+    q?: string;
+    status?: string;
+    priority?: string;
+    customer_id?: number;
+    assigned_staff_id?: number;
+    limit?: number;
+    offset?: number;
+  },
+): Promise<{ tickets: CrmTicketRow[]; total: number }> {
+  const qs = new URLSearchParams();
+  if (params?.q) qs.set('q', params.q);
+  if (params?.status) qs.set('status', params.status);
+  if (params?.priority) qs.set('priority', params.priority);
+  if (params?.customer_id) qs.set('customer_id', String(params.customer_id));
+  if (params?.assigned_staff_id) qs.set('assigned_staff_id', String(params.assigned_staff_id));
+  if (params?.limit != null) qs.set('limit', String(params.limit));
+  if (params?.offset != null) qs.set('offset', String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return crmFetch(token, `/api/crm/tickets${suffix}`);
+}
+
+export async function createCrmTicket(
+  token: string,
+  body: {
+    customer_id: number;
+    ticket_type?: string;
+    priority?: string;
+    channel?: string;
+    title: string;
+    description?: string;
+    assigned_staff_id?: number | null;
+  },
+): Promise<CrmTicketRow> {
+  return crmFetch(token, '/api/crm/tickets', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchCrmTicket(
+  token: string,
+  id: number,
+  body: Partial<{
+    ticket_type: string;
+    priority: string;
+    status: string;
+    channel: string;
+    title: string;
+    description: string;
+    resolution: string;
+    assigned_staff_id: number | null;
+  }>,
+): Promise<CrmTicketRow> {
+  return crmFetch(token, `/api/crm/tickets/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
