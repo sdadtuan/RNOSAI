@@ -1,0 +1,140 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import type { LeadActivityRow, LeadRow } from '@/lib/api';
+import type { StoredStaffUser } from '@/lib/auth';
+import {
+  fetchAiScores,
+  pollAiScoreUntilReady,
+  type AiScoreRecord,
+} from '@/lib/ai-api';
+import { ApiError } from '@/lib/api';
+import { AiErrorBoundary } from './AiErrorBoundary';
+import { AiFeatureGate } from './AiFeatureGate';
+import { ConfidenceBanner } from './ConfidenceBanner';
+import { LeadBriefSection } from './LeadBriefSection';
+import { ScoreCard } from './ScoreCard';
+import { SummarizeSection } from './SummarizeSection';
+
+interface Props {
+  token: string;
+  leadId: number;
+  lead: LeadRow;
+  user: StoredStaffUser;
+  activities: LeadActivityRow[];
+  selectedActivityId?: number | null;
+  onSelectActivity?: (id: number | null) => void;
+  onCopilotError?: (msg: string) => void;
+  variant?: 'column' | 'drawer';
+  onCloseDrawer?: () => void;
+}
+
+export function LeadCopilotPanel({
+  token,
+  leadId,
+  lead,
+  user,
+  activities,
+  selectedActivityId,
+  onSelectActivity,
+  onCopilotError,
+  variant = 'column',
+  onCloseDrawer,
+}: Props) {
+  const [score, setScore] = useState<AiScoreRecord | null>(null);
+  const [scorePending, setScorePending] = useState(true);
+  const [scoreError, setScoreError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const loadScore = useCallback(async () => {
+    setScoreError(null);
+    try {
+      const out = await fetchAiScores(token, 'lead', leadId, 1);
+      if (out.data.latest) {
+        setScore(out.data.latest);
+        setScorePending(false);
+        return;
+      }
+      setScorePending(true);
+      const polled = await pollAiScoreUntilReady(token, leadId);
+      setScore(polled);
+      setScorePending(!polled);
+    } catch (err) {
+      const msg =
+        err instanceof ApiError
+          ? err.status === 403
+            ? 'Không có quyền xem điểm lead này.'
+            : err.message
+          : err instanceof Error
+            ? err.message
+            : 'Tải điểm thất bại';
+      setScoreError(msg);
+      setScorePending(false);
+      onCopilotError?.(msg);
+    }
+  }, [token, leadId, onCopilotError]);
+
+  useEffect(() => {
+    void loadScore();
+  }, [loadScore, reloadKey]);
+
+  async function onRefreshScore() {
+    setRefreshing(true);
+    try {
+      await loadScore();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  const confidence = score?.confidence ?? null;
+
+  const panel = (
+    <AiFeatureGate user={user}>
+      <AiErrorBoundary onRetry={() => setReloadKey((k) => k + 1)}>
+        <aside
+          className={`ai-copilot-panel ${variant === 'drawer' ? 'ai-copilot-panel--drawer' : ''}`}
+          aria-label="AI Copilot"
+        >
+          <header className="ai-copilot-panel__header">
+            <h3 className="ai-copilot-panel__title">AI Copilot</h3>
+            {variant === 'drawer' && onCloseDrawer ? (
+              <button type="button" className="btn btn-sm btn-secondary" onClick={onCloseDrawer}>
+                Đóng
+              </button>
+            ) : null}
+          </header>
+
+          {confidence != null ? <ConfidenceBanner confidence={confidence} /> : null}
+
+          <ScoreCard
+            score={score}
+            pending={scorePending}
+            error={scoreError}
+            onRefresh={() => void onRefreshScore()}
+            refreshing={refreshing}
+          />
+
+          <LeadBriefSection token={token} leadId={leadId} onError={onCopilotError} />
+
+          <SummarizeSection
+            token={token}
+            leadId={leadId}
+            activities={activities}
+            selectedActivityId={selectedActivityId}
+            onSelectActivity={onSelectActivity}
+            onError={onCopilotError}
+          />
+
+          <footer className="ai-copilot-panel__footer muted">
+            Gợi ý AI — cần bạn duyệt trước khi gửi khách. Lead #{lead.id} ·{' '}
+            {lead.channel || lead.source || '—'}
+          </footer>
+        </aside>
+      </AiErrorBoundary>
+    </AiFeatureGate>
+  );
+
+  return panel;
+}

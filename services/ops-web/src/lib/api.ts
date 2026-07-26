@@ -48,7 +48,7 @@ export class ApiError extends Error {
   }
 }
 
-async function parseJson<T>(res: Response): Promise<T> {
+export async function parseJson<T>(res: Response): Promise<T> {
   const text = await res.text();
   if (!text) {
     return {} as T;

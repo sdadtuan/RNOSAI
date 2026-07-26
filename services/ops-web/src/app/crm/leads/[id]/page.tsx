@@ -6,6 +6,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
 import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
 import { LeadContractPanel } from '@/components/LeadContractPanel';
+import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
+import { aiCopilotEnabled } from '@/lib/ai-flags';
 import {
   assignLead,
   createLeadActivity,
@@ -58,6 +60,38 @@ const ACTIVITY_TYPES = [
   { value: 'reminder', label: 'Nhắc việc' },
 ];
 
+type LeadDetailTab = 'detail' | 'activity' | 'ai';
+
+function useLeadDetailLayout() {
+  const [layout, setLayout] = useState({ desktop: false, tablet: false, mobile: true });
+
+  useEffect(() => {
+    const mqDesktop = window.matchMedia('(min-width: 1280px)');
+    const mqTablet = window.matchMedia('(min-width: 1024px)');
+
+    const sync = () => {
+      const w = window.innerWidth;
+      setLayout({
+        desktop: w >= 1280,
+        tablet: w >= 1024 && w < 1280,
+        mobile: w < 1024,
+      });
+    };
+
+    sync();
+    mqDesktop.addEventListener('change', sync);
+    mqTablet.addEventListener('change', sync);
+    window.addEventListener('resize', sync);
+    return () => {
+      mqDesktop.removeEventListener('change', sync);
+      mqTablet.removeEventListener('change', sync);
+      window.removeEventListener('resize', sync);
+    };
+  }, []);
+
+  return layout;
+}
+
 export default function CrmLeadDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -80,6 +114,12 @@ export default function CrmLeadDetailPage() {
   const [saving, setSaving] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [addingActivity, setAddingActivity] = useState(false);
+  const [selectedActivityId, setSelectedActivityId] = useState<number | null>(null);
+  const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(false);
+  const [mobileTab, setMobileTab] = useState<LeadDetailTab>('detail');
+  const [copilotMessage, setCopilotMessage] = useState('');
+  const layout = useLeadDetailLayout();
+  const copilotOn = aiCopilotEnabled();
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -280,254 +320,321 @@ export default function CrmLeadDetailPage() {
     );
   }
 
+  const accessToken = getAccessToken();
+  const useMobileTabs = layout.mobile && copilotOn;
+  const showCopilotInline =
+    copilotOn && !!lead && !loading && !!accessToken && !!user && layout.desktop;
+  const showCopilotMobile =
+    copilotOn && !!lead && !loading && !!accessToken && !!user && layout.mobile && mobileTab === 'ai';
+  const showCopilotDrawer =
+    copilotOn && !!lead && !loading && !!accessToken && !!user && layout.tablet && copilotDrawerOpen;
+
+  const fieldStyle = {
+    background: 'var(--bg)',
+    border: '1px solid var(--border)',
+    borderRadius: 8,
+    padding: '0.55rem 0.75rem',
+    color: 'var(--text)',
+  } as const;
+
   return (
-    <main style={{ maxWidth: 900, margin: '0 auto', padding: '1.5rem' }}>
+    <main className="lead-detail-page">
       <OpsNav user={user} onLogout={logout} />
-      <p style={{ margin: '0 0 1rem' }}>
+      <p className="lead-detail-header">
         <Link href="/crm/leads" className="nav-link">
           ← Danh sách leads
         </Link>
       </p>
 
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        {loading ? <p className="muted">Đang tải lead #{leadId}…</p> : null}
-        {error ? <p className="error">{error}</p> : null}
-        {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
+      {layout.mobile && copilotOn ? (
+        <div className="lead-detail-tabs" role="tablist" aria-label="Lead detail sections">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mobileTab === 'detail'}
+            className={mobileTab === 'detail' ? 'is-active' : ''}
+            onClick={() => setMobileTab('detail')}
+          >
+            Chi tiết
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mobileTab === 'activity'}
+            className={mobileTab === 'activity' ? 'is-active' : ''}
+            onClick={() => setMobileTab('activity')}
+          >
+            Hoạt động
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mobileTab === 'ai'}
+            className={mobileTab === 'ai' ? 'is-active' : ''}
+            onClick={() => setMobileTab('ai')}
+          >
+            AI
+          </button>
+        </div>
+      ) : null}
 
-        {lead && !loading ? (
-          <>
-            <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>
-              #{lead.id} · {lead.full_name || '—'}
-            </h2>
-            <p style={{ margin: '0 0 1rem' }}>
-              <Link href={`/crm/intake?lead_id=${lead.id}`} className="nav-link">
-                Mở Lead Intake →
-              </Link>
-            </p>
-            <dl
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '120px 1fr',
-                gap: '0.35rem 1rem',
-                marginBottom: '1.25rem',
-              }}
-            >
-              <dt className="muted">SĐT</dt>
-              <dd style={{ margin: 0 }}>{lead.phone || '—'}</dd>
-              <dt className="muted">Email</dt>
-              <dd style={{ margin: 0 }}>{lead.email || '—'}</dd>
-              <dt className="muted">Nguồn</dt>
-              <dd style={{ margin: 0 }}>{lead.source || '—'}</dd>
-              <dt className="muted">Owner</dt>
-              <dd style={{ margin: 0 }}>{lead.owner_id ?? '—'}</dd>
-              <dt className="muted">Ngày</dt>
-              <dd style={{ margin: 0 }}>{lead.created_at?.slice(0, 10) ?? '—'}</dd>
-            </dl>
-
-            {getAccessToken() ? (
-              <LeadFunnelPanel
-                token={getAccessToken()!}
-                leadId={leadId}
-                user={user}
-                onMessage={setMessage}
-                onError={setError}
-              />
-            ) : null}
-
-            {getAccessToken() ? (
-              <LeadContractPanel
-                token={getAccessToken()!}
-                leadId={leadId}
-                user={user}
-                onMessage={setMessage}
-                onError={setError}
-              />
-            ) : null}
-
-            <form onSubmit={(e) => void onSaveStatus(e)} style={{ display: 'grid', gap: '0.85rem', marginTop: '1rem' }}>
-              <label style={{ display: 'grid', gap: '0.35rem' }}>
-                <span className="muted">Trạng thái</span>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  disabled={!hasCap(user, 'crm_leads', 'edit') || saving}
-                  style={{
-                    background: 'var(--bg)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 8,
-                    padding: '0.55rem 0.75rem',
-                    color: 'var(--text)',
-                  }}
-                >
-                  {STATUS_OPTIONS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label style={{ display: 'grid', gap: '0.35rem' }}>
-                <span className="muted">Ghi chú audit (tùy chọn)</span>
-                <input
-                  value={auditNote}
-                  onChange={(e) => setAuditNote(e.target.value)}
-                  placeholder="Lý do đổi trạng thái"
-                  disabled={!hasCap(user, 'crm_leads', 'edit') || saving}
-                  style={{
-                    background: 'var(--bg)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 8,
-                    padding: '0.55rem 0.75rem',
-                    color: 'var(--text)',
-                  }}
-                />
-              </label>
-              <button
-                type="submit"
-                className="btn btn-sm"
-                disabled={saving || !hasCap(user, 'crm_leads', 'edit')}
-              >
-                {saving ? 'Đang lưu…' : 'Lưu trạng thái'}
-              </button>
-            </form>
-          </>
-        ) : null}
-      </div>
+      {loading ? <p className="muted">Đang tải lead #{leadId}…</p> : null}
+      {error ? <p className="error">{error}</p> : null}
+      {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
+      {copilotMessage ? <p className="muted">{copilotMessage}</p> : null}
 
       {lead && !loading ? (
-        <>
-          <div className="card" style={{ marginBottom: '1rem' }}>
-            <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Phân lead</h3>
-            <form onSubmit={(e) => void onAssign(e)} style={{ display: 'grid', gap: '0.75rem' }}>
-              <label style={{ display: 'grid', gap: '0.35rem' }}>
-                <span className="muted">Nhân viên</span>
-                <select
-                  value={assignToId}
-                  onChange={(e) => setAssignToId(e.target.value)}
-                  disabled={!hasCap(user, 'crm_leads', 'assign') || assigning}
-                  style={{
-                    background: 'var(--bg)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 8,
-                    padding: '0.55rem 0.75rem',
-                    color: 'var(--text)',
-                  }}
-                >
-                  <option value="">— Chọn —</option>
-                  {staffOptions.map((s) => (
-                    <option key={s.id} value={String(s.id)}>
-                      {s.name} (#{s.id})
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label style={{ display: 'grid', gap: '0.35rem' }}>
-                <span className="muted">Lý do</span>
-                <input
-                  value={assignReason}
-                  onChange={(e) => setAssignReason(e.target.value)}
-                  placeholder="Bắt buộc"
-                  disabled={!hasCap(user, 'crm_leads', 'assign') || assigning}
-                  style={{
-                    background: 'var(--bg)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 8,
-                    padding: '0.55rem 0.75rem',
-                    color: 'var(--text)',
-                  }}
-                />
-              </label>
-              <button
-                type="submit"
-                className="btn btn-sm"
-                disabled={assigning || !hasCap(user, 'crm_leads', 'assign')}
-              >
-                {assigning ? 'Đang phân…' : 'Phân lead'}
-              </button>
-            </form>
-          </div>
+        <div className="lead-detail-layout">
+          <div
+            className={`lead-detail-main ${useMobileTabs && mobileTab !== 'detail' ? 'lead-detail-pane--hidden' : ''}`}
+          >
+            <div className="card">
+              <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>
+                #{lead.id} · {lead.full_name || '—'}
+              </h2>
+              <p style={{ margin: '0 0 1rem' }}>
+                <Link href={`/crm/intake?lead_id=${lead.id}`} className="nav-link">
+                  Mở Lead Intake →
+                </Link>
+              </p>
+              <dl className="lead-detail-dl">
+                <dt className="muted">SĐT</dt>
+                <dd>{lead.phone || '—'}</dd>
+                <dt className="muted">Email</dt>
+                <dd>{lead.email || '—'}</dd>
+                <dt className="muted">Nguồn</dt>
+                <dd>{lead.source || '—'}</dd>
+                <dt className="muted">Owner</dt>
+                <dd>{lead.owner_id ?? '—'}</dd>
+                <dt className="muted">Ngày</dt>
+                <dd>{lead.created_at?.slice(0, 10) ?? '—'}</dd>
+              </dl>
 
-          <div className="card" style={{ marginBottom: '1rem' }}>
-            <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Thêm hoạt động</h3>
-            <form onSubmit={(e) => void onAddActivity(e)} style={{ display: 'grid', gap: '0.75rem' }}>
-              <label style={{ display: 'grid', gap: '0.35rem' }}>
-                <span className="muted">Loại</span>
-                <select
-                  value={activityType}
-                  onChange={(e) => setActivityType(e.target.value)}
-                  disabled={!hasCap(user, 'crm_leads', 'edit') || addingActivity}
-                  style={{
-                    background: 'var(--bg)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 8,
-                    padding: '0.55rem 0.75rem',
-                    color: 'var(--text)',
-                  }}
-                >
-                  {ACTIVITY_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label style={{ display: 'grid', gap: '0.35rem' }}>
-                <span className="muted">Nội dung</span>
-                <textarea
-                  value={activityContent}
-                  onChange={(e) => setActivityContent(e.target.value)}
-                  rows={3}
-                  disabled={!hasCap(user, 'crm_leads', 'edit') || addingActivity}
-                  style={{
-                    background: 'var(--bg)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 8,
-                    padding: '0.55rem 0.75rem',
-                    color: 'var(--text)',
-                    resize: 'vertical',
-                  }}
+              {accessToken ? (
+                <LeadFunnelPanel
+                  token={accessToken}
+                  leadId={leadId}
+                  user={user}
+                  onMessage={setMessage}
+                  onError={setError}
                 />
-              </label>
-              <button
-                type="submit"
-                className="btn btn-sm"
-                disabled={addingActivity || !hasCap(user, 'crm_leads', 'edit')}
-              >
-                {addingActivity ? 'Đang thêm…' : 'Thêm hoạt động'}
-              </button>
-            </form>
-          </div>
+              ) : null}
 
-          <div className="card" style={{ marginBottom: '1rem' }}>
-            <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Timeline hoạt động</h3>
-            {activities.length === 0 ? (
-              <p className="muted">Chưa có hoạt động.</p>
-            ) : (
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem' }}>
-                {activities.map((a) => (
-                  <li
-                    key={a.id}
-                    style={{
-                      borderLeft: '3px solid var(--border)',
-                      paddingLeft: '0.75rem',
-                    }}
+              {accessToken ? (
+                <LeadContractPanel
+                  token={accessToken}
+                  leadId={leadId}
+                  user={user}
+                  onMessage={setMessage}
+                  onError={setError}
+                />
+              ) : null}
+
+              <form onSubmit={(e) => void onSaveStatus(e)} style={{ display: 'grid', gap: '0.85rem', marginTop: '1rem' }}>
+                <label style={{ display: 'grid', gap: '0.35rem' }}>
+                  <span className="muted">Trạng thái</span>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    disabled={!hasCap(user, 'crm_leads', 'edit') || saving}
+                    style={fieldStyle}
                   >
-                    <div style={{ fontSize: '0.85rem' }} className="muted">
-                      {a.created_at?.slice(0, 16)} · {a.activity_type_label || a.activity_type}
-                      {a.user_name ? ` · ${a.user_name}` : ''}
-                    </div>
-                    <div>{a.content || '—'}</div>
-                  </li>
-                ))}
-              </ul>
-            )}
+                    {STATUS_OPTIONS.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label style={{ display: 'grid', gap: '0.35rem' }}>
+                  <span className="muted">Ghi chú audit (tùy chọn)</span>
+                  <input
+                    value={auditNote}
+                    onChange={(e) => setAuditNote(e.target.value)}
+                    placeholder="Lý do đổi trạng thái"
+                    disabled={!hasCap(user, 'crm_leads', 'edit') || saving}
+                    style={fieldStyle}
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="btn btn-sm"
+                  disabled={saving || !hasCap(user, 'crm_leads', 'edit')}
+                >
+                  {saving ? 'Đang lưu…' : 'Lưu trạng thái'}
+                </button>
+              </form>
+            </div>
+
+            <div className="card">
+              <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Phân lead</h3>
+              <form onSubmit={(e) => void onAssign(e)} style={{ display: 'grid', gap: '0.75rem' }}>
+                <label style={{ display: 'grid', gap: '0.35rem' }}>
+                  <span className="muted">Nhân viên</span>
+                  <select
+                    value={assignToId}
+                    onChange={(e) => setAssignToId(e.target.value)}
+                    disabled={!hasCap(user, 'crm_leads', 'assign') || assigning}
+                    style={fieldStyle}
+                  >
+                    <option value="">— Chọn —</option>
+                    {staffOptions.map((s) => (
+                      <option key={s.id} value={String(s.id)}>
+                        {s.name} (#{s.id})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label style={{ display: 'grid', gap: '0.35rem' }}>
+                  <span className="muted">Lý do</span>
+                  <input
+                    value={assignReason}
+                    onChange={(e) => setAssignReason(e.target.value)}
+                    placeholder="Bắt buộc"
+                    disabled={!hasCap(user, 'crm_leads', 'assign') || assigning}
+                    style={fieldStyle}
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="btn btn-sm"
+                  disabled={assigning || !hasCap(user, 'crm_leads', 'assign')}
+                >
+                  {assigning ? 'Đang phân…' : 'Phân lead'}
+                </button>
+              </form>
+            </div>
+
+            <div className="card">
+              <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Thêm hoạt động</h3>
+              <form onSubmit={(e) => void onAddActivity(e)} style={{ display: 'grid', gap: '0.75rem' }}>
+                <label style={{ display: 'grid', gap: '0.35rem' }}>
+                  <span className="muted">Loại</span>
+                  <select
+                    value={activityType}
+                    onChange={(e) => setActivityType(e.target.value)}
+                    disabled={!hasCap(user, 'crm_leads', 'edit') || addingActivity}
+                    style={fieldStyle}
+                  >
+                    {ACTIVITY_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label style={{ display: 'grid', gap: '0.35rem' }}>
+                  <span className="muted">Nội dung</span>
+                  <textarea
+                    value={activityContent}
+                    onChange={(e) => setActivityContent(e.target.value)}
+                    rows={3}
+                    disabled={!hasCap(user, 'crm_leads', 'edit') || addingActivity}
+                    style={{ ...fieldStyle, resize: 'vertical' }}
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="btn btn-sm"
+                  disabled={addingActivity || !hasCap(user, 'crm_leads', 'edit')}
+                >
+                  {addingActivity ? 'Đang thêm…' : 'Thêm hoạt động'}
+                </button>
+              </form>
+            </div>
           </div>
 
-          <div className="card">
-            <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Audit</h3>
-            <AuditSection audit={audit} />
+          <div
+            className={`lead-detail-timeline ${useMobileTabs && mobileTab !== 'activity' ? 'lead-detail-pane--hidden' : ''}`}
+          >
+            <div className="card">
+              <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Timeline hoạt động</h3>
+              {activities.length === 0 ? (
+                <p className="muted">Chưa có hoạt động.</p>
+              ) : (
+                <ul className="lead-activity-list">
+                  {activities.map((a) => (
+                    <li
+                      key={a.id}
+                      className={`lead-activity-item ${selectedActivityId === a.id ? 'is-selected' : ''}`}
+                      onClick={() => setSelectedActivityId(a.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedActivityId(a.id);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={selectedActivityId === a.id}
+                    >
+                      <div style={{ fontSize: '0.85rem' }} className="muted">
+                        {a.created_at?.slice(0, 16)} · {a.activity_type_label || a.activity_type}
+                        {a.user_name ? ` · ${a.user_name}` : ''}
+                      </div>
+                      <div>{a.content || '—'}</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="muted" style={{ marginTop: '0.75rem', fontSize: '0.82rem' }}>
+                Chọn activity để tóm tắt trong AI Copilot.
+              </p>
+            </div>
+
+            <div className="card">
+              <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Audit</h3>
+              <AuditSection audit={audit} />
+            </div>
           </div>
+
+          {showCopilotInline || showCopilotMobile ? (
+            <LeadCopilotPanel
+              token={accessToken!}
+              leadId={leadId}
+              lead={lead}
+              user={user}
+              activities={activities}
+              selectedActivityId={selectedActivityId}
+              onSelectActivity={setSelectedActivityId}
+              onCopilotError={setCopilotMessage}
+              variant="column"
+            />
+          ) : null}
+        </div>
+      ) : null}
+
+      {showCopilotDrawer ? (
+        <>
+          <div
+            className="lead-copilot-backdrop"
+            role="presentation"
+            onClick={() => setCopilotDrawerOpen(false)}
+          />
+          <LeadCopilotPanel
+            token={accessToken!}
+            leadId={leadId}
+            lead={lead!}
+            user={user}
+            activities={activities}
+            selectedActivityId={selectedActivityId}
+            onSelectActivity={setSelectedActivityId}
+            onCopilotError={setCopilotMessage}
+            variant="drawer"
+            onCloseDrawer={() => setCopilotDrawerOpen(false)}
+          />
         </>
+      ) : null}
+
+      {layout.tablet && copilotOn && lead && !loading && !copilotDrawerOpen ? (
+        <button
+          type="button"
+          className="lead-copilot-fab"
+          onClick={() => setCopilotDrawerOpen(true)}
+          aria-label="Mở AI Copilot"
+        >
+          AI Copilot
+        </button>
       ) : null}
     </main>
   );
