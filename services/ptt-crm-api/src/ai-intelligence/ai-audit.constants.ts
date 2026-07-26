@@ -6,6 +6,7 @@ export const AI_USE_CASE = {
   SCORE_LEAD: 'score_lead',
   SCORE_DEAL: 'score_deal',
   NEXT_BEST_ACTION: 'next_best_action',
+  PLAYBOOK_RAG: 'playbook_rag',
   FOLLOW_UP_DRAFT: 'follow_up_draft',
   OVERRIDE_SCORE: 'override_score',
 } as const;

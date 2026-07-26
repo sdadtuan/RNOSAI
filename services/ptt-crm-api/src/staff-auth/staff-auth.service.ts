@@ -48,6 +48,8 @@ const DEFAULT_STUB_CAPS: StaffSectionCap[] = [
   { section: 'automation_workflows', action: 'simulate' },
   { section: 'crm_search', action: 'view' },
   { section: 'crm_search', action: 'configure' },
+  { section: 'playbooks', action: 'view' },
+  { section: 'playbooks', action: 'configure' },
   { section: 'crm_re_projects', action: 'view' },
   { section: 'crm_re_projects', action: 'create' },
   { section: 'crm_re_projects', action: 'edit' },

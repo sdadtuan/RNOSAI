@@ -477,6 +477,54 @@ CREATE INDEX IF NOT EXISTS idx_renewal_opportunities_client
 COMMENT ON TABLE renewal_opportunities IS
     'Agency client contract renewal tracking — Renewal Agent (RNOS-20).';
 
+-- ===========================================================================
+-- §7 Playbook library + vector chunks (RNOS-12, RNOS-36)
+-- ===========================================================================
+
+CREATE TABLE IF NOT EXISTS ai_playbooks (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id       UUID REFERENCES clients (id) ON DELETE CASCADE,
+    slug            VARCHAR(128) NOT NULL,
+    title           VARCHAR(255) NOT NULL,
+    category        VARCHAR(64) NOT NULL DEFAULT 'sales',
+    summary         TEXT NOT NULL DEFAULT '',
+    status          VARCHAR(16) NOT NULL DEFAULT 'active'
+                    CHECK (status IN ('draft', 'active', 'archived')),
+    tags            JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_by      VARCHAR(120),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT ai_playbooks_slug_unique UNIQUE (slug)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_playbooks_status
+    ON ai_playbooks (status, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS ai_playbook_chunks (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    playbook_id     UUID NOT NULL REFERENCES ai_playbooks (id) ON DELETE CASCADE,
+    chunk_key       VARCHAR(64) NOT NULL,
+    title           VARCHAR(255) NOT NULL DEFAULT '',
+    body            TEXT NOT NULL,
+    embedding_json  JSONB,
+    token_count     INT,
+    sort_order      INT NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT ai_playbook_chunks_key_unique UNIQUE (playbook_id, chunk_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_playbook_chunks_playbook
+    ON ai_playbook_chunks (playbook_id, sort_order, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_ai_playbook_chunks_fts
+    ON ai_playbook_chunks USING gin (to_tsvector('simple', coalesce(title, '') || ' ' || body));
+
+COMMENT ON TABLE ai_playbooks IS
+    'Sales/CS playbook library for RAG retrieval (RNOS-12, RNOS-36).';
+COMMENT ON TABLE ai_playbook_chunks IS
+    'Chunked playbook content with embedding_json vector store (RNOS-12).';
+
 -- ---------------------------------------------------------------------------
 -- Schema migration marker
 -- ---------------------------------------------------------------------------

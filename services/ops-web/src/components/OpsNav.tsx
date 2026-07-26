@@ -77,6 +77,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/kpi': 'KPI',
   '/crm/ai/insights': 'AI Insights',
   '/crm/automation': 'Workflow automation',
+  '/crm/playbooks': 'Playbook library',
   '/crm/staff-kpi': 'KPI AM/SP',
   '/crm/staff': 'Nhân viên',
   '/crm/proposals': 'Đề xuất dịch vụ',
@@ -270,6 +271,9 @@ function buildSections(
   const automation: NavLink[] = [];
   if (hasCap(user, 'automation_workflows', 'view')) {
     automation.push({ href: '/crm/automation', label: 'Workflows' });
+  }
+  if (hasCap(user, 'playbooks', 'view')) {
+    automation.push({ href: '/crm/playbooks', label: 'Playbooks' });
   }
   if (automation.length) sections.push({ label: 'AI · Automation', links: automation });
 

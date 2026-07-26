@@ -1,6 +1,6 @@
 # Ma trận gap CRM vs Getfly — checklist PR theo màn hình
 
-> **Phiên bản:** 1.6 · **Ngày:** 2026-07-26  
+> **Phiên bản:** 1.7 · **Ngày:** 2026-07-26  
 > **Mục đích:** Checklist PR khi nâng cấp ops-web `/crm/*` để đạt **table stakes ~80% CRM** (spec §20.5) so với [Getfly CRM](https://getfly.vn) — **không** copy ERP/LP builder.  
 > **Traceability:** [`SPEC_AI_REVENUE_OPERATING_SYSTEM.md`](../SPEC_AI_REVENUE_OPERATING_SYSTEM.md) §4, §20 · [`SPEC_RNOSAI_MASTER.md`](../SPEC_RNOSAI_MASTER.md) · [`SPEC_UI_UX_PTT.md`](../SPEC_UI_UX_PTT.md)  
 > **PR template chung:** [`docs/templates/pr-checklist-rnos-uc-ui-uat.md`](../templates/pr-checklist-rnos-uc-ui-uat.md)
@@ -84,6 +84,17 @@
 | 0.1 | [x] **Global search bar** trên topbar | R2 | `GlobalSearchBar` + entity filters |
 | 0.2 | [x] API `GET /api/v1/search` index `search_entities` | R2 | account, contact, lead, deal, email, note, ticket |
 | 0.3 | [x] OpenSearch client + `POST /api/v1/search/reindex` | R2 | `docker-compose.opensearch.yml` optional |
+
+### 0b. `/crm/playbooks` — Playbook RAG (RNOS-12/36 / UI-R2-05)
+
+**Getfly:** SOP / script bán hàng.  
+**RNOS as-is:** ✅ Playbook library + RAG cite từ PostgreSQL vector chunks.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 0b.1 | [x] **Playbook library** `/crm/playbooks` | R2 | list + chunk viewer |
+| 0b.2 | [x] **RAG query** `POST /api/v1/ai/playbooks/rag/query` | R2 | answer + citations |
+| 0b.3 | [x] Vector store `ai_playbook_chunks.embedding_json` | R2 | PG only (no SQLite) |
 
 ---
 
@@ -473,6 +484,7 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 | 2026-07-26 | 1.0 | Ma trận ban đầu — as-is ops-web `main` post RNOS-39 |
 | 2026-07-26 | 1.5 | §9.3 complete — RNOS-09 deal score + RNOS-10 NBA on sales funnel |
 | 2026-07-26 | 1.6 | §0 complete — RNOS-11 OpenSearch global search bar + search API |
+| 2026-07-26 | 1.7 | §0b complete — RNOS-12/36 playbook library + RAG at /crm/playbooks |
 
 ---
 

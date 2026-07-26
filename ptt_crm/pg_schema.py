@@ -70,6 +70,8 @@ REVENUE_OS_AI_TABLES: tuple[str, ...] = (
     "automation_workflow_executions",
     "customer_health_scores",
     "renewal_opportunities",
+    "ai_playbooks",
+    "ai_playbook_chunks",
 )
 
 # R1 P0 subset — Gate Phase 0 / copilot dependency
