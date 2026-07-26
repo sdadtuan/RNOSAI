@@ -271,6 +271,14 @@ bash scripts/rnos40_gate.sh
 
 Chạy trước khi bật pilot cohort hoặc ký Gate R1 §12.
 
+**Gate R1 orchestrator (prod pilot):**
+
+```bash
+bash scripts/rnos_r1_prod_pilot_gate.sh
+# → .local-dev/rnos-r1-prod-pilot-gate-report.json
+# Runbook: docs/runbooks/rnos-r1-prod-pilot-gate.md
+```
+
 ### 5.6. BR-AI-01 verify (manual)
 
 1. Generate follow-up draft trên copilot.
@@ -612,11 +620,16 @@ Target Phase 0: **≥70%**.
 | `./scripts/apply_pg_ddl_revenue_os_ai.sh` | Apply DDL |
 | [`rnos01-ddl-apply.md`](./rnos01-ddl-apply.md) | **RNOS-01** runbook + gate |
 | [`rnos40-ai-gate.md`](./rnos40-ai-gate.md) | **RNOS-40** gate quick reference |
+| [`rnos-r1-prod-pilot-gate.md`](./rnos-r1-prod-pilot-gate.md) | **Gate R1** prod pilot sign-off runbook |
 | `./scripts/rnos01_pg_ddl_gate.sh` | RNOS-01 DDL gate JSON |
 | `./scripts/rnos40_gate.sh` | **RNOS-40** gate + rollback drill + UAT smoke |
 | `./scripts/rnos40_rollback_drill.sh` | Rollback drill JSON report |
 | `./scripts/playwright_ops_ai_copilot_e2e.sh` | **RNOS-39** Playwright E2E gate |
 | `./scripts/rnos39_gate.sh` | RNOS-39 full gate report |
+| `./scripts/rnos_r1_prod_pilot_gate.sh` | **Gate R1** orchestrator (RNOS-39 + RNOS-40 + metrics) |
+| `./scripts/rnos_r1_metrics_probe.sh` | Gate R1 SQL probes G1–G6 |
+| `./scripts/rnos_r1_pilot_enable.sh` | Pilot cohort env enable helper |
+| [`deploy/r1-signoff.template.json`](../../deploy/r1-signoff.template.json) | Gate R1 manual sign-off template |
 | `services/ops-web/e2e/README.md` | E2E env vars (staging/local) |
 | [`deploy/env.ai.example`](../../deploy/env.ai.example) | Env template |
 | [`deploy/pilot-cohort.example.json`](../../deploy/pilot-cohort.example.json) | Pilot 5–8 users |
