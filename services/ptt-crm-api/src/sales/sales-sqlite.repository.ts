@@ -2,13 +2,11 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { DatabaseSync } from 'node:sqlite';
 import { catalogTs } from '../catalog/catalog-slug.util';
 import { AppConfigService } from '../config/app-config.service';
+import { CrmConfigService } from '../crm-config/crm-config.service';
 import {
   computeFunnelStats,
   normalizePipelineStage,
   pipelineStageLabel,
-  SALES_PIPELINE_LABELS_VI,
-  SALES_PIPELINE_STAGES,
-  TERMINAL_STAGES,
 } from './sales-pipeline.util';
 import {
   CreateMarketBody,
@@ -70,7 +68,10 @@ const TX_STAGE_LABELS: Record<string, string> = {
 export class SalesSqliteRepository implements OnModuleDestroy {
   private db: DatabaseSync | null = null;
 
-  constructor(private readonly config: AppConfigService) {}
+  constructor(
+    private readonly config: AppConfigService,
+    private readonly crmConfig: CrmConfigService,
+  ) {}
 
   private get database(): DatabaseSync {
     if (!this.db) {
@@ -97,7 +98,7 @@ export class SalesSqliteRepository implements OnModuleDestroy {
          LEFT JOIN crm_staff st ON st.id = c.assigned_staff_id`,
       )
       .all() as unknown as Array<Record<string, unknown>>;
-    return computeFunnelStats(rows);
+    return computeFunnelStats(rows, this.crmConfig.toPipelineRuntime());
   }
 
   fetchSummary(): SalesSummaryResponse {
@@ -156,8 +157,8 @@ export class SalesSqliteRepository implements OnModuleDestroy {
            WHERE st.active = 1 AND (lower(d.code) = 'kd' OR d.name LIKE '%kinh doanh%')`,
         ),
       },
-      pipeline_labels: SALES_PIPELINE_LABELS_VI,
-      pipeline_stages: [...SALES_PIPELINE_STAGES],
+      pipeline_labels: this.crmConfig.getSalesPipelineConfig().labels,
+      pipeline_stages: [...this.crmConfig.getSalesPipelineConfig().stage_keys],
     };
   }
 
@@ -345,7 +346,8 @@ export class SalesSqliteRepository implements OnModuleDestroy {
   }
 
   listPipelineCases(stage?: string): PipelineCaseRow[] {
-    const stageNorm = stage ? normalizePipelineStage(stage) : null;
+    const runtime = this.crmConfig.toPipelineRuntime();
+    const stageNorm = stage ? normalizePipelineStage(stage, runtime) : null;
     const params: string[] = [];
     let where = '';
     if (stageNorm) {
@@ -366,13 +368,13 @@ export class SalesSqliteRepository implements OnModuleDestroy {
       )
       .all(...params) as unknown as Array<Record<string, unknown>>;
     return rows.map((r) => {
-      const stg = normalizePipelineStage(String(r.pipeline_stage ?? ''));
+      const stg = normalizePipelineStage(String(r.pipeline_stage ?? ''), runtime);
       return {
         id: Number(r.id),
         title: String(r.title ?? ''),
         pipeline_stage: stg,
-        pipeline_stage_label: pipelineStageLabel(stg),
-        is_terminal: TERMINAL_STAGES.has(stg),
+        pipeline_stage_label: pipelineStageLabel(stg, runtime),
+        is_terminal: runtime.terminalStages.has(stg),
         deal_value_vnd: Number(r.deal_value_vnd ?? 0),
         status: String(r.status ?? ''),
         assigned_staff_id: r.assigned_staff_id != null ? Number(r.assigned_staff_id) : null,

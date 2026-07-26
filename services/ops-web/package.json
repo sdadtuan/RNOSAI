@@ -13,6 +13,7 @@
     "test:e2e:ai-copilot": "playwright test e2e/ai-copilot.spec.ts",
     "test:e2e:pwa": "playwright test e2e/pwa-rnos41.spec.ts",
     "test:e2e:kpi": "playwright test e2e/kpi-rnos42.spec.ts",
+    "test:e2e:crm-config": "playwright test e2e/crm-config-rnos35.spec.ts",
     "test:e2e:leads-excel": "playwright test e2e/leads-excel-p02.spec.ts",
     "test:e2e:leads-score": "playwright test e2e/leads-score-ui-r1-10.spec.ts"
   },

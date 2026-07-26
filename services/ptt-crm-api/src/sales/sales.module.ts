@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CrmConfigModule } from '../crm-config/crm-config.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import {
   StaffSalesFunnelViewGuard,
@@ -13,7 +14,7 @@ import { SalesSqliteRepository } from './sales-sqlite.repository';
 import { SalesService } from './sales.service';
 
 @Module({
-  imports: [StaffAuthModule],
+  imports: [StaffAuthModule, CrmConfigModule],
   controllers: [SalesController],
   providers: [
     SalesService,

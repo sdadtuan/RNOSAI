@@ -108,6 +108,13 @@ ADMIN_CRM_SECTIONS: tuple[dict[str, Any], ...] = (
         "page": "/crm/owner-weekly",
         "description": "4 khối Tiền/KD/Hiệu quả/Rủi ro, RAG, phân tích trước thực thi.",
     },
+    {
+        "id": "crm_data_config",
+        "label": "CRM — Custom field & pipeline",
+        "group": "CRM — Admin",
+        "page": "/admin/crm/custom-fields",
+        "description": "Định nghĩa custom field và stage pipeline sales.",
+    },
     # —— SOP ——
     {
         "id": "crm_sop_runs",
@@ -493,6 +500,7 @@ _POSITION_DEFAULT: dict[str, dict[str, frozenset[str]]] = {
         "crm_mktplan": frozenset({"view", "edit", "create", "export"}),
         "crm_business_dashboard": frozenset({"view", "export", "configure"}),
         "crm_owner_weekly_dashboard": frozenset({"view", "export", "configure"}),
+        "crm_data_config": frozenset({"view", "configure"}),
         "crm_leads": frozenset({"view", "edit", "create", "export", "configure"}),
         "crm_board_funnel": frozenset({"view", "export"}),
         "crm_assistant": frozenset({"view", "create", "export"}),

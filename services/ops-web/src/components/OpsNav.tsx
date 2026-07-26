@@ -81,6 +81,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/business-dashboard': 'Dashboard kinh doanh',
   '/crm/owner-weekly': 'Báo cáo tuần chủ DN',
   '/crm/financials': 'Tài chính',
+  '/admin/crm/custom-fields': 'Custom fields',
+  '/admin/crm/pipeline': 'Pipeline sales',
   '/agency': 'Agency',
   '/agency/ingest': 'Pipeline ingest',
   '/agency/jobs': 'Pipeline ingest',
@@ -243,6 +245,13 @@ function buildSections(
     finance.push({ href: '/crm/owner-weekly', label: 'BC tuần chủ DN' });
   }
   if (finance.length) sections.push({ label: 'Quản trị', links: finance });
+
+  const admin: NavLink[] = [];
+  if (hasCap(user, 'crm_data_config', 'view')) {
+    admin.push({ href: '/admin/crm/custom-fields', label: 'Custom fields' });
+    admin.push({ href: '/admin/crm/pipeline', label: 'Pipeline sales' });
+  }
+  if (admin.length) sections.push({ label: 'CRM · Admin', links: admin });
 
   const agency: NavLink[] = [];
   if (hasCap(user, 'crm_agency', 'view')) {

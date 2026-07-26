@@ -42,13 +42,53 @@ export const STAGE_OWNER_ROLE: Record<string, string> = {
 
 export const TERMINAL_STAGES = new Set(['chot', 'mat']);
 
-export function normalizePipelineStage(raw?: string | null): string {
-  const s = String(raw ?? 'moi').trim().toLowerCase();
-  return (SALES_PIPELINE_STAGES as readonly string[]).includes(s) ? s : 'moi';
+export interface PipelineRuntime {
+  stages: readonly string[];
+  labels: Record<string, string>;
+  slaHours: Record<string, number>;
+  ownerRoles: Record<string, string>;
+  terminalStages: Set<string>;
 }
 
-export function pipelineStageLabel(stage: string): string {
-  return SALES_PIPELINE_LABELS_VI[normalizePipelineStage(stage)] ?? stage;
+export const DEFAULT_PIPELINE_RUNTIME: PipelineRuntime = {
+  stages: SALES_PIPELINE_STAGES,
+  labels: SALES_PIPELINE_LABELS_VI,
+  slaHours: STAGE_SLA_HOURS,
+  ownerRoles: STAGE_OWNER_ROLE,
+  terminalStages: TERMINAL_STAGES,
+};
+
+export function pipelineRuntimeFromKeys(
+  stageKeys: string[],
+  labels: Record<string, string>,
+  slaHours: Record<string, number>,
+  ownerRoles: Record<string, string>,
+  terminalStages: Set<string>,
+): PipelineRuntime {
+  const stages = stageKeys.length ? stageKeys : [...SALES_PIPELINE_STAGES];
+  return {
+    stages,
+    labels: { ...SALES_PIPELINE_LABELS_VI, ...labels },
+    slaHours: { ...STAGE_SLA_HOURS, ...slaHours },
+    ownerRoles: { ...STAGE_OWNER_ROLE, ...ownerRoles },
+    terminalStages: terminalStages.size ? terminalStages : TERMINAL_STAGES,
+  };
+}
+
+export function normalizePipelineStage(
+  raw?: string | null,
+  runtime: PipelineRuntime = DEFAULT_PIPELINE_RUNTIME,
+): string {
+  const s = String(raw ?? 'moi').trim().toLowerCase();
+  return runtime.stages.includes(s) ? s : String(runtime.stages[0] ?? 'moi');
+}
+
+export function pipelineStageLabel(
+  stage: string,
+  runtime: PipelineRuntime = DEFAULT_PIPELINE_RUNTIME,
+): string {
+  const normalized = normalizePipelineStage(stage, runtime);
+  return runtime.labels[normalized] ?? normalized;
 }
 
 function hoursInStage(enteredAt: string, now: Date): number {
@@ -58,25 +98,31 @@ function hoursInStage(enteredAt: string, now: Date): number {
   return Math.max(0, (now.getTime() - t) / 3_600_000);
 }
 
-function isSlaOverdue(stage: string, enteredAt: string, now: Date): boolean {
-  const st = normalizePipelineStage(stage);
-  const sla = STAGE_SLA_HOURS[st] ?? 0;
-  if (sla <= 0 || TERMINAL_STAGES.has(st)) return false;
+function isSlaOverdue(
+  stage: string,
+  enteredAt: string,
+  now: Date,
+  runtime: PipelineRuntime = DEFAULT_PIPELINE_RUNTIME,
+): boolean {
+  const st = normalizePipelineStage(stage, runtime);
+  const sla = runtime.slaHours[st] ?? 0;
+  if (sla <= 0 || runtime.terminalStages.has(st)) return false;
   return hoursInStage(enteredAt, now) > sla;
 }
 
 export function computeFunnelStats(
   rows: Array<Record<string, unknown>>,
+  runtime: PipelineRuntime = DEFAULT_PIPELINE_RUNTIME,
 ): FunnelStats {
   const now = new Date();
   const stageCounts: Record<string, number> = Object.fromEntries(
-    SALES_PIPELINE_STAGES.map((s) => [s, 0]),
+    runtime.stages.map((s) => [s, 0]),
   );
   const stageHoursSum: Record<string, number> = Object.fromEntries(
-    SALES_PIPELINE_STAGES.map((s) => [s, 0]),
+    runtime.stages.map((s) => [s, 0]),
   );
   const stageHoursN: Record<string, number> = Object.fromEntries(
-    SALES_PIPELINE_STAGES.map((s) => [s, 0]),
+    runtime.stages.map((s) => [s, 0]),
   );
   const byStaff: Record<string, { open: number; won: number; lost: number; overdue: number }> =
     {};
@@ -89,16 +135,17 @@ export function computeFunnelStats(
   for (const d of rows) {
     const stage = normalizePipelineStage(
       String(d.pipeline_stage ?? d.status ?? 'moi'),
+      runtime,
     );
     stageCounts[stage] = (stageCounts[stage] ?? 0) + 1;
-    if (!TERMINAL_STAGES.has(stage)) openPipeline += 1;
+    if (!runtime.terminalStages.has(stage)) openPipeline += 1;
 
     const entered = String(d.stage_entered_at ?? d.created_at ?? '');
     const hrs = hoursInStage(entered, now);
     stageHoursSum[stage] = (stageHoursSum[stage] ?? 0) + hrs;
     stageHoursN[stage] = (stageHoursN[stage] ?? 0) + 1;
 
-    if (isSlaOverdue(stage, entered, now)) slaOverdue += 1;
+    if (isSlaOverdue(stage, entered, now, runtime)) slaOverdue += 1;
     if (!d.assigned_staff_id) unassigned += 1;
 
     const ch = String(d.channel ?? 'khac');
@@ -111,8 +158,8 @@ export function computeFunnelStats(
     const bucket = byStaff[staffKey];
     if (stage === 'chot') bucket.won += 1;
     else if (stage === 'mat') bucket.lost += 1;
-    else if (!TERMINAL_STAGES.has(stage)) bucket.open += 1;
-    if (isSlaOverdue(stage, entered, now)) bucket.overdue += 1;
+    else if (!runtime.terminalStages.has(stage)) bucket.open += 1;
+    if (isSlaOverdue(stage, entered, now, runtime)) bucket.overdue += 1;
 
     const deal = Number(d.deal_value_vnd ?? 0);
     if (Number.isFinite(deal)) totalDeal += deal;
@@ -120,7 +167,7 @@ export function computeFunnelStats(
 
   const stagesOut: FunnelStats['stages'] = [];
   let prevCount: number | null = null;
-  for (const st of SALES_PIPELINE_STAGES) {
+  for (const st of runtime.stages) {
     const cnt = stageCounts[st] ?? 0;
     const avgH =
       (stageHoursN[st] ?? 0) > 0
@@ -132,20 +179,20 @@ export function computeFunnelStats(
     }
     stagesOut.push({
       stage: st,
-      label: pipelineStageLabel(st),
+      label: pipelineStageLabel(st, runtime),
       count: cnt,
       avg_hours: avgH,
-      sla_hours: STAGE_SLA_HOURS[st] ?? 0,
+      sla_hours: runtime.slaHours[st] ?? 0,
       conversion_from_prev_pct: conv,
-      owner_role: STAGE_OWNER_ROLE[st] ?? '',
+      owner_role: runtime.ownerRoles[st] ?? '',
     });
-    if (!TERMINAL_STAGES.has(st)) prevCount = cnt;
+    if (!runtime.terminalStages.has(st)) prevCount = cnt;
   }
 
   const bottlenecks: FunnelStats['bottlenecks'] = [];
   for (const item of stagesOut) {
     const st = item.stage;
-    if (TERMINAL_STAGES.has(st)) continue;
+    if (runtime.terminalStages.has(st)) continue;
     const score = item.count * (item.avg_hours / Math.max(1, item.sla_hours || 1));
     if (item.count >= 2 && (item.avg_hours > item.sla_hours || score >= 3)) {
       bottlenecks.push({

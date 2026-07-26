@@ -40,6 +40,8 @@ const DEFAULT_STUB_CAPS: StaffSectionCap[] = [
   { section: 'crm_owner_weekly_dashboard', action: 'view' },
   { section: 'crm_owner_weekly_dashboard', action: 'export' },
   { section: 'crm_owner_weekly_dashboard', action: 'configure' },
+  { section: 'crm_data_config', action: 'view' },
+  { section: 'crm_data_config', action: 'configure' },
   { section: 'crm_re_projects', action: 'view' },
   { section: 'crm_re_projects', action: 'create' },
   { section: 'crm_re_projects', action: 'edit' },

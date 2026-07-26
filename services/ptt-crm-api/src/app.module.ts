@@ -3,6 +3,7 @@ import { AgencyModule } from './agency/agency.module';
 import { ZaloLeadsModule } from './zalo-leads/zalo-leads.module';
 import { CasesModule } from './cases/cases.module';
 import { CatalogModule } from './catalog/catalog.module';
+import { CrmConfigModule } from './crm-config/crm-config.module';
 import { CrmBoardModule } from './crm-board/crm-board.module';
 import { CskhBoardModule } from './cskh-board/cskh-board.module';
 import { CrmLeadsLegacyModule } from './crm-leads-legacy/crm-leads-legacy.module';
@@ -78,6 +79,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     LeadsFunnelModule,
     LeadsContractModule,
     CatalogModule,
+    CrmConfigModule,
     CrmLeadsLegacyModule,
     CustomersModule,
     IntakeModule,

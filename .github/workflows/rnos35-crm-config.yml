@@ -1,0 +1,72 @@
+name: RNOS-35 CRM Config Gate
+
+on:
+  pull_request:
+    paths:
+      - 'services/ops-web/**'
+      - 'services/ptt-crm-api/src/crm-config/**'
+      - 'services/ptt-crm-api/src/sales/sales-pipeline.util.ts'
+      - 'scripts/playwright_ops_crm_config_e2e.sh'
+      - 'scripts/rnos35_*.sh'
+      - 'admin_page_permissions.py'
+      - 'ptt.db'
+      - '.github/workflows/rnos35-crm-config.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'services/ops-web/**'
+      - 'services/ptt-crm-api/src/crm-config/**'
+      - 'scripts/playwright_ops_crm_config_e2e.sh'
+      - 'scripts/rnos35_*.sh'
+      - '.github/workflows/rnos35-crm-config.yml'
+
+concurrency:
+  group: rnos35-crm-config-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  crm-config-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    env:
+      PTT_SQLITE_PATH: ${{ github.workspace }}/ptt.db
+      OPS_E2E_URL: http://127.0.0.1:3200
+      OPS_E2E_API_URL: http://127.0.0.1:3000
+      CI: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            services/ops-web/package-lock.json
+            services/ptt-crm-api/package-lock.json
+
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y python3
+
+      - name: Install Playwright Chromium
+        working-directory: services/ops-web
+        run: |
+          npm ci
+          npx playwright install chromium --with-deps
+
+      - name: Run RNOS-35 CRM config gate
+        run: |
+          chmod +x scripts/rnos35_crm_config_gate.sh scripts/playwright_ops_crm_config_e2e.sh
+          bash scripts/rnos35_crm_config_gate.sh
+
+      - name: Upload gate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rnos35-crm-config-gate-artifacts
+          path: |
+            .local-dev/rnos35-crm-config-gate-report.json
+            services/ops-web/test-results/
+            services/ops-web/playwright-report/
+          if-no-files-found: ignore

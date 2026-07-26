@@ -5821,3 +5821,112 @@ export async function deleteChannelReportSchedule(
     body: '{}',
   });
 }
+
+export type CrmCustomFieldEntityType = 'lead' | 'customer' | 'case';
+export type CrmCustomFieldType = 'text' | 'number' | 'select' | 'date' | 'boolean';
+
+export interface CrmCustomFieldDef {
+  id: number;
+  entity_type: CrmCustomFieldEntityType;
+  field_key: string;
+  label: string;
+  field_type: CrmCustomFieldType;
+  options: string[];
+  required: boolean;
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CrmPipelineStageDef {
+  id: number;
+  pipeline_key: string;
+  stage_key: string;
+  label: string;
+  sort_order: number;
+  sla_hours: number;
+  owner_role: string;
+  is_terminal: boolean;
+  active: boolean;
+  updated_at: string;
+}
+
+export async function fetchCrmCustomFields(
+  token: string,
+  params?: { entity_type?: CrmCustomFieldEntityType },
+): Promise<{ fields: CrmCustomFieldDef[] }> {
+  const qs = params?.entity_type ? `?entity_type=${encodeURIComponent(params.entity_type)}` : '';
+  return crmFetch(token, `/api/crm/config/custom-fields${qs}`);
+}
+
+export async function createCrmCustomField(
+  token: string,
+  body: {
+    entity_type: CrmCustomFieldEntityType;
+    field_key: string;
+    label: string;
+    field_type?: CrmCustomFieldType;
+    options?: string[];
+    required?: boolean;
+    sort_order?: number;
+    active?: boolean;
+  },
+): Promise<CrmCustomFieldDef> {
+  return crmFetch(token, '/api/crm/config/custom-fields', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateCrmCustomField(
+  token: string,
+  id: number,
+  body: Partial<{
+    label: string;
+    field_type: CrmCustomFieldType;
+    options: string[];
+    required: boolean;
+    sort_order: number;
+    active: boolean;
+  }>,
+): Promise<CrmCustomFieldDef> {
+  return crmFetch(token, `/api/crm/config/custom-fields/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteCrmCustomField(
+  token: string,
+  id: number,
+): Promise<{ ok: true; id: number }> {
+  return crmFetch(token, `/api/crm/config/custom-fields/${id}`, { method: 'DELETE' });
+}
+
+export async function fetchCrmSalesPipelineStages(
+  token: string,
+): Promise<{ pipeline_key: string; stages: CrmPipelineStageDef[] }> {
+  return crmFetch(token, '/api/crm/config/pipeline/sales/stages');
+}
+
+export async function saveCrmSalesPipelineStages(
+  token: string,
+  stages: Array<{
+    stage_key: string;
+    label: string;
+    sort_order?: number;
+    sla_hours?: number;
+    owner_role?: string;
+    is_terminal?: boolean;
+    active?: boolean;
+  }>,
+): Promise<{ pipeline_key: string; stages: CrmPipelineStageDef[] }> {
+  return crmFetch(token, '/api/crm/config/pipeline/sales/stages', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stages }),
+  });
+}
