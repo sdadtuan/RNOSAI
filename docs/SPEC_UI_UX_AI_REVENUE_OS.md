@@ -733,16 +733,23 @@ Copilot **must** show when data exists:
 
 ### 18.2. Handoff checklist (R1)
 
-- [ ] `AiFeatureGate` + env flag wired
-- [ ] `LeadCopilotPanel` on `/crm/leads/[id]` ≥1280 layout
-- [ ] Mobile drawer <1280
-- [ ] All strings Vietnamese
-- [ ] BR-AI-01: no outbound send button
-- [ ] BR-AI-02: confidence banner
-- [ ] Error/empty states §10
-- [ ] E2E `ai-copilot.spec.ts` covers approve flow
-- [ ] UAT walkthrough [`09-AI-ACTIONS.md`](use-cases/actions/09-AI-ACTIONS.md) 8 bước
-- [ ] PR checklist [`templates/pr-checklist-rnos-uc-ui-uat.md`](templates/pr-checklist-rnos-uc-ui-uat.md) ticked per RNOS
+**Trạng thái as-is `main` @ `d2f07b8` — tick khi Gate R1 prod sign-off (RNOS-40).**
+
+- [x] `AiFeatureGate` + env flag wired (`PTT_AI_COPILOT_ENABLED`, pilot cohort)
+- [x] `LeadCopilotPanel` on `/crm/leads/[id]` ≥1280 layout
+- [x] Mobile drawer <1280 + tab **AI** (RNOS-39 E2E)
+- [x] All strings Vietnamese
+- [x] BR-AI-01: no outbound send button (E2E static audit)
+- [x] BR-AI-02: `ConfidenceBanner` when confidence < 0.6
+- [x] Error/empty states §10 (score pending, API error, empty brief)
+- [x] E2E `ai-copilot.spec.ts` — 8-step pilot + follow-up accept + **AI-UC-006 override**
+- [x] GDKD override score modal (UI-R1-08 / AI-UC-006) — badge **GDKD điều chỉnh**
+- [x] Admin audit UI `/admin/ai/runs` (UI-R1-09 / AI-UC-009)
+- [x] Leads list **AI Score** column for pilot cohort (UI-R1-10 partial — no sort-by-score)
+- [ ] Copilot trust footer BR-AI copy (gap matrix §4.6 · GAP-AI-R1-01)
+- [ ] UAT walkthrough [`09-AI-ACTIONS.md`](use-cases/actions/09-AI-ACTIONS.md) 8 bước — **manual sign-off staging**
+- [ ] PR checklist [`templates/pr-checklist-rnos-uc-ui-uat.md`](templates/pr-checklist-rnos-uc-ui-uat.md) ticked per RNOS (process)
+- [ ] Gate R1 prod pilot — [`runbooks/rnos-r1-prod-pilot-gate.md`](runbooks/rnos-r1-prod-pilot-gate.md) + RNOS-40 rollback drill
 
 ### 18.3. Tài liệu liên quan
 

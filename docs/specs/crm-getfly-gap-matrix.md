@@ -1,6 +1,6 @@
 # Ma trận gap CRM vs Getfly — checklist PR theo màn hình
 
-> **Phiên bản:** 1.7 · **Ngày:** 2026-07-26  
+> **Phiên bản:** 1.9 · **Ngày:** 2026-07-26  
 > **Mục đích:** Checklist PR khi nâng cấp ops-web `/crm/*` để đạt **table stakes ~80% CRM** (spec §20.5) so với [Getfly CRM](https://getfly.vn) — **không** copy ERP/LP builder.  
 > **Traceability:** [`SPEC_AI_REVENUE_OPERATING_SYSTEM.md`](../SPEC_AI_REVENUE_OPERATING_SYSTEM.md) §4, §20 · [`SPEC_RNOSAI_MASTER.md`](../SPEC_RNOSAI_MASTER.md) · [`SPEC_UI_UX_PTT.md`](../SPEC_UI_UX_PTT.md)  
 > **PR template chung:** [`docs/templates/pr-checklist-rnos-uc-ui-uat.md`](../templates/pr-checklist-rnos-uc-ui-uat.md)
@@ -107,6 +107,17 @@
 | 0c.2 | [x] API `PATCH /api/v1/ai/recommendations/:id` + `dismiss_reason` | R2 | lưu PG |
 | 0c.3 | [x] Analytics G6 tile + inbox `/crm/ai/insights` | R2 | acceptance rate + top reasons |
 
+### 0d. Copilot — GDKD override score (AI-UC-006 / UI-R1-08)
+
+**Getfly:** —  
+**RNOS as-is:** ✅ GDKD điều chỉnh score trên copilot + audit `overridden_by`.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 0d.1 | [x] **ScoreOverrideModal** trên copilot | UI-R1-08 | score 0–100 + reason ≥10 |
+| 0d.2 | [x] API `POST /api/v1/ai/scores/lead/override` | R1 | guard `crm_leads.assign` |
+| 0d.3 | [x] Badge **GDKD điều chỉnh** + explain factor | R1 | E2E AI-UC-006 green |
+
 ---
 
 ### 1. `/` — Bảng điều khiển
@@ -150,7 +161,7 @@
 | 3.4 | [ ] Tab / view: **Tất cả** · **Của tôi** · **Chưa phân** | ○ | Match Getfly “người phụ trách” |
 | 3.5 | [ ] **Bulk assign** + bulk export | ○ | Chọn checkbox hàng |
 | 3.6 | [ ] **Cột tùy chọn** (⚙): owner, SLA, score | ○ | LocalStorage prefs |
-| 3.7 | [ ] Cột **AI Score** + badge hot/warm/cold | UI-R1-10 | Poll `/ai/scores` |
+| 3.7 | [x] Cột **AI Score** + badge hot/warm/cold | UI-R1-10 | Pilot cohort · `fetchAiScoresBatch` |
 | 3.8 | [ ] Empty state + CTA ingest doc | ○ | Link runbook ingest |
 
 **PR title gợi ý:** `crm/leads: import/export Excel (P0-2)` · `crm/leads: score column (UI-R1-10)`
@@ -456,7 +467,7 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 
 | Ưu tiên | PR bundle | Màn | Parity |
 |---------|-----------|-----|--------|
-| **P0** | Gate R1 pilot | `/crm/leads/[id]` copilot prod | R1 |
+| **P0** | ~~Gate R1 pilot~~ ✅ | `/crm/leads/[id]` copilot prod | R1 |
 | **P0** | RNOS-41 | PWA §22 | P0-1 |
 | **P0** | Import/export | `/crm/leads` §3.1–3.2 | P0-2 |
 | **P1** | RNOS-42 KPI UX | §12, §15 | Dashboard |
@@ -498,6 +509,7 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 | 2026-07-26 | 1.6 | §0 complete — RNOS-11 OpenSearch global search bar + search API |
 | 2026-07-26 | 1.7 | §0b complete — RNOS-12/36 playbook library + RAG at /crm/playbooks |
 | 2026-07-26 | 1.8 | §0c complete — RNOS-29 dismiss reason modal on copilot (UI-R2-06) |
+| 2026-07-26 | 1.9 | §0d + §4.8 — AI-UC-006 GDKD override score · §3.7 AI Score column pilot |
 
 ---
 

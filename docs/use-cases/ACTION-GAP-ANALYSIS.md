@@ -1,7 +1,7 @@
 # Phân tích Gap — Use Case vs Hành động người dùng thực tế
 
-> **Phiên bản:** 1.5 · **Ngày:** 2026-07-26  
-> **Cập nhật:** **AI Phase 1 doc** — UC + actions 09-AI · copilot panel target R1  
+> **Phiên bản:** 1.6 · **Ngày:** 2026-07-26  
+> **Cập nhật:** **AI R1 code ship** — GAP-AI-01…05 đóng trên `main` @ `d2f07b8` (copilot, score, draft, audit UI, GDKD override)  
 > **Mục đích:** Đối chiếu ~122 UC với ops-web / portal-web thực tế; xác định bước nghiệp vụ khách hàng chưa được hệ thống dẫn đủ.
 
 ---
@@ -13,7 +13,7 @@
 | **Đủ bước UI** | ~88 UC | Toàn bộ hành động chính có màn hình + API |
 | **Thiếu bước / workaround thủ công** | ~24 UC | Nghiệp vụ đúng spec nhưng thiếu UI hoặc liên kết giữa module |
 | **Chưa có / stub only** | ~10 UC | Cần phát triển trước khi khách tự phục vụ (chủ yếu Z4 API write, P2 BI) |
-| **AI R1 — doc ready, code pending** | **10 UC P0** | UC/actions ✅ · Nest `ai-intelligence` + copilot UI ⚠ chưa ship |
+| **AI R1 P0 — code shipped** | **10 UC P0** | UC/actions ✅ · Nest `ai-intelligence` + `LeadCopilotPanel` + E2E RNOS-39 ✅ · polish R1 còn §4.6 trust footer |
 
 **Thay đổi post Phase A (doc):**
 
@@ -42,6 +42,16 @@
 | EM actions | 14 partial | **14/14** — 11 P0 full, 3 P1 ≥5 bước |
 | PLAT actions | 10 thin | **10/10** — 9 P0 full, 2 P1 ≥6 bước |
 | Webhook matrix | Scattered | **PLAT-UC-004/005/006** + summary table |
+
+**Thay đổi post AI R1 code ship (2026-07-26):**
+
+| Hạng mục | Trước | Sau (`main` @ `d2f07b8`) |
+|----------|-------|---------------------------|
+| Copilot lead detail | GAP-AI-01 pending | ✅ `LeadCopilotPanel` + RNOS-39 E2E |
+| Lead score + explain | GAP-AI-02 pending | ✅ `POST /api/v1/ai/score/lead` + async RNOS-08 |
+| Follow-up draft approve | GAP-AI-03 pending | ✅ RNOS-07 + BR-AI-01 E2E |
+| Admin audit UI | GAP-AI-04 pending | ✅ `/admin/ai/runs` (gap matrix §23.1) |
+| GDKD override score | GAP-AI-05 stretch | ✅ AI-UC-006 `ScoreOverrideModal` + override API |
 
 **Nguyên nhân hệ thống "chưa ổn" khi đọc UC cũ:** UC mô tả luồng logic (Main flow 5–7 bước) nhưng **không liệt kê từng click, form field, điều kiện chuyển màn** — AM/CSKH không biết "làm gì tiếp theo" khi onboard đa module.
 
@@ -76,9 +86,10 @@
 | Subscriber preference center | EM-014 | ✅ Public routes tokenized |
 | Multi-client isolation | SYS-011, PLAT-002/003 | ✅ JWT scope + **Prod-S4** pen test matrix |
 | **Deploy campaign Zalo qua API** | **ZALO-009/010** | ✓ **Prod-Z4** — stub/pilot; E1 manual fallback |
-| **AI copilot trên lead detail** | **AI-UC-002…005, CRM-002** | ⚠ **GAP-AI-01** — Doc + 90-day plan; UI `/crm/leads/[id]` copilot chưa ship |
-| **Lead score async ≤30s** | **AI-UC-001** | ⚠ **GAP-AI-02** — DDL ready; worker + `/api/v1/ai/score/lead` chưa ship |
-| **Follow-up draft approve (no auto-send)** | **AI-UC-004** | ⚠ **GAP-AI-03** — BR-AI-01 trong spec; API + approve flow pending |
+| **AI copilot trên lead detail** | **AI-UC-002…005, CRM-002** | ✅ **RNOS-06/39** — `LeadCopilotPanel` trên `/crm/leads/[id]` + mobile drawer |
+| **Lead score async ≤30s** | **AI-UC-001** | ✅ **RNOS-04/08** — `POST /api/v1/ai/score/lead` + consumer + `ScoreCard` |
+| **Follow-up draft approve (no auto-send)** | **AI-UC-004** | ✅ **RNOS-07** — draft → Duyệt → activity note · BR-AI-01 E2E |
+| **AI audit runs (admin)** | **AI-UC-009** | ✅ **UI-R1-09** — `/admin/ai/runs` + `ai_agent_runs` (RNOS-05) |
 | **GDKD override score copilot** | **AI-UC-006** | ✅ **UI-R1-08** — `ScoreOverrideModal` + `POST /api/v1/ai/scores/lead/override` |
 
 ---
@@ -104,15 +115,25 @@
 | **GAP-P1-05** | Double opt-in email public confirm | EM-002 | Route có; thiếu UI embed builder trong ops |
 | **GAP-P1-06** | Zalo lead ops visibility | PLAT-005, **ZALO-011** | ✅ Filter `source=zalo` trên `/crm/leads`; `/agency/ingest` xem job |
 
-### GAP-AI — AI Revenue OS R1 (code pending)
+### GAP-AI — AI Revenue OS R1 (snapshot 2026-07-26)
+
+**Đã ship trên `main` (đóng gap):**
+
+| ID | Mô tả | UC | Evidence |
+|----|-------|-----|----------|
+| **GAP-AI-01** | ~~Copilot panel trên lead detail~~ | AI-UC-002…005 | ✅ `LeadCopilotPanel` · RNOS-06 · E2E RNOS-39 |
+| **GAP-AI-02** | ~~Async lead score + explainability~~ | AI-UC-001, AI-UC-005 | ✅ `POST /api/v1/ai/score/lead` · RNOS-04/08 · `ScoreCard` |
+| **GAP-AI-03** | ~~Follow-up draft approve (no send)~~ | AI-UC-004 | ✅ RNOS-07 · `ai-copilot.spec.ts` follow-up accept |
+| **GAP-AI-04** | ~~Admin UI audit runs~~ | AI-UC-009 | ✅ `/admin/ai/runs` · gap matrix §23.1 · RNOS-05 |
+| **GAP-AI-05** | ~~Manager override score UI~~ | AI-UC-006 | ✅ `ScoreOverrideModal` · `d2f07b8` · E2E AI-UC-006 |
+
+**R1 polish còn lại (không chặn copilot pilot):**
 
 | ID | Mô tả | UC | Workaround / target |
 |----|-------|-----|---------------------|
-| **GAP-AI-01** | Copilot panel trên lead detail | AI-UC-002…005 | Manual CRM workflow; target `LeadCopilotPanel` RNOS-06 |
-| **GAP-AI-02** | Async lead score + explainability | AI-UC-001, AI-UC-005 | Manual hot/warm tag; target `/api/v1/ai/score/lead` |
-| **GAP-AI-03** | Follow-up draft approve (no send) | AI-UC-004 | CSKH soạn tay; target RNOS-07 |
-| **GAP-AI-04** | Admin UI audit runs | AI-UC-009 | SQL `ai_agent_runs`; target `/admin/ai/runs` |
-| **GAP-AI-05** | ~~Manager override score UI~~ | AI-UC-006 | ✅ **UI-R1-08** — `ScoreOverrideModal` + override API (BR-AI-05) |
+| **GAP-AI-R1-01** | Copilot trust footer BR-AI copy | UI-R1 §15 | Gap matrix §4.6 · text spec chưa render |
+| **GAP-AI-R1-02** | Leads list sort/filter by score | AI-UC-001 §9 | Cột AI Score pilot OK (§3.7); sort score = stretch |
+| **GAP-AI-R1-03** | Gate R1 prod pilot sign-off | AI-UC-010 | RNOS-40 runbook + `rnos_r1_prod_pilot_gate.sh` manual |
 
 ### GAP-P2 — Pilot / optional
 
@@ -157,7 +178,7 @@ Một UC được coi **"đủ bước nghiệp vụ"** khi file actions tương
 | SYS | 12 | 12 | **5/12** (001–005 expanded) |
 | PORTAL | 10 + extras | 14 | **4/14** full + rest partial |
 
-**Tổng actions đạt chuẩn:** ~**125/142** UC (~88%) · AI R1 UAT ready; R2–R4 actions spec-only until UI ship
+**Tổng actions đạt chuẩn:** ~**125/142** UC (~88%) · **AI R1 P0 UI/API shipped**; R2–R4 actions spec-only until UI ship
 
 ---
 
@@ -169,6 +190,7 @@ Một UC được coi **"đủ bước nghiệp vụ"** khi file actions tương
 | **B** | CRM 15 + SVC 12 actions expand; GAP-P1-01 finance gate doc | ✅ **Done** (2026-07-25) |
 | **C** | META/SEO/EM/PLAT all UC actions expand | ✅ **Done** (2026-07-25) |
 | **AI-doc** | AI 14 UC + actions 09-AI; pilot 8-step UAT | ✅ **Done** (2026-07-26) |
+| **AI-R1-code** | GAP-AI-01…05 copilot + score + draft + audit + override | ✅ **Done** (`main` @ `d2f07b8`) |
 | **D** (doc) | SYS 006–012 + PORTAL P0 expand | Pending |
 | **E** (product) | GAP-P1-01 finance gate UI, ~~GAP-P1-02 portal notify~~, GAP-Z4-01 | **Partial** — P1-02 ✅ Prod-S1 |
 | **F** (product) | GAP-P1-03 Grafana portal | Pending |

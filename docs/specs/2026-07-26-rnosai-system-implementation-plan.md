@@ -91,8 +91,8 @@ gantt
 |-----------|---------|---------|
 | Doc (UC + actions + spec) | ~88% | AI UC 20/20 actions v1.1 |
 | Code platform core | ~80% | [`production-coding-backlog`](2026-07-26-production-coding-backlog.md) |
-| AI R1 code | ~5% | DDL + spec only |
-| UAT readiness R1 | ~70% | Checklist sẵn, chờ build |
+| AI R1 code | ~85% | GAP-AI-01…05 shipped @ `d2f07b8`; polish GAP-AI-R1-01…03 |
+| UAT readiness R1 | ~85% | E2E RNOS-39 green · chờ Gate R1 prod sign-off RNOS-40 |
 
 ---
 

@@ -193,7 +193,7 @@ Skeleton + copy "Đang tính…" ≤30s.
 |---|-------|----------|----------|-------|----------|------|
 | 1 | GDKD | `/login` | cap GDKD | credentials | JWT | ✓ |
 | 2 | GDKD | `/crm/leads/[id]` | Mở lead bất kỳ team | — | Copilot | ✓ BR-AI-04 GDKD |
-| 3 | GDKD | Score card | **Điều chỉnh score** | — | Modal | ✓ stretch |
+| 3 | GDKD | Score card | **Điều chỉnh score** | — | Modal | ✓ UI-R1-08 |
 | 4 | GDKD | Modal | Nhập score 0–100 | number | validation | ✓ |
 | 5 | GDKD | Modal | Nhập **lý do** bắt buộc | text ≥10 chars | — | ✓ |
 | 6 | GDKD | Modal | **Lưu** | — | Badge "GDKD điều chỉnh" | ✓ |

@@ -1,6 +1,7 @@
 # PR Checklist — RNOS ↔ UC ↔ UI ↔ UAT
 
-> **Phiên bản:** 1.0 · **Ngày:** 2026-07-26  
+> **Phiên bản:** 1.1 · **Ngày:** 2026-07-26  
+> **Cập nhật:** GAP-AI-01…05 shipped · handoff §18.2 sync · AI-UC-006 override block  
 > **Dùng cho:** Pull request triển khai Revenue OS + AI (ưu tiên R1)  
 > **GitHub:** https://github.com/sdadtuan/RNOSAI · [PR template](https://github.com/sdadtuan/RNOSAI/blob/main/.github/pull_request_template.md) · [New RNOS issue](https://github.com/sdadtuan/RNOSAI/issues/new?template=rnos-deliverable.yml) · [Setup labels](https://github.com/sdadtuan/RNOSAI/blob/main/docs/templates/github-setup.md)  
 > **Traceability:** [`SPEC_AI_REVENUE_OPERATING_SYSTEM.md`](../SPEC_AI_REVENUE_OPERATING_SYSTEM.md) · [`SPEC_UI_UX_AI_REVENUE_OS.md`](../SPEC_UI_UX_AI_REVENUE_OS.md) · [`use-cases/09-AI-REVENUE-OS.md`](../use-cases/09-AI-REVENUE-OS.md) · [`use-cases/actions/09-AI-ACTIONS.md`](../use-cases/actions/09-AI-ACTIONS.md)
@@ -81,6 +82,7 @@
 | **RNOS-04** | `POST /ai/score/lead` | AI-UC-001, 005 | §001, §005 | UI-R1-02 · §6.2 | Pilot §3 · score ≤30s |
 | **RNOS-05** | AI audit (`ai_agent_runs`) | AI-UC-009 | §009 | UI-R1-09 · §6 | Pilot §8 · 100% calls |
 | **RNOS-06** | Copilot panel UI | AI-UC-002, 005 | §002, §005 | UI-R1-01…03 · §6, §16 | Pilot §3–4 |
+| **RNOS-06b** | GDKD override score | AI-UC-006 | §006 | UI-R1-08 | E2E AI-UC-006 · badge override |
 | **RNOS-07** | Follow-up draft + approve | AI-UC-004 | §004 | UI-R1-05 · §9 HITL | Pilot §6–7 · BR-AI-01 |
 | **RNOS-08** | Event + async score consumer | AI-UC-001 | §001 | UI-R1-06 · §10 | UC-001 bước 2–7 |
 | **RNOS-16** | Timeline enrichment | AI-UC-008 | §008 | — (context) | Gate Phase 0 timeline ≥70% |
@@ -159,7 +161,7 @@
 | ☐ | Persist `ai_scores` + audit run |
 | ☐ | Idempotency window 5 phút (E2 UC-001) |
 | ☐ | Thiếu attribution vẫn score + flag explain |
-| ☐ | Manual override endpoint (stretch GDKD) documented |
+| ☐ | GDKD override: `POST /api/v1/ai/scores/lead/override` + `overridden_by` (AI-UC-006) |
 
 **UAT:** Pilot §3 · score visible ≤30s from lead create (with RNOS-08).
 
@@ -195,8 +197,26 @@
 | ☐ | Score + explain chips VN labels |
 | ☐ | `ConfidenceBanner` when score confidence < 0.6 (BR-AI-02) |
 | ☐ | Owner check — 403 lead khác (BR-AI-04) |
+| ☐ | GDKD cap: nút **Điều chỉnh score** + modal (AI-UC-006 / UI-R1-08) |
 
 **UAT:** Pilot §3–4 · UI handoff [`SPEC_UI_UX` §18.2](../SPEC_UI_UX_AI_REVENUE_OS.md#182-handoff-checklist-r1).
+
+---
+
+### RNOS-06b — GDKD override score (AI-UC-006)
+
+**UC:** AI-UC-006 · **Actions:** [§006](../use-cases/actions/09-AI-ACTIONS.md#ai-uc-006--manager-override-score) · **UI:** UI-R1-08 · **Path:** `ScoreOverrideModal.tsx`, `ScoreCard.tsx`, override API
+
+| | Check |
+|---|-------|
+| ☐ | `POST /api/v1/ai/scores/lead/override` — score 0–100, reason ≥10 chars |
+| ☐ | Guard `crm_leads.assign` hoặc `ai_admin.view` (BR-AI-05) |
+| ☐ | Persist `ai_scores` với `overridden_by`, `override_reason`, `model_name=manual_override` |
+| ☐ | Audit `OVERRIDE_SCORE` + event `LeadScoreOverridden` |
+| ☐ | UI badge **GDKD điều chỉnh** + explain factor `gdkd_override` |
+| ☐ | E2E block `AI-UC-006` trong `ai-copilot.spec.ts` green |
+
+**UAT:** Actions §006 bước 1–8 · GDKD non-owner lead read/override per cap.
 
 ---
 
@@ -257,6 +277,8 @@
 | ☐ | `ai-copilot.spec.ts` (hoặc tương đương) trong CI |
 | ☐ | Flow: login pilot → lead detail → score → brief → summarize → draft approve |
 | ☐ | Assert no send button / outbound |
+| ☐ | AI-UC-006: override API + modal + badge **GDKD điều chỉnh** |
+| ☐ | Bootstrap applies `domain_events.idempotency_key` (LeadScoreOverridden emit) |
 | ☐ | Staging env vars documented in test README |
 | ☐ | CI green on PR branch |
 
@@ -376,8 +398,17 @@ PR template tối thiểu: **UC-XXX** · actions § · smoke route · regression
 | [github-setup.md](https://github.com/sdadtuan/RNOSAI/blob/main/docs/templates/github-setup.md) | Issues, labels, workflow |
 | [`2026-07-26-rnosai-system-implementation-plan.md`](../specs/2026-07-26-rnosai-system-implementation-plan.md) | Workstreams, gate, tuần 1 |
 | [`2026-07-26-ai-phase1-90-day-plan.md`](../specs/2026-07-26-ai-phase1-90-day-plan.md) | Deliverable tuần-by-tuần |
-| [`ACTION-GAP-ANALYSIS.md`](../use-cases/ACTION-GAP-ANALYSIS.md) | GAP-AI-01… |
+| [`ACTION-GAP-ANALYSIS.md`](../use-cases/ACTION-GAP-ANALYSIS.md) | GAP-AI snapshot · GAP-AI-R1-01…03 polish |
+
+### GAP-AI snapshot (sync với code — 2026-07-26)
+
+| ID | Trạng thái | Evidence |
+|----|------------|----------|
+| GAP-AI-01…05 | ✅ Shipped | Copilot, score, draft, `/admin/ai/runs`, override @ `d2f07b8` |
+| GAP-AI-R1-01 | ○ Open | Trust footer §4.6 |
+| GAP-AI-R1-02 | ○ Open | Sort leads by score (stretch) |
+| GAP-AI-R1-03 | ○ Open | Gate R1 prod sign-off RNOS-40 |
 
 ---
 
-*PR Checklist v1.0 — cập nhật khi thêm RNOS hoặc đổi Gate R1.*
+*PR Checklist v1.1 — cập nhật khi thêm RNOS hoặc đổi Gate R1.*
