@@ -126,3 +126,57 @@ def pipeline_risk_scan_via_api(
     except Exception as exc:
         logger.warning("pipeline_risk_scan API failed: %s", exc)
         return {"ok": False, "error": str(exc)}
+
+
+def forecast_snapshot_via_api(
+    *,
+    force: bool = False,
+    snapshot_date: str | None = None,
+    correlation_id: str | None = None,
+    timeout_sec: float = 60.0,
+) -> dict[str, Any]:
+    """
+    POST /api/v1/ai/forecast with internal key (RNOS-17 daily snapshot).
+
+    Returns { ok: True, data: ... } or { ok: False, error: ... }.
+    """
+    key = _internal_key()
+    if not key:
+        return {"ok": False, "error": "missing_internal_key", "skipped": True}
+
+    body: dict[str, Any] = {}
+    if force:
+        body["force"] = True
+    if snapshot_date:
+        body["snapshot_date"] = snapshot_date
+
+    headers = {
+        "Content-Type": "application/json",
+        "x-ptt-internal-key": key,
+    }
+    if correlation_id:
+        headers["x-correlation-id"] = correlation_id
+
+    req = urllib.request.Request(
+        f"{_crm_api_base_url()}/api/v1/ai/forecast",
+        data=json.dumps(body).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+            raw = resp.read().decode("utf-8")
+            parsed = json.loads(raw) if raw else {}
+            return {"ok": True, "status": resp.status, "body": parsed}
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        logger.warning(
+            "forecast_snapshot API HTTP %s body=%s",
+            exc.code,
+            detail[:500],
+        )
+        return {"ok": False, "error": f"http_{exc.code}", "detail": detail[:1000]}
+    except Exception as exc:
+        logger.warning("forecast_snapshot API failed: %s", exc)
+        return {"ok": False, "error": str(exc)}

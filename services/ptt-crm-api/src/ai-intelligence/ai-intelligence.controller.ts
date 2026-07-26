@@ -8,6 +8,7 @@ import { AiDealScoreService } from './ai-deal-score.service';
 import { AiLeadScoreService } from './ai-lead-score.service';
 import { AiNbaService } from './ai-nba.service';
 import { PipelineRiskService } from './pipeline-risk.service';
+import { AiForecastService } from './ai-forecast.service';
 import { AiSummarizeService } from './ai-summarize.service';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiFeedbackAnalyticsService } from './ai-feedback-analytics.service';
@@ -18,6 +19,11 @@ import {
   PipelineRiskListResponse,
   PipelineRiskScanResponse,
 } from './pipeline-risk.types';
+import {
+  ForecastCommitResponse,
+  ForecastDashboardResponse,
+  ForecastSnapshotResponse,
+} from './forecast.types';
 import { AiScoresBatchResponse, AiScoresListResponse, ScoreLeadResponse } from './lead-score.types';
 import { SummarizeResponse } from './summarize.types';
 import {
@@ -35,6 +41,8 @@ import { StaffAiDealAccessGuard } from './guards/staff-ai-deal-access.guard';
 import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
 import { StaffAiScoreOverrideGuard } from './guards/staff-ai-score-override.guard';
 import { StaffAiScoresBatchGuard } from './guards/staff-ai-scores-batch.guard';
+import { StaffAiForecastCommitGuard } from './guards/staff-ai-forecast-commit.guard';
+import { StaffAiForecastViewGuard } from './guards/staff-ai-forecast-view.guard';
 
 interface ScoreDealBody {
   deal_id: number;
@@ -93,6 +101,7 @@ export class AiIntelligenceController {
     private readonly recommendations: AiRecommendationService,
     private readonly feedbackAnalytics: AiFeedbackAnalyticsService,
     private readonly pipelineRisk: PipelineRiskService,
+    private readonly forecast: AiForecastService,
   ) {}
 
   /** RNOS-02 — public smoke; records ai_agent_runs when schema ready (RNOS-05). */
@@ -485,6 +494,76 @@ export class AiIntelligenceController {
       limit ? Number(limit) : undefined,
       offset ? Number(offset) : undefined,
     );
+  }
+
+  /** RNOS-17 / AI-UC-013 — daily revenue forecast snapshot (cron 07:00 ICT). */
+  @Post('forecast')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiForecastViewGuard)
+  generateForecastSnapshot(
+    @Body() body: { force?: boolean; snapshot_date?: string },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<ForecastSnapshotResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.forecast.generateSnapshot({
+      force: Boolean(body?.force),
+      snapshotDate: body?.snapshot_date,
+      actorId,
+      correlationId: rid,
+    });
+  }
+
+  /** RNOS-18 / UI-R3-01 — GDKD forecast dashboard for current month. */
+  @Get('forecast/current')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiForecastViewGuard)
+  getForecastDashboard(
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<ForecastDashboardResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    return this.forecast.getDashboard(
+      year ? Number(year) : undefined,
+      month ? Number(month) : undefined,
+      rid,
+    );
+  }
+
+  /** RNOS-18 / UI-R3-02 — GDKD commit forecast VND (BR: no auto-commit). */
+  @Patch('forecast/commit')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiForecastCommitGuard)
+  commitForecast(
+    @Body()
+    body: {
+      snapshot_id: string;
+      committed_amount_vnd: number;
+      acknowledge_mape_warning?: boolean;
+    },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<ForecastCommitResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.forecast.commitForecast({
+      snapshotId: body.snapshot_id,
+      committedAmountVnd: Number(body.committed_amount_vnd),
+      acknowledgeMapeWarning: Boolean(body.acknowledge_mape_warning),
+      actorId,
+      actorEmail: req.staffUser?.email ?? null,
+      correlationId: rid,
+    });
   }
 
   /** Guard wiring check — requires copilot flag + pilot cohort (BR-AI-04 prep). */

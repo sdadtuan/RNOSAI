@@ -10,6 +10,8 @@ export const AI_USE_CASE = {
   FOLLOW_UP_DRAFT: 'follow_up_draft',
   OVERRIDE_SCORE: 'override_score',
   PIPELINE_RISK_SCAN: 'pipeline_risk_scan',
+  FORECAST_SNAPSHOT: 'forecast_snapshot',
+  FORECAST_COMMIT: 'forecast_commit',
 } as const;
 
 export type AiUseCase = (typeof AI_USE_CASE)[keyof typeof AI_USE_CASE];

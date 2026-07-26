@@ -84,6 +84,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/re-projects': 'Dự án BĐS',
   '/crm/payroll': 'Chấm công & lương',
   '/crm/business-dashboard': 'Dashboard kinh doanh',
+  '/crm/forecast': 'Forecast doanh thu',
   '/crm/owner-weekly': 'Báo cáo tuần chủ DN',
   '/crm/financials': 'Tài chính',
   '/admin/crm/custom-fields': 'Custom fields',
@@ -248,6 +249,7 @@ function buildSections(
   const finance: NavLink[] = [];
   if (hasCap(user, 'crm_business_dashboard', 'view')) {
     finance.push({ href: '/crm/business-dashboard', label: 'Dashboard KD' });
+    finance.push({ href: '/crm/forecast', label: 'Forecast' });
     finance.push({ href: '/crm/financials', label: 'Tài chính' });
   }
   if (hasCap(user, 'crm_owner_weekly_dashboard', 'view')) {

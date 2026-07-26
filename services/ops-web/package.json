@@ -30,7 +30,8 @@
     "test:e2e:lead-attribution": "playwright test e2e/lead-attribution-p1.spec.ts",
     "test:e2e:leads-score": "playwright test e2e/leads-score-ui-r1-10.spec.ts",
     "test:e2e:customer-timeline": "playwright test e2e/customer-timeline-rnos16.spec.ts",
-    "test:e2e:pipeline-risk": "playwright test e2e/pipeline-risk-rnos23.spec.ts"
+    "test:e2e:pipeline-risk": "playwright test e2e/pipeline-risk-rnos23.spec.ts",
+    "test:e2e:forecast": "playwright test e2e/forecast-rnos17-18.spec.ts"
   },
   "engines": {
     "node": ">=22.0.0"

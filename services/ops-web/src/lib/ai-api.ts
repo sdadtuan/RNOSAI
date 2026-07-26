@@ -709,3 +709,136 @@ export async function postPipelineRiskScan(
   }
   return body;
 }
+
+export interface ForecastStageBucket {
+  stage: string;
+  label: string;
+  deal_count: number;
+  raw_vnd: number;
+  weighted_vnd: number;
+}
+
+export interface ForecastMapePriorMonth {
+  month: string;
+  committed_vnd: number;
+  actual_vnd: number;
+  mape_pct: number | null;
+  warn: boolean;
+}
+
+export interface ForecastDashboardData {
+  year: number;
+  month: number;
+  period_label: string;
+  snapshot: {
+    id: string;
+    snapshot_date: string;
+    committed_by: string | null;
+    committed_at: string | null;
+  } | null;
+  pipeline_amount: number;
+  forecast_amount: number;
+  ai_adjustment: number;
+  committed_amount: number;
+  best_case_amount: number;
+  actual_prior_month_vnd: number;
+  stalled_deal_count: number;
+  factors: AiScoreFactor[];
+  stage_buckets: ForecastStageBucket[];
+  summary_note: string;
+  mape_prior_month: ForecastMapePriorMonth | null;
+  can_commit: boolean;
+  is_committed: boolean;
+}
+
+export interface ForecastDashboardResponse {
+  data: ForecastDashboardData;
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export interface ForecastSnapshotResponse {
+  data: {
+    snapshot_id: string;
+    snapshot_date: string;
+    pipeline_amount: number;
+    forecast_amount: number;
+    ai_adjustment: number;
+    skipped: boolean;
+    agent_run_id: string;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export interface ForecastCommitResponse {
+  data: {
+    snapshot_id: string;
+    committed_amount: number;
+    committed_by: string;
+    committed_at: string;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export async function fetchForecastDashboard(
+  token: string,
+  params?: { year?: number; month?: number },
+): Promise<ForecastDashboardResponse> {
+  const qs = new URLSearchParams();
+  if (params?.year != null) qs.set('year', String(params.year));
+  if (params?.month != null) qs.set('month', String(params.month));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/forecast/current${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<ForecastDashboardResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch forecast dashboard failed', res.status);
+  }
+  return body;
+}
+
+export async function postForecastSnapshot(
+  token: string,
+  input?: { force?: boolean; snapshot_date?: string },
+): Promise<ForecastSnapshotResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/forecast`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(input ?? {}),
+  });
+  const body = await parseJson<ForecastSnapshotResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Forecast snapshot failed', res.status);
+  }
+  return body;
+}
+
+export async function patchForecastCommit(
+  token: string,
+  input: {
+    snapshot_id: string;
+    committed_amount_vnd: number;
+    acknowledge_mape_warning?: boolean;
+  },
+): Promise<ForecastCommitResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/forecast/commit`, {
+    method: 'PATCH',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      snapshot_id: input.snapshot_id,
+      committed_amount_vnd: input.committed_amount_vnd,
+      acknowledge_mape_warning: Boolean(input.acknowledge_mape_warning),
+    }),
+  });
+  const body = await parseJson<
+    ForecastCommitResponse & { error?: string; message?: string; mape_prior_month?: ForecastMapePriorMonth }
+  >(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Forecast commit failed', res.status);
+  }
+  return body;
+}

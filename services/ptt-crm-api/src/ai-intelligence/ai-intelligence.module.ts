@@ -21,6 +21,8 @@ import { AiLeadScoreService } from './ai-lead-score.service';
 import { AiLlmClient } from './ai-llm.client';
 import { AiNbaService } from './ai-nba.service';
 import { PipelineRiskService } from './pipeline-risk.service';
+import { AiForecastService } from './ai-forecast.service';
+import { RevenueForecastRepository } from './revenue-forecast.repository';
 import { AiPromptsRepository } from './ai-prompts.repository';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiRecommendationsRepository } from './ai-recommendations.repository';
@@ -34,6 +36,8 @@ import { StaffAiDealAccessGuard } from './guards/staff-ai-deal-access.guard';
 import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
 import { StaffAiScoreOverrideGuard } from './guards/staff-ai-score-override.guard';
 import { StaffAiScoresBatchGuard } from './guards/staff-ai-scores-batch.guard';
+import { StaffAiForecastCommitGuard } from './guards/staff-ai-forecast-commit.guard';
+import { StaffAiForecastViewGuard } from './guards/staff-ai-forecast-view.guard';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
 
 @Module({
@@ -60,6 +64,8 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     AiDealScoreService,
     AiNbaService,
     PipelineRiskService,
+    AiForecastService,
+    RevenueForecastRepository,
     PlaybooksRepository,
     AiSummarizeService,
     AiRecommendationService,
@@ -76,6 +82,8 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     StaffAiDealAccessGuard,
     StaffAiScoreOverrideGuard,
     StaffAiScoresBatchGuard,
+    StaffAiForecastCommitGuard,
+    StaffAiForecastViewGuard,
   ],
   exports: [
     AiIntelligenceConfigService,
@@ -89,6 +97,8 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     AiDealScoreService,
     AiNbaService,
     PipelineRiskService,
+    AiForecastService,
+    RevenueForecastRepository,
     AiSummarizeService,
     AiRecommendationService,
     AiFeedbackAnalyticsService,
@@ -101,6 +111,8 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     StaffAiDealAccessGuard,
     StaffAiScoreOverrideGuard,
     StaffAiScoresBatchGuard,
+    StaffAiForecastCommitGuard,
+    StaffAiForecastViewGuard,
   ],
 })
 export class AiIntelligenceModule {}
