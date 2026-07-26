@@ -1,5 +1,6 @@
 'use client';
 
+import { GlobalSearchBar } from '@/components/search/GlobalSearchBar';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -453,6 +454,7 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
               {user?.position_id ? ` · Chức vụ #${user.position_id}` : ''}
             </p>
           </div>
+          <GlobalSearchBar />
           <button type="button" className="btn btn-topbar-logout" onClick={onLogout}>
             Đăng xuất
           </button>

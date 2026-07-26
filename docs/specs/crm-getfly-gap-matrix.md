@@ -1,6 +1,6 @@
 # Ma trận gap CRM vs Getfly — checklist PR theo màn hình
 
-> **Phiên bản:** 1.5 · **Ngày:** 2026-07-26  
+> **Phiên bản:** 1.6 · **Ngày:** 2026-07-26  
 > **Mục đích:** Checklist PR khi nâng cấp ops-web `/crm/*` để đạt **table stakes ~80% CRM** (spec §20.5) so với [Getfly CRM](https://getfly.vn) — **không** copy ERP/LP builder.  
 > **Traceability:** [`SPEC_AI_REVENUE_OPERATING_SYSTEM.md`](../SPEC_AI_REVENUE_OPERATING_SYSTEM.md) §4, §20 · [`SPEC_RNOSAI_MASTER.md`](../SPEC_RNOSAI_MASTER.md) · [`SPEC_UI_UX_PTT.md`](../SPEC_UI_UX_PTT.md)  
 > **PR template chung:** [`docs/templates/pr-checklist-rnos-uc-ui-uat.md`](../templates/pr-checklist-rnos-uc-ui-uat.md)
@@ -73,6 +73,19 @@
 ---
 
 ## PR checklist theo màn hình
+
+### 0. Shell topbar — Global search (RNOS-11 / UI-R2-07)
+
+**Getfly:** Tìm nhanh KH / deal / ticket.  
+**RNOS as-is:** ✅ Topbar search bar + `/api/v1/search` (SQLite fallback; OpenSearch khi `OPENSEARCH_URL`).
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 0.1 | [x] **Global search bar** trên topbar | R2 | `GlobalSearchBar` + entity filters |
+| 0.2 | [x] API `GET /api/v1/search` index `search_entities` | R2 | account, contact, lead, deal, email, note, ticket |
+| 0.3 | [x] OpenSearch client + `POST /api/v1/search/reindex` | R2 | `docker-compose.opensearch.yml` optional |
+
+---
 
 ### 1. `/` — Bảng điều khiển
 
@@ -459,6 +472,7 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 |------|-----------|---------|
 | 2026-07-26 | 1.0 | Ma trận ban đầu — as-is ops-web `main` post RNOS-39 |
 | 2026-07-26 | 1.5 | §9.3 complete — RNOS-09 deal score + RNOS-10 NBA on sales funnel |
+| 2026-07-26 | 1.6 | §0 complete — RNOS-11 OpenSearch global search bar + search API |
 
 ---
 

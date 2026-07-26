@@ -20,6 +20,7 @@
     "test:e2e:admin-ai-runs": "playwright test e2e/admin-ai-runs-ui-r1-09.spec.ts",
     "test:e2e:automation-workflows": "playwright test e2e/automation-workflows-rnos13.spec.ts",
     "test:e2e:nba-deal-score": "playwright test e2e/nba-deal-score-rnos09-10.spec.ts",
+    "test:e2e:global-search": "playwright test e2e/global-search-rnos11.spec.ts",
     "test:e2e:business-dashboard-executive": "playwright test e2e/business-dashboard-rnos46.spec.ts",
     "test:e2e:crm-config": "playwright test e2e/crm-config-rnos35.spec.ts",
     "test:e2e:crm-tickets": "playwright test e2e/crm-tickets-rnos24.spec.ts",

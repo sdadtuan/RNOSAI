@@ -324,6 +324,12 @@ input {
   padding: 0.65rem 1.5rem;
 }
 
+.ops-topbar-inner .global-search-bar {
+  flex: 1;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
 .ops-topbar-title h1 {
   margin: 0;
   font-size: 1.35rem;
@@ -3739,5 +3745,102 @@ body:has(.ops-sidebar) main {
 .sales-pipeline-panel__message {
   color: #15803d;
   font-size: 0.88rem;
+}
+
+/* RNOS-11 / UI-R2-07 — Global CRM search bar */
+.global-search-bar {
+  position: relative;
+}
+
+.global-search-input-wrap {
+  position: relative;
+}
+
+.global-search-input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.global-search-spinner {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.global-search-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.global-search-filter {
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.global-search-filter.is-active {
+  border-color: var(--primary);
+  color: var(--primary-700);
+  background: color-mix(in srgb, var(--primary) 12%, white);
+}
+
+.global-search-dropdown {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  max-height: 360px;
+  overflow: auto;
+  padding: 0.35rem;
+}
+
+.global-search-hit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.global-search-hit:hover {
+  background: var(--surface-soft);
+}
+
+.global-search-hit-type {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary-700);
+}
+
+.global-search-hit-snippet {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.global-search-empty,
+.global-search-meta {
+  padding: 0.55rem 0.65rem;
+  margin: 0;
+  font-size: 0.85rem;
 }
 
