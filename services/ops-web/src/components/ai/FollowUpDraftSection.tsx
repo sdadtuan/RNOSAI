@@ -8,6 +8,7 @@ import {
   type FollowUpChannelHint,
 } from '@/lib/ai-api';
 import { ApiError } from '@/lib/api';
+import { DismissReasonModal } from '@/components/ai/DismissReasonModal';
 
 const CHANNELS: Array<{ value: FollowUpChannelHint; label: string }> = [
   { value: 'zalo', label: 'Zalo' },
@@ -31,6 +32,7 @@ export function FollowUpDraftSection({ token, leadId, onError, onActivityCreated
   const [generating, setGenerating] = useState(false);
   const [approving, setApproving] = useState(false);
   const [dismissing, setDismissing] = useState(false);
+  const [showDismissModal, setShowDismissModal] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -100,17 +102,18 @@ export function FollowUpDraftSection({ token, leadId, onError, onActivityCreated
     }
   }
 
-  async function onDismiss() {
+  async function onDismissConfirm(reason: string) {
     if (!draftId) return;
     setDismissing(true);
     setError(null);
     try {
       await patchAiRecommendation(token, draftId, {
         status: 'dismissed',
-        dismiss_reason: 'user_dismissed',
+        dismiss_reason: reason,
       });
       clearForm();
-      setMessage('Đã bỏ nháp.');
+      setShowDismissModal(false);
+      setMessage('Đã bỏ nháp — feedback đã ghi nhận.');
     } catch (err) {
       const msg = formatAiError(err);
       setError(msg);
@@ -118,6 +121,11 @@ export function FollowUpDraftSection({ token, leadId, onError, onActivityCreated
     } finally {
       setDismissing(false);
     }
+  }
+
+  function onDismissClick() {
+    if (!draftId) return;
+    setShowDismissModal(true);
   }
 
   async function onCopy() {
@@ -201,7 +209,7 @@ export function FollowUpDraftSection({ token, leadId, onError, onActivityCreated
             <button
               type="button"
               className="btn btn-sm btn-secondary"
-              onClick={() => void onDismiss()}
+              onClick={onDismissClick}
               disabled={approving || dismissing}
             >
               {dismissing ? 'Đang bỏ…' : 'Bỏ'}
@@ -212,6 +220,13 @@ export function FollowUpDraftSection({ token, leadId, onError, onActivityCreated
           </div>
         </div>
       ) : null}
+
+      <DismissReasonModal
+        open={showDismissModal}
+        busy={dismissing}
+        onCancel={() => setShowDismissModal(false)}
+        onConfirm={(reason) => void onDismissConfirm(reason)}
+      />
     </section>
   );
 }

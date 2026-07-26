@@ -7,6 +7,7 @@ import { AiAgentRunsService, AiAgentRunDetailResponse, AiAgentRunListResponse } 
 import { AiLeadScoreService } from './ai-lead-score.service';
 import { AiSummarizeService } from './ai-summarize.service';
 import { AiRecommendationService } from './ai-recommendation.service';
+import { AiFeedbackAnalyticsService } from './ai-feedback-analytics.service';
 import { AiIntelligenceService } from './ai-intelligence.service';
 import { AiAgentRunStatus, AiHealthResponse } from './ai-intelligence.types';
 import { AiScoresBatchResponse, AiScoresListResponse, ScoreLeadResponse } from './lead-score.types';
@@ -16,6 +17,10 @@ import {
   RecommendationResponse,
   RecommendationStatus,
 } from './recommendation.types';
+import {
+  AiAcceptanceMetricsResponse,
+  AiRecommendationInboxResponse,
+} from './feedback-analytics.types';
 import { StaffAiCopilotGuard } from './guards/staff-ai-copilot.guard';
 import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
 
@@ -53,6 +58,7 @@ export class AiIntelligenceController {
     private readonly leadScore: AiLeadScoreService,
     private readonly summarize: AiSummarizeService,
     private readonly recommendations: AiRecommendationService,
+    private readonly feedbackAnalytics: AiFeedbackAnalyticsService,
   ) {}
 
   /** RNOS-02 — public smoke; records ai_agent_runs when schema ready (RNOS-05). */
@@ -226,6 +232,54 @@ export class AiIntelligenceController {
       actorUserId,
       correlationId: rid,
     });
+  }
+
+  /** RNOS-29 — AI acceptance feedback analytics (G6 KPI). */
+  @Get('analytics/acceptance')
+  @UseGuards(StaffOrInternalKeyGuard)
+  getAcceptanceAnalytics(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('days') days?: string,
+    @Query('recommendation_type') recommendationType?: string,
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<AiAcceptanceMetricsResponse> {
+    return this.feedbackAnalytics.getAcceptanceMetrics(
+      {
+        from,
+        to,
+        days: days ? Number(days) : undefined,
+        recommendation_type: recommendationType,
+      },
+      correlationId?.trim() || requestId?.trim() || undefined,
+    );
+  }
+
+  /** RNOS-29 — feedback inbox for managers (accept/dismiss history). */
+  @Get('recommendations/inbox')
+  @UseGuards(StaffOrInternalKeyGuard)
+  listRecommendationsInbox(
+    @Query('status') status?: RecommendationStatus,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('days') days?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<AiRecommendationInboxResponse> {
+    return this.feedbackAnalytics.listInbox(
+      {
+        status,
+        from,
+        to,
+        days: days ? Number(days) : undefined,
+        limit: limit ? Number(limit) : undefined,
+        offset: offset ? Number(offset) : undefined,
+      },
+      correlationId?.trim() || requestId?.trim() || undefined,
+    );
   }
 
   /** RNOS-07 — list recommendations for entity. */

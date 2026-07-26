@@ -243,7 +243,7 @@
 | 12.2 | [ ] **Line/bar chart** thay `JSON.stringify` | ○ | Chart library |
 | 12.3 | [ ] Alerts list giữ + badge severity màu | ○ | UX polish |
 | 12.4 | [ ] Export staff KPI Excel (giữ + polish UI) | P0-2 | Button rõ ràng |
-| 12.5 | [ ] Widget **AI acceptance rate** (G6) | RNOS-29 | SQL + tile |
+| 12.5 | [x] Widget **AI acceptance rate** (G6) | RNOS-29 | SQL + tile |
 
 **PR title gợi ý:** `RNOS-42: /crm/kpi dashboard v1`
 

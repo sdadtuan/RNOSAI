@@ -20,6 +20,8 @@ import {
   type KpiChartData,
   type KpiMetricRow,
 } from '@/lib/api';
+import { fetchAiAcceptanceMetrics, type AiAcceptanceMetrics } from '@/lib/ai-api';
+import { formatPct } from '@/lib/kpi/format';
 import {
   clearSession,
   getAccessToken,
@@ -41,6 +43,7 @@ export default function CrmKpiPage() {
   const [board, setBoard] = useState<Awaited<ReturnType<typeof fetchKpiBoard>> | null>(null);
   const [chartMetricId, setChartMetricId] = useState('');
   const [chartData, setChartData] = useState<KpiChartData | null>(null);
+  const [aiAcceptance, setAiAcceptance] = useState<AiAcceptanceMetrics | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -83,12 +86,14 @@ export default function CrmKpiPage() {
       setLoading(true);
       setError('');
       try {
-        const [metricRows, boardOut] = await Promise.all([
+        const [metricRows, boardOut, aiMetricsOut] = await Promise.all([
           fetchKpiMetrics(access),
           fetchKpiBoard(access, { year, month }),
+          fetchAiAcceptanceMetrics(access, { days: 7 }).catch(() => null),
         ]);
         setMetrics(metricRows);
         setBoard(boardOut);
+        setAiAcceptance(aiMetricsOut?.data ?? null);
         const nextMetricId = chartMetricId || (metricRows[0] ? String(metricRows[0].id) : '');
         if (!chartMetricId && metricRows[0]) {
           setChartMetricId(String(metricRows[0].id));
@@ -162,6 +167,9 @@ export default function CrmKpiPage() {
 
   const tiles = useMemo((): KpiTileProps[] => {
     const summary = board?.summary ?? { critical: 0, warn: 0 };
+    const rate = aiAcceptance?.acceptance_rate_pct;
+    const aiTone =
+      rate == null ? 'default' : rate >= 35 ? 'success' : rate >= 20 ? 'warning' : 'critical';
     return [
       {
         label: 'Nhân viên có KPI',
@@ -174,6 +182,13 @@ export default function CrmKpiPage() {
         hint: `${metrics.length} metric định nghĩa`,
       },
       {
+        label: 'Tỷ lệ chấp nhận AI',
+        value: rate == null ? '—' : formatPct(rate),
+        hint: `G6 · 7 ngày · ${aiAcceptance?.accepted ?? 0}/${aiAcceptance?.total_resolved ?? 0}`,
+        tone: aiTone,
+        href: '/crm/ai/insights',
+      },
+      {
         label: 'Cảnh báo nghiêm trọng',
         value: String(summary.critical ?? 0),
         tone: (summary.critical ?? 0) > 0 ? 'critical' : 'success',
@@ -184,7 +199,7 @@ export default function CrmKpiPage() {
         tone: (summary.warn ?? 0) > 0 ? 'warning' : 'default',
       },
     ];
-  }, [board, metrics.length, year, month]);
+  }, [board, metrics.length, year, month, aiAcceptance]);
 
   const chartItems = useMemo(() => {
     if (!chartData) return [];

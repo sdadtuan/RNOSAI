@@ -5,6 +5,11 @@ import {
   AiRecommendationRecord,
   RecommendationStatus,
 } from './recommendation.types';
+import type {
+  AcceptanceByTypeRow,
+  AiAcceptanceMetrics,
+  DismissReasonRow,
+} from './feedback-analytics.types';
 
 function mapRow(row: Record<string, unknown>): AiRecommendationRecord {
   return {
@@ -169,5 +174,136 @@ export class AiRecommendationsRepository implements OnModuleDestroy {
     );
     const row = result.rows[0] as Record<string, unknown> | undefined;
     return row ? mapRow(row) : null;
+  }
+
+  async getAcceptanceMetrics(args: {
+    from: string;
+    to: string;
+    recommendationType?: string;
+  }): Promise<Omit<AiAcceptanceMetrics, 'from' | 'to'>> {
+    const params: unknown[] = [args.from, args.to];
+    let typeFilter = '';
+    if (args.recommendationType) {
+      params.push(args.recommendationType);
+      typeFilter = ` AND recommendation_type = $3`;
+    }
+
+    const summaryResult = await this.db.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE status = 'accepted')::int AS accepted,
+         COUNT(*) FILTER (WHERE status = 'dismissed')::int AS dismissed,
+         COUNT(*) FILTER (WHERE status = 'pending')::int AS pending
+       FROM ai_recommendations
+       WHERE created_at >= $1::timestamptz
+         AND created_at <= $2::timestamptz
+         ${typeFilter}`,
+      params,
+    );
+    const summary = summaryResult.rows[0] as {
+      accepted: number;
+      dismissed: number;
+      pending: number;
+    };
+    const accepted = Number(summary.accepted ?? 0);
+    const dismissed = Number(summary.dismissed ?? 0);
+    const pending = Number(summary.pending ?? 0);
+    const totalResolved = accepted + dismissed;
+    const acceptanceRatePct =
+      totalResolved > 0 ? Math.round((accepted / totalResolved) * 1000) / 10 : null;
+
+    const byTypeResult = await this.db.query(
+      `SELECT
+         recommendation_type,
+         COUNT(*) FILTER (WHERE status = 'accepted')::int AS accepted,
+         COUNT(*) FILTER (WHERE status = 'dismissed')::int AS dismissed,
+         COUNT(*) FILTER (WHERE status = 'pending')::int AS pending
+       FROM ai_recommendations
+       WHERE created_at >= $1::timestamptz
+         AND created_at <= $2::timestamptz
+         ${typeFilter}
+       GROUP BY recommendation_type
+       ORDER BY recommendation_type`,
+      params,
+    );
+    const byType: AcceptanceByTypeRow[] = byTypeResult.rows.map((row) => ({
+      recommendation_type: String(row.recommendation_type ?? ''),
+      accepted: Number(row.accepted ?? 0),
+      dismissed: Number(row.dismissed ?? 0),
+      pending: Number(row.pending ?? 0),
+    }));
+
+    const reasonResult = await this.db.query(
+      `SELECT
+         COALESCE(NULLIF(TRIM(dismissed_reason), ''), 'unknown') AS reason,
+         COUNT(*)::int AS count
+       FROM ai_recommendations
+       WHERE status = 'dismissed'
+         AND created_at >= $1::timestamptz
+         AND created_at <= $2::timestamptz
+         ${typeFilter}
+       GROUP BY 1
+       ORDER BY count DESC, reason ASC
+       LIMIT 8`,
+      params,
+    );
+    const topDismissReasons: DismissReasonRow[] = reasonResult.rows.map((row) => ({
+      reason: String(row.reason ?? 'unknown'),
+      count: Number(row.count ?? 0),
+    }));
+
+    return {
+      acceptance_rate_pct: acceptanceRatePct,
+      accepted,
+      dismissed,
+      pending,
+      total_resolved: totalResolved,
+      by_type: byType,
+      top_dismiss_reasons: topDismissReasons,
+    };
+  }
+
+  async listRecent(args: {
+    status?: RecommendationStatus;
+    from: string;
+    to: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ rows: AiRecommendationRecord[]; total: number }> {
+    const limit = Math.min(Math.max(Number(args.limit ?? 50) || 50, 1), 200);
+    const offset = Math.max(Number(args.offset ?? 0) || 0, 0);
+    const params: unknown[] = [args.from, args.to];
+    const where = [
+      'created_at >= $1::timestamptz',
+      'created_at <= $2::timestamptz',
+    ];
+    if (args.status) {
+      params.push(args.status);
+      where.push(`status = $${params.length}`);
+    }
+
+    const whereSql = where.join(' AND ');
+    const countResult = await this.db.query(
+      `SELECT COUNT(*)::int AS n FROM ai_recommendations WHERE ${whereSql}`,
+      params,
+    );
+    const total = Number((countResult.rows[0] as { n: number }).n ?? 0);
+
+    params.push(limit, offset);
+    const listResult = await this.db.query(
+      `SELECT
+         id::text, client_id::text, entity_type, entity_id, recommendation_type,
+         recommendation_text, action_json, confidence, status, dismissed_reason,
+         accepted_by, accepted_at::text, agent_run_id::text,
+         created_at::text, updated_at::text
+       FROM ai_recommendations
+       WHERE ${whereSql}
+       ORDER BY updated_at DESC, created_at DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params,
+    );
+    return {
+      rows: listResult.rows.map((row) => mapRow(row as Record<string, unknown>)),
+      total,
+    };
   }
 }

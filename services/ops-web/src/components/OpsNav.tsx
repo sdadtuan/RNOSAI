@@ -74,6 +74,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/campaign-writes': 'Campaign Write',
   '/crm/sales': 'Kinh doanh',
   '/crm/kpi': 'KPI',
+  '/crm/ai/insights': 'AI Insights',
   '/crm/staff-kpi': 'KPI AM/SP',
   '/crm/staff': 'Nhân viên',
   '/crm/proposals': 'Đề xuất dịch vụ',
@@ -227,6 +228,7 @@ function buildSections(
   }
   if (hasCap(user, 'crm_kpi_records', 'view')) {
     hr.push({ href: '/crm/kpi', label: 'KPI' });
+    hr.push({ href: '/crm/ai/insights', label: 'AI Insights' });
   }
   if (hasCap(user, 'crm_staff_kpi_am_sp', 'view')) {
     hr.push({ href: '/crm/staff-kpi', label: 'KPI AM/SP' });

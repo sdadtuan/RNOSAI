@@ -323,3 +323,108 @@ export async function pollAiScoreUntilReady(
   }
   return null;
 }
+
+export const DISMISS_REASON_PRESETS = [
+  { value: 'wrong_tone', label: 'Sai tone' },
+  { value: 'wrong_fact', label: 'Sai thông tin' },
+  { value: 'not_needed', label: 'Không cần' },
+  { value: 'other', label: 'Khác' },
+] as const;
+
+export interface AiAcceptanceMetrics {
+  acceptance_rate_pct: number | null;
+  accepted: number;
+  dismissed: number;
+  pending: number;
+  total_resolved: number;
+  by_type: Array<{
+    recommendation_type: string;
+    accepted: number;
+    dismissed: number;
+    pending: number;
+  }>;
+  top_dismiss_reasons: Array<{ reason: string; count: number }>;
+  from: string;
+  to: string;
+}
+
+export interface AiAcceptanceMetricsResponse {
+  data: AiAcceptanceMetrics;
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export interface AiRecommendationInboxItem {
+  id: string;
+  entity_type: string;
+  entity_id: string;
+  recommendation_type: string;
+  recommendation_text: string;
+  status: string;
+  dismissed_reason: string | null;
+  accepted_by: string | null;
+  accepted_at: string | null;
+  confidence: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AiRecommendationInboxResponse {
+  data: {
+    recommendations: AiRecommendationInboxItem[];
+    total: number;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export async function fetchAiAcceptanceMetrics(
+  token: string,
+  params?: { from?: string; to?: string; days?: number; recommendation_type?: string },
+): Promise<AiAcceptanceMetricsResponse> {
+  const qs = new URLSearchParams();
+  if (params?.from) qs.set('from', params.from);
+  if (params?.to) qs.set('to', params.to);
+  if (params?.days != null) qs.set('days', String(params.days));
+  if (params?.recommendation_type) qs.set('recommendation_type', params.recommendation_type);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/analytics/acceptance${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<AiAcceptanceMetricsResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch AI acceptance metrics failed', res.status);
+  }
+  return body;
+}
+
+export async function fetchAiRecommendationsInbox(
+  token: string,
+  params?: {
+    status?: RecommendationStatus;
+    from?: string;
+    to?: string;
+    days?: number;
+    limit?: number;
+    offset?: number;
+  },
+): Promise<AiRecommendationInboxResponse> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set('status', params.status);
+  if (params?.from) qs.set('from', params.from);
+  if (params?.to) qs.set('to', params.to);
+  if (params?.days != null) qs.set('days', String(params.days));
+  if (params?.limit != null) qs.set('limit', String(params.limit));
+  if (params?.offset != null) qs.set('offset', String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/recommendations/inbox${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<AiRecommendationInboxResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch AI inbox failed', res.status);
+  }
+  return body;
+}
