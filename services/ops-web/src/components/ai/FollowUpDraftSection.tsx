@@ -34,14 +34,18 @@ export function FollowUpDraftSection({ token, leadId, onError, onActivityCreated
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const resetDraft = useCallback(() => {
+  const clearForm = useCallback(() => {
     setDraftId(null);
     setDraftText('');
     setSubject(null);
     setConfidence(null);
+  }, []);
+
+  const resetDraft = useCallback(() => {
+    clearForm();
     setMessage(null);
     setError(null);
-  }, []);
+  }, [clearForm]);
 
   async function onGenerate() {
     setGenerating(true);
@@ -84,9 +88,9 @@ export function FollowUpDraftSection({ token, leadId, onError, onActivityCreated
         status: 'accepted',
         final_text: draftText.trim(),
       });
+      clearForm();
       setMessage('Đã duyệt — ghi activity note trên timeline. Copy nội dung để gửi thủ công.');
       onActivityCreated?.();
-      resetDraft();
     } catch (err) {
       const msg = formatAiError(err);
       setError(msg);
@@ -105,8 +109,8 @@ export function FollowUpDraftSection({ token, leadId, onError, onActivityCreated
         status: 'dismissed',
         dismiss_reason: 'user_dismissed',
       });
+      clearForm();
       setMessage('Đã bỏ nháp.');
-      resetDraft();
     } catch (err) {
       const msg = formatAiError(err);
       setError(msg);

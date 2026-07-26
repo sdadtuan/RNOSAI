@@ -147,11 +147,11 @@ export class AiRecommendationsRepository implements OnModuleDestroy {
   }): Promise<AiRecommendationRecord | null> {
     const result = await this.db.query(
       `UPDATE ai_recommendations
-       SET status = $2,
+       SET status = $2::varchar,
            recommendation_text = COALESCE($3, recommendation_text),
-           accepted_by = CASE WHEN $2 = 'accepted' THEN $4 ELSE accepted_by END,
-           accepted_at = CASE WHEN $2 = 'accepted' THEN NOW() ELSE accepted_at END,
-           dismissed_reason = CASE WHEN $2 = 'dismissed' THEN $5 ELSE dismissed_reason END,
+           accepted_by = CASE WHEN $2::varchar = 'accepted' THEN $4 ELSE accepted_by END,
+           accepted_at = CASE WHEN $2::varchar = 'accepted' THEN NOW() ELSE accepted_at END,
+           dismissed_reason = CASE WHEN $2::varchar = 'dismissed' THEN $5 ELSE dismissed_reason END,
            updated_at = NOW()
        WHERE id = $1::uuid
        RETURNING

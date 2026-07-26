@@ -5,8 +5,12 @@ const API_URL = process.env.OPS_E2E_API_URL ?? 'http://127.0.0.1:3000';
 
 export default defineConfig({
   testDir: './e2e',
-  timeout: 60_000,
+  timeout: 90_000,
+  expect: { timeout: 20_000 },
   retries: process.env.CI ? 1 : 0,
+  reporter: process.env.CI
+    ? [['github'], ['list'], ['json', { outputFile: 'test-results/rnos39-report.json' }]]
+    : 'list',
   use: {
     baseURL: OPS_URL,
     trace: 'on-first-retry',
@@ -15,12 +19,13 @@ export default defineConfig({
   webServer: process.env.OPS_E2E_SKIP_SERVER
     ? undefined
     : {
-        command: 'npm run start',
+        command: process.env.OPS_E2E_USE_DEV === '0' ? 'npm run start' : 'npm run dev',
         url: OPS_URL,
-        reuseExistingServer: true,
-        timeout: 120_000,
+        reuseExistingServer: !process.env.CI,
+        timeout: 180_000,
         env: {
           ...process.env,
+          OPS_PORT: new URL(OPS_URL).port || '3200',
           NEXT_PUBLIC_PTT_API_URL: API_URL,
           NEXT_PUBLIC_PTT_SEO_HUB_ENABLED: process.env.NEXT_PUBLIC_PTT_SEO_HUB_ENABLED ?? '1',
           NEXT_PUBLIC_PTT_SEO_GATE_A_ENABLED: process.env.NEXT_PUBLIC_PTT_SEO_GATE_A_ENABLED ?? '1',

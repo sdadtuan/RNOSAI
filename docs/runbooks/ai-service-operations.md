@@ -246,8 +246,15 @@ LIMIT 5;
 ### 5.4. E2E automated (RNOS-39)
 
 ```bash
-cd services/ops-web
-OPS_E2E_API_URL=http://127.0.0.1:3000 npx playwright test e2e/ai-copilot.spec.ts
+# Full local gate (bootstrap + API + Playwright + JSON report)
+bash scripts/playwright_ops_ai_copilot_e2e.sh
+# → .local-dev/rnos39-e2e-report.json
+
+# Playwright only (services already up)
+cd services/ops-web && OPS_E2E_SKIP_SERVER=1 npm run test:e2e:ai-copilot
+
+# CI: .github/workflows/rnos39-ai-copilot-e2e.yml
+# Docs: services/ops-web/e2e/README.md
 ```
 
 ### 5.5. RNOS-40 gate & rollback drill
@@ -608,6 +615,9 @@ Target Phase 0: **≥70%**.
 | `./scripts/rnos01_pg_ddl_gate.sh` | RNOS-01 DDL gate JSON |
 | `./scripts/rnos40_gate.sh` | **RNOS-40** gate + rollback drill + UAT smoke |
 | `./scripts/rnos40_rollback_drill.sh` | Rollback drill JSON report |
+| `./scripts/playwright_ops_ai_copilot_e2e.sh` | **RNOS-39** Playwright E2E gate |
+| `./scripts/rnos39_gate.sh` | RNOS-39 full gate report |
+| `services/ops-web/e2e/README.md` | E2E env vars (staging/local) |
 | [`deploy/env.ai.example`](../../deploy/env.ai.example) | Env template |
 | [`deploy/pilot-cohort.example.json`](../../deploy/pilot-cohort.example.json) | Pilot 5–8 users |
 
