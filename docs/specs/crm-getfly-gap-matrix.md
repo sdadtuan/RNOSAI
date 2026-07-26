@@ -266,14 +266,16 @@
 ### 14. `/crm/business-dashboard` — Dashboard kinh doanh
 
 **Getfly:** Executive reports.  
-**RNOS as-is:** ○ **JSON blocks**.
+**RNOS as-is:** ✅ **Dashboard v2** (RNOS-42/46): tiles, 12-week sparkline, attribution drill, trend panels.
 
 | # | PR checklist | Parity | Done when |
 |---|--------------|--------|-----------|
-| 14.1 | [ ] Layout **2×2 cards**: revenue, AR, retention, alerts | ○ | RNOS-42 |
-| 14.2 | [ ] Trend sparkline 12 tuần | ○ | Chart |
-| 14.3 | [ ] Drill ≤3 click → hub → campaign → lead | ○ | Spec §12 |
-| 14.4 | [ ] Không còn `<pre>` JSON làm UI chính | ○ | Reviewer screenshot |
+| 14.1 | [x] Layout **2×2 cards**: revenue, AR, retention, alerts | ○ | RNOS-42 |
+| 14.2 | [x] Trend sparkline 12 tuần | ○ | RNOS-46 |
+| 14.3 | [x] Drill ≤3 click → hub → campaign → lead | ○ | RNOS-46 |
+| 14.4 | [x] Không còn `<pre>` JSON làm UI chính | ○ | RNOS-42 |
+
+**Shipped:** RNOS-42 → RNOS-46 (gate PASS).
 
 ---
 
@@ -421,8 +423,9 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 | **P0** | Gate R1 pilot | `/crm/leads/[id]` copilot prod | R1 |
 | **P0** | RNOS-41 | PWA §22 | P0-1 |
 | **P0** | Import/export | `/crm/leads` §3.1–3.2 | P0-2 |
-| **P1** | RNOS-42 KPI UX | §12–§15 | Dashboard |
-| **P1** | UI-R1-09/10 | §3.7, §23.1 | AI admin + score column |
+| **P1** | RNOS-42 KPI UX | §12, §15 | Dashboard |
+| **P1** | UI-R1-09 | §23.1 AI admin runs | R1 |
+| **P1** | Leads UX | §3.3–3.6 filter chips, tabs, bulk | Getfly F2 |
 | **P2** | RNOS-35 | §23.2–23.3 | Custom field |
 | **P2** | RNOS-24 | §23.5 | Ticket |
 
@@ -455,6 +458,7 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 | Ngày | Phiên bản | Ghi chú |
 |------|-----------|---------|
 | 2026-07-26 | 1.0 | Ma trận ban đầu — as-is ops-web `main` post RNOS-39 |
+| 2026-07-26 | 1.2 | §14 complete — RNOS-46 12-week sparkline + attribution drill |
 
 ---
 

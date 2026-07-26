@@ -3372,3 +3372,56 @@ body:has(.ops-sidebar) main {
   background: rgba(239, 68, 68, 0.14);
   color: #b91c1c;
 }
+
+/* RNOS-46 — Business dashboard executive panel */
+.business-executive-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.business-executive-panel__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.business-executive-panel__trends {
+  margin-top: 0;
+}
+
+.business-executive-panel__drill {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.business-drill-table-wrap {
+  overflow-x: auto;
+}
+
+.business-drill-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.business-drill-table th,
+.business-drill-table td {
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  text-align: left;
+  vertical-align: top;
+}
+
+.business-drill-table th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.business-drill-table__path {
+  white-space: normal;
+}
