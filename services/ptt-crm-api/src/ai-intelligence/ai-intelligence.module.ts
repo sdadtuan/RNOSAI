@@ -25,9 +25,12 @@ import { AiNbaService } from './ai-nba.service';
 import { PipelineRiskService } from './pipeline-risk.service';
 import { AiForecastService } from './ai-forecast.service';
 import { RenewalAgentService } from './renewal-agent.service';
+import { AiChurnHealthService } from './ai-churn-health.service';
 import { RevenueForecastRepository } from './revenue-forecast.repository';
 import { RenewalContractContextRepository } from './renewal-contract-context.repository';
 import { RenewalOpportunitiesRepository } from './renewal-opportunities.repository';
+import { ChurnHealthContextRepository } from './churn-health-context.repository';
+import { CustomerHealthScoresRepository } from './customer-health-scores.repository';
 import { AiPromptsRepository } from './ai-prompts.repository';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiRecommendationsRepository } from './ai-recommendations.repository';
@@ -45,6 +48,7 @@ import { StaffAiForecastCommitGuard } from './guards/staff-ai-forecast-commit.gu
 import { StaffAiForecastViewGuard } from './guards/staff-ai-forecast-view.guard';
 import { StaffAiRenewalViewGuard } from './guards/staff-ai-renewal-view.guard';
 import { StaffAiRenewalWriteGuard } from './guards/staff-ai-renewal-write.guard';
+import { StaffAiChurnHealthViewGuard } from './guards/staff-ai-churn-health-view.guard';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
 
 @Module({
@@ -75,9 +79,12 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     PipelineRiskService,
     AiForecastService,
     RenewalAgentService,
+    AiChurnHealthService,
     RevenueForecastRepository,
     RenewalContractContextRepository,
     RenewalOpportunitiesRepository,
+    ChurnHealthContextRepository,
+    CustomerHealthScoresRepository,
     PlaybooksRepository,
     AiSummarizeService,
     AiRecommendationService,
@@ -98,6 +105,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     StaffAiForecastViewGuard,
     StaffAiRenewalViewGuard,
     StaffAiRenewalWriteGuard,
+    StaffAiChurnHealthViewGuard,
   ],
   exports: [
     AiIntelligenceConfigService,
@@ -113,9 +121,12 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     PipelineRiskService,
     AiForecastService,
     RenewalAgentService,
+    AiChurnHealthService,
     RevenueForecastRepository,
     RenewalContractContextRepository,
     RenewalOpportunitiesRepository,
+    ChurnHealthContextRepository,
+    CustomerHealthScoresRepository,
     AiSummarizeService,
     AiRecommendationService,
     AiFeedbackAnalyticsService,
@@ -132,6 +143,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     StaffAiForecastViewGuard,
     StaffAiRenewalViewGuard,
     StaffAiRenewalWriteGuard,
+    StaffAiChurnHealthViewGuard,
   ],
 })
 export class AiIntelligenceModule {}

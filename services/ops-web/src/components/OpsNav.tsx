@@ -85,6 +85,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/payroll': 'Chấm công & lương',
   '/crm/business-dashboard': 'Dashboard kinh doanh',
   '/crm/forecast': 'Forecast doanh thu',
+  '/crm/health': 'CS Health score',
   '/crm/owner-weekly': 'Báo cáo tuần chủ DN',
   '/crm/financials': 'Tài chính',
   '/admin/crm/custom-fields': 'Custom fields',
@@ -251,6 +252,9 @@ function buildSections(
     finance.push({ href: '/crm/business-dashboard', label: 'Dashboard KD' });
     finance.push({ href: '/crm/forecast', label: 'Forecast' });
     finance.push({ href: '/crm/financials', label: 'Tài chính' });
+  }
+  if (hasCap(user, 'crm_agency', 'view') || hasCap(user, 'crm_board', 'view') || hasCap(user, 'ai_admin', 'view')) {
+    finance.push({ href: '/crm/health', label: 'CS Health' });
   }
   if (hasCap(user, 'crm_owner_weekly_dashboard', 'view')) {
     finance.push({ href: '/crm/owner-weekly', label: 'BC tuần chủ DN' });

@@ -10,6 +10,7 @@ import { AiNbaService } from './ai-nba.service';
 import { PipelineRiskService } from './pipeline-risk.service';
 import { AiForecastService } from './ai-forecast.service';
 import { RenewalAgentService } from './renewal-agent.service';
+import { AiChurnHealthService } from './ai-churn-health.service';
 import { AiSummarizeService } from './ai-summarize.service';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiFeedbackAnalyticsService } from './ai-feedback-analytics.service';
@@ -32,6 +33,11 @@ import {
   RenewalOutcomeResponse,
   RenewalScanResponse,
 } from './renewal.types';
+import {
+  ChurnHealthClientResponse,
+  ChurnHealthDashboardResponse,
+  ChurnScoreResponse,
+} from './churn-health.types';
 import { AiScoresBatchResponse, AiScoresListResponse, ScoreLeadResponse } from './lead-score.types';
 import { SummarizeResponse } from './summarize.types';
 import {
@@ -53,6 +59,7 @@ import { StaffAiForecastCommitGuard } from './guards/staff-ai-forecast-commit.gu
 import { StaffAiForecastViewGuard } from './guards/staff-ai-forecast-view.guard';
 import { StaffAiRenewalViewGuard } from './guards/staff-ai-renewal-view.guard';
 import { StaffAiRenewalWriteGuard } from './guards/staff-ai-renewal-write.guard';
+import { StaffAiChurnHealthViewGuard } from './guards/staff-ai-churn-health-view.guard';
 
 interface ScoreDealBody {
   deal_id: number;
@@ -113,6 +120,7 @@ export class AiIntelligenceController {
     private readonly pipelineRisk: PipelineRiskService,
     private readonly forecast: AiForecastService,
     private readonly renewal: RenewalAgentService,
+    private readonly churnHealth: AiChurnHealthService,
   ) {}
 
   /** RNOS-02 — public smoke; records ai_agent_runs when schema ready (RNOS-05). */
@@ -666,6 +674,67 @@ export class AiIntelligenceController {
         ? 'system'
         : req.staffUser?.sub ?? req.staffUser?.email ?? null;
     return this.renewal.markOutcome(id, body.outcome, actorId, rid);
+  }
+
+  /** RNOS-19 / AI-UC-017 — score churn health per agency client (cron / manual). */
+  @Post('score/churn')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiChurnHealthViewGuard)
+  scoreChurn(
+    @Body() body: { client_id?: string; force?: boolean; limit?: number },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<ChurnScoreResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.churnHealth.scoreChurn({
+      client_id: body?.client_id,
+      force: Boolean(body?.force),
+      limit: body?.limit != null ? Number(body.limit) : undefined,
+      actorId,
+      correlationId: rid,
+    });
+  }
+
+  /** RNOS-19 / UI-R3-04 — CS health dashboard sorted by churn risk. */
+  @Get('health')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiChurnHealthViewGuard)
+  getChurnHealthDashboard(
+    @Query('sort') sort?: string,
+    @Query('order') order?: string,
+    @Query('ticket_spike') ticketSpike?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<ChurnHealthDashboardResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    return this.churnHealth.getDashboard(
+      {
+        sort,
+        order,
+        ticketSpike: ticketSpike === '1' || ticketSpike === 'true',
+        limit: limit ? Number(limit) : undefined,
+        offset: offset ? Number(offset) : undefined,
+      },
+      rid,
+    );
+  }
+
+  /** AI-UC-017 — latest health score for agency client detail tab. */
+  @Get('health/client/:clientId')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiChurnHealthViewGuard)
+  getClientChurnHealth(
+    @Param('clientId') clientId: string,
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<ChurnHealthClientResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    return this.churnHealth.getClientHealth(clientId, rid);
   }
 
   /** Guard wiring check — requires copilot flag + pilot cohort (BR-AI-04 prep). */

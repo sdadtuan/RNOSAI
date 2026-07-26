@@ -952,3 +952,114 @@ export async function postRenewalScan(token: string, windows?: number[]) {
   }
   return body;
 }
+
+export interface ChurnHealthSnapshot {
+  health_score: number;
+  health_band: 'healthy' | 'watch' | 'at_risk' | 'critical';
+  churn_risk_pct: number;
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  ticket_spike: boolean;
+  renewal_recommended: boolean;
+  factors: AiScoreFactor[];
+  signals: {
+    contract_days_until_end: number | null;
+    contract_amount_vnd: number;
+    lifecycle_id: number | null;
+    tickets_open: number;
+    tickets_last_7d: number;
+    tickets_prev_7d: number;
+    ticket_spike: boolean;
+    negative_tickets_open: number;
+    payment_overdue_vnd: number;
+    payment_overdue_count: number;
+  };
+}
+
+export interface ChurnHealthClientView {
+  client_id: string;
+  client_code: string;
+  client_name: string;
+  owner_am_id: string | null;
+  status: string;
+  health: ChurnHealthSnapshot;
+  score_id: string;
+  calculated_at: string;
+}
+
+export interface ChurnHealthDashboardResponse {
+  data: {
+    clients: ChurnHealthClientView[];
+    total: number;
+    filters: { sort: string; order: string; ticket_spike: boolean };
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export interface ChurnHealthClientResponse {
+  data: ChurnHealthClientView | null;
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export interface ChurnScoreResponse {
+  data: {
+    scored: number;
+    skipped: number;
+    scanned: number;
+    agent_run_id: string;
+    scored_at: string;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export async function fetchChurnHealthDashboard(
+  token: string,
+  params?: { sort?: string; order?: string; ticket_spike?: boolean; limit?: number; offset?: number },
+): Promise<ChurnHealthDashboardResponse> {
+  const qs = new URLSearchParams();
+  if (params?.sort) qs.set('sort', params.sort);
+  if (params?.order) qs.set('order', params.order);
+  if (params?.ticket_spike) qs.set('ticket_spike', '1');
+  if (params?.limit != null) qs.set('limit', String(params.limit));
+  if (params?.offset != null) qs.set('offset', String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/health${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<ChurnHealthDashboardResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch churn health dashboard failed', res.status);
+  }
+  return body;
+}
+
+export async function fetchClientChurnHealth(token: string, clientId: string): Promise<ChurnHealthClientResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/health/client/${encodeURIComponent(clientId)}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<ChurnHealthClientResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch client health failed', res.status);
+  }
+  return body;
+}
+
+export async function postChurnScore(
+  token: string,
+  input?: { client_id?: string; force?: boolean; limit?: number },
+): Promise<ChurnScoreResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/score/churn`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(input ?? {}),
+  });
+  const body = await parseJson<ChurnScoreResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Churn score failed', res.status);
+  }
+  return body;
+}

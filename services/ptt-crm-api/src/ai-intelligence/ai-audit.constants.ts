@@ -15,6 +15,7 @@ export const AI_USE_CASE = {
   RENEWAL_SCAN: 'renewal_scan',
   RENEWAL_DRAFT: 'renewal_draft',
   RENEWAL_APPROVE: 'renewal_approve',
+  CHURN_SCORE: 'churn_score',
 } as const;
 
 export type AiUseCase = (typeof AI_USE_CASE)[keyof typeof AI_USE_CASE];

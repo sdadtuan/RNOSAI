@@ -32,7 +32,8 @@
     "test:e2e:customer-timeline": "playwright test e2e/customer-timeline-rnos16.spec.ts",
     "test:e2e:pipeline-risk": "playwright test e2e/pipeline-risk-rnos23.spec.ts",
     "test:e2e:forecast": "playwright test e2e/forecast-rnos17-18.spec.ts",
-    "test:e2e:renewal": "playwright test e2e/renewal-rnos20.spec.ts"
+    "test:e2e:renewal": "playwright test e2e/renewal-rnos20.spec.ts",
+    "test:e2e:churn-health": "playwright test e2e/churn-health-rnos19.spec.ts"
   },
   "engines": {
     "node": ">=22.0.0"

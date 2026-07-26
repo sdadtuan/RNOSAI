@@ -10,6 +10,7 @@ import { OpsNav } from '@/components/OpsNav';
 import { AgencyReadOnlyBadge, canAgencyConfigure, canAgencyWrite } from '@/components/AgencyReadOnlyBadge';
 import { HubCampaignMapsPanel } from '@/components/HubCampaignMapsPanel';
 import { RenewalAgentPanel } from '@/components/ai/RenewalAgentPanel';
+import { ClientHealthPanel } from '@/components/ai/ClientHealthPanel';
 import {
   activateAgencyClient,
   addClientChannelAccount,
@@ -58,7 +59,7 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 
-type TabId = 'overview' | 'onboard' | 'checklist' | 'channels' | 'campaigns' | 'leads' | 'contracts' | 'retain' | 'portal';
+type TabId = 'overview' | 'onboard' | 'checklist' | 'channels' | 'campaigns' | 'leads' | 'contracts' | 'health' | 'retain' | 'portal';
 
 const CLIENT_STATUSES = ['prospect', 'onboarding', 'active', 'paused'] as const;
 
@@ -697,6 +698,7 @@ export function AgencyClientDetailContent() {
                   ['campaigns', 'Campaign map'],
                   ['leads', `Leads (${clientLeads.length})`],
                   ['contracts', `Hợp đồng (${clientContracts.length})`],
+                  ['health', 'Health'],
                   ['retain', 'Retain'],
                   ['portal', 'Portal users'],
                 ] as const
@@ -1340,6 +1342,12 @@ export function AgencyClientDetailContent() {
                     ) : null}
                   </tbody>
                 </table>
+              </div>
+            ) : null}
+
+            {tab === 'health' && accessToken ? (
+              <div style={{ marginTop: '1rem' }}>
+                <ClientHealthPanel token={accessToken} clientId={clientId} />
               </div>
             ) : null}
 

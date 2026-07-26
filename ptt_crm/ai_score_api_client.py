@@ -231,3 +231,58 @@ def renewal_scan_via_api(
     except Exception as exc:
         logger.warning("renewal_scan API failed: %s", exc)
         return {"ok": False, "error": str(exc)}
+
+
+def churn_score_via_api(
+    *,
+    client_id: str | None = None,
+    force: bool = False,
+    limit: int | None = None,
+    correlation_id: str | None = None,
+    timeout_sec: float = 120.0,
+) -> dict[str, Any]:
+    """
+    POST /api/v1/ai/score/churn with internal key (RNOS-19 nightly health scan).
+
+    Returns { ok: True, body: ... } or { ok: False, error: ... }.
+    """
+    key = _internal_key()
+    if not key:
+        return {"ok": False, "error": "missing_internal_key", "skipped": True}
+
+    body: dict[str, Any] = {"force": bool(force)}
+    if client_id:
+        body["client_id"] = client_id
+    if limit is not None:
+        body["limit"] = int(limit)
+
+    headers = {
+        "Content-Type": "application/json",
+        "x-ptt-internal-key": key,
+    }
+    if correlation_id:
+        headers["x-correlation-id"] = correlation_id
+
+    req = urllib.request.Request(
+        f"{_crm_api_base_url()}/api/v1/ai/score/churn",
+        data=json.dumps(body).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+            raw = resp.read().decode("utf-8")
+            parsed = json.loads(raw) if raw else {}
+            return {"ok": True, "status": resp.status, "body": parsed}
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        logger.warning(
+            "churn_score API HTTP %s body=%s",
+            exc.code,
+            detail[:500],
+        )
+        return {"ok": False, "error": f"http_{exc.code}", "detail": detail[:1000]}
+    except Exception as exc:
+        logger.warning("churn_score API failed: %s", exc)
+        return {"ok": False, "error": str(exc)}
