@@ -29,6 +29,7 @@ import { StaffAiAdminGuard } from './guards/staff-ai-admin.guard';
 import { StaffAiDealAccessGuard } from './guards/staff-ai-deal-access.guard';
 import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
 import { StaffAiScoreOverrideGuard } from './guards/staff-ai-score-override.guard';
+import { StaffAiScoresBatchGuard } from './guards/staff-ai-scores-batch.guard';
 
 interface ScoreDealBody {
   deal_id: number;
@@ -269,9 +270,9 @@ export class AiIntelligenceController {
     });
   }
 
-  /** RNOS-04 — poll latest scores for Copilot (ops-web). */
+  /** RNOS-04 / AI-UC-012 — batch scores (lead pilot cohort; deal sales funnel cap). */
   @Get('scores/batch')
-  @UseGuards(StaffOrInternalKeyGuard, StaffAiCopilotGuard, StaffAiLeadAccessGuard)
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiScoresBatchGuard)
   async listScoresBatch(
     @Query('entity_type') entityType: string,
     @Query('entity_ids') entityIdsRaw: string,

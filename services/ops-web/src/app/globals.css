@@ -3638,6 +3638,53 @@ body:has(.ops-sidebar) main {
   margin-top: 0.5rem;
 }
 
+.sales-pipeline-panel__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.sales-pipeline-panel__toolbar .muted {
+  margin: 0;
+}
+
+.sales-pipeline-panel__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--muted, #64748b);
+}
+
+.sales-pipeline-stage-form {
+  margin: 0.75rem 0;
+}
+
+.sales-pipeline-stage-form label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 0.35rem;
+}
+
+.sales-pipeline-stage-form__row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.sales-pipeline-stage-form select {
+  min-width: 160px;
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  color: var(--text);
+}
+
 .sales-pipeline-kanban {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

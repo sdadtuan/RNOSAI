@@ -306,6 +306,12 @@ export default function CrmSalesPage() {
               rows={rows as unknown as PipelineCaseRow[]}
               stages={pipelineStages}
               stageLabels={pipelineLabels}
+              canSortByScore={hasCap(user, 'crm_leads', 'assign')}
+              onRowUpdate={(dealId, patch) => {
+                setRows((prev) =>
+                  prev.map((row) => (Number(row.id) === dealId ? { ...row, ...patch } : row)),
+                );
+              }}
             />
           ) : null
         ) : null}

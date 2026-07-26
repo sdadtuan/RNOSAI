@@ -973,7 +973,13 @@ export async function fetchCaseDetail(token: string, id: number): Promise<CaseDe
 export async function patchCase(
   token: string,
   id: number,
-  body: Partial<{ title: string; status: string; priority: string; assigned_staff_id: number | null }>,
+  body: Partial<{
+    title: string;
+    status: string;
+    priority: string;
+    assigned_staff_id: number | null;
+    pipeline_stage: string;
+  }>,
 ): Promise<CaseRow> {
   return crmFetch<CaseRow>(token, `/api/crm/cases/${id}`, {
     method: 'PATCH',
