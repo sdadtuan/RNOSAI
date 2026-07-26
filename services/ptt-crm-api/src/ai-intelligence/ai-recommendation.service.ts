@@ -182,7 +182,13 @@ export class AiRecommendationService {
     let activityId: number | undefined;
     let caseEventId: number | undefined;
     if (status === 'accepted' && rec.recommendation_type === 'nba') {
-      caseEventId = (await this.nba.executeNbaAccept(id, input.actorName ?? input.actorId ?? 'staff')) ?? undefined;
+      const eventOrActivityId =
+        (await this.nba.executeNbaAccept(id, input.actorName ?? input.actorId ?? 'staff')) ?? undefined;
+      if (rec.entity_type === 'lead') {
+        activityId = eventOrActivityId;
+      } else {
+        caseEventId = eventOrActivityId;
+      }
     } else if (status === 'accepted' && rec.entity_type === 'lead') {
       activityId = await this.createAcceptedActivity(rec, finalText, input);
     }

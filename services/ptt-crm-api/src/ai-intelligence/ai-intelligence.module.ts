@@ -1,4 +1,6 @@
+import { ConfigModule } from '../config/config.module';
 import { Module, forwardRef } from '@nestjs/common';
+import { PlaybooksRepository } from '../playbooks/playbooks.repository';
 import { CasesModule } from '../cases/cases.module';
 import { CrmConfigModule } from '../crm-config/crm-config.module';
 import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.module';
@@ -35,6 +37,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
 @Module({
   imports: [
     StaffAuthModule,
+    ConfigModule,
     CustomerTimelineModule,
     EventsModule,
     LeadsModule,
@@ -54,6 +57,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     AiLeadScoreService,
     AiDealScoreService,
     AiNbaService,
+    PlaybooksRepository,
     AiSummarizeService,
     AiRecommendationService,
     AiFeedbackAnalyticsService,

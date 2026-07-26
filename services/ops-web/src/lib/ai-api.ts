@@ -249,7 +249,10 @@ export interface ScoreDealResponse {
 export interface NextBestActionResponse {
   data: {
     recommendation_id: string;
-    deal_id: number;
+    entity_type?: 'lead' | 'deal';
+    entity_id?: number;
+    deal_id?: number;
+    lead_id?: number;
     action: string;
     action_label: string;
     reason: string;
@@ -257,6 +260,13 @@ export interface NextBestActionResponse {
     status: string;
     recommendation_text: string;
     agent_run_id: string;
+    playbook_citation?: {
+      playbook_id: string;
+      playbook_title: string;
+      chunk_id: string;
+      chunk_title: string;
+      excerpt: string;
+    } | null;
   };
   meta: { request_id: string };
   errors: unknown[];
@@ -281,13 +291,20 @@ export async function postAiScoreDeal(
 
 export async function postAiNextBestAction(
   token: string,
-  dealId: number,
-  force = false,
+  input: { deal_id?: number; lead_id?: number; entity_type?: 'lead' | 'deal'; force?: boolean },
 ): Promise<NextBestActionResponse> {
+  const entityType = input.entity_type ?? (input.deal_id != null ? 'deal' : 'lead');
+  const entityId = input.deal_id ?? input.lead_id;
   const res = await fetch(`${API_BASE}/api/v1/ai/next-best-action`, {
     method: 'POST',
     headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ deal_id: dealId, entity_type: 'deal', entity_id: dealId, force }),
+    body: JSON.stringify({
+      deal_id: input.deal_id,
+      lead_id: input.lead_id,
+      entity_type: entityType,
+      entity_id: entityId,
+      force: input.force ?? false,
+    }),
   });
   const body = await parseJson<NextBestActionResponse & { error?: string; message?: string }>(res);
   if (!res.ok) {

@@ -15,6 +15,7 @@ import { AiFeatureGate } from './AiFeatureGate';
 import { ConfidenceBanner } from './ConfidenceBanner';
 import { LeadBriefSection } from './LeadBriefSection';
 import { ScoreCard } from './ScoreCard';
+import { LeadNbaSection } from './LeadNbaSection';
 import { SummarizeSection } from './SummarizeSection';
 import { FollowUpDraftSection } from './FollowUpDraftSection';
 
@@ -126,6 +127,14 @@ export function LeadCopilotPanel({
               setScorePending(false);
             }}
             onError={onCopilotError}
+          />
+
+          <LeadNbaSection
+            token={token}
+            leadId={leadId}
+            scoreReady={!scorePending && !scoreError}
+            onError={onCopilotError}
+            onActivityCreated={onActivityCreated}
           />
 
           <LeadBriefSection token={token} leadId={leadId} onError={onCopilotError} />

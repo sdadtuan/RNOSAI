@@ -284,3 +284,63 @@ test.describe('AI-UC-006 — GDKD override score (UI-R1-08)', () => {
     await expect(scoreSection.getByText(/Đã lưu điều chỉnh GDKD/i)).toBeVisible();
   });
 });
+
+test.describe('AI-UC-011 — NBA on lead copilot (UI-R2-01)', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  test('API — lead NBA with force + dismiss reason', async ({ request }) => {
+    test.skip(!(await apiReachable(request)), 'Nest AI API not reachable');
+
+    const leadId = await resolveLeadId(request);
+    await ensureLeadScored(request, leadId);
+    const token = await staffToken(request);
+
+    const nba = await request.post(`${API_URL}/api/v1/ai/next-best-action`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: { lead_id: leadId, entity_type: 'lead', entity_id: leadId, force: true },
+    });
+    expect(nba.ok(), `lead nba: ${nba.status()} ${await nba.text()}`).toBeTruthy();
+    const nbaBody = (await nba.json()) as {
+      data?: { recommendation_id?: string; entity_type?: string; action_label?: string };
+    };
+    expect(nbaBody.data?.entity_type).toBe('lead');
+    expect(nbaBody.data?.recommendation_id).toBeTruthy();
+
+    const dismiss = await request.patch(
+      `${API_URL}/api/v1/ai/recommendations/${nbaBody.data!.recommendation_id}`,
+      {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        data: { status: 'dismissed', dismiss_reason: 'not_needed' },
+      },
+    );
+    expect(dismiss.ok(), `dismiss nba: ${dismiss.status()}`).toBeTruthy();
+  });
+
+  test('UI — NBA card dismiss modal on copilot', async ({ page, request }) => {
+    test.skip(!(await apiReachable(request)), 'Nest AI API not reachable');
+
+    const leadId = await resolveLeadId(request);
+    await ensureLeadScored(request, leadId);
+    const token = await staffToken(request);
+
+    await request.post(`${API_URL}/api/v1/ai/next-best-action`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: { lead_id: leadId, entity_type: 'lead', entity_id: leadId, force: true },
+    });
+
+    await loginAsStaff(page);
+    await page.goto(`/crm/leads/${leadId}`);
+    await expect(copilotPanel(page)).toBeVisible({ timeout: 20_000 });
+    await waitForScoreCard(page);
+
+    const nbaCard = copilotPanel(page).locator('.nba-card');
+    await expect(nbaCard).toBeVisible({ timeout: 20_000 });
+    await expect(nbaCard.locator('.nba-card__playbook-link')).toBeVisible();
+
+    await nbaCard.getByRole('button', { name: 'Bỏ' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Lý do bỏ gợi ý' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Xác nhận bỏ' }).click();
+    await expect(nbaCard).toHaveCount(0, { timeout: 15_000 });
+  });
+});

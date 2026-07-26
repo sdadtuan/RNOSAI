@@ -52,6 +52,7 @@ export interface NextBestActionRequest {
   entity_type?: string;
   entity_id?: string | number;
   deal_id?: number;
+  lead_id?: number;
   force?: boolean;
   actorId?: string | null;
   correlationId?: string;
@@ -60,7 +61,10 @@ export interface NextBestActionRequest {
 export interface NextBestActionResponse {
   data: {
     recommendation_id: string;
-    deal_id: number;
+    entity_type: 'lead' | 'deal';
+    entity_id: number;
+    deal_id?: number;
+    lead_id?: number;
     action: string;
     action_label: string;
     reason: string;
@@ -68,6 +72,13 @@ export interface NextBestActionResponse {
     status: string;
     recommendation_text: string;
     agent_run_id: string;
+    playbook_citation?: {
+      playbook_id: string;
+      playbook_title: string;
+      chunk_id: string;
+      chunk_title: string;
+      excerpt: string;
+    } | null;
   };
   meta: { request_id: string };
   errors: [];

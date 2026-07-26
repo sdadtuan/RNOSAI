@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DealScoreMiniBar } from '@/components/ai/DealScoreMiniBar';
+import { DismissReasonModal } from '@/components/ai/DismissReasonModal';
 import { NbaCard } from '@/components/ai/NbaCard';
 import { ScoreCard } from '@/components/ai/ScoreCard';
 import {
@@ -38,6 +39,7 @@ export function SalesPipelineFunnelPanel({ token, rows, stageLabels, stages }: P
   const [nba, setNba] = useState<NextBestActionResponse['data'] | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [showDismiss, setShowDismiss] = useState(false);
 
   const selected = useMemo(() => rows.find((r) => r.id === selectedId) ?? null, [rows, selectedId]);
 
@@ -81,6 +83,8 @@ export function SalesPipelineFunnelPanel({ token, rows, stageLabels, stages }: P
         if (pendingNba) {
           setNba({
             recommendation_id: String(pendingNba.id),
+            entity_type: 'deal',
+            entity_id: dealId,
             deal_id: dealId,
             action: String((pendingNba.action_json as Record<string, unknown>)?.action ?? 'call_back'),
             action_label: String((pendingNba.action_json as Record<string, unknown>)?.action_label ?? 'Gọi lại'),
@@ -89,10 +93,11 @@ export function SalesPipelineFunnelPanel({ token, rows, stageLabels, stages }: P
             status: String(pendingNba.status ?? 'pending'),
             recommendation_text: String(pendingNba.recommendation_text ?? ''),
             agent_run_id: String(pendingNba.agent_run_id ?? ''),
+            playbook_citation: null,
           });
         } else {
           try {
-            const nbaOut = await postAiNextBestAction(token, dealId);
+            const nbaOut = await postAiNextBestAction(token, { deal_id: dealId, entity_type: 'deal' });
             setNba(nbaOut.data);
           } catch {
             /* not stalled — no NBA */
@@ -122,14 +127,15 @@ export function SalesPipelineFunnelPanel({ token, rows, stageLabels, stages }: P
     }
   };
 
-  const dismissNba = async () => {
+  const dismissNba = async (reason: string) => {
     if (!nba) return;
     setBusy(true);
     try {
       await patchAiRecommendation(token, nba.recommendation_id, {
         status: 'dismissed',
-        dismiss_reason: 'not_relevant',
+        dismiss_reason: reason,
       });
+      setShowDismiss(false);
       setNba(null);
       setMessage('Đã bỏ gợi ý NBA.');
     } catch (e) {
@@ -186,10 +192,17 @@ export function SalesPipelineFunnelPanel({ token, rows, stageLabels, stages }: P
               reason={nba.reason}
               confidence={nba.confidence}
               loading={busy}
+              playbookCitation={nba.playbook_citation}
               onAccept={() => void acceptNba()}
-              onDismiss={() => void dismissNba()}
+              onDismiss={() => setShowDismiss(true)}
             />
           ) : null}
+          <DismissReasonModal
+            open={showDismiss}
+            busy={busy}
+            onCancel={() => setShowDismiss(false)}
+            onConfirm={(reason) => void dismissNba(reason)}
+          />
         </div>
       ) : null}
     </div>

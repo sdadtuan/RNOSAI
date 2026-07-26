@@ -227,6 +227,24 @@ export class CrmLeadsSqliteRepository implements OnModuleDestroy {
     return Number.isNaN(d.getTime()) ? null : d;
   }
 
+  getLastStaffActivityAt(leadId: number): Date | null {
+    if (!this.leadExists(leadId)) {
+      return null;
+    }
+    const row = this.database
+      .prepare(
+        `SELECT MAX(created_at) AS last_at
+         FROM crm_lead_activities
+         WHERE lead_id = ? AND activity_type != 'system'`,
+      )
+      .get(leadId) as { last_at?: string } | undefined;
+    if (!row?.last_at) {
+      return null;
+    }
+    const d = new Date(String(row.last_at));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
   firstCallAtByLeadIds(leadIds: number[]): Map<number, string> {
     const out = new Map<number, string>();
     if (!leadIds.length) return out;

@@ -37,6 +37,7 @@ interface ScoreDealBody {
 
 interface NextBestActionBody {
   deal_id?: number;
+  lead_id?: number;
   entity_type?: string;
   entity_id?: string | number;
   force?: boolean;
@@ -215,9 +216,9 @@ export class AiIntelligenceController {
     });
   }
 
-  /** RNOS-10 — next best action for stalled deal (AI-UC-011). */
+  /** RNOS-10 / AI-UC-011 — next best action for stalled deal or lead. */
   @Post('next-best-action')
-  @UseGuards(StaffOrInternalKeyGuard, StaffAiDealAccessGuard)
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiLeadAccessGuard)
   nextBestAction(
     @Body() body: NextBestActionBody,
     @Req()
@@ -230,10 +231,12 @@ export class AiIntelligenceController {
       req.staffAuthVia === 'internal'
         ? 'system'
         : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    const entityType = String(body.entity_type ?? (body.deal_id ? 'deal' : 'lead')).trim() || 'lead';
     return this.nba.suggestNextBestAction({
-      deal_id: body.deal_id ?? Number(body.entity_id),
-      entity_type: body.entity_type,
-      entity_id: body.entity_id,
+      deal_id: body.deal_id != null ? Number(body.deal_id) : undefined,
+      lead_id: body.lead_id != null ? Number(body.lead_id) : undefined,
+      entity_type: entityType,
+      entity_id: body.entity_id ?? body.lead_id ?? body.deal_id,
       force: Boolean(body.force),
       actorId,
       correlationId: rid,

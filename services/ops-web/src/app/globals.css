@@ -3755,6 +3755,36 @@ body:has(.ops-sidebar) main {
   font-size: 0.88rem;
 }
 
+.nba-card__playbook {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.nba-card__playbook-label {
+  margin: 0 0 0.25rem;
+  font-size: 0.75rem;
+}
+
+.nba-card__playbook-excerpt {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.nba-card__playbook-link {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--link, #2563eb);
+  text-decoration: none;
+}
+
+.nba-card__playbook-link:hover {
+  text-decoration: underline;
+}
+
 .nba-card__actions {
   display: flex;
   gap: 0.5rem;
