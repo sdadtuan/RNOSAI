@@ -2452,3 +2452,38 @@ body:has(.ops-sidebar) main {
   margin: 0;
 }
 
+.ai-followup-hint {
+  font-size: 0.82rem;
+  margin: 0 0 0.65rem;
+}
+
+.ai-followup-channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.ai-followup-draft {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ai-followup-subject {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.ai-followup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ai-followup-message {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: var(--success, #2e7d4f);
+}
+

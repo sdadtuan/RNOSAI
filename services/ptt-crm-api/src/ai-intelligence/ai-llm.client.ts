@@ -4,6 +4,8 @@ import { AiIntelligenceConfigService } from './ai-intelligence.config';
 import { AiTokenUsage } from './ai-intelligence.types';
 import { SummarizeContext } from './summarize.types';
 import { validateSummarizeOutput } from './summarize.schema';
+import { validateFollowUpDraftOutput, FollowUpDraftEngineResult } from './follow-up-draft.schema';
+import { FollowUpChannelHint } from './recommendation.types';
 
 export interface LlmSummarizeInput {
   context: SummarizeContext;
@@ -14,6 +16,20 @@ export interface LlmSummarizeInput {
 
 export interface LlmSummarizeResult {
   parsed: ReturnType<typeof validateSummarizeOutput>;
+  tokenUsage: AiTokenUsage;
+  modelName: string;
+  stubMode: boolean;
+}
+
+export interface LlmFollowUpDraftInput {
+  channelHint: FollowUpChannelHint;
+  systemPrompt: string;
+  userContent: string;
+  model?: string;
+}
+
+export interface LlmFollowUpDraftResult {
+  parsed: FollowUpDraftEngineResult;
   tokenUsage: AiTokenUsage;
   modelName: string;
   stubMode: boolean;
@@ -47,6 +63,50 @@ export class AiLlmClient {
       });
       return {
         parsed: validateSummarizeOutput(raw, input.context),
+        tokenUsage: raw.tokenUsage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        modelName: model,
+        stubMode: false,
+      };
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new ServiceUnavailableException({
+          error: 'llm_timeout',
+          error_code: AI_AUDIT_ERROR.LLM_TIMEOUT,
+          message: 'LLM timeout',
+        });
+      }
+      throw new ServiceUnavailableException({
+        error: 'llm_provider_error',
+        error_code: AI_AUDIT_ERROR.LLM_PROVIDER_ERROR,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  async followUpDraftStructured(input: LlmFollowUpDraftInput): Promise<LlmFollowUpDraftResult> {
+    const apiKey = this.aiConfig.llmApiKey;
+    const model = input.model ?? this.aiConfig.llmModel;
+
+    if (!apiKey) {
+      const stubRaw = this.buildFollowUpStub(input.channelHint, input.userContent);
+      return {
+        parsed: validateFollowUpDraftOutput(stubRaw),
+        tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        modelName: `${model}-stub`,
+        stubMode: true,
+      };
+    }
+
+    try {
+      const raw = await this.callOpenAiChat({
+        apiKey,
+        model,
+        systemPrompt: input.systemPrompt,
+        userContent: input.userContent,
+        timeoutMs: this.aiConfig.llmTimeoutMs,
+      });
+      return {
+        parsed: validateFollowUpDraftOutput(raw),
         tokenUsage: raw.tokenUsage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
         modelName: model,
         stubMode: false,
@@ -164,6 +224,25 @@ export class AiLlmClient {
         budget_vnd: null,
       },
       confidence: 0.6,
+    };
+  }
+
+  private buildFollowUpStub(channel: FollowUpChannelHint, userContent: string): Record<string, unknown> {
+    const preview = userContent.replace(/\s+/g, ' ').trim().slice(0, 120);
+    const greeting =
+      channel === 'email'
+        ? 'Chào anh/chị,'
+        : channel === 'zalo'
+          ? 'Chào anh/chị, em là nhân viên tư vấn PTT.'
+          : 'Ghi chú nội bộ — follow-up:';
+    const body =
+      channel === 'note'
+        ? `Cần gọi lại khách${preview ? `: ${preview}` : ''}. Xác nhận lịch hẹn và gửi báo giá nếu khách yêu cầu.`
+        : `${greeting}\n\nEm xin phép gửi thông tin follow-up${preview ? ` liên quan ${preview}` : ''}. Anh/chị cho em xin thêm thời gian phù hợp để trao đổi chi tiết ạ.\n\nTrân trọng.`;
+    return {
+      draft_text: body,
+      subject: channel === 'email' ? 'Follow-up — PTT tư vấn' : null,
+      confidence: 0.62,
     };
   }
 }

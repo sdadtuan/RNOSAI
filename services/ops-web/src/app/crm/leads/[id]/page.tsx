@@ -598,6 +598,10 @@ export default function CrmLeadDetailPage() {
               selectedActivityId={selectedActivityId}
               onSelectActivity={setSelectedActivityId}
               onCopilotError={setCopilotMessage}
+              onActivityCreated={() => {
+                const access = getAccessToken();
+                if (access) void reloadTimeline(access);
+              }}
               variant="column"
             />
           ) : null}
@@ -620,6 +624,10 @@ export default function CrmLeadDetailPage() {
             selectedActivityId={selectedActivityId}
             onSelectActivity={setSelectedActivityId}
             onCopilotError={setCopilotMessage}
+            onActivityCreated={() => {
+              const access = getAccessToken();
+              if (access) void reloadTimeline(access);
+            }}
             variant="drawer"
             onCloseDrawer={() => setCopilotDrawerOpen(false)}
           />

@@ -9,6 +9,7 @@ import { Request } from 'express';
 import { LeadsRepository } from '../../leads/leads.repository';
 import { StaffAuthService } from '../../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
+import { AiRecommendationsRepository } from '../ai-recommendations.repository';
 
 /** BR-AI-04 — CSKH chỉ score lead của mình; GDKD (assign cap) hoặc internal bypass. */
 @Injectable()
@@ -16,6 +17,7 @@ export class StaffAiLeadAccessGuard implements CanActivate {
   constructor(
     private readonly leads: LeadsRepository,
     private readonly staffAuth: StaffAuthService,
+    private readonly recommendations: AiRecommendationsRepository,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -23,8 +25,9 @@ export class StaffAiLeadAccessGuard implements CanActivate {
       Request & {
         staffUser?: StaffJwtPayload;
         staffAuthVia?: 'internal' | 'jwt';
-        body?: { lead_id?: number | string; entity_id?: number | string; entity_type?: string; context?: string; text?: string };
-        query?: { entity_id?: string };
+        body?: { lead_id?: number | string; entity_id?: number | string; entity_type?: string; context?: string; text?: string; type?: string };
+        query?: { entity_id?: string; entity_type?: string };
+        params?: { id?: string };
       }
     >();
 
@@ -36,10 +39,14 @@ export class StaffAiLeadAccessGuard implements CanActivate {
       throw new UnauthorizedException({ error: 'Unauthorized' });
     }
 
-    const leadId = this.resolveLeadId(req);
+    const leadId = await this.resolveLeadId(req);
     if (!leadId) {
       const body = req.body;
       const ctx = String(body?.context ?? 'activity').toLowerCase();
+      const recType = String(body?.type ?? '').trim();
+      if (recType === 'follow_up_draft') {
+        throw new ForbiddenException({ error: 'lead_id_required' });
+      }
       if (ctx !== 'lead_brief' && body?.text?.trim()) {
         return true;
       }
@@ -68,10 +75,11 @@ export class StaffAiLeadAccessGuard implements CanActivate {
     });
   }
 
-  private resolveLeadId(req: {
-    body?: { lead_id?: number | string; entity_id?: number | string; entity_type?: string };
+  private async resolveLeadId(req: {
+    body?: { lead_id?: number | string; entity_id?: number | string; entity_type?: string; type?: string };
     query?: { entity_id?: string; entity_type?: string };
-  }): number | null {
+    params?: { id?: string };
+  }): Promise<number | null> {
     const fromBody = Number(req.body?.lead_id ?? 0);
     if (fromBody > 0) {
       return fromBody;
@@ -87,6 +95,18 @@ export class StaffAiLeadAccessGuard implements CanActivate {
         return fromQuery;
       }
     }
+
+    const recId = req.params?.id?.trim();
+    if (recId) {
+      const rec = await this.recommendations.findById(recId);
+      if (rec?.entity_type === 'lead') {
+        const leadId = Number(rec.entity_id);
+        if (Number.isFinite(leadId) && leadId > 0) {
+          return leadId;
+        }
+      }
+    }
+
     return null;
   }
 }

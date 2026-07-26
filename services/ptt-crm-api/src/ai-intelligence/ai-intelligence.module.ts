@@ -10,6 +10,8 @@ import { AiAuditService } from './ai-audit.service';
 import { AiExecutionService } from './ai-execution.service';
 import { AiLeadScoreService } from './ai-lead-score.service';
 import { AiSummarizeService } from './ai-summarize.service';
+import { AiRecommendationService } from './ai-recommendation.service';
+import { AiRecommendationsRepository } from './ai-recommendations.repository';
 import { AiScoresRepository } from './ai-scores.repository';
 import { AiIntelligenceConfigService } from './ai-intelligence.config';
 import { AiIntelligenceController } from './ai-intelligence.controller';
@@ -39,6 +41,8 @@ import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
     LeadScoreContextRepository,
     AiLeadScoreService,
     AiSummarizeService,
+    AiRecommendationService,
+    AiRecommendationsRepository,
     AiLlmClient,
     AiPromptsRepository,
     AiSummarizeRateLimitService,
@@ -55,6 +59,8 @@ import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
     AiScoresRepository,
     AiLeadScoreService,
     AiSummarizeService,
+    AiRecommendationService,
+    AiRecommendationsRepository,
     AiExecutionService,
     AiIntelligenceService,
     StaffAiCopilotGuard,

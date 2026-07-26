@@ -73,6 +73,46 @@ export interface AiSummarizeResponse {
 
 export type SummarizeContext = 'lead_brief' | 'activity';
 
+export type FollowUpChannelHint = 'zalo' | 'email' | 'note';
+
+export type RecommendationStatus = 'pending' | 'accepted' | 'dismissed' | 'executed' | 'expired';
+
+export interface AiRecommendationResponse {
+  data: {
+    id: string;
+    recommendation_type: string;
+    entity_type: string;
+    entity_id: string;
+    text: string;
+    channel_hint: FollowUpChannelHint;
+    subject?: string | null;
+    confidence: number;
+    status: RecommendationStatus;
+    agent_run_id: string;
+    stub_mode: boolean;
+    activity_id?: number;
+  };
+  meta: { request_id: string; latency_ms?: number };
+  errors: unknown[];
+}
+
+export interface AiRecommendationListResponse {
+  data: {
+    entity_type: string;
+    entity_id: string;
+    recommendations: Array<{
+      id: string;
+      recommendation_text: string;
+      status: RecommendationStatus;
+      action_json?: { channel_hint?: FollowUpChannelHint; subject?: string | null };
+      confidence: number | null;
+      created_at: string;
+    }>;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
 export async function fetchAiHealth(token?: string): Promise<AiHealthData> {
   const headers: HeadersInit = token ? authHeaders(token) : {};
   const res = await fetch(`${API_BASE}/api/v1/ai/health`, { headers, cache: 'no-store' });
@@ -133,6 +173,82 @@ export async function postAiSummarize(
       body.error ??
       (typeof body === 'object' && body && 'error' in body ? String(body.error) : 'Summarize failed');
     throw new ApiError(msg, res.status);
+  }
+  return body;
+}
+
+export async function postAiRecommendation(
+  token: string,
+  input: {
+    type?: string;
+    entity_type?: string;
+    entity_id?: string | number;
+    channel_hint?: FollowUpChannelHint;
+    context_text?: string;
+  },
+): Promise<AiRecommendationResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/recommendation`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: input.type ?? 'follow_up_draft',
+      entity_type: input.entity_type ?? 'lead',
+      entity_id: input.entity_id != null ? String(input.entity_id) : undefined,
+      channel_hint: input.channel_hint,
+      context_text: input.context_text,
+    }),
+  });
+  const body = await parseJson<
+    AiRecommendationResponse & { error?: string; message?: string }
+  >(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Recommendation failed', res.status);
+  }
+  return body;
+}
+
+export async function patchAiRecommendation(
+  token: string,
+  id: string,
+  input: {
+    status: 'accepted' | 'dismissed';
+    final_text?: string;
+    dismiss_reason?: string;
+  },
+): Promise<AiRecommendationResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/recommendations/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const body = await parseJson<
+    AiRecommendationResponse & { error?: string; message?: string }
+  >(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Patch recommendation failed', res.status);
+  }
+  return body;
+}
+
+export async function fetchAiRecommendations(
+  token: string,
+  entityType: string,
+  entityId: string | number,
+  opts?: { status?: RecommendationStatus; limit?: number },
+): Promise<AiRecommendationListResponse> {
+  const qs = new URLSearchParams({
+    entity_type: entityType,
+    entity_id: String(entityId),
+  });
+  if (opts?.status) qs.set('status', opts.status);
+  if (opts?.limit) qs.set('limit', String(opts.limit));
+  const res = await fetch(`${API_BASE}/api/v1/ai/recommendations?${qs.toString()}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<AiRecommendationListResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Fetch recommendations failed', res.status);
   }
   return body;
 }

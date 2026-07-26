@@ -15,6 +15,7 @@ import { ConfidenceBanner } from './ConfidenceBanner';
 import { LeadBriefSection } from './LeadBriefSection';
 import { ScoreCard } from './ScoreCard';
 import { SummarizeSection } from './SummarizeSection';
+import { FollowUpDraftSection } from './FollowUpDraftSection';
 
 interface Props {
   token: string;
@@ -25,6 +26,7 @@ interface Props {
   selectedActivityId?: number | null;
   onSelectActivity?: (id: number | null) => void;
   onCopilotError?: (msg: string) => void;
+  onActivityCreated?: () => void;
   variant?: 'column' | 'drawer';
   onCloseDrawer?: () => void;
 }
@@ -38,6 +40,7 @@ export function LeadCopilotPanel({
   selectedActivityId,
   onSelectActivity,
   onCopilotError,
+  onActivityCreated,
   variant = 'column',
   onCloseDrawer,
 }: Props) {
@@ -125,6 +128,13 @@ export function LeadCopilotPanel({
             selectedActivityId={selectedActivityId}
             onSelectActivity={onSelectActivity}
             onError={onCopilotError}
+          />
+
+          <FollowUpDraftSection
+            token={token}
+            leadId={leadId}
+            onError={onCopilotError}
+            onActivityCreated={onActivityCreated}
           />
 
           <footer className="ai-copilot-panel__footer muted">

@@ -205,8 +205,77 @@ test.describe('RNOS-39 AI Copilot E2E', () => {
 });
 
 test.describe('RNOS-39 follow-up draft (RNOS-07)', () => {
-  test.skip(true, 'Follow-up draft + Duyệt ships in RNOS-07 — extend flow when API/UI land');
-  test('draft generate → edit → approve without outbound send', async () => {
-    // Placeholder for pilot step 6–7 after RNOS-07.
+  test.describe.configure({ mode: 'serial' });
+
+  test('API — generate, list, accept creates activity note', async ({ request }) => {
+    test.skip(!(await apiReachable(request)), 'Nest AI API not reachable');
+
+    const leadId = await resolveLeadId(request);
+    const token = await staffToken(request);
+
+    const draft = await request.post(`${API_URL}/api/v1/ai/recommendation`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: {
+        type: 'follow_up_draft',
+        entity_type: 'lead',
+        entity_id: String(leadId),
+        channel_hint: 'zalo',
+      },
+    });
+    expect(draft.ok(), `follow_up_draft: ${draft.status()} ${await draft.text()}`).toBeTruthy();
+    const draftBody = (await draft.json()) as {
+      data?: { id?: string; text?: string; status?: string };
+    };
+    expect(draftBody.data?.status).toBe('pending');
+    expect(draftBody.data?.text?.length).toBeGreaterThan(10);
+
+    const list = await request.get(
+      `${API_URL}/api/v1/ai/recommendations?entity_type=lead&entity_id=${leadId}&status=pending&limit=5`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    expect(list.ok()).toBeTruthy();
+
+    const accept = await request.patch(
+      `${API_URL}/api/v1/ai/recommendations/${draftBody.data!.id}`,
+      {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        data: {
+          status: 'accepted',
+          final_text: draftBody.data!.text,
+        },
+      },
+    );
+    expect(accept.ok(), `accept draft: ${accept.status()}`).toBeTruthy();
+    const acceptBody = (await accept.json()) as { data?: { status?: string; activity_id?: number } };
+    expect(acceptBody.data?.status).toBe('accepted');
+    expect(acceptBody.data?.activity_id).toBeGreaterThan(0);
+  });
+
+  test('draft generate → edit → approve without outbound send', async ({ page, request }) => {
+    test.skip(!(await apiReachable(request)), 'Nest AI API not reachable');
+
+    const leadId = await resolveLeadId(request);
+    await ensureLeadScored(request, leadId);
+
+    await loginAsStaff(page);
+    await page.goto(`/crm/leads/${leadId}`);
+
+    const copilot = copilotPanel(page);
+    await expect(copilot).toBeVisible({ timeout: 20_000 });
+
+    const followUp = copilot.getByRole('region', { name: 'Soạn follow-up' });
+    await followUp.getByRole('radio', { name: 'Zalo' }).check();
+    await followUp.getByRole('button', { name: 'Soạn nháp' }).click();
+    await expect(followUp.locator('textarea[aria-label="Nội dung nháp follow-up"]')).toBeVisible({
+      timeout: 20_000,
+    });
+
+    const textarea = followUp.locator('textarea[aria-label="Nội dung nháp follow-up"]');
+    await textarea.fill(`${await textarea.inputValue()}\n\nEm xin phép follow-up thêm thông tin ạ.`);
+
+    await followUp.getByRole('button', { name: 'Duyệt', exact: true }).click();
+    await expect(followUp.getByText(/Đã duyệt — ghi activity note/i)).toBeVisible({ timeout: 20_000 });
+
+    await assertNoOutboundSendButtons(page);
   });
 });

@@ -26,6 +26,13 @@ Trả về JSON hợp lệ với các khóa:
 - extracted: { intent, objections[], next_action, source, campaign_id, risk_flags[], budget_vnd }
 - confidence: 0-1
 Nếu chưa có tương tác, ghi rõ trong bullet.`,
+
+  [AI_USE_CASE.FOLLOW_UP_DRAFT]: `Bạn là trợ lý CSKH PTT. Soạn nháp follow-up bằng tiếng Việt theo kênh được chỉ định trong user message (zalo, email, hoặc ghi chú nội bộ).
+Trả về JSON hợp lệ với các khóa:
+- draft_text: nội dung nháp (10-4000 ký tự), lịch sự, không hứa hẹn quá mức
+- subject: tiêu đề email (string hoặc null nếu không phải email)
+- confidence: 0-1
+Không bịa thông tin không có trong input. Không thêm lệnh gửi tự động — đây chỉ là nháp để nhân viên duyệt.`,
 };
 
 @Injectable()
