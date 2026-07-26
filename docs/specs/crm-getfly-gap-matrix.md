@@ -1,0 +1,455 @@
+# Ma trận gap CRM vs Getfly — checklist PR theo màn hình
+
+> **Phiên bản:** 1.0 · **Ngày:** 2026-07-26  
+> **Mục đích:** Checklist PR khi nâng cấp ops-web `/crm/*` để đạt **table stakes ~80% CRM** (spec §20.5) so với [Getfly CRM](https://getfly.vn) — **không** copy ERP/LP builder.  
+> **Traceability:** [`SPEC_AI_REVENUE_OPERATING_SYSTEM.md`](../SPEC_AI_REVENUE_OPERATING_SYSTEM.md) §4, §20 · [`SPEC_RNOSAI_MASTER.md`](../SPEC_RNOSAI_MASTER.md) · [`SPEC_UI_UX_PTT.md`](../SPEC_UI_UX_PTT.md)  
+> **PR template chung:** [`docs/templates/pr-checklist-rnos-uc-ui-uat.md`](../templates/pr-checklist-rnos-uc-ui-uat.md)
+
+---
+
+## Cách dùng
+
+1. **Chọn màn hình** trong bảng dưới — mỗi PR nên **chỉ đóng gap 1 màn** (hoặc 1 nhóm liên quan, ví dụ KPI dashboard).
+2. **Author:** copy block checklist vào PR description; tick `- [ ]` → `- [x]`.
+3. **Reviewer:** xác nhận screenshot/staging khớp cột **Done when**; không yêu cầu parity với mục 🚫 OUT.
+4. **Gắn RNOS / parity ID** vào PR title khi có (ví dụ `RNOS-42: KPI dashboard tiles — /crm/kpi`).
+
+### Chú thích trạng thái (as-is Jul 2026)
+
+| Ký hiệu | Ý nghĩa |
+|---------|---------|
+| ✅ | Đạt parity hoặc vượt Getfly cho use case agency |
+| ○ | Có màn hình + API; UX/widget còn thiếu |
+| ❌ | Thiếu tính năng Getfly coi là table stakes |
+| ➕ | RNOS có; Getfly không — **không bắt buộc** parity ngược |
+| 🚫 | Cố ý không build (spec §20 OUT) |
+
+### Parity ID (spec §20.5)
+
+| ID | Hạng mục | Target wave |
+|----|----------|-------------|
+| P0-1 | Mobile / PWA lead care | R1 stretch |
+| P0-2 | Import/export Excel | R1 |
+| P0-3 | Workflow template dễ dùng | R2 |
+| P1-1 | Custom field + pipeline admin | R2 (RNOS-35) |
+| P1-2 | Calendar + reminder | R2 |
+| P1-3 | Ticket / CS lite | R2 (RNOS-24) |
+| P2-1 | Zalo ZNS broadcast | P2 |
+
+---
+
+## Tổng quan route ↔ Getfly
+
+| Route ops-web | Tiêu đề sidebar | Module Getfly tương đương |
+|---------------|-----------------|-------------------------|
+| `/` | Bảng điều khiển | Trang chủ |
+| `/crm` | Bảng CSKH | Launcher |
+| `/crm/leads` | Quản lý Lead | Khách hàng F2 — danh sách |
+| `/crm/leads/[id]` | Chi tiết lead | Khách hàng F2 — chi tiết |
+| `/crm/leads/review-queue` | Phải tra soát (B2) | — (➕ agency) |
+| `/crm/cskh-board` | Bảng CSKH SLA | Đừng quên + SLA |
+| `/crm/customers` | Khách hàng | Khách hàng (post-convert) |
+| `/crm/customers/[id]` | Chi tiết KH | Chi tiết KH |
+| `/crm/intake` | Lead Intake | Optin (khác scope) |
+| `/crm/sales` | Kinh doanh | Quản lý bán hàng F4 |
+| `/crm/proposals` | Đề xuất | Báo giá |
+| `/crm/hub` | Hub · Hợp đồng | — (➕) |
+| `/crm/kpi` | KPI | KPI / F7 conversion |
+| `/crm/staff-kpi` | KPI AM/SP | KPI NV |
+| `/crm/business-dashboard` | Dashboard KD | Báo cáo |
+| `/crm/owner-weekly` | BC tuần chủ DN | — |
+| `/crm/financials` | Tài chính | Tài chính KT (🚫 ERP) |
+| `/crm/payroll` | Chấm công & lương | HRM Getfly |
+| `/crm/staff` | Nhân viên | Quản lý NV |
+| `/crm/catalog` | Catalog | Sản phẩm / DV |
+| `/crm/marketing-plan` | Kế hoạch marketing | Marketing plan |
+| `/crm/service-delivery` | Triển khai DV | — (➕) |
+| `/crm/sop` | Quy trình SOP | Automation (○) |
+| `/crm/creatives` | Creative Hub | — (➕) |
+| `/crm/campaign-writes` | Campaign Write | — (➕) |
+| `/crm/launch-qa` | Launch QA | — (➕) |
+| `/crm/re-projects` | Dự án BĐS | — (➕ vertical) |
+
+---
+
+## PR checklist theo màn hình
+
+### 1. `/` — Bảng điều khiển
+
+**Getfly:** Trang chủ widget tóm tắt KH, công việc, pipeline.  
+**RNOS as-is:** ○ Health API + lời chào; không widget CRM.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 1.1 | [ ] Widget **lead mới hôm nay** + link `/crm/leads` | ○ | Staging screenshot |
+| 1.2 | [ ] Widget **SLA breach** (summary từ CSKH board) | ○ | Số khớp `/crm/cskh-board` |
+| 1.3 | [ ] Widget **copilot DAU** (pilot, từ `ai_agent_runs`) | ➕ | Chỉ hiện khi AI enabled |
+| 1.4 | [ ] Quick links: Lead, CSKH board, Hub | ○ | 3 link hoạt động |
+
+**Không yêu cầu:** Full pipeline value chart như Getfly F4 (defer `/crm/sales`).
+
+---
+
+### 2. `/crm` — Bảng CSKH (launcher)
+
+**Getfly:** —  
+**RNOS as-is:** ○ Card grid module từ API.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 2.1 | [ ] Badge số **pending** trên card (review queue, hub approvals) | ○ | Số realtime hoặc poll 60s |
+| 2.2 | [ ] Mô tả 1 dòng / icon thống nhất spec UI | ○ | Design review |
+
+---
+
+### 3. `/crm/leads` — Quản lý Lead (danh sách)
+
+**Getfly F2:** Tab trạng thái, bộ lọc lưu, bulk, import/export, chọn cột.  
+**RNOS as-is:** ○ Bảng + search + pagination 50.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 3.1 | [ ] **Import Excel** lead (template + validate) | P0-2 | E2E hoặc script gate |
+| 3.2 | [ ] **Export Excel** (filter hiện tại / selected) | P0-2 | File tải được |
+| 3.3 | [ ] Filter chips: **owner**, **status**, **source**, **channel** | ○ | URL query persist |
+| 3.4 | [ ] Tab / view: **Tất cả** · **Của tôi** · **Chưa phân** | ○ | Match Getfly “người phụ trách” |
+| 3.5 | [ ] **Bulk assign** + bulk export | ○ | Chọn checkbox hàng |
+| 3.6 | [ ] **Cột tùy chọn** (⚙): owner, SLA, score | ○ | LocalStorage prefs |
+| 3.7 | [ ] Cột **AI Score** + badge hot/warm/cold | UI-R1-10 | Poll `/ai/scores` |
+| 3.8 | [ ] Empty state + CTA ingest doc | ○ | Link runbook ingest |
+
+**PR title gợi ý:** `crm/leads: import/export Excel (P0-2)` · `crm/leads: score column (UI-R1-10)`
+
+---
+
+### 4. `/crm/leads/[id]` — Chi tiết lead
+
+**Getfly F2 detail:** Trao đổi, email/SMS, lịch, file, cơ hội.  
+**RNOS as-is:** ✅ Form + activity + funnel + contract + **AI Copilot** (➕).
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 4.1 | [ ] **Upload file** đính kèm activity | ○ | File lưu + hiển thị timeline |
+| 4.2 | [ ] @mention staff trong activity (optional) | ○ | Notify hoặc highlight |
+| 4.3 | [ ] Chip **campaign / CPL** → deep link Meta hub | ○ | Spec UI §12 attribution |
+| 4.4 | [ ] Nút **copy SĐT / Zalo** (không auto-send) | ○ | Clipboard |
+| 4.5 | [ ] Copilot: trust footer BR-AI copy | UI-R1 | Text spec §15 |
+| 4.6 | [ ] Mobile tab **AI** không regress (RNOS-39 E2E) | P0-1 | CI green |
+| 4.7 | [ ] GDKD **override score** modal | UI-R1-08 | `overridden_by` API |
+
+**Không yêu cầu PR:** Nút “Gửi Zalo/Email trực tiếp” (🚫 BR-AI-01 — dùng follow-up draft).
+
+---
+
+### 5. `/crm/leads/review-queue` — Phải tra soát (B2)
+
+**Getfly:** —  
+**RNOS as-is:** ✅ ➕ Agency QA queue.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 5.1 | [ ] Badge count sync sidebar (`OpsNav`) | ○ | Khớp API count |
+| 5.2 | [ ] E2E smoke assign/release | ○ | Playwright optional |
+
+---
+
+### 6. `/crm/cskh-board` — Bảng CSKH SLA
+
+**Getfly:** “Đừng quên” + công việc quá hạn.  
+**RNOS as-is:** ✅ ➕ Bulk assign/reschedule/export.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 6.1 | [ ] Export CSV/Excel parity Getfly download | P0-2 | File + filter giữ nguyên |
+| 6.2 | [ ] Mobile card view `<768px` | P0-1 | Responsive screenshot |
+| 6.3 | [ ] E2E giữ green (`cskh-board.spec.ts`) | ✅ | CI |
+
+---
+
+### 7. `/crm/customers` + `/crm/customers/[id]`
+
+**Getfly:** Quản lý KH sau chốt; nhóm KH; lịch sử giao dịch.  
+**RNOS as-is:** ✅ List + detail profile/issues/relations.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 7.1 | [ ] Filter **nhóm KH** / segment | ○ | Dropdown |
+| 7.2 | [ ] Tab **timeline** thống nhất (RNOS-16) | ○ | Events từ timeline API |
+| 7.3 | [ ] Link lead gốc + lifecycle active | ○ | Drill-down |
+
+---
+
+### 8. `/crm/intake` — Lead Intake (BANT)
+
+**Getfly:** Optin form (Marketing module).  
+**RNOS as-is:** ✅ ➕ Sessions; AI summary stub.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 8.1 | [ ] Sidebar link hoặc entry từ lead detail rõ ràng | ○ | UX review |
+| 8.2 | [ ] Thay stub AI summary bằng `/ai/summarize` | R1 | API wired |
+
+**🚫 Không build:** LP builder / optin designer.
+
+---
+
+### 9. `/crm/sales` — Kinh doanh
+
+**Getfly F4:** Pipeline, đơn hàng, báo cáo bán hàng.  
+**RNOS as-is:** ✅ 6 tabs; ○ Kanban không full-screen.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 9.1 | [ ] Tab **funnel**: Kanban kéo thả stage (optional) | ○ | PATCH status |
+| 9.2 | [ ] Tab **reports**: chart thay JSON | ○ | Visual report |
+| 9.3 | [ ] Deal **score** badge khi RNOS-09 ship | R2 | API + UI |
+
+**Defer PR:** Đơn hàng bán lẻ → RNOS-25.
+
+---
+
+### 10. `/crm/proposals` — Đề xuất
+
+**Getfly:** Báo giá từ KH.  
+**RNOS as-is:** ✅ CRUD + generate.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 10.1 | [ ] Export PDF proposal | ○ | Download |
+| 10.2 | [ ] Link proposal ↔ lead detail 2 chiều | ✅ | Verify navigation |
+
+---
+
+### 11. `/crm/hub` — Hub · Hợp đồng
+
+**Getfly:** —  
+**RNOS as-is:** ✅ ➕ Campaign maps + contract approvals.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 11.1 | [ ] Map spend → lead **≥80%** hiển thị trên UI | G1 | KPI label trên map |
+| 11.2 | [ ] Contract approval → lifecycle auto-start visible | ✅ | Toast + link SD |
+
+---
+
+### 12. `/crm/kpi` — KPI
+
+**Getfly F7:** Conversion charts, nguồn → tương tác.  
+**RNOS as-is:** ○ List + **JSON chart**.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 12.1 | [ ] **KPI tiles** (4–6 chỉ số tháng) | ○ | RNOS-42 |
+| 12.2 | [ ] **Line/bar chart** thay `JSON.stringify` | ○ | Chart library |
+| 12.3 | [ ] Alerts list giữ + badge severity màu | ○ | UX polish |
+| 12.4 | [ ] Export staff KPI Excel (giữ + polish UI) | P0-2 | Button rõ ràng |
+| 12.5 | [ ] Widget **AI acceptance rate** (G6) | RNOS-29 | SQL + tile |
+
+**PR title gợi ý:** `RNOS-42: /crm/kpi dashboard v1`
+
+---
+
+### 13. `/crm/staff-kpi` — KPI AM/SP
+
+**Getfly:** KPI gắn NV/KH.  
+**RNOS as-is:** ○ Picker + metric list.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 13.1 | [ ] Bar chart so sánh NV cùng role | ○ | Period filter |
+| 13.2 | [ ] Drill-down → `/crm/staff/[id]` | ○ | Link |
+| 13.3 | [ ] Progress vs target (nếu có target API) | ○ | % bar |
+
+---
+
+### 14. `/crm/business-dashboard` — Dashboard kinh doanh
+
+**Getfly:** Executive reports.  
+**RNOS as-is:** ○ **JSON blocks**.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 14.1 | [ ] Layout **2×2 cards**: revenue, AR, retention, alerts | ○ | RNOS-42 |
+| 14.2 | [ ] Trend sparkline 12 tuần | ○ | Chart |
+| 14.3 | [ ] Drill ≤3 click → hub → campaign → lead | ○ | Spec §12 |
+| 14.4 | [ ] Không còn `<pre>` JSON làm UI chính | ○ | Reviewer screenshot |
+
+---
+
+### 15. `/crm/owner-weekly` — Báo cáo tuần chủ DN
+
+**Getfly:** — (báo cáo tùy biến).  
+**RNOS as-is:** ○ 4 khối JSON + export.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 15.1 | [ ] Layout in-ready: Cash · Business · Efficiency · Risk | ○ | PDF/export |
+| 15.2 | [ ] Config patch UI polish (owner weekly config) | ○ | Form validated |
+| 15.3 | [ ] Narrative text summary (optional AI) | R3 | Defer OK |
+
+---
+
+### 16. `/crm/financials` — Tài chính (front-office)
+
+**Getfly:** Module kế toán ERP.  
+**RNOS as-is:** ○ Lifecycle margin table + JSON AR.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 16.1 | [ ] **AR aging chart** (bucket 30/60/90) | ○ | Visual |
+| 16.2 | [ ] Drill lifecycle → `/crm/service-delivery/[id]` | ○ | Link |
+| 16.3 | [ ] Copy footer: “Không thay ERP MISA” | 🚫 | FAQ §20.6 |
+
+**🚫 Không PR:** Sổ cái, HĐ GTGT, tồn kho — export connector riêng.
+
+---
+
+### 17. `/crm/payroll` — Chấm công & lương
+
+**Getfly HRM:** Chấm công, lương.  
+**RNOS as-is:** ○ Lists + JSON policy.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 17.1 | [ ] Tab layout thay single scroll JSON | ○ | UX |
+| 17.2 | [ ] Export payslip / attendance Excel | P0-2 | Optional |
+
+---
+
+### 18. `/crm/staff` + `/crm/staff/[id]`
+
+**Getfly:** Quản lý NV, phòng ban.  
+**RNOS as-is:** ✅ Roster 4 tabs; ○ detail read-only.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 18.1 | [ ] Import roster Excel | P0-2 | Template |
+| 18.2 | [ ] Staff detail: KPI mini + lead list pagination | ○ | `/crm/staff/[id]` |
+| 18.3 | [ ] Org tree / phòng ban (optional) | ○ | Defer R2 |
+
+---
+
+### 19. `/crm/catalog` — Catalog
+
+**Getfly:** Sản phẩm.  
+**RNOS as-is:** ✅ Services/industries/scopes.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 19.1 | [ ] Export/import catalog CSV | P0-2 | Optional |
+
+---
+
+### 20. Marketing ops (RNOS ➕ — polish only)
+
+Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writes`, `/crm/launch-qa`, `/crm/service-delivery`.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 20.1 | [ ] `/crm/marketing-plan/[id]`: form đủ field plan | ○ | Not stub |
+| 20.2 | [ ] `/crm/sop`: link tới workflow template (P0-3) | P0-3 | RNOS-13 defer |
+| 20.3 | [ ] E2E regression creatives / campaign-writes | ➕ | CI optional |
+
+**Không so Getfly 1:1** — đây là moat agency.
+
+---
+
+### 21. `/crm/re-projects` — Dự án BĐS
+
+**Getfly:** —  
+**RNOS as-is:** ✅ ➕ 11 tabs incl. accounting.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 21.1 | [ ] Tab accounting: chart forecast vs actual | ○ | RE vertical |
+| 21.2 | [ ] Export project Excel | P0-2 | Optional |
+
+---
+
+### 22. PWA / Mobile (cross-cutting)
+
+**Getfly:** App iOS/Android.  
+**RNOS as-is:** ❌ PWA; ○ responsive + tab AI.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 22.1 | [ ] `manifest.json` + icons + install prompt | P0-1 | Lighthouse installable |
+| 22.2 | [ ] Service worker: shell + cached lead list read | P0-1 | Offline smoke |
+| 22.3 | [ ] `/crm/leads` card list mobile | P0-1 | Screenshot 390px |
+| 22.4 | [ ] RNOS-39 E2E mobile tab AI | ✅ | CI green |
+
+**PR title gợi ý:** `RNOS-41: PWA lead care v1`
+
+---
+
+### 23. Admin & settings (chưa có route)
+
+**Getfly:** Cài đặt → Định nghĩa dữ liệu, pipeline admin.
+
+| # | PR checklist | Parity | Done when |
+|---|--------------|--------|-----------|
+| 23.1 | [ ] **`/admin/ai/runs`** table + filter | UI-R1-09 | RBAC admin |
+| 23.2 | [ ] **`/admin/crm/custom-fields`** CRUD | P1-1 | RNOS-35 |
+| 23.3 | [ ] **`/admin/crm/pipeline`** stage editor | P1-1 | RNOS-35 |
+| 23.4 | [ ] **`/crm/calendar`** month view + reminder | P1-2 | RNOS calendar |
+| 23.5 | [ ] **`/crm/tickets`** lite CRUD | P1-3 | RNOS-24 |
+
+---
+
+## Màn hình 🚫 OUT — không mở PR parity
+
+| Getfly module | Lý do | Thay thế RNOS |
+|---------------|-------|---------------|
+| Landing page builder 1000+ mẫu | §20 OUT | Form UTM + SEO |
+| ERP kế toán / sổ cái | §20 OUT | Export MISA connector |
+| Tồn kho / mua hàng VI | OUT retail | — |
+| Chatbot Fanpage generic | Không moat | Meta ads OS |
+| Call center click-to-call | Addon | Activity type `call` |
+
+---
+
+## Ma trận ưu tiên PR (gợi ý backlog)
+
+| Ưu tiên | PR bundle | Màn | Parity |
+|---------|-----------|-----|--------|
+| **P0** | Gate R1 pilot | `/crm/leads/[id]` copilot prod | R1 |
+| **P0** | RNOS-41 | PWA §22 | P0-1 |
+| **P0** | Import/export | `/crm/leads` §3.1–3.2 | P0-2 |
+| **P1** | RNOS-42 KPI UX | §12–§15 | Dashboard |
+| **P1** | UI-R1-09/10 | §3.7, §23.1 | AI admin + score column |
+| **P2** | RNOS-35 | §23.2–23.3 | Custom field |
+| **P2** | RNOS-24 | §23.5 | Ticket |
+
+---
+
+## Template PR description (copy-paste)
+
+```markdown
+## CRM ↔ Getfly gap — màn hình: `/crm/___`
+
+**Parity ID:** P0-_ / P1-_ / RNOS-__
+**Spec:** docs/specs/crm-getfly-gap-matrix.md §___
+
+### Checklist (tick all before merge)
+
+- [ ] … (copy từ section tương ứng)
+- [ ] Staging screenshot attached
+- [ ] Không vi phạm 🚫 OUT / BR-AI-01
+- [ ] Regression: RNOS-39 E2E (nếu chạm lead/copilot)
+
+### Done when
+
+(1–2 câu từ cột Done when)
+```
+
+---
+
+## Changelog
+
+| Ngày | Phiên bản | Ghi chú |
+|------|-----------|---------|
+| 2026-07-26 | 1.0 | Ma trận ban đầu — as-is ops-web `main` post RNOS-39 |
+
+---
+
+*Cập nhật file này khi ship PR đóng gap — đổi trạng thái as-is trong section tương ứng.*
