@@ -21,7 +21,27 @@ export OPS_E2E_STAFF_EMAIL="${OPS_E2E_STAFF_EMAIL:-staff@demo.local}"
 export OPS_E2E_STAFF_PASSWORD="${OPS_E2E_STAFF_PASSWORD:-demo12345}"
 
 API_PID=""
-WEB_PID=""
+
+_ops_web_login_ok() {
+  local code
+  code="$(curl -s -o /dev/null -w '%{http_code}' "${OPS_E2E_URL}/login" 2>/dev/null || echo 000)"
+  [[ "$code" == "200" ]]
+}
+
+_free_ops_web_port_if_stale() {
+  if _ops_web_login_ok; then
+    return 0
+  fi
+  local port
+  port="$(node -e "console.log(new URL(process.argv[1]).port||3200)" "$OPS_E2E_URL")"
+  local pids
+  pids="$(lsof -ti tcp:"$port" 2>/dev/null || true)"
+  if [[ -n "$pids" ]]; then
+    echo "WARN  Stale ops-web on :$port (login HTTP != 200) — stopping $pids"
+    kill $pids 2>/dev/null || true
+    sleep 2
+  fi
+}
 
 _wait_http() {
   local url="$1" label="$2" tries="${3:-60}"
@@ -38,7 +58,6 @@ _wait_http() {
 
 cleanup() {
   [[ -n "$API_PID" ]] && kill "$API_PID" 2>/dev/null || true
-  [[ -n "$WEB_PID" ]] && kill "$WEB_PID" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -65,24 +84,9 @@ else
   echo "OK  Nest API already running"
 fi
 
-if [[ "${OPS_E2E_SKIP_SERVER:-0}" != "1" ]]; then
-  if ! curl -sf "${OPS_E2E_URL}/login" >/dev/null 2>&1; then
-    echo "==> Start ops-web (next dev on ${OPS_E2E_URL})"
-    (
-      cd "$ROOT/services/ops-web"
-      export OPS_PORT="${OPS_PORT:-$(node -e "console.log(new URL(process.argv[1]).port||3200)" "$OPS_E2E_URL")}"
-      export NEXT_PUBLIC_PTT_API_URL="$OPS_E2E_API_URL"
-      npm run dev
-    ) >/tmp/rnos42-ops-web.log 2>&1 &
-    WEB_PID=$!
-    _wait_http "${OPS_E2E_URL}/login" "ops-web login" 120
-  else
-    echo "OK  ops-web already running"
-  fi
-  export OPS_E2E_SKIP_SERVER=1
-fi
+_free_ops_web_port_if_stale
 
-echo "==> Playwright RNOS-42 KPI UX"
+echo "==> Playwright RNOS-42 KPI UX (ops-web via playwright webServer on ${OPS_E2E_URL})"
 (
   cd "$ROOT/services/ops-web"
   if [[ ! -d node_modules ]]; then npm ci; fi

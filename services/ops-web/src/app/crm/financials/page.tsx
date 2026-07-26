@@ -1,8 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
+import {
+  ArAgingPanel,
+  KpiTileGrid,
+  financialSummaryTiles,
+} from '@/components/kpi/KpiDashboardUi';
+import { periodLabel } from '@/lib/kpi/format';
 import {
   fetchFinanceArAging,
   fetchFinanceFinancials,
@@ -98,6 +104,9 @@ export default function CrmFinancialsPage() {
     router.push('/login');
   }
 
+  const summaryTiles = useMemo(() => financialSummaryTiles(financials), [financials]);
+  const rows = (financials?.rows ?? []) as Array<Record<string, unknown>>;
+
   if (!user) {
     return (
       <main style={{ padding: '2rem' }}>
@@ -106,98 +115,85 @@ export default function CrmFinancialsPage() {
     );
   }
 
-  const rows = (financials?.rows ?? []) as Array<Record<string, unknown>>;
-
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem' }}>
+    <main className="kpi-page" style={{ maxWidth: 1080, margin: '0 auto', padding: '1.5rem' }}>
       <OpsNav user={user} onLogout={logout} />
       <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>Financials — lifecycle margin</h2>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <input
-            type="number"
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            style={{
-              width: 90,
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.55rem 0.75rem',
-              color: 'var(--text)',
-            }}
-          />
-          <input
-            type="number"
-            min={1}
-            max={12}
-            value={month}
-            onChange={(e) => setMonth(Number(e.target.value))}
-            style={{
-              width: 70,
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.55rem 0.75rem',
-              color: 'var(--text)',
-            }}
-          />
+        <div className="kpi-page__head">
+          <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Financials — lifecycle margin</h2>
+          <div className="kpi-page__filters">
+            <input
+              type="number"
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+              className="kpi-input"
+              aria-label="Năm"
+            />
+            <input
+              type="number"
+              min={1}
+              max={12}
+              value={month}
+              onChange={(e) => setMonth(Number(e.target.value))}
+              className="kpi-input kpi-input--month"
+              aria-label="Tháng"
+            />
+          </div>
         </div>
+
+        <p className="muted" style={{ marginTop: 0 }}>
+          Kỳ {periodLabel(year, month)}
+        </p>
 
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
 
-        <h3 style={{ fontSize: '1rem' }}>Lifecycle ({rows.length})</h3>
-        <div style={{ overflowX: 'auto', marginBottom: '1rem' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'left', padding: '0.35rem' }}>ID</th>
-                <th style={{ textAlign: 'left', padding: '0.35rem' }}>Dịch vụ</th>
-                <th style={{ textAlign: 'left', padding: '0.35rem' }}>KH</th>
-                <th style={{ textAlign: 'right', padding: '0.35rem' }}>Margin</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
+        <KpiTileGrid tiles={summaryTiles} />
+
+        <section className="kpi-page__section">
+          <h3 className="kpi-section-title">Lifecycle ({rows.length})</h3>
+          <div className="crm-leads-table-wrap">
+            <table className="perf-table">
+              <thead>
                 <tr>
-                  <td colSpan={4} className="muted" style={{ padding: '0.35rem' }}>
-                    Chưa có lifecycle active
-                  </td>
+                  <th>ID</th>
+                  <th>Dịch vụ</th>
+                  <th>KH</th>
+                  <th style={{ textAlign: 'right' }}>Margin</th>
                 </tr>
-              ) : (
-                rows.map((row, i) => (
-                  <tr key={String(row.lifecycle_id ?? i)}>
-                    <td style={{ padding: '0.35rem' }}>{String(row.lifecycle_id ?? '—')}</td>
-                    <td style={{ padding: '0.35rem' }}>{String(row.service_label ?? row.service_slug ?? '—')}</td>
-                    <td style={{ padding: '0.35rem' }}>{String(row.customer_name ?? '—')}</td>
-                    <td style={{ padding: '0.35rem', textAlign: 'right' }}>
-                      {row.margin_pct != null
-                        ? `${Number(row.margin_pct).toFixed(1)}%`
-                        : row.margin_vnd != null
-                          ? `${Number(row.margin_vnd).toLocaleString('vi-VN')} VND`
-                          : '—'}
+              </thead>
+              <tbody>
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="muted">
+                      Chưa có lifecycle active
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  rows.map((row, i) => (
+                    <tr key={String(row.lifecycle_id ?? i)}>
+                      <td>{String(row.lifecycle_id ?? '—')}</td>
+                      <td>{String(row.service_label ?? row.service_slug ?? '—')}</td>
+                      <td>{String(row.customer_name ?? '—')}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        {row.margin_pct != null
+                          ? `${Number(row.margin_pct).toFixed(1)}%`
+                          : row.margin_vnd != null
+                            ? `${Number(row.margin_vnd).toLocaleString('vi-VN')} ₫`
+                            : '—'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-        <h3 style={{ fontSize: '1rem' }}>AR aging</h3>
-        <pre
-          style={{
-            background: 'var(--bg)',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            padding: '0.75rem',
-            overflow: 'auto',
-            fontSize: '0.85rem',
-          }}
-        >
-          {JSON.stringify(arAging ?? {}, null, 2)}
-        </pre>
+        <section className="kpi-page__section">
+          <h3 className="kpi-section-title">AR aging</h3>
+          <ArAgingPanel arAging={arAging} />
+        </section>
       </div>
     </main>
   );

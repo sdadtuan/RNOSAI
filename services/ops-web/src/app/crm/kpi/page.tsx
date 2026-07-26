@@ -228,7 +228,7 @@ export default function CrmKpiPage() {
               className="kpi-input kpi-input--month"
             />
             <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onExport()}>
-              Export staff KPI
+              Export staff KPI (JSON)
             </button>
           </div>
         </div>

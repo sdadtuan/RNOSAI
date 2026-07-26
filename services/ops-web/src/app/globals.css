@@ -2977,3 +2977,126 @@ body:has(.ops-sidebar) main {
   }
 }
 
+/* RNOS-42 follow-up — Owner Weekly + AR aging */
+.owner-weekly-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.owner-weekly-block {
+  min-width: 0;
+}
+
+.owner-weekly-metrics {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.owner-weekly-metric {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  background: var(--surface, #fff);
+}
+
+.owner-weekly-metric__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.owner-weekly-metric__values {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.owner-weekly-metric__note {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+}
+
+.kpi-rag-badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.kpi-rag--green,
+.owner-weekly-metric.kpi-rag--green {
+  border-color: #86efac;
+}
+
+.kpi-rag--green .kpi-rag-badge,
+.kpi-rag-badge.kpi-rag--green {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.kpi-rag--yellow,
+.owner-weekly-metric.kpi-rag--yellow {
+  border-color: #fde047;
+}
+
+.kpi-rag--yellow .kpi-rag-badge,
+.kpi-rag-badge.kpi-rag--yellow {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.kpi-rag--red,
+.owner-weekly-metric.kpi-rag--red {
+  border-color: #fca5a5;
+}
+
+.kpi-rag--red .kpi-rag-badge,
+.kpi-rag-badge.kpi-rag--red {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.kpi-rag--neutral,
+.owner-weekly-metric.kpi-rag--neutral {
+  border-color: var(--border, #e5e7eb);
+}
+
+.kpi-rag-badge.kpi-rag--neutral {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.owner-weekly-config {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.65rem;
+}
+
+.owner-weekly-config__row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.owner-weekly-config__label {
+  font-size: 0.85rem;
+  text-transform: capitalize;
+}
+
+@media (max-width: 768px) {
+  .owner-weekly-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -21,3 +21,17 @@ export function formatNumber(value: unknown): string {
 export function periodLabel(year: number, month: number): string {
   return `${String(month).padStart(2, '0')}/${year}`;
 }
+
+export function formatOwnerMetric(value: unknown, fmt: unknown): string {
+  const format = String(fmt ?? '');
+  if (format === 'vnd') return formatVnd(value);
+  if (format === 'pct') return formatPct(value);
+  if (format === 'ratio') return `${formatNumber(value)}×`;
+  if (format === 'days') return `${formatNumber(value)} ngày`;
+  return formatNumber(value);
+}
+
+export function ownerMetricTargetLabel(value: unknown, fmt: unknown): string {
+  if (value == null || value === '') return '—';
+  return formatOwnerMetric(value, fmt);
+}

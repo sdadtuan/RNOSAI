@@ -21,6 +21,8 @@ for f in \
   services/ops-web/src/app/crm/kpi/page.tsx \
   services/ops-web/src/app/crm/business-dashboard/page.tsx \
   services/ops-web/src/app/crm/staff-kpi/page.tsx \
+  services/ops-web/src/app/crm/owner-weekly/page.tsx \
+  services/ops-web/src/app/crm/financials/page.tsx \
   services/ops-web/e2e/kpi-rnos42.spec.ts \
   scripts/playwright_ops_kpi_e2e.sh; do
   if [[ -f "$ROOT/$f" ]]; then
@@ -34,6 +36,24 @@ if grep -q 'kpi-tile-grid' "$ROOT/services/ops-web/src/app/globals.css"; then
   log_ok "css-kpi" "KPI dashboard CSS present"
 else
   log_fail "css-kpi" "Missing KPI CSS"
+fi
+
+if grep -q 'owner-weekly-grid' "$ROOT/services/ops-web/src/app/globals.css"; then
+  log_ok "css-owner-weekly" "Owner weekly CSS present"
+else
+  log_fail "css-owner-weekly" "Missing owner-weekly CSS"
+fi
+
+if grep -q 'OwnerWeeklyBlockGrid' "$ROOT/services/ops-web/src/app/crm/owner-weekly/page.tsx"; then
+  log_ok "page-owner-weekly" "owner-weekly uses structured UI"
+else
+  log_fail "page-owner-weekly" "owner-weekly still JSON dump or missing components"
+fi
+
+if grep -q 'ArAgingPanel' "$ROOT/services/ops-web/src/app/crm/financials/page.tsx"; then
+  log_ok "page-financials" "financials uses ArAgingPanel"
+else
+  log_fail "page-financials" "financials still JSON dump or missing ArAgingPanel"
 fi
 
 if grep -q 'fetchKpiBoard' "$ROOT/services/ops-web/src/lib/api.ts"; then

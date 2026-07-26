@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { formatNumber, formatPct, formatVnd } from '@/lib/kpi/format';
+import { formatNumber, formatOwnerMetric, formatPct, formatVnd, ownerMetricTargetLabel } from '@/lib/kpi/format';
 
 export interface KpiTileProps {
   label: string;
@@ -294,6 +294,198 @@ export function businessDashboardTiles(dashboard: Record<string, unknown> | null
       hint: 'Finance + delivery + portfolio',
       tone: alertCount > 0 ? 'critical' : 'success',
       href: '/crm/kpi',
+    },
+  ];
+}
+
+const OWNER_WEEKLY_BLOCK_KEYS = ['cash', 'sales', 'efficiency', 'risk'] as const;
+
+function ownerRagClass(status: unknown): string {
+  const raw = String(status ?? '').toLowerCase();
+  if (raw === 'green') return 'kpi-rag--green';
+  if (raw === 'yellow') return 'kpi-rag--yellow';
+  if (raw === 'red') return 'kpi-rag--red';
+  return 'kpi-rag--neutral';
+}
+
+export function ownerWeeklySummaryTiles(dashboard: Record<string, unknown> | null): KpiTileProps[] {
+  const week = (dashboard?.week ?? {}) as Record<string, unknown>;
+  const rag = (dashboard?.rag_counts ?? {}) as Record<string, number>;
+  const brief = (dashboard?.pre_execution ?? {}) as Record<string, unknown>;
+  return [
+    {
+      label: 'Tuần báo cáo',
+      value: String(week.iso_week ?? '—'),
+      hint: String(week.label ?? ''),
+    },
+    {
+      label: 'Chỉ số xanh',
+      value: formatNumber(rag.green ?? 0),
+      tone: 'success',
+    },
+    {
+      label: 'Chỉ số vàng / đỏ',
+      value: `${formatNumber(rag.yellow ?? 0)} / ${formatNumber(rag.red ?? 0)}`,
+      tone: Number(rag.red ?? 0) > 0 ? 'critical' : Number(rag.yellow ?? 0) > 0 ? 'warning' : 'default',
+    },
+    {
+      label: 'Hành động cần xử lý',
+      value: formatNumber(brief.action_count ?? 0),
+      tone: Number(brief.action_count ?? 0) > 0 ? 'warning' : 'success',
+    },
+  ];
+}
+
+export function OwnerWeeklyBlockGrid({ dashboard }: { dashboard: Record<string, unknown> | null }) {
+  const blocks = (dashboard?.blocks ?? {}) as Record<string, Record<string, unknown>>;
+  return (
+    <div className="owner-weekly-grid">
+      {OWNER_WEEKLY_BLOCK_KEYS.map((key) => {
+        const block = blocks[key] ?? { key, label: key, metrics: [] };
+        const metrics = (block.metrics as Record<string, unknown>[]) ?? [];
+        return (
+          <section key={key} className="owner-weekly-block card" style={{ padding: '0.85rem' }}>
+            <h3 className="kpi-section-title">{String(block.label ?? key)}</h3>
+            {metrics.length === 0 ? <p className="muted">Chưa có số liệu.</p> : null}
+            <ul className="owner-weekly-metrics">
+              {metrics.map((metric) => {
+                const metricKey = String(metric.key ?? metric.label ?? 'metric');
+                return (
+                  <li key={metricKey} className={`owner-weekly-metric ${ownerRagClass(metric.status)}`}>
+                    <div className="owner-weekly-metric__head">
+                      <span>{String(metric.label ?? metricKey)}</span>
+                      <span className={`kpi-rag-badge ${ownerRagClass(metric.status)}`}>
+                        {String(metric.status_label ?? metric.status ?? '—')}
+                      </span>
+                    </div>
+                    <div className="owner-weekly-metric__values">
+                      <strong>{formatOwnerMetric(metric.value, metric.format ?? metric.fmt)}</strong>
+                      <span className="muted">
+                        Target: {ownerMetricTargetLabel(metric.target, metric.format ?? metric.fmt)}
+                      </span>
+                    </div>
+                    {metric.note ? <p className="muted owner-weekly-metric__note">{String(metric.note)}</p> : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+export function OwnerWeeklyActionList({ dashboard }: { dashboard: Record<string, unknown> | null }) {
+  const brief = (dashboard?.pre_execution ?? {}) as Record<string, unknown>;
+  const actions = (brief.actions as Record<string, unknown>[]) ?? [];
+  if (!actions.length) {
+    return <p className="muted">Không có hành động ưu tiên tuần này.</p>;
+  }
+  return (
+    <ul className="kpi-alert-list">
+      {actions.map((action, index) => {
+        const tone = String(action.status) === 'red' ? 'critical' : 'warning';
+        return (
+          <li key={String(action.metric_key ?? index)} className={`kpi-alert kpi-alert--${tone}`}>
+            <span className={`kpi-alert__badge kpi-alert__badge--${tone}`}>
+              {String(action.status_label ?? action.status ?? 'Theo dõi')}
+            </span>
+            <div className="kpi-alert__body">
+              <strong>
+                {String(action.block_label ?? action.block)} — {String(action.metric_label ?? action.metric_key)}
+              </strong>
+              {action.hint ? <p className="muted kpi-alert__detail">{String(action.hint)}</p> : null}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+export function OwnerWeeklyConfigForm({
+  targets,
+  onChange,
+}: {
+  targets: Record<string, number>;
+  onChange: (key: string, value: number) => void;
+}) {
+  const entries = Object.entries(targets).sort(([a], [b]) => a.localeCompare(b));
+  if (!entries.length) {
+    return <p className="muted">Chưa có target cấu hình.</p>;
+  }
+  return (
+    <div className="owner-weekly-config">
+      {entries.map(([key, value]) => (
+        <label key={key} className="owner-weekly-config__row">
+          <span className="owner-weekly-config__label">{key.replace(/_/g, ' ')}</span>
+          <input
+            type="number"
+            className="kpi-input"
+            value={Number.isFinite(value) ? value : 0}
+            onChange={(e) => onChange(key, Number(e.target.value))}
+          />
+        </label>
+      ))}
+    </div>
+  );
+}
+
+const AR_BUCKET_ORDER = ['not_due', '1_30', '31_60', '61_90', 'over_90'] as const;
+
+export function ArAgingPanel({ arAging }: { arAging: Record<string, unknown> | null }) {
+  if (!arAging) {
+    return <p className="muted">Chưa có dữ liệu AR aging.</p>;
+  }
+  const buckets = (arAging.buckets ?? {}) as Record<string, number>;
+  const labels = (arAging.bucket_labels ?? {}) as Record<string, string>;
+  const items = AR_BUCKET_ORDER.map((key) => ({
+    label: labels[key] ?? key.replace(/_/g, ' '),
+    value: buckets[key] ?? 0,
+  }));
+  const tiles: KpiTileProps[] = [
+    {
+      label: 'Tổng chờ thu',
+      value: formatVnd(arAging.total_pending_vnd),
+      tone: 'default',
+    },
+    {
+      label: 'Quá hạn',
+      value: formatVnd(arAging.total_overdue_vnd),
+      tone: Number(arAging.total_overdue_vnd ?? 0) > 0 ? 'warning' : 'success',
+    },
+    {
+      label: 'As of',
+      value: String(arAging.as_of ?? '—'),
+      hint: `${formatNumber((arAging.items as unknown[] | undefined)?.length ?? 0)} khoản`,
+    },
+  ];
+  return (
+    <>
+      <KpiTileGrid tiles={tiles} />
+      <KpiBarChart title="Phân bổ AR aging (VNĐ)" items={items} unit="₫" />
+    </>
+  );
+}
+
+export function financialSummaryTiles(financials: Record<string, unknown> | null): KpiTileProps[] {
+  const rows = (financials?.rows ?? []) as Array<Record<string, unknown>>;
+  const margins = rows
+    .map((row) => Number(row.margin_pct))
+    .filter((value) => Number.isFinite(value));
+  const avgMargin =
+    margins.length > 0 ? margins.reduce((sum, value) => sum + value, 0) / margins.length : null;
+  return [
+    {
+      label: 'Lifecycle active',
+      value: formatNumber(rows.length),
+      hint: 'Dịch vụ đang chạy',
+    },
+    {
+      label: 'Margin TB',
+      value: avgMargin == null ? '—' : formatPct(avgMargin),
+      tone: avgMargin != null && avgMargin >= 30 ? 'success' : 'warning',
     },
   ];
 }
