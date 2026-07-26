@@ -1,0 +1,169 @@
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { AI_AUDIT_ERROR } from './ai-audit.constants';
+import { AiIntelligenceConfigService } from './ai-intelligence.config';
+import { AiTokenUsage } from './ai-intelligence.types';
+import { SummarizeContext } from './summarize.types';
+import { validateSummarizeOutput } from './summarize.schema';
+
+export interface LlmSummarizeInput {
+  context: SummarizeContext;
+  systemPrompt: string;
+  userContent: string;
+  model?: string;
+}
+
+export interface LlmSummarizeResult {
+  parsed: ReturnType<typeof validateSummarizeOutput>;
+  tokenUsage: AiTokenUsage;
+  modelName: string;
+  stubMode: boolean;
+}
+
+@Injectable()
+export class AiLlmClient {
+  constructor(private readonly aiConfig: AiIntelligenceConfigService) {}
+
+  async summarizeStructured(input: LlmSummarizeInput): Promise<LlmSummarizeResult> {
+    const apiKey = this.aiConfig.llmApiKey;
+    const model = input.model ?? this.aiConfig.llmModel;
+
+    if (!apiKey) {
+      const stubRaw = this.buildStubOutput(input.context, input.userContent);
+      return {
+        parsed: validateSummarizeOutput(stubRaw, input.context),
+        tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        modelName: `${model}-stub`,
+        stubMode: true,
+      };
+    }
+
+    try {
+      const raw = await this.callOpenAiChat({
+        apiKey,
+        model,
+        systemPrompt: input.systemPrompt,
+        userContent: input.userContent,
+        timeoutMs: this.aiConfig.llmTimeoutMs,
+      });
+      return {
+        parsed: validateSummarizeOutput(raw, input.context),
+        tokenUsage: raw.tokenUsage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        modelName: model,
+        stubMode: false,
+      };
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new ServiceUnavailableException({
+          error: 'llm_timeout',
+          error_code: AI_AUDIT_ERROR.LLM_TIMEOUT,
+          message: 'LLM timeout',
+        });
+      }
+      throw new ServiceUnavailableException({
+        error: 'llm_provider_error',
+        error_code: AI_AUDIT_ERROR.LLM_PROVIDER_ERROR,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  private async callOpenAiChat(args: {
+    apiKey: string;
+    model: string;
+    systemPrompt: string;
+    userContent: string;
+    timeoutMs: number;
+  }): Promise<Record<string, unknown> & { tokenUsage?: AiTokenUsage }> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), args.timeoutMs);
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${args.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: args.model,
+          temperature: 0.2,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: args.systemPrompt },
+            { role: 'user', content: args.userContent },
+          ],
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`OpenAI HTTP ${response.status}: ${detail.slice(0, 300)}`);
+      }
+
+      const payload = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+        usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+      };
+      const content = payload.choices?.[0]?.message?.content ?? '{}';
+      const parsed = JSON.parse(content) as Record<string, unknown>;
+      return {
+        ...parsed,
+        tokenUsage: {
+          prompt_tokens: Number(payload.usage?.prompt_tokens ?? 0),
+          completion_tokens: Number(payload.usage?.completion_tokens ?? 0),
+          total_tokens: Number(payload.usage?.total_tokens ?? 0),
+        },
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private buildStubOutput(context: SummarizeContext, userContent: string): Record<string, unknown> {
+    const lines = userContent
+      .split(/\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const preview = lines.slice(0, 3).join(' · ').slice(0, 280);
+
+    if (context === 'lead_brief') {
+      const sourceLine = lines.find((l) => /nguồn|source|campaign|kênh|channel/i.test(l));
+      const bullets = [
+        preview || 'Lead mới — cần xác minh nhu cầu với khách.',
+        sourceLine ? `Nguồn/campaign: ${sourceLine.slice(0, 120)}` : 'Nguồn: xem timeline hoặc form ingest.',
+        'Rủi ro: chưa đủ dữ liệu tương tác — ưu tiên gọi xác nhận.',
+        'Next: gọi trong 15 phút và ghi activity.',
+      ].slice(0, 5);
+      return {
+        summary: bullets[0],
+        bullets,
+        extracted: {
+          intent: 'Tìm hiểu nhu cầu',
+          objections: [],
+          next_action: 'Gọi xác nhận trong 15 phút',
+          source: sourceLine ?? null,
+          campaign_id: null,
+          risk_flags: ['stub_mode'],
+          budget_vnd: null,
+        },
+        confidence: 0.55,
+      };
+    }
+
+    const text = lines.find((l) => l.startsWith('TEXT:'))?.replace(/^TEXT:\s*/, '') ?? preview;
+    return {
+      summary: `[stub] ${text.slice(0, 220)}${text.length > 220 ? '…' : ''}`,
+      bullets: [],
+      extracted: {
+        intent: text.includes('?') ? 'Hỏi thêm thông tin' : 'Theo dõi lead',
+        objections: [],
+        next_action: 'Gửi follow-up xác nhận',
+        source: null,
+        campaign_id: null,
+        risk_flags: ['stub_mode'],
+        budget_vnd: null,
+      },
+      confidence: 0.6,
+    };
+  }
+}

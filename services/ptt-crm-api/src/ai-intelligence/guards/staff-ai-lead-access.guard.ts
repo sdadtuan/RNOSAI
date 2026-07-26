@@ -23,7 +23,7 @@ export class StaffAiLeadAccessGuard implements CanActivate {
       Request & {
         staffUser?: StaffJwtPayload;
         staffAuthVia?: 'internal' | 'jwt';
-        body?: { lead_id?: number | string };
+        body?: { lead_id?: number | string; entity_id?: number | string; entity_type?: string; context?: string; text?: string };
         query?: { entity_id?: string };
       }
     >();
@@ -38,6 +38,11 @@ export class StaffAiLeadAccessGuard implements CanActivate {
 
     const leadId = this.resolveLeadId(req);
     if (!leadId) {
+      const body = req.body;
+      const ctx = String(body?.context ?? 'activity').toLowerCase();
+      if (ctx !== 'lead_brief' && body?.text?.trim()) {
+        return true;
+      }
       throw new ForbiddenException({ error: 'lead_id_required' });
     }
 
@@ -64,14 +69,19 @@ export class StaffAiLeadAccessGuard implements CanActivate {
   }
 
   private resolveLeadId(req: {
-    body?: { lead_id?: number | string };
+    body?: { lead_id?: number | string; entity_id?: number | string; entity_type?: string };
     query?: { entity_id?: string; entity_type?: string };
   }): number | null {
     const fromBody = Number(req.body?.lead_id ?? 0);
     if (fromBody > 0) {
       return fromBody;
     }
-    if (String(req.query?.entity_type ?? 'lead') === 'lead') {
+    const entityType = String(req.body?.entity_type ?? req.query?.entity_type ?? 'lead');
+    if (entityType === 'lead') {
+      const fromBodyEntity = Number(req.body?.entity_id ?? 0);
+      if (fromBodyEntity > 0) {
+        return fromBodyEntity;
+      }
       const fromQuery = Number(req.query?.entity_id ?? 0);
       if (fromQuery > 0) {
         return fromQuery;

@@ -5,9 +5,11 @@ import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { AiAgentRunsService, AiAgentRunDetailResponse, AiAgentRunListResponse } from './ai-agent-runs.service';
 import { AiLeadScoreService } from './ai-lead-score.service';
+import { AiSummarizeService } from './ai-summarize.service';
 import { AiIntelligenceService } from './ai-intelligence.service';
 import { AiAgentRunStatus, AiHealthResponse } from './ai-intelligence.types';
 import { AiScoresListResponse, ScoreLeadResponse } from './lead-score.types';
+import { SummarizeResponse } from './summarize.types';
 import { StaffAiCopilotGuard } from './guards/staff-ai-copilot.guard';
 import { StaffAiLeadAccessGuard } from './guards/staff-ai-lead-access.guard';
 
@@ -16,12 +18,20 @@ interface ScoreLeadBody {
   force?: boolean;
 }
 
+interface SummarizeBody {
+  entity_type?: string;
+  entity_id?: string | number;
+  text?: string;
+  context?: string;
+}
+
 @Controller('api/v1/ai')
 export class AiIntelligenceController {
   constructor(
     private readonly ai: AiIntelligenceService,
     private readonly runs: AiAgentRunsService,
     private readonly leadScore: AiLeadScoreService,
+    private readonly summarize: AiSummarizeService,
   ) {}
 
   /** RNOS-02 — public smoke; records ai_agent_runs when schema ready (RNOS-05). */
@@ -93,6 +103,32 @@ export class AiIntelligenceController {
     return this.leadScore.scoreLead({
       leadId: Number(body.lead_id),
       force: Boolean(body.force),
+      actorId,
+      correlationId: rid,
+    });
+  }
+
+  /** RNOS-03 — summarize activity / lead brief (AI-UC-002, AI-UC-003). */
+  @Post('summarize')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiCopilotGuard, StaffAiLeadAccessGuard)
+  summarizeText(
+    @Body() body: SummarizeBody,
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<SummarizeResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    const entityType = body.entity_type?.trim() || (body.entity_id ? 'lead' : undefined);
+    return this.summarize.summarize({
+      context: (body.context?.trim() || 'activity') as 'lead_brief' | 'activity',
+      entityType,
+      entityId: body.entity_id != null ? String(body.entity_id) : undefined,
+      text: body.text,
       actorId,
       correlationId: rid,
     });

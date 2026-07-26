@@ -3,20 +3,21 @@ import { AiExecutionService } from './ai-execution.service';
 describe('AiExecutionService', () => {
   const leadScore = {
     scoreLead: jest.fn().mockResolvedValue({
-      data: {
-        score: 72,
-        confidence: 0.8,
-        explainability: { factors: [{ label: '+ Meta' }], flags: [], score_band: 'hot' },
-        agent_run_id: 'run-1',
-      },
+      data: { score: 72 },
       meta: { request_id: 'req-1' },
       errors: [],
     }),
   };
 
-  const audit = { wrap: jest.fn() };
-  const aiConfig = { llmModel: 'gpt-4o-mini' };
-  const timeline = { buildAiContext: jest.fn().mockResolvedValue([]) };
+  const summarizeService = {
+    summarize: jest.fn().mockResolvedValue({
+      data: { summary: 'ok' },
+      meta: { request_id: 'req-2' },
+      errors: [],
+    }),
+  };
+
+  const timeline = { buildAiContext: jest.fn() };
 
   let execution: AiExecutionService;
 
@@ -24,8 +25,7 @@ describe('AiExecutionService', () => {
     jest.clearAllMocks();
     execution = new AiExecutionService(
       leadScore as never,
-      audit as never,
-      aiConfig as never,
+      summarizeService as never,
       timeline as never,
     );
   });
@@ -35,5 +35,10 @@ describe('AiExecutionService', () => {
     expect(leadScore.scoreLead).toHaveBeenCalledWith(
       expect.objectContaining({ leadId: 99, actorId: 'staff-1' }),
     );
+  });
+
+  it('summarize delegates to AiSummarizeService', async () => {
+    await execution.summarize({ context: 'activity', text: 'x'.repeat(60) });
+    expect(summarizeService.summarize).toHaveBeenCalled();
   });
 });

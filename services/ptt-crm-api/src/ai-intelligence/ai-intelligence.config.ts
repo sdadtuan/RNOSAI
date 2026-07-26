@@ -16,6 +16,9 @@ export class AiIntelligenceConfigService {
   readonly logPii: boolean;
   readonly logPrompts: boolean;
   readonly scoreAsync: boolean;
+  readonly llmApiKey: string | null;
+  readonly summarizeRateLimitPerMin: number;
+  readonly summarizeMinTextLength: number;
 
   constructor() {
     this.copilotEnabled = envFlag('PTT_AI_COPILOT_ENABLED', false);
@@ -32,6 +35,16 @@ export class AiIntelligenceConfigService {
     this.logPii = envFlag('PTT_AI_LOG_PII', false);
     this.logPrompts = envFlag('PTT_AI_LOG_PROMPTS', false);
     this.scoreAsync = envFlag('PTT_AI_SCORE_ASYNC', true);
+    this.llmApiKey =
+      (process.env.AI_LLM_API_KEY ?? process.env.PTT_AI_LLM_API_KEY ?? '').trim() || null;
+    this.summarizeRateLimitPerMin = Math.max(
+      1,
+      Number(process.env.PTT_AI_SUMMARIZE_RATE_LIMIT_PER_MIN ?? 20) || 20,
+    );
+    this.summarizeMinTextLength = Math.max(
+      10,
+      Number(process.env.PTT_AI_SUMMARIZE_MIN_TEXT ?? 50) || 50,
+    );
   }
 
   isPilotUser(staffId: string | undefined | null): boolean {
