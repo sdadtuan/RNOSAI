@@ -842,3 +842,113 @@ export async function patchForecastCommit(
   }
   return body;
 }
+
+export interface RenewalHealthSnapshot {
+  health_score: number;
+  health_band: 'healthy' | 'watch' | 'at_risk' | 'critical';
+  churn_risk_pct: number;
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  factors: AiScoreFactor[];
+}
+
+export interface RenewalOpportunityView {
+  id: string;
+  client_id: string;
+  contract_id: number;
+  contract_title: string;
+  amount_vnd: number;
+  renewal_date: string;
+  days_until_end: number;
+  trigger_window: 90 | 60 | 30;
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  status: 'open' | 'in_progress' | 'renewed' | 'lost' | 'deferred';
+  health: RenewalHealthSnapshot;
+  draft_text: string | null;
+  draft_channel: 'email' | 'zalo' | null;
+  recommendation_id: string | null;
+  lifecycle_id: number | null;
+  service_delivery_url: string | null;
+  follow_up_task_id: number | null;
+  outcome: string | null;
+  owner_am_id: string | null;
+  updated_at: string;
+}
+
+export interface RenewalListResponse {
+  data: {
+    client_id: string;
+    opportunities: RenewalOpportunityView[];
+    total: number;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export async function fetchRenewalOpportunities(token: string, clientId: string): Promise<RenewalListResponse> {
+  const qs = new URLSearchParams({ client_id: clientId });
+  const res = await fetch(`${API_BASE}/api/v1/ai/renewal?${qs.toString()}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<RenewalListResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch renewal failed', res.status);
+  }
+  return body;
+}
+
+export async function postRenewalDraft(
+  token: string,
+  opportunityId: string,
+  channel: 'email' | 'zalo',
+): Promise<{ data: { draft_text: string; recommendation_id: string }; meta: { request_id: string }; errors: unknown[] }> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/renewal/${encodeURIComponent(opportunityId)}/draft`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ channel }),
+  });
+  const body = await parseJson<{ data: { draft_text: string; recommendation_id: string }; meta: { request_id: string }; errors: unknown[]; error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Renewal draft failed', res.status);
+  }
+  return body;
+}
+
+export async function patchRenewalApprove(token: string, opportunityId: string, finalText: string) {
+  const res = await fetch(`${API_BASE}/api/v1/ai/renewal/${encodeURIComponent(opportunityId)}/approve`, {
+    method: 'PATCH',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ final_text: finalText }),
+  });
+  const body = await parseJson<{ error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Renewal approve failed', res.status);
+  }
+  return body;
+}
+
+export async function patchRenewalOutcome(token: string, opportunityId: string, outcome: 'renewed' | 'lost') {
+  const res = await fetch(`${API_BASE}/api/v1/ai/renewal/${encodeURIComponent(opportunityId)}/outcome`, {
+    method: 'PATCH',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ outcome }),
+  });
+  const body = await parseJson<{ error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Renewal outcome failed', res.status);
+  }
+  return body;
+}
+
+export async function postRenewalScan(token: string, windows?: number[]) {
+  const res = await fetch(`${API_BASE}/api/v1/ai/renewal/scan`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(windows?.length ? { windows } : {}),
+  });
+  const body = await parseJson<{ error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Renewal scan failed', res.status);
+  }
+  return body;
+}

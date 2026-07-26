@@ -12,6 +12,9 @@ export const AI_USE_CASE = {
   PIPELINE_RISK_SCAN: 'pipeline_risk_scan',
   FORECAST_SNAPSHOT: 'forecast_snapshot',
   FORECAST_COMMIT: 'forecast_commit',
+  RENEWAL_SCAN: 'renewal_scan',
+  RENEWAL_DRAFT: 'renewal_draft',
+  RENEWAL_APPROVE: 'renewal_approve',
 } as const;
 
 export type AiUseCase = (typeof AI_USE_CASE)[keyof typeof AI_USE_CASE];

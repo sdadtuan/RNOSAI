@@ -9,6 +9,7 @@ import { ClientPortalUsersPanel } from '@/components/ClientPortalUsersPanel';
 import { OpsNav } from '@/components/OpsNav';
 import { AgencyReadOnlyBadge, canAgencyConfigure, canAgencyWrite } from '@/components/AgencyReadOnlyBadge';
 import { HubCampaignMapsPanel } from '@/components/HubCampaignMapsPanel';
+import { RenewalAgentPanel } from '@/components/ai/RenewalAgentPanel';
 import {
   activateAgencyClient,
   addClientChannelAccount,
@@ -57,7 +58,7 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 
-type TabId = 'overview' | 'onboard' | 'checklist' | 'channels' | 'campaigns' | 'leads' | 'contracts' | 'portal';
+type TabId = 'overview' | 'onboard' | 'checklist' | 'channels' | 'campaigns' | 'leads' | 'contracts' | 'retain' | 'portal';
 
 const CLIENT_STATUSES = ['prospect', 'onboarding', 'active', 'paused'] as const;
 
@@ -696,6 +697,7 @@ export function AgencyClientDetailContent() {
                   ['campaigns', 'Campaign map'],
                   ['leads', `Leads (${clientLeads.length})`],
                   ['contracts', `Hợp đồng (${clientContracts.length})`],
+                  ['retain', 'Retain'],
                   ['portal', 'Portal users'],
                 ] as const
               ).map(([id, label]) => (
@@ -1338,6 +1340,12 @@ export function AgencyClientDetailContent() {
                     ) : null}
                   </tbody>
                 </table>
+              </div>
+            ) : null}
+
+            {tab === 'retain' && accessToken ? (
+              <div style={{ marginTop: '1rem' }}>
+                <RenewalAgentPanel token={accessToken} clientId={clientId} canWrite={canMutate} />
               </div>
             ) : null}
 

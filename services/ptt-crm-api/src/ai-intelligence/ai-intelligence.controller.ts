@@ -9,6 +9,7 @@ import { AiLeadScoreService } from './ai-lead-score.service';
 import { AiNbaService } from './ai-nba.service';
 import { PipelineRiskService } from './pipeline-risk.service';
 import { AiForecastService } from './ai-forecast.service';
+import { RenewalAgentService } from './renewal-agent.service';
 import { AiSummarizeService } from './ai-summarize.service';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiFeedbackAnalyticsService } from './ai-feedback-analytics.service';
@@ -24,6 +25,13 @@ import {
   ForecastDashboardResponse,
   ForecastSnapshotResponse,
 } from './forecast.types';
+import {
+  RenewalApproveResponse,
+  RenewalDraftResponse,
+  RenewalListResponse,
+  RenewalOutcomeResponse,
+  RenewalScanResponse,
+} from './renewal.types';
 import { AiScoresBatchResponse, AiScoresListResponse, ScoreLeadResponse } from './lead-score.types';
 import { SummarizeResponse } from './summarize.types';
 import {
@@ -43,6 +51,8 @@ import { StaffAiScoreOverrideGuard } from './guards/staff-ai-score-override.guar
 import { StaffAiScoresBatchGuard } from './guards/staff-ai-scores-batch.guard';
 import { StaffAiForecastCommitGuard } from './guards/staff-ai-forecast-commit.guard';
 import { StaffAiForecastViewGuard } from './guards/staff-ai-forecast-view.guard';
+import { StaffAiRenewalViewGuard } from './guards/staff-ai-renewal-view.guard';
+import { StaffAiRenewalWriteGuard } from './guards/staff-ai-renewal-write.guard';
 
 interface ScoreDealBody {
   deal_id: number;
@@ -102,6 +112,7 @@ export class AiIntelligenceController {
     private readonly feedbackAnalytics: AiFeedbackAnalyticsService,
     private readonly pipelineRisk: PipelineRiskService,
     private readonly forecast: AiForecastService,
+    private readonly renewal: RenewalAgentService,
   ) {}
 
   /** RNOS-02 — public smoke; records ai_agent_runs when schema ready (RNOS-05). */
@@ -564,6 +575,97 @@ export class AiIntelligenceController {
       actorEmail: req.staffUser?.email ?? null,
       correlationId: rid,
     });
+  }
+
+  /** RNOS-20 / AI-UC-014 — scan contracts T-90/60/30 for renewal opportunities. */
+  @Post('renewal/scan')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiRenewalViewGuard)
+  scanRenewalWindows(
+    @Body() body: { windows?: number[] },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<RenewalScanResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.renewal.scanRenewalWindows({
+      windows: body?.windows as (90 | 60 | 30)[] | undefined,
+      actorId,
+      correlationId: rid,
+    });
+  }
+
+  /** RNOS-20 / UI-R3-03 — renewal opportunities for agency Retain tab. */
+  @Get('renewal')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiRenewalViewGuard)
+  listRenewalForClient(
+    @Query('client_id') clientId: string,
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<RenewalListResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    return this.renewal.listForClient(clientId, rid);
+  }
+
+  /** AI-UC-014 — generate renewal draft (BR-AI-01, no auto-send). */
+  @Post('renewal/:id/draft')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiRenewalWriteGuard)
+  generateRenewalDraft(
+    @Param('id') id: string,
+    @Body() body: { channel?: 'email' | 'zalo' },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<RenewalDraftResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.renewal.generateDraft(id, body?.channel === 'email' ? 'email' : 'zalo', actorId, rid);
+  }
+
+  /** AI-UC-014 — AM approve draft → retain task (no outbound). */
+  @Patch('renewal/:id/approve')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiRenewalWriteGuard)
+  approveRenewalDraft(
+    @Param('id') id: string,
+    @Body() body: { final_text?: string },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<RenewalApproveResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.renewal.approveDraft(id, body?.final_text, actorId, req.staffUser?.email ?? null, rid);
+  }
+
+  /** AI-UC-014 — mark renewal Won/Lost feedback loop. */
+  @Patch('renewal/:id/outcome')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiRenewalWriteGuard)
+  markRenewalOutcome(
+    @Param('id') id: string,
+    @Body() body: { outcome: 'renewed' | 'lost' },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<RenewalOutcomeResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.renewal.markOutcome(id, body.outcome, actorId, rid);
   }
 
   /** Guard wiring check — requires copilot flag + pilot cohort (BR-AI-04 prep). */

@@ -180,3 +180,54 @@ def forecast_snapshot_via_api(
     except Exception as exc:
         logger.warning("forecast_snapshot API failed: %s", exc)
         return {"ok": False, "error": str(exc)}
+
+
+def renewal_scan_via_api(
+    *,
+    windows: list[int] | None = None,
+    correlation_id: str | None = None,
+    timeout_sec: float = 60.0,
+) -> dict[str, Any]:
+    """
+    POST /api/v1/ai/renewal/scan with internal key (RNOS-20 T-90/60/30 scan).
+
+    Returns { ok: True, body: ... } or { ok: False, error: ... }.
+    """
+    key = _internal_key()
+    if not key:
+        return {"ok": False, "error": "missing_internal_key", "skipped": True}
+
+    body: dict[str, Any] = {}
+    if windows:
+        body["windows"] = [int(w) for w in windows]
+
+    headers = {
+        "Content-Type": "application/json",
+        "x-ptt-internal-key": key,
+    }
+    if correlation_id:
+        headers["x-correlation-id"] = correlation_id
+
+    req = urllib.request.Request(
+        f"{_crm_api_base_url()}/api/v1/ai/renewal/scan",
+        data=json.dumps(body).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+            raw = resp.read().decode("utf-8")
+            parsed = json.loads(raw) if raw else {}
+            return {"ok": True, "status": resp.status, "body": parsed}
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        logger.warning(
+            "renewal_scan API HTTP %s body=%s",
+            exc.code,
+            detail[:500],
+        )
+        return {"ok": False, "error": f"http_{exc.code}", "detail": detail[:1000]}
+    except Exception as exc:
+        logger.warning("renewal_scan API failed: %s", exc)
+        return {"ok": False, "error": str(exc)}

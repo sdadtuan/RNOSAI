@@ -59,6 +59,6 @@ import { InternalKeyGuard } from '../auth/internal-key.guard';
     StaffAgencyConfigureGuard,
     InternalKeyGuard,
   ],
-  exports: [AgencyService, AgencySideEffectsService, ClientOffboardService, OnboardingOrchestratorService],
+  exports: [AgencyService, AgencyRepository, AgencySideEffectsService, ClientOffboardService, OnboardingOrchestratorService],
 })
 export class AgencyModule {}

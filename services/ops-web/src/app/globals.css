@@ -4306,3 +4306,95 @@ body:has(.ops-sidebar) main {
   margin-top: 0.5rem;
 }
 
+/* RNOS-20 — Renewal agent Retain tab */
+.renewal-agent-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.renewal-agent-panel__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.renewal-agent-panel__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.renewal-agent-card {
+  padding: 1rem;
+}
+
+.renewal-agent-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.renewal-agent-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.renewal-badge {
+  display: inline-block;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.renewal-badge--low {
+  background: rgba(34, 197, 94, 0.15);
+  color: #15803d;
+}
+
+.renewal-badge--medium {
+  background: rgba(234, 179, 8, 0.18);
+  color: #a16207;
+}
+
+.renewal-badge--high,
+.renewal-badge--critical {
+  background: rgba(239, 68, 68, 0.14);
+  color: #b91c1c;
+}
+
+.renewal-badge--status {
+  background: rgba(148, 163, 184, 0.2);
+  color: #475569;
+}
+
+.renewal-agent-card__textarea {
+  width: 100%;
+  min-height: 120px;
+  margin: 0.5rem 0;
+  padding: 0.65rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 8px;
+  font-family: inherit;
+}
+
+.renewal-agent-card__actions,
+.renewal-agent-card__outcome {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.renewal-agent-card__channel select {
+  margin-left: 0.5rem;
+  padding: 0.35rem 0.5rem;
+}
+
+.renewal-agent-panel__error {
+  color: #b91c1c;
+}
+

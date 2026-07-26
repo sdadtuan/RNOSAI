@@ -2,6 +2,8 @@ import { ConfigModule } from '../config/config.module';
 import { Module, forwardRef } from '@nestjs/common';
 import { PlaybooksRepository } from '../playbooks/playbooks.repository';
 import { CasesModule } from '../cases/cases.module';
+import { AgencyModule } from '../agency/agency.module';
+import { ServiceLifecycleModule } from '../service-lifecycle/service-lifecycle.module';
 import { CrmConfigModule } from '../crm-config/crm-config.module';
 import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.module';
 import { CustomerTimelineModule } from '../customer-timeline/customer-timeline.module';
@@ -22,7 +24,10 @@ import { AiLlmClient } from './ai-llm.client';
 import { AiNbaService } from './ai-nba.service';
 import { PipelineRiskService } from './pipeline-risk.service';
 import { AiForecastService } from './ai-forecast.service';
+import { RenewalAgentService } from './renewal-agent.service';
 import { RevenueForecastRepository } from './revenue-forecast.repository';
+import { RenewalContractContextRepository } from './renewal-contract-context.repository';
+import { RenewalOpportunitiesRepository } from './renewal-opportunities.repository';
 import { AiPromptsRepository } from './ai-prompts.repository';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiRecommendationsRepository } from './ai-recommendations.repository';
@@ -38,6 +43,8 @@ import { StaffAiScoreOverrideGuard } from './guards/staff-ai-score-override.guar
 import { StaffAiScoresBatchGuard } from './guards/staff-ai-scores-batch.guard';
 import { StaffAiForecastCommitGuard } from './guards/staff-ai-forecast-commit.guard';
 import { StaffAiForecastViewGuard } from './guards/staff-ai-forecast-view.guard';
+import { StaffAiRenewalViewGuard } from './guards/staff-ai-renewal-view.guard';
+import { StaffAiRenewalWriteGuard } from './guards/staff-ai-renewal-write.guard';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
 
 @Module({
@@ -49,6 +56,8 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     LeadsModule,
     CrmConfigModule,
     CasesModule,
+    forwardRef(() => AgencyModule),
+    ServiceLifecycleModule,
     forwardRef(() => CrmLeadsLegacyModule),
   ],
   controllers: [AiIntelligenceController],
@@ -65,7 +74,10 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     AiNbaService,
     PipelineRiskService,
     AiForecastService,
+    RenewalAgentService,
     RevenueForecastRepository,
+    RenewalContractContextRepository,
+    RenewalOpportunitiesRepository,
     PlaybooksRepository,
     AiSummarizeService,
     AiRecommendationService,
@@ -84,6 +96,8 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     StaffAiScoresBatchGuard,
     StaffAiForecastCommitGuard,
     StaffAiForecastViewGuard,
+    StaffAiRenewalViewGuard,
+    StaffAiRenewalWriteGuard,
   ],
   exports: [
     AiIntelligenceConfigService,
@@ -98,7 +112,10 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     AiNbaService,
     PipelineRiskService,
     AiForecastService,
+    RenewalAgentService,
     RevenueForecastRepository,
+    RenewalContractContextRepository,
+    RenewalOpportunitiesRepository,
     AiSummarizeService,
     AiRecommendationService,
     AiFeedbackAnalyticsService,
@@ -113,6 +130,8 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     StaffAiScoresBatchGuard,
     StaffAiForecastCommitGuard,
     StaffAiForecastViewGuard,
+    StaffAiRenewalViewGuard,
+    StaffAiRenewalWriteGuard,
   ],
 })
 export class AiIntelligenceModule {}
