@@ -23,6 +23,7 @@ export class AiIntelligenceConfigService {
   readonly upsellEnabled: boolean;
   readonly orchestratorEnabled: boolean;
   readonly orchestratorCronEnabled: boolean;
+  readonly toolsApiEnabled: boolean;
 
   constructor() {
     this.copilotEnabled = envFlag('PTT_AI_COPILOT_ENABLED', false);
@@ -53,6 +54,7 @@ export class AiIntelligenceConfigService {
     this.upsellEnabled = envFlag('PTT_AI_UPSELL_ENABLED', true);
     this.orchestratorEnabled = envFlag('PTT_AI_ORCHESTRATOR_ENABLED', false);
     this.orchestratorCronEnabled = envFlag('PTT_AI_ORCHESTRATOR_CRON_ENABLED', false);
+    this.toolsApiEnabled = envFlag('PTT_AI_TOOLS_API_ENABLED', false);
   }
 
   isPilotUser(staffId: string | undefined | null): boolean {

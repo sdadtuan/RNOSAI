@@ -50,3 +50,29 @@ export interface AiToolDescriptor {
   mutating: boolean;
   requiredCaps: string[];
 }
+
+export interface AiToolApiKeyScope {
+  id: string;
+  client_id: string | null;
+  allowed_tools: string[];
+}
+
+export interface AiToolCallContext {
+  apiKey: AiToolApiKeyScope;
+  actorId?: string | null;
+  correlationId?: string | null;
+}
+
+export interface AiToolExecutionContext {
+  apiKeyId: string;
+  clientId: string | null;
+  actorId: string | null;
+  correlationId: string;
+}
+
+export interface AiToolDefinition extends AiToolDescriptor {
+  handler: (
+    input: Record<string, unknown>,
+    context: AiToolExecutionContext,
+  ) => Promise<unknown>;
+}

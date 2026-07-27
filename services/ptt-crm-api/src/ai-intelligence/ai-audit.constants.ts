@@ -26,6 +26,7 @@ export const AI_USE_CASE = {
   UPSELL_APPROVE: 'upsell_approve',
   ORCHESTRATION_RUN: 'orchestration_run',
   ORCHESTRATION_STEP: 'orchestration_step',
+  TOOL_CALL: 'tool_call',
 } as const;
 
 export type AiUseCase = (typeof AI_USE_CASE)[keyof typeof AI_USE_CASE];

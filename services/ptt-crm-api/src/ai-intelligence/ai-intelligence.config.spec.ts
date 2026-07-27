@@ -27,4 +27,12 @@ describe('AiIntelligenceConfigService', () => {
     const cfg = new AiIntelligenceConfigService();
     expect(cfg.isPilotUser('anyone')).toBe(true);
   });
+
+  it('defaults the AI tools API off and parses its feature flag', () => {
+    delete process.env.PTT_AI_TOOLS_API_ENABLED;
+    expect(new AiIntelligenceConfigService().toolsApiEnabled).toBe(false);
+
+    process.env.PTT_AI_TOOLS_API_ENABLED = '1';
+    expect(new AiIntelligenceConfigService().toolsApiEnabled).toBe(true);
+  });
 });
