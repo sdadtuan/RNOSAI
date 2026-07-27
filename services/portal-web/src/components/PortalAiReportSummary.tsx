@@ -24,9 +24,9 @@ export function PortalAiReportSummary({ token }: PortalAiReportSummaryProps) {
 
   if (loading) {
     return (
-      <section className="card portal-ai-summary" aria-busy="true">
+      <section className="card portal-ai-summary" aria-busy="true" data-testid="portal-ai-summary-block">
         <div className="portal-ai-summary__head">
-          <h2 className="portal-ai-summary__title">Tóm tắt tuần này</h2>
+          <h2 className="portal-ai-summary__title">Tuần này</h2>
         </div>
         <p className="muted">Đang tạo tóm tắt…</p>
       </section>
@@ -38,10 +38,10 @@ export function PortalAiReportSummary({ token }: PortalAiReportSummaryProps) {
   }
 
   return (
-    <section className="card portal-ai-summary" aria-live="polite">
+    <section className="card portal-ai-summary" aria-live="polite" data-testid="portal-ai-summary-block">
       <div className="portal-ai-summary__head">
         <div>
-          <h2 className="portal-ai-summary__title">Tóm tắt tuần này</h2>
+          <h2 className="portal-ai-summary__title">Tuần này</h2>
           <p className="muted portal-ai-summary__subtitle">{data.period.label}</p>
         </div>
         <button

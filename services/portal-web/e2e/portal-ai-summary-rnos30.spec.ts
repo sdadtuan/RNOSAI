@@ -31,10 +31,10 @@ test.describe('RNOS-30 Portal AI summary', () => {
 
   test('dashboard shows client-safe AI summary card when enabled', async ({ page }) => {
     await loginAsApprover(page);
-    await expect(page.getByRole('heading', { name: /tóm tắt tuần này/i })).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'Tuần này', exact: true })).toBeVisible({
       timeout: 20_000,
     });
-    await expect(page.locator('.portal-ai-summary')).toBeVisible();
+    await expect(page.getByTestId('portal-ai-summary-block')).toBeVisible();
     await expect(page.locator('.portal-ai-summary__narrative')).not.toBeEmpty();
     await expect(page.getByText(/client-safe/i)).toBeVisible();
     await expect(page.locator('pre')).toHaveCount(0);
