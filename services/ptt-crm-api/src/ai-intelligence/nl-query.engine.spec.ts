@@ -1,6 +1,21 @@
 import { resolveIntent, buildNarrative, normalizeQueryText } from './nl-query.engine';
+import { listNlQueryCatalog } from './nl-query.catalog';
 
 describe('nl-query.engine', () => {
+  it('exposes exactly 50 curated intents including hub CPL, ROAS, and attribution', () => {
+    const ids = listNlQueryCatalog().map((entry) => entry.id);
+    expect(ids).toHaveLength(50);
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        'cpl_by_client_30d',
+        'roas_overview_30d',
+        'roas_meta_30d',
+        'roas_zalo_30d',
+        'attribution_drill_paths',
+      ]),
+    );
+  });
+
   it('resolves intent by id', () => {
     const intent = resolveIntent({ intent_id: 'leads_new_7d' });
     expect(intent?.id).toBe('leads_new_7d');

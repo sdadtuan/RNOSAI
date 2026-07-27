@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { DatabaseSync } from 'node:sqlite';
+import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import {
   getAttributionDrillPaths,
@@ -42,14 +43,25 @@ function channelExprSql(): string {
 }
 
 @Injectable()
-export class NlQueryContextRepository {
+export class NlQueryContextRepository implements OnModuleDestroy {
   private db: DatabaseSync | null = null;
+  private pool: Pool | null = null;
 
   constructor(
     private readonly config: AppConfigService,
     private readonly deals: DealScoreContextRepository,
     private readonly renewals: RenewalContractContextRepository,
   ) {}
+
+  onModuleDestroy(): void {
+    void this.pool?.end();
+    this.pool = null;
+  }
+
+  private get pg(): Pool {
+    if (!this.pool) this.pool = new Pool({ connectionString: this.config.databaseUrl });
+    return this.pool;
+  }
 
   private get database(): DatabaseSync {
     if (!this.db) {
@@ -59,7 +71,7 @@ export class NlQueryContextRepository {
     return this.db;
   }
 
-  executeSqliteIntent(intentId: string): NlQueryExecutionResult {
+  async executeSqliteIntent(intentId: string): Promise<NlQueryExecutionResult> {
     switch (intentId) {
       case 'leads_new_7d':
         return this.countLeads('7 ngày', daysAgoYmd(6), todayYmd());
@@ -93,6 +105,37 @@ export class NlQueryContextRepository {
         return this.countQualifiedLeadsMonth();
       case 'renewal_candidates_90d':
         return this.renewalCandidates();
+      case 'attribution_drill_paths':
+        return this.attributionDrillPaths();
+      case 'revenue_by_week_8w':
+        return this.executiveTrend('revenue', 8);
+      case 'leads_qualified_30d':
+        return this.countLeadsByStatus('qualified');
+      case 'leads_conversion_rate_30d':
+        return this.leadConversionRate();
+      case 'leads_unassigned':
+        return this.countLeadsWhere('Lead chưa phân công', `(owner_id IS NULL OR trim(CAST(owner_id AS TEXT)) = '')`);
+      case 'leads_stale_7d':
+        return this.countLeadsWhere(
+          'Lead không cập nhật 7 ngày',
+          `lower(COALESCE(status, '')) NOT IN ('won', 'lost', 'closed_won', 'closed_lost')
+           AND substr(replace(trim(updated_at), 'T', ' '), 1, 10) <= '${daysAgoYmd(7)}'`,
+        );
+      case 'ops_deals_stalled_14d':
+        return this.stalledDeals();
+      case 'ops_payments_overdue':
+        return this.overduePayments();
+      case 'ops_contracts_expiring_30d':
+        return this.renewalCandidates(30);
+      case 'cpl_by_client_30d':
+      case 'revenue_by_client_30d':
+      case 'roas_overview_30d':
+      case 'roas_meta_30d':
+      case 'roas_zalo_30d':
+      case 'marketing_spend_by_channel_30d':
+      case 'cpl_trend_12w':
+      case 'roas_trend_12w':
+        return this.executePerformanceIntent(intentId);
       default:
         return { columns: [], rows: [] };
     }
@@ -278,14 +321,14 @@ export class NlQueryContextRepository {
     };
   }
 
-  private executiveTrend(kind: 'revenue' | 'leads'): NlQueryExecutionResult {
+  private executiveTrend(kind: 'revenue' | 'leads', weeks = 12): NlQueryExecutionResult {
     const now = new Date();
     const trends = getExecutiveWeeklyTrends(this.database, now.getFullYear(), now.getMonth() + 1);
-    const labels = (trends.labels as string[]) ?? [];
+    const labels = ((trends.labels as string[]) ?? []).slice(-weeks);
     const values =
       kind === 'revenue'
-        ? ((trends.revenue_vnd as number[]) ?? [])
-        : ((trends.leads as number[]) ?? []);
+        ? ((trends.revenue_vnd as number[]) ?? []).slice(-weeks)
+        : ((trends.leads as number[]) ?? []).slice(-weeks);
     return {
       columns: [
         { key: 'week_label', label: 'Tuần', type: 'string' },
@@ -396,8 +439,8 @@ export class NlQueryContextRepository {
     };
   }
 
-  private renewalCandidates(): NlQueryExecutionResult {
-    const candidates = this.renewals.listRenewalCandidates(90, 25);
+  private renewalCandidates(days = 90): NlQueryExecutionResult {
+    const candidates = this.renewals.listRenewalCandidates(days, 25);
     return {
       columns: [
         { key: 'contract_id', label: 'HĐ', type: 'number' },
@@ -415,5 +458,243 @@ export class NlQueryContextRepository {
       })),
       drill_href: '/crm/renewals',
     };
+  }
+
+  private attributionDrillPaths(): NlQueryExecutionResult {
+    const now = new Date();
+    const drill = getAttributionDrillPaths(this.database, now.getFullYear(), now.getMonth() + 1, 10);
+    const rows = (drill.rows as Array<Record<string, unknown>>) ?? [];
+    return {
+      columns: [
+        { key: 'campaign_key', label: 'Campaign', type: 'string' },
+        { key: 'lead_count', label: 'Lead', type: 'number' },
+        { key: 'hub_href', label: 'Hub drill', type: 'string' },
+        { key: 'lead_href', label: 'Lead mẫu', type: 'string' },
+      ],
+      rows,
+      drill_href: '/crm/business-dashboard',
+    };
+  }
+
+  private countLeadsByStatus(status: string): NlQueryExecutionResult {
+    const count = this.countLeadsRange(
+      daysAgoYmd(29),
+      todayYmd(),
+      `COALESCE(is_duplicate, 0) = 0 AND lower(COALESCE(status, '')) = '${status}'`,
+    );
+    return {
+      columns: [
+        { key: 'period', label: 'Kỳ', type: 'string' },
+        { key: 'count', label: 'Lead', type: 'number' },
+      ],
+      rows: [{ period: '30 ngày', count }],
+    };
+  }
+
+  private countLeadsWhere(metric: string, where: string): NlQueryExecutionResult {
+    const db = this.database;
+    let count = 0;
+    if (tableExists(db, 'crm_leads')) {
+      const row = db.prepare(`SELECT COUNT(*) AS v FROM crm_leads WHERE ${where}`).get() as
+        | Record<string, unknown>
+        | undefined;
+      count = Number(row?.v ?? 0);
+    }
+    return {
+      columns: [
+        { key: 'metric', label: 'Chỉ số', type: 'string' },
+        { key: 'count', label: 'Giá trị', type: 'number' },
+      ],
+      rows: [{ metric, count }],
+    };
+  }
+
+  private leadConversionRate(): NlQueryExecutionResult {
+    const total = this.countLeadsRange(daysAgoYmd(29), todayYmd(), 'COALESCE(is_duplicate, 0) = 0');
+    const won = this.countLeadsRange(
+      daysAgoYmd(29),
+      todayYmd(),
+      `COALESCE(is_duplicate, 0) = 0 AND lower(COALESCE(status, '')) IN ('won', 'closed_won')`,
+    );
+    return {
+      columns: [
+        { key: 'total', label: 'Lead mới', type: 'number' },
+        { key: 'won', label: 'Won', type: 'number' },
+        { key: 'conversion_rate_pct', label: 'Tỷ lệ', type: 'pct' },
+      ],
+      rows: [{ total, won, conversion_rate_pct: total ? Math.round((won / total) * 1000) / 10 : null }],
+    };
+  }
+
+  private stalledDeals(): NlQueryExecutionResult {
+    const db = this.database;
+    let count = 0;
+    if (tableExists(db, 'crm_cases')) {
+      const row = db
+        .prepare(
+          `SELECT COUNT(*) AS v FROM crm_cases
+           WHERE lower(COALESCE(status, '')) NOT IN ('closed', 'won', 'lost')
+             AND datetime(updated_at) <= datetime('now', '-14 days')`,
+        )
+        .get() as Record<string, unknown> | undefined;
+      count = Number(row?.v ?? 0);
+    }
+    return {
+      columns: [{ key: 'count', label: 'Deal treo >14 ngày', type: 'number' }],
+      rows: [{ count }],
+      drill_href: '/crm/sales',
+    };
+  }
+
+  private overduePayments(): NlQueryExecutionResult {
+    const db = this.database;
+    let count = 0;
+    let amount = 0;
+    if (tableExists(db, 'crm_svc_payments')) {
+      const row = db
+        .prepare(
+          `SELECT COUNT(*) AS count, COALESCE(SUM(amount_vnd), 0) AS amount
+           FROM crm_svc_payments
+           WHERE status = 'pending' AND due_on < ?`,
+        )
+        .get(todayYmd()) as Record<string, unknown> | undefined;
+      count = Number(row?.count ?? 0);
+      amount = Number(row?.amount ?? 0);
+    }
+    return {
+      columns: [
+        { key: 'count', label: 'Khoản quá hạn', type: 'number' },
+        { key: 'amount_vnd', label: 'Tổng quá hạn', type: 'currency' },
+      ],
+      rows: [{ count, amount_vnd: amount }],
+      drill_href: '/crm/financials',
+    };
+  }
+
+  private async executePerformanceIntent(intentId: string): Promise<NlQueryExecutionResult> {
+    try {
+      const channel =
+        intentId === 'roas_meta_30d' ? 'meta' : intentId === 'roas_zalo_30d' ? 'zalo' : null;
+      if (intentId === 'cpl_trend_12w' || intentId === 'roas_trend_12w') {
+        const result = await this.pg.query(
+          `SELECT to_char(date_trunc('week', performance_date), 'DD/MM') AS label,
+                  SUM(spend)::float8 AS spend,
+                  SUM(leads_crm)::float8 AS leads,
+                  SUM(conversion_value)::float8 AS revenue
+           FROM daily_performance
+           WHERE performance_date >= CURRENT_DATE - INTERVAL '12 weeks'
+           GROUP BY date_trunc('week', performance_date)
+           ORDER BY date_trunc('week', performance_date)`,
+        );
+        const metric = intentId.startsWith('cpl') ? 'cpl' : 'roas';
+        const rows = result.rows.map((row) => ({
+          label: String(row.label),
+          value:
+            metric === 'cpl'
+              ? Number(row.leads) > 0
+                ? Number(row.spend) / Number(row.leads)
+                : 0
+              : Number(row.spend) > 0
+                ? Number(row.revenue) / Number(row.spend)
+                : 0,
+        }));
+        return {
+          columns: [
+            { key: 'label', label: 'Tuần', type: 'string' },
+            { key: 'value', label: metric.toUpperCase(), type: 'number' },
+          ],
+          rows,
+          chart: {
+            type: 'line',
+            labels: rows.map((row) => row.label),
+            series: [{ key: metric, label: metric.toUpperCase(), values: rows.map((row) => row.value) }],
+          },
+          drill_href: '/crm/business-dashboard',
+        };
+      }
+
+      const result = await this.pg.query(
+        `SELECT dp.client_id::text, COALESCE(c.name, c.code, dp.client_id::text) AS client_name,
+                dp.channel, SUM(dp.spend)::float8 AS spend,
+                SUM(dp.leads_crm)::float8 AS leads,
+                SUM(dp.conversion_value)::float8 AS revenue
+         FROM daily_performance dp
+         LEFT JOIN clients c ON c.id = dp.client_id
+         WHERE dp.performance_date >= CURRENT_DATE - INTERVAL '29 days'
+           AND ($1::text IS NULL OR dp.channel = $1)
+         GROUP BY dp.client_id, c.name, c.code, dp.channel
+         ORDER BY SUM(dp.spend) DESC`,
+        [channel],
+      );
+      const rows = result.rows.map((row) => ({
+        client_id: String(row.client_id),
+        client_name: String(row.client_name),
+        channel: String(row.channel),
+        spend_vnd: Number(row.spend ?? 0),
+        leads: Number(row.leads ?? 0),
+        revenue_vnd: Number(row.revenue ?? 0),
+        cpl_vnd: Number(row.leads) > 0 ? Number(row.spend) / Number(row.leads) : null,
+        roas: Number(row.spend) > 0 ? Number(row.revenue) / Number(row.spend) : null,
+      }));
+
+      if (intentId === 'marketing_spend_by_channel_30d' || intentId.startsWith('roas_')) {
+        const byChannel = new Map<string, { spend: number; revenue: number }>();
+        for (const row of rows) {
+          const current = byChannel.get(row.channel) ?? { spend: 0, revenue: 0 };
+          current.spend += row.spend_vnd;
+          current.revenue += row.revenue_vnd;
+          byChannel.set(row.channel, current);
+        }
+        const aggregate = [...byChannel].map(([name, value]) => ({
+          channel: name,
+          spend_vnd: value.spend,
+          roas: value.spend > 0 ? value.revenue / value.spend : null,
+        }));
+        const key = intentId === 'marketing_spend_by_channel_30d' ? 'spend_vnd' : 'roas';
+        return {
+          columns: [
+            { key: 'channel', label: 'Kênh', type: 'string' },
+            { key, label: key === 'roas' ? 'ROAS' : 'Chi phí', type: key === 'roas' ? 'number' : 'currency' },
+          ],
+          rows: aggregate,
+          chart:
+            intentId === 'marketing_spend_by_channel_30d'
+              ? {
+                  type: 'bar',
+                  labels: aggregate.map((row) => row.channel),
+                  series: [
+                    {
+                      key,
+                      label: 'Chi phí',
+                      values: aggregate.map((row) => Number(row.spend_vnd)),
+                    },
+                  ],
+                }
+              : undefined,
+          drill_href: '/crm/business-dashboard',
+        };
+      }
+
+      return {
+        columns: [
+          { key: 'client_name', label: 'Client', type: 'string' },
+          {
+            key: intentId === 'cpl_by_client_30d' ? 'cpl_vnd' : 'revenue_vnd',
+            label: intentId === 'cpl_by_client_30d' ? 'CPL' : 'Doanh thu',
+            type: 'currency',
+          },
+          { key: 'spend_vnd', label: 'Chi phí', type: 'currency' },
+          { key: 'leads', label: 'Lead', type: 'number' },
+        ],
+        rows,
+        drill_href: '/crm/business-dashboard',
+      };
+    } catch {
+      return {
+        columns: [{ key: 'status', label: 'Trạng thái', type: 'string' }],
+        rows: [{ status: 'PG performance chưa sẵn sàng' }],
+        drill_href: '/crm/business-dashboard',
+      };
+    }
   }
 }

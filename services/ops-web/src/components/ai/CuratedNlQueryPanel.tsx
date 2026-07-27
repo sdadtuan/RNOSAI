@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { NlQueryCatalogEntry, NlQueryResultPayload } from '@/lib/ai-api';
 import { fetchNlQueryCatalog, postNlQuery } from '@/lib/ai-api';
 import { formatVnd } from '@/lib/kpi/format';
+import { NlQueryTrendChart } from './NlQueryTrendChart';
 
 function formatCell(value: unknown, type?: string): string {
   if (value == null || value === '') return '—';
@@ -104,7 +105,7 @@ export function CuratedNlQueryPanel({ token }: { token: string }) {
     <section className="nl-query-panel" data-testid="nl-query-panel">
       <div className="nl-query-panel__head">
         <p className="muted">
-          NL Analytics curated · RNOS-22 · Read-only whitelist (~{catalog.length || 25} câu hỏi)
+          NL Analytics curated · RNOS-22 · Read-only whitelist ({catalog.length || 50} câu hỏi)
         </p>
       </div>
 
@@ -183,18 +184,7 @@ export function CuratedNlQueryPanel({ token }: { token: string }) {
                   </div>
                 </header>
 
-                {result.chart ? (
-                  <div className="nl-query-chart" data-testid="nl-query-chart">
-                    <p className="muted">
-                      {result.chart.type.toUpperCase()} · {result.chart.labels.join(' · ')}
-                    </p>
-                    {result.chart.series.map((series) => (
-                      <p key={series.key}>
-                        <strong>{series.label}:</strong> {series.values.join(', ')}
-                      </p>
-                    ))}
-                  </div>
-                ) : null}
+                {result.chart ? <NlQueryTrendChart chart={result.chart} /> : null}
 
                 <div className="table-wrap">
                   <table className="data-table">

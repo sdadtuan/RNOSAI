@@ -100,10 +100,22 @@ export class AiNlQueryService {
         return this.aiDismissReasons7d();
       case 'forecast_month_summary':
         return this.forecastMonthSummary();
+      case 'revenue_forecast_gap':
+      case 'forecast_pipeline_coverage':
+      case 'forecast_committed_gap':
+        return this.forecastGap(intentId);
       case 'churn_health_top10':
         return this.churnHealthTop10();
+      case 'health_at_risk_count':
+      case 'health_ticket_spike_count':
+      case 'health_payment_overdue_count':
+        return this.healthCount(intentId);
       case 'cskh_open_board':
         return this.cskhOpenBoard();
+      case 'ops_sla_warning':
+        return this.slaWarning();
+      case 'ai_recommendations_pending':
+        return this.aiRecommendationsPending();
       default:
         return this.context.executeSqliteIntent(intentId);
     }
@@ -355,5 +367,79 @@ export class AiNlQueryService {
       rows: [{ metric: 'Lead mở CSKH', count: board.summary.total }],
       drill_href: '/crm/cskh-board?sla_filter=open',
     };
+  }
+
+  private async slaWarning(): Promise<NlQueryExecutionResult> {
+    const board = await this.cskhBoard.getBoard({ sla_filter: 'warning', limit: 1, offset: 0 });
+    return {
+      columns: [{ key: 'count', label: 'Lead SLA warning', type: 'number' }],
+      rows: [{ count: board.summary.warning }],
+      drill_href: '/crm/cskh-board?sla_filter=warning',
+    };
+  }
+
+  private async aiRecommendationsPending(): Promise<NlQueryExecutionResult> {
+    if (!(await this.recommendations.tableReady())) {
+      return { columns: [{ key: 'pending', label: 'Đang chờ', type: 'number' }], rows: [{ pending: 0 }] };
+    }
+    const to = new Date().toISOString();
+    const from = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const metrics = await this.recommendations.getAcceptanceMetrics({ from, to });
+    return {
+      columns: [{ key: 'pending', label: 'Đang chờ', type: 'number' }],
+      rows: [{ pending: metrics.pending }],
+      drill_href: '/crm/ai/insights?status=pending',
+    };
+  }
+
+  private async forecastGap(intentId: string): Promise<NlQueryExecutionResult> {
+    try {
+      const dash = (await this.forecast.getDashboard()).data;
+      const value =
+        intentId === 'forecast_pipeline_coverage'
+          ? dash.pipeline_amount > 0
+            ? Math.round((dash.forecast_amount / dash.pipeline_amount) * 1000) / 10
+            : null
+          : dash.forecast_amount - dash.committed_amount;
+      return {
+        columns: [
+          { key: 'period', label: 'Kỳ', type: 'string' },
+          {
+            key: 'value',
+            label: intentId === 'forecast_pipeline_coverage' ? 'Độ phủ' : 'Chênh lệch',
+            type: intentId === 'forecast_pipeline_coverage' ? 'pct' : 'currency',
+          },
+        ],
+        rows: [{ period: dash.period_label, value }],
+        drill_href: '/crm/forecast',
+      };
+    } catch {
+      return { columns: [{ key: 'status', label: 'Trạng thái', type: 'string' }], rows: [{ status: 'Chưa có forecast' }] };
+    }
+  }
+
+  private async healthCount(intentId: string): Promise<NlQueryExecutionResult> {
+    try {
+      const dash = await this.churnHealth.getDashboard({
+        sort: 'churn_risk',
+        order: 'desc',
+        limit: 500,
+        offset: 0,
+      });
+      const count = dash.data.clients.filter((client) => {
+        if (intentId === 'health_ticket_spike_count') return client.health.ticket_spike;
+        if (intentId === 'health_payment_overdue_count') {
+          return client.health.signals.payment_overdue_count > 0;
+        }
+        return ['at_risk', 'critical'].includes(client.health.health_band);
+      }).length;
+      return {
+        columns: [{ key: 'count', label: 'Client', type: 'number' }],
+        rows: [{ count }],
+        drill_href: '/crm/health',
+      };
+    } catch {
+      return { columns: [{ key: 'count', label: 'Client', type: 'number' }], rows: [{ count: 0 }] };
+    }
   }
 }
