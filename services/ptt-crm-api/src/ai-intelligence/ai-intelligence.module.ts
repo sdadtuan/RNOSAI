@@ -74,6 +74,7 @@ import { OrchestratorCronService } from './orchestrator/orchestrator-cron.servic
 import { OrchestratorService } from './orchestrator/orchestrator.service';
 import { StaffAiOrchestratorGuard } from './guards/staff-ai-orchestrator.guard';
 import { StaffAiOrchestratorViewGuard } from './guards/staff-ai-orchestrator-view.guard';
+import { AiToolKeysRepository } from './ai-tools/ai-tool-keys.repository';
 
 @Module({
   imports: [
@@ -101,6 +102,7 @@ import { StaffAiOrchestratorViewGuard } from './guards/staff-ai-orchestrator-vie
     OrchestratorEngine,
     OrchestratorService,
     OrchestratorCronService,
+    AiToolKeysRepository,
     AiAuditService,
     AiAgentRunsService,
     AiScoresRepository,
@@ -163,6 +165,7 @@ import { StaffAiOrchestratorViewGuard } from './guards/staff-ai-orchestrator-vie
     OrchestratorEngine,
     OrchestratorService,
     OrchestratorCronService,
+    AiToolKeysRepository,
     AiAuditService,
     AiAgentRunsService,
     AiScoresRepository,
