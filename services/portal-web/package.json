@@ -9,6 +9,7 @@
     "start": "next start -p ${PORTAL_PORT:-3100}",
     "lint": "next lint",
     "test:e2e": "playwright test",
+    "test:e2e:portal-ai-summary": "playwright test e2e/portal-ai-summary-rnos30.spec.ts",
     "test:e2e:ui": "playwright test --ui"
   },
   "engines": {

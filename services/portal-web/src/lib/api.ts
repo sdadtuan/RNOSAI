@@ -807,3 +807,60 @@ export async function markAllPortalNotificationsRead(
   }
   return body;
 }
+
+export interface PortalAiReportSummaryResponse {
+  ok: boolean;
+  client_id: string;
+  enabled: boolean;
+  period: {
+    from: string;
+    to: string;
+    label: string;
+    days: number;
+  };
+  narrative: string;
+  bullets: string[];
+  kpis: {
+    total_spend: number;
+    total_leads_crm: number;
+    avg_cpl: number | null;
+    avg_roas: number | null;
+    campaigns_tracked: number;
+    over_target_rows: number;
+    unmapped_spend_pct: number;
+  };
+  channels: Array<{
+    channel: 'meta' | 'google' | 'zalo';
+    spend: number;
+    leads_crm: number;
+    avg_cpl: number | null;
+  }>;
+  data_freshness?: {
+    through_date: string;
+    synced_at: string | null;
+  } | null;
+  generated_at: string;
+  stub_mode: boolean;
+  agent_run_id?: string | null;
+  error?: string;
+}
+
+export async function fetchPortalAiReportSummary(
+  token: string,
+  params?: { days?: number },
+): Promise<PortalAiReportSummaryResponse> {
+  const qs = new URLSearchParams();
+  if (params?.days) {
+    qs.set('days', String(params.days));
+  }
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/portal/ai/report-summary${suffix}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<PortalAiReportSummaryResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Portal AI summary failed', res.status);
+  }
+  return body;
+}

@@ -46,6 +46,7 @@ import { ObservabilityModule } from './observability/observability.module';
 import { PerformanceModule } from './performance/performance.module';
 import { PortalEmailModule } from './portal-email/portal-email.module';
 import { PortalSeoModule } from './portal-seo/portal-seo.module';
+import { PortalAiModule } from './portal-ai/portal-ai.module';
 import { PortalModule } from './portal/portal.module';
 import { OwnerWeeklyModule } from './owner-weekly/owner-weekly.module';
 import { PayrollModule } from './payroll/payroll.module';
@@ -112,6 +113,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     StaffAuthModule,
     WebhooksModule,
     PortalSeoModule,
+    PortalAiModule,
     PortalEmailModule,
     SeoAdminModule,
     SeoContentModule,

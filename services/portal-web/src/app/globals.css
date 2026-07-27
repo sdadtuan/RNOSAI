@@ -249,6 +249,58 @@ input {
   color: var(--text);
 }
 
+.portal-ai-summary {
+  margin-bottom: 1rem;
+}
+
+.portal-ai-summary__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.portal-ai-summary__title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.portal-ai-summary__subtitle {
+  margin: 0.25rem 0 0;
+}
+
+.portal-ai-summary__narrative {
+  margin: 0 0 0.75rem;
+  line-height: 1.55;
+}
+
+.portal-ai-summary__bullets {
+  margin: 0 0 0.85rem;
+  padding-left: 1.1rem;
+}
+
+.portal-ai-summary__kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+.portal-ai-summary__kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.portal-ai-summary__footer {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
 .perf-table tbody tr:hover {
   background: rgba(255, 255, 255, 0.02);
 }

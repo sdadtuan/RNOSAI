@@ -507,6 +507,26 @@
 
 ---
 
+## AI-UC-021 — Portal AI weekly report summary *(R3)*
+
+| Thuộc tính | Giá trị |
+|------------|---------|
+| **Actor chính** | Client approver / viewer |
+| **Priority** | P2 |
+| **Trigger** | Client mở `/dashboard` hoặc refresh tuần |
+
+**Main flow:**
+
+1. Portal JWT scoped theo `client_id`.
+2. `GET /api/v1/portal/ai/report-summary?days=7` aggregate performance Meta/Google/Zalo.
+3. Rules engine tạo narrative 3 câu + bullets client-safe (không score nội bộ, owner, margin).
+4. Dashboard hiển thị card “Tóm tắt tuần này” phía trên bảng KPI.
+5. Audit `portal_report_summary` ghi lại mỗi lần generate.
+
+**Traceability:** UI-R3-07, RNOS-30, §13 Portal client-safe AI
+
+---
+
 ## AI-UC-019 — Channel CPL/ROAS anomaly digest *(R4)*
 
 | Thuộc tính | Giá trị |
@@ -594,6 +614,7 @@ flowchart LR
 | RNOS-21 | AI-UC-018 |
 | RNOS-22 | AI-UC-016 |
 | RNOS-23 | AI-UC-015 |
+| RNOS-30 | AI-UC-021 |
 | RNOS-29 | AI-UC-007, 011 |
 | RNOS-39 | All P0 R1 (E2E) |
 | RNOS-40 | AI-UC-010 |
