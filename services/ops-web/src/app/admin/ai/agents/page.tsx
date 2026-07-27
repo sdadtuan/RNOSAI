@@ -95,6 +95,8 @@ export default function AdminAiAgentsPage() {
 
   const loadOrchestrations = useCallback(
     async (access: string, nextOffset: number, nextFilters = filters) => {
+      detailRequestRef.current += 1;
+      setDetailLoading(false);
       setLoading(true);
       setError('');
       try {
