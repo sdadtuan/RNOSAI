@@ -21,6 +21,7 @@ export class AiIntelligenceConfigService {
   readonly summarizeMinTextLength: number;
   readonly leadRoutingEnabled: boolean;
   readonly upsellEnabled: boolean;
+  readonly orchestratorEnabled: boolean;
 
   constructor() {
     this.copilotEnabled = envFlag('PTT_AI_COPILOT_ENABLED', false);
@@ -49,6 +50,7 @@ export class AiIntelligenceConfigService {
     );
     this.leadRoutingEnabled = envFlag('PTT_AI_LEAD_ROUTING_ENABLED', true);
     this.upsellEnabled = envFlag('PTT_AI_UPSELL_ENABLED', true);
+    this.orchestratorEnabled = envFlag('PTT_AI_ORCHESTRATOR_ENABLED', false);
   }
 
   isPilotUser(staffId: string | undefined | null): boolean {

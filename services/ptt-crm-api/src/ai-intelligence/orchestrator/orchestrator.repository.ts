@@ -9,6 +9,7 @@ import {
   AiOrchestrationRow,
   AiOrchestrationStatus,
   AiOrchestrationTriggerType,
+  OrchestratorListResult,
   ORCHESTRATOR_MIGRATION_VERSION,
 } from './orchestrator.types';
 import { AiAgentRunRecord, AiAgentRunRow } from '../ai-intelligence.types';
@@ -120,6 +121,43 @@ export class OrchestratorRepository implements OnModuleDestroy {
     );
     const row = result.rows[0];
     return row ? mapOrchestrationRow(row) : null;
+  }
+
+  async updateStatus(
+    id: string,
+    status: AiOrchestrationStatus,
+    outputJson: Record<string, unknown> = {},
+  ): Promise<void> {
+    await this.db.query(
+      `UPDATE ai_orchestrations
+       SET status = $2,
+           output_json = $3::jsonb,
+           ended_at = CASE
+             WHEN $2::varchar IN ('succeeded', 'failed', 'cancelled') THEN NOW()
+             ELSE ended_at
+           END
+       WHERE id = $1::uuid`,
+      [id, status, JSON.stringify(outputJson)],
+    );
+  }
+
+  async list(limitInput = 50, offsetInput = 0): Promise<OrchestratorListResult> {
+    const limit = Math.min(Math.max(limitInput, 1), 200);
+    const offset = Math.max(offsetInput, 0);
+    const countResult = await this.db.query(
+      'SELECT COUNT(*)::int AS total FROM ai_orchestrations',
+    );
+    const result = await this.db.query(
+      `SELECT ${ORCHESTRATION_SELECT_COLUMNS}
+       FROM ai_orchestrations
+       ORDER BY started_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset],
+    );
+    return {
+      rows: result.rows.map(mapOrchestrationRow),
+      total: Number(countResult.rows[0]?.total ?? 0),
+    };
   }
 
   async insertChildRun(row: AiOrchestrationChildRunInsert): Promise<AiAgentRunRow> {

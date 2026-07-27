@@ -220,6 +220,10 @@ export class AiAuditService {
       actorId: args.ctx.actorId ?? null,
       errorMessage: args.errorMessage ?? null,
       errorCode: args.errorCode ?? null,
+      parentRunId: args.ctx.parentRunId ?? null,
+      orchestrationId: args.ctx.orchestrationId ?? null,
+      stepKey: args.ctx.stepKey ?? null,
+      stepIndex: args.ctx.stepIndex ?? null,
     });
     return row.id;
   }

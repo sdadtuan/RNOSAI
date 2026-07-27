@@ -86,6 +86,14 @@ import { StaffAiRenewalWriteGuard } from './guards/staff-ai-renewal-write.guard'
 import { StaffAiChurnHealthViewGuard } from './guards/staff-ai-churn-health-view.guard';
 import { StaffAiCoachViewGuard } from './guards/staff-ai-coach-view.guard';
 import { StaffAiNlQueryGuard } from './guards/staff-ai-nl-query.guard';
+import { StaffAiOrchestratorGuard } from './guards/staff-ai-orchestrator.guard';
+import {
+  OrchestratorDetailResponse,
+  OrchestratorListResponse,
+  OrchestratorRunResponse,
+  OrchestratorService,
+} from './orchestrator/orchestrator.service';
+import { OrchestratorContext } from './orchestrator/orchestrator.types';
 
 interface ScoreDealBody {
   deal_id: number;
@@ -137,6 +145,12 @@ interface PatchRecommendationBody {
   dismiss_reason?: string;
 }
 
+interface OrchestratorRunBody {
+  planKey: string;
+  clientId?: string;
+  input: OrchestratorContext;
+}
+
 @Controller('api/v1/ai')
 export class AiIntelligenceController {
   constructor(
@@ -158,6 +172,7 @@ export class AiIntelligenceController {
     private readonly ticketSentiment: AiTicketSentimentService,
     private readonly anomalyDigest: AnomalyDigestService,
     private readonly leadRoute: AiLeadRouteService,
+    private readonly orchestrator: OrchestratorService,
   ) {}
 
   /** RNOS-02 — public smoke; records ai_agent_runs when schema ready (RNOS-05). */
@@ -209,6 +224,59 @@ export class AiIntelligenceController {
     @Headers('x-correlation-id') correlationId?: string,
   ): Promise<AiAgentRunDetailResponse> {
     return this.runs.getById(id, correlationId?.trim() || requestId?.trim() || undefined);
+  }
+
+  /** RNOS-31 — run a static multi-agent orchestration plan. */
+  @Post('orchestrator/run')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiOrchestratorGuard)
+  runOrchestrator(
+    @Body() body: OrchestratorRunBody,
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<OrchestratorRunResponse> {
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.orchestrator.run({
+      planKey: body?.planKey,
+      clientId: body?.clientId,
+      input: body?.input,
+      actorId,
+      correlationId: correlationId?.trim() || requestId?.trim() || undefined,
+    });
+  }
+
+  /** RNOS-31 — paginated orchestration trace list. */
+  @Get('orchestrator')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiOrchestratorGuard)
+  listOrchestrations(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<OrchestratorListResponse> {
+    return this.orchestrator.list(
+      limit ? Number(limit) : undefined,
+      offset ? Number(offset) : undefined,
+      correlationId?.trim() || requestId?.trim() || undefined,
+    );
+  }
+
+  /** RNOS-31 — orchestration detail with parent and child runs. */
+  @Get('orchestrator/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiOrchestratorGuard)
+  getOrchestration(
+    @Param('id') id: string,
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<OrchestratorDetailResponse> {
+    return this.orchestrator.get(
+      id,
+      correlationId?.trim() || requestId?.trim() || undefined,
+    );
   }
 
   /** RNOS-04 — rules engine v1 + explainability (AI-UC-001, AI-UC-005). */

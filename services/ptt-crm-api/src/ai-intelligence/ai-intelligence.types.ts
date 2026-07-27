@@ -107,6 +107,10 @@ export interface AiAuditContext {
   entityId?: string | null;
   input?: Record<string, unknown>;
   modelName?: string | null;
+  parentRunId?: string | null;
+  orchestrationId?: string | null;
+  stepKey?: string | null;
+  stepIndex?: number | null;
 }
 
 export interface AiAuditWrapResult<T> {

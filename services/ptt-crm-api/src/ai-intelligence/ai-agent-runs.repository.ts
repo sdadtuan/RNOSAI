@@ -214,6 +214,47 @@ export class AiAgentRunsRepository implements OnModuleDestroy {
     return result.rows.map(mapRunRow);
   }
 
+  async listByOrchestration(orchestrationId: string): Promise<AiAgentRunRecord[]> {
+    const result = await this.db.query(
+      `SELECT ${RUN_SELECT_COLUMNS}
+       FROM ai_agent_runs
+       WHERE orchestration_id = $1::uuid
+       ORDER BY parent_run_id NULLS FIRST, step_index ASC NULLS LAST, created_at ASC`,
+      [orchestrationId],
+    );
+    return result.rows.map(mapRunRow);
+  }
+
+  async updateRun(
+    id: string,
+    patch: {
+      status: AiAgentRunStatus;
+      outputJson?: Record<string, unknown>;
+      errorMessage?: string | null;
+      latencyMs?: number | null;
+    },
+  ): Promise<void> {
+    await this.db.query(
+      `UPDATE ai_agent_runs
+       SET status = $2,
+           output_json = $3::jsonb,
+           error_message = $4,
+           latency_ms = $5,
+           ended_at = CASE
+             WHEN $2::varchar IN ('succeeded', 'failed', 'cancelled') THEN NOW()
+             ELSE ended_at
+           END
+       WHERE id = $1::uuid`,
+      [
+        id,
+        patch.status,
+        JSON.stringify(patch.outputJson ?? {}),
+        patch.errorMessage ?? null,
+        patch.latencyMs ?? null,
+      ],
+    );
+  }
+
   async insertChildRun(
     row: AiAgentRunInsert & {
       parentRunId: string;

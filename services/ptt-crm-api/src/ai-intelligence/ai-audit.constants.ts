@@ -24,6 +24,8 @@ export const AI_USE_CASE = {
   ROUTE_REP: 'route_rep',
   UPSELL_SUGGEST: 'upsell_suggest',
   UPSELL_APPROVE: 'upsell_approve',
+  ORCHESTRATION_RUN: 'orchestration_run',
+  ORCHESTRATION_STEP: 'orchestration_step',
 } as const;
 
 export type AiUseCase = (typeof AI_USE_CASE)[keyof typeof AI_USE_CASE];

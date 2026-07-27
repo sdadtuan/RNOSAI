@@ -53,6 +53,7 @@ export interface AiOrchestrationTree {
 }
 
 export interface OrchestratorContext {
+  [key: string]: unknown;
   entityType?: string;
   entityId?: string;
   leadId?: number;
@@ -103,6 +104,47 @@ export interface OrchestrationPlanStep {
 export interface OrchestrationPlan {
   key: string;
   steps: readonly OrchestrationPlanStep[];
+}
+
+export interface OrchestratorStepExecution {
+  stepKey: OrchestratorStepKey;
+  stepIndex: number;
+  required: boolean;
+  status: 'succeeded' | 'failed' | 'skipped';
+  runId?: string;
+  data?: unknown;
+  error?: string;
+}
+
+export interface OrchestratorEngineContext {
+  orchestrationId: string;
+  parentRunId: string;
+  planKey: string;
+  input: OrchestratorContext;
+  actorId?: string | null;
+  correlationId?: string | null;
+  clientId?: string | null;
+}
+
+export interface OrchestratorRunRequest {
+  planKey: string;
+  clientId?: string | null;
+  input: OrchestratorContext;
+  actorId?: string | null;
+  correlationId?: string | null;
+}
+
+export interface OrchestratorRunData {
+  orchestration_id: string;
+  parent_run_id: string;
+  plan_key: string;
+  status: 'succeeded';
+  steps: OrchestratorStepExecution[];
+}
+
+export interface OrchestratorListResult {
+  rows: AiOrchestrationRecord[];
+  total: number;
 }
 
 export type { AiAgentRunRecord, AiAgentRunRow, AiAgentRunStatus };

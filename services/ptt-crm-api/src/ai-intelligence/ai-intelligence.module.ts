@@ -69,6 +69,9 @@ import { LeadRouteContextRepository } from './lead-route-context.repository';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
 import { AgentRegistry } from './orchestrator/agent.registry';
 import { OrchestratorRepository } from './orchestrator/orchestrator.repository';
+import { OrchestratorEngine } from './orchestrator/orchestrator.engine';
+import { OrchestratorService } from './orchestrator/orchestrator.service';
+import { StaffAiOrchestratorGuard } from './guards/staff-ai-orchestrator.guard';
 
 @Module({
   imports: [
@@ -93,6 +96,8 @@ import { OrchestratorRepository } from './orchestrator/orchestrator.repository';
     AiAgentRunsRepository,
     AgentRegistry,
     OrchestratorRepository,
+    OrchestratorEngine,
+    OrchestratorService,
     AiAuditService,
     AiAgentRunsService,
     AiScoresRepository,
@@ -143,6 +148,7 @@ import { OrchestratorRepository } from './orchestrator/orchestrator.repository';
     StaffAiChurnHealthViewGuard,
     StaffAiCoachViewGuard,
     StaffAiNlQueryGuard,
+    StaffAiOrchestratorGuard,
     StaffCasesViewGuard,
   ],
   exports: [
@@ -150,6 +156,8 @@ import { OrchestratorRepository } from './orchestrator/orchestrator.repository';
     AiAgentRunsRepository,
     AgentRegistry,
     OrchestratorRepository,
+    OrchestratorEngine,
+    OrchestratorService,
     AiAuditService,
     AiAgentRunsService,
     AiScoresRepository,
@@ -196,6 +204,7 @@ import { OrchestratorRepository } from './orchestrator/orchestrator.repository';
     StaffAiChurnHealthViewGuard,
     StaffAiCoachViewGuard,
     StaffAiNlQueryGuard,
+    StaffAiOrchestratorGuard,
   ],
 })
 export class AiIntelligenceModule {}
