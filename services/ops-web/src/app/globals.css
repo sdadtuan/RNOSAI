@@ -4633,6 +4633,49 @@ body:has(.ops-sidebar) main {
   margin-top: 1rem;
 }
 
+.anomaly-digest-banner {
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  border-left: 4px solid rgba(100, 116, 139, 0.45);
+}
+
+.anomaly-digest-banner--warning {
+  border-left-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.anomaly-digest-banner--critical {
+  border-left-color: #dc2626;
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.anomaly-digest-banner--info {
+  border-left-color: #64748b;
+}
+
+.anomaly-digest-banner__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.anomaly-digest-banner__narrative {
+  margin: 0 0 0.5rem;
+  line-height: 1.5;
+}
+
+.anomaly-digest-banner__bullets {
+  margin: 0 0 0.65rem;
+  padding-left: 1.1rem;
+}
+
+.anomaly-digest-banner__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .nl-query-panel__head {
   margin-bottom: 1rem;
 }

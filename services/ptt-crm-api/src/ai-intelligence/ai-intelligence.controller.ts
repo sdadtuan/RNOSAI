@@ -12,12 +12,14 @@ import { AiForecastService } from './ai-forecast.service';
 import { RenewalAgentService } from './renewal-agent.service';
 import { AiChurnHealthService } from './ai-churn-health.service';
 import { ManagerCoachService } from './manager-coach.service';
+import { AnomalyDigestService } from './anomaly-digest.service';
 import { AiNlQueryService } from './ai-nl-query.service';
 import { AiTicketSentimentService } from './ai-ticket-sentiment.service';
 import {
   NlQueryCatalogResponse,
   NlQueryRunResponse,
 } from './nl-query.types';
+import { StaffMetaAlertsViewGuard } from '../meta-alerts/guards/staff-meta-alerts.guard';
 import { StaffCasesViewGuard } from '../cases/guards/staff-cases.guard';
 import { AiSummarizeService } from './ai-summarize.service';
 import { AiRecommendationService } from './ai-recommendation.service';
@@ -50,6 +52,7 @@ import {
   CoachDigestCurrentResponse,
   CoachDigestGenerateResponse,
 } from './coach-digest.types';
+import { AnomalyDigestResponse } from './channel-anomaly.types';
 import { TicketSentimentScoreResponse } from './ticket-sentiment.types';
 import { AiScoresBatchResponse, AiScoresListResponse, ScoreLeadResponse } from './lead-score.types';
 import { SummarizeResponse } from './summarize.types';
@@ -139,6 +142,7 @@ export class AiIntelligenceController {
     private readonly managerCoach: ManagerCoachService,
     private readonly nlQuery: AiNlQueryService,
     private readonly ticketSentiment: AiTicketSentimentService,
+    private readonly anomalyDigest: AnomalyDigestService,
   ) {}
 
   /** RNOS-02 — public smoke; records ai_agent_runs when schema ready (RNOS-05). */
@@ -788,6 +792,32 @@ export class AiIntelligenceController {
   ): Promise<CoachDigestCurrentResponse> {
     const rid = correlationId?.trim() || requestId?.trim() || undefined;
     return this.managerCoach.getCurrentDigest(teamId, rid);
+  }
+
+  /** RNOS-28 / AI-UC-019 — channel CPL/ROAS anomaly narrative digest for hub banners. */
+  @Get('anomaly/digest')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMetaAlertsViewGuard)
+  getAnomalyDigest(
+    @Query('client_id') clientId?: string,
+    @Query('channel') channel?: string,
+    @Query('days') days?: string,
+    @Req()
+    req?: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<AnomalyDigestResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req?.staffAuthVia === 'internal'
+        ? 'system'
+        : req?.staffUser?.sub ?? req?.staffUser?.email ?? null;
+    return this.anomalyDigest.getDigest({
+      client_id: clientId,
+      channel,
+      days: days ? Number(days) : undefined,
+      actorId,
+      correlationId: rid,
+    });
   }
 
   /** RNOS-22 / AI-UC-016 — curated NL analytics catalog (read-only whitelist). */

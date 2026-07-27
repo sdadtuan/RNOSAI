@@ -1,6 +1,7 @@
 'use client';
 
 import { MetaAttributionFooter } from '@/components/meta/MetaAttributionFooter';
+import { AnomalyDigestBanner } from '@/components/ai/AnomalyDigestBanner';
 import { MetaHubAlertsList } from '@/components/meta/MetaHubAlertsList';
 import { MetaHubFilters } from '@/components/meta/MetaHubFilters';
 import { MetaHubKpiGrid } from '@/components/meta/MetaHubKpiGrid';
@@ -65,6 +66,10 @@ export function MetaFacebookAdsContent() {
       />
 
       {hub.error ? <p className="error">{hub.error}</p> : null}
+
+      {getAccessToken() ? (
+        <AnomalyDigestBanner token={getAccessToken()!} channel="meta" clientId={hub.clientId || undefined} />
+      ) : null}
 
       <MetaHubKpiGrid summary={summary} clientCount={clientRows.length} attribution={attribution} />
       <MetaAttributionFooter attribution={attribution} />

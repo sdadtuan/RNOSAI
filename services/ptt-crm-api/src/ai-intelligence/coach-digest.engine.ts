@@ -1,4 +1,8 @@
 import {
+  buildChannelAnomalyCard,
+  channelAnomalyNarrativeLine,
+} from './channel-anomaly.engine';
+import {
   CoachDigestCard,
   CoachDigestContext,
   CoachDigestSeverity,
@@ -94,6 +98,20 @@ export function buildCoachDigest(context: CoachDigestContext): CoachDigestSnapsh
     drill_href: '/crm/ai/insights',
   });
 
+  cards.push(
+    buildChannelAnomalyCard({
+      meta_open_alerts: context.meta_open_alerts,
+      zalo_open_alerts: context.zalo_open_alerts,
+      cpl_spike_count: context.cpl_spike_count,
+      zero_leads_24h_count: context.zero_leads_24h_count,
+      roas_low_count: context.roas_low_count,
+      spend_spike_count: context.spend_spike_count,
+      top_anomaly_message: context.top_anomaly_message,
+      top_anomaly_channel: context.top_anomaly_channel,
+      top_anomaly_campaign_id: context.top_anomaly_campaign_id,
+    }),
+  );
+
   const narrativeParts = [
     `Tuần ${context.week_label} — tóm tắt coach cho team.`,
     context.sla_breach > 0
@@ -103,6 +121,17 @@ export function buildCoachDigest(context: CoachDigestContext): CoachDigestSnapsh
     context.pipeline_at_risk > 0
       ? `${context.pipeline_at_risk} deal cần manager review trên pipeline risk.`
       : 'Pipeline không có deal stalled nghiêm trọng.',
+    channelAnomalyNarrativeLine({
+      meta_open_alerts: context.meta_open_alerts,
+      zalo_open_alerts: context.zalo_open_alerts,
+      cpl_spike_count: context.cpl_spike_count,
+      zero_leads_24h_count: context.zero_leads_24h_count,
+      roas_low_count: context.roas_low_count,
+      spend_spike_count: context.spend_spike_count,
+      top_anomaly_message: context.top_anomaly_message,
+      top_anomaly_channel: context.top_anomaly_channel,
+      top_anomaly_campaign_id: context.top_anomaly_campaign_id,
+    }),
   ].filter(Boolean);
 
   const narrative = narrativeParts.join(' ');

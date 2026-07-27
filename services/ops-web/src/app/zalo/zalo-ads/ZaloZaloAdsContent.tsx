@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ZaloPilotBanner } from '@/components/ZaloPilotBanner';
+import { AnomalyDigestBanner } from '@/components/ai/AnomalyDigestBanner';
 import { ChannelReportSchedulesPanel } from '@/components/ChannelReportSchedulesPanel';
 import { OpsNav } from '@/components/OpsNav';
 import {
@@ -202,6 +203,14 @@ export function ZaloZaloAdsContent() {
       <OpsNav user={user} onLogout={logout} />
 
       {hub?.pilot ? <ZaloPilotBanner pilot={hub.pilot} /> : null}
+
+      {getAccessToken() ? (
+        <AnomalyDigestBanner
+          token={getAccessToken()!}
+          channel="zalo"
+          clientId={clientId || undefined}
+        />
+      ) : null}
 
       <div className="card" style={{ marginBottom: '1rem' }}>
         <h1 style={{ marginTop: 0, fontSize: '1.25rem' }}>Zalo Ads Hub</h1>

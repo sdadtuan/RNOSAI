@@ -1065,7 +1065,7 @@ export async function postChurnScore(
 }
 
 export interface CoachDigestCard {
-  key: 'sla' | 'ai_acceptance' | 'pipeline_risk';
+  key: 'sla' | 'ai_acceptance' | 'pipeline_risk' | 'channel_anomaly';
   title: string;
   summary: string;
   severity: 'info' | 'warning' | 'critical';
@@ -1253,4 +1253,65 @@ export async function postTicketSentiment(
     throw new ApiError(json.message ?? json.error ?? 'Ticket sentiment failed', res.status);
   }
   return json;
+}
+
+export interface AnomalyDigestItem {
+  alert_type: string;
+  channel: 'meta' | 'zalo';
+  campaign_id: string | null;
+  message: string;
+  severity: string;
+  metric_value: number | null;
+}
+
+export interface AnomalyDigestSnapshot {
+  narrative: string;
+  bullets: string[];
+  severity: 'info' | 'warning' | 'critical';
+  anomalies: AnomalyDigestItem[];
+  drill_href: string;
+  read_only: true;
+}
+
+export interface AnomalyDigestResponse {
+  data: {
+    enabled: boolean;
+    client_id: string | null;
+    channel: 'meta' | 'zalo' | 'all';
+    days: number;
+    digest: AnomalyDigestSnapshot | null;
+    summary: {
+      meta_open_alerts: number;
+      zalo_open_alerts: number;
+      cpl_spike_count: number;
+      zero_leads_24h_count: number;
+      roas_low_count: number;
+      spend_spike_count: number;
+    };
+    agent_run_id?: string | null;
+    generated_at: string;
+    error?: string;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export async function fetchAnomalyDigest(
+  token: string,
+  params?: { client_id?: string; channel?: 'meta' | 'zalo' | 'all'; days?: number },
+): Promise<AnomalyDigestResponse> {
+  const qs = new URLSearchParams();
+  if (params?.client_id) qs.set('client_id', params.client_id);
+  if (params?.channel) qs.set('channel', params.channel);
+  if (params?.days) qs.set('days', String(params.days));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/anomaly/digest${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<AnomalyDigestResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Anomaly digest failed', res.status);
+  }
+  return body;
 }

@@ -59,6 +59,8 @@ import { StaffAiChurnHealthViewGuard } from './guards/staff-ai-churn-health-view
 import { StaffAiCoachViewGuard } from './guards/staff-ai-coach-view.guard';
 import { StaffAiNlQueryGuard } from './guards/staff-ai-nl-query.guard';
 import { StaffCasesViewGuard } from '../cases/guards/staff-cases.guard';
+import { MetaAlertsModule } from '../meta-alerts/meta-alerts.module';
+import { AnomalyDigestService } from './anomaly-digest.service';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
 
 @Module({
@@ -72,6 +74,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     CasesModule,
     CskhBoardModule,
     TicketsModule,
+    MetaAlertsModule,
     forwardRef(() => AgencyModule),
     ServiceLifecycleModule,
     forwardRef(() => CrmLeadsLegacyModule),
@@ -95,6 +98,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     ManagerCoachService,
     AiNlQueryService,
     AiTicketSentimentService,
+    AnomalyDigestService,
     NlQueryContextRepository,
     RevenueForecastRepository,
     RenewalContractContextRepository,
@@ -145,6 +149,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     ManagerCoachService,
     AiNlQueryService,
     AiTicketSentimentService,
+    AnomalyDigestService,
     NlQueryContextRepository,
     RevenueForecastRepository,
     RenewalContractContextRepository,

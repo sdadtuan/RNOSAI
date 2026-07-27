@@ -87,6 +87,79 @@ export class MetaAlertsRepository implements OnModuleDestroy {
     return result.rows.map((row) => this.mapRow(row));
   }
 
+  async summarizeOpenAlerts(params: {
+    clientId?: string;
+    sinceDays?: number;
+    limit?: number;
+  }): Promise<{
+    meta_open_alerts: number;
+    zalo_open_alerts: number;
+    cpl_spike_count: number;
+    zero_leads_24h_count: number;
+    roas_low_count: number;
+    spend_spike_count: number;
+    top_anomaly_message: string | null;
+    top_anomaly_channel: 'meta' | 'zalo' | null;
+    top_anomaly_campaign_id: string | null;
+    top_alerts: MetaAlertRow[];
+  }> {
+    const sinceDays = Math.min(Math.max(params.sinceDays ?? 7, 1), 30);
+    const limit = Math.min(Math.max(params.limit ?? 20, 1), 100);
+    const values: unknown[] = [sinceDays];
+    let idx = 2;
+    let clientClause = '';
+    if (params.clientId) {
+      clientClause = ` AND ma.client_id = $${idx++}::uuid`;
+      values.push(params.clientId);
+    }
+    values.push(limit);
+
+    const result = await this.db.query(
+      `SELECT ma.*, c.code AS client_code, c.name AS client_name
+       FROM meta_alerts ma
+       JOIN clients c ON c.id = ma.client_id
+       WHERE ma.acknowledged_at IS NULL
+         AND ma.created_at >= NOW() - ($1::int || ' days')::interval
+         ${clientClause}
+       ORDER BY
+         CASE ma.severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END,
+         ma.created_at DESC
+       LIMIT $${idx}`,
+      values,
+    );
+    const rows = result.rows.map((row) => this.mapRow(row));
+
+    let metaOpen = 0;
+    let zaloOpen = 0;
+    let cplSpike = 0;
+    let zeroLeads = 0;
+    let roasLow = 0;
+    let spendSpike = 0;
+
+    for (const row of rows) {
+      if (row.channel === 'zalo') zaloOpen += 1;
+      else metaOpen += 1;
+      if (row.alert_type === 'cpl_spike') cplSpike += 1;
+      if (row.alert_type === 'zero_leads_24h') zeroLeads += 1;
+      if (row.alert_type === 'roas_low') roasLow += 1;
+      if (row.alert_type === 'spend_spike') spendSpike += 1;
+    }
+
+    const top = rows[0];
+    return {
+      meta_open_alerts: metaOpen,
+      zalo_open_alerts: zaloOpen,
+      cpl_spike_count: cplSpike,
+      zero_leads_24h_count: zeroLeads,
+      roas_low_count: roasLow,
+      spend_spike_count: spendSpike,
+      top_anomaly_message: top?.message ?? null,
+      top_anomaly_channel: top ? (top.channel === 'zalo' ? 'zalo' : 'meta') : null,
+      top_anomaly_campaign_id: top?.external_campaign_id ?? null,
+      top_alerts: rows,
+    };
+  }
+
   async acknowledgeAlert(alertId: string): Promise<MetaAlertRow | null> {
     const result = await this.db.query(
       `UPDATE meta_alerts ma

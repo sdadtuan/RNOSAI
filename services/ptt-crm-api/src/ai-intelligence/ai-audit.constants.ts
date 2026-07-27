@@ -20,6 +20,7 @@ export const AI_USE_CASE = {
   NL_QUERY: 'nl_query',
   TICKET_SENTIMENT: 'ticket_sentiment',
   PORTAL_REPORT_SUMMARY: 'portal_report_summary',
+  CHANNEL_ANOMALY_DIGEST: 'channel_anomaly_digest',
 } as const;
 
 export type AiUseCase = (typeof AI_USE_CASE)[keyof typeof AI_USE_CASE];

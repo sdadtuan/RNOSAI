@@ -5,13 +5,14 @@ import { AiInsightsRepository } from './ai-insights.repository';
 import { AiRecommendationsRepository } from './ai-recommendations.repository';
 import { CskhBoardService } from '../cskh-board/cskh-board.service';
 import { PipelineRiskService } from './pipeline-risk.service';
+import { AnomalyDigestService } from './anomaly-digest.service';
 
 describe('ManagerCoachService', () => {
   const audit = {
     newRequestId: jest.fn().mockReturnValue('req-coach'),
     wrap: jest.fn(async (_meta, fn) => {
-      const result = await fn();
-      return { ...result, runId: 'run-coach-1' };
+      const result = await fn({ runId: '', requestId: 'req-coach' });
+      return { data: result.data, runId: 'run-coach-1', requestId: 'req-coach', latencyMs: 1 };
     }),
   };
   const insights = {
@@ -54,6 +55,19 @@ describe('ManagerCoachService', () => {
       errors: [],
     }),
   };
+  const anomalyDigest = {
+    buildCoachFields: jest.fn().mockResolvedValue({
+      meta_open_alerts: 1,
+      zalo_open_alerts: 0,
+      cpl_spike_count: 1,
+      zero_leads_24h_count: 0,
+      roas_low_count: 0,
+      spend_spike_count: 0,
+      top_anomaly_message: 'CPL spike',
+      top_anomaly_channel: 'meta',
+      top_anomaly_campaign_id: 'camp_1',
+    }),
+  };
 
   let service: ManagerCoachService;
 
@@ -67,6 +81,7 @@ describe('ManagerCoachService', () => {
         { provide: AiRecommendationsRepository, useValue: recommendations },
         { provide: CskhBoardService, useValue: cskhBoard },
         { provide: PipelineRiskService, useValue: pipelineRisk },
+        { provide: AnomalyDigestService, useValue: anomalyDigest },
       ],
     }).compile();
     service = module.get(ManagerCoachService);

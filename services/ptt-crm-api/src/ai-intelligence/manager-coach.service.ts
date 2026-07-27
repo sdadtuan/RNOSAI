@@ -14,6 +14,7 @@ import {
   CoachDigestSnapshot,
 } from './coach-digest.types';
 import { PipelineRiskService } from './pipeline-risk.service';
+import { AnomalyDigestService } from './anomaly-digest.service';
 
 const DEFAULT_TEAM_ID = 'org';
 
@@ -25,6 +26,7 @@ export class ManagerCoachService {
     private readonly recommendations: AiRecommendationsRepository,
     private readonly cskhBoard: CskhBoardService,
     private readonly pipelineRisk: PipelineRiskService,
+    private readonly anomalyDigest: AnomalyDigestService,
   ) {}
 
   async generateDigest(input: CoachDigestGenerateRequest = {}): Promise<CoachDigestGenerateResponse> {
@@ -148,6 +150,8 @@ export class ManagerCoachService {
       pipelineAtRisk = 0;
     }
 
+    const channelAnomaly = await this.anomalyDigest.buildCoachFields(7);
+
     return {
       team_id: teamId,
       week_key: weekKey,
@@ -163,6 +167,7 @@ export class ManagerCoachService {
       pending: acceptance.pending,
       top_dismiss_reasons: acceptance.top_dismiss_reasons,
       pipeline_at_risk: pipelineAtRisk,
+      ...channelAnomaly,
     };
   }
 

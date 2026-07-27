@@ -542,7 +542,7 @@
 3. Link drill → leads affected + copilot context.
 4. Budget recommend read-only (governance write separate).
 
-**Traceability:** §23.5, §22.5 moat độc quyền, RNOS-28 partial
+**Traceability:** §23.5, §22.5 moat độc quyền, **RNOS-28** (hub banner + coach digest card)
 
 ---
 
@@ -615,6 +615,7 @@ flowchart LR
 | RNOS-22 | AI-UC-016 |
 | RNOS-23 | AI-UC-015 |
 | RNOS-30 | AI-UC-021 |
+| RNOS-28 | AI-UC-019 |
 | RNOS-29 | AI-UC-007, 011 |
 | RNOS-39 | All P0 R1 (E2E) |
 | RNOS-40 | AI-UC-010 |

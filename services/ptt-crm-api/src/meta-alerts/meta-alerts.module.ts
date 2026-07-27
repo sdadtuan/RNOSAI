@@ -14,6 +14,6 @@ import { StaffMetaAlertsAckGuard, StaffMetaAlertsViewGuard } from './guards/staf
     StaffMetaAlertsViewGuard,
     StaffMetaAlertsAckGuard,
   ],
-  exports: [MetaAlertsService],
+  exports: [MetaAlertsService, MetaAlertsRepository],
 })
 export class MetaAlertsModule {}

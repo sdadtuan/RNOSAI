@@ -55,7 +55,7 @@ export function CoachDigestPanel({ token }: { token: string }) {
     <section className="coach-digest-panel" data-testid="coach-digest-panel">
       <div className="coach-digest-panel__head">
         <p className="muted">
-          Manager Coach · RNOS-21 · Read-only aggregate (SLA, AI acceptance, pipeline risk)
+          Manager Coach · RNOS-21 + RNOS-28 · Read-only aggregate (SLA, AI acceptance, pipeline, channel anomaly)
         </p>
         <button type="button" className="btn btn-secondary" disabled={generating} onClick={() => void handleGenerate(true)}>
           {generating ? 'Đang tạo…' : 'Tạo digest tuần'}
@@ -99,6 +99,12 @@ export function CoachDigestPanel({ token }: { token: string }) {
                 {card.key === 'ai_acceptance' && card.metrics.top_dismiss_reason ? (
                   <p className="muted">
                     Top dismiss: {String(card.metrics.top_dismiss_reason)} ({String(card.metrics.top_dismiss_count ?? 0)})
+                  </p>
+                ) : null}
+                {card.key === 'channel_anomaly' ? (
+                  <p className="muted">
+                    Meta {String(card.metrics.meta_open ?? 0)} · Zalo {String(card.metrics.zalo_open ?? 0)} · CPL spike{' '}
+                    {String(card.metrics.cpl_spike ?? 0)}
                   </p>
                 ) : null}
                 <Link href={card.drill_href} className="btn btn-link">
