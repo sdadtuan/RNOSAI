@@ -244,7 +244,27 @@
 
 **Postconditions:** AM có single pane contract health.
 
-**Traceability:** `/crm/hub`, contract lifecycle API
+**Traceability:** `/crm/hub`, contract lifecycle API, RNOS-25 invoices drill
+
+---
+
+## RNOS-25 — Order / Invoice schema extension
+
+| Thuộc tính | Giá trị |
+|------------|---------|
+| **Actor chính** | AM, Finance |
+| **Priority** | P2 (R2) |
+
+**Main flow:**
+
+1. Proposal/HĐ signed → sales order (`crm_orders`) với line items từ catalog.
+2. Finance phát hành invoice (`crm_invoices`) — due date drives AR aging.
+3. Payment receipt link `crm_svc_payments.invoice_id` → sync `paid_vnd`.
+4. Lifecycle handover gate đọc invoice overdue (SVC-UC-004).
+
+**API:** `GET/POST /api/crm/orders`, `GET/POST /api/crm/invoices`, convert/issue endpoints.
+
+**Traceability:** SPEC §13.8, **RNOS-25**, [CRM actions step 9–10](actions/01-CRM-ACTIONS.md#rnos-25--order--invoice-schema-extension-r2)
 
 ---
 

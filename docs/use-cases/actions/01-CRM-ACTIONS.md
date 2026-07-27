@@ -164,6 +164,8 @@ Ghi note "nurture" → reminder 30 ngày; không advance proposal.
 | 6 | Client | Email/offline | Accept scope (external) | signed/email | AM confirms | ✓ |
 | 7 | AM | `/crm/hub` tab **Contracts** | **+ Tạo HĐ** draft | dates, value, terms | Contract id | ✓ |
 | 8 | Finance | Same | Approve HĐ + billing terms | — | Status active | ✓ signed |
+| 9 | AM | `/crm/proposals` hoặc API | **Convert proposal → order** | `POST /api/crm/orders/from-proposal/:id` | SO reference | ✓ [RNOS-25](#rnos-25--order--invoice-schema) |
+| 10 | Finance | `/crm/invoices` | **Issue invoice** từ order | due_on, issue | Invoice number | ✓ RNOS-25 |
 
 #### Nhánh E1 — Revision
 AM tạo proposal v2; v1 archived; history retained.
@@ -282,6 +284,7 @@ AM tạo proposal v2; v1 archived; history retained.
 | 5 | AM | Same | Ghi action plan renewal | note, owner | Saved | ✓ |
 | 6 | Finance | `/crm/financials` | Cross-check AR vs contract | — | Billing current | ✓ [SVC-UC-004](02-SVC-ACTIONS.md) |
 | 7 | AM | `/crm/service-delivery` | Link lifecycle stage | lifecycle id | Badge sync | ✓ |
+| 8 | Finance | `/crm/invoices?lifecycle_id=` | Xem invoice linked HĐ/lifecycle | contract id | Overdue badge | ✓ RNOS-25 |
 
 #### Tiêu chí nghiệm thu
 - [ ] Expiring contracts visible 90d ahead
@@ -388,3 +391,26 @@ Preview flag dup → skip or merge per policy.
 | 7 | SYS-001 | AM/Tracking | Onboard E2E |
 
 **Closed-loop ads:** CRM-002 nhánh E2 Won → [SYS-UC-002](00-SYSTEM-ACTIONS.md) + [ZALO-UC-015](08-ZALO-ACTIONS.md).
+
+---
+
+## RNOS-25 — Order / Invoice schema extension *(R2)*
+
+| Thuộc tính | Giá trị |
+|------------|---------|
+| **Actor chính** | AM, Finance |
+| **Priority** | P2 |
+| **Trigger** | HĐ active / proposal accepted |
+
+**Main flow (use case actions):**
+
+1. **CRM-UC-006 step 9** — `POST /api/crm/orders/from-proposal/:id` → `crm_orders` + lines
+2. **CRM-UC-006 step 10** — `POST /api/crm/invoices/from-order/:id` → issue invoice
+3. **CRM-UC-011 step 8** — Hub/Finance xem invoice theo lifecycle/contract
+4. **SVC-UC-004 E1** — Block handover khi invoice overdue; payment ghi `invoice_id`
+
+**Schema:** `crm_orders`, `crm_order_lines`, `crm_invoices`, `crm_invoice_lines`; extend `crm_svc_payments.invoice_id`.
+
+**UI:** `/crm/orders`, `/crm/invoices` · Gate: `scripts/rnos25_order_invoice_gate.sh`
+
+**Traceability:** §13.8 Quote/Order/Invoice, Getfly gap §9, **RNOS-25**

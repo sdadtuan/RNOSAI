@@ -83,6 +83,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/staff-kpi': 'KPI AM/SP',
   '/crm/staff': 'Nhân viên',
   '/crm/proposals': 'Đề xuất dịch vụ',
+  '/crm/orders': 'Đơn hàng',
+  '/crm/invoices': 'Hóa đơn',
   '/crm/re-projects': 'Dự án BĐS',
   '/crm/payroll': 'Chấm công & lương',
   '/crm/business-dashboard': 'Dashboard kinh doanh',
@@ -223,6 +225,7 @@ function buildSections(
   }
   if (hasCap(user, 'crm_board', 'view')) {
     sales.push({ href: '/crm/proposals', label: 'Đề xuất' });
+    sales.push({ href: '/crm/orders', label: 'Đơn hàng' });
   }
   if (hasCap(user, 'crm_re_projects', 'view') || hasCap(user, 'crm_re_projects_products', 'view')) {
     sales.push({ href: '/crm/re-projects', label: 'Dự án BĐS' });
@@ -257,6 +260,7 @@ function buildSections(
     finance.push({ href: '/crm/business-dashboard', label: 'Dashboard KD' });
     finance.push({ href: '/crm/forecast', label: 'Forecast' });
     finance.push({ href: '/crm/financials', label: 'Tài chính' });
+    finance.push({ href: '/crm/invoices', label: 'Hóa đơn' });
     finance.push({ href: '/crm/ai/query', label: 'NL Analytics' });
   } else if (hasCap(user, 'ai_analytics', 'query')) {
     finance.push({ href: '/crm/ai/query', label: 'NL Analytics' });

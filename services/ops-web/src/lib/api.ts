@@ -2438,6 +2438,86 @@ export async function fetchFinanceArAging(token: string): Promise<Record<string,
   return crmFetch(token, '/api/crm/finance/ar-aging');
 }
 
+export interface OrderRow {
+  id: number;
+  reference_code: string;
+  customer_id: number;
+  contract_id: number | null;
+  proposal_id: number | null;
+  lifecycle_id: number | null;
+  status: string;
+  order_date: string;
+  total_vnd: number;
+  billing_type: string;
+  notes: string;
+}
+
+export interface InvoiceRow {
+  id: number;
+  invoice_number: string;
+  order_id: number | null;
+  contract_id: number | null;
+  lifecycle_id: number | null;
+  customer_id: number;
+  status: string;
+  issued_on: string;
+  due_on: string;
+  amount_vnd: number;
+  paid_vnd: number;
+  notes: string;
+}
+
+export async function fetchOrders(
+  token: string,
+  params?: { customer_id?: number; lifecycle_id?: number; status?: string },
+): Promise<{ orders: OrderRow[] }> {
+  const qs = new URLSearchParams();
+  if (params?.customer_id != null) qs.set('customer_id', String(params.customer_id));
+  if (params?.lifecycle_id != null) qs.set('lifecycle_id', String(params.lifecycle_id));
+  if (params?.status) qs.set('status', params.status);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return crmFetch(token, `/api/crm/orders${suffix}`);
+}
+
+export async function fetchInvoices(
+  token: string,
+  params?: { customer_id?: number; lifecycle_id?: number; status?: string; overdue?: boolean },
+): Promise<{ invoices: InvoiceRow[] }> {
+  const qs = new URLSearchParams();
+  if (params?.customer_id != null) qs.set('customer_id', String(params.customer_id));
+  if (params?.lifecycle_id != null) qs.set('lifecycle_id', String(params.lifecycle_id));
+  if (params?.status) qs.set('status', params.status);
+  if (params?.overdue) qs.set('overdue', '1');
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return crmFetch(token, `/api/crm/invoices${suffix}`);
+}
+
+export async function postOrderFromProposal(token: string, proposalId: number) {
+  return crmFetch<{ order: OrderRow }>(token, `/api/crm/orders/from-proposal/${proposalId}`, {
+    method: 'POST',
+  });
+}
+
+export async function postInvoiceFromOrder(
+  token: string,
+  orderId: number,
+  body?: { due_on?: string; issued_on?: string },
+) {
+  return crmFetch<{ invoice: InvoiceRow }>(token, `/api/crm/invoices/from-order/${orderId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export async function postInvoiceIssue(token: string, invoiceId: number, body?: { due_on?: string; issued_on?: string }) {
+  return crmFetch<{ invoice: InvoiceRow }>(token, `/api/crm/invoices/${invoiceId}/issue`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
 export async function fetchOwnerWeeklyDashboard(
   token: string,
   params?: { year?: number; week?: number; trend_weeks?: number; week_end?: string },

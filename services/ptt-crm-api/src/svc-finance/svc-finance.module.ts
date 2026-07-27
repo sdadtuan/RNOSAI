@@ -1,3 +1,4 @@
+import { ConfigModule } from '../config/config.module';
 import { Module } from '@nestjs/common';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import {
@@ -9,7 +10,7 @@ import { SvcFinanceSqliteRepository } from './svc-finance-sqlite.repository';
 import { SvcFinanceService } from './svc-finance.service';
 
 @Module({
-  imports: [StaffAuthModule],
+  imports: [ConfigModule, StaffAuthModule],
   controllers: [SvcFinanceController],
   providers: [
     SvcFinanceService,

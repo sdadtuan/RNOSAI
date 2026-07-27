@@ -51,6 +51,8 @@ import { PortalModule } from './portal/portal.module';
 import { OwnerWeeklyModule } from './owner-weekly/owner-weekly.module';
 import { PayrollModule } from './payroll/payroll.module';
 import { ProposalsModule } from './proposals/proposals.module';
+import { OrdersModule } from './orders/orders.module';
+import { InvoicesModule } from './invoices/invoices.module';
 import { ReProjectsModule } from './re-projects/re-projects.module';
 import { EmailGateAModule } from './email-gate-a/email-gate-a.module';
 import { EmailMarketingModule } from './email-marketing/email-marketing.module';
@@ -94,6 +96,8 @@ import { WorkflowsModule } from './workflows/workflows.module';
     KpiModule,
     CrmStaffModule,
     ProposalsModule,
+    OrdersModule,
+    InvoicesModule,
     PayrollModule,
     FinanceModule,
     OwnerWeeklyModule,

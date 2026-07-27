@@ -110,15 +110,15 @@ Launch QA Zalo pass → manual Zalo UI go-live → map ID [ZALO-UC-009](08-ZALO-
 | 7 | AM | Lifecycle | **Advance** → **Retain** | confirm | Steady-state SLA | ✓ |
 | 8 | AM | `/crm/sop` | Link retain SOP playbook | doc link | SOP active | ✓ |
 
-#### Nhánh E1 — Outstanding invoice (GAP-P1-01 workaround)
+#### Nhánh E1 — Outstanding invoice (RNOS-25)
 | # | Actor | Màn hình | Thao tác | Gate |
 |---|-------|----------|----------|------|
-| F1 | Finance | `/crm/financials` | Flag overdue > 30d | ✓ block |
-| F2 | AM | Lifecycle | **Không advance** Handover | ✓ blocked |
-| F3 | AM | Email client | Payment reminder | ○ |
-| F4 | Finance | Same | Mark paid → AM retry bước 5 | ✓ |
+| F1 | Finance | `/crm/invoices?overdue=1` | Flag overdue invoice | ✓ block |
+| F2 | AM | Lifecycle | **Không advance** Handover/Retain | ✓ blocked |
+| F3 | Finance | `/crm/financials` | Record payment → `invoice_id` on svc-payment | ✓ sync paid |
+| F4 | AM | Lifecycle | Retry advance sau invoice paid | ✓ |
 
-**Target product (GAP-P1-01):** UI cảnh báo trên lifecycle advance nếu AR overdue — auto-block Handover.
+**Target product (GAP-P1-01):** Invoice document model + payment link — auto-block Handover khi `crm_invoices.status=overdue`.
 
 #### Tiêu chí nghiệm thu
 - [ ] Handover không advance nếu finance chưa confirm (manual policy)

@@ -38,6 +38,7 @@
     "test:e2e:anomaly-digest": "playwright test e2e/anomaly-digest-rnos28.spec.ts",
     "test:e2e:lead-routing": "playwright test e2e/lead-routing-rnos26.spec.ts",
     "test:e2e:upsell": "playwright test e2e/upsell-rnos27.spec.ts",
+    "test:e2e:order-invoice": "playwright test e2e/order-invoice-rnos25.spec.ts",
     "test:e2e:nl-query": "playwright test e2e/nl-query-rnos22.spec.ts"
   },
   "engines": {
