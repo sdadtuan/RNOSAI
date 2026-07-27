@@ -20,7 +20,7 @@ integration('OrchestratorRepository (RNOS-31 PG integration)', () => {
   });
 
   afterAll(async () => {
-    for (const runId of cleanup.runIds) {
+    for (const runId of [...cleanup.runIds].reverse()) {
       await runsRepo['db'].query('DELETE FROM ai_agent_runs WHERE id = $1::uuid', [runId]);
     }
     for (const orchestrationId of cleanup.orchestrationIds) {
