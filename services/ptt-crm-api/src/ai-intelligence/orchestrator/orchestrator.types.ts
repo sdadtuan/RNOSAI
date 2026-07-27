@@ -1,4 +1,5 @@
 import { AiAgentRunInsert, AiAgentRunRecord, AiAgentRunRow, AiAgentRunStatus } from '../ai-intelligence.types';
+import type { AiUseCase } from '../ai-audit.constants';
 
 export const ORCHESTRATOR_MIGRATION_VERSION = '2026-07-27-rnos31-orchestrator';
 
@@ -49,6 +50,59 @@ export interface AiOrchestrationTree {
   orchestration: AiOrchestrationRecord;
   parentRun: AiAgentRunRecord | null;
   children: AiAgentRunRecord[];
+}
+
+export interface OrchestratorContext {
+  entityType?: string;
+  entityId?: string;
+  leadId?: number;
+  leadScore?: number;
+  clientId?: string | null;
+  actorId?: string | null;
+  correlationId?: string | null;
+  channel?: string;
+  days?: number;
+}
+
+export interface OrchestratorAuditContext {
+  actorId?: string | null;
+  correlationId?: string | null;
+  clientId?: string | null;
+}
+
+export interface StepResult {
+  data: unknown;
+  meta?: { request_id: string };
+  errors?: unknown[];
+}
+
+export type AgentHandler = (
+  ctx: OrchestratorContext,
+  auditCtx: OrchestratorAuditContext,
+) => Promise<StepResult>;
+
+export interface RegisteredAgent {
+  agentName: string;
+  useCase: AiUseCase;
+  handler: AgentHandler;
+}
+
+export type OrchestratorStepKey =
+  | 'score_lead'
+  | 'route_rep'
+  | 'renewal_scan'
+  | 'upsell_suggest'
+  | 'channel_anomaly';
+
+export interface OrchestrationPlanStep {
+  key: OrchestratorStepKey;
+  required: boolean;
+  when?: (ctx: OrchestratorContext) => boolean;
+}
+
+export interface OrchestrationPlan {
+  key: string;
+  steps: readonly OrchestrationPlanStep[];
 }
 
 export type { AiAgentRunRecord, AiAgentRunRow, AiAgentRunStatus };

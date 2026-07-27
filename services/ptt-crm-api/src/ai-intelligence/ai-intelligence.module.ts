@@ -67,6 +67,7 @@ import { AnomalyDigestService } from './anomaly-digest.service';
 import { AiLeadRouteService } from './ai-lead-route.service';
 import { LeadRouteContextRepository } from './lead-route-context.repository';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
+import { AgentRegistry } from './orchestrator/agent.registry';
 import { OrchestratorRepository } from './orchestrator/orchestrator.repository';
 
 @Module({
@@ -90,6 +91,7 @@ import { OrchestratorRepository } from './orchestrator/orchestrator.repository';
   providers: [
     AiIntelligenceConfigService,
     AiAgentRunsRepository,
+    AgentRegistry,
     OrchestratorRepository,
     AiAuditService,
     AiAgentRunsService,
@@ -146,6 +148,7 @@ import { OrchestratorRepository } from './orchestrator/orchestrator.repository';
   exports: [
     AiIntelligenceConfigService,
     AiAgentRunsRepository,
+    AgentRegistry,
     OrchestratorRepository,
     AiAuditService,
     AiAgentRunsService,
