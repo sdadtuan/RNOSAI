@@ -3,7 +3,7 @@
 > **UC gốc:** [`../09-AI-REVENUE-OS.md`](../09-AI-REVENUE-OS.md)  
 > **Spec:** [`SPEC_AI_REVENUE_OPERATING_SYSTEM.md`](../../SPEC_AI_REVENUE_OPERATING_SYSTEM.md) · **UI:** [`SPEC_UI_UX_AI_REVENUE_OS.md`](../../SPEC_UI_UX_AI_REVENUE_OS.md) · **90-day:** [`specs/2026-07-26-ai-phase1-90-day-plan.md`](../../specs/2026-07-26-ai-phase1-90-day-plan.md) §8.2  
 > **CRM lead:** [`01-CRM-ACTIONS.md`](01-CRM-ACTIONS.md) · **Platform:** [`07-PLAT-ACTIONS.md`](07-PLAT-ACTIONS.md)  
-> **Phiên bản:** 1.1 · **Coverage:** AI-UC-001…020 (R1 ship + R2–R4 target)
+> **Phiên bản:** 1.2 · **Coverage:** AI-UC-001…021 (R1 ship + R2–R4 target)
 
 ---
 
@@ -536,6 +536,35 @@ Block publish; show validation errors.
 
 ---
 
+## AI-UC-021 — Multi-agent orchestration trace (R4)
+
+**Mục tiêu khách hàng:** *"Một workflow gọi nhiều AI agent vẫn truy vết được từng bước — biết bước nào thành công hoặc thất bại."*
+
+**Actors:** Admin, System, QA
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | Admin | API / workflow | Trigger `lead_intake_v1` | lead id | Orchestration id | ✓ RNOS-31 |
+| 2 | System | — | Tạo parent + child `ai_agent_runs` | plan + steps | Linked audit rows | ✓ audit |
+| 3 | Admin | `/admin/ai/agents` | Xem trace tree | orchestration id | Parent → child tree | ✓ UI-R4-03 |
+| 4 | Admin | Same | Drill child step output | child row | Redacted input/output | ✓ BR-AI-05 |
+| 5 | QA | Verify | Required step fail → orchestration failed | failing fixture | Parent failed | ✓ |
+| 6 | QA | Verify | Không auto CRM mutate ngoài rule sub-agent | audit + CRM diff | No extra mutation | ✓ BR-AI-01 |
+
+#### Nhánh E1 — Required step thất bại
+Orchestrator dừng plan, parent run và orchestration chuyển `failed`; trace giữ child step lỗi.
+
+#### Nhánh E2 — Optional step thất bại
+Plan tiếp tục; output ghi `failed_optional_steps`, child run vẫn truy vết được.
+
+#### Tiêu chí nghiệm thu
+- [ ] `lead_intake_v1` tạo parent run và ít nhất child `score_lead`
+- [ ] `/admin/ai/agents` hiển thị đúng tree, status, latency và payload đã redaction
+- [ ] Required step fail làm orchestration fail
+- [ ] Không phát sinh outbound send hoặc CRM mutation ngoài rule của sub-agent
+
+---
+
 ## Gate nghiệm thu theo wave (spec §19)
 
 | Wave | UC actions bắt buộc UAT | File section |
@@ -543,7 +572,7 @@ Block publish; show validation errors.
 | **R1** | 001–010 + pilot 8 bước | §Pilot walkthrough |
 | **R2** | 011, 012, 015, 020 | §011–§020 |
 | **R3** | 013, 014, 016, 017, 018 | §013–§018 |
-| **R4** | 019 | §019 |
+| **R4** | 019, 021 | §019, §021 |
 
 **Trạng thái ship:** R1 actions ready UAT · R2–R4 ⚠ target — UI chưa ship, dùng cho backlog QA khi release.
 
