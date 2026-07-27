@@ -76,7 +76,8 @@ export class OrchestratorService {
     const started = Date.now();
     const orchestration = await this.repository.create({
       clientId,
-      triggerType: 'manual',
+      triggerType: request.triggerType ?? 'manual',
+      triggerRef: request.triggerRef ?? null,
       planKey,
       status: 'running',
       inputJson: storedInput,

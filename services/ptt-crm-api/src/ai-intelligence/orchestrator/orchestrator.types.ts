@@ -132,6 +132,19 @@ export interface OrchestratorRunRequest {
   input: OrchestratorContext;
   actorId?: string | null;
   correlationId?: string | null;
+  triggerType?: AiOrchestrationTriggerType;
+  triggerRef?: string | null;
+}
+
+export interface OrchestratorCronJobOutcome {
+  ok: boolean;
+  skipped?: boolean;
+  reason?: string;
+  plan_key?: string;
+  clients?: number;
+  succeeded?: number;
+  failed?: number;
+  errors?: string[];
 }
 
 export interface OrchestratorRunData {

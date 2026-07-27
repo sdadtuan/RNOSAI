@@ -70,6 +70,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
 import { AgentRegistry } from './orchestrator/agent.registry';
 import { OrchestratorRepository } from './orchestrator/orchestrator.repository';
 import { OrchestratorEngine } from './orchestrator/orchestrator.engine';
+import { OrchestratorCronService } from './orchestrator/orchestrator-cron.service';
 import { OrchestratorService } from './orchestrator/orchestrator.service';
 import { StaffAiOrchestratorGuard } from './guards/staff-ai-orchestrator.guard';
 import { StaffAiOrchestratorViewGuard } from './guards/staff-ai-orchestrator-view.guard';
@@ -99,6 +100,7 @@ import { StaffAiOrchestratorViewGuard } from './guards/staff-ai-orchestrator-vie
     OrchestratorRepository,
     OrchestratorEngine,
     OrchestratorService,
+    OrchestratorCronService,
     AiAuditService,
     AiAgentRunsService,
     AiScoresRepository,
@@ -160,6 +162,7 @@ import { StaffAiOrchestratorViewGuard } from './guards/staff-ai-orchestrator-vie
     OrchestratorRepository,
     OrchestratorEngine,
     OrchestratorService,
+    OrchestratorCronService,
     AiAuditService,
     AiAgentRunsService,
     AiScoresRepository,
