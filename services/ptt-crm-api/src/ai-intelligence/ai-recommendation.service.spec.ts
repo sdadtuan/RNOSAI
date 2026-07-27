@@ -90,6 +90,10 @@ describe('AiRecommendationService', () => {
     executeNbaAccept: jest.fn(),
   };
 
+  const leadRoute = {
+    executeRouteAccept: jest.fn(),
+  };
+
   let service: AiRecommendationService;
 
   beforeEach(() => {
@@ -104,6 +108,7 @@ describe('AiRecommendationService', () => {
       leadContext as never,
       recommendations as never,
       nba as never,
+      leadRoute as never,
       crmLegacy as never,
     );
   });

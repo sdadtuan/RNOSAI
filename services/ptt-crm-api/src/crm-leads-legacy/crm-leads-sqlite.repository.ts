@@ -53,6 +53,80 @@ export class CrmLeadsSqliteRepository implements OnModuleDestroy {
     return String(row?.status ?? 'new');
   }
 
+  getLeadRoutingSnapshot(leadId: number): {
+    ownerId: number | null;
+    reProjectId: number | null;
+  } | null {
+    if (!this.leadExists(leadId)) return null;
+    const row = this.database
+      .prepare(
+        `SELECT owner_id, re_project_id
+         FROM crm_leads WHERE id = ? LIMIT 1`,
+      )
+      .get(leadId) as { owner_id: number | null; re_project_id: number | null } | undefined;
+    if (!row) return null;
+    return {
+      ownerId: row.owner_id != null ? Number(row.owner_id) : null,
+      reProjectId: row.re_project_id != null ? Number(row.re_project_id) : null,
+    };
+  }
+
+  listAssignableStaff(limit = 40): Array<{
+    staff_id: number;
+    staff_name: string;
+    staff_code: string;
+    role: string;
+    sort_order: number;
+  }> {
+    const lim = Math.max(1, Math.min(limit, 100));
+    const rows = this.database
+      .prepare(
+        `SELECT s.id AS staff_id, s.name AS staff_name,
+                COALESCE(s.internal_code, '') AS staff_code,
+                'sales' AS role,
+                s.id AS sort_order
+         FROM crm_staff s
+         WHERE COALESCE(s.active, 1) = 1
+         ORDER BY s.id ASC
+         LIMIT ?`,
+      )
+      .all(lim) as Array<Record<string, unknown>>;
+    return rows.map((d) => ({
+      staff_id: Number(d.staff_id),
+      staff_name: String(d.staff_name ?? ''),
+      staff_code: String(d.staff_code ?? ''),
+      role: String(d.role ?? 'sales'),
+      sort_order: Number(d.sort_order ?? 0),
+    }));
+  }
+
+  countOpenLeadsByOwners(staffIds: number[], reProjectId: number | null): Map<number, number> {
+    const out = new Map<number, number>();
+    const ids = [...new Set(staffIds.filter((id) => Number.isFinite(id) && id > 0))];
+    if (!ids.length) return out;
+    const placeholders = ids.map(() => '?').join(',');
+    const params: Array<number> = [...ids];
+    let projectClause = '';
+    if (reProjectId != null && Number.isFinite(reProjectId)) {
+      projectClause = ' AND re_project_id = ?';
+      params.push(reProjectId);
+    }
+    const rows = this.database
+      .prepare(
+        `SELECT owner_id, COUNT(*) AS open_count
+         FROM crm_leads
+         WHERE owner_id IN (${placeholders})
+           AND COALESCE(status, 'new') NOT IN ('won', 'lost', 'converted', 'closed')
+           ${projectClause}
+         GROUP BY owner_id`,
+      )
+      .all(...params) as Array<{ owner_id: number; open_count: number }>;
+    for (const row of rows) {
+      out.set(Number(row.owner_id), Number(row.open_count));
+    }
+    return out;
+  }
+
   syncOwner(leadId: number, ownerId: number, actor: string, ts: string): void {
     this.database
       .prepare('UPDATE crm_leads SET owner_id = ?, updated_at = ?, updated_by = ? WHERE id = ?')

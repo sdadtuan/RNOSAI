@@ -546,6 +546,25 @@
 
 ---
 
+## RNOS-26 — Lead Routing Agent v1 *(R3)*
+
+| Thuộc tính | Giá trị |
+|------------|---------|
+| **Actor chính** | CSKH lead owner, GDKD |
+| **Priority** | P2 |
+| **Trigger** | Lead scored + chưa có owner (hoặc force regen) |
+
+**Main flow:**
+
+1. Rules engine chọn NV trong pool dự án BĐS (scope SP/phân khu) hoặc pool team — round-robin theo số lead mở.
+2. `POST /api/v1/ai/route/lead` → `ai_recommendations.recommendation_type=route_rep`.
+3. Copilot card trên `/crm/leads/[id]` — Accept gọi `assignLead` (BR-AI-01 human-in-the-loop).
+4. Audit `route_rep` trong `ai_agent_runs`.
+
+**Traceability:** §5.2 Lead Routing Agent, **RNOS-26**, RNOS-39 score→route E2E
+
+---
+
 ## AI-UC-020 — Workflow AI node (simulate + publish) *(R2)*
 
 | Thuộc tính | Giá trị |
@@ -616,6 +635,7 @@ flowchart LR
 | RNOS-23 | AI-UC-015 |
 | RNOS-30 | AI-UC-021 |
 | RNOS-28 | AI-UC-019 |
+| RNOS-26 | Lead Routing Agent v1 (route_rep) |
 | RNOS-29 | AI-UC-007, 011 |
 | RNOS-39 | All P0 R1 (E2E) |
 | RNOS-40 | AI-UC-010 |

@@ -16,6 +16,7 @@ import { ConfidenceBanner } from './ConfidenceBanner';
 import { LeadBriefSection } from './LeadBriefSection';
 import { ScoreCard } from './ScoreCard';
 import { LeadNbaSection } from './LeadNbaSection';
+import { LeadRouteRepSection } from './LeadRouteRepSection';
 import { SummarizeSection } from './SummarizeSection';
 import { FollowUpDraftSection } from './FollowUpDraftSection';
 
@@ -127,6 +128,15 @@ export function LeadCopilotPanel({
               setScorePending(false);
             }}
             onError={onCopilotError}
+          />
+
+          <LeadRouteRepSection
+            token={token}
+            leadId={leadId}
+            hasOwner={lead.owner_id != null}
+            scoreReady={!scorePending && !scoreError}
+            onError={onCopilotError}
+            onAssigned={onActivityCreated}
           />
 
           <LeadNbaSection

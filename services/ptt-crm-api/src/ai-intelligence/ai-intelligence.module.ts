@@ -60,7 +60,10 @@ import { StaffAiCoachViewGuard } from './guards/staff-ai-coach-view.guard';
 import { StaffAiNlQueryGuard } from './guards/staff-ai-nl-query.guard';
 import { StaffCasesViewGuard } from '../cases/guards/staff-cases.guard';
 import { MetaAlertsModule } from '../meta-alerts/meta-alerts.module';
+import { ReProjectsModule } from '../re-projects/re-projects.module';
 import { AnomalyDigestService } from './anomaly-digest.service';
+import { AiLeadRouteService } from './ai-lead-route.service';
+import { LeadRouteContextRepository } from './lead-route-context.repository';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
 
 @Module({
@@ -75,6 +78,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     CskhBoardModule,
     TicketsModule,
     MetaAlertsModule,
+    ReProjectsModule,
     forwardRef(() => AgencyModule),
     ServiceLifecycleModule,
     forwardRef(() => CrmLeadsLegacyModule),
@@ -99,6 +103,8 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     AiNlQueryService,
     AiTicketSentimentService,
     AnomalyDigestService,
+    AiLeadRouteService,
+    LeadRouteContextRepository,
     NlQueryContextRepository,
     RevenueForecastRepository,
     RenewalContractContextRepository,
@@ -150,6 +156,8 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     AiNlQueryService,
     AiTicketSentimentService,
     AnomalyDigestService,
+    AiLeadRouteService,
+    LeadRouteContextRepository,
     NlQueryContextRepository,
     RevenueForecastRepository,
     RenewalContractContextRepository,

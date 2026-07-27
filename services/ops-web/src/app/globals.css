@@ -3970,6 +3970,20 @@ body:has(.ops-sidebar) main {
   margin-top: 0.65rem;
 }
 
+.route-rep-card__badge {
+  background: #0f766e;
+}
+
+.route-rep-card__meta {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+}
+
+.route-rep-card__hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+}
+
 .sales-pipeline-panel__message {
   color: #15803d;
   font-size: 0.88rem;

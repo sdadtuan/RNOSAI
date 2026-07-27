@@ -313,6 +313,41 @@ export async function postAiNextBestAction(
   return body;
 }
 
+export interface RouteLeadResponse {
+  data: {
+    recommendation_id: string;
+    lead_id: number;
+    recommended_staff_id: number;
+    recommended_staff_name: string;
+    recommended_staff_code: string;
+    strategy: 'project_pool' | 'source_match' | 'global_round_robin';
+    reason: string;
+    confidence: number;
+    status: string;
+    recommendation_text: string;
+    agent_run_id: string;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export async function postAiRouteLead(
+  token: string,
+  leadId: number,
+  force = false,
+): Promise<RouteLeadResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/route/lead`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lead_id: leadId, force }),
+  });
+  const body = await parseJson<RouteLeadResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Route lead failed', res.status);
+  }
+  return body;
+}
+
 export async function postAiSummarize(
   token: string,
   input: {

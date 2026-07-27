@@ -13,6 +13,7 @@ import { AiIntelligenceConfigService } from './ai-intelligence.config';
 import { AiLlmClient } from './ai-llm.client';
 import { AiPromptsRepository } from './ai-prompts.repository';
 import { AiNbaService } from './ai-nba.service';
+import { AiLeadRouteService } from './ai-lead-route.service';
 import { AiRecommendationsRepository } from './ai-recommendations.repository';
 import { AiSummarizeRateLimitService } from './ai-summarize-rate-limit.service';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
@@ -39,6 +40,7 @@ export class AiRecommendationService {
     private readonly leadContext: LeadScoreContextRepository,
     private readonly recommendations: AiRecommendationsRepository,
     private readonly nba: AiNbaService,
+    private readonly leadRoute: AiLeadRouteService,
     private readonly crmLegacy: CrmLeadsLegacyService,
   ) {}
 
@@ -172,7 +174,7 @@ export class AiRecommendationService {
     }
 
     const finalText = input.finalText?.trim() || rec.recommendation_text;
-    if (status === 'accepted' && rec.recommendation_type !== 'nba' && finalText.length < 10) {
+    if (status === 'accepted' && rec.recommendation_type !== 'nba' && rec.recommendation_type !== 'route_rep' && finalText.length < 10) {
       throw new BadRequestException({
         error: 'final_text_too_short',
         message: 'final_text must be at least 10 characters when accepting',
@@ -189,6 +191,13 @@ export class AiRecommendationService {
       } else {
         caseEventId = eventOrActivityId;
       }
+    } else if (status === 'accepted' && rec.recommendation_type === 'route_rep') {
+      activityId =
+        (await this.leadRoute.executeRouteAccept(
+          id,
+          input.actorName ?? input.actorId ?? 'staff',
+          input.actorId ?? null,
+        )) ?? undefined;
     } else if (status === 'accepted' && rec.entity_type === 'lead') {
       activityId = await this.createAcceptedActivity(rec, finalText, input);
     }

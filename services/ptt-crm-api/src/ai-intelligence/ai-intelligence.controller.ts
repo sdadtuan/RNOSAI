@@ -13,6 +13,7 @@ import { RenewalAgentService } from './renewal-agent.service';
 import { AiChurnHealthService } from './ai-churn-health.service';
 import { ManagerCoachService } from './manager-coach.service';
 import { AnomalyDigestService } from './anomaly-digest.service';
+import { AiLeadRouteService } from './ai-lead-route.service';
 import { AiNlQueryService } from './ai-nl-query.service';
 import { AiTicketSentimentService } from './ai-ticket-sentiment.service';
 import {
@@ -92,6 +93,11 @@ interface NextBestActionBody {
   force?: boolean;
 }
 
+interface RouteLeadBody {
+  lead_id: number;
+  force?: boolean;
+}
+
 interface ScoreLeadBody {
   lead_id: number;
   force?: boolean;
@@ -143,6 +149,7 @@ export class AiIntelligenceController {
     private readonly nlQuery: AiNlQueryService,
     private readonly ticketSentiment: AiTicketSentimentService,
     private readonly anomalyDigest: AnomalyDigestService,
+    private readonly leadRoute: AiLeadRouteService,
   ) {}
 
   /** RNOS-02 — public smoke; records ai_agent_runs when schema ready (RNOS-05). */
@@ -294,6 +301,29 @@ export class AiIntelligenceController {
       lead_id: body.lead_id != null ? Number(body.lead_id) : undefined,
       entity_type: entityType,
       entity_id: body.entity_id ?? body.lead_id ?? body.deal_id,
+      force: Boolean(body.force),
+      actorId,
+      correlationId: rid,
+    });
+  }
+
+  /** RNOS-26 — Lead Routing Agent v1: recommend rep (rules, human accept). */
+  @Post('route/lead')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiCopilotGuard, StaffAiLeadAccessGuard)
+  routeLead(
+    @Body() body: RouteLeadBody,
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.leadRoute.suggestRouteRep({
+      lead_id: Number(body.lead_id),
       force: Boolean(body.force),
       actorId,
       correlationId: rid,

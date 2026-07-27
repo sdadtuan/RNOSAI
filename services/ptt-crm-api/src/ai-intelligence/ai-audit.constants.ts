@@ -21,6 +21,7 @@ export const AI_USE_CASE = {
   TICKET_SENTIMENT: 'ticket_sentiment',
   PORTAL_REPORT_SUMMARY: 'portal_report_summary',
   CHANNEL_ANOMALY_DIGEST: 'channel_anomaly_digest',
+  ROUTE_REP: 'route_rep',
 } as const;
 
 export type AiUseCase = (typeof AI_USE_CASE)[keyof typeof AI_USE_CASE];

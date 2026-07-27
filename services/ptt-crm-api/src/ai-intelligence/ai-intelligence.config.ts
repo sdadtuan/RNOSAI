@@ -19,6 +19,7 @@ export class AiIntelligenceConfigService {
   readonly llmApiKey: string | null;
   readonly summarizeRateLimitPerMin: number;
   readonly summarizeMinTextLength: number;
+  readonly leadRoutingEnabled: boolean;
 
   constructor() {
     this.copilotEnabled = envFlag('PTT_AI_COPILOT_ENABLED', false);
@@ -45,6 +46,7 @@ export class AiIntelligenceConfigService {
       10,
       Number(process.env.PTT_AI_SUMMARIZE_MIN_TEXT ?? 50) || 50,
     );
+    this.leadRoutingEnabled = envFlag('PTT_AI_LEAD_ROUTING_ENABLED', true);
   }
 
   isPilotUser(staffId: string | undefined | null): boolean {
