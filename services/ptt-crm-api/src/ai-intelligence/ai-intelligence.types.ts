@@ -46,6 +46,10 @@ export interface AiAgentRunInsert {
   actorId?: string | null;
   errorMessage?: string | null;
   errorCode?: string | null;
+  parentRunId?: string | null;
+  orchestrationId?: string | null;
+  stepKey?: string | null;
+  stepIndex?: number | null;
 }
 
 export interface AiAgentRunRow {
@@ -67,6 +71,10 @@ export interface AiAgentRunRecord {
   error_message: string | null;
   correlation_id: string | null;
   actor_id: string | null;
+  parent_run_id: string | null;
+  orchestration_id: string | null;
+  step_key: string | null;
+  step_index: number | null;
   started_at: string;
   ended_at: string | null;
   created_at: string;

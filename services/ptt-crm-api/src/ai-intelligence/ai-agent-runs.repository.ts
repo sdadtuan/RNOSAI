@@ -26,11 +26,23 @@ function mapRunRow(row: Record<string, unknown>): AiAgentRunRecord {
     error_message: (row.error_message as string | null) ?? null,
     correlation_id: (row.correlation_id as string | null) ?? null,
     actor_id: (row.actor_id as string | null) ?? null,
+    parent_run_id: (row.parent_run_id as string | null) ?? null,
+    orchestration_id: (row.orchestration_id as string | null) ?? null,
+    step_key: (row.step_key as string | null) ?? null,
+    step_index: row.step_index != null ? Number(row.step_index) : null,
     started_at: String(row.started_at ?? ''),
     ended_at: row.ended_at != null ? String(row.ended_at) : null,
     created_at: String(row.created_at ?? ''),
   };
 }
+
+const RUN_SELECT_COLUMNS = `
+  id::text, client_id::text, agent_name, use_case, model_name, prompt_hash,
+  input_json, output_json, status, latency_ms, token_usage,
+  error_message, correlation_id, actor_id,
+  parent_run_id::text, orchestration_id::text, step_key, step_index,
+  started_at::text, ended_at::text, created_at::text
+`;
 
 @Injectable()
 export class AiAgentRunsRepository implements OnModuleDestroy {
@@ -86,12 +98,14 @@ export class AiAgentRunsRepository implements OnModuleDestroy {
       `INSERT INTO ai_agent_runs (
          client_id, agent_name, use_case, model_name, prompt_hash,
          input_json, output_json, status, latency_ms, token_usage,
-         correlation_id, actor_id, error_message, ended_at
+         correlation_id, actor_id, error_message, ended_at,
+         parent_run_id, orchestration_id, step_key, step_index
        ) VALUES (
          $1::uuid, $2, $3, $4, $5,
          $6::jsonb, $7::jsonb, $8, $9, $10::jsonb,
          $11, $12, $13,
-         CASE WHEN $8::varchar IN ('succeeded', 'failed', 'cancelled') THEN NOW() ELSE NULL END
+         CASE WHEN $8::varchar IN ('succeeded', 'failed', 'cancelled') THEN NOW() ELSE NULL END,
+         $14::uuid, $15::uuid, $16, $17
        )
        RETURNING id::text AS id`,
       [
@@ -108,6 +122,10 @@ export class AiAgentRunsRepository implements OnModuleDestroy {
         row.correlationId ?? null,
         row.actorId ?? null,
         row.errorMessage ?? null,
+        row.parentRunId ?? null,
+        row.orchestrationId ?? null,
+        row.stepKey ?? null,
+        row.stepIndex ?? null,
       ],
     );
     return { id: String(result.rows[0]?.id ?? '') };
@@ -115,11 +133,7 @@ export class AiAgentRunsRepository implements OnModuleDestroy {
 
   async getById(id: string): Promise<AiAgentRunRecord | null> {
     const result = await this.db.query(
-      `SELECT
-         id::text, client_id::text, agent_name, use_case, model_name, prompt_hash,
-         input_json, output_json, status, latency_ms, token_usage,
-         error_message, correlation_id, actor_id,
-         started_at::text, ended_at::text, created_at::text
+      `SELECT ${RUN_SELECT_COLUMNS}
        FROM ai_agent_runs
        WHERE id = $1::uuid
        LIMIT 1`,
@@ -175,11 +189,7 @@ export class AiAgentRunsRepository implements OnModuleDestroy {
 
     const listParams = [...params, limit, offset];
     const result = await this.db.query(
-      `SELECT
-         id::text, client_id::text, agent_name, use_case, model_name, prompt_hash,
-         input_json, output_json, status, latency_ms, token_usage,
-         error_message, correlation_id, actor_id,
-         started_at::text, ended_at::text, created_at::text
+      `SELECT ${RUN_SELECT_COLUMNS}
        FROM ai_agent_runs
        WHERE ${where}
        ORDER BY started_at DESC
@@ -191,6 +201,28 @@ export class AiAgentRunsRepository implements OnModuleDestroy {
       rows: result.rows.map(mapRunRow),
       total,
     };
+  }
+
+  async listChildren(parentRunId: string): Promise<AiAgentRunRecord[]> {
+    const result = await this.db.query(
+      `SELECT ${RUN_SELECT_COLUMNS}
+       FROM ai_agent_runs
+       WHERE parent_run_id = $1::uuid
+       ORDER BY step_index ASC NULLS LAST, created_at ASC`,
+      [parentRunId],
+    );
+    return result.rows.map(mapRunRow);
+  }
+
+  async insertChildRun(
+    row: AiAgentRunInsert & {
+      parentRunId: string;
+      orchestrationId: string;
+      stepKey: string;
+      stepIndex: number;
+    },
+  ): Promise<AiAgentRunRow> {
+    return this.insertRun(row);
   }
 
   /** RNOS-05 unit/integration probe — delete after insert. */
