@@ -74,7 +74,10 @@ import { OrchestratorCronService } from './orchestrator/orchestrator-cron.servic
 import { OrchestratorService } from './orchestrator/orchestrator.service';
 import { StaffAiOrchestratorGuard } from './guards/staff-ai-orchestrator.guard';
 import { StaffAiOrchestratorViewGuard } from './guards/staff-ai-orchestrator-view.guard';
+import { AiToolApiKeyGuard } from './ai-tools/ai-tool-api-key.guard';
 import { AiToolKeysRepository } from './ai-tools/ai-tool-keys.repository';
+import { AiToolsController } from './ai-tools/ai-tools.controller';
+import { AiToolsService } from './ai-tools/ai-tools.service';
 import { ToolRegistry } from './ai-tools/tool.registry';
 
 @Module({
@@ -94,7 +97,7 @@ import { ToolRegistry } from './ai-tools/tool.registry';
     ServiceLifecycleModule,
     forwardRef(() => CrmLeadsLegacyModule),
   ],
-  controllers: [AiIntelligenceController],
+  controllers: [AiIntelligenceController, AiToolsController],
   providers: [
     AiIntelligenceConfigService,
     AiAgentRunsRepository,
@@ -104,6 +107,8 @@ import { ToolRegistry } from './ai-tools/tool.registry';
     OrchestratorService,
     OrchestratorCronService,
     AiToolKeysRepository,
+    AiToolsService,
+    AiToolApiKeyGuard,
     ToolRegistry,
     AiAuditService,
     AiAgentRunsService,
@@ -168,6 +173,8 @@ import { ToolRegistry } from './ai-tools/tool.registry';
     OrchestratorService,
     OrchestratorCronService,
     AiToolKeysRepository,
+    AiToolsService,
+    AiToolApiKeyGuard,
     ToolRegistry,
     AiAuditService,
     AiAgentRunsService,

@@ -52,6 +52,15 @@ export class ToolRegistry {
     input: Record<string, unknown>,
     context: AiToolCallContext,
   ): Promise<unknown> {
+    const result = await this.callWithMetadata(name, input, context);
+    return result.data;
+  }
+
+  async callWithMetadata(
+    name: string,
+    input: Record<string, unknown>,
+    context: AiToolCallContext,
+  ): Promise<{ data: unknown; runId: string }> {
     const toolName = String(name ?? '').trim();
     const tool = this.toolsByName.get(toolName);
     if (!tool) {
@@ -92,7 +101,7 @@ export class ToolRegistry {
       },
     );
 
-    return wrapped.data;
+    return { data: wrapped.data, runId: wrapped.runId };
   }
 
   private assertAllowed(name: string, context: AiToolCallContext): void {

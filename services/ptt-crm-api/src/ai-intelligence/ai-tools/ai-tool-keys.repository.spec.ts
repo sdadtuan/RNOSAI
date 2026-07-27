@@ -118,4 +118,33 @@ describe('AiToolKeysRepository', () => {
     expect(rows[0].key_prefix).toBe('ptt_ai_aaaa');
     expect(queryMock).toHaveBeenCalledWith(expect.stringContaining('ORDER BY created_at DESC'));
   });
+
+  it('records every tool call in the dedicated audit table', async () => {
+    queryMock.mockResolvedValue({ rows: [{ id: 'log-1' }] });
+    const repo = repoWithMock();
+
+    await expect(
+      repo.recordCall({
+        apiKeyId: 'key-a',
+        toolName: 'health_check',
+        inputJson: {},
+        outputJson: { status: 'ok' },
+        status: 'succeeded',
+        latencyMs: 5,
+      }),
+    ).resolves.toBe('log-1');
+
+    expect(queryMock).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ai_tool_call_log'),
+      [
+        'key-a',
+        'health_check',
+        JSON.stringify({}),
+        JSON.stringify({ status: 'ok' }),
+        'succeeded',
+        5,
+        null,
+      ],
+    );
+  });
 });

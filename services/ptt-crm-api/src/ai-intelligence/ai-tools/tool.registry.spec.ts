@@ -102,4 +102,20 @@ describe('ToolRegistry', () => {
       expect.any(Function),
     );
   });
+
+  it('exposes the audit run id for API call-log linkage', async () => {
+    await expect(
+      registry.callWithMetadata(
+        'health_check',
+        {},
+        {
+          apiKey: { id: 'key-1', client_id: null, allowed_tools: ['health_check'] },
+          actorId: 'external-agent',
+        },
+      ),
+    ).resolves.toEqual({
+      data: expect.objectContaining({ status: 'ok' }),
+      runId: 'tool-run-1',
+    });
+  });
 });

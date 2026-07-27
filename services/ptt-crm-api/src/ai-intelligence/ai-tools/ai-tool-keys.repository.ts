@@ -6,6 +6,7 @@ import {
   AI_TOOLS_MIGRATION_VERSION,
   AiToolApiKeyCreateResult,
   AiToolApiKeyRecord,
+  AiToolCallLogInsert,
 } from './ai-tools.types';
 
 const KEY_PREFIX = 'ptt_ai_';
@@ -153,5 +154,27 @@ export class AiToolKeysRepository implements OnModuleDestroy {
        ORDER BY created_at DESC`,
     );
     return result.rows.map(mapKeyRow);
+  }
+
+  async recordCall(entry: AiToolCallLogInsert): Promise<string> {
+    const result = await this.db.query(
+      `INSERT INTO ai_tool_call_log (
+         api_key_id, tool_name, input_json, output_json,
+         status, latency_ms, agent_run_id
+       ) VALUES (
+         $1::uuid, $2, $3::jsonb, $4::jsonb, $5, $6, $7::uuid
+       )
+       RETURNING id::text AS id`,
+      [
+        entry.apiKeyId ?? null,
+        entry.toolName,
+        JSON.stringify(entry.inputJson ?? {}),
+        JSON.stringify(entry.outputJson ?? {}),
+        entry.status,
+        entry.latencyMs ?? null,
+        entry.agentRunId ?? null,
+      ],
+    );
+    return String(result.rows[0]?.id ?? '');
   }
 }
