@@ -11,5 +11,7 @@ export PTT_AI_COPILOT_ENABLED="${PTT_AI_COPILOT_ENABLED:-1}"
 
 cd "$ROOT/services/ops-web"
 if [[ ! -d node_modules/@playwright/test ]]; then npm install; fi
-npx playwright install chromium
-npx playwright test e2e/orchestrator-rnos31.spec.ts
+if [[ ! -d ~/.cache/ms-playwright ]] && [[ ! -d node_modules/playwright/.local-browsers ]]; then
+  npx playwright install chromium
+fi
+npm run test:e2e:orchestrator
