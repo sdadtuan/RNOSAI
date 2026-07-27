@@ -328,6 +328,44 @@ export class CustomerTimelineService {
     });
   }
 
+  /** RNOS-16 full — mirror AI copilot actions to unified timeline. */
+  async recordAiAction(input: {
+    entityType: string;
+    entityId: string;
+    title: string;
+    body?: string | null;
+    useCase: string;
+    actorId?: string | null;
+    clientId?: string | null;
+    payload?: Record<string, unknown>;
+  }): Promise<CustomerTimelineEvent | null> {
+    if (!(await this.repo.tableReady())) {
+      return null;
+    }
+    const externalRef = `ai:${input.useCase}:${input.entityType}:${input.entityId}:${Date.now()}`;
+    try {
+      return await this.repo.insertEvent({
+        clientId: input.clientId ?? null,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        eventType: TIMELINE_EVENT.AI_ACTION,
+        eventSource: 'ai',
+        title: input.title,
+        body: input.body?.slice(0, 4000) ?? null,
+        payload: {
+          use_case: input.useCase,
+          ...(input.payload ?? {}),
+        },
+        occurredAt: new Date().toISOString(),
+        actorId: input.actorId ?? null,
+        externalRef,
+      });
+    } catch (err) {
+      this.logMirrorError('recordAiAction', err);
+      return null;
+    }
+  }
+
   private async resolveClientId(leadId: number): Promise<string | null> {
     return this.repo.getLeadClientId(leadId);
   }

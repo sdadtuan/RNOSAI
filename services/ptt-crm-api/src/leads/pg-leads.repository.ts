@@ -91,6 +91,11 @@ export class PgLeadsRepository implements OnModuleDestroy {
     if (query.channel?.trim()) {
       push('lower(l.channel) = ?', query.channel.trim().toLowerCase());
     }
+    if (query.unassigned_only) {
+      clauses.push('l.owner_id IS NULL');
+    } else if (query.owner_id != null && Number.isFinite(query.owner_id)) {
+      push('l.owner_id = ?', Number(query.owner_id));
+    }
     if (query.q?.trim()) {
       const like = `%${query.q.trim()}%`;
       const base = params.length;

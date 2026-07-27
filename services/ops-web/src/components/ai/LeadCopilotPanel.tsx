@@ -165,9 +165,9 @@ export function LeadCopilotPanel({
             onActivityCreated={onActivityCreated}
           />
 
-          <footer className="ai-copilot-panel__footer muted">
-            Gợi ý AI — cần bạn duyệt trước khi gửi khách. Lead #{lead.id} ·{' '}
-            {lead.channel || lead.source || '—'}
+          <footer className="ai-copilot-panel__footer muted" data-testid="copilot-trust-footer">
+            Gợi ý AI — cần bạn duyệt trước khi gửi khách (BR-AI-01). Không thay quyết định con người · Lead #
+            {lead.id} · {lead.channel || lead.source || '—'}
           </footer>
         </aside>
       </AiErrorBoundary>

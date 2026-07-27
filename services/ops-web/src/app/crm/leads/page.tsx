@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
 import { CrmLeadsImportExport } from '@/components/crm/CrmLeadsImportExport';
 import { CrmLeadsList } from '@/components/crm/CrmLeadsList';
-import { fetchLeads, staffMe, staffRefresh } from '@/lib/api';
-import type { LeadRow } from '@/lib/api';
+import { fetchLeads, bulkAssignLeads, fetchCrmStaffList, staffMe, staffRefresh } from '@/lib/api';
+import type { CrmStaffRow, LeadRow } from '@/lib/api';
 import { aiCopilotEnabled, isAiPilotUser } from '@/lib/ai-flags';
 import { useLeadScoresMap } from '@/hooks/useLeadScoresMap';
 import {
@@ -31,6 +31,13 @@ export default function CrmLeadsPage() {
   const [offset, setOffset] = useState(0);
   const [q, setQ] = useState('');
   const [query, setQuery] = useState('');
+  const [listTab, setListTab] = useState<'all' | 'mine' | 'unassigned'>('all');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterSource, setFilterSource] = useState('');
+  const [filterChannel, setFilterChannel] = useState('');
+  const [staffOptions, setStaffOptions] = useState<CrmStaffRow[]>([]);
+  const [bulkOwnerId, setBulkOwnerId] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -79,8 +86,15 @@ export default function CrmLeadsPage() {
       setLoading(true);
       setError('');
       try {
+        const ownerId =
+          listTab === 'mine' && user?.id ? Number(user.id) : undefined;
         const data = await fetchLeads(accessToken, {
           q: search || undefined,
+          status: filterStatus || undefined,
+          source: filterSource || undefined,
+          channel: filterChannel || undefined,
+          owner_id: ownerId,
+          unassigned_only: listTab === 'unassigned',
           limit: PAGE_SIZE,
           offset: nextOffset,
         });
@@ -93,7 +107,7 @@ export default function CrmLeadsPage() {
         setLoading(false);
       }
     },
-    [],
+    [filterChannel, filterSource, filterStatus, listTab, user?.id],
   );
 
   useEffect(() => {
@@ -101,9 +115,15 @@ export default function CrmLeadsPage() {
       const access = await ensureAuth();
       if (!access) return;
       setToken(access);
-      await loadLeads(access, 0, query);
+      const staffOut = await fetchCrmStaffList(access).catch(() => ({ staff: [], summary: {} }));
+      setStaffOptions(staffOut.staff ?? []);
     })();
-  }, [ensureAuth, loadLeads, query]);
+  }, [ensureAuth]);
+
+  useEffect(() => {
+    if (!token) return;
+    void loadLeads(token, 0, query);
+  }, [token, query, listTab, filterStatus, filterSource, filterChannel, loadLeads]);
 
   function logout() {
     clearSession();
@@ -140,6 +160,27 @@ export default function CrmLeadsPage() {
       }
       return next;
     });
+  }
+
+  async function handleBulkAssign() {
+    if (!token || !bulkOwnerId || !selectedList.length) return;
+    const staff = staffOptions.find((row) => String(row.id) === bulkOwnerId);
+    if (!staff) return;
+    setBulkBusy(true);
+    setError('');
+    try {
+      await bulkAssignLeads(token, {
+        lead_ids: selectedList,
+        owner_id: staff.id,
+        reason: 'Bulk assign from /crm/leads',
+      });
+      setSelectedIds(new Set());
+      await loadLeads(token, offset, query);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bulk assign thất bại');
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   const selectedList = useMemo(() => [...selectedIds], [selectedIds]);
@@ -191,10 +232,87 @@ export default function CrmLeadsPage() {
               color: 'var(--text)',
             }}
           />
+          <select
+            className="kpi-select"
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            aria-label="Lọc trạng thái"
+          >
+            <option value="">Trạng thái</option>
+            {['moi', 'da_lien_he', 'dang_tu_van', 'chot', 'lost'].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <input
+            className="kpi-input"
+            placeholder="Nguồn"
+            value={filterSource}
+            onChange={(e) => setFilterSource(e.target.value)}
+            aria-label="Lọc nguồn"
+          />
+          <input
+            className="kpi-input"
+            placeholder="Kênh"
+            value={filterChannel}
+            onChange={(e) => setFilterChannel(e.target.value)}
+            aria-label="Lọc kênh"
+          />
           <button className="btn btn-sm" type="submit" disabled={loading}>
             Lọc
           </button>
         </form>
+
+        <div className="crm-leads-tabs" role="tablist" style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+          {(
+            [
+              ['all', 'Tất cả'],
+              ['mine', 'Của tôi'],
+              ['unassigned', 'Chưa phân'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              className={`btn btn-sm${listTab === id ? '' : ' btn-secondary'}`}
+              onClick={() => {
+                setListTab(id);
+                setOffset(0);
+                setSelectedIds(new Set());
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {selectedList.length && canImport ? (
+          <div className="crm-leads-bulk-toolbar" style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            <select
+              className="kpi-select"
+              value={bulkOwnerId}
+              onChange={(e) => setBulkOwnerId(e.target.value)}
+              aria-label="Chọn owner bulk assign"
+            >
+              <option value="">Gán owner…</option>
+              {staffOptions.map((staff) => (
+                <option key={staff.id} value={staff.id}>
+                  {staff.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={bulkBusy || !bulkOwnerId}
+              onClick={() => void handleBulkAssign()}
+            >
+              Bulk assign ({selectedList.length})
+            </button>
+          </div>
+        ) : null}
 
         <p className="muted" style={{ marginTop: 0 }}>
           {total.toLocaleString('vi-VN')} leads · trang {Math.floor(offset / PAGE_SIZE) + 1} /{' '}

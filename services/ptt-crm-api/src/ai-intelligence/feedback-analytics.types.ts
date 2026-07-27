@@ -52,6 +52,40 @@ export interface AiRecommendationInboxResponse {
   errors: [];
 }
 
+export interface AiAdoptionDailyDauRow {
+  day: string;
+  dau: number;
+}
+
+export interface AiAdoptionMetrics {
+  from: string;
+  to: string;
+  pilot_denominator: number;
+  copilot_dau_latest: number;
+  copilot_dau_avg: number;
+  copilot_dau_rate_pct: number;
+  copilot_dau_target_pct: number;
+  copilot_dau_gate_pass: boolean;
+  acceptance_rate_pct: number | null;
+  acceptance_target_pct: number;
+  acceptance_gate_pass: boolean;
+  accepted: number;
+  dismissed: number;
+  pending: number;
+  total_resolved: number;
+  daily_dau: AiAdoptionDailyDauRow[];
+  dod_v1_summary: {
+    acceptance_ge_40: boolean;
+    dau_ge_60_pilot: boolean;
+  };
+}
+
+export interface AiAdoptionMetricsResponse {
+  data: AiAdoptionMetrics;
+  meta: { request_id: string };
+  errors: [];
+}
+
 export const DISMISS_REASON_PRESETS = [
   { value: 'wrong_tone', label: 'Sai tone' },
   { value: 'wrong_fact', label: 'Sai thông tin' },

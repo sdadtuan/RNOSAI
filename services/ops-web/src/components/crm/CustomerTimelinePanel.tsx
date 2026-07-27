@@ -15,6 +15,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   'lead.status_changed': 'Đổi trạng thái',
   'crm.activity': 'Hoạt động CRM',
   'lead.assigned': 'Phân lead',
+  'ai.action': 'AI action',
 };
 
 const SOURCE_LABELS: Record<string, string> = {

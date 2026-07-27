@@ -106,6 +106,42 @@ export class LeadsWriteService {
     }
   }
 
+  async bulkAssignLeads(
+    body: { lead_ids: number[]; owner_id: number; reason?: string },
+    actor?: string,
+  ): Promise<{ assigned: number; skipped: number; lead_ids: number[] }> {
+    const ownerId = Number(body.owner_id);
+    if (!Number.isFinite(ownerId) || ownerId <= 0) {
+      throw new BadRequestException({ error: 'invalid_owner_id' });
+    }
+    const ids = [...new Set((body.lead_ids ?? []).map((id) => Number(id)).filter((id) => id > 0))];
+    if (!ids.length) {
+      throw new BadRequestException({ error: 'lead_ids_required' });
+    }
+    if (ids.length > 200) {
+      throw new BadRequestException({ error: 'too_many_leads', message: 'Max 200 leads per bulk assign' });
+    }
+
+    const assignedIds: number[] = [];
+    let skipped = 0;
+    const reason = body.reason?.trim() || 'Bulk assign';
+
+    for (const leadId of ids) {
+      try {
+        await this.patchLead(
+          leadId,
+          { owner_id: ownerId, assigned_by: actor ?? 'bulk' },
+          actor,
+        );
+        assignedIds.push(leadId);
+      } catch {
+        skipped += 1;
+      }
+    }
+
+    return { assigned: assignedIds.length, skipped, lead_ids: assignedIds };
+  }
+
   private rethrowPg(err: unknown): never {
     const message = err instanceof Error ? err.message : String(err);
     if (/connect|ECONNREFUSED|timeout/i.test(message)) {

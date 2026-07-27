@@ -111,6 +111,12 @@ export class SqliteLeadsRepository implements OnModuleDestroy {
       );
       params.push(ch, ch, ch);
     }
+    if (query.unassigned_only) {
+      clauses.push('l.owner_id IS NULL');
+    } else if (query.owner_id != null && Number.isFinite(query.owner_id)) {
+      clauses.push('l.owner_id = ?');
+      params.push(Number(query.owner_id));
+    }
     if (query.q?.trim()) {
       const like = `%${query.q.trim()}%`;
       clauses.push('(l.full_name LIKE ? OR l.phone LIKE ? OR l.email LIKE ?)');

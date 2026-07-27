@@ -8,6 +8,7 @@ import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
 import { LeadContractPanel } from '@/components/LeadContractPanel';
 import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
+import { LeadEntityTimelinePanel } from '@/components/crm/LeadEntityTimelinePanel';
 import { aiCopilotEnabled } from '@/lib/ai-flags';
 import {
   assignLead,
@@ -64,6 +65,17 @@ const ACTIVITY_TYPES = [
 ];
 
 type LeadDetailTab = 'detail' | 'activity' | 'ai';
+
+async function copyLeadContact(value: string, label: string, onDone: (msg: string) => void) {
+  const trimmed = value.trim();
+  if (!trimmed) return;
+  try {
+    await navigator.clipboard.writeText(trimmed);
+    onDone(`Đã copy ${label} vào clipboard.`);
+  } catch {
+    onDone(`Không copy được ${label}.`);
+  }
+}
 
 function useLeadDetailLayout() {
   const [layout, setLayout] = useState({ desktop: false, tablet: false, mobile: true });
@@ -406,7 +418,32 @@ export default function CrmLeadDetailPage() {
               </p>
               <dl className="lead-detail-dl">
                 <dt className="muted">SĐT</dt>
-                <dd>{lead.phone || '—'}</dd>
+                <dd>
+                  {lead.phone || '—'}
+                  {lead.phone ? (
+                    <span
+                      className="lead-contact-copy"
+                      style={{ marginLeft: '0.5rem', display: 'inline-flex', gap: '0.35rem' }}
+                      data-testid="lead-contact-copy"
+                    >
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => void copyLeadContact(lead.phone, 'SĐT', setMessage)}
+                      >
+                        Copy SĐT
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => void copyLeadContact(lead.phone, 'Zalo', setMessage)}
+                        title="Copy SĐT để dán thủ công trên Zalo — không gửi tự động"
+                      >
+                        Copy Zalo
+                      </button>
+                    </span>
+                  ) : null}
+                </dd>
                 <dt className="muted">Email</dt>
                 <dd>{lead.email || '—'}</dd>
                 <dt className="muted">Nguồn</dt>
@@ -588,6 +625,8 @@ export default function CrmLeadDetailPage() {
                 Chọn activity để tóm tắt trong AI Copilot.
               </p>
             </div>
+
+            {accessToken ? <LeadEntityTimelinePanel token={accessToken} leadId={leadId} /> : null}
 
             <div className="card">
               <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Audit</h3>

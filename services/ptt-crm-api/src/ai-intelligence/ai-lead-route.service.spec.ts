@@ -8,7 +8,7 @@ describe('AiLeadRouteService', () => {
       return { ...data, runId: 'run-1' };
     }),
   };
-  const aiConfig = { leadRoutingEnabled: true };
+  const aiConfig = { leadRoutingEnabled: true, leadRoutingMlEnabled: true };
   const routeContext = { loadRouteContext: jest.fn() };
   const recommendations = {
     tableReady: jest.fn().mockResolvedValue(true),
@@ -20,6 +20,7 @@ describe('AiLeadRouteService', () => {
     assignLead: jest.fn(),
     createActivity: jest.fn().mockResolvedValue({ activity: { id: 99 } }),
   };
+  const timeline = { recordAiAction: jest.fn().mockResolvedValue(null) };
 
   let service: AiLeadRouteService;
 
@@ -31,6 +32,7 @@ describe('AiLeadRouteService', () => {
       routeContext as never,
       recommendations as never,
       crmLegacy as never,
+      timeline as never,
     );
   });
 

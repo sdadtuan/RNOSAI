@@ -12,6 +12,7 @@ import { HubCampaignMapsPanel } from '@/components/HubCampaignMapsPanel';
 import { RenewalAgentPanel } from '@/components/ai/RenewalAgentPanel';
 import { UpsellAgentPanel } from '@/components/ai/UpsellAgentPanel';
 import { ClientHealthPanel } from '@/components/ai/ClientHealthPanel';
+import { AnomalyDigestBanner } from '@/components/ai/AnomalyDigestBanner';
 import {
   activateAgencyClient,
   addClientChannelAccount,
@@ -718,6 +719,12 @@ export function AgencyClientDetailContent() {
 
             {tab === 'overview' ? (
               <>
+                {accessToken ? (
+                  <div className="agency-anomaly-context" style={{ display: 'grid', gap: '0.75rem', marginBottom: '1rem' }}>
+                    <AnomalyDigestBanner token={accessToken} channel="meta" clientId={clientId} />
+                    <AnomalyDigestBanner token={accessToken} channel="zalo" clientId={clientId} />
+                  </div>
+                ) : null}
                 <h3 style={{ fontSize: '1rem', marginTop: '0.5rem' }}>Thông tin client</h3>
                 {canMutate ? (
                   <form className="agency-client-edit" onSubmit={(e) => void handleSaveClient(e)}>

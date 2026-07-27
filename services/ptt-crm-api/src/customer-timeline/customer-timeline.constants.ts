@@ -4,6 +4,7 @@ export const TIMELINE_EVENT = {
   STATUS_CHANGED: 'lead.status_changed',
   ACTIVITY: 'crm.activity',
   ASSIGNMENT: 'lead.assigned',
+  AI_ACTION: 'ai.action',
 } as const;
 
 export type TimelineEventType = (typeof TIMELINE_EVENT)[keyof typeof TIMELINE_EVENT];

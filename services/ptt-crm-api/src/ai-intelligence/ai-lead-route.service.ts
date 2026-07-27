@@ -5,11 +5,13 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
+import { CustomerTimelineService } from '../customer-timeline/customer-timeline.service';
 import { AI_USE_CASE } from './ai-audit.constants';
 import { AiAuditService } from './ai-audit.service';
 import { AiIntelligenceConfigService } from './ai-intelligence.config';
 import { AiRecommendationsRepository } from './ai-recommendations.repository';
 import { computeLeadRouteV1 } from './lead-route.engine';
+import { computeLeadRouteMlV1 } from './lead-route-ml.engine';
 import { LeadRouteContextRepository } from './lead-route-context.repository';
 import { RouteLeadRequest, RouteLeadResponse } from './lead-route.types';
 
@@ -21,6 +23,7 @@ export class AiLeadRouteService {
     private readonly routeContext: LeadRouteContextRepository,
     private readonly recommendations: AiRecommendationsRepository,
     private readonly crmLegacy: CrmLeadsLegacyService,
+    private readonly timeline: CustomerTimelineService,
   ) {}
 
   isEnabled(): boolean {
@@ -78,13 +81,17 @@ export class AiLeadRouteService {
       });
     }
 
-    const routed = computeLeadRouteV1(ctx);
+    const routed = this.aiConfig.leadRoutingMlEnabled
+      ? computeLeadRouteMlV1(ctx) ?? computeLeadRouteV1(ctx)
+      : computeLeadRouteV1(ctx);
     if (!routed) {
       throw new BadRequestException({
         error: 'no_route_candidate',
         message: 'Không tìm thấy NV phù hợp trong pool phân lead',
       });
     }
+
+    const modelName = routed.ruleId === 'route_ml_v1' ? 'lead-route-ml-v1' : 'lead-route-rules-v1';
 
     const wrapped = await this.audit.wrap(
       {
@@ -94,12 +101,13 @@ export class AiLeadRouteService {
         clientId: ctx.clientId,
         actorId: input.actorId ?? null,
         correlationId: requestId,
-        modelName: 'lead-route-rules-v1',
+        modelName,
         input: {
           lead_id: leadId,
           strategy: routed.strategy,
           recommended_staff_id: routed.recommendedStaffId,
           project_id: routed.projectId,
+          ml: routed.ruleId === 'route_ml_v1',
         },
       },
       async () => ({
@@ -108,7 +116,7 @@ export class AiLeadRouteService {
           staff_id: routed.recommendedStaffId,
           strategy: routed.strategy,
         },
-        modelName: 'lead-route-rules-v1',
+        modelName,
         tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
       }),
     );
@@ -173,6 +181,19 @@ export class AiLeadRouteService {
       actorName ?? 'staff',
       actorStaffId ? Number(actorStaffId) || null : null,
     );
+
+    await this.timeline.recordAiAction({
+      entityType: 'lead',
+      entityId: String(leadId),
+      title: 'AI route accepted',
+      body: String(rec.action_json?.reason ?? rec.recommendation_text),
+      useCase: 'route_rep',
+      actorId: actorName ?? actorStaffId ?? null,
+      payload: {
+        recommended_staff_id: toUserId,
+        strategy: rec.action_json?.strategy ?? null,
+      },
+    });
 
     return activity.id;
   }

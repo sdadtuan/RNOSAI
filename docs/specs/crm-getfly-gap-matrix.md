@@ -157,9 +157,9 @@
 |---|--------------|--------|-----------|
 | 3.1 | [x] **Import Excel** lead (template + validate) | P0-2 | E2E hoặc script gate |
 | 3.2 | [x] **Export Excel** (filter hiện tại / selected) | P0-2 | File tải được |
-| 3.3 | [ ] Filter chips: **owner**, **status**, **source**, **channel** | ○ | URL query persist |
-| 3.4 | [ ] Tab / view: **Tất cả** · **Của tôi** · **Chưa phân** | ○ | Match Getfly “người phụ trách” |
-| 3.5 | [ ] **Bulk assign** + bulk export | ○ | Chọn checkbox hàng |
+| 3.3 | [x] Filter chips: **owner**, **status**, **source**, **channel** | ○ | URL query persist |
+| 3.4 | [x] Tab / view: **Tất cả** · **Của tôi** · **Chưa phân** | ○ | Match Getfly “người phụ trách” |
+| 3.5 | [x] **Bulk assign** + bulk export | ○ | Chọn checkbox hàng · export ○ |
 | 3.6 | [ ] **Cột tùy chọn** (⚙): owner, SLA, score | ○ | LocalStorage prefs |
 | 3.7 | [x] Cột **AI Score** + badge hot/warm/cold | UI-R1-10 | Pilot cohort · `fetchAiScoresBatch` |
 | 3.8 | [ ] Empty state + CTA ingest doc | ○ | Link runbook ingest |
@@ -178,9 +178,9 @@
 | 4.1 | [ ] **Upload file** đính kèm activity | ○ | File lưu + hiển thị timeline |
 | 4.2 | [ ] @mention staff trong activity (optional) | ○ | Notify hoặc highlight |
 | 4.3 | [x] Chip **campaign / CPL** → deep link Meta hub | ○ | Spec UI §12 attribution |
-| 4.4 | [ ] Nút **copy SĐT / Zalo** (không auto-send) | ○ | Clipboard |
+| 4.4 | [x] Nút **copy SĐT / Zalo** (không auto-send) | ○ | Clipboard |
 | 4.5 | [x] Copilot: dismiss draft modal + feedback (UI-R2-06) | R2 | RNOS-29 gate green |
-| 4.6 | [ ] Copilot: trust footer BR-AI copy | UI-R1 | Text spec §15 |
+| 4.6 | [x] Copilot: trust footer BR-AI copy | UI-R1 | Text spec §15 · `copilot-trust-footer` |
 | 4.7 | [ ] Mobile tab **AI** không regress (RNOS-39 E2E) | P0-1 | CI green |
 | 4.8 | [x] GDKD **override score** modal | UI-R1-08 | AI-UC-006 — `POST /api/v1/ai/scores/lead/override` + badge |
 

@@ -68,6 +68,8 @@ export interface ListLeadsQuery {
   review_queue_filter?: ReviewQueueListFilter;
   /** Populated by LeadsService when filtering PG reads via SQLite funnel state. */
   review_queue_ids?: number[];
+  owner_id?: number;
+  unassigned_only?: boolean;
 }
 
 export interface CreateLeadV1Body {
@@ -96,4 +98,16 @@ export interface PatchLeadResult {
   scored: boolean;
   status_changed?: boolean;
   previous_status?: string | null;
+}
+
+export interface BulkAssignLeadsBody {
+  lead_ids: number[];
+  owner_id: number;
+  reason?: string;
+}
+
+export interface BulkAssignLeadsResult {
+  assigned: number;
+  skipped: number;
+  lead_ids: number[];
 }

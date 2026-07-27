@@ -104,11 +104,25 @@ export async function staffMe(token: string): Promise<StaffMeResponse> {
 
 export async function fetchLeads(
   token: string,
-  params?: { q?: string; status?: string; limit?: number; offset?: number; hide_review_queue?: boolean },
+  params?: {
+    q?: string;
+    status?: string;
+    source?: string;
+    channel?: string;
+    owner_id?: number;
+    unassigned_only?: boolean;
+    limit?: number;
+    offset?: number;
+    hide_review_queue?: boolean;
+  },
 ): Promise<LeadsListResponse> {
   const qs = new URLSearchParams();
   if (params?.q) qs.set('q', params.q);
   if (params?.status) qs.set('status', params.status);
+  if (params?.source) qs.set('source', params.source);
+  if (params?.channel) qs.set('channel', params.channel);
+  if (params?.owner_id != null) qs.set('owner_id', String(params.owner_id));
+  if (params?.unassigned_only) qs.set('unassigned_only', '1');
   if (params?.limit !== undefined) qs.set('limit', String(params.limit));
   if (params?.offset !== undefined) qs.set('offset', String(params.offset));
   if (params?.hide_review_queue === false) qs.set('hide_review_queue', '0');
@@ -122,6 +136,16 @@ export async function fetchLeads(
     throw new ApiError(body.error ?? body.message ?? 'Leads fetch failed', res.status);
   }
   return body;
+}
+
+export async function bulkAssignLeads(
+  token: string,
+  input: { lead_ids: number[]; owner_id: number; reason?: string },
+): Promise<{ assigned: number; skipped: number; lead_ids: number[] }> {
+  return crmFetch(token, '/api/v1/leads/bulk-assign', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 export interface LeadImportResult {

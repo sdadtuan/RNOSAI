@@ -280,4 +280,31 @@ export class AiAgentRunsRepository implements OnModuleDestroy {
     await this.db.query('DELETE FROM ai_agent_runs WHERE id = $1::uuid', [inserted.id]);
     return true;
   }
+
+  async getCopilotDailyDau(args: {
+    from: string;
+    to: string;
+    useCases: string[];
+  }): Promise<Array<{ day: string; dau: number }>> {
+    if (!(await this.tableReady())) {
+      return [];
+    }
+    const result = await this.db.query(
+      `SELECT date_trunc('day', started_at)::date::text AS day,
+              COUNT(DISTINCT actor_id)::int AS dau
+       FROM ai_agent_runs
+       WHERE started_at >= $1::timestamptz
+         AND started_at <= $2::timestamptz
+         AND use_case = ANY($3::text[])
+         AND actor_id IS NOT NULL
+         AND actor_id NOT IN ('system', 'cron', 'internal')
+       GROUP BY 1
+       ORDER BY 1 ASC`,
+      [args.from, args.to, args.useCases],
+    );
+    return result.rows.map((row) => ({
+      day: String(row.day ?? ''),
+      dau: Number(row.dau ?? 0),
+    }));
+  }
 }

@@ -26,6 +26,7 @@ import { StaffCasesViewGuard } from '../cases/guards/staff-cases.guard';
 import { AiSummarizeService } from './ai-summarize.service';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiFeedbackAnalyticsService } from './ai-feedback-analytics.service';
+import { AiAdoptionAnalyticsService } from './ai-adoption-analytics.service';
 import { AiIntelligenceService } from './ai-intelligence.service';
 import { AiAgentRunStatus, AiHealthResponse } from './ai-intelligence.types';
 import { ScoreDealResponse } from './deal-score.types';
@@ -170,6 +171,7 @@ export class AiIntelligenceController {
     private readonly summarize: AiSummarizeService,
     private readonly recommendations: AiRecommendationService,
     private readonly feedbackAnalytics: AiFeedbackAnalyticsService,
+    private readonly adoptionAnalytics: AiAdoptionAnalyticsService,
     private readonly pipelineRisk: PipelineRiskService,
     private readonly forecast: AiForecastService,
     private readonly renewal: RenewalAgentService,
@@ -576,6 +578,26 @@ export class AiIntelligenceController {
         to,
         days: days ? Number(days) : undefined,
         recommendation_type: recommendationType,
+      },
+      correlationId?.trim() || requestId?.trim() || undefined,
+    );
+  }
+
+  /** §0.6 DoD v1 — copilot DAU + acceptance adoption dashboard. */
+  @Get('analytics/adoption')
+  @UseGuards(StaffOrInternalKeyGuard)
+  getAdoptionAnalytics(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('days') days?: string,
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    return this.adoptionAnalytics.getAdoptionMetrics(
+      {
+        from,
+        to,
+        days: days ? Number(days) : undefined,
       },
       correlationId?.trim() || requestId?.trim() || undefined,
     );

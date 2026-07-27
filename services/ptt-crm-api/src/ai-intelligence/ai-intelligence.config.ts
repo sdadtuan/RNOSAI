@@ -20,6 +20,7 @@ export class AiIntelligenceConfigService {
   readonly summarizeRateLimitPerMin: number;
   readonly summarizeMinTextLength: number;
   readonly leadRoutingEnabled: boolean;
+  readonly leadRoutingMlEnabled: boolean;
   readonly upsellEnabled: boolean;
   readonly orchestratorEnabled: boolean;
   readonly orchestratorCronEnabled: boolean;
@@ -51,6 +52,7 @@ export class AiIntelligenceConfigService {
       Number(process.env.PTT_AI_SUMMARIZE_MIN_TEXT ?? 50) || 50,
     );
     this.leadRoutingEnabled = envFlag('PTT_AI_LEAD_ROUTING_ENABLED', true);
+    this.leadRoutingMlEnabled = envFlag('PTT_AI_LEAD_ROUTING_ML_ENABLED', true);
     this.upsellEnabled = envFlag('PTT_AI_UPSELL_ENABLED', true);
     this.orchestratorEnabled = envFlag('PTT_AI_ORCHESTRATOR_ENABLED', false);
     this.orchestratorCronEnabled = envFlag('PTT_AI_ORCHESTRATOR_CRON_ENABLED', false);

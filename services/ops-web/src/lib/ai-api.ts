@@ -554,6 +554,109 @@ export async function fetchAiAcceptanceMetrics(
   return body;
 }
 
+export interface AiAdoptionDailyDauRow {
+  day: string;
+  dau: number;
+}
+
+export interface AiAdoptionMetrics {
+  from: string;
+  to: string;
+  pilot_denominator: number;
+  copilot_dau_latest: number;
+  copilot_dau_avg: number;
+  copilot_dau_rate_pct: number;
+  copilot_dau_target_pct: number;
+  copilot_dau_gate_pass: boolean;
+  acceptance_rate_pct: number | null;
+  acceptance_target_pct: number;
+  acceptance_gate_pass: boolean;
+  accepted: number;
+  dismissed: number;
+  pending: number;
+  total_resolved: number;
+  daily_dau: AiAdoptionDailyDauRow[];
+  dod_v1_summary: {
+    acceptance_ge_40: boolean;
+    dau_ge_60_pilot: boolean;
+  };
+}
+
+export interface AiAdoptionMetricsResponse {
+  data: AiAdoptionMetrics;
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export async function fetchAiAdoptionMetrics(
+  token: string,
+  params?: { from?: string; to?: string; days?: number },
+): Promise<AiAdoptionMetricsResponse> {
+  const qs = new URLSearchParams();
+  if (params?.from) qs.set('from', params.from);
+  if (params?.to) qs.set('to', params.to);
+  if (params?.days != null) qs.set('days', String(params.days));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/analytics/adoption${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<AiAdoptionMetricsResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch AI adoption metrics failed', res.status);
+  }
+  return body;
+}
+
+export async function fetchEntityTimeline(
+  token: string,
+  entityType: string,
+  entityId: string | number,
+  params?: { limit?: number; event_source?: string },
+): Promise<{
+  data: {
+    entity_type: string;
+    entity_id: string;
+    events: Array<{
+      id: string;
+      event_type: string;
+      event_source: string;
+      title: string;
+      body: string | null;
+      occurred_at: string;
+    }>;
+    total: number;
+  };
+}> {
+  const qs = new URLSearchParams();
+  if (params?.limit != null) qs.set('limit', String(params.limit));
+  if (params?.event_source) qs.set('event_source', params.event_source);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/timeline/${entityType}/${entityId}${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<{ error?: string; message?: string } & Record<string, unknown>>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch entity timeline failed', res.status);
+  }
+  return body as {
+    data: {
+      entity_type: string;
+      entity_id: string;
+      events: Array<{
+        id: string;
+        event_type: string;
+        event_source: string;
+        title: string;
+        body: string | null;
+        occurred_at: string;
+      }>;
+      total: number;
+    };
+  };
+}
+
 export async function fetchAiRecommendationsInbox(
   token: string,
   params?: {

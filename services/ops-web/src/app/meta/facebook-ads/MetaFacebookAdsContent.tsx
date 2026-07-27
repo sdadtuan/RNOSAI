@@ -1,7 +1,8 @@
 'use client';
 
-import { MetaAttributionFooter } from '@/components/meta/MetaAttributionFooter';
 import { AnomalyDigestBanner } from '@/components/ai/AnomalyDigestBanner';
+import { MetaBudgetRecommendCard } from '@/components/meta/MetaBudgetRecommendCard';
+import { MetaAttributionFooter } from '@/components/meta/MetaAttributionFooter';
 import { MetaHubAlertsList } from '@/components/meta/MetaHubAlertsList';
 import { MetaHubFilters } from '@/components/meta/MetaHubFilters';
 import { MetaHubKpiGrid } from '@/components/meta/MetaHubKpiGrid';
@@ -69,6 +70,10 @@ export function MetaFacebookAdsContent() {
 
       {getAccessToken() ? (
         <AnomalyDigestBanner token={getAccessToken()!} channel="meta" clientId={hub.clientId || undefined} />
+      ) : null}
+
+      {getAccessToken() ? (
+        <MetaBudgetRecommendCard token={getAccessToken()!} clientId={hub.clientId || undefined} />
       ) : null}
 
       <MetaHubKpiGrid summary={summary} clientCount={clientRows.length} attribution={attribution} />

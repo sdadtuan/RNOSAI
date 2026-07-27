@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { InsightsInboxTable } from '@/components/ai/InsightsInboxTable';
+import { CopilotAdoptionPanel } from '@/components/ai/CopilotAdoptionPanel';
 import { PipelineRiskPanel } from '@/components/ai/PipelineRiskPanel';
 import { OpsNav } from '@/components/OpsNav';
 import { KpiTileGrid, type KpiTileProps } from '@/components/kpi/KpiDashboardUi';
@@ -229,6 +230,10 @@ export default function CrmAiInsightsPage() {
         {error ? <p className="error">{error}</p> : null}
 
         <KpiTileGrid tiles={tiles} />
+
+        {getAccessToken() ? (
+          <CopilotAdoptionPanel token={getAccessToken()!} days={days} />
+        ) : null}
 
         <PipelineRiskPanel
           rows={atRiskDeals}

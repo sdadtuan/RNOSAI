@@ -33,6 +33,8 @@ import {
   LeadV1,
   LeadsListResponseV1,
   PatchLeadV1Body,
+  BulkAssignLeadsBody,
+  BulkAssignLeadsResult,
 } from './leads.types';
 
 @Controller('api/v1/leads')
@@ -114,6 +116,15 @@ export class LeadsController {
     return this.leadsWriteService.createLead(body);
   }
 
+  @Post('bulk-assign')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard)
+  async bulkAssignLeads(
+    @Body() body: BulkAssignLeadsBody,
+    @Headers('x-ptt-actor') actor?: string,
+  ): Promise<BulkAssignLeadsResult> {
+    return this.leadsWriteService.bulkAssignLeads(body, actor);
+  }
+
   @Patch(':id')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard, LeadNotInReviewQueueGuard)
   async patchLead(
@@ -136,6 +147,8 @@ export class LeadsController {
     @Query('offset') offset?: string,
     @Query('review_queue_only') reviewQueueOnly?: string,
     @Query('hide_review_queue') hideReviewQueue?: string,
+    @Query('owner_id') ownerId?: string,
+    @Query('unassigned_only') unassignedOnly?: string,
   ): Promise<LeadsListResponseV1> {
     const truthy = (v?: string) => v === '1' || v === 'true';
     const hideExplicitFalse = hideReviewQueue === '0' || hideReviewQueue === 'false';
@@ -149,6 +162,8 @@ export class LeadsController {
       offset: offset !== undefined ? Number(offset) : undefined,
       review_queue_only: truthy(reviewQueueOnly),
       hide_review_queue: hideExplicitFalse ? false : undefined,
+      owner_id: ownerId ? Number(ownerId) : undefined,
+      unassigned_only: truthy(unassignedOnly),
     });
   }
 

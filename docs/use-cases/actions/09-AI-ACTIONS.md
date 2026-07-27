@@ -499,8 +499,8 @@ Banner cảnh báo trước bước 6.
 | 2 | Buyer | `/meta/facebook-ads` | Xem banner narrative AI | client filter | VN summary | ✓ UI-R4-01 |
 | 3 | Buyer | Same | Click **Xem lead liên quan** | — | `/crm/leads?campaign=` | ✓ |
 | 4 | Buyer | `/zalo/zalo-ads` | Same pattern Zalo | — | Banner | ✓ |
-| 5 | AM | `/agency/clients/[id]` | Review with client on call | — | Context | ○ |
-| 6 | Buyer | Meta hub | Read budget recommend (read-only) | — | Suggestion card | ○ R4 |
+| 5 | AM | `/agency/clients/[id]` | Review with client on call | — | Context | ✓ |
+| 6 | Buyer | Meta hub | Read budget recommend (read-only) | — | Suggestion card | ✓ R4 |
 | 7 | Buyer | Same | Không auto pause campaign | — | Manual only | ✓ governance |
 | 8 | QA | Verify | Narrative matches hub numbers | — | Spot check | ✓ |
 
