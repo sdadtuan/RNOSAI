@@ -1,9 +1,10 @@
 import { test, expect } from '@playwright/test';
 import {
   API_URL,
+  STAFF_EMAIL,
+  STAFF_PASSWORD,
   apiReachable,
   loginAsStaff,
-  staffToken,
 } from './helpers/ai-copilot-helpers';
 
 async function resolveLeadFixture(
@@ -25,8 +26,9 @@ async function resolveLeadFixture(
   return Number.isInteger(id) && Number(id) > 0 ? Number(id) : null;
 }
 
-test.describe('RNOS-31 Multi-agent orchestrator', () => {
+test.describe('RNOS-31 Multi-agent orchestrator UI', () => {
   test.beforeEach(async ({ page, request }) => {
+    test.skip(process.env.OPS_E2E_SKIP_SERVER === '1', 'ops-web server not started');
     test.skip(!(await apiReachable(request)), 'Nest API not reachable');
     await loginAsStaff(page);
   });
@@ -41,10 +43,23 @@ test.describe('RNOS-31 Multi-agent orchestrator', () => {
     await expect(detail.getByRole('heading', { level: 3, name: /Orchestration trace/i })).toBeVisible();
     await expect(page.locator('.orchestration-trace-panel pre')).toHaveCount(0);
   });
+});
 
-  test('API — POST orchestrator/run', async ({ request }) => {
+test.describe('RNOS-31 Multi-agent orchestrator API', () => {
+  test('POST orchestrator/run', async ({ request }) => {
     test.skip(!(await apiReachable(request)), 'Nest API not reachable');
-    const token = await staffToken(request);
+    const login = await request.post(`${API_URL}/api/v1/staff/auth/login`, {
+      data: { email: STAFF_EMAIL, password: STAFF_PASSWORD },
+    });
+    if (!login.ok()) {
+      test.skip(true, `Staff login unavailable: ${login.status()}`);
+    }
+    const loginBody = (await login.json()) as { access_token?: string };
+    if (!loginBody.access_token) {
+      test.skip(true, 'Staff login returned no access_token');
+      return;
+    }
+    const token = loginBody.access_token;
     const leadId = await resolveLeadFixture(request, token);
     test.skip(!leadId, 'No lead fixture available for orchestrator E2E');
 
