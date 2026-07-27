@@ -344,12 +344,24 @@ Channel alert: `#ai-alerts` Slack (hoặc log dashboard tương đương).
 
 ### 7.2. Weekly review (pilot)
 
+**Playbook đầy đủ (90 ngày, flag, dashboard, agenda 45p):** [`cskh-ai-pilot-90-day-playbook.md`](./cskh-ai-pilot-90-day-playbook.md)
+
+**Template ghi chép:** [`cskh-ai-pilot-weekly-review.md`](../templates/cskh-ai-pilot-weekly-review.md)
+
+**Script KPI tuần:**
+
+```bash
+PILOT_WEEK=10 bash scripts/cskh_pilot_weekly_report.sh
+# → .local-dev/cskh-pilot-week-10-report.md
+```
+
 | Review | Action |
 |--------|--------|
 | Acceptance / dismiss rate | Feed prompt tuning |
 | Low-confidence rate | Review BR-AI-02 banner frequency |
 | Top errors | Ticket backend |
 | Cost (tokens) | Compare vs budget |
+| Copilot DAU vs 60% | Training nếu <40% 2 tuần liên tiếp |
 
 ### 7.3. Prompt & model changes
 
@@ -621,6 +633,7 @@ Target Phase 0: **≥70%**.
 | [`rnos01-ddl-apply.md`](./rnos01-ddl-apply.md) | **RNOS-01** runbook + gate |
 | [`rnos40-ai-gate.md`](./rnos40-ai-gate.md) | **RNOS-40** gate quick reference |
 | [`rnos-r1-prod-pilot-gate.md`](./rnos-r1-prod-pilot-gate.md) | **Gate R1** prod pilot sign-off runbook |
+| [`cskh-ai-pilot-90-day-playbook.md`](./cskh-ai-pilot-90-day-playbook.md) | **CSKH pilot 90 ngày** — flag, dashboard, weekly review |
 | `./scripts/rnos01_pg_ddl_gate.sh` | RNOS-01 DDL gate JSON |
 | `./scripts/rnos40_gate.sh` | **RNOS-40** gate + rollback drill + UAT smoke |
 | `./scripts/rnos40_rollback_drill.sh` | Rollback drill JSON report |

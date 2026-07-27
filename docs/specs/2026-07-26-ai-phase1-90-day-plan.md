@@ -388,6 +388,8 @@ WHERE created_at >= NOW() - INTERVAL '90 days';
 
 ## 11. Pilot go-live (tuần 12)
 
+> **Playbook vận hành CSKH 90 ngày (flag, KPI dashboard, weekly review):** [`docs/runbooks/cskh-ai-pilot-90-day-playbook.md`](../runbooks/cskh-ai-pilot-90-day-playbook.md)
+
 ### 11.1. Rollout steps
 
 1. Apply DDL production (maintenance window + backup).
