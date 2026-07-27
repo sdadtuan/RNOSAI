@@ -3,7 +3,7 @@
 > **UC gốc:** [`../09-AI-REVENUE-OS.md`](../09-AI-REVENUE-OS.md)  
 > **Spec:** [`SPEC_AI_REVENUE_OPERATING_SYSTEM.md`](../../SPEC_AI_REVENUE_OPERATING_SYSTEM.md) · **UI:** [`SPEC_UI_UX_AI_REVENUE_OS.md`](../../SPEC_UI_UX_AI_REVENUE_OS.md) · **90-day:** [`specs/2026-07-26-ai-phase1-90-day-plan.md`](../../specs/2026-07-26-ai-phase1-90-day-plan.md) §8.2  
 > **CRM lead:** [`01-CRM-ACTIONS.md`](01-CRM-ACTIONS.md) · **Platform:** [`07-PLAT-ACTIONS.md`](07-PLAT-ACTIONS.md)  
-> **Phiên bản:** 1.2 · **Coverage:** AI-UC-001…021 (R1 ship + R2–R4 target)
+> **Phiên bản:** 1.3 · **Coverage:** AI-UC-001…022 (R1 ship + R2–R4 target)
 
 ---
 
@@ -565,6 +565,38 @@ Plan tiếp tục; output ghi `failed_optional_steps`, child run vẫn truy vế
 
 ---
 
+## AI-UC-022 — External agent tool call (R4)
+
+**Mục tiêu khách hàng:** *"Agent bên ngoài chỉ gọi đúng AI tool được cấp quyền, mọi lần gọi đều truy vết và có thể thu hồi key ngay."*
+
+**Actors:** Admin, External agent, System, QA
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | Admin | `/admin/ai/tools` | Xem MCP-style tool catalog | staff JWT | Name, schema, mutating flag | ✓ RNOS-33 |
+| 2 | Admin | Same | Tạo scoped API key | client id + tool allowlist | Plaintext key hiển thị một lần | ✓ hash only |
+| 3 | External agent | `POST /api/v1/ai/tools/call` | Gọi tool được phép | `X-AI-Tool-Key` + tool input | Tool result | ✓ scoped |
+| 4 | System | Tool registry | Kiểm tra client scope + allowlist | key context | Handler được delegate | ✓ governance |
+| 5 | System | PostgreSQL | Ghi `ai_agent_runs` + `ai_tool_call_log` | request/correlation id | Hai audit rows liên kết | ✓ 100% audit |
+| 6 | External agent | Same API | Gọi tool ngoài allowlist | disallowed tool | `403 tool_not_allowed` | ✓ |
+| 7 | Admin | `/admin/ai/tools` | Thu hồi key | key id | Trạng thái Revoked | ✓ |
+| 8 | QA | Same API | Gọi lại bằng key đã thu hồi; kiểm tra output | revoked key | `401`; không lộ PII mặc định | ✓ BR-AI-05 |
+
+#### Nhánh E1 — Tool ngoài allowlist
+Registry từ chối `403` trước khi chạy handler; lần gọi thất bại vẫn có `ai_agent_runs` và `ai_tool_call_log`.
+
+#### Nhánh E2 — Key đã thu hồi
+Guard không xác thực key có `is_active=false` hoặc `revoked_at`; trả `401 invalid_ai_tool_key`.
+
+#### Tiêu chí nghiệm thu
+- [ ] Tool catalog trả descriptor có `name`, `description`, `inputSchema`, `mutating`, `requiredCaps`
+- [ ] Scoped key gọi được `health_check`; tool ngoài allowlist trả `403`
+- [ ] Mọi lần gọi tool có `ai_agent_runs` và `ai_tool_call_log` liên kết bằng `agent_run_id`
+- [ ] Key thu hồi trả `401` và plaintext key không được lưu trong database
+- [ ] Audit metadata không ghi raw tool input hoặc PII mặc định
+
+---
+
 ## Gate nghiệm thu theo wave (spec §19)
 
 | Wave | UC actions bắt buộc UAT | File section |
@@ -572,7 +604,7 @@ Plan tiếp tục; output ghi `failed_optional_steps`, child run vẫn truy vế
 | **R1** | 001–010 + pilot 8 bước | §Pilot walkthrough |
 | **R2** | 011, 012, 015, 020 | §011–§020 |
 | **R3** | 013, 014, 016, 017, 018 | §013–§018 |
-| **R4** | 019, 021 | §019, §021 |
+| **R4** | 019, 021, 022 | §019, §021, §022 |
 
 **Trạng thái ship:** R1 actions ready UAT · R2–R4 ⚠ target — UI chưa ship, dùng cho backlog QA khi release.
 
