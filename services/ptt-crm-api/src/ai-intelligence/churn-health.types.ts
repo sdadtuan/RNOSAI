@@ -95,3 +95,44 @@ export interface ChurnHealthClientResponse {
   meta: { request_id: string };
   errors: unknown[];
 }
+
+export interface ChurnRecoveryPlanEntry {
+  id: string;
+  client_id: string;
+  client_name: string;
+  note: string;
+  actor_id: string;
+  actor_name: string | null;
+  created_at: string;
+}
+
+export interface ChurnRecoveryPlanRequest {
+  clientId: string;
+  note: string;
+  actorId?: string | null;
+  actorName?: string | null;
+  correlationId?: string;
+}
+
+export interface ChurnRecoveryPlanResult {
+  id: string;
+  client_id: string;
+  note: string;
+  created_at: string;
+}
+
+export interface ChurnRecoveryPlanResponse {
+  data: ChurnRecoveryPlanResult;
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export interface ChurnRecoveryTimelineResponse {
+  data: {
+    client_id: string;
+    entries: ChurnRecoveryPlanEntry[];
+    total: number;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}

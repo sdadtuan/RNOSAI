@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ServiceUnavailableException } from '@nes
 import { AgencyRepository } from '../agency/agency.repository';
 import { AI_USE_CASE } from './ai-audit.constants';
 import { AiAuditService } from './ai-audit.service';
+import { AiRecommendationsRepository } from './ai-recommendations.repository';
 import { ChurnHealthContextRepository } from './churn-health-context.repository';
 import { computeChurnHealth } from './churn-health.engine';
 import {
@@ -9,6 +10,10 @@ import {
   ChurnHealthClientView,
   ChurnHealthDashboardResponse,
   ChurnHealthSnapshot,
+  ChurnRecoveryPlanEntry,
+  ChurnRecoveryPlanRequest,
+  ChurnRecoveryPlanResponse,
+  ChurnRecoveryTimelineResponse,
   ChurnScoreRequest,
   ChurnScoreResponse,
   CustomerHealthScoreRecord,
@@ -16,6 +21,7 @@ import {
 import { CustomerHealthScoresRepository } from './customer-health-scores.repository';
 
 const RESCORE_COOLDOWN_HOURS = 24;
+const RECOVERY_PLAN_TYPE = 'churn_recovery_plan';
 
 @Injectable()
 export class AiChurnHealthService {
@@ -24,6 +30,7 @@ export class AiChurnHealthService {
     private readonly scores: CustomerHealthScoresRepository,
     private readonly context: ChurnHealthContextRepository,
     private readonly agencyRepo: AgencyRepository,
+    private readonly recommendations: AiRecommendationsRepository,
   ) {}
 
   async scoreChurn(input: ChurnScoreRequest = {}): Promise<ChurnScoreResponse> {
@@ -197,6 +204,146 @@ export class AiChurnHealthService {
 
     const [view] = await this.enrichRows([row]);
     return { data: view ?? null, meta: { request_id: requestId }, errors: [] };
+  }
+
+  /** AI-UC-017 b6 — log churn recovery plan note on /crm/health. */
+  async logRecoveryPlan(input: ChurnRecoveryPlanRequest): Promise<ChurnRecoveryPlanResponse> {
+    if (!(await this.recommendations.tableReady())) {
+      throw new ServiceUnavailableException({
+        error: 'ai_recommendations_not_ready',
+        message: 'Apply RNOS-01 DDL before churn recovery plan',
+      });
+    }
+
+    const clientId = input.clientId?.trim();
+    const note = String(input.note ?? '').trim();
+    if (!clientId) {
+      throw new NotFoundException({ error: 'client_not_found', message: 'client_id is required' });
+    }
+    if (!note) {
+      throw new NotFoundException({ error: 'missing_note', message: 'note is required' });
+    }
+    if (note.length > 4000) {
+      throw new NotFoundException({ error: 'note_too_long', message: 'note exceeds 4000 characters' });
+    }
+
+    const detail = await this.agencyRepo.fetchClient(clientId);
+    if (!detail) {
+      throw new NotFoundException({ error: 'client_not_found', message: 'Agency client not found' });
+    }
+
+    const requestId = input.correlationId?.trim() || this.audit.newRequestId();
+    const actorId = input.actorId?.trim() || 'am';
+    const actorName = input.actorName?.trim() || null;
+
+    const wrapped = await this.audit.wrap(
+      {
+        useCase: AI_USE_CASE.CHURN_RECOVERY_PLAN,
+        entityType: 'agency_client',
+        entityId: clientId,
+        actorId,
+        correlationId: requestId,
+        modelName: 'churn-health-v1',
+        input: { client_id: clientId, note_length: note.length },
+      },
+      async () => {
+        const row = await this.recommendations.insert({
+          clientId,
+          entityType: 'agency_client',
+          entityId: clientId,
+          recommendationType: RECOVERY_PLAN_TYPE,
+          text: note,
+          actionJson: {
+            client_id: clientId,
+            client_name: detail.name,
+            actor_id: actorId,
+            actor_name: actorName,
+          },
+          confidence: null,
+          agentRunId: null,
+        });
+        return {
+          data: {
+            id: row.id,
+            client_id: clientId,
+            note,
+            created_at: row.created_at,
+          },
+          output: { id: row.id },
+        };
+      },
+    );
+
+    return {
+      data: wrapped.data,
+      meta: { request_id: requestId },
+      errors: [],
+    };
+  }
+
+  async listRecoveryPlans(
+    clientId?: string,
+    limit = 50,
+    correlationId?: string,
+  ): Promise<ChurnRecoveryTimelineResponse> {
+    if (!(await this.recommendations.tableReady())) {
+      throw new ServiceUnavailableException({
+        error: 'ai_recommendations_not_ready',
+        message: 'Apply RNOS-01 DDL before churn recovery timeline',
+      });
+    }
+
+    const requestId = correlationId?.trim() || this.audit.newRequestId();
+    const capped = Math.min(Math.max(limit, 1), 100);
+    let entries: ChurnRecoveryPlanEntry[] = [];
+
+    if (clientId?.trim()) {
+      const rows = await this.recommendations.listByTypeForEntity(
+        RECOVERY_PLAN_TYPE,
+        'agency_client',
+        clientId.trim(),
+        capped,
+      );
+      const detail = await this.agencyRepo.fetchClient(clientId.trim());
+      entries = rows.map((row) => this.mapRecoveryEntry(row, detail?.name ?? 'Client'));
+    } else {
+      const { rows } = await this.recommendations.listRecent({
+        from: new Date(Date.now() - 90 * 86_400_000).toISOString(),
+        to: new Date().toISOString(),
+        limit: capped,
+      });
+      const filtered = rows.filter((row) => row.recommendation_type === RECOVERY_PLAN_TYPE);
+      for (const row of filtered) {
+        const detail = await this.agencyRepo.fetchClient(row.entity_id);
+        entries.push(this.mapRecoveryEntry(row, detail?.name ?? 'Client'));
+      }
+    }
+
+    return {
+      data: {
+        client_id: clientId?.trim() ?? '',
+        entries,
+        total: entries.length,
+      },
+      meta: { request_id: requestId },
+      errors: [],
+    };
+  }
+
+  private mapRecoveryEntry(
+    row: { id: string; entity_id: string; recommendation_text: string; action_json: Record<string, unknown>; created_at: string },
+    clientName: string,
+  ): ChurnRecoveryPlanEntry {
+    const action = row.action_json ?? {};
+    return {
+      id: row.id,
+      client_id: row.entity_id,
+      client_name: String(action.client_name ?? clientName),
+      note: row.recommendation_text,
+      actor_id: String(action.actor_id ?? 'am'),
+      actor_name: action.actor_name != null ? String(action.actor_name) : null,
+      created_at: row.created_at,
+    };
   }
 
   private buildComponents(health: ChurnHealthSnapshot, clientId: string): Record<string, unknown> {

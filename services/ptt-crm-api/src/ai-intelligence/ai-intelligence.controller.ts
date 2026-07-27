@@ -30,13 +30,17 @@ import { AiIntelligenceService } from './ai-intelligence.service';
 import { AiAgentRunStatus, AiHealthResponse } from './ai-intelligence.types';
 import { ScoreDealResponse } from './deal-score.types';
 import {
+  PipelineRiskActivityResponse,
+  PipelineRiskAssignResponse,
   PipelineRiskListResponse,
   PipelineRiskScanResponse,
 } from './pipeline-risk.types';
 import {
   ForecastCommitResponse,
   ForecastDashboardResponse,
+  ForecastMapeReportResponse,
   ForecastSnapshotResponse,
+  ForecastVarianceResponse,
 } from './forecast.types';
 import {
   RenewalApproveResponse,
@@ -54,6 +58,8 @@ import {
 import {
   ChurnHealthClientResponse,
   ChurnHealthDashboardResponse,
+  ChurnRecoveryPlanResponse,
+  ChurnRecoveryTimelineResponse,
   ChurnScoreResponse,
 } from './churn-health.types';
 import {
@@ -685,6 +691,55 @@ export class AiIntelligenceController {
     );
   }
 
+  /** AI-UC-015 b4 — assign follow-up owner on at-risk deal. */
+  @Patch('pipeline-risk/:id/assign')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiDealAccessGuard)
+  assignPipelineRiskOwner(
+    @Param('id') id: string,
+    @Body() body: { staff_id: number; staff_name: string },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<PipelineRiskAssignResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.pipelineRisk.assignFollowUpOwner({
+      recommendationId: id,
+      staffId: Number(body.staff_id),
+      staffName: String(body.staff_name ?? ''),
+      actorId,
+      correlationId: rid,
+    });
+  }
+
+  /** AI-UC-015 b6 — log deal activity and clear pipeline risk flag. */
+  @Post('pipeline-risk/:id/activity')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiDealAccessGuard)
+  logPipelineRiskActivity(
+    @Param('id') id: string,
+    @Body() body: { note: string },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<PipelineRiskActivityResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.pipelineRisk.logFollowUpActivity({
+      recommendationId: id,
+      note: String(body.note ?? ''),
+      actorId,
+      correlationId: rid,
+    });
+  }
+
   /** RNOS-17 / AI-UC-013 — daily revenue forecast snapshot (cron 07:00 ICT). */
   @Post('forecast')
   @UseGuards(StaffOrInternalKeyGuard, StaffAiForecastViewGuard)
@@ -753,6 +808,29 @@ export class AiIntelligenceController {
       actorEmail: req.staffUser?.email ?? null,
       correlationId: rid,
     });
+  }
+
+  /** AI-UC-013 step 7 — leadership forecast variance on business dashboard. */
+  @Get('forecast/variance')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiForecastViewGuard)
+  getForecastVariance(
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<ForecastVarianceResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    return this.forecast.getForecastVariance(rid);
+  }
+
+  /** §19.3 #2 — MAPE report artifact for leadership. */
+  @Get('forecast/mape-report')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiForecastViewGuard)
+  getForecastMapeReport(
+    @Query('months') months?: string,
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<ForecastMapeReportResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    return this.forecast.getMapeReport(months ? Number(months) : undefined, rid);
   }
 
   /** RNOS-20 / AI-UC-014 — scan contracts T-90/60/30 for renewal opportunities. */
@@ -979,6 +1057,47 @@ export class AiIntelligenceController {
   ): Promise<ChurnHealthClientResponse> {
     const rid = correlationId?.trim() || requestId?.trim() || undefined;
     return this.churnHealth.getClientHealth(clientId, rid);
+  }
+
+  /** AI-UC-017 b6 — log churn recovery plan from /crm/health. */
+  @Post('health/recovery-plan')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiChurnHealthViewGuard)
+  logChurnRecoveryPlan(
+    @Body() body: { client_id: string; note: string },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<ChurnRecoveryPlanResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.churnHealth.logRecoveryPlan({
+      clientId: body.client_id,
+      note: String(body.note ?? ''),
+      actorId,
+      actorName: req.staffUser?.email ?? null,
+      correlationId: rid,
+    });
+  }
+
+  /** AI-UC-017 b6 — recovery plan timeline for health dashboard. */
+  @Get('health/recovery-plans')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiChurnHealthViewGuard)
+  listChurnRecoveryPlans(
+    @Query('client_id') clientId?: string,
+    @Query('limit') limit?: string,
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<ChurnRecoveryTimelineResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    return this.churnHealth.listRecoveryPlans(
+      clientId,
+      limit ? Number(limit) : undefined,
+      rid,
+    );
   }
 
   /** RNOS-21 / AI-UC-018 — generate manager coach weekly digest (Mon 08:00 cron). */

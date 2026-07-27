@@ -4,6 +4,7 @@ import { AiAuditService } from './ai-audit.service';
 import { ChurnHealthContextRepository } from './churn-health-context.repository';
 import { CustomerHealthScoresRepository } from './customer-health-scores.repository';
 import { AgencyRepository } from '../agency/agency.repository';
+import { AiRecommendationsRepository } from './ai-recommendations.repository';
 
 describe('AiChurnHealthService', () => {
   const audit = {
@@ -59,6 +60,15 @@ describe('AiChurnHealthService', () => {
       status: 'active',
     }),
   };
+  const recommendations = {
+    tableReady: jest.fn().mockResolvedValue(true),
+    insert: jest.fn().mockResolvedValue({
+      id: 'plan-1',
+      created_at: '2026-07-26T12:00:00.000Z',
+    }),
+    listByTypeForEntity: jest.fn().mockResolvedValue([]),
+    listRecent: jest.fn().mockResolvedValue({ rows: [], total: 0 }),
+  };
 
   let service: AiChurnHealthService;
 
@@ -71,6 +81,7 @@ describe('AiChurnHealthService', () => {
         { provide: CustomerHealthScoresRepository, useValue: scores },
         { provide: ChurnHealthContextRepository, useValue: context },
         { provide: AgencyRepository, useValue: agencyRepo },
+        { provide: AiRecommendationsRepository, useValue: recommendations },
       ],
     }).compile();
     service = module.get(AiChurnHealthService);
@@ -108,5 +119,18 @@ describe('AiChurnHealthService', () => {
     const out = await service.getDashboard({ sort: 'churn_risk', order: 'desc' });
     expect(out.data.total).toBe(1);
     expect(out.data.clients[0]?.client_name).toBe('Demo Client');
+  });
+
+  it('logs churn recovery plan note', async () => {
+    const out = await service.logRecoveryPlan({
+      clientId: '00000000-0000-0000-0000-000000000101',
+      note: 'Gọi AM tuần tới — review ticket spike',
+      actorId: 'am@pttads.vn',
+      actorName: 'am@pttads.vn',
+    });
+    expect(out.data.note).toContain('ticket spike');
+    expect(recommendations.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ recommendationType: 'churn_recovery_plan' }),
+    );
   });
 });

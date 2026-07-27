@@ -221,6 +221,47 @@ export class AiRecommendationsRepository implements OnModuleDestroy {
     return result.rowCount ?? 0;
   }
 
+  async mergeActionJson(id: string, patch: Record<string, unknown>): Promise<AiRecommendationRecord | null> {
+    const result = await this.db.query(
+      `UPDATE ai_recommendations
+       SET action_json = COALESCE(action_json, '{}'::jsonb) || $2::jsonb,
+           updated_at = NOW()
+       WHERE id = $1::uuid
+       RETURNING
+         id::text, client_id::text, entity_type, entity_id, recommendation_type,
+         recommendation_text, action_json, confidence, status, dismissed_reason,
+         accepted_by, accepted_at::text, agent_run_id::text,
+         created_at::text, updated_at::text`,
+      [id, JSON.stringify(patch ?? {})],
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapRow(row) : null;
+  }
+
+  async listByTypeForEntity(
+    recommendationType: string,
+    entityType: string,
+    entityId: string,
+    limit = 20,
+  ): Promise<AiRecommendationRecord[]> {
+    const capped = Math.min(Math.max(limit, 1), 100);
+    const result = await this.db.query(
+      `SELECT
+         id::text, client_id::text, entity_type, entity_id, recommendation_type,
+         recommendation_text, action_json, confidence, status, dismissed_reason,
+         accepted_by, accepted_at::text, agent_run_id::text,
+         created_at::text, updated_at::text
+       FROM ai_recommendations
+       WHERE recommendation_type = $1
+         AND entity_type = $2
+         AND entity_id = $3
+       ORDER BY created_at DESC
+       LIMIT $4`,
+      [recommendationType, entityType, entityId, capped],
+    );
+    return result.rows.map((row) => mapRow(row as Record<string, unknown>));
+  }
+
   async latestScanTimestamp(recommendationType: string): Promise<string | null> {
     const result = await this.db.query(
       `SELECT MAX(created_at)::text AS scanned_at

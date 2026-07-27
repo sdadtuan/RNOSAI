@@ -113,4 +113,16 @@ describe('AiForecastService', () => {
     });
     expect(out.data.committed_amount).toBe(50);
   });
+
+  it('returns forecast variance for leadership dashboard', async () => {
+    const out = await service.getForecastVariance('req-variance');
+    expect(out.data.committed_vnd).toBe(120);
+    expect(out.meta.request_id).toBeTruthy();
+  });
+
+  it('returns MAPE report artifact', async () => {
+    const out = await service.getMapeReport(3, 'req-mape');
+    expect(out.data.rows.length).toBe(3);
+    expect(out.data.target_mape_pct).toBe(20);
+  });
 });

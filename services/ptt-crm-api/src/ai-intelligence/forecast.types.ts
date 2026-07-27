@@ -134,3 +134,51 @@ export interface ForecastCommitResponse {
   meta: { request_id: string };
   errors: unknown[];
 }
+
+/** AI-UC-013 step 7 — committed vs actual T-1 for leadership dashboard. */
+export interface ForecastVarianceData {
+  period_label: string;
+  committed_vnd: number;
+  actual_vnd: number;
+  variance_vnd: number;
+  variance_pct: number | null;
+  mape_pct: number | null;
+  warn: boolean;
+}
+
+export interface ForecastVarianceResponse {
+  data: ForecastVarianceData;
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+/** §19.3 #2 — MAPE report artifact for manager. */
+export interface ForecastMapeReportRow {
+  year: number;
+  month: number;
+  period_label: string;
+  committed_vnd: number;
+  actual_vnd: number;
+  variance_vnd: number;
+  mape_pct: number | null;
+  warn: boolean;
+  committed_by: string | null;
+  committed_at: string | null;
+}
+
+export interface ForecastMapeReportData {
+  generated_at: string;
+  months: number;
+  target_mape_pct: number;
+  rows: ForecastMapeReportRow[];
+  summary: {
+    avg_mape_pct: number | null;
+    months_over_target: number;
+  };
+}
+
+export interface ForecastMapeReportResponse {
+  data: ForecastMapeReportData;
+  meta: { request_id: string };
+  errors: unknown[];
+}

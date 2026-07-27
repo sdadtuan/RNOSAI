@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BusinessExecutivePanel, type BusinessExecutiveData } from '@/components/kpi/BusinessExecutivePanel';
+import { ForecastMapeReportPanel } from '@/components/ai/ForecastMapeReportPanel';
+import { ForecastVariancePanel } from '@/components/ai/ForecastVariancePanel';
 import { DashboardShell } from '@/components/kpi/DashboardShell';
 import {
   KpiAlertList,
@@ -29,6 +31,12 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import {
+  fetchForecastMapeReport,
+  fetchForecastVariance,
+  type ForecastMapeReportData,
+  type ForecastVarianceData,
+} from '@/lib/ai-api';
 
 export default function CrmBusinessDashboardPage() {
   const router = useRouter();
@@ -40,6 +48,8 @@ export default function CrmBusinessDashboardPage() {
   const [dashboard, setDashboard] = useState<Record<string, unknown> | null>(null);
   const [alerts, setAlerts] = useState<Array<Record<string, unknown>>>([]);
   const [trends, setTrends] = useState<Record<string, unknown> | null>(null);
+  const [forecastVariance, setForecastVariance] = useState<ForecastVarianceData | null>(null);
+  const [mapeReport, setMapeReport] = useState<ForecastMapeReportData | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -82,15 +92,19 @@ export default function CrmBusinessDashboardPage() {
       setLoading(true);
       setError('');
       try {
-        const [dash, alertOut, trendOut] = await Promise.all([
+        const [dash, alertOut, trendOut, varianceOut, mapeOut] = await Promise.all([
           fetchFinanceBusinessDashboard(access, { year, month, trend_months: trendMonths }),
           fetchFinanceKpiAlerts(access, { year, month }),
           fetchFinanceKpiTrends(access, { year, month, trend_months: trendMonths }),
+          fetchForecastVariance(access).catch(() => null),
+          fetchForecastMapeReport(access, { months: 6 }).catch(() => null),
         ]);
         setDashboard(dash);
         const alertList = (alertOut.alerts ?? dash.kpi_alerts ?? []) as Array<Record<string, unknown>>;
         setAlerts(alertList);
         setTrends((trendOut.trends as Record<string, unknown> | undefined) ?? trendOut);
+        setForecastVariance(varianceOut?.data ?? null);
+        setMapeReport(mapeOut?.data ?? null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải dashboard thất bại');
       } finally {
@@ -169,6 +183,9 @@ export default function CrmBusinessDashboardPage() {
       }
     >
       <KpiTileGrid tiles={tiles} />
+
+      <ForecastVariancePanel data={forecastVariance} />
+      <ForecastMapeReportPanel report={mapeReport} />
 
       {!loading && dashboard ? <BusinessExecutivePanel data={executive} /> : null}
 

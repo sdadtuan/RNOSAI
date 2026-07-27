@@ -18,8 +18,13 @@ import {
   ForecastDashboardData,
   ForecastDashboardResponse,
   ForecastMapePriorMonth,
+  ForecastMapeReportData,
+  ForecastMapeReportResponse,
+  ForecastMapeReportRow,
   ForecastSnapshotRequest,
   ForecastSnapshotResponse,
+  ForecastVarianceData,
+  ForecastVarianceResponse,
 } from './forecast.types';
 import { RevenueForecastRepository } from './revenue-forecast.repository';
 
@@ -296,6 +301,91 @@ export class AiForecastService {
     );
 
     return { data: wrapped.data, meta: { request_id: requestId }, errors: [] };
+  }
+
+  /** AI-UC-013 step 7 — leadership variance committed vs actual T-1. */
+  async getForecastVariance(correlationId?: string): Promise<ForecastVarianceResponse> {
+    const dashboard = await this.getDashboard(undefined, undefined, correlationId);
+    const mape = dashboard.data.mape_prior_month;
+    const requestId = dashboard.meta.request_id;
+    const committed = mape?.committed_vnd ?? 0;
+    const actual = mape?.actual_vnd ?? dashboard.data.actual_prior_month_vnd ?? 0;
+    const varianceVnd = committed - actual;
+    let variancePct: number | null = null;
+    if (actual > 0) {
+      variancePct = Math.round((varianceVnd / actual) * 1000) / 10;
+    }
+
+    const data: ForecastVarianceData = {
+      period_label: mape?.month ?? 'Tháng trước',
+      committed_vnd: committed,
+      actual_vnd: actual,
+      variance_vnd: varianceVnd,
+      variance_pct: variancePct,
+      mape_pct: mape?.mape_pct ?? null,
+      warn: Boolean(mape?.warn),
+    };
+
+    return { data, meta: { request_id: requestId }, errors: [] };
+  }
+
+  /** §19.3 #2 — rolling MAPE report for leadership. */
+  async getMapeReport(months = 6, correlationId?: string): Promise<ForecastMapeReportResponse> {
+    if (!(await this.snapshots.tableReady())) {
+      throw new ServiceUnavailableException({
+        error: 'revenue_forecast_snapshots_not_ready',
+        message: 'Apply RNOS-01 DDL before MAPE report',
+      });
+    }
+
+    const requestId = correlationId?.trim() || this.audit.newRequestId();
+    const cappedMonths = Math.min(Math.max(months, 1), 12);
+    const now = new Date();
+    let y = now.getFullYear();
+    let m = now.getMonth() + 1;
+    const rows: ForecastMapeReportRow[] = [];
+
+    for (let i = 0; i < cappedMonths; i += 1) {
+      const prior = priorMonth(y, m);
+      const range = monthRange(prior.year, prior.month);
+      const actual = sumReceivedRevenueForRange(this.database, range.start, range.end);
+      const mapeRow = await this.buildMapePriorMonth(prior.year, prior.month, actual);
+      const committed = await this.snapshots.findCommittedForMonth(prior.year, prior.month);
+      const committedVnd = mapeRow?.committed_vnd ?? 0;
+      rows.push({
+        year: prior.year,
+        month: prior.month,
+        period_label: prior.label,
+        committed_vnd: committedVnd,
+        actual_vnd: actual,
+        variance_vnd: committedVnd - actual,
+        mape_pct: mapeRow?.mape_pct ?? null,
+        warn: Boolean(mapeRow?.warn),
+        committed_by: committed?.committed_by ?? null,
+        committed_at: committed?.committed_at ?? null,
+      });
+      y = prior.year;
+      m = prior.month;
+    }
+
+    const mapeValues = rows.map((row) => row.mape_pct).filter((v): v is number => v != null);
+    const avgMape =
+      mapeValues.length > 0
+        ? Math.round((mapeValues.reduce((a, b) => a + b, 0) / mapeValues.length) * 10) / 10
+        : null;
+
+    const data: ForecastMapeReportData = {
+      generated_at: new Date().toISOString(),
+      months: cappedMonths,
+      target_mape_pct: MAPE_WARN_THRESHOLD,
+      rows,
+      summary: {
+        avg_mape_pct: avgMape,
+        months_over_target: rows.filter((row) => row.warn).length,
+      },
+    };
+
+    return { data, meta: { request_id: requestId }, errors: [] };
   }
 
   private async buildMapePriorMonth(

@@ -360,7 +360,7 @@ Banner BR-AI-02 trước bước 4; vẫn cho accept.
 | 4 | GDKD | Same | Đọc explain factors (stall, season) | — | Bullets | ✓ |
 | 5 | GDKD | ForecastCommitPanel | Nhập **Cam kết** VND | amount | validation | ✓ |
 | 6 | GDKD | Same | **Lưu cam kết** | — | `committed_by` | ✓ |
-| 7 | Leadership | `/crm/business-dashboard` | Xem committed vs actual T-1 | — | Variance | ○ |
+| 7 | Leadership | `/crm/business-dashboard` | Xem committed vs actual T-1 | — | Variance | ✓ P1 |
 | 8 | QA | SQL | MAPE prior month vs actual | — | ≤20% target | ✓ §19.3 |
 
 #### Nhánh E1 — MAPE prior >20%

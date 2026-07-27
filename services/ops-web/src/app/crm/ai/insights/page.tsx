@@ -10,6 +10,8 @@ import {
   fetchAiAcceptanceMetrics,
   fetchAiRecommendationsInbox,
   fetchPipelineRiskAtRisk,
+  patchPipelineRiskAssign,
+  postPipelineRiskActivity,
   type AiAcceptanceMetrics,
   type AiRecommendationInboxItem,
   type PipelineRiskDealRow,
@@ -26,7 +28,8 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 import { formatPct } from '@/lib/kpi/format';
-import { staffMe, staffRefresh } from '@/lib/api';
+import { fetchCrmStaffList, staffMe, staffRefresh } from '@/lib/api';
+import type { CrmStaffRow } from '@/lib/api';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Tất cả' },
@@ -47,6 +50,7 @@ export default function CrmAiInsightsPage() {
   const [atRiskDeals, setAtRiskDeals] = useState<PipelineRiskDealRow[]>([]);
   const [atRiskTotal, setAtRiskTotal] = useState(0);
   const [lastScanAt, setLastScanAt] = useState<string | null>(null);
+  const [staffOptions, setStaffOptions] = useState<CrmStaffRow[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -89,7 +93,7 @@ export default function CrmAiInsightsPage() {
       setLoading(true);
       setError('');
       try {
-        const [metricsOut, inboxOut, riskOut] = await Promise.all([
+        const [metricsOut, inboxOut, riskOut, staffOut] = await Promise.all([
           fetchAiAcceptanceMetrics(access, { days }),
           fetchAiRecommendationsInbox(access, {
             days,
@@ -101,6 +105,7 @@ export default function CrmAiInsightsPage() {
             meta: { request_id: '' },
             errors: [] as [],
           })),
+          fetchCrmStaffList(access).catch(() => ({ staff: [], summary: {} })),
         ]);
         setMetrics(metricsOut.data);
         setRows(inboxOut.data.recommendations);
@@ -108,6 +113,7 @@ export default function CrmAiInsightsPage() {
         setAtRiskDeals(riskOut.data.deals);
         setAtRiskTotal(riskOut.data.total);
         setLastScanAt(riskOut.data.last_scan_at);
+        setStaffOptions(staffOut.staff ?? []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải AI insights thất bại');
       } finally {
@@ -224,7 +230,24 @@ export default function CrmAiInsightsPage() {
 
         <KpiTileGrid tiles={tiles} />
 
-        <PipelineRiskPanel rows={atRiskDeals} total={atRiskTotal} lastScanAt={lastScanAt} />
+        <PipelineRiskPanel
+          rows={atRiskDeals}
+          total={atRiskTotal}
+          lastScanAt={lastScanAt}
+          staffOptions={staffOptions}
+          onAssignOwner={async (recommendationId, staffId, staffName) => {
+            const access = getAccessToken();
+            if (!access) return;
+            await patchPipelineRiskAssign(access, recommendationId, { staff_id: staffId, staff_name: staffName });
+            await loadPage(access);
+          }}
+          onLogActivity={async (recommendationId, note) => {
+            const access = getAccessToken();
+            if (!access) return;
+            await postPipelineRiskActivity(access, recommendationId, { note });
+            await loadPage(access);
+          }}
+        />
 
         <section className="ai-insights-page__section">
           <h3 className="kpi-section-title">Inbox gợi ý AI ({total})</h3>

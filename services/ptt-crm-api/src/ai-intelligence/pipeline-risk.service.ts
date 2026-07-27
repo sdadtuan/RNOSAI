@@ -1,13 +1,20 @@
 import {
+  BadRequestException,
   Injectable,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { CasesService } from '../cases/cases.service';
 import { AI_USE_CASE } from './ai-audit.constants';
 import { AiAuditService } from './ai-audit.service';
 import { AiRecommendationsRepository } from './ai-recommendations.repository';
 import { DealScoreContextRepository } from './deal-score-context.repository';
 import { computeDealScoreV1 } from './deal-score.engine';
 import {
+  PipelineRiskActivityRequest,
+  PipelineRiskActivityResponse,
+  PipelineRiskAssignRequest,
+  PipelineRiskAssignResponse,
   PipelineRiskListResponse,
   PipelineRiskListResult,
   PipelineRiskScanRequest,
@@ -23,6 +30,7 @@ export class PipelineRiskService {
     private readonly audit: AiAuditService,
     private readonly dealContext: DealScoreContextRepository,
     private readonly recommendations: AiRecommendationsRepository,
+    private readonly cases: CasesService,
   ) {}
 
   async scanDaily(input: PipelineRiskScanRequest = {}): Promise<PipelineRiskScanResponse> {
@@ -159,6 +167,7 @@ export class PipelineRiskService {
         const action = row.action_json ?? {};
         const dealId = Number(row.entity_id);
         const ctx = Number.isFinite(dealId) ? this.dealContext.loadDealScoreContext(dealId) : null;
+        const ownerId = action.follow_up_owner_id != null ? Number(action.follow_up_owner_id) : null;
         return {
           deal_id: dealId,
           title: String(action.title ?? ctx?.title ?? `Deal #${row.entity_id}`),
@@ -169,6 +178,10 @@ export class PipelineRiskService {
           recommendation_id: row.id,
           staff_name: null,
           customer_name: null,
+          follow_up_owner_id: Number.isFinite(ownerId) ? ownerId : null,
+          follow_up_owner_name:
+            action.follow_up_owner_name != null ? String(action.follow_up_owner_name) : null,
+          assigned_at: action.assigned_at != null ? String(action.assigned_at) : null,
           scanned_at: row.created_at,
           status: row.status,
         };
@@ -182,6 +195,144 @@ export class PipelineRiskService {
 
     return {
       data,
+      meta: { request_id: requestId },
+      errors: [],
+    };
+  }
+
+  /** AI-UC-015 b4 — assign follow-up owner on at-risk deal. */
+  async assignFollowUpOwner(input: PipelineRiskAssignRequest): Promise<PipelineRiskAssignResponse> {
+    if (!(await this.recommendations.tableReady())) {
+      throw new ServiceUnavailableException({
+        error: 'ai_recommendations_not_ready',
+        message: 'Apply RNOS-01 DDL before pipeline risk assign',
+      });
+    }
+
+    const recommendationId = input.recommendationId?.trim();
+    const staffId = Number(input.staffId);
+    const staffName = String(input.staffName ?? '').trim();
+    if (!recommendationId) {
+      throw new BadRequestException({ error: 'missing_recommendation_id', message: 'recommendation_id is required' });
+    }
+    if (!Number.isFinite(staffId) || staffId <= 0) {
+      throw new BadRequestException({ error: 'invalid_staff_id', message: 'staff_id must be a positive number' });
+    }
+    if (!staffName) {
+      throw new BadRequestException({ error: 'invalid_staff_name', message: 'staff_name is required' });
+    }
+
+    const requestId = input.correlationId?.trim() || this.audit.newRequestId();
+    const actorId = input.actorId?.trim() || 'gdkd';
+    const row = await this.recommendations.findById(recommendationId);
+    if (!row || row.recommendation_type !== PIPELINE_RISK_TYPE || row.status !== 'pending') {
+      throw new NotFoundException({ error: 'recommendation_not_found', message: 'At-risk alert not found' });
+    }
+
+    const assignedAt = new Date().toISOString();
+    await this.recommendations.mergeActionJson(recommendationId, {
+      follow_up_owner_id: staffId,
+      follow_up_owner_name: staffName,
+      assigned_at: assignedAt,
+      assigned_by: actorId,
+    });
+
+    const dealId = Number(row.entity_id);
+    await this.audit.wrap(
+      {
+        useCase: AI_USE_CASE.PIPELINE_RISK_ASSIGN,
+        entityType: 'deal',
+        entityId: String(dealId),
+        actorId,
+        correlationId: requestId,
+        modelName: 'pipeline-risk-v1',
+        input: { recommendation_id: recommendationId, staff_id: staffId, staff_name: staffName },
+      },
+      async () => ({
+        data: { assigned: true },
+        output: { staff_id: staffId },
+      }),
+    );
+
+    return {
+      data: {
+        recommendation_id: recommendationId,
+        deal_id: dealId,
+        follow_up_owner_id: staffId,
+        follow_up_owner_name: staffName,
+        assigned_at: assignedAt,
+        assigned_by: actorId,
+      },
+      meta: { request_id: requestId },
+      errors: [],
+    };
+  }
+
+  /** AI-UC-015 b6 — log pipeline activity and clear risk flag. */
+  async logFollowUpActivity(input: PipelineRiskActivityRequest): Promise<PipelineRiskActivityResponse> {
+    if (!(await this.recommendations.tableReady())) {
+      throw new ServiceUnavailableException({
+        error: 'ai_recommendations_not_ready',
+        message: 'Apply RNOS-01 DDL before pipeline risk activity',
+      });
+    }
+
+    const recommendationId = input.recommendationId?.trim();
+    const note = String(input.note ?? '').trim();
+    if (!recommendationId) {
+      throw new BadRequestException({ error: 'missing_recommendation_id', message: 'recommendation_id is required' });
+    }
+    if (!note) {
+      throw new BadRequestException({ error: 'missing_note', message: 'note is required' });
+    }
+    if (note.length > 8000) {
+      throw new BadRequestException({ error: 'note_too_long', message: 'note exceeds 8000 characters' });
+    }
+
+    const requestId = input.correlationId?.trim() || this.audit.newRequestId();
+    const actorId = input.actorId?.trim() || 'sales';
+    const row = await this.recommendations.findById(recommendationId);
+    if (!row || row.recommendation_type !== PIPELINE_RISK_TYPE || row.status !== 'pending') {
+      throw new NotFoundException({ error: 'recommendation_not_found', message: 'At-risk alert not found' });
+    }
+
+    const dealId = Number(row.entity_id);
+    if (!Number.isFinite(dealId) || dealId <= 0) {
+      throw new BadRequestException({ error: 'invalid_deal_id', message: 'Invalid deal on recommendation' });
+    }
+
+    const event = this.cases.addEvent(dealId, { body: `[Pipeline follow-up] ${note}` });
+    const cleared = await this.recommendations.dismissPendingByTypeForEntity(
+      'deal',
+      String(dealId),
+      PIPELINE_RISK_TYPE,
+      'activity_logged',
+    );
+
+    await this.audit.wrap(
+      {
+        useCase: AI_USE_CASE.PIPELINE_RISK_ACTIVITY,
+        entityType: 'deal',
+        entityId: String(dealId),
+        actorId,
+        correlationId: requestId,
+        modelName: 'pipeline-risk-v1',
+        input: { recommendation_id: recommendationId, event_id: event.id, cleared: cleared > 0 },
+      },
+      async () => ({
+        data: { event_id: event.id },
+        output: { risk_cleared: cleared > 0 },
+      }),
+    );
+
+    return {
+      data: {
+        recommendation_id: recommendationId,
+        deal_id: dealId,
+        event_id: event.id,
+        risk_cleared: cleared > 0,
+        logged_at: event.created_at,
+      },
       meta: { request_id: requestId },
       errors: [],
     };

@@ -920,6 +920,9 @@ export interface PipelineRiskDealRow {
   recommendation_id: string;
   staff_name: string | null;
   customer_name: string | null;
+  follow_up_owner_id: number | null;
+  follow_up_owner_name: string | null;
+  assigned_at: string | null;
   scanned_at: string;
   status: string;
 }
@@ -981,6 +984,78 @@ export async function postPipelineRiskScan(
     throw new ApiError(body.message ?? body.error ?? 'Pipeline risk scan failed', res.status);
   }
   return body;
+}
+
+export async function patchPipelineRiskAssign(
+  token: string,
+  recommendationId: string,
+  input: { staff_id: number; staff_name: string },
+): Promise<{
+  data: {
+    recommendation_id: string;
+    deal_id: number;
+    follow_up_owner_id: number;
+    follow_up_owner_name: string;
+    assigned_at: string;
+    assigned_by: string;
+  };
+  meta: { request_id: string };
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/pipeline-risk/${recommendationId}/assign`, {
+    method: 'PATCH',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const body = await parseJson<{ error?: string; message?: string } & Record<string, unknown>>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Assign pipeline owner failed', res.status);
+  }
+  return body as {
+    data: {
+      recommendation_id: string;
+      deal_id: number;
+      follow_up_owner_id: number;
+      follow_up_owner_name: string;
+      assigned_at: string;
+      assigned_by: string;
+    };
+    meta: { request_id: string };
+  };
+}
+
+export async function postPipelineRiskActivity(
+  token: string,
+  recommendationId: string,
+  input: { note: string },
+): Promise<{
+  data: {
+    recommendation_id: string;
+    deal_id: number;
+    event_id: number;
+    risk_cleared: boolean;
+    logged_at: string;
+  };
+  meta: { request_id: string };
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/pipeline-risk/${recommendationId}/activity`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const body = await parseJson<{ error?: string; message?: string } & Record<string, unknown>>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Log pipeline activity failed', res.status);
+  }
+  return body as {
+    data: {
+      recommendation_id: string;
+      deal_id: number;
+      event_id: number;
+      risk_cleared: boolean;
+      logged_at: string;
+    };
+    meta: { request_id: string };
+  };
 }
 
 export interface ForecastStageBucket {
@@ -1114,6 +1189,133 @@ export async function patchForecastCommit(
     throw new ApiError(body.message ?? body.error ?? 'Forecast commit failed', res.status);
   }
   return body;
+}
+
+export interface ForecastVarianceData {
+  period_label: string;
+  committed_vnd: number;
+  actual_vnd: number;
+  variance_vnd: number;
+  variance_pct: number | null;
+  mape_pct: number | null;
+  warn: boolean;
+}
+
+export interface ForecastVarianceResponse {
+  data: ForecastVarianceData;
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export interface ForecastMapeReportRow {
+  year: number;
+  month: number;
+  period_label: string;
+  committed_vnd: number;
+  actual_vnd: number;
+  variance_vnd: number;
+  mape_pct: number | null;
+  warn: boolean;
+  committed_by: string | null;
+  committed_at: string | null;
+}
+
+export interface ForecastMapeReportData {
+  generated_at: string;
+  months: number;
+  target_mape_pct: number;
+  rows: ForecastMapeReportRow[];
+  summary: {
+    avg_mape_pct: number | null;
+    months_over_target: number;
+  };
+}
+
+export interface ForecastMapeReportResponse {
+  data: ForecastMapeReportData;
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export async function fetchForecastVariance(token: string): Promise<ForecastVarianceResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/forecast/variance`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<ForecastVarianceResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch forecast variance failed', res.status);
+  }
+  return body;
+}
+
+export async function fetchForecastMapeReport(
+  token: string,
+  params?: { months?: number },
+): Promise<ForecastMapeReportResponse> {
+  const qs = new URLSearchParams();
+  if (params?.months != null) qs.set('months', String(params.months));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/forecast/mape-report${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<ForecastMapeReportResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch MAPE report failed', res.status);
+  }
+  return body;
+}
+
+export interface ChurnRecoveryPlanEntry {
+  id: string;
+  client_id: string;
+  client_name: string;
+  note: string;
+  actor_id: string;
+  actor_name: string | null;
+  created_at: string;
+}
+
+export async function postChurnRecoveryPlan(
+  token: string,
+  input: { client_id: string; note: string },
+): Promise<{ data: { id: string; client_id: string; note: string; created_at: string }; meta: { request_id: string } }> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/health/recovery-plan`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const body = await parseJson<{ error?: string; message?: string } & Record<string, unknown>>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Log recovery plan failed', res.status);
+  }
+  return body as {
+    data: { id: string; client_id: string; note: string; created_at: string };
+    meta: { request_id: string };
+  };
+}
+
+export async function fetchChurnRecoveryPlans(
+  token: string,
+  params?: { client_id?: string; limit?: number },
+): Promise<{ data: { client_id: string; entries: ChurnRecoveryPlanEntry[]; total: number }; meta: { request_id: string } }> {
+  const qs = new URLSearchParams();
+  if (params?.client_id) qs.set('client_id', params.client_id);
+  if (params?.limit != null) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/health/recovery-plans${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<{ error?: string; message?: string } & Record<string, unknown>>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch recovery plans failed', res.status);
+  }
+  return body as {
+    data: { client_id: string; entries: ChurnRecoveryPlanEntry[]; total: number };
+    meta: { request_id: string };
+  };
 }
 
 export interface RenewalHealthSnapshot {
