@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo } from 'react';
 import type { AiAgentRunRow, AiAgentRunStatus } from '@/lib/ai-api';
 
@@ -206,6 +207,16 @@ export function AdminAiRunsPanel({
                   <span>Correlation</span>
                   <strong>{detail.correlation_id ?? '—'}</strong>
                 </li>
+                {detail.orchestration_id ? (
+                  <li>
+                    <span>Orchestration</span>
+                    <strong>
+                      <Link href={`/admin/ai/agents?id=${encodeURIComponent(detail.orchestration_id)}`}>
+                        {detail.orchestration_id}
+                      </Link>
+                    </strong>
+                  </li>
+                ) : null}
                 <li>
                   <span>Prompt visible</span>
                   <strong>{detail.prompt_visible ? 'Yes (non-prod)' : 'Redacted'}</strong>

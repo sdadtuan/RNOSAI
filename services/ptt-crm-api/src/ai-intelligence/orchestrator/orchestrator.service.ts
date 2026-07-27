@@ -16,6 +16,7 @@ import {
 import { OrchestratorRepository } from './orchestrator.repository';
 import {
   AiOrchestrationTree,
+  OrchestratorListQuery,
   OrchestratorListResult,
   OrchestratorRunData,
   OrchestratorRunRequest,
@@ -194,14 +195,13 @@ export class OrchestratorService {
   }
 
   async list(
-    limitInput?: number,
-    offsetInput?: number,
+    query: OrchestratorListQuery = {},
     correlationId?: string,
   ): Promise<OrchestratorListResponse> {
     await this.assertReady();
-    const limit = Math.min(Math.max(Number(limitInput) || 50, 1), 200);
-    const offset = Math.max(Number(offsetInput) || 0, 0);
-    const result = await this.repository.list(limit, offset);
+    const limit = Math.min(Math.max(query.limit ?? 50, 1), 200);
+    const offset = Math.max(query.offset ?? 0, 0);
+    const result = await this.repository.list({ ...query, limit, offset });
     return {
       data: { ...result, limit, offset },
       meta: { request_id: correlationId?.trim() || this.audit.newRequestId() },

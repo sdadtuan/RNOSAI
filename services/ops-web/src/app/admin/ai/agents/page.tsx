@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   OrchestrationTracePanel,
   type OrchestrationFilters,
@@ -25,7 +25,6 @@ import {
 } from '@/lib/auth';
 
 const PAGE_SIZE = 50;
-const FILTER_WINDOW_SIZE = 200;
 
 function isoDateDaysAgo(days: number): string {
   const date = new Date();
@@ -37,23 +36,10 @@ function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function filterRows(rows: AiOrchestration[], filters: OrchestrationFilters): AiOrchestration[] {
-  const from = filters.from ? new Date(`${filters.from}T00:00:00.000Z`).getTime() : null;
-  const to = filters.to ? new Date(`${filters.to}T23:59:59.999Z`).getTime() : null;
-  const planKey = filters.planKey.trim().toLocaleLowerCase();
-
-  return rows.filter((row) => {
-    const started = new Date(row.started_at).getTime();
-    if (from != null && (!Number.isFinite(started) || started < from)) return false;
-    if (to != null && (!Number.isFinite(started) || started > to)) return false;
-    if (planKey && !row.plan_key.toLocaleLowerCase().includes(planKey)) return false;
-    if (filters.status && row.status !== filters.status) return false;
-    return true;
-  });
-}
-
 export default function AdminAiAgentsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const detailRequestRef = useRef(0);
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [filters, setFilters] = useState<OrchestrationFilters>({
     from: isoDateDaysAgo(7),
@@ -117,13 +103,12 @@ export default function AdminAiAgentsPage() {
           to: nextFilters.to ? `${nextFilters.to}T23:59:59.999Z` : undefined,
           plan_key: nextFilters.planKey.trim() || undefined,
           status: nextFilters.status || undefined,
-          limit: FILTER_WINDOW_SIZE,
-          offset: 0,
+          limit: PAGE_SIZE,
+          offset: nextOffset,
         });
-        const filtered = filterRows(out.data.rows, nextFilters);
-        setRows(filtered.slice(nextOffset, nextOffset + PAGE_SIZE));
-        setTotal(filtered.length);
-        setOffset(nextOffset);
+        setRows(out.data.rows);
+        setTotal(out.data.total);
+        setOffset(out.data.offset);
         setSelected(null);
         setDetail(null);
       } catch (err) {
@@ -135,29 +120,58 @@ export default function AdminAiAgentsPage() {
     [filters],
   );
 
-  useEffect(() => {
-    void (async () => {
-      const access = await ensureAuth();
-      if (!access) return;
-      await loadOrchestrations(access, 0);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial authenticated load only
-  }, [ensureAuth]);
-
   const loadDetail = useCallback(async (access: string, row: AiOrchestration) => {
+    const requestId = ++detailRequestRef.current;
     setSelected(row);
     setDetail(null);
     setDetailLoading(true);
     setError('');
     try {
       const out = await fetchOrchestrationById(access, row.id);
+      if (requestId !== detailRequestRef.current) return;
       setDetail(out.data);
     } catch (err) {
+      if (requestId !== detailRequestRef.current) return;
       setError(err instanceof Error ? err.message : 'Tải orchestration trace thất bại');
     } finally {
-      setDetailLoading(false);
+      if (requestId === detailRequestRef.current) {
+        setDetailLoading(false);
+      }
     }
   }, []);
+
+  const loadDetailById = useCallback(async (access: string, id: string) => {
+    const requestId = ++detailRequestRef.current;
+    setDetail(null);
+    setDetailLoading(true);
+    setError('');
+    try {
+      const out = await fetchOrchestrationById(access, id);
+      if (requestId !== detailRequestRef.current) return;
+      setSelected(out.data.orchestration);
+      setDetail(out.data);
+    } catch (err) {
+      if (requestId !== detailRequestRef.current) return;
+      setError(err instanceof Error ? err.message : 'Tải orchestration trace thất bại');
+    } finally {
+      if (requestId === detailRequestRef.current) {
+        setDetailLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      const access = await ensureAuth();
+      if (!access) return;
+      await loadOrchestrations(access, 0);
+      const id = searchParams.get('id');
+      if (id) {
+        await loadDetailById(access, id);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial authenticated load only
+  }, [ensureAuth]);
 
   function logout() {
     clearSession();

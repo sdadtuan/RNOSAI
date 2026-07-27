@@ -157,6 +157,15 @@ export interface OrchestratorRunData {
   steps: OrchestratorStepExecution[];
 }
 
+export interface OrchestratorListQuery {
+  from?: string;
+  to?: string;
+  planKey?: string;
+  status?: AiOrchestrationStatus;
+  limit?: number;
+  offset?: number;
+}
+
 export interface OrchestratorListResult {
   rows: AiOrchestrationRecord[];
   total: number;

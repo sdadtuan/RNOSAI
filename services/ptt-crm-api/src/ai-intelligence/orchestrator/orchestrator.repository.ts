@@ -9,6 +9,7 @@ import {
   AiOrchestrationRow,
   AiOrchestrationStatus,
   AiOrchestrationTriggerType,
+  OrchestratorListQuery,
   OrchestratorListResult,
   ORCHESTRATOR_MIGRATION_VERSION,
 } from './orchestrator.types';
@@ -141,18 +142,44 @@ export class OrchestratorRepository implements OnModuleDestroy {
     );
   }
 
-  async list(limitInput = 50, offsetInput = 0): Promise<OrchestratorListResult> {
-    const limit = Math.min(Math.max(limitInput, 1), 200);
-    const offset = Math.max(offsetInput, 0);
+  async list(query: OrchestratorListQuery = {}): Promise<OrchestratorListResult> {
+    const limit = Math.min(Math.max(query.limit ?? 50, 1), 200);
+    const offset = Math.max(query.offset ?? 0, 0);
+
+    const conditions: string[] = ['1=1'];
+    const params: unknown[] = [];
+    let idx = 1;
+
+    if (query.from) {
+      conditions.push(`started_at >= $${idx++}::timestamptz`);
+      params.push(query.from);
+    }
+    if (query.to) {
+      conditions.push(`started_at <= $${idx++}::timestamptz`);
+      params.push(query.to);
+    }
+    if (query.planKey) {
+      conditions.push(`plan_key ILIKE $${idx++}`);
+      params.push(`%${query.planKey}%`);
+    }
+    if (query.status) {
+      conditions.push(`status = $${idx++}`);
+      params.push(query.status);
+    }
+
+    const where = conditions.join(' AND ');
     const countResult = await this.db.query(
-      'SELECT COUNT(*)::int AS total FROM ai_orchestrations',
+      `SELECT COUNT(*)::int AS total FROM ai_orchestrations WHERE ${where}`,
+      params,
     );
+    const listParams = [...params, limit, offset];
     const result = await this.db.query(
       `SELECT ${ORCHESTRATION_SELECT_COLUMNS}
        FROM ai_orchestrations
+       WHERE ${where}
        ORDER BY started_at DESC
-       LIMIT $1 OFFSET $2`,
-      [limit, offset],
+       LIMIT $${idx++} OFFSET $${idx++}`,
+      listParams,
     );
     return {
       rows: result.rows.map(mapOrchestrationRow),

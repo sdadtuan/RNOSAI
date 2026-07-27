@@ -95,7 +95,7 @@ import {
   OrchestratorService,
 } from './orchestrator/orchestrator.service';
 import { OrchestratorCronService } from './orchestrator/orchestrator-cron.service';
-import { OrchestratorContext } from './orchestrator/orchestrator.types';
+import { OrchestratorContext, AiOrchestrationStatus } from './orchestrator/orchestrator.types';
 
 interface ScoreDealBody {
   deal_id: number;
@@ -256,14 +256,24 @@ export class AiIntelligenceController {
   @Get('orchestrator')
   @UseGuards(StaffOrInternalKeyGuard, StaffAiOrchestratorViewGuard)
   listOrchestrations(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('plan_key') planKey?: string,
+    @Query('status') status?: AiOrchestrationStatus,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
     @Headers('x-request-id') requestId?: string,
     @Headers('x-correlation-id') correlationId?: string,
   ): Promise<OrchestratorListResponse> {
     return this.orchestrator.list(
-      limit ? Number(limit) : undefined,
-      offset ? Number(offset) : undefined,
+      {
+        from,
+        to,
+        planKey,
+        status,
+        limit: limit ? Number(limit) : undefined,
+        offset: offset ? Number(offset) : undefined,
+      },
       correlationId?.trim() || requestId?.trim() || undefined,
     );
   }
