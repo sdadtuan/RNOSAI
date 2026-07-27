@@ -15,6 +15,7 @@ import {
 } from './coach-digest.types';
 import { PipelineRiskService } from './pipeline-risk.service';
 import { AnomalyDigestService } from './anomaly-digest.service';
+import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
 
 const DEFAULT_TEAM_ID = 'org';
 
@@ -27,6 +28,7 @@ export class ManagerCoachService {
     private readonly cskhBoard: CskhBoardService,
     private readonly pipelineRisk: PipelineRiskService,
     private readonly anomalyDigest: AnomalyDigestService,
+    private readonly delivery: CoachDigestDeliveryService,
   ) {}
 
   async generateDigest(input: CoachDigestGenerateRequest = {}): Promise<CoachDigestGenerateResponse> {
@@ -87,6 +89,19 @@ export class ManagerCoachService {
     if (row.agent_run_id == null && wrapped.runId) {
       row.agent_run_id = wrapped.runId;
     }
+    const delivery = await this.delivery.deliver({
+      digestId: row.id,
+      weekKey,
+      teamId,
+      emailPreview: snapshot.email_preview,
+      metadata: row.metadata,
+      force,
+    });
+    row.metadata = {
+      ...row.metadata,
+      email_status: delivery.status,
+      ...(delivery.status === 'sent' ? { email_sent_at: new Date().toISOString() } : {}),
+    };
 
     return {
       data: {

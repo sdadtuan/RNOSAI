@@ -137,4 +137,17 @@ export class AiInsightsRepository implements OnModuleDestroy {
     );
     return mapRow(result.rows[0] as Record<string, unknown>);
   }
+
+  async updateCoachDigestDelivery(
+    digestId: string,
+    delivery: { email_status: 'sent' | 'skipped' | 'failed'; email_sent_at?: string },
+  ): Promise<void> {
+    await this.db.query(
+      `UPDATE ai_insights
+       SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
+           updated_at = now()
+       WHERE id = $1::uuid AND insight_type = $3`,
+      [digestId, JSON.stringify(delivery), MANAGER_COACH_INSIGHT_TYPE],
+    );
+  }
 }

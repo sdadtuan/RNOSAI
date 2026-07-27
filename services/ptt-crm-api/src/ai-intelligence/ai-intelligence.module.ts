@@ -79,6 +79,8 @@ import { AiToolKeysRepository } from './ai-tools/ai-tool-keys.repository';
 import { AiToolsController } from './ai-tools/ai-tools.controller';
 import { AiToolsService } from './ai-tools/ai-tools.service';
 import { ToolRegistry } from './ai-tools/tool.registry';
+import { PortalModule } from '../portal/portal.module';
+import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
 
 @Module({
   imports: [
@@ -96,6 +98,7 @@ import { ToolRegistry } from './ai-tools/tool.registry';
     forwardRef(() => AgencyModule),
     ServiceLifecycleModule,
     forwardRef(() => CrmLeadsLegacyModule),
+    PortalModule,
   ],
   controllers: [AiIntelligenceController, AiToolsController],
   providers: [
@@ -125,6 +128,7 @@ import { ToolRegistry } from './ai-tools/tool.registry';
     UpsellContextRepository,
     AiChurnHealthService,
     ManagerCoachService,
+    CoachDigestDeliveryService,
     AiNlQueryService,
     AiTicketSentimentService,
     AnomalyDigestService,
@@ -191,6 +195,7 @@ import { ToolRegistry } from './ai-tools/tool.registry';
     UpsellContextRepository,
     AiChurnHealthService,
     ManagerCoachService,
+    CoachDigestDeliveryService,
     AiNlQueryService,
     AiTicketSentimentService,
     AnomalyDigestService,

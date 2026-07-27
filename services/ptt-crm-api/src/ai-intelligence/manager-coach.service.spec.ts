@@ -6,6 +6,7 @@ import { AiRecommendationsRepository } from './ai-recommendations.repository';
 import { CskhBoardService } from '../cskh-board/cskh-board.service';
 import { PipelineRiskService } from './pipeline-risk.service';
 import { AnomalyDigestService } from './anomaly-digest.service';
+import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
 
 describe('ManagerCoachService', () => {
   const audit = {
@@ -68,6 +69,9 @@ describe('ManagerCoachService', () => {
       top_anomaly_campaign_id: 'camp_1',
     }),
   };
+  const delivery = {
+    deliver: jest.fn().mockResolvedValue({ status: 'skipped' }),
+  };
 
   let service: ManagerCoachService;
 
@@ -82,6 +86,7 @@ describe('ManagerCoachService', () => {
         { provide: CskhBoardService, useValue: cskhBoard },
         { provide: PipelineRiskService, useValue: pipelineRisk },
         { provide: AnomalyDigestService, useValue: anomalyDigest },
+        { provide: CoachDigestDeliveryService, useValue: delivery },
       ],
     }).compile();
     service = module.get(ManagerCoachService);

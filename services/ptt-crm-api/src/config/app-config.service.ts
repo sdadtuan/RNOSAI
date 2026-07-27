@@ -37,6 +37,8 @@ export class AppConfigService {
   readonly portalEmailNotifyEnabled: boolean;
   readonly portalEmailWebhookUrl: string | null;
   readonly portalNotifyWebhookUrl: string | null;
+  readonly coachDigestEmailEnabled: boolean;
+  readonly coachDigestRecipients: string[];
   readonly portalClientNotifyEnabled: boolean;
   readonly portalPublicUrl: string;
   readonly portalResetTtlMin: number;
@@ -112,6 +114,13 @@ export class AppConfigService {
     this.portalNotifyWebhookUrl =
       (process.env.PTT_PORTAL_NOTIFY_WEBHOOK ?? process.env.PTT_PORTAL_EMAIL_WEBHOOK_URL ?? '').trim() ||
       null;
+    this.coachDigestEmailEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_COACH_DIGEST_EMAIL_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.coachDigestRecipients = (process.env.PTT_COACH_DIGEST_RECIPIENTS ?? '')
+      .split(',')
+      .map((email) => email.trim())
+      .filter(Boolean);
     this.portalClientNotifyEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_PORTAL_CLIENT_NOTIFY ?? '1').trim().toLowerCase(),
     );

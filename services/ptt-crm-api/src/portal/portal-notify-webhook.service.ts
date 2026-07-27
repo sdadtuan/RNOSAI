@@ -12,8 +12,11 @@ export class PortalNotifyWebhookService {
     return this.config.portalNotifyWebhookUrl ?? this.config.portalEmailWebhookUrl;
   }
 
-  async send(payload: Record<string, unknown>): Promise<PortalNotifyWebhookResult> {
-    if (!this.config.portalEmailNotifyEnabled) {
+  async send(
+    payload: Record<string, unknown>,
+    options?: { enabled?: boolean },
+  ): Promise<PortalNotifyWebhookResult> {
+    if (!(options?.enabled ?? this.config.portalEmailNotifyEnabled)) {
       return { ok: true, skipped: true };
     }
     const url = this.resolveWebhookUrl();

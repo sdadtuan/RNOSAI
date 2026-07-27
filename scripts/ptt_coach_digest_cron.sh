@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# RNOS-21 / AI-UC-018 — weekly manager coach digest (Mon 08:00 ICT)
+# RNOS-21 / AI-UC-018 — weekly manager coach digest + optional email delivery (Mon 08:00 ICT).
+# Set PTT_COACH_DIGEST_EMAIL_ENABLED=1 and PTT_COACH_DIGEST_RECIPIENTS on the API.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -20,7 +21,7 @@ HTTP_CODE=$(curl -sS -o /tmp/ptt_coach_digest.json -w '%{http_code}' \
   -H "Content-Type: application/json" \
   -H "x-ptt-internal-key: ${INTERNAL_KEY}" \
   -H "x-correlation-id: ${CORRELATION_ID}" \
-  -d '{"force":false}')
+  -d '{"force":false,"send":true}')
 
 if [[ "$HTTP_CODE" == "200" || "$HTTP_CODE" == "201" ]]; then
   echo "OK coach_digest HTTP ${HTTP_CODE}"
