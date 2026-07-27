@@ -22,6 +22,11 @@ describe('OrchestratorService', () => {
   const audit = {
     newRequestId: jest.fn().mockReturnValue('request-1'),
     assertAuditReady: jest.fn().mockResolvedValue(undefined),
+    redactPayload: jest.fn((value: Record<string, unknown>) => {
+      const redacted = { ...value };
+      if ('secret' in redacted) redacted.secret = '[REDACTED]';
+      return redacted;
+    }),
     wrap: jest.fn(),
   };
 
@@ -32,6 +37,11 @@ describe('OrchestratorService', () => {
     repository.create.mockResolvedValue({ id: 'orch-1' });
     runs.insertRun.mockResolvedValue({ id: 'parent-1' });
     audit.newRequestId.mockReturnValue('request-1');
+    audit.redactPayload.mockImplementation((value: Record<string, unknown>) => {
+      const redacted = { ...value };
+      if ('secret' in redacted) redacted.secret = '[REDACTED]';
+      return redacted;
+    });
     let childRun = 0;
     audit.wrap.mockImplementation(async (_ctx, fn) => {
       const result = await fn({ runId: '', requestId: 'request-1' });
@@ -159,6 +169,76 @@ describe('OrchestratorService', () => {
       expect.objectContaining({
         failed_step: 'score_lead',
         error: 'scoring unavailable',
+      }),
+    );
+  });
+
+  it('redacts persisted input and nested step output', async () => {
+    registry.get.mockImplementation((key: string) => ({
+      agentName: key,
+      useCase: AI_USE_CASE.ORCHESTRATION_STEP,
+      handler: jest.fn().mockResolvedValue({
+        data: { result: key, secret: `${key}-secret` },
+        meta: { request_id: `${key}-request` },
+        errors: [],
+      }),
+    }));
+
+    await service.run({
+      planKey: 'lead_intake_v1',
+      input: {
+        entityType: 'lead',
+        entityId: '42',
+        leadId: 42,
+        secret: 'input-secret',
+      },
+      correlationId: 'corr-redaction',
+    });
+
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        inputJson: expect.objectContaining({ secret: '[REDACTED]' }),
+      }),
+    );
+    expect(runs.insertRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        inputJson: expect.any(Object),
+      }),
+    );
+    expect(audit.redactPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ result: 'score_lead', secret: 'score_lead-secret' }),
+    );
+    expect(runs.updateRun).toHaveBeenCalledWith(
+      'parent-1',
+      expect.objectContaining({
+        outputJson: expect.objectContaining({
+          steps: expect.arrayContaining([
+            expect.objectContaining({
+              data: expect.objectContaining({ secret: '[REDACTED]' }),
+            }),
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it('marks the orchestration failed when parent run creation fails', async () => {
+    runs.insertRun.mockRejectedValueOnce(new Error('parent insert failed'));
+
+    await expect(
+      service.run({
+        planKey: 'lead_intake_v1',
+        input: { entityType: 'lead', entityId: '42', leadId: 42 },
+        correlationId: 'corr-parent-failure',
+      }),
+    ).rejects.toThrow('parent insert failed');
+
+    expect(repository.updateStatus).toHaveBeenCalledWith(
+      'orch-1',
+      'failed',
+      expect.objectContaining({
+        failed_step: 'orchestrator',
+        error: 'parent insert failed',
       }),
     );
   });

@@ -87,6 +87,7 @@ import { StaffAiChurnHealthViewGuard } from './guards/staff-ai-churn-health-view
 import { StaffAiCoachViewGuard } from './guards/staff-ai-coach-view.guard';
 import { StaffAiNlQueryGuard } from './guards/staff-ai-nl-query.guard';
 import { StaffAiOrchestratorGuard } from './guards/staff-ai-orchestrator.guard';
+import { StaffAiOrchestratorViewGuard } from './guards/staff-ai-orchestrator-view.guard';
 import {
   OrchestratorDetailResponse,
   OrchestratorListResponse,
@@ -251,7 +252,7 @@ export class AiIntelligenceController {
 
   /** RNOS-31 — paginated orchestration trace list. */
   @Get('orchestrator')
-  @UseGuards(StaffOrInternalKeyGuard, StaffAiOrchestratorGuard)
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiOrchestratorViewGuard)
   listOrchestrations(
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
@@ -267,7 +268,7 @@ export class AiIntelligenceController {
 
   /** RNOS-31 — orchestration detail with parent and child runs. */
   @Get('orchestrator/:id')
-  @UseGuards(StaffOrInternalKeyGuard, StaffAiOrchestratorGuard)
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiOrchestratorViewGuard)
   getOrchestration(
     @Param('id') id: string,
     @Headers('x-request-id') requestId?: string,

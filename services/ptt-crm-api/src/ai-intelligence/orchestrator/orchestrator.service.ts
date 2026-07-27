@@ -72,30 +72,45 @@ export class OrchestratorService {
       actorId,
       correlationId: requestId,
     };
+    const storedInput = this.audit.redactPayload(input);
     const started = Date.now();
     const orchestration = await this.repository.create({
       clientId,
       triggerType: 'manual',
       planKey,
       status: 'running',
-      inputJson: input,
+      inputJson: storedInput,
       correlationId: requestId,
       actorId,
     });
-    const parentRun = await this.runs.insertRun({
-      agentName: 'orchestrator',
-      useCase: AI_USE_CASE.ORCHESTRATION_RUN,
-      clientId,
-      status: 'running',
-      orchestrationId: orchestration.id,
-      inputJson: {
-        plan_key: planKey,
-        entity_type: entityType,
-        entity_id: entityId,
-      },
-      correlationId: requestId,
-      actorId,
-    });
+    let parentRun;
+    try {
+      parentRun = await this.runs.insertRun({
+        agentName: 'orchestrator',
+        useCase: AI_USE_CASE.ORCHESTRATION_RUN,
+        clientId,
+        status: 'running',
+        orchestrationId: orchestration.id,
+        inputJson: this.audit.redactPayload({
+          plan_key: planKey,
+          entity_type: entityType,
+          entity_id: entityId,
+        }),
+        correlationId: requestId,
+        actorId,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const output = this.audit.redactPayload({
+        failed_step: 'orchestrator',
+        error: message,
+        steps: [],
+      });
+      await Promise.allSettled([
+        this.repository.updateStatus(orchestration.id, 'failed', output),
+      ]);
+      throw error;
+    }
 
     try {
       const steps = await this.engine.runPlan(planKey, {
@@ -107,12 +122,12 @@ export class OrchestratorService {
         correlationId: requestId,
         clientId,
       });
-      const output = {
+      const output = this.audit.redactPayload({
         completed_steps: steps.filter((step) => step.status === 'succeeded').length,
         failed_optional_steps: steps.filter((step) => step.status === 'failed').length,
         skipped_steps: steps.filter((step) => step.status === 'skipped').length,
-        steps,
-      };
+        steps: this.redactStepResults(steps),
+      });
       await this.runs.updateRun(parentRun.id, {
         status: 'succeeded',
         outputJson: output,
@@ -135,11 +150,14 @@ export class OrchestratorService {
       const message = error instanceof Error ? error.message : String(error);
       const failedStep =
         error instanceof OrchestratorRequiredStepError ? error.failedStep : 'orchestrator';
-      const output = {
+      const output = this.audit.redactPayload({
         failed_step: failedStep,
         error: message,
-        steps: error instanceof OrchestratorRequiredStepError ? error.steps : [],
-      };
+        steps:
+          error instanceof OrchestratorRequiredStepError
+            ? this.redactStepResults(error.steps)
+            : [],
+      });
       await Promise.allSettled([
         this.runs.updateRun(parentRun.id, {
           status: 'failed',
@@ -188,6 +206,20 @@ export class OrchestratorService {
       meta: { request_id: correlationId?.trim() || this.audit.newRequestId() },
       errors: [],
     };
+  }
+
+  private redactStepResults(
+    steps: OrchestratorRunData['steps'],
+  ): OrchestratorRunData['steps'] {
+    return steps.map((step) => {
+      if (!step.data || typeof step.data !== 'object' || Array.isArray(step.data)) {
+        return step;
+      }
+      return {
+        ...step,
+        data: this.audit.redactPayload(step.data as Record<string, unknown>),
+      };
+    });
   }
 
   private async assertReady(): Promise<void> {

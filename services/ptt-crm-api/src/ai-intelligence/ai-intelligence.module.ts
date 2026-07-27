@@ -72,6 +72,7 @@ import { OrchestratorRepository } from './orchestrator/orchestrator.repository';
 import { OrchestratorEngine } from './orchestrator/orchestrator.engine';
 import { OrchestratorService } from './orchestrator/orchestrator.service';
 import { StaffAiOrchestratorGuard } from './guards/staff-ai-orchestrator.guard';
+import { StaffAiOrchestratorViewGuard } from './guards/staff-ai-orchestrator-view.guard';
 
 @Module({
   imports: [
@@ -149,6 +150,7 @@ import { StaffAiOrchestratorGuard } from './guards/staff-ai-orchestrator.guard';
     StaffAiCoachViewGuard,
     StaffAiNlQueryGuard,
     StaffAiOrchestratorGuard,
+    StaffAiOrchestratorViewGuard,
     StaffCasesViewGuard,
   ],
   exports: [
@@ -205,6 +207,7 @@ import { StaffAiOrchestratorGuard } from './guards/staff-ai-orchestrator.guard';
     StaffAiCoachViewGuard,
     StaffAiNlQueryGuard,
     StaffAiOrchestratorGuard,
+    StaffAiOrchestratorViewGuard,
   ],
 })
 export class AiIntelligenceModule {}
