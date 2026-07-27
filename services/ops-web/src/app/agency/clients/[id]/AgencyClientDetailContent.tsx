@@ -10,6 +10,7 @@ import { OpsNav } from '@/components/OpsNav';
 import { AgencyReadOnlyBadge, canAgencyConfigure, canAgencyWrite } from '@/components/AgencyReadOnlyBadge';
 import { HubCampaignMapsPanel } from '@/components/HubCampaignMapsPanel';
 import { RenewalAgentPanel } from '@/components/ai/RenewalAgentPanel';
+import { UpsellAgentPanel } from '@/components/ai/UpsellAgentPanel';
 import { ClientHealthPanel } from '@/components/ai/ClientHealthPanel';
 import {
   activateAgencyClient,
@@ -1352,8 +1353,9 @@ export function AgencyClientDetailContent() {
             ) : null}
 
             {tab === 'retain' && accessToken ? (
-              <div style={{ marginTop: '1rem' }}>
+              <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <RenewalAgentPanel token={accessToken} clientId={clientId} canWrite={canMutate} />
+                <UpsellAgentPanel token={accessToken} clientId={clientId} canWrite={canMutate} />
               </div>
             ) : null}
 

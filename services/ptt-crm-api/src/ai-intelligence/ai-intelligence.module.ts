@@ -26,6 +26,8 @@ import { AiNbaService } from './ai-nba.service';
 import { PipelineRiskService } from './pipeline-risk.service';
 import { AiForecastService } from './ai-forecast.service';
 import { RenewalAgentService } from './renewal-agent.service';
+import { UpsellAgentService } from './upsell-agent.service';
+import { UpsellContextRepository } from './upsell-context.repository';
 import { AiChurnHealthService } from './ai-churn-health.service';
 import { ManagerCoachService } from './manager-coach.service';
 import { AiNlQueryService } from './ai-nl-query.service';
@@ -98,6 +100,8 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     PipelineRiskService,
     AiForecastService,
     RenewalAgentService,
+    UpsellAgentService,
+    UpsellContextRepository,
     AiChurnHealthService,
     ManagerCoachService,
     AiNlQueryService,
@@ -151,6 +155,8 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     PipelineRiskService,
     AiForecastService,
     RenewalAgentService,
+    UpsellAgentService,
+    UpsellContextRepository,
     AiChurnHealthService,
     ManagerCoachService,
     AiNlQueryService,

@@ -988,6 +988,93 @@ export async function postRenewalScan(token: string, windows?: number[]) {
   return body;
 }
 
+export interface UpsellSuggestionView {
+  id: string;
+  client_id: string;
+  source_service_slug: string;
+  source_service_label: string;
+  target_service_slug: string;
+  target_service_label: string;
+  lifecycle_id: number | null;
+  health_score: number | null;
+  confidence: number;
+  reason: string;
+  draft_text: string;
+  status: string;
+  follow_up_task_id: number | null;
+  service_delivery_url: string | null;
+}
+
+export interface UpsellListResponse {
+  data: {
+    client_id: string;
+    suggestions: UpsellSuggestionView[];
+    total: number;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export async function fetchUpsellSuggestions(token: string, clientId: string): Promise<UpsellListResponse> {
+  const qs = new URLSearchParams({ client_id: clientId });
+  const res = await fetch(`${API_BASE}/api/v1/ai/upsell?${qs.toString()}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<UpsellListResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch upsell failed', res.status);
+  }
+  return body;
+}
+
+export async function postUpsellSuggest(
+  token: string,
+  clientId: string,
+  opts?: { force?: boolean; limit?: number },
+) {
+  const res = await fetch(`${API_BASE}/api/v1/ai/upsell/suggest`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: clientId,
+      force: Boolean(opts?.force),
+      limit: opts?.limit ?? 3,
+    }),
+  });
+  const body = await parseJson<{ error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Upsell suggest failed', res.status);
+  }
+  return body;
+}
+
+export async function patchUpsellApprove(token: string, recommendationId: string, finalText: string) {
+  const res = await fetch(`${API_BASE}/api/v1/ai/upsell/${encodeURIComponent(recommendationId)}/approve`, {
+    method: 'PATCH',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ final_text: finalText }),
+  });
+  const body = await parseJson<{ error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Upsell approve failed', res.status);
+  }
+  return body;
+}
+
+export async function patchUpsellDismiss(token: string, recommendationId: string, reason?: string) {
+  const res = await fetch(`${API_BASE}/api/v1/ai/upsell/${encodeURIComponent(recommendationId)}/dismiss`, {
+    method: 'PATCH',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  });
+  const body = await parseJson<{ error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Upsell dismiss failed', res.status);
+  }
+  return body;
+}
+
 export interface ChurnHealthSnapshot {
   health_score: number;
   health_band: 'healthy' | 'watch' | 'at_risk' | 'critical';

@@ -37,6 +37,7 @@
     "test:e2e:coach-digest": "playwright test e2e/coach-digest-rnos21.spec.ts",
     "test:e2e:anomaly-digest": "playwright test e2e/anomaly-digest-rnos28.spec.ts",
     "test:e2e:lead-routing": "playwright test e2e/lead-routing-rnos26.spec.ts",
+    "test:e2e:upsell": "playwright test e2e/upsell-rnos27.spec.ts",
     "test:e2e:nl-query": "playwright test e2e/nl-query-rnos22.spec.ts"
   },
   "engines": {

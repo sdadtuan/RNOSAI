@@ -22,6 +22,8 @@ export const AI_USE_CASE = {
   PORTAL_REPORT_SUMMARY: 'portal_report_summary',
   CHANNEL_ANOMALY_DIGEST: 'channel_anomaly_digest',
   ROUTE_REP: 'route_rep',
+  UPSELL_SUGGEST: 'upsell_suggest',
+  UPSELL_APPROVE: 'upsell_approve',
 } as const;
 
 export type AiUseCase = (typeof AI_USE_CASE)[keyof typeof AI_USE_CASE];

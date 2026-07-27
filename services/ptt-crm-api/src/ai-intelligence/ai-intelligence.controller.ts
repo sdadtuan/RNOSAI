@@ -10,6 +10,7 @@ import { AiNbaService } from './ai-nba.service';
 import { PipelineRiskService } from './pipeline-risk.service';
 import { AiForecastService } from './ai-forecast.service';
 import { RenewalAgentService } from './renewal-agent.service';
+import { UpsellAgentService } from './upsell-agent.service';
 import { AiChurnHealthService } from './ai-churn-health.service';
 import { ManagerCoachService } from './manager-coach.service';
 import { AnomalyDigestService } from './anomaly-digest.service';
@@ -44,6 +45,12 @@ import {
   RenewalOutcomeResponse,
   RenewalScanResponse,
 } from './renewal.types';
+import {
+  UpsellApproveResponse,
+  UpsellDismissResponse,
+  UpsellListResponse,
+  UpsellSuggestResponse,
+} from './upsell.types';
 import {
   ChurnHealthClientResponse,
   ChurnHealthDashboardResponse,
@@ -144,6 +151,7 @@ export class AiIntelligenceController {
     private readonly pipelineRisk: PipelineRiskService,
     private readonly forecast: AiForecastService,
     private readonly renewal: RenewalAgentService,
+    private readonly upsell: UpsellAgentService,
     private readonly churnHealth: AiChurnHealthService,
     private readonly managerCoach: ManagerCoachService,
     private readonly nlQuery: AiNlQueryService,
@@ -726,6 +734,80 @@ export class AiIntelligenceController {
         ? 'system'
         : req.staffUser?.sub ?? req.staffUser?.email ?? null;
     return this.renewal.markOutcome(id, body.outcome, actorId, rid);
+  }
+
+  /** RNOS-27 — rules-based upsell suggestions for healthy agency clients. */
+  @Post('upsell/suggest')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiRenewalViewGuard)
+  suggestUpsell(
+    @Body() body: { client_id?: string; force?: boolean; limit?: number },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<UpsellSuggestResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.upsell.suggestUpsell({
+      client_id: body?.client_id,
+      force: Boolean(body?.force),
+      limit: body?.limit != null ? Number(body.limit) : undefined,
+      actorId,
+      correlationId: rid,
+    });
+  }
+
+  /** RNOS-27 / UI-R3-03 — upsell suggestions on agency Retain tab. */
+  @Get('upsell')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiRenewalViewGuard)
+  listUpsellForClient(
+    @Query('client_id') clientId: string,
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<UpsellListResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    return this.upsell.listForClient(clientId, rid);
+  }
+
+  /** RNOS-27 — AM approve upsell draft → retain task (BR-AI-01). */
+  @Patch('upsell/:id/approve')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiRenewalWriteGuard)
+  approveUpsellDraft(
+    @Param('id') id: string,
+    @Body() body: { final_text?: string },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<UpsellApproveResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.upsell.approveUpsell(id, body?.final_text, actorId, req.staffUser?.email ?? null, rid);
+  }
+
+  /** RNOS-27 — dismiss upsell suggestion. */
+  @Patch('upsell/:id/dismiss')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiRenewalWriteGuard)
+  dismissUpsellDraft(
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<UpsellDismissResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.upsell.dismissUpsell(id, body?.reason, actorId, rid);
   }
 
   /** RNOS-19 / AI-UC-017 — score churn health per agency client (cron / manual). */

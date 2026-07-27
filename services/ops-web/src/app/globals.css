@@ -4486,6 +4486,13 @@ body:has(.ops-sidebar) main {
   color: #b91c1c;
 }
 
+/* RNOS-27 — Upsell agent Retain tab (extends renewal panel styles) */
+.upsell-agent-panel {
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
 .cs-health-dashboard__toolbar {
   display: flex;
   flex-wrap: wrap;

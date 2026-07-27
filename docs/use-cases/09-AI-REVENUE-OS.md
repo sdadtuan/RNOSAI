@@ -565,6 +565,25 @@
 
 ---
 
+## RNOS-27 — Upsell Agent *(R3)*
+
+| Thuộc tính | Giá trị |
+|------------|---------|
+| **Actor chính** | AM, CS lead |
+| **Priority** | P2 |
+| **Trigger** | Lifecycle active + health score ≥ 55 (ưu tiên ≥ 70) |
+
+**Main flow:**
+
+1. Rules engine đọc `crm_service_lifecycle` + channel accounts + health score → gợi ý cross-sell add-on từ catalog.
+2. `POST /api/v1/ai/upsell/suggest` → `ai_recommendations.recommendation_type=upsell`.
+3. Retain tab `/agency/clients/[id]?tab=retain` — panel dưới Renewal Agent; AM duyệt draft → retain task (BR-AI-01).
+4. Audit `upsell_suggest`, `upsell_approve` trong `ai_agent_runs`.
+
+**Traceability:** §5.2 Upsell Agent, **RNOS-27**, RNOS-20 Retain tab pattern
+
+---
+
 ## AI-UC-020 — Workflow AI node (simulate + publish) *(R2)*
 
 | Thuộc tính | Giá trị |
@@ -636,6 +655,7 @@ flowchart LR
 | RNOS-30 | AI-UC-021 |
 | RNOS-28 | AI-UC-019 |
 | RNOS-26 | Lead Routing Agent v1 (route_rep) |
+| RNOS-27 | Upsell Agent (upsell) |
 | RNOS-29 | AI-UC-007, 011 |
 | RNOS-39 | All P0 R1 (E2E) |
 | RNOS-40 | AI-UC-010 |
