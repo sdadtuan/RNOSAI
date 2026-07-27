@@ -141,6 +141,8 @@ export interface OrchestratorCronJobOutcome {
   skipped?: boolean;
   reason?: string;
   plan_key?: string;
+  renewal_plan_key?: string;
+  renewal_scan?: 'succeeded' | 'failed';
   clients?: number;
   succeeded?: number;
   failed?: number;

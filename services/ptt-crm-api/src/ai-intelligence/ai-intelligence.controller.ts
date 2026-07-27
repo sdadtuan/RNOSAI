@@ -94,6 +94,7 @@ import {
   OrchestratorRunResponse,
   OrchestratorService,
 } from './orchestrator/orchestrator.service';
+import { OrchestratorCronService } from './orchestrator/orchestrator-cron.service';
 import { OrchestratorContext } from './orchestrator/orchestrator.types';
 
 interface ScoreDealBody {
@@ -174,6 +175,7 @@ export class AiIntelligenceController {
     private readonly anomalyDigest: AnomalyDigestService,
     private readonly leadRoute: AiLeadRouteService,
     private readonly orchestrator: OrchestratorService,
+    private readonly orchestratorCron: OrchestratorCronService,
   ) {}
 
   /** RNOS-02 — public smoke; records ai_agent_runs when schema ready (RNOS-05). */
@@ -264,6 +266,35 @@ export class AiIntelligenceController {
       offset ? Number(offset) : undefined,
       correlationId?.trim() || requestId?.trim() || undefined,
     );
+  }
+
+  /** RNOS-31 — VPS cron hits this daily, following the RNOS-17/23 AI cron pattern. */
+  @Post('orchestrator/cron/retain-health')
+  @UseGuards(StaffOrInternalKeyGuard)
+  runOrchestratorRetainHealthCron(
+    @Body() body: { limit?: number; offset?: number },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.orchestratorCron.runDailyRetainHealth({
+      limit: body?.limit,
+      offset: body?.offset,
+      actorId,
+      correlationId: correlationId?.trim() || requestId?.trim() || undefined,
+    });
+  }
+
+  /** RNOS-31 — retain-health cron enablement and plan status. */
+  @Get('orchestrator/cron/status')
+  @UseGuards(StaffOrInternalKeyGuard)
+  getOrchestratorCronStatus() {
+    return this.orchestratorCron.cronStatus();
   }
 
   /** RNOS-31 — orchestration detail with parent and child runs. */

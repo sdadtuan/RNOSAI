@@ -3,6 +3,7 @@ import { AI_AUDIT_ERROR, AI_USE_CASE } from '../ai-audit.constants';
 import { AiAuditService } from '../ai-audit.service';
 import { AgentRegistry } from './agent.registry';
 import { LEAD_INTAKE_PLAN } from './plans/lead-intake.plan';
+import { RETAIN_HEALTH_CLIENT_PLAN } from './plans/retain-health-client.plan';
 import { RETAIN_HEALTH_PLAN } from './plans/retain-health.plan';
 import {
   OrchestrationPlan,
@@ -18,6 +19,7 @@ const STATIC_PLANS: ReadonlyMap<string, OrchestrationPlan> = new Map<
 >([
   [LEAD_INTAKE_PLAN.key, LEAD_INTAKE_PLAN],
   [RETAIN_HEALTH_PLAN.key, RETAIN_HEALTH_PLAN],
+  [RETAIN_HEALTH_CLIENT_PLAN.key, RETAIN_HEALTH_CLIENT_PLAN],
 ]);
 
 export class OrchestratorRequiredStepError extends Error {

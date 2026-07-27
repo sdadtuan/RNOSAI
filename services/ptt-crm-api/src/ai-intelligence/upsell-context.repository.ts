@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseSync } from 'node:sqlite';
 import { AppConfigService } from '../config/app-config.service';
 import { AgencyRepository } from '../agency/agency.repository';
@@ -9,6 +9,7 @@ import { healthBand } from './upsell.engine';
 
 @Injectable()
 export class UpsellContextRepository {
+  private readonly logger = new Logger(UpsellContextRepository.name);
   private db: DatabaseSync | null = null;
 
   constructor(
@@ -51,7 +52,7 @@ export class UpsellContextRepository {
     };
   }
 
-  listActiveClientIds(limit = 50): string[] {
+  listActiveClientIds(limit = 50, offset = 0): string[] {
     try {
       const rows = this.database
         .prepare(
@@ -60,11 +61,16 @@ export class UpsellContextRepository {
            WHERE ct.status = 'active'
              AND TRIM(COALESCE(ct.agency_client_id, '')) != ''
            ORDER BY ct.updated_at DESC
-           LIMIT ?`,
+           LIMIT ? OFFSET ?`,
         )
-        .all(Math.min(Math.max(limit, 1), 200)) as Array<{ agency_client_id: string }>;
+        .all(
+          Math.min(Math.max(limit, 1), 200),
+          Math.max(offset, 0),
+        ) as Array<{ agency_client_id: string }>;
       return rows.map((r) => String(r.agency_client_id)).filter(Boolean);
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Failed to list active client IDs: ${message}`);
       return [];
     }
   }

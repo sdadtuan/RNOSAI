@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AiIntelligenceConfigService } from '../ai-intelligence.config';
 import { UpsellContextRepository } from '../upsell-context.repository';
+import { RETAIN_HEALTH_CLIENT_PLAN } from './plans/retain-health-client.plan';
 import { RETAIN_HEALTH_PLAN } from './plans/retain-health.plan';
 import { OrchestratorService } from './orchestrator.service';
 import { OrchestratorCronJobOutcome } from './orchestrator.types';
@@ -9,6 +10,7 @@ const DEFAULT_CLIENT_LIMIT = 50;
 
 export interface OrchestratorCronRunRequest {
   limit?: number;
+  offset?: number;
   actorId?: string | null;
   correlationId?: string | null;
 }
@@ -34,7 +36,8 @@ export class OrchestratorCronService {
         enabled: this.isCronEnabled(),
         orchestrator_enabled: this.config.orchestratorEnabled,
         cron_enabled: this.config.orchestratorCronEnabled,
-        plan_key: RETAIN_HEALTH_PLAN.key,
+        renewal_plan_key: RETAIN_HEALTH_PLAN.key,
+        client_plan_key: RETAIN_HEALTH_CLIENT_PLAN.key,
       },
     };
   }
@@ -50,7 +53,7 @@ export class OrchestratorCronService {
     }
 
     const limit = Math.min(Math.max(input.limit ?? DEFAULT_CLIENT_LIMIT, 1), 200);
-    const clientIds = this.upsellContext.listActiveClientIds(limit);
+    const offset = Math.max(input.offset ?? 0, 0);
     const requestId =
       input.correlationId?.trim() ||
       `retain_health_cron:${new Date().toISOString().slice(0, 10)}`;
@@ -59,11 +62,36 @@ export class OrchestratorCronService {
     let succeeded = 0;
     let failed = 0;
     const errors: string[] = [];
+    let renewalScan: 'succeeded' | 'failed' = 'succeeded';
+
+    try {
+      await this.orchestrator.run({
+        planKey: RETAIN_HEALTH_PLAN.key,
+        clientId: undefined,
+        triggerType: 'cron',
+        triggerRef: requestId,
+        actorId,
+        correlationId: `${requestId}:renewal_scan`,
+        input: {
+          entityType: 'portfolio',
+          entityId: 'active_contracts',
+          actorId,
+          correlationId: `${requestId}:renewal_scan`,
+        },
+      });
+    } catch (error) {
+      renewalScan = 'failed';
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`renewal_scan: ${message}`);
+      this.logger.warn(`${RETAIN_HEALTH_PLAN.key} cron failed: ${message}`);
+    }
+
+    const clientIds = this.upsellContext.listActiveClientIds(limit, offset);
 
     for (const clientId of clientIds) {
       try {
         await this.orchestrator.run({
-          planKey: RETAIN_HEALTH_PLAN.key,
+          planKey: RETAIN_HEALTH_CLIENT_PLAN.key,
           clientId,
           triggerType: 'cron',
           triggerRef: requestId,
@@ -82,13 +110,15 @@ export class OrchestratorCronService {
         failed += 1;
         const message = error instanceof Error ? error.message : String(error);
         errors.push(`${clientId}: ${message}`);
-        this.logger.warn(`retain_health_v1 cron failed for ${clientId}: ${message}`);
+        this.logger.warn(`${RETAIN_HEALTH_CLIENT_PLAN.key} cron failed for ${clientId}: ${message}`);
       }
     }
 
     return {
-      ok: failed === 0,
-      plan_key: RETAIN_HEALTH_PLAN.key,
+      ok: renewalScan === 'succeeded' && failed === 0,
+      plan_key: RETAIN_HEALTH_CLIENT_PLAN.key,
+      renewal_plan_key: RETAIN_HEALTH_PLAN.key,
+      renewal_scan: renewalScan,
       clients: clientIds.length,
       succeeded,
       failed,
