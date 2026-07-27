@@ -447,7 +447,7 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 | 23.2 | [ ] **`/admin/crm/custom-fields`** CRUD | P1-1 | RNOS-35 |
 | 23.3 | [ ] **`/admin/crm/pipeline`** stage editor | P1-1 | RNOS-35 |
 | 23.4 | [ ] **`/crm/calendar`** month view + reminder | P1-2 | RNOS calendar |
-| 23.5 | [ ] **`/crm/tickets`** lite CRUD | P1-3 | RNOS-24 |
+| 23.5 | [x] **`/crm/tickets`** lite CRUD + sentiment | P1-3 | RNOS-24 |
 
 ---
 

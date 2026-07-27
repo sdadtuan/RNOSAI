@@ -13,10 +13,12 @@ import { RenewalAgentService } from './renewal-agent.service';
 import { AiChurnHealthService } from './ai-churn-health.service';
 import { ManagerCoachService } from './manager-coach.service';
 import { AiNlQueryService } from './ai-nl-query.service';
+import { AiTicketSentimentService } from './ai-ticket-sentiment.service';
 import {
   NlQueryCatalogResponse,
   NlQueryRunResponse,
 } from './nl-query.types';
+import { StaffCasesViewGuard } from '../cases/guards/staff-cases.guard';
 import { AiSummarizeService } from './ai-summarize.service';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiFeedbackAnalyticsService } from './ai-feedback-analytics.service';
@@ -48,6 +50,7 @@ import {
   CoachDigestCurrentResponse,
   CoachDigestGenerateResponse,
 } from './coach-digest.types';
+import { TicketSentimentScoreResponse } from './ticket-sentiment.types';
 import { AiScoresBatchResponse, AiScoresListResponse, ScoreLeadResponse } from './lead-score.types';
 import { SummarizeResponse } from './summarize.types';
 import {
@@ -135,6 +138,7 @@ export class AiIntelligenceController {
     private readonly churnHealth: AiChurnHealthService,
     private readonly managerCoach: ManagerCoachService,
     private readonly nlQuery: AiNlQueryService,
+    private readonly ticketSentiment: AiTicketSentimentService,
   ) {}
 
   /** RNOS-02 — public smoke; records ai_agent_runs when schema ready (RNOS-05). */
@@ -815,6 +819,29 @@ export class AiIntelligenceController {
     return this.nlQuery.runQuery({
       intent_id: body?.intent_id,
       question: body?.question,
+      actorId,
+      correlationId: rid,
+    });
+  }
+
+  /** RNOS-24 — ticket sentiment scoring for CS health signals. */
+  @Post('sentiment/ticket')
+  @UseGuards(StaffOrInternalKeyGuard, StaffCasesViewGuard)
+  scoreTicketSentiment(
+    @Body() body: { ticket_id?: number; force?: boolean },
+    @Req()
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ): Promise<TicketSentimentScoreResponse> {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req.staffAuthVia === 'internal'
+        ? 'system'
+        : req.staffUser?.sub ?? req.staffUser?.email ?? null;
+    return this.ticketSentiment.scoreTicket({
+      ticket_id: Number(body?.ticket_id),
+      force: Boolean(body?.force),
       actorId,
       correlationId: rid,
     });

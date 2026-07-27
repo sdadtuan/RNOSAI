@@ -9,6 +9,6 @@ import { TicketsService } from './tickets.service';
   imports: [StaffAuthModule],
   controllers: [TicketsController],
   providers: [TicketsService, TicketsSqliteRepository, StaffCasesViewGuard, StaffCasesWriteGuard],
-  exports: [TicketsService],
+  exports: [TicketsService, TicketsSqliteRepository],
 })
 export class TicketsModule {}

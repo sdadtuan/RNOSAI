@@ -8,9 +8,12 @@ import {
   ISSUE_STATUS_LABELS,
   ISSUE_TYPE_LABELS,
   CreateTicketBody,
+  CreateTicketMessageBody,
   ListTicketsQuery,
   PatchTicketBody,
+  TicketMessageRow,
   TicketRow,
+  UpdateTicketSentimentInput,
   normalizeChannel,
   normalizeIssuePriority,
   normalizeIssueStatus,
@@ -59,6 +62,56 @@ export class TicketsSqliteRepository implements OnModuleDestroy {
       CREATE INDEX IF NOT EXISTS idx_crm_tickets_status ON crm_tickets(status);
       CREATE INDEX IF NOT EXISTS idx_crm_tickets_customer ON crm_tickets(customer_id);
     `);
+    this.ensureSentimentColumns();
+    this.database.exec(`
+      CREATE TABLE IF NOT EXISTS crm_ticket_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ticket_id INTEGER NOT NULL,
+        author_staff_id INTEGER,
+        body TEXT NOT NULL DEFAULT '',
+        is_internal INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT ''
+      );
+      CREATE INDEX IF NOT EXISTS idx_crm_ticket_messages_ticket ON crm_ticket_messages(ticket_id);
+    `);
+  }
+
+  private ensureSentimentColumns(): void {
+    const cols = this.database
+      .prepare('PRAGMA table_info(crm_tickets)')
+      .all() as Array<{ name: string }>;
+    const names = new Set(cols.map((col) => col.name));
+    const additions: Array<[string, string]> = [
+      ['sentiment_label', "TEXT NOT NULL DEFAULT ''"],
+      ['sentiment_score', 'INTEGER'],
+      ['sentiment_confidence', 'REAL'],
+      ['sentiment_scored_at', "TEXT NOT NULL DEFAULT ''"],
+    ];
+    for (const [name, ddl] of additions) {
+      if (!names.has(name)) {
+        this.database.exec(`ALTER TABLE crm_tickets ADD COLUMN ${name} ${ddl}`);
+      }
+    }
+  }
+
+  private resolveAgencyClientId(customerId: number): string | null {
+    try {
+      const row = this.database
+        .prepare(
+          `SELECT TRIM(COALESCE(ct.agency_client_id, '')) AS agency_client_id
+           FROM crm_contracts ct
+           WHERE ct.customer_id = ?
+             AND ct.status = 'active'
+             AND TRIM(COALESCE(ct.agency_client_id, '')) != ''
+           ORDER BY ct.ends_on DESC, ct.id DESC
+           LIMIT 1`,
+        )
+        .get(customerId) as Record<string, unknown> | undefined;
+      const id = String(row?.agency_client_id ?? '').trim();
+      return id || null;
+    } catch {
+      return null;
+    }
   }
 
   private mapRow(row: Record<string, unknown>): TicketRow {
@@ -70,6 +123,7 @@ export class TicketsSqliteRepository implements OnModuleDestroy {
       id: Number(row.id),
       customer_id: Number(row.customer_id),
       customer_name: String(row.customer_name ?? '—'),
+      agency_client_id: this.resolveAgencyClientId(Number(row.customer_id)),
       ticket_type: ticketType,
       ticket_type_label: ISSUE_TYPE_LABELS[ticketType] ?? ticketType,
       status,
@@ -86,6 +140,11 @@ export class TicketsSqliteRepository implements OnModuleDestroy {
           ? Number(row.assigned_staff_id)
           : null,
       assigned_staff_name: String(row.assigned_staff_name ?? '—'),
+      sentiment_label: String(row.sentiment_label ?? '').trim() || null,
+      sentiment_score: row.sentiment_score != null ? Number(row.sentiment_score) : null,
+      sentiment_confidence:
+        row.sentiment_confidence != null ? Number(row.sentiment_confidence) : null,
+      sentiment_scored_at: String(row.sentiment_scored_at ?? '').trim() || null,
       created_at: String(row.created_at ?? ''),
       updated_at: String(row.updated_at ?? ''),
       resolved_at: String(row.resolved_at ?? ''),
@@ -102,6 +161,10 @@ export class TicketsSqliteRepository implements OnModuleDestroy {
     if (query.priority) {
       where.push('t.priority = ?');
       params.push(normalizeIssuePriority(query.priority));
+    }
+    if (query.sentiment) {
+      where.push('t.sentiment_label = ?');
+      params.push(String(query.sentiment).trim());
     }
     if (query.customer_id && Number.isFinite(query.customer_id)) {
       where.push('t.customer_id = ?');
@@ -256,5 +319,101 @@ export class TicketsSqliteRepository implements OnModuleDestroy {
       )
       .get(id) as unknown as Record<string, unknown> | undefined;
     return row ? this.mapRow(row) : null;
+  }
+
+  updateSentiment(ticketId: number, input: UpdateTicketSentimentInput): TicketRow {
+    const existing = this.getById(ticketId);
+    if (!existing) throw new NotFoundException({ error: 'ticket_not_found' });
+    this.database
+      .prepare(
+        `UPDATE crm_tickets
+         SET sentiment_label = ?, sentiment_score = ?, sentiment_confidence = ?,
+             sentiment_scored_at = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(
+        input.label,
+        input.score,
+        input.confidence,
+        input.scored_at,
+        input.scored_at,
+        ticketId,
+      );
+    return this.getById(ticketId)!;
+  }
+
+  listMessages(ticketId: number): TicketMessageRow[] {
+    const rows = this.database
+      .prepare(
+        `SELECT m.*, st.name AS author_staff_name
+         FROM crm_ticket_messages m
+         LEFT JOIN crm_staff st ON st.id = m.author_staff_id
+         WHERE m.ticket_id = ?
+         ORDER BY m.id ASC`,
+      )
+      .all(ticketId) as Array<Record<string, unknown>>;
+    return rows.map((row) => ({
+      id: Number(row.id),
+      ticket_id: Number(row.ticket_id),
+      author_staff_id:
+        row.author_staff_id != null && row.author_staff_id !== ''
+          ? Number(row.author_staff_id)
+          : null,
+      author_staff_name: String(row.author_staff_name ?? 'Hệ thống'),
+      body: String(row.body ?? ''),
+      is_internal: Number(row.is_internal ?? 1) === 1,
+      created_at: String(row.created_at ?? ''),
+    }));
+  }
+
+  addMessage(ticketId: number, body: CreateTicketMessageBody): TicketMessageRow {
+    const ticket = this.getById(ticketId);
+    if (!ticket) throw new NotFoundException({ error: 'ticket_not_found' });
+    const text = String(body.body ?? '').trim().slice(0, 8000);
+    if (!text) throw new BadRequestException({ error: 'message_body_required' });
+
+    let authorStaffId: number | null = null;
+    if (body.author_staff_id != null && body.author_staff_id !== 0) {
+      authorStaffId = Number(body.author_staff_id);
+      if (!Number.isFinite(authorStaffId)) authorStaffId = null;
+    }
+
+    const ts = catalogTs();
+    const result = this.database
+      .prepare(
+        `INSERT INTO crm_ticket_messages (ticket_id, author_staff_id, body, is_internal, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(
+        ticketId,
+        authorStaffId,
+        text,
+        body.is_internal === false ? 0 : 1,
+        ts,
+      );
+    this.database
+      .prepare('UPDATE crm_tickets SET updated_at = ? WHERE id = ?')
+      .run(ts, ticketId);
+
+    const row = this.database
+      .prepare(
+        `SELECT m.*, st.name AS author_staff_name
+         FROM crm_ticket_messages m
+         LEFT JOIN crm_staff st ON st.id = m.author_staff_id
+         WHERE m.id = ?`,
+      )
+      .get(Number(result.lastInsertRowid)) as Record<string, unknown>;
+    return {
+      id: Number(row.id),
+      ticket_id: Number(row.ticket_id),
+      author_staff_id:
+        row.author_staff_id != null && row.author_staff_id !== ''
+          ? Number(row.author_staff_id)
+          : null,
+      author_staff_name: String(row.author_staff_name ?? 'Hệ thống'),
+      body: String(row.body ?? ''),
+      is_internal: Number(row.is_internal ?? 1) === 1,
+      created_at: String(row.created_at ?? ''),
+    };
   }
 }

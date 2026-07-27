@@ -5,15 +5,20 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
 import {
+  addCrmTicketMessage,
   createCrmTicket,
   fetchCrmStaffList,
+  fetchCrmTicket,
+  fetchCrmTicketMessages,
   fetchCrmTickets,
   fetchCustomers,
   patchCrmTicket,
   staffMe,
   staffRefresh,
+  type CrmTicketMessageRow,
   type CrmTicketRow,
 } from '@/lib/api';
+import { postTicketSentiment, type TicketSentimentScoreResponse } from '@/lib/ai-api';
 import {
   clearSession,
   getAccessToken,
@@ -58,14 +63,48 @@ const TICKET_CHANNELS = [
   { value: 'khac', label: 'Khác' },
 ];
 
+const TICKET_SENTIMENTS = [
+  { value: '', label: 'Tất cả sentiment' },
+  { value: 'negative', label: 'Tiêu cực' },
+  { value: 'neutral', label: 'Trung lập' },
+  { value: 'positive', label: 'Tích cực' },
+  { value: 'unscored', label: 'Chưa chấm' },
+];
+
+function sentimentLabel(label: string | null | undefined): string {
+  if (!label) return '—';
+  if (label === 'negative') return 'Tiêu cực';
+  if (label === 'positive') return 'Tích cực';
+  return 'Trung lập';
+}
+
+function SentimentChip({ label }: { label: string | null | undefined }) {
+  if (!label) {
+    return <span className="crm-tickets-sentiment crm-tickets-sentiment--none">Chưa chấm</span>;
+  }
+  return (
+    <span className={`crm-tickets-sentiment crm-tickets-sentiment--${label}`}>
+      {sentimentLabel(label)}
+    </span>
+  );
+}
+
 export default function CrmTicketsPage() {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [rows, setRows] = useState<CrmTicketRow[]>([]);
   const [total, setTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState('');
+  const [sentimentFilter, setSentimentFilter] = useState('');
   const [q, setQ] = useState('');
   const [query, setQuery] = useState('');
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [detail, setDetail] = useState<CrmTicketRow | null>(null);
+  const [messages, setMessages] = useState<CrmTicketMessageRow[]>([]);
+  const [sentimentDetail, setSentimentDetail] = useState<TicketSentimentScoreResponse['data'] | null>(
+    null,
+  );
+  const [messageDraft, setMessageDraft] = useState('');
   const [customers, setCustomers] = useState<Array<{ id: number; name: string }>>([]);
   const [staffOptions, setStaffOptions] = useState<Array<{ id: number; name: string }>>([]);
   const [error, setError] = useState('');
@@ -122,13 +161,23 @@ export default function CrmTicketsPage() {
       const data = await fetchCrmTickets(access, {
         q: query || undefined,
         status: statusFilter || undefined,
+        sentiment: sentimentFilter || undefined,
         limit: 100,
       });
       setRows(data.tickets);
       setTotal(data.total);
     },
-    [query, statusFilter],
+    [query, statusFilter, sentimentFilter],
   );
+
+  const loadDetail = useCallback(async (access: string, ticketId: number) => {
+    const [ticket, msgOut] = await Promise.all([
+      fetchCrmTicket(access, ticketId),
+      fetchCrmTicketMessages(access, ticketId),
+    ]);
+    setDetail(ticket);
+    setMessages(msgOut.messages);
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -158,7 +207,7 @@ export default function CrmTicketsPage() {
     setError('');
     setMsg('');
     try {
-      await createCrmTicket(access, {
+      const created = await createCrmTicket(access, {
         customer_id: Number(form.customer_id),
         ticket_type: form.ticket_type,
         priority: form.priority,
@@ -167,6 +216,11 @@ export default function CrmTicketsPage() {
         description: form.description,
         assigned_staff_id: form.assigned_staff_id ? Number(form.assigned_staff_id) : null,
       });
+      try {
+        await postTicketSentiment(access, { ticket_id: created.id });
+      } catch {
+        /* sentiment optional on create */
+      }
       setForm({
         customer_id: '',
         ticket_type: 'phan_anh',
@@ -180,6 +234,70 @@ export default function CrmTicketsPage() {
       setMsg('Đã tạo ticket');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tạo ticket thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openDetail(row: CrmTicketRow) {
+    const access = getAccessToken();
+    if (!access) return;
+    setSelectedId(row.id);
+    setError('');
+    setMessageDraft('');
+    try {
+      await loadDetail(access, row.id);
+      try {
+        const out = await postTicketSentiment(access, { ticket_id: row.id });
+        setSentimentDetail(out.data);
+      } catch {
+        setSentimentDetail(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tải chi tiết ticket thất bại');
+    }
+  }
+
+  function closeDetail() {
+    setSelectedId(null);
+    setDetail(null);
+    setMessages([]);
+    setSentimentDetail(null);
+    setMessageDraft('');
+  }
+
+  async function rescoreTicket(force = true) {
+    const access = getAccessToken();
+    if (!access || !detail) return;
+    setBusy(true);
+    setError('');
+    try {
+      const out = await postTicketSentiment(access, { ticket_id: detail.id, force });
+      setSentimentDetail(out.data);
+      await loadDetail(access, detail.id);
+      await reload(access);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Chấm sentiment thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitMessage(e: React.FormEvent) {
+    e.preventDefault();
+    const access = getAccessToken();
+    if (!access || !detail || !messageDraft.trim()) return;
+    setBusy(true);
+    setError('');
+    try {
+      await addCrmTicketMessage(access, detail.id, { body: messageDraft.trim() });
+      setMessageDraft('');
+      const out = await postTicketSentiment(access, { ticket_id: detail.id, force: true });
+      setSentimentDetail(out.data);
+      await loadDetail(access, detail.id);
+      await reload(access);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gửi tin nhắn thất bại');
     } finally {
       setBusy(false);
     }
@@ -238,6 +356,17 @@ export default function CrmTicketsPage() {
           >
             {TICKET_STATUSES.map((item) => (
               <option key={item.value || 'all'} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="kpi-select"
+            value={sentimentFilter}
+            onChange={(e) => setSentimentFilter(e.target.value)}
+          >
+            {TICKET_SENTIMENTS.map((item) => (
+              <option key={item.value || 'all-sentiment'} value={item.value}>
                 {item.label}
               </option>
             ))}
@@ -343,6 +472,7 @@ export default function CrmTicketsPage() {
                 <th>Loại</th>
                 <th>Ưu tiên</th>
                 <th>Trạng thái</th>
+                <th>Sentiment</th>
                 <th>Owner</th>
                 <th>Cập nhật</th>
               </tr>
@@ -350,21 +480,26 @@ export default function CrmTicketsPage() {
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="muted">
+                  <td colSpan={9} className="muted">
                     Chưa có ticket
                   </td>
                 </tr>
               ) : (
                 rows.map((row) => (
-                  <tr key={row.id}>
+                  <tr
+                    key={row.id}
+                    className={selectedId === row.id ? 'crm-tickets-table__row--active' : undefined}
+                    onClick={() => void openDetail(row)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <td>{row.id}</td>
-                    <td>
+                    <td onClick={(e) => e.stopPropagation()}>
                       <Link href={`/crm/customers/${row.customer_id}`}>{row.customer_name}</Link>
                     </td>
                     <td>{row.title}</td>
                     <td>{row.ticket_type_label}</td>
                     <td>{row.priority_label}</td>
-                    <td>
+                    <td onClick={(e) => e.stopPropagation()}>
                       {canEdit ? (
                         <select
                           className="kpi-select crm-tickets-table__status"
@@ -382,6 +517,9 @@ export default function CrmTicketsPage() {
                         row.status_label
                       )}
                     </td>
+                    <td>
+                      <SentimentChip label={row.sentiment_label} />
+                    </td>
                     <td>{row.assigned_staff_name}</td>
                     <td className="muted">{row.updated_at || row.created_at}</td>
                   </tr>
@@ -390,6 +528,106 @@ export default function CrmTicketsPage() {
             </tbody>
           </table>
         </div>
+
+        {detail ? (
+          <div className="crm-tickets-drawer card">
+            <div className="crm-tickets-drawer__head">
+              <div>
+                <h3 className="kpi-section-title" style={{ margin: 0 }}>
+                  Ticket #{detail.id} — {detail.title}
+                </h3>
+                <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+                  {detail.customer_name} · {detail.ticket_type_label} · {detail.status_label}
+                </p>
+              </div>
+              <button type="button" className="btn btn-sm btn-secondary" onClick={closeDetail}>
+                Đóng
+              </button>
+            </div>
+
+            <div className="crm-tickets-drawer__meta">
+              <SentimentChip label={detail.sentiment_label} />
+              {detail.sentiment_score != null ? (
+                <span className="muted">
+                  Score {detail.sentiment_score.toFixed(2)}
+                  {detail.sentiment_confidence != null
+                    ? ` · conf ${(detail.sentiment_confidence * 100).toFixed(0)}%`
+                    : ''}
+                </span>
+              ) : null}
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                disabled={busy}
+                onClick={() => void rescoreTicket(true)}
+              >
+                Chấm lại sentiment
+              </button>
+              {detail.agency_client_id ? (
+                <Link
+                  href={`/agency/clients/${detail.agency_client_id}?tab=health`}
+                  className="btn btn-sm btn-secondary"
+                >
+                  Xem health KH
+                </Link>
+              ) : (
+                <Link href="/crm/health" className="btn btn-sm btn-secondary">
+                  Dashboard health
+                </Link>
+              )}
+            </div>
+
+            {sentimentDetail && sentimentDetail.factors.length > 0 ? (
+              <div className="crm-tickets-drawer__factors">
+                <h4 className="kpi-section-title">Yếu tố sentiment</h4>
+                <ul className="crm-tickets-factor-list">
+                  {sentimentDetail.factors.map((f) => (
+                    <li key={f.key}>
+                      {f.sign}
+                      {Math.abs(f.delta).toFixed(2)} — {f.label}
+                    </li>
+                  ))}
+                </ul>
+                {sentimentDetail.flags.length > 0 ? (
+                  <p className="muted">Flags: {sentimentDetail.flags.join(', ')}</p>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="crm-tickets-drawer__messages">
+              <h4 className="kpi-section-title">Luồng tin nhắn</h4>
+              {messages.length === 0 ? (
+                <p className="muted">Chưa có tin nhắn</p>
+              ) : (
+                <ul className="crm-tickets-message-list">
+                  {messages.map((m) => (
+                    <li key={m.id} className="crm-tickets-message">
+                      <div className="crm-tickets-message__meta muted">
+                        {m.author_staff_name || 'Hệ thống'} · {m.created_at}
+                        {m.is_internal ? ' · nội bộ' : ''}
+                      </div>
+                      <div>{m.body}</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {canEdit ? (
+                <form onSubmit={(e) => void submitMessage(e)} className="crm-tickets-message-form">
+                  <textarea
+                    className="kpi-input"
+                    rows={2}
+                    placeholder="Thêm ghi chú / phản hồi"
+                    value={messageDraft}
+                    onChange={(e) => setMessageDraft(e.target.value)}
+                  />
+                  <button type="submit" className="btn btn-sm" disabled={busy || !messageDraft.trim()}>
+                    Gửi & chấm lại
+                  </button>
+                </form>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
       </div>
     </main>
   );

@@ -10,7 +10,7 @@ import { CrmLeadsSqliteRepository } from './crm-leads-sqlite.repository';
 @Module({
   imports: [
     StaffAuthModule,
-    LeadsModule,
+    forwardRef(() => LeadsModule),
     forwardRef(() => CustomerTimelineModule),
     forwardRef(() => LeadsFunnelModule),
   ],

@@ -18,6 +18,7 @@ export const AI_USE_CASE = {
   CHURN_SCORE: 'churn_score',
   COACH_DIGEST_GENERATE: 'coach_digest_generate',
   NL_QUERY: 'nl_query',
+  TICKET_SENTIMENT: 'ticket_sentiment',
 } as const;
 
 export type AiUseCase = (typeof AI_USE_CASE)[keyof typeof AI_USE_CASE];

@@ -3191,6 +3191,80 @@ body:has(.ops-sidebar) main {
   min-width: 150px;
 }
 
+.crm-tickets-table__row--active {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.crm-tickets-sentiment {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.crm-tickets-sentiment--negative {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
+
+.crm-tickets-sentiment--neutral {
+  background: rgba(100, 116, 139, 0.12);
+  color: #475569;
+}
+
+.crm-tickets-sentiment--positive {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+
+.crm-tickets-sentiment--none {
+  background: rgba(148, 163, 184, 0.15);
+  color: #64748b;
+}
+
+.crm-tickets-drawer {
+  margin-top: 1.25rem;
+  padding: 1rem 1.1rem;
+}
+
+.crm-tickets-drawer__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.crm-tickets-drawer__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0.85rem 0 1rem;
+}
+
+.crm-tickets-factor-list,
+.crm-tickets-message-list {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.crm-tickets-message {
+  margin-bottom: 0.65rem;
+}
+
+.crm-tickets-message__meta {
+  font-size: 0.75rem;
+  margin-bottom: 0.15rem;
+}
+
+.crm-tickets-message-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
 .ai-dismiss-modal {
   position: fixed;
   inset: 0;

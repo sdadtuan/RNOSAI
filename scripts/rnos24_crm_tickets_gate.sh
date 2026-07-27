@@ -18,6 +18,9 @@ echo "== RNOS-24 CRM Tickets Gate =="
 for f in \
   services/ptt-crm-api/src/tickets/tickets.module.ts \
   services/ptt-crm-api/src/tickets/tickets.controller.ts \
+  services/ptt-crm-api/src/ai-intelligence/ticket-sentiment.engine.ts \
+  services/ptt-crm-api/src/ai-intelligence/ai-ticket-sentiment.service.ts \
+  services/ops-web/src/lib/ai-api.ts \
   services/ops-web/src/app/crm/tickets/page.tsx \
   services/ops-web/e2e/crm-tickets-rnos24.spec.ts \
   scripts/playwright_ops_crm_tickets_e2e.sh; do
@@ -38,6 +41,28 @@ if grep -q 'fetchCrmTickets' "$ROOT/services/ops-web/src/lib/api.ts"; then
   log_ok "api-helpers" "Tickets API helpers present"
 else
   log_fail "api-helpers" "Missing tickets API helpers"
+fi
+
+if grep -q 'postTicketSentiment' "$ROOT/services/ops-web/src/lib/ai-api.ts"; then
+  log_ok "api-sentiment" "Ticket sentiment API helper present"
+else
+  log_fail "api-sentiment" "Missing postTicketSentiment helper"
+fi
+
+if grep -q 'crm-tickets-sentiment--negative' "$ROOT/services/ops-web/src/app/globals.css"; then
+  log_ok "css-sentiment" "Ticket sentiment CSS present"
+else
+  log_fail "css-sentiment" "Missing ticket sentiment CSS"
+fi
+
+echo "==> ptt-crm-api unit tests (ticket sentiment)"
+if (
+  cd "$ROOT/services/ptt-crm-api"
+  npm test -- --runInBand ticket-sentiment ai-ticket-sentiment 2>/dev/null
+); then
+  log_ok "api-unit-sentiment" "ticket sentiment unit tests PASS"
+else
+  log_fail "api-unit-sentiment" "ticket sentiment unit tests failed"
 fi
 
 if grep -q '/crm/tickets' "$ROOT/services/ops-web/src/components/OpsNav.tsx"; then

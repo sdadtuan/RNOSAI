@@ -30,6 +30,7 @@ export interface TicketRow {
   id: number;
   customer_id: number;
   customer_name: string;
+  agency_client_id: string | null;
   ticket_type: string;
   ticket_type_label: string;
   status: string;
@@ -43,9 +44,23 @@ export interface TicketRow {
   resolution: string;
   assigned_staff_id: number | null;
   assigned_staff_name: string;
+  sentiment_label: string | null;
+  sentiment_score: number | null;
+  sentiment_confidence: number | null;
+  sentiment_scored_at: string | null;
   created_at: string;
   updated_at: string;
   resolved_at: string;
+}
+
+export interface TicketMessageRow {
+  id: number;
+  ticket_id: number;
+  author_staff_id: number | null;
+  author_staff_name: string;
+  body: string;
+  is_internal: boolean;
+  created_at: string;
 }
 
 export interface CreateTicketBody {
@@ -73,8 +88,22 @@ export interface ListTicketsQuery {
   q?: string;
   status?: string;
   priority?: string;
+  sentiment?: string;
   customer_id?: number;
   assigned_staff_id?: number;
   limit?: number;
   offset?: number;
+}
+
+export interface CreateTicketMessageBody {
+  body: string;
+  is_internal?: boolean;
+  author_staff_id?: number | null;
+}
+
+export interface UpdateTicketSentimentInput {
+  label: string;
+  score: number;
+  confidence: number;
+  scored_at: string;
 }

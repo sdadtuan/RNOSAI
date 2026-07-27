@@ -115,7 +115,11 @@ export class ChurnHealthContextRepository {
                   SUM(CASE WHEN substr(t.created_at, 1, 10) >= date('now', '-14 days')
                             AND substr(t.created_at, 1, 10) < date('now', '-7 days') THEN 1 ELSE 0 END) AS tickets_prev_7d,
                   SUM(CASE WHEN t.status NOT IN ('da_xu_ly', 'dong')
-                            AND (t.priority = 'cao' OR t.ticket_type = 'phan_anh') THEN 1 ELSE 0 END) AS negative_open
+                            AND (
+                              t.sentiment_label = 'negative'
+                              OR t.priority = 'cao'
+                              OR t.ticket_type = 'phan_anh'
+                            ) THEN 1 ELSE 0 END) AS negative_open
            FROM crm_contracts ct
            INNER JOIN crm_tickets t ON t.customer_id = ct.customer_id
            WHERE TRIM(COALESCE(ct.agency_client_id, '')) != ''

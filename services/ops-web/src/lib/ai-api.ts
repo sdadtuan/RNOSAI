@@ -1216,3 +1216,41 @@ export async function postNlQuery(
   }
   return body;
 }
+
+export interface TicketSentimentFactor {
+  key: string;
+  label: string;
+  delta: number;
+  sign: '+' | '-';
+}
+
+export interface TicketSentimentScoreResponse {
+  data: {
+    ticket_id: number;
+    label: 'positive' | 'neutral' | 'negative';
+    score: number;
+    confidence: number;
+    factors: TicketSentimentFactor[];
+    flags: string[];
+    model_name: string;
+    model_version: string;
+    scored_at: string;
+    cached?: boolean;
+  };
+}
+
+export async function postTicketSentiment(
+  token: string,
+  body: { ticket_id: number; force?: boolean },
+): Promise<TicketSentimentScoreResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/sentiment/ticket`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await parseJson<TicketSentimentScoreResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(json.message ?? json.error ?? 'Ticket sentiment failed', res.status);
+  }
+  return json;
+}

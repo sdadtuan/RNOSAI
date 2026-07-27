@@ -24,7 +24,7 @@ import { WriteEnabledGuard } from './guards/write-enabled.guard';
     EventsModule,
     AiScoreAsyncModule,
     StaffAuthModule,
-    CustomerTimelineModule,
+    forwardRef(() => CustomerTimelineModule),
     MetaTrackingModule,
     PerformanceModule,
     forwardRef(() => LeadsFunnelModule),

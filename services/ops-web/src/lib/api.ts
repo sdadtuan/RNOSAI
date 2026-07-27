@@ -6105,6 +6105,7 @@ export interface CrmTicketRow {
   id: number;
   customer_id: number;
   customer_name: string;
+  agency_client_id?: string | null;
   ticket_type: string;
   ticket_type_label: string;
   status: string;
@@ -6118,9 +6119,23 @@ export interface CrmTicketRow {
   resolution: string;
   assigned_staff_id: number | null;
   assigned_staff_name: string;
+  sentiment_label?: string | null;
+  sentiment_score?: number | null;
+  sentiment_confidence?: number | null;
+  sentiment_scored_at?: string | null;
   created_at: string;
   updated_at: string;
   resolved_at: string;
+}
+
+export interface CrmTicketMessageRow {
+  id: number;
+  ticket_id: number;
+  author_staff_id: number | null;
+  author_staff_name: string;
+  body: string;
+  is_internal: boolean;
+  created_at: string;
 }
 
 export async function fetchCrmTickets(
@@ -6129,6 +6144,7 @@ export async function fetchCrmTickets(
     q?: string;
     status?: string;
     priority?: string;
+    sentiment?: string;
     customer_id?: number;
     assigned_staff_id?: number;
     limit?: number;
@@ -6139,6 +6155,7 @@ export async function fetchCrmTickets(
   if (params?.q) qs.set('q', params.q);
   if (params?.status) qs.set('status', params.status);
   if (params?.priority) qs.set('priority', params.priority);
+  if (params?.sentiment) qs.set('sentiment', params.sentiment);
   if (params?.customer_id) qs.set('customer_id', String(params.customer_id));
   if (params?.assigned_staff_id) qs.set('assigned_staff_id', String(params.assigned_staff_id));
   if (params?.limit != null) qs.set('limit', String(params.limit));
@@ -6182,6 +6199,29 @@ export async function patchCrmTicket(
 ): Promise<CrmTicketRow> {
   return crmFetch(token, `/api/crm/tickets/${id}`, {
     method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchCrmTicket(token: string, id: number): Promise<CrmTicketRow> {
+  return crmFetch(token, `/api/crm/tickets/${id}`);
+}
+
+export async function fetchCrmTicketMessages(
+  token: string,
+  id: number,
+): Promise<{ messages: CrmTicketMessageRow[] }> {
+  return crmFetch(token, `/api/crm/tickets/${id}/messages`);
+}
+
+export async function addCrmTicketMessage(
+  token: string,
+  id: number,
+  body: { body: string; is_internal?: boolean; author_staff_id?: number | null },
+): Promise<CrmTicketMessageRow> {
+  return crmFetch(token, `/api/crm/tickets/${id}/messages`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });

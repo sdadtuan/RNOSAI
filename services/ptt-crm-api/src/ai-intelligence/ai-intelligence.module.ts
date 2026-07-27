@@ -29,7 +29,9 @@ import { RenewalAgentService } from './renewal-agent.service';
 import { AiChurnHealthService } from './ai-churn-health.service';
 import { ManagerCoachService } from './manager-coach.service';
 import { AiNlQueryService } from './ai-nl-query.service';
+import { AiTicketSentimentService } from './ai-ticket-sentiment.service';
 import { NlQueryContextRepository } from './nl-query-context.repository';
+import { TicketsModule } from '../tickets/tickets.module';
 import { RevenueForecastRepository } from './revenue-forecast.repository';
 import { RenewalContractContextRepository } from './renewal-contract-context.repository';
 import { RenewalOpportunitiesRepository } from './renewal-opportunities.repository';
@@ -56,6 +58,7 @@ import { StaffAiRenewalWriteGuard } from './guards/staff-ai-renewal-write.guard'
 import { StaffAiChurnHealthViewGuard } from './guards/staff-ai-churn-health-view.guard';
 import { StaffAiCoachViewGuard } from './guards/staff-ai-coach-view.guard';
 import { StaffAiNlQueryGuard } from './guards/staff-ai-nl-query.guard';
+import { StaffCasesViewGuard } from '../cases/guards/staff-cases.guard';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
 
 @Module({
@@ -68,6 +71,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     CrmConfigModule,
     CasesModule,
     CskhBoardModule,
+    TicketsModule,
     forwardRef(() => AgencyModule),
     ServiceLifecycleModule,
     forwardRef(() => CrmLeadsLegacyModule),
@@ -90,6 +94,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     AiChurnHealthService,
     ManagerCoachService,
     AiNlQueryService,
+    AiTicketSentimentService,
     NlQueryContextRepository,
     RevenueForecastRepository,
     RenewalContractContextRepository,
@@ -120,6 +125,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     StaffAiChurnHealthViewGuard,
     StaffAiCoachViewGuard,
     StaffAiNlQueryGuard,
+    StaffCasesViewGuard,
   ],
   exports: [
     AiIntelligenceConfigService,
@@ -138,6 +144,7 @@ import { LeadScoreContextRepository } from './lead-score-context.repository';
     AiChurnHealthService,
     ManagerCoachService,
     AiNlQueryService,
+    AiTicketSentimentService,
     NlQueryContextRepository,
     RevenueForecastRepository,
     RenewalContractContextRepository,
