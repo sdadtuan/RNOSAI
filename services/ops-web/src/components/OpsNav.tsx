@@ -96,6 +96,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/crm/pipeline': 'Pipeline sales',
   '/admin/ai/agents': 'AI Agents',
   '/admin/ai/runs': 'AI agent runs',
+  '/admin/ai/tools': 'AI Tools',
   '/agency': 'Agency',
   '/agency/ingest': 'Pipeline ingest',
   '/agency/jobs': 'Pipeline ingest',
@@ -286,6 +287,7 @@ function buildSections(
   if (hasCap(user, 'ai_admin', 'view')) {
     aiAdmin.push({ href: '/admin/ai/agents', label: 'AI Agents' });
     aiAdmin.push({ href: '/admin/ai/runs', label: 'AI agent runs' });
+    aiAdmin.push({ href: '/admin/ai/tools', label: 'Tools' });
   }
   if (aiAdmin.length) sections.push({ label: 'AI · Admin', links: aiAdmin });
 

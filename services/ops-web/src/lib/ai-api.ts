@@ -811,6 +811,105 @@ export async function postOrchestratorRun(
   return body;
 }
 
+export interface AiToolApiKey {
+  id: string;
+  name: string;
+  key_prefix: string;
+  client_id: string | null;
+  allowed_tools: string[];
+  rate_limit_per_min: number;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  revoked_at: string | null;
+}
+
+export interface AiToolDescriptor {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
+  mutating: boolean;
+  requiredCaps: string[];
+}
+
+export interface AiToolKeysResponse {
+  keys: AiToolApiKey[];
+}
+
+export interface CreateAiToolKeyInput {
+  name: string;
+  allowed_tools: string[];
+  client_id?: string | null;
+}
+
+export interface CreateAiToolKeyResponse {
+  id: string;
+  key: string;
+  key_prefix: string;
+}
+
+export interface AiToolsCatalogResponse {
+  tools: AiToolDescriptor[];
+}
+
+export async function fetchAiToolKeys(token: string): Promise<AiToolKeysResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/ai/tool-keys`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<AiToolKeysResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch AI tool keys failed', res.status);
+  }
+  return body;
+}
+
+export async function createAiToolKey(
+  token: string,
+  input: CreateAiToolKeyInput,
+): Promise<CreateAiToolKeyResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/ai/tool-keys`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const body = await parseJson<CreateAiToolKeyResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Create AI tool key failed', res.status);
+  }
+  return body;
+}
+
+export async function revokeAiToolKey(
+  token: string,
+  id: string,
+): Promise<{ id: string; revoked: true }> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/ai/tool-keys/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+  const body = await parseJson<
+    { id: string; revoked: true; error?: string; message?: string }
+  >(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Revoke AI tool key failed', res.status);
+  }
+  return body;
+}
+
+export async function fetchAiToolsCatalog(token: string): Promise<AiToolsCatalogResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/tools`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<AiToolsCatalogResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch AI tools catalog failed', res.status);
+  }
+  return body;
+}
+
 export interface PipelineRiskDealRow {
   deal_id: number;
   title: string;
