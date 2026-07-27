@@ -601,6 +601,10 @@ export interface AiAgentRunRow {
   error_message: string | null;
   correlation_id: string | null;
   actor_id: string | null;
+  parent_run_id: string | null;
+  orchestration_id: string | null;
+  step_key: string | null;
+  step_index: number | null;
   started_at: string;
   ended_at: string | null;
   created_at: string;
@@ -668,6 +672,141 @@ export async function fetchAiAgentRunById(token: string, id: string): Promise<Ai
   const body = await parseJson<AiAgentRunDetailResponse & { error?: string; message?: string }>(res);
   if (!res.ok) {
     throw new ApiError(body.message ?? body.error ?? 'Fetch AI agent run failed', res.status);
+  }
+  return body;
+}
+
+export type AiOrchestrationStatus = 'running' | 'succeeded' | 'failed' | 'cancelled';
+export type AiOrchestrationTriggerType = 'manual' | 'cron' | 'webhook' | 'workflow';
+
+export interface AiOrchestration {
+  id: string;
+  client_id: string | null;
+  trigger_type: AiOrchestrationTriggerType;
+  trigger_ref: string | null;
+  plan_key: string;
+  status: AiOrchestrationStatus;
+  input_json: Record<string, unknown>;
+  output_json: Record<string, unknown>;
+  correlation_id: string | null;
+  actor_id: string | null;
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
+}
+
+export interface OrchestrationListQuery {
+  from?: string;
+  to?: string;
+  plan_key?: string;
+  status?: AiOrchestrationStatus;
+  limit?: number;
+  offset?: number;
+}
+
+export interface OrchestrationListResponse {
+  data: {
+    rows: AiOrchestration[];
+    total: number;
+    limit: number;
+    offset: number;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export interface OrchestrationDetail {
+  orchestration: AiOrchestration;
+  parentRun: AiAgentRunRow | null;
+  children: AiAgentRunRow[];
+}
+
+export interface OrchestrationDetailResponse {
+  data: OrchestrationDetail;
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export interface OrchestratorRunBody {
+  planKey: string;
+  clientId?: string;
+  input: {
+    entityType: string;
+    entityId: string;
+    [key: string]: unknown;
+  };
+}
+
+export interface OrchestratorRunResponse {
+  data: {
+    orchestration_id: string;
+    parent_run_id: string;
+    plan_key: string;
+    status: 'succeeded';
+    steps: Array<{
+      stepKey: string;
+      stepIndex: number;
+      required: boolean;
+      status: 'succeeded' | 'failed' | 'skipped';
+      runId?: string;
+      data?: unknown;
+      error?: string;
+    }>;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export async function fetchOrchestrations(
+  token: string,
+  params?: OrchestrationListQuery,
+): Promise<OrchestrationListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.from) qs.set('from', params.from);
+  if (params?.to) qs.set('to', params.to);
+  if (params?.plan_key) qs.set('plan_key', params.plan_key);
+  if (params?.status) qs.set('status', params.status);
+  if (params?.limit != null) qs.set('limit', String(params.limit));
+  if (params?.offset != null) qs.set('offset', String(params.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/orchestrator${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<OrchestrationListResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch orchestrations failed', res.status);
+  }
+  return body;
+}
+
+export async function fetchOrchestrationById(
+  token: string,
+  id: string,
+): Promise<OrchestrationDetailResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/orchestrator/${encodeURIComponent(id)}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<OrchestrationDetailResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch orchestration failed', res.status);
+  }
+  return body;
+}
+
+export async function postOrchestratorRun(
+  token: string,
+  input: OrchestratorRunBody,
+): Promise<OrchestratorRunResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/orchestrator/run`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const body = await parseJson<OrchestratorRunResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Run orchestration failed', res.status);
   }
   return body;
 }

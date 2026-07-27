@@ -1,0 +1,228 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  OrchestrationTracePanel,
+  type OrchestrationFilters,
+} from '@/components/ai/OrchestrationTracePanel';
+import { OpsNav } from '@/components/OpsNav';
+import {
+  fetchOrchestrationById,
+  fetchOrchestrations,
+  type AiOrchestration,
+  type OrchestrationDetail,
+} from '@/lib/ai-api';
+import { staffMe, staffRefresh } from '@/lib/api';
+import {
+  clearSession,
+  getAccessToken,
+  getRefreshToken,
+  hasCap,
+  updateAccessToken,
+  updateStoredUser,
+  type StoredStaffUser,
+} from '@/lib/auth';
+
+const PAGE_SIZE = 50;
+const FILTER_WINDOW_SIZE = 200;
+
+function isoDateDaysAgo(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date.toISOString().slice(0, 10);
+}
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function filterRows(rows: AiOrchestration[], filters: OrchestrationFilters): AiOrchestration[] {
+  const from = filters.from ? new Date(`${filters.from}T00:00:00.000Z`).getTime() : null;
+  const to = filters.to ? new Date(`${filters.to}T23:59:59.999Z`).getTime() : null;
+  const planKey = filters.planKey.trim().toLocaleLowerCase();
+
+  return rows.filter((row) => {
+    const started = new Date(row.started_at).getTime();
+    if (from != null && (!Number.isFinite(started) || started < from)) return false;
+    if (to != null && (!Number.isFinite(started) || started > to)) return false;
+    if (planKey && !row.plan_key.toLocaleLowerCase().includes(planKey)) return false;
+    if (filters.status && row.status !== filters.status) return false;
+    return true;
+  });
+}
+
+export default function AdminAiAgentsPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<StoredStaffUser | null>(null);
+  const [filters, setFilters] = useState<OrchestrationFilters>({
+    from: isoDateDaysAgo(7),
+    to: todayIsoDate(),
+    planKey: '',
+    status: '',
+  });
+  const [rows, setRows] = useState<AiOrchestration[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [selected, setSelected] = useState<AiOrchestration | null>(null);
+  const [detail, setDetail] = useState<OrchestrationDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const authorize = useCallback(
+    (me: StoredStaffUser): boolean => {
+      if (!hasCap(me, 'ai_admin', 'view')) {
+        setError('Không có quyền AI admin (ai_admin.view)');
+        return false;
+      }
+      setUser(me);
+      updateStoredUser(me);
+      return true;
+    },
+    [],
+  );
+
+  const ensureAuth = useCallback(async (): Promise<string | null> => {
+    let access = getAccessToken();
+    if (!access) {
+      router.replace('/login');
+      return null;
+    }
+    try {
+      const me = await staffMe(access);
+      return authorize(me) ? access : null;
+    } catch {
+      const refresh = getRefreshToken();
+      if (!refresh) {
+        clearSession();
+        router.replace('/login');
+        return null;
+      }
+      const refreshed = await staffRefresh(refresh);
+      access = refreshed.access_token;
+      updateAccessToken(access);
+      const me = await staffMe(access);
+      return authorize(me) ? access : null;
+    }
+  }, [authorize, router]);
+
+  const loadOrchestrations = useCallback(
+    async (access: string, nextOffset: number, nextFilters = filters) => {
+      setLoading(true);
+      setError('');
+      try {
+        const out = await fetchOrchestrations(access, {
+          from: nextFilters.from ? `${nextFilters.from}T00:00:00.000Z` : undefined,
+          to: nextFilters.to ? `${nextFilters.to}T23:59:59.999Z` : undefined,
+          plan_key: nextFilters.planKey.trim() || undefined,
+          status: nextFilters.status || undefined,
+          limit: FILTER_WINDOW_SIZE,
+          offset: 0,
+        });
+        const filtered = filterRows(out.data.rows, nextFilters);
+        setRows(filtered.slice(nextOffset, nextOffset + PAGE_SIZE));
+        setTotal(filtered.length);
+        setOffset(nextOffset);
+        setSelected(null);
+        setDetail(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Tải orchestration thất bại');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [filters],
+  );
+
+  useEffect(() => {
+    void (async () => {
+      const access = await ensureAuth();
+      if (!access) return;
+      await loadOrchestrations(access, 0);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial authenticated load only
+  }, [ensureAuth]);
+
+  const loadDetail = useCallback(async (access: string, row: AiOrchestration) => {
+    setSelected(row);
+    setDetail(null);
+    setDetailLoading(true);
+    setError('');
+    try {
+      const out = await fetchOrchestrationById(access, row.id);
+      setDetail(out.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tải orchestration trace thất bại');
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
+
+  if (!user) {
+    return (
+      <main style={{ padding: '2rem' }}>
+        {error ? <p className="error">{error}</p> : <p className="muted">Đang tải…</p>}
+      </main>
+    );
+  }
+
+  return (
+    <main
+      className="kpi-page admin-ai-agents-page"
+      style={{ maxWidth: 1440, margin: '0 auto', padding: '1.5rem' }}
+    >
+      <OpsNav user={user} onLogout={logout} />
+      <div className="card">
+        <div className="kpi-page__head">
+          <div>
+            <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Multi-agent traces</h2>
+            <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+              UI-R4-03 · parent orchestration → child agent runs
+            </p>
+          </div>
+        </div>
+
+        {error ? <p className="error">{error}</p> : null}
+
+        <OrchestrationTracePanel
+          rows={rows}
+          total={total}
+          limit={PAGE_SIZE}
+          offset={offset}
+          filters={filters}
+          loading={loading}
+          selected={selected}
+          detail={detail}
+          detailLoading={detailLoading}
+          onFiltersChange={(patch) => setFilters((previous) => ({ ...previous, ...patch }))}
+          onApplyFilters={() => {
+            const access = getAccessToken();
+            if (!access) return;
+            void loadOrchestrations(access, 0);
+          }}
+          onSelectRow={(row) => {
+            const access = getAccessToken();
+            if (!access) return;
+            void loadDetail(access, row);
+          }}
+          onPrevPage={() => {
+            const access = getAccessToken();
+            if (!access) return;
+            void loadOrchestrations(access, Math.max(0, offset - PAGE_SIZE));
+          }}
+          onNextPage={() => {
+            const access = getAccessToken();
+            if (!access) return;
+            void loadOrchestrations(access, offset + PAGE_SIZE);
+          }}
+        />
+      </div>
+    </main>
+  );
+}

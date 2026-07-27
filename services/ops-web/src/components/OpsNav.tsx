@@ -94,6 +94,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/financials': 'Tài chính',
   '/admin/crm/custom-fields': 'Custom fields',
   '/admin/crm/pipeline': 'Pipeline sales',
+  '/admin/ai/agents': 'AI Agents',
+  '/admin/ai/runs': 'AI agent runs',
   '/agency': 'Agency',
   '/agency/ingest': 'Pipeline ingest',
   '/agency/jobs': 'Pipeline ingest',
@@ -282,6 +284,7 @@ function buildSections(
 
   const aiAdmin: NavLink[] = [];
   if (hasCap(user, 'ai_admin', 'view')) {
+    aiAdmin.push({ href: '/admin/ai/agents', label: 'AI Agents' });
     aiAdmin.push({ href: '/admin/ai/runs', label: 'AI agent runs' });
   }
   if (aiAdmin.length) sections.push({ label: 'AI · Admin', links: aiAdmin });
