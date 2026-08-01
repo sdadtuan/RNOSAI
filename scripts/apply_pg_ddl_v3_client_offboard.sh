@@ -2,7 +2,7 @@
 # Apply Wave B7.1 client offboard DDL (audit + tenant_locked)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5432/ptt_agency}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5433/rnosaidb}"
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 DDL="$ROOT/docs/specs/2026-07-23-postgresql-ddl-v3-client-offboard.sql"

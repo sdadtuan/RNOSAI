@@ -3,7 +3,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DDL="$ROOT/docs/specs/2026-07-17-postgresql-ddl-v2-leads.sql"
-export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5432/ptt_agency}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5433/rnosaidb}"
 
 PYTHON="${PYTHON:-python3}"
 if [[ -x "$ROOT/.venv/bin/python" ]]; then

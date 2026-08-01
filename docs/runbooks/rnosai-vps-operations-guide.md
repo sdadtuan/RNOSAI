@@ -1,12 +1,13 @@
 # Hướng dẫn vận hành RNOSAI trên VPS
 
 > **Phiên bản:** 1.3 · **Ngày:** 2026-08-01  
-> **Changelog v1.3:** VPS path `/var/www/rnosai` · PostgreSQL `127.0.0.1:5433/rnosai`  
+> **Changelog v1.4:** PostgreSQL database chuẩn **`rnosaidb`** @ `127.0.0.1:5433` (local + VPS)  
+> **Changelog v1.3:** VPS path `/var/www/rnosai` · PostgreSQL `127.0.0.1:5433/rnosaidb`  
 > **Changelog v1.2:** §7.7 Giai đoạn 3 Native / Capacitor (RNOS-M3, Phase 5)  
 > **Changelog v1.1:** §7.5.1 checklist Giai đoạn 2 Mobile Portal + push (RNOS-M2)  
 > **Đối tượng:** DevOps, SysAdmin, on-call vận hành PTT  
 > **Thư mục trên VPS:** `/var/www/rnosai`  
-> **PostgreSQL (VPS):** `127.0.0.1:5433` · database **`rnosai`** · user `ptt`  
+> **PostgreSQL (VPS):** `127.0.0.1:5433` · database **`rnosaidb`** · user `ptt`  
 > **User deploy:** `deploy` (group `www-data`)  
 > **Backup:** `/var/backups/rnosai`  
 > **Repo:** https://github.com/sdadtuan/RNOSAI · branch `main`
@@ -120,7 +121,7 @@ curl -sf http://127.0.0.1:3000/api/v1/ai/health | jq .   # AI layer
 | Staff UI | Next.js standalone | `services/ops-web` |
 | Client UI | Next.js standalone | `services/portal-web` |
 | Workers | Python 3.11 venv | `ptt_worker`, jobs, seed |
-| DB chính | PostgreSQL 15 | `rnosai` @ `127.0.0.1:5433` |
+| DB chính | PostgreSQL 15 | `rnosaidb` @ `127.0.0.1:5433` |
 | Legacy | SQLite `ptt.db` | Dual-read còn lại; vẫn backup |
 | Cache/Queue | Redis 7, RabbitMQ | Docker |
 | Workflows | Temporal | Docker `:7233` |
@@ -312,8 +313,8 @@ docker compose -f docker-compose.keycloak.yml up -d
 Kiểm tra Postgres:
 
 ```bash
-docker exec ptt-postgres pg_isready -U ptt -d rnosai
-docker exec -it ptt-postgres psql -U ptt -d rnosai -c '\dt'
+docker exec rnosai-postgres pg_isready -U ptt -d rnosaidb
+docker exec -it rnosai-postgres psql -U ptt -d rnosaidb -c '\dt'
 ```
 
 Temporal UI (chỉ qua SSH tunnel — **không public**):
@@ -359,7 +360,7 @@ Repo có **50+ template** trong `deploy/env.*.example` cho Meta, SEO, Email, Zal
 
 ```bash
 # ── Database ──
-DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5433/rnosai
+DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5433/rnosaidb
 PTT_SQLITE_PATH=/var/www/rnosai/ptt.db
 
 # ── Nest core ──
@@ -442,7 +443,7 @@ npm run build
 | Mục | Local dev | VPS prod |
 |-----|-----------|----------|
 | Postgres port | `:5433` | `:5433` |
-| Database name | `rnosaidb` (docker local) | `rnosai` |
+| Database name | `rnosaidb` | `rnosaidb` |
 | App root | repo checkout | `/var/www/rnosai` |
 | Staff URL | `http://localhost:3200` | `https://rs.pttads.vn` |
 | Portal URL | `http://localhost:3100` | `https://portal.pttads.vn` |
@@ -483,7 +484,7 @@ Luôn backup trước prod:
 ```bash
 cd /var/www/rnosai
 source .venv/bin/activate
-export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosai
+export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosaidb
 
 pg_dump "$DATABASE_URL" | gzip > /var/backups/rnosai/pre-ddl-$(date +%F).sql.gz
 
@@ -623,7 +624,7 @@ curl -s -o /dev/null -w "%{http_code}\n" \
 ```bash
 cd /var/www/rnosai
 source .venv/bin/activate
-export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosai
+export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosaidb
 export PORTAL_PILOT_PASSWORD='<min-8-chars>'
 
 python3 scripts/seed_portal_pilot_users.py --password "$PORTAL_PILOT_PASSWORD"
@@ -697,7 +698,7 @@ curl -sf http://127.0.0.1:3100/login -o /dev/null && echo " portal OK"
 ```bash
 cd /var/www/rnosai
 source .venv/bin/activate
-export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosai
+export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosaidb
 
 # Backup bắt buộc
 ./scripts/backup_ptt_data.sh
@@ -1243,7 +1244,7 @@ systemctl list-timers ptt-backup.timer
 
 Script: `scripts/backup_ptt_data.sh`
 
-- Output PG: `/var/backups/rnosai/rnosai-YYYYMMDD-HHMM.dump` (format `-Fc`)
+- Output PG: `/var/backups/rnosai/rnosaidb-YYYYMMDD-HHMM.dump` (format `-Fc`)
 - Output SQLite: `/var/backups/rnosai/ptt-YYYYMMDD-HHMM.db`
 - Retention: **14 ngày** (biến `PTT_BACKUP_RETENTION_DAYS`)
 
@@ -1252,7 +1253,7 @@ Script: `scripts/backup_ptt_data.sh`
 ```bash
 cd /var/www/rnosai
 source .venv/bin/activate
-export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosai
+export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosaidb
 
 ./scripts/backup_ptt_data.sh
 ls -lh /var/backups/rnosai/
@@ -1273,12 +1274,12 @@ pg_dump "$DATABASE_URL" | gzip > /var/backups/rnosai/manual-$(date +%F-%H%M).sql
 sudo systemctl stop ptt-worker ptt-fb-autosync ptt-crm-api
 
 # Restore
-pg_restore -d rnosai --clean --if-exists \
-  /var/backups/rnosai/rnosai-YYYYMMDD-HHMM.dump
+pg_restore -d rnosaidb --clean --if-exists \
+  /var/backups/rnosai/rnosaidb-YYYYMMDD-HHMM.dump
 
 # Hoặc qua Docker
-docker exec -i ptt-postgres pg_restore -U ptt -d rnosai --clean --if-exists \
-  < /var/backups/rnosai/rnosai-YYYYMMDD-HHMM.dump
+docker exec -i rnosai-postgres pg_restore -U ptt -d rnosaidb --clean --if-exists \
+  < /var/backups/rnosai/rnosaidb-YYYYMMDD-HHMM.dump
 
 # Khởi động lại
 sudo systemctl start ptt-crm-api ptt-worker ptt-fb-autosync

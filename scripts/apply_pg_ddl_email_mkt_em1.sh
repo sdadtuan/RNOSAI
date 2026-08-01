@@ -2,7 +2,7 @@
 # EM-1 — apply preference_tokens extension (requires email_mkt_v1)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5432/ptt_agency}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5433/rnosaidb}"
 PYTHON="${PYTHON:-python3}"
 if [[ -x "$ROOT/.venv/bin/python" ]]; then
   PYTHON="$ROOT/.venv/bin/python"

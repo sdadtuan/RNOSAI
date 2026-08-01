@@ -7,19 +7,19 @@ RETENTION_DAYS="${PTT_BACKUP_RETENTION_DAYS:-14}"
 TS="$(date +%Y%m%d-%H%M)"
 mkdir -p "$BACKUP_DIR"
 
-DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5432/ptt_agency}"
+DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5433/rnosaidb}"
 SQLITE_SRC="${PTT_SQLITE_PATH:-${PTT_APP_DIR:-$ROOT}/ptt.db}"
 
-PG_OUT="$BACKUP_DIR/ptt_agency-${TS}.dump"
+PG_OUT="$BACKUP_DIR/rnosaidb-${TS}.dump"
 SQLITE_OUT="$BACKUP_DIR/ptt-${TS}.db"
 
 echo "==> pg_dump → $PG_OUT"
 if command -v pg_dump >/dev/null 2>&1; then
   pg_dump "$DATABASE_URL" -Fc -f "$PG_OUT"
-elif docker ps --format '{{.Names}}' 2>/dev/null | grep -qx ptt-postgres; then
-  docker exec ptt-postgres pg_dump -U ptt -d ptt_agency -Fc > "$PG_OUT"
+elif docker ps --format '{{.Names}}' 2>/dev/null | grep -qx rnosai-postgres; then
+  docker exec rnosai-postgres pg_dump -U ptt -d rnosaidb -Fc > "$PG_OUT"
 else
-  echo "FAIL: pg_dump not found and ptt-postgres container not running" >&2
+  echo "FAIL: pg_dump not found and rnosai-postgres container not running" >&2
   exit 1
 fi
 test -s "$PG_OUT"
@@ -33,7 +33,7 @@ else
 fi
 
 if [[ "$RETENTION_DAYS" =~ ^[0-9]+$ ]] && [[ "$RETENTION_DAYS" -gt 0 ]]; then
-  find "$BACKUP_DIR" -maxdepth 1 -type f \( -name 'ptt_agency-*.dump' -o -name 'ptt-*.db' \) -mtime +"$RETENTION_DAYS" -delete 2>/dev/null || true
+  find "$BACKUP_DIR" -maxdepth 1 -type f \( -name 'rnosaidb-*.dump' -o -name 'ptt_agency-*.dump' -o -name 'ptt-*.db' \) -mtime +"$RETENTION_DAYS" -delete 2>/dev/null || true
 fi
 
 echo "OK backup complete: $PG_OUT ${SQLITE_OUT:+ $SQLITE_OUT}"

@@ -75,7 +75,7 @@ Nếu P1/P2 chưa đạt → **defer Phase 0**; vẫn có thể chuẩn bị Leg
 
 ```bash
 cd RNOSAI
-export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosai   # prod read-only
+export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosaidb   # prod read-only
 export KPI_DAYS=30
 bash scripts/m3_m2_kpi_collect.sh
 ```

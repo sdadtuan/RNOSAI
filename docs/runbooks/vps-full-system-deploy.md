@@ -4,7 +4,7 @@
 > **⭐ Setup đầy đủ hệ thống hoàn thiện (2026-07-27, gồm AI P1/P2):** [`vps-rnosai-production-setup-complete.md`](./vps-rnosai-production-setup-complete.md)  
 > **Kiến trúc:** Nest + ops-web + portal-web + Python workers · **Flask HTTP đã retired (Wave 8)**  
 > **Thư mục trên VPS:** `/var/www/rnosai`  
-> **PostgreSQL (VPS):** `127.0.0.1:5433/rnosai`  
+> **PostgreSQL (VPS):** `127.0.0.1:5433/rnosaidb`  
 > **Runbook bàn giao:** [`handover/README.md`](../handover/README.md) (bộ tài liệu khách hàng v1.0) · [`handover-production-flask-to-nest.md`](./handover-production-flask-to-nest.md) (1 trang kỹ thuật)  
 > **Vận hành hàng ngày (chi tiết phase cũ):** [`vps-production-operations.md`](./vps-production-operations.md)
 
@@ -185,7 +185,7 @@ docker compose -f docker-compose.clickhouse.yml up -d
 Chờ Postgres sẵn sàng:
 
 ```bash
-docker compose exec -T postgres pg_isready -U ptt -d rnosai
+docker compose exec -T postgres pg_isready -U ptt -d rnosaidb
 ```
 
 ### 4.4. PostgreSQL DDL (theo thứ tự)
@@ -193,7 +193,7 @@ docker compose exec -T postgres pg_isready -U ptt -d rnosai
 ```bash
 cd /var/www/rnosai
 source .venv/bin/activate
-export DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5433/rnosai
+export DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5433/rnosaidbdb
 
 # Core CRM
 ./scripts/apply_pg_ddl_v2_leads.sh
@@ -337,7 +337,7 @@ File: **`/var/www/rnosai/.env`** — mọi systemd unit đọc qua `EnvironmentF
 
 ```bash
 # Database
-DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5433/rnosai
+DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5433/rnosaidb
 PTT_SQLITE_PATH=/var/www/rnosai/ptt.db
 
 # Nest / CRM
@@ -485,7 +485,7 @@ journalctl -u ptt-crm-api -n 50 --no-pager
 ```bash
 cd /var/www/rnosai
 source .venv/bin/activate
-export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosai
+export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosaidb
 export PORTAL_PILOT_PASSWORD='<mật-khẩu-ban-đầu-min-8-ký-tự>'
 python3 scripts/seed_portal_pilot_users.py --password "$PORTAL_PILOT_PASSWORD"
 ```

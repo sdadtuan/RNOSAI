@@ -13,7 +13,7 @@
 
 ## Mục tiêu
 
-Apply idempotent DDL tạo **16 bảng** Revenue OS + AI trên PostgreSQL **`rnosaidb`** (local) hoặc `ptt_agency` (VPS prod), ghi `schema_migrations` version `2026-07-26-revenue-os-ai`.
+Apply idempotent DDL tạo **16 bảng** Revenue OS + AI trên PostgreSQL **`rnosaidb`** (local + VPS prod `@127.0.0.1:5433`), ghi `schema_migrations` version `2026-07-26-revenue-os-ai`.
 
 **R1 core (5 bảng P0):** `ai_prompts`, `ai_agent_runs`, `ai_scores`, `ai_recommendations`, `customer_timeline_events`
 

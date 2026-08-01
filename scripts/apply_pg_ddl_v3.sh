@@ -2,7 +2,7 @@
 # Apply PostgreSQL DDL v3 — Phase 2 (OLTP leads + performance)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5432/ptt_agency}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5433/rnosaidb}"
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 DDL_OLTP="$ROOT/docs/specs/2026-07-17-postgresql-ddl-v3-leads-oltp.sql"

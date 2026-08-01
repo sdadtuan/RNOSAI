@@ -2,7 +2,7 @@
 # Apply staff auth DDL (Phase 0)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5432/ptt_agency}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5433/rnosaidb}"
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 DDL="$ROOT/docs/specs/2026-07-20-postgresql-ddl-staff-auth.sql"
 PYTHON="${PYTHON:-python3}"

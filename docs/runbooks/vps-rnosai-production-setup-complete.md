@@ -3,7 +3,7 @@
 > **Phiên bản:** 3.1 · **Ngày:** 2026-08-01  
 > **Repo:** https://github.com/sdadtuan/RNOSAI · branch `main` @ P1+P2 merged  
 > **Thư mục trên VPS:** `/var/www/rnosai`  
-> **PostgreSQL (VPS):** `127.0.0.1:5433/rnosai` · user `ptt`  
+> **PostgreSQL (VPS):** `127.0.0.1:5433/rnosaidb` · user `ptt`  
 > **Backup:** `/var/backups/rnosai`  
 > **User deploy:** `deploy` (group `www-data`)  
 > **Runbook cũ (tham chiếu):** [`vps-full-system-deploy.md`](./vps-full-system-deploy.md) · [`vps-production-operations.md`](./vps-production-operations.md)
@@ -184,7 +184,7 @@ pip install -r requirements-temporal.txt
 
 ## Bước 4 — Docker (PostgreSQL, Redis, …)
 
-Trên **VPS production**, Postgres chạy host port **5433** với database **`rnosai`** (container `rnosai-postgres`, map `5433:5432`).
+Trên **VPS production**, Postgres chạy host port **5433** với database **`rnosaidb`** (container `rnosai-postgres`, map `5433:5432`).
 
 ```bash
 cd /var/www/rnosai
@@ -202,11 +202,11 @@ docker compose -f docker-compose.clickhouse.yml up -d
 Chờ Postgres:
 
 ```bash
-docker compose exec -T postgres pg_isready -U ptt -d rnosai
+docker compose exec -T postgres pg_isready -U ptt -d rnosaidb
 # hoặc tên DB trong docker-compose của bạn
 ```
 
-> **Local dev** dùng `rnosaidb` port `5433` (docker-compose) — **VPS prod** dùng **`rnosai`** @ `127.0.0.1:5433`. Thư mục app VPS: **`/var/www/rnosai`**. Luôn set `DATABASE_URL` khớp môi trường thực tế.
+> **Local dev** và **VPS prod** đều dùng **`rnosaidb`** @ `127.0.0.1:5433` (docker-compose). Thư mục app VPS: **`/var/www/rnosai`**. Luôn set `DATABASE_URL` khớp môi trường thực tế.
 
 ---
 
@@ -218,7 +218,7 @@ Apply **theo thứ tự** (idempotent). Backup trước prod:
 cd /var/www/rnosai
 source .venv/bin/activate
 
-export DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5433/rnosai
+export DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5433/rnosaidbdb
 
 # Backup (prod bắt buộc)
 pg_dump "$DATABASE_URL" | gzip > /var/backups/rnosai/pre-ddl-$(date +%F).sql.gz
@@ -282,7 +282,7 @@ nano /var/www/rnosai/.env
 
 ```bash
 # ── Database ──
-DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5433/rnosai
+DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5433/rnosaidb
 PTT_SQLITE_PATH=/var/www/rnosai/ptt.db
 
 # ── Nest core ──
@@ -521,7 +521,7 @@ Sau khi CRM smoke PASS, bật AI **từng bước** (flag off lần deploy đầ
 
 ```bash
 source /var/www/rnosai/.venv/bin/activate
-export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosai
+export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosaidb
 
 ./scripts/rnos01_pg_ddl_gate.sh
 
@@ -599,7 +599,7 @@ sudo systemctl restart ptt-ops-web
 ```bash
 cd /var/www/rnosai
 source .venv/bin/activate
-export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosai
+export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosaidb
 export PORTAL_PILOT_PASSWORD='<min-8-chars>'
 
 python3 scripts/seed_portal_pilot_users.py --password "$PORTAL_PILOT_PASSWORD"
