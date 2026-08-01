@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
 import { SalesPipelineFunnelPanel, type PipelineCaseRow } from '@/components/sales/SalesPipelineFunnelPanel';
@@ -34,7 +34,7 @@ import {
 
 type SalesTab = 'plans' | 'funnel' | 'partners' | 'trainings' | 'market' | 'reports';
 
-export default function CrmSalesPage() {
+function CrmSalesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const dealIdParam = searchParams.get('deal_id');
@@ -446,5 +446,19 @@ export default function CrmSalesPage() {
         ) : null}
       </div>
     </main>
+  );
+}
+
+export default function CrmSalesPage() {
+  return (
+    <Suspense
+      fallback={
+        <main style={{ padding: '2rem' }}>
+          <p className="muted">Đang tải…</p>
+        </main>
+      }
+    >
+      <CrmSalesContent />
+    </Suspense>
   );
 }

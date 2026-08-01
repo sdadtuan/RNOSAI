@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   OrchestrationTracePanel,
@@ -36,7 +36,7 @@ function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function AdminAiAgentsPage() {
+function AdminAiAgentsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const detailRequestRef = useRef(0);
@@ -240,5 +240,19 @@ export default function AdminAiAgentsPage() {
         />
       </div>
     </main>
+  );
+}
+
+export default function AdminAiAgentsPage() {
+  return (
+    <Suspense
+      fallback={
+        <main style={{ padding: '2rem' }}>
+          <p className="muted">Đang tải…</p>
+        </main>
+      }
+    >
+      <AdminAiAgentsContent />
+    </Suspense>
   );
 }

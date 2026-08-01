@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { InsightsInboxTable } from '@/components/ai/InsightsInboxTable';
 import { CopilotAdoptionPanel } from '@/components/ai/CopilotAdoptionPanel';
@@ -39,7 +39,7 @@ const STATUS_OPTIONS = [
   { value: 'pending', label: 'Chờ xử lý' },
 ];
 
-export default function CrmAiInsightsPage() {
+function CrmAiInsightsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
@@ -260,5 +260,19 @@ export default function CrmAiInsightsPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+export default function CrmAiInsightsPage() {
+  return (
+    <Suspense
+      fallback={
+        <main style={{ padding: '2rem' }}>
+          <p className="muted">Đang tải…</p>
+        </main>
+      }
+    >
+      <CrmAiInsightsContent />
+    </Suspense>
   );
 }
