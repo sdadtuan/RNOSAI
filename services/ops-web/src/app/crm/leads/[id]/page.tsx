@@ -66,6 +66,11 @@ const ACTIVITY_TYPES = [
 
 type LeadDetailTab = 'detail' | 'activity' | 'ai';
 
+function phoneTelHref(phone: string): string {
+  const normalized = phone.replace(/[^\d+]/g, '');
+  return normalized ? `tel:${normalized}` : '';
+}
+
 async function copyLeadContact(value: string, label: string, onDone: (msg: string) => void) {
   const trimmed = value.trim();
   if (!trimmed) return;
@@ -107,6 +112,23 @@ function useLeadDetailLayout() {
   return layout;
 }
 
+function useNetworkOnline() {
+  const [online, setOnline] = useState(true);
+
+  useEffect(() => {
+    const sync = () => setOnline(typeof navigator !== 'undefined' ? navigator.onLine : true);
+    sync();
+    window.addEventListener('online', sync);
+    window.addEventListener('offline', sync);
+    return () => {
+      window.removeEventListener('online', sync);
+      window.removeEventListener('offline', sync);
+    };
+  }, []);
+
+  return online;
+}
+
 export default function CrmLeadDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -135,6 +157,7 @@ export default function CrmLeadDetailPage() {
   const [mobileTab, setMobileTab] = useState<LeadDetailTab>('detail');
   const [copilotMessage, setCopilotMessage] = useState('');
   const layout = useLeadDetailLayout();
+  const online = useNetworkOnline();
   const copilotOn = aiCopilotEnabled();
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
@@ -342,10 +365,45 @@ export default function CrmLeadDetailPage() {
   const useMobileTabs = layout.mobile && copilotOn;
   const showCopilotInline =
     copilotOn && !!lead && !loading && !!accessToken && !!user && layout.desktop;
-  const showCopilotMobile =
+  const showCopilotSheet =
     copilotOn && !!lead && !loading && !!accessToken && !!user && layout.mobile && mobileTab === 'ai';
   const showCopilotDrawer =
     copilotOn && !!lead && !loading && !!accessToken && !!user && layout.tablet && copilotDrawerOpen;
+  const hideDetailPane = useMobileTabs && mobileTab === 'activity';
+  const hideTimelinePane = useMobileTabs && mobileTab !== 'activity';
+
+  function renderCopilotPanel(variant: 'column' | 'drawer' | 'sheet', onCloseDrawer?: () => void) {
+    if (!online) {
+      return (
+        <div
+          className="lead-copilot-offline-banner"
+          role="alert"
+          data-testid="copilot-offline-banner"
+        >
+          Copilot cần kết nối mạng
+        </div>
+      );
+    }
+    if (!lead || !user || !accessToken) return null;
+    return (
+      <LeadCopilotPanel
+        token={accessToken}
+        leadId={leadId}
+        lead={lead}
+        user={user}
+        activities={activities}
+        selectedActivityId={selectedActivityId}
+        onSelectActivity={setSelectedActivityId}
+        onCopilotError={setCopilotMessage}
+        onActivityCreated={() => {
+          const access = getAccessToken();
+          if (access) void reloadTimeline(access);
+        }}
+        variant={variant}
+        onCloseDrawer={onCloseDrawer}
+      />
+    );
+  }
 
   const fieldStyle = {
     background: 'var(--bg)',
@@ -356,7 +414,7 @@ export default function CrmLeadDetailPage() {
   } as const;
 
   return (
-    <main className="lead-detail-page">
+    <main className={`lead-detail-page${showCopilotSheet ? ' lead-detail-page--copilot-sheet' : ''}`}>
       <OpsNav user={user} onLogout={logout} />
       <p className="lead-detail-header">
         <Link href="/crm/leads" className="nav-link">
@@ -404,7 +462,7 @@ export default function CrmLeadDetailPage() {
       {lead && !loading ? (
         <div className="lead-detail-layout">
           <div
-            className={`lead-detail-main ${useMobileTabs && mobileTab !== 'detail' ? 'lead-detail-pane--hidden' : ''}`}
+            className={`lead-detail-main ${hideDetailPane ? 'lead-detail-pane--hidden' : ''}`}
           >
             <div className="card">
               <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>
@@ -423,9 +481,16 @@ export default function CrmLeadDetailPage() {
                   {lead.phone ? (
                     <span
                       className="lead-contact-copy"
-                      style={{ marginLeft: '0.5rem', display: 'inline-flex', gap: '0.35rem' }}
+                      style={{ marginLeft: '0.5rem', display: 'inline-flex', gap: '0.35rem', flexWrap: 'wrap' }}
                       data-testid="lead-contact-copy"
                     >
+                      <a
+                        href={phoneTelHref(lead.phone)}
+                        className="btn btn-secondary btn-sm"
+                        data-testid="lead-contact-call"
+                      >
+                        Gọi
+                      </a>
                       <button
                         type="button"
                         className="btn btn-secondary btn-sm"
@@ -589,7 +654,7 @@ export default function CrmLeadDetailPage() {
           </div>
 
           <div
-            className={`lead-detail-timeline ${useMobileTabs && mobileTab !== 'activity' ? 'lead-detail-pane--hidden' : ''}`}
+            className={`lead-detail-timeline ${hideTimelinePane ? 'lead-detail-pane--hidden' : ''}`}
           >
             <div className="card">
               <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Timeline hoạt động</h3>
@@ -634,24 +699,19 @@ export default function CrmLeadDetailPage() {
             </div>
           </div>
 
-          {showCopilotInline || showCopilotMobile ? (
-            <LeadCopilotPanel
-              token={accessToken!}
-              leadId={leadId}
-              lead={lead}
-              user={user}
-              activities={activities}
-              selectedActivityId={selectedActivityId}
-              onSelectActivity={setSelectedActivityId}
-              onCopilotError={setCopilotMessage}
-              onActivityCreated={() => {
-                const access = getAccessToken();
-                if (access) void reloadTimeline(access);
-              }}
-              variant="column"
-            />
-          ) : null}
+          {showCopilotInline ? renderCopilotPanel('column') : null}
         </div>
+      ) : null}
+
+      {showCopilotSheet ? (
+        <>
+          <div
+            className="lead-copilot-backdrop lead-copilot-backdrop--sheet"
+            role="presentation"
+            onClick={() => setMobileTab('detail')}
+          />
+          {renderCopilotPanel('sheet', () => setMobileTab('detail'))}
+        </>
       ) : null}
 
       {showCopilotDrawer ? (
@@ -661,22 +721,7 @@ export default function CrmLeadDetailPage() {
             role="presentation"
             onClick={() => setCopilotDrawerOpen(false)}
           />
-          <LeadCopilotPanel
-            token={accessToken!}
-            leadId={leadId}
-            lead={lead!}
-            user={user}
-            activities={activities}
-            selectedActivityId={selectedActivityId}
-            onSelectActivity={setSelectedActivityId}
-            onCopilotError={setCopilotMessage}
-            onActivityCreated={() => {
-              const access = getAccessToken();
-              if (access) void reloadTimeline(access);
-            }}
-            variant="drawer"
-            onCloseDrawer={() => setCopilotDrawerOpen(false)}
-          />
+          {renderCopilotPanel('drawer', () => setCopilotDrawerOpen(false))}
         </>
       ) : null}
 

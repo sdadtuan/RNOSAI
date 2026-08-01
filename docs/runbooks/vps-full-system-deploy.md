@@ -3,7 +3,8 @@
 > **Phiên bản:** 2.0 · **Cập nhật:** 2026-07-20  
 > **⭐ Setup đầy đủ hệ thống hoàn thiện (2026-07-27, gồm AI P1/P2):** [`vps-rnosai-production-setup-complete.md`](./vps-rnosai-production-setup-complete.md)  
 > **Kiến trúc:** Nest + ops-web + portal-web + Python workers · **Flask HTTP đã retired (Wave 8)**  
-> **Thư mục trên VPS:** `/var/www/ptt`  
+> **Thư mục trên VPS:** `/var/www/rnosai`  
+> **PostgreSQL (VPS):** `127.0.0.1:5433/rnosai`  
 > **Runbook bàn giao:** [`handover/README.md`](../handover/README.md) (bộ tài liệu khách hàng v1.0) · [`handover-production-flask-to-nest.md`](./handover-production-flask-to-nest.md) (1 trang kỹ thuật)  
 > **Vận hành hàng ngày (chi tiết phase cũ):** [`vps-production-operations.md`](./vps-production-operations.md)
 
@@ -51,7 +52,7 @@ flowchart TB
         TW[ptt-temporal-worker]
     end
     subgraph infra [Docker]
-        PG[(PostgreSQL :5432)]
+        PG[(PostgreSQL :5433)]
         TEMP[Temporal :7233]
         CH[(ClickHouse :8123)]
     end
@@ -107,7 +108,7 @@ GET  https://ops.pttads.vn/api/v1/channels
 | `portal.pttads.vn` | Có — client |
 | `rs.pttads.vn` | Khuyến nghị — redirect legacy |
 
-**Firewall:** chỉ mở **80, 443**. Các port `3000`, `3100`, `3200`, `5432`, `7233`, `8123` **không** public.
+**Firewall:** chỉ mở **80, 443**. Các port `3000`, `3100`, `3200`, `5433`, `7233`, `8123` **không** public.
 
 ---
 
@@ -128,8 +129,8 @@ sudo apt-get install -y docker.io docker-compose-v2
 sudo usermod -aG docker deploy
 
 # Thư mục app
-sudo mkdir -p /var/www/ptt /var/backups/ptt
-sudo chown deploy:www-data /var/www/ptt
+sudo mkdir -p /var/www/rnosai /var/backups/rnosai
+sudo chown deploy:www-data /var/www/rnosai
 ```
 
 **Bảng điền trước go-live:**
@@ -150,15 +151,15 @@ sudo chown deploy:www-data /var/www/ptt
 ### 4.1. Clone repository
 
 ```bash
-sudo -u deploy git clone <REPO_URL> /var/www/ptt
-cd /var/www/ptt
+sudo -u deploy git clone <REPO_URL> /var/www/rnosai
+cd /var/www/rnosai
 git checkout main   # hoặc tag release
 ```
 
 ### 4.2. Python virtualenv & dependencies
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
@@ -169,7 +170,7 @@ pip install -r requirements-temporal.txt
 ### 4.3. Docker — PostgreSQL, Temporal, ClickHouse
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 
 # PostgreSQL (+ init DDL v1/v2 qua docker-entrypoint-initdb.d)
 docker compose up -d postgres redis rabbitmq
@@ -184,15 +185,15 @@ docker compose -f docker-compose.clickhouse.yml up -d
 Chờ Postgres sẵn sàng:
 
 ```bash
-docker compose exec -T postgres pg_isready -U ptt -d ptt_agency
+docker compose exec -T postgres pg_isready -U ptt -d rnosai
 ```
 
 ### 4.4. PostgreSQL DDL (theo thứ tự)
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 source .venv/bin/activate
-export DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5432/ptt_agency
+export DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5433/rnosai
 
 # Core CRM
 ./scripts/apply_pg_ddl_v2_leads.sh
@@ -224,10 +225,10 @@ export DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5432/ptt_agency
 ### 4.5. File `.env` master
 
 ```bash
-cp deploy/env.phase5-flask-retire.example /var/www/ptt/.env
+cp deploy/env.phase5-flask-retire.example /var/www/rnosai/.env
 # Merge thêm secrets từ deploy/env.phase3-prod.example nếu cần portal JWT
-nano /var/www/ptt/.env
-chmod 600 /var/www/ptt/.env
+nano /var/www/rnosai/.env
+chmod 600 /var/www/rnosai/.env
 ```
 
 Chi tiết biến: [mục 5](#5-cấu-hình-env-production).
@@ -235,43 +236,43 @@ Chi tiết biến: [mục 5](#5-cấu-hình-env-production).
 ### 4.6. Build Nest CRM API
 
 ```bash
-cd /var/www/ptt/services/ptt-crm-api
+cd /var/www/rnosai/services/ptt-crm-api
 npm ci
 npm run build
 
-sudo cp /var/www/ptt/deploy/ptt-crm-api.service /etc/systemd/system/
+sudo cp /var/www/rnosai/deploy/ptt-crm-api.service /etc/systemd/system/
 ```
 
 ### 4.7. Build ops-web (staff)
 
 ```bash
-cd /var/www/ptt/services/ops-web
+cd /var/www/rnosai/services/ops-web
 npm ci
 export NEXT_PUBLIC_PTT_API_URL=https://ops.pttads.vn
 npm run build
 cp -r .next/static .next/standalone/.next/static
 cp -r public .next/standalone/public 2>/dev/null || true
 
-sudo cp /var/www/ptt/deploy/ptt-ops-web.service /etc/systemd/system/
+sudo cp /var/www/rnosai/deploy/ptt-ops-web.service /etc/systemd/system/
 ```
 
 ### 4.8. Build portal-web (client)
 
 ```bash
-cd /var/www/ptt/services/portal-web
+cd /var/www/rnosai/services/portal-web
 npm ci
 export NEXT_PUBLIC_PTT_API_URL=https://portal.pttads.vn
 npm run build
 cp -r .next/static .next/standalone/.next/static
 cp -r public .next/standalone/public 2>/dev/null || true
 
-sudo cp /var/www/ptt/deploy/ptt-portal-web.service /etc/systemd/system/
+sudo cp /var/www/rnosai/deploy/ptt-portal-web.service /etc/systemd/system/
 ```
 
 ### 4.9. Python workers & timers
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 
 # Job queue worker
 sudo cp deploy/ptt-worker.service /etc/systemd/system/
@@ -328,7 +329,7 @@ sudo systemctl enable --now ptt-backup.timer
 
 ## 5. Cấu hình `.env` production
 
-File: **`/var/www/ptt/.env`** — mọi systemd unit đọc qua `EnvironmentFile=-/var/www/ptt/.env`.
+File: **`/var/www/rnosai/.env`** — mọi systemd unit đọc qua `EnvironmentFile=-/var/www/rnosai/.env`.
 
 **Mẫu gộp:** `deploy/env.phase5-flask-retire.example` + secrets từ `deploy/env.phase3-prod.example`.
 
@@ -336,8 +337,8 @@ File: **`/var/www/ptt/.env`** — mọi systemd unit đọc qua `EnvironmentFile
 
 ```bash
 # Database
-DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5432/ptt_agency
-PTT_SQLITE_PATH=/var/www/ptt/ptt.db
+DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5433/rnosai
+PTT_SQLITE_PATH=/var/www/rnosai/ptt.db
 
 # Nest / CRM
 PTT_CRM_INTERNAL_KEY=<random-32+-chars>
@@ -401,21 +402,21 @@ CRM_FACEBOOK_BACKGROUND_IN_GUNICORN=0
 ### 6.1. ops.pttads.vn (staff)
 
 ```bash
-sudo cp /var/www/ptt/deploy/nginx-ops.conf /etc/nginx/sites-available/ops.pttads.vn
+sudo cp /var/www/rnosai/deploy/nginx-ops.conf /etc/nginx/sites-available/ops.pttads.vn
 sudo ln -sf /etc/nginx/sites-available/ops.pttads.vn /etc/nginx/sites-enabled/
 ```
 
 ### 6.2. portal.pttads.vn (client)
 
 ```bash
-sudo cp /var/www/ptt/deploy/nginx-portal.conf /etc/nginx/sites-available/portal.pttads.vn
+sudo cp /var/www/rnosai/deploy/nginx-portal.conf /etc/nginx/sites-available/portal.pttads.vn
 sudo ln -sf /etc/nginx/sites-available/portal.pttads.vn /etc/nginx/sites-enabled/
 ```
 
 ### 6.3. rs.pttads.vn (legacy redirect)
 
 ```bash
-sudo cp /var/www/ptt/deploy/nginx-rs-flask-retired.conf /etc/nginx/sites-available/rs.pttads.vn
+sudo cp /var/www/rnosai/deploy/nginx-rs-flask-retired.conf /etc/nginx/sites-available/rs.pttads.vn
 sudo ln -sf /etc/nginx/sites-available/rs.pttads.vn /etc/nginx/sites-enabled/
 ```
 
@@ -482,9 +483,9 @@ journalctl -u ptt-crm-api -n 50 --no-pager
 ### 8.1. Portal pilot users
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 source .venv/bin/activate
-export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5432/ptt_agency
+export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosai
 export PORTAL_PILOT_PASSWORD='<mật-khẩu-ban-đầu-min-8-ký-tự>'
 python3 scripts/seed_portal_pilot_users.py --password "$PORTAL_PILOT_PASSWORD"
 ```
@@ -525,7 +526,7 @@ curl -s -o /dev/null -w "%{http_code}\n" \
 Nếu VPS **đang chạy Flask** (`ptt.service` active), thực hiện sau khi staging gate PASS:
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 git pull origin main
 
 # Build lại Nest + ops-web + portal (mục 4.6–4.8)
@@ -549,7 +550,7 @@ Chi tiết: [`phase5-flask-retirement-checklist.md`](./phase5-flask-retirement-c
 ## 10. Deploy bản mới (routine)
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 ./scripts/backup_ptt_data.sh
 
 git pull origin main
@@ -561,13 +562,13 @@ cd services/ptt-crm-api && npm ci && npm run build
 sudo systemctl restart ptt-crm-api
 
 # ops-web
-cd /var/www/ptt/services/ops-web
+cd /var/www/rnosai/services/ops-web
 npm ci && NEXT_PUBLIC_PTT_API_URL=https://ops.pttads.vn npm run build
 cp -r .next/static .next/standalone/.next/static
 sudo systemctl restart ptt-ops-web
 
 # portal-web
-cd /var/www/ptt/services/portal-web
+cd /var/www/rnosai/services/portal-web
 npm ci && NEXT_PUBLIC_PTT_API_URL=https://portal.pttads.vn npm run build
 cp -r .next/static .next/standalone/.next/static
 sudo systemctl restart ptt-portal-web
@@ -586,7 +587,7 @@ curl -sf http://127.0.0.1:3000/health && echo OK
 ## 11. Gate kiểm tra
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 ./scripts/wave8_gate.sh                    # Flask removed
 ./scripts/crm_flask_migration_pack.sh gap   # 100% migrated
 ./scripts/crm_flask_migration_pack.sh phase5-dry
@@ -605,7 +606,7 @@ Artifact: `.local-dev/*-gate-report.json`
 ### 12.1. Rollback deploy code (giữ stack Nest)
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 git checkout <tag-trước-đó>
 # rebuild + restart (mục 10)
 ```

@@ -2,6 +2,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { PortalNotificationRepository } from './portal-notification.repository';
 import { PortalNotificationService } from './portal-notification.service';
 import { PortalNotifyWebhookService } from './portal-notify-webhook.service';
+import { PortalPushSenderService } from './portal-push-sender.service';
 
 describe('PortalNotificationService', () => {
   const config = {
@@ -37,8 +38,19 @@ describe('PortalNotificationService', () => {
     send: jest.fn().mockResolvedValue({ ok: true }),
   } as unknown as jest.Mocked<PortalNotifyWebhookService>;
 
+  const pushSender = {
+    sendToUsers: jest.fn().mockResolvedValue({
+      ok: true,
+      configured: true,
+      sent: 1,
+      failed: 0,
+      removed_stale: 0,
+      errors: [],
+    }),
+  } as unknown as jest.Mocked<PortalPushSenderService>;
+
   function makeService() {
-    return new PortalNotificationService(repo, webhook, config);
+    return new PortalNotificationService(repo, webhook, config, pushSender);
   }
 
   it('emitCreativePending inserts for approvers', async () => {
@@ -68,6 +80,7 @@ describe('PortalNotificationService', () => {
     expect(webhook.send).toHaveBeenCalledWith(
       expect.objectContaining({ source: 'portal_client_notification', category: 'creative_pending' }),
     );
+    expect(pushSender.sendToUsers).toHaveBeenCalled();
   });
 
   it('list returns empty when table not ready', async () => {

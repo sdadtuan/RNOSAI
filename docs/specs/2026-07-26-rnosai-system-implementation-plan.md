@@ -450,6 +450,7 @@ Triển khai AI **không thay thế** backlog production còn lại. Chạy song
 | **Use case** | [`use-cases/09-AI-REVENUE-OS.md`](../use-cases/09-AI-REVENUE-OS.md) |
 | **UAT actions** | [`use-cases/actions/09-AI-ACTIONS.md`](../use-cases/actions/09-AI-ACTIONS.md) |
 | **UI architecture** | [`SPEC_UI_UX_AI_REVENUE_OS.md`](../SPEC_UI_UX_AI_REVENUE_OS.md) |
+| **Mobile / PWA** | [`2026-08-01-rnosai-mobile-strategy-spec.md`](2026-08-01-rnosai-mobile-strategy-spec.md) · RNOS-41 |
 | **DDL** | [`2026-07-26-postgresql-ddl-revenue-os-ai.sql`](2026-07-26-postgresql-ddl-revenue-os-ai.sql) · [`runbooks/rnos01-ddl-apply.md`](../runbooks/rnos01-ddl-apply.md) |
 | **Runbook** | [`runbooks/ai-service-operations.md`](../runbooks/ai-service-operations.md) · [`runbooks/rnos01-ddl-apply.md`](../runbooks/rnos01-ddl-apply.md) (RNOS-01) |
 | **Pricing (sales)** | [`2026-07-26-rnosai-pricing-draft.md`](2026-07-26-rnosai-pricing-draft.md) |

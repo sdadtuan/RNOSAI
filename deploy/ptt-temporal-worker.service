@@ -5,10 +5,10 @@ After=network.target
 [Service]
 Type=simple
 User=ptt
-WorkingDirectory=/var/www/ptt
-Environment=PYTHONPATH=/var/www/ptt
+WorkingDirectory=/var/www/rnosai
+Environment=PYTHONPATH=/var/www/rnosai
 EnvironmentFile=-/etc/ptt/temporal.env
-ExecStart=/var/www/ptt/.venv/bin/python /var/www/ptt/ptt_temporal/worker.py
+ExecStart=/var/www/rnosai/.venv/bin/python /var/www/rnosai/ptt_temporal/worker.py
 Restart=on-failure
 RestartSec=5
 

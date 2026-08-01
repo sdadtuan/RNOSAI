@@ -12,11 +12,11 @@ After=network.target ptt-crm-api.service
 Type=oneshot
 User=deploy
 Group=www-data
-Environment=PTT_APP_DIR=/var/www/ptt
+Environment=PTT_APP_DIR=/var/www/rnosai
 Environment=PTT_BACKUP_DIR=/var/backups/ptt
 Environment=PTT_BACKUP_RETENTION_DAYS=14
-EnvironmentFile=-/var/www/ptt/.env
-ExecStart=/var/www/ptt/scripts/backup_ptt_data.sh
+EnvironmentFile=-/var/www/rnosai/.env
+ExecStart=/var/www/rnosai/scripts/backup_ptt_data.sh
 
 [Install]
 WantedBy=multi-user.target

@@ -15,11 +15,11 @@ After=network.target ptt-crm-api.service
 Type=simple
 User=deploy
 Group=www-data
-WorkingDirectory=/var/www/ptt
-Environment=PATH=/var/www/ptt/.venv/bin
+WorkingDirectory=/var/www/rnosai
+Environment=PATH=/var/www/rnosai/.venv/bin
 Environment=PTT_JOBS_ENABLED=1
-EnvironmentFile=-/var/www/ptt/.env
-ExecStart=/var/www/ptt/.venv/bin/python -m ptt_worker
+EnvironmentFile=-/var/www/rnosai/.env
+ExecStart=/var/www/rnosai/.venv/bin/python -m ptt_worker
 Restart=always
 RestartSec=3
 

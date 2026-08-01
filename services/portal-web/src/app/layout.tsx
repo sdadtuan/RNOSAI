@@ -10,6 +10,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="vi">
+      <head>
+        <meta name="ptt-app-version" content="0.1.0" />
+      </head>
       <body>
         <Providers>{children}</Providers>
       </body>

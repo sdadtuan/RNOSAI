@@ -1,0 +1,64 @@
+name: RNOS-M3 Phase 2 store prep
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'services/mobile-shell/**'
+      - 'services/portal-web/**'
+      - 'scripts/rnos_m3_capacitor_gate.sh'
+      - 'scripts/m3_store_*.sh'
+      - 'docs/runbooks/m3-phase2-store-prep-checklist.md'
+
+jobs:
+  gate-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Phase 2 gate (skip native builds on Linux)
+        run: |
+          chmod +x scripts/*.sh
+          SKIP_IOS_BUILD=1 SKIP_ANDROID_BUILD=1 bash scripts/rnos_m3_capacitor_gate.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rnos-m3-capacitor-gate-report
+          path: .local-dev/rnos-m3-capacitor-gate-report.json
+
+  android-assemble:
+    runs-on: ubuntu-latest
+    needs: gate-artifacts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Capacitor sync + assembleDebug
+        run: |
+          chmod +x scripts/*.sh
+          bash scripts/m3_mobile_shell_sync.sh || true
+          if [[ -d services/mobile-shell/android ]]; then
+            cd services/mobile-shell/android && ./gradlew :app:assembleDebug --no-daemon
+          fi
+
+  ios-build:
+    runs-on: macos-latest
+    needs: gate-artifacts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: iOS xcodebuild (Simulator)
+        run: |
+          chmod +x scripts/*.sh
+          bash scripts/m3_mobile_shell_sync.sh || true
+          if [[ -d services/mobile-shell/ios/App/App.xcworkspace ]]; then
+            SKIP_ANDROID_BUILD=1 RUN_DEEPLINK_SMOKE=0 bash scripts/rnos_m3_capacitor_gate.sh
+          fi

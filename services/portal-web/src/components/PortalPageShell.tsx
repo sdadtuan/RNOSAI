@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { PortalNav } from '@/components/PortalNav';
+import { PortalMobileBottomNav } from '@/components/PortalMobileBottomNav';
 import {
   fetchPendingCreativeCount,
   fetchPortalNotificationSummary,
@@ -56,7 +57,7 @@ export function PortalPageShell({ children }: PortalPageShellProps) {
   }
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
+    <main className="portal-page-shell">
       <PortalNav
         user={user}
         onLogout={logout}
@@ -74,6 +75,13 @@ export function PortalPageShell({ children }: PortalPageShellProps) {
         </p>
       ) : null}
       {children({ token, user })}
+      <PortalMobileBottomNav
+        pendingCreatives={pendingCount}
+        notificationUnread={notificationSummary?.unread ?? 0}
+        emailPending={pendingEmail}
+        emailEnabled={emailEnabled}
+        isApprover={user.role === 'approver'}
+      />
     </main>
   );
 }

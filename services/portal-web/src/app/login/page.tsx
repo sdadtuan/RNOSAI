@@ -92,6 +92,9 @@ export default function LoginPage() {
             Quên mật khẩu?
           </Link>
         </p>
+        <p className="muted" style={{ marginTop: '0.75rem', marginBottom: 0, textAlign: 'center', fontSize: '0.85rem' }}>
+          <Link href="/privacy">Chính sách quyền riêng tư</Link>
+        </p>
         <p className="muted" style={{ marginTop: '1rem', marginBottom: 0 }}>
           Dev: <code>approver@demo.local</code> / <code>demo123</code> ·{' '}
           <code>./scripts/local_portal_up.sh</code>

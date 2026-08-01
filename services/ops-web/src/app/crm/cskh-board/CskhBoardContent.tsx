@@ -34,6 +34,56 @@ function slaBadge(state: CskhBoardRow['sla_state']): { label: string; className:
   return { label: '—', className: 'muted' };
 }
 
+function CskhLeadCard({
+  row,
+  canAssign,
+  selected,
+  onToggle,
+}: {
+  row: CskhBoardRow;
+  canAssign: boolean;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  const badge = slaBadge(row.sla_state);
+  const breachClass = row.sla_state === 'breach' ? ' cskh-board-card--breach' : '';
+  const warningClass = row.sla_state === 'warning' ? ' cskh-board-card--warning' : '';
+
+  return (
+    <li className={`cskh-board-card${breachClass}${warningClass}`} data-testid="cskh-board-card">
+      {canAssign ? (
+        <label className="cskh-board-card__select">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggle}
+            aria-label={`Chọn lead ${row.id}`}
+          />
+        </label>
+      ) : null}
+      <Link href={`/crm/leads/${row.id}`} className="cskh-board-card__link">
+        <div className="cskh-board-card__head">
+          <strong>{row.full_name || `#${row.id}`}</strong>
+          <span className={badge.className}>{badge.label}</span>
+        </div>
+        {row.phone ? <div className="muted cskh-board-card__phone">{row.phone}</div> : null}
+        <div className="cskh-board-card__meta muted">
+          <span>{row.status}</span>
+          <span>{row.owner_name ?? row.owner_id ?? '—'}</span>
+          {row.sla_minutes_elapsed != null ? <span>{row.sla_minutes_elapsed}m</span> : null}
+        </div>
+        <div className="cskh-board-card__meta muted">
+          <span>Nhận: {row.received_at?.slice(0, 16) ?? '—'}</span>
+          <span>Gọi: {row.first_call_at?.slice(0, 16) ?? '—'}</span>
+        </div>
+        {row.next_follow_up_at ? (
+          <div className="cskh-board-card__follow muted">Follow-up: {row.next_follow_up_at.slice(0, 16)}</div>
+        ) : null}
+      </Link>
+    </li>
+  );
+}
+
 export function CskhBoardContent() {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
@@ -93,14 +143,30 @@ export function CskhBoardContent() {
   }, [router]);
 
   const loadBoard = useCallback(
-    async (accessToken: string, nextOffset: number) => {
+    async (
+      accessToken: string,
+      nextOffset: number,
+      overrides?: {
+        q?: string;
+        owner_id?: string;
+        sla_filter?: 'all' | 'breach' | 'warning' | 'open';
+      },
+    ) => {
+      const nextQuery = overrides?.q ?? query;
+      const nextOwnerId = overrides?.owner_id ?? ownerId;
+      const nextSlaFilter = overrides?.sla_filter ?? slaFilter;
+
+      if (overrides?.q !== undefined) setQuery(nextQuery);
+      if (overrides?.owner_id !== undefined) setOwnerId(nextOwnerId);
+      if (overrides?.sla_filter !== undefined) setSlaFilter(nextSlaFilter);
+
       setLoading(true);
       setError('');
       try {
         const data = await fetchCskhBoard(accessToken, {
-          q: query || undefined,
-          owner_id: ownerId ? Number(ownerId) : undefined,
-          sla_filter: slaFilter,
+          q: nextQuery || undefined,
+          owner_id: nextOwnerId ? Number(nextOwnerId) : undefined,
+          sla_filter: nextSlaFilter,
           limit: PAGE_SIZE,
           offset: nextOffset,
         });
@@ -136,7 +202,9 @@ export function CskhBoardContent() {
       }
       await loadBoard(access, 0);
     })();
-  }, [ensureAuth, loadBoard]);
+    // Initial auth + first load only — filter changes call loadBoard directly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ensureAuth]);
 
   const allSelected = useMemo(
     () => rows.length > 0 && rows.every((r) => selected.has(r.id)),
@@ -231,8 +299,41 @@ export function CskhBoardContent() {
     }
   }
 
+  function applyFilter(nextSla: typeof slaFilter) {
+    if (token) void loadBoard(token, 0, { sla_filter: nextSla, q: q.trim() });
+  }
+
+  function runSearchFilter() {
+    if (token) void loadBoard(token, 0, { q: q.trim() });
+  }
+
+  const filterFields = (
+    <>
+      <label>
+        SLA filter
+        <select value={slaFilter} onChange={(e) => setSlaFilter(e.target.value as typeof slaFilter)}>
+          <option value="breach">SLA breach</option>
+          <option value="warning">Sắp breach</option>
+          <option value="open">Đang mở (ok+warning)</option>
+          <option value="all">Tất cả</option>
+        </select>
+      </label>
+      <label>
+        Owner ID
+        <input value={ownerId} onChange={(e) => setOwnerId(e.target.value)} placeholder="optional" />
+      </label>
+      <label className="grow">
+        Tìm kiếm
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tên / SĐT / email" />
+      </label>
+      <button type="button" className="btn btn-primary" onClick={() => runSearchFilter()}>
+        Lọc
+      </button>
+    </>
+  );
+
   return (
-    <main className="page-shell">
+    <main className="page-shell cskh-board-page">
       <OpsNav user={user} onLogout={() => { clearSession(); router.replace('/login'); }} />
       <div className="page-content">
         <header className="page-header">
@@ -250,43 +351,47 @@ export function CskhBoardContent() {
           </div>
         </header>
 
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <div className="row gap-sm wrap">
-            <label>
-              SLA filter
-              <select value={slaFilter} onChange={(e) => setSlaFilter(e.target.value as typeof slaFilter)}>
-                <option value="breach">SLA breach</option>
-                <option value="warning">Sắp breach</option>
-                <option value="open">Đang mở (ok+warning)</option>
-                <option value="all">Tất cả</option>
-              </select>
-            </label>
-            <label>
-              Owner ID
-              <input value={ownerId} onChange={(e) => setOwnerId(e.target.value)} placeholder="optional" />
-            </label>
-            <label className="grow">
-              Tìm kiếm
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tên / SĐT / email" />
-            </label>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => {
-                setQuery(q.trim());
-                void loadBoard(token, 0);
-              }}
-            >
-              Lọc
-            </button>
-          </div>
-          <p className="muted" style={{ marginTop: '0.75rem' }}>
+        <div className="cskh-board-summary-chips" aria-label="Tóm tắt SLA">
+          <button
+            type="button"
+            className={`cskh-board-summary-chip${slaFilter === 'breach' ? ' is-active' : ''}`}
+            onClick={() => applyFilter('breach')}
+          >
+            Breach {summary.breach}
+          </button>
+          <button
+            type="button"
+            className={`cskh-board-summary-chip cskh-board-summary-chip--warn${slaFilter === 'warning' ? ' is-active' : ''}`}
+            onClick={() => applyFilter('warning')}
+          >
+            Warning {summary.warning}
+          </button>
+          <button
+            type="button"
+            className={`cskh-board-summary-chip cskh-board-summary-chip--ok${slaFilter === 'open' ? ' is-active' : ''}`}
+            onClick={() => applyFilter('open')}
+          >
+            OK {summary.ok}
+          </button>
+          <span className="cskh-board-summary-chip cskh-board-summary-chip--total muted">Tổng {summary.total}</span>
+        </div>
+
+        <div className="card cskh-board-filters-desktop" style={{ marginBottom: '1rem' }}>
+          <div className="row gap-sm wrap">{filterFields}</div>
+          <p className="muted cskh-board-summary-line" style={{ marginTop: '0.75rem' }}>
             Tổng {summary.total} · Breach {summary.breach} · Warning {summary.warning} · OK {summary.ok}
           </p>
         </div>
 
+        <details className="card cskh-board-filter-accordion" style={{ marginBottom: '1rem' }}>
+          <summary>Bộ lọc</summary>
+          <div className="row gap-sm wrap" style={{ marginTop: '0.75rem' }}>
+            {filterFields}
+          </div>
+        </details>
+
         {canAssign ? (
-          <div className="card" style={{ marginBottom: '1rem' }}>
+          <div className="card cskh-board-bulk" style={{ marginBottom: '1rem' }}>
             <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Bulk actions ({selected.size} selected)</h2>
             <div className="row gap-sm wrap">
               <label>
@@ -328,7 +433,7 @@ export function CskhBoardContent() {
         {error ? <p className="error">{error}</p> : null}
         {msg ? <p className="ok-text">{msg}</p> : null}
 
-        <div className="card table-wrap">
+        <div className="card table-wrap cskh-board-table-wrap">
           {loading ? <p className="muted">Đang tải…</p> : null}
           <table className="data-table">
             <thead>
@@ -385,7 +490,23 @@ export function CskhBoardContent() {
           {!loading && rows.length === 0 ? <p className="muted">Không có lead phù hợp bộ lọc.</p> : null}
         </div>
 
-        <div className="row gap-sm" style={{ marginTop: '1rem' }}>
+        <ul className="cskh-board-cards" aria-label="Bảng CSKH (mobile)" data-testid="cskh-board-cards">
+          {rows.map((row) => (
+            <CskhLeadCard
+              key={row.id}
+              row={row}
+              canAssign={canAssign}
+              selected={selected.has(row.id)}
+              onToggle={() => toggleOne(row.id)}
+            />
+          ))}
+          {!loading && rows.length === 0 ? (
+            <li className="cskh-board-card cskh-board-card--empty muted">Không có lead phù hợp bộ lọc.</li>
+          ) : null}
+          {loading ? <li className="cskh-board-card cskh-board-card--empty muted">Đang tải…</li> : null}
+        </ul>
+
+        <div className="row gap-sm cskh-board-pagination" style={{ marginTop: '1rem' }}>
           <button
             type="button"
             className="btn btn-secondary"

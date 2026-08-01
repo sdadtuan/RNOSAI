@@ -118,7 +118,7 @@ export function PortalNav({
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-        <nav style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+        <nav className="portal-nav-links" style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
           {links.map((link) => (
             <Link
               key={link.href}

@@ -17,12 +17,12 @@ Wants=ptt-clickhouse.service
 Type=oneshot
 User=deploy
 Group=www-data
-WorkingDirectory=/var/www/ptt
-EnvironmentFile=-/var/www/ptt/.env
+WorkingDirectory=/var/www/rnosai
+EnvironmentFile=-/var/www/rnosai/.env
 Environment=CLICKHOUSE_URL=http://127.0.0.1:8123
 Environment=CLICKHOUSE_USER=ptt
 Environment=CLICKHOUSE_PASSWORD=ptt_dev
-ExecStart=/var/www/ptt/scripts/export_seo_facts_clickhouse.sh
+ExecStart=/var/www/rnosai/scripts/export_seo_facts_clickhouse.sh
 
 [Install]
 WantedBy=multi-user.target

@@ -18,12 +18,12 @@ Wants=postgresql.service
 Type=simple
 User=deploy
 Group=www-data
-WorkingDirectory=/var/www/ptt
-Environment=PATH=/var/www/ptt/.venv/bin
+WorkingDirectory=/var/www/rnosai
+Environment=PATH=/var/www/rnosai/.venv/bin
 Environment=CRM_FACEBOOK_BACKGROUND=1
 Environment=CRM_FACEBOOK_BACKGROUND_IN_GUNICORN=0
-EnvironmentFile=-/var/www/ptt/.env
-ExecStart=/var/www/ptt/.venv/bin/python /var/www/ptt/scripts/run_fb_autosync_daemon.py
+EnvironmentFile=-/var/www/rnosai/.env
+ExecStart=/var/www/rnosai/.venv/bin/python /var/www/rnosai/scripts/run_fb_autosync_daemon.py
 Restart=always
 RestartSec=5
 

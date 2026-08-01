@@ -16,10 +16,10 @@ After=network.target ptt-crm-api.service
 Type=oneshot
 User=deploy
 Group=www-data
-Environment=PTT_APP_DIR=/var/www/ptt
+Environment=PTT_APP_DIR=/var/www/rnosai
 Environment=PTT_GSC_SYNC_ENABLED=1
-EnvironmentFile=-/var/www/ptt/.env
-ExecStart=/var/www/ptt/scripts/sync_seo_gsc_daily.sh
+EnvironmentFile=-/var/www/rnosai/.env
+ExecStart=/var/www/rnosai/scripts/sync_seo_gsc_daily.sh
 
 [Install]
 WantedBy=multi-user.target

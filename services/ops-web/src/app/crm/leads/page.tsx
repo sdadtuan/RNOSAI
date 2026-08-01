@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
 import { CrmLeadsImportExport } from '@/components/crm/CrmLeadsImportExport';
 import { CrmLeadsList } from '@/components/crm/CrmLeadsList';
+import { PullToRefresh } from '@/components/mobile/PullToRefresh';
 import { fetchLeads, bulkAssignLeads, fetchCrmStaffList, staffMe, staffRefresh } from '@/lib/api';
 import type { CrmStaffRow, LeadRow } from '@/lib/api';
 import { aiCopilotEnabled, isAiPilotUser } from '@/lib/ai-flags';
@@ -323,16 +324,24 @@ export default function CrmLeadsPage() {
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
 
-        <CrmLeadsList
-          rows={rows}
-          loading={loading}
-          selectedIds={selectedIds}
-          onToggleSelect={toggleSelect}
-          onToggleAll={toggleAll}
-          showScores={showScores}
-          scoreMap={scoreMap}
-          scoresPending={scoresPending}
-        />
+        <PullToRefresh
+          disabled={loading || !token}
+          onRefresh={async () => {
+            if (!token) return;
+            await loadLeads(token, offset, query);
+          }}
+        >
+          <CrmLeadsList
+            rows={rows}
+            loading={loading}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onToggleAll={toggleAll}
+            showScores={showScores}
+            scoreMap={scoreMap}
+            scoresPending={scoresPending}
+          />
+        </PullToRefresh>
 
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
           <button

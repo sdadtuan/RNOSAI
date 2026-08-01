@@ -18,10 +18,10 @@ Wants=ptt-postgres.service
 Type=simple
 User=deploy
 Group=www-data
-WorkingDirectory=/var/www/ptt/services/ptt-crm-api
+WorkingDirectory=/var/www/rnosai/services/ptt-crm-api
 Environment=NODE_ENV=production
 Environment=PORT=3000
-EnvironmentFile=-/var/www/ptt/.env
+EnvironmentFile=-/var/www/rnosai/.env
 ExecStart=/usr/bin/node dist/main.js
 Restart=always
 RestartSec=5

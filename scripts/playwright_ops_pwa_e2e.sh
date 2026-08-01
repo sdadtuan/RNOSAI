@@ -43,7 +43,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if ! curl -sf "${OPS_E2E_API_URL}/api/v1/ai/health" >/dev/null 2>&1; then
+if ! curl -sf "${OPS_E2E_API_URL}/health" >/dev/null 2>&1; then
   echo "==> Start ptt-crm-api (stub staff for E2E login)"
   (
     cd "$ROOT/services/ptt-crm-api"
@@ -53,7 +53,7 @@ if ! curl -sf "${OPS_E2E_API_URL}/api/v1/ai/health" >/dev/null 2>&1; then
     export PTT_LEADS_READ_SOURCE="${PTT_LEADS_READ_SOURCE:-pg}"
     export PTT_SQLITE_PATH="${PTT_SQLITE_PATH:-$ROOT/ptt.db}"
     export NODE_ENV=development PORT=3000
-    export PTT_AI_COPILOT_ENABLED=1
+    export PTT_AI_COPILOT_ENABLED="${PTT_AI_COPILOT_ENABLED:-1}"
     export PTT_STAFF_ALLOW_STUB=1
     export PTT_STAFF_STUB_USERS="${OPS_E2E_STAFF_EMAIL}:${OPS_E2E_STAFF_PASSWORD}:1:1:E2E PWA"
     export PTT_STAFF_JWT_SECRET="${PTT_STAFF_JWT_SECRET:-rnos41-e2e-staff-jwt-secret-min-32-chars}"
@@ -61,7 +61,7 @@ if ! curl -sf "${OPS_E2E_API_URL}/api/v1/ai/health" >/dev/null 2>&1; then
     npm run start:prod
   ) >/tmp/rnos41-api.log 2>&1 &
   API_PID=$!
-  _wait_http "${OPS_E2E_API_URL}/api/v1/ai/health" "Nest API" 120
+  _wait_http "${OPS_E2E_API_URL}/health" "Nest API" 120
 else
   echo "OK  Nest API already running"
 fi
@@ -74,6 +74,7 @@ if [[ "${OPS_E2E_SKIP_SERVER:-0}" != "1" ]]; then
       export OPS_PORT="${OPS_PORT:-$(node -e "console.log(new URL(process.argv[1]).port||3200)" "$OPS_E2E_URL")}"
       export NEXT_PUBLIC_PTT_API_URL="$OPS_E2E_API_URL"
       export NEXT_PUBLIC_PWA_ENABLED=1
+      export NEXT_PUBLIC_PTT_AI_COPILOT_ENABLED=1
       if [[ "$OPS_E2E_USE_DEV" == "0" ]]; then
         NODE_ENV=production npm run start
       else
@@ -88,9 +89,10 @@ if [[ "${OPS_E2E_SKIP_SERVER:-0}" != "1" ]]; then
   export OPS_E2E_SKIP_SERVER=1
 fi
 
-echo "==> Playwright RNOS-41 PWA"
+echo "==> Playwright RNOS-41 PWA + SCR-MOB-003 lead detail mobile"
 (
   cd "$ROOT/services/ops-web"
   if [[ ! -d node_modules ]]; then npm ci; fi
   npm run test:e2e:pwa
+  npm run test:e2e:lead-detail-mobile
 )

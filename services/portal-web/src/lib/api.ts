@@ -1,3 +1,5 @@
+import { capacitorClientHeaders } from '@/lib/capacitor';
+
 export const API_BASE =
   (process.env.NEXT_PUBLIC_PTT_API_URL ?? 'http://127.0.0.1:3000').replace(/\/$/, '');
 
@@ -861,6 +863,178 @@ export async function fetchPortalAiReportSummary(
   const body = await parseJson<PortalAiReportSummaryResponse & { error?: string; message?: string }>(res);
   if (!res.ok) {
     throw new ApiError(body.error ?? body.message ?? 'Portal AI summary failed', res.status);
+  }
+  return body;
+}
+
+export interface PortalPushVapidResponse {
+  ok: boolean;
+  enabled: boolean;
+  public_key: string | null;
+}
+
+export interface PortalPushSubscribeResponse {
+  ok: boolean;
+  table_ready: boolean;
+  subscription_id: string | null;
+  endpoint: string;
+}
+
+export async function fetchPortalPushVapidPublicKey(): Promise<PortalPushVapidResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/portal/push/vapid-public-key`, { cache: 'no-store' });
+  const body = await parseJson<PortalPushVapidResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'VAPID key fetch failed', res.status);
+  }
+  return body;
+}
+
+export async function subscribePortalPush(
+  token: string,
+  subscription: PushSubscriptionJSON,
+): Promise<PortalPushSubscribeResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/portal/push/subscribe`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      endpoint: subscription.endpoint,
+      keys: subscription.keys,
+      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+    }),
+  });
+  const body = await parseJson<PortalPushSubscribeResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Push subscribe failed', res.status);
+  }
+  return body;
+}
+
+export async function unsubscribePortalPush(token: string, endpoint: string): Promise<{ ok: boolean }> {
+  const qs = new URLSearchParams({ endpoint });
+  const res = await fetch(`${API_BASE}/api/v1/portal/push/subscribe?${qs.toString()}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const body = await parseJson<{ ok: boolean; error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Push unsubscribe failed', res.status);
+  }
+  return body;
+}
+
+export interface PortalPushTestResponse {
+  ok: boolean;
+  table_ready: boolean;
+  subscription_count: number;
+  send_status: string;
+  sent?: number;
+  failed?: number;
+  message?: string;
+  errors?: string[];
+}
+
+export async function testPortalPush(token: string): Promise<PortalPushTestResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/portal/push/test`, {
+    method: 'POST',
+    headers: capacitorClientHeaders({ Authorization: `Bearer ${token}` }),
+  });
+  const body = await parseJson<PortalPushTestResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Push test failed', res.status);
+  }
+  return body;
+}
+
+export interface MobileConfigResponse {
+  ok: boolean;
+  min_version: string;
+  force_update: boolean;
+  native_push_enabled: boolean;
+  fcm_configured: boolean;
+  portal_url: string;
+  deep_link_scheme: string;
+}
+
+export interface NativeDeviceRegisterResponse {
+  ok: boolean;
+  device_id: string | null;
+  platform: string;
+}
+
+export interface NativePushTestResponse {
+  ok: boolean;
+  configured: boolean;
+  sent: number;
+  failed: number;
+  errors: string[];
+  message?: string;
+}
+
+export async function fetchMobileConfig(appVersion?: string): Promise<MobileConfigResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/mobile/config`, {
+    cache: 'no-store',
+    headers: capacitorClientHeaders(
+      appVersion ? { 'X-PTT-App-Version': appVersion } : undefined,
+    ),
+  });
+  const body = await parseJson<MobileConfigResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Mobile config fetch failed', res.status);
+  }
+  return body;
+}
+
+export async function registerNativeDeviceToken(
+  token: string,
+  payload: {
+    token: string;
+    platform?: string;
+    app_version?: string;
+    user_agent?: string;
+  },
+): Promise<NativeDeviceRegisterResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/mobile/device-token`, {
+    method: 'POST',
+    headers: capacitorClientHeaders({
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    }),
+    body: JSON.stringify(payload),
+  });
+  const body = await parseJson<NativeDeviceRegisterResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Native device register failed', res.status);
+  }
+  return body;
+}
+
+export async function unregisterNativeDeviceToken(
+  token: string,
+  deviceToken: string,
+): Promise<{ ok: boolean; removed: boolean }> {
+  const qs = new URLSearchParams({ token: deviceToken });
+  const res = await fetch(`${API_BASE}/api/v1/mobile/device-token?${qs.toString()}`, {
+    method: 'DELETE',
+    headers: capacitorClientHeaders({ Authorization: `Bearer ${token}` }),
+  });
+  const body = await parseJson<{ ok: boolean; removed: boolean; error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Native device unregister failed', res.status);
+  }
+  return body;
+}
+
+export async function testNativePush(token: string): Promise<NativePushTestResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/mobile/push/test`, {
+    method: 'POST',
+    headers: capacitorClientHeaders({ Authorization: `Bearer ${token}` }),
+  });
+  const body = await parseJson<NativePushTestResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Native push test failed', res.status);
   }
   return body;
 }

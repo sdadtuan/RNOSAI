@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { CreativeHistoryList } from '@/components/CreativeHistoryList';
 import { CreativeInbox } from '@/components/CreativeInbox';
 import { PortalPageShell } from '@/components/PortalPageShell';
@@ -15,6 +16,8 @@ import {
 type Tab = 'pending' | 'history';
 
 export default function CreativesPage() {
+  const searchParams = useSearchParams();
+  const focusCreativeId = searchParams.get('focus') ?? searchParams.get('id');
   const [tab, setTab] = useState<Tab>('pending');
   const [pendingRows, setPendingRows] = useState<CreativeRow[]>([]);
   const [historyRows, setHistoryRows] = useState<CreativeRow[]>([]);
@@ -27,6 +30,7 @@ export default function CreativesPage() {
         <CreativesContent
           token={token}
           canApprove={user.role === 'approver'}
+          focusCreativeId={focusCreativeId}
           tab={tab}
           setTab={setTab}
           pendingRows={pendingRows}
@@ -46,6 +50,7 @@ export default function CreativesPage() {
 function CreativesContent(props: {
   token: string;
   canApprove: boolean;
+  focusCreativeId: string | null;
   tab: Tab;
   setTab: (tab: Tab) => void;
   pendingRows: CreativeRow[];
@@ -60,6 +65,7 @@ function CreativesContent(props: {
   const {
     token,
     canApprove,
+    focusCreativeId,
     tab,
     setTab,
     pendingRows,
@@ -129,6 +135,7 @@ function CreativesContent(props: {
         <CreativeInbox
           rows={pendingRows}
           canApprove={canApprove}
+          focusCreativeId={focusCreativeId}
           onApprove={async (id) => {
             await approveCreative(token, id);
             const data = await fetchPendingCreatives(token);

@@ -1,8 +1,10 @@
 # Hướng dẫn setup VPS — RNOSAI (hệ thống hoàn chỉnh)
 
-> **Phiên bản:** 3.0 · **Ngày:** 2026-07-27  
+> **Phiên bản:** 3.1 · **Ngày:** 2026-08-01  
 > **Repo:** https://github.com/sdadtuan/RNOSAI · branch `main` @ P1+P2 merged  
-> **Thư mục trên VPS:** `/var/www/ptt`  
+> **Thư mục trên VPS:** `/var/www/rnosai`  
+> **PostgreSQL (VPS):** `127.0.0.1:5433/rnosai` · user `ptt`  
+> **Backup:** `/var/backups/rnosai`  
 > **User deploy:** `deploy` (group `www-data`)  
 > **Runbook cũ (tham chiếu):** [`vps-full-system-deploy.md`](./vps-full-system-deploy.md) · [`vps-production-operations.md`](./vps-production-operations.md)
 
@@ -58,7 +60,7 @@ flowchart TB
         TW[ptt-temporal-worker]
     end
     subgraph docker [Docker]
-        PG[(PostgreSQL :5432)]
+        PG[(PostgreSQL :5433)]
         REDIS[Redis]
         TEMP[Temporal :7233]
     end
@@ -84,7 +86,7 @@ POST https://rs.pttads.vn/api/v1/webhooks/{meta|zalo|google|email}
 GET  https://rs.pttads.vn/api/v1/channels
 ```
 
-**Firewall:** chỉ mở **22, 80, 443**. Không public `:3000`, `:3100`, `:3200`, `:5432`.
+**Firewall:** chỉ mở **22, 80, 443**. Không public `:3000`, `:3100`, `:3200`, `:5433`.
 
 ---
 
@@ -137,9 +139,9 @@ sudo usermod -aG docker deploy
 sudo usermod -aG www-data deploy
 
 # 1.5 — Thư mục app & backup
-sudo mkdir -p /var/www/ptt /var/backups/ptt
-sudo chown deploy:www-data /var/www/ptt
-sudo chmod 775 /var/www/ptt
+sudo mkdir -p /var/www/rnosai /var/backups/rnosai
+sudo chown deploy:www-data /var/www/rnosai
+sudo chmod 775 /var/www/rnosai
 ```
 
 **Firewall (ufw ví dụ):**
@@ -156,7 +158,7 @@ sudo ufw enable
 
 ```bash
 sudo -u deploy -i
-cd /var/www/ptt
+cd /var/www/rnosai
 
 git clone https://github.com/sdadtuan/RNOSAI.git .
 git checkout main
@@ -170,7 +172,7 @@ git log -1 --oneline   # xác nhận commit mới nhất
 Workers Python (`ptt_worker`, jobs, seed scripts) cần venv:
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -U pip wheel
@@ -182,10 +184,10 @@ pip install -r requirements-temporal.txt
 
 ## Bước 4 — Docker (PostgreSQL, Redis, …)
 
-Trên **VPS production**, Postgres thường chạy container port **5432** với database **`ptt_agency`**.
+Trên **VPS production**, Postgres chạy host port **5433** với database **`rnosai`** (container `rnosai-postgres`, map `5433:5432`).
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 
 # Core infra
 docker compose up -d postgres redis rabbitmq
@@ -200,11 +202,11 @@ docker compose -f docker-compose.clickhouse.yml up -d
 Chờ Postgres:
 
 ```bash
-docker compose exec -T postgres pg_isready -U ptt -d ptt_agency
+docker compose exec -T postgres pg_isready -U ptt -d rnosai
 # hoặc tên DB trong docker-compose của bạn
 ```
 
-> **Local dev** dùng `rnosaidb` port `5433` — **VPS prod** dùng `ptt_agency` @ `127.0.0.1:5432`. Luôn set `DATABASE_URL` khớp container thực tế.
+> **Local dev** dùng `rnosaidb` port `5433` (docker-compose) — **VPS prod** dùng **`rnosai`** @ `127.0.0.1:5433`. Thư mục app VPS: **`/var/www/rnosai`**. Luôn set `DATABASE_URL` khớp môi trường thực tế.
 
 ---
 
@@ -213,13 +215,13 @@ docker compose exec -T postgres pg_isready -U ptt -d ptt_agency
 Apply **theo thứ tự** (idempotent). Backup trước prod:
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 source .venv/bin/activate
 
-export DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5432/ptt_agency
+export DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5433/rnosai
 
 # Backup (prod bắt buộc)
-pg_dump "$DATABASE_URL" | gzip > /var/backups/ptt/pre-ddl-$(date +%F).sql.gz
+pg_dump "$DATABASE_URL" | gzip > /var/backups/rnosai/pre-ddl-$(date +%F).sql.gz
 
 # ── Platform core ──
 ./scripts/apply_pg_ddl_v2_leads.sh
@@ -263,9 +265,9 @@ Chi tiết: [`rnos01-ddl-apply.md`](./rnos01-ddl-apply.md)
 Tạo **một file master** đọc bởi mọi systemd unit:
 
 ```bash
-cp deploy/env.phase5-flask-retire.example /var/www/ptt/.env
-chmod 600 /var/www/ptt/.env
-nano /var/www/ptt/.env
+cp deploy/env.phase5-flask-retire.example /var/www/rnosai/.env
+chmod 600 /var/www/rnosai/.env
+nano /var/www/rnosai/.env
 ```
 
 ### 6.1 — Merge các mẫu
@@ -280,8 +282,8 @@ nano /var/www/ptt/.env
 
 ```bash
 # ── Database ──
-DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5432/ptt_agency
-PTT_SQLITE_PATH=/var/www/ptt/ptt.db
+DATABASE_URL=postgresql://ptt:STRONG_PASSWORD@127.0.0.1:5433/rnosai
+PTT_SQLITE_PATH=/var/www/rnosai/ptt.db
 
 # ── Nest core ──
 PTT_CRM_INTERNAL_KEY=<random-32-chars-min>
@@ -342,11 +344,11 @@ PTT_AI_SCORE_ASYNC=1
 ## Bước 7 — Build Nest API
 
 ```bash
-cd /var/www/ptt/services/ptt-crm-api
+cd /var/www/rnosai/services/ptt-crm-api
 npm ci
 npm run build
 
-sudo cp /var/www/ptt/deploy/ptt-crm-api.service /etc/systemd/system/
+sudo cp /var/www/rnosai/deploy/ptt-crm-api.service /etc/systemd/system/
 sudo systemctl daemon-reload
 ```
 
@@ -363,7 +365,7 @@ test -f dist/main.js && echo "Nest build OK"
 Staff UI chạy trên **`rs.pttads.vn`** — API URL phải cùng origin:
 
 ```bash
-cd /var/www/ptt/services/ops-web
+cd /var/www/rnosai/services/ops-web
 npm ci
 
 export NEXT_PUBLIC_PTT_API_URL=https://rs.pttads.vn
@@ -377,7 +379,7 @@ npm run build
 cp -r .next/static .next/standalone/.next/static
 cp -r public .next/standalone/public 2>/dev/null || true
 
-sudo cp /var/www/ptt/deploy/ptt-ops-web.service /etc/systemd/system/
+sudo cp /var/www/rnosai/deploy/ptt-ops-web.service /etc/systemd/system/
 sudo systemctl daemon-reload
 ```
 
@@ -386,7 +388,7 @@ sudo systemctl daemon-reload
 ## Bước 9 — Build portal-web (client)
 
 ```bash
-cd /var/www/ptt/services/portal-web
+cd /var/www/rnosai/services/portal-web
 npm ci
 
 export NEXT_PUBLIC_PTT_API_URL=https://portal.pttads.vn
@@ -395,7 +397,7 @@ npm run build
 cp -r .next/static .next/standalone/.next/static
 cp -r public .next/standalone/public 2>/dev/null || true
 
-sudo cp /var/www/ptt/deploy/ptt-portal-web.service /etc/systemd/system/
+sudo cp /var/www/rnosai/deploy/ptt-portal-web.service /etc/systemd/system/
 sudo systemctl daemon-reload
 ```
 
@@ -404,7 +406,7 @@ sudo systemctl daemon-reload
 ## Bước 10 — Systemd workers & timers
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 
 # Long-running services
 sudo cp deploy/ptt-worker.service /etc/systemd/system/
@@ -446,7 +448,7 @@ sudo systemctl daemon-reload
 ### 11.1 — Staff: `rs.pttads.vn` (ops-web + Nest)
 
 ```bash
-sudo cp /var/www/ptt/deploy/nginx-rs-flask-retired.conf \
+sudo cp /var/www/rnosai/deploy/nginx-rs-flask-retired.conf \
         /etc/nginx/sites-available/rs.pttads.vn
 sudo ln -sf /etc/nginx/sites-available/rs.pttads.vn /etc/nginx/sites-enabled/
 ```
@@ -459,7 +461,7 @@ File này proxy:
 ### 11.2 — Client: `portal.pttads.vn`
 
 ```bash
-sudo cp /var/www/ptt/deploy/nginx-portal.conf \
+sudo cp /var/www/rnosai/deploy/nginx-portal.conf \
         /etc/nginx/sites-available/portal.pttads.vn
 sudo ln -sf /etc/nginx/sites-available/portal.pttads.vn /etc/nginx/sites-enabled/
 ```
@@ -467,7 +469,7 @@ sudo ln -sf /etc/nginx/sites-available/portal.pttads.vn /etc/nginx/sites-enabled
 ### 11.3 — Redirect: `ops.pttads.vn` → `rs.pttads.vn`
 
 ```bash
-sudo cp /var/www/ptt/deploy/nginx-ops.conf \
+sudo cp /var/www/rnosai/deploy/nginx-ops.conf \
         /etc/nginx/sites-available/ops.pttads.vn
 sudo ln -sf /etc/nginx/sites-available/ops.pttads.vn /etc/nginx/sites-enabled/
 ```
@@ -518,8 +520,8 @@ Sau khi CRM smoke PASS, bật AI **từng bước** (flag off lần deploy đầ
 ### 13.1 — Verify DDL & health
 
 ```bash
-source /var/www/ptt/.venv/bin/activate
-export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5432/ptt_agency
+source /var/www/rnosai/.venv/bin/activate
+export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosai
 
 ./scripts/rnos01_pg_ddl_gate.sh
 
@@ -530,7 +532,7 @@ curl -s http://127.0.0.1:3000/api/v1/ai/health | jq .
 ### 13.2 — Cấu hình LLM trong `.env`
 
 ```bash
-nano /var/www/ptt/.env
+nano /var/www/rnosai/.env
 ```
 
 Thêm / sửa (từ `deploy/env.ai.example`):
@@ -555,7 +557,7 @@ sudo systemctl restart ptt-crm-api
 ### 13.3 — Gate AI an toàn (trước pilot)
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 bash scripts/rnos40_gate.sh
 bash scripts/rnos39_gate.sh          # E2E copilot (có thể OPS_E2E_SKIP_SERVER=1 trên CI)
 bash scripts/rnos_r1_prod_pilot_gate.sh
@@ -573,7 +575,7 @@ bash scripts/rnos_r1_pilot_enable.sh --apply --cohort deploy/pilot-cohort.json
 sudo systemctl restart ptt-crm-api
 
 # Rebuild ops-web với NEXT_PUBLIC_* khớp cohort
-cd /var/www/ptt/services/ops-web
+cd /var/www/rnosai/services/ops-web
 export NEXT_PUBLIC_PTT_API_URL=https://rs.pttads.vn
 export NEXT_PUBLIC_PTT_AI_COPILOT_ENABLED=1
 export NEXT_PUBLIC_PTT_AI_PILOT_USER_IDS=uuid1,uuid2,...
@@ -595,9 +597,9 @@ sudo systemctl restart ptt-ops-web
 ### 14.1 — Portal pilot users
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 source .venv/bin/activate
-export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5432/ptt_agency
+export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosai
 export PORTAL_PILOT_PASSWORD='<min-8-chars>'
 
 python3 scripts/seed_portal_pilot_users.py --password "$PORTAL_PILOT_PASSWORD"
@@ -642,7 +644,7 @@ curl -s -o /dev/null -w "%{http_code}\n" \
 ## Bước 15 — Gate nghiệm thu
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 source .venv/bin/activate
 set -a && source .env && set +a
 
@@ -670,7 +672,7 @@ Artifact: `.local-dev/*-gate-report.json`
 ## Deploy bản mới (routine)
 
 ```bash
-cd /var/www/ptt
+cd /var/www/rnosai
 ./scripts/backup_ptt_data.sh
 
 git pull origin main
@@ -682,7 +684,7 @@ cd services/ptt-crm-api && npm ci && npm run build
 sudo systemctl restart ptt-crm-api
 
 # ops-web
-cd /var/www/ptt/services/ops-web
+cd /var/www/rnosai/services/ops-web
 npm ci
 export NEXT_PUBLIC_PTT_API_URL=https://rs.pttads.vn
 # giữ NEXT_PUBLIC_PTT_AI_* nếu đang pilot
@@ -691,7 +693,7 @@ cp -r .next/static .next/standalone/.next/static
 sudo systemctl restart ptt-ops-web
 
 # portal-web
-cd /var/www/ptt/services/portal-web
+cd /var/www/rnosai/services/portal-web
 npm ci && NEXT_PUBLIC_PTT_API_URL=https://portal.pttads.vn npm run build
 cp -r .next/static .next/standalone/.next/static
 sudo systemctl restart ptt-portal-web
@@ -747,6 +749,8 @@ journalctl -u ptt-ops-web -n 50 --no-pager
 
 | Tài liệu | Nội dung |
 |----------|----------|
+| [`rnosai-vps-operations-guide.md`](./rnosai-vps-operations-guide.md) | **Vận hành hàng ngày** — deploy, backup, sự cố, module ops |
+| [`m1-pwa-prod-cutover-checklist.md`](./m1-pwa-prod-cutover-checklist.md) | Cutover PWA M1 prod (RNOS-41) |
 | [`vps-full-system-deploy.md`](./vps-full-system-deploy.md) | Runbook deploy gốc (một số URL cần đối chiếu doc này) |
 | [`ai-service-operations.md`](./ai-service-operations.md) | Vận hành AI hàng ngày |
 | [`cskh-ai-pilot-90-day-playbook.md`](./cskh-ai-pilot-90-day-playbook.md) | Pilot CSKH 90 ngày |

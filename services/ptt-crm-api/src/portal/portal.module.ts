@@ -11,6 +11,14 @@ import { PortalNotifyWebhookService } from './portal-notify-webhook.service';
 import { PortalPasswordResetNotifyService } from './portal-password-reset-notify.service';
 import { PortalPasswordResetRepository } from './portal-password-reset.repository';
 import { PortalPasswordResetService } from './portal-password-reset.service';
+import { PortalMobileController } from './portal-mobile.controller';
+import { PortalMobileService } from './portal-mobile.service';
+import { PortalNativeDeviceRepository } from './portal-native-device.repository';
+import { PortalNativePushSenderService } from './portal-native-push-sender.service';
+import { PortalPushController } from './portal-push.controller';
+import { PortalPushRepository } from './portal-push.repository';
+import { PortalPushSenderService } from './portal-push-sender.service';
+import { PortalPushService } from './portal-push.service';
 import { PortalJwtGuard } from './portal-jwt.guard';
 import { PortalSettingsController } from './portal-settings.controller';
 import { PortalSettingsRepository } from './portal-settings.repository';
@@ -18,7 +26,13 @@ import { PortalSettingsService } from './portal-settings.service';
 
 @Module({
   imports: [forwardRef(() => AgencyModule)],
-  controllers: [PortalAuthController, PortalSettingsController, PortalNotificationController],
+  controllers: [
+    PortalAuthController,
+    PortalSettingsController,
+    PortalNotificationController,
+    PortalPushController,
+    PortalMobileController,
+  ],
   providers: [
     PortalAuthService,
     PortalJwtGuard,
@@ -32,6 +46,12 @@ import { PortalSettingsService } from './portal-settings.service';
     PortalPasswordResetRepository,
     PortalPasswordResetNotifyService,
     PortalPasswordResetService,
+    PortalPushRepository,
+    PortalPushService,
+    PortalPushSenderService,
+    PortalNativeDeviceRepository,
+    PortalNativePushSenderService,
+    PortalMobileService,
   ],
   exports: [
     PortalAuthService,
@@ -42,6 +62,9 @@ import { PortalSettingsService } from './portal-settings.service';
     PortalNotifyWebhookService,
     CampaignMilestoneNotifyService,
     PortalPasswordResetService,
+    PortalPushSenderService,
+    PortalNativePushSenderService,
+    PortalMobileService,
     forwardRef(() => AgencyModule),
   ],
 })

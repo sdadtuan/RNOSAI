@@ -16,6 +16,7 @@ import {
   PortalNotificationSummaryResponse,
 } from './portal-notification.types';
 import { PortalNotifyWebhookService } from './portal-notify-webhook.service';
+import { PortalPushSenderService } from './portal-push-sender.service';
 
 @Injectable()
 export class PortalNotificationService {
@@ -25,6 +26,7 @@ export class PortalNotificationService {
     private readonly repo: PortalNotificationRepository,
     private readonly webhook: PortalNotifyWebhookService,
     private readonly config: AppConfigService,
+    private readonly pushSender: PortalPushSenderService,
   ) {}
 
   private clientNotifyEnabled(): boolean {
@@ -180,6 +182,35 @@ export class PortalNotificationService {
       meta: input.meta ?? {},
       notification_ids: ids,
     });
+
+    const pushUserIds =
+      targets.length > 0
+        ? targets.map((t) => t.id)
+        : input.portalUserId
+          ? [input.portalUserId]
+          : [];
+    if (pushUserIds.length > 0) {
+      const push = await this.pushSender.sendToUsers({
+        clientId: input.clientId,
+        portalUserIds: pushUserIds,
+        title: input.title,
+        body: input.body ?? 'Có mục cần duyệt trên Portal',
+        url: input.linkUrl ?? '/notifications',
+        data: {
+          category: input.category,
+          notification_ids: ids,
+          ...(input.meta ?? {}),
+        },
+      });
+      if (push.failed > 0 && push.sent === 0) {
+        this.logger.warn(
+          'portal push delivery partial failure: sent=%s failed=%s errors=%s',
+          push.sent,
+          push.failed,
+          push.errors.join('; '),
+        );
+      }
+    }
 
     return { ok: true, ids };
   }

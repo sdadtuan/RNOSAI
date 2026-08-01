@@ -6,6 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 OPS_URL="${OPS_E2E_URL:-http://127.0.0.1:3200}"
+API_URL="${OPS_E2E_API_URL:-http://127.0.0.1:3000}"
 REPORT="${REPORT:-$ROOT/.local-dev/rnos41-pwa-gate-report.json}"
 pass=0
 fail=0
@@ -20,9 +21,13 @@ for f in \
   services/ops-web/src/app/manifest.ts \
   services/ops-web/public/sw.js \
   services/ops-web/public/icons/icon.svg \
+  services/ops-web/public/icons/icon-192.png \
+  services/ops-web/public/icons/icon-512.png \
   services/ops-web/src/components/pwa/PwaShell.tsx \
   services/ops-web/src/components/crm/CrmLeadsList.tsx \
   services/ops-web/e2e/pwa-rnos41.spec.ts \
+  services/ops-web/e2e/lead-detail-mobile.spec.ts \
+  services/ops-web/src/app/crm/leads/[id]/page.tsx \
   scripts/playwright_ops_pwa_e2e.sh; do
   if [[ -f "$ROOT/$f" ]]; then
     log_ok "artifact-${f//\//-}" "Present"
@@ -41,6 +46,24 @@ if grep -q 'test:e2e:pwa' "$ROOT/services/ops-web/package.json"; then
   log_ok "npm-script" 'test:e2e:pwa in package.json'
 else
   log_fail "npm-script" 'Add test:e2e:pwa script'
+fi
+
+if grep -q 'lead-contact-call' "$ROOT/services/ops-web/src/app/crm/leads/[id]/page.tsx"; then
+  log_ok "lead-tel-call" "tel: Gọi link data-testid=lead-contact-call"
+else
+  log_fail "lead-tel-call" "Missing tel: Gọi quick action"
+fi
+
+if grep -q 'copilot-offline-banner' "$ROOT/services/ops-web/src/app/crm/leads/[id]/page.tsx"; then
+  log_ok "copilot-offline-banner" "Offline copilot banner MOB-UC-003 E1"
+else
+  log_fail "copilot-offline-banner" "Missing copilot offline banner"
+fi
+
+if grep -q 'test:e2e:lead-detail-mobile' "$ROOT/services/ops-web/package.json"; then
+  log_ok "npm-script-lead-mobile" 'test:e2e:lead-detail-mobile in package.json'
+else
+  log_fail "npm-script-lead-mobile" 'Add test:e2e:lead-detail-mobile script'
 fi
 
 echo "==> ops-web TypeScript check"
@@ -65,11 +88,13 @@ _wait_http() {
 }
 
 if ! curl -sf "${OPS_URL}/manifest.webmanifest" >/dev/null 2>&1; then
-  echo "==> Start ops-web for manifest/SW checks"
+  echo "==> Start ops-web for manifest/SW checks (Playwright will reuse)"
   (
     cd "$ROOT/services/ops-web"
     export OPS_PORT="${OPS_PORT:-$(node -e "console.log(new URL(process.argv[1]).port||3200)" "$OPS_URL")}"
     export NEXT_PUBLIC_PWA_ENABLED=1
+    export NEXT_PUBLIC_PTT_API_URL="$API_URL"
+    export NEXT_PUBLIC_PTT_AI_COPILOT_ENABLED=1
     npm run dev
   ) >/tmp/rnos41-gate-ops-web.log 2>&1 &
   WEB_PID=$!
@@ -92,13 +117,12 @@ else
   log_fail "sw-http" "Service worker not served at /sw.js"
 fi
 
-[[ -n "$WEB_PID" ]] && kill "$WEB_PID" 2>/dev/null || true
-WEB_PID=""
+export OPS_E2E_SKIP_SERVER=1
 
 if bash "$ROOT/scripts/playwright_ops_pwa_e2e.sh"; then
-  log_ok "playwright-e2e" "pwa-rnos41.spec.ts PASS"
+  log_ok "playwright-e2e" "pwa-rnos41.spec.ts + lead-detail-mobile.spec.ts PASS"
 else
-  log_fail "playwright-e2e" "Playwright PWA E2E failed"
+  log_fail "playwright-e2e" "Playwright PWA / lead detail mobile E2E failed"
 fi
 
 mkdir -p "$(dirname "$REPORT")"
@@ -123,4 +147,5 @@ rm -f "$TMP_RESULTS"
 echo ""
 echo "Gate report: $REPORT"
 echo "PASS=$pass FAIL=$fail"
+[[ -n "${WEB_PID:-}" ]] && kill "$WEB_PID" 2>/dev/null || true
 [[ "$fail" -eq 0 ]]

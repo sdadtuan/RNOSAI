@@ -2201,6 +2201,34 @@ body:has(.ops-sidebar) main {
   box-shadow: var(--shadow-green-md);
 }
 
+.ai-copilot-panel--sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: min(85vh, 720px);
+  z-index: 50;
+  overflow-y: auto;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-green-md);
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.lead-copilot-backdrop--sheet {
+  z-index: 44;
+}
+
+.lead-detail-page--copilot-sheet .lead-detail-main {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.lead-detail-page--copilot-sheet .lead-detail-tabs {
+  position: relative;
+  z-index: 46;
+}
+
 .ai-copilot-panel__header {
   display: flex;
   align-items: center;
@@ -2218,6 +2246,15 @@ body:has(.ops-sidebar) main {
   line-height: 1.45;
   border-top: 1px solid var(--border);
   padding-top: 0.75rem;
+}
+
+.lead-copilot-offline-banner {
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(214, 137, 16, 0.35);
+  border-radius: var(--radius-lg);
+  background: rgba(214, 137, 16, 0.12);
+  color: var(--text);
+  font-size: 0.9rem;
 }
 
 .ai-copilot-gate {
@@ -2589,6 +2626,31 @@ body:has(.ops-sidebar) main {
   gap: 0.5rem;
 }
 
+/* RNOS-41.2 P2 — pull-to-refresh on mobile lead list */
+.lead-list-pull-refresh {
+  position: relative;
+}
+
+.lead-list-pull-refresh__indicator {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.82rem;
+  transition: height 0.15s ease;
+}
+
+.lead-list-pull-refresh__indicator.is-visible span {
+  padding-bottom: 0.35rem;
+}
+
+@media (min-width: 769px) {
+  .lead-list-pull-refresh__indicator {
+    display: none;
+  }
+}
+
 /* RNOS-41 — Lead list mobile cards (Getfly P0-1) */
 .crm-leads-cards {
   display: none;
@@ -2649,6 +2711,157 @@ body:has(.ops-sidebar) main {
 
 @media (min-width: 769px) {
   .crm-leads-cards {
+    display: none;
+  }
+}
+
+/* SCR-MOB-004 — CSKH board mobile cards */
+.cskh-board-summary-chips {
+  display: none;
+}
+
+.cskh-board-filter-accordion {
+  display: none;
+}
+
+.cskh-board-cards {
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cskh-board-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.cskh-board-card__select {
+  display: flex;
+  align-items: flex-start;
+  padding-top: 0.85rem;
+}
+
+.cskh-board-card__link {
+  display: block;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  text-decoration: none;
+  color: inherit;
+}
+
+.cskh-board-card__link:hover {
+  border-color: var(--accent, #398b43);
+}
+
+.cskh-board-card--breach .cskh-board-card__link {
+  border-left: 4px solid var(--danger, #c0392b);
+}
+
+.cskh-board-card--warning .cskh-board-card__link {
+  border-left: 4px solid var(--warn, #d68910);
+}
+
+.cskh-board-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.cskh-board-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+}
+
+.cskh-board-card__phone {
+  margin-bottom: 0.35rem;
+  font-size: 0.88rem;
+}
+
+.cskh-board-card__follow {
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+}
+
+.cskh-board-card--empty {
+  padding: 1rem;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  display: block;
+}
+
+.cskh-board-summary-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cskh-board-summary-chip.is-active {
+  background: rgba(57, 139, 67, 0.12);
+  border-color: rgba(57, 139, 67, 0.35);
+  color: var(--primary-800);
+  font-weight: 600;
+}
+
+.cskh-board-summary-chip--warn.is-active {
+  background: rgba(214, 137, 16, 0.12);
+  border-color: rgba(214, 137, 16, 0.35);
+}
+
+.cskh-board-summary-chip--total {
+  cursor: default;
+}
+
+.cskh-board-filter-accordion summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .cskh-board-filters-desktop {
+    display: none;
+  }
+
+  .cskh-board-summary-chips {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    padding: 0.35rem 0 0.75rem;
+    margin-bottom: 0.5rem;
+    background: var(--bg);
+  }
+
+  .cskh-board-filter-accordion {
+    display: block;
+  }
+
+  .cskh-board-table-wrap {
+    display: none;
+  }
+
+  .cskh-board-cards {
+    display: block;
+  }
+}
+
+@media (min-width: 769px) {
+  .cskh-board-cards {
     display: none;
   }
 }

@@ -102,6 +102,34 @@ input {
   padding: 1rem 1.1rem;
 }
 
+/* RNOS-M2 P2 — swipe hint on approval cards @ mobile */
+.portal-approval-swipe {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.portal-approval-swipe__track {
+  transition: transform 0.12s ease-out;
+  will-change: transform;
+}
+
+.portal-approval-swipe__hint {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.72rem;
+  pointer-events: none;
+  opacity: 0.65;
+}
+
+@media (min-width: 769px) {
+  .portal-approval-swipe__hint {
+    display: none;
+  }
+}
+
 .field-textarea {
   width: 100%;
   margin-top: 0.35rem;
@@ -464,4 +492,182 @@ input {
   width: 100%;
   min-height: 280px;
   border: none;
+}
+
+/* RNOS-M2 — Portal PWA shell + mobile bottom nav */
+.portal-page-shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.portal-pwa-install-banner {
+  position: fixed;
+  bottom: calc(3.75rem + env(safe-area-inset-bottom, 0px));
+  left: 0;
+  right: 0;
+  z-index: 9998;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.portal-pwa-install-banner p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.portal-pwa-install-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.portal-mobile-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .portal-nav-links {
+    display: none !important;
+  }
+
+  .portal-mobile-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9990;
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+    gap: 0.25rem;
+    padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+    background: rgba(15, 20, 25, 0.96);
+    border-top: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+  }
+
+  .portal-mobile-bottom-nav__item {
+    position: relative;
+    flex: 1 1 0;
+    min-height: 44px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    padding: 0.35rem 0.25rem;
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+
+  .portal-mobile-bottom-nav__item--active {
+    color: var(--text);
+    background: rgba(59, 130, 246, 0.12);
+  }
+
+  .portal-mobile-bottom-nav__badge {
+    position: absolute;
+    top: 0.15rem;
+    right: 0.35rem;
+    min-width: 1.1rem;
+    padding: 0.05rem 0.3rem;
+    border-radius: 999px;
+    background: var(--danger);
+    color: white;
+    font-size: 0.62rem;
+    line-height: 1.2;
+    text-align: center;
+  }
+}
+
+/* RNOS-M3 — public privacy policy stub */
+.privacy-page {
+  min-height: 100vh;
+  padding: 1.5rem 1rem 2.5rem;
+}
+
+.privacy-page__inner {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.privacy-page__draft {
+  margin-bottom: 0.75rem;
+}
+
+.privacy-page h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.75rem;
+  line-height: 1.25;
+}
+
+.privacy-page__meta {
+  margin: 0 0 1.5rem;
+  font-size: 0.9rem;
+}
+
+.privacy-page section {
+  margin-bottom: 1.75rem;
+}
+
+.privacy-page h2 {
+  margin: 0 0 0.65rem;
+  font-size: 1.1rem;
+}
+
+.privacy-page p,
+.privacy-page li {
+  line-height: 1.55;
+}
+
+.privacy-page ul {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+
+.privacy-table-wrap {
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+
+.privacy-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.privacy-table th,
+.privacy-table td {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.65rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.privacy-table th {
+  background: var(--surface);
+  font-weight: 600;
+}
+
+.privacy-page__footer {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.creative-card--focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

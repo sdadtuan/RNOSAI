@@ -30,7 +30,7 @@ interface Props {
   onSelectActivity?: (id: number | null) => void;
   onCopilotError?: (msg: string) => void;
   onActivityCreated?: () => void;
-  variant?: 'column' | 'drawer';
+  variant?: 'column' | 'drawer' | 'sheet';
   onCloseDrawer?: () => void;
 }
 
@@ -100,12 +100,19 @@ export function LeadCopilotPanel({
     <AiFeatureGate user={user}>
       <AiErrorBoundary onRetry={() => setReloadKey((k) => k + 1)}>
         <aside
-          className={`ai-copilot-panel ${variant === 'drawer' ? 'ai-copilot-panel--drawer' : ''}`}
+          className={`ai-copilot-panel${
+            variant === 'drawer'
+              ? ' ai-copilot-panel--drawer'
+              : variant === 'sheet'
+                ? ' ai-copilot-panel--sheet'
+                : ''
+          }`}
           aria-label="AI Copilot"
+          data-testid={variant === 'sheet' ? 'lead-copilot-bottom-sheet' : undefined}
         >
           <header className="ai-copilot-panel__header">
             <h3 className="ai-copilot-panel__title">AI Copilot</h3>
-            {variant === 'drawer' && onCloseDrawer ? (
+            {(variant === 'drawer' || variant === 'sheet') && onCloseDrawer ? (
               <button type="button" className="btn btn-sm btn-secondary" onClick={onCloseDrawer}>
                 Đóng
               </button>

@@ -1,5 +1,14 @@
-import { test, expect } from '@playwright/test';
-import { apiReachable, loginAsStaff } from './helpers/ai-copilot-helpers';
+import { test, expect, type APIRequestContext } from '@playwright/test';
+import { API_URL, loginAsStaff } from './helpers/ai-copilot-helpers';
+
+async function nestApiReachable(request: APIRequestContext): Promise<boolean> {
+  try {
+    const health = await request.get(`${API_URL}/health`, { timeout: 8_000 });
+    return health.ok();
+  } catch {
+    return false;
+  }
+}
 
 /**
  * RNOS-41 — PWA + mobile lead list smoke.
@@ -18,10 +27,14 @@ test.describe('RNOS-41 PWA', () => {
 
     const icon = await request.get('/icons/icon.svg');
     expect(icon.ok()).toBeTruthy();
+
+    const png192 = await request.get('/icons/icon-192.png');
+    expect(png192.ok()).toBeTruthy();
+    expect(png192.headers()['content-type']).toContain('image/png');
   });
 
   test('mobile lead list shows cards instead of table', async ({ page, request }) => {
-    test.skip(!(await apiReachable(request)), 'Nest API not reachable — start ptt-crm-api for auth');
+    test.skip(!(await nestApiReachable(request)), 'Nest API not reachable — start ptt-crm-api for auth');
 
     await loginAsStaff(page);
     await page.setViewportSize({ width: 390, height: 844 });

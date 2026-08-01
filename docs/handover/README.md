@@ -27,6 +27,7 @@ Bộ tài liệu này là **gói bàn giao chính thức** cho khách hàng và 
 | **02** | [Hướng dẫn người dùng nội bộ](02-HUONG-DAN-NGUOI-DUNG-NOI-BO.md) | AM, CSKH, MKT, Ops | CRM, Meta, SEO, Email — thao tác hàng ngày |
 | **03** | [Hướng dẫn Portal khách hàng](03-HUONG-DAN-PORTAL-KHACH-HANG.md) | Client viewer/approver | Đăng nhập, duyệt, báo cáo Meta/SEO/Email |
 | **04** | [Kiến trúc & triển khai bàn giao](04-KIEN-TRUC-TRIEN-KHAI-BAN-GIAO.md) | PO, IT khách, DevOps | Sơ đồ, domain, dịch vụ, smoke test, rollback |
+| **Ops** | [Hướng dẫn vận hành VPS](../runbooks/rnosai-vps-operations-guide.md) | DevOps, on-call | Vận hành hàng ngày, deploy, backup, xử lý sự cố |
 | **05** | [Phân quyền, bảo mật & SLA](05-PHAN-QUYEN-BAO-MAT-SLA.md) | Admin, Compliance | RBAC, JWT, webhook, tier hỗ trợ |
 | **06** | [Nghiệm thu & báo cáo deliverables](06-NGHIEM-THU-VA-BAO-CAO.md) | PO, AM | Checklist nghiệm thu, catalog báo cáo client |
 

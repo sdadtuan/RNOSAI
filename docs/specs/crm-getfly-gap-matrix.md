@@ -424,7 +424,8 @@ Routes: `/crm/marketing-plan`, `/crm/sop`, `/crm/creatives`, `/crm/campaign-writ
 ### 22. PWA / Mobile (cross-cutting)
 
 **Getfly:** App iOS/Android.  
-**RNOS as-is:** ❌ PWA; ○ responsive + tab AI.
+**RNOS as-is:** ❌ PWA prod; ✅ RNOS-41 code + gate PASS; ○ responsive + tab AI.  
+**Spec chi tiết:** [`2026-08-01-rnosai-mobile-strategy-spec.md`](./2026-08-01-rnosai-mobile-strategy-spec.md)
 
 | # | PR checklist | Parity | Done when |
 |---|--------------|--------|-----------|

@@ -20,6 +20,7 @@
 | **PLAT** | Platform — Auth, Webhook, Admin | [`07-PLATFORM-AUTH-WEBHOOKS.md`](07-PLATFORM-AUTH-WEBHOOKS.md) |
 | **ZALO** | Zalo Ads Operating System | [`08-ZALO-ADS.md`](08-ZALO-ADS.md) |
 | **AI** | AI Revenue Operating System | [`09-AI-REVENUE-OS.md`](09-AI-REVENUE-OS.md) |
+| **MOB** | Mobile Experience (PWA / Push) | [`../specs/modules/RNOSAI-BA-MOB-UseCases.md`](../specs/modules/RNOSAI-BA-MOB-UseCases.md) · [`../specs/2026-08-01-rnosai-mobile-strategy-spec.md`](../specs/2026-08-01-rnosai-mobile-strategy-spec.md) |
 
 **Format mỗi UC:** ID · Tên · Actor · Priority (P0/P1/P2) · Trigger · Main flow · Extensions · Postconditions · Rules · Traceability (Screen/API)
 
@@ -168,7 +169,7 @@
 | EM-UC-013 | Reports & Grafana BI | P1 |
 | EM-UC-014 | Public preference center | P0 |
 
-### 3.7. Client Portal (PORTAL) — 10 UC
+### 3.7. Client Portal (PORTAL) — 15 UC
 
 | ID | Tên | Priority |
 |----|-----|----------|
@@ -182,6 +183,11 @@
 | PORTAL-UC-008 | Approval email campaign | P1 |
 | PORTAL-UC-009 | Reject with comment | P0 |
 | PORTAL-UC-010 | Export & download artifact | P0 |
+| PORTAL-UC-011 | Quên mật khẩu / reset | P0 |
+| PORTAL-UC-012 | Đổi mật khẩu khi đã login | P1 |
+| PORTAL-UC-013 | Zalo performance view + export | P0 |
+| PORTAL-UC-014 | Zalo creative approval | P1 |
+| PORTAL-UC-015 | Google performance view | P1 |
 
 ### 3.8. Platform (PLAT) — 10 UC
 
@@ -249,7 +255,7 @@
 | AI-UC-019 | Channel CPL/ROAS anomaly digest | P2 (R4) |
 | AI-UC-020 | Workflow AI node simulate + publish | P1 (R2) |
 
-**Tổng:** ~142 use cases documented
+**Tổng:** ~147 use cases documented
 
 ---
 

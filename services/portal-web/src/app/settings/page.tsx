@@ -2,18 +2,164 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { PortalPageShell } from '@/components/PortalPageShell';
-import { fetchPortalSettings, patchPortalSettings, portalChangePassword, type PortalSettingsResponse } from '@/lib/api';
+import {
+  fetchPortalSettings,
+  patchPortalSettings,
+  portalChangePassword,
+  testPortalPush,
+  type PortalSettingsResponse,
+} from '@/lib/api';
+import { usePortalPush } from '@/hooks/usePortalPush';
+import { useCapacitorNativePush } from '@/hooks/useCapacitorNativePush';
 
 export default function SettingsPage() {
   return (
     <PortalPageShell>
-      {({ token, user }) => (
+        {({ token, user }) => (
+          <>
+            <CapacitorNativePushCard token={token} />
+            <PushNotificationCard token={token} />
+            <SettingsForm token={token} canEdit={user.role === 'approver'} />
+            <ChangePasswordForm token={token} email={user.email} />
+          </>
+        )}
+      </PortalPageShell>
+  );
+}
+
+function CapacitorNativePushCard({ token }: { token: string }) {
+  const {
+    native,
+    platform,
+    registered,
+    pushEnabled,
+    forceUpdate,
+    busy,
+    error,
+    enableNativePush,
+    disableNativePush,
+    sendTestPush,
+  } = useCapacitorNativePush(token);
+  const [testMessage, setTestMessage] = useState('');
+  const [testBusy, setTestBusy] = useState(false);
+
+  if (!native) return null;
+
+  async function onTestPush() {
+    setTestBusy(true);
+    setTestMessage('');
+    try {
+      const msg = await sendTestPush();
+      setTestMessage(msg);
+    } catch (err) {
+      setTestMessage(err instanceof Error ? err.message : 'Test native push failed');
+    } finally {
+      setTestBusy(false);
+    }
+  }
+
+  return (
+    <section className="card" style={{ marginBottom: '1rem' }}>
+      <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Native push (RNOS-M3 Capacitor)</h2>
+      <p className="muted" style={{ marginTop: 0 }}>
+        App shell {platform} — FCM/APNs qua device token (tách khỏi Web Push PWA).
+      </p>
+      {forceUpdate ? (
+        <p className="error">Cần cập nhật app lên phiên bản mới trước khi tiếp tục.</p>
+      ) : null}
+      {pushEnabled === false ? (
+        <p className="muted">Native push chưa bật trên server (`PTT_MOBILE_NATIVE_PUSH_ENABLED`).</p>
+      ) : null}
+      {error ? <p className="error">{error}</p> : null}
+      {registered ? (
         <>
-          <SettingsForm token={token} canEdit={user.role === 'approver'} />
-          <ChangePasswordForm token={token} email={user.email} />
+          <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void disableNativePush()}>
+            {busy ? 'Đang tắt…' : 'Tắt native push'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ marginLeft: '0.5rem' }}
+            disabled={testBusy || pushEnabled === false}
+            onClick={() => void onTestPush()}
+          >
+            {testBusy ? 'Đang gửi test…' : 'Gửi test native push'}
+          </button>
         </>
+      ) : (
+        <button
+          type="button"
+          className="btn"
+          disabled={busy || pushEnabled === false || forceUpdate}
+          onClick={() => void enableNativePush()}
+        >
+          {busy ? 'Đang bật…' : 'Bật native push'}
+        </button>
       )}
-    </PortalPageShell>
+      {testMessage ? <p className="muted">{testMessage}</p> : null}
+    </section>
+  );
+}
+
+function PushNotificationCard({ token }: { token: string }) {
+  const { supported, permission, subscribed, busy, error, enablePush, disablePush } = usePortalPush(token);
+  const [testMessage, setTestMessage] = useState('');
+  const [testBusy, setTestBusy] = useState(false);
+
+  async function onTestPush() {
+    setTestBusy(true);
+    setTestMessage('');
+    try {
+      const out = await testPortalPush(token);
+      setTestMessage(out.message ?? (out.ok ? 'Test push OK' : 'Test push failed'));
+    } catch (err) {
+      setTestMessage(err instanceof Error ? err.message : 'Test push failed');
+    } finally {
+      setTestBusy(false);
+    }
+  }
+
+  if (!supported) {
+    return (
+      <section className="card" style={{ marginBottom: '1rem' }}>
+        <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Thông báo đẩy (RNOS-M2)</h2>
+        <p className="muted" style={{ marginBottom: 0 }}>
+          Trình duyệt không hỗ trợ Web Push hoặc PWA chưa bật.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="card" style={{ marginBottom: '1rem' }}>
+      <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Thông báo đẩy (RNOS-M2)</h2>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Nhận alert creative/email cần duyệt khi Portal chạy nền hoặc đã cài PWA.
+      </p>
+      <p className="muted">Quyền hiện tại: {permission}</p>
+      {error ? <p className="error">{error}</p> : null}
+      {subscribed ? (
+        <>
+          <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void disablePush()}>
+            {busy ? 'Đang tắt…' : 'Tắt thông báo đẩy'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ marginLeft: '0.5rem' }}
+            disabled={testBusy}
+            onClick={() => void onTestPush()}
+          >
+            {testBusy ? 'Đang gửi test…' : 'Gửi test push'}
+          </button>
+        </>
+      ) : (
+        <button type="button" className="btn" disabled={busy} onClick={() => void enablePush()}>
+          {busy ? 'Đang bật…' : 'Bật thông báo đẩy'}
+        </button>
+      )}
+      {testMessage ? <p className="muted">{testMessage}</p> : null}
+    </section>
   );
 }
 

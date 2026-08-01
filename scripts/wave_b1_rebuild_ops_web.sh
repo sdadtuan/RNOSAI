@@ -4,15 +4,20 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OPS_API_URL="${NEXT_PUBLIC_PTT_API_URL:-https://rs.pttads.vn}"
+PWA_ENABLED="${NEXT_PUBLIC_PWA_ENABLED:-1}"
 STATIC_DIR="$ROOT/services/ops-web/.next/standalone/.next/static"
 
 cd "$ROOT/services/ops-web"
 echo "== Rebuild ops-web (deploy) =="
 echo "NEXT_PUBLIC_PTT_API_URL=$OPS_API_URL"
+echo "NEXT_PUBLIC_PWA_ENABLED=$PWA_ENABLED"
 git -C "$ROOT" log -1 --oneline
+
+python3 "$ROOT/scripts/generate_ops_pwa_icons.py"
 
 npm ci
 export NEXT_PUBLIC_PTT_API_URL="$OPS_API_URL"
+export NEXT_PUBLIC_PWA_ENABLED="$PWA_ENABLED"
 npm run build
 
 mkdir -p .next/standalone/.next

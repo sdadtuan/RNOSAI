@@ -76,6 +76,15 @@ export class AppConfigService {
   readonly launchQaAutoStartOnDeliver: boolean;
   readonly financeGateStrict: boolean;
   readonly onboardAutoAdvanceLifecycle: boolean;
+  readonly portalPushEnabled: boolean;
+  readonly portalVapidPublicKey: string | null;
+  readonly portalVapidPrivateKey: string | null;
+  readonly portalVapidSubject: string;
+  readonly portalPushTestInProd: boolean;
+  readonly mobileNativePushEnabled: boolean;
+  readonly fcmServerKey: string | null;
+  readonly mobileMinVersion: string;
+  readonly mobileForceUpdate: boolean;
 
   constructor() {
     this.port = Number(process.env.PORT ?? process.env.CRM_API_PORT ?? 3000);
@@ -194,6 +203,27 @@ export class AppConfigService {
     );
     this.onboardAutoAdvanceLifecycle = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_ONBOARD_AUTO_ADVANCE_LIFECYCLE ?? '0').trim().toLowerCase(),
+    );
+
+    this.portalPushEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_PORTAL_PUSH_ENABLED ?? '1').trim().toLowerCase(),
+    );
+    this.portalVapidPublicKey = (process.env.PTT_PORTAL_VAPID_PUBLIC_KEY ?? '').trim() || null;
+    this.portalVapidPrivateKey = (process.env.PTT_PORTAL_VAPID_PRIVATE_KEY ?? '').trim() || null;
+    this.portalVapidSubject =
+      (process.env.PTT_PORTAL_VAPID_SUBJECT ?? 'mailto:portal-push@pttads.vn').trim() ||
+      'mailto:portal-push@pttads.vn';
+    this.portalPushTestInProd = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_PORTAL_PUSH_TEST_IN_PROD ?? '0').trim().toLowerCase(),
+    );
+
+    this.mobileNativePushEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MOBILE_NATIVE_PUSH_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.fcmServerKey = (process.env.PTT_FCM_SERVER_KEY ?? '').trim() || null;
+    this.mobileMinVersion = (process.env.PTT_MOBILE_MIN_VERSION ?? '0.1.0').trim() || '0.1.0';
+    this.mobileForceUpdate = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MOBILE_FORCE_UPDATE ?? '0').trim().toLowerCase(),
     );
   }
 

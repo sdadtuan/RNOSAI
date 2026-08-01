@@ -1,6 +1,6 @@
 # PTT Agency / RNOSAI — local infrastructure (ISOLATED from other projects)
 # Usage: docker compose up -d postgres
-# Database: rnosaidb on host port 5433 (NOT 5432 — tránh trùng ptt_agency dự án khác)
+# Database: rnosai on host port 5433 (VPS prod + local docker — tránh trùng ptt_agency :5432)
 
 services:
   postgres:

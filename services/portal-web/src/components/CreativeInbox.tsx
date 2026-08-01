@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 import type { CreativeRow } from '@/lib/api';
 import { fmtDate } from '@/lib/format';
+import { PortalSwipeActions } from '@/components/mobile/PortalSwipeActions';
 
 interface CreativeInboxProps {
   rows: CreativeRow[];
   canApprove: boolean;
+  focusCreativeId?: string | null;
   onApprove: (id: string) => Promise<void>;
   onReject: (id: string, note: string) => Promise<void>;
 }
@@ -36,12 +38,23 @@ function CreativeAssetPreview({ row }: { row: CreativeRow }) {
   );
 }
 
-export function CreativeInbox({ rows, canApprove, onApprove, onReject }: CreativeInboxProps) {
+export function CreativeInbox({ rows, canApprove, focusCreativeId, onApprove, onReject }: CreativeInboxProps) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!focusCreativeId) return;
+    const el = document.getElementById(`creative-${focusCreativeId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    if (rows.some((r) => r.id === focusCreativeId)) {
+      setConfirmId(focusCreativeId);
+    }
+  }, [focusCreativeId, rows]);
 
   if (rows.length === 0) {
     return (
@@ -85,7 +98,26 @@ export function CreativeInbox({ rows, canApprove, onApprove, onReject }: Creativ
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       {error && <p className="error">{error}</p>}
       {rows.map((row) => (
-        <article key={row.id} className="creative-card">
+        <PortalSwipeActions
+          key={row.id}
+          onSwipeLeft={
+            canApprove && row.status === 'pending_client'
+              ? () => setConfirmId(row.id)
+              : undefined
+          }
+          onSwipeRight={
+            canApprove && row.status === 'pending_client'
+              ? () => {
+                  setRejectId(row.id);
+                  setRejectNote('');
+                }
+              : undefined
+          }
+        >
+        <article
+          id={`creative-${row.id}`}
+          className={`creative-card${focusCreativeId === row.id ? ' creative-card--focus' : ''}`}
+        >
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 240 }}>
               <h3 style={{ margin: '0 0 0.35rem', fontSize: '1rem' }}>{row.title}</h3>
@@ -158,6 +190,7 @@ export function CreativeInbox({ rows, canApprove, onApprove, onReject }: Creativ
             </div>
           )}
         </article>
+        </PortalSwipeActions>
       ))}
     </div>
   );
