@@ -245,6 +245,15 @@ input {
   overflow: hidden;
 }
 
+.ops-sidebar--rail {
+  overflow: visible;
+}
+
+.ops-sidebar--rail .ops-sidebar-nav {
+  overflow-x: visible;
+  overflow-y: auto;
+}
+
 .ops-sidebar-brand {
   display: flex;
   align-items: center;
@@ -5276,12 +5285,27 @@ html.ops-shell-expanded {
 
 html.ops-shell-collapsed .ops-sidebar-brand-text,
 html.ops-shell-collapsed .ops-nav-group-label,
-html.ops-shell-collapsed .ops-nav-link-text,
 html.ops-shell-collapsed .ops-nav-group-toggle {
   opacity: 0;
   width: 0;
   overflow: hidden;
   white-space: nowrap;
+}
+
+html.ops-shell-expanded .ops-nav-rail {
+  display: none;
+}
+
+.ops-sidebar--rail .ops-nav-group {
+  display: none;
+}
+
+.ops-sidebar--expanded .ops-nav-rail {
+  display: none;
+}
+
+html.ops-shell-collapsed .ops-sidebar-nav.is-collapsed-rail {
+  padding-inline: 0.45rem;
 }
 
 html.ops-shell-collapsed .ops-sidebar-brand {
@@ -5292,6 +5316,137 @@ html.ops-shell-collapsed .ops-sidebar-brand {
 html.ops-shell-collapsed .ops-nav-link {
   justify-content: center;
   padding-inline: 0.55rem;
+}
+
+.ops-nav-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0;
+}
+
+.ops-nav-rail-item {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.ops-nav-rail-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.ops-nav-rail-btn:hover,
+.ops-nav-rail-item.is-open .ops-nav-rail-btn {
+  background: var(--surface-soft);
+  border-color: var(--border);
+  color: var(--primary-700);
+}
+
+.ops-nav-rail-item.is-active .ops-nav-rail-btn {
+  background: rgba(57, 139, 67, 0.12);
+  border-color: rgba(57, 139, 67, 0.28);
+  color: var(--primary-700);
+}
+
+.ops-nav-flyout {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  z-index: 100;
+  min-width: 220px;
+  max-width: 280px;
+  max-height: min(70vh, 420px);
+  overflow: auto;
+  padding: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 32px rgba(15, 36, 24, 0.14);
+  pointer-events: auto;
+}
+
+.ops-nav-flyout::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 0;
+  width: 10px;
+  height: 100%;
+}
+
+.ops-nav-flyout-title {
+  margin: 0.15rem 0.5rem 0.45rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--surface-border);
+  color: var(--primary-700);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ops-nav-flyout-link {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.55rem;
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.ops-nav-flyout-link:hover {
+  background: var(--surface-soft);
+}
+
+.ops-nav-flyout-link.is-active {
+  background: rgba(57, 139, 67, 0.12);
+  color: var(--primary-700);
+  font-weight: 600;
+}
+
+.ops-nav-flyout-link-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.ops-nav-flyout-link.is-active .ops-nav-flyout-link-icon {
+  color: var(--primary-700);
+}
+
+.ops-nav-group.has-active .ops-nav-group-header {
+  color: var(--primary-700);
+}
+
+.ops-nav-link--text {
+  padding-left: 2rem;
+  font-size: 0.8125rem;
+}
+
+.ops-nav-group + .ops-nav-group {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(57, 139, 67, 0.08);
+}
+
+.ops-nav-group:first-child {
+  border-top: none;
+  padding-top: 0;
 }
 
 html.ops-shell-collapsed .ops-nav-group-links {
@@ -5365,9 +5520,19 @@ html.ops-shell-collapsed .ops-nav-group-links {
 }
 
 .ops-nav-link {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
+  display: block;
+  position: relative;
+  z-index: 1;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+  pointer-events: auto;
 }
 
 .ops-nav-link-icon {
@@ -5694,18 +5859,31 @@ html.ops-shell-collapsed .ops-nav-group-links {
 
 @media (max-width: 960px) {
   html.ops-shell-collapsed .ops-sidebar-brand-text,
-  html.ops-shell-collapsed .ops-nav-link-text {
+  html.ops-shell-collapsed .ops-nav-group-label,
+  html.ops-shell-collapsed .ops-nav-group-toggle {
     opacity: 1;
     width: auto;
     overflow: visible;
   }
 
-  html.ops-shell-collapsed .ops-nav-link {
-    justify-content: flex-start;
+  html.ops-shell-collapsed .ops-nav-group {
+    display: block;
   }
 
-  html.ops-shell-collapsed .ops-nav-group-header {
-    display: flex;
+  html.ops-shell-collapsed .ops-nav-rail {
+    display: none;
+  }
+
+  .ops-sidebar--rail {
+    overflow: hidden;
+  }
+
+  .ops-sidebar-toggle--topbar {
+    display: inline-flex;
+  }
+
+  .ops-sidebar-footer {
+    display: none;
   }
 }
 .stack-gap {
@@ -5714,18 +5892,18 @@ html.ops-shell-collapsed .ops-nav-group-links {
   gap: 0.85rem;
 }
 
-html.ops-shell-collapsed .ops-nav-group-header {
-  display: none;
-}
+@media (max-width: 960px) {
+  html.ops-shell-collapsed .ops-sidebar-brand-text {
+    opacity: 1;
+    width: auto;
+    overflow: visible;
+  }
 
-html.ops-shell-collapsed .ops-nav-group-links.is-collapsed {
-  display: flex;
-}
-
-html.ops-shell-collapsed .ops-nav-group + .ops-nav-group {
-  margin-top: 0.35rem;
-  padding-top: 0.35rem;
-  border-top: 1px solid var(--border);
+  .ops-nav-flyout {
+    position: fixed;
+    left: 72px;
+    top: auto;
+  }
 }
 
 .ops-sidebar-brand-text {
@@ -5747,14 +5925,3 @@ html.ops-shell-collapsed .ops-nav-group + .ops-nav-group {
 .ops-sidebar-toggle--topbar {
   display: none;
 }
-
-@media (max-width: 960px) {
-  .ops-sidebar-toggle--topbar {
-    display: inline-flex;
-  }
-
-  .ops-sidebar-footer {
-    display: none;
-  }
-}
-

@@ -1,10 +1,10 @@
 'use client';
 
 import { GlobalSearchBar } from '@/components/search/GlobalSearchBar';
-import { LINK_ICONS, NavIcon, SECTION_ICONS } from '@/components/layout/nav-icons';
+import { iconForHref, NavIcon, sectionIcon, sectionShortLabel } from '@/components/layout/nav-icons';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { StoredStaffUser } from '@/lib/auth';
 import { getAccessToken, hasCap } from '@/lib/auth';
 import { fetchReviewQueueCount } from '@/lib/api';
@@ -60,13 +60,18 @@ type NavLink = { href: string; label: string };
 type NavSection = { label: string; links: NavLink[]; defaultOpen?: boolean };
 
 const SIDEBAR_STORAGE_KEY = 'ops-sidebar-expanded';
-const GROUPS_COLLAPSED_BY_DEFAULT = new Set([
-  'Kênh quảng cáo',
-  'SEO / AEO',
-  'Email Marketing',
-  'AI & Automation',
-  'Cấu hình CRM',
-]);
+
+function readSidebarExpanded(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === '1';
+}
+
+function applyShellClasses(expanded: boolean) {
+  if (typeof document === 'undefined') return;
+  document.documentElement.classList.toggle('ops-shell-expanded', expanded);
+  document.documentElement.classList.toggle('ops-shell-collapsed', !expanded);
+}
+const GROUPS_COLLAPSED_BY_DEFAULT = new Set<string>();
 
 const PAGE_TITLES: Record<string, string> = {
   '/': 'Bảng điều khiển',
@@ -417,6 +422,10 @@ function buildSections(
   return sections;
 }
 
+function sectionHasActive(pathname: string, section: NavSection): boolean {
+  return section.links.some((link) => isActive(pathname, link.href));
+}
+
 function userInitials(user: StoredStaffUser | null): string {
   const name = user?.display_name?.trim() || user?.email?.trim() || '?';
   const parts = name.split(/\s+/).filter(Boolean);
@@ -429,15 +438,39 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   const [reviewQueueCount, setReviewQueueCount] = useState<number | undefined>();
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [flyoutSection, setFlyoutSection] = useState<string | null>(null);
+  const [isMobileNav, setIsMobileNav] = useState(false);
+  const sidebarRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const stored = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
-    const expanded = stored === '1';
-    setSidebarExpanded(expanded);
-    document.documentElement.classList.toggle('ops-shell-expanded', expanded);
-    document.documentElement.classList.toggle('ops-shell-collapsed', !expanded);
+    const mq = window.matchMedia('(max-width: 960px)');
+    const apply = () => setIsMobileNav(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
   }, []);
+
+  useEffect(() => {
+    const expanded = readSidebarExpanded();
+    setSidebarExpanded(expanded);
+    applyShellClasses(expanded);
+  }, []);
+
+  useEffect(() => {
+    setFlyoutSection(null);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!flyoutSection) return;
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target as Node | null;
+      if (sidebarRef.current?.contains(target)) return;
+      setFlyoutSection(null);
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [flyoutSection]);
 
   useEffect(() => {
     if (!user || !hasCap(user, 'crm_leads', 'assign')) return;
@@ -457,10 +490,15 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
         if (next[section.label] == null) {
           next[section.label] = section.defaultOpen ?? !GROUPS_COLLAPSED_BY_DEFAULT.has(section.label);
         }
+        if (sectionHasActive(pathname, section)) {
+          next[section.label] = true;
+        }
       }
       return next;
     });
-  }, [sections]);
+  }, [pathname, sections]);
+
+  const showExpandedNav = sidebarExpanded || isMobileNav;
 
   function toggleSidebar() {
     setSidebarExpanded((prev) => {
@@ -468,8 +506,8 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? '1' : '0');
       }
-      document.documentElement.classList.toggle('ops-shell-expanded', next);
-      document.documentElement.classList.toggle('ops-shell-collapsed', !next);
+      applyShellClasses(next);
+      if (!next) setFlyoutSection(null);
       return next;
     });
   }
@@ -480,7 +518,11 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
 
   return (
     <>
-      <aside className="ops-sidebar" aria-label="Điều hướng chính">
+      <aside
+        ref={sidebarRef}
+        className={`ops-sidebar${showExpandedNav ? ' ops-sidebar--expanded' : ' ops-sidebar--rail'}`}
+        aria-label="Điều hướng chính"
+      >
         <div className="ops-sidebar-brand">
           <span className="ops-sidebar-brand-mark">PTT</span>
           <div className="ops-sidebar-brand-text">
@@ -488,47 +530,88 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
             <span>Staff console</span>
           </div>
         </div>
-        <nav className="ops-sidebar-nav">
-          {sections.map((section) => {
-            const groupOpen = openGroups[section.label] ?? true;
-            const sectionIcon = SECTION_ICONS[section.label] ?? 'home';
-            return (
-              <div key={section.label} className={`ops-nav-group${groupOpen ? ' is-open' : ''}`}>
-                <button
-                  type="button"
-                  className="ops-nav-group-header"
-                  onClick={() => toggleGroup(section.label)}
-                  aria-expanded={groupOpen}
+        <nav className={`ops-sidebar-nav${showExpandedNav ? ' is-expanded' : ' is-collapsed-rail'}`}>
+          {showExpandedNav ? (
+            sections.map((section) => {
+              const groupOpen = openGroups[section.label] ?? true;
+              const shortLabel = sectionShortLabel(section.label);
+              return (
+                <div
+                  key={section.label}
+                  className={`ops-nav-group${groupOpen ? ' is-open' : ''}${sectionHasActive(pathname, section) ? ' has-active' : ''}`}
                 >
-                  <span className="ops-nav-group-icon">
-                    <NavIcon name={sectionIcon} />
-                  </span>
-                  <span className="ops-nav-group-label">{section.label}</span>
-                  <span className="ops-nav-group-toggle" aria-hidden="true">
-                    ›
-                  </span>
-                </button>
-                <div className={`ops-nav-group-links${groupOpen ? '' : ' is-collapsed'}`}>
-                  {section.links.map((link) => {
-                    const icon = LINK_ICONS[link.href] ?? sectionIcon;
-                    return (
+                  <button
+                    type="button"
+                    className="ops-nav-group-header"
+                    onClick={() => toggleGroup(section.label)}
+                    aria-expanded={groupOpen}
+                  >
+                    <span className="ops-nav-group-icon">
+                      <NavIcon name={sectionIcon(section.label)} />
+                    </span>
+                    <span className="ops-nav-group-label">{shortLabel}</span>
+                    <span className="ops-nav-group-toggle" aria-hidden="true">
+                      ›
+                    </span>
+                  </button>
+                  <div className={`ops-nav-group-links${groupOpen ? '' : ' is-collapsed'}`}>
+                    {section.links.map((link) => (
                       <Link
                         key={link.href}
                         href={link.href}
-                        title={link.label}
-                        className={`ops-nav-link${isActive(pathname, link.href) ? ' is-active' : ''}`}
+                        className={`ops-nav-link ops-nav-link--text${isActive(pathname, link.href) ? ' is-active' : ''}`}
                       >
-                        <span className="ops-nav-link-icon">
-                          <NavIcon name={icon} />
-                        </span>
-                        <span className="ops-nav-link-text">{link.label}</span>
+                        {link.label}
                       </Link>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          ) : (
+            <div className="ops-nav-rail">
+              {sections.map((section) => {
+                const shortLabel = sectionShortLabel(section.label);
+                const active = sectionHasActive(pathname, section);
+                const open = flyoutSection === section.label;
+                return (
+                  <div
+                    key={section.label}
+                    className={`ops-nav-rail-item${active ? ' is-active' : ''}${open ? ' is-open' : ''}`}
+                  >
+                    <button
+                      type="button"
+                      className="ops-nav-rail-btn"
+                      title={shortLabel}
+                      aria-label={shortLabel}
+                      aria-expanded={open}
+                      onClick={() => setFlyoutSection((prev) => (prev === section.label ? null : section.label))}
+                    >
+                      <NavIcon name={sectionIcon(section.label)} />
+                    </button>
+                    {open ? (
+                      <div className="ops-nav-flyout" role="menu">
+                        <p className="ops-nav-flyout-title">{shortLabel}</p>
+                        {section.links.map((link) => (
+                          <Link
+                            key={link.href}
+                            href={link.href}
+                            role="menuitem"
+                            className={`ops-nav-flyout-link${isActive(pathname, link.href) ? ' is-active' : ''}`}
+                          >
+                            <span className="ops-nav-flyout-link-icon">
+                              <NavIcon name={iconForHref(link.href)} />
+                            </span>
+                            <span>{link.label}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </nav>
         <div className="ops-sidebar-footer">
           <button
