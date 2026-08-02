@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { PageToolbar, SegmentedControl } from '@/components/layout';
 import { PortalPageShell } from '@/components/PortalPageShell';
 import {
   fetchPortalNotifications,
@@ -9,6 +10,7 @@ import {
   markPortalNotificationRead,
   type PortalNotificationRow,
 } from '@/lib/api';
+import { useToast } from '@/lib/toast';
 
 function formatWhen(iso: string): string {
   try {
@@ -41,19 +43,23 @@ function categoryLabel(category: string): string {
 
 export default function NotificationsPage() {
   return (
-    <PortalPageShell>
+    <PortalPageShell
+      breadcrumb={[{ label: 'Client Portal', href: '/dashboard' }, { label: 'Thông báo' }]}
+    >
       {({ token }) => <NotificationsContent token={token} />}
     </PortalPageShell>
   );
 }
 
 function NotificationsContent({ token }: { token: string }) {
+  const { push } = useToast();
   const [rows, setRows] = useState<PortalNotificationRow[]>([]);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [tableReady, setTableReady] = useState(true);
+  const unreadOnly = filter === 'unread';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,58 +82,62 @@ function NotificationsContent({ token }: { token: string }) {
 
   async function handleMarkRead(row: PortalNotificationRow) {
     if (row.read) return;
-    await markPortalNotificationRead(token, row.id);
-    await load();
+    try {
+      await markPortalNotificationRead(token, row.id);
+      push('Đã đánh dấu đã đọc', 'success');
+      await load();
+    } catch (err) {
+      push(err instanceof Error ? err.message : 'Thao tác thất bại', 'error');
+    }
   }
 
   async function handleMarkAllRead() {
-    await markAllPortalNotificationsRead(token);
-    await load();
+    try {
+      await markAllPortalNotificationsRead(token);
+      push('Đã đánh dấu tất cả đã đọc', 'success');
+      await load();
+    } catch (err) {
+      push(err instanceof Error ? err.message : 'Thao tác thất bại', 'error');
+    }
   }
 
   return (
-    <>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '1rem',
-          flexWrap: 'wrap',
-          marginBottom: '1rem',
-        }}
-      >
-        <div>
-          <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Trung tâm thông báo</h2>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            {unread > 0 ? `${unread} chưa đọc` : 'Tất cả đã đọc'}
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className={`btn${unreadOnly ? '' : ' btn-secondary'}`}
-            onClick={() => setUnreadOnly(false)}
-          >
-            Tất cả
-          </button>
-          <button
-            type="button"
-            className={`btn${unreadOnly ? ' btn-secondary' : ''}`}
-            onClick={() => setUnreadOnly(true)}
-          >
-            Chưa đọc
-          </button>
-          {unread > 0 ? (
+    <div className="page-card">
+      <PageToolbar
+        title="Trung tâm thông báo"
+        subtitle={unread > 0 ? `${unread} chưa đọc` : 'Tất cả đã đọc'}
+        actions={
+          unread > 0 ? (
             <button type="button" className="btn btn-secondary" onClick={() => void handleMarkAllRead()}>
               Đánh dấu tất cả đã đọc
             </button>
-          ) : null}
+          ) : null
+        }
+      />
+
+      <div className="portal-kpi-strip">
+        <div className="portal-kpi-tile">
+          <strong>{unread}</strong>
+          <span>Chưa đọc</span>
+        </div>
+        <div className="portal-kpi-tile">
+          <strong>{rows.length}</strong>
+          <span>{unreadOnly ? 'Chưa đọc (hiển thị)' : 'Tổng (trang này)'}</span>
         </div>
       </div>
 
+      <SegmentedControl
+        label="Lọc"
+        value={filter}
+        onChange={setFilter}
+        options={[
+          { id: 'all', label: 'Tất cả' },
+          { id: 'unread', label: 'Chưa đọc', badge: unread },
+        ]}
+      />
+
       {!tableReady ? (
-        <p className="muted">
+        <p className="portal-callout portal-callout--warn">
           Bảng thông báo chưa sẵn sàng trên môi trường này — liên hệ AM nếu bạn không thấy thông báo sau khi
           AM gửi creative.
         </p>
@@ -137,46 +147,37 @@ function NotificationsContent({ token }: { token: string }) {
       {loading ? (
         <p className="muted">Đang tải…</p>
       ) : rows.length === 0 ? (
-        <p className="muted">Không có thông báo{unreadOnly ? ' chưa đọc' : ''}.</p>
+        <div className="card portal-empty-state">
+          <p className="portal-empty-state__title">
+            Không có thông báo{unreadOnly ? ' chưa đọc' : ''}
+          </p>
+        </div>
       ) : (
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.75rem' }}>
+        <ul className="notification-list">
           {rows.map((row) => (
             <li
               key={row.id}
-              className="card"
-              style={{
-                padding: '1rem 1.15rem',
-                opacity: row.read ? 0.85 : 1,
-                borderLeft: row.read ? undefined : '3px solid var(--accent, #2563eb)',
-              }}
+              className={`card notification-card${row.read ? ' notification-card--read' : ' notification-card--unread'}`}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-                <div>
-                  <p className="badge" style={{ marginBottom: '0.35rem' }}>
-                    {categoryLabel(row.category)}
+              <div className="notification-card__head">
+                <div className="notification-card__body">
+                  <p className="badge notification-card__category">{categoryLabel(row.category)}</p>
+                  <p
+                    className={`notification-card__title${row.read ? ' notification-card__title--read' : ' notification-card__title--unread'}`}
+                  >
+                    {row.title}
                   </p>
-                  <p style={{ margin: 0, fontWeight: row.read ? 500 : 600 }}>{row.title}</p>
-                  {row.body ? (
-                    <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-                      {row.body}
-                    </p>
-                  ) : null}
-                  <p className="muted" style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
-                    {formatWhen(row.created_at)}
-                  </p>
+                  {row.body ? <p className="muted">{row.body}</p> : null}
+                  <p className="muted notification-card__time">{formatWhen(row.created_at)}</p>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                <div className="notification-card__actions">
                   {row.link_url ? (
                     <Link href={row.link_url} className="btn btn-secondary">
                       Mở
                     </Link>
                   ) : null}
                   {!row.read ? (
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() => void handleMarkRead(row)}
-                    >
+                    <button type="button" className="btn" onClick={() => void handleMarkRead(row)}>
                       Đã đọc
                     </button>
                   ) : null}
@@ -186,6 +187,6 @@ function NotificationsContent({ token }: { token: string }) {
           ))}
         </ul>
       )}
-    </>
+    </div>
   );
 }

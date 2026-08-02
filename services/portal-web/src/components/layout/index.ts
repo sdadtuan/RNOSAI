@@ -5,3 +5,4 @@ export { PortalPage } from './PortalPage';
 export { PageToolbar } from './PageToolbar';
 export { Breadcrumb, type BreadcrumbItem } from './Breadcrumb';
 export { PortalAuthShell } from './PortalAuthShell';
+export { SegmentedControl } from './SegmentedControl';

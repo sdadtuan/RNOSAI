@@ -20,8 +20,8 @@ export function PendingApprovalsWidget({
 
   if (totalPending === 0 && unread === 0) {
     return (
-      <section className="card" style={{ marginBottom: '1.5rem', padding: '1rem 1.25rem' }}>
-        <h2 style={{ margin: '0 0 0.35rem', fontSize: '1.05rem' }}>Thông báo &amp; duyệt</h2>
+      <section className="card portal-widget">
+        <h2 className="portal-widget__title">Thông báo &amp; duyệt</h2>
         <p className="muted" style={{ margin: 0 }}>
           Không có mục chờ duyệt.{' '}
           <Link href="/notifications">Xem trung tâm thông báo</Link>
@@ -31,10 +31,10 @@ export function PendingApprovalsWidget({
   }
 
   return (
-    <section className="card" style={{ marginBottom: '1.5rem', padding: '1rem 1.25rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+    <section className="card portal-widget">
+      <div className="portal-widget__head">
         <div>
-          <h2 style={{ margin: '0 0 0.35rem', fontSize: '1.05rem' }}>Thông báo &amp; duyệt</h2>
+          <h2 className="portal-widget__title">Thông báo &amp; duyệt</h2>
           <p className="muted" style={{ margin: 0 }}>
             {unread > 0 ? `${unread} thông báo chưa đọc` : 'Có mục cần xử lý'}
           </p>
@@ -43,7 +43,7 @@ export function PendingApprovalsWidget({
           Trung tâm thông báo{unread > 0 ? ` (${unread})` : ''}
         </Link>
       </div>
-      <ul style={{ margin: '1rem 0 0', paddingLeft: '1.25rem' }}>
+      <ul className="portal-widget__links">
         {creativePending > 0 ? (
           <li>
             <Link href="/creatives">Creative inbox — {creativePending} chờ duyệt</Link>

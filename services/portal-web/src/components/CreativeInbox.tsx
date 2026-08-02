@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { CreativeRow } from '@/lib/api';
 import { fmtDate } from '@/lib/format';
+import { useToast } from '@/lib/toast';
 import { PortalSwipeActions } from '@/components/mobile/PortalSwipeActions';
 
 interface CreativeInboxProps {
@@ -20,16 +21,14 @@ function CreativeAssetPreview({ row }: { row: CreativeRow }) {
   const isImage = row.asset_type === 'image' || /\.(png|jpe?g|gif|webp)(\?|$)/i.test(row.asset_url);
   if (isImage) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={row.asset_url}
-        alt={row.title}
-        style={{ maxWidth: '100%', maxHeight: 220, borderRadius: 8, marginTop: '0.75rem' }}
-      />
+      <div className="creative-card__asset">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={row.asset_url} alt={row.title} />
+      </div>
     );
   }
   return (
-    <p className="muted" style={{ margin: '0.75rem 0 0' }}>
+    <p className="muted creative-card__desc">
       Asset:{' '}
       <a href={row.asset_url} target="_blank" rel="noreferrer">
         mở preview ({row.asset_type || 'file'})
@@ -39,6 +38,7 @@ function CreativeAssetPreview({ row }: { row: CreativeRow }) {
 }
 
 export function CreativeInbox({ rows, canApprove, focusCreativeId, onApprove, onReject }: CreativeInboxProps) {
+  const { push } = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -58,45 +58,51 @@ export function CreativeInbox({ rows, canApprove, focusCreativeId, onApprove, on
 
   if (rows.length === 0) {
     return (
-      <div className="card" style={{ padding: '1.25rem', textAlign: 'center' }}>
-        <p style={{ margin: 0, fontWeight: 600 }}>Không có creative đang chờ duyệt</p>
-        <p className="muted" style={{ margin: '0.5rem 0 0' }}>
+      <div className="card portal-empty-state">
+        <p className="portal-empty-state__title">Không có creative đang chờ duyệt</p>
+        <p className="muted portal-empty-state__hint">
           AM sẽ gửi creative mới qua workflow Launch QA khi sẵn sàng.
         </p>
       </div>
     );
   }
 
-  async function handleApprove(id: string) {
+  async function handleApprove(id: string, title: string) {
     setBusyId(id);
     setError('');
     try {
       await onApprove(id);
       setConfirmId(null);
+      push(`Đã duyệt "${title}"`, 'success');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Duyệt thất bại');
+      const message = err instanceof Error ? err.message : 'Duyệt thất bại';
+      setError(message);
+      push(message, 'error');
     } finally {
       setBusyId(null);
     }
   }
 
-  async function handleReject(id: string) {
+  async function handleReject(id: string, title: string) {
     setBusyId(id);
     setError('');
     try {
       await onReject(id, rejectNote);
       setRejectId(null);
       setRejectNote('');
+      push(`Đã từ chối "${title}"`, 'info');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Từ chối thất bại');
+      const message = err instanceof Error ? err.message : 'Từ chối thất bại';
+      setError(message);
+      push(message, 'error');
     } finally {
       setBusyId(null);
     }
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      {error && <p className="error">{error}</p>}
+    <div className="creative-inbox-list">
+      {error ? <p className="error">{error}</p> : null}
       {rows.map((row) => (
         <PortalSwipeActions
           key={row.id}
@@ -114,82 +120,89 @@ export function CreativeInbox({ rows, canApprove, focusCreativeId, onApprove, on
               : undefined
           }
         >
-        <article
-          id={`creative-${row.id}`}
-          className={`creative-card${focusCreativeId === row.id ? ' creative-card--focus' : ''}`}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: 240 }}>
-              <h3 style={{ margin: '0 0 0.35rem', fontSize: '1rem' }}>{row.title}</h3>
-              <p className="muted" style={{ margin: 0 }}>
-                v{row.version}
-                {row.external_campaign_name ? ` · ${row.external_campaign_name}` : ''}
-                {' · '}
-                gửi {fmtDate(row.submitted_at.slice(0, 10))}
-              </p>
-              {row.description && (
-                <p style={{ margin: '0.5rem 0 0', fontSize: '0.9rem' }}>{row.description}</p>
-              )}
-              <CreativeAssetPreview row={row} />
-            </div>
-            {canApprove && row.status === 'pending_client' && (
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={busyId === row.id}
-                  onClick={() => setConfirmId(row.id)}
-                >
-                  Duyệt
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={busyId === row.id}
-                  onClick={() => {
-                    setRejectId(row.id);
-                    setRejectNote('');
-                  }}
-                >
-                  Từ chối
-                </button>
+          <article
+            id={`creative-${row.id}`}
+            className={`creative-card${focusCreativeId === row.id ? ' creative-card--focus' : ''}`}
+          >
+            <div className="creative-card__head">
+              <div className="creative-card__main">
+                <h3 className="creative-card__title">{row.title}</h3>
+                <p className="muted creative-card__meta">
+                  v{row.version}
+                  {row.external_campaign_name ? ` · ${row.external_campaign_name}` : ''}
+                  {' · '}
+                  gửi {fmtDate(row.submitted_at.slice(0, 10))}
+                </p>
+                {row.description ? <p className="creative-card__desc">{row.description}</p> : null}
+                <CreativeAssetPreview row={row} />
               </div>
-            )}
-          </div>
-          {confirmId === row.id && (
-            <div className="card" style={{ marginTop: '0.75rem', padding: '0.75rem' }}>
-              <p style={{ margin: '0 0 0.5rem' }}>Xác nhận duyệt creative này? Hành động sẽ đồng bộ Launch QA.</p>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button type="button" className="btn" disabled={busyId === row.id} onClick={() => void handleApprove(row.id)}>
-                  Xác nhận duyệt
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={() => setConfirmId(null)}>
-                  Huỷ
-                </button>
-              </div>
+              {canApprove && row.status === 'pending_client' ? (
+                <div className="creative-card__actions">
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={busyId === row.id}
+                    onClick={() => setConfirmId(row.id)}
+                  >
+                    Duyệt
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={busyId === row.id}
+                    onClick={() => {
+                      setRejectId(row.id);
+                      setRejectNote('');
+                    }}
+                  >
+                    Từ chối
+                  </button>
+                </div>
+              ) : null}
             </div>
-          )}
-          {rejectId === row.id && (
-            <div className="card" style={{ marginTop: '0.75rem', padding: '0.75rem' }}>
-              <label htmlFor={`reject-${row.id}`}>Lý do từ chối (tuỳ chọn)</label>
-              <textarea
-                id={`reject-${row.id}`}
-                rows={3}
-                value={rejectNote}
-                onChange={(e) => setRejectNote(e.target.value)}
-                style={{ width: '100%', marginTop: '0.35rem' }}
-              />
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <button type="button" className="btn btn-secondary" disabled={busyId === row.id} onClick={() => void handleReject(row.id)}>
-                  Gửi từ chối
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={() => setRejectId(null)}>
-                  Huỷ
-                </button>
+            {confirmId === row.id ? (
+              <div className="portal-approval-panel">
+                <p>Xác nhận duyệt creative này? Hành động sẽ đồng bộ Launch QA.</p>
+                <div className="portal-approval-panel__actions">
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={busyId === row.id}
+                    onClick={() => void handleApprove(row.id, row.title)}
+                  >
+                    Xác nhận duyệt
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={() => setConfirmId(null)}>
+                    Huỷ
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-        </article>
+            ) : null}
+            {rejectId === row.id ? (
+              <div className="portal-approval-panel">
+                <label htmlFor={`reject-${row.id}`}>Lý do từ chối (tuỳ chọn)</label>
+                <textarea
+                  id={`reject-${row.id}`}
+                  rows={3}
+                  value={rejectNote}
+                  onChange={(e) => setRejectNote(e.target.value)}
+                />
+                <div className="portal-approval-panel__actions">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={busyId === row.id}
+                    onClick={() => void handleReject(row.id, row.title)}
+                  >
+                    Gửi từ chối
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={() => setRejectId(null)}>
+                    Huỷ
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </article>
         </PortalSwipeActions>
       ))}
     </div>

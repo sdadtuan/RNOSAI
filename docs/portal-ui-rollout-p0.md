@@ -41,14 +41,14 @@
 
 ## Sóng còn lại
 
-| Sóng | Phạm vi |
-|------|---------|
-| P2 | Dashboard archetype (KPI tiles, hub layout) |
-| P3 | Meta / Google / Zalo channel layout |
-| **P4** | **Creatives + Notifications (ưu tiên)** |
-| P5 | SEO + Email module shells |
-| P6 | Settings + public pages + branding hook |
-| P7 | Mobile/PWA polish (CSS) |
+| Sóng | Phạm vi | Trạng thái |
+|------|---------|------------|
+| P2 | Dashboard archetype (KPI tiles, hub layout) | Pending |
+| P3 | Meta / Google / Zalo channel layout | Pending |
+| **P4** | **Creatives + Notifications** | **Done (local)** |
+| P5 | SEO + Email module shells | Pending |
+| P6 | Settings + public pages + branding hook | Pending |
+| P7 | Mobile/PWA polish (CSS) | Pending |
 
 ## Deploy
 
