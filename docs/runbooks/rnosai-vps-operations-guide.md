@@ -617,7 +617,23 @@ curl -s -o /dev/null -w "%{http_code}\n" \
 
 ### 6.4. Quản lý user
 
-**Staff (nội bộ):** bảng PG `staff_users` — tạo qua quy trình Admin/HR. **Không** dùng `PTT_STAFF_STUB_USERS` trên prod.
+**Staff (nội bộ):** bảng PG `staff_users` — seed super admin trực tiếp PostgreSQL (không cần `ptt.db`):
+
+```bash
+cd /var/www/rnosai
+source .venv/bin/activate
+export DATABASE_URL=postgresql://ptt:***@127.0.0.1:5433/rnosaidb
+export ADMIN_PASSWORD='<min-8-chars>'
+
+./scripts/apply_pg_ddl_staff_auth.sh   # nếu chưa chạy
+
+python3 scripts/seed_super_admin_full_access.py \
+  --pg-only \
+  --email admin@pttads.vn \
+  --password "$ADMIN_PASSWORD"
+```
+
+**Không** dùng `PTT_STAFF_STUB_USERS` trên prod.
 
 **Portal (khách hàng):**
 

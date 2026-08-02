@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Seed tài khoản super admin toàn quyền — SQLite (Flask legacy) + PostgreSQL (ops-web / Nest).
+"""Seed tài khoản super admin toàn quyền — PostgreSQL (ops-web / Nest) hoặc SQLite legacy.
 
-Ví dụ:
-  python3 scripts/seed_super_admin_full_access.py
-  python3 scripts/seed_super_admin_full_access.py --email admin@pttads.vn --password 'YourPass!'
-  python3 scripts/seed_super_admin_full_access.py --apply-pg --sqlite /var/www/ptt/ptt.db
+Ví dụ VPS (PG-only, không cần ptt.db):
+  export DATABASE_URL=postgresql://ptt:PASSWORD@127.0.0.1:5433/rnosaidb
+  python3 scripts/seed_super_admin_full_access.py --pg-only \\
+    --email admin@pttads.vn --password 'YourPass!'
+
+Legacy local (SQLite + optional PG):
+  python3 scripts/seed_super_admin_full_access.py --sqlite ./ptt.db --apply-pg
 """
 from __future__ import annotations
 
@@ -29,6 +32,7 @@ from unified_auth import set_unified_password  # noqa: E402
 
 POSITION_CODE = "SUPER-ADMIN"
 POSITION_NAME = "Quản trị hệ thống (toàn quyền)"
+PG_SUPER_ADMIN_POSITION_ID = 1
 
 EXTRA_ACTIONS: frozenset[str] = frozenset(
     {
@@ -202,27 +206,43 @@ def ensure_cms_super_admin(
     set_unified_password(conn, uname, password, updated_at=ts)
 
 
+def ensure_pg_super_admin_position(cur, *, email: str) -> int:
+    cur.execute(
+        """
+        SELECT position_id FROM staff_users
+        WHERE lower(trim(email)) = lower(trim(%s))
+        LIMIT 1
+        """,
+        (email.strip().lower(),),
+    )
+    row = cur.fetchone()
+    if row:
+        return int(row[0])
+    return PG_SUPER_ADMIN_POSITION_ID
+
+
 def apply_pg(
     *,
-    position_id: int,
     caps: list[tuple[str, str]],
     email: str,
     display_name: str,
     password: str,
+    position_id: int | None = None,
 ) -> None:
     from ptt_jobs.db import pg_available, pg_connection
 
     if not pg_available():
-        raise SystemExit("PostgreSQL unavailable — set DATABASE_URL trước khi dùng --apply-pg")
+        raise SystemExit("PostgreSQL unavailable — set DATABASE_URL trước khi dùng --apply-pg / --pg-only")
 
     pwd_hash = hash_pg_password(password)
     with pg_connection() as conn:
         with conn.cursor() as cur:
+            resolved_position_id = position_id or ensure_pg_super_admin_position(cur, email=email)
             cur.execute(
                 """
                 DELETE FROM staff_section_permissions WHERE position_id = %s
                 """,
-                (position_id,),
+                (resolved_position_id,),
             )
             for section_id, action in caps:
                 cur.execute(
@@ -231,7 +251,7 @@ def apply_pg(
                     VALUES (%s, %s, %s)
                     ON CONFLICT (position_id, section_id, action) DO NOTHING
                     """,
-                    (position_id, section_id, action),
+                    (resolved_position_id, section_id, action),
                 )
 
             cur.execute(
@@ -246,11 +266,14 @@ def apply_pg(
                     updated_at = NOW()
                 RETURNING id::text
                 """,
-                (email.strip().lower(), pwd_hash, display_name[:255], position_id),
+                (email.strip().lower(), pwd_hash, display_name[:255], resolved_position_id),
             )
             staff_id = cur.fetchone()[0]
         conn.commit()
-    print(f"  PG staff_users id={staff_id} email={email.strip().lower()} position_id={position_id}")
+    print(
+        f"  PG staff_users id={staff_id} email={email.strip().lower()} "
+        f"position_id={resolved_position_id}"
+    )
 
 
 def main() -> int:
@@ -265,24 +288,34 @@ def main() -> int:
         help="Mật khẩu (hoặc ADMIN_PASSWORD / PTT_SUPER_ADMIN_PASSWORD)",
     )
     parser.add_argument("--apply-pg", action="store_true", help="Ghi staff_users + caps vào PostgreSQL")
+    parser.add_argument(
+        "--pg-only",
+        action="store_true",
+        help="Chỉ PostgreSQL (VPS prod — không cần ptt.db / SQLite)",
+    )
+    parser.add_argument(
+        "--skip-sqlite",
+        action="store_true",
+        help="Bỏ qua SQLite legacy (kết hợp --apply-pg)",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+
+    pg_only = args.pg_only or (args.apply_pg and args.skip_sqlite)
+    if args.pg_only:
+        args.apply_pg = True
 
     if not args.password or len(str(args.password)) < 8:
         print("Cần mật khẩu ≥8 ký tự: --password hoặc ADMIN_PASSWORD trong .env", file=sys.stderr)
         return 1
 
-    db_path = Path(args.sqlite)
-    if not db_path.is_file():
-        print(f"SQLite not found: {db_path}", file=sys.stderr)
-        return 1
-
     caps = build_full_caps()
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    mode = "PostgreSQL only" if pg_only else ("SQLite + PG" if args.apply_pg else "SQLite")
     print("=== PTT — Super admin toàn quyền ===")
-    print(f"  SQLite: {db_path}")
-    print(f"  Username (CMS): {args.username}")
+    print(f"  Mode: {mode}")
+    print(f"  Username (CMS legacy): {args.username}")
     print(f"  Email (ops-web): {args.email}")
     print(f"  Caps: {len(caps)} section/action pairs")
 
@@ -293,33 +326,50 @@ def main() -> int:
         print("    …")
         return 0
 
-    conn = sqlite3.connect(db_path)
-    try:
-        position_id = ensure_super_admin_position(conn, ts=ts)
-        saved = save_sqlite_caps(conn, position_id, caps)
-        ensure_cms_super_admin(
-            conn,
-            username=args.username,
-            display_name=args.display_name,
-            password=str(args.password),
-            ts=ts,
-        )
-        conn.commit()
-        print(f"  SQLite position {POSITION_CODE} id={position_id} — {saved} caps")
-        print(f"  SQLite cms_admin_users username={args.username} role=super_admin")
-    finally:
-        conn.close()
+    position_id: int | None = None
 
-    if args.apply_pg:
+    if pg_only:
         apply_pg(
-            position_id=position_id,
             caps=caps,
             email=args.email,
             display_name=args.display_name,
             password=str(args.password),
         )
     else:
-        print("  PG: bỏ qua (thêm --apply-pg khi DATABASE_URL sẵn sàng)")
+        db_path = Path(args.sqlite)
+        if not db_path.is_file():
+            print(f"SQLite not found: {db_path}", file=sys.stderr)
+            print("  VPS prod: dùng --pg-only (không cần ptt.db)", file=sys.stderr)
+            return 1
+
+        print(f"  SQLite: {db_path}")
+        conn = sqlite3.connect(db_path)
+        try:
+            position_id = ensure_super_admin_position(conn, ts=ts)
+            saved = save_sqlite_caps(conn, position_id, caps)
+            ensure_cms_super_admin(
+                conn,
+                username=args.username,
+                display_name=args.display_name,
+                password=str(args.password),
+                ts=ts,
+            )
+            conn.commit()
+            print(f"  SQLite position {POSITION_CODE} id={position_id} — {saved} caps")
+            print(f"  SQLite cms_admin_users username={args.username} role=super_admin")
+        finally:
+            conn.close()
+
+        if args.apply_pg:
+            apply_pg(
+                position_id=position_id,
+                caps=caps,
+                email=args.email,
+                display_name=args.display_name,
+                password=str(args.password),
+            )
+        else:
+            print("  PG: bỏ qua (thêm --apply-pg hoặc --pg-only khi DATABASE_URL sẵn sàng)")
 
     print("\nĐăng nhập ops-web: https://rs.pttads.vn/login")
     print(f"  Email: {args.email}")
