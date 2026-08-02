@@ -934,12 +934,16 @@ export interface IntakeSessionRow {
 }
 
 async function crmFetch<T>(token: string, path: string, init?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    ...(authHeaders(token) as Record<string, string>),
+    ...((init?.headers as Record<string, string> | undefined) ?? {}),
+  };
+  if (init?.body && !headers['Content-Type'] && typeof init.body === 'string') {
+    headers['Content-Type'] = 'application/json';
+  }
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: {
-      ...authHeaders(token),
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
   const body = await parseJson<T & { error?: string; message?: string }>(res);
   if (!res.ok) {
