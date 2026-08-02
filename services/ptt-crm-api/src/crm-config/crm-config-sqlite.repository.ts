@@ -9,20 +9,25 @@ import {
   STAGE_SLA_HOURS,
   TERMINAL_STAGES,
 } from '../sales/sales-pipeline.util';
-import { DEFAULT_SALES_PIPELINE_KEY, defaultSalesPipelineStages } from './crm-config.defaults';
+import { DEFAULT_SALES_PIPELINE_KEY, defaultSalesPipelineStages, DEFAULT_LEAD_CHANNELS, DEFAULT_LEAD_SOURCES } from './crm-config.defaults';
 import type {
   CreateCustomFieldBody,
+  CreateLeadLookupBody,
   CustomFieldDef,
   CustomFieldEntityType,
   CustomFieldType,
+  LeadLookupKind,
+  LeadLookupOption,
   PipelineStageDef,
   SalesPipelineConfig,
   UpdateCustomFieldBody,
+  UpdateLeadLookupBody,
   UpdatePipelineStagesBody,
 } from './crm-config.types';
 
 const ENTITY_TYPES = new Set<CustomFieldEntityType>(['lead', 'customer', 'case']);
 const FIELD_TYPES = new Set<CustomFieldType>(['text', 'number', 'select', 'date', 'boolean']);
+const LEAD_LOOKUP_KINDS = new Set<LeadLookupKind>(['source', 'channel']);
 
 function slugKey(raw: string): string {
   return raw
@@ -85,8 +90,21 @@ export class CrmConfigSqliteRepository implements OnModuleDestroy {
         updated_at TEXT NOT NULL DEFAULT '',
         UNIQUE(pipeline_key, stage_key)
       );
+
+      CREATE TABLE IF NOT EXISTS crm_lead_lookup_options (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind TEXT NOT NULL,
+        option_key TEXT NOT NULL,
+        label TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT '',
+        UNIQUE(kind, option_key)
+      );
     `);
     this.seedDefaultPipelineIfEmpty();
+    this.seedDefaultLeadLookupsIfEmpty();
   }
 
   private seedDefaultPipelineIfEmpty(): void {
@@ -114,6 +132,132 @@ export class CrmConfigSqliteRepository implements OnModuleDestroy {
         ts,
       );
     }
+  }
+
+  private seedDefaultLeadLookupsIfEmpty(): void {
+    for (const kind of ['source', 'channel'] as LeadLookupKind[]) {
+      const row = this.database
+        .prepare(`SELECT COUNT(*) AS n FROM crm_lead_lookup_options WHERE kind = ?`)
+        .get(kind) as unknown as { n: number } | undefined;
+      if (Number(row?.n ?? 0) > 0) continue;
+      const ts = catalogTs();
+      const insert = this.database.prepare(
+        `INSERT INTO crm_lead_lookup_options
+          (kind, option_key, label, sort_order, active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 1, ?, ?)`,
+      );
+      const defaults = kind === 'source' ? DEFAULT_LEAD_SOURCES : DEFAULT_LEAD_CHANNELS;
+      defaults.forEach((item, index) => {
+        insert.run(kind, item.option_key, item.label, index, ts, ts);
+      });
+    }
+  }
+
+  private mapLeadLookup(row: Record<string, unknown>): LeadLookupOption {
+    return {
+      id: Number(row.id),
+      kind: String(row.kind) as LeadLookupKind,
+      option_key: String(row.option_key),
+      label: String(row.label),
+      sort_order: Number(row.sort_order ?? 0),
+      active: Number(row.active ?? 1) === 1,
+      created_at: String(row.created_at ?? ''),
+      updated_at: String(row.updated_at ?? ''),
+    };
+  }
+
+  listLeadLookups(kind?: LeadLookupKind, activeOnly = false): LeadLookupOption[] {
+    const params: Array<string | number> = [];
+    const clauses: string[] = [];
+    if (kind) {
+      if (!LEAD_LOOKUP_KINDS.has(kind)) {
+        throw new BadRequestException({ error: 'invalid_lookup_kind' });
+      }
+      clauses.push('kind = ?');
+      params.push(kind);
+    }
+    if (activeOnly) {
+      clauses.push('active = 1');
+    }
+    const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
+    const rows = this.database
+      .prepare(`SELECT * FROM crm_lead_lookup_options${where} ORDER BY kind ASC, sort_order ASC, id ASC`)
+      .all(...params) as unknown as Array<Record<string, unknown>>;
+    return rows.map((row) => this.mapLeadLookup(row));
+  }
+
+  createLeadLookup(body: CreateLeadLookupBody): LeadLookupOption {
+    const kind = String(body.kind ?? '').trim() as LeadLookupKind;
+    if (!LEAD_LOOKUP_KINDS.has(kind)) {
+      throw new BadRequestException({ error: 'invalid_lookup_kind' });
+    }
+    const optionKey = slugKey(String(body.option_key ?? body.label ?? ''));
+    if (!optionKey) throw new BadRequestException({ error: 'invalid_option_key' });
+    const label = String(body.label ?? optionKey).trim().slice(0, 120);
+    const ts = catalogTs();
+    try {
+      const result = this.database
+        .prepare(
+          `INSERT INTO crm_lead_lookup_options
+            (kind, option_key, label, sort_order, active, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          kind,
+          optionKey,
+          label,
+          Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 999,
+          body.active === false ? 0 : 1,
+          ts,
+          ts,
+        );
+      const row = this.database
+        .prepare('SELECT * FROM crm_lead_lookup_options WHERE id = ?')
+        .get(Number(result.lastInsertRowid)) as unknown as Record<string, unknown>;
+      return this.mapLeadLookup(row);
+    } catch (err) {
+      if (String(err).includes('UNIQUE')) {
+        throw new BadRequestException({ error: 'duplicate_option_key' });
+      }
+      throw err;
+    }
+  }
+
+  updateLeadLookup(id: number, body: UpdateLeadLookupBody): LeadLookupOption {
+    const existing = this.database
+      .prepare('SELECT * FROM crm_lead_lookup_options WHERE id = ?')
+      .get(id) as unknown as Record<string, unknown> | undefined;
+    if (!existing) throw new NotFoundException({ error: 'lead_lookup_not_found' });
+
+    const label =
+      body.label !== undefined ? String(body.label).trim().slice(0, 120) : String(existing.label);
+    const sortOrder =
+      body.sort_order !== undefined && Number.isFinite(Number(body.sort_order))
+        ? Number(body.sort_order)
+        : Number(existing.sort_order ?? 0);
+    const active = body.active !== undefined ? (body.active ? 1 : 0) : Number(existing.active ?? 1);
+    const ts = catalogTs();
+
+    this.database
+      .prepare(
+        `UPDATE crm_lead_lookup_options
+         SET label = ?, sort_order = ?, active = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(label, sortOrder, active, ts, id);
+
+    const row = this.database
+      .prepare('SELECT * FROM crm_lead_lookup_options WHERE id = ?')
+      .get(id) as unknown as Record<string, unknown>;
+    return this.mapLeadLookup(row);
+  }
+
+  deleteLeadLookup(id: number): { ok: true; id: number } {
+    const result = this.database.prepare('DELETE FROM crm_lead_lookup_options WHERE id = ?').run(id);
+    if (Number(result.changes ?? 0) === 0) {
+      throw new NotFoundException({ error: 'lead_lookup_not_found' });
+    }
+    return { ok: true, id };
   }
 
   private mapCustomField(row: Record<string, unknown>): CustomFieldDef {

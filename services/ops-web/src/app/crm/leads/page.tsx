@@ -16,8 +16,8 @@ import {
   SegmentedControl,
   StaffPageShell,
 } from '@/components/layout';
-import { fetchLeads, bulkAssignLeads, fetchCrmStaffList, fetchReviewQueueCount, staffMe, staffRefresh } from '@/lib/api';
-import type { CrmStaffRow, LeadRow } from '@/lib/api';
+import { fetchLeads, bulkAssignLeads, fetchCrmStaffList, fetchLeadLookupOptions, fetchReviewQueueCount, staffMe, staffRefresh } from '@/lib/api';
+import type { CrmLeadLookupOption, CrmStaffRow, LeadRow } from '@/lib/api';
 import { aiCopilotEnabled, isAiPilotUser } from '@/lib/ai-flags';
 import { useLeadScoresMap } from '@/hooks/useLeadScoresMap';
 import {
@@ -51,6 +51,8 @@ export default function CrmLeadsPage() {
   const [filterSource, setFilterSource] = useState('');
   const [filterChannel, setFilterChannel] = useState('');
   const [staffOptions, setStaffOptions] = useState<CrmStaffRow[]>([]);
+  const [sourceOptions, setSourceOptions] = useState<CrmLeadLookupOption[]>([]);
+  const [channelOptions, setChannelOptions] = useState<CrmLeadLookupOption[]>([]);
   const [bulkOwnerId, setBulkOwnerId] = useState('');
   const [bulkBusy, setBulkBusy] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
@@ -139,14 +141,18 @@ export default function CrmLeadsPage() {
       const access = await ensureAuth();
       if (!access) return;
       setToken(access);
-      const [staffOut, reviewOut] = await Promise.all([
+      const [staffOut, reviewOut, sourceOut, channelOut] = await Promise.all([
         fetchCrmStaffList(access).catch(() => ({ staff: [], summary: {} })),
         canReviewQueue
           ? fetchReviewQueueCount(access).catch(() => ({ count: 0 }))
           : Promise.resolve({ count: 0 }),
+        fetchLeadLookupOptions(access, 'source').catch(() => ({ options: [] as CrmLeadLookupOption[] })),
+        fetchLeadLookupOptions(access, 'channel').catch(() => ({ options: [] as CrmLeadLookupOption[] })),
       ]);
       setStaffOptions(staffOut.staff ?? []);
       setReviewQueueCount(reviewOut.count ?? 0);
+      setSourceOptions(sourceOut.options ?? []);
+      setChannelOptions(channelOut.options ?? []);
     })();
   }, [ensureAuth, canReviewQueue]);
 
@@ -325,20 +331,32 @@ export default function CrmLeadsPage() {
                 </option>
               ))}
             </select>
-            <input
-              className="kpi-input"
-              placeholder="Nguồn"
+            <select
+              className="kpi-select"
               value={filterSource}
               onChange={(e) => setFilterSource(e.target.value)}
               aria-label="Lọc nguồn"
-            />
-            <input
-              className="kpi-input"
-              placeholder="Kênh"
+            >
+              <option value="">Nguồn</option>
+              {sourceOptions.map((opt) => (
+                <option key={opt.id} value={opt.option_key}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <select
+              className="kpi-select"
               value={filterChannel}
               onChange={(e) => setFilterChannel(e.target.value)}
               aria-label="Lọc kênh"
-            />
+            >
+              <option value="">Kênh</option>
+              {channelOptions.map((opt) => (
+                <option key={opt.id} value={opt.option_key}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
             <FilterBarActions>
               {canReviewQueue ? (
                 <Link href="/crm/leads/review-queue" className="btn btn-sm btn-ghost">

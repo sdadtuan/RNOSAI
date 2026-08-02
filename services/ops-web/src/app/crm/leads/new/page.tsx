@@ -9,9 +9,11 @@ import {
   createLead,
   fetchAgencyClients,
   fetchCrmStaffList,
+  fetchLeadLookupOptions,
   staffMe,
   staffRefresh,
   type AgencyClient,
+  type CrmLeadLookupOption,
   type CrmStaffRow,
 } from '@/lib/api';
 import {
@@ -41,6 +43,8 @@ export default function NewLeadPage() {
   const [token, setToken] = useState('');
   const [clients, setClients] = useState<AgencyClient[]>([]);
   const [staffOptions, setStaffOptions] = useState<CrmStaffRow[]>([]);
+  const [sourceOptions, setSourceOptions] = useState<CrmLeadLookupOption[]>([]);
+  const [channelOptions, setChannelOptions] = useState<CrmLeadLookupOption[]>([]);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -97,12 +101,23 @@ export default function NewLeadPage() {
         setOwnerId((prev) => prev || (me.id ? String(me.id) : ''));
       }
 
-      const [clientOut, staffOut] = await Promise.all([
+      const [clientOut, staffOut, sourceOut, channelOut] = await Promise.all([
         fetchAgencyClients(currentToken).catch(() => ({ clients: [] as AgencyClient[] })),
         fetchCrmStaffList(currentToken).catch(() => ({ staff: [] as CrmStaffRow[], summary: {} })),
+        fetchLeadLookupOptions(currentToken, 'source').catch(() => ({ options: [] as CrmLeadLookupOption[] })),
+        fetchLeadLookupOptions(currentToken, 'channel').catch(() => ({ options: [] as CrmLeadLookupOption[] })),
       ]);
       setClients(clientOut.clients ?? []);
       setStaffOptions(staffOut.staff ?? []);
+      const sources = sourceOut.options ?? [];
+      const channels = channelOut.options ?? [];
+      setSourceOptions(sources);
+      setChannelOptions(channels);
+      setSource((prev) => {
+        if (sources.some((opt) => opt.option_key === prev)) return prev;
+        const manual = sources.find((opt) => opt.option_key === 'manual');
+        return manual?.option_key ?? sources[0]?.option_key ?? 'manual';
+      });
       if (presetClientId) {
         setClientId(presetClientId);
       }
@@ -232,21 +247,36 @@ export default function NewLeadPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
               <label style={{ display: 'grid', gap: '0.35rem' }}>
                 <span>Nguồn</span>
-                <input
-                  className="kpi-input"
+                <select
+                  className="kpi-select"
                   value={source}
                   onChange={(e) => setSource(e.target.value)}
-                  placeholder="manual"
-                />
+                >
+                  {sourceOptions.length === 0 ? (
+                    <option value="manual">manual</option>
+                  ) : (
+                    sourceOptions.map((opt) => (
+                      <option key={opt.id} value={opt.option_key}>
+                        {opt.label}
+                      </option>
+                    ))
+                  )}
+                </select>
               </label>
               <label style={{ display: 'grid', gap: '0.35rem' }}>
                 <span>Kênh</span>
-                <input
-                  className="kpi-input"
+                <select
+                  className="kpi-select"
                   value={channel}
                   onChange={(e) => setChannel(e.target.value)}
-                  placeholder="phone, walk-in, zalo…"
-                />
+                >
+                  <option value="">— Chọn kênh —</option>
+                  {channelOptions.map((opt) => (
+                    <option key={opt.id} value={opt.option_key}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
 

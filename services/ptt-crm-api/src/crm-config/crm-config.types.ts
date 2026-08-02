@@ -69,3 +69,30 @@ export interface SalesPipelineConfig {
   owner_roles: Record<string, string>;
   terminal_stages: Set<string>;
 }
+
+export type LeadLookupKind = 'source' | 'channel';
+
+export interface LeadLookupOption {
+  id: number;
+  kind: LeadLookupKind;
+  option_key: string;
+  label: string;
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateLeadLookupBody {
+  kind: LeadLookupKind;
+  option_key?: string;
+  label: string;
+  sort_order?: number;
+  active?: boolean;
+}
+
+export interface UpdateLeadLookupBody {
+  label?: string;
+  sort_order?: number;
+  active?: boolean;
+}

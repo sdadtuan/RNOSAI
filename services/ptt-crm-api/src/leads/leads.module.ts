@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { AiScoreAsyncModule } from '../ai-intelligence/ai-score-async.module';
+import { CrmConfigModule } from '../crm-config/crm-config.module';
 import { CustomerTimelineModule } from '../customer-timeline/customer-timeline.module';
 import { EventsModule } from '../events/events.module';
 import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
@@ -28,6 +29,7 @@ import { LeadIngestRulesRepository } from './ingest/lead-ingest-rules.repository
     EventsModule,
     AiScoreAsyncModule,
     StaffAuthModule,
+    CrmConfigModule,
     forwardRef(() => CustomerTimelineModule),
     MetaTrackingModule,
     PerformanceModule,

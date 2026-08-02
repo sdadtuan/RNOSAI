@@ -16,7 +16,9 @@ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.gua
 import { CrmConfigService } from './crm-config.service';
 import type {
   CreateCustomFieldBody,
+  CreateLeadLookupBody,
   UpdateCustomFieldBody,
+  UpdateLeadLookupBody,
   UpdatePipelineStagesBody,
 } from './crm-config.types';
 import {
@@ -63,5 +65,31 @@ export class CrmConfigController {
   @UseGuards(StaffOrInternalKeyGuard, StaffCrmConfigConfigureGuard)
   replaceSalesPipelineStages(@Body() body: UpdatePipelineStagesBody) {
     return this.crmConfig.replaceSalesPipelineStages(body);
+  }
+
+  @Get('lead-lookups')
+  @UseGuards(StaffOrInternalKeyGuard, StaffCrmConfigViewGuard)
+  listLeadLookups(@Query('kind') kind?: string, @Query('active_only') activeOnly?: string) {
+    const normalizedKind = kind === 'source' || kind === 'channel' ? kind : undefined;
+    return this.crmConfig.listLeadLookups(normalizedKind, activeOnly === '1' || activeOnly === 'true');
+  }
+
+  @Post('lead-lookups')
+  @UseGuards(StaffOrInternalKeyGuard, StaffCrmConfigConfigureGuard)
+  createLeadLookup(@Body() body: CreateLeadLookupBody) {
+    return this.crmConfig.createLeadLookup(body);
+  }
+
+  @Patch('lead-lookups/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffCrmConfigConfigureGuard)
+  updateLeadLookup(@Param('id') id: string, @Body() body: UpdateLeadLookupBody) {
+    return this.crmConfig.updateLeadLookup(Number(id), body);
+  }
+
+  @Delete('lead-lookups/:id')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffCrmConfigConfigureGuard)
+  deleteLeadLookup(@Param('id') id: string) {
+    return this.crmConfig.deleteLeadLookup(Number(id));
   }
 }

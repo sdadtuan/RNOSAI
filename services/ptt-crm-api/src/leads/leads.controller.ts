@@ -27,6 +27,7 @@ import { LeadNotInReviewQueueGuard } from '../leads-funnel/guards/lead-not-in-re
 import { LeadsIoService } from './leads-io.service';
 import { LeadsService } from './leads.service';
 import { LeadsWriteService } from './leads-write.service';
+import { CrmConfigService } from '../crm-config/crm-config.service';
 import {
   CreateLeadV1Body,
   LeadV1,
@@ -42,7 +43,15 @@ export class LeadsController {
     private readonly leadsService: LeadsService,
     private readonly leadsWriteService: LeadsWriteService,
     private readonly leadsIo: LeadsIoService,
+    private readonly crmConfig: CrmConfigService,
   ) {}
+
+  @Get('lookup-options')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  listLookupOptions(@Query('kind') kind?: string) {
+    const normalizedKind = kind === 'source' || kind === 'channel' ? kind : undefined;
+    return this.crmConfig.listLeadLookups(normalizedKind, true);
+  }
 
   @Get('import/template.xlsx')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)

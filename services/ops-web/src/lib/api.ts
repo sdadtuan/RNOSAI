@@ -6279,6 +6279,74 @@ export async function saveCrmSalesPipelineStages(
   });
 }
 
+export type CrmLeadLookupKind = 'source' | 'channel';
+
+export interface CrmLeadLookupOption {
+  id: number;
+  kind: CrmLeadLookupKind;
+  option_key: string;
+  label: string;
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function fetchLeadLookupOptions(
+  token: string,
+  kind?: CrmLeadLookupKind,
+): Promise<{ options: CrmLeadLookupOption[] }> {
+  const qs = kind ? `?kind=${encodeURIComponent(kind)}` : '';
+  return crmFetch(token, `/api/v1/leads/lookup-options${qs}`);
+}
+
+export async function fetchCrmLeadLookups(
+  token: string,
+  params?: { kind?: CrmLeadLookupKind; active_only?: boolean },
+): Promise<{ options: CrmLeadLookupOption[] }> {
+  const qs = new URLSearchParams();
+  if (params?.kind) qs.set('kind', params.kind);
+  if (params?.active_only) qs.set('active_only', '1');
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return crmFetch(token, `/api/crm/config/lead-lookups${suffix}`);
+}
+
+export async function createCrmLeadLookup(
+  token: string,
+  body: {
+    kind: CrmLeadLookupKind;
+    option_key?: string;
+    label: string;
+    sort_order?: number;
+    active?: boolean;
+  },
+): Promise<CrmLeadLookupOption> {
+  return crmFetch(token, '/api/crm/config/lead-lookups', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateCrmLeadLookup(
+  token: string,
+  id: number,
+  body: Partial<{ label: string; sort_order: number; active: boolean }>,
+): Promise<CrmLeadLookupOption> {
+  return crmFetch(token, `/api/crm/config/lead-lookups/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteCrmLeadLookup(
+  token: string,
+  id: number,
+): Promise<{ ok: true; id: number }> {
+  return crmFetch(token, `/api/crm/config/lead-lookups/${id}`, { method: 'DELETE' });
+}
+
 export interface CrmTicketRow {
   id: number;
   customer_id: number;

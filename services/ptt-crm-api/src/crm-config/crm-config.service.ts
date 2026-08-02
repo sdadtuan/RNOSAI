@@ -3,10 +3,14 @@ import { pipelineRuntimeFromKeys } from '../sales/sales-pipeline.util';
 import { CrmConfigSqliteRepository } from './crm-config-sqlite.repository';
 import type {
   CreateCustomFieldBody,
+  CreateLeadLookupBody,
   CustomFieldDef,
+  LeadLookupKind,
+  LeadLookupOption,
   PipelineStageDef,
   SalesPipelineConfig,
   UpdateCustomFieldBody,
+  UpdateLeadLookupBody,
   UpdatePipelineStagesBody,
 } from './crm-config.types';
 import { DEFAULT_SALES_PIPELINE_KEY } from './crm-config.defaults';
@@ -53,5 +57,21 @@ export class CrmConfigService {
       config.owner_roles,
       config.terminal_stages,
     );
+  }
+
+  listLeadLookups(kind?: LeadLookupKind, activeOnly = false): { options: LeadLookupOption[] } {
+    return { options: this.repo.listLeadLookups(kind, activeOnly) };
+  }
+
+  createLeadLookup(body: CreateLeadLookupBody): LeadLookupOption {
+    return this.repo.createLeadLookup(body);
+  }
+
+  updateLeadLookup(id: number, body: UpdateLeadLookupBody): LeadLookupOption {
+    return this.repo.updateLeadLookup(id, body);
+  }
+
+  deleteLeadLookup(id: number): { ok: true; id: number } {
+    return this.repo.deleteLeadLookup(id);
   }
 }

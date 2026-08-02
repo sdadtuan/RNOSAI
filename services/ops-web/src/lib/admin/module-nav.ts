@@ -68,5 +68,6 @@ export function buildCrmConfigModuleLinks(user: StoredStaffUser | null): ModuleN
   return [
     { href: '/admin/crm/custom-fields', label: 'Custom fields' },
     { href: '/admin/crm/pipeline', label: 'Pipeline sales' },
+    { href: '/admin/crm/lead-lookups', label: 'Nguồn & Kênh' },
   ];
 }
