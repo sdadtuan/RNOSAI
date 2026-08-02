@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
@@ -47,6 +48,7 @@ export default function CrmLeadsPage() {
     () => hasCap(user, 'crm_leads', 'edit') || hasCap(user, 'crm_leads', 'assign'),
     [user],
   );
+  const canCreate = useMemo(() => hasCap(user, 'crm_leads', 'edit'), [user]);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -206,8 +208,14 @@ export default function CrmLeadsPage() {
       <div className="card">
         <div className="crm-leads-page__head">
           <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Quản lý Lead</h2>
-          {token ? (
-            <CrmLeadsImportExport
+          <div className="crm-leads-page__head-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            {canCreate ? (
+              <Link href="/crm/leads/new" className="btn btn-sm">
+                + Tạo lead
+              </Link>
+            ) : null}
+            {token ? (
+              <CrmLeadsImportExport
               token={token}
               query={query}
               selectedIds={selectedList}
@@ -215,7 +223,8 @@ export default function CrmLeadsPage() {
               onImported={() => void loadLeads(token, 0, query)}
               onError={setError}
             />
-          ) : null}
+            ) : null}
+          </div>
         </div>
 
         <form onSubmit={onSearch} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>

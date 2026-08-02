@@ -167,6 +167,26 @@ export async function bulkAssignLeads(
   });
 }
 
+export interface CreateLeadBody {
+  full_name: string;
+  phone?: string;
+  email?: string;
+  status?: string;
+  source?: string;
+  channel?: string;
+  client_id?: string | null;
+  campaign_id?: string | null;
+  external_lead_id?: string | null;
+  owner_id?: number | null;
+}
+
+export async function createLead(token: string, body: CreateLeadBody): Promise<LeadRow> {
+  return crmFetch(token, '/api/v1/leads', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export interface LeadImportResult {
   ok: boolean;
   created: number;

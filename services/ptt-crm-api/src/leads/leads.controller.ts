@@ -19,7 +19,6 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { memoryStorage } from 'multer';
-import { InternalKeyGuard } from '../auth/internal-key.guard';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { WriteEnabledGuard } from './guards/write-enabled.guard';
 import { StaffLeadsWriteGuard } from './guards/staff-leads-write.guard';
@@ -111,7 +110,7 @@ export class LeadsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(InternalKeyGuard, WriteEnabledGuard)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard)
   async createLead(@Body() body: CreateLeadV1Body): Promise<LeadV1> {
     return this.leadsWriteService.createLead(body);
   }

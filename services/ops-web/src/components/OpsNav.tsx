@@ -64,6 +64,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/cskh-board': 'Bảng CSKH SLA',
   '/crm/tickets': 'Ticket CS',
   '/crm/leads': 'Quản lý Lead',
+  '/crm/leads/new': 'Tạo lead thủ công',
   '/crm/catalog': 'CRM Catalog',
   '/crm/customers': 'Khách hàng',
   '/crm/intake': 'Lead Intake',
@@ -145,6 +146,7 @@ const PAGE_TITLES: Record<string, string> = {
 };
 
 function pageTitleFor(pathname: string): string {
+  if (pathname === '/crm/leads/new') return PAGE_TITLES['/crm/leads/new'];
   if (pathname.startsWith('/crm/leads/') && pathname !== '/crm/leads') return 'Chi tiết lead';
   if (pathname.startsWith('/crm/customers/') && pathname !== '/crm/customers') return 'Chi tiết khách hàng';
   if (pathname.startsWith('/crm/marketing-plan/') && pathname !== '/crm/marketing-plan') {

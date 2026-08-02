@@ -1304,6 +1304,13 @@ export function AgencyClientDetailContent() {
 
             {tab === 'leads' ? (
               <div style={{ marginTop: '1rem', overflowX: 'auto' }}>
+                {hasCap(user, 'crm_leads', 'edit') ? (
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <Link href={`/crm/leads/new?client_id=${clientId}`} className="btn btn-sm">
+                      + Tạo lead
+                    </Link>
+                  </div>
+                ) : null}
                 <table className="perf-table">
                   <thead>
                     <tr>
