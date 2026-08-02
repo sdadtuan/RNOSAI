@@ -53,7 +53,7 @@ export default function PrivacyPage() {
 
         <section>
           <h2>2. Dữ liệu thu thập</h2>
-          <div className="privacy-table-wrap">
+          <div className="privacy-table-wrap portal-table-stack">
             <table className="privacy-table">
               <thead>
                 <tr>
@@ -64,31 +64,31 @@ export default function PrivacyPage() {
               </thead>
               <tbody>
                 <tr>
-                  <td>Tài khoản</td>
-                  <td>Email đăng nhập, vai trò (approver/viewer)</td>
-                  <td>Bạn / AM PTT cấp</td>
+                  <td data-label="Loại">Tài khoản</td>
+                  <td data-label="Ví dụ">Email đăng nhập, vai trò (approver/viewer)</td>
+                  <td data-label="Nguồn">Bạn / AM PTT cấp</td>
                 </tr>
                 <tr>
-                  <td>Thiết bị</td>
-                  <td>Push token (FCM/APNs), platform iOS/Android</td>
-                  <td>App khi bạn bật thông báo</td>
+                  <td data-label="Loại">Thiết bị</td>
+                  <td data-label="Ví dụ">Push token (FCM/APNs), platform iOS/Android</td>
+                  <td data-label="Nguồn">App khi bạn bật thông báo</td>
                 </tr>
                 <tr>
-                  <td>Kỹ thuật</td>
-                  <td>IP, user-agent, app version, crash logs</td>
-                  <td>Tự động khi dùng app</td>
+                  <td data-label="Loại">Kỹ thuật</td>
+                  <td data-label="Ví dụ">IP, user-agent, app version, crash logs</td>
+                  <td data-label="Nguồn">Tự động khi dùng app</td>
                 </tr>
                 <tr>
-                  <td>Nghiệp vụ</td>
-                  <td>Quyết định duyệt creative/email, timestamp</td>
-                  <td>Hành động trong app</td>
+                  <td data-label="Loại">Nghiệp vụ</td>
+                  <td data-label="Ví dụ">Quyết định duyệt creative/email, timestamp</td>
+                  <td data-label="Nguồn">Hành động trong app</td>
                 </tr>
                 <tr>
-                  <td>
+                  <td data-label="Loại">
                     <strong>Không</strong> thu
                   </td>
-                  <td>Danh bạ, GPS liên tục, tin nhắn cá nhân</td>
-                  <td>—</td>
+                  <td data-label="Ví dụ">Danh bạ, GPS liên tục, tin nhắn cá nhân</td>
+                  <td data-label="Nguồn">—</td>
                 </tr>
               </tbody>
             </table>
@@ -114,7 +114,7 @@ export default function PrivacyPage() {
 
         <section>
           <h2>4. Chia sẻ dữ liệu</h2>
-          <div className="privacy-table-wrap">
+          <div className="privacy-table-wrap portal-table-stack">
             <table className="privacy-table">
               <thead>
                 <tr>
@@ -124,16 +124,16 @@ export default function PrivacyPage() {
               </thead>
               <tbody>
                 <tr>
-                  <td>Firebase Cloud Messaging / Apple Push Notification service</td>
-                  <td>Gửi push notification</td>
+                  <td data-label="Bên nhận">Firebase Cloud Messaging / Apple Push Notification service</td>
+                  <td data-label="Mục đích">Gửi push notification</td>
                 </tr>
                 <tr>
-                  <td>Nhà cung cấp monitoring (nếu bật)</td>
-                  <td>Crash reporting</td>
+                  <td data-label="Bên nhận">Nhà cung cấp monitoring (nếu bật)</td>
+                  <td data-label="Mục đích">Crash reporting</td>
                 </tr>
                 <tr>
-                  <td>Nhà cung cấp hạ tầng (VPS, cloud)</td>
-                  <td>Hosting theo hợp đồng DPA</td>
+                  <td data-label="Bên nhận">Nhà cung cấp hạ tầng (VPS, cloud)</td>
+                  <td data-label="Mục đích">Hosting theo hợp đồng DPA</td>
                 </tr>
               </tbody>
             </table>
@@ -153,7 +153,7 @@ export default function PrivacyPage() {
 
         <section>
           <h2>6. Thời gian lưu</h2>
-          <div className="privacy-table-wrap">
+          <div className="privacy-table-wrap portal-table-stack">
             <table className="privacy-table">
               <thead>
                 <tr>
@@ -163,16 +163,16 @@ export default function PrivacyPage() {
               </thead>
               <tbody>
                 <tr>
-                  <td>Log audit duyệt</td>
-                  <td>Theo hợp đồng client (thường 12–24 tháng)</td>
+                  <td data-label="Dữ liệu">Log audit duyệt</td>
+                  <td data-label="Thời gian">Theo hợp đồng client (thường 12–24 tháng)</td>
                 </tr>
                 <tr>
-                  <td>Push device token</td>
-                  <td>Đến khi bạn tắt push hoặc gỡ app</td>
+                  <td data-label="Dữ liệu">Push device token</td>
+                  <td data-label="Thời gian">Đến khi bạn tắt push hoặc gỡ app</td>
                 </tr>
                 <tr>
-                  <td>Crash logs</td>
-                  <td>90 ngày (điều chỉnh theo công cụ)</td>
+                  <td data-label="Dữ liệu">Crash logs</td>
+                  <td data-label="Thời gian">90 ngày (điều chỉnh theo công cụ)</td>
                 </tr>
               </tbody>
             </table>

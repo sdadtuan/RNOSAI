@@ -99,7 +99,7 @@ function ReportBody({ report }: { report: Record<string, unknown> }) {
       {issues.length > 0 && (
         <section className="portal-hub-section">
           <h3 className="portal-hub-section__title">Open technical issues</h3>
-          <div className="perf-table-wrap--desktop">
+          <div className="portal-table-stack">
             <table className="perf-table">
               <thead>
                 <tr>
@@ -112,10 +112,10 @@ function ReportBody({ report }: { report: Record<string, unknown> }) {
               <tbody>
                 {issues.map((row, i) => (
                   <tr key={i}>
-                    <td>{row.url}</td>
-                    <td>{row.issue_type}</td>
-                    <td>{row.severity}</td>
-                    <td>{row.status}</td>
+                    <td data-label="URL">{row.url}</td>
+                    <td data-label="Type">{row.issue_type}</td>
+                    <td data-label="Severity">{row.severity}</td>
+                    <td data-label="Status">{row.status}</td>
                   </tr>
                 ))}
               </tbody>

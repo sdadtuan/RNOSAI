@@ -2,10 +2,19 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { ReactNode } from 'react';
+import {
+  PortalNavIconAlerts,
+  PortalNavIconCreative,
+  PortalNavIconEmail,
+  PortalNavIconHome,
+  PortalNavIconSettings,
+} from '@/components/mobile/PortalNavIcons';
 
 interface NavItem {
   href: string;
   label: string;
+  icon: ReactNode;
   badge?: number;
   match: (path: string) => boolean;
 }
@@ -32,16 +41,23 @@ export function PortalMobileBottomNav({
   const pathname = usePathname();
 
   const items: NavItem[] = [
-    { href: '/dashboard', label: 'Home', match: (p) => p === '/dashboard' || p === '/' },
+    {
+      href: '/dashboard',
+      label: 'Home',
+      icon: <PortalNavIconHome className="portal-mobile-bottom-nav__icon" />,
+      match: (p) => p === '/dashboard' || p === '/',
+    },
     {
       href: '/creatives',
       label: 'Creative',
+      icon: <PortalNavIconCreative className="portal-mobile-bottom-nav__icon" />,
       badge: pendingCreatives,
       match: (p) => p.startsWith('/creatives'),
     },
     {
       href: '/notifications',
       label: 'Alerts',
+      icon: <PortalNavIconAlerts className="portal-mobile-bottom-nav__icon" />,
       badge: notificationUnread,
       match: (p) => p.startsWith('/notifications'),
     },
@@ -51,6 +67,7 @@ export function PortalMobileBottomNav({
     items.push({
       href: '/email/approvals',
       label: 'Email',
+      icon: <PortalNavIconEmail className="portal-mobile-bottom-nav__icon" />,
       badge: emailPending,
       match: (p) => p.startsWith('/email/approvals'),
     });
@@ -59,6 +76,7 @@ export function PortalMobileBottomNav({
   items.push({
     href: '/settings',
     label: 'Settings',
+    icon: <PortalNavIconSettings className="portal-mobile-bottom-nav__icon" />,
     match: (p) => p.startsWith('/settings'),
   });
 
@@ -72,6 +90,7 @@ export function PortalMobileBottomNav({
             href={item.href}
             className={`portal-mobile-bottom-nav__item${active ? ' portal-mobile-bottom-nav__item--active' : ''}`}
           >
+            {item.icon}
             <span className="portal-mobile-bottom-nav__label">{item.label}</span>
             {'badge' in item && typeof item.badge === 'number' && item.badge > 0 ? (
               <span className="portal-mobile-bottom-nav__badge">{badge(item.badge)}</span>
