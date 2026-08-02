@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { EmailPageShell } from '@/components/email';
+import { FilterBar, FilterBarActions } from '@/components/layout';
 import {
   fetchEmailConsent,
   recordEmailConsent,
@@ -121,9 +121,9 @@ export default function EmailConsentPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <EmailPageShell user={null} onLogout={logout} title="Consent" loading>
+        <span />
+      </EmailPageShell>
     );
   }
 
@@ -133,86 +133,91 @@ export default function EmailConsentPage() {
     hasCap(user, 'crm_agency', 'create');
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <p className="muted" style={{ marginTop: 0 }}>
-          EM-1 E-05 — Consent registry (append-only)
-        </p>
-        <Link href="/email/hub" className="btn btn-secondary btn-sm">
-          ← Email hub
-        </Link>
-        <div style={{ marginTop: '0.75rem' }}>
+    <EmailPageShell
+      user={user}
+      onLogout={logout}
+      title="Consent"
+      subtitle="EM-1 E-05 — Consent registry (append-only)"
+    >
+      <div className="page-card stack-gap">
+        <FilterBar>
           <input
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
             placeholder="Client UUID filter"
             style={{ width: 280 }}
           />
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            style={{ marginLeft: '0.5rem' }}
-            disabled={loading}
-            onClick={() => {
-              const access = getAccessToken();
-              if (access) void load(access);
-            }}
-          >
-            Làm mới
-          </button>
-        </div>
-      </div>
-
-      {error ? <p className="error">{error}</p> : null}
-
-      {canCompliance ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <h3 style={{ marginTop: 0 }}>Ghi consent mới</h3>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <input
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="email@client.com"
-              style={{ minWidth: 220 }}
-            />
-            <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-              <option value="opted_in">opted_in</option>
-              <option value="opted_out">opted_out</option>
-              <option value="pending_confirm">pending_confirm</option>
-            </select>
-            <button type="button" className="btn btn-sm" onClick={() => void submitConsent()}>
-              Ghi
+          <FilterBarActions>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={loading}
+              onClick={() => {
+                const access = getAccessToken();
+                if (access) void load(access);
+              }}
+            >
+              Làm mới
             </button>
-          </div>
-        </div>
-      ) : null}
+          </FilterBarActions>
+        </FilterBar>
 
-      <div className="card">
-        <table className="perf-table">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Email</th>
-              <th>Topic</th>
-              <th>Status</th>
-              <th>Source</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td>{r.recorded_at.slice(0, 19)}</td>
-                <td>{r.contact_email}</td>
-                <td>{r.topic}</td>
-                <td>{r.status}</td>
-                <td>{r.source}</td>
+        {error ? <p className="error">{error}</p> : null}
+
+        {canCompliance ? (
+          <div>
+            <h3 style={{ marginTop: 0 }}>Ghi consent mới</h3>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <input
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="email@client.com"
+                style={{ minWidth: 220 }}
+              />
+              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                <option value="opted_in">opted_in</option>
+                <option value="opted_out">opted_out</option>
+                <option value="pending_confirm">pending_confirm</option>
+              </select>
+              <button type="button" className="btn btn-sm" onClick={() => void submitConsent()}>
+                Ghi
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Email</th>
+                <th>Topic</th>
+                <th>Status</th>
+                <th>Source</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {!loading && rows.length === 0 ? <p className="muted">Chưa có bản ghi consent.</p> : null}
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.recorded_at.slice(0, 19)}</td>
+                  <td>{r.contact_email}</td>
+                  <td>{r.topic}</td>
+                  <td>{r.status}</td>
+                  <td>{r.source}</td>
+                </tr>
+              ))}
+              {!loading && rows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="muted">
+                    Chưa có bản ghi consent.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </main>
+    </EmailPageShell>
   );
 }

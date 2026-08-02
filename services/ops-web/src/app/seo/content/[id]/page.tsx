@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { DetailPageLayout } from '@/components/layout';
+import { SeoPageShell } from '@/components/seo';
 import {
   approveSeoContent,
   fetchSeoAeoChecklist,
@@ -208,23 +209,32 @@ export default function SeoContentDetailPage() {
   }
 
   return (
-    <div className="page">
-      <OpsNav user={user} onLogout={logout} />
-      <main className="main-content">
-        <div className="page-header">
-          <div>
-            <Link href="/seo/content" className="nav-link">
-              ← Pipeline
-            </Link>
-            <h1>{content?.title ?? 'Content detail'}</h1>
-            {content && (
-              <p className="muted">
-                #{content.id} · Client {content.customer_id} · {content.workflow_status}
-                {content.target_keyword?.phrase ? ` · KW: ${content.target_keyword.phrase}` : ''}
-              </p>
-            )}
-          </div>
-          <div className="page-actions">
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      showModuleNav={false}
+      hideToolbar
+      title="Content"
+      breadcrumb={[
+        { label: 'SEO / AEO', href: '/seo/hub' },
+        { label: 'Content', href: '/seo/content' },
+        { label: content?.title ?? `#${contentId}` },
+      ]}
+    >
+      <DetailPageLayout
+        backHref="/seo/content"
+        backLabel="← Pipeline"
+        title={content?.title ?? 'Content detail'}
+        subtitle={
+          content
+            ? `#${content.id} · Client ${content.customer_id} · ${content.workflow_status}${
+                content.target_keyword?.phrase ? ` · KW: ${content.target_keyword.phrase}` : ''
+              }`
+            : undefined
+        }
+        actions={
+          <>
             {canWrite && content && (
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => void handlePatchTitle()}>
                 Sửa tiêu đề
@@ -243,9 +253,9 @@ export default function SeoContentDetailPage() {
                 ))}
               </select>
             )}
-          </div>
-        </div>
-
+          </>
+        }
+      >
         {error && <p className="error">{error}</p>}
         {loading ? (
           <p className="muted">Đang tải…</p>
@@ -253,7 +263,7 @@ export default function SeoContentDetailPage() {
           <p className="error">Không tìm thấy content</p>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '1rem' }}>
-            <div className="card">
+            <div className="page-card stack-gap">
               <div className="tabs" style={{ marginBottom: '1rem' }}>
                 {(['brief', 'body', 'versions'] as const).map((p) => (
                   <button
@@ -303,7 +313,7 @@ export default function SeoContentDetailPage() {
             </div>
 
             <div>
-              <div className="card" style={{ marginBottom: '1rem' }}>
+              <div className="page-card stack-gap" style={{ marginBottom: '1rem' }}>
                 <h3>Approval timeline</h3>
                 <ul style={{ listStyle: 'none', padding: 0 }}>
                   {(content.approvals ?? []).map((a) => (
@@ -330,7 +340,7 @@ export default function SeoContentDetailPage() {
                 )}
               </div>
 
-              <div className="card">
+              <div className="page-card stack-gap">
                 <h3>AEO checklist</h3>
                 {checklist ? (
                   <>
@@ -355,7 +365,7 @@ export default function SeoContentDetailPage() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+      </DetailPageLayout>
+    </SeoPageShell>
   );
 }

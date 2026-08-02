@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { SeoPageShell } from '@/components/seo';
 import {
   downloadSeoReportExport,
   fetchSeoAlerts,
@@ -43,7 +43,7 @@ type DashboardType = (typeof DASHBOARD_TYPES)[number]['key'];
 function BarChart({ items, title }: { items: Array<{ label: string; value: number }>; title: string }) {
   const max = Math.max(...items.map((i) => i.value), 1);
   return (
-    <div className="card" style={{ marginBottom: '1rem' }}>
+    <div className="page-card stack-gap">
       <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>{title}</h2>
       <div style={{ display: 'grid', gap: '0.5rem' }}>
         {items.map((item) => (
@@ -79,9 +79,9 @@ export default function SeoReportsPage() {
   return (
     <Suspense
       fallback={
-        <main style={{ padding: '2rem' }}>
-          <p className="muted">Đang tải reporting center…</p>
-        </main>
+        <SeoPageShell user={null} onLogout={() => {}} title="Reporting Center" loading>
+          <span />
+        </SeoPageShell>
       }
     >
       <SeoReportsContent />
@@ -261,26 +261,20 @@ function SeoReportsContent() {
   }
 
   return (
-    <div className="page">
-      <OpsNav user={user} onLogout={logout} />
-      <main className="main-content">
-        <div className="page-header">
-          <div>
-            <h1>Reporting Center</h1>
-            <p className="muted">S-12 · Dashboard, export, lịch báo cáo, alerts</p>
-          </div>
-          <div className="page-actions">
-            <Link href="/seo/hub" className="btn btn-secondary btn-sm">
-              Hub
-            </Link>
-            <Link href="/seo/technical" className="btn btn-secondary btn-sm">
-              Technical
-            </Link>
-          </div>
-        </div>
-
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <div className="form-row" style={{ alignItems: 'end', gap: '1rem', flexWrap: 'wrap' }}>
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      title="Reporting Center"
+      subtitle="S-12 · Dashboard, export, lịch báo cáo, alerts"
+      actions={
+        <Link href="/seo/technical" className="btn btn-sm btn-secondary">
+          Technical
+        </Link>
+      }
+    >
+      <div className="page-card stack-gap">
+        <div className="form-row" style={{ alignItems: 'end', gap: '1rem', flexWrap: 'wrap' }}>
             <label>
               Client
               <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
@@ -314,7 +308,6 @@ function SeoReportsContent() {
               {exportBusy ? 'Đang export…' : 'Export CSV'}
             </button>
           </div>
-        </div>
 
         {error && <p className="error">{error}</p>}
 
@@ -325,17 +318,9 @@ function SeoReportsContent() {
         ) : (
           <>
             {kpiCards.length > 0 && (
-              <div
-                className="card"
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-                  gap: '1rem',
-                  marginBottom: '1rem',
-                }}
-              >
+              <div className="channel-hub-summary">
                 {kpiCards.map((kpi) => (
-                  <div key={kpi.label}>
+                  <div key={kpi.label} className="summary-card">
                     <p className="muted" style={{ margin: 0 }}>
                       {kpi.label}
                     </p>
@@ -346,7 +331,7 @@ function SeoReportsContent() {
             )}
 
             {gscTrendPoints.length > 0 && (
-              <div className="card" style={{ marginBottom: '1rem' }}>
+              <div className="page-card stack-gap">
                 <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>GSC trend</h2>
                 <SeoGscTrendChart points={gscTrendPoints} days={dashboard?.days ?? 28} />
               </div>
@@ -361,7 +346,7 @@ function SeoReportsContent() {
             )}
 
             {attribution && (
-              <div className="card" style={{ marginBottom: '1rem' }}>
+              <div className="page-card stack-gap">
                 <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Organic attribution (28 ngày)</h2>
                 <div
                   style={{
@@ -388,8 +373,8 @@ function SeoReportsContent() {
                   ))}
                 </div>
                 {attribution.top_landing_pages.length > 0 ? (
-                  <div className="table-wrap">
-                    <table>
+                  <div className="data-table-wrap">
+                    <table className="data-table">
                       <thead>
                         <tr>
                           <th>Landing page</th>
@@ -418,11 +403,11 @@ function SeoReportsContent() {
               </div>
             )}
 
-            <div className="card" style={{ marginBottom: '1rem' }}>
+            <div className="page-card stack-gap">
               <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Lịch báo cáo</h2>
               {schedules.length > 0 ? (
-                <div className="table-wrap">
-                  <table>
+                <div className="data-table-wrap">
+                  <table className="data-table">
                     <thead>
                       <tr>
                         <th>Dashboard</th>
@@ -452,7 +437,7 @@ function SeoReportsContent() {
               )}
             </div>
 
-            <div className="card">
+            <div className="page-card stack-gap">
               <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Open alerts</h2>
               {alerts.length > 0 ? (
                 <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
@@ -478,7 +463,7 @@ function SeoReportsContent() {
             </div>
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </SeoPageShell>
   );
 }

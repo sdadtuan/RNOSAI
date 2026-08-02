@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { EmailPageShell } from '@/components/email';
+import { FilterBar, FilterBarActions, FilterBarSearch } from '@/components/layout';
 import {
   createEmailWorkspace,
   fetchEmailClients,
@@ -114,50 +115,44 @@ export default function EmailClientsPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <EmailPageShell user={null} onLogout={logout} title="Clients" loading>
+        <span />
+      </EmailPageShell>
     );
   }
 
   const canSettings = hasCap(user, 'crm_email_mkt', 'settings') || hasCap(user, 'crm_agency', 'create');
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <p className="muted" style={{ marginTop: 0 }}>
-          EM-1 E-02 — Danh sách client Email · workspace per client
-        </p>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <Link href="/email/hub" className="btn btn-secondary btn-sm">
-            ← Email hub
-          </Link>
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Tìm code / tên"
-            style={{ minWidth: 200 }}
-          />
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={loading}
-            onClick={() => {
-              const access = getAccessToken();
-              if (access) void load(access);
-            }}
-          >
-            Làm mới
-          </button>
-        </div>
-      </div>
+    <EmailPageShell
+      user={user}
+      onLogout={logout}
+      title="Clients"
+      subtitle="EM-1 E-02 — Danh sách client Email · workspace per client"
+    >
+      <div className="page-card stack-gap">
+        <FilterBar>
+          <FilterBarSearch value={q} onChange={setQ} placeholder="Tìm code / tên" />
+          <FilterBarActions>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={loading}
+              onClick={() => {
+                const access = getAccessToken();
+                if (access) void load(access);
+              }}
+            >
+              Làm mới
+            </button>
+          </FilterBarActions>
+        </FilterBar>
 
-      {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="error">{error}</p> : null}
+        {loading ? <p className="muted">Đang tải…</p> : null}
 
-      <div className="card">
-        <div style={{ overflowX: 'auto' }}>
-          <table className="perf-table">
+        <div className="data-table-wrap">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>Client</th>
@@ -206,11 +201,17 @@ export default function EmailClientsPage() {
                   </td>
                 </tr>
               ))}
+              {!loading && clients.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="muted">
+                    Không có client.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
-          {!loading && clients.length === 0 ? <p className="muted">Không có client.</p> : null}
         </div>
       </div>
-    </main>
+    </EmailPageShell>
   );
 }

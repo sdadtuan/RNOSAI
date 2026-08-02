@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { EmailPageShell } from '@/components/email';
+import { FilterBar, FilterBarActions, FilterBarSearch } from '@/components/layout';
 import {
   addEmailSuppression,
   fetchEmailSuppression,
@@ -122,9 +122,9 @@ export default function EmailSuppressionPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <EmailPageShell user={null} onLogout={logout} title="Suppression" loading>
+        <span />
+      </EmailPageShell>
     );
   }
 
@@ -134,87 +134,93 @@ export default function EmailSuppressionPage() {
     hasCap(user, 'crm_agency', 'create');
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <p className="muted" style={{ marginTop: 0 }}>
-          EM-1 E-06 — Suppression master
-        </p>
-        <Link href="/email/hub" className="btn btn-secondary btn-sm">
-          ← Email hub
-        </Link>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+    <EmailPageShell
+      user={user}
+      onLogout={logout}
+      title="Suppression"
+      subtitle="EM-1 E-06 — Suppression master"
+    >
+      <div className="page-card stack-gap">
+        <FilterBar>
           <input
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
             placeholder="Client UUID"
             style={{ width: 280 }}
           />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Email" style={{ width: 200 }} />
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={loading}
-            onClick={() => {
-              const access = getAccessToken();
-              if (access) void load(access);
-            }}
-          >
-            Làm mới
-          </button>
-        </div>
-      </div>
-
-      {error ? <p className="error">{error}</p> : null}
-
-      {canCompliance ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <h3 style={{ marginTop: 0 }}>Thêm suppression</h3>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <input
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="email@example.com"
-              style={{ minWidth: 220 }}
-            />
-            <select value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })}>
-              <option value="manual">manual</option>
-              <option value="unsubscribe">unsubscribe</option>
-              <option value="complaint">complaint</option>
-              <option value="hard_bounce">hard_bounce</option>
-            </select>
-            <button type="button" className="btn btn-sm" onClick={() => void submitSuppression()}>
-              Thêm
+          <FilterBarSearch value={q} onChange={setQ} placeholder="Email" />
+          <FilterBarActions>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={loading}
+              onClick={() => {
+                const access = getAccessToken();
+                if (access) void load(access);
+              }}
+            >
+              Làm mới
             </button>
-          </div>
-        </div>
-      ) : null}
+          </FilterBarActions>
+        </FilterBar>
 
-      <div className="card">
-        <table className="perf-table">
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Client</th>
-              <th>Reason</th>
-              <th>Scope</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td>{r.email_normalized}</td>
-                <td>{r.client_name ?? 'global'}</td>
-                <td>{r.reason}</td>
-                <td>{r.scope}</td>
-                <td>{r.created_at.slice(0, 10)}</td>
+        {error ? <p className="error">{error}</p> : null}
+
+        {canCompliance ? (
+          <div>
+            <h3 style={{ marginTop: 0 }}>Thêm suppression</h3>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <input
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="email@example.com"
+                style={{ minWidth: 220 }}
+              />
+              <select value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })}>
+                <option value="manual">manual</option>
+                <option value="unsubscribe">unsubscribe</option>
+                <option value="complaint">complaint</option>
+                <option value="hard_bounce">hard_bounce</option>
+              </select>
+              <button type="button" className="btn btn-sm" onClick={() => void submitSuppression()}>
+                Thêm
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Client</th>
+                <th>Reason</th>
+                <th>Scope</th>
+                <th>Created</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {!loading && rows.length === 0 ? <p className="muted">Không có suppression entry.</p> : null}
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.email_normalized}</td>
+                  <td>{r.client_name ?? 'global'}</td>
+                  <td>{r.reason}</td>
+                  <td>{r.scope}</td>
+                  <td>{r.created_at.slice(0, 10)}</td>
+                </tr>
+              ))}
+              {!loading && rows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="muted">
+                    Không có suppression entry.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </main>
+    </EmailPageShell>
   );
 }

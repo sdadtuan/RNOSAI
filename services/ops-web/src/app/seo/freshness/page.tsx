@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { SeoPageShell } from '@/components/seo';
 import {
   fetchSeoClients,
   fetchSeoFreshnessQueue,
@@ -24,7 +24,13 @@ import { canViewSeoFreshness, canWriteSeo } from '@/lib/seo/caps';
 
 export default function SeoFreshnessPage() {
   return (
-    <Suspense fallback={<main style={{ padding: '2rem' }}><p className="muted">Đang tải freshness queue…</p></main>}>
+    <Suspense
+      fallback={
+        <SeoPageShell user={null} onLogout={() => {}} title="Freshness Queue" loading>
+          <span />
+        </SeoPageShell>
+      }
+    >
       <SeoFreshnessContent />
     </Suspense>
   );
@@ -97,14 +103,26 @@ function SeoFreshnessContent() {
     })();
   }, [customerId, ensureAuth, loadData]);
 
-  return (
-    <>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.replace('/login'); }} />
-      <main style={{ padding: '1.5rem 2rem', maxWidth: 1200 }}>
-        <h1>Freshness Queue</h1>
-        <p className="muted">Decay scoring, refresh priority — port freshness.py</p>
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
 
-        <div className="card" style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'end' }}>
+  return (
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      title="Freshness Queue"
+      subtitle="Decay scoring, refresh priority — port freshness.py"
+      actions={
+        <Link href="/seo/content" className="btn btn-sm btn-secondary">
+          Content pipeline
+        </Link>
+      }
+    >
+      <div className="page-card stack-gap">
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'end' }}>
           <label>
             Client
             <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} style={{ display: 'block', marginTop: 4 }}>
@@ -144,15 +162,15 @@ function SeoFreshnessContent() {
         {toast && <p className="muted">{toast}</p>}
 
         {loading ? <p className="muted">Đang tải…</p> : (
-          <div className="card">
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="data-table-wrap">
+            <table className="data-table">
               <thead>
                 <tr>
-                  <th align="left">Title</th>
-                  <th align="left">Decay</th>
-                  <th align="left">Priority</th>
-                  <th align="left">Age (days)</th>
-                  <th align="left">Status</th>
+                  <th>Title</th>
+                  <th>Decay</th>
+                  <th>Priority</th>
+                  <th>Age (days)</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -167,14 +185,18 @@ function SeoFreshnessContent() {
                     <td>{String(item.workflow_status)}</td>
                   </tr>
                 ))}
-                {!items.length && <tr><td colSpan={5} className="muted">Queue trống — chạy rescore.</td></tr>}
+                {!items.length && (
+                  <tr>
+                    <td colSpan={5} className="muted">
+                      Queue trống — chạy rescore.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         )}
-
-        <p style={{ marginTop: '1rem' }}><Link href="/seo/hub">← Hub</Link> · <Link href="/seo/content">Content pipeline</Link></p>
-      </main>
-    </>
+      </div>
+    </SeoPageShell>
   );
 }

@@ -4,6 +4,7 @@ export { ChannelHubLayout } from './ChannelHubLayout';
 export { DetailPageLayout } from './DetailPageLayout';
 export { FilterBar, FilterBarActions, FilterBarSearch } from './FilterBar';
 export { HubPageLayout } from './HubPageLayout';
+export { ModuleSubNav } from './ModuleSubNav';
 export { OpsPage } from './OpsPage';
 export { PageFooter } from './PageFooter';
 export { PageToolbar } from './PageToolbar';

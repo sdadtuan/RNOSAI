@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { EmailPageShell } from '@/components/email';
 import {
   fetchEmailGateAReadiness,
   fetchEmailGateASignoffTemplate,
@@ -38,7 +38,13 @@ type GateAReadiness = {
 
 export default function EmailGateAPage() {
   return (
-    <Suspense fallback={<main style={{ padding: '2rem' }}><p className="muted">Đang tải Gate A…</p></main>}>
+    <Suspense
+      fallback={
+        <EmailPageShell user={null} onLogout={() => {}} title="Gate A" loading>
+          <span />
+        </EmailPageShell>
+      }
+    >
       <EmailGateAContent />
     </Suspense>
   );
@@ -135,56 +141,62 @@ function EmailGateAContent() {
   const staged = readiness.staged_steps ?? status.staged_steps ?? [];
   const notes = readiness.notes ?? status.notes ?? [];
 
+  if (!user) {
+    return (
+      <EmailPageShell user={null} onLogout={onLogout} title="Gate A" loading>
+        <span />
+      </EmailPageShell>
+    );
+  }
+
   return (
-    <div className="ops-shell">
-      <OpsNav user={user} onLogout={onLogout} />
-      <main className="ops-main">
-        <div className="ops-page-header">
-          <div>
-            <h2>Gate A — Prod pilot Email Marketing</h2>
-            <p className="muted">
-              EM-5 · Staged cutover B1→B4 · soak ≥7 ngày · ESP pilot
+    <EmailPageShell
+      user={user}
+      onLogout={onLogout}
+      title="Gate A — Prod pilot Email Marketing"
+      subtitle="EM-5 · Staged cutover B1→B4 · soak ≥7 ngày · ESP pilot"
+      showModuleNav={false}
+      actions={
+        <>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => void downloadSignoff()}>
+            Tải sign-off template
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => {
+              const token = getAccessToken();
+              if (token) void load(token);
+            }}
+          >
+            Làm mới
+          </button>
+        </>
+      }
+    >
+      {toast ? <p className="toast">{toast}</p> : null}
+      {error ? <p className="error">{error}</p> : null}
+      {loading ? <p className="muted">Đang tải…</p> : null}
+
+      {!loading && !error ? (
+        <>
+          <div className="page-card stack-gap">
+            <h3 style={{ marginTop: 0 }}>Readiness</h3>
+            <p>
+              Trạng thái:{' '}
+              <strong className={ready ? 'text-ok' : 'text-warn'}>{ready ? 'Sẵn sàng' : 'Chưa đạt'}</strong>
+              {readiness.generated_at ? ` · ${readiness.generated_at}` : null}
             </p>
+            <ul className="muted" style={{ marginTop: '0.5rem' }}>
+              {notes.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
           </div>
-          <div className="ops-page-actions">
-            <button type="button" className="btn btn-secondary" onClick={() => void downloadSignoff()}>
-              Tải sign-off template
-            </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                const token = getAccessToken();
-                if (token) void load(token);
-              }}
-            >
-              Làm mới
-            </button>
-          </div>
-        </div>
 
-        {toast ? <p className="toast">{toast}</p> : null}
-        {error ? <p className="error-banner">{error}</p> : null}
-        {loading ? <p className="muted">Đang tải…</p> : null}
-
-        {!loading && !error ? (
-          <>
-            <section className="card" style={{ marginBottom: '1rem' }}>
-              <h3>Readiness</h3>
-              <p>
-                Trạng thái:{' '}
-                <strong className={ready ? 'text-ok' : 'text-warn'}>{ready ? 'Sẵn sàng' : 'Chưa đạt'}</strong>
-                {readiness.generated_at ? ` · ${readiness.generated_at}` : null}
-              </p>
-              <ul className="muted" style={{ marginTop: '0.5rem' }}>
-                {notes.map((n) => (
-                  <li key={n}>{n}</li>
-                ))}
-              </ul>
-            </section>
-
-            <section className="card" style={{ marginBottom: '1rem' }}>
-              <h3>Staged cutover flags</h3>
+          <div className="page-card stack-gap">
+            <h3 style={{ marginTop: 0 }}>Staged cutover flags</h3>
+            <div className="data-table-wrap">
               <table className="data-table">
                 <thead>
                   <tr>
@@ -203,50 +215,50 @@ function EmailGateAContent() {
                   ))}
                 </tbody>
               </table>
-            </section>
+            </div>
+          </div>
 
-            <section className="card" style={{ marginBottom: '1rem' }}>
-              <h3>Soak evidence</h3>
-              <p className="muted">
-                Required days: {String(soak.required_days ?? 7)} · Samples: {String(soak.sample_count ?? 0)}
-                {' · '}Span days: {String(soak.span_days ?? '—')}
-                {' · '}Failures: {String(soak.failure_count ?? 0)}
-                {soak.skipped ? ' · (skipped in dev)' : null}
+          <div className="page-card stack-gap">
+            <h3 style={{ marginTop: 0 }}>Soak evidence</h3>
+            <p className="muted">
+              Required days: {String(soak.required_days ?? 7)} · Samples: {String(soak.sample_count ?? 0)}
+              {' · '}Span days: {String(soak.span_days ?? '—')}
+              {' · '}Failures: {String(soak.failure_count ?? 0)}
+              {soak.skipped ? ' · (skipped in dev)' : null}
+            </p>
+            {soak.log_path ? <p><code>{String(soak.log_path)}</code></p> : null}
+          </div>
+
+          <div className="page-card stack-gap">
+            <h3 style={{ marginTop: 0 }}>QA handoff §13</h3>
+            <ul>
+              {(readiness.qa_checklist ?? []).map((item) => (
+                <li key={item.id}>
+                  {item.label}
+                  <span className="muted"> — {item.status}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="page-card stack-gap">
+            <h3 style={{ marginTop: 0 }}>ops-web routes</h3>
+            <p className="muted">Staff console — bookmark cũ /crm/email redirect về /email/hub</p>
+            <ul style={{ columns: 2 }}>
+              {(readiness.ops_web_routes ?? []).map((route) => (
+                <li key={route}>
+                  <Link href={route} className="nav-link">{route}</Link>
+                </li>
+              ))}
+            </ul>
+            {readiness.nginx_redirect ? (
+              <p className="muted" style={{ marginTop: '0.75rem' }}>
+                Nginx: <code>{readiness.nginx_redirect}</code>
               </p>
-              {soak.log_path ? <p><code>{String(soak.log_path)}</code></p> : null}
-            </section>
-
-            <section className="card" style={{ marginBottom: '1rem' }}>
-              <h3>QA handoff §13</h3>
-              <ul>
-                {(readiness.qa_checklist ?? []).map((item) => (
-                  <li key={item.id}>
-                    {item.label}
-                    <span className="muted"> — {item.status}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            <section className="card">
-              <h3>ops-web routes</h3>
-              <p className="muted">Staff console — bookmark cũ /crm/email redirect về /email/hub</p>
-              <ul style={{ columns: 2 }}>
-                {(readiness.ops_web_routes ?? []).map((route) => (
-                  <li key={route}>
-                    <Link href={route} className="nav-link">{route}</Link>
-                  </li>
-                ))}
-              </ul>
-              {readiness.nginx_redirect ? (
-                <p className="muted" style={{ marginTop: '0.75rem' }}>
-                  Nginx: <code>{readiness.nginx_redirect}</code>
-                </p>
-              ) : null}
-            </section>
-          </>
-        ) : null}
-      </main>
-    </div>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+    </EmailPageShell>
   );
 }

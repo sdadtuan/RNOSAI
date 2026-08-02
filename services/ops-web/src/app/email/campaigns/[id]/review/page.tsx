@@ -1,10 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
-import { EmailApprovalTimeline, EmailStatusBadge, PreflightChecklist } from '@/components/email';
+import { EmailApprovalTimeline, EmailPageShell, EmailStatusBadge, PreflightChecklist } from '@/components/email';
+import { DetailPageLayout } from '@/components/layout';
 import { emailSendEnabled } from '@/lib/email-flags';
 import {
   approveEmailCampaign,
@@ -130,7 +129,18 @@ export default function EmailCampaignReviewPage() {
     }
   }
 
-  if (!user) return <main style={{ padding: '2rem' }}><p className="muted">Đang tải…</p></main>;
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
+
+  if (!user) {
+    return (
+      <EmailPageShell user={null} onLogout={logout} title="Campaign review" loading>
+        <span />
+      </EmailPageShell>
+    );
+  }
 
   const canSubmit =
     campaign?.status === 'draft' &&
@@ -141,71 +151,79 @@ export default function EmailCampaignReviewPage() {
     (hasCap(user, 'crm_email_mkt', 'approve') || hasCap(user, 'crm_agency', 'create'));
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.push('/login'); }} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <p className="muted" style={{ marginTop: 0 }}>EM-10 E-09c — Campaign review, preflight & approve</p>
-        <Link href={`/email/campaigns/${campaignId}`} className="btn btn-secondary btn-sm">← Campaign</Link>
-      </div>
-      {error ? <p className="error">{error}</p> : null}
-      {campaign ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <h2 style={{ marginTop: 0 }}>{campaign.name}</h2>
-          <p className="muted">
-            {campaign.client_name} · audience {campaign.audience_count ?? 0} ·{' '}
-            <EmailStatusBadge status={campaign.status} />
-          </p>
-          {campaign.scheduled_at ? (
-            <p className="muted">Scheduled: {campaign.scheduled_at.slice(0, 16).replace('T', ' ')}</p>
-          ) : null}
-          <EmailApprovalTimeline status={campaign.status} />
+    <EmailPageShell user={user} onLogout={logout} showModuleNav={false} hideToolbar title="Campaign review">
+      <DetailPageLayout
+        backHref={`/email/campaigns/${campaignId}`}
+        backLabel="← Campaign"
+        title={campaign?.name ?? 'Campaign review'}
+        subtitle={
+          campaign
+            ? `${campaign.client_name} · audience ${campaign.audience_count ?? 0} · EM-10 E-09c`
+            : 'EM-10 E-09c — Campaign review, preflight & approve'
+        }
+      >
+        {error ? <p className="error">{error}</p> : null}
+        {campaign ? (
+          <>
+            <p className="muted">
+              <EmailStatusBadge status={campaign.status} />
+            </p>
+            {campaign.scheduled_at ? (
+              <p className="muted">Scheduled: {campaign.scheduled_at.slice(0, 16).replace('T', ' ')}</p>
+            ) : null}
+            <EmailApprovalTimeline status={campaign.status} />
+          </>
+        ) : null}
+
+        <div>
+          <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>
+            Preflight checklist {preflightPassed ? '✓' : '✗'}
+          </h2>
+          <PreflightChecklist checks={checks} />
         </div>
-      ) : null}
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>
-          Preflight checklist {preflightPassed ? '✓' : '✗'}
-        </h2>
-        <PreflightChecklist checks={checks} />
-      </div>
-      {canSubmit ? (
-        <button
-          type="button"
-          className="btn"
-          disabled={!preflightPassed || submitting || !emailSendEnabled()}
-          onClick={() => void submit()}
-          title={!emailSendEnabled() ? 'Send platform disabled' : undefined}
-        >
-          {submitting ? '…' : 'Submit for approval'}
-        </button>
-      ) : null}
-      {canApprove ? (
-        <div className="card" style={{ marginTop: '1rem' }}>
-          <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Staff approve</h2>
-          <label className="muted" style={{ display: 'block', marginBottom: '0.75rem' }}>
-            Schedule send (optional){' '}
-            <input
-              type="datetime-local"
-              value={scheduleAt}
-              onChange={(e) => setScheduleAt(e.target.value)}
-              style={{ marginLeft: '0.35rem' }}
-            />
-          </label>
-          <p className="muted" style={{ marginTop: 0 }}>
-            Để trống = gửi ngay sau approve. Chọn thời gian tương lai = status scheduled, cron enqueue prepare.
-          </p>
+
+        {canSubmit ? (
           <button
             type="button"
             className="btn"
-            disabled={!preflightPassed || approving || !emailSendEnabled()}
-            onClick={() => void approve()}
+            disabled={!preflightPassed || submitting || !emailSendEnabled()}
+            onClick={() => void submit()}
+            title={!emailSendEnabled() ? 'Send platform disabled' : undefined}
           >
-            {approving ? '…' : scheduleAt.trim() ? 'Approve & schedule' : 'Approve & send'}
+            {submitting ? '…' : 'Submit for approval'}
           </button>
-        </div>
-      ) : null}
-      {!canSubmit && !canApprove ? (
-        <p className="muted">Campaign không ở trạng thái draft/pending hoặc thiếu quyền.</p>
-      ) : null}
-    </main>
+        ) : null}
+
+        {canApprove ? (
+          <div>
+            <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Staff approve</h2>
+            <label className="muted" style={{ display: 'block', marginBottom: '0.75rem' }}>
+              Schedule send (optional){' '}
+              <input
+                type="datetime-local"
+                value={scheduleAt}
+                onChange={(e) => setScheduleAt(e.target.value)}
+                style={{ marginLeft: '0.35rem' }}
+              />
+            </label>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Để trống = gửi ngay sau approve. Chọn thời gian tương lai = status scheduled, cron enqueue prepare.
+            </p>
+            <button
+              type="button"
+              className="btn"
+              disabled={!preflightPassed || approving || !emailSendEnabled()}
+              onClick={() => void approve()}
+            >
+              {approving ? '…' : scheduleAt.trim() ? 'Approve & schedule' : 'Approve & send'}
+            </button>
+          </div>
+        ) : null}
+
+        {!canSubmit && !canApprove ? (
+          <p className="muted">Campaign không ở trạng thái draft/pending hoặc thiếu quyền.</p>
+        ) : null}
+      </DetailPageLayout>
+    </EmailPageShell>
   );
 }

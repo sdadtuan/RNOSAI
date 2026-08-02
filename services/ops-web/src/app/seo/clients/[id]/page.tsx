@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { DetailPageLayout } from '@/components/layout';
+import { SeoPageShell } from '@/components/seo';
 import { SeoClientWorkspaceNav } from '@/components/SeoClientWorkspaceNav';
 import {
   fetchSeoClientTasks,
@@ -226,39 +227,33 @@ export default function SeoClientWorkspacePage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <SeoPageShell user={null} onLogout={logout} loading showModuleNav={false} title="Client workspace">
+        <span />
+      </SeoPageShell>
     );
   }
 
   const client = workspace?.client;
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <div>
-            <p className="muted" style={{ marginTop: 0 }}>
-              S-03 Client workspace · B1
-            </p>
-            <h1 style={{ margin: '0.25rem 0' }}>{client?.customer_name ?? `Client #${customerId}`}</h1>
-            <p className="muted" style={{ margin: 0 }}>
-              ID {customerId} · {client?.customer_company ?? '—'}
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-            <Link href="/seo/clients" className="btn btn-secondary btn-sm">
-              ← Clients
-            </Link>
-            <Link href="/seo/hub" className="btn btn-secondary btn-sm">
-              Hub
-            </Link>
-          </div>
-        </div>
-
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      showModuleNav={false}
+      hideToolbar
+      title="Client workspace"
+      breadcrumb={[
+        { label: 'SEO / AEO', href: '/seo/hub' },
+        { label: 'Clients', href: '/seo/clients' },
+        { label: client?.customer_name ?? `#${customerId}` },
+      ]}
+    >
+      <DetailPageLayout
+        backHref="/seo/clients"
+        backLabel="← Clients"
+        title={client?.customer_name ?? `Client #${customerId}`}
+        subtitle={`ID ${customerId} · ${client?.customer_company ?? '—'}`}
+      >
         <SeoClientWorkspaceNav
           customerId={customerId}
           activeTab={tab}
@@ -266,48 +261,44 @@ export default function SeoClientWorkspacePage() {
           domains={workspace?.settings.domains}
           markets={workspace?.settings.markets}
         />
-      </div>
 
-      {error ? <p className="error">{error}</p> : null}
-      {message ? <p className="muted">{message}</p> : null}
+        {error ? <p className="error">{error}</p> : null}
+        {message ? <p className="muted">{message}</p> : null}
 
-      {loading ? <p className="muted">Đang tải workspace…</p> : null}
+        {loading ? <p className="muted">Đang tải workspace…</p> : null}
 
-      {!loading && tab === 'overview' && workspace ? (
-        <div style={{ display: 'grid', gap: '1rem' }}>
-          <div
-            className="card"
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '1rem' }}
-          >
-            <div>
-              <p className="muted" style={{ margin: 0 }}>
-                Health
-              </p>
-              <strong>
-                {client?.health_score ?? '—'} · {client?.health_tier ?? '—'}
-              </strong>
+        {!loading && tab === 'overview' && workspace ? (
+          <div style={{ display: 'grid', gap: '1rem' }}>
+            <div className="channel-hub-summary">
+              <div className="summary-card">
+                <p className="muted" style={{ margin: 0 }}>
+                  Health
+                </p>
+                <strong>
+                  {client?.health_score ?? '—'} · {client?.health_tier ?? '—'}
+                </strong>
+              </div>
+              <div className="summary-card">
+                <p className="muted" style={{ margin: 0 }}>
+                  AEO coverage
+                </p>
+                <strong>{client?.aeo_coverage_pct ?? 0}%</strong>
+              </div>
+              <div className="summary-card">
+                <p className="muted" style={{ margin: 0 }}>
+                  GSC clicks (28d)
+                </p>
+                <strong>{String(workspace.gsc_totals?.clicks ?? '—')}</strong>
+              </div>
+              <div className="summary-card">
+                <p className="muted" style={{ margin: 0 }}>
+                  Critical issues
+                </p>
+                <strong>{client?.critical_issues ?? 0}</strong>
+              </div>
             </div>
-            <div>
-              <p className="muted" style={{ margin: 0 }}>
-                AEO coverage
-              </p>
-              <strong>{client?.aeo_coverage_pct ?? 0}%</strong>
-            </div>
-            <div>
-              <p className="muted" style={{ margin: 0 }}>
-                GSC clicks (28d)
-              </p>
-              <strong>{String(workspace.gsc_totals?.clicks ?? '—')}</strong>
-            </div>
-            <div>
-              <p className="muted" style={{ margin: 0 }}>
-                Critical issues
-              </p>
-              <strong>{client?.critical_issues ?? 0}</strong>
-            </div>
-          </div>
 
-          <div className="card">
+            <div className="page-card stack-gap">
             <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>Content delivery</h2>
             <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
               <span>In writing: {workspace.content_delivery.in_writing ?? 0}</span>
@@ -317,8 +308,8 @@ export default function SeoClientWorkspacePage() {
             </div>
           </div>
 
-          <div className="card">
-            <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>Integrations</h2>
+            <div className="page-card stack-gap">
+              <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>Integrations</h2>
             <p style={{ margin: '0.25rem 0' }}>
               GSC: {workspace.integrations.gsc.connected ? 'Connected' : 'Disconnected'}{' '}
               {workspace.integrations.gsc.site_url ? `· ${workspace.integrations.gsc.site_url}` : ''}
@@ -330,9 +321,10 @@ export default function SeoClientWorkspacePage() {
           </div>
 
           {workspace.sync_runs.length ? (
-            <div className="card">
+            <div className="page-card stack-gap">
               <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>Recent sync runs</h2>
-              <table className="perf-table">
+              <div className="data-table-wrap">
+                <table className="data-table">
                 <thead>
                   <tr>
                     <th>Source</th>
@@ -352,13 +344,14 @@ export default function SeoClientWorkspacePage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           ) : null}
         </div>
       ) : null}
 
       {!loading && tab === 'tasks' ? (
-        <div className="card">
+        <div className="page-card stack-gap">
           <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>
             Open tasks ({tasks?.open_count ?? 0})
           </h2>
@@ -391,7 +384,7 @@ export default function SeoClientWorkspacePage() {
       ) : null}
 
       {!loading && tab === 'settings' && workspace ? (
-        <div className="card">
+        <div className="page-card stack-gap">
           <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>Client settings (S-04)</h2>
           {!canConfigure ? (
             <p className="muted">Bạn chỉ có quyền xem — cần cap crm_seo_aeo_settings.</p>
@@ -508,6 +501,7 @@ export default function SeoClientWorkspacePage() {
           </div>
         </div>
       ) : null}
-    </main>
+      </DetailPageLayout>
+    </SeoPageShell>
   );
 }

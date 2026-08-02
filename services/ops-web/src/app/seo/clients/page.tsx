@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { SeoPageShell } from '@/components/seo';
 import { fetchSeoClients, staffMe, staffRefresh, type SeoHubClientRow } from '@/lib/api';
 import {
   clearSession,
@@ -78,31 +78,20 @@ export default function SeoClientsPage() {
     router.push('/login');
   }
 
-  if (!user) {
-    return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
-    );
-  }
-
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <p className="muted" style={{ marginTop: 0 }}>
-          SEO clients · workspace B1
-        </p>
-        <Link href="/seo/hub" className="btn btn-secondary btn-sm">
-          ← SEO Hub
-        </Link>
-      </div>
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      title="SEO Clients"
+      subtitle="Danh sách client SEO · workspace B1"
+    >
+      <div className="page-card stack-gap">
+        {error ? <p className="error">{error}</p> : null}
+        {loading ? <p className="muted">Đang tải…</p> : null}
 
-      {error ? <p className="error">{error}</p> : null}
-
-      <div className="card">
-        <div style={{ overflowX: 'auto' }}>
-          <table className="perf-table">
+        <div className="data-table-wrap">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>ID</th>
@@ -145,6 +134,6 @@ export default function SeoClientsPage() {
           ) : null}
         </div>
       </div>
-    </main>
+    </SeoPageShell>
   );
 }

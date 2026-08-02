@@ -1,15 +1,15 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
 import {
   EmailAlertBanner,
   EmailEmptyState,
   EmailHealthDot,
   EmailKpiCard,
+  EmailPageShell,
 } from '@/components/email';
+import { FilterBar, FilterBarActions } from '@/components/layout';
 import { fetchEmailHub, staffMe, staffRefresh, type EmailHubResponse } from '@/lib/api';
 import {
   clearSession,
@@ -101,74 +101,25 @@ export default function EmailHubPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <EmailPageShell user={null} onLogout={logout} title="Email hub" loading>
+        <span />
+      </EmailPageShell>
     );
   }
 
   const summary = hub?.summary;
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav
-        user={user}
-        onLogout={logout}
-        emailPendingApprovals={summary?.pending_approvals}
-      />
-      {!hub?.schema_ready ? (
-        <EmailAlertBanner
-          severity="warn"
-          message="Schema email_mkt chưa apply — chạy ./scripts/apply_pg_ddl_email_mkt.sh"
-          link="/email/governance"
-          linkLabel="Governance"
-        />
-      ) : null}
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <p className="muted" style={{ marginTop: 0 }}>
-          EM-0 — Email Ops hub skeleton · Nest PG native · E-01
-        </p>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <Link href="/email/clients" className="btn btn-sm">
-            Clients (E-02)
-          </Link>
-          <Link href="/email/contacts" className="btn btn-sm">
-            Contacts
-          </Link>
-          <Link href="/email/consent" className="btn btn-sm">
-            Consent
-          </Link>
-          <Link href="/email/suppression" className="btn btn-sm">
-            Suppression
-          </Link>
-          <Link href="/email/segments" className="btn btn-sm">
-            Segments (E-07)
-          </Link>
-          <Link href="/email/templates" className="btn btn-sm">
-            Templates (E-08)
-          </Link>
-          <Link href="/email/campaigns" className="btn btn-sm">
-            Campaigns (E-09)
-          </Link>
-          <Link href="/email/journeys" className="btn btn-sm">
-            Journeys (E-10)
-          </Link>
-          <Link href="/email/deliverability" className="btn btn-sm">
-            Deliverability (E-11)
-          </Link>
-          <Link href="/email/reports" className="btn btn-sm">
-            Reports (E-12)
-          </Link>
-          <Link href="/email/governance" className="btn btn-sm">
-            Governance (E-13)
-          </Link>
-          {hub?.schema_ready === false ? (
-            <span className="error" style={{ alignSelf: 'center' }}>
-              Schema chưa apply — chạy apply_pg_ddl_email_mkt.sh
-            </span>
-          ) : null}
-        </div>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+    <EmailPageShell
+      user={user}
+      onLogout={logout}
+      title="Email hub"
+      subtitle="EM-0 — Email Ops hub skeleton · Nest PG native · E-01"
+      emailPendingApprovals={summary?.pending_approvals}
+      schemaReady={hub?.schema_ready}
+    >
+      <div className="page-card stack-gap">
+        <FilterBar>
           <label className="muted">
             Days{' '}
             <select
@@ -199,24 +150,29 @@ export default function EmailHubPage() {
               style={{ width: 140, marginLeft: '0.35rem' }}
             />
           </label>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={loading}
-            onClick={() => {
-              const access = getAccessToken();
-              if (access) void loadHub(access);
-            }}
-          >
-            Làm mới
-          </button>
-        </div>
+          <FilterBarActions>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={loading}
+              onClick={() => {
+                const access = getAccessToken();
+                if (access) void loadHub(access);
+              }}
+            >
+              Làm mới
+            </button>
+          </FilterBarActions>
+        </FilterBar>
+        {hub?.schema_ready === false ? (
+          <span className="error">Schema chưa apply — chạy apply_pg_ddl_email_mkt.sh</span>
+        ) : null}
       </div>
 
       {error ? <p className="error">{error}</p> : null}
 
       {loading && !summary ? (
-        <div className="email-kpi-grid" style={{ marginBottom: '1rem' }}>
+        <div className="hub-module-grid">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="email-skeleton" style={{ height: 72 }} />
           ))}
@@ -224,7 +180,7 @@ export default function EmailHubPage() {
       ) : null}
 
       {summary ? (
-        <div className="email-kpi-grid" style={{ marginBottom: '1rem' }}>
+        <div className="hub-module-grid">
           <EmailKpiCard label="Emails sent" value={summary.emails_sent.toLocaleString()} />
           <EmailKpiCard label="Open rate" value={`${summary.open_rate_pct}%`} />
           <EmailKpiCard label="Complaint" value={`${summary.complaint_rate_pct}%`} />
@@ -235,7 +191,7 @@ export default function EmailHubPage() {
       ) : null}
 
       {hub?.alerts?.length ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
+        <div className="page-card stack-gap">
           <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Alerts</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {hub.alerts.map((alert) => (
@@ -251,8 +207,8 @@ export default function EmailHubPage() {
         </div>
       ) : null}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-        <div className="card">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div className="page-card stack-gap">
           <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Send calendar (7d)</h2>
           {(hub?.send_calendar ?? []).length === 0 ? (
             <p className="muted">Chưa có lịch gửi trong 7 ngày tới.</p>
@@ -266,7 +222,7 @@ export default function EmailHubPage() {
             </ul>
           )}
         </div>
-        <div className="card">
+        <div className="page-card stack-gap">
           <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Pending approvals</h2>
           {(hub?.pending_approvals ?? []).length === 0 ? (
             <p className="muted">Không có chiến dịch chờ duyệt.</p>
@@ -283,10 +239,10 @@ export default function EmailHubPage() {
         </div>
       </div>
 
-      <div className="card">
+      <div className="page-card stack-gap">
         <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Client email health</h2>
-        <div style={{ overflowX: 'auto' }}>
-          <table className="perf-table">
+        <div className="data-table-wrap">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>Client</th>
@@ -315,6 +271,6 @@ export default function EmailHubPage() {
           ) : null}
         </div>
       </div>
-    </main>
+    </EmailPageShell>
   );
 }

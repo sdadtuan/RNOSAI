@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { EmailPageShell } from '@/components/email';
+import { FilterBar, FilterBarActions } from '@/components/layout';
 import {
   createEmailGovernanceRule,
   deleteEmailGovernanceRule,
@@ -162,21 +162,22 @@ export default function EmailGovernancePage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <EmailPageShell user={null} onLogout={logout} title="Governance" loading>
+        <span />
+      </EmailPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <p className="muted" style={{ marginTop: 0 }}>
-          E-13 Governance hub · {canWrite ? 'read/write' : 'read-only'}
-        </p>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <Link href="/email/hub" className="btn btn-sm">← Email hub</Link>
+    <EmailPageShell
+      user={user}
+      onLogout={logout}
+      title="Governance"
+      subtitle={`E-13 Governance hub · ${canWrite ? 'read/write' : 'read-only'}`}
+      schemaReady={data?.schema_ready}
+    >
+      <div className="page-card stack-gap">
+        <FilterBar>
           {!canWrite ? <span className="badge">Read-only</span> : null}
           <label className="muted">
             Scope{' '}
@@ -188,43 +189,42 @@ export default function EmailGovernancePage() {
               <option value="client">Client</option>
             </select>
           </label>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={loading} onClick={() => { const a = getAccessToken(); if (a) void load(a); }}>
-            Làm mới
-          </button>
-        </div>
-      </div>
+          <FilterBarActions>
+            <button type="button" className="btn btn-secondary btn-sm" disabled={loading} onClick={() => { const a = getAccessToken(); if (a) void load(a); }}>
+              Làm mới
+            </button>
+          </FilterBarActions>
+        </FilterBar>
+        {error ? <p className="error">{error}</p> : null}
 
-      {error ? <p className="error">{error}</p> : null}
-
-      {canWrite ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Thêm global rule</h2>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <label>
-              Type
-              <select value={newRule.rule_type} onChange={(e) => setNewRule({ ...newRule, rule_type: e.target.value })} style={{ display: 'block', marginTop: '0.25rem' }}>
-                {RULE_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Priority
-              <input type="number" value={newRule.priority} onChange={(e) => setNewRule({ ...newRule, priority: Number(e.target.value) })} style={{ display: 'block', width: 80, marginTop: '0.25rem' }} />
-            </label>
-            <label style={{ flex: 1, minWidth: 240 }}>
-              config_json
-              <input value={newRule.config_json} onChange={(e) => setNewRule({ ...newRule, config_json: e.target.value })} style={{ display: 'block', width: '100%', marginTop: '0.25rem', fontFamily: 'monospace' }} />
-            </label>
-            <button type="button" className="btn btn-sm" onClick={() => void createRule()}>+ Thêm rule</button>
+        {canWrite ? (
+          <div>
+            <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Thêm global rule</h2>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <label>
+                Type
+                <select value={newRule.rule_type} onChange={(e) => setNewRule({ ...newRule, rule_type: e.target.value })} style={{ display: 'block', marginTop: '0.25rem' }}>
+                  {RULE_TYPES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Priority
+                <input type="number" value={newRule.priority} onChange={(e) => setNewRule({ ...newRule, priority: Number(e.target.value) })} style={{ display: 'block', width: 80, marginTop: '0.25rem' }} />
+              </label>
+              <label style={{ flex: 1, minWidth: 240 }}>
+                config_json
+                <input value={newRule.config_json} onChange={(e) => setNewRule({ ...newRule, config_json: e.target.value })} style={{ display: 'block', width: '100%', marginTop: '0.25rem', fontFamily: 'monospace' }} />
+              </label>
+              <button type="button" className="btn btn-sm" onClick={() => void createRule()}>+ Thêm rule</button>
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      <div className="card" style={{ marginBottom: '1rem' }}>
         <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Global rules</h2>
-        <div style={{ overflowX: 'auto' }}>
-          <table className="perf-table">
+        <div className="data-table-wrap">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>Scope</th>
@@ -273,12 +273,10 @@ export default function EmailGovernancePage() {
             </tbody>
           </table>
         </div>
-      </div>
 
-      <div className="card">
         <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Audit log (50 gần nhất)</h2>
-        <div style={{ overflowX: 'auto' }}>
-          <table className="perf-table">
+        <div className="data-table-wrap">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>Time</th>
@@ -308,6 +306,6 @@ export default function EmailGovernancePage() {
           </table>
         </div>
       </div>
-    </main>
+    </EmailPageShell>
   );
 }

@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { EmailPageShell } from '@/components/email';
+import { FilterBar, FilterBarActions } from '@/components/layout';
 import {
   createEmailJourney,
   fetchEmailJourneys,
@@ -102,46 +103,65 @@ export default function EmailJourneysPage() {
     }
   }
 
-  if (!user) return <main style={{ padding: '2rem' }}><p className="muted">Đang tải…</p></main>;
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
+
+  if (!user) {
+    return (
+      <EmailPageShell user={null} onLogout={logout} title="Journeys" loading>
+        <span />
+      </EmailPageShell>
+    );
+  }
 
   const canWrite = hasCap(user, 'crm_email_mkt', 'write') || hasCap(user, 'crm_agency', 'create');
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.push('/login'); }} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <p className="muted" style={{ marginTop: 0 }}>EM-3 E-10 — Journey builder</p>
-        <Link href="/email/hub" className="btn btn-secondary btn-sm">← Hub</Link>
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+    <EmailPageShell
+      user={user}
+      onLogout={logout}
+      title="Journeys"
+      subtitle="EM-3 E-10 — Journey builder"
+    >
+      <div className="page-card stack-gap">
+        <FilterBar>
           <input value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="Client UUID" style={{ width: 280 }} />
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const a = getAccessToken(); if (a) void load(a); }}>Làm mới</button>
+          <FilterBarActions>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const a = getAccessToken(); if (a) void load(a); }}>Làm mới</button>
+          </FilterBarActions>
+        </FilterBar>
+        {error ? <p className="error">{error}</p> : null}
+        {canWrite ? (
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tên journey" />
+            <button type="button" className="btn btn-sm" onClick={() => void create()}>+ Tạo journey</button>
+          </div>
+        ) : null}
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead><tr><th>Name</th><th>Client</th><th>Trigger</th><th>Enrolled</th><th>Status</th><th /></tr></thead>
+            <tbody>
+              {journeys.map((j) => (
+                <tr key={j.id}>
+                  <td>{j.name}</td>
+                  <td>{j.client_name}</td>
+                  <td>{j.trigger_type}</td>
+                  <td>{j.enrolled_count}</td>
+                  <td>{j.status}</td>
+                  <td><Link href={`/email/journeys/${j.id}`} className="btn btn-sm">Canvas</Link></td>
+                </tr>
+              ))}
+              {!loading && journeys.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="muted">Chưa có journey.</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
         </div>
       </div>
-      {error ? <p className="error">{error}</p> : null}
-      {canWrite ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tên journey" style={{ marginRight: '0.5rem' }} />
-          <button type="button" className="btn btn-sm" onClick={() => void create()}>+ Tạo journey</button>
-        </div>
-      ) : null}
-      <div className="card">
-        <table className="perf-table">
-          <thead><tr><th>Name</th><th>Client</th><th>Trigger</th><th>Enrolled</th><th>Status</th><th /></tr></thead>
-          <tbody>
-            {journeys.map((j) => (
-              <tr key={j.id}>
-                <td>{j.name}</td>
-                <td>{j.client_name}</td>
-                <td>{j.trigger_type}</td>
-                <td>{j.enrolled_count}</td>
-                <td>{j.status}</td>
-                <td><Link href={`/email/journeys/${j.id}`} className="btn btn-sm">Canvas</Link></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!loading && journeys.length === 0 ? <p className="muted">Chưa có journey.</p> : null}
-      </div>
-    </main>
+    </EmailPageShell>
   );
 }

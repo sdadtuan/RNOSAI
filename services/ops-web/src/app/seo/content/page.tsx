@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { SeoPageShell } from '@/components/seo';
 import {
   fetchSeoClients,
   fetchSeoContentPipeline,
@@ -28,9 +28,9 @@ export default function SeoContentPipelinePage() {
   return (
     <Suspense
       fallback={
-        <main style={{ padding: '2rem' }}>
-          <p className="muted">Đang tải pipeline…</p>
-        </main>
+        <SeoPageShell user={null} onLogout={() => {}} title="Nội dung — Pipeline" loading>
+          <span />
+        </SeoPageShell>
       }
     >
       <SeoContentPipelineContent />
@@ -170,26 +170,20 @@ function SeoContentPipelineContent() {
   }
 
   return (
-    <div className="page">
-      <OpsNav user={user} onLogout={logout} />
-      <main className="main-content">
-        <div className="page-header">
-          <div>
-            <h1>Nội dung — Pipeline</h1>
-            <p className="muted">Kanban 10 cột — research → brief → review → publish</p>
-          </div>
-          <div className="page-actions">
-            <Link href="/seo/research" className="btn btn-secondary btn-sm">
-              Research
-            </Link>
-            <Link href="/seo/hub" className="btn btn-secondary btn-sm">
-              Hub
-            </Link>
-          </div>
-        </div>
-
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <div className="form-row" style={{ alignItems: 'end', gap: '1rem', flexWrap: 'wrap' }}>
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      title="Nội dung — Pipeline"
+      subtitle="Kanban 10 cột — research → brief → review → publish"
+      actions={
+        <Link href="/seo/research" className="btn btn-sm btn-secondary">
+          Research
+        </Link>
+      }
+    >
+      <div className="page-card stack-gap">
+        <div className="form-row" style={{ alignItems: 'end', gap: '1rem', flexWrap: 'wrap' }}>
             <label>
               Client filter
               <select
@@ -230,7 +224,6 @@ function SeoContentPipelineContent() {
               </select>
             </label>
           </div>
-        </div>
 
         {error && <p className="error">{error}</p>}
         {loading ? (
@@ -247,7 +240,7 @@ function SeoContentPipelineContent() {
             }}
           >
             {(filteredBoard?.columns ?? []).map((col) => (
-              <div key={col.key} className="card" style={{ minHeight: 320 }}>
+              <div key={col.key} className="page-card stack-gap" style={{ minHeight: 320 }}>
                 <h3 style={{ fontSize: '0.95rem', marginBottom: '0.5rem' }}>
                   {col.label} ({col.items.length})
                 </h3>
@@ -262,7 +255,7 @@ function SeoContentPipelineContent() {
             ))}
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </SeoPageShell>
   );
 }

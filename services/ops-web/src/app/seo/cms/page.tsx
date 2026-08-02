@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { SeoPageShell } from '@/components/seo';
 import {
   fetchSeoClients,
   fetchSeoCmsJobs,
@@ -26,7 +26,13 @@ import { canViewSeoCms } from '@/lib/seo/caps';
 
 export default function SeoCmsPage() {
   return (
-    <Suspense fallback={<main style={{ padding: '2rem' }}><p className="muted">Đang tải CMS pilot…</p></main>}>
+    <Suspense
+      fallback={
+        <SeoPageShell user={null} onLogout={() => {}} title="CMS auto-publish" loading>
+          <span />
+        </SeoPageShell>
+      }
+    >
       <SeoCmsContent />
     </Suspense>
   );
@@ -129,91 +135,105 @@ function SeoCmsContent() {
     }
   };
 
-  if (loading) {
-    return (
-      <main style={{ padding: '2rem' }}>
-        <OpsNav user={user} onLogout={() => { clearSession(); router.replace('/login'); }} />
-        <p className="muted">Đang tải CMS pilot…</p>
-      </main>
-    );
+  function logout() {
+    clearSession();
+    router.push('/login');
   }
 
   return (
-    <main style={{ padding: '2rem', maxWidth: 960 }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.replace('/login'); }} />
-      <header style={{ marginBottom: '1.5rem' }}>
-        <h1>CMS auto-publish pilot (Gate E5)</h1>
-        <p className="muted">
-          Bật <code>PTT_SEO_CMS_AUTO_PUBLISH=1</code> để queue webhook khi content → published.
-          Runbook: <code>docs/runbooks/seo-cms-webhook-pilot.md</code>
-        </p>
-      </header>
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      loading={loading && !user}
+      title="CMS auto-publish pilot (Gate E5)"
+      subtitle="Bật PTT_SEO_CMS_AUTO_PUBLISH=1 để queue webhook khi content → published. Runbook: docs/runbooks/seo-cms-webhook-pilot.md"
+    >
+      <div className="page-card stack-gap">
+        {error ? <p className="error">{error}</p> : null}
+        {toast ? <p className="badge">{toast}</p> : null}
+        {loading ? <p className="muted">Đang tải CMS pilot…</p> : null}
 
-      {error ? <p className="error">{error}</p> : null}
-      {toast ? <p className="badge">{toast}</p> : null}
+        {!loading ? (
+          <>
+            <div className="page-card stack-gap">
+              <label>
+                Client
+                <select
+                  value={customerId}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setCustomerId(v);
+                    const token = getAccessToken();
+                    if (token && v) void loadClient(token, v);
+                  }}
+                >
+                  <option value="">Chọn client</option>
+                  {clients.map((c) => (
+                    <option key={c.customer_id} value={String(c.customer_id)}>
+                      {c.customer_name} (#{c.customer_id})
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-      <section className="card" style={{ marginBottom: '1rem' }}>
-        <label>
-          Client
-          <select
-            value={customerId}
-            onChange={(e) => {
-              const v = e.target.value;
-              setCustomerId(v);
-              const token = getAccessToken();
-              if (token && v) void loadClient(token, v);
-            }}
-          >
-            <option value="">Chọn client</option>
-            {clients.map((c) => (
-              <option key={c.customer_id} value={String(c.customer_id)}>
-                {c.customer_name} (#{c.customer_id})
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {customerId ? (
-          <div style={{ marginTop: '1rem', display: 'grid', gap: '0.75rem' }}>
-            <label>
-              CMS type
-              <input value={cmsType} onChange={(e) => setCmsType(e.target.value)} />
-            </label>
-            <label>
-              Webhook URL
-              <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://…" />
-            </label>
-            <label>
-              <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-              {' '}Active
-            </label>
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button type="button" disabled={busy} onClick={() => void saveTarget()}>Lưu target</button>
-              <button type="button" disabled={busy} onClick={() => void runTest()}>Test webhook</button>
-              <Link href={`/seo/content?customer_id=${customerId}`}>Content pipeline</Link>
+              {customerId ? (
+                <div style={{ marginTop: '1rem', display: 'grid', gap: '0.75rem' }}>
+                  <label>
+                    CMS type
+                    <input value={cmsType} onChange={(e) => setCmsType(e.target.value)} />
+                  </label>
+                  <label>
+                    Webhook URL
+                    <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://…" />
+                  </label>
+                  <label>
+                    <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+                    {' '}
+                    Active
+                  </label>
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button type="button" disabled={busy} onClick={() => void saveTarget()}>
+                      Lưu target
+                    </button>
+                    <button type="button" disabled={busy} onClick={() => void runTest()}>
+                      Test webhook
+                    </button>
+                    <Link href={`/seo/content?customer_id=${customerId}`}>Content pipeline</Link>
+                  </div>
+                </div>
+              ) : null}
             </div>
-          </div>
-        ) : null}
-      </section>
 
-      {jobs.length ? (
-        <section className="card">
-          <h2>Publish jobs</h2>
-          <table className="data-table">
-            <thead><tr><th>ID</th><th>Content</th><th>Status</th><th>Remote</th></tr></thead>
-            <tbody>
-              {jobs.map((j) => (
-                <tr key={String(j.id)}>
-                  <td>{String(j.id)}</td>
-                  <td>{String(j.content_id)}</td>
-                  <td>{String(j.status)}</td>
-                  <td>{String(j.remote_url ?? '')}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      ) : null}
-    </main>
+            {jobs.length ? (
+              <div className="page-card stack-gap">
+                <h2>Publish jobs</h2>
+                <div className="data-table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Content</th>
+                        <th>Status</th>
+                        <th>Remote</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {jobs.map((j) => (
+                        <tr key={String(j.id)}>
+                          <td>{String(j.id)}</td>
+                          <td>{String(j.content_id)}</td>
+                          <td>{String(j.status)}</td>
+                          <td>{String(j.remote_url ?? '')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+    </SeoPageShell>
   );
 }

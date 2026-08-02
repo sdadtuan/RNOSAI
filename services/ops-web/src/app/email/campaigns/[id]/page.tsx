@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
-import { EmailStatusBadge, PreflightChecklist, CampaignExperimentPanel } from '@/components/email';
+import { CampaignExperimentPanel, EmailPageShell, EmailStatusBadge, PreflightChecklist } from '@/components/email';
+import { DetailPageLayout } from '@/components/layout';
 import { emailSendEnabled } from '@/lib/email-flags';
 import {
   fetchEmailCampaign,
@@ -116,7 +116,18 @@ export default function EmailCampaignDetailPage() {
     }
   }
 
-  if (!user) return <main style={{ padding: '2rem' }}><p className="muted">Đang tải…</p></main>;
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
+
+  if (!user) {
+    return (
+      <EmailPageShell user={null} onLogout={logout} title="Campaign detail" loading>
+        <span />
+      </EmailPageShell>
+    );
+  }
 
   const canSubmit =
     campaign?.status === 'draft' &&
@@ -131,90 +142,93 @@ export default function EmailCampaignDetailPage() {
   const accessToken = getAccessToken();
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.push('/login'); }} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <p className="muted" style={{ marginTop: 0 }}>EM-10 E-09 — Campaign detail</p>
-        <Link href="/email/campaigns" className="btn btn-secondary btn-sm">← Campaigns</Link>
-      </div>
-      {error ? <p className="error">{error}</p> : null}
-      {campaign ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <h2 style={{ marginTop: 0 }}>{campaign.name}</h2>
-          <p className="muted">Client: {campaign.client_name}</p>
-          <p className="muted">
-            Status: <EmailStatusBadge status={campaign.status} />
-          </p>
-          {campaign.scheduled_at ? (
+    <EmailPageShell user={user} onLogout={logout} showModuleNav={false} hideToolbar title="Campaign detail">
+      <DetailPageLayout
+        backHref="/email/campaigns"
+        backLabel="← Campaigns"
+        title={campaign?.name ?? 'Campaign detail'}
+        subtitle={campaign ? `${campaign.client_name} · EM-10 E-09` : 'EM-10 E-09 — Campaign detail'}
+      >
+        {error ? <p className="error">{error}</p> : null}
+        {campaign ? (
+          <>
             <p className="muted">
-              Scheduled: {campaign.scheduled_at.slice(0, 16).replace('T', ' ')}
+              Status: <EmailStatusBadge status={campaign.status} />
             </p>
-          ) : null}
-          <p className="muted">Segment: {campaign.segment_name ?? '—'}</p>
-          <p className="muted">Template: {campaign.template_name}</p>
-          <p className="muted">Audience: {campaign.audience_count ?? '—'}</p>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => void runPreflight()}>
-              Preflight
-            </button>
-            {canSubmit ? (
-              <Link href={`/email/campaigns/${campaignId}/review`} className="btn btn-sm">
-                Review & submit
-              </Link>
+            {campaign.scheduled_at ? (
+              <p className="muted">
+                Scheduled: {campaign.scheduled_at.slice(0, 16).replace('T', ' ')}
+              </p>
             ) : null}
-            {campaign.status === 'pending_approval' ? (
-              <Link href={`/email/campaigns/${campaignId}/review`} className="btn btn-sm">
-                Review & approve
-              </Link>
-            ) : null}
-            {campaign.template_id ? (
-              <Link href={`/email/templates/${campaign.template_id}`} className="btn btn-secondary btn-sm">
-                Mở template
-              </Link>
-            ) : null}
+            <p className="muted">Segment: {campaign.segment_name ?? '—'}</p>
+            <p className="muted">Template: {campaign.template_name}</p>
+            <p className="muted">Audience: {campaign.audience_count ?? '—'}</p>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => void runPreflight()}>
+                Preflight
+              </button>
+              {canSubmit ? (
+                <Link href={`/email/campaigns/${campaignId}/review`} className="btn btn-sm">
+                  Review & submit
+                </Link>
+              ) : null}
+              {campaign.status === 'pending_approval' ? (
+                <Link href={`/email/campaigns/${campaignId}/review`} className="btn btn-sm">
+                  Review & approve
+                </Link>
+              ) : null}
+              {campaign.template_id ? (
+                <Link href={`/email/templates/${campaign.template_id}`} className="btn btn-secondary btn-sm">
+                  Mở template
+                </Link>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+
+        {campaign && accessToken ? (
+          <CampaignExperimentPanel
+            token={accessToken}
+            campaignId={campaignId}
+            clientId={campaign.client_id}
+            canWrite={canWriteExperiment}
+          />
+        ) : null}
+
+        {canSchedule && emailSendEnabled() ? (
+          <div>
+            <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Schedule send</h2>
+            <label className="muted">
+              Thời gian gửi{' '}
+              <input
+                type="datetime-local"
+                value={scheduleAt}
+                onChange={(e) => setScheduleAt(e.target.value)}
+                style={{ marginLeft: '0.35rem' }}
+              />
+            </label>
+            <div style={{ marginTop: '0.75rem' }}>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={!scheduleAt.trim() || scheduling}
+                onClick={() => void scheduleSend()}
+              >
+                {scheduling ? '…' : 'Lưu lịch gửi'}
+              </button>
+            </div>
           </div>
-        </div>
-      ) : null}
-      {campaign && accessToken ? (
-        <CampaignExperimentPanel
-          token={accessToken}
-          campaignId={campaignId}
-          clientId={campaign.client_id}
-          canWrite={canWriteExperiment}
-        />
-      ) : null}
-      {canSchedule && emailSendEnabled() ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Schedule send</h2>
-          <label className="muted">
-            Thời gian gửi{' '}
-            <input
-              type="datetime-local"
-              value={scheduleAt}
-              onChange={(e) => setScheduleAt(e.target.value)}
-              style={{ marginLeft: '0.35rem' }}
-            />
-          </label>
-          <div style={{ marginTop: '0.75rem' }}>
-            <button
-              type="button"
-              className="btn btn-sm"
-              disabled={!scheduleAt.trim() || scheduling}
-              onClick={() => void scheduleSend()}
-            >
-              {scheduling ? '…' : 'Lưu lịch gửi'}
-            </button>
+        ) : null}
+
+        {checks.length > 0 ? (
+          <div>
+            <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>
+              Preflight {preflightPassed ? '✓ passed' : '✗ failed'}
+            </h2>
+            <PreflightChecklist checks={checks} />
           </div>
-        </div>
-      ) : null}
-      {checks.length > 0 ? (
-        <div className="card">
-          <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>
-            Preflight {preflightPassed ? '✓ passed' : '✗ failed'}
-          </h2>
-          <PreflightChecklist checks={checks} />
-        </div>
-      ) : null}
-    </main>
+        ) : null}
+      </DetailPageLayout>
+    </EmailPageShell>
   );
 }

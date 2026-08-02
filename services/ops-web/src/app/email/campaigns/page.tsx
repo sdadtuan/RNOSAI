@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
-import { EmailEmptyState, EmailStatusBadge } from '@/components/email';
+import { EmailEmptyState, EmailPageShell, EmailStatusBadge } from '@/components/email';
+import { FilterBar, FilterBarActions } from '@/components/layout';
 import { emailSendEnabled } from '@/lib/email-flags';
 import {
   createEmailCampaign,
@@ -120,17 +120,30 @@ export default function EmailCampaignsPage() {
     }
   }
 
-  if (!user) return <main style={{ padding: '2rem' }}><p className="muted">Đang tải…</p></main>;
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
+
+  if (!user) {
+    return (
+      <EmailPageShell user={null} onLogout={logout} title="Campaigns" loading>
+        <span />
+      </EmailPageShell>
+    );
+  }
 
   const canWrite = hasCap(user, 'crm_email_mkt', 'write') || hasCap(user, 'crm_agency', 'create');
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.push('/login'); }} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <p className="muted" style={{ marginTop: 0 }}>EM-2 E-09 — Campaign builder</p>
-        <Link href="/email/hub" className="btn btn-secondary btn-sm">← Hub</Link>
-        <div className="email-filter-bar" style={{ marginTop: '0.75rem' }}>
+    <EmailPageShell
+      user={user}
+      onLogout={logout}
+      title="Campaigns"
+      subtitle="EM-2 E-09 — Campaign builder"
+    >
+      <div className="page-card stack-gap">
+        <FilterBar>
           <input value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="Client UUID" style={{ width: 280 }} />
           <div className="email-status-tabs">
             {['', 'draft', 'pending_approval', 'approved', 'sending', 'sent'].map((s) => (
@@ -144,60 +157,62 @@ export default function EmailCampaignsPage() {
               </button>
             ))}
           </div>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const a = getAccessToken(); if (a) void load(a); }}>Làm mới</button>
-        </div>
+          <FilterBarActions>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const a = getAccessToken(); if (a) void load(a); }}>Làm mới</button>
+          </FilterBarActions>
+        </FilterBar>
         {!emailSendEnabled() ? (
-          <p className="muted" style={{ marginTop: '0.5rem' }}>
+          <p className="muted">
             Send platform tắt (PTT_EMAIL_SEND_ENABLED=0) — campaign chỉ draft/approval.
           </p>
         ) : null}
-      </div>
-      {error ? <p className="error">{error}</p> : null}
-      {canWrite ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tên campaign" style={{ marginRight: '0.5rem' }} />
-          <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} style={{ marginRight: '0.5rem' }}>
-            <option value="">Template…</option>
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-          <select value={segmentId} onChange={(e) => setSegmentId(e.target.value)} style={{ marginRight: '0.5rem' }}>
-            <option value="">Segment (optional)…</option>
-            {segments.map((s) => (
-              <option key={s.id} value={s.id}>{s.name} ({s.member_count})</option>
-            ))}
-          </select>
-          <button type="button" className="btn btn-sm" onClick={() => void create()}>+ Tạo campaign</button>
-        </div>
-      ) : null}
-      <div className="card email-campaign-table-wrap">
-        <table className="perf-table">
-          <thead><tr><th scope="col">Name</th><th scope="col">Client</th><th scope="col">Segment</th><th scope="col">Template</th><th scope="col">Audience</th><th scope="col">Status</th><th scope="col" /></tr></thead>
-          <tbody>
-            {campaigns.map((c) => (
-              <tr key={c.id}>
-                <td>{c.name}</td>
-                <td>{c.client_name}</td>
-                <td>{c.segment_name ?? '—'}</td>
-                <td>{c.template_name}</td>
-                <td>{c.audience_count ?? '—'}</td>
-                <td><EmailStatusBadge status={c.status} /></td>
-                <td>
-                  <Link href={`/email/campaigns/${c.id}`} className="btn btn-sm">Mở</Link>
-                  {c.status === 'draft' ? (
-                    <Link href={`/email/campaigns/${c.id}/review`} className="btn btn-secondary btn-sm" style={{ marginLeft: '0.35rem' }}>
-                      Review
-                    </Link>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!loading && campaigns.length === 0 ? (
-          <EmailEmptyState message="Chưa có chiến dịch." ctaLabel="+ Chiến dịch mới" ctaHref="/email/campaigns" />
+        {error ? <p className="error">{error}</p> : null}
+        {canWrite ? (
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tên campaign" />
+            <select value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
+              <option value="">Template…</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+            <select value={segmentId} onChange={(e) => setSegmentId(e.target.value)}>
+              <option value="">Segment (optional)…</option>
+              {segments.map((s) => (
+                <option key={s.id} value={s.id}>{s.name} ({s.member_count})</option>
+              ))}
+            </select>
+            <button type="button" className="btn btn-sm" onClick={() => void create()}>+ Tạo campaign</button>
+          </div>
         ) : null}
+        <div className="data-table-wrap email-campaign-table-wrap">
+          <table className="data-table">
+            <thead><tr><th scope="col">Name</th><th scope="col">Client</th><th scope="col">Segment</th><th scope="col">Template</th><th scope="col">Audience</th><th scope="col">Status</th><th scope="col" /></tr></thead>
+            <tbody>
+              {campaigns.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.name}</td>
+                  <td>{c.client_name}</td>
+                  <td>{c.segment_name ?? '—'}</td>
+                  <td>{c.template_name}</td>
+                  <td>{c.audience_count ?? '—'}</td>
+                  <td><EmailStatusBadge status={c.status} /></td>
+                  <td>
+                    <Link href={`/email/campaigns/${c.id}`} className="btn btn-sm">Mở</Link>
+                    {c.status === 'draft' ? (
+                      <Link href={`/email/campaigns/${c.id}/review`} className="btn btn-secondary btn-sm" style={{ marginLeft: '0.35rem' }}>
+                        Review
+                      </Link>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!loading && campaigns.length === 0 ? (
+            <EmailEmptyState message="Chưa có chiến dịch." ctaLabel="+ Chiến dịch mới" ctaHref="/email/campaigns" />
+          ) : null}
+        </div>
       </div>
       <div className="email-campaign-cards">
         {campaigns.map((c) => (
@@ -211,6 +226,6 @@ export default function EmailCampaignsPage() {
           </div>
         ))}
       </div>
-    </main>
+    </EmailPageShell>
   );
 }

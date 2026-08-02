@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { SeoPageShell } from '@/components/seo';
 import {
   exportSeoClickhouse,
   fetchSeoAttribution,
@@ -27,7 +27,13 @@ import { canViewSeoBi } from '@/lib/seo/caps';
 
 export default function SeoBiPage() {
   return (
-    <Suspense fallback={<main style={{ padding: '2rem' }}><p className="muted">Đang tải SEO BI…</p></main>}>
+    <Suspense
+      fallback={
+        <SeoPageShell user={null} onLogout={() => {}} title="SEO BI" loading>
+          <span />
+        </SeoPageShell>
+      }
+    >
       <SeoBiContent />
     </Suspense>
   );
@@ -122,106 +128,121 @@ function SeoBiContent() {
     }
   };
 
-  if (loading) {
-    return (
-      <main style={{ padding: '2rem' }}>
-        <OpsNav user={user} onLogout={() => { clearSession(); router.replace('/login'); }} />
-        <p className="muted">Đang tải SEO BI…</p>
-      </main>
-    );
+  function logout() {
+    clearSession();
+    router.push('/login');
   }
 
   return (
-    <main style={{ padding: '2rem', maxWidth: 1100 }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.replace('/login'); }} />
-      <header style={{ marginBottom: '1.5rem' }}>
-        <h1>SEO BI &amp; Grafana (Gate D)</h1>
-        <p className="muted">
-          ClickHouse export, parity sample 7 ngày, organic attribution. Grafana:{' '}
-          <code>{String(status.grafana_dashboard ?? 'deploy/grafana/seo-ops-dashboard.json')}</code>
-        </p>
-      </header>
-
-      {error ? <p className="error">{error}</p> : null}
-      {toast ? <p className="badge">{toast}</p> : null}
-
-      <section className="card" style={{ marginBottom: '1rem' }}>
-        <h2>Infra status</h2>
-        <ul>
-          <li>ClickHouse: {status.clickhouse_configured ? 'configured' : 'chưa cấu hình'}</li>
-          <li>BI export: {status.bi_export_enabled ? 'enabled' : 'disabled'}</li>
-          <li>CWV stub: {status.cwv_stub ? 'ON (pilot)' : 'OFF (prod PageSpeed)'}</li>
-          <li>SERP provider: <code>{String(status.serp_provider ?? 'stub')}</code></li>
-        </ul>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
-          <button type="button" disabled={exportBusy} onClick={() => void onExport()}>
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      loading={loading && !user}
+      title="SEO BI & Grafana (Gate D)"
+      subtitle={`ClickHouse export, parity sample 7 ngày, organic attribution. Grafana: ${String(status.grafana_dashboard ?? 'deploy/grafana/seo-ops-dashboard.json')}`}
+      actions={
+        <>
+          <button type="button" className="btn btn-sm" disabled={exportBusy} onClick={() => void onExport()}>
             {exportBusy ? 'Đang export…' : 'Export facts → ClickHouse'}
           </button>
-          <Link href="/seo/automations" className="button-link">Automations &amp; timers</Link>
-        </div>
-      </section>
+          <Link href="/seo/automations" className="btn btn-sm btn-secondary">
+            Automations & timers
+          </Link>
+        </>
+      }
+    >
+      <div className="page-card stack-gap">
+        {error ? <p className="error">{error}</p> : null}
+        {toast ? <p className="badge">{toast}</p> : null}
+        {loading ? <p className="muted">Đang tải SEO BI…</p> : null}
 
-      <section className="card" style={{ marginBottom: '1rem' }}>
-        <h2>Client filter</h2>
-        <select
-          value={customerId}
-          onChange={(e) => {
-            const v = e.target.value;
-            setCustomerId(v);
-            const token = getAccessToken();
-            if (token) void load(token, v || undefined);
-          }}
-        >
-          <option value="">Tất cả clients</option>
-          {clients.map((c) => (
-            <option key={c.customer_id} value={String(c.customer_id)}>
-              {c.customer_name} (#{c.customer_id})
-            </option>
-          ))}
-        </select>
-      </section>
+        {!loading ? (
+          <>
+            <div className="page-card stack-gap">
+              <h2>Infra status</h2>
+              <ul>
+                <li>ClickHouse: {status.clickhouse_configured ? 'configured' : 'chưa cấu hình'}</li>
+                <li>BI export: {status.bi_export_enabled ? 'enabled' : 'disabled'}</li>
+                <li>CWV stub: {status.cwv_stub ? 'ON (pilot)' : 'OFF (prod PageSpeed)'}</li>
+                <li>
+                  SERP provider: <code>{String(status.serp_provider ?? 'stub')}</code>
+                </li>
+              </ul>
+            </div>
 
-      <section className="card" style={{ marginBottom: '1rem' }}>
-        <h2>GSC trend (28 ngày)</h2>
-        <p>
-          Clicks: <strong>{Number((dashboard.totals as Record<string, number>)?.clicks ?? 0)}</strong>
-          {' · '}
-          Impressions: <strong>{Number((dashboard.totals as Record<string, number>)?.impressions ?? 0)}</strong>
-        </p>
-        {gscSeries.length ? (
-          <table className="data-table">
-            <thead><tr><th>Ngày</th><th>Clicks</th><th>Impressions</th></tr></thead>
-            <tbody>
-              {gscSeries.slice(-14).map((row) => (
-                <tr key={String(row.stat_date)}>
-                  <td>{String(row.stat_date)}</td>
-                  <td>{Number(row.clicks)}</td>
-                  <td>{Number(row.impressions)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p className="muted">Chưa có GSC daily stats — chạy sync GSC trước.</p>
-        )}
-      </section>
+            <div className="page-card stack-gap">
+              <h2>Client filter</h2>
+              <select
+                value={customerId}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setCustomerId(v);
+                  const token = getAccessToken();
+                  if (token) void load(token, v || undefined);
+                }}
+              >
+                <option value="">Tất cả clients</option>
+                {clients.map((c) => (
+                  <option key={c.customer_id} value={String(c.customer_id)}>
+                    {c.customer_name} (#{c.customer_id})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-      <section className="card" style={{ marginBottom: '1rem' }}>
-        <h2>BI parity sample (7 ngày)</h2>
-        <p>Metrics có facts: {(parity.metrics as string[] | undefined)?.join(', ') || '—'}</p>
-        <pre style={{ fontSize: '0.85rem', overflow: 'auto' }}>
-          {JSON.stringify(parity.totals_by_metric ?? {}, null, 2)}
-        </pre>
-      </section>
+            <div className="page-card stack-gap">
+              <h2>GSC trend (28 ngày)</h2>
+              <p>
+                Clicks: <strong>{Number((dashboard.totals as Record<string, number>)?.clicks ?? 0)}</strong>
+                {' · '}
+                Impressions:{' '}
+                <strong>{Number((dashboard.totals as Record<string, number>)?.impressions ?? 0)}</strong>
+              </p>
+              {gscSeries.length ? (
+                <div className="data-table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Ngày</th>
+                        <th>Clicks</th>
+                        <th>Impressions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gscSeries.slice(-14).map((row) => (
+                        <tr key={String(row.stat_date)}>
+                          <td>{String(row.stat_date)}</td>
+                          <td>{Number(row.clicks)}</td>
+                          <td>{Number(row.impressions)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="muted">Chưa có GSC daily stats — chạy sync GSC trước.</p>
+              )}
+            </div>
 
-      {customerId ? (
-        <section className="card">
-          <h2>Organic attribution (#{customerId})</h2>
-          <pre style={{ fontSize: '0.85rem', overflow: 'auto' }}>
-            {JSON.stringify(attribution.summary ?? {}, null, 2)}
-          </pre>
-        </section>
-      ) : null}
-    </main>
+            <div className="page-card stack-gap">
+              <h2>BI parity sample (7 ngày)</h2>
+              <p>Metrics có facts: {(parity.metrics as string[] | undefined)?.join(', ') || '—'}</p>
+              <pre style={{ fontSize: '0.85rem', overflow: 'auto' }}>
+                {JSON.stringify(parity.totals_by_metric ?? {}, null, 2)}
+              </pre>
+            </div>
+
+            {customerId ? (
+              <div className="page-card stack-gap">
+                <h2>Organic attribution (#{customerId})</h2>
+                <pre style={{ fontSize: '0.85rem', overflow: 'auto' }}>
+                  {JSON.stringify(attribution.summary ?? {}, null, 2)}
+                </pre>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+    </SeoPageShell>
   );
 }

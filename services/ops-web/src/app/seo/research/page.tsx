@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { SeoPageShell } from '@/components/seo';
 import {
   autolinkSeoEntities,
   captureSeoSerpSnapshot,
@@ -56,9 +56,9 @@ export default function SeoResearchPage() {
   return (
     <Suspense
       fallback={
-        <main style={{ padding: '2rem' }}>
-          <p className="muted">Đang tải research console…</p>
-        </main>
+        <SeoPageShell user={null} onLogout={() => {}} title="Nghiên cứu SEO/AEO" loading>
+          <span />
+        </SeoPageShell>
       }
     >
       <SeoResearchContent />
@@ -357,26 +357,22 @@ function SeoResearchContent() {
   }
 
   return (
-    <div className="page">
-      <OpsNav user={user} onLogout={logout} />
-      <main className="main-content">
-        <div className="page-header">
-          <div>
-            <h1>Nghiên cứu SEO/AEO</h1>
-            <p className="muted">Research Console — keywords, questions, clusters, brief → content</p>
-          </div>
-          <div className="page-actions">
-            <Link href="/seo/hub" className="btn btn-secondary btn-sm">
-              Hub
-            </Link>
-            <Link href="/seo/content" className="btn btn-secondary btn-sm">
-              Pipeline
-            </Link>
-          </div>
-        </div>
-
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <div className="form-row" style={{ alignItems: 'end', gap: '1rem', flexWrap: 'wrap' }}>
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      title="Nghiên cứu SEO/AEO"
+      subtitle="Research Console — keywords, questions, clusters, brief → content"
+      actions={
+        <>
+          <Link href="/seo/content" className="btn btn-sm btn-secondary">
+            Pipeline
+          </Link>
+        </>
+      }
+    >
+      <div className="page-card stack-gap">
+        <div className="form-row" style={{ alignItems: 'end', gap: '1rem', flexWrap: 'wrap' }}>
             <label>
               Client
               <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
@@ -442,9 +438,8 @@ function SeoResearchContent() {
               </>
             )}
           </div>
-        </div>
 
-        <div className="tabs" style={{ marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <div className="tabs" style={{ flexWrap: 'wrap' }}>
           {TABS.map((t) => (
             <button
               key={t.key}
@@ -465,11 +460,11 @@ function SeoResearchContent() {
         ) : loading ? (
           <p className="muted">Đang tải…</p>
         ) : tab === 'serp' ? (
-          <div className="table-wrap">
+          <div className="data-table-wrap">
             {filteredSerp.length === 0 ? (
               <p className="muted">Chưa có SERP snapshot — chạy rank capture hoặc SerpAPI sync.</p>
             ) : (
-              <table>
+              <table className="data-table">
                 <thead>
                   <tr>
                     <th>Keyword</th>
@@ -500,11 +495,11 @@ function SeoResearchContent() {
             )}
           </div>
         ) : tab === 'pages' ? (
-          <div className="table-wrap">
+          <div className="data-table-wrap">
             {filteredPages.length === 0 ? (
               <p className="muted">Chưa có page inventory — sync GSC hoặc crawl technical.</p>
             ) : (
-              <table>
+              <table className="data-table">
                 <thead>
                   <tr>
                     <th>URL</th>
@@ -529,8 +524,8 @@ function SeoResearchContent() {
             )}
           </div>
         ) : tab === 'keywords' ? (
-          <div className="table-wrap">
-            <table>
+          <div className="data-table-wrap">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Keyword</th>
@@ -566,8 +561,8 @@ function SeoResearchContent() {
             </table>
           </div>
         ) : tab === 'questions' ? (
-          <div className="table-wrap">
-            <table>
+          <div className="data-table-wrap">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Question</th>
@@ -599,8 +594,8 @@ function SeoResearchContent() {
             </table>
           </div>
         ) : tab === 'entities' ? (
-          <div className="table-wrap">
-            <table>
+          <div className="data-table-wrap">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Entity</th>
@@ -624,8 +619,8 @@ function SeoResearchContent() {
             </table>
           </div>
         ) : tab === 'clusters' ? (
-          <div className="table-wrap">
-            <table>
+          <div className="data-table-wrap">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Cluster</th>
@@ -647,8 +642,8 @@ function SeoResearchContent() {
             </table>
           </div>
         ) : (
-          <div className="table-wrap">
-            <table>
+          <div className="data-table-wrap">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Keyword</th>
@@ -711,7 +706,7 @@ function SeoResearchContent() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </SeoPageShell>
   );
 }

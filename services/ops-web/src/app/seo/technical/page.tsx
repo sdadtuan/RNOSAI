@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { SeoPageShell } from '@/components/seo';
 import {
   captureSeoCwv,
   fetchSeoClients,
@@ -41,9 +41,9 @@ export default function SeoTechnicalPage() {
   return (
     <Suspense
       fallback={
-        <main style={{ padding: '2rem' }}>
-          <p className="muted">Đang tải technical console…</p>
-        </main>
+        <SeoPageShell user={null} onLogout={() => {}} title="Technical Console" loading>
+          <span />
+        </SeoPageShell>
       }
     >
       <SeoTechnicalContent />
@@ -216,26 +216,20 @@ function SeoTechnicalContent() {
   }
 
   return (
-    <div className="page">
-      <OpsNav user={user} onLogout={logout} />
-      <main className="main-content">
-        <div className="page-header">
-          <div>
-            <h1>Technical Console</h1>
-            <p className="muted">S-09 · Issues, severity matrix, Core Web Vitals</p>
-          </div>
-          <div className="page-actions">
-            <Link href="/seo/hub" className="btn btn-secondary btn-sm">
-              Hub
-            </Link>
-            <Link href="/seo/reports" className="btn btn-secondary btn-sm">
-              Báo cáo
-            </Link>
-          </div>
-        </div>
-
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <div className="form-row" style={{ alignItems: 'end', gap: '1rem', flexWrap: 'wrap' }}>
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      title="Technical Console"
+      subtitle="S-09 · Issues, severity matrix, Core Web Vitals"
+      actions={
+        <Link href="/seo/reports" className="btn btn-sm btn-secondary">
+          Báo cáo
+        </Link>
+      }
+    >
+      <div className="page-card stack-gap">
+        <div className="form-row" style={{ alignItems: 'end', gap: '1rem', flexWrap: 'wrap' }}>
             <label>
               Client
               <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
@@ -274,7 +268,6 @@ function SeoTechnicalContent() {
               </button>
             )}
           </div>
-        </div>
 
         {error && <p className="error">{error}</p>}
         {toast && <p className="badge">{toast}</p>}
@@ -286,23 +279,17 @@ function SeoTechnicalContent() {
         ) : (
           <>
             <div
-              className="card"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-                gap: '1rem',
-                marginBottom: '1rem',
-              }}
+              className="channel-hub-summary"
             >
               {SEVERITIES.map((s) => (
-                <div key={s}>
+                <div key={s} className="summary-card">
                   <p className="muted" style={{ margin: 0, textTransform: 'capitalize' }}>
                     {s}
                   </p>
                   <strong className={severityClass(s)}>{severityMatrix[s] ?? 0}</strong>
                 </div>
               ))}
-              <div>
+              <div className="summary-card">
                 <p className="muted" style={{ margin: 0 }}>
                   Tổng
                 </p>
@@ -310,7 +297,7 @@ function SeoTechnicalContent() {
               </div>
             </div>
 
-            <div className="card" style={{ marginBottom: '1rem' }}>
+            <div className="page-card stack-gap">
               <div className="page-header" style={{ marginBottom: '0.75rem' }}>
                 <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Core Web Vitals</h2>
                 {canWrite && (
@@ -334,8 +321,8 @@ function SeoTechnicalContent() {
                 {!Object.keys(cwvSummary).length && <span className="muted">Chưa có snapshot CWV.</span>}
               </div>
               {cwvSnapshots.length > 0 && (
-                <div className="table-wrap">
-                  <table>
+                <div className="data-table-wrap">
+                  <table className="data-table">
                     <thead>
                       <tr>
                         <th>URL</th>
@@ -365,7 +352,7 @@ function SeoTechnicalContent() {
               )}
             </div>
 
-            <div className="card" style={{ marginBottom: '1rem' }}>
+            <div className="page-card stack-gap">
               <h2 style={{ margin: '0 0 0.75rem', fontSize: '1.1rem' }}>Crawl connector (Gate E2)</h2>
               {crawlSchedule ? (
                 <>
@@ -435,8 +422,8 @@ function SeoTechnicalContent() {
               )}
             </div>
 
-            <div className="table-wrap">
-              <table>
+            <div className="data-table-wrap">
+              <table className="data-table">
                 <thead>
                   <tr>
                     <th>URL</th>
@@ -491,7 +478,7 @@ function SeoTechnicalContent() {
             </div>
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </SeoPageShell>
   );
 }

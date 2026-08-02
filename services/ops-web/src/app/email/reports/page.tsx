@@ -3,9 +3,9 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { EmailKpiCard, EmailPageShell } from '@/components/email';
+import { FilterBar, FilterBarActions } from '@/components/layout';
 import { EmailEngagementChart } from '@/lib/email-charts';
-import { EmailKpiCard } from '@/components/email';
 import {
   createEmailReportSchedule,
   exportEmailClickhouse,
@@ -118,7 +118,18 @@ export default function EmailReportsPage() {
     })();
   }, [ensureAuth, load]);
 
-  if (!user) return <main style={{ padding: '2rem' }}><p className="muted">Đang tải…</p></main>;
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
+
+  if (!user) {
+    return (
+      <EmailPageShell user={null} onLogout={logout} title="Reports" loading>
+        <span />
+      </EmailPageShell>
+    );
+  }
 
   const canExport =
     hasCap(user, 'crm_email_mkt', 'reports') ||
@@ -126,41 +137,46 @@ export default function EmailReportsPage() {
     hasCap(user, 'crm_agency', 'view');
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.push('/login'); }} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <p className="muted" style={{ marginTop: 0 }}>EM-3 E-12 — Analytics center</p>
-        <Link href="/email/hub" className="btn btn-secondary btn-sm">← Hub</Link>
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+    <EmailPageShell
+      user={user}
+      onLogout={logout}
+      title="Reports"
+      subtitle="EM-3 E-12 — Analytics center"
+    >
+      <div className="page-card stack-gap">
+        <FilterBar>
           <input value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="Client UUID (all)" style={{ width: 280 }} />
           <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
             <option value={7}>7 ngày</option>
             <option value={28}>28 ngày</option>
             <option value={90}>90 ngày</option>
           </select>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const a = getAccessToken(); if (a) void load(a); }}>Làm mới</button>
-          {canExport ? (
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => {
-                const access = getAccessToken();
-                if (!access) return;
-                setExportMsg('');
-                void exportEmailClickhouse(access, { client_id: clientId.trim() || undefined })
-                  .then((out) => setExportMsg(out.job_id ? `Queued job ${out.job_id}` : `Mode: ${out.mode}`))
-                  .catch((err) => setExportMsg(err instanceof Error ? err.message : 'Export failed'));
-              }}
-            >
-              Export ClickHouse
-            </button>
-          ) : null}
-        </div>
+          <FilterBarActions>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const a = getAccessToken(); if (a) void load(a); }}>Làm mới</button>
+            {canExport ? (
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => {
+                  const access = getAccessToken();
+                  if (!access) return;
+                  setExportMsg('');
+                  void exportEmailClickhouse(access, { client_id: clientId.trim() || undefined })
+                    .then((out) => setExportMsg(out.job_id ? `Queued job ${out.job_id}` : `Mode: ${out.mode}`))
+                    .catch((err) => setExportMsg(err instanceof Error ? err.message : 'Export failed'));
+                }}
+              >
+                Export ClickHouse
+              </button>
+            ) : null}
+          </FilterBarActions>
+        </FilterBar>
+        {exportMsg ? <p className="muted">{exportMsg}</p> : null}
+        {error ? <p className="error">{error}</p> : null}
+        {loading ? <p className="muted">Đang tải…</p> : null}
       </div>
-      {exportMsg ? <p className="muted">{exportMsg}</p> : null}
-      {error ? <p className="error">{error}</p> : null}
       {biStatus ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
+        <div className="page-card stack-gap">
           <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>BI &amp; Grafana (P1.4)</h2>
           <ul className="muted" style={{ margin: '0 0 0.75rem', paddingLeft: '1.2rem' }}>
             <li>ClickHouse: {biStatus.clickhouse_configured ? 'configured' : 'chưa cấu hình'}</li>
@@ -183,7 +199,7 @@ export default function EmailReportsPage() {
         </div>
       ) : null}
       {summary ? (
-        <div className="email-kpi-grid" style={{ marginBottom: '1rem' }}>
+        <div className="hub-module-grid">
           <EmailKpiCard label="Sent" value={summary.sent.toLocaleString()} />
           <EmailKpiCard label="Delivered" value={summary.delivered.toLocaleString()} />
           <EmailKpiCard label="Open rate" value={`${summary.open_rate_pct}%`} />
@@ -192,12 +208,12 @@ export default function EmailReportsPage() {
           <EmailKpiCard label="Revenue attrib." value={summary.revenue_attrib} />
         </div>
       ) : null}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-        <div className="card">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div className="page-card stack-gap">
           <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Engagement ({days}d)</h2>
           <EmailEngagementChart points={series} days={days} />
         </div>
-        <div className="card">
+        <div className="page-card stack-gap">
           <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Deliverability scorecard</h2>
           {deliverability ? (
             <>
@@ -212,7 +228,7 @@ export default function EmailReportsPage() {
         </div>
       </div>
       {canExport && clientId.trim() ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
+        <div className="page-card stack-gap">
           <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Scheduled PDF reports</h2>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
             <input
@@ -273,6 +289,6 @@ export default function EmailReportsPage() {
           )}
         </div>
       ) : null}
-    </main>
+    </EmailPageShell>
   );
 }

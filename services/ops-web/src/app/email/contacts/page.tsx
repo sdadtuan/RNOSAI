@@ -1,10 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
-import { EmailConsentBadge, EmailEmptyState } from '@/components/email';
+import { EmailConsentBadge, EmailEmptyState, EmailPageShell } from '@/components/email';
+import { FilterBar, FilterBarActions, FilterBarSearch } from '@/components/layout';
 import {
   fetchEmailContacts,
   importEmailContacts,
@@ -137,93 +136,93 @@ export default function EmailContactsPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <EmailPageShell user={null} onLogout={logout} title="Contacts" loading>
+        <span />
+      </EmailPageShell>
     );
   }
 
   const canWrite = hasCap(user, 'crm_email_mkt', 'write') || hasCap(user, 'crm_agency', 'create');
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <p className="muted" style={{ marginTop: 0 }}>
-          EM-1 E-04 — Danh bạ contacts
-        </p>
-        <Link href="/email/hub" className="btn btn-secondary btn-sm">
-          ← Email hub
-        </Link>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+    <EmailPageShell
+      user={user}
+      onLogout={logout}
+      title="Contacts"
+      subtitle="EM-1 E-04 — Danh bạ contacts"
+    >
+      <div className="page-card stack-gap">
+        <FilterBar>
           <input
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
             placeholder="Client UUID"
             style={{ width: 280 }}
           />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm email / tên" style={{ width: 200 }} />
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={loading}
-            onClick={() => {
-              const access = getAccessToken();
-              if (access) void load(access);
-            }}
-          >
-            Làm mới
-          </button>
-        </div>
-      </div>
+          <FilterBarSearch value={q} onChange={setQ} placeholder="Tìm email / tên" />
+          <FilterBarActions>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={loading}
+              onClick={() => {
+                const access = getAccessToken();
+                if (access) void load(access);
+              }}
+            >
+              Làm mới
+            </button>
+          </FilterBarActions>
+        </FilterBar>
 
-      {error ? <p className="error">{error}</p> : null}
-      {message ? <p className="badge">{message}</p> : null}
+        {error ? <p className="error">{error}</p> : null}
+        {message ? <p className="badge">{message}</p> : null}
 
-      {canWrite ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <h3 style={{ marginTop: 0 }}>Bulk import (email, first_name mỗi dòng)</h3>
-          <textarea
-            value={importText}
-            onChange={(e) => setImportText(e.target.value)}
-            rows={4}
-            style={{ width: '100%', fontFamily: 'monospace' }}
-            placeholder={'user@example.com,Nguyen\nother@example.com'}
-          />
-          <button type="button" className="btn btn-sm" style={{ marginTop: '0.5rem' }} onClick={() => void runImport()}>
-            Import
-          </button>
-        </div>
-      ) : null}
-
-      <div className="card">
-        <table className="perf-table">
-          <thead>
-            <tr>
-              <th scope="col">Email</th>
-              <th scope="col">Client</th>
-              <th scope="col">Consent</th>
-              <th scope="col">Suppressed</th>
-            </tr>
-          </thead>
-          <tbody>
-            {contacts.map((c) => (
-              <tr key={c.id}>
-                <td>
-                  {c.email}
-                  {c.first_name ? <span className="muted"> · {c.first_name}</span> : null}
-                </td>
-                <td>{c.client_name}</td>
-                <td><EmailConsentBadge status={c.consent_status} /></td>
-                <td>{c.suppressed ? <span className="email-suppressed">Suppressed</span> : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!loading && contacts.length === 0 ? (
-          <EmailEmptyState message="Chưa có contact. Import từ CRM hoặc form capture." ctaLabel="← Email hub" ctaHref="/email/hub" />
+        {canWrite ? (
+          <div>
+            <h3 style={{ marginTop: 0 }}>Bulk import (email, first_name mỗi dòng)</h3>
+            <textarea
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              rows={4}
+              style={{ width: '100%', fontFamily: 'monospace' }}
+              placeholder={'user@example.com,Nguyen\nother@example.com'}
+            />
+            <button type="button" className="btn btn-sm" style={{ marginTop: '0.5rem' }} onClick={() => void runImport()}>
+              Import
+            </button>
+          </div>
         ) : null}
+
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th scope="col">Email</th>
+                <th scope="col">Client</th>
+                <th scope="col">Consent</th>
+                <th scope="col">Suppressed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {contacts.map((c) => (
+                <tr key={c.id}>
+                  <td>
+                    {c.email}
+                    {c.first_name ? <span className="muted"> · {c.first_name}</span> : null}
+                  </td>
+                  <td>{c.client_name}</td>
+                  <td><EmailConsentBadge status={c.consent_status} /></td>
+                  <td>{c.suppressed ? <span className="email-suppressed">Suppressed</span> : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!loading && contacts.length === 0 ? (
+            <EmailEmptyState message="Chưa có contact. Import từ CRM hoặc form capture." ctaLabel="← Email hub" ctaHref="/email/hub" />
+          ) : null}
+        </div>
       </div>
-    </main>
+    </EmailPageShell>
   );
 }

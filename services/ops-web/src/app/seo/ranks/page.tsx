@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { SeoPageShell } from '@/components/seo';
 import {
   addSeoRankKeyword,
   captureSeoRanks,
@@ -27,7 +27,13 @@ import { canViewSeoRanks, canWriteSeo } from '@/lib/seo/caps';
 
 export default function SeoRanksPage() {
   return (
-    <Suspense fallback={<main style={{ padding: '2rem' }}><p className="muted">Đang tải rank tracker…</p></main>}>
+    <Suspense
+      fallback={
+        <SeoPageShell user={null} onLogout={() => {}} title="Rank Tracker" loading>
+          <span />
+        </SeoPageShell>
+      }
+    >
       <SeoRanksContent />
     </Suspense>
   );
@@ -103,14 +109,21 @@ function SeoRanksContent() {
     })();
   }, [customerId, ensureAuth, loadData]);
 
-  return (
-    <>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.replace('/login'); }} />
-      <main style={{ padding: '1.5rem 2rem', maxWidth: 1200 }}>
-        <h1>Rank Tracker + SOV</h1>
-        <p className="muted">Tracked keywords, SERP capture (stub), share of voice — S-17</p>
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
 
-        <div className="card" style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'end' }}>
+  return (
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      title="Rank Tracker + SOV"
+      subtitle="Tracked keywords, SERP capture (stub), share of voice — S-17"
+    >
+      <div className="page-card stack-gap">
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'end' }}>
           <label>
             Client
             <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} style={{ display: 'block', marginTop: 4 }}>
@@ -156,7 +169,7 @@ function SeoRanksContent() {
         </div>
 
         {canWriteSeo(user) && customerId && (
-          <div className="card" style={{ marginBottom: '1rem', display: 'flex', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
             <input placeholder="Keyword phrase" value={phrase} onChange={(e) => setPhrase(e.target.value)} style={{ flex: 1 }} />
             <button type="button" disabled={!phrase.trim() || busy} onClick={() => void (async () => {
               const access = await ensureAuth();
@@ -172,14 +185,14 @@ function SeoRanksContent() {
         {toast && <p className="muted">{toast}</p>}
 
         {loading ? <p className="muted">Đang tải…</p> : (
-          <div className="card">
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="data-table-wrap">
+            <table className="data-table">
               <thead>
                 <tr>
-                  <th align="left">Phrase</th>
-                  <th align="left">Position</th>
-                  <th align="left">Latest date</th>
-                  <th align="left">Target URL</th>
+                  <th>Phrase</th>
+                  <th>Position</th>
+                  <th>Latest date</th>
+                  <th>Target URL</th>
                 </tr>
               </thead>
               <tbody>
@@ -191,14 +204,18 @@ function SeoRanksContent() {
                     <td>{String(k.target_url || '—')}</td>
                   </tr>
                 ))}
-                {!keywords.length && <tr><td colSpan={4} className="muted">Chưa track keyword nào.</td></tr>}
+                {!keywords.length && (
+                  <tr>
+                    <td colSpan={4} className="muted">
+                      Chưa track keyword nào.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         )}
-
-        <p style={{ marginTop: '1rem' }}><Link href="/seo/hub">← Hub</Link></p>
-      </main>
-    </>
+      </div>
+    </SeoPageShell>
   );
 }

@@ -1,10 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
-import { SegmentBuilder } from '@/components/email';
+import { EmailPageShell, SegmentBuilder } from '@/components/email';
+import { FilterBar, FilterBarActions } from '@/components/layout';
 import {
   computeEmailSegment,
   createEmailSegment,
@@ -21,7 +20,6 @@ import {
   clearSession,
   getAccessToken,
   getRefreshToken,
-  getStoredUser,
   hasCap,
   updateAccessToken,
   updateStoredUser,
@@ -171,15 +169,28 @@ export default function EmailSegmentsPage() {
     return row;
   }
 
-  if (!user) return <main style={{ padding: '2rem' }}><p className="muted">Đang tải…</p></main>;
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
+
+  if (!user) {
+    return (
+      <EmailPageShell user={null} onLogout={logout} title="Segments" loading>
+        <span />
+      </EmailPageShell>
+    );
+  }
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.push('/login'); }} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <p className="muted" style={{ marginTop: 0 }}>EM-8b E-07 — Segment builder</p>
-        <Link href="/email/hub" className="btn btn-secondary btn-sm">← Hub</Link>
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+    <EmailPageShell
+      user={user}
+      onLogout={logout}
+      title="Segments"
+      subtitle="EM-8b E-07 — Segment builder"
+    >
+      <div className="page-card stack-gap">
+        <FilterBar>
           <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             Client
             <select value={clientId} onChange={(e) => setClientId(e.target.value)} style={{ minWidth: 280 }}>
@@ -191,13 +202,15 @@ export default function EmailSegmentsPage() {
               ))}
             </select>
           </label>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const a = getAccessToken(); if (a) void load(a); }}>
-            Làm mới
-          </button>
-        </div>
+          <FilterBarActions>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const a = getAccessToken(); if (a) void load(a); }}>
+              Làm mới
+            </button>
+          </FilterBarActions>
+        </FilterBar>
+        {error ? <p className="error">{error}</p> : null}
+        {loading && segments.length === 0 ? <p className="muted">Đang tải segments…</p> : null}
       </div>
-      {error ? <p className="error">{error}</p> : null}
-      {loading && segments.length === 0 ? <p className="muted">Đang tải segments…</p> : null}
       <SegmentBuilder
         segments={segments}
         selectedId={selectedId}
@@ -209,6 +222,6 @@ export default function EmailSegmentsPage() {
         onCompute={handleCompute}
         onDuplicate={handleDuplicate}
       />
-    </main>
+    </EmailPageShell>
   );
 }

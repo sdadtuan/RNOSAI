@@ -1,10 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
-import { EmailClientWorkspaceTabs, EmailKpiCard } from '@/components/email';
+import { EmailClientWorkspaceTabs, EmailKpiCard, EmailPageShell } from '@/components/email';
+import { DetailPageLayout } from '@/components/layout';
 import {
   fetchEmailWorkspaces,
   patchEmailWorkspace,
@@ -140,112 +139,106 @@ export default function EmailClientWorkspacePage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <EmailPageShell user={null} onLogout={logout} title="Client workspace" loading>
+        <span />
+      </EmailPageShell>
     );
   }
 
   const canSettings = hasCap(user, 'crm_email_mkt', 'settings') || hasCap(user, 'crm_agency', 'create');
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <p style={{ margin: '0 0 1rem' }}>
-        <Link href="/email/clients" className="nav-link">
-          ← Email clients
-        </Link>
-      </p>
+    <EmailPageShell user={user} onLogout={logout} showModuleNav={false} hideToolbar title="Client workspace">
+      <DetailPageLayout
+        backHref="/email/clients"
+        backLabel="← Email clients"
+        title={workspace ? `${workspace.client_name} · ${workspace.name}` : 'Client workspace'}
+        subtitle={workspace ? `${workspace.esp_provider} · TZ ${workspace.timezone}` : undefined}
+      >
+        {loading ? <p className="muted">Đang tải…</p> : null}
+        {error ? <p className="error">{error}</p> : null}
 
-      {loading ? <p className="muted">Đang tải…</p> : null}
-      {error ? <p className="error">{error}</p> : null}
-
-      {workspace ? (
-        <>
-          <div className="card" style={{ marginBottom: '1rem' }}>
-            <h2 style={{ marginTop: 0 }}>
-              {workspace.client_name} · {workspace.name}
-            </h2>
-            <p className="muted" style={{ margin: 0 }}>
-              {workspace.esp_provider} · TZ {workspace.timezone}
-            </p>
+        {workspace ? (
+          <>
             <EmailClientWorkspaceTabs clientId={clientId} active={tab === 'settings' ? 'settings' : 'overview'} />
             {tab === 'settings' ? null : (
-              <div style={{ marginTop: '0.75rem' }}>
+              <div>
                 <button type="button" className="btn btn-sm btn-secondary" onClick={() => setTab('settings')}>
                   Cài đặt workspace
                 </button>
               </div>
             )}
-          </div>
 
-          {tab === 'overview' ? (
-            <div className="card email-kpi-grid" style={{ marginBottom: '1rem' }}>
-              <EmailKpiCard label="Contacts" value={workspace.contact_count} />
-              <EmailKpiCard label="Subscribers" value={workspace.subscriber_count} />
-              <EmailKpiCard label="Suppressed" value={workspace.suppressed_count} />
-              <EmailKpiCard label="Daily cap" value={workspace.daily_send_cap.toLocaleString()} />
-            </div>
-          ) : (
-            <div className="card">
-              <h3 style={{ marginTop: 0 }}>Workspace settings</h3>
-              <div style={{ display: 'grid', gap: '0.75rem', maxWidth: 480 }}>
-                <label>
-                  From name
-                  <input
-                    value={settingsForm.default_from_name}
-                    onChange={(e) => setSettingsForm({ ...settingsForm, default_from_name: e.target.value })}
-                    style={{ display: 'block', width: '100%', marginTop: '0.25rem' }}
-                  />
-                </label>
-                <label>
-                  From email
-                  <input
-                    value={settingsForm.default_from_email}
-                    onChange={(e) => setSettingsForm({ ...settingsForm, default_from_email: e.target.value })}
-                    style={{ display: 'block', width: '100%', marginTop: '0.25rem' }}
-                  />
-                </label>
-                <label>
-                  Reply-to
-                  <input
-                    value={settingsForm.default_reply_to}
-                    onChange={(e) => setSettingsForm({ ...settingsForm, default_reply_to: e.target.value })}
-                    style={{ display: 'block', width: '100%', marginTop: '0.25rem' }}
-                  />
-                </label>
-                <label>
-                  ESP
-                  <select
-                    value={settingsForm.esp_provider}
-                    onChange={(e) => setSettingsForm({ ...settingsForm, esp_provider: e.target.value })}
-                    style={{ display: 'block', marginTop: '0.25rem' }}
-                  >
-                    <option value="sendgrid">SendGrid</option>
-                    <option value="mailgun">Mailgun</option>
-                  </select>
-                </label>
-                <label>
-                  Daily send cap
-                  <input
-                    type="number"
-                    value={settingsForm.daily_send_cap}
-                    onChange={(e) =>
-                      setSettingsForm({ ...settingsForm, daily_send_cap: Number(e.target.value) })
-                    }
-                    style={{ display: 'block', width: '100%', marginTop: '0.25rem' }}
-                  />
-                </label>
-                <button type="button" className="btn" disabled={saving} onClick={() => void saveSettings()}>
-                  {saving ? 'Đang lưu…' : 'Lưu'}
-                </button>
+            {tab === 'overview' ? (
+              <div className="hub-module-grid">
+                <EmailKpiCard label="Contacts" value={workspace.contact_count} />
+                <EmailKpiCard label="Subscribers" value={workspace.subscriber_count} />
+                <EmailKpiCard label="Suppressed" value={workspace.suppressed_count} />
+                <EmailKpiCard label="Daily cap" value={workspace.daily_send_cap.toLocaleString()} />
               </div>
-            </div>
-          )}
-        </>
-      ) : !loading ? (
-        <p className="muted">Client chưa có workspace — tạo từ danh sách clients.</p>
-      ) : null}
-    </main>
+            ) : (
+              <div>
+                <h3 style={{ marginTop: 0 }}>Workspace settings</h3>
+                <div style={{ display: 'grid', gap: '0.75rem', maxWidth: 480 }}>
+                  <label>
+                    From name
+                    <input
+                      value={settingsForm.default_from_name}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, default_from_name: e.target.value })}
+                      style={{ display: 'block', width: '100%', marginTop: '0.25rem' }}
+                    />
+                  </label>
+                  <label>
+                    From email
+                    <input
+                      value={settingsForm.default_from_email}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, default_from_email: e.target.value })}
+                      style={{ display: 'block', width: '100%', marginTop: '0.25rem' }}
+                    />
+                  </label>
+                  <label>
+                    Reply-to
+                    <input
+                      value={settingsForm.default_reply_to}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, default_reply_to: e.target.value })}
+                      style={{ display: 'block', width: '100%', marginTop: '0.25rem' }}
+                    />
+                  </label>
+                  <label>
+                    ESP
+                    <select
+                      value={settingsForm.esp_provider}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, esp_provider: e.target.value })}
+                      style={{ display: 'block', marginTop: '0.25rem' }}
+                    >
+                      <option value="sendgrid">SendGrid</option>
+                      <option value="mailgun">Mailgun</option>
+                    </select>
+                  </label>
+                  <label>
+                    Daily send cap
+                    <input
+                      type="number"
+                      value={settingsForm.daily_send_cap}
+                      onChange={(e) =>
+                        setSettingsForm({ ...settingsForm, daily_send_cap: Number(e.target.value) })
+                      }
+                      style={{ display: 'block', width: '100%', marginTop: '0.25rem' }}
+                    />
+                  </label>
+                  {canSettings ? (
+                    <button type="button" className="btn" disabled={saving} onClick={() => void saveSettings()}>
+                      {saving ? 'Đang lưu…' : 'Lưu'}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </>
+        ) : !loading ? (
+          <p className="muted">Client chưa có workspace — tạo từ danh sách clients.</p>
+        ) : null}
+      </DetailPageLayout>
+    </EmailPageShell>
   );
 }

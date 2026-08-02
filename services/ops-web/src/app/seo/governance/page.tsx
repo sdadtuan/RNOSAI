@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { SeoPageShell } from '@/components/seo';
 import {
   fetchSeoClients,
   fetchSeoGovernanceCompliance,
@@ -28,9 +28,9 @@ export default function SeoGovernancePage() {
   return (
     <Suspense
       fallback={
-        <main style={{ padding: '2rem' }}>
-          <p className="muted">Đang tải governance hub…</p>
-        </main>
+        <SeoPageShell user={null} onLogout={() => {}} title="Governance Hub" loading>
+          <span />
+        </SeoPageShell>
       }
     >
       <SeoGovernanceContent />
@@ -135,26 +135,20 @@ function SeoGovernanceContent() {
   };
 
   return (
-    <div className="page">
-      <OpsNav user={user} onLogout={logout} />
-      <main className="main-content">
-        <div className="page-header">
-          <div>
-            <h1>Governance Hub</h1>
-            <p className="muted">S-14 · Policies, compliance, content pipeline</p>
-          </div>
-          <div className="page-actions">
-            <Link href="/seo/hub" className="btn btn-secondary btn-sm">
-              Hub
-            </Link>
-            <Link href="/seo/content" className="btn btn-secondary btn-sm">
-              Content Pipeline
-            </Link>
-          </div>
-        </div>
-
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <div className="form-row" style={{ alignItems: 'end', gap: '1rem', flexWrap: 'wrap' }}>
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      title="Governance Hub"
+      subtitle="S-14 · Policies, compliance, content pipeline"
+      actions={
+        <Link href="/seo/content" className="btn btn-sm btn-secondary">
+          Content Pipeline
+        </Link>
+      }
+    >
+      <div className="page-card stack-gap">
+        <div className="form-row" style={{ alignItems: 'end', gap: '1rem', flexWrap: 'wrap' }}>
             <label>
               Client
               <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
@@ -177,7 +171,6 @@ function SeoGovernanceContent() {
               )}
             </div>
           </div>
-        </div>
 
         {error && <p className="error">{error}</p>}
 
@@ -187,34 +180,26 @@ function SeoGovernanceContent() {
           <p className="muted">Đang tải…</p>
         ) : (
           <>
-            <div
-              className="card"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-                gap: '1rem',
-                marginBottom: '1rem',
-              }}
-            >
-              <div>
+            <div className="channel-hub-summary">
+              <div className="summary-card">
                 <p className="muted" style={{ margin: 0 }}>
                   Evaluations (7d)
                 </p>
                 <strong>{String(compliance.evaluations ?? '—')}</strong>
               </div>
-              <div>
+              <div className="summary-card">
                 <p className="muted" style={{ margin: 0 }}>
                   Passed
                 </p>
                 <strong>{String(compliance.passed ?? '—')}</strong>
               </div>
-              <div>
+              <div className="summary-card">
                 <p className="muted" style={{ margin: 0 }}>
                   Failed
                 </p>
                 <strong className="error">{String(compliance.failed ?? '—')}</strong>
               </div>
-              <div>
+              <div className="summary-card">
                 <p className="muted" style={{ margin: 0 }}>
                   Pass rate
                 </p>
@@ -222,11 +207,11 @@ function SeoGovernanceContent() {
               </div>
             </div>
 
-            <div className="card" style={{ marginBottom: '1rem' }}>
+            <div className="page-card stack-gap">
               <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Policies</h2>
               {policies.length > 0 ? (
-                <div className="table-wrap">
-                  <table>
+                <div className="data-table-wrap">
+                  <table className="data-table">
                     <thead>
                       <tr>
                         <th>Key</th>
@@ -254,7 +239,7 @@ function SeoGovernanceContent() {
               )}
             </div>
 
-            <div className="card">
+            <div className="page-card stack-gap">
               <p style={{ margin: 0 }}>
                 Governance được đánh giá khi content chuyển trạng thái trong{' '}
                 <Link href="/seo/content" className="nav-link">
@@ -265,7 +250,7 @@ function SeoGovernanceContent() {
             </div>
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </SeoPageShell>
   );
 }

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { SeoPageShell } from '@/components/seo';
 import {
   fetchSeoAutomationsStatus,
   fetchSeoClients,
@@ -24,7 +24,13 @@ import { canConfigureSeoSettings, canViewSeoAutomations } from '@/lib/seo/caps';
 
 export default function SeoAutomationsPage() {
   return (
-    <Suspense fallback={<main style={{ padding: '2rem' }}><p className="muted">Đang tải automations…</p></main>}>
+    <Suspense
+      fallback={
+        <SeoPageShell user={null} onLogout={() => {}} title="Automations" loading>
+          <span />
+        </SeoPageShell>
+      }
+    >
       <SeoAutomationsContent />
     </Suspense>
   );
@@ -100,14 +106,26 @@ function SeoAutomationsContent() {
     })();
   }, [customerId, ensureAuth, loadData]);
 
-  return (
-    <>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.replace('/login'); }} />
-      <main style={{ padding: '1.5rem 2rem', maxWidth: 1200 }}>
-        <h1>Automations &amp; Alerts</h1>
-        <p className="muted">Sync runs, job queue, alert checks — S-13</p>
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
 
-        <div className="card" style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'end' }}>
+  return (
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      title="Automations & Alerts"
+      subtitle="Sync runs, job queue, alert checks — S-13"
+      actions={
+        <Link href="/seo/reports" className="btn btn-sm btn-secondary">
+          Reports
+        </Link>
+      }
+    >
+      <div className="page-card stack-gap">
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'end' }}>
           <label>
             Client filter
             <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} style={{ display: 'block', marginTop: 4 }}>
@@ -130,11 +148,23 @@ function SeoAutomationsContent() {
         </div>
 
         {!loading && (
-          <div className="card" style={{ marginBottom: '1rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-            <span>Failed sync (7d): <strong>{String(summary.failed_sync_runs_7d ?? 0)}</strong></span>
-            <span>Open alerts: <strong>{String(summary.open_alerts ?? 0)}</strong></span>
-            <span>Pending SEO jobs: <strong>{String(summary.pending_seo_jobs ?? 0)}</strong></span>
-            <span>Jobs enabled: <strong>{summary.jobs_enabled ? 'yes' : 'no'}</strong></span>
+          <div className="channel-hub-summary">
+            <div className="summary-card">
+              <span className="muted">Failed sync (7d)</span>
+              <strong>{String(summary.failed_sync_runs_7d ?? 0)}</strong>
+            </div>
+            <div className="summary-card">
+              <span className="muted">Open alerts</span>
+              <strong>{String(summary.open_alerts ?? 0)}</strong>
+            </div>
+            <div className="summary-card">
+              <span className="muted">Pending SEO jobs</span>
+              <strong>{String(summary.pending_seo_jobs ?? 0)}</strong>
+            </div>
+            <div className="summary-card">
+              <span className="muted">Jobs enabled</span>
+              <strong>{summary.jobs_enabled ? 'yes' : 'no'}</strong>
+            </div>
           </div>
         )}
 
@@ -143,59 +173,84 @@ function SeoAutomationsContent() {
 
         {loading ? <p className="muted">Đang tải…</p> : (
           <>
-            <div className="card" style={{ marginBottom: '1rem' }}>
+            <div className="page-card stack-gap">
               <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Recent sync runs</h2>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr><th align="left">Source</th><th align="left">Status</th><th align="left">Started</th><th align="left">Rows</th></tr>
-                </thead>
-                <tbody>
-                  {syncRuns.map((r) => (
-                    <tr key={String(r.id)}>
-                      <td>{String(r.source)}</td>
-                      <td>{String(r.status)}</td>
-                      <td className="muted">{String(r.started_at ?? '—')}</td>
-                      <td>{String(r.rows_imported ?? 0)}</td>
+              <div className="data-table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Source</th>
+                      <th>Status</th>
+                      <th>Started</th>
+                      <th>Rows</th>
                     </tr>
-                  ))}
-                  {!syncRuns.length && <tr><td colSpan={4} className="muted">Chưa có sync run.</td></tr>}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {syncRuns.map((r) => (
+                      <tr key={String(r.id)}>
+                        <td>{String(r.source)}</td>
+                        <td>{String(r.status)}</td>
+                        <td className="muted">{String(r.started_at ?? '—')}</td>
+                        <td>{String(r.rows_imported ?? 0)}</td>
+                      </tr>
+                    ))}
+                    {!syncRuns.length && (
+                      <tr>
+                        <td colSpan={4} className="muted">
+                          Chưa có sync run.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
-            <div className="card" style={{ marginBottom: '1rem' }}>
+            <div className="page-card stack-gap">
               <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Recent SEO jobs</h2>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr><th align="left">Type</th><th align="left">Status</th><th align="left">Created</th></tr>
-                </thead>
-                <tbody>
-                  {recentJobs.map((j) => (
-                    <tr key={String(j.id)}>
-                      <td>{String(j.job_type)}</td>
-                      <td>{String(j.status)}</td>
-                      <td className="muted">{String(j.created_at ?? '—')}</td>
+              <div className="data-table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Type</th>
+                      <th>Status</th>
+                      <th>Created</th>
                     </tr>
-                  ))}
-                  {!recentJobs.length && <tr><td colSpan={3} className="muted">Chưa có job.</td></tr>}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {recentJobs.map((j) => (
+                      <tr key={String(j.id)}>
+                        <td>{String(j.job_type)}</td>
+                        <td>{String(j.status)}</td>
+                        <td className="muted">{String(j.created_at ?? '—')}</td>
+                      </tr>
+                    ))}
+                    {!recentJobs.length && (
+                      <tr>
+                        <td colSpan={3} className="muted">
+                          Chưa có job.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
-            <div className="card">
+            <div className="page-card stack-gap">
               <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Open alerts</h2>
               <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
                 {openAlerts.map((a) => (
-                  <li key={String(a.id)}>{String(a.message)} <span className="muted">({String(a.alert_type)})</span></li>
+                  <li key={String(a.id)}>
+                    {String(a.message)} <span className="muted">({String(a.alert_type)})</span>
+                  </li>
                 ))}
                 {!openAlerts.length && <li className="muted">Không có alert mở.</li>}
               </ul>
             </div>
           </>
         )}
-
-        <p style={{ marginTop: '1rem' }}><Link href="/seo/hub">← Hub</Link> · <Link href="/seo/reports">Reports</Link></p>
-      </main>
-    </>
+      </div>
+    </SeoPageShell>
   );
 }

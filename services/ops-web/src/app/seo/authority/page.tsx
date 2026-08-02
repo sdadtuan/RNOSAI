@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { SeoPageShell } from '@/components/seo';
 import {
   fetchSeoAuthoritySignals,
   fetchSeoClients,
@@ -25,7 +25,13 @@ import { canViewSeoAuthority, canWriteSeo } from '@/lib/seo/caps';
 
 export default function SeoAuthorityPage() {
   return (
-    <Suspense fallback={<main style={{ padding: '2rem' }}><p className="muted">Đang tải authority console…</p></main>}>
+    <Suspense
+      fallback={
+        <SeoPageShell user={null} onLogout={() => {}} title="Authority Console" loading>
+          <span />
+        </SeoPageShell>
+      }
+    >
       <SeoAuthorityContent />
     </Suspense>
   );
@@ -102,14 +108,21 @@ function SeoAuthorityContent() {
     })();
   }, [customerId, ensureAuth, loadData]);
 
-  return (
-    <>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.replace('/login'); }} />
-      <main style={{ padding: '1.5rem 2rem', maxWidth: 1200 }}>
-        <h1>Authority Console</h1>
-        <p className="muted">Backlinks, citations, brand mentions — S-11</p>
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
 
-        <div className="card" style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'end' }}>
+  return (
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      title="Authority Console"
+      subtitle="Backlinks, citations, brand mentions — S-11"
+    >
+      <div className="page-card stack-gap">
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'end' }}>
           <label>
             Client
             <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} style={{ display: 'block', marginTop: 4 }}>
@@ -141,12 +154,27 @@ function SeoAuthorityContent() {
         </div>
 
         {summary.total_signals != null && (
-          <div className="card" style={{ marginBottom: '1rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-            <span>Total: <strong>{String(summary.total_signals)}</strong></span>
-            <span>Backlinks: <strong>{String(summary.backlinks_active)}</strong></span>
-            <span>Citations: <strong>{String(summary.citations)}</strong></span>
-            <span>Mentions: <strong>{String(summary.brand_mentions)}</strong></span>
-            <span>Avg DR: <strong>{String(summary.avg_dr)}</strong></span>
+          <div className="channel-hub-summary">
+            <div className="summary-card">
+              <span className="muted">Total</span>
+              <strong>{String(summary.total_signals)}</strong>
+            </div>
+            <div className="summary-card">
+              <span className="muted">Backlinks</span>
+              <strong>{String(summary.backlinks_active)}</strong>
+            </div>
+            <div className="summary-card">
+              <span className="muted">Citations</span>
+              <strong>{String(summary.citations)}</strong>
+            </div>
+            <div className="summary-card">
+              <span className="muted">Mentions</span>
+              <strong>{String(summary.brand_mentions)}</strong>
+            </div>
+            <div className="summary-card">
+              <span className="muted">Avg DR</span>
+              <strong>{String(summary.avg_dr)}</strong>
+            </div>
           </div>
         )}
 
@@ -154,15 +182,15 @@ function SeoAuthorityContent() {
         {toast && <p className="muted">{toast}</p>}
 
         {loading ? <p className="muted">Đang tải…</p> : (
-          <div className="card">
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="data-table-wrap">
+            <table className="data-table">
               <thead>
                 <tr>
-                  <th align="left">Type</th>
-                  <th align="left">Domain</th>
-                  <th align="left">Source URL</th>
-                  <th align="left">DR</th>
-                  <th align="left">Status</th>
+                  <th>Type</th>
+                  <th>Domain</th>
+                  <th>Source URL</th>
+                  <th>DR</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -175,14 +203,18 @@ function SeoAuthorityContent() {
                     <td>{String(s.status)}</td>
                   </tr>
                 ))}
-                {!signals.length && <tr><td colSpan={5} className="muted">Chưa có authority signals.</td></tr>}
+                {!signals.length && (
+                  <tr>
+                    <td colSpan={5} className="muted">
+                      Chưa có authority signals.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         )}
-
-        <p style={{ marginTop: '1rem' }}><Link href="/seo/hub">← Hub</Link></p>
-      </main>
-    </>
+      </div>
+    </SeoPageShell>
   );
 }

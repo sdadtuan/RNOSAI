@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { SeoPageShell } from '@/components/seo';
 import {
   createSeoStrategyGoal,
   createSeoStrategyKpi,
@@ -40,9 +40,9 @@ export default function SeoStrategyPage() {
   return (
     <Suspense
       fallback={
-        <main style={{ padding: '2rem' }}>
-          <p className="muted">Đang tải strategy OKR…</p>
-        </main>
+        <SeoPageShell user={null} onLogout={() => {}} title="Strategy OKR" loading>
+          <span />
+        </SeoPageShell>
       }
     >
       <SeoStrategyContent />
@@ -247,26 +247,20 @@ function SeoStrategyContent() {
   }
 
   return (
-    <div className="page">
-      <OpsNav user={user} onLogout={logout} />
-      <main className="main-content">
-        <div className="page-header">
-          <div>
-            <h1>Strategy OKR</h1>
-            <p className="muted">S-05 · Goals → KPIs → Initiatives</p>
-          </div>
-          <div className="page-actions">
-            <Link href="/seo/hub" className="btn btn-secondary btn-sm">
-              Hub
-            </Link>
-            <Link href="/seo/reports" className="btn btn-secondary btn-sm">
-              Báo cáo
-            </Link>
-          </div>
-        </div>
-
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <div className="form-row" style={{ alignItems: 'end', gap: '1rem', flexWrap: 'wrap' }}>
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      title="Strategy OKR"
+      subtitle="S-05 · Goals → KPIs → Initiatives"
+      actions={
+        <Link href="/seo/reports" className="btn btn-sm btn-secondary">
+          Báo cáo
+        </Link>
+      }
+    >
+      <div className="page-card stack-gap">
+        <div className="form-row" style={{ alignItems: 'end', gap: '1rem', flexWrap: 'wrap' }}>
             <label>
               Client
               <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
@@ -299,13 +293,12 @@ function SeoStrategyContent() {
               </button>
             )}
           </div>
-        </div>
 
         {error && <p className="error">{error}</p>}
         {toast && <p className="badge">{toast}</p>}
 
         {showKpiForm && canWrite ? (
-          <div className="card" style={{ marginBottom: '1rem' }}>
+          <div className="page-card stack-gap">
             <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>
               {editingKpiId ? 'Chỉnh sửa KPI' : 'Thêm KPI'}
             </h2>
@@ -369,7 +362,7 @@ function SeoStrategyContent() {
         ) : (
           <>
             {goals.map((goal) => (
-              <div key={goal.id} className="card" style={{ marginBottom: '1rem' }}>
+              <div key={goal.id} className="page-card stack-gap">
                 <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>
                   {String(goal.title ?? `Goal #${goal.id}`)}
                   {goal.period ? (
@@ -384,8 +377,8 @@ function SeoStrategyContent() {
                 </p>
 
                 {(goal.kpis ?? []).length > 0 && (
-                  <div className="table-wrap" style={{ marginBottom: '0.75rem' }}>
-                    <table>
+                  <div className="data-table-wrap" style={{ marginBottom: '0.75rem' }}>
+                    <table className="data-table">
                       <thead>
                         <tr>
                           <th>KPI</th>
@@ -449,7 +442,7 @@ function SeoStrategyContent() {
             ))}
 
             {unlinked.length > 0 && (
-              <div className="card">
+              <div className="page-card stack-gap">
                 <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Initiatives chưa gắn goal</h2>
                 <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
                   {unlinked.map((init, idx) => (
@@ -462,7 +455,7 @@ function SeoStrategyContent() {
             )}
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </SeoPageShell>
   );
 }

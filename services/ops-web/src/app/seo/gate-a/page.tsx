@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { SeoPageShell } from '@/components/seo';
 import {
   fetchSeoGateAReadiness,
   fetchSeoGateASignoffTemplate,
@@ -38,7 +38,13 @@ type GateAReadiness = {
 
 export default function SeoGateAPage() {
   return (
-    <Suspense fallback={<main style={{ padding: '2rem' }}><p className="muted">Đang tải Gate A…</p></main>}>
+    <Suspense
+      fallback={
+        <SeoPageShell user={null} onLogout={() => {}} title="Gate A" loading>
+          <span />
+        </SeoPageShell>
+      }
+    >
       <SeoGateAContent />
     </Suspense>
   );
@@ -136,40 +142,38 @@ function SeoGateAContent() {
   const notes = readiness.notes ?? status.notes ?? [];
 
   return (
-    <div className="ops-shell">
-      <OpsNav user={user} onLogout={onLogout} />
-      <main className="ops-main">
-        <div className="ops-page-header">
-          <div>
-            <h2>Gate A — Go-live SEO/AEO</h2>
-            <p className="muted">
-              Phase 7 · Staged cutover Governance → Portal → Experiments · soak ≥7 ngày
-            </p>
-          </div>
-          <div className="ops-page-actions">
-            <button type="button" className="btn btn-secondary" onClick={() => void downloadSignoff()}>
-              Tải sign-off template
-            </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                const token = getAccessToken();
-                if (token) void load(token);
-              }}
-            >
-              Làm mới
-            </button>
-          </div>
-        </div>
-
+    <SeoPageShell
+      user={user}
+      onLogout={onLogout}
+      loading={loading && !user}
+      title="Gate A — Go-live SEO/AEO"
+      subtitle="Phase 7 · Staged cutover Governance → Portal → Experiments · soak ≥7 ngày"
+      actions={
+        <>
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => void downloadSignoff()}>
+            Tải sign-off template
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => {
+              const token = getAccessToken();
+              if (token) void load(token);
+            }}
+          >
+            Làm mới
+          </button>
+        </>
+      }
+    >
+      <div className="page-card stack-gap">
         {toast ? <p className="toast">{toast}</p> : null}
-        {error ? <p className="error-banner">{error}</p> : null}
+        {error ? <p className="error">{error}</p> : null}
         {loading ? <p className="muted">Đang tải…</p> : null}
 
         {!loading && !error ? (
           <>
-            <section className="card" style={{ marginBottom: '1rem' }}>
+            <div className="page-card stack-gap">
               <h3>Readiness</h3>
               <p>
                 Trạng thái:{' '}
@@ -181,11 +185,12 @@ function SeoGateAContent() {
                   <li key={n}>{n}</li>
                 ))}
               </ul>
-            </section>
+            </div>
 
-            <section className="card" style={{ marginBottom: '1rem' }}>
+            <div className="page-card stack-gap">
               <h3>Staged cutover flags</h3>
-              <table className="data-table">
+              <div className="data-table-wrap">
+                <table className="data-table">
                 <thead>
                   <tr>
                     <th>Bước</th>
@@ -203,9 +208,10 @@ function SeoGateAContent() {
                   ))}
                 </tbody>
               </table>
-            </section>
+              </div>
+            </div>
 
-            <section className="card" style={{ marginBottom: '1rem' }}>
+            <div className="page-card stack-gap">
               <h3>Soak evidence</h3>
               <p className="muted">
                 Required days: {String(soak.required_days ?? 7)} · Samples: {String(soak.sample_count ?? 0)}
@@ -214,9 +220,9 @@ function SeoGateAContent() {
                 {soak.skipped ? ' · (skipped in dev)' : null}
               </p>
               {soak.log_path ? <p><code>{String(soak.log_path)}</code></p> : null}
-            </section>
+            </div>
 
-            <section className="card" style={{ marginBottom: '1rem' }}>
+            <div className="page-card stack-gap">
               <h3>QA handoff §12</h3>
               <ul>
                 {(readiness.qa_checklist ?? []).map((item) => (
@@ -226,9 +232,9 @@ function SeoGateAContent() {
                   </li>
                 ))}
               </ul>
-            </section>
+            </div>
 
-            <section className="card">
+            <div className="page-card stack-gap">
               <h3>ops-web routes</h3>
               <p className="muted">Staff console tại rs.pttads.vn — bookmark cũ /crm/seo redirect về /seo</p>
               <ul style={{ columns: 2 }}>
@@ -243,10 +249,10 @@ function SeoGateAContent() {
                   Nginx: <code>{readiness.nginx_redirect}</code>
                 </p>
               ) : null}
-            </section>
+            </div>
           </>
         ) : null}
-      </main>
-    </div>
+      </div>
+    </SeoPageShell>
   );
 }

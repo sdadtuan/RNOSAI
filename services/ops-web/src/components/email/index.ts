@@ -4,6 +4,7 @@ export { EmailHealthDot } from './EmailHealthDot';
 export { EmailKpiCard } from './EmailKpiCard';
 export { EmailEmptyState } from './EmailEmptyState';
 export { EmailAlertBanner } from './EmailAlertBanner';
+export { EmailPageShell } from './EmailPageShell';
 export { EmailDnsStatus, EmailWarmupMeter } from './EmailDnsStatus';
 export { PreflightChecklist } from './PreflightChecklist';
 export { EmailApprovalTimeline } from './EmailApprovalTimeline';

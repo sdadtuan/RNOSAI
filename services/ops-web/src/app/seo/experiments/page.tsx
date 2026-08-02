@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { SeoPageShell } from '@/components/seo';
 import {
   createSeoExperiment,
   fetchSeoClients,
@@ -25,7 +25,13 @@ import { canViewSeoExperiments, canWriteSeo } from '@/lib/seo/caps';
 
 export default function SeoExperimentsPage() {
   return (
-    <Suspense fallback={<main style={{ padding: '2rem' }}><p className="muted">Đang tải experiments…</p></main>}>
+    <Suspense
+      fallback={
+        <SeoPageShell user={null} onLogout={() => {}} title="SEO Experiments" loading>
+          <span />
+        </SeoPageShell>
+      }
+    >
       <SeoExperimentsContent />
     </Suspense>
   );
@@ -104,20 +110,30 @@ function SeoExperimentsContent() {
     })();
   }, [customerId, ensureAuth, loadData]);
 
-  return (
-    <>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.replace('/login'); }} />
-      <main style={{ padding: '1.5rem 2rem', maxWidth: 1200 }}>
-        <h1>SEO Experiments</h1>
-        <p className="muted">Hypothesis testing — S-16 (PTT_SEO_EXPERIMENTS_ENABLED=1)</p>
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
 
+  return (
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      title="SEO Experiments"
+      subtitle="Hypothesis testing — S-16 (PTT_SEO_EXPERIMENTS_ENABLED=1)"
+    >
+      <div className="page-card stack-gap">
         {!enabled && !loading && (
-          <div className="card" style={{ marginBottom: '1rem' }}>
-            <p>Experiments disabled. Set <code>PTT_SEO_EXPERIMENTS_ENABLED=1</code> on API và <code>NEXT_PUBLIC_PTT_SEO_EXPERIMENTS_ENABLED=1</code> trên ops-web.</p>
+          <div className="page-card stack-gap">
+            <p>
+              Experiments disabled. Set <code>PTT_SEO_EXPERIMENTS_ENABLED=1</code> on API và{' '}
+              <code>NEXT_PUBLIC_PTT_SEO_EXPERIMENTS_ENABLED=1</code> trên ops-web.
+            </p>
           </div>
         )}
 
-        <div className="card" style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'end' }}>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'end' }}>
           <label>
             Client
             <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} style={{ display: 'block', marginTop: 4 }}>
@@ -130,7 +146,7 @@ function SeoExperimentsContent() {
         </div>
 
         {enabled && canWriteSeo(user) && customerId && (
-          <div className="card" style={{ marginBottom: '1rem', display: 'flex', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
             <input placeholder="Experiment title" value={title} onChange={(e) => setTitle(e.target.value)} style={{ flex: 1 }} />
             <button type="button" disabled={!title.trim()} onClick={() => void (async () => {
               const access = await ensureAuth();
@@ -147,10 +163,15 @@ function SeoExperimentsContent() {
         {toast && <p className="muted">{toast}</p>}
 
         {loading ? <p className="muted">Đang tải…</p> : enabled && (
-          <div className="card">
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="data-table-wrap">
+            <table className="data-table">
               <thead>
-                <tr><th align="left">Title</th><th align="left">Type</th><th align="left">Status</th><th align="left">Updated</th></tr>
+                <tr>
+                  <th>Title</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Updated</th>
+                </tr>
               </thead>
               <tbody>
                 {experiments.map((e) => (
@@ -161,14 +182,18 @@ function SeoExperimentsContent() {
                     <td className="muted">{String(e.updated_at ?? '—')}</td>
                   </tr>
                 ))}
-                {!experiments.length && <tr><td colSpan={4} className="muted">Chưa có experiment.</td></tr>}
+                {!experiments.length && (
+                  <tr>
+                    <td colSpan={4} className="muted">
+                      Chưa có experiment.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         )}
-
-        <p style={{ marginTop: '1rem' }}><Link href="/seo/hub">← Hub</Link></p>
-      </main>
-    </>
+      </div>
+    </SeoPageShell>
   );
 }

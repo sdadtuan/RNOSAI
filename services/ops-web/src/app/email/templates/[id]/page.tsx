@@ -1,10 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
-import { PreflightChecklist, TemplateBlockLibrary } from '@/components/email';
+import { EmailPageShell, PreflightChecklist, TemplateBlockLibrary } from '@/components/email';
+import { DetailPageLayout } from '@/components/layout';
 import {
   fetchEmailTemplate,
   patchEmailTemplate,
@@ -143,102 +142,116 @@ export default function EmailTemplateDetailPage() {
     }
   }
 
-  if (!user) return <main style={{ padding: '2rem' }}><p className="muted">Đang tải…</p></main>;
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
+
+  if (!user) {
+    return (
+      <EmailPageShell user={null} onLogout={logout} title="Template studio" loading>
+        <span />
+      </EmailPageShell>
+    );
+  }
 
   const canWrite = hasCap(user, 'crm_email_mkt', 'write') || hasCap(user, 'crm_agency', 'create');
 
   return (
-    <main style={{ maxWidth: 1180, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.push('/login'); }} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <p className="muted" style={{ marginTop: 0 }}>EM-8b E-08b — Template studio</p>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <Link href="/email/templates" className="btn btn-secondary btn-sm">← Templates</Link>
-          {canWrite ? (
-            <button type="button" className="btn btn-sm" disabled={saving} onClick={() => void save()}>
-              {saving ? '…' : 'Lưu'}
-            </button>
-          ) : null}
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => void runPreflight()}>
-            Preflight
-          </button>
-        </div>
-        {template ? (
-          <p className="muted" style={{ marginBottom: 0 }}>
-            {template.client_name} · v{template.version} · {template.status}
-          </p>
-        ) : null}
-      </div>
-      {error ? <p className="error">{error}</p> : null}
-
-      <div className="email-template-studio">
-        <div className="email-template-editor card">
-          <nav className="email-builder-tabs" aria-label="Editor tabs">
-            {(['blocks', 'html', 'text'] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                className={editorTab === tab ? 'active' : undefined}
-                onClick={() => setEditorTab(tab)}
-              >
-                {tab === 'blocks' ? 'Blocks' : tab === 'html' ? 'HTML' : 'Text'}
+    <EmailPageShell user={user} onLogout={logout} showModuleNav={false} hideToolbar title="Template studio">
+      <DetailPageLayout
+        backHref="/email/templates"
+        backLabel="← Templates"
+        title={template?.name ?? 'Template studio'}
+        subtitle={
+          template
+            ? `${template.client_name} · v${template.version} · ${template.status} · EM-8b E-08b`
+            : 'EM-8b E-08b — Template studio'
+        }
+        actions={
+          <>
+            {canWrite ? (
+              <button type="button" className="btn btn-sm" disabled={saving} onClick={() => void save()}>
+                {saving ? '…' : 'Lưu'}
               </button>
-            ))}
-          </nav>
+            ) : null}
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => void runPreflight()}>
+              Preflight
+            </button>
+          </>
+        }
+      >
+        {error ? <p className="error">{error}</p> : null}
 
-          <label style={{ display: 'block', marginBottom: '0.75rem' }}>
-            Name
-            <input value={name} onChange={(e) => setName(e.target.value)} disabled={!canWrite} style={{ display: 'block', width: '100%', marginTop: '0.25rem' }} />
-          </label>
-          <label style={{ display: 'block', marginBottom: '0.75rem' }}>
-            Subject
-            <input value={subject} onChange={(e) => setSubject(e.target.value)} disabled={!canWrite} style={{ display: 'block', width: '100%', marginTop: '0.25rem' }} />
-          </label>
+        <div className="email-template-studio">
+          <div className="email-template-editor">
+            <nav className="email-builder-tabs" aria-label="Editor tabs">
+              {(['blocks', 'html', 'text'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  className={editorTab === tab ? 'active' : undefined}
+                  onClick={() => setEditorTab(tab)}
+                >
+                  {tab === 'blocks' ? 'Blocks' : tab === 'html' ? 'HTML' : 'Text'}
+                </button>
+              ))}
+            </nav>
 
-          {editorTab === 'blocks' ? (
-            <TemplateBlockLibrary onInsert={insertBlock} disabled={!canWrite} />
-          ) : null}
-          {editorTab === 'html' ? (
-            <label style={{ display: 'block' }}>
-              HTML body
-              <textarea value={htmlBody} onChange={(e) => setHtmlBody(e.target.value)} disabled={!canWrite} rows={14} style={{ display: 'block', width: '100%', marginTop: '0.25rem', fontFamily: 'monospace' }} />
+            <label style={{ display: 'block', marginBottom: '0.75rem' }}>
+              Name
+              <input value={name} onChange={(e) => setName(e.target.value)} disabled={!canWrite} style={{ display: 'block', width: '100%', marginTop: '0.25rem' }} />
             </label>
-          ) : null}
-          {editorTab === 'text' ? (
-            <label style={{ display: 'block' }}>
-              Text body (optional)
-              <textarea value={textBody} onChange={(e) => setTextBody(e.target.value)} disabled={!canWrite} rows={14} style={{ display: 'block', width: '100%', marginTop: '0.25rem', fontFamily: 'monospace' }} />
+            <label style={{ display: 'block', marginBottom: '0.75rem' }}>
+              Subject
+              <input value={subject} onChange={(e) => setSubject(e.target.value)} disabled={!canWrite} style={{ display: 'block', width: '100%', marginTop: '0.25rem' }} />
             </label>
-          ) : null}
-        </div>
 
-        <div className="email-template-preview card">
-          <h3 style={{ marginTop: 0 }}>Preview</h3>
-          <div className="email-preview-dual">
-            <div>
-              <p className="muted" style={{ marginTop: 0, fontSize: '0.8125rem' }}>Desktop</p>
-              <div className="email-preview-frame">
-                <iframe title="Email preview desktop" srcDoc={htmlBody} sandbox="" />
+            {editorTab === 'blocks' ? (
+              <TemplateBlockLibrary onInsert={insertBlock} disabled={!canWrite} />
+            ) : null}
+            {editorTab === 'html' ? (
+              <label style={{ display: 'block' }}>
+                HTML body
+                <textarea value={htmlBody} onChange={(e) => setHtmlBody(e.target.value)} disabled={!canWrite} rows={14} style={{ display: 'block', width: '100%', marginTop: '0.25rem', fontFamily: 'monospace' }} />
+              </label>
+            ) : null}
+            {editorTab === 'text' ? (
+              <label style={{ display: 'block' }}>
+                Text body (optional)
+                <textarea value={textBody} onChange={(e) => setTextBody(e.target.value)} disabled={!canWrite} rows={14} style={{ display: 'block', width: '100%', marginTop: '0.25rem', fontFamily: 'monospace' }} />
+              </label>
+            ) : null}
+          </div>
+
+          <div className="email-template-preview">
+            <h3 style={{ marginTop: 0 }}>Preview</h3>
+            <div className="email-preview-dual">
+              <div>
+                <p className="muted" style={{ marginTop: 0, fontSize: '0.8125rem' }}>Desktop</p>
+                <div className="email-preview-frame">
+                  <iframe title="Email preview desktop" srcDoc={htmlBody} sandbox="" />
+                </div>
               </div>
-            </div>
-            <div>
-              <p className="muted" style={{ marginTop: 0, fontSize: '0.8125rem' }}>Mobile (320px)</p>
-              <div className="email-preview-frame email-preview-frame--mobile">
-                <iframe title="Email preview mobile" srcDoc={htmlBody} sandbox="" />
+              <div>
+                <p className="muted" style={{ marginTop: 0, fontSize: '0.8125rem' }}>Mobile (320px)</p>
+                <div className="email-preview-frame email-preview-frame--mobile">
+                  <iframe title="Email preview mobile" srcDoc={htmlBody} sandbox="" />
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {checks.length > 0 ? (
-        <div className="card" style={{ marginTop: '1rem' }}>
-          <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>
-            Preflight {preflightPassed ? '✓ passed' : '✗ failed'}
-          </h2>
-          <PreflightChecklist checks={checks} />
-        </div>
-      ) : null}
-    </main>
+        {checks.length > 0 ? (
+          <div>
+            <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>
+              Preflight {preflightPassed ? '✓ passed' : '✗ failed'}
+            </h2>
+            <PreflightChecklist checks={checks} />
+          </div>
+        ) : null}
+      </DetailPageLayout>
+    </EmailPageShell>
   );
 }

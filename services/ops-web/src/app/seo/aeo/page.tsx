@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { SeoPageShell } from '@/components/seo';
 import {
   createSeoAeoQuery,
   enqueueSeoAeoScan,
@@ -28,7 +28,13 @@ import { canViewSeoAeo, canWriteSeo } from '@/lib/seo/caps';
 
 export default function SeoAeoPage() {
   return (
-    <Suspense fallback={<main style={{ padding: '2rem' }}><p className="muted">Đang tải AEO console…</p></main>}>
+    <Suspense
+      fallback={
+        <SeoPageShell user={null} onLogout={() => {}} title="AEO Console" loading>
+          <span />
+        </SeoPageShell>
+      }
+    >
       <SeoAeoContent />
     </Suspense>
   );
@@ -114,16 +120,28 @@ function SeoAeoContent() {
 
   const canWrite = canWriteSeo(user);
 
-  return (
-    <>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.replace('/login'); }} />
-      <main style={{ padding: '1.5rem 2rem', maxWidth: 1200 }}>
-        <header style={{ marginBottom: '1.5rem' }}>
-          <h1 style={{ margin: 0 }}>AEO Console</h1>
-          <p className="muted">Coverage, batch scan, AI mentions — S-10</p>
-        </header>
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
 
-        <div className="card" style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'end' }}>
+  return (
+    <SeoPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      title="AEO Console"
+      subtitle="Coverage, batch scan, AI mentions — S-10"
+      actions={
+        customerId ? (
+          <Link href={`/seo/clients/${customerId}`} className="btn btn-sm btn-secondary">
+            Client workspace
+          </Link>
+        ) : null
+      }
+    >
+      <div className="page-card stack-gap">
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'end' }}>
           <label>
             Client
             <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} style={{ display: 'block', marginTop: 4 }}>
@@ -170,7 +188,7 @@ function SeoAeoContent() {
         </div>
 
         {canWrite && customerId && (
-          <div className="card" style={{ marginBottom: '1rem' }}>
+          <div className="page-card stack-gap">
             <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Thêm AEO query</h2>
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
               <input placeholder="Query text" value={newQuery} onChange={(e) => setNewQuery(e.target.value)} style={{ flex: 2, minWidth: 200 }} />
@@ -200,15 +218,15 @@ function SeoAeoContent() {
         {loading ? (
           <p className="muted">Đang tải…</p>
         ) : (
-          <div className="card">
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="data-table-wrap">
+            <table className="data-table">
               <thead>
                 <tr>
-                  <th align="left">Query</th>
-                  <th align="left">Brand</th>
-                  <th align="left">Visible</th>
-                  <th align="left">Citation</th>
-                  <th align="left">Last scan</th>
+                  <th>Query</th>
+                  <th>Brand</th>
+                  <th>Visible</th>
+                  <th>Citation</th>
+                  <th>Last scan</th>
                 </tr>
               </thead>
               <tbody>
@@ -222,19 +240,17 @@ function SeoAeoContent() {
                   </tr>
                 ))}
                 {!queries.length && (
-                  <tr><td colSpan={5} className="muted">Chưa có AEO query — thêm query và chạy scan.</td></tr>
+                  <tr>
+                    <td colSpan={5} className="muted">
+                      Chưa có AEO query — thêm query và chạy scan.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
           </div>
         )}
-
-        <p style={{ marginTop: '1rem' }}>
-          <Link href="/seo/hub">← Hub</Link>
-          {' · '}
-          <Link href={`/seo/clients/${customerId || ''}`}>Client workspace</Link>
-        </p>
-      </main>
-    </>
+      </div>
+    </SeoPageShell>
   );
 }

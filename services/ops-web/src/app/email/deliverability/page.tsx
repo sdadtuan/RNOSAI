@@ -1,16 +1,16 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
 import {
   EmailDnsStatus,
   EmailDomainOnboardingWizard,
   EmailEmptyState,
+  EmailPageShell,
   EmailStatusBadge,
   EmailWarmupMeter,
 } from '@/components/email';
+import { FilterBar, FilterBarActions } from '@/components/layout';
 import {
   fetchEmailClients,
   fetchEmailDeliverabilityDomains,
@@ -31,7 +31,6 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
-
 
 export default function EmailDeliverabilityPage() {
   const router = useRouter();
@@ -152,7 +151,18 @@ export default function EmailDeliverabilityPage() {
     }
   }
 
-  if (!user) return <main style={{ padding: '2rem' }}><p className="muted">Đang tải…</p></main>;
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
+
+  if (!user) {
+    return (
+      <EmailPageShell user={null} onLogout={logout} title="Deliverability" loading>
+        <span />
+      </EmailPageShell>
+    );
+  }
 
   const canDeliverability =
     hasCap(user, 'crm_email_mkt', 'deliverability') ||
@@ -160,12 +170,14 @@ export default function EmailDeliverabilityPage() {
     hasCap(user, 'crm_agency', 'create');
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.push('/login'); }} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <p className="muted" style={{ marginTop: 0 }}>EM-3 E-11 — Deliverability console</p>
-        <Link href="/email/hub" className="btn btn-secondary btn-sm">← Hub</Link>
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+    <EmailPageShell
+      user={user}
+      onLogout={logout}
+      title="Deliverability"
+      subtitle="EM-3 E-11 — Deliverability console"
+    >
+      <div className="page-card stack-gap">
+        <FilterBar>
           <label className="muted" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             Client
             <select
@@ -181,10 +193,12 @@ export default function EmailDeliverabilityPage() {
               ))}
             </select>
           </label>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const a = getAccessToken(); if (a) void load(a); }}>Làm mới</button>
-        </div>
+          <FilterBarActions>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const a = getAccessToken(); if (a) void load(a); }}>Làm mới</button>
+          </FilterBarActions>
+        </FilterBar>
+        {error ? <p className="error">{error}</p> : null}
       </div>
-      {error ? <p className="error">{error}</p> : null}
       {clientId.trim() ? (
         <EmailDomainOnboardingWizard
           clientId={clientId.trim()}
@@ -204,54 +218,56 @@ export default function EmailDeliverabilityPage() {
           }}
         />
       ) : null}
-      {canDeliverability ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <input value={domainInput} onChange={(e) => setDomainInput(e.target.value)} placeholder="mail.client.com" style={{ marginRight: '0.5rem', minWidth: 220 }} />
-          <button type="button" className="btn btn-sm" onClick={() => void register()}>+ Thêm domain</button>
-        </div>
-      ) : null}
-      <div className="card">
-        <table className="perf-table">
-          <thead>
-            <tr>
-              <th>Domain</th>
-              <th>Client</th>
-              <th>SPF</th>
-              <th>DKIM</th>
-              <th>DMARC</th>
-              <th>Warm-up</th>
-              <th>Status</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {domains.map((d) => (
-              <tr key={d.id}>
-                <td><strong>{d.domain}</strong></td>
-                <td>{d.client_name}</td>
-                <td><EmailDnsStatus status={d.spf_status} label="SPF" /></td>
-                <td><EmailDnsStatus status={d.dkim_status} label="DKIM" /></td>
-                <td><EmailDnsStatus status={d.dmarc_status} label="DMARC" /></td>
-                <td><EmailWarmupMeter stage={d.warm_up_stage} /></td>
-                <td><EmailStatusBadge status={d.status} /></td>
-                <td style={{ whiteSpace: 'nowrap' }}>
-                  {canDeliverability ? (
-                    <>
-                      <button type="button" className="btn btn-sm" onClick={() => void verify(d.id)}>Verify</button>{' '}
-                      {d.status !== 'paused' ? (
-                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => void pause(d.id)}>Pause</button>
-                      ) : null}
-                    </>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!loading && domains.length === 0 ? (
-          <EmailEmptyState message="Chưa cấu hình domain gửi." ctaLabel="← Hub" ctaHref="/email/hub" />
+      <div className="page-card stack-gap">
+        {canDeliverability ? (
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <input value={domainInput} onChange={(e) => setDomainInput(e.target.value)} placeholder="mail.client.com" style={{ minWidth: 220 }} />
+            <button type="button" className="btn btn-sm" onClick={() => void register()}>+ Thêm domain</button>
+          </div>
         ) : null}
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Domain</th>
+                <th>Client</th>
+                <th>SPF</th>
+                <th>DKIM</th>
+                <th>DMARC</th>
+                <th>Warm-up</th>
+                <th>Status</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {domains.map((d) => (
+                <tr key={d.id}>
+                  <td><strong>{d.domain}</strong></td>
+                  <td>{d.client_name}</td>
+                  <td><EmailDnsStatus status={d.spf_status} label="SPF" /></td>
+                  <td><EmailDnsStatus status={d.dkim_status} label="DKIM" /></td>
+                  <td><EmailDnsStatus status={d.dmarc_status} label="DMARC" /></td>
+                  <td><EmailWarmupMeter stage={d.warm_up_stage} /></td>
+                  <td><EmailStatusBadge status={d.status} /></td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {canDeliverability ? (
+                      <>
+                        <button type="button" className="btn btn-sm" onClick={() => void verify(d.id)}>Verify</button>{' '}
+                        {d.status !== 'paused' ? (
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => void pause(d.id)}>Pause</button>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!loading && domains.length === 0 ? (
+            <EmailEmptyState message="Chưa cấu hình domain gửi." ctaLabel="← Hub" ctaHref="/email/hub" />
+          ) : null}
+        </div>
       </div>
-    </main>
+    </EmailPageShell>
   );
 }
