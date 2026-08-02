@@ -206,7 +206,7 @@ export default function SeoReportsPage() {
   }
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem' }}>
+    <main className="portal-page portal-page--default">
       <PortalNav user={user} onLogout={logout} seoEnabled={seoEnabled} />
 
       <section className="card">

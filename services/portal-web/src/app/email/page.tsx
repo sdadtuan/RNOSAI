@@ -54,7 +54,7 @@ export default function PortalEmailDashboardPage() {
   }
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem' }}>
+    <main className="portal-page portal-page--default">
       <PortalNav user={user} onLogout={logout} emailEnabled={emailEnabled} />
       <div className="card" style={{ marginBottom: '1rem' }}>
         <p className="muted" style={{ marginTop: 0 }}>EM-4 P-EMAIL-01 — Client email dashboard</p>

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { PortalAuthShell } from '@/components/layout';
 import { portalResetPassword, portalValidateResetToken } from '@/lib/api';
 
 function ResetPasswordPageContent() {
@@ -61,66 +62,59 @@ function ResetPasswordPageContent() {
   }
 
   return (
-    <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
-      <div className="card" style={{ width: '100%', maxWidth: 420 }}>
-        <h1 style={{ margin: '0 0 0.35rem', fontSize: '1.5rem' }}>Đặt mật khẩu mới</h1>
-        {validating ? <p className="muted">Đang kiểm tra link…</p> : null}
-        {!validating && tokenOk ? (
-          <>
-            {emailMasked ? (
-              <p className="muted" style={{ marginTop: 0 }}>
-                Tài khoản: {emailMasked}
-              </p>
-            ) : null}
-            <form onSubmit={onSubmit}>
-              <div className="field">
-                <label htmlFor="password">Mật khẩu mới</label>
-                <input
-                  id="password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={8}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="confirm">Xác nhận mật khẩu</label>
-                <input
-                  id="confirm"
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  required
-                  minLength={8}
-                />
-              </div>
-              {error ? <p className="error">{error}</p> : null}
-              <button className="btn" type="submit" disabled={loading} style={{ width: '100%' }}>
-                {loading ? 'Đang lưu…' : 'Lưu mật khẩu mới'}
-              </button>
-            </form>
-          </>
-        ) : null}
-        {!validating && !tokenOk ? (
-          <>
-            {error ? <p className="error">{error}</p> : null}
-            <p style={{ marginBottom: 0 }}>
-              <Link href="/forgot-password" className="nav-link">
-                Yêu cầu link mới
-              </Link>
-            </p>
-          </>
-        ) : null}
-        <p style={{ marginTop: '1rem', marginBottom: 0 }}>
-          <Link href="/login" className="nav-link">
-            ← Đăng nhập
-          </Link>
+    <PortalAuthShell
+      title="Đặt mật khẩu mới"
+      footer={
+        <p className="portal-auth-shell__link-row">
+          <Link href="/login">← Đăng nhập</Link>
         </p>
-      </div>
-    </main>
+      }
+    >
+      {validating ? <p className="muted">Đang kiểm tra link…</p> : null}
+      {!validating && tokenOk ? (
+        <>
+          {emailMasked ? <p className="muted">Tài khoản: {emailMasked}</p> : null}
+          <form onSubmit={onSubmit}>
+            <div className="field">
+              <label htmlFor="password">Mật khẩu mới</label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="confirm">Xác nhận mật khẩu</label>
+              <input
+                id="confirm"
+                type="password"
+                autoComplete="new-password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                required
+                minLength={8}
+              />
+            </div>
+            {error ? <p className="error">{error}</p> : null}
+            <button className="btn portal-auth-shell__submit" type="submit" disabled={loading}>
+              {loading ? 'Đang lưu…' : 'Lưu mật khẩu mới'}
+            </button>
+          </form>
+        </>
+      ) : null}
+      {!validating && !tokenOk ? (
+        <>
+          {error ? <p className="error">{error}</p> : null}
+          <p className="portal-auth-shell__link-row">
+            <Link href="/forgot-password">Yêu cầu link mới</Link>
+          </p>
+        </>
+      ) : null}
+    </PortalAuthShell>
   );
 }
 
@@ -128,7 +122,7 @@ export default function ResetPasswordPage() {
   return (
     <Suspense
       fallback={
-        <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
+        <main className="portal-auth-shell">
           <p className="muted">Đang tải…</p>
         </main>
       }

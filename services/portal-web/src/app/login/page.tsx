@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { FormEvent, Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { PortalAuthShell } from '@/components/layout';
 import { isTenantArchivedError, portalLogin } from '@/lib/api';
 import { saveSession } from '@/lib/auth';
 
@@ -38,69 +39,56 @@ function LoginPageContent() {
   }
 
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        padding: '1.5rem',
-      }}
-    >
-      <div className="card" style={{ width: '100%', maxWidth: 420 }}>
-        <p className="badge" style={{ marginBottom: '0.75rem' }}>
-          Client Portal MVP
-        </p>
-        <h1 style={{ margin: '0 0 0.35rem', fontSize: '1.5rem' }}>PTT Client Portal</h1>
-        <p className="muted" style={{ marginTop: 0, marginBottom: '1.25rem' }}>
-          Xem CPL / spend và duyệt creative cho chiến dịch của bạn
-        </p>
-        {resetOk ? (
-          <p className="muted" style={{ marginBottom: '1rem', color: 'var(--accent, #0a7)' }}>
-            Mật khẩu đã được cập nhật — đăng nhập bằng mật khẩu mới.
+    <PortalAuthShell
+      badge="Client Portal"
+      title="Đăng nhập"
+      subtitle="Xem CPL / spend và duyệt creative cho chiến dịch của bạn"
+      footer={
+        <>
+          <p className="portal-auth-shell__link-row">
+            <Link href="/forgot-password">Quên mật khẩu?</Link>
           </p>
-        ) : null}
-        <form onSubmit={onSubmit}>
-          <div className="field">
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="password">Mật khẩu</label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          {error ? <p className="error">{error}</p> : null}
-          <button className="btn" type="submit" disabled={loading} style={{ width: '100%' }}>
-            {loading ? 'Đang đăng nhập…' : 'Đăng nhập'}
-          </button>
-        </form>
-        <p style={{ marginTop: '0.75rem', marginBottom: 0, textAlign: 'center' }}>
-          <Link href="/forgot-password" className="nav-link">
-            Quên mật khẩu?
-          </Link>
-        </p>
-        <p className="muted" style={{ marginTop: '0.75rem', marginBottom: 0, textAlign: 'center', fontSize: '0.85rem' }}>
-          <Link href="/privacy">Chính sách quyền riêng tư</Link>
-        </p>
-        <p className="muted" style={{ marginTop: '1rem', marginBottom: 0 }}>
-          Dev: <code>approver@demo.local</code> / <code>demo123</code> ·{' '}
-          <code>./scripts/local_portal_up.sh</code>
-        </p>
-      </div>
-    </main>
+          <p className="muted portal-auth-shell__link-row">
+            <Link href="/privacy">Chính sách quyền riêng tư</Link>
+          </p>
+          <p className="muted portal-auth-shell__dev-hint">
+            Dev: <code>approver@demo.local</code> / <code>demo123</code>
+          </p>
+        </>
+      }
+    >
+      {resetOk ? (
+        <p className="portal-auth-shell__success">Mật khẩu đã được cập nhật — đăng nhập bằng mật khẩu mới.</p>
+      ) : null}
+      <form onSubmit={onSubmit}>
+        <div className="field">
+          <label htmlFor="email">Email</label>
+          <input
+            id="email"
+            type="email"
+            autoComplete="username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="password">Mật khẩu</label>
+          <input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
+        {error ? <p className="error">{error}</p> : null}
+        <button className="btn portal-auth-shell__submit" type="submit" disabled={loading}>
+          {loading ? 'Đang đăng nhập…' : 'Đăng nhập'}
+        </button>
+      </form>
+    </PortalAuthShell>
   );
 }
 
@@ -108,7 +96,7 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
+        <main className="portal-auth-shell">
           <p className="muted">Đang tải…</p>
         </main>
       }

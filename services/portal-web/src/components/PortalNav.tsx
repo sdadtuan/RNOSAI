@@ -1,7 +1,9 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+/**
+ * @deprecated Prefer `PortalPageShell` — kept for SEO/Email pages until P5 migration.
+ */
+import { PortalAppNav } from '@/components/layout';
 import type { PortalSettingsResponse } from '@/lib/api';
 import type { StoredUser } from '@/lib/auth';
 
@@ -17,122 +19,6 @@ interface PortalNavProps {
   emailEnabled?: boolean;
 }
 
-const PAGE_TITLES: Record<string, string> = {
-  '/dashboard': 'Performance',
-  '/meta': 'Meta Performance',
-  '/google': 'Google Performance',
-  '/zalo': 'Zalo Performance',
-  '/creatives': 'Creative inbox',
-  '/notifications': 'Thông báo',
-  '/settings': 'Cài đặt',
-  '/seo': 'SEO/AEO',
-  '/seo/reports': 'SEO Reports',
-  '/seo/content': 'SEO Content review',
-  '/email': 'Email dashboard',
-  '/email/approvals': 'Email approvals',
-};
-
-function badgeLabel(label: string, count: number): string {
-  return count > 0 ? `${label} (${count})` : label;
-}
-
-export function PortalNav({
-  user,
-  onLogout,
-  pendingCount = 0,
-  notificationUnread = 0,
-  emailPending = 0,
-  seoPending = 0,
-  branding,
-  seoEnabled = false,
-  emailEnabled = false,
-}: PortalNavProps) {
-  const pathname = usePathname();
-  const links = [
-    { href: '/dashboard', label: 'Performance' },
-    { href: '/meta', label: 'Meta (Facebook)' },
-    { href: '/google', label: 'Google Ads' },
-    { href: '/zalo', label: 'Zalo Ads' },
-    {
-      href: '/creatives',
-      label: badgeLabel('Creative inbox', pendingCount),
-    },
-    {
-      href: '/notifications',
-      label: badgeLabel('Thông báo', notificationUnread),
-    },
-    { href: '/settings', label: 'Cài đặt' },
-  ];
-  if (seoEnabled) {
-    links.push({ href: '/seo', label: 'SEO/AEO' });
-    links.push({ href: '/seo/reports', label: 'SEO reports' });
-    links.push({
-      href: '/seo/content',
-      label: badgeLabel('SEO review', seoPending),
-    });
-  }
-  if (emailEnabled) {
-    links.push({ href: '/email', label: 'Email' });
-    if (user?.role === 'approver') {
-      links.push({
-        href: '/email/approvals',
-        label: badgeLabel('Email approvals', emailPending),
-      });
-    }
-  }
-
-  const pageTitle =
-    pathname.startsWith('/email/campaigns/')
-      ? 'Campaign performance'
-      : PAGE_TITLES[pathname] ?? 'Dashboard';
-  const displayName = branding?.display_name ?? branding?.client_name ?? 'Client portal';
-
-  return (
-    <header
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '1.5rem',
-        gap: '1rem',
-        flexWrap: 'wrap',
-      }}
-    >
-      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-        {branding?.logo_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={branding.logo_url}
-            alt=""
-            style={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 8 }}
-          />
-        ) : null}
-        <div>
-          <p className="badge" style={{ marginBottom: '0.35rem' }}>
-            {displayName}
-          </p>
-          <h1 style={{ margin: 0, fontSize: '1.35rem' }}>{pageTitle}</h1>
-          <p className="muted" style={{ margin: '0.25rem 0 0' }}>
-            {user?.email} · {user?.role}
-          </p>
-        </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-        <nav className="portal-nav-links" style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`nav-link${pathname === link.href ? ' active' : ''}`}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
-        <button type="button" className="btn btn-secondary" onClick={onLogout}>
-          Đăng xuất
-        </button>
-      </div>
-    </header>
-  );
+export function PortalNav(props: PortalNavProps) {
+  return <PortalAppNav {...props} />;
 }

@@ -57,7 +57,7 @@ export default function SeoDashboardPage() {
   }
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem' }}>
+    <main className="portal-page portal-page--default">
       <PortalNav user={user} onLogout={logout} seoEnabled={navSeoEnabled && seoEnabled} />
       {error ? <p className="error">{error}</p> : null}
       {seoEnabled ? <SeoWidgetsPanel token={token} /> : null}

@@ -77,7 +77,7 @@ export default function SeoContentDetailPage() {
   const approvals = (content?.approvals as Array<Record<string, unknown>>) ?? [];
 
   return (
-    <main style={{ maxWidth: 900, margin: '0 auto', padding: '1.5rem' }}>
+    <main className="portal-page portal-page--default">
       <PortalNav user={user} onLogout={logout} seoEnabled={seoEnabled} />
       {error && <p className="error">{error}</p>}
       {content && (

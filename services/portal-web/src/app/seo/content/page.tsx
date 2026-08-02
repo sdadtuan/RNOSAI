@@ -55,7 +55,7 @@ export default function SeoContentPage() {
   }
 
   return (
-    <main style={{ maxWidth: 900, margin: '0 auto', padding: '1.5rem' }}>
+    <main className="portal-page portal-page--default">
       <PortalNav user={user} onLogout={logout} seoEnabled={seoEnabled} />
       <section className="card">
         <h2 style={{ marginTop: 0 }}>Nội dung chờ duyệt (client review)</h2>

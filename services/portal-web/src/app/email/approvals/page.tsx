@@ -82,7 +82,7 @@ export default function PortalEmailApprovalsPage() {
   const isApprover = user.role === 'approver';
 
   return (
-    <main style={{ maxWidth: 900, margin: '0 auto', padding: '1.5rem' }}>
+    <main className="portal-page portal-page--default">
       <PortalNav user={user} onLogout={logout} />
       <div className="card" style={{ marginBottom: '1rem' }}>
         <p className="muted" style={{ marginTop: 0 }}>EM-8b P-EMAIL-02 — Approval inbox</p>

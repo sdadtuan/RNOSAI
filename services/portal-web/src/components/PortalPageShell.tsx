@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { PortalNav } from '@/components/PortalNav';
 import { PortalMobileBottomNav } from '@/components/PortalMobileBottomNav';
+import { PortalAppNav, PortalPage, type BreadcrumbItem } from '@/components/layout';
 import {
   fetchPendingCreativeCount,
   fetchPortalNotificationSummary,
@@ -17,9 +17,11 @@ import { usePortalSeoNav } from '@/hooks/usePortalSeoNav';
 
 interface PortalPageShellProps {
   children: (ctx: { token: string; user: NonNullable<ReturnType<typeof usePortalAuth>['user']> }) => ReactNode;
+  breadcrumb?: BreadcrumbItem[];
+  width?: 'default' | 'wide' | 'narrow';
 }
 
-export function PortalPageShell({ children }: PortalPageShellProps) {
+export function PortalPageShell({ children, breadcrumb, width = 'wide' }: PortalPageShellProps) {
   const { user, token, loading, sessionWarning, logout } = usePortalAuth();
   const seoEnabled = usePortalSeoNav(token);
   const { emailEnabled, pendingEmail } = usePortalEmailNav(token);
@@ -50,15 +52,15 @@ export function PortalPageShell({ children }: PortalPageShellProps) {
 
   if (loading || !user || !token) {
     return (
-      <main style={{ padding: '2rem' }}>
+      <main className="portal-page portal-page--wide">
         <p className="muted">Đang tải…</p>
       </main>
     );
   }
 
   return (
-    <main className="portal-page-shell">
-      <PortalNav
+    <>
+      <PortalAppNav
         user={user}
         onLogout={logout}
         pendingCount={pendingCount}
@@ -69,12 +71,10 @@ export function PortalPageShell({ children }: PortalPageShellProps) {
         seoEnabled={seoEnabled}
         emailEnabled={emailEnabled}
       />
-      {sessionWarning ? (
-        <p className="badge" style={{ marginBottom: '1rem' }}>
-          {sessionWarning}
-        </p>
-      ) : null}
-      {children({ token, user })}
+      <PortalPage breadcrumb={breadcrumb} width={width}>
+        {sessionWarning ? <p className="badge portal-session-warning">{sessionWarning}</p> : null}
+        {children({ token, user })}
+      </PortalPage>
       <PortalMobileBottomNav
         pendingCreatives={pendingCount}
         notificationUnread={notificationSummary?.unread ?? 0}
@@ -82,6 +82,6 @@ export function PortalPageShell({ children }: PortalPageShellProps) {
         emailEnabled={emailEnabled}
         isApprover={user.role === 'approver'}
       />
-    </main>
+    </>
   );
 }

@@ -60,7 +60,7 @@ export default function PortalEmailCampaignStatsPage() {
   }
 
   return (
-    <main style={{ maxWidth: 900, margin: '0 auto', padding: '1.5rem' }}>
+    <main className="portal-page portal-page--default">
       <PortalNav user={user} onLogout={logout} />
       <div className="card" style={{ marginBottom: '1rem' }}>
         <p className="muted" style={{ marginTop: 0 }}>EM-4 P-EMAIL-03 — Campaign performance</p>

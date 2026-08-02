@@ -318,6 +318,22 @@ CRM · Nhân sự
 
 Trang chủ · Lead của tôi · KPI · Báo cáo ngày · Chăm sóc KH · Khách hàng · Chấm công · Đổi MK · Đăng xuất
 
+### 5.3. Client portal (`portal-web`) — P1 2026-08
+
+| Quyết định | Giá trị |
+|------------|---------|
+| Theme | PTT light — tokens §6 (parity ops-web) |
+| Desktop nav | Sidebar thu gọn 72px + drawer flyout + topbar |
+| Mobile | Bottom nav 5 tab + hamburger drawer |
+| Shell | `PortalPageShell` → `PortalAppNav` + `PortalPage` |
+| Auth | `PortalAuthShell` (login / forgot / reset) |
+
+**Nhóm nav:** Tổng quan · Kênh QC (Meta/Google/Zalo) · Duyệt (Creative/Thông báo) · SEO* · Email* · Cài đặt (*theo tenant).
+
+**Sóng tiếp:** P4 Creatives ưu tiên → P5 SEO/Email module shells → P7 mobile polish.
+
+Chi tiết: `docs/portal-ui-rollout-p0.md`
+
 ---
 
 ## 6. UI/UX — Design System
