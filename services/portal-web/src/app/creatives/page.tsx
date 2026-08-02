@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { CreativeHistoryList } from '@/components/CreativeHistoryList';
 import { CreativeInbox } from '@/components/CreativeInbox';
@@ -15,7 +15,7 @@ import {
 
 type Tab = 'pending' | 'history';
 
-export default function CreativesPage() {
+function CreativesPageContent() {
   const searchParams = useSearchParams();
   const focusCreativeId = searchParams.get('focus') ?? searchParams.get('id');
   const [tab, setTab] = useState<Tab>('pending');
@@ -44,6 +44,20 @@ export default function CreativesPage() {
         />
       )}
     </PortalPageShell>
+  );
+}
+
+export default function CreativesPage() {
+  return (
+    <Suspense
+      fallback={
+        <main style={{ padding: '2rem' }}>
+          <p className="muted">Đang tải…</p>
+        </main>
+      }
+    >
+      <CreativesPageContent />
+    </Suspense>
   );
 }
 
