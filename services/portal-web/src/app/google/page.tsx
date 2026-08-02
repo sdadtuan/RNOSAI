@@ -1,19 +1,7 @@
 'use client';
 
-import { PerformancePanel } from '@/components/PerformancePanel';
-import { PortalPageShell } from '@/components/PortalPageShell';
+import { ChannelPerformancePage } from '@/components/ChannelPerformancePage';
 
 export default function GooglePerformancePage() {
-  return (
-    <PortalPageShell>
-      {({ token }) => (
-        <PerformancePanel
-          token={token}
-          channel="google"
-          title="Google Ads Performance"
-          hideChannelColumn
-        />
-      )}
-    </PortalPageShell>
-  );
+  return <ChannelPerformancePage channel="google" />;
 }

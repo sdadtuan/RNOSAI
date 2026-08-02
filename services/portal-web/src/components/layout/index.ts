@@ -7,3 +7,5 @@ export { Breadcrumb, type BreadcrumbItem } from './Breadcrumb';
 export { PortalAuthShell } from './PortalAuthShell';
 export { SegmentedControl } from './SegmentedControl';
 export { HubPageLayout } from './HubPageLayout';
+export { ChannelSwitcher } from './ChannelSwitcher';
+export { ChannelPerformanceLayout } from './ChannelPerformanceLayout';

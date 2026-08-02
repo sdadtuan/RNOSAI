@@ -1,19 +1,7 @@
 'use client';
 
-import { PerformancePanel } from '@/components/PerformancePanel';
-import { PortalPageShell } from '@/components/PortalPageShell';
+import { ChannelPerformancePage } from '@/components/ChannelPerformancePage';
 
 export default function MetaPerformancePage() {
-  return (
-    <PortalPageShell>
-      {({ token }) => (
-        <PerformancePanel
-          token={token}
-          channel="meta"
-          title="Meta Performance (Facebook / Instagram)"
-          hideChannelColumn
-        />
-      )}
-    </PortalPageShell>
-  );
+  return <ChannelPerformancePage channel="meta" />;
 }
