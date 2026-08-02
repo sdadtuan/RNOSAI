@@ -103,6 +103,64 @@ export class LeadIngestRulesRepository implements OnModuleDestroy {
     return slug != null ? String(slug) : null;
   }
 
+  async listActiveStaff(limit = 500): Promise<IngestStaffRow[]> {
+    const snap = await this.fetchSnapshot();
+    if (!snap) return [];
+    const lim = Math.max(1, Math.min(limit, 1000));
+    return snap.staff_rows.filter((row) => row.active).slice(0, lim);
+  }
+
+  async staffExists(staffId: number): Promise<boolean> {
+    if (!Number.isFinite(staffId) || staffId <= 0) return false;
+    const snap = await this.fetchSnapshot();
+    if (!snap) return false;
+    return snap.staff_rows.some((row) => row.id === staffId && row.active);
+  }
+
+  async staffName(staffId: number): Promise<string> {
+    if (!Number.isFinite(staffId) || staffId <= 0) return '';
+    const snap = await this.fetchSnapshot();
+    const row = snap?.staff_rows.find((item) => item.id === staffId);
+    return row?.name?.trim() || `#${staffId}`;
+  }
+
+  async syncStaffRowsFromRoster(): Promise<void> {
+    if (!(await this.snapshotReady())) return;
+
+    const staffTable = await this.db.query(
+      `SELECT 1 FROM information_schema.tables
+       WHERE table_schema = 'public' AND table_name = 'crm_staff'
+       LIMIT 1`,
+    );
+    if ((staffTable.rowCount ?? 0) === 0) return;
+
+    const result = await this.db.query(
+      `SELECT id, name, notes, active, job_title, internal_code
+       FROM crm_staff
+       WHERE active = TRUE
+       ORDER BY sort_order ASC, lower(name) ASC, id ASC`,
+    );
+
+    const staffRows = (result.rows as Array<Record<string, unknown>>).map((row) => {
+      const jobTitle = String(row.job_title ?? '').trim();
+      return {
+        id: Number(row.id),
+        name: String(row.name ?? ''),
+        notes: String(row.notes ?? ''),
+        active: row.active !== false && row.active !== 0,
+        sales_level: jobTitle || 'b',
+        internal_code: String(row.internal_code ?? ''),
+      };
+    });
+
+    await this.db.query(
+      `UPDATE crm_ingest_rules_snapshot
+       SET staff_rows = $1::jsonb, synced_at = NOW()
+       WHERE id = 1`,
+      [JSON.stringify(staffRows)],
+    );
+  }
+
   async persistAssignmentState(poolKey: string, lastStaffId: number): Promise<void> {
     if (!(await this.snapshotReady())) return;
     const client = await this.db.connect();

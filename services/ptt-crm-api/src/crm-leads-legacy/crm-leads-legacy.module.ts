@@ -5,6 +5,7 @@ import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { CrmLeadsLegacyController } from './crm-leads-legacy.controller';
 import { CrmLeadsLegacyService } from './crm-leads-legacy.service';
+import { CrmLeadsPgRepository } from './crm-leads-pg.repository';
 import { CrmLeadsSqliteRepository } from './crm-leads-sqlite.repository';
 
 @Module({
@@ -15,7 +16,7 @@ import { CrmLeadsSqliteRepository } from './crm-leads-sqlite.repository';
     forwardRef(() => LeadsFunnelModule),
   ],
   controllers: [CrmLeadsLegacyController],
-  providers: [CrmLeadsLegacyService, CrmLeadsSqliteRepository],
+  providers: [CrmLeadsLegacyService, CrmLeadsSqliteRepository, CrmLeadsPgRepository],
   exports: [CrmLeadsLegacyService, CrmLeadsSqliteRepository],
 })
 export class CrmLeadsLegacyModule {}

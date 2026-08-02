@@ -51,6 +51,13 @@ import { LeadIngestRulesRepository } from './ingest/lead-ingest-rules.repository
     StaffLeadsWriteGuard,
     StaffLeadsViewGuard,
   ],
-  exports: [LeadsRepository, LeadsWriteService, LeadAttributionService, StaffLeadsViewGuard, StaffLeadsWriteGuard],
+  exports: [
+    LeadsRepository,
+    LeadsWriteService,
+    LeadAttributionService,
+    LeadIngestRulesRepository,
+    StaffLeadsViewGuard,
+    StaffLeadsWriteGuard,
+  ],
 })
 export class LeadsModule {}

@@ -50,7 +50,7 @@ export class LaunchQaHubService {
       ? String(status ?? 'all').trim()
       : 'all';
     const rows = await this.repo.listRuns(filter, Math.min(200, Math.max(1, limit)));
-    const lifecycleIndex = this.lifecycleLookup.buildLifecycleIndex();
+    const lifecycleIndex = await this.lifecycleLookup.buildLifecycleIndex();
     const runs = rows.map((row) => {
       const progress = launchQaProgress(row.checklist);
       return {

@@ -6,6 +6,7 @@ import {
   StaffSvcFinanceWriteGuard,
 } from './guards/staff-svc-finance.guard';
 import { SvcFinanceController } from './svc-finance.controller';
+import { SvcFinancePgRepository } from './svc-finance-pg.repository';
 import { SvcFinanceSqliteRepository } from './svc-finance-sqlite.repository';
 import { SvcFinanceService } from './svc-finance.service';
 
@@ -15,6 +16,7 @@ import { SvcFinanceService } from './svc-finance.service';
   providers: [
     SvcFinanceService,
     SvcFinanceSqliteRepository,
+    SvcFinancePgRepository,
     StaffSvcFinanceViewGuard,
     StaffSvcFinanceWriteGuard,
   ],

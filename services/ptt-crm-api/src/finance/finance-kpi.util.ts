@@ -203,14 +203,12 @@ function alertRow(opts: {
   };
 }
 
-export function collectFinanceKpiAlerts(
-  db: DatabaseSync,
+export function buildFinanceKpiAlerts(
   year: number,
   month: number,
-  bundle?: Record<string, unknown>,
+  data: Record<string, unknown>,
+  thresholds: Record<string, number>,
 ): Record<string, unknown> {
-  const data = bundle ?? loadFinanceKpiBundle(db, year, month);
-  const thresholds = getAlertThresholds(db);
   const alerts: Record<string, unknown>[] = [];
 
   const portfolio = data.portfolio_metrics as Record<string, unknown>;
@@ -409,6 +407,17 @@ export function collectFinanceKpiAlerts(
     warning_count: alerts.filter((a) => a.level === ALERT_WARNING).length,
     has_critical: alerts.some((a) => a.level === ALERT_CRITICAL),
   };
+}
+
+export function collectFinanceKpiAlerts(
+  db: DatabaseSync,
+  year: number,
+  month: number,
+  bundle?: Record<string, unknown>,
+): Record<string, unknown> {
+  const data = bundle ?? loadFinanceKpiBundle(db, year, month);
+  const thresholds = getAlertThresholds(db);
+  return buildFinanceKpiAlerts(year, month, data, thresholds);
 }
 
 function kvRows(pairs: Array<[string, unknown]>): unknown[][] {

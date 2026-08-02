@@ -74,7 +74,7 @@ export class LeadsContractService {
     const result = this.usePgContract
       ? await this.pgRepo.approveAndPromote(approvalId, actor)
       : await this.sqliteRepo.approveAndPromote(approvalId, actor);
-    const sop = this.sopAutoStart.maybeStartOnLifecyclePromote({
+    const sop = await this.sopAutoStart.maybeStartOnLifecyclePromote({
       lifecycleId: result.lifecycle_id,
       contractId: result.contract.id,
       serviceSlug: result.contract.service_slug ?? '',

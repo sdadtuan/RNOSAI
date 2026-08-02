@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { KpiModule } from '../kpi/kpi.module';
+import { LeadsModule } from '../leads/leads.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { CrmStaffController } from './crm-staff.controller';
+import { CrmStaffPgRepository } from './crm-staff-pg.repository';
 import { CrmStaffSqliteRepository } from './crm-staff-sqlite.repository';
 import { CrmStaffService } from './crm-staff.service';
 import {
@@ -11,11 +13,12 @@ import {
 import { StaffKpiViewGuard } from '../kpi/guards/staff-kpi.guard';
 
 @Module({
-  imports: [StaffAuthModule, KpiModule],
+  imports: [StaffAuthModule, KpiModule, LeadsModule],
   controllers: [CrmStaffController],
   providers: [
     CrmStaffService,
     CrmStaffSqliteRepository,
+    CrmStaffPgRepository,
     StaffRosterViewGuard,
     StaffRosterWriteGuard,
     StaffKpiViewGuard,

@@ -1,8 +1,8 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import { DatabaseSync } from 'node:sqlite';
 import { Pool } from 'pg';
 import { catalogTs } from '../catalog/catalog-slug.util';
 import { AppConfigService } from '../config/app-config.service';
+import { LeadIngestRulesRepository } from '../leads/ingest/lead-ingest-rules.repository';
 import {
   BANT_KEYS,
   COMMON_FORM_SLUG,
@@ -111,10 +111,12 @@ function parseJson<T>(raw: unknown, fallback: T): T {
 @Injectable()
 export class IntakePgRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
-  private staffDb: DatabaseSync | null = null;
   private lifecycleTableExists: boolean | null = null;
 
-  constructor(private readonly config: AppConfigService) {}
+  constructor(
+    private readonly config: AppConfigService,
+    private readonly ingestRules: LeadIngestRulesRepository,
+  ) {}
 
   private get db(): Pool {
     if (!this.pool) {
@@ -123,20 +125,9 @@ export class IntakePgRepository implements OnModuleDestroy {
     return this.pool;
   }
 
-  private get staffDatabase(): DatabaseSync {
-    if (!this.staffDb) {
-      this.staffDb = new DatabaseSync(this.config.sqlitePath);
-    }
-    return this.staffDb;
-  }
-
   onModuleDestroy(): void {
     void this.pool?.end();
     this.pool = null;
-    if (this.staffDb) {
-      this.staffDb.close();
-      this.staffDb = null;
-    }
   }
 
   async listSessions(opts: {
@@ -514,25 +505,19 @@ export class IntakePgRepository implements OnModuleDestroy {
          GROUP BY lc.assigned_am
          ORDER BY intake_completed DESC, lc.assigned_am`,
       );
-      result.by_am = rows.rows.map((r) => {
-        const staffId = Number((r as { staff_id: string | number }).staff_id);
-        let name = '';
-        try {
-          const staffRow = this.staffDatabase
-            .prepare('SELECT name FROM crm_staff WHERE id = ?')
-            .get(staffId) as { name: string } | undefined;
-          name = String(staffRow?.name ?? '');
-        } catch {
-          name = '';
-        }
-        return {
-          staff_id: staffId,
-          name,
-          lifecycle_count: Number((r as { lifecycle_count: number }).lifecycle_count ?? 0),
-          intake_completed: Number((r as { intake_completed: number }).intake_completed ?? 0),
-          avg_bant: Number((r as { avg_bant: number | null }).avg_bant ?? 0),
-        };
-      });
+      result.by_am = await Promise.all(
+        rows.rows.map(async (r) => {
+          const staffId = Number((r as { staff_id: string | number }).staff_id);
+          const name = staffId ? await this.ingestRules.staffName(staffId) : '';
+          return {
+            staff_id: staffId,
+            name,
+            lifecycle_count: Number((r as { lifecycle_count: number }).lifecycle_count ?? 0),
+            intake_completed: Number((r as { intake_completed: number }).intake_completed ?? 0),
+            avg_bant: Number((r as { avg_bant: number | null }).avg_bant ?? 0),
+          };
+        }),
+      );
     }
 
     return result;

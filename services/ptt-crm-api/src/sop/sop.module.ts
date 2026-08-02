@@ -3,6 +3,7 @@ import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { StaffSopViewGuard, StaffSopWriteGuard } from './guards/staff-sop.guard';
 import { SopAutoStartService } from './sop-auto-start.service';
 import { SopController } from './sop.controller';
+import { SopPgRepository } from './sop-pg.repository';
 import { SopSqliteRepository } from './sop-sqlite.repository';
 import { SopService } from './sop.service';
 
@@ -12,10 +13,11 @@ import { SopService } from './sop.service';
   providers: [
     SopService,
     SopSqliteRepository,
+    SopPgRepository,
     SopAutoStartService,
     StaffSopViewGuard,
     StaffSopWriteGuard,
   ],
-  exports: [SopService, SopAutoStartService, SopSqliteRepository],
+  exports: [SopService, SopAutoStartService, SopSqliteRepository, SopPgRepository],
 })
 export class SopModule {}

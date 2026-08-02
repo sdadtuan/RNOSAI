@@ -43,7 +43,7 @@ export class CrmCreativesService {
       channel: input.channel,
       limit: input.limit,
     });
-    const index = this.lifecycleLookup.buildLifecycleIndex();
+    const index = await this.lifecycleLookup.buildLifecycleIndex();
     return {
       ok: true,
       status,

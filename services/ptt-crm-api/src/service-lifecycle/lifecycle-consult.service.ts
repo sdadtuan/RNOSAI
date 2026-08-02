@@ -1,24 +1,38 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { IntakeSqliteRepository } from '../intake/intake-sqlite.repository';
+import { AppConfigService } from '../config/app-config.service';
+import { IntakeService } from '../intake/intake.service';
 import { buildConsultBrief, prefillConsultTaskForm } from './lifecycle-consult.util';
+import { LifecycleTasksPgRepository } from './lifecycle-tasks-pg.repository';
 import { LifecycleTasksRepository } from './lifecycle-tasks.repository';
+import { ServiceLifecyclePgRepository } from './service-lifecycle-pg.repository';
 import { ServiceLifecycleSqliteRepository } from './service-lifecycle-sqlite.repository';
 
 @Injectable()
 export class LifecycleConsultService {
   constructor(
     private readonly sqlite: ServiceLifecycleSqliteRepository,
+    private readonly pg: ServiceLifecyclePgRepository,
     private readonly tasks: LifecycleTasksRepository,
-    private readonly intake: IntakeSqliteRepository,
+    private readonly tasksPg: LifecycleTasksPgRepository,
+    private readonly intake: IntakeService,
+    private readonly config: AppConfigService,
   ) {}
 
-  getConsultBrief(lifecycleId: number): Record<string, unknown> {
-    const lc = this.sqlite.getLifecycleById(lifecycleId);
+  private get usePg(): boolean {
+    return this.config.crmServiceLifecyclePg;
+  }
+
+  async getConsultBrief(lifecycleId: number): Promise<Record<string, unknown>> {
+    const lc = this.usePg
+      ? await this.pg.getLifecycleById(lifecycleId)
+      : this.sqlite.getLifecycleById(lifecycleId);
     if (!lc) {
       throw new NotFoundException({ error: `Không tìm thấy lifecycle #${lifecycleId}` });
     }
 
-    const grouped = this.tasks.listTasksGrouped(lifecycleId);
+    const grouped = this.usePg
+      ? await this.tasksPg.listTasksGrouped(lifecycleId)
+      : this.tasks.listTasksGrouped(lifecycleId);
     const leadTasks = grouped.lead ?? [];
     const leadTaskRow = leadTasks[0] ?? null;
     const leadTask = leadTaskRow
@@ -30,33 +44,42 @@ export class LifecycleConsultService {
         }
       : null;
 
-    const intakeSessions = this.intake.listSessions({ lifecycleId, limit: 20 });
+    const intakeBundle = lc.lead_id
+      ? await this.intake.listSessions(lc.lead_id, lifecycleId)
+      : await this.intake.listSessions(undefined, lifecycleId);
+    const intakeSessions = intakeBundle.sessions;
 
     return buildConsultBrief({
       lifecycleId,
       serviceSlug: lc.service_slug,
       leadId: lc.lead_id,
-      leadTaskDone: this.tasks.isStageComplete(lifecycleId, 'lead'),
+      leadTaskDone: this.usePg
+        ? await this.tasksPg.isStageComplete(lifecycleId, 'lead')
+        : this.tasks.isStageComplete(lifecycleId, 'lead'),
       leadTask,
       intakeSessions,
     });
   }
 
-  prefillConsultTask(
+  async prefillConsultTask(
     lifecycleId: number,
     opts: { overwrite?: boolean } = {},
-  ): {
+  ): Promise<{
     task_id: number | null;
     filled: number;
     fields: string[];
     skipped_existing: string[];
-  } {
-    const lc = this.sqlite.getLifecycleById(lifecycleId);
+  }> {
+    const lc = this.usePg
+      ? await this.pg.getLifecycleById(lifecycleId)
+      : this.sqlite.getLifecycleById(lifecycleId);
     if (!lc) {
       throw new NotFoundException({ error: `Không tìm thấy lifecycle #${lifecycleId}` });
     }
 
-    const grouped = this.tasks.listTasksGrouped(lifecycleId);
+    const grouped = this.usePg
+      ? await this.tasksPg.listTasksGrouped(lifecycleId)
+      : this.tasks.listTasksGrouped(lifecycleId);
     const consultTasks = grouped.consult ?? [];
     const consultTask = consultTasks[0];
     if (!consultTask) {
@@ -65,7 +88,10 @@ export class LifecycleConsultService {
 
     const leadTasks = grouped.lead ?? [];
     const leadTask = leadTasks[0] ?? null;
-    const intakeSessions = this.intake.listSessions({ lifecycleId, limit: 20 });
+    const intakeBundle = lc.lead_id
+      ? await this.intake.listSessions(lc.lead_id, lifecycleId)
+      : await this.intake.listSessions(undefined, lifecycleId);
+    const intakeSessions = intakeBundle.sessions;
     const latestCompleted = intakeSessions
       .filter((s) => s.status === 'completed')
       .sort((a, b) => {
@@ -82,10 +108,17 @@ export class LifecycleConsultService {
       overwrite: Boolean(opts.overwrite),
     });
 
-    this.tasks.updateTask(consultTask.id, {
-      form_data: result.form_data,
-      notes: result.notes,
-    });
+    if (this.usePg) {
+      await this.tasksPg.updateTask(consultTask.id, {
+        form_data: result.form_data,
+        notes: result.notes,
+      });
+    } else {
+      this.tasks.updateTask(consultTask.id, {
+        form_data: result.form_data,
+        notes: result.notes,
+      });
+    }
 
     return {
       task_id: consultTask.id,

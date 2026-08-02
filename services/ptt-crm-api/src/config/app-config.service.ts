@@ -72,6 +72,13 @@ export class AppConfigService {
   readonly crmLeadsFunnelPg: boolean;
   readonly crmIntakePg: boolean;
   readonly crmContractPg: boolean;
+  readonly crmStaffPg: boolean;
+  readonly crmKpiPg: boolean;
+  readonly crmLeadsLegacyPg: boolean;
+  readonly crmServiceLifecyclePg: boolean;
+  readonly crmFinancePg: boolean;
+  readonly crmSvcFinancePg: boolean;
+  readonly crmSopPg: boolean;
   readonly presalesOnLead: boolean;
   readonly crmServiceDeliveryNest: boolean;
   readonly sopAutoStartOnLaunch: boolean;
@@ -194,6 +201,29 @@ export class AppConfigService {
     );
     this.crmContractPg = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CRM_CONTRACT_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
+    );
+    this.crmStaffPg = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CRM_STAFF_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
+    );
+    this.crmKpiPg = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CRM_KPI_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
+    );
+    this.crmLeadsLegacyPg = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CRM_LEADS_LEGACY_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
+    );
+    this.crmServiceLifecyclePg = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CRM_SERVICE_LIFECYCLE_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
+    );
+    this.crmFinancePg = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CRM_FINANCE_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
+    );
+    this.crmSvcFinancePg = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CRM_SVC_FINANCE_PG ?? process.env.PTT_CRM_FINANCE_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1')
+        .trim()
+        .toLowerCase(),
+    );
+    this.crmSopPg = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CRM_SOP_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
     );
     this.presalesOnLead = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_PRESALES_ON_LEAD ?? '1').trim().toLowerCase(),

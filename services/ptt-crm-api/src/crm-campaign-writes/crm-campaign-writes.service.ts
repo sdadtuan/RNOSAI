@@ -46,7 +46,7 @@ export class CrmCampaignWritesService {
       externalCampaignId: input.externalCampaignId,
       limit: input.limit,
     });
-    const index = this.lifecycleLookup.buildLifecycleIndex();
+    const index = await this.lifecycleLookup.buildLifecycleIndex();
     return {
       ok: true,
       status,

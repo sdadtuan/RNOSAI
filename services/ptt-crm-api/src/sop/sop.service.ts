@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
+import { SopPgRepository } from './sop-pg.repository';
 import { SopSqliteRepository } from './sop-sqlite.repository';
 import { CreateSopRunBody, isValidDateYmd } from './sop.types';
 
@@ -11,43 +12,55 @@ import { CreateSopRunBody, isValidDateYmd } from './sop.types';
 export class SopService {
   constructor(
     private readonly sqlite: SopSqliteRepository,
+    private readonly pg: SopPgRepository,
     private readonly config: AppConfigService,
   ) {}
 
-  listTemplates(includeInactive?: string) {
+  async listTemplates(includeInactive?: string) {
     const raw = String(includeInactive ?? '').trim().toLowerCase();
     const incl = ['1', 'true', 'yes', 'all'].includes(raw);
-    const templates = this.sqlite.listTemplates(incl);
+    const templates = this.config.crmSopPg
+      ? await this.pg.listTemplates(incl)
+      : this.sqlite.listTemplates(incl);
     return { templates };
   }
 
-  getTemplate(id: number) {
-    const template = this.sqlite.getTemplateById(id);
+  async getTemplate(id: number) {
+    const template = this.config.crmSopPg
+      ? await this.pg.getTemplateById(id)
+      : this.sqlite.getTemplateById(id);
     if (!template) {
       throw new NotFoundException({ error: 'Không tìm thấy template' });
     }
-    const steps = this.sqlite.listSteps(id);
+    const steps = this.config.crmSopPg
+      ? await this.pg.listSteps(id)
+      : this.sqlite.listSteps(id);
     return { template, steps };
   }
 
-  listTemplateSteps(id: number) {
-    const template = this.sqlite.getTemplateById(id);
+  async listTemplateSteps(id: number) {
+    const template = this.config.crmSopPg
+      ? await this.pg.getTemplateById(id)
+      : this.sqlite.getTemplateById(id);
     if (!template) {
       throw new NotFoundException({ error: 'Không tìm thấy template' });
     }
     return { steps: [] };
   }
 
-  listRuns(status?: string) {
+  async listRuns(status?: string) {
     let statusFilter = String(status ?? 'active').trim().toLowerCase();
-    if (!this.sqlite.isValidRunStatus(statusFilter) && statusFilter !== 'all') {
+    const repo = this.config.crmSopPg ? this.pg : this.sqlite;
+    if (!repo.isValidRunStatus(statusFilter) && statusFilter !== 'all') {
       statusFilter = 'active';
     }
-    const runs = this.sqlite.listRuns(statusFilter);
+    const runs = this.config.crmSopPg
+      ? await this.pg.listRuns(statusFilter)
+      : this.sqlite.listRuns(statusFilter);
     return { runs };
   }
 
-  createRun(body: CreateSopRunBody) {
+  async createRun(body: CreateSopRunBody) {
     const name = String(body.name ?? '').trim();
     if (!name) {
       throw new BadRequestException({ error: 'Thiếu tên SOP Run' });
@@ -59,15 +72,22 @@ export class SopService {
 
     if (body.campaign_id != null && body.campaign_id !== 0) {
       const cid = Number(body.campaign_id);
-      if (Number.isFinite(cid) && cid > 0 && !this.sqlite.campaignExists(cid)) {
-        throw new NotFoundException({ error: 'Chiến dịch không tồn tại' });
+      if (Number.isFinite(cid) && cid > 0) {
+        const exists = this.config.crmSopPg
+          ? await this.pg.campaignExists(cid)
+          : this.sqlite.campaignExists(cid);
+        if (!exists) {
+          throw new NotFoundException({ error: 'Chiến dịch không tồn tại' });
+        }
       }
     }
 
     if (body.template_id != null && body.template_id !== 0) {
       const templateId = Number(body.template_id);
       if (Number.isFinite(templateId) && templateId > 0) {
-        const tpl = this.sqlite.getTemplateById(templateId);
+        const tpl = this.config.crmSopPg
+          ? await this.pg.getTemplateById(templateId)
+          : this.sqlite.getTemplateById(templateId);
         if (!tpl) {
           throw new NotFoundException({ error: 'Template SOP không tồn tại' });
         }
@@ -75,13 +95,18 @@ export class SopService {
     }
 
     const generateTasks = body.generate_tasks !== false;
-    return this.sqlite.createRun(body, generateTasks);
+    return this.config.crmSopPg
+      ? this.pg.createRun(body, generateTasks)
+      : this.sqlite.createRun(body, generateTasks);
   }
 
-  listOverdueTasks(limit?: string) {
+  async listOverdueTasks(limit?: string) {
     const raw = String(limit ?? '100').trim();
     const n = Number(raw);
-    const tasks = this.sqlite.listOverdueTasks(Number.isFinite(n) && n > 0 ? n : 100);
+    const cap = Number.isFinite(n) && n > 0 ? n : 100;
+    const tasks = this.config.crmSopPg
+      ? await this.pg.listOverdueTasks(cap)
+      : this.sqlite.listOverdueTasks(cap);
     return {
       overdue_enabled: this.config.sopOverdueEscalate,
       total: tasks.length,
