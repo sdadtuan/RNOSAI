@@ -1,6 +1,7 @@
 'use client';
 
 import { GlobalSearchBar } from '@/components/search/GlobalSearchBar';
+import { LINK_ICONS, NavIcon, SECTION_ICONS } from '@/components/layout/nav-icons';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -56,7 +57,16 @@ interface OpsNavProps {
 }
 
 type NavLink = { href: string; label: string };
-type NavSection = { label: string; links: NavLink[] };
+type NavSection = { label: string; links: NavLink[]; defaultOpen?: boolean };
+
+const SIDEBAR_STORAGE_KEY = 'ops-sidebar-expanded';
+const GROUPS_COLLAPSED_BY_DEFAULT = new Set([
+  'Kênh quảng cáo',
+  'SEO / AEO',
+  'Email Marketing',
+  'AI & Automation',
+  'Cấu hình CRM',
+]);
 
 const PAGE_TITLES: Record<string, string> = {
   '/': 'Bảng điều khiển',
@@ -176,6 +186,30 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || (href !== '/' && pathname.startsWith(`${href}/`));
 }
 
+function buildSeoLinks(user: StoredStaffUser | null): NavLink[] {
+  if (!seoHubEnabled() || !canViewSeoHub(user)) return [];
+  const links: NavLink[] = [
+    { href: '/seo/hub', label: 'SEO/AEO Hub' },
+    { href: '/seo/clients', label: 'SEO Clients' },
+  ];
+  if (seoResearchEnabled() && canViewSeoResearch(user)) links.push({ href: '/seo/research', label: 'SEO Research' });
+  if (seoContentEnabled() && canViewSeoContent(user)) links.push({ href: '/seo/content', label: 'SEO Content' });
+  if (seoTechnicalEnabled() && canViewSeoTechnical(user)) links.push({ href: '/seo/technical', label: 'SEO Technical' });
+  if (seoReportsEnabled() && canViewSeoReports(user)) links.push({ href: '/seo/reports', label: 'SEO Reports' });
+  if (seoStrategyEnabled() && canViewSeoStrategy(user)) links.push({ href: '/seo/strategy', label: 'SEO Strategy' });
+  if (seoGovernanceEnabled() && canViewSeoGovernance(user)) links.push({ href: '/seo/governance', label: 'SEO Governance' });
+  if (seoAeoEnabled() && canViewSeoAeo(user)) links.push({ href: '/seo/aeo', label: 'AEO Console' });
+  if (seoAuthorityEnabled() && canViewSeoAuthority(user)) links.push({ href: '/seo/authority', label: 'Authority' });
+  if (seoRanksEnabled() && canViewSeoRanks(user)) links.push({ href: '/seo/ranks', label: 'Rank Tracker' });
+  if (seoAutomationsEnabled() && canViewSeoAutomations(user)) links.push({ href: '/seo/automations', label: 'Automations' });
+  if (seoFreshnessEnabled() && canViewSeoFreshness(user)) links.push({ href: '/seo/freshness', label: 'Freshness' });
+  if (seoExperimentsEnabled() && canViewSeoExperiments(user)) links.push({ href: '/seo/experiments', label: 'Experiments' });
+  if (seoBiEnabled() && canViewSeoBi(user)) links.push({ href: '/seo/bi', label: 'SEO BI' });
+  if (seoCmsEnabled() && canViewSeoCms(user)) links.push({ href: '/seo/cms', label: 'CMS Pilot' });
+  if (seoGateAEnabled() && canViewSeoGateA(user)) links.push({ href: '/seo/gate-a', label: 'Gate A Go-live' });
+  return links;
+}
+
 function buildSections(
   user: StoredStaffUser | null,
   emailPendingApprovals?: number,
@@ -188,7 +222,7 @@ function buildSections(
   if (hasCap(user, 'crm_board', 'view')) {
     overview.push({ href: '/crm', label: 'Bảng CSKH' });
   }
-  if (overview.length) sections.push({ label: 'Tổng quan', links: overview });
+  if (overview.length) sections.push({ label: 'Tổng quan', links: overview, defaultOpen: true });
 
   const care: NavLink[] = [];
   if (hasCap(user, 'crm_leads', 'view')) {
@@ -208,34 +242,36 @@ function buildSections(
   if (hasCap(user, 'crm_board_customers', 'view')) {
     care.push({ href: '/crm/customers', label: 'Khách hàng' });
   }
-  if (care.length) sections.push({ label: 'CRM · Chăm sóc KH', links: care });
+  if (care.length) sections.push({ label: 'CRM · Lead & CSKH', links: care, defaultOpen: true });
 
-  const marketing: NavLink[] = [];
+  const salesContract: NavLink[] = [];
   if (hasCap(user, 'crm_agency', 'view')) {
-    marketing.push({ href: '/crm/hub', label: 'Hub · Hợp đồng' });
+    salesContract.push({ href: '/crm/hub', label: 'Hub · Hợp đồng' });
   }
-  if (hasCap(user, 'crm_board', 'view')) {
-    marketing.push({ href: '/crm/marketing-plan', label: 'Kế hoạch marketing' });
-    marketing.push({ href: '/crm/sop', label: 'Quy trình SOP' });
-    marketing.push({ href: '/crm/launch-qa', label: 'Launch QA' });
-    marketing.push({ href: '/crm/creatives', label: 'Creative Hub' });
-    marketing.push({ href: '/crm/campaign-writes', label: 'Campaign Write' });
-    marketing.push({ href: '/crm/service-delivery', label: 'Triển khai DV' });
-  }
-  if (marketing.length) sections.push({ label: 'CRM · Marketing', links: marketing });
-
-  const sales: NavLink[] = [];
   if (hasCap(user, 'crm_sales_overview', 'view') || hasCap(user, 'crm_sales_plans', 'view')) {
-    sales.push({ href: '/crm/sales', label: 'Kinh doanh' });
+    salesContract.push({ href: '/crm/sales', label: 'Kinh doanh' });
   }
   if (hasCap(user, 'crm_board', 'view')) {
-    sales.push({ href: '/crm/proposals', label: 'Đề xuất' });
-    sales.push({ href: '/crm/orders', label: 'Đơn hàng' });
+    salesContract.push({ href: '/crm/proposals', label: 'Đề xuất' });
+    salesContract.push({ href: '/crm/orders', label: 'Đơn hàng' });
   }
   if (hasCap(user, 'crm_re_projects', 'view') || hasCap(user, 'crm_re_projects_products', 'view')) {
-    sales.push({ href: '/crm/re-projects', label: 'Dự án BĐS' });
+    salesContract.push({ href: '/crm/re-projects', label: 'Dự án BĐS' });
   }
-  if (sales.length) sections.push({ label: 'CRM · Kinh doanh', links: sales });
+  if (salesContract.length) {
+    sections.push({ label: 'CRM · Bán hàng & Hợp đồng', links: salesContract, defaultOpen: true });
+  }
+
+  const delivery: NavLink[] = [];
+  if (hasCap(user, 'crm_board', 'view')) {
+    delivery.push({ href: '/crm/marketing-plan', label: 'Kế hoạch marketing' });
+    delivery.push({ href: '/crm/service-delivery', label: 'Triển khai DV' });
+    delivery.push({ href: '/crm/sop', label: 'Quy trình SOP' });
+    delivery.push({ href: '/crm/launch-qa', label: 'Launch QA' });
+    delivery.push({ href: '/crm/creatives', label: 'Creative Hub' });
+    delivery.push({ href: '/crm/campaign-writes', label: 'Campaign Write' });
+  }
+  if (delivery.length) sections.push({ label: 'CRM · Triển khai dịch vụ', links: delivery, defaultOpen: true });
 
   const hr: NavLink[] = [];
   if (hasCap(user, 'crm_staff_roster', 'view')) {
@@ -258,7 +294,7 @@ function buildSections(
   ) {
     hr.push({ href: '/crm/payroll', label: 'Chấm công & lương' });
   }
-  if (hr.length) sections.push({ label: 'CRM · Nhân sự', links: hr });
+  if (hr.length) sections.push({ label: 'CRM · Nhân sự & KPI', links: hr, defaultOpen: true });
 
   const finance: NavLink[] = [];
   if (hasCap(user, 'crm_business_dashboard', 'view')) {
@@ -276,113 +312,46 @@ function buildSections(
   if (hasCap(user, 'crm_owner_weekly_dashboard', 'view')) {
     finance.push({ href: '/crm/owner-weekly', label: 'BC tuần chủ DN' });
   }
-  if (finance.length) sections.push({ label: 'Quản trị', links: finance });
+  if (finance.length) sections.push({ label: 'Quản trị & Tài chính', links: finance, defaultOpen: true });
 
-  const admin: NavLink[] = [];
-  if (hasCap(user, 'crm_data_config', 'view')) {
-    admin.push({ href: '/admin/crm/custom-fields', label: 'Custom fields' });
-    admin.push({ href: '/admin/crm/pipeline', label: 'Pipeline sales' });
-  }
-  if (admin.length) sections.push({ label: 'CRM · Admin', links: admin });
-
-  const aiAdmin: NavLink[] = [];
-  if (hasCap(user, 'ai_admin', 'view')) {
-    aiAdmin.push({ href: '/admin/ai/agents', label: 'AI Agents' });
-    aiAdmin.push({ href: '/admin/ai/runs', label: 'AI agent runs' });
-    aiAdmin.push({ href: '/admin/ai/tools', label: 'Tools' });
-  }
-  if (aiAdmin.length) sections.push({ label: 'AI · Admin', links: aiAdmin });
-
-  const automation: NavLink[] = [];
-  if (hasCap(user, 'automation_workflows', 'view')) {
-    automation.push({ href: '/crm/automation', label: 'Workflows' });
-  }
-  if (hasCap(user, 'playbooks', 'view')) {
-    automation.push({ href: '/crm/playbooks', label: 'Playbooks' });
-  }
-  if (automation.length) sections.push({ label: 'AI · Automation', links: automation });
-
-  const agency: NavLink[] = [];
+  const agencyClient: NavLink[] = [];
   if (hasCap(user, 'crm_agency', 'view')) {
-    agency.push({ href: '/agency', label: 'Agency' });
-    agency.push({ href: '/agency/ingest', label: 'Ingest' });
-    agency.push({
+    agencyClient.push({ href: '/agency', label: 'Agency' });
+    agencyClient.push({ href: '/agency/ingest', label: 'Ingest' });
+    agencyClient.push({
       href: '/agency/notifications',
       label: `Thông báo${navBadge(agencyUnread)}`,
     });
-    agency.push({ href: '/agency/kpi-definitions', label: 'KPI definitions' });
+    agencyClient.push({ href: '/agency/kpi-definitions', label: 'KPI definitions' });
   }
+  if (agencyClient.length) sections.push({ label: 'Agency & Client', links: agencyClient, defaultOpen: true });
+
+  const ads: NavLink[] = [];
   if (hasCap(user, 'crm_facebook_ads', 'view') || hasCap(user, 'crm_agency', 'view')) {
-    agency.push({ href: '/meta/facebook-ads', label: 'Meta Ads' });
+    ads.push({ href: '/meta/facebook-ads', label: 'Meta Ads' });
     if (metaAdsOpsEnabled() && canViewMetaAdsOps(user)) {
-      agency.push({ href: '/meta/ads-ops', label: 'Meta Ads Ops' });
+      ads.push({ href: '/meta/ads-ops', label: 'Meta Ads Ops' });
     }
     if (metaTrackingEnabled() && canViewMetaTracking(user)) {
-      agency.push({ href: '/meta/tracking', label: 'Meta Tracking' });
+      ads.push({ href: '/meta/tracking', label: 'Meta Tracking' });
     }
     if (metaIntelligenceEnabled() && canViewMetaIntelligence(user)) {
-      agency.push({ href: '/meta/intelligence', label: 'Meta Intelligence' });
+      ads.push({ href: '/meta/intelligence', label: 'Meta Intelligence' });
     }
-    agency.push({ href: '/meta/migration', label: 'Meta Migration' });
+    ads.push({ href: '/meta/migration', label: 'Meta Migration' });
   }
   if (hasCap(user, 'crm_google_ads', 'view') || hasCap(user, 'crm_agency', 'view')) {
-    agency.push({ href: '/google/google-ads', label: 'Google Ads' });
-    agency.push({ href: '/meta/ads-combined', label: 'Ads CPL' });
+    ads.push({ href: '/google/google-ads', label: 'Google Ads' });
+    ads.push({ href: '/meta/ads-combined', label: 'Ads CPL' });
   }
   if (hasCap(user, 'crm_zalo_ads', 'view') || hasCap(user, 'crm_agency', 'view')) {
-    agency.push({ href: '/zalo/zalo-ads', label: 'Zalo Ads' });
-    agency.push({ href: '/zalo/leads', label: 'Zalo Leads' });
+    ads.push({ href: '/zalo/zalo-ads', label: 'Zalo Ads' });
+    ads.push({ href: '/zalo/leads', label: 'Zalo Leads' });
   }
-  if (seoHubEnabled() && canViewSeoHub(user)) {
-    agency.push({ href: '/seo/hub', label: 'SEO/AEO Hub' });
-    agency.push({ href: '/seo/clients', label: 'SEO Clients' });
-    if (seoResearchEnabled() && canViewSeoResearch(user)) {
-      agency.push({ href: '/seo/research', label: 'SEO Research' });
-    }
-    if (seoContentEnabled() && canViewSeoContent(user)) {
-      agency.push({ href: '/seo/content', label: 'SEO Content' });
-    }
-    if (seoTechnicalEnabled() && canViewSeoTechnical(user)) {
-      agency.push({ href: '/seo/technical', label: 'SEO Technical' });
-    }
-    if (seoReportsEnabled() && canViewSeoReports(user)) {
-      agency.push({ href: '/seo/reports', label: 'SEO Reports' });
-    }
-    if (seoStrategyEnabled() && canViewSeoStrategy(user)) {
-      agency.push({ href: '/seo/strategy', label: 'SEO Strategy' });
-    }
-    if (seoGovernanceEnabled() && canViewSeoGovernance(user)) {
-      agency.push({ href: '/seo/governance', label: 'SEO Governance' });
-    }
-    if (seoAeoEnabled() && canViewSeoAeo(user)) {
-      agency.push({ href: '/seo/aeo', label: 'AEO Console' });
-    }
-    if (seoAuthorityEnabled() && canViewSeoAuthority(user)) {
-      agency.push({ href: '/seo/authority', label: 'Authority' });
-    }
-    if (seoRanksEnabled() && canViewSeoRanks(user)) {
-      agency.push({ href: '/seo/ranks', label: 'Rank Tracker' });
-    }
-    if (seoAutomationsEnabled() && canViewSeoAutomations(user)) {
-      agency.push({ href: '/seo/automations', label: 'Automations' });
-    }
-    if (seoFreshnessEnabled() && canViewSeoFreshness(user)) {
-      agency.push({ href: '/seo/freshness', label: 'Freshness' });
-    }
-    if (seoExperimentsEnabled() && canViewSeoExperiments(user)) {
-      agency.push({ href: '/seo/experiments', label: 'Experiments' });
-    }
-    if (seoBiEnabled() && canViewSeoBi(user)) {
-      agency.push({ href: '/seo/bi', label: 'SEO BI' });
-    }
-    if (seoCmsEnabled() && canViewSeoCms(user)) {
-      agency.push({ href: '/seo/cms', label: 'CMS Pilot' });
-    }
-    if (seoGateAEnabled() && canViewSeoGateA(user)) {
-      agency.push({ href: '/seo/gate-a', label: 'Gate A Go-live' });
-    }
-  }
-  if (agency.length) sections.push({ label: 'Agency & Hub', links: agency });
+  if (ads.length) sections.push({ label: 'Kênh quảng cáo', links: ads });
+
+  const seoLinks = buildSeoLinks(user);
+  if (seoLinks.length) sections.push({ label: 'SEO / AEO', links: seoLinks });
 
   const emailView = hasCap(user, 'crm_email_mkt', 'view') || hasCap(user, 'crm_agency', 'view');
   const emailWrite = hasCap(user, 'crm_email_mkt', 'write') || hasCap(user, 'crm_agency', 'create');
@@ -424,12 +393,51 @@ function buildSections(
     sections.push({ label: 'Email Marketing', links: email });
   }
 
+  const aiAutomation: NavLink[] = [];
+  if (hasCap(user, 'automation_workflows', 'view')) {
+    aiAutomation.push({ href: '/crm/automation', label: 'Workflows' });
+  }
+  if (hasCap(user, 'playbooks', 'view')) {
+    aiAutomation.push({ href: '/crm/playbooks', label: 'Playbooks' });
+  }
+  if (hasCap(user, 'ai_admin', 'view')) {
+    aiAutomation.push({ href: '/admin/ai/agents', label: 'AI Agents' });
+    aiAutomation.push({ href: '/admin/ai/runs', label: 'AI agent runs' });
+    aiAutomation.push({ href: '/admin/ai/tools', label: 'Tools' });
+  }
+  if (aiAutomation.length) sections.push({ label: 'AI & Automation', links: aiAutomation });
+
+  const config: NavLink[] = [];
+  if (hasCap(user, 'crm_data_config', 'view')) {
+    config.push({ href: '/admin/crm/custom-fields', label: 'Custom fields' });
+    config.push({ href: '/admin/crm/pipeline', label: 'Pipeline sales' });
+  }
+  if (config.length) sections.push({ label: 'Cấu hình CRM', links: config });
+
   return sections;
+}
+
+function userInitials(user: StoredStaffUser | null): string {
+  const name = user?.display_name?.trim() || user?.email?.trim() || '?';
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  return name.slice(0, 2).toUpperCase();
 }
 
 export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: OpsNavProps) {
   const pathname = usePathname();
   const [reviewQueueCount, setReviewQueueCount] = useState<number | undefined>();
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    const expanded = stored === '1';
+    setSidebarExpanded(expanded);
+    document.documentElement.classList.toggle('ops-shell-expanded', expanded);
+    document.documentElement.classList.toggle('ops-shell-collapsed', !expanded);
+  }, []);
 
   useEffect(() => {
     if (!user || !hasCap(user, 'crm_leads', 'assign')) return;
@@ -441,52 +449,127 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   }, [user, pathname]);
 
   const sections = buildSections(user, emailPendingApprovals, agencyUnread, reviewQueueCount);
-  const pageTitle = pageTitleFor(pathname);
+
+  useEffect(() => {
+    setOpenGroups((prev) => {
+      const next = { ...prev };
+      for (const section of sections) {
+        if (next[section.label] == null) {
+          next[section.label] = section.defaultOpen ?? !GROUPS_COLLAPSED_BY_DEFAULT.has(section.label);
+        }
+      }
+      return next;
+    });
+  }, [sections]);
+
+  function toggleSidebar() {
+    setSidebarExpanded((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? '1' : '0');
+      }
+      document.documentElement.classList.toggle('ops-shell-expanded', next);
+      document.documentElement.classList.toggle('ops-shell-collapsed', !next);
+      return next;
+    });
+  }
+
+  function toggleGroup(label: string) {
+    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  }
 
   return (
     <>
       <aside className="ops-sidebar" aria-label="Điều hướng chính">
         <div className="ops-sidebar-brand">
           <span className="ops-sidebar-brand-mark">PTT</span>
-          <div>
+          <div className="ops-sidebar-brand-text">
             <strong>PTT CRM</strong>
             <span>Staff console</span>
           </div>
         </div>
         <nav className="ops-sidebar-nav">
-          {sections.map((section) => (
-            <div key={section.label} className="ops-nav-group">
-              <p className="ops-nav-group-label">{section.label}</p>
-              <div className="ops-nav-group-links">
-                {section.links.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={`ops-nav-link${isActive(pathname, link.href) ? ' is-active' : ''}`}
-                  >
-                    {link.label}
-                  </Link>
-                ))}
+          {sections.map((section) => {
+            const groupOpen = openGroups[section.label] ?? true;
+            const sectionIcon = SECTION_ICONS[section.label] ?? 'home';
+            return (
+              <div key={section.label} className={`ops-nav-group${groupOpen ? ' is-open' : ''}`}>
+                <button
+                  type="button"
+                  className="ops-nav-group-header"
+                  onClick={() => toggleGroup(section.label)}
+                  aria-expanded={groupOpen}
+                >
+                  <span className="ops-nav-group-icon">
+                    <NavIcon name={sectionIcon} />
+                  </span>
+                  <span className="ops-nav-group-label">{section.label}</span>
+                  <span className="ops-nav-group-toggle" aria-hidden="true">
+                    ›
+                  </span>
+                </button>
+                <div className={`ops-nav-group-links${groupOpen ? '' : ' is-collapsed'}`}>
+                  {section.links.map((link) => {
+                    const icon = LINK_ICONS[link.href] ?? sectionIcon;
+                    return (
+                      <Link
+                        key={link.href}
+                        href={link.href}
+                        title={link.label}
+                        className={`ops-nav-link${isActive(pathname, link.href) ? ' is-active' : ''}`}
+                      >
+                        <span className="ops-nav-link-icon">
+                          <NavIcon name={icon} />
+                        </span>
+                        <span className="ops-nav-link-text">{link.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </nav>
+        <div className="ops-sidebar-footer">
+          <button
+            type="button"
+            className="ops-sidebar-toggle"
+            onClick={toggleSidebar}
+            aria-label={sidebarExpanded ? 'Thu gọn menu' : 'Mở rộng menu'}
+            title={sidebarExpanded ? 'Thu gọn menu' : 'Mở rộng menu'}
+          >
+            {sidebarExpanded ? '«' : '»'}
+          </button>
+        </div>
       </aside>
 
       <header className="ops-topbar">
         <div className="ops-topbar-strip" aria-hidden="true" />
         <div className="ops-topbar-inner">
-          <div className="ops-topbar-title">
-            <h1>{pageTitle}</h1>
-            <p className="muted">
-              {user?.display_name ?? user?.email}
-              {user?.position_id ? ` · Chức vụ #${user.position_id}` : ''}
-            </p>
+          <div className="ops-topbar-app">
+            <button
+              type="button"
+              className="ops-sidebar-toggle ops-sidebar-toggle--topbar"
+              onClick={toggleSidebar}
+              aria-label={sidebarExpanded ? 'Thu gọn menu' : 'Mở rộng menu'}
+            >
+              ☰
+            </button>
+            <span className="ops-topbar-app-name">PTT CRM</span>
           </div>
           <GlobalSearchBar />
-          <button type="button" className="btn btn-topbar-logout" onClick={onLogout}>
-            Đăng xuất
-          </button>
+          <div className="ops-topbar-user">
+            <div className="ops-topbar-user-meta">
+              <strong>{user?.display_name ?? user?.email ?? 'Staff'}</strong>
+              <span>{pageTitleFor(pathname)}</span>
+            </div>
+            <span className="ops-topbar-avatar" aria-hidden="true">
+              {userInitials(user)}
+            </span>
+            <button type="button" className="btn btn-sm btn-secondary btn-topbar-logout" onClick={onLogout}>
+              Đăng xuất
+            </button>
+          </div>
         </div>
       </header>
     </>

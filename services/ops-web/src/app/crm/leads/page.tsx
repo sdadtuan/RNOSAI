@@ -7,6 +7,16 @@ import { OpsNav } from '@/components/OpsNav';
 import { CrmLeadsImportExport } from '@/components/crm/CrmLeadsImportExport';
 import { CrmLeadsList } from '@/components/crm/CrmLeadsList';
 import { PullToRefresh } from '@/components/mobile/PullToRefresh';
+import {
+  BulkActionBar,
+  FilterBar,
+  FilterBarActions,
+  FilterBarSearch,
+  OpsPage,
+  PageFooter,
+  PageToolbar,
+  SegmentedControl,
+} from '@/components/layout';
 import { fetchLeads, bulkAssignLeads, fetchCrmStaffList, fetchReviewQueueCount, staffMe, staffRefresh } from '@/lib/api';
 import type { CrmStaffRow, LeadRow } from '@/lib/api';
 import { aiCopilotEnabled, isAiPilotUser } from '@/lib/ai-flags';
@@ -94,8 +104,7 @@ export default function CrmLeadsPage() {
       setLoading(true);
       setError('');
       try {
-        const ownerId =
-          listTab === 'mine' && user?.id ? Number(user.id) : undefined;
+        const ownerId = listTab === 'mine' && user?.id ? Number(user.id) : undefined;
         const data = await fetchLeads(accessToken, {
           q: search || undefined,
           status: filterStatus || undefined,
@@ -213,214 +222,204 @@ export default function CrmLeadsPage() {
   );
   const { scores: scoreMap, pending: scoresPending } = useLeadScoresMap(token, leadIds, showScores);
 
+  const pageMeta = useMemo(() => {
+    const parts = [
+      `${total.toLocaleString('vi-VN')} leads`,
+      `trang ${Math.floor(offset / PAGE_SIZE) + 1} / ${Math.max(1, Math.ceil(total / PAGE_SIZE))}`,
+    ];
+    if (leadKind === 'pipeline') parts.push('ẩn Phải tra soát');
+    else if (leadKind === 'review') parts.push('chỉ Phải tra soát');
+    if (selectedList.length) parts.push(`đã chọn ${selectedList.length}`);
+    return parts.join(' · ');
+  }, [total, offset, leadKind, selectedList.length]);
+
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
+      <main className="ops-page">
         <p className="muted">Đang tải…</p>
       </main>
     );
   }
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
+    <>
       <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <div className="crm-leads-page__head">
-          <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Quản lý Lead</h2>
-          <div className="crm-leads-page__head-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            {canCreate ? (
-              <Link href="/crm/leads/new" className="btn btn-sm">
-                + Tạo lead
-              </Link>
-            ) : null}
-            {token ? (
-              <CrmLeadsImportExport
-              token={token}
-              query={query}
-              selectedIds={selectedList}
-              canImport={canImport}
-              onImported={() => void loadLeads(token, 0, query)}
-              onError={setError}
-            />
-            ) : null}
-          </div>
-        </div>
+      <OpsPage
+        width="wide"
+        breadcrumb={[
+          { label: 'CRM', href: '/crm/leads' },
+          { label: 'Leads', href: '/crm/leads' },
+          { label: 'Quản lý Lead' },
+        ]}
+      >
+        <PageToolbar
+          title="Quản lý Lead"
+          subtitle={pageMeta}
+          actions={
+            <>
+              {token ? (
+                <CrmLeadsImportExport
+                  token={token}
+                  query={query}
+                  selectedIds={selectedList}
+                  canImport={canImport}
+                  onImported={() => void loadLeads(token, 0, query)}
+                  onError={setError}
+                />
+              ) : null}
+              {canCreate ? (
+                <Link href="/crm/leads/new" className="btn btn-sm">
+                  + Tạo lead
+                </Link>
+              ) : null}
+            </>
+          }
+        />
 
-        <form onSubmit={onSearch} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <input
-            type="search"
-            placeholder="Tìm tên, SĐT, email…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            style={{
-              flex: '1 1 220px',
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.55rem 0.75rem',
-              color: 'var(--text)',
+        <div className="page-card stack-gap">
+          <SegmentedControl
+            options={[
+              { id: 'all', label: 'Tất cả' },
+              { id: 'mine', label: 'Của tôi' },
+              { id: 'unassigned', label: 'Chưa phân' },
+            ]}
+            value={listTab}
+            onChange={(id) => {
+              setListTab(id);
+              setOffset(0);
+              setSelectedIds(new Set());
             }}
           />
-          <select
-            className="kpi-select"
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            aria-label="Lọc trạng thái"
-          >
-            <option value="">Trạng thái</option>
-            {['moi', 'da_lien_he', 'dang_tu_van', 'chot', 'lost'].map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          <input
-            className="kpi-input"
-            placeholder="Nguồn"
-            value={filterSource}
-            onChange={(e) => setFilterSource(e.target.value)}
-            aria-label="Lọc nguồn"
+
+          <SegmentedControl
+            label="Loại lead"
+            options={[
+              { id: 'pipeline', label: 'Pipeline AM' },
+              {
+                id: 'review',
+                label: 'Phải tra soát',
+                badge: reviewQueueCount && reviewQueueCount > 0 ? reviewQueueCount : undefined,
+              },
+              { id: 'all', label: 'Tất cả (có tag)' },
+            ]}
+            value={leadKind}
+            onChange={(id) => {
+              setLeadKind(id);
+              setOffset(0);
+              setSelectedIds(new Set());
+            }}
+            className="segmented-control--kind"
           />
-          <input
-            className="kpi-input"
-            placeholder="Kênh"
-            value={filterChannel}
-            onChange={(e) => setFilterChannel(e.target.value)}
-            aria-label="Lọc kênh"
-          />
-          <button className="btn btn-sm" type="submit" disabled={loading}>
-            Lọc
-          </button>
-        </form>
 
-        <div className="crm-leads-tabs" role="tablist" style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-          {(
-            [
-              ['all', 'Tất cả'],
-              ['mine', 'Của tôi'],
-              ['unassigned', 'Chưa phân'],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              className={`btn btn-sm${listTab === id ? '' : ' btn-secondary'}`}
-              onClick={() => {
-                setListTab(id);
-                setOffset(0);
-                setSelectedIds(new Set());
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className="crm-leads-kind-filter" role="group" aria-label="Lọc loại lead">
-          <span className="crm-leads-kind-filter__label">Loại lead:</span>
-          {(
-            [
-              ['pipeline', 'Pipeline AM'],
-              ['review', `Phải tra soát${reviewQueueCount != null && reviewQueueCount > 0 ? ` (${reviewQueueCount})` : ''}`],
-              ['all', 'Tất cả (có tag)'],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={`btn btn-sm lead-kind-filter-btn${leadKind === id ? '' : ' btn-secondary'}`}
-              aria-pressed={leadKind === id}
-              onClick={() => {
-                setLeadKind(id);
-                setOffset(0);
-                setSelectedIds(new Set());
-              }}
-            >
-              {label}
-            </button>
-          ))}
-          {canReviewQueue ? (
-            <Link href="/crm/leads/review-queue" className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }}>
-              Inbox GDKD →
-            </Link>
-          ) : null}
-        </div>
-
-        {selectedList.length && canImport ? (
-          <div className="crm-leads-bulk-toolbar" style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+          <FilterBar onSubmit={onSearch}>
+            <FilterBarSearch value={q} onChange={setQ} placeholder="Tìm tên, SĐT, email…" />
             <select
               className="kpi-select"
-              value={bulkOwnerId}
-              onChange={(e) => setBulkOwnerId(e.target.value)}
-              aria-label="Chọn owner bulk assign"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              aria-label="Lọc trạng thái"
             >
-              <option value="">Gán owner…</option>
-              {staffOptions.map((staff) => (
-                <option key={staff.id} value={staff.id}>
-                  {staff.name}
+              <option value="">Trạng thái</option>
+              {['moi', 'da_lien_he', 'dang_tu_van', 'chot', 'lost'].map((s) => (
+                <option key={s} value={s}>
+                  {s}
                 </option>
               ))}
             </select>
+            <input
+              className="kpi-input"
+              placeholder="Nguồn"
+              value={filterSource}
+              onChange={(e) => setFilterSource(e.target.value)}
+              aria-label="Lọc nguồn"
+            />
+            <input
+              className="kpi-input"
+              placeholder="Kênh"
+              value={filterChannel}
+              onChange={(e) => setFilterChannel(e.target.value)}
+              aria-label="Lọc kênh"
+            />
+            <FilterBarActions>
+              {canReviewQueue ? (
+                <Link href="/crm/leads/review-queue" className="btn btn-sm btn-ghost">
+                  Inbox GDKD →
+                </Link>
+              ) : null}
+              <button className="btn btn-sm btn-secondary" type="submit" disabled={loading}>
+                Lọc
+              </button>
+            </FilterBarActions>
+          </FilterBar>
+
+          {canImport ? (
+            <BulkActionBar count={selectedList.length}>
+              <select
+                className="kpi-select"
+                value={bulkOwnerId}
+                onChange={(e) => setBulkOwnerId(e.target.value)}
+                aria-label="Chọn owner bulk assign"
+              >
+                <option value="">Gán owner…</option>
+                {staffOptions.map((staff) => (
+                  <option key={staff.id} value={staff.id}>
+                    {staff.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={bulkBusy || !bulkOwnerId}
+                onClick={() => void handleBulkAssign()}
+              >
+                Bulk assign
+              </button>
+            </BulkActionBar>
+          ) : null}
+
+          {loading ? <p className="muted">Đang tải…</p> : null}
+          {error ? <p className="error">{error}</p> : null}
+
+          <PullToRefresh
+            disabled={loading || !token}
+            onRefresh={async () => {
+              if (!token) return;
+              await loadLeads(token, offset, query);
+            }}
+          >
+            <CrmLeadsList
+              rows={rows}
+              loading={loading}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+              onToggleAll={toggleAll}
+              showScores={showScores}
+              scoreMap={scoreMap}
+              scoresPending={scoresPending}
+            />
+          </PullToRefresh>
+
+          <PageFooter meta={`Hiển thị ${rows.length} / ${total.toLocaleString('vi-VN')} leads`}>
             <button
               type="button"
-              className="btn btn-sm"
-              disabled={bulkBusy || !bulkOwnerId}
-              onClick={() => void handleBulkAssign()}
+              className="btn btn-secondary btn-sm"
+              disabled={loading || offset <= 0}
+              onClick={() => void goPage(Math.max(0, offset - PAGE_SIZE))}
             >
-              Bulk assign ({selectedList.length})
+              ← Trước
             </button>
-          </div>
-        ) : null}
-
-        <p className="muted" style={{ marginTop: 0 }}>
-          {total.toLocaleString('vi-VN')} leads · trang {Math.floor(offset / PAGE_SIZE) + 1} /{' '}
-          {Math.max(1, Math.ceil(total / PAGE_SIZE))}
-          {leadKind === 'pipeline' ? ' · ẩn Phải tra soát' : leadKind === 'review' ? ' · chỉ Phải tra soát' : ' · hiển thị cả hai loại'}
-          {selectedList.length ? ` · đã chọn ${selectedList.length}` : ''}
-        </p>
-
-        {loading ? <p className="muted">Đang tải…</p> : null}
-        {error ? <p className="error">{error}</p> : null}
-
-        <PullToRefresh
-          disabled={loading || !token}
-          onRefresh={async () => {
-            if (!token) return;
-            await loadLeads(token, offset, query);
-          }}
-        >
-          <CrmLeadsList
-            rows={rows}
-            loading={loading}
-            selectedIds={selectedIds}
-            onToggleSelect={toggleSelect}
-            onToggleAll={toggleAll}
-            showScores={showScores}
-            scoreMap={scoreMap}
-            scoresPending={scoresPending}
-          />
-        </PullToRefresh>
-
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={loading || offset <= 0}
-            onClick={() => void goPage(Math.max(0, offset - PAGE_SIZE))}
-          >
-            ← Trước
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={loading || offset + PAGE_SIZE >= total}
-            onClick={() => void goPage(offset + PAGE_SIZE)}
-          >
-            Sau →
-          </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={loading || offset + PAGE_SIZE >= total}
+              onClick={() => void goPage(offset + PAGE_SIZE)}
+            >
+              Sau →
+            </button>
+          </PageFooter>
         </div>
-      </div>
-    </main>
+      </OpsPage>
+    </>
   );
 }

@@ -26,7 +26,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="vi">
+    <html lang="vi" className="ops-shell-collapsed">
       <head>
         <link rel="apple-touch-icon" href="/icons/icon.svg" />
       </head>

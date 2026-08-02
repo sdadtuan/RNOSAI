@@ -32,8 +32,8 @@ export function CrmLeadsList({
 
   return (
     <>
-      <div className="crm-leads-table-wrap" style={{ overflowX: 'auto' }}>
-        <table className="perf-table">
+      <div className="crm-leads-table-wrap data-table-wrap">
+        <table className="data-table perf-table">
           <thead>
             <tr>
               <th style={{ width: 36 }}>

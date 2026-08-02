@@ -13,7 +13,41 @@ echo "NEXT_PUBLIC_PTT_API_URL=$OPS_API_URL"
 echo "NEXT_PUBLIC_PWA_ENABLED=$PWA_ENABLED"
 git -C "$ROOT" log -1 --oneline
 
-python3 "$ROOT/scripts/generate_ops_pwa_icons.py"
+ensure_ops_pwa_icons() {
+  local icons_dir="$ROOT/services/ops-web/public/icons"
+  local missing=0
+  for size in 192 512; do
+    if [[ ! -f "$icons_dir/icon-${size}.png" ]]; then
+      missing=1
+    fi
+  done
+
+  if [[ "$missing" == "0" && "${OPS_PWA_REGEN_ICONS:-0}" != "1" ]]; then
+    echo "OK  PWA icons present (skip generate; OPS_PWA_REGEN_ICONS=1 to force)"
+    return 0
+  fi
+
+  if python3 "$ROOT/scripts/generate_ops_pwa_icons.py"; then
+    return 0
+  fi
+
+  echo "WARN  Pillow missing — install once (linuxuser): sudo apt install -y python3-pil"
+  if command -v apt-get >/dev/null 2>&1 && [[ "${OPS_PWA_TRY_APT:-0}" == "1" ]]; then
+    sudo apt-get install -y python3-pil
+    python3 "$ROOT/scripts/generate_ops_pwa_icons.py" && return 0
+  fi
+
+  if [[ "$missing" == "0" ]]; then
+    echo "WARN  icon generate failed; using existing PNG icons in public/icons/"
+    return 0
+  fi
+
+  echo "FAIL  PWA icons missing and could not generate."
+  echo "      Fix (linuxuser): sudo apt install -y python3-pil"
+  echo "      Or skip icons and rebuild ops-web manually (icons already in git)."
+  exit 1
+}
+ensure_ops_pwa_icons
 
 npm ci
 export NEXT_PUBLIC_PTT_API_URL="$OPS_API_URL"
