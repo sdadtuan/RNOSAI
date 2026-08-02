@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
 import {
   ApiError,
@@ -36,8 +36,7 @@ const STATUS_OPTIONS = [
 
 export default function NewLeadPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const presetClientId = searchParams.get('client_id') ?? '';
+  const [presetClientId, setPresetClientId] = useState('');
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [token, setToken] = useState('');
   const [clients, setClients] = useState<AgencyClient[]>([]);
@@ -54,6 +53,12 @@ export default function NewLeadPage() {
   const [saving, setSaving] = useState(false);
 
   const canCreate = useMemo(() => hasCap(user, 'crm_leads', 'edit'), [user]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const clientId = new URLSearchParams(window.location.search).get('client_id') ?? '';
+    setPresetClientId(clientId);
+  }, []);
 
   useEffect(() => {
     const access = getAccessToken();
