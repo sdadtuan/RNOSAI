@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
 import {
   createMarketingPlan,
   fetchMarketingPlans,
@@ -116,37 +116,28 @@ export default function CrmMarketingPlanPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <CrmDeliveryPageShell user={null} onLogout={logout} title="Kế hoạch Marketing" loading>
+        <span />
+      </CrmDeliveryPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>Kế hoạch Marketing</h2>
+    <CrmDeliveryPageShell user={user} onLogout={logout} title="Kế hoạch Marketing">
+      <div className="page-card stack-gap">
         <form
           onSubmit={(e) => {
             e.preventDefault();
             setQuery(q.trim());
           }}
-          style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}
+          style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}
         >
           <input
+            className="kpi-input"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Tìm tên / mã / kỳ…"
-            style={{
-              flex: 1,
-              minWidth: 180,
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.55rem 0.75rem',
-              color: 'var(--text)',
-            }}
+            style={{ flex: 1, minWidth: 180 }}
           />
           <button type="submit" className="btn btn-sm">
             Tìm
@@ -169,20 +160,14 @@ export default function CrmMarketingPlanPage() {
           ))}
         </ul>
         {hasCap(user, 'crm_board', 'edit') ? (
-          <form onSubmit={(e) => void onCreate(e)} style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+          <form onSubmit={(e) => void onCreate(e)} style={{ display: 'flex', gap: '0.5rem' }}>
             <input
+              className="kpi-input"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Tên kế hoạch mới"
               disabled={saving}
-              style={{
-                flex: 1,
-                background: 'var(--bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                padding: '0.55rem 0.75rem',
-                color: 'var(--text)',
-              }}
+              style={{ flex: 1 }}
             />
             <button type="submit" className="btn btn-secondary btn-sm" disabled={saving || !newName.trim()}>
               + Tạo
@@ -190,6 +175,6 @@ export default function CrmMarketingPlanPage() {
           </form>
         ) : null}
       </div>
-    </main>
+    </CrmDeliveryPageShell>
   );
 }

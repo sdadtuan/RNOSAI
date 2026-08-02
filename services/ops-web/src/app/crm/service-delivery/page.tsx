@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
 import { ServiceDeliveryKanban } from '@/components/ServiceDeliveryKanban';
 import { fetchServiceLifecycles, staffMe, staffRefresh, type ServiceLifecycleRow } from '@/lib/api';
 import {
@@ -102,65 +102,48 @@ export default function CrmServiceDeliveryPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <CrmDeliveryPageShell user={null} onLogout={logout} title="Service Delivery — Kanban" loading>
+        <span />
+      </CrmDeliveryPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: '0.75rem',
-            flexWrap: 'wrap',
-            marginBottom: '0.75rem',
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Service Delivery — Kanban</h2>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <input
-              placeholder="Lọc service_slug…"
-              value={filterSlug}
-              onChange={(e) => setFilterSlug(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void load();
-              }}
-              style={{
-                background: 'var(--bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                padding: '0.45rem 0.65rem',
-                color: 'var(--text)',
-                minWidth: 160,
-              }}
-            />
-            <input
-              placeholder="Lọc AM (staff id)…"
-              value={filterAm}
-              onChange={(e) => setFilterAm(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void load();
-              }}
-              style={{
-                background: 'var(--bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                padding: '0.45rem 0.65rem',
-                color: 'var(--text)',
-                width: 120,
-              }}
-            />
-            <button type="button" className="btn btn-sm" onClick={() => void load()}>
-              Lọc
-            </button>
-          </div>
-        </div>
+    <CrmDeliveryPageShell
+      user={user}
+      onLogout={logout}
+      title="Service Delivery — Kanban"
+      actions={
+        <>
+          <input
+            className="kpi-input"
+            placeholder="Lọc service_slug…"
+            value={filterSlug}
+            onChange={(e) => setFilterSlug(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void load();
+            }}
+            style={{ minWidth: 160 }}
+            aria-label="Lọc service slug"
+          />
+          <input
+            className="kpi-input"
+            placeholder="Lọc AM (staff id)…"
+            value={filterAm}
+            onChange={(e) => setFilterAm(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void load();
+            }}
+            style={{ width: 120 }}
+            aria-label="Lọc AM"
+          />
+          <button type="button" className="btn btn-sm" onClick={() => void load()}>
+            Lọc
+          </button>
+        </>
+      }
+    >
+      <div className="page-card stack-gap">
         {toast ? <p className={toastErr ? 'error' : undefined} style={toastErr ? undefined : { color: 'var(--accent)' }}>{toast}</p> : null}
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
@@ -176,6 +159,6 @@ export default function CrmServiceDeliveryPage() {
           />
         ) : null}
       </div>
-    </main>
+    </CrmDeliveryPageShell>
   );
 }

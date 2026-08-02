@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { PageToolbar, StaffPageShell } from '@/components/layout';
 import {
   createAssignScope,
   createCatalogIndustry,
@@ -183,37 +183,45 @@ export default function CrmCatalogPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <StaffPageShell user={null} onLogout={logout} loading>
+        <span />
+      </StaffPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <h1 style={{ marginTop: 0 }}>Danh mục Dịch vụ &amp; Ngành</h1>
-        <p className="muted">
-          Quản trị slug dịch vụ PTT và ngành khách hàng — form lead, pre-sales và phân công AM.
-        </p>
-        <Link href="/crm/leads" className="nav-link">
-          ← Quản lý Lead
-        </Link>
-      </div>
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      breadcrumb={[
+        { label: 'CRM', href: '/crm/leads' },
+        { label: 'Danh mục' },
+      ]}
+    >
+      <PageToolbar
+        title="Danh mục Dịch vụ & Ngành"
+        subtitle="Quản trị slug dịch vụ PTT và ngành khách hàng — form lead, pre-sales và phân công AM."
+        actions={
+          <Link href="/crm/leads" className="btn btn-sm btn-ghost">
+            ← Quản lý Lead
+          </Link>
+        }
+      />
 
-      {error ? <p className="error">{error}</p> : null}
+      <div className="page-card stack-gap">
+        {error ? <p className="error">{error}</p> : null}
 
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0 }}>Dịch vụ PTT</h2>
-          {canConfigure ? (
-            <button type="button" className="btn btn-sm" onClick={() => void onAddService()} disabled={loading}>
-              Thêm dịch vụ
-            </button>
-          ) : null}
-        </div>
-        <table className="perf-table" style={{ marginTop: '0.75rem' }}>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ margin: 0 }}>Dịch vụ PTT</h2>
+            {canConfigure ? (
+              <button type="button" className="btn btn-sm" onClick={() => void onAddService()} disabled={loading}>
+                Thêm dịch vụ
+              </button>
+            ) : null}
+          </div>
+          <div className="data-table-wrap" style={{ marginTop: '0.75rem' }}>
+            <table className="data-table">
           <thead>
             <tr>
               <th>Slug</th>
@@ -240,19 +248,21 @@ export default function CrmCatalogPage() {
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
-
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0 }}>Ngành khách hàng</h2>
-          {canConfigure ? (
-            <button type="button" className="btn btn-sm" onClick={() => void onAddIndustry()} disabled={loading}>
-              Thêm ngành
-            </button>
-          ) : null}
+            </table>
+          </div>
         </div>
-        <table className="perf-table" style={{ marginTop: '0.75rem' }}>
+
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ margin: 0 }}>Ngành khách hàng</h2>
+            {canConfigure ? (
+              <button type="button" className="btn btn-sm" onClick={() => void onAddIndustry()} disabled={loading}>
+                Thêm ngành
+              </button>
+            ) : null}
+          </div>
+          <div className="data-table-wrap" style={{ marginTop: '0.75rem' }}>
+            <table className="data-table">
           <thead>
             <tr>
               <th>Slug</th>
@@ -283,19 +293,21 @@ export default function CrmCatalogPage() {
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
-
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0 }}>Phạm vi phân lead (AM)</h2>
-          {canConfigure ? (
-            <button type="button" className="btn btn-sm" onClick={() => void onAddScope()} disabled={loading}>
-              Thêm phạm vi
-            </button>
-          ) : null}
+            </table>
+          </div>
         </div>
-        <table className="perf-table" style={{ marginTop: '0.75rem' }}>
+
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ margin: 0 }}>Phạm vi phân lead (AM)</h2>
+            {canConfigure ? (
+              <button type="button" className="btn btn-sm" onClick={() => void onAddScope()} disabled={loading}>
+                Thêm phạm vi
+              </button>
+            ) : null}
+          </div>
+          <div className="data-table-wrap" style={{ marginTop: '0.75rem' }}>
+            <table className="data-table">
           <thead>
             <tr>
               <th>AM</th>
@@ -329,8 +341,10 @@ export default function CrmCatalogPage() {
               </tr>
             ) : null}
           </tbody>
-        </table>
+            </table>
+          </div>
+        </div>
       </div>
-    </main>
+    </StaffPageShell>
   );
 }

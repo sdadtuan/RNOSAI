@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
 import { fetchInvoices, staffMe, staffRefresh, type InvoiceRow } from '@/lib/api';
 import {
   clearSession,
@@ -83,25 +83,27 @@ export function InvoicesContent() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <CrmDeliveryPageShell user={null} onLogout={logout} title="Hóa đơn (RNOS-25)" loading>
+        <span />
+      </CrmDeliveryPageShell>
     );
   }
 
   return (
-    <main className="ops-page">
-      <OpsNav user={user} onLogout={logout} />
-      <div className="ops-page__body">
-        <h1 className="ops-page__title">Hóa đơn (RNOS-25)</h1>
-        <p className="muted">Invoice + AR aging — CRM-UC-006 bước 10 · SVC-UC-004 E1</p>
+    <CrmDeliveryPageShell
+      user={user}
+      onLogout={logout}
+      title="Hóa đơn (RNOS-25)"
+      subtitle="Invoice + AR aging — CRM-UC-006 bước 10 · SVC-UC-004 E1"
+    >
+      <div className="page-card stack-gap">
         <label className="renewal-agent-card__channel">
           <input type="checkbox" checked={showOverdue} onChange={(e) => setShowOverdue(e.target.checked)} />
           {' '}Chỉ overdue
         </label>
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="renewal-agent-panel__error">{error}</p> : null}
-        <div className="table-wrap" data-testid="invoices-table">
+        <div className="data-table-wrap" data-testid="invoices-table">
           <table className="data-table">
             <thead>
               <tr>
@@ -129,6 +131,6 @@ export function InvoicesContent() {
           {!loading && !rows.length ? <p className="muted">Chưa có hóa đơn.</p> : null}
         </div>
       </div>
-    </main>
+    </CrmDeliveryPageShell>
   );
 }

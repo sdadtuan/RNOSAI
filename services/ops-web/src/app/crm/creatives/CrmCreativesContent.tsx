@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MetaCreativeLinkPanel } from '@/components/meta/MetaCreativeLinkPanel';
-import { OpsNav } from '@/components/OpsNav';
+import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
 import {
   fetchCrmCreatives,
   fetchCrmCreativesStats,
@@ -187,9 +187,9 @@ export function CrmCreativesContent() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <CrmDeliveryPageShell user={null} onLogout={logout} title="Creative Hub" loading>
+        <span />
+      </CrmDeliveryPageShell>
     );
   }
 
@@ -198,22 +198,20 @@ export function CrmCreativesContent() {
   const hubToken = getAccessToken();
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '1.25rem' }}>Creative Hub</h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            MKT gửi creative → client duyệt portal → auto-tick Launch QA checklist
-          </p>
-        </div>
-        {canEdit ? (
+    <CrmDeliveryPageShell
+      user={user}
+      onLogout={logout}
+      title="Creative Hub"
+      subtitle="MKT gửi creative → client duyệt portal → auto-tick Launch QA checklist"
+      actions={
+        canEdit ? (
           <button type="button" className="btn btn-sm" onClick={() => setShowSubmit((v) => !v)}>
             {showSubmit ? 'Đóng form' : 'Gửi creative mới'}
           </button>
-        ) : null}
-      </div>
-
+        ) : null
+      }
+    >
+      <div className="page-card stack-gap">
       {(stats.pending_creatives ?? stats.pending_client ?? 0) > 0 ? (
         <p
           style={{
@@ -317,30 +315,30 @@ export function CrmCreativesContent() {
         ))}
       </div>
 
-      <div className="card" style={{ padding: '0.75rem', overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+      <div className="data-table-wrap">
+        <table className="data-table">
           <thead>
-            <tr className="muted">
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Creative</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Kênh</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Campaign</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>v</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Trạng thái</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Gửi</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Link</th>
+            <tr>
+              <th>Creative</th>
+              <th>Kênh</th>
+              <th>Campaign</th>
+              <th>v</th>
+              <th>Trạng thái</th>
+              <th>Gửi</th>
+              <th>Link</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="muted" style={{ padding: '0.75rem' }}>
+                <td colSpan={7} className="muted">
                   Không có creative.
                 </td>
               </tr>
             ) : null}
             {rows.map((row) => (
-              <tr key={row.id} style={{ borderTop: '1px solid var(--border)' }}>
-                <td style={{ padding: '0.35rem' }}>
+              <tr key={row.id}>
+                <td>
                   <strong>{row.title}</strong>
                   {row.review_note ? (
                     <div className="muted" style={{ fontSize: '0.8rem' }}>
@@ -348,12 +346,12 @@ export function CrmCreativesContent() {
                     </div>
                   ) : null}
                 </td>
-                <td style={{ padding: '0.35rem' }}>{(row.channel ?? 'meta').toUpperCase()}</td>
-                <td style={{ padding: '0.35rem' }}>{row.external_campaign_id ?? '—'}</td>
-                <td style={{ padding: '0.35rem' }}>{row.version}</td>
-                <td style={{ padding: '0.35rem' }}>{STATUS_LABEL[row.status] ?? row.status}</td>
-                <td style={{ padding: '0.35rem' }}>{row.submitted_at?.slice(0, 10) ?? '—'}</td>
-                <td style={{ padding: '0.35rem' }}>
+                <td>{(row.channel ?? 'meta').toUpperCase()}</td>
+                <td>{row.external_campaign_id ?? '—'}</td>
+                <td>{row.version}</td>
+                <td>{STATUS_LABEL[row.status] ?? row.status}</td>
+                <td>{row.submitted_at?.slice(0, 10) ?? '—'}</td>
+                <td>
                   {row.lifecycle_id ? (
                     <Link href={`/crm/service-delivery/${row.lifecycle_id}?tab=launch_qa`} className="nav-link">
                       Lifecycle
@@ -383,7 +381,8 @@ export function CrmCreativesContent() {
           </tbody>
         </table>
       </div>
-    </main>
+      </div>
+    </CrmDeliveryPageShell>
   );
 }
 

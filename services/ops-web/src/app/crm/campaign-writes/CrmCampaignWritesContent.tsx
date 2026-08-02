@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
 import {
   fetchCrmCampaignWrites,
   fetchCrmCampaignWritesStats,
@@ -216,9 +216,9 @@ export function CrmCampaignWritesContent() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <CrmDeliveryPageShell user={null} onLogout={logout} title="Campaign Write Hub" loading>
+        <span />
+      </CrmDeliveryPageShell>
     );
   }
 
@@ -226,22 +226,20 @@ export function CrmCampaignWritesContent() {
   const canApprove = hasCap(user, 'meta_campaign_write', 'approve');
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '1.25rem' }}>Campaign Write Hub</h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Meta / Zalo campaign writes — duyệt → worker execute → auto hub map (Zalo create)
-          </p>
-        </div>
-        {canSubmit ? (
+    <CrmDeliveryPageShell
+      user={user}
+      onLogout={logout}
+      title="Campaign Write Hub"
+      subtitle="Meta / Zalo campaign writes — duyệt → worker execute → auto hub map (Zalo create)"
+      actions={
+        canSubmit ? (
           <button type="button" className="btn btn-sm" onClick={() => setShowSubmit((v) => !v)}>
             {showSubmit ? 'Đóng form' : 'Gửi đổi budget'}
           </button>
-        ) : null}
-      </div>
-
+        ) : null
+      }
+    >
+      <div className="page-card stack-gap">
       {(stats.pending_campaign_writes ?? stats.pending_approval ?? 0) > 0 ? (
         <p
           style={{
@@ -313,29 +311,29 @@ export function CrmCampaignWritesContent() {
         ))}
       </div>
 
-      <div className="card" style={{ padding: '0.75rem', overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+      <div className="data-table-wrap">
+        <table className="data-table">
           <thead>
-            <tr className="muted">
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Campaign</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Kênh</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Thay đổi</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Trạng thái</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Gửi</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Thao tác</th>
+            <tr>
+              <th>Campaign</th>
+              <th>Kênh</th>
+              <th>Thay đổi</th>
+              <th>Trạng thái</th>
+              <th>Gửi</th>
+              <th>Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="muted" style={{ padding: '0.75rem' }}>
+                <td colSpan={6} className="muted">
                   Không có yêu cầu.
                 </td>
               </tr>
             ) : null}
             {rows.map((row) => (
-              <tr key={row.id} style={{ borderTop: '1px solid var(--border)' }}>
-                <td style={{ padding: '0.35rem' }}>
+              <tr key={row.id}>
+                <td>
                   <strong>{row.external_campaign_id}</strong>
                   <div className="muted" style={{ fontSize: '0.8rem' }}>{row.change_type}</div>
                   {row.execution_error ? (
@@ -344,8 +342,8 @@ export function CrmCampaignWritesContent() {
                     </div>
                   ) : null}
                 </td>
-                <td style={{ padding: '0.35rem' }}>{(row.channel ?? 'meta').toUpperCase()}</td>
-                <td style={{ padding: '0.35rem' }}>
+                <td>{(row.channel ?? 'meta').toUpperCase()}</td>
+                <td>
                   {row.change_type === 'daily_budget'
                     ? `${Number(row.new_value?.daily_budget_vnd ?? 0).toLocaleString('vi-VN')} VND`
                     : row.change_type === 'status'
@@ -354,9 +352,9 @@ export function CrmCampaignWritesContent() {
                         ? String(row.new_value?.campaign_name ?? row.external_campaign_name ?? 'create')
                         : JSON.stringify(row.new_value ?? {})}
                 </td>
-                <td style={{ padding: '0.35rem' }}>{STATUS_LABEL[row.status] ?? row.status}</td>
-                <td style={{ padding: '0.35rem' }}>{row.created_at?.slice(0, 10) ?? '—'}</td>
-                <td style={{ padding: '0.35rem' }}>
+                <td>{STATUS_LABEL[row.status] ?? row.status}</td>
+                <td>{row.created_at?.slice(0, 10) ?? '—'}</td>
+                <td>
                   {row.lifecycle_id ? (
                     <Link href={`/crm/service-delivery/${row.lifecycle_id}?tab=launch_qa`} className="nav-link">
                       Lifecycle
@@ -380,7 +378,8 @@ export function CrmCampaignWritesContent() {
           </tbody>
         </table>
       </div>
-    </main>
+      </div>
+    </CrmDeliveryPageShell>
   );
 }
 

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { MetaPageShell } from '@/components/meta/MetaPageShell';
 import {
   fetchFacebookHub,
   fetchGoogleHub,
@@ -44,6 +44,11 @@ function AdsCombinedContent() {
   const [zaloHub, setZaloHub] = useState<ZaloHubResponse | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+
+  const logout = useCallback(() => {
+    clearSession();
+    router.push('/login');
+  }, [router]);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -157,83 +162,90 @@ function AdsCombinedContent() {
   const zaloSummary = zaloHub?.summary ?? {};
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.push('/login'); }} />
-      <h1 style={{ fontSize: '1.25rem' }}>Ads CPL — Combined</h1>
-      <p className="muted">Meta + Google + Zalo · filter theo kênh · T-{days}</p>
-
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', margin: '1rem 0' }}>
-        {(['all', 'meta', 'google', 'zalo'] as ChannelTab[]).map((ch) => (
-          <button
-            key={ch}
-            type="button"
-            className={tab === ch ? 'btn btn-sm' : 'btn btn-sm btn-muted'}
-            onClick={() => setTab(ch)}
+    <MetaPageShell
+      user={user}
+      onLogout={logout}
+      title="Ads CPL — Combined"
+      subtitle={`Meta + Google + Zalo · filter theo kênh · T-${days}`}
+      breadcrumb={[
+        { label: 'Quảng cáo', href: '/meta/facebook-ads' },
+        { label: 'Ads CPL — Combined' },
+      ]}
+    >
+      <div className="page-card stack-gap">
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {(['all', 'meta', 'google', 'zalo'] as ChannelTab[]).map((ch) => (
+            <button
+              key={ch}
+              type="button"
+              className={tab === ch ? 'btn btn-sm' : 'btn btn-sm btn-muted'}
+              onClick={() => setTab(ch)}
+            >
+              {ch === 'all' ? 'Tất cả' : ch.charAt(0).toUpperCase() + ch.slice(1)}
+            </button>
+          ))}
+          <select
+            className="kpi-select"
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+            style={{ marginLeft: 'auto' }}
           >
-            {ch === 'all' ? 'Tất cả' : ch.charAt(0).toUpperCase() + ch.slice(1)}
+            <option value={7}>T-7</option>
+            <option value={30}>T-30</option>
+          </select>
+          <button type="button" className="btn btn-sm" onClick={() => void load()} disabled={loading}>
+            Refresh
           </button>
-        ))}
-        <select
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value))}
-          style={{ marginLeft: 'auto' }}
+        </div>
+
+        {error ? <p className="error">{error}</p> : null}
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: '1rem',
+          }}
         >
-          <option value={7}>T-7</option>
-          <option value={30}>T-30</option>
-        </select>
-        <button type="button" className="btn btn-sm" onClick={() => void load()} disabled={loading}>
-          Refresh
-        </button>
-      </div>
-
-      {error ? <p className="error">{error}</p> : null}
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-          gap: '1rem',
-          marginBottom: '1rem',
-        }}
-      >
-        {(tab === 'all' || tab === 'meta') && (
-          <div className="card">
-            <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>Meta</h2>
-            <p className="muted">Spend: {fmtVnd(Number(metaSummary.total_spend ?? 0))}</p>
-            <p className="muted">
-              Leads: {String(metaSummary.total_leads ?? 0)} · CPL: {fmtVnd(metaSummary.avg_cpl as number)}
-            </p>
-            <Link href="/meta/facebook-ads" className="nav-link">Meta hub →</Link>
-          </div>
-        )}
-        {(tab === 'all' || tab === 'google') && (
-          <div className="card">
-            <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>Google</h2>
-            <p className="muted">Spend: {fmtVnd(Number(googleSummary.total_spend ?? 0))}</p>
-            <p className="muted">
-              Leads: {String(googleSummary.total_leads ?? 0)} · CPL: {fmtVnd(googleSummary.avg_cpl as number)}
-            </p>
-            <Link href="/google/google-ads" className="nav-link">Google hub →</Link>
-          </div>
-        )}
-        {(tab === 'all' || tab === 'zalo') && (
-          <div className="card">
-            <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>Zalo</h2>
-            <p className="muted">Spend: {fmtVnd(Number(zaloSummary.total_spend ?? 0))}</p>
-            <p className="muted">
-              Leads: {String(zaloSummary.total_leads ?? 0)} · CPL: {fmtVnd(zaloSummary.avg_cpl as number)}
-            </p>
-            <p className="muted">
-              Won: {String(zaloSummary.total_conversions ?? 0)} · CPA: {fmtVnd(zaloSummary.avg_cpa as number)}
-            </p>
-            <Link href="/zalo/zalo-ads" className="nav-link">Zalo hub →</Link>
-          </div>
-        )}
+          {(tab === 'all' || tab === 'meta') && (
+            <div className="page-card stack-gap">
+              <h2 className="kpi-section-title" style={{ margin: 0 }}>Meta</h2>
+              <p className="muted">Spend: {fmtVnd(Number(metaSummary.total_spend ?? 0))}</p>
+              <p className="muted">
+                Leads: {String(metaSummary.total_leads ?? 0)} · CPL: {fmtVnd(metaSummary.avg_cpl as number)}
+              </p>
+              <Link href="/meta/facebook-ads" className="nav-link">Meta hub →</Link>
+            </div>
+          )}
+          {(tab === 'all' || tab === 'google') && (
+            <div className="page-card stack-gap">
+              <h2 className="kpi-section-title" style={{ margin: 0 }}>Google</h2>
+              <p className="muted">Spend: {fmtVnd(Number(googleSummary.total_spend ?? 0))}</p>
+              <p className="muted">
+                Leads: {String(googleSummary.total_leads ?? 0)} · CPL: {fmtVnd(googleSummary.avg_cpl as number)}
+              </p>
+              <Link href="/google/google-ads" className="nav-link">Google hub →</Link>
+            </div>
+          )}
+          {(tab === 'all' || tab === 'zalo') && (
+            <div className="page-card stack-gap">
+              <h2 className="kpi-section-title" style={{ margin: 0 }}>Zalo</h2>
+              <p className="muted">Spend: {fmtVnd(Number(zaloSummary.total_spend ?? 0))}</p>
+              <p className="muted">
+                Leads: {String(zaloSummary.total_leads ?? 0)} · CPL: {fmtVnd(zaloSummary.avg_cpl as number)}
+              </p>
+              <p className="muted">
+                Won: {String(zaloSummary.total_conversions ?? 0)} · CPA: {fmtVnd(zaloSummary.avg_cpa as number)}
+              </p>
+              <Link href="/zalo/zalo-ads" className="nav-link">Zalo hub →</Link>
+            </div>
+          )}
+        </div>
       </div>
 
       {alerts.length ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>Alerts</h2>
+        <div className="page-card stack-gap">
+          <h2 className="kpi-section-title" style={{ margin: 0 }}>Alerts</h2>
           <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
             {alerts.map((a) => (
               <li key={a.message} style={{ marginBottom: '0.35rem' }}>
@@ -246,10 +258,10 @@ function AdsCombinedContent() {
       ) : null}
 
       {tab === 'all' ? (
-        <div className="card">
-          <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>Clients — spend theo kênh</h2>
-          <div style={{ overflowX: 'auto' }}>
-            <table className="perf-table">
+        <div className="page-card stack-gap">
+          <h2 className="kpi-section-title" style={{ margin: 0 }}>Clients — spend theo kênh</h2>
+          <div className="data-table-wrap">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Client</th>
@@ -281,7 +293,7 @@ function AdsCombinedContent() {
           </div>
         </div>
       ) : null}
-    </main>
+    </MetaPageShell>
   );
 }
 

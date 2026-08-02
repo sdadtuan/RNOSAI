@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { DetailPageLayout, StaffPageShell } from '@/components/layout';
 import {
   ApiError,
   createLead,
@@ -155,23 +155,27 @@ export default function NewLeadPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <StaffPageShell user={null} onLogout={logout} loading>
+        <span />
+      </StaffPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Tạo lead thủ công</h2>
-          <Link href="/crm/leads" className="btn btn-sm btn-secondary">
-            ← Danh sách
-          </Link>
-        </div>
-
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      breadcrumb={[
+        { label: 'CRM', href: '/crm/leads' },
+        { label: 'Leads', href: '/crm/leads' },
+        { label: 'Tạo lead' },
+      ]}
+    >
+      <DetailPageLayout
+        title="Tạo lead thủ công"
+        backHref="/crm/leads"
+        backLabel="← Danh sách"
+      >
         {!canCreate ? (
           <p className="error">Không có quyền tạo lead (crm_leads · edit).</p>
         ) : (
@@ -290,7 +294,7 @@ export default function NewLeadPage() {
             </div>
           </form>
         )}
-      </div>
-    </main>
+      </DetailPageLayout>
+    </StaffPageShell>
   );
 }

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { AgencyHubPageShell } from '@/components/agency/AgencyHubPageShell';
 import {
   fetchAgencyNotifications,
   markAgencyNotificationRead,
@@ -16,7 +16,6 @@ import {
   clearSession,
   getAccessToken,
   getRefreshToken,
-  getStoredUser,
   hasCap,
   updateAccessToken,
   updateStoredUser,
@@ -33,6 +32,11 @@ export default function AgencyNotificationsPage() {
   const [filter, setFilter] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const logout = useCallback(() => {
+    clearSession();
+    router.push('/login');
+  }, [router]);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -77,9 +81,7 @@ export default function AgencyNotificationsPage() {
     })();
   }, [ensureAuth, reload]);
 
-  const filtered = filter
-    ? items.filter((n) => n.category === filter)
-    : items;
+  const filtered = filter ? items.filter((n) => n.category === filter) : items;
 
   async function markRead(id: string) {
     const access = getAccessToken();
@@ -111,30 +113,38 @@ export default function AgencyNotificationsPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <AgencyHubPageShell
+        user={null}
+        onLogout={logout}
+        title="Thông báo"
+        agencyUnread={unread}
+        loading
+      >
+        <span />
+      </AgencyHubPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 900, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.push('/login'); }} />
-      <p style={{ margin: '0 0 1rem' }}>
-        <Link href="/agency" className="nav-link">
-          ← Agency
-        </Link>
-      </p>
-
-      <div className="card">
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', marginBottom: '1rem' }}>
-          <h2 style={{ margin: 0, flex: '1 1 auto' }}>Thông báo {unread > 0 ? `(${unread} chưa đọc)` : ''}</h2>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={busy || unread === 0} onClick={() => void markAll()}>
-            Đánh dấu tất cả đã đọc
-          </button>
-        </div>
-
-        <div className="agency-tabs" style={{ marginBottom: '1rem' }}>
+    <AgencyHubPageShell
+      user={user}
+      onLogout={logout}
+      title="Thông báo"
+      subtitle={unread > 0 ? `${unread} chưa đọc` : undefined}
+      agencyUnread={unread}
+      actions={
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={busy || unread === 0}
+          onClick={() => void markAll()}
+        >
+          Đánh dấu tất cả đã đọc
+        </button>
+      }
+    >
+      <div className="page-card stack-gap">
+        <div className="agency-tabs">
           {['', 'sla', 'ingest', 'system'].map((cat) => (
             <button
               key={cat || 'all'}
@@ -180,7 +190,12 @@ export default function AgencyNotificationsPage() {
                   </Link>
                 ) : null}
                 {!n.read ? (
-                  <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void markRead(n.id)}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={busy}
+                    onClick={() => void markRead(n.id)}
+                  >
                     Đã đọc
                   </button>
                 ) : null}
@@ -192,6 +207,6 @@ export default function AgencyNotificationsPage() {
           ) : null}
         </ul>
       </div>
-    </main>
+    </AgencyHubPageShell>
   );
 }

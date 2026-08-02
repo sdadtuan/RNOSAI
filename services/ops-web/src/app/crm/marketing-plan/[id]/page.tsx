@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
+import { DetailPageLayout } from '@/components/layout';
 import { fetchMarketingPlanDetail, patchMarketingPlan, staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -118,29 +118,37 @@ export default function CrmMarketingPlanDetailPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <CrmDeliveryPageShell user={null} onLogout={logout} title="Kế hoạch marketing" hideToolbar loading>
+        <span />
+      </CrmDeliveryPageShell>
     );
   }
 
   const milestones = (plan?.milestones as Array<{ id: number; title: string; status: string }>) ?? [];
 
   return (
-    <main style={{ maxWidth: 900, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <p style={{ margin: '0 0 1rem' }}>
-        <Link href="/crm/marketing-plan" className="nav-link">
-          ← Kế hoạch marketing
-        </Link>
-      </p>
-      <div className="card">
+    <CrmDeliveryPageShell
+      user={user}
+      onLogout={logout}
+      title={`Kế hoạch #${planId}`}
+      hideToolbar
+      breadcrumb={[
+        { label: 'CRM', href: '/crm/leads' },
+        { label: 'Triển khai DV', href: '/crm/service-delivery' },
+        { label: 'Kế hoạch marketing', href: '/crm/marketing-plan' },
+        { label: `#${planId}` },
+      ]}
+    >
+      <DetailPageLayout
+        backHref="/crm/marketing-plan"
+        backLabel="← Kế hoạch marketing"
+        title={`#${planId} · ${String(plan?.name ?? name)}`}
+      >
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
         {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
         {plan && !loading ? (
           <form onSubmit={(e) => void onSave(e)} style={{ display: 'grid', gap: '0.75rem' }}>
-            <h2 style={{ margin: 0, fontSize: '1.15rem' }}>#{planId} · {String(plan.name ?? '')}</h2>
             <label style={{ display: 'grid', gap: '0.35rem' }}>
               <span className="muted">Tên</span>
               <input
@@ -211,7 +219,7 @@ export default function CrmMarketingPlanDetailPage() {
             ) : null}
           </form>
         ) : null}
-      </div>
-    </main>
+      </DetailPageLayout>
+    </CrmDeliveryPageShell>
   );
 }

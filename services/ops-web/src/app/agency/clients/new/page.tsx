@@ -1,9 +1,8 @@
 'use client';
 
-import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { AgencyHubPageShell } from '@/components/agency/AgencyHubPageShell';
 import { AgencyReadOnlyBadge, canAgencyWrite } from '@/components/AgencyReadOnlyBadge';
 import { IndustrySelect } from '@/components/agency/IndustrySelect';
 import { OwnerAmSelect } from '@/components/agency/OwnerAmSelect';
@@ -12,7 +11,6 @@ import {
   clearSession,
   getAccessToken,
   getRefreshToken,
-  getStoredUser,
   hasCap,
   updateAccessToken,
   updateStoredUser,
@@ -29,6 +27,11 @@ export default function NewClientPage() {
   const [ownerAmId, setOwnerAmId] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const logout = useCallback(() => {
+    clearSession();
+    router.push('/login');
+  }, [router]);
 
   useEffect(() => {
     const access = getAccessToken();
@@ -90,47 +93,52 @@ export default function NewClientPage() {
     }
   }
 
+  const canWrite = user ? canAgencyWrite(user) : false;
+
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <AgencyHubPageShell
+        user={null}
+        onLogout={logout}
+        title="Client mới"
+        showModuleNav={false}
+        width="narrow"
+        loading
+      >
+        <span />
+      </AgencyHubPageShell>
     );
   }
 
-  const canWrite = canAgencyWrite(user);
-
   return (
-    <main style={{ maxWidth: 520, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.push('/login'); }} />
-      <p style={{ margin: '0 0 1rem' }}>
-        <Link href="/agency" className="nav-link">
-          ← Agency
-        </Link>
-      </p>
-      <div className="card">
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', marginBottom: '0.5rem' }}>
-          <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Client mới</h2>
-          <AgencyReadOnlyBadge user={user} />
-        </div>
+    <AgencyHubPageShell
+      user={user}
+      onLogout={logout}
+      title="Client mới"
+      showModuleNav={false}
+      width="narrow"
+      actions={<AgencyReadOnlyBadge user={user} />}
+      breadcrumb={[{ label: 'Agency', href: '/agency' }, { label: 'Client mới' }]}
+    >
+      <div className="page-card stack-gap">
         {error ? <p className="error">{error}</p> : null}
         <form onSubmit={(e) => void onSubmit(e)} style={{ display: 'grid', gap: '0.85rem' }}>
           <label style={{ display: 'grid', gap: '0.35rem' }}>
             <span className="muted">Mã (CODE)</span>
             <input
+              className="kpi-input"
               required
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              style={{ padding: '0.55rem', borderRadius: 8, border: '1px solid var(--border)' }}
             />
           </label>
           <label style={{ display: 'grid', gap: '0.35rem' }}>
             <span className="muted">Tên</span>
             <input
+              className="kpi-input"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              style={{ padding: '0.55rem', borderRadius: 8, border: '1px solid var(--border)' }}
             />
           </label>
           <label style={{ display: 'grid', gap: '0.35rem' }}>
@@ -161,6 +169,6 @@ export default function NewClientPage() {
           </button>
         </form>
       </div>
-    </main>
+    </AgencyHubPageShell>
   );
 }

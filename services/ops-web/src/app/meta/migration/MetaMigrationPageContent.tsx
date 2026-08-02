@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MetaMigrationPanel } from '@/components/MetaMigrationPanel';
-import { OpsNav } from '@/components/OpsNav';
+import { MetaPageShell } from '@/components/meta/MetaPageShell';
 import {
   fetchFacebookAdsMigrationStatus,
   patchFacebookAdsMigrationManualUat,
@@ -33,6 +33,11 @@ export function MetaMigrationPageContent() {
   const [uatError, setUatError] = useState('');
   const [loading, setLoading] = useState(true);
   const [uatSavingField, setUatSavingField] = useState<MetaMigrationManualUatField | null>(null);
+
+  const logout = useCallback(() => {
+    clearSession();
+    router.push('/login');
+  }, [router]);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -124,11 +129,6 @@ export function MetaMigrationPageContent() {
     }
   }
 
-  function logout() {
-    clearSession();
-    router.push('/login');
-  }
-
   if (!user) {
     return (
       <main style={{ padding: '2rem' }}>
@@ -138,29 +138,30 @@ export function MetaMigrationPageContent() {
   }
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <h1 style={{ marginTop: 0, fontSize: '1.25rem' }}>Meta Ads — Migration dashboard</h1>
-        <p className="muted" style={{ marginTop: 0 }}>
-          Theo dõi Gate M1 (G04–G12), UAT §E và signoff Horizon 1. DevOps chạy wave scripts trên VPS;
-          QA tick UAT trực tiếp tại đây.
-        </p>
+    <MetaPageShell
+      user={user}
+      onLogout={logout}
+      title="Meta Ads — Migration dashboard"
+      subtitle="Theo dõi Gate M1 (G04–G12), UAT §E và signoff Horizon 1. DevOps chạy wave scripts trên VPS; QA tick UAT trực tiếp tại đây."
+      breadcrumb={[
+        { label: 'Quảng cáo', href: '/meta/facebook-ads' },
+        { label: 'Migration dashboard' },
+      ]}
+    >
+      <div className="page-card stack-gap">
+        {error ? <p className="error">{error}</p> : null}
+        {loading && !status ? <p className="muted">Đang tải migration status…</p> : null}
+        {status && manualUat ? (
+          <MetaMigrationPanel
+            status={status}
+            variant="full"
+            manualUat={manualUat}
+            uatSavingField={uatSavingField}
+            uatError={uatError}
+            onToggleUat={(field, value) => void handleToggleUat(field, value)}
+          />
+        ) : null}
       </div>
-
-      {error ? <p className="error">{error}</p> : null}
-      {loading && !status ? <p className="muted">Đang tải migration status…</p> : null}
-      {status && manualUat ? (
-        <MetaMigrationPanel
-          status={status}
-          variant="full"
-          manualUat={manualUat}
-          uatSavingField={uatSavingField}
-          uatError={uatError}
-          onToggleUat={(field, value) => void handleToggleUat(field, value)}
-        />
-      ) : null}
-    </main>
+    </MetaPageShell>
   );
 }

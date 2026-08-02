@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { DetailPageLayout, StaffPageShell } from '@/components/layout';
 import {
   addReProjectStaff,
   createReProjectBudgetLine,
@@ -450,9 +450,9 @@ export default function CrmReProjectDetailPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <StaffPageShell user={null} onLogout={logout} loading>
+        <span />
+      </StaffPageShell>
     );
   }
 
@@ -505,15 +505,21 @@ export default function CrmReProjectDetailPage() {
   const workflowSteps = (workflow?.steps ?? []) as Array<Record<string, unknown>>;
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <p style={{ marginBottom: '1rem' }}>
-        <Link href="/crm/re-projects" className="nav-link">
-          ← Dự án BĐS
-        </Link>
-      </p>
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>{String(project?.name ?? 'Dự án')}</h2>
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      width="default"
+      breadcrumb={[
+        { label: 'CRM', href: '/crm' },
+        { label: 'Dự án BĐS', href: '/crm/re-projects' },
+        { label: String(project?.name ?? `#${projectId}`) },
+      ]}
+    >
+      <DetailPageLayout
+        backHref="/crm/re-projects"
+        backLabel="← Dự án BĐS"
+        title={String(project?.name ?? 'Dự án')}
+      >
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
         <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
@@ -935,7 +941,7 @@ export default function CrmReProjectDetailPage() {
             <p className="muted">Xuất bundle JSON từ Nest API (`/export?report=…`).</p>
           </>
         ) : null}
-      </div>
-    </main>
+      </DetailPageLayout>
+    </StaffPageShell>
   );
 }

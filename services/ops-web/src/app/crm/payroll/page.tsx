@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { CrmHrPageShell } from '@/components/crm/CrmHrPageShell';
 import {
   computePayroll,
   exportPayrollJson,
@@ -153,9 +153,9 @@ export default function CrmPayrollPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <CrmHrPageShell user={null} onLogout={logout} title="Payroll & chấm công" loading>
+        <span />
+      </CrmHrPageShell>
     );
   }
 
@@ -166,10 +166,8 @@ export default function CrmPayrollPage() {
     hasCap(user, 'crm_payroll_salary', 'edit');
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>Payroll & chấm công</h2>
+    <CrmHrPageShell user={user} onLogout={logout} title="Payroll & chấm công">
+      <div className="page-card stack-gap">
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
           <input
             type="number"
@@ -286,6 +284,6 @@ export default function CrmPayrollPage() {
           </pre>
         ) : null}
       </div>
-    </main>
+    </CrmHrPageShell>
   );
 }

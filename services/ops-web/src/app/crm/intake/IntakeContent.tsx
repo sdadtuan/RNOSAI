@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { PageToolbar, StaffPageShell } from '@/components/layout';
 import {
   completeIntakeSession,
   createIntakeSession,
@@ -257,27 +257,38 @@ export function IntakeContent() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <StaffPageShell user={null} onLogout={logout} loading>
+        <span />
+      </StaffPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 900, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <p style={{ margin: '0 0 1rem' }}>
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      breadcrumb={[
+        { label: 'CRM', href: '/crm/leads' },
+        { label: 'BANT Intake' },
+      ]}
+    >
+      <PageToolbar
+        title="BANT Intake"
+        subtitle="Phiên khảo sát nhu cầu lead — Budget, Authority, Need, Timeline"
+      />
+      <div className="page-card stack-gap">
         {leadId > 0 ? (
-          <Link href={`/crm/leads/${leadId}`} className="nav-link">
-            ← Lead #{leadId}
-          </Link>
+          <p style={{ margin: 0 }}>
+            <Link href={`/crm/leads/${leadId}`} className="nav-link">
+              ← Lead #{leadId}
+            </Link>
+          </p>
         ) : (
-          <span className="muted">Lifecycle #{lifecycleId}</span>
+          <p className="muted" style={{ margin: 0 }}>
+            Lifecycle #{lifecycleId}
+          </p>
         )}
-      </p>
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>Lead Intake</h2>
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
         {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
@@ -438,6 +449,6 @@ export function IntakeContent() {
           </>
         ) : null}
       </div>
-    </main>
+    </StaffPageShell>
   );
 }

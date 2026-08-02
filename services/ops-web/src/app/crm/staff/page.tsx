@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { CrmHrPageShell } from '@/components/crm/CrmHrPageShell';
 import {
   fetchCrmStaffList,
   fetchStaffCompetency,
@@ -166,19 +166,17 @@ export default function CrmStaffPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <CrmHrPageShell user={null} onLogout={logout} title="Nhân viên" loading>
+        <span />
+      </CrmHrPageShell>
     );
   }
 
   const canEdit = hasCap(user, 'crm_staff_roster', 'edit');
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>Nhân viên</h2>
+    <CrmHrPageShell user={user} onLogout={logout} title="Nhân viên">
+      <div className="page-card stack-gap">
         <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
           {(
             [
@@ -328,6 +326,6 @@ export default function CrmStaffPage() {
           </form>
         ) : null}
       </div>
-    </main>
+    </CrmHrPageShell>
   );
 }

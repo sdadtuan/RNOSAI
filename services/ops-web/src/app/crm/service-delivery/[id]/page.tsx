@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { LifecycleLaunchQaPanel } from '@/components/LifecycleLaunchQaPanel';
@@ -9,7 +8,8 @@ import { LifecycleHubLinksPanel } from '@/components/LifecycleHubLinksPanel';
 import { LifecycleSopPanel } from '@/components/LifecycleSopPanel';
 import { LifecycleStaffPicker } from '@/components/LifecycleStaffPicker';
 import { LifecycleTmmtPanel } from '@/components/LifecycleTmmtPanel';
-import { OpsNav } from '@/components/OpsNav';
+import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
+import { DetailPageLayout } from '@/components/layout';
 import { ServiceDeliveryWorkflowPanel } from '@/components/ServiceDeliveryWorkflowPanel';
 import {
   fetchServiceLifecycleContext,
@@ -171,33 +171,36 @@ export default function CrmServiceDeliveryDetailPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <CrmDeliveryPageShell user={null} onLogout={logout} title="Lifecycle" hideToolbar loading>
+        <span />
+      </CrmDeliveryPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 1000, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <p style={{ margin: '0 0 1rem' }}>
-        <Link href="/crm/service-delivery" className="nav-link">
-          ← Service delivery
-        </Link>
-      </p>
-      {loading ? <p className="muted">Đang tải…</p> : null}
-      {error ? <p className="error">{error}</p> : null}
-      {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
-      {row && !loading && token ? (
-        <>
-          <div className="card" style={{ marginBottom: '1rem', padding: '1rem' }}>
-            <h2 style={{ margin: 0, fontSize: '1.15rem' }}>
-              #{lifecycleId} · {String(row.service_slug ?? '')}
-            </h2>
-            <p className="muted">
-              Stage: {stage} · Status: {String(row.status ?? '')}
-            </p>
-            <form onSubmit={(e) => void onSaveNotes(e)} style={{ display: 'grid', gap: '0.65rem', marginTop: '0.75rem' }}>
+    <CrmDeliveryPageShell
+      user={user}
+      onLogout={logout}
+      title={`Lifecycle #${lifecycleId}`}
+      hideToolbar
+      breadcrumb={[
+        { label: 'CRM', href: '/crm/leads' },
+        { label: 'Triển khai DV', href: '/crm/service-delivery' },
+        { label: `#${lifecycleId}` },
+      ]}
+    >
+      <DetailPageLayout
+        backHref="/crm/service-delivery"
+        backLabel="← Service delivery"
+        title={`#${lifecycleId} · ${String(row?.service_slug ?? '')}`}
+        subtitle={row ? `Stage: ${stage} · Status: ${String(row.status ?? '')}` : undefined}
+      >
+        {loading ? <p className="muted">Đang tải…</p> : null}
+        {error ? <p className="error">{error}</p> : null}
+        {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
+        {row && !loading && token ? (
+          <>
+            <form onSubmit={(e) => void onSaveNotes(e)} style={{ display: 'grid', gap: '0.65rem' }}>
               <label style={{ display: 'grid', gap: '0.35rem' }}>
                 <span className="muted">Ghi chú</span>
                 <textarea
@@ -246,7 +249,6 @@ export default function CrmServiceDeliveryDetailPage() {
                 </button>
               </div>
             ) : null}
-          </div>
 
           <LifecycleHubLinksPanel token={token} lifecycleId={lifecycleId} />
 
@@ -346,6 +348,7 @@ export default function CrmServiceDeliveryDetailPage() {
           ) : null}
         </>
       ) : null}
-    </main>
+      </DetailPageLayout>
+    </CrmDeliveryPageShell>
   );
 }

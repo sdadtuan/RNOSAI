@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { CrmHrPageShell } from '@/components/crm/CrmHrPageShell';
+import { DetailPageLayout } from '@/components/layout';
 import { fetchCrmStaffWorkspace, staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -90,46 +90,50 @@ export default function CrmStaffDetailPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <CrmHrPageShell user={null} onLogout={logout} title="Nhân viên" hideToolbar loading>
+        <span />
+      </CrmHrPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 900, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <p style={{ margin: '0 0 1rem' }}>
-        <Link href="/crm/staff" className="nav-link">
-          ← Nhân viên
-        </Link>
-      </p>
-      <div className="card">
+    <CrmHrPageShell
+      user={user}
+      onLogout={logout}
+      title={String(staff.name ?? `#${staffId}`)}
+      hideToolbar
+      breadcrumb={[
+        { label: 'CRM', href: '/crm/leads' },
+        { label: 'Nhân sự', href: '/crm/staff' },
+        { label: String(staff.name ?? `#${staffId}`) },
+      ]}
+    >
+      <DetailPageLayout
+        backHref="/crm/staff"
+        backLabel="← Nhân viên"
+        title={`${String(staff.name ?? `#${staffId}`)} · ${String(staff.job_title ?? '')}`}
+        subtitle={
+          bundle
+            ? `Case mở ${stats.open ?? 0} · Ưu tiên cao ${stats.high_priority ?? 0} · SLA quá hạn ${stats.sla_overdue ?? 0}`
+            : undefined
+        }
+      >
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
         {bundle && !loading ? (
-          <>
-            <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>
-              {String(staff.name ?? `#${staffId}`)} · {String(staff.job_title ?? '')}
-            </h2>
-            <p className="muted">
-              Case mở {stats.open ?? 0} · Ưu tiên cao {stats.high_priority ?? 0} · SLA quá hạn{' '}
-              {stats.sla_overdue ?? 0}
-            </p>
-            {cases.length === 0 ? (
-              <p className="muted">Chưa có case gán.</p>
-            ) : (
-              <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-                {cases.slice(0, 15).map((c) => (
-                  <li key={c.id}>
-                    #{c.id} · {c.title} {c.status_label ? `— ${c.status_label}` : ''}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
+          cases.length === 0 ? (
+            <p className="muted">Chưa có case gán.</p>
+          ) : (
+            <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+              {cases.slice(0, 15).map((c) => (
+                <li key={c.id}>
+                  #{c.id} · {c.title} {c.status_label ? `— ${c.status_label}` : ''}
+                </li>
+              ))}
+            </ul>
+          )
         ) : null}
-      </div>
-    </main>
+      </DetailPageLayout>
+    </CrmHrPageShell>
   );
 }

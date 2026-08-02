@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
 import { fetchLaunchQaRuns, fetchLaunchQaStats, staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -124,20 +124,20 @@ export default function CrmLaunchQaPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <CrmDeliveryPageShell user={null} onLogout={logout} title="Launch QA Board" loading>
+        <span />
+      </CrmDeliveryPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <h1 style={{ margin: '0 0 0.35rem', fontSize: '1.25rem' }}>Launch QA Board</h1>
-      <p className="muted" style={{ margin: '0 0 1rem' }}>
-        Checklist triển khai campaign — PG-first, link lifecycle khi có HĐ + campaign code.
-      </p>
-
+    <CrmDeliveryPageShell
+      user={user}
+      onLogout={logout}
+      title="Launch QA Board"
+      subtitle="Checklist triển khai campaign — PG-first, link lifecycle khi có HĐ + campaign code."
+    >
+      <div className="page-card stack-gap">
       {(stats.pending_creatives ?? 0) > 0 ? (
         <p
           style={{
@@ -215,30 +215,30 @@ export default function CrmLaunchQaPage() {
         ))}
       </div>
 
-      <div className="card" style={{ padding: '0.75rem', overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+      <div className="data-table-wrap">
+        <table className="data-table">
           <thead>
-            <tr className="muted">
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Campaign</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Client</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Tiến độ</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Status</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Temporal</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Bắt đầu</th>
-              <th style={{ textAlign: 'left', padding: '0.35rem' }}>Link</th>
+            <tr>
+              <th>Campaign</th>
+              <th>Client</th>
+              <th>Tiến độ</th>
+              <th>Status</th>
+              <th>Temporal</th>
+              <th>Bắt đầu</th>
+              <th>Link</th>
             </tr>
           </thead>
           <tbody>
             {runs.length === 0 ? (
               <tr>
-                <td colSpan={7} className="muted" style={{ padding: '0.75rem' }}>
+                <td colSpan={7} className="muted">
                   Không có run — lifecycle vào Deliver sẽ auto-start (nếu env bật).
                 </td>
               </tr>
             ) : null}
             {runs.map((run) => (
-              <tr key={run.id} style={{ borderTop: '1px solid var(--border)' }}>
-                <td style={{ padding: '0.35rem' }}>
+              <tr key={run.id}>
+                <td>
                   <strong>{run.external_campaign_id}</strong>
                   {run.campaign_name ? (
                     <div className="muted" style={{ fontSize: '0.8rem' }}>
@@ -246,17 +246,17 @@ export default function CrmLaunchQaPage() {
                     </div>
                   ) : null}
                 </td>
-                <td style={{ padding: '0.35rem', fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
                   {run.client_id.slice(0, 8)}…
                 </td>
-                <td style={{ padding: '0.35rem' }}>
+                <td>
                   {run.progress.completed}/{run.progress.total} · {run.progress.percent}%
                   {run.launch_ready ? (
                     <span style={{ color: 'var(--accent)', marginLeft: '0.35rem' }}>✓ ready</span>
                   ) : null}
                 </td>
-                <td style={{ padding: '0.35rem' }}>{STATUS_LABEL[run.status] ?? run.status}</td>
-                <td style={{ padding: '0.35rem' }}>
+                <td>{STATUS_LABEL[run.status] ?? run.status}</td>
+                <td>
                   {run.temporal_workflow_id ? (
                     <span className="muted" title={run.temporal_workflow_id}>
                       linked
@@ -265,8 +265,8 @@ export default function CrmLaunchQaPage() {
                     'PG-only'
                   )}
                 </td>
-                <td style={{ padding: '0.35rem' }}>{run.started_at?.slice(0, 10) ?? '—'}</td>
-                <td style={{ padding: '0.35rem' }}>
+                <td>{run.started_at?.slice(0, 10) ?? '—'}</td>
+                <td>
                   {run.lifecycle_id ? (
                     <Link
                       href={`/crm/service-delivery/${run.lifecycle_id}?tab=launch_qa`}
@@ -288,6 +288,7 @@ export default function CrmLaunchQaPage() {
           </tbody>
         </table>
       </div>
-    </main>
+      </div>
+    </CrmDeliveryPageShell>
   );
 }

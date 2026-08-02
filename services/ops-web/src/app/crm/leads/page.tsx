@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
 import { CrmLeadsImportExport } from '@/components/crm/CrmLeadsImportExport';
 import { CrmLeadsList } from '@/components/crm/CrmLeadsList';
 import { PullToRefresh } from '@/components/mobile/PullToRefresh';
@@ -12,10 +11,10 @@ import {
   FilterBar,
   FilterBarActions,
   FilterBarSearch,
-  OpsPage,
   PageFooter,
   PageToolbar,
   SegmentedControl,
+  StaffPageShell,
 } from '@/components/layout';
 import { fetchLeads, bulkAssignLeads, fetchCrmStaffList, fetchReviewQueueCount, staffMe, staffRefresh } from '@/lib/api';
 import type { CrmStaffRow, LeadRow } from '@/lib/api';
@@ -235,24 +234,24 @@ export default function CrmLeadsPage() {
 
   if (!user) {
     return (
-      <main className="ops-page">
-        <p className="muted">Đang tải…</p>
-      </main>
+      <StaffPageShell user={null} onLogout={logout} loading width="wide">
+        <span />
+      </StaffPageShell>
     );
   }
 
   return (
-    <>
-      <OpsNav user={user} onLogout={logout} />
-      <OpsPage
-        width="wide"
-        breadcrumb={[
-          { label: 'CRM', href: '/crm/leads' },
-          { label: 'Leads', href: '/crm/leads' },
-          { label: 'Quản lý Lead' },
-        ]}
-      >
-        <PageToolbar
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      width="wide"
+      breadcrumb={[
+        { label: 'CRM', href: '/crm/leads' },
+        { label: 'Leads', href: '/crm/leads' },
+        { label: 'Quản lý Lead' },
+      ]}
+    >
+      <PageToolbar
           title="Quản lý Lead"
           subtitle={pageMeta}
           actions={
@@ -419,7 +418,6 @@ export default function CrmLeadsPage() {
             </button>
           </PageFooter>
         </div>
-      </OpsPage>
-    </>
+    </StaffPageShell>
   );
 }

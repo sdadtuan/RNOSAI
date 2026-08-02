@@ -1,9 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { AgencyHubPageShell } from '@/components/agency/AgencyHubPageShell';
 import { AgencyReadOnlyBadge, canAgencyWrite } from '@/components/AgencyReadOnlyBadge';
 import {
   createKpiDefinition,
@@ -47,6 +46,11 @@ export default function AgencyKpiDefinitionsPage() {
   });
 
   const canWrite = canAgencyWrite(user);
+
+  const logout = useCallback(() => {
+    clearSession();
+    router.push('/login');
+  }, [router]);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -159,69 +163,69 @@ export default function AgencyKpiDefinitionsPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <AgencyHubPageShell
+        user={null}
+        onLogout={logout}
+        title="Định nghĩa KPI"
+        subtitle="Dictionary KPI · admin có thể thêm/sửa/xóa definition"
+        loading
+      >
+        <span />
+      </AgencyHubPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.push('/login'); }} />
-      <p style={{ margin: '0 0 1rem' }}>
-        <Link href="/agency" className="nav-link">
-          ← Agency
-        </Link>
-      </p>
-
-      <div className="card">
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', marginBottom: '0.5rem' }}>
-          <h2 style={{ margin: 0, flex: '1 1 auto' }}>Định nghĩa KPI</h2>
-          <AgencyReadOnlyBadge user={user} />
-        </div>
-        <p className="muted">Dictionary KPI · admin có thể thêm/sửa/xóa definition</p>
+    <AgencyHubPageShell
+      user={user}
+      onLogout={logout}
+      title="Định nghĩa KPI"
+      subtitle="Dictionary KPI · admin có thể thêm/sửa/xóa definition"
+      actions={<AgencyReadOnlyBadge user={user} />}
+    >
+      <div className="page-card stack-gap">
         {error ? <p className="error">{error}</p> : null}
         {msg ? <p className="muted">{msg}</p> : null}
 
         {canWrite ? (
           <form
             onSubmit={(e) => void handleCreate(e)}
-            style={{ display: 'grid', gap: '0.75rem', maxWidth: 640, marginBottom: '1.5rem' }}
+            style={{ display: 'grid', gap: '0.75rem', maxWidth: 640 }}
           >
-            <h3 style={{ fontSize: '1rem', margin: 0 }}>Thêm KPI</h3>
+            <h3 className="kpi-section-title">Thêm KPI</h3>
             <input
+              className="kpi-input"
               placeholder="code (snake_case)"
               value={form.code}
               onChange={(e) => setForm({ ...form, code: e.target.value })}
               required
-              style={{ padding: '0.5rem' }}
             />
             <input
+              className="kpi-input"
               placeholder="Tên"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               required
-              style={{ padding: '0.5rem' }}
             />
             <input
+              className="kpi-input"
               placeholder="Công thức"
               value={form.formula}
               onChange={(e) => setForm({ ...form, formula: e.target.value })}
               required
-              style={{ padding: '0.5rem' }}
             />
             <input
+              className="kpi-input"
               placeholder="Granularity"
               value={form.granularity}
               onChange={(e) => setForm({ ...form, granularity: e.target.value })}
-              style={{ padding: '0.5rem' }}
             />
             <textarea
+              className="kpi-input"
               placeholder="Mô tả"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               rows={2}
-              style={{ padding: '0.5rem' }}
             />
             <button type="submit" className="btn btn-sm" disabled={busy}>
               Tạo KPI
@@ -232,35 +236,35 @@ export default function AgencyKpiDefinitionsPage() {
         {editCode && canWrite ? (
           <form
             onSubmit={(e) => void handleUpdate(e)}
-            style={{ display: 'grid', gap: '0.75rem', maxWidth: 640, marginBottom: '1.5rem' }}
+            style={{ display: 'grid', gap: '0.75rem', maxWidth: 640 }}
           >
-            <h3 style={{ fontSize: '1rem', margin: 0 }}>Sửa KPI: {editCode}</h3>
+            <h3 className="kpi-section-title">Sửa KPI: {editCode}</h3>
             <input
+              className="kpi-input"
               placeholder="Tên"
               value={editForm.name}
               onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
               required
-              style={{ padding: '0.5rem' }}
             />
             <input
+              className="kpi-input"
               placeholder="Công thức"
               value={editForm.formula}
               onChange={(e) => setEditForm({ ...editForm, formula: e.target.value })}
               required
-              style={{ padding: '0.5rem' }}
             />
             <input
+              className="kpi-input"
               placeholder="Granularity"
               value={editForm.granularity}
               onChange={(e) => setEditForm({ ...editForm, granularity: e.target.value })}
-              style={{ padding: '0.5rem' }}
             />
             <textarea
+              className="kpi-input"
               placeholder="Mô tả"
               value={editForm.description}
               onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
               rows={2}
-              style={{ padding: '0.5rem' }}
             />
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button type="submit" className="btn btn-sm" disabled={busy}>
@@ -273,8 +277,8 @@ export default function AgencyKpiDefinitionsPage() {
           </form>
         ) : null}
 
-        <div style={{ overflowX: 'auto' }}>
-          <table className="perf-table">
+        <div className="data-table-wrap">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>Code</th>
@@ -316,6 +320,6 @@ export default function AgencyKpiDefinitionsPage() {
           </table>
         </div>
       </div>
-    </main>
+    </AgencyHubPageShell>
   );
 }
