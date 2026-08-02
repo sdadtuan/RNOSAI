@@ -3,7 +3,13 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import {
+  FilterBar,
+  FilterBarActions,
+  FilterBarSearch,
+  HubPageLayout,
+  StaffPageShell,
+} from '@/components/layout';
 import { createReProject, fetchReProjects, staffMe, staffRefresh, type ReProjectRow } from '@/lib/api';
 import {
   clearSession,
@@ -99,46 +105,40 @@ export default function CrmReProjectsPage() {
     router.push('/login');
   }
 
-  if (!user) {
-    return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
-    );
+  function onSearch(e: React.FormEvent) {
+    e.preventDefault();
+    setQuery(q.trim());
   }
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>Dự án BĐS</h2>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setQuery(q.trim());
-          }}
-          style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}
-        >
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Tìm tên / mã / quận…"
-            style={{
-              flex: 1,
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.55rem 0.75rem',
-              color: 'var(--text)',
-            }}
-          />
-          <button type="submit" className="btn btn-sm">
-            Tìm
-          </button>
-        </form>
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      width="default"
+      breadcrumb={[
+        { label: 'CRM', href: '/crm' },
+        { label: 'Dự án BĐS', href: '/crm/re-projects' },
+        { label: 'Danh sách' },
+      ]}
+    >
+      <HubPageLayout
+        title="Dự án BĐS"
+        subtitle={`${rows.length.toLocaleString('vi-VN')} dự án`}
+      >
+        <FilterBar onSubmit={onSearch}>
+          <FilterBarSearch value={q} onChange={setQ} placeholder="Tìm tên / mã / quận…" />
+          <FilterBarActions>
+            <button type="submit" className="btn btn-sm btn-secondary">
+              Tìm
+            </button>
+          </FilterBarActions>
+        </FilterBar>
+
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
-        <ul style={{ margin: '0 0 1rem', paddingLeft: '1.1rem' }}>
+
+        <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
           {rows.map((p) => (
             <li key={p.id} style={{ marginBottom: '0.35rem' }}>
               <Link href={`/crm/re-projects/${p.id}`} className="nav-link">
@@ -152,28 +152,23 @@ export default function CrmReProjectsPage() {
           ))}
         </ul>
         {rows.length === 0 && !loading ? <p className="muted">Chưa có dự án.</p> : null}
+
         {hasCap(user, 'crm_re_projects', 'create') ? (
           <form onSubmit={(e) => void onCreate(e)} style={{ display: 'flex', gap: '0.5rem' }}>
             <input
+              className="kpi-input"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Tên dự án mới"
               disabled={saving}
-              style={{
-                flex: 1,
-                background: 'var(--bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                padding: '0.55rem 0.75rem',
-                color: 'var(--text)',
-              }}
+              aria-label="Tên dự án mới"
             />
             <button type="submit" className="btn btn-secondary btn-sm" disabled={saving || !newName.trim()}>
               + Dự án
             </button>
           </form>
         ) : null}
-      </div>
-    </main>
+      </HubPageLayout>
+    </StaffPageShell>
   );
 }

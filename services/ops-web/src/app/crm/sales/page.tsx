@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { HubPageLayout, StaffPageShell } from '@/components/layout';
 import { SalesPipelineFunnelPanel, type PipelineCaseRow } from '@/components/sales/SalesPipelineFunnelPanel';
 import {
   createSalesMarketEntry,
@@ -235,31 +235,35 @@ function CrmSalesContent() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <StaffPageShell user={null} onLogout={logout} loading>
+        <span />
+      </StaffPageShell>
     );
   }
 
+  const visibleTabs = tabs.filter((t) => t.cap !== false);
+
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>Kinh doanh</h2>
-        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          {tabs
-            .filter((t) => t.cap !== false)
-            .map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                className={`btn btn-sm${tab === t.id ? '' : ' btn-secondary'}`}
-                onClick={() => setTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-        </div>
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      width="default"
+      breadcrumb={[
+        { label: 'CRM', href: '/crm' },
+        { label: 'Kinh doanh', href: '/crm/sales' },
+        { label: 'Sales hub' },
+      ]}
+    >
+      <HubPageLayout
+        title="Kinh doanh"
+        subtitle="Plans · funnel · partners · training · market · reports"
+        tabs={visibleTabs.map((t) => ({ id: t.id, label: t.label }))}
+        tab={tab}
+        onTabChange={(next) => {
+          setTab(next);
+          if (accessToken) void loadTab(accessToken, next);
+        }}
+      >
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
 
@@ -444,8 +448,8 @@ function CrmSalesContent() {
             </ul>
           </>
         ) : null}
-      </div>
-    </main>
+      </HubPageLayout>
+    </StaffPageShell>
   );
 }
 

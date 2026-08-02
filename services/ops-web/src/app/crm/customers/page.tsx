@@ -3,7 +3,14 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import {
+  FilterBar,
+  FilterBarActions,
+  FilterBarSearch,
+  PageFooter,
+  PageToolbar,
+  StaffPageShell,
+} from '@/components/layout';
 import { fetchCustomers, staffMe, staffRefresh, type CustomerRow } from '@/lib/api';
 import {
   clearSession,
@@ -81,43 +88,42 @@ export default function CrmCustomersPage() {
     router.push('/login');
   }
 
-  return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setQuery(q.trim());
-          }}
-          style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}
-        >
-          <input
-            type="search"
-            placeholder="Tìm tên, SĐT, email, công ty…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            style={{
-              flex: '1 1 220px',
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.55rem 0.75rem',
-              color: 'var(--text)',
-            }}
-          />
-          <button className="btn btn-sm" type="submit" disabled={loading}>
-            Lọc
-          </button>
-        </form>
+  function onSearch(e: React.FormEvent) {
+    e.preventDefault();
+    setQuery(q.trim());
+  }
 
-        <p className="muted" style={{ marginTop: 0 }}>
-          {rows.length.toLocaleString('vi-VN')} khách hàng
-        </p>
+  return (
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      breadcrumb={[
+        { label: 'CRM', href: '/crm' },
+        { label: 'Khách hàng', href: '/crm/customers' },
+        { label: 'Danh sách' },
+      ]}
+    >
+      <PageToolbar
+        title="Khách hàng"
+        subtitle={`${rows.length.toLocaleString('vi-VN')} khách hàng`}
+      />
+
+      <div className="page-card stack-gap">
+        <FilterBar onSubmit={onSearch}>
+          <FilterBarSearch value={q} onChange={setQ} placeholder="Tìm tên, SĐT, email, công ty…" />
+          <FilterBarActions>
+            <button className="btn btn-sm btn-secondary" type="submit" disabled={loading}>
+              Lọc
+            </button>
+          </FilterBarActions>
+        </FilterBar>
+
+        {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
 
-        <div style={{ overflowX: 'auto' }}>
-          <table className="perf-table">
+        <div className="data-table-wrap">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>ID</th>
@@ -153,7 +159,9 @@ export default function CrmCustomersPage() {
             </tbody>
           </table>
         </div>
+
+        <PageFooter meta={`Hiển thị ${rows.length.toLocaleString('vi-VN')} khách hàng`} />
       </div>
-    </main>
+    </StaffPageShell>
   );
 }

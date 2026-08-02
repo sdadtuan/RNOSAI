@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { PageToolbar, StaffPageShell } from '@/components/layout';
 import {
   addCrmTicketMessage,
   createCrmTicket,
@@ -320,29 +320,35 @@ export default function CrmTicketsPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <StaffPageShell user={null} onLogout={() => { clearSession(); router.push('/login'); }} loading>
+        <span />
+      </StaffPageShell>
     );
   }
 
   return (
-    <main className="kpi-page" style={{ maxWidth: 1180, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.push('/login'); }} />
-      <div className="card">
-        <div className="kpi-page__head">
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Ticket CS lite</h2>
-            <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              Quản lý phản ánh / hỗ trợ khách hàng · {total} ticket
-            </p>
-          </div>
-        </div>
+    <StaffPageShell
+      user={user}
+      onLogout={() => {
+        clearSession();
+        router.push('/login');
+      }}
+      breadcrumb={[
+        { label: 'CRM', href: '/crm' },
+        { label: 'CSKH', href: '/crm/tickets' },
+        { label: 'Tickets' },
+      ]}
+    >
+      <PageToolbar
+        title="Ticket CS lite"
+        subtitle={`Quản lý phản ánh / hỗ trợ khách hàng · ${total} ticket`}
+      />
 
+      <div className="page-card stack-gap">
         {error ? <p className="error">{error}</p> : null}
         {msg ? <p className="muted">{msg}</p> : null}
 
-        <div className="kpi-page__filters" style={{ marginBottom: '1rem' }}>
+        <div className="kpi-page__filters">
           <input
             className="kpi-input"
             placeholder="Tìm title / KH / mô tả"
@@ -629,6 +635,6 @@ export default function CrmTicketsPage() {
           </div>
         ) : null}
       </div>
-    </main>
+    </StaffPageShell>
   );
 }

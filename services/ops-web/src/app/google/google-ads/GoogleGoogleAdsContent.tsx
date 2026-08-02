@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { GooglePilotBanner } from '@/components/GooglePilotBanner';
-import { OpsNav } from '@/components/OpsNav';
+import { ChannelHubLayout, StaffPageShell } from '@/components/layout';
 import {
   downloadGoogleHubExport,
   fetchAgencyClients,
@@ -196,40 +196,40 @@ export function GoogleGoogleAdsContent() {
   const rows = hub?.clients ?? [];
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-
-      {hub?.pilot ? <GooglePilotBanner pilot={hub.pilot} /> : null}
-
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <h1 style={{ marginTop: 0, fontSize: '1.25rem' }}>Google Ads Hub</h1>
-        <p className="muted" style={{ marginTop: 0 }}>
-          Closed-loop spend + CPL (Google) · kỳ {hub?.date_from ?? '—'} → {hub?.date_to ?? '—'}
-          {hub?.window_days ? ` (${hub.window_days} ngày)` : ''}
-        </p>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <Link href="/meta/ads-combined" className="btn btn-sm btn-secondary">
-            Meta + Google (combined)
-          </Link>
-          <Link href="/meta/facebook-ads" className="btn btn-sm btn-secondary">
-            Meta Ads hub
-          </Link>
-          <Link href="/crm/hub" className="btn btn-sm btn-secondary">
-            Hub campaign map
-          </Link>
-          <Link href="/agency/clients" className="btn btn-sm btn-secondary">
-            Agency clients
-          </Link>
-        </div>
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-            gap: '0.75rem',
-            marginBottom: '1rem',
-          }}
-        >
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      breadcrumb={[
+        { label: 'Google', href: '/google/google-ads' },
+        { label: 'Ads Hub' },
+      ]}
+    >
+      <ChannelHubLayout
+        banner={hub?.pilot ? <GooglePilotBanner pilot={hub.pilot} /> : null}
+        title="Google Ads Hub"
+        subtitle={`Closed-loop spend + CPL · kỳ ${hub?.date_from ?? '—'} → ${hub?.date_to ?? '—'}${hub?.window_days ? ` (${hub.window_days} ngày)` : ''}`}
+        actions={
+          <>
+            <Link href="/meta/ads-combined" className="btn btn-sm btn-ghost">
+              Meta + Google
+            </Link>
+            <Link href="/meta/facebook-ads" className="btn btn-sm btn-ghost">
+              Meta hub
+            </Link>
+            <Link href="/crm/hub" className="btn btn-sm btn-ghost">
+              Campaign map
+            </Link>
+          </>
+        }
+        filters={
+          <>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+                gap: '0.75rem',
+              }}
+            >
           <label className="muted" style={{ display: 'grid', gap: '0.25rem' }}>
             Khoảng ngày
             <select
@@ -323,77 +323,70 @@ export function GoogleGoogleAdsContent() {
             {exportBusy ? 'Đang export…' : 'Tải CSV'}
           </button>
         </div>
-      </div>
-
-      {error ? <p className="error">{error}</p> : null}
-
-      <div
-        className="card"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-          gap: '1rem',
-          marginBottom: '1rem',
-        }}
+          </>
+        }
+        summary={
+          <>
+            <div>
+              <p className="muted" style={{ margin: 0 }}>
+                Spend
+              </p>
+              <strong>{fmtVnd(Number(summary.total_spend ?? 0))}</strong>
+            </div>
+            <div>
+              <p className="muted" style={{ margin: 0 }}>
+                Leads CRM
+              </p>
+              <strong>{String(summary.total_leads ?? 0)}</strong>
+            </div>
+            <div>
+              <p className="muted" style={{ margin: 0 }}>
+                CPL TB
+              </p>
+              <strong>{fmtVnd(summary.avg_cpl as number | null)}</strong>
+            </div>
+            <div>
+              <p className="muted" style={{ margin: 0 }}>
+                Clients
+              </p>
+              <strong>{String(summary.google_clients ?? rows.length)}</strong>
+            </div>
+            <div>
+              <p className="muted" style={{ margin: 0 }}>
+                Chưa map
+              </p>
+              <strong>{String(summary.unmapped_campaigns ?? 0)}</strong>
+            </div>
+            <div>
+              <p className="muted" style={{ margin: 0 }}>
+                Vượt target
+              </p>
+              <strong>{String(summary.over_target_rows ?? 0)}</strong>
+            </div>
+          </>
+        }
       >
-        <div>
-          <p className="muted" style={{ margin: 0 }}>
-            Spend
-          </p>
-          <strong>{fmtVnd(Number(summary.total_spend ?? 0))}</strong>
-        </div>
-        <div>
-          <p className="muted" style={{ margin: 0 }}>
-            Leads CRM
-          </p>
-          <strong>{String(summary.total_leads ?? 0)}</strong>
-        </div>
-        <div>
-          <p className="muted" style={{ margin: 0 }}>
-            CPL TB
-          </p>
-          <strong>{fmtVnd(summary.avg_cpl as number | null)}</strong>
-        </div>
-        <div>
-          <p className="muted" style={{ margin: 0 }}>
-            Clients
-          </p>
-          <strong>{String(summary.google_clients ?? rows.length)}</strong>
-        </div>
-        <div>
-          <p className="muted" style={{ margin: 0 }}>
-            Chưa map
-          </p>
-          <strong>{String(summary.unmapped_campaigns ?? 0)}</strong>
-        </div>
-        <div>
-          <p className="muted" style={{ margin: 0 }}>
-            Vượt target
-          </p>
-          <strong>{String(summary.over_target_rows ?? 0)}</strong>
-        </div>
-      </div>
+        {error ? <p className="error">{error}</p> : null}
 
-      {hub?.alerts?.length ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Alerts</h2>
-          <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
-            {hub.alerts.map((alert) => (
-              <li key={alert.message} style={{ marginBottom: '0.5rem' }}>
-                <span className={alert.severity === 'danger' ? 'error' : 'muted'}>{alert.message}</span>{' '}
-                <Link href={opsWebLink(alert.link)} className="nav-link">
-                  {alert.link_label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+        {hub?.alerts?.length ? (
+          <div className="page-card stack-gap">
+            <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Alerts</h2>
+            <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
+              {hub.alerts.map((alert) => (
+                <li key={alert.message} style={{ marginBottom: '0.5rem' }}>
+                  <span className={alert.severity === 'danger' ? 'error' : 'muted'}>{alert.message}</span>{' '}
+                  <Link href={opsWebLink(alert.link)} className="nav-link">
+                    {alert.link_label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
-      <div className="card" id="clients-table">
-        <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Clients overview</h2>
-        <div style={{ overflowX: 'auto' }}>
-          <table className="perf-table">
+        <div className="data-table-wrap" id="clients-table">
+          <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Clients overview</h2>
+          <table className="data-table">
             <thead>
               <tr>
                 <th>Client</th>
@@ -435,7 +428,7 @@ export function GoogleGoogleAdsContent() {
             </tbody>
           </table>
         </div>
-      </div>
-    </main>
+      </ChannelHubLayout>
+    </StaffPageShell>
   );
 }

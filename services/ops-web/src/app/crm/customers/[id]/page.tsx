@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { DetailPageLayout, StaffPageShell } from '@/components/layout';
 import { CustomerTimelinePanel } from '@/components/crm/CustomerTimelinePanel';
 import {
   createCustomerIssue,
@@ -204,36 +204,39 @@ export default function CrmCustomerDetailPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <StaffPageShell user={null} onLogout={logout} loading>
+        <span />
+      </StaffPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 900, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <p style={{ margin: '0 0 1rem' }}>
-        <Link href="/crm/customers" className="nav-link">
-          ← Danh sách khách hàng
-        </Link>
-      </p>
-
-      <div className="card" style={{ marginBottom: '1rem' }}>
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      width="default"
+      breadcrumb={[
+        { label: 'CRM', href: '/crm/customers' },
+        { label: 'Khách hàng', href: '/crm/customers' },
+        { label: bundle?.customer.name || `#${customerId}` },
+      ]}
+    >
+      <DetailPageLayout
+        backHref="/crm/customers"
+        backLabel="← Danh sách khách hàng"
+        title={bundle ? `#${bundle.customer.id} · ${bundle.customer.name}` : `Khách hàng #${customerId}`}
+        subtitle={
+          bundle
+            ? `${bundle.stats.relations_total} quan hệ · ${bundle.stats.purchases_total} mua hàng · ${bundle.stats.issues_open}/${bundle.stats.issues_total} vấn đề mở`
+            : undefined
+        }
+      >
         {loading ? <p className="muted">Đang tải #{customerId}…</p> : null}
         {error ? <p className="error">{error}</p> : null}
         {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
 
         {bundle && !loading ? (
           <>
-            <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>
-              #{bundle.customer.id} · {bundle.customer.name}
-            </h2>
-            <p className="muted">
-              {bundle.stats.relations_total} quan hệ · {bundle.stats.purchases_total} mua hàng ·{' '}
-              {bundle.stats.issues_open}/{bundle.stats.issues_total} vấn đề mở
-            </p>
-
             <form onSubmit={(e) => void onSave(e)} style={{ display: 'grid', gap: '0.75rem' }}>
               {(
                 [
@@ -284,13 +287,8 @@ export default function CrmCustomerDetailPage() {
                 {saving ? 'Đang lưu…' : 'Lưu hồ sơ'}
               </button>
             </form>
-          </>
-        ) : null}
-      </div>
 
-      {bundle && !loading ? (
-        <>
-          <div className="card" style={{ marginBottom: '1rem' }}>
+          <div className="page-card stack-gap" style={{ marginTop: '0.5rem' }}>
             <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Quan hệ</h3>
             {bundle.relations.length === 0 ? (
               <p className="muted">Chưa có quan hệ.</p>
@@ -340,7 +338,7 @@ export default function CrmCustomerDetailPage() {
             </form>
           </div>
 
-          <div className="card">
+          <div className="page-card stack-gap">
             <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Vấn đề gần đây</h3>
             {bundle.issues.length === 0 ? (
               <p className="muted">Chưa có vấn đề.</p>
@@ -378,16 +376,15 @@ export default function CrmCustomerDetailPage() {
           </div>
 
           {accessToken ? (
-            <div className="card" style={{ marginTop: '1rem' }}>
-              <CustomerTimelinePanel
-                token={accessToken}
-                customerId={customerId}
-                showCompleteness={hasCap(user, 'crm_leads', 'assign')}
-              />
-            </div>
+            <CustomerTimelinePanel
+              token={accessToken}
+              customerId={customerId}
+              showCompleteness={hasCap(user, 'crm_leads', 'assign')}
+            />
           ) : null}
-        </>
-      ) : null}
-    </main>
+          </>
+        ) : null}
+      </DetailPageLayout>
+    </StaffPageShell>
   );
 }

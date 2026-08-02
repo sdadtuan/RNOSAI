@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { HubPageLayout, StaffPageShell } from '@/components/layout';
 import { MetaAdSnapshotPanel } from '@/components/meta/MetaAdSnapshotPanel';
 import { MetaCreativePicker } from '@/components/meta/MetaCreativePicker';
 import { MetaDeepLinkButton } from '@/components/meta/MetaDeepLinkButton';
@@ -14,7 +15,7 @@ import {
   MetaWizardStepper,
 } from '@/components/meta/MetaWizardStepper';
 import { fetchCrmCreatives } from '@/lib/api';
-import { getAccessToken, getStoredUser } from '@/lib/auth';
+import { clearSession, getAccessToken, getStoredUser } from '@/lib/auth';
 import {
   fetchMetaAdsOpsEditSnapshot,
   fetchMetaAdsOpsPreflight,
@@ -30,6 +31,7 @@ import type { MetaAdsOpsEditSnapshot, MetaAdsOpsPreflightItem, MetaAdsOpsTemplat
 type TabMode = 'launch' | 'edit';
 
 export function MetaAdsOpsContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const user = getStoredUser();
   const canView = canViewMetaAdsOps(user);
@@ -207,29 +209,35 @@ export function MetaAdsOpsContent() {
   };
 
   return (
-    <main style={{ padding: '2rem', maxWidth: 1100 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ marginBottom: '0.25rem' }}>Meta Ads Ops</h1>
-          <p className="muted" style={{ marginTop: 0 }}>
-            Launch wizard + Edit creative/copy · governed via campaign-writes approve
-          </p>
-        </div>
-        {clientId ? <MetaDeepLinkButton clientId={clientId} externalAdId={externalAdId || undefined} /> : null}
-      </div>
-
-      <div style={{ display: 'flex', gap: '0.5rem', margin: '1rem 0' }}>
-        <button type="button" className={`btn ${tab === 'launch' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('launch')}>
-          Launch
-        </button>
-        <button type="button" className={`btn ${tab === 'edit' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('edit')}>
-          Edit
-        </button>
-        <Link href="/crm/campaign-writes" className="btn btn-secondary">
-          Campaign writes
-        </Link>
-      </div>
-
+    <StaffPageShell
+      user={user}
+      onLogout={() => {
+        clearSession();
+        router.replace('/login');
+      }}
+      breadcrumb={[
+        { label: 'Meta', href: '/meta/facebook-ads' },
+        { label: 'Ads Ops' },
+      ]}
+    >
+      <HubPageLayout
+        title="Meta Ads Ops"
+        subtitle="Launch wizard + Edit creative/copy · governed via campaign-writes approve"
+        actions={
+          <>
+            {clientId ? <MetaDeepLinkButton clientId={clientId} externalAdId={externalAdId || undefined} /> : null}
+            <Link href="/crm/campaign-writes" className="btn btn-sm btn-ghost">
+              Campaign writes
+            </Link>
+          </>
+        }
+        tabs={[
+          { id: 'launch' as TabMode, label: 'Launch' },
+          { id: 'edit' as TabMode, label: 'Edit' },
+        ]}
+        tab={tab}
+        onTabChange={setTab}
+      >
       {error ? <p className="error">{error}</p> : null}
       {success ? <p style={{ color: 'var(--ok, green)' }}>{success}</p> : null}
 
@@ -432,6 +440,7 @@ export function MetaAdsOpsContent() {
           </div>
         </>
       )}
-    </main>
+      </HubPageLayout>
+    </StaffPageShell>
   );
 }

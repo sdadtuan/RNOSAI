@@ -6,7 +6,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { ClientOnboardingWidget } from '@/components/ClientOnboardingWidget';
 import { ClientOnboardWizard } from '@/components/ClientOnboardWizard';
 import { ClientPortalUsersPanel } from '@/components/ClientPortalUsersPanel';
-import { OpsNav } from '@/components/OpsNav';
+import { DetailPageLayout, StaffPageShell } from '@/components/layout';
 import { AgencyReadOnlyBadge, canAgencyConfigure, canAgencyWrite } from '@/components/AgencyReadOnlyBadge';
 import { HubCampaignMapsPanel } from '@/components/HubCampaignMapsPanel';
 import { IndustrySelect, industryLabel } from '@/components/agency/IndustrySelect';
@@ -671,9 +671,9 @@ export function AgencyClientDetailContent() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <StaffPageShell user={null} onLogout={logout} loading>
+        <span />
+      </StaffPageShell>
     );
   }
 
@@ -683,26 +683,29 @@ export function AgencyClientDetailContent() {
     : '0/0';
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <p style={{ margin: '0 0 1rem' }}>
-        <Link href="/agency" className="nav-link">
-          ← Agency
-        </Link>
-      </p>
-
-      <div className="card">
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      breadcrumb={[
+        { label: 'Agency', href: '/agency' },
+        { label: client?.code || 'Client', href: client ? `/agency/clients/${client.id}` : '/agency' },
+        { label: 'Chi tiết' },
+      ]}
+    >
+      <DetailPageLayout
+        backHref="/agency"
+        backLabel="← Agency"
+        title={client ? `${client.code} · ${client.name}` : 'Client'}
+        subtitle={client ? `${client.status}${client.tenant_locked ? ' · locked' : ''}` : undefined}
+        actions={<AgencyReadOnlyBadge user={user} />}
+      >
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
         {actionMsg ? <p className="muted">{actionMsg}</p> : null}
 
         {client && !loading ? (
           <>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
-              <h2 style={{ margin: 0, flex: '1 1 auto' }}>
-                {client.code} · {client.name}
-              </h2>
-              <AgencyReadOnlyBadge user={user} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', marginBottom: '0.5rem' }}>
               <span className={`agency-status-badge ${statusBadgeClass(client.status)}`}>{client.status}</span>
               {tenantLocked ? (
                 <span className="agency-status-badge badge-paused" title="Tenant locked — mutations blocked">
@@ -1415,7 +1418,7 @@ export function AgencyClientDetailContent() {
             ) : null}
           </>
         ) : null}
-      </div>
-    </main>
+      </DetailPageLayout>
+    </StaffPageShell>
   );
 }

@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
 import { AgencyReadOnlyBadge, canAgencyWrite } from '@/components/AgencyReadOnlyBadge';
 import { HubCampaignMapsPanel } from '@/components/HubCampaignMapsPanel';
 import { ContractApprovalsPanel } from '@/components/ContractApprovalsPanel';
+import { HubPageLayout, StaffPageShell } from '@/components/layout';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -79,40 +79,33 @@ export function CrmHubContent() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <StaffPageShell user={null} onLogout={logout} loading>
+        <span />
+      </StaffPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', marginBottom: '0.5rem' }}>
-          <h2 style={{ margin: 0, flex: '1 1 auto', fontSize: '1.25rem' }}>Hub · Agency</h2>
-          <AgencyReadOnlyBadge user={user} />
-        </div>
-
-        <div className="agency-tabs" role="tablist" style={{ marginBottom: '1rem' }}>
-          <button
-            type="button"
-            role="tab"
-            className={`agency-tab${hubTab === 'campaigns' ? ' is-active' : ''}`}
-            onClick={() => setHubTab('campaigns')}
-          >
-            Campaign map
-          </button>
-          <button
-            type="button"
-            role="tab"
-            className={`agency-tab${hubTab === 'contracts' ? ' is-active' : ''}`}
-            onClick={() => setHubTab('contracts')}
-          >
-            HĐ chờ duyệt
-          </button>
-        </div>
-
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      breadcrumb={[
+        { label: 'CRM', href: '/crm' },
+        { label: 'Hub', href: '/crm/hub' },
+        { label: 'Agency map' },
+      ]}
+    >
+      <HubPageLayout
+        title="Hub · Agency"
+        subtitle="Campaign map và hợp đồng chờ duyệt"
+        headerExtra={<AgencyReadOnlyBadge user={user} />}
+        tabs={[
+          { id: 'campaigns' as HubTab, label: 'Campaign map' },
+          { id: 'contracts' as HubTab, label: 'HĐ chờ duyệt' },
+        ]}
+        tab={hubTab}
+        onTabChange={setHubTab}
+      >
         {clientFilter ? (
           <p className="muted" style={{ marginTop: 0 }}>
             Lọc client:{' '}
@@ -151,7 +144,7 @@ export function CrmHubContent() {
             onError={setError}
           />
         ) : null}
-      </div>
-    </main>
+      </HubPageLayout>
+    </StaffPageShell>
   );
 }

@@ -6037,3 +6037,62 @@ html.ops-shell-collapsed .ops-nav-group-links {
 .ops-sidebar-toggle--topbar {
   display: none;
 }
+
+.detail-page-back {
+  margin: 0 0 0.65rem;
+}
+
+.detail-page-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.detail-page-grid--split {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+}
+
+@media (max-width: 960px) {
+  .detail-page-grid--split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.detail-page-main,
+.detail-page-aside {
+  min-width: 0;
+}
+
+.channel-hub-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.channel-hub-summary .agency-stat-card,
+.channel-hub-summary .summary-card {
+  flex: 1 1 140px;
+}
+
+.hub-module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.hub-module-grid .summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.hub-module-grid .summary-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(57, 139, 67, 0.08);
+}

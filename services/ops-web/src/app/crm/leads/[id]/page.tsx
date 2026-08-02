@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { PageToolbar, StaffPageShell } from '@/components/layout';
 import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
 import { LeadB2bSalesFlowBar, type LeadContractFlowSummary } from '@/components/LeadB2bSalesFlowBar';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
@@ -426,13 +426,26 @@ export default function CrmLeadDetailPage() {
   } as const;
 
   return (
-    <main className={`lead-detail-page${showCopilotSheet ? ' lead-detail-page--copilot-sheet' : ''}`}>
-      <OpsNav user={user} onLogout={logout} />
-      <p className="lead-detail-header">
-        <Link href="/crm/leads" className="nav-link">
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      breadcrumb={[
+        { label: 'CRM', href: '/crm/leads' },
+        { label: 'Leads', href: '/crm/leads' },
+        { label: lead?.full_name || `#${leadId}` },
+      ]}
+    >
+      <p className="detail-page-back">
+        <Link href="/crm/leads" className="btn btn-sm btn-ghost">
           ← Danh sách leads
         </Link>
       </p>
+      <PageToolbar
+        title={lead?.full_name || `Lead #${leadId}`}
+        subtitle={lead?.phone ? `${lead.phone} · ${lead.status ?? '—'}` : undefined}
+      />
+
+      <div className={`lead-detail-page${showCopilotSheet ? ' lead-detail-page--copilot-sheet' : ''}`}>
 
       {layout.mobile && copilotOn ? (
         <div className="lead-detail-tabs" role="tablist" aria-label="Lead detail sections">
@@ -752,7 +765,8 @@ export default function CrmLeadDetailPage() {
           AI Copilot
         </button>
       ) : null}
-    </main>
+      </div>
+    </StaffPageShell>
   );
 }
 

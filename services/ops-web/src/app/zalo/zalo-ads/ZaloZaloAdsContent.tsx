@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ZaloPilotBanner } from '@/components/ZaloPilotBanner';
 import { AnomalyDigestBanner } from '@/components/ai/AnomalyDigestBanner';
 import { ChannelReportSchedulesPanel } from '@/components/ChannelReportSchedulesPanel';
-import { OpsNav } from '@/components/OpsNav';
+import { PageToolbar, StaffPageShell } from '@/components/layout';
 import {
   downloadZaloHubExport,
   fetchAgencyClients,
@@ -199,9 +199,14 @@ export function ZaloZaloAdsContent() {
   const rows = hub?.clients ?? [];
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      breadcrumb={[
+        { label: 'Zalo', href: '/zalo/zalo-ads' },
+        { label: 'Ads Hub' },
+      ]}
+    >
       {hub?.pilot ? <ZaloPilotBanner pilot={hub.pilot} /> : null}
 
       {getAccessToken() ? (
@@ -212,39 +217,27 @@ export function ZaloZaloAdsContent() {
         />
       ) : null}
 
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <h1 style={{ marginTop: 0, fontSize: '1.25rem' }}>Zalo Ads Hub</h1>
-        <p className="muted" style={{ marginTop: 0 }}>
-          Closed-loop spend + CPL (Zalo) · kỳ {hub?.date_from ?? '—'} → {hub?.date_to ?? '—'}
-          {hub?.window_days ? ` (${hub.window_days} ngày)` : ''}
-        </p>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <Link href="/meta/ads-combined" className="btn btn-sm btn-secondary">
-            Ads CPL (combined)
-          </Link>
-          <Link href="/meta/facebook-ads" className="btn btn-sm btn-secondary">
-            Meta Ads hub
-          </Link>
-          <Link href="/google/google-ads" className="btn btn-sm btn-secondary">
-            Google Ads hub
-          </Link>
-          <Link href="/zalo/leads" className="btn btn-sm btn-secondary">
-            Zalo Leads
-          </Link>
-          <Link href="/crm/hub" className="btn btn-sm btn-secondary">
-            Hub campaign map
-          </Link>
-          <Link href="/agency/clients" className="btn btn-sm btn-secondary">
-            Agency clients
-          </Link>
-        </div>
+      <PageToolbar
+        title="Zalo Ads Hub"
+        subtitle={`Closed-loop spend + CPL · kỳ ${hub?.date_from ?? '—'} → ${hub?.date_to ?? '—'}${hub?.window_days ? ` (${hub.window_days} ngày)` : ''}`}
+        actions={
+          <>
+            <Link href="/meta/ads-combined" className="btn btn-sm btn-ghost">
+              Ads CPL combined
+            </Link>
+            <Link href="/zalo/leads" className="btn btn-sm btn-ghost">
+              Zalo Leads
+            </Link>
+          </>
+        }
+      />
 
+      <div className="page-card stack-gap">
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
             gap: '0.75rem',
-            marginBottom: '1rem',
           }}
         >
           <label className="muted" style={{ display: 'grid', gap: '0.25rem' }}>
@@ -350,19 +343,8 @@ export function ZaloZaloAdsContent() {
             {exportBusy ? 'Đang export…' : exportFormat === 'pdf' ? 'Tải PDF' : 'Tải CSV'}
           </button>
         </div>
-      </div>
 
-      {error ? <p className="error">{error}</p> : null}
-
-      <div
-        className="card"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-          gap: '1rem',
-          marginBottom: '1rem',
-        }}
-      >
+        <div className="channel-hub-summary">
         <div>
           <p className="muted" style={{ margin: 0 }}>
             Spend
@@ -411,11 +393,13 @@ export function ZaloZaloAdsContent() {
           </p>
           <strong>{String(summary.over_target_rows ?? 0)}</strong>
         </div>
-      </div>
+        </div>
 
-      {hub?.alerts?.length ? (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Alerts</h2>
+        {error ? <p className="error">{error}</p> : null}
+
+        {hub?.alerts?.length ? (
+          <div className="stack-gap">
+            <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Alerts</h2>
           <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
             {hub.alerts.map((alert) => (
               <li key={alert.message} style={{ marginBottom: '0.5rem' }}>
@@ -426,13 +410,12 @@ export function ZaloZaloAdsContent() {
               </li>
             ))}
           </ul>
-        </div>
-      ) : null}
+          </div>
+        ) : null}
 
-      <div className="card" id="clients-table">
-        <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Clients overview</h2>
-        <div style={{ overflowX: 'auto' }}>
-          <table className="perf-table">
+        <div className="data-table-wrap" id="clients-table">
+          <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Clients overview</h2>
+          <table className="data-table">
             <thead>
               <tr>
                 <th>Client</th>
@@ -478,11 +461,11 @@ export function ZaloZaloAdsContent() {
             </tbody>
           </table>
         </div>
-      </div>
 
-      {user && clientId ? (
-        <ChannelReportSchedulesPanel channel="zalo" token={getAccessToken() ?? ''} clientId={clientId} />
-      ) : null}
-    </main>
+        {user && clientId ? (
+          <ChannelReportSchedulesPanel channel="zalo" token={getAccessToken() ?? ''} clientId={clientId} />
+        ) : null}
+      </div>
+    </StaffPageShell>
   );
 }

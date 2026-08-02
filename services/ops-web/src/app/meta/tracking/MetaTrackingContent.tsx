@@ -136,16 +136,10 @@ export function MetaTrackingContent() {
   }
 
   return (
-    <MetaPageShell user={user} onLogout={logout}>
-      <div className="card meta-tracking-header">
-        <div>
-          <h1 style={{ margin: 0, fontSize: '1.25rem' }}>Meta Tracking</h1>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            CAPI health · conversion rules · event log · Launch preflight
-          </p>
-        </div>
+    <MetaPageShell user={user} onLogout={logout} title="Meta Tracking" subtitle="CAPI health · conversion rules · event log · Launch preflight">
+      <div className="page-card stack-gap meta-tracking-header">
         <div className="meta-tracking-header-actions">
-          <Link href="/meta/facebook-ads" className="btn btn-sm btn-secondary">
+          <Link href="/meta/facebook-ads" className="btn btn-sm btn-ghost">
             Meta Ads hub
           </Link>
           <label className="muted meta-tracking-filter">

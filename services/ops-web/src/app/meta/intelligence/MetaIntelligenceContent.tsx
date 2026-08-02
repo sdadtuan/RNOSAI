@@ -142,13 +142,10 @@ export function MetaIntelligenceContent() {
         clearSession();
         router.replace('/login');
       }}
+      title="Meta Intelligence"
+      subtitle="ROAS, anomaly, forecast, multi-pixel, budget recommendations (read-only)"
       headerExtra={headerLinks}
     >
-      <h1 style={{ marginTop: 0 }}>Meta Intelligence</h1>
-      <p className="muted" style={{ marginTop: 0 }}>
-        ROAS, anomaly median/z-score, forecast, multi-pixel, budget recommendations (read-only).
-      </p>
-
       <div className="meta-intelligence-filters">
         <label>
           Client

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { PageToolbar, StaffPageShell } from '@/components/layout';
 import {
   bulkAssignCskhLeads,
   bulkRescheduleCskhLeads,
@@ -333,23 +333,35 @@ export function CskhBoardContent() {
   );
 
   return (
-    <main className="page-shell cskh-board-page">
-      <OpsNav user={user} onLogout={() => { clearSession(); router.replace('/login'); }} />
-      <div className="page-content">
-        <header className="page-header">
-          <div>
-            <h1>Bảng CSKH — SLA first call</h1>
-            <p className="muted">Lead Mới → log call đầu tiên trong 15 phút (CRM-UC-008)</p>
-          </div>
-          <div className="row gap-sm">
-            <Link href="/crm/leads" className="btn btn-secondary">
+    <StaffPageShell
+      user={user}
+      onLogout={() => {
+        clearSession();
+        router.replace('/login');
+      }}
+      loading={!user}
+      breadcrumb={[
+        { label: 'CRM', href: '/crm/leads' },
+        { label: 'CSKH', href: '/crm/cskh-board' },
+        { label: 'Bảng SLA' },
+      ]}
+    >
+      <PageToolbar
+        title="Bảng CSKH — SLA first call"
+        subtitle="Lead Mới → log call đầu tiên trong 15 phút (CRM-UC-008)"
+        actions={
+          <>
+            <Link href="/crm/leads" className="btn btn-sm btn-ghost">
               Quản lý Lead
             </Link>
-            <button type="button" className="btn btn-secondary" onClick={() => exportCsv()}>
+            <button type="button" className="btn btn-sm btn-secondary" onClick={() => exportCsv()}>
               Export CSV
             </button>
-          </div>
-        </header>
+          </>
+        }
+      />
+
+      <div className="page-card stack-gap cskh-board-page">
 
         <div className="cskh-board-summary-chips" aria-label="Tóm tắt SLA">
           <button
@@ -528,6 +540,6 @@ export function CskhBoardContent() {
           </button>
         </div>
       </div>
-    </main>
+    </StaffPageShell>
   );
 }

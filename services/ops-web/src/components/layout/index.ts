@@ -1,7 +1,11 @@
 export { BulkActionBar } from './BulkActionBar';
 export { Breadcrumb, type BreadcrumbItem } from './Breadcrumb';
+export { ChannelHubLayout } from './ChannelHubLayout';
+export { DetailPageLayout } from './DetailPageLayout';
 export { FilterBar, FilterBarActions, FilterBarSearch } from './FilterBar';
+export { HubPageLayout } from './HubPageLayout';
 export { OpsPage } from './OpsPage';
 export { PageFooter } from './PageFooter';
 export { PageToolbar } from './PageToolbar';
 export { SegmentedControl } from './SegmentedControl';
+export { StaffPageShell } from './StaffPageShell';

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { HubPageLayout, StaffPageShell } from '@/components/layout';
 import {
   createProposal,
   deleteProposal,
@@ -167,33 +167,33 @@ export function ProposalsContent() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <StaffPageShell user={null} onLogout={logout} loading>
+        <span />
+      </StaffPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>Đề xuất dịch vụ</h2>
-        <div style={{ marginBottom: '1rem' }}>
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      width="default"
+      breadcrumb={[
+        { label: 'CRM', href: '/crm' },
+        { label: 'Bán hàng', href: '/crm/proposals' },
+        { label: 'Đề xuất' },
+      ]}
+    >
+      <HubPageLayout title="Đề xuất dịch vụ" subtitle={`${proposals.length} đề xuất`}>
+        <div style={{ marginBottom: '0.25rem' }}>
           <label className="muted" style={{ display: 'block', marginBottom: '0.35rem' }}>
             Khách hàng
           </label>
           <select
+            className="kpi-select"
             value={customerId}
             onChange={(e) => setCustomerId(e.target.value)}
-            style={{
-              width: '100%',
-              maxWidth: 420,
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.55rem 0.75rem',
-              color: 'var(--text)',
-            }}
+            style={{ width: '100%', maxWidth: 420 }}
           >
             {customers.map((c) => (
               <option key={c.id} value={String(c.id)}>
@@ -226,38 +226,26 @@ export function ProposalsContent() {
         {hasCap(user, 'crm_board', 'edit') ? (
           <form onSubmit={(e) => void onCreate(e)} style={{ display: 'grid', gap: '0.5rem', maxWidth: 520 }}>
             <input
+              className="kpi-input"
               value={serviceSlugs}
               onChange={(e) => setServiceSlugs(e.target.value)}
               placeholder="service slugs (vd: seo, ads)"
               disabled={saving}
-              style={{
-                background: 'var(--bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                padding: '0.55rem 0.75rem',
-                color: 'var(--text)',
-              }}
             />
             <textarea
+              className="kpi-input"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Ghi chú"
               rows={2}
               disabled={saving}
-              style={{
-                background: 'var(--bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                padding: '0.55rem 0.75rem',
-                color: 'var(--text)',
-              }}
             />
             <button type="submit" className="btn btn-secondary btn-sm" disabled={saving || !serviceSlugs.trim()}>
               + Đề xuất
             </button>
           </form>
         ) : null}
-      </div>
-    </main>
+      </HubPageLayout>
+    </StaffPageShell>
   );
 }

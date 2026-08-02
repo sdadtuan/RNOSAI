@@ -39,6 +39,8 @@ export function MetaFacebookAdsContent() {
       user={hub.user}
       onLogout={hub.logout}
       migration={hub.migration}
+      title="Meta Ads Hub"
+      subtitle={`Closed-loop spend + CPL · kỳ ${hub.hub?.date_from ?? '—'} → ${hub.hub?.date_to ?? '—'}`}
       headerExtra={<MetaSyncStatusChip clientId={hub.clientId || undefined} />}
     >
       <MetaHubFilters

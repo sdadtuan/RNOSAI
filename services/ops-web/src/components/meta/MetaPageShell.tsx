@@ -2,16 +2,19 @@
 
 import type { ReactNode } from 'react';
 import { MetaMigrationPanel } from '@/components/MetaMigrationPanel';
-import { OpsNav } from '@/components/OpsNav';
 import type { FacebookAdsMigrationStatus } from '@/lib/api';
 import type { StoredStaffUser } from '@/lib/auth';
+import { PageToolbar, StaffPageShell, type BreadcrumbItem } from '@/components/layout';
 
 interface MetaPageShellProps {
   user: StoredStaffUser;
   onLogout: () => void;
   migration?: FacebookAdsMigrationStatus | null;
+  breadcrumb?: BreadcrumbItem[];
+  title?: string;
+  subtitle?: string;
   headerExtra?: ReactNode;
-  maxWidth?: number;
+  actions?: ReactNode;
   children: ReactNode;
 }
 
@@ -19,20 +22,35 @@ export function MetaPageShell({
   user,
   onLogout,
   migration,
+  breadcrumb,
+  title,
+  subtitle,
   headerExtra,
-  maxWidth = 1200,
+  actions,
   children,
 }: MetaPageShellProps) {
+  const toolbarActions = actions ?? headerExtra;
+
   return (
-    <main style={{ maxWidth, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={onLogout} />
+    <StaffPageShell
+      user={user}
+      onLogout={onLogout}
+      breadcrumb={
+        breadcrumb ?? [
+          { label: 'Quảng cáo', href: '/meta/facebook-ads' },
+          { label: title ?? 'Meta' },
+        ]
+      }
+    >
       {migration ? <MetaMigrationPanel status={migration} variant="compact" /> : null}
-      {headerExtra ? (
+      {title ? (
+        <PageToolbar title={title} subtitle={subtitle} actions={toolbarActions} />
+      ) : toolbarActions ? (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
-          {headerExtra}
+          {toolbarActions}
         </div>
       ) : null}
       {children}
-    </main>
+    </StaffPageShell>
   );
 }

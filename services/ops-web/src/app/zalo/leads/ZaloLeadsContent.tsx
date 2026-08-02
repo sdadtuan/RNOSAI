@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { HubPageLayout, StaffPageShell } from '@/components/layout';
 import {
   fetchAgencyClients,
   fetchZaloForms,
@@ -135,39 +135,48 @@ export function ZaloLeadsContent() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <StaffPageShell user={null} onLogout={() => { clearSession(); router.push('/login'); }} loading>
+        <span />
+      </StaffPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.push('/login'); }} />
-      <h1 style={{ fontSize: '1.25rem' }}>Zalo Leads Monitor</h1>
-      <p className="muted">Form poll + CRM leads · Wave Z2</p>
-      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-        <Link href="/zalo/zalo-ads" className="btn btn-sm btn-secondary">
-          Zalo Ads hub
-        </Link>
-        <Link href="/meta/ads-combined" className="btn btn-sm btn-secondary">
-          Ads CPL combined
-        </Link>
-      </div>
+    <StaffPageShell
+      user={user}
+      onLogout={() => {
+        clearSession();
+        router.push('/login');
+      }}
+      breadcrumb={[
+        { label: 'Zalo', href: '/zalo/zalo-ads' },
+        { label: 'Leads Monitor' },
+      ]}
+    >
+      <HubPageLayout
+        title="Zalo Leads Monitor"
+        subtitle="Form poll + CRM leads · Wave Z2"
+        actions={
+          <>
+            <Link href="/zalo/zalo-ads" className="btn btn-sm btn-ghost">
+              Zalo Ads hub
+            </Link>
+            <Link href="/meta/ads-combined" className="btn btn-sm btn-ghost">
+              Ads CPL combined
+            </Link>
+          </>
+        }
+        tabs={[
+          { id: 'leads' as const, label: 'Leads', badge: total },
+          { id: 'forms' as const, label: 'Form sync', badge: forms.length },
+        ]}
+        tab={tab}
+        onTabChange={setTab}
+      >
       {error ? <p className="error">{error}</p> : null}
       {msg ? <p className="muted">{msg}</p> : null}
 
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-        <button type="button" className={`btn btn-sm ${tab === 'leads' ? '' : 'btn-secondary'}`} onClick={() => setTab('leads')}>
-          Leads ({total})
-        </button>
-        <button type="button" className={`btn btn-sm ${tab === 'forms' ? '' : 'btn-secondary'}`} onClick={() => setTab('forms')}>
-          Form sync ({forms.length})
-        </button>
-      </div>
-
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem' }}>
           <label className="muted" style={{ display: 'grid', gap: '0.25rem' }}>
             Client
             <select value={clientId} onChange={(e) => setClientId(e.target.value)} style={{ padding: '0.4rem' }}>
@@ -194,11 +203,11 @@ export function ZaloLeadsContent() {
         </div>
         <button type="button" className="btn btn-sm" disabled={loading} style={{ marginTop: '0.75rem' }} onClick={() => void loadData()}>
           {loading ? 'Đang tải…' : 'Áp dụng / Làm mới'}
-        </button>
-      </div>
+      </button>
 
       {tab === 'leads' ? (
-        <table className="perf-table">
+        <div className="data-table-wrap">
+        <table className="data-table">
           <thead>
             <tr>
               <th>ID</th>
@@ -231,8 +240,10 @@ export function ZaloLeadsContent() {
             ) : null}
           </tbody>
         </table>
+        </div>
       ) : (
-        <table className="perf-table">
+        <div className="data-table-wrap">
+        <table className="data-table">
           <thead>
             <tr>
               <th>Client</th>
@@ -284,7 +295,9 @@ export function ZaloLeadsContent() {
             ) : null}
           </tbody>
         </table>
+        </div>
       )}
-    </main>
+      </HubPageLayout>
+    </StaffPageShell>
   );
 }

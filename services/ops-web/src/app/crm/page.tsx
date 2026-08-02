@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { HubPageLayout, StaffPageShell } from '@/components/layout';
 import { fetchCrmBoard, staffMe, staffRefresh, type CrmBoardModuleCard } from '@/lib/api';
 import {
   clearSession,
@@ -83,36 +83,31 @@ export default function CrmBoardPage() {
     router.push('/login');
   }
 
-  if (!user) {
-    return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
-    );
-  }
-
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>CRM Board</h2>
-        <p className="muted" style={{ marginBottom: '1rem' }}>
-          Hub điều hướng module CRM theo quyền của bạn (Wave 7 — thay Flask /crm).
-        </p>
-        {error ? <p className="error-text">{error}</p> : null}
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      breadcrumb={[{ label: 'CRM', href: '/crm' }, { label: 'Board' }]}
+    >
+      <HubPageLayout
+        title="CRM Board"
+        subtitle="Hub điều hướng module CRM theo quyền của bạn"
+      >
+        {error ? <p className="error">{error}</p> : null}
         {loading ? <p className="muted">Đang tải module…</p> : null}
         {!loading && modules.length === 0 && !error ? (
           <p className="muted">Chưa có module nào khả dụng với quyền hiện tại.</p>
         ) : null}
-        <div className="summary-grid">
+        <div className="hub-module-grid">
           {modules.map((mod) => (
-            <Link key={mod.id} href={mod.href} className="summary-card" style={{ textDecoration: 'none' }}>
+            <Link key={mod.id} href={mod.href} className="summary-card">
               <span className="muted">{mod.description}</span>
               <strong>{mod.label}</strong>
             </Link>
           ))}
         </div>
-      </div>
-    </main>
+      </HubPageLayout>
+    </StaffPageShell>
   );
 }

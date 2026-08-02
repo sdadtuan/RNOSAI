@@ -3,7 +3,13 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import {
+  FilterBar,
+  FilterBarActions,
+  FilterBarSearch,
+  HubPageLayout,
+  StaffPageShell,
+} from '@/components/layout';
 import { AgencyReadOnlyBadge, canAgencyWrite } from '@/components/AgencyReadOnlyBadge';
 import {
   fetchAgencyClients,
@@ -102,12 +108,14 @@ export default function AgencyPage() {
     router.push('/login');
   }
 
-  if (!user) {
-    return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
-    );
+  function onFilterSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (token) {
+      void fetchAgencyClients(token, {
+        q: q.trim() || undefined,
+        status: statusFilter || undefined,
+      }).then((r) => setClients(r.clients));
+    }
   }
 
   const clientTotal = Object.values(stats?.clients ?? {}).reduce((a, b) => a + b, 0);
@@ -116,11 +124,16 @@ export default function AgencyPage() {
   const onboardingCount = stats?.clients?.onboarding ?? 0;
   const activeCount = stats?.clients?.active ?? 0;
   const archivedCount = stats?.clients?.archived ?? 0;
-  const canWrite = canAgencyWrite(user);
+  const canWrite = user ? canAgencyWrite(user) : false;
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} agencyUnread={unread} />
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      loading={!user}
+      agencyUnread={unread}
+      breadcrumb={[{ label: 'Agency', href: '/agency' }, { label: 'Clients' }]}
+    >
       {deadJobs > 0 ? (
         <div className="agency-dlq-banner" role="alert">
           <strong>DLQ:</strong> {deadJobs} job dead —{' '}
@@ -130,14 +143,33 @@ export default function AgencyPage() {
         </div>
       ) : null}
 
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', marginBottom: '0.5rem' }}>
-          <p className="muted" style={{ margin: 0, flex: '1 1 auto' }}>
-            Agency ops · PG primary · Nest API
-          </p>
-          <AgencyReadOnlyBadge user={user} />
-        </div>
-        <div className="agency-stat-grid">
+      <HubPageLayout
+        title="Agency ops"
+        subtitle="PG primary · Nest API"
+        headerExtra={<AgencyReadOnlyBadge user={user} />}
+        actions={
+          <>
+            {canWrite ? (
+              <Link href="/agency/clients/new" className="btn btn-sm">
+                + Client
+              </Link>
+            ) : null}
+            <Link href="/agency/ingest" className="btn btn-secondary btn-sm">
+              Ingest
+            </Link>
+            <Link href="/agency/notifications" className="btn btn-secondary btn-sm">
+              Thông báo{unread > 0 ? ` (${unread})` : ''}
+            </Link>
+            <Link href="/agency/kpi-definitions" className="btn btn-secondary btn-sm">
+              KPI definitions
+            </Link>
+            <Link href="/crm/hub" className="btn btn-secondary btn-sm">
+              Hub map
+            </Link>
+          </>
+        }
+      >
+        <div className="agency-stat-grid channel-hub-summary">
           <div className="agency-stat-card">
             <strong>{stats?.pg_ready ? clientTotal : '—'}</strong>
             <span className="muted">Clients</span>
@@ -159,64 +191,14 @@ export default function AgencyPage() {
             <span className="muted">Archived</span>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '1rem' }}>
-          {canWrite ? (
-            <Link href="/agency/clients/new" className="btn btn-sm">
-              + Client
-            </Link>
-          ) : null}
-          <Link href="/agency/ingest" className="btn btn-secondary btn-sm">
-            Ingest
-          </Link>
-          <Link href="/agency/notifications" className="btn btn-secondary btn-sm">
-            Thông báo{unread > 0 ? ` (${unread})` : ''}
-          </Link>
-          <Link href="/agency/kpi-definitions" className="btn btn-secondary btn-sm">
-            KPI definitions
-          </Link>
-          <Link href="/crm/hub" className="btn btn-secondary btn-sm">
-            Hub map
-          </Link>
-        </div>
-      </div>
 
-      <div className="card">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (token) {
-              void fetchAgencyClients(token, {
-                q: q.trim() || undefined,
-                status: statusFilter || undefined,
-              }).then((r) => setClients(r.clients));
-            }
-          }}
-          style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}
-        >
-          <input
-            type="search"
-            placeholder="Tìm code, tên client…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            style={{
-              flex: '1 1 220px',
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.55rem 0.75rem',
-              color: 'var(--text)',
-            }}
-          />
+        <FilterBar onSubmit={onFilterSubmit}>
+          <FilterBarSearch value={q} onChange={setQ} placeholder="Tìm code, tên client…" />
           <select
+            className="kpi-select"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            style={{
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.55rem 0.75rem',
-              color: 'var(--text)',
-            }}
+            aria-label="Lọc trạng thái"
           >
             <option value="">Tất cả trạng thái</option>
             <option value="active">active</option>
@@ -225,15 +207,17 @@ export default function AgencyPage() {
             <option value="paused">paused</option>
             <option value="archived">archived</option>
           </select>
-          <button type="submit" className="btn btn-sm" disabled={loading}>
-            Lọc
-          </button>
-        </form>
+          <FilterBarActions>
+            <button type="submit" className="btn btn-sm btn-secondary" disabled={loading}>
+              Lọc
+            </button>
+          </FilterBarActions>
+        </FilterBar>
 
         {error ? <p className="error">{error}</p> : null}
 
-        <div style={{ overflowX: 'auto' }}>
-          <table className="perf-table">
+        <div className="data-table-wrap">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>Code</th>
@@ -282,7 +266,7 @@ export default function AgencyPage() {
             </tbody>
           </table>
         </div>
-      </div>
-    </main>
+      </HubPageLayout>
+    </StaffPageShell>
   );
 }
