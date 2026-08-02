@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
 import { AgencyReadOnlyBadge, canAgencyWrite } from '@/components/AgencyReadOnlyBadge';
 import { IndustrySelect } from '@/components/agency/IndustrySelect';
+import { OwnerAmSelect } from '@/components/agency/OwnerAmSelect';
 import { createAgencyClient, staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -25,6 +26,7 @@ export default function NewClientPage() {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [industrySlug, setIndustrySlug] = useState('');
+  const [ownerAmId, setOwnerAmId] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -61,6 +63,12 @@ export default function NewClientPage() {
       });
   }, [router]);
 
+  useEffect(() => {
+    if (user?.email && !ownerAmId) {
+      setOwnerAmId(user.email);
+    }
+  }, [user?.email, ownerAmId]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const access = getAccessToken();
@@ -72,6 +80,7 @@ export default function NewClientPage() {
         code: code.trim().toUpperCase(),
         name: name.trim(),
         industry_slug: industrySlug || undefined,
+        owner_am_id: ownerAmId.trim() || user.email || undefined,
       });
       router.push(`/agency/clients/${client.id}`);
     } catch (err) {
@@ -132,6 +141,17 @@ export default function NewClientPage() {
                 value={industrySlug}
                 onChange={setIndustrySlug}
                 required
+                disabled={!canWrite}
+              />
+            ) : null}
+          </label>
+          <label style={{ display: 'grid', gap: '0.35rem' }}>
+            <span className="muted">Owner AM</span>
+            {token ? (
+              <OwnerAmSelect
+                token={token}
+                value={ownerAmId}
+                onChange={setOwnerAmId}
                 disabled={!canWrite}
               />
             ) : null}

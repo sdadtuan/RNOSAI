@@ -5,6 +5,8 @@ import { verifyPortalPassword } from '../portal/portal-password.util';
 import {
   StaffLoginResult,
   StaffMeResponse,
+  StaffRosterResponse,
+  StaffRosterRow,
   StaffSectionCap,
   StaffUserProfile,
 } from './staff-auth.types';
@@ -164,6 +166,49 @@ export class StaffAuthService {
       position_id: accessPayload.position_id,
       caps,
     };
+  }
+
+  async listActiveStaff(): Promise<StaffRosterResponse> {
+    const staff: StaffRosterRow[] = [];
+    if (this.config.staffAllowStubUsers) {
+      for (const stub of this.config.staffStubUsers) {
+        staff.push({
+          id: stub.staffId,
+          email: stub.email,
+          display_name: stub.displayName || stub.email,
+          position_id: stub.positionId,
+        });
+      }
+    }
+    try {
+      const result = await this.db.query(
+        `SELECT id::text, email, display_name, position_id
+         FROM staff_users
+         WHERE active IS TRUE
+         ORDER BY display_name, email`,
+      );
+      for (const row of result.rows) {
+        staff.push({
+          id: String(row.id),
+          email: String(row.email),
+          display_name: String(row.display_name || row.email),
+          position_id: Number(row.position_id),
+        });
+      }
+    } catch {
+      /* staff_users may not exist on fresh dev */
+    }
+    const seen = new Set<string>();
+    const deduped = staff.filter((row) => {
+      const key = row.email.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    deduped.sort((a, b) =>
+      (a.display_name || a.email).localeCompare(b.display_name || b.email, 'vi'),
+    );
+    return { staff: deduped };
   }
 
   hasCap(caps: StaffSectionCap[], section: string, action: string): boolean {

@@ -22,3 +22,14 @@ export interface StaffLoginResult {
 export interface StaffMeResponse extends StaffUserProfile {
   caps: StaffSectionCap[];
 }
+
+export interface StaffRosterRow {
+  id: string;
+  email: string;
+  display_name: string;
+  position_id: number;
+}
+
+export interface StaffRosterResponse {
+  staff: StaffRosterRow[];
+}

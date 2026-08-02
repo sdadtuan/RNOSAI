@@ -102,6 +102,25 @@ export async function staffMe(token: string): Promise<StaffMeResponse> {
   return body;
 }
 
+export interface StaffRosterRow {
+  id: string;
+  email: string;
+  display_name: string;
+  position_id: number;
+}
+
+export async function fetchStaffRoster(token: string): Promise<{ staff: StaffRosterRow[] }> {
+  const res = await fetch(`${API_BASE}/api/v1/staff/auth/roster`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<{ staff: StaffRosterRow[]; error?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? 'Không tải danh sách nhân viên', res.status);
+  }
+  return { staff: body.staff ?? [] };
+}
+
 export async function fetchLeads(
   token: string,
   params?: {

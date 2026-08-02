@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { StaffAuthService } from './staff-auth.service';
-import { StaffLoginResult, StaffMeResponse } from './staff-auth.types';
+import { StaffLoginResult, StaffMeResponse, StaffRosterResponse } from './staff-auth.types';
 import { StaffJwtGuard, StaffUser } from './staff-jwt.guard';
 import { StaffJwtPayload } from './staff-jwt.util';
 
@@ -33,5 +33,11 @@ export class StaffAuthController {
   @UseGuards(StaffJwtGuard)
   async me(@StaffUser() user: StaffJwtPayload): Promise<StaffMeResponse> {
     return this.auth.me(user);
+  }
+
+  @Get('roster')
+  @UseGuards(StaffJwtGuard)
+  async roster(): Promise<StaffRosterResponse> {
+    return this.auth.listActiveStaff();
   }
 }

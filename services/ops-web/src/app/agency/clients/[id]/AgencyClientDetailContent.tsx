@@ -10,6 +10,7 @@ import { OpsNav } from '@/components/OpsNav';
 import { AgencyReadOnlyBadge, canAgencyConfigure, canAgencyWrite } from '@/components/AgencyReadOnlyBadge';
 import { HubCampaignMapsPanel } from '@/components/HubCampaignMapsPanel';
 import { IndustrySelect, industryLabel } from '@/components/agency/IndustrySelect';
+import { OwnerAmSelect, ownerAmLabel } from '@/components/agency/OwnerAmSelect';
 import { RenewalAgentPanel } from '@/components/ai/RenewalAgentPanel';
 import { UpsellAgentPanel } from '@/components/ai/UpsellAgentPanel';
 import { ClientHealthPanel } from '@/components/ai/ClientHealthPanel';
@@ -27,6 +28,7 @@ import {
   syncClientOnboardingOrchestrator,
   fetchClientPerformance,
   fetchCatalogIndustries,
+  fetchStaffRoster,
   offboardAgencyClient,
   patchAgencyClient,
   patchClientChannelAccount,
@@ -52,6 +54,7 @@ import type {
   OnboardOrchestratorResponse,
   PerformanceRow,
   CatalogIndustryRow,
+  StaffRosterRow,
 } from '@/lib/api';
 import {
   clearSession,
@@ -148,6 +151,7 @@ export function AgencyClientDetailContent() {
   const [offboardAudit, setOffboardAudit] = useState<ClientOffboardAuditRow[]>([]);
   const [showOffboardConfirm, setShowOffboardConfirm] = useState(false);
   const [industries, setIndustries] = useState<CatalogIndustryRow[]>([]);
+  const [staffRoster, setStaffRoster] = useState<StaffRosterRow[]>([]);
 
   const canWrite = canAgencyWrite(user);
   const canConfigure = canAgencyConfigure(user);
@@ -223,8 +227,12 @@ export function AgencyClientDetailContent() {
       setError('');
       try {
         await reload(access);
-        const catalog = await fetchCatalogIndustries(access).catch(() => ({ industries: [] }));
+        const [catalog, roster] = await Promise.all([
+          fetchCatalogIndustries(access).catch(() => ({ industries: [] })),
+          fetchStaffRoster(access).catch(() => ({ staff: [] })),
+        ]);
         setIndustries(catalog.industries ?? []);
+        setStaffRoster(roster.staff ?? []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải client thất bại');
       } finally {
@@ -232,6 +240,14 @@ export function AgencyClientDetailContent() {
       }
     })();
   }, [ensureAuth, clientId, reload]);
+
+  useEffect(() => {
+    if (!user?.email || !client) return;
+    setEditForm((f) => {
+      if (f.owner_am_id.trim()) return f;
+      return { ...f, owner_am_id: user.email };
+    });
+  }, [user?.email, client?.id]);
 
   useEffect(() => {
     if (tab !== 'contracts' || !accessToken || !clientId) return;
@@ -694,7 +710,7 @@ export function AgencyClientDetailContent() {
                 </span>
               ) : null}
             </div>
-            <p className="muted">AM: {client.owner_am_id || '—'} · Ngành: {industryLabel(client.industry_slug, industries)}</p>
+            <p className="muted">AM: {ownerAmLabel(client.owner_am_id, staffRoster)} · Ngành: {industryLabel(client.industry_slug, industries)}</p>
 
             <div className="agency-tabs" role="tablist">
               {(
@@ -754,11 +770,15 @@ export function AgencyClientDetailContent() {
                       ) : null}
                     </label>
                     <label>
-                      Owner AM (staff id / email)
-                      <input
-                        value={editForm.owner_am_id}
-                        onChange={(e) => setEditForm((f) => ({ ...f, owner_am_id: e.target.value }))}
-                      />
+                      Owner AM
+                      {accessToken ? (
+                        <OwnerAmSelect
+                          token={accessToken}
+                          value={editForm.owner_am_id}
+                          onChange={(ownerAmId) => setEditForm((f) => ({ ...f, owner_am_id: ownerAmId }))}
+                          disabled={busy}
+                        />
+                      ) : null}
                     </label>
                     <label>
                       Trạng thái
@@ -793,7 +813,7 @@ export function AgencyClientDetailContent() {
                     <dt className="muted">Ngành</dt>
                     <dd style={{ margin: 0 }}>{industryLabel(client.industry_slug, industries)}</dd>
                     <dt className="muted">AM</dt>
-                    <dd style={{ margin: 0 }}>{client.owner_am_id || '—'}</dd>
+                    <dd style={{ margin: 0 }}>{ownerAmLabel(client.owner_am_id, staffRoster)}</dd>
                     <dt className="muted">Ghi chú</dt>
                     <dd style={{ margin: 0 }}>{client.notes || '—'}</dd>
                   </dl>
