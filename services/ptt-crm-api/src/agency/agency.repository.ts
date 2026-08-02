@@ -44,6 +44,7 @@ function computeCpa(spend: number, conversions: number): number | null {
 @Injectable()
 export class AgencyRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
+  private tenantLockedColumn: boolean | null = null;
 
   constructor(private readonly config: AppConfigService) {}
 
@@ -57,6 +58,22 @@ export class AgencyRepository implements OnModuleDestroy {
   onModuleDestroy(): void {
     void this.pool?.end();
     this.pool = null;
+    this.tenantLockedColumn = null;
+  }
+
+  private async hasTenantLockedColumn(): Promise<boolean> {
+    if (this.tenantLockedColumn !== null) return this.tenantLockedColumn;
+    try {
+      const result = await this.db.query(
+        `SELECT 1 FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'clients' AND column_name = 'tenant_locked'
+         LIMIT 1`,
+      );
+      this.tenantLockedColumn = (result.rowCount ?? 0) > 0;
+    } catch {
+      this.tenantLockedColumn = false;
+    }
+    return this.tenantLockedColumn;
   }
 
   async pgReady(): Promise<boolean> {
@@ -99,10 +116,14 @@ export class AgencyRepository implements OnModuleDestroy {
     }
     values.push(params.limit, params.offset);
 
+    const tenantLockedExpr = (await this.hasTenantLockedColumn())
+      ? 'COALESCE(c.tenant_locked, FALSE) AS tenant_locked'
+      : 'FALSE AS tenant_locked';
+
     const result = await this.db.query(
       `SELECT c.id::text, c.code, c.name, c.industry_slug, c.status, c.owner_am_id,
               c.notes, c.created_at, c.updated_at,
-              COALESCE(c.tenant_locked, FALSE) AS tenant_locked,
+              ${tenantLockedExpr},
               COALESCE(ch.channels, '') AS channels
        FROM clients c
        LEFT JOIN LATERAL (

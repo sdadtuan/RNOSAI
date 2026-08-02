@@ -29,44 +29,50 @@ export class CatalogController {
   constructor(private readonly catalog: CatalogService) {}
 
   @Get()
-  getPublic() {
+  async getPublic() {
     return this.catalog.publicPayload();
   }
 
   @Get('services')
-  listServices() {
-    return { services: this.catalog.listServices() };
+  async listServices() {
+    const services = await this.catalog.listServices();
+    return { services };
   }
 
   @Post('services')
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(StaffCatalogConfigureGuard)
-  createService(@Body() body: CreateCatalogServiceBody) {
-    return { service: this.catalog.createService(body) };
+  async createService(@Body() body: CreateCatalogServiceBody) {
+    const service = await this.catalog.createService(body);
+    return { service };
   }
 
   @Patch('services/:id')
   @UseGuards(StaffCatalogConfigureGuard)
-  patchService(@Param('id', ParseIntPipe) id: number, @Body() body: PatchCatalogServiceBody) {
-    return { service: this.catalog.updateService(id, body) };
+  async patchService(@Param('id', ParseIntPipe) id: number, @Body() body: PatchCatalogServiceBody) {
+    const service = await this.catalog.updateService(id, body);
+    return { service };
   }
 
   @Get('industries')
-  listIndustries() {
-    return { industries: this.catalog.listIndustries() };
+  async listIndustries() {
+    const industries = await this.catalog.listIndustries();
+    return { industries };
   }
 
   @Post('industries')
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(StaffCatalogConfigureGuard)
-  createIndustry(@Body() body: CreateCatalogIndustryBody) {
-    return { industry: this.catalog.createIndustry(body) };
+  async createIndustry(@Body() body: CreateCatalogIndustryBody) {
+    const industry = await this.catalog.createIndustry(body);
+    return { industry };
   }
 
   @Patch('industries/:id')
   @UseGuards(StaffCatalogConfigureGuard)
-  patchIndustry(@Param('id', ParseIntPipe) id: number, @Body() body: PatchCatalogIndustryBody) {
-    return { industry: this.catalog.updateIndustry(id, body) };
+  async patchIndustry(@Param('id', ParseIntPipe) id: number, @Body() body: PatchCatalogIndustryBody) {
+    const industry = await this.catalog.updateIndustry(id, body);
+    return { industry };
   }
 }
 
@@ -76,27 +82,29 @@ export class AssignScopesController {
   constructor(private readonly catalog: CatalogService) {}
 
   @Get()
-  list() {
+  async list() {
     return this.catalog.listAssignScopes();
   }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(StaffCatalogConfigureGuard)
-  create(@Body() body: CreateAssignScopeBody) {
-    return { scope: this.catalog.createAssignScope(body) };
+  async create(@Body() body: CreateAssignScopeBody) {
+    const scope = await this.catalog.createAssignScope(body);
+    return { scope };
   }
 
   @Patch(':id')
   @UseGuards(StaffCatalogConfigureGuard)
-  patch(@Param('id', ParseIntPipe) id: number, @Body() body: PatchAssignScopeBody) {
-    return { scope: this.catalog.updateAssignScope(id, body) };
+  async patch(@Param('id', ParseIntPipe) id: number, @Body() body: PatchAssignScopeBody) {
+    const scope = await this.catalog.updateAssignScope(id, body);
+    return { scope };
   }
 
   @Delete(':id')
   @UseGuards(StaffCatalogConfigureGuard)
-  remove(@Param('id', ParseIntPipe) id: number) {
-    this.catalog.deleteAssignScope(id);
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    await this.catalog.deleteAssignScope(id);
     return { ok: true };
   }
 }

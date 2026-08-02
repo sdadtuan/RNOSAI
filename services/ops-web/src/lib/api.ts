@@ -2755,6 +2755,12 @@ export async function fetchCatalogBundle(token: string): Promise<CatalogBundle> 
   };
 }
 
+export async function fetchCatalogIndustries(
+  token: string,
+): Promise<{ industries: CatalogIndustryRow[] }> {
+  return catalogFetch(token, '/api/crm/catalog/industries');
+}
+
 export async function createCatalogService(
   token: string,
   body: { slug: string; name: string; description?: string; sort_order?: number },

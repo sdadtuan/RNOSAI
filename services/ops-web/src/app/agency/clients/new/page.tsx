@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
 import { AgencyReadOnlyBadge, canAgencyWrite } from '@/components/AgencyReadOnlyBadge';
+import { IndustrySelect } from '@/components/agency/IndustrySelect';
 import { createAgencyClient, staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -20,8 +21,10 @@ import {
 export default function NewClientPage() {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
+  const [token, setToken] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
+  const [industrySlug, setIndustrySlug] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -31,6 +34,7 @@ export default function NewClientPage() {
       router.replace('/login');
       return;
     }
+    setToken(access);
     staffMe(access)
       .then((me) => {
         setUser(me);
@@ -50,6 +54,7 @@ export default function NewClientPage() {
         }
         const out = await staffRefresh(refresh);
         updateAccessToken(out.access_token);
+        setToken(out.access_token);
         const me = await staffMe(out.access_token);
         setUser(me);
         updateStoredUser(me);
@@ -66,6 +71,7 @@ export default function NewClientPage() {
       const client = await createAgencyClient(access, {
         code: code.trim().toUpperCase(),
         name: name.trim(),
+        industry_slug: industrySlug || undefined,
       });
       router.push(`/agency/clients/${client.id}`);
     } catch (err) {
@@ -118,7 +124,19 @@ export default function NewClientPage() {
               style={{ padding: '0.55rem', borderRadius: 8, border: '1px solid var(--border)' }}
             />
           </label>
-          <button type="submit" className="btn btn-sm" disabled={saving || !canWrite || !!error}>
+          <label style={{ display: 'grid', gap: '0.35rem' }}>
+            <span className="muted">Ngành</span>
+            {token ? (
+              <IndustrySelect
+                token={token}
+                value={industrySlug}
+                onChange={setIndustrySlug}
+                required
+                disabled={!canWrite}
+              />
+            ) : null}
+          </label>
+          <button type="submit" className="btn btn-sm" disabled={saving || !canWrite || !!error || !industrySlug}>
             {saving ? 'Đang tạo…' : 'Tạo client'}
           </button>
         </form>

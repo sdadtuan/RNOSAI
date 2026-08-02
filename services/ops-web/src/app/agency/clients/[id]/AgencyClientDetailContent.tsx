@@ -9,6 +9,7 @@ import { ClientPortalUsersPanel } from '@/components/ClientPortalUsersPanel';
 import { OpsNav } from '@/components/OpsNav';
 import { AgencyReadOnlyBadge, canAgencyConfigure, canAgencyWrite } from '@/components/AgencyReadOnlyBadge';
 import { HubCampaignMapsPanel } from '@/components/HubCampaignMapsPanel';
+import { IndustrySelect, industryLabel } from '@/components/agency/IndustrySelect';
 import { RenewalAgentPanel } from '@/components/ai/RenewalAgentPanel';
 import { UpsellAgentPanel } from '@/components/ai/UpsellAgentPanel';
 import { ClientHealthPanel } from '@/components/ai/ClientHealthPanel';
@@ -25,6 +26,7 @@ import {
   fetchClientOnboardingOrchestrator,
   syncClientOnboardingOrchestrator,
   fetchClientPerformance,
+  fetchCatalogIndustries,
   offboardAgencyClient,
   patchAgencyClient,
   patchClientChannelAccount,
@@ -49,6 +51,7 @@ import type {
   OnboardingSummaryResponse,
   OnboardOrchestratorResponse,
   PerformanceRow,
+  CatalogIndustryRow,
 } from '@/lib/api';
 import {
   clearSession,
@@ -144,6 +147,7 @@ export function AgencyClientDetailContent() {
   const [offboardNote, setOffboardNote] = useState('');
   const [offboardAudit, setOffboardAudit] = useState<ClientOffboardAuditRow[]>([]);
   const [showOffboardConfirm, setShowOffboardConfirm] = useState(false);
+  const [industries, setIndustries] = useState<CatalogIndustryRow[]>([]);
 
   const canWrite = canAgencyWrite(user);
   const canConfigure = canAgencyConfigure(user);
@@ -219,6 +223,8 @@ export function AgencyClientDetailContent() {
       setError('');
       try {
         await reload(access);
+        const catalog = await fetchCatalogIndustries(access).catch(() => ({ industries: [] }));
+        setIndustries(catalog.industries ?? []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải client thất bại');
       } finally {
@@ -688,7 +694,7 @@ export function AgencyClientDetailContent() {
                 </span>
               ) : null}
             </div>
-            <p className="muted">AM: {client.owner_am_id || '—'} · Ngành: {client.industry_slug || '—'}</p>
+            <p className="muted">AM: {client.owner_am_id || '—'} · Ngành: {industryLabel(client.industry_slug, industries)}</p>
 
             <div className="agency-tabs" role="tablist">
               {(
@@ -737,12 +743,15 @@ export function AgencyClientDetailContent() {
                       />
                     </label>
                     <label>
-                      Ngành (slug)
-                      <input
-                        value={editForm.industry_slug}
-                        onChange={(e) => setEditForm((f) => ({ ...f, industry_slug: e.target.value }))}
-                        placeholder="vd. fmcg, bds"
-                      />
+                      Ngành
+                      {accessToken ? (
+                        <IndustrySelect
+                          token={accessToken}
+                          value={editForm.industry_slug}
+                          onChange={(slug) => setEditForm((f) => ({ ...f, industry_slug: slug }))}
+                          required
+                        />
+                      ) : null}
                     </label>
                     <label>
                       Owner AM (staff id / email)
@@ -782,7 +791,7 @@ export function AgencyClientDetailContent() {
                     <dt className="muted">Tên</dt>
                     <dd style={{ margin: 0 }}>{client.name}</dd>
                     <dt className="muted">Ngành</dt>
-                    <dd style={{ margin: 0 }}>{client.industry_slug || '—'}</dd>
+                    <dd style={{ margin: 0 }}>{industryLabel(client.industry_slug, industries)}</dd>
                     <dt className="muted">AM</dt>
                     <dd style={{ margin: 0 }}>{client.owner_am_id || '—'}</dd>
                     <dt className="muted">Ghi chú</dt>

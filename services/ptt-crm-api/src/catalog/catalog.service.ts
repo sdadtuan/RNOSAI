@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { CatalogSqliteRepository } from './catalog-sqlite.repository';
+import { CatalogPgRepository } from './catalog-pg.repository';
 import {
   AssignScopeRow,
   CatalogIndustryRow,
@@ -16,58 +16,58 @@ import {
 
 @Injectable()
 export class CatalogService {
-  constructor(private readonly repo: CatalogSqliteRepository) {}
+  constructor(private readonly repo: CatalogPgRepository) {}
 
-  private wrap<T>(fn: () => T): T {
+  private async wrap<T>(fn: () => Promise<T>): Promise<T> {
     try {
-      return fn();
+      return await fn();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       throw new BadRequestException({ error: message });
     }
   }
 
-  publicPayload(): CatalogPublicPayload {
-    return this.repo.publicPayload();
+  publicPayload(): Promise<CatalogPublicPayload> {
+    return this.wrap(() => this.repo.publicPayload());
   }
 
-  listServices(): CatalogServiceRow[] {
-    return this.repo.listServices(false);
+  listServices(): Promise<CatalogServiceRow[]> {
+    return this.wrap(() => this.repo.listServices(false));
   }
 
-  listIndustries(): CatalogIndustryRow[] {
-    return this.repo.listIndustries(false);
+  listIndustries(): Promise<CatalogIndustryRow[]> {
+    return this.wrap(() => this.repo.listIndustries(false));
   }
 
-  createService(body: CreateCatalogServiceBody): CatalogServiceRow {
+  createService(body: CreateCatalogServiceBody): Promise<CatalogServiceRow> {
     return this.wrap(() => this.repo.createService(body));
   }
 
-  updateService(id: number, body: PatchCatalogServiceBody): CatalogServiceRow {
+  updateService(id: number, body: PatchCatalogServiceBody): Promise<CatalogServiceRow> {
     return this.wrap(() => this.repo.updateService(id, body));
   }
 
-  createIndustry(body: CreateCatalogIndustryBody): CatalogIndustryRow {
+  createIndustry(body: CreateCatalogIndustryBody): Promise<CatalogIndustryRow> {
     return this.wrap(() => this.repo.createIndustry(body));
   }
 
-  updateIndustry(id: number, body: PatchCatalogIndustryBody): CatalogIndustryRow {
+  updateIndustry(id: number, body: PatchCatalogIndustryBody): Promise<CatalogIndustryRow> {
     return this.wrap(() => this.repo.updateIndustry(id, body));
   }
 
-  listAssignScopes(): { scopes: AssignScopeRow[]; staff: StaffOption[] } {
-    return this.repo.listAssignScopes();
+  listAssignScopes(): Promise<{ scopes: AssignScopeRow[]; staff: StaffOption[] }> {
+    return this.wrap(() => this.repo.listAssignScopes());
   }
 
-  createAssignScope(body: CreateAssignScopeBody): AssignScopeRow {
+  createAssignScope(body: CreateAssignScopeBody): Promise<AssignScopeRow> {
     return this.wrap(() => this.repo.createAssignScope(body));
   }
 
-  updateAssignScope(id: number, body: PatchAssignScopeBody): AssignScopeRow {
+  updateAssignScope(id: number, body: PatchAssignScopeBody): Promise<AssignScopeRow> {
     return this.wrap(() => this.repo.updateAssignScope(id, body));
   }
 
-  deleteAssignScope(id: number): void {
-    this.wrap(() => this.repo.deleteAssignScope(id));
+  deleteAssignScope(id: number): Promise<void> {
+    return this.wrap(() => this.repo.deleteAssignScope(id));
   }
 }
