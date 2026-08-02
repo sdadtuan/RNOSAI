@@ -2,19 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { PortalNav } from '@/components/PortalNav';
-import { portalSeoContentDetail, portalSeoReviewContent, portalMe } from '@/lib/api';
-import { clearSession, getStoredUser, getToken, type StoredUser } from '@/lib/auth';
-import { usePortalSeoNav } from '@/hooks/usePortalSeoNav';
+import { SeoPortalShell } from '@/components/seo/SeoPortalShell';
+import { portalSeoContentDetail, portalSeoReviewContent } from '@/lib/api';
+import { useToast } from '@/lib/toast';
 
 function ApprovalTimeline({ approvals }: { approvals: Array<Record<string, unknown>> }) {
   if (!approvals.length) return null;
   return (
-    <section style={{ marginTop: '1.25rem' }}>
-      <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem' }}>Approval timeline</h3>
-      <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
+    <section className="portal-hub-section">
+      <h3 className="portal-hub-section__title">Approval timeline</h3>
+      <ul className="portal-list">
         {approvals.map((row) => (
-          <li key={String(row.stage)} style={{ marginBottom: '0.35rem' }}>
+          <li key={String(row.stage)}>
             <strong>{String(row.stage)}</strong>: {String(row.status ?? 'pending')}
             {row.actor_id ? <span className="muted"> — {String(row.actor_id)}</span> : null}
           </li>
@@ -25,98 +24,105 @@ function ApprovalTimeline({ approvals }: { approvals: Array<Record<string, unkno
 }
 
 export default function SeoContentDetailPage() {
-  const router = useRouter();
   const params = useParams();
   const contentId = String(params.id || '');
-  const [user, setUser] = useState<StoredUser | null>(null);
-  const [token, setToken] = useState('');
+
+  return (
+    <SeoPortalShell
+      title="Chi tiết nội dung"
+      breadcrumb={[
+        { label: 'Client Portal', href: '/dashboard' },
+        { label: 'SEO / AEO', href: '/seo' },
+        { label: 'Content review', href: '/seo/content' },
+        { label: `#${contentId}` },
+      ]}
+    >
+      {({ token, user, seoEnabled }) =>
+        seoEnabled ? (
+          <SeoContentDetail token={token} contentId={contentId} isApprover={user.role === 'approver'} />
+        ) : null
+      }
+    </SeoPortalShell>
+  );
+}
+
+function SeoContentDetail({
+  token,
+  contentId,
+  isApprover,
+}: {
+  token: string;
+  contentId: string;
+  isApprover: boolean;
+}) {
+  const router = useRouter();
+  const { push } = useToast();
   const [content, setContent] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState('');
-  const seoEnabled = usePortalSeoNav(token || null);
 
   useEffect(() => {
-    const authToken = getToken();
-    if (!authToken) {
-      router.replace('/login');
-      return;
-    }
-    setToken(authToken);
-    const cached = getStoredUser();
-    if (cached) setUser(cached);
-    portalMe(authToken)
-      .then((me) => {
-        setUser(me);
-        return portalSeoContentDetail(authToken, contentId);
-      })
+    void portalSeoContentDetail(token, contentId)
       .then(setContent)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Lỗi tải content'))
-      .catch(() => {
-        clearSession();
-        router.replace('/login');
-      });
-  }, [router, contentId]);
-
-  function logout() {
-    clearSession();
-    router.push('/login');
-  }
+      .catch((err) => setError(err instanceof Error ? err.message : 'Lỗi tải content'));
+  }, [token, contentId]);
 
   async function review(approved: boolean) {
-    const authToken = getToken();
-    if (!authToken || !user) return;
     const notes = window.prompt('Ghi chú (optional):') || '';
     try {
-      await portalSeoReviewContent(authToken, contentId, { approved, notes });
+      await portalSeoReviewContent(token, contentId, { approved, notes });
+      push(approved ? 'Đã duyệt nội dung SEO' : 'Đã từ chối nội dung SEO', approved ? 'success' : 'info');
       router.push('/seo/content');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Duyệt thất bại');
+      push(err instanceof Error ? err.message : 'Duyệt thất bại', 'error');
     }
   }
 
   const brief = (content?.brief as Record<string, unknown>) ?? {};
   const approvals = (content?.approvals as Array<Record<string, unknown>>) ?? [];
 
+  if (error) return <p className="error">{error}</p>;
+  if (!content) return <p className="muted">Đang tải…</p>;
+
   return (
-    <main className="portal-page portal-page--default">
-      <PortalNav user={user} onLogout={logout} seoEnabled={seoEnabled} />
-      {error && <p className="error">{error}</p>}
-      {content && (
-        <section className="card">
-          <h1 style={{ marginTop: 0, fontSize: '1.25rem' }}>{String(content.title)}</h1>
-          <p className="muted">
-            Status: {String(content.workflow_status)} · Type: {String(content.content_type)}
-          </p>
-          {(Boolean(brief.meta_title) || Boolean(brief.meta_description)) && (
-            <div style={{ marginTop: '0.75rem', fontSize: '0.9rem' }}>
-              {brief.meta_title ? (
-                <p style={{ margin: '0.25rem 0' }}>
-                  <strong>Meta title:</strong> {String(brief.meta_title)}
-                </p>
-              ) : null}
-              {brief.meta_description ? (
-                <p style={{ margin: '0.25rem 0' }}>
-                  <strong>Meta description:</strong> {String(brief.meta_description)}
-                </p>
-              ) : null}
-            </div>
-          )}
-          <div
-            style={{ marginTop: '1rem', padding: '1rem', background: '#f9fafb', borderRadius: 8 }}
-            dangerouslySetInnerHTML={{ __html: String(content.body_html || '') }}
-          />
-          <ApprovalTimeline approvals={approvals} />
-          {user?.role === 'approver' && content.workflow_status === 'client_review' ? (
-            <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
-              <button type="button" className="btn" data-testid="seo-approve-btn" onClick={() => review(true)}>
-                ✓ Approve
-              </button>
-              <button type="button" className="btn btn-secondary" data-testid="seo-reject-btn" onClick={() => review(false)}>
-                ✗ Reject
-              </button>
-            </div>
+    <article className="portal-content-detail">
+      <h2 className="portal-content-detail__title">{String(content.title)}</h2>
+      <p className="muted">
+        Status: {String(content.workflow_status)} · Type: {String(content.content_type)}
+      </p>
+      {(Boolean(brief.meta_title) || Boolean(brief.meta_description)) && (
+        <div className="portal-content-detail__meta">
+          {brief.meta_title ? (
+            <p>
+              <strong>Meta title:</strong> {String(brief.meta_title)}
+            </p>
           ) : null}
-        </section>
+          {brief.meta_description ? (
+            <p>
+              <strong>Meta description:</strong> {String(brief.meta_description)}
+            </p>
+          ) : null}
+        </div>
       )}
-    </main>
+      <div
+        className="portal-content-detail__body"
+        dangerouslySetInnerHTML={{ __html: String(content.body_html || '') }}
+      />
+      <ApprovalTimeline approvals={approvals} />
+      {isApprover && content.workflow_status === 'client_review' ? (
+        <div className="portal-approval-panel__actions">
+          <button type="button" className="btn" data-testid="seo-approve-btn" onClick={() => void review(true)}>
+            Duyệt
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            data-testid="seo-reject-btn"
+            onClick={() => void review(false)}
+          >
+            Từ chối
+          </button>
+        </div>
+      ) : null}
+    </article>
   );
 }

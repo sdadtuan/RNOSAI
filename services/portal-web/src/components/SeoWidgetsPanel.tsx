@@ -103,14 +103,11 @@ export function SeoWidgetsPanel({ token }: SeoWidgetsPanelProps) {
   const alerts = Number(widgets.open_alerts?.value ?? 0);
 
   return (
-    <section className="card" data-testid="seo-widgets-panel">
+    <section className="seo-widgets-panel" data-testid="seo-widgets-panel">
       <div className="seo-widgets-head">
-        <div>
-          <h2 style={{ margin: 0 }}>SEO/AEO KPI</h2>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Cập nhật từ Search Console, AEO và pipeline nội dung
-          </p>
-        </div>
+        <p className="muted seo-widgets-head__hint">
+          Cập nhật từ Search Console, AEO và pipeline nội dung
+        </p>
         <button type="button" className="btn btn-secondary btn-sm" disabled={loading} onClick={() => void load(token)}>
           {loading ? 'Đang tải…' : 'Làm mới'}
         </button>
@@ -155,14 +152,10 @@ export function SeoWidgetsPanel({ token }: SeoWidgetsPanelProps) {
         </div>
       ) : null}
 
-      <p style={{ marginTop: '1rem', marginBottom: 0 }}>
-        <Link href="/seo/reports" className="nav-link">
-          Xem báo cáo chi tiết →
-        </Link>
+      <p className="portal-module-meta">
+        <Link href="/seo/reports">Xem báo cáo chi tiết →</Link>
         {' · '}
-        <Link href="/seo/content" className="nav-link">
-          Duyệt nội dung →
-        </Link>
+        <Link href="/seo/content">Duyệt nội dung →</Link>
       </p>
     </section>
   );

@@ -9,3 +9,4 @@ export { SegmentedControl } from './SegmentedControl';
 export { HubPageLayout } from './HubPageLayout';
 export { ChannelSwitcher } from './ChannelSwitcher';
 export { ChannelPerformanceLayout } from './ChannelPerformanceLayout';
+export { ModuleSubNav } from './ModuleSubNav';

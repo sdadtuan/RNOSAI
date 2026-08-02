@@ -3,10 +3,9 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { PortalNav } from '@/components/PortalNav';
-import { portalMe, portalSeoExecutiveReport, type PortalSeoReportType } from '@/lib/api';
-import { clearSession, getStoredUser, getToken, type StoredUser } from '@/lib/auth';
-import { usePortalSeoNav } from '@/hooks/usePortalSeoNav';
+import { SegmentedControl } from '@/components/layout';
+import { SeoPortalShell } from '@/components/seo/SeoPortalShell';
+import { portalSeoExecutiveReport, type PortalSeoReportType } from '@/lib/api';
 
 const REPORT_TABS: { id: PortalSeoReportType; label: string }[] = [
   { id: 'executive', label: 'Tổng quan' },
@@ -27,11 +26,9 @@ function tabFromQuery(raw: string | null): PortalSeoReportType {
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div>
-      <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-        {label}
-      </p>
-      <strong style={{ fontSize: '1.15rem' }}>{value}</strong>
+    <div className="kpi-tile">
+      <p className="kpi-tile__label">{label}</p>
+      <p className="kpi-tile__value">{value}</p>
     </div>
   );
 }
@@ -46,15 +43,9 @@ function ReportBody({ report }: { report: Record<string, unknown> }) {
   const mentions = (report.mentions_recent as Array<Record<string, unknown>>) || [];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+    <div className="stack-gap">
       {(gsc.clicks != null || gsc.impressions != null) && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))',
-            gap: '1rem',
-          }}
-        >
+        <div className="kpi-tile-grid">
           {gsc.clicks != null && <Stat label="Clicks (GSC)" value={String(gsc.clicks)} />}
           {gsc.impressions != null && <Stat label="Impressions" value={String(gsc.impressions)} />}
           {gsc.avg_ctr != null && (
@@ -80,9 +71,9 @@ function ReportBody({ report }: { report: Record<string, unknown> }) {
       )}
 
       {Object.keys(contentByStatus).length > 0 && (
-        <section>
-          <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem' }}>Content pipeline</h3>
-          <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
+        <section className="portal-hub-section">
+          <h3 className="portal-hub-section__title">Content pipeline</h3>
+          <ul className="portal-list">
             {Object.entries(contentByStatus).map(([k, v]) => (
               <li key={k}>
                 <strong>{k}</strong>: {v}
@@ -93,9 +84,9 @@ function ReportBody({ report }: { report: Record<string, unknown> }) {
       )}
 
       {Object.keys(severity).length > 0 && (
-        <section>
-          <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem' }}>Severity matrix</h3>
-          <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
+        <section className="portal-hub-section">
+          <h3 className="portal-hub-section__title">Severity matrix</h3>
+          <ul className="portal-list">
             {Object.entries(severity).map(([k, v]) => (
               <li key={k}>
                 <strong>{k}</strong>: {v}
@@ -106,35 +97,37 @@ function ReportBody({ report }: { report: Record<string, unknown> }) {
       )}
 
       {issues.length > 0 && (
-        <section>
-          <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem' }}>Open technical issues</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-            <thead>
-              <tr>
-                <th align="left">URL</th>
-                <th align="left">Type</th>
-                <th align="left">Severity</th>
-                <th align="left">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {issues.map((row, i) => (
-                <tr key={i}>
-                  <td>{row.url}</td>
-                  <td>{row.issue_type}</td>
-                  <td>{row.severity}</td>
-                  <td>{row.status}</td>
+        <section className="portal-hub-section">
+          <h3 className="portal-hub-section__title">Open technical issues</h3>
+          <div className="perf-table-wrap--desktop">
+            <table className="perf-table">
+              <thead>
+                <tr>
+                  <th>URL</th>
+                  <th>Type</th>
+                  <th>Severity</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {issues.map((row, i) => (
+                  <tr key={i}>
+                    <td>{row.url}</td>
+                    <td>{row.issue_type}</td>
+                    <td>{row.severity}</td>
+                    <td>{row.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 
       {mentions.length > 0 && (
-        <section>
-          <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem' }}>AI mentions (30 ngày)</h3>
-          <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
+        <section className="portal-hub-section">
+          <h3 className="portal-hub-section__title">AI mentions (30 ngày)</h3>
+          <ul className="portal-list">
             {mentions.map((m, i) => (
               <li key={i}>
                 {String(m.stat_date ?? '—')} — {String(m.mention_count ?? 0)} mentions (
@@ -149,15 +142,30 @@ function ReportBody({ report }: { report: Record<string, unknown> }) {
 }
 
 export default function SeoReportsPage() {
+  return (
+    <SeoPortalShell
+      title="Báo cáo SEO / AEO"
+      subtitle="Read-only — executive, SEO, AEO, kỹ thuật, nội dung"
+      actions={
+        <Link href="/seo/content" className="btn btn-secondary btn-sm">
+          Nội dung chờ duyệt →
+        </Link>
+      }
+    >
+      {({ token, seoEnabled }) =>
+        seoEnabled ? <SeoReportsContent token={token} /> : null
+      }
+    </SeoPortalShell>
+  );
+}
+
+function SeoReportsContent({ token }: { token: string }) {
   const router = useRouter();
-  const [user, setUser] = useState<StoredUser | null>(null);
   const [tab, setTab] = useState<PortalSeoReportType>('executive');
   const [report, setReport] = useState<Record<string, unknown> | null>(null);
   const [generatedAt, setGeneratedAt] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [token, setToken] = useState('');
-  const seoEnabled = usePortalSeoNav(token || null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -165,11 +173,11 @@ export default function SeoReportsPage() {
     setTab(tabFromQuery(params.get('tab')));
   }, []);
 
-  const loadReport = useCallback(async (token: string, type: PortalSeoReportType) => {
+  const loadReport = useCallback(async (authToken: string, type: PortalSeoReportType) => {
     setLoading(true);
     setError('');
     try {
-      const data = await portalSeoExecutiveReport(token, type);
+      const data = await portalSeoExecutiveReport(authToken, type);
       setReport(data.report);
       setGeneratedAt(data.generated_at);
     } catch (err) {
@@ -181,80 +189,29 @@ export default function SeoReportsPage() {
   }, []);
 
   useEffect(() => {
-    const authToken = getToken();
-    if (!authToken) {
-      router.replace('/login');
-      return;
-    }
-    setToken(authToken);
-    const cached = getStoredUser();
-    if (cached) setUser(cached);
-    portalMe(authToken)
-      .then((me) => {
-        setUser(me);
-        return loadReport(authToken, tab);
-      })
-      .catch(() => {
-        clearSession();
-        router.replace('/login');
-      });
-  }, [router, tab, loadReport]);
-
-  function logout() {
-    clearSession();
-    router.push('/login');
-  }
+    void loadReport(token, tab);
+  }, [token, tab, loadReport]);
 
   return (
-    <main className="portal-page portal-page--default">
-      <PortalNav user={user} onLogout={logout} seoEnabled={seoEnabled} />
-
-      <section className="card">
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            gap: '1rem',
-            flexWrap: 'wrap',
-            marginBottom: '1rem',
-          }}
-        >
-          <div>
-            <h2 style={{ margin: 0 }}>Báo cáo SEO/AEO</h2>
-            <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              Read-only · {generatedAt ? `Cập nhật ${generatedAt}` : 'Đang tải…'}
-            </p>
-          </div>
-          <Link href="/seo/content" className="btn btn-secondary btn-sm">
-            Nội dung chờ duyệt →
-          </Link>
-        </div>
-
-        <nav style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          {REPORT_TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={`nav-link${tab === t.id ? ' active' : ''}`}
-              onClick={() => {
-                setTab(t.id);
-                router.replace(`/seo/reports?tab=${t.id}`, { scroll: false });
-              }}
-              style={{ cursor: 'pointer', border: 'none', background: 'transparent' }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
-
-        {error && <p className="error">{error}</p>}
-        {loading ? (
-          <p className="muted">Đang tải báo cáo…</p>
-        ) : report ? (
-          <ReportBody report={report} />
-        ) : null}
-      </section>
-    </main>
+    <>
+      <p className="muted portal-module-meta">
+        {generatedAt ? `Cập nhật ${generatedAt}` : 'Đang tải…'}
+      </p>
+      <SegmentedControl
+        label="Loại báo cáo"
+        value={tab}
+        onChange={(next) => {
+          setTab(next);
+          router.replace(`/seo/reports?tab=${next}`, { scroll: false });
+        }}
+        options={REPORT_TABS.map((t) => ({ id: t.id, label: t.label }))}
+      />
+      {error ? <p className="error">{error}</p> : null}
+      {loading ? (
+        <p className="muted">Đang tải báo cáo…</p>
+      ) : report ? (
+        <ReportBody report={report} />
+      ) : null}
+    </>
   );
 }

@@ -4,11 +4,12 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { portalEmailDashboard, type PortalEmailDashboard } from '@/lib/api';
 
-interface EmailWidgetsPanelProps {
+export interface EmailWidgetsPanelProps {
   token: string;
+  showApprovalsLink?: boolean;
 }
 
-export function EmailWidgetsPanel({ token }: EmailWidgetsPanelProps) {
+export function EmailWidgetsPanel({ token, showApprovalsLink = false }: EmailWidgetsPanelProps) {
   const [data, setData] = useState<PortalEmailDashboard | null>(null);
   const [error, setError] = useState('');
 
@@ -23,8 +24,8 @@ export function EmailWidgetsPanel({ token }: EmailWidgetsPanelProps) {
 
   return (
     <>
-      <div className="seo-widgets-grid" style={{ marginBottom: '1rem' }}>
-        <div className="seo-widget-card">
+      <div className="seo-widgets-grid">
+        <div className="seo-widget-card seo-widget-card--warn">
           <p className="seo-widget-label">Pending approval</p>
           <strong className="seo-widget-value">{data.pending_approvals}</strong>
         </div>
@@ -41,23 +42,31 @@ export function EmailWidgetsPanel({ token }: EmailWidgetsPanelProps) {
           <strong className="seo-widget-value">{data.revenue_attrib}</strong>
         </div>
       </div>
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Recent campaigns</h2>
+      <section className="portal-hub-section">
+        <h3 className="portal-hub-section__title">Recent campaigns</h3>
         {data.recent_campaigns.length === 0 ? (
           <p className="muted">Chưa có campaign.</p>
         ) : (
-          <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
+          <ul className="portal-content-list">
             {data.recent_campaigns.map((c) => (
-              <li key={c.id} style={{ marginBottom: '0.35rem' }}>
-                <Link href={`/email/campaigns/${c.id}`}>{c.name}</Link>
-                {' · '}
+              <li key={c.id} className="portal-content-list__item">
+                <Link href={`/email/campaigns/${c.id}`} className="portal-content-list__link">
+                  {c.name}
+                </Link>
                 <span className="badge">{c.status}</span>
-                {c.audience_count != null ? ` (${c.audience_count})` : ''}
+                {c.audience_count != null ? (
+                  <span className="muted portal-content-list__meta">{c.audience_count} contacts</span>
+                ) : null}
               </li>
             ))}
           </ul>
         )}
-      </div>
+        {showApprovalsLink && data.pending_approvals > 0 ? (
+          <p className="portal-module-meta">
+            <Link href="/email/approvals">→ {data.pending_approvals} campaign chờ duyệt</Link>
+          </p>
+        ) : null}
+      </section>
     </>
   );
 }

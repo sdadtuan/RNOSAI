@@ -107,7 +107,7 @@ export function EmailApprovalCard({
         <p className="muted" style={{ margin: '0 0 0.75rem', fontSize: '0.8125rem' }}>
           Requested: {item.requested_at.slice(0, 16).replace('T', ' ')}
         </p>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div className="email-approval-card__actions">
           <button type="button" className="btn btn-secondary btn-sm" disabled={previewLoading} onClick={() => void openPreview()}>
             Preview email
           </button>
