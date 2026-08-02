@@ -1,15 +1,18 @@
 'use client';
 
-import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { PageToolbar, StaffPageShell } from '@/components/layout';
+import { StaffPageShell } from '@/components/layout';
 import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
 import { LeadB2bSalesFlowBar, type LeadContractFlowSummary } from '@/components/LeadB2bSalesFlowBar';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
+import { LeadAuditPanel } from '@/components/crm/LeadAuditPanel';
+import { LeadContactActions } from '@/components/crm/LeadContactActions';
 import { LeadContractPanel } from '@/components/LeadContractPanel';
+import { LeadDetailHero } from '@/components/crm/LeadDetailHero';
 import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
 import { LeadEntityTimelinePanel } from '@/components/crm/LeadEntityTimelinePanel';
+import { LEAD_STATUS_LABELS } from '@/lib/crm/lead-status';
 import { aiCopilotEnabled } from '@/lib/ai-flags';
 import {
   assignLead,
@@ -25,12 +28,10 @@ import {
   type CatalogStaffOption,
   type CatalogServiceRow,
   type LeadActivityRow,
-  type LeadAssignmentLogRow,
   type LeadAttributionData,
   type LeadAuditBundle,
   type LeadFunnelSnapshot,
   type LeadRow,
-  type LeadStatusLogRow,
 } from '@/lib/api';
 import {
   clearSession,
@@ -68,11 +69,6 @@ const ACTIVITY_TYPES = [
 ];
 
 type LeadDetailTab = 'detail' | 'activity' | 'ai';
-
-function phoneTelHref(phone: string): string {
-  const normalized = phone.replace(/[^\d+]/g, '');
-  return normalized ? `tel:${normalized}` : '';
-}
 
 async function copyLeadContact(value: string, label: string, onDone: (msg: string) => void) {
   const trimmed = value.trim();
@@ -417,13 +413,15 @@ export default function CrmLeadDetailPage() {
     );
   }
 
-  const fieldStyle = {
-    background: 'var(--bg)',
-    border: '1px solid var(--border)',
-    borderRadius: 8,
-    padding: '0.55rem 0.75rem',
-    color: 'var(--text)',
-  } as const;
+  const ownerLabel = useMemo(() => {
+    if (!lead?.owner_id) return null;
+    const staff = staffOptions.find((s) => s.id === lead.owner_id);
+    return staff ? staff.name : `#${lead.owner_id}`;
+  }, [lead?.owner_id, staffOptions]);
+
+  function onCopyContact(value: string, label: string) {
+    void copyLeadContact(value, label, setMessage);
+  }
 
   return (
     <StaffPageShell
@@ -435,16 +433,6 @@ export default function CrmLeadDetailPage() {
         { label: lead?.full_name || `#${leadId}` },
       ]}
     >
-      <p className="detail-page-back">
-        <Link href="/crm/leads" className="btn btn-sm btn-ghost">
-          ← Danh sách leads
-        </Link>
-      </p>
-      <PageToolbar
-        title={lead?.full_name || `Lead #${leadId}`}
-        subtitle={lead?.phone ? `${lead.phone} · ${lead.status ?? '—'}` : undefined}
-      />
-
       <div className={`lead-detail-page${showCopilotSheet ? ' lead-detail-page--copilot-sheet' : ''}`}>
 
       {layout.mobile && copilotOn ? (
@@ -479,217 +467,198 @@ export default function CrmLeadDetailPage() {
         </div>
       ) : null}
 
-      {loading ? <p className="muted">Đang tải lead #{leadId}…</p> : null}
-      {error ? <p className="error">{error}</p> : null}
-      {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
-      {copilotMessage ? <p className="muted">{copilotMessage}</p> : null}
+      {loading ? <p className="lead-empty-state lead-empty-state--page">Đang tải lead #{leadId}…</p> : null}
+      {error ? (
+        <div className="lead-alert lead-alert--error" role="alert">
+          {error}
+        </div>
+      ) : null}
+      {message ? (
+        <div className="lead-alert lead-alert--success" role="status">
+          {message}
+        </div>
+      ) : null}
+      {copilotMessage ? <p className="lead-copilot-hint">{copilotMessage}</p> : null}
 
       {lead && !loading ? (
         <div className="lead-detail-layout">
+          <LeadDetailHero lead={lead} ownerLabel={ownerLabel} />
+
+          <div className="lead-detail-grid">
           <div
             className={`lead-detail-main ${hideDetailPane ? 'lead-detail-pane--hidden' : ''}`}
           >
-            <div className="card">
-              <h2 style={{ marginTop: 0, fontSize: '1.15rem' }}>
-                #{lead.id} · {lead.full_name || '—'}
-              </h2>
-              <LeadAttributionChips attribution={attribution} />
-              <LeadB2bSalesFlowBar leadId={leadId} funnel={funnelSnap} contract={contractSummary} />
-              <dl className="lead-detail-dl">
-                <dt className="muted">SĐT</dt>
-                <dd>
-                  {lead.phone || '—'}
-                  {lead.phone ? (
-                    <span
-                      className="lead-contact-copy"
-                      style={{ marginLeft: '0.5rem', display: 'inline-flex', gap: '0.35rem', flexWrap: 'wrap' }}
-                      data-testid="lead-contact-copy"
+            <LeadAttributionChips attribution={attribution} />
+
+            <LeadB2bSalesFlowBar leadId={leadId} funnel={funnelSnap} contract={contractSummary} />
+
+            {lead.phone ? (
+              <LeadContactActions phone={lead.phone} onCopy={onCopyContact} />
+            ) : null}
+
+            {accessToken ? (
+              <LeadFunnelPanel
+                token={accessToken}
+                leadId={leadId}
+                user={user}
+                serviceSlug={presetServiceSlug}
+                serviceOptions={catalogServices.map((service) => ({
+                  slug: service.slug,
+                  name: service.name,
+                }))}
+                onMessage={setMessage}
+                onError={setError}
+                onFunnelChange={setFunnelSnap}
+                onFunnelUpdated={() => setContractRefresh((n) => n + 1)}
+              />
+            ) : null}
+
+            {accessToken ? (
+              <LeadContractPanel
+                token={accessToken}
+                leadId={leadId}
+                user={user}
+                refreshToken={contractRefresh}
+                onMessage={setMessage}
+                onError={setError}
+                onLoaded={setContractSummary}
+              />
+            ) : null}
+
+            <div className="lead-actions-grid">
+              <div className="lead-panel lead-panel--action">
+                <div className="lead-panel__head">
+                  <h3 className="lead-panel__title">Trạng thái lead</h3>
+                </div>
+                <form className="lead-form" onSubmit={(e) => void onSaveStatus(e)}>
+                  <label className="lead-field">
+                    <span className="lead-field__label">Trạng thái</span>
+                    <select
+                      className="lead-select"
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value)}
+                      disabled={!hasCap(user, 'crm_leads', 'edit') || saving}
                     >
-                      <a
-                        href={phoneTelHref(lead.phone)}
-                        className="btn btn-secondary btn-sm"
-                        data-testid="lead-contact-call"
-                      >
-                        Gọi
-                      </a>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => void copyLeadContact(lead.phone, 'SĐT', setMessage)}
-                      >
-                        Copy SĐT
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => void copyLeadContact(lead.phone, 'Zalo', setMessage)}
-                        title="Copy SĐT để dán thủ công trên Zalo — không gửi tự động"
-                      >
-                        Copy Zalo
-                      </button>
-                    </span>
-                  ) : null}
-                </dd>
-                <dt className="muted">Email</dt>
-                <dd>{lead.email || '—'}</dd>
-                <dt className="muted">Nguồn</dt>
-                <dd>{lead.source || '—'}</dd>
-                <dt className="muted">Owner</dt>
-                <dd>{lead.owner_id ?? '—'}</dd>
-                <dt className="muted">Ngày</dt>
-                <dd>{lead.created_at?.slice(0, 10) ?? '—'}</dd>
-              </dl>
-
-              {accessToken ? (
-                <LeadFunnelPanel
-                  token={accessToken}
-                  leadId={leadId}
-                  user={user}
-                  serviceSlug={presetServiceSlug}
-                  serviceOptions={catalogServices.map((service) => ({
-                    slug: service.slug,
-                    name: service.name,
-                  }))}
-                  onMessage={setMessage}
-                  onError={setError}
-                  onFunnelChange={setFunnelSnap}
-                  onFunnelUpdated={() => setContractRefresh((n) => n + 1)}
-                />
-              ) : null}
-
-              {accessToken ? (
-                <LeadContractPanel
-                  token={accessToken}
-                  leadId={leadId}
-                  user={user}
-                  refreshToken={contractRefresh}
-                  onMessage={setMessage}
-                  onError={setError}
-                  onLoaded={setContractSummary}
-                />
-              ) : null}
-
-              <form onSubmit={(e) => void onSaveStatus(e)} style={{ display: 'grid', gap: '0.85rem', marginTop: '1rem' }}>
-                <label style={{ display: 'grid', gap: '0.35rem' }}>
-                  <span className="muted">Trạng thái</span>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    disabled={!hasCap(user, 'crm_leads', 'edit') || saving}
-                    style={fieldStyle}
+                      {STATUS_OPTIONS.map((s) => (
+                        <option key={s} value={s}>
+                          {LEAD_STATUS_LABELS[s] ?? s}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="lead-field">
+                    <span className="lead-field__label">Ghi chú audit (tùy chọn)</span>
+                    <input
+                      className="lead-input"
+                      value={auditNote}
+                      onChange={(e) => setAuditNote(e.target.value)}
+                      placeholder="Lý do đổi trạng thái"
+                      disabled={!hasCap(user, 'crm_leads', 'edit') || saving}
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="btn btn-sm lead-form__submit"
+                    disabled={saving || !hasCap(user, 'crm_leads', 'edit')}
                   >
-                    {STATUS_OPTIONS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label style={{ display: 'grid', gap: '0.35rem' }}>
-                  <span className="muted">Ghi chú audit (tùy chọn)</span>
-                  <input
-                    value={auditNote}
-                    onChange={(e) => setAuditNote(e.target.value)}
-                    placeholder="Lý do đổi trạng thái"
-                    disabled={!hasCap(user, 'crm_leads', 'edit') || saving}
-                    style={fieldStyle}
-                  />
-                </label>
-                <button
-                  type="submit"
-                  className="btn btn-sm"
-                  disabled={saving || !hasCap(user, 'crm_leads', 'edit')}
-                >
-                  {saving ? 'Đang lưu…' : 'Lưu trạng thái'}
-                </button>
-              </form>
-            </div>
+                    {saving ? 'Đang lưu…' : 'Lưu trạng thái'}
+                  </button>
+                </form>
+              </div>
 
-            <div className="card">
-              <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Phân lead</h3>
-              <form onSubmit={(e) => void onAssign(e)} style={{ display: 'grid', gap: '0.75rem' }}>
-                <label style={{ display: 'grid', gap: '0.35rem' }}>
-                  <span className="muted">Nhân viên</span>
-                  <select
-                    value={assignToId}
-                    onChange={(e) => setAssignToId(e.target.value)}
-                    disabled={!hasCap(user, 'crm_leads', 'assign') || assigning}
-                    style={fieldStyle}
+              <div className="lead-panel lead-panel--action">
+                <div className="lead-panel__head">
+                  <h3 className="lead-panel__title">Phân lead</h3>
+                </div>
+                <form className="lead-form" onSubmit={(e) => void onAssign(e)}>
+                  <label className="lead-field">
+                    <span className="lead-field__label">Nhân viên</span>
+                    <select
+                      className="lead-select"
+                      value={assignToId}
+                      onChange={(e) => setAssignToId(e.target.value)}
+                      disabled={!hasCap(user, 'crm_leads', 'assign') || assigning}
+                    >
+                      <option value="">— Chọn —</option>
+                      {staffOptions.map((s) => (
+                        <option key={s.id} value={String(s.id)}>
+                          {s.name} (#{s.id})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="lead-field">
+                    <span className="lead-field__label">Lý do</span>
+                    <input
+                      className="lead-input"
+                      value={assignReason}
+                      onChange={(e) => setAssignReason(e.target.value)}
+                      placeholder="Bắt buộc (≥ 3 ký tự)"
+                      disabled={!hasCap(user, 'crm_leads', 'assign') || assigning}
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="btn btn-sm lead-form__submit"
+                    disabled={assigning || !hasCap(user, 'crm_leads', 'assign')}
                   >
-                    <option value="">— Chọn —</option>
-                    {staffOptions.map((s) => (
-                      <option key={s.id} value={String(s.id)}>
-                        {s.name} (#{s.id})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label style={{ display: 'grid', gap: '0.35rem' }}>
-                  <span className="muted">Lý do</span>
-                  <input
-                    value={assignReason}
-                    onChange={(e) => setAssignReason(e.target.value)}
-                    placeholder="Bắt buộc"
-                    disabled={!hasCap(user, 'crm_leads', 'assign') || assigning}
-                    style={fieldStyle}
-                  />
-                </label>
-                <button
-                  type="submit"
-                  className="btn btn-sm"
-                  disabled={assigning || !hasCap(user, 'crm_leads', 'assign')}
-                >
-                  {assigning ? 'Đang phân…' : 'Phân lead'}
-                </button>
-              </form>
-            </div>
+                    {assigning ? 'Đang phân…' : 'Phân lead'}
+                  </button>
+                </form>
+              </div>
 
-            <div className="card">
-              <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Thêm hoạt động</h3>
-              <form onSubmit={(e) => void onAddActivity(e)} style={{ display: 'grid', gap: '0.75rem' }}>
-                <label style={{ display: 'grid', gap: '0.35rem' }}>
-                  <span className="muted">Loại</span>
-                  <select
-                    value={activityType}
-                    onChange={(e) => setActivityType(e.target.value)}
-                    disabled={!hasCap(user, 'crm_leads', 'edit') || addingActivity}
-                    style={fieldStyle}
+              <div className="lead-panel lead-panel--action">
+                <div className="lead-panel__head">
+                  <h3 className="lead-panel__title">Thêm hoạt động</h3>
+                </div>
+                <form className="lead-form" onSubmit={(e) => void onAddActivity(e)}>
+                  <label className="lead-field">
+                    <span className="lead-field__label">Loại</span>
+                    <select
+                      className="lead-select"
+                      value={activityType}
+                      onChange={(e) => setActivityType(e.target.value)}
+                      disabled={!hasCap(user, 'crm_leads', 'edit') || addingActivity}
+                    >
+                      {ACTIVITY_TYPES.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="lead-field">
+                    <span className="lead-field__label">Nội dung</span>
+                    <textarea
+                      className="lead-input lead-input--area"
+                      value={activityContent}
+                      onChange={(e) => setActivityContent(e.target.value)}
+                      rows={3}
+                      disabled={!hasCap(user, 'crm_leads', 'edit') || addingActivity}
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="btn btn-sm lead-form__submit"
+                    disabled={addingActivity || !hasCap(user, 'crm_leads', 'edit')}
                   >
-                    {ACTIVITY_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label style={{ display: 'grid', gap: '0.35rem' }}>
-                  <span className="muted">Nội dung</span>
-                  <textarea
-                    value={activityContent}
-                    onChange={(e) => setActivityContent(e.target.value)}
-                    rows={3}
-                    disabled={!hasCap(user, 'crm_leads', 'edit') || addingActivity}
-                    style={{ ...fieldStyle, resize: 'vertical' }}
-                  />
-                </label>
-                <button
-                  type="submit"
-                  className="btn btn-sm"
-                  disabled={addingActivity || !hasCap(user, 'crm_leads', 'edit')}
-                >
-                  {addingActivity ? 'Đang thêm…' : 'Thêm hoạt động'}
-                </button>
-              </form>
+                    {addingActivity ? 'Đang thêm…' : 'Thêm hoạt động'}
+                  </button>
+                </form>
+              </div>
             </div>
           </div>
 
-          <div
-            className={`lead-detail-timeline ${hideTimelinePane ? 'lead-detail-pane--hidden' : ''}`}
+          <aside
+            className={`lead-detail-sidebar ${hideTimelinePane ? 'lead-detail-pane--hidden' : ''}`}
           >
-            <div className="card">
-              <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Timeline hoạt động</h3>
+            <div className="lead-panel lead-panel--activity">
+              <div className="lead-panel__head">
+                <h3 className="lead-panel__title">Timeline hoạt động</h3>
+                <p className="lead-panel__subtitle">Chọn activity để tóm tắt trong AI Copilot</p>
+              </div>
               {activities.length === 0 ? (
-                <p className="muted">Chưa có hoạt động.</p>
+                <p className="lead-empty-state">Chưa có hoạt động.</p>
               ) : (
                 <ul className="lead-activity-list">
                   {activities.map((a) => (
@@ -707,29 +676,27 @@ export default function CrmLeadDetailPage() {
                       tabIndex={0}
                       aria-pressed={selectedActivityId === a.id}
                     >
-                      <div style={{ fontSize: '0.85rem' }} className="muted">
-                        {a.created_at?.slice(0, 16)} · {a.activity_type_label || a.activity_type}
-                        {a.user_name ? ` · ${a.user_name}` : ''}
+                      <div className="lead-activity-item__meta">
+                        <time>{a.created_at?.slice(0, 16)}</time>
+                        <span className="lead-activity-item__type">
+                          {a.activity_type_label || a.activity_type}
+                        </span>
+                        {a.user_name ? <span>{a.user_name}</span> : null}
                       </div>
-                      <div>{a.content || '—'}</div>
+                      <div className="lead-activity-item__content">{a.content || '—'}</div>
                     </li>
                   ))}
                 </ul>
               )}
-              <p className="muted" style={{ marginTop: '0.75rem', fontSize: '0.82rem' }}>
-                Chọn activity để tóm tắt trong AI Copilot.
-              </p>
             </div>
 
             {accessToken ? <LeadEntityTimelinePanel token={accessToken} leadId={leadId} /> : null}
 
-            <div className="card">
-              <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Audit</h3>
-              <AuditSection audit={audit} />
-            </div>
-          </div>
+            <LeadAuditPanel audit={audit} />
+          </aside>
 
           {showCopilotInline ? renderCopilotPanel('column') : null}
+          </div>
         </div>
       ) : null}
 
@@ -767,44 +734,5 @@ export default function CrmLeadDetailPage() {
       ) : null}
       </div>
     </StaffPageShell>
-  );
-}
-
-function AuditSection({ audit }: { audit: LeadAuditBundle | null }) {
-  if (!audit) return <p className="muted">Đang tải audit…</p>;
-
-  return (
-    <div style={{ display: 'grid', gap: '1.25rem' }}>
-      <div>
-        <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem' }}>Trạng thái</h4>
-        {audit.status_logs.length === 0 ? (
-          <p className="muted">Chưa có log.</p>
-        ) : (
-          <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-            {audit.status_logs.map((l: LeadStatusLogRow) => (
-              <li key={l.id} style={{ marginBottom: '0.35rem' }}>
-                {l.created_at?.slice(0, 16)} · {l.old_status} → {l.new_status}
-                {l.note ? ` — ${l.note}` : ''}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <div>
-        <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem' }}>Phân công</h4>
-        {audit.assignment_logs.length === 0 ? (
-          <p className="muted">Chưa có log.</p>
-        ) : (
-          <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-            {audit.assignment_logs.map((l: LeadAssignmentLogRow) => (
-              <li key={l.id} style={{ marginBottom: '0.35rem' }}>
-                {l.created_at?.slice(0, 16)} · {l.from_name} → {l.to_name}
-                {l.reason ? ` — ${l.reason}` : ''}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
   );
 }

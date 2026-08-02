@@ -80,13 +80,6 @@ function resolveStepStates(
   };
 }
 
-const STEP_STYLE: Record<StepState, { bg: string; color: string; border: string }> = {
-  done: { bg: '#dcfce7', color: '#166534', border: '#86efac' },
-  current: { bg: '#dbeafe', color: '#1e40af', border: '#93c5fd' },
-  pending: { bg: '#f3f4f6', color: '#6b7280', border: '#e5e7eb' },
-  blocked: { bg: '#fef2f2', color: '#991b1b', border: '#fecaca' },
-};
-
 export function LeadB2bSalesFlowBar({ leadId, funnel, contract }: Props) {
   const states = resolveStepStates(funnel, contract);
   const serviceSlug = funnel?.presales?.presales.service_slug?.trim();
@@ -98,93 +91,73 @@ export function LeadB2bSalesFlowBar({ leadId, funnel, contract }: Props) {
   const steps: Array<{
     key: string;
     label: string;
+    short: string;
     href?: string;
     anchor?: string;
   }> = [
-    { key: 'b2', label: 'B2 Liên hệ', anchor: '#funnel-b2' },
-    { key: 'presales', label: 'Pre-sales', anchor: '#funnel-presales' },
-    { key: 'intake', label: 'Intake BANT', href: intakeHref },
-    { key: 'contract', label: 'HĐ dịch vụ', anchor: '#lead-contract' },
+    { key: 'b2', label: 'B2 Liên hệ', short: 'B2', anchor: '#funnel-b2' },
+    { key: 'presales', label: 'Pre-sales', short: 'Pre', anchor: '#funnel-presales' },
+    { key: 'intake', label: 'Intake BANT', short: 'Intake', href: intakeHref },
+    { key: 'contract', label: 'HĐ dịch vụ', short: 'HĐ', anchor: '#lead-contract' },
     {
       key: 'delivery',
       label: 'Triển khai',
+      short: 'TK',
       href: lifecycleId ? `/crm/service-delivery/${lifecycleId}` : '/crm/service-delivery',
     },
-    { key: 'agency', label: 'Agency Client', href: '/agency/clients/new' },
+    { key: 'agency', label: 'Agency Client', short: 'Agency', href: '/agency/clients/new' },
   ];
 
   return (
-    <nav
-      aria-label="Luồng B2B sales"
-      className="lead-b2b-flow-bar"
-      style={{
-        margin: '0 0 1rem',
-        padding: '0.75rem',
-        borderRadius: 10,
-        border: '1px solid var(--border)',
-        background: 'var(--bg-subtle, rgba(255,255,255,0.02))',
-      }}
-    >
-      <p className="muted" style={{ margin: '0 0 0.5rem', fontSize: '0.82rem' }}>
-        Luồng B2B: chăm sóc → pre-sales → intake → HĐ → triển khai → agency client
-      </p>
-      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+    <nav aria-label="Luồng B2B sales" className="lead-b2b-flow">
+      <div className="lead-b2b-flow__head">
+        <h3 className="lead-b2b-flow__title">Luồng B2B</h3>
+        <p className="lead-b2b-flow__desc">Chăm sóc → Pre-sales → Intake → HĐ → Triển khai → Agency</p>
+      </div>
+
+      <ol className="lead-b2b-flow__track">
         {steps.map((step, idx) => {
           const state = states[step.key] ?? 'pending';
-          const style = STEP_STYLE[state];
-          const content = (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                padding: '0.28rem 0.55rem',
-                borderRadius: 999,
-                fontSize: '0.78rem',
-                fontWeight: state === 'current' ? 600 : 500,
-                background: style.bg,
-                color: style.color,
-                border: `1px solid ${style.border}`,
-              }}
-            >
-              <span aria-hidden>{state === 'done' ? '✓' : state === 'blocked' ? '!' : idx + 1}</span>
-              {step.label}
-            </span>
+          const stepClass = `lead-b2b-step lead-b2b-step--${state}`;
+          const inner = (
+            <>
+              <span className="lead-b2b-step__marker" aria-hidden>
+                {state === 'done' ? '✓' : state === 'blocked' ? '!' : idx + 1}
+              </span>
+              <span className="lead-b2b-step__label">{step.label}</span>
+              <span className="lead-b2b-step__label-short">{step.short}</span>
+            </>
           );
 
           return (
-            <span key={step.key} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+            <li key={step.key} className={stepClass}>
               {step.href ? (
-                <Link href={step.href} className="nav-link" style={{ textDecoration: 'none' }}>
-                  {content}
+                <Link href={step.href} className="lead-b2b-step__link">
+                  {inner}
                 </Link>
               ) : step.anchor ? (
-                <a href={step.anchor} className="nav-link" style={{ textDecoration: 'none' }}>
-                  {content}
+                <a href={step.anchor} className="lead-b2b-step__link">
+                  {inner}
                 </a>
               ) : (
-                content
+                <span className="lead-b2b-step__link">{inner}</span>
               )}
               {idx < steps.length - 1 ? (
-                <span className="muted" aria-hidden style={{ fontSize: '0.75rem' }}>
-                  →
-                </span>
+                <span className="lead-b2b-step__connector" aria-hidden />
               ) : null}
-            </span>
+            </li>
           );
         })}
-      </div>
+      </ol>
+
       {funnel?.review_queue.active ? (
-        <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem', color: '#991b1b' }}>
+        <p className="lead-b2b-flow__alert">
           Lead đang <strong>Phải tra soát</strong>
           {funnel.review_queue.hours_waiting != null
             ? ` (${funnel.review_queue.hours_waiting}h)`
             : ''}
-          . AM tạm khóa thao tác funnel — GDKD xử lý tại{' '}
-          <Link href="/crm/leads/review-queue" className="nav-link">
-            inbox Phải tra soát
-          </Link>
-          .
+          . AM tạm khóa funnel — GDKD xử lý tại{' '}
+          <Link href="/crm/leads/review-queue">inbox Phải tra soát</Link>.
         </p>
       ) : null}
     </nav>

@@ -64,11 +64,14 @@ export function LeadEntityTimelinePanel({ token, leadId }: { token: string; lead
   );
 
   return (
-    <section className="lead-entity-timeline" data-testid="lead-entity-timeline">
-      <div className="lead-entity-timeline__head">
-        <h3 className="kpi-section-title">Timeline thống nhất · RNOS-16</h3>
+    <section className="lead-panel lead-panel--timeline-unified" data-testid="lead-entity-timeline">
+      <div className="lead-panel__head lead-panel__head--row">
+        <div>
+          <h3 className="lead-panel__title">Timeline thống nhất</h3>
+          <p className="lead-panel__subtitle">RNOS-16 · đa kênh</p>
+        </div>
         <select
-          className="kpi-select"
+          className="lead-select lead-select--compact"
           value={sourceFilter}
           onChange={(e) => setSourceFilter(e.target.value)}
           aria-label="Lọc nguồn timeline"
@@ -81,27 +84,45 @@ export function LeadEntityTimelinePanel({ token, leadId }: { token: string; lead
           ))}
         </select>
       </div>
-      {loading ? <p className="muted">Đang tải timeline…</p> : null}
-      {error ? <p className="error">{error}</p> : null}
-      {!loading && !events.length ? (
-        <p className="muted">Chưa có sự kiện timeline — activity sẽ mirror tự động.</p>
-      ) : (
-        <ul className="lead-entity-timeline__list">
+
+      {loading ? <p className="lead-empty-state">Đang tải timeline…</p> : null}
+
+      {error ? (
+        <div className="lead-alert lead-alert--error" role="alert">
+          <strong>Không tải được timeline</strong>
+          <span>{error}</span>
+        </div>
+      ) : null}
+
+      {!loading && !error && !events.length ? (
+        <p className="lead-empty-state">
+          Chưa có sự kiện — hoạt động CRM sẽ mirror tự động.
+        </p>
+      ) : null}
+
+      {!loading && events.length > 0 ? (
+        <ul className="lead-unified-timeline">
           {events.map((event) => (
-            <li key={event.id} data-testid={`timeline-event-${event.id}`}>
-              <div className="lead-entity-timeline__meta">
-                <strong>{EVENT_TYPE_LABELS[event.event_type] ?? event.title}</strong>
-                <span className="muted">
-                  {' '}
-                  · {SOURCE_LABELS[event.event_source] ?? event.event_source} ·{' '}
-                  {event.occurred_at.replace('T', ' ').slice(0, 16)}
-                </span>
+            <li key={event.id} className="lead-unified-timeline__item" data-testid={`timeline-event-${event.id}`}>
+              <div className="lead-unified-timeline__dot" aria-hidden />
+              <div className="lead-unified-timeline__body">
+                <div className="lead-unified-timeline__meta">
+                  <span className="lead-unified-timeline__type">
+                    {EVENT_TYPE_LABELS[event.event_type] ?? event.title}
+                  </span>
+                  <span className="lead-unified-timeline__source">
+                    {SOURCE_LABELS[event.event_source] ?? event.event_source}
+                  </span>
+                  <time className="lead-unified-timeline__time">
+                    {event.occurred_at.replace('T', ' ').slice(0, 16)}
+                  </time>
+                </div>
+                {event.body ? <p className="lead-unified-timeline__text">{event.body}</p> : null}
               </div>
-              {event.body ? <p>{event.body}</p> : null}
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
     </section>
   );
 }
