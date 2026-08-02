@@ -1,8 +1,8 @@
 /**
  * RNOS-41 — PWA service worker (app shell + lead list fallback).
- * Scope: static assets cache + navigation fallback to cached /crm/leads when offline.
+ * Do not cache /_next/static — hashed assets use immutable cache; SW cache caused ChunkLoadError after deploy.
  */
-const CACHE = 'ptt-ops-pwa-v1';
+const CACHE = 'ptt-ops-pwa-v2';
 const SHELL_URLS = ['/crm/leads', '/login'];
 
 self.addEventListener('install', (event) => {
@@ -29,18 +29,8 @@ self.addEventListener('fetch', (event) => {
 
   if (request.method !== 'GET') return;
 
-  if (url.pathname.startsWith('/_next/static/')) {
-    event.respondWith(
-      caches.open(CACHE).then(async (cache) => {
-        const cached = await cache.match(request);
-        if (cached) return cached;
-        const response = await fetch(request);
-        if (response.ok) void cache.put(request, response.clone());
-        return response;
-      }),
-    );
-    return;
-  }
+  // Next.js hashed chunks — always network; browser/nginx immutable cache is enough.
+  if (url.pathname.startsWith('/_next/static/')) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(

@@ -22,17 +22,11 @@ npm ci
 npm run build
 
 echo "-- ops-web --"
-cd "$ROOT/services/ops-web"
-npm ci
-export NEXT_PUBLIC_PTT_API_URL="$OPS_API_URL"
-npm run build
-mkdir -p .next/standalone/.next
-rm -rf .next/standalone/.next/static
-cp -r .next/static .next/standalone/.next/static
-if [[ -d public ]]; then
-  rm -rf .next/standalone/public
-  cp -r public .next/standalone/public
-fi
+export RNOSAI_ROOT="$ROOT"
+# shellcheck source=lib/ops_web_standalone.sh
+. "$ROOT/scripts/lib/ops_web_standalone.sh"
+ops_web_build
+ops_web_publish_release >/dev/null
 
 echo "-- restart services (needs permission) --"
 restart_ok=1

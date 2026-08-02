@@ -23,7 +23,7 @@ test.describe('RNOS-41 PWA', () => {
 
     const sw = await request.get('/sw.js');
     expect(sw.ok()).toBeTruthy();
-    expect(await sw.text()).toContain('ptt-ops-pwa-v1');
+    expect(await sw.text()).toContain('ptt-ops-pwa-v2');
 
     const icon = await request.get('/icons/icon.svg');
     expect(icon.ok()).toBeTruthy();

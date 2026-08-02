@@ -6,7 +6,7 @@ After=network.target ptt-crm-api.service
 Type=simple
 User=deploy
 Group=www-data
-WorkingDirectory=/var/www/rnosai/services/ops-web/.next/standalone
+WorkingDirectory=/var/www/rnosai/current/ops-web
 Environment=NODE_ENV=production
 Environment=PORT=3200
 EnvironmentFile=-/var/www/rnosai/.env
