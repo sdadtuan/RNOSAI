@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { AdminPageShell } from '@/components/admin';
 import {
   createCrmCustomField,
   deleteCrmCustomField,
@@ -46,6 +46,11 @@ export default function AdminCrmCustomFieldsPage() {
   });
 
   const canConfigure = hasCap(user, 'crm_data_config', 'configure');
+
+  const logout = useCallback(() => {
+    clearSession();
+    router.push('/login');
+  }, [router]);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -163,24 +168,32 @@ export default function AdminCrmCustomFieldsPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <AdminPageShell
+        user={null}
+        onLogout={logout}
+        section="crm-config"
+        title="Custom fields"
+        subtitle="Định nghĩa trường mở rộng cho lead / customer / case (RNOS-35)"
+        loading
+      >
+        <span />
+      </AdminPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.push('/login'); }} />
-      <div className="card">
-        <h2 style={{ margin: '0 0 0.35rem', fontSize: '1.15rem' }}>Custom fields</h2>
-        <p className="muted" style={{ marginTop: 0 }}>
-          Định nghĩa trường mở rộng cho lead / customer / case (RNOS-35)
-        </p>
+    <AdminPageShell
+      user={user}
+      onLogout={logout}
+      section="crm-config"
+      title="Custom fields"
+      subtitle="Định nghĩa trường mở rộng cho lead / customer / case (RNOS-35)"
+    >
+      <div className="page-card stack-gap">
         {error ? <p className="error">{error}</p> : null}
         {msg ? <p className="muted">{msg}</p> : null}
 
-        <div className="kpi-page__filters" style={{ marginBottom: '1rem' }}>
+        <div className="kpi-page__filters">
           <label className="muted">
             Entity
             <select
@@ -261,8 +274,8 @@ export default function AdminCrmCustomFieldsPage() {
           <p className="muted">Chế độ chỉ xem — cần quyền configure để sửa.</p>
         )}
 
-        <div className="crm-leads-table-wrap" style={{ marginTop: '1.25rem' }}>
-          <table className="perf-table">
+        <div className="data-table-wrap">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>Entity</th>
@@ -305,6 +318,6 @@ export default function AdminCrmCustomFieldsPage() {
           </table>
         </div>
       </div>
-    </main>
+    </AdminPageShell>
   );
 }

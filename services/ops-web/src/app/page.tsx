@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { PageToolbar, StaffPageShell } from '@/components/layout';
 import { fetchNestHealth, staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -72,13 +72,16 @@ export default function DashboardPage() {
   }
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Chào {user.display_name || user.email}</h2>
-        <p className="muted" style={{ marginBottom: '1rem' }}>
-          Phase 2 — ops-web: CRM leads, Agency clients, Meta hub, Hub campaign map (Nest + PG).
-        </p>
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      breadcrumb={[{ label: 'Tổng quan' }]}
+    >
+      <PageToolbar
+        title={`Chào ${user.display_name || user.email}`}
+        subtitle="Phase 2 — ops-web: CRM leads, Agency clients, Meta hub, Hub campaign map (Nest + PG)."
+      />
+      <div className="page-card">
         <div className="summary-grid">
           <div className="summary-card">
             <span className="muted">Quyền CRM leads</span>
@@ -96,6 +99,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-    </main>
+    </StaffPageShell>
   );
 }

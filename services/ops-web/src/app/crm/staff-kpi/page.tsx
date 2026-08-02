@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { DashboardShell } from '@/components/kpi/DashboardShell';
 import { KpiBarChart, KpiProgressList } from '@/components/kpi/KpiDashboardUi';
 import { periodLabel } from '@/lib/kpi/format';
 import {
@@ -161,72 +161,67 @@ export default function CrmStaffKpiPage() {
   }
 
   return (
-    <main className="kpi-page" style={{ maxWidth: 1080, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <div className="kpi-page__head">
-          <h2 style={{ margin: 0, fontSize: '1.15rem' }}>KPI AM / SP</h2>
-          <div className="kpi-page__filters">
-            <select value={staffId} onChange={(e) => setStaffId(e.target.value)} className="kpi-select" aria-label="Nhân viên">
-              {staffOptions.map((s) => (
-                <option key={s.id} value={String(s.id)}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <select value={role} onChange={(e) => setRole(e.target.value)} className="kpi-select" aria-label="Vai trò">
-              <option value="am">AM</option>
-              <option value="sp">SP</option>
-            </select>
-            <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} className="kpi-input" aria-label="Năm" />
-            <input
-              type="number"
-              min={1}
-              max={12}
-              value={month}
-              onChange={(e) => setMonth(Number(e.target.value))}
-              className="kpi-input kpi-input--month"
-              aria-label="Tháng"
-            />
-          </div>
-        </div>
-
-        <p className="muted" style={{ marginTop: 0 }}>
-          Kỳ {periodLabel(year, month)}
-        </p>
-
-        {loading ? <p className="muted">Đang tải…</p> : null}
-        {error ? <p className="error">{error}</p> : null}
-
-        <section className="kpi-page__section">
-          <h3 className="kpi-section-title">Tiến độ vs target</h3>
-          <KpiProgressList items={metrics} staffHref={staffId ? `/crm/staff/${staffId}` : undefined} />
-        </section>
-
-        <section className="kpi-page__section">
-          <div className="kpi-page__chart-head">
-            <h3 className="kpi-section-title">So sánh NV cùng role</h3>
-            <select
-              value={compareMetricId}
-              onChange={(e) => setCompareMetricId(e.target.value)}
-              className="kpi-select"
-              aria-label="Chỉ tiêu so sánh"
-            >
-              {metricDefs.map((m) => (
-                <option key={m.id} value={String(m.id)}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <KpiBarChart
-            title={String(compareChart?.metric?.name ?? 'Đạt KPI (%)')}
-            items={compareItems}
-            unit="%"
-            maxValue={100}
+    <DashboardShell
+      user={user}
+      onLogout={logout}
+      title="KPI AM / SP"
+      periodHint={`Kỳ ${periodLabel(year, month)}`}
+      loading={loading}
+      error={error || undefined}
+      filters={
+        <>
+          <select value={staffId} onChange={(e) => setStaffId(e.target.value)} className="kpi-select" aria-label="Nhân viên">
+            {staffOptions.map((s) => (
+              <option key={s.id} value={String(s.id)}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          <select value={role} onChange={(e) => setRole(e.target.value)} className="kpi-select" aria-label="Vai trò">
+            <option value="am">AM</option>
+            <option value="sp">SP</option>
+          </select>
+          <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} className="kpi-input" aria-label="Năm" />
+          <input
+            type="number"
+            min={1}
+            max={12}
+            value={month}
+            onChange={(e) => setMonth(Number(e.target.value))}
+            className="kpi-input kpi-input--month"
+            aria-label="Tháng"
           />
-        </section>
-      </div>
-    </main>
+        </>
+      }
+    >
+      <section className="kpi-page__section">
+        <h3 className="kpi-section-title">Tiến độ vs target</h3>
+        <KpiProgressList items={metrics} staffHref={staffId ? `/crm/staff/${staffId}` : undefined} />
+      </section>
+
+      <section className="kpi-page__section">
+        <div className="kpi-page__chart-head">
+          <h3 className="kpi-section-title">So sánh NV cùng role</h3>
+          <select
+            value={compareMetricId}
+            onChange={(e) => setCompareMetricId(e.target.value)}
+            className="kpi-select"
+            aria-label="Chỉ tiêu so sánh"
+          >
+            {metricDefs.map((m) => (
+              <option key={m.id} value={String(m.id)}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <KpiBarChart
+          title={String(compareChart?.metric?.name ?? 'Đạt KPI (%)')}
+          items={compareItems}
+          unit="%"
+          maxValue={100}
+        />
+      </section>
+    </DashboardShell>
   );
 }

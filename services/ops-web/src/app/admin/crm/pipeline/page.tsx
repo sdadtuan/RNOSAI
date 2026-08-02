@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { AdminPageShell } from '@/components/admin';
 import {
   fetchCrmSalesPipelineStages,
   saveCrmSalesPipelineStages,
@@ -52,6 +52,11 @@ export default function AdminCrmPipelinePage() {
   const [busy, setBusy] = useState(false);
 
   const canConfigure = hasCap(user, 'crm_data_config', 'configure');
+
+  const logout = useCallback(() => {
+    clearSession();
+    router.push('/login');
+  }, [router]);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -157,20 +162,28 @@ export default function AdminCrmPipelinePage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        <p className="muted">Đang tải…</p>
-      </main>
+      <AdminPageShell
+        user={null}
+        onLogout={logout}
+        section="crm-config"
+        title="Pipeline sales"
+        subtitle="Chỉnh stage funnel kinh doanh — SLA, owner role, terminal (RNOS-35)"
+        loading
+      >
+        <span />
+      </AdminPageShell>
     );
   }
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.push('/login'); }} />
-      <div className="card">
-        <h2 style={{ margin: '0 0 0.35rem', fontSize: '1.15rem' }}>Pipeline sales</h2>
-        <p className="muted" style={{ marginTop: 0 }}>
-          Chỉnh stage funnel kinh doanh — SLA, owner role, terminal (RNOS-35)
-        </p>
+    <AdminPageShell
+      user={user}
+      onLogout={logout}
+      section="crm-config"
+      title="Pipeline sales"
+      subtitle="Chỉnh stage funnel kinh doanh — SLA, owner role, terminal (RNOS-35)"
+    >
+      <div className="page-card stack-gap">
         {error ? <p className="error">{error}</p> : null}
         {msg ? <p className="muted">{msg}</p> : null}
 
@@ -236,7 +249,7 @@ export default function AdminCrmPipelinePage() {
         </div>
 
         {canConfigure ? (
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button type="button" className="btn btn-sm btn-secondary" onClick={addStage}>
               + Stage
             </button>
@@ -245,11 +258,9 @@ export default function AdminCrmPipelinePage() {
             </button>
           </div>
         ) : (
-          <p className="muted" style={{ marginTop: '1rem' }}>
-            Chế độ chỉ xem — cần quyền configure để sửa.
-          </p>
+          <p className="muted">Chế độ chỉ xem — cần quyền configure để sửa.</p>
         )}
       </div>
-    </main>
+    </AdminPageShell>
   );
 }

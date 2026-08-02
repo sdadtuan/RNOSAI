@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { AdminPageShell } from '@/components/admin';
 import { AutomationWorkflowsPanel } from '@/components/automation/AutomationWorkflowsPanel';
-import { OpsNav } from '@/components/OpsNav';
 import { fetchAutomationWorkflows } from '@/lib/automation-api';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
@@ -25,6 +25,11 @@ export default function CrmAutomationPage() {
   const [total, setTotal] = useState(0);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+
+  const logout = useCallback(() => {
+    clearSession();
+    router.replace('/login');
+  }, [router]);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -107,43 +112,46 @@ export default function CrmAutomationPage() {
     })();
   }, [ensureAuth]);
 
-  if (error && !token) {
+  if (!user) {
     return (
-      <>
-        <OpsNav user={user} onLogout={() => { clearSession(); router.replace('/login'); }} />
-        <main className="container">
-          <div className="card">
-            <p>{error}</p>
-          </div>
-        </main>
-      </>
+      <AdminPageShell
+        user={null}
+        onLogout={logout}
+        section="ai-automation"
+        title="Workflow automation"
+        subtitle="UI-R2-04 · AI nodes + simulate"
+        loading
+      >
+        <span />
+      </AdminPageShell>
     );
   }
 
-  const canConfigure = user ? hasCap(user, 'automation_workflows', 'configure') : false;
-  const canSimulate = user ? hasCap(user, 'automation_workflows', 'simulate') : false;
+  const canConfigure = hasCap(user, 'automation_workflows', 'configure');
+  const canSimulate = hasCap(user, 'automation_workflows', 'simulate');
 
   return (
-    <>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.replace('/login'); }} />
-      <main className="container automation-workflows-page">
-        <div className="card">
-          <h2>Workflow automation</h2>
-          <p className="muted">UI-R2-04 · /crm/automation · AI nodes + simulate trước khi publish</p>
-          {loading ? <p>Đang tải…</p> : null}
-          {error && token ? <p className="automation-workflows-error">{error}</p> : null}
-          {token ? (
-            <AutomationWorkflowsPanel
-              token={token}
-              canConfigure={canConfigure}
-              canSimulate={canSimulate}
-              initialRows={rows}
-              initialTotal={total}
-              onReload={reload}
-            />
-          ) : null}
-        </div>
-      </main>
-    </>
+    <AdminPageShell
+      user={user}
+      onLogout={logout}
+      section="ai-automation"
+      title="Workflow automation"
+      subtitle="UI-R2-04 · AI nodes + simulate"
+    >
+      <div className="page-card stack-gap">
+        {loading ? <p>Đang tải…</p> : null}
+        {error ? <p className="automation-workflows-error">{error}</p> : null}
+        {token ? (
+          <AutomationWorkflowsPanel
+            token={token}
+            canConfigure={canConfigure}
+            canSimulate={canSimulate}
+            initialRows={rows}
+            initialTotal={total}
+            onReload={reload}
+          />
+        ) : null}
+      </div>
+    </AdminPageShell>
   );
 }

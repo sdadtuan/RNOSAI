@@ -2,11 +2,11 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { AdminPageShell } from '@/components/admin';
 import {
   OrchestrationTracePanel,
   type OrchestrationFilters,
 } from '@/components/ai/OrchestrationTracePanel';
-import { OpsNav } from '@/components/OpsNav';
 import {
   fetchOrchestrationById,
   fetchOrchestrations,
@@ -182,28 +182,28 @@ function AdminAiAgentsContent() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        {error ? <p className="error">{error}</p> : <p className="muted">Đang tải…</p>}
-      </main>
+      <AdminPageShell
+        user={null}
+        onLogout={logout}
+        section="ai-automation"
+        title="Multi-agent traces"
+        subtitle="UI-R4-03 · parent orchestration → child agent runs"
+        loading
+      >
+        <span />
+      </AdminPageShell>
     );
   }
 
   return (
-    <main
-      className="kpi-page admin-ai-agents-page"
-      style={{ maxWidth: 1440, margin: '0 auto', padding: '1.5rem' }}
+    <AdminPageShell
+      user={user}
+      onLogout={logout}
+      section="ai-automation"
+      title="Multi-agent traces"
+      subtitle="UI-R4-03 · parent orchestration → child agent runs"
     >
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <div className="kpi-page__head">
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Multi-agent traces</h2>
-            <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              UI-R4-03 · parent orchestration → child agent runs
-            </p>
-          </div>
-        </div>
-
+      <div className="page-card stack-gap">
         {error ? <p className="error">{error}</p> : null}
 
         <OrchestrationTracePanel
@@ -239,7 +239,7 @@ function AdminAiAgentsContent() {
           }}
         />
       </div>
-    </main>
+    </AdminPageShell>
   );
 }
 
@@ -247,9 +247,16 @@ export default function AdminAiAgentsPage() {
   return (
     <Suspense
       fallback={
-        <main style={{ padding: '2rem' }}>
-          <p className="muted">Đang tải…</p>
-        </main>
+        <AdminPageShell
+          user={null}
+          onLogout={() => {}}
+          section="ai-automation"
+          title="Multi-agent traces"
+          subtitle="UI-R4-03 · parent orchestration → child agent runs"
+          loading
+        >
+          <span />
+        </AdminPageShell>
       }
     >
       <AdminAiAgentsContent />

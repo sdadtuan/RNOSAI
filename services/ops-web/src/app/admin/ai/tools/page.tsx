@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { AdminPageShell } from '@/components/admin';
 import { AiToolKeysPanel } from '@/components/ai/AiToolKeysPanel';
-import { OpsNav } from '@/components/OpsNav';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -69,23 +69,20 @@ export default function AdminAiToolsPage() {
     router.push('/login');
   }
 
-  if (!user || !token) {
+  if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        {error ? <p className="error">{error}</p> : <p className="muted">Đang tải…</p>}
-      </main>
+      <AdminPageShell user={null} onLogout={logout} section="ai-automation" title="AI tool keys" loading>
+        <span />
+      </AdminPageShell>
     );
   }
 
   return (
-    <main
-      className="kpi-page admin-ai-tools-page"
-      style={{ maxWidth: 1280, margin: '0 auto', padding: '1.5rem' }}
-    >
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <AiToolKeysPanel token={token} />
+    <AdminPageShell user={user} onLogout={logout} section="ai-automation" title="AI tool keys">
+      <div className="page-card stack-gap">
+        {error ? <p className="error">{error}</p> : null}
+        {token ? <AiToolKeysPanel token={token} /> : null}
       </div>
-    </main>
+    </AdminPageShell>
   );
 }

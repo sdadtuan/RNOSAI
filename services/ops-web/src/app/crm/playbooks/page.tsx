@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { AdminPageShell } from '@/components/admin';
 import { PlaybooksLibraryPanel } from '@/components/playbooks/PlaybooksLibraryPanel';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
@@ -21,6 +21,11 @@ export default function CrmPlaybooksPage() {
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState('');
+
+  const logout = useCallback(() => {
+    clearSession();
+    router.replace('/login');
+  }, [router]);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -66,15 +71,20 @@ export default function CrmPlaybooksPage() {
     void ensureAuth();
   }, [ensureAuth]);
 
+  if (!user) {
+    return (
+      <AdminPageShell user={null} onLogout={logout} section="ai-automation" title="Playbooks" loading>
+        <span />
+      </AdminPageShell>
+    );
+  }
+
   return (
-    <>
-      <OpsNav user={user} onLogout={() => { clearSession(); router.replace('/login'); }} />
-      <main className="ops-main">
-        <div className="ops-content">
-          {error ? <p className="error">{error}</p> : null}
-          {token ? <PlaybooksLibraryPanel token={token} /> : null}
-        </div>
-      </main>
-    </>
+    <AdminPageShell user={user} onLogout={logout} section="ai-automation" title="Playbooks">
+      <div className="page-card stack-gap">
+        {error ? <p className="error">{error}</p> : null}
+        {token ? <PlaybooksLibraryPanel token={token} /> : null}
+      </div>
+    </AdminPageShell>
   );
 }

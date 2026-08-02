@@ -1,7 +1,13 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { OpsNav } from '@/components/OpsNav';
+import {
+  ModuleSubNav,
+  PageToolbar,
+  StaffPageShell,
+  type BreadcrumbItem,
+} from '@/components/layout';
+import { buildFinanceDashboardLinks } from '@/lib/admin/module-nav';
 import type { StoredStaffUser } from '@/lib/auth';
 
 interface DashboardShellProps {
@@ -9,11 +15,14 @@ interface DashboardShellProps {
   onLogout: () => void;
   title: string;
   periodHint?: string;
+  breadcrumb?: BreadcrumbItem[];
   filters?: ReactNode;
   loading?: boolean;
   error?: string;
+  showModuleNav?: boolean;
   children: ReactNode;
   footer?: ReactNode;
+  width?: 'default' | 'wide' | 'narrow';
 }
 
 export function DashboardShell({
@@ -21,26 +30,37 @@ export function DashboardShell({
   onLogout,
   title,
   periodHint,
+  breadcrumb,
   filters,
   loading,
   error,
+  showModuleNav = true,
   children,
   footer,
+  width = 'default',
 }: DashboardShellProps) {
+  const moduleLinks = buildFinanceDashboardLinks(user);
+
   return (
-    <main className="kpi-page dashboard-shell" style={{ maxWidth: 1080, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={onLogout} />
-      <div className="card dashboard-shell__card">
-        <div className="kpi-page__head dashboard-shell__head">
-          <h2 style={{ margin: 0, fontSize: '1.15rem' }}>{title}</h2>
-          {filters ? <div className="kpi-page__filters">{filters}</div> : null}
-        </div>
-        {periodHint ? <p className="muted dashboard-shell__period">{periodHint}</p> : null}
-        {loading ? <p className="muted">Đang tải…</p> : null}
-        {error ? <p className="error">{error}</p> : null}
-        {children}
-        {footer ? <footer className="dashboard-shell__footer muted">{footer}</footer> : null}
-      </div>
-    </main>
+    <StaffPageShell
+      user={user}
+      onLogout={onLogout}
+      breadcrumb={
+        breadcrumb ?? [
+          { label: 'Quản trị', href: '/crm/business-dashboard' },
+          { label: title },
+        ]
+      }
+      width={width}
+    >
+      <PageToolbar title={title} subtitle={periodHint} actions={filters} />
+      {showModuleNav ? (
+        <ModuleSubNav links={moduleLinks} ariaLabel="Finance and KPI dashboards" />
+      ) : null}
+      {loading ? <p className="muted">Đang tải…</p> : null}
+      {error ? <p className="error">{error}</p> : null}
+      <div className="page-card stack-gap dashboard-shell__body">{children}</div>
+      {footer ? <footer className="page-footer muted">{footer}</footer> : null}
+    </StaffPageShell>
   );
 }

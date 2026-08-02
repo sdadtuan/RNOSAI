@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { InsightsInboxTable } from '@/components/ai/InsightsInboxTable';
 import { CopilotAdoptionPanel } from '@/components/ai/CopilotAdoptionPanel';
 import { PipelineRiskPanel } from '@/components/ai/PipelineRiskPanel';
-import { OpsNav } from '@/components/OpsNav';
+import { DashboardShell } from '@/components/kpi/DashboardShell';
 import { KpiTileGrid, type KpiTileProps } from '@/components/kpi/KpiDashboardUi';
 import {
   fetchAiAcceptanceMetrics,
@@ -180,86 +180,85 @@ function CrmAiInsightsContent() {
   }
 
   return (
-    <main className="ai-insights-page" style={{ maxWidth: 1080, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <div className="ai-insights-page__head">
-          <h2 style={{ margin: 0, fontSize: '1.15rem' }}>AI Insights · Feedback loop</h2>
-          <div className="ai-insights-page__filters">
-            <label className="muted">
-              Khoảng (ngày)
-              <input
-                type="number"
-                min={1}
-                max={90}
-                value={days}
-                onChange={(e) => setDays(Number(e.target.value) || 7)}
-                className="kpi-input kpi-input--month"
-                aria-label="Số ngày"
-              />
-            </label>
-            <label className="muted">
-              Trạng thái
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="kpi-select"
-                aria-label="Lọc trạng thái"
-              >
-                {STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value || 'all'} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => {
-                const access = getAccessToken();
-                if (access) void loadPage(access);
-              }}
+    <DashboardShell
+      user={user}
+      onLogout={logout}
+      title="AI Insights · Feedback loop"
+      periodHint={`${days} ngày gần nhất`}
+      loading={loading}
+      error={error || undefined}
+      filters={
+        <>
+          <label className="muted">
+            Khoảng (ngày)
+            <input
+              type="number"
+              min={1}
+              max={90}
+              value={days}
+              onChange={(e) => setDays(Number(e.target.value) || 7)}
+              className="kpi-input kpi-input--month"
+              aria-label="Số ngày"
+            />
+          </label>
+          <label className="muted">
+            Trạng thái
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="kpi-select"
+              aria-label="Lọc trạng thái"
             >
-              Làm mới
-            </button>
-          </div>
-        </div>
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => {
+              const access = getAccessToken();
+              if (access) void loadPage(access);
+            }}
+          >
+            Làm mới
+          </button>
+        </>
+      }
+    >
+      <KpiTileGrid tiles={tiles} />
 
-        {loading ? <p className="muted">Đang tải…</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+      {getAccessToken() ? (
+        <CopilotAdoptionPanel token={getAccessToken()!} days={days} />
+      ) : null}
 
-        <KpiTileGrid tiles={tiles} />
+      <PipelineRiskPanel
+        rows={atRiskDeals}
+        total={atRiskTotal}
+        lastScanAt={lastScanAt}
+        staffOptions={staffOptions}
+        onAssignOwner={async (recommendationId, staffId, staffName) => {
+          const access = getAccessToken();
+          if (!access) return;
+          await patchPipelineRiskAssign(access, recommendationId, { staff_id: staffId, staff_name: staffName });
+          await loadPage(access);
+        }}
+        onLogActivity={async (recommendationId, note) => {
+          const access = getAccessToken();
+          if (!access) return;
+          await postPipelineRiskActivity(access, recommendationId, { note });
+          await loadPage(access);
+        }}
+      />
 
-        {getAccessToken() ? (
-          <CopilotAdoptionPanel token={getAccessToken()!} days={days} />
-        ) : null}
-
-        <PipelineRiskPanel
-          rows={atRiskDeals}
-          total={atRiskTotal}
-          lastScanAt={lastScanAt}
-          staffOptions={staffOptions}
-          onAssignOwner={async (recommendationId, staffId, staffName) => {
-            const access = getAccessToken();
-            if (!access) return;
-            await patchPipelineRiskAssign(access, recommendationId, { staff_id: staffId, staff_name: staffName });
-            await loadPage(access);
-          }}
-          onLogActivity={async (recommendationId, note) => {
-            const access = getAccessToken();
-            if (!access) return;
-            await postPipelineRiskActivity(access, recommendationId, { note });
-            await loadPage(access);
-          }}
-        />
-
-        <section className="ai-insights-page__section">
-          <h3 className="kpi-section-title">Inbox gợi ý AI ({total})</h3>
-          <InsightsInboxTable rows={rows} />
-        </section>
-      </div>
-    </main>
+      <section className="ai-insights-page__section">
+        <h3 className="kpi-section-title">Inbox gợi ý AI ({total})</h3>
+        <InsightsInboxTable rows={rows} />
+      </section>
+    </DashboardShell>
   );
 }
 

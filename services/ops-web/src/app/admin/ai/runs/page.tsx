@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { AdminPageShell } from '@/components/admin';
 import { AdminAiRunsPanel, type AdminAiRunsFilters } from '@/components/ai/AdminAiRunsPanel';
-import { OpsNav } from '@/components/OpsNav';
 import {
   fetchAiAgentRunById,
   fetchAiAgentRuns,
@@ -154,25 +154,28 @@ export default function AdminAiRunsPage() {
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem' }}>
-        {error ? <p className="error">{error}</p> : <p className="muted">Đang tải…</p>}
-      </main>
+      <AdminPageShell
+        user={null}
+        onLogout={logout}
+        section="ai-automation"
+        title="AI agent runs"
+        subtitle={periodHint}
+        loading
+      >
+        <span />
+      </AdminPageShell>
     );
   }
 
   return (
-    <main className="kpi-page admin-ai-runs-page" style={{ maxWidth: 1180, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <div className="kpi-page__head">
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.15rem' }}>AI agent runs</h2>
-            <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              {periodHint}
-            </p>
-          </div>
-        </div>
-
+    <AdminPageShell
+      user={user}
+      onLogout={logout}
+      section="ai-automation"
+      title="AI agent runs"
+      subtitle={periodHint}
+    >
+      <div className="page-card stack-gap">
         {error ? <p className="error">{error}</p> : null}
 
         <AdminAiRunsPanel
@@ -210,6 +213,6 @@ export default function AdminAiRunsPage() {
           }}
         />
       </div>
-    </main>
+    </AdminPageShell>
   );
 }

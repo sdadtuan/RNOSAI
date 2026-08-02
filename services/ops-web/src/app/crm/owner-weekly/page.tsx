@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OpsNav } from '@/components/OpsNav';
+import { DashboardShell } from '@/components/kpi/DashboardShell';
 import {
   KpiTileGrid,
   OwnerWeeklyActionList,
@@ -160,70 +160,69 @@ export default function CrmOwnerWeeklyPage() {
   }
 
   return (
-    <main className="kpi-page" style={{ maxWidth: 1080, margin: '0 auto', padding: '1.5rem' }}>
-      <OpsNav user={user} onLogout={logout} />
-      <div className="card">
-        <div className="kpi-page__head">
-          <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Owner Weekly</h2>
-          <div className="kpi-page__filters">
-            <input
-              type="number"
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-              className="kpi-input"
-              aria-label="Năm"
-            />
-            <input
-              type="number"
-              min={1}
-              max={53}
-              value={week}
-              onChange={(e) => setWeek(Number(e.target.value))}
-              className="kpi-input kpi-input--month"
-              aria-label="Tuần ISO"
-            />
-            {canExport ? (
-              <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onExport()}>
-                Export JSON
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        {loading ? <p className="muted">Đang tải…</p> : null}
-        {error ? <p className="error">{error}</p> : null}
-
-        <KpiTileGrid tiles={tiles} />
-
-        <section className="kpi-page__section">
-          <h3 className="kpi-section-title">4 khối báo cáo</h3>
-          <OwnerWeeklyBlockGrid dashboard={dashboard} />
-        </section>
-
-        <section className="kpi-page__section">
-          <h3 className="kpi-section-title">Hành động ưu tiên</h3>
-          <OwnerWeeklyActionList dashboard={dashboard} />
-        </section>
-
-        {canConfigure ? (
-          <section className="kpi-page__section">
-            <h3 className="kpi-section-title">Cấu hình target</h3>
-            <OwnerWeeklyConfigForm
-              targets={targetDraft}
-              onChange={(key, value) => setTargetDraft((prev) => ({ ...prev, [key]: value }))}
-            />
-            <button
-              type="button"
-              className="btn btn-sm"
-              disabled={saving}
-              onClick={() => void onSaveConfig()}
-              style={{ marginTop: '0.75rem' }}
-            >
-              {saving ? 'Đang lưu…' : 'Lưu target'}
+    <DashboardShell
+      user={user}
+      onLogout={logout}
+      title="Owner Weekly"
+      periodHint={`Năm ${year} · Tuần ISO ${week}`}
+      loading={loading}
+      error={error || undefined}
+      filters={
+        <>
+          <input
+            type="number"
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+            className="kpi-input"
+            aria-label="Năm"
+          />
+          <input
+            type="number"
+            min={1}
+            max={53}
+            value={week}
+            onChange={(e) => setWeek(Number(e.target.value))}
+            className="kpi-input kpi-input--month"
+            aria-label="Tuần ISO"
+          />
+          {canExport ? (
+            <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onExport()}>
+              Export JSON
             </button>
-          </section>
-        ) : null}
-      </div>
-    </main>
+          ) : null}
+        </>
+      }
+    >
+      <KpiTileGrid tiles={tiles} />
+
+      <section className="kpi-page__section">
+        <h3 className="kpi-section-title">4 khối báo cáo</h3>
+        <OwnerWeeklyBlockGrid dashboard={dashboard} />
+      </section>
+
+      <section className="kpi-page__section">
+        <h3 className="kpi-section-title">Hành động ưu tiên</h3>
+        <OwnerWeeklyActionList dashboard={dashboard} />
+      </section>
+
+      {canConfigure ? (
+        <section className="kpi-page__section">
+          <h3 className="kpi-section-title">Cấu hình target</h3>
+          <OwnerWeeklyConfigForm
+            targets={targetDraft}
+            onChange={(key, value) => setTargetDraft((prev) => ({ ...prev, [key]: value }))}
+          />
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={saving}
+            onClick={() => void onSaveConfig()}
+            style={{ marginTop: '0.75rem' }}
+          >
+            {saving ? 'Đang lưu…' : 'Lưu target'}
+          </button>
+        </section>
+      ) : null}
+    </DashboardShell>
   );
 }
