@@ -3749,8 +3749,13 @@ export async function fetchClientPortalUsers(
 export async function createClientPortalUser(
   token: string,
   clientId: string,
-  body: { email: string; password?: string; role?: PortalClientRole },
-): Promise<{ ok: boolean; user: PortalClientUser; temporary_password?: string }> {
+  body: { email: string; password?: string; role?: PortalClientRole; send_email?: boolean },
+): Promise<{
+  ok: boolean;
+  user: PortalClientUser;
+  temporary_password?: string;
+  email_delivery?: { ok: boolean; skipped?: boolean; error?: string };
+}> {
   return agencyMutate(token, `/api/v1/clients/${clientId}/portal-users`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -3773,8 +3778,12 @@ export async function resetClientPortalUserPassword(
   token: string,
   clientId: string,
   userId: string,
-  body: { password?: string } = {},
-): Promise<{ ok: boolean; temporary_password?: string }> {
+  body: { password?: string; send_email?: boolean } = {},
+): Promise<{
+  ok: boolean;
+  temporary_password?: string;
+  email_delivery?: { ok: boolean; skipped?: boolean; error?: string };
+}> {
   return agencyMutate(token, `/api/v1/clients/${clientId}/portal-users/${userId}/reset-password`, {
     method: 'POST',
     body: JSON.stringify(body),

@@ -56,6 +56,19 @@ export class PortalClientUsersRepository implements OnModuleDestroy {
     return (result.rowCount ?? 0) > 0;
   }
 
+  async getClientSummary(clientId: string): Promise<{ name: string; code: string } | null> {
+    const result = await this.db.query(
+      `SELECT name, code FROM clients WHERE id = $1::uuid LIMIT 1`,
+      [clientId],
+    );
+    if (!result.rows.length) return null;
+    const row = result.rows[0] as { name?: string; code?: string };
+    return {
+      name: String(row.name ?? '').trim() || 'Client',
+      code: String(row.code ?? '').trim(),
+    };
+  }
+
   async listByClient(clientId: string): Promise<PortalClientUserPublic[]> {
     const result = await this.db.query(
       `SELECT id, email, role, active, last_login_at, created_at, updated_at

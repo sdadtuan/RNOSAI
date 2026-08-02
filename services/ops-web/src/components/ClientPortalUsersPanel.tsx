@@ -26,13 +26,31 @@ function fmtDate(value: string | null): string {
   }
 }
 
+function emailDeliveryMessage(
+  delivery: { ok: boolean; skipped?: boolean; error?: string } | undefined,
+): string {
+  if (!delivery) return '';
+  if (delivery.skipped) {
+    return ' Email chưa gửi (PTT_PORTAL_EMAIL_NOTIFY=0 hoặc webhook chưa cấu hình).';
+  }
+  if (!delivery.ok) {
+    return ` Gửi email thất bại: ${delivery.error ?? 'unknown'}.`;
+  }
+  return ' Đã gửi email thông tin đăng nhập theo template.';
+}
+
 export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, onError }: Props) {
   const [users, setUsers] = useState<PortalClientUser[]>([]);
   const [tableReady, setTableReady] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [revealedPassword, setRevealedPassword] = useState<string | null>(null);
-  const [form, setForm] = useState({ email: '', password: '', role: 'viewer' as 'viewer' | 'approver' });
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+    role: 'viewer' as 'viewer' | 'approver',
+    sendEmail: true,
+  });
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -59,23 +77,30 @@ export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, 
     setRevealedPassword(null);
     onError?.('');
     try {
-      const body: { email: string; role: 'viewer' | 'approver'; password?: string } = {
+      const body: {
+        email: string;
+        role: 'viewer' | 'approver';
+        password?: string;
+        send_email?: boolean;
+      } = {
         email: form.email.trim(),
         role: form.role,
+        send_email: form.sendEmail,
       };
       if (form.password.trim()) {
         body.password = form.password.trim();
       }
       const out = await createClientPortalUser(token, clientId, body);
+      const emailNote = emailDeliveryMessage(out.email_delivery);
       if (out.temporary_password) {
         setRevealedPassword(out.temporary_password);
         onMessage?.(
-          `Đã tạo portal user ${out.user.email}. Sao chép mật khẩu tạm bên dưới — chỉ hiển thị một lần.`,
+          `Đã tạo portal user ${out.user.email}.${emailNote} Mật khẩu tạm hiển thị bên dưới — sao chép dự phòng.`,
         );
       } else {
-        onMessage?.(`Đã tạo portal user ${out.user.email}`);
+        onMessage?.(`Đã tạo portal user ${out.user.email}.${emailNote}`);
       }
-      setForm({ email: '', password: '', role: 'viewer' });
+      setForm({ email: '', password: '', role: 'viewer', sendEmail: true });
       await reload();
     } catch (err) {
       onError?.(err instanceof Error ? err.message : 'Tạo portal user thất bại');
@@ -117,19 +142,25 @@ export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, 
     }
   }
 
-  async function handleResetPassword(user: PortalClientUser) {
+  async function handleResetPassword(user: PortalClientUser, sendEmail = false) {
     if (!canMutate) return;
-    if (!window.confirm(`Reset mật khẩu cho ${user.email}? Mật khẩu mới sẽ hiển thị một lần.`)) return;
+    const prompt = sendEmail
+      ? `Reset mật khẩu và gửi email template cho ${user.email}? Mật khẩu mới sẽ hiển thị một lần trên màn hình.`
+      : `Reset mật khẩu cho ${user.email}? Mật khẩu mới sẽ hiển thị một lần.`;
+    if (!window.confirm(prompt)) return;
     setBusy(true);
     setRevealedPassword(null);
     onError?.('');
     try {
-      const out = await resetClientPortalUserPassword(token, clientId, user.id, {});
+      const out = await resetClientPortalUserPassword(token, clientId, user.id, { send_email: sendEmail });
+      const emailNote = emailDeliveryMessage(out.email_delivery);
       if (out.temporary_password) {
         setRevealedPassword(out.temporary_password);
-        onMessage?.(`Mật khẩu mới cho ${user.email} — sao chép ngay (vault/handover A4).`);
+        onMessage?.(
+          `Mật khẩu mới cho ${user.email}.${emailNote} Sao chép ngay (vault/handover A4).`,
+        );
       } else {
-        onMessage?.(`Đã reset mật khẩu ${user.email}`);
+        onMessage?.(`Đã reset mật khẩu ${user.email}.${emailNote}`);
       }
     } catch (err) {
       onError?.(err instanceof Error ? err.message : 'Reset mật khẩu thất bại');
@@ -145,7 +176,8 @@ export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, 
         <a href="https://portal.pttads.vn/login" target="_blank" rel="noreferrer">
           portal.pttads.vn
         </a>
-        . Ghi mật khẩu lên form bàn giao credentials — không gửi plain text qua email.
+        . Khi tạo user, hệ thống có thể gửi email template thông tin đăng nhập (cần{' '}
+        <code>PTT_PORTAL_EMAIL_NOTIFY=1</code> + webhook).
       </p>
 
       {!tableReady ? (
@@ -194,7 +226,7 @@ export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, 
               value={form.email}
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               required
-              placeholder="viewer@client.com"
+              placeholder="owner@glowbeautyspa.vn"
             />
           </label>
           <label>
@@ -213,6 +245,14 @@ export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, 
               <option value="viewer">Viewer — xem báo cáo</option>
               <option value="approver">Approver — xem + duyệt</option>
             </select>
+          </label>
+          <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input
+              type="checkbox"
+              checked={form.sendEmail}
+              onChange={(e) => setForm((f) => ({ ...f, sendEmail: e.target.checked }))}
+            />
+            <span>Gửi email thông tin đăng nhập theo template</span>
           </label>
           <div>
             <button type="submit" className="btn btn-sm" disabled={busy}>
@@ -265,6 +305,14 @@ export function ClientPortalUsersPanel({ token, clientId, canMutate, onMessage, 
                     <td style={{ whiteSpace: 'nowrap' }}>
                       <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void handleResetPassword(user)}>
                         Reset MK
+                      </button>{' '}
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        disabled={busy}
+                        onClick={() => void handleResetPassword(user, true)}
+                      >
+                        Gửi email MK
                       </button>{' '}
                       <button type="button" className="btn btn-sm btn-muted" disabled={busy} onClick={() => void handleToggleActive(user)}>
                         {user.active ? 'Vô hiệu' : 'Kích hoạt'}

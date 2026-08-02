@@ -16,17 +16,23 @@ describe('PortalClientUsersService', () => {
     findById: jest.fn(),
     updateUser: jest.fn(),
     updatePassword: jest.fn(),
+    getClientSummary: jest.fn(),
   };
   const tenantLock = {
     assertClientWritable: jest.fn(),
   };
-  const service = new PortalClientUsersService(repo as never, tenantLock as never);
+  const credentialsNotify = {
+    sendCredentialsEmail: jest.fn(),
+  };
+  const service = new PortalClientUsersService(repo as never, tenantLock as never, credentialsNotify as never);
 
   beforeEach(() => {
     jest.resetAllMocks();
     repo.tableReady.mockResolvedValue(true);
     repo.clientExists.mockResolvedValue(true);
     tenantLock.assertClientWritable.mockResolvedValue(undefined);
+    repo.getClientSummary.mockResolvedValue({ name: 'Glow Beauty Spa', code: 'GLOW-SPA' });
+    credentialsNotify.sendCredentialsEmail.mockResolvedValue({ ok: true });
   });
 
   it('list returns empty when table not ready', async () => {
@@ -51,6 +57,22 @@ describe('PortalClientUsersService', () => {
     expect(out.temporary_password).toBeTruthy();
     expect(out.user.email).toBe('client@test.local');
     expect(repo.insertUser).toHaveBeenCalled();
+    expect(credentialsNotify.sendCredentialsEmail).toHaveBeenCalled();
+  });
+
+  it('create skips email when send_email is false', async () => {
+    repo.emailTaken.mockResolvedValue(false);
+    repo.insertUser.mockResolvedValue({
+      id: 'u1',
+      email: 'client@test.local',
+      role: 'viewer',
+      active: true,
+      last_login_at: null,
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    });
+    await service.create('client-1', { email: 'client@test.local', send_email: false });
+    expect(credentialsNotify.sendCredentialsEmail).not.toHaveBeenCalled();
   });
 
   it('create rejects duplicate email', async () => {
@@ -92,5 +114,21 @@ describe('PortalClientUsersService', () => {
     const out = await service.resetPassword('client-1', 'u1', {});
     expect(out.ok).toBe(true);
     expect(out.temporary_password).toBeTruthy();
+  });
+
+  it('resetPassword sends email when requested', async () => {
+    repo.findById.mockResolvedValue({
+      id: 'u1',
+      email: 'client@test.local',
+      role: 'approver',
+      active: true,
+      last_login_at: null,
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    });
+    repo.updatePassword.mockResolvedValue(true);
+    const out = await service.resetPassword('client-1', 'u1', { send_email: true });
+    expect(out.ok).toBe(true);
+    expect(credentialsNotify.sendCredentialsEmail).toHaveBeenCalled();
   });
 });

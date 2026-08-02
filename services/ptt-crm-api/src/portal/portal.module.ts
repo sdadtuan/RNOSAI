@@ -9,6 +9,7 @@ import { PortalNotificationRepository } from './portal-notification.repository';
 import { PortalNotificationService } from './portal-notification.service';
 import { PortalNotifyWebhookService } from './portal-notify-webhook.service';
 import { PortalPasswordResetNotifyService } from './portal-password-reset-notify.service';
+import { PortalCredentialsNotifyService } from './portal-credentials-notify.service';
 import { PortalPasswordResetRepository } from './portal-password-reset.repository';
 import { PortalPasswordResetService } from './portal-password-reset.service';
 import { PortalMobileController } from './portal-mobile.controller';
@@ -45,6 +46,7 @@ import { PortalSettingsService } from './portal-settings.service';
     CampaignMilestoneNotifyService,
     PortalPasswordResetRepository,
     PortalPasswordResetNotifyService,
+    PortalCredentialsNotifyService,
     PortalPasswordResetService,
     PortalPushRepository,
     PortalPushService,
@@ -60,6 +62,7 @@ import { PortalSettingsService } from './portal-settings.service';
     PortalCreativeNotifyService,
     PortalNotificationService,
     PortalNotifyWebhookService,
+    PortalCredentialsNotifyService,
     CampaignMilestoneNotifyService,
     PortalPasswordResetService,
     PortalPushSenderService,

@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { EventsModule } from '../events/events.module';
 import { LeadsContractModule } from '../leads-contract/leads-contract.module';
 import { PerformanceModule } from '../performance/performance.module';
+import { PortalModule } from '../portal/portal.module';
 import { ServiceLifecycleModule } from '../service-lifecycle/service-lifecycle.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
@@ -32,6 +33,7 @@ import { InternalKeyGuard } from '../auth/internal-key.guard';
 @Module({
   imports: [
     StaffAuthModule,
+    forwardRef(() => PortalModule),
     forwardRef(() => PerformanceModule),
     EventsModule,
     WebhooksModule,

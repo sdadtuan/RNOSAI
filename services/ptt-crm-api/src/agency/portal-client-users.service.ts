@@ -8,17 +8,19 @@ import {
 import { randomBytes } from 'crypto';
 import { ClientOffboardService } from './client-offboard.service';
 import { PortalClientUsersRepository } from './portal-client-users.repository';
+import { hashPortalPassword } from '../portal/portal-password.util';
+import { PortalCredentialsNotifyService } from '../portal/portal-credentials-notify.service';
 import {
   CreatePortalClientUserBody,
   CreatePortalClientUserResponse,
   PortalClientRole,
   PortalClientUsersListResponse,
   PortalClientUserPublic,
+  PortalCredentialsEmailDelivery,
   ResetPortalClientUserPasswordBody,
   ResetPortalClientUserPasswordResponse,
   UpdatePortalClientUserBody,
 } from './portal-client-users.types';
-import { hashPortalPassword } from '../portal/portal-password.util';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LEN = 8;
@@ -28,6 +30,7 @@ export class PortalClientUsersService {
   constructor(
     private readonly repo: PortalClientUsersRepository,
     private readonly tenantLock: ClientOffboardService,
+    private readonly credentialsNotify: PortalCredentialsNotifyService,
   ) {}
 
   async list(clientId: string): Promise<PortalClientUsersListResponse> {
@@ -77,10 +80,16 @@ export class PortalClientUsersService {
       throw err;
     }
 
+    const sendEmail = body.send_email !== false;
+    const emailDelivery = sendEmail
+      ? await this.deliverCredentialsEmail(clientId, user.email, user.role, plainPassword)
+      : undefined;
+
     return {
       ok: true,
       user,
       ...(temporaryPassword ? { temporary_password: temporaryPassword } : {}),
+      ...(emailDelivery ? { email_delivery: emailDelivery } : {}),
     };
   }
 
@@ -142,10 +151,32 @@ export class PortalClientUsersService {
       throw new NotFoundException({ error: 'portal_user_not_found' });
     }
 
+    const sendEmail = body.send_email === true;
+    const emailDelivery = sendEmail
+      ? await this.deliverCredentialsEmail(clientId, existing.email, existing.role, plainPassword)
+      : undefined;
+
     return {
       ok: true,
       ...(temporaryPassword ? { temporary_password: temporaryPassword } : {}),
+      ...(emailDelivery ? { email_delivery: emailDelivery } : {}),
     };
+  }
+
+  private async deliverCredentialsEmail(
+    clientId: string,
+    email: string,
+    role: PortalClientRole,
+    password: string,
+  ): Promise<PortalCredentialsEmailDelivery> {
+    const client = (await this.repo.getClientSummary(clientId)) ?? { name: 'Client', code: '' };
+    return this.credentialsNotify.sendCredentialsEmail({
+      to: email,
+      clientName: client.name,
+      clientCode: client.code || undefined,
+      role,
+      password,
+    });
   }
 
   private async assertClientExists(clientId: string): Promise<void> {
