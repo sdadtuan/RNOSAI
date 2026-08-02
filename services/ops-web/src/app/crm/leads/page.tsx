@@ -7,7 +7,7 @@ import { OpsNav } from '@/components/OpsNav';
 import { CrmLeadsImportExport } from '@/components/crm/CrmLeadsImportExport';
 import { CrmLeadsList } from '@/components/crm/CrmLeadsList';
 import { PullToRefresh } from '@/components/mobile/PullToRefresh';
-import { fetchLeads, bulkAssignLeads, fetchCrmStaffList, staffMe, staffRefresh } from '@/lib/api';
+import { fetchLeads, bulkAssignLeads, fetchCrmStaffList, fetchReviewQueueCount, staffMe, staffRefresh } from '@/lib/api';
 import type { CrmStaffRow, LeadRow } from '@/lib/api';
 import { aiCopilotEnabled, isAiPilotUser } from '@/lib/ai-flags';
 import { useLeadScoresMap } from '@/hooks/useLeadScoresMap';
@@ -24,6 +24,8 @@ import {
 
 const PAGE_SIZE = 50;
 
+type LeadKindFilter = 'pipeline' | 'review' | 'all';
+
 export default function CrmLeadsPage() {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
@@ -34,6 +36,8 @@ export default function CrmLeadsPage() {
   const [q, setQ] = useState('');
   const [query, setQuery] = useState('');
   const [listTab, setListTab] = useState<'all' | 'mine' | 'unassigned'>('all');
+  const [leadKind, setLeadKind] = useState<LeadKindFilter>('pipeline');
+  const [reviewQueueCount, setReviewQueueCount] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterSource, setFilterSource] = useState('');
   const [filterChannel, setFilterChannel] = useState('');
@@ -49,6 +53,7 @@ export default function CrmLeadsPage() {
     [user],
   );
   const canCreate = useMemo(() => hasCap(user, 'crm_leads', 'edit'), [user]);
+  const canReviewQueue = useMemo(() => hasCap(user, 'crm_leads', 'assign'), [user]);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -98,6 +103,8 @@ export default function CrmLeadsPage() {
           channel: filterChannel || undefined,
           owner_id: ownerId,
           unassigned_only: listTab === 'unassigned',
+          review_queue_only: leadKind === 'review' ? true : undefined,
+          hide_review_queue: leadKind === 'all' ? false : undefined,
           limit: PAGE_SIZE,
           offset: nextOffset,
         });
@@ -110,23 +117,35 @@ export default function CrmLeadsPage() {
         setLoading(false);
       }
     },
-    [filterChannel, filterSource, filterStatus, listTab, user?.id],
+    [filterChannel, filterSource, filterStatus, leadKind, listTab, user?.id],
   );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if (tab === 'review') setLeadKind('review');
+  }, []);
 
   useEffect(() => {
     void (async () => {
       const access = await ensureAuth();
       if (!access) return;
       setToken(access);
-      const staffOut = await fetchCrmStaffList(access).catch(() => ({ staff: [], summary: {} }));
+      const [staffOut, reviewOut] = await Promise.all([
+        fetchCrmStaffList(access).catch(() => ({ staff: [], summary: {} })),
+        canReviewQueue
+          ? fetchReviewQueueCount(access).catch(() => ({ count: 0 }))
+          : Promise.resolve({ count: 0 }),
+      ]);
       setStaffOptions(staffOut.staff ?? []);
+      setReviewQueueCount(reviewOut.count ?? 0);
     })();
-  }, [ensureAuth]);
+  }, [ensureAuth, canReviewQueue]);
 
   useEffect(() => {
     if (!token) return;
     void loadLeads(token, 0, query);
-  }, [token, query, listTab, filterStatus, filterSource, filterChannel, loadLeads]);
+  }, [token, query, listTab, leadKind, filterStatus, filterSource, filterChannel, loadLeads]);
 
   function logout() {
     clearSession();
@@ -274,7 +293,7 @@ export default function CrmLeadsPage() {
           </button>
         </form>
 
-        <div className="crm-leads-tabs" role="tablist" style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+        <div className="crm-leads-tabs" role="tablist" style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
           {(
             [
               ['all', 'Tất cả'],
@@ -296,6 +315,36 @@ export default function CrmLeadsPage() {
               {label}
             </button>
           ))}
+        </div>
+
+        <div className="crm-leads-kind-filter" role="group" aria-label="Lọc loại lead">
+          <span className="crm-leads-kind-filter__label">Loại lead:</span>
+          {(
+            [
+              ['pipeline', 'Pipeline AM'],
+              ['review', `Phải tra soát${reviewQueueCount != null && reviewQueueCount > 0 ? ` (${reviewQueueCount})` : ''}`],
+              ['all', 'Tất cả (có tag)'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`btn btn-sm lead-kind-filter-btn${leadKind === id ? '' : ' btn-secondary'}`}
+              aria-pressed={leadKind === id}
+              onClick={() => {
+                setLeadKind(id);
+                setOffset(0);
+                setSelectedIds(new Set());
+              }}
+            >
+              {label}
+            </button>
+          ))}
+          {canReviewQueue ? (
+            <Link href="/crm/leads/review-queue" className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }}>
+              Inbox GDKD →
+            </Link>
+          ) : null}
         </div>
 
         {selectedList.length && canImport ? (
@@ -327,6 +376,7 @@ export default function CrmLeadsPage() {
         <p className="muted" style={{ marginTop: 0 }}>
           {total.toLocaleString('vi-VN')} leads · trang {Math.floor(offset / PAGE_SIZE) + 1} /{' '}
           {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+          {leadKind === 'pipeline' ? ' · ẩn Phải tra soát' : leadKind === 'review' ? ' · chỉ Phải tra soát' : ' · hiển thị cả hai loại'}
           {selectedList.length ? ` · đã chọn ${selectedList.length}` : ''}
         </p>
 

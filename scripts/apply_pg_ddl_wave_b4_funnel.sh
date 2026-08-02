@@ -21,4 +21,4 @@ fi
 DDL="$ROOT/docs/specs/2026-07-23-wave-b4-funnel-pg-ddl.sql"
 echo "Applying Wave B4 funnel DDL..."
 psql "$URL" -v ON_ERROR_STOP=1 -f "$DDL"
-echo "OK  Wave B4 PG DDL applied (Nest funnel still SQLite until PTT_CRM_LEADS_FUNNEL_PG=1)"
+echo "OK  Wave B4 PG DDL applied (Nest presales PG when PTT_CRM_LEADS_FUNNEL_PG=1, default on)"

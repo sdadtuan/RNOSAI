@@ -3,7 +3,7 @@
 --   psql "$DATABASE_URL" -f docs/specs/2026-07-23-wave-b4-funnel-pg-ddl.sql
 -- Or: ./scripts/apply_pg_ddl_wave_b4_funnel.sh
 --
--- Nest still uses SQLite bridge until PTT_CRM_LEADS_FUNNEL_PG=1 (future flag).
+-- Nest presales on PostgreSQL when PTT_CRM_LEADS_FUNNEL_PG=1 (default since 2026-08).
 -- This DDL enables dual-write / read replica sync in a later sprint.
 
 BEGIN;
@@ -80,6 +80,83 @@ CREATE INDEX IF NOT EXISTS idx_crm_lead_presales_tasks_presales
     ON crm_lead_presales_tasks (presales_id, stage, step_index);
 
 -- ---------------------------------------------------------------------------
+-- crm_marketing_plans — KH MKT sơ bộ @ presales (PG primary)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS crm_marketing_plans (
+    id                      BIGSERIAL PRIMARY KEY,
+    sqlite_plan_id          BIGINT UNIQUE,
+    code                    TEXT NOT NULL DEFAULT '',
+    name                    TEXT NOT NULL DEFAULT '',
+    status                  TEXT NOT NULL DEFAULT 'draft',
+    plan_kind               TEXT NOT NULL DEFAULT 'preliminary',
+    lead_id                 BIGINT NOT NULL,
+    presales_id             BIGINT REFERENCES crm_lead_presales (id) ON DELETE CASCADE,
+    lifecycle_id            BIGINT,
+    source_plan_id          BIGINT,
+    north_star              TEXT NOT NULL DEFAULT '',
+    objectives              TEXT NOT NULL DEFAULT '',
+    notes                   TEXT NOT NULL DEFAULT '',
+    strategy_framework_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    target_market_prof_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    target_market_steps4_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_crm_marketing_plans_presales
+    ON crm_marketing_plans (presales_id, plan_kind);
+
+-- ---------------------------------------------------------------------------
+-- crm_lead_activities — B2 care reports (PG primary)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS crm_lead_activities (
+    id                  BIGSERIAL PRIMARY KEY,
+    sqlite_activity_id  BIGINT UNIQUE,
+    lead_id             BIGINT NOT NULL,
+    user_id             BIGINT,
+    activity_type       TEXT NOT NULL DEFAULT 'note',
+    content             TEXT NOT NULL DEFAULT '',
+    result              TEXT NOT NULL DEFAULT '',
+    next_action         TEXT NOT NULL DEFAULT '',
+    next_action_at      TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by          VARCHAR(120) NOT NULL DEFAULT '',
+    lead_status_at_log  TEXT NOT NULL DEFAULT '',
+    care_contact_type   TEXT NOT NULL DEFAULT '',
+    care_status         TEXT NOT NULL DEFAULT '',
+    care_stage_key      TEXT NOT NULL DEFAULT '',
+    CONSTRAINT crm_lead_activities_lead_fk FOREIGN KEY (lead_id)
+        REFERENCES crm_leads (sqlite_lead_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_crm_lead_activities_lead
+    ON crm_lead_activities (lead_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_crm_lead_activities_care
+    ON crm_lead_activities (lead_id, care_stage_key, activity_type);
+
+-- ---------------------------------------------------------------------------
+-- crm_lead_settings — B2 review queue config
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS crm_lead_settings (
+    config_key   TEXT PRIMARY KEY,
+    config_json  JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_by   VARCHAR(120) NOT NULL DEFAULT ''
+);
+
+INSERT INTO crm_lead_settings (config_key, config_json)
+VALUES ('global', '{"b2_review_queue_enabled": true, "b2_contact_deadline_hours": 24}'::jsonb)
+ON CONFLICT (config_key) DO NOTHING;
+
+-- Allow unassign when lead enters review queue (to_owner_id was NOT NULL in v3)
+ALTER TABLE crm_lead_assignment_log
+    ALTER COLUMN to_owner_id DROP NOT NULL;
+
+-- ---------------------------------------------------------------------------
 -- Schema version marker
 -- ---------------------------------------------------------------------------
 
@@ -90,7 +167,7 @@ CREATE TABLE IF NOT EXISTS ptt_schema_migrations (
 );
 
 INSERT INTO ptt_schema_migrations (id, notes)
-VALUES ('2026-07-23-wave-b4-funnel', 'crm_leads funnel cols + crm_lead_presales tables')
+VALUES ('2026-07-23-wave-b4-funnel', 'crm_leads funnel + presales + marketing_plans + care activities')
 ON CONFLICT (id) DO NOTHING;
 
 COMMIT;

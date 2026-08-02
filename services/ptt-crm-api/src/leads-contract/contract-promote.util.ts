@@ -4,6 +4,17 @@ import { validatePreliminaryPlan } from '../leads-funnel/presales-marketing-plan
 import { linkPresalesExpensesToLifecycle } from '../service-lifecycle/lifecycle-finance.util';
 import { seedPostOnboardLifecycleTasks } from './lifecycle-tasks-seed.util';
 
+export interface PresalesPromoteSource {
+  presalesId: number;
+  leadId: number;
+  serviceSlug: string;
+  assignedAm: number | null;
+  tasks: Array<Record<string, unknown>>;
+  plan: Record<string, unknown>;
+  alreadyConverted?: { lifecycle_id: number };
+  skipSqlitePresalesUpdate?: boolean;
+}
+
 export class ContractPromoteUtil {
   run(
     db: DatabaseSync,
@@ -11,7 +22,8 @@ export class ContractPromoteUtil {
     leadId: number,
     actor: string,
     ts: string,
-  ): { lifecycle_id: number; customer_id: number; case_id: number | null } {
+    presalesSource?: PresalesPromoteSource,
+  ): { lifecycle_id: number; customer_id: number; case_id: number | null; presales_id: number } {
     db.exec('BEGIN');
     try {
       const contract = db.prepare('SELECT * FROM crm_contracts WHERE id = ?').get(contractId) as
@@ -19,37 +31,68 @@ export class ContractPromoteUtil {
         | undefined;
       if (!contract) throw new Error('Không tìm thấy hợp đồng');
 
-      const ps = db.prepare('SELECT * FROM crm_lead_presales WHERE lead_id = ?').get(leadId) as
-        | Record<string, unknown>
-        | undefined;
-      if (!ps) throw new Error('Lead chưa có pre-sales');
-      const presalesId = Number(ps.id);
+      let presalesId: number;
+      let ps: Record<string, unknown>;
+      if (presalesSource) {
+        presalesId = presalesSource.presalesId;
+        ps = {
+          id: presalesSource.presalesId,
+          lead_id: presalesSource.leadId,
+          service_slug: presalesSource.serviceSlug,
+          assigned_am: presalesSource.assignedAm,
+          status: presalesSource.alreadyConverted ? 'converted' : 'active',
+          lifecycle_id: presalesSource.alreadyConverted?.lifecycle_id ?? null,
+        };
+      } else {
+        const sqlitePs = db.prepare('SELECT * FROM crm_lead_presales WHERE lead_id = ?').get(leadId) as
+          | Record<string, unknown>
+          | undefined;
+        if (!sqlitePs) throw new Error('Lead chưa có pre-sales');
+        ps = sqlitePs;
+        presalesId = Number(ps.id);
+      }
+
       if (String(ps.status) === 'converted' && ps.lifecycle_id) {
         db.exec('COMMIT');
         return {
           lifecycle_id: Number(ps.lifecycle_id),
           customer_id: Number(contract.customer_id),
           case_id: contract.case_id != null ? Number(contract.case_id) : null,
+          presales_id: presalesId,
         };
       }
 
-      for (const stage of PRESALES_STAGES) {
-        const pending = db
-          .prepare(
-            `SELECT COUNT(*) AS c FROM crm_lead_presales_tasks
-             WHERE presales_id = ? AND stage = ? AND is_custom = 0 AND is_done = 0`,
-          )
-          .get(presalesId, stage) as { c: number };
-        if (Number(pending.c) > 0) throw new Error(`Chưa hoàn thành task giai đoạn ${stage}`);
-      }
+      if (presalesSource) {
+        for (const stage of PRESALES_STAGES) {
+          const pending = presalesSource.tasks.filter(
+            (task) =>
+              String(task.stage) === stage &&
+              !Number(task.is_custom) &&
+              !Boolean(task.is_done),
+          ).length;
+          if (pending > 0) throw new Error(`Chưa hoàn thành task giai đoạn ${stage}`);
+        }
+        const planGate = validatePreliminaryPlan(presalesSource.plan);
+        if (!planGate.ok) throw new Error(planGate.messages[0] ?? 'KH MKT sơ bộ chưa đủ');
+      } else {
+        for (const stage of PRESALES_STAGES) {
+          const pending = db
+            .prepare(
+              `SELECT COUNT(*) AS c FROM crm_lead_presales_tasks
+               WHERE presales_id = ? AND stage = ? AND is_custom = 0 AND is_done = 0`,
+            )
+            .get(presalesId, stage) as { c: number };
+          if (Number(pending.c) > 0) throw new Error(`Chưa hoàn thành task giai đoạn ${stage}`);
+        }
 
-      const plan = db
-        .prepare(
-          `SELECT * FROM crm_marketing_plans WHERE presales_id = ? AND plan_kind = 'preliminary' ORDER BY id DESC LIMIT 1`,
-        )
-        .get(presalesId) as Record<string, unknown> | undefined;
-      const planGate = validatePreliminaryPlan(plan ?? null);
-      if (!planGate.ok) throw new Error(planGate.messages[0] ?? 'KH MKT sơ bộ chưa đủ');
+        const plan = db
+          .prepare(
+            `SELECT * FROM crm_marketing_plans WHERE presales_id = ? AND plan_kind = 'preliminary' ORDER BY id DESC LIMIT 1`,
+          )
+          .get(presalesId) as Record<string, unknown> | undefined;
+        const planGate = validatePreliminaryPlan(plan ?? null);
+        if (!planGate.ok) throw new Error(planGate.messages[0] ?? 'KH MKT sơ bộ chưa đủ');
+      }
 
       const convert = this.convertLeadToCrm(db, leadId, actor, ts);
       db.prepare(
@@ -63,6 +106,7 @@ export class ContractPromoteUtil {
         contractId,
         actor,
         ts,
+        presalesSource,
       );
 
       db.prepare(`UPDATE crm_leads SET status = 'won', updated_at = ?, updated_by = ? WHERE id = ?`).run(
@@ -75,7 +119,12 @@ export class ContractPromoteUtil {
       if (placeholderId !== convert.customer_id) this.deletePlaceholderIfOrphan(db, placeholderId);
 
       db.exec('COMMIT');
-      return { lifecycle_id: lifecycleId, customer_id: convert.customer_id, case_id: convert.case_id };
+      return {
+        lifecycle_id: lifecycleId,
+        customer_id: convert.customer_id,
+        case_id: convert.case_id,
+        presales_id: presalesId,
+      };
     } catch (err) {
       db.exec('ROLLBACK');
       throw err;
@@ -170,8 +219,15 @@ export class ContractPromoteUtil {
     contractId: number,
     actor: string,
     ts: string,
+    presalesSource?: PresalesPromoteSource,
   ): number {
-    const ps = db.prepare('SELECT * FROM crm_lead_presales WHERE id = ?').get(presalesId) as Record<string, unknown>;
+    const ps = presalesSource
+      ? {
+          lead_id: presalesSource.leadId,
+          service_slug: presalesSource.serviceSlug,
+          assigned_am: presalesSource.assignedAm,
+        }
+      : (db.prepare('SELECT * FROM crm_lead_presales WHERE id = ?').get(presalesId) as Record<string, unknown>);
     const leadId = Number(ps.lead_id);
     const serviceSlug = String(ps.service_slug ?? '');
     const owner = db.prepare('SELECT owner_id FROM crm_leads WHERE id = ?').get(leadId) as { owner_id: number | null } | undefined;
@@ -203,9 +259,11 @@ export class ContractPromoteUtil {
        VALUES (?, 'proposal', 'onboard', 'system', ?, ?)`,
     ).run(lifecycleId, `Ký HĐ #${contractId}`, ts);
 
-    const srcTasks = db
-      .prepare(`SELECT * FROM crm_lead_presales_tasks WHERE presales_id = ? ORDER BY stage, step_index, id`)
-      .all(presalesId) as Array<Record<string, unknown>>;
+    const srcTasks = presalesSource
+      ? presalesSource.tasks
+      : (db
+          .prepare(`SELECT * FROM crm_lead_presales_tasks WHERE presales_id = ? ORDER BY stage, step_index, id`)
+          .all(presalesId) as Array<Record<string, unknown>>);
     for (const src of srcTasks) {
       db.prepare(
         `INSERT INTO crm_svc_tasks
@@ -233,19 +291,65 @@ export class ContractPromoteUtil {
     }
 
     seedPostOnboardLifecycleTasks(db, lifecycleId, serviceSlug, ts);
-    this.clonePreliminaryToOfficial(db, presalesId, lifecycleId, ts);
+    if (presalesSource?.plan) {
+      this.clonePreliminaryToOfficialFromPlan(db, presalesSource.plan, lifecycleId, ts);
+    } else {
+      this.clonePreliminaryToOfficial(db, presalesId, lifecycleId, ts);
+    }
     linkPresalesExpensesToLifecycle(db, presalesId, lifecycleId);
 
     db.prepare(
       `UPDATE crm_lead_intake_sessions SET lifecycle_id = ? WHERE lead_id = ? AND (lifecycle_id IS NULL OR lifecycle_id = 0)`,
     ).run(lifecycleId, leadId);
-    db.prepare(`UPDATE crm_lead_presales SET status = 'converted', lifecycle_id = ?, updated_at = ? WHERE id = ?`).run(
-      lifecycleId,
-      ts,
-      presalesId,
-    );
+    if (!presalesSource?.skipSqlitePresalesUpdate) {
+      db.prepare(`UPDATE crm_lead_presales SET status = 'converted', lifecycle_id = ?, updated_at = ? WHERE id = ?`).run(
+        lifecycleId,
+        ts,
+        presalesId,
+      );
+    }
 
     return lifecycleId;
+  }
+
+  private clonePreliminaryToOfficialFromPlan(
+    db: DatabaseSync,
+    draft: Record<string, unknown>,
+    lifecycleId: number,
+    ts: string,
+  ): void {
+    const gate = validatePreliminaryPlan(draft);
+    if (!gate.ok) throw new Error(gate.messages[0] ?? 'KH MKT sơ bộ chưa đủ');
+    let name = String(draft.name ?? '').trim();
+    if (!name.endsWith('(chính thức)')) name = `${name} (chính thức)`.slice(0, 200);
+    const insert = db.prepare(
+      `INSERT INTO crm_marketing_plans (
+         code, name, status, plan_kind, lead_id, presales_id, lifecycle_id, source_plan_id,
+         north_star, objectives, notes, strategy_framework_json, target_market_prof_json,
+         target_market_steps4_json, created_at, updated_at
+       )
+       VALUES (?, ?, 'draft', 'official', ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      `LC-${lifecycleId}-OFFICIAL`,
+      name,
+      draft.lead_id != null ? Number(draft.lead_id) : null,
+      draft.presales_id != null ? Number(draft.presales_id) : null,
+      lifecycleId,
+      String(draft.north_star ?? ''),
+      String(draft.objectives ?? ''),
+      String(draft.notes ?? ''),
+      String(draft.strategy_framework_json ?? '{}'),
+      String(draft.target_market_prof_json ?? '{}'),
+      String(draft.target_market_steps4_json ?? '{}'),
+      ts,
+      ts,
+    );
+    const officialId = Number(insert.lastInsertRowid);
+    db.prepare(`UPDATE crm_service_lifecycle SET marketing_plan_id = ?, updated_at = ? WHERE id = ?`).run(
+      officialId,
+      ts,
+      lifecycleId,
+    );
   }
 
   private clonePreliminaryToOfficial(

@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   advanceLeadPresales,
   completeLeadCareStage,
@@ -45,16 +46,53 @@ const FUNNEL_STEPS = [
   { key: 'proposal', label: 'Báo giá' },
 ] as const;
 
+const DEFAULT_PRESALES_SLUG = 'dich-vu-seo-tong-the';
+
+const DEFAULT_PRESALES_SERVICES: Array<{ slug: string; name: string }> = [
+  { slug: 'dich-vu-seo-tong-the', name: 'SEO tổng thể' },
+  { slug: 'dich-vu-seo-local', name: 'SEO Local' },
+  { slug: 'dich-vu-seo-audit', name: 'SEO Audit' },
+  { slug: 'dich-vu-aeo', name: 'AEO' },
+];
+
+export function mergePresalesServiceOptions(
+  catalog?: Array<{ slug: string; name: string }>,
+): Array<{ slug: string; name: string }> {
+  const bySlug = new Map<string, { slug: string; name: string }>();
+  for (const item of DEFAULT_PRESALES_SERVICES) {
+    bySlug.set(item.slug, item);
+  }
+  for (const item of catalog ?? []) {
+    const slug = String(item.slug ?? '').trim();
+    if (!slug) continue;
+    bySlug.set(slug, { slug, name: String(item.name ?? slug).trim() || slug });
+  }
+  return [...bySlug.values()].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+}
+
 interface Props {
   token: string;
   leadId: number;
   user: StoredStaffUser | null;
   serviceSlug?: string;
+  serviceOptions?: Array<{ slug: string; name: string }>;
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
+  onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
+  onFunnelUpdated?: () => void;
 }
 
-export function LeadFunnelPanel({ token, leadId, user, serviceSlug, onMessage, onError }: Props) {
+export function LeadFunnelPanel({
+  token,
+  leadId,
+  user,
+  serviceSlug,
+  serviceOptions,
+  onMessage,
+  onError,
+  onFunnelChange,
+  onFunnelUpdated,
+}: Props) {
   const [funnel, setFunnel] = useState<LeadFunnelSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [careNote, setCareNote] = useState('');
@@ -66,12 +104,32 @@ export function LeadFunnelPanel({ token, leadId, user, serviceSlug, onMessage, o
   const [planStrategy, setPlanStrategy] = useState<Record<string, string>>({});
   const [planValidation, setPlanValidation] = useState<string[]>([]);
   const [consultGate, setConsultGate] = useState<ConsultGateState | null>(null);
+  const presalesServiceOptions = useMemo(
+    () => mergePresalesServiceOptions(serviceOptions),
+    [serviceOptions],
+  );
+  const [selectedServiceSlug, setSelectedServiceSlug] = useState(
+    () => serviceSlug?.trim() || DEFAULT_PRESALES_SLUG,
+  );
+
+  useEffect(() => {
+    if (serviceSlug?.trim()) {
+      setSelectedServiceSlug(serviceSlug.trim());
+    }
+  }, [serviceSlug]);
+
+  useEffect(() => {
+    if (serviceSlug?.trim()) return;
+    if (presalesServiceOptions.some((item) => item.slug === selectedServiceSlug)) return;
+    setSelectedServiceSlug(presalesServiceOptions[0]?.slug ?? DEFAULT_PRESALES_SLUG);
+  }, [presalesServiceOptions, selectedServiceSlug, serviceSlug]);
 
   const reload = useCallback(async () => {
     setLoading(true);
     try {
       const snap = await fetchLeadFunnel(token, leadId);
       setFunnel(snap);
+      onFunnelChange?.(snap);
       if (snap.presales) {
         if (snap.presales.presales.stage === 'lead') {
           try {
@@ -107,7 +165,7 @@ export function LeadFunnelPanel({ token, leadId, user, serviceSlug, onMessage, o
     } finally {
       setLoading(false);
     }
-  }, [token, leadId, onError]);
+  }, [token, leadId, onError, onFunnelChange]);
 
   useEffect(() => {
     void reload();
@@ -116,16 +174,25 @@ export function LeadFunnelPanel({ token, leadId, user, serviceSlug, onMessage, o
   const canEdit = Boolean(user && hasCap(user, 'crm_leads', 'edit'));
   const canAssign = Boolean(user && hasCap(user, 'crm_leads', 'assign'));
 
-  async function run(action: () => Promise<void>) {
+  async function run(action: () => Promise<void>, refreshContract = false) {
     setBusy(true);
     try {
       await action();
+      if (refreshContract) onFunnelUpdated?.();
     } catch (err) {
       onError?.(err instanceof Error ? err.message : 'Thao tác thất bại');
     } finally {
       setBusy(false);
     }
   }
+
+  const intakeHref = `/crm/intake?lead_id=${leadId}${
+    funnel?.presales?.presales.service_slug
+      ? `&service_slug=${encodeURIComponent(funnel.presales.presales.service_slug)}`
+      : selectedServiceSlug
+        ? `&service_slug=${encodeURIComponent(selectedServiceSlug)}`
+        : ''
+  }`;
 
   function activeStepKey(): string {
     if (!funnel) return 'b2';
@@ -178,7 +245,19 @@ export function LeadFunnelPanel({ token, leadId, user, serviceSlug, onMessage, o
       {inReview && (
         <div className="banner banner-warn">
           <strong>Phải tra soát (GDKD)</strong>
-          <p style={{ margin: '0.35rem 0 0' }}>{funnel.review_queue.message}</p>
+          <p style={{ margin: '0.35rem 0 0' }}>
+            {funnel.review_queue.message}
+            {funnel.review_queue.hours_waiting != null
+              ? ` · đã chờ ${funnel.review_queue.hours_waiting}h`
+              : ''}
+          </p>
+          {canAssign ? (
+            <p style={{ margin: '0.35rem 0 0', fontSize: '0.9rem' }}>
+              <Link href="/crm/leads/review-queue" className="nav-link">
+                Mở inbox Phải tra soát →
+              </Link>
+            </p>
+          ) : null}
           {canAssign && (
             <button
               type="button"
@@ -199,7 +278,7 @@ export function LeadFunnelPanel({ token, leadId, user, serviceSlug, onMessage, o
         </div>
       )}
 
-      <div className="card-inner">
+      <div className="card-inner" id="funnel-b2">
         <h3 style={{ marginTop: 0 }}>B2 — {b2Stage?.label ?? 'Liên hệ lần đầu'}</h3>
         <p className="muted" style={{ fontSize: '0.9rem' }}>{b2Stage?.hint}</p>
         <p>
@@ -248,9 +327,10 @@ export function LeadFunnelPanel({ token, leadId, user, serviceSlug, onMessage, o
                 void run(async () => {
                   const out = await completeLeadCareStage(token, leadId, careNote.trim());
                   setFunnel(out.funnel);
+                  onFunnelChange?.(out.funnel);
                   setCareNote('');
                   onMessage?.('Đã hoàn thành B2');
-                })
+                }, true)
               }
             >
               Hoàn thành B2
@@ -263,24 +343,42 @@ export function LeadFunnelPanel({ token, leadId, user, serviceSlug, onMessage, o
       </div>
 
       {funnel.presales_on_lead_enabled && funnel.presales_care_gate.complete && !inReview && (
-        <div className="card-inner">
+        <div className="card-inner" id="funnel-presales">
           <h3 style={{ marginTop: 0 }}>Pre-sales</h3>
           {!funnel.presales && canEdit && (
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              disabled={busy || !serviceSlug}
-              onClick={() =>
-                void run(async () => {
-                  const slug = serviceSlug || 'dich-vu-seo-tong-the';
-                  const out = await ensureLeadPresales(token, leadId, slug);
-                  setFunnel(out.funnel);
-                  onMessage?.('Đã bắt đầu pre-sales');
-                })
-              }
-            >
-              Bắt đầu pre-sales{serviceSlug ? ` (${serviceSlug})` : ''}
-            </button>
+            <div className="stack-gap" style={{ marginTop: '0.5rem' }}>
+              <label style={{ display: 'grid', gap: '0.35rem' }}>
+                <span className="muted">Dịch vụ marketing (HĐ)</span>
+                <select
+                  value={selectedServiceSlug}
+                  disabled={busy}
+                  onChange={(e) => setSelectedServiceSlug(e.target.value)}
+                  style={{ width: '100%', maxWidth: '28rem' }}
+                >
+                  {presalesServiceOptions.map((item) => (
+                    <option key={item.slug} value={item.slug}>
+                      {item.name} ({item.slug})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={busy || !selectedServiceSlug}
+                onClick={() =>
+                  void run(async () => {
+                    const slug = selectedServiceSlug.trim() || DEFAULT_PRESALES_SLUG;
+                    const out = await ensureLeadPresales(token, leadId, slug);
+                    setFunnel(out.funnel);
+                    onFunnelChange?.(out.funnel);
+                    onMessage?.('Đã bắt đầu pre-sales');
+                  }, true)
+                }
+              >
+                Bắt đầu pre-sales
+              </button>
+            </div>
           )}
           {funnel.presales && (
             <>
@@ -306,6 +404,27 @@ export function LeadFunnelPanel({ token, leadId, user, serviceSlug, onMessage, o
                   {task.title}
                 </label>
               ))}
+              {(funnel.presales.presales.stage === 'lead' || funnel.presales.presales.stage === 'consult') && (
+                <p style={{ margin: '0.5rem 0' }}>
+                  <Link href={intakeHref} className="nav-link">
+                    Mở Lead Intake (BANT) →
+                  </Link>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={busy}
+                    style={{ marginLeft: '0.5rem' }}
+                    onClick={() =>
+                      void run(async () => {
+                        await reload();
+                        onMessage?.('Đã làm mới gate Intake');
+                      })
+                    }
+                  >
+                    Làm mới gate
+                  </button>
+                </p>
+              )}
               {consultGate && funnel.presales.presales.stage === 'lead' && (
                 <div
                   className="banner"
@@ -354,9 +473,10 @@ export function LeadFunnelPanel({ token, leadId, user, serviceSlug, onMessage, o
                       }
                       const out = await advanceLeadPresales(token, leadId, { confirm: true });
                       setFunnel(out.funnel);
+                      onFunnelChange?.(out.funnel);
                       onMessage?.('Đã chuyển giai đoạn pre-sales');
                       await reload();
-                    })
+                    }, true)
                   }
                 >
                   Chuyển → {funnel.presales.advance.next_stage ?? '—'}
@@ -371,6 +491,13 @@ export function LeadFunnelPanel({ token, leadId, user, serviceSlug, onMessage, o
               {funnel.presales.presales.stage === 'proposal' && (
                 <div className="stack-gap" style={{ marginTop: '1rem' }}>
                   <h4 style={{ margin: 0 }}>KH Marketing sơ bộ @ Proposal</h4>
+                  <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+                    Hoàn tất KH MKT sơ bộ rồi tạo HĐ tại{' '}
+                    <a href="#lead-contract" className="nav-link">
+                      panel Hợp đồng bên dưới
+                    </a>
+                    .
+                  </p>
                   {planValidation.length > 0 && (
                     <ul className="muted" style={{ fontSize: '0.85rem', margin: 0, paddingLeft: '1.1rem' }}>
                       {planValidation.map((m) => (
@@ -436,9 +563,10 @@ export function LeadFunnelPanel({ token, leadId, user, serviceSlug, onMessage, o
                             strategy_framework: planStrategy,
                           });
                           setFunnel(out.funnel);
+                          onFunnelChange?.(out.funnel);
                           setPlanValidation(out.validation.messages ?? []);
                           onMessage?.('Đã lưu KH MKT sơ bộ');
-                        })
+                        }, true)
                       }
                     >
                       Lưu KH MKT sơ bộ

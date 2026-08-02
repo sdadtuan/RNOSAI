@@ -13,6 +13,11 @@ export interface LeadV1 {
   created_at: string;
   received_at: string;
   is_duplicate: boolean;
+  review_queue?: {
+    active: boolean;
+    message?: string;
+    hours_waiting?: number | null;
+  };
 }
 
 export interface LeadsListResponseV1 {
@@ -50,6 +55,8 @@ export interface PgLeadRow {
   campaign_id: string | null;
   received_at: Date | string | null;
   created_at: Date | string | null;
+  meta_json?: string | Record<string, unknown> | null;
+  first_assigned_at?: Date | string | null;
 }
 
 export type ReviewQueueListFilter = 'only' | 'hide';

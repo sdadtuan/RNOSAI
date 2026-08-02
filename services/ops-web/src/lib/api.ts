@@ -29,6 +29,11 @@ export interface LeadRow {
   created_at: string;
   received_at: string;
   is_duplicate: boolean;
+  review_queue?: {
+    active: boolean;
+    message?: string;
+    hours_waiting?: number | null;
+  };
 }
 
 export interface LeadsListResponse {
@@ -133,6 +138,7 @@ export async function fetchLeads(
     limit?: number;
     offset?: number;
     hide_review_queue?: boolean;
+    review_queue_only?: boolean;
   },
 ): Promise<LeadsListResponse> {
   const qs = new URLSearchParams();
@@ -145,6 +151,7 @@ export async function fetchLeads(
   if (params?.limit !== undefined) qs.set('limit', String(params.limit));
   if (params?.offset !== undefined) qs.set('offset', String(params.offset));
   if (params?.hide_review_queue === false) qs.set('hide_review_queue', '0');
+  if (params?.review_queue_only) qs.set('review_queue_only', '1');
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   const res = await fetch(`${API_BASE}/api/v1/leads${suffix}`, {
     headers: authHeaders(token),
@@ -603,7 +610,20 @@ export async function fetchReviewQueueCount(token: string): Promise<{ count: num
 export async function fetchReviewQueueLeads(
   token: string,
   limit = 50,
-): Promise<{ leads: Array<{ id: number; full_name: string; phone: string; review_queue: { message?: string } }> }> {
+): Promise<{
+  leads: Array<{
+    id: number;
+    full_name: string;
+    phone: string;
+    status?: string;
+    review_queue: {
+      message?: string;
+      hours_waiting?: number | null;
+      deadline_hours?: number;
+    };
+  }>;
+  total?: number;
+}> {
   return leadFunnelMutate(token, `/api/v1/leads/review-queue?limit=${limit}`, { method: 'GET' });
 }
 

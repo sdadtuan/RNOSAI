@@ -3,6 +3,7 @@ import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { StaffIntakeViewGuard, StaffIntakeWriteGuard } from './guards/staff-intake.guard';
 import { IntakeController } from './intake.controller';
 import { IntakeService } from './intake.service';
+import { IntakePgRepository } from './intake-pg.repository';
 import { IntakeSqliteRepository } from './intake-sqlite.repository';
 
 @Module({
@@ -11,9 +12,10 @@ import { IntakeSqliteRepository } from './intake-sqlite.repository';
   providers: [
     IntakeService,
     IntakeSqliteRepository,
+    IntakePgRepository,
     StaffIntakeViewGuard,
     StaffIntakeWriteGuard,
   ],
-  exports: [IntakeService, IntakeSqliteRepository],
+  exports: [IntakeService, IntakeSqliteRepository, IntakePgRepository],
 })
 export class IntakeModule {}

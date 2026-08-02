@@ -69,6 +69,9 @@ export class AppConfigService {
   readonly temporalNamespace: string;
   readonly temporalTaskQueue: string;
   readonly crmLeadsFunnelNest: boolean;
+  readonly crmLeadsFunnelPg: boolean;
+  readonly crmIntakePg: boolean;
+  readonly crmContractPg: boolean;
   readonly presalesOnLead: boolean;
   readonly crmServiceDeliveryNest: boolean;
   readonly sopAutoStartOnLaunch: boolean;
@@ -182,6 +185,15 @@ export class AppConfigService {
     this.temporalTaskQueue = (process.env.PTT_TEMPORAL_TASK_QUEUE ?? 'ptt-agency').trim();
     this.crmLeadsFunnelNest = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CRM_LEADS_FUNNEL_NEST ?? '1').trim().toLowerCase(),
+    );
+    this.crmLeadsFunnelPg = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
+    );
+    this.crmIntakePg = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CRM_INTAKE_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
+    );
+    this.crmContractPg = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CRM_CONTRACT_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
     );
     this.presalesOnLead = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_PRESALES_ON_LEAD ?? '1').trim().toLowerCase(),

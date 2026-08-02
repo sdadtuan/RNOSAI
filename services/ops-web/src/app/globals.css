@@ -2904,6 +2904,51 @@ body:has(.ops-sidebar) main {
   background: color-mix(in srgb, var(--accent, #398b43) 8%, transparent);
 }
 
+.crm-leads-row--review-queue {
+  background: color-mix(in srgb, #dc2626 6%, transparent);
+}
+
+.crm-leads-card--review-queue {
+  border-color: color-mix(in srgb, #dc2626 35%, var(--border));
+}
+
+.lead-kind-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.lead-kind-tag--pipeline {
+  background: #ecfdf5;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.lead-kind-tag--review {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.crm-leads-kind-filter {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.crm-leads-kind-filter__label {
+  font-size: 0.82rem;
+  color: var(--muted, #6b7280);
+  margin-right: 0.15rem;
+}
+
 .crm-leads-card {
   display: grid;
   grid-template-columns: auto 1fr;

@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
 import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
+import { LeadB2bSalesFlowBar, type LeadContractFlowSummary } from '@/components/LeadB2bSalesFlowBar';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
 import { LeadContractPanel } from '@/components/LeadContractPanel';
 import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
@@ -22,10 +23,12 @@ import {
   staffMe,
   staffRefresh,
   type CatalogStaffOption,
+  type CatalogServiceRow,
   type LeadActivityRow,
   type LeadAssignmentLogRow,
   type LeadAttributionData,
   type LeadAuditBundle,
+  type LeadFunnelSnapshot,
   type LeadRow,
   type LeadStatusLogRow,
 } from '@/lib/api';
@@ -132,12 +135,15 @@ function useNetworkOnline() {
 export default function CrmLeadDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const leadId = Number(params.id);
+  const presetServiceSlug = searchParams.get('service_slug')?.trim() || undefined;
 
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [lead, setLead] = useState<LeadRow | null>(null);
   const [attribution, setAttribution] = useState<LeadAttributionData | null>(null);
   const [staffOptions, setStaffOptions] = useState<CatalogStaffOption[]>([]);
+  const [catalogServices, setCatalogServices] = useState<CatalogServiceRow[]>([]);
   const [activities, setActivities] = useState<LeadActivityRow[]>([]);
   const [audit, setAudit] = useState<LeadAuditBundle | null>(null);
   const [status, setStatus] = useState('');
@@ -156,6 +162,9 @@ export default function CrmLeadDetailPage() {
   const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<LeadDetailTab>('detail');
   const [copilotMessage, setCopilotMessage] = useState('');
+  const [funnelSnap, setFunnelSnap] = useState<LeadFunnelSnapshot | null>(null);
+  const [contractSummary, setContractSummary] = useState<LeadContractFlowSummary | null>(null);
+  const [contractRefresh, setContractRefresh] = useState(0);
   const layout = useLeadDetailLayout();
   const online = useNetworkOnline();
   const copilotOn = aiCopilotEnabled();
@@ -225,6 +234,9 @@ export default function CrmLeadDetailPage() {
         setStatus(row.status || 'moi');
         if (catalog?.staff?.length) {
           setStaffOptions(catalog.staff);
+        }
+        if (catalog?.services?.length) {
+          setCatalogServices(catalog.services.filter((service) => service.active));
         }
         await reloadTimeline(access);
       } catch (err) {
@@ -469,11 +481,7 @@ export default function CrmLeadDetailPage() {
                 #{lead.id} · {lead.full_name || '—'}
               </h2>
               <LeadAttributionChips attribution={attribution} />
-              <p style={{ margin: '0 0 1rem' }}>
-                <Link href={`/crm/intake?lead_id=${lead.id}`} className="nav-link">
-                  Mở Lead Intake →
-                </Link>
-              </p>
+              <LeadB2bSalesFlowBar leadId={leadId} funnel={funnelSnap} contract={contractSummary} />
               <dl className="lead-detail-dl">
                 <dt className="muted">SĐT</dt>
                 <dd>
@@ -524,8 +532,15 @@ export default function CrmLeadDetailPage() {
                   token={accessToken}
                   leadId={leadId}
                   user={user}
+                  serviceSlug={presetServiceSlug}
+                  serviceOptions={catalogServices.map((service) => ({
+                    slug: service.slug,
+                    name: service.name,
+                  }))}
                   onMessage={setMessage}
                   onError={setError}
+                  onFunnelChange={setFunnelSnap}
+                  onFunnelUpdated={() => setContractRefresh((n) => n + 1)}
                 />
               ) : null}
 
@@ -534,8 +549,10 @@ export default function CrmLeadDetailPage() {
                   token={accessToken}
                   leadId={leadId}
                   user={user}
+                  refreshToken={contractRefresh}
                   onMessage={setMessage}
                   onError={setError}
+                  onLoaded={setContractSummary}
                 />
               ) : null}
 

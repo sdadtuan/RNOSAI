@@ -27,7 +27,12 @@ type ReviewRow = {
   id: number;
   full_name: string;
   phone: string;
-  review_queue: { message?: string };
+  status?: string;
+  review_queue: {
+    message?: string;
+    hours_waiting?: number | null;
+    deadline_hours?: number;
+  };
 };
 
 export default function CrmReviewQueuePage() {
@@ -156,7 +161,12 @@ export default function CrmReviewQueuePage() {
       <OpsNav user={user} onLogout={logout} />
       <main className="page">
         <h1>Inbox Phải tra soát (B2)</h1>
-        <p className="muted">Lead quá hạn 24h chưa Liên hệ OK — FR-CRM-04</p>
+        <p className="muted">
+          Lead quá hạn 24h chưa Liên hệ OK — FR-CRM-04.{' '}
+          <Link href="/crm/leads?tab=review" className="nav-link">
+            Xem tab trên danh sách leads
+          </Link>
+        </p>
         {error && <p className="error">{error}</p>}
         {message && <p className="success">{message}</p>}
         {loading ? (
@@ -169,6 +179,8 @@ export default function CrmReviewQueuePage() {
               <tr>
                 <th>Lead</th>
                 <th>Điện thoại</th>
+                <th>Trạng thái</th>
+                <th>Chờ (h)</th>
                 <th>Lý do</th>
                 <th />
               </tr>
@@ -180,6 +192,12 @@ export default function CrmReviewQueuePage() {
                     <Link href={`/crm/leads/${row.id}`}>{row.full_name || `#${row.id}`}</Link>
                   </td>
                   <td>{row.phone || '—'}</td>
+                  <td>{row.status || '—'}</td>
+                  <td>
+                    {row.review_queue.hours_waiting != null
+                      ? `${row.review_queue.hours_waiting}h`
+                      : '—'}
+                  </td>
                   <td style={{ maxWidth: 320 }}>{row.review_queue.message || '—'}</td>
                   <td>
                     <button type="button" className="btn btn-sm" onClick={() => openReleaseModal(row.id)}>

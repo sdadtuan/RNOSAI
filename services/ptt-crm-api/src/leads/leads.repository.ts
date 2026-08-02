@@ -1,5 +1,6 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
+import { LeadsFunnelPgRepository } from '../leads-funnel/leads-funnel-pg.repository';
 import { LeadsFunnelSqliteRepository } from '../leads-funnel/leads-funnel-sqlite.repository';
 import { PgLeadsRepository } from './pg-leads.repository';
 import { SqliteLeadsRepository } from './sqlite-leads.repository';
@@ -11,15 +12,16 @@ export class LeadsRepository {
     private readonly config: AppConfigService,
     private readonly sqliteRepo: SqliteLeadsRepository,
     private readonly pgRepo: PgLeadsRepository,
-    @Optional() private readonly funnelRepo?: LeadsFunnelSqliteRepository,
+    @Optional() private readonly funnelSqliteRepo?: LeadsFunnelSqliteRepository,
+    @Optional() private readonly funnelPgRepo?: LeadsFunnelPgRepository,
   ) {}
 
   useSqliteDatabasePath(dbPath: string): void {
     this.sqliteRepo.useDatabasePath(dbPath);
   }
 
-  listLeads(query: ListLeadsQuery): Promise<{ leads: LeadV1[]; total: number }> | { leads: LeadV1[]; total: number } {
-    const enriched = this.withReviewQueueFilter(query);
+  async listLeads(query: ListLeadsQuery): Promise<{ leads: LeadV1[]; total: number }> {
+    const enriched = await this.withReviewQueueFilter(query);
     if (this.config.leadsReadSource === 'pg') {
       return this.pgRepo.listLeads(enriched);
     }
@@ -33,13 +35,19 @@ export class LeadsRepository {
     return this.sqliteRepo.getLeadById(leadId);
   }
 
-  private withReviewQueueFilter(query: ListLeadsQuery): ListLeadsQuery {
+  private async withReviewQueueFilter(query: ListLeadsQuery): Promise<ListLeadsQuery> {
     const filter = query.review_queue_filter;
-    if (!filter || !this.config.crmLeadsFunnelNest || !this.funnelRepo) {
+    if (!filter || !this.config.crmLeadsFunnelNest) {
       return query;
     }
-    if (this.config.leadsReadSource === 'pg') {
-      return { ...query, review_queue_ids: this.funnelRepo.listReviewQueueLeadIds() };
+    if (this.config.leadsReadSource !== 'pg') {
+      return query;
+    }
+    if (this.config.crmLeadsFunnelPg && this.funnelPgRepo) {
+      return { ...query, review_queue_ids: await this.funnelPgRepo.listReviewQueueLeadIds() };
+    }
+    if (this.funnelSqliteRepo) {
+      return { ...query, review_queue_ids: this.funnelSqliteRepo.listReviewQueueLeadIds() };
     }
     return query;
   }

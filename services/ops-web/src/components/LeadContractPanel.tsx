@@ -12,16 +12,27 @@ import {
   type LeadContractRow,
 } from '@/lib/api';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
+import type { LeadContractFlowSummary } from '@/components/LeadB2bSalesFlowBar';
 
 interface Props {
   token: string;
   leadId: number;
   user: StoredStaffUser | null;
+  refreshToken?: number;
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
+  onLoaded?: (summary: LeadContractFlowSummary) => void;
 }
 
-export function LeadContractPanel({ token, leadId, user, onMessage, onError }: Props) {
+export function LeadContractPanel({
+  token,
+  leadId,
+  user,
+  refreshToken = 0,
+  onMessage,
+  onError,
+  onLoaded,
+}: Props) {
   const [checks, setChecks] = useState<ContractReadinessCheck[]>([]);
   const [contract, setContract] = useState<LeadContractRow | null>(null);
   const [approval, setApproval] = useState<ContractApprovalRow | null>(null);
@@ -40,18 +51,26 @@ export function LeadContractPanel({ token, leadId, user, onMessage, onError }: P
       setChecks(data.checks);
       setContract(data.contract);
       setApproval(data.approval);
-      setLifecycleId(data.lifecycle_id != null && data.lifecycle_id > 0 ? data.lifecycle_id : null);
+      const lifecycle =
+        data.lifecycle_id != null && data.lifecycle_id > 0 ? data.lifecycle_id : null;
+      setLifecycleId(lifecycle);
       if (data.contract?.amount_vnd) setAmount(String(data.contract.amount_vnd));
+      onLoaded?.({
+        hasContract: Boolean(data.contract),
+        contractStatus: data.contract?.status ?? null,
+        pendingApproval: data.approval?.status === 'pending',
+        lifecycleId: lifecycle,
+      });
     } catch (err) {
       onError?.(err instanceof Error ? err.message : 'Tải HĐ thất bại');
     } finally {
       setLoading(false);
     }
-  }, [token, leadId, onError]);
+  }, [token, leadId, onError, onLoaded]);
 
   useEffect(() => {
     void reload();
-  }, [reload]);
+  }, [reload, refreshToken]);
 
   async function onCreateDraft() {
     if (!canEdit) return;
@@ -108,6 +127,7 @@ export function LeadContractPanel({ token, leadId, user, onMessage, onError }: P
 
   return (
     <section
+      id="lead-contract"
       style={{
         marginTop: '1.25rem',
         padding: '1rem',
@@ -193,7 +213,10 @@ export function LeadContractPanel({ token, leadId, user, onMessage, onError }: P
 
       {pending ? (
         <p className="muted" style={{ marginTop: '0.5rem' }}>
-          Đang chờ GDKD duyệt (approval #{approval?.id}). Xem tại Hub → HĐ chờ duyệt.
+          Đang chờ GDKD duyệt (approval #{approval?.id}).{' '}
+          <Link href="/crm/hub" className="nav-link">
+            Hub · HĐ chờ duyệt →
+          </Link>
         </p>
       ) : null}
 
@@ -213,6 +236,10 @@ export function LeadContractPanel({ token, leadId, user, onMessage, onError }: P
               Lifecycle #{lifecycleId} ·{' '}
               <Link href={`/crm/service-delivery/${lifecycleId}`} className="nav-link">
                 Mở workflow triển khai →
+              </Link>
+              {' · '}
+              <Link href="/agency/clients/new" className="nav-link">
+                Tạo Agency Client →
               </Link>
             </p>
           ) : (

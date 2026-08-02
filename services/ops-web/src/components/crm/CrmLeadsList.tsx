@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { LeadRow } from '@/lib/api';
 import type { LeadScoreSummary } from '@/lib/ai-api';
 import { LeadScoreBadge } from '@/components/ai/LeadScoreBadge';
+import { LeadReviewQueueTag } from '@/components/crm/LeadReviewQueueTag';
 
 interface Props {
   rows: LeadRow[];
@@ -12,6 +13,7 @@ interface Props {
   showScores?: boolean;
   scoreMap?: Record<string, LeadScoreSummary>;
   scoresPending?: boolean;
+  showLeadKindTags?: boolean;
 }
 
 export function CrmLeadsList({
@@ -23,6 +25,7 @@ export function CrmLeadsList({
   showScores = false,
   scoreMap = {},
   scoresPending = false,
+  showLeadKindTags = true,
 }: Props) {
   const allSelected = rows.length > 0 && rows.every((row) => selectedIds.has(row.id));
   const someSelected = rows.some((row) => selectedIds.has(row.id));
@@ -48,6 +51,7 @@ export function CrmLeadsList({
               <th>Tên</th>
               <th>SĐT</th>
               <th>Trạng thái</th>
+              {showLeadKindTags ? <th>Loại</th> : null}
               <th>Nguồn</th>
               <th>Kênh</th>
               {showScores ? <th>AI Score</th> : null}
@@ -56,7 +60,15 @@ export function CrmLeadsList({
           </thead>
           <tbody>
             {rows.map((lead) => (
-              <tr key={lead.id} className={selectedIds.has(lead.id) ? 'crm-leads-row--selected' : undefined}>
+              <tr
+                key={lead.id}
+                className={[
+                  selectedIds.has(lead.id) ? 'crm-leads-row--selected' : undefined,
+                  lead.review_queue?.active ? 'crm-leads-row--review-queue' : undefined,
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
                 <td>
                   <input
                     type="checkbox"
@@ -73,6 +85,9 @@ export function CrmLeadsList({
                 <td>{lead.full_name || '—'}</td>
                 <td>{lead.phone || '—'}</td>
                 <td>{lead.status}</td>
+                {showLeadKindTags ? (
+                  <td>{lead.review_queue?.active ? <LeadReviewQueueTag lead={lead} /> : '—'}</td>
+                ) : null}
                 <td>{lead.source}</td>
                 <td>{lead.channel || '—'}</td>
                 {showScores ? (
@@ -85,7 +100,7 @@ export function CrmLeadsList({
             ))}
             {!loading && rows.length === 0 ? (
               <tr>
-                <td colSpan={showScores ? 9 : 8} className="muted">
+                <td colSpan={showScores ? (showLeadKindTags ? 10 : 9) : showLeadKindTags ? 9 : 8} className="muted">
                   Không có lead
                 </td>
               </tr>
@@ -96,7 +111,10 @@ export function CrmLeadsList({
 
       <ul className="crm-leads-cards" aria-label="Danh sách lead (mobile)">
         {rows.map((lead) => (
-          <li key={lead.id} className="crm-leads-card">
+          <li
+            key={lead.id}
+            className={`crm-leads-card${lead.review_queue?.active ? ' crm-leads-card--review-queue' : ''}`}
+          >
             <div className="crm-leads-card__select">
               <input
                 type="checkbox"
@@ -109,6 +127,7 @@ export function CrmLeadsList({
               <div className="crm-leads-card__head">
                 <strong>{lead.full_name || `Lead #${lead.id}`}</strong>
                 <span className="crm-leads-card__badges">
+                  {showLeadKindTags ? <LeadReviewQueueTag lead={lead} compact /> : null}
                   {showScores ? (
                     <LeadScoreBadge score={scoreMap[String(lead.id)]} pending={scoresPending} />
                   ) : null}

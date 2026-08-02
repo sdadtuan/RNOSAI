@@ -42,7 +42,13 @@ export class PgLeadsRepository implements OnModuleDestroy {
     const listResult = await this.db.query(
       `SELECT l.sqlite_lead_id, l.full_name, l.phone, l.email, l.status, l.source,
               l.owner_id, l.is_duplicate, l.agency_client_id, l.channel,
-              l.external_lead_id, l.campaign_id, l.received_at, l.created_at
+              l.external_lead_id, l.campaign_id, l.received_at, l.created_at,
+              l.meta_json::text AS meta_json,
+              COALESCE(l.first_assigned_at::text, (
+                SELECT al.created_at::text FROM crm_lead_assignment_log al
+                WHERE al.sqlite_lead_id = l.sqlite_lead_id AND al.to_owner_id IS NOT NULL
+                ORDER BY al.created_at ASC LIMIT 1
+              ), '') AS first_assigned_at
        FROM crm_leads l
        ${where.sql}
        ORDER BY l.sqlite_lead_id DESC
@@ -60,7 +66,13 @@ export class PgLeadsRepository implements OnModuleDestroy {
     const result = await this.db.query(
       `SELECT l.sqlite_lead_id, l.full_name, l.phone, l.email, l.status, l.source,
               l.owner_id, l.is_duplicate, l.agency_client_id, l.channel,
-              l.external_lead_id, l.campaign_id, l.received_at, l.created_at
+              l.external_lead_id, l.campaign_id, l.received_at, l.created_at,
+              l.meta_json::text AS meta_json,
+              COALESCE(l.first_assigned_at::text, (
+                SELECT al.created_at::text FROM crm_lead_assignment_log al
+                WHERE al.sqlite_lead_id = l.sqlite_lead_id AND al.to_owner_id IS NOT NULL
+                ORDER BY al.created_at ASC LIMIT 1
+              ), '') AS first_assigned_at
        FROM crm_leads l
        WHERE l.sqlite_lead_id = $1`,
       [leadId],

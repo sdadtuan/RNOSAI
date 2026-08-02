@@ -1,5 +1,6 @@
 import { LeadRow, LeadV1, PgLeadRow } from './leads.types';
 import { formatLeadTs } from './lead-ts.format';
+import { reviewQueuePublicState } from '../leads-funnel/review-queue.util';
 
 function parseMeta(raw: string | null | undefined): Record<string, unknown> {
   if (!raw) {
@@ -67,11 +68,23 @@ export function leadRowToV1(row: LeadRow): LeadV1 {
     created_at: row.created_at ?? '',
     received_at: receivedAt,
     is_duplicate: Boolean(row.is_duplicate),
+    review_queue: reviewQueuePublicState(meta, String(metaString(meta, 'assigned_at') || '')),
   };
 }
 
 /** Map PG crm_leads read replica row → LeadV1 (Bước 7). */
 export function pgRowToV1(row: PgLeadRow): LeadV1 {
+  const meta =
+    typeof row.meta_json === 'string'
+      ? parseMeta(row.meta_json)
+      : typeof row.meta_json === 'object' && row.meta_json !== null
+        ? (row.meta_json as Record<string, unknown>)
+        : {};
+  const assignedAt =
+    row.first_assigned_at != null
+      ? formatLeadTs(row.first_assigned_at)
+      : String(metaString(meta, 'assigned_at') || '');
+
   return {
     id: Number(row.sqlite_lead_id),
     full_name: row.full_name ?? '',
@@ -87,5 +100,6 @@ export function pgRowToV1(row: PgLeadRow): LeadV1 {
     created_at: formatLeadTs(row.created_at),
     received_at: formatLeadTs(row.received_at),
     is_duplicate: Boolean(row.is_duplicate),
+    review_queue: reviewQueuePublicState(meta, assignedAt),
   };
 }

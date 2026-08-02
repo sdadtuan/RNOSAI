@@ -3,16 +3,26 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AppConfigService } from '../config/app-config.service';
 import {
   definitionsPayload,
   getUiDefinition,
 } from './intake-definitions.util';
+import { IntakePgRepository } from './intake-pg.repository';
 import { IntakeSqliteRepository } from './intake-sqlite.repository';
 import { CreateIntakeSessionBody, PatchIntakeSessionBody } from './intake.types';
 
 @Injectable()
 export class IntakeService {
-  constructor(private readonly sqlite: IntakeSqliteRepository) {}
+  constructor(
+    private readonly sqlite: IntakeSqliteRepository,
+    private readonly pg: IntakePgRepository,
+    private readonly config: AppConfigService,
+  ) {}
+
+  private get usePg(): boolean {
+    return this.config.crmIntakePg;
+  }
 
   getDefinitions() {
     return definitionsPayload();
@@ -23,56 +33,66 @@ export class IntakeService {
   }
 
   getStats(amId?: number, byAm?: boolean) {
-    return this.sqlite.getIntakeStats(amId, byAm);
+    return this.usePg
+      ? this.pg.getIntakeStats(amId, byAm)
+      : this.sqlite.getIntakeStats(amId, byAm);
   }
 
-  resolveEntry(leadId?: number, mode?: string, form?: string) {
+  async resolveEntry(leadId?: number, mode?: string, form?: string) {
     if (!leadId || !Number.isFinite(leadId)) {
       throw new BadRequestException({ ok: false, error: 'Cần lead_id' });
     }
-    const result = this.sqlite.resolveIntakeEntry(leadId, mode, form);
+    const result = this.usePg
+      ? await this.pg.resolveIntakeEntry(leadId, mode, form)
+      : this.sqlite.resolveIntakeEntry(leadId, mode, form);
     if (!result.ok) {
       throw new NotFoundException(result);
     }
     return result;
   }
 
-  listSessions(leadId?: number, lifecycleId?: number) {
+  async listSessions(leadId?: number, lifecycleId?: number) {
     if (!lifecycleId && !leadId) {
       throw new BadRequestException({ error: 'Cần lifecycle_id hoặc lead_id' });
     }
-    const sessions = this.sqlite.listSessions({ leadId, lifecycleId });
+    const sessions = this.usePg
+      ? await this.pg.listSessions({ leadId, lifecycleId })
+      : this.sqlite.listSessions({ leadId, lifecycleId });
     return { sessions };
   }
 
-  getSession(id: number) {
-    const session = this.sqlite.getSession(id);
+  async getSession(id: number) {
+    const session = this.usePg ? await this.pg.getSession(id) : this.sqlite.getSession(id);
     if (!session) {
       throw new NotFoundException({ error: 'Không tìm thấy phiên' });
     }
     return session;
   }
 
-  createSession(body: CreateIntakeSessionBody) {
+  async createSession(body: CreateIntakeSessionBody) {
     try {
-      return this.sqlite.createSession(body);
+      return this.usePg ? await this.pg.createSession(body) : this.sqlite.createSession(body);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new BadRequestException({ error: msg });
     }
   }
 
-  updateSession(id: number, body: PatchIntakeSessionBody) {
-    const updated = this.sqlite.updateSession(id, body);
+  async updateSession(id: number, body: PatchIntakeSessionBody) {
+    const updated = this.usePg
+      ? await this.pg.updateSession(id, body)
+      : this.sqlite.updateSession(id, body);
     if (!updated) {
       throw new NotFoundException({ error: 'Không tìm thấy phiên' });
     }
     return updated;
   }
 
-  completeSession(id: number, actorId: number | null) {
+  async completeSession(id: number, actorId: number | null) {
     try {
-      const updated = this.sqlite.completeSession(id, actorId);
+      const updated = this.usePg
+        ? await this.pg.completeSession(id, actorId)
+        : this.sqlite.completeSession(id, actorId);
       if (!updated) {
         throw new NotFoundException({ error: 'Không tìm thấy phiên' });
       }
@@ -86,16 +106,16 @@ export class IntakeService {
     }
   }
 
-  reopenSession(id: number) {
-    const updated = this.sqlite.reopenSession(id);
+  async reopenSession(id: number) {
+    const updated = this.usePg ? await this.pg.reopenSession(id) : this.sqlite.reopenSession(id);
     if (!updated) {
       throw new NotFoundException({ error: 'Không tìm thấy phiên' });
     }
     return updated;
   }
 
-  generateAiSummary(id: number) {
-    const session = this.sqlite.getSession(id);
+  async generateAiSummary(id: number) {
+    const session = this.usePg ? await this.pg.getSession(id) : this.sqlite.getSession(id);
     if (!session) {
       throw new NotFoundException({ error: 'Không tìm thấy phiên' });
     }
@@ -107,7 +127,9 @@ export class IntakeService {
         stub: true,
       };
     }
-    const updated = this.sqlite.saveAiSummaryStub(id);
+    const updated = this.usePg
+      ? await this.pg.saveAiSummaryStub(id)
+      : this.sqlite.saveAiSummaryStub(id);
     if (!updated) {
       throw new NotFoundException({ error: 'Không tìm thấy phiên' });
     }

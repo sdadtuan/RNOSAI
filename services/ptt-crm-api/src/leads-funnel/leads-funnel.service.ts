@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+import { parseLeadMeta } from './care-pipeline.util';
 import {
   AdvancePresalesBody,
   CompleteCareStageBody,
@@ -11,55 +12,79 @@ import {
   PatchPresalesTaskBody,
   ReleaseReviewQueueBody,
 } from './leads-funnel.types';
+import { LeadsFunnelPgRepository } from './leads-funnel-pg.repository';
 import { LeadsFunnelSqliteRepository } from './leads-funnel-sqlite.repository';
 import { validatePreliminaryPlan } from './presales-marketing-plan.util';
 import { reviewQueuePublicState } from './review-queue.util';
-import { parseLeadMeta } from './care-pipeline.util';
 
 @Injectable()
 export class LeadsFunnelService {
   constructor(
-    private readonly repo: LeadsFunnelSqliteRepository,
+    private readonly sqliteRepo: LeadsFunnelSqliteRepository,
+    private readonly pgRepo: LeadsFunnelPgRepository,
     private readonly config: AppConfigService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
-  getFunnel(leadId: number): LeadFunnelSnapshot {
-    const snap = this.repo.buildSnapshot(leadId, this.config.presalesOnLead);
+  private get usePgFunnel(): boolean {
+    return this.config.crmLeadsFunnelPg;
+  }
+
+  async getFunnel(leadId: number): Promise<LeadFunnelSnapshot> {
+    const snap = this.usePgFunnel
+      ? await this.pgRepo.buildSnapshot(leadId, this.config.presalesOnLead)
+      : this.sqliteRepo.buildSnapshot(leadId, this.config.presalesOnLead);
     if (!snap) throw new NotFoundException({ error: 'Lead not found' });
     return snap;
   }
 
-  getCarePipeline(leadId: number) {
-    const snap = this.getFunnel(leadId);
+  async getCarePipeline(leadId: number) {
+    const snap = await this.getFunnel(leadId);
     return { ok: true, ...snap.care_pipeline, presales_care_gate: snap.presales_care_gate };
   }
 
-  submitCareReport(
+  async submitCareReport(
     leadId: number,
     body: CompleteCareStageBody,
     actor: string,
     userId: number | null,
   ) {
-    this.repo.submitCareReport(leadId, body, actor, userId);
-    return { ok: true, funnel: this.getFunnel(leadId) };
-  }
-
-  completeCareStage(leadId: number, body: CompleteCareStageBody, actor: string) {
     try {
-      this.repo.completeCareStage(leadId, body, actor);
+      if (this.usePgFunnel) {
+        await this.pgRepo.submitCareReport(leadId, body, actor, userId);
+      } else {
+        this.sqliteRepo.submitCareReport(leadId, body, actor, userId);
+      }
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : String(err));
     }
-    return { ok: true, funnel: this.getFunnel(leadId) };
+    return { ok: true, funnel: await this.getFunnel(leadId) };
   }
 
-  reviewQueueCount(): { count: number } {
-    return { count: this.repo.countReviewQueue() };
+  async completeCareStage(leadId: number, body: CompleteCareStageBody, actor: string) {
+    try {
+      if (this.usePgFunnel) {
+        await this.pgRepo.completeCareStage(leadId, body, actor);
+      } else {
+        this.sqliteRepo.completeCareStage(leadId, body, actor);
+      }
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : String(err));
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
   }
 
-  listReviewQueue(limit?: number) {
-    const rows = this.repo.listReviewQueue(limit);
+  async reviewQueueCount(): Promise<{ count: number }> {
+    const count = this.usePgFunnel
+      ? await this.pgRepo.countReviewQueue()
+      : this.sqliteRepo.countReviewQueue();
+    return { count };
+  }
+
+  async listReviewQueue(limit?: number) {
+    const rows = this.usePgFunnel
+      ? await this.pgRepo.listReviewQueue(limit)
+      : this.sqliteRepo.listReviewQueue(limit);
     return {
       leads: rows.map((row) => ({
         id: row.id,
@@ -72,51 +97,75 @@ export class LeadsFunnelService {
     };
   }
 
-  syncReviewQueue(actor: string, dryRun = false) {
-    return this.repo.syncReviewQueue(actor, dryRun);
+  async syncReviewQueue(actor: string, dryRun = false) {
+    return this.usePgFunnel
+      ? this.pgRepo.syncReviewQueue(actor, dryRun)
+      : this.sqliteRepo.syncReviewQueue(actor, dryRun);
   }
 
-  releaseReviewQueue(leadId: number, body: ReleaseReviewQueueBody, actor: string) {
+  async releaseReviewQueue(leadId: number, body: ReleaseReviewQueueBody, actor: string) {
     try {
-      this.repo.releaseFromReviewQueue(leadId, body, actor);
+      if (this.usePgFunnel) {
+        await this.pgRepo.releaseFromReviewQueue(leadId, body, actor);
+      } else {
+        this.sqliteRepo.releaseFromReviewQueue(leadId, body, actor);
+      }
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : String(err));
     }
-    return { ok: true, funnel: this.getFunnel(leadId) };
+    return { ok: true, funnel: await this.getFunnel(leadId) };
   }
 
-  getPresales(leadId: number) {
-    const snap = this.getFunnel(leadId);
+  async getPresales(leadId: number) {
+    const snap = await this.getFunnel(leadId);
     return { ok: true, presales: snap.presales };
   }
 
-  ensurePresales(leadId: number, body: EnsurePresalesBody, actor: string) {
+  async ensurePresales(leadId: number, body: EnsurePresalesBody, actor: string) {
     try {
-      this.repo.ensurePresales(leadId, body.service_slug, actor);
+      if (this.usePgFunnel) {
+        await this.pgRepo.ensurePresales(leadId, body.service_slug, actor);
+      } else {
+        this.sqliteRepo.ensurePresales(leadId, body.service_slug, actor);
+      }
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : String(err));
     }
-    return { ok: true, funnel: this.getFunnel(leadId) };
+    return { ok: true, funnel: await this.getFunnel(leadId) };
   }
 
-  getConsultAdvanceGate(leadId: number) {
-    const snap = this.repo.getPresalesSnapshot(leadId);
+  async getConsultAdvanceGate(leadId: number) {
+    if (this.usePgFunnel) {
+      const ps = await this.pgRepo.getPresalesRowByLeadId(leadId);
+      if (!ps) throw new NotFoundException({ error: 'No presales for lead' });
+      const gate = await this.pgRepo.buildConsultAdvanceGate(leadId, ps.id);
+      return { ok: true, gate, presales_stage: ps.stage };
+    }
+    const snap = this.sqliteRepo.getPresalesSnapshot(leadId);
     if (!snap) throw new NotFoundException({ error: 'No presales for lead' });
-    const gate = this.repo.buildConsultAdvanceGate(leadId, snap.presales.id);
+    const gate = this.sqliteRepo.buildConsultAdvanceGate(leadId, snap.presales.id);
     return { ok: true, gate, presales_stage: snap.presales.stage };
   }
 
-  advancePresales(leadId: number, body: AdvancePresalesBody, allowOverride = false) {
+  async advancePresales(leadId: number, body: AdvancePresalesBody, allowOverride = false) {
     try {
-      this.repo.advancePresales(leadId, {
-        confirm: Boolean(body.confirm),
-        overrideReason: body.override_reason,
-        allowOverride,
-      });
+      if (this.usePgFunnel) {
+        await this.pgRepo.advancePresales(leadId, {
+          confirm: Boolean(body.confirm),
+          overrideReason: body.override_reason,
+          allowOverride,
+        });
+      } else {
+        this.sqliteRepo.advancePresales(leadId, {
+          confirm: Boolean(body.confirm),
+          overrideReason: body.override_reason,
+          allowOverride,
+        });
+      }
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : String(err));
     }
-    return { ok: true, funnel: this.getFunnel(leadId) };
+    return { ok: true, funnel: await this.getFunnel(leadId) };
   }
 
   async staffHasAssignCap(staffUser: StaffJwtPayload): Promise<boolean> {
@@ -124,20 +173,31 @@ export class LeadsFunnelService {
     return this.staffAuth.hasCap(me.caps, 'crm_leads', 'assign');
   }
 
-  patchPresalesTask(
+  async patchPresalesTask(
     leadId: number,
     taskId: number,
     body: PatchPresalesTaskBody,
     doneBy: number | null,
   ) {
-    this.repo.updatePresalesTask(taskId, body, doneBy);
-    return { ok: true, funnel: this.getFunnel(leadId) };
+    if (this.usePgFunnel) {
+      await this.pgRepo.updatePresalesTask(taskId, body, doneBy);
+    } else {
+      this.sqliteRepo.updatePresalesTask(taskId, body, doneBy);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
   }
 
-  getMarketingPlan(leadId: number) {
-    const snap = this.repo.getPresalesSnapshot(leadId);
+  async getMarketingPlan(leadId: number) {
+    if (this.usePgFunnel) {
+      const ps = await this.pgRepo.getPresalesRowByLeadId(leadId);
+      if (!ps) throw new NotFoundException({ error: 'No presales for lead' });
+      const plan = await this.pgRepo.getOrCreatePreliminaryPlan(leadId, ps.id, ps.service_slug);
+      const validation = validatePreliminaryPlan(plan);
+      return { ok: true, plan, validation };
+    }
+    const snap = this.sqliteRepo.getPresalesSnapshot(leadId);
     if (!snap) throw new NotFoundException({ error: 'No presales for lead' });
-    const plan = this.repo.getOrCreatePreliminaryPlan(
+    const plan = this.sqliteRepo.getOrCreatePreliminaryPlan(
       leadId,
       snap.presales.id,
       snap.presales.service_slug,
@@ -146,9 +206,14 @@ export class LeadsFunnelService {
     return { ok: true, plan, validation };
   }
 
-  patchMarketingPlan(leadId: number, body: PatchMarketingPlanBody) {
-    const plan = this.repo.patchMarketingPlan(leadId, body);
+  async patchMarketingPlan(leadId: number, body: PatchMarketingPlanBody) {
+    if (this.usePgFunnel) {
+      const plan = await this.pgRepo.patchMarketingPlan(leadId, body);
+      const validation = validatePreliminaryPlan(plan);
+      return { ok: true, plan, validation, funnel: await this.getFunnel(leadId) };
+    }
+    const plan = this.sqliteRepo.patchMarketingPlan(leadId, body);
     const validation = validatePreliminaryPlan(plan);
-    return { ok: true, plan, validation, funnel: this.getFunnel(leadId) };
+    return { ok: true, plan, validation, funnel: await this.getFunnel(leadId) };
   }
 }

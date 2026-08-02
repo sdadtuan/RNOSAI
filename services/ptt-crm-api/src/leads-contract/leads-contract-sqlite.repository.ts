@@ -1,12 +1,13 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { DatabaseSync } from 'node:sqlite';
 import { catalogTs } from '../catalog/catalog-slug.util';
 import { AppConfigService } from '../config/app-config.service';
 import { assertPresalesCareGate, parseLeadMeta } from '../leads-funnel/care-pipeline.util';
+import { LeadsFunnelPgRepository } from '../leads-funnel/leads-funnel-pg.repository';
 import { PRESALES_STAGES } from '../leads-funnel/leads-funnel.types';
 import { validatePreliminaryPlan } from '../leads-funnel/presales-marketing-plan.util';
 import { buildReadinessChecks } from './contract-readiness.util';
-import { ContractPromoteUtil } from './contract-promote.util';
+import { ContractPromoteUtil, PresalesPromoteSource } from './contract-promote.util';
 import type {
   ApprovalStatus,
   ContractApprovalRow,
@@ -23,7 +24,10 @@ export class LeadsContractSqliteRepository implements OnModuleDestroy {
   private db: DatabaseSync | null = null;
   private readonly promoteUtil = new ContractPromoteUtil();
 
-  constructor(private readonly config: AppConfigService) {}
+  constructor(
+    private readonly config: AppConfigService,
+    @Optional() private readonly funnelPg?: LeadsFunnelPgRepository,
+  ) {}
 
   private get database(): DatabaseSync {
     if (!this.db) {
@@ -256,38 +260,35 @@ export class LeadsContractSqliteRepository implements OnModuleDestroy {
     return progress;
   }
 
-  getReadiness(leadId: number): ContractReadiness {
-    const lead = this.database
+  async getReadiness(leadId: number): Promise<ContractReadiness> {
+    const sqliteLead = this.database
       .prepare(`SELECT care_stage_current, care_stages_done_json, meta_json FROM crm_leads WHERE id = ?`)
       .get(leadId) as { care_stage_current: string; care_stages_done_json: string; meta_json: string } | undefined;
+    const pgLead =
+      this.config.crmLeadsFunnelPg && this.funnelPg
+        ? await this.funnelPg.fetchLeadRow(leadId)
+        : null;
+    const leadFromPg = pgLead
+      ? {
+          care_stage_current: pgLead.care_stage_current,
+          care_stages_done_json: pgLead.care_stages_done_json,
+          meta_json: pgLead.meta_json,
+        }
+      : undefined;
+    const lead =
+      this.config.crmLeadsFunnelPg && leadFromPg
+        ? leadFromPg
+        : sqliteLead ?? leadFromPg;
     if (!lead) throw new Error('Không tìm thấy lead');
 
-    const ps = this.database.prepare('SELECT * FROM crm_lead_presales WHERE lead_id = ?').get(leadId) as
-      | Record<string, unknown>
-      | undefined;
+    const presalesCtx = await this.resolvePresalesContext(leadId);
     const { contract, approval } = this.getContractForLead(leadId);
-
-    let marketingPlan: Record<string, unknown> | null = null;
-    if (ps) {
-      marketingPlan =
-        (this.database
-          .prepare(
-            `SELECT * FROM crm_marketing_plans WHERE presales_id = ? AND plan_kind = 'preliminary' ORDER BY id DESC LIMIT 1`,
-          )
-          .get(Number(ps.id)) as Record<string, unknown> | undefined) ?? null;
-    }
 
     const checks = buildReadinessChecks({
       careStageCurrent: String(lead.care_stage_current ?? ''),
       careStagesDoneJson: String(lead.care_stages_done_json ?? '{}'),
-      presales: ps
-        ? {
-            stage: String(ps.stage),
-            status: String(ps.status),
-            tasksProgress: this.getPresalesProgress(Number(ps.id)),
-          }
-        : null,
-      marketingPlan,
+      presales: presalesCtx?.presales ?? null,
+      marketingPlan: presalesCtx?.marketingPlan ?? null,
       contract,
       pendingApproval: approval,
     });
@@ -297,7 +298,52 @@ export class LeadsContractSqliteRepository implements OnModuleDestroy {
       checks,
       contract,
       approval,
-      lifecycle_id: ps?.lifecycle_id != null ? Number(ps.lifecycle_id) : null,
+      lifecycle_id: presalesCtx?.lifecycleId ?? null,
+    };
+  }
+
+  private async resolvePresalesContext(leadId: number): Promise<{
+    presales: { stage: string; status: string; tasksProgress: Record<string, { total: number; done: number }> };
+    marketingPlan: Record<string, unknown> | null;
+    lifecycleId: number | null;
+    row: Record<string, unknown>;
+  } | null> {
+    if (this.config.crmLeadsFunnelPg && this.funnelPg) {
+      const ps = await this.funnelPg.getPresalesRowByLeadId(leadId);
+      if (!ps) return null;
+      const marketingPlan = await this.funnelPg.getPreliminaryPlan(ps.id);
+      const tasksProgress = await this.funnelPg.getPresalesProgress(ps.id);
+      return {
+        presales: {
+          stage: ps.stage,
+          status: ps.status,
+          tasksProgress,
+        },
+        marketingPlan,
+        lifecycleId: ps.lifecycle_id,
+        row: ps as unknown as Record<string, unknown>,
+      };
+    }
+
+    const ps = this.database.prepare('SELECT * FROM crm_lead_presales WHERE lead_id = ?').get(leadId) as
+      | Record<string, unknown>
+      | undefined;
+    if (!ps) return null;
+    const marketingPlan =
+      (this.database
+        .prepare(
+          `SELECT * FROM crm_marketing_plans WHERE presales_id = ? AND plan_kind = 'preliminary' ORDER BY id DESC LIMIT 1`,
+        )
+        .get(Number(ps.id)) as Record<string, unknown> | undefined) ?? null;
+    return {
+      presales: {
+        stage: String(ps.stage),
+        status: String(ps.status),
+        tasksProgress: this.getPresalesProgress(Number(ps.id)),
+      },
+      marketingPlan,
+      lifecycleId: ps.lifecycle_id != null ? Number(ps.lifecycle_id) : null,
+      row: ps,
     };
   }
 
@@ -316,27 +362,42 @@ export class LeadsContractSqliteRepository implements OnModuleDestroy {
     return { contract, approval };
   }
 
-  createDraftContract(leadId: number, body: CreateContractBody, actor: string): ContractRow {
-    const lead = this.database
+  async createDraftContract(leadId: number, body: CreateContractBody, actor: string): Promise<ContractRow> {
+    const sqliteLead = this.database
       .prepare(
         `SELECT id, full_name, meta_json, care_stage_current, care_stages_done_json FROM crm_leads WHERE id = ?`,
       )
       .get(leadId) as Record<string, unknown> | undefined;
+    const pgLead =
+      this.config.crmLeadsFunnelPg && this.funnelPg
+        ? await this.funnelPg.fetchLeadRow(leadId)
+        : null;
+    const leadFromPg = pgLead
+      ? {
+          id: pgLead.id,
+          full_name: pgLead.full_name,
+          meta_json: pgLead.meta_json,
+          care_stage_current: pgLead.care_stage_current,
+          care_stages_done_json: pgLead.care_stages_done_json,
+        }
+      : undefined;
+    const lead =
+      this.config.crmLeadsFunnelPg && leadFromPg
+        ? leadFromPg
+        : sqliteLead ?? leadFromPg;
     if (!lead) throw new Error('Không tìm thấy lead');
     assertPresalesCareGate(String(lead.care_stage_current), String(lead.care_stages_done_json));
 
-    const ps = this.database.prepare('SELECT * FROM crm_lead_presales WHERE lead_id = ?').get(leadId) as
-      | Record<string, unknown>
-      | undefined;
-    if (!ps) throw new Error('Chưa có pre-sales');
-    if (String(ps.status) !== 'active') throw new Error('Pre-sales không còn active');
+    const presalesCtx = await this.resolvePresalesContext(leadId);
+    if (!presalesCtx) throw new Error('Chưa có pre-sales');
+    if (presalesCtx.presales.status !== 'active') throw new Error('Pre-sales không còn active');
 
     const existing = this.database
       .prepare(`SELECT * FROM crm_contracts WHERE lead_id = ? AND status = 'draft' ORDER BY id DESC LIMIT 1`)
       .get(leadId) as Record<string, unknown> | undefined;
     if (existing) return this.mapContract(existing);
 
-    const slug = String(ps.service_slug ?? '').trim();
+    const slug = String(presalesCtx.row.service_slug ?? '').trim();
     if (!slug) throw new Error('Pre-sales thiếu service_slug');
 
     const ts = this.ts();
@@ -413,8 +474,8 @@ export class LeadsContractSqliteRepository implements OnModuleDestroy {
     );
   }
 
-  submitForApproval(contractId: number, leadId: number, actor: string, notes: string): ContractApprovalRow {
-    const readiness = this.getReadiness(leadId);
+  async submitForApproval(contractId: number, leadId: number, actor: string, notes: string): Promise<ContractApprovalRow> {
+    const readiness = await this.getReadiness(leadId);
     const submitChecks = readiness.checks.filter((c) => c.key !== 'no_pending_approval');
     if (!submitChecks.every((c) => c.ok)) {
       throw new Error(submitChecks.find((c) => !c.ok)?.message ?? 'Chưa đủ điều kiện submit HĐ');
@@ -525,16 +586,16 @@ export class LeadsContractSqliteRepository implements OnModuleDestroy {
     );
   }
 
-  approveAndPromote(
+  async approveAndPromote(
     approvalId: number,
     actor: string,
-  ): {
+  ): Promise<{
     approval: ContractApprovalRow;
     contract: ContractRow;
     lifecycle_id: number;
     customer_id: number;
     case_id: number | null;
-  } {
+  }> {
     const appr = this.database.prepare('SELECT * FROM crm_contract_approvals WHERE id = ?').get(approvalId) as
       | Record<string, unknown>
       | undefined;
@@ -543,7 +604,33 @@ export class LeadsContractSqliteRepository implements OnModuleDestroy {
     const contractId = Number(appr.contract_id);
     const leadId = Number(appr.lead_id);
     const ts = this.ts();
-    const promote = this.promoteUtil.run(this.database, contractId, leadId, actor, ts);
+
+    let presalesSource: PresalesPromoteSource | undefined;
+    if (this.config.crmLeadsFunnelPg && this.funnelPg) {
+      const ctx = await this.resolvePresalesContext(leadId);
+      if (!ctx) throw new Error('Lead chưa có pre-sales');
+      const plan = ctx.marketingPlan;
+      if (!plan) throw new Error('Thiếu Kế hoạch MKT sơ bộ');
+      const tasks = await this.funnelPg.getPresalesTasksForPromote(Number(ctx.row.id));
+      presalesSource = {
+        presalesId: Number(ctx.row.id),
+        leadId,
+        serviceSlug: String(ctx.row.service_slug ?? ''),
+        assignedAm: ctx.row.assigned_am != null ? Number(ctx.row.assigned_am) : null,
+        tasks,
+        plan,
+        alreadyConverted:
+          ctx.presales.status === 'converted' && ctx.lifecycleId
+            ? { lifecycle_id: ctx.lifecycleId }
+            : undefined,
+        skipSqlitePresalesUpdate: true,
+      };
+    }
+
+    const promote = this.promoteUtil.run(this.database, contractId, leadId, actor, ts, presalesSource);
+    if (this.config.crmLeadsFunnelPg && this.funnelPg) {
+      await this.funnelPg.markPresalesConverted(promote.presales_id, promote.lifecycle_id);
+    }
 
     this.database
       .prepare(`UPDATE crm_contract_approvals SET status = 'approved', decided_by = ?, decided_at = ? WHERE id = ?`)

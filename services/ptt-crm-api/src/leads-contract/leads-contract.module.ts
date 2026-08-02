@@ -9,13 +9,19 @@ import {
   LeadsContractController,
 } from './leads-contract.controller';
 import { LeadsContractService } from './leads-contract.service';
+import { LeadsContractPgRepository } from './leads-contract-pg.repository';
 import { LeadsContractSqliteRepository } from './leads-contract-sqlite.repository';
 import { ServiceDeliveryNestGuard } from './guards/service-delivery-nest.guard';
 
 @Module({
   imports: [StaffAuthModule, SopModule, forwardRef(() => LeadsModule), forwardRef(() => LeadsFunnelModule)],
   controllers: [LeadsContractController, ContractsApprovalController, AgencyContractsController],
-  providers: [LeadsContractService, LeadsContractSqliteRepository, ServiceDeliveryNestGuard],
-  exports: [LeadsContractService, LeadsContractSqliteRepository],
+  providers: [
+    LeadsContractService,
+    LeadsContractSqliteRepository,
+    LeadsContractPgRepository,
+    ServiceDeliveryNestGuard,
+  ],
+  exports: [LeadsContractService, LeadsContractSqliteRepository, LeadsContractPgRepository],
 })
 export class LeadsContractModule {}
