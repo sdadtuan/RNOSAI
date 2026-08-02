@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { PortalMobileBottomNav } from '@/components/PortalMobileBottomNav';
 import { PortalAppNav, PortalPage, type BreadcrumbItem } from '@/components/layout';
 import {
@@ -14,9 +14,15 @@ import {
 import { usePortalAuth } from '@/hooks/usePortalAuth';
 import { usePortalEmailNav } from '@/hooks/usePortalEmailNav';
 import { usePortalSeoNav } from '@/hooks/usePortalSeoNav';
+import { applyPortalBranding, clearPortalBranding } from '@/lib/portal/branding';
 
 interface PortalPageShellProps {
-  children: (ctx: { token: string; user: NonNullable<ReturnType<typeof usePortalAuth>['user']> }) => ReactNode;
+  children: (ctx: {
+    token: string;
+    user: NonNullable<ReturnType<typeof usePortalAuth>['user']>;
+    branding: PortalSettingsResponse | null;
+    refreshBranding: () => Promise<void>;
+  }) => ReactNode;
   breadcrumb?: BreadcrumbItem[];
   width?: 'default' | 'wide' | 'narrow';
 }
@@ -32,12 +38,28 @@ export function PortalPageShell({ children, breadcrumb, width = 'wide' }: Portal
   );
   const [branding, setBranding] = useState<PortalSettingsResponse | null>(null);
 
+  const refreshBranding = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await fetchPortalSettings(token);
+      setBranding(data);
+    } catch {
+      setBranding(null);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (branding) {
+      applyPortalBranding(branding);
+      return () => clearPortalBranding();
+    }
+    clearPortalBranding();
+  }, [branding]);
+
   useEffect(() => {
     if (!token) return;
     void fetchPendingCreativeCount(token).then(setPendingCount).catch(() => setPendingCount(0));
-    void fetchPortalSettings(token)
-      .then(setBranding)
-      .catch(() => setBranding(null));
+    void refreshBranding();
     void fetchPortalNotificationSummary(token)
       .then(setNotificationSummary)
       .catch(() => setNotificationSummary(null));
@@ -48,7 +70,7 @@ export function PortalPageShell({ children, breadcrumb, width = 'wide' }: Portal
     } else {
       setSeoPending(0);
     }
-  }, [token, seoEnabled]);
+  }, [token, seoEnabled, refreshBranding]);
 
   if (loading || !user || !token) {
     return (
@@ -73,7 +95,7 @@ export function PortalPageShell({ children, breadcrumb, width = 'wide' }: Portal
       />
       <PortalPage breadcrumb={breadcrumb} width={width}>
         {sessionWarning ? <p className="badge portal-session-warning">{sessionWarning}</p> : null}
-        {children({ token, user })}
+        {children({ token, user, branding, refreshBranding })}
       </PortalPage>
       <PortalMobileBottomNav
         pendingCreatives={pendingCount}

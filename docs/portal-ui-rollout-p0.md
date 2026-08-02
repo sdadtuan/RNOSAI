@@ -47,7 +47,7 @@
 | P3 | Meta / Google / Zalo channel layout | **Done (local)** |
 | **P4** | **Creatives + Notifications** | **Done (local)** |
 | P5 | SEO + Email module shells | **Done (local)** |
-| P6 | Settings + public pages + branding hook | Pending |
+| P6 | Settings + public pages + branding hook | **Done (local)** |
 | P7 | Mobile/PWA polish (CSS) | Pending |
 
 ## Deploy

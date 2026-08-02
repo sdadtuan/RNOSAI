@@ -10,3 +10,4 @@ export { HubPageLayout } from './HubPageLayout';
 export { ChannelSwitcher } from './ChannelSwitcher';
 export { ChannelPerformanceLayout } from './ChannelPerformanceLayout';
 export { ModuleSubNav } from './ModuleSubNav';
+export { PortalPublicShell } from './PortalPublicShell';

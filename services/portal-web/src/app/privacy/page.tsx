@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { PortalPublicShell } from '@/components/layout';
 
 export const metadata: Metadata = {
   title: 'Chính sách quyền riêng tư — PTT Portal',
@@ -17,14 +18,23 @@ const DRAFT_VERSION = 'v0.1';
 
 export default function PrivacyPage() {
   return (
-    <main className="privacy-page">
-      <div className="privacy-page__inner">
-        <p className="badge privacy-page__draft">Bản nháp {DRAFT_VERSION} · Legal review pending</p>
-        <h1>Chính sách quyền riêng tư</h1>
-        <p className="muted privacy-page__meta">
-          PTT Portal · <code>vn.pttads.portal</code> · Hiệu lực dự kiến: {EFFECTIVE_DATE}
-        </p>
-
+    <PortalPublicShell
+      badge={`Bản nháp ${DRAFT_VERSION} · Legal review pending`}
+      title="Chính sách quyền riêng tư"
+      subtitle={`PTT Portal · vn.pttads.portal · Hiệu lực dự kiến: ${EFFECTIVE_DATE}`}
+      footer={
+        <>
+          <p style={{ margin: 0 }}>
+            <Link href="/login">← Quay lại đăng nhập</Link>
+          </p>
+          <p style={{ margin: '0.5rem 0 0' }}>
+            Support: <a href="https://pttads.vn/support">pttads.vn/support</a> · Marketing:{' '}
+            <a href="https://pttads.vn">pttads.vn</a>
+          </p>
+        </>
+      }
+    >
+      <div className="privacy-document">
         <section>
           <h2>1. Giới thiệu</h2>
           <p>
@@ -37,8 +47,7 @@ export default function PrivacyPage() {
             ứng dụng mobile (Capacitor WebView).
           </p>
           <p className="muted">
-            Liên hệ:{' '}
-            <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a> · {COMPANY_ADDRESS}
+            Liên hệ: <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a> · {COMPANY_ADDRESS}
           </p>
         </section>
 
@@ -98,7 +107,9 @@ export default function PrivacyPage() {
             <li>Cải thiện độ ổn định (crash analytics) và hỗ trợ kỹ thuật</li>
             <li>Tuân thủ nghĩa vụ pháp lý và audit nội bộ</li>
           </ul>
-          <p>Chúng tôi <strong>không</strong> bán dữ liệu cá nhân cho bên thứ ba.</p>
+          <p>
+            Chúng tôi <strong>không</strong> bán dữ liệu cá nhân cho bên thứ ba.
+          </p>
         </section>
 
         <section>
@@ -196,17 +207,7 @@ export default function PrivacyPage() {
             chờ rà soát Legal (NĐ 13/2023/NĐ-CP) trước listing App Store / Play Store.
           </p>
         </section>
-
-        <footer className="privacy-page__footer muted">
-          <p style={{ margin: 0 }}>
-            <Link href="/login">← Quay lại đăng nhập</Link>
-          </p>
-          <p style={{ margin: '0.5rem 0 0' }}>
-            Support: <a href="https://pttads.vn/support">pttads.vn/support</a> · Marketing:{' '}
-            <a href="https://pttads.vn">pttads.vn</a>
-          </p>
-        </footer>
       </div>
-    </main>
+    </PortalPublicShell>
   );
 }

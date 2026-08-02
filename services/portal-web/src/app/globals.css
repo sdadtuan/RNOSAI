@@ -582,47 +582,22 @@ input {
   }
 }
 
-/* RNOS-M3 — public privacy policy stub */
-.privacy-page {
-  min-height: 100vh;
-  padding: 1.5rem 1rem 2.5rem;
-}
-
-.privacy-page__inner {
-  max-width: 720px;
-  margin: 0 auto;
-}
-
-.privacy-page__draft {
-  margin-bottom: 0.75rem;
-}
-
-.privacy-page h1 {
-  margin: 0 0 0.35rem;
-  font-size: 1.75rem;
-  line-height: 1.25;
-}
-
-.privacy-page__meta {
-  margin: 0 0 1.5rem;
-  font-size: 0.9rem;
-}
-
-.privacy-page section {
+/* RNOS-M3 — public privacy policy (P6 PortalPublicShell) */
+.privacy-document section {
   margin-bottom: 1.75rem;
 }
 
-.privacy-page h2 {
+.privacy-document h2 {
   margin: 0 0 0.65rem;
   font-size: 1.1rem;
 }
 
-.privacy-page p,
-.privacy-page li {
+.privacy-document p,
+.privacy-document li {
   line-height: 1.55;
 }
 
-.privacy-page ul {
+.privacy-document ul {
   margin: 0.5rem 0;
   padding-left: 1.25rem;
 }
@@ -649,13 +624,6 @@ input {
 .privacy-table th {
   background: var(--surface);
   font-weight: 600;
-}
-
-.privacy-page__footer {
-  margin-top: 2rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border);
-  font-size: 0.9rem;
 }
 
 .creative-card--focus {
@@ -2097,6 +2065,223 @@ body:has(.portal-sidebar) .portal-page {
   }
 
   .email-approval-card__actions .btn {
+    flex: 1 1 calc(50% - 0.25rem);
+    min-height: 44px;
+  }
+}
+
+/* —— P6 Settings + public pages + branding hook —— */
+
+.portal-public-shell {
+  min-height: 100vh;
+  background: var(--page-bg);
+}
+
+.portal-public-shell__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--surface-border);
+  background: var(--surface);
+}
+
+.portal-public-shell__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.portal-public-shell__brand strong {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.portal-public-shell__brand span {
+  display: block;
+  font-size: 0.8rem;
+}
+
+.portal-public-shell__login-link {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.portal-public-shell__inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 2.5rem;
+}
+
+.portal-public-shell__inner--narrow {
+  max-width: 480px;
+}
+
+.portal-public-shell__badge {
+  margin-bottom: 0.75rem;
+}
+
+.portal-public-shell__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.75rem;
+  line-height: 1.25;
+}
+
+.portal-public-shell__subtitle {
+  margin: 0 0 1.25rem;
+  font-size: 0.9rem;
+}
+
+.portal-public-shell__content {
+  margin-top: 0.5rem;
+}
+
+.portal-public-shell__footer {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--surface-border);
+}
+
+.portal-public-shell__cta {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.settings-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.settings-section {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.settings-section + .settings-section {
+  margin-top: 0;
+}
+
+.settings-section__header {
+  margin-bottom: 0.85rem;
+}
+
+.settings-section__title {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+}
+
+.settings-section__desc {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.settings-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.settings-form__accent-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.settings-form__accent-row input[type='text'],
+.settings-form__accent-row input:not([type='color']) {
+  flex: 1 1 auto;
+}
+
+.settings-form__color-picker {
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0.15rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.settings-form__hint,
+.settings-form__footnote {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.settings-form__success {
+  margin: 0;
+  color: var(--primary-700);
+}
+
+.settings-branding-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.85rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.settings-branding-preview__swatch {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+}
+
+.settings-branding-preview__meta {
+  flex: 1 1 auto;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.settings-branding-preview__meta strong {
+  font-size: 0.95rem;
+}
+
+.settings-branding-preview__logo {
+  width: 2.5rem;
+  height: 2.5rem;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  background: white;
+  border: 1px solid var(--surface-border);
+}
+
+html[data-portal-branded='true'] .portal-sidebar-brand-mark,
+html[data-portal-branded='true'] .portal-auth-shell__brand .portal-sidebar-brand-mark {
+  background: linear-gradient(135deg, var(--primary-700), var(--brand-lime));
+}
+
+@media (max-width: 768px) {
+  .portal-public-shell__header {
+    flex-wrap: wrap;
+  }
+
+  .settings-form__accent-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-form__color-picker {
+    width: 100%;
+    height: 2.75rem;
+  }
+
+  .settings-actions .btn {
     flex: 1 1 calc(50% - 0.25rem);
     min-height: 44px;
   }
