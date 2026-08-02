@@ -20,7 +20,7 @@ export function PendingApprovalsWidget({
 
   if (totalPending === 0 && unread === 0) {
     return (
-      <section className="card portal-widget">
+      <section className="card portal-widget portal-widget--compact">
         <h2 className="portal-widget__title">Thông báo &amp; duyệt</h2>
         <p className="muted" style={{ margin: 0 }}>
           Không có mục chờ duyệt.{' '}
@@ -31,7 +31,7 @@ export function PendingApprovalsWidget({
   }
 
   return (
-    <section className="card portal-widget">
+    <section className="card portal-widget portal-widget--compact">
       <div className="portal-widget__head">
         <div>
           <h2 className="portal-widget__title">Thông báo &amp; duyệt</h2>

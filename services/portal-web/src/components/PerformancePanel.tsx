@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { SegmentedControl } from '@/components/layout';
 import { PortalAttributionFooter } from '@/components/PortalAttributionFooter';
 import { PerformanceTable } from '@/components/PerformanceTable';
 import {
@@ -20,6 +21,7 @@ export interface PerformancePanelProps {
   title: string;
   subtitle?: string;
   hideChannelColumn?: boolean;
+  embedded?: boolean;
 }
 
 export function PerformancePanel({
@@ -28,6 +30,7 @@ export function PerformancePanel({
   title,
   subtitle,
   hideChannelColumn = false,
+  embedded = false,
 }: PerformancePanelProps) {
   const [windowDays, setWindowDays] = useState<WindowDays>(7);
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
@@ -98,116 +101,99 @@ export function PerformancePanel({
     }
   }
 
+  const rootClass = embedded ? 'performance-panel performance-panel--embedded' : 'card performance-panel';
+
   return (
-    <section className="card" style={{ marginBottom: '1rem' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '1rem',
-          flexWrap: 'wrap',
-          marginBottom: '1rem',
-        }}
-      >
-        <div>
-          <h2 style={{ margin: 0, fontSize: '1.1rem' }}>{title}</h2>
-          {performance && (
-            <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+    <section className={rootClass}>
+      <div className="performance-panel__head">
+        <div className="performance-panel__intro">
+          <h3 className="performance-panel__title">{title}</h3>
+          {performance ? (
+            <p className="muted performance-panel__meta">
               {subtitle ? `${subtitle} · ` : ''}
               {fmtDate(performance.date_from)} → {fmtDate(performance.date_to)} ·{' '}
               {summary?.campaigns_tracked ?? 0} chiến dịch
             </p>
-          )}
+          ) : null}
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className={`btn${windowDays === 7 ? '' : ' btn-secondary'}`}
-            onClick={() => setWindowDays(7)}
-          >
-            T-7
-          </button>
-          <button
-            type="button"
-            className={`btn${windowDays === 30 ? '' : ' btn-secondary'}`}
-            onClick={() => setWindowDays(30)}
-          >
-            T-30
-          </button>
-          <button
-            type="button"
-            className={`btn${groupBy === 'day' ? '' : ' btn-secondary'}`}
-            onClick={() => setGroupBy('day')}
-          >
-            Theo ngày
-          </button>
-          <button
-            type="button"
-            className={`btn${groupBy === 'campaign' ? '' : ' btn-secondary'}`}
-            onClick={() => setGroupBy('campaign')}
-          >
-            Theo chiến dịch
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={exportBusy !== null || loadingPerf}
-            onClick={() => void handleExport('csv')}
-          >
-            {exportBusy === 'csv' ? 'Đang export…' : 'Export CSV'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={exportBusy !== null || loadingPerf}
-            onClick={() => void handleExport('pdf')}
-          >
-            {exportBusy === 'pdf' ? 'Đang export…' : 'PDF (stub)'}
-          </button>
+        <div className="performance-panel__toolbar">
+          <SegmentedControl
+            label="Khoảng"
+            value={windowDays === 7 ? 't7' : 't30'}
+            onChange={(value) => setWindowDays(value === 't7' ? 7 : 30)}
+            options={[
+              { id: 't7', label: 'T-7' },
+              { id: 't30', label: 'T-30' },
+            ]}
+          />
+          <SegmentedControl
+            label="Nhóm"
+            value={groupBy}
+            onChange={setGroupBy}
+            options={[
+              { id: 'day', label: 'Theo ngày' },
+              { id: 'campaign', label: 'Theo chiến dịch' },
+            ]}
+          />
+          <div className="performance-panel__exports">
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={exportBusy !== null || loadingPerf}
+              onClick={() => void handleExport('csv')}
+            >
+              {exportBusy === 'csv' ? 'Đang export…' : 'Export CSV'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={exportBusy !== null || loadingPerf}
+              onClick={() => void handleExport('pdf')}
+            >
+              {exportBusy === 'pdf' ? 'Đang export…' : 'PDF (stub)'}
+            </button>
+          </div>
         </div>
       </div>
 
-      {summary && (
-        <div className="summary-grid">
-          <div className="summary-card">
-            <span className="muted">Tổng spend</span>
-            <strong>{fmtVnd(summary.total_spend)}</strong>
+      {summary ? (
+        <div className="kpi-tile-grid performance-panel__summary">
+          <div className="kpi-tile">
+            <p className="kpi-tile__label">Tổng spend</p>
+            <p className="kpi-tile__value">{fmtVnd(summary.total_spend)}</p>
           </div>
-          <div className="summary-card">
-            <span className="muted">Leads CRM</span>
-            <strong>{fmtNumber(summary.total_leads_crm)}</strong>
+          <div className="kpi-tile">
+            <p className="kpi-tile__label">Leads CRM</p>
+            <p className="kpi-tile__value">{fmtNumber(summary.total_leads_crm)}</p>
           </div>
-          <div className="summary-card">
-            <span className="muted">CPL trung bình</span>
-            <strong>{fmtVnd(summary.avg_cpl)}</strong>
+          <div className="kpi-tile">
+            <p className="kpi-tile__label">CPL trung bình</p>
+            <p className="kpi-tile__value">{summary.avg_cpl != null ? fmtVnd(summary.avg_cpl) : '—'}</p>
           </div>
-          <div className="summary-card">
-            <span className="muted">Vượt target CPL</span>
-            <strong className={summary.over_target_rows > 0 ? 'over-target' : undefined}>
-              {fmtNumber(summary.over_target_rows)} hàng
-            </strong>
+          <div className={`kpi-tile${summary.over_target_rows > 0 ? ' kpi-tile--critical' : ''}`}>
+            <p className="kpi-tile__label">Vượt target CPL</p>
+            <p className="kpi-tile__value">{fmtNumber(summary.over_target_rows)} hàng</p>
           </div>
-          <div className="summary-card">
-            <span className="muted">Chiến dịch tracked</span>
-            <strong>{fmtNumber(summary.campaigns_tracked)}</strong>
+          <div className="kpi-tile">
+            <p className="kpi-tile__label">Chiến dịch tracked</p>
+            <p className="kpi-tile__value">{fmtNumber(summary.campaigns_tracked)}</p>
           </div>
           {performance.unmapped_spend_pct != null ? (
-            <div className="summary-card">
-              <span className="muted">Unmapped spend</span>
-              <strong>{fmtPct(performance.unmapped_spend_pct)}</strong>
+            <div className="kpi-tile">
+              <p className="kpi-tile__label">Unmapped spend</p>
+              <p className="kpi-tile__value">{fmtPct(performance.unmapped_spend_pct)}</p>
             </div>
           ) : null}
         </div>
-      )}
+      ) : null}
 
-      {error && <p className="error">{error}</p>}
+      {error ? <p className="error">{error}</p> : null}
       {loadingPerf ? (
         <p className="muted">Đang tải performance…</p>
       ) : performance && performance.rows.length === 0 ? (
-        <div className="card" style={{ padding: '1.25rem', textAlign: 'center' }}>
-          <p style={{ margin: 0, fontWeight: 600 }}>Chưa có dữ liệu trong khoảng T-{windowDays}</p>
-          <p className="muted" style={{ margin: '0.5rem 0 0' }}>
+        <div className="portal-empty-state">
+          <p className="portal-empty-state__title">Chưa có dữ liệu trong khoảng T-{windowDays}</p>
+          <p className="muted portal-empty-state__hint">
             Insights có thể chưa sync hoặc chưa map Hub campaign. Liên hệ AM nếu cần hỗ trợ.
           </p>
         </div>

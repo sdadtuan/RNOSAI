@@ -1,11 +1,12 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { ChannelQuickLinks } from '@/components/dashboard/ChannelQuickLinks';
+import { DashboardKpiStrip } from '@/components/dashboard/DashboardKpiStrip';
 import { PendingApprovalsWidget } from '@/components/PendingApprovalsWidget';
 import { PortalAiReportSummary } from '@/components/PortalAiReportSummary';
 import { PerformancePanel } from '@/components/PerformancePanel';
-import { PageToolbar } from '@/components/layout';
+import { HubPageLayout } from '@/components/layout';
 import { PortalPageShell } from '@/components/PortalPageShell';
 import {
   fetchPortalNotificationSummary,
@@ -17,7 +18,7 @@ import { usePortalSeoNav } from '@/hooks/usePortalSeoNav';
 
 export default function DashboardPage() {
   return (
-    <PortalPageShell breadcrumb={[{ label: 'Client Portal', href: '/dashboard' }, { label: 'Performance' }]}>
+    <PortalPageShell breadcrumb={[{ label: 'Client Portal', href: '/dashboard' }, { label: 'Tổng quan' }]}>
       {({ token }) => <DashboardContent token={token} />}
     </PortalPageShell>
   );
@@ -46,19 +47,27 @@ function DashboardContent({ token }: { token: string }) {
   }, [token, seoEnabled]);
 
   return (
-    <div className="page-card">
-      <PageToolbar
-        title="Performance tổng hợp"
-        subtitle="Meta · Google · Zalo — CPL và chi tiêu theo chiến dịch"
-      />
-      <PortalAiReportSummary token={token} />
-      <PendingApprovalsWidget summary={summary} seoPending={seoPending} emailPending={pendingEmail} />
-      <PerformancePanel token={token} title="Bảng hiệu suất" subtitle="Tất cả kênh" />
-      <p className="muted portal-dashboard-links">
-        <Link href="/notifications">Trung tâm thông báo</Link>
-        {' · '}
-        <Link href="/creatives">Creative inbox</Link>
-      </p>
-    </div>
+    <HubPageLayout
+      title="Tổng quan hiệu suất"
+      subtitle="Meta · Google · Zalo — CPL, chi tiêu và mục cần duyệt"
+      headerExtra={
+        <>
+          <DashboardKpiStrip token={token} />
+          <ChannelQuickLinks />
+        </>
+      }
+    >
+      <section className="portal-hub-section">
+        <PendingApprovalsWidget summary={summary} seoPending={seoPending} emailPending={pendingEmail} />
+      </section>
+
+      <section className="portal-hub-section">
+        <PortalAiReportSummary token={token} />
+      </section>
+
+      <section className="portal-hub-section portal-hub-section--flush">
+        <PerformancePanel token={token} title="Chi tiết theo ngày / chiến dịch" subtitle="Tất cả kênh" embedded />
+      </section>
+    </HubPageLayout>
   );
 }

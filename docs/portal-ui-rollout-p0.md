@@ -43,7 +43,7 @@
 
 | Sóng | Phạm vi | Trạng thái |
 |------|---------|------------|
-| P2 | Dashboard archetype (KPI tiles, hub layout) | Pending |
+| P2 | Dashboard archetype (KPI tiles, hub layout) | **Done (local)** |
 | P3 | Meta / Google / Zalo channel layout | Pending |
 | **P4** | **Creatives + Notifications** | **Done (local)** |
 | P5 | SEO + Email module shells | Pending |
