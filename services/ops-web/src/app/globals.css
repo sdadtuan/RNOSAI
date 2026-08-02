@@ -5429,6 +5429,118 @@ html.ops-shell-collapsed .ops-nav-link {
   color: var(--primary-700);
 }
 
+.ops-nav-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: rgba(15, 36, 24, 0.12);
+  cursor: default;
+}
+
+.ops-nav-drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: var(--sidebar-width);
+  z-index: 100;
+  width: min(300px, calc(100vw - var(--sidebar-width)));
+  background: var(--surface);
+  border-right: 1px solid var(--surface-border);
+  box-shadow: 8px 0 28px rgba(15, 36, 24, 0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ops-nav-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--surface-border);
+  background: var(--surface-soft);
+}
+
+.ops-nav-drawer-head strong {
+  font-size: 0.95rem;
+  color: var(--primary-700);
+}
+
+.ops-nav-drawer-close {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+}
+
+.ops-nav-drawer-links {
+  overflow-y: auto;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.ops-nav-drawer-link {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ops-nav-drawer-link:hover {
+  background: var(--surface-soft);
+  border-color: var(--border);
+}
+
+.ops-nav-drawer-link.is-active {
+  background: rgba(57, 139, 67, 0.12);
+  border-color: rgba(57, 139, 67, 0.28);
+  color: var(--primary-700);
+  font-weight: 600;
+}
+
+.ops-nav-drawer-link-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.ops-nav-drawer-link.is-active .ops-nav-drawer-link-icon {
+  color: var(--primary-700);
+}
+
+.ops-nav-group-header--static {
+  cursor: default;
+}
+
+.ops-nav-group-header--static:hover {
+  color: var(--muted);
+}
+
+.ops-nav-link--button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  font: inherit;
+}
+
 .ops-nav-group.has-active .ops-nav-group-header {
   color: var(--primary-700);
 }

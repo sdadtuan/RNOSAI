@@ -2,9 +2,8 @@
 
 import { GlobalSearchBar } from '@/components/search/GlobalSearchBar';
 import { iconForHref, NavIcon, sectionIcon, sectionShortLabel } from '@/components/layout/nav-icons';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import type { StoredStaffUser } from '@/lib/auth';
 import { getAccessToken, hasCap } from '@/lib/auth';
 import { fetchReviewQueueCount } from '@/lib/api';
@@ -71,7 +70,6 @@ function applyShellClasses(expanded: boolean) {
   document.documentElement.classList.toggle('ops-shell-expanded', expanded);
   document.documentElement.classList.toggle('ops-shell-collapsed', !expanded);
 }
-const GROUPS_COLLAPSED_BY_DEFAULT = new Set<string>();
 
 const PAGE_TITLES: Record<string, string> = {
   '/': 'Bảng điều khiển',
@@ -435,12 +433,11 @@ function userInitials(user: StoredStaffUser | null): string {
 
 export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: OpsNavProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [reviewQueueCount, setReviewQueueCount] = useState<number | undefined>();
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [flyoutSection, setFlyoutSection] = useState<string | null>(null);
   const [isMobileNav, setIsMobileNav] = useState(false);
-  const sidebarRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -462,17 +459,6 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   }, [pathname]);
 
   useEffect(() => {
-    if (!flyoutSection) return;
-    function onPointerDown(event: MouseEvent) {
-      const target = event.target as Node | null;
-      if (sidebarRef.current?.contains(target)) return;
-      setFlyoutSection(null);
-    }
-    document.addEventListener('mousedown', onPointerDown);
-    return () => document.removeEventListener('mousedown', onPointerDown);
-  }, [flyoutSection]);
-
-  useEffect(() => {
     if (!user || !hasCap(user, 'crm_leads', 'assign')) return;
     const token = getAccessToken();
     if (!token) return;
@@ -482,21 +468,6 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   }, [user, pathname]);
 
   const sections = buildSections(user, emailPendingApprovals, agencyUnread, reviewQueueCount);
-
-  useEffect(() => {
-    setOpenGroups((prev) => {
-      const next = { ...prev };
-      for (const section of sections) {
-        if (next[section.label] == null) {
-          next[section.label] = section.defaultOpen ?? !GROUPS_COLLAPSED_BY_DEFAULT.has(section.label);
-        }
-        if (sectionHasActive(pathname, section)) {
-          next[section.label] = true;
-        }
-      }
-      return next;
-    });
-  }, [pathname, sections]);
 
   const showExpandedNav = sidebarExpanded || isMobileNav;
 
@@ -512,14 +483,20 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
     });
   }
 
-  function toggleGroup(label: string) {
-    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  function navigateTo(href: string) {
+    setFlyoutSection(null);
+    if (!isActive(pathname, href)) {
+      router.push(href);
+    }
   }
+
+  const drawerSection = flyoutSection
+    ? sections.find((section) => section.label === flyoutSection) ?? null
+    : null;
 
   return (
     <>
       <aside
-        ref={sidebarRef}
         className={`ops-sidebar${showExpandedNav ? ' ops-sidebar--expanded' : ' ops-sidebar--rail'}`}
         aria-label="Điều hướng chính"
       >
@@ -533,36 +510,28 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
         <nav className={`ops-sidebar-nav${showExpandedNav ? ' is-expanded' : ' is-collapsed-rail'}`}>
           {showExpandedNav ? (
             sections.map((section) => {
-              const groupOpen = openGroups[section.label] ?? true;
               const shortLabel = sectionShortLabel(section.label);
               return (
                 <div
                   key={section.label}
-                  className={`ops-nav-group${groupOpen ? ' is-open' : ''}${sectionHasActive(pathname, section) ? ' has-active' : ''}`}
+                  className={`ops-nav-group is-open${sectionHasActive(pathname, section) ? ' has-active' : ''}`}
                 >
-                  <button
-                    type="button"
-                    className="ops-nav-group-header"
-                    onClick={() => toggleGroup(section.label)}
-                    aria-expanded={groupOpen}
-                  >
+                  <div className="ops-nav-group-header ops-nav-group-header--static">
                     <span className="ops-nav-group-icon">
                       <NavIcon name={sectionIcon(section.label)} />
                     </span>
                     <span className="ops-nav-group-label">{shortLabel}</span>
-                    <span className="ops-nav-group-toggle" aria-hidden="true">
-                      ›
-                    </span>
-                  </button>
-                  <div className={`ops-nav-group-links${groupOpen ? '' : ' is-collapsed'}`}>
+                  </div>
+                  <div className="ops-nav-group-links">
                     {section.links.map((link) => (
-                      <Link
+                      <button
                         key={link.href}
-                        href={link.href}
-                        className={`ops-nav-link ops-nav-link--text${isActive(pathname, link.href) ? ' is-active' : ''}`}
+                        type="button"
+                        className={`ops-nav-link ops-nav-link--text ops-nav-link--button${isActive(pathname, link.href) ? ' is-active' : ''}`}
+                        onClick={() => navigateTo(link.href)}
                       >
                         {link.label}
-                      </Link>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -589,24 +558,6 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
                     >
                       <NavIcon name={sectionIcon(section.label)} />
                     </button>
-                    {open ? (
-                      <div className="ops-nav-flyout" role="menu">
-                        <p className="ops-nav-flyout-title">{shortLabel}</p>
-                        {section.links.map((link) => (
-                          <Link
-                            key={link.href}
-                            href={link.href}
-                            role="menuitem"
-                            className={`ops-nav-flyout-link${isActive(pathname, link.href) ? ' is-active' : ''}`}
-                          >
-                            <span className="ops-nav-flyout-link-icon">
-                              <NavIcon name={iconForHref(link.href)} />
-                            </span>
-                            <span>{link.label}</span>
-                          </Link>
-                        ))}
-                      </div>
-                    ) : null}
                   </div>
                 );
               })}
@@ -625,6 +576,40 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
           </button>
         </div>
       </aside>
+
+      {!showExpandedNav && drawerSection ? (
+        <>
+          <button
+            type="button"
+            className="ops-nav-drawer-backdrop"
+            aria-label="Đóng menu"
+            onClick={() => setFlyoutSection(null)}
+          />
+          <nav className="ops-nav-drawer" aria-label={sectionShortLabel(drawerSection.label)}>
+            <div className="ops-nav-drawer-head">
+              <strong>{sectionShortLabel(drawerSection.label)}</strong>
+              <button type="button" className="ops-nav-drawer-close" onClick={() => setFlyoutSection(null)}>
+                ×
+              </button>
+            </div>
+            <div className="ops-nav-drawer-links">
+              {drawerSection.links.map((link) => (
+                <button
+                  key={link.href}
+                  type="button"
+                  className={`ops-nav-drawer-link${isActive(pathname, link.href) ? ' is-active' : ''}`}
+                  onClick={() => navigateTo(link.href)}
+                >
+                  <span className="ops-nav-drawer-link-icon">
+                    <NavIcon name={iconForHref(link.href)} />
+                  </span>
+                  <span>{link.label}</span>
+                </button>
+              ))}
+            </div>
+          </nav>
+        </>
+      ) : null}
 
       <header className="ops-topbar">
         <div className="ops-topbar-strip" aria-hidden="true" />
