@@ -12,11 +12,13 @@ import { MetaConversionSideEffectsService } from '../meta-tracking/meta-conversi
 import { PerformanceService } from '../performance/performance.service';
 import { PgLeadsWriteRepository } from './pg-leads-write.repository';
 import { CreateLeadV1Body, LeadV1, PatchLeadV1Body } from './leads.types';
+import { LeadCreateEnrichmentService } from './ingest/lead-create-enrichment.service';
 
 @Injectable()
 export class LeadsWriteService {
   constructor(
     private readonly writeRepo: PgLeadsWriteRepository,
+    private readonly enrichment: LeadCreateEnrichmentService,
     private readonly events: DomainEventService,
     private readonly timeline: CustomerTimelineService,
     private readonly conversionFx: MetaConversionSideEffectsService,
@@ -29,7 +31,8 @@ export class LeadsWriteService {
       throw new BadRequestException({ error: 'full_name is required' });
     }
     try {
-      const lead = await this.writeRepo.createLead(body);
+      const enriched = await this.enrichment.enrich(body);
+      const lead = await this.writeRepo.createLead(enriched);
       const correlationId = await this.events.emit(
         'LeadCreated',
         'lead',
@@ -39,10 +42,19 @@ export class LeadsWriteService {
           channel: body.channel?.trim() || lead.channel || 'staging',
           client_id: body.client_id ?? lead.client_id ?? null,
           external_lead_id: body.external_lead_id ?? lead.external_lead_id ?? null,
+          is_duplicate: Boolean(enriched.is_duplicate),
+          owner_id: lead.owner_id,
           canonical_event: 'tenant.lead.created',
         },
       );
       await this.timeline.recordLeadCreatedFromV1(lead);
+      if (lead.owner_id != null && !enriched.is_duplicate) {
+        await this.events.emit('LeadAssigned', 'lead', String(lead.id), {
+          lead_id: lead.id,
+          owner_id: lead.owner_id,
+          assigned_by: 'auto_assign',
+        });
+      }
       await this.scoreAsync.enqueueAfterLeadCreated({
         leadId: lead.id,
         clientId: body.client_id ?? lead.client_id ?? null,

@@ -30,27 +30,29 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
     this.pool = null;
   }
 
-  async createLead(body: CreateLeadV1Body): Promise<LeadV1> {
+  async createLead(body: CreateLeadV1Body & { is_duplicate?: boolean; meta?: Record<string, unknown> }): Promise<LeadV1> {
     if (this.config.leadsCreateIdMode === 'prod') {
       return this.createLeadProd(body);
     }
     return this.createLeadStaging(body);
   }
 
-  async createLeadStaging(body: CreateLeadV1Body): Promise<LeadV1> {
+  async createLeadStaging(body: CreateLeadV1Body & { is_duplicate?: boolean; meta?: Record<string, unknown> }): Promise<LeadV1> {
     return this.insertLead(body, {
       leadId: (client) => this.nextStagingLeadId(client),
       writeSource: 'staging',
       meta: {
         staging_only: true,
+        ...(body.meta ?? {}),
         nest_write: true,
         created_via: 'POST /api/v1/leads',
       },
       defaultSource: 'staging',
+      isDuplicate: Boolean(body.is_duplicate),
     });
   }
 
-  async createLeadProd(body: CreateLeadV1Body): Promise<LeadV1> {
+  async createLeadProd(body: CreateLeadV1Body & { is_duplicate?: boolean; meta?: Record<string, unknown> }): Promise<LeadV1> {
     if (!body.client_id?.trim()) {
       throw new BadRequestException({ error: 'client_id is required for prod create' });
     }
@@ -61,18 +63,21 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
         nest_write: true,
         prod_create: true,
         created_via: 'POST /api/v1/leads',
+        ...(body.meta ?? {}),
       },
       defaultSource: body.source?.trim() || 'api',
+      isDuplicate: Boolean(body.is_duplicate),
     });
   }
 
   private async insertLead(
-    body: CreateLeadV1Body,
+    body: CreateLeadV1Body & { is_duplicate?: boolean; meta?: Record<string, unknown> },
     opts: {
       leadId: (client: PoolClient) => Promise<number>;
       writeSource: string;
       meta: Record<string, unknown>;
       defaultSource: string;
+      isDuplicate?: boolean;
     },
   ): Promise<LeadV1> {
     const client = await this.db.connect();
@@ -87,7 +92,7 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
            campaign_id, received_at, created_at, updated_at, write_source, sync_version
          ) VALUES (
            $1, $2, $3, $4, $5, $6, $7,
-           FALSE, $8::jsonb, $9::uuid, $10, $11,
+           $15, $8::jsonb, $9::uuid, $10, $11,
            $12, $13::timestamptz, $13::timestamptz, $13::timestamptz, $14, 1
          )`,
         [
@@ -105,6 +110,7 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
           body.campaign_id ?? null,
           now,
           opts.writeSource,
+          Boolean(opts.isDuplicate),
         ],
       );
       await client.query('COMMIT');

@@ -18,6 +18,10 @@ import { SqliteLeadsRepository } from './sqlite-leads.repository';
 import { StaffLeadsWriteGuard } from './guards/staff-leads-write.guard';
 import { StaffLeadsViewGuard } from './guards/staff-leads-view.guard';
 import { WriteEnabledGuard } from './guards/write-enabled.guard';
+import { LeadAutoAssignService } from './ingest/lead-auto-assign.service';
+import { LeadCreateEnrichmentService } from './ingest/lead-create-enrichment.service';
+import { LeadDedupRepository } from './ingest/lead-dedup.repository';
+import { LeadIngestRulesRepository } from './ingest/lead-ingest-rules.repository';
 
 @Module({
   imports: [
@@ -39,6 +43,10 @@ import { WriteEnabledGuard } from './guards/write-enabled.guard';
     SqliteLeadsRepository,
     PgLeadsRepository,
     PgLeadsWriteRepository,
+    LeadDedupRepository,
+    LeadIngestRulesRepository,
+    LeadAutoAssignService,
+    LeadCreateEnrichmentService,
     WriteEnabledGuard,
     StaffLeadsWriteGuard,
     StaffLeadsViewGuard,
