@@ -10,7 +10,7 @@ type StaffPageShellProps = {
   user: StoredStaffUser | null;
   onLogout: () => void;
   breadcrumb?: BreadcrumbItem[];
-  width?: 'default' | 'wide' | 'narrow';
+  width?: 'default' | 'wide' | 'narrow' | 'full';
   agencyUnread?: number;
   emailPendingApprovals?: number;
   loading?: boolean;

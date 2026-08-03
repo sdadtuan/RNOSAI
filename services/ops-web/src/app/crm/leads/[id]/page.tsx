@@ -376,14 +376,14 @@ export default function CrmLeadDetailPage() {
   }
 
   const accessToken = getAccessToken();
-  const useMobileTabs = layout.mobile && copilotOn;
+  const useMobileTabs = layout.mobile;
   const showCopilotInline =
     copilotOn && !!lead && !loading && !!accessToken && !!user && layout.desktop;
   const showCopilotSheet =
     copilotOn && !!lead && !loading && !!accessToken && !!user && layout.mobile && mobileTab === 'ai';
   const showCopilotDrawer =
     copilotOn && !!lead && !loading && !!accessToken && !!user && layout.tablet && copilotDrawerOpen;
-  const hideDetailPane = useMobileTabs && mobileTab === 'activity';
+  const hideDetailPane = useMobileTabs && mobileTab !== 'detail';
   const hideTimelinePane = useMobileTabs && mobileTab !== 'activity';
 
   function renderCopilotPanel(variant: 'column' | 'drawer' | 'sheet', onCloseDrawer?: () => void) {
@@ -427,6 +427,7 @@ export default function CrmLeadDetailPage() {
     <StaffPageShell
       user={user}
       onLogout={logout}
+      width="full"
       breadcrumb={[
         { label: 'CRM', href: '/crm/leads' },
         { label: 'Leads', href: '/crm/leads' },
@@ -435,7 +436,7 @@ export default function CrmLeadDetailPage() {
     >
       <div className={`lead-detail-page${showCopilotSheet ? ' lead-detail-page--copilot-sheet' : ''}`}>
 
-      {layout.mobile && copilotOn ? (
+      {useMobileTabs ? (
         <div className="lead-detail-tabs" role="tablist" aria-label="Lead detail sections">
           <button
             type="button"
@@ -455,15 +456,17 @@ export default function CrmLeadDetailPage() {
           >
             Hoạt động
           </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mobileTab === 'ai'}
-            className={mobileTab === 'ai' ? 'is-active' : ''}
-            onClick={() => setMobileTab('ai')}
-          >
-            AI
-          </button>
+          {copilotOn ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobileTab === 'ai'}
+              className={mobileTab === 'ai' ? 'is-active' : ''}
+              onClick={() => setMobileTab('ai')}
+            >
+              AI
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -484,7 +487,9 @@ export default function CrmLeadDetailPage() {
         <div className="lead-detail-layout">
           <LeadDetailHero lead={lead} ownerLabel={ownerLabel} />
 
-          <div className="lead-detail-grid">
+          <div
+            className={`lead-detail-grid${showCopilotInline ? ' lead-detail-grid--with-copilot' : ''}`}
+          >
           <div
             className={`lead-detail-main ${hideDetailPane ? 'lead-detail-pane--hidden' : ''}`}
           >
@@ -526,7 +531,61 @@ export default function CrmLeadDetailPage() {
                 onLoaded={setContractSummary}
               />
             ) : null}
+          </div>
 
+          <aside
+            className={`lead-detail-sidebar ${hideTimelinePane ? 'lead-detail-pane--hidden' : ''}`}
+          >
+            <div className="lead-panel lead-panel--activity">
+              <div className="lead-panel__head">
+                <h3 className="lead-panel__title">Timeline hoạt động</h3>
+                <p className="lead-panel__subtitle">Chọn activity để tóm tắt trong AI Copilot</p>
+              </div>
+              {activities.length === 0 ? (
+                <p className="lead-empty-state">Chưa có hoạt động.</p>
+              ) : (
+                <ul className="lead-activity-list">
+                  {activities.map((a) => (
+                    <li
+                      key={a.id}
+                      className={`lead-activity-item ${selectedActivityId === a.id ? 'is-selected' : ''}`}
+                      onClick={() => setSelectedActivityId(a.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedActivityId(a.id);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={selectedActivityId === a.id}
+                    >
+                      <div className="lead-activity-item__meta">
+                        <time>{a.created_at?.slice(0, 16)}</time>
+                        <span className="lead-activity-item__type">
+                          {a.activity_type_label || a.activity_type}
+                        </span>
+                        {a.user_name ? <span>{a.user_name}</span> : null}
+                      </div>
+                      <div className="lead-activity-item__content">{a.content || '—'}</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {accessToken ? <LeadEntityTimelinePanel token={accessToken} leadId={leadId} /> : null}
+
+            <LeadAuditPanel audit={audit} />
+          </aside>
+
+          {showCopilotInline ? renderCopilotPanel('column') : null}
+          </div>
+
+          <section
+            className={`lead-detail-footer ${hideDetailPane ? 'lead-detail-pane--hidden' : ''}`}
+            aria-label="Thao tác lead"
+          >
             <div className="lead-actions-grid">
               <div className="lead-panel lead-panel--action">
                 <div className="lead-panel__head">
@@ -649,56 +708,7 @@ export default function CrmLeadDetailPage() {
                 </form>
               </div>
             </div>
-          </div>
-
-          <aside
-            className={`lead-detail-sidebar ${hideTimelinePane ? 'lead-detail-pane--hidden' : ''}`}
-          >
-            <div className="lead-panel lead-panel--activity">
-              <div className="lead-panel__head">
-                <h3 className="lead-panel__title">Timeline hoạt động</h3>
-                <p className="lead-panel__subtitle">Chọn activity để tóm tắt trong AI Copilot</p>
-              </div>
-              {activities.length === 0 ? (
-                <p className="lead-empty-state">Chưa có hoạt động.</p>
-              ) : (
-                <ul className="lead-activity-list">
-                  {activities.map((a) => (
-                    <li
-                      key={a.id}
-                      className={`lead-activity-item ${selectedActivityId === a.id ? 'is-selected' : ''}`}
-                      onClick={() => setSelectedActivityId(a.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          setSelectedActivityId(a.id);
-                        }
-                      }}
-                      role="button"
-                      tabIndex={0}
-                      aria-pressed={selectedActivityId === a.id}
-                    >
-                      <div className="lead-activity-item__meta">
-                        <time>{a.created_at?.slice(0, 16)}</time>
-                        <span className="lead-activity-item__type">
-                          {a.activity_type_label || a.activity_type}
-                        </span>
-                        {a.user_name ? <span>{a.user_name}</span> : null}
-                      </div>
-                      <div className="lead-activity-item__content">{a.content || '—'}</div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {accessToken ? <LeadEntityTimelinePanel token={accessToken} leadId={leadId} /> : null}
-
-            <LeadAuditPanel audit={audit} />
-          </aside>
-
-          {showCopilotInline ? renderCopilotPanel('column') : null}
-          </div>
+          </section>
         </div>
       ) : null}
 

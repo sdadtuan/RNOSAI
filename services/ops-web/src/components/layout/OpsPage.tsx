@@ -4,7 +4,7 @@ import { Breadcrumb, type BreadcrumbItem } from './Breadcrumb';
 type OpsPageProps = {
   breadcrumb?: BreadcrumbItem[];
   children: ReactNode;
-  width?: 'default' | 'wide' | 'narrow';
+  width?: 'default' | 'wide' | 'narrow' | 'full';
 };
 
 export function OpsPage({ breadcrumb, children, width = 'wide' }: OpsPageProps) {
