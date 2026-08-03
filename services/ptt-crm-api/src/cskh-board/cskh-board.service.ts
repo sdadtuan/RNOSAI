@@ -16,7 +16,15 @@ import {
   CskhBoardRow,
   CskhBulkAssignBody,
   CskhBulkRescheduleBody,
+  CskhManagerIntelligenceResponse,
 } from './cskh-board.types';
+import {
+  buildSlaDailyDigest,
+  buildTopBreachSnapshots,
+  buildTriageSuggestions,
+  computeRepPerformance,
+  countRootCauses,
+} from './cskh-manager-intelligence.util';
 
 @Injectable()
 export class CskhBoardService {
@@ -189,6 +197,98 @@ export class CskhBoardService {
       );
     }
     return lines.join('\n');
+  }
+
+  async getManagerIntelligence(teamAcceptancePct?: number | null): Promise<CskhManagerIntelligenceResponse> {
+    const board = await this.getBoard({
+      sla_filter: 'all',
+      sla_tier: 'all',
+      limit: 500,
+      offset: 0,
+      spa_meta_only: true,
+    });
+
+    const allRows = await this.loadAllEnrichedRows();
+    const repPerformance = computeRepPerformance(allRows);
+    const triage = buildTriageSuggestions(allRows, repPerformance);
+    const topBreaches = buildTopBreachSnapshots(allRows, 5);
+    const rootCauseCounts = countRootCauses(allRows);
+    const slaDailyDigest = buildSlaDailyDigest({
+      rows: allRows,
+      tierSummary: board.sla_dashboard.tiers,
+      teamAcceptancePct: teamAcceptancePct ?? null,
+    });
+
+    return {
+      ok: true,
+      generated_at: new Date().toISOString(),
+      rep_performance: repPerformance,
+      triage_suggestions: triage,
+      top_breaches: topBreaches,
+      root_cause_counts: rootCauseCounts,
+      team_ai_acceptance_pct: teamAcceptancePct ?? null,
+      sla_daily_digest: slaDailyDigest,
+    };
+  }
+
+  async getSlaDailyDigest(teamAcceptancePct?: number | null) {
+    const intel = await this.getManagerIntelligence(teamAcceptancePct);
+    return intel.sla_daily_digest;
+  }
+
+  private async loadAllEnrichedRows(): Promise<CskhBoardRow[]> {
+    const { leads } = await this.repo.listLeadCandidates({
+      sla_filter: 'all',
+      sla_tier: 'all',
+      spa_meta_only: true,
+      limit: 500,
+    });
+    const ids = leads.map((r) => Number(r.sqlite_lead_id));
+    const firstCalls = this.sqlite.firstCallAtByLeadIds(ids);
+    const followUps = this.sqlite.nextFollowUpByLeadIds(ids);
+    const ownerIds = leads.map((r) => Number(r.owner_id ?? 0)).filter((id) => id > 0);
+    const ownerNames = this.sqlite.staffNamesByIds(ownerIds);
+
+    return leads.map((row) => {
+      const base = CskhBoardRepository.toBoardRowBase(
+        row as Parameters<typeof CskhBoardRepository.toBoardRowBase>[0],
+      );
+      const firstCallAt = firstCalls.get(base.id) ?? null;
+      const b2CompletedAt = parseB2CompletedAt(base.care_stages_done_json);
+      const closedAt = isSpaClosedStatus(base.status) ? base.updated_at : null;
+      const sla = computeSpaMeta24hSlas({
+        status: base.status,
+        receivedAt: base.received_at,
+        createdAt: base.created_at,
+        firstCallAt,
+        careStagesDoneJson: base.care_stages_done_json,
+        b2CompletedAt,
+        closedAt,
+      });
+
+      return {
+        id: base.id,
+        full_name: base.full_name,
+        phone: base.phone,
+        email: base.email,
+        status: base.status,
+        source: base.source,
+        channel: base.channel,
+        owner_id: base.owner_id,
+        received_at: base.received_at,
+        created_at: base.created_at,
+        owner_name: base.owner_id ? ownerNames.get(base.owner_id) ?? null : null,
+        first_call_at: firstCallAt,
+        b2_completed_at: b2CompletedAt,
+        closed_at: closedAt,
+        sla_state: sla.sla_state,
+        sla_tier: sla.sla_tier,
+        sla_tiers: sla.tiers,
+        sla_minutes_elapsed: sla.sla_minutes_elapsed,
+        sla_deadline_at: sla.sla_deadline_at,
+        next_follow_up_at: followUps.get(base.id) ?? null,
+      };
+    });
   }
 
   async bulkAssign(body: CskhBulkAssignBody, actor: string) {

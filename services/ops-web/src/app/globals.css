@@ -3520,6 +3520,73 @@ body:has(.ops-sidebar) main {
   font-size: 0.82rem;
 }
 
+.cskh-manager-intel {
+  margin: 0.75rem 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.cskh-manager-intel__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.cskh-manager-intel__title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.cskh-manager-intel__sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+}
+
+.cskh-manager-intel__block {
+  margin-top: 0.85rem;
+}
+
+.cskh-manager-intel__block h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.92rem;
+}
+
+.cskh-manager-intel__breach-list,
+.cskh-manager-intel__triage-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+}
+
+.cskh-manager-intel__triage-item {
+  margin-bottom: 0.65rem;
+}
+
+.cskh-rep-score {
+  font-weight: 700;
+}
+
+.cskh-rep-score--low {
+  color: #b91c1c;
+}
+
+.cskh-rep-score--high {
+  color: #166534;
+}
+
+.cskh-manager-intel__digest-preview pre {
+  white-space: pre-wrap;
+  font-size: 0.78rem;
+  background: #fff;
+  padding: 0.65rem;
+  border-radius: 6px;
+  border: 1px dashed #cbd5e1;
+}
+
 .cskh-board-tier-inline,
 .cskh-board-card__sla-tiers {
   display: flex;

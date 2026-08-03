@@ -1,4 +1,11 @@
 import { CskhSlaTier, CskhSlaTierSnapshot } from './cskh-board-sla.util';
+import type {
+  BreachLeadSnapshot,
+  BreachRootCause,
+  RepPerformanceRow,
+  SlaDailyDigest,
+  TriageSuggestion,
+} from './cskh-manager-intelligence.util';
 
 export interface CskhBoardQuery {
   owner_id?: number;
@@ -71,4 +78,15 @@ export interface CskhBulkRescheduleBody {
   lead_ids: number[];
   follow_up_at: string;
   note?: string;
+}
+
+export interface CskhManagerIntelligenceResponse {
+  ok: boolean;
+  generated_at: string;
+  rep_performance: RepPerformanceRow[];
+  triage_suggestions: TriageSuggestion[];
+  top_breaches: BreachLeadSnapshot[];
+  root_cause_counts: Record<BreachRootCause, number>;
+  team_ai_acceptance_pct: number | null;
+  sla_daily_digest: SlaDailyDigest;
 }

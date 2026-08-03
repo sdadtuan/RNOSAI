@@ -59,6 +59,39 @@ export function buildCoachDigest(context: CoachDigestContext): CoachDigestSnapsh
     drill_href: '/crm/cskh-board?sla_filter=breach',
   });
 
+  const tierBreach = context.sla_tier_breach ?? {};
+  const tierWarning = context.sla_tier_warning ?? {};
+  const meta24Severity: CoachDigestSeverity =
+    (tierBreach.first_call_15m ?? 0) >= 3 ||
+    (tierBreach.b2_complete_4h ?? 0) >= 3 ||
+    (tierBreach.close_24h ?? 0) >= 3
+      ? 'critical'
+      : Object.values(tierBreach).some((v) => (v ?? 0) > 0)
+        ? 'warning'
+        : 'info';
+  const topLines = context.top_breach_lines ?? [];
+  cards.push({
+    key: 'sla_meta_24h',
+    title: 'SLA Spa Meta 24h (3 tier)',
+    summary:
+      topLines.length > 0
+        ? `Top breach: ${topLines.slice(0, 2).join(' · ')}`
+        : `15p ${tierBreach.first_call_15m ?? 0} · 4h ${tierBreach.b2_complete_4h ?? 0} · 24h ${tierBreach.close_24h ?? 0} breach`,
+    severity: meta24Severity,
+    metrics: {
+      breach_15m: tierBreach.first_call_15m ?? 0,
+      breach_4h: tierBreach.b2_complete_4h ?? 0,
+      breach_24h: tierBreach.close_24h ?? 0,
+      warn_15m: tierWarning.first_call_15m ?? 0,
+      warn_4h: tierWarning.b2_complete_4h ?? 0,
+      warn_24h: tierWarning.close_24h ?? 0,
+      root_no_call: context.root_cause_no_call ?? 0,
+      root_no_b2: context.root_cause_no_b2 ?? 0,
+      root_no_close: context.root_cause_no_close ?? 0,
+    },
+    drill_href: '/crm/cskh-board?sla_filter=breach',
+  });
+
   const rate = context.acceptance_rate_pct;
   const aiSeverity: CoachDigestSeverity =
     rate == null ? 'info' : rate < 20 ? 'critical' : rate < 35 ? 'warning' : 'info';
@@ -117,6 +150,13 @@ export function buildCoachDigest(context: CoachDigestContext): CoachDigestSnapsh
     context.sla_breach > 0
       ? `Ưu tiên: xử lý ${context.sla_breach} lead SLA breach trên CSKH board.`
       : 'SLA lead ổn định.',
+    (tierBreach.first_call_15m ?? 0) > 0
+      ? `${tierBreach.first_call_15m} breach 15p (chưa gọi: ${context.root_cause_no_call ?? 0}).`
+      : '',
+    (tierBreach.b2_complete_4h ?? 0) > 0
+      ? `${tierBreach.b2_complete_4h} breach 4h B2.`
+      : '',
+    (tierBreach.close_24h ?? 0) > 0 ? `${tierBreach.close_24h} breach 24h chốt/lost.` : '',
     rate != null ? `AI acceptance ${rate}% (${context.accepted} chấp nhận, ${context.dismissed} bỏ).` : '',
     context.pipeline_at_risk > 0
       ? `${context.pipeline_at_risk} deal cần manager review trên pipeline risk.`

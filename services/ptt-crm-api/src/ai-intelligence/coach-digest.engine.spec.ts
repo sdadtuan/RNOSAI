@@ -11,6 +11,12 @@ describe('coach-digest.engine', () => {
       sla_breach: 4,
       sla_warning: 2,
       sla_ok: 20,
+      sla_tier_breach: { first_call_15m: 3, b2_complete_4h: 1, close_24h: 0 },
+      sla_tier_warning: { first_call_15m: 1, b2_complete_4h: 1, close_24h: 0 },
+      top_breach_lines: ['#1 Chưa gọi lần đầu (Gọi lần đầu 15p)'],
+      root_cause_no_call: 3,
+      root_cause_no_b2: 1,
+      root_cause_no_close: 0,
       acceptance_rate_pct: 18,
       accepted: 9,
       dismissed: 41,
@@ -28,9 +34,10 @@ describe('coach-digest.engine', () => {
       top_anomaly_campaign_id: 'camp_1',
     });
 
-    expect(digest.cards).toHaveLength(4);
+    expect(digest.cards).toHaveLength(5);
     expect(digest.cards[0].drill_href).toBe('/crm/cskh-board?sla_filter=breach');
-    expect(digest.cards[1].drill_href).toBe('/crm/ai/insights?status=dismissed');
+    expect(digest.cards[1].key).toBe('sla_meta_24h');
+    expect(digest.cards[2].drill_href).toBe('/crm/ai/insights?status=dismissed');
     expect(digest.severity).toBe('critical');
     expect(digest.email_preview).toContain('Coach digest');
   });

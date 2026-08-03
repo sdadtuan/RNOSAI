@@ -167,6 +167,29 @@ export class ManagerCoachService {
 
     const channelAnomaly = await this.anomalyDigest.buildCoachFields(7);
 
+    let managerIntel: Awaited<ReturnType<CskhBoardService['getManagerIntelligence']>> | null = null;
+    try {
+      managerIntel = await this.cskhBoard.getManagerIntelligence(acceptance.acceptance_rate_pct);
+    } catch {
+      managerIntel = null;
+    }
+
+    const tierSummary = board.sla_dashboard.tiers;
+    const tierBreach = {
+      first_call_15m: tierSummary.first_call_15m.breach,
+      b2_complete_4h: tierSummary.b2_complete_4h.breach,
+      close_24h: tierSummary.close_24h.breach,
+    };
+    const tierWarning = {
+      first_call_15m: tierSummary.first_call_15m.warning,
+      b2_complete_4h: tierSummary.b2_complete_4h.warning,
+      close_24h: tierSummary.close_24h.warning,
+    };
+    const topBreachLines =
+      managerIntel?.top_breaches.map(
+        (t) => `#${t.lead_id} ${t.root_cause_label} (${t.tier_label})`,
+      ) ?? [];
+
     return {
       team_id: teamId,
       week_key: weekKey,
@@ -176,6 +199,12 @@ export class ManagerCoachService {
       sla_breach: board.summary.breach,
       sla_warning: board.summary.warning,
       sla_ok: board.summary.ok,
+      sla_tier_breach: tierBreach,
+      sla_tier_warning: tierWarning,
+      top_breach_lines: topBreachLines,
+      root_cause_no_call: managerIntel?.root_cause_counts.no_call ?? 0,
+      root_cause_no_b2: managerIntel?.root_cause_counts.no_b2 ?? 0,
+      root_cause_no_close: managerIntel?.root_cause_counts.no_close ?? 0,
       acceptance_rate_pct: acceptance.acceptance_rate_pct,
       accepted: acceptance.accepted,
       dismissed: acceptance.dismissed,

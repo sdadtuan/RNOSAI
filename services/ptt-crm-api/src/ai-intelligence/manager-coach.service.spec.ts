@@ -42,11 +42,26 @@ describe('ManagerCoachService', () => {
   const cskhBoard = {
     getBoard: jest.fn().mockResolvedValue({
       summary: { breach: 2, warning: 1, ok: 25, total: 28 },
+      sla_dashboard: {
+        tiers: {
+          first_call_15m: { breach: 2, warning: 1, ok: 10, active: 13 },
+          b2_complete_4h: { breach: 0, warning: 1, ok: 12, active: 13 },
+          close_24h: { breach: 0, warning: 0, ok: 13, active: 13 },
+        },
+        selected_tier: 'all',
+      },
       items: [],
       total: 28,
       limit: 500,
       offset: 0,
       ok: true,
+    }),
+    getManagerIntelligence: jest.fn().mockResolvedValue({
+      ok: true,
+      top_breaches: [{ lead_id: 1, root_cause_label: 'Chưa gọi', tier_label: '15p' }],
+      root_cause_counts: { no_call: 2, no_b2: 0, no_close: 0, mixed: 0 },
+      rep_performance: [],
+      triage_suggestions: [],
     }),
   };
   const pipelineRisk = {

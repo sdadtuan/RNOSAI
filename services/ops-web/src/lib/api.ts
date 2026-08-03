@@ -352,6 +352,62 @@ export async function fetchCskhBoard(
   return body;
 }
 
+export interface CskhRepPerformanceRow {
+  owner_id: number;
+  owner_name: string;
+  active_leads: number;
+  breach_first_call: number;
+  breach_b2: number;
+  breach_close: number;
+  warning_total: number;
+  weighted_breach_score: number;
+  performance_score: number;
+  rank: number;
+}
+
+export interface CskhTriageSuggestion {
+  from_owner_id: number;
+  from_owner_name: string;
+  breach_first_call_count: number;
+  lead_ids: number[];
+  suggested_to_owner_id: number | null;
+  suggested_to_owner_name: string | null;
+  reason: string;
+}
+
+export interface CskhManagerIntelligence {
+  ok: boolean;
+  generated_at: string;
+  rep_performance: CskhRepPerformanceRow[];
+  triage_suggestions: CskhTriageSuggestion[];
+  top_breaches: Array<{
+    lead_id: number;
+    full_name: string;
+    owner_name: string | null;
+    tier_label: string;
+    root_cause_label: string;
+    elapsed_minutes: number | null;
+  }>;
+  root_cause_counts: Record<string, number>;
+  team_ai_acceptance_pct: number | null;
+  sla_daily_digest: {
+    narrative: string;
+    email_preview: string;
+  };
+}
+
+export async function fetchCskhManagerIntelligence(token: string): Promise<CskhManagerIntelligence> {
+  const res = await fetch(`${API_BASE}/api/crm/cskh-board/manager-intelligence`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<CskhManagerIntelligence & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Manager intelligence fetch failed', res.status);
+  }
+  return body;
+}
+
 export async function bulkAssignCskhLeads(
   token: string,
   body: { lead_ids: number[]; to_user_id: number; reason: string },
@@ -767,6 +823,24 @@ export async function fetchReviewQueueLeads(
   total?: number;
 }> {
   return leadFunnelMutate(token, `/api/v1/leads/review-queue?limit=${limit}`, { method: 'GET' });
+}
+
+export interface ReviewQueueAiSummary {
+  lead_id: number;
+  summary_line: string;
+  root_cause: string;
+  suggested_owner_id: number | null;
+  suggested_owner_name: string | null;
+  suggest_reason: string;
+}
+
+export async function fetchReviewQueueAiSummaries(
+  token: string,
+  limit = 50,
+): Promise<{ ok: boolean; summaries: ReviewQueueAiSummary[]; total: number }> {
+  return leadFunnelMutate(token, `/api/v1/leads/review-queue/ai-summaries?limit=${limit}`, {
+    method: 'GET',
+  });
 }
 
 export async function releaseLeadReviewQueue(

@@ -1,7 +1,7 @@
 export type CoachDigestSeverity = 'info' | 'warning' | 'critical';
 
 export interface CoachDigestCard {
-  key: 'sla' | 'ai_acceptance' | 'pipeline_risk' | 'channel_anomaly';
+  key: 'sla' | 'sla_meta_24h' | 'ai_acceptance' | 'pipeline_risk' | 'channel_anomaly';
   title: string;
   summary: string;
   severity: CoachDigestSeverity;
@@ -18,6 +18,12 @@ export interface CoachDigestContext {
   sla_breach: number;
   sla_warning: number;
   sla_ok: number;
+  sla_tier_breach?: Record<string, number>;
+  sla_tier_warning?: Record<string, number>;
+  top_breach_lines?: string[];
+  root_cause_no_call?: number;
+  root_cause_no_b2?: number;
+  root_cause_no_close?: number;
   acceptance_rate_pct: number | null;
   accepted: number;
   dismissed: number;

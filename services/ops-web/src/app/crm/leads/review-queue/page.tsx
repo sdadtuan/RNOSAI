@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
 import {
   fetchCrmStaffList,
+  fetchReviewQueueAiSummaries,
   fetchReviewQueueLeads,
   releaseLeadReviewQueue,
   staffMe,
@@ -39,6 +40,9 @@ export default function CrmReviewQueuePage() {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [rows, setRows] = useState<ReviewRow[]>([]);
+  const [aiSummaries, setAiSummaries] = useState<
+    Record<number, { summary_line: string; suggested_owner_name: string | null; suggest_reason: string }>
+  >({});
   const [staffList, setStaffList] = useState<CrmStaffRow[]>([]);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -84,12 +88,25 @@ export default function CrmReviewQueuePage() {
   }, [router]);
 
   const reload = useCallback(async (access: string) => {
-    const [queueOut, staffOut] = await Promise.all([
+    const [queueOut, staffOut, aiOut] = await Promise.all([
       fetchReviewQueueLeads(access),
       fetchCrmStaffList(access),
+      fetchReviewQueueAiSummaries(access).catch(() => ({ summaries: [] as const, ok: false, total: 0 })),
     ]);
     setRows(queueOut.leads ?? []);
     setStaffList(staffOut.staff ?? []);
+    const map: Record<
+      number,
+      { summary_line: string; suggested_owner_name: string | null; suggest_reason: string }
+    > = {};
+    for (const s of aiOut.summaries ?? []) {
+      map[s.lead_id] = {
+        summary_line: s.summary_line,
+        suggested_owner_name: s.suggested_owner_name,
+        suggest_reason: s.suggest_reason,
+      };
+    }
+    setAiSummaries(map);
   }, []);
 
   useEffect(() => {
@@ -194,6 +211,8 @@ export default function CrmReviewQueuePage() {
                   <th>Trạng thái</th>
                   <th>Chờ (h)</th>
                   <th>Lý do</th>
+                  <th>AI summary</th>
+                  <th>Gợi ý owner</th>
                   <th />
                 </tr>
               </thead>
@@ -211,6 +230,18 @@ export default function CrmReviewQueuePage() {
                         : '—'}
                     </td>
                     <td style={{ maxWidth: 320 }}>{row.review_queue.message || '—'}</td>
+                    <td style={{ maxWidth: 280 }} className="muted">
+                      {aiSummaries[row.id]?.summary_line ?? '—'}
+                    </td>
+                    <td style={{ maxWidth: 200 }}>
+                      {aiSummaries[row.id]?.suggested_owner_name ? (
+                        <span title={aiSummaries[row.id]?.suggest_reason}>
+                          {aiSummaries[row.id]?.suggested_owner_name}
+                        </span>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
                     <td>
                       <button type="button" className="btn btn-sm" onClick={() => openReleaseModal(row.id)}>
                         Release…

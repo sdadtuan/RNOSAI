@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
+import { CskhManagerIntelPanel } from '@/components/crm/CskhManagerIntelPanel';
 import {
   bulkAssignCskhLeads,
   bulkRescheduleCskhLeads,
@@ -434,6 +435,12 @@ export function CskhBoardContent() {
             <Link href="/crm/leads" className="btn btn-sm btn-ghost">
               Quản lý Lead
             </Link>
+            <Link href="/crm/ai/coach" className="btn btn-sm btn-ghost">
+              Coach digest
+            </Link>
+            <Link href="/crm/leads/review-queue" className="btn btn-sm btn-ghost">
+              Review queue
+            </Link>
             <button type="button" className="btn btn-sm btn-secondary" onClick={() => exportCsv()}>
               Export CSV
             </button>
@@ -474,6 +481,19 @@ export function CskhBoardContent() {
             );
           })}
         </div>
+
+        {token && canAssign ? (
+          <CskhManagerIntelPanel
+            token={token}
+            canAssign={canAssign}
+            onApplyTriage={({ leadIds, toUserId, reason }) => {
+              setSelected(new Set(leadIds));
+              setAssignTo(String(toUserId));
+              setAssignReason(reason);
+              setMsg(`Đã chọn ${leadIds.length} lead — kiểm tra Bulk actions và bấm Reassign.`);
+            }}
+          />
+        ) : null}
 
         <div className="cskh-board-summary-chips" aria-label="Tóm tắt SLA theo tier đang chọn">
           <button

@@ -1,5 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
+import { CrmLeadsSqliteRepository } from '../crm-leads-legacy/crm-leads-sqlite.repository';
+import { CskhBoardService } from '../cskh-board/cskh-board.service';
+import { parseB2CompletedAt } from '../cskh-board/cskh-board-sla.util';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { parseLeadMeta } from './care-pipeline.util';
@@ -20,6 +23,7 @@ import {
   mergePresalesFormData,
 } from './presales-task-form.util';
 import { reviewQueuePublicState } from './review-queue.util';
+import { buildReviewQueueAiSummary } from './review-queue-intelligence.util';
 
 @Injectable()
 export class LeadsFunnelService {
@@ -28,6 +32,8 @@ export class LeadsFunnelService {
     private readonly pgRepo: LeadsFunnelPgRepository,
     private readonly config: AppConfigService,
     private readonly staffAuth: StaffAuthService,
+    private readonly leadSqlite: CrmLeadsSqliteRepository,
+    private readonly cskhBoard: CskhBoardService,
   ) {}
 
   private get usePgFunnel(): boolean {
@@ -105,6 +111,47 @@ export class LeadsFunnelService {
       })),
       total: rows.length,
     };
+  }
+
+  /** Phase 2 — AI summary line + suggested owner per review-queue lead. */
+  async listReviewQueueAiSummaries(limit?: number) {
+    const rows = this.usePgFunnel
+      ? await this.pgRepo.listReviewQueue(limit)
+      : this.sqliteRepo.listReviewQueue(limit);
+    const ids = rows.map((r) => Number(r.id));
+    const firstCalls = this.leadSqlite.firstCallAtByLeadIds(ids);
+    const ownerIds = rows.map((r) => Number(r.owner_id ?? 0)).filter((id) => id > 0);
+    const ownerNames = this.leadSqlite.staffNamesByIds(ownerIds);
+
+    let bestOwner: { id: number; name: string } | null = null;
+    try {
+      const intel = await this.cskhBoard.getManagerIntelligence();
+      const top = intel.rep_performance[0];
+      if (top) bestOwner = { id: top.owner_id, name: top.owner_name };
+    } catch {
+      bestOwner = null;
+    }
+
+    const summaries = rows.map((row) => {
+      const meta = parseLeadMeta(row.meta_json);
+      const b2At = parseB2CompletedAt(row.care_stages_done_json);
+      const rq = reviewQueuePublicState(meta, row.first_assigned_at || '');
+      const ownerId = row.owner_id ?? null;
+      return buildReviewQueueAiSummary({
+        leadId: row.id,
+        fullName: row.full_name ?? '',
+        status: String(row.status ?? ''),
+        hoursWaiting: rq.hours_waiting ?? null,
+        firstCallAt: firstCalls.get(row.id) ?? null,
+        b2CompletedAt: b2At,
+        ownerId,
+        ownerName: ownerId ? ownerNames.get(ownerId) ?? null : null,
+        bestOwnerId: bestOwner?.id ?? null,
+        bestOwnerName: bestOwner?.name ?? null,
+      });
+    });
+
+    return { ok: true, summaries, total: summaries.length };
   }
 
   async syncReviewQueue(actor: string, dryRun = false) {

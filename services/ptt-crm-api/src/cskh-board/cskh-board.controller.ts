@@ -61,6 +61,18 @@ export class CskhBoardController {
     });
   }
 
+  /** Phase 2 — rep performance, triage, top breaches, daily digest payload. */
+  @Get('manager-intelligence')
+  managerIntelligence() {
+    return this.board.getManagerIntelligence();
+  }
+
+  /** Phase 2 — morning SLA digest (Slack/email payload). */
+  @Get('sla-daily-digest')
+  slaDailyDigest() {
+    return this.board.getSlaDailyDigest();
+  }
+
   @Get('export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   async export(
