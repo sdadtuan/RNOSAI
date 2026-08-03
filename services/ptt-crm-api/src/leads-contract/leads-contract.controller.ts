@@ -43,7 +43,11 @@ export class LeadsContractController {
   @Get(':id/contract/readiness')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
   readiness(@Param('id', ParseIntPipe) id: number) {
-    return this.contracts.getReadiness(id);
+    try {
+      return this.contracts.getReadiness(id);
+    } catch (err) {
+      this.badRequest(err);
+    }
   }
 
   @Get(':id/contract')

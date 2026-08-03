@@ -46,6 +46,12 @@ export function LeadEntityTimelinePanel({ token, leadId }: { token: string; lead
         event_source: sourceFilter || undefined,
       });
       setEvents(out.data.events);
+      const warn = out.errors?.[0] as { code?: string; message?: string } | undefined;
+      if (warn?.message) {
+        setError(warn.code === 'timeline_not_ready' ? warn.message : warn.message);
+      } else {
+        setError('');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không tải timeline');
       setEvents([]);
@@ -89,7 +95,7 @@ export function LeadEntityTimelinePanel({ token, leadId }: { token: string; lead
 
       {error ? (
         <div className="lead-alert lead-alert--error" role="alert">
-          <strong>Không tải được timeline</strong>
+          <strong>Timeline</strong>
           <span>{error}</span>
         </div>
       ) : null}

@@ -64,9 +64,30 @@ export class CustomerTimelineService {
       offset: number;
     }>
   > {
-    await this.assertReady();
     const limit = Math.min(Math.max(query.limit ?? 50, 1), 200);
     const offset = Math.max(query.offset ?? 0, 0);
+    const requestMeta = requestId ?? this.newRequestId();
+
+    if (!(await this.repo.tableReady())) {
+      return {
+        data: {
+          entity_type: entityType,
+          entity_id: entityId,
+          events: [],
+          total: 0,
+          limit,
+          offset,
+        },
+        meta: { request_id: requestMeta },
+        errors: [
+          {
+            code: 'timeline_not_ready',
+            message: 'Timeline chưa sẵn sàng — cần apply DDL customer_timeline_events (RNOS-01).',
+          },
+        ],
+      };
+    }
+
     const result = await this.repo.listEvents({
       entityType,
       entityId,
@@ -83,7 +104,7 @@ export class CustomerTimelineService {
         limit,
         offset,
       },
-      meta: { request_id: requestId ?? this.newRequestId() },
+      meta: { request_id: requestMeta },
       errors: [],
     };
   }

@@ -41,11 +41,13 @@ export function LeadContractPanel({
   const [submitNotes, setSubmitNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [panelError, setPanelError] = useState('');
 
   const canEdit = hasCap(user, 'crm_leads', 'edit');
 
   const reload = useCallback(async () => {
     setLoading(true);
+    setPanelError('');
     try {
       const data = await fetchLeadContractReadiness(token, leadId);
       setChecks(data.checks);
@@ -62,11 +64,12 @@ export function LeadContractPanel({
         lifecycleId: lifecycle,
       });
     } catch (err) {
-      onError?.(err instanceof Error ? err.message : 'Tải HĐ thất bại');
+      const msg = err instanceof Error ? err.message : 'Tải HĐ thất bại';
+      setPanelError(msg);
     } finally {
       setLoading(false);
     }
-  }, [token, leadId, onError, onLoaded]);
+  }, [token, leadId, onLoaded]);
 
   useEffect(() => {
     void reload();
@@ -137,6 +140,11 @@ export function LeadContractPanel({
       }}
     >
       <h3 style={{ margin: '0 0 0.75rem', fontSize: '1rem' }}>Hợp đồng → Service Delivery</h3>
+      {panelError ? (
+        <div className="lead-alert lead-alert--error" role="alert" style={{ marginBottom: '0.75rem' }}>
+          {panelError}
+        </div>
+      ) : null}
       <p className="muted" style={{ marginTop: 0, fontSize: '0.85rem' }}>
         AM tạo draft → submit → GDKD duyệt → lifecycle Onboard (2 bước phê duyệt)
       </p>

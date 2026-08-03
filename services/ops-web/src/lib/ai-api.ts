@@ -627,6 +627,7 @@ export async function fetchEntityTimeline(
     }>;
     total: number;
   };
+  errors?: Array<{ code?: string; message?: string }>;
 }> {
   const qs = new URLSearchParams();
   if (params?.limit != null) qs.set('limit', String(params.limit));
@@ -654,6 +655,7 @@ export async function fetchEntityTimeline(
       }>;
       total: number;
     };
+    errors?: Array<{ code?: string; message?: string }>;
   };
 }
 

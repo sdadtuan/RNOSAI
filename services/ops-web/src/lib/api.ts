@@ -572,8 +572,16 @@ async function leadFunnelMutate<T>(token: string, path: string, init: RequestIni
     ...init,
     headers: { ...authHeaders(token), 'Content-Type': 'application/json', ...(init.headers ?? {}) },
   });
-  const body = await parseJson<T & { error?: string; message?: string }>(res);
-  if (!res.ok) throw new ApiError(body.error ?? body.message ?? 'Lead funnel API failed', res.status);
+  const body = await parseJson<T & { error?: string | string[]; message?: string | string[] }>(res);
+  if (!res.ok) {
+    const pick = (v: string | string[] | undefined) =>
+      Array.isArray(v) ? v[0] : v;
+    const msg =
+      pick(body.error) ??
+      pick(body.message) ??
+      (res.status === 500 ? 'Lỗi server — kiểm tra log ptt-crm-api' : 'Lead funnel API failed');
+    throw new ApiError(String(msg), res.status);
+  }
   return body;
 }
 

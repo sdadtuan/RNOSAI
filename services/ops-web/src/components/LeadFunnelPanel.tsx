@@ -98,6 +98,8 @@ export function LeadFunnelPanel({
   const [careNote, setCareNote] = useState('');
   const [careReport, setCareReport] = useState('Đã liên hệ KH — xác nhận nhu cầu');
   const [busy, setBusy] = useState(false);
+  const [panelError, setPanelError] = useState('');
+  const [panelMessage, setPanelMessage] = useState('');
   const [planName, setPlanName] = useState('');
   const [planNorthStar, setPlanNorthStar] = useState('');
   const [planObjectives, setPlanObjectives] = useState('');
@@ -126,6 +128,7 @@ export function LeadFunnelPanel({
 
   const reload = useCallback(async () => {
     setLoading(true);
+    setPanelError('');
     try {
       const snap = await fetchLeadFunnel(token, leadId);
       setFunnel(snap);
@@ -161,7 +164,8 @@ export function LeadFunnelPanel({
         }
       }
     } catch (err) {
-      onError?.(err instanceof Error ? err.message : 'Tải funnel thất bại');
+      const msg = err instanceof Error ? err.message : 'Tải funnel thất bại';
+      setPanelError(msg);
     } finally {
       setLoading(false);
     }
@@ -176,14 +180,35 @@ export function LeadFunnelPanel({
 
   async function run(action: () => Promise<void>, refreshContract = false) {
     setBusy(true);
+    setPanelError('');
     try {
       await action();
       if (refreshContract) onFunnelUpdated?.();
     } catch (err) {
-      onError?.(err instanceof Error ? err.message : 'Thao tác thất bại');
+      const msg = err instanceof Error ? err.message : 'Thao tác thất bại';
+      setPanelError(msg);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function finishB2Stage() {
+    const note = careNote.trim();
+    if (note.length < 3) {
+      setPanelError('Ghi chú hoàn thành B2 cần ≥ 3 ký tự.');
+      return;
+    }
+    await run(async () => {
+      const reportContent = careReport.trim() || 'Đã liên hệ KH — xác nhận nhu cầu';
+      await submitLeadCareReport(token, leadId, { content: reportContent });
+      const out = await completeLeadCareStage(token, leadId, note);
+      setFunnel(out.funnel);
+      onFunnelChange?.(out.funnel);
+      setCareNote('');
+      setPanelMessage('Đã hoàn thành B2 — pre-sales đã mở.');
+      onMessage?.('Đã hoàn thành B2');
+      await reload();
+    }, true);
   }
 
   const intakeHref = `/crm/intake?lead_id=${leadId}${
@@ -211,8 +236,19 @@ export function LeadFunnelPanel({
   const activeStep = activeStepKey();
 
   return (
-    <section className="card stack-gap" style={{ marginTop: '1rem' }}>
+    <section className="card stack-gap lead-funnel-panel" style={{ marginTop: '1rem' }}>
       <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Funnel B2 → Pre-sales</h2>
+
+      {panelError ? (
+        <div className="lead-alert lead-alert--error" role="alert">
+          {panelError}
+        </div>
+      ) : null}
+      {panelMessage ? (
+        <div className="lead-alert lead-alert--success" role="status">
+          {panelMessage}
+        </div>
+      ) : null}
 
       <div className="funnel-stepper" style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
         {FUNNEL_STEPS.map((step, idx) => {
@@ -286,7 +322,11 @@ export function LeadFunnelPanel({
           <strong>{funnel.presales_care_gate.complete ? '✓ Mở' : '🔒 Chưa hoàn thành B2'}</strong>
         </p>
         {!funnel.care_pipeline.all_complete && canEdit && !inReview && (
-          <div className="stack-gap" style={{ marginTop: '0.75rem' }}>
+          <div className="stack-gap lead-b2-workflow" style={{ marginTop: '0.75rem' }}>
+            <p className="muted" style={{ margin: 0, fontSize: '0.88rem' }}>
+              <strong>Bước 1:</strong> Gửi báo cáo 「Liên hệ OK」 · <strong>Bước 2:</strong> Hoàn thành B2 (ghi chú ≥ 3 ký tự).
+              Nút bên dưới thực hiện cả hai bước tự động.
+            </p>
             <label>
               Báo cáo chăm sóc (Liên hệ OK)
               <textarea
@@ -298,17 +338,18 @@ export function LeadFunnelPanel({
             </label>
             <button
               type="button"
-              className="btn btn-sm"
+              className="btn btn-sm btn-secondary"
               disabled={busy}
               onClick={() =>
                 void run(async () => {
                   await submitLeadCareReport(token, leadId, { content: careReport });
+                  setPanelMessage('Đã gửi báo cáo Liên hệ OK');
                   onMessage?.('Đã gửi báo cáo Liên hệ OK');
                   await reload();
                 })
               }
             >
-              Gửi báo cáo Liên hệ OK
+              Chỉ gửi báo cáo (bước 1)
             </button>
             <label>
               Ghi chú hoàn thành B2 (≥ 3 ký tự)
@@ -323,17 +364,9 @@ export function LeadFunnelPanel({
               type="button"
               className="btn btn-primary btn-sm"
               disabled={busy || careNote.trim().length < 3}
-              onClick={() =>
-                void run(async () => {
-                  const out = await completeLeadCareStage(token, leadId, careNote.trim());
-                  setFunnel(out.funnel);
-                  onFunnelChange?.(out.funnel);
-                  setCareNote('');
-                  onMessage?.('Đã hoàn thành B2');
-                }, true)
-              }
+              onClick={() => void finishB2Stage()}
             >
-              Hoàn thành B2
+              Hoàn thành B2 (bước 1 + 2)
             </button>
           </div>
         )}

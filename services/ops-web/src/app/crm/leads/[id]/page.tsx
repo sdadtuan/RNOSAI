@@ -507,9 +507,12 @@ export default function CrmLeadDetailPage() {
                   name: service.name,
                 }))}
                 onMessage={setMessage}
-                onError={setError}
                 onFunnelChange={setFunnelSnap}
-                onFunnelUpdated={() => setContractRefresh((n) => n + 1)}
+                onFunnelUpdated={() => {
+                  setContractRefresh((n) => n + 1);
+                  const access = getAccessToken();
+                  if (access) void reloadTimeline(access);
+                }}
               />
             ) : null}
 
@@ -520,7 +523,6 @@ export default function CrmLeadDetailPage() {
                 user={user}
                 refreshToken={contractRefresh}
                 onMessage={setMessage}
-                onError={setError}
                 onLoaded={setContractSummary}
               />
             ) : null}

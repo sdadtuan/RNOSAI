@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
@@ -43,6 +43,12 @@ export class LeadsFunnelService {
     return { ok: true, ...snap.care_pipeline, presales_care_gate: snap.presales_care_gate };
   }
 
+  private funnelError(err: unknown): never {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (err instanceof NotFoundException) throw err;
+    throw new BadRequestException({ error: msg, message: msg });
+  }
+
   async submitCareReport(
     leadId: number,
     body: CompleteCareStageBody,
@@ -56,7 +62,7 @@ export class LeadsFunnelService {
         this.sqliteRepo.submitCareReport(leadId, body, actor, userId);
       }
     } catch (err) {
-      throw new Error(err instanceof Error ? err.message : String(err));
+      this.funnelError(err);
     }
     return { ok: true, funnel: await this.getFunnel(leadId) };
   }
@@ -69,7 +75,7 @@ export class LeadsFunnelService {
         this.sqliteRepo.completeCareStage(leadId, body, actor);
       }
     } catch (err) {
-      throw new Error(err instanceof Error ? err.message : String(err));
+      this.funnelError(err);
     }
     return { ok: true, funnel: await this.getFunnel(leadId) };
   }
@@ -111,7 +117,7 @@ export class LeadsFunnelService {
         this.sqliteRepo.releaseFromReviewQueue(leadId, body, actor);
       }
     } catch (err) {
-      throw new Error(err instanceof Error ? err.message : String(err));
+      this.funnelError(err);
     }
     return { ok: true, funnel: await this.getFunnel(leadId) };
   }
@@ -129,7 +135,7 @@ export class LeadsFunnelService {
         this.sqliteRepo.ensurePresales(leadId, body.service_slug, actor);
       }
     } catch (err) {
-      throw new Error(err instanceof Error ? err.message : String(err));
+      this.funnelError(err);
     }
     return { ok: true, funnel: await this.getFunnel(leadId) };
   }
@@ -163,7 +169,7 @@ export class LeadsFunnelService {
         });
       }
     } catch (err) {
-      throw new Error(err instanceof Error ? err.message : String(err));
+      this.funnelError(err);
     }
     return { ok: true, funnel: await this.getFunnel(leadId) };
   }
