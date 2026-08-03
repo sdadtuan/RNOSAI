@@ -3552,6 +3552,63 @@ body:has(.ops-sidebar) main {
   font-size: 0.82rem;
 }
 
+.cskh-breach-backlog,
+.review-queue-metrics {
+  margin-bottom: 0.75rem;
+  padding: 0.85rem 1rem;
+}
+
+.cskh-breach-backlog__head,
+.review-queue-metrics__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.cskh-breach-backlog__sub,
+.review-queue-metrics__sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+}
+
+.cskh-breach-backlog__metrics,
+.review-queue-metrics__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  align-items: baseline;
+}
+
+.cskh-breach-backlog__count {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.cskh-breach-backlog__tiers {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+}
+
+.cskh-closed-loop__gate {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+}
+
+.nba-acceptance-panel {
+  margin: 1rem 0;
+}
+
+.nba-acceptance-panel__metric {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface, #fff);
+}
+
 .cskh-manager-intel {
   margin: 0.75rem 0 1rem;
   padding: 0.85rem 1rem;

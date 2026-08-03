@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { InsightsInboxTable } from '@/components/ai/InsightsInboxTable';
 import { CopilotAdoptionPanel } from '@/components/ai/CopilotAdoptionPanel';
+import { NbaAcceptancePanel } from '@/components/ai/NbaAcceptancePanel';
 import { PipelineRiskPanel } from '@/components/ai/PipelineRiskPanel';
 import { DashboardShell } from '@/components/kpi/DashboardShell';
 import { KpiTileGrid, type KpiTileProps } from '@/components/kpi/KpiDashboardUi';
@@ -234,6 +235,8 @@ function CrmAiInsightsContent() {
       {getAccessToken() ? (
         <CopilotAdoptionPanel token={getAccessToken()!} days={days} />
       ) : null}
+
+      {getAccessToken() ? <NbaAcceptancePanel token={getAccessToken()!} days={days} /> : null}
 
       <PipelineRiskPanel
         rows={atRiskDeals}

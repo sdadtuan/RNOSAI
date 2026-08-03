@@ -252,6 +252,8 @@ export function buildPlaybookAbMetrics(rows: PlaybookAbRow[], windowDays = 30): 
   };
 }
 
+export const CHOT_VND_FILL_TARGET_PCT = 90;
+
 export function buildClosedLoopDashboardSummary(input: {
   chotTotal: number;
   withDealValue: number;
@@ -259,9 +261,12 @@ export function buildClosedLoopDashboardSummary(input: {
   dealValueSum: number;
 }) {
   const total = input.chotTotal;
+  const deal_value_fill_pct = total ? Math.round((input.withDealValue / total) * 100) : 0;
   return {
     chot_total: total,
-    deal_value_fill_pct: total ? Math.round((input.withDealValue / total) * 100) : 0,
+    deal_value_fill_pct,
+    vnd_fill_target_pct: CHOT_VND_FILL_TARGET_PCT,
+    vnd_fill_gate_pass: total ? deal_value_fill_pct >= CHOT_VND_FILL_TARGET_PCT : null,
     qa_flagged_pct: total ? Math.round((input.qaFlagged / total) * 100) : 0,
     avg_deal_value_vnd: input.withDealValue ? Math.round(input.dealValueSum / input.withDealValue) : 0,
   };

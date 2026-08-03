@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
+import { ReviewQueueMetricsBanner } from '@/components/crm/ReviewQueueMetricsBanner';
 import {
   fetchCrmStaffList,
   fetchReviewQueueAiSummaries,
@@ -173,6 +174,8 @@ export default function CrmReviewQueuePage() {
     }
   }
 
+  const accessToken = getAccessToken();
+
   return (
     <StaffPageShell
       user={user}
@@ -195,6 +198,7 @@ export default function CrmReviewQueuePage() {
       />
 
       <div className="page-card stack-gap">
+        {accessToken ? <ReviewQueueMetricsBanner token={accessToken} /> : null}
         {error ? <p className="error">{error}</p> : null}
         {message ? <p className="success">{message}</p> : null}
         {loading ? (

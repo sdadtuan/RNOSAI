@@ -69,6 +69,22 @@ export function CskhClosedLoopPanel({ token }: Props) {
             {dashboard.window_days} ngày · {dashboard.summary.chot_total} chốt · fill VND{' '}
             {dashboard.summary.deal_value_fill_pct}% · QA flagged {dashboard.summary.qa_flagged_pct}%
           </p>
+          <p
+            className={
+              dashboard.summary.vnd_fill_gate_pass === true
+                ? 'success cskh-closed-loop__gate'
+                : dashboard.summary.vnd_fill_gate_pass === false
+                  ? 'warning cskh-closed-loop__gate'
+                  : 'muted cskh-closed-loop__gate'
+            }
+          >
+            VND fill gate: target ≥{dashboard.summary.vnd_fill_target_pct ?? 90}% ·{' '}
+            {dashboard.summary.vnd_fill_gate_pass === true
+              ? 'Đạt'
+              : dashboard.summary.vnd_fill_gate_pass === false
+                ? 'Chưa đạt'
+                : 'Chưa có chốt'}
+          </p>
         </div>
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => void reload()}>
           Làm mới

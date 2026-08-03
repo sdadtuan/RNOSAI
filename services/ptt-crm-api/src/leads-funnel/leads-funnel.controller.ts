@@ -57,6 +57,12 @@ export class LeadsFunnelController {
     return this.funnel.reviewQueueCount();
   }
 
+  @Get('review-queue/metrics')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, StaffLeadsGdkdGuard)
+  reviewQueueMetrics(@Query('limit') limit?: string) {
+    return this.funnel.reviewQueueMetrics(limit ? Number(limit) : undefined);
+  }
+
   @Get('review-queue')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, StaffLeadsGdkdGuard)
   listReviewQueue(@Query('limit') limit?: string) {

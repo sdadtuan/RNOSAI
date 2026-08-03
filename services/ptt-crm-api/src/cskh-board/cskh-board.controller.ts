@@ -73,6 +73,12 @@ export class CskhBoardController {
     return this.board.getSlaDailyDigest();
   }
 
+  /** GDKD — unique breach backlog snapshot for end-of-shift gate (target 0). */
+  @Get('breach-backlog')
+  breachBacklog() {
+    return this.board.getBreachBacklogSnapshot();
+  }
+
   /** Phase 3 — QA sampling + deal value fill rate for chốt leads. */
   @Get('closed-loop-dashboard')
   closedLoopDashboard(

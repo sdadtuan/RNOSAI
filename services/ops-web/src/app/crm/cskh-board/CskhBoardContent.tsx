@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
 import { CskhManagerIntelPanel } from '@/components/crm/CskhManagerIntelPanel';
 import { CskhClosedLoopPanel } from '@/components/crm/CskhClosedLoopPanel';
+import { CskhBreachBacklogPanel } from '@/components/crm/CskhBreachBacklogPanel';
 import {
   bulkAssignCskhLeads,
   bulkRescheduleCskhLeads,
@@ -516,6 +517,8 @@ export function CskhBoardContent() {
             );
           })}
         </div>
+
+        {token ? <CskhBreachBacklogPanel token={token} /> : null}
 
         {token && canAssign ? (
           <CskhManagerIntelPanel

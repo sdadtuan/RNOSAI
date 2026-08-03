@@ -84,14 +84,21 @@ export function buildGdkdEnterpriseKpiResponse(input: {
   closedLoopWindowDays: number;
   slaTiers: Record<CskhSlaTier, SlaTierCounts>;
   breachBacklog: number;
+  breachShiftLabel: string;
+  breachGatePass: boolean;
   reviewQueueCount: number;
   reviewQueueMaxHours: number | null;
+  reviewQueueAvgHours: number | null;
+  reviewQueueOver24h: number;
+  reviewQueueAgeGatePass: boolean;
   copilotDauRatePct: number | null;
   copilotDauLatest: number;
   pilotDenominator: number;
   nbaAcceptancePct: number | null;
   nbaResolved: number;
+  nbaAccepted: number;
   dealValueFillPct: number | null;
+  vndFillGatePass: boolean | null;
   chotTotal: number;
 }): GdkdEnterpriseKpiResponse {
   const firstCallPct = input.slaTiers.first_call_15m.compliance_pct ?? slaTierCompliancePct(input.slaTiers.first_call_15m);
@@ -152,7 +159,8 @@ export function buildGdkdEnterpriseKpiResponse(input: {
       unit: 'count',
       source: 'CSKH board',
       drill_href: '/crm/cskh-board?sla_filter=breach',
-      detail: `15p ${input.slaTiers.first_call_15m.breach} · 4h ${input.slaTiers.b2_complete_4h.breach} · 24h ${input.slaTiers.close_24h.breach}`,
+      detail: `${input.breachShiftLabel} · ${input.breachBacklog} lead breach (unique) · 15p ${input.slaTiers.first_call_15m.breach} · 4h ${input.slaTiers.b2_complete_4h.breach} · 24h ${input.slaTiers.close_24h.breach}`,
+      pass: input.breachGatePass,
     }),
     buildTile({
       id: 'review_queue_age',
@@ -161,20 +169,15 @@ export function buildGdkdEnterpriseKpiResponse(input: {
       value_display:
         input.reviewQueueCount === 0
           ? '0 lead'
-          : hoursDisplay(input.reviewQueueMaxHours),
+          : `max ${hoursDisplay(input.reviewQueueMaxHours)} · avg ${input.reviewQueueAvgHours ?? '—'}h`,
       target: GDKD_KPI_TARGETS.review_queue_max_hours,
       target_display: `<${GDKD_KPI_TARGETS.review_queue_max_hours}h`,
       comparator: 'lt',
       unit: 'hours',
       source: 'Review queue',
       drill_href: '/crm/leads/review-queue',
-      detail: `${input.reviewQueueCount} lead trong queue`,
-      pass:
-        input.reviewQueueCount === 0
-          ? true
-          : input.reviewQueueMaxHours == null
-            ? null
-            : input.reviewQueueMaxHours < GDKD_KPI_TARGETS.review_queue_max_hours,
+      detail: `${input.reviewQueueCount} lead · ${input.reviewQueueOver24h} ≥24h`,
+      pass: input.reviewQueueAgeGatePass,
     }),
     buildTile({
       id: 'copilot_dau',
@@ -195,13 +198,16 @@ export function buildGdkdEnterpriseKpiResponse(input: {
       id: 'nba_acceptance',
       label: 'AI NBA acceptance',
       value: input.nbaAcceptancePct,
-      value_display: pctDisplay(input.nbaAcceptancePct),
+      value_display:
+        input.nbaAcceptancePct == null
+          ? '—'
+          : `${input.nbaAcceptancePct}% (${input.nbaAccepted}/${input.nbaResolved})`,
       target: GDKD_KPI_TARGETS.nba_acceptance_pct,
       target_display: `≥${GDKD_KPI_TARGETS.nba_acceptance_pct}%`,
       comparator: 'gte',
       unit: 'pct',
-      source: 'ai_recommendations',
-      drill_href: '/crm/ai/insights',
+      source: 'ai_recommendations · type=nba',
+      drill_href: '/crm/ai/insights?focus=nba',
       detail: `${input.nbaResolved} quyết định NBA (${input.windowDays} ngày)`,
     }),
     buildTile({
@@ -216,6 +222,7 @@ export function buildGdkdEnterpriseKpiResponse(input: {
       source: 'CRM chốt + hub',
       drill_href: '/crm/cskh-board',
       detail: `${input.chotTotal} chốt · ${input.closedLoopWindowDays} ngày`,
+      pass: input.vndFillGatePass,
     }),
   ];
 

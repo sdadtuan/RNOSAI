@@ -98,6 +98,8 @@ describe('chot-closed-loop.util', () => {
       dealValueSum: 16_000_000,
     });
     expect(summary.deal_value_fill_pct).toBe(80);
+    expect(summary.vnd_fill_target_pct).toBe(90);
+    expect(summary.vnd_fill_gate_pass).toBe(false);
     expect(summary.qa_flagged_pct).toBe(30);
     expect(summary.avg_deal_value_vnd).toBe(2_000_000);
   });

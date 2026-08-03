@@ -412,6 +412,34 @@ export async function fetchCskhManagerIntelligence(token: string): Promise<CskhM
   return body;
 }
 
+export interface CskhBreachBacklogSnapshot {
+  ok: true;
+  generated_at: string;
+  shift: {
+    shift_key: 'morning' | 'afternoon' | 'night';
+    shift_label: string;
+    shift_end_ict: string;
+  };
+  target: number;
+  backlog_count: number;
+  gate_pass: boolean;
+  unique_breach_leads: number;
+  tier_breach_counts: Record<'first_call_15m' | 'b2_complete_4h' | 'close_24h', number>;
+  breach_lead_ids: number[];
+}
+
+export async function fetchCskhBreachBacklog(token: string): Promise<CskhBreachBacklogSnapshot> {
+  const res = await fetch(`${API_BASE}/api/crm/cskh-board/breach-backlog`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<CskhBreachBacklogSnapshot & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Breach backlog fetch failed', res.status);
+  }
+  return body;
+}
+
 export async function bulkAssignCskhLeads(
   token: string,
   body: { lead_ids: number[]; to_user_id: number; reason: string },
@@ -677,6 +705,8 @@ export interface CskhClosedLoopDashboard {
   summary: {
     chot_total: number;
     deal_value_fill_pct: number;
+    vnd_fill_target_pct: number;
+    vnd_fill_gate_pass: boolean | null;
     qa_flagged_pct: number;
     avg_deal_value_vnd: number;
   };
@@ -1018,6 +1048,22 @@ export async function completeLeadCareStage(
 
 export async function fetchReviewQueueCount(token: string): Promise<{ count: number }> {
   return leadFunnelMutate(token, '/api/v1/leads/review-queue/count', { method: 'GET' });
+}
+
+export interface ReviewQueueMetrics {
+  ok: true;
+  generated_at: string;
+  queue_count: number;
+  max_hours: number | null;
+  avg_hours: number | null;
+  over_24h_count: number;
+  over_24h_pct: number | null;
+  target_hours: number;
+  age_gate_pass: boolean;
+}
+
+export async function fetchReviewQueueMetrics(token: string): Promise<ReviewQueueMetrics> {
+  return leadFunnelMutate(token, '/api/v1/leads/review-queue/metrics', { method: 'GET' });
 }
 
 export async function fetchReviewQueueLeads(

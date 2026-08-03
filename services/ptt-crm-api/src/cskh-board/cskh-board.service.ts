@@ -27,6 +27,7 @@ import {
   countRootCauses,
 } from './cskh-manager-intelligence.util';
 import { ChotClosedLoopService } from '../leads/chot-closed-loop.service';
+import { buildBreachBacklogSnapshot } from './cskh-breach-backlog.util';
 
 @Injectable()
 export class CskhBoardService {
@@ -245,6 +246,11 @@ export class CskhBoardService {
   async getSlaDashboardTiers() {
     const rows = await this.loadAllEnrichedRows();
     return enrichSlaTierSummaries(summarizeSlaTiers(rows.map((row) => row.sla_tiers)));
+  }
+
+  async getBreachBacklogSnapshot() {
+    const rows = await this.loadAllEnrichedRows();
+    return buildBreachBacklogSnapshot(rows);
   }
 
   async getClosedLoopDashboard(windowDays?: number, sampleLimit?: number) {

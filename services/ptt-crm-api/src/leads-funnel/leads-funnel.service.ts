@@ -23,6 +23,7 @@ import {
   mergePresalesFormData,
 } from './presales-task-form.util';
 import { reviewQueuePublicState } from './review-queue.util';
+import { buildReviewQueueMetrics } from './review-queue-metrics.util';
 import { buildReviewQueueAiSummary } from './review-queue-intelligence.util';
 
 @Injectable()
@@ -95,6 +96,13 @@ export class LeadsFunnelService {
       ? await this.pgRepo.countReviewQueue()
       : this.sqliteRepo.countReviewQueue();
     return { count };
+  }
+
+  async reviewQueueMetrics(limit = 500) {
+    const listed = await this.listReviewQueue(limit);
+    return buildReviewQueueMetrics(
+      listed.leads.map((row) => ({ hours_waiting: row.review_queue.hours_waiting })),
+    );
   }
 
   async listReviewQueue(limit?: number) {
