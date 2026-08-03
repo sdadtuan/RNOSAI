@@ -234,6 +234,8 @@ export function LeadFunnelPanel({
   const b2Stage = funnel.care_pipeline.stages[0];
   const inReview = funnel.review_queue.active;
   const activeStep = activeStepKey();
+  const b2ContactOkReported = Boolean(funnel.care_pipeline.contact_ok_reported);
+  const canCompleteB2 = b2ContactOkReported && careNote.trim().length >= 3;
 
   return (
     <section className="card stack-gap lead-funnel-panel" style={{ marginTop: '1rem' }}>
@@ -320,6 +322,14 @@ export function LeadFunnelPanel({
         <p>
           Gate pre-sales:{' '}
           <strong>{funnel.presales_care_gate.complete ? '✓ Mở' : '🔒 Chưa hoàn thành B2'}</strong>
+          {!funnel.care_pipeline.all_complete && canEdit && !inReview ? (
+            <span className="muted" style={{ display: 'block', fontSize: '0.85rem', marginTop: '0.35rem' }}>
+              Bước 1 — Liên hệ OK:{' '}
+              <strong style={{ color: b2ContactOkReported ? '#15803d' : '#b45309' }}>
+                {b2ContactOkReported ? '✓ Đã gửi báo cáo' : 'Chưa gửi'}
+              </strong>
+            </span>
+          ) : null}
         </p>
         {!funnel.care_pipeline.all_complete && canEdit && !inReview && (
           <div className="stack-gap lead-b2-workflow" style={{ marginTop: '0.75rem' }}>
@@ -342,7 +352,9 @@ export function LeadFunnelPanel({
               disabled={busy}
               onClick={() =>
                 void run(async () => {
-                  await submitLeadCareReport(token, leadId, { content: careReport });
+                  const out = await submitLeadCareReport(token, leadId, { content: careReport });
+                  setFunnel(out.funnel);
+                  onFunnelChange?.(out.funnel);
                   setPanelMessage('Đã gửi báo cáo Liên hệ OK');
                   onMessage?.('Đã gửi báo cáo Liên hệ OK');
                   await reload();
@@ -360,10 +372,22 @@ export function LeadFunnelPanel({
                 style={{ width: '100%', marginTop: '0.25rem' }}
               />
             </label>
+            {!b2ContactOkReported ? (
+              <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+                Cần gửi báo cáo 「Liên hệ OK」(bước 1) trước khi bấm hoàn thành B2.
+              </p>
+            ) : null}
             <button
               type="button"
               className="btn btn-primary btn-sm"
-              disabled={busy || careNote.trim().length < 3}
+              disabled={busy || !canCompleteB2}
+              title={
+                !b2ContactOkReported
+                  ? 'Gửi báo cáo Liên hệ OK (bước 1) trước'
+                  : careNote.trim().length < 3
+                    ? 'Ghi chú hoàn thành B2 cần ≥ 3 ký tự'
+                    : undefined
+              }
               onClick={() => void finishB2Stage()}
             >
               Hoàn thành B2 (bước 1 + 2)

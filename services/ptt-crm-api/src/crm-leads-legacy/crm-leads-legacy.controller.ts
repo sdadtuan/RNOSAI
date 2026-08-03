@@ -16,11 +16,13 @@ import {
 import { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffLeadsWriteGuard } from '../leads/guards/staff-leads-write.guard';
 import { LeadNotInReviewQueueGuard } from '../leads-funnel/guards/lead-not-in-review-queue.guard';
 import { StaffLeadsViewGuard } from '../leads/guards/staff-leads-view.guard';
 import { LeadsRepository } from '../leads/leads.repository';
 import { LeadsWriteService } from '../leads/leads-write.service';
+import { LeadStatusGatePatchOptions } from '../leads/lead-status-gate.service';
 import { PatchLeadV1Body } from '../leads/leads.types';
 import { CrmLeadsLegacyService } from './crm-leads-legacy.service';
 import { LeadAttributionService } from '../leads/lead-attribution.service';
@@ -35,10 +37,25 @@ export class CrmLeadsLegacyController {
     private readonly leadsRepo: LeadsRepository,
     private readonly leadsWrite: LeadsWriteService,
     private readonly attribution: LeadAttributionService,
+    private readonly staffAuth: StaffAuthService,
   ) {}
 
   private actor(req: Request & { staffUser?: StaffJwtPayload }): string {
     return String(req.staffUser?.email ?? req.headers['x-ptt-actor'] ?? 'staff');
+  }
+
+  private async statusGateOpts(
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    body: PatchLeadV1Body,
+  ): Promise<LeadStatusGatePatchOptions> {
+    if (!body.allow_status_override) return {};
+    if (req.staffAuthVia === 'internal') {
+      return { allowStatusOverride: true };
+    }
+    if (!req.staffUser) return {};
+    const me = await this.staffAuth.me(req.staffUser);
+    const canAssign = this.staffAuth.hasCap(me.caps, 'crm_leads', 'assign');
+    return { allowStatusOverride: canAssign };
   }
 
   @Get(':id/attribution')
@@ -94,13 +111,14 @@ export class CrmLeadsLegacyController {
   async patchLead(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: PatchLeadV1Body & { audit_note?: string },
-    @Req() req: Request & { staffUser?: StaffJwtPayload },
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
   ) {
     const prev = await this.leadsRepo.getLeadById(id);
     if (!prev) {
       throw new NotFoundException({ error: 'Not found' });
     }
-    const lead = await this.leadsWrite.patchLead(id, body, this.actor(req));
+    const gateOpts = await this.statusGateOpts(req, body);
+    const lead = await this.leadsWrite.patchLead(id, body, this.actor(req), gateOpts);
     await this.legacy.mirrorPatchAudit(id, prev, lead, this.actor(req), body.audit_note ?? '');
     return { lead };
   }

@@ -131,14 +131,27 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return row ?? null;
   }
 
+  async hasB2ContactOkReport(leadId: number, stageKey = 'first_contact'): Promise<boolean> {
+    const result = await this.db.query(
+      `SELECT 1 FROM crm_lead_activities
+       WHERE lead_id = $1 AND care_stage_key = $2 AND activity_type != 'system'
+         AND trim(COALESCE(care_status, '')) = $3
+       LIMIT 1`,
+      [leadId, stageKey, CONTACT_OK_CARE_STATUS],
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async buildSnapshot(leadId: number, presalesEnabled: boolean): Promise<LeadFunnelSnapshot | null> {
     const row = await this.fetchLeadRow(leadId);
     if (!row) return null;
     const meta = parseLeadMeta(row.meta_json);
     const presales = presalesEnabled ? await this.getPresalesSnapshot(leadId) : null;
+    const care = carePipelineState(row.status, row.care_stage_current, row.care_stages_done_json);
+    const contactOkReported = care.all_complete || (await this.hasB2ContactOkReport(leadId));
     return {
       lead_id: leadId,
-      care_pipeline: carePipelineState(row.status, row.care_stage_current, row.care_stages_done_json),
+      care_pipeline: { ...care, contact_ok_reported: contactOkReported },
       presales_care_gate: presalesCareGateState(row.care_stage_current, row.care_stages_done_json),
       review_queue: reviewQueuePublicState(meta, row.first_assigned_at || row.updated_at || ''),
       presales_on_lead_enabled: presalesEnabled,

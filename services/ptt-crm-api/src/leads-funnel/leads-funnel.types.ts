@@ -21,6 +21,8 @@ export interface CarePipelineState {
   stages_done: Record<string, string>;
   stages: CareStageUi[];
   all_complete: boolean;
+  /** True when a B2 care report with status da_lien_he_thanh_cong exists (step 1). */
+  contact_ok_reported: boolean;
 }
 
 export interface PresalesCareGateState {

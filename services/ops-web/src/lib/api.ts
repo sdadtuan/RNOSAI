@@ -490,7 +490,7 @@ async function leadLegacyFetch<T>(token: string, path: string, init?: RequestIni
   });
   const body = await parseJson<T & { error?: string; message?: string }>(res);
   if (!res.ok) {
-    throw new ApiError(body.error ?? body.message ?? 'Lead legacy request failed', res.status);
+    throw new ApiError(body.message ?? body.error ?? 'Lead legacy request failed', res.status);
   }
   return body;
 }
@@ -555,6 +555,7 @@ export interface LeadFunnelSnapshot {
     current_stage_key: string;
     current_stage_label: string;
     all_complete: boolean;
+    contact_ok_reported: boolean;
     stages: Array<{ key: string; label: string; hint: string; done: boolean; current: boolean }>;
   };
   presales_care_gate: { complete: boolean; message: string };

@@ -23,6 +23,7 @@ import { LeadAutoAssignService } from './ingest/lead-auto-assign.service';
 import { LeadCreateEnrichmentService } from './ingest/lead-create-enrichment.service';
 import { LeadDedupRepository } from './ingest/lead-dedup.repository';
 import { LeadIngestRulesRepository } from './ingest/lead-ingest-rules.repository';
+import { LeadStatusGateService } from './lead-status-gate.service';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { LeadIngestRulesRepository } from './ingest/lead-ingest-rules.repository
     LeadIngestRulesRepository,
     LeadAutoAssignService,
     LeadCreateEnrichmentService,
+    LeadStatusGateService,
     WriteEnabledGuard,
     StaffLeadsWriteGuard,
     StaffLeadsViewGuard,

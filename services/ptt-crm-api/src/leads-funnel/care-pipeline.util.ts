@@ -119,6 +119,7 @@ export function carePipelineState(
     stages_done: Object.fromEntries(CARE_STAGE_KEYS.filter((k) => done[k]).map((k) => [k, done[k]])),
     stages,
     all_complete: b2Done,
+    contact_ok_reported: b2Done,
   };
 }
 

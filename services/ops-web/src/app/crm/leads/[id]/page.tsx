@@ -259,6 +259,11 @@ export default function CrmLeadDetailPage() {
       setMessage('Trạng thái không đổi');
       return;
     }
+    const terminalStatuses = ['chot', 'won', 'post_sale', 'lost'];
+    if (terminalStatuses.includes(status.trim()) && auditNote.trim().length < 3) {
+      setError('Cần ghi chú audit ≥ 3 ký tự khi chốt / won / lost.');
+      return;
+    }
 
     setSaving(true);
     setError('');
@@ -608,7 +613,10 @@ export default function CrmLeadDetailPage() {
                     </select>
                   </label>
                   <label className="lead-field">
-                    <span className="lead-field__label">Ghi chú audit (tùy chọn)</span>
+                    <span className="lead-field__label">
+                      Ghi chú audit
+                      {['chot', 'won', 'post_sale', 'lost'].includes(status) ? ' (bắt buộc ≥3 ký tự)' : ' (tùy chọn)'}
+                    </span>
                     <input
                       className="lead-input"
                       value={auditNote}

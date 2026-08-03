@@ -13,6 +13,11 @@ import { PerformanceService } from '../performance/performance.service';
 import { PgLeadsWriteRepository } from './pg-leads-write.repository';
 import { CreateLeadV1Body, LeadV1, PatchLeadV1Body } from './leads.types';
 import { LeadCreateEnrichmentService } from './ingest/lead-create-enrichment.service';
+import {
+  LeadStatusGatePatchOptions,
+  LeadStatusGateService,
+} from './lead-status-gate.service';
+import { LeadStatusGateError } from './lead-status-gate.util';
 
 @Injectable()
 export class LeadsWriteService {
@@ -24,6 +29,7 @@ export class LeadsWriteService {
     private readonly conversionFx: MetaConversionSideEffectsService,
     private readonly performance: PerformanceService,
     private readonly scoreAsync: AiScoreAsyncService,
+    private readonly statusGate: LeadStatusGateService,
   ) {}
 
   async createLead(body: CreateLeadV1Body): Promise<LeadV1> {
@@ -66,7 +72,12 @@ export class LeadsWriteService {
     }
   }
 
-  async patchLead(leadId: number, body: PatchLeadV1Body, actor?: string): Promise<LeadV1> {
+  async patchLead(
+    leadId: number,
+    body: PatchLeadV1Body,
+    actor?: string,
+    gateOpts: LeadStatusGatePatchOptions = {},
+  ): Promise<LeadV1> {
     if (
       body.owner_id === undefined &&
       body.status === undefined &&
@@ -75,6 +86,7 @@ export class LeadsWriteService {
       throw new BadRequestException({ error: 'At least one of owner_id, status, score required' });
     }
     try {
+      await this.statusGate.assertPatchAllowed(leadId, body, gateOpts);
       const result = await this.writeRepo.patchLead(leadId, body);
       if (!result) {
         throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
@@ -111,6 +123,9 @@ export class LeadsWriteService {
       }
       return result.lead;
     } catch (err) {
+      if (err instanceof LeadStatusGateError) {
+        throw new BadRequestException({ error: err.code, message: err.message });
+      }
       if (err instanceof HttpException) {
         throw err;
       }

@@ -11,6 +11,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   Res,
   UploadedFile,
   UseGuards,
@@ -18,8 +19,11 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
+import { Request } from 'express';
 import { memoryStorage } from 'multer';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
+import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { WriteEnabledGuard } from './guards/write-enabled.guard';
 import { StaffLeadsWriteGuard } from './guards/staff-leads-write.guard';
 import { StaffLeadsViewGuard } from './guards/staff-leads-view.guard';
@@ -27,6 +31,7 @@ import { LeadNotInReviewQueueGuard } from '../leads-funnel/guards/lead-not-in-re
 import { LeadsIoService } from './leads-io.service';
 import { LeadsService } from './leads.service';
 import { LeadsWriteService } from './leads-write.service';
+import { LeadStatusGatePatchOptions } from './lead-status-gate.service';
 import { CrmConfigService } from '../crm-config/crm-config.service';
 import {
   CreateLeadV1Body,
@@ -44,6 +49,7 @@ export class LeadsController {
     private readonly leadsWriteService: LeadsWriteService,
     private readonly leadsIo: LeadsIoService,
     private readonly crmConfig: CrmConfigService,
+    private readonly staffAuth: StaffAuthService,
   ) {}
 
   @Get('lookup-options')
@@ -138,9 +144,25 @@ export class LeadsController {
   async patchLead(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: PatchLeadV1Body,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
     @Headers('x-ptt-actor') actor?: string,
   ): Promise<LeadV1> {
-    return this.leadsWriteService.patchLead(id, body, actor);
+    const gateOpts = await this.statusGateOpts(req, body);
+    return this.leadsWriteService.patchLead(id, body, actor, gateOpts);
+  }
+
+  private async statusGateOpts(
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    body: PatchLeadV1Body,
+  ): Promise<LeadStatusGatePatchOptions> {
+    if (!body.allow_status_override) return {};
+    if (req.staffAuthVia === 'internal') {
+      return { allowStatusOverride: true };
+    }
+    if (!req.staffUser) return {};
+    const me = await this.staffAuth.me(req.staffUser);
+    const canAssign = this.staffAuth.hasCap(me.caps, 'crm_leads', 'assign');
+    return { allowStatusOverride: canAssign };
   }
 
   @Get()

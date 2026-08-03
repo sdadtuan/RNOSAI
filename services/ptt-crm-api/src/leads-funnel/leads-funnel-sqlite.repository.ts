@@ -184,14 +184,28 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
     return row ?? null;
   }
 
+  hasB2ContactOkReport(leadId: number, stageKey = 'first_contact'): boolean {
+    const row = this.database
+      .prepare(
+        `SELECT 1 AS ok FROM crm_lead_activities
+         WHERE lead_id = ? AND care_stage_key = ? AND activity_type != 'system'
+           AND trim(COALESCE(care_status, '')) = ?
+         LIMIT 1`,
+      )
+      .get(leadId, stageKey, CONTACT_OK_CARE_STATUS) as { ok: number } | undefined;
+    return Boolean(row);
+  }
+
   buildSnapshot(leadId: number, presalesEnabled: boolean): LeadFunnelSnapshot | null {
     const row = this.fetchLeadRow(leadId);
     if (!row) return null;
     const meta = parseLeadMeta(row.meta_json);
     const presales = presalesEnabled ? this.getPresalesSnapshot(leadId) : null;
+    const care = carePipelineState(row.status, row.care_stage_current, row.care_stages_done_json);
+    const contactOkReported = care.all_complete || this.hasB2ContactOkReport(leadId);
     return {
       lead_id: leadId,
-      care_pipeline: carePipelineState(row.status, row.care_stage_current, row.care_stages_done_json),
+      care_pipeline: { ...care, contact_ok_reported: contactOkReported },
       presales_care_gate: presalesCareGateState(row.care_stage_current, row.care_stages_done_json),
       review_queue: reviewQueuePublicState(meta, row.first_assigned_at || row.updated_at || ''),
       presales_on_lead_enabled: presalesEnabled,
