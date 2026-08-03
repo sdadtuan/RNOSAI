@@ -361,6 +361,12 @@ export default function CrmLeadDetailPage() {
     router.push('/login');
   }
 
+  const ownerLabel = useMemo(() => {
+    if (!lead?.owner_id) return null;
+    const staff = staffOptions.find((s) => s.id === lead.owner_id);
+    return staff ? staff.name : `#${lead.owner_id}`;
+  }, [lead?.owner_id, staffOptions]);
+
   if (!user) {
     return (
       <main style={{ padding: '2rem' }}>
@@ -412,12 +418,6 @@ export default function CrmLeadDetailPage() {
       />
     );
   }
-
-  const ownerLabel = useMemo(() => {
-    if (!lead?.owner_id) return null;
-    const staff = staffOptions.find((s) => s.id === lead.owner_id);
-    return staff ? staff.name : `#${lead.owner_id}`;
-  }, [lead?.owner_id, staffOptions]);
 
   function onCopyContact(value: string, label: string) {
     void copyLeadContact(value, label, setMessage);
