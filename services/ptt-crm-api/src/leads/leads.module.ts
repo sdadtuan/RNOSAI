@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { AiScoreAsyncModule } from '../ai-intelligence/ai-score-async.module';
 import { CrmConfigModule } from '../crm-config/crm-config.module';
+import { CatalogModule } from '../catalog/catalog.module';
 import { CustomerTimelineModule } from '../customer-timeline/customer-timeline.module';
 import { EventsModule } from '../events/events.module';
 import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
@@ -26,6 +27,7 @@ import { LeadIngestRulesRepository } from './ingest/lead-ingest-rules.repository
 import { LeadStatusGateService } from './lead-status-gate.service';
 import { LeadSlaCareService } from './lead-sla-care.service';
 import { ChotClosedLoopService } from './chot-closed-loop.service';
+import { CopilotContextService } from './copilot-context.service';
 import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.module';
 
 @Module({
@@ -34,6 +36,7 @@ import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.modul
     AiScoreAsyncModule,
     StaffAuthModule,
     CrmConfigModule,
+    CatalogModule,
     CrmLeadsLegacyModule,
     forwardRef(() => CustomerTimelineModule),
     MetaTrackingModule,
@@ -57,6 +60,7 @@ import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.modul
     LeadStatusGateService,
     LeadSlaCareService,
     ChotClosedLoopService,
+    CopilotContextService,
     WriteEnabledGuard,
     StaffLeadsWriteGuard,
     StaffLeadsViewGuard,
@@ -70,6 +74,7 @@ import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.modul
     StaffLeadsWriteGuard,
     LeadSlaCareService,
     ChotClosedLoopService,
+    CopilotContextService,
   ],
 })
 export class LeadsModule {}

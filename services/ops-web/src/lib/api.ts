@@ -558,6 +558,67 @@ export async function fetchLeadSlaCareContext(
   return body;
 }
 
+export interface CopilotActivitySnippet {
+  id: number;
+  activity_type: string;
+  activity_type_label: string;
+  content: string;
+  created_at: string;
+  user_name: string;
+}
+
+export interface CopilotCatalogService {
+  slug: string;
+  name: string;
+  description: string;
+}
+
+export interface LeadCopilotContext {
+  lead_id: number;
+  generated_at: string;
+  applicable: boolean;
+  lead_flow_kind: 'spa_operational' | 'b2b_prospect';
+  sla: {
+    sla_tiers: SlaCareTierSnapshot[];
+    worst_sla_state: string;
+    worst_sla_tier: string | null;
+    banner: LeadSlaCareContext['banner'];
+    nba: LeadSlaCareContext['nba'];
+    drafts: LeadSlaCareContext['drafts'];
+    lost_reason_options: LeadSlaCareContext['lost_reason_options'];
+  };
+  funnel: {
+    care_pipeline: {
+      current_stage_key: string;
+      current_stage_label: string;
+      contact_ok_reported: boolean;
+      all_complete: boolean;
+    };
+    presales_care_gate: { complete: boolean; message: string };
+    review_queue: { active: boolean; message?: string };
+    presales_on_lead_enabled: boolean;
+  } | null;
+  activities: CopilotActivitySnippet[];
+  catalog: { services: CopilotCatalogService[] } | null;
+  closed_loop: LeadClosedLoopContext;
+}
+
+/** Unified copilot context — replaces separate sla-care / closed-loop fetches on lead detail. */
+export async function fetchLeadCopilotContext(
+  token: string,
+  leadId: number,
+): Promise<LeadCopilotContext> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/copilot-context`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<LeadCopilotContext & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Lead copilot context failed', res.status);
+  }
+  return body;
+}
+
 export type ChotQaFlag =
   | 'missing_deal_value'
   | 'no_call_before_chot'

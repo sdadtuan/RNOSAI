@@ -18,6 +18,7 @@ import { AiDealScoreService } from './ai-deal-score.service';
 import { AiExecutionService } from './ai-execution.service';
 import { AiFeedbackAnalyticsService } from './ai-feedback-analytics.service';
 import { AiAdoptionAnalyticsService } from './ai-adoption-analytics.service';
+import { AiScoreLatencyService } from './ai-score-latency.service';
 import { AiIntelligenceConfigService } from './ai-intelligence.config';
 import { AiIntelligenceController } from './ai-intelligence.controller';
 import { AiIntelligenceService } from './ai-intelligence.service';
@@ -147,6 +148,7 @@ import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
     AiRecommendationService,
     AiFeedbackAnalyticsService,
     AiAdoptionAnalyticsService,
+    AiScoreLatencyService,
     AiRecommendationsRepository,
     AiLlmClient,
     AiPromptsRepository,
@@ -214,6 +216,7 @@ import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
     AiRecommendationService,
     AiFeedbackAnalyticsService,
     AiAdoptionAnalyticsService,
+    AiScoreLatencyService,
     AiRecommendationsRepository,
     AiExecutionService,
     AiIntelligenceService,

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { LeadActivityRow, LeadRow } from '@/lib/api';
+import type { LeadActivityRow, LeadCopilotContext, LeadRow } from '@/lib/api';
 import type { StoredStaffUser } from '@/lib/auth';
 import {
   fetchAiScores,
@@ -33,6 +33,8 @@ interface Props {
   onActivityCreated?: () => void;
   variant?: 'column' | 'drawer' | 'sheet';
   onCloseDrawer?: () => void;
+  copilotContext?: LeadCopilotContext | null;
+  copilotContextLoading?: boolean;
 }
 
 export function LeadCopilotPanel({
@@ -47,6 +49,8 @@ export function LeadCopilotPanel({
   onActivityCreated,
   variant = 'column',
   onCloseDrawer,
+  copilotContext,
+  copilotContextLoading = false,
 }: Props) {
   const [score, setScore] = useState<AiScoreRecord | null>(null);
   const [scorePending, setScorePending] = useState(true);
@@ -166,7 +170,13 @@ export function LeadCopilotPanel({
             onError={onCopilotError}
           />
 
-          <CallScriptDraftSection token={token} leadId={leadId} onError={onCopilotError} />
+          <CallScriptDraftSection
+            token={token}
+            leadId={leadId}
+            onError={onCopilotError}
+            callScript={copilotContext?.sla.drafts.call_script}
+            scriptLoading={copilotContextLoading}
+          />
 
           <FollowUpDraftSection
             token={token}

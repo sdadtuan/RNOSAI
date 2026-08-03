@@ -23,6 +23,12 @@ import { computeLeadNbaV1 } from './lead-nba.engine';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
 import { LeadSlaCareService } from '../leads/lead-sla-care.service';
 import type { SlaCareNbaAction } from '../leads/lead-sla-care.util';
+import { AiLlmClient } from './ai-llm.client';
+import {
+  NBA_LLM_CONFIDENCE_THRESHOLD,
+  shouldUseNbaLlmFallback,
+  type NbaLlmAction,
+} from './lead-nba-llm.util';
 
 const NBA_ACTIONS: Record<string, { label: string; taskTemplate: string; ragQuery: string }> = {
   call_back: {
@@ -80,6 +86,7 @@ export class AiNbaService {
     private readonly playbooks: PlaybooksRepository,
     private readonly crmLegacy: CrmLeadsLegacyService,
     private readonly slaCare: LeadSlaCareService,
+    private readonly llm: AiLlmClient,
   ) {}
 
   async suggestNextBestAction(input: NextBestActionRequest): Promise<NextBestActionResponse> {
@@ -266,10 +273,14 @@ export class AiNbaService {
     });
 
     if (!evaluated.isStalled && !input.force) {
-      throw new BadRequestException({
-        error: 'lead_not_stalled',
-        message: 'NBA chỉ phát khi lead chưa liên hệ ≥3 ngày hoặc không activity ≥7 ngày',
-        stalled_days: evaluated.stalledDays,
+      return this.emitLlmLeadNba({
+        leadId,
+        ctx,
+        requestId,
+        actorId: input.actorId ?? null,
+        stalledDays: evaluated.stalledDays,
+        leadScore: latestScore?.score_value ?? null,
+        trigger: 'rules_no_emit',
       });
     }
 
@@ -279,6 +290,29 @@ export class AiNbaService {
     const reason = `Lead #${leadId} (${channel}) không cập nhật ${evaluated.stalledDays} ngày${
       latestScore ? ` · điểm ${Math.round(latestScore.score_value)}/100` : ''
     }.`;
+    const rulesConfidence = evaluated.confidence;
+
+    if (
+      shouldUseNbaLlmFallback({
+        rulesEmitted: true,
+        rulesConfidence,
+        force: Boolean(input.force),
+      })
+    ) {
+      return this.emitLlmLeadNba({
+        leadId,
+        ctx,
+        requestId,
+        actorId: input.actorId ?? null,
+        stalledDays: evaluated.stalledDays,
+        leadScore: latestScore?.score_value ?? null,
+        trigger: 'low_confidence',
+        rulesAction: action,
+        rulesReason: reason,
+        rulesConfidence,
+      });
+    }
+
     const citation = await this.resolvePlaybookCitation(
       `${actionMeta.ragQuery} ${channel} ${ctx.status ?? 'new'}`,
     );
@@ -401,6 +435,107 @@ export class AiNbaService {
     });
 
     return this.toResponse(record, 'lead', leadId, requestId, wrapped.runId);
+  }
+
+  private async emitLlmLeadNba(input: {
+    leadId: number;
+    ctx: {
+      clientId?: string | null;
+      channel?: string | null;
+      source?: string | null;
+      status?: string | null;
+    };
+    requestId: string;
+    actorId: string | null;
+    stalledDays: number;
+    leadScore: number | null;
+    trigger: 'rules_no_emit' | 'low_confidence';
+    rulesAction?: string;
+    rulesReason?: string;
+    rulesConfidence?: number;
+  }): Promise<NextBestActionResponse> {
+    const channel = input.ctx.channel ?? input.ctx.source ?? 'unknown';
+    const userContent = [
+      `Lead #${input.leadId}`,
+      `Status: ${input.ctx.status ?? 'new'}`,
+      `Channel: ${channel}`,
+      `Stalled days: ${input.stalledDays}`,
+      input.leadScore != null ? `Lead score: ${Math.round(input.leadScore)}/100` : 'Lead score: n/a',
+      `Trigger: ${input.trigger}`,
+      input.rulesAction ? `Rules suggestion: ${input.rulesAction} (${input.rulesConfidence ?? 'n/a'})` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const wrapped = await this.audit.wrap(
+      {
+        useCase: AI_USE_CASE.NEXT_BEST_ACTION,
+        entityType: 'lead',
+        entityId: String(input.leadId),
+        clientId: input.ctx.clientId,
+        actorId: input.actorId,
+        correlationId: input.requestId,
+        modelName: 'nba-llm-v1',
+        input: {
+          lead_id: input.leadId,
+          trigger: input.trigger,
+          stalled_days: input.stalledDays,
+        },
+      },
+      async () => {
+        const result = await this.llm.nbaStructured({
+          systemPrompt:
+            'Bạn là copilot CSKH Spa Meta. Trả JSON: {"action":"log_call|call_back|send_follow_up|complete_b2|set_chot_audit|set_lost_reason|escalate_gdkd","reason":"...","confidence":0.0-1.0}. Draft only — không auto gửi khách.',
+          userContent,
+          channel,
+          status: input.ctx.status,
+        });
+        return {
+          data: result.parsed,
+          output: { action: result.parsed.action, reason: result.parsed.reason },
+          modelName: result.stubMode ? 'nba-llm-stub' : 'nba-llm-v1',
+          tokenUsage: result.tokenUsage,
+        };
+      },
+    );
+
+    const llm = wrapped.data;
+    const action = String(llm.action ?? 'call_back') as NbaLlmAction;
+    const actionMeta = NBA_ACTIONS[action] ?? NBA_ACTIONS.call_back;
+    const reason =
+      String(llm.reason ?? '').trim() ||
+      input.rulesReason ||
+      `LLM gợi ý hành động tiếp theo cho lead #${input.leadId}.`;
+    const confidence = Number(llm.confidence ?? 0.72);
+
+    const citation = await this.resolvePlaybookCitation(
+      `${actionMeta.ragQuery} ${channel} ${input.ctx.status ?? 'new'}`,
+    );
+
+    const record = await this.recommendations.insert({
+      entityType: 'lead',
+      entityId: String(input.leadId),
+      recommendationType: 'nba',
+      text: `${actionMeta.label}: ${reason}`,
+      actionJson: {
+        action,
+        action_label: actionMeta.label,
+        task_template: actionMeta.taskTemplate,
+        reason,
+        source: 'nba_llm_v1',
+        trigger: input.trigger,
+        stalled_days: input.stalledDays,
+        lead_score: input.leadScore,
+        rules_action: input.rulesAction ?? null,
+        rules_confidence: input.rulesConfidence ?? null,
+        llm_confidence: confidence,
+        playbook_citation: citation,
+      },
+      confidence,
+      agentRunId: wrapped.runId,
+    });
+
+    return this.toResponse(record, 'lead', input.leadId, input.requestId, wrapped.runId);
   }
 
   private async resolvePlaybookCitation(query: string): Promise<Record<string, unknown> | null> {

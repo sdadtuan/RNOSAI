@@ -85,6 +85,34 @@ if [[ -n "${DATABASE_URL:-}" ]]; then
     log_skip "g1-score-coverage" "Could not query ai_scores coverage"
   fi
 
+  SCORE_P95=$(psql "$DATABASE_URL" -tAc \
+    "SELECT COALESCE(
+       ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (
+         ORDER BY EXTRACT(EPOCH FROM (s.calculated_at - l.created_at))
+       )::numeric, 1),
+       0)
+     FROM crm_leads l
+     INNER JOIN ai_scores s
+       ON s.entity_type = 'lead' AND s.entity_id = l.sqlite_lead_id::text
+     WHERE l.created_at >= NOW() - INTERVAL '${PILOT_DAYS} days'
+       AND l.is_duplicate IS NOT TRUE
+       AND s.overridden_by IS NULL;" 2>/dev/null | tr -d ' ' || echo "")
+  if [[ -n "$SCORE_P95" ]]; then
+    if [[ "$SCORE_P95" == "0" ]]; then
+      log_skip "g1-score-latency-p95" "No scored leads in ${PILOT_DAYS}d"
+    elif python3 - <<PY
+import sys
+sys.exit(0 if float("${SCORE_P95}") <= 30 else 1)
+PY
+    then
+      log_ok "g1-score-latency-p95" "Lead→score p95=${SCORE_P95}s ≤30s (Gate R1 #1)"
+    else
+      log_fail "g1-score-latency-p95" "Lead→score p95=${SCORE_P95}s > 30s"
+    fi
+  else
+    log_skip "g1-score-latency-p95" "Could not query score latency"
+  fi
+
   ACCEPT_LINE=$(psql "$DATABASE_URL" -tA -c \
     "SELECT
        COUNT(*) FILTER (WHERE status = 'accepted'),

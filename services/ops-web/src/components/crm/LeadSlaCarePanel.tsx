@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   fetchLeadSlaCareContext,
+  type LeadCopilotContext,
   type LeadSlaCareContext,
   type SlaCareTierSnapshot,
 } from '@/lib/api';
@@ -19,6 +20,24 @@ interface Props {
   status: string;
   onAuditNoteSuggest?: (text: string) => void;
   onReload?: () => void;
+  /** When set, skips GET /sla-care-context (unified copilot-context). */
+  copilotContext?: LeadCopilotContext | null;
+  copilotLoading?: boolean;
+}
+
+function mapCopilotToSlaCare(c: LeadCopilotContext): LeadSlaCareContext {
+  return {
+    lead_id: c.lead_id,
+    lead_flow_kind: c.lead_flow_kind,
+    applicable: c.applicable,
+    sla_tiers: c.sla.sla_tiers,
+    worst_sla_state: c.sla.worst_sla_state,
+    worst_sla_tier: c.sla.worst_sla_tier,
+    banner: c.sla.banner,
+    nba: c.sla.nba,
+    drafts: c.sla.drafts,
+    lost_reason_options: c.sla.lost_reason_options,
+  };
 }
 
 function tierPillClass(state: SlaCareTierSnapshot['sla_state']): string {
@@ -34,6 +53,8 @@ export function LeadSlaCarePanel({
   status,
   onAuditNoteSuggest,
   onReload,
+  copilotContext,
+  copilotLoading = false,
 }: Props) {
   const [ctx, setCtx] = useState<LeadSlaCareContext | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,8 +77,13 @@ export function LeadSlaCarePanel({
   }, [leadId, token]);
 
   useEffect(() => {
+    if (copilotContext !== undefined) {
+      setCtx(copilotContext ? mapCopilotToSlaCare(copilotContext) : null);
+      setLoading(copilotLoading);
+      return;
+    }
     void reload();
-  }, [reload, status]);
+  }, [copilotContext, copilotLoading, reload, status]);
 
   useEffect(() => {
     if (!ctx?.nba || !ctx.applicable) {

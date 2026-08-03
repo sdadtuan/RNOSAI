@@ -27,6 +27,7 @@ import { AiSummarizeService } from './ai-summarize.service';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiFeedbackAnalyticsService } from './ai-feedback-analytics.service';
 import { AiAdoptionAnalyticsService } from './ai-adoption-analytics.service';
+import { AiScoreLatencyService } from './ai-score-latency.service';
 import { AiIntelligenceService } from './ai-intelligence.service';
 import { AiAgentRunStatus, AiHealthResponse } from './ai-intelligence.types';
 import { ScoreDealResponse } from './deal-score.types';
@@ -172,6 +173,7 @@ export class AiIntelligenceController {
     private readonly recommendations: AiRecommendationService,
     private readonly feedbackAnalytics: AiFeedbackAnalyticsService,
     private readonly adoptionAnalytics: AiAdoptionAnalyticsService,
+    private readonly scoreLatency: AiScoreLatencyService,
     private readonly pipelineRisk: PipelineRiskService,
     private readonly forecast: AiForecastService,
     private readonly renewal: RenewalAgentService,
@@ -601,6 +603,13 @@ export class AiIntelligenceController {
       },
       correlationId?.trim() || requestId?.trim() || undefined,
     );
+  }
+
+  /** Gate R1 #1 — lead created → score ≤30s (SQL on ai_scores + ai_agent_runs). */
+  @Get('metrics/score-latency')
+  @UseGuards(StaffOrInternalKeyGuard)
+  getScoreLatencyMetrics(@Query('days') days?: string) {
+    return this.scoreLatency.getScoreLatencyMetrics(days ? Number(days) : 7);
   }
 
   /** RNOS-29 — feedback inbox for managers (accept/dismiss history). */

@@ -6,6 +6,11 @@ import { SummarizeContext } from './summarize.types';
 import { validateSummarizeOutput } from './summarize.schema';
 import { validateFollowUpDraftOutput, FollowUpDraftEngineResult } from './follow-up-draft.schema';
 import { FollowUpChannelHint } from './recommendation.types';
+import {
+  buildNbaLlmStub,
+  parseNbaLlmOutput,
+  type NbaLlmSuggestion,
+} from './lead-nba-llm.util';
 
 export interface LlmSummarizeInput {
   context: SummarizeContext;
@@ -30,6 +35,21 @@ export interface LlmFollowUpDraftInput {
 
 export interface LlmFollowUpDraftResult {
   parsed: FollowUpDraftEngineResult;
+  tokenUsage: AiTokenUsage;
+  modelName: string;
+  stubMode: boolean;
+}
+
+export interface LlmNbaInput {
+  systemPrompt: string;
+  userContent: string;
+  model?: string;
+  channel?: string | null;
+  status?: string | null;
+}
+
+export interface LlmNbaResult {
+  parsed: NbaLlmSuggestion;
   tokenUsage: AiTokenUsage;
   modelName: string;
   stubMode: boolean;
@@ -111,6 +131,51 @@ export class AiLlmClient {
         modelName: model,
         stubMode: false,
       };
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new ServiceUnavailableException({
+          error: 'llm_timeout',
+          error_code: AI_AUDIT_ERROR.LLM_TIMEOUT,
+          message: 'LLM timeout',
+        });
+      }
+      throw new ServiceUnavailableException({
+        error: 'llm_provider_error',
+        error_code: AI_AUDIT_ERROR.LLM_PROVIDER_ERROR,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  async nbaStructured(input: LlmNbaInput): Promise<LlmNbaResult> {
+    const apiKey = this.aiConfig.llmApiKey;
+    const model = input.model ?? this.aiConfig.llmModel;
+
+    if (!apiKey) {
+      return {
+        parsed: buildNbaLlmStub({ channel: input.channel, status: input.status }),
+        tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        modelName: `${model}-stub`,
+        stubMode: true,
+      };
+    }
+
+    try {
+      const raw = await this.callOpenAiChat({
+        apiKey,
+        model,
+        systemPrompt: input.systemPrompt,
+        userContent: input.userContent,
+        timeoutMs: this.aiConfig.llmTimeoutMs,
+      });
+      const tokenUsage = raw.tokenUsage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+      const parsed =
+        parseNbaLlmOutput(raw) ??
+        buildNbaLlmStub({ channel: input.channel, status: input.status });
+      if (parsed.source === 'llm') {
+        parsed.source = 'llm';
+      }
+      return { parsed, tokenUsage, modelName: model, stubMode: false };
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         throw new ServiceUnavailableException({

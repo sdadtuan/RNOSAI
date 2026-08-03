@@ -1,15 +1,24 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { fetchLeadSlaCareContext, trackLeadCallScriptCopy } from '@/lib/api';
+import { fetchLeadSlaCareContext, trackLeadCallScriptCopy, type LeadSlaCareContext } from '@/lib/api';
 
 interface Props {
   token: string;
   leadId: number;
   onError?: (msg: string) => void;
+  /** Preloaded from unified copilot-context. */
+  callScript?: LeadSlaCareContext['drafts']['call_script'] | null;
+  scriptLoading?: boolean;
 }
 
-export function CallScriptDraftSection({ token, leadId, onError }: Props) {
+export function CallScriptDraftSection({
+  token,
+  leadId,
+  onError,
+  callScript: callScriptProp,
+  scriptLoading = false,
+}: Props) {
   const [script, setScript] = useState<string | null>(null);
   const [disclaimer, setDisclaimer] = useState('');
   const [loading, setLoading] = useState(true);
@@ -41,8 +50,25 @@ export function CallScriptDraftSection({ token, leadId, onError }: Props) {
   }, [leadId, onError, token]);
 
   useEffect(() => {
+    if (callScriptProp !== undefined) {
+      setLoading(scriptLoading);
+      if (!callScriptProp) {
+        setScript(null);
+        setDisclaimer('');
+        return;
+      }
+      const text = [
+        callScriptProp.greeting,
+        callScriptProp.intro,
+        ...callScriptProp.questions.map((q, i) => `${i + 1}. ${q}`),
+        callScriptProp.closing,
+      ].join('\n\n');
+      setScript(text);
+      setDisclaimer(callScriptProp.disclaimer);
+      return;
+    }
     void load();
-  }, [load]);
+  }, [callScriptProp, scriptLoading, load]);
 
   if (loading) {
     return <p className="muted">Đang tải script gọi…</p>;

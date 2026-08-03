@@ -479,6 +479,32 @@ export async function pollAiScoreUntilReady(
   return null;
 }
 
+export interface AiScoreLatencyMetrics {
+  window_days: number;
+  scored_leads: number;
+  within_30s_count: number;
+  within_30s_pct: number;
+  p95_latency_sec: number;
+  gate_pass: boolean;
+  gate_target_sec: number;
+  agent_runs_p95_ms: number | null;
+  narrative: string;
+}
+
+export async function fetchAiScoreLatencyMetrics(
+  token: string,
+  days = 7,
+): Promise<{ ok: boolean; data: AiScoreLatencyMetrics }> {
+  const qs = days !== 7 ? `?days=${days}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/metrics/score-latency${qs}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<{ ok: boolean; data: AiScoreLatencyMetrics; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Score latency metrics failed', res.status);
+  return body;
+}
+
 export const DISMISS_REASON_PRESETS = [
   { value: 'wrong_tone', label: 'Sai tone' },
   { value: 'wrong_fact', label: 'Sai thông tin' },

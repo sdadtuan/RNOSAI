@@ -7,9 +7,12 @@ interface Props {
   token: string;
   leadId: number;
   status: string;
+  /** When set, skips GET /closed-loop-context. */
+  closedLoop?: LeadClosedLoopContext | null;
+  copilotLoading?: boolean;
 }
 
-export function ClosedLoopPanel({ token, leadId, status }: Props) {
+export function ClosedLoopPanel({ token, leadId, status, closedLoop, copilotLoading = false }: Props) {
   const [ctx, setCtx] = useState<LeadClosedLoopContext | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -26,8 +29,13 @@ export function ClosedLoopPanel({ token, leadId, status }: Props) {
   }, [leadId, token]);
 
   useEffect(() => {
+    if (closedLoop !== undefined) {
+      setCtx(closedLoop);
+      setLoading(copilotLoading);
+      return;
+    }
     void reload();
-  }, [reload, status]);
+  }, [closedLoop, copilotLoading, reload, status]);
 
   if (loading) {
     return (

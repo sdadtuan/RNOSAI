@@ -29,6 +29,7 @@ import {
   fetchLeadActivities,
   fetchLeadAttribution,
   fetchLeadAudit,
+  fetchLeadCopilotContext,
   fetchLeadStatusOptions,
   patchLeadLegacy,
   staffMe,
@@ -38,6 +39,7 @@ import {
   type LeadActivityRow,
   type LeadAttributionData,
   type LeadAuditBundle,
+  type LeadCopilotContext,
   type LeadFunnelSnapshot,
   type LeadRow,
   type LeadStatusOptionsResponse,
@@ -159,6 +161,8 @@ export default function CrmLeadDetailPage() {
   const [contractRefresh, setContractRefresh] = useState(0);
   const [statusOptionsApi, setStatusOptionsApi] = useState<LeadStatusOptionsResponse | null>(null);
   const [statusOptionsLoading, setStatusOptionsLoading] = useState(false);
+  const [copilotContext, setCopilotContext] = useState<LeadCopilotContext | null>(null);
+  const [copilotContextLoading, setCopilotContextLoading] = useState(false);
   const layout = useLeadDetailLayout();
   const online = useNetworkOnline();
   const copilotOn = aiCopilotEnabled();
@@ -234,6 +238,30 @@ export default function CrmLeadDetailPage() {
     setAudit(aud);
   }, [leadId]);
 
+  const reloadCopilotContext = useCallback(async (access: string) => {
+    setCopilotContextLoading(true);
+    try {
+      const ctx = await fetchLeadCopilotContext(access, leadId);
+      setCopilotContext(ctx);
+      if (ctx.catalog?.services?.length) {
+        setCatalogServices(
+          ctx.catalog.services.map((svc, index) => ({
+            id: index + 1,
+            slug: svc.slug,
+            name: svc.name,
+            description: svc.description,
+            sort_order: index,
+            active: true,
+          })),
+        );
+      }
+    } catch {
+      setCopilotContext(null);
+    } finally {
+      setCopilotContextLoading(false);
+    }
+  }, [leadId]);
+
   useEffect(() => {
     if (!Number.isFinite(leadId) || leadId <= 0) {
       setError('Lead ID không hợp lệ');
@@ -262,13 +290,14 @@ export default function CrmLeadDetailPage() {
         }
         await reloadTimeline(access);
         await reloadStatusOptions(access);
+        await reloadCopilotContext(access);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải lead thất bại');
       } finally {
         setLoading(false);
       }
     })();
-  }, [ensureAuth, leadId, reloadTimeline, reloadStatusOptions]);
+  }, [ensureAuth, leadId, reloadCopilotContext, reloadTimeline, reloadStatusOptions]);
 
   useEffect(() => {
     const access = getAccessToken();
@@ -312,6 +341,7 @@ export default function CrmLeadDetailPage() {
       setMessage('Đã lưu trạng thái + audit SQLite');
       await reloadTimeline(access);
       await reloadStatusOptions(access);
+      await reloadCopilotContext(access);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lưu thất bại');
     } finally {
@@ -352,6 +382,7 @@ export default function CrmLeadDetailPage() {
       setAssignReason('');
       setMessage('Đã phân lead');
       await reloadTimeline(access);
+      await reloadCopilotContext(access);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Phân lead thất bại');
     } finally {
@@ -388,6 +419,7 @@ export default function CrmLeadDetailPage() {
       setActivityContent('');
       setMessage('Đã thêm hoạt động');
       await reloadTimeline(access);
+      await reloadCopilotContext(access);
       if (['call', 'email', 'message', 'meeting'].includes(activityType)) {
         await reloadStatusOptions(access);
       }
@@ -453,10 +485,15 @@ export default function CrmLeadDetailPage() {
         onCopilotError={setCopilotMessage}
         onActivityCreated={() => {
           const access = getAccessToken();
-          if (access) void reloadTimeline(access);
+          if (access) {
+            void reloadTimeline(access);
+            void reloadCopilotContext(access);
+          }
         }}
         variant={variant}
         onCloseDrawer={onCloseDrawer}
+        copilotContext={copilotContext}
+        copilotContextLoading={copilotContextLoading}
       />
     );
   }
@@ -542,13 +579,24 @@ export default function CrmLeadDetailPage() {
               onAuditNoteSuggest={(text) => setAuditNote(text)}
               onReload={() => {
                 const access = getAccessToken();
-                if (access) void reloadTimeline(access);
+                if (access) {
+                  void reloadTimeline(access);
+                  void reloadCopilotContext(access);
+                }
               }}
+              copilotContext={copilotContext}
+              copilotLoading={copilotContextLoading}
             />
           ) : null}
 
           {accessToken && leadFlowKind === 'spa_operational' ? (
-            <ClosedLoopPanel token={accessToken} leadId={leadId} status={status} />
+            <ClosedLoopPanel
+              token={accessToken}
+              leadId={leadId}
+              status={status}
+              closedLoop={copilotContext?.closed_loop ?? null}
+              copilotLoading={copilotContextLoading}
+            />
           ) : null}
 
           <div

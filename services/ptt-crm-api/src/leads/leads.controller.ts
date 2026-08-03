@@ -34,6 +34,7 @@ import { LeadsWriteService } from './leads-write.service';
 import { LeadStatusGatePatchOptions, LeadStatusGateService } from './lead-status-gate.service';
 import { LeadSlaCareService } from './lead-sla-care.service';
 import { ChotClosedLoopService } from './chot-closed-loop.service';
+import { CopilotContextService } from './copilot-context.service';
 import { CrmConfigService } from '../crm-config/crm-config.service';
 import {
   CreateLeadV1Body,
@@ -55,6 +56,7 @@ export class LeadsController {
     private readonly statusGate: LeadStatusGateService,
     private readonly slaCare: LeadSlaCareService,
     private readonly closedLoop: ChotClosedLoopService,
+    private readonly copilotContext: CopilotContextService,
   ) {}
 
   @Get('lookup-options')
@@ -220,6 +222,13 @@ export class LeadsController {
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
   getLeadClosedLoopContext(@Param('id', ParseIntPipe) id: number) {
     return this.closedLoop.getLeadContext(id);
+  }
+
+  /** Unified copilot context — flow_kind, SLA, funnel, activities, catalog, drafts. */
+  @Get(':id/copilot-context')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  getLeadCopilotContext(@Param('id', ParseIntPipe) id: number) {
+    return this.copilotContext.getContext(id);
   }
 
   /** Phase 3 — Track AI call script copy for playbook A/B. */
