@@ -278,6 +278,10 @@ export interface CskhSlaTierSummary {
   warning: number;
   ok: number;
   active: number;
+  compliance_pct: number | null;
+  target_pct: number;
+  compliance_pass: boolean | null;
+  evaluated: number;
 }
 
 export interface CskhBoardRow {

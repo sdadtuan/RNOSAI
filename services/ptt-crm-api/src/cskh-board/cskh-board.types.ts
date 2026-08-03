@@ -1,4 +1,4 @@
-import { CskhSlaTier, CskhSlaTierSnapshot } from './cskh-board-sla.util';
+import { CskhSlaTier, CskhSlaTierSnapshot, type CskhSlaTierSummary } from './cskh-board-sla.util';
 import type {
   BreachLeadSnapshot,
   BreachRootCause,
@@ -20,12 +20,7 @@ export interface CskhBoardQuery {
   offset?: number;
 }
 
-export interface CskhSlaTierSummary {
-  breach: number;
-  warning: number;
-  ok: number;
-  active: number;
-}
+export type { CskhSlaTierSummary };
 
 export interface CskhBoardRow {
   id: number;

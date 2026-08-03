@@ -13,6 +13,27 @@ export const CSKH_CLOSE_WARNING_MINUTES = 120;
 export type CskhSlaState = 'ok' | 'warning' | 'breach' | 'na';
 export type CskhSlaTier = 'first_call_15m' | 'b2_complete_4h' | 'close_24h';
 
+/** GDKD / enterprise SLA compliance targets (% OK among evaluated ok+breach). */
+export const CSKH_SLA_COMPLIANCE_TARGETS: Record<CskhSlaTier, number> = {
+  first_call_15m: 85,
+  b2_complete_4h: 80,
+  close_24h: 70,
+};
+
+export interface CskhSlaTierCountSummary {
+  breach: number;
+  warning: number;
+  ok: number;
+  active: number;
+}
+
+export interface CskhSlaTierSummary extends CskhSlaTierCountSummary {
+  compliance_pct: number | null;
+  target_pct: number;
+  compliance_pass: boolean | null;
+  evaluated: number;
+}
+
 export interface CskhSlaTierSnapshot {
   tier: CskhSlaTier;
   label: string;
@@ -321,4 +342,33 @@ export function summarizeSlaTiers(rows: CskhSlaTierSnapshot[][]): Record<
   }
 
   return out;
+}
+
+export function slaTierCompliancePct(stats: Pick<CskhSlaTierCountSummary, 'ok' | 'breach'>): number | null {
+  const evaluated = stats.ok + stats.breach;
+  if (evaluated <= 0) return null;
+  return Math.round((stats.ok / evaluated) * 1000) / 10;
+}
+
+export function enrichSlaTierSummary(tier: CskhSlaTier, stats: CskhSlaTierCountSummary): CskhSlaTierSummary {
+  const evaluated = stats.ok + stats.breach;
+  const compliance_pct = slaTierCompliancePct(stats);
+  const target_pct = CSKH_SLA_COMPLIANCE_TARGETS[tier];
+  return {
+    ...stats,
+    evaluated,
+    compliance_pct,
+    target_pct,
+    compliance_pass: compliance_pct == null ? null : compliance_pct >= target_pct,
+  };
+}
+
+export function enrichSlaTierSummaries(
+  tiers: Record<CskhSlaTier, CskhSlaTierCountSummary>,
+): Record<CskhSlaTier, CskhSlaTierSummary> {
+  return {
+    first_call_15m: enrichSlaTierSummary('first_call_15m', tiers.first_call_15m),
+    b2_complete_4h: enrichSlaTierSummary('b2_complete_4h', tiers.b2_complete_4h),
+    close_24h: enrichSlaTierSummary('close_24h', tiers.close_24h),
+  };
 }

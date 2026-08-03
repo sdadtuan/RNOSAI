@@ -1,9 +1,10 @@
-import type { CskhSlaTier } from '../cskh-board/cskh-board-sla.util';
+import type { CskhSlaTier, CskhSlaTierSummary } from '../cskh-board/cskh-board-sla.util';
+import { CSKH_SLA_COMPLIANCE_TARGETS, slaTierCompliancePct } from '../cskh-board/cskh-board-sla.util';
 
 export const GDKD_KPI_TARGETS = {
-  first_call_15m_pct: 85,
-  b2_4h_pct: 80,
-  close_24h_pct: 70,
+  first_call_15m_pct: CSKH_SLA_COMPLIANCE_TARGETS.first_call_15m,
+  b2_4h_pct: CSKH_SLA_COMPLIANCE_TARGETS.b2_complete_4h,
+  close_24h_pct: CSKH_SLA_COMPLIANCE_TARGETS.close_24h,
   breach_backlog: 0,
   review_queue_max_hours: 24,
   copilot_dau_pct: 60,
@@ -42,18 +43,9 @@ export interface GdkdEnterpriseKpiResponse {
   };
 }
 
-export interface SlaTierCounts {
-  breach: number;
-  warning: number;
-  ok: number;
-  active: number;
-}
+export interface SlaTierCounts extends CskhSlaTierSummary {}
 
-export function slaTierCompliancePct(stats: Pick<SlaTierCounts, 'ok' | 'breach'>): number | null {
-  const evaluated = stats.ok + stats.breach;
-  if (evaluated <= 0) return null;
-  return Math.round((stats.ok / evaluated) * 1000) / 10;
-}
+export { slaTierCompliancePct };
 
 export function evaluateKpiPass(
   value: number | null,
@@ -102,9 +94,9 @@ export function buildGdkdEnterpriseKpiResponse(input: {
   dealValueFillPct: number | null;
   chotTotal: number;
 }): GdkdEnterpriseKpiResponse {
-  const firstCallPct = slaTierCompliancePct(input.slaTiers.first_call_15m);
-  const b2Pct = slaTierCompliancePct(input.slaTiers.b2_complete_4h);
-  const closePct = slaTierCompliancePct(input.slaTiers.close_24h);
+  const firstCallPct = input.slaTiers.first_call_15m.compliance_pct ?? slaTierCompliancePct(input.slaTiers.first_call_15m);
+  const b2Pct = input.slaTiers.b2_complete_4h.compliance_pct ?? slaTierCompliancePct(input.slaTiers.b2_complete_4h);
+  const closePct = input.slaTiers.close_24h.compliance_pct ?? slaTierCompliancePct(input.slaTiers.close_24h);
 
   const reviewQueueValue =
     input.reviewQueueCount === 0 ? 0 : input.reviewQueueMaxHours;
@@ -121,7 +113,7 @@ export function buildGdkdEnterpriseKpiResponse(input: {
       unit: 'pct',
       source: 'SLA tier 15m',
       drill_href: '/crm/cskh-board?sla_tier=first_call_15m&sla_filter=breach',
-      detail: `${input.slaTiers.first_call_15m.ok} OK / ${input.slaTiers.first_call_15m.ok + input.slaTiers.first_call_15m.breach} đánh giá`,
+      detail: `${input.slaTiers.first_call_15m.ok} OK / ${input.slaTiers.first_call_15m.evaluated || input.slaTiers.first_call_15m.ok + input.slaTiers.first_call_15m.breach} đánh giá`,
     }),
     buildTile({
       id: 'b2_4h',
@@ -134,7 +126,7 @@ export function buildGdkdEnterpriseKpiResponse(input: {
       unit: 'pct',
       source: 'SLA tier 4h',
       drill_href: '/crm/cskh-board?sla_tier=b2_complete_4h&sla_filter=breach',
-      detail: `${input.slaTiers.b2_complete_4h.ok} OK / ${input.slaTiers.b2_complete_4h.ok + input.slaTiers.b2_complete_4h.breach} đánh giá`,
+      detail: `${input.slaTiers.b2_complete_4h.ok} OK / ${input.slaTiers.b2_complete_4h.evaluated || input.slaTiers.b2_complete_4h.ok + input.slaTiers.b2_complete_4h.breach} đánh giá`,
     }),
     buildTile({
       id: 'close_24h',
@@ -147,7 +139,7 @@ export function buildGdkdEnterpriseKpiResponse(input: {
       unit: 'pct',
       source: 'SLA tier 24h',
       drill_href: '/crm/cskh-board?sla_tier=close_24h&sla_filter=breach',
-      detail: `${input.slaTiers.close_24h.ok} OK / ${input.slaTiers.close_24h.ok + input.slaTiers.close_24h.breach} đánh giá`,
+      detail: `${input.slaTiers.close_24h.ok} OK / ${input.slaTiers.close_24h.evaluated || input.slaTiers.close_24h.ok + input.slaTiers.close_24h.breach} đánh giá`,
     }),
     buildTile({
       id: 'breach_backlog',

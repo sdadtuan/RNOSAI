@@ -33,23 +33,41 @@ const PAGE_SIZE = 50;
 type SlaTier = 'first_call_15m' | 'b2_complete_4h' | 'close_24h';
 type SlaFilter = 'all' | 'breach' | 'warning' | 'open';
 
-const SLA_TIER_META: Record<SlaTier, { title: string; deadline: string; hint: string }> = {
+const SLA_TIER_META: Record<
+  SlaTier,
+  { title: string; deadline: string; hint: string; targetPct: number }
+> = {
   first_call_15m: {
     title: '15 phút',
     deadline: 'Gọi lần đầu',
     hint: 'Activity「Gọi điện」trên lead detail',
+    targetPct: 85,
   },
   b2_complete_4h: {
     title: '4 giờ',
     deadline: 'Hoàn thành B2',
     hint: 'Funnel B2 → Liên hệ OK + Hoàn thành B2',
+    targetPct: 80,
   },
   close_24h: {
     title: '24 giờ',
     deadline: 'Chốt / Lost',
     hint: 'Status chot hoặc lost + audit note',
+    targetPct: 70,
   },
 };
+
+function complianceClass(pass: boolean | null | undefined): string {
+  if (pass === true) return 'cskh-sla-dashboard-card__compliance--pass';
+  if (pass === false) return 'cskh-sla-dashboard-card__compliance--fail';
+  return 'cskh-sla-dashboard-card__compliance--na';
+}
+
+function complianceLabel(pass: boolean | null | undefined): string {
+  if (pass === true) return 'Đạt';
+  if (pass === false) return 'Chưa đạt';
+  return 'Chưa có số liệu';
+}
 
 function slaBadge(state: CskhBoardRow['sla_state']): { label: string; className: string } {
   if (state === 'breach') return { label: 'Breach', className: 'badge badge-danger' };
@@ -469,17 +487,30 @@ export function CskhBoardContent() {
                   <strong>{meta.title}</strong>
                   <span className="muted">{meta.deadline}</span>
                 </div>
+                <div className={`cskh-sla-dashboard-card__compliance ${complianceClass(stats?.compliance_pass)}`}>
+                  <span className="cskh-sla-dashboard-card__compliance-value">
+                    {stats?.compliance_pct != null ? `${stats.compliance_pct}%` : '—'}
+                  </span>
+                  <span className="cskh-sla-dashboard-card__compliance-target muted">
+                    Target ≥{stats?.target_pct ?? meta.targetPct}% · {complianceLabel(stats?.compliance_pass)}
+                  </span>
+                </div>
                 <div className="cskh-sla-dashboard-card__stats">
+                  <span className="cskh-sla-dashboard-stat cskh-sla-dashboard-stat--ok">
+                    OK {stats?.ok ?? 0}
+                  </span>
                   <span className="cskh-sla-dashboard-stat cskh-sla-dashboard-stat--breach">
                     Breach {stats?.breach ?? 0}
                   </span>
                   <span className="cskh-sla-dashboard-stat cskh-sla-dashboard-stat--warn">
                     Warning {stats?.warning ?? 0}
                   </span>
-                  <span className="cskh-sla-dashboard-stat cskh-sla-dashboard-stat--ok">
-                    OK {stats?.ok ?? 0}
-                  </span>
                 </div>
+                {stats?.evaluated ? (
+                  <p className="muted cskh-sla-dashboard-card__evaluated">
+                    {stats.ok} / {stats.evaluated} lead đạt SLA (OK vs breach)
+                  </p>
+                ) : null}
                 <p className="muted cskh-sla-dashboard-card__hint">{meta.hint}</p>
               </button>
             );
@@ -529,8 +560,11 @@ export function CskhBoardContent() {
         <div className="card cskh-board-filters-desktop" style={{ marginBottom: '1rem' }}>
           <div className="row gap-sm wrap">{filterFields}</div>
           <p className="muted cskh-board-summary-line" style={{ marginTop: '0.75rem' }}>
-            Tier {SLA_TIER_META[slaTier].title} · Tổng {summary.total} · Breach {summary.breach} · Warning{' '}
-            {summary.warning} · OK {summary.ok}
+            Tier {SLA_TIER_META[slaTier].title} · Compliance{' '}
+            {slaDashboard?.tiers[slaTier]?.compliance_pct != null
+              ? `${slaDashboard.tiers[slaTier].compliance_pct}% (target ≥${slaDashboard.tiers[slaTier].target_pct}%)`
+              : '—'}{' '}
+            · OK {summary.ok} · Breach {summary.breach} · Warning {summary.warning}
           </p>
         </div>
 

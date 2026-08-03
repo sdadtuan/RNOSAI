@@ -3,6 +3,7 @@ import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.serv
 import { CrmLeadsSqliteRepository } from '../crm-leads-legacy/crm-leads-sqlite.repository';
 import {
   computeSpaMeta24hSlas,
+  enrichSlaTierSummaries,
   isSpaClosedStatus,
   parseB2CompletedAt,
   summarizeSlaTiers,
@@ -108,7 +109,9 @@ export class CskhBoardService {
       return tierSlaMatchesFilter(tierSnapshot, slaFilter);
     });
 
-    const dashboardTiers = summarizeSlaTiers(enriched.map((row) => row.sla_tiers));
+    const dashboardTiers = enrichSlaTierSummaries(
+      summarizeSlaTiers(enriched.map((row) => row.sla_tiers)),
+    );
     const summary = {
       total: filtered.length,
       breach: filtered.filter((r) => {
@@ -241,7 +244,7 @@ export class CskhBoardService {
   /** GDKD enterprise KPI — SLA tier counts across spa Meta board cohort. */
   async getSlaDashboardTiers() {
     const rows = await this.loadAllEnrichedRows();
-    return summarizeSlaTiers(rows.map((row) => row.sla_tiers));
+    return enrichSlaTierSummaries(summarizeSlaTiers(rows.map((row) => row.sla_tiers)));
   }
 
   async getClosedLoopDashboard(windowDays?: number, sampleLimit?: number) {

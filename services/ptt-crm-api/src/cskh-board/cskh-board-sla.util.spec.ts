@@ -4,7 +4,10 @@ import {
   CSKH_FIRST_CALL_SLA_MINUTES,
   computeFirstCallSla,
   computeSpaMeta24hSlas,
+  enrichSlaTierSummaries,
+  enrichSlaTierSummary,
   isNewLeadStatus,
+  slaTierCompliancePct,
   summarizeSlaTiers,
   tierSlaMatchesFilter,
 } from './cskh-board-sla.util';
@@ -92,5 +95,31 @@ describe('cskh-board-sla.util', () => {
     const first = tiers.find((t) => t.tier === 'first_call_15m');
     expect(tierSlaMatchesFilter(first, 'breach')).toBe(true);
     expect(tierSlaMatchesFilter(first, 'open')).toBe(false);
+  });
+
+  it('computes SLA compliance pct and pass against tier targets', () => {
+    expect(slaTierCompliancePct({ ok: 17, breach: 3 })).toBe(85);
+    const enriched = enrichSlaTierSummary('first_call_15m', {
+      ok: 17,
+      breach: 3,
+      warning: 1,
+      active: 21,
+    });
+    expect(enriched.compliance_pct).toBe(85);
+    expect(enriched.target_pct).toBe(85);
+    expect(enriched.compliance_pass).toBe(true);
+    expect(enriched.evaluated).toBe(20);
+
+    const fail = enrichSlaTierSummary('b2_complete_4h', { ok: 7, breach: 3, warning: 0, active: 10 });
+    expect(fail.compliance_pct).toBe(70);
+    expect(fail.compliance_pass).toBe(false);
+
+    const all = enrichSlaTierSummaries({
+      first_call_15m: { ok: 17, breach: 3, warning: 1, active: 21 },
+      b2_complete_4h: { ok: 8, breach: 2, warning: 0, active: 10 },
+      close_24h: { ok: 7, breach: 3, warning: 0, active: 10 },
+    });
+    expect(all.close_24h.target_pct).toBe(70);
+    expect(all.close_24h.compliance_pass).toBe(true);
   });
 });

@@ -3485,6 +3485,38 @@ body:has(.ops-sidebar) main {
   gap: 0.5rem;
 }
 
+.cskh-sla-dashboard-card__compliance {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.cskh-sla-dashboard-card__compliance-value {
+  font-size: 1.65rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.cskh-sla-dashboard-card__compliance--pass .cskh-sla-dashboard-card__compliance-value {
+  color: #15803d;
+}
+
+.cskh-sla-dashboard-card__compliance--fail .cskh-sla-dashboard-card__compliance-value {
+  color: #b91c1c;
+}
+
+.cskh-sla-dashboard-card__compliance--na .cskh-sla-dashboard-card__compliance-value {
+  color: var(--muted, #64748b);
+}
+
+.cskh-sla-dashboard-card__compliance-target {
+  font-size: 0.82rem;
+}
+
+.cskh-sla-dashboard-card__evaluated {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
 .cskh-sla-dashboard-card__stats {
   display: flex;
   flex-wrap: wrap;
