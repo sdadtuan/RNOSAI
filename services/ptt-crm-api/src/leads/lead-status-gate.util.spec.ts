@@ -1,5 +1,7 @@
 import {
   allowedNextStatuses,
+  computeAllowedNextStatuses,
+  isCandidateStatusSelectable,
   isStatusTransitionAllowed,
   LeadStatusGateError,
   validateLeadStatusChange,
@@ -88,5 +90,49 @@ describe('lead-status-gate.util', () => {
 
   it('lists allowed next statuses from moi', () => {
     expect(allowedNextStatuses('moi')).toEqual(['da_lien_he', 'lost', 'pending_cleanup']);
+  });
+
+  it('limits moi dropdown without outreach to lost and pending_cleanup', () => {
+    const ctx = {
+      currentStatus: 'moi',
+      flowKind: 'spa_operational' as const,
+      b2Complete: false,
+      hasOutreachActivity: false,
+      needsCleanup: false,
+      gateEnabled: true,
+    };
+    expect(isCandidateStatusSelectable(ctx, 'da_lien_he')).toBe(false);
+    expect(isCandidateStatusSelectable(ctx, 'lost')).toBe(true);
+    const { options, hints } = computeAllowedNextStatuses(ctx);
+    expect(options.map((o) => o.id)).toEqual(['moi', 'lost', 'pending_cleanup']);
+    expect(hints.some((h) => h.includes('activity liên hệ'))).toBe(true);
+  });
+
+  it('allows hen_gap on spa but not won', () => {
+    const ctx = {
+      currentStatus: 'da_lien_he',
+      flowKind: 'spa_operational' as const,
+      b2Complete: true,
+      hasOutreachActivity: true,
+      needsCleanup: false,
+      gateEnabled: true,
+    };
+    const { options } = computeAllowedNextStatuses(ctx);
+    expect(options.map((o) => o.id)).toContain('hen_gap');
+    expect(options.map((o) => o.id)).not.toContain('won');
+  });
+
+  it('blocks chot when B2 incomplete', () => {
+    const ctx = {
+      currentStatus: 'hen_gap',
+      flowKind: 'spa_operational' as const,
+      b2Complete: false,
+      hasOutreachActivity: true,
+      needsCleanup: false,
+      gateEnabled: true,
+    };
+    expect(isCandidateStatusSelectable(ctx, 'chot')).toBe(false);
+    const { hints } = computeAllowedNextStatuses(ctx);
+    expect(hints.some((h) => h.includes('Hoàn thành B2'))).toBe(true);
   });
 });

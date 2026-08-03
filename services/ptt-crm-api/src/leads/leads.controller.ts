@@ -31,7 +31,7 @@ import { LeadNotInReviewQueueGuard } from '../leads-funnel/guards/lead-not-in-re
 import { LeadsIoService } from './leads-io.service';
 import { LeadsService } from './leads.service';
 import { LeadsWriteService } from './leads-write.service';
-import { LeadStatusGatePatchOptions } from './lead-status-gate.service';
+import { LeadStatusGatePatchOptions, LeadStatusGateService } from './lead-status-gate.service';
 import { CrmConfigService } from '../crm-config/crm-config.service';
 import {
   CreateLeadV1Body,
@@ -50,6 +50,7 @@ export class LeadsController {
     private readonly leadsIo: LeadsIoService,
     private readonly crmConfig: CrmConfigService,
     private readonly staffAuth: StaffAuthService,
+    private readonly statusGate: LeadStatusGateService,
   ) {}
 
   @Get('lookup-options')
@@ -195,6 +196,12 @@ export class LeadsController {
       owner_id: ownerId ? Number(ownerId) : undefined,
       unassigned_only: truthy(unassignedOnly),
     });
+  }
+
+  @Get(':id/status-options')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  getLeadStatusOptions(@Param('id', ParseIntPipe) id: number) {
+    return this.statusGate.getStatusOptions(id);
   }
 
   @Get(':id')

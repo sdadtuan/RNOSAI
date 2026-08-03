@@ -380,6 +380,35 @@ export async function fetchLead(token: string, id: number): Promise<LeadRow> {
   return body;
 }
 
+export interface LeadStatusOptionRow {
+  id: string;
+  label: string;
+}
+
+export interface LeadStatusOptionsResponse {
+  current_status: string;
+  current_status_label: string;
+  lead_flow_kind: 'spa_operational' | 'b2b_prospect';
+  gate_enabled: boolean;
+  allowed_next: LeadStatusOptionRow[];
+  hints: string[];
+}
+
+export async function fetchLeadStatusOptions(
+  token: string,
+  leadId: number,
+): Promise<LeadStatusOptionsResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/status-options`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<LeadStatusOptionsResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Lead status options failed', res.status);
+  }
+  return body;
+}
+
 export interface LeadAttributionData {
   lead_id: number;
   campaign_id: string | null;

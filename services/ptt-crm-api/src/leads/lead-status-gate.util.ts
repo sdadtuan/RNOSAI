@@ -1,5 +1,7 @@
 import {
   assertStatusAllowedForFlow,
+  statusOptionsForFlowKind,
+  type LeadFlowKind,
 } from '../leads-funnel/lead-flow-kind.util';
 import {
   presalesCareGateState,
@@ -79,6 +81,127 @@ export function allowedNextStatuses(current: string | null | undefined): string[
   const st = normalizeLeadStatus(current);
   const next = LEAD_STATUS_TRANSITIONS[st] ?? [];
   return [...next];
+}
+
+export interface LeadStatusOptionRow {
+  id: string;
+  label: string;
+}
+
+export interface LeadStatusOptionsContext {
+  currentStatus: string;
+  flowKind: LeadFlowKind;
+  b2Complete: boolean;
+  hasOutreachActivity: boolean;
+  needsCleanup: boolean;
+  gateEnabled: boolean;
+}
+
+export function isCandidateStatusSelectable(
+  ctx: LeadStatusOptionsContext,
+  candidate: string,
+): boolean {
+  const current = normalizeLeadStatus(ctx.currentStatus);
+  const next = normalizeLeadStatus(candidate);
+  if (current === next) return true;
+
+  if (!ctx.gateEnabled) {
+    return statusOptionsForFlowKind(ctx.flowKind).includes(next);
+  }
+
+  try {
+    assertStatusAllowedForFlow(ctx.flowKind, next);
+  } catch {
+    return false;
+  }
+
+  if (!isStatusTransitionAllowed(current, next)) return false;
+
+  if (ctx.needsCleanup && next !== 'pending_cleanup' && next !== 'lost') {
+    return false;
+  }
+
+  const requiresB2 = (TERMINAL_WON_STATUSES as readonly string[]).includes(next);
+  if (requiresB2 && (!ctx.b2Complete || !ctx.hasOutreachActivity)) {
+    return false;
+  }
+
+  if (
+    current === 'moi' &&
+    !['lost', 'pending_cleanup'].includes(next) &&
+    !ctx.hasOutreachActivity &&
+    !ctx.b2Complete
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+export function collectStatusOptionHints(ctx: LeadStatusOptionsContext): string[] {
+  const hints: string[] = [];
+  const current = normalizeLeadStatus(ctx.currentStatus);
+
+  if (ctx.needsCleanup) {
+    hints.push('Lead thiếu dữ liệu — chỉ chuyển Chờ dọn / Lost hoặc hoàn thiện thông tin.');
+  }
+
+  if (
+    current === 'moi' &&
+    !ctx.hasOutreachActivity &&
+    !ctx.b2Complete &&
+    allowedNextStatuses(current).some(
+      (s) => !['lost', 'pending_cleanup'].includes(s) && !isCandidateStatusSelectable(ctx, s),
+    )
+  ) {
+    hints.push('Cần ghi activity liên hệ trước khi rời trạng thái Mới.');
+  }
+
+  const blockedTerminal = allowedNextStatuses(current).some(
+    (s) =>
+      (TERMINAL_WON_STATUSES as readonly string[]).includes(s) &&
+      !isCandidateStatusSelectable(ctx, s),
+  );
+  if (blockedTerminal) {
+    if (!ctx.b2Complete) {
+      hints.push('Hoàn thành B2 (Liên hệ OK) trên Funnel trước khi chốt / won.');
+    }
+    if (!ctx.hasOutreachActivity) {
+      hints.push('Cần activity liên hệ (Gọi / Tin nhắn / Họp) trước khi chốt / won.');
+    }
+  }
+
+  return [...new Set(hints)];
+}
+
+export function computeAllowedNextStatuses(ctx: LeadStatusOptionsContext): {
+  options: LeadStatusOptionRow[];
+  hints: string[];
+} {
+  const current = normalizeLeadStatus(ctx.currentStatus);
+  const hints = ctx.gateEnabled ? collectStatusOptionHints(ctx) : [];
+
+  const candidates = ctx.gateEnabled
+    ? allowedNextStatuses(current)
+    : [...statusOptionsForFlowKind(ctx.flowKind)];
+
+  const seen = new Set<string>();
+  const options: LeadStatusOptionRow[] = [];
+
+  const pushOption = (id: string) => {
+    const key = normalizeLeadStatus(id);
+    if (seen.has(key)) return;
+    if (!isCandidateStatusSelectable(ctx, key)) return;
+    seen.add(key);
+    options.push({ id: key, label: leadStatusLabel(key) });
+  };
+
+  pushOption(current);
+  for (const candidate of candidates) {
+    pushOption(candidate);
+  }
+
+  return { options, hints };
 }
 
 export function isStatusTransitionAllowed(

@@ -12,13 +12,11 @@ import { LeadContractPanel } from '@/components/LeadContractPanel';
 import { LeadDetailHero } from '@/components/crm/LeadDetailHero';
 import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
 import { LeadEntityTimelinePanel } from '@/components/crm/LeadEntityTimelinePanel';
-import { LEAD_STATUS_LABELS } from '@/lib/crm/lead-status';
 import {
   leadFlowKindLabel,
   resolveLeadFlowKindFromLead,
   showB2bSalesFlowBar,
   showContractForFlow,
-  statusOptionsForFlowKind,
 } from '@/lib/crm/lead-flow-kind';
 import { aiCopilotEnabled } from '@/lib/ai-flags';
 import {
@@ -29,6 +27,7 @@ import {
   fetchLeadActivities,
   fetchLeadAttribution,
   fetchLeadAudit,
+  fetchLeadStatusOptions,
   patchLeadLegacy,
   staffMe,
   staffRefresh,
@@ -39,6 +38,7 @@ import {
   type LeadAuditBundle,
   type LeadFunnelSnapshot,
   type LeadRow,
+  type LeadStatusOptionsResponse,
 } from '@/lib/api';
 import {
   clearSession,
@@ -50,21 +50,6 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
-
-const ALL_STATUS_OPTIONS = [
-  'moi',
-  'da_lien_he',
-  'dang_tu_van',
-  'hen_gap',
-  'bao_gia',
-  'dam_phan',
-  'proposal',
-  'chot',
-  'won',
-  'post_sale',
-  'lost',
-  'pending_cleanup',
-];
 
 const ACTIVITY_TYPES = [
   { value: 'note', label: 'Ghi chú' },
@@ -170,25 +155,39 @@ export default function CrmLeadDetailPage() {
   const [funnelSnap, setFunnelSnap] = useState<LeadFunnelSnapshot | null>(null);
   const [contractSummary, setContractSummary] = useState<LeadContractFlowSummary | null>(null);
   const [contractRefresh, setContractRefresh] = useState(0);
+  const [statusOptionsApi, setStatusOptionsApi] = useState<LeadStatusOptionsResponse | null>(null);
+  const [statusOptionsLoading, setStatusOptionsLoading] = useState(false);
   const layout = useLeadDetailLayout();
   const online = useNetworkOnline();
   const copilotOn = aiCopilotEnabled();
 
   const leadFlowKind = useMemo(
-    () => (lead ? resolveLeadFlowKindFromLead(lead, funnelSnap) : 'b2b_prospect'),
-    [lead, funnelSnap],
+    () =>
+      statusOptionsApi?.lead_flow_kind ??
+      (lead ? resolveLeadFlowKindFromLead(lead, funnelSnap) : 'b2b_prospect'),
+    [lead, funnelSnap, statusOptionsApi?.lead_flow_kind],
   );
-  const statusOptions = useMemo(() => {
-    const allowed = new Set(statusOptionsForFlowKind(leadFlowKind));
-    const current = status.trim();
-    const options = ALL_STATUS_OPTIONS.filter((s) => allowed.has(s));
-    if (current && !options.includes(current)) {
-      return [current, ...options];
-    }
-    return options;
-  }, [leadFlowKind, status]);
+  const statusDropdownOptions = statusOptionsApi?.allowed_next ?? [];
+  const statusHints = statusOptionsApi?.hints ?? [];
   const showB2bFlow = showB2bSalesFlowBar(leadFlowKind);
   const showContractPanel = showContractForFlow(leadFlowKind);
+
+  const reloadStatusOptions = useCallback(async (access: string) => {
+    setStatusOptionsLoading(true);
+    try {
+      const opts = await fetchLeadStatusOptions(access, leadId);
+      setStatusOptionsApi(opts);
+      setStatus((prev) => {
+        const allowedIds = new Set(opts.allowed_next.map((row) => row.id));
+        if (allowedIds.has(prev)) return prev;
+        return opts.current_status;
+      });
+    } catch {
+      setStatusOptionsApi(null);
+    } finally {
+      setStatusOptionsLoading(false);
+    }
+  }, [leadId]);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -260,13 +259,20 @@ export default function CrmLeadDetailPage() {
           setCatalogServices(catalog.services.filter((service) => service.active));
         }
         await reloadTimeline(access);
+        await reloadStatusOptions(access);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải lead thất bại');
       } finally {
         setLoading(false);
       }
     })();
-  }, [ensureAuth, leadId, reloadTimeline]);
+  }, [ensureAuth, leadId, reloadTimeline, reloadStatusOptions]);
+
+  useEffect(() => {
+    const access = getAccessToken();
+    if (!access || !lead) return;
+    void reloadStatusOptions(access);
+  }, [lead?.status, lead?.id, funnelSnap?.care_pipeline.all_complete, reloadStatusOptions]);
 
   async function onSaveStatus(e: React.FormEvent) {
     e.preventDefault();
@@ -303,6 +309,7 @@ export default function CrmLeadDetailPage() {
       setAuditNote('');
       setMessage('Đã lưu trạng thái + audit SQLite');
       await reloadTimeline(access);
+      await reloadStatusOptions(access);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lưu thất bại');
     } finally {
@@ -379,6 +386,9 @@ export default function CrmLeadDetailPage() {
       setActivityContent('');
       setMessage('Đã thêm hoạt động');
       await reloadTimeline(access);
+      if (['call', 'email', 'message', 'meeting'].includes(activityType)) {
+        await reloadStatusOptions(access);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Thêm hoạt động thất bại');
     } finally {
@@ -642,14 +652,34 @@ export default function CrmLeadDetailPage() {
                       className="lead-select"
                       value={status}
                       onChange={(e) => setStatus(e.target.value)}
-                      disabled={!hasCap(user, 'crm_leads', 'edit') || saving}
+                      disabled={
+                        !hasCap(user, 'crm_leads', 'edit') ||
+                        saving ||
+                        statusOptionsLoading ||
+                        statusDropdownOptions.length <= 1
+                      }
                     >
-                      {statusOptions.map((s) => (
-                        <option key={s} value={s}>
-                          {LEAD_STATUS_LABELS[s] ?? s}
+                      {statusDropdownOptions.map((row) => (
+                        <option key={row.id} value={row.id}>
+                          {row.label}
                         </option>
                       ))}
                     </select>
+                    {statusOptionsLoading ? (
+                      <span className="muted" style={{ fontSize: '0.82rem' }}>
+                        Đang tải trạng thái được phép…
+                      </span>
+                    ) : null}
+                    {statusHints.length > 0 ? (
+                      <ul
+                        className="muted"
+                        style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem', fontSize: '0.82rem' }}
+                      >
+                        {statusHints.map((hint) => (
+                          <li key={hint}>{hint}</li>
+                        ))}
+                      </ul>
+                    ) : null}
                   </label>
                   <label className="lead-field">
                     <span className="lead-field__label">

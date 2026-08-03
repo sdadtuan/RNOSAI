@@ -1,18 +1,31 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleDestroy } from '@nestjs/common';
 import { DatabaseSync } from 'node:sqlite';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
-import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
+import { resolveLeadFlowKind, type LeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
 import {
   CONTACT_OK_CARE_STATUS,
+  computeAllowedNextStatuses,
   computeB2Complete,
+  leadStatusLabel,
   LeadStatusGateError,
+  LeadStatusOptionRow,
+  normalizeLeadStatus,
   validateLeadStatusChange,
 } from './lead-status-gate.util';
 import { PatchLeadV1Body } from './leads.types';
 
 export interface LeadStatusGatePatchOptions {
   allowStatusOverride?: boolean;
+}
+
+export interface LeadStatusOptionsResponse {
+  current_status: string;
+  current_status_label: string;
+  lead_flow_kind: LeadFlowKind;
+  gate_enabled: boolean;
+  allowed_next: LeadStatusOptionRow[];
+  hints: string[];
 }
 
 @Injectable()
@@ -52,6 +65,32 @@ export class LeadStatusGateService implements OnModuleDestroy {
     );
   }
 
+  async getStatusOptions(leadId: number): Promise<LeadStatusOptionsResponse> {
+    const state = await this.loadLeadGateState(leadId);
+    if (!state) {
+      throw new NotFoundException({ error: 'Not found' });
+    }
+
+    const current = normalizeLeadStatus(state.status);
+    const { options, hints } = computeAllowedNextStatuses({
+      currentStatus: current,
+      flowKind: state.flowKind,
+      b2Complete: state.b2Complete,
+      hasOutreachActivity: state.hasOutreachActivity,
+      needsCleanup: state.needsCleanup,
+      gateEnabled: this.isEnabled(),
+    });
+
+    return {
+      current_status: current,
+      current_status_label: leadStatusLabel(current),
+      lead_flow_kind: state.flowKind,
+      gate_enabled: this.isEnabled(),
+      allowed_next: options,
+      hints,
+    };
+  }
+
   async assertPatchAllowed(
     leadId: number,
     body: PatchLeadV1Body,
@@ -75,10 +114,33 @@ export class LeadStatusGateService implements OnModuleDestroy {
     body: PatchLeadV1Body,
     opts: LeadStatusGatePatchOptions,
   ) {
-    const row = await this.fetchLeadRow(leadId);
-    if (!row) {
+    const state = await this.loadLeadGateState(leadId);
+    if (!state) {
       throw new LeadStatusGateError('lead_not_found', 'Không tìm thấy lead.');
     }
+
+    return {
+      oldStatus: String(state.status ?? 'moi'),
+      newStatus: String(body.status ?? '').trim(),
+      auditNote: String(body.audit_note ?? '').trim(),
+      allowOverride: Boolean(opts.allowStatusOverride && body.allow_status_override),
+      overrideReason: String(body.status_override_reason ?? body.audit_note ?? '').trim(),
+      b2Complete: state.b2Complete,
+      hasOutreachActivity: state.hasOutreachActivity,
+      needsCleanup: state.needsCleanup,
+      flowKind: state.flowKind,
+    };
+  }
+
+  private async loadLeadGateState(leadId: number): Promise<{
+    status: string;
+    flowKind: LeadFlowKind;
+    b2Complete: boolean;
+    hasOutreachActivity: boolean;
+    needsCleanup: boolean;
+  } | null> {
+    const row = await this.fetchLeadRow(leadId);
+    if (!row) return null;
 
     const [hasContactOkReport, hasOutreachActivity, hasPresales] = await Promise.all([
       this.hasContactOkReport(leadId),
@@ -104,15 +166,11 @@ export class LeadStatusGateService implements OnModuleDestroy {
     });
 
     return {
-      oldStatus: String(row.status ?? 'moi'),
-      newStatus: String(body.status ?? '').trim(),
-      auditNote: String(body.audit_note ?? '').trim(),
-      allowOverride: Boolean(opts.allowStatusOverride && body.allow_status_override),
-      overrideReason: String(body.status_override_reason ?? body.audit_note ?? '').trim(),
+      status: String(row.status ?? 'moi'),
+      flowKind,
       b2Complete,
       hasOutreachActivity,
       needsCleanup,
-      flowKind,
     };
   }
 
