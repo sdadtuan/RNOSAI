@@ -17,11 +17,16 @@ rnosai_assert_database_url "$DATABASE_URL"
 DRY_RUN="${DRY_RUN:-0}"
 SKIP_APPLY="${SKIP_APPLY:-0}"
 
+PYTHON="${PYTHON:-python3}"
+if [[ -x "$ROOT/.venv/bin/python" ]]; then
+  PYTHON="$ROOT/.venv/bin/python"
+fi
+
 echo "== RNOS-01 Apply Revenue OS AI DDL =="
 echo "   DATABASE_URL=${DATABASE_URL%%@*}@***"
 echo "   DRY_RUN=$DRY_RUN SKIP_APPLY=$SKIP_APPLY"
 
-python3 - <<'PY'
+"$PYTHON" - <<'PY'
 import os
 import sys
 
