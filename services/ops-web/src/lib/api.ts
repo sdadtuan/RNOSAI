@@ -701,6 +701,51 @@ export async function fetchCskhClosedLoopDashboard(
   return body;
 }
 
+export interface GdkdEnterpriseKpiTile {
+  id: string;
+  label: string;
+  value: number | null;
+  value_display: string;
+  target: number;
+  target_display: string;
+  comparator: 'gte' | 'lte' | 'lt';
+  pass: boolean | null;
+  unit: 'pct' | 'count' | 'hours';
+  source: string;
+  drill_href: string;
+  detail?: string;
+}
+
+export interface GdkdEnterpriseKpiResponse {
+  ok: true;
+  generated_at: string;
+  window_days: number;
+  closed_loop_window_days: number;
+  tiles: GdkdEnterpriseKpiTile[];
+  summary: {
+    pass_count: number;
+    fail_count: number;
+    na_count: number;
+    total: number;
+  };
+}
+
+export async function fetchGdkdEnterpriseKpi(
+  token: string,
+  days = 7,
+): Promise<GdkdEnterpriseKpiResponse> {
+  const qs = days !== 7 ? `?days=${days}` : '';
+  const res = await fetch(`${API_BASE}/api/crm/gdkd-enterprise/kpi${qs}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<GdkdEnterpriseKpiResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'GDKD enterprise KPI failed', res.status);
+  }
+  return body;
+}
+
 export interface CskhPlaybookAbMetrics {
   ok?: boolean;
   window_days: number;

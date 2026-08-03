@@ -7,6 +7,7 @@ import { TicketsModule } from './tickets/tickets.module';
 import { CrmConfigModule } from './crm-config/crm-config.module';
 import { CrmBoardModule } from './crm-board/crm-board.module';
 import { CskhBoardModule } from './cskh-board/cskh-board.module';
+import { GdkdEnterpriseModule } from './gdkd-enterprise/gdkd-enterprise.module';
 import { CrmLeadsLegacyModule } from './crm-leads-legacy/crm-leads-legacy.module';
 import { CrmStaffModule } from './crm-staff/crm-staff.module';
 import { KpiModule } from './kpi/kpi.module';
@@ -110,6 +111,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     SvcFinanceModule,
     CrmBoardModule,
     CskhBoardModule,
+    GdkdEnterpriseModule,
     SopModule,
     AgencyModule,
     ZaloLeadsModule,

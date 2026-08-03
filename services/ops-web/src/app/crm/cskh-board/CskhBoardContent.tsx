@@ -433,6 +433,9 @@ export function CskhBoardContent() {
         subtitle="15 phút gọi lần đầu · 4 giờ hoàn thành B2 · 24 giờ chốt/lost (SOP CSKH)"
         actions={
           <>
+            <Link href="/crm/gdkd-enterprise" className="btn btn-sm btn-ghost">
+              KPI GDKD
+            </Link>
             <Link href="/crm/leads" className="btn btn-sm btn-ghost">
               Quản lý Lead
             </Link>

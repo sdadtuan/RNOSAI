@@ -21,6 +21,14 @@ const BOARD_MODULES: Array<{
 }> = [
   { id: 'leads', label: 'Leads', href: '/crm/leads', description: 'Pipeline lead', section: 'crm_leads' },
   {
+    id: 'gdkd_enterprise',
+    label: 'KPI Enterprise GDKD',
+    href: '/crm/gdkd-enterprise',
+    description: '8 KPI CSKH + AI + closed-loop',
+    section: 'crm_kpi_records',
+    altSection: 'crm_business_dashboard',
+  },
+  {
     id: 'cskh_board',
     label: 'CSKH SLA board',
     href: '/crm/cskh-board',

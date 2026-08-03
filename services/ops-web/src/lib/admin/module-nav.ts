@@ -18,10 +18,12 @@ export function buildFinanceDashboardLinks(user: StoredStaffUser | null): Module
   }
 
   if (hasCap(user, 'crm_kpi_records', 'view')) {
+    links.push({ href: '/crm/gdkd-enterprise', label: 'KPI GDKD' });
     links.push({ href: '/crm/kpi', label: 'KPI' });
     links.push({ href: '/crm/ai/insights', label: 'AI Insights' });
     links.push({ href: '/crm/ai/coach', label: 'Coach' });
   } else if (hasCap(user, 'crm_business_dashboard', 'view')) {
+    links.push({ href: '/crm/gdkd-enterprise', label: 'KPI GDKD' });
     links.push({ href: '/crm/ai/coach', label: 'Coach' });
   }
 

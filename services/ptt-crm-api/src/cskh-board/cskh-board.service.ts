@@ -238,6 +238,12 @@ export class CskhBoardService {
     return intel.sla_daily_digest;
   }
 
+  /** GDKD enterprise KPI — SLA tier counts across spa Meta board cohort. */
+  async getSlaDashboardTiers() {
+    const rows = await this.loadAllEnrichedRows();
+    return summarizeSlaTiers(rows.map((row) => row.sla_tiers));
+  }
+
   async getClosedLoopDashboard(windowDays?: number, sampleLimit?: number) {
     return this.closedLoop.getClosedLoopDashboard(windowDays ?? 30, sampleLimit ?? 20);
   }
