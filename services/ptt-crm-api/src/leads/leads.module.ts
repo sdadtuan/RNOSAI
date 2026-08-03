@@ -25,6 +25,7 @@ import { LeadDedupRepository } from './ingest/lead-dedup.repository';
 import { LeadIngestRulesRepository } from './ingest/lead-ingest-rules.repository';
 import { LeadStatusGateService } from './lead-status-gate.service';
 import { LeadSlaCareService } from './lead-sla-care.service';
+import { ChotClosedLoopService } from './chot-closed-loop.service';
 import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.module';
 
 @Module({
@@ -55,6 +56,7 @@ import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.modul
     LeadCreateEnrichmentService,
     LeadStatusGateService,
     LeadSlaCareService,
+    ChotClosedLoopService,
     WriteEnabledGuard,
     StaffLeadsWriteGuard,
     StaffLeadsViewGuard,
@@ -67,6 +69,7 @@ import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.modul
     StaffLeadsViewGuard,
     StaffLeadsWriteGuard,
     LeadSlaCareService,
+    ChotClosedLoopService,
   ],
 })
 export class LeadsModule {}

@@ -558,6 +558,111 @@ export async function fetchLeadSlaCareContext(
   return body;
 }
 
+export type ChotQaFlag =
+  | 'missing_deal_value'
+  | 'no_call_before_chot'
+  | 'missing_b2_confirmation'
+  | 'weak_audit_evidence';
+
+export interface LeadClosedLoopContext {
+  lead_id: number;
+  applicable: boolean;
+  status: string;
+  deal_value_vnd: number;
+  chot_package: string | null;
+  qa_flags: ChotQaFlag[];
+  qa_flag_labels: Record<ChotQaFlag, string>;
+  closed_loop_at: string | null;
+  call_script_source: 'ai_v1' | 'sop' | 'unknown';
+  hub_mapped: boolean;
+  hub_href: string | null;
+  roas_hint: string;
+}
+
+export async function fetchLeadClosedLoopContext(
+  token: string,
+  leadId: number,
+): Promise<LeadClosedLoopContext> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/closed-loop-context`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<LeadClosedLoopContext & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Lead closed-loop context failed', res.status);
+  }
+  return body;
+}
+
+export async function trackLeadCallScriptCopy(token: string, leadId: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/closed-loop/script-copy`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string }>(res);
+    throw new ApiError(body.error ?? 'Track script copy failed', res.status);
+  }
+}
+
+export interface CskhClosedLoopDashboard {
+  ok: boolean;
+  generated_at: string;
+  window_days: number;
+  summary: {
+    chot_total: number;
+    deal_value_fill_pct: number;
+    qa_flagged_pct: number;
+    avg_deal_value_vnd: number;
+  };
+  qa_flag_labels: Record<ChotQaFlag, string>;
+  qa_samples: Array<{
+    lead_id: number;
+    full_name: string;
+    owner_name: string | null;
+    deal_value_vnd: number;
+    qa_flags: ChotQaFlag[];
+    closed_at: string | null;
+  }>;
+}
+
+export async function fetchCskhClosedLoopDashboard(
+  token: string,
+  days = 30,
+): Promise<CskhClosedLoopDashboard> {
+  const qs = days !== 30 ? `?days=${days}` : '';
+  const res = await fetch(`${API_BASE}/api/crm/cskh-board/closed-loop-dashboard${qs}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<CskhClosedLoopDashboard & { error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Closed-loop dashboard failed', res.status);
+  return body;
+}
+
+export interface CskhPlaybookAbMetrics {
+  ok?: boolean;
+  window_days: number;
+  ai_v1: { chot_count: number; closed_within_24h_pct: number; deal_value_fill_pct: number; avg_deal_value_vnd: number };
+  sop: { chot_count: number; closed_within_24h_pct: number; deal_value_fill_pct: number; avg_deal_value_vnd: number };
+  unknown: { chot_count: number; closed_within_24h_pct: number; deal_value_fill_pct: number; avg_deal_value_vnd: number };
+  narrative: string;
+}
+
+export async function fetchCskhPlaybookAbMetrics(
+  token: string,
+  days = 30,
+): Promise<CskhPlaybookAbMetrics> {
+  const qs = days !== 30 ? `?days=${days}` : '';
+  const res = await fetch(`${API_BASE}/api/crm/cskh-board/playbook-ab-metrics${qs}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<CskhPlaybookAbMetrics & { error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Playbook A/B metrics failed', res.status);
+  return body;
+}
+
 export interface LeadAttributionData {
   lead_id: number;
   campaign_id: string | null;

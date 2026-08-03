@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.module';
+import { LeadsModule } from '../leads/leads.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { CskhBoardController } from './cskh-board.controller';
 import { CskhBoardRepository } from './cskh-board.repository';
 import { CskhBoardService } from './cskh-board.service';
 
 @Module({
-  imports: [StaffAuthModule, CrmLeadsLegacyModule],
+  imports: [StaffAuthModule, CrmLeadsLegacyModule, LeadsModule],
   controllers: [CskhBoardController],
   providers: [CskhBoardRepository, CskhBoardService],
   exports: [CskhBoardService],

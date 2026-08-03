@@ -186,6 +186,19 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
     return { lead, assigned, scored, status_changed: statusChanged, previous_status: previousStatus };
   }
 
+  async mergeLeadMeta(leadId: number, patch: Record<string, unknown>): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_leads
+       SET meta_json = meta_json || $1::jsonb,
+           updated_at = NOW(),
+           synced_at = NOW(),
+           write_source = 'nest',
+           sync_version = sync_version + 1
+       WHERE sqlite_lead_id = $2`,
+      [JSON.stringify(patch), leadId],
+    );
+  }
+
   private async nextStagingLeadId(client: PoolClient): Promise<number> {
     const result = await client.query(
       `SELECT COALESCE(MAX(sqlite_lead_id), $1 - 1) + 1 AS next_id

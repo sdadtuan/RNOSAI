@@ -27,6 +27,7 @@ import { PatchLeadV1Body } from '../leads/leads.types';
 import { CrmLeadsLegacyService } from './crm-leads-legacy.service';
 import { LeadAttributionService } from '../leads/lead-attribution.service';
 import { LeadAttributionResponse } from '../leads/lead-attribution.types';
+import { ChotClosedLoopService } from '../leads/chot-closed-loop.service';
 import { AssignLeadBody, CreateLeadActivityBody } from './crm-leads-legacy.types';
 
 @Controller('api/crm/leads')
@@ -38,6 +39,7 @@ export class CrmLeadsLegacyController {
     private readonly leadsWrite: LeadsWriteService,
     private readonly attribution: LeadAttributionService,
     private readonly staffAuth: StaffAuthService,
+    private readonly closedLoop: ChotClosedLoopService,
   ) {}
 
   private actor(req: Request & { staffUser?: StaffJwtPayload }): string {
@@ -120,6 +122,13 @@ export class CrmLeadsLegacyController {
     const gateOpts = await this.statusGateOpts(req, body);
     const lead = await this.leadsWrite.patchLead(id, body, this.actor(req), gateOpts);
     await this.legacy.mirrorPatchAudit(id, prev, lead, this.actor(req), body.audit_note ?? '');
+    await this.closedLoop.processAfterPatch({
+      leadId: id,
+      prevStatus: prev.status,
+      nextStatus: lead.status,
+      auditNote: body.audit_note ?? '',
+      actor: this.actor(req),
+    });
     return { lead };
   }
 }

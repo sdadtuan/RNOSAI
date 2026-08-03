@@ -33,6 +33,7 @@ import { LeadsService } from './leads.service';
 import { LeadsWriteService } from './leads-write.service';
 import { LeadStatusGatePatchOptions, LeadStatusGateService } from './lead-status-gate.service';
 import { LeadSlaCareService } from './lead-sla-care.service';
+import { ChotClosedLoopService } from './chot-closed-loop.service';
 import { CrmConfigService } from '../crm-config/crm-config.service';
 import {
   CreateLeadV1Body,
@@ -53,6 +54,7 @@ export class LeadsController {
     private readonly staffAuth: StaffAuthService,
     private readonly statusGate: LeadStatusGateService,
     private readonly slaCare: LeadSlaCareService,
+    private readonly closedLoop: ChotClosedLoopService,
   ) {}
 
   @Get('lookup-options')
@@ -211,6 +213,25 @@ export class LeadsController {
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
   getLeadSlaCareContext(@Param('id', ParseIntPipe) id: number) {
     return this.slaCare.getCareContext(id);
+  }
+
+  /** Phase 3 — Chốt closed-loop context (VND, QA flags, hub link). */
+  @Get(':id/closed-loop-context')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  getLeadClosedLoopContext(@Param('id', ParseIntPipe) id: number) {
+    return this.closedLoop.getLeadContext(id);
+  }
+
+  /** Phase 3 — Track AI call script copy for playbook A/B. */
+  @Post(':id/closed-loop/script-copy')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard)
+  trackCallScriptCopy(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    const actor = String(req.staffUser?.email ?? req.headers['x-ptt-actor'] ?? 'staff');
+    return this.closedLoop.trackCallScriptCopy(id, actor, 'ai_v1').then(() => ({ ok: true }));
   }
 
   @Get(':id')

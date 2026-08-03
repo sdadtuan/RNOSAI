@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
 import { CskhManagerIntelPanel } from '@/components/crm/CskhManagerIntelPanel';
+import { CskhClosedLoopPanel } from '@/components/crm/CskhClosedLoopPanel';
 import {
   bulkAssignCskhLeads,
   bulkRescheduleCskhLeads,
@@ -494,6 +495,8 @@ export function CskhBoardContent() {
             }}
           />
         ) : null}
+
+        {token && canAssign ? <CskhClosedLoopPanel token={token} /> : null}
 
         <div className="cskh-board-summary-chips" aria-label="Tóm tắt SLA theo tier đang chọn">
           <button

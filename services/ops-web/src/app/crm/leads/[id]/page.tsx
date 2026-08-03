@@ -11,6 +11,7 @@ import { LeadContactActions } from '@/components/crm/LeadContactActions';
 import { LeadContractPanel } from '@/components/LeadContractPanel';
 import { LeadDetailHero } from '@/components/crm/LeadDetailHero';
 import { LeadSlaCarePanel } from '@/components/crm/LeadSlaCarePanel';
+import { ClosedLoopPanel } from '@/components/crm/ClosedLoopPanel';
 import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
 import { LeadEntityTimelinePanel } from '@/components/crm/LeadEntityTimelinePanel';
 import {
@@ -544,6 +545,10 @@ export default function CrmLeadDetailPage() {
                 if (access) void reloadTimeline(access);
               }}
             />
+          ) : null}
+
+          {accessToken && leadFlowKind === 'spa_operational' ? (
+            <ClosedLoopPanel token={accessToken} leadId={leadId} status={status} />
           ) : null}
 
           <div

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { fetchLeadSlaCareContext } from '@/lib/api';
+import { fetchLeadSlaCareContext, trackLeadCallScriptCopy } from '@/lib/api';
 
 interface Props {
   token: string;
@@ -60,7 +60,14 @@ export function CallScriptDraftSection({ token, leadId, onError }: Props) {
         type="button"
         className="btn btn-sm btn-secondary"
         onClick={() =>
-          void navigator.clipboard.writeText(script).then(() => setMessage('Đã copy script vào clipboard.'))
+          void navigator.clipboard.writeText(script).then(async () => {
+            setMessage('Đã copy script vào clipboard.');
+            try {
+              await trackLeadCallScriptCopy(token, leadId);
+            } catch {
+              /* non-blocking */
+            }
+          })
         }
       >
         Copy script

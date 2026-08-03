@@ -73,6 +73,24 @@ export class CskhBoardController {
     return this.board.getSlaDailyDigest();
   }
 
+  /** Phase 3 — QA sampling + deal value fill rate for chốt leads. */
+  @Get('closed-loop-dashboard')
+  closedLoopDashboard(
+    @Query('days') days?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.board.getClosedLoopDashboard(
+      days ? Number(days) : undefined,
+      limit ? Number(limit) : undefined,
+    );
+  }
+
+  /** Phase 3 — Playbook A/B: AI script vs SOP chốt ≤24h. */
+  @Get('playbook-ab-metrics')
+  playbookAbMetrics(@Query('days') days?: string) {
+    return this.board.getPlaybookAbMetrics(days ? Number(days) : undefined);
+  }
+
   @Get('export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   async export(

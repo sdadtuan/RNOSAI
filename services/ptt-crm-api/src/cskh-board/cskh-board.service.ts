@@ -25,6 +25,7 @@ import {
   computeRepPerformance,
   countRootCauses,
 } from './cskh-manager-intelligence.util';
+import { ChotClosedLoopService } from '../leads/chot-closed-loop.service';
 
 @Injectable()
 export class CskhBoardService {
@@ -32,6 +33,7 @@ export class CskhBoardService {
     private readonly repo: CskhBoardRepository,
     private readonly sqlite: CrmLeadsSqliteRepository,
     private readonly legacy: CrmLeadsLegacyService,
+    private readonly closedLoop: ChotClosedLoopService,
   ) {}
 
   async getBoard(query: CskhBoardQuery): Promise<CskhBoardResponse> {
@@ -234,6 +236,14 @@ export class CskhBoardService {
   async getSlaDailyDigest(teamAcceptancePct?: number | null) {
     const intel = await this.getManagerIntelligence(teamAcceptancePct);
     return intel.sla_daily_digest;
+  }
+
+  async getClosedLoopDashboard(windowDays?: number, sampleLimit?: number) {
+    return this.closedLoop.getClosedLoopDashboard(windowDays ?? 30, sampleLimit ?? 20);
+  }
+
+  async getPlaybookAbMetrics(windowDays?: number) {
+    return this.closedLoop.getPlaybookAbMetrics(windowDays ?? 30);
   }
 
   private async loadAllEnrichedRows(): Promise<CskhBoardRow[]> {
