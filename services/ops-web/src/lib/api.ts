@@ -440,6 +440,138 @@ export async function fetchCskhBreachBacklog(token: string): Promise<CskhBreachB
   return body;
 }
 
+export interface CskhShiftHandoffReport {
+  ok: true;
+  shift: {
+    shift_key: 'morning' | 'afternoon' | 'night';
+    shift_label: string;
+    shift_end_ict: string;
+  };
+  generated_at: string;
+  breach_backlog: CskhBreachBacklogSnapshot;
+  open_leads_by_tier: Record<'first_call_15m' | 'b2_complete_4h' | 'close_24h', number>;
+  review_queue_pending: number;
+  review_queue_max_age_hours: number | null;
+  top_breach_leads: Array<{
+    id: number;
+    name: string;
+    tier: 'first_call_15m' | 'b2_complete_4h' | 'close_24h';
+    owner_name: string;
+  }>;
+  handoff_notes: string;
+}
+
+export async function fetchCskhShiftHandoff(token: string): Promise<CskhShiftHandoffReport> {
+  const res = await fetch(`${API_BASE}/api/crm/cskh-board/shift-handoff`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<CskhShiftHandoffReport & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Shift handoff fetch failed', res.status);
+  }
+  return body;
+}
+
+export interface CskhHomeSummary {
+  ok: true;
+  generated_at: string;
+  leads_new_today: number;
+  sla: {
+    breach_count: number;
+    warning_count: number;
+    compliance_pct: number | null;
+    drill_href: string;
+  };
+  review_queue: {
+    pending_count: number;
+    max_age_hours: number | null;
+    drill_href: string;
+  };
+  ai?: {
+    copilot_dau_pct: number | null;
+    pilot_denominator: number;
+    copilot_dau_latest: number;
+    drill_href: string;
+  };
+}
+
+export async function fetchCskhHomeSummary(token: string): Promise<CskhHomeSummary> {
+  const res = await fetch(`${API_BASE}/api/crm/cskh-board/home-summary`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<CskhHomeSummary & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Home summary fetch failed', res.status);
+  }
+  return body;
+}
+
+export type SlaPredictRisk = 'low' | 'medium' | 'high' | 'imminent';
+
+export interface SlaPredictRow {
+  lead_id: number;
+  lead_name: string;
+  owner_id: number | null;
+  tier: 'first_call_15m' | 'b2_complete_4h' | 'close_24h';
+  minutes_remaining: number;
+  risk: SlaPredictRisk;
+  suggested_action: 'log_call' | 'complete_b2' | 'set_chot_audit' | 'set_lost_reason' | 'reassign';
+  reason: string;
+}
+
+export interface CskhSlaPredictionsResponse {
+  ok: true;
+  generated_at: string;
+  items: SlaPredictRow[];
+  total: number;
+}
+
+export async function fetchCskhSlaPredictions(
+  token: string,
+  params?: { owner_id?: number },
+): Promise<CskhSlaPredictionsResponse> {
+  const qs = new URLSearchParams();
+  if (params?.owner_id != null) qs.set('owner_id', String(params.owner_id));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/crm/cskh-board/sla-predictions${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<CskhSlaPredictionsResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'SLA predictions fetch failed', res.status);
+  }
+  return body;
+}
+
+export function cskhSlaAlertsStreamUrl(token: string): string {
+  const qs = new URLSearchParams({ access_token: token });
+  return `${API_BASE}/api/crm/cskh-board/sla-alerts/stream?${qs.toString()}`;
+}
+
+export async function createLeadSlaAutoTask(
+  token: string,
+  leadId: number,
+  body: {
+    tier: SlaPredictRow['tier'];
+    suggested_action: SlaPredictRow['suggested_action'];
+    message?: string;
+  },
+): Promise<{ ok: boolean; activity_id: number; content: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/sla-auto-task`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const out = await parseJson<{ ok: boolean; activity_id: number; content: string; error?: string }>(
+    res,
+  );
+  if (!res.ok) throw new ApiError(out.error ?? 'SLA auto-task failed', res.status);
+  return out;
+}
+
 export async function bulkAssignCskhLeads(
   token: string,
   body: { lead_ids: number[]; to_user_id: number; reason: string },
@@ -744,6 +876,7 @@ export interface GdkdEnterpriseKpiTile {
   target_display: string;
   comparator: 'gte' | 'lte' | 'lt';
   pass: boolean | null;
+  gate_pass?: boolean | null;
   unit: 'pct' | 'count' | 'hours';
   source: string;
   drill_href: string;
@@ -1093,13 +1226,24 @@ export interface ReviewQueueAiSummary {
   suggested_owner_id: number | null;
   suggested_owner_name: string | null;
   suggest_reason: string;
+  priority_score?: number;
+  workload_note?: string;
+  triage_source?: 'rules' | 'llm' | 'llm_stub';
 }
 
 export async function fetchReviewQueueAiSummaries(
   token: string,
   limit = 50,
-): Promise<{ ok: boolean; summaries: ReviewQueueAiSummary[]; total: number }> {
-  return leadFunnelMutate(token, `/api/v1/leads/review-queue/ai-summaries?limit=${limit}`, {
+  mode: 'rules' | 'llm' = 'rules',
+): Promise<{
+  ok: boolean;
+  summaries: ReviewQueueAiSummary[];
+  total: number;
+  mode?: 'rules' | 'llm';
+}> {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (mode === 'llm') qs.set('mode', 'llm');
+  return leadFunnelMutate(token, `/api/v1/leads/review-queue/ai-summaries?${qs.toString()}`, {
     method: 'GET',
   });
 }

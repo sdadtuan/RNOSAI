@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { AiIntelligenceModule } from '../ai-intelligence/ai-intelligence.module';
 import { CustomerTimelineModule } from '../customer-timeline/customer-timeline.module';
 import { LeadsModule } from '../leads/leads.module';
 import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
@@ -11,6 +12,7 @@ import { CrmLeadsSqliteRepository } from './crm-leads-sqlite.repository';
 @Module({
   imports: [
     StaffAuthModule,
+    forwardRef(() => AiIntelligenceModule),
     forwardRef(() => LeadsModule),
     forwardRef(() => CustomerTimelineModule),
     forwardRef(() => LeadsFunnelModule),

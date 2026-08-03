@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { OpsNav } from '@/components/OpsNav';
+import { SlaAlertToastHost } from '@/components/crm/SlaAlertToastHost';
 import type { StoredStaffUser } from '@/lib/auth';
 import { OpsPage } from './OpsPage';
 import type { BreadcrumbItem } from './Breadcrumb';
@@ -35,6 +36,7 @@ export function StaffPageShell({
         agencyUnread={agencyUnread}
         emailPendingApprovals={emailPendingApprovals}
       />
+      <SlaAlertToastHost user={user} />
       <OpsPage breadcrumb={breadcrumb} width={width}>
         {loading || !user ? <p className="muted">Đang tải…</p> : children}
       </OpsPage>

@@ -465,6 +465,138 @@ body:has(.ops-sidebar) main {
   font-size: 1.05rem;
 }
 
+.home-cskh-widgets-card {
+  margin-bottom: 1rem;
+}
+
+.home-cskh-widgets__title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+
+.home-cskh-widgets__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.home-cskh-widget {
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.home-cskh-widget:hover {
+  border-color: var(--accent, #2563eb);
+}
+
+.home-cskh-widget__value {
+  font-size: 1.35rem;
+}
+
+.home-cskh-widget__hint {
+  font-size: 0.8rem;
+}
+
+.home-cskh-widget--alert {
+  border-color: #dc2626;
+}
+
+.home-cskh-widget--ok {
+  border-color: var(--border);
+}
+
+.home-cskh-widgets__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sla-predict-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.sla-predict-badge--medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.sla-predict-badge--high {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.sla-predict-badge--imminent {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.sla-alert-toast-host {
+  position: fixed;
+  top: 4.5rem;
+  right: 1rem;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: min(420px, calc(100vw - 2rem));
+}
+
+.sla-alert-toast {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  padding: 0.75rem;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+.sla-alert-toast--imminent {
+  border-color: #fca5a5;
+}
+
+.sla-alert-toast--high {
+  border-color: #fdba74;
+}
+
+.sla-alert-toast__body {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.sla-alert-toast__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.hub-module-card strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hub-module-card__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: #dc2626;
+  color: #fff;
+}
+
 .meta-badge {
   display: inline-block;
   font-size: 0.75rem;
@@ -3591,6 +3723,78 @@ body:has(.ops-sidebar) main {
   font-size: 0.85rem;
 }
 
+.cskh-shift-handoff,
+.cskh-shift-handoff--loading {
+  margin: 0.75rem 0;
+}
+
+.cskh-shift-handoff__head,
+.cskh-shift-handoff__metrics,
+.cskh-shift-handoff__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cskh-shift-handoff__sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+}
+
+.cskh-shift-handoff__details {
+  margin-top: 0.75rem;
+}
+
+.cskh-shift-handoff__markdown {
+  margin: 0.5rem 0 0;
+  padding: 0.75rem;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.review-queue-priority {
+  display: inline-block;
+  min-width: 2rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.review-queue-priority--p5,
+.review-queue-priority--p4 {
+  background: #fde8e8;
+  color: #b42318;
+}
+
+.review-queue-priority--p3 {
+  background: #fff4e5;
+  color: #b54708;
+}
+
+.review-queue-priority--p2,
+.review-queue-priority--p1 {
+  background: #eef4ff;
+  color: #3538cd;
+}
+
+.review-queue-suggested-owner {
+  font-weight: 600;
+  color: var(--color-primary, #2563eb);
+}
+
+.review-queue-workload-note {
+  font-weight: 400;
+  font-size: 0.85rem;
+}
+
 .cskh-closed-loop__gate {
   margin: 0.35rem 0 0;
   font-size: 0.9rem;
@@ -3607,6 +3811,20 @@ body:has(.ops-sidebar) main {
   border: 1px solid var(--border);
   border-radius: 0.75rem;
   background: var(--surface, #fff);
+}
+
+.nba-acceptance-panel__dismiss {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--bg);
+}
+
+.nba-acceptance-panel__dismiss-list {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+  font-size: 0.9rem;
 }
 
 .cskh-manager-intel {

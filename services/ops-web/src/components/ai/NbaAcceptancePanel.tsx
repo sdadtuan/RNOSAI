@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { formatPct } from '@/lib/kpi/format';
-import { fetchAiAcceptanceMetrics } from '@/lib/ai-api';
+import { fetchAiAcceptanceMetrics, fetchAiDismissReasons } from '@/lib/ai-api';
 
 const NBA_ACCEPTANCE_TARGET_PCT = 35;
 
@@ -10,17 +11,22 @@ export function NbaAcceptancePanel({ token, days = 7 }: { token: string; days?: 
   const [acceptancePct, setAcceptancePct] = useState<number | null>(null);
   const [accepted, setAccepted] = useState(0);
   const [resolved, setResolved] = useState(0);
+  const [dismissReasons, setDismissReasons] = useState<Array<{ reason: string; count: number }>>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
     setError('');
-    void fetchAiAcceptanceMetrics(token, { days, recommendation_type: 'nba' })
-      .then((out) => {
-        setAcceptancePct(out.data.acceptance_rate_pct);
-        setAccepted(out.data.accepted);
-        setResolved(out.data.total_resolved);
+    void Promise.all([
+      fetchAiAcceptanceMetrics(token, { days, recommendation_type: 'nba' }),
+      fetchAiDismissReasons(token, { days, recommendation_type: 'nba' }),
+    ])
+      .then(([acceptance, dismiss]) => {
+        setAcceptancePct(acceptance.data.acceptance_rate_pct);
+        setAccepted(acceptance.data.accepted);
+        setResolved(acceptance.data.total_resolved);
+        setDismissReasons(dismiss.data.top_dismiss_reasons ?? []);
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : 'Tải NBA acceptance thất bại');
@@ -47,6 +53,21 @@ export function NbaAcceptancePanel({ token, days = 7 }: { token: string; days?: 
           Target ≥{formatPct(NBA_ACCEPTANCE_TARGET_PCT)} · {gatePass ? 'Đạt' : 'Chưa đạt'}
         </span>
       </div>
+      {dismissReasons.length > 0 ? (
+        <div className="nba-acceptance-panel__dismiss">
+          <span className="muted">Top lý do dismiss</span>
+          <ul className="nba-acceptance-panel__dismiss-list">
+            {dismissReasons.slice(0, 5).map((row) => (
+              <li key={row.reason}>
+                <code>{row.reason}</code> · {row.count}
+              </li>
+            ))}
+          </ul>
+          <Link href="/crm/ai/insights?status=dismissed" className="btn btn-sm btn-ghost">
+            Xem inbox dismiss
+          </Link>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -28,7 +28,8 @@ export class StaffOrInternalKeyGuard implements CanActivate {
     }
 
     const header = String(req.headers.authorization ?? '').trim();
-    const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+    const queryToken = String((req.query as { access_token?: string })?.access_token ?? '').trim();
+    const token = header.startsWith('Bearer ') ? header.slice(7).trim() : queryToken;
     if (token) {
       req.staffUser = this.staffAuth.verifyAccessToken(token);
       req.staffAuthVia = 'jwt';

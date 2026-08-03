@@ -5,24 +5,34 @@ import {
   Header,
   HttpCode,
   HttpStatus,
+  MessageEvent,
   Post,
   Query,
   Req,
+  Sse,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { Observable } from 'rxjs';
 import { Request } from 'express';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { StaffLeadsWriteGuard } from '../leads/guards/staff-leads-write.guard';
 import { StaffLeadsViewGuard } from '../leads/guards/staff-leads-view.guard';
 import { CskhBoardService } from './cskh-board.service';
+import { SlaAlertService } from './sla-alert.service';
 import type { CskhSlaTier } from './cskh-board-sla.util';
 import { CskhBulkAssignBody, CskhBulkRescheduleBody } from './cskh-board.types';
 
 @Controller('api/crm/cskh-board')
 @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
 export class CskhBoardController {
-  constructor(private readonly board: CskhBoardService) {}
+  constructor(
+    private readonly board: CskhBoardService,
+    private readonly slaAlerts: SlaAlertService,
+    private readonly staffAuth: StaffAuthService,
+  ) {}
 
   private actor(req: Request & { staffUser?: StaffJwtPayload }): string {
     return String(req.staffUser?.email ?? req.headers['x-ptt-actor'] ?? 'staff');
@@ -77,6 +87,54 @@ export class CskhBoardController {
   @Get('breach-backlog')
   breachBacklog() {
     return this.board.getBreachBacklogSnapshot();
+  }
+
+  /** E0 — home dashboard SLA + review queue widgets. */
+  @Get('home-summary')
+  homeSummary() {
+    return this.board.getHomeSummary();
+  }
+
+  /** E3 — shift handoff report (markdown + breach/review snapshot). */
+  @Get('shift-handoff')
+  shiftHandoff() {
+    return this.board.getShiftHandoff();
+  }
+
+  /** E2 — predictive SLA rows (warning window). */
+  @Get('sla-predictions')
+  async slaPredictions(
+    @Query('owner_id') ownerId?: string,
+    @Req() req?: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    const staffUser = req?.staffUser;
+    let viewAll = false;
+    let filterOwner: number | undefined = ownerId ? Number(ownerId) : undefined;
+
+    if (staffUser) {
+      const me = await this.staffAuth.me(staffUser);
+      viewAll = this.staffAuth.hasCap(me.caps, 'crm_leads', 'assign');
+      if (!viewAll) {
+        filterOwner = Number(staffUser.sub);
+      }
+    }
+
+    return this.board.getSlaPredictions({
+      ownerId: filterOwner,
+      viewAll,
+    });
+  }
+
+  /** E2 — SSE stream of high/imminent SLA alerts (poll fallback on client). */
+  @Get('sla-alerts/stream')
+  @Sse()
+  slaAlertsStream(
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ): Observable<MessageEvent> {
+    if (!req.staffUser) {
+      throw new UnauthorizedException({ error: 'staff_required' });
+    }
+    return this.slaAlerts.streamForStaff(req.staffUser);
   }
 
   /** Phase 3 — QA sampling + deal value fill rate for chốt leads. */

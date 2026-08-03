@@ -10,6 +10,20 @@ export interface DismissReasonRow {
   count: number;
 }
 
+export interface AiDismissReasonMetrics {
+  from: string;
+  to: string;
+  recommendation_type: string | null;
+  dismissed: number;
+  top_dismiss_reasons: DismissReasonRow[];
+}
+
+export interface AiDismissReasonMetricsResponse {
+  data: AiDismissReasonMetrics;
+  meta: { request_id: string };
+  errors: [];
+}
+
 export interface AiAcceptanceMetrics {
   acceptance_rate_pct: number | null;
   accepted: number;

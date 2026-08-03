@@ -56,8 +56,12 @@ export class StaffAiScoresBatchGuard implements CanActivate {
       });
     }
 
-    if (!this.aiConfig.isPilotUser(req.staffUser.sub)) {
-      throw new ForbiddenException({ error: 'pilot_cohort_required', staff_id: req.staffUser.sub });
+    if (!this.aiConfig.canUseCopilot(req.staffUser.sub, (await this.staffAuth.me(req.staffUser)).caps)) {
+      throw new ForbiddenException({
+        error: 'copilot_rollout_denied',
+        staff_id: req.staffUser.sub,
+        rollout_mode: this.aiConfig.copilotRolloutMode,
+      });
     }
 
     return true;

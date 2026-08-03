@@ -23,6 +23,8 @@ export interface GdkdEnterpriseKpiTile {
   target_display: string;
   comparator: GdkdKpiComparator;
   pass: boolean | null;
+  /** E5 enterprise sign-off alias — same as `pass`. */
+  gate_pass: boolean | null;
   unit: 'pct' | 'count' | 'hours';
   source: string;
   drill_href: string;
@@ -70,12 +72,14 @@ function hoursDisplay(value: number | null): string {
   return value == null ? '—' : `${value}h`;
 }
 
-function buildTile(input: Omit<GdkdEnterpriseKpiTile, 'pass'> & { pass?: boolean | null }): GdkdEnterpriseKpiTile {
+function buildTile(
+  input: Omit<GdkdEnterpriseKpiTile, 'pass' | 'gate_pass'> & { pass?: boolean | null },
+): GdkdEnterpriseKpiTile {
   const pass =
     input.pass !== undefined
       ? input.pass
       : evaluateKpiPass(input.value, input.target, input.comparator);
-  return { ...input, pass };
+  return { ...input, pass, gate_pass: pass };
 }
 
 export function buildGdkdEnterpriseKpiResponse(input: {

@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
@@ -7,7 +9,12 @@ import {
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
 import { CrmLeadsSqliteRepository } from '../crm-leads-legacy/crm-leads-sqlite.repository';
 import { PlaybooksRepository } from '../playbooks/playbooks.repository';
+import {
+  playbookRankBoostMap,
+  rankPlaybookChunks,
+} from '../playbooks/playbook-closed-loop.util';
 import { cosineSimilarity, embedPlaybookText, keywordScore } from '../playbooks/playbooks.types';
+import { CskhBoardService } from '../cskh-board/cskh-board.service';
 import { CasesSqliteRepository } from '../cases/cases-sqlite.repository';
 import { AI_USE_CASE } from './ai-audit.constants';
 import { AiAuditService } from './ai-audit.service';
@@ -23,9 +30,11 @@ import { computeLeadNbaV1 } from './lead-nba.engine';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
 import { LeadSlaCareService } from '../leads/lead-sla-care.service';
 import type { SlaCareNbaAction } from '../leads/lead-sla-care.util';
+import { AiIntelligenceConfigService } from './ai-intelligence.config';
 import { AiLlmClient } from './ai-llm.client';
 import {
   NBA_LLM_CONFIDENCE_THRESHOLD,
+  parseNbaLlmOutput,
   shouldUseNbaLlmFallback,
   type NbaLlmAction,
 } from './lead-nba-llm.util';
@@ -87,6 +96,9 @@ export class AiNbaService {
     private readonly crmLegacy: CrmLeadsLegacyService,
     private readonly slaCare: LeadSlaCareService,
     private readonly llm: AiLlmClient,
+    private readonly aiConfig: AiIntelligenceConfigService,
+    @Inject(forwardRef(() => CskhBoardService))
+    private readonly cskhBoard: CskhBoardService,
   ) {}
 
   async suggestNextBestAction(input: NextBestActionRequest): Promise<NextBestActionResponse> {
@@ -255,6 +267,20 @@ export class AiNbaService {
 
     const slaNba = await this.slaCare.getSlaNbaForLead(leadId);
     if (slaNba?.nba) {
+      if (this.aiConfig.nbaLlmPrimary) {
+        try {
+          return await this.emitSlaLlmPrimaryNba({
+            leadId,
+            ctx,
+            slaNba: slaNba.nba,
+            requestId,
+            actorId: input.actorId ?? null,
+            force: Boolean(input.force),
+          });
+        } catch {
+          // Rules SLA NBA fallback when LLM unavailable or low confidence.
+        }
+      }
       return this.emitSlaLeadNba({
         leadId,
         ctx,
@@ -437,6 +463,121 @@ export class AiNbaService {
     return this.toResponse(record, 'lead', leadId, requestId, wrapped.runId);
   }
 
+  private async emitSlaLlmPrimaryNba(input: {
+    leadId: number;
+    ctx: { clientId?: string | null; channel?: string | null; status?: string | null };
+    slaNba: {
+      action: SlaCareNbaAction;
+      action_label: string;
+      reason: string;
+      urgency: string;
+      cta_target: string;
+      sla_tier: string | null;
+    };
+    requestId: string;
+    actorId: string | null;
+    force: boolean;
+  }): Promise<NextBestActionResponse> {
+    if (!input.force) {
+      const pending = await this.recommendations.listByEntity('lead', String(input.leadId), 'pending', 1);
+      const existing = pending.find((r) => r.recommendation_type === 'nba');
+      if (existing) {
+        return this.toResponse(existing, 'lead', input.leadId, input.requestId);
+      }
+    }
+
+    const channel = input.ctx.channel ?? 'meta';
+    const rulesAction = input.slaNba.action;
+    const rulesMeta = NBA_ACTIONS[rulesAction] ?? NBA_ACTIONS.log_call;
+    const userContent = [
+      `Lead #${input.leadId}`,
+      `Status: ${input.ctx.status ?? 'new'}`,
+      `Channel: ${channel}`,
+      `SLA tier: ${input.slaNba.sla_tier ?? 'unknown'}`,
+      `Urgency: ${input.slaNba.urgency}`,
+      `Rules SLA action: ${rulesAction}`,
+      `Rules reason: ${input.slaNba.reason}`,
+      'Chọn 1 trong: log_call, complete_b2, set_chot_audit, set_lost_reason (ưu tiên SLA).',
+    ].join('\n');
+
+    const wrapped = await this.audit.wrap(
+      {
+        useCase: AI_USE_CASE.NEXT_BEST_ACTION,
+        entityType: 'lead',
+        entityId: String(input.leadId),
+        clientId: input.ctx.clientId,
+        actorId: input.actorId,
+        correlationId: input.requestId,
+        modelName: 'nba-sla-llm-primary-v1',
+        input: {
+          lead_id: input.leadId,
+          source: 'sla_care_llm_primary',
+          rules_action: rulesAction,
+          sla_tier: input.slaNba.sla_tier,
+        },
+      },
+      async () => {
+        const result = await this.llm.nbaStructured({
+          systemPrompt:
+            'Bạn là copilot CSKH Spa Meta SLA. Trả JSON: {"action":"log_call|complete_b2|set_chot_audit|set_lost_reason","reason":"...","confidence":0.0-1.0}. Draft only — không auto gửi khách.',
+          userContent,
+          channel,
+          status: input.ctx.status,
+        });
+        return {
+          data: result.parsed,
+          output: { action: result.parsed.action, reason: result.parsed.reason },
+          modelName: result.stubMode ? 'nba-sla-llm-stub' : 'nba-sla-llm-primary-v1',
+          tokenUsage: result.tokenUsage,
+        };
+      },
+    );
+
+    const parsed = parseNbaLlmOutput(wrapped.data);
+    if (!parsed || parsed.confidence < NBA_LLM_CONFIDENCE_THRESHOLD) {
+      throw new ServiceUnavailableException({ error: 'nba_sla_llm_low_confidence' });
+    }
+
+    const slaActions = new Set<SlaCareNbaAction>([
+      'log_call',
+      'complete_b2',
+      'set_chot_audit',
+      'set_lost_reason',
+    ]);
+    const action = slaActions.has(parsed.action as SlaCareNbaAction)
+      ? (parsed.action as SlaCareNbaAction)
+      : rulesAction;
+    const actionMeta = NBA_ACTIONS[action] ?? rulesMeta;
+    const reason = parsed.reason || input.slaNba.reason;
+    const citation = await this.resolvePlaybookCitation(
+      `${actionMeta.ragQuery} ${channel} ${input.ctx.status ?? 'new'}`,
+    );
+
+    const record = await this.recommendations.insert({
+      entityType: 'lead',
+      entityId: String(input.leadId),
+      recommendationType: 'nba',
+      text: `${actionMeta.label}: ${reason}`,
+      actionJson: {
+        action,
+        action_label: actionMeta.label,
+        task_template: actionMeta.taskTemplate,
+        reason,
+        source: 'sla_care_llm_primary_v1',
+        urgency: input.slaNba.urgency,
+        cta_target: input.slaNba.cta_target,
+        sla_tier: input.slaNba.sla_tier,
+        rules_action: rulesAction,
+        llm_confidence: parsed.confidence,
+        playbook_citation: citation,
+      },
+      confidence: parsed.confidence,
+      agentRunId: wrapped.runId,
+    });
+
+    return this.toResponse(record, 'lead', input.leadId, input.requestId, wrapped.runId);
+  }
+
   private async emitLlmLeadNba(input: {
     leadId: number;
     ctx: {
@@ -546,13 +687,35 @@ export class AiNbaService {
       await this.playbooks.ensureSeedData();
       const rows = await this.playbooks.listAllChunks();
       if (!rows.length) return null;
+
+      let rankBoost = new Map<string, number>();
+      try {
+        const ab = await this.cskhBoard.getPlaybookAbMetrics(30);
+        const ranked = rankPlaybookChunks(
+          rows.map((row) => ({
+            playbook_id: row.playbook_id,
+            playbook_title: row.playbook_title,
+            chunk_id: row.id,
+            chunk_title: row.title,
+            chunk_key: row.chunk_key,
+            body: row.body,
+          })),
+          ab,
+          'cskh_sla',
+        );
+        rankBoost = playbookRankBoostMap(ranked);
+      } catch {
+        rankBoost = new Map();
+      }
+
       const queryVec = embedPlaybookText(q);
       const top = rows
         .map((row) => {
           const emb = row.embedding_json ?? embedPlaybookText(`${row.title} ${row.body}`);
           const vectorScore = cosineSimilarity(queryVec, emb);
           const kw = keywordScore(q, `${row.title} ${row.body}`);
-          return { row, score: vectorScore * 0.7 + Math.min(kw, 3) * 0.1 };
+          const boost = rankBoost.get(row.id) ?? 0;
+          return { row, score: vectorScore * 0.7 + Math.min(kw, 3) * 0.1 + boost * 0.08 };
         })
         .sort((a, b) => b.score - a.score)[0];
       if (!top || top.score <= 0) return null;

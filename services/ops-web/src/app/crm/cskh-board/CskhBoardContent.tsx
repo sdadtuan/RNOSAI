@@ -7,16 +7,19 @@ import { PageToolbar, StaffPageShell } from '@/components/layout';
 import { CskhManagerIntelPanel } from '@/components/crm/CskhManagerIntelPanel';
 import { CskhClosedLoopPanel } from '@/components/crm/CskhClosedLoopPanel';
 import { CskhBreachBacklogPanel } from '@/components/crm/CskhBreachBacklogPanel';
+import { CskhShiftHandoffPanel } from '@/components/crm/CskhShiftHandoffPanel';
 import {
   bulkAssignCskhLeads,
   bulkRescheduleCskhLeads,
   cskhBoardExportUrl,
   fetchCskhBoard,
+  fetchCskhSlaPredictions,
   fetchCrmStaffList,
   staffMe,
   staffRefresh,
   type CskhBoardResponse,
   type CskhBoardRow,
+  type SlaPredictRow,
 } from '@/lib/api';
 import {
   clearSession,
@@ -81,6 +84,14 @@ function tierSnapshot(row: CskhBoardRow, tier: SlaTier) {
   return row.sla_tiers.find((item) => item.tier === tier);
 }
 
+function predictRiskLabel(pred: SlaPredictRow | undefined): string | null {
+  if (!pred) return null;
+  if (pred.risk === 'imminent') return `Sắp breach · ${pred.minutes_remaining}p`;
+  if (pred.risk === 'high') return `High · ${pred.minutes_remaining}p`;
+  if (pred.risk === 'medium') return `Medium · ${pred.minutes_remaining}p`;
+  return null;
+}
+
 function formatElapsed(minutes: number | null | undefined): string {
   if (minutes == null) return '—';
   if (minutes < 60) return `${minutes}p`;
@@ -95,12 +106,14 @@ function CskhLeadCard({
   selected,
   onToggle,
   activeTier,
+  predict,
 }: {
   row: CskhBoardRow;
   canAssign: boolean;
   selected: boolean;
   onToggle: () => void;
   activeTier: SlaTier;
+  predict?: SlaPredictRow;
 }) {
   const tier = tierSnapshot(row, activeTier);
   const badge = slaBadge(tier?.sla_state ?? row.sla_state);
@@ -139,6 +152,11 @@ function CskhLeadCard({
           <span>Chốt: {row.closed_at?.slice(0, 16) ?? '—'}</span>
         </div>
         <div className="cskh-board-card__sla-tiers">
+          {predict ? (
+            <span className={`sla-predict-badge sla-predict-badge--${predict.risk}`}>
+              {predictRiskLabel(predict)}
+            </span>
+          ) : null}
           {row.sla_tiers.map((item) => (
             <span
               key={item.tier}
@@ -181,8 +199,26 @@ export function CskhBoardContent() {
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [predictByLead, setPredictByLead] = useState<Map<number, SlaPredictRow>>(new Map());
 
   const canAssign = hasCap(user, 'crm_leads', 'assign');
+
+  const loadPredictions = useCallback(async (accessToken: string) => {
+    try {
+      const data = await fetchCskhSlaPredictions(accessToken);
+      const map = new Map<number, SlaPredictRow>();
+      const rank = { low: 1, medium: 2, high: 3, imminent: 4 };
+      for (const item of data.items) {
+        const existing = map.get(item.lead_id);
+        if (!existing || rank[item.risk] > rank[existing.risk]) {
+          map.set(item.lead_id, item);
+        }
+      }
+      setPredictByLead(map);
+    } catch {
+      setPredictByLead(new Map());
+    }
+  }, []);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -256,13 +292,14 @@ export function CskhBoardContent() {
         setTotal(data.total);
         setOffset(data.offset);
         setSelected(new Set());
+        void loadPredictions(accessToken);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải bảng CSKH thất bại');
       } finally {
         setLoading(false);
       }
     },
-    [ownerId, query, slaFilter, slaTier],
+    [ownerId, query, slaFilter, slaTier, loadPredictions],
   );
 
   useEffect(() => {
@@ -519,6 +556,7 @@ export function CskhBoardContent() {
         </div>
 
         {token ? <CskhBreachBacklogPanel token={token} /> : null}
+        {token && canAssign ? <CskhShiftHandoffPanel token={token} /> : null}
 
         {token && canAssign ? (
           <CskhManagerIntelPanel
@@ -639,12 +677,14 @@ export function CskhBoardContent() {
                 <th>B2 done</th>
                 <th>Closed</th>
                 <th>SLA tiers</th>
+                <th>Risk</th>
                 <th>Follow-up</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => {
                 const tier = tierSnapshot(row, slaTier);
+                const predict = predictByLead.get(row.id);
                 return (
                   <tr key={row.id} className={tier?.sla_state === 'breach' ? 'row-danger' : undefined}>
                     {canAssign ? (
@@ -684,6 +724,15 @@ export function CskhBoardContent() {
                         <span className="muted"> · {formatElapsed(tier.elapsed_minutes)}</span>
                       ) : null}
                     </td>
+                    <td>
+                      {predict ? (
+                        <span className={`sla-predict-badge sla-predict-badge--${predict.risk}`}>
+                          {predictRiskLabel(predict)}
+                        </span>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
                     <td>{row.next_follow_up_at?.slice(0, 16) ?? '—'}</td>
                   </tr>
                 );
@@ -702,6 +751,7 @@ export function CskhBoardContent() {
               selected={selected.has(row.id)}
               onToggle={() => toggleOne(row.id)}
               activeTier={slaTier}
+              predict={predictByLead.get(row.id)}
             />
           ))}
           {!loading && rows.length === 0 ? (

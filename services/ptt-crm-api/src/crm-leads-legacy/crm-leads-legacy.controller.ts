@@ -28,6 +28,8 @@ import { CrmLeadsLegacyService } from './crm-leads-legacy.service';
 import { LeadAttributionService } from '../leads/lead-attribution.service';
 import { LeadAttributionResponse } from '../leads/lead-attribution.types';
 import { ChotClosedLoopService } from '../leads/chot-closed-loop.service';
+import { AiScoreFeedbackService } from '../ai-intelligence/ai-score-feedback.service';
+import { AiIntelligenceModule } from '../ai-intelligence/ai-intelligence.module';
 import { AssignLeadBody, CreateLeadActivityBody } from './crm-leads-legacy.types';
 
 @Controller('api/crm/leads')
@@ -40,6 +42,7 @@ export class CrmLeadsLegacyController {
     private readonly attribution: LeadAttributionService,
     private readonly staffAuth: StaffAuthService,
     private readonly closedLoop: ChotClosedLoopService,
+    private readonly scoreFeedback: AiScoreFeedbackService,
   ) {}
 
   private actor(req: Request & { staffUser?: StaffJwtPayload }): string {
@@ -129,6 +132,7 @@ export class CrmLeadsLegacyController {
       auditNote: body.audit_note ?? '',
       actor: this.actor(req),
     });
+    await this.scoreFeedback.onLeadTerminalStatus(id, String(lead.status ?? ''));
     return { lead };
   }
 }

@@ -4,16 +4,21 @@ import {
   ForbiddenException,
   Injectable,
   ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
+import { StaffAuthService } from '../../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
 import { AiIntelligenceConfigService } from '../ai-intelligence.config';
 
 @Injectable()
 export class StaffAiCopilotGuard implements CanActivate {
-  constructor(private readonly aiConfig: AiIntelligenceConfigService) {}
+  constructor(
+    private readonly aiConfig: AiIntelligenceConfigService,
+    private readonly staffAuth: StaffAuthService,
+  ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<
       Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' }
     >();
@@ -31,11 +36,16 @@ export class StaffAiCopilotGuard implements CanActivate {
 
     const staffId = req.staffUser?.sub;
     if (!staffId) {
-      throw new ForbiddenException({ error: 'staff_required' });
+      throw new UnauthorizedException({ error: 'staff_required' });
     }
 
-    if (!this.aiConfig.isPilotUser(staffId)) {
-      throw new ForbiddenException({ error: 'pilot_cohort_required', staff_id: staffId });
+    const me = await this.staffAuth.me(req.staffUser!);
+    if (!this.aiConfig.canUseCopilot(staffId, me.caps)) {
+      throw new ForbiddenException({
+        error: 'copilot_rollout_denied',
+        staff_id: staffId,
+        rollout_mode: this.aiConfig.copilotRolloutMode,
+      });
     }
 
     return true;

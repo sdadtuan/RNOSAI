@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { AiAuditService } from '../ai-intelligence/ai-audit.service';
+import { ChotClosedLoopService } from '../leads/chot-closed-loop.service';
 import { PlaybooksRepository } from './playbooks.repository';
+import { buildPlaybookRankResponse, type PlaybookRankContext } from './playbook-closed-loop.util';
 import {
   CreatePlaybookBody,
   CreatePlaybookChunkBody,
@@ -21,6 +23,7 @@ export class PlaybooksService {
   constructor(
     private readonly repo: PlaybooksRepository,
     private readonly audit: AiAuditService,
+    private readonly closedLoop: ChotClosedLoopService,
   ) {}
 
   private async assertReady(): Promise<void> {
@@ -78,6 +81,39 @@ export class PlaybooksService {
     }
     await this.repo.insertChunk(playbookId, body);
     return this.getById(playbookId, requestId);
+  }
+
+  async listRanked(contextRaw?: string, requestId?: string) {
+    await this.assertReady();
+    await this.repo.ensureSeedData();
+    const context: PlaybookRankContext = contextRaw === 'general' ? 'general' : 'cskh_sla';
+    const [chunks, abPayload] = await Promise.all([
+      this.repo.listAllChunks(),
+      this.closedLoop.getPlaybookAbMetrics(30),
+    ]);
+    const ranked = buildPlaybookRankResponse({
+      context,
+      abMetrics: {
+        window_days: abPayload.window_days,
+        ai_v1: abPayload.ai_v1,
+        sop: abPayload.sop,
+        unknown: abPayload.unknown,
+        narrative: abPayload.narrative,
+      },
+      chunks: chunks.map((row) => ({
+        playbook_id: row.playbook_id,
+        playbook_title: row.playbook_title,
+        chunk_id: row.id,
+        chunk_title: row.title,
+        chunk_key: row.chunk_key,
+        body: row.body,
+      })),
+    });
+    return {
+      data: ranked,
+      meta: { request_id: requestId?.trim() || randomUUID() },
+      errors: [],
+    };
   }
 
   async ragQuery(input: PlaybookRagQuery, requestId?: string): Promise<PlaybookRagResponse> {

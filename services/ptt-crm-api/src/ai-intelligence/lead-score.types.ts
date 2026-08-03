@@ -110,9 +110,19 @@ export type AiScoresBatchResponse = {
 };
 
 export const LEAD_SCORE_MODEL = 'rules-v1';
+export const LEAD_SCORE_MODEL_V2 = 'rules-v2';
 export const LEAD_SCORE_OVERRIDE_MODEL = 'manual_override';
 export const LEAD_SCORE_MODEL_VERSION = 'lead-v1';
+export const LEAD_SCORE_MODEL_VERSION_V2 = 'lead-v2';
 export const LEAD_SCORE_IDEMPOTENCY_MINUTES = 5;
+
+export interface ScoreFeedbackAggregate {
+  override_count: number;
+  avg_override_score: number | null;
+  outcome_chot: number;
+  outcome_lost: number;
+  outcome_stalled: number;
+}
 
 export interface OverrideLeadScoreRequest {
   leadId: number;

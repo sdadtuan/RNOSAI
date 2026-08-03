@@ -55,6 +55,19 @@ export interface LlmNbaResult {
   stubMode: boolean;
 }
 
+export interface LlmReviewQueueTriageInput {
+  systemPrompt: string;
+  userContent: string;
+  model?: string;
+}
+
+export interface LlmReviewQueueTriageResult {
+  parsed: Record<string, unknown>;
+  tokenUsage: AiTokenUsage;
+  modelName: string;
+  stubMode: boolean;
+}
+
 @Injectable()
 export class AiLlmClient {
   constructor(private readonly aiConfig: AiIntelligenceConfigService) {}
@@ -175,6 +188,48 @@ export class AiLlmClient {
       if (parsed.source === 'llm') {
         parsed.source = 'llm';
       }
+      return { parsed, tokenUsage, modelName: model, stubMode: false };
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new ServiceUnavailableException({
+          error: 'llm_timeout',
+          error_code: AI_AUDIT_ERROR.LLM_TIMEOUT,
+          message: 'LLM timeout',
+        });
+      }
+      throw new ServiceUnavailableException({
+        error: 'llm_provider_error',
+        error_code: AI_AUDIT_ERROR.LLM_PROVIDER_ERROR,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  async reviewQueueTriageStructured(
+    input: LlmReviewQueueTriageInput,
+  ): Promise<LlmReviewQueueTriageResult> {
+    const apiKey = this.aiConfig.llmApiKey;
+    const model = input.model ?? this.aiConfig.llmModel;
+
+    if (!apiKey) {
+      return {
+        parsed: { items: [] },
+        tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        modelName: `${model}-stub`,
+        stubMode: true,
+      };
+    }
+
+    try {
+      const raw = await this.callOpenAiChat({
+        apiKey,
+        model,
+        systemPrompt: input.systemPrompt,
+        userContent: input.userContent,
+        timeoutMs: this.aiConfig.llmTimeoutMs,
+      });
+      const tokenUsage = raw.tokenUsage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+      const { tokenUsage: _tu, ...parsed } = raw;
       return { parsed, tokenUsage, modelName: model, stubMode: false };
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {

@@ -77,6 +77,8 @@ describe('gdkd-enterprise-kpi.util', () => {
 
     expect(out.tiles).toHaveLength(8);
     expect(out.tiles[0]?.pass).toBe(true);
+    expect(out.tiles[0]?.gate_pass).toBe(true);
+    expect(out.tiles.every((t) => t.gate_pass === t.pass)).toBe(true);
     expect(out.tiles[3]?.pass).toBe(false);
     expect(out.tiles[4]?.pass).toBe(true);
     expect(out.tiles[6]?.target).toBe(GDKD_KPI_TARGETS.nba_acceptance_pct);

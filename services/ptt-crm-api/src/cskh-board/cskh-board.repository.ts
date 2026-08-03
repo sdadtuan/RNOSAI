@@ -96,6 +96,25 @@ export class CskhBoardRepository implements OnModuleDestroy {
     };
   }
 
+  /** Spa Meta cohort — leads received on current ICT calendar day. */
+  async countSpaMetaLeadsReceivedToday(): Promise<number> {
+    const result = await this.db.query(
+      `SELECT COUNT(*)::int AS c
+       FROM crm_leads l
+       WHERE l.is_duplicate IS NOT TRUE
+         AND (
+           lower(COALESCE(l.channel, '')) IN ('meta', 'facebook')
+           OR lower(COALESCE(l.source, '')) IN ('meta', 'facebook')
+           OR l.agency_client_id IS NOT NULL
+         )
+         AND date_trunc(
+           'day',
+           COALESCE(l.received_at, l.created_at) AT TIME ZONE 'Asia/Ho_Chi_Minh'
+         ) = date_trunc('day', NOW() AT TIME ZONE 'Asia/Ho_Chi_Minh')`,
+    );
+    return Number(result.rows[0]?.c ?? 0);
+  }
+
   static toBoardRowBase(row: PgLeadRow & { care_stages_done_json?: string | null; updated_at?: Date | string | null }): Omit<
     CskhBoardRow,
     | 'first_call_at'

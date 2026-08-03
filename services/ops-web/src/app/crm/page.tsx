@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { HubPageLayout, StaffPageShell } from '@/components/layout';
-import { fetchCrmBoard, staffMe, staffRefresh, type CrmBoardModuleCard } from '@/lib/api';
+import { fetchCrmBoard, fetchCskhHomeSummary, staffMe, staffRefresh, type CrmBoardModuleCard } from '@/lib/api';
 import {
   clearSession,
   getAccessToken,
@@ -22,8 +22,10 @@ export default function CrmBoardPage() {
   const [modules, setModules] = useState<CrmBoardModuleCard[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [slaBreachBadge, setSlaBreachBadge] = useState<number | null>(null);
+  const [reviewQueueBadge, setReviewQueueBadge] = useState<number | null>(null);
 
-  const ensureAuth = useCallback(async (): Promise<string | null> => {
+  const ensureAuth = useCallback(async (): Promise<{ access: string; me: StoredStaffUser } | null> => {
     let access = getAccessToken();
     if (!access) {
       router.replace('/login');
@@ -43,7 +45,7 @@ export default function CrmBoardPage() {
         setError('Không có quyền CRM Board');
         return null;
       }
-      return access;
+      return { access, me };
     } catch {
       const refresh = getRefreshToken();
       if (!refresh) {
@@ -57,19 +59,30 @@ export default function CrmBoardPage() {
       const me = await staffMe(access);
       setUser(me);
       updateStoredUser(me);
-      return access;
+      return { access, me };
     }
   }, [router]);
 
   useEffect(() => {
     void (async () => {
-      const access = await ensureAuth();
-      if (!access) return;
+      const auth = await ensureAuth();
+      if (!auth) return;
+      const { access, me } = auth;
       setLoading(true);
       setError('');
       try {
         const board = await fetchCrmBoard(access);
         setModules(board.modules ?? []);
+        if (hasCap(me, 'crm_leads', 'view')) {
+          try {
+            const summary = await fetchCskhHomeSummary(access);
+            setSlaBreachBadge(summary.sla.breach_count);
+            setReviewQueueBadge(summary.review_queue.pending_count);
+          } catch {
+            setSlaBreachBadge(null);
+            setReviewQueueBadge(null);
+          }
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Không tải được CRM board');
       } finally {
@@ -100,12 +113,27 @@ export default function CrmBoardPage() {
           <p className="muted">Chưa có module nào khả dụng với quyền hiện tại.</p>
         ) : null}
         <div className="hub-module-grid">
-          {modules.map((mod) => (
-            <Link key={mod.id} href={mod.href} className="summary-card">
-              <span className="muted">{mod.description}</span>
-              <strong>{mod.label}</strong>
-            </Link>
-          ))}
+          {modules.map((mod) => {
+            const badge =
+              mod.id === 'cskh_board' && slaBreachBadge != null && slaBreachBadge > 0
+                ? slaBreachBadge
+                : mod.id === 'leads' && reviewQueueBadge != null && reviewQueueBadge > 0
+                  ? reviewQueueBadge
+                  : null;
+            return (
+              <Link key={mod.id} href={mod.href} className="summary-card hub-module-card">
+                <span className="muted">{mod.description}</span>
+                <strong>
+                  {mod.label}
+                  {badge != null ? (
+                    <span className="hub-module-card__badge" aria-label={`${badge} pending`}>
+                      {badge}
+                    </span>
+                  ) : null}
+                </strong>
+              </Link>
+            );
+          })}
         </div>
       </HubPageLayout>
     </StaffPageShell>

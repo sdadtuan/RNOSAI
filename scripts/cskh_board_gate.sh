@@ -27,7 +27,7 @@ else
   bad "SLA unit tests failed"
 fi
 
-if python3 -c "from ptt_crm.prod_h_gates import audit_prod_stub_flags; print(audit_prod_stub_flags())"; then
+if PYTHONPATH="$ROOT" python3 -c "from ptt_crm.prod_h_gates import audit_prod_stub_flags; print(audit_prod_stub_flags())"; then
   ok "prod_h_gates import"
 else
   bad "prod_h_gates import"

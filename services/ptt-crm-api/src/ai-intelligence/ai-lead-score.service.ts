@@ -9,16 +9,21 @@ import { LeadsRepository } from '../leads/leads.repository';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { AI_USE_CASE } from './ai-audit.constants';
+import { AiIntelligenceConfigService } from './ai-intelligence.config';
 import { AiAuditService } from './ai-audit.service';
 import { AiScoreRecord } from './lead-score.types';
 import { AiScoresRepository } from './ai-scores.repository';
-import { computeLeadScoreV1 } from './lead-score.engine';
+import { AiScoreFeedbackRepository } from './ai-score-feedback.repository';
+import { AiScoreFeedbackService } from './ai-score-feedback.service';
+import { computeLeadScoreV1, computeLeadScoreV2 } from './lead-score.engine';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
 import {
   AiScoresBatchResponse,
   AiScoresListResponse,
   LEAD_SCORE_MODEL,
+  LEAD_SCORE_MODEL_V2,
   LEAD_SCORE_MODEL_VERSION,
+  LEAD_SCORE_MODEL_VERSION_V2,
   LEAD_SCORE_OVERRIDE_MODEL,
   OverrideLeadScoreRequest,
   OverrideLeadScoreResponse,
@@ -36,6 +41,8 @@ export class AiLeadScoreService {
     private readonly events: DomainEventService,
     private readonly leads: LeadsRepository,
     private readonly staffAuth: StaffAuthService,
+    private readonly aiConfig: AiIntelligenceConfigService,
+    private readonly scoreFeedback: AiScoreFeedbackService,
   ) {}
 
   async scoreLead(input: ScoreLeadRequest): Promise<ScoreLeadResponse> {
@@ -61,7 +68,13 @@ export class AiLeadScoreService {
       throw new NotFoundException({ error: 'lead_not_found', lead_id: input.leadId });
     }
 
-    const engineResult = computeLeadScoreV1(ctx);
+    const useV2 = this.aiConfig.scoreV2Enabled;
+    const modelName = useV2 ? LEAD_SCORE_MODEL_V2 : LEAD_SCORE_MODEL;
+    const modelVersion = useV2 ? LEAD_SCORE_MODEL_VERSION_V2 : LEAD_SCORE_MODEL_VERSION;
+    const feedback = useV2 ? await this.scoreFeedback.aggregateForLead(input.leadId) : null;
+    const engineResult = useV2
+      ? computeLeadScoreV2(ctx, feedback)
+      : computeLeadScoreV1(ctx);
 
     const wrapped = await this.audit.wrap(
       {
@@ -71,12 +84,13 @@ export class AiLeadScoreService {
         clientId: input.clientId ?? ctx.clientId,
         actorId: input.actorId ?? null,
         correlationId: requestId,
-        modelName: LEAD_SCORE_MODEL,
+        modelName,
         input: {
           lead_id: input.leadId,
           channel: ctx.channel,
           campaign_id: ctx.campaignId,
           features: engineResult.features,
+          score_v2: useV2,
         },
       },
       async () => ({
@@ -86,7 +100,7 @@ export class AiLeadScoreService {
           confidence: engineResult.confidence,
           score_band: engineResult.explainability.score_band,
         },
-        modelName: LEAD_SCORE_MODEL,
+        modelName,
         tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
       }),
     );
@@ -101,6 +115,8 @@ export class AiLeadScoreService {
       features: wrapped.data.features,
       explainability: wrapped.data.explainability,
       agentRunId: wrapped.runId,
+      modelName,
+      modelVersion,
     });
 
     await this.events.emit(
@@ -113,12 +129,12 @@ export class AiLeadScoreService {
         score: row.score_value,
         confidence: row.confidence,
         agent_run_id: wrapped.runId,
-        model: LEAD_SCORE_MODEL,
-        model_version: LEAD_SCORE_MODEL_VERSION,
+        model: modelName,
+        model_version: modelVersion,
         canonical_event: 'tenant.lead.scored',
       },
       requestId,
-      `LeadScored:lead:${entityId}:${LEAD_SCORE_MODEL_VERSION}`,
+      `LeadScored:lead:${entityId}:${modelVersion}`,
     );
 
     return this.toScoreResponse(row, input.leadId, requestId, false, wrapped.runId);
@@ -243,6 +259,12 @@ export class AiLeadScoreService {
       requestId,
       `LeadScoreOverridden:lead:${entityId}:${row.id}`,
     );
+
+    await this.scoreFeedback.recordOverride({
+      leadId: input.leadId,
+      staffId: actorId,
+      overrideScore: roundedScore,
+    });
 
     return this.toScoreResponse(row, input.leadId, requestId, false, wrapped.runId);
   }

@@ -18,7 +18,7 @@ import {
 } from '@/components/layout';
 import { fetchLeads, bulkAssignLeads, fetchCrmStaffList, fetchLeadLookupOptions, fetchReviewQueueCount, staffMe, staffRefresh } from '@/lib/api';
 import type { CrmLeadLookupOption, CrmStaffRow, LeadRow } from '@/lib/api';
-import { aiCopilotEnabled, isAiPilotUser } from '@/lib/ai-flags';
+import { aiCopilotEnabled, canUseAiCopilot } from '@/lib/ai-flags';
 import { useLeadScoresMap } from '@/hooks/useLeadScoresMap';
 import {
   clearSession,
@@ -222,8 +222,8 @@ export default function CrmLeadsPage() {
   const selectedList = useMemo(() => [...selectedIds], [selectedIds]);
   const leadIds = useMemo(() => rows.map((row) => row.id), [rows]);
   const showScores = useMemo(
-    () => aiCopilotEnabled() && isAiPilotUser(user?.id),
-    [user?.id],
+    () => aiCopilotEnabled() && canUseAiCopilot(user?.id, user?.caps),
+    [user?.id, user?.caps],
   );
   const { scores: scoreMap, pending: scoresPending } = useLeadScoresMap(token, leadIds, showScores);
 

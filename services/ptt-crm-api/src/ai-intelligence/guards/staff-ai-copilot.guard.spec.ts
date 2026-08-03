@@ -1,18 +1,25 @@
-import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
+import { ForbiddenException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { ExecutionContext } from '@nestjs/common/interfaces';
 import { StaffAiCopilotGuard } from './staff-ai-copilot.guard';
 
 describe('StaffAiCopilotGuard', () => {
   const aiConfig = {
     copilotEnabled: true,
-    isPilotUser: jest.fn(),
+    copilotRolloutMode: 'pilot' as const,
+    canUseCopilot: jest.fn(),
+  };
+  const staffAuth = {
+    me: jest.fn(),
   };
 
   let guard: StaffAiCopilotGuard;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    guard = new StaffAiCopilotGuard(aiConfig as never);
+    (aiConfig as { copilotEnabled: boolean }).copilotEnabled = true;
+    aiConfig.copilotRolloutMode = 'pilot';
+    staffAuth.me.mockResolvedValue({ caps: [{ section: 'crm_leads', action: 'view' }] });
+    guard = new StaffAiCopilotGuard(aiConfig as never, staffAuth as never);
   });
 
   function ctx(req: Record<string, unknown>): ExecutionContext {
@@ -23,32 +30,30 @@ describe('StaffAiCopilotGuard', () => {
     } as ExecutionContext;
   }
 
-  it('throws when copilot disabled', () => {
+  it('throws when copilot disabled', async () => {
     (aiConfig as { copilotEnabled: boolean }).copilotEnabled = false;
-    expect(() => guard.canActivate(ctx({}))).toThrow(ServiceUnavailableException);
+    await expect(guard.canActivate(ctx({}))).rejects.toThrow(ServiceUnavailableException);
   });
 
-  it('allows internal key bypass', () => {
-    (aiConfig as { copilotEnabled: boolean }).copilotEnabled = true;
-    expect(guard.canActivate(ctx({ staffAuthVia: 'internal' }))).toBe(true);
+  it('allows internal key bypass', async () => {
+    await expect(guard.canActivate(ctx({ staffAuthVia: 'internal' }))).resolves.toBe(true);
   });
 
-  it('requires staff jwt when not internal', () => {
-    (aiConfig as { copilotEnabled: boolean }).copilotEnabled = true;
-    expect(() => guard.canActivate(ctx({}))).toThrow(ForbiddenException);
+  it('requires staff jwt when not internal', async () => {
+    await expect(guard.canActivate(ctx({}))).rejects.toThrow(UnauthorizedException);
   });
 
-  it('blocks non-pilot staff', () => {
-    (aiConfig as { copilotEnabled: boolean }).copilotEnabled = true;
-    aiConfig.isPilotUser.mockReturnValue(false);
-    expect(() =>
+  it('blocks staff outside rollout', async () => {
+    aiConfig.canUseCopilot.mockReturnValue(false);
+    await expect(
       guard.canActivate(ctx({ staffUser: { sub: 'staff-x' } })),
-    ).toThrow(ForbiddenException);
+    ).rejects.toThrow(ForbiddenException);
   });
 
-  it('allows pilot staff', () => {
-    (aiConfig as { copilotEnabled: boolean }).copilotEnabled = true;
-    aiConfig.isPilotUser.mockReturnValue(true);
-    expect(guard.canActivate(ctx({ staffUser: { sub: 'staff-1' } }))).toBe(true);
+  it('allows staff in rollout', async () => {
+    aiConfig.canUseCopilot.mockReturnValue(true);
+    await expect(
+      guard.canActivate(ctx({ staffUser: { sub: 'staff-1' } })),
+    ).resolves.toBe(true);
   });
 });

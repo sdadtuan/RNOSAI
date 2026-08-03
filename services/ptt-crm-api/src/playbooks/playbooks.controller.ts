@@ -46,6 +46,16 @@ export class PlaybooksController {
     );
   }
 
+  @Get('ranked')
+  @UseGuards(StaffPlaybooksViewGuard)
+  listRanked(
+    @Query('context') context?: string,
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    return this.playbooks.listRanked(context, correlationId?.trim() || requestId?.trim());
+  }
+
   @Get(':id')
   @UseGuards(StaffPlaybooksViewGuard)
   getById(

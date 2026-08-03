@@ -6,9 +6,20 @@ function envFlag(name: string, defaultValue = false): boolean {
   return ['1', 'true', 'yes', 'on'].includes(raw);
 }
 
+export type CopilotRolloutMode = 'pilot' | 'team' | 'all';
+
+export interface StaffCapRef {
+  section: string;
+  action: string;
+}
+
 @Injectable()
 export class AiIntelligenceConfigService {
   readonly copilotEnabled: boolean;
+  readonly copilotRolloutMode: CopilotRolloutMode;
+  readonly copilotTeamCaps: string[];
+  readonly nbaLlmPrimary: boolean;
+  readonly scoreV2Enabled: boolean;
   readonly pilotUserIds: string[];
   readonly llmProvider: string;
   readonly llmModel: string;
@@ -28,6 +39,15 @@ export class AiIntelligenceConfigService {
 
   constructor() {
     this.copilotEnabled = envFlag('PTT_AI_COPILOT_ENABLED', false);
+    const rolloutRaw = (process.env.PTT_AI_COPILOT_ROLLOUT_MODE ?? 'pilot').trim().toLowerCase();
+    this.copilotRolloutMode =
+      rolloutRaw === 'team' || rolloutRaw === 'all' ? rolloutRaw : 'pilot';
+    this.copilotTeamCaps = (process.env.PTT_AI_COPILOT_TEAM_CAPS ?? 'crm_leads')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    this.nbaLlmPrimary = envFlag('PTT_AI_NBA_LLM_PRIMARY', false);
+    this.scoreV2Enabled = envFlag('PTT_AI_SCORE_V2', false);
     this.pilotUserIds = (process.env.PTT_AI_PILOT_USER_IDS ?? '')
       .split(',')
       .map((s) => s.trim())
@@ -63,5 +83,22 @@ export class AiIntelligenceConfigService {
     if (!staffId) return false;
     if (this.pilotUserIds.length === 0) return true;
     return this.pilotUserIds.includes(staffId);
+  }
+
+  hasTeamCopilotCap(caps: StaffCapRef[] | undefined | null): boolean {
+    if (!caps?.length || !this.copilotTeamCaps.length) return false;
+    return this.copilotTeamCaps.some((section) =>
+      caps.some(
+        (cap) =>
+          cap.section === section && (cap.action === 'view' || cap.action === 'edit'),
+      ),
+    );
+  }
+
+  canUseCopilot(staffId: string | undefined | null, caps?: StaffCapRef[] | null): boolean {
+    if (!this.copilotEnabled) return false;
+    if (this.copilotRolloutMode === 'all') return Boolean(staffId);
+    if (this.copilotRolloutMode === 'team') return this.hasTeamCopilotCap(caps);
+    return this.isPilotUser(staffId);
   }
 }

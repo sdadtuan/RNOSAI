@@ -25,6 +25,7 @@ export const AI_USE_CASE = {
   PORTAL_REPORT_SUMMARY: 'portal_report_summary',
   CHANNEL_ANOMALY_DIGEST: 'channel_anomaly_digest',
   ROUTE_REP: 'route_rep',
+  REVIEW_QUEUE_TRIAGE: 'review_queue_triage',
   UPSELL_SUGGEST: 'upsell_suggest',
   UPSELL_APPROVE: 'upsell_approve',
   ORCHESTRATION_RUN: 'orchestration_run',

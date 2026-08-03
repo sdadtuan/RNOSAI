@@ -1,4 +1,5 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { AiIntelligenceModule } from '../ai-intelligence/ai-intelligence.module';
 import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.module';
 import { CskhBoardModule } from '../cskh-board/cskh-board.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
@@ -10,14 +11,22 @@ import { LeadsFunnelSqliteRepository } from './leads-funnel-sqlite.repository';
 import { LeadsFunnelEnabledGuard, PresalesOnLeadGuard } from './guards/leads-funnel-enabled.guard';
 import { LeadNotInReviewQueueGuard } from './guards/lead-not-in-review-queue.guard';
 import { StaffLeadsGdkdGuard } from './guards/staff-leads-gdkd.guard';
+import { ReviewQueueLlmService } from './review-queue-llm.service';
 
 @Module({
-  imports: [StaffAuthModule, forwardRef(() => LeadsModule), CrmLeadsLegacyModule, CskhBoardModule],
+  imports: [
+    StaffAuthModule,
+    forwardRef(() => LeadsModule),
+    CrmLeadsLegacyModule,
+    forwardRef(() => CskhBoardModule),
+    forwardRef(() => AiIntelligenceModule),
+  ],
   controllers: [LeadsFunnelController],
   providers: [
     LeadsFunnelService,
     LeadsFunnelSqliteRepository,
     LeadsFunnelPgRepository,
+    ReviewQueueLlmService,
     LeadsFunnelEnabledGuard,
     PresalesOnLeadGuard,
     StaffLeadsGdkdGuard,

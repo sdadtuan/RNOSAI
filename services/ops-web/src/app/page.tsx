@@ -3,21 +3,30 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
-import { fetchNestHealth, staffMe, staffRefresh } from '@/lib/api';
+import { HomeCskhWidgetRow } from '@/components/home/HomeCskhWidgetRow';
+import { fetchCskhHomeSummary, fetchNestHealth, staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
   getAccessToken,
   getRefreshToken,
   getStoredUser,
+  hasCap,
   updateAccessToken,
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
 
+const HOME_SUMMARY_POLL_MS = 60_000;
+
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [health, setHealth] = useState<string>('');
+  const [homeSummary, setHomeSummary] = useState<Awaited<ReturnType<typeof fetchCskhHomeSummary>> | null>(
+    null,
+  );
+  const [homeError, setHomeError] = useState('');
+  const [homeLoading, setHomeLoading] = useState(false);
 
   useEffect(() => {
     const token = getAccessToken();
@@ -58,6 +67,39 @@ export default function DashboardPage() {
       .catch(() => setHealth('unavailable'));
   }, [router]);
 
+  useEffect(() => {
+    if (!user) return;
+    if (!hasCap(user, 'crm_leads', 'view')) return;
+
+    let cancelled = false;
+
+    async function loadSummary() {
+      const token = getAccessToken();
+      if (!token) return;
+      setHomeLoading(true);
+      try {
+        const data = await fetchCskhHomeSummary(token);
+        if (!cancelled) {
+          setHomeSummary(data);
+          setHomeError('');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setHomeError(err instanceof Error ? err.message : 'Không tải tóm tắt CSKH');
+        }
+      } finally {
+        if (!cancelled) setHomeLoading(false);
+      }
+    }
+
+    void loadSummary();
+    const timer = window.setInterval(() => void loadSummary(), HOME_SUMMARY_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [user]);
+
   function logout() {
     clearSession();
     router.push('/login');
@@ -71,6 +113,8 @@ export default function DashboardPage() {
     );
   }
 
+  const showCskhWidgets = hasCap(user, 'crm_leads', 'view');
+
   return (
     <StaffPageShell
       user={user}
@@ -81,6 +125,14 @@ export default function DashboardPage() {
         title={`Chào ${user.display_name || user.email}`}
         subtitle="Phase 2 — ops-web: CRM leads, Agency clients, Meta hub, Hub campaign map (Nest + PG)."
       />
+
+      {showCskhWidgets ? (
+        <div className="page-card home-cskh-widgets-card">
+          <h2 className="home-cskh-widgets__title">CSKH Spa Meta — hôm nay</h2>
+          <HomeCskhWidgetRow summary={homeSummary} loading={homeLoading} error={homeError} />
+        </div>
+      ) : null}
+
       <div className="page-card">
         <div className="summary-grid">
           <div className="summary-card">

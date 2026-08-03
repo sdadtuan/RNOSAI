@@ -14,6 +14,8 @@
     "test:e2e:pwa": "playwright test e2e/pwa-rnos41.spec.ts",
     "test:e2e:lead-detail-mobile": "playwright test e2e/lead-detail-mobile.spec.ts",
     "test:e2e:cskh-board-mobile": "playwright test e2e/cskh-board-mobile.spec.ts",
+    "test:e2e:cskh-board": "playwright test e2e/cskh-board.spec.ts",
+    "test:e2e:home-cskh-widgets": "playwright test e2e/home-cskh-widgets.spec.ts",
     "test:e2e:kpi": "playwright test e2e/kpi-rnos42.spec.ts",
     "test:e2e:kpi-dashboard-v2": "playwright test e2e/kpi-dashboard-rnos43a.spec.ts",
     "test:e2e:financials-dashboard-v2": "playwright test e2e/financials-dashboard-rnos43b.spec.ts",

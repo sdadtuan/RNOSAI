@@ -24,7 +24,8 @@ import {
 } from './presales-task-form.util';
 import { reviewQueuePublicState } from './review-queue.util';
 import { buildReviewQueueMetrics } from './review-queue-metrics.util';
-import { buildReviewQueueAiSummary } from './review-queue-intelligence.util';
+import { buildReviewQueueAiSummary, computeReviewQueuePriority } from './review-queue-intelligence.util';
+import { ReviewQueueLlmService } from './review-queue-llm.service';
 
 @Injectable()
 export class LeadsFunnelService {
@@ -35,6 +36,7 @@ export class LeadsFunnelService {
     private readonly staffAuth: StaffAuthService,
     private readonly leadSqlite: CrmLeadsSqliteRepository,
     private readonly cskhBoard: CskhBoardService,
+    private readonly reviewQueueLlm: ReviewQueueLlmService,
   ) {}
 
   private get usePgFunnel(): boolean {
@@ -122,7 +124,7 @@ export class LeadsFunnelService {
   }
 
   /** Phase 2 — AI summary line + suggested owner per review-queue lead. */
-  async listReviewQueueAiSummaries(limit?: number) {
+  async listReviewQueueAiSummaries(limit?: number, mode?: 'rules' | 'llm') {
     const rows = this.usePgFunnel
       ? await this.pgRepo.listReviewQueue(limit)
       : this.sqliteRepo.listReviewQueue(limit);
@@ -139,6 +141,20 @@ export class LeadsFunnelService {
     } catch {
       bestOwner = null;
     }
+
+    const contextRows = rows.map((row) => {
+      const meta = parseLeadMeta(row.meta_json);
+      const rq = reviewQueuePublicState(meta, row.first_assigned_at || '');
+      const ownerId = row.owner_id ?? null;
+      return {
+        lead_id: row.id,
+        full_name: row.full_name ?? '',
+        status: String(row.status ?? ''),
+        hours_waiting: rq.hours_waiting ?? null,
+        owner_name: ownerId ? ownerNames.get(ownerId) ?? null : null,
+        best_owner_name: bestOwner?.name ?? null,
+      };
+    });
 
     const summaries = rows.map((row) => {
       const meta = parseLeadMeta(row.meta_json);
@@ -159,7 +175,20 @@ export class LeadsFunnelService {
       });
     });
 
-    return { ok: true, summaries, total: summaries.length };
+    if (mode === 'llm') {
+      return this.reviewQueueLlm.enrichSummaries(summaries, contextRows);
+    }
+
+    const withPriority = summaries.map((summary) => {
+      const ctx = contextRows.find((row) => row.lead_id === summary.lead_id);
+      return {
+        ...summary,
+        priority_score: computeReviewQueuePriority(ctx?.hours_waiting),
+        triage_source: 'rules' as const,
+      };
+    });
+
+    return { ok: true, summaries: withPriority, total: withPriority.length, mode: 'rules' as const };
   }
 
   async syncReviewQueue(actor: string, dryRun = false) {

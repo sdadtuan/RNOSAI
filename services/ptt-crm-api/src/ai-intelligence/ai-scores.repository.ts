@@ -150,6 +150,8 @@ export class AiScoresRepository implements OnModuleDestroy {
     features: Record<string, unknown>;
     explainability: LeadScoreExplainability;
     agentRunId?: string | null;
+    modelName?: string;
+    modelVersion?: string;
   }): Promise<AiScoreRecord> {
     const result = await this.db.query(
       `INSERT INTO ai_scores (
@@ -173,8 +175,8 @@ export class AiScoresRepository implements OnModuleDestroy {
         input.confidence,
         JSON.stringify(input.features),
         JSON.stringify(input.explainability),
-        LEAD_SCORE_MODEL,
-        LEAD_SCORE_MODEL_VERSION,
+        input.modelName ?? LEAD_SCORE_MODEL,
+        input.modelVersion ?? LEAD_SCORE_MODEL_VERSION,
         input.agentRunId ?? null,
       ],
     );

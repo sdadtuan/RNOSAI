@@ -1,4 +1,7 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, forwardRef } from '@nestjs/common';
+import { AiAdoptionAnalyticsService } from '../ai-intelligence/ai-adoption-analytics.service';
+import { AiIntelligenceConfigService } from '../ai-intelligence/ai-intelligence.config';
+import { LeadsFunnelService } from '../leads-funnel/leads-funnel.service';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
 import { CrmLeadsSqliteRepository } from '../crm-leads-legacy/crm-leads-sqlite.repository';
 import {
@@ -28,6 +31,13 @@ import {
 } from './cskh-manager-intelligence.util';
 import { ChotClosedLoopService } from '../leads/chot-closed-loop.service';
 import { buildBreachBacklogSnapshot } from './cskh-breach-backlog.util';
+import { buildShiftHandoffReport } from './cskh-shift-handoff.util';
+import { buildHomeSummary } from './home-summary.util';
+import {
+  filterPredictionsByOwner,
+  predictSlaRiskForRows,
+  type SlaPredictRow,
+} from './sla-predict.util';
 
 @Injectable()
 export class CskhBoardService {
@@ -36,6 +46,11 @@ export class CskhBoardService {
     private readonly sqlite: CrmLeadsSqliteRepository,
     private readonly legacy: CrmLeadsLegacyService,
     private readonly closedLoop: ChotClosedLoopService,
+    @Inject(forwardRef(() => LeadsFunnelService))
+    private readonly leadsFunnel: LeadsFunnelService,
+    private readonly aiConfig: AiIntelligenceConfigService,
+    @Inject(forwardRef(() => AiAdoptionAnalyticsService))
+    private readonly adoptionAnalytics: AiAdoptionAnalyticsService,
   ) {}
 
   async getBoard(query: CskhBoardQuery): Promise<CskhBoardResponse> {
@@ -251,6 +266,73 @@ export class CskhBoardService {
   async getBreachBacklogSnapshot() {
     const rows = await this.loadAllEnrichedRows();
     return buildBreachBacklogSnapshot(rows);
+  }
+
+  /** E3 — shift handoff markdown for GDKD cuối ca. */
+  async getShiftHandoff() {
+    const [rows, reviewMetrics] = await Promise.all([
+      this.loadAllEnrichedRows(),
+      this.leadsFunnel.reviewQueueMetrics(),
+    ]);
+    return buildShiftHandoffReport({ rows, reviewMetrics });
+  }
+
+  async getHomeSummary() {
+    const [rows, leadsNewToday, reviewMetrics] = await Promise.all([
+      this.loadAllEnrichedRows(),
+      this.repo.countSpaMetaLeadsReceivedToday(),
+      this.leadsFunnel.reviewQueueMetrics(),
+    ]);
+
+    const tierSummaries = enrichSlaTierSummaries(
+      summarizeSlaTiers(rows.map((row) => row.sla_tiers)),
+    );
+
+    let ai: ReturnType<typeof buildHomeSummary>['ai'];
+    if (this.aiConfig.copilotEnabled) {
+      try {
+        const adoption = await this.adoptionAnalytics.getAdoptionMetrics({ days: 7 });
+        ai = {
+          copilot_dau_pct: adoption.data.copilot_dau_rate_pct,
+          pilot_denominator: adoption.data.pilot_denominator,
+          copilot_dau_latest: adoption.data.copilot_dau_latest,
+          drill_href: '/crm/ai/insights',
+        };
+      } catch {
+        ai = undefined;
+      }
+    }
+
+    return buildHomeSummary({
+      boardRows: rows,
+      tierSummaries,
+      leadsNewToday,
+      reviewMetrics: {
+        queue_count: reviewMetrics.queue_count,
+        max_hours: reviewMetrics.max_hours,
+      },
+      ai,
+    });
+  }
+
+  /** E2 — predictive SLA rows for board + alerts. */
+  async getSlaPredictions(opts?: { ownerId?: number; viewAll?: boolean }): Promise<{
+    ok: true;
+    generated_at: string;
+    items: SlaPredictRow[];
+    total: number;
+  }> {
+    const rows = await this.loadAllEnrichedRows();
+    let items = predictSlaRiskForRows(rows);
+    if (!opts?.viewAll && opts?.ownerId != null && Number.isFinite(opts.ownerId)) {
+      items = filterPredictionsByOwner(items, opts.ownerId);
+    }
+    return {
+      ok: true,
+      generated_at: new Date().toISOString(),
+      items,
+      total: items.length,
+    };
   }
 
   async getClosedLoopDashboard(windowDays?: number, sampleLimit?: number) {

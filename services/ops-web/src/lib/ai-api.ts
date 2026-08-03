@@ -580,6 +580,39 @@ export async function fetchAiAcceptanceMetrics(
   return body;
 }
 
+export interface AiDismissReasonMetricsResponse {
+  data: {
+    from: string;
+    to: string;
+    recommendation_type: string | null;
+    dismissed: number;
+    top_dismiss_reasons: Array<{ reason: string; count: number }>;
+  };
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export async function fetchAiDismissReasons(
+  token: string,
+  params?: { from?: string; to?: string; days?: number; recommendation_type?: string },
+): Promise<AiDismissReasonMetricsResponse> {
+  const qs = new URLSearchParams();
+  if (params?.from) qs.set('from', params.from);
+  if (params?.to) qs.set('to', params.to);
+  if (params?.days != null) qs.set('days', String(params.days));
+  if (params?.recommendation_type) qs.set('recommendation_type', params.recommendation_type);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/analytics/dismiss-reasons${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<AiDismissReasonMetricsResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch AI dismiss reasons failed', res.status);
+  }
+  return body;
+}
+
 export interface AiAdoptionDailyDauRow {
   day: string;
   dau: number;

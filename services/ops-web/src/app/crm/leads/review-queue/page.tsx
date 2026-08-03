@@ -13,7 +13,9 @@ import {
   staffMe,
   staffRefresh,
   type CrmStaffRow,
+  type ReviewQueueAiSummary,
 } from '@/lib/api';
+import { canUseAiCopilot } from '@/lib/ai-flags';
 import {
   clearSession,
   getAccessToken,
@@ -41,9 +43,7 @@ export default function CrmReviewQueuePage() {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [rows, setRows] = useState<ReviewRow[]>([]);
-  const [aiSummaries, setAiSummaries] = useState<
-    Record<number, { summary_line: string; suggested_owner_name: string | null; suggest_reason: string }>
-  >({});
+  const [aiSummaries, setAiSummaries] = useState<Record<number, ReviewQueueAiSummary>>({});
   const [staffList, setStaffList] = useState<CrmStaffRow[]>([]);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -88,24 +88,22 @@ export default function CrmReviewQueuePage() {
     }
   }, [router]);
 
-  const reload = useCallback(async (access: string) => {
+  const reload = useCallback(async (access: string, staffUser: StoredStaffUser | null) => {
+    const useLlm = canUseAiCopilot(staffUser?.id, staffUser?.caps);
     const [queueOut, staffOut, aiOut] = await Promise.all([
       fetchReviewQueueLeads(access),
       fetchCrmStaffList(access),
-      fetchReviewQueueAiSummaries(access).catch(() => ({ summaries: [] as const, ok: false, total: 0 })),
+      fetchReviewQueueAiSummaries(access, 50, useLlm ? 'llm' : 'rules').catch(() => ({
+        summaries: [] as ReviewQueueAiSummary[],
+        ok: false,
+        total: 0,
+      })),
     ]);
     setRows(queueOut.leads ?? []);
     setStaffList(staffOut.staff ?? []);
-    const map: Record<
-      number,
-      { summary_line: string; suggested_owner_name: string | null; suggest_reason: string }
-    > = {};
+    const map: Record<number, ReviewQueueAiSummary> = {};
     for (const s of aiOut.summaries ?? []) {
-      map[s.lead_id] = {
-        summary_line: s.summary_line,
-        suggested_owner_name: s.suggested_owner_name,
-        suggest_reason: s.suggest_reason,
-      };
+      map[s.lead_id] = s;
     }
     setAiSummaries(map);
   }, []);
@@ -118,7 +116,7 @@ export default function CrmReviewQueuePage() {
         return;
       }
       try {
-        await reload(access);
+        await reload(access, getStoredUser());
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải inbox thất bại');
       } finally {
@@ -166,7 +164,7 @@ export default function CrmReviewQueuePage() {
       await releaseLeadReviewQueue(access, releaseLeadId, body);
       setMessage(`Đã release lead #${releaseLeadId}`);
       closeReleaseModal();
-      await reload(access);
+      await reload(access, user ?? getStoredUser());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Release thất bại');
     } finally {
@@ -214,6 +212,7 @@ export default function CrmReviewQueuePage() {
                   <th>Điện thoại</th>
                   <th>Trạng thái</th>
                   <th>Chờ (h)</th>
+                  <th>Ưu tiên</th>
                   <th>Lý do</th>
                   <th>AI summary</th>
                   <th>Gợi ý owner</th>
@@ -233,14 +232,35 @@ export default function CrmReviewQueuePage() {
                         ? `${row.review_queue.hours_waiting}h`
                         : '—'}
                     </td>
+                    <td>
+                      {aiSummaries[row.id]?.priority_score ? (
+                        <span
+                          className={`review-queue-priority review-queue-priority--p${aiSummaries[row.id]?.priority_score}`}
+                          title={aiSummaries[row.id]?.workload_note || aiSummaries[row.id]?.triage_source}
+                        >
+                          P{aiSummaries[row.id]?.priority_score}
+                        </span>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
                     <td style={{ maxWidth: 320 }}>{row.review_queue.message || '—'}</td>
                     <td style={{ maxWidth: 280 }} className="muted">
                       {aiSummaries[row.id]?.summary_line ?? '—'}
                     </td>
                     <td style={{ maxWidth: 200 }}>
                       {aiSummaries[row.id]?.suggested_owner_name ? (
-                        <span title={aiSummaries[row.id]?.suggest_reason}>
+                        <span
+                          className="review-queue-suggested-owner"
+                          title={aiSummaries[row.id]?.suggest_reason}
+                        >
                           {aiSummaries[row.id]?.suggested_owner_name}
+                          {aiSummaries[row.id]?.workload_note ? (
+                            <span className="muted review-queue-workload-note">
+                              {' '}
+                              · {aiSummaries[row.id]?.workload_note}
+                            </span>
+                          ) : null}
                         </span>
                       ) : (
                         <span className="muted">—</span>

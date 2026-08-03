@@ -3,6 +3,7 @@ import { AiAuditService } from './ai-audit.service';
 import { AiRecommendationsRepository } from './ai-recommendations.repository';
 import {
   AiAcceptanceMetricsResponse,
+  AiDismissReasonMetricsResponse,
   AiRecommendationInboxResponse,
 } from './feedback-analytics.types';
 import { RecommendationStatus } from './recommendation.types';
@@ -28,6 +29,24 @@ export class AiFeedbackAnalyticsService {
     return {
       data: { ...metrics, from, to },
       meta: { request_id: correlationId?.trim() || this.audit.newRequestId() },
+      errors: [],
+    };
+  }
+
+  async getDismissReasonMetrics(
+    query: { from?: string; to?: string; days?: number; recommendation_type?: string },
+    correlationId?: string,
+  ): Promise<AiDismissReasonMetricsResponse> {
+    const acceptance = await this.getAcceptanceMetrics(query, correlationId);
+    return {
+      data: {
+        from: acceptance.data.from,
+        to: acceptance.data.to,
+        recommendation_type: query.recommendation_type?.trim() || null,
+        dismissed: acceptance.data.dismissed,
+        top_dismiss_reasons: acceptance.data.top_dismiss_reasons,
+      },
+      meta: acceptance.meta,
       errors: [],
     };
   }

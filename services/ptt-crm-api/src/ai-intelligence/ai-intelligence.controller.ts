@@ -585,6 +585,28 @@ export class AiIntelligenceController {
     );
   }
 
+  /** E1 — dismiss reason breakdown for NBA tuning. */
+  @Get('analytics/dismiss-reasons')
+  @UseGuards(StaffOrInternalKeyGuard)
+  getDismissReasonAnalytics(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('days') days?: string,
+    @Query('recommendation_type') recommendationType?: string,
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    return this.feedbackAnalytics.getDismissReasonMetrics(
+      {
+        from,
+        to,
+        days: days ? Number(days) : undefined,
+        recommendation_type: recommendationType,
+      },
+      correlationId?.trim() || requestId?.trim() || undefined,
+    );
+  }
+
   /** §0.6 DoD v1 — copilot DAU + acceptance adoption dashboard. */
   @Get('analytics/adoption')
   @UseGuards(StaffOrInternalKeyGuard)

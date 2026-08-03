@@ -88,6 +88,21 @@ describe('AiLeadScoreService', () => {
     hasCap: jest.fn().mockReturnValue(true),
   };
 
+  const aiConfig = {
+    scoreV2Enabled: false,
+  };
+
+  const scoreFeedback = {
+    aggregateForLead: jest.fn().mockResolvedValue({
+      override_count: 0,
+      avg_override_score: null,
+      outcome_chot: 0,
+      outcome_lost: 0,
+      outcome_stalled: 0,
+    }),
+    recordOverride: jest.fn().mockResolvedValue(undefined),
+  };
+
   let service: AiLeadScoreService;
 
   beforeEach(() => {
@@ -99,6 +114,8 @@ describe('AiLeadScoreService', () => {
       events as never,
       leads as never,
       staffAuth as never,
+      aiConfig as never,
+      scoreFeedback as never,
     );
   });
 
@@ -166,6 +183,11 @@ describe('AiLeadScoreService', () => {
       'req-1',
       expect.any(String),
     );
+    expect(scoreFeedback.recordOverride).toHaveBeenCalledWith({
+      leadId: 99,
+      staffId: 'gdkd-1',
+      overrideScore: 88,
+    });
   });
 
   it('overrideLeadScore rejects short reason', async () => {

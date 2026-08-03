@@ -19,6 +19,46 @@ export interface ReviewQueueAiSummary {
   suggested_owner_id: number | null;
   suggested_owner_name: string | null;
   suggest_reason: string;
+  priority_score?: number;
+  workload_note?: string;
+  triage_source?: 'rules' | 'llm' | 'llm_stub';
+}
+
+/** Priority 1 (low) … 5 (critical) from review queue age. */
+export function computeReviewQueuePriority(hoursWaiting: number | null | undefined): number {
+  const hours = hoursWaiting ?? 0;
+  if (hours >= 48) return 5;
+  if (hours >= 36) return 4;
+  if (hours >= 24) return 3;
+  if (hours >= 12) return 2;
+  return 1;
+}
+
+export function buildReviewQueueLlmPrompt(
+  items: Array<{
+    lead_id: number;
+    full_name: string;
+    status: string;
+    hours_waiting: number | null;
+    root_cause: BreachRootCause;
+    owner_name: string | null;
+    best_owner_name: string | null;
+    rules_summary: string;
+  }>,
+): string {
+  const lines = items.map((item) =>
+    [
+      `lead_id=${item.lead_id}`,
+      `name=${item.full_name || '—'}`,
+      `status=${item.status}`,
+      `hours_waiting=${item.hours_waiting ?? '?'}`,
+      `root_cause=${item.root_cause}`,
+      `owner=${item.owner_name ?? 'none'}`,
+      `best_rep=${item.best_owner_name ?? 'none'}`,
+      `rules_summary=${item.rules_summary}`,
+    ].join(' | '),
+  );
+  return lines.join('\n');
 }
 
 export function buildReviewQueueAiSummary(input: {

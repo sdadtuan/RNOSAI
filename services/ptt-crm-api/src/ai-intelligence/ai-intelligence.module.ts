@@ -45,6 +45,8 @@ import { AiInsightsRepository } from './ai-insights.repository';
 import { AiPromptsRepository } from './ai-prompts.repository';
 import { AiRecommendationService } from './ai-recommendation.service';
 import { AiRecommendationsRepository } from './ai-recommendations.repository';
+import { AiScoreFeedbackRepository } from './ai-score-feedback.repository';
+import { AiScoreFeedbackService } from './ai-score-feedback.service';
 import { AiScoresRepository } from './ai-scores.repository';
 import { AiSummarizeRateLimitService } from './ai-summarize-rate-limit.service';
 import { AiSummarizeService } from './ai-summarize.service';
@@ -93,7 +95,7 @@ import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
     LeadsModule,
     CrmConfigModule,
     CasesModule,
-    CskhBoardModule,
+    forwardRef(() => CskhBoardModule),
     TicketsModule,
     MetaAlertsModule,
     ReProjectsModule,
@@ -118,6 +120,8 @@ import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
     AiAuditService,
     AiAgentRunsService,
     AiScoresRepository,
+    AiScoreFeedbackRepository,
+    AiScoreFeedbackService,
     LeadScoreContextRepository,
     DealScoreContextRepository,
     AiLeadScoreService,
@@ -187,6 +191,8 @@ import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
     AiAuditService,
     AiAgentRunsService,
     AiScoresRepository,
+    AiScoreFeedbackRepository,
+    AiScoreFeedbackService,
     LeadScoreContextRepository,
     DealScoreContextRepository,
     AiLeadScoreService,
@@ -213,6 +219,7 @@ import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
     CustomerHealthScoresRepository,
     AiInsightsRepository,
     AiSummarizeService,
+    AiLlmClient,
     AiRecommendationService,
     AiFeedbackAnalyticsService,
     AiAdoptionAnalyticsService,

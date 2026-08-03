@@ -35,6 +35,7 @@ import { LeadStatusGatePatchOptions, LeadStatusGateService } from './lead-status
 import { LeadSlaCareService } from './lead-sla-care.service';
 import { ChotClosedLoopService } from './chot-closed-loop.service';
 import { CopilotContextService } from './copilot-context.service';
+import { SlaAutoTaskService } from './sla-auto-task.service';
 import { CrmConfigService } from '../crm-config/crm-config.service';
 import {
   CreateLeadV1Body,
@@ -57,6 +58,7 @@ export class LeadsController {
     private readonly slaCare: LeadSlaCareService,
     private readonly closedLoop: ChotClosedLoopService,
     private readonly copilotContext: CopilotContextService,
+    private readonly slaAutoTask: SlaAutoTaskService,
   ) {}
 
   @Get('lookup-options')
@@ -241,6 +243,25 @@ export class LeadsController {
   ) {
     const actor = String(req.staffUser?.email ?? req.headers['x-ptt-actor'] ?? 'staff');
     return this.closedLoop.trackCallScriptCopy(id, actor, 'ai_v1').then(() => ({ ok: true }));
+  }
+
+  /** E2 — safe SLA reminder activity (BR-AI-01: internal note only). */
+  @Post(':id/sla-auto-task')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard)
+  createSlaAutoTask(
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    body: {
+      tier: 'first_call_15m' | 'b2_complete_4h' | 'close_24h';
+      suggested_action: 'log_call' | 'complete_b2' | 'set_chot_audit' | 'set_lost_reason' | 'reassign';
+      message?: string;
+    },
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    const actor = String(req.staffUser?.email ?? req.headers['x-ptt-actor'] ?? 'staff');
+    const userId = req.staffUser?.sub ? Number(req.staffUser.sub) : null;
+    return this.slaAutoTask.createReminder(id, body, actor, userId);
   }
 
   @Get(':id')

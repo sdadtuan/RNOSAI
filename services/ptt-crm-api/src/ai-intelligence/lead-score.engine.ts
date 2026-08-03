@@ -4,6 +4,7 @@ import {
   LeadScoreExplainability,
   LeadScoreFactor,
   ScoreBand,
+  type ScoreFeedbackAggregate,
 } from './lead-score.types';
 
 function clamp(min: number, max: number, value: number): number {
@@ -221,6 +222,65 @@ export function computeLeadScoreV1(
         ? Math.round((ctx.firstContactAt.getTime() - ctx.receivedAt.getTime()) / 60_000)
         : null,
       estimated_deal_value_vnd: ctx.estimatedDealValueVnd,
+    },
+  };
+}
+
+/** E4 — deterministic feedback adjustment from override/outcome rows (±5 max). */
+export function computeFeedbackScoreAdjustment(agg: ScoreFeedbackAggregate): number {
+  let delta = 0;
+  if (agg.override_count >= 1 && agg.avg_override_score != null) {
+    if (agg.avg_override_score >= 75) delta += 2;
+    else if (agg.avg_override_score <= 35) delta -= 2;
+  }
+  if (agg.outcome_chot > 0) delta += Math.min(3, agg.outcome_chot);
+  if (agg.outcome_lost > 0) delta -= Math.min(3, agg.outcome_lost);
+  if (agg.outcome_stalled > 0) delta -= 1;
+  return clamp(-5, 5, delta);
+}
+
+/** E4 — v1 + closed-loop feedback weight (no ML server). */
+export function computeLeadScoreV2(
+  ctx: LeadScoreContext,
+  feedback: ScoreFeedbackAggregate | null | undefined,
+  now: Date = new Date(),
+): LeadScoreEngineResult {
+  const v1 = computeLeadScoreV1(ctx, now);
+  if (!feedback || feedback.override_count + feedback.outcome_chot + feedback.outcome_lost + feedback.outcome_stalled === 0) {
+    return v1;
+  }
+
+  const adjustment = computeFeedbackScoreAdjustment(feedback);
+  if (adjustment === 0) return v1;
+
+  const score = clamp(0, 100, v1.score + adjustment);
+  const factors: LeadScoreFactor[] = [
+    ...v1.explainability.factors,
+    {
+      key: 'feedback_closed_loop',
+      label:
+        adjustment > 0
+          ? `+ Feedback closed-loop (+${adjustment})`
+          : `− Feedback closed-loop (${adjustment})`,
+      delta: Math.abs(adjustment),
+      sign: adjustment > 0 ? '+' : '-',
+    },
+  ];
+
+  return {
+    score,
+    confidence: v1.confidence,
+    explainability: {
+      factors,
+      flags: [...v1.explainability.flags, 'score_v2_feedback'],
+      score_band: scoreBand(score),
+    },
+    features: {
+      ...v1.features,
+      feedback_override_count: feedback.override_count,
+      feedback_outcome_chot: feedback.outcome_chot,
+      feedback_outcome_lost: feedback.outcome_lost,
+      feedback_adjustment: adjustment,
     },
   };
 }

@@ -73,9 +73,13 @@ export class LeadsFunnelController {
   /** Phase 2 — review queue AI summary + suggested owner (rules, BR-AI-018). */
   @Get('review-queue/ai-summaries')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, StaffLeadsGdkdGuard)
-  listReviewQueueAiSummaries(@Query('limit') limit?: string) {
+  listReviewQueueAiSummaries(
+    @Query('limit') limit?: string,
+    @Query('mode') mode?: string,
+  ) {
     const lim = limit ? Number(limit) : 50;
-    return this.funnel.listReviewQueueAiSummaries(Number.isFinite(lim) ? lim : 50);
+    const triageMode = mode === 'llm' ? 'llm' : 'rules';
+    return this.funnel.listReviewQueueAiSummaries(Number.isFinite(lim) ? lim : 50, triageMode);
   }
 
   @Post('review-queue/sync')
