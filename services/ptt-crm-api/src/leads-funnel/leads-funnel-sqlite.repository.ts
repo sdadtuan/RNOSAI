@@ -691,6 +691,19 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
     };
   }
 
+  getPresalesTaskById(
+    taskId: number,
+  ): { form_fields: unknown; form_data: Record<string, unknown> } | null {
+    const raw = this.database
+      .prepare('SELECT form_fields, form_data FROM crm_lead_presales_tasks WHERE id = ? LIMIT 1')
+      .get(taskId) as { form_fields: string; form_data: string } | undefined;
+    if (!raw) return null;
+    return {
+      form_fields: JSON.parse(String(raw.form_fields || '[]')) as unknown,
+      form_data: JSON.parse(String(raw.form_data || '{}')) as Record<string, unknown>,
+    };
+  }
+
   updatePresalesTask(taskId: number, body: PatchPresalesTaskBody, doneBy: number | null): void {
     const ts = this.ts();
     const sets = ['updated_at = ?'];

@@ -563,7 +563,17 @@ export interface LeadFunnelSnapshot {
   presales_on_lead_enabled: boolean;
   presales: {
     presales: { id: number; stage: string; service_slug: string; status: string };
-    tasks: Record<string, Array<{ id: number; title: string; is_done: boolean }>>;
+    tasks: Record<
+      string,
+      Array<{
+        id: number;
+        title: string;
+        description?: string;
+        is_done: boolean;
+        form_fields?: unknown;
+        form_data?: Record<string, unknown>;
+      }>
+    >;
     advance: { can_advance_forward: boolean; block_reason: string; next_stage: string | null };
   } | null;
 }
@@ -578,8 +588,8 @@ async function leadFunnelMutate<T>(token: string, path: string, init: RequestIni
     const pick = (v: string | string[] | undefined) =>
       Array.isArray(v) ? v[0] : v;
     const msg =
-      pick(body.error) ??
       pick(body.message) ??
+      pick(body.error) ??
       (res.status === 500 ? 'Lỗi server — kiểm tra log ptt-crm-api' : 'Lead funnel API failed');
     throw new ApiError(String(msg), res.status);
   }
@@ -710,7 +720,7 @@ export async function patchLeadPresalesTask(
   token: string,
   leadId: number,
   taskId: number,
-  body: { is_done?: boolean },
+  body: { is_done?: boolean; notes?: string; form_data?: Record<string, unknown> },
 ): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/tasks/${taskId}`, {
     method: 'PATCH',

@@ -680,6 +680,26 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     }
   }
 
+  async getPresalesTaskById(
+    taskId: number,
+  ): Promise<{ form_fields: unknown; form_data: Record<string, unknown> } | null> {
+    const result = await this.db.query(
+      `SELECT form_fields, form_data FROM crm_lead_presales_tasks WHERE id = $1 LIMIT 1`,
+      [taskId],
+    );
+    const raw = result.rows[0] as { form_fields: unknown; form_data: unknown } | undefined;
+    if (!raw) return null;
+    return {
+      form_fields: Array.isArray(raw.form_fields)
+        ? raw.form_fields
+        : JSON.parse(String(raw.form_fields ?? '[]')),
+      form_data:
+        typeof raw.form_data === 'object' && raw.form_data !== null
+          ? (raw.form_data as Record<string, unknown>)
+          : (JSON.parse(String(raw.form_data ?? '{}')) as Record<string, unknown>),
+    };
+  }
+
   async updatePresalesTask(taskId: number, body: PatchPresalesTaskBody, doneBy: number | null): Promise<void> {
     const sets: string[] = ['updated_at = NOW()'];
     const params: unknown[] = [];

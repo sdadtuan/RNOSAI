@@ -1,5 +1,6 @@
 'use client';
 
+import { PresalesTaskFormCard } from '@/components/PresalesTaskFormCard';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -106,6 +107,7 @@ export function LeadFunnelPanel({
   const [planStrategy, setPlanStrategy] = useState<Record<string, string>>({});
   const [planValidation, setPlanValidation] = useState<string[]>([]);
   const [consultGate, setConsultGate] = useState<ConsultGateState | null>(null);
+  const [taskDrafts, setTaskDrafts] = useState<Record<number, Record<string, string>>>({});
   const presalesServiceOptions = useMemo(
     () => mergePresalesServiceOptions(serviceOptions),
     [serviceOptions],
@@ -444,22 +446,40 @@ export function LeadFunnelPanel({
                 {funnel.presales.presales.service_slug || '—'}
               </p>
               {(funnel.presales.tasks[funnel.presales.presales.stage] ?? []).map((task) => (
-                <label key={task.id} style={{ display: 'block', marginBottom: '0.35rem' }}>
-                  <input
-                    type="checkbox"
-                    checked={task.is_done}
-                    disabled={busy || !canEdit}
-                    onChange={(e) =>
-                      void run(async () => {
-                        const out = await patchLeadPresalesTask(token, leadId, task.id, {
-                          is_done: e.target.checked,
-                        });
-                        setFunnel(out.funnel);
-                      })
-                    }
-                  />{' '}
-                  {task.title}
-                </label>
+                <PresalesTaskFormCard
+                  key={task.id}
+                  task={task}
+                  draft={taskDrafts[task.id] ?? {}}
+                  disabled={busy || !canEdit}
+                  onDraftChange={(taskId, key, value) =>
+                    setTaskDrafts((prev) => ({
+                      ...prev,
+                      [taskId]: { ...(prev[taskId] ?? {}), [key]: value },
+                    }))
+                  }
+                  onValidationError={(msg) => setPanelError(msg)}
+                  onSaveForm={(taskId, formData) =>
+                    void run(async () => {
+                      const out = await patchLeadPresalesTask(token, leadId, taskId, { form_data: formData });
+                      setFunnel(out.funnel);
+                    })
+                  }
+                  onToggleDone={(taskId, nextDone, formData) =>
+                    void run(async () => {
+                      const out = await patchLeadPresalesTask(token, leadId, taskId, {
+                        is_done: nextDone,
+                        form_data: formData,
+                      });
+                      setFunnel(out.funnel);
+                      setTaskDrafts((prev) => {
+                        const next = { ...prev };
+                        delete next[taskId];
+                        return next;
+                      });
+                      onMessage?.(nextDone ? 'Đã hoàn thành task pre-sales' : 'Đã bỏ hoàn thành task');
+                    })
+                  }
+                />
               ))}
               {(funnel.presales.presales.stage === 'lead' || funnel.presales.presales.stage === 'consult') && (
                 <p style={{ margin: '0.5rem 0' }}>

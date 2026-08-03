@@ -15,6 +15,10 @@ import {
 import { LeadsFunnelPgRepository } from './leads-funnel-pg.repository';
 import { LeadsFunnelSqliteRepository } from './leads-funnel-sqlite.repository';
 import { validatePreliminaryPlan } from './presales-marketing-plan.util';
+import {
+  assertPresalesTaskFormComplete,
+  mergePresalesFormData,
+} from './presales-task-form.util';
 import { reviewQueuePublicState } from './review-queue.util';
 
 @Injectable()
@@ -185,12 +189,33 @@ export class LeadsFunnelService {
     body: PatchPresalesTaskBody,
     doneBy: number | null,
   ) {
-    if (this.usePgFunnel) {
-      await this.pgRepo.updatePresalesTask(taskId, body, doneBy);
-    } else {
-      this.sqliteRepo.updatePresalesTask(taskId, body, doneBy);
+    try {
+      const task = this.usePgFunnel
+        ? await this.pgRepo.getPresalesTaskById(taskId)
+        : this.sqliteRepo.getPresalesTaskById(taskId);
+      if (!task) {
+        throw new NotFoundException({ error: 'Không tìm thấy task pre-sales' });
+      }
+
+      const mergedFormData = mergePresalesFormData(task.form_data, body.form_data);
+      if (body.is_done === true) {
+        assertPresalesTaskFormComplete(task.form_fields, mergedFormData);
+      }
+
+      const patchBody: PatchPresalesTaskBody = { ...body };
+      if (body.form_data !== undefined || body.is_done === true) {
+        patchBody.form_data = mergedFormData;
+      }
+
+      if (this.usePgFunnel) {
+        await this.pgRepo.updatePresalesTask(taskId, patchBody, doneBy);
+      } else {
+        this.sqliteRepo.updatePresalesTask(taskId, patchBody, doneBy);
+      }
+      return { ok: true, funnel: await this.getFunnel(leadId) };
+    } catch (err) {
+      this.funnelError(err);
     }
-    return { ok: true, funnel: await this.getFunnel(leadId) };
   }
 
   async getMarketingPlan(leadId: number) {
