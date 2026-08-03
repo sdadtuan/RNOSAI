@@ -263,6 +263,23 @@ export async function importLeadsXlsx(token: string, file: File): Promise<LeadIm
   return body;
 }
 
+export interface CskhSlaTierSnapshot {
+  tier: 'first_call_15m' | 'b2_complete_4h' | 'close_24h';
+  label: string;
+  sla_state: 'ok' | 'warning' | 'breach' | 'na';
+  deadline_at: string | null;
+  completed_at: string | null;
+  elapsed_minutes: number | null;
+  deadline_minutes: number;
+}
+
+export interface CskhSlaTierSummary {
+  breach: number;
+  warning: number;
+  ok: number;
+  active: number;
+}
+
 export interface CskhBoardRow {
   id: number;
   full_name: string;
@@ -276,7 +293,11 @@ export interface CskhBoardRow {
   received_at: string;
   created_at: string;
   first_call_at: string | null;
+  b2_completed_at: string | null;
+  closed_at: string | null;
   sla_state: 'ok' | 'warning' | 'breach' | 'na';
+  sla_tier: 'first_call_15m' | 'b2_complete_4h' | 'close_24h' | null;
+  sla_tiers: CskhSlaTierSnapshot[];
   sla_minutes_elapsed: number | null;
   sla_deadline_at: string | null;
   next_follow_up_at: string | null;
@@ -289,6 +310,10 @@ export interface CskhBoardResponse {
   limit: number;
   offset: number;
   summary: { total: number; breach: number; warning: number; ok: number };
+  sla_dashboard: {
+    tiers: Record<'first_call_15m' | 'b2_complete_4h' | 'close_24h', CskhSlaTierSummary>;
+    selected_tier: 'first_call_15m' | 'b2_complete_4h' | 'close_24h' | 'all';
+  };
 }
 
 export async function fetchCskhBoard(
@@ -300,6 +325,7 @@ export async function fetchCskhBoard(
     channel?: string;
     q?: string;
     sla_filter?: 'all' | 'breach' | 'warning' | 'open';
+    sla_tier?: 'first_call_15m' | 'b2_complete_4h' | 'close_24h' | 'all';
     limit?: number;
     offset?: number;
   },
@@ -311,6 +337,7 @@ export async function fetchCskhBoard(
   if (params?.channel) qs.set('channel', params.channel);
   if (params?.q) qs.set('q', params.q);
   if (params?.sla_filter && params.sla_filter !== 'all') qs.set('sla_filter', params.sla_filter);
+  if (params?.sla_tier && params.sla_tier !== 'all') qs.set('sla_tier', params.sla_tier);
   if (params?.limit != null) qs.set('limit', String(params.limit));
   if (params?.offset != null) qs.set('offset', String(params.offset));
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
@@ -357,12 +384,14 @@ export function cskhBoardExportUrl(params?: {
   owner_id?: number;
   status?: string;
   sla_filter?: string;
+  sla_tier?: string;
   q?: string;
 }): string {
   const qs = new URLSearchParams();
   if (params?.owner_id != null) qs.set('owner_id', String(params.owner_id));
   if (params?.status) qs.set('status', params.status);
   if (params?.sla_filter) qs.set('sla_filter', params.sla_filter);
+  if (params?.sla_tier) qs.set('sla_tier', params.sla_tier);
   if (params?.q) qs.set('q', params.q);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return `${API_BASE}/api/crm/cskh-board/export${suffix}`;

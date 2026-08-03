@@ -1,3 +1,5 @@
+import { CskhSlaTier, CskhSlaTierSnapshot } from './cskh-board-sla.util';
+
 export interface CskhBoardQuery {
   owner_id?: number;
   status?: string;
@@ -5,8 +7,17 @@ export interface CskhBoardQuery {
   channel?: string;
   q?: string;
   sla_filter?: 'all' | 'breach' | 'warning' | 'open';
+  sla_tier?: CskhSlaTier | 'all';
+  spa_meta_only?: boolean;
   limit?: number;
   offset?: number;
+}
+
+export interface CskhSlaTierSummary {
+  breach: number;
+  warning: number;
+  ok: number;
+  active: number;
 }
 
 export interface CskhBoardRow {
@@ -22,7 +33,11 @@ export interface CskhBoardRow {
   received_at: string;
   created_at: string;
   first_call_at: string | null;
+  b2_completed_at: string | null;
+  closed_at: string | null;
   sla_state: string;
+  sla_tier: CskhSlaTier | null;
+  sla_tiers: CskhSlaTierSnapshot[];
   sla_minutes_elapsed: number | null;
   sla_deadline_at: string | null;
   next_follow_up_at: string | null;
@@ -39,6 +54,10 @@ export interface CskhBoardResponse {
     breach: number;
     warning: number;
     ok: number;
+  };
+  sla_dashboard: {
+    tiers: Record<CskhSlaTier, CskhSlaTierSummary>;
+    selected_tier: CskhSlaTier | 'all';
   };
 }
 

@@ -3455,6 +3455,112 @@ body:has(.ops-sidebar) main {
 }
 
 /* SCR-MOB-004 — CSKH board mobile cards */
+.cskh-sla-dashboard {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.cskh-sla-dashboard-card {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface, #fff);
+  text-align: left;
+  cursor: pointer;
+}
+
+.cskh-sla-dashboard-card.is-active {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #2563eb;
+}
+
+.cskh-sla-dashboard-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.cskh-sla-dashboard-card__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.cskh-sla-dashboard-stat {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.cskh-sla-dashboard-stat--breach {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.cskh-sla-dashboard-stat--warn {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.cskh-sla-dashboard-stat--ok {
+  background: #ecfdf5;
+  color: #166534;
+}
+
+.cskh-sla-dashboard-card__hint {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.cskh-board-tier-inline,
+.cskh-board-card__sla-tiers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.cskh-board-tier-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.cskh-board-tier-pill.is-active-tier {
+  box-shadow: 0 0 0 1px currentColor;
+}
+
+.cskh-board-tier-pill--breach {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.cskh-board-tier-pill--warning {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.cskh-board-tier-pill--ok {
+  background: #ecfdf5;
+  color: #166534;
+}
+
+.cskh-board-tier-pill--na {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
 .cskh-board-summary-chips {
   display: none;
 }
@@ -3570,6 +3676,10 @@ body:has(.ops-sidebar) main {
 }
 
 @media (max-width: 768px) {
+  .cskh-sla-dashboard {
+    grid-template-columns: 1fr;
+  }
+
   .cskh-board-filters-desktop {
     display: none;
   }

@@ -1,7 +1,14 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
 import { CrmLeadsSqliteRepository } from '../crm-leads-legacy/crm-leads-sqlite.repository';
-import { computeFirstCallSla, slaMatchesFilter } from './cskh-board-sla.util';
+import {
+  computeSpaMeta24hSlas,
+  isSpaClosedStatus,
+  parseB2CompletedAt,
+  summarizeSlaTiers,
+  tierSlaMatchesFilter,
+  type CskhSlaTier,
+} from './cskh-board-sla.util';
 import { CskhBoardRepository } from './cskh-board.repository';
 import {
   CskhBoardQuery,
@@ -23,8 +30,19 @@ export class CskhBoardService {
     const limit = Math.max(1, Math.min(Number(query.limit ?? 50), 200));
     const offset = Math.max(0, Number(query.offset ?? 0));
     const slaFilter = query.sla_filter ?? 'all';
+    const selectedTier: CskhSlaTier | 'all' =
+      query.sla_tier === 'first_call_15m' ||
+      query.sla_tier === 'b2_complete_4h' ||
+      query.sla_tier === 'close_24h'
+        ? query.sla_tier
+        : 'all';
 
-    const { leads } = await this.repo.listLeadCandidates({ ...query, sla_filter: slaFilter, limit });
+    const { leads } = await this.repo.listLeadCandidates({
+      ...query,
+      sla_tier: selectedTier,
+      spa_meta_only: query.spa_meta_only !== false,
+      limit,
+    });
     const ids = leads.map((r) => Number(r.sqlite_lead_id));
     const firstCalls = this.sqlite.firstCallAtByLeadIds(ids);
     const followUps = this.sqlite.nextFollowUpByLeadIds(ids);
@@ -32,33 +50,69 @@ export class CskhBoardService {
     const ownerNames = this.sqlite.staffNamesByIds(ownerIds);
 
     const enriched: CskhBoardRow[] = leads.map((row) => {
-      const base = CskhBoardRepository.toBoardRowBase(row);
+      const base = CskhBoardRepository.toBoardRowBase(
+        row as Parameters<typeof CskhBoardRepository.toBoardRowBase>[0],
+      );
       const firstCallAt = firstCalls.get(base.id) ?? null;
-      const sla = computeFirstCallSla({
+      const b2CompletedAt = parseB2CompletedAt(base.care_stages_done_json);
+      const closedAt = isSpaClosedStatus(base.status) ? base.updated_at : null;
+      const sla = computeSpaMeta24hSlas({
         status: base.status,
         receivedAt: base.received_at,
         createdAt: base.created_at,
         firstCallAt,
+        careStagesDoneJson: base.care_stages_done_json,
+        b2CompletedAt,
+        closedAt,
       });
+
       return {
-        ...base,
+        id: base.id,
+        full_name: base.full_name,
+        phone: base.phone,
+        email: base.email,
+        status: base.status,
+        source: base.source,
+        channel: base.channel,
+        owner_id: base.owner_id,
+        received_at: base.received_at,
+        created_at: base.created_at,
         owner_name: base.owner_id ? ownerNames.get(base.owner_id) ?? null : null,
         first_call_at: firstCallAt,
+        b2_completed_at: b2CompletedAt,
+        closed_at: closedAt,
         sla_state: sla.sla_state,
+        sla_tier: sla.sla_tier,
+        sla_tiers: sla.tiers,
         sla_minutes_elapsed: sla.sla_minutes_elapsed,
         sla_deadline_at: sla.sla_deadline_at,
         next_follow_up_at: followUps.get(base.id) ?? null,
       };
     });
 
-    const filtered = enriched.filter((row) =>
-      slaMatchesFilter(row.sla_state as 'ok' | 'warning' | 'breach' | 'na', slaFilter),
-    );
+    const filtered = enriched.filter((row) => {
+      const tierSnapshot =
+        selectedTier === 'all'
+          ? row.sla_tiers.find((t) => t.tier === row.sla_tier) ?? row.sla_tiers[0]
+          : row.sla_tiers.find((t) => t.tier === selectedTier);
+      return tierSlaMatchesFilter(tierSnapshot, slaFilter);
+    });
+
+    const dashboardTiers = summarizeSlaTiers(enriched.map((row) => row.sla_tiers));
     const summary = {
       total: filtered.length,
-      breach: filtered.filter((r) => r.sla_state === 'breach').length,
-      warning: filtered.filter((r) => r.sla_state === 'warning').length,
-      ok: filtered.filter((r) => r.sla_state === 'ok').length,
+      breach: filtered.filter((r) => {
+        const tier = this.resolveTierSnapshot(r, selectedTier);
+        return tier?.sla_state === 'breach';
+      }).length,
+      warning: filtered.filter((r) => {
+        const tier = this.resolveTierSnapshot(r, selectedTier);
+        return tier?.sla_state === 'warning';
+      }).length,
+      ok: filtered.filter((r) => {
+        const tier = this.resolveTierSnapshot(r, selectedTier);
+        return tier?.sla_state === 'ok';
+      }).length,
     };
     const page = filtered.slice(offset, offset + limit);
 
@@ -69,7 +123,18 @@ export class CskhBoardService {
       limit,
       offset,
       summary,
+      sla_dashboard: {
+        tiers: dashboardTiers,
+        selected_tier: selectedTier,
+      },
     };
+  }
+
+  private resolveTierSnapshot(row: CskhBoardRow, selectedTier: CskhSlaTier | 'all') {
+    if (selectedTier === 'all') {
+      return row.sla_tiers.find((t) => t.tier === row.sla_tier) ?? row.sla_tiers[0];
+    }
+    return row.sla_tiers.find((t) => t.tier === selectedTier);
   }
 
   async exportCsv(query: CskhBoardQuery): Promise<string> {
@@ -85,12 +150,20 @@ export class CskhBoardService {
       'owner_name',
       'received_at',
       'first_call_at',
+      'b2_completed_at',
+      'closed_at',
+      'sla_tier',
       'sla_state',
+      'sla_15m',
+      'sla_4h',
+      'sla_24h',
       'sla_minutes_elapsed',
       'next_follow_up_at',
     ];
     const lines = [header.join(',')];
     for (const row of board.items) {
+      const tierState = (tier: CskhSlaTier) =>
+        row.sla_tiers.find((t) => t.tier === tier)?.sla_state ?? 'na';
       lines.push(
         [
           row.id,
@@ -103,7 +176,13 @@ export class CskhBoardService {
           csvCell(row.owner_name ?? ''),
           csvCell(row.received_at),
           csvCell(row.first_call_at ?? ''),
+          csvCell(row.b2_completed_at ?? ''),
+          csvCell(row.closed_at ?? ''),
+          row.sla_tier ?? '',
           row.sla_state,
+          tierState('first_call_15m'),
+          tierState('b2_complete_4h'),
+          tierState('close_24h'),
           row.sla_minutes_elapsed ?? '',
           csvCell(row.next_follow_up_at ?? ''),
         ].join(','),

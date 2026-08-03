@@ -12,6 +12,7 @@ import {
   fetchCrmStaffList,
   staffMe,
   staffRefresh,
+  type CskhBoardResponse,
   type CskhBoardRow,
 } from '@/lib/api';
 import {
@@ -27,11 +28,44 @@ import {
 
 const PAGE_SIZE = 50;
 
+type SlaTier = 'first_call_15m' | 'b2_complete_4h' | 'close_24h';
+type SlaFilter = 'all' | 'breach' | 'warning' | 'open';
+
+const SLA_TIER_META: Record<SlaTier, { title: string; deadline: string; hint: string }> = {
+  first_call_15m: {
+    title: '15 phút',
+    deadline: 'Gọi lần đầu',
+    hint: 'Activity「Gọi điện」trên lead detail',
+  },
+  b2_complete_4h: {
+    title: '4 giờ',
+    deadline: 'Hoàn thành B2',
+    hint: 'Funnel B2 → Liên hệ OK + Hoàn thành B2',
+  },
+  close_24h: {
+    title: '24 giờ',
+    deadline: 'Chốt / Lost',
+    hint: 'Status chot hoặc lost + audit note',
+  },
+};
+
 function slaBadge(state: CskhBoardRow['sla_state']): { label: string; className: string } {
-  if (state === 'breach') return { label: 'SLA breach', className: 'badge badge-danger' };
-  if (state === 'warning') return { label: 'Sắp breach', className: 'badge badge-warn' };
+  if (state === 'breach') return { label: 'Breach', className: 'badge badge-danger' };
+  if (state === 'warning') return { label: 'Warning', className: 'badge badge-warn' };
   if (state === 'ok') return { label: 'OK', className: 'badge badge-ok' };
   return { label: '—', className: 'muted' };
+}
+
+function tierSnapshot(row: CskhBoardRow, tier: SlaTier) {
+  return row.sla_tiers.find((item) => item.tier === tier);
+}
+
+function formatElapsed(minutes: number | null | undefined): string {
+  if (minutes == null) return '—';
+  if (minutes < 60) return `${minutes}p`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins ? `${hours}h ${mins}p` : `${hours}h`;
 }
 
 function CskhLeadCard({
@@ -39,15 +73,18 @@ function CskhLeadCard({
   canAssign,
   selected,
   onToggle,
+  activeTier,
 }: {
   row: CskhBoardRow;
   canAssign: boolean;
   selected: boolean;
   onToggle: () => void;
+  activeTier: SlaTier;
 }) {
-  const badge = slaBadge(row.sla_state);
-  const breachClass = row.sla_state === 'breach' ? ' cskh-board-card--breach' : '';
-  const warningClass = row.sla_state === 'warning' ? ' cskh-board-card--warning' : '';
+  const tier = tierSnapshot(row, activeTier);
+  const badge = slaBadge(tier?.sla_state ?? row.sla_state);
+  const breachClass = tier?.sla_state === 'breach' ? ' cskh-board-card--breach' : '';
+  const warningClass = tier?.sla_state === 'warning' ? ' cskh-board-card--warning' : '';
 
   return (
     <li className={`cskh-board-card${breachClass}${warningClass}`} data-testid="cskh-board-card">
@@ -70,11 +107,27 @@ function CskhLeadCard({
         <div className="cskh-board-card__meta muted">
           <span>{row.status}</span>
           <span>{row.owner_name ?? row.owner_id ?? '—'}</span>
-          {row.sla_minutes_elapsed != null ? <span>{row.sla_minutes_elapsed}m</span> : null}
+          {tier?.elapsed_minutes != null ? <span>{formatElapsed(tier.elapsed_minutes)}</span> : null}
         </div>
         <div className="cskh-board-card__meta muted">
           <span>Nhận: {row.received_at?.slice(0, 16) ?? '—'}</span>
           <span>Gọi: {row.first_call_at?.slice(0, 16) ?? '—'}</span>
+        </div>
+        <div className="cskh-board-card__meta muted">
+          <span>B2: {row.b2_completed_at?.slice(0, 16) ?? '—'}</span>
+          <span>Chốt: {row.closed_at?.slice(0, 16) ?? '—'}</span>
+        </div>
+        <div className="cskh-board-card__sla-tiers">
+          {row.sla_tiers.map((item) => (
+            <span
+              key={item.tier}
+              className={`cskh-board-tier-pill cskh-board-tier-pill--${item.sla_state}${
+                item.tier === activeTier ? ' is-active-tier' : ''
+              }`}
+            >
+              {SLA_TIER_META[item.tier as SlaTier]?.title ?? item.tier}: {item.sla_state}
+            </span>
+          ))}
         </div>
         {row.next_follow_up_at ? (
           <div className="cskh-board-card__follow muted">Follow-up: {row.next_follow_up_at.slice(0, 16)}</div>
@@ -90,9 +143,11 @@ export function CskhBoardContent() {
   const [token, setToken] = useState('');
   const [rows, setRows] = useState<CskhBoardRow[]>([]);
   const [summary, setSummary] = useState({ total: 0, breach: 0, warning: 0, ok: 0 });
+  const [slaDashboard, setSlaDashboard] = useState<CskhBoardResponse['sla_dashboard'] | null>(null);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
-  const [slaFilter, setSlaFilter] = useState<'all' | 'breach' | 'warning' | 'open'>('breach');
+  const [slaFilter, setSlaFilter] = useState<SlaFilter>('breach');
+  const [slaTier, setSlaTier] = useState<SlaTier>('first_call_15m');
   const [ownerId, setOwnerId] = useState('');
   const [q, setQ] = useState('');
   const [query, setQuery] = useState('');
@@ -149,16 +204,19 @@ export function CskhBoardContent() {
       overrides?: {
         q?: string;
         owner_id?: string;
-        sla_filter?: 'all' | 'breach' | 'warning' | 'open';
+        sla_filter?: SlaFilter;
+        sla_tier?: SlaTier;
       },
     ) => {
       const nextQuery = overrides?.q ?? query;
       const nextOwnerId = overrides?.owner_id ?? ownerId;
       const nextSlaFilter = overrides?.sla_filter ?? slaFilter;
+      const nextSlaTier = overrides?.sla_tier ?? slaTier;
 
       if (overrides?.q !== undefined) setQuery(nextQuery);
       if (overrides?.owner_id !== undefined) setOwnerId(nextOwnerId);
       if (overrides?.sla_filter !== undefined) setSlaFilter(nextSlaFilter);
+      if (overrides?.sla_tier !== undefined) setSlaTier(nextSlaTier);
 
       setLoading(true);
       setError('');
@@ -167,11 +225,13 @@ export function CskhBoardContent() {
           q: nextQuery || undefined,
           owner_id: nextOwnerId ? Number(nextOwnerId) : undefined,
           sla_filter: nextSlaFilter,
+          sla_tier: nextSlaTier,
           limit: PAGE_SIZE,
           offset: nextOffset,
         });
         setRows(data.items);
         setSummary(data.summary);
+        setSlaDashboard(data.sla_dashboard);
         setTotal(data.total);
         setOffset(data.offset);
         setSelected(new Set());
@@ -181,7 +241,7 @@ export function CskhBoardContent() {
         setLoading(false);
       }
     },
-    [ownerId, query, slaFilter],
+    [ownerId, query, slaFilter, slaTier],
   );
 
   useEffect(() => {
@@ -282,6 +342,7 @@ export function CskhBoardContent() {
     const url = cskhBoardExportUrl({
       owner_id: ownerId ? Number(ownerId) : undefined,
       sla_filter: slaFilter,
+      sla_tier: slaTier,
       q: query || undefined,
     });
     try {
@@ -299,7 +360,11 @@ export function CskhBoardContent() {
     }
   }
 
-  function applyFilter(nextSla: typeof slaFilter) {
+  function applyTierFilter(nextTier: SlaTier, nextSla: SlaFilter = 'breach') {
+    if (token) void loadBoard(token, 0, { sla_tier: nextTier, sla_filter: nextSla, q: q.trim() });
+  }
+
+  function applyFilter(nextSla: SlaFilter) {
     if (token) void loadBoard(token, 0, { sla_filter: nextSla, q: q.trim() });
   }
 
@@ -310,8 +375,23 @@ export function CskhBoardContent() {
   const filterFields = (
     <>
       <label>
+        SLA tier
+        <select
+          value={slaTier}
+          onChange={(e) => {
+            const next = e.target.value as SlaTier;
+            setSlaTier(next);
+            if (token) void loadBoard(token, 0, { sla_tier: next });
+          }}
+        >
+          <option value="first_call_15m">15p — Gọi lần đầu</option>
+          <option value="b2_complete_4h">4h — Hoàn thành B2</option>
+          <option value="close_24h">24h — Chốt / Lost</option>
+        </select>
+      </label>
+      <label>
         SLA filter
-        <select value={slaFilter} onChange={(e) => setSlaFilter(e.target.value as typeof slaFilter)}>
+        <select value={slaFilter} onChange={(e) => setSlaFilter(e.target.value as SlaFilter)}>
           <option value="breach">SLA breach</option>
           <option value="warning">Sắp breach</option>
           <option value="open">Đang mở (ok+warning)</option>
@@ -347,8 +427,8 @@ export function CskhBoardContent() {
       ]}
     >
       <PageToolbar
-        title="Bảng CSKH — SLA first call"
-        subtitle="Lead Mới → log call đầu tiên trong 15 phút (CRM-UC-008)"
+        title="Dashboard SLA Spa Meta 24h"
+        subtitle="15 phút gọi lần đầu · 4 giờ hoàn thành B2 · 24 giờ chốt/lost (SOP CSKH)"
         actions={
           <>
             <Link href="/crm/leads" className="btn btn-sm btn-ghost">
@@ -362,8 +442,40 @@ export function CskhBoardContent() {
       />
 
       <div className="page-card stack-gap cskh-board-page">
+        <div className="cskh-sla-dashboard" aria-label="Dashboard SLA 15p / 4h / 24h">
+          {(Object.keys(SLA_TIER_META) as SlaTier[]).map((tier) => {
+            const meta = SLA_TIER_META[tier];
+            const stats = slaDashboard?.tiers[tier];
+            const active = slaTier === tier;
+            return (
+              <button
+                key={tier}
+                type="button"
+                className={`cskh-sla-dashboard-card${active ? ' is-active' : ''}`}
+                onClick={() => applyTierFilter(tier, 'breach')}
+              >
+                <div className="cskh-sla-dashboard-card__head">
+                  <strong>{meta.title}</strong>
+                  <span className="muted">{meta.deadline}</span>
+                </div>
+                <div className="cskh-sla-dashboard-card__stats">
+                  <span className="cskh-sla-dashboard-stat cskh-sla-dashboard-stat--breach">
+                    Breach {stats?.breach ?? 0}
+                  </span>
+                  <span className="cskh-sla-dashboard-stat cskh-sla-dashboard-stat--warn">
+                    Warning {stats?.warning ?? 0}
+                  </span>
+                  <span className="cskh-sla-dashboard-stat cskh-sla-dashboard-stat--ok">
+                    OK {stats?.ok ?? 0}
+                  </span>
+                </div>
+                <p className="muted cskh-sla-dashboard-card__hint">{meta.hint}</p>
+              </button>
+            );
+          })}
+        </div>
 
-        <div className="cskh-board-summary-chips" aria-label="Tóm tắt SLA">
+        <div className="cskh-board-summary-chips" aria-label="Tóm tắt SLA theo tier đang chọn">
           <button
             type="button"
             className={`cskh-board-summary-chip${slaFilter === 'breach' ? ' is-active' : ''}`}
@@ -391,7 +503,8 @@ export function CskhBoardContent() {
         <div className="card cskh-board-filters-desktop" style={{ marginBottom: '1rem' }}>
           <div className="row gap-sm wrap">{filterFields}</div>
           <p className="muted cskh-board-summary-line" style={{ marginTop: '0.75rem' }}>
-            Tổng {summary.total} · Breach {summary.breach} · Warning {summary.warning} · OK {summary.ok}
+            Tier {SLA_TIER_META[slaTier].title} · Tổng {summary.total} · Breach {summary.breach} · Warning{' '}
+            {summary.warning} · OK {summary.ok}
           </p>
         </div>
 
@@ -460,15 +573,17 @@ export function CskhBoardContent() {
                 <th>Owner</th>
                 <th>Received</th>
                 <th>First call</th>
-                <th>SLA</th>
+                <th>B2 done</th>
+                <th>Closed</th>
+                <th>SLA tiers</th>
                 <th>Follow-up</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => {
-                const badge = slaBadge(row.sla_state);
+                const tier = tierSnapshot(row, slaTier);
                 return (
-                  <tr key={row.id} className={row.sla_state === 'breach' ? 'row-danger' : undefined}>
+                  <tr key={row.id} className={tier?.sla_state === 'breach' ? 'row-danger' : undefined}>
                     {canAssign ? (
                       <td>
                         <input
@@ -487,10 +602,23 @@ export function CskhBoardContent() {
                     <td>{row.owner_name ?? row.owner_id ?? '—'}</td>
                     <td>{row.received_at?.slice(0, 16) ?? '—'}</td>
                     <td>{row.first_call_at?.slice(0, 16) ?? '—'}</td>
+                    <td>{row.b2_completed_at?.slice(0, 16) ?? '—'}</td>
+                    <td>{row.closed_at?.slice(0, 16) ?? '—'}</td>
                     <td>
-                      <span className={badge.className}>{badge.label}</span>
-                      {row.sla_minutes_elapsed != null ? (
-                        <span className="muted"> · {row.sla_minutes_elapsed}m</span>
+                      <div className="cskh-board-tier-inline">
+                        {row.sla_tiers.map((item) => (
+                          <span
+                            key={item.tier}
+                            className={`cskh-board-tier-pill cskh-board-tier-pill--${item.sla_state}${
+                              item.tier === slaTier ? ' is-active-tier' : ''
+                            }`}
+                          >
+                            {SLA_TIER_META[item.tier as SlaTier]?.title ?? item.tier}: {item.sla_state}
+                          </span>
+                        ))}
+                      </div>
+                      {tier?.elapsed_minutes != null ? (
+                        <span className="muted"> · {formatElapsed(tier.elapsed_minutes)}</span>
                       ) : null}
                     </td>
                     <td>{row.next_follow_up_at?.slice(0, 16) ?? '—'}</td>
@@ -510,6 +638,7 @@ export function CskhBoardContent() {
               canAssign={canAssign}
               selected={selected.has(row.id)}
               onToggle={() => toggleOne(row.id)}
+              activeTier={slaTier}
             />
           ))}
           {!loading && rows.length === 0 ? (

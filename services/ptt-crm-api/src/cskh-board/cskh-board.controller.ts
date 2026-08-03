@@ -16,6 +16,7 @@ import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { StaffLeadsWriteGuard } from '../leads/guards/staff-leads-write.guard';
 import { StaffLeadsViewGuard } from '../leads/guards/staff-leads-view.guard';
 import { CskhBoardService } from './cskh-board.service';
+import type { CskhSlaTier } from './cskh-board-sla.util';
 import { CskhBulkAssignBody, CskhBulkRescheduleBody } from './cskh-board.types';
 
 @Controller('api/crm/cskh-board')
@@ -35,11 +36,18 @@ export class CskhBoardController {
     @Query('channel') channel?: string,
     @Query('q') q?: string,
     @Query('sla_filter') slaFilter?: string,
+    @Query('sla_tier') slaTier?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
     const filter =
       slaFilter === 'breach' || slaFilter === 'warning' || slaFilter === 'open' ? slaFilter : 'all';
+    const tier: CskhSlaTier | 'all' | undefined =
+      slaTier === 'first_call_15m' || slaTier === 'b2_complete_4h' || slaTier === 'close_24h'
+        ? slaTier
+        : slaTier === 'all'
+          ? 'all'
+          : undefined;
     return this.board.getBoard({
       owner_id: ownerId ? Number(ownerId) : undefined,
       status,
@@ -47,6 +55,7 @@ export class CskhBoardController {
       channel,
       q,
       sla_filter: filter,
+      sla_tier: tier,
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
     });
@@ -61,9 +70,16 @@ export class CskhBoardController {
     @Query('channel') channel?: string,
     @Query('q') q?: string,
     @Query('sla_filter') slaFilter?: string,
+    @Query('sla_tier') slaTier?: string,
   ) {
     const filter =
       slaFilter === 'breach' || slaFilter === 'warning' || slaFilter === 'open' ? slaFilter : 'all';
+    const tier: CskhSlaTier | 'all' | undefined =
+      slaTier === 'first_call_15m' || slaTier === 'b2_complete_4h' || slaTier === 'close_24h'
+        ? slaTier
+        : slaTier === 'all'
+          ? 'all'
+          : undefined;
     const csv = await this.board.exportCsv({
       owner_id: ownerId ? Number(ownerId) : undefined,
       status,
@@ -71,6 +87,7 @@ export class CskhBoardController {
       channel,
       q,
       sla_filter: filter,
+      sla_tier: tier,
     });
     return csv;
   }
