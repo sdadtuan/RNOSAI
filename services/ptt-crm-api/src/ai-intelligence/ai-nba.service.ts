@@ -21,6 +21,8 @@ import {
 } from './deal-score.types';
 import { computeLeadNbaV1 } from './lead-nba.engine';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
+import { LeadSlaCareService } from '../leads/lead-sla-care.service';
+import type { SlaCareNbaAction } from '../leads/lead-sla-care.util';
 
 const NBA_ACTIONS: Record<string, { label: string; taskTemplate: string; ragQuery: string }> = {
   call_back: {
@@ -43,6 +45,26 @@ const NBA_ACTIONS: Record<string, { label: string; taskTemplate: string; ragQuer
     taskTemplate: 'NBA: Escalate GDKD — rủi ro cao',
     ragQuery: 'escalate gdkd lead hot priority',
   },
+  log_call: {
+    label: 'Gọi ngay & log call',
+    taskTemplate: 'NBA SLA: Gọi lần đầu trong 15p — log activity call',
+    ragQuery: 'gọi lần đầu lead meta spa script 15 phút',
+  },
+  complete_b2: {
+    label: 'Hoàn thành B2 — Liên hệ OK',
+    taskTemplate: 'NBA SLA: Hoàn thành B2 — báo cáo Liên hệ OK',
+    ragQuery: 'hoàn thành B2 liên hệ OK spa funnel',
+  },
+  set_chot_audit: {
+    label: 'Chốt gói + audit note',
+    taskTemplate: 'NBA SLA: Chốt gói + ghi audit VND trong 24h',
+    ragQuery: 'chốt gói spa audit note VND',
+  },
+  set_lost_reason: {
+    label: 'Lost + lý do chuẩn',
+    taskTemplate: 'NBA SLA: Đóng lost kèm lý do audit',
+    ragQuery: 'lost lead spa lý do giá xa không nhu cầu',
+  },
 };
 
 @Injectable()
@@ -57,6 +79,7 @@ export class AiNbaService {
     private readonly cases: CasesSqliteRepository,
     private readonly playbooks: PlaybooksRepository,
     private readonly crmLegacy: CrmLeadsLegacyService,
+    private readonly slaCare: LeadSlaCareService,
   ) {}
 
   async suggestNextBestAction(input: NextBestActionRequest): Promise<NextBestActionResponse> {
@@ -216,9 +239,23 @@ export class AiNbaService {
       throw new NotFoundException({ error: 'lead_not_found', lead_id: leadId });
     }
 
-    const terminal = ['won', 'lost', 'converted', 'closed'].includes(String(ctx.status ?? '').toLowerCase());
+    const terminal = ['won', 'lost', 'converted', 'closed', 'chot'].includes(
+      String(ctx.status ?? '').toLowerCase(),
+    );
     if (terminal) {
       throw new BadRequestException({ error: 'lead_terminal', message: 'NBA not emitted for terminal leads' });
+    }
+
+    const slaNba = await this.slaCare.getSlaNbaForLead(leadId);
+    if (slaNba?.nba) {
+      return this.emitSlaLeadNba({
+        leadId,
+        ctx,
+        slaNba: slaNba.nba,
+        requestId,
+        actorId: input.actorId ?? null,
+        force: Boolean(input.force),
+      });
     }
 
     const latestScore = await this.scores.getLatest('lead', String(leadId));
@@ -282,6 +319,81 @@ export class AiNbaService {
         reason,
         stalled_days: evaluated.stalledDays,
         lead_score: latestScore?.score_value ?? null,
+        playbook_citation: citation,
+      },
+      confidence: wrapped.data.confidence,
+      agentRunId: wrapped.runId,
+    });
+
+    return this.toResponse(record, 'lead', leadId, requestId, wrapped.runId);
+  }
+
+  private async emitSlaLeadNba(input: {
+    leadId: number;
+    ctx: { clientId?: string | null; channel?: string | null; status?: string | null };
+    slaNba: {
+      action: SlaCareNbaAction;
+      action_label: string;
+      reason: string;
+      urgency: string;
+      cta_target: string;
+      sla_tier: string | null;
+    };
+    requestId: string;
+    actorId: string | null;
+    force: boolean;
+  }): Promise<NextBestActionResponse> {
+    const { leadId, ctx, slaNba, requestId, actorId, force } = input;
+
+    if (!force) {
+      const pending = await this.recommendations.listByEntity('lead', String(leadId), 'pending', 1);
+      const existing = pending.find((r) => r.recommendation_type === 'nba');
+      if (existing) {
+        return this.toResponse(existing, 'lead', leadId, requestId);
+      }
+    }
+
+    const action = slaNba.action;
+    const actionMeta = NBA_ACTIONS[action] ?? NBA_ACTIONS.call_back;
+    const reason = slaNba.reason;
+    const confidence = slaNba.urgency === 'breach' ? 0.88 : 0.78;
+    const citation = await this.resolvePlaybookCitation(
+      `${actionMeta.ragQuery} ${ctx.channel ?? 'meta'} ${ctx.status ?? 'new'}`,
+    );
+
+    const wrapped = await this.audit.wrap(
+      {
+        useCase: AI_USE_CASE.NEXT_BEST_ACTION,
+        entityType: 'lead',
+        entityId: String(leadId),
+        clientId: ctx.clientId,
+        actorId,
+        correlationId: requestId,
+        modelName: 'nba-sla-care-v1',
+        input: { lead_id: leadId, action, source: 'sla_care', sla_tier: slaNba.sla_tier },
+      },
+      async () => ({
+        data: { action, reason, confidence },
+        output: { action, reason },
+        modelName: 'nba-sla-care-v1',
+        tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      }),
+    );
+
+    const record = await this.recommendations.insert({
+      entityType: 'lead',
+      entityId: String(leadId),
+      recommendationType: 'nba',
+      text: `${slaNba.action_label}: ${reason}`,
+      actionJson: {
+        action,
+        action_label: slaNba.action_label,
+        task_template: actionMeta.taskTemplate,
+        reason,
+        source: 'sla_care_v1',
+        urgency: slaNba.urgency,
+        cta_target: slaNba.cta_target,
+        sla_tier: slaNba.sla_tier,
         playbook_citation: citation,
       },
       confidence: wrapped.data.confidence,

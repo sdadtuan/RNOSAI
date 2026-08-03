@@ -32,6 +32,7 @@ import { LeadsIoService } from './leads-io.service';
 import { LeadsService } from './leads.service';
 import { LeadsWriteService } from './leads-write.service';
 import { LeadStatusGatePatchOptions, LeadStatusGateService } from './lead-status-gate.service';
+import { LeadSlaCareService } from './lead-sla-care.service';
 import { CrmConfigService } from '../crm-config/crm-config.service';
 import {
   CreateLeadV1Body,
@@ -51,6 +52,7 @@ export class LeadsController {
     private readonly crmConfig: CrmConfigService,
     private readonly staffAuth: StaffAuthService,
     private readonly statusGate: LeadStatusGateService,
+    private readonly slaCare: LeadSlaCareService,
   ) {}
 
   @Get('lookup-options')
@@ -202,6 +204,13 @@ export class LeadsController {
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
   getLeadStatusOptions(@Param('id', ParseIntPipe) id: number) {
     return this.statusGate.getStatusOptions(id);
+  }
+
+  /** Phase 1 — SLA-aware care context (Spa Meta 24h): banner, NBA, drafts. */
+  @Get(':id/sla-care-context')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  getLeadSlaCareContext(@Param('id', ParseIntPipe) id: number) {
+    return this.slaCare.getCareContext(id);
   }
 
   @Get(':id')

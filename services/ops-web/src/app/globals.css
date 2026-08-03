@@ -3561,6 +3561,201 @@ body:has(.ops-sidebar) main {
   color: #6b7280;
 }
 
+/* Phase 1 — SLA care panel on lead detail (Spa Meta 24h) */
+.lead-sla-care {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.lead-sla-banner {
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid transparent;
+}
+
+.lead-sla-banner p {
+  margin: 0.35rem 0 0;
+  font-size: 0.88rem;
+}
+
+.lead-sla-banner--warning {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+.lead-sla-banner--breach {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.lead-sla-tier-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.lead-sla-tier-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.lead-sla-tier-pill--breach {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.lead-sla-tier-pill--warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.lead-sla-tier-pill--ok {
+  background: #ecfdf5;
+  color: #166534;
+}
+
+.lead-sla-tier-pill--na {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.lead-sla-nba {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border, #e5e7eb);
+  background: #f8fafc;
+}
+
+.lead-sla-nba--breach {
+  border-color: #fca5a5;
+  background: #fff5f5;
+}
+
+.lead-sla-nba--warning {
+  border-color: #fcd34d;
+  background: #fffdf5;
+}
+
+.lead-sla-nba__badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #475569;
+  margin-bottom: 0.25rem;
+}
+
+.lead-sla-nba__body p {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+}
+
+.lead-sla-nba__actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.lead-sla-script {
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+  background: #fff;
+}
+
+.lead-sla-script__body {
+  white-space: pre-wrap;
+  font-size: 0.82rem;
+  margin: 0.5rem 0;
+  font-family: inherit;
+}
+
+.lead-sla-script__disclaimer {
+  font-size: 0.78rem;
+  margin: 0 0 0.5rem;
+}
+
+.lead-sla-audit-suggest,
+.lead-sla-lost-reasons {
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.lead-sla-audit-suggest__template {
+  display: block;
+  margin: 0.35rem 0;
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+}
+
+.lead-sla-audit-suggest__hints {
+  margin: 0.35rem 0 0.5rem;
+  padding-left: 1.1rem;
+  font-size: 0.78rem;
+}
+
+.lead-sla-lost-reasons__label {
+  display: block;
+  font-size: 0.82rem;
+  margin-bottom: 0.4rem;
+}
+
+.lead-sla-lost-reasons__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.lead-sla-lost-chip {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.lead-sla-lost-chip:hover {
+  border-color: #64748b;
+  background: #f1f5f9;
+}
+
+.ai-call-script-section {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.ai-call-script-section__body {
+  white-space: pre-wrap;
+  font-size: 0.82rem;
+  margin: 0.5rem 0;
+  font-family: inherit;
+  background: #f8fafc;
+  padding: 0.65rem;
+  border-radius: 6px;
+}
+
+.ai-call-script-section__disclaimer {
+  font-size: 0.78rem;
+}
+
 .cskh-board-summary-chips {
   display: none;
 }

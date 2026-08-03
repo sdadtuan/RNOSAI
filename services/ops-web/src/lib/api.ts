@@ -438,6 +438,70 @@ export async function fetchLeadStatusOptions(
   return body;
 }
 
+export type SlaCareNbaAction = 'log_call' | 'complete_b2' | 'set_chot_audit' | 'set_lost_reason';
+
+export interface SlaCareTierSnapshot {
+  tier: 'first_call_15m' | 'b2_complete_4h' | 'close_24h';
+  label: string;
+  sla_state: 'ok' | 'warning' | 'breach' | 'na';
+  deadline_at: string | null;
+  completed_at: string | null;
+  elapsed_minutes: number | null;
+  deadline_minutes: number;
+}
+
+export interface LeadSlaCareContext {
+  lead_id: number;
+  lead_flow_kind: 'spa_operational' | 'b2b_prospect';
+  applicable: boolean;
+  sla_tiers: SlaCareTierSnapshot[];
+  worst_sla_state: string;
+  worst_sla_tier: string | null;
+  banner: {
+    severity: 'ok' | 'warning' | 'breach' | 'hidden';
+    title: string;
+    message: string;
+    tier: string | null;
+  };
+  nba: {
+    action: SlaCareNbaAction;
+    action_label: string;
+    reason: string;
+    urgency: 'normal' | 'warning' | 'breach';
+    cta_target: string;
+    sla_tier: string | null;
+  } | null;
+  drafts: {
+    call_script: {
+      greeting: string;
+      intro: string;
+      questions: string[];
+      closing: string;
+      disclaimer: string;
+    } | null;
+    audit_note: {
+      template: string;
+      hints: string[];
+    } | null;
+  };
+  lost_reason_options: Array<{ id: string; label: string; confidence: number }>;
+}
+
+export async function fetchLeadSlaCareContext(
+  token: string,
+  leadId: number,
+): Promise<LeadSlaCareContext> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/sla-care-context`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<LeadSlaCareContext & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Lead SLA care context failed', res.status);
+  }
+  return body;
+}
+
 export interface LeadAttributionData {
   lead_id: number;
   campaign_id: string | null;

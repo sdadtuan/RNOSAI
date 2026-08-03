@@ -248,7 +248,7 @@ export function LeadFunnelPanel({
   const canCompleteB2 = b2ContactOkReported && careNote.trim().length >= 3;
 
   return (
-    <section className="card stack-gap lead-funnel-panel" style={{ marginTop: '1rem' }}>
+    <section className="card stack-gap lead-funnel-panel" id="lead-funnel-panel" style={{ marginTop: '1rem' }}>
       <h2 style={{ margin: 0, fontSize: '1.1rem' }}>{panelTitle}</h2>
 
       {panelError ? (

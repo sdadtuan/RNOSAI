@@ -24,6 +24,8 @@ import { LeadCreateEnrichmentService } from './ingest/lead-create-enrichment.ser
 import { LeadDedupRepository } from './ingest/lead-dedup.repository';
 import { LeadIngestRulesRepository } from './ingest/lead-ingest-rules.repository';
 import { LeadStatusGateService } from './lead-status-gate.service';
+import { LeadSlaCareService } from './lead-sla-care.service';
+import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.module';
 
 @Module({
   imports: [
@@ -31,6 +33,7 @@ import { LeadStatusGateService } from './lead-status-gate.service';
     AiScoreAsyncModule,
     StaffAuthModule,
     CrmConfigModule,
+    CrmLeadsLegacyModule,
     forwardRef(() => CustomerTimelineModule),
     MetaTrackingModule,
     PerformanceModule,
@@ -51,6 +54,7 @@ import { LeadStatusGateService } from './lead-status-gate.service';
     LeadAutoAssignService,
     LeadCreateEnrichmentService,
     LeadStatusGateService,
+    LeadSlaCareService,
     WriteEnabledGuard,
     StaffLeadsWriteGuard,
     StaffLeadsViewGuard,
@@ -62,6 +66,7 @@ import { LeadStatusGateService } from './lead-status-gate.service';
     LeadIngestRulesRepository,
     StaffLeadsViewGuard,
     StaffLeadsWriteGuard,
+    LeadSlaCareService,
   ],
 })
 export class LeadsModule {}

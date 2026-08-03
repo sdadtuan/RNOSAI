@@ -10,6 +10,7 @@ import { LeadAuditPanel } from '@/components/crm/LeadAuditPanel';
 import { LeadContactActions } from '@/components/crm/LeadContactActions';
 import { LeadContractPanel } from '@/components/LeadContractPanel';
 import { LeadDetailHero } from '@/components/crm/LeadDetailHero';
+import { LeadSlaCarePanel } from '@/components/crm/LeadSlaCarePanel';
 import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
 import { LeadEntityTimelinePanel } from '@/components/crm/LeadEntityTimelinePanel';
 import {
@@ -532,6 +533,19 @@ export default function CrmLeadDetailPage() {
             flowLabel={leadFlowKindLabel(leadFlowKind)}
           />
 
+          {accessToken && leadFlowKind === 'spa_operational' ? (
+            <LeadSlaCarePanel
+              token={accessToken}
+              leadId={leadId}
+              status={status}
+              onAuditNoteSuggest={(text) => setAuditNote(text)}
+              onReload={() => {
+                const access = getAccessToken();
+                if (access) void reloadTimeline(access);
+              }}
+            />
+          ) : null}
+
           <div
             className={`lead-detail-grid${showCopilotInline ? ' lead-detail-grid--with-copilot' : ''}`}
           >
@@ -645,7 +659,7 @@ export default function CrmLeadDetailPage() {
                 <div className="lead-panel__head">
                   <h3 className="lead-panel__title">Trạng thái lead</h3>
                 </div>
-                <form className="lead-form" onSubmit={(e) => void onSaveStatus(e)}>
+                <form className="lead-form" id="lead-status-form" onSubmit={(e) => void onSaveStatus(e)}>
                   <label className="lead-field">
                     <span className="lead-field__label">Trạng thái</span>
                     <select
@@ -749,7 +763,7 @@ export default function CrmLeadDetailPage() {
                 <div className="lead-panel__head">
                   <h3 className="lead-panel__title">Thêm hoạt động</h3>
                 </div>
-                <form className="lead-form" onSubmit={(e) => void onAddActivity(e)}>
+                <form className="lead-form" id="lead-activity-form" onSubmit={(e) => void onAddActivity(e)}>
                   <label className="lead-field">
                     <span className="lead-field__label">Loại</span>
                     <select

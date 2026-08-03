@@ -19,6 +19,7 @@ import { LeadNbaSection } from './LeadNbaSection';
 import { LeadRouteRepSection } from './LeadRouteRepSection';
 import { SummarizeSection } from './SummarizeSection';
 import { FollowUpDraftSection } from './FollowUpDraftSection';
+import { CallScriptDraftSection } from './CallScriptDraftSection';
 
 interface Props {
   token: string;
@@ -164,6 +165,8 @@ export function LeadCopilotPanel({
             onSelectActivity={onSelectActivity}
             onError={onCopilotError}
           />
+
+          <CallScriptDraftSection token={token} leadId={leadId} onError={onCopilotError} />
 
           <FollowUpDraftSection
             token={token}
