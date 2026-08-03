@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { DatabaseSync } from 'node:sqlite';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
+import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
 import {
   CONTACT_OK_CARE_STATUS,
   computeB2Complete,
@@ -79,9 +80,10 @@ export class LeadStatusGateService implements OnModuleDestroy {
       throw new LeadStatusGateError('lead_not_found', 'Không tìm thấy lead.');
     }
 
-    const [hasContactOkReport, hasOutreachActivity] = await Promise.all([
+    const [hasContactOkReport, hasOutreachActivity, hasPresales] = await Promise.all([
       this.hasContactOkReport(leadId),
       this.hasOutreachActivity(leadId),
+      this.hasPresales(leadId),
     ]);
 
     const b2Complete = computeB2Complete({
@@ -92,6 +94,15 @@ export class LeadStatusGateService implements OnModuleDestroy {
 
     const needsCleanup = this.leadNeedsCleanup(row.full_name, row.phone);
 
+    const flowKind = resolveLeadFlowKind({
+      clientId: row.client_id,
+      channel: row.channel,
+      source: row.source,
+      status: row.status,
+      metaJson: row.meta_json,
+      hasPresales,
+    });
+
     return {
       oldStatus: String(row.status ?? 'moi'),
       newStatus: String(body.status ?? '').trim(),
@@ -101,6 +112,7 @@ export class LeadStatusGateService implements OnModuleDestroy {
       b2Complete,
       hasOutreachActivity,
       needsCleanup,
+      flowKind,
     };
   }
 
@@ -108,12 +120,19 @@ export class LeadStatusGateService implements OnModuleDestroy {
     status: string | null;
     full_name: string | null;
     phone: string | null;
+    source: string | null;
+    channel: string | null;
+    client_id: string | null;
+    meta_json: string | null;
     care_stage_current: string | null;
     care_stages_done_json: string | null;
   } | null> {
     if (this.config.crmLeadsLegacyPg) {
       const result = await this.db.query(
-        `SELECT status, full_name, phone,
+        `SELECT status, full_name, phone, source,
+                COALESCE(agency_client_id::text, '') AS client_id,
+                COALESCE(channel, '') AS channel,
+                meta_json::text AS meta_json,
                 COALESCE(care_stage_current, 'first_contact') AS care_stage_current,
                 COALESCE(care_stages_done_json, '{}'::jsonb)::text AS care_stages_done_json
          FROM crm_leads
@@ -126,7 +145,15 @@ export class LeadStatusGateService implements OnModuleDestroy {
 
     const row = this.sqliteDb
       .prepare(
-        `SELECT status, full_name, phone,
+        `SELECT status, full_name, phone, source,
+                COALESCE(json_extract(meta_json, '$.agency_client_id'), '') AS client_id,
+                COALESCE(
+                  json_extract(meta_json, '$.channel'),
+                  json_extract(meta_json, '$.ingest_channel'),
+                  source,
+                  ''
+                ) AS channel,
+                meta_json,
                 COALESCE(care_stage_current, 'first_contact') AS care_stage_current,
                 COALESCE(care_stages_done_json, '{}') AS care_stages_done_json
          FROM crm_leads WHERE id = ? LIMIT 1`,
@@ -136,11 +163,29 @@ export class LeadStatusGateService implements OnModuleDestroy {
           status: string | null;
           full_name: string | null;
           phone: string | null;
+          source: string | null;
+          channel: string | null;
+          client_id: string | null;
+          meta_json: string | null;
           care_stage_current: string | null;
           care_stages_done_json: string | null;
         }
       | undefined;
     return row ?? null;
+  }
+
+  private async hasPresales(leadId: number): Promise<boolean> {
+    if (this.config.crmLeadsLegacyPg) {
+      const result = await this.db.query(
+        `SELECT 1 FROM crm_lead_presales WHERE lead_id = $1 LIMIT 1`,
+        [leadId],
+      );
+      return (result.rowCount ?? 0) > 0;
+    }
+    const row = this.sqliteDb
+      .prepare(`SELECT 1 AS ok FROM crm_lead_presales WHERE lead_id = ? LIMIT 1`)
+      .get(leadId) as { ok: number } | undefined;
+    return Boolean(row);
   }
 
   private async hasContactOkReport(leadId: number): Promise<boolean> {

@@ -51,6 +51,9 @@ export interface LeadFunnelRow {
   phone: string;
   email: string;
   status: string;
+  source?: string;
+  channel?: string;
+  client_id?: string | null;
   owner_id: number | null;
   meta_json: string;
   care_stage_current: string;
@@ -60,8 +63,11 @@ export interface LeadFunnelRow {
   updated_at?: string;
 }
 
+import type { LeadFlowKind } from './lead-flow-kind.util';
+
 export interface LeadFunnelSnapshot {
   lead_id: number;
+  lead_flow_kind: LeadFlowKind;
   care_pipeline: CarePipelineState;
   presales_care_gate: PresalesCareGateState;
   review_queue: ReviewQueuePublicState;

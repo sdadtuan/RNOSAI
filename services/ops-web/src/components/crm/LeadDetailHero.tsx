@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { LeadRow } from '@/lib/api';
+import type { LeadFlowKind } from '@/lib/crm/lead-flow-kind';
 import { leadStatusLabel, leadStatusTone } from '@/lib/crm/lead-status';
 
 function leadInitials(name: string | null | undefined): string {
@@ -17,9 +18,13 @@ function leadInitials(name: string | null | undefined): string {
 export function LeadDetailHero({
   lead,
   ownerLabel,
+  flowKind,
+  flowLabel,
 }: {
   lead: LeadRow;
   ownerLabel?: string | null;
+  flowKind?: LeadFlowKind;
+  flowLabel?: string;
 }) {
   const tone = leadStatusTone(lead.status);
   const created = lead.created_at?.slice(0, 10) ?? '—';
@@ -41,6 +46,14 @@ export function LeadDetailHero({
         <div className="lead-detail-hero__info">
           <div className="lead-detail-hero__title-row">
             <h1 className="lead-detail-hero__name">{lead.full_name || '—'}</h1>
+            {flowKind && flowLabel ? (
+              <span
+                className={`lead-kind-tag lead-kind-tag--${flowKind === 'spa_operational' ? 'spa' : 'b2b'}`}
+                title={flowLabel}
+              >
+                {flowLabel}
+              </span>
+            ) : null}
             <span className={`lead-status-badge lead-status-badge--${tone}`}>
               {leadStatusLabel(lead.status)}
             </span>

@@ -16,6 +16,7 @@ import {
   submitLeadCareReport,
   type LeadFunnelSnapshot,
 } from '@/lib/api';
+import { showPresalesForFlow } from '@/lib/crm/lead-flow-kind';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
 
 const STRATEGY_LABELS: Record<string, string> = {
@@ -207,7 +208,8 @@ export function LeadFunnelPanel({
       setFunnel(out.funnel);
       onFunnelChange?.(out.funnel);
       setCareNote('');
-      setPanelMessage('Đã hoàn thành B2 — pre-sales đã mở.');
+      const spaDone = out.funnel.lead_flow_kind === 'spa_operational';
+      setPanelMessage(spaDone ? 'Đã hoàn thành B2' : 'Đã hoàn thành B2 — pre-sales đã mở.');
       onMessage?.('Đã hoàn thành B2');
       await reload();
     }, true);
@@ -233,6 +235,12 @@ export function LeadFunnelPanel({
   }
   if (!funnel) return null;
 
+  const flowKind = funnel.lead_flow_kind ?? 'b2b_prospect';
+  const isSpaFlow = flowKind === 'spa_operational';
+  const showPresales = showPresalesForFlow(flowKind);
+  const funnelSteps = showPresales ? FUNNEL_STEPS : FUNNEL_STEPS.filter((step) => step.key === 'b2');
+  const panelTitle = isSpaFlow ? 'Funnel CSKH Spa — B2 Liên hệ' : 'Funnel B2 → Pre-sales';
+
   const b2Stage = funnel.care_pipeline.stages[0];
   const inReview = funnel.review_queue.active;
   const activeStep = activeStepKey();
@@ -241,7 +249,7 @@ export function LeadFunnelPanel({
 
   return (
     <section className="card stack-gap lead-funnel-panel" style={{ marginTop: '1rem' }}>
-      <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Funnel B2 → Pre-sales</h2>
+      <h2 style={{ margin: 0, fontSize: '1.1rem' }}>{panelTitle}</h2>
 
       {panelError ? (
         <div className="lead-alert lead-alert--error" role="alert">
@@ -255,7 +263,7 @@ export function LeadFunnelPanel({
       ) : null}
 
       <div className="funnel-stepper" style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-        {FUNNEL_STEPS.map((step, idx) => {
+        {funnelSteps.map((step, idx) => {
           const presalesIdx = funnel.presales
             ? FUNNEL_STEPS.findIndex((s) => s.key === funnel.presales!.presales.stage)
             : -1;
@@ -322,8 +330,16 @@ export function LeadFunnelPanel({
         <h3 style={{ marginTop: 0 }}>B2 — {b2Stage?.label ?? 'Liên hệ lần đầu'}</h3>
         <p className="muted" style={{ fontSize: '0.9rem' }}>{b2Stage?.hint}</p>
         <p>
-          Gate pre-sales:{' '}
-          <strong>{funnel.presales_care_gate.complete ? '✓ Mở' : '🔒 Chưa hoàn thành B2'}</strong>
+          {showPresales ? (
+            <>
+              Gate pre-sales:{' '}
+              <strong>{funnel.presales_care_gate.complete ? '✓ Mở' : '🔒 Chưa hoàn thành B2'}</strong>
+            </>
+          ) : (
+            <>
+              Luồng spa: hoàn thành B2 rồi chốt trạng thái lead (không Pre-sales).
+            </>
+          )}
           {!funnel.care_pipeline.all_complete && canEdit && !inReview ? (
             <span className="muted" style={{ display: 'block', fontSize: '0.85rem', marginTop: '0.35rem' }}>
               Bước 1 — Liên hệ OK:{' '}
@@ -401,7 +417,7 @@ export function LeadFunnelPanel({
         )}
       </div>
 
-      {funnel.presales_on_lead_enabled && funnel.presales_care_gate.complete && !inReview && (
+      {showPresales && funnel.presales_on_lead_enabled && funnel.presales_care_gate.complete && !inReview && (
         <div className="card-inner" id="funnel-presales">
           <h3 style={{ marginTop: 0 }}>Pre-sales</h3>
           {!funnel.presales && canEdit && (

@@ -551,6 +551,7 @@ export async function assignLead(
 
 export interface LeadFunnelSnapshot {
   lead_id: number;
+  lead_flow_kind: 'spa_operational' | 'b2b_prospect';
   care_pipeline: {
     current_stage_key: string;
     current_stage_label: string;

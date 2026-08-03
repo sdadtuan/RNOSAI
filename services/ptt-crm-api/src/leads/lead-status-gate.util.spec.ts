@@ -13,6 +13,7 @@ describe('lead-status-gate.util', () => {
     b2Complete: true,
     hasOutreachActivity: true,
     needsCleanup: false,
+    flowKind: 'spa_operational' as const,
   };
 
   it('blocks moi → chot (TC-LEAD-07)', () => {

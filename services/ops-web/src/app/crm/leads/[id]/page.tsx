@@ -13,6 +13,13 @@ import { LeadDetailHero } from '@/components/crm/LeadDetailHero';
 import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
 import { LeadEntityTimelinePanel } from '@/components/crm/LeadEntityTimelinePanel';
 import { LEAD_STATUS_LABELS } from '@/lib/crm/lead-status';
+import {
+  leadFlowKindLabel,
+  resolveLeadFlowKindFromLead,
+  showB2bSalesFlowBar,
+  showContractForFlow,
+  statusOptionsForFlowKind,
+} from '@/lib/crm/lead-flow-kind';
 import { aiCopilotEnabled } from '@/lib/ai-flags';
 import {
   assignLead,
@@ -44,14 +51,16 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 
-const STATUS_OPTIONS = [
+const ALL_STATUS_OPTIONS = [
   'moi',
   'da_lien_he',
   'dang_tu_van',
   'hen_gap',
   'bao_gia',
   'dam_phan',
+  'proposal',
   'chot',
+  'won',
   'post_sale',
   'lost',
   'pending_cleanup',
@@ -164,6 +173,22 @@ export default function CrmLeadDetailPage() {
   const layout = useLeadDetailLayout();
   const online = useNetworkOnline();
   const copilotOn = aiCopilotEnabled();
+
+  const leadFlowKind = useMemo(
+    () => (lead ? resolveLeadFlowKindFromLead(lead, funnelSnap) : 'b2b_prospect'),
+    [lead, funnelSnap],
+  );
+  const statusOptions = useMemo(() => {
+    const allowed = new Set(statusOptionsForFlowKind(leadFlowKind));
+    const current = status.trim();
+    const options = ALL_STATUS_OPTIONS.filter((s) => allowed.has(s));
+    if (current && !options.includes(current)) {
+      return [current, ...options];
+    }
+    return options;
+  }, [leadFlowKind, status]);
+  const showB2bFlow = showB2bSalesFlowBar(leadFlowKind);
+  const showContractPanel = showContractForFlow(leadFlowKind);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -490,7 +515,12 @@ export default function CrmLeadDetailPage() {
 
       {lead && !loading ? (
         <div className="lead-detail-layout">
-          <LeadDetailHero lead={lead} ownerLabel={ownerLabel} />
+          <LeadDetailHero
+            lead={lead}
+            ownerLabel={ownerLabel}
+            flowKind={leadFlowKind}
+            flowLabel={leadFlowKindLabel(leadFlowKind)}
+          />
 
           <div
             className={`lead-detail-grid${showCopilotInline ? ' lead-detail-grid--with-copilot' : ''}`}
@@ -500,7 +530,16 @@ export default function CrmLeadDetailPage() {
           >
             <LeadAttributionChips attribution={attribution} />
 
-            <LeadB2bSalesFlowBar leadId={leadId} funnel={funnelSnap} contract={contractSummary} />
+            {showB2bFlow ? (
+              <LeadB2bSalesFlowBar leadId={leadId} funnel={funnelSnap} contract={contractSummary} />
+            ) : (
+              <div className="banner banner-info lead-spa-flow-banner" style={{ marginTop: '0.75rem' }}>
+                <strong>Luồng CSKH Spa Meta 24h</strong>
+                <p style={{ margin: '0.35rem 0 0', fontSize: '0.9rem' }}>
+                  Liên hệ trong SLA → hẹn gặp nếu cần → chốt dịch vụ spa. Không dùng Pre-sales / HĐ agency.
+                </p>
+              </div>
+            )}
 
             {lead.phone ? (
               <LeadContactActions phone={lead.phone} onCopy={onCopyContact} />
@@ -526,7 +565,7 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {accessToken ? (
+            {accessToken && showContractPanel ? (
               <LeadContractPanel
                 token={accessToken}
                 leadId={leadId}
@@ -605,7 +644,7 @@ export default function CrmLeadDetailPage() {
                       onChange={(e) => setStatus(e.target.value)}
                       disabled={!hasCap(user, 'crm_leads', 'edit') || saving}
                     >
-                      {STATUS_OPTIONS.map((s) => (
+                      {statusOptions.map((s) => (
                         <option key={s} value={s}>
                           {LEAD_STATUS_LABELS[s] ?? s}
                         </option>

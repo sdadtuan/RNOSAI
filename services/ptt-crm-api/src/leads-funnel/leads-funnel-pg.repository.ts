@@ -13,6 +13,7 @@ import {
   presalesCareGateState,
   serializeStagesDone,
 } from './care-pipeline.util';
+import { resolveLeadFlowKindFromFunnelRow } from './lead-flow-kind.util';
 import {
   CompleteCareStageBody,
   LeadFunnelRow,
@@ -112,7 +113,9 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
 
   async fetchLeadRow(leadId: number): Promise<LeadFunnelRow | null> {
     const result = await this.db.query(
-      `SELECT l.sqlite_lead_id AS id, l.full_name, l.phone, l.email, l.status, l.owner_id,
+      `SELECT l.sqlite_lead_id AS id, l.full_name, l.phone, l.email, l.status, l.source, l.owner_id,
+              COALESCE(l.agency_client_id::text, '') AS client_id,
+              COALESCE(l.channel, '') AS channel,
               l.meta_json::text AS meta_json,
               COALESCE(l.care_stage_current, 'first_contact') AS care_stage_current,
               COALESCE(l.care_stages_done_json, '{}'::jsonb)::text AS care_stages_done_json,
@@ -147,10 +150,12 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     if (!row) return null;
     const meta = parseLeadMeta(row.meta_json);
     const presales = presalesEnabled ? await this.getPresalesSnapshot(leadId) : null;
+    const leadFlowKind = resolveLeadFlowKindFromFunnelRow(row, Boolean(presales));
     const care = carePipelineState(row.status, row.care_stage_current, row.care_stages_done_json);
     const contactOkReported = care.all_complete || (await this.hasB2ContactOkReport(leadId));
     return {
       lead_id: leadId,
+      lead_flow_kind: leadFlowKind,
       care_pipeline: { ...care, contact_ok_reported: contactOkReported },
       presales_care_gate: presalesCareGateState(row.care_stage_current, row.care_stages_done_json),
       review_queue: reviewQueuePublicState(meta, row.first_assigned_at || row.updated_at || ''),

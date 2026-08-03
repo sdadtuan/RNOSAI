@@ -1,4 +1,7 @@
 import {
+  assertStatusAllowedForFlow,
+} from '../leads-funnel/lead-flow-kind.util';
+import {
   presalesCareGateState,
 } from '../leads-funnel/care-pipeline.util';
 import { CONTACT_OK_CARE_STATUS } from '../leads-funnel/leads-funnel.types';
@@ -99,6 +102,7 @@ export interface LeadStatusGateContext {
   b2Complete: boolean;
   hasOutreachActivity: boolean;
   needsCleanup: boolean;
+  flowKind: 'spa_operational' | 'b2b_prospect';
 }
 
 export class LeadStatusGateError extends Error {
@@ -135,6 +139,15 @@ export function validateLeadStatusChange(ctx: LeadStatusGateContext): void {
       );
     }
     return;
+  }
+
+  try {
+    assertStatusAllowedForFlow(ctx.flowKind, next);
+  } catch (err) {
+    throw new LeadStatusGateError(
+      'flow_status_mismatch',
+      err instanceof Error ? err.message : 'Trạng thái không thuộc luồng lead.',
+    );
   }
 
   if (!isStatusTransitionAllowed(old, next)) {

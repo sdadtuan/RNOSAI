@@ -3674,6 +3674,25 @@ body:has(.ops-sidebar) main {
   border: 1px solid #fecaca;
 }
 
+.lead-kind-tag--spa {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+}
+
+.lead-kind-tag--b2b {
+  background: #faf5ff;
+  color: #6b21a8;
+  border: 1px solid #d8b4fe;
+}
+
+.lead-spa-flow-banner {
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+}
+
 .crm-leads-kind-filter {
   display: flex;
   gap: 0.35rem;
