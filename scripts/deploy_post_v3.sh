@@ -181,9 +181,26 @@ fi
 if [[ "$SKIP_RNOS01" != "1" ]]; then
   run_script "RNOS-01 Revenue OS + AI (Timeline)" "$ROOT/scripts/apply_pg_ddl_revenue_os_ai.sh"
   if [[ "$DRY_RUN" != "1" ]]; then
-    step_info "RNOS-01 gate verify"
-    APPLY=0 bash "$ROOT/scripts/rnos01_pg_ddl_gate.sh" || step_fail "RNOS-01 gate"
-    step_ok "RNOS-01 gate"
+    step_info "RNOS-01 verify"
+    "$PYTHON" -c "
+from ptt_crm.pg_schema import (
+    pg_revenue_os_ai_migration_applied,
+    pg_revenue_os_ai_r1_core_ready,
+    pg_revenue_os_ai_ready,
+    pg_revenue_os_ai_smoke_insert_ok,
+)
+checks = [
+    ('migration_applied', pg_revenue_os_ai_migration_applied()),
+    ('r1_core_ready', pg_revenue_os_ai_r1_core_ready()),
+    ('full_ready', pg_revenue_os_ai_ready()),
+    ('smoke_insert_ok', pg_revenue_os_ai_smoke_insert_ok()),
+]
+for name, ok in checks:
+    print(f'      {name}: {\"OK\" if ok else \"FAIL\"}')
+    if not ok:
+        raise SystemExit(1)
+" || step_fail "RNOS-01 verify"
+    step_ok "RNOS-01 verified"
   fi
 else
   step_skip "RNOS-01 (--skip-rnos01)"

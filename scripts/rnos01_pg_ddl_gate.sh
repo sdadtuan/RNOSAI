@@ -6,15 +6,22 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 export PYTHONPATH="${ROOT}${PYTHONPATH:+:$PYTHONPATH}"
 
-ENV_FILE="${RNOS01_ENV:-$ROOT/deploy/env.local.example}"
-if [[ -f "$ENV_FILE" ]]; then
-  set -a
-  # shellcheck source=/dev/null
-  source "$ENV_FILE" 2>/dev/null || true
-  set +a
+if [[ -z "${DATABASE_URL:-}" ]]; then
+  ENV_FILE="${RNOS01_ENV:-$ROOT/deploy/env.local.example}"
+  if [[ -f "$ENV_FILE" ]]; then
+    set -a
+    # shellcheck source=/dev/null
+    source "$ENV_FILE" 2>/dev/null || true
+    set +a
+  fi
 fi
 
-: "${DATABASE_URL:?DATABASE_URL required}"
+: "${DATABASE_URL:?DATABASE_URL required — run: set -a && source .env && set +a}"
+
+PYTHON="${PYTHON:-python3}"
+if [[ -x "$ROOT/.venv/bin/python" ]]; then
+  PYTHON="$ROOT/.venv/bin/python"
+fi
 
 APPLY="${APPLY:-1}"
 REPORT="${REPORT:-$ROOT/.local-dev/rnos01-gate-report.json}"
@@ -44,7 +51,7 @@ fi
 
 echo ""
 echo "==> Write gate report"
-python3 - <<PY
+"$PYTHON" - <<PY
 import json
 import os
 from pathlib import Path
