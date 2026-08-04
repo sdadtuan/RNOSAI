@@ -62,7 +62,9 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const [q, setQ] = useState('');
   const [query, setQuery] = useState('');
   const [listTab, setListTab] = useState<'all' | 'mine' | 'unassigned'>('all');
-  const [leadKind, setLeadKind] = useState<LeadKindFilter>('pipeline');
+  const [leadKind, setLeadKind] = useState<LeadKindFilter>(() =>
+    flowScope === 'b2b_prospect' ? 'all' : 'pipeline',
+  );
   const [reviewQueueCount, setReviewQueueCount] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterSource, setFilterSource] = useState('');
@@ -143,7 +145,8 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           owner_id: ownerId,
           unassigned_only: listTab === 'unassigned',
           review_queue_only: leadKind === 'review' ? true : undefined,
-          hide_review_queue: leadKind === 'all' ? false : undefined,
+          hide_review_queue:
+            flowScope === 'b2b_prospect' || leadKind === 'all' ? false : undefined,
           lead_flow_kind: flowKindFilter,
           limit: PAGE_SIZE,
           offset: nextOffset,
@@ -157,7 +160,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         setLoading(false);
       }
     },
-    [filterChannel, filterSource, filterStatus, flowKindFilter, leadKind, listTab, user?.id],
+    [filterChannel, filterSource, filterStatus, flowKindFilter, flowScope, leadKind, listTab, user?.id],
   );
 
   useEffect(() => {
@@ -263,11 +266,13 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       `trang ${Math.floor(offset / PAGE_SIZE) + 1} / ${Math.max(1, Math.ceil(total / PAGE_SIZE))}`,
       pageSubtitleHint,
     ];
-    if (leadKind === 'pipeline') parts.push('ẩn Phải tra soát');
-    else if (leadKind === 'review') parts.push('chỉ Phải tra soát');
+    if (flowScope !== 'b2b_prospect') {
+      if (leadKind === 'pipeline') parts.push('ẩn Phải tra soát');
+      else if (leadKind === 'review') parts.push('chỉ Phải tra soát');
+    }
     if (selectedList.length) parts.push(`đã chọn ${selectedList.length}`);
     return parts.join(' · ');
-  }, [total, offset, leadKind, pageSubtitleHint, selectedList.length]);
+  }, [total, offset, leadKind, pageSubtitleHint, selectedList.length, flowScope]);
 
   if (!user) {
     return (
@@ -430,6 +435,15 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
 
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
+        {!loading && total === 0 && flowScope === 'b2b_prospect' ? (
+          <p className="muted" style={{ marginBottom: '0.75rem' }}>
+            Không thấy lead B2B? Kiểm tra{' '}
+            <Link href="/crm/leads" className="nav-link">
+              Quản lý Lead (tất cả)
+            </Link>{' '}
+            — lead gắn client agency hoặc trùng SĐT có thể nằm luồng CSKH vận hành / bị ẩn trùng.
+          </p>
+        ) : null}
 
         <PullToRefresh
           disabled={loading || !token}

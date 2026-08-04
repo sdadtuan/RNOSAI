@@ -41,33 +41,44 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
     return this.insertLead(body, {
       leadId: (client) => this.nextStagingLeadId(client),
       writeSource: 'staging',
-      meta: {
+      meta: this.mergeCreateMeta(body, {
         staging_only: true,
-        ...(body.meta ?? {}),
         nest_write: true,
         created_via: 'POST /api/v1/leads',
-      },
+      }),
       defaultSource: 'staging',
       isDuplicate: Boolean(body.is_duplicate),
     });
   }
 
   async createLeadProd(body: CreateLeadV1Body & { is_duplicate?: boolean; meta?: Record<string, unknown> }): Promise<LeadV1> {
-    if (!body.client_id?.trim()) {
+    const flowKind = body.lead_flow_kind ?? body.meta?.lead_flow_kind;
+    const isB2bProspect = flowKind === 'b2b_prospect' || flowKind === 'b2b';
+    if (!body.client_id?.trim() && !isB2bProspect) {
       throw new BadRequestException({ error: 'client_id is required for prod create' });
     }
     return this.insertLead(body, {
       leadId: async (client) => this.nextProdLeadId(client),
       writeSource: 'nest',
-      meta: {
+      meta: this.mergeCreateMeta(body, {
         nest_write: true,
         prod_create: true,
         created_via: 'POST /api/v1/leads',
-        ...(body.meta ?? {}),
-      },
+      }),
       defaultSource: body.source?.trim() || 'api',
       isDuplicate: Boolean(body.is_duplicate),
     });
+  }
+
+  private mergeCreateMeta(
+    body: CreateLeadV1Body & { meta?: Record<string, unknown> },
+    base: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const meta = { ...(body.meta ?? {}), ...base };
+    if (body.lead_flow_kind === 'spa_operational' || body.lead_flow_kind === 'b2b_prospect') {
+      meta.lead_flow_kind = body.lead_flow_kind;
+    }
+    return meta;
   }
 
   private async insertLead(

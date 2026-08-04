@@ -37,12 +37,27 @@ export function buildSpaOperationalListFilter(dialect: SqlDialect, alias = 'l'):
   )`;
 }
 
+/** Positive match for B2B — mirrors resolveLeadFlowKind() list semantics. */
+export function buildB2bProspectListFilter(dialect: SqlDialect, alias = 'l'): string {
+  const explicit = explicitFlowExpr(dialect, alias);
+  const hasClient = hasAgencyClientExpr(dialect, alias);
+  const status = statusExpr(alias);
+
+  return `(
+    ${explicit} IN ('b2b_prospect', 'b2b')
+    OR ${status} IN ('won', 'proposal')
+    OR (
+      ${explicit} NOT IN ('spa_operational', 'spa')
+      AND NOT (${hasClient})
+    )
+  )`;
+}
+
 export function buildLeadFlowKindListFilter(
   kind: LeadFlowKind,
   dialect: SqlDialect,
   alias = 'l',
 ): string {
-  const spa = buildSpaOperationalListFilter(dialect, alias);
-  if (kind === 'spa_operational') return spa;
-  return `(NOT (${spa}))`;
+  if (kind === 'spa_operational') return buildSpaOperationalListFilter(dialect, alias);
+  return buildB2bProspectListFilter(dialect, alias);
 }

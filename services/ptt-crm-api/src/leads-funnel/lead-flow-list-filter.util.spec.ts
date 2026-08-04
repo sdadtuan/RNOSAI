@@ -1,4 +1,5 @@
 import {
+  buildB2bProspectListFilter,
   buildLeadFlowKindListFilter,
   buildSpaOperationalListFilter,
 } from './lead-flow-list-filter.util';
@@ -11,10 +12,16 @@ describe('lead-flow-list-filter.util', () => {
     expect(sql).toContain("'won', 'proposal'");
   });
 
-  it('builds b2b filter as complement of spa', () => {
+  it('builds b2b filter with explicit meta and default-no-client guard', () => {
+    const sql = buildB2bProspectListFilter('postgres', 'l');
+    expect(sql).toContain("'b2b_prospect', 'b2b'");
+    expect(sql).toContain("'won', 'proposal'");
+    expect(sql).toContain('l.agency_client_id IS NOT NULL');
+  });
+
+  it('builds b2b list filter via kind selector', () => {
     const sql = buildLeadFlowKindListFilter('b2b_prospect', 'postgres', 'l');
-    expect(sql).toMatch(/^(\(NOT \()/);
-    expect(sql).toContain(buildSpaOperationalListFilter('postgres', 'l'));
+    expect(sql).toContain(buildB2bProspectListFilter('postgres', 'l'));
   });
 
   it('supports sqlite dialect for funnel sqlite reads', () => {
