@@ -19,6 +19,6 @@ import { CrmLeadsSqliteRepository } from './crm-leads-sqlite.repository';
   ],
   controllers: [CrmLeadsLegacyController],
   providers: [CrmLeadsLegacyService, CrmLeadsSqliteRepository, CrmLeadsPgRepository],
-  exports: [CrmLeadsLegacyService, CrmLeadsSqliteRepository],
+  exports: [CrmLeadsLegacyService, CrmLeadsSqliteRepository, CrmLeadsPgRepository],
 })
 export class CrmLeadsLegacyModule {}
