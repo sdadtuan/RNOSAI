@@ -23,6 +23,10 @@ export interface CarePipelineState {
   all_complete: boolean;
   /** True when a B2 care report with status da_lien_he_thanh_cong exists (step 1). */
   contact_ok_reported: boolean;
+  /** B2 reports with care_status != da_lien_he_thanh_cong. */
+  b2_negative_report_count?: number;
+  last_b2_care_status?: string;
+  last_b2_care_status_label?: string;
 }
 
 export interface PresalesCareGateState {

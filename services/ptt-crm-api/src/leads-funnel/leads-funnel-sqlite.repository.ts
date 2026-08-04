@@ -13,6 +13,11 @@ import {
   presalesCareGateState,
   serializeStagesDone,
 } from './care-pipeline.util';
+import {
+  careStatusLabel,
+  normalizeCareContactType,
+  normalizeCareReportStatus,
+} from './care-status.util';
 import { resolveLeadFlowKindFromFunnelRow } from './lead-flow-kind.util';
 import {
   CompleteCareStageBody,
@@ -204,6 +209,34 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
     return Boolean(row);
   }
 
+  private fetchB2CareAttemptStats(leadId: number): {
+    negative_count: number;
+    last_status: string | null;
+  } {
+    const countRow = this.database
+      .prepare(
+        `SELECT COUNT(*) AS c FROM crm_lead_activities
+         WHERE lead_id = ? AND care_stage_key = 'first_contact' AND activity_type != 'system'
+           AND trim(COALESCE(care_status, '')) != ''
+           AND trim(care_status) != ?`,
+      )
+      .get(leadId, CONTACT_OK_CARE_STATUS) as { c: number } | undefined;
+    const lastRow = this.database
+      .prepare(
+        `SELECT trim(care_status) AS care_status FROM crm_lead_activities
+         WHERE lead_id = ? AND care_stage_key = 'first_contact' AND activity_type != 'system'
+           AND trim(COALESCE(care_status, '')) != ''
+         ORDER BY created_at DESC
+         LIMIT 1`,
+      )
+      .get(leadId) as { care_status: string } | undefined;
+    const lastStatus = String(lastRow?.care_status ?? '').trim() || null;
+    return {
+      negative_count: Number(countRow?.c ?? 0),
+      last_status: lastStatus,
+    };
+  }
+
   buildSnapshot(leadId: number, presalesEnabled: boolean): LeadFunnelSnapshot | null {
     const row = this.fetchLeadRow(leadId);
     if (!row) return null;
@@ -212,10 +245,19 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
     const leadFlowKind = resolveLeadFlowKindFromFunnelRow(row, Boolean(presales));
     const care = carePipelineState(row.status, row.care_stage_current, row.care_stages_done_json);
     const contactOkReported = care.all_complete || this.hasB2ContactOkReport(leadId);
+    const attemptStats = this.fetchB2CareAttemptStats(leadId);
     return {
       lead_id: leadId,
       lead_flow_kind: leadFlowKind,
-      care_pipeline: { ...care, contact_ok_reported: contactOkReported },
+      care_pipeline: {
+        ...care,
+        contact_ok_reported: contactOkReported,
+        b2_negative_report_count: attemptStats.negative_count,
+        last_b2_care_status: attemptStats.last_status ?? undefined,
+        last_b2_care_status_label: attemptStats.last_status
+          ? careStatusLabel(attemptStats.last_status)
+          : undefined,
+      },
       presales_care_gate: presalesCareGateState(row.care_stage_current, row.care_stages_done_json),
       review_queue: reviewQueuePublicState(meta, row.first_assigned_at || row.updated_at || ''),
       presales_on_lead_enabled: presalesEnabled,
@@ -286,7 +328,11 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
     if (!CARE_STAGE_KEYS.includes(stageKey)) {
       throw new Error('Bước chăm sóc không hợp lệ.');
     }
-    const careStatus = String(body.care_status || CONTACT_OK_CARE_STATUS).trim();
+    const careStatus = normalizeCareReportStatus(body.care_status);
+    if (!careStatus) {
+      throw new Error('Trạng thái chăm sóc không hợp lệ.');
+    }
+    const contactType = normalizeCareContactType(body.care_contact_type);
     const ts = this.ts();
     this.database
       .prepare(
@@ -305,7 +351,7 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
         row.status,
         careStatus,
         stageKey,
-        String(body.care_contact_type || 'phone').slice(0, 80),
+        contactType.slice(0, 80),
       );
     this.database
       .prepare('UPDATE crm_leads SET updated_at = ?, updated_by = ? WHERE id = ?')

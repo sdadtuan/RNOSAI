@@ -1117,6 +1117,9 @@ export interface LeadFunnelSnapshot {
     current_stage_label: string;
     all_complete: boolean;
     contact_ok_reported: boolean;
+    b2_negative_report_count?: number;
+    last_b2_care_status?: string;
+    last_b2_care_status_label?: string;
     stages: Array<{ key: string; label: string; hint: string; done: boolean; current: boolean }>;
   };
   presales_care_gate: { complete: boolean; message: string };
@@ -1164,11 +1167,21 @@ export async function fetchLeadFunnel(token: string, leadId: number): Promise<Le
 export async function submitLeadCareReport(
   token: string,
   leadId: number,
-  body: { stage?: string; content?: string; care_status?: string },
+  body: {
+    stage?: string;
+    content?: string;
+    care_status?: string;
+    care_contact_type?: string;
+  },
 ): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/care-pipeline/report`, {
     method: 'POST',
-    body: JSON.stringify({ stage: 'first_contact', care_status: 'da_lien_he_thanh_cong', ...body }),
+    body: JSON.stringify({
+      stage: 'first_contact',
+      care_status: 'da_lien_he_thanh_cong',
+      care_contact_type: 'goi_dien',
+      ...body,
+    }),
   });
 }
 

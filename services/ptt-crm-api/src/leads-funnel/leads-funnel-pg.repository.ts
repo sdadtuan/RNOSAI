@@ -4,6 +4,11 @@ import { catalogTs } from '../catalog/catalog-slug.util';
 import { AppConfigService } from '../config/app-config.service';
 import { sanitizePgBigintUserId } from '../staff-auth/staff-user-id.util';
 import {
+  careStatusLabel,
+  normalizeCareContactType,
+  normalizeCareReportStatus,
+} from './care-status.util';
+import {
   assertPresalesCareGate,
   CARE_PIPELINE_STAGES,
   CARE_STAGE_KEYS,
@@ -146,6 +151,32 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return (result.rowCount ?? 0) > 0;
   }
 
+  private async fetchB2CareAttemptStats(leadId: number): Promise<{
+    negative_count: number;
+    last_status: string | null;
+  }> {
+    const countResult = await this.db.query(
+      `SELECT COUNT(*)::int AS c FROM crm_lead_activities
+       WHERE lead_id = $1 AND care_stage_key = 'first_contact' AND activity_type != 'system'
+         AND trim(COALESCE(care_status, '')) != ''
+         AND trim(care_status) != $2`,
+      [leadId, CONTACT_OK_CARE_STATUS],
+    );
+    const lastResult = await this.db.query(
+      `SELECT trim(care_status) AS care_status FROM crm_lead_activities
+       WHERE lead_id = $1 AND care_stage_key = 'first_contact' AND activity_type != 'system'
+         AND trim(COALESCE(care_status, '')) != ''
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [leadId],
+    );
+    const lastStatus = String(lastResult.rows[0]?.care_status ?? '').trim() || null;
+    return {
+      negative_count: Number(countResult.rows[0]?.c ?? 0),
+      last_status: lastStatus,
+    };
+  }
+
   async buildSnapshot(leadId: number, presalesEnabled: boolean): Promise<LeadFunnelSnapshot | null> {
     const row = await this.fetchLeadRow(leadId);
     if (!row) return null;
@@ -154,10 +185,19 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     const leadFlowKind = resolveLeadFlowKindFromFunnelRow(row, Boolean(presales));
     const care = carePipelineState(row.status, row.care_stage_current, row.care_stages_done_json);
     const contactOkReported = care.all_complete || (await this.hasB2ContactOkReport(leadId));
+    const attemptStats = await this.fetchB2CareAttemptStats(leadId);
     return {
       lead_id: leadId,
       lead_flow_kind: leadFlowKind,
-      care_pipeline: { ...care, contact_ok_reported: contactOkReported },
+      care_pipeline: {
+        ...care,
+        contact_ok_reported: contactOkReported,
+        b2_negative_report_count: attemptStats.negative_count,
+        last_b2_care_status: attemptStats.last_status ?? undefined,
+        last_b2_care_status_label: attemptStats.last_status
+          ? careStatusLabel(attemptStats.last_status)
+          : undefined,
+      },
       presales_care_gate: presalesCareGateState(row.care_stage_current, row.care_stages_done_json),
       review_queue: reviewQueuePublicState(meta, row.first_assigned_at || row.updated_at || ''),
       presales_on_lead_enabled: presalesEnabled,
@@ -213,7 +253,11 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     if (!CARE_STAGE_KEYS.includes(stageKey)) {
       throw new Error('Bước chăm sóc không hợp lệ.');
     }
-    const careStatus = String(body.care_status || CONTACT_OK_CARE_STATUS).trim();
+    const careStatus = normalizeCareReportStatus(body.care_status);
+    if (!careStatus) {
+      throw new Error('Trạng thái chăm sóc không hợp lệ.');
+    }
+    const contactType = normalizeCareContactType(body.care_contact_type);
     const safeUserId = sanitizePgBigintUserId(userId);
     await this.db.query(
       `INSERT INTO crm_lead_activities (
@@ -229,7 +273,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         row.status,
         careStatus,
         stageKey,
-        String(body.care_contact_type || 'phone').slice(0, 80),
+        contactType.slice(0, 80),
       ],
     );
     await this.db.query(
