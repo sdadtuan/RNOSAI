@@ -17,7 +17,7 @@ import { ReviewQueueLlmService } from './review-queue-llm.service';
   imports: [
     StaffAuthModule,
     forwardRef(() => LeadsModule),
-    CrmLeadsLegacyModule,
+    forwardRef(() => CrmLeadsLegacyModule),
     forwardRef(() => CskhBoardModule),
     forwardRef(() => AiIntelligenceModule),
   ],

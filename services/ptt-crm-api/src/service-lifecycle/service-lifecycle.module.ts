@@ -30,7 +30,7 @@ import { ServiceLifecycleService } from './service-lifecycle.service';
 @Module({
   imports: [
     StaffAuthModule,
-    LeadsModule,
+    forwardRef(() => LeadsModule),
     forwardRef(() => AgencyModule),
     SvcFinanceModule,
     IntakeModule,

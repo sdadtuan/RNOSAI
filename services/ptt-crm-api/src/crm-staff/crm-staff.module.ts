@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { KpiModule } from '../kpi/kpi.module';
 import { LeadsModule } from '../leads/leads.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
@@ -13,7 +13,7 @@ import {
 import { StaffKpiViewGuard } from '../kpi/guards/staff-kpi.guard';
 
 @Module({
-  imports: [StaffAuthModule, KpiModule, LeadsModule],
+  imports: [StaffAuthModule, KpiModule, forwardRef(() => LeadsModule)],
   controllers: [CrmStaffController],
   providers: [
     CrmStaffService,

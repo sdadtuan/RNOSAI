@@ -12,8 +12,8 @@ import { SlaAlertService } from './sla-alert.service';
 @Module({
   imports: [
     StaffAuthModule,
-    CrmLeadsLegacyModule,
-    LeadsModule,
+    forwardRef(() => CrmLeadsLegacyModule),
+    forwardRef(() => LeadsModule),
     forwardRef(() => LeadsFunnelModule),
     forwardRef(() => AiIntelligenceModule),
   ],

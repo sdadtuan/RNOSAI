@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { InternalKeyGuard } from '../auth/internal-key.guard';
 import { CampaignWritesRepository } from '../campaign-writes/campaign-writes.repository';
 import { CreativesRepository } from '../creatives/creatives.repository';
@@ -22,7 +22,7 @@ import { LaunchQaZaloBridgeService } from './launch-qa-zalo-bridge.service';
 import { ZaloLaunchQaRepository } from '../zalo-tracking/zalo-launch-qa.repository';
 
 @Module({
-  imports: [StaffAuthModule, MetaTrackingModule, LeadsModule],
+  imports: [StaffAuthModule, MetaTrackingModule, forwardRef(() => LeadsModule)],
   controllers: [LaunchQaController, LaunchQaInternalController],
   providers: [
     LaunchQaHubService,

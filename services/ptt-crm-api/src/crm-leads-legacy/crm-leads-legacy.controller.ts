@@ -29,7 +29,6 @@ import { LeadAttributionService } from '../leads/lead-attribution.service';
 import { LeadAttributionResponse } from '../leads/lead-attribution.types';
 import { ChotClosedLoopService } from '../leads/chot-closed-loop.service';
 import { AiScoreFeedbackService } from '../ai-intelligence/ai-score-feedback.service';
-import { AiIntelligenceModule } from '../ai-intelligence/ai-intelligence.module';
 import { AssignLeadBody, CreateLeadActivityBody } from './crm-leads-legacy.types';
 
 @Controller('api/crm/leads')

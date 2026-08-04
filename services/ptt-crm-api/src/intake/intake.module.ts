@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { LeadsModule } from '../leads/leads.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { StaffIntakeViewGuard, StaffIntakeWriteGuard } from './guards/staff-intake.guard';
@@ -8,7 +8,7 @@ import { IntakePgRepository } from './intake-pg.repository';
 import { IntakeSqliteRepository } from './intake-sqlite.repository';
 
 @Module({
-  imports: [StaffAuthModule, LeadsModule],
+  imports: [StaffAuthModule, forwardRef(() => LeadsModule)],
   controllers: [IntakeController],
   providers: [
     IntakeService,

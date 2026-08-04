@@ -90,9 +90,9 @@ import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
   imports: [
     StaffAuthModule,
     ConfigModule,
-    CustomerTimelineModule,
+    forwardRef(() => CustomerTimelineModule),
     EventsModule,
-    LeadsModule,
+    forwardRef(() => LeadsModule),
     CrmConfigModule,
     CasesModule,
     forwardRef(() => CskhBoardModule),
@@ -100,9 +100,9 @@ import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
     MetaAlertsModule,
     ReProjectsModule,
     forwardRef(() => AgencyModule),
-    ServiceLifecycleModule,
+    forwardRef(() => ServiceLifecycleModule),
     forwardRef(() => CrmLeadsLegacyModule),
-    PortalModule,
+    forwardRef(() => PortalModule),
   ],
   controllers: [AiIntelligenceController, AiToolsController],
   providers: [

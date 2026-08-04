@@ -11,7 +11,7 @@ import { PlaybooksService } from './playbooks.service';
   imports: [
     ConfigModule,
     StaffAuthModule,
-    AiIntelligenceModule,
+    forwardRef(() => AiIntelligenceModule),
     forwardRef(() => LeadsModule),
   ],
   controllers: [PlaybooksController],
