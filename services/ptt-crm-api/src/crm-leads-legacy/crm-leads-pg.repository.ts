@@ -142,6 +142,49 @@ export class CrmLeadsPgRepository implements OnModuleDestroy {
     return [];
   }
 
+  async firstCallAtByLeadIds(leadIds: number[]): Promise<Map<number, string>> {
+    const out = new Map<number, string>();
+    if (!leadIds.length) return out;
+    const result = await this.db.query(
+      `SELECT lead_id, MIN(created_at)::text AS first_call_at
+       FROM crm_lead_activities
+       WHERE lead_id = ANY($1::bigint[]) AND activity_type = 'call'
+       GROUP BY lead_id`,
+      [leadIds],
+    );
+    for (const row of result.rows as Array<{ lead_id: string; first_call_at: string }>) {
+      if (row.first_call_at) out.set(Number(row.lead_id), String(row.first_call_at));
+    }
+    return out;
+  }
+
+  async nextFollowUpByLeadIds(leadIds: number[]): Promise<Map<number, string>> {
+    const out = new Map<number, string>();
+    if (!leadIds.length) return out;
+    const result = await this.db.query(
+      `SELECT DISTINCT ON (lead_id) lead_id, next_action_at::text AS next_action_at
+       FROM crm_lead_activities
+       WHERE lead_id = ANY($1::bigint[])
+         AND next_action_at IS NOT NULL
+       ORDER BY lead_id, created_at DESC`,
+      [leadIds],
+    );
+    for (const row of result.rows as Array<{ lead_id: string; next_action_at: string }>) {
+      if (row.next_action_at) out.set(Number(row.lead_id), String(row.next_action_at));
+    }
+    return out;
+  }
+
+  async staffNamesByIds(staffIds: number[]): Promise<Map<number, string>> {
+    const out = new Map<number, string>();
+    const uniq = [...new Set(staffIds.filter((id) => id > 0))];
+    for (const id of uniq) {
+      const name = await this.ingestRules.staffName(id);
+      if (name) out.set(id, name);
+    }
+    return out;
+  }
+
   async listAssignmentLogs(leadId: number, limit = 100): Promise<LeadAssignmentLogRow[]> {
     const lim = Math.max(1, Math.min(limit, 200));
     const result = await this.db.query(

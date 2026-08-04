@@ -14,7 +14,6 @@ import {
 } from './lead-attribution.util';
 import { LeadsRepository } from './leads.repository';
 import { LeadV1 } from './leads.types';
-import { SqliteLeadsRepository } from './sqlite-leads.repository';
 
 @Injectable()
 export class LeadAttributionService implements OnModuleDestroy {
@@ -23,7 +22,6 @@ export class LeadAttributionService implements OnModuleDestroy {
   constructor(
     private readonly config: AppConfigService,
     private readonly leads: LeadsRepository,
-    private readonly sqlite: SqliteLeadsRepository,
   ) {}
 
   private get db(): Pool {
@@ -39,10 +37,7 @@ export class LeadAttributionService implements OnModuleDestroy {
   }
 
   async getLeadAttribution(leadId: number): Promise<LeadAttributionData> {
-    let lead = await this.leads.getLeadById(leadId);
-    if (!lead) {
-      lead = this.sqlite.getLeadById(leadId);
-    }
+    const lead = await this.leads.getLeadById(leadId);
     if (!lead) {
       throw new NotFoundException({ error: 'lead_not_found', lead_id: leadId });
     }

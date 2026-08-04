@@ -3,7 +3,7 @@ import { AiAdoptionAnalyticsService } from '../ai-intelligence/ai-adoption-analy
 import { AiIntelligenceConfigService } from '../ai-intelligence/ai-intelligence.config';
 import { LeadsFunnelService } from '../leads-funnel/leads-funnel.service';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
-import { CrmLeadsSqliteRepository } from '../crm-leads-legacy/crm-leads-sqlite.repository';
+import { CrmLeadsPgRepository } from '../crm-leads-legacy/crm-leads-pg.repository';
 import {
   computeSpaMeta24hSlas,
   enrichSlaTierSummaries,
@@ -43,7 +43,7 @@ import {
 export class CskhBoardService {
   constructor(
     private readonly repo: CskhBoardRepository,
-    private readonly sqlite: CrmLeadsSqliteRepository,
+    private readonly legacyPg: CrmLeadsPgRepository,
     private readonly legacy: CrmLeadsLegacyService,
     private readonly closedLoop: ChotClosedLoopService,
     @Inject(forwardRef(() => LeadsFunnelService))
@@ -71,10 +71,10 @@ export class CskhBoardService {
       limit,
     });
     const ids = leads.map((r) => Number(r.sqlite_lead_id));
-    const firstCalls = this.sqlite.firstCallAtByLeadIds(ids);
-    const followUps = this.sqlite.nextFollowUpByLeadIds(ids);
+    const firstCalls = await this.legacyPg.firstCallAtByLeadIds(ids);
+    const followUps = await this.legacyPg.nextFollowUpByLeadIds(ids);
     const ownerIds = leads.map((r) => Number(r.owner_id ?? 0)).filter((id) => id > 0);
-    const ownerNames = this.sqlite.staffNamesByIds(ownerIds);
+    const ownerNames = await this.legacyPg.staffNamesByIds(ownerIds);
 
     const enriched: CskhBoardRow[] = leads.map((row) => {
       const base = CskhBoardRepository.toBoardRowBase(
@@ -351,10 +351,10 @@ export class CskhBoardService {
       limit: 500,
     });
     const ids = leads.map((r) => Number(r.sqlite_lead_id));
-    const firstCalls = this.sqlite.firstCallAtByLeadIds(ids);
-    const followUps = this.sqlite.nextFollowUpByLeadIds(ids);
+    const firstCalls = await this.legacyPg.firstCallAtByLeadIds(ids);
+    const followUps = await this.legacyPg.nextFollowUpByLeadIds(ids);
     const ownerIds = leads.map((r) => Number(r.owner_id ?? 0)).filter((id) => id > 0);
-    const ownerNames = this.sqlite.staffNamesByIds(ownerIds);
+    const ownerNames = await this.legacyPg.staffNamesByIds(ownerIds);
 
     return leads.map((row) => {
       const base = CskhBoardRepository.toBoardRowBase(

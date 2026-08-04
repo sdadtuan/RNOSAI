@@ -28,12 +28,9 @@ export class LeadsRepository {
     return this.sqliteRepo.listLeads(enriched);
   }
 
-  async getLeadById(leadId: number): Promise<LeadV1 | null> {
+  getLeadById(leadId: number): Promise<LeadV1 | null> | LeadV1 | null {
     if (this.config.leadsReadSource === 'pg') {
-      const pgLead = await this.pgRepo.getLeadById(leadId);
-      if (pgLead) return pgLead;
-      // Staging / replica lag: mirror LeadAttributionService sqlite fallback.
-      return this.sqliteRepo.getLeadById(leadId);
+      return this.pgRepo.getLeadById(leadId);
     }
     return this.sqliteRepo.getLeadById(leadId);
   }
@@ -49,9 +46,6 @@ export class LeadsRepository {
     if (this.config.crmLeadsFunnelPg && this.funnelPgRepo) {
       return { ...query, review_queue_ids: await this.funnelPgRepo.listReviewQueueLeadIds() };
     }
-    if (this.funnelSqliteRepo) {
-      return { ...query, review_queue_ids: this.funnelSqliteRepo.listReviewQueueLeadIds() };
-    }
-    return query;
+    return { ...query, review_queue_ids: [] };
   }
 }
