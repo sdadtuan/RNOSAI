@@ -1571,6 +1571,7 @@ export interface IntakeSessionRow {
   decision_reason: string;
   bant_json: Record<string, number>;
   answers_json: Record<string, unknown>;
+  ai_summary?: string;
   updated_at: string;
 }
 
@@ -1654,6 +1655,21 @@ export async function fetchIntakeDefinitions(token: string): Promise<{
   return crmFetch(token, '/api/crm/intake/definitions');
 }
 
+export async function fetchIntakeDefinitionBySlug(
+  token: string,
+  slug: string,
+): Promise<{
+  slug: string;
+  title: string;
+  phone_questions: string[];
+  inperson_questions: string[];
+  bant_rows?: Array<{ key?: string; label: string; hint: string }>;
+  red_flags?: string[];
+  urgency_triggers?: string[];
+}> {
+  return crmFetch(token, `/api/crm/intake/definitions/${encodeURIComponent(slug)}`);
+}
+
 export async function fetchIntakeSessions(
   token: string,
   params: { lead_id?: number; lifecycle_id?: number },
@@ -1670,7 +1686,17 @@ export async function fetchIntakeSessions(
 
 export async function createIntakeSession(
   token: string,
-  body: { lead_id?: number; lifecycle_id?: number; mode?: string; service_slug?: string },
+  body: {
+    lead_id?: number;
+    lifecycle_id?: number;
+    mode?: string;
+    service_slug?: string;
+    contact_name?: string;
+    contact_role?: string;
+    company_name?: string;
+    source?: string;
+    am_id?: number;
+  },
 ): Promise<IntakeSessionRow> {
   return crmFetch<IntakeSessionRow>(token, '/api/crm/intake/sessions', {
     method: 'POST',

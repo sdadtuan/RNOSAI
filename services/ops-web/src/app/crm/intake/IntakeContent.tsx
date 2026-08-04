@@ -1,22 +1,68 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { IntakeAiSummaryPanel } from '@/components/crm/intake/IntakeAiSummaryPanel';
+import { IntakeFormActions } from '@/components/crm/intake/IntakeFormActions';
+import { IntakeBantSection } from '@/components/crm/intake/IntakeBantSection';
+import { IntakeCompleteConfirmModal } from '@/components/crm/intake/IntakeCompleteConfirmModal';
+import { IntakeDiscoverySection } from '@/components/crm/intake/IntakeDiscoverySection';
+import { IntakeValidationErrors } from '@/components/crm/intake/IntakeValidationErrors';
+import { IntakeConsultGateBanner, type IntakeConsultGateState } from '@/components/crm/intake/IntakeConsultGateBanner';
+import { IntakeLeadContextCard } from '@/components/crm/intake/IntakeLeadContextCard';
+import { IntakeSessionSidebar } from '@/components/crm/intake/IntakeSessionSidebar';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
 import {
   completeIntakeSession,
   createIntakeSession,
+  fetchIntakeDefinitionBySlug,
   fetchIntakeDefinitions,
   fetchIntakeSessions,
   fetchIntakeStats,
+  fetchLead,
+  fetchLeadPresalesConsultGate,
   generateIntakeAiSummary,
   patchIntakeSession,
   reopenIntakeSession,
   staffMe,
   staffRefresh,
   type IntakeSessionRow,
+  type LeadRow,
 } from '@/lib/api';
+import {
+  INTAKE_DECISION_OPTIONS,
+  intakeModeLabel,
+  intakeStatusLabel,
+} from '@/lib/crm/intake-labels';
+import {
+  buildCreateIntakeSessionBody,
+  findDraftSession,
+  intakeFormFromSession,
+  pickInitialSessionId,
+} from '@/lib/crm/intake-session-form';
+import {
+  bantRowsFromDefinition,
+  computeBantTotal,
+  type BantKey,
+  type BantRowUi,
+} from '@/lib/crm/intake-bant';
+import {
+  buildDiscoveryAnswersPatch,
+  emptyDiscoveryForMode,
+  normalizeIntakeMode,
+  questionsForMode,
+  type DiscoveryChecklistState,
+  type IntakeDefinitionUi,
+  type IntakeSessionMode,
+} from '@/lib/crm/intake-discovery';
+import {
+  intakeValidationErrors,
+  intakeValidationWarnings,
+  validateIntakeComplete,
+  type IntakeValidationIssue,
+} from '@/lib/crm/intake-validation';
+import { useIntakeAutosave } from '@/lib/crm/use-intake-autosave';
 import {
   clearSession,
   getAccessToken,
@@ -28,14 +74,6 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 
-const BANT_KEYS = ['budget', 'authority', 'need', 'timeline', 'fit', 'history'] as const;
-const DECISIONS = [
-  { value: '', label: '— Chọn —' },
-  { value: 'go', label: 'Go' },
-  { value: 'nurture', label: 'Nurture' },
-  { value: 'no_go', label: 'No-Go' },
-];
-
 export function IntakeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -44,22 +82,82 @@ export function IntakeContent() {
 
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [sessions, setSessions] = useState<IntakeSessionRow[]>([]);
-  const [active, setActive] = useState<IntakeSessionRow | null>(null);
+  const [activeId, setActiveId] = useState<number | null>(null);
   const [bant, setBant] = useState<Record<string, number>>({});
   const [decision, setDecision] = useState('');
   const [decisionReason, setDecisionReason] = useState('');
   const [contactName, setContactName] = useState('');
   const [need, setNeed] = useState('');
+  const [discovery, setDiscovery] = useState<DiscoveryChecklistState>(emptyDiscoveryForMode('phone'));
+  const [intakeDefinition, setIntakeDefinition] = useState<IntakeDefinitionUi | null>(null);
+  const [bantRows, setBantRows] = useState<BantRowUi[]>([]);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [lead, setLead] = useState<LeadRow | null>(null);
+  const [consultGate, setConsultGate] = useState<IntakeConsultGateState | null>(null);
+  const [gateLoading, setGateLoading] = useState(false);
+  const [aiSummaryBusy, setAiSummaryBusy] = useState(false);
+  const [completeModalOpen, setCompleteModalOpen] = useState(false);
+  const [completeWarnings, setCompleteWarnings] = useState<IntakeValidationIssue[]>([]);
+  const [validationErrors, setValidationErrors] = useState<IntakeValidationIssue[]>([]);
+  const saveInFlightRef = useRef(false);
 
   const contextOk = useMemo(
     () => (Number.isFinite(leadId) && leadId > 0) || (Number.isFinite(lifecycleId) && lifecycleId > 0),
     [leadId, lifecycleId],
   );
+
+  const active = useMemo(
+    () => sessions.find((s) => s.id === activeId) ?? null,
+    [sessions, activeId],
+  );
+
+  const canCreate = useMemo(() => hasCap(user, 'crm_leads', 'edit'), [user]);
+  const formDisabled = active?.status === 'completed' || saving;
+  const sessionMode = normalizeIntakeMode(active?.mode);
+  const discoveryQuestions = useMemo(
+    () => questionsForMode(intakeDefinition, sessionMode),
+    [intakeDefinition, sessionMode],
+  );
+  const liveBantTotal = useMemo(() => computeBantTotal(bant), [bant]);
+  const formSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        sessionId: activeId,
+        bant,
+        decision,
+        decisionReason,
+        contactName,
+        need,
+        discovery,
+      }),
+    [activeId, bant, decision, decisionReason, contactName, need, discovery],
+  );
+
+  const applySession = useCallback((session: IntakeSessionRow | null) => {
+    if (!session) {
+      setActiveId(null);
+      setBant({});
+      setDecision('');
+      setDecisionReason('');
+      setContactName('');
+      setNeed('');
+      setDiscovery(emptyDiscoveryForMode('phone'));
+      return;
+    }
+    setActiveId(session.id);
+    const form = intakeFormFromSession(session);
+    setBant(form.bant);
+    setDecision(form.decision);
+    setDecisionReason(form.decisionReason);
+    setContactName(form.contactName);
+    setNeed(form.need);
+    setDiscovery(form.discovery);
+  }, []);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -74,7 +172,7 @@ export function IntakeContent() {
       setUser(me);
       updateStoredUser(me);
       if (!hasCap(me, 'crm_leads', 'view')) {
-        setError('Không có quyền intake');
+        setError('Không có quyền xem trang khảo sát BANT');
         return null;
       }
       return access;
@@ -95,25 +193,47 @@ export function IntakeContent() {
     }
   }, [router]);
 
+  const loadConsultGate = useCallback(async (access: string) => {
+    if (leadId <= 0) {
+      setConsultGate(null);
+      return;
+    }
+    setGateLoading(true);
+    try {
+      const out = await fetchLeadPresalesConsultGate(access, leadId);
+      setConsultGate(out.gate);
+    } catch {
+      setConsultGate(null);
+    } finally {
+      setGateLoading(false);
+    }
+  }, [leadId]);
+
+  const loadLeadContext = useCallback(async (access: string) => {
+    if (leadId <= 0) {
+      setLead(null);
+      return;
+    }
+    try {
+      const row = await fetchLead(access, leadId);
+      setLead(row);
+    } catch {
+      setLead(null);
+    }
+  }, [leadId]);
+
   const loadSessions = useCallback(
-    async (access: string) => {
+    async (access: string, preferredId?: number | null) => {
       const rows = await fetchIntakeSessions(access, {
         lead_id: leadId > 0 ? leadId : undefined,
         lifecycle_id: lifecycleId > 0 ? lifecycleId : undefined,
       });
       setSessions(rows);
-      const draft = rows.find((s) => s.status === 'draft') ?? rows[0] ?? null;
-      setActive(draft);
-      if (draft) {
-        setBant({ ...(draft.bant_json || {}) });
-        setDecision(draft.decision || '');
-        setDecisionReason(draft.decision_reason || '');
-        setContactName(draft.contact_name || '');
-        const crm = (draft.answers_json?.crm_fields || {}) as Record<string, string>;
-        setNeed(String(crm.need || ''));
-      }
+      const nextId = pickInitialSessionId(rows, preferredId ?? activeId);
+      const next = rows.find((s) => s.id === nextId) ?? null;
+      applySession(next);
     },
-    [leadId, lifecycleId],
+    [leadId, lifecycleId, activeId, applySession],
   );
 
   useEffect(() => {
@@ -129,35 +249,68 @@ export function IntakeContent() {
       setError('');
       try {
         await fetchIntakeDefinitions(access);
+        const definition = await fetchIntakeDefinitionBySlug(access, '_common');
+        setIntakeDefinition({
+          slug: definition.slug,
+          title: definition.title,
+          phone_questions: definition.phone_questions ?? [],
+          inperson_questions: definition.inperson_questions ?? [],
+        });
+        setBantRows(bantRowsFromDefinition(definition.bant_rows));
         const statsOut = await fetchIntakeStats(access);
         setStats(statsOut);
-        await loadSessions(access);
+        await Promise.all([
+          loadLeadContext(access),
+          loadConsultGate(access),
+          loadSessions(access, null),
+        ]);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Tải intake thất bại');
+        setError(err instanceof Error ? err.message : 'Tải trang khảo sát thất bại');
       } finally {
         setLoading(false);
       }
     })();
-  }, [contextOk, ensureAuth, loadSessions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
+  }, [contextOk, ensureAuth, leadId, lifecycleId]);
+
+  function onSelectSession(session: IntakeSessionRow) {
+    applySession(session);
+    setSidebarOpen(false);
+    setMessage('');
+  }
+
+  function confirmCreateIfDraftExists(): boolean {
+    const draft = findDraftSession(sessions);
+    if (!draft) return true;
+    return window.confirm(
+      `Đang có phiên nháp #${draft.id} (${intakeModeLabel(draft.mode)}). Tạo phiên mới? Phiên nháp cũ vẫn được giữ.`,
+    );
+  }
 
   async function onCreate(mode: 'phone' | 'in_person') {
     const access = getAccessToken();
     if (!access || !user) return;
-    if (!hasCap(user, 'crm_leads', 'edit')) {
-      setError('Không có quyền tạo phiên');
+    if (!canCreate) {
+      setError('Không có quyền tạo phiên khảo sát');
       return;
     }
+    if (!confirmCreateIfDraftExists()) return;
+
     setSaving(true);
     setError('');
     try {
-      const created = await createIntakeSession(access, {
-        lead_id: leadId > 0 ? leadId : undefined,
-        lifecycle_id: lifecycleId > 0 ? lifecycleId : undefined,
-        mode,
-        service_slug: '_common',
-      });
-      setActive(created);
-      await loadSessions(access);
+      const created = await createIntakeSession(
+        access,
+        buildCreateIntakeSessionBody({
+          leadId,
+          lifecycleId,
+          mode,
+          lead,
+        }),
+      );
+      await loadSessions(access, created.id);
+      await loadConsultGate(access);
+      setSidebarOpen(false);
       setMessage(`Đã tạo phiên #${created.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tạo phiên thất bại');
@@ -166,51 +319,144 @@ export function IntakeContent() {
     }
   }
 
+  const performSave = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!active || !user || saveInFlightRef.current) return false;
+      const access = getAccessToken();
+      if (!access) return false;
+
+      saveInFlightRef.current = true;
+      if (!options?.silent) {
+        setSaving(true);
+        setError('');
+        setMessage('');
+      }
+
+      try {
+        await patchIntakeSession(access, active.id, {
+          bant_json: bant,
+          decision,
+          decision_reason: decisionReason,
+          contact_name: contactName,
+          answers_json: buildDiscoveryAnswersPatch(active.answers_json, need, {
+            ...discovery,
+            mode: sessionMode,
+          }),
+        });
+        await loadSessions(access, active.id);
+        if (leadId > 0) await loadConsultGate(access);
+        if (!options?.silent) setMessage('Đã lưu phiên nháp');
+        return true;
+      } catch (err) {
+        if (!options?.silent) {
+          setError(err instanceof Error ? err.message : 'Lưu thất bại');
+        }
+        throw err;
+      } finally {
+        saveInFlightRef.current = false;
+        if (!options?.silent) setSaving(false);
+      }
+    },
+    [
+      active,
+      bant,
+      contactName,
+      decision,
+      decisionReason,
+      discovery,
+      leadId,
+      loadConsultGate,
+      loadSessions,
+      need,
+      sessionMode,
+      user,
+    ],
+  );
+
+  const autosaveEnabled =
+    Boolean(active?.status === 'draft' && canCreate && !loading && !saving);
+
+  const autosave = useIntakeAutosave({
+    enabled: autosaveEnabled,
+    paused: completeModalOpen || saving,
+    snapshot: formSnapshot,
+    onSave: async () => {
+      await performSave({ silent: true });
+    },
+  });
+
+  useEffect(() => {
+    autosave.syncSnapshot(formSnapshot);
+    setValidationErrors([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset autosave baseline when switching session
+  }, [activeId]);
+
+  useEffect(() => {
+    if (validationErrors.length === 0) return;
+    setValidationErrors([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- clear blocking errors after edits
+  }, [formSnapshot]);
+
+  function buildValidationInput() {
+    return {
+      contactName,
+      need,
+      bant,
+      decision,
+      decisionReason,
+      sessionMode,
+      discoveryChecked: discovery.checked,
+      discoveryTotal: discoveryQuestions.length,
+    };
+  }
+
   async function onSave() {
+    try {
+      const ok = await performSave();
+      if (ok) autosave.markSavedNow(formSnapshot);
+    } catch {
+      // performSave sets error message
+    }
+  }
+
+  function onCompleteClick() {
+    if (!active) return;
+    const issues = validateIntakeComplete(buildValidationInput());
+    const errors = intakeValidationErrors(issues);
+    const warnings = intakeValidationWarnings(issues);
+    setValidationErrors(errors);
+    if (errors.length > 0) return;
+    setCompleteWarnings(warnings);
+    setCompleteModalOpen(true);
+  }
+
+  async function onConfirmComplete() {
     if (!active || !user) return;
     const access = getAccessToken();
     if (!access) return;
+
+    setCompleteModalOpen(false);
     setSaving(true);
     setError('');
     setMessage('');
     try {
-      const updated = await patchIntakeSession(access, active.id, {
-        bant_json: bant,
-        decision,
-        decision_reason: decisionReason,
-        contact_name: contactName,
-        answers_json: {
-          ...(active.answers_json || {}),
-          crm_fields: { need },
-        },
-      });
-      setActive(updated);
-      setMessage('Đã lưu phiên');
-      await loadSessions(access);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Lưu thất bại');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function onComplete() {
-    if (!active || !user) return;
-    const access = getAccessToken();
-    if (!access) return;
-    setSaving(true);
-    setError('');
-    try {
-      await onSave();
+      await performSave({ silent: true });
+      autosave.markSavedNow(formSnapshot);
       const updated = await completeIntakeSession(access, active.id);
-      setActive(updated);
-      setMessage('Đã hoàn thành intake');
-      await loadSessions(access);
+      await loadSessions(access, updated.id);
+      await loadConsultGate(access);
+      setMessage('Đã hoàn thành phiên khảo sát');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hoàn thành thất bại');
     } finally {
       setSaving(false);
     }
+  }
+
+  function onBantDecisionBlur(event: FocusEvent<HTMLDivElement>) {
+    const next = event.relatedTarget as Node | null;
+    if (next && event.currentTarget.contains(next)) return;
+    autosave.saveOnBlur();
   }
 
   async function onReopen() {
@@ -222,9 +468,8 @@ export function IntakeContent() {
     setMessage('');
     try {
       const updated = await reopenIntakeSession(access, active.id);
-      setActive(updated);
-      setMessage('Đã mở lại phiên');
-      await loadSessions(access);
+      await loadSessions(access, updated.id);
+      setMessage('Đã mở lại phiên nháp');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Mở lại thất bại');
     } finally {
@@ -232,21 +477,61 @@ export function IntakeContent() {
     }
   }
 
-  async function onAiSummary() {
-    if (!active || !user) return;
+  async function onChangeSessionMode(nextMode: IntakeSessionMode) {
+    if (!active || nextMode === sessionMode) return;
+    if (
+      !window.confirm(
+        'Đổi loại phiên sẽ reset checklist câu hỏi cho bộ câu mới. Tiếp tục?',
+      )
+    ) {
+      return;
+    }
     const access = getAccessToken();
     if (!access) return;
     setSaving(true);
     setError('');
+    try {
+      const nextDiscovery = emptyDiscoveryForMode(nextMode);
+      setDiscovery(nextDiscovery);
+      await patchIntakeSession(access, active.id, {
+        mode: nextMode,
+        answers_json: buildDiscoveryAnswersPatch(active.answers_json, need, nextDiscovery),
+      });
+      await loadSessions(access, active.id);
+      setMessage(`Đã chuyển sang ${intakeModeLabel(nextMode)}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Đổi loại phiên thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function onToggleDiscoveryQuestion(index: number, next: boolean) {
+    const key = String(index);
+    setDiscovery((prev) => ({
+      ...prev,
+      mode: sessionMode,
+      checked: next
+        ? { ...prev.checked, [key]: true }
+        : Object.fromEntries(Object.entries(prev.checked).filter(([k]) => k !== key)),
+    }));
+  }
+
+  async function onAiSummary() {
+    if (!active || !user) return;
+    const access = getAccessToken();
+    if (!access) return;
+    setAiSummaryBusy(true);
+    setError('');
     setMessage('');
     try {
       await generateIntakeAiSummary(access, active.id);
-      setMessage('Đã tạo AI summary (stub hoặc Claude)');
-      await loadSessions(access);
+      await loadSessions(access, active.id);
+      setMessage('Đã tạo tóm tắt AI');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'AI summary thất bại');
+      setError(err instanceof Error ? err.message : 'Tóm tắt AI thất bại');
     } finally {
-      setSaving(false);
+      setAiSummaryBusy(false);
     }
   }
 
@@ -254,6 +539,9 @@ export function IntakeContent() {
     clearSession();
     router.push('/login');
   }
+
+  const systemSessionCount =
+    stats && typeof stats.total_sessions === 'number' ? stats.total_sessions : null;
 
   if (!user) {
     return (
@@ -269,186 +557,220 @@ export function IntakeContent() {
       onLogout={logout}
       breadcrumb={[
         { label: 'CRM', href: '/crm/leads' },
-        { label: 'BANT Intake' },
+        { label: 'Khảo sát BANT "BANT Intake"' },
       ]}
     >
       <PageToolbar
-        title="BANT Intake"
-        subtitle="Phiên khảo sát nhu cầu lead — Budget, Authority, Need, Timeline"
+        title='Khảo sát BANT "BANT Intake"'
+        subtitle='Phiên qualify lead B2B — Ngân sách, Thẩm quyền, Nhu cầu, Thời hạn ("Budget, Authority, Need, Timeline")'
       />
-      <div className="page-card stack-gap">
+
+      <div className="page-card intake-page">
         {leadId > 0 ? (
-          <p style={{ margin: 0 }}>
+          <p className="intake-page__context">
             <Link href={`/crm/leads/${leadId}`} className="nav-link">
               ← Lead #{leadId}
             </Link>
           </p>
         ) : (
-          <p className="muted" style={{ margin: 0 }}>
-            Lifecycle #{lifecycleId}
-          </p>
+          <p className="muted intake-page__context">Vòng đời dịch vụ #{lifecycleId}</p>
         )}
 
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
-        {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
+        {message ? <p className="intake-page__message">{message}</p> : null}
 
         {!loading && contextOk ? (
-          <>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-              <button type="button" className="btn btn-sm" disabled={saving} onClick={() => void onCreate('phone')}>
-                + Phiên gọi điện
-              </button>
+          <div className={`intake-layout${sidebarOpen ? ' intake-layout--sidebar-open' : ''}`}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm intake-layout__sidebar-toggle"
+              onClick={() => setSidebarOpen(true)}
+              aria-expanded={sidebarOpen}
+            >
+              Phiên {active ? `#${active.id}` : '—'} · Chọn phiên
+            </button>
+
+            {sidebarOpen ? (
               <button
                 type="button"
-                className="btn btn-secondary btn-sm"
-                disabled={saving}
-                onClick={() => void onCreate('in_person')}
-              >
-                + Phiên gặp trực tiếp
-              </button>
-            </div>
-
-            {sessions.length > 0 ? (
-              <p className="muted">
-                {sessions.length} phiên · BANT {active?.bant_total ?? 0}/30
-                {stats && typeof stats.total_sessions === 'number'
-                  ? ` · Tổng hệ thống ${stats.total_sessions}`
-                  : ''}
-              </p>
+                className="intake-layout__backdrop"
+                aria-label="Đóng danh sách phiên"
+                onClick={() => setSidebarOpen(false)}
+              />
             ) : null}
 
-            {active ? (
-              <div style={{ display: 'grid', gap: '0.75rem' }}>
-                <p>
-                  Phiên #{active.id} · {active.mode} · {active.status}
-                </p>
-                <label style={{ display: 'grid', gap: '0.35rem' }}>
-                  <span className="muted">Liên hệ</span>
-                  <input
-                    value={contactName}
-                    onChange={(e) => setContactName(e.target.value)}
-                    disabled={active.status === 'completed' || saving}
-                    style={{
-                      background: 'var(--bg)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 8,
-                      padding: '0.55rem 0.75rem',
-                      color: 'var(--text)',
-                    }}
+            <aside
+              className={`intake-layout__sidebar${sidebarOpen ? ' intake-layout__sidebar--open' : ''}`}
+            >
+              <IntakeSessionSidebar
+                sessions={sessions}
+                activeId={activeId}
+                saving={saving}
+                canCreate={canCreate}
+                systemSessionCount={systemSessionCount}
+                onSelect={onSelectSession}
+                onCreatePhone={() => void onCreate('phone')}
+                onCreateInPerson={() => void onCreate('in_person')}
+              />
+            </aside>
+
+            <div className="intake-layout__main stack-gap">
+              {leadId > 0 && lead ? (
+                <IntakeLeadContextCard lead={lead} leadHref={`/crm/leads/${leadId}`} />
+              ) : null}
+
+              {leadId > 0 && consultGate ? (
+                <IntakeConsultGateBanner
+                  leadId={leadId}
+                  gate={consultGate}
+                  loading={gateLoading}
+                  onRefresh={() => {
+                    const access = getAccessToken();
+                    if (access) void loadConsultGate(access);
+                  }}
+                />
+              ) : null}
+
+              <details className="intake-help">
+                <summary>Hướng dẫn sử dụng trang này</summary>
+                <ol>
+                  <li>
+                    Chọn phiên ở cột trái (hoặc nút <strong>Chọn phiên</strong> trên mobile), hoặc tạo{' '}
+                    <strong>+ Gọi điện</strong> / <strong>+ Gặp trực tiếp</strong>.
+                  </li>
+                  <li>
+                    Ghi <strong>Liên hệ &quot;Contact&quot;</strong>,{' '}
+                    <strong>Nhu cầu / điểm đau &quot;Need / Pain&quot;</strong> (rich text), và tick{' '}
+                    <strong>checklist câu hỏi Gọi/Gặp</strong> theo loại phiên.
+                  </li>
+                  <li>Chấm 6 tiêu chí BANT (radio 1–5, tổng /30) — tự lưu sau 30s hoặc khi rời khỏi mục BANT.</li>
+                  <li>
+                    Xem <strong>D. AI tóm tắt</strong> sau khi lưu discovery/BANT (nút Tóm tắt AI trên phiên nháp).
+                  </li>
+                  <li>
+                    Chọn <strong>Quyết định &quot;Decision&quot;</strong> và{' '}
+                    <strong>Lý do &quot;Reason&quot;</strong>, rồi <strong>Hoàn thành phiên</strong>.
+                  </li>
+                </ol>
+              </details>
+
+              {active ? (
+                <div className="intake-form stack-gap">
+                  <header className="intake-form__head">
+                    <h2 className="intake-form__title">
+                      Phiên #{active.id} · {intakeModeLabel(active.mode)} ·{' '}
+                      {intakeStatusLabel(active.status)}
+                    </h2>
+                    <p className="muted intake-form__subtitle">
+                      BANT {liveBantTotal}/30
+                      {active.decision ? ` · ${active.decision}` : ''}
+                    </p>
+                  </header>
+
+                  <IntakeDiscoverySection
+                    mode={sessionMode}
+                    questions={discoveryQuestions}
+                    checked={discovery.checked}
+                    notes={discovery.notes}
+                    contactName={contactName}
+                    need={need}
+                    disabled={formDisabled}
+                    canChangeMode={active.status === 'draft' && canCreate}
+                    onModeChange={(mode) => void onChangeSessionMode(mode)}
+                    onContactNameChange={setContactName}
+                    onNeedChange={setNeed}
+                    onToggleQuestion={onToggleDiscoveryQuestion}
+                    onNotesChange={(value) =>
+                      setDiscovery((prev) => ({ ...prev, mode: sessionMode, notes: value }))
+                    }
                   />
-                </label>
-                <label style={{ display: 'grid', gap: '0.35rem' }}>
-                  <span className="muted">Nhu cầu / pain</span>
-                  <textarea
-                    value={need}
-                    onChange={(e) => setNeed(e.target.value)}
-                    rows={3}
-                    disabled={active.status === 'completed' || saving}
-                    style={{
-                      background: 'var(--bg)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 8,
-                      padding: '0.55rem 0.75rem',
-                      color: 'var(--text)',
-                      resize: 'vertical',
-                    }}
-                  />
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '0.5rem' }}>
-                  {BANT_KEYS.map((key) => (
-                    <label key={key} style={{ display: 'grid', gap: '0.25rem' }}>
-                      <span className="muted">{key}</span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={5}
-                        value={bant[key] ?? ''}
-                        onChange={(e) =>
-                          setBant((prev) => ({ ...prev, [key]: Number(e.target.value) || 0 }))
+
+                  <section className="intake-bant-section stack-gap" aria-label='Chấm BANT "BANT scoring"'>
+                    <header className="intake-form__head">
+                      <h2 className="intake-form__title">C. BANT + Quyết định</h2>
+                    </header>
+
+                    <div className="intake-bant-decision-pane" onBlur={onBantDecisionBlur}>
+                      <IntakeBantSection
+                        bant={bant}
+                        bantRows={bantRows}
+                        decision={decision}
+                        disabled={formDisabled}
+                        onBantChange={(key: BantKey, value: number) =>
+                          setBant((prev) => ({ ...prev, [key]: value }))
                         }
-                        disabled={active.status === 'completed' || saving}
-                        style={{
-                          background: 'var(--bg)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 8,
-                          padding: '0.45rem',
-                          color: 'var(--text)',
-                        }}
                       />
-                    </label>
-                  ))}
-                </div>
-                <label style={{ display: 'grid', gap: '0.35rem' }}>
-                  <span className="muted">Quyết định</span>
-                  <select
-                    value={decision}
-                    onChange={(e) => setDecision(e.target.value)}
-                    disabled={active.status === 'completed' || saving}
-                    style={{
-                      background: 'var(--bg)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 8,
-                      padding: '0.55rem 0.75rem',
-                      color: 'var(--text)',
-                    }}
-                  >
-                    {DECISIONS.map((d) => (
-                      <option key={d.value || 'empty'} value={d.value}>
-                        {d.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label style={{ display: 'grid', gap: '0.35rem' }}>
-                  <span className="muted">Lý do</span>
-                  <input
-                    value={decisionReason}
-                    onChange={(e) => setDecisionReason(e.target.value)}
-                    disabled={active.status === 'completed' || saving}
-                    style={{
-                      background: 'var(--bg)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 8,
-                      padding: '0.55rem 0.75rem',
-                      color: 'var(--text)',
-                    }}
+
+                      <IntakeValidationErrors issues={validationErrors} />
+
+                      <label className="intake-field">
+                        <span className="muted">Quyết định &quot;Decision&quot;</span>
+                        <select
+                          className="kpi-select"
+                          value={decision}
+                          onChange={(e) => setDecision(e.target.value)}
+                          disabled={formDisabled}
+                        >
+                          {INTAKE_DECISION_OPTIONS.map((d) => (
+                            <option key={d.value || 'empty'} value={d.value}>
+                              {d.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="intake-field">
+                        <span className="muted">Lý do &quot;Reason&quot;</span>
+                        <input
+                          className="kpi-input"
+                          value={decisionReason}
+                          onChange={(e) => setDecisionReason(e.target.value)}
+                          disabled={formDisabled}
+                        />
+                      </label>
+                    </div>
+                  </section>
+
+                  <IntakeAiSummaryPanel
+                    summary={active.ai_summary ?? ''}
+                    disabled={formDisabled || aiSummaryBusy}
+                    busy={aiSummaryBusy}
+                    canGenerate={active.status === 'draft' && canCreate}
+                    onGenerate={() => void onAiSummary()}
                   />
-                </label>
-                {active.status !== 'completed' ? (
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <button type="button" className="btn btn-sm" disabled={saving} onClick={() => void onSave()}>
-                      Lưu nháp
-                    </button>
-                    <button type="button" className="btn btn-sm" disabled={saving} onClick={() => void onComplete()}>
-                      Hoàn thành
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      disabled={saving}
-                      onClick={() => void onAiSummary()}
-                    >
-                      AI summary
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    disabled={saving}
-                    onClick={() => void onReopen()}
-                  >
-                    Mở lại phiên
-                  </button>
-                )}
-              </div>
-            ) : (
-              <p className="muted">Chưa có phiên — tạo phiên mới ở trên.</p>
-            )}
-          </>
+
+                  <IntakeFormActions
+                    isCompleted={active.status === 'completed'}
+                    saving={saving}
+                    autosaveStatus={autosave.status}
+                    autosaveSavedAt={autosave.savedAt}
+                    autosaveDirty={autosave.dirty}
+                    onSave={() => void onSave()}
+                    onComplete={onCompleteClick}
+                    onReopen={() => void onReopen()}
+                  />
+                </div>
+              ) : (
+                <p className="muted">Chưa có phiên — tạo phiên mới ở cột trái.</p>
+              )}
+            </div>
+          </div>
         ) : null}
       </div>
+
+      <IntakeCompleteConfirmModal
+        open={completeModalOpen}
+        busy={saving}
+        sessionLabel={active ? `phiên #${active.id}` : 'phiên'}
+        bantTotal={liveBantTotal}
+        decision={decision}
+        discoveryChecked={discovery.checked}
+        discoveryTotal={discoveryQuestions.length}
+        warnings={completeWarnings}
+        onCancel={() => setCompleteModalOpen(false)}
+        onConfirm={() => void onConfirmComplete()}
+      />
     </StaffPageShell>
   );
 }

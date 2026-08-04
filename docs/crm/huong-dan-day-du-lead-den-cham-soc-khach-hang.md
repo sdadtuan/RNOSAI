@@ -260,19 +260,60 @@ stateDiagram-v2
 
 ### Mục tiêu
 
-Quyết định có đi **Tư vấn** hay dừng funnel.
+Quyết định có đi **Tư vấn** hay dừng funnel — qua phiên **Khảo sát BANT "BANT Intake"** trên ops-web Phase 1.
 
-### Cách sử dụng
+**Spec UI:** [`docs/specs/2026-08-04-intake-bant-phase1-professional-ui-design.md`](../specs/2026-08-04-intake-bant-phase1-professional-ui-design.md) (PO sign-off 2026-08-04).
+
+### Layout trang `/crm/intake?lead_id={id}`
+
+```text
+┌─ Sidebar phiên ─────────┬─ Nội dung chính ─────────────────────────────┐
+│ [+ Gọi điện]            │ Consult gate banner (nếu có lead_id)         │
+│ [+ Gặp trực tiếp]       │ A. Ngữ cảnh lead (prefill)                   │
+│ ● #N · Nháp / HT        │ B. Khảo sát — checklist Gọi/Gặp + Need/Pain  │
+│ ○ #N-1 · HT             │ C. BANT radio 1–5 + Quyết định               │
+│                         │ D. AI tóm tắt                                  │
+│                         │ [Lưu nháp] [Hoàn thành] · autosave 30s       │
+└─────────────────────────┴──────────────────────────────────────────────┘
+```
+
+Mobile: sidebar → drawer; **Lưu / Hoàn thành** cố định dưới màn hình.
+
+### Checklist AM (Phase 1)
+
+| # | Việc cần làm | Ghi chú |
+|---|--------------|---------|
+| 1 | Mở `/crm/intake?lead_id={id}` từ Lead hoặc Pre-sales | Cần `lead_id` hoặc `lifecycle_id` |
+| 2 | Tạo phiên **Gọi điện** hoặc **Gặp trực tiếp** | Nếu đã có nháp → confirm trước khi tạo mới |
+| 3 | Kiểm tra **Liên hệ** (prefill từ lead) | Bắt buộc trước Hoàn thành |
+| 4 | Ghi **Need / Pain** (rich text) | Warn nếu trống khi complete |
+| 5 | Tick checklist câu hỏi | Gợi ý ≥8 (Gọi) / ≥6 (Gặp); warn nếu thiếu |
+| 6 | Chấm **6 tiêu chí BANT** (radio 1–5) | Tổng /30; badge Go ≥24 · Nurture 18–23 |
+| 7 | Chọn **Quyết định** + **Lý do** (bắt buộc Nurture/No-Go) | Cảnh báo nếu lệch badge BANT |
+| 8 | **Lưu nháp** hoặc chờ **tự lưu 30s** | Indicator trạng thái bên nút Lưu |
+| 9 | (Tuỳ chọn) **Tóm tắt AI** ở mục D | Sau khi đã ghi discovery/BANT |
+| 10 | **Hoàn thành phiên** → confirm modal | Block nếu thiếu Contact/Decision |
+| 11 | Quay Lead → tick ✓ task Lead (nếu Go) | Gate BANT trên banner Consult |
+
+### Cách sử dụng (tóm tắt)
 
 | Bước | Thao tác | Chi tiết |
 |------|----------|----------|
 | 1 | Trên panel Lead → link **Intake** | `/crm/intake?lead_id={id}` |
-| 2 | Chọn mode | **Gọi điện (PHẦN A)** hoặc **Gặp trực tiếp (PHẦN B)** |
-| 3 | Điền BANT, stakeholder | Lưu draft nếu cần |
-| 4 | Hoàn thành phiên | `status = completed` |
-| 5 | Chọn quyết định | **Go** / Nurture / **No-Go** |
-| 6 | Quay Lead → tick ✓ task Lead | |
-| 7 | **Chuyển bước → Tư vấn** | Gate kiểm BANT / No-Go |
+| 2 | Tạo phiên | **+ Gọi điện** (12 câu) hoặc **+ Gặp trực tiếp** (10 câu) |
+| 3 | Khảo sát + BANT | Section B + C; autosave 30s / blur |
+| 4 | Hoàn thành phiên | `status = completed` + quyết định Go/Nurture/No-Go |
+| 5 | Quay Lead → tick ✓ task Lead | Khi Go và gate OK |
+| 6 | **Chuyển bước → Tư vấn** | Gate kiểm BANT / No-Go (ngưỡng 24/18) |
+
+### QA tự động
+
+```bash
+cd services/ops-web
+OPS_E2E_SKIP_SERVER=0 npm run test:e2e:intake-bant-phase1
+```
+
+Cần stack Nest API (`OPS_E2E_API_URL`, mặc định `:3000`) + ops-web (`OPS_E2E_URL`, mặc định `:3200`). Tùy chọn: `OPS_E2E_AI_LEAD_ID`, `OPS_E2E_STAFF_EMAIL`, `OPS_E2E_STAFF_PASSWORD`.
 
 ### Sơ đồ quyết định Intake
 
@@ -614,6 +655,7 @@ Bộ test tự động trong repo (pytest / unittest):
 |----|-------|-----------|
 | TC-A02 | Pre-sales chặn trước B2 | `tests/test_crm_lead_presales.py` |
 | TC-B03 | Intake Go → Consult | `tests/test_crm_lead_presales.py` |
+| INT-P1-19 | Intake Phase 1 UI smoke (Playwright) | `services/ops-web/e2e/intake-bant-phase1.spec.ts` |
 | TC-B06 | Promote → Onboard | `tests/test_crm_lead_presales.py` |
 | TC-C04 | Không nhảy stage | `tests/test_crm_service_lifecycle.py` |
 | TC-C05 | Task chưa xong → chặn | `tests/test_crm_service_lifecycle.py` |

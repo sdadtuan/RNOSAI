@@ -45,7 +45,8 @@
     "test:e2e:orchestrator": "playwright test e2e/orchestrator-rnos31.spec.ts",
     "test:e2e:ai-tools": "playwright test e2e/ai-tools-rnos33.spec.ts",
     "test:e2e:order-invoice": "playwright test e2e/order-invoice-rnos25.spec.ts",
-    "test:e2e:nl-query": "playwright test e2e/nl-query-rnos22.spec.ts"
+    "test:e2e:nl-query": "playwright test e2e/nl-query-rnos22.spec.ts",
+    "test:e2e:intake-bant-phase1": "playwright test e2e/intake-bant-phase1.spec.ts"
   },
   "engines": {
     "node": ">=22.0.0"
