@@ -240,7 +240,7 @@ input {
   inset: 0 auto 0 0;
   z-index: 40;
   width: var(--sidebar-width);
-  background: var(--surface);
+  background: var(--page-bg);
   border-right: 1px solid var(--border);
   box-shadow: var(--shadow-green-sm);
   display: flex;
@@ -334,9 +334,9 @@ input {
 }
 
 .ops-nav-link.is-active {
-  background: rgba(23, 105, 47, 0.12);
+  background: var(--accent-hover);
   border-color: rgba(23, 105, 47, 0.28);
-  color: var(--primary-700);
+  color: var(--primary);
   font-weight: 600;
 }
 
@@ -403,7 +403,7 @@ body:has(.ops-sidebar) main {
   padding: calc(var(--topbar-height) + 1.25rem) 1.75rem 2rem !important;
   min-height: 100vh;
   background:
-    radial-gradient(circle at top right, rgba(140, 198, 63, 0.08), transparent 42%),
+    radial-gradient(circle at top right, rgba(23, 105, 47, 0.08), transparent 42%),
     var(--bg);
 }
 
@@ -719,7 +719,7 @@ body:has(.ops-sidebar) main {
   place-items: center;
   padding: 1.5rem;
   background:
-    radial-gradient(circle at top, rgba(140, 198, 63, 0.12), transparent 45%),
+    radial-gradient(circle at top, rgba(23, 105, 47, 0.12), transparent 45%),
     var(--bg);
 }
 
