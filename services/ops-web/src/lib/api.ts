@@ -624,7 +624,11 @@ export async function fetchLead(token: string, id: number): Promise<LeadRow> {
   });
   const body = await parseJson<LeadRow & { error?: string; message?: string }>(res);
   if (!res.ok) {
-    throw new ApiError(body.error ?? body.message ?? 'Lead fetch failed', res.status);
+    const detail = body.error ?? body.message;
+    throw new ApiError(
+      detail ? String(detail) : `Lead fetch failed (HTTP ${res.status})`,
+      res.status,
+    );
   }
   return body;
 }

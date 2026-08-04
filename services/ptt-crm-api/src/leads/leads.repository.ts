@@ -28,9 +28,12 @@ export class LeadsRepository {
     return this.sqliteRepo.listLeads(enriched);
   }
 
-  getLeadById(leadId: number): Promise<LeadV1 | null> | LeadV1 | null {
+  async getLeadById(leadId: number): Promise<LeadV1 | null> {
     if (this.config.leadsReadSource === 'pg') {
-      return this.pgRepo.getLeadById(leadId);
+      const pgLead = await this.pgRepo.getLeadById(leadId);
+      if (pgLead) return pgLead;
+      // Staging / replica lag: mirror LeadAttributionService sqlite fallback.
+      return this.sqliteRepo.getLeadById(leadId);
     }
     return this.sqliteRepo.getLeadById(leadId);
   }

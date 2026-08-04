@@ -323,16 +323,20 @@ export class CrmLeadsSqliteRepository implements OnModuleDestroy {
     const out = new Map<number, string>();
     if (!leadIds.length) return out;
     const placeholders = leadIds.map(() => '?').join(', ');
-    const rows = this.database
-      .prepare(
-        `SELECT lead_id, MIN(created_at) AS first_call_at
-         FROM crm_lead_activities
-         WHERE lead_id IN (${placeholders}) AND activity_type = 'call'
-         GROUP BY lead_id`,
-      )
-      .all(...leadIds) as Array<{ lead_id: number; first_call_at: string }>;
-    for (const row of rows) {
-      if (row.first_call_at) out.set(Number(row.lead_id), String(row.first_call_at));
+    try {
+      const rows = this.database
+        .prepare(
+          `SELECT lead_id, MIN(created_at) AS first_call_at
+           FROM crm_lead_activities
+           WHERE lead_id IN (${placeholders}) AND activity_type = 'call'
+           GROUP BY lead_id`,
+        )
+        .all(...leadIds) as Array<{ lead_id: number; first_call_at: string }>;
+      for (const row of rows) {
+        if (row.first_call_at) out.set(Number(row.lead_id), String(row.first_call_at));
+      }
+    } catch {
+      // SQLite schema may lag PG (crm_lead_activities missing) — CSKH board still loads.
     }
     return out;
   }
@@ -341,18 +345,22 @@ export class CrmLeadsSqliteRepository implements OnModuleDestroy {
     const out = new Map<number, string>();
     if (!leadIds.length) return out;
     const placeholders = leadIds.map(() => '?').join(', ');
-    const rows = this.database
-      .prepare(
-        `SELECT lead_id, next_action_at, created_at
-         FROM crm_lead_activities
-         WHERE lead_id IN (${placeholders})
-           AND COALESCE(next_action_at, '') <> ''
-         ORDER BY created_at DESC`,
-      )
-      .all(...leadIds) as Array<{ lead_id: number; next_action_at: string }>;
-    for (const row of rows) {
-      const id = Number(row.lead_id);
-      if (!out.has(id) && row.next_action_at) out.set(id, String(row.next_action_at));
+    try {
+      const rows = this.database
+        .prepare(
+          `SELECT lead_id, next_action_at, created_at
+           FROM crm_lead_activities
+           WHERE lead_id IN (${placeholders})
+             AND COALESCE(next_action_at, '') <> ''
+           ORDER BY created_at DESC`,
+        )
+        .all(...leadIds) as Array<{ lead_id: number; next_action_at: string }>;
+      for (const row of rows) {
+        const id = Number(row.lead_id);
+        if (!out.has(id) && row.next_action_at) out.set(id, String(row.next_action_at));
+      }
+    } catch {
+      // SQLite schema may lag PG — skip follow-up enrichment.
     }
     return out;
   }
