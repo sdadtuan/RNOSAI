@@ -611,9 +611,9 @@ export default function CrmLeadDetailPage() {
               <LeadB2bSalesFlowBar leadId={leadId} funnel={funnelSnap} contract={contractSummary} />
             ) : (
               <div className="banner banner-info lead-spa-flow-banner" style={{ marginTop: '0.75rem' }}>
-                <strong>Luồng CSKH Spa Meta 24h</strong>
+                <strong>Luồng CSKH vận hành 24h</strong>
                 <p style={{ margin: '0.35rem 0 0', fontSize: '0.9rem' }}>
-                  Liên hệ trong SLA → hẹn gặp nếu cần → chốt dịch vụ spa. Không dùng Pre-sales / HĐ agency.
+                  Liên hệ trong SLA → hẹn gặp nếu cần → chốt dịch vụ client. Không dùng Pre-sales / HĐ agency.
                 </p>
               </div>
             )}

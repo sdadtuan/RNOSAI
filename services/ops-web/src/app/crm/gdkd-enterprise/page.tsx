@@ -128,7 +128,7 @@ export default function GdkdEnterprisePage() {
       user={user}
       onLogout={logout}
       title="KPI Enterprise GDKD"
-      periodHint="8 chỉ số CSKH Spa Meta 24h + AI pilot + closed-loop chốt"
+      periodHint="8 chỉ số CSKH vận hành 24h + AI pilot + closed-loop chốt"
       breadcrumb={[
         { label: 'CRM', href: '/crm/leads' },
         { label: 'KPI Enterprise GDKD' },

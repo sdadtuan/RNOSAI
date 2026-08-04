@@ -76,7 +76,7 @@ export function resolveLeadFlowKindFromLead(
 }
 
 export function leadFlowKindLabel(kind: LeadFlowKind): string {
-  return kind === 'spa_operational' ? 'CSKH Spa Meta' : 'B2B Sales';
+  return kind === 'spa_operational' ? 'CSKH vận hành' : 'B2B Sales';
 }
 
 export const SPA_OPERATIONAL_STATUSES = [

@@ -452,7 +452,13 @@ export const LINK_ICONS: Record<string, string> = {
   '/': 'home',
   '/crm': 'board',
   '/crm/leads': 'leads',
+  '/crm/operational/leads': 'sla',
+  '/crm/b2b/leads': 'sales',
+  '/crm/operational/leads/new': 'leads',
+  '/crm/b2b/leads/new': 'sales',
   '/crm/cskh-board': 'sla',
+  '/crm/gdkd-enterprise': 'kpi',
+  '/crm/intake': 'checklist',
   '/crm/leads/review-queue': 'inbox',
   '/crm/tickets': 'ticket',
   '/crm/customers': 'customers',
@@ -536,6 +542,9 @@ export const LINK_ICONS: Record<string, string> = {
 /** One icon per sidebar section (module rail when collapsed). */
 export const SECTION_ICONS: Record<string, string> = {
   'Tổng quan': 'home',
+  'CSKH vận hành': 'sla',
+  'B2B Sales': 'sales',
+  'Lead chung': 'leads',
   'Lead & CSKH': 'leads',
   'Bán hàng': 'sales',
   'Triển khai DV': 'lifecycle',
@@ -552,6 +561,9 @@ export const SECTION_ICONS: Record<string, string> = {
 /** Shorter labels for sidebar headers. */
 export const SECTION_LABELS: Record<string, string> = {
   'Tổng quan': 'Tổng quan',
+  'CRM · CSKH vận hành': 'CSKH vận hành',
+  'CRM · B2B Sales': 'B2B Sales',
+  'CRM · Lead chung': 'Lead chung',
   'CRM · Lead & CSKH': 'Lead & CSKH',
   'CRM · Bán hàng & Hợp đồng': 'Bán hàng',
   'CRM · Triển khai dịch vụ': 'Triển khai DV',

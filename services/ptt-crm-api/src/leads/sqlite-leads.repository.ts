@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { DatabaseSync } from 'node:sqlite';
 import { AppConfigService } from '../config/app-config.service';
 import { LeadsFunnelSqliteRepository } from '../leads-funnel/leads-funnel-sqlite.repository';
+import { buildLeadFlowKindListFilter } from '../leads-funnel/lead-flow-list-filter.util';
 import { leadRowToV1 } from './lead-v1.mapper';
 import { LeadRow, LeadV1, ListLeadsQuery } from './leads.types';
 
@@ -121,6 +122,9 @@ export class SqliteLeadsRepository implements OnModuleDestroy {
       const like = `%${query.q.trim()}%`;
       clauses.push('(l.full_name LIKE ? OR l.phone LIKE ? OR l.email LIKE ?)');
       params.push(like, like, like);
+    }
+    if (query.lead_flow_kind) {
+      clauses.push(buildLeadFlowKindListFilter(query.lead_flow_kind, 'sqlite', 'l'));
     }
     if (query.review_queue_filter === 'only') {
       clauses.push("COALESCE(json_extract(l.meta_json, '$.review_queue.active'), '') = 'true'");

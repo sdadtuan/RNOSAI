@@ -128,7 +128,7 @@ export default function DashboardPage() {
 
       {showCskhWidgets ? (
         <div className="page-card home-cskh-widgets-card">
-          <h2 className="home-cskh-widgets__title">CSKH Spa Meta — hôm nay</h2>
+          <h2 className="home-cskh-widgets__title">CSKH vận hành — hôm nay</h2>
           <HomeCskhWidgetRow summary={homeSummary} loading={homeLoading} error={homeError} />
         </div>
       ) : null}

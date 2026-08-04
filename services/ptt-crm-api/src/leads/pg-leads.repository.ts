@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { pgRowToV1 } from './lead-v1.mapper';
+import { buildLeadFlowKindListFilter } from '../leads-funnel/lead-flow-list-filter.util';
 import { LeadV1, ListLeadsQuery, PgLeadRow } from './leads.types';
 
 interface PgWhereClause {
@@ -115,6 +116,9 @@ export class PgLeadsRepository implements OnModuleDestroy {
         `(l.full_name ILIKE $${base + 1} OR l.phone ILIKE $${base + 2} OR l.email ILIKE $${base + 3})`,
       );
       params.push(like, like, like);
+    }
+    if (query.lead_flow_kind) {
+      clauses.push(buildLeadFlowKindListFilter(query.lead_flow_kind, 'postgres', 'l'));
     }
     if (query.review_queue_filter === 'only') {
       const ids = query.review_queue_ids ?? [];

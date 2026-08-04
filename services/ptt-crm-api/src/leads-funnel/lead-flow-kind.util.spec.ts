@@ -30,7 +30,7 @@ describe('lead-flow-kind.util', () => {
   });
 
   it('blocks won on spa flow', () => {
-    expect(() => assertStatusAllowedForFlow('spa_operational', 'won')).toThrow(/CSKH Spa Meta/);
+    expect(() => assertStatusAllowedForFlow('spa_operational', 'won')).toThrow(/CSKH vận hành/);
   });
 
   it('allows hen_gap only on spa options', () => {

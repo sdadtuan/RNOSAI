@@ -139,6 +139,7 @@ export async function fetchLeads(
     offset?: number;
     hide_review_queue?: boolean;
     review_queue_only?: boolean;
+    lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
   },
 ): Promise<LeadsListResponse> {
   const qs = new URLSearchParams();
@@ -152,6 +153,7 @@ export async function fetchLeads(
   if (params?.offset !== undefined) qs.set('offset', String(params.offset));
   if (params?.hide_review_queue === false) qs.set('hide_review_queue', '0');
   if (params?.review_queue_only) qs.set('review_queue_only', '1');
+  if (params?.lead_flow_kind) qs.set('lead_flow_kind', params.lead_flow_kind);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   const res = await fetch(`${API_BASE}/api/v1/leads${suffix}`, {
     headers: authHeaders(token),
@@ -185,6 +187,7 @@ export interface CreateLeadBody {
   campaign_id?: string | null;
   external_lead_id?: string | null;
   owner_id?: number | null;
+  lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
 }
 
 export async function createLead(token: string, body: CreateLeadBody): Promise<LeadRow> {

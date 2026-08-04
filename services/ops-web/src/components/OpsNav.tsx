@@ -77,7 +77,12 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/cskh-board': 'Bảng CSKH SLA',
   '/crm/tickets': 'Ticket CS',
   '/crm/leads': 'Quản lý Lead',
+  '/crm/operational/leads': 'Lead CSKH vận hành',
+  '/crm/b2b/leads': 'Lead B2B Sales',
   '/crm/leads/new': 'Tạo lead thủ công',
+  '/crm/operational/leads/new': 'Tạo lead CSKH vận hành',
+  '/crm/b2b/leads/new': 'Tạo lead B2B',
+  '/crm/gdkd-enterprise': 'KPI GDKD Enterprise',
   '/crm/catalog': 'CRM Catalog',
   '/crm/customers': 'Khách hàng',
   '/crm/intake': 'Lead Intake',
@@ -161,6 +166,10 @@ const PAGE_TITLES: Record<string, string> = {
 
 function pageTitleFor(pathname: string): string {
   if (pathname === '/crm/leads/new') return PAGE_TITLES['/crm/leads/new'];
+  if (pathname === '/crm/operational/leads/new') return PAGE_TITLES['/crm/operational/leads/new'];
+  if (pathname === '/crm/b2b/leads/new') return PAGE_TITLES['/crm/b2b/leads/new'];
+  if (pathname.startsWith('/crm/operational/leads')) return PAGE_TITLES['/crm/operational/leads'];
+  if (pathname.startsWith('/crm/b2b/leads')) return PAGE_TITLES['/crm/b2b/leads'];
   if (pathname.startsWith('/crm/leads/') && pathname !== '/crm/leads') return 'Chi tiết lead';
   if (pathname.startsWith('/crm/customers/') && pathname !== '/crm/customers') return 'Chi tiết khách hàng';
   if (pathname.startsWith('/crm/marketing-plan/') && pathname !== '/crm/marketing-plan') {
@@ -187,7 +196,12 @@ function navBadge(count: number | undefined): string {
 }
 
 function isActive(pathname: string, href: string): boolean {
-  return pathname === href || (href !== '/' && pathname.startsWith(`${href}/`));
+  if (pathname === href) return true;
+  if (href === '/') return false;
+  if (href === '/crm/leads') {
+    return pathname === '/crm/leads' || (pathname.startsWith('/crm/leads/') && !pathname.startsWith('/crm/leads/review-queue'));
+  }
+  return pathname.startsWith(`${href}/`);
 }
 
 function buildSeoLinks(user: StoredStaffUser | null): NavLink[] {
@@ -228,35 +242,65 @@ function buildSections(
   }
   if (overview.length) sections.push({ label: 'Tổng quan', links: overview, defaultOpen: true });
 
-  const care: NavLink[] = [];
+  const operationalCskh: NavLink[] = [];
   if (hasCap(user, 'crm_leads', 'view')) {
-    care.push({ href: '/crm/leads', label: 'Quản lý Lead' });
-    care.push({ href: '/crm/cskh-board', label: 'Bảng CSKH SLA' });
+    operationalCskh.push({ href: '/crm/operational/leads', label: 'Lead CSKH vận hành' });
+    operationalCskh.push({ href: '/crm/cskh-board', label: 'Bảng CSKH SLA' });
     if (hasCap(user, 'crm_leads', 'assign')) {
-      care.push({
+      operationalCskh.push({
         href: '/crm/leads/review-queue',
         label: `Phải tra soát (B2)${navBadge(reviewQueueCount)}`,
       });
     }
-    care.push({ href: '/crm/catalog', label: 'Catalog' });
+    if (hasCap(user, 'crm_kpi_records', 'view') || hasCap(user, 'crm_business_dashboard', 'view')) {
+      operationalCskh.push({ href: '/crm/gdkd-enterprise', label: 'KPI GDKD Enterprise' });
+    }
+    if (hasCap(user, 'crm_leads', 'edit')) {
+      operationalCskh.push({ href: '/crm/operational/leads/new', label: 'Tạo lead vận hành' });
+    }
   }
-  if (hasCap(user, 'crm_board', 'view')) {
-    care.push({ href: '/crm/tickets', label: 'Ticket CS' });
+  if (operationalCskh.length) {
+    sections.push({ label: 'CRM · CSKH vận hành', links: operationalCskh, defaultOpen: true });
   }
-  if (hasCap(user, 'crm_board_customers', 'view')) {
-    care.push({ href: '/crm/customers', label: 'Khách hàng' });
-  }
-  if (care.length) sections.push({ label: 'CRM · Lead & CSKH', links: care, defaultOpen: true });
 
-  const salesContract: NavLink[] = [];
-  if (hasCap(user, 'crm_agency', 'view')) {
-    salesContract.push({ href: '/crm/hub', label: 'Hub · Hợp đồng' });
+  const b2bSales: NavLink[] = [];
+  if (hasCap(user, 'crm_leads', 'view')) {
+    b2bSales.push({ href: '/crm/b2b/leads', label: 'Lead B2B' });
+    b2bSales.push({ href: '/crm/intake', label: 'Lead Intake' });
+    if (hasCap(user, 'crm_leads', 'edit')) {
+      b2bSales.push({ href: '/crm/b2b/leads/new', label: 'Tạo lead B2B' });
+    }
   }
   if (hasCap(user, 'crm_sales_overview', 'view') || hasCap(user, 'crm_sales_plans', 'view')) {
-    salesContract.push({ href: '/crm/sales', label: 'Kinh doanh' });
+    b2bSales.push({ href: '/crm/sales', label: 'Kinh doanh' });
   }
   if (hasCap(user, 'crm_board', 'view')) {
-    salesContract.push({ href: '/crm/proposals', label: 'Đề xuất' });
+    b2bSales.push({ href: '/crm/proposals', label: 'Đề xuất' });
+  }
+  if (hasCap(user, 'crm_agency', 'view')) {
+    b2bSales.push({ href: '/crm/hub', label: 'Hub · Hợp đồng' });
+  }
+  if (b2bSales.length) {
+    sections.push({ label: 'CRM · B2B Sales', links: b2bSales, defaultOpen: true });
+  }
+
+  const sharedCrm: NavLink[] = [];
+  if (hasCap(user, 'crm_leads', 'view')) {
+    sharedCrm.push({ href: '/crm/leads', label: 'Tất cả leads' });
+    sharedCrm.push({ href: '/crm/catalog', label: 'Catalog' });
+  }
+  if (hasCap(user, 'crm_board', 'view')) {
+    sharedCrm.push({ href: '/crm/tickets', label: 'Ticket CS' });
+  }
+  if (hasCap(user, 'crm_board_customers', 'view')) {
+    sharedCrm.push({ href: '/crm/customers', label: 'Khách hàng' });
+  }
+  if (sharedCrm.length) {
+    sections.push({ label: 'CRM · Lead chung', links: sharedCrm, defaultOpen: true });
+  }
+
+  const salesContract: NavLink[] = [];
+  if (hasCap(user, 'crm_board', 'view')) {
     salesContract.push({ href: '/crm/orders', label: 'Đơn hàng' });
   }
   if (hasCap(user, 'crm_re_projects', 'view') || hasCap(user, 'crm_re_projects_products', 'view')) {

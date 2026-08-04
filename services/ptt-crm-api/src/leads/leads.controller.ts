@@ -188,9 +188,14 @@ export class LeadsController {
     @Query('hide_review_queue') hideReviewQueue?: string,
     @Query('owner_id') ownerId?: string,
     @Query('unassigned_only') unassignedOnly?: string,
+    @Query('lead_flow_kind') leadFlowKind?: string,
   ): Promise<LeadsListResponseV1> {
     const truthy = (v?: string) => v === '1' || v === 'true';
     const hideExplicitFalse = hideReviewQueue === '0' || hideReviewQueue === 'false';
+    const flowKind =
+      leadFlowKind === 'spa_operational' || leadFlowKind === 'b2b_prospect'
+        ? leadFlowKind
+        : undefined;
     return this.leadsService.listLeads({
       client_id: clientId,
       status,
@@ -203,6 +208,7 @@ export class LeadsController {
       hide_review_queue: hideExplicitFalse ? false : undefined,
       owner_id: ownerId ? Number(ownerId) : undefined,
       unassigned_only: truthy(unassignedOnly),
+      lead_flow_kind: flowKind,
     });
   }
 

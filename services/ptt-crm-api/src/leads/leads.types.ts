@@ -77,6 +77,8 @@ export interface ListLeadsQuery {
   review_queue_ids?: number[];
   owner_id?: number;
   unassigned_only?: boolean;
+  /** Filter by operational flow (spa CSKH vs B2B sales). */
+  lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
 }
 
 export interface CreateLeadV1Body {
@@ -90,6 +92,7 @@ export interface CreateLeadV1Body {
   campaign_id?: string | null;
   external_lead_id?: string | null;
   owner_id?: number | null;
+  lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
 }
 
 export interface PatchLeadV1Body {

@@ -246,10 +246,12 @@ export function LeadFunnelPanel({
   if (!funnel) return null;
 
   const flowKind = funnel.lead_flow_kind ?? 'b2b_prospect';
-  const isSpaFlow = flowKind === 'spa_operational';
+  const isOperationalFlow = flowKind === 'spa_operational';
   const showPresales = showPresalesForFlow(flowKind);
   const funnelSteps = showPresales ? FUNNEL_STEPS : FUNNEL_STEPS.filter((step) => step.key === 'b2');
-  const panelTitle = isSpaFlow ? 'Funnel CSKH Spa — B2 Liên hệ' : 'Funnel B2 → Pre-sales';
+  const panelTitle = isOperationalFlow
+    ? 'Funnel CSKH vận hành — B2 Liên hệ'
+    : 'Funnel B2 → Pre-sales';
 
   const b2Stage = funnel.care_pipeline.stages[0];
   const inReview = funnel.review_queue.active;
@@ -351,7 +353,7 @@ export function LeadFunnelPanel({
             </>
           ) : (
             <>
-              Luồng spa: hoàn thành B2 rồi chốt trạng thái lead (không Pre-sales).
+              Luồng CSKH vận hành: hoàn thành B2 rồi chốt trạng thái lead (không Pre-sales).
             </>
           )}
           {!funnel.care_pipeline.all_complete && canEdit && !inReview ? (

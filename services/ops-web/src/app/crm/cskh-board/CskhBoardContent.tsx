@@ -485,7 +485,7 @@ export function CskhBoardContent() {
       ]}
     >
       <PageToolbar
-        title="Dashboard SLA Spa Meta 24h"
+        title="Dashboard SLA CSKH vận hành 24h"
         subtitle="15 phút gọi lần đầu · 4 giờ hoàn thành B2 · 24 giờ chốt/lost (SOP CSKH)"
         actions={
           <>

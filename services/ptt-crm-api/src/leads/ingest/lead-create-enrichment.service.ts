@@ -78,6 +78,10 @@ export class LeadCreateEnrichmentService {
       meta.assign_strategy = assignStrategy;
     }
 
+    if (body.lead_flow_kind === 'spa_operational' || body.lead_flow_kind === 'b2b_prospect') {
+      meta.lead_flow_kind = body.lead_flow_kind;
+    }
+
     return {
       ...body,
       phone: phone || body.phone,

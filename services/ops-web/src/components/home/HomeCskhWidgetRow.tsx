@@ -34,7 +34,7 @@ export function HomeCskhWidgetRow({
         <Link href="/crm/leads?status=moi" className="home-cskh-widget summary-card">
           <span className="muted">Lead Meta mới hôm nay</span>
           <strong className="home-cskh-widget__value">{summary.leads_new_today}</strong>
-          <span className="home-cskh-widget__hint muted">Spa Meta · ICT</span>
+          <span className="home-cskh-widget__hint muted">Client active · ICT</span>
         </Link>
 
         <Link
