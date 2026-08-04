@@ -4,14 +4,17 @@ import { IntakeDiscoveryChecklist } from '@/components/crm/intake/IntakeDiscover
 import { RichTextField } from '@/components/crm/RichTextField';
 import {
   countDiscoveryChecked,
+  type DiscoveryResponseEntry,
+  type IntakeQuestionItem,
   type IntakeSessionMode,
 } from '@/lib/crm/intake-discovery';
 import { intakeModeLabel } from '@/lib/crm/intake-labels';
 
 interface Props {
   mode: IntakeSessionMode;
-  questions: string[];
+  questionItems: IntakeQuestionItem[];
   checked: Record<string, boolean>;
+  responses: Record<string, DiscoveryResponseEntry>;
   notes: string;
   contactName: string;
   need: string;
@@ -20,14 +23,16 @@ interface Props {
   onModeChange?: (mode: IntakeSessionMode) => void;
   onContactNameChange: (value: string) => void;
   onNeedChange: (value: string) => void;
-  onToggleQuestion: (index: number, next: boolean) => void;
+  onToggleQuestion: (questionKey: string, next: boolean) => void;
+  onResponseChange: (questionKey: string, patch: Partial<DiscoveryResponseEntry>) => void;
   onNotesChange: (value: string) => void;
 }
 
 export function IntakeDiscoverySection({
   mode,
-  questions,
+  questionItems,
   checked,
+  responses,
   notes,
   contactName,
   need,
@@ -37,10 +42,11 @@ export function IntakeDiscoverySection({
   onContactNameChange,
   onNeedChange,
   onToggleQuestion,
+  onResponseChange,
   onNotesChange,
 }: Props) {
   const done = countDiscoveryChecked(checked);
-  const total = questions.length;
+  const total = questionItems.length;
 
   return (
     <details className="intake-discovery-section" open>
@@ -88,12 +94,14 @@ export function IntakeDiscoverySection({
         </label>
 
         <IntakeDiscoveryChecklist
-          questions={questions}
+          questionItems={questionItems}
           mode={mode}
           checked={checked}
+          responses={responses}
           notes={notes}
           disabled={disabled}
           onToggle={onToggleQuestion}
+          onResponseChange={onResponseChange}
           onNotesChange={onNotesChange}
         />
       </div>

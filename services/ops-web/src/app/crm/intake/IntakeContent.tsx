@@ -12,6 +12,9 @@ import { IntakeValidationErrors } from '@/components/crm/intake/IntakeValidation
 import { IntakeConsultGateBanner, type IntakeConsultGateState } from '@/components/crm/intake/IntakeConsultGateBanner';
 import { IntakeLeadContextCard } from '@/components/crm/intake/IntakeLeadContextCard';
 import { IntakeSessionSidebar } from '@/components/crm/intake/IntakeSessionSidebar';
+import { IntakeCommitmentsSection } from '@/components/crm/intake/IntakeCommitmentsSection';
+import { IntakeRedFlagsSection } from '@/components/crm/intake/IntakeRedFlagsSection';
+import { IntakeStakeholderMatrix } from '@/components/crm/intake/IntakeStakeholderMatrix';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
 import {
   completeIntakeSession,
@@ -47,15 +50,33 @@ import {
   type BantKey,
   type BantRowUi,
 } from '@/lib/crm/intake-bant';
+import { buildIntakeAnswersPatch } from '@/lib/crm/intake-answers';
 import {
-  buildDiscoveryAnswersPatch,
+  commitmentsToPatch,
+  defaultCommitments,
+  type IntakeCommitmentRow,
+} from '@/lib/crm/intake-commitments';
+import {
   emptyDiscoveryForMode,
   normalizeIntakeMode,
-  questionsForMode,
+  questionItemsForMode,
+  toggleDiscoveryQuestion,
+  updateDiscoveryResponse,
   type DiscoveryChecklistState,
   type IntakeDefinitionUi,
   type IntakeSessionMode,
 } from '@/lib/crm/intake-discovery';
+import {
+  emptyRedFlags,
+  redFlagItemsFromDefinition,
+  toggleRedFlag,
+  type IntakeRedFlagsState,
+} from '@/lib/crm/intake-red-flags';
+import {
+  defaultStakeholders,
+  stakeholdersToPatch,
+  type IntakeStakeholderRow,
+} from '@/lib/crm/intake-stakeholders';
 import {
   intakeValidationErrors,
   intakeValidationWarnings,
@@ -89,6 +110,9 @@ export function IntakeContent() {
   const [contactName, setContactName] = useState('');
   const [need, setNeed] = useState('');
   const [discovery, setDiscovery] = useState<DiscoveryChecklistState>(emptyDiscoveryForMode('phone'));
+  const [stakeholders, setStakeholders] = useState<IntakeStakeholderRow[]>(defaultStakeholders());
+  const [commitments, setCommitments] = useState<IntakeCommitmentRow[]>(defaultCommitments());
+  const [redFlags, setRedFlags] = useState<IntakeRedFlagsState>(emptyRedFlags());
   const [intakeDefinition, setIntakeDefinition] = useState<IntakeDefinitionUi | null>(null);
   const [bantRows, setBantRows] = useState<BantRowUi[]>([]);
   const [error, setError] = useState('');
@@ -119,11 +143,15 @@ export function IntakeContent() {
   const canCreate = useMemo(() => hasCap(user, 'crm_leads', 'edit'), [user]);
   const formDisabled = active?.status === 'completed' || saving;
   const sessionMode = normalizeIntakeMode(active?.mode);
-  const discoveryQuestions = useMemo(
-    () => questionsForMode(intakeDefinition, sessionMode),
+  const discoveryQuestionItems = useMemo(
+    () => questionItemsForMode(intakeDefinition, sessionMode),
     [intakeDefinition, sessionMode],
   );
-  const liveBantTotal = useMemo(() => computeBantTotal(bant), [bant]);
+  const redFlagItems = useMemo(
+    () =>
+      redFlagItemsFromDefinition(intakeDefinition?.red_flags, intakeDefinition?.red_flag_items),
+    [intakeDefinition],
+  );
   const formSnapshot = useMemo(
     () =>
       JSON.stringify({
@@ -134,30 +162,43 @@ export function IntakeContent() {
         contactName,
         need,
         discovery,
+        stakeholders,
+        commitments,
+        redFlags,
       }),
-    [activeId, bant, decision, decisionReason, contactName, need, discovery],
+    [activeId, bant, decision, decisionReason, contactName, need, discovery, stakeholders, commitments, redFlags],
   );
+  const liveBantTotal = useMemo(() => computeBantTotal(bant), [bant]);
 
-  const applySession = useCallback((session: IntakeSessionRow | null) => {
-    if (!session) {
-      setActiveId(null);
-      setBant({});
-      setDecision('');
-      setDecisionReason('');
-      setContactName('');
-      setNeed('');
-      setDiscovery(emptyDiscoveryForMode('phone'));
-      return;
-    }
-    setActiveId(session.id);
-    const form = intakeFormFromSession(session);
-    setBant(form.bant);
-    setDecision(form.decision);
-    setDecisionReason(form.decisionReason);
-    setContactName(form.contactName);
-    setNeed(form.need);
-    setDiscovery(form.discovery);
-  }, []);
+  const applySession = useCallback(
+    (session: IntakeSessionRow | null) => {
+      if (!session) {
+        setActiveId(null);
+        setBant({});
+        setDecision('');
+        setDecisionReason('');
+        setContactName('');
+        setNeed('');
+        setDiscovery(emptyDiscoveryForMode('phone'));
+        setStakeholders(defaultStakeholders());
+        setCommitments(defaultCommitments());
+        setRedFlags(emptyRedFlags());
+        return;
+      }
+      setActiveId(session.id);
+      const form = intakeFormFromSession(session, intakeDefinition);
+      setBant(form.bant);
+      setDecision(form.decision);
+      setDecisionReason(form.decisionReason);
+      setContactName(form.contactName);
+      setNeed(form.need);
+      setDiscovery(form.discovery);
+      setStakeholders(form.stakeholders);
+      setCommitments(form.commitments);
+      setRedFlags(form.redFlags);
+    },
+    [intakeDefinition],
+  );
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -255,6 +296,11 @@ export function IntakeContent() {
           title: definition.title,
           phone_questions: definition.phone_questions ?? [],
           inperson_questions: definition.inperson_questions ?? [],
+          phone_question_items: definition.phone_question_items,
+          inperson_question_items: definition.inperson_question_items,
+          red_flags: definition.red_flags,
+          red_flag_items: definition.red_flag_items,
+          schema_version: definition.schema_version,
         });
         setBantRows(bantRowsFromDefinition(definition.bant_rows));
         const statsOut = await fetchIntakeStats(access);
@@ -338,10 +384,14 @@ export function IntakeContent() {
           decision,
           decision_reason: decisionReason,
           contact_name: contactName,
-          answers_json: buildDiscoveryAnswersPatch(active.answers_json, need, {
-            ...discovery,
-            mode: sessionMode,
+          answers_json: buildIntakeAnswersPatch({
+            existing: active.answers_json,
+            need,
+            discovery: { ...discovery, mode: sessionMode },
+            redFlags,
           }),
+          stakeholders_json: stakeholdersToPatch(stakeholders),
+          commitments_json: commitmentsToPatch(commitments),
         });
         await loadSessions(access, active.id);
         if (leadId > 0) await loadConsultGate(access);
@@ -368,7 +418,10 @@ export function IntakeContent() {
       loadConsultGate,
       loadSessions,
       need,
+      redFlags,
       sessionMode,
+      stakeholders,
+      commitments,
       user,
     ],
   );
@@ -384,6 +437,16 @@ export function IntakeContent() {
       await performSave({ silent: true });
     },
   });
+
+  useEffect(() => {
+    if (!active || !intakeDefinition) return;
+    const form = intakeFormFromSession(active, intakeDefinition);
+    setDiscovery(form.discovery);
+    setStakeholders(form.stakeholders);
+    setCommitments(form.commitments);
+    setRedFlags(form.redFlags);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rehydrate structured answers when definition loads
+  }, [intakeDefinition?.schema_version, active?.id]);
 
   useEffect(() => {
     autosave.syncSnapshot(formSnapshot);
@@ -406,7 +469,11 @@ export function IntakeContent() {
       decisionReason,
       sessionMode,
       discoveryChecked: discovery.checked,
-      discoveryTotal: discoveryQuestions.length,
+      discoveryResponses: discovery.responses,
+      discoveryTotal: discoveryQuestionItems.length,
+      questionItems: discoveryQuestionItems,
+      redFlagsChecked: redFlags.checked,
+      stakeholders,
     };
   }
 
@@ -495,7 +562,12 @@ export function IntakeContent() {
       setDiscovery(nextDiscovery);
       await patchIntakeSession(access, active.id, {
         mode: nextMode,
-        answers_json: buildDiscoveryAnswersPatch(active.answers_json, need, nextDiscovery),
+        answers_json: buildIntakeAnswersPatch({
+          existing: active.answers_json,
+          need,
+          discovery: nextDiscovery,
+          redFlags,
+        }),
       });
       await loadSessions(access, active.id);
       setMessage(`Đã chuyển sang ${intakeModeLabel(nextMode)}`);
@@ -506,15 +578,19 @@ export function IntakeContent() {
     }
   }
 
-  function onToggleDiscoveryQuestion(index: number, next: boolean) {
-    const key = String(index);
-    setDiscovery((prev) => ({
-      ...prev,
-      mode: sessionMode,
-      checked: next
-        ? { ...prev.checked, [key]: true }
-        : Object.fromEntries(Object.entries(prev.checked).filter(([k]) => k !== key)),
-    }));
+  function onToggleDiscoveryQuestion(questionKey: string, next: boolean) {
+    setDiscovery((prev) => toggleDiscoveryQuestion(prev, questionKey, next, sessionMode));
+  }
+
+  function onDiscoveryResponseChange(
+    questionKey: string,
+    patch: Parameters<typeof updateDiscoveryResponse>[2],
+  ) {
+    setDiscovery((prev) => updateDiscoveryResponse(prev, questionKey, patch, sessionMode));
+  }
+
+  function onToggleRedFlag(key: string, next: boolean) {
+    setRedFlags((prev) => toggleRedFlag(prev, key, next));
   }
 
   async function onAiSummary() {
@@ -640,9 +716,11 @@ export function IntakeContent() {
                     <strong>+ Gọi điện</strong> / <strong>+ Gặp trực tiếp</strong>.
                   </li>
                   <li>
-                    Ghi <strong>Liên hệ &quot;Contact&quot;</strong>,{' '}
-                    <strong>Nhu cầu / điểm đau &quot;Need / Pain&quot;</strong> (rich text), và tick{' '}
-                    <strong>checklist câu hỏi Gọi/Gặp</strong> theo loại phiên.
+                    Tick câu hỏi và điền <strong>câu trả lời ngắn</strong> (câu quan trọng gợi ý bắt buộc trước Complete).
+                  </li>
+                  <li>
+                    Ghi <strong>Red flags</strong>, <strong>Stakeholder matrix</strong>,{' '}
+                    <strong>Cam kết KH</strong> khi đủ thông tin.
                   </li>
                   <li>Chấm 6 tiêu chí BANT (radio 1–5, tổng /30) — tự lưu sau 30s hoặc khi rời khỏi mục BANT.</li>
                   <li>
@@ -670,8 +748,9 @@ export function IntakeContent() {
 
                   <IntakeDiscoverySection
                     mode={sessionMode}
-                    questions={discoveryQuestions}
+                    questionItems={discoveryQuestionItems}
                     checked={discovery.checked}
+                    responses={discovery.responses}
                     notes={discovery.notes}
                     contactName={contactName}
                     need={need}
@@ -681,9 +760,18 @@ export function IntakeContent() {
                     onContactNameChange={setContactName}
                     onNeedChange={setNeed}
                     onToggleQuestion={onToggleDiscoveryQuestion}
+                    onResponseChange={onDiscoveryResponseChange}
                     onNotesChange={(value) =>
                       setDiscovery((prev) => ({ ...prev, mode: sessionMode, notes: value }))
                     }
+                  />
+
+                  <IntakeRedFlagsSection
+                    items={redFlagItems}
+                    state={redFlags}
+                    disabled={formDisabled}
+                    onToggle={onToggleRedFlag}
+                    onNotesChange={(value) => setRedFlags((prev) => ({ ...prev, notes: value }))}
                   />
 
                   <section className="intake-bant-section stack-gap" aria-label='Chấm BANT "BANT scoring"'>
@@ -732,6 +820,26 @@ export function IntakeContent() {
                     </div>
                   </section>
 
+                  <IntakeStakeholderMatrix
+                    rows={stakeholders}
+                    disabled={formDisabled}
+                    onChange={(index, patch) =>
+                      setStakeholders((prev) =>
+                        prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+                      )
+                    }
+                  />
+
+                  <IntakeCommitmentsSection
+                    rows={commitments}
+                    disabled={formDisabled}
+                    onChange={(index, patch) =>
+                      setCommitments((prev) =>
+                        prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+                      )
+                    }
+                  />
+
                   <IntakeAiSummaryPanel
                     summary={active.ai_summary ?? ''}
                     disabled={formDisabled || aiSummaryBusy}
@@ -766,7 +874,7 @@ export function IntakeContent() {
         bantTotal={liveBantTotal}
         decision={decision}
         discoveryChecked={discovery.checked}
-        discoveryTotal={discoveryQuestions.length}
+        discoveryTotal={discoveryQuestionItems.length}
         warnings={completeWarnings}
         onCancel={() => setCompleteModalOpen(false)}
         onConfirm={() => void onConfirmComplete()}

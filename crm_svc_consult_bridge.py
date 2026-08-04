@@ -333,8 +333,25 @@ def _extract_intake_keyword_hints(intake_session: dict[str, Any] | None) -> str:
     if intake_session is None:
         return ""
     answers = intake_session.get("answers_json") or {}
-    phone = answers.get("phone") if isinstance(answers.get("phone"), dict) else {}
+    responses = answers.get("discovery_responses")
     snippets: list[str] = []
+    if isinstance(responses, dict):
+        for key in sorted(responses.keys()):
+            block = responses.get(key)
+            if not isinstance(block, dict):
+                continue
+            val = str(block.get("answer") or "").strip()
+            if not val:
+                continue
+            plain = val.replace("<", " ").replace(">", " ")
+            if len(plain) > 160:
+                plain = plain[:157] + "…"
+            snippets.append(plain)
+            if len(snippets) >= 6:
+                break
+    if snippets:
+        return "\n".join(snippets)[:4000]
+    phone = answers.get("phone") if isinstance(answers.get("phone"), dict) else {}
     for key in sorted(
         phone.keys(),
         key=lambda k: int(k[1:]) if str(k).startswith("p") and str(k)[1:].isdigit() else 999,

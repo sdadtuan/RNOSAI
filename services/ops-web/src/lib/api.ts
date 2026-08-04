@@ -1571,6 +1571,8 @@ export interface IntakeSessionRow {
   decision_reason: string;
   bant_json: Record<string, number>;
   answers_json: Record<string, unknown>;
+  stakeholders_json?: Array<Record<string, string>>;
+  commitments_json?: Array<Record<string, string>>;
   ai_summary?: string;
   updated_at: string;
 }
@@ -1663,9 +1665,13 @@ export async function fetchIntakeDefinitionBySlug(
   title: string;
   phone_questions: string[];
   inperson_questions: string[];
+  phone_question_items?: Array<{ key: string; text: string; critical?: boolean }>;
+  inperson_question_items?: Array<{ key: string; text: string; critical?: boolean }>;
   bant_rows?: Array<{ key?: string; label: string; hint: string }>;
   red_flags?: string[];
+  red_flag_items?: Array<{ key: string; text: string }>;
   urgency_triggers?: string[];
+  schema_version?: number;
 }> {
   return crmFetch(token, `/api/crm/intake/definitions/${encodeURIComponent(slug)}`);
 }

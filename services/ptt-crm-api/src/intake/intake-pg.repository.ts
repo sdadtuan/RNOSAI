@@ -10,6 +10,7 @@ import {
   normalizeIntakeSlug,
   resolveDefinitionSlug,
 } from './intake-definitions.util';
+import { extractDiscoveryResponseSnippets } from './intake-answers.util';
 import {
   CreateIntakeSessionBody,
   IntakeEntryResult,
@@ -819,24 +820,7 @@ export class IntakePgRepository implements OnModuleDestroy {
         : {};
     if (meta.pain_summary) parts.push(`Pain: ${String(meta.pain_summary)}`);
 
-    const phone =
-      answers.phone && typeof answers.phone === 'object'
-        ? (answers.phone as Record<string, string>)
-        : {};
-    const snippets: string[] = [];
-    for (const key of Object.keys(phone).sort((a, b) => {
-      const ai = a.startsWith('p') && /^\d+$/.test(a.slice(1)) ? Number(a.slice(1)) : 999;
-      const bi = b.startsWith('p') && /^\d+$/.test(b.slice(1)) ? Number(b.slice(1)) : 999;
-      return ai - bi;
-    })) {
-      const val = String(phone[key] ?? '').trim();
-      if (val) {
-        let plain = val.replace(/</g, ' ').replace(/>/g, ' ');
-        if (plain.length > 120) plain = `${plain.slice(0, 117)}…`;
-        snippets.push(plain);
-      }
-      if (snippets.length >= 4) break;
-    }
+    const snippets = extractDiscoveryResponseSnippets(answers, 4);
     if (snippets.length) parts.push(`Ghi chú gọi: ${snippets.join(' · ')}`);
     return parts.join('\n').slice(0, 4000);
   }

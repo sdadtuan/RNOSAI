@@ -1,12 +1,14 @@
 import type { IntakeSessionRow, LeadRow } from '@/lib/api';
+import { normalizeCommitments, type IntakeCommitmentRow } from '@/lib/crm/intake-commitments';
 import {
-  emptyDiscoveryForMode,
+  discoveryFromDefinition,
   normalizeIntakeMode,
-  parseDiscoveryChecklist,
   type DiscoveryChecklistState,
-  type IntakeSessionMode,
+  type IntakeDefinitionUi,
 } from '@/lib/crm/intake-discovery';
 import { plainTextToRichHtml } from '@/lib/crm/intake-labels';
+import { parseRedFlags, type IntakeRedFlagsState } from '@/lib/crm/intake-red-flags';
+import { normalizeStakeholders, type IntakeStakeholderRow } from '@/lib/crm/intake-stakeholders';
 
 export interface IntakeSessionFormState {
   bant: Record<string, number>;
@@ -15,9 +17,15 @@ export interface IntakeSessionFormState {
   contactName: string;
   need: string;
   discovery: DiscoveryChecklistState;
+  stakeholders: IntakeStakeholderRow[];
+  commitments: IntakeCommitmentRow[];
+  redFlags: IntakeRedFlagsState;
 }
 
-export function intakeFormFromSession(session: IntakeSessionRow): IntakeSessionFormState {
+export function intakeFormFromSession(
+  session: IntakeSessionRow,
+  definition?: IntakeDefinitionUi | null,
+): IntakeSessionFormState {
   const crm = (session.answers_json?.crm_fields || {}) as Record<string, string>;
   const mode = normalizeIntakeMode(session.mode);
   return {
@@ -26,7 +34,10 @@ export function intakeFormFromSession(session: IntakeSessionRow): IntakeSessionF
     decisionReason: session.decision_reason || '',
     contactName: session.contact_name || '',
     need: plainTextToRichHtml(String(crm.need || '')),
-    discovery: parseDiscoveryChecklist(session.answers_json, mode),
+    discovery: discoveryFromDefinition(definition ?? null, mode, session.answers_json),
+    stakeholders: normalizeStakeholders(session.stakeholders_json),
+    commitments: normalizeCommitments(session.commitments_json),
+    redFlags: parseRedFlags(session.answers_json),
   };
 }
 

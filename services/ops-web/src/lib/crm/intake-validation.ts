@@ -1,5 +1,13 @@
 import { BANT_KEYS } from '@/lib/crm/intake-bant';
-import { countDiscoveryChecked, type IntakeSessionMode } from '@/lib/crm/intake-discovery';
+import {
+  countCriticalAnswered,
+  countDiscoveryChecked,
+  type DiscoveryResponseEntry,
+  type IntakeQuestionItem,
+  type IntakeSessionMode,
+} from '@/lib/crm/intake-discovery';
+import { hasDecisionMakerName, type IntakeStakeholderRow } from '@/lib/crm/intake-stakeholders';
+import { countRedFlagsChecked } from '@/lib/crm/intake-red-flags';
 
 export type IntakeValidationLevel = 'error' | 'warn';
 
@@ -17,7 +25,11 @@ export interface IntakeCompleteValidationInput {
   decisionReason: string;
   sessionMode: IntakeSessionMode;
   discoveryChecked: Record<string, boolean>;
+  discoveryResponses: Record<string, DiscoveryResponseEntry>;
   discoveryTotal: number;
+  questionItems: IntakeQuestionItem[];
+  redFlagsChecked: Record<string, boolean>;
+  stakeholders: IntakeStakeholderRow[];
 }
 
 export function isRichTextEmpty(html: string): boolean {
@@ -34,6 +46,12 @@ export function validateIntakeComplete(input: IntakeCompleteValidationInput): In
   const issues: IntakeValidationIssue[] = [];
   const checkedCount = countDiscoveryChecked(input.discoveryChecked);
   const checklistMin = input.sessionMode === 'phone' ? 8 : 6;
+  const redFlagCount = countRedFlagsChecked(input.redFlagsChecked);
+  const critical = countCriticalAnswered(
+    input.questionItems,
+    input.discoveryChecked,
+    input.discoveryResponses,
+  );
 
   if (!input.contactName.trim()) {
     issues.push({
@@ -82,11 +100,43 @@ export function validateIntakeComplete(input: IntakeCompleteValidationInput): In
     });
   }
 
+  if (critical.total > 0 && critical.answered < critical.total) {
+    issues.push({
+      level: 'warn',
+      code: 'critical_answers_missing',
+      message: `Còn ${critical.total - critical.answered}/${critical.total} câu quan trọng chưa có câu trả lời.`,
+    });
+  }
+
   if (isRichTextEmpty(input.need)) {
     issues.push({
       level: 'warn',
       code: 'need_empty',
       message: 'Nhu cầu / điểm đau "Need / Pain" đang trống.',
+    });
+  }
+
+  if (redFlagCount >= 2) {
+    issues.push({
+      level: 'warn',
+      code: 'red_flags_high',
+      message: `Đã tick ${redFlagCount} red flag — gợi ý No-Go hoặc Nurture; ghi rõ lý do.`,
+    });
+  }
+
+  if (input.decision === 'go' && redFlagCount >= 2) {
+    issues.push({
+      level: 'warn',
+      code: 'go_with_red_flags',
+      message: 'Quyết định Go nhưng có ≥2 red flag — cần lý do override rõ ràng.',
+    });
+  }
+
+  if (input.decision === 'go' && !hasDecisionMakerName(input.stakeholders)) {
+    issues.push({
+      level: 'warn',
+      code: 'stakeholder_dm_missing',
+      message: 'Go nhưng chưa ghi tên Decision Maker trong ma trận stakeholder.',
     });
   }
 

@@ -201,17 +201,36 @@ def build_recap_from_session(phone_session: dict[str, Any]) -> str:
     meta = answers.get("meta") if isinstance(answers.get("meta"), dict) else {}
     if meta.get("pain_summary"):
         parts.append(f"Pain: {meta['pain_summary']}")
-    phone = answers.get("phone") if isinstance(answers.get("phone"), dict) else {}
+    responses = answers.get("discovery_responses")
     snippets: list[str] = []
-    for key in sorted(phone.keys(), key=lambda k: int(k[1:]) if k.startswith("p") and k[1:].isdigit() else 999):
-        val = str(phone.get(key) or "").strip()
-        if val:
+    if isinstance(responses, dict):
+        for key in sorted(responses.keys()):
+            block = responses.get(key)
+            if not isinstance(block, dict):
+                continue
+            val = str(block.get("answer") or "").strip()
+            if not val:
+                continue
             plain = val.replace("<", " ").replace(">", " ")
             if len(plain) > 120:
                 plain = plain[:117] + "…"
             snippets.append(plain)
-        if len(snippets) >= 4:
-            break
+            if len(snippets) >= 4:
+                break
+    if not snippets:
+        phone = answers.get("phone") if isinstance(answers.get("phone"), dict) else {}
+        for key in sorted(
+            phone.keys(),
+            key=lambda k: int(k[1:]) if str(k).startswith("p") and str(k)[1:].isdigit() else 999,
+        ):
+            val = str(phone.get(key) or "").strip()
+            if val:
+                plain = val.replace("<", " ").replace(">", " ")
+                if len(plain) > 120:
+                    plain = plain[:117] + "…"
+                snippets.append(plain)
+            if len(snippets) >= 4:
+                break
     if snippets:
         parts.append("Ghi chú gọi: " + " · ".join(snippets))
     return "\n".join(parts)[:4000]

@@ -11,6 +11,87 @@ export const BANT_KEYS = [
 
 export const GO_THRESHOLDS = { go: 24, nurture_min: 18 } as const;
 
+export interface IntakeQuestionItem {
+  key: string;
+  text: string;
+  critical?: boolean;
+}
+
+export interface IntakeRedFlagItem {
+  key: string;
+  text: string;
+}
+
+const PHONE_QUESTION_KEYS = [
+  'phone_service_interest',
+  'phone_domain',
+  'phone_pain_point',
+  'phone_budget',
+  'phone_timeline',
+  'phone_decision_maker',
+  'phone_prior_attempts',
+  'phone_kpi',
+  'phone_industry',
+  'phone_expectation',
+  'phone_deadline',
+  'phone_priority_service',
+] as const;
+
+const INPERSON_QUESTION_KEYS = [
+  'ip_business_goals',
+  'ip_icp',
+  'ip_pain_solutions',
+  'ip_approval_process',
+  'ip_competitors',
+  'ip_marketing_team',
+  'ip_budget_approved',
+  'ip_timeline',
+  'ip_partner_risk',
+  'ip_agency_criteria',
+] as const;
+
+const PHONE_CRITICAL_KEYS = new Set<string>([
+  'phone_pain_point',
+  'phone_budget',
+  'phone_decision_maker',
+]);
+
+const INPERSON_CRITICAL_KEYS = new Set<string>([
+  'ip_pain_solutions',
+  'ip_budget_approved',
+  'ip_timeline',
+]);
+
+const RED_FLAG_KEYS = [
+  'rf_unclear_need',
+  'rf_no_budget',
+  'rf_no_decision_maker',
+  'rf_unrealistic_expectation',
+  'rf_refuses_info',
+  'rf_ghost_followup',
+  'rf_freelancer_compare',
+  'rf_multi_service_no_priority',
+] as const;
+
+function buildQuestionItems(
+  texts: string[],
+  keys: readonly string[],
+  criticalKeys: Set<string>,
+): IntakeQuestionItem[] {
+  return texts.map((text, index) => ({
+    key: keys[index] ?? `q_${String(index).padStart(2, '0')}`,
+    text,
+    critical: criticalKeys.has(keys[index] ?? ''),
+  }));
+}
+
+function buildRedFlagItems(texts: string[], keys: readonly string[]): IntakeRedFlagItem[] {
+  return texts.map((text, index) => ({
+    key: keys[index] ?? `rf_${String(index).padStart(2, '0')}`,
+    text,
+  }));
+}
+
 export const SERVICE_SLUGS = [
   'dich-vu-seo-tong-the',
   'dich-vu-aeo',
@@ -133,18 +214,33 @@ export function getCommonFormDefinition(): typeof COMMON_FORM {
 export function getUiDefinition(slug: string): Record<string, unknown> {
   const defSlug = resolveDefinitionSlug(slug);
   const svc = defSlug === COMMON_FORM_SLUG ? COMMON_FORM : COMMON_FORM;
+  const phoneQuestionItems = buildQuestionItems(
+    svc.phone_qs || [],
+    PHONE_QUESTION_KEYS,
+    PHONE_CRITICAL_KEYS,
+  );
+  const inpersonQuestionItems = buildQuestionItems(
+    svc.inperson_qs || [],
+    INPERSON_QUESTION_KEYS,
+    INPERSON_CRITICAL_KEYS,
+  );
+  const redFlagItems = buildRedFlagItems(svc.red_flags || [], RED_FLAG_KEYS);
   return {
     slug: defSlug,
     title: svc.title || defSlug,
     group: svc.group || '',
     overview: svc.overview || '',
     icp: svc.icp || '',
-    phone_questions: [...(svc.phone_qs || [])],
-    inperson_questions: [...(svc.inperson_qs || [])],
-    red_flags: [...(svc.red_flags || [])],
+    phone_questions: phoneQuestionItems.map((q) => q.text),
+    inperson_questions: inpersonQuestionItems.map((q) => q.text),
+    phone_question_items: phoneQuestionItems,
+    inperson_question_items: inpersonQuestionItems,
+    red_flags: redFlagItems.map((f) => f.text),
+    red_flag_items: redFlagItems,
     urgency_triggers: [...(svc.urgency || [])],
     bant_rows: buildBantRowsUi(),
     is_common_form: defSlug === COMMON_FORM_SLUG,
+    schema_version: 2,
   };
 }
 

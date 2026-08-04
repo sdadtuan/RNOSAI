@@ -295,6 +295,18 @@ Mobile: sidebar → drawer; **Lưu / Hoàn thành** cố định dưới màn h�
 | 10 | **Hoàn thành phiên** → confirm modal | Block nếu thiếu Contact/Decision |
 | 11 | Quay Lead → tick ✓ task Lead (nếu Go) | Gate BANT trên banner Consult |
 
+### Checklist AM (Phase 2 — bổ sung)
+
+| # | Việc cần làm | Ghi chú |
+|---|--------------|---------|
+| P2-1 | Sau khi tick câu hỏi → điền **câu trả lời ngắn** | Câu *Quan trọng* gợi ý bắt buộc trước Complete |
+| P2-2 | Chọn **Độ chắc** (Confirmed / Partial / Unknown) | Tuỳ chọn; giúp audit handoff |
+| P2-3 | Tick **Red flags** (mục G) nếu có dấu hiệu | ≥2 flag → warn No-Go/Nurture |
+| P2-4 | Điền **Ma trận stakeholder** (mục E) | Go gợi ý có tên Decision Maker |
+| P2-5 | Ghi **3 cam kết KH** (mục F) | Detail + deadline khi chốt gặp |
+
+Spec: [`docs/specs/2026-08-04-intake-bant-phase2-structured-discovery-design.md`](../specs/2026-08-04-intake-bant-phase2-structured-discovery-design.md)
+
 ### Cách sử dụng (tóm tắt)
 
 | Bước | Thao tác | Chi tiết |
@@ -311,6 +323,7 @@ Mobile: sidebar → drawer; **Lưu / Hoàn thành** cố định dưới màn h�
 ```bash
 cd services/ops-web
 OPS_E2E_SKIP_SERVER=0 npm run test:e2e:intake-bant-phase1
+OPS_E2E_SKIP_SERVER=0 npm run test:e2e:intake-bant-phase2
 ```
 
 Cần stack Nest API (`OPS_E2E_API_URL`, mặc định `:3000`) + ops-web (`OPS_E2E_URL`, mặc định `:3200`). Tùy chọn: `OPS_E2E_AI_LEAD_ID`, `OPS_E2E_STAFF_EMAIL`, `OPS_E2E_STAFF_PASSWORD`.
@@ -656,6 +669,7 @@ Bộ test tự động trong repo (pytest / unittest):
 | TC-A02 | Pre-sales chặn trước B2 | `tests/test_crm_lead_presales.py` |
 | TC-B03 | Intake Go → Consult | `tests/test_crm_lead_presales.py` |
 | INT-P1-19 | Intake Phase 1 UI smoke (Playwright) | `services/ops-web/e2e/intake-bant-phase1.spec.ts` |
+| INT-P2-19 | Intake Phase 2 structured discovery smoke | `services/ops-web/e2e/intake-bant-phase2.spec.ts` |
 | TC-B06 | Promote → Onboard | `tests/test_crm_lead_presales.py` |
 | TC-C04 | Không nhảy stage | `tests/test_crm_service_lifecycle.py` |
 | TC-C05 | Task chưa xong → chặn | `tests/test_crm_service_lifecycle.py` |
