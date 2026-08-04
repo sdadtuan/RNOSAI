@@ -67,7 +67,20 @@ export function IntakeConsultGateBanner({ leadId, gate, loading, onRefresh }: Pr
       {gate.messages.length > 0 ? (
         <ul className="intake-gate-banner__messages">
           {gate.messages.map((m) => (
-            <li key={m}>{m}</li>
+            <li key={m}>
+              {m.includes('task Lead') ? (
+                <>
+                  {m} — mở{' '}
+                  <Link href={`/crm/leads/${leadId}`} className="nav-link">
+                    Lead #{leadId}
+                  </Link>{' '}
+                  → Pre-sales → tick ✓ task giai đoạn Lead, hoặc bấm <strong>Làm mới</strong> sau khi
+                  Intake Go đã hoàn thành.
+                </>
+              ) : (
+                m
+              )}
+            </li>
           ))}
         </ul>
       ) : null}

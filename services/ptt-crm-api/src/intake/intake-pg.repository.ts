@@ -11,6 +11,7 @@ import {
   resolveDefinitionSlug,
 } from './intake-definitions.util';
 import { extractDiscoveryResponseSnippets } from './intake-answers.util';
+import { syncPresalesLeadTasksFromIntake } from './intake-presales-sync.util';
 import {
   CreateIntakeSessionBody,
   IntakeEntryResult,
@@ -407,6 +408,7 @@ export class IntakePgRepository implements OnModuleDestroy {
 
     await this.syncCommonIntakeToLead(completed);
     await this.logIntakeActivity(completed, actorId);
+    await syncPresalesLeadTasksFromIntake(this.db, completed, actorId);
     return this.getSession(sessionId);
   }
 

@@ -42,6 +42,7 @@ import {
   validatePreliminaryPlan,
 } from './presales-marketing-plan.util';
 import { workflowStepsForService } from './presales-workflow-steps.util';
+import { repairPresalesLeadTasksFromLatestGoIntake } from '../intake/intake-presales-sync.util';
 import {
   DEFAULT_B2_CONTACT_DEADLINE_HOURS,
   isLeadInReviewQueue,
@@ -667,9 +668,24 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
        WHERE presales_id = $1 AND stage = 'lead'`,
       [presalesId],
     );
-    const leadTasks = taskResult.rows[0] as { total: number; done: number | null };
-    const leadTaskDone =
+    let leadTasks = taskResult.rows[0] as { total: number; done: number | null };
+    let leadTaskDone =
       Number(leadTasks.total) === 0 || Number(leadTasks.done ?? 0) >= Number(leadTasks.total);
+
+    if (!leadTaskDone) {
+      await repairPresalesLeadTasksFromLatestGoIntake(this.db, leadId);
+      const retry = await this.db.query(
+        `SELECT COUNT(*)::int AS total,
+                SUM(CASE WHEN is_done THEN 1 ELSE 0 END)::int AS done
+         FROM crm_lead_presales_tasks
+         WHERE presales_id = $1 AND stage = 'lead'`,
+        [presalesId],
+      );
+      leadTasks = retry.rows[0] as { total: number; done: number | null };
+      leadTaskDone =
+        Number(leadTasks.total) === 0 || Number(leadTasks.done ?? 0) >= Number(leadTasks.total);
+    }
+
     return validatePresalesConsultAdvance({ leadTaskDone, sessions });
   }
 
