@@ -4,6 +4,7 @@
 **Phạm vi:** Lead spa Meta 24h (`spa_operational`) — CSKH rep, Team Lead, GDKD, Platform  
 **Gate cuối:** `bash scripts/cskh_enterprise_e5_gate.sh`
 
+> **Canonical (đầy đủ):** [`huong-dan-cskh-enterprise-ops.md`](../huong-dan-cskh-enterprise-ops.md) — setup VPS, wave E0–E5, màn hình, gate  
 > SOP hàng ngày rep: [cskh-spa-lead-meta-24h-sop.md](./cskh-spa-lead-meta-24h-sop.md)  
 > Sign-off GDKD tuần 12: [cskh-enterprise-e5-signoff.md](../templates/cskh-enterprise-e5-signoff.md)
 
@@ -182,6 +183,7 @@ OPS_E2E_SKIP_SERVER=0 bash scripts/playwright_ops_cskh_enterprise_e5_e2e.sh
 
 ## Tham chiếu
 
+- [Hướng dẫn CSKH Enterprise (VPS + UI)](../huong-dan-cskh-enterprise-ops.md) — **canonical**
 - [Spec wave E0–E5](../superpowers/specs/2026-08-04-cskh-enterprise-ai-wave-design.md)
 - [Plan triển khai](../superpowers/plans/2026-08-04-cskh-enterprise-e0-e5.md)
 - [env.ai.example](../../deploy/env.ai.example)

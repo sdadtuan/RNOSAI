@@ -4,6 +4,7 @@
 **Phạm vi:** Luồng chăm sóc Spa Meta 24h (`spa_operational`) — CSKH rep, Team lead, GDKD  
 **Production:** `https://ops.pttads.vn`  
 **Liên quan:**
+- [`huong-dan-cskh-enterprise-ops.md`](../../huong-dan-cskh-enterprise-ops.md) — **Hướng dẫn setup & sử dụng VPS** (canonical ops)
 - [`cskh-spa-lead-meta-24h-sop.md`](../../runbooks/cskh-spa-lead-meta-24h-sop.md)
 - [`cskh-ai-pilot-90-day-playbook.md`](../../runbooks/cskh-ai-pilot-90-day-playbook.md)
 - [`crm-getfly-gap-matrix.md`](../../specs/crm-getfly-gap-matrix.md) §1, §6

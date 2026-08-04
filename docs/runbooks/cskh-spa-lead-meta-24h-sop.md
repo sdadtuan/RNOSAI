@@ -73,6 +73,7 @@ Quá **24h** chưa B2 → lead có thể vào **Review queue GDKD** (`/crm/leads
 
 ## Tham chiếu
 
+- [Hướng dẫn CSKH Enterprise — setup VPS & wave E0–E5](../huong-dan-cskh-enterprise-ops.md)
 - [Runbook CSKH Enterprise (E0–E5)](./cskh-enterprise-ops-runbook.md) — shift handoff, alerts, 8 KPI GDKD, gate tuần 12
 - [01-CRM-ACTIONS.md](../use-cases/actions/01-CRM-ACTIONS.md) — CRM-UC-001, UC-002  
 - [product-model-v1.md](../product-model-v1.md) — B2 care gate  

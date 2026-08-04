@@ -74,6 +74,7 @@ Tài liệu bàn giao **tóm tắt** — chi tiết kỹ thuật và từng màn
 | **SEO/AEO** | [`huong-dan-seo-aeo-ops.md`](../huong-dan-seo-aeo-ops.md) | [`SPEC_SEO_AEO_OPERATING_SYSTEM.md`](../SPEC_SEO_AEO_OPERATING_SYSTEM.md) |
 | **Email Marketing** | [`huong-dan-email-marketing-ops.md`](../huong-dan-email-marketing-ops.md) | [`SPEC_EMAIL_MARKETING_OPERATING_SYSTEM.md`](../SPEC_EMAIL_MARKETING_OPERATING_SYSTEM.md) |
 | **Meta Enterprise** | [`huong-dan-meta-enterprise-ops.md`](../huong-dan-meta-enterprise-ops.md) | [`SPEC_META_ENTERPRISE_PTTADS.md`](../SPEC_META_ENTERPRISE_PTTADS.md) |
+| **CSKH Enterprise** | [`huong-dan-cskh-enterprise-ops.md`](../huong-dan-cskh-enterprise-ops.md) | [`SPEC_AI_REVENUE_OPERATING_SYSTEM.md`](../SPEC_AI_REVENUE_OPERATING_SYSTEM.md) §4.2.1 |
 | **Agency Platform** | [`runbooks/vps-full-system-deploy.md`](../runbooks/vps-full-system-deploy.md) | [`SPEC_AGENCY_OPERATING_PLATFORM.md`](../SPEC_AGENCY_OPERATING_PLATFORM.md) |
 
 ---

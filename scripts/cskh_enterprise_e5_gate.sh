@@ -60,6 +60,7 @@ fi
 echo ""
 echo "-- E5 docs & E2E artifacts --"
 for f in \
+  docs/huong-dan-cskh-enterprise-ops.md \
   docs/runbooks/cskh-enterprise-ops-runbook.md \
   docs/templates/cskh-enterprise-e5-signoff.md \
   services/ops-web/e2e/home-cskh-widgets.spec.ts; do

@@ -16,6 +16,7 @@
 > - [`SPEC_AGENCY_OPERATING_PLATFORM.md`](SPEC_AGENCY_OPERATING_PLATFORM.md) — Agency platform  
 > - [`SPEC_META_ENTERPRISE_PTTADS.md`](SPEC_META_ENTERPRISE_PTTADS.md) · [`SPEC_EMAIL_MARKETING_OPERATING_SYSTEM.md`](SPEC_EMAIL_MARKETING_OPERATING_SYSTEM.md)  
 > - [`SPEC_SEO_AEO_OPERATING_SYSTEM.md`](SPEC_SEO_AEO_OPERATING_SYSTEM.md) · [`SPEC_ZALO_ADS_OPERATING_SYSTEM.md`](SPEC_ZALO_ADS_OPERATING_SYSTEM.md)  
+> - [`huong-dan-cskh-enterprise-ops.md`](huong-dan-cskh-enterprise-ops.md) — **CSKH Enterprise** (Spa Meta 24h + AI wave E0–E5) setup & vận hành VPS  
 > - [`use-cases/`](use-cases/) · [`product-model-v1.md`](product-model-v1.md) · [`specs/events/catalog.yaml`](specs/events/catalog.yaml)  
 > - [`SPEC_UI_UX_AI_REVENUE_OS.md`](SPEC_UI_UX_AI_REVENUE_OS.md) — UX/UI kiến trúc Revenue OS + AI  
 > **Alias file:** [`AI_LONG_TERM_STRATEGY.md`](AI_LONG_TERM_STRATEGY.md) → redirect tới §22–§25 doc này  
@@ -364,6 +365,25 @@ Mỗi module có **tính năng CRM chuẩn** + **AI enhancement**. Functional re
 
 **Traceability:** [`use-cases/01-CRM-CORE.md`](use-cases/01-CRM-CORE.md) CRM-UC-001…009
 
+### 4.2.1. CSKH Enterprise Ops — Spa Meta 24h (Wave E0–E5) ✅
+
+**Phạm vi:** Lead spa vận hành (`spa_operational`) từ Meta Lead Ads — SLA 15p / 4h / 24h, board, AI copilot/NBA, GDKD 8 KPI.
+
+| Wave | Deliverable | Route / API | Gate |
+|------|-------------|-------------|------|
+| E0 | Home SLA widgets | `/` · `GET /api/crm/cskh-board/home-summary` | `cskh_e0_home_gate.sh` |
+| E1 | Copilot rollout + NBA LLM primary | Copilot panel · `PTT_AI_COPILOT_ROLLOUT_MODE` | `cskh_e1_ai_prod_gate.sh` |
+| E2 | Predictive SLA + SSE + auto-task | `/crm/cskh-board` · `sla-predictions` · `sla-alerts/stream` | `cskh_e2_sla_predict_gate.sh` |
+| E3 | Shift handoff + review queue LLM | `shift-handoff` · `/crm/leads/review-queue` | `cskh_e3_handoff_gate.sh` |
+| E4 | Score v2 feedback + playbook rank | `PTT_AI_SCORE_V2` · `ai_score_feedback` · playbooks/ranked | `cskh_e4_playbook_gate.sh` |
+| E5 | Enterprise sign-off | `/crm/gdkd-enterprise` · 8 KPI `gate_pass` | `cskh_enterprise_e5_gate.sh` |
+
+**Business rules:** BR-AI-01 (no auto-send) · BR-AI-04 (rollout mode) · BR-AI-05 (score override feedback).
+
+**Data:** `crm_leads` SLA timestamps · `crm_lead_activities.care_status` (B2 care gate) · `ai_score_feedback` (E4).
+
+**Ops canonical:** [`huong-dan-cskh-enterprise-ops.md`](huong-dan-cskh-enterprise-ops.md) · design [`superpowers/specs/2026-08-04-cskh-enterprise-ai-wave-design.md`](superpowers/specs/2026-08-04-cskh-enterprise-ai-wave-design.md)
+
 ### 4.3. Sales Pipeline & Forecast (FR-03, AI-05)
 
 | Tính năng | Chi tiết |
@@ -707,6 +727,9 @@ flowchart LR
 | Customers | `/crm/customers` | ✅ |
 | Pipeline / Sales | `/crm/sales`, `/crm/pipeline` | ✅ |
 | CSKH Board | `/crm/cskh-board` | ✅ |
+| CSKH Home widgets | `/` (E0) | ✅ |
+| GDKD Enterprise KPI | `/crm/gdkd-enterprise` | ✅ |
+| Review queue + AI triage | `/crm/leads/review-queue` | ✅ E3 |
 | Service Delivery | `/crm/service-delivery` | ✅ |
 | KPI / Staff | `/crm/kpi`, `/crm/staff` | ✅ |
 | **AI Copilot** | `/crm/copilot` or global panel | R2 |
@@ -1631,6 +1654,9 @@ Year 5  → Multi-agent Revenue Ops
 | `use-cases/09-AI-REVENUE-OS.md` | Use cases AI-UC-001…020 | ✅ v1.1 |
 | `use-cases/actions/09-AI-ACTIONS.md` | Action UAT R1–R4 | ✅ v1.1 |
 | `runbooks/ai-service-operations.md` | Ops runbook | ✅ |
+| [`huong-dan-cskh-enterprise-ops.md`](huong-dan-cskh-enterprise-ops.md) | **CSKH Enterprise** — setup VPS, wave E0–E5, SOP GDKD | ✅ v1.0 |
+| [`superpowers/specs/2026-08-04-cskh-enterprise-ai-wave-design.md`](superpowers/specs/2026-08-04-cskh-enterprise-ai-wave-design.md) | Design wave E0–E5 | ✅ |
+| [`runbooks/cskh-enterprise-ops-runbook.md`](runbooks/cskh-enterprise-ops-runbook.md) | Runbook ngắn CSKH enterprise | ✅ |
 | `specs/2026-07-26-rnosai-pricing-draft.md` | Bảng giá Agency/Brand draft | ✅ v0.1 DRAFT |
 
 ### 26.4. Glossary

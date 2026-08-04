@@ -16,6 +16,7 @@ Bao gồm:
 | Product & CRM modules | §1–§5, §14 | |
 | Technical architecture | §6–§13 | |
 | Governance & KPI | §15–§17 | |
+| **CSKH Enterprise (Spa Meta 24h + AI E0–E5)** | §4.2.1 · §8.2 | [`huong-dan-cskh-enterprise-ops.md`](huong-dan-cskh-enterprise-ops.md) |
 | Roadmap RNOS-01…40 | §18–§19 | [`specs/2026-07-26-ai-phase1-90-day-plan.md`](specs/2026-07-26-ai-phase1-90-day-plan.md) |
 | vs Getfly / MISA | §20 | [`specs/2026-07-26-rnosai-pricing-draft.md`](specs/2026-07-26-rnosai-pricing-draft.md) |
 | **Chiến lược AI 5 năm (thực chiến)** | §22–§25 | |
