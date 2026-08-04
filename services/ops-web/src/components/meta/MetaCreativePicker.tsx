@@ -38,7 +38,7 @@ export function MetaCreativePicker({ creatives, selectedId, onSelect, loading }:
               gap: '0.75rem',
               alignItems: 'flex-start',
               padding: '0.75rem',
-              border: `1px solid ${selectedId === creative.id ? 'var(--accent, #2563eb)' : 'var(--border, #ddd)'}`,
+              border: `1px solid ${selectedId === creative.id ? 'var(--accent, #17692f)' : 'var(--border, #ddd)'}`,
               borderRadius: '8px',
               cursor: 'pointer',
             }}

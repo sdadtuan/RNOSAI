@@ -191,7 +191,7 @@ def build_leads_pdf(
     tbl.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2563eb")),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#17692f")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("FONTSIZE", (0, 0), (-1, -1), 7),
                 ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),

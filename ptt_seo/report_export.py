@@ -22,7 +22,7 @@ def build_dashboard_pdf(
         raise RuntimeError("Cần cài reportlab: pip install reportlab") from exc
 
     brand = brand or {}
-    primary_hex = str(brand.get("primary_color") or "#2563eb")
+    primary_hex = str(brand.get("primary_color") or "#17692f")
     primary = colors.HexColor(primary_hex)
     title_prefix = str(brand.get("report_title_prefix") or "SEO/AEO Report")
     footer_text = str(brand.get("footer_text") or "Báo cáo SEO/AEO — confidential")

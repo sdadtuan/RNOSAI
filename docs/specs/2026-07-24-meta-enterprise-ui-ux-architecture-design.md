@@ -180,7 +180,9 @@ flowchart LR
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| `--primary` | `#398b43` | Primary buttons, active nav |
+| `--primary` | `#17692f` | Primary buttons, active nav |
+| `--accent-hover` | `#C7D9C9` | Nav/button hover background |
+| `--page-bg` | `#ecefea` | App background |
 | `--bg` | `#ecf3ee` | Page background |
 | `.card` | white panel | All Meta pages |
 | `.perf-table` | striped table | Hub, tracking, writes |

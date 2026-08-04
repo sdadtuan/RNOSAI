@@ -75,7 +75,7 @@ def build_report_email_html(
     return f"""<!DOCTYPE html>
 <html><body style="font-family:system-ui,sans-serif;color:#111827;line-height:1.5">
   <div style="max-width:560px;margin:0 auto;padding:24px">
-    <p style="color:#2563eb;font-size:12px;font-weight:700;letter-spacing:.04em">PTT SEO/AEO OPS</p>
+    <p style="color:#17692f;font-size:12px;font-weight:700;letter-spacing:.04em">PTT SEO/AEO OPS</p>
     <h2 style="margin:0 0 8px">Báo cáo tự động — {customer_label}</h2>
     <p style="color:#6b7280;margin:0 0 16px">Dashboard <strong>{dashboard_type}</strong> · PDF đính kèm</p>
     <table style="width:100%;border-collapse:collapse;font-size:14px;background:#f9fafb;border-radius:8px">{tr}</table>

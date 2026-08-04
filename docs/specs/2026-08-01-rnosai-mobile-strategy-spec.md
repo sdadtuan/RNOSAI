@@ -402,7 +402,7 @@ sudo systemctl restart ptt-ops-web
 | `start_url` | `/crm/leads` | Mở thẳng lead list |
 | `display` | `standalone` | Ẩn browser chrome |
 | `orientation` | `portrait-primary` | |
-| `theme_color` | `#398b43` | Khớp `--theme-color` |
+| `theme_color` | `#17692f` | Khớp `--theme-color` |
 | `icons` | `/icons/icon.svg` | Cần thêm PNG 192/512 cho iOS (backlog M1.1) |
 
 #### 8.1.3. Service worker (`sw.js`)

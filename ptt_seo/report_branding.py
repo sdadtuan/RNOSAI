@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 
-DEFAULT_PRIMARY = "#2563eb"
+DEFAULT_PRIMARY = "#17692f"
 DEFAULT_FOOTER = "Báo cáo SEO/AEO — confidential"
 
 

@@ -1,7 +1,7 @@
 import type { PortalSettingsResponse } from '@/lib/api';
 
-export const PTT_DEFAULT_ACCENT = '#398b43';
-export const PTT_DEFAULT_ACCENT_HOVER = '#2f7238';
+export const PTT_DEFAULT_ACCENT = '#17692f';
+export const PTT_DEFAULT_ACCENT_HOVER = '#C7D9C9';
 
 const HEX_SHORT = /^#([0-9a-fA-F]{3})$/;
 const HEX_FULL = /^#([0-9a-fA-F]{6})$/;

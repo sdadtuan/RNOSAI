@@ -4,7 +4,7 @@
 
 | # | Chủ đề | Quyết định |
 |---|--------|------------|
-| 1 | Theme | **A — PTT light** (`#398b43`, nền `#f0f3f5`, card trắng) — parity ops-web |
+| 1 | Theme | **A — PTT light** (`#17692f`, nền `#ecefea`, hover `#C7D9C9`) — parity ops-web |
 | 2 | Desktop nav | **Sidebar thu gọn** (rail 72px + drawer flyout), topbar cố định |
 | 3 | Ưu tiên sau P1 | **P4 Creatives** (trước SEO/Email module polish) |
 | 4 | Triển khai | **P0 + P1 ngay** |

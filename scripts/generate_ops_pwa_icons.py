@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "services" / "ops-web" / "public" / "icons"
-BG = "#398b43"
+BG = "#17692f"
 FG = "#ffffff"
 SUB = "#e8f5e9"
 

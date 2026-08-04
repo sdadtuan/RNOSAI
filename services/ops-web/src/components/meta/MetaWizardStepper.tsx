@@ -19,7 +19,7 @@ export function MetaWizardStepper({ steps, currentStep }: MetaWizardStepperProps
             style={{
               padding: '0.35rem 0.75rem',
               borderRadius: '999px',
-              border: `1px solid ${active ? 'var(--accent, #2563eb)' : 'var(--border, #ddd)'}`,
+              border: `1px solid ${active ? 'var(--accent, #17692f)' : 'var(--border, #ddd)'}`,
               background: done ? 'rgba(37, 99, 235, 0.08)' : active ? 'rgba(37, 99, 235, 0.12)' : 'transparent',
               fontWeight: active ? 600 : 400,
             }}

@@ -527,7 +527,7 @@ def build_export_html(messages: list[dict[str, Any]], *, brand: str = "PTT Adver
         "<script src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js'></script>",
         "<script>mermaid.initialize({startOnLoad:true,theme:'neutral'});</script>",
         "<style>body{font-family:Inter,system-ui,sans-serif;max-width:820px;margin:2rem auto;padding:0 1rem;color:#13233f}"
-        "h1{color:#2f7238}.msg{margin:1.25rem 0;padding:1rem;border:1px solid #d8deeb;border-radius:12px;background:#f6faf7}"
+        "h1{color:#17692f}.msg{margin:1.25rem 0;padding:1rem;border:1px solid #d4d6d2;border-radius:12px;background:#ecefea}"
         ".meta{font-size:.75rem;color:#59657d;text-transform:uppercase;margin-bottom:.5rem}"
         "pre{background:#fff;padding:.75rem;border-radius:8px;overflow:auto;font-size:.85rem}"
         ".mermaid{margin:1rem 0}</style></head><body>",

@@ -344,17 +344,18 @@ Nguồn: `static/styles.css`, `static/admin_shell.css`
 
 | Token | Giá trị | Dùng cho |
 |-------|---------|----------|
-| `--primary` | `#398b43` | CTA, link active, accent |
-| `--primary-700` | `#2f7238` | Text accent, sidebar label |
-| `--brand-lime` | `#8cc63f` | Gradient highlight |
-| `--bg` / `--app-bg-gradient` | `#ecf3ee` + radial | Nền app admin |
+| `--primary` | `#17692f` | CTA, link active, accent |
+| `--primary-700` | `#125a28` | Text accent, sidebar label, btn hover |
+| `--accent-hover` | `#C7D9C9` | Hover nền nav, secondary button |
+| `--brand-lime` | `#2d8a44` | Gradient highlight |
+| `--bg` / `--page-bg` | `#ecefea` | Nền app admin |
 | `--surface` | `#ffffff` | Card, panel |
 | `--text-strong` | `#0f2418` | Heading |
 | `--text-subtle` | `#5c6f63` | Muted, secondary |
-| `--border` | `rgba(57,139,67,0.16)` | Viền card |
-| `--theme-color` | `#398b43` | Mobile browser chrome |
+| `--border` | `rgba(23,105,47,0.16)` | Viền card |
+| `--theme-color` | `#17692f` | Mobile browser chrome |
 
-**Gradient thương hiệu (topbar admin):** `#2f7238` → `#398b43` → `#8cc63f`
+**Gradient thương hiệu (topbar admin):** `#125a28` → `#17692f` → `#2d8a44`
 
 ### 6.2. Typography
 
@@ -650,7 +651,7 @@ Lead tiers: Hot (red-orange), Warm (amber), Cold (blue-gray) — defined in `crm
 | Hidden nav | `aria-disabled="true"` on blocked links |
 | Form labels | `<label>` + `aria-label` on matrix checkboxes |
 | Color contrast | Text `#0f2418` on `#fff` — WCAG AA target |
-| `theme-color` | `#398b43` mobile chrome |
+| `theme-color` | `#17692f` mobile chrome |
 
 ### 10.3. Motion
 

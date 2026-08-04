@@ -51,7 +51,7 @@ export const TEMPLATE_BLOCKS: TemplateBlock[] = [
     label: 'CTA',
     html: `<table width="100%" cellpadding="0" cellspacing="0" role="presentation">
   <tr><td style="padding:24px;text-align:center;">
-    <a href="{{cta_url}}" style="display:inline-block;padding:12px 28px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-family:sans-serif;font-weight:600;">
+    <a href="{{cta_url}}" style="display:inline-block;padding:12px 28px;background:#17692f;color:#fff;text-decoration:none;border-radius:6px;font-family:sans-serif;font-weight:600;">
       {{cta_label}}
     </a>
   </td></tr>

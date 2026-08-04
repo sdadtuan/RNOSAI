@@ -5,7 +5,7 @@ import type { NlQueryChart } from '@/lib/ai-api';
 const WIDTH = 720;
 const HEIGHT = 280;
 const PAD = { top: 24, right: 24, bottom: 48, left: 56 };
-const COLORS = ['#2563eb', '#16a34a', '#ea580c', '#7c3aed'];
+const COLORS = ['#17692f', '#16a34a', '#ea580c', '#7c3aed'];
 
 export function NlQueryTrendChart({ chart }: { chart: NlQueryChart }) {
   const values = chart.series.flatMap((series) => series.values).filter(Number.isFinite);
