@@ -85,8 +85,8 @@ export class StaffAiLeadAccessGuard implements CanActivate {
       throw new ForbiddenException({ error: 'lead_not_found', lead_id: leadId });
     }
 
-    const staffId = Number(req.staffUser.sub);
-    if (lead.owner_id != null && lead.owner_id === staffId) {
+    const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    if (staffId != null && lead.owner_id != null && lead.owner_id === staffId) {
       return true;
     }
 

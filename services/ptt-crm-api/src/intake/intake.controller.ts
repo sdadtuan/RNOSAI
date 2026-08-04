@@ -15,6 +15,7 @@ import {
 import { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffIntakeViewGuard, StaffIntakeWriteGuard } from './guards/staff-intake.guard';
 import { IntakeService } from './intake.service';
 import { CreateIntakeSessionBody, PatchIntakeSessionBody } from './intake.types';
@@ -22,7 +23,10 @@ import { CreateIntakeSessionBody, PatchIntakeSessionBody } from './intake.types'
 @Controller('api/crm/intake')
 @UseGuards(StaffOrInternalKeyGuard, StaffIntakeViewGuard)
 export class IntakeController {
-  constructor(private readonly intake: IntakeService) {}
+  constructor(
+    private readonly intake: IntakeService,
+    private readonly staffAuth: StaffAuthService,
+  ) {}
 
   @Get('definitions')
   definitions() {
@@ -99,11 +103,11 @@ export class IntakeController {
 
   @Post('sessions/:id/complete')
   @UseGuards(StaffIntakeWriteGuard)
-  completeSession(
+  async completeSession(
     @Param('id', ParseIntPipe) id: number,
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
-    const actorId = req.staffUser?.sub ? Number(req.staffUser.sub) : null;
-    return this.intake.completeSession(id, Number.isFinite(actorId) ? actorId : null);
+    const actorId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    return this.intake.completeSession(id, actorId);
   }
 }

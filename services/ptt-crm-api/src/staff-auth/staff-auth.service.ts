@@ -11,6 +11,7 @@ import {
   StaffUserProfile,
 } from './staff-auth.types';
 import { signStaffJwt, StaffJwtPayload, verifyStaffJwt } from './staff-jwt.util';
+import { parseNumericStaffSub } from './staff-user-id.util';
 
 const DEFAULT_STUB_CAPS: StaffSectionCap[] = [
   { section: 'dashboard', action: 'view' },
@@ -125,6 +126,27 @@ export class StaffAuthService {
       this.pool = new Pool({ connectionString: this.config.databaseUrl });
     }
     return this.pool;
+  }
+
+  /** Map staff JWT (UUID sub) to numeric crm_staff.id for PG bigint columns. */
+  async resolveCrmStaffUserId(payload: StaffJwtPayload | undefined): Promise<number | null> {
+    if (!payload?.sub) return null;
+    const numeric = parseNumericStaffSub(payload.sub);
+    if (numeric != null) return numeric;
+    const email = payload.email?.trim();
+    if (!email) return null;
+    try {
+      const result = await this.db.query(
+        `SELECT id FROM crm_staff
+         WHERE active = TRUE AND lower(trim(email)) = lower(trim($1))
+         LIMIT 1`,
+        [email],
+      );
+      const id = result.rows[0]?.id;
+      return id != null ? Number(id) : null;
+    } catch {
+      return null;
+    }
   }
 
   async login(email: string, password: string): Promise<StaffLoginResult> {

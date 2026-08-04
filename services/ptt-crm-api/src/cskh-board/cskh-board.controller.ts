@@ -115,7 +115,7 @@ export class CskhBoardController {
       const me = await this.staffAuth.me(staffUser);
       viewAll = this.staffAuth.hasCap(me.caps, 'crm_leads', 'assign');
       if (!viewAll) {
-        filterOwner = Number(staffUser.sub);
+        filterOwner = (await this.staffAuth.resolveCrmStaffUserId(staffUser)) ?? undefined;
       }
     }
 
@@ -199,11 +199,11 @@ export class CskhBoardController {
   @Post('bulk-reschedule')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffLeadsWriteGuard)
-  bulkReschedule(
+  async bulkReschedule(
     @Body() body: CskhBulkRescheduleBody,
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
-    const userId = req.staffUser?.sub ? Number(req.staffUser.sub) : null;
+    const userId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
     return this.board.bulkReschedule(body, this.actor(req), userId);
   }
 }

@@ -249,7 +249,7 @@ export class LeadsController {
   @Post(':id/sla-auto-task')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard)
-  createSlaAutoTask(
+  async createSlaAutoTask(
     @Param('id', ParseIntPipe) id: number,
     @Body()
     body: {
@@ -260,7 +260,7 @@ export class LeadsController {
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
     const actor = String(req.staffUser?.email ?? req.headers['x-ptt-actor'] ?? 'staff');
-    const userId = req.staffUser?.sub ? Number(req.staffUser.sub) : null;
+    const userId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
     return this.slaAutoTask.createReminder(id, body, actor, userId);
   }
 

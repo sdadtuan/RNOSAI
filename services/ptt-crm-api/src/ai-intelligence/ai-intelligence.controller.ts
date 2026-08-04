@@ -3,6 +3,7 @@ import { Body, Controller, Get, Headers, Param, Patch, Post, Query, Req, UseGuar
 import { Request } from 'express';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { AiAgentRunsService, AiAgentRunDetailResponse, AiAgentRunListResponse } from './ai-agent-runs.service';
 import { AiDealScoreService } from './ai-deal-score.service';
 import { AiLeadScoreService } from './ai-lead-score.service';
@@ -186,6 +187,7 @@ export class AiIntelligenceController {
     private readonly leadRoute: AiLeadRouteService,
     private readonly orchestrator: OrchestratorService,
     private readonly orchestratorCron: OrchestratorCronService,
+    private readonly staffAuth: StaffAuthService,
   ) {}
 
   /** RNOS-02 — public smoke; records ai_agent_runs when schema ready (RNOS-05). */
@@ -535,7 +537,7 @@ export class AiIntelligenceController {
   /** RNOS-07 — follow-up draft generate (AI-UC-004, BR-AI-01 no auto-send). */
   @Post('recommendation')
   @UseGuards(StaffOrInternalKeyGuard, StaffAiCopilotGuard, StaffAiLeadAccessGuard)
-  createRecommendation(
+  async createRecommendation(
     @Body() body: RecommendationBody,
     @Req()
     req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
@@ -548,7 +550,7 @@ export class AiIntelligenceController {
         ? 'system'
         : req.staffUser?.sub ?? req.staffUser?.email ?? null;
     const actorName = req.staffUser?.email ?? null;
-    const actorUserId = req.staffUser?.sub ? Number(req.staffUser.sub) : null;
+    const actorUserId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
     const entityType = body.entity_type?.trim() || 'lead';
     return this.recommendations.createFollowUpDraft({
       type: body.type?.trim() || 'follow_up_draft',
@@ -683,7 +685,7 @@ export class AiIntelligenceController {
   /** RNOS-07 — accept/dismiss draft; accept creates CRM activity note only. */
   @Patch('recommendations/:id')
   @UseGuards(StaffOrInternalKeyGuard, StaffAiCopilotGuard, StaffAiLeadAccessGuard)
-  patchRecommendation(
+  async patchRecommendation(
     @Param('id') id: string,
     @Body() body: PatchRecommendationBody,
     @Req()
@@ -697,7 +699,7 @@ export class AiIntelligenceController {
         ? 'system'
         : req.staffUser?.sub ?? req.staffUser?.email ?? null;
     const actorName = req.staffUser?.email ?? null;
-    const actorUserId = req.staffUser?.sub ? Number(req.staffUser.sub) : null;
+    const actorUserId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
     return this.recommendations.patchRecommendation(id, {
       status: body.status as 'accepted' | 'dismissed',
       finalText: body.final_text,

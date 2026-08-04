@@ -342,11 +342,11 @@ export class AiLeadScoreService {
       return leadIds;
     }
 
-    const staffId = Number(staffUser.sub);
+    const staffId = await this.staffAuth.resolveCrmStaffUserId(staffUser);
     const allowed: number[] = [];
     for (const leadId of leadIds) {
       const lead = await this.leads.getLeadById(leadId);
-      if (lead?.owner_id != null && lead.owner_id === staffId) {
+      if (staffId != null && lead?.owner_id != null && lead.owner_id === staffId) {
         allowed.push(leadId);
       }
     }

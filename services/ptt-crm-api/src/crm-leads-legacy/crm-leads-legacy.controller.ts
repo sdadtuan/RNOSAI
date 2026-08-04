@@ -86,12 +86,12 @@ export class CrmLeadsLegacyController {
   @Post(':id/activities')
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(StaffLeadsWriteGuard, LeadNotInReviewQueueGuard)
-  createActivity(
+  async createActivity(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: CreateLeadActivityBody,
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
-    const userId = req.staffUser?.sub ? Number(req.staffUser.sub) : null;
+    const userId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
     return this.legacy.createActivity(id, body, this.actor(req), userId);
   }
 

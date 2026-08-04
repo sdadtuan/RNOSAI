@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import { catalogTs } from '../catalog/catalog-slug.util';
 import { AppConfigService } from '../config/app-config.service';
+import { sanitizePgBigintUserId } from '../staff-auth/staff-user-id.util';
 import {
   assertPresalesCareGate,
   CARE_PIPELINE_STAGES,
@@ -213,6 +214,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       throw new Error('Bước chăm sóc không hợp lệ.');
     }
     const careStatus = String(body.care_status || CONTACT_OK_CARE_STATUS).trim();
+    const safeUserId = sanitizePgBigintUserId(userId);
     await this.db.query(
       `INSERT INTO crm_lead_activities (
          lead_id, user_id, activity_type, content, result,
@@ -221,7 +223,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
        ) VALUES ($1, $2, 'call', $3, '', '', NULL, NOW(), $4, $5, $6, $7, $8)`,
       [
         leadId,
-        userId,
+        safeUserId,
         String(body.content || 'Báo cáo chăm sóc B2').slice(0, 8000),
         actor.slice(0, 120),
         row.status,

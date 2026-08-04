@@ -30,20 +30,23 @@ import {
 import { LeadsFunnelEnabledGuard, PresalesOnLeadGuard } from './guards/leads-funnel-enabled.guard';
 import { StaffLeadsGdkdGuard } from './guards/staff-leads-gdkd.guard';
 import { LeadNotInReviewQueueGuard } from './guards/lead-not-in-review-queue.guard';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { LeadsFunnelService } from './leads-funnel.service';
 
 @Controller('api/v1/leads')
 @UseGuards(LeadsFunnelEnabledGuard)
 export class LeadsFunnelController {
-  constructor(private readonly funnel: LeadsFunnelService) {}
+  constructor(
+    private readonly funnel: LeadsFunnelService,
+    private readonly staffAuth: StaffAuthService,
+  ) {}
 
   private actor(req: Request & { staffUser?: StaffJwtPayload }): string {
     return String(req.staffUser?.email ?? req.headers['x-ptt-actor'] ?? 'staff');
   }
 
-  private userId(req: Request & { staffUser?: StaffJwtPayload }): number | null {
-    const sub = req.staffUser?.sub;
-    return sub ? Number(sub) : null;
+  private userId(req: Request & { staffUser?: StaffJwtPayload }): Promise<number | null> {
+    return this.staffAuth.resolveCrmStaffUserId(req.staffUser);
   }
 
   private badRequest(err: unknown): never {
@@ -108,13 +111,18 @@ export class LeadsFunnelController {
   @Post(':id/care-pipeline/report')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, LeadNotInReviewQueueGuard)
-  submitCareReport(
+  async submitCareReport(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: CompleteCareStageBody,
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
     try {
-      return this.funnel.submitCareReport(id, body, this.actor(req), this.userId(req));
+      return await this.funnel.submitCareReport(
+        id,
+        body,
+        this.actor(req),
+        await this.userId(req),
+      );
     } catch (err) {
       this.badRequest(err);
     }
@@ -197,13 +205,13 @@ export class LeadsFunnelController {
 
   @Patch(':id/presales/tasks/:taskId')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
-  patchPresalesTask(
+  async patchPresalesTask(
     @Param('id', ParseIntPipe) id: number,
     @Param('taskId', ParseIntPipe) taskId: number,
     @Body() body: PatchPresalesTaskBody,
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
-    return this.funnel.patchPresalesTask(id, taskId, body, this.userId(req));
+    return this.funnel.patchPresalesTask(id, taskId, body, await this.userId(req));
   }
 
   @Get(':id/presales/marketing-plan')
