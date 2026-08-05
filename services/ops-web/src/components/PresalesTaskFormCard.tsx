@@ -174,5 +174,3 @@ export function PresalesTaskFormCard({
     </div>
   );
 }
-
-export { validatePresalesTaskForm };
