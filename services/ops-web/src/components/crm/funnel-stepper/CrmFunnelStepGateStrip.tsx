@@ -18,12 +18,15 @@ function decisionLabel(value: string | undefined): string {
 
 export function CrmFunnelStepGateStrip({ leadId, gateStrip, loading, onRefresh }: Props) {
   const tone = gateStrip.tone;
+  const isProposal = gateStrip.gateKind === 'proposal';
 
   return (
     <section
       className={`intake-gate-banner intake-gate-banner--${tone} crm-funnel-stepper__gate`}
       aria-live="polite"
-      aria-label='Cổng chuyển Tư vấn "Consult gate"'
+      aria-label={
+        isProposal ? 'Cổng chuyển Báo giá (G4)' : 'Cổng chuyển Tư vấn "Consult gate"'
+      }
     >
       <div className="intake-gate-banner__head">
         <strong>{gateStrip.title}</strong>
@@ -52,6 +55,19 @@ export function CrmFunnelStepGateStrip({ leadId, gateStrip, loading, onRefresh }
                   </Link>{' '}
                   → Pre-sales → tick ✓ task giai đoạn Lead, hoặc bấm <strong>Làm mới</strong> sau khi
                   Intake Go đã hoàn thành.
+                </>
+              ) : m.includes('Consult') || m.includes('KH MKT') || m.includes('kế hoạch') ? (
+                <>
+                  {m}
+                  {gateStrip.scrollAnchor ? (
+                    <>
+                      {' '}
+                      —{' '}
+                      <a href={gateStrip.scrollAnchor} className="nav-link">
+                        Điền form bên dưới ↓
+                      </a>
+                    </>
+                  ) : null}
                 </>
               ) : (
                 m

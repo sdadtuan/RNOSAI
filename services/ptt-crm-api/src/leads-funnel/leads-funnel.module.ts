@@ -11,6 +11,7 @@ import { LeadsFunnelSqliteRepository } from './leads-funnel-sqlite.repository';
 import { LeadsFunnelEnabledGuard, PresalesOnLeadGuard } from './guards/leads-funnel-enabled.guard';
 import { LeadNotInReviewQueueGuard } from './guards/lead-not-in-review-queue.guard';
 import { StaffLeadsGdkdGuard } from './guards/staff-leads-gdkd.guard';
+import { IntakeModule } from '../intake/intake.module';
 import { ReviewQueueLlmService } from './review-queue-llm.service';
 
 @Module({
@@ -20,6 +21,7 @@ import { ReviewQueueLlmService } from './review-queue-llm.service';
     forwardRef(() => CrmLeadsLegacyModule),
     forwardRef(() => CskhBoardModule),
     forwardRef(() => AiIntelligenceModule),
+    forwardRef(() => IntakeModule),
   ],
   controllers: [LeadsFunnelController],
   providers: [

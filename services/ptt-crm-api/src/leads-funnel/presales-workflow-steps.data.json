@@ -911,5 +911,94 @@
         ]
       }
     ]
+  },
+  "lead-gen": {
+    "lead": [
+      {
+        "title": "Tiếp nhận & qualify lead inbound",
+        "description": "Qualify lead Meta/webform/Zalo: kênh, ngân sách, mục tiêu lead/sale, timeline. Gán service lead-gen khi chưa xác định DV cụ thể.",
+        "ai_prompt_key": "qualify_lead",
+        "form_fields": [
+          {
+            "key": "niche",
+            "label": "Ngành KH",
+            "type": "text"
+          },
+          {
+            "key": "channel",
+            "label": "Kênh lead chính",
+            "type": "text"
+          },
+          {
+            "key": "need",
+            "label": "Nhu cầu / pain",
+            "type": "textarea"
+          },
+          {
+            "key": "budget",
+            "label": "Ngân sách/tháng (VND)",
+            "type": "number"
+          },
+          {
+            "key": "campaign_goal",
+            "label": "Mục tiêu (lead/sale/traffic)",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "consult": [
+      {
+        "title": "Discovery funnel & kênh lead generation",
+        "description": "Audit funnel hiện tại: kênh ads/organic, landing page, CRM nhận lead, KPI. Đề xuất scope PTT (Ads/LP/CRM/full funnel).",
+        "ai_prompt_key": "consult_analysis",
+        "form_fields": [
+          {
+            "key": "current_status",
+            "label": "Hiện trạng funnel & kênh",
+            "type": "textarea"
+          },
+          {
+            "key": "target_audience",
+            "label": "ICP & đối tượng mục tiêu",
+            "type": "textarea"
+          },
+          {
+            "key": "conversion_metrics",
+            "label": "KPI hiện tại & mục tiêu",
+            "type": "textarea"
+          },
+          {
+            "key": "scope_recommendation",
+            "label": "Phạm vi PTT đề xuất",
+            "type": "textarea"
+          }
+        ]
+      }
+    ],
+    "proposal": [
+      {
+        "title": "Draft proposal lead generation",
+        "description": "Proposal: phạm vi funnel, KPI cam kết (CPL/ROAS/leads), phí quản lý.",
+        "ai_prompt_key": "draft_proposal",
+        "form_fields": [
+          {
+            "key": "goal",
+            "label": "KPI cam kết (CPL/ROAS/leads)",
+            "type": "text"
+          },
+          {
+            "key": "timeline",
+            "label": "Timeline (tháng)",
+            "type": "number"
+          },
+          {
+            "key": "budget",
+            "label": "Phí quản lý/tháng (VND)",
+            "type": "number"
+          }
+        ]
+      }
+    ]
   }
 }

@@ -418,15 +418,36 @@ describe('resolveFunnelStepper', () => {
     expect(vm.primaryAction?.kind).toBe('advance_presales');
   });
 
-  it('highlights only one current step after applyActiveStepHighlight', () => {
+  it('shows G4 proposal gate strip on consult step', () => {
     const vm = resolveFunnelStepper({
-      leadId: 1,
-      funnel: mockFunnel({ presales: null }),
-      consultGate: null,
+      leadId: 900000002,
+      funnel: mockFunnel({
+        presales: {
+          presales: { id: 1, stage: 'consult', service_slug: 'lead-gen', status: 'active' },
+          tasks: { consult: [{ id: 11, title: 'Consult', is_done: false }] },
+          advance: {
+            can_advance_forward: false,
+            block_reason: 'Hoàn thành task Consult',
+            next_stage: 'proposal',
+          },
+        },
+      }),
+      consultGate: mockGate(),
+      proposalGate: {
+        ok: false,
+        level: 'block',
+        messages: ['Hoàn thành task Consult trước khi chuyển Báo giá', 'Nhập tên kế hoạch MKT sơ bộ.'],
+        consult_task_done: false,
+        consult_task_total: 1,
+        consult_task_done_count: 0,
+        marketing_plan: { ok: false, messages: ['Nhập tên kế hoạch MKT sơ bộ.'] },
+      },
+      intakeSummary: mockIntake(),
       context: 'lead_detail',
     });
-    const currentSteps = vm.steps.filter((s) => s.state === 'current');
-    expect(currentSteps).toHaveLength(1);
-    expect(currentSteps[0]?.key).toBe('presales_lead');
+    expect(vm.activeStep).toBe('consult');
+    expect(vm.gateStrip?.gateKind).toBe('proposal');
+    expect(vm.gateStrip?.tone).toBe('block');
+    expect(vm.gateStrip?.messages.length).toBeGreaterThanOrEqual(2);
   });
 });

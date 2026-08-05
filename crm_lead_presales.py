@@ -511,6 +511,13 @@ def advance_presales_stage(
     )
     conn.commit()
 
+    if to_stage == "consult" and from_stage == "lead":
+        lead_id = int(ps.get("lead_id") or 0)
+        if lead_id:
+            from crm_lead_presales_bridge import prefill_presales_consult_task
+
+            prefill_presales_consult_task(conn, lead_id, overwrite=False)
+
 
 def _copy_task_to_lifecycle(
     conn: sqlite3.Connection,

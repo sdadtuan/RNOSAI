@@ -6,12 +6,14 @@ import {
   advanceLeadPresales,
   fetchIntakeSessions,
   fetchLeadPresalesConsultGate,
+  fetchLeadPresalesProposalGate,
   type LeadFunnelSnapshot,
 } from '@/lib/api';
 import type {
   ConsultGateState,
   FunnelPrimaryAction,
   IntakeStepSummary,
+  ProposalGateState,
 } from '@/lib/crm/funnel-stepper.types';
 import { showPresalesForFlow } from '@/lib/crm/lead-flow-kind';
 
@@ -57,6 +59,7 @@ export function LeadPresalesFunnelStepper({
   onError,
 }: Props) {
   const [consultGate, setConsultGate] = useState<ConsultGateState | null>(null);
+  const [proposalGate, setProposalGate] = useState<ProposalGateState | null>(null);
   const [gateLoading, setGateLoading] = useState(false);
   const [intakeSummary, setIntakeSummary] = useState<IntakeStepSummary | null>(null);
   const [busy, setBusy] = useState(false);
@@ -64,15 +67,18 @@ export function LeadPresalesFunnelStepper({
   const refreshGateAndIntake = useCallback(async () => {
     if (leadId <= 0 || !funnel?.presales_on_lead_enabled) {
       setConsultGate(null);
+      setProposalGate(null);
       setIntakeSummary(null);
       return;
     }
     if (!showPresalesForFlow(funnel.lead_flow_kind ?? 'b2b_prospect')) {
       setConsultGate(null);
+      setProposalGate(null);
       setIntakeSummary(null);
       return;
     }
 
+    const stage = funnel.presales?.presales.stage;
     setGateLoading(true);
     try {
       const [gateOut, sessions] = await Promise.all([
@@ -81,9 +87,17 @@ export function LeadPresalesFunnelStepper({
       ]);
       setConsultGate(gateOut?.gate ?? null);
       setIntakeSummary(buildIntakeSummary(sessions));
+
+      if (stage === 'consult') {
+        const propOut = await fetchLeadPresalesProposalGate(token, leadId).catch(() => null);
+        setProposalGate(propOut?.gate ?? null);
+      } else {
+        setProposalGate(null);
+      }
     } catch (err) {
       onError?.(err instanceof Error ? err.message : 'Tải gate Intake thất bại');
       setConsultGate(null);
+      setProposalGate(null);
       setIntakeSummary(null);
     } finally {
       setGateLoading(false);
@@ -150,6 +164,7 @@ export function LeadPresalesFunnelStepper({
       leadId={leadId}
       funnel={funnel}
       consultGate={consultGate}
+      proposalGate={proposalGate}
       intakeSummary={intakeSummary}
       context="lead_detail"
       gateLoading={gateLoading}

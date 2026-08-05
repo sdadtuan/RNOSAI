@@ -936,4 +936,84 @@ SERVICE_WORKFLOW_STEPS: dict[str, dict[str, list[dict]]] = {
             ],
         }],
     },
+
+    "lead-gen": {
+        "lead": [{
+            "title": "Tiếp nhận & qualify lead inbound",
+            "description": (
+                "Qualify lead Meta/webform/Zalo: kênh, ngân sách, mục tiêu lead/sale, "
+                "timeline. Gán service lead-gen khi chưa xác định DV cụ thể."
+            ),
+            "ai_prompt_key": "qualify_lead",
+            "form_fields": [
+                {"key": "niche", "label": "Ngành KH", "type": "text"},
+                {"key": "channel", "label": "Kênh lead chính", "type": "text"},
+                {"key": "need", "label": "Nhu cầu / pain", "type": "textarea"},
+                {"key": "budget", "label": "Ngân sách/tháng (VND)", "type": "number"},
+                {"key": "campaign_goal", "label": "Mục tiêu (lead/sale/traffic)", "type": "text"},
+            ],
+        }],
+        "consult": [{
+            "title": "Discovery funnel & kênh lead generation",
+            "description": (
+                "Audit funnel hiện tại: kênh ads/organic, landing page, CRM nhận lead, KPI. "
+                "Đề xuất scope PTT (Ads/LP/CRM/full funnel)."
+            ),
+            "ai_prompt_key": "consult_analysis",
+            "form_fields": [
+                {"key": "current_status", "label": "Hiện trạng funnel & kênh", "type": "textarea"},
+                {"key": "target_audience", "label": "ICP & đối tượng mục tiêu", "type": "textarea"},
+                {"key": "conversion_metrics", "label": "KPI hiện tại & mục tiêu", "type": "textarea"},
+                {"key": "scope_recommendation", "label": "Phạm vi PTT đề xuất", "type": "textarea"},
+            ],
+        }],
+        "proposal": [{
+            "title": "Draft proposal lead generation",
+            "description": "Proposal: phạm vi funnel, KPI cam kết (CPL/ROAS/leads), phí quản lý.",
+            "ai_prompt_key": "draft_proposal",
+            "form_fields": [
+                {"key": "goal", "label": "KPI cam kết (CPL/ROAS/leads)", "type": "text"},
+                {"key": "timeline", "label": "Timeline (tháng)", "type": "number"},
+                {"key": "budget", "label": "Phí quản lý/tháng (VND)", "type": "number"},
+            ],
+        }],
+        "onboard": [{
+            "title": "Kickoff funnel & access",
+            "description": "Nhận access Ads/LP/CRM. Setup tracking lead end-to-end. Brief SP.",
+            "ai_prompt_key": "kickoff_brief",
+            "form_fields": [
+                {"key": "start_date", "label": "Ngày bắt đầu", "type": "date"},
+                {"key": "funnel_map", "label": "Sơ đồ funnel đã confirm", "type": "textarea"},
+                {"key": "assigned_sp", "label": "Performance Specialist phụ trách", "type": "text"},
+            ],
+        }],
+        "deliver": [{
+            "title": "Vận hành lead gen tháng",
+            "description": "Monitor campaign/LP/CRM, tối ưu CPL, báo cáo leads chất lượng hàng tháng.",
+            "ai_prompt_key": "progress_report",
+            "form_fields": [
+                {"key": "report_period", "label": "Tháng báo cáo", "type": "text"},
+                {"key": "leads_count", "label": "Số lead qualified", "type": "number"},
+                {"key": "metrics", "label": "CPL / CPA / spend tháng này", "type": "textarea"},
+            ],
+        }],
+        "handover": [{
+            "title": "Báo cáo nghiệm thu lead gen",
+            "description": "Tổng kết: leads, CPL, chất lượng lead so với cam kết.",
+            "ai_prompt_key": "handover_report",
+            "form_fields": [
+                {"key": "kpi_target", "label": "KPI cam kết", "type": "textarea"},
+                {"key": "kpi_actual", "label": "KPI đạt được", "type": "textarea"},
+            ],
+        }],
+        "retain": [{
+            "title": "Gia hạn & upsell lead gen",
+            "description": "Nhắc gia hạn. Gợi ý: mở rộng kênh, SEO, content, CRM automation.",
+            "ai_prompt_key": "upsell_suggest",
+            "form_fields": [
+                {"key": "months_active", "label": "Số tháng vận hành", "type": "number"},
+                {"key": "kpi_summary", "label": "Performance tổng hợp", "type": "textarea"},
+            ],
+        }],
+    },
 }

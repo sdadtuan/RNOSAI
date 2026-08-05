@@ -21,6 +21,7 @@ export const RECURRING_DELIVER_SLUGS = new Set([
   'quang-cao-facebook',
   'quang-cao-google',
   'tiep-thi-noi-dung',
+  'lead-gen',
 ]);
 
 export const SERVICE_LABELS: Record<string, string> = {
@@ -36,6 +37,7 @@ export const SERVICE_LABELS: Record<string, string> = {
   'quang-cao-google': 'Quảng cáo Google',
   'thue-tai-khoan-quang-cao': 'Thuê Tài khoản Ads',
   'tiep-thi-noi-dung': 'Tiếp thị Nội dung',
+  'lead-gen': 'Lead generation',
 };
 
 export function lifecycleStepsForService(serviceSlug: string): Partial<Record<LifecycleStageKey, WorkflowStep[]>> {

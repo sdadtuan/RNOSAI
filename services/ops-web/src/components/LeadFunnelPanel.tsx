@@ -1,6 +1,8 @@
 'use client';
 
 import { PresalesTaskFormCard } from '@/components/PresalesTaskFormCard';
+import { PresalesConsultBriefPanel } from '@/components/PresalesConsultBriefPanel';
+import { PresalesR5PlanForm } from '@/components/PresalesR5PlanForm';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -10,6 +12,7 @@ import {
   fetchLeadPresalesMarketingPlan,
   patchLeadPresalesMarketingPlan,
   patchLeadPresalesTask,
+  postLeadPresalesTaskAiAssist,
   releaseLeadReviewQueue,
   submitLeadCareReport,
   type LeadFunnelSnapshot,
@@ -23,18 +26,6 @@ import {
   type B2NegativeCareStatus,
 } from '@/lib/crm/care-status';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
-
-const STRATEGY_LABELS: Record<string, string> = {
-  target_market: 'Thị trường mục tiêu',
-  market_message: 'Thông điệp thị trường',
-  media_reach: 'Kênh tiếp cận / Media',
-  conversion_strategy: 'Chiến lược chuyển đổi',
-  retention_system: 'Hệ thống giữ chân',
-  nurture_system: 'Nuôi dưỡng lead',
-  world_class_experience: 'Trải nghiệm đẳng cấp',
-  lifecycle_extension: 'Gia hạn lifecycle',
-  referral_engine: 'Giới thiệu / Referral',
-};
 
 interface Props {
   token: string;
@@ -101,6 +92,7 @@ export function LeadFunnelPanel({
   const [planStrategy, setPlanStrategy] = useState<Record<string, string>>({});
   const [planValidation, setPlanValidation] = useState<string[]>([]);
   const [taskDrafts, setTaskDrafts] = useState<Record<number, Record<string, string>>>({});
+  const [aiBusyTaskId, setAiBusyTaskId] = useState<number | null>(null);
   const presalesServiceOptions = useMemo(
     () => mergePresalesServiceOptions(serviceOptions),
     [serviceOptions],
@@ -129,7 +121,10 @@ export function LeadFunnelPanel({
       setFunnel(snap);
       onFunnelChange?.(snap);
       if (snap.presales) {
-        if (snap.presales.presales.stage === 'proposal') {
+        if (
+          snap.presales.presales.stage === 'consult' ||
+          snap.presales.presales.stage === 'proposal'
+        ) {
           try {
             const mp = await fetchLeadPresalesMarketingPlan(token, leadId);
             setPlanName(String(mp.plan.name ?? ''));
@@ -210,6 +205,100 @@ export function LeadFunnelPanel({
         ? `&service_slug=${encodeURIComponent(selectedServiceSlug)}`
         : ''
   }`;
+
+  const presalesStage = funnel?.presales?.presales.stage;
+  const showConsultLayout = presalesStage === 'consult';
+
+  async function saveMarketingPlan() {
+    const out = await patchLeadPresalesMarketingPlan(token, leadId, {
+      name: planName,
+      north_star: planNorthStar,
+      objectives: planObjectives,
+      strategy_framework: planStrategy,
+    });
+    setFunnel(out.funnel);
+    onFunnelChange?.(out.funnel);
+    setPlanValidation(out.validation.messages ?? []);
+    onMessage?.('Đã lưu KH MKT sơ bộ');
+  }
+
+  function renderPresalesTasks() {
+    if (!funnel?.presales) return null;
+    return (funnel.presales.tasks[funnel.presales.presales.stage] ?? []).map((task) => (
+      <PresalesTaskFormCard
+        key={task.id}
+        task={task}
+        draft={taskDrafts[task.id] ?? {}}
+        disabled={busy || !canEdit}
+        showAiAssist={
+          funnel.presales!.presales.stage === 'consult' && task.ai_prompt_key === 'consult_analysis'
+        }
+        aiBusy={aiBusyTaskId === task.id}
+        onAiAssist={(taskId, formData) =>
+          void run(async () => {
+            setAiBusyTaskId(taskId);
+            try {
+              const out = await postLeadPresalesTaskAiAssist(token, leadId, taskId, {
+                form_context: formData,
+              });
+              setFunnel(out.funnel);
+              onFunnelChange?.(out.funnel);
+              onMessage?.('AI phân tích xong');
+            } finally {
+              setAiBusyTaskId(null);
+            }
+          })
+        }
+        onDraftChange={(taskId, key, value) =>
+          setTaskDrafts((prev) => ({
+            ...prev,
+            [taskId]: { ...(prev[taskId] ?? {}), [key]: value },
+          }))
+        }
+        onValidationError={(msg) => setPanelError(msg)}
+        onSaveForm={(taskId, formData) =>
+          void run(async () => {
+            const out = await patchLeadPresalesTask(token, leadId, taskId, { form_data: formData });
+            setFunnel(out.funnel);
+            onFunnelChange?.(out.funnel);
+          })
+        }
+        onToggleDone={(taskId, nextDone, formData) =>
+          void run(async () => {
+            const out = await patchLeadPresalesTask(token, leadId, taskId, {
+              is_done: nextDone,
+              form_data: formData,
+            });
+            setFunnel(out.funnel);
+            onFunnelChange?.(out.funnel);
+            setTaskDrafts((prev) => {
+              const next = { ...prev };
+              delete next[taskId];
+              return next;
+            });
+            onMessage?.(nextDone ? 'Đã hoàn thành task pre-sales' : 'Đã bỏ hoàn thành task');
+          })
+        }
+      />
+    ));
+  }
+
+  const r5Form = (
+    <PresalesR5PlanForm
+      planName={planName}
+      planNorthStar={planNorthStar}
+      planObjectives={planObjectives}
+      planStrategy={planStrategy}
+      planValidation={planValidation}
+      disabled={busy}
+      canEdit={canEdit}
+      onPlanNameChange={setPlanName}
+      onNorthStarChange={setPlanNorthStar}
+      onObjectivesChange={setPlanObjectives}
+      onStrategyChange={(key, value) => setPlanStrategy((prev) => ({ ...prev, [key]: value }))}
+      onSave={() => void run(() => saveMarketingPlan(), true)}
+    />
+  );
 
   if (loading && !funnel) {
     return <p className="muted">Đang tải funnel B2 / pre-sales…</p>;
@@ -523,137 +612,56 @@ export function LeadFunnelPanel({
                 Giai đoạn: <strong>{funnel.presales.presales.stage}</strong> · Dịch vụ:{' '}
                 {funnel.presales.presales.service_slug || '—'}
               </p>
-              {(funnel.presales.tasks[funnel.presales.presales.stage] ?? []).map((task) => (
-                <PresalesTaskFormCard
-                  key={task.id}
-                  task={task}
-                  draft={taskDrafts[task.id] ?? {}}
-                  disabled={busy || !canEdit}
-                  onDraftChange={(taskId, key, value) =>
-                    setTaskDrafts((prev) => ({
-                      ...prev,
-                      [taskId]: { ...(prev[taskId] ?? {}), [key]: value },
-                    }))
-                  }
-                  onValidationError={(msg) => setPanelError(msg)}
-                  onSaveForm={(taskId, formData) =>
-                    void run(async () => {
-                      const out = await patchLeadPresalesTask(token, leadId, taskId, { form_data: formData });
-                      setFunnel(out.funnel);
-                      onFunnelChange?.(out.funnel);
-                    })
-                  }
-                  onToggleDone={(taskId, nextDone, formData) =>
-                    void run(async () => {
-                      const out = await patchLeadPresalesTask(token, leadId, taskId, {
-                        is_done: nextDone,
-                        form_data: formData,
-                      });
-                      setFunnel(out.funnel);
-                      onFunnelChange?.(out.funnel);
-                      setTaskDrafts((prev) => {
-                        const next = { ...prev };
-                        delete next[taskId];
-                        return next;
-                      });
-                      onMessage?.(nextDone ? 'Đã hoàn thành task pre-sales' : 'Đã bỏ hoàn thành task');
-                    })
-                  }
-                />
-              ))}
-              {(funnel.presales.presales.stage === 'lead' || funnel.presales.presales.stage === 'consult') && (
-                <p style={{ margin: '0.5rem 0' }}>
-                  <Link href={intakeHref} className="nav-link">
-                    Mở Lead Intake (BANT) →
-                  </Link>
-                </p>
-              )}
-
-              {funnel.presales.presales.stage === 'proposal' && (
-                <div className="stack-gap" style={{ marginTop: '1rem' }}>
-                  <h4 style={{ margin: 0 }}>KH Marketing sơ bộ @ Proposal</h4>
-                  <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                    Hoàn tất KH MKT sơ bộ rồi tạo HĐ tại{' '}
-                    <a href="#lead-contract" className="nav-link">
-                      panel Hợp đồng bên dưới
-                    </a>
-                    .
-                  </p>
-                  {planValidation.length > 0 && (
-                    <ul className="muted" style={{ fontSize: '0.85rem', margin: 0, paddingLeft: '1.1rem' }}>
-                      {planValidation.map((m) => (
-                        <li key={m}>{m}</li>
-                      ))}
-                    </ul>
-                  )}
-                  <label>
-                    Tên kế hoạch
-                    <input
-                      type="text"
-                      value={planName}
-                      disabled={!canEdit || busy}
-                      onChange={(e) => setPlanName(e.target.value)}
-                      style={{ width: '100%', marginTop: '0.25rem' }}
+              {showConsultLayout ? (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 1fr) min(22rem, 36%)',
+                    gap: '1rem',
+                    alignItems: 'start',
+                  }}
+                >
+                  <div>
+                    {renderPresalesTasks()}
+                    <p style={{ margin: '0.5rem 0' }}>
+                      <Link href={intakeHref} className="nav-link">
+                        Mở Lead Intake (BANT) →
+                      </Link>
+                    </p>
+                    {r5Form}
+                  </div>
+                  {user ? (
+                    <PresalesConsultBriefPanel
+                      token={token}
+                      user={user}
+                      leadId={leadId}
+                      onPrefilled={() => void reload()}
                     />
-                  </label>
-                  <label>
-                    North Star
-                    <input
-                      type="text"
-                      value={planNorthStar}
-                      disabled={!canEdit || busy}
-                      onChange={(e) => setPlanNorthStar(e.target.value)}
-                      style={{ width: '100%', marginTop: '0.25rem' }}
-                    />
-                  </label>
-                  <label>
-                    Mục tiêu chiến lược
-                    <textarea
-                      rows={2}
-                      value={planObjectives}
-                      disabled={!canEdit || busy}
-                      onChange={(e) => setPlanObjectives(e.target.value)}
-                      style={{ width: '100%', marginTop: '0.25rem' }}
-                    />
-                  </label>
-                  {Object.entries(STRATEGY_LABELS).map(([key, label]) => (
-                    <label key={key}>
-                      {label}
-                      <textarea
-                        rows={2}
-                        value={planStrategy[key] ?? ''}
-                        disabled={!canEdit || busy}
-                        onChange={(e) =>
-                          setPlanStrategy((prev) => ({ ...prev, [key]: e.target.value }))
-                        }
-                        style={{ width: '100%', marginTop: '0.25rem' }}
-                      />
-                    </label>
-                  ))}
-                  {canEdit && (
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      disabled={busy}
-                      onClick={() =>
-                        void run(async () => {
-                          const out = await patchLeadPresalesMarketingPlan(token, leadId, {
-                            name: planName,
-                            north_star: planNorthStar,
-                            objectives: planObjectives,
-                            strategy_framework: planStrategy,
-                          });
-                          setFunnel(out.funnel);
-                          onFunnelChange?.(out.funnel);
-                          setPlanValidation(out.validation.messages ?? []);
-                          onMessage?.('Đã lưu KH MKT sơ bộ');
-                        }, true)
-                      }
-                    >
-                      Lưu KH MKT sơ bộ
-                    </button>
-                  )}
+                  ) : null}
                 </div>
+              ) : (
+                <>
+                  {renderPresalesTasks()}
+                  {(funnel.presales.presales.stage === 'lead') && (
+                    <p style={{ margin: '0.5rem 0' }}>
+                      <Link href={intakeHref} className="nav-link">
+                        Mở Lead Intake (BANT) →
+                      </Link>
+                    </p>
+                  )}
+                  {funnel.presales.presales.stage === 'proposal' && (
+                    <div className="stack-gap" style={{ marginTop: '1rem' }}>
+                      <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+                        Tạo HĐ tại{' '}
+                        <a href="#lead-contract" className="nav-link">
+                          panel Hợp đồng bên dưới
+                        </a>
+                        .
+                      </p>
+                      {r5Form}
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

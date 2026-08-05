@@ -43,6 +43,11 @@ import {
 } from './presales-marketing-plan.util';
 import { workflowStepsForService } from './presales-workflow-steps.util';
 import { repairPresalesLeadTasksFromLatestGoIntake } from '../intake/intake-presales-sync.util';
+import type { IntakeSessionRow } from '../intake/intake.types';
+import {
+  pickLatestCompletedIntake,
+  prefillPresalesConsultTaskForm,
+} from './presales-consult-prefill.util';
 import {
   DEFAULT_B2_CONTACT_DEADLINE_HOURS,
   isLeadInReviewQueue,
@@ -581,6 +586,8 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
           typeof raw.form_data === 'object' && raw.form_data !== null
             ? (raw.form_data as Record<string, unknown>)
             : (JSON.parse(String(raw.form_data ?? '{}')) as Record<string, unknown>),
+        ai_prompt_key: String(raw.ai_prompt_key ?? ''),
+        ai_output: String(raw.ai_output ?? ''),
         is_done: Boolean(raw.is_done),
         done_at: raw.done_at ? String(raw.done_at) : '',
         notes: String(raw.notes ?? ''),
@@ -747,23 +754,76 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     }
   }
 
-  async getPresalesTaskById(
-    taskId: number,
-  ): Promise<{ form_fields: unknown; form_data: Record<string, unknown> } | null> {
-    const result = await this.db.query(
-      `SELECT form_fields, form_data FROM crm_lead_presales_tasks WHERE id = $1 LIMIT 1`,
-      [taskId],
-    );
-    const raw = result.rows[0] as { form_fields: unknown; form_data: unknown } | undefined;
+  async getPresalesTaskById(taskId: number): Promise<PresalesTaskRow | null> {
+    const result = await this.db.query(`SELECT * FROM crm_lead_presales_tasks WHERE id = $1 LIMIT 1`, [
+      taskId,
+    ]);
+    const raw = result.rows[0] as Record<string, unknown> | undefined;
     if (!raw) return null;
     return {
+      id: Number(raw.id),
+      presales_id: Number(raw.presales_id),
+      stage: String(raw.stage),
+      step_index: Number(raw.step_index),
+      title: String(raw.title),
+      description: String(raw.description),
       form_fields: Array.isArray(raw.form_fields)
-        ? raw.form_fields
-        : JSON.parse(String(raw.form_fields ?? '[]')),
+        ? (raw.form_fields as unknown[])
+        : (JSON.parse(String(raw.form_fields ?? '[]')) as unknown[]),
       form_data:
         typeof raw.form_data === 'object' && raw.form_data !== null
           ? (raw.form_data as Record<string, unknown>)
           : (JSON.parse(String(raw.form_data ?? '{}')) as Record<string, unknown>),
+      ai_prompt_key: String(raw.ai_prompt_key ?? ''),
+      ai_output: String(raw.ai_output ?? ''),
+      is_done: Boolean(raw.is_done),
+      done_at: raw.done_at ? String(raw.done_at) : '',
+      notes: String(raw.notes ?? ''),
+    };
+  }
+
+  async updatePresalesTaskAiOutput(taskId: number, aiOutput: string): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_lead_presales_tasks SET ai_output = $2, updated_at = NOW() WHERE id = $1`,
+      [taskId, aiOutput.slice(0, 16000)],
+    );
+  }
+
+  async runPresalesConsultPrefill(
+    leadId: number,
+    overwrite = false,
+  ): Promise<{ task_id: number | null; filled: number; fields: string[]; skipped_existing: string[] }> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    const consultTasks = snap.tasks.consult ?? [];
+    const leadTasks = snap.tasks.lead ?? [];
+    if (consultTasks.length === 0) throw new Error('Chưa có task Consult');
+
+    const intakeResult = await this.db.query(
+      `SELECT * FROM crm_lead_intake_sessions WHERE lead_id = $1 ORDER BY updated_at DESC, id DESC LIMIT 20`,
+      [leadId],
+    );
+    const sessions = intakeResult.rows as IntakeSessionRow[];
+    const latest = pickLatestCompletedIntake(sessions);
+    const out = prefillPresalesConsultTaskForm({
+      serviceSlug: snap.presales.service_slug,
+      consultTask: consultTasks[0]!,
+      leadTask: leadTasks[0] ?? null,
+      latestIntake: latest,
+      overwrite,
+    });
+    if (out.filled.length > 0 || out.notes !== consultTasks[0]!.notes) {
+      await this.updatePresalesTask(
+        consultTasks[0]!.id,
+        { form_data: out.form_data, notes: out.notes },
+        null,
+      );
+    }
+    return {
+      task_id: consultTasks[0]!.id,
+      filled: out.filled.length,
+      fields: out.filled,
+      skipped_existing: out.skipped_existing,
     };
   }
 
@@ -828,7 +888,19 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
        RETURNING *`,
       [snap.presales.id, snap.advance.next_stage],
     );
-    return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
+    const row = this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
+    if (snap.advance.next_stage === 'consult' && snap.advance.current_stage === 'lead') {
+      await this.applyPresalesConsultPrefill(leadId, snap.presales.id, snap.presales.service_slug);
+    }
+    return row;
+  }
+
+  private async applyPresalesConsultPrefill(
+    leadId: number,
+    _presalesId: number,
+    _serviceSlug: string,
+  ): Promise<void> {
+    await this.runPresalesConsultPrefill(leadId, false);
   }
 
   async getPreliminaryPlan(presalesId: number): Promise<Record<string, unknown> | null> {

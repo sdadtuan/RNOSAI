@@ -37,6 +37,11 @@ import {
 } from './presales-marketing-plan.util';
 import { workflowStepsForService } from './presales-workflow-steps.util';
 import {
+  pickLatestCompletedIntake,
+  prefillPresalesConsultTaskForm,
+} from './presales-consult-prefill.util';
+import type { IntakeSessionRow } from '../intake/intake.types';
+import {
   DEFAULT_B2_CONTACT_DEADLINE_HOURS,
   isLeadInReviewQueue,
   normalizeB2ContactDeadlineHours,
@@ -686,6 +691,8 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
         description: String(raw.description),
         form_fields: JSON.parse(String(raw.form_fields || '[]')) as unknown[],
         form_data: JSON.parse(String(raw.form_data || '{}')) as Record<string, unknown>,
+        ai_prompt_key: String(raw.ai_prompt_key || ''),
+        ai_output: String(raw.ai_output || ''),
         is_done: Boolean(raw.is_done),
         done_at: String(raw.done_at || ''),
         notes: String(raw.notes || ''),
@@ -747,16 +754,84 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
     };
   }
 
-  getPresalesTaskById(
-    taskId: number,
-  ): { form_fields: unknown; form_data: Record<string, unknown> } | null {
+  getPresalesTaskById(taskId: number): PresalesTaskRow | null {
     const raw = this.database
-      .prepare('SELECT form_fields, form_data FROM crm_lead_presales_tasks WHERE id = ? LIMIT 1')
-      .get(taskId) as { form_fields: string; form_data: string } | undefined;
+      .prepare('SELECT * FROM crm_lead_presales_tasks WHERE id = ? LIMIT 1')
+      .get(taskId) as Record<string, unknown> | undefined;
     if (!raw) return null;
     return {
-      form_fields: JSON.parse(String(raw.form_fields || '[]')) as unknown,
+      id: Number(raw.id),
+      presales_id: Number(raw.presales_id),
+      stage: String(raw.stage),
+      step_index: Number(raw.step_index),
+      title: String(raw.title),
+      description: String(raw.description),
+      form_fields: JSON.parse(String(raw.form_fields || '[]')) as unknown[],
       form_data: JSON.parse(String(raw.form_data || '{}')) as Record<string, unknown>,
+      ai_prompt_key: String(raw.ai_prompt_key || ''),
+      ai_output: String(raw.ai_output || ''),
+      is_done: Boolean(raw.is_done),
+      done_at: String(raw.done_at || ''),
+      notes: String(raw.notes || ''),
+    };
+  }
+
+  updatePresalesTaskAiOutput(taskId: number, aiOutput: string): void {
+    const ts = this.ts();
+    this.database
+      .prepare('UPDATE crm_lead_presales_tasks SET ai_output = ?, updated_at = ? WHERE id = ?')
+      .run(aiOutput.slice(0, 16000), ts, taskId);
+  }
+
+  runPresalesConsultPrefill(
+    leadId: number,
+    overwrite = false,
+  ): { task_id: number | null; filled: number; fields: string[]; skipped_existing: string[] } {
+    const snap = this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    const consultTasks = snap.tasks.consult ?? [];
+    const leadTasks = snap.tasks.lead ?? [];
+    if (consultTasks.length === 0) throw new Error('Chưa có task Consult');
+
+    let sessions: IntakeSessionRow[] = [];
+    try {
+      const rows = this.database
+        .prepare(
+          `SELECT * FROM crm_lead_intake_sessions WHERE lead_id = ? ORDER BY updated_at DESC, id DESC LIMIT 20`,
+        )
+        .all(leadId) as Array<Record<string, unknown>>;
+      sessions = rows.map((row) => ({
+        ...row,
+        bant_json: JSON.parse(String(row.bant_json ?? '{}')) as Record<string, unknown>,
+        answers_json: JSON.parse(String(row.answers_json ?? '{}')) as Record<string, unknown>,
+        stakeholders_json: JSON.parse(String(row.stakeholders_json ?? '[]')) as Array<Record<string, string>>,
+        commitments_json: JSON.parse(String(row.commitments_json ?? '[]')) as Array<Record<string, string>>,
+        ai_suggested_questions: JSON.parse(String(row.ai_suggested_questions ?? '[]')) as string[],
+      })) as IntakeSessionRow[];
+    } catch {
+      sessions = [];
+    }
+
+    const latest = pickLatestCompletedIntake(sessions);
+    const out = prefillPresalesConsultTaskForm({
+      serviceSlug: snap.presales.service_slug,
+      consultTask: consultTasks[0]!,
+      leadTask: leadTasks[0] ?? null,
+      latestIntake: latest,
+      overwrite,
+    });
+    if (out.filled.length > 0 || out.notes !== consultTasks[0]!.notes) {
+      this.updatePresalesTask(
+        consultTasks[0]!.id,
+        { form_data: out.form_data, notes: out.notes },
+        null,
+      );
+    }
+    return {
+      task_id: consultTasks[0]!.id,
+      filled: out.filled.length,
+      fields: out.filled,
+      skipped_existing: out.skipped_existing,
     };
   }
 
@@ -788,6 +863,10 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
       .run(...params);
   }
 
+  private applyPresalesConsultPrefill(leadId: number, _snap: PresalesSnapshot): void {
+    this.runPresalesConsultPrefill(leadId, false);
+  }
+
   advancePresales(
     leadId: number,
     opts: { confirm?: boolean; overrideReason?: string; allowOverride?: boolean } = {},
@@ -817,6 +896,9 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
         `UPDATE crm_lead_presales SET stage = ?, stage_entered_at = ?, updated_at = ? WHERE id = ?`,
       )
       .run(snap.advance.next_stage, ts, ts, snap.presales.id);
+    if (snap.advance.next_stage === 'consult' && snap.advance.current_stage === 'lead') {
+      this.applyPresalesConsultPrefill(leadId, snap);
+    }
     return this.database
       .prepare('SELECT * FROM crm_lead_presales WHERE id = ?')
       .get(snap.presales.id) as unknown as PresalesRow;

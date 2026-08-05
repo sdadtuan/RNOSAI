@@ -2,7 +2,10 @@
 
 **Thời lượng đề xuất:** 45 phút (+ 15 phút Q&A)  
 **Đối tượng:** Account Manager, Sales hỗ trợ CSKH  
-**Tài liệu:** [Consult_Stage_Service_Delivery.pptx](../Consult_Stage_Service_Delivery.pptx)  
+**Tài liệu:**  
+- [Consult_Form_Matrix_AM_Training.pptx](../Consult_Form_Matrix_AM_Training.pptx) — **ma trận form 13 DV** (khuyến nghị buổi này)  
+- [Consult_Form_Matrix_AM_Training.xlsx](../exports/Consult_Form_Matrix_AM_Training.xlsx) — bảng chi tiết in/tick  
+- [Consult_Stage_Service_Delivery.pptx](../Consult_Stage_Service_Delivery.pptx) — overview Consult bridge C0–C6  
 **SOP sau training:** [consult-stage-am-sop.md](./consult-stage-am-sop.md)
 
 ---
@@ -12,6 +15,7 @@
 - [ ] Mở slide deck trên màn hình lớn
 - [ ] Có 1 lifecycle **demo** trên CRM (stage Lead hoặc Consult) để live demo 5 phút
 - [ ] In hoặc gửi trước [consult-stage-am-sop.md](./consult-stage-am-sop.md) (PDF)
+- [ ] In Excel [Consult_Form_Matrix_AM_Training.xlsx](../exports/Consult_Form_Matrix_AM_Training.xlsx) — sheet **6-Checklist_nhom** cho AM tick
 - [ ] Chuẩn bị form sign-off [consult-stage-bant-signoff.md](./consult-stage-bant-signoff.md) cho Director
 
 ---
@@ -25,7 +29,7 @@
 | 12–18 | BANT+ & Input Lead→Consult | Giải thích Go/Nurture/No-Go; nhấn **Lead ≠ Consult** |
 | 18–22 | Luồng mục tiêu + CRM hôm nay | Demo nhanh: workflow → tab Consult → task form |
 | 22–28 | Giải pháp C1–C5 (roadmap) | Giải thích: C0 = tài liệu; C1+ = code sắp triển khai |
-| 28–35 | Bảng 12 dịch vụ Consult task | Chọn 2 DV team hay bán → đọc task + fields |
+| 28–35 | Bảng 12 dịch vụ Consult task | Dùng slide **Ma trận Consult** (PPT matrix) hoặc Excel sheet 2 |
 | 35–40 | RACI, KPI, checklist AM | AM tự tick checklist mục 5 trong SOP |
 | 40–45 | Kế hoạch C0–C6 + go-live | Q&A |
 | 45–60 | (Tuỳ chọn) Thực hành CRM | AM tự tick task Consult trên lifecycle demo |

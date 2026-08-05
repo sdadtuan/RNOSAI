@@ -234,7 +234,7 @@ function formatMappedValue(sourceKey: string, value: unknown, targetKey: string)
   if (sourceKey === 'domain' && targetKey === 'current_status') {
     return `Domain: ${text}`.slice(0, 4000);
   }
-  if (['platform', 'urgency', 'gbp_status', 'has_ads_account', 'has_google_ads'].includes(sourceKey)) {
+  if (['platform', 'urgency', 'gbp_status', 'has_ads_account', 'has_google_ads', 'channel'].includes(sourceKey)) {
     const label = sourceKey.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     return `${label}: ${text}`.slice(0, 4000);
   }

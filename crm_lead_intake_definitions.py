@@ -213,6 +213,15 @@ _SLUG_CRM_TO_CONSULT: dict[str, dict[str, str]] = {
         "articles_per_month": "current_status",
         "need": "current_status",
     },
+    "lead-gen": {
+        "need": "current_status",
+        "niche": "target_audience",
+        "channel": "current_status",
+        "budget": "conversion_metrics",
+        "daily_budget": "conversion_metrics",
+        "monthly_budget": "conversion_metrics",
+        "campaign_goal": "scope_recommendation",
+    },
 }
 
 

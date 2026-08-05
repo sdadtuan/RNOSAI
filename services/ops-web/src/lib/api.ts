@@ -1139,6 +1139,8 @@ export interface LeadFunnelSnapshot {
         is_done: boolean;
         form_fields?: unknown;
         form_data?: Record<string, unknown>;
+        ai_prompt_key?: string;
+        ai_output?: string;
       }>
     >;
     advance: { can_advance_forward: boolean; block_reason: string; next_stage: string | null };
@@ -1334,6 +1336,53 @@ export async function patchLeadPresalesMarketingPlan(
 ): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot; validation: { ok: boolean; messages: string[] } }> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/marketing-plan`, {
     method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export interface ProposalAdvanceGate {
+  ok: boolean;
+  level: 'ok' | 'block';
+  messages: string[];
+  consult_task_done: boolean;
+  consult_task_total: number;
+  consult_task_done_count: number;
+  marketing_plan: { ok: boolean; messages: string[] };
+}
+
+export async function fetchLeadPresalesConsultBrief(
+  token: string,
+  leadId: number,
+): Promise<{ ok: boolean; brief: Record<string, unknown> }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/consult-brief`, { method: 'GET' });
+}
+
+export async function postLeadPresalesConsultPrefill(
+  token: string,
+  leadId: number,
+  body: { overwrite?: boolean } = {},
+): Promise<{ ok: boolean; filled: number; fields: string[]; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/consult-prefill`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchLeadPresalesProposalGate(
+  token: string,
+  leadId: number,
+): Promise<{ ok: boolean; gate: ProposalAdvanceGate; presales_stage: string }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/proposal-gate`, { method: 'GET' });
+}
+
+export async function postLeadPresalesTaskAiAssist(
+  token: string,
+  leadId: number,
+  taskId: number,
+  body: { form_context?: Record<string, unknown> } = {},
+): Promise<{ ok: boolean; task_id: number; ai_output: string; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/tasks/${taskId}/ai-assist`, {
+    method: 'POST',
     body: JSON.stringify(body),
   });
 }

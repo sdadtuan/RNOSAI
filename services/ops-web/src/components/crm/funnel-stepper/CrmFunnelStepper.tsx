@@ -28,6 +28,7 @@ export function CrmFunnelStepper({
   leadId,
   funnel,
   consultGate,
+  proposalGate,
   intakeSummary,
   contract,
   scope,
@@ -47,12 +48,13 @@ export function CrmFunnelStepper({
         leadId,
         funnel,
         consultGate,
+        proposalGate,
         intakeSummary,
         contract,
         scope,
         context,
       }),
-    [viewModelProp, leadId, funnel, consultGate, intakeSummary, contract, scope, context],
+    [viewModelProp, leadId, funnel, consultGate, proposalGate, intakeSummary, contract, scope, context],
   );
 
   if (!viewModel.visible) return null;

@@ -88,6 +88,8 @@ export interface PresalesTaskRow {
   description: string;
   form_fields: unknown[];
   form_data: Record<string, unknown>;
+  ai_prompt_key: string;
+  ai_output: string;
   is_done: boolean;
   done_at: string;
   notes: string;
@@ -157,4 +159,12 @@ export interface PatchMarketingPlanBody {
   north_star?: string;
   objectives?: string;
   strategy_framework?: Record<string, string>;
+}
+
+export interface ConsultPrefillBody {
+  overwrite?: boolean;
+}
+
+export interface PresalesAiAssistBody {
+  form_context?: Record<string, unknown>;
 }

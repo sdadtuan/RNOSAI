@@ -22,6 +22,7 @@ SERVICE_LABELS: dict[str, str] = {
     "quang-cao-google": "Quảng cáo Google",
     "thue-tai-khoan-quang-cao": "Thuê Tài khoản Ads",
     "tiep-thi-noi-dung": "Tiếp thị Nội dung",
+    "lead-gen": "Lead generation",
     "_common": "Form chung (chưa xác định DV)",
 }
 
@@ -34,6 +35,7 @@ RECURRING_DELIVER_SLUGS: frozenset[str] = frozenset({
     "quang-cao-facebook",
     "quang-cao-google",
     "tiep-thi-noi-dung",
+    "lead-gen",
 })
 RECURRING_DELIVER_MONTHS = 12
 

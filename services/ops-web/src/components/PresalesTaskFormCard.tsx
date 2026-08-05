@@ -14,6 +14,8 @@ export interface PresalesTaskFormItem {
   is_done: boolean;
   form_fields?: unknown;
   form_data?: Record<string, unknown>;
+  ai_prompt_key?: string;
+  ai_output?: string;
 }
 
 interface Props {
@@ -24,6 +26,9 @@ interface Props {
   onToggleDone: (taskId: number, nextDone: boolean, formData: Record<string, unknown>) => void;
   onSaveForm: (taskId: number, formData: Record<string, unknown>) => void;
   onValidationError?: (message: string) => void;
+  showAiAssist?: boolean;
+  aiBusy?: boolean;
+  onAiAssist?: (taskId: number, formData: Record<string, unknown>) => void;
 }
 
 export function PresalesTaskFormCard({
@@ -34,6 +39,9 @@ export function PresalesTaskFormCard({
   onToggleDone,
   onSaveForm,
   onValidationError,
+  showAiAssist = false,
+  aiBusy = false,
+  onAiAssist,
 }: Props) {
   const fields = useMemo(() => parsePresalesFormFields(task.form_fields), [task.form_fields]);
   const mergedFormData = useMemo(
@@ -126,6 +134,32 @@ export function PresalesTaskFormCard({
               )}
             </label>
           ))}
+          {showAiAssist && onAiAssist ? (
+            <div style={{ display: 'grid', gap: '0.5rem' }}>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                disabled={disabled || aiBusy || task.is_done}
+                onClick={() => onAiAssist(task.id, mergedFormData)}
+              >
+                {aiBusy ? 'Đang phân tích…' : 'AI Hỗ trợ'}
+              </button>
+              {task.ai_output ? (
+                <div
+                  style={{
+                    fontSize: '0.85rem',
+                    whiteSpace: 'pre-wrap',
+                    padding: '0.5rem',
+                    border: '1px solid var(--border, #cbd5e1)',
+                    borderRadius: 6,
+                    background: '#f8fafc',
+                  }}
+                >
+                  {task.ai_output}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

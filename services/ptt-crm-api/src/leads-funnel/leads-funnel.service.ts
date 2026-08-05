@@ -9,15 +9,26 @@ import { parseLeadMeta } from './care-pipeline.util';
 import {
   AdvancePresalesBody,
   CompleteCareStageBody,
+  ConsultPrefillBody,
   EnsurePresalesBody,
   LeadFunnelSnapshot,
   PatchMarketingPlanBody,
   PatchPresalesTaskBody,
+  PresalesAiAssistBody,
   ReleaseReviewQueueBody,
 } from './leads-funnel.types';
 import { LeadsFunnelPgRepository } from './leads-funnel-pg.repository';
 import { LeadsFunnelSqliteRepository } from './leads-funnel-sqlite.repository';
 import { validatePreliminaryPlan } from './presales-marketing-plan.util';
+import { buildPresalesConsultBrief } from './presales-consult-brief.util';
+import {
+  buildPresalesAiPromptContext,
+  formatPresalesAiPrompt,
+} from './presales-ai-prompt.util';
+import { buildProposalAdvanceGate } from './presales-proposal-gate.util';
+import { SERVICE_LABELS } from '../leads-contract/lifecycle-workflow-steps.util';
+import { IntakeService } from '../intake/intake.service';
+import { AiLlmClient } from '../ai-intelligence/ai-llm.client';
 import {
   assertPresalesTaskFormComplete,
   mergePresalesFormData,
@@ -37,6 +48,8 @@ export class LeadsFunnelService {
     private readonly leadSqlite: CrmLeadsSqliteRepository,
     private readonly cskhBoard: CskhBoardService,
     private readonly reviewQueueLlm: ReviewQueueLlmService,
+    private readonly intake: IntakeService,
+    private readonly llm: AiLlmClient,
   ) {}
 
   private get usePgFunnel(): boolean {
@@ -330,5 +343,129 @@ export class LeadsFunnelService {
     const plan = this.sqliteRepo.patchMarketingPlan(leadId, body);
     const validation = validatePreliminaryPlan(plan);
     return { ok: true, plan, validation, funnel: await this.getFunnel(leadId) };
+  }
+
+  private async loadPresalesContext(leadId: number) {
+    const snap = this.usePgFunnel
+      ? await this.pgRepo.getPresalesSnapshot(leadId)
+      : this.sqliteRepo.getPresalesSnapshot(leadId);
+    if (!snap) throw new NotFoundException({ error: 'No presales for lead' });
+    const intakeBundle = await this.intake.listSessions(leadId);
+    const leadRow = this.usePgFunnel
+      ? await this.pgRepo.fetchLeadRow(leadId)
+      : this.sqliteRepo.fetchLeadRow(leadId);
+    return { snap, intakeSessions: intakeBundle.sessions, leadName: leadRow?.full_name ?? '' };
+  }
+
+  async getPresalesConsultBrief(leadId: number) {
+    const { snap, intakeSessions } = await this.loadPresalesContext(leadId);
+    const leadTasks = snap.tasks.lead ?? [];
+    const leadTaskDone =
+      (snap.progress.lead?.total ?? 0) === 0 ||
+      (snap.progress.lead?.done ?? 0) >= (snap.progress.lead?.total ?? 0);
+    const brief = buildPresalesConsultBrief({
+      presalesId: snap.presales.id,
+      leadId,
+      serviceSlug: snap.presales.service_slug,
+      presalesStage: snap.presales.stage,
+      leadTaskDone,
+      leadTask: leadTasks[0] ?? null,
+      intakeSessions,
+    });
+    return { ok: true, brief };
+  }
+
+  async prefillPresalesConsult(leadId: number, body: ConsultPrefillBody) {
+    try {
+      const out = this.usePgFunnel
+        ? await this.pgRepo.runPresalesConsultPrefill(leadId, Boolean(body.overwrite))
+        : this.sqliteRepo.runPresalesConsultPrefill(leadId, Boolean(body.overwrite));
+      return { ok: true, ...out, funnel: await this.getFunnel(leadId) };
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async getPresalesProposalGate(leadId: number) {
+    const { snap } = await this.loadPresalesContext(leadId);
+    const plan = this.usePgFunnel
+      ? await this.pgRepo.getOrCreatePreliminaryPlan(leadId, snap.presales.id, snap.presales.service_slug)
+      : this.sqliteRepo.getOrCreatePreliminaryPlan(leadId, snap.presales.id, snap.presales.service_slug);
+    const gate = buildProposalAdvanceGate({
+      consultProgress: snap.progress.consult ?? { total: 0, done: 0 },
+      plan: plan as {
+        name?: string | null;
+        north_star?: string | null;
+        objectives?: string | null;
+        strategy_framework_json?: string | null;
+      },
+    });
+    return { ok: true, gate, presales_stage: snap.presales.stage };
+  }
+
+  async runPresalesTaskAiAssist(leadId: number, taskId: number, body: PresalesAiAssistBody) {
+    try {
+      const task = this.usePgFunnel
+        ? await this.pgRepo.getPresalesTaskById(taskId)
+        : this.sqliteRepo.getPresalesTaskById(taskId);
+      if (!task) throw new NotFoundException({ error: 'Không tìm thấy task pre-sales' });
+
+      const snap = this.usePgFunnel
+        ? await this.pgRepo.getPresalesSnapshot(leadId)
+        : this.sqliteRepo.getPresalesSnapshot(leadId);
+      if (!snap || task.presales_id !== snap.presales.id) {
+        throw new BadRequestException({ error: 'Task không thuộc pre-sales của lead' });
+      }
+      if (task.stage !== 'consult') {
+        throw new BadRequestException({ error: 'AI assist chỉ hỗ trợ task Consult' });
+      }
+      const promptKey = String(task.ai_prompt_key || '').trim();
+      if (!promptKey) {
+        throw new BadRequestException({ error: 'Task không có AI prompt' });
+      }
+
+      const { intakeSessions, leadName } = await this.loadPresalesContext(leadId);
+      const leadTasks = snap.tasks.lead ?? [];
+      const leadTaskDone =
+        (snap.progress.lead?.total ?? 0) === 0 ||
+        (snap.progress.lead?.done ?? 0) >= (snap.progress.lead?.total ?? 0);
+      const brief = buildPresalesConsultBrief({
+        presalesId: snap.presales.id,
+        leadId,
+        serviceSlug: snap.presales.service_slug,
+        presalesStage: snap.presales.stage,
+        leadTaskDone,
+        leadTask: leadTasks[0] ?? null,
+        intakeSessions,
+      });
+      const serviceLabel = SERVICE_LABELS[snap.presales.service_slug] ?? snap.presales.service_slug;
+      const ctx = buildPresalesAiPromptContext({
+        brief,
+        customerName: leadName || `Lead #${leadId}`,
+        serviceLabel,
+        formContext: body.form_context,
+      });
+      const prompt = formatPresalesAiPrompt(promptKey, ctx);
+      if (!prompt) throw new BadRequestException({ error: 'Không tìm thấy AI template' });
+
+      const llmOut = await this.llm.completeText({
+        userContent: prompt,
+        systemPrompt: 'Bạn là chuyên gia marketing agency PTT. Trả lời bằng tiếng Việt, súc tích, có cấu trúc.',
+      });
+      if (this.usePgFunnel) {
+        await this.pgRepo.updatePresalesTaskAiOutput(taskId, llmOut.text);
+      } else {
+        this.sqliteRepo.updatePresalesTaskAiOutput(taskId, llmOut.text);
+      }
+      return {
+        ok: true,
+        task_id: taskId,
+        ai_output: llmOut.text,
+        stub_mode: llmOut.stubMode,
+        funnel: await this.getFunnel(leadId),
+      };
+    } catch (err) {
+      this.funnelError(err);
+    }
   }
 }

@@ -13,7 +13,18 @@ describe('workflowStepsForService', () => {
     expect(steps.lead[0]?.title).toContain('Qualify');
   });
 
-  it('exports 12 service slugs from Python source', () => {
-    expect(listPresalesServiceSlugs().length).toBeGreaterThanOrEqual(12);
+  it('returns lead-gen consult form fields', () => {
+    const steps = workflowStepsForService('lead-gen');
+    const keys = steps.consult[0]?.form_fields?.map((f) => f.key) ?? [];
+    expect(keys).toEqual([
+      'current_status',
+      'target_audience',
+      'conversion_metrics',
+      'scope_recommendation',
+    ]);
+  });
+
+  it('exports 13 service slugs from Python source', () => {
+    expect(listPresalesServiceSlugs().length).toBeGreaterThanOrEqual(13);
   });
 });

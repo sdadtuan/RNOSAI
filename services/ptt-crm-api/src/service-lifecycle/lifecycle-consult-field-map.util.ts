@@ -33,6 +33,15 @@ const SLUG_CRM_TO_CONSULT: Record<string, Record<string, string>> = {
     monthly_spend: 'current_status',
   },
   'tiep-thi-noi-dung': { channels: 'current_status', articles_per_month: 'current_status', need: 'current_status' },
+  'lead-gen': {
+    need: 'current_status',
+    niche: 'target_audience',
+    channel: 'current_status',
+    budget: 'conversion_metrics',
+    daily_budget: 'conversion_metrics',
+    monthly_budget: 'conversion_metrics',
+    campaign_goal: 'scope_recommendation',
+  },
 };
 
 export function getCrmFieldMap(serviceSlug: string): Record<string, string> {

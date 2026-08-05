@@ -101,7 +101,28 @@
 
 ---
 
-## 6. Quảng cáo Facebook
+## 6. Lead generation
+
+- **Slug CRM:** `lead-gen`
+- **Nhóm:** Khác
+- **Task:** Discovery funnel & kênh lead generation
+
+**Mô tả:** Audit funnel hiện tại: kênh ads/organic, landing page, CRM nhận lead, KPI. Đề xuất scope PTT (Ads/LP/CRM/full funnel).
+
+**Form CRM (bắt buộc điền trước khi tick ✓):**
+
+| Field key | Label | Loại |
+|-----------|-------|------|
+| `current_status` | Hiện trạng funnel & kênh | textarea |
+| `target_audience` | ICP & đối tượng mục tiêu | textarea |
+| `conversion_metrics` | KPI hiện tại & mục tiêu | textarea |
+| `scope_recommendation` | Phạm vi PTT đề xuất | textarea |
+
+**AI:** prompt `consult_analysis` trên task card workflow.
+
+---
+
+## 7. Quảng cáo Facebook
 
 - **Slug CRM:** `quang-cao-facebook`
 - **Nhóm:** Quảng cáo
@@ -121,7 +142,7 @@
 
 ---
 
-## 7. Quảng cáo Google
+## 8. Quảng cáo Google
 
 - **Slug CRM:** `quang-cao-google`
 - **Nhóm:** Quảng cáo
@@ -140,7 +161,7 @@
 
 ---
 
-## 8. Landing Page
+## 9. Landing Page
 
 - **Slug CRM:** `thiet-ke-landing-page`
 - **Nhóm:** Thiết kế & web
@@ -160,7 +181,7 @@
 
 ---
 
-## 9. Thiết kế Website
+## 10. Thiết kế Website
 
 - **Slug CRM:** `thiet-ke-website`
 - **Nhóm:** Thiết kế & web
@@ -180,7 +201,7 @@
 
 ---
 
-## 10. Website Trọn gói
+## 11. Website Trọn gói
 
 - **Slug CRM:** `thiet-ke-website-tron-goi`
 - **Nhóm:** Thiết kế & web
@@ -199,7 +220,7 @@
 
 ---
 
-## 11. Thuê Tài khoản Ads
+## 12. Thuê Tài khoản Ads
 
 - **Slug CRM:** `thue-tai-khoan-quang-cao`
 - **Nhóm:** Quảng cáo
@@ -218,7 +239,7 @@
 
 ---
 
-## 12. Tiếp thị Nội dung
+## 13. Tiếp thị Nội dung
 
 - **Slug CRM:** `tiep-thi-noi-dung`
 - **Nhóm:** Nội dung

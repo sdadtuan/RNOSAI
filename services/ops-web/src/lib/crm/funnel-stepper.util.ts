@@ -12,6 +12,7 @@ import type {
   FunnelStepState,
   IntakeStepSummary,
   PresalesFunnelStepKey,
+  ProposalGateState,
 } from '@/lib/crm/funnel-stepper.types';
 
 export const PRESALES_FUNNEL_STEPS: FunnelStepDefinition[] = [
@@ -174,7 +175,22 @@ export function resolveActiveStep(input: {
 export function resolveGateStrip(
   activeStep: PresalesFunnelStepKey | null,
   consultGate: ConsultGateState | null,
+  proposalGate?: ProposalGateState | null,
 ): FunnelGateStripViewModel | null {
+  if (activeStep === 'consult' && proposalGate) {
+    const tone = proposalGate.ok && proposalGate.level === 'ok' ? 'ok' : 'block';
+    return {
+      tone,
+      gateKind: 'proposal',
+      title:
+        tone === 'ok'
+          ? 'Sẵn sàng chuyển Báo giá'
+          : 'Chưa đủ điều kiện Báo giá',
+      messages: proposalGate.messages,
+      scrollAnchor: '#funnel-presales-r5',
+    };
+  }
+
   if (activeStep !== 'intake_bant' || !consultGate) return null;
 
   const tone =
@@ -193,6 +209,7 @@ export function resolveGateStrip(
 
   return {
     tone,
+    gateKind: 'consult',
     title,
     messages: consultGate.messages,
     bantTotal: consultGate.bant_total,
@@ -426,7 +443,7 @@ export function resolveFunnelStepper(input: FunnelStepperInput): FunnelStepperVi
     context: input.context,
     steps,
     activeStep,
-    gateStrip: resolveGateStrip(activeStep, input.consultGate),
+    gateStrip: resolveGateStrip(activeStep, input.consultGate, input.proposalGate),
     primaryAction: resolvePrimaryAction({
       leadId: input.leadId,
       funnel,

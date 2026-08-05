@@ -299,6 +299,73 @@ export class AiLlmClient {
     }
   }
 
+  /** Plain-text completion (presales consult AI assist, etc.). */
+  async completeText(input: {
+    userContent: string;
+    systemPrompt?: string;
+    model?: string;
+  }): Promise<{ text: string; stubMode: boolean; modelName: string }> {
+    const apiKey = this.aiConfig.llmApiKey;
+    const model = input.model ?? this.aiConfig.llmModel;
+    const systemPrompt = input.systemPrompt ?? 'You are a helpful marketing consultant assistant.';
+
+    if (!apiKey) {
+      const preview = input.userContent.replace(/\s+/g, ' ').trim().slice(0, 180);
+      return {
+        text:
+          `[stub] Phân tích Consult (preview): ${preview || 'Chưa có dữ liệu form.'}\n\n` +
+          'Gợi ý: xem lại BANT, pain point và scope trước khi báo giá.',
+        stubMode: true,
+        modelName: `${model}-stub`,
+      };
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.aiConfig.llmTimeoutMs);
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0.3,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: input.userContent },
+          ],
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`OpenAI HTTP ${response.status}: ${detail.slice(0, 300)}`);
+      }
+      const payload = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const text = String(payload.choices?.[0]?.message?.content ?? '').trim();
+      return { text, stubMode: false, modelName: model };
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new ServiceUnavailableException({
+          error: 'llm_timeout',
+          error_code: AI_AUDIT_ERROR.LLM_TIMEOUT,
+          message: 'LLM timeout',
+        });
+      }
+      throw new ServiceUnavailableException({
+        error: 'llm_provider_error',
+        error_code: AI_AUDIT_ERROR.LLM_PROVIDER_ERROR,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   private buildStubOutput(context: SummarizeContext, userContent: string): Record<string, unknown> {
     const lines = userContent
       .split(/\n/)

@@ -22,9 +22,11 @@ import { StaffLeadsWriteGuard } from '../leads/guards/staff-leads-write.guard';
 import {
   AdvancePresalesBody,
   CompleteCareStageBody,
+  ConsultPrefillBody,
   EnsurePresalesBody,
   PatchMarketingPlanBody,
   PatchPresalesTaskBody,
+  PresalesAiAssistBody,
   ReleaseReviewQueueBody,
 } from './leads-funnel.types';
 import { LeadsFunnelEnabledGuard, PresalesOnLeadGuard } from './guards/leads-funnel-enabled.guard';
@@ -224,5 +226,35 @@ export class LeadsFunnelController {
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
   patchMarketingPlan(@Param('id', ParseIntPipe) id: number, @Body() body: PatchMarketingPlanBody) {
     return this.funnel.patchMarketingPlan(id, body);
+  }
+
+  @Get(':id/presales/consult-brief')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  getPresalesConsultBrief(@Param('id', ParseIntPipe) id: number) {
+    return this.funnel.getPresalesConsultBrief(id);
+  }
+
+  @Post(':id/presales/consult-prefill')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  prefillPresalesConsult(@Param('id', ParseIntPipe) id: number, @Body() body: ConsultPrefillBody) {
+    return this.funnel.prefillPresalesConsult(id, body);
+  }
+
+  @Get(':id/presales/proposal-gate')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  getPresalesProposalGate(@Param('id', ParseIntPipe) id: number) {
+    return this.funnel.getPresalesProposalGate(id);
+  }
+
+  @Post(':id/presales/tasks/:taskId/ai-assist')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  runPresalesTaskAiAssist(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('taskId', ParseIntPipe) taskId: number,
+    @Body() body: PresalesAiAssistBody,
+  ) {
+    return this.funnel.runPresalesTaskAiAssist(id, taskId, body);
   }
 }

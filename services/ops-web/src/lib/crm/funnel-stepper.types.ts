@@ -44,6 +44,7 @@ export interface FunnelStepperInput {
   leadId: number;
   funnel: LeadFunnelSnapshot | null;
   consultGate: ConsultGateState | null;
+  proposalGate?: ProposalGateState | null;
   intakeSummary?: IntakeStepSummary | null;
   contract?: LeadContractFlowSummary | null;
   scope?: FunnelStepperScope;
@@ -91,6 +92,18 @@ export interface FunnelGateStripViewModel {
   decision?: string;
   requiresConfirm?: boolean;
   requiresOverride?: boolean;
+  gateKind?: 'consult' | 'proposal';
+  scrollAnchor?: string;
+}
+
+export interface ProposalGateState {
+  ok: boolean;
+  level: 'ok' | 'block';
+  messages: string[];
+  consult_task_done: boolean;
+  consult_task_total: number;
+  consult_task_done_count: number;
+  marketing_plan: { ok: boolean; messages: string[] };
 }
 
 export interface FunnelStepperViewModel {

@@ -157,6 +157,27 @@ class LeadPresalesTests(unittest.TestCase):
             self.assertIn("proposal", tasks)
             self.assertTrue(len(tasks["lead"]) >= 1)
 
+    def test_ensure_presales_lead_gen_consult_fields(self) -> None:
+        from crm_lead_presales import ensure_presales, ensure_schema, list_presales_tasks
+
+        with self._conn() as conn:
+            ensure_schema(conn)
+            self._complete_presales_care_prereq(conn)
+            ps = ensure_presales(conn, 1, "lead-gen")
+            tasks = list_presales_tasks(conn, int(ps["id"]))
+            consult = tasks.get("consult") or []
+            self.assertEqual(len(consult), 1)
+            keys = [f["key"] for f in consult[0].get("form_fields") or []]
+            self.assertEqual(
+                keys,
+                [
+                    "current_status",
+                    "target_audience",
+                    "conversion_metrics",
+                    "scope_recommendation",
+                ],
+            )
+
     def test_advance_requires_tasks_done(self) -> None:
         from crm_lead_presales import (
             PresalesAdvanceError,

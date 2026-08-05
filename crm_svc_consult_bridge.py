@@ -323,7 +323,7 @@ def _format_mapped_value(source_key: str, value: Any, target_key: str) -> str:
         return f"Pain: {text}"[:4000]
     if source_key == "domain" and target_key == "current_status":
         return f"Domain: {text}"[:4000]
-    if source_key in ("platform", "urgency", "gbp_status", "has_ads_account", "has_google_ads"):
+    if source_key in ("platform", "urgency", "gbp_status", "has_ads_account", "has_google_ads", "channel"):
         label = source_key.replace("_", " ").title()
         return f"{label}: {text}"[:4000]
     return text[:4000]

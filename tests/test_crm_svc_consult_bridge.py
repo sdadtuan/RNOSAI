@@ -290,6 +290,7 @@ class TestPrefillConsultTask(unittest.TestCase):
             "quang-cao-google",
             "thue-tai-khoan-quang-cao",
             "tiep-thi-noi-dung",
+            "lead-gen",
         ]
         for slug in slugs:
             m = get_crm_field_map(slug)
