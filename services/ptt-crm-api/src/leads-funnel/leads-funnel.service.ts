@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
 import { AppConfigService } from '../config/app-config.service';
 import { CrmLeadsSqliteRepository } from '../crm-leads-legacy/crm-leads-sqlite.repository';
 import { CskhBoardService } from '../cskh-board/cskh-board.service';
@@ -13,10 +14,13 @@ import {
   EnsurePresalesBody,
   LeadFunnelSnapshot,
   PatchMarketingPlanBody,
+  PatchPresalesL2DocsBody,
   PatchPresalesTaskBody,
   PresalesAiAssistBody,
+  PresalesConsultSlaReminderBody,
   ReleaseReviewQueueBody,
   UpgradePresalesWorkflowBody,
+  BatchUpgradePresalesWorkflowBody,
 } from './leads-funnel.types';
 import { LeadsFunnelPgRepository } from './leads-funnel-pg.repository';
 import { LeadsFunnelSqliteRepository } from './leads-funnel-sqlite.repository';
@@ -27,16 +31,25 @@ import {
   formatPresalesAiPrompt,
 } from './presales-ai-prompt.util';
 import { buildProposalAdvanceGate } from './presales-proposal-gate.util';
+import { buildPresalesProposalHandoff } from './presales-proposal-handoff.util';
 import { SERVICE_LABELS } from '../leads-contract/lifecycle-workflow-steps.util';
 import { IntakeService } from '../intake/intake.service';
 import { AiLlmClient } from '../ai-intelligence/ai-llm.client';
 import {
-  assertPresalesTaskFormComplete,
-  mergePresalesFormData,
-} from './presales-task-form.util';
+  assertPresalesConsultTaskDone,
+  validatePresalesConsultTaskDone,
+} from './presales-consult-task-gate.util';
+import { mergePresalesFormData } from './presales-task-form.util';
+import { assertPresalesL2DocsComplete } from './presales-l2-docs.util';
 import { reviewQueuePublicState } from './review-queue.util';
 import { buildReviewQueueMetrics } from './review-queue-metrics.util';
 import { buildReviewQueueAiSummary, computeReviewQueuePriority } from './review-queue-intelligence.util';
+import {
+  buildBatchUpgradeCsvHeader,
+  cohortCsvRow,
+  resolveBatchUpgradeStages,
+  type BatchUpgradePresalesWorkflowResult,
+} from './presales-workflow-batch.util';
 import { ReviewQueueLlmService } from './review-queue-llm.service';
 
 @Injectable()
@@ -51,6 +64,7 @@ export class LeadsFunnelService {
     private readonly reviewQueueLlm: ReviewQueueLlmService,
     private readonly intake: IntakeService,
     private readonly llm: AiLlmClient,
+    private readonly legacyLeads: CrmLeadsLegacyService,
   ) {}
 
   private get usePgFunnel(): boolean {
@@ -297,7 +311,21 @@ export class LeadsFunnelService {
 
       const mergedFormData = mergePresalesFormData(task.form_data, body.form_data);
       if (body.is_done === true) {
-        assertPresalesTaskFormComplete(task.form_fields, mergedFormData);
+        assertPresalesConsultTaskDone({
+          stage: task.stage,
+          aiPromptKey: task.ai_prompt_key,
+          aiOutput: task.ai_output,
+          formFields: task.form_fields,
+          formData: mergedFormData,
+        });
+        if (task.stage === 'consult') {
+          const snap = this.usePgFunnel
+            ? await this.pgRepo.getPresalesSnapshot(leadId)
+            : this.sqliteRepo.getPresalesSnapshot(leadId);
+          if (snap) {
+            assertPresalesL2DocsComplete(snap.presales.service_slug, snap.presales.l2_docs_json);
+          }
+        }
       }
 
       const patchBody: PatchPresalesTaskBody = { ...body };
@@ -311,6 +339,78 @@ export class LeadsFunnelService {
         this.sqliteRepo.updatePresalesTask(taskId, patchBody, doneBy);
       }
       return { ok: true, funnel: await this.getFunnel(leadId) };
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async patchPresalesL2Docs(leadId: number, body: PatchPresalesL2DocsBody) {
+    try {
+      if (this.usePgFunnel) {
+        await this.pgRepo.updatePresalesL2Docs(leadId, body.docs ?? {});
+      } else {
+        this.sqliteRepo.updatePresalesL2Docs(leadId, body.docs ?? {});
+      }
+      return { ok: true, funnel: await this.getFunnel(leadId) };
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async getPresalesConsultSlaSummary(amId?: number | null) {
+    const summary = this.usePgFunnel
+      ? await this.pgRepo.getPresalesConsultSlaSummary(amId)
+      : this.sqliteRepo.getPresalesConsultSlaSummary(amId);
+    return { ok: true, summary };
+  }
+
+  async getPresalesFunnelMetrics(query: {
+    periodStart?: string | null;
+    periodEnd?: string | null;
+    amId?: number | null;
+  }) {
+    const payload = this.usePgFunnel
+      ? await this.pgRepo.getPresalesFunnelMetrics(query)
+      : this.sqliteRepo.getPresalesFunnelMetrics(query);
+    return { ok: true as const, ...payload };
+  }
+
+  async createPresalesConsultSlaReminder(
+    leadId: number,
+    body: PresalesConsultSlaReminderBody,
+    actor: string,
+    userId: number | null,
+  ) {
+    try {
+      const snap = this.usePgFunnel
+        ? await this.pgRepo.getPresalesSnapshot(leadId)
+        : this.sqliteRepo.getPresalesSnapshot(leadId);
+      if (!snap) throw new NotFoundException({ error: 'No presales for lead' });
+      if (snap.presales.stage !== 'consult') {
+        throw new BadRequestException({ error: 'SLA Consult→Báo giá chỉ áp dụng khi stage = consult' });
+      }
+      const sla = snap.consult_proposal_sla;
+      const note =
+        String(body.message ?? '').trim() ||
+        `Nhắc chuyển → Báo giá trong SLA 48h — ${sla.message}`;
+      const { activity } = await this.legacyLeads.createActivity(
+        leadId,
+        {
+          activity_type: 'note',
+          content: `SLA pre-sales: ${note}`,
+          result: 'Reminder nội bộ — không auto-send khách (BR-AI-01).',
+          next_action: 'Chuyển → Báo giá trên funnel stepper',
+        },
+        actor,
+        userId,
+      );
+      return {
+        ok: true,
+        lead_id: leadId,
+        activity_id: activity.id,
+        sla,
+        funnel: await this.getFunnel(leadId),
+      };
     } catch (err) {
       this.funnelError(err);
     }
@@ -404,6 +504,28 @@ export class LeadsFunnelService {
     return { ok: true, gate, presales_stage: snap.presales.stage };
   }
 
+  async getPresalesProposalHandoff(leadId: number) {
+    try {
+      const snap = this.usePgFunnel
+        ? await this.pgRepo.getPresalesSnapshot(leadId)
+        : this.sqliteRepo.getPresalesSnapshot(leadId);
+      if (!snap) throw new NotFoundException({ error: 'No presales for lead' });
+      const customerId = this.usePgFunnel
+        ? await this.pgRepo.getLeadConvertedCustomerId(leadId)
+        : this.sqliteRepo.getLeadConvertedCustomerId(leadId);
+      const consultTasks = snap.tasks.consult ?? [];
+      const handoff = buildPresalesProposalHandoff({
+        leadId,
+        serviceSlug: snap.presales.service_slug,
+        customerId,
+        consultTask: consultTasks[0] ?? null,
+      });
+      return { ok: true, handoff };
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
   async runPresalesTaskAiAssist(leadId: number, taskId: number, body: PresalesAiAssistBody) {
     try {
       const task = this.usePgFunnel
@@ -481,6 +603,86 @@ export class LeadsFunnelService {
         ? await this.pgRepo.upgradePresalesWorkflowTemplate(leadId, opts)
         : this.sqliteRepo.upgradePresalesWorkflowTemplate(leadId, opts);
       return { ...out, funnel: opts.dryRun ? undefined : await this.getFunnel(leadId) };
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async batchUpgradePresalesWorkflow(body: BatchUpgradePresalesWorkflowBody) {
+    try {
+      const dryRun = Boolean(body.dry_run);
+      if (!dryRun && !this.config.presalesBatchUpgradeEnabled) {
+        throw new ServiceUnavailableException({
+          error: 'PTT_PRESALES_BATCH_UPGRADE disabled — dry-run only until gate pass',
+        });
+      }
+      const stages = resolveBatchUpgradeStages(body.stages);
+      const upgradeOpts = {
+        stages,
+        dryRun: false,
+        prefillConsult: body.prefill_consult !== false,
+      };
+      const cohort = this.usePgFunnel
+        ? await this.pgRepo.listPresalesWorkflowUpgradeCohort({
+            leadIds: body.lead_ids,
+            limit: body.limit,
+          })
+        : this.sqliteRepo.listPresalesWorkflowUpgradeCohort({
+            leadIds: body.lead_ids,
+            limit: body.limit,
+          });
+
+      const csvRows = [buildBatchUpgradeCsvHeader(), ...cohort.map(cohortCsvRow)];
+
+      if (dryRun) {
+        return {
+          ok: true,
+          dry_run: true,
+          cohort_size: cohort.length,
+          processed: cohort.length,
+          upgraded: 0,
+          skipped: 0,
+          results: cohort.map((row) => ({
+            lead_id: row.lead_id,
+            ok: true,
+            service_slug: row.service_slug,
+          })),
+          csv_rows: csvRows,
+        };
+      }
+
+      const results: BatchUpgradePresalesWorkflowResult['results'] = [];
+      let upgraded = 0;
+      let skipped = 0;
+      for (const row of cohort) {
+        try {
+          const out = this.usePgFunnel
+            ? await this.pgRepo.upgradePresalesWorkflowTemplate(row.lead_id, upgradeOpts)
+            : this.sqliteRepo.upgradePresalesWorkflowTemplate(row.lead_id, upgradeOpts);
+          upgraded += 1;
+          results.push({
+            lead_id: row.lead_id,
+            ok: true,
+            service_slug: out.service_slug,
+            stages: out.stages,
+          });
+        } catch (err) {
+          skipped += 1;
+          const msg = err instanceof Error ? err.message : String(err);
+          results.push({ lead_id: row.lead_id, ok: false, error: msg });
+        }
+      }
+
+      return {
+        ok: skipped === 0,
+        dry_run: false,
+        cohort_size: cohort.length,
+        processed: cohort.length,
+        upgraded,
+        skipped,
+        results,
+        csv_rows: csvRows,
+      };
     } catch (err) {
       this.funnelError(err);
     }

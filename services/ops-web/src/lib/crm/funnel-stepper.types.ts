@@ -40,11 +40,24 @@ export interface IntakeStepSummary {
   };
 }
 
+export interface PresalesConsultProposalSla {
+  tier: 'consult_proposal_48h';
+  sla_state: 'na' | 'ok' | 'warning' | 'breach';
+  started_at: string | null;
+  deadline_at: string | null;
+  hours_elapsed: number | null;
+  hours_remaining: number | null;
+  minutes_remaining: number | null;
+  message: string;
+  reminder_cta: string;
+}
+
 export interface FunnelStepperInput {
   leadId: number;
   funnel: LeadFunnelSnapshot | null;
   consultGate: ConsultGateState | null;
   proposalGate?: ProposalGateState | null;
+  consultProposalSla?: PresalesConsultProposalSla | null;
   intakeSummary?: IntakeStepSummary | null;
   contract?: LeadContractFlowSummary | null;
   scope?: FunnelStepperScope;
@@ -92,7 +105,7 @@ export interface FunnelGateStripViewModel {
   decision?: string;
   requiresConfirm?: boolean;
   requiresOverride?: boolean;
-  gateKind?: 'consult' | 'proposal';
+  gateKind?: 'consult' | 'proposal' | 'sla';
   scrollAnchor?: string;
 }
 

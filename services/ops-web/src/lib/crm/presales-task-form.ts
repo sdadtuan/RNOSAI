@@ -44,6 +44,24 @@ export function validatePresalesTaskForm(
   return `Điền đủ trường trước khi hoàn thành task: ${missing.join(', ')}`;
 }
 
+export function validatePresalesConsultTaskDoneClient(input: {
+  stage?: string;
+  aiPromptKey?: string;
+  aiOutput?: string;
+  formFields: unknown;
+  formData: Record<string, unknown>;
+}): string | null {
+  const formErr = validatePresalesTaskForm(input.formFields, input.formData);
+  if (formErr) return formErr;
+  if (String(input.stage ?? '') !== 'consult') return null;
+  const promptKey = String(input.aiPromptKey ?? '').trim();
+  const aiOutput = String(input.aiOutput ?? '').trim();
+  if (promptKey && !aiOutput) {
+    return 'Chạy AI Hỗ trợ trước khi ✓ task Consult — bắt buộc QC agency.';
+  }
+  return null;
+}
+
 export function mergePresalesFormData(
   existing: Record<string, unknown> | undefined,
   patch: Record<string, unknown>,

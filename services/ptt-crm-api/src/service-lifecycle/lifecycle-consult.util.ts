@@ -1,4 +1,6 @@
 import { GO_THRESHOLDS } from '../intake/intake-definitions.util';
+import { buildDiscoveryConsultPrefill } from '../intake/intake-discovery-prefill.util';
+import { extractDiscoveryResponseSnippets } from '../intake/intake-answers.util';
 import type { IntakeSessionRow } from '../intake/intake.types';
 import { SERVICE_LABELS } from '../leads-contract/lifecycle-workflow-steps.util';
 import type { SvcTaskRow } from './lifecycle-tasks.repository';
@@ -259,6 +261,10 @@ function collectSourceValues(
     const pain = String((meta as Record<string, unknown>).pain_summary ?? '').trim();
     if (pain && fieldEmpty(sources.need)) sources._pain_summary = pain;
   }
+  const discoverySnippets = extractDiscoveryResponseSnippets(answers, 6);
+  if (discoverySnippets.length && fieldEmpty(sources._discovery_summary)) {
+    sources._discovery_summary = discoverySnippets.join('\n');
+  }
   return sources;
 }
 
@@ -341,6 +347,15 @@ export function prefillConsultTaskForm(input: {
   const pain = sources.need ?? sources._pain_summary;
   if (pain) setField('current_status', pain, 'need');
 
+  const discoverySummary = String(sources._discovery_summary ?? '').trim();
+  if (discoverySummary) {
+    for (const line of discoverySummary.split('\n')) {
+      const snippet = String(line ?? '').trim();
+      if (!snippet) continue;
+      setField('current_status', snippet, '_discovery_summary');
+    }
+  }
+
   for (const [sourceKey, targetKey] of Object.entries(fieldMap)) {
     if (sourceKey === 'need' || sourceKey === '_pain_summary') continue;
     if (!(sourceKey in sources)) continue;
@@ -365,6 +380,12 @@ export function prefillConsultTaskForm(input: {
       `Intake #${input.latestIntake.id}: ${input.latestIntake.decision} BANT ${input.latestIntake.bant_total}/30`,
     );
   }
+
+  const discoveryPrefill = buildDiscoveryConsultPrefill({
+    answers: input.latestIntake?.answers_json as Record<string, unknown> | undefined,
+    stakeholdersJson: input.latestIntake?.stakeholders_json,
+  });
+  noteLines.push(...discoveryPrefill.noteLines);
 
   const notes = appendNoteLines(input.consultTask.notes, noteLines);
   return {

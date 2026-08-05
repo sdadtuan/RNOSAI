@@ -95,6 +95,73 @@ export interface PresalesTaskRow {
   notes: string;
 }
 
+export interface PresalesL2DocRow {
+  key: string;
+  label: string;
+  checked: boolean;
+}
+
+export interface PresalesL2DocsView {
+  service_slug: string;
+  items: PresalesL2DocRow[];
+  total: number;
+  done: number;
+  complete: boolean;
+  missing_labels: string[];
+}
+
+export interface PresalesConsultProposalSla {
+  tier: 'consult_proposal_48h';
+  sla_state: 'na' | 'ok' | 'warning' | 'breach';
+  started_at: string | null;
+  deadline_at: string | null;
+  hours_elapsed: number | null;
+  hours_remaining: number | null;
+  minutes_remaining: number | null;
+  message: string;
+  reminder_cta: string;
+}
+
+export interface PresalesConsultSlaSummary {
+  active_consult: number;
+  sla_ok: number;
+  sla_warning: number;
+  sla_breach: number;
+  consult_to_proposal_48h_pct: number;
+  consult_to_proposal_48h_num: number;
+  consult_to_proposal_48h_denom: number;
+}
+
+export interface PresalesFunnelMetricsResult {
+  go_to_consult_median_hours: number | null;
+  go_to_consult_p90_hours: number | null;
+  go_to_consult_sample: number;
+  consult_to_proposal_7d_pct: number;
+  consult_to_proposal_7d_num: number;
+  consult_to_proposal_7d_denom: number;
+  consult_to_proposal_48h_pct: number;
+  consult_to_proposal_48h_num: number;
+  consult_to_proposal_48h_denom: number;
+  consult_form_completion_pct: number;
+  consult_task_done_rate: number;
+  consult_tasks_total: number;
+  consult_tasks_done: number;
+}
+
+export interface PresalesFunnelMetricLabels {
+  consult_to_proposal_7d: string;
+  consult_to_proposal_48h: string;
+}
+
+export interface PresalesFunnelMetricsResponse {
+  ok: true;
+  period_start: string | null;
+  period_end: string | null;
+  am_id: number | null;
+  metrics: PresalesFunnelMetricsResult;
+  labels: PresalesFunnelMetricLabels;
+}
+
 export interface PresalesRow {
   id: number;
   lead_id: number;
@@ -104,12 +171,17 @@ export interface PresalesRow {
   assigned_am: number | null;
   lifecycle_id: number | null;
   stage_entered_at: string;
+  consult_entered_at: string;
+  proposal_entered_at: string;
   notes: string;
   draft_marketing_plan_id: number | null;
+  l2_docs_json: Record<string, boolean>;
 }
 
 export interface PresalesSnapshot {
   presales: PresalesRow;
+  l2_docs: PresalesL2DocsView;
+  consult_proposal_sla: PresalesConsultProposalSla;
   tasks: Record<string, PresalesTaskRow[]>;
   progress: Record<string, { total: number; done: number }>;
   advance: {
@@ -161,6 +233,14 @@ export interface PatchMarketingPlanBody {
   strategy_framework?: Record<string, string>;
 }
 
+export interface PatchPresalesL2DocsBody {
+  docs: Record<string, boolean>;
+}
+
+export interface PresalesConsultSlaReminderBody {
+  message?: string;
+}
+
 export interface ConsultPrefillBody {
   overwrite?: boolean;
 }
@@ -173,4 +253,12 @@ export interface UpgradePresalesWorkflowBody {
   stages?: PresalesStage[];
   dry_run?: boolean;
   prefill_consult?: boolean;
+}
+
+export interface BatchUpgradePresalesWorkflowBody {
+  dry_run?: boolean;
+  prefill_consult?: boolean;
+  stages?: PresalesStage[];
+  lead_ids?: number[];
+  limit?: number;
 }

@@ -11,6 +11,7 @@ import type {
   FunnelStepperViewModel,
   FunnelStepState,
   IntakeStepSummary,
+  PresalesConsultProposalSla,
   PresalesFunnelStepKey,
   ProposalGateState,
 } from '@/lib/crm/funnel-stepper.types';
@@ -176,7 +177,25 @@ export function resolveGateStrip(
   activeStep: PresalesFunnelStepKey | null,
   consultGate: ConsultGateState | null,
   proposalGate?: ProposalGateState | null,
+  consultProposalSla?: PresalesConsultProposalSla | null,
 ): FunnelGateStripViewModel | null {
+  if (
+    activeStep === 'consult' &&
+    consultProposalSla &&
+    (consultProposalSla.sla_state === 'warning' || consultProposalSla.sla_state === 'breach')
+  ) {
+    return {
+      tone: consultProposalSla.sla_state === 'breach' ? 'block' : 'warn',
+      gateKind: 'sla',
+      title:
+        consultProposalSla.sla_state === 'breach'
+          ? 'SLA 48h Consult → Báo giá — Quá hạn'
+          : 'SLA 48h Consult → Báo giá — Sắp hết hạn',
+      messages: [consultProposalSla.message],
+      scrollAnchor: '#funnel-presales',
+    };
+  }
+
   if (activeStep === 'consult' && proposalGate) {
     const tone = proposalGate.ok && proposalGate.level === 'ok' ? 'ok' : 'block';
     return {
@@ -443,7 +462,12 @@ export function resolveFunnelStepper(input: FunnelStepperInput): FunnelStepperVi
     context: input.context,
     steps,
     activeStep,
-    gateStrip: resolveGateStrip(activeStep, input.consultGate, input.proposalGate),
+    gateStrip: resolveGateStrip(
+      activeStep,
+      input.consultGate,
+      input.proposalGate,
+      input.consultProposalSla,
+    ),
     primaryAction: resolvePrimaryAction({
       leadId: input.leadId,
       funnel,

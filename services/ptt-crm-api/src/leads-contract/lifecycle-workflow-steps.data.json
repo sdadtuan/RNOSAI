@@ -1069,5 +1069,93 @@
         ]
       }
     ]
+  },
+  "lead-gen": {
+    "onboard": [
+      {
+        "title": "Kickoff funnel & access",
+        "description": "Nhận access Ads/LP/CRM. Setup tracking lead end-to-end. Brief SP.",
+        "ai_prompt_key": "kickoff_brief",
+        "form_fields": [
+          {
+            "key": "start_date",
+            "label": "Ngày bắt đầu",
+            "type": "date"
+          },
+          {
+            "key": "funnel_map",
+            "label": "Sơ đồ funnel đã confirm",
+            "type": "textarea"
+          },
+          {
+            "key": "assigned_sp",
+            "label": "Performance Specialist phụ trách",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "deliver": [
+      {
+        "title": "Vận hành lead gen tháng",
+        "description": "Monitor campaign/LP/CRM, tối ưu CPL, báo cáo leads chất lượng hàng tháng.",
+        "ai_prompt_key": "progress_report",
+        "form_fields": [
+          {
+            "key": "report_period",
+            "label": "Tháng báo cáo",
+            "type": "text"
+          },
+          {
+            "key": "leads_count",
+            "label": "Số lead qualified",
+            "type": "number"
+          },
+          {
+            "key": "metrics",
+            "label": "CPL / CPA / spend tháng này",
+            "type": "textarea"
+          }
+        ]
+      }
+    ],
+    "handover": [
+      {
+        "title": "Báo cáo nghiệm thu lead gen",
+        "description": "Tổng kết: leads, CPL, chất lượng lead so với cam kết.",
+        "ai_prompt_key": "handover_report",
+        "form_fields": [
+          {
+            "key": "kpi_target",
+            "label": "KPI cam kết",
+            "type": "textarea"
+          },
+          {
+            "key": "kpi_actual",
+            "label": "KPI đạt được",
+            "type": "textarea"
+          }
+        ]
+      }
+    ],
+    "retain": [
+      {
+        "title": "Gia hạn & upsell lead gen",
+        "description": "Nhắc gia hạn. Gợi ý: mở rộng kênh, SEO, content, CRM automation.",
+        "ai_prompt_key": "upsell_suggest",
+        "form_fields": [
+          {
+            "key": "months_active",
+            "label": "Số tháng vận hành",
+            "type": "number"
+          },
+          {
+            "key": "kpi_summary",
+            "label": "Performance tổng hợp",
+            "type": "textarea"
+          }
+        ]
+      }
+    ]
   }
 }

@@ -143,25 +143,35 @@ Chi tiết từng dịch vụ: slide **Checklist Lead** trong [Checklist_Tiep_Nh
 
 ---
 
-## 10. Pre-sales trên Lead (`/crm/leads/[id]#funnel-presales`) — Phase 3
+## 10. Pre-sales trên Lead — tab **Tư vấn** (P2 E1)
 
-Luồng **presales-on-lead** (pilot Meta inbound, slug `lead-gen`) dùng cùng nguyên tắc Consult nhưng UI trên Lead detail:
+Luồng **presales-on-lead** (pilot Meta inbound, slug `lead-gen`). Tab **Tư vấn** hiện khi `presales` exists && stage ∈ `{consult, proposal}` (PO Q1). Link SOP cũ `#funnel-presales` mở tab Tư vấn.
 
 | Bước | Thao tác AM | UI |
 |------|-------------|-----|
-| 1 | Mở lead → tab Funnel presales, stage **Tư vấn** | Funnel stepper + task Consult 4 field |
-| 2 | Đọc **Brief panel** (BANT, intake, red flags) | Sidebar phải |
-| 3 | **Prefill** từ Lead/Intake | Nút trên Brief panel |
-| 4 | **AI Hỗ trợ** trên task Consult | Nút trên task card |
-| 5 | Điền **KH Marketing sơ bộ (R5)** | Form `#funnel-presales-r5` trong stage Consult |
-| 6 | Kiểm tra **gate strip G4** trên stepper | Task ✓ + R5 đủ → CTA **Chuyển → Báo giá** |
+| 1 | Mở lead → tab **Tư vấn** (desktop: Tổng quan \| Tư vấn) | `#funnel-presales` workspace |
+| 2 | Đọc **Brief panel** (BANT, intake, red flags) | Sidebar / collapsible mobile |
+| 3 | Sticky bar: **Prefill** · **AI Hỗ trợ** · **Tạo Proposal từ Consult** | Footer workspace |
+| 4 | L2 checklist + task Consult 4 field | Main workspace |
+| 5 | **R5 preview** (read-only) · chỉnh sửa đủ field trên tab **Tổng quan** `#funnel-presales-r5` | Gate G4 |
+| 6 | Stepper gate strip → **Chuyển → Báo giá** | CTA trên stepper |
 
-**Pilot lead #900000002:** Nếu task Consult còn 1 field generic (`consult_notes`), admin chạy:
+**Pilot lead #900000002:** Nếu task Consult còn 1 field generic (`consult_notes`), Ops chạy (off-hours):
 
 ```bash
+# Dry-run cohort → CSV
+./scripts/migrate_presales_workflow_batch.sh --dry-run --csv-out /tmp/presales-upgrade.csv
+# Pilot single lead
 ./scripts/migrate_presales_workflow_template.sh --lead-id 900000002 --apply
+# Batch ≤20 lead (apply — off-hours, sau gate + PTT_PRESALES_BATCH_UPGRADE=1)
+./scripts/migrate_presales_workflow_batch.sh --apply --limit 20 --confirm
+# S4 prod gate (staging/prod trước batch)
+./scripts/presales_p2_prod_gate.sh
+./scripts/presales_template_upgrade_gate.sh
 ./scripts/consult_phase3_pilot_uat.sh
 ```
+
+Runbook prod batch: [presales-p2-prod-batch-runbook.md](./presales-p2-prod-batch-runbook.md) · Training: [presales-p2-am-training.md](./presales-p2-am-training.md)
 
 Spec: [Consult Phase 3 presales on Lead](../specs/2026-07-26-consult-phase3-presales-lead-design.md)
 

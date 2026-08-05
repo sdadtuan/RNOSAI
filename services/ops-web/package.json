@@ -50,7 +50,8 @@
     "test:e2e:nl-query": "playwright test e2e/nl-query-rnos22.spec.ts",
     "test:e2e:intake-bant-phase1": "playwright test e2e/intake-bant-phase1.spec.ts",
     "test:e2e:intake-bant-phase2": "playwright test e2e/intake-bant-phase2.spec.ts",
-    "test:e2e:intake-bant-phase25": "playwright test e2e/intake-bant-phase25-stepper.spec.ts"
+    "test:e2e:intake-bant-phase25": "playwright test e2e/intake-bant-phase25-stepper.spec.ts",
+    "test:e2e:consult-workspace": "playwright test e2e/consult-workspace.spec.ts"
   },
   "engines": {
     "node": ">=22.0.0"

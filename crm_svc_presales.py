@@ -4,8 +4,11 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import calendar
 from datetime import datetime, timedelta
 from typing import Any
+
+from crm_presales_funnel_metrics import get_presales_funnel_metrics
 
 from crm_svc_finance import (
     COST_PHASE_PRESALES,
@@ -48,6 +51,10 @@ AM_LEAD_METRIC_KEYS: tuple[str, ...] = (
     "lead_task_done",
     "lead_avg_phone_minutes",
     "presales_cost_vnd",
+    "go_to_consult_median_hours",
+    "consult_to_proposal_7d_pct",
+    "consult_form_completion_pct",
+    "consult_task_done_rate",
 )
 
 AM_LEAD_METRIC_LABELS: dict[str, str] = {
@@ -58,6 +65,10 @@ AM_LEAD_METRIC_LABELS: dict[str, str] = {
     "lead_task_done": "Task Lead ✓",
     "lead_avg_phone_minutes": "TB phút gọi Intake",
     "presales_cost_vnd": "Chi phí pre-sales",
+    "go_to_consult_median_hours": "Go → Consult median (h)",
+    "consult_to_proposal_7d_pct": "Consult → BG ≤7d (%)",
+    "consult_form_completion_pct": "Form Consult hoàn thành (%)",
+    "consult_task_done_rate": "Task Consult ✓ (%)",
 }
 
 
@@ -470,6 +481,59 @@ def get_am_lead_metrics(
         phone_num / phone_denom * 100, 1
     ) if phone_denom > 0 else 0.0
 
+    consult_to_proposal_48h_num = 0
+    consult_to_proposal_48h_denom = 0
+    if presales_on_lead:
+        cp_row = conn.execute(
+            """
+            SELECT
+              COUNT(*) AS denom,
+              SUM(
+                CASE
+                  WHEN (
+                    (julianday(replace(ps.proposal_entered_at, 'T', ' '))
+                     - julianday(replace(ps.consult_entered_at, 'T', ' '))) * 24
+                  ) <= 48
+                  THEN 1 ELSE 0
+                END
+              ) AS within48
+            FROM crm_lead_presales ps
+            INNER JOIN crm_leads l ON l.id = ps.lead_id
+            WHERE COALESCE(ps.assigned_am, l.owner_id) = ?
+              AND ps.proposal_entered_at LIKE ?
+              AND ps.consult_entered_at != ''
+              AND ps.proposal_entered_at != ''
+            """,
+            (sid, month_pattern),
+        ).fetchone()
+        consult_to_proposal_48h_denom = int(cp_row[0] if cp_row and cp_row[0] else 0)
+        consult_to_proposal_48h_num = int(cp_row[1] if cp_row and cp_row[1] else 0)
+    consult_to_proposal_48h_pct = round(
+        consult_to_proposal_48h_num / consult_to_proposal_48h_denom * 100, 1
+    ) if consult_to_proposal_48h_denom > 0 else 0.0
+
+    go_to_consult_median_hours: float | None = None
+    consult_to_proposal_7d_pct = 0.0
+    consult_to_proposal_7d_num = 0
+    consult_to_proposal_7d_denom = 0
+    consult_form_completion_pct = 0.0
+    consult_task_done_rate = 0.0
+    if presales_on_lead:
+        last_day = calendar.monthrange(int(year), int(month))[1]
+        funnel = get_presales_funnel_metrics(
+            conn,
+            period_start=f"{int(year):04d}-{int(month):02d}-01",
+            period_end=f"{int(year):04d}-{int(month):02d}-{last_day:02d}",
+            am_id=sid,
+        )
+        fm = funnel.get("metrics") or {}
+        go_to_consult_median_hours = fm.get("go_to_consult_median_hours")
+        consult_to_proposal_7d_pct = float(fm.get("consult_to_proposal_7d_pct") or 0)
+        consult_to_proposal_7d_num = int(fm.get("consult_to_proposal_7d_num") or 0)
+        consult_to_proposal_7d_denom = int(fm.get("consult_to_proposal_7d_denom") or 0)
+        consult_form_completion_pct = float(fm.get("consult_form_completion_pct") or 0)
+        consult_task_done_rate = float(fm.get("consult_task_done_rate") or 0)
+
     return {
         "lead_intake_completed": lead_intake_completed,
         "lead_phone_within_48h_pct": lead_phone_within_48h_pct,
@@ -482,6 +546,15 @@ def get_am_lead_metrics(
         "lead_task_done": lead_task_done,
         "lead_avg_phone_minutes": lead_avg_phone_minutes,
         "presales_cost_vnd": presales_cost_vnd,
+        "consult_to_proposal_48h_pct": consult_to_proposal_48h_pct,
+        "consult_to_proposal_48h_num": consult_to_proposal_48h_num,
+        "consult_to_proposal_48h_denom": consult_to_proposal_48h_denom,
+        "go_to_consult_median_hours": go_to_consult_median_hours,
+        "consult_to_proposal_7d_pct": consult_to_proposal_7d_pct,
+        "consult_to_proposal_7d_num": consult_to_proposal_7d_num,
+        "consult_to_proposal_7d_denom": consult_to_proposal_7d_denom,
+        "consult_form_completion_pct": consult_form_completion_pct,
+        "consult_task_done_rate": consult_task_done_rate,
     }
 
 
@@ -687,6 +760,7 @@ def _build_funnel_result(
     service_slug: str | None,
     counts: dict[str, int],
     proposal_within_7d: int,
+    proposal_within_48h: int = 0,
     in_person_before_consult: int,
     presales_cost_total_vnd: int,
 ) -> dict[str, Any]:
@@ -709,6 +783,8 @@ def _build_funnel_result(
         "go_to_consult_pct": _pct(funnel_consult, funnel_go),
         "consult_to_proposal_7d_pct": _pct(proposal_within_7d, funnel_consult),
         "consult_to_proposal_7d_num": proposal_within_7d,
+        "consult_to_proposal_48h_pct": _pct(proposal_within_48h, funnel_consult),
+        "consult_to_proposal_48h_num": proposal_within_48h,
         "proposal_to_won_pct": _pct(funnel_won, funnel_proposal),
         "in_person_before_consult_pct": _pct(in_person_before_consult, funnel_go),
         "in_person_before_consult_num": in_person_before_consult,
@@ -925,6 +1001,21 @@ def _get_presales_funnel_stats(
         if _is_presales_funnel_won(conn, ps):
             counts["funnel_won"] += 1
 
+    # Presales path: consult→proposal ≤48h từ consult_entered_at / proposal_entered_at.
+    from crm_lead_presales_sla import is_consult_to_proposal_within_48h
+
+    proposal_within_48h = 0
+    for ps in cohort:
+        stg_idx = presales_stage_index(str(ps.get("stage") or "lead"))
+        if stg_idx < presales_stage_index("proposal"):
+            continue
+        consult_at = str(ps.get("consult_entered_at") or "").strip()
+        proposal_at = str(ps.get("proposal_entered_at") or "").strip()
+        if not consult_at or not proposal_at:
+            continue
+        if is_consult_to_proposal_within_48h(consult_at, proposal_at):
+            proposal_within_48h += 1
+
     # Presales path chưa có event log consult→proposal — v1 không tính ≤7d.
     proposal_within_7d = 0
 
@@ -949,6 +1040,7 @@ def _get_presales_funnel_stats(
         service_slug=slug,
         counts=counts,
         proposal_within_7d=proposal_within_7d,
+        proposal_within_48h=proposal_within_48h,
         in_person_before_consult=in_person_before_consult,
         presales_cost_total_vnd=presales_cost_total_vnd,
     )

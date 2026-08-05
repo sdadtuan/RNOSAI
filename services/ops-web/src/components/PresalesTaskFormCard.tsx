@@ -4,11 +4,12 @@ import { useMemo } from 'react';
 import {
   mergePresalesFormData,
   parsePresalesFormFields,
-  validatePresalesTaskForm,
+  validatePresalesConsultTaskDoneClient,
 } from '@/lib/crm/presales-task-form';
 
 export interface PresalesTaskFormItem {
   id: number;
+  stage?: string;
   title: string;
   description?: string;
   is_done: boolean;
@@ -20,6 +21,7 @@ export interface PresalesTaskFormItem {
 
 interface Props {
   task: PresalesTaskFormItem;
+  stage?: string;
   draft: Record<string, unknown>;
   disabled: boolean;
   onDraftChange: (taskId: number, key: string, value: string) => void;
@@ -33,6 +35,7 @@ interface Props {
 
 export function PresalesTaskFormCard({
   task,
+  stage,
   draft,
   disabled,
   onDraftChange,
@@ -57,7 +60,13 @@ export function PresalesTaskFormCard({
 
   function handleToggle(nextDone: boolean) {
     if (nextDone) {
-      const err = validatePresalesTaskForm(task.form_fields, mergedFormData);
+      const err = validatePresalesConsultTaskDoneClient({
+        stage: stage ?? task.stage,
+        aiPromptKey: task.ai_prompt_key,
+        aiOutput: task.ai_output,
+        formFields: task.form_fields,
+        formData: mergedFormData,
+      });
       if (err) {
         onValidationError?.(err);
         return;

@@ -80,6 +80,7 @@ export class AppConfigService {
   readonly crmSvcFinancePg: boolean;
   readonly crmSopPg: boolean;
   readonly presalesOnLead: boolean;
+  readonly presalesBatchUpgradeEnabled: boolean;
   readonly crmServiceDeliveryNest: boolean;
   readonly sopAutoStartOnLaunch: boolean;
   readonly sopOverdueEscalate: boolean;
@@ -227,6 +228,9 @@ export class AppConfigService {
     );
     this.presalesOnLead = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_PRESALES_ON_LEAD ?? '1').trim().toLowerCase(),
+    );
+    this.presalesBatchUpgradeEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_PRESALES_BATCH_UPGRADE ?? '0').trim().toLowerCase(),
     );
     this.crmServiceDeliveryNest = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CRM_SERVICE_DELIVERY_NEST ?? '0').trim().toLowerCase(),

@@ -81,9 +81,13 @@ export function ProposalsContent() {
       try {
         const data = await fetchCustomers(access, { limit: 200 });
         setCustomers(data);
-        const prefill = searchParams.get('customer_id') ?? '';
-        if (prefill) setCustomerId(prefill);
+        const prefillCustomer = searchParams.get('customer_id') ?? '';
+        const prefillSlugs = searchParams.get('service_slugs') ?? '';
+        const prefillNotes = searchParams.get('notes') ?? '';
+        if (prefillCustomer) setCustomerId(prefillCustomer);
         else if (data[0]) setCustomerId(String(data[0].id));
+        if (prefillSlugs) setServiceSlugs(prefillSlugs);
+        if (prefillNotes) setNotes(prefillNotes);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải khách hàng thất bại');
       } finally {

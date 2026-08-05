@@ -75,6 +75,25 @@ else:
 PY
 fi
 
+code=$(curl -s -o /tmp/cp3-metrics.json -w '%{http_code}' "${hdr[@]}" \
+  "${API_BASE}/api/v1/leads/presales/funnel-metrics")
+check "funnel-metrics" "$code" "200"
+
+if command -v python3 >/dev/null 2>&1 && [[ -f /tmp/cp3-metrics.json ]]; then
+  python3 - <<'PY'
+import json
+m = json.load(open("/tmp/cp3-metrics.json"))
+metrics = m.get("metrics") or {}
+labels = m.get("labels") or {}
+print(f"  metrics median_h={metrics.get('go_to_consult_median_hours')} 7d_pct={metrics.get('consult_to_proposal_7d_pct')} 48h_pct={metrics.get('consult_to_proposal_48h_pct')}")
+if labels.get("consult_to_proposal_7d") and labels.get("consult_to_proposal_48h"):
+    print("OK  metrics labels 7d + 48h present")
+else:
+    print("FAIL metrics labels missing")
+    raise SystemExit(1)
+PY
+fi
+
 echo ""
 echo "Result: ${pass} passed, ${fail} failed"
 [[ "$fail" -eq 0 ]]

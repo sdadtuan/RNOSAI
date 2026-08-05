@@ -31,6 +31,20 @@ import {
   ReleaseReviewQueueBody,
 } from './leads-funnel.types';
 import {
+  buildPresalesL2DocsView,
+  mergePresalesL2DocsPatch,
+  parsePresalesL2DocsJson,
+} from './presales-l2-docs.util';
+import {
+  buildPresalesConsultProposalSla,
+  isConsultToProposalWithin48h,
+  type PresalesConsultSlaSummary,
+} from './presales-consult-sla.util';
+import {
+  loadPresalesFunnelMetricsSqlite,
+} from './presales-funnel-metrics-load.sqlite.util';
+import type { PresalesFunnelMetricsQuery } from './presales-funnel-metrics-load.pg.util';
+import {
   defaultStrategyJson,
   planContentFromRow,
   validatePreliminaryPlan,
@@ -41,6 +55,12 @@ import {
   mergeLegacyPresalesFormData,
   normalizeUpgradeStages,
 } from './presales-workflow-upgrade.util';
+import {
+  capBatchLeadIds,
+  PRESALES_BATCH_UPGRADE_MAX,
+  PRESALES_UPGRADE_CONSULT_FIELD_MIN,
+  type PresalesWorkflowUpgradeCohortRow,
+} from './presales-workflow-batch.util';
 import {
   pickLatestCompletedIntake,
   prefillPresalesConsultTaskForm,
@@ -85,6 +105,33 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
     return catalogTs();
   }
 
+  private parsePresalesRowFromDb(raw: Record<string, unknown>): PresalesRow {
+    let l2Raw: unknown = raw.l2_docs_json ?? '{}';
+    if (typeof l2Raw === 'string') {
+      try {
+        l2Raw = JSON.parse(l2Raw || '{}');
+      } catch {
+        l2Raw = {};
+      }
+    }
+    return {
+      id: Number(raw.id),
+      lead_id: Number(raw.lead_id),
+      service_slug: String(raw.service_slug ?? ''),
+      stage: String(raw.stage ?? 'lead') as PresalesRow['stage'],
+      status: String(raw.status ?? 'active'),
+      assigned_am: raw.assigned_am != null ? Number(raw.assigned_am) : null,
+      lifecycle_id: raw.lifecycle_id != null ? Number(raw.lifecycle_id) : null,
+      stage_entered_at: String(raw.stage_entered_at ?? ''),
+      consult_entered_at: String(raw.consult_entered_at ?? ''),
+      proposal_entered_at: String(raw.proposal_entered_at ?? ''),
+      notes: String(raw.notes ?? ''),
+      draft_marketing_plan_id:
+        raw.draft_marketing_plan_id != null ? Number(raw.draft_marketing_plan_id) : null,
+      l2_docs_json: parsePresalesL2DocsJson(l2Raw),
+    };
+  }
+
   ensureSchema(): void {
     const cols = this.database.prepare('PRAGMA table_info(crm_leads)').all() as Array<{ name: string }>;
     const colSet = new Set(cols.map((c) => c.name));
@@ -96,6 +143,26 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
     if (!colSet.has('care_stages_done_json')) {
       this.database.exec(
         "ALTER TABLE crm_leads ADD COLUMN care_stages_done_json TEXT NOT NULL DEFAULT '{}'",
+      );
+    }
+    const psColSet = new Set(
+      (
+        this.database.prepare('PRAGMA table_info(crm_lead_presales)').all() as Array<{ name: string }>
+      ).map((r) => r.name),
+    );
+    if (!psColSet.has('l2_docs_json')) {
+      this.database.exec(
+        "ALTER TABLE crm_lead_presales ADD COLUMN l2_docs_json TEXT NOT NULL DEFAULT '{}'",
+      );
+    }
+    if (!psColSet.has('consult_entered_at')) {
+      this.database.exec(
+        "ALTER TABLE crm_lead_presales ADD COLUMN consult_entered_at TEXT NOT NULL DEFAULT ''",
+      );
+    }
+    if (!psColSet.has('proposal_entered_at')) {
+      this.database.exec(
+        "ALTER TABLE crm_lead_presales ADD COLUMN proposal_entered_at TEXT NOT NULL DEFAULT ''",
       );
     }
     this.database.exec(`
@@ -111,7 +178,10 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
         notes TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL DEFAULT '',
         updated_at TEXT NOT NULL DEFAULT '',
-        draft_marketing_plan_id INTEGER
+        draft_marketing_plan_id INTEGER,
+        l2_docs_json TEXT NOT NULL DEFAULT '{}',
+        consult_entered_at TEXT NOT NULL DEFAULT '',
+        proposal_entered_at TEXT NOT NULL DEFAULT ''
       )
     `);
     this.database.exec(`
@@ -616,10 +686,11 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
     assertPresalesCareGate(row.care_stage_current, row.care_stages_done_json);
     const slug = String(serviceSlug || '').trim();
     if (!slug) throw new Error('Cần service_slug để tạo pre-sales');
-    const existing = this.database
+    const existingRaw = this.database
       .prepare('SELECT * FROM crm_lead_presales WHERE lead_id = ?')
-      .get(leadId) as unknown as PresalesRow | undefined;
-    if (existing) {
+      .get(leadId) as Record<string, unknown> | undefined;
+    if (existingRaw) {
+      const existing = this.parsePresalesRowFromDb(existingRaw);
       if (existing.status === 'converted') return existing;
       this.seedPresalesTasks(existing.id, slug);
       return existing;
@@ -635,10 +706,10 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
       .run(leadId, slug, ownerId, ts, `Pre-sales tạo bởi ${actor}`.slice(0, 4000), ts, ts);
     const presalesId = Number(result.lastInsertRowid);
     this.seedPresalesTasks(presalesId, slug);
-    const ps = this.database
+    const psRaw = this.database
       .prepare('SELECT * FROM crm_lead_presales WHERE id = ?')
-      .get(presalesId) as unknown as PresalesRow;
-    return ps;
+      .get(presalesId) as Record<string, unknown>;
+    return this.parsePresalesRowFromDb(psRaw);
   }
 
   private seedPresalesTasks(presalesId: number, serviceSlug: string): void {
@@ -675,10 +746,11 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
   }
 
   getPresalesSnapshot(leadId: number): PresalesSnapshot | null {
-    const ps = this.database
+    const rawPs = this.database
       .prepare('SELECT * FROM crm_lead_presales WHERE lead_id = ?')
-      .get(leadId) as unknown as PresalesRow | undefined;
-    if (!ps) return null;
+      .get(leadId) as Record<string, unknown> | undefined;
+    if (!rawPs) return null;
+    const ps = this.parsePresalesRowFromDb(rawPs);
     const taskRows = this.database
       .prepare(
         'SELECT * FROM crm_lead_presales_tasks WHERE presales_id = ? ORDER BY stage, step_index, id',
@@ -744,6 +816,12 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
     }
     return {
       presales: ps,
+      l2_docs: buildPresalesL2DocsView(ps.service_slug, ps.l2_docs_json),
+      consult_proposal_sla: buildPresalesConsultProposalSla({
+        presalesStage: ps.stage,
+        consultEnteredAt: ps.consult_entered_at,
+        stageEnteredAt: ps.stage_entered_at,
+      }),
       tasks,
       progress,
       advance: {
@@ -757,6 +835,14 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
         status: ps.status,
       },
     };
+  }
+
+  getLeadConvertedCustomerId(leadId: number): number | null {
+    const row = this.database
+      .prepare('SELECT converted_customer_id FROM crm_leads WHERE id = ? LIMIT 1')
+      .get(leadId) as { converted_customer_id: number | null } | undefined;
+    const id = Number(row?.converted_customer_id ?? 0);
+    return Number.isFinite(id) && id > 0 ? id : null;
   }
 
   getPresalesTaskById(taskId: number): PresalesTaskRow | null {
@@ -838,6 +924,66 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
       fields: out.filled,
       skipped_existing: out.skipped_existing,
     };
+  }
+
+  listPresalesWorkflowUpgradeCohort(opts?: {
+    leadIds?: number[];
+    limit?: number;
+  }): PresalesWorkflowUpgradeCohortRow[] {
+    const rowLimit = opts?.leadIds?.length
+      ? capBatchLeadIds(opts.leadIds, opts.limit).length
+      : Math.min(PRESALES_BATCH_UPGRADE_MAX, opts?.limit ?? PRESALES_BATCH_UPGRADE_MAX);
+    const params: Array<number | string> = [PRESALES_UPGRADE_CONSULT_FIELD_MIN];
+    let leadFilter = '';
+    if (opts?.leadIds?.length) {
+      const ids = capBatchLeadIds(opts.leadIds, opts.limit);
+      leadFilter = ` AND ps.lead_id IN (${ids.map(() => '?').join(', ')})`;
+      params.push(...ids);
+    }
+    params.push(rowLimit);
+
+    const rows = this.database
+      .prepare(
+        `SELECT ps.lead_id, ps.id AS presales_id, ps.service_slug, ps.stage,
+                (
+                  SELECT t.form_fields FROM crm_lead_presales_tasks t
+                  WHERE t.presales_id = ps.id AND t.stage = 'consult' AND t.is_custom = 0
+                  ORDER BY t.step_index, t.id LIMIT 1
+                ) AS consult_form_fields
+         FROM crm_lead_presales ps
+         WHERE ps.status = 'active'
+           AND ps.stage IN ('lead', 'consult', 'proposal')
+           AND EXISTS (
+             SELECT 1 FROM crm_lead_presales_tasks t
+             WHERE t.presales_id = ps.id
+               AND t.stage = 'consult'
+               AND t.is_custom = 0
+               AND (
+                 SELECT COUNT(*) FROM json_each(COALESCE(t.form_fields, '[]'))
+               ) < ?
+           )
+           ${leadFilter}
+         ORDER BY ps.updated_at DESC
+         LIMIT ?`,
+      )
+      .all(...params) as Array<Record<string, unknown>>;
+
+    return rows.map((row) => {
+      let consultFieldKeys: string[] = [];
+      try {
+        const parsed = JSON.parse(String(row.consult_form_fields ?? '[]')) as Array<{ key?: string }>;
+        consultFieldKeys = parsed.map((f) => String(f.key ?? '')).filter(Boolean).sort();
+      } catch {
+        consultFieldKeys = [];
+      }
+      return {
+        lead_id: Number(row.lead_id),
+        presales_id: Number(row.presales_id),
+        service_slug: String(row.service_slug ?? ''),
+        stage: String(row.stage ?? ''),
+        consult_field_keys: consultFieldKeys,
+      };
+    });
   }
 
   upgradePresalesWorkflowTemplate(
@@ -938,6 +1084,91 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
     };
   }
 
+  getPresalesFunnelMetrics(query: PresalesFunnelMetricsQuery) {
+    return loadPresalesFunnelMetricsSqlite(this.database, query);
+  }
+
+  getPresalesConsultSlaSummary(amId?: number | null): PresalesConsultSlaSummary {
+    const params: number[] = [];
+    let amFilter = '';
+    if (amId != null && Number.isFinite(amId) && amId > 0) {
+      amFilter = ' AND COALESCE(ps.assigned_am, l.owner_id) = ?';
+      params.push(amId);
+    }
+    const activeRows = this.database
+      .prepare(
+        `SELECT ps.stage, ps.consult_entered_at, ps.stage_entered_at
+         FROM crm_lead_presales ps
+         INNER JOIN crm_leads l ON l.id = ps.lead_id
+         WHERE ps.status = 'active' AND ps.stage = 'consult'${amFilter}`,
+      )
+      .all(...params) as Array<Record<string, unknown>>;
+
+    let slaOk = 0;
+    let slaWarning = 0;
+    let slaBreach = 0;
+    for (const row of activeRows) {
+      const sla = buildPresalesConsultProposalSla({
+        presalesStage: 'consult',
+        consultEnteredAt: String(row.consult_entered_at ?? ''),
+        stageEnteredAt: String(row.stage_entered_at ?? ''),
+      });
+      if (sla.sla_state === 'breach') slaBreach += 1;
+      else if (sla.sla_state === 'warning') slaWarning += 1;
+      else if (sla.sla_state === 'ok') slaOk += 1;
+    }
+
+    const completedParams = [...params];
+    const completedRows = this.database
+      .prepare(
+        `SELECT ps.consult_entered_at, ps.proposal_entered_at
+         FROM crm_lead_presales ps
+         INNER JOIN crm_leads l ON l.id = ps.lead_id
+         WHERE ps.consult_entered_at != '' AND ps.proposal_entered_at != ''${amFilter}`,
+      )
+      .all(...completedParams) as Array<Record<string, unknown>>;
+
+    let within48 = 0;
+    for (const row of completedRows) {
+      if (
+        isConsultToProposalWithin48h(
+          String(row.consult_entered_at ?? ''),
+          String(row.proposal_entered_at ?? ''),
+        )
+      ) {
+        within48 += 1;
+      }
+    }
+    const denom = completedRows.length;
+    return {
+      active_consult: activeRows.length,
+      sla_ok: slaOk,
+      sla_warning: slaWarning,
+      sla_breach: slaBreach,
+      consult_to_proposal_48h_pct: denom > 0 ? Math.round((within48 / denom) * 1000) / 10 : 0,
+      consult_to_proposal_48h_num: within48,
+      consult_to_proposal_48h_denom: denom,
+    };
+  }
+
+  updatePresalesL2Docs(leadId: number, patch: Record<string, boolean>): PresalesRow {
+    const snap = this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    const merged = mergePresalesL2DocsPatch(
+      snap.presales.service_slug,
+      snap.presales.l2_docs_json,
+      patch,
+    );
+    const ts = this.ts();
+    this.database
+      .prepare('UPDATE crm_lead_presales SET l2_docs_json = ?, updated_at = ? WHERE id = ?')
+      .run(JSON.stringify(merged), ts, snap.presales.id);
+    const updated = this.database
+      .prepare('SELECT * FROM crm_lead_presales WHERE id = ?')
+      .get(snap.presales.id) as Record<string, unknown>;
+    return this.parsePresalesRowFromDb(updated);
+  }
+
   updatePresalesTask(taskId: number, body: PatchPresalesTaskBody, doneBy: number | null): void {
     const ts = this.ts();
     const sets = ['updated_at = ?'];
@@ -994,17 +1225,42 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
       throw new Error(snap.advance.block_reason || 'Không thể chuyển giai đoạn');
     }
     const ts = this.ts();
+    const nextStage = snap.advance.next_stage!;
+    const extraSets: string[] = [];
+    const extraParams: Array<string | number> = [];
+    if (nextStage === 'consult') {
+      extraSets.push('consult_entered_at = CASE WHEN consult_entered_at = \'\' OR consult_entered_at IS NULL THEN ? ELSE consult_entered_at END');
+      extraParams.push(ts);
+    }
+    if (nextStage === 'proposal') {
+      extraSets.push('proposal_entered_at = ?');
+      extraParams.push(ts);
+      if (!snap.presales.consult_entered_at) {
+        extraSets.push('consult_entered_at = ?');
+        extraParams.push(snap.presales.stage_entered_at || ts);
+      }
+    }
+    const setSql = extraSets.length
+      ? `, ${extraSets.join(', ')}`
+      : '';
     this.database
       .prepare(
-        `UPDATE crm_lead_presales SET stage = ?, stage_entered_at = ?, updated_at = ? WHERE id = ?`,
+        `UPDATE crm_lead_presales SET stage = ?, stage_entered_at = ?, updated_at = ?${setSql} WHERE id = ?`,
       )
-      .run(snap.advance.next_stage, ts, ts, snap.presales.id);
+      .run(
+        nextStage,
+        ts,
+        ts,
+        ...extraParams,
+        snap.presales.id,
+      );
     if (snap.advance.next_stage === 'consult' && snap.advance.current_stage === 'lead') {
       this.applyPresalesConsultPrefill(leadId, snap);
     }
-    return this.database
+    const updatedRaw = this.database
       .prepare('SELECT * FROM crm_lead_presales WHERE id = ?')
-      .get(snap.presales.id) as unknown as PresalesRow;
+      .get(snap.presales.id) as Record<string, unknown>;
+    return this.parsePresalesRowFromDb(updatedRaw);
   }
 
   getPreliminaryPlan(presalesId: number): Record<string, unknown> | null {

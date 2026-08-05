@@ -1,7 +1,6 @@
 'use client';
 
 import { PresalesTaskFormCard } from '@/components/PresalesTaskFormCard';
-import { PresalesConsultBriefPanel } from '@/components/PresalesConsultBriefPanel';
 import { PresalesR5PlanForm } from '@/components/PresalesR5PlanForm';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -34,6 +33,8 @@ interface Props {
   serviceSlug?: string;
   serviceOptions?: Array<{ slug: string; name: string }>;
   syncFunnel?: LeadFunnelSnapshot | null;
+  fetchOnMount?: boolean;
+  onOpenConsultTab?: () => void;
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
   onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
@@ -71,6 +72,8 @@ export function LeadFunnelPanel({
   serviceSlug,
   serviceOptions,
   syncFunnel,
+  fetchOnMount = true,
+  onOpenConsultTab,
   onMessage,
   onError,
   onFunnelChange,
@@ -152,8 +155,13 @@ export function LeadFunnelPanel({
   }, [token, leadId, onError, onFunnelChange]);
 
   useEffect(() => {
+    if (!fetchOnMount && syncFunnel) {
+      setFunnel(syncFunnel);
+      setLoading(false);
+      return;
+    }
     void reload();
-  }, [reload]);
+  }, [fetchOnMount, reload, syncFunnel]);
 
   useEffect(() => {
     if (syncFunnel) {
@@ -207,7 +215,8 @@ export function LeadFunnelPanel({
   }`;
 
   const presalesStage = funnel?.presales?.presales.stage;
-  const showConsultLayout = presalesStage === 'consult';
+  const useConsultWorkspaceTab =
+    presalesStage === 'consult' || presalesStage === 'proposal';
 
   async function saveMarketingPlan() {
     const out = await patchLeadPresalesMarketingPlan(token, leadId, {
@@ -224,9 +233,10 @@ export function LeadFunnelPanel({
 
   function renderPresalesTasks() {
     if (!funnel?.presales) return null;
-    return (funnel.presales.tasks[funnel.presales.presales.stage] ?? []).map((task) => (
+    return (funnel.presales?.tasks[funnel.presales.presales.stage] ?? []).map((task) => (
       <PresalesTaskFormCard
         key={task.id}
+        stage={funnel.presales!.presales.stage}
         task={task}
         draft={taskDrafts[task.id] ?? {}}
         disabled={busy || !canEdit}
@@ -612,54 +622,28 @@ export function LeadFunnelPanel({
                 Giai đoạn: <strong>{funnel.presales.presales.stage}</strong> · Dịch vụ:{' '}
                 {funnel.presales.presales.service_slug || '—'}
               </p>
-              {showConsultLayout ? (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'minmax(0, 1fr) min(22rem, 36%)',
-                    gap: '1rem',
-                    alignItems: 'start',
-                  }}
-                >
-                  <div>
-                    {renderPresalesTasks()}
-                    <p style={{ margin: '0.5rem 0' }}>
-                      <Link href={intakeHref} className="nav-link">
-                        Mở Lead Intake (BANT) →
-                      </Link>
-                    </p>
-                    {r5Form}
-                  </div>
-                  {user ? (
-                    <PresalesConsultBriefPanel
-                      token={token}
-                      user={user}
-                      leadId={leadId}
-                      onPrefilled={() => void reload()}
-                    />
+              {useConsultWorkspaceTab ? (
+                <div className="banner banner-info stack-gap" style={{ marginTop: '0.5rem' }}>
+                  <p style={{ margin: 0 }}>
+                    Workspace <strong>Tư vấn / Báo giá</strong> nằm trên tab{' '}
+                    <strong>Tư vấn</strong>. Chỉnh sửa R5 (gate G4) tại form bên dưới.
+                  </p>
+                  {onOpenConsultTab ? (
+                    <button type="button" className="btn btn-sm btn-primary" onClick={onOpenConsultTab}>
+                      Mở tab Tư vấn →
+                    </button>
                   ) : null}
+                  {(presalesStage === 'consult' || presalesStage === 'proposal') && r5Form}
                 </div>
               ) : (
                 <>
                   {renderPresalesTasks()}
-                  {(funnel.presales.presales.stage === 'lead') && (
+                  {funnel.presales.presales.stage === 'lead' && (
                     <p style={{ margin: '0.5rem 0' }}>
                       <Link href={intakeHref} className="nav-link">
                         Mở Lead Intake (BANT) →
                       </Link>
                     </p>
-                  )}
-                  {funnel.presales.presales.stage === 'proposal' && (
-                    <div className="stack-gap" style={{ marginTop: '1rem' }}>
-                      <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                        Tạo HĐ tại{' '}
-                        <a href="#lead-contract" className="nav-link">
-                          panel Hợp đồng bên dưới
-                        </a>
-                        .
-                      </p>
-                      {r5Form}
-                    </div>
                   )}
                 </>
               )}

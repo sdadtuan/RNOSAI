@@ -3322,6 +3322,107 @@ body:has(.ops-sidebar) main {
   z-index: 46;
 }
 
+.lead-b2b-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.75rem 0 0;
+}
+
+.lead-b2b-subtabs button {
+  border: 1px solid var(--border, #e5e7eb);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.lead-b2b-subtabs button.is-active {
+  background: var(--accent, #2563eb);
+  border-color: var(--accent, #2563eb);
+  color: #fff;
+}
+
+.lead-consult-workspace {
+  margin-top: 1rem;
+}
+
+.lead-consult-workspace__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) min(22rem, 36%);
+  gap: 1rem;
+  align-items: start;
+}
+
+.lead-consult-workspace__sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: 0.5rem;
+  padding: 0.75rem 0 0;
+  background: linear-gradient(transparent, #fff 24%);
+}
+
+.lead-consult-workspace__sticky-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
+}
+
+.lead-consult-workspace__sticky-hint {
+  font-size: 0.82rem;
+  margin-left: auto;
+}
+
+.presales-r5-preview__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.presales-r5-preview__field {
+  margin: 0;
+}
+
+.presales-r5-preview__label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted, #64748b);
+  margin-bottom: 0.15rem;
+}
+
+.presales-r5-preview__value {
+  margin: 0;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}
+
+.lead-consult-workspace__brief-collapsible summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .lead-consult-workspace__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lead-consult-workspace__sticky-hint {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+}
+
 .ai-copilot-panel__header {
   display: flex;
   align-items: center;

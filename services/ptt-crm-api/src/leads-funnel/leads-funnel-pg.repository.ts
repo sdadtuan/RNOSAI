@@ -47,12 +47,33 @@ import {
   mergeLegacyPresalesFormData,
   normalizeUpgradeStages,
 } from './presales-workflow-upgrade.util';
+import {
+  capBatchLeadIds,
+  PRESALES_BATCH_UPGRADE_MAX,
+  PRESALES_UPGRADE_CONSULT_FIELD_MIN,
+  type PresalesWorkflowUpgradeCohortRow,
+} from './presales-workflow-batch.util';
 import { repairPresalesLeadTasksFromLatestGoIntake } from '../intake/intake-presales-sync.util';
 import type { IntakeSessionRow } from '../intake/intake.types';
 import {
   pickLatestCompletedIntake,
   prefillPresalesConsultTaskForm,
 } from './presales-consult-prefill.util';
+import {
+  buildPresalesL2DocsView,
+  mergePresalesL2DocsPatch,
+  parsePresalesL2DocsJson,
+} from './presales-l2-docs.util';
+import {
+  buildPresalesConsultProposalSla,
+  isConsultToProposalWithin48h,
+  type PresalesConsultSlaSummary,
+} from './presales-consult-sla.util';
+import {
+  loadPresalesFunnelMetricsPg,
+  type PresalesFunnelMetricsPayload,
+  type PresalesFunnelMetricsQuery,
+} from './presales-funnel-metrics-load.pg.util';
 import {
   DEFAULT_B2_CONTACT_DEADLINE_HOURS,
   isLeadInReviewQueue,
@@ -72,6 +93,9 @@ type PgPresalesRow = {
   stage_entered_at: Date | string | null;
   notes: string;
   draft_marketing_plan_id: string | null;
+  l2_docs_json?: unknown;
+  consult_entered_at?: Date | string | null;
+  proposal_entered_at?: Date | string | null;
 };
 
 @Injectable()
@@ -122,9 +146,12 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       assigned_am: row.assigned_am != null ? Number(row.assigned_am) : null,
       lifecycle_id: row.lifecycle_id != null ? Number(row.lifecycle_id) : null,
       stage_entered_at: row.stage_entered_at ? String(row.stage_entered_at) : '',
+      consult_entered_at: row.consult_entered_at ? String(row.consult_entered_at) : '',
+      proposal_entered_at: row.proposal_entered_at ? String(row.proposal_entered_at) : '',
       notes: String(row.notes ?? ''),
       draft_marketing_plan_id:
         row.draft_marketing_plan_id != null ? Number(row.draft_marketing_plan_id) : null,
+      l2_docs_json: parsePresalesL2DocsJson(row.l2_docs_json ?? {}),
     };
   }
 
@@ -644,6 +671,12 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
 
     return {
       presales: ps,
+      l2_docs: buildPresalesL2DocsView(ps.service_slug, ps.l2_docs_json),
+      consult_proposal_sla: buildPresalesConsultProposalSla({
+        presalesStage: ps.stage,
+        consultEnteredAt: ps.consult_entered_at,
+        stageEnteredAt: ps.stage_entered_at,
+      }),
       tasks,
       progress,
       advance: {
@@ -759,6 +792,16 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     }
   }
 
+  async getLeadConvertedCustomerId(leadId: number): Promise<number | null> {
+    const result = await this.db.query(
+      `SELECT converted_customer_id FROM crm_leads WHERE id = $1 LIMIT 1`,
+      [leadId],
+    );
+    const raw = result.rows[0] as { converted_customer_id: number | null } | undefined;
+    const id = Number(raw?.converted_customer_id ?? 0);
+    return Number.isFinite(id) && id > 0 ? id : null;
+  }
+
   async getPresalesTaskById(taskId: number): Promise<PresalesTaskRow | null> {
     const result = await this.db.query(`SELECT * FROM crm_lead_presales_tasks WHERE id = $1 LIMIT 1`, [
       taskId,
@@ -830,6 +873,60 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       fields: out.filled,
       skipped_existing: out.skipped_existing,
     };
+  }
+
+  async listPresalesWorkflowUpgradeCohort(opts?: {
+    leadIds?: number[];
+    limit?: number;
+  }): Promise<PresalesWorkflowUpgradeCohortRow[]> {
+    const params: unknown[] = [PRESALES_UPGRADE_CONSULT_FIELD_MIN];
+    let leadFilter = '';
+    if (opts?.leadIds?.length) {
+      const ids = capBatchLeadIds(opts.leadIds, opts.limit);
+      params.push(ids);
+      leadFilter = ` AND ps.lead_id = ANY($${params.length}::bigint[])`;
+    }
+    const rowLimit = opts?.leadIds?.length
+      ? capBatchLeadIds(opts.leadIds, opts.limit).length
+      : Math.min(PRESALES_BATCH_UPGRADE_MAX, opts?.limit ?? PRESALES_BATCH_UPGRADE_MAX);
+    params.push(rowLimit);
+
+    const result = await this.db.query(
+      `SELECT ps.lead_id, ps.id AS presales_id, ps.service_slug, ps.stage,
+              COALESCE(
+                (
+                  SELECT jsonb_agg(f->>'key' ORDER BY f->>'key')
+                  FROM crm_lead_presales_tasks t,
+                       jsonb_array_elements(COALESCE(t.form_fields, '[]'::jsonb)) f
+                  WHERE t.presales_id = ps.id AND t.stage = 'consult' AND t.is_custom = FALSE
+                ),
+                '[]'::jsonb
+              ) AS consult_field_keys
+       FROM crm_lead_presales ps
+       WHERE ps.status = 'active'
+         AND ps.stage IN ('lead', 'consult', 'proposal')
+         AND EXISTS (
+           SELECT 1 FROM crm_lead_presales_tasks t
+           WHERE t.presales_id = ps.id
+             AND t.stage = 'consult'
+             AND t.is_custom = FALSE
+             AND jsonb_array_length(COALESCE(t.form_fields, '[]'::jsonb)) < $1
+         )
+         ${leadFilter}
+       ORDER BY ps.updated_at DESC
+       LIMIT $${params.length}`,
+      params,
+    );
+
+    return (result.rows as Array<Record<string, unknown>>).map((row) => ({
+      lead_id: Number(row.lead_id),
+      presales_id: Number(row.presales_id),
+      service_slug: String(row.service_slug ?? ''),
+      stage: String(row.stage ?? ''),
+      consult_field_keys: Array.isArray(row.consult_field_keys)
+        ? (row.consult_field_keys as string[])
+        : [],
+    }));
   }
 
   async upgradePresalesWorkflowTemplate(
@@ -926,6 +1023,93 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     };
   }
 
+  async getPresalesFunnelMetrics(
+    query: PresalesFunnelMetricsQuery,
+  ): Promise<PresalesFunnelMetricsPayload> {
+    return loadPresalesFunnelMetricsPg(this.db, query);
+  }
+
+  async getPresalesConsultSlaSummary(amId?: number | null): Promise<PresalesConsultSlaSummary> {
+    const params: unknown[] = [];
+    let amFilter = '';
+    if (amId != null && Number.isFinite(amId) && amId > 0) {
+      amFilter = ' AND COALESCE(ps.assigned_am, l.owner_id) = $1';
+      params.push(amId);
+    }
+
+    const activeResult = await this.db.query(
+      `SELECT ps.stage, ps.consult_entered_at, ps.stage_entered_at
+       FROM crm_lead_presales ps
+       INNER JOIN crm_leads l ON l.id = ps.lead_id
+       WHERE ps.status = 'active' AND ps.stage = 'consult'${amFilter}`,
+      params,
+    );
+
+    let slaOk = 0;
+    let slaWarning = 0;
+    let slaBreach = 0;
+    for (const row of activeResult.rows as Array<Record<string, unknown>>) {
+      const sla = buildPresalesConsultProposalSla({
+        presalesStage: 'consult',
+        consultEnteredAt: row.consult_entered_at ? String(row.consult_entered_at) : '',
+        stageEnteredAt: row.stage_entered_at ? String(row.stage_entered_at) : '',
+      });
+      if (sla.sla_state === 'breach') slaBreach += 1;
+      else if (sla.sla_state === 'warning') slaWarning += 1;
+      else if (sla.sla_state === 'ok') slaOk += 1;
+    }
+
+    const completedResult = await this.db.query(
+      `SELECT ps.consult_entered_at, ps.proposal_entered_at
+       FROM crm_lead_presales ps
+       INNER JOIN crm_leads l ON l.id = ps.lead_id
+       WHERE ps.consult_entered_at IS NOT NULL
+         AND ps.proposal_entered_at IS NOT NULL
+         AND ps.consult_entered_at::text != ''
+         AND ps.proposal_entered_at::text != ''${amFilter}`,
+      params,
+    );
+
+    let within48 = 0;
+    for (const row of completedResult.rows as Array<Record<string, unknown>>) {
+      if (
+        isConsultToProposalWithin48h(
+          row.consult_entered_at ? String(row.consult_entered_at) : '',
+          row.proposal_entered_at ? String(row.proposal_entered_at) : '',
+        )
+      ) {
+        within48 += 1;
+      }
+    }
+    const denom = completedResult.rows.length;
+    return {
+      active_consult: activeResult.rows.length,
+      sla_ok: slaOk,
+      sla_warning: slaWarning,
+      sla_breach: slaBreach,
+      consult_to_proposal_48h_pct: denom > 0 ? Math.round((within48 / denom) * 1000) / 10 : 0,
+      consult_to_proposal_48h_num: within48,
+      consult_to_proposal_48h_denom: denom,
+    };
+  }
+
+  async updatePresalesL2Docs(leadId: number, patch: Record<string, boolean>): Promise<PresalesRow> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    const merged = mergePresalesL2DocsPatch(
+      snap.presales.service_slug,
+      snap.presales.l2_docs_json,
+      patch,
+    );
+    await this.db.query(
+      `UPDATE crm_lead_presales SET l2_docs_json = $2::jsonb, updated_at = NOW() WHERE id = $1`,
+      [snap.presales.id, JSON.stringify(merged)],
+    );
+    const updated = await this.getPresalesRowByLeadId(leadId);
+    if (!updated) throw new Error('Không tìm thấy pre-sales');
+    return updated;
+  }
+
   async updatePresalesTask(taskId: number, body: PatchPresalesTaskBody, doneBy: number | null): Promise<void> {
     const sets: string[] = ['updated_at = NOW()'];
     const params: unknown[] = [];
@@ -980,15 +1164,35 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       throw new Error(snap.advance.block_reason || 'Không thể chuyển giai đoạn');
     }
 
+    const nextStage = snap.advance.next_stage;
     const updated = await this.db.query(
       `UPDATE crm_lead_presales
-       SET stage = $2, stage_entered_at = NOW(), updated_at = NOW()
+       SET stage = $2,
+           stage_entered_at = NOW(),
+           updated_at = NOW(),
+           consult_entered_at = CASE
+             WHEN $2 = 'consult' AND (consult_entered_at IS NULL OR consult_entered_at = '')
+             THEN NOW()
+             ELSE consult_entered_at
+           END,
+           proposal_entered_at = CASE
+             WHEN $2 = 'proposal' THEN NOW()
+             ELSE proposal_entered_at
+           END
        WHERE id = $1
        RETURNING *`,
-      [snap.presales.id, snap.advance.next_stage],
+      [snap.presales.id, nextStage],
     );
-    const row = this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
-    if (snap.advance.next_stage === 'consult' && snap.advance.current_stage === 'lead') {
+    let row = this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
+    if (nextStage === 'proposal' && !row.consult_entered_at && snap.presales.stage_entered_at) {
+      await this.db.query(
+        `UPDATE crm_lead_presales SET consult_entered_at = $2::timestamptz WHERE id = $1`,
+        [snap.presales.id, snap.presales.stage_entered_at],
+      );
+      const fixed = await this.getPresalesRowByLeadId(leadId);
+      if (fixed) row = fixed;
+    }
+    if (nextStage === 'consult' && snap.advance.current_stage === 'lead') {
       await this.applyPresalesConsultPrefill(leadId, snap.presales.id, snap.presales.service_slug);
     }
     return row;

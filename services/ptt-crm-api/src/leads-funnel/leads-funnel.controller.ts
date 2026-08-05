@@ -25,10 +25,13 @@ import {
   ConsultPrefillBody,
   EnsurePresalesBody,
   PatchMarketingPlanBody,
+  PatchPresalesL2DocsBody,
   PatchPresalesTaskBody,
   PresalesAiAssistBody,
+  PresalesConsultSlaReminderBody,
   ReleaseReviewQueueBody,
   UpgradePresalesWorkflowBody,
+  BatchUpgradePresalesWorkflowBody,
 } from './leads-funnel.types';
 import { LeadsFunnelEnabledGuard, PresalesOnLeadGuard } from './guards/leads-funnel-enabled.guard';
 import { StaffLeadsGdkdGuard } from './guards/staff-leads-gdkd.guard';
@@ -246,6 +249,68 @@ export class LeadsFunnelController {
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
   getPresalesProposalGate(@Param('id', ParseIntPipe) id: number) {
     return this.funnel.getPresalesProposalGate(id);
+  }
+
+  @Get(':id/presales/proposal-handoff')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  getPresalesProposalHandoff(@Param('id', ParseIntPipe) id: number) {
+    return this.funnel.getPresalesProposalHandoff(id);
+  }
+
+  @Get('presales/consult-sla/summary')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  getPresalesConsultSlaSummary(@Query('am_id') amId?: string) {
+    const parsed = amId != null && amId !== '' ? Number(amId) : null;
+    return this.funnel.getPresalesConsultSlaSummary(
+      parsed != null && Number.isFinite(parsed) ? parsed : null,
+    );
+  }
+
+  @Get('presales/funnel-metrics')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  getPresalesFunnelMetrics(
+    @Query('period_start') periodStart?: string,
+    @Query('period_end') periodEnd?: string,
+    @Query('am_id') amId?: string,
+  ) {
+    const parsedAm = amId != null && amId !== '' ? Number(amId) : null;
+    return this.funnel.getPresalesFunnelMetrics({
+      periodStart: periodStart?.trim() || null,
+      periodEnd: periodEnd?.trim() || null,
+      amId: parsedAm != null && Number.isFinite(parsedAm) ? parsedAm : null,
+    });
+  }
+
+  @Post('presales/batch-upgrade-workflow')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(InternalKeyGuard)
+  batchUpgradePresalesWorkflow(@Body() body: BatchUpgradePresalesWorkflowBody) {
+    return this.funnel.batchUpgradePresalesWorkflow(body);
+  }
+
+  @Post(':id/presales/consult-sla/reminder')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  async createPresalesConsultSlaReminder(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PresalesConsultSlaReminderBody,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    return this.funnel.createPresalesConsultSlaReminder(
+      id,
+      body,
+      this.actor(req),
+      await this.userId(req),
+    );
+  }
+
+  @Patch(':id/presales/l2-docs')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  patchPresalesL2Docs(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PatchPresalesL2DocsBody,
+  ) {
+    return this.funnel.patchPresalesL2Docs(id, body);
   }
 
   @Post(':id/presales/tasks/:taskId/ai-assist')

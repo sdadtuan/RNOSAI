@@ -107,6 +107,36 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             )
         except sqlite3.Error:
             pass
+    if "l2_docs_json" not in _ps_cols:
+        try:
+            conn.execute(
+                "ALTER TABLE crm_lead_presales ADD COLUMN l2_docs_json TEXT NOT NULL DEFAULT '{}'"
+            )
+        except sqlite3.Error:
+            pass
+    if "consult_entered_at" not in _ps_cols:
+        try:
+            conn.execute(
+                "ALTER TABLE crm_lead_presales ADD COLUMN consult_entered_at TEXT NOT NULL DEFAULT ''"
+            )
+        except sqlite3.Error:
+            pass
+    if "proposal_entered_at" not in _ps_cols:
+        try:
+            conn.execute(
+                "ALTER TABLE crm_lead_presales ADD COLUMN proposal_entered_at TEXT NOT NULL DEFAULT ''"
+            )
+        except sqlite3.Error:
+            pass
+    conn.execute(
+        """
+        UPDATE crm_lead_presales
+        SET consult_entered_at = stage_entered_at
+        WHERE stage = 'consult'
+          AND (consult_entered_at = '' OR consult_entered_at IS NULL)
+          AND stage_entered_at != ''
+        """
+    )
 
 
 def _row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
@@ -420,6 +450,169 @@ def upgrade_presales_tasks_from_template(
     }
 
 
+PRESALES_UPGRADE_CONSULT_FIELD_MIN = 4
+PRESALES_BATCH_UPGRADE_MAX = 50
+
+
+def upgrade_presales_workflow_template(
+    conn: sqlite3.Connection,
+    presales_id: int,
+    *,
+    stages: tuple[str, ...] | None = None,
+    dry_run: bool = False,
+    prefill_consult: bool = True,
+) -> dict[str, Any]:
+    """Nest parity alias for single presales template upgrade."""
+    return upgrade_presales_tasks_from_template(
+        conn,
+        presales_id,
+        stages=stages,
+        dry_run=dry_run,
+        prefill_consult=prefill_consult,
+    )
+
+
+def list_presales_workflow_upgrade_cohort(
+    conn: sqlite3.Connection,
+    *,
+    lead_ids: list[int] | None = None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    """Active presales with generic consult form (<4 fields)."""
+    row_limit = min(
+        PRESALES_BATCH_UPGRADE_MAX,
+        limit if limit and limit > 0 else PRESALES_BATCH_UPGRADE_MAX,
+    )
+    params: list[Any] = [PRESALES_UPGRADE_CONSULT_FIELD_MIN]
+    lead_filter = ""
+    if lead_ids:
+        ids = list(dict.fromkeys(int(i) for i in lead_ids if int(i) > 0))[:row_limit]
+        if not ids:
+            return []
+        placeholders = ",".join("?" for _ in ids)
+        lead_filter = f" AND ps.lead_id IN ({placeholders})"
+        params.extend(ids)
+    params.append(row_limit)
+
+    rows = conn.execute(
+        f"""
+        SELECT ps.lead_id, ps.id AS presales_id, ps.service_slug, ps.stage,
+               (
+                 SELECT t.form_fields FROM crm_lead_presales_tasks t
+                 WHERE t.presales_id = ps.id AND t.stage = 'consult' AND t.is_custom = 0
+                 ORDER BY t.step_index, t.id LIMIT 1
+               ) AS consult_form_fields
+        FROM crm_lead_presales ps
+        WHERE ps.status = 'active'
+          AND ps.stage IN ('lead', 'consult', 'proposal')
+          AND EXISTS (
+            SELECT 1 FROM crm_lead_presales_tasks t
+            WHERE t.presales_id = ps.id
+              AND t.stage = 'consult'
+              AND t.is_custom = 0
+              AND (
+                SELECT COUNT(*) FROM json_each(COALESCE(t.form_fields, '[]'))
+              ) < ?
+          )
+          {lead_filter}
+        ORDER BY ps.updated_at DESC
+        LIMIT ?
+        """,
+        params,
+    ).fetchall()
+
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        keys: list[str] = []
+        try:
+            fields = json.loads(str(row["consult_form_fields"] or "[]"))
+            keys = sorted(str(f.get("key") or "") for f in fields if f.get("key"))
+        except (TypeError, json.JSONDecodeError):
+            keys = []
+        out.append(
+            {
+                "lead_id": int(row["lead_id"]),
+                "presales_id": int(row["presales_id"]),
+                "service_slug": str(row["service_slug"] or ""),
+                "stage": str(row["stage"] or ""),
+                "consult_field_keys": keys,
+            }
+        )
+    return out
+
+
+def batch_upgrade_presales_workflow_template(
+    conn: sqlite3.Connection,
+    *,
+    dry_run: bool = False,
+    prefill_consult: bool = True,
+    stages: tuple[str, ...] | None = None,
+    lead_ids: list[int] | None = None,
+    limit: int | None = None,
+) -> dict[str, Any]:
+    """Batch migrate generic presales tasks → service template (max 50/run)."""
+    cohort = list_presales_workflow_upgrade_cohort(conn, lead_ids=lead_ids, limit=limit)
+    csv_rows = [
+        "lead_id,service_slug,old_field_keys",
+        *[
+            f"{row['lead_id']},{row['service_slug']},{'|'.join(row['consult_field_keys'])}"
+            for row in cohort
+        ],
+    ]
+    if dry_run:
+        return {
+            "ok": True,
+            "dry_run": True,
+            "cohort_size": len(cohort),
+            "processed": len(cohort),
+            "upgraded": 0,
+            "skipped": 0,
+            "results": [
+                {"lead_id": row["lead_id"], "ok": True, "service_slug": row["service_slug"]}
+                for row in cohort
+            ],
+            "csv_rows": csv_rows,
+        }
+
+    results: list[dict[str, Any]] = []
+    upgraded = 0
+    skipped = 0
+    for row in cohort:
+        try:
+            out = upgrade_presales_workflow_template(
+                conn,
+                int(row["presales_id"]),
+                stages=stages,
+                dry_run=False,
+                prefill_consult=prefill_consult,
+            )
+            upgraded += 1
+            results.append(
+                {
+                    "lead_id": row["lead_id"],
+                    "ok": True,
+                    "service_slug": out.get("service_slug"),
+                    "stages": out.get("stages"),
+                }
+            )
+        except ValueError as exc:
+            skipped += 1
+            results.append(
+                {"lead_id": row["lead_id"], "ok": False, "error": str(exc)}
+            )
+
+    return {
+        "ok": skipped == 0,
+        "dry_run": False,
+        "cohort_size": len(cohort),
+        "processed": len(cohort),
+        "upgraded": upgraded,
+        "skipped": skipped,
+        "results": results,
+        "csv_rows": csv_rows,
+    }
+
+
 def is_presales_stage_complete(
     conn: sqlite3.Connection, presales_id: int, stage: str
 ) -> bool:
@@ -532,6 +725,46 @@ def update_presales_task(
     form_data: dict | None = None,
     done_by: int | None = None,
 ) -> None:
+    if is_done is True:
+        row = conn.execute(
+            """
+            SELECT t.stage, t.presales_id, p.service_slug, p.l2_docs_json,
+                   t.form_fields, t.form_data, t.ai_prompt_key, t.ai_output
+            FROM crm_lead_presales_tasks t
+            JOIN crm_lead_presales p ON p.id = t.presales_id
+            WHERE t.id = ?
+            """,
+            (int(task_id),),
+        ).fetchone()
+        if row is not None and str(row[0] or "") == "consult":
+            from crm_lead_presales_l2 import assert_presales_l2_docs_complete, parse_presales_l2_docs_json
+
+            slug = str(row[2] or "")
+            try:
+                stored = json.loads(str(row[3] or "{}"))
+            except json.JSONDecodeError:
+                stored = {}
+            assert_presales_l2_docs_complete(slug, parse_presales_l2_docs_json(stored))
+
+            try:
+                fields = json.loads(str(row[4] or "[]"))
+            except json.JSONDecodeError:
+                fields = []
+            try:
+                merged_form = json.loads(str(row[5] or "{}"))
+            except json.JSONDecodeError:
+                merged_form = {}
+            if form_data is not None:
+                merged_form = {**merged_form, **form_data}
+            from crm_lead_presales_consult_gate import assert_presales_consult_task_done
+
+            assert_presales_consult_task_done(
+                stage=str(row[0] or ""),
+                ai_prompt_key=str(row[6] or ""),
+                ai_output=str(row[7] or ""),
+                form_fields=fields if isinstance(fields, list) else [],
+                form_data=merged_form if isinstance(merged_form, dict) else {},
+            )
     ts = _ts()
     sets = ["updated_at = ?"]
     params: list[Any] = [ts]
@@ -637,14 +870,31 @@ def advance_presales_stage(
 
     ts = _ts()
     note_line = notes.strip()
+    extra_sets: list[str] = []
+    extra_params: list[Any] = []
+    if to_stage == "consult":
+        extra_sets.append(
+            "consult_entered_at = CASE WHEN consult_entered_at = '' OR consult_entered_at IS NULL "
+            "THEN ? ELSE consult_entered_at END"
+        )
+        extra_params.append(ts)
+    if to_stage == "proposal":
+        extra_sets.append("proposal_entered_at = ?")
+        extra_params.append(ts)
+        consult_at = str(ps.get("consult_entered_at") or "").strip()
+        if not consult_at:
+            fallback = str(ps.get("stage_entered_at") or ts).strip() or ts
+            extra_sets.append("consult_entered_at = ?")
+            extra_params.append(fallback)
+    set_sql = f", {', '.join(extra_sets)}" if extra_sets else ""
     conn.execute(
-        """
+        f"""
         UPDATE crm_lead_presales
-        SET stage = ?, stage_entered_at = ?, updated_at = ?,
+        SET stage = ?, stage_entered_at = ?, updated_at = ?{set_sql},
             notes = CASE WHEN ? != '' THEN TRIM(notes || char(10) || ?) ELSE notes END
         WHERE id = ?
         """,
-        (to_stage, ts, ts, note_line, note_line[:2000], presales_id),
+        (to_stage, ts, ts, *extra_params, note_line, note_line[:2000], presales_id),
     )
     conn.commit()
 
@@ -775,9 +1025,9 @@ def promote_presales_to_lifecycle(
         d["form_data"] = d.get("form_data") or "{}"
         _copy_task_to_lifecycle(conn, lifecycle_id, d, ts)
 
-    from crm_svc_tasks import seed_tasks as seed_lifecycle_tasks
+    from crm_svc_tasks import seed_post_onboard_lifecycle_tasks
 
-    seed_lifecycle_tasks(conn, lifecycle_id, service_slug)
+    seed_post_onboard_lifecycle_tasks(conn, lifecycle_id, service_slug)
 
     try:
         from crm_lead_presales_marketing_plan import clone_preliminary_to_official

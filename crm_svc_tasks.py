@@ -39,6 +39,8 @@ RECURRING_DELIVER_SLUGS: frozenset[str] = frozenset({
 })
 RECURRING_DELIVER_MONTHS = 12
 
+POST_ONBOARD_STAGES: tuple[str, ...] = ("onboard", "deliver", "handover", "retain")
+
 logger = logging.getLogger(__name__)
 
 _HAIKU = "claude-haiku-4-5-20251001"
@@ -263,6 +265,44 @@ def seed_tasks(
             count += 1
     conn.commit()
     return count
+
+
+def seed_post_onboard_lifecycle_tasks(
+    conn: sqlite3.Connection, lifecycle_id: int, service_slug: str
+) -> int:
+    """Seed onboard/deliver/handover/retain when stage empty (Nest seedPostOnboardLifecycleTasks)."""
+    from crm_svc_workflow_steps import SERVICE_WORKFLOW_STEPS
+
+    steps = SERVICE_WORKFLOW_STEPS.get(service_slug, {})
+    ts = _ts()
+    added = 0
+    for stage in POST_ONBOARD_STAGES:
+        existing = conn.execute(
+            """
+            SELECT COUNT(*) FROM crm_svc_tasks
+            WHERE lifecycle_id = ? AND stage = ? AND is_custom = 0
+            """,
+            (lifecycle_id, stage),
+        ).fetchone()[0]
+        if int(existing or 0) > 0:
+            continue
+        stage_steps = steps.get(stage) or []
+        if stage == "deliver":
+            added += _seed_deliver_steps(conn, lifecycle_id, service_slug, stage_steps, ts)
+        else:
+            for idx, step in enumerate(stage_steps):
+                _insert_task(
+                    conn,
+                    lifecycle_id=lifecycle_id,
+                    stage=stage,
+                    step_index=idx,
+                    step=step,
+                    ts=ts,
+                )
+                added += 1
+    if added:
+        conn.commit()
+    return added
 
 
 def list_tasks(

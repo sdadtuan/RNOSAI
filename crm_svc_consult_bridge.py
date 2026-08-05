@@ -295,6 +295,60 @@ def _append_note_lines(existing: str, lines: list[str]) -> str:
     return text[:4000]
 
 
+def _build_discovery_consult_prefill(
+    intake_session: dict[str, Any] | None,
+) -> tuple[list[str], list[str]]:
+    """Return (current_status_lines, note_lines) from Phase 2 discovery."""
+    if intake_session is None:
+        return [], []
+    answers = intake_session.get("answers_json") or {}
+    current_lines: list[str] = []
+    note_lines: list[str] = []
+
+    snippets: list[str] = []
+    responses = answers.get("discovery_responses")
+    if isinstance(responses, dict):
+        for key in sorted(responses.keys()):
+            block = responses.get(key)
+            if not isinstance(block, dict):
+                continue
+            val = str(block.get("answer") or "").strip()
+            if val:
+                plain = val.replace("<", " ").replace(">", " ")
+                snippets.append(plain[:160] + ("…" if len(plain) > 160 else ""))
+            if len(snippets) >= 8:
+                break
+    if not snippets:
+        snippets = _extract_intake_keyword_hints(intake_session).split("\n")
+        snippets = [s for s in snippets if s.strip()][:8]
+
+    for snippet in snippets:
+        if snippet.strip():
+            current_lines.append(f"Discovery: {snippet.strip()}")
+
+    flags = answers.get("red_flags")
+    if isinstance(flags, list):
+        cleaned = [str(x).strip() for x in flags if str(x).strip()]
+        if cleaned:
+            note_lines.append(f"Red flags: {'; '.join(cleaned[:8])}")
+
+    stakeholders = intake_session.get("stakeholders_json") or []
+    if isinstance(stakeholders, list) and stakeholders:
+        parts: list[str] = []
+        for item in stakeholders[:8]:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or item.get("full_name") or "").strip()
+            role = str(item.get("role") or item.get("title") or "").strip()
+            chunk = " · ".join(x for x in (name, role) if x)
+            if chunk:
+                parts.append(chunk)
+        if parts:
+            note_lines.append(f"Stakeholders: {' | '.join(parts)}")
+
+    return current_lines, note_lines
+
+
 def _collect_source_values(
     lead_form: dict[str, Any],
     intake_session: dict[str, Any] | None,
@@ -310,6 +364,9 @@ def _collect_source_values(
         pain = str(meta.get("pain_summary") or "").strip()
         if pain and _field_empty(sources.get("need")):
             sources["_pain_summary"] = pain
+        discovery_hint = _extract_intake_keyword_hints(intake_session)
+        if discovery_hint and _field_empty(sources.get("_discovery_summary")):
+            sources["_discovery_summary"] = discovery_hint
     return sources
 
 
@@ -430,6 +487,15 @@ def prefill_consult_task(
     if pain:
         set_field("current_status", pain, "need")
 
+    for line in str(sources.get("_discovery_summary") or "").split("\n"):
+        snippet = line.strip()
+        if snippet:
+            set_field("current_status", snippet, "_discovery_summary")
+
+    discovery_lines, discovery_notes = _build_discovery_consult_prefill(latest_intake)
+    for line in discovery_lines:
+        set_field("current_status", line.replace("Discovery: ", ""), "_discovery_summary")
+
     for source_key, target_key in field_map.items():
         if source_key in ("need", "_pain_summary"):
             continue
@@ -457,6 +523,7 @@ def prefill_consult_task(
             f"Intake #{latest_intake.get('id')}: {latest_intake.get('decision')} "
             f"BANT {latest_intake.get('bant_total')}/30"
         )
+    note_lines.extend(discovery_notes)
 
     notes = _append_note_lines(consult_task["notes"], note_lines)
     update_task(

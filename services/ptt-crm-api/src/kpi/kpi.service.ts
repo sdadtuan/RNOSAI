@@ -1,10 +1,13 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
+import { LeadsFunnelService } from '../leads-funnel/leads-funnel.service';
 import { KpiPgRepository } from './kpi-pg.repository';
 import { KpiSqliteRepository } from './kpi-sqlite.repository';
 import { buildStaffKpiXlsx } from './kpi-export.util';
@@ -20,6 +23,8 @@ export class KpiService {
     private readonly sqlite: KpiSqliteRepository,
     private readonly pg: KpiPgRepository,
     private readonly config: AppConfigService,
+    @Inject(forwardRef(() => LeadsFunnelService))
+    private readonly funnel: LeadsFunnelService,
   ) {}
 
   async listMetrics(includeInactive: boolean) {
@@ -220,10 +225,57 @@ export class KpiService {
       throw new BadRequestException({ error: 'role phải là am hoặc sp' });
     }
     const parsed = this.parseYearMonth(year, month, true);
-    if (this.config.crmKpiPg) {
-      return this.pg.computeStaffRoleMetrics(staffId, roleNorm, parsed.year, parsed.month);
+    const base = this.config.crmKpiPg
+      ? await this.pg.computeStaffRoleMetrics(staffId, roleNorm, parsed.year, parsed.month)
+      : this.sqlite.computeStaffRoleMetrics(staffId, roleNorm, parsed.year, parsed.month);
+
+    if (roleNorm !== 'am') {
+      return base;
     }
-    return this.sqlite.computeStaffRoleMetrics(staffId, roleNorm, parsed.year, parsed.month);
+
+    const monthStr = String(parsed.month).padStart(2, '0');
+    const lastDay = new Date(parsed.year, parsed.month, 0).getDate();
+    const periodStart = `${parsed.year}-${monthStr}-01`;
+    const periodEnd = `${parsed.year}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
+
+    try {
+      const funnelOut = await this.funnel.getPresalesFunnelMetrics({
+        periodStart,
+        periodEnd,
+        amId: staffId,
+      });
+      const m = funnelOut.metrics;
+      base.metrics.push(
+        {
+          key: 'go_to_consult_median_hours',
+          label: 'Go → Consult median (h)',
+          value: m.go_to_consult_median_hours ?? 0,
+          target: 48,
+        },
+        {
+          key: 'consult_to_proposal_7d_pct',
+          label: 'Consult → BG ≤7d (%)',
+          value: m.consult_to_proposal_7d_pct,
+          target: 50,
+        },
+        {
+          key: 'consult_form_completion_pct',
+          label: 'Form Consult hoàn thành (%)',
+          value: m.consult_form_completion_pct,
+          target: 80,
+        },
+        {
+          key: 'consult_task_done_rate',
+          label: 'Task Consult ✓ (%)',
+          value: m.consult_task_done_rate,
+          target: 70,
+        },
+      );
+    } catch {
+      // presales funnel may be disabled in some envs
+    }
+
+    return base;
   }
 
   private parseYearMonth(

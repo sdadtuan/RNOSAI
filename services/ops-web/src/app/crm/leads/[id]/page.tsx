@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { StaffPageShell } from '@/components/layout';
 import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
+import { LeadConsultWorkspace } from '@/components/LeadConsultWorkspace';
 import { LeadPresalesFunnelStepper } from '@/components/crm/funnel-stepper';
 import { LeadB2bSalesFlowBar, type LeadContractFlowSummary } from '@/components/LeadB2bSalesFlowBar';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
@@ -21,12 +22,17 @@ import {
   showB2bSalesFlowBar,
   showContractForFlow,
 } from '@/lib/crm/lead-flow-kind';
+import {
+  LEAD_CONSULT_TAB_HASH,
+  showLeadConsultTab,
+} from '@/lib/crm/lead-consult-tab.util';
 import { aiCopilotEnabled } from '@/lib/ai-flags';
 import {
   assignLead,
   createLeadActivity,
   fetchCatalogBundle,
   fetchLead,
+  fetchLeadFunnel,
   fetchLeadActivities,
   fetchLeadAttribution,
   fetchLeadAudit,
@@ -67,7 +73,8 @@ const ACTIVITY_TYPES = [
   { value: 'reminder', label: 'Nhắc việc' },
 ];
 
-type LeadDetailTab = 'detail' | 'activity' | 'ai';
+type LeadDetailTab = 'detail' | 'consult' | 'activity' | 'ai';
+type B2bOverviewTab = 'overview' | 'consult';
 
 async function copyLeadContact(value: string, label: string, onDone: (msg: string) => void) {
   const trimmed = value.trim();
@@ -156,6 +163,7 @@ export default function CrmLeadDetailPage() {
   const [selectedActivityId, setSelectedActivityId] = useState<number | null>(null);
   const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<LeadDetailTab>('detail');
+  const [b2bPane, setB2bPane] = useState<B2bOverviewTab>('overview');
   const [copilotMessage, setCopilotMessage] = useState('');
   const [funnelSnap, setFunnelSnap] = useState<LeadFunnelSnapshot | null>(null);
   const [contractSummary, setContractSummary] = useState<LeadContractFlowSummary | null>(null);
@@ -178,6 +186,41 @@ export default function CrmLeadDetailPage() {
   const statusHints = statusOptionsApi?.hints ?? [];
   const showB2bFlow = showB2bSalesFlowBar(leadFlowKind);
   const showContractPanel = showContractForFlow(leadFlowKind);
+  const showConsultTab = showB2bFlow && showLeadConsultTab(funnelSnap);
+
+  const reloadFunnel = useCallback(async (access: string) => {
+    if (!showB2bFlow) return;
+    try {
+      const snap = await fetchLeadFunnel(access, leadId);
+      setFunnelSnap(snap);
+    } catch {
+      /* funnel optional until B2 complete */
+    }
+  }, [leadId, showB2bFlow]);
+
+  const openConsultTab = useCallback(() => {
+    setB2bPane('consult');
+    setMobileTab('consult');
+    if (typeof window !== 'undefined') {
+      const base = window.location.pathname + window.location.search;
+      window.history.replaceState(null, '', `${base}${LEAD_CONSULT_TAB_HASH}`);
+      requestAnimationFrame(() => {
+        document.getElementById('funnel-presales')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+  }, []);
+
+  const openOverviewTab = useCallback(() => {
+    setB2bPane('overview');
+    setMobileTab('detail');
+  }, []);
+
+  const openR5EditOnOverview = useCallback(() => {
+    openOverviewTab();
+    requestAnimationFrame(() => {
+      document.getElementById('funnel-presales-r5')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [openOverviewTab]);
 
   const reloadStatusOptions = useCallback(async (access: string) => {
     setStatusOptionsLoading(true);
@@ -292,13 +335,37 @@ export default function CrmLeadDetailPage() {
         await reloadTimeline(access);
         await reloadStatusOptions(access);
         await reloadCopilotContext(access);
+        if (showB2bSalesFlowBar(resolveLeadFlowKindFromLead(row, null))) {
+          await reloadFunnel(access);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải lead thất bại');
       } finally {
         setLoading(false);
       }
     })();
-  }, [ensureAuth, leadId, reloadCopilotContext, reloadTimeline, reloadStatusOptions]);
+  }, [ensureAuth, leadId, reloadCopilotContext, reloadFunnel, reloadTimeline, reloadStatusOptions]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const syncHash = () => {
+      if (window.location.hash === LEAD_CONSULT_TAB_HASH && showLeadConsultTab(funnelSnap)) {
+        openConsultTab();
+      }
+    };
+    syncHash();
+    window.addEventListener('hashchange', syncHash);
+    return () => window.removeEventListener('hashchange', syncHash);
+  }, [funnelSnap, openConsultTab]);
+
+  useEffect(() => {
+    if (!showConsultTab && b2bPane === 'consult') {
+      setB2bPane('overview');
+    }
+    if (!showConsultTab && mobileTab === 'consult') {
+      setMobileTab('detail');
+    }
+  }, [showConsultTab, b2bPane, mobileTab]);
 
   useEffect(() => {
     const access = getAccessToken();
@@ -458,8 +525,14 @@ export default function CrmLeadDetailPage() {
     copilotOn && !!lead && !loading && !!accessToken && !!user && layout.mobile && mobileTab === 'ai';
   const showCopilotDrawer =
     copilotOn && !!lead && !loading && !!accessToken && !!user && layout.tablet && copilotDrawerOpen;
-  const hideDetailPane = useMobileTabs && mobileTab !== 'detail';
   const hideTimelinePane = useMobileTabs && mobileTab !== 'activity';
+  const hideOverviewContent = showConsultTab && b2bPane === 'consult' && !useMobileTabs;
+  const hideConsultWorkspace =
+    (useMobileTabs && mobileTab !== 'consult') || (!useMobileTabs && b2bPane !== 'consult');
+  const showOverviewMain = useMobileTabs ? mobileTab === 'detail' : !hideOverviewContent;
+  const showConsultMain = showConsultTab && (useMobileTabs ? mobileTab === 'consult' : !hideConsultWorkspace);
+  const hideMainPane = useMobileTabs && mobileTab !== 'detail' && mobileTab !== 'consult';
+  const hideFooterPane = useMobileTabs && mobileTab !== 'detail' && mobileTab !== 'consult';
 
   function renderCopilotPanel(variant: 'column' | 'drawer' | 'sheet', onCloseDrawer?: () => void) {
     if (!online) {
@@ -523,10 +596,27 @@ export default function CrmLeadDetailPage() {
             role="tab"
             aria-selected={mobileTab === 'detail'}
             className={mobileTab === 'detail' ? 'is-active' : ''}
-            onClick={() => setMobileTab('detail')}
+            onClick={() => {
+              setMobileTab('detail');
+              setB2bPane('overview');
+            }}
           >
             Chi tiết
           </button>
+          {showConsultTab ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobileTab === 'consult'}
+              className={mobileTab === 'consult' ? 'is-active' : ''}
+              onClick={() => {
+                setMobileTab('consult');
+                setB2bPane('consult');
+              }}
+            >
+              Tư vấn
+            </button>
+          ) : null}
           <button
             type="button"
             role="tab"
@@ -604,7 +694,7 @@ export default function CrmLeadDetailPage() {
             className={`lead-detail-grid${showCopilotInline ? ' lead-detail-grid--with-copilot' : ''}`}
           >
           <div
-            className={`lead-detail-main ${hideDetailPane ? 'lead-detail-pane--hidden' : ''}`}
+            className={`lead-detail-main ${hideMainPane ? 'lead-detail-pane--hidden' : ''}`}
           >
             <LeadAttributionChips attribution={attribution} />
 
@@ -625,11 +715,37 @@ export default function CrmLeadDetailPage() {
                 leadId={leadId}
                 funnel={funnelSnap}
                 onFunnelChange={setFunnelSnap}
+                onOpenConsultWorkspace={showConsultTab ? openConsultTab : undefined}
                 onMessage={setMessage}
                 onError={setError}
               />
             ) : null}
 
+            {showConsultTab && !useMobileTabs ? (
+              <div className="lead-b2b-subtabs" role="tablist" aria-label="Pre-sales workspace">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={b2bPane === 'overview'}
+                  className={b2bPane === 'overview' ? 'is-active' : ''}
+                  onClick={() => setB2bPane('overview')}
+                >
+                  Tổng quan
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={b2bPane === 'consult'}
+                  className={b2bPane === 'consult' ? 'is-active' : ''}
+                  onClick={() => openConsultTab()}
+                >
+                  Tư vấn
+                </button>
+              </div>
+            ) : null}
+
+            {showOverviewMain ? (
+              <>
             {lead.phone ? (
               <LeadContactActions phone={lead.phone} onCopy={onCopyContact} />
             ) : null}
@@ -641,10 +757,12 @@ export default function CrmLeadDetailPage() {
                 user={user}
                 serviceSlug={presetServiceSlug}
                 syncFunnel={funnelSnap}
+                fetchOnMount={funnelSnap == null}
                 serviceOptions={catalogServices.map((service) => ({
                   slug: service.slug,
                   name: service.name,
                 }))}
+                onOpenConsultTab={showConsultTab ? openConsultTab : undefined}
                 onMessage={setMessage}
                 onFunnelChange={setFunnelSnap}
                 onFunnelUpdated={() => {
@@ -663,6 +781,21 @@ export default function CrmLeadDetailPage() {
                 refreshToken={contractRefresh}
                 onMessage={setMessage}
                 onLoaded={setContractSummary}
+              />
+            ) : null}
+              </>
+            ) : null}
+
+            {showConsultMain && accessToken && funnelSnap ? (
+              <LeadConsultWorkspace
+                token={accessToken}
+                leadId={leadId}
+                user={user}
+                funnelSnap={funnelSnap}
+                onFunnelChange={setFunnelSnap}
+                onMessage={setMessage}
+                onError={setError}
+                onEditR5={openR5EditOnOverview}
               />
             ) : null}
           </div>
@@ -717,7 +850,7 @@ export default function CrmLeadDetailPage() {
           </div>
 
           <section
-            className={`lead-detail-footer ${hideDetailPane ? 'lead-detail-pane--hidden' : ''}`}
+            className={`lead-detail-footer ${hideFooterPane ? 'lead-detail-pane--hidden' : ''}`}
             aria-label="Thao tác lead"
           >
             <div className="lead-actions-grid">

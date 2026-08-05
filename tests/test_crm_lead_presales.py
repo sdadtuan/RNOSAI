@@ -132,6 +132,49 @@ class LeadPresalesTests(unittest.TestCase):
         )
         conn.commit()
 
+    def _complete_all_presales_tasks(
+        self,
+        conn: sqlite3.Connection,
+        pid: int,
+        service_slug: str,
+        *,
+        lead_form_data: dict | None = None,
+    ) -> None:
+        import json
+
+        from crm_lead_presales import list_presales_tasks, update_presales_task
+        from crm_lead_presales_l2 import list_presales_l2_catalog
+
+        conn.execute(
+            "UPDATE crm_lead_presales SET l2_docs_json = ? WHERE id = ?",
+            (
+                json.dumps({item["key"]: True for item in list_presales_l2_catalog(service_slug)}),
+                pid,
+            ),
+        )
+        conn.commit()
+        for stage, stage_tasks in list_presales_tasks(conn, pid).items():
+            for task in stage_tasks:
+                tid = int(task["id"])
+                form_data: dict | None = None
+                if stage == "consult":
+                    form_data = {
+                        str(f["key"]): "test"
+                        for f in (task.get("form_fields") or [])
+                        if f.get("key")
+                    }
+                    if task.get("ai_prompt_key"):
+                        conn.execute(
+                            "UPDATE crm_lead_presales_tasks SET ai_output = ? WHERE id = ?",
+                            ("AI stub", tid),
+                        )
+                elif stage == "lead" and lead_form_data:
+                    form_data = lead_form_data
+                if form_data is not None:
+                    update_presales_task(conn, tid, form_data=form_data, is_done=True)
+                else:
+                    update_presales_task(conn, tid, is_done=True)
+
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
@@ -288,9 +331,7 @@ class LeadPresalesTests(unittest.TestCase):
         from crm_lead_presales import (
             ensure_presales,
             ensure_schema,
-            list_presales_tasks,
             promote_presales_to_lifecycle,
-            update_presales_task,
         )
 
         with self._conn() as conn:
@@ -301,9 +342,7 @@ class LeadPresalesTests(unittest.TestCase):
             self._complete_presales_care_prereq(conn)
             ps = ensure_presales(conn, 1, "dich-vu-aeo")
             pid = int(ps["id"])
-            for stage_tasks in list_presales_tasks(conn, pid).values():
-                for task in stage_tasks:
-                    update_presales_task(conn, int(task["id"]), is_done=True)
+            self._complete_all_presales_tasks(conn, pid, "dich-vu-aeo")
             from crm_lead_presales_marketing_plan import ensure_r5_schema, update_preliminary_plan
 
             ensure_r5_schema(conn)
@@ -358,7 +397,6 @@ class LeadPresalesTests(unittest.TestCase):
             ensure_schema,
             list_presales_tasks,
             promote_presales_to_lifecycle,
-            update_presales_task,
         )
 
         with self._conn() as conn:
@@ -369,19 +407,16 @@ class LeadPresalesTests(unittest.TestCase):
             self._complete_presales_care_prereq(conn)
             ps = ensure_presales(conn, 1, "dich-vu-aeo")
             pid = int(ps["id"])
-            lead_task_id = None
-            for stage_tasks in list_presales_tasks(conn, pid).values():
-                for task in stage_tasks:
-                    tid = int(task["id"])
-                    if task.get("stage") == "lead":
-                        lead_task_id = tid
-                        update_presales_task(
-                            conn,
-                            tid,
-                            form_data={"assigned_sp": "Trần SP"},
-                        )
-                    update_presales_task(conn, tid, is_done=True)
-            self.assertIsNotNone(lead_task_id)
+            self._complete_all_presales_tasks(
+                conn,
+                pid,
+                "dich-vu-aeo",
+                lead_form_data={"assigned_sp": "Trần SP"},
+            )
+            lead_task_id = int(
+                (list_presales_tasks(conn, pid).get("lead") or [{}])[0].get("id") or 0
+            )
+            self.assertGreater(lead_task_id, 0)
             from crm_lead_presales_marketing_plan import ensure_r5_schema, update_preliminary_plan
 
             ensure_r5_schema(conn)
@@ -461,6 +496,100 @@ class LeadPresalesTests(unittest.TestCase):
             )
             self.assertEqual(consult["ai_prompt_key"], "consult_analysis")
             self.assertEqual(consult["form_data"].get("current_status"), "Pilot note")
+
+    def test_list_presales_workflow_upgrade_cohort(self) -> None:
+        from crm_lead_presales import (
+            ensure_presales,
+            ensure_schema,
+            list_presales_workflow_upgrade_cohort,
+        )
+
+        with self._conn() as conn:
+            ensure_schema(conn)
+            self._complete_presales_care_prereq(conn)
+            ps = ensure_presales(conn, 1, "lead-gen")
+            pid = int(ps["id"])
+            conn.execute(
+                """
+                UPDATE crm_lead_presales_tasks
+                SET form_fields = '[{"key":"consult_notes","label":"Ghi chú","type":"text"}]'
+                WHERE presales_id = ? AND stage = 'consult'
+                """,
+                (pid,),
+            )
+            conn.commit()
+            cohort = list_presales_workflow_upgrade_cohort(conn)
+            self.assertEqual(len(cohort), 1)
+            self.assertEqual(cohort[0]["lead_id"], 1)
+            self.assertEqual(cohort[0]["consult_field_keys"], ["consult_notes"])
+
+    def test_batch_upgrade_presales_workflow_dry_run(self) -> None:
+        from crm_lead_presales import (
+            batch_upgrade_presales_workflow_template,
+            ensure_presales,
+            ensure_schema,
+        )
+
+        with self._conn() as conn:
+            ensure_schema(conn)
+            self._complete_presales_care_prereq(conn)
+            ps = ensure_presales(conn, 1, "lead-gen")
+            pid = int(ps["id"])
+            conn.execute(
+                """
+                UPDATE crm_lead_presales_tasks
+                SET form_fields = '[{"key":"consult_notes","label":"Ghi chú","type":"text"}]'
+                WHERE presales_id = ? AND stage = 'consult'
+                """,
+                (pid,),
+            )
+            conn.commit()
+            out = batch_upgrade_presales_workflow_template(conn, dry_run=True)
+            self.assertTrue(out["ok"])
+            self.assertEqual(out["cohort_size"], 1)
+            self.assertIn("lead_id,service_slug,old_field_keys", out["csv_rows"][0])
+
+    def test_promote_lead_gen_seeds_lifecycle_deliver_tasks(self) -> None:
+        from crm_lead_presales import (
+            ensure_presales,
+            ensure_schema,
+            promote_presales_to_lifecycle,
+        )
+        from crm_svc_tasks import ensure_schema as ensure_svc_tasks, list_tasks
+
+        with self._conn() as conn:
+            ensure_schema(conn)
+            ensure_svc_tasks(conn)
+            self._complete_presales_care_prereq(conn)
+            ps = ensure_presales(conn, 1, "lead-gen")
+            pid = int(ps["id"])
+            self._complete_all_presales_tasks(conn, pid, "lead-gen")
+            from crm_lead_presales_marketing_plan import ensure_r5_schema, update_preliminary_plan
+
+            ensure_r5_schema(conn)
+            update_preliminary_plan(
+                conn,
+                pid,
+                {
+                    "name": "KH lead-gen promote",
+                    "north_star": "Leads",
+                    "strategy_framework": {
+                        "market_message": "msg",
+                        "media_reach": "reach",
+                        "conversion_strategy": "conv",
+                    },
+                },
+            )
+            conn.execute("UPDATE crm_lead_presales SET stage = 'proposal' WHERE id = ?", (pid,))
+            conn.commit()
+            lc_id = promote_presales_to_lifecycle(conn, pid, customer_id=10, contract_id=99)
+            tasks = list_tasks(conn, lc_id)
+            self.assertIn("onboard", tasks)
+            self.assertIn("deliver", tasks)
+            onboard_titles = [t["title"] for t in tasks["onboard"]]
+            self.assertTrue(any("Kickoff funnel" in t for t in onboard_titles))
+            deliver_titles = [t["title"] for t in tasks["deliver"]]
+            self.assertTrue(any("lead gen" in t.lower() for t in deliver_titles))
 
 
 if __name__ == "__main__":

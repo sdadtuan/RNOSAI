@@ -1112,6 +1112,56 @@ export async function assignLead(
 
 // --- Wave B4: Lead funnel (care / review queue / presales) ---
 
+export interface PresalesConsultProposalSla {
+  tier: 'consult_proposal_48h';
+  sla_state: 'na' | 'ok' | 'warning' | 'breach';
+  started_at: string | null;
+  deadline_at: string | null;
+  hours_elapsed: number | null;
+  hours_remaining: number | null;
+  minutes_remaining: number | null;
+  message: string;
+  reminder_cta: string;
+}
+
+export interface PresalesConsultSlaSummary {
+  active_consult: number;
+  sla_ok: number;
+  sla_warning: number;
+  sla_breach: number;
+  consult_to_proposal_48h_pct: number;
+  consult_to_proposal_48h_num: number;
+  consult_to_proposal_48h_denom: number;
+}
+
+export interface PresalesFunnelMetricsResult {
+  go_to_consult_median_hours: number | null;
+  go_to_consult_p90_hours: number | null;
+  go_to_consult_sample: number;
+  consult_to_proposal_7d_pct: number;
+  consult_to_proposal_7d_num: number;
+  consult_to_proposal_7d_denom: number;
+  consult_to_proposal_48h_pct: number;
+  consult_to_proposal_48h_num: number;
+  consult_to_proposal_48h_denom: number;
+  consult_form_completion_pct: number;
+  consult_task_done_rate: number;
+  consult_tasks_total: number;
+  consult_tasks_done: number;
+}
+
+export interface PresalesFunnelMetricsResponse {
+  ok: boolean;
+  period_start: string | null;
+  period_end: string | null;
+  am_id: number | null;
+  metrics: PresalesFunnelMetricsResult;
+  labels: {
+    consult_to_proposal_7d: string;
+    consult_to_proposal_48h: string;
+  };
+}
+
 export interface LeadFunnelSnapshot {
   lead_id: number;
   lead_flow_kind: 'spa_operational' | 'b2b_prospect';
@@ -1130,6 +1180,15 @@ export interface LeadFunnelSnapshot {
   presales_on_lead_enabled: boolean;
   presales: {
     presales: { id: number; stage: string; service_slug: string; status: string };
+    l2_docs?: {
+      service_slug: string;
+      items: Array<{ key: string; label: string; checked: boolean }>;
+      total: number;
+      done: number;
+      complete: boolean;
+      missing_labels: string[];
+    };
+    consult_proposal_sla?: PresalesConsultProposalSla;
     tasks: Record<
       string,
       Array<{
@@ -1373,6 +1432,65 @@ export async function fetchLeadPresalesProposalGate(
   leadId: number,
 ): Promise<{ ok: boolean; gate: ProposalAdvanceGate; presales_stage: string }> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/proposal-gate`, { method: 'GET' });
+}
+
+export interface PresalesProposalHandoff {
+  lead_id: number;
+  customer_id: number | null;
+  can_open: boolean;
+  block_reason: string;
+  service_slugs: string[];
+  notes: string;
+  proposals_href: string;
+}
+
+export async function fetchLeadPresalesProposalHandoff(
+  token: string,
+  leadId: number,
+): Promise<{ ok: boolean; handoff: PresalesProposalHandoff }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/proposal-handoff`, { method: 'GET' });
+}
+
+export async function patchLeadPresalesL2Docs(
+  token: string,
+  leadId: number,
+  docs: Record<string, boolean>,
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/l2-docs`, {
+    method: 'PATCH',
+    body: JSON.stringify({ docs }),
+  });
+}
+
+export async function fetchPresalesConsultSlaSummary(
+  token: string,
+  amId?: number,
+): Promise<{ ok: boolean; summary: PresalesConsultSlaSummary }> {
+  const qs = amId != null ? `?am_id=${amId}` : '';
+  return leadFunnelMutate(token, `/api/v1/leads/presales/consult-sla/summary${qs}`, { method: 'GET' });
+}
+
+export async function fetchPresalesFunnelMetrics(
+  token: string,
+  opts: { amId?: number; periodStart?: string; periodEnd?: string } = {},
+): Promise<PresalesFunnelMetricsResponse> {
+  const params = new URLSearchParams();
+  if (opts.amId != null) params.set('am_id', String(opts.amId));
+  if (opts.periodStart) params.set('period_start', opts.periodStart);
+  if (opts.periodEnd) params.set('period_end', opts.periodEnd);
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  return leadFunnelMutate(token, `/api/v1/leads/presales/funnel-metrics${qs}`, { method: 'GET' });
+}
+
+export async function postPresalesConsultSlaReminder(
+  token: string,
+  leadId: number,
+  body: { message?: string } = {},
+): Promise<{ ok: boolean; activity_id: number; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/consult-sla/reminder`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }
 
 export async function postLeadPresalesTaskAiAssist(

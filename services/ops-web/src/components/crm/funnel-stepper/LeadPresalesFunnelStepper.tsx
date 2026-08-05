@@ -22,6 +22,7 @@ interface Props {
   leadId: number;
   funnel: LeadFunnelSnapshot | null;
   onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
+  onOpenConsultWorkspace?: () => void;
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
 }
@@ -50,11 +51,20 @@ function scrollToPresalesPanel() {
   el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+function navigateToPresales(onOpenConsultWorkspace?: () => void) {
+  if (onOpenConsultWorkspace) {
+    onOpenConsultWorkspace();
+    return;
+  }
+  scrollToPresalesPanel();
+}
+
 export function LeadPresalesFunnelStepper({
   token,
   leadId,
   funnel,
   onFunnelChange,
+  onOpenConsultWorkspace,
   onMessage,
   onError,
 }: Props) {
@@ -111,18 +121,18 @@ export function LeadPresalesFunnelStepper({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (window.location.hash !== '#funnel-presales') return;
-    scrollToPresalesPanel();
-  }, [funnel?.presales?.presales.stage, funnel?.presales?.presales.id]);
+    navigateToPresales(onOpenConsultWorkspace);
+  }, [funnel?.presales?.presales.stage, funnel?.presales?.presales.id, onOpenConsultWorkspace]);
 
   async function onPrimaryAction(action: FunnelPrimaryAction) {
     if (action.kind === 'ensure_presales') {
-      scrollToPresalesPanel();
+      navigateToPresales(onOpenConsultWorkspace);
       onMessage?.('Chọn dịch vụ và bấm Bắt đầu pre-sales bên dưới');
       return;
     }
 
     if (action.kind === 'anchor') {
-      scrollToPresalesPanel();
+      navigateToPresales(onOpenConsultWorkspace);
       return;
     }
 
@@ -146,7 +156,7 @@ export function LeadPresalesFunnelStepper({
       });
       onFunnelChange?.(out.funnel);
       await refreshGateAndIntake();
-      scrollToPresalesPanel();
+      navigateToPresales(onOpenConsultWorkspace);
       onMessage?.('Đã chuyển giai đoạn pre-sales');
     } catch (err) {
       onError?.(err instanceof Error ? err.message : 'Chuyển giai đoạn thất bại');
@@ -165,6 +175,7 @@ export function LeadPresalesFunnelStepper({
       funnel={funnel}
       consultGate={consultGate}
       proposalGate={proposalGate}
+      consultProposalSla={funnel?.presales?.consult_proposal_sla ?? null}
       intakeSummary={intakeSummary}
       context="lead_detail"
       gateLoading={gateLoading}

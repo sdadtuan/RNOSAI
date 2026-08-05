@@ -41,6 +41,9 @@ CREATE TABLE IF NOT EXISTS crm_lead_presales (
     stage_entered_at        TIMESTAMPTZ,
     notes                   TEXT NOT NULL DEFAULT '',
     draft_marketing_plan_id BIGINT,
+    l2_docs_json            JSONB NOT NULL DEFAULT '{}'::jsonb,
+    consult_entered_at      TIMESTAMPTZ,
+    proposal_entered_at     TIMESTAMPTZ,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT crm_lead_presales_lead_unique UNIQUE (lead_id),
@@ -168,6 +171,23 @@ CREATE TABLE IF NOT EXISTS ptt_schema_migrations (
 
 INSERT INTO ptt_schema_migrations (id, notes)
 VALUES ('2026-07-23-wave-b4-funnel', 'crm_leads funnel + presales + marketing_plans + care activities')
+ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE crm_lead_presales
+    ADD COLUMN IF NOT EXISTS l2_docs_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE crm_lead_presales
+    ADD COLUMN IF NOT EXISTS consult_entered_at TIMESTAMPTZ;
+
+ALTER TABLE crm_lead_presales
+    ADD COLUMN IF NOT EXISTS proposal_entered_at TIMESTAMPTZ;
+
+INSERT INTO ptt_schema_migrations (id, notes)
+VALUES ('2026-08-05-presales-l2-docs', 'Checklist tài liệu L2 theo service slug trên presales')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO ptt_schema_migrations (id, notes)
+VALUES ('2026-08-05-presales-consult-sla-48h', 'SLA Consult→Proposal 48h + timestamps')
 ON CONFLICT (id) DO NOTHING;
 
 COMMIT;

@@ -16,16 +16,20 @@ import {
   SegmentedControl,
   StaffPageShell,
 } from '@/components/layout';
+import { PresalesConsultSlaSummaryCard } from '@/components/PresalesConsultSlaSummaryCard';
+import { PresalesFunnelMetricsCard } from '@/components/PresalesFunnelMetricsCard';
 import {
   fetchLeads,
   bulkAssignLeads,
   fetchCrmStaffList,
   fetchLeadLookupOptions,
+  fetchPresalesConsultSlaSummary,
+  fetchPresalesFunnelMetrics,
   fetchReviewQueueCount,
   staffMe,
   staffRefresh,
 } from '@/lib/api';
-import type { CrmLeadLookupOption, CrmStaffRow, LeadRow } from '@/lib/api';
+import type { CrmLeadLookupOption, CrmStaffRow, LeadRow, PresalesConsultSlaSummary, PresalesFunnelMetricsResponse } from '@/lib/api';
 import { aiCopilotEnabled, canUseAiCopilot } from '@/lib/ai-flags';
 import { useLeadScoresMap } from '@/hooks/useLeadScoresMap';
 import {
@@ -77,6 +81,8 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [slaSummary, setSlaSummary] = useState<PresalesConsultSlaSummary | null>(null);
+  const [funnelMetrics, setFunnelMetrics] = useState<PresalesFunnelMetricsResponse | null>(null);
 
   const listHref = leadsListHref(flowScope);
   const pageTitle = leadsListTitle(flowScope);
@@ -193,6 +199,28 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     if (!token) return;
     void loadLeads(token, 0, query);
   }, [token, query, listTab, leadKind, filterStatus, filterSource, filterChannel, loadLeads]);
+
+  useEffect(() => {
+    if (!token || flowScope !== 'b2b_prospect') {
+      setSlaSummary(null);
+      setFunnelMetrics(null);
+      return;
+    }
+    void (async () => {
+      try {
+        const amId = listTab === 'mine' && user?.id ? Number(user.id) : undefined;
+        const [slaOut, metricsOut] = await Promise.all([
+          fetchPresalesConsultSlaSummary(token, amId),
+          fetchPresalesFunnelMetrics(token, { amId }),
+        ]);
+        setSlaSummary(slaOut.summary);
+        setFunnelMetrics(metricsOut);
+      } catch {
+        setSlaSummary(null);
+        setFunnelMetrics(null);
+      }
+    })();
+  }, [token, flowScope, listTab, user?.id]);
 
   function logout() {
     clearSession();
@@ -318,6 +346,13 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       />
 
       <div className="page-card stack-gap">
+        {flowScope === 'b2b_prospect' && slaSummary ? (
+          <PresalesConsultSlaSummaryCard summary={slaSummary} />
+        ) : null}
+        {flowScope === 'b2b_prospect' && funnelMetrics ? (
+          <PresalesFunnelMetricsCard data={funnelMetrics} />
+        ) : null}
+
         <SegmentedControl
           options={[
             { id: 'all', label: 'Tất cả' },

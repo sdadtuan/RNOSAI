@@ -155,3 +155,36 @@ export async function hasCompletedIntakeSession(
   const latest = await fetchLatestIntakeSession(request, leadId);
   return latest?.status === 'completed';
 }
+
+/** Advance presales to consult via API (for consult-workspace e2e). */
+export async function advanceLeadPresalesToConsult(
+  request: APIRequestContext,
+  leadId: number,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const token = await staffToken(request);
+  let funnel = await fetchLeadFunnelApi(request, leadId);
+  const stage = funnel.presales?.presales?.stage;
+  if (stage === 'consult' || stage === 'proposal') {
+    return { ok: true };
+  }
+  if (stage !== 'lead') {
+    return { ok: false, reason: `presales stage is ${stage ?? 'missing'} — need lead` };
+  }
+
+  const res = await request.post(`${API_URL}/api/v1/leads/${leadId}/presales/advance`, {
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    data: { confirm: true },
+  });
+  if (!res.ok()) {
+    return { ok: false, reason: `advance: ${res.status()} ${(await res.text()).slice(0, 200)}` };
+  }
+
+  funnel = await fetchLeadFunnelApi(request, leadId);
+  if (funnel.presales?.presales?.stage === 'consult') {
+    return { ok: true };
+  }
+  return {
+    ok: false,
+    reason: `after advance stage=${funnel.presales?.presales?.stage ?? 'none'} (need intake Go + lead tasks)`,
+  };
+}

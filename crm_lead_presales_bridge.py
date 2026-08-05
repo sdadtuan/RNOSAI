@@ -16,6 +16,7 @@ from crm_svc_consult_bridge import (
     DECISION_LABELS,
     TEMPERATURE_LABELS,
     _append_note_lines,
+    _build_discovery_consult_prefill,
     _build_highlights,
     _build_latest_intake_summary,
     _build_recommended_actions,
@@ -328,6 +329,15 @@ def prefill_presales_consult_task(
             form_data["current_status"] = merged
             filled.append("current_status")
 
+    discovery_lines, discovery_notes = _build_discovery_consult_prefill(latest)
+    for line in discovery_lines:
+        snippet = line.replace("Discovery: ", "").strip()
+        if snippet and (_field_empty(form_data.get("current_status")) or overwrite):
+            existing = str(form_data.get("current_status") or "").strip()
+            merged_status = f"{existing}\nDiscovery: {snippet}".strip() if existing else f"Discovery: {snippet}"
+            form_data["current_status"] = merged_status[:4000]
+            filled.append("current_status")
+
     kw_hints = _extract_intake_keyword_hints(latest)
     if kw_hints and (_field_empty(form_data.get("local_keywords")) or overwrite):
         form_data["local_keywords"] = kw_hints[:4000]
@@ -339,6 +349,7 @@ def prefill_presales_consult_task(
             f"Intake #{latest.get('id')}: {latest.get('decision')} "
             f"BANT {latest.get('bant_total')}/30"
         )
+    note_lines.extend(discovery_notes)
 
     notes = _append_note_lines(consult_task["notes"], note_lines)
     update_presales_task(

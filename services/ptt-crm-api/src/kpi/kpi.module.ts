@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
 import { LeadsModule } from '../leads/leads.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import {
@@ -14,7 +15,7 @@ import { StaffKpiController } from './staff-kpi.controller';
 import { StaffKpiProgressController } from './staff-kpi-progress.controller';
 
 @Module({
-  imports: [StaffAuthModule, forwardRef(() => LeadsModule)],
+  imports: [StaffAuthModule, forwardRef(() => LeadsModule), forwardRef(() => LeadsFunnelModule)],
   controllers: [KpiController, StaffKpiController, StaffKpiProgressController],
   providers: [
     KpiService,
