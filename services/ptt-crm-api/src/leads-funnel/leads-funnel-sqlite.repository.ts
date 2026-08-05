@@ -37,6 +37,11 @@ import {
 } from './presales-marketing-plan.util';
 import { workflowStepsForService } from './presales-workflow-steps.util';
 import {
+  buildPresalesWorkflowUpgradePlan,
+  mergeLegacyPresalesFormData,
+  normalizeUpgradeStages,
+} from './presales-workflow-upgrade.util';
+import {
   pickLatestCompletedIntake,
   prefillPresalesConsultTaskForm,
 } from './presales-consult-prefill.util';
@@ -832,6 +837,104 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
       filled: out.filled.length,
       fields: out.filled,
       skipped_existing: out.skipped_existing,
+    };
+  }
+
+  upgradePresalesWorkflowTemplate(
+    leadId: number,
+    opts: { stages?: string[]; dryRun?: boolean; prefillConsult?: boolean },
+  ): {
+    ok: boolean;
+    dry_run: boolean;
+    service_slug: string;
+    stages: Array<{
+      stage: string;
+      deleted: number;
+      inserted: number;
+      preserved_done: boolean;
+      mapped_fields: string[];
+    }>;
+    prefill?: { task_id: number | null; filled: number; fields: string[] };
+  } {
+    const snap = this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    if (snap.presales.status !== 'active') throw new Error('Pre-sales không còn active');
+
+    const stages = normalizeUpgradeStages(opts.stages);
+    const slug = snap.presales.service_slug;
+    const steps = workflowStepsForService(slug);
+    const plan = buildPresalesWorkflowUpgradePlan(slug, stages, snap.tasks);
+    const stageResults: Array<{
+      stage: string;
+      deleted: number;
+      inserted: number;
+      preserved_done: boolean;
+      mapped_fields: string[];
+    }> = [];
+    const ts = this.ts();
+
+    if (!opts.dryRun) {
+      for (const stage of stages) {
+        const stageSteps = steps[stage] ?? [];
+        const oldTasks = snap.tasks[stage] ?? [];
+        const newKeys = stageSteps.flatMap((s) => (s.form_fields ?? []).map((f) => f.key));
+        const { form_data, is_done } = mergeLegacyPresalesFormData(oldTasks, newKeys);
+
+        const del = this.database
+          .prepare(
+            `DELETE FROM crm_lead_presales_tasks
+             WHERE presales_id = ? AND stage = ? AND is_custom = 0`,
+          )
+          .run(snap.presales.id, stage);
+        let inserted = 0;
+        for (let idx = 0; idx < stageSteps.length; idx += 1) {
+          const step = stageSteps[idx]!;
+          this.database
+            .prepare(
+              `INSERT INTO crm_lead_presales_tasks
+                 (presales_id, stage, step_index, title, description, ai_prompt_key, form_fields, form_data,
+                  is_done, is_custom, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+            )
+            .run(
+              snap.presales.id,
+              stage,
+              idx,
+              step.title,
+              step.description,
+              step.ai_prompt_key || '',
+              JSON.stringify(step.form_fields || []),
+              JSON.stringify(form_data),
+              is_done ? 1 : 0,
+              ts,
+              ts,
+            );
+          inserted += 1;
+        }
+        stageResults.push({
+          stage,
+          deleted: Number(del.changes ?? oldTasks.length),
+          inserted,
+          preserved_done: is_done,
+          mapped_fields: Object.keys(form_data),
+        });
+      }
+    } else {
+      stageResults.push(...plan.stages);
+    }
+
+    let prefill: { task_id: number | null; filled: number; fields: string[] } | undefined;
+    if (!opts.dryRun && opts.prefillConsult !== false && stages.includes('consult')) {
+      const pf = this.runPresalesConsultPrefill(leadId, false);
+      prefill = { task_id: pf.task_id, filled: pf.filled, fields: pf.fields };
+    }
+
+    return {
+      ok: true,
+      dry_run: Boolean(opts.dryRun),
+      service_slug: slug,
+      stages: stageResults,
+      prefill,
     };
   }
 

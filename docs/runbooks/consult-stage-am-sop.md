@@ -143,7 +143,31 @@ Chi tiết từng dịch vụ: slide **Checklist Lead** trong [Checklist_Tiep_Nh
 
 ---
 
-## 10. Tài liệu liên quan
+## 10. Pre-sales trên Lead (`/crm/leads/[id]#funnel-presales`) — Phase 3
+
+Luồng **presales-on-lead** (pilot Meta inbound, slug `lead-gen`) dùng cùng nguyên tắc Consult nhưng UI trên Lead detail:
+
+| Bước | Thao tác AM | UI |
+|------|-------------|-----|
+| 1 | Mở lead → tab Funnel presales, stage **Tư vấn** | Funnel stepper + task Consult 4 field |
+| 2 | Đọc **Brief panel** (BANT, intake, red flags) | Sidebar phải |
+| 3 | **Prefill** từ Lead/Intake | Nút trên Brief panel |
+| 4 | **AI Hỗ trợ** trên task Consult | Nút trên task card |
+| 5 | Điền **KH Marketing sơ bộ (R5)** | Form `#funnel-presales-r5` trong stage Consult |
+| 6 | Kiểm tra **gate strip G4** trên stepper | Task ✓ + R5 đủ → CTA **Chuyển → Báo giá** |
+
+**Pilot lead #900000002:** Nếu task Consult còn 1 field generic (`consult_notes`), admin chạy:
+
+```bash
+./scripts/migrate_presales_workflow_template.sh --lead-id 900000002 --apply
+./scripts/consult_phase3_pilot_uat.sh
+```
+
+Spec: [Consult Phase 3 presales on Lead](../specs/2026-07-26-consult-phase3-presales-lead-design.md)
+
+---
+
+## 11. Tài liệu liên quan
 
 - [Training slide deck](../Consult_Stage_Service_Delivery.pptx)
 - [Hướng dẫn buổi training](./consult-stage-training-guide.md)

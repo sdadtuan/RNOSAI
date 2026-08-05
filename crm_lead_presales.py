@@ -283,6 +283,143 @@ def seed_presales_tasks(
     return count
 
 
+LEGACY_PRESALES_FIELD_MAP: dict[str, str] = {
+    "need_summary": "need",
+    "consult_notes": "current_status",
+    "proposal_notes": "goal",
+}
+
+
+def _merge_legacy_form_data(
+    old_tasks: list[dict[str, Any]], new_field_keys: list[str]
+) -> tuple[dict[str, Any], bool]:
+    merged: dict[str, Any] = {}
+    any_done = False
+    for task in old_tasks:
+        if task.get("is_done"):
+            any_done = True
+        fd = task.get("form_data") or {}
+        for key, value in fd.items():
+            if value is None or str(value).strip() == "":
+                continue
+            target = LEGACY_PRESALES_FIELD_MAP.get(str(key), str(key))
+            if target in new_field_keys and target not in merged:
+                merged[target] = value
+    return merged, any_done
+
+
+def upgrade_presales_tasks_from_template(
+    conn: sqlite3.Connection,
+    presales_id: int,
+    *,
+    stages: tuple[str, ...] | None = None,
+    dry_run: bool = False,
+    prefill_consult: bool = True,
+) -> dict[str, Any]:
+    """Replace non-custom presales tasks with service template (pilot migration E6)."""
+    from crm_svc_workflow_steps import SERVICE_WORKFLOW_STEPS
+
+    ps = get_presales(conn, presales_id)
+    if ps is None:
+        raise ValueError("Không tìm thấy pre-sales")
+    if ps.get("status") != "active":
+        raise ValueError("Pre-sales không còn active")
+
+    slug = str(ps.get("service_slug") or "").strip()
+    steps = SERVICE_WORKFLOW_STEPS.get(slug, {})
+    target_stages = stages or PRESALES_STAGES
+    stage_results: list[dict[str, Any]] = []
+
+    for stage in target_stages:
+        rows = conn.execute(
+            """
+            SELECT id, form_data, is_done FROM crm_lead_presales_tasks
+            WHERE presales_id = ? AND stage = ? AND is_custom = 0
+            ORDER BY step_index, id
+            """,
+            (presales_id, stage),
+        ).fetchall()
+        old_tasks: list[dict[str, Any]] = []
+        for row in rows:
+            old_tasks.append(
+                {
+                    "id": int(row["id"]),
+                    "form_data": json.loads(row["form_data"] or "{}"),
+                    "is_done": bool(row["is_done"]),
+                }
+            )
+        stage_steps = steps.get(stage) or []
+        new_keys = [
+            str(f.get("key") or "")
+            for step in stage_steps
+            for f in (step.get("form_fields") or [])
+        ]
+        form_data, is_done = _merge_legacy_form_data(old_tasks, new_keys)
+
+        if not dry_run:
+            conn.execute(
+                """
+                DELETE FROM crm_lead_presales_tasks
+                WHERE presales_id = ? AND stage = ? AND is_custom = 0
+                """,
+                (presales_id, stage),
+            )
+            ts = _ts()
+            inserted = 0
+            for idx, step in enumerate(stage_steps):
+                conn.execute(
+                    """
+                    INSERT INTO crm_lead_presales_tasks
+                        (presales_id, stage, step_index, title, description,
+                         ai_prompt_key, form_fields, form_data, is_done, is_custom,
+                         created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+                    """,
+                    (
+                        presales_id,
+                        stage,
+                        idx,
+                        step["title"],
+                        step.get("description", ""),
+                        step.get("ai_prompt_key", ""),
+                        json.dumps(step.get("form_fields", []), ensure_ascii=False),
+                        json.dumps(form_data, ensure_ascii=False),
+                        1 if is_done else 0,
+                        ts,
+                        ts,
+                    ),
+                )
+                inserted += 1
+            conn.commit()
+        else:
+            inserted = len(stage_steps)
+
+        stage_results.append(
+            {
+                "stage": stage,
+                "deleted": len(old_tasks),
+                "inserted": inserted,
+                "preserved_done": is_done,
+                "mapped_fields": list(form_data.keys()),
+            }
+        )
+
+    prefill: dict[str, Any] | None = None
+    if not dry_run and prefill_consult and "consult" in target_stages:
+        lead_id = int(ps["lead_id"])
+        from crm_lead_presales_bridge import prefill_presales_consult_task
+
+        prefill = prefill_presales_consult_task(conn, lead_id, overwrite=False)
+
+    return {
+        "ok": True,
+        "dry_run": dry_run,
+        "service_slug": slug,
+        "stages": stage_results,
+        "prefill": prefill,
+    }
+
+
 def is_presales_stage_complete(
     conn: sqlite3.Connection, presales_id: int, stage: str
 ) -> bool:

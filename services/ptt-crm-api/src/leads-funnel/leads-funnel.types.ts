@@ -168,3 +168,9 @@ export interface ConsultPrefillBody {
 export interface PresalesAiAssistBody {
   form_context?: Record<string, unknown>;
 }
+
+export interface UpgradePresalesWorkflowBody {
+  stages?: PresalesStage[];
+  dry_run?: boolean;
+  prefill_consult?: boolean;
+}

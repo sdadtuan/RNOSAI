@@ -16,6 +16,7 @@ import {
   PatchPresalesTaskBody,
   PresalesAiAssistBody,
   ReleaseReviewQueueBody,
+  UpgradePresalesWorkflowBody,
 } from './leads-funnel.types';
 import { LeadsFunnelPgRepository } from './leads-funnel-pg.repository';
 import { LeadsFunnelSqliteRepository } from './leads-funnel-sqlite.repository';
@@ -464,6 +465,22 @@ export class LeadsFunnelService {
         stub_mode: llmOut.stubMode,
         funnel: await this.getFunnel(leadId),
       };
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async upgradePresalesWorkflowTemplate(leadId: number, body: UpgradePresalesWorkflowBody) {
+    try {
+      const opts = {
+        stages: body.stages,
+        dryRun: Boolean(body.dry_run),
+        prefillConsult: body.prefill_consult !== false,
+      };
+      const out = this.usePgFunnel
+        ? await this.pgRepo.upgradePresalesWorkflowTemplate(leadId, opts)
+        : this.sqliteRepo.upgradePresalesWorkflowTemplate(leadId, opts);
+      return { ...out, funnel: opts.dryRun ? undefined : await this.getFunnel(leadId) };
     } catch (err) {
       this.funnelError(err);
     }

@@ -28,6 +28,7 @@ import {
   PatchPresalesTaskBody,
   PresalesAiAssistBody,
   ReleaseReviewQueueBody,
+  UpgradePresalesWorkflowBody,
 } from './leads-funnel.types';
 import { LeadsFunnelEnabledGuard, PresalesOnLeadGuard } from './guards/leads-funnel-enabled.guard';
 import { StaffLeadsGdkdGuard } from './guards/staff-leads-gdkd.guard';
@@ -256,5 +257,15 @@ export class LeadsFunnelController {
     @Body() body: PresalesAiAssistBody,
   ) {
     return this.funnel.runPresalesTaskAiAssist(id, taskId, body);
+  }
+
+  @Post(':id/presales/upgrade-workflow-template')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  upgradePresalesWorkflowTemplate(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpgradePresalesWorkflowBody,
+  ) {
+    return this.funnel.upgradePresalesWorkflowTemplate(id, body);
   }
 }

@@ -421,6 +421,47 @@ class LeadPresalesTests(unittest.TestCase):
         self.assertTrue(presales_on_lead_enabled())
         os.environ.pop("PTT_PRESALES_ON_LEAD", None)
 
+    def test_upgrade_presales_tasks_from_generic_to_lead_gen(self) -> None:
+        from crm_lead_presales import (
+            ensure_presales,
+            ensure_schema,
+            list_presales_tasks,
+            upgrade_presales_tasks_from_template,
+        )
+
+        with self._conn() as conn:
+            ensure_schema(conn)
+            self._complete_presales_care_prereq(conn)
+            ps = ensure_presales(conn, 1, "lead-gen")
+            pid = int(ps["id"])
+            conn.execute(
+                """
+                UPDATE crm_lead_presales_tasks
+                SET title = 'Brief tư vấn & Intake',
+                    form_fields = '[{"key":"consult_notes","label":"Ghi chú","type":"text"}]',
+                    form_data = '{"consult_notes":"Pilot note"}',
+                    ai_prompt_key = ''
+                WHERE presales_id = ? AND stage = 'consult'
+                """,
+                (pid,),
+            )
+            conn.commit()
+            out = upgrade_presales_tasks_from_template(conn, pid, dry_run=False)
+            self.assertTrue(out["ok"])
+            consult = (list_presales_tasks(conn, pid).get("consult") or [])[0]
+            keys = [f["key"] for f in consult.get("form_fields") or []]
+            self.assertEqual(
+                keys,
+                [
+                    "current_status",
+                    "target_audience",
+                    "conversion_metrics",
+                    "scope_recommendation",
+                ],
+            )
+            self.assertEqual(consult["ai_prompt_key"], "consult_analysis")
+            self.assertEqual(consult["form_data"].get("current_status"), "Pilot note")
+
 
 if __name__ == "__main__":
     unittest.main()
