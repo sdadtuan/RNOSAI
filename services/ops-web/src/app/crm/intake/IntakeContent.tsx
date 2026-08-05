@@ -9,7 +9,7 @@ import { IntakeBantSection } from '@/components/crm/intake/IntakeBantSection';
 import { IntakeCompleteConfirmModal } from '@/components/crm/intake/IntakeCompleteConfirmModal';
 import { IntakeDiscoverySection } from '@/components/crm/intake/IntakeDiscoverySection';
 import { IntakeValidationErrors } from '@/components/crm/intake/IntakeValidationErrors';
-import { IntakeConsultGateBanner, type IntakeConsultGateState } from '@/components/crm/intake/IntakeConsultGateBanner';
+import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
 import { IntakeLeadContextCard } from '@/components/crm/intake/IntakeLeadContextCard';
 import { IntakeSessionSidebar } from '@/components/crm/intake/IntakeSessionSidebar';
 import { IntakeCommitmentsSection } from '@/components/crm/intake/IntakeCommitmentsSection';
@@ -17,6 +17,7 @@ import { IntakeRedFlagsSection } from '@/components/crm/intake/IntakeRedFlagsSec
 import { IntakeStakeholderMatrix } from '@/components/crm/intake/IntakeStakeholderMatrix';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
 import {
+  advanceLeadPresales,
   completeIntakeSession,
   createIntakeSession,
   fetchIntakeDefinitionBySlug,
@@ -24,6 +25,7 @@ import {
   fetchIntakeSessions,
   fetchIntakeStats,
   fetchLead,
+  fetchLeadFunnel,
   fetchLeadPresalesConsultGate,
   generateIntakeAiSummary,
   patchIntakeSession,
@@ -31,8 +33,10 @@ import {
   staffMe,
   staffRefresh,
   type IntakeSessionRow,
+  type LeadFunnelSnapshot,
   type LeadRow,
 } from '@/lib/api';
+import type { ConsultGateState, FunnelPrimaryAction, IntakeStepSummary } from '@/lib/crm/funnel-stepper.types';
 import {
   INTAKE_DECISION_OPTIONS,
   intakeModeLabel,
@@ -122,8 +126,10 @@ export function IntakeContent() {
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [lead, setLead] = useState<LeadRow | null>(null);
-  const [consultGate, setConsultGate] = useState<IntakeConsultGateState | null>(null);
+  const [funnelSnap, setFunnelSnap] = useState<LeadFunnelSnapshot | null>(null);
+  const [consultGate, setConsultGate] = useState<ConsultGateState | null>(null);
   const [gateLoading, setGateLoading] = useState(false);
+  const [stepperBusy, setStepperBusy] = useState(false);
   const [aiSummaryBusy, setAiSummaryBusy] = useState(false);
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
   const [completeWarnings, setCompleteWarnings] = useState<IntakeValidationIssue[]>([]);
@@ -169,6 +175,24 @@ export function IntakeContent() {
     [activeId, bant, decision, decisionReason, contactName, need, discovery, stakeholders, commitments, redFlags],
   );
   const liveBantTotal = useMemo(() => computeBantTotal(bant), [bant]);
+
+  const intakeSummary = useMemo((): IntakeStepSummary => {
+    const hasDraft = sessions.some((s) => s.status === 'draft');
+    const latestCompleted = [...sessions]
+      .filter((s) => s.status === 'completed')
+      .sort((a, b) => b.id - a.id)[0];
+    return {
+      has_draft: hasDraft,
+      latest_completed: latestCompleted
+        ? {
+            id: latestCompleted.id,
+            decision: latestCompleted.decision ?? '',
+            bant_total: Number(latestCompleted.bant_total ?? 0),
+            completed_at: latestCompleted.updated_at ?? '',
+          }
+        : undefined,
+    };
+  }, [sessions]);
 
   const applySession = useCallback(
     (session: IntakeSessionRow | null) => {
@@ -250,6 +274,26 @@ export function IntakeContent() {
     }
   }, [leadId]);
 
+  const loadFunnel = useCallback(async (access: string) => {
+    if (leadId <= 0) {
+      setFunnelSnap(null);
+      return;
+    }
+    try {
+      const snap = await fetchLeadFunnel(access, leadId);
+      setFunnelSnap(snap);
+    } catch {
+      setFunnelSnap(null);
+    }
+  }, [leadId]);
+
+  const refreshStepperData = useCallback(
+    async (access: string) => {
+      await Promise.all([loadFunnel(access), loadConsultGate(access)]);
+    },
+    [loadConsultGate, loadFunnel],
+  );
+
   const loadLeadContext = useCallback(async (access: string) => {
     if (leadId <= 0) {
       setLead(null);
@@ -307,7 +351,7 @@ export function IntakeContent() {
         setStats(statsOut);
         await Promise.all([
           loadLeadContext(access),
-          loadConsultGate(access),
+          refreshStepperData(access),
           loadSessions(access, null),
         ]);
       } catch (err) {
@@ -355,7 +399,7 @@ export function IntakeContent() {
         }),
       );
       await loadSessions(access, created.id);
-      await loadConsultGate(access);
+      await refreshStepperData(access);
       setSidebarOpen(false);
       setMessage(`Đã tạo phiên #${created.id}`);
     } catch (err) {
@@ -394,7 +438,7 @@ export function IntakeContent() {
           commitments_json: commitmentsToPatch(commitments),
         });
         await loadSessions(access, active.id);
-        if (leadId > 0) await loadConsultGate(access);
+        if (leadId > 0) await refreshStepperData(access);
         if (!options?.silent) setMessage('Đã lưu phiên nháp');
         return true;
       } catch (err) {
@@ -415,10 +459,10 @@ export function IntakeContent() {
       decisionReason,
       discovery,
       leadId,
-      loadConsultGate,
       loadSessions,
       need,
       redFlags,
+      refreshStepperData,
       sessionMode,
       stakeholders,
       commitments,
@@ -511,12 +555,58 @@ export function IntakeContent() {
       autosave.markSavedNow(formSnapshot);
       const updated = await completeIntakeSession(access, active.id);
       await loadSessions(access, updated.id);
-      await loadConsultGate(access);
-      setMessage('Đã hoàn thành phiên khảo sát');
+      await refreshStepperData(access);
+      setMessage('Đã hoàn thành phiên khảo sát — xem stepper phía trên để chuyển Tư vấn nếu gate OK');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hoàn thành thất bại');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onStepperPrimaryAction(action: FunnelPrimaryAction) {
+    if (leadId <= 0) return;
+    const access = getAccessToken();
+    if (!access) return;
+
+    if (action.kind === 'create_intake_session') {
+      setSidebarOpen(true);
+      setMessage('Chọn + Gọi điện hoặc + Gặp trực tiếp ở cột trái để tạo phiên Intake');
+      return;
+    }
+
+    if (action.kind === 'focus_intake_form') {
+      document.querySelector('.intake-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+
+    if (action.kind !== 'advance_presales') return;
+
+    setStepperBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      let overrideReason: string | undefined;
+      if (action.requiresOverride) {
+        const reason = window.prompt('Director override — nhập lý do chuyển Consult:');
+        if (!reason?.trim()) {
+          setError('Cần lý do override để chuyển Tư vấn');
+          return;
+        }
+        overrideReason = reason.trim();
+      }
+
+      await advanceLeadPresales(access, leadId, {
+        confirm: true,
+        override_reason: overrideReason,
+      });
+      await refreshStepperData(access);
+      router.push(`/crm/leads/${leadId}#funnel-presales`);
+      setMessage(`Đã chuyển giai đoạn Tư vấn — cuộn tới task Consult trên Lead #${leadId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Chuyển Tư vấn thất bại');
+    } finally {
+      setStepperBusy(false);
     }
   }
 
@@ -691,20 +781,27 @@ export function IntakeContent() {
               />
             </aside>
 
-            <div className="intake-layout__main stack-gap">
+            <div
+              className={`intake-layout__main stack-gap${leadId > 0 ? ' intake-layout__main--stepper' : ''}`}
+            >
               {leadId > 0 && lead ? (
                 <IntakeLeadContextCard lead={lead} leadHref={`/crm/leads/${leadId}`} />
               ) : null}
 
-              {leadId > 0 && consultGate ? (
-                <IntakeConsultGateBanner
+              {leadId > 0 ? (
+                <CrmFunnelStepper
                   leadId={leadId}
-                  gate={consultGate}
-                  loading={gateLoading}
-                  onRefresh={() => {
+                  funnel={funnelSnap}
+                  consultGate={consultGate}
+                  intakeSummary={intakeSummary}
+                  context="intake"
+                  gateLoading={gateLoading}
+                  actionBusy={stepperBusy || saving}
+                  onRefreshGate={() => {
                     const access = getAccessToken();
-                    if (access) void loadConsultGate(access);
+                    if (access) void refreshStepperData(access);
                   }}
+                  onPrimaryAction={(action) => void onStepperPrimaryAction(action)}
                 />
               ) : null}
 
@@ -729,6 +826,10 @@ export function IntakeContent() {
                   <li>
                     Chọn <strong>Quyết định &quot;Decision&quot;</strong> và{' '}
                     <strong>Lý do &quot;Reason&quot;</strong>, rồi <strong>Hoàn thành phiên</strong>.
+                  </li>
+                  <li>
+                    Khi gate OK trên <strong>Tiến trình Pre-sales</strong>, bấm{' '}
+                    <strong>Chuyển → Tư vấn</strong> (không cần quay Lead).
                   </li>
                 </ol>
               </details>

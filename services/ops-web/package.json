@@ -8,6 +8,8 @@
     "build": "next build",
     "start": "next start -p ${OPS_PORT:-3200}",
     "lint": "next lint",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:ai-copilot": "playwright test e2e/ai-copilot.spec.ts",
@@ -47,7 +49,8 @@
     "test:e2e:order-invoice": "playwright test e2e/order-invoice-rnos25.spec.ts",
     "test:e2e:nl-query": "playwright test e2e/nl-query-rnos22.spec.ts",
     "test:e2e:intake-bant-phase1": "playwright test e2e/intake-bant-phase1.spec.ts",
-    "test:e2e:intake-bant-phase2": "playwright test e2e/intake-bant-phase2.spec.ts"
+    "test:e2e:intake-bant-phase2": "playwright test e2e/intake-bant-phase2.spec.ts",
+    "test:e2e:intake-bant-phase25": "playwright test e2e/intake-bant-phase25-stepper.spec.ts"
   },
   "engines": {
     "node": ">=22.0.0"
@@ -62,6 +65,7 @@
     "@types/node": "^22.10.7",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
   }
 }

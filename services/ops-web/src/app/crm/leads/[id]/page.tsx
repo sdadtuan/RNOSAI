@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { StaffPageShell } from '@/components/layout';
 import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
+import { LeadPresalesFunnelStepper } from '@/components/crm/funnel-stepper';
 import { LeadB2bSalesFlowBar, type LeadContractFlowSummary } from '@/components/LeadB2bSalesFlowBar';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
 import { LeadAuditPanel } from '@/components/crm/LeadAuditPanel';
@@ -618,6 +619,17 @@ export default function CrmLeadDetailPage() {
               </div>
             )}
 
+            {accessToken && showB2bFlow ? (
+              <LeadPresalesFunnelStepper
+                token={accessToken}
+                leadId={leadId}
+                funnel={funnelSnap}
+                onFunnelChange={setFunnelSnap}
+                onMessage={setMessage}
+                onError={setError}
+              />
+            ) : null}
+
             {lead.phone ? (
               <LeadContactActions phone={lead.phone} onCopy={onCopyContact} />
             ) : null}
@@ -628,6 +640,7 @@ export default function CrmLeadDetailPage() {
                 leadId={leadId}
                 user={user}
                 serviceSlug={presetServiceSlug}
+                syncFunnel={funnelSnap}
                 serviceOptions={catalogServices.map((service) => ({
                   slug: service.slug,
                   name: service.name,

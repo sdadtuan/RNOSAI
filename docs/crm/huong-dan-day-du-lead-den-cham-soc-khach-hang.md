@@ -91,7 +91,7 @@ flowchart LR
 | Công đoạn | URL | Ai làm |
 |-----------|-----|--------|
 | Danh sách Lead | `/crm/leads` | Marketing, AM |
-| Chi tiết Lead + Pre-sales | `/crm/leads/{lead_id}` | AM |
+| Chi tiết Lead + Pre-sales | `/crm/leads/{lead_id}` | AM — funnel stepper trên panel |
 | Intake BANT | `/crm/intake?lead_id={id}` | AM |
 | Hợp đồng / Hub | `/crm/hub` | AM, Sales |
 | Kanban Delivery | `/crm/service-delivery` | AM, SP, CS |
@@ -234,7 +234,12 @@ Bắt đầu quy trình **Lead → Tư vấn → Báo giá** trên lead (chưa c
 | 2 | Chọn **dịch vụ** (1 trong 12 slug) | VD: `dich-vu-aeo`, `dich-vu-seo-local` |
 | 3 | Bấm **Bắt đầu pre-sales** | Tạo `crm_lead_presales`, `assigned_am = owner` |
 | 4 | Tab **Lead** | Làm từng task card → tick ✓ |
-| 5 | Ghi chi phí pre-sales (nếu có) | Trong cap `PTT_PRESALES_COST_CAP_VND` |
+| 5 | **Funnel stepper** (trên panel) | Theo dõi B2 → Lead → Intake → Tư vấn → Báo giá |
+| 6 | Ghi chi phí pre-sales (nếu có) | Trong cap `PTT_PRESALES_COST_CAP_VND` |
+
+**Phase 2.5:** Stepper `CrmFunnelStepper` mount **trên** panel Pre-sales — CTA **Chuyển → Tư vấn** / **Chuyển → Báo giá** nằm trên stepper (panel không còn nút **Chuyển →** riêng).
+
+**PO defer E5:** Bar **B2B Sales** (`LeadB2bSalesFlowBar`) phía trên vẫn hiển thị luồng HĐ → Triển khai → Agency — chưa gộp vào stepper pre-sales (backlog INT-P25.2-E5).
 
 ### Sơ đồ 3 tab Pre-sales
 
@@ -260,24 +265,28 @@ stateDiagram-v2
 
 ### Mục tiêu
 
-Quyết định có đi **Tư vấn** hay dừng funnel — qua phiên **Khảo sát BANT "BANT Intake"** trên ops-web Phase 1.
+Quyết định có đi **Tư vấn** hay dừng funnel — qua phiên **Khảo sát BANT "BANT Intake"** trên ops-web (Phase 1–2 + **Funnel Stepper Phase 2.5**).
 
-**Spec UI:** [`docs/specs/2026-08-04-intake-bant-phase1-professional-ui-design.md`](../specs/2026-08-04-intake-bant-phase1-professional-ui-design.md) (PO sign-off 2026-08-04).
+**Spec UI:** [`2026-08-04-intake-bant-phase1-professional-ui-design.md`](../specs/2026-08-04-intake-bant-phase1-professional-ui-design.md) · [`2026-08-04-intake-bant-phase2-structured-discovery-design.md`](../specs/2026-08-04-intake-bant-phase2-structured-discovery-design.md) · [`2026-08-05-intake-bant-phase25-funnel-stepper-design.md`](../specs/2026-08-05-intake-bant-phase25-funnel-stepper-design.md) (Phase 2.5).
 
-### Layout trang `/crm/intake?lead_id={id}`
+### Layout trang `/crm/intake?lead_id={id}` (Phase 2.5)
 
 ```text
 ┌─ Sidebar phiên ─────────┬─ Nội dung chính ─────────────────────────────┐
-│ [+ Gọi điện]            │ Consult gate banner (nếu có lead_id)         │
-│ [+ Gặp trực tiếp]       │ A. Ngữ cảnh lead (prefill)                   │
-│ ● #N · Nháp / HT        │ B. Khảo sát — checklist Gọi/Gặp + Need/Pain  │
-│ ○ #N-1 · HT             │ C. BANT radio 1–5 + Quyết định               │
-│                         │ D. AI tóm tắt                                  │
+│ [+ Gọi điện]            │ A. Ngữ cảnh lead (prefill)                   │
+│ [+ Gặp trực tiếp]       │ Funnel stepper (B2→Lead→Intake→Tư vấn→BG)    │
+│ ● #N · Nháp / HT        │   · Gate strip (ok/warn/block)               │
+│ ○ #N-1 · HT             │   · CTA: + Tạo phiên / Chuyển → Tư vấn      │
+│                         │ B. Khảo sát — checklist Gọi/Gặp + Need/Pain  │
+│                         │ C. BANT radio 1–5 + Quyết định               │
+│                         │ D–G. AI tóm tắt · Stakeholder · Cam kết · RF  │
 │                         │ [Lưu nháp] [Hoàn thành] · autosave 30s       │
 └─────────────────────────┴──────────────────────────────────────────────┘
 ```
 
-Mobile: sidebar → drawer; **Lưu / Hoàn thành** cố định dưới màn hình.
+Mobile: sidebar → drawer; stepper CTA **sticky** dưới track; form **Lưu / Hoàn thành** cố định dưới màn hình.
+
+> **Đã thay thế (Phase 2.5):** `IntakeConsultGateBanner` và gate box trùng trên Lead panel → gộp vào **Funnel stepper + gate strip**.
 
 ### Checklist AM (Phase 1)
 
@@ -293,7 +302,8 @@ Mobile: sidebar → drawer; **Lưu / Hoàn thành** cố định dưới màn h�
 | 8 | **Lưu nháp** hoặc chờ **tự lưu 30s** | Indicator trạng thái bên nút Lưu |
 | 9 | (Tuỳ chọn) **Tóm tắt AI** ở mục D | Sau khi đã ghi discovery/BANT |
 | 10 | **Hoàn thành phiên** → confirm modal | Block nếu thiếu Contact/Decision |
-| 11 | Quay Lead → tick ✓ task Lead (nếu Go) | Gate BANT trên banner Consult |
+| 11 | Gate strip stepper → **Chuyển → Tư vấn** (khi Go + gate OK) | Hoặc tick ✓ task Lead trên Lead rồi **Làm mới** stepper |
+| 12 | (Tuỳ chọn) Nurture/No-Go | CTA **Chuyển → Tư vấn (xác nhận)** — modal confirm bắt buộc |
 
 ### Checklist AM (Phase 2 — bổ sung)
 
@@ -311,29 +321,36 @@ Spec: [`docs/specs/2026-08-04-intake-bant-phase2-structured-discovery-design.md`
 
 | Bước | Thao tác | Chi tiết |
 |------|----------|----------|
-| 1 | Trên panel Lead → link **Intake** | `/crm/intake?lead_id={id}` |
-| 2 | Tạo phiên | **+ Gọi điện** (12 câu) hoặc **+ Gặp trực tiếp** (10 câu) |
+| 1 | Trên panel Lead → link **Intake** hoặc stepper **Khảo sát BANT** | `/crm/intake?lead_id={id}` |
+| 2 | Tạo phiên | **+ Gọi điện** (12 câu) hoặc **+ Gặp trực tiếp** (10 câu) — hoặc CTA **+ Tạo phiên Intake** trên stepper |
 | 3 | Khảo sát + BANT | Section B + C; autosave 30s / blur |
 | 4 | Hoàn thành phiên | `status = completed` + quyết định Go/Nurture/No-Go |
-| 5 | Quay Lead → tick ✓ task Lead | Khi Go và gate OK |
-| 6 | **Chuyển bước → Tư vấn** | Gate kiểm BANT / No-Go (ngưỡng 24/18) |
+| 5 | Stepper gate **ok** (BANT ≥24, task Lead ✓) | Strip xanh **Sẵn sàng chuyển Tư vấn** |
+| 6 | Bấm **Chuyển → Tư vấn** trên stepper Intake | Chuyển `presales.stage=consult`; mở Lead `#funnel-presales` |
+
+**Handoff ≤2 click:** Hoàn thành phiên → **Chuyển → Tư vấn** (không cần quay Lead tìm nút **Chuyển →** trong panel).
 
 ### QA tự động
 
 ```bash
+# Full stack (bootstrap + Nest + ops-web + Playwright)
+bash scripts/playwright_ops_intake_bant_phase25_e2e.sh
+
+# Hoặc thủ công (stack đã chạy):
 cd services/ops-web
 OPS_E2E_SKIP_SERVER=0 npm run test:e2e:intake-bant-phase1
 OPS_E2E_SKIP_SERVER=0 npm run test:e2e:intake-bant-phase2
+OPS_E2E_SKIP_SERVER=1 npm run test:e2e:intake-bant-phase25
 ```
 
-Cần stack Nest API (`OPS_E2E_API_URL`, mặc định `:3000`) + ops-web (`OPS_E2E_URL`, mặc định `:3200`). Tùy chọn: `OPS_E2E_AI_LEAD_ID`, `OPS_E2E_STAFF_EMAIL`, `OPS_E2E_STAFF_PASSWORD`.
+Cần stack Nest API (`OPS_E2E_API_URL`, mặc định `:3000`) + ops-web (`OPS_E2E_URL`, mặc định `:3200`). Tùy chọn: `OPS_E2E_AI_LEAD_ID` (lead B2B, presales stage `lead`), `OPS_E2E_STAFF_EMAIL`, `OPS_E2E_STAFF_PASSWORD`.
 
 ### Sơ đồ quyết định Intake
 
 ```mermaid
 flowchart TD
   I[Intake hoàn thành] --> D{Decision}
-  D -->|Go| G["✓ Chuyển Consult<br/>(gate BANT)"]
+  D -->|Go| G["Stepper: Chuyển → Tư vấn<br/>(gate strip ok)"]
   D -->|Nurture| N["Chờ nurture<br/>có thể confirm chuyển"]
   D -->|No-Go| X["⛔ Không chuyển Consult<br/>(Director override nếu cần)"]
   G --> C[Công đoạn 5]
@@ -364,7 +381,7 @@ Audit / discovery — đủ dữ liệu để báo giá. **Không thu phí tư v
 | 4 | Điền task Consult → ✓ | SLA khuyến nghị ≤48h sau meeting |
 | 5 | **AI Hỗ trợ** (tuỳ chọn) | Phân tích consult |
 | 6 | Điền **KH Marketing sơ bộ** (R5) | Bắt buộc trước Proposal |
-| 7 | **Chuyển bước → Báo giá** | Gate KH MKT sơ bộ |
+| 7 | **Chuyển → Báo giá** trên funnel stepper | Gate KH MKT sơ bộ (G4); CTA trên Lead `#funnel-presales` |
 
 **Tài liệu SOP chi tiết:** [consult-stage-am-sop.md](../runbooks/consult-stage-am-sop.md)
 
@@ -635,28 +652,30 @@ flowchart TB
 
 ### Gate tổng hợp
 
-| # | Gate | Chặn gì |
-|---|------|---------|
-| G1 | B2 `first_contact` | Tạo Pre-sales |
-| G2 | Task Lead ✓ + Intake Go | Lead → Consult |
-| G3 | No-Go / BANT thấp | Consult (trừ Director override) |
-| G4 | KH MKT sơ bộ R5 | Consult → Proposal |
-| G5 | Cap pre-sales | Ghi chi phí (strict mode) |
-| G6 | Task cả 3 stage pre-sales | Promote / ký HĐ |
-| G7 | TMMT / KH MKT chính thức | Onboard → Deliver |
-| G8 | Task stage hiện tại ✓ | Mọi chuyển bước lifecycle |
+| # | Gate | Stepper step | Chặn gì | UI (Phase 2.5) |
+|---|------|--------------|---------|----------------|
+| G1 | B2 `first_contact` | `b2` | Tạo Pre-sales | Step pending/block đến care complete |
+| G2 | Task Lead ✓ + Intake Go | `intake_bant` | Lead → Consult | Gate strip + CTA **Chuyển → Tư vấn** |
+| G3 | No-Go / BANT thấp | `intake_bant` | Consult (trừ Director override) | Strip warn/block; confirm nếu Nurture |
+| G4 | KH MKT sơ bộ R5 | `consult` → `proposal` | Consult → Proposal | CTA **Chuyển → Báo giá** trên stepper |
+| G5 | Cap pre-sales | — | Ghi chi phí (strict mode) | Panel chi phí |
+| G6 | Task cả 3 stage pre-sales | — | Promote / ký HĐ | Panel tasks |
+| G7 | TMMT / KH MKT chính thức | — | Onboard → Deliver | Workflow lifecycle |
+| G8 | Task stage hiện tại ✓ | — | Mọi chuyển bước lifecycle | Nút **Chuyển →** workflow |
+
+Lead **Phải tra soát (GDKD):** stepper `blocked` — ẩn mọi CTA advance; xử lý tại `/crm/leads/review-queue`.
 
 ### Ma trận công đoạn × màn hình
 
-| Công đoạn | Màn hình chính | Chuyển bước |
-|-----------|----------------|-------------|
-| Lead vào | `/crm/leads` | — |
-| B2 | `/crm/leads/{id}` | Care pipeline |
-| Pre-sales Lead | Lead panel tab Lead | → Consult |
-| Intake | `/crm/intake?lead_id=` | — |
-| Consult | Lead panel tab Tư vấn | → Proposal |
-| Proposal | Lead panel tab Báo giá | → Ký HĐ |
-| Onboard → Retain | `/crm/service-delivery/{id}` | Nút **Chuyển →** |
+| Công đoạn | Màn hình chính | Funnel stepper | Chuyển bước |
+|-----------|----------------|----------------|-------------|
+| Lead vào | `/crm/leads` | — | — |
+| B2 | `/crm/leads/{id}` | Step `b2` | Care pipeline complete |
+| Pre-sales Lead | Lead panel tab Lead | Step `presales_lead` | — |
+| Intake BANT | `/crm/intake?lead_id=` | Step `intake_bant` + gate strip | **Chuyển → Tư vấn** (CTA stepper) |
+| Consult | `/crm/leads/{id}` + tab Tư vấn | Step `consult` | **Chuyển → Báo giá** (CTA stepper) |
+| Proposal | Lead panel tab Báo giá | Step `proposal` | → Ký HĐ (panel) |
+| Onboard → Retain | `/crm/service-delivery/{id}` | — | Nút **Chuyển →** lifecycle |
 
 ---
 
@@ -670,6 +689,7 @@ Bộ test tự động trong repo (pytest / unittest):
 | TC-B03 | Intake Go → Consult | `tests/test_crm_lead_presales.py` |
 | INT-P1-19 | Intake Phase 1 UI smoke (Playwright) | `services/ops-web/e2e/intake-bant-phase1.spec.ts` |
 | INT-P2-19 | Intake Phase 2 structured discovery smoke | `services/ops-web/e2e/intake-bant-phase2.spec.ts` |
+| INT-P25-18 | Funnel stepper Phase 2.5 (Intake + Lead handoff) | `services/ops-web/e2e/intake-bant-phase25-stepper.spec.ts` |
 | TC-B06 | Promote → Onboard | `tests/test_crm_lead_presales.py` |
 | TC-C04 | Không nhảy stage | `tests/test_crm_service_lifecycle.py` |
 | TC-C05 | Task chưa xong → chặn | `tests/test_crm_service_lifecycle.py` |
@@ -686,7 +706,9 @@ Bộ test tự động trong repo (pytest / unittest):
 |--------|-------------|------------|
 | KPI toàn 0 | Chưa Pre-sales / Intake / lifecycle | Làm Công đoạn 3–7; xem banner KPI |
 | «Chưa hoàn thành B2» | Gate care | Công đoạn 2 |
-| «Chưa hoàn thành task giai đoạn …» | Task chưa ✓ | Tick task trước khi chuyển bước |
+| «Chưa hoàn thành task giai đoạn …» | Task chưa ✓ | Tick task trước khi chuyển bước; **Làm mới** stepper sau tick |
+| Gate OK nhưng không thấy **Chuyển → Tư vấn** | Stepper chưa refresh / review queue | Bấm **Làm mới** trên gate strip; kiểm tra **Phải tra soát** |
+| Banner Consult cũ không còn | Phase 2.5 | Dùng **Funnel stepper** trên Intake + Lead (không tìm banner riêng) |
 | «TMMT chưa đủ» | Thiếu KH MKT chính thức | Điền R5 trên workflow |
 | Ký HĐ lỗi promote | Task pre-sales thiếu | ✓ cả 3 tab Lead/Consult/Proposal |
 | Lifecycle không gán AM | `lead_id` null | Gắn lead; **Đồng bộ AM** trên KPI |
@@ -713,6 +735,7 @@ python3 -m pytest tests/test_crm_lead_presales.py tests/test_crm_service_lifecyc
 - [ ] B2 Liên hệ OK
 - [ ] Pre-sales bắt đầu (chọn đúng dịch vụ)
 - [ ] Intake completed + **Go**
+- [ ] **Chuyển → Tư vấn** từ stepper (Intake hoặc Lead)
 - [ ] Consult ✓ + KH MKT sơ bộ
 - [ ] Proposal ✓ + trong cap chi phí
 - [ ] HĐ draft → **Active**

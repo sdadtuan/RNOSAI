@@ -24,9 +24,15 @@ export async function openIntakeForLead(page: Page, leadId: number): Promise<voi
 }
 
 export async function createPhoneSession(page: Page): Promise<void> {
-  page.once('dialog', (dialog) => void dialog.accept());
-  await page.getByRole('button', { name: '+ Gọi điện' }).click();
-  await expect(page.locator('.intake-form__title')).toContainText(/Phiên #\d+ · .* · Nháp/i, {
+  const dialogWait = page.waitForEvent('dialog', { timeout: 5_000 }).catch(() => null);
+  const createBtn = page.getByRole('button', { name: '+ Gọi điện' });
+  await createBtn.scrollIntoViewIfNeeded();
+  await createBtn.click();
+  const dialog = await dialogWait;
+  if (dialog) await dialog.accept();
+
+  const sessionTitle = page.locator('.intake-form__title').filter({ hasText: /Phiên #\d+/ });
+  await expect(sessionTitle).toContainText(/Phiên #\d+ · .* · Nháp/i, {
     timeout: 20_000,
   });
 }
@@ -51,10 +57,32 @@ export async function tickDiscoveryChecklist(page: Page, count: number): Promise
 }
 
 export async function scoreBant(page: Page, score: number): Promise<void> {
-  for (const key of BANT_KEYS) {
-    await page.locator(`#intake-bant-${key}-${score}`).check();
-  }
-  await expect(page.locator('.intake-bant-total-bar')).toContainText(`${score * BANT_KEYS.length}/30`);
+  const bantSection = page.getByRole('region', { name: /Chấm BANT/i });
+  await bantSection.scrollIntoViewIfNeeded();
+  await expect(bantSection).toBeVisible({ timeout: 15_000 });
+
+  const totalBar = bantSection.locator('.intake-bant-total-bar');
+  const expectedTotal = score * BANT_KEYS.length;
+
+  await expect
+    .poll(async () => {
+      await page.evaluate(
+        ({ keys, scoreValue }) => {
+          for (const key of keys) {
+            const input = document.getElementById(
+              `intake-bant-${key}-${scoreValue}`,
+            ) as HTMLInputElement | null;
+            if (!input || input.checked) continue;
+            input.click();
+          }
+        },
+        { keys: [...BANT_KEYS], scoreValue: score },
+      );
+      const text = await totalBar.innerText();
+      const match = text.match(/(\d+)\/30/);
+      return match ? Number(match[1]) : 0;
+    }, { timeout: 20_000 })
+    .toBe(expectedTotal);
 }
 
 export async function selectDecision(page: Page, value: 'go' | 'nurture' | 'no_go'): Promise<void> {
@@ -66,7 +94,8 @@ export async function completeIntakeSession(page: Page): Promise<void> {
   await expect(page.getByRole('dialog', { name: /Hoàn thành phiên/i })).toBeVisible();
   await page.getByRole('button', { name: 'Vẫn hoàn thành' }).click();
   await expect(page.getByText(/Đã hoàn thành phiên khảo sát/i)).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator('.intake-form__title')).toContainText(/Hoàn thành "Completed"/i);
+  const sessionTitle = page.locator('.intake-form__title').filter({ hasText: /Phiên #\d+/ });
+  await expect(sessionTitle).toContainText(/Hoàn thành "Completed"/i);
 }
 
 export async function fetchLatestIntakeSession(

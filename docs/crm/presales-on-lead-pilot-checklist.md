@@ -31,7 +31,7 @@ Dùng cho **Director + AM** khi bật `PTT_PRESALES_ON_LEAD=1` trên 1 dịch v�
 | 1 | `/crm/leads` → mở lead mới | Panel **Pre-sales dịch vụ** hiện; **không** có nút **→ Case/KH** |
 | 2 | Chọn slug pilot → **Bắt đầu pre-sales** | 3 tab Lead / Tư vấn / Báo giá + task cards |
 | 3 | Intake (gọi hoặc gặp) qua link trên panel | Session `completed`, BANT + decision |
-| 4 | Hoàn thành task Lead → **Chuyển bước** Consult | Gate BANT/No-Go hoạt động (confirm nếu Nurture) |
+| 4 | Hoàn thành task Lead → **Chuyển → Tư vấn** trên funnel stepper | Gate BANT/No-Go; confirm nếu Nurture; không dùng nút panel cũ |
 | 5 | **Prefill Consult** | Form Consult có dữ liệu từ Lead/Intake |
 | 6 | Hoàn thành Consult + Proposal tasks | Meta: «Chờ ký HĐ → Lifecycle Onboard» |
 | 7 | **Tạo HĐ draft** (panel hoặc `/crm/hub`) | HĐ `draft`, KH placeholder `[Lead #…] Chưa ký` |
@@ -63,9 +63,10 @@ Dùng cho **Director + AM** khi bật `PTT_PRESALES_ON_LEAD=1` trên 1 dịch v�
 
 1. Pre-sales = **trên Lead**, không mở Service Delivery cho đến khi ký HĐ
 2. KH thật + Case chỉ khi HĐ **Active**
-3. Intake luôn qua `lead_id` (link trên panel Lead)
-4. Director override No-Go → Consult: cần lý do + quyền admin
-5. Liên hệ IT nếu ký HĐ báo lỗi «chưa hoàn thành task giai đoạn …»
+3. Intake luôn qua `lead_id` (link trên panel Lead hoặc stepper **Khảo sát BANT**)
+4. Chuyển Consult/Báo giá qua **Funnel stepper** — CTA **Chuyển → …** (Phase 2.5)
+5. Director override No-Go → Consult: cần lý do + quyền admin
+6. Liên hệ IT nếu ký HĐ báo lỗi «chưa hoàn thành task giai đoạn …»
 
 ---
 

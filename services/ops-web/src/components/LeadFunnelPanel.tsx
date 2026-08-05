@@ -4,11 +4,9 @@ import { PresalesTaskFormCard } from '@/components/PresalesTaskFormCard';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  advanceLeadPresales,
   completeLeadCareStage,
   ensureLeadPresales,
   fetchLeadFunnel,
-  fetchLeadPresalesConsultGate,
   fetchLeadPresalesMarketingPlan,
   patchLeadPresalesMarketingPlan,
   patchLeadPresalesTask,
@@ -38,24 +36,18 @@ const STRATEGY_LABELS: Record<string, string> = {
   referral_engine: 'Giới thiệu / Referral',
 };
 
-interface ConsultGateState {
-  ok: boolean;
-  level: string;
-  messages: string[];
-  requires_confirm: boolean;
-  requires_override: boolean;
-  bant_total?: number;
-  decision?: string;
+interface Props {
+  token: string;
+  leadId: number;
+  user: StoredStaffUser | null;
+  serviceSlug?: string;
+  serviceOptions?: Array<{ slug: string; name: string }>;
+  syncFunnel?: LeadFunnelSnapshot | null;
+  onMessage?: (msg: string) => void;
+  onError?: (msg: string) => void;
+  onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
+  onFunnelUpdated?: () => void;
 }
-
-const FUNNEL_STEPS = [
-  { key: 'b2', label: 'B2 Liên hệ' },
-  { key: 'lead', label: 'Pre-sales Lead' },
-  { key: 'consult', label: 'Tư vấn' },
-  { key: 'proposal', label: 'Báo giá' },
-] as const;
-
-const DEFAULT_PRESALES_SLUG = 'dich-vu-seo-tong-the';
 
 const DEFAULT_PRESALES_SERVICES: Array<{ slug: string; name: string }> = [
   { slug: 'dich-vu-seo-tong-the', name: 'SEO tổng thể' },
@@ -79,17 +71,7 @@ export function mergePresalesServiceOptions(
   return [...bySlug.values()].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
 }
 
-interface Props {
-  token: string;
-  leadId: number;
-  user: StoredStaffUser | null;
-  serviceSlug?: string;
-  serviceOptions?: Array<{ slug: string; name: string }>;
-  onMessage?: (msg: string) => void;
-  onError?: (msg: string) => void;
-  onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
-  onFunnelUpdated?: () => void;
-}
+const DEFAULT_PRESALES_SLUG = 'dich-vu-seo-tong-the';
 
 export function LeadFunnelPanel({
   token,
@@ -97,6 +79,7 @@ export function LeadFunnelPanel({
   user,
   serviceSlug,
   serviceOptions,
+  syncFunnel,
   onMessage,
   onError,
   onFunnelChange,
@@ -117,7 +100,6 @@ export function LeadFunnelPanel({
   const [planObjectives, setPlanObjectives] = useState('');
   const [planStrategy, setPlanStrategy] = useState<Record<string, string>>({});
   const [planValidation, setPlanValidation] = useState<string[]>([]);
-  const [consultGate, setConsultGate] = useState<ConsultGateState | null>(null);
   const [taskDrafts, setTaskDrafts] = useState<Record<number, Record<string, string>>>({});
   const presalesServiceOptions = useMemo(
     () => mergePresalesServiceOptions(serviceOptions),
@@ -147,16 +129,6 @@ export function LeadFunnelPanel({
       setFunnel(snap);
       onFunnelChange?.(snap);
       if (snap.presales) {
-        if (snap.presales.presales.stage === 'lead') {
-          try {
-            const cg = await fetchLeadPresalesConsultGate(token, leadId);
-            setConsultGate(cg.gate);
-          } catch {
-            setConsultGate(null);
-          }
-        } else {
-          setConsultGate(null);
-        }
         if (snap.presales.presales.stage === 'proposal') {
           try {
             const mp = await fetchLeadPresalesMarketingPlan(token, leadId);
@@ -187,6 +159,12 @@ export function LeadFunnelPanel({
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (syncFunnel) {
+      setFunnel(syncFunnel);
+    }
+  }, [syncFunnel]);
 
   const canEdit = Boolean(user && hasCap(user, 'crm_leads', 'edit'));
   const canAssign = Boolean(user && hasCap(user, 'crm_leads', 'assign'));
@@ -233,13 +211,6 @@ export function LeadFunnelPanel({
         : ''
   }`;
 
-  function activeStepKey(): string {
-    if (!funnel) return 'b2';
-    if (!funnel.care_pipeline.all_complete) return 'b2';
-    if (!funnel.presales) return 'lead';
-    return funnel.presales.presales.stage;
-  }
-
   if (loading && !funnel) {
     return <p className="muted">Đang tải funnel B2 / pre-sales…</p>;
   }
@@ -248,14 +219,12 @@ export function LeadFunnelPanel({
   const flowKind = funnel.lead_flow_kind ?? 'b2b_prospect';
   const isOperationalFlow = flowKind === 'spa_operational';
   const showPresales = showPresalesForFlow(flowKind);
-  const funnelSteps = showPresales ? FUNNEL_STEPS : FUNNEL_STEPS.filter((step) => step.key === 'b2');
   const panelTitle = isOperationalFlow
     ? 'Funnel CSKH vận hành — B2 Liên hệ'
     : 'Funnel B2 → Pre-sales';
 
   const b2Stage = funnel.care_pipeline.stages[0];
   const inReview = funnel.review_queue.active;
-  const activeStep = activeStepKey();
   const b2ContactOkReported = Boolean(funnel.care_pipeline.contact_ok_reported);
   const canCompleteB2 = b2ContactOkReported && careNote.trim().length >= 3;
   const negativeReportCount = funnel.care_pipeline.b2_negative_report_count ?? 0;
@@ -277,34 +246,6 @@ export function LeadFunnelPanel({
           {panelMessage}
         </div>
       ) : null}
-
-      <div className="funnel-stepper" style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-        {funnelSteps.map((step, idx) => {
-          const presalesIdx = funnel.presales
-            ? FUNNEL_STEPS.findIndex((s) => s.key === funnel.presales!.presales.stage)
-            : -1;
-          const done =
-            step.key === 'b2'
-              ? funnel.care_pipeline.all_complete
-              : presalesIdx >= idx;
-          const current = step.key === activeStep;
-          return (
-            <span
-              key={step.key}
-              className={`badge${current ? ' badge-active' : ''}`}
-              style={{
-                padding: '0.25rem 0.5rem',
-                borderRadius: 999,
-                fontSize: '0.8rem',
-                background: current ? '#1d4ed8' : done ? '#dcfce7' : '#f3f4f6',
-                color: current ? '#fff' : done ? '#166534' : '#374151',
-              }}
-            >
-              {step.label}
-            </span>
-          );
-        })}
-      </div>
 
       {inReview && (
         <div className="banner banner-warn">
@@ -599,6 +540,7 @@ export function LeadFunnelPanel({
                     void run(async () => {
                       const out = await patchLeadPresalesTask(token, leadId, taskId, { form_data: formData });
                       setFunnel(out.funnel);
+                      onFunnelChange?.(out.funnel);
                     })
                   }
                   onToggleDone={(taskId, nextDone, formData) =>
@@ -608,6 +550,7 @@ export function LeadFunnelPanel({
                         form_data: formData,
                       });
                       setFunnel(out.funnel);
+                      onFunnelChange?.(out.funnel);
                       setTaskDrafts((prev) => {
                         const next = { ...prev };
                         delete next[taskId];
@@ -623,82 +566,6 @@ export function LeadFunnelPanel({
                   <Link href={intakeHref} className="nav-link">
                     Mở Lead Intake (BANT) →
                   </Link>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    disabled={busy}
-                    style={{ marginLeft: '0.5rem' }}
-                    onClick={() =>
-                      void run(async () => {
-                        await reload();
-                        onMessage?.('Đã làm mới gate Intake');
-                      })
-                    }
-                  >
-                    Làm mới gate
-                  </button>
-                </p>
-              )}
-              {consultGate && funnel.presales.presales.stage === 'lead' && (
-                <div
-                  className="banner"
-                  style={{
-                    marginBottom: '0.75rem',
-                    background: consultGate.ok ? '#ecfdf5' : '#fef2f2',
-                    border: `1px solid ${consultGate.ok ? '#86efac' : '#fecaca'}`,
-                  }}
-                >
-                  <strong>Gate chuyển Tư vấn (Intake)</strong>
-                  <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem', fontSize: '0.9rem' }}>
-                    {consultGate.messages.map((m) => (
-                      <li key={m}>{m}</li>
-                    ))}
-                  </ul>
-                  {consultGate.bant_total != null && (
-                    <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
-                      BANT {consultGate.bant_total}/30 · decision: {consultGate.decision || '—'}
-                    </p>
-                  )}
-                </div>
-              )}
-              {canEdit && (
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  disabled={busy}
-                  title={funnel.presales.advance.block_reason}
-                  onClick={() =>
-                    void run(async () => {
-                      const reason = funnel.presales?.advance.block_reason ?? '';
-                      const needsConfirm =
-                        !funnel.presales?.advance.can_advance_forward &&
-                        (reason.includes('Nurture') ||
-                          reason.includes('BANT') ||
-                          reason.includes('cân nhắc'));
-                      if (
-                        !funnel.presales?.advance.can_advance_forward &&
-                        !needsConfirm &&
-                        !window.confirm(reason || 'Không thể chuyển giai đoạn')
-                      ) {
-                        return;
-                      }
-                      if (needsConfirm && !window.confirm(reason || 'Xác nhận chuyển giai đoạn?')) {
-                        return;
-                      }
-                      const out = await advanceLeadPresales(token, leadId, { confirm: true });
-                      setFunnel(out.funnel);
-                      onFunnelChange?.(out.funnel);
-                      onMessage?.('Đã chuyển giai đoạn pre-sales');
-                      await reload();
-                    }, true)
-                  }
-                >
-                  Chuyển → {funnel.presales.advance.next_stage ?? '—'}
-                </button>
-              )}
-              {!funnel.presales.advance.can_advance_forward && funnel.presales.advance.block_reason && (
-                <p className="muted" style={{ fontSize: '0.85rem' }}>
-                  {funnel.presales.advance.block_reason}
                 </p>
               )}
 
