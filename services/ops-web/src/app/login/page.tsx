@@ -19,7 +19,8 @@ export default function LoginPage() {
     try {
       const out = await staffLogin(email.trim(), password);
       saveSession(out.access_token, out.refresh_token, out.user);
-      router.push('/');
+      const next = new URLSearchParams(window.location.search).get('next');
+      router.push(next && next.startsWith('/') ? next : '/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Đăng nhập thất bại');
     } finally {

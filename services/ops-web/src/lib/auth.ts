@@ -1,6 +1,8 @@
 const TOKEN_KEY = 'ptt_ops_access_token';
 const REFRESH_KEY = 'ptt_ops_refresh_token';
 const USER_KEY = 'ptt_ops_user';
+/** Session marker for Next.js middleware (cannot read sessionStorage). */
+export const AUTH_COOKIE = 'ptt_ops_auth';
 
 export interface StaffSectionCap {
   section: string;
@@ -24,6 +26,7 @@ export function saveSession(
   sessionStorage.setItem(TOKEN_KEY, accessToken);
   sessionStorage.setItem(REFRESH_KEY, refreshToken);
   sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+  syncAuthCookie();
 }
 
 export function clearSession(): void {
@@ -31,6 +34,18 @@ export function clearSession(): void {
   sessionStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem(REFRESH_KEY);
   sessionStorage.removeItem(USER_KEY);
+  clearAuthCookie();
+}
+
+/** Mirror login state to cookie for edge middleware. */
+export function syncAuthCookie(): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${AUTH_COOKIE}=1; path=/; SameSite=Lax`;
+}
+
+export function clearAuthCookie(): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${AUTH_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
 }
 
 export function getAccessToken(): string | null {
@@ -54,8 +69,12 @@ export function getStoredUser(): StoredStaffUser | null {
   }
 }
 
+/**
+ * Fail-closed (R1-S2): missing user or caps → deny.
+ * API guards remain authoritative; UI must not show actions without caps.
+ */
 export function hasCap(user: StoredStaffUser | null, section: string, action = 'view'): boolean {
-  if (!user?.caps?.length) return true;
+  if (!user?.caps?.length) return false;
   return user.caps.some((c) => c.section === section && c.action === action);
 }
 
