@@ -52,11 +52,15 @@ def main() -> int:
     print(f"  mode: {'dry-run' if dry_run else 'apply'}")
 
     from ptt_jobs.db import pg_connection
+    from rbac_permissions_pg import ensure_super_admin_crm_position
 
     total = 0
     with pg_connection() as conn:
         with conn.cursor() as cur:
+            ensure_super_admin_crm_position(cur, dry_run=dry_run)
             for code in codes:
+                if code.upper() == "SUPER-ADMIN":
+                    continue
                 total += migrate_position_defaults(
                     cur,
                     code,

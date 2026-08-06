@@ -119,6 +119,55 @@ def upsert_grants(
     return count
 
 
+def ensure_super_admin_crm_position(cur, *, dry_run: bool = False) -> int:
+    """Reserve crm_positions.id=1 for SUPER-ADMIN before pilot seeds."""
+    existing = fetch_position_id(cur, "SUPER-ADMIN")
+    if existing == PG_SUPER_ADMIN_POSITION_ID:
+        return existing
+    if existing is not None and existing != PG_SUPER_ADMIN_POSITION_ID:
+        raise SystemExit(
+            f"SUPER-ADMIN position_id={existing} != {PG_SUPER_ADMIN_POSITION_ID} — fix crm_positions manually"
+        )
+    cur.execute(
+        """
+        SELECT id, code FROM crm_positions WHERE id = %s LIMIT 1
+        """,
+        (PG_SUPER_ADMIN_POSITION_ID,),
+    )
+    row = cur.fetchone()
+    name = POSITION_SEED_META["SUPER-ADMIN"][0]
+    if row:
+        if dry_run:
+            print(f"  would update crm_positions id=1 → SUPER-ADMIN")
+            return PG_SUPER_ADMIN_POSITION_ID
+        cur.execute(
+            """
+            UPDATE crm_positions
+            SET code = %s, name = %s, active = TRUE, updated_at = NOW()
+            WHERE id = %s
+            """,
+            ("SUPER-ADMIN", name[:255], PG_SUPER_ADMIN_POSITION_ID),
+        )
+        return PG_SUPER_ADMIN_POSITION_ID
+    if dry_run:
+        print("  would insert crm_positions id=1 SUPER-ADMIN")
+        return PG_SUPER_ADMIN_POSITION_ID
+    cur.execute(
+        """
+        INSERT INTO crm_positions (id, code, name, active)
+        VALUES (%s, %s, %s, TRUE)
+        ON CONFLICT (id) DO UPDATE SET
+            code = EXCLUDED.code,
+            name = EXCLUDED.name,
+            active = TRUE,
+            updated_at = NOW()
+        RETURNING id
+        """,
+        (PG_SUPER_ADMIN_POSITION_ID, "SUPER-ADMIN", name[:255]),
+    )
+    return int(cur.fetchone()[0])
+
+
 def migrate_position_defaults(
     cur,
     position_code: str,
