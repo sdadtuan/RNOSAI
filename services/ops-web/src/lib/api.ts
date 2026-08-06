@@ -7471,6 +7471,17 @@ export async function fetchStaffPermissionAudit(
   return crmFetch(token, `/api/v1/staff/permissions/audit${suffix}`);
 }
 
-export async function exportStaffPermissionPosition(token: string, positionId: number) {
+export async function exportStaffPermissionPosition(
+  token: string,
+  positionId: number,
+): Promise<{
+  format: string;
+  position_id: number;
+  position_code: string;
+  position_name: string;
+  markdown: string;
+  grants: Record<string, string[]>;
+  matrix: StaffPermissionMatrixRow[];
+}> {
   return crmFetch(token, `/api/v1/staff/permissions/positions/${positionId}/export`);
 }
