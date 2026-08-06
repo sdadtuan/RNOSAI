@@ -23,6 +23,13 @@ CREATE INDEX IF NOT EXISTS idx_crm_lead_presales_handoff_status
     ON crm_lead_presales (handoff_status)
     WHERE handoff_status IN ('pending', 'with_solution');
 
+-- P2 SLA timestamps (required for legacy backfill + metrics on PG)
+ALTER TABLE crm_lead_presales
+    ADD COLUMN IF NOT EXISTS consult_entered_at TIMESTAMPTZ;
+
+ALTER TABLE crm_lead_presales
+    ADD COLUMN IF NOT EXISTS proposal_entered_at TIMESTAMPTZ;
+
 -- Legacy consult leads → Solution queue (idempotent)
 UPDATE crm_lead_presales
 SET handoff_status = 'with_solution',
