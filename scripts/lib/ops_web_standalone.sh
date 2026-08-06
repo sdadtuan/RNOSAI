@@ -107,18 +107,53 @@ ops_web_bootstrap_release_from_legacy() {
   echo "OK  bootstrapped current/ops-web from legacy standalone"
 }
 
+ops_web_latest_release() {
+  local root="${1:-$(ops_web_root)}"
+  ls -1dt "$root/releases/ops-web-"* 2>/dev/null | head -1 || true
+}
+
+ops_web_activate_release() {
+  local release_path="${1:-}"
+  local root current_link resolved
+
+  root="$(ops_web_root)"
+  current_link="$root/current/ops-web"
+  if [[ -z "$release_path" ]]; then
+    release_path="$(ops_web_latest_release "$root")"
+  fi
+  if [[ -z "$release_path" || ! -d "$release_path" ]]; then
+    echo "FAIL  no ops-web release to activate under $root/releases/"
+    return 1
+  fi
+
+  mkdir -p "$root/current"
+  if [[ "$(id -u)" -eq 0 ]]; then
+    chown deploy:deploy "$root/current" 2>/dev/null || true
+  fi
+
+  ln -sfn "$release_path" "$current_link"
+  resolved="$(readlink -f "$current_link" 2>/dev/null || readlink "$current_link" 2>/dev/null || true)"
+  if [[ "$resolved" != "$release_path" ]]; then
+    echo "WARN  could not update $current_link (likely owned by root)"
+    echo "      Run: sudo ln -sfn '$release_path' '$current_link'"
+    echo "      Or:  sudo $root/scripts/deploy_ops_web.sh --activate-latest"
+    return 1
+  fi
+
+  echo "OK  active release → $release_path"
+}
+
 ops_web_publish_release() {
-  local root release_id release_path current_link
+  local root release_id release_path
   root="$(ops_web_root)"
   release_id="$(git -C "$root" rev-parse --short HEAD)-$(date +%Y%m%d%H%M%S)"
   release_path="$root/releases/ops-web-$release_id"
-  current_link="$root/current/ops-web"
 
   mkdir -p "$root/releases" "$root/current"
   rm -rf "$release_path"
   mkdir -p "$release_path"
   rsync -a --delete "$(ops_web_dir)/.next/standalone/" "$release_path/"
-  ln -sfn "$release_path" "$current_link"
+  ops_web_activate_release "$release_path" || true
 
   echo "OK  release published → $release_path"
   printf '%s\n' "$release_path"

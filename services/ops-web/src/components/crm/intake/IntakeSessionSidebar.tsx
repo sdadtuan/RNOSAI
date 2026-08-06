@@ -79,7 +79,7 @@ export function IntakeSessionSidebar({
           const isActive = session.id === activeId;
           const canDelete = session.status === 'draft' && Boolean(onDelete) && canCreate;
           return (
-            <li key={session.id} className="intake-sidebar__row">
+            <li key={session.id}>
               <button
                 type="button"
                 className={`intake-sidebar__item${isActive ? ' intake-sidebar__item--active' : ''}`}
@@ -87,9 +87,32 @@ export function IntakeSessionSidebar({
                 aria-current={isActive ? 'true' : undefined}
               >
                 <span className="intake-sidebar__item-title">
-                  Phiên #{session.id}
-                  {session.status === 'draft' ? (
-                    <span className="intake-sidebar__badge intake-sidebar__badge--draft">Nháp</span>
+                  <span className="intake-sidebar__item-title-main">
+                    Phiên #{session.id}
+                    {session.status === 'draft' ? (
+                      <span className="intake-sidebar__badge intake-sidebar__badge--draft">Nháp</span>
+                    ) : null}
+                  </span>
+                  {canDelete ? (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="intake-sidebar__delete"
+                      title={`Xóa phiên nháp #${session.id}`}
+                      aria-label={`Xóa phiên nháp #${session.id}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (!saving) onDelete?.(session);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter' && event.key !== ' ') return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (!saving) onDelete?.(session);
+                      }}
+                    >
+                      Xóa
+                    </span>
                   ) : null}
                 </span>
                 <span className="intake-sidebar__item-meta muted">
@@ -99,18 +122,6 @@ export function IntakeSessionSidebar({
                   BANT {session.bant_total ?? 0}/30 · {decisionLabel(session.decision)}
                 </span>
               </button>
-              {canDelete ? (
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm intake-sidebar__delete"
-                  disabled={saving}
-                  title={`Xóa phiên nháp #${session.id}`}
-                  aria-label={`Xóa phiên nháp #${session.id}`}
-                  onClick={() => onDelete?.(session)}
-                >
-                  Xóa
-                </button>
-              ) : null}
             </li>
           );
         })}

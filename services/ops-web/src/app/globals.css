@@ -8397,21 +8397,8 @@ body {
   overflow-y: auto;
 }
 
-.intake-sidebar__row {
-  display: flex;
-  align-items: stretch;
-  gap: 0.35rem;
-}
-
-.intake-sidebar__delete {
-  flex: 0 0 auto;
-  align-self: center;
-  padding-inline: 0.55rem;
-}
-
 .intake-sidebar__item {
-  flex: 1;
-  min-width: 0;
+  width: 100%;
   text-align: left;
   padding: 0.65rem 0.7rem;
   border: 1px solid var(--surface-border);
@@ -8436,9 +8423,35 @@ body {
 .intake-sidebar__item-title {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  justify-content: space-between;
+  gap: 0.5rem;
   font-weight: 600;
   font-size: 0.88rem;
+}
+
+.intake-sidebar__item-title-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.intake-sidebar__delete {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 35%, var(--surface-border));
+  color: var(--danger, #dc2626);
+  background: color-mix(in srgb, var(--danger, #dc2626) 8%, var(--surface));
+  cursor: pointer;
+}
+
+.intake-sidebar__delete:hover {
+  background: color-mix(in srgb, var(--danger, #dc2626) 14%, var(--surface));
 }
 
 .intake-sidebar__item-meta {

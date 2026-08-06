@@ -26,13 +26,28 @@ do_restart=0
 case "$MODE" in
   build) do_build=1 ;;
   --restart) do_restart=1 ;;
+  --activate-latest) ;;
   --all) do_build=1; do_restart=1 ;;
   --verify-only) ;;
   *)
-    echo "Usage: $0 [build|--restart|--all|--verify-only]"
+    echo "Usage: $0 [build|--restart|--activate-latest|--all|--verify-only]"
     exit 1
     ;;
 esac
+
+if [[ "$MODE" == "--activate-latest" ]]; then
+  if [[ "$(id -u)" -ne 0 ]]; then
+    echo "FAIL  --activate-latest requires sudo (current/ops-web symlink is root-owned on VPS)"
+    exit 1
+  fi
+  ops_web_activate_release
+  systemctl restart ptt-ops-web
+  sleep 2
+  systemctl is-active ptt-ops-web
+  ops_web_verify_local || true
+  ops_web_verify_public || true
+  exit 0
+fi
 
 if [[ "$do_build" == "1" ]]; then
   ops_web_build
@@ -51,6 +66,7 @@ if [[ "$do_restart" == "1" ]]; then
 
   cp "$ROOT/deploy/ptt-ops-web.service" /etc/systemd/system/ptt-ops-web.service
   ops_web_bootstrap_release_from_legacy
+  ops_web_activate_release || true
   systemctl daemon-reload
   systemctl restart ptt-ops-web
   sleep 2
