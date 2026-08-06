@@ -865,55 +865,19 @@ def apply_position_default_grants(
     replace: bool = False,
 ) -> bool:
     """Ghi ma trận mặc định cho một chức vụ (replace=True → xóa quyền cũ trước)."""
-    row = conn.execute(
-        """
-        SELECT id FROM crm_positions
-        WHERE lower(trim(code)) = lower(trim(?)) AND active = 1
-        LIMIT 1
-        """,
-        (position_code,),
-    ).fetchone()
-    if not row:
-        return False
-    pid = int(row["id"])
-    defaults = default_grants_for_position(position_code)
-    if replace:
-        conn.execute(
-            "DELETE FROM crm_position_section_permissions WHERE position_id = ?",
-            (pid,),
-        )
-    for sid, acts in defaults.items():
-        for act in acts:
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO crm_position_section_permissions
-                (position_id, section_id, action)
-                VALUES (?, ?, ?)
-                """,
-                (pid, sid, act),
-            )
-    return True
+    raise RuntimeError(
+        "SQLite RBAC writes disabled (R1-S3). "
+        "Use Nest PATCH /api/v1/staff/permissions/positions/:id or "
+        "scripts/migrate_staff_permissions_pg.py"
+    )
 
 
 def migrate_presales_solution_permissions(conn) -> None:
     """Bổ sung quyền P3-S2 crm_presales_solution — INSERT OR IGNORE, không ghi đè ma trận cũ."""
-    rows = conn.execute("SELECT id, code FROM crm_positions WHERE active = 1").fetchall()
-    for prow in rows:
-        pid = int(prow["id"])
-        code = str(prow["code"] or "")
-        defaults = default_grants_for_position(code)
-        acts = list(defaults.get("crm_presales_solution") or [])
-        if not acts:
-            continue
-        for act in acts:
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO crm_position_section_permissions
-                (position_id, section_id, action)
-                VALUES (?, 'crm_presales_solution', ?)
-                """,
-                (pid, act),
-            )
+    raise RuntimeError(
+        "SQLite RBAC writes disabled (R1-S3). "
+        "Use scripts/migrate_presales_solution_permissions.py (PostgreSQL only)"
+    )
 
 
 def migrate_hdsd_position_permissions(conn) -> None:

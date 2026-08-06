@@ -6,6 +6,8 @@ import { usePathname } from 'next/navigation';
 const LINKS = [
   { href: '/admin/crm/custom-fields', label: 'Custom fields' },
   { href: '/admin/crm/pipeline', label: 'Pipeline sales' },
+  { href: '/admin/crm/lead-lookups', label: 'Nguồn & Kênh' },
+  { href: '/admin/crm/permissions', label: 'Ma trận phân quyền' },
 ];
 
 export default function AdminCrmLayout({ children }: { children: React.ReactNode }) {

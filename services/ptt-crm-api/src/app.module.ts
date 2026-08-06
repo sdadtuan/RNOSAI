@@ -74,6 +74,7 @@ import { SeoReportsModule } from './seo-reports/seo-reports.module';
 import { SeoStrategyModule } from './seo-strategy/seo-strategy.module';
 import { SeoTechnicalModule } from './seo-technical/seo-technical.module';
 import { StaffAuthModule } from './staff-auth/staff-auth.module';
+import { StaffPermissionsModule } from './staff-permissions/staff-permissions.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { TemporalModule } from './temporal/temporal.module';
 import { WorkflowsModule } from './workflows/workflows.module';
@@ -117,6 +118,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     ZaloLeadsModule,
     PortalModule,
     StaffAuthModule,
+    StaffPermissionsModule,
     WebhooksModule,
     PortalSeoModule,
     PortalAiModule,

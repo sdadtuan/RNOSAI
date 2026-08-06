@@ -7397,3 +7397,80 @@ export async function addCrmTicketMessage(
     body: JSON.stringify(body),
   });
 }
+
+export interface StaffPermissionPositionSummary {
+  id: number;
+  code: string;
+  name: string;
+  active: boolean;
+  grants_customized: boolean;
+}
+
+export interface StaffPermissionMatrixRow {
+  section_id: string;
+  section_label: string;
+  group: string;
+  page: string;
+  description: string;
+  row_kind: 'section' | 'ui_button';
+  parent_section?: string;
+  requires_action?: string;
+  actions: string[];
+  allowed: string[];
+}
+
+export interface StaffPermissionPositionDetail extends StaffPermissionPositionSummary {
+  grants: Record<string, string[]>;
+  matrix: StaffPermissionMatrixRow[];
+}
+
+export interface StaffPermissionAuditRow {
+  id: number;
+  actor_email: string;
+  position_id: number;
+  position_code: string;
+  diff_json: Record<string, unknown>;
+  created_at: string;
+}
+
+export async function fetchStaffPermissionsCatalog(token: string) {
+  return crmFetch(token, '/api/v1/staff/permissions/catalog');
+}
+
+export async function fetchStaffPermissionPositions(token: string): Promise<StaffPermissionPositionSummary[]> {
+  return crmFetch(token, '/api/v1/staff/permissions/positions');
+}
+
+export async function fetchStaffPermissionPosition(
+  token: string,
+  positionId: number,
+): Promise<StaffPermissionPositionDetail> {
+  return crmFetch(token, `/api/v1/staff/permissions/positions/${positionId}`);
+}
+
+export async function patchStaffPermissionPosition(
+  token: string,
+  positionId: number,
+  body: { grants: Record<string, string[]> },
+) {
+  return crmFetch(token, `/api/v1/staff/permissions/positions/${positionId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchStaffPermissionAudit(
+  token: string,
+  params?: { position_id?: number; limit?: number },
+): Promise<StaffPermissionAuditRow[]> {
+  const qs = new URLSearchParams();
+  if (params?.position_id != null) qs.set('position_id', String(params.position_id));
+  if (params?.limit != null) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return crmFetch(token, `/api/v1/staff/permissions/audit${suffix}`);
+}
+
+export async function exportStaffPermissionPosition(token: string, positionId: number) {
+  return crmFetch(token, `/api/v1/staff/permissions/positions/${positionId}/export`);
+}

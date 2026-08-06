@@ -12,7 +12,9 @@ on:
       - 'scripts/sync_super_admin_caps_pg.py'
       - 'services/ptt-crm-api/src/**/*guard*.ts'
       - 'services/ops-web/src/lib/auth.ts'
-      - 'services/ops-web/src/lib/rbac-routes.ts'
+      - 'services/ptt-crm-api/src/staff-permissions/**'
+      - 'services/ops-web/src/app/admin/crm/permissions/**'
+      - 'scripts/export_rbac_admin_catalog.py'
       - 'tests/test_rbac_*.py'
       - '.github/workflows/rbac-r1-gate.yml'
   push:
