@@ -113,6 +113,7 @@ export function CrmFunnelStepper({
       {!viewModel.inReview ? (
         <CrmFunnelStepPrimaryAction
           action={viewModel.primaryAction}
+          secondaryAction={viewModel.secondaryAction}
           context={viewModel.context}
           busy={actionBusy}
           onAction={onPrimaryAction}

@@ -5,6 +5,7 @@ import type { FunnelPrimaryAction, FunnelStepperContext } from '@/lib/crm/funnel
 
 interface Props {
   action: FunnelPrimaryAction | null;
+  secondaryAction?: FunnelPrimaryAction | null;
   context: FunnelStepperContext;
   busy?: boolean;
   onAction?: (action: FunnelPrimaryAction) => void | Promise<void>;
@@ -14,11 +15,83 @@ function confirmMessage(action: FunnelPrimaryAction): string {
   return action.blockReason || 'Xác nhận chuyển giai đoạn?';
 }
 
-export function CrmFunnelStepPrimaryAction({ action, context, busy, onAction }: Props) {
+export function CrmFunnelStepPrimaryAction({
+  action,
+  secondaryAction,
+  context,
+  busy,
+  onAction,
+}: Props) {
+  const sticky = context === 'intake';
+  const barClass = `crm-funnel-stepper__cta-bar${sticky ? ' crm-funnel-stepper__cta-bar--sticky' : ''}`;
+
+  function renderButton(target: FunnelPrimaryAction, variant: 'primary' | 'secondary') {
+    if (target.kind === 'none') {
+      if (!target.label) return null;
+      return (
+        <button type="button" className="btn btn-sm" disabled title={target.blockReason}>
+          {target.label}
+        </button>
+      );
+    }
+
+    if (target.kind === 'link' && target.href) {
+      return (
+        <Link href={target.href} className={`btn btn-sm ${variant === 'primary' ? 'btn-primary' : 'btn-secondary'}`}>
+          {target.label}
+        </Link>
+      );
+    }
+
+    if (target.kind === 'anchor' && target.anchor) {
+      return (
+        <a href={target.anchor} className={`btn btn-sm ${variant === 'primary' ? 'btn-primary' : 'btn-secondary'}`}>
+          {target.label}
+        </a>
+      );
+    }
+
+    const btnClass =
+      variant === 'primary'
+        ? target.kind === 'advance_presales' || target.kind === 'ensure_presales'
+          ? 'btn-primary'
+          : 'btn'
+        : 'btn-secondary';
+
+    const runAction = () => {
+      if (!onAction || target.disabled || busy) return;
+      if (target.requiresConfirm && !window.confirm(confirmMessage(target))) return;
+      void onAction(target);
+    };
+
+    return (
+      <button
+        type="button"
+        className={`btn btn-sm ${btnClass}`}
+        disabled={target.disabled || busy}
+        title={target.disabled ? target.blockReason : undefined}
+        onClick={runAction}
+      >
+        {busy && variant === 'primary' ? 'Đang xử lý…' : target.label}
+      </button>
+    );
+  }
+
+  if ((!action || (action.kind === 'none' && !action.label)) && !secondaryAction) {
+    return null;
+  }
+
   if (!action || action.kind === 'none') {
+    if (!action?.label && secondaryAction) {
+      return (
+        <div className={barClass}>
+          {renderButton(secondaryAction, 'secondary')}
+        </div>
+      );
+    }
     if (!action?.label) return null;
     return (
-      <div className="crm-funnel-stepper__cta-bar">
+      <div className={barClass}>
         <button type="button" className="btn btn-sm" disabled title={action.blockReason}>
           {action.label}
         </button>
@@ -29,18 +102,11 @@ export function CrmFunnelStepPrimaryAction({ action, context, busy, onAction }: 
     );
   }
 
-  const sticky = context === 'intake';
-  const barClass = `crm-funnel-stepper__cta-bar${sticky ? ' crm-funnel-stepper__cta-bar--sticky' : ''}`;
+  const stickyBar = barClass;
 
-  const runAction = () => {
-    if (!onAction || action.disabled || busy) return;
-    if (action.requiresConfirm && !window.confirm(confirmMessage(action))) return;
-    void onAction(action);
-  };
-
-  if (action.kind === 'link' && action.href) {
+  if (action.kind === 'link' && action.href && !secondaryAction) {
     return (
-      <div className={barClass}>
+      <div className={stickyBar}>
         <Link href={action.href} className="btn btn-primary btn-sm">
           {action.label}
         </Link>
@@ -48,9 +114,9 @@ export function CrmFunnelStepPrimaryAction({ action, context, busy, onAction }: 
     );
   }
 
-  if (action.kind === 'anchor' && action.anchor) {
+  if (action.kind === 'anchor' && action.anchor && !secondaryAction) {
     return (
-      <div className={barClass}>
+      <div className={stickyBar}>
         <a href={action.anchor} className="btn btn-primary btn-sm">
           {action.label}
         </a>
@@ -58,20 +124,10 @@ export function CrmFunnelStepPrimaryAction({ action, context, busy, onAction }: 
     );
   }
 
-  const variant =
-    action.kind === 'advance_presales' ? 'btn-primary' : action.kind === 'ensure_presales' ? 'btn-primary' : 'btn';
-
   return (
-    <div className={barClass}>
-      <button
-        type="button"
-        className={`btn btn-sm ${variant}`}
-        disabled={action.disabled || busy}
-        title={action.disabled ? action.blockReason : undefined}
-        onClick={runAction}
-      >
-        {busy ? 'Đang xử lý…' : action.label}
-      </button>
+    <div className={stickyBar}>
+      {renderButton(action, 'primary')}
+      {secondaryAction ? renderButton(secondaryAction, 'secondary') : null}
       {action.disabled && action.blockReason ? (
         <p className="muted crm-funnel-stepper__cta-hint">{action.blockReason}</p>
       ) : null}

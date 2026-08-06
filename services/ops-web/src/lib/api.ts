@@ -1913,6 +1913,15 @@ export async function reopenIntakeSession(token: string, id: number): Promise<In
   });
 }
 
+export async function deleteIntakeSession(
+  token: string,
+  id: number,
+): Promise<{ ok: boolean; deleted_id: number }> {
+  return crmFetch<{ ok: boolean; deleted_id: number }>(token, `/api/crm/intake/sessions/${id}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function generateIntakeAiSummary(token: string, id: number): Promise<IntakeSessionRow> {
   return crmFetch<IntakeSessionRow>(token, `/api/crm/intake/sessions/${id}/ai-summary`, {
     method: 'POST',

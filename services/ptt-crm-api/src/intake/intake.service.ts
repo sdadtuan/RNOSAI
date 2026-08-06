@@ -114,6 +114,22 @@ export class IntakeService {
     return updated;
   }
 
+  async deleteSession(id: number) {
+    try {
+      const deleted = this.usePg ? await this.pg.deleteSession(id) : this.sqlite.deleteSession(id);
+      if (!deleted) {
+        throw new NotFoundException({ error: 'Không tìm thấy phiên' });
+      }
+      return { ok: true, deleted_id: id };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('nháp')) {
+        throw new BadRequestException({ error: msg });
+      }
+      throw err;
+    }
+  }
+
   async generateAiSummary(id: number) {
     const session = this.usePg ? await this.pg.getSession(id) : this.sqlite.getSession(id);
     if (!session) {

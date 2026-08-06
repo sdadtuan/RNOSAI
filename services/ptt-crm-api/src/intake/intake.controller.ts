@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -109,5 +110,11 @@ export class IntakeController {
   ) {
     const actorId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
     return this.intake.completeSession(id, actorId);
+  }
+
+  @Delete('sessions/:id')
+  @UseGuards(StaffIntakeWriteGuard)
+  deleteSession(@Param('id', ParseIntPipe) id: number) {
+    return this.intake.deleteSession(id);
   }
 }

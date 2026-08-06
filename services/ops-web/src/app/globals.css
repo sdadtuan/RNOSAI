@@ -8397,8 +8397,21 @@ body {
   overflow-y: auto;
 }
 
+.intake-sidebar__row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.intake-sidebar__delete {
+  flex: 0 0 auto;
+  align-self: center;
+  padding-inline: 0.55rem;
+}
+
 .intake-sidebar__item {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   text-align: left;
   padding: 0.65rem 0.7rem;
   border: 1px solid var(--surface-border);

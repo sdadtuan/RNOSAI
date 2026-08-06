@@ -22,6 +22,7 @@ interface Props {
   onSelect: (session: IntakeSessionRow) => void;
   onCreatePhone: () => void;
   onCreateInPerson: () => void;
+  onDelete?: (session: IntakeSessionRow) => void;
 }
 
 export function IntakeSessionSidebar({
@@ -33,6 +34,7 @@ export function IntakeSessionSidebar({
   onSelect,
   onCreatePhone,
   onCreateInPerson,
+  onDelete,
 }: Props) {
   const sorted = sortIntakeSessions(sessions);
   const activeSession = sorted.find((s) => s.id === activeId) ?? null;
@@ -75,8 +77,9 @@ export function IntakeSessionSidebar({
       <ul className="intake-sidebar__list" aria-label="Danh sách phiên khảo sát">
         {sorted.map((session) => {
           const isActive = session.id === activeId;
+          const canDelete = session.status === 'draft' && Boolean(onDelete) && canCreate;
           return (
-            <li key={session.id}>
+            <li key={session.id} className="intake-sidebar__row">
               <button
                 type="button"
                 className={`intake-sidebar__item${isActive ? ' intake-sidebar__item--active' : ''}`}
@@ -96,6 +99,18 @@ export function IntakeSessionSidebar({
                   BANT {session.bant_total ?? 0}/30 · {decisionLabel(session.decision)}
                 </span>
               </button>
+              {canDelete ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm intake-sidebar__delete"
+                  disabled={saving}
+                  title={`Xóa phiên nháp #${session.id}`}
+                  aria-label={`Xóa phiên nháp #${session.id}`}
+                  onClick={() => onDelete?.(session)}
+                >
+                  Xóa
+                </button>
+              ) : null}
             </li>
           );
         })}

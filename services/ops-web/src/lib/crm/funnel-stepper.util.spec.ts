@@ -8,6 +8,7 @@ import {
   resolveGateStrip,
   resolvePresalesStepStates,
   resolvePrimaryAction,
+  resolveSecondaryAction,
   shouldConfirmPresalesAdvance,
 } from '@/lib/crm/funnel-stepper.util';
 
@@ -131,6 +132,15 @@ describe('resolvePresalesStepStates', () => {
       intakeSummary: { has_draft: true },
     });
     expect(states.intake_bant).toBe('current');
+  });
+
+  it('marks intake done when draft exists but completed Go gate ok', () => {
+    const states = resolvePresalesStepStates({
+      funnel: mockFunnel(),
+      consultGate: mockGate(),
+      intakeSummary: mockIntake({ has_draft: true }),
+    });
+    expect(states.intake_bant).toBe('done');
   });
 
   it('marks intake done when gate ok after completed Go session', () => {
@@ -298,6 +308,51 @@ describe('resolvePrimaryAction', () => {
     expect(action?.requiresConfirm).toBe(false);
   });
 
+  it('prioritizes advance over draft continuation when Go completed + gate ok', () => {
+    const intakeSummary = mockIntake({ has_draft: true });
+    const action = resolvePrimaryAction({
+      leadId: 1,
+      funnel: mockFunnel(),
+      consultGate: mockGate({ bant_total: 30 }),
+      intakeSummary,
+      activeStep: 'intake_bant',
+      context: 'intake',
+    });
+    expect(action?.kind).toBe('advance_presales');
+    expect(action?.label).toContain('Tư vấn');
+
+    const secondary = resolveSecondaryAction({
+      funnel: mockFunnel(),
+      consultGate: mockGate({ bant_total: 30 }),
+      intakeSummary,
+      activeStep: 'intake_bant',
+    });
+    expect(secondary?.kind).toBe('focus_intake_form');
+    expect(secondary?.label).toBe('Tiếp tục khảo sát');
+  });
+
+  it('keeps draft continuation primary when gate blocks despite completed intake', () => {
+    const action = resolvePrimaryAction({
+      leadId: 1,
+      funnel: mockFunnel(),
+      consultGate: mockGate({
+        ok: false,
+        level: 'block',
+        messages: ['Hoàn thành task Lead trước khi chuyển Tư vấn'],
+      }),
+      intakeSummary: mockIntake({ has_draft: true }),
+      activeStep: 'intake_bant',
+      context: 'intake',
+    });
+    expect(action?.kind).toBe('focus_intake_form');
+    expect(resolveSecondaryAction({
+      funnel: mockFunnel(),
+      consultGate: mockGate({ ok: false, level: 'block', messages: ['block'] }),
+      intakeSummary: mockIntake({ has_draft: true }),
+      activeStep: 'intake_bant',
+    })).toBeNull();
+  });
+
   it('requires confirm on nurture gate (parity presales-consult-gate)', () => {
     const gate = mockGate({
       ok: true,
@@ -416,6 +471,18 @@ describe('resolveFunnelStepper', () => {
     expect(vm.activeStep).toBe('intake_bant');
     expect(vm.gateStrip?.tone).toBe('ok');
     expect(vm.primaryAction?.kind).toBe('advance_presales');
+  });
+
+  it('shows advance + continue survey when draft and completed Go gate ok', () => {
+    const vm = resolveFunnelStepper({
+      leadId: 900000002,
+      funnel: mockFunnel(),
+      consultGate: mockGate(),
+      intakeSummary: mockIntake({ has_draft: true }),
+      context: 'intake',
+    });
+    expect(vm.primaryAction?.kind).toBe('advance_presales');
+    expect(vm.secondaryAction?.kind).toBe('focus_intake_form');
   });
 
   it('shows G4 proposal gate strip on consult step', () => {

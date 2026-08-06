@@ -601,6 +601,18 @@ export class IntakePgRepository implements OnModuleDestroy {
     return this.getSession(sessionId);
   }
 
+  async deleteSession(sessionId: number): Promise<boolean> {
+    const session = await this.getSession(sessionId);
+    if (!session) return false;
+    if (String(session.status) !== 'draft') {
+      throw new Error('Chỉ xóa được phiên nháp');
+    }
+    const pgSessionId = await this.resolvePgSessionId(sessionId);
+    if (!pgSessionId) return false;
+    await this.db.query('DELETE FROM crm_lead_intake_sessions WHERE id = $1', [pgSessionId]);
+    return true;
+  }
+
   async saveAiSummaryStub(sessionId: number): Promise<IntakeSessionRow | null> {
     const pgSessionId = await this.resolvePgSessionId(sessionId);
     if (!pgSessionId) return null;

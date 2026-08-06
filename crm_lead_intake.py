@@ -804,6 +804,21 @@ def reopen_session(conn: sqlite3.Connection, session_id: int) -> dict[str, Any] 
     return get_session(conn, session_id)
 
 
+def delete_session(conn: sqlite3.Connection, session_id: int) -> bool:
+    """Xóa phiên nháp (draft) — không xóa phiên đã hoàn thành."""
+    row = conn.execute(
+        "SELECT status FROM crm_lead_intake_sessions WHERE id = ?",
+        (session_id,),
+    ).fetchone()
+    if not row:
+        return False
+    if str(row[0] or "") != "draft":
+        raise ValueError("Chỉ xóa được phiên nháp")
+    conn.execute("DELETE FROM crm_lead_intake_sessions WHERE id = ?", (session_id,))
+    conn.commit()
+    return True
+
+
 def _anthropic_client():
     key = os.getenv("ANTHROPIC_API_KEY", "").strip()
     if not key:

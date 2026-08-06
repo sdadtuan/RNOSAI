@@ -56,6 +56,47 @@ function hasCompletedIntake(intakeSummary?: IntakeStepSummary | null): boolean {
   return Boolean(intakeSummary?.latest_completed);
 }
 
+function intakeGateReadyState(
+  consultGate: ConsultGateState | null,
+  intakeSummary?: IntakeStepSummary | null,
+): FunnelStepState | null {
+  if (!hasCompletedIntake(intakeSummary)) return null;
+  if (!consultGate) return 'current';
+  if (!consultGate.ok || consultGate.level === 'block') return 'current';
+  if (consultGate.level === 'warn' || consultGate.requires_confirm) return 'warn';
+  if (consultGate.ok && consultGate.level === 'ok') return 'done';
+  return 'current';
+}
+
+function resolveConsultAdvanceAction(consultGate: ConsultGateState | null): FunnelPrimaryAction {
+  if (!consultGate) {
+    return {
+      kind: 'none',
+      label: 'Chuyển → Tư vấn',
+      disabled: true,
+      blockReason: 'Đang tải gate…',
+    };
+  }
+
+  if (!consultGate.ok || consultGate.level === 'block') {
+    return {
+      kind: 'none',
+      label: 'Chuyển → Tư vấn',
+      disabled: true,
+      blockReason: consultGate.messages[0] ?? 'Chưa đủ điều kiện chuyển Tư vấn',
+      requiresOverride: consultGate.requires_override,
+    };
+  }
+
+  const requiresConfirm = consultGate.requires_confirm || consultGate.level === 'warn';
+  return {
+    kind: 'advance_presales',
+    label: requiresConfirm ? 'Chuyển → Tư vấn (xác nhận)' : 'Chuyển → Tư vấn',
+    disabled: false,
+    requiresConfirm,
+  };
+}
+
 function resolveIntakeBantState(
   funnel: LeadFunnelSnapshot | null,
   consultGate: ConsultGateState | null,
@@ -67,15 +108,14 @@ function resolveIntakeBantState(
   const stageIdx = presalesStageIndex(presalesStage(funnel));
   if (stageIdx >= 1) return 'done';
 
-  if (intakeSummary?.has_draft) return 'current';
-
-  if (hasCompletedIntake(intakeSummary)) {
-    if (!consultGate) return 'current';
-    if (!consultGate.ok || consultGate.level === 'block') return 'current';
-    if (consultGate.level === 'warn' || consultGate.requires_confirm) return 'warn';
-    if (consultGate.ok && consultGate.level === 'ok') return 'done';
+  if (intakeSummary?.has_draft) {
+    const ready = intakeGateReadyState(consultGate, intakeSummary);
+    if (ready === 'done' || ready === 'warn') return ready;
     return 'current';
   }
+
+  const ready = intakeGateReadyState(consultGate, intakeSummary);
+  if (ready) return ready;
 
   return 'pending';
 }
@@ -303,40 +343,22 @@ export function resolvePrimaryAction(input: {
     }
 
     if (intakeSummary?.has_draft) {
-      return {
+      const continueDraft: FunnelPrimaryAction = {
         kind: 'focus_intake_form',
         label: 'Tiếp tục khảo sát',
         disabled: false,
       };
+      if (hasCompletedIntake(intakeSummary)) {
+        const advance = resolveConsultAdvanceAction(consultGate);
+        if (advance.kind === 'advance_presales' && !advance.disabled) {
+          return advance;
+        }
+      }
+      return continueDraft;
     }
 
     if (hasCompletedIntake(intakeSummary)) {
-      if (!consultGate) {
-        return {
-          kind: 'none',
-          label: 'Chuyển → Tư vấn',
-          disabled: true,
-          blockReason: 'Đang tải gate…',
-        };
-      }
-
-      if (!consultGate.ok || consultGate.level === 'block') {
-        return {
-          kind: 'none',
-          label: 'Chuyển → Tư vấn',
-          disabled: true,
-          blockReason: consultGate.messages[0] ?? 'Chưa đủ điều kiện chuyển Tư vấn',
-          requiresOverride: consultGate.requires_override,
-        };
-      }
-
-      const requiresConfirm = consultGate.requires_confirm || consultGate.level === 'warn';
-      return {
-        kind: 'advance_presales',
-        label: requiresConfirm ? 'Chuyển → Tư vấn (xác nhận)' : 'Chuyển → Tư vấn',
-        disabled: false,
-        requiresConfirm,
-      };
+      return resolveConsultAdvanceAction(consultGate);
     }
 
     return null;
@@ -388,6 +410,29 @@ export function resolvePrimaryAction(input: {
   }
 
   return null;
+}
+
+export function resolveSecondaryAction(input: {
+  funnel: LeadFunnelSnapshot | null;
+  consultGate: ConsultGateState | null;
+  intakeSummary?: IntakeStepSummary | null;
+  activeStep: PresalesFunnelStepKey | null;
+}): FunnelPrimaryAction | null {
+  const { funnel, consultGate, intakeSummary, activeStep } = input;
+  if (!activeStep || activeStep !== 'intake_bant' || inReview(funnel)) return null;
+
+  const stageIdx = presalesStageIndex(presalesStage(funnel));
+  if (stageIdx >= 1) return null;
+  if (!intakeSummary?.has_draft || !hasCompletedIntake(intakeSummary)) return null;
+
+  const advance = resolveConsultAdvanceAction(consultGate);
+  if (advance.kind !== 'advance_presales' || advance.disabled) return null;
+
+  return {
+    kind: 'focus_intake_form',
+    label: 'Tiếp tục khảo sát',
+    disabled: false,
+  };
 }
 
 function applyActiveStepHighlight(
@@ -475,6 +520,12 @@ export function resolveFunnelStepper(input: FunnelStepperInput): FunnelStepperVi
       intakeSummary: input.intakeSummary,
       activeStep,
       context: input.context,
+    }),
+    secondaryAction: resolveSecondaryAction({
+      funnel,
+      consultGate: input.consultGate,
+      intakeSummary: input.intakeSummary,
+      activeStep,
     }),
     inReview: inReview(funnel),
   };

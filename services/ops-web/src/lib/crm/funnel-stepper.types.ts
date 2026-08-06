@@ -127,5 +127,7 @@ export interface FunnelStepperViewModel {
   activeStep: PresalesFunnelStepKey | null;
   gateStrip: FunnelGateStripViewModel | null;
   primaryAction: FunnelPrimaryAction | null;
+  /** Shown beside primary when both advance and draft continuation apply. */
+  secondaryAction?: FunnelPrimaryAction | null;
   inReview: boolean;
 }

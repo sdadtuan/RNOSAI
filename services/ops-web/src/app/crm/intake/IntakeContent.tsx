@@ -20,6 +20,7 @@ import {
   advanceLeadPresales,
   completeIntakeSession,
   createIntakeSession,
+  deleteIntakeSession,
   fetchIntakeDefinitionBySlug,
   fetchIntakeDefinitions,
   fetchIntakeSessions,
@@ -367,6 +368,35 @@ export function IntakeContent() {
     applySession(session);
     setSidebarOpen(false);
     setMessage('');
+  }
+
+  async function onDeleteSession(session: IntakeSessionRow) {
+    if (session.status !== 'draft') return;
+    if (!window.confirm(`Xóa phiên nháp #${session.id}? Hành động không thể hoàn tác.`)) return;
+
+    const access = getAccessToken();
+    if (!access || !canCreate) return;
+
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      await deleteIntakeSession(access, session.id);
+      const rows = await fetchIntakeSessions(access, {
+        lead_id: leadId > 0 ? leadId : undefined,
+        lifecycle_id: lifecycleId > 0 ? lifecycleId : undefined,
+      });
+      setSessions(rows);
+      const fallbackId = rows.find((s) => s.status === 'completed')?.id ?? rows[0]?.id ?? null;
+      const nextId = session.id === activeId ? fallbackId : pickInitialSessionId(rows, activeId);
+      applySession(rows.find((s) => s.id === nextId) ?? null);
+      await refreshStepperData(access);
+      setMessage(`Đã xóa phiên nháp #${session.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Xóa phiên thất bại');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function confirmCreateIfDraftExists(): boolean {
@@ -776,6 +806,7 @@ export function IntakeContent() {
                 canCreate={canCreate}
                 systemSessionCount={systemSessionCount}
                 onSelect={onSelectSession}
+                onDelete={(session) => void onDeleteSession(session)}
                 onCreatePhone={() => void onCreate('phone')}
                 onCreateInPerson={() => void onCreate('in_person')}
               />
@@ -829,7 +860,10 @@ export function IntakeContent() {
                   </li>
                   <li>
                     Khi gate OK trên <strong>Tiến trình Pre-sales</strong>, bấm{' '}
-                    <strong>Chuyển → Tư vấn</strong> (không cần quay Lead).
+                    <strong>Chuyển → Tư vấn</strong> (vẫn hiện khi còn phiên nháp nếu đã có phiên Go hoàn thành).
+                  </li>
+                  <li>
+                    Phiên nháp tạo nhầm: bấm <strong>Xóa</strong> ở cột trái (chỉ phiên Nháp).
                   </li>
                 </ol>
               </details>

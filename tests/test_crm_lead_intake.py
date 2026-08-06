@@ -20,6 +20,7 @@ from crm_lead_intake import (
     merge_to_lead_task,
     prefill_session,
     reopen_session,
+    delete_session,
     resolve_intake_entry,
     save_intake_ai_result,
     suggest_decision,
@@ -231,6 +232,28 @@ class TestCompleteAndMerge(unittest.TestCase):
         reopened = reopen_session(conn, sid)
         assert reopened is not None
         self.assertEqual(reopened["status"], "draft")
+
+    def test_delete_draft_session(self):
+        conn = _setup_conn()
+        sid = create_session(
+            conn, lifecycle_id=1, service_slug="dich-vu-seo-tong-the"
+        )
+        self.assertTrue(delete_session(conn, sid))
+        row = conn.execute(
+            "SELECT id FROM crm_lead_intake_sessions WHERE id = ?",
+            (sid,),
+        ).fetchone()
+        self.assertIsNone(row)
+
+    def test_delete_completed_session_rejected(self):
+        conn = _setup_conn()
+        sid = create_session(
+            conn, lifecycle_id=1, service_slug="dich-vu-seo-tong-the"
+        )
+        update_session(conn, sid, {"decision": "go"})
+        complete_session(conn, sid)
+        with self.assertRaises(ValueError):
+            delete_session(conn, sid)
 
     def test_merge_to_lead_task_direct(self):
         conn = _setup_conn()

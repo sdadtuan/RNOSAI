@@ -477,6 +477,16 @@ export class IntakeSqliteRepository implements OnModuleDestroy {
     return this.getSession(sessionId);
   }
 
+  deleteSession(sessionId: number): boolean {
+    const session = this.getSession(sessionId);
+    if (!session) return false;
+    if (String(session.status) !== 'draft') {
+      throw new Error('Chỉ xóa được phiên nháp');
+    }
+    this.database.prepare('DELETE FROM crm_lead_intake_sessions WHERE id = ?').run(sessionId);
+    return true;
+  }
+
   saveAiSummaryStub(sessionId: number): IntakeSessionRow | null {
     const session = this.getSession(sessionId);
     if (!session) return null;
