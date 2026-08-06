@@ -1,4 +1,5 @@
 import type { LeadFunnelSnapshot } from '@/lib/api';
+import type { PresalesSolutionCaps } from '@/lib/crm/presales-solution-caps';
 
 export interface LeadContractFlowSummary {
   hasContract: boolean;
@@ -59,6 +60,7 @@ export interface FunnelStepperInput {
   proposalGate?: ProposalGateState | null;
   consultProposalSla?: PresalesConsultProposalSla | null;
   intakeSummary?: IntakeStepSummary | null;
+  solutionCaps?: PresalesSolutionCaps | null;
   contract?: LeadContractFlowSummary | null;
   scope?: FunnelStepperScope;
   context: FunnelStepperContext;
@@ -82,6 +84,9 @@ export type FunnelPrimaryActionKind =
   | 'anchor'
   | 'link'
   | 'advance_presales'
+  | 'handoff_solution'
+  | 'claim_solution'
+  | 'release_to_sales'
   | 'ensure_presales'
   | 'create_intake_session'
   | 'focus_intake_form';

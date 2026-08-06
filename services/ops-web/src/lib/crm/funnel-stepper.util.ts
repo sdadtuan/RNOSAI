@@ -1,5 +1,6 @@
 import type { LeadFunnelSnapshot } from '@/lib/api';
 import { showPresalesForFlow } from '@/lib/crm/lead-flow-kind';
+import type { PresalesSolutionCaps } from '@/lib/crm/presales-solution-caps';
 import type {
   ConsultGateState,
   FunnelGateStripViewModel,
@@ -68,11 +69,15 @@ function intakeGateReadyState(
   return 'current';
 }
 
-function resolveConsultAdvanceAction(consultGate: ConsultGateState | null): FunnelPrimaryAction {
+function handoffStatus(funnel: LeadFunnelSnapshot | null): string {
+  return String(funnel?.presales?.handoff?.status ?? '');
+}
+
+function resolveHandoffSolutionAction(consultGate: ConsultGateState | null): FunnelPrimaryAction {
   if (!consultGate) {
     return {
       kind: 'none',
-      label: 'Chuyển → Tư vấn',
+      label: 'Giao Solution/MKT →',
       disabled: true,
       blockReason: 'Đang tải gate…',
     };
@@ -80,18 +85,18 @@ function resolveConsultAdvanceAction(consultGate: ConsultGateState | null): Funn
 
   if (!consultGate.ok || consultGate.level === 'block') {
     return {
-      kind: 'none',
-      label: 'Chuyển → Tư vấn',
+      kind: 'handoff_solution',
+      label: 'Giao Solution/MKT →',
       disabled: true,
-      blockReason: consultGate.messages[0] ?? 'Chưa đủ điều kiện chuyển Tư vấn',
+      blockReason: consultGate.messages[0] ?? 'Chưa đủ điều kiện giao Solution',
       requiresOverride: consultGate.requires_override,
     };
   }
 
   const requiresConfirm = consultGate.requires_confirm || consultGate.level === 'warn';
   return {
-    kind: 'advance_presales',
-    label: requiresConfirm ? 'Chuyển → Tư vấn (xác nhận)' : 'Chuyển → Tư vấn',
+    kind: 'handoff_solution',
+    label: requiresConfirm ? 'Giao Solution/MKT (xác nhận) →' : 'Giao Solution/MKT →',
     disabled: false,
     requiresConfirm,
   };
@@ -282,11 +287,14 @@ export function resolvePrimaryAction(input: {
   leadId: number;
   funnel: LeadFunnelSnapshot | null;
   consultGate: ConsultGateState | null;
+  proposalGate?: ProposalGateState | null;
   intakeSummary?: IntakeStepSummary | null;
+  solutionCaps?: PresalesSolutionCaps | null;
   activeStep: PresalesFunnelStepKey | null;
   context: FunnelStepperContext;
 }): FunnelPrimaryAction | null {
-  const { leadId, funnel, consultGate, intakeSummary, activeStep, context } = input;
+  const { leadId, funnel, consultGate, proposalGate, intakeSummary, solutionCaps, activeStep, context } =
+    input;
   if (!activeStep || inReview(funnel)) {
     return { kind: 'none', label: '', disabled: true };
   }
@@ -349,8 +357,12 @@ export function resolvePrimaryAction(input: {
         disabled: false,
       };
       if (hasCompletedIntake(intakeSummary)) {
-        const advance = resolveConsultAdvanceAction(consultGate);
-        if (advance.kind === 'advance_presales' && !advance.disabled) {
+        const advance = resolveHandoffSolutionAction(consultGate);
+        if (
+          advance.kind === 'handoff_solution' &&
+          !advance.disabled &&
+          (solutionCaps?.canHandoff ?? true)
+        ) {
           return advance;
         }
       }
@@ -358,15 +370,55 @@ export function resolvePrimaryAction(input: {
     }
 
     if (hasCompletedIntake(intakeSummary)) {
-      return resolveConsultAdvanceAction(consultGate);
+      const handoff = resolveHandoffSolutionAction(consultGate);
+      if (!(solutionCaps?.canHandoff ?? true)) {
+        return {
+          kind: 'none',
+          label: 'Giao Solution/MKT →',
+          disabled: true,
+          blockReason: 'Chỉ AM Sales mới giao Solution/MKT',
+        };
+      }
+      return handoff;
     }
 
     return null;
   }
 
   if (activeStep === 'consult') {
+    const status = handoffStatus(funnel);
+    if (status === 'pending' && solutionCaps?.canClaim) {
+      return {
+        kind: 'claim_solution',
+        label: 'Nhận case',
+        disabled: false,
+      };
+    }
+    if (status === 'pending') {
+      return {
+        kind: 'link',
+        label: solutionCaps?.canView ? 'Solution queue →' : 'Theo dõi Solution',
+        disabled: false,
+        href: '/crm/solution/queue',
+      };
+    }
+    if (status === 'with_solution' && proposalGate?.ok && solutionCaps?.canRelease) {
+      return {
+        kind: 'release_to_sales',
+        label: 'Trả Sales — Báo giá →',
+        disabled: false,
+      };
+    }
+    if (status === 'with_solution' && !solutionCaps?.canEditConsult) {
+      return {
+        kind: 'anchor',
+        label: 'Theo dõi Solution (read-only)',
+        disabled: false,
+        anchor: '#funnel-presales',
+      };
+    }
     const advance = funnel?.presales?.advance;
-    if (advance?.next_stage === 'proposal') {
+    if (status === '' && advance?.next_stage === 'proposal') {
       if (advance.can_advance_forward) {
         return {
           kind: 'advance_presales',
@@ -386,7 +438,7 @@ export function resolvePrimaryAction(input: {
     }
     return {
       kind: 'anchor',
-      label: 'Mở task Consult',
+      label: status === 'with_solution' ? 'Mở workspace Consult' : 'Mở task Consult',
       disabled: false,
       anchor: '#funnel-presales',
     };
@@ -425,8 +477,8 @@ export function resolveSecondaryAction(input: {
   if (stageIdx >= 1) return null;
   if (!intakeSummary?.has_draft || !hasCompletedIntake(intakeSummary)) return null;
 
-  const advance = resolveConsultAdvanceAction(consultGate);
-  if (advance.kind !== 'advance_presales' || advance.disabled) return null;
+  const advance = resolveHandoffSolutionAction(consultGate);
+  if (advance.kind !== 'handoff_solution' || advance.disabled) return null;
 
   return {
     kind: 'focus_intake_form',
@@ -517,7 +569,9 @@ export function resolveFunnelStepper(input: FunnelStepperInput): FunnelStepperVi
       leadId: input.leadId,
       funnel,
       consultGate: input.consultGate,
+      proposalGate: input.proposalGate,
       intakeSummary: input.intakeSummary,
+      solutionCaps: input.solutionCaps,
       activeStep,
       context: input.context,
     }),

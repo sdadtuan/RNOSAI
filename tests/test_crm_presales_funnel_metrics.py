@@ -21,6 +21,26 @@ class TestPresalesFunnelMetrics(unittest.TestCase):
                         "consult_entered_at": "2026-08-03 10:00:00",
                     },
                 ],
+                "go_to_handoff": [
+                    {
+                        "intake_go_completed_at": "2026-08-01 10:00:00",
+                        "handed_off_at": "2026-08-01 20:00:00",
+                    },
+                    {
+                        "intake_go_completed_at": "2026-08-01 10:00:00",
+                        "handed_off_at": "2026-08-02 10:00:00",
+                    },
+                ],
+                "handoff_to_release": [
+                    {
+                        "handed_off_at": "2026-08-01 10:00:00",
+                        "solution_released_at": "2026-08-03 10:00:00",
+                    },
+                    {
+                        "handed_off_at": "2026-08-01 10:00:00",
+                        "solution_released_at": "2026-08-05 10:00:00",
+                    },
+                ],
                 "consult_to_proposal": [
                     {
                         "consult_entered_at": "2026-08-01 10:00:00",
@@ -47,6 +67,10 @@ class TestPresalesFunnelMetrics(unittest.TestCase):
         )
         self.assertEqual(out["go_to_consult_median_hours"], 36.0)
         self.assertEqual(out["go_to_consult_sample"], 2)
+        self.assertEqual(out["go_to_handoff_median_hours"], 17.0)
+        self.assertEqual(out["go_to_handoff_sample"], 2)
+        self.assertEqual(out["handoff_to_release_median_hours"], 72.0)
+        self.assertEqual(out["handoff_to_release_sample"], 2)
         self.assertEqual(out["consult_to_proposal_48h_num"], 1)
         self.assertEqual(out["consult_to_proposal_48h_denom"], 2)
         self.assertEqual(out["consult_to_proposal_48h_pct"], 50.0)
@@ -67,7 +91,9 @@ class TestPresalesFunnelMetrics(unittest.TestCase):
               lead_id INTEGER,
               assigned_am INTEGER,
               consult_entered_at TEXT,
-              proposal_entered_at TEXT
+              proposal_entered_at TEXT,
+              handed_off_at TEXT,
+              solution_released_at TEXT
             );
             CREATE TABLE crm_lead_intake_sessions (
               id INTEGER PRIMARY KEY,
@@ -86,8 +112,8 @@ class TestPresalesFunnelMetrics(unittest.TestCase):
               is_done INTEGER
             );
             INSERT INTO crm_leads (id, owner_id) VALUES (1, 10);
-            INSERT INTO crm_lead_presales (id, lead_id, assigned_am, consult_entered_at, proposal_entered_at)
-              VALUES (1, 1, 10, '2026-08-02 10:00:00', '2026-08-03 10:00:00');
+            INSERT INTO crm_lead_presales (id, lead_id, assigned_am, consult_entered_at, proposal_entered_at, handed_off_at, solution_released_at)
+              VALUES (1, 1, 10, '2026-08-02 10:00:00', '2026-08-03 10:00:00', '2026-08-01 20:00:00', '2026-08-04 10:00:00');
             INSERT INTO crm_lead_intake_sessions (lead_id, status, decision, completed_at)
               VALUES (1, 'completed', 'go', '2026-08-01 10:00:00');
             INSERT INTO crm_lead_presales_tasks (presales_id, stage, is_custom, form_fields, form_data, is_done)
@@ -97,6 +123,8 @@ class TestPresalesFunnelMetrics(unittest.TestCase):
         out = get_presales_funnel_metrics(conn, am_id=10)
         m = out["metrics"]
         self.assertEqual(m["go_to_consult_median_hours"], 24.0)
+        self.assertEqual(m["go_to_handoff_median_hours"], 10.0)
+        self.assertEqual(m["handoff_to_release_median_hours"], 62.0)
         self.assertEqual(m["consult_to_proposal_48h_num"], 1)
         self.assertEqual(m["consult_form_completion_pct"], 100.0)
         self.assertEqual(m["consult_task_done_rate"], 100.0)

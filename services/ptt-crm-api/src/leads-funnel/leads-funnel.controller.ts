@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  ForbiddenException,
   HttpCode,
   HttpException,
   HttpStatus,
@@ -24,6 +25,7 @@ import {
   CompleteCareStageBody,
   ConsultPrefillBody,
   EnsurePresalesBody,
+  HandoffSolutionBody,
   PatchMarketingPlanBody,
   PatchPresalesL2DocsBody,
   PatchPresalesTaskBody,
@@ -36,6 +38,11 @@ import {
 import { LeadsFunnelEnabledGuard, PresalesOnLeadGuard } from './guards/leads-funnel-enabled.guard';
 import { StaffLeadsGdkdGuard } from './guards/staff-leads-gdkd.guard';
 import { LeadNotInReviewQueueGuard } from './guards/lead-not-in-review-queue.guard';
+import {
+  StaffPresalesSolutionClaimGuard,
+  StaffPresalesSolutionQueueGuard,
+  StaffPresalesSolutionReleaseGuard,
+} from './guards/staff-presales-solution.guard';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { LeadsFunnelService } from './leads-funnel.service';
 
@@ -56,6 +63,7 @@ export class LeadsFunnelController {
   }
 
   private badRequest(err: unknown): never {
+    if (err instanceof ForbiddenException) throw err;
     const msg = err instanceof Error ? err.message : String(err);
     throw new HttpException({ error: msg, message: msg }, HttpStatus.BAD_REQUEST);
   }
@@ -203,7 +211,78 @@ export class LeadsFunnelController {
       const allowOverride = req.staffUser
         ? await this.funnel.staffHasAssignCap(req.staffUser)
         : false;
-      return this.funnel.advancePresales(id, body, allowOverride);
+      return this.funnel.advancePresales(id, body, allowOverride, req.staffUser);
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Post(':id/presales/handoff-solution')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  async handoffToSolution(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: HandoffSolutionBody,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    try {
+      return await this.funnel.handoffToSolution(
+        id,
+        body,
+        await this.userId(req),
+        this.actor(req),
+        req.staffUser,
+      );
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Post(':id/presales/claim-solution')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(
+    StaffOrInternalKeyGuard,
+    StaffLeadsWriteGuard,
+    PresalesOnLeadGuard,
+    LeadNotInReviewQueueGuard,
+    StaffPresalesSolutionClaimGuard,
+  )
+  async claimSolution(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    try {
+      return await this.funnel.claimSolution(
+        id,
+        await this.userId(req),
+        this.actor(req),
+        req.staffUser,
+      );
+    } catch (err) {
+      this.badRequest(err);
+    }
+  }
+
+  @Post(':id/presales/release-to-sales')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(
+    StaffOrInternalKeyGuard,
+    StaffLeadsWriteGuard,
+    PresalesOnLeadGuard,
+    LeadNotInReviewQueueGuard,
+    StaffPresalesSolutionReleaseGuard,
+  )
+  async releaseToSales(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    try {
+      return await this.funnel.releaseToSales(
+        id,
+        await this.userId(req),
+        this.actor(req),
+        req.staffUser,
+      );
     } catch (err) {
       this.badRequest(err);
     }
@@ -217,7 +296,7 @@ export class LeadsFunnelController {
     @Body() body: PatchPresalesTaskBody,
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
-    return this.funnel.patchPresalesTask(id, taskId, body, await this.userId(req));
+    return this.funnel.patchPresalesTask(id, taskId, body, await this.userId(req), req.staffUser);
   }
 
   @Get(':id/presales/marketing-plan')
@@ -228,8 +307,12 @@ export class LeadsFunnelController {
 
   @Patch(':id/presales/marketing-plan')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
-  patchMarketingPlan(@Param('id', ParseIntPipe) id: number, @Body() body: PatchMarketingPlanBody) {
-    return this.funnel.patchMarketingPlan(id, body);
+  patchMarketingPlan(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PatchMarketingPlanBody,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    return this.funnel.patchMarketingPlan(id, body, req.staffUser);
   }
 
   @Get(':id/presales/consult-brief')
@@ -241,8 +324,12 @@ export class LeadsFunnelController {
   @Post(':id/presales/consult-prefill')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
-  prefillPresalesConsult(@Param('id', ParseIntPipe) id: number, @Body() body: ConsultPrefillBody) {
-    return this.funnel.prefillPresalesConsult(id, body);
+  prefillPresalesConsult(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: ConsultPrefillBody,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    return this.funnel.prefillPresalesConsult(id, body, req.staffUser);
   }
 
   @Get(':id/presales/proposal-gate')
@@ -255,6 +342,13 @@ export class LeadsFunnelController {
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
   getPresalesProposalHandoff(@Param('id', ParseIntPipe) id: number) {
     return this.funnel.getPresalesProposalHandoff(id);
+  }
+
+  @Get('presales/solution-queue')
+  @UseGuards(StaffOrInternalKeyGuard, StaffPresalesSolutionQueueGuard, PresalesOnLeadGuard)
+  listSolutionQueue(@Query('status') status?: string, @Query('limit') limit?: string) {
+    const lim = limit ? Number(limit) : 50;
+    return this.funnel.listSolutionQueue(status?.trim(), Number.isFinite(lim) ? lim : 50);
   }
 
   @Get('presales/consult-sla/summary')
@@ -309,8 +403,9 @@ export class LeadsFunnelController {
   patchPresalesL2Docs(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: PatchPresalesL2DocsBody,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
-    return this.funnel.patchPresalesL2Docs(id, body);
+    return this.funnel.patchPresalesL2Docs(id, body, req.staffUser);
   }
 
   @Post(':id/presales/tasks/:taskId/ai-assist')
@@ -320,8 +415,9 @@ export class LeadsFunnelController {
     @Param('id', ParseIntPipe) id: number,
     @Param('taskId', ParseIntPipe) taskId: number,
     @Body() body: PresalesAiAssistBody,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
-    return this.funnel.runPresalesTaskAiAssist(id, taskId, body);
+    return this.funnel.runPresalesTaskAiAssist(id, taskId, body, req.staffUser);
   }
 
   @Post(':id/presales/upgrade-workflow-template')

@@ -162,6 +162,18 @@ export interface PresalesFunnelMetricsResponse {
   labels: PresalesFunnelMetricLabels;
 }
 
+export type PresalesHandoffStatus = '' | 'pending' | 'with_solution' | 'released';
+
+export interface PresalesHandoffView {
+  status: PresalesHandoffStatus;
+  handed_off_at: string;
+  handed_off_by_staff_id: number | null;
+  solution_owner_staff_id: number | null;
+  solution_owner_name: string;
+  solution_claimed_at: string;
+  solution_released_at: string;
+}
+
 export interface PresalesRow {
   id: number;
   lead_id: number;
@@ -176,10 +188,31 @@ export interface PresalesRow {
   notes: string;
   draft_marketing_plan_id: number | null;
   l2_docs_json: Record<string, boolean>;
+  handoff_status: PresalesHandoffStatus;
+  handed_off_at: string;
+  handed_off_by_staff_id: number | null;
+  solution_owner_staff_id: number | null;
+  solution_claimed_at: string;
+  solution_released_at: string;
+}
+
+export interface SolutionQueueRow {
+  lead_id: number;
+  full_name: string;
+  phone: string;
+  service_slug: string;
+  presales_stage: PresalesStage;
+  handoff_status: PresalesHandoffStatus;
+  handed_off_at: string;
+  solution_owner_staff_id: number | null;
+  solution_owner_name: string;
+  owner_id: number | null;
+  owner_name: string;
 }
 
 export interface PresalesSnapshot {
   presales: PresalesRow;
+  handoff: PresalesHandoffView;
   l2_docs: PresalesL2DocsView;
   consult_proposal_sla: PresalesConsultProposalSla;
   tasks: Record<string, PresalesTaskRow[]>;
@@ -216,6 +249,11 @@ export interface EnsurePresalesBody {
 
 export interface AdvancePresalesBody {
   to_stage?: PresalesStage;
+  confirm?: boolean;
+  override_reason?: string;
+}
+
+export interface HandoffSolutionBody {
   confirm?: boolean;
   override_reason?: string;
 }

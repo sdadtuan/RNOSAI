@@ -27,15 +27,21 @@ import {
   PatchMarketingPlanBody,
   PatchPresalesTaskBody,
   PRESALES_STAGES,
+  PresalesHandoffView,
   PresalesRow,
   PresalesSnapshot,
   PresalesTaskRow,
   ReleaseReviewQueueBody,
+  SolutionQueueRow,
 } from './leads-funnel.types';
 import {
   consultAdvanceBlockReason,
   validatePresalesConsultAdvance,
 } from './presales-consult-gate.util';
+import {
+  blocksDirectProposalAdvance,
+  normalizeHandoffStatus,
+} from './presales-solution-handoff.util';
 import {
   defaultStrategyJson,
   planContentFromRow,
@@ -96,6 +102,12 @@ type PgPresalesRow = {
   l2_docs_json?: unknown;
   consult_entered_at?: Date | string | null;
   proposal_entered_at?: Date | string | null;
+  handoff_status?: string | null;
+  handed_off_at?: Date | string | null;
+  handed_off_by_staff_id?: string | null;
+  solution_owner_staff_id?: string | null;
+  solution_claimed_at?: Date | string | null;
+  solution_released_at?: Date | string | null;
 };
 
 @Injectable()
@@ -152,6 +164,32 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       draft_marketing_plan_id:
         row.draft_marketing_plan_id != null ? Number(row.draft_marketing_plan_id) : null,
       l2_docs_json: parsePresalesL2DocsJson(row.l2_docs_json ?? {}),
+      handoff_status: normalizeHandoffStatus(row.handoff_status),
+      handed_off_at: row.handed_off_at ? String(row.handed_off_at) : '',
+      handed_off_by_staff_id:
+        row.handed_off_by_staff_id != null ? Number(row.handed_off_by_staff_id) : null,
+      solution_owner_staff_id:
+        row.solution_owner_staff_id != null ? Number(row.solution_owner_staff_id) : null,
+      solution_claimed_at: row.solution_claimed_at ? String(row.solution_claimed_at) : '',
+      solution_released_at: row.solution_released_at ? String(row.solution_released_at) : '',
+    };
+  }
+
+  private async staffNameById(staffId: number | null): Promise<string> {
+    if (staffId == null || staffId <= 0) return '';
+    const result = await this.db.query(`SELECT name FROM crm_staff WHERE id = $1 LIMIT 1`, [staffId]);
+    return String(result.rows[0]?.name ?? '').trim();
+  }
+
+  async buildHandoffView(ps: PresalesRow): Promise<PresalesHandoffView> {
+    return {
+      status: ps.handoff_status,
+      handed_off_at: ps.handed_off_at,
+      handed_off_by_staff_id: ps.handed_off_by_staff_id,
+      solution_owner_staff_id: ps.solution_owner_staff_id,
+      solution_owner_name: await this.staffNameById(ps.solution_owner_staff_id),
+      solution_claimed_at: ps.solution_claimed_at,
+      solution_released_at: ps.solution_released_at,
     };
   }
 
@@ -661,16 +699,22 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         canAdvance = true;
       }
     } else if (nextStage === 'proposal' && current === 'consult') {
-      const plan = await this.getPreliminaryPlan(ps.id);
-      const val = validatePreliminaryPlan(plan);
-      if (!val.ok) blockReason = val.messages[0] || 'KH MKT sơ bộ chưa đủ';
-      else canAdvance = true;
+      if (blocksDirectProposalAdvance(ps.handoff_status)) {
+        blockReason =
+          'Lead đang Solution/MKT — dùng Trả Sales (release) hoặc chờ Solution hoàn tất Consult + R5.';
+      } else {
+        const plan = await this.getPreliminaryPlan(ps.id);
+        const val = validatePreliminaryPlan(plan);
+        if (!val.ok) blockReason = val.messages[0] || 'KH MKT sơ bộ chưa đủ';
+        else canAdvance = true;
+      }
     } else {
       canAdvance = true;
     }
 
     return {
       presales: ps,
+      handoff: await this.buildHandoffView(ps),
       l2_docs: buildPresalesL2DocsView(ps.service_slug, ps.l2_docs_json),
       consult_proposal_sla: buildPresalesConsultProposalSla({
         presalesStage: ps.stage,
@@ -1162,6 +1206,14 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       }
     } else if (!snap.advance.can_advance_forward) {
       throw new Error(snap.advance.block_reason || 'Không thể chuyển giai đoạn');
+    } else if (
+      snap.advance.next_stage === 'proposal' &&
+      snap.advance.current_stage === 'consult' &&
+      blocksDirectProposalAdvance(snap.presales.handoff_status)
+    ) {
+      throw new Error(
+        'Lead đang Solution/MKT — Solution dùng Trả Sales sau khi hoàn tất Consult + R5.',
+      );
     }
 
     const nextStage = snap.advance.next_stage;
@@ -1325,5 +1377,154 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         throw new Error(`Chưa hoàn thành task giai đoạn ${stage}`);
       }
     }
+  }
+
+  async handoffToSolution(
+    leadId: number,
+    staffId: number,
+    opts: { confirm?: boolean; overrideReason?: string } = {},
+  ): Promise<PresalesRow> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    if (snap.presales.stage !== 'lead') {
+      throw new Error('Chỉ giao Solution khi đang ở giai đoạn Lead.');
+    }
+    if (snap.presales.handoff_status === 'pending' || snap.presales.handoff_status === 'with_solution') {
+      throw new Error('Lead đã được giao Solution.');
+    }
+    const gate = await this.buildConsultAdvanceGate(leadId, snap.presales.id);
+    const block = consultAdvanceBlockReason(gate, Boolean(opts.confirm));
+    if (block) throw new Error(block);
+    if (opts.overrideReason?.trim()) {
+      const note = `Director override handoff: ${opts.overrideReason.trim().slice(0, 500)}`;
+      await this.db.query(
+        `UPDATE crm_lead_presales SET notes = TRIM(BOTH FROM notes || E'\\n' || $2), updated_at = NOW() WHERE id = $1`,
+        [snap.presales.id, note],
+      );
+    }
+
+    const updated = await this.db.query(
+      `UPDATE crm_lead_presales
+       SET stage = 'consult',
+           stage_entered_at = NOW(),
+           updated_at = NOW(),
+           consult_entered_at = CASE
+             WHEN consult_entered_at IS NULL OR consult_entered_at = '' THEN NOW()
+             ELSE consult_entered_at
+           END,
+           handoff_status = 'pending',
+           handed_off_at = NOW(),
+           handed_off_by_staff_id = $2
+       WHERE id = $1
+       RETURNING *`,
+      [snap.presales.id, staffId],
+    );
+    await this.applyPresalesConsultPrefill(leadId, snap.presales.id, snap.presales.service_slug);
+    return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
+  }
+
+  async claimSolution(leadId: number, staffId: number): Promise<PresalesRow> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    if (snap.presales.handoff_status !== 'pending') {
+      throw new Error('Lead không ở trạng thái chờ Solution nhận case.');
+    }
+    const updated = await this.db.query(
+      `UPDATE crm_lead_presales
+       SET handoff_status = 'with_solution',
+           solution_owner_staff_id = $2,
+           solution_claimed_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [snap.presales.id, staffId],
+    );
+    return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
+  }
+
+  async releaseToSales(leadId: number, staffId: number): Promise<PresalesRow> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    if (snap.presales.stage !== 'consult') {
+      throw new Error('Chỉ release khi đang ở giai đoạn Tư vấn.');
+    }
+    if (snap.presales.handoff_status !== 'with_solution') {
+      throw new Error('Solution cần nhận case trước khi trả Sales.');
+    }
+    if (
+      snap.presales.solution_owner_staff_id &&
+      snap.presales.solution_owner_staff_id !== staffId
+    ) {
+      throw new Error('Chỉ Solution owner được trả Sales.');
+    }
+    const curProg = snap.progress.consult || { total: 0, done: 0 };
+    const consultComplete = curProg.total === 0 || curProg.done >= curProg.total;
+    if (!consultComplete) {
+      throw new Error('Hoàn thành task Consult trước khi trả Sales.');
+    }
+    const plan = await this.getPreliminaryPlan(snap.presales.id);
+    const val = validatePreliminaryPlan(plan);
+    if (!val.ok) {
+      throw new Error(val.messages[0] || 'KH MKT sơ bộ chưa đủ');
+    }
+
+    const updated = await this.db.query(
+      `UPDATE crm_lead_presales
+       SET stage = 'proposal',
+           stage_entered_at = NOW(),
+           updated_at = NOW(),
+           proposal_entered_at = NOW(),
+           handoff_status = 'released',
+           solution_released_at = NOW(),
+           consult_entered_at = CASE
+             WHEN consult_entered_at IS NULL OR consult_entered_at = ''
+             THEN COALESCE(stage_entered_at, NOW())
+             ELSE consult_entered_at
+           END
+       WHERE id = $1
+       RETURNING *`,
+      [snap.presales.id],
+    );
+    return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
+  }
+
+  async listSolutionQueue(
+    statuses: Array<'pending' | 'with_solution'> = ['pending', 'with_solution'],
+    limit = 50,
+  ): Promise<SolutionQueueRow[]> {
+    const lim = Math.max(1, Math.min(limit, 200));
+    const allowed = statuses.filter((s) => s === 'pending' || s === 'with_solution');
+    const filterStatuses = allowed.length ? allowed : ['pending', 'with_solution'];
+    const result = await this.db.query(
+      `SELECT l.sqlite_lead_id AS lead_id, l.full_name, l.phone, l.owner_id,
+              ps.service_slug, ps.stage AS presales_stage, ps.handoff_status,
+              COALESCE(ps.handed_off_at::text, '') AS handed_off_at,
+              ps.solution_owner_staff_id,
+              COALESCE(am.name, '') AS owner_name,
+              COALESCE(sol.name, '') AS solution_owner_name
+       FROM crm_lead_presales ps
+       INNER JOIN crm_leads l ON l.sqlite_lead_id = ps.lead_id
+       LEFT JOIN crm_staff am ON am.id = l.owner_id
+       LEFT JOIN crm_staff sol ON sol.id = ps.solution_owner_staff_id
+       WHERE ps.status = 'active'
+         AND ps.handoff_status = ANY($1::text[])
+       ORDER BY ps.handed_off_at DESC NULLS LAST, ps.id DESC
+       LIMIT $2`,
+      [filterStatuses, lim],
+    );
+    return (result.rows as Array<Record<string, unknown>>).map((row) => ({
+      lead_id: Number(row.lead_id),
+      full_name: String(row.full_name ?? ''),
+      phone: String(row.phone ?? ''),
+      service_slug: String(row.service_slug ?? ''),
+      presales_stage: String(row.presales_stage ?? 'consult') as PresalesRow['stage'],
+      handoff_status: normalizeHandoffStatus(row.handoff_status) as 'pending' | 'with_solution',
+      handed_off_at: String(row.handed_off_at ?? ''),
+      solution_owner_staff_id:
+        row.solution_owner_staff_id != null ? Number(row.solution_owner_staff_id) : null,
+      solution_owner_name: String(row.solution_owner_name ?? ''),
+      owner_id: row.owner_id != null ? Number(row.owner_id) : null,
+      owner_name: String(row.owner_name ?? ''),
+    }));
   }
 }

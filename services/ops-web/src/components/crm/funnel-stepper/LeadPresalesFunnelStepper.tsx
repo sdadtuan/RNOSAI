@@ -4,9 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
 import {
   advanceLeadPresales,
+  claimLeadSolution,
   fetchIntakeSessions,
   fetchLeadPresalesConsultGate,
   fetchLeadPresalesProposalGate,
+  handoffLeadToSolution,
+  releaseLeadToSales,
   type LeadFunnelSnapshot,
 } from '@/lib/api';
 import type {
@@ -16,10 +19,16 @@ import type {
   ProposalGateState,
 } from '@/lib/crm/funnel-stepper.types';
 import { showPresalesForFlow } from '@/lib/crm/lead-flow-kind';
+import {
+  resolvePresalesSolutionCaps,
+  type PresalesSolutionCaps,
+} from '@/lib/crm/presales-solution-caps';
+import type { StoredStaffUser } from '@/lib/auth';
 
 interface Props {
   token: string;
   leadId: number;
+  user?: StoredStaffUser | null;
   funnel: LeadFunnelSnapshot | null;
   onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
   onOpenConsultWorkspace?: () => void;
@@ -62,12 +71,14 @@ function navigateToPresales(onOpenConsultWorkspace?: () => void) {
 export function LeadPresalesFunnelStepper({
   token,
   leadId,
+  user,
   funnel,
   onFunnelChange,
   onOpenConsultWorkspace,
   onMessage,
   onError,
 }: Props) {
+  const solutionCaps: PresalesSolutionCaps = resolvePresalesSolutionCaps(user ?? null);
   const [consultGate, setConsultGate] = useState<ConsultGateState | null>(null);
   const [proposalGate, setProposalGate] = useState<ProposalGateState | null>(null);
   const [gateLoading, setGateLoading] = useState(false);
@@ -136,13 +147,15 @@ export function LeadPresalesFunnelStepper({
       return;
     }
 
-    if (action.kind !== 'advance_presales') return;
+    if (action.kind !== 'advance_presales' && action.kind !== 'handoff_solution' && action.kind !== 'claim_solution' && action.kind !== 'release_to_sales') {
+      return;
+    }
 
     setBusy(true);
     try {
       let overrideReason: string | undefined;
       if (action.requiresOverride) {
-        const reason = window.prompt('Director override — nhập lý do chuyển giai đoạn:');
+        const reason = window.prompt('Director override — nhập lý do:');
         if (!reason?.trim()) {
           onError?.('Cần lý do override');
           return;
@@ -150,16 +163,31 @@ export function LeadPresalesFunnelStepper({
         overrideReason = reason.trim();
       }
 
-      const out = await advanceLeadPresales(token, leadId, {
-        confirm: true,
-        override_reason: overrideReason,
-      });
+      let out: { funnel: LeadFunnelSnapshot };
+      if (action.kind === 'handoff_solution') {
+        out = await handoffLeadToSolution(token, leadId, {
+          confirm: true,
+          override_reason: overrideReason,
+        });
+        onMessage?.('Đã giao Solution/MKT');
+      } else if (action.kind === 'claim_solution') {
+        out = await claimLeadSolution(token, leadId);
+        onMessage?.('Đã nhận case Solution');
+      } else if (action.kind === 'release_to_sales') {
+        out = await releaseLeadToSales(token, leadId);
+        onMessage?.('Đã trả Sales — sẵn sàng Báo giá');
+      } else {
+        out = await advanceLeadPresales(token, leadId, {
+          confirm: true,
+          override_reason: overrideReason,
+        });
+        onMessage?.('Đã chuyển giai đoạn pre-sales');
+      }
       onFunnelChange?.(out.funnel);
       await refreshGateAndIntake();
       navigateToPresales(onOpenConsultWorkspace);
-      onMessage?.('Đã chuyển giai đoạn pre-sales');
     } catch (err) {
-      onError?.(err instanceof Error ? err.message : 'Chuyển giai đoạn thất bại');
+      onError?.(err instanceof Error ? err.message : 'Thao tác pre-sales thất bại');
     } finally {
       setBusy(false);
     }
@@ -177,6 +205,7 @@ export function LeadPresalesFunnelStepper({
       proposalGate={proposalGate}
       consultProposalSla={funnel?.presales?.consult_proposal_sla ?? null}
       intakeSummary={intakeSummary}
+      solutionCaps={solutionCaps}
       context="lead_detail"
       gateLoading={gateLoading}
       actionBusy={busy}

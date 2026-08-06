@@ -69,6 +69,38 @@ export function loadPresalesFunnelMetricsSqlite(
     )
     .all(...params) as Array<Record<string, unknown>>;
 
+  const handoffPeriod = buildSqlitePeriod('ps.handed_off_at', query.periodStart, query.periodEnd);
+  const handoffRows = db
+    .prepare(
+      `SELECT s.completed_at AS intake_go_completed_at, ps.handed_off_at
+       FROM crm_lead_presales ps
+       INNER JOIN crm_leads l ON l.id = ps.lead_id
+       INNER JOIN (
+         SELECT lead_id, MIN(completed_at) AS completed_at
+         FROM crm_lead_intake_sessions
+         WHERE status = 'completed' AND decision = 'go'
+           AND completed_at != ''
+         GROUP BY lead_id
+       ) s ON s.lead_id = ps.lead_id
+       WHERE ps.handed_off_at != ''${amFilter}${handoffPeriod}`,
+    )
+    .all(...params) as Array<Record<string, unknown>>;
+
+  const releasePeriod = buildSqlitePeriod(
+    'ps.solution_released_at',
+    query.periodStart,
+    query.periodEnd,
+  );
+  const releaseRows = db
+    .prepare(
+      `SELECT ps.handed_off_at, ps.solution_released_at
+       FROM crm_lead_presales ps
+       INNER JOIN crm_leads l ON l.id = ps.lead_id
+       WHERE ps.handed_off_at != ''
+         AND ps.solution_released_at != ''${amFilter}${releasePeriod}`,
+    )
+    .all(...params) as Array<Record<string, unknown>>;
+
   const cpPeriod = buildSqlitePeriod('ps.proposal_entered_at', query.periodStart, query.periodEnd);
   const cpRows = db
     .prepare(
@@ -96,6 +128,14 @@ export function loadPresalesFunnelMetricsSqlite(
     go_to_consult: goRows.map((row) => ({
       intake_go_completed_at: String(row.intake_go_completed_at ?? ''),
       consult_entered_at: String(row.consult_entered_at ?? ''),
+    })),
+    go_to_handoff: handoffRows.map((row) => ({
+      intake_go_completed_at: String(row.intake_go_completed_at ?? ''),
+      handed_off_at: String(row.handed_off_at ?? ''),
+    })),
+    handoff_to_release: releaseRows.map((row) => ({
+      handed_off_at: String(row.handed_off_at ?? ''),
+      solution_released_at: String(row.solution_released_at ?? ''),
     })),
     consult_to_proposal: cpRows.map((row) => ({
       consult_entered_at: String(row.consult_entered_at ?? ''),

@@ -27,6 +27,12 @@ export function PresalesFunnelMetricsCard({ data }: Props) {
       <p className="muted" style={{ margin: '0 0 0.75rem', fontSize: '0.82rem' }}>
         {labels.consult_to_proposal_48h}
       </p>
+      <p className="muted" style={{ margin: '0 0 0.75rem', fontSize: '0.82rem' }}>
+        {labels.go_to_handoff}
+      </p>
+      <p className="muted" style={{ margin: '0 0 0.75rem', fontSize: '0.82rem' }}>
+        {labels.handoff_to_release}
+      </p>
       <div
         style={{
           display: 'grid',
@@ -42,6 +48,26 @@ export function PresalesFunnelMetricsCard({ data }: Props) {
           </strong>
           <div className="muted" style={{ fontSize: '0.78rem' }}>
             n={m.go_to_consult_sample}
+          </div>
+        </div>
+        <div>
+          <div className="muted">Go → Handoff median</div>
+          <strong>
+            {m.go_to_handoff_median_hours != null ? `${m.go_to_handoff_median_hours}h` : '—'}
+          </strong>
+          <div className="muted" style={{ fontSize: '0.78rem' }}>
+            n={m.go_to_handoff_sample}
+          </div>
+        </div>
+        <div>
+          <div className="muted">Handoff → Release median</div>
+          <strong>
+            {m.handoff_to_release_median_hours != null
+              ? `${m.handoff_to_release_median_hours}h`
+              : '—'}
+          </strong>
+          <div className="muted" style={{ fontSize: '0.78rem' }}>
+            n={m.handoff_to_release_sample}
           </div>
         </div>
         <div>

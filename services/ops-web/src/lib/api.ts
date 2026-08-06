@@ -1138,6 +1138,12 @@ export interface PresalesFunnelMetricsResult {
   go_to_consult_median_hours: number | null;
   go_to_consult_p90_hours: number | null;
   go_to_consult_sample: number;
+  go_to_handoff_median_hours: number | null;
+  go_to_handoff_p90_hours: number | null;
+  go_to_handoff_sample: number;
+  handoff_to_release_median_hours: number | null;
+  handoff_to_release_p90_hours: number | null;
+  handoff_to_release_sample: number;
   consult_to_proposal_7d_pct: number;
   consult_to_proposal_7d_num: number;
   consult_to_proposal_7d_denom: number;
@@ -1159,6 +1165,8 @@ export interface PresalesFunnelMetricsResponse {
   labels: {
     consult_to_proposal_7d: string;
     consult_to_proposal_48h: string;
+    go_to_handoff: string;
+    handoff_to_release: string;
   };
 }
 
@@ -1180,6 +1188,12 @@ export interface LeadFunnelSnapshot {
   presales_on_lead_enabled: boolean;
   presales: {
     presales: { id: number; stage: string; service_slug: string; status: string };
+    handoff?: {
+      status: '' | 'pending' | 'with_solution' | 'released';
+      handed_off_at: string;
+      solution_owner_staff_id: number | null;
+      solution_owner_name: string;
+    };
     l2_docs?: {
       service_slug: string;
       items: Array<{ key: string; label: string; checked: boolean }>;
@@ -1378,6 +1392,64 @@ export async function advanceLeadPresales(
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/advance`, {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+}
+
+export interface SolutionQueueRow {
+  lead_id: number;
+  full_name: string;
+  phone: string;
+  service_slug: string;
+  presales_stage: string;
+  handoff_status: 'pending' | 'with_solution';
+  handed_off_at: string;
+  solution_owner_staff_id: number | null;
+  solution_owner_name: string;
+  owner_id: number | null;
+  owner_name: string;
+}
+
+export async function fetchSolutionQueue(
+  token: string,
+  opts: { status?: 'pending' | 'with_solution'; limit?: number } = {},
+): Promise<{ ok: boolean; rows: SolutionQueueRow[]; count: number }> {
+  const params = new URLSearchParams();
+  if (opts.status) params.set('status', opts.status);
+  if (opts.limit != null) params.set('limit', String(opts.limit));
+  const qs = params.toString();
+  return leadFunnelMutate(token, `/api/v1/leads/presales/solution-queue${qs ? `?${qs}` : ''}`, {
+    method: 'GET',
+  });
+}
+
+export async function handoffLeadToSolution(
+  token: string,
+  leadId: number,
+  body: { confirm?: boolean; override_reason?: string } = {},
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/handoff-solution`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function claimLeadSolution(
+  token: string,
+  leadId: number,
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/claim-solution`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function releaseLeadToSales(
+  token: string,
+  leadId: number,
+): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/release-to-sales`, {
+    method: 'POST',
+    body: JSON.stringify({}),
   });
 }
 

@@ -20,6 +20,10 @@ import {
 } from '@/lib/api';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
 import { presalesStageLabel } from '@/lib/crm/lead-consult-tab.util';
+import {
+  isConsultWorkspaceReadOnly,
+  resolvePresalesSolutionCaps,
+} from '@/lib/crm/presales-solution-caps';
 
 interface Props {
   token: string;
@@ -61,8 +65,10 @@ export function LeadConsultWorkspace({
 
   const presalesStage = funnel.presales?.presales.stage;
   const workspaceStage = presalesStage === 'proposal' ? 'proposal' : 'consult';
-  const canEdit = Boolean(user && hasCap(user, 'crm_leads', 'edit'));
-  const canPrefill = Boolean(user && hasCap(user, 'crm_board', 'edit'));
+  const solutionCaps = resolvePresalesSolutionCaps(user);
+  const consultReadOnly = isConsultWorkspaceReadOnly(funnel, solutionCaps);
+  const canEdit = Boolean(user && hasCap(user, 'crm_leads', 'edit') && solutionCaps.canEditConsult && !consultReadOnly);
+  const canPrefill = Boolean(user && hasCap(user, 'crm_board', 'edit') && solutionCaps.canEditConsult);
 
   const intakeHref = `/crm/intake?lead_id=${leadId}${
     funnel.presales?.presales.service_slug
@@ -253,6 +259,15 @@ export function LeadConsultWorkspace({
       {panelError ? (
         <div className="lead-alert lead-alert--error" role="alert">
           {panelError}
+        </div>
+      ) : null}
+
+      {consultReadOnly ? (
+        <div className="banner banner-info" data-testid="consult-solution-readonly-banner">
+          <strong>Giai đoạn Solution — bạn theo dõi, không chỉnh sửa</strong>
+          <p style={{ margin: '0.35rem 0 0', fontSize: '0.9rem' }}>
+            Consult, L2, AI và KHMKT sơ bộ do Solution/MKT phụ trách. AM tiếp tục sau khi Solution Trả Sales — Báo giá.
+          </p>
         </div>
       ) : null}
 

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
 import { AppConfigService } from '../config/app-config.service';
 import { CrmLeadsSqliteRepository } from '../crm-leads-legacy/crm-leads-sqlite.repository';
@@ -12,6 +12,7 @@ import {
   CompleteCareStageBody,
   ConsultPrefillBody,
   EnsurePresalesBody,
+  HandoffSolutionBody,
   LeadFunnelSnapshot,
   PatchMarketingPlanBody,
   PatchPresalesL2DocsBody,
@@ -42,6 +43,15 @@ import {
 import { mergePresalesFormData } from './presales-task-form.util';
 import { assertPresalesL2DocsComplete } from './presales-l2-docs.util';
 import { reviewQueuePublicState } from './review-queue.util';
+import {
+  assertCanAdvanceConsultToProposal,
+  assertCanMutatePresalesConsult,
+} from './presales-solution-rbac.util';
+import {
+  buildSolutionHandoffActivity,
+  SOLUTION_HANDOFF_ACTIVITY_TYPES,
+  type SolutionHandoffActivityType,
+} from './presales-solution-handoff-activity.util';
 import { buildReviewQueueMetrics } from './review-queue-metrics.util';
 import { buildReviewQueueAiSummary, computeReviewQueuePriority } from './review-queue-intelligence.util';
 import {
@@ -85,9 +95,37 @@ export class LeadsFunnelService {
   }
 
   private funnelError(err: unknown): never {
+    if (err instanceof NotFoundException || err instanceof ForbiddenException) throw err;
     const msg = err instanceof Error ? err.message : String(err);
-    if (err instanceof NotFoundException) throw err;
     throw new BadRequestException({ error: msg, message: msg });
+  }
+
+  private async staffCapContext(staffUser?: StaffJwtPayload) {
+    if (!staffUser) return { caps: [], gdkdAssign: false };
+    const me = await this.staffAuth.me(staffUser);
+    return {
+      caps: me.caps,
+      gdkdAssign: this.staffAuth.hasCap(me.caps, 'crm_leads', 'assign'),
+    };
+  }
+
+  private async assertConsultMutationAllowed(
+    leadId: number,
+    staffUser: StaffJwtPayload | undefined,
+    taskStage?: string,
+  ): Promise<void> {
+    if (taskStage && taskStage !== 'consult') return;
+    const snap = this.usePgFunnel
+      ? await this.pgRepo.getPresalesSnapshot(leadId)
+      : this.sqliteRepo.getPresalesSnapshot(leadId);
+    if (!snap) return;
+    const { caps, gdkdAssign } = await this.staffCapContext(staffUser);
+    assertCanMutatePresalesConsult(
+      caps,
+      snap.presales.handoff_status,
+      snap.presales.stage,
+      { gdkdAssign },
+    );
   }
 
   async submitCareReport(
@@ -269,8 +307,23 @@ export class LeadsFunnelService {
     return { ok: true, gate, presales_stage: snap.presales.stage };
   }
 
-  async advancePresales(leadId: number, body: AdvancePresalesBody, allowOverride = false) {
+  async advancePresales(
+    leadId: number,
+    body: AdvancePresalesBody,
+    allowOverride = false,
+    staffUser?: StaffJwtPayload,
+  ) {
     try {
+      const snap = this.usePgFunnel
+        ? await this.pgRepo.getPresalesSnapshot(leadId)
+        : this.sqliteRepo.getPresalesSnapshot(leadId);
+      if (
+        snap?.advance.next_stage === 'proposal' &&
+        snap.advance.current_stage === 'consult'
+      ) {
+        const { caps, gdkdAssign } = await this.staffCapContext(staffUser);
+        assertCanAdvanceConsultToProposal(caps, snap.presales.handoff_status, { gdkdAssign });
+      }
       if (this.usePgFunnel) {
         await this.pgRepo.advancePresales(leadId, {
           confirm: Boolean(body.confirm),
@@ -290,6 +343,144 @@ export class LeadsFunnelService {
     return { ok: true, funnel: await this.getFunnel(leadId) };
   }
 
+  async listSolutionQueue(status?: string, limit?: number) {
+    const statuses: Array<'pending' | 'with_solution'> =
+      status === 'pending' || status === 'with_solution'
+        ? [status]
+        : ['pending', 'with_solution'];
+    const rows = this.usePgFunnel
+      ? await this.pgRepo.listSolutionQueue(statuses, limit)
+      : this.sqliteRepo.listSolutionQueue(statuses, limit);
+    return { ok: true, rows, count: rows.length };
+  }
+
+  private resolveStaffDisplayName(
+    staffUser: StaffJwtPayload | undefined,
+    actor: string,
+    staffId: number | null,
+  ): string {
+    const fromJwt = String(staffUser?.display_name ?? '').trim();
+    if (fromJwt) return fromJwt;
+    if (staffId) {
+      const name = this.leadSqlite.staffNamesByIds([staffId]).get(staffId);
+      if (name) return name;
+    }
+    return actor;
+  }
+
+  private async logSolutionHandoffActivity(
+    leadId: number,
+    kind: SolutionHandoffActivityType,
+    actor: string,
+    staffId: number | null,
+    staffUser?: StaffJwtPayload,
+  ): Promise<void> {
+    const snap = this.usePgFunnel
+      ? await this.pgRepo.getPresalesSnapshot(leadId)
+      : this.sqliteRepo.getPresalesSnapshot(leadId);
+    if (!snap) return;
+
+    let amOwnerName: string | undefined;
+    if (kind === SOLUTION_HANDOFF_ACTIVITY_TYPES.released && snap.presales.assigned_am) {
+      amOwnerName = this.leadSqlite
+        .staffNamesByIds([snap.presales.assigned_am])
+        .get(snap.presales.assigned_am);
+    }
+
+    const payload = buildSolutionHandoffActivity(kind, {
+      leadId,
+      serviceSlug: snap.presales.service_slug,
+      actorName: this.resolveStaffDisplayName(staffUser, actor, staffId),
+      amOwnerName,
+    });
+    await this.legacyLeads.createActivity(leadId, payload, actor, staffId);
+  }
+
+  async handoffToSolution(
+    leadId: number,
+    body: HandoffSolutionBody,
+    staffId: number | null,
+    actor: string,
+    staffUser?: StaffJwtPayload,
+  ) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    try {
+      if (this.usePgFunnel) {
+        await this.pgRepo.handoffToSolution(leadId, staffId, {
+          confirm: Boolean(body.confirm),
+          overrideReason: body.override_reason,
+        });
+      } else {
+        this.sqliteRepo.handoffToSolution(leadId, staffId, {
+          confirm: Boolean(body.confirm),
+          overrideReason: body.override_reason,
+        });
+      }
+      await this.logSolutionHandoffActivity(
+        leadId,
+        SOLUTION_HANDOFF_ACTIVITY_TYPES.handoff,
+        actor,
+        staffId,
+        staffUser,
+      );
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async claimSolution(
+    leadId: number,
+    staffId: number | null,
+    actor: string,
+    staffUser?: StaffJwtPayload,
+  ) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    try {
+      if (this.usePgFunnel) {
+        await this.pgRepo.claimSolution(leadId, staffId);
+      } else {
+        this.sqliteRepo.claimSolution(leadId, staffId);
+      }
+      await this.logSolutionHandoffActivity(
+        leadId,
+        SOLUTION_HANDOFF_ACTIVITY_TYPES.claimed,
+        actor,
+        staffId,
+        staffUser,
+      );
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  async releaseToSales(
+    leadId: number,
+    staffId: number | null,
+    actor: string,
+    staffUser?: StaffJwtPayload,
+  ) {
+    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    try {
+      if (this.usePgFunnel) {
+        await this.pgRepo.releaseToSales(leadId, staffId);
+      } else {
+        this.sqliteRepo.releaseToSales(leadId, staffId);
+      }
+      await this.logSolutionHandoffActivity(
+        leadId,
+        SOLUTION_HANDOFF_ACTIVITY_TYPES.released,
+        actor,
+        staffId,
+        staffUser,
+      );
+    } catch (err) {
+      this.funnelError(err);
+    }
+    return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
   async staffHasAssignCap(staffUser: StaffJwtPayload): Promise<boolean> {
     const me = await this.staffAuth.me(staffUser);
     return this.staffAuth.hasCap(me.caps, 'crm_leads', 'assign');
@@ -300,6 +491,7 @@ export class LeadsFunnelService {
     taskId: number,
     body: PatchPresalesTaskBody,
     doneBy: number | null,
+    staffUser?: StaffJwtPayload,
   ) {
     try {
       const task = this.usePgFunnel
@@ -308,6 +500,7 @@ export class LeadsFunnelService {
       if (!task) {
         throw new NotFoundException({ error: 'Không tìm thấy task pre-sales' });
       }
+      await this.assertConsultMutationAllowed(leadId, staffUser, task.stage);
 
       const mergedFormData = mergePresalesFormData(task.form_data, body.form_data);
       if (body.is_done === true) {
@@ -344,8 +537,9 @@ export class LeadsFunnelService {
     }
   }
 
-  async patchPresalesL2Docs(leadId: number, body: PatchPresalesL2DocsBody) {
+  async patchPresalesL2Docs(leadId: number, body: PatchPresalesL2DocsBody, staffUser?: StaffJwtPayload) {
     try {
+      await this.assertConsultMutationAllowed(leadId, staffUser, 'consult');
       if (this.usePgFunnel) {
         await this.pgRepo.updatePresalesL2Docs(leadId, body.docs ?? {});
       } else {
@@ -435,7 +629,8 @@ export class LeadsFunnelService {
     return { ok: true, plan, validation };
   }
 
-  async patchMarketingPlan(leadId: number, body: PatchMarketingPlanBody) {
+  async patchMarketingPlan(leadId: number, body: PatchMarketingPlanBody, staffUser?: StaffJwtPayload) {
+    await this.assertConsultMutationAllowed(leadId, staffUser, 'consult');
     if (this.usePgFunnel) {
       const plan = await this.pgRepo.patchMarketingPlan(leadId, body);
       const validation = validatePreliminaryPlan(plan);
@@ -476,8 +671,9 @@ export class LeadsFunnelService {
     return { ok: true, brief };
   }
 
-  async prefillPresalesConsult(leadId: number, body: ConsultPrefillBody) {
+  async prefillPresalesConsult(leadId: number, body: ConsultPrefillBody, staffUser?: StaffJwtPayload) {
     try {
+      await this.assertConsultMutationAllowed(leadId, staffUser, 'consult');
       const out = this.usePgFunnel
         ? await this.pgRepo.runPresalesConsultPrefill(leadId, Boolean(body.overwrite))
         : this.sqliteRepo.runPresalesConsultPrefill(leadId, Boolean(body.overwrite));
@@ -526,12 +722,18 @@ export class LeadsFunnelService {
     }
   }
 
-  async runPresalesTaskAiAssist(leadId: number, taskId: number, body: PresalesAiAssistBody) {
+  async runPresalesTaskAiAssist(
+    leadId: number,
+    taskId: number,
+    body: PresalesAiAssistBody,
+    staffUser?: StaffJwtPayload,
+  ) {
     try {
       const task = this.usePgFunnel
         ? await this.pgRepo.getPresalesTaskById(taskId)
         : this.sqliteRepo.getPresalesTaskById(taskId);
       if (!task) throw new NotFoundException({ error: 'Không tìm thấy task pre-sales' });
+      await this.assertConsultMutationAllowed(leadId, staffUser, task.stage);
 
       const snap = this.usePgFunnel
         ? await this.pgRepo.getPresalesSnapshot(leadId)

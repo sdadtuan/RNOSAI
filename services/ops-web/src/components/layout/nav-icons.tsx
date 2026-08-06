@@ -460,6 +460,7 @@ export const LINK_ICONS: Record<string, string> = {
   '/crm/gdkd-enterprise': 'kpi',
   '/crm/intake': 'checklist',
   '/crm/leads/review-queue': 'inbox',
+  '/crm/solution/queue': 'inbox',
   '/crm/tickets': 'ticket',
   '/crm/customers': 'customers',
   '/crm/catalog': 'catalog',

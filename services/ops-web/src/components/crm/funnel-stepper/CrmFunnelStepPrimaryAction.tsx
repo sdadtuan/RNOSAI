@@ -53,7 +53,11 @@ export function CrmFunnelStepPrimaryAction({
 
     const btnClass =
       variant === 'primary'
-        ? target.kind === 'advance_presales' || target.kind === 'ensure_presales'
+        ? target.kind === 'advance_presales' ||
+            target.kind === 'handoff_solution' ||
+            target.kind === 'claim_solution' ||
+            target.kind === 'release_to_sales' ||
+            target.kind === 'ensure_presales'
           ? 'btn-primary'
           : 'btn'
         : 'btn-secondary';

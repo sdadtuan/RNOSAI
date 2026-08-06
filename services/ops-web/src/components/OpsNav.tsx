@@ -267,6 +267,9 @@ function buildSections(
   if (hasCap(user, 'crm_leads', 'view')) {
     b2bSales.push({ href: '/crm/b2b/leads', label: 'Lead B2B' });
     b2bSales.push({ href: '/crm/intake', label: 'Lead Intake' });
+    if (hasCap(user, 'crm_presales_solution', 'view') || hasCap(user, 'crm_leads', 'view')) {
+      b2bSales.push({ href: '/crm/solution/queue', label: 'Solution queue' });
+    }
     if (hasCap(user, 'crm_leads', 'edit')) {
       b2bSales.push({ href: '/crm/b2b/leads/new', label: 'Tạo lead B2B' });
     }

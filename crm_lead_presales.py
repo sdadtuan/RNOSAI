@@ -128,6 +128,34 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             )
         except sqlite3.Error:
             pass
+    handoff_cols = {
+        "handoff_status": "TEXT NOT NULL DEFAULT ''",
+        "handed_off_at": "TEXT NOT NULL DEFAULT ''",
+        "handed_off_by_staff_id": "INTEGER",
+        "solution_owner_staff_id": "INTEGER",
+        "solution_claimed_at": "TEXT NOT NULL DEFAULT ''",
+        "solution_released_at": "TEXT NOT NULL DEFAULT ''",
+    }
+    for col, ddl in handoff_cols.items():
+        if col not in _ps_cols:
+            try:
+                conn.execute(f"ALTER TABLE crm_lead_presales ADD COLUMN {col} {ddl}")
+            except sqlite3.Error:
+                pass
+    conn.execute(
+        """
+        UPDATE crm_lead_presales
+        SET handoff_status = 'with_solution',
+            handed_off_at = CASE
+              WHEN handed_off_at = '' OR handed_off_at IS NULL
+              THEN COALESCE(NULLIF(consult_entered_at, ''), NULLIF(stage_entered_at, ''), datetime('now'))
+              ELSE handed_off_at
+            END
+        WHERE stage = 'consult'
+          AND status = 'active'
+          AND (handoff_status = '' OR handoff_status IS NULL)
+        """
+    )
     conn.execute(
         """
         UPDATE crm_lead_presales

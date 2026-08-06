@@ -11,6 +11,11 @@ import { LeadsFunnelSqliteRepository } from './leads-funnel-sqlite.repository';
 import { LeadsFunnelEnabledGuard, PresalesOnLeadGuard } from './guards/leads-funnel-enabled.guard';
 import { LeadNotInReviewQueueGuard } from './guards/lead-not-in-review-queue.guard';
 import { StaffLeadsGdkdGuard } from './guards/staff-leads-gdkd.guard';
+import {
+  StaffPresalesSolutionClaimGuard,
+  StaffPresalesSolutionQueueGuard,
+  StaffPresalesSolutionReleaseGuard,
+} from './guards/staff-presales-solution.guard';
 import { IntakeModule } from '../intake/intake.module';
 import { ReviewQueueLlmService } from './review-queue-llm.service';
 
@@ -33,6 +38,9 @@ import { ReviewQueueLlmService } from './review-queue-llm.service';
     PresalesOnLeadGuard,
     StaffLeadsGdkdGuard,
     LeadNotInReviewQueueGuard,
+    StaffPresalesSolutionClaimGuard,
+    StaffPresalesSolutionReleaseGuard,
+    StaffPresalesSolutionQueueGuard,
   ],
   exports: [LeadsFunnelService, LeadsFunnelSqliteRepository, LeadsFunnelPgRepository, LeadNotInReviewQueueGuard],
 })

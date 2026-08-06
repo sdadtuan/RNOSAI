@@ -59,6 +59,9 @@ export const ACTIVITY_TYPES = [
   'task',
   'reminder',
   'system',
+  'solution_handoff',
+  'solution_claimed',
+  'solution_released',
 ] as const;
 
 export const ACTIVITY_TYPE_LABELS: Record<string, string> = {
@@ -71,4 +74,7 @@ export const ACTIVITY_TYPE_LABELS: Record<string, string> = {
   task: 'Công việc',
   reminder: 'Nhắc việc',
   system: 'Hệ thống',
+  solution_handoff: 'Giao Solution/MKT',
+  solution_claimed: 'Solution nhận case',
+  solution_released: 'Solution trả Sales',
 };

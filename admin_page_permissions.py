@@ -181,6 +181,13 @@ ADMIN_CRM_SECTIONS: tuple[dict[str, Any], ...] = (
         "description": "Thu thập đa nguồn, chấm điểm, phân loại, gán owner, SLA và AI truy xuất.",
     },
     {
+        "id": "crm_presales_solution",
+        "label": "Pre-sales — Solution/MKT",
+        "group": "CRM — B2B Sales",
+        "page": "/crm/solution/queue",
+        "description": "Handoff Sales → Solution: hàng chờ, Consult + R5, nhận case, trả Sales Báo giá.",
+    },
+    {
         "id": "crm_daily_work_report",
         "label": "Nhân sự — Báo cáo công việc ngày",
         "group": "CRM — Nhân sự",
@@ -439,6 +446,7 @@ SIDEBAR_CRM_NAV_SECTIONS: tuple[str, ...] = (
     "crm_board_kanban",
     "crm_board_customers",
     "crm_leads",
+    "crm_presales_solution",
     "crm_hub_campaigns",
     "crm_mktplan",
     "crm_business_dashboard",
@@ -499,6 +507,7 @@ _POSITION_DEFAULT: dict[str, dict[str, frozenset[str]]] = {
         "crm_leads__btn_save": frozenset(),
         "crm_leads__btn_edit": frozenset({"edit"}),
         "crm_leads__btn_activity": frozenset({"create"}),
+        "crm_presales_solution": frozenset({"view"}),
         "crm_hdsd": frozenset({"view", "export"}),
         "crm_agency": frozenset({"view", "edit", "create", "configure"}),
         "crm_facebook_ads": frozenset({"view", "edit", "create", "configure"}),
@@ -516,6 +525,7 @@ _POSITION_DEFAULT: dict[str, dict[str, frozenset[str]]] = {
         "crm_owner_weekly_dashboard": frozenset({"view", "export", "configure"}),
         "crm_data_config": frozenset({"view", "configure"}),
         "crm_leads": frozenset({"view", "edit", "create", "export", "configure"}),
+        "crm_presales_solution": frozenset({"view", "edit", "claim", "release"}),
         "crm_board_funnel": frozenset({"view", "export"}),
         "crm_assistant": frozenset({"view", "create", "export"}),
         "crm_sop_runs": frozenset({"view", "edit", "create"}),
@@ -554,6 +564,7 @@ _POSITION_DEFAULT: dict[str, dict[str, frozenset[str]]] = {
         "crm_hub_reminders": frozenset({"view", "edit"}),
         "crm_mktplan": frozenset({"view", "edit"}),
         "crm_leads": frozenset({"view", "edit", "export"}),
+        "crm_presales_solution": frozenset({"view", "edit", "claim", "release"}),
         "crm_board_funnel": frozenset({"view"}),
         "crm_assistant": frozenset({"view", "create"}),
         "crm_sop_runs": frozenset({"view", "edit", "create"}),
@@ -875,6 +886,27 @@ def apply_position_default_grants(
                 (pid, sid, act),
             )
     return True
+
+
+def migrate_presales_solution_permissions(conn) -> None:
+    """Bổ sung quyền P3-S2 crm_presales_solution — INSERT OR IGNORE, không ghi đè ma trận cũ."""
+    rows = conn.execute("SELECT id, code FROM crm_positions WHERE active = 1").fetchall()
+    for prow in rows:
+        pid = int(prow["id"])
+        code = str(prow["code"] or "")
+        defaults = default_grants_for_position(code)
+        acts = list(defaults.get("crm_presales_solution") or [])
+        if not acts:
+            continue
+        for act in acts:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO crm_position_section_permissions
+                (position_id, section_id, action)
+                VALUES (?, 'crm_presales_solution', ?)
+                """,
+                (pid, act),
+            )
 
 
 def migrate_hdsd_position_permissions(conn) -> None:

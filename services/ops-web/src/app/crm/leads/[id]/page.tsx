@@ -713,6 +713,7 @@ export default function CrmLeadDetailPage() {
               <LeadPresalesFunnelStepper
                 token={accessToken}
                 leadId={leadId}
+                user={user}
                 funnel={funnelSnap}
                 onFunnelChange={setFunnelSnap}
                 onOpenConsultWorkspace={showConsultTab ? openConsultTab : undefined}

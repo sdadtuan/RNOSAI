@@ -2,6 +2,7 @@
 
 import { PresalesTaskFormCard } from '@/components/PresalesTaskFormCard';
 import { PresalesR5PlanForm } from '@/components/PresalesR5PlanForm';
+import { PresalesSolutionHandoffBanner } from '@/components/PresalesSolutionHandoffBanner';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -381,6 +382,8 @@ export function LeadFunnelPanel({
           )}
         </div>
       )}
+
+      <PresalesSolutionHandoffBanner funnel={funnel} user={user} />
 
       <div className="card-inner" id="funnel-b2">
         <h3 style={{ marginTop: 0 }}>B2 — {b2Stage?.label ?? 'Liên hệ lần đầu'}</h3>

@@ -16,6 +16,26 @@ describe('presales-funnel-metrics.util', () => {
           consult_entered_at: '2026-08-03 10:00:00',
         },
       ],
+      go_to_handoff: [
+        {
+          intake_go_completed_at: '2026-08-01 10:00:00',
+          handed_off_at: '2026-08-01 20:00:00',
+        },
+        {
+          intake_go_completed_at: '2026-08-01 10:00:00',
+          handed_off_at: '2026-08-02 10:00:00',
+        },
+      ],
+      handoff_to_release: [
+        {
+          handed_off_at: '2026-08-01 10:00:00',
+          solution_released_at: '2026-08-03 10:00:00',
+        },
+        {
+          handed_off_at: '2026-08-01 10:00:00',
+          solution_released_at: '2026-08-05 10:00:00',
+        },
+      ],
       consult_to_proposal: [
         {
           consult_entered_at: '2026-08-01 10:00:00',
@@ -42,6 +62,10 @@ describe('presales-funnel-metrics.util', () => {
 
     expect(out.go_to_consult_median_hours).toBe(36);
     expect(out.go_to_consult_sample).toBe(2);
+    expect(out.go_to_handoff_median_hours).toBe(17);
+    expect(out.go_to_handoff_sample).toBe(2);
+    expect(out.handoff_to_release_median_hours).toBe(72);
+    expect(out.handoff_to_release_sample).toBe(2);
     expect(out.consult_to_proposal_48h_num).toBe(1);
     expect(out.consult_to_proposal_48h_denom).toBe(2);
     expect(out.consult_to_proposal_48h_pct).toBe(50);

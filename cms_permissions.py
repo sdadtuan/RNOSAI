@@ -12,6 +12,8 @@ CMS_ACTIONS: tuple[str, ...] = (
     "export",
     "configure",
     "approve",
+    "claim",
+    "release",
 )
 
 CMS_ACTION_LABELS_VI: dict[str, str] = {
@@ -22,6 +24,8 @@ CMS_ACTION_LABELS_VI: dict[str, str] = {
     "export": "Xuất file",
     "configure": "Cấu hình",
     "approve": "Duyệt / phê duyệt",
+    "claim": "Nhận case Solution",
+    "release": "Trả Sales / Báo giá",
 }
 
 # Mục menu CRM (sidebar trái) — id trùng data-admin-nav / ma trận chức vụ

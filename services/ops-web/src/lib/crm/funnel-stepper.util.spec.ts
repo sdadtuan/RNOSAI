@@ -303,12 +303,12 @@ describe('resolvePrimaryAction', () => {
       activeStep: 'intake_bant',
       context: 'intake',
     });
-    expect(action?.kind).toBe('advance_presales');
+    expect(action?.kind).toBe('handoff_solution');
     expect(action?.disabled).toBe(false);
     expect(action?.requiresConfirm).toBe(false);
   });
 
-  it('prioritizes advance over draft continuation when Go completed + gate ok', () => {
+  it('prioritizes handoff over draft continuation when Go completed + gate ok', () => {
     const intakeSummary = mockIntake({ has_draft: true });
     const action = resolvePrimaryAction({
       leadId: 1,
@@ -318,8 +318,8 @@ describe('resolvePrimaryAction', () => {
       activeStep: 'intake_bant',
       context: 'intake',
     });
-    expect(action?.kind).toBe('advance_presales');
-    expect(action?.label).toContain('Tư vấn');
+    expect(action?.kind).toBe('handoff_solution');
+    expect(action?.label).toContain('Solution');
 
     const secondary = resolveSecondaryAction({
       funnel: mockFunnel(),
@@ -470,10 +470,10 @@ describe('resolveFunnelStepper', () => {
     expect(vm.steps.find((s) => s.key === 'intake_bant')?.href).toContain('/crm/intake?lead_id=900000002');
     expect(vm.activeStep).toBe('intake_bant');
     expect(vm.gateStrip?.tone).toBe('ok');
-    expect(vm.primaryAction?.kind).toBe('advance_presales');
+    expect(vm.primaryAction?.kind).toBe('handoff_solution');
   });
 
-  it('shows advance + continue survey when draft and completed Go gate ok', () => {
+  it('shows handoff + continue survey when draft and completed Go gate ok', () => {
     const vm = resolveFunnelStepper({
       leadId: 900000002,
       funnel: mockFunnel(),
@@ -481,7 +481,7 @@ describe('resolveFunnelStepper', () => {
       intakeSummary: mockIntake({ has_draft: true }),
       context: 'intake',
     });
-    expect(vm.primaryAction?.kind).toBe('advance_presales');
+    expect(vm.primaryAction?.kind).toBe('handoff_solution');
     expect(vm.secondaryAction?.kind).toBe('focus_intake_form');
   });
 

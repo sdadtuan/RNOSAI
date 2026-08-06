@@ -64,6 +64,9 @@ ACTIVITY_TYPES: tuple[str, ...] = (
     "task",
     "reminder",
     "system",
+    "solution_handoff",
+    "solution_claimed",
+    "solution_released",
 )
 
 ACTIVITY_TYPE_LABELS: dict[str, str] = {
@@ -76,6 +79,9 @@ ACTIVITY_TYPE_LABELS: dict[str, str] = {
     "task": "Công việc",
     "reminder": "Nhắc việc",
     "system": "Hệ thống",
+    "solution_handoff": "Giao Solution/MKT",
+    "solution_claimed": "Solution nhận case",
+    "solution_released": "Solution trả Sales",
 }
 
 # Activity liên hệ khách — tự chuyển trạng thái lead sang «contacted» nếu còn «Mới»/chưa liên hệ.

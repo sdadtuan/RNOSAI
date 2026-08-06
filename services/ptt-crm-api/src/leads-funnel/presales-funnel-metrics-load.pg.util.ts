@@ -97,6 +97,50 @@ export async function loadPresalesFunnelMetricsPg(
     goParams,
   );
 
+  const handoffParams = [...params];
+  const handoffPeriod = buildPeriodClause(
+    'ps.handed_off_at',
+    handoffParams,
+    query.periodStart,
+    query.periodEnd,
+  );
+  const handoffResult = await db.query(
+    `SELECT s.completed_at AS intake_go_completed_at, ps.handed_off_at
+     FROM crm_lead_presales ps
+     INNER JOIN crm_leads l ON l.id = ps.lead_id
+     INNER JOIN LATERAL (
+       SELECT completed_at FROM crm_lead_intake_sessions i
+       WHERE i.lead_id = ps.lead_id
+         AND i.status = 'completed'
+         AND i.decision = 'go'
+         AND i.completed_at IS NOT NULL
+         AND i.completed_at::text != ''
+       ORDER BY i.completed_at ASC
+       LIMIT 1
+     ) s ON TRUE
+     WHERE ps.handed_off_at IS NOT NULL
+       AND ps.handed_off_at::text != ''${amFilter}${handoffPeriod}`,
+    handoffParams,
+  );
+
+  const releaseParams = [...params];
+  const releasePeriod = buildPeriodClause(
+    'ps.solution_released_at',
+    releaseParams,
+    query.periodStart,
+    query.periodEnd,
+  );
+  const releaseResult = await db.query(
+    `SELECT ps.handed_off_at, ps.solution_released_at
+     FROM crm_lead_presales ps
+     INNER JOIN crm_leads l ON l.id = ps.lead_id
+     WHERE ps.handed_off_at IS NOT NULL
+       AND ps.handed_off_at::text != ''
+       AND ps.solution_released_at IS NOT NULL
+       AND ps.solution_released_at::text != ''${amFilter}${releasePeriod}`,
+    releaseParams,
+  );
+
   const cpParams = [...params];
   const cpPeriod = buildPeriodClause(
     'ps.proposal_entered_at',
@@ -131,6 +175,14 @@ export async function loadPresalesFunnelMetricsPg(
     go_to_consult: goResult.rows.map((row: Record<string, unknown>) => ({
       intake_go_completed_at: String(row.intake_go_completed_at ?? ''),
       consult_entered_at: String(row.consult_entered_at ?? ''),
+    })),
+    go_to_handoff: handoffResult.rows.map((row: Record<string, unknown>) => ({
+      intake_go_completed_at: String(row.intake_go_completed_at ?? ''),
+      handed_off_at: String(row.handed_off_at ?? ''),
+    })),
+    handoff_to_release: releaseResult.rows.map((row: Record<string, unknown>) => ({
+      handed_off_at: String(row.handed_off_at ?? ''),
+      solution_released_at: String(row.solution_released_at ?? ''),
     })),
     consult_to_proposal: cpResult.rows.map((row: Record<string, unknown>) => ({
       consult_entered_at: String(row.consult_entered_at ?? ''),
