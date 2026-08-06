@@ -1,0 +1,60 @@
+name: RBAC R1 Gate
+
+on:
+  pull_request:
+    paths:
+      - 'admin_page_permissions.py'
+      - 'ptt_ui_button_permissions.py'
+      - 'cms_permissions.py'
+      - 'scripts/rbac_*.py'
+      - 'scripts/rbac_*.sh'
+      - 'scripts/migrate_*_permissions*.py'
+      - 'scripts/sync_super_admin_caps_pg.py'
+      - 'services/ptt-crm-api/src/**/*guard*.ts'
+      - 'services/ops-web/src/lib/auth.ts'
+      - 'services/ops-web/src/lib/rbac-routes.ts'
+      - 'tests/test_rbac_*.py'
+      - '.github/workflows/rbac-r1-gate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/rbac_*.py'
+      - 'scripts/rbac_*.sh'
+      - '.github/workflows/rbac-r1-gate.yml'
+
+concurrency:
+  group: rbac-r1-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rbac-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: RBAC no-SQLite gate
+        run: |
+          chmod +x scripts/rbac_no_sqlite_gate.sh
+          ./scripts/rbac_no_sqlite_gate.sh
+
+      - name: RBAC catalog gate
+        run: |
+          chmod +x scripts/rbac_catalog_gate.sh
+          ./scripts/rbac_catalog_gate.sh
+
+      - name: RBAC unit tests
+        run: python3 -m unittest tests.test_rbac_permissions_pg tests.test_rbac_catalog_gate -v
+
+      - name: Upload rbac_catalog.json
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rbac-catalog-json
+          path: docs/exports/rbac_catalog.json
+          if-no-files-found: ignore

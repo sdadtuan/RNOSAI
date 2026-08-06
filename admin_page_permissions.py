@@ -436,6 +436,13 @@ ADMIN_CRM_SECTIONS: tuple[dict[str, Any], ...] = (
         "page": "/seo/reports",
         "description": "Export PDF, BI, scheduled reports.",
     },
+    {
+        "id": "crm_email_mkt",
+        "label": "Email Marketing",
+        "group": "CRM · Email",
+        "page": "/email/hub",
+        "description": "Campaign, journey, compliance — write/settings/approve/deliverability/reports.",
+    },
 )
 
 ADMIN_CRM_SECTION_IDS: frozenset[str] = frozenset(s["id"] for s in ADMIN_CRM_SECTIONS)
