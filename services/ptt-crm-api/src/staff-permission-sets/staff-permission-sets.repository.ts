@@ -257,6 +257,19 @@ export class StaffPermissionSetsRepository implements OnModuleDestroy {
     return (await this.getSetByCode(existing.code))!;
   }
 
+  async loadCapsForSetCodes(codes: string[]): Promise<Array<{ section_id: string; action: string }>> {
+    const normalized = [...new Set(codes.map((c) => c.trim().toUpperCase()).filter(Boolean))];
+    const caps: Array<{ section_id: string; action: string }> = [];
+    for (const code of normalized) {
+      const set = await this.getSetByCode(code);
+      if (!set?.active) continue;
+      for (const grant of set.grants) {
+        caps.push({ section_id: grant.section_id, action: grant.action });
+      }
+    }
+    return caps;
+  }
+
   async loadCapsForUser(userId: string): Promise<Array<{ section_id: string; action: string }>> {
     if (await this.ensurePgReady()) {
       try {

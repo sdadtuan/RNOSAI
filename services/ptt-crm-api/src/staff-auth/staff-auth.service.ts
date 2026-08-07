@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException, Inject, forwardRef } from '@nestjs/c
 import { Pool } from 'pg';
 import { AppConfigService, StaffStubUser } from '../config/app-config.service';
 import { StaffJobFunctionsRepository } from '../staff-permissions/staff-job-functions.repository';
+import { StaffBreakGlassRepository } from '../staff-break-glass/staff-break-glass.repository';
 import { StaffPermissionSetsRepository } from '../staff-permission-sets/staff-permission-sets.repository';
 import { verifyPortalPassword } from '../portal/portal-password.util';
 import {
@@ -131,6 +132,8 @@ export class StaffAuthService {
     private readonly jobFunctions: StaffJobFunctionsRepository,
     @Inject(forwardRef(() => StaffPermissionSetsRepository))
     private readonly permissionSets: StaffPermissionSetsRepository,
+    @Inject(forwardRef(() => StaffBreakGlassRepository))
+    private readonly breakGlass: StaffBreakGlassRepository,
   ) {}
 
   private get db(): Pool {
@@ -196,7 +199,12 @@ export class StaffAuthService {
     const jobFunctions = await this.jobFunctions.loadUserFunctionCodes(accessPayload.sub);
     const functionCaps = await this.jobFunctions.loadCapsForFunctions(jobFunctions);
     const setCaps = await this.permissionSets.loadCapsForUser(accessPayload.sub);
-    const caps = this.mergeCaps(baseCaps, [...functionCaps, ...setCaps]);
+    const breakGlassCaps = await this.breakGlass.loadActiveCapsForUser(accessPayload.sub);
+    const caps = this.mergeCaps(baseCaps, [
+      ...functionCaps,
+      ...setCaps,
+      ...breakGlassCaps.map((cap) => ({ section_id: cap.section, action: cap.action })),
+    ]);
     const permission_sets = await this.permissionSets.loadUserSetCodes(accessPayload.sub);
     const position_code = await this.loadPositionCode(accessPayload.position_id);
     return {

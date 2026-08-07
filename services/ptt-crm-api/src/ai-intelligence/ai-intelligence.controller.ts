@@ -50,6 +50,7 @@ import {
   RenewalDraftResponse,
   RenewalListResponse,
   RenewalOutcomeResponse,
+  RenewalPortfolioSummaryResponse,
   RenewalScanResponse,
 } from './renewal.types';
 import {
@@ -908,6 +909,13 @@ export class AiIntelligenceController {
       actorId,
       correlationId: rid,
     });
+  }
+
+  /** WIN-3-B — renewal T-90/60/30 open opportunity counts for dashboard strip. */
+  @Get('renewal/portfolio-summary')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiRenewalViewGuard)
+  getRenewalPortfolioSummary(): Promise<RenewalPortfolioSummaryResponse> {
+    return this.renewal.getPortfolioSummary();
   }
 
   /** RNOS-20 / UI-R3-03 — renewal opportunities for agency Retain tab. */

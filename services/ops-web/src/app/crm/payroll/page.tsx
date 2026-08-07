@@ -39,6 +39,11 @@ const POLICY_FIELDS: Array<{ key: string; label: string; type?: string }> = [
   { key: 'bonus_pct', label: 'Thưởng (%)', type: 'number' },
 ];
 
+const BONUS_POLICY_FIELDS: Array<{ key: string; label: string; type?: string; options?: string[] }> = [
+  { key: 'bonus_mode', label: 'Chế độ thưởng', options: ['none', 'attendance'] },
+  { key: 'bonus_min_days', label: 'Ngày công tối thiểu (thưởng)', type: 'number' },
+];
+
 export default function CrmPayrollPage() {
   const router = useRouter();
   const now = new Date();
@@ -395,6 +400,57 @@ export default function CrmPayrollPage() {
                 </label>
               ))}
             </div>
+            <section className="stack-gap win-info-callout" data-testid="payroll-bonus-rules">
+              <h3 className="section-title">Quy tắc thưởng (WIN-H-08)</h3>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(14rem, 1fr))',
+                  gap: '0.75rem',
+                }}
+              >
+                {BONUS_POLICY_FIELDS.map((field) => (
+                  <label key={field.key} className="stack-gap" style={{ gap: '0.25rem' }}>
+                    <span className="muted" style={{ fontSize: '0.85rem' }}>
+                      {field.label}
+                    </span>
+                    {field.options ? (
+                      <select
+                        className="input"
+                        value={String(policyDraft[field.key] ?? field.options[0])}
+                        disabled={!canEdit}
+                        onChange={(e) =>
+                          setPolicyDraft((prev) => ({ ...prev, [field.key]: e.target.value }))
+                        }
+                      >
+                        {field.options.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type={field.type ?? 'text'}
+                        className="input"
+                        value={String(policyDraft[field.key] ?? '')}
+                        readOnly={!canEdit}
+                        onChange={(e) =>
+                          setPolicyDraft((prev) => ({
+                            ...prev,
+                            [field.key]:
+                              field.type === 'number' ? Number(e.target.value) : e.target.value,
+                          }))
+                        }
+                      />
+                    )}
+                  </label>
+                ))}
+              </div>
+              <p className="muted" style={{ fontSize: '0.85rem' }}>
+                bonus_pct ở trên áp dụng khi bonus_mode ≠ none và đủ ngày công tối thiểu.
+              </p>
+            </section>
             {Array.isArray(policy.work_weekday_labels) ? (
               <p className="muted" style={{ fontSize: '0.85rem' }}>
                 Ngày làm việc: {(policy.work_weekday_labels as string[]).join(', ')}

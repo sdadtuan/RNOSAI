@@ -8,6 +8,7 @@ import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJobFunctionsRepository } from '../staff-permissions/staff-job-functions.repository';
+import { StaffBreakGlassRepository } from '../staff-break-glass/staff-break-glass.repository';
 import { StaffPermissionSetsRepository } from '../staff-permission-sets/staff-permission-sets.repository';
 import { JOB_FUNCTION_CATALOG } from '../staff-permissions/staff-job-functions.catalog';
 import {
@@ -55,6 +56,7 @@ export class StaffOrgService implements OnModuleDestroy {
     private readonly staffAuth: StaffAuthService,
     private readonly jobFunctions: StaffJobFunctionsRepository,
     private readonly permissionSets: StaffPermissionSetsRepository,
+    private readonly breakGlass: StaffBreakGlassRepository,
   ) {}
 
   private get db(): Pool {
@@ -246,6 +248,7 @@ export class StaffOrgService implements OnModuleDestroy {
     const baseCaps = await this.staffAuth.loadCaps(user.position_id);
     const functionCaps = await this.jobFunctions.loadCapsForFunctions(job_functions);
     const setCaps = await this.permissionSets.loadCapsForUser(user.id);
+    const breakGlassCaps = await this.breakGlass.loadActiveCapsForUser(user.id);
     const map = new Map<string, { section: string; action: string }>();
     for (const cap of baseCaps) {
       map.set(`${cap.section}:${cap.action}`, cap);
@@ -255,6 +258,9 @@ export class StaffOrgService implements OnModuleDestroy {
     }
     for (const cap of setCaps) {
       map.set(`${cap.section_id}:${cap.action}`, { section: cap.section_id, action: cap.action });
+    }
+    for (const cap of breakGlassCaps) {
+      map.set(`${cap.section}:${cap.action}`, { section: cap.section, action: cap.action });
     }
     return {
       user_id: user.id,

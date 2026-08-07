@@ -21,3 +21,7 @@ export function winPermissionSetsEnabled(): boolean {
 export function winSimulatorEnabled(): boolean {
   return process.env.NEXT_PUBLIC_WIN_SIMULATOR === '1';
 }
+
+export function winBreakGlassEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_WIN_BREAK_GLASS === '1';
+}

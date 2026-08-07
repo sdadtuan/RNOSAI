@@ -1,11 +1,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { winPermissionSetsEnabled } from '@/lib/win/flags';
+import { winPermissionSetsEnabled, winSimulatorEnabled } from '@/lib/win/flags';
 
 const LINKS = [
   { href: '/admin/crm/permissions', label: 'Chức vụ', exact: true },
   { href: '/admin/crm/permissions/functions', label: 'Job function' },
   { href: '/admin/crm/permissions/users', label: 'Gán user' },
+  ...(winSimulatorEnabled()
+    ? [{ href: '/admin/crm/permissions/simulator', label: 'Simulator' }]
+    : []),
   ...(winPermissionSetsEnabled()
     ? [{ href: '/admin/crm/permission-sets', label: 'Permission Sets' }]
     : []),

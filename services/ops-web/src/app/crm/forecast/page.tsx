@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ForecastCommitPanel } from '@/components/ai/ForecastCommitPanel';
 import { ForecastExplainPanel, ForecastStageChart } from '@/components/ai/ForecastDashboardPanel';
+import { ForecastMapeBadge } from '@/components/ai/ForecastMapeBadge';
 import { DashboardShell } from '@/components/kpi/DashboardShell';
 import { KpiTileGrid, type KpiTileProps } from '@/components/kpi/KpiDashboardUi';
 import { formatVnd, periodLabel } from '@/lib/kpi/format';
@@ -224,7 +225,10 @@ export default function CrmForecastPage() {
 
         <div className="forecast-page__grid">
           <section className="forecast-page__chart-card card">
-            <h3 className="kpi-section-title">Stage weighted vs pipeline raw</h3>
+            <div className="forecast-page__chart-head">
+              <h3 className="kpi-section-title">Stage weighted vs pipeline raw</h3>
+              <ForecastMapeBadge mape={dashboard?.mape_prior_month ?? null} />
+            </div>
             <ForecastStageChart buckets={dashboard?.stage_buckets ?? []} />
           </section>
 

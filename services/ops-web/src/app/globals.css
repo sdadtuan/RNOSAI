@@ -6690,6 +6690,62 @@ body:has(.ops-sidebar) main {
   font-size: 0.82rem;
 }
 
+.forecast-page__chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.forecast-mape-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.forecast-mape-badge--ok {
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+  color: var(--success);
+}
+
+.forecast-mape-badge--warn {
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  color: var(--warning);
+}
+
+.simulator-menu-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  columns: 2;
+  gap: 1rem;
+}
+
+.simulator-menu-list--hidden {
+  opacity: 0.72;
+}
+
+.win-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 45%);
+}
+
+.win-modal {
+  width: min(32rem, 100%);
+  max-height: 90vh;
+  overflow: auto;
+}
+
 .forecast-explain-panel__summary {
   margin: 0 0 0.5rem;
 }

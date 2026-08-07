@@ -123,3 +123,16 @@ export interface RenewalOutcomeResponse {
   meta: { request_id: string };
   errors: unknown[];
 }
+
+export interface RenewalPortfolioSummary {
+  t90_count: number;
+  t60_count: number;
+  t30_count: number;
+  drill_href: string;
+}
+
+export interface RenewalPortfolioSummaryResponse {
+  data: RenewalPortfolioSummary;
+  meta: { request_id: string };
+  errors: unknown[];
+}

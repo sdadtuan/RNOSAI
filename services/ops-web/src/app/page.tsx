@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
 import { WinHomeDashboard } from '@/components/home/WinHomeDashboard';
+import { fetchRenewalPortfolioSummary } from '@/lib/ai-api';
 import { fetchCskhHomeSummary, staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -24,6 +25,9 @@ export default function DashboardPage() {
   const [homeSummary, setHomeSummary] = useState<Awaited<ReturnType<typeof fetchCskhHomeSummary>> | null>(
     null,
   );
+  const [renewalSummary, setRenewalSummary] = useState<Awaited<
+    ReturnType<typeof fetchRenewalPortfolioSummary>
+  >['data'] | null>(null);
   const [homeError, setHomeError] = useState('');
   const [homeLoading, setHomeLoading] = useState(false);
 
@@ -74,8 +78,10 @@ export default function DashboardPage() {
       setHomeLoading(true);
       try {
         const data = await fetchCskhHomeSummary(token);
+        const renewal = await fetchRenewalPortfolioSummary(token).catch(() => null);
         if (!cancelled) {
           setHomeSummary(data);
+          setRenewalSummary(renewal?.data ?? null);
           setHomeError('');
         }
       } catch (err) {
@@ -115,7 +121,13 @@ export default function DashboardPage() {
         subtitle="WIN-2 · Bảng điều khiển vận hành CRM"
       />
 
-      <WinHomeDashboard user={user} summary={homeSummary} loading={homeLoading} error={homeError} />
+      <WinHomeDashboard
+        user={user}
+        summary={homeSummary}
+        renewal={renewalSummary}
+        loading={homeLoading}
+        error={homeError}
+      />
     </StaffPageShell>
   );
 }

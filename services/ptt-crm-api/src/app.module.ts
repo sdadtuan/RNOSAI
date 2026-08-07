@@ -75,6 +75,7 @@ import { SeoStrategyModule } from './seo-strategy/seo-strategy.module';
 import { SeoTechnicalModule } from './seo-technical/seo-technical.module';
 import { StaffAuthModule } from './staff-auth/staff-auth.module';
 import { StaffPermissionsModule } from './staff-permissions/staff-permissions.module';
+import { StaffBreakGlassModule } from './staff-break-glass/staff-break-glass.module';
 import { StaffOrgModule } from './staff-org/staff-org.module';
 import { StaffPermissionSetsModule } from './staff-permission-sets/staff-permission-sets.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
@@ -122,6 +123,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     StaffAuthModule,
     StaffPermissionsModule,
     StaffPermissionSetsModule,
+    StaffBreakGlassModule,
     StaffOrgModule,
     WebhooksModule,
     PortalSeoModule,

@@ -28,6 +28,7 @@ import {
   RenewalOpportunityRecord,
   RenewalOpportunityView,
   RenewalOutcomeResponse,
+  RenewalPortfolioSummaryResponse,
   RenewalScanRequest,
   RenewalScanResponse,
   RenewalTriggerWindow,
@@ -117,6 +118,28 @@ export class RenewalAgentService {
     const data = wrapped.data;
     data.agent_run_id = wrapped.runId;
     return { data, meta: { request_id: requestId }, errors: [] };
+  }
+
+  async getPortfolioSummary(): Promise<RenewalPortfolioSummaryResponse> {
+    const requestId = this.audit.newRequestId();
+    if (!(await this.opportunities.tableReady())) {
+      return {
+        data: { t90_count: 0, t60_count: 0, t30_count: 0, drill_href: '/agency?tab=retain' },
+        meta: { request_id: requestId },
+        errors: [],
+      };
+    }
+    const counts = await this.opportunities.countOpenByTriggerWindow();
+    return {
+      data: {
+        t90_count: counts.t90,
+        t60_count: counts.t60,
+        t30_count: counts.t30,
+        drill_href: '/agency?tab=retain',
+      },
+      meta: { request_id: requestId },
+      errors: [],
+    };
   }
 
   async listForClient(clientId: string, correlationId?: string): Promise<RenewalListResponse> {

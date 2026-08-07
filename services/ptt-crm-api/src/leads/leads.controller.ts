@@ -25,6 +25,7 @@ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.gua
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { hasGdkdAssign, hasGdkdViewAllLeads } from '../staff-permissions/staff-gdkd.util';
+import { StaffRbacAuditRepository } from '../staff-permissions/staff-rbac-audit.repository';
 import { WriteEnabledGuard } from './guards/write-enabled.guard';
 import { StaffLeadsWriteGuard } from './guards/staff-leads-write.guard';
 import { StaffLeadsViewGuard } from './guards/staff-leads-view.guard';
@@ -60,6 +61,7 @@ export class LeadsController {
     private readonly closedLoop: ChotClosedLoopService,
     private readonly copilotContext: CopilotContextService,
     private readonly slaAutoTask: SlaAutoTaskService,
+    private readonly rbacAudit: StaffRbacAuditRepository,
   ) {}
 
   @Get('lookup-options')
@@ -158,7 +160,21 @@ export class LeadsController {
     @Headers('x-ptt-actor') actor?: string,
   ): Promise<LeadV1> {
     const gateOpts = await this.statusGateOpts(req, body);
-    return this.leadsWriteService.patchLead(id, body, actor, gateOpts);
+    const lead = await this.leadsWriteService.patchLead(id, body, actor, gateOpts);
+    if (body.allow_status_override && req.staffUser) {
+      void this.rbacAudit.log({
+        event_type: 'gdkd_status_override',
+        actor_email: req.staffUser.email,
+        section_id: 'crm_gdkd',
+        action: 'override',
+        metadata: {
+          lead_id: id,
+          reason: String(body.status_override_reason ?? body.audit_note ?? '').trim(),
+          new_status: body.status ?? lead.status,
+        },
+      });
+    }
+    return lead;
   }
 
   private async statusGateOpts(

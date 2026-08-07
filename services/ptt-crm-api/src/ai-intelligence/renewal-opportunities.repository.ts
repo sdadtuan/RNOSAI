@@ -148,4 +148,28 @@ export class RenewalOpportunitiesRepository implements OnModuleDestroy {
     const row = result.rows[0] as Record<string, unknown> | undefined;
     return row ? mapRow(row) : null;
   }
+
+  async countOpenByTriggerWindow(): Promise<{ t90: number; t60: number; t30: number }> {
+    const empty = { t90: 0, t60: 0, t30: 0 };
+    if (!(await this.tableReady())) return empty;
+    try {
+      const result = await this.db.query<{ tw: string; cnt: string }>(
+        `SELECT COALESCE(metadata->>'trigger_window', '90') AS tw, COUNT(*)::text AS cnt
+         FROM renewal_opportunities
+         WHERE status IN ('open', 'in_progress')
+         GROUP BY 1`,
+      );
+      const counts = { ...empty };
+      for (const row of result.rows) {
+        const tw = Number(row.tw);
+        const cnt = Number(row.cnt);
+        if (tw === 90) counts.t90 = cnt;
+        else if (tw === 60) counts.t60 = cnt;
+        else if (tw === 30) counts.t30 = cnt;
+      }
+      return counts;
+    } catch {
+      return empty;
+    }
+  }
 }

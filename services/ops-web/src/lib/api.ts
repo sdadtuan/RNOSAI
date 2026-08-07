@@ -8016,3 +8016,79 @@ export async function putStaffUserPermissionSets(
     body: JSON.stringify({ set_codes: setCodes }),
   });
 }
+
+export type StaffPermissionSimulateBody = {
+  position_id: number;
+  job_functions?: string[];
+  set_codes?: string[];
+  compare_user_id?: string;
+};
+
+export type StaffPermissionSimulateMenuItem = {
+  href: string;
+  label: string;
+  section: string;
+  visible: boolean;
+};
+
+export type StaffPermissionSimulateResponse = {
+  caps: string[];
+  menu: StaffPermissionSimulateMenuItem[];
+  diff: { added: string[]; removed: string[] };
+};
+
+export async function simulateStaffPermissions(
+  token: string,
+  body: StaffPermissionSimulateBody,
+): Promise<StaffPermissionSimulateResponse> {
+  return crmFetch(token, '/api/v1/staff/permissions/simulate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function downloadStaffAccessReviewZip(token: string, quarter?: string): Promise<void> {
+  const qs = quarter?.trim() ? `?quarter=${encodeURIComponent(quarter.trim())}` : '';
+  await downloadBinary(token, `/api/v1/staff/permissions/access-review.zip${qs}`, 'access-review.zip');
+}
+
+export type BreakGlassCap = { section: string; action: string };
+
+export type BreakGlassGrant = {
+  id: string;
+  user_id: string;
+  user_email?: string;
+  caps: BreakGlassCap[];
+  reason: string;
+  status: string;
+  requested_at: string;
+  expires_at?: string | null;
+};
+
+export async function requestBreakGlass(
+  token: string,
+  body: { reason: string; caps_requested: BreakGlassCap[] },
+): Promise<BreakGlassGrant> {
+  return crmFetch(token, '/api/v1/staff/break-glass/request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchActiveBreakGlassGrants(token: string): Promise<{ grants: BreakGlassGrant[] }> {
+  return crmFetch(token, '/api/v1/staff/break-glass/active');
+}
+
+export async function approveBreakGlassGrant(
+  token: string,
+  id: string,
+  body: { approve?: boolean; reject_reason?: string },
+): Promise<BreakGlassGrant> {
+  return crmFetch(token, `/api/v1/staff/break-glass/${encodeURIComponent(id)}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}

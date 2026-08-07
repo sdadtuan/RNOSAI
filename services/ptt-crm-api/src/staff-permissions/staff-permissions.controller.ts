@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Response } from 'express';
 import { StaffUser } from '../staff-auth/staff-jwt.guard';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
@@ -7,11 +8,18 @@ import {
   StaffPermissionsViewGuard,
 } from './guards/staff-permissions.guard';
 import { StaffPermissionsService } from './staff-permissions.service';
+import { StaffPermissionsSimulatorService } from './staff-permissions-simulator.service';
+import type { SimulatePermissionsBody } from './staff-permissions-simulator.service';
+import { StaffPermissionsAccessReviewService } from './staff-permissions-access-review.service';
 import type { PatchStaffJobFunctionGrantsBody, PatchStaffPositionGrantsBody } from './staff-permissions.types';
 
 @Controller('api/v1/staff/permissions')
 export class StaffPermissionsController {
-  constructor(private readonly permissions: StaffPermissionsService) {}
+  constructor(
+    private readonly permissions: StaffPermissionsService,
+    private readonly simulator: StaffPermissionsSimulatorService,
+    private readonly accessReview: StaffPermissionsAccessReviewService,
+  ) {}
 
   @Get('catalog')
   @UseGuards(StaffOrInternalKeyGuard, StaffPermissionsViewGuard)
@@ -83,5 +91,23 @@ export class StaffPermissionsController {
   ) {
     const actorEmail = staffUser?.email ?? '';
     return this.permissions.patchJobFunction(code, body, actorEmail);
+  }
+
+  @Post('simulate')
+  @UseGuards(StaffOrInternalKeyGuard, StaffPermissionsConfigureGuard)
+  simulate(@Body() body: SimulatePermissionsBody) {
+    return this.simulator.simulate(body);
+  }
+
+  @Get('access-review.zip')
+  @UseGuards(StaffOrInternalKeyGuard, StaffPermissionsConfigureGuard)
+  async accessReviewZip(@Query('quarter') quarter: string, @Res() res: Response) {
+    const { buffer, filename } = await this.accessReview.buildZip(quarter ?? '');
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': String(buffer.length),
+    });
+    res.send(buffer);
   }
 }

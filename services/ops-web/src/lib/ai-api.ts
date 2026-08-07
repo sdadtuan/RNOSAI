@@ -1431,6 +1431,27 @@ export async function fetchForecastMapeReport(
   return body;
 }
 
+export interface RenewalPortfolioSummary {
+  t90_count: number;
+  t60_count: number;
+  t30_count: number;
+  drill_href: string;
+}
+
+export async function fetchRenewalPortfolioSummary(
+  token: string,
+): Promise<{ data: RenewalPortfolioSummary; meta: { request_id: string } }> {
+  const res = await fetch(`${API_BASE}/api/v1/ai/renewal/portfolio-summary`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<{ data: RenewalPortfolioSummary; meta: { request_id: string }; error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch renewal portfolio failed', res.status);
+  }
+  return body;
+}
+
 export interface ChurnRecoveryPlanEntry {
   id: string;
   client_id: string;

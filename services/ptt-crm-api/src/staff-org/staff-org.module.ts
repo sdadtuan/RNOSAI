@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { StaffBreakGlassModule } from '../staff-break-glass/staff-break-glass.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { StaffPermissionsModule } from '../staff-permissions/staff-permissions.module';
 import { StaffPermissionSetsModule } from '../staff-permission-sets/staff-permission-sets.module';
@@ -14,7 +15,12 @@ import {
 } from './guards/staff-org.guard';
 
 @Module({
-  imports: [forwardRef(() => StaffAuthModule), forwardRef(() => StaffPermissionsModule), StaffPermissionSetsModule],
+  imports: [
+    forwardRef(() => StaffAuthModule),
+    forwardRef(() => StaffPermissionsModule),
+    StaffPermissionSetsModule,
+    forwardRef(() => StaffBreakGlassModule),
+  ],
   controllers: [StaffOrgController],
   providers: [
     StaffOrgService,

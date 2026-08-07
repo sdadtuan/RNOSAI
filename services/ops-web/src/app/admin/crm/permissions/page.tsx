@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AdminPageShell } from '@/components/admin';
 import { AdminPermissionsSubNav } from '@/components/rbac/AdminPermissionsSubNav';
+import { WinAccessReviewExport } from '@/components/rbac/WinAccessReviewExport';
+import { BreakGlassRequestModal } from '@/components/rbac/BreakGlassRequestModal';
 import { PermissionMatrixTable } from '@/components/rbac/PermissionMatrixTable';
 import { WinDiffChip, WinReloginToast } from '@/components/win';
 import {
@@ -31,6 +33,7 @@ import {
 } from '@/lib/auth';
 import { computeGrantDiff } from '@/lib/rbac/grant-diff';
 import { detectContentApproveSod } from '@/lib/rbac/sod-rules';
+import { winBreakGlassEnabled } from '@/lib/win/flags';
 
 function grantsFromDetail(detail: StaffPermissionPositionDetail): Record<string, string[]> {
   return Object.fromEntries(
@@ -49,6 +52,7 @@ export default function AdminCrmPermissionsPage() {
   const [audit, setAudit] = useState<StaffPermissionAuditRow[]>([]);
   const [error, setError] = useState('');
   const [showReloginToast, setShowReloginToast] = useState(false);
+  const [breakGlassOpen, setBreakGlassOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const canConfigure = hasCap(user, 'crm_data_config', 'configure');
@@ -233,6 +237,12 @@ export default function AdminCrmPermissionsPage() {
       actions={
         <div className="toolbar-actions">
           <WinDiffChip added={diff.added} removed={diff.removed} />
+          {canConfigure ? <WinAccessReviewExport disabled={busy} /> : null}
+          {winBreakGlassEnabled() ? (
+            <button type="button" className="btn btn--secondary" onClick={() => setBreakGlassOpen(true)}>
+              Break-glass
+            </button>
+          ) : null}
           <button type="button" className="btn btn--secondary" disabled={busy || selectedId == null} onClick={() => void handleExport()}>
             Xuất MD
           </button>
@@ -328,6 +338,9 @@ export default function AdminCrmPermissionsPage() {
           )}
         </section>
       </div>
+      {winBreakGlassEnabled() && user ? (
+        <BreakGlassRequestModal user={user} open={breakGlassOpen} onClose={() => setBreakGlassOpen(false)} />
+      ) : null}
     </AdminPageShell>
   );
 }

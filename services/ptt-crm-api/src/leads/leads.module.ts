@@ -8,6 +8,7 @@ import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
 import { MetaTrackingModule } from '../meta-tracking/meta-tracking.module';
 import { PerformanceModule } from '../performance/performance.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
+import { StaffPermissionsModule } from '../staff-permissions/staff-permissions.module';
 import { LeadsIoService } from './leads-io.service';
 import { LeadAttributionService } from './lead-attribution.service';
 import { LeadsController } from './leads.controller';
@@ -36,6 +37,7 @@ import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.modul
     EventsModule,
     AiScoreAsyncModule,
     StaffAuthModule,
+    StaffPermissionsModule,
     CrmConfigModule,
     CatalogModule,
     forwardRef(() => CrmLeadsLegacyModule),

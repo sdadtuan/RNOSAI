@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { aiCopilotEnabled } from '@/lib/ai-flags';
+import type { RenewalPortfolioSummary } from '@/lib/ai-api';
 import type { CskhHomeSummary } from '@/lib/api';
 import type { StoredStaffUser } from '@/lib/auth';
 import { hasCap } from '@/lib/auth';
@@ -14,11 +15,13 @@ function toneClass(count: number, warnAbove = 0): string {
 export function WinHomeDashboard({
   user,
   summary,
+  renewal,
   loading,
   error,
 }: {
   user: StoredStaffUser;
   summary: CskhHomeSummary | null;
+  renewal?: RenewalPortfolioSummary | null;
   loading: boolean;
   error: string;
 }) {
@@ -92,6 +95,20 @@ export function WinHomeDashboard({
             <span className="home-cskh-widget__hint muted">Chưa bật pilot AI</span>
           </div>
         )}
+
+        {renewal && renewal.t90_count + renewal.t60_count + renewal.t30_count > 0 ? (
+          <Link
+            href={renewal.drill_href}
+            className="home-cskh-widget summary-card home-cskh-widget--alert"
+            data-testid="renewal-t90-strip"
+          >
+            <span className="muted">Renewal T-90</span>
+            <strong className="home-cskh-widget__value">{renewal.t90_count}</strong>
+            <span className="home-cskh-widget__hint muted">
+              T-60 {renewal.t60_count} · T-30 {renewal.t30_count}
+            </span>
+          </Link>
+        ) : null}
       </div>
 
       <div className="win-home-dashboard__links">
