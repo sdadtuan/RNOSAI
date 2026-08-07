@@ -20,10 +20,14 @@ async function login(page: import('@playwright/test').Page, email: string) {
   await page.waitForURL((url) => !url.pathname.endsWith('/login'), { timeout: 15000 });
 }
 
-async function navLinkLabels(page: import('@playwright/test').Page): Promise<string[]> {
-  await page.waitForTimeout(800);
-  const links = page.locator('nav a, aside a, .ops-nav a, [class*="sidebar"] a');
-  const texts = await links.allTextContents();
+async function sidebarLinkLabels(page: import('@playwright/test').Page): Promise<string[]> {
+  const expand = page.getByRole('button', { name: 'Mở rộng menu' });
+  if (await expand.isVisible()) {
+    await expand.click();
+  }
+  await page.waitForTimeout(400);
+  const buttons = page.locator('nav .ops-nav-link--button');
+  const texts = await buttons.allTextContents();
   return texts.map((t) => t.trim()).filter(Boolean);
 }
 
@@ -71,8 +75,8 @@ test.describe('WIN-1 Manual UAT — VUX-02/04/05', () => {
     await expect(contentBadge).toContainText(/content|MKT-02/i);
     await expect(designBadge).toContainText(/design|MKT-02/i);
 
-    const contentNav = new Set(await navLinkLabels(contentPage));
-    const designNav = new Set(await navLinkLabels(designPage));
+    const contentNav = new Set(await sidebarLinkLabels(contentPage));
+    const designNav = new Set(await sidebarLinkLabels(designPage));
     const onlyContent = [...contentNav].filter((x) => !designNav.has(x));
     const onlyDesign = [...designNav].filter((x) => !contentNav.has(x));
     expect(contentNav.size).toBeGreaterThan(0);
