@@ -117,6 +117,7 @@ export class EmailMarketingService {
   async listClients(params: {
     q?: string;
     has_workspace?: boolean;
+    allowed_client_ids?: string[];
     limit?: number;
     offset?: number;
   }): Promise<EmailListResponse<EmailClientListRow>> {
@@ -124,6 +125,7 @@ export class EmailMarketingService {
     return this.ops.listEmailClients({
       q: params.q,
       hasWorkspace: params.has_workspace,
+      allowedClientIds: params.allowed_client_ids,
       ...page,
     });
   }

@@ -68,6 +68,27 @@ export type StaffUserClientScopeResponse = {
   client_ids: string[];
 };
 
+export type ImportStaffUserClientScopeBody = {
+  csv: string;
+  dry_run?: boolean;
+};
+
+export type ImportStaffUserClientScopeRowPreview = {
+  email: string;
+  client_ids: string[];
+  user_id?: string;
+  error?: string;
+};
+
+export type ImportStaffUserClientScopeResponse = {
+  ok: boolean;
+  dry_run: boolean;
+  rows: number;
+  applied: number;
+  preview: ImportStaffUserClientScopeRowPreview[];
+  errors: string[];
+};
+
 export type StaffUserJobFunctionsResponse = {
   user_id: string;
   email: string;

@@ -1,5 +1,7 @@
-import { Controller, Get, Post, Body, Query, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Param, Req, UseGuards } from '@nestjs/common';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
+import { StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
+import { StaffScopedRequest } from '../staff-client-scope/staff-client-scope.http.util';
 import {
   StaffMetaAdsOpsSubmitGuard,
   StaffMetaAdsOpsViewGuard,
@@ -9,7 +11,10 @@ import type { MetaAdsOpsEditSubmitBody, MetaAdsOpsLaunchBody } from './meta-ads-
 
 @Controller('api/v1/meta/ads-ops')
 export class MetaAdsOpsController {
-  constructor(private readonly adsOps: MetaAdsOpsService) {}
+  constructor(
+    private readonly adsOps: MetaAdsOpsService,
+    private readonly clientScope: StaffClientScopeService,
+  ) {}
 
   @Get('templates')
   @UseGuards(StaffOrInternalKeyGuard, StaffMetaAdsOpsViewGuard)
@@ -19,22 +24,26 @@ export class MetaAdsOpsController {
 
   @Get('preflight')
   @UseGuards(StaffOrInternalKeyGuard, StaffMetaAdsOpsViewGuard)
-  preflight(@Query('client_id') clientId: string) {
+  async preflight(@Req() req: StaffScopedRequest, @Query('client_id') clientId: string) {
+    await this.assertClientScope(req, clientId);
     return this.adsOps.getPreflight(String(clientId ?? '').trim());
   }
 
   @Post('creative/upload')
   @UseGuards(StaffOrInternalKeyGuard, StaffMetaAdsOpsSubmitGuard)
-  uploadCreative(
+  async uploadCreative(
+    @Req() req: StaffScopedRequest,
     @Body()
     body: { client_id: string; creative_submission_id: string; external_account_id?: string },
   ) {
+    await this.assertClientScope(req, body.client_id);
     return this.adsOps.uploadCreative(body);
   }
 
   @Post('launch')
   @UseGuards(StaffOrInternalKeyGuard, StaffMetaAdsOpsSubmitGuard)
-  launch(@Body() body: MetaAdsOpsLaunchBody) {
+  async launch(@Req() req: StaffScopedRequest, @Body() body: MetaAdsOpsLaunchBody) {
+    await this.assertClientScope(req, body.client_id);
     return this.adsOps.submitLaunch(body);
   }
 
@@ -46,11 +55,13 @@ export class MetaAdsOpsController {
 
   @Get('deep-link')
   @UseGuards(StaffOrInternalKeyGuard, StaffMetaAdsOpsViewGuard)
-  deepLink(
+  async deepLink(
+    @Req() req: StaffScopedRequest,
     @Query('client_id') clientId: string,
     @Query('external_campaign_id') campaignId?: string,
     @Query('external_ad_id') adId?: string,
   ) {
+    await this.assertClientScope(req, clientId);
     return this.adsOps.getDeepLink({
       client_id: clientId,
       external_campaign_id: campaignId,
@@ -60,13 +71,19 @@ export class MetaAdsOpsController {
 
   @Get('edit/snapshot')
   @UseGuards(StaffOrInternalKeyGuard, StaffMetaAdsOpsViewGuard)
-  editSnapshot(@Query('client_id') clientId: string, @Query('external_ad_id') adId: string) {
+  async editSnapshot(
+    @Req() req: StaffScopedRequest,
+    @Query('client_id') clientId: string,
+    @Query('external_ad_id') adId: string,
+  ) {
+    await this.assertClientScope(req, clientId);
     return this.adsOps.getEditSnapshot(String(clientId ?? '').trim(), String(adId ?? '').trim());
   }
 
   @Get('edit/preflight')
   @UseGuards(StaffOrInternalKeyGuard, StaffMetaAdsOpsViewGuard)
-  editPreflight(
+  async editPreflight(
+    @Req() req: StaffScopedRequest,
     @Query('client_id') clientId: string,
     @Query('external_ad_id') adId: string,
     @Query('action') action?: string,
@@ -74,6 +91,7 @@ export class MetaAdsOpsController {
     @Query('disapproved_ack') disapprovedAck?: string,
     @Query('effective_status') effectiveStatus?: string,
   ) {
+    await this.assertClientScope(req, clientId);
     return this.adsOps.getEditPreflight({
       client_id: clientId,
       external_ad_id: adId,
@@ -86,7 +104,13 @@ export class MetaAdsOpsController {
 
   @Post('edit/submit')
   @UseGuards(StaffOrInternalKeyGuard, StaffMetaAdsOpsSubmitGuard)
-  editSubmit(@Body() body: MetaAdsOpsEditSubmitBody) {
+  async editSubmit(@Req() req: StaffScopedRequest, @Body() body: MetaAdsOpsEditSubmitBody) {
+    await this.assertClientScope(req, body.client_id);
     return this.adsOps.submitEdit(body);
+  }
+
+  private async assertClientScope(req: StaffScopedRequest, clientId: string | undefined): Promise<void> {
+    const scope = await this.clientScope.resolveForRequest(req);
+    this.clientScope.assertClientAccessible(scope, clientId);
   }
 }

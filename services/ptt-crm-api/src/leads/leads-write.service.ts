@@ -81,9 +81,11 @@ export class LeadsWriteService {
     if (
       body.owner_id === undefined &&
       body.status === undefined &&
-      body.score === undefined
+      body.score === undefined &&
+      body.expected_value === undefined &&
+      body.margin_pct === undefined
     ) {
-      throw new BadRequestException({ error: 'At least one of owner_id, status, score required' });
+      throw new BadRequestException({ error: 'At least one patch field required' });
     }
     try {
       await this.statusGate.assertPatchAllowed(leadId, body, gateOpts);

@@ -49,6 +49,10 @@ jobs:
         run: |
           chmod +x scripts/rbac_catalog_gate.sh
           ./scripts/rbac_catalog_gate.sh
+      - name: RBAC field registry gate
+        run: |
+          chmod +x scripts/rbac_field_registry_gate.sh
+          ./scripts/rbac_field_registry_gate.sh
 
       - name: RBAC unit tests
         run: python3 -m unittest tests.test_rbac_permissions_pg tests.test_rbac_catalog_gate -v

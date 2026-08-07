@@ -47,6 +47,8 @@
     "review_queue",
     "settings",
     "view_all_leads",
+    "view_financial",
+    "view_pii",
     "write"
   ],
   "extra_action_labels": {
@@ -58,6 +60,8 @@
     "review_queue": "Review queue",
     "settings": "Cài đặt",
     "view_all_leads": "Xem toàn bộ lead",
+    "view_financial": "Xem giá trị tài chính lead",
+    "view_pii": "Xem PII (SĐT/email)",
     "write": "Ghi / thao tác"
   },
   "section_actions": {
@@ -312,7 +316,9 @@
       "edit",
       "export",
       "release",
-      "view"
+      "view",
+      "view_financial",
+      "view_pii"
     ],
     "crm_gdkd": [
       "assign",
@@ -626,7 +632,8 @@
       "edit",
       "export",
       "release",
-      "view"
+      "view",
+      "view_pii"
     ],
     "crm_facebook_ads": [
       "approve",

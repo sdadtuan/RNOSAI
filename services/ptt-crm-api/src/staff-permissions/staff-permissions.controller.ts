@@ -27,6 +27,12 @@ export class StaffPermissionsController {
     return this.permissions.getCatalog();
   }
 
+  @Get('field-registry')
+  @UseGuards(StaffOrInternalKeyGuard, StaffPermissionsViewGuard)
+  getFieldRegistry() {
+    return this.permissions.getFieldRegistry();
+  }
+
   @Get('positions')
   @UseGuards(StaffOrInternalKeyGuard, StaffPermissionsViewGuard)
   listPositions() {

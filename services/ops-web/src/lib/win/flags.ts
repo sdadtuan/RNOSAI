@@ -33,3 +33,7 @@ export function winScopePilotEnabled(): boolean {
 export function winSsoEnabled(): boolean {
   return process.env.NEXT_PUBLIC_WIN_SSO === '1';
 }
+
+export function winFieldAbacEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_WIN_FIELD_ABAC === '1';
+}

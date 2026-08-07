@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '../config/config.module';
 import { PortalModule } from '../portal/portal.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
+import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope.module';
 import { TemporalModule } from '../temporal/temporal.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { EmailMarketingCampaignRepository } from './email-marketing-campaign.repository';
@@ -25,7 +26,7 @@ import { StaffEmailViewGuard } from './guards/staff-email-view.guard';
 import { StaffEmailWriteGuard } from './guards/staff-email-write.guard';
 
 @Module({
-  imports: [ConfigModule, StaffAuthModule, WebhooksModule, TemporalModule, PortalModule],
+  imports: [ConfigModule, StaffAuthModule, StaffClientScopeModule, WebhooksModule, TemporalModule, PortalModule],
   controllers: [EmailMarketingController, EmailPublicController, EmailCaptureController],
   providers: [
     EmailMarketingRepository,

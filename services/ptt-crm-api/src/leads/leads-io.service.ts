@@ -10,6 +10,8 @@ import {
 import { LeadsService } from './leads.service';
 import { LeadsWriteService } from './leads-write.service';
 import { CreateLeadV1Body, LeadV1, ListLeadsQuery } from './leads.types';
+import { StaffSectionCap } from '../staff-auth/staff-auth.types';
+import { CapChecker, serializeLeadsForCaps } from '../staff-permissions/field-level.serializer';
 
 export interface LeadExportQuery extends ListLeadsQuery {
   ids?: number[];
@@ -37,8 +39,15 @@ export class LeadsIoService {
     };
   }
 
-  async exportXlsx(query: LeadExportQuery): Promise<{ buffer: Buffer; filename: string; count: number }> {
-    const leads = await this.collectLeadsForExport(query);
+  async exportXlsx(
+    query: LeadExportQuery,
+    caps?: StaffSectionCap[],
+    hasCap?: CapChecker,
+  ): Promise<{ buffer: Buffer; filename: string; count: number }> {
+    let leads = await this.collectLeadsForExport(query);
+    if (caps?.length && hasCap) {
+      leads = serializeLeadsForCaps(leads, caps, hasCap, { exportMode: true });
+    }
     const queryParts: string[] = [];
     if (query.q) queryParts.push(`Tìm: ${query.q}`);
     if (query.status) queryParts.push(`Trạng thái: ${query.status}`);
@@ -106,7 +115,12 @@ export class LeadsIoService {
       const leads: LeadV1[] = [];
       for (const id of uniqueIds) {
         const lead = await this.leadsService.getLead(id);
-        if (lead) leads.push(lead);
+        if (!lead) continue;
+        if (query.allowed_client_ids?.length) {
+          const cid = String(lead.client_id ?? '').trim();
+          if (!cid || !query.allowed_client_ids.includes(cid)) continue;
+        }
+        leads.push(lead);
       }
       return leads;
     }

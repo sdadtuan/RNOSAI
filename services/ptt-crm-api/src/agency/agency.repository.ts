@@ -90,12 +90,18 @@ export class AgencyRepository implements OnModuleDestroy {
     q?: string;
     ownerAmId?: string;
     industrySlug?: string;
+    allowedClientIds?: string[];
     limit: number;
     offset: number;
   }): Promise<AgencyClientRow[]> {
     const clauses = ['1=1'];
     const values: unknown[] = [];
     let idx = 1;
+
+    if (params.allowedClientIds?.length) {
+      clauses.push(`c.id = ANY($${idx++}::uuid[])`);
+      values.push(params.allowedClientIds);
+    }
 
     if (params.status) {
       clauses.push(`c.status = $${idx++}`);

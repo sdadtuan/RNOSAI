@@ -33,6 +33,8 @@ import type {
   PutStaffUserClientScopeBody,
   StaffOrgUserSummary,
   StaffUserClientScopeResponse,
+  ImportStaffUserClientScopeBody,
+  ImportStaffUserClientScopeResponse,
   StaffUserEffectiveCapsResponse,
   StaffUserJobFunctionsResponse,
 } from './staff-org.types';
@@ -270,6 +272,68 @@ export class StaffOrgService implements OnModuleDestroy {
       actorEmail,
     );
     return { user_id: user.id, client_ids };
+  }
+
+  async importUserClientScopeCsv(
+    body: ImportStaffUserClientScopeBody,
+    actorEmail: string,
+  ): Promise<ImportStaffUserClientScopeResponse> {
+    const dryRun = Boolean(body.dry_run);
+    const lines = String(body.csv ?? '')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const grouped = new Map<string, Set<string>>();
+    const errors: string[] = [];
+
+    for (const line of lines) {
+      if (/^email\s*,/i.test(line)) continue;
+      const parts = line.split(',').map((p) => p.trim());
+      if (parts.length < 2) {
+        errors.push(`Invalid row: ${line}`);
+        continue;
+      }
+      const email = parts[0].toLowerCase();
+      const clientId = parts[1];
+      if (!email.includes('@')) {
+        errors.push(`Invalid email: ${parts[0]}`);
+        continue;
+      }
+      if (!UUID_RE.test(clientId)) {
+        errors.push(`Invalid client_id for ${email}: ${clientId}`);
+        continue;
+      }
+      const set = grouped.get(email) ?? new Set<string>();
+      set.add(clientId);
+      grouped.set(email, set);
+    }
+
+    const preview: ImportStaffUserClientScopeResponse['preview'] = [];
+    let applied = 0;
+
+    for (const [email, clientIds] of grouped.entries()) {
+      const client_ids = [...clientIds].sort();
+      try {
+        const user = await this.resolveUser(email);
+        preview.push({ email, client_ids, user_id: user.id });
+        if (!dryRun) {
+          await this.userClients.replaceUserClients(user.id, client_ids, actorEmail);
+          applied += 1;
+        }
+      } catch {
+        preview.push({ email, client_ids, error: 'user_not_found' });
+        errors.push(`User not found: ${email}`);
+      }
+    }
+
+    return {
+      ok: errors.length === 0,
+      dry_run: dryRun,
+      rows: grouped.size,
+      applied,
+      preview,
+      errors,
+    };
   }
 
   async getEffectiveCaps(userRef: string): Promise<StaffUserEffectiveCapsResponse> {

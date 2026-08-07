@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { WinScopeBadge } from '@/components/rbac/WinScopeBadge';
 import { useRouter } from 'next/navigation';
 import { EmailPageShell } from '@/components/email';
 import { FilterBar, FilterBarActions, FilterBarSearch } from '@/components/layout';
@@ -169,6 +170,7 @@ export default function EmailClientsPage() {
                     <strong>{c.client_name}</strong>
                     <br />
                     <span className="muted">{c.client_code}</span>
+                    <WinScopeBadge clientId={c.client_id} />
                   </td>
                   <td>{c.client_status}</td>
                   <td>

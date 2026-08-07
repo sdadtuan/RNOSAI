@@ -13,6 +13,9 @@ export interface LeadV1 {
   created_at: string;
   received_at: string;
   is_duplicate: boolean;
+  /** WIN-4-B — financial ABAC pilot (from meta_json.financial). */
+  expected_value?: number | null;
+  margin_pct?: number | null;
   review_queue?: {
     active: boolean;
     message?: string;
@@ -107,6 +110,9 @@ export interface PatchLeadV1Body {
   /** GDKD / assign cap only — bypass B2 & outreach gates with status_override_reason. */
   allow_status_override?: boolean;
   status_override_reason?: string;
+  /** WIN-4-B — requires crm_leads.view_financial */
+  expected_value?: number | null;
+  margin_pct?: number | null;
 }
 
 export interface PatchLeadResult {

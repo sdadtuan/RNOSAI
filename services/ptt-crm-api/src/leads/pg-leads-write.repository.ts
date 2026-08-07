@@ -179,6 +179,12 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
         JSON.stringify({ score: body.score, score_stub: true, scored_at: new Date().toISOString() }),
       );
     }
+    if (body.expected_value !== undefined || body.margin_pct !== undefined) {
+      const financial: Record<string, unknown> = {};
+      if (body.expected_value !== undefined) financial.expected_value = body.expected_value;
+      if (body.margin_pct !== undefined) financial.margin_pct = body.margin_pct;
+      push(`meta_json = meta_json || ?::jsonb`, JSON.stringify({ financial }));
+    }
 
     if (sets.length <= 2) {
       throw new BadRequestException({ error: 'No supported patch fields' });

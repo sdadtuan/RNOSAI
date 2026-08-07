@@ -7,6 +7,7 @@ import { PresalesConsultSlaBanner } from '@/components/PresalesConsultSlaBanner'
 import { PresalesL2DocsChecklist } from '@/components/PresalesL2DocsChecklist';
 import { PresalesR5PreviewPanel } from '@/components/PresalesR5PreviewPanel';
 import { PresalesTaskFormCard } from '@/components/PresalesTaskFormCard';
+import { WinFieldMask } from '@/components/rbac/WinFieldMask';
 import {
   fetchLeadFunnel,
   fetchLeadPresalesMarketingPlan,
@@ -30,6 +31,8 @@ interface Props {
   leadId: number;
   user: StoredStaffUser | null;
   funnelSnap: LeadFunnelSnapshot;
+  expectedValue?: number | null;
+  marginPct?: number | null;
   onFunnelChange: (funnel: LeadFunnelSnapshot) => void;
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
@@ -41,6 +44,8 @@ export function LeadConsultWorkspace({
   leadId,
   user,
   funnelSnap,
+  expectedValue,
+  marginPct,
   onFunnelChange,
   onMessage,
   onError,
@@ -288,6 +293,16 @@ export function LeadConsultWorkspace({
 
       <div className="lead-consult-workspace__grid">
         <div className="lead-consult-workspace__main stack-gap">
+          <section className="page-card stack-gap-sm">
+            <h4 className="h6">Giá trị dự kiến (ABAC)</h4>
+            <div className="flex-gap">
+              <span className="muted">Expected value:</span>
+              <WinFieldMask user={user} value={expectedValue} variant="financial" />
+              <span className="muted">Margin %:</span>
+              <WinFieldMask user={user} value={marginPct} variant="financial" />
+            </div>
+          </section>
+
           {funnel.presales?.l2_docs && presalesStage === 'consult' ? (
             <PresalesL2DocsChecklist
               view={funnel.presales.l2_docs}

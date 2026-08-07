@@ -11,6 +11,7 @@ import {
   StaffPageShell,
 } from '@/components/layout';
 import { AgencyReadOnlyBadge, canAgencyWrite } from '@/components/AgencyReadOnlyBadge';
+import { WinScopeBadge } from '@/components/rbac/WinScopeBadge';
 import {
   fetchAgencyClients,
   fetchAgencyNotifications,
@@ -235,7 +236,7 @@ export default function AgencyPage() {
                       {c.code}
                     </Link>
                   </td>
-                  <td>{c.name}</td>
+                  <td>{c.name} <WinScopeBadge clientId={c.id} /></td>
                   <td>
                     <span
                       className={`agency-status-badge badge-${

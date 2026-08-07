@@ -16,6 +16,9 @@ import {
 import { Request } from 'express';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
+import { StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
+import { serializeAgencyClientDetailForCaps, serializeAgencyClientRowForCaps } from '../staff-permissions/field-level.serializer';
 import { PerformanceService } from '../performance/performance.service';
 import { PerformanceQuery } from '../performance/performance.types';
 import { AgencyService } from './agency.service';
@@ -65,10 +68,13 @@ export class ClientsController {
     private readonly portalUsers: PortalClientUsersService,
     private readonly orchestrator: OnboardingOrchestratorService,
     private readonly serviceLifecycle: ServiceLifecycleService,
+    private readonly clientScope: StaffClientScopeService,
+    private readonly staffAuth: StaffAuthService,
   ) {}
 
   @Get()
   async listClients(
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
     @Query('status') status?: string,
     @Query('q') q?: string,
     @Query('owner_am_id') ownerAmId?: string,
@@ -76,14 +82,23 @@ export class ClientsController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ): Promise<AgencyClientsListResponse> {
-    return this.agency.listClients({
+    const scope = await this.clientScope.resolveForRequest(req);
+    const result = await this.agency.listClients({
       status,
       q,
       owner_am_id: ownerAmId,
       industry,
+      allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
       limit: limit !== undefined ? Number(limit) : undefined,
       offset: offset !== undefined ? Number(offset) : undefined,
     });
+    if (req.staffAuthVia === 'internal' || !req.staffUser) return result;
+    const me = await this.staffAuth.me(req.staffUser);
+    return {
+      clients: result.clients.map((row) =>
+        serializeAgencyClientRowForCaps(row, me.caps, (c, s, a) => this.staffAuth.hasCap(c, s, a)),
+      ),
+    };
   }
 
   @Post()
@@ -94,8 +109,18 @@ export class ClientsController {
   }
 
   @Get(':id')
-  async getClient(@Param('id') id: string): Promise<AgencyClientDetail> {
-    return this.agency.getClient(id);
+  async getClient(
+    @Param('id') id: string,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ): Promise<AgencyClientDetail> {
+    const scope = await this.clientScope.resolveForRequest(req);
+    this.clientScope.assertClientAccessible(scope, id);
+    const detail = await this.agency.getClient(id);
+    if (req.staffAuthVia === 'internal' || !req.staffUser) return detail;
+    const me = await this.staffAuth.me(req.staffUser);
+    return serializeAgencyClientDetailForCaps(detail, me.caps, (c, s, a) =>
+      this.staffAuth.hasCap(c, s, a),
+    );
   }
 
   @Get(':id/hub-campaign-maps')

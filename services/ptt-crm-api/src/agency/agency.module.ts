@@ -5,6 +5,7 @@ import { PerformanceModule } from '../performance/performance.module';
 import { PortalModule } from '../portal/portal.module';
 import { ServiceLifecycleModule } from '../service-lifecycle/service-lifecycle.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
+import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { WorkflowsModule } from '../workflows/workflows.module';
 import { AgencyOpsController } from './agency-ops.controller';
@@ -33,6 +34,7 @@ import { InternalKeyGuard } from '../auth/internal-key.guard';
 @Module({
   imports: [
     StaffAuthModule,
+    StaffClientScopeModule,
     forwardRef(() => PortalModule),
     forwardRef(() => PerformanceModule),
     EventsModule,

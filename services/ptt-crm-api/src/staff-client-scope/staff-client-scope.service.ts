@@ -75,4 +75,20 @@ export class StaffClientScopeService {
       throw new ForbiddenException({ error: 'client_scope_denied' });
     }
   }
+
+  assertClientAccessible(scope: ClientScopeContext, clientId: string | null | undefined): void {
+    if (!scope.restricted) return;
+    const normalized = String(clientId ?? '').trim();
+    if (!normalized) {
+      throw new ForbiddenException({ error: 'client_scope_denied', message: 'client_id required' });
+    }
+    if (!assertClientInScope(normalized, scope.allowedClientIds)) {
+      throw new ForbiddenException({ error: 'client_scope_denied', client_id: normalized });
+    }
+  }
+
+  allowedClientIdsForList(scope: ClientScopeContext): string[] | undefined {
+    if (!scope.restricted) return undefined;
+    return scope.allowedClientIds;
+  }
 }

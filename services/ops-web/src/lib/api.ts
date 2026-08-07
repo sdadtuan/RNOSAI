@@ -29,6 +29,8 @@ export interface LeadRow {
   created_at: string;
   received_at: string;
   is_duplicate: boolean;
+  expected_value?: number | null;
+  margin_pct?: number | null;
   review_queue?: {
     active: boolean;
     message?: string;
@@ -7903,6 +7905,42 @@ export async function putStaffUserClientScope(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ client_ids: clientIds }),
   });
+}
+
+export async function importStaffUserClientScope(
+  token: string,
+  csv: string,
+  dryRun = false,
+): Promise<{
+  ok: boolean;
+  dry_run: boolean;
+  rows: number;
+  applied: number;
+  preview: Array<{ email: string; client_ids: string[]; error?: string }>;
+  errors: string[];
+}> {
+  return crmFetch(token, '/api/v1/staff/org/users/client-scope/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ csv, dry_run: dryRun }),
+  });
+}
+
+export interface StaffFieldRegistryEntry {
+  entity: string;
+  field: string;
+  section: string;
+  action: string;
+  mask_mode: string;
+  mask_value?: string;
+  patch_forbidden?: boolean;
+  export_strip?: boolean;
+}
+
+export async function fetchStaffFieldRegistry(
+  token: string,
+): Promise<{ version: number; fields: StaffFieldRegistryEntry[] }> {
+  return crmFetch(token, '/api/v1/staff/permissions/field-registry');
 }
 
 export async function fetchStaffUserEffectiveCaps(

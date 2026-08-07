@@ -22,6 +22,24 @@ function metaString(meta: Record<string, unknown>, key: string): string {
   return String(val);
 }
 
+function metaNumber(meta: Record<string, unknown>, key: string): number | null {
+  const financial =
+    typeof meta.financial === 'object' && meta.financial !== null
+      ? (meta.financial as Record<string, unknown>)
+      : meta;
+  const val = financial[key] ?? meta[key];
+  if (val === undefined || val === null || val === '') return null;
+  const num = Number(val);
+  return Number.isFinite(num) ? num : null;
+}
+
+function leadFinancialFields(meta: Record<string, unknown>): Pick<LeadV1, 'expected_value' | 'margin_pct'> {
+  return {
+    expected_value: metaNumber(meta, 'expected_value'),
+    margin_pct: metaNumber(meta, 'margin_pct'),
+  };
+}
+
 /** Mirror ptt_crm/leads_read.py lead_row_to_v1() — contract frozen Step 2. */
 export function leadRowToV1(row: LeadRow): LeadV1 {
   const meta = parseMeta(row.meta_json);
@@ -68,6 +86,7 @@ export function leadRowToV1(row: LeadRow): LeadV1 {
     created_at: row.created_at ?? '',
     received_at: receivedAt,
     is_duplicate: Boolean(row.is_duplicate),
+    ...leadFinancialFields(meta),
     review_queue: reviewQueuePublicState(meta, String(metaString(meta, 'assigned_at') || '')),
   };
 }
@@ -100,6 +119,7 @@ export function pgRowToV1(row: PgLeadRow): LeadV1 {
     created_at: formatLeadTs(row.created_at),
     received_at: formatLeadTs(row.received_at),
     is_duplicate: Boolean(row.is_duplicate),
+    ...leadFinancialFields(meta),
     review_queue: reviewQueuePublicState(meta, assignedAt),
   };
 }

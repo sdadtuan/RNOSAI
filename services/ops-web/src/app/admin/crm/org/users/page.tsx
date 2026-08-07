@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminPageShell } from '@/components/admin';
 import { AdminOrgSubNav } from '@/components/rbac/AdminOrgSubNav';
+import { ClientScopeImport } from '@/components/rbac/ClientScopeImport';
 import { UserIdentityCard } from '@/components/rbac/UserIdentityCard';
 import { WinScopeBadge } from '@/components/rbac/WinScopeBadge';
 import { WinDrawer } from '@/components/win';
@@ -109,6 +110,10 @@ export default function AdminOrgUsersPage() {
           Tìm
         </button>
       </form>
+
+      {canEdit && token ? (
+        <ClientScopeImport token={token} onApplied={() => void reload(token, query)} />
+      ) : null}
 
       <div className="table-wrap">
         <table className="data-table">

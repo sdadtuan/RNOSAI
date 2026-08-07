@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { MetaBadge } from '@/components/meta/MetaBadge';
+import { WinScopeBadge } from '@/components/rbac/WinScopeBadge';
 import { capiBadgeFromAccount, fmtVnd } from '@/lib/meta/format';
 import { metaTrackingEnabled } from '@/lib/meta/flags';
 import type { FacebookHubClient, TrackingHealthAccountRow } from '@/lib/meta/types';
@@ -45,6 +46,7 @@ export function MetaClientTable({ rows, loading, trackingByClient }: MetaClientT
                     <Link href={`/agency/clients/${c.id}`} className="nav-link">
                       {c.code || c.name}
                     </Link>
+                    <WinScopeBadge clientId={c.id} className="ml-1" />
                   </td>
                   <td>{c.status ?? '—'}</td>
                   <td>{fmtVnd(c.spend)}</td>

@@ -11,6 +11,7 @@ import type {
   StaffJobFunctionSummary,
 } from './staff-permissions.types';
 import { StaffJobFunctionsRepository } from './staff-job-functions.repository';
+import { listFieldRegistryEntries, loadFieldRegistry } from './field-level.registry';
 
 @Injectable()
 export class StaffPermissionsService {
@@ -29,6 +30,14 @@ export class StaffPermissionsService {
       sections: catalog.sections,
       ui_buttons: catalog.ui_buttons,
       section_actions: catalog.section_actions,
+    };
+  }
+
+  getFieldRegistry() {
+    const doc = loadFieldRegistry();
+    return {
+      version: doc.version,
+      fields: listFieldRegistryEntries(),
     };
   }
 

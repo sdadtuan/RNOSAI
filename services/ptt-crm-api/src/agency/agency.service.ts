@@ -158,6 +158,7 @@ export class AgencyService {
     q?: string;
     owner_am_id?: string;
     industry?: string;
+    allowed_client_ids?: string[];
     limit?: number;
     offset?: number;
   }): Promise<AgencyClientsListResponse> {
@@ -167,6 +168,7 @@ export class AgencyService {
       q: query.q?.trim() || undefined,
       ownerAmId: query.owner_am_id?.trim() || undefined,
       industrySlug: query.industry?.trim() || undefined,
+      allowedClientIds: query.allowed_client_ids,
       limit: Math.min(Math.max(query.limit ?? 100, 1), 200),
       offset: Math.max(query.offset ?? 0, 0),
     });
@@ -180,8 +182,14 @@ export class AgencyService {
       throw new NotFoundException({ error: 'Not found' });
     }
     const lockState = await this.clientOffboard.getLockState(clientId);
+    const progress =
+      client.progress && typeof client.progress === 'object'
+        ? (client.progress as Record<string, unknown>)
+        : {};
+    const billingRaw = progress.billing_contact ?? progress.billingContact;
     return {
       ...client,
+      billing_contact: billingRaw != null ? String(billingRaw) : null,
       tenant_locked: lockState?.tenant_locked ?? false,
     };
   }

@@ -793,6 +793,8 @@ export default function CrmLeadDetailPage() {
                 leadId={leadId}
                 user={user}
                 funnelSnap={funnelSnap}
+                expectedValue={lead?.expected_value}
+                marginPct={lead?.margin_pct}
                 onFunnelChange={setFunnelSnap}
                 onMessage={setMessage}
                 onError={setError}

@@ -10,6 +10,7 @@ export interface AgencyClientRow {
   status: string;
   owner_am_id: string | null;
   notes: string | null;
+  billing_contact?: string | null;
   created_at: string | null;
   updated_at: string | null;
   tenant_locked?: boolean;

@@ -129,6 +129,7 @@ export function CrmLeadsImportExport({
           className="btn btn-sm"
           disabled={busy != null}
           onClick={() => void onExport(true)}
+          title="SĐT/Email có thể bị ẩn trong file nếu thiếu quyền crm_leads.view_pii"
         >
           {busy === 'export-all' ? 'Đang xuất…' : 'Export Excel (filter)'}
         </button>
@@ -137,6 +138,7 @@ export function CrmLeadsImportExport({
           className="btn btn-sm btn-secondary"
           disabled={busy != null || selectedIds.length === 0}
           onClick={() => void onExport(false)}
+          title="Export tuân thủ field ABAC — PII strip khi thiếu cap"
         >
           {busy === 'export-selected'
             ? 'Đang xuất…'

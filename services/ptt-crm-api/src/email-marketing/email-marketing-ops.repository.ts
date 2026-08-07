@@ -70,12 +70,18 @@ export class EmailMarketingOpsRepository implements OnModuleDestroy {
   async listEmailClients(params: {
     q?: string;
     hasWorkspace?: boolean;
+    allowedClientIds?: string[];
     limit: number;
     offset: number;
   }): Promise<EmailListResponse<EmailClientListRow>> {
     const values: unknown[] = [];
     const clauses = [`c.status NOT IN ('archived')`];
     let idx = 1;
+
+    if (params.allowedClientIds?.length) {
+      clauses.push(`c.id = ANY($${idx++}::uuid[])`);
+      values.push(params.allowedClientIds);
+    }
 
     if (params.q) {
       clauses.push(`(c.code ILIKE $${idx} OR c.name ILIKE $${idx})`);

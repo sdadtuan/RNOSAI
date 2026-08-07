@@ -16,6 +16,7 @@ import { Request } from 'express';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+import { StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
 import { EmailMarketingService } from './email-marketing.service';
 import {
   EmailGovernanceResponse,
@@ -65,14 +66,20 @@ export class EmailMarketingController {
   constructor(
     private readonly email: EmailMarketingService,
     private readonly staffAuth: StaffAuthService,
+    private readonly clientScope: StaffClientScopeService,
   ) {}
 
   @Get('hub')
   async hub(
+    @Req() req: StaffReq,
     @Query('client_id') clientId?: string,
     @Query('days') days?: string,
     @Query('domain') domain?: string,
   ): Promise<EmailHubResponse> {
+    const scope = await this.clientScope.resolveForRequest(req);
+    if (clientId?.trim()) {
+      this.clientScope.assertClientAccessible(scope, clientId);
+    }
     const parsedDays = days ? Number.parseInt(days, 10) : undefined;
     return this.email.hubWithAlerts({
       clientId,
@@ -142,11 +149,13 @@ export class EmailMarketingController {
 
   @Get('clients')
   async clients(
+    @Req() req: StaffReq,
     @Query('q') q?: string,
     @Query('has_workspace') hasWorkspace?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ): Promise<EmailListResponse<EmailClientListRow>> {
+    const scope = await this.clientScope.resolveForRequest(req);
     const hw =
       hasWorkspace === '1' || hasWorkspace === 'true'
         ? true
@@ -156,6 +165,7 @@ export class EmailMarketingController {
     return this.email.listClients({
       q,
       has_workspace: hw,
+      allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
       limit: limit ? Number.parseInt(limit, 10) : undefined,
       offset: offset ? Number.parseInt(offset, 10) : undefined,
     });

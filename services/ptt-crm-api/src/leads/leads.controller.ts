@@ -27,6 +27,12 @@ import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { hasGdkdAssign, hasGdkdViewAllLeads } from '../staff-permissions/staff-gdkd.util';
 import { StaffRbacAuditRepository } from '../staff-permissions/staff-rbac-audit.repository';
 import { StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
+import {
+  assertLeadPatchFieldsAllowed,
+  serializeLeadForCaps,
+  serializeLeadsForCaps,
+} from '../staff-permissions/field-level.serializer';
+import { StaffSectionCap } from '../staff-auth/staff-auth.types';
 import { WriteEnabledGuard } from './guards/write-enabled.guard';
 import { StaffLeadsWriteGuard } from './guards/staff-leads-write.guard';
 import { StaffLeadsViewGuard } from './guards/staff-leads-view.guard';
@@ -89,6 +95,7 @@ export class LeadsController {
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
   async exportLeads(
     @Res({ passthrough: false }) res: Response,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
     @Query('client_id') clientId?: string,
     @Query('status') status?: string,
     @Query('source') source?: string,
@@ -106,15 +113,24 @@ export class LeadsController {
           .filter((id) => Number.isFinite(id) && id > 0)
       : undefined;
 
-    const { buffer, filename } = await this.leadsIo.exportXlsx({
-      client_id: clientId,
-      status,
-      source,
-      channel,
-      q,
-      hide_review_queue: hideExplicitFalse ? false : undefined,
-      ids: parsedIds?.length ? parsedIds : undefined,
-    });
+    const scope = await this.clientScope.resolveForRequest(req);
+    this.clientScope.assertListClientFilter(scope, clientId);
+
+    const caps = await this.resolveCaps(req);
+    const { buffer, filename } = await this.leadsIo.exportXlsx(
+      {
+        client_id: clientId,
+        status,
+        source,
+        channel,
+        q,
+        hide_review_queue: hideExplicitFalse ? false : undefined,
+        ids: parsedIds?.length ? parsedIds : undefined,
+        allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
+      },
+      caps,
+      (c, s, a) => this.staffAuth.hasCap(c, s, a),
+    );
 
     res.setHeader(
       'Content-Type',
@@ -161,6 +177,12 @@ export class LeadsController {
     @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
     @Headers('x-ptt-actor') actor?: string,
   ): Promise<LeadV1> {
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const caps = await this.resolveCaps(req);
+      assertLeadPatchFieldsAllowed(body as Record<string, unknown>, caps, (c, s, a) =>
+        this.staffAuth.hasCap(c, s, a),
+      );
+    }
     const gateOpts = await this.statusGateOpts(req, body);
     const lead = await this.leadsWriteService.patchLead(id, body, actor, gateOpts);
     if (body.allow_status_override && req.staffUser) {
@@ -245,6 +267,13 @@ export class LeadsController {
       unassigned_only: truthy(unassignedOnly),
       lead_flow_kind: flowKind,
       allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
+    }).then(async (result) => {
+      if (req.staffAuthVia === 'internal' || !req.staffUser) return result;
+      const caps = await this.resolveCaps(req);
+      return {
+        ...result,
+        leads: serializeLeadsForCaps(result.leads, caps, (c, s, a) => this.staffAuth.hasCap(c, s, a)),
+      };
     });
   }
 
@@ -318,6 +347,16 @@ export class LeadsController {
     }
     const scope = await this.clientScope.resolveForRequest(req);
     this.clientScope.assertLeadAccessible(scope, lead.client_id);
-    return lead;
+    if (req.staffAuthVia === 'internal' || !req.staffUser) return lead;
+    const caps = await this.resolveCaps(req);
+    return serializeLeadForCaps(lead, caps, (c, s, a) => this.staffAuth.hasCap(c, s, a));
+  }
+
+  private async resolveCaps(
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ): Promise<StaffSectionCap[]> {
+    if (!req.staffUser) return [];
+    const me = await this.staffAuth.me(req.staffUser);
+    return me.caps;
   }
 }
