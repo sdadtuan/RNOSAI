@@ -7558,3 +7558,62 @@ export async function exportStaffJobFunction(
 }> {
   return crmFetch(token, `/api/v1/staff/permissions/job-functions/${encodeURIComponent(code)}/export`);
 }
+
+export interface StaffOrgUserSummary {
+  id: string;
+  email: string;
+  display_name: string;
+  position_id: number;
+  position_code?: string;
+  job_functions: string[];
+}
+
+export interface StaffUserEffectiveCaps {
+  user_id: string;
+  email: string;
+  display_name: string;
+  position_id: number;
+  position_code?: string;
+  job_functions: string[];
+  caps: Array<{ section: string; action: string }>;
+}
+
+export async function fetchStaffOrgUsers(token: string): Promise<StaffOrgUserSummary[]> {
+  return crmFetch(token, '/api/v1/staff/org/users');
+}
+
+export async function fetchStaffOrgJobFunctionCatalog(
+  token: string,
+): Promise<Array<{ code: string; label: string; description: string; department_scope: string }>> {
+  const data = await crmFetch<{ functions: Array<{ code: string; label: string; description: string; department_scope: string }> }>(
+    token,
+    '/api/v1/staff/org/job-functions/catalog',
+  );
+  return data.functions ?? [];
+}
+
+export async function fetchStaffUserJobFunctions(
+  token: string,
+  userId: string,
+): Promise<{ user_id: string; functions: string[]; position_code?: string; email: string; display_name: string }> {
+  return crmFetch(token, `/api/v1/staff/org/users/${encodeURIComponent(userId)}/job-functions`);
+}
+
+export async function putStaffUserJobFunctions(
+  token: string,
+  userId: string,
+  functions: string[],
+): Promise<{ user_id: string; functions: string[] }> {
+  return crmFetch(token, `/api/v1/staff/org/users/${encodeURIComponent(userId)}/job-functions`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ functions }),
+  });
+}
+
+export async function fetchStaffUserEffectiveCaps(
+  token: string,
+  userId: string,
+): Promise<StaffUserEffectiveCaps> {
+  return crmFetch(token, `/api/v1/staff/org/users/${encodeURIComponent(userId)}/effective-caps`);
+}

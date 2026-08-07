@@ -17,6 +17,7 @@ const NAV_GROUPS = [
     links: [
       { href: '/admin/crm/permissions', label: 'Chức vụ' },
       { href: '/admin/crm/permissions/functions', label: 'Job function' },
+      { href: '/admin/crm/permissions/users', label: 'Gán user' },
     ],
   },
 ] as const;

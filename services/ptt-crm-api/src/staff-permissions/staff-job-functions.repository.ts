@@ -178,4 +178,33 @@ export class StaffJobFunctionsRepository implements OnModuleDestroy {
     }
     return [];
   }
+
+  async replaceUserFunctions(
+    userId: string,
+    functionCodes: string[],
+    assignedBy = '',
+  ): Promise<string[]> {
+    const normalized = [...new Set(functionCodes.map((c) => c.trim()).filter(Boolean))].sort();
+    if (await this.ensurePgReady()) {
+      const client = await this.db.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`DELETE FROM staff_user_job_functions WHERE user_id = $1::uuid`, [userId]);
+        for (const code of normalized) {
+          await client.query(
+            `INSERT INTO staff_user_job_functions (user_id, function_code, assigned_by, assigned_at)
+             VALUES ($1::uuid, $2, $3, NOW())`,
+            [userId, code, assignedBy],
+          );
+        }
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    }
+    return normalized;
+  }
 }
