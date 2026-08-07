@@ -2,8 +2,8 @@
 
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { staffLogin } from '@/lib/api';
-import { saveSession } from '@/lib/auth';
+import { staffLogin, staffMe } from '@/lib/api';
+import { saveSession, updateStoredUser } from '@/lib/auth';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,6 +19,8 @@ export default function LoginPage() {
     try {
       const out = await staffLogin(email.trim(), password);
       saveSession(out.access_token, out.refresh_token, out.user);
+      const me = await staffMe(out.access_token);
+      updateStoredUser(me);
       const next = new URLSearchParams(window.location.search).get('next');
       router.push(next && next.startsWith('/') ? next : '/');
     } catch (err) {
