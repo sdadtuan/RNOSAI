@@ -46,6 +46,17 @@ function formatDuration(row: AiOrchestration): string {
   return `${(ms / 1_000).toFixed(ms < 10_000 ? 1 : 0)} s`;
 }
 
+const PLAN_KEY_LABELS: Record<string, string> = {
+  cpl_weekly_v1: 'WIN-4-C · CPL weekly + budget',
+  lead_intake_v1: 'Lead intake',
+  retain_health_renewal_v1: 'Retain health · renewal',
+  retain_health_client_v1: 'Retain health · client',
+};
+
+function formatPlanKey(planKey: string): string {
+  return PLAN_KEY_LABELS[planKey] ? `${planKey} (${PLAN_KEY_LABELS[planKey]})` : planKey;
+}
+
 export function OrchestrationTracePanel({
   rows,
   total,
@@ -167,7 +178,7 @@ export function OrchestrationTracePanel({
                       style={{ cursor: 'pointer' }}
                     >
                       <td>
-                        <strong>{row.plan_key}</strong>
+                        <strong>{formatPlanKey(row.plan_key)}</strong>
                         <span className="muted orchestration-trace-table__when">
                           {formatWhen(row.started_at)}
                         </span>
@@ -220,7 +231,7 @@ export function OrchestrationTracePanel({
                 </li>
                 <li>
                   <span>Plan</span>
-                  <strong>{detail.orchestration.plan_key}</strong>
+                  <strong>{formatPlanKey(detail.orchestration.plan_key)}</strong>
                 </li>
                 <li>
                   <span>Correlation</span>

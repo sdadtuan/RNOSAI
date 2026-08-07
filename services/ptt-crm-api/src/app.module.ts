@@ -77,6 +77,7 @@ import { StaffAuthModule } from './staff-auth/staff-auth.module';
 import { StaffPermissionsModule } from './staff-permissions/staff-permissions.module';
 import { StaffClientScopeModule } from './staff-client-scope/staff-client-scope.module';
 import { StaffBreakGlassModule } from './staff-break-glass/staff-break-glass.module';
+import { PolicyModule } from './policy/policy.module';
 import { StaffOrgModule } from './staff-org/staff-org.module';
 import { StaffPermissionSetsModule } from './staff-permission-sets/staff-permission-sets.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
@@ -125,6 +126,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     StaffPermissionsModule,
     StaffPermissionSetsModule,
     StaffBreakGlassModule,
+    PolicyModule,
     StaffClientScopeModule,
     StaffOrgModule,
     WebhooksModule,

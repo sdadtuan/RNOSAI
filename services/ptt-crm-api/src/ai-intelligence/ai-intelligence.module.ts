@@ -68,6 +68,8 @@ import { StaffCasesViewGuard } from '../cases/guards/staff-cases.guard';
 import { MetaAlertsModule } from '../meta-alerts/meta-alerts.module';
 import { ReProjectsModule } from '../re-projects/re-projects.module';
 import { AnomalyDigestService } from './anomaly-digest.service';
+import { CplAnomalyService } from './cpl-anomaly.service';
+import { BudgetRecommendService } from './budget-recommend.service';
 import { AiLeadRouteService } from './ai-lead-route.service';
 import { LeadRouteContextRepository } from './lead-route-context.repository';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
@@ -85,6 +87,9 @@ import { AiToolsService } from './ai-tools/ai-tools.service';
 import { ToolRegistry } from './ai-tools/tool.registry';
 import { PortalModule } from '../portal/portal.module';
 import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
+import { StaffAiInsightsViewGuard } from './guards/staff-ai-insights-view.guard';
+import { MetaIntelligenceModule } from '../meta-intelligence/meta-intelligence.module';
+import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope.module';
 
 @Module({
   imports: [
@@ -103,6 +108,8 @@ import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
     forwardRef(() => ServiceLifecycleModule),
     forwardRef(() => CrmLeadsLegacyModule),
     forwardRef(() => PortalModule),
+    MetaIntelligenceModule,
+    StaffClientScopeModule,
   ],
   controllers: [AiIntelligenceController, AiToolsController],
   providers: [
@@ -138,6 +145,8 @@ import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
     AiNlQueryService,
     AiTicketSentimentService,
     AnomalyDigestService,
+    CplAnomalyService,
+    BudgetRecommendService,
     AiLeadRouteService,
     LeadRouteContextRepository,
     NlQueryContextRepository,
@@ -174,6 +183,7 @@ import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
     StaffAiNlQueryGuard,
     StaffAiOrchestratorGuard,
     StaffAiOrchestratorViewGuard,
+    StaffAiInsightsViewGuard,
     StaffCasesViewGuard,
   ],
   exports: [
@@ -209,6 +219,8 @@ import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
     AiNlQueryService,
     AiTicketSentimentService,
     AnomalyDigestService,
+    CplAnomalyService,
+    BudgetRecommendService,
     AiLeadRouteService,
     LeadRouteContextRepository,
     NlQueryContextRepository,

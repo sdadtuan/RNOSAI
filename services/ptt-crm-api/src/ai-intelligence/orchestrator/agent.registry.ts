@@ -3,6 +3,7 @@ import { AI_AUDIT_ERROR, AI_USE_CASE } from '../ai-audit.constants';
 import { AiLeadRouteService } from '../ai-lead-route.service';
 import { AiLeadScoreService } from '../ai-lead-score.service';
 import { AnomalyDigestService } from '../anomaly-digest.service';
+import { BudgetRecommendService } from '../budget-recommend.service';
 import { RenewalAgentService } from '../renewal-agent.service';
 import { UpsellAgentService } from '../upsell-agent.service';
 import {
@@ -21,6 +22,7 @@ export class AgentRegistry {
     private readonly renewal: RenewalAgentService,
     private readonly upsell: UpsellAgentService,
     private readonly anomaly: AnomalyDigestService,
+    private readonly budgetRecommend: BudgetRecommendService,
   ) {
     this.agents = new Map<OrchestratorStepKey, RegisteredAgent>([
       [
@@ -88,6 +90,25 @@ export class AgentRegistry {
               actorId: auditCtx.actorId ?? ctx.actorId,
               correlationId: auditCtx.correlationId ?? ctx.correlationId ?? undefined,
             }),
+        },
+      ],
+      [
+        'budget_recommend',
+        {
+          agentName: 'budget-recommend',
+          useCase: AI_USE_CASE.BUDGET_RECOMMEND,
+          handler: async (ctx, auditCtx) => {
+            const data = await this.budgetRecommend.listRecommendations({
+              staffAuthVia: 'internal',
+              client_id: auditCtx.clientId ?? ctx.clientId ?? undefined,
+              days: ctx.days != null ? String(ctx.days) : undefined,
+            });
+            return {
+              data,
+              meta: { request_id: auditCtx.correlationId ?? ctx.correlationId ?? 'budget' },
+              errors: [],
+            };
+          },
         },
       ],
     ]);

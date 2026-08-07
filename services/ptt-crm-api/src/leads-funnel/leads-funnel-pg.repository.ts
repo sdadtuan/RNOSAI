@@ -47,6 +47,7 @@ import {
   planContentFromRow,
   validatePreliminaryPlan,
 } from './presales-marketing-plan.util';
+import { SOLUTION_HANDOFF_ACTIVITY_TYPES } from './presales-solution-handoff-activity.util';
 import { workflowStepsForService } from './presales-workflow-steps.util';
 import {
   buildPresalesWorkflowUpgradePlan,
@@ -1486,6 +1487,17 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       [snap.presales.id],
     );
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
+  }
+
+  async hasSolutionHandoffActivity(leadId: number, handedOffAt?: string): Promise<boolean> {
+    const result = await this.db.query(
+      `SELECT 1 FROM crm_lead_activities
+       WHERE lead_id = $1 AND activity_type = $2
+       LIMIT 1`,
+      [leadId, SOLUTION_HANDOFF_ACTIVITY_TYPES.handoff],
+    );
+    if (result.rows.length) return true;
+    return Boolean(String(handedOffAt ?? '').trim());
   }
 
   async listSolutionQueue(

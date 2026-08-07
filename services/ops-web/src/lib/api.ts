@@ -1549,6 +1549,26 @@ export async function releaseLeadToSales(
   });
 }
 
+export interface PresalesPolicyPreview {
+  action: 'release' | 'claim';
+  allowed: boolean;
+  policy_id?: string;
+  reason?: string;
+  bundle_version: string;
+}
+
+export async function fetchPresalesPolicyPreview(
+  token: string,
+  leadId: number,
+  action: 'release' | 'claim',
+): Promise<PresalesPolicyPreview> {
+  return leadFunnelMutate(
+    token,
+    `/api/v1/leads/${leadId}/presales/policy-preview?action=${encodeURIComponent(action)}`,
+    { method: 'GET' },
+  );
+}
+
 export async function fetchLeadPresalesMarketingPlan(
   token: string,
   leadId: number,

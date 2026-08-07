@@ -62,6 +62,7 @@ import {
   type BatchUpgradePresalesWorkflowResult,
 } from './presales-workflow-batch.util';
 import { ReviewQueueLlmService } from './review-queue-llm.service';
+import { PolicyService } from '../policy/policy.service';
 
 @Injectable()
 export class LeadsFunnelService {
@@ -76,6 +77,7 @@ export class LeadsFunnelService {
     private readonly intake: IntakeService,
     private readonly llm: AiLlmClient,
     private readonly legacyLeads: CrmLeadsLegacyService,
+    private readonly policy: PolicyService,
   ) {}
 
   private get usePgFunnel(): boolean {
@@ -102,12 +104,71 @@ export class LeadsFunnelService {
   }
 
   private async staffCapContext(staffUser?: StaffJwtPayload) {
-    if (!staffUser) return { caps: [], gdkdAssign: false };
+    if (!staffUser) return { caps: [], gdkdAssign: false, job_functions: [] as string[], permission_sets: [] as string[] };
     const me = await this.staffAuth.me(staffUser);
     return {
       caps: me.caps,
       gdkdAssign: hasGdkdAssign(me.caps),
+      job_functions: me.job_functions ?? [],
+      permission_sets: me.permission_sets ?? [],
     };
+  }
+
+  private async buildPresalesPolicyContext(
+    leadId: number,
+    action: 'release' | 'claim',
+    staffUser?: StaffJwtPayload,
+  ) {
+    const staffCtx = await this.staffCapContext(staffUser);
+    if (!this.usePgFunnel) {
+      return {
+        action,
+        gdkd_assign: staffCtx.gdkdAssign,
+        job_functions: staffCtx.job_functions,
+        permission_sets: staffCtx.permission_sets,
+        handoff_status: null,
+        has_handoff_activity: false,
+        consult_complete: false,
+        preliminary_plan_ok: false,
+      };
+    }
+    const snap = await this.pgRepo.getPresalesSnapshot(leadId);
+    if (!snap) throw new NotFoundException({ error: 'Lead not found' });
+    const curProg = snap.progress.consult || { total: 0, done: 0 };
+    const consultComplete = curProg.total === 0 || curProg.done >= curProg.total;
+    const plan = await this.pgRepo.getPreliminaryPlan(snap.presales.id);
+    const planVal = validatePreliminaryPlan(plan);
+    const hasHandoff = await this.pgRepo.hasSolutionHandoffActivity(leadId, snap.presales.handed_off_at);
+    return {
+      action,
+      gdkd_assign: staffCtx.gdkdAssign,
+      job_functions: staffCtx.job_functions,
+      permission_sets: staffCtx.permission_sets,
+      handoff_status: snap.presales.handoff_status,
+      has_handoff_activity: hasHandoff,
+      consult_complete: consultComplete,
+      preliminary_plan_ok: planVal.ok,
+    };
+  }
+
+  async previewPresalesPolicy(
+    leadId: number,
+    action: 'release' | 'claim',
+    staffUser?: StaffJwtPayload,
+  ) {
+    await this.getFunnel(leadId);
+    const ctx = await this.buildPresalesPolicyContext(leadId, action, staffUser);
+    const { action: _ignored, ...rest } = ctx;
+    return this.policy.preview(action, rest);
+  }
+
+  private async assertPresalesPolicy(
+    leadId: number,
+    action: 'release' | 'claim',
+    staffUser?: StaffJwtPayload,
+  ): Promise<void> {
+    const ctx = await this.buildPresalesPolicyContext(leadId, action, staffUser);
+    this.policy.assertAllow(ctx);
   }
 
   private async assertConsultMutationAllowed(
@@ -437,6 +498,7 @@ export class LeadsFunnelService {
     staffUser?: StaffJwtPayload,
   ) {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    await this.assertPresalesPolicy(leadId, 'claim', staffUser);
     try {
       if (this.usePgFunnel) {
         await this.pgRepo.claimSolution(leadId, staffId);
@@ -463,6 +525,7 @@ export class LeadsFunnelService {
     staffUser?: StaffJwtPayload,
   ) {
     if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    await this.assertPresalesPolicy(leadId, 'release', staffUser);
     try {
       if (this.usePgFunnel) {
         await this.pgRepo.releaseToSales(leadId, staffId);

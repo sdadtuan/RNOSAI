@@ -61,6 +61,7 @@ export class AppConfigService {
   readonly staffKeycloakClientId: string;
   readonly staffMfaRequiredPositionCodes: string[];
   readonly staffScopePilotEnabled: boolean;
+  readonly staffPolicyOpaEnabled: boolean;
   readonly flaskMonolithUrl: string;
   readonly jobsEnabled: boolean;
   readonly webhookEnqueueEnabled: boolean;
@@ -203,6 +204,9 @@ export class AppConfigService {
       .filter(Boolean);
     this.staffScopePilotEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.STAFF_SCOPE_PILOT ?? '0').trim().toLowerCase(),
+    );
+    this.staffPolicyOpaEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.STAFF_POLICY_OPA ?? '0').trim().toLowerCase(),
     );
     this.flaskMonolithUrl = (process.env.PTT_FLASK_MONOLITH_URL ?? '').trim();
     this.jobsEnabled = this.resolveJobsEnabled();

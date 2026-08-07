@@ -8,6 +8,7 @@ import { HubCampaignMapsPanel } from '@/components/HubCampaignMapsPanel';
 import { ContractApprovalsPanel } from '@/components/ContractApprovalsPanel';
 import { HubPageLayout, StaffPageShell } from '@/components/layout';
 import { staffMe, staffRefresh } from '@/lib/api';
+import { winCplDigestEnabled } from '@/lib/win/flags';
 import {
   clearSession,
   getAccessToken,
@@ -120,6 +121,16 @@ export function CrmHubContent() {
         ) : null}
         {error ? <p className="error">{error}</p> : null}
         {msg ? <p className="muted">{msg}</p> : null}
+
+        {winCplDigestEnabled() &&
+        user &&
+        (hasCap(user, 'crm_ai_insights', 'view') || hasCap(user, 'crm_business_dashboard', 'view')) ? (
+          <p style={{ margin: '0 0 1rem' }}>
+            <Link href="/crm/ai/cpl-digest" className="nav-link">
+              CPL anomaly digest (WIN-4-C) →
+            </Link>
+          </p>
+        ) : null}
 
         {hubTab === 'campaigns' && accessToken ? (
           <>

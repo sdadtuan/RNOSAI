@@ -24,6 +24,8 @@ export const AI_USE_CASE = {
   TICKET_SENTIMENT: 'ticket_sentiment',
   PORTAL_REPORT_SUMMARY: 'portal_report_summary',
   CHANNEL_ANOMALY_DIGEST: 'channel_anomaly_digest',
+  CPL_WEEKLY_DIGEST: 'cpl_weekly_digest',
+  BUDGET_RECOMMEND: 'budget_recommend',
   ROUTE_REP: 'route_rep',
   REVIEW_QUEUE_TRIAGE: 'review_queue_triage',
   UPSELL_SUGGEST: 'upsell_suggest',

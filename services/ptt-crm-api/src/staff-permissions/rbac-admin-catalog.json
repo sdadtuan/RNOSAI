@@ -230,6 +230,9 @@
       "release",
       "view"
     ],
+    "crm_ai_insights": [
+      "view"
+    ],
     "automation_workflows": [
       "approve",
       "claim",
@@ -845,6 +848,13 @@
       "group": "CRM — Admin",
       "page": "/admin/ai/runs",
       "description": "Bảng ai_agent_runs — filter date/status/use case (RNOS-05)."
+    },
+    {
+      "id": "crm_ai_insights",
+      "label": "AI — CPL digest & insights",
+      "group": "CRM — AI",
+      "page": "/crm/ai/cpl-digest",
+      "description": "Weekly CPL anomaly narrative digest (WIN-4-C)."
     },
     {
       "id": "automation_workflows",
@@ -1479,6 +1489,7 @@
   ],
   "permission_ids": [
     "ai_admin",
+    "crm_ai_insights",
     "automation_workflows",
     "crm_agency",
     "crm_assistant",

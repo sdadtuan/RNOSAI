@@ -98,6 +98,9 @@ import { StaffAiCoachViewGuard } from './guards/staff-ai-coach-view.guard';
 import { StaffAiNlQueryGuard } from './guards/staff-ai-nl-query.guard';
 import { StaffAiOrchestratorGuard } from './guards/staff-ai-orchestrator.guard';
 import { StaffAiOrchestratorViewGuard } from './guards/staff-ai-orchestrator-view.guard';
+import { StaffAiInsightsViewGuard } from './guards/staff-ai-insights-view.guard';
+import { CplAnomalyService } from './cpl-anomaly.service';
+import { BudgetRecommendService } from './budget-recommend.service';
 import {
   OrchestratorDetailResponse,
   OrchestratorListResponse,
@@ -185,6 +188,8 @@ export class AiIntelligenceController {
     private readonly nlQuery: AiNlQueryService,
     private readonly ticketSentiment: AiTicketSentimentService,
     private readonly anomalyDigest: AnomalyDigestService,
+    private readonly cplAnomaly: CplAnomalyService,
+    private readonly budgetRecommend: BudgetRecommendService,
     private readonly leadRoute: AiLeadRouteService,
     private readonly orchestrator: OrchestratorService,
     private readonly orchestratorCron: OrchestratorCronService,
@@ -1221,6 +1226,51 @@ export class AiIntelligenceController {
       days: days ? Number(days) : undefined,
       actorId,
       correlationId: rid,
+    });
+  }
+
+  /** WIN-4-C — weekly CPL anomaly narrative digest page API. */
+  @Get('cpl-digest')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiInsightsViewGuard)
+  getCplDigest(
+    @Query('client_id') clientId?: string,
+    @Query('channel') channel?: string,
+    @Query('days') days?: string,
+    @Req()
+    req?: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    const rid = correlationId?.trim() || requestId?.trim() || undefined;
+    const actorId =
+      req?.staffAuthVia === 'internal'
+        ? 'system'
+        : req?.staffUser?.sub ?? req?.staffUser?.email ?? null;
+    return this.cplAnomaly.getWeeklyDigest({
+      client_id: clientId,
+      channel,
+      days: days ? Number(days) : undefined,
+      actorId,
+      correlationId: rid,
+    });
+  }
+
+  /** WIN-4-C — read-only Meta budget recommendations (no auto mutate). */
+  @Get('budget-recommendations')
+  @UseGuards(StaffOrInternalKeyGuard, StaffAiInsightsViewGuard)
+  getBudgetRecommendations(
+    @Query('client_id') clientId?: string,
+    @Query('channel') channel?: string,
+    @Query('days') days?: string,
+    @Req()
+    req?: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    return this.budgetRecommend.listRecommendations({
+      staffUser: req?.staffUser,
+      staffAuthVia: req?.staffAuthVia,
+      client_id: clientId,
+      channel,
+      days,
     });
   }
 

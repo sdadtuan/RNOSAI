@@ -93,7 +93,8 @@ export type OrchestratorStepKey =
   | 'route_rep'
   | 'renewal_scan'
   | 'upsell_suggest'
-  | 'channel_anomaly';
+  | 'channel_anomaly'
+  | 'budget_recommend';
 
 export interface OrchestrationPlanStep {
   key: OrchestratorStepKey;

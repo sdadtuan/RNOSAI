@@ -16,6 +16,7 @@ import {
   StaffPresalesSolutionQueueGuard,
   StaffPresalesSolutionReleaseGuard,
 } from './guards/staff-presales-solution.guard';
+import { PolicyModule } from '../policy/policy.module';
 import { IntakeModule } from '../intake/intake.module';
 import { ReviewQueueLlmService } from './review-queue-llm.service';
 
@@ -27,6 +28,7 @@ import { ReviewQueueLlmService } from './review-queue-llm.service';
     forwardRef(() => CskhBoardModule),
     forwardRef(() => AiIntelligenceModule),
     forwardRef(() => IntakeModule),
+    PolicyModule,
   ],
   controllers: [LeadsFunnelController],
   providers: [

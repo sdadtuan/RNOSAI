@@ -3,6 +3,7 @@
 import { PresalesTaskFormCard } from '@/components/PresalesTaskFormCard';
 import { PresalesR5PlanForm } from '@/components/PresalesR5PlanForm';
 import { PresalesSolutionHandoffBanner } from '@/components/PresalesSolutionHandoffBanner';
+import { PresalesPolicyBanner } from '@/components/presales/PresalesPolicyBanner';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -384,6 +385,8 @@ export function LeadFunnelPanel({
       )}
 
       <PresalesSolutionHandoffBanner funnel={funnel} user={user} />
+      <PresalesPolicyBanner funnel={funnel} user={user} token={token} action="release" />
+      <PresalesPolicyBanner funnel={funnel} user={user} token={token} action="claim" />
 
       <div className="card-inner" id="funnel-b2">
         <h3 style={{ marginTop: 0 }}>B2 — {b2Stage?.label ?? 'Liên hệ lần đầu'}</h3>

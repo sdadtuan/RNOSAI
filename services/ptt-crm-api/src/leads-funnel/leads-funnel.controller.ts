@@ -238,6 +238,20 @@ export class LeadsFunnelController {
     }
   }
 
+  @Get(':id/presales/policy-preview')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  async presalesPolicyPreview(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('action') action: string,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    const act = String(action ?? 'release').trim().toLowerCase();
+    if (act !== 'release' && act !== 'claim') {
+      throw new HttpException({ error: 'invalid_action' }, HttpStatus.BAD_REQUEST);
+    }
+    return this.funnel.previewPresalesPolicy(id, act, req.staffUser);
+  }
+
   @Post(':id/presales/claim-solution')
   @HttpCode(HttpStatus.OK)
   @UseGuards(

@@ -2062,3 +2062,53 @@ export async function fetchAnomalyDigest(
   }
   return body;
 }
+
+export interface CplDigestClientRow {
+  client_id: string | null;
+  channel: string;
+  narrative: string;
+  anomalies: Array<{
+    alert_type: string;
+    channel: string;
+    campaign_id: string | null;
+    message: string;
+    severity: string;
+    metric_value: number | null;
+  }>;
+  severity: string;
+}
+
+export interface CplDigestResponse {
+  ok: boolean;
+  period: { days: number; from: string; to: string };
+  narrative: string;
+  clients: CplDigestClientRow[];
+  summary: {
+    cpl_spike_count: number;
+    meta_open_alerts: number;
+    zalo_open_alerts: number;
+  };
+  read_only: true;
+  generated_at: string;
+  request_id: string;
+}
+
+export async function fetchCplDigest(
+  token: string,
+  params?: { client_id?: string; channel?: string; days?: number },
+): Promise<CplDigestResponse> {
+  const qs = new URLSearchParams();
+  if (params?.client_id) qs.set('client_id', params.client_id);
+  if (params?.channel) qs.set('channel', params.channel);
+  if (params?.days) qs.set('days', String(params.days));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/cpl-digest${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<CplDigestResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'CPL digest failed', res.status);
+  }
+  return body;
+}

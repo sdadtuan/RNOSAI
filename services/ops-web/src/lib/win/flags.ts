@@ -37,3 +37,11 @@ export function winSsoEnabled(): boolean {
 export function winFieldAbacEnabled(): boolean {
   return process.env.NEXT_PUBLIC_WIN_FIELD_ABAC === '1';
 }
+
+export function winPolicyOpaEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_WIN_POLICY_OPA === '1';
+}
+
+export function winCplDigestEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_WIN_CPL_DIGEST === '1';
+}
