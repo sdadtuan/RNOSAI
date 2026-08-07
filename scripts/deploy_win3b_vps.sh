@@ -32,7 +32,7 @@ run_local() {
   fi
 
   echo "== DDL R2-D break-glass =="
-  "$ROOT/scripts/apply_pg_ddl_break_glass_r2_d.sh"
+  bash "$ROOT/scripts/apply_pg_ddl_break_glass_r2_d.sh"
 
   echo "== Nest ptt-crm-api =="
   cd "$ROOT/services/ptt-crm-api"
@@ -61,7 +61,7 @@ run_local() {
 if [[ "${1:-}" == "--local" ]]; then
   run_local
 elif [[ "$APPLY" == "1" ]]; then
-  ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_ROOT} && git pull --ff-only origin main && sudo bash scripts/deploy_win3b_vps.sh --local"
+  ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_ROOT} && git pull --ff-only origin main && bash scripts/deploy_win3b_vps.sh --local"
 else
   echo "Dry-run. Set APPLY=1 to deploy to ${VPS_USER}@${VPS_HOST}:${VPS_ROOT}"
   echo "Or on VPS: sudo bash scripts/deploy_win3b_vps.sh --local"
