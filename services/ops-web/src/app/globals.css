@@ -556,6 +556,66 @@ body:has(.ops-sidebar) main {
   gap: 0.5rem;
 }
 
+.win-org-chart__roots,
+.win-org-chart__children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.win-org-chart__node {
+  margin: 0.35rem 0;
+}
+
+.win-org-chart__card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.win-org-chart__name {
+  font-weight: 600;
+}
+
+.win-org-chart__badge {
+  font-size: 0.75rem;
+}
+
+.win-org-chart__meta {
+  font-size: 0.85rem;
+  flex: 1 1 100%;
+}
+
+.win-org-chart__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.staff-roster-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.staff-edit-drawer__meta {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+  font-size: 0.9rem;
+}
+
 .admin-hubspot-layout {
   display: grid;
   grid-template-columns: 11rem minmax(0, 1fr);

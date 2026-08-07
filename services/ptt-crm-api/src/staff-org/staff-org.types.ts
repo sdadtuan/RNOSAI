@@ -145,3 +145,14 @@ export type StaffOrgAuditInput = {
   action: string;
   diff_json?: Record<string, unknown>;
 };
+
+/** Flat node for org chart tree (reports_to_id from crm_staff). */
+export type StaffOrgChartNode = {
+  id: number;
+  name: string;
+  reports_to_id: number | null;
+  department: string;
+  job_title: string;
+  position_code: string | null;
+  active: boolean;
+};

@@ -8,6 +8,7 @@ const LINKS = [
   { href: '/admin/crm/org/teams', label: 'Team' },
   { href: '/admin/crm/org/positions', label: 'Chức vụ' },
   { href: '/admin/crm/org/users', label: 'Nhân viên' },
+  { href: '/admin/crm/org/chart', label: 'Sơ đồ' },
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {

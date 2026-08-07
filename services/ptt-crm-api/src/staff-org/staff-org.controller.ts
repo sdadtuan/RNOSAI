@@ -93,6 +93,13 @@ export class StaffOrgController {
     return this.org.listPositions().then((positions) => ({ positions }));
   }
 
+  @Get('chart')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgDepartmentsViewGuard)
+  listOrgChart(@Query('include_inactive') includeInactive?: string) {
+    const include = includeInactive === '1' || includeInactive === 'true';
+    return this.org.listOrgChart(include).then((nodes) => ({ nodes }));
+  }
+
   @Patch('positions/:id')
   @UseGuards(StaffOrInternalKeyGuard, StaffOrgConfigureGuard)
   patchPosition(

@@ -7,6 +7,7 @@ import { CrmHrPageShell } from '@/components/crm/CrmHrPageShell';
 import { StaffCompetencyForm } from '@/components/crm/StaffCompetencyForm';
 import { StaffLevelsForm } from '@/components/crm/StaffLevelsForm';
 import { WinExcelImportWizard } from '@/components/win';
+import { WinRbacBadge } from '@/components/win/WinRbacBadge';
 import {
   fetchCrmStaffList,
   fetchStaffCompetency,
@@ -266,40 +267,39 @@ export default function CrmStaffPage() {
             <p className="muted">
               Tổng {summary.staff_total ?? rows.length} · Active {summary.staff_active ?? '—'}
             </p>
-            <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+            <ul style={{ margin: 0, paddingLeft: 0, listStyle: 'none' }}>
               {rosterItems.map(({ staff: s, orgUser }) => (
-                <li key={s.id} style={{ marginBottom: '0.35rem' }}>
+                <li key={s.id} className="staff-roster-item">
                   <Link href={`/crm/staff/${s.id}`} className="nav-link">
                     {s.name}
-                  </Link>{' '}
+                  </Link>
+                  {orgUser ? (
+                    <WinRbacBadge
+                      positionCode={orgUser.position_code}
+                      jobFunctions={orgUser.job_functions}
+                    />
+                  ) : null}
                   <span className="muted">
-                    {s.internal_code} · {s.job_title || s.department || '—'}
+                    {s.internal_code}
                     {!s.active ? ' · inactive' : ''}
-                    {orgUser?.position_code ? ` · ${orgUser.position_code}` : ''}
-                    {orgUser?.job_functions?.length
-                      ? ` · ${orgUser.job_functions.join(', ')}`
-                      : ''}
-                  </span>{' '}
+                  </span>
                   {orgUser ? (
                     <Link href="/admin/crm/org/users" className="nav-link" style={{ fontSize: '0.85rem' }}>
                       org user
                     </Link>
                   ) : null}
                   {canEdit ? (
-                    <>
-                      {' · '}
-                      <button
-                        type="button"
-                        className="btn btn-link"
-                        style={{ fontSize: '0.85rem', padding: 0 }}
-                        onClick={() => {
-                          setEditStaff(s);
-                          setEditOpen(true);
-                        }}
-                      >
-                        Sửa
-                      </button>
-                    </>
+                    <button
+                      type="button"
+                      className="btn btn-link"
+                      style={{ fontSize: '0.85rem', padding: 0 }}
+                      onClick={() => {
+                        setEditStaff(s);
+                        setEditOpen(true);
+                      }}
+                    >
+                      Sửa
+                    </button>
                   ) : null}
                 </li>
               ))}
@@ -403,6 +403,11 @@ export default function CrmStaffPage() {
         <StaffEditDrawer
           open={editOpen}
           staff={editStaff}
+          orgUser={
+            editStaff?.email
+              ? orgUsersByEmail.get(editStaff.email.trim().toLowerCase())
+              : undefined
+          }
           token={accessToken}
           canEdit={canEdit}
           onClose={() => setEditOpen(false)}

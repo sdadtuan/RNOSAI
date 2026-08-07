@@ -7916,3 +7916,22 @@ export async function patchStaffOrgPosition(
     body: JSON.stringify(body),
   });
 }
+
+export type StaffOrgChartNode = {
+  id: number;
+  name: string;
+  reports_to_id: number | null;
+  department: string;
+  job_title: string;
+  position_code: string | null;
+  active: boolean;
+};
+
+export async function fetchStaffOrgChart(
+  token: string,
+  opts?: { includeInactive?: boolean },
+): Promise<StaffOrgChartNode[]> {
+  const qs = opts?.includeInactive ? '?include_inactive=1' : '';
+  const data = await crmFetch<{ nodes: StaffOrgChartNode[] }>(token, `/api/v1/staff/org/chart${qs}`);
+  return data.nodes ?? [];
+}

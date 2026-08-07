@@ -111,6 +111,10 @@ export class StaffOrgService implements OnModuleDestroy {
     return this.repository.listPositions();
   }
 
+  listOrgChart(includeInactive?: boolean) {
+    return this.repository.listOrgChart(Boolean(includeInactive));
+  }
+
   patchPosition(id: number, body: PatchStaffOrgPositionBody, actorEmail: string) {
     return this.repository.patchPosition(id, body, actorEmail);
   }

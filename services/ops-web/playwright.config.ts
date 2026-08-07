@@ -38,6 +38,8 @@ export default defineConfig({
           NEXT_PUBLIC_PTT_META_ROAS_ENABLED: process.env.NEXT_PUBLIC_PTT_META_ROAS_ENABLED ?? '0',
           NEXT_PUBLIC_PTT_AI_COPILOT_ENABLED: process.env.NEXT_PUBLIC_PTT_AI_COPILOT_ENABLED ?? '1',
           NEXT_PUBLIC_PWA_ENABLED: process.env.NEXT_PUBLIC_PWA_ENABLED ?? '1',
+          NEXT_PUBLIC_WIN_ORG_UI: process.env.NEXT_PUBLIC_WIN_ORG_UI ?? '1',
+          NEXT_PUBLIC_WIN_KPI_SOLUTION: process.env.NEXT_PUBLIC_WIN_KPI_SOLUTION ?? '1',
         },
       },
 });

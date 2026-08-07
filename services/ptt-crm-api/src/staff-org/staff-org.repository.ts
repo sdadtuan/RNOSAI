@@ -8,6 +8,7 @@ import type {
   PatchStaffTeamBody,
   StaffDepartmentRow,
   StaffOrgAuditInput,
+  StaffOrgChartNode,
   StaffOrgPositionRow,
   StaffTeamRow,
 } from './staff-org.types';
@@ -360,5 +361,32 @@ export class StaffOrgRepository {
       diff_json: body as Record<string, unknown>,
     });
     return row;
+  }
+
+  async listOrgChart(includeInactive = false): Promise<StaffOrgChartNode[]> {
+    const result = await this.db.query(
+      `SELECT s.id,
+              s.name,
+              s.reports_to_id,
+              COALESCE(s.department, '') AS department,
+              COALESCE(s.job_title, '') AS job_title,
+              COALESCE(s.active, true) AS active,
+              p.code AS position_code
+       FROM crm_staff s
+       LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
+       LEFT JOIN crm_positions p ON p.id = su.position_id
+       WHERE ($1::boolean OR COALESCE(s.active, true) = true)
+       ORDER BY s.name ASC`,
+      [includeInactive],
+    );
+    return result.rows.map((row) => ({
+      id: Number(row.id),
+      name: String(row.name ?? ''),
+      reports_to_id: row.reports_to_id != null ? Number(row.reports_to_id) : null,
+      department: String(row.department ?? ''),
+      job_title: String(row.job_title ?? ''),
+      position_code: row.position_code ? String(row.position_code) : null,
+      active: Boolean(row.active),
+    }));
   }
 }

@@ -208,7 +208,6 @@ ops_web_prune_releases() {
   mapfile -t old < <(ls -1dt "$root/releases/ops-web-"* 2>/dev/null | tail -n +"$((keep + 1))" || true)
   for dir in "${old[@]:-}"; do
     [[ -d "$dir" ]] || continue
-    rm -rf "$dir"
-    echo "pruned $dir"
+    rm -rf "$dir" 2>/dev/null || echo "WARN  prune skipped (permission): $dir"
   done
 }

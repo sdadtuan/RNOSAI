@@ -512,9 +512,9 @@ WIN-2-C
 [ ] Gate: VUX-06 + VUX-07
 
 WIN-2-D
-[ ] W2-FE-28 WinOrgChart
-[ ] W2-UAT-01…03 HR timed + Playwright
-[ ] EC-W2-01…06 + PO sign PDF
+[ ] W2-FE-28 WinOrgChart — **code done** `/admin/crm/org/chart`
+[ ] W2-UAT-01…03 HR timed + Playwright — **specs added** `e2e/win-2-*.spec.ts`
+[ ] EC-W2-01…06 + PO sign PDF — see [`win-2-acceptance-checklist.md`](./win-2-acceptance-checklist.md)
 ```
 
 ---

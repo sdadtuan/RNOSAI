@@ -1,3 +1,4 @@
+export { WinOrgChart } from './WinOrgChart';
 export { WinDrawer } from './WinDrawer';
 export { WinDiffChip } from './WinDiffChip';
 export { WinEmptyState } from './WinEmptyState';
