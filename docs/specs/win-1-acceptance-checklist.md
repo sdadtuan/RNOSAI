@@ -16,7 +16,7 @@
 | Excel import/export wizards | ☐ Pass ☐ Fail | Leads + roster |
 | RBAC matrix chức vụ + function | ☐ Pass ☐ Fail | Admin permissions |
 | User job function assign (R1.5-S3) | ☐ Pass ☐ Fail | `/permissions/users` |
-| Persona menu isolation | ☐ Pass ☐ Fail | VUX-04 |
+| Persona menu isolation | ☐ Pass ☐ Fail | VUX-04 — **PASS** hướng B (`eac00e0`): MKT-02 trim + content/design job functions; evidence [`win-1-manual-uat-vux-20260807.md`](../exports/win-1-manual-uat-vux-20260807.md) |
 | SoD client + API | ☐ Pass ☐ Fail | VUX-05 |
 
 ---
