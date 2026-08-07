@@ -49,8 +49,11 @@ run_local() {
 
   if [[ "${WIN1_SEED_UAT_PERSONAS:-0}" == "1" ]]; then
     echo "== WIN-1 UAT personas =="
-    "$PYTHON" "$ROOT/scripts/seed_super_admin_full_access.py" --apply
-    "$PYTHON" "$ROOT/scripts/seed_win1_uat_personas.py" --apply
+    if [[ -x "$ROOT/scripts/seed_win1_uat_personas.sh" ]]; then
+      "$ROOT/scripts/seed_win1_uat_personas.sh" --apply
+    else
+      "$PYTHON" "$ROOT/scripts/seed_win1_uat_personas.py" --apply || true
+    fi
   fi
 
   echo "== Nest ptt-crm-api =="
