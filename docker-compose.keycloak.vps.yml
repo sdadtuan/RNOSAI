@@ -12,6 +12,7 @@ services:
       KC_HOSTNAME: rs.pttads.vn
       KC_HOSTNAME_PATH: /auth
       KC_HTTP_RELATIVE_PATH: /auth
+      KC_HOSTNAME_STRICT_HTTPS: "true"
     ports:
       - "127.0.0.1:8080:8080"
     volumes:

@@ -79,7 +79,30 @@ function publicKeyFromJwk(jwk: JwkKey): ReturnType<typeof createPublicKey> | nul
   return null;
 }
 
-function audMatches(aud: string | string[] | undefined, expected: string): boolean {
+function issMatches(tokenIss: string | undefined, expected: string): boolean {
+  if (!tokenIss) {
+    return false;
+  }
+  if (tokenIss === expected) {
+    return true;
+  }
+  try {
+    const a = new URL(tokenIss);
+    const b = new URL(expected);
+    return a.host === b.host && a.pathname.replace(/\/$/, '') === b.pathname.replace(/\/$/, '');
+  } catch {
+    return false;
+  }
+}
+
+function audMatches(
+  aud: string | string[] | undefined,
+  azp: string | undefined,
+  expected: string,
+): boolean {
+  if (azp === expected) {
+    return true;
+  }
   if (!aud) {
     return false;
   }
@@ -98,13 +121,14 @@ export async function verifyStaffKeycloakAccessToken(
     return null;
   }
   const { header, payload, sig } = parsed;
-  if (payload.iss && payload.iss !== config.issuer) {
+  const azp = String((payload as unknown as { azp?: string }).azp ?? '');
+  if (payload.iss && !issMatches(payload.iss, config.issuer)) {
     return null;
   }
   if (payload.exp && payload.exp * 1000 < Date.now()) {
     return null;
   }
-  if (!audMatches(payload.aud, config.audience)) {
+  if (!audMatches(payload.aud, azp, config.audience)) {
     return null;
   }
 
