@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
+import { WinEmptyState } from '@/components/win';
 import { CskhManagerIntelPanel } from '@/components/crm/CskhManagerIntelPanel';
 import { CskhClosedLoopPanel } from '@/components/crm/CskhClosedLoopPanel';
 import { CskhBreachBacklogPanel } from '@/components/crm/CskhBreachBacklogPanel';
@@ -119,9 +120,10 @@ function CskhLeadCard({
   const badge = slaBadge(tier?.sla_state ?? row.sla_state);
   const breachClass = tier?.sla_state === 'breach' ? ' cskh-board-card--breach' : '';
   const warningClass = tier?.sla_state === 'warning' ? ' cskh-board-card--warning' : '';
+  const phoneDigits = row.phone?.replace(/\D/g, '') ?? '';
 
   return (
-    <li className={`cskh-board-card${breachClass}${warningClass}`} data-testid="cskh-board-card">
+    <li className={`cskh-board-card win-cskh-mobile-card${breachClass}${warningClass}`} data-testid="cskh-board-card">
       {canAssign ? (
         <label className="cskh-board-card__select">
           <input
@@ -132,7 +134,7 @@ function CskhLeadCard({
           />
         </label>
       ) : null}
-      <Link href={`/crm/leads/${row.id}`} className="cskh-board-card__link">
+      <div className="cskh-board-card__body">
         <div className="cskh-board-card__head">
           <strong>{row.full_name || `#${row.id}`}</strong>
           <span className={badge.className}>{badge.label}</span>
@@ -145,18 +147,13 @@ function CskhLeadCard({
         </div>
         <div className="cskh-board-card__meta muted">
           <span>Nhận: {row.received_at?.slice(0, 16) ?? '—'}</span>
-          <span>Gọi: {row.first_call_at?.slice(0, 16) ?? '—'}</span>
-        </div>
-        <div className="cskh-board-card__meta muted">
-          <span>B2: {row.b2_completed_at?.slice(0, 16) ?? '—'}</span>
-          <span>Chốt: {row.closed_at?.slice(0, 16) ?? '—'}</span>
-        </div>
-        <div className="cskh-board-card__sla-tiers">
           {predict ? (
             <span className={`sla-predict-badge sla-predict-badge--${predict.risk}`}>
               {predictRiskLabel(predict)}
             </span>
           ) : null}
+        </div>
+        <div className="cskh-board-card__sla-tiers">
           {row.sla_tiers.map((item) => (
             <span
               key={item.tier}
@@ -171,7 +168,24 @@ function CskhLeadCard({
         {row.next_follow_up_at ? (
           <div className="cskh-board-card__follow muted">Follow-up: {row.next_follow_up_at.slice(0, 16)}</div>
         ) : null}
-      </Link>
+      </div>
+      <div className="win-leads-mobile-card__actions">
+        {phoneDigits ? (
+          <a className="win-leads-mobile-card__action" href={`tel:${phoneDigits}`}>
+            Gọi
+          </a>
+        ) : (
+          <span className="win-leads-mobile-card__action" aria-disabled="true" style={{ opacity: 0.45 }}>
+            Gọi
+          </span>
+        )}
+        <Link
+          href={`/crm/leads/${row.id}`}
+          className="win-leads-mobile-card__action win-leads-mobile-card__action--primary"
+        >
+          Chi tiết →
+        </Link>
+      </div>
     </li>
   );
 }
@@ -395,13 +409,14 @@ export function CskhBoardContent() {
     }
   }
 
-  async function exportCsv() {
+  async function exportBoard() {
     if (!token) return;
     const url = cskhBoardExportUrl({
       owner_id: ownerId ? Number(ownerId) : undefined,
       sla_filter: slaFilter,
       sla_tier: slaTier,
       q: query || undefined,
+      format: 'xlsx',
     });
     try {
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
@@ -410,11 +425,11 @@ export function CskhBoardContent() {
       const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = objectUrl;
-      a.download = `cskh-board-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `cskh-board-${new Date().toISOString().slice(0, 10)}.xlsx`;
       a.click();
       URL.revokeObjectURL(objectUrl);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Export CSV thất bại');
+      setError(err instanceof Error ? err.message : 'Export Excel thất bại');
     }
   }
 
@@ -501,8 +516,8 @@ export function CskhBoardContent() {
             <Link href="/crm/leads/review-queue" className="btn btn-sm btn-ghost">
               Review queue
             </Link>
-            <button type="button" className="btn btn-sm btn-secondary" onClick={() => exportCsv()}>
-              Export CSV
+            <button type="button" className="btn btn-sm btn-secondary" onClick={() => void exportBoard()}>
+              Export Excel
             </button>
           </>
         }
@@ -742,23 +757,31 @@ export function CskhBoardContent() {
           {!loading && rows.length === 0 ? <p className="muted">Không có lead phù hợp bộ lọc.</p> : null}
         </div>
 
-        <ul className="cskh-board-cards" aria-label="Bảng CSKH (mobile)" data-testid="cskh-board-cards">
-          {rows.map((row) => (
-            <CskhLeadCard
-              key={row.id}
-              row={row}
-              canAssign={canAssign}
-              selected={selected.has(row.id)}
-              onToggle={() => toggleOne(row.id)}
-              activeTier={slaTier}
-              predict={predictByLead.get(row.id)}
-            />
-          ))}
-          {!loading && rows.length === 0 ? (
-            <li className="cskh-board-card cskh-board-card--empty muted">Không có lead phù hợp bộ lọc.</li>
-          ) : null}
-          {loading ? <li className="cskh-board-card cskh-board-card--empty muted">Đang tải…</li> : null}
-        </ul>
+        {!loading && rows.length === 0 ? (
+          <WinEmptyState
+            icon="📊"
+            title="Không có lead phù hợp"
+            subtitle="Thử đổi tier SLA, bộ lọc breach/warning hoặc tìm kiếm khác."
+          />
+        ) : (
+          <ul className="cskh-board-cards" aria-label="Bảng CSKH (mobile)" data-testid="cskh-board-cards">
+            {loading ? (
+              <li className="cskh-board-card cskh-board-card--empty muted">Đang tải…</li>
+            ) : (
+              rows.map((row) => (
+                <CskhLeadCard
+                  key={row.id}
+                  row={row}
+                  canAssign={canAssign}
+                  selected={selected.has(row.id)}
+                  onToggle={() => toggleOne(row.id)}
+                  activeTier={slaTier}
+                  predict={predictByLead.get(row.id)}
+                />
+              ))
+            )}
+          </ul>
+        )}
 
         <div className="row gap-sm cskh-board-pagination" style={{ marginTop: '1rem' }}>
           <button

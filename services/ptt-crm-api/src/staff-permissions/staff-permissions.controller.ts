@@ -7,7 +7,7 @@ import {
   StaffPermissionsViewGuard,
 } from './guards/staff-permissions.guard';
 import { StaffPermissionsService } from './staff-permissions.service';
-import type { PatchStaffPositionGrantsBody } from './staff-permissions.types';
+import type { PatchStaffJobFunctionGrantsBody, PatchStaffPositionGrantsBody } from './staff-permissions.types';
 
 @Controller('api/v1/staff/permissions')
 export class StaffPermissionsController {
@@ -54,5 +54,34 @@ export class StaffPermissionsController {
     const pid = positionId != null && positionId !== '' ? Number(positionId) : undefined;
     const lim = limit != null && limit !== '' ? Number(limit) : undefined;
     return this.permissions.listAudit(pid, lim);
+  }
+
+  @Get('job-functions')
+  @UseGuards(StaffOrInternalKeyGuard, StaffPermissionsViewGuard)
+  listJobFunctions() {
+    return this.permissions.listJobFunctions();
+  }
+
+  @Get('job-functions/:code')
+  @UseGuards(StaffOrInternalKeyGuard, StaffPermissionsViewGuard)
+  getJobFunction(@Param('code') code: string) {
+    return this.permissions.getJobFunction(code);
+  }
+
+  @Get('job-functions/:code/export')
+  @UseGuards(StaffOrInternalKeyGuard, StaffPermissionsViewGuard)
+  exportJobFunction(@Param('code') code: string) {
+    return this.permissions.exportJobFunction(code);
+  }
+
+  @Patch('job-functions/:code')
+  @UseGuards(StaffOrInternalKeyGuard, StaffPermissionsConfigureGuard)
+  patchJobFunction(
+    @Param('code') code: string,
+    @Body() body: PatchStaffJobFunctionGrantsBody,
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    const actorEmail = staffUser?.email ?? '';
+    return this.permissions.patchJobFunction(code, body, actorEmail);
   }
 }

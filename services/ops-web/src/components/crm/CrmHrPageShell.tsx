@@ -45,8 +45,8 @@ export function CrmHrPageShell({
       onLogout={onLogout}
       breadcrumb={
         breadcrumb ?? [
-          { label: 'CRM', href: '/crm/leads' },
-          { label: 'Nhân sự', href: '/crm/staff' },
+          { label: 'CRM', href: '/crm' },
+          { label: 'Nhân sự', href: '/crm/hr' },
           { label: title },
         ]
       }

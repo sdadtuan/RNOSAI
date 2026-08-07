@@ -1,9 +1,9 @@
 /**
- * RNOS-41 — PWA service worker (app shell + lead list fallback).
+ * RNOS-41 / WIN-1 — PWA service worker (app shell + lead list fallback).
  * Do not cache /_next/static — hashed assets use immutable cache; SW cache caused ChunkLoadError after deploy.
  */
-const CACHE = 'ptt-ops-pwa-v2';
-const SHELL_URLS = ['/crm/leads', '/login'];
+const CACHE = 'ptt-ops-pwa-v3';
+const SHELL_URLS = ['/', '/crm/leads', '/login'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

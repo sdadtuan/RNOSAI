@@ -1,6 +1,7 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Inject, forwardRef } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService, StaffStubUser } from '../config/app-config.service';
+import { StaffJobFunctionsRepository } from '../staff-permissions/staff-job-functions.repository';
 import { verifyPortalPassword } from '../portal/portal-password.util';
 import {
   StaffLoginResult,
@@ -123,7 +124,11 @@ const DEFAULT_STUB_CAPS: StaffSectionCap[] = [
 export class StaffAuthService {
   private pool: Pool | null = null;
 
-  constructor(private readonly config: AppConfigService) {}
+  constructor(
+    private readonly config: AppConfigService,
+    @Inject(forwardRef(() => StaffJobFunctionsRepository))
+    private readonly jobFunctions: StaffJobFunctionsRepository,
+  ) {}
 
   private get db(): Pool {
     if (!this.pool) {
@@ -184,12 +189,18 @@ export class StaffAuthService {
   }
 
   async me(accessPayload: StaffJwtPayload): Promise<StaffMeResponse> {
-    const caps = await this.loadCaps(accessPayload.position_id);
+    const baseCaps = await this.loadCaps(accessPayload.position_id);
+    const jobFunctions = await this.jobFunctions.loadUserFunctionCodes(accessPayload.sub);
+    const functionCaps = await this.jobFunctions.loadCapsForFunctions(jobFunctions);
+    const caps = this.mergeCaps(baseCaps, functionCaps);
+    const position_code = await this.loadPositionCode(accessPayload.position_id);
     return {
       id: accessPayload.sub,
       email: accessPayload.email,
       display_name: accessPayload.display_name,
       position_id: accessPayload.position_id,
+      position_code: position_code ?? undefined,
+      job_functions: jobFunctions.length ? jobFunctions : undefined,
       caps,
     };
   }
@@ -333,6 +344,31 @@ export class StaffAuthService {
         position_id: row.position_id,
         positionId: row.position_id,
       };
+    } catch {
+      return null;
+    }
+  }
+
+  private mergeCaps(base: StaffSectionCap[], extra: Array<{ section_id: string; action: string }>): StaffSectionCap[] {
+    const map = new Map<string, StaffSectionCap>();
+    for (const cap of base) {
+      map.set(`${cap.section}:${cap.action}`, cap);
+    }
+    for (const cap of extra) {
+      map.set(`${cap.section_id}:${cap.action}`, { section: cap.section_id, action: cap.action });
+    }
+    return [...map.values()].sort((a, b) =>
+      `${a.section}:${a.action}`.localeCompare(`${b.section}:${b.action}`, 'vi'),
+    );
+  }
+
+  private async loadPositionCode(positionId: number): Promise<string | null> {
+    try {
+      const result = await this.db.query<{ code: string }>(
+        `SELECT code FROM crm_positions WHERE id = $1 LIMIT 1`,
+        [positionId],
+      );
+      return result.rows[0]?.code ? String(result.rows[0].code) : null;
     } catch {
       return null;
     }

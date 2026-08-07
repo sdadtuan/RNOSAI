@@ -2,19 +2,19 @@ import {
   Body,
   Controller,
   Get,
-  Header,
   HttpCode,
   HttpStatus,
   MessageEvent,
   Post,
   Query,
   Req,
+  Res,
   Sse,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
@@ -156,8 +156,8 @@ export class CskhBoardController {
   }
 
   @Get('export')
-  @Header('Content-Type', 'text/csv; charset=utf-8')
   async export(
+    @Res({ passthrough: false }) res: Response,
     @Query('owner_id') ownerId?: string,
     @Query('status') status?: string,
     @Query('source') source?: string,
@@ -165,8 +165,9 @@ export class CskhBoardController {
     @Query('q') q?: string,
     @Query('sla_filter') slaFilter?: string,
     @Query('sla_tier') slaTier?: string,
+    @Query('format') format?: string,
   ) {
-    const filter =
+    const filter: 'all' | 'breach' | 'warning' | 'open' =
       slaFilter === 'breach' || slaFilter === 'warning' || slaFilter === 'open' ? slaFilter : 'all';
     const tier: CskhSlaTier | 'all' | undefined =
       slaTier === 'first_call_15m' || slaTier === 'b2_complete_4h' || slaTier === 'close_24h'
@@ -174,7 +175,7 @@ export class CskhBoardController {
         : slaTier === 'all'
           ? 'all'
           : undefined;
-    const csv = await this.board.exportCsv({
+    const query = {
       owner_id: ownerId ? Number(ownerId) : undefined,
       status,
       source,
@@ -182,8 +183,20 @@ export class CskhBoardController {
       q,
       sla_filter: filter,
       sla_tier: tier,
-    });
-    return csv;
+    };
+    if (format === 'xlsx') {
+      const { buffer, filename } = await this.board.exportXlsx(query);
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+      return;
+    }
+    const csv = await this.board.exportCsv(query);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.send(csv);
   }
 
   @Post('bulk-assign')

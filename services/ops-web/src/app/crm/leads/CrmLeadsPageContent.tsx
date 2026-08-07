@@ -1,11 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CrmLeadsImportExport } from '@/components/crm/CrmLeadsImportExport';
+import { LeadsColumnPicker } from '@/components/crm/LeadsColumnPicker';
 import { CrmLeadsList } from '@/components/crm/CrmLeadsList';
 import { PullToRefresh } from '@/components/mobile/PullToRefresh';
+import { WinFilterChips } from '@/components/win';
 import {
   BulkActionBar,
   FilterBar,
@@ -51,6 +53,15 @@ import {
   leadsNewHref,
   type CrmLeadsFlowScope,
 } from '@/lib/crm/lead-flow-routes';
+import {
+  buildLeadsFilterChips,
+  buildLeadsListSearchParams,
+  clearAllLeadsFilters,
+  clearLeadsFilterField,
+  ownerParamToListTab,
+  parseLeadsListUrl,
+} from '@/lib/crm/leads-list-url';
+import { readLeadsVisibleColumns, type LeadsColumnId } from '@/lib/crm/leads-columns';
 
 const PAGE_SIZE = 50;
 
@@ -83,6 +94,10 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const [loading, setLoading] = useState(false);
   const [slaSummary, setSlaSummary] = useState<PresalesConsultSlaSummary | null>(null);
   const [funnelMetrics, setFunnelMetrics] = useState<PresalesFunnelMetricsResponse | null>(null);
+  const [visibleColumns, setVisibleColumns] = useState<Set<LeadsColumnId>>(() =>
+    readLeadsVisibleColumns(false),
+  );
+  const urlReadyRef = useRef(false);
 
   const listHref = leadsListHref(flowScope);
   const pageTitle = leadsListTitle(flowScope);
@@ -171,9 +186,43 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const tab = new URLSearchParams(window.location.search).get('tab');
-    if (tab === 'review') setLeadKind('review');
-  }, []);
+    const parsed = parseLeadsListUrl(new URLSearchParams(window.location.search), flowScope);
+    setListTab(ownerParamToListTab(parsed.owner));
+    setLeadKind(parsed.kind);
+    setFilterStatus(parsed.status);
+    setFilterSource(parsed.source);
+    setFilterChannel(parsed.channel);
+    setQ(parsed.q);
+    setQuery(parsed.q);
+    urlReadyRef.current = true;
+  }, [flowScope]);
+
+  useEffect(() => {
+    if (!urlReadyRef.current) return;
+    const params = buildLeadsListSearchParams(
+      {
+        owner: listTab,
+        kind: leadKind,
+        status: filterStatus,
+        source: filterSource,
+        channel: filterChannel,
+        q: query,
+      },
+      flowScope,
+    );
+    const qs = params.toString();
+    router.replace(qs ? `${listHref}?${qs}` : listHref, { scroll: false });
+  }, [
+    listTab,
+    leadKind,
+    filterStatus,
+    filterSource,
+    filterChannel,
+    query,
+    listHref,
+    flowScope,
+    router,
+  ]);
 
   useEffect(() => {
     void (async () => {
@@ -282,11 +331,72 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
 
   const selectedList = useMemo(() => [...selectedIds], [selectedIds]);
   const leadIds = useMemo(() => rows.map((row) => row.id), [rows]);
+  const ownerNameById = useMemo(() => {
+    const map: Record<number, string> = {};
+    for (const staff of staffOptions) {
+      map[staff.id] = staff.name;
+    }
+    return map;
+  }, [staffOptions]);
   const showScores = useMemo(
     () => aiCopilotEnabled() && canUseAiCopilot(user?.id, user?.caps),
     [user?.id, user?.caps],
   );
   const { scores: scoreMap, pending: scoresPending } = useLeadScoresMap(token, leadIds, showScores);
+
+  useEffect(() => {
+    setVisibleColumns(readLeadsVisibleColumns(showScores));
+  }, [showScores]);
+
+  const filterChips = useMemo(
+    () =>
+      buildLeadsFilterChips(
+        {
+          owner: listTab,
+          kind: leadKind,
+          status: filterStatus,
+          source: filterSource,
+          channel: filterChannel,
+          q: query,
+        },
+        flowScope,
+        {
+          sourceLabel: (key) => sourceOptions.find((o) => o.option_key === key)?.label ?? key,
+          channelLabel: (key) => channelOptions.find((o) => o.option_key === key)?.label ?? key,
+        },
+      ),
+    [
+      listTab,
+      leadKind,
+      filterStatus,
+      filterSource,
+      filterChannel,
+      query,
+      flowScope,
+      sourceOptions,
+      channelOptions,
+    ],
+  );
+
+  const showLeadKindTags = flowScope !== 'b2b_prospect';
+
+  const emptyActions = (
+    <>
+      {canImport ? (
+        <label htmlFor="crm-leads-import-file" className="btn btn-sm">
+          Import Excel
+        </label>
+      ) : null}
+      {canCreate ? (
+        <Link href={leadsNewHref(flowScope)} className="btn btn-sm btn-secondary">
+          + Tạo lead
+        </Link>
+      ) : null}
+      <Link href="/crm/intake" className="btn btn-sm btn-ghost">
+        Lead Intake
+      </Link>
+    </>
+  );
 
   const pageMeta = useMemo(() => {
     const parts = [
@@ -326,6 +436,12 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         subtitle={pageMeta}
         actions={
           <>
+            <LeadsColumnPicker
+              visible={visibleColumns}
+              showScores={showScores}
+              showLeadKindTags={showLeadKindTags}
+              onChange={setVisibleColumns}
+            />
             {token ? (
               <CrmLeadsImportExport
                 token={token}
@@ -388,6 +504,54 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             className="segmented-control--kind"
           />
         ) : null}
+
+        <WinFilterChips
+          chips={filterChips}
+          onRemove={(chipId) => {
+            const next = clearLeadsFilterField(
+              {
+                owner: listTab,
+                kind: leadKind,
+                status: filterStatus,
+                source: filterSource,
+                channel: filterChannel,
+                q: query,
+              },
+              chipId,
+            );
+            setListTab(next.owner);
+            setLeadKind(next.kind);
+            setFilterStatus(next.status);
+            setFilterSource(next.source);
+            setFilterChannel(next.channel);
+            setQ(next.q);
+            setQuery(next.q);
+            setOffset(0);
+            setSelectedIds(new Set());
+          }}
+          onClearAll={() => {
+            const next = clearAllLeadsFilters(
+              {
+                owner: listTab,
+                kind: leadKind,
+                status: filterStatus,
+                source: filterSource,
+                channel: filterChannel,
+                q: query,
+              },
+              flowScope,
+            );
+            setListTab(next.owner);
+            setLeadKind(next.kind);
+            setFilterStatus(next.status);
+            setFilterSource(next.source);
+            setFilterChannel(next.channel);
+            setQ(next.q);
+            setQuery(next.q);
+            setOffset(0);
+            setSelectedIds(new Set());
+          }}
+        />
 
         <FilterBar onSubmit={onSearch}>
           <FilterBarSearch value={q} onChange={setQ} placeholder="Tìm tên, SĐT, email…" />
@@ -493,9 +657,13 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             selectedIds={selectedIds}
             onToggleSelect={toggleSelect}
             onToggleAll={toggleAll}
+            ownerNameById={ownerNameById}
+            visibleColumns={visibleColumns}
             showScores={showScores}
             scoreMap={scoreMap}
             scoresPending={scoresPending}
+            showLeadKindTags={showLeadKindTags}
+            emptyActions={emptyActions}
           />
         </PullToRefresh>
 

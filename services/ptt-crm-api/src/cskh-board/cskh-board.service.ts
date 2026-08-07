@@ -13,6 +13,7 @@ import {
   tierSlaMatchesFilter,
   type CskhSlaTier,
 } from './cskh-board-sla.util';
+import { buildCskhBoardXlsx } from './cskh-board-export.util';
 import { CskhBoardRepository } from './cskh-board.repository';
 import {
   CskhBoardQuery,
@@ -218,6 +219,11 @@ export class CskhBoardService {
       );
     }
     return lines.join('\n');
+  }
+
+  async exportXlsx(query: CskhBoardQuery): Promise<{ buffer: Buffer; filename: string }> {
+    const board = await this.getBoard({ ...query, limit: 500, offset: 0 });
+    return buildCskhBoardXlsx(board.items);
   }
 
   async getManagerIntelligence(teamAcceptancePct?: number | null): Promise<CskhManagerIntelligenceResponse> {

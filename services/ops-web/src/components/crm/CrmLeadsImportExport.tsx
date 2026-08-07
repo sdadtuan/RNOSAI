@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { WinExcelImportWizard } from '@/components/win';
 import type { LeadImportResult } from '@/lib/api';
 import {
   downloadLeadsImportTemplate,
@@ -26,6 +27,7 @@ export function CrmLeadsImportExport({
   onError,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [busy, setBusy] = useState<'template' | 'export-all' | 'export-selected' | 'import' | null>(
     null,
   );
@@ -98,14 +100,23 @@ export function CrmLeadsImportExport({
           <>
             <button
               type="button"
+              className="btn btn-sm"
+              disabled={busy != null}
+              onClick={() => setWizardOpen(true)}
+            >
+              Import wizard
+            </button>
+            <button
+              type="button"
               className="btn btn-sm btn-secondary"
               disabled={busy != null}
               onClick={() => void onPickImport()}
             >
-              {busy === 'import' ? 'Đang import…' : 'Import Excel'}
+              {busy === 'import' ? 'Đang import…' : 'Import nhanh'}
             </button>
             <input
               ref={fileRef}
+              id="crm-leads-import-file"
               type="file"
               accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               hidden
@@ -154,6 +165,17 @@ export function CrmLeadsImportExport({
             </ul>
           ) : null}
         </div>
+      ) : null}
+
+      {canImport ? (
+        <WinExcelImportWizard
+          open={wizardOpen}
+          mode="leads"
+          token={token}
+          onClose={() => setWizardOpen(false)}
+          onComplete={onImported}
+          onError={onError}
+        />
       ) : null}
     </div>
   );

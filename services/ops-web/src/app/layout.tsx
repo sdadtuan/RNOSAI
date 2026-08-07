@@ -5,7 +5,7 @@ import { Providers } from './providers';
 export const metadata: Metadata = {
   title: 'PTT Ops',
   description: 'Internal operations console for PTT agency staff',
-  applicationName: 'PTT CRM Ops',
+  applicationName: 'PTT Revenue OS',
   appleWebApp: {
     capable: true,
     title: 'PTT CRM',

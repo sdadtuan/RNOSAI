@@ -1,6 +1,7 @@
 'use client';
 
 import { GlobalSearchBar } from '@/components/search/GlobalSearchBar';
+import { WinRbacBadge } from '@/components/win';
 import { iconForHref, NavIcon, sectionIcon, sectionShortLabel } from '@/components/layout/nav-icons';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -99,6 +100,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/ai/query': 'NL Analytics',
   '/crm/automation': 'Workflow automation',
   '/crm/playbooks': 'Playbook library',
+  '/crm/hr': 'HR Hub',
   '/crm/staff-kpi': 'KPI AM/SP',
   '/crm/staff': 'Nhân viên',
   '/crm/proposals': 'Đề xuất dịch vụ',
@@ -325,6 +327,16 @@ function buildSections(
   if (delivery.length) sections.push({ label: 'CRM · Triển khai dịch vụ', links: delivery, defaultOpen: true });
 
   const hr: NavLink[] = [];
+  const canHrHub =
+    hasCap(user, 'crm_staff_roster', 'view') ||
+    hasCap(user, 'crm_payroll_salary', 'view') ||
+    hasCap(user, 'crm_payroll_attendance', 'view') ||
+    hasCap(user, 'crm_kpi_records', 'view') ||
+    hasCap(user, 'crm_staff_kpi_am_sp', 'view') ||
+    hasCap(user, 'crm_data_config', 'view');
+  if (canHrHub) {
+    hr.push({ href: '/crm/hr', label: 'HR Hub' });
+  }
   if (hasCap(user, 'crm_staff_roster', 'view')) {
     hr.push({ href: '/crm/staff', label: 'Nhân viên' });
   }
@@ -345,7 +357,7 @@ function buildSections(
   ) {
     hr.push({ href: '/crm/payroll', label: 'Chấm công & lương' });
   }
-  if (hr.length) sections.push({ label: 'CRM · Nhân sự & KPI', links: hr, defaultOpen: true });
+  if (hr.length) sections.push({ label: 'Nhân sự & Hiệu suất', links: hr, defaultOpen: true });
 
   const finance: NavLink[] = [];
   if (hasCap(user, 'crm_business_dashboard', 'view')) {
@@ -678,6 +690,8 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
           <div className="ops-topbar-user">
             <div className="ops-topbar-user-meta">
               <strong>{user?.display_name ?? user?.email ?? 'Staff'}</strong>
+              <WinRbacBadge user={user} />
+              <WinRbacBadge user={user} className="win-badge-rbac--mobile" />
               <span>{pageTitleFor(pathname)}</span>
             </div>
             <span className="ops-topbar-avatar" aria-hidden="true">

@@ -237,6 +237,19 @@ export async function downloadLeadsImportTemplate(token: string): Promise<void> 
   await downloadBinary(token, '/api/v1/leads/import/template.xlsx', 'lead-import-template.xlsx');
 }
 
+export function downloadStaffRosterTemplateCsv(): void {
+  const headers = ['name', 'internal_code', 'email', 'phone', 'job_title', 'department', 'active'];
+  const sample = ['Nguyễn Văn A', 'NV001', 'a@pttads.vn', '0901234567', 'Content', 'Solution', '1'];
+  const csv = `${headers.join(',')}\n${sample.join(',')}\n`;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'staff-roster-import-template.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function exportLeadsXlsx(
   token: string,
   params?: { q?: string; status?: string; source?: string; channel?: string; ids?: number[] },
@@ -609,6 +622,7 @@ export function cskhBoardExportUrl(params?: {
   sla_filter?: string;
   sla_tier?: string;
   q?: string;
+  format?: 'csv' | 'xlsx';
 }): string {
   const qs = new URLSearchParams();
   if (params?.owner_id != null) qs.set('owner_id', String(params.owner_id));
@@ -616,6 +630,7 @@ export function cskhBoardExportUrl(params?: {
   if (params?.sla_filter) qs.set('sla_filter', params.sla_filter);
   if (params?.sla_tier) qs.set('sla_tier', params.sla_tier);
   if (params?.q) qs.set('q', params.q);
+  if (params?.format === 'xlsx') qs.set('format', 'xlsx');
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return `${API_BASE}/api/crm/cskh-board/export${suffix}`;
 }
@@ -7484,4 +7499,62 @@ export async function exportStaffPermissionPosition(
   matrix: StaffPermissionMatrixRow[];
 }> {
   return crmFetch(token, `/api/v1/staff/permissions/positions/${positionId}/export`);
+}
+
+export interface StaffJobFunctionSummary {
+  code: string;
+  label: string;
+  description: string;
+  department_scope: string;
+  sort_order: number;
+  grants_customized: boolean;
+}
+
+export interface StaffJobFunctionDetail extends StaffJobFunctionSummary {
+  grants: Record<string, string[]>;
+  matrix: StaffPermissionMatrixRow[];
+}
+
+export async function fetchStaffJobFunctions(token: string): Promise<StaffJobFunctionSummary[]> {
+  return crmFetch(token, '/api/v1/staff/permissions/job-functions');
+}
+
+export async function fetchStaffJobFunction(
+  token: string,
+  code: string,
+): Promise<StaffJobFunctionDetail> {
+  return crmFetch(token, `/api/v1/staff/permissions/job-functions/${encodeURIComponent(code)}`);
+}
+
+export async function patchStaffJobFunction(
+  token: string,
+  code: string,
+  body: { grants: Record<string, string[]> },
+): Promise<{
+  ok: boolean;
+  function_code: string;
+  added: number;
+  removed: number;
+  diff: Record<string, unknown>;
+  function: StaffJobFunctionDetail;
+}> {
+  return crmFetch(token, `/api/v1/staff/permissions/job-functions/${encodeURIComponent(code)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function exportStaffJobFunction(
+  token: string,
+  code: string,
+): Promise<{
+  format: string;
+  function_code: string;
+  function_label: string;
+  markdown: string;
+  grants: Record<string, string[]>;
+  matrix: StaffPermissionMatrixRow[];
+}> {
+  return crmFetch(token, `/api/v1/staff/permissions/job-functions/${encodeURIComponent(code)}/export`);
 }

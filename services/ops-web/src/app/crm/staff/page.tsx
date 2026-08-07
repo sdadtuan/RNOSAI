@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { CrmHrPageShell } from '@/components/crm/CrmHrPageShell';
+import { WinExcelImportWizard } from '@/components/win';
 import {
   fetchCrmStaffList,
   fetchStaffCompetency,
@@ -28,15 +29,22 @@ import {
 
 type StaffTab = 'roster' | 'import' | 'levels' | 'competency';
 
+function parseStaffTab(raw: string | null): StaffTab {
+  if (raw === 'import' || raw === 'levels' || raw === 'competency' || raw === 'roster') return raw;
+  return 'roster';
+}
+
 export default function CrmStaffPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
-  const [tab, setTab] = useState<StaffTab>('roster');
+  const [tab, setTab] = useState<StaffTab>(() => parseStaffTab(searchParams.get('tab')));
   const [rows, setRows] = useState<CrmStaffRow[]>([]);
   const [summary, setSummary] = useState<Record<string, number>>({});
   const [levelsJson, setLevelsJson] = useState('[]');
   const [competencyJson, setCompetencyJson] = useState('{}');
   const [importJson, setImportJson] = useState('[]');
+  const [rosterWizardOpen, setRosterWizardOpen] = useState(false);
   const [q, setQ] = useState('');
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
@@ -98,6 +106,10 @@ export default function CrmStaffPage() {
       setLoading(false);
     }
   }, [query]);
+
+  useEffect(() => {
+    setTab(parseStaffTab(searchParams.get('tab')));
+  }, [searchParams]);
 
   useEffect(() => {
     void (async () => {
@@ -245,28 +257,60 @@ export default function CrmStaffPage() {
         ) : null}
 
         {tab === 'import' && canEdit ? (
-          <form onSubmit={(e) => void onImport(e)}>
-            <p className="muted">JSON array of staff rows (name, internal_code, …)</p>
-            <textarea
-              value={importJson}
-              onChange={(e) => setImportJson(e.target.value)}
-              rows={8}
-              disabled={saving}
-              style={{
-                width: '100%',
-                background: 'var(--bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                padding: '0.75rem',
-                color: 'var(--text)',
-                fontFamily: 'monospace',
-                fontSize: '0.85rem',
-              }}
-            />
-            <button type="submit" className="btn btn-secondary btn-sm" disabled={saving} style={{ marginTop: '0.5rem' }}>
-              Import
-            </button>
-          </form>
+          <div className="stack-gap">
+            <div>
+              <p className="muted" style={{ marginTop: 0 }}>
+                Import roster từ CSV/Excel theo template tiếng Việt.
+              </p>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={saving}
+                onClick={() => setRosterWizardOpen(true)}
+              >
+                Import wizard (CSV/Excel)
+              </button>
+            </div>
+            <details>
+              <summary className="muted">Import JSON nâng cao</summary>
+              <form onSubmit={(e) => void onImport(e)} style={{ marginTop: '0.75rem' }}>
+                <p className="muted">JSON array of staff rows (name, internal_code, …)</p>
+                <textarea
+                  value={importJson}
+                  onChange={(e) => setImportJson(e.target.value)}
+                  rows={8}
+                  disabled={saving}
+                  style={{
+                    width: '100%',
+                    background: 'var(--bg)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    padding: '0.75rem',
+                    color: 'var(--text)',
+                    fontFamily: 'monospace',
+                    fontSize: '0.85rem',
+                  }}
+                />
+                <button type="submit" className="btn btn-secondary btn-sm" disabled={saving} style={{ marginTop: '0.5rem' }}>
+                  Import JSON
+                </button>
+              </form>
+            </details>
+            {getAccessToken() ? (
+              <WinExcelImportWizard
+                open={rosterWizardOpen}
+                mode="staff"
+                token={getAccessToken()!}
+                onClose={() => setRosterWizardOpen(false)}
+                onComplete={() => {
+                  const access = getAccessToken();
+                  if (access) void loadTab(access, 'roster');
+                  setTab('roster');
+                }}
+                onError={(message) => setError(message)}
+              />
+            ) : null}
+          </div>
         ) : null}
 
         {tab === 'levels' ? (

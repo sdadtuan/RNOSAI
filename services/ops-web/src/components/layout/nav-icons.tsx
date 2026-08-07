@@ -475,6 +475,7 @@ export const LINK_ICONS: Record<string, string> = {
   '/crm/launch-qa': 'rocket',
   '/crm/creatives': 'creative',
   '/crm/campaign-writes': 'megaphone',
+  '/crm/hr': 'staff',
   '/crm/staff': 'staff',
   '/crm/kpi': 'kpi',
   '/crm/staff-kpi': 'metric',

@@ -4,6 +4,7 @@
 > **Phiên bản:** 1.2 · **Ngày:** 2026-08-06 (cập nhật: **cấm SQLite** phân quyền)  
 > **Trạng thái:** Draft — chờ PO / IT / GDKD sign-off  
 > **Parent:** [`PHAN_QUYEN_HUONG_DAN.md`](../PHAN_QUYEN_HUONG_DAN.md) · [`05-PHAN-QUYEN-BAO-MAT-SLA.md`](../handover/05-PHAN-QUYEN-BAO-MAT-SLA.md) · [`2026-08-06-presales-solution-handoff-design.md`](./2026-08-06-presales-solution-handoff-design.md)  
+> **Master win spec:** [`2026-08-07-rnosai-competitive-win-master-spec.md`](./2026-08-07-rnosai-competitive-win-master-spec.md)  
 > **Ma trận ký duyệt:** [`docs/exports/ma-tran-phan-quyen-CSKH-KD-MKT-2026-08-06.xlsx`](../exports/ma-tran-phan-quyen-CSKH-KD-MKT-2026-08-06.xlsx)
 
 ---
@@ -370,6 +371,31 @@ CREATE TABLE IF NOT EXISTS staff_permission_audit (…);
 - [ ] AM KD-01 list `/crm/b2b/leads` chỉ lead mình (staging data)
 - [ ] GDKD thấy all
 - [ ] Không regression Solution queue
+
+---
+
+### Phase R1.5 — HR · Org · Job Function (≈12–15 dev-days, tuần 7–9)
+
+**Mục tiêu:** Tách **chức vụ** (position base caps) khỏi **vai trò nghiệp vụ** (leader, design, content, sales…); HR onboard không cần SQL.
+
+> **Spec chi tiết:** [`2026-08-07-rbac-hr-org-job-function-design.md`](./2026-08-07-rbac-hr-org-job-function-design.md)  
+> **Kế hoạch:** [`2026-08-07-rbac-hr-org-job-function-implementation-plan.md`](./2026-08-07-rbac-hr-org-job-function-implementation-plan.md)  
+> **Runbook HR:** [`../runbooks/rbac-hr-org-workflow.md`](../runbooks/rbac-hr-org-workflow.md)
+
+| # | Task | Chi tiết |
+|---|------|----------|
+| R1.5-S0 | PO sign-off Position × Function matrix | Supplement Excel/PDF |
+| R1.5-S1 | DDL `staff_job_functions` + seed catalog | 8 functions |
+| R1.5-S2 | Nest `loadEffectiveCaps()` | union position + functions |
+| R1.5-S3 | Admin UI assign functions per user | `/admin/crm/org/users` |
+| R1.5-S4 | Deploy + UAT persona | content ≠ design caps |
+
+**Exit criteria:**
+
+- [ ] NV cùng `MKT-02` khác function → menu khác nhau sau re-login
+- [ ] Effective caps = union(position, functions) — automated test pass
+- [ ] SoD-01..04 block ở Admin UI
+- [ ] Onboard NV ≤ 15 ph (Admin UI, không SQL)
 
 ---
 

@@ -129,6 +129,20 @@ GET  /api/v1/staff/permissions/audit?position_id=
 
 ---
 
+## Tuần 9–12 — R1.5 HR · Org · Job Function (+ R2-HR start)
+
+> **Spec:** [`2026-08-07-rbac-hr-org-job-function-design.md`](./2026-08-07-rbac-hr-org-job-function-design.md)  
+> **Plan chi tiết:** [`2026-08-07-rbac-hr-org-job-function-implementation-plan.md`](./2026-08-07-rbac-hr-org-job-function-implementation-plan.md)
+
+| Tuần | Focus | Gate |
+|------|-------|------|
+| 9 | R1.5-S0 sign-off function matrix + DDL seed | Supplement PDF |
+| 10 | Nest `loadEffectiveCaps` + API assign | Tests green |
+| 11 | Admin UI user + function assign | T-HR-03 staging |
+| 12 | R2-HR org CRUD start + prod R1.5 | Onboard ≤ 15 ph |
+
+---
+
 ## Phân công gợi ý
 
 | Vai trò | Trách nhiệm |
@@ -151,6 +165,9 @@ GET  /api/v1/staff/permissions/audit?position_id=
 | R1-S3 Admin + audit | 10 | 2 tuần |
 | R1-S4 Row-level | 6 | 2 tuần |
 | **Tổng R1** | **~32** | **~8 tuần** |
+| R1.5 HR · Job Function | 15 | 3 tuần |
+| R2-HR Org UI | 15 | 3 tuần |
+| **Tổng HR-ORG program** | **~50** | **~10 tuần** (sau R1) |
 
 Backlog R2–R4: xem spec § Phase R2–R4 và **§1.4 Competitive positioning** (không block P3 handoff vận hành).
 

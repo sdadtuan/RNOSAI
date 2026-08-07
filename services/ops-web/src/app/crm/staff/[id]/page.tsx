@@ -104,7 +104,7 @@ export default function CrmStaffDetailPage() {
       hideToolbar
       breadcrumb={[
         { label: 'CRM', href: '/crm/leads' },
-        { label: 'Nhân sự', href: '/crm/staff' },
+        { label: 'Nhân sự', href: '/crm/hr' },
         { label: String(staff.name ?? `#${staffId}`) },
       ]}
     >

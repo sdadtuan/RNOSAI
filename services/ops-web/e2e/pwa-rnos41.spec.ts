@@ -18,12 +18,12 @@ test.describe('RNOS-41 PWA', () => {
     const manifest = await request.get('/manifest.webmanifest');
     expect(manifest.ok()).toBeTruthy();
     const body = (await manifest.json()) as { name?: string; start_url?: string };
-    expect(body.name).toContain('PTT CRM');
+    expect(body.name).toMatch(/PTT (CRM|Revenue OS)/);
     expect(body.start_url).toBe('/crm/leads');
 
     const sw = await request.get('/sw.js');
     expect(sw.ok()).toBeTruthy();
-    expect(await sw.text()).toContain('ptt-ops-pwa-v2');
+    expect(await sw.text()).toContain('ptt-ops-pwa-v3');
 
     const icon = await request.get('/icons/icon.svg');
     expect(icon.ok()).toBeTruthy();
@@ -41,7 +41,7 @@ test.describe('RNOS-41 PWA', () => {
     await page.goto('/crm/leads');
 
     await expect(page.getByText(/leads · trang/i)).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator('.crm-leads-cards')).toBeVisible();
+    await expect(page.locator('.win-leads-mobile-list')).toBeVisible();
     await expect(page.locator('.crm-leads-table-wrap')).toBeHidden();
   });
 });

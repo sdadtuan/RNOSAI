@@ -1,24 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { WinOfflineBanner } from '@/components/win';
+import { winPwaEnabled } from '@/lib/win/flags';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-function pwaEnabled(): boolean {
-  if (process.env.NEXT_PUBLIC_PWA_ENABLED === '0') return false;
-  if (typeof window === 'undefined') return false;
-  return true;
-}
-
 export function PwaShell() {
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const enabled = winPwaEnabled();
 
   useEffect(() => {
-    if (!pwaEnabled()) return;
+    if (!enabled) return;
 
     const dismissedKey = 'ptt-pwa-install-dismissed';
     if (sessionStorage.getItem(dismissedKey) === '1') {
@@ -33,13 +30,13 @@ export function PwaShell() {
     window.addEventListener('beforeinstallprompt', onBeforeInstall);
 
     if ('serviceWorker' in navigator) {
-      void navigator.serviceWorker.register('/sw.js?v=2', { scope: '/' }).catch(() => {
+      void navigator.serviceWorker.register('/sw.js?v=3', { scope: '/' }).catch(() => {
         /* dev or unsupported — non-fatal */
       });
     }
 
     return () => window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-  }, []);
+  }, [enabled]);
 
   async function onInstallClick() {
     if (!installEvent) return;
@@ -58,23 +55,24 @@ export function PwaShell() {
     setInstallEvent(null);
   }
 
-  if (!pwaEnabled() || dismissed || !installEvent) {
-    return null;
-  }
-
   return (
-    <div className="pwa-install-banner" role="region" aria-label="Cài PWA">
-      <p>
-        <strong>Cài PTT CRM</strong> — mở lead nhanh trên điện thoại (RNOS-41).
-      </p>
-      <div className="pwa-install-banner__actions">
-        <button type="button" className="btn btn-sm" onClick={() => void onInstallClick()}>
-          Thêm vào màn hình chính
-        </button>
-        <button type="button" className="btn btn-sm btn-secondary" onClick={onDismissBanner}>
-          Để sau
-        </button>
-      </div>
-    </div>
+    <>
+      {enabled ? <WinOfflineBanner /> : null}
+      {enabled && !dismissed && installEvent ? (
+        <div className="pwa-install-banner" role="region" aria-label="Cài PWA">
+          <p>
+            <strong>Cài PTT CRM</strong> — mở lead nhanh trên điện thoại (PWA).
+          </p>
+          <div className="pwa-install-banner__actions">
+            <button type="button" className="btn btn-sm" onClick={() => void onInstallClick()}>
+              Thêm vào màn hình chính
+            </button>
+            <button type="button" className="btn btn-sm btn-secondary" onClick={onDismissBanner}>
+              Để sau
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

@@ -71,6 +71,24 @@ export type PatchStaffPositionGrantsBody = {
   grants: Record<string, string[]>;
 };
 
+export type StaffJobFunctionSummary = {
+  code: string;
+  label: string;
+  description: string;
+  department_scope: string;
+  sort_order: number;
+  grants_customized: boolean;
+};
+
+export type StaffJobFunctionDetail = StaffJobFunctionSummary & {
+  grants: Record<string, string[]>;
+  matrix: StaffPermissionMatrixRow[];
+};
+
+export type PatchStaffJobFunctionGrantsBody = {
+  grants: Record<string, string[]>;
+};
+
 export type StaffPermissionCap = {
   section_id: string;
   action: string;

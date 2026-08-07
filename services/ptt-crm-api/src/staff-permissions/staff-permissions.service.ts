@@ -4,11 +4,20 @@ import {
   loadStaffPermissionCatalog,
 } from './staff-permissions.catalog';
 import { StaffPermissionsRepository } from './staff-permissions.repository';
-import type { PatchStaffPositionGrantsBody } from './staff-permissions.types';
+import type {
+  PatchStaffJobFunctionGrantsBody,
+  PatchStaffPositionGrantsBody,
+  StaffJobFunctionDetail,
+  StaffJobFunctionSummary,
+} from './staff-permissions.types';
+import { StaffJobFunctionsRepository } from './staff-job-functions.repository';
 
 @Injectable()
 export class StaffPermissionsService {
-  constructor(private readonly repo: StaffPermissionsRepository) {}
+  constructor(
+    private readonly repo: StaffPermissionsRepository,
+    private readonly jobFunctions: StaffJobFunctionsRepository,
+  ) {}
 
   getCatalog() {
     const catalog = loadStaffPermissionCatalog();
@@ -76,6 +85,64 @@ export class StaffPermissionsService {
       position_id: detail.id,
       position_code: detail.code,
       position_name: detail.name,
+      markdown: lines.join('\n'),
+      grants: detail.grants,
+      matrix: detail.matrix,
+    };
+  }
+
+  listJobFunctions(): StaffJobFunctionSummary[] {
+    return this.jobFunctions.listFunctions();
+  }
+
+  async getJobFunction(code: string): Promise<StaffJobFunctionDetail> {
+    const detail = await this.jobFunctions.getFunction(code);
+    if (!detail) throw new NotFoundException({ error: 'function_not_found', code });
+    return {
+      code: detail.code,
+      label: detail.label,
+      description: detail.description,
+      department_scope: detail.department_scope,
+      sort_order: detail.sort_order,
+      grants_customized: detail.grants_customized,
+      grants: detail.grants,
+      matrix: detail.matrix,
+    };
+  }
+
+  async patchJobFunction(code: string, body: PatchStaffJobFunctionGrantsBody, actorEmail: string) {
+    const result = await this.jobFunctions.replaceGrants(code, body.grants ?? {}, actorEmail);
+    const detail = await this.getJobFunction(code);
+    return {
+      ok: true,
+      function_code: code,
+      added: result.added,
+      removed: result.removed,
+      diff: result.diff,
+      function: detail,
+    };
+  }
+
+  async exportJobFunction(code: string) {
+    const detail = await this.getJobFunction(code);
+    const catalog = loadStaffPermissionCatalog();
+    const lines = [
+      `# Ma trận job function — ${detail.code} (${detail.label})`,
+      '',
+      '| Nhóm | Section | Action |',
+      '| --- | --- | --- |',
+    ];
+    for (const row of detail.matrix) {
+      for (const action of row.allowed) {
+        lines.push(
+          `| ${row.group} | ${row.section_label} (${row.section_id}) | ${catalogActionLabel(action, catalog)} (${action}) |`,
+        );
+      }
+    }
+    return {
+      format: 'markdown',
+      function_code: detail.code,
+      function_label: detail.label,
       markdown: lines.join('\n'),
       grants: detail.grants,
       matrix: detail.matrix,

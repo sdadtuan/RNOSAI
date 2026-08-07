@@ -8,6 +8,8 @@ export interface StaffUserProfile {
   email: string;
   display_name: string;
   position_id: number;
+  position_code?: string;
+  job_functions?: string[];
 }
 
 export interface StaffLoginResult {

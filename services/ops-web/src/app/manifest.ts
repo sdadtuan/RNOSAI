@@ -1,12 +1,12 @@
 import type { MetadataRoute } from 'next';
 
 /**
- * RNOS-41 — PWA manifest (Getfly parity P0-1: mobile lead care).
+ * RNOS-41 / WIN-1 — PWA manifest (mobile lead care).
  * Served at /manifest.webmanifest
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'PTT CRM Ops',
+    name: 'PTT Revenue OS',
     short_name: 'PTT CRM',
     description: 'CSKH lead care — PTT agency staff console',
     start_url: '/crm/leads',

@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AdminPageShell } from '@/components/admin';
+import { AdminPermissionsSubNav } from '@/components/rbac/AdminPermissionsSubNav';
+import { PermissionMatrixTable } from '@/components/rbac/PermissionMatrixTable';
+import { WinDiffChip, WinReloginToast } from '@/components/win';
 import {
   exportStaffPermissionPosition,
   fetchStaffPermissionAudit,
@@ -26,28 +29,8 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
-
-const ACTION_LABELS: Record<string, string> = {
-  view: 'Xem',
-  edit: 'Sửa',
-  create: 'Tạo',
-  delete: 'Xóa',
-  export: 'Xuất',
-  configure: 'Cấu hình',
-  approve: 'Duyệt',
-  claim: 'Nhận case',
-  release: 'Trả Sales',
-  write: 'Ghi',
-  settings: 'Cài đặt',
-  compliance: 'Tuân thủ',
-  deliverability: 'Deliverability',
-  reports: 'Báo cáo',
-  assign: 'Phân công',
-};
-
-function actionLabel(action: string): string {
-  return ACTION_LABELS[action] ?? action;
-}
+import { computeGrantDiff } from '@/lib/rbac/grant-diff';
+import { detectContentApproveSod } from '@/lib/rbac/sod-rules';
 
 function grantsFromDetail(detail: StaffPermissionPositionDetail): Record<string, string[]> {
   return Object.fromEntries(
@@ -62,12 +45,15 @@ export default function AdminCrmPermissionsPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [matrix, setMatrix] = useState<StaffPermissionMatrixRow[]>([]);
   const [grants, setGrants] = useState<Record<string, string[]>>({});
+  const [baselineGrants, setBaselineGrants] = useState<Record<string, string[]>>({});
   const [audit, setAudit] = useState<StaffPermissionAuditRow[]>([]);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
+  const [showReloginToast, setShowReloginToast] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const canConfigure = hasCap(user, 'crm_data_config', 'configure');
+  const diff = useMemo(() => computeGrantDiff(baselineGrants, grants), [baselineGrants, grants]);
+  const sodViolation = useMemo(() => detectContentApproveSod(grants), [grants]);
 
   const logout = useCallback(() => {
     clearSession();
@@ -110,8 +96,10 @@ export default function AdminCrmPermissionsPage() {
 
   const loadPosition = useCallback(async (access: string, positionId: number) => {
     const detail = await fetchStaffPermissionPosition(access, positionId);
+    const nextGrants = grantsFromDetail(detail);
     setMatrix(detail.matrix);
-    setGrants(grantsFromDetail(detail));
+    setGrants(nextGrants);
+    setBaselineGrants(nextGrants);
     const auditRows = await fetchStaffPermissionAudit(access, { position_id: positionId, limit: 20 });
     setAudit(auditRows);
   }, []);
@@ -168,7 +156,6 @@ export default function AdminCrmPermissionsPage() {
     setSelectedId(positionId);
     setBusy(true);
     setError('');
-    setMsg('');
     try {
       await loadPosition(access, positionId);
     } catch (err) {
@@ -181,21 +168,16 @@ export default function AdminCrmPermissionsPage() {
   async function handleSave() {
     const access = getAccessToken();
     if (!access || !canConfigure || selectedId == null) return;
+    if (sodViolation) {
+      setError(sodViolation.message);
+      return;
+    }
     setBusy(true);
     setError('');
-    setMsg('');
     try {
       await patchStaffPermissionPosition(access, selectedId, { grants });
-      const refresh = getRefreshToken();
-      if (refresh) {
-        const out = await staffRefresh(refresh);
-        updateAccessToken(out.access_token);
-        const me = await staffMe(out.access_token);
-        setUser(me);
-        updateStoredUser(me);
-      }
       await loadPosition(access, selectedId);
-      setMsg('Đã lưu ma trận phân quyền — refresh token để áp dụng caps mới');
+      setShowReloginToast(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lưu ma trận thất bại');
     } finally {
@@ -219,7 +201,6 @@ export default function AdminCrmPermissionsPage() {
       a.download = `rbac-${data.position_code ?? selectedId}.md`;
       a.click();
       URL.revokeObjectURL(url);
-      setMsg('Đã xuất ma trận (Markdown)');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Xuất ma trận thất bại');
     } finally {
@@ -251,18 +232,29 @@ export default function AdminCrmPermissionsPage() {
       subtitle="Quản lý caps theo chức vụ trên PostgreSQL — mọi thay đổi được ghi audit"
       actions={
         <div className="toolbar-actions">
+          <WinDiffChip added={diff.added} removed={diff.removed} />
           <button type="button" className="btn btn--secondary" disabled={busy || selectedId == null} onClick={() => void handleExport()}>
             Xuất MD
           </button>
-          <button type="button" className="btn btn--primary" disabled={busy || !canConfigure || selectedId == null} onClick={() => void handleSave()}>
+          <button
+            type="button"
+            className="btn btn--primary"
+            disabled={busy || !canConfigure || selectedId == null || !!sodViolation}
+            onClick={() => void handleSave()}
+          >
             Lưu ma trận
           </button>
         </div>
       }
     >
       <div className="page-card stack-gap">
+        <AdminPermissionsSubNav />
+        {showReloginToast ? <WinReloginToast /> : null}
         {error ? <p className="error">{error}</p> : null}
-        {msg ? <p className="muted">{msg}</p> : null}
+
+        <div className="win-info-callout">
+          Caps <strong>base</strong> theo chức vụ. Job function add-on cấu hình ở tab Job function.
+        </div>
 
         <div className="kpi-page__filters">
           <label className="muted">
@@ -292,56 +284,16 @@ export default function AdminCrmPermissionsPage() {
           <p className="muted">Chế độ chỉ xem — cần quyền crm_data_config.configure để lưu.</p>
         ) : null}
 
-        {groupedRows.map(([group, rows]) => (
-          <section key={group} className="stack-gap">
-            <h3 className="section-title">{group}</h3>
-            <div className="table-scroll">
-              <table className="data-table data-table--compact">
-                <thead>
-                  <tr>
-                    <th>Section / Nút UI</th>
-                    <th>Trang</th>
-                    {['view', 'edit', 'create', 'delete', 'export', 'configure', 'approve', 'claim', 'release', 'write', 'settings', 'compliance', 'deliverability', 'reports', 'assign'].map(
-                      (action) => (
-                        <th key={action}>{actionLabel(action)}</th>
-                      ),
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.section_id}>
-                      <td>
-                        <div>{row.row_kind === 'ui_button' ? '↳ ' : ''}{row.section_label}</div>
-                        <div className="muted" style={{ fontSize: '0.85em' }}>{row.section_id}</div>
-                      </td>
-                      <td className="muted">{row.page}</td>
-                      {['view', 'edit', 'create', 'delete', 'export', 'configure', 'approve', 'claim', 'release', 'write', 'settings', 'compliance', 'deliverability', 'reports', 'assign'].map(
-                        (action) => {
-                          if (!row.actions.includes(action)) {
-                            return <td key={action} className="muted">—</td>;
-                          }
-                          const checked = isAllowed(row.section_id, action);
-                          return (
-                            <td key={action}>
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                disabled={!canConfigure || busy}
-                                aria-label={`${row.section_id}.${action}`}
-                                onChange={(e) => toggleCap(row.section_id, action, e.target.checked)}
-                              />
-                            </td>
-                          );
-                        },
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        ))}
+        {sodViolation ? <p className="error">{sodViolation.message}</p> : null}
+
+        <PermissionMatrixTable
+          groupedRows={groupedRows}
+          grants={grants}
+          canConfigure={canConfigure}
+          busy={busy}
+          isAllowed={isAllowed}
+          onToggle={toggleCap}
+        />
 
         <section className="stack-gap">
           <h3 className="section-title">Audit log (20 gần nhất)</h3>
@@ -359,13 +311,13 @@ export default function AdminCrmPermissionsPage() {
                 </thead>
                 <tbody>
                   {audit.map((row) => {
-                    const diff = row.diff_json as { added?: unknown[]; removed?: unknown[] };
+                    const auditDiff = row.diff_json as { added?: unknown[]; removed?: unknown[] };
                     return (
                       <tr key={row.id}>
                         <td>{new Date(row.created_at).toLocaleString('vi-VN')}</td>
                         <td>{row.actor_email || '—'}</td>
                         <td className="muted">
-                          +{(diff.added ?? []).length} / -{(diff.removed ?? []).length}
+                          +{(auditDiff.added ?? []).length} / -{(auditDiff.removed ?? []).length}
                         </td>
                       </tr>
                     );

@@ -15,6 +15,9 @@ export interface StoredStaffUser {
   display_name: string;
   position_id: number;
   caps?: StaffSectionCap[];
+  /** R1.5 — optional until JWT carries job function metadata */
+  position_code?: string;
+  job_functions?: string[];
 }
 
 export function saveSession(
