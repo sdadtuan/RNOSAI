@@ -1,6 +1,12 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { StaffAuthService } from './staff-auth.service';
-import { StaffLoginResult, StaffMeResponse, StaffRosterResponse } from './staff-auth.types';
+import {
+  StaffLoginResult,
+  StaffMeResponse,
+  StaffOidcExchangeBody,
+  StaffRosterResponse,
+  StaffSsoConfigResponse,
+} from './staff-auth.types';
 import { StaffJwtGuard, StaffUser } from './staff-jwt.guard';
 import { StaffJwtPayload } from './staff-jwt.util';
 
@@ -16,6 +22,21 @@ class StaffRefreshBody {
 @Controller('api/v1/staff/auth')
 export class StaffAuthController {
   constructor(private readonly auth: StaffAuthService) {}
+
+  @Get('sso/config')
+  ssoConfig(): StaffSsoConfigResponse {
+    return this.auth.getSsoConfig();
+  }
+
+  @Post('oidc/exchange')
+  @HttpCode(HttpStatus.OK)
+  exchangeOidc(@Body() body: StaffOidcExchangeBody): Promise<StaffLoginResult> {
+    return this.auth.exchangeOidc({
+      code: body.code ?? '',
+      redirectUri: body.redirect_uri ?? '',
+      codeVerifier: body.code_verifier ?? '',
+    });
+  }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)

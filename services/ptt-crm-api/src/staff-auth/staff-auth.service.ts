@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService, StaffStubUser } from '../config/app-config.service';
 import { StaffJobFunctionsRepository } from '../staff-permissions/staff-job-functions.repository';
@@ -13,10 +13,21 @@ import {
   StaffRosterResponse,
   StaffRosterRow,
   StaffSectionCap,
+  StaffSsoConfigResponse,
   StaffUserProfile,
 } from './staff-auth.types';
 import { signStaffJwt, StaffJwtPayload, verifyStaffJwt } from './staff-jwt.util';
 import { parseNumericStaffSub } from './staff-user-id.util';
+import {
+  exchangeStaffAuthorizationCode,
+  normalizeKeycloakGroups,
+  positionRequiresMfa,
+  staffEmailFromClaims,
+  staffMfaSatisfied,
+  verifyStaffKeycloakAccessToken,
+} from './staff-keycloak.util';
+import { StaffAuthAuditRepository } from './staff-auth-audit.repository';
+import { StaffKeycloakGroupsRepository } from './staff-keycloak-groups.repository';
 
 const DEFAULT_STUB_CAPS: StaffSectionCap[] = [
   { section: 'dashboard', action: 'view' },
@@ -138,6 +149,8 @@ export class StaffAuthService {
     private readonly breakGlass: StaffBreakGlassRepository,
     @Inject(forwardRef(() => StaffUserClientsRepository))
     private readonly userClients: StaffUserClientsRepository,
+    private readonly authAudit: StaffAuthAuditRepository,
+    private readonly keycloakGroups: StaffKeycloakGroupsRepository,
   ) {}
 
   private get db(): Pool {
@@ -169,32 +182,134 @@ export class StaffAuthService {
   }
 
   async login(email: string, password: string): Promise<StaffLoginResult> {
+    if (!this.config.staffNestLoginAllowed()) {
+      throw new UnauthorizedException({ error: 'password_login_disabled' });
+    }
     const normalized = email.trim().toLowerCase();
     const user = await this.resolveUser(normalized, password);
     if (!user) {
       throw new UnauthorizedException({ error: 'Invalid credentials' });
     }
+    void this.authAudit.write('fallback_password', {
+      userId: user.id,
+      email: user.email,
+      detail: { mode: this.config.staffAuthMode },
+    });
     return this.issueTokens(user);
   }
 
-  refresh(refreshToken: string): Promise<StaffLoginResult> {
+  async exchangeOidc(params: {
+    code: string;
+    redirectUri: string;
+    codeVerifier: string;
+  }): Promise<StaffLoginResult> {
+    const issuer = this.config.staffKeycloakIssuer;
+    if (!issuer) {
+      throw new UnauthorizedException({ error: 'staff_sso_not_configured' });
+    }
+    if (this.config.staffAuthMode === 'nest') {
+      throw new UnauthorizedException({ error: 'staff_sso_disabled' });
+    }
+
+    let tokenResponse;
+    try {
+      tokenResponse = await exchangeStaffAuthorizationCode({
+        issuer,
+        clientId: this.config.staffKeycloakClientId,
+        code: params.code,
+        redirectUri: params.redirectUri,
+        codeVerifier: params.codeVerifier,
+      });
+    } catch (err) {
+      throw new UnauthorizedException({
+        error: 'oidc_exchange_failed',
+        message: err instanceof Error ? err.message : 'exchange failed',
+      });
+    }
+
+    const claims = await verifyStaffKeycloakAccessToken(tokenResponse.access_token, {
+      issuer,
+      audience: this.config.staffKeycloakAudience,
+    });
+    if (!claims) {
+      throw new UnauthorizedException({ error: 'invalid_keycloak_token' });
+    }
+
+    const email = staffEmailFromClaims(claims);
+    if (!email) {
+      throw new UnauthorizedException({ error: 'missing_email_claim' });
+    }
+
+    const groups = normalizeKeycloakGroups(claims.groups);
+    const linked = await this.linkOidcUser(claims.sub, email, groups);
+    if (!linked) {
+      throw new UnauthorizedException({ error: 'user_not_provisioned', email });
+    }
+
+    const positionCode = await this.loadPositionCode(linked.positionId);
+    if (
+      positionRequiresMfa(positionCode, this.config.staffMfaRequiredPositionCodes) &&
+      !staffMfaSatisfied(claims)
+    ) {
+      void this.authAudit.write('mfa_blocked', {
+        userId: linked.id,
+        email: linked.email,
+        detail: { position_code: positionCode, acr: claims.acr ?? null },
+      });
+      throw new ForbiddenException({
+        error: 'mfa_required',
+        message: 'OTP bắt buộc cho chức vụ này',
+        email: linked.email,
+      });
+    }
+
+    void this.authAudit.write(linked.linkedNew ? 'sso_link' : 'sso_login', {
+      userId: linked.id,
+      email: linked.email,
+      detail: { groups, oidc_sub: claims.sub },
+    });
+
+    return this.issueTokens(linked);
+  }
+
+  getSsoConfig(): StaffSsoConfigResponse {
+    return {
+      mode: this.config.staffAuthMode,
+      issuer: this.config.staffKeycloakIssuer,
+      client_id: this.config.staffKeycloakClientId,
+      nest_login_allowed: this.config.staffNestLoginAllowed(),
+      mfa_required_positions: this.config.staffMfaRequiredPositionCodes,
+    };
+  }
+
+  async assertConfigureSso(user: StaffJwtPayload): Promise<void> {
+    const caps = await this.loadCaps(user.position_id);
+    if (!this.hasCap(caps, 'crm_data_config', 'configure')) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_data_config', action: 'configure' });
+    }
+  }
+
+  async refresh(refreshToken: string): Promise<StaffLoginResult> {
     const payload = verifyStaffJwt(refreshToken, this.config.staffJwtSecret);
     if (!payload || payload.token_type !== 'refresh') {
       throw new UnauthorizedException({ error: 'Invalid or expired refresh token' });
     }
+    await this.assertTokenVersion(payload);
     return this.issueTokens({
       id: payload.sub,
       email: payload.email,
       displayName: payload.display_name,
       positionId: payload.position_id,
+      tokenVersion: payload.tv ?? 0,
     });
   }
 
-  verifyAccessToken(token: string): StaffJwtPayload {
+  async verifyAccessToken(token: string): Promise<StaffJwtPayload> {
     const payload = verifyStaffJwt(token, this.config.staffJwtSecret);
     if (!payload || payload.token_type !== 'access') {
       throw new UnauthorizedException({ error: 'Invalid or expired token' });
     }
+    await this.assertTokenVersion(payload);
     return payload;
   }
 
@@ -295,14 +410,17 @@ export class StaffAuthService {
     email: string;
     displayName: string;
     positionId: number;
+    tokenVersion?: number;
   }): Promise<StaffLoginResult> {
     const position_code = await this.loadPositionCode(user.positionId);
     const client_ids = await this.resolveJwtClientIds(user.id, position_code);
+    const tv = user.tokenVersion ?? (await this.loadTokenVersion(user.id)) ?? 0;
     const base = {
       sub: user.id,
       email: user.email,
       display_name: user.displayName,
       position_id: user.positionId,
+      tv,
       ...(client_ids?.length ? { client_ids } : {}),
     };
     const accessToken = signStaffJwt(
@@ -436,5 +554,110 @@ export class StaffAuthService {
       // table may not exist yet on fresh dev
     }
     return DEFAULT_STUB_CAPS;
+  }
+
+  private async loadTokenVersion(userId: string): Promise<number | null> {
+    if (parseNumericStaffSub(userId) != null && this.config.staffAllowStubUsers) {
+      return 0;
+    }
+    try {
+      const result = await this.db.query<{ auth_token_version: number }>(
+        `SELECT auth_token_version FROM staff_users WHERE id = $1::uuid LIMIT 1`,
+        [userId],
+      );
+      if (!result.rows[0]) return null;
+      return Number(result.rows[0].auth_token_version ?? 0);
+    } catch {
+      return null;
+    }
+  }
+
+  private async assertTokenVersion(payload: StaffJwtPayload): Promise<void> {
+    if (parseNumericStaffSub(payload.sub) != null && this.config.staffAllowStubUsers) {
+      return;
+    }
+    const current = await this.loadTokenVersion(payload.sub);
+    if (current == null) {
+      return;
+    }
+    const tokenTv = payload.tv ?? 0;
+    if (tokenTv !== current) {
+      void this.authAudit.write('token_revoked', {
+        userId: payload.sub,
+        email: payload.email,
+        detail: { token_tv: tokenTv, current_tv: current },
+      });
+      throw new UnauthorizedException({ error: 'token_revoked' });
+    }
+  }
+
+  private async linkOidcUser(
+    oidcSub: string,
+    email: string,
+    groups: string[],
+  ): Promise<
+    (StaffUserProfile & { displayName: string; positionId: number; tokenVersion: number; linkedNew: boolean }) | null
+  > {
+    type StaffOidcRow = {
+      id: string;
+      email: string;
+      display_name: string;
+      position_id: number;
+      auth_token_version: number;
+      oidc_sub: string | null;
+    };
+
+    try {
+      const bySub = await this.db.query(
+        `SELECT id::text, email, display_name, position_id, auth_token_version, oidc_sub
+         FROM staff_users
+         WHERE oidc_sub = $1 AND active IS TRUE
+         LIMIT 1`,
+        [oidcSub],
+      );
+      let row = bySub.rows[0] as StaffOidcRow | undefined;
+      let linkedNew = false;
+
+      if (!row) {
+        const byEmail = await this.db.query(
+          `SELECT id::text, email, display_name, position_id, auth_token_version, oidc_sub
+           FROM staff_users
+           WHERE LOWER(email) = $1 AND active IS TRUE
+           LIMIT 1`,
+          [email],
+        );
+        row = byEmail.rows[0] as StaffOidcRow | undefined;
+        if (row && !row.oidc_sub) {
+          await this.db.query(
+            `UPDATE staff_users SET oidc_sub = $1, updated_at = NOW(), last_login_at = NOW() WHERE id = $2::uuid`,
+            [oidcSub, row.id],
+          );
+          linkedNew = true;
+        }
+      } else {
+        void this.db.query(`UPDATE staff_users SET last_login_at = NOW() WHERE id = $1::uuid`, [row.id]);
+      }
+
+      if (!row) {
+        const mapped = await this.keycloakGroups.resolvePositionFromGroups(groups);
+        if (!mapped) {
+          return null;
+        }
+        return null;
+      }
+
+      return {
+        id: row.id,
+        email: row.email,
+        display_name: row.display_name || row.email,
+        displayName: row.display_name || row.email,
+        position_id: row.position_id,
+        positionId: row.position_id,
+        tokenVersion: Number(row.auth_token_version ?? 0),
+        linkedNew,
+      };
+    } catch {
+      return null;
+    }
   }
 }

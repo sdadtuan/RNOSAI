@@ -8,6 +8,8 @@ export interface StaffJwtPayload {
   display_name: string;
   position_id: number;
   client_ids?: string[];
+  /** Incremented on offboard — mismatch revokes refresh/access. */
+  tv?: number;
   token_type: StaffTokenType;
   iat: number;
   exp: number;

@@ -13,6 +13,8 @@ export class HealthController {
     leads_write_enabled: boolean;
     leads_create_id_mode: string;
     portal_auth_stub_users: number;
+    staff_auth_mode: string;
+    staff_sso_configured: boolean;
     sqlite: boolean;
     postgres: boolean;
   } {
@@ -23,6 +25,8 @@ export class HealthController {
       leads_write_enabled: this.config.leadsWriteEnabled,
       leads_create_id_mode: this.config.leadsCreateIdMode,
       portal_auth_stub_users: this.config.portalStubUsers.length,
+      staff_auth_mode: this.config.staffAuthMode,
+      staff_sso_configured: this.config.staffSsoConfigured(),
       sqlite: this.config.sqliteAvailable(),
       postgres: Boolean(this.config.databaseUrl),
     };

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { winPermissionSetsEnabled, winSimulatorEnabled } from '@/lib/win/flags';
+import { winPermissionSetsEnabled, winSimulatorEnabled, winSsoEnabled } from '@/lib/win/flags';
 
 const LINKS = [
   { href: '/admin/crm/permissions', label: 'Chức vụ', exact: true },
@@ -12,6 +12,7 @@ const LINKS = [
   ...(winPermissionSetsEnabled()
     ? [{ href: '/admin/crm/permission-sets', label: 'Permission Sets' }]
     : []),
+  ...(winSsoEnabled() ? [{ href: '/admin/crm/sso/groups', label: 'SSO groups' }] : []),
 ] as const;
 
 function isActive(pathname: string, href: string, exact?: boolean): boolean {

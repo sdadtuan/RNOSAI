@@ -29,3 +29,7 @@ export function winBreakGlassEnabled(): boolean {
 export function winScopePilotEnabled(): boolean {
   return process.env.NEXT_PUBLIC_WIN_SCOPE_PILOT === '1';
 }
+
+export function winSsoEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_WIN_SSO === '1';
+}

@@ -54,7 +54,7 @@ export class AiToolApiKeyGuard implements CanActivate {
       throw new UnauthorizedException({ error: 'Unauthorized' });
     }
 
-    const staffUser = this.staffAuth.verifyAccessToken(token);
+    const staffUser = await this.staffAuth.verifyAccessToken(token);
     const me = await this.staffAuth.me(staffUser);
     if (!this.staffAuth.hasCap(me.caps, 'ai_admin', 'view')) {
       throw new ForbiddenException({

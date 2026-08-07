@@ -11,7 +11,7 @@ export class StaffOrInternalKeyGuard implements CanActivate {
     private readonly staffAuth: StaffAuthService,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  canActivate(context: ExecutionContext): boolean | Promise<boolean> {
     const req = context.switchToHttp().getRequest<
       Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' }
     >();
@@ -31,9 +31,11 @@ export class StaffOrInternalKeyGuard implements CanActivate {
     const queryToken = String((req.query as { access_token?: string })?.access_token ?? '').trim();
     const token = header.startsWith('Bearer ') ? header.slice(7).trim() : queryToken;
     if (token) {
-      req.staffUser = this.staffAuth.verifyAccessToken(token);
-      req.staffAuthVia = 'jwt';
-      return true;
+      return this.staffAuth.verifyAccessToken(token).then((payload) => {
+        req.staffUser = payload;
+        req.staffAuthVia = 'jwt';
+        return true;
+      });
     }
 
     throw new UnauthorizedException({ error: 'Unauthorized' });

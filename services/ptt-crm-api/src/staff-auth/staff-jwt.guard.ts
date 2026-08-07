@@ -13,15 +13,17 @@ import { StaffJwtPayload } from './staff-jwt.util';
 export class StaffJwtGuard implements CanActivate {
   constructor(private readonly auth: StaffAuthService) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  canActivate(context: ExecutionContext): boolean | Promise<boolean> {
     const req = context.switchToHttp().getRequest<Request & { staffUser?: StaffJwtPayload }>();
     const header = String(req.headers.authorization ?? '').trim();
     const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
     if (!token) {
       throw new UnauthorizedException({ error: 'Bearer token required' });
     }
-    req.staffUser = this.auth.verifyAccessToken(token);
-    return true;
+    return this.auth.verifyAccessToken(token).then((payload) => {
+      req.staffUser = payload;
+      return true;
+    });
   }
 }
 

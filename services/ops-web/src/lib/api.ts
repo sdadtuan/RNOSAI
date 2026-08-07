@@ -82,6 +82,85 @@ export async function staffLogin(email: string, password: string): Promise<Staff
   return body;
 }
 
+export interface StaffSsoConfig {
+  mode: 'nest' | 'keycloak' | 'dual';
+  issuer: string | null;
+  client_id: string;
+  nest_login_allowed: boolean;
+  mfa_required_positions: string[];
+}
+
+export async function fetchStaffSsoConfig(): Promise<StaffSsoConfig> {
+  const res = await fetch(`${API_BASE}/api/v1/staff/auth/sso/config`, { cache: 'no-store' });
+  const body = await parseJson<StaffSsoConfig & { error?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? 'SSO config unavailable', res.status);
+  }
+  return body;
+}
+
+export async function staffOidcExchange(params: {
+  code: string;
+  redirect_uri: string;
+  code_verifier: string;
+}): Promise<StaffLoginResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/staff/auth/oidc/exchange`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  const body = await parseJson<
+    StaffLoginResponse & { error?: string; message?: string }
+  >(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'OIDC exchange failed', res.status);
+  }
+  return body;
+}
+
+export interface StaffKeycloakGroupMapRow {
+  kc_group: string;
+  position_id: number;
+  position_code?: string;
+  position_name?: string;
+  default_set_codes: string[];
+  active: boolean;
+  updated_at: string;
+  updated_by: string;
+}
+
+export async function fetchStaffSsoGroups(token: string): Promise<{ groups: StaffKeycloakGroupMapRow[] }> {
+  const res = await fetch(`${API_BASE}/api/v1/staff/admin/sso/groups`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<{ groups: StaffKeycloakGroupMapRow[]; error?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? 'Không tải group map', res.status);
+  }
+  return { groups: body.groups ?? [] };
+}
+
+export async function upsertStaffSsoGroup(
+  token: string,
+  kcGroup: string,
+  payload: { position_id: number; default_set_codes?: string[]; active?: boolean },
+): Promise<{ group: StaffKeycloakGroupMapRow }> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/staff/admin/sso/groups/${encodeURIComponent(kcGroup)}`,
+    {
+      method: 'PUT',
+      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  );
+  const body = await parseJson<{ group: StaffKeycloakGroupMapRow; error?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? 'Lưu group map thất bại', res.status);
+  }
+  return body;
+}
+
 export async function staffRefresh(refreshToken: string): Promise<StaffLoginResponse> {
   const res = await fetch(`${API_BASE}/api/v1/staff/auth/refresh`, {
     method: 'POST',

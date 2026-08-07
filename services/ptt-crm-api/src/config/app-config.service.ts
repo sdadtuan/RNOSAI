@@ -5,6 +5,7 @@ import * as path from 'path';
 export type LeadsReadSource = 'sqlite' | 'pg';
 export type LeadsCreateIdMode = 'staging' | 'prod';
 export type PortalAuthMode = 'nest-jwt' | 'keycloak' | 'dual';
+export type StaffAuthMode = 'nest' | 'keycloak' | 'dual';
 
 export interface PortalStubUser {
   email: string;
@@ -52,6 +53,11 @@ export class AppConfigService {
   readonly staffRefreshTtlSec: number;
   readonly staffStubUsers: StaffStubUser[];
   readonly staffAllowStubUsers: boolean;
+  readonly staffAuthMode: StaffAuthMode;
+  readonly staffKeycloakIssuer: string | null;
+  readonly staffKeycloakAudience: string;
+  readonly staffKeycloakClientId: string;
+  readonly staffMfaRequiredPositionCodes: string[];
   readonly staffScopePilotEnabled: boolean;
   readonly flaskMonolithUrl: string;
   readonly jobsEnabled: boolean;
@@ -177,6 +183,18 @@ export class AppConfigService {
     );
     this.staffStubUsers = this.parseStaffStubUsers();
     this.staffAllowStubUsers = this.resolveStaffAllowStubUsers();
+    this.staffAuthMode = this.resolveStaffAuthMode();
+    this.staffKeycloakIssuer = (process.env.PTT_STAFF_KEYCLOAK_ISSUER ?? '').trim() || null;
+    this.staffKeycloakAudience = (
+      process.env.PTT_STAFF_KEYCLOAK_AUDIENCE ?? 'ptt-ops-web'
+    ).trim();
+    this.staffKeycloakClientId = (
+      process.env.PTT_STAFF_KEYCLOAK_CLIENT_ID ?? 'ptt-ops-web'
+    ).trim();
+    this.staffMfaRequiredPositionCodes = (process.env.STAFF_MFA_REQUIRED_POSITIONS ?? 'gdkd,super-admin')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     this.staffScopePilotEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.STAFF_SCOPE_PILOT ?? '0').trim().toLowerCase(),
     );
@@ -391,6 +409,25 @@ export class AppConfigService {
     }
     const nodeEnv = (process.env.NODE_ENV ?? '').trim().toLowerCase();
     return nodeEnv !== 'production';
+  }
+
+  private resolveStaffAuthMode(): StaffAuthMode {
+    const raw = (process.env.STAFF_AUTH_MODE ?? 'nest').trim().toLowerCase();
+    if (raw === 'keycloak' || raw === 'dual') {
+      return raw;
+    }
+    return 'nest';
+  }
+
+  staffSsoConfigured(): boolean {
+    return Boolean(this.staffKeycloakIssuer);
+  }
+
+  staffNestLoginAllowed(): boolean {
+    if (this.staffAuthMode === 'keycloak') {
+      return false;
+    }
+    return true;
   }
 
   private resolveJobsEnabled(): boolean {

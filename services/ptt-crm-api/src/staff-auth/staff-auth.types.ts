@@ -38,3 +38,23 @@ export interface StaffRosterRow {
 export interface StaffRosterResponse {
   staff: StaffRosterRow[];
 }
+
+export interface StaffSsoConfigResponse {
+  mode: 'nest' | 'keycloak' | 'dual';
+  issuer: string | null;
+  client_id: string;
+  nest_login_allowed: boolean;
+  mfa_required_positions: string[];
+}
+
+export interface StaffOidcExchangeBody {
+  code: string;
+  redirect_uri: string;
+  code_verifier: string;
+}
+
+export interface StaffMfaRequiredResponse {
+  error: 'mfa_required';
+  message: string;
+  email?: string;
+}

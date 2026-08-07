@@ -455,7 +455,7 @@ export class StaffOrgUsersRepository {
         [crmStaffId],
       );
       await client.query(
-        `UPDATE staff_users SET active = FALSE, updated_at = NOW() WHERE id = $1::uuid`,
+        `UPDATE staff_users SET active = FALSE, auth_token_version = auth_token_version + 1, updated_at = NOW() WHERE id = $1::uuid`,
         [userId],
       );
 
