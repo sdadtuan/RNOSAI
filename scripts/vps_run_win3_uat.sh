@@ -11,7 +11,7 @@ APPLY="${APPLY:-0}"
 
 run_remote() {
   ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_ROOT} && git pull --ff-only origin main && set -a && source .env && set +a && \
-    export WIN3_UAT_PG=1 OPS_UAT_URL=https://rs.pttads.vn OPS_UAT_API=https://rs.pttads.vn && \
+    export WIN3_UAT_PG=1 OPS_UAT_URL=http://127.0.0.1:3200 OPS_UAT_API=http://127.0.0.1:3000 && \
     bash scripts/run_win3_uat.sh"
 }
 
