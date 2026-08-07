@@ -10,3 +10,4 @@ services:
       - "8080:8080"
     volumes:
       - ./deploy/keycloak/realm-ptt-portal.json:/opt/keycloak/data/import/realm-ptt-portal.json:ro
+      - ./deploy/keycloak/realm-ptt-staff.json:/opt/keycloak/data/import/realm-ptt-staff.json:ro

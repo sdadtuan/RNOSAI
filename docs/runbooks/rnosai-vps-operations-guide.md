@@ -1548,7 +1548,8 @@ Webhook: `POST https://rs.pttads.vn/api/v1/webhooks/email`
 |--------|----------------|
 | Deploy portal | [`deploy-client-portal.md`](./deploy-client-portal.md) |
 | Phase 3 cutover | [`vps-phase3-portal-cutover-checklist.md`](./vps-phase3-portal-cutover-checklist.md) |
-| Keycloak pilot (tuỳ chọn) | [`keycloak-portal-auth.md`](./keycloak-portal-auth.md) |
+| Keycloak portal (tuỳ chọn) | [`keycloak-portal-auth.md`](./keycloak-portal-auth.md) |
+| Keycloak staff WIN-4 | [`keycloak-staff-auth.md`](./keycloak-staff-auth.md) |
 | Seed users | `python3 scripts/seed_portal_pilot_users.py` |
 
 Portal URL: `https://portal.pttads.vn`
