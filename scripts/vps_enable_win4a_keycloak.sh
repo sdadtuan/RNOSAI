@@ -33,6 +33,7 @@ run_local() {
     echo "STAFF_AUTH_MODE=dual"
     echo "STAFF_SCOPE_PILOT=1"
     echo "PTT_STAFF_KEYCLOAK_ISSUER=$ISSUER"
+    echo "PTT_STAFF_KEYCLOAK_FETCH_ISSUER=http://127.0.0.1:8080/auth/realms/ptt-staff"
     echo "PTT_STAFF_KEYCLOAK_AUDIENCE=ptt-ops-web"
     echo "STAFF_MFA_REQUIRED_POSITIONS=gdkd,super-admin"
   } >"$RUNTIME_ENV"

@@ -55,6 +55,8 @@ export class AppConfigService {
   readonly staffAllowStubUsers: boolean;
   readonly staffAuthMode: StaffAuthMode;
   readonly staffKeycloakIssuer: string | null;
+  /** Server-side OIDC fetch base (token/JWKS); defaults to issuer when unset. */
+  readonly staffKeycloakFetchIssuer: string | null;
   readonly staffKeycloakAudience: string;
   readonly staffKeycloakClientId: string;
   readonly staffMfaRequiredPositionCodes: string[];
@@ -186,6 +188,9 @@ export class AppConfigService {
     this.staffAllowStubUsers = this.resolveStaffAllowStubUsers();
     this.staffAuthMode = this.resolveStaffAuthMode();
     this.staffKeycloakIssuer = (process.env.PTT_STAFF_KEYCLOAK_ISSUER ?? '').trim() || null;
+    this.staffKeycloakFetchIssuer =
+      (process.env.PTT_STAFF_KEYCLOAK_FETCH_ISSUER ?? '').trim() ||
+      this.staffKeycloakIssuer;
     this.staffKeycloakAudience = (
       process.env.PTT_STAFF_KEYCLOAK_AUDIENCE ?? 'ptt-ops-web'
     ).trim();

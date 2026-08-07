@@ -14,6 +14,8 @@ export interface StaffKeycloakClaims {
 
 export interface StaffKeycloakConfig {
   issuer: string;
+  /** Base URL for server-side JWKS fetch; defaults to issuer. */
+  fetchIssuer?: string;
   audience: string;
 }
 
@@ -133,7 +135,7 @@ export async function verifyStaffKeycloakAccessToken(
   }
 
   const kid = String(header.kid ?? '');
-  const keys = await fetchJwks(config.issuer);
+  const keys = await fetchJwks(config.fetchIssuer ?? config.issuer);
   const jwk = keys.find((k) => k.kid === kid) ?? keys[0];
   if (!jwk) {
     return null;
@@ -185,12 +187,14 @@ export interface StaffOidcTokenResponse {
 
 export async function exchangeStaffAuthorizationCode(params: {
   issuer: string;
+  fetchIssuer?: string;
   clientId: string;
   code: string;
   redirectUri: string;
   codeVerifier: string;
 }): Promise<StaffOidcTokenResponse> {
-  const tokenUrl = `${params.issuer.replace(/\/$/, '')}/protocol/openid-connect/token`;
+  const fetchBase = (params.fetchIssuer ?? params.issuer).replace(/\/$/, '');
+  const tokenUrl = `${fetchBase}/protocol/openid-connect/token`;
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
     client_id: params.clientId,

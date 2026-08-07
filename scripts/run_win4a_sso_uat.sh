@@ -38,7 +38,7 @@ mode="$(echo "$cfg" | python3 -c "import json,sys; print(json.load(sys.stdin).ge
 check EC-W4A-01 "$([[ "$mode" == "dual" || "$mode" == "keycloak" ]] && echo 1 || echo 0)" "sso/config mode=$mode"
 
 # EC-W4A-02 issuer JWKS
-jwks="$(curl -sf "$ISSUER/protocol/openid-connect/certs" 2>/dev/null || echo '{}')"
+jwks="$(curl -sf "$KC/realms/ptt-staff/protocol/openid-connect/certs" 2>/dev/null || echo '{}')"
 keys="$(echo "$jwks" | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('keys',[])))" 2>/dev/null || echo 0)"
 check EC-W4A-02 "$([[ "$keys" -ge 1 ]] && echo 1 || echo 0)" "JWKS keys=$keys"
 

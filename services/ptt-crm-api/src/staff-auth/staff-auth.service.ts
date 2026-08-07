@@ -215,6 +215,7 @@ export class StaffAuthService {
     try {
       tokenResponse = await exchangeStaffAuthorizationCode({
         issuer,
+        fetchIssuer: this.config.staffKeycloakFetchIssuer ?? issuer,
         clientId: this.config.staffKeycloakClientId,
         code: params.code,
         redirectUri: params.redirectUri,
@@ -229,6 +230,7 @@ export class StaffAuthService {
 
     const claims = await verifyStaffKeycloakAccessToken(tokenResponse.access_token, {
       issuer,
+      fetchIssuer: this.config.staffKeycloakFetchIssuer ?? issuer,
       audience: this.config.staffKeycloakAudience,
     });
     if (!claims) {
