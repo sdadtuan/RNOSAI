@@ -13,7 +13,13 @@ import {
   normalizeFunctionCodes,
   validateJobFunctionAssignment,
 } from './staff-org.sod.util';
+import { StaffOrgRepository } from './staff-org.repository';
 import type {
+  CreateStaffDepartmentBody,
+  CreateStaffTeamBody,
+  PatchStaffDepartmentBody,
+  PatchStaffOrgPositionBody,
+  PatchStaffTeamBody,
   PutStaffUserJobFunctionsBody,
   StaffOrgUserSummary,
   StaffUserEffectiveCapsResponse,
@@ -34,6 +40,7 @@ type ResolvedUser = {
 @Injectable()
 export class StaffOrgService implements OnModuleDestroy {
   private pool: Pool | null = null;
+  private orgRepo: StaffOrgRepository | null = null;
 
   constructor(
     private readonly config: AppConfigService,
@@ -48,9 +55,49 @@ export class StaffOrgService implements OnModuleDestroy {
     return this.pool;
   }
 
+  private get repository(): StaffOrgRepository {
+    if (!this.orgRepo) {
+      this.orgRepo = new StaffOrgRepository(this.db);
+    }
+    return this.orgRepo;
+  }
+
   onModuleDestroy(): void {
     void this.pool?.end();
     this.pool = null;
+    this.orgRepo = null;
+  }
+
+  listDepartments() {
+    return this.repository.listDepartments();
+  }
+
+  createDepartment(body: CreateStaffDepartmentBody, actorEmail: string) {
+    return this.repository.createDepartment(body, actorEmail);
+  }
+
+  patchDepartment(id: number, body: PatchStaffDepartmentBody, actorEmail: string) {
+    return this.repository.patchDepartment(id, body, actorEmail);
+  }
+
+  listTeams(departmentId?: number) {
+    return this.repository.listTeams(departmentId);
+  }
+
+  createTeam(body: CreateStaffTeamBody, actorEmail: string) {
+    return this.repository.createTeam(body, actorEmail);
+  }
+
+  patchTeam(id: number, body: PatchStaffTeamBody, actorEmail: string) {
+    return this.repository.patchTeam(id, body, actorEmail);
+  }
+
+  listPositions() {
+    return this.repository.listPositions();
+  }
+
+  patchPosition(id: number, body: PatchStaffOrgPositionBody, actorEmail: string) {
+    return this.repository.patchPosition(id, body, actorEmail);
   }
 
   listJobFunctionCatalog() {

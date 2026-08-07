@@ -5,6 +5,8 @@ import { StaffOrgController } from './staff-org.controller';
 import { StaffOrgService } from './staff-org.service';
 import {
   StaffOrgConfigureGuard,
+  StaffOrgDepartmentsConfigureGuard,
+  StaffOrgDepartmentsViewGuard,
   StaffOrgEffectiveCapsGuard,
   StaffOrgRosterViewGuard,
 } from './guards/staff-org.guard';
@@ -16,6 +18,8 @@ import {
     StaffOrgService,
     StaffOrgRosterViewGuard,
     StaffOrgConfigureGuard,
+    StaffOrgDepartmentsViewGuard,
+    StaffOrgDepartmentsConfigureGuard,
     StaffOrgEffectiveCapsGuard,
   ],
   exports: [StaffOrgService],

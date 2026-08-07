@@ -7617,3 +7617,108 @@ export async function fetchStaffUserEffectiveCaps(
 ): Promise<StaffUserEffectiveCaps> {
   return crmFetch(token, `/api/v1/staff/org/users/${encodeURIComponent(userId)}/effective-caps`);
 }
+
+export interface StaffDepartmentRow {
+  id: number;
+  code: string;
+  name: string;
+  parent_id: number | null;
+  active: boolean;
+}
+
+export interface StaffTeamRow {
+  id: number;
+  code: string;
+  name: string;
+  department_id: number | null;
+  department_code?: string;
+  department_name?: string;
+  active: boolean;
+}
+
+export interface StaffOrgPositionRow {
+  id: number;
+  code: string;
+  name: string;
+  parent_id: number | null;
+  department_id: number | null;
+  department_code?: string;
+  active: boolean;
+}
+
+export async function fetchStaffOrgDepartments(token: string): Promise<StaffDepartmentRow[]> {
+  const data = await crmFetch<{ departments: StaffDepartmentRow[] }>(token, '/api/v1/staff/org/departments');
+  return data.departments ?? [];
+}
+
+export async function createStaffOrgDepartment(
+  token: string,
+  body: { code: string; name: string; parent_id?: number | null },
+): Promise<StaffDepartmentRow> {
+  return crmFetch(token, '/api/v1/staff/org/departments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchStaffOrgDepartment(
+  token: string,
+  id: number,
+  body: Partial<{ code: string; name: string; parent_id: number | null; active: boolean }>,
+): Promise<StaffDepartmentRow> {
+  return crmFetch(token, `/api/v1/staff/org/departments/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchStaffOrgTeams(
+  token: string,
+  departmentId?: number,
+): Promise<StaffTeamRow[]> {
+  const qs = departmentId != null ? `?department_id=${departmentId}` : '';
+  const data = await crmFetch<{ teams: StaffTeamRow[] }>(token, `/api/v1/staff/org/teams${qs}`);
+  return data.teams ?? [];
+}
+
+export async function createStaffOrgTeam(
+  token: string,
+  body: { code: string; name: string; department_id?: number | null },
+): Promise<StaffTeamRow> {
+  return crmFetch(token, '/api/v1/staff/org/teams', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchStaffOrgTeam(
+  token: string,
+  id: number,
+  body: Partial<{ code: string; name: string; department_id: number | null; active: boolean }>,
+): Promise<StaffTeamRow> {
+  return crmFetch(token, `/api/v1/staff/org/teams/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchStaffOrgPositions(token: string): Promise<StaffOrgPositionRow[]> {
+  const data = await crmFetch<{ positions: StaffOrgPositionRow[] }>(token, '/api/v1/staff/org/positions');
+  return data.positions ?? [];
+}
+
+export async function patchStaffOrgPosition(
+  token: string,
+  id: number,
+  body: Partial<{ name: string; parent_id: number | null; department_id: number | null; active: boolean }>,
+): Promise<StaffOrgPositionRow> {
+  return crmFetch(token, `/api/v1/staff/org/positions/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}

@@ -172,6 +172,8 @@ gantt
 
 ## 6. WIN-2 — Moat + HR UI (8–10 tuần)
 
+> **Kế hoạch chi tiết:** [`2026-08-07-win-2-implementation-plan.md`](./2026-08-07-win-2-implementation-plan.md) (sprint A–D, API, UAT, deploy)
+
 **Mục tiêu UI:** Onboard wizard 15 ph · Solution KPI dashboard · no JSON payroll · org CRUD.
 
 ### 6.1. Sprint WIN-2-A (tuần 1–3) — R2-HR Org UI

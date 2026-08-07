@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { winOrgUiEnabled } from '@/lib/win/flags';
 
 const NAV_GROUPS = [
   {
@@ -20,11 +21,27 @@ const NAV_GROUPS = [
       { href: '/admin/crm/permissions/users', label: 'Gán user' },
     ],
   },
+  ...(winOrgUiEnabled()
+    ? [
+        {
+          label: 'Tổ chức',
+          links: [
+            { href: '/admin/crm/org/departments', label: 'Phòng ban' },
+            { href: '/admin/crm/org/teams', label: 'Team' },
+            { href: '/admin/crm/org/positions', label: 'Chức vụ' },
+            { href: '/admin/crm/org/users', label: 'Nhân viên' },
+          ],
+        },
+      ]
+    : []),
 ] as const;
 
 function isLinkActive(pathname: string, href: string): boolean {
   if (href === '/admin/crm/permissions') {
     return pathname === href;
+  }
+  if (href.startsWith('/admin/crm/org/')) {
+    return pathname === href || pathname.startsWith(`${href}/`);
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }

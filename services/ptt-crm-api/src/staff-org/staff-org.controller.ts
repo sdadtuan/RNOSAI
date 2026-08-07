@@ -1,18 +1,103 @@
-import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { StaffUser } from '../staff-auth/staff-jwt.guard';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import {
   StaffOrgConfigureGuard,
+  StaffOrgDepartmentsConfigureGuard,
+  StaffOrgDepartmentsViewGuard,
   StaffOrgEffectiveCapsGuard,
   StaffOrgRosterViewGuard,
 } from './guards/staff-org.guard';
 import { StaffOrgService } from './staff-org.service';
-import type { PutStaffUserJobFunctionsBody } from './staff-org.types';
+import type {
+  CreateStaffDepartmentBody,
+  CreateStaffTeamBody,
+  PatchStaffDepartmentBody,
+  PatchStaffOrgPositionBody,
+  PatchStaffTeamBody,
+  PutStaffUserJobFunctionsBody,
+} from './staff-org.types';
 
 @Controller('api/v1/staff/org')
 export class StaffOrgController {
   constructor(private readonly org: StaffOrgService) {}
+
+  @Get('departments')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgDepartmentsViewGuard)
+  listDepartments() {
+    return this.org.listDepartments().then((departments) => ({ departments }));
+  }
+
+  @Post('departments')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgDepartmentsConfigureGuard)
+  createDepartment(
+    @Body() body: CreateStaffDepartmentBody,
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.org.createDepartment(body, staffUser?.email ?? '');
+  }
+
+  @Patch('departments/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgDepartmentsConfigureGuard)
+  patchDepartment(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PatchStaffDepartmentBody,
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.org.patchDepartment(id, body, staffUser?.email ?? '');
+  }
+
+  @Get('teams')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgDepartmentsViewGuard)
+  listTeams(@Query('department_id') departmentId?: string) {
+    const parsed =
+      departmentId != null && departmentId.trim() !== '' ? Number(departmentId) : undefined;
+    return this.org.listTeams(Number.isFinite(parsed) ? parsed : undefined).then((teams) => ({ teams }));
+  }
+
+  @Post('teams')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgDepartmentsConfigureGuard)
+  createTeam(@Body() body: CreateStaffTeamBody, @StaffUser() staffUser?: StaffJwtPayload) {
+    return this.org.createTeam(body, staffUser?.email ?? '');
+  }
+
+  @Patch('teams/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgDepartmentsConfigureGuard)
+  patchTeam(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PatchStaffTeamBody,
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.org.patchTeam(id, body, staffUser?.email ?? '');
+  }
+
+  @Get('positions')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgDepartmentsViewGuard)
+  listPositions() {
+    return this.org.listPositions().then((positions) => ({ positions }));
+  }
+
+  @Patch('positions/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgConfigureGuard)
+  patchPosition(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PatchStaffOrgPositionBody,
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.org.patchPosition(id, body, staffUser?.email ?? '');
+  }
 
   @Get('job-functions/catalog')
   @UseGuards(StaffOrInternalKeyGuard, StaffOrgRosterViewGuard)
