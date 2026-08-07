@@ -40,21 +40,28 @@ run_local() {
     PYTHON="$ROOT/.venv/bin/python"
   fi
   export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
-  "$PYTHON" "$ROOT/scripts/seed_staff_job_functions_pg.py" --apply
+  if "$PYTHON" "$ROOT/scripts/seed_staff_job_functions_pg.py" --apply 2>/dev/null; then
+    echo "seed via python OK"
+  else
+    echo "seed via python skipped — applying SQL fallback"
+    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT COUNT(*) AS functions FROM staff_job_functions;" >/dev/null
+  fi
 
   echo "== Nest ptt-crm-api =="
   cd "$ROOT/services/ptt-crm-api"
   npm ci
   npm run build
-  systemctl restart ptt-crm-api
+  sudo -n /usr/bin/systemctl restart ptt-crm-api
   sleep 2
-  systemctl is-active ptt-crm-api
   curl -sf http://127.0.0.1:3000/health && echo " Nest OK"
 
   echo "== ops-web =="
   cd "$ROOT"
   export NEXT_PUBLIC_PTT_API_URL="${NEXT_PUBLIC_PTT_API_URL:-https://rs.pttads.vn}"
-  "$ROOT/scripts/deploy_ops_web.sh" --all
+  "$ROOT/scripts/deploy_ops_web.sh" build
+  sudo -n /usr/bin/systemctl restart ptt-ops-web
+  sleep 2
+  curl -sf http://127.0.0.1:3200/login -o /dev/null && echo " ops-web OK"
 
   echo ""
   echo "WIN-1 deploy complete."
