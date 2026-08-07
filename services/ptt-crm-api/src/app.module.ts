@@ -78,6 +78,8 @@ import { StaffPermissionsModule } from './staff-permissions/staff-permissions.mo
 import { StaffClientScopeModule } from './staff-client-scope/staff-client-scope.module';
 import { StaffBreakGlassModule } from './staff-break-glass/staff-break-glass.module';
 import { PolicyModule } from './policy/policy.module';
+import { HrLeaveModule } from './hr-leave/hr-leave.module';
+import { StaffNotificationsModule } from './staff-notifications/staff-notifications.module';
 import { StaffOrgModule } from './staff-org/staff-org.module';
 import { StaffPermissionSetsModule } from './staff-permission-sets/staff-permission-sets.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
@@ -106,6 +108,8 @@ import { WorkflowsModule } from './workflows/workflows.module';
     OrdersModule,
     InvoicesModule,
     PayrollModule,
+    HrLeaveModule,
+    StaffNotificationsModule,
     FinanceModule,
     OwnerWeeklyModule,
     ReProjectsModule,

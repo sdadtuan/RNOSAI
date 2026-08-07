@@ -12,6 +12,7 @@ import { LeadsWriteService } from '../leads/leads-write.service';
 import { LeadV1 } from '../leads/leads.types';
 import { CrmLeadsPgRepository } from './crm-leads-pg.repository';
 import { CrmLeadsSqliteRepository } from './crm-leads-sqlite.repository';
+import { StaffMentionService } from '../staff-notifications/staff-mention.service';
 import {
   AssignLeadBody,
   CreateLeadActivityBody,
@@ -29,6 +30,7 @@ export class CrmLeadsLegacyService {
     private readonly leadsRepo: LeadsRepository,
     private readonly leadsWrite: LeadsWriteService,
     private readonly timeline: CustomerTimelineService,
+    private readonly mentions: StaffMentionService,
   ) {}
 
   private get usePg(): boolean {
@@ -65,6 +67,12 @@ export class CrmLeadsLegacyService {
       ? await this.pg.createActivity(leadId, body, actor, userId)
       : this.sqlite.createActivity(leadId, body, actor, userId);
     await this.timeline.recordActivityFromLegacy(leadId, activity);
+    const content = String(body.content ?? '');
+    if (content.includes('@')) {
+      void this.mentions
+        .notifyActivityMentions({ leadId, content, actorEmail: actor })
+        .catch(() => undefined);
+    }
     return { activity };
   }
 

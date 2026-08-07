@@ -45,3 +45,11 @@ export function winPolicyOpaEnabled(): boolean {
 export function winCplDigestEnabled(): boolean {
   return process.env.NEXT_PUBLIC_WIN_CPL_DIGEST === '1';
 }
+
+export function winPayslipPortalEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_WIN_PAYSLIP_PORTAL === '1';
+}
+
+export function winLeaveLiteEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_WIN_LEAVE_LITE === '1';
+}

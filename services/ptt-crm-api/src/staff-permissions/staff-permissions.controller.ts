@@ -11,6 +11,7 @@ import { StaffPermissionsService } from './staff-permissions.service';
 import { StaffPermissionsSimulatorService } from './staff-permissions-simulator.service';
 import type { SimulatePermissionsBody } from './staff-permissions-simulator.service';
 import { StaffPermissionsAccessReviewService } from './staff-permissions-access-review.service';
+import type { AccessReviewCsvRow } from './staff-permissions-access-review.service';
 import type { PatchStaffJobFunctionGrantsBody, PatchStaffPositionGrantsBody } from './staff-permissions.types';
 
 @Controller('api/v1/staff/permissions')
@@ -115,5 +116,24 @@ export class StaffPermissionsController {
       'Content-Length': String(buffer.length),
     });
     res.send(buffer);
+  }
+
+  @Post('access-review/apply')
+  @UseGuards(StaffOrInternalKeyGuard, StaffPermissionsConfigureGuard)
+  applyAccessReviewCsv(
+    @Body() body: { quarter?: string; rows?: AccessReviewCsvRow[] },
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.accessReview.applyCsv(
+      body.quarter ?? '',
+      body.rows ?? [],
+      staffUser?.email ?? '',
+    );
+  }
+
+  @Get('access-review/actions')
+  @UseGuards(StaffOrInternalKeyGuard, StaffPermissionsConfigureGuard)
+  listAccessReviewActions(@Query('quarter') quarter?: string) {
+    return this.accessReview.listAppliedActions(quarter ?? '');
   }
 }

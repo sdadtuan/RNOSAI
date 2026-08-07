@@ -27,6 +27,7 @@ import {
   showLeadConsultTab,
 } from '@/lib/crm/lead-consult-tab.util';
 import { aiCopilotEnabled } from '@/lib/ai-flags';
+import { MentionComposer } from '@/components/staff/MentionComposer';
 import {
   assignLead,
   createLeadActivity,
@@ -983,12 +984,12 @@ export default function CrmLeadDetailPage() {
                   </label>
                   <label className="lead-field">
                     <span className="lead-field__label">Nội dung</span>
-                    <textarea
-                      className="lead-input lead-input--area"
+                    <MentionComposer
+                      token={getAccessToken()}
                       value={activityContent}
-                      onChange={(e) => setActivityContent(e.target.value)}
-                      rows={3}
+                      onChange={setActivityContent}
                       disabled={!hasCap(user, 'crm_leads', 'edit') || addingActivity}
+                      rows={3}
                     />
                   </label>
                   <button

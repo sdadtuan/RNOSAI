@@ -127,6 +127,29 @@ export class PayrollService {
     return buildPayrollXlsx(bundle);
   }
 
+  listMyPayslips(staffId: number) {
+    return { ok: true, payslips: this.repo.listMyPayslips(staffId), read_only: true as const };
+  }
+
+  exportMyPayslipXlsx(staffId: number, year: number, month: number) {
+    const bundle = this.repo.exportPayrollBundle({
+      period: 'month',
+      y0: year,
+      m0: month,
+      y1: year,
+      m1: month,
+      staffId,
+    });
+    if (bundle.row_count === 0) {
+      throw new Error('PAYSLIP_NOT_FOUND');
+    }
+    return buildPayrollXlsx(bundle);
+  }
+
+  parseYearMonthPublic(yearRaw?: string, monthRaw?: string): { year: number; month: number } {
+    return this.parseYearMonth(yearRaw, monthRaw, true);
+  }
+
   listAttendance(query: Record<string, string | undefined>) {
     let staffId: number | undefined;
     const staffRaw = String(query.staff_id ?? '').trim();

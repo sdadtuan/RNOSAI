@@ -7,15 +7,18 @@ import {
   StaffPayrollViewGuard,
 } from './guards/staff-payroll.guard';
 import { PayrollController } from './payroll.controller';
+import { PayrollMeController } from './payroll-me.controller';
+import { PayrollMeService } from './payroll-me.service';
 import { PayrollPgRepository } from './payroll-pg.repository';
 import { PayrollSqliteRepository } from './payroll-sqlite.repository';
 import { PayrollService } from './payroll.service';
 
 @Module({
   imports: [StaffAuthModule],
-  controllers: [PayrollController],
+  controllers: [PayrollController, PayrollMeController],
   providers: [
     PayrollService,
+    PayrollMeService,
     PayrollSqliteRepository,
     PayrollPgRepository,
     StaffPayrollViewGuard,

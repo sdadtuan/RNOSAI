@@ -70,6 +70,30 @@ export function buildHrHubGroups(user: StoredStaffUser | null): HrHubGroup[] {
     });
   }
 
+  cards.push({
+    id: 'payslip-me',
+    group: 'timepay',
+    label: 'Phiếu lương của tôi',
+    description: 'Xem & tải Excel read-only (WIN-4-D)',
+    href: '/crm/payroll/me',
+    badge: 'Self',
+  });
+
+  if (
+    hasCap(user, 'crm_hr_leave', 'request') ||
+    hasCap(user, 'crm_hr_leave', 'approve') ||
+    hasCap(user, 'crm_staff_roster', 'view')
+  ) {
+    cards.push({
+      id: 'leave-lite',
+      group: 'timepay',
+      label: 'Nghỉ phép lite',
+      description: 'Gửi đơn & theo dõi duyệt stub',
+      href: '/crm/hr/leave',
+      badge: 'WIN-4-D',
+    });
+  }
+
   if (hasCap(user, 'crm_data_config', 'view')) {
     cards.push({
       id: 'permissions-position',

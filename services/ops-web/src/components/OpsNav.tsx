@@ -9,7 +9,8 @@ import type { StoredStaffUser } from '@/lib/auth';
 import { getAccessToken, hasCap } from '@/lib/auth';
 import { fetchReviewQueueCount } from '@/lib/api';
 import { emailGateAEnabled, emailJourneysEnabled, emailModuleEnabled } from '@/lib/email-flags';
-import { winKpiSolutionEnabled } from '@/lib/win/flags';
+import { winKpiSolutionEnabled, winLeaveLiteEnabled, winPayslipPortalEnabled } from '@/lib/win/flags';
+import { StaffNotificationBell } from '@/components/staff/StaffNotificationBell';
 import { canViewEmailGateA } from '@/lib/email/caps';
 import { canViewMetaAdsOps, canViewMetaIntelligence, canViewMetaTracking } from '@/lib/meta/caps';
 import {
@@ -109,6 +110,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/invoices': 'Hóa đơn',
   '/crm/re-projects': 'Dự án BĐS',
   '/crm/payroll': 'Chấm công & lương',
+  '/crm/payroll/me': 'Phiếu lương của tôi',
+  '/crm/hr/leave': 'Nghỉ phép lite',
   '/crm/business-dashboard': 'Dashboard kinh doanh',
   '/crm/forecast': 'Forecast doanh thu',
   '/crm/health': 'CS Health score',
@@ -696,6 +699,9 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
           </div>
           <GlobalSearchBar />
           <div className="ops-topbar-user">
+            {user && (winPayslipPortalEnabled() || winLeaveLiteEnabled()) ? (
+              <StaffNotificationBell />
+            ) : null}
             <div className="ops-topbar-user-meta">
               <strong>{user?.display_name ?? user?.email ?? 'Staff'}</strong>
               <WinRbacBadge user={user} />

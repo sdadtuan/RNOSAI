@@ -4,6 +4,7 @@ import { CustomerTimelineModule } from '../customer-timeline/customer-timeline.m
 import { LeadsModule } from '../leads/leads.module';
 import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
+import { StaffNotificationsModule } from '../staff-notifications/staff-notifications.module';
 import { CrmLeadsLegacyController } from './crm-leads-legacy.controller';
 import { CrmLeadsLegacyService } from './crm-leads-legacy.service';
 import { CrmLeadsPgRepository } from './crm-leads-pg.repository';
@@ -12,6 +13,7 @@ import { CrmLeadsSqliteRepository } from './crm-leads-sqlite.repository';
 @Module({
   imports: [
     StaffAuthModule,
+    StaffNotificationsModule,
     forwardRef(() => AiIntelligenceModule),
     forwardRef(() => LeadsModule),
     forwardRef(() => CustomerTimelineModule),

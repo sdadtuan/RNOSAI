@@ -1,15 +1,23 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import archiver from 'archiver';
 import { PassThrough } from 'stream';
 import { StaffOrgService } from '../staff-org/staff-org.service';
+import { StaffAccessReviewActionsRepository } from './staff-access-review-actions.repository';
 import { StaffRbacAuditRepository } from './staff-rbac-audit.repository';
 import { capsToStrings } from './staff-nav-preview.util';
+
+export interface AccessReviewCsvRow {
+  user_email: string;
+  action: string;
+  note?: string;
+}
 
 @Injectable()
 export class StaffPermissionsAccessReviewService {
   constructor(
     private readonly org: StaffOrgService,
     private readonly audit: StaffRbacAuditRepository,
+    private readonly actions: StaffAccessReviewActionsRepository,
   ) {}
 
   async buildZip(quarter: string): Promise<{ buffer: Buffer; filename: string }> {
@@ -76,5 +84,43 @@ export class StaffPermissionsAccessReviewService {
     await archive.finalize();
     const buffer = await done;
     return { buffer, filename: `access-review-${q}.zip` };
+  }
+
+  /** PO tick CSV → audit log + revoke stub (WIN-4-D). */
+  async applyCsv(
+    quarter: string,
+    rows: AccessReviewCsvRow[],
+    actorEmail: string,
+  ): Promise<{ ok: true; applied: number; revoke_stub: number; actions: unknown[] }> {
+    const q = quarter.trim() || 'current';
+    if (!rows?.length) {
+      throw new BadRequestException({ error: 'rows_required' });
+    }
+    const normalized = rows
+      .map((r) => ({
+        user_email: String(r.user_email ?? '').trim().toLowerCase(),
+        action: String(r.action ?? '').trim().toLowerCase(),
+        note: String(r.note ?? '').trim(),
+      }))
+      .filter((r) => r.user_email && r.action);
+    if (!normalized.length) {
+      throw new BadRequestException({ error: 'no_valid_rows' });
+    }
+
+    const inserted = await this.actions.insertMany(q, normalized, actorEmail);
+    const revokeStub = inserted.filter((r) => r.action === 'revoke').length;
+
+    return {
+      ok: true,
+      applied: inserted.length,
+      revoke_stub: revokeStub,
+      actions: inserted,
+    };
+  }
+
+  async listAppliedActions(quarter: string) {
+    const q = quarter.trim() || 'current';
+    const actions = await this.actions.listForQuarter(q);
+    return { ok: true, quarter: q, actions };
   }
 }

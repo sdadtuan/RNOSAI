@@ -69,6 +69,10 @@ export class PayrollPgRepository implements OnModuleDestroy {
     return this.sqlite.exportPayrollBundle(opts);
   }
 
+  listMyPayslips(staffId: number) {
+    return this.sqlite.listMyPayslips(staffId);
+  }
+
   listAttendance(opts: Parameters<PayrollSqliteRepository['listAttendance']>[0]) {
     return this.sqlite.listAttendance(opts);
   }

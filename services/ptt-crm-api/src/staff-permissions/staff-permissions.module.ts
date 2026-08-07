@@ -9,6 +9,7 @@ import { StaffPermissionsService } from './staff-permissions.service';
 import { StaffRbacAuditRepository } from './staff-rbac-audit.repository';
 import { StaffPermissionsSimulatorService } from './staff-permissions-simulator.service';
 import { StaffPermissionsAccessReviewService } from './staff-permissions-access-review.service';
+import { StaffAccessReviewActionsRepository } from './staff-access-review-actions.repository';
 import {
   StaffPermissionsConfigureGuard,
   StaffPermissionsViewGuard,
@@ -28,6 +29,7 @@ import {
     StaffRbacAuditRepository,
     StaffPermissionsSimulatorService,
     StaffPermissionsAccessReviewService,
+    StaffAccessReviewActionsRepository,
     StaffPermissionsViewGuard,
     StaffPermissionsConfigureGuard,
   ],

@@ -489,6 +489,24 @@ export class PayrollSqliteRepository implements OnModuleDestroy {
     return rows.map(rowDict);
   }
 
+  listMyPayslips(staffId: number): Array<Record<string, unknown>> {
+    if (!this.tableExists('crm_payroll_line') || !this.tableExists('crm_payroll')) {
+      return [];
+    }
+    const rows = this.database
+      .prepare(
+        `SELECT p.id AS payroll_id, p.year, p.month, p.status AS payroll_status,
+                pl.net_pay, pl.gross_pay, pl.total_deductions, pl.workdays_actual
+         FROM crm_payroll_line pl
+         JOIN crm_payroll p ON p.id = pl.payroll_id
+         WHERE pl.staff_id = ?
+         ORDER BY p.year DESC, p.month DESC
+         LIMIT 24`,
+      )
+      .all(staffId) as Array<Record<string, unknown>>;
+    return rows.map(rowDict);
+  }
+
   exportPayrollBundle(opts: {
     period: string;
     y0: number;

@@ -233,6 +233,11 @@
     "crm_ai_insights": [
       "view"
     ],
+    "crm_hr_leave": [
+      "approve",
+      "request",
+      "view"
+    ],
     "automation_workflows": [
       "approve",
       "claim",
@@ -976,6 +981,13 @@
       "description": "Đọc & tải tài liệu Markdown từ docs/."
     },
     {
+      "id": "crm_hr_leave",
+      "label": "HR — Nghỉ phép lite",
+      "group": "CRM — Nhân sự",
+      "page": "/crm/hr/leave",
+      "description": "Tự gửi đơn nghỉ; duyệt stub cho quản lý."
+    },
+    {
       "id": "crm_payroll_device",
       "label": "Chấm công — Tích hợp thiết bị",
       "group": "CRM — Chấm công",
@@ -1490,6 +1502,7 @@
   "permission_ids": [
     "ai_admin",
     "crm_ai_insights",
+    "crm_hr_leave",
     "automation_workflows",
     "crm_agency",
     "crm_assistant",
