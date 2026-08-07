@@ -422,8 +422,12 @@ export class AppConfigService {
 
   /** VPS/deploy-owned overrides when root .env is not writable by deploy user. */
   private applyRuntimeEnvOverrides(): void {
-    const overridePath = path.resolve(__dirname, '..', '..', '..', 'deploy', 'runtime.env');
-    if (!fs.existsSync(overridePath)) {
+    const candidates = [
+      path.resolve(process.cwd(), '..', '..', 'deploy', 'runtime.env'),
+      path.resolve(__dirname, '..', '..', '..', '..', 'deploy', 'runtime.env'),
+    ];
+    const overridePath = candidates.find((p) => fs.existsSync(p));
+    if (!overridePath) {
       return;
     }
     try {
