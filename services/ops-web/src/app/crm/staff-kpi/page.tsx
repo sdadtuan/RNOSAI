@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardShell } from '@/components/kpi/DashboardShell';
@@ -28,6 +29,20 @@ import {
 
 type StaffMetric = { key: string; label: string; value: number; target?: number | null };
 
+function shiftMonth(year: number, month: number, delta: number): { year: number; month: number } {
+  let y = year;
+  let m = month + delta;
+  while (m < 1) {
+    m += 12;
+    y -= 1;
+  }
+  while (m > 12) {
+    m -= 12;
+    y += 1;
+  }
+  return { year: y, month: m };
+}
+
 export default function CrmStaffKpiPage() {
   const router = useRouter();
   const now = new Date();
@@ -37,12 +52,16 @@ export default function CrmStaffKpiPage() {
   const [role, setRole] = useState('am');
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [comparePrev, setComparePrev] = useState(true);
   const [metrics, setMetrics] = useState<StaffMetric[]>([]);
+  const [prevMetrics, setPrevMetrics] = useState<StaffMetric[]>([]);
   const [metricDefs, setMetricDefs] = useState<KpiMetricRow[]>([]);
   const [compareMetricId, setCompareMetricId] = useState('');
   const [compareChart, setCompareChart] = useState<KpiChartData | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const prevPeriod = useMemo(() => shiftMonth(year, month, -1), [year, month]);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -104,14 +123,25 @@ export default function CrmStaffKpiPage() {
     setLoading(true);
     setError('');
     try {
-      const out = await fetchStaffKpiAutoMetrics(access, Number(staffId), { role, year, month });
+      const sid = Number(staffId);
+      const [out, prevOut] = await Promise.all([
+        fetchStaffKpiAutoMetrics(access, sid, { role, year, month }),
+        comparePrev
+          ? fetchStaffKpiAutoMetrics(access, sid, {
+              role,
+              year: prevPeriod.year,
+              month: prevPeriod.month,
+            })
+          : Promise.resolve({ metrics: [] }),
+      ]);
       setMetrics((out.metrics as StaffMetric[]) ?? []);
+      setPrevMetrics((prevOut.metrics as StaffMetric[]) ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tải metrics thất bại');
     } finally {
       setLoading(false);
     }
-  }, [staffId, role, year, month]);
+  }, [staffId, role, year, month, comparePrev, prevPeriod.year, prevPeriod.month]);
 
   const loadCompareChart = useCallback(async () => {
     const access = getAccessToken();
@@ -131,21 +161,36 @@ export default function CrmStaffKpiPage() {
 
   useEffect(() => {
     if (staffId) void loadMetrics();
-  }, [staffId, role, year, month, loadMetrics]);
+  }, [staffId, role, year, month, comparePrev, loadMetrics]);
 
   useEffect(() => {
     if (compareMetricId) void loadCompareChart();
   }, [compareMetricId, year, month, loadCompareChart]);
 
+  const metricsWithDelta = useMemo(() => {
+    if (!comparePrev) return metrics;
+    const prevMap = new Map(prevMetrics.map((m) => [m.key, m.value]));
+    return metrics.map((m) => {
+      const prev = prevMap.get(m.key);
+      if (prev == null) return m;
+      const delta = Math.round((m.value - prev) * 10) / 10;
+      return {
+        ...m,
+        label: `${m.label} (${delta >= 0 ? '+' : ''}${delta} vs ${periodLabel(prevPeriod.year, prevPeriod.month)})`,
+      };
+    });
+  }, [metrics, prevMetrics, comparePrev, prevPeriod.year, prevPeriod.month]);
+
   const compareItems = useMemo(() => {
     if (!compareChart) return [];
     const staffIds = compareChart.staff_ids ?? [];
+    const selectedId = Number(staffId);
     return (compareChart.labels ?? []).map((label, index) => ({
-      label,
+      label: staffIds[index] === selectedId ? `${label} ★` : label,
       value: compareChart.achievement_pct?.[index] ?? null,
       href: staffIds[index] ? `/crm/staff/${staffIds[index]}` : undefined,
     }));
-  }, [compareChart]);
+  }, [compareChart, staffId]);
 
   function logout() {
     clearSession();
@@ -165,7 +210,7 @@ export default function CrmStaffKpiPage() {
       user={user}
       onLogout={logout}
       title="KPI AM / SP"
-      periodHint={`Kỳ ${periodLabel(year, month)}`}
+      periodHint={`Kỳ ${periodLabel(year, month)}${comparePrev ? ` · so với ${periodLabel(prevPeriod.year, prevPeriod.month)}` : ''}`}
       loading={loading}
       error={error || undefined}
       filters={
@@ -191,12 +236,27 @@ export default function CrmStaffKpiPage() {
             className="kpi-input kpi-input--month"
             aria-label="Tháng"
           />
+          <label className="admin-crm-checkbox" style={{ alignSelf: 'center' }}>
+            <input type="checkbox" checked={comparePrev} onChange={(e) => setComparePrev(e.target.checked)} />
+            So kỳ trước
+          </label>
+          {staffId ? (
+            <Link href={`/crm/staff/${staffId}`} className="btn btn-sm btn-secondary">
+              Hồ sơ NV
+            </Link>
+          ) : null}
+          <Link href="/crm/kpi" className="btn btn-sm btn-secondary">
+            KPI tổng
+          </Link>
         </>
       }
     >
       <section className="kpi-page__section">
         <h3 className="kpi-section-title">Tiến độ vs target</h3>
-        <KpiProgressList items={metrics} staffHref={staffId ? `/crm/staff/${staffId}` : undefined} />
+        <KpiProgressList
+          items={metricsWithDelta}
+          staffHref={staffId ? `/crm/staff/${staffId}` : undefined}
+        />
       </section>
 
       <section className="kpi-page__section">
@@ -221,6 +281,9 @@ export default function CrmStaffKpiPage() {
           unit="%"
           maxValue={100}
         />
+        <p className="muted" style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>
+          ★ = NV đang chọn · bấm cột để mở workspace
+        </p>
       </section>
     </DashboardShell>
   );

@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AdminPageShell } from '@/components/admin';
 import {
+  deleteCrmPipelineStage,
   fetchCrmSalesPipelineStages,
+  patchCrmPipelineStage,
   saveCrmSalesPipelineStages,
   staffMe,
   staffRefresh,
@@ -53,6 +55,15 @@ export default function AdminCrmPipelinePage() {
 
   const canConfigure = hasCap(user, 'crm_data_config', 'configure');
 
+  const preview = useMemo(
+    () =>
+      [...stages]
+        .filter((s) => s.active)
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((s) => s.label),
+    [stages],
+  );
+
   const logout = useCallback(() => {
     clearSession();
     router.push('/login');
@@ -93,7 +104,7 @@ export default function AdminCrmPipelinePage() {
   }, [router]);
 
   const reload = useCallback(async (access: string) => {
-    const data = await fetchCrmSalesPipelineStages(access);
+    const data = await fetchCrmSalesPipelineStages(access, { include_inactive: true });
     setStages(data.stages.map(toDraft));
   }, []);
 
@@ -160,16 +171,53 @@ export default function AdminCrmPipelinePage() {
     }
   }
 
+  async function handlePatchStage(index: number) {
+    const access = getAccessToken();
+    if (!access || !canConfigure) return;
+    const stage = stages[index];
+    if (!stage) return;
+    setBusy(true);
+    setError('');
+    try {
+      await patchCrmPipelineStage(access, stage.stage_key, {
+        label: stage.label,
+        sort_order: stage.sort_order,
+        sla_hours: stage.sla_hours,
+        owner_role: stage.owner_role,
+        is_terminal: stage.is_terminal,
+        active: stage.active,
+      });
+      await reload(access);
+      setMsg(`Đã cập nhật stage ${stage.stage_key}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Cập nhật stage thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteStage(index: number) {
+    const access = getAccessToken();
+    if (!access || !canConfigure) return;
+    const stage = stages[index];
+    if (!stage) return;
+    if (!window.confirm(`Xóa stage ${stage.stage_key}?`)) return;
+    setBusy(true);
+    setError('');
+    try {
+      await deleteCrmPipelineStage(access, stage.stage_key);
+      await reload(access);
+      setMsg('Đã xóa stage');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Xóa stage thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!user) {
     return (
-      <AdminPageShell
-        user={null}
-        onLogout={logout}
-        section="crm-config"
-        title="Pipeline sales"
-        subtitle="Chỉnh stage funnel kinh doanh — SLA, owner role, terminal (RNOS-35)"
-        loading
-      >
+      <AdminPageShell user={null} onLogout={logout} section="crm-config" title="Pipeline sales" loading>
         <span />
       </AdminPageShell>
     );
@@ -181,17 +229,29 @@ export default function AdminCrmPipelinePage() {
       onLogout={logout}
       section="crm-config"
       title="Pipeline sales"
-      subtitle="Chỉnh stage funnel kinh doanh — SLA, owner role, terminal (RNOS-35)"
+      subtitle="Stage funnel kinh doanh — SLA, owner role, thứ tự kéo (RNOS-35)"
     >
       <div className="page-card stack-gap">
         {error ? <p className="error">{error}</p> : null}
         {msg ? <p className="muted">{msg}</p> : null}
 
+        <div className="admin-pipeline-preview" aria-label="Preview funnel">
+          {preview.map((label, i) => (
+            <span key={`${label}-${i}`} className="admin-pipeline-preview__chip">
+              {label}
+              {i < preview.length - 1 ? <span aria-hidden>→</span> : null}
+            </span>
+          ))}
+        </div>
+
         <div className="admin-pipeline-list">
           {stages.map((stage, index) => (
             <div key={`${stage.stage_key}-${index}`} className="admin-pipeline-row card" style={{ padding: '0.75rem' }}>
               <div className="admin-pipeline-row__head">
-                <strong>#{index + 1}</strong>
+                <strong>
+                  #{index + 1} · {stage.stage_key}
+                  {!stage.active ? ' (ẩn)' : ''}
+                </strong>
                 {canConfigure ? (
                   <div className="admin-pipeline-row__actions">
                     <button type="button" className="btn btn-sm btn-secondary" onClick={() => moveStage(index, -1)}>
@@ -243,18 +303,37 @@ export default function AdminCrmPipelinePage() {
                   />
                   Terminal
                 </label>
+                <label className="admin-crm-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={stage.active}
+                    disabled={!canConfigure}
+                    onChange={(e) => updateStage(index, { active: e.target.checked })}
+                  />
+                  Active
+                </label>
               </div>
+              {canConfigure ? (
+                <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.5rem' }}>
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => void handlePatchStage(index)}>
+                    Lưu stage
+                  </button>
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => void handleDeleteStage(index)}>
+                    Xóa
+                  </button>
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
 
         {canConfigure ? (
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <button type="button" className="btn btn-sm btn-secondary" onClick={addStage}>
               + Stage
             </button>
             <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void handleSave()}>
-              {busy ? 'Đang lưu…' : 'Lưu pipeline'}
+              {busy ? 'Đang lưu…' : 'Lưu toàn bộ pipeline'}
             </button>
           </div>
         ) : (

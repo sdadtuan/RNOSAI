@@ -7209,6 +7209,10 @@ export async function fetchCrmCustomFields(
   return crmFetch(token, `/api/crm/config/custom-fields${qs}`);
 }
 
+export async function fetchCrmCustomField(token: string, id: number): Promise<CrmCustomFieldDef> {
+  return crmFetch(token, `/api/crm/config/custom-fields/${id}`);
+}
+
 export async function createCrmCustomField(
   token: string,
   body: {
@@ -7257,8 +7261,57 @@ export async function deleteCrmCustomField(
 
 export async function fetchCrmSalesPipelineStages(
   token: string,
+  params?: { include_inactive?: boolean },
 ): Promise<{ pipeline_key: string; stages: CrmPipelineStageDef[] }> {
-  return crmFetch(token, '/api/crm/config/pipeline/sales/stages');
+  const qs = params?.include_inactive ? '?include_inactive=1' : '';
+  return crmFetch(token, `/api/crm/config/pipeline/sales/stages${qs}`);
+}
+
+export async function createCrmPipelineStage(
+  token: string,
+  body: {
+    stage_key?: string;
+    label: string;
+    sort_order?: number;
+    sla_hours?: number;
+    owner_role?: string;
+    is_terminal?: boolean;
+    active?: boolean;
+  },
+): Promise<CrmPipelineStageDef> {
+  return crmFetch(token, '/api/crm/config/pipeline/sales/stages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchCrmPipelineStage(
+  token: string,
+  stageKey: string,
+  body: Partial<{
+    label: string;
+    sort_order: number;
+    sla_hours: number;
+    owner_role: string;
+    is_terminal: boolean;
+    active: boolean;
+  }>,
+): Promise<CrmPipelineStageDef> {
+  return crmFetch(token, `/api/crm/config/pipeline/sales/stages/${encodeURIComponent(stageKey)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteCrmPipelineStage(
+  token: string,
+  stageKey: string,
+): Promise<{ ok: true; stage_key: string }> {
+  return crmFetch(token, `/api/crm/config/pipeline/sales/stages/${encodeURIComponent(stageKey)}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function saveCrmSalesPipelineStages(

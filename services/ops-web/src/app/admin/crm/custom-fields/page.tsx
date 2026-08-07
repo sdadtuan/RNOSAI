@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AdminPageShell } from '@/components/admin';
 import {
@@ -25,19 +25,25 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 
-const ENTITY_TYPES: CrmCustomFieldEntityType[] = ['lead', 'customer', 'case'];
+const ENTITY_TYPES: Array<{ value: CrmCustomFieldEntityType; label: string }> = [
+  { value: 'lead', label: 'Lead' },
+  { value: 'customer', label: 'Customer' },
+  { value: 'case', label: 'Deal / Case' },
+];
+
 const FIELD_TYPES: CrmCustomFieldType[] = ['text', 'number', 'select', 'date', 'boolean'];
 
 export default function AdminCrmCustomFieldsPage() {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
-  const [entityFilter, setEntityFilter] = useState<CrmCustomFieldEntityType | 'all'>('all');
+  const [entityFilter, setEntityFilter] = useState<CrmCustomFieldEntityType>('lead');
   const [rows, setRows] = useState<CrmCustomFieldDef[]>([]);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState({ label: '', options: '', required: false });
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
-    entity_type: 'lead' as CrmCustomFieldEntityType,
     field_key: '',
     label: '',
     field_type: 'text' as CrmCustomFieldType,
@@ -46,6 +52,10 @@ export default function AdminCrmCustomFieldsPage() {
   });
 
   const canConfigure = hasCap(user, 'crm_data_config', 'configure');
+  const visibleRows = useMemo(
+    () => rows.filter((r) => r.entity_type === entityFilter),
+    [rows, entityFilter],
+  );
 
   const logout = useCallback(() => {
     clearSession();
@@ -86,16 +96,10 @@ export default function AdminCrmCustomFieldsPage() {
     }
   }, [router]);
 
-  const reload = useCallback(
-    async (access: string) => {
-      const data = await fetchCrmCustomFields(
-        access,
-        entityFilter === 'all' ? undefined : { entity_type: entityFilter },
-      );
-      setRows(data.fields);
-    },
-    [entityFilter],
-  );
+  const reload = useCallback(async (access: string) => {
+    const data = await fetchCrmCustomFields(access);
+    setRows(data.fields);
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -118,17 +122,51 @@ export default function AdminCrmCustomFieldsPage() {
     setMsg('');
     try {
       await createCrmCustomField(access, {
+        entity_type: entityFilter,
         ...form,
         options: form.options
           .split(',')
           .map((v) => v.trim())
           .filter(Boolean),
       });
-      setForm({ entity_type: 'lead', field_key: '', label: '', field_type: 'text', options: '', required: false });
+      setForm({ field_key: '', label: '', field_type: 'text', options: '', required: false });
       await reload(access);
       setMsg('Đã tạo custom field');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tạo custom field thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function startEdit(row: CrmCustomFieldDef) {
+    setEditId(row.id);
+    setEditDraft({
+      label: row.label,
+      options: row.options.join(', '),
+      required: row.required,
+    });
+  }
+
+  async function saveEdit() {
+    const access = getAccessToken();
+    if (!access || !canConfigure || editId == null) return;
+    setBusy(true);
+    setError('');
+    try {
+      await updateCrmCustomField(access, editId, {
+        label: editDraft.label,
+        required: editDraft.required,
+        options: editDraft.options
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean),
+      });
+      setEditId(null);
+      await reload(access);
+      setMsg('Đã cập nhật field');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Cập nhật thất bại');
     } finally {
       setBusy(false);
     }
@@ -168,14 +206,7 @@ export default function AdminCrmCustomFieldsPage() {
 
   if (!user) {
     return (
-      <AdminPageShell
-        user={null}
-        onLogout={logout}
-        section="crm-config"
-        title="Custom fields"
-        subtitle="Định nghĩa trường mở rộng cho lead / customer / case (RNOS-35)"
-        loading
-      >
+      <AdminPageShell user={null} onLogout={logout} section="crm-config" title="Custom fields" loading>
         <span />
       </AdminPageShell>
     );
@@ -187,135 +218,164 @@ export default function AdminCrmCustomFieldsPage() {
       onLogout={logout}
       section="crm-config"
       title="Custom fields"
-      subtitle="Định nghĩa trường mở rộng cho lead / customer / case (RNOS-35)"
+      subtitle="HubSpot-style · trường mở rộng lead / customer / case (RNOS-35)"
     >
       <div className="page-card stack-gap">
         {error ? <p className="error">{error}</p> : null}
         {msg ? <p className="muted">{msg}</p> : null}
 
-        <div className="kpi-page__filters">
-          <label className="muted">
-            Entity
-            <select
-              className="kpi-select"
-              value={entityFilter}
-              onChange={(e) => setEntityFilter(e.target.value as CrmCustomFieldEntityType | 'all')}
-            >
-              <option value="all">Tất cả</option>
-              {ENTITY_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        {canConfigure ? (
-          <form onSubmit={(e) => void handleCreate(e)} className="admin-crm-form">
-            <h3 className="kpi-section-title">Thêm field</h3>
-            <div className="admin-crm-form__grid">
-              <select
-                className="kpi-select"
-                value={form.entity_type}
-                onChange={(e) => setForm({ ...form, entity_type: e.target.value as CrmCustomFieldEntityType })}
+        <div className="admin-hubspot-layout">
+          <aside className="admin-hubspot-layout__nav" aria-label="Entity">
+            {ENTITY_TYPES.map((entity) => (
+              <button
+                key={entity.value}
+                type="button"
+                className={`admin-hubspot-layout__nav-btn${
+                  entityFilter === entity.value ? ' admin-hubspot-layout__nav-btn--active' : ''
+                }`}
+                onClick={() => setEntityFilter(entity.value)}
               >
-                {ENTITY_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="kpi-input"
-                placeholder="field_key"
-                value={form.field_key}
-                onChange={(e) => setForm({ ...form, field_key: e.target.value })}
-                required
-              />
-              <input
-                className="kpi-input"
-                placeholder="Nhãn hiển thị"
-                value={form.label}
-                onChange={(e) => setForm({ ...form, label: e.target.value })}
-                required
-              />
-              <select
-                className="kpi-select"
-                value={form.field_type}
-                onChange={(e) => setForm({ ...form, field_type: e.target.value as CrmCustomFieldType })}
-              >
-                {FIELD_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="kpi-input"
-                placeholder="Options (select, cách nhau bởi dấu phẩy)"
-                value={form.options}
-                onChange={(e) => setForm({ ...form, options: e.target.value })}
-              />
-              <label className="admin-crm-checkbox">
-                <input
-                  type="checkbox"
-                  checked={form.required}
-                  onChange={(e) => setForm({ ...form, required: e.target.checked })}
-                />
-                Bắt buộc
-              </label>
-            </div>
-            <button type="submit" className="btn btn-sm" disabled={busy}>
-              {busy ? 'Đang lưu…' : 'Thêm field'}
-            </button>
-          </form>
-        ) : (
-          <p className="muted">Chế độ chỉ xem — cần quyền configure để sửa.</p>
-        )}
+                {entity.label}
+                <span className="muted" style={{ fontSize: '0.78rem', display: 'block' }}>
+                  {rows.filter((r) => r.entity_type === entity.value).length} fields
+                </span>
+              </button>
+            ))}
+          </aside>
 
-        <div className="data-table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Entity</th>
-                <th>Key</th>
-                <th>Nhãn</th>
-                <th>Loại</th>
-                <th>Active</th>
-                {canConfigure ? <th /> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={canConfigure ? 6 : 5} className="muted">
-                    Chưa có custom field
-                  </td>
-                </tr>
-              ) : (
-                rows.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.entity_type}</td>
-                    <td>{row.field_key}</td>
-                    <td>{row.label}</td>
-                    <td>{row.field_type}</td>
-                    <td>{row.active ? 'Có' : 'Ẩn'}</td>
-                    {canConfigure ? (
-                      <td style={{ whiteSpace: 'nowrap' }}>
-                        <button type="button" className="btn btn-sm btn-secondary" onClick={() => void toggleActive(row)}>
-                          {row.active ? 'Ẩn' : 'Bật'}
-                        </button>{' '}
-                        <button type="button" className="btn btn-sm btn-secondary" onClick={() => void handleDelete(row.id)}>
-                          Xóa
-                        </button>
-                      </td>
-                    ) : null}
+          <div className="admin-hubspot-layout__main stack-gap">
+            {canConfigure ? (
+              <form onSubmit={(e) => void handleCreate(e)} className="admin-crm-form">
+                <h3 className="kpi-section-title">Thêm field · {entityFilter}</h3>
+                <div className="admin-crm-form__grid">
+                  <input
+                    className="kpi-input"
+                    placeholder="field_key"
+                    value={form.field_key}
+                    onChange={(e) => setForm({ ...form, field_key: e.target.value })}
+                    required
+                  />
+                  <input
+                    className="kpi-input"
+                    placeholder="Nhãn hiển thị"
+                    value={form.label}
+                    onChange={(e) => setForm({ ...form, label: e.target.value })}
+                    required
+                  />
+                  <select
+                    className="kpi-select"
+                    value={form.field_type}
+                    onChange={(e) => setForm({ ...form, field_type: e.target.value as CrmCustomFieldType })}
+                  >
+                    {FIELD_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    className="kpi-input"
+                    placeholder="Options (select, cách nhau bởi dấu phẩy)"
+                    value={form.options}
+                    onChange={(e) => setForm({ ...form, options: e.target.value })}
+                  />
+                  <label className="admin-crm-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={form.required}
+                      onChange={(e) => setForm({ ...form, required: e.target.checked })}
+                    />
+                    Bắt buộc
+                  </label>
+                </div>
+                <button type="submit" className="btn btn-sm" disabled={busy}>
+                  {busy ? 'Đang lưu…' : 'Thêm field'}
+                </button>
+              </form>
+            ) : (
+              <p className="muted">Chế độ chỉ xem — cần quyền configure để sửa.</p>
+            )}
+
+            <div className="data-table-wrap">
+              <table className="data-table perf-table">
+                <thead>
+                  <tr>
+                    <th>Key</th>
+                    <th>Nhãn</th>
+                    <th>Loại</th>
+                    <th>Options</th>
+                    <th>Active</th>
+                    {canConfigure ? <th /> : null}
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {visibleRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={canConfigure ? 6 : 5} className="muted">
+                        Chưa có field cho {entityFilter}
+                      </td>
+                    </tr>
+                  ) : (
+                    visibleRows.map((row) => (
+                      <tr key={row.id}>
+                        <td>{row.field_key}</td>
+                        <td>
+                          {editId === row.id ? (
+                            <input
+                              className="kpi-input"
+                              value={editDraft.label}
+                              onChange={(e) => setEditDraft({ ...editDraft, label: e.target.value })}
+                            />
+                          ) : (
+                            row.label
+                          )}
+                        </td>
+                        <td>{row.field_type}</td>
+                        <td>
+                          {editId === row.id ? (
+                            <input
+                              className="kpi-input"
+                              value={editDraft.options}
+                              onChange={(e) => setEditDraft({ ...editDraft, options: e.target.value })}
+                            />
+                          ) : (
+                            row.options.join(', ') || '—'
+                          )}
+                        </td>
+                        <td>{row.active ? 'Có' : 'Ẩn'}</td>
+                        {canConfigure ? (
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            {editId === row.id ? (
+                              <>
+                                <button type="button" className="btn btn-sm" onClick={() => void saveEdit()}>
+                                  Lưu
+                                </button>{' '}
+                                <button type="button" className="btn btn-sm btn-secondary" onClick={() => setEditId(null)}>
+                                  Hủy
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button type="button" className="btn btn-sm btn-secondary" onClick={() => startEdit(row)}>
+                                  Sửa
+                                </button>{' '}
+                                <button type="button" className="btn btn-sm btn-secondary" onClick={() => void toggleActive(row)}>
+                                  {row.active ? 'Ẩn' : 'Bật'}
+                                </button>{' '}
+                                <button type="button" className="btn btn-sm btn-secondary" onClick={() => void handleDelete(row.id)}>
+                                  Xóa
+                                </button>
+                              </>
+                            )}
+                          </td>
+                        ) : null}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </AdminPageShell>

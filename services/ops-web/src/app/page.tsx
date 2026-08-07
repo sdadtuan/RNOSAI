@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
-import { HomeCskhWidgetRow } from '@/components/home/HomeCskhWidgetRow';
-import { fetchCskhHomeSummary, fetchNestHealth, staffMe, staffRefresh } from '@/lib/api';
+import { WinHomeDashboard } from '@/components/home/WinHomeDashboard';
+import { fetchCskhHomeSummary, staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
   getAccessToken,
@@ -21,7 +21,6 @@ const HOME_SUMMARY_POLL_MS = 60_000;
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
-  const [health, setHealth] = useState<string>('');
   const [homeSummary, setHomeSummary] = useState<Awaited<ReturnType<typeof fetchCskhHomeSummary>> | null>(
     null,
   );
@@ -61,10 +60,6 @@ export default function DashboardPage() {
           router.replace('/login');
         }
       });
-
-    fetchNestHealth()
-      .then((h) => setHealth(JSON.stringify(h, null, 0).slice(0, 120)))
-      .catch(() => setHealth('unavailable'));
   }, [router]);
 
   useEffect(() => {
@@ -85,7 +80,7 @@ export default function DashboardPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setHomeError(err instanceof Error ? err.message : 'Không tải tóm tắt CSKH');
+          setHomeError(err instanceof Error ? err.message : 'Không tải bảng điều khiển');
         }
       } finally {
         if (!cancelled) setHomeLoading(false);
@@ -113,44 +108,14 @@ export default function DashboardPage() {
     );
   }
 
-  const showCskhWidgets = hasCap(user, 'crm_leads', 'view');
-
   return (
-    <StaffPageShell
-      user={user}
-      onLogout={logout}
-      breadcrumb={[{ label: 'Tổng quan' }]}
-    >
+    <StaffPageShell user={user} onLogout={logout} breadcrumb={[{ label: 'Tổng quan' }]}>
       <PageToolbar
         title={`Chào ${user.display_name || user.email}`}
-        subtitle="Phase 2 — ops-web: CRM leads, Agency clients, Meta hub, Hub campaign map (Nest + PG)."
+        subtitle="WIN-2 · Bảng điều khiển vận hành CRM"
       />
 
-      {showCskhWidgets ? (
-        <div className="page-card home-cskh-widgets-card">
-          <h2 className="home-cskh-widgets__title">CSKH vận hành — hôm nay</h2>
-          <HomeCskhWidgetRow summary={homeSummary} loading={homeLoading} error={homeError} />
-        </div>
-      ) : null}
-
-      <div className="page-card">
-        <div className="summary-grid">
-          <div className="summary-card">
-            <span className="muted">Quyền CRM leads</span>
-            <strong>
-              {user.caps?.some((c) => c.section === 'crm_leads') ? 'Có' : 'Chưa cấp'}
-            </strong>
-          </div>
-          <div className="summary-card">
-            <span className="muted">Caps</span>
-            <strong>{user.caps?.length ?? 0}</strong>
-          </div>
-          <div className="summary-card">
-            <span className="muted">API health</span>
-            <strong style={{ fontSize: '0.85rem', wordBreak: 'break-all' }}>{health || '…'}</strong>
-          </div>
-        </div>
-      </div>
+      <WinHomeDashboard user={user} summary={homeSummary} loading={homeLoading} error={homeError} />
     </StaffPageShell>
   );
 }

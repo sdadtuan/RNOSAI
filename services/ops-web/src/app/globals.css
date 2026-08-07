@@ -531,6 +531,85 @@ body:has(.ops-sidebar) main {
   gap: 0.5rem;
 }
 
+.win-home-dashboard__title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+
+.win-home-dashboard__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .win-home-dashboard__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.win-home-dashboard__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.admin-hubspot-layout {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .admin-hubspot-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-hubspot-layout__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.admin-hubspot-layout__nav-btn {
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.admin-hubspot-layout__nav-btn--active {
+  border-color: var(--accent, #17692f);
+  background: color-mix(in srgb, var(--accent, #17692f) 8%, var(--bg));
+}
+
+.admin-pipeline-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  padding: 0.65rem 0.75rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.admin-pipeline-preview__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent, #17692f) 10%, var(--bg));
+}
+
 .sla-predict-badge {
   display: inline-flex;
   align-items: center;

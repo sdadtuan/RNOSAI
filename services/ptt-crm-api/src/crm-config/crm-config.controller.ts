@@ -17,6 +17,8 @@ import { CrmConfigService } from './crm-config.service';
 import type {
   CreateCustomFieldBody,
   CreateLeadLookupBody,
+  CreatePipelineStageBody,
+  PatchPipelineStageBody,
   UpdateCustomFieldBody,
   UpdateLeadLookupBody,
   UpdatePipelineStagesBody,
@@ -34,6 +36,12 @@ export class CrmConfigController {
   @UseGuards(StaffOrInternalKeyGuard, StaffCrmConfigViewGuard)
   listCustomFields(@Query('entity_type') entityType?: string) {
     return this.crmConfig.listCustomFields(entityType);
+  }
+
+  @Get('custom-fields/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffCrmConfigViewGuard)
+  getCustomField(@Param('id') id: string) {
+    return this.crmConfig.getCustomField(Number(id));
   }
 
   @Post('custom-fields')
@@ -57,8 +65,33 @@ export class CrmConfigController {
 
   @Get('pipeline/sales/stages')
   @UseGuards(StaffOrInternalKeyGuard, StaffCrmConfigViewGuard)
-  listSalesPipelineStages() {
-    return this.crmConfig.listSalesPipelineStages();
+  listSalesPipelineStages(@Query('include_inactive') includeInactive?: string) {
+    const include =
+      includeInactive === '1' || includeInactive === 'true' || includeInactive === 'yes';
+    return this.crmConfig.listSalesPipelineStages(include);
+  }
+
+  @Post('pipeline/sales/stages')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffCrmConfigConfigureGuard)
+  createSalesPipelineStage(@Body() body: CreatePipelineStageBody) {
+    return this.crmConfig.createSalesPipelineStage(body);
+  }
+
+  @Patch('pipeline/sales/stages/:stageKey')
+  @UseGuards(StaffOrInternalKeyGuard, StaffCrmConfigConfigureGuard)
+  patchSalesPipelineStage(
+    @Param('stageKey') stageKey: string,
+    @Body() body: PatchPipelineStageBody,
+  ) {
+    return this.crmConfig.patchSalesPipelineStage(stageKey, body);
+  }
+
+  @Delete('pipeline/sales/stages/:stageKey')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffCrmConfigConfigureGuard)
+  deleteSalesPipelineStage(@Param('stageKey') stageKey: string) {
+    return this.crmConfig.deleteSalesPipelineStage(stageKey);
   }
 
   @Put('pipeline/sales/stages')

@@ -60,6 +60,25 @@ export interface UpdatePipelineStagesBody {
   }>;
 }
 
+export interface CreatePipelineStageBody {
+  stage_key?: string;
+  label: string;
+  sort_order?: number;
+  sla_hours?: number;
+  owner_role?: string;
+  is_terminal?: boolean;
+  active?: boolean;
+}
+
+export interface PatchPipelineStageBody {
+  label?: string;
+  sort_order?: number;
+  sla_hours?: number;
+  owner_role?: string;
+  is_terminal?: boolean;
+  active?: boolean;
+}
+
 export interface SalesPipelineConfig {
   pipeline_key: string;
   stages: PipelineStageDef[];

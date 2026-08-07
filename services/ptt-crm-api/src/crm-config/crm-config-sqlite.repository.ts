@@ -20,6 +20,8 @@ import type {
   LeadLookupOption,
   PipelineStageDef,
   SalesPipelineConfig,
+  CreatePipelineStageBody,
+  PatchPipelineStageBody,
   UpdateCustomFieldBody,
   UpdateLeadLookupBody,
   UpdatePipelineStagesBody,
@@ -298,6 +300,14 @@ export class CrmConfigSqliteRepository implements OnModuleDestroy {
     };
   }
 
+  getCustomField(id: number): CustomFieldDef {
+    const row = this.database
+      .prepare('SELECT * FROM crm_custom_field_defs WHERE id = ?')
+      .get(id) as unknown as Record<string, unknown> | undefined;
+    if (!row) throw new NotFoundException({ error: 'custom_field_not_found' });
+    return this.mapCustomField(row);
+  }
+
   listCustomFields(entityType?: string): CustomFieldDef[] {
     const params: string[] = [];
     let sql = 'SELECT * FROM crm_custom_field_defs';
@@ -411,16 +421,109 @@ export class CrmConfigSqliteRepository implements OnModuleDestroy {
     return { ok: true, id };
   }
 
-  listPipelineStages(pipelineKey = DEFAULT_SALES_PIPELINE_KEY): PipelineStageDef[] {
+  listPipelineStages(pipelineKey = DEFAULT_SALES_PIPELINE_KEY, includeInactive = false): PipelineStageDef[] {
+    const activeFilter = includeInactive ? '' : ' AND active = 1';
     const rows = this.database
       .prepare(
         `SELECT * FROM crm_pipeline_stages
-         WHERE pipeline_key = ? AND active = 1
+         WHERE pipeline_key = ?${activeFilter}
          ORDER BY sort_order ASC, id ASC`,
       )
       .all(pipelineKey) as unknown as Array<Record<string, unknown>>;
     if (!rows.length) return this.fallbackPipelineStages(pipelineKey);
     return rows.map((row) => this.mapPipelineStage(row));
+  }
+
+  getPipelineStage(pipelineKey: string, stageKey: string): PipelineStageDef {
+    const row = this.database
+      .prepare(
+        `SELECT * FROM crm_pipeline_stages
+         WHERE pipeline_key = ? AND stage_key = ?`,
+      )
+      .get(pipelineKey, stageKey) as unknown as Record<string, unknown> | undefined;
+    if (!row) throw new NotFoundException({ error: 'pipeline_stage_not_found' });
+    return this.mapPipelineStage(row);
+  }
+
+  createPipelineStage(
+    pipelineKey: string,
+    body: CreatePipelineStageBody,
+  ): PipelineStageDef {
+    const label = String(body.label ?? '').trim();
+    if (!label) throw new BadRequestException({ error: 'label_required' });
+    const stageKey = slugKey(String(body.stage_key ?? label));
+    if (!stageKey) throw new BadRequestException({ error: 'invalid_stage_key' });
+    const existing = this.database
+      .prepare('SELECT id FROM crm_pipeline_stages WHERE pipeline_key = ? AND stage_key = ?')
+      .get(pipelineKey, stageKey);
+    if (existing) throw new BadRequestException({ error: 'duplicate_stage_key' });
+    const maxSort = this.database
+      .prepare('SELECT MAX(sort_order) AS n FROM crm_pipeline_stages WHERE pipeline_key = ?')
+      .get(pipelineKey) as { n: number | null } | undefined;
+    const sortOrder = Number.isFinite(Number(body.sort_order))
+      ? Number(body.sort_order)
+      : Number(maxSort?.n ?? -1) + 1;
+    const ts = catalogTs();
+    this.database
+      .prepare(
+        `INSERT INTO crm_pipeline_stages
+          (pipeline_key, stage_key, label, sort_order, sla_hours, owner_role, is_terminal, active, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        pipelineKey,
+        stageKey,
+        label.slice(0, 80),
+        sortOrder,
+        Math.max(0, Number(body.sla_hours ?? 24) || 0),
+        String(body.owner_role ?? 'Sales').trim().slice(0, 80),
+        body.is_terminal ? 1 : 0,
+        body.active === false ? 0 : 1,
+        ts,
+      );
+    return this.getPipelineStage(pipelineKey, stageKey);
+  }
+
+  patchPipelineStage(
+    pipelineKey: string,
+    stageKey: string,
+    body: PatchPipelineStageBody,
+  ): PipelineStageDef {
+    const existing = this.getPipelineStage(pipelineKey, stageKey);
+    const ts = catalogTs();
+    const label =
+      body.label != null ? String(body.label).trim().slice(0, 80) : existing.label;
+    if (!label) throw new BadRequestException({ error: 'label_required' });
+    const sortOrder =
+      body.sort_order != null && Number.isFinite(Number(body.sort_order))
+        ? Number(body.sort_order)
+        : existing.sort_order;
+    const slaHours =
+      body.sla_hours != null ? Math.max(0, Number(body.sla_hours) || 0) : existing.sla_hours;
+    const ownerRole =
+      body.owner_role != null
+        ? String(body.owner_role).trim().slice(0, 80)
+        : existing.owner_role;
+    const isTerminal = body.is_terminal != null ? (body.is_terminal ? 1 : 0) : existing.is_terminal ? 1 : 0;
+    const active = body.active != null ? (body.active ? 1 : 0) : existing.active ? 1 : 0;
+    this.database
+      .prepare(
+        `UPDATE crm_pipeline_stages
+         SET label = ?, sort_order = ?, sla_hours = ?, owner_role = ?, is_terminal = ?, active = ?, updated_at = ?
+         WHERE pipeline_key = ? AND stage_key = ?`,
+      )
+      .run(label, sortOrder, slaHours, ownerRole, isTerminal, active, ts, pipelineKey, stageKey);
+    return this.getPipelineStage(pipelineKey, stageKey);
+  }
+
+  deletePipelineStage(pipelineKey: string, stageKey: string): { ok: true; stage_key: string } {
+    const result = this.database
+      .prepare('DELETE FROM crm_pipeline_stages WHERE pipeline_key = ? AND stage_key = ?')
+      .run(pipelineKey, stageKey);
+    if (Number(result.changes ?? 0) === 0) {
+      throw new NotFoundException({ error: 'pipeline_stage_not_found' });
+    }
+    return { ok: true, stage_key: stageKey };
   }
 
   private fallbackPipelineStages(pipelineKey: string): PipelineStageDef[] {

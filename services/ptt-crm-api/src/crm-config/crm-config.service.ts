@@ -4,9 +4,11 @@ import { CrmConfigSqliteRepository } from './crm-config-sqlite.repository';
 import type {
   CreateCustomFieldBody,
   CreateLeadLookupBody,
+  CreatePipelineStageBody,
   CustomFieldDef,
   LeadLookupKind,
   LeadLookupOption,
+  PatchPipelineStageBody,
   PipelineStageDef,
   SalesPipelineConfig,
   UpdateCustomFieldBody,
@@ -23,6 +25,10 @@ export class CrmConfigService {
     return { fields: this.repo.listCustomFields(entityType) };
   }
 
+  getCustomField(id: number): CustomFieldDef {
+    return this.repo.getCustomField(id);
+  }
+
   createCustomField(body: CreateCustomFieldBody): CustomFieldDef {
     return this.repo.createCustomField(body);
   }
@@ -35,9 +41,21 @@ export class CrmConfigService {
     return this.repo.deleteCustomField(id);
   }
 
-  listSalesPipelineStages(): { pipeline_key: string; stages: PipelineStageDef[] } {
-    const stages = this.repo.listPipelineStages(DEFAULT_SALES_PIPELINE_KEY);
+  listSalesPipelineStages(includeInactive?: boolean): { pipeline_key: string; stages: PipelineStageDef[] } {
+    const stages = this.repo.listPipelineStages(DEFAULT_SALES_PIPELINE_KEY, includeInactive);
     return { pipeline_key: DEFAULT_SALES_PIPELINE_KEY, stages };
+  }
+
+  createSalesPipelineStage(body: CreatePipelineStageBody): PipelineStageDef {
+    return this.repo.createPipelineStage(DEFAULT_SALES_PIPELINE_KEY, body);
+  }
+
+  patchSalesPipelineStage(stageKey: string, body: PatchPipelineStageBody): PipelineStageDef {
+    return this.repo.patchPipelineStage(DEFAULT_SALES_PIPELINE_KEY, stageKey, body);
+  }
+
+  deleteSalesPipelineStage(stageKey: string): { ok: true; stage_key: string } {
+    return this.repo.deletePipelineStage(DEFAULT_SALES_PIPELINE_KEY, stageKey);
   }
 
   replaceSalesPipelineStages(body: UpdatePipelineStagesBody): { pipeline_key: string; stages: PipelineStageDef[] } {

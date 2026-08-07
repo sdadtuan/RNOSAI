@@ -15,6 +15,7 @@ test.describe('RNOS-35 CRM config admin', () => {
     await expect(page.getByRole('heading', { level: 2, name: /custom fields/i })).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('.admin-crm-subnav')).toBeVisible();
     await expect(page.locator('.perf-table')).toBeVisible();
+    await expect(page.locator('.admin-hubspot-layout')).toBeVisible();
     await expect(page.getByRole('button', { name: /thêm field/i })).toBeVisible();
     await expect(page.locator('pre')).toHaveCount(0);
   });
