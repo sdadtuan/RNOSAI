@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope.module';
 import { StaffBreakGlassModule } from '../staff-break-glass/staff-break-glass.module';
 import { StaffPermissionsModule } from '../staff-permissions/staff-permissions.module';
 import { StaffPermissionSetsModule } from '../staff-permission-sets/staff-permission-sets.module';
@@ -12,6 +13,7 @@ import { StaffOrInternalKeyGuard } from './staff-or-internal-key.guard';
     forwardRef(() => StaffPermissionsModule),
     forwardRef(() => StaffPermissionSetsModule),
     forwardRef(() => StaffBreakGlassModule),
+    forwardRef(() => StaffClientScopeModule),
   ],
   controllers: [StaffAuthController],
   providers: [StaffAuthService, StaffJwtGuard, StaffOrInternalKeyGuard],

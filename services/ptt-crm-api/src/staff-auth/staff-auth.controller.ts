@@ -25,7 +25,7 @@ export class StaffAuthController {
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  refresh(@Body() body: StaffRefreshBody): StaffLoginResult {
+  refresh(@Body() body: StaffRefreshBody): Promise<StaffLoginResult> {
     return this.auth.refresh(body.refresh_token ?? '');
   }
 

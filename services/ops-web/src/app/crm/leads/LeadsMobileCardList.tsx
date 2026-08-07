@@ -4,6 +4,7 @@ import type { LeadRow } from '@/lib/api';
 import type { LeadScoreSummary } from '@/lib/ai-api';
 import { LeadScoreBadge } from '@/components/ai/LeadScoreBadge';
 import { LeadReviewQueueTag } from '@/components/crm/LeadReviewQueueTag';
+import { WinScopeBadge } from '@/components/rbac/WinScopeBadge';
 import { WinEmptyState } from '@/components/win';
 
 interface Props {
@@ -78,6 +79,7 @@ export function LeadsMobileCardList({
               <div className="win-leads-mobile-card__head">
                 <h3 className="win-leads-mobile-card__name">{lead.full_name || `Lead #${lead.id}`}</h3>
                 <div className="win-leads-mobile-card__badges">
+                  <WinScopeBadge clientId={lead.client_id} />
                   {showScores ? (
                     <LeadScoreBadge score={scoreMap[String(lead.id)]} pending={scoresPending} />
                   ) : null}

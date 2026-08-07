@@ -9,6 +9,7 @@ export type StaffOrgUserSummary = {
   team_ids?: number[];
   team_codes?: string[];
   job_functions: string[];
+  client_ids?: string[];
 };
 
 export type StaffOrgUserDetail = StaffOrgUserSummary;
@@ -56,6 +57,15 @@ export type OffboardStaffOrgUserResponse = {
 
 export type PutStaffUserJobFunctionsBody = {
   functions?: string[];
+};
+
+export type PutStaffUserClientScopeBody = {
+  client_ids?: string[];
+};
+
+export type StaffUserClientScopeResponse = {
+  user_id: string;
+  client_ids: string[];
 };
 
 export type StaffUserJobFunctionsResponse = {

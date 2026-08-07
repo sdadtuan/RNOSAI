@@ -4,6 +4,8 @@ import { AppConfigService, StaffStubUser } from '../config/app-config.service';
 import { StaffJobFunctionsRepository } from '../staff-permissions/staff-job-functions.repository';
 import { StaffBreakGlassRepository } from '../staff-break-glass/staff-break-glass.repository';
 import { StaffPermissionSetsRepository } from '../staff-permission-sets/staff-permission-sets.repository';
+import { StaffUserClientsRepository } from '../staff-client-scope/staff-user-clients.repository';
+import { isSuperAdminPositionCode } from '../staff-client-scope/staff-client-scope.util';
 import { verifyPortalPassword } from '../portal/portal-password.util';
 import {
   StaffLoginResult,
@@ -134,6 +136,8 @@ export class StaffAuthService {
     private readonly permissionSets: StaffPermissionSetsRepository,
     @Inject(forwardRef(() => StaffBreakGlassRepository))
     private readonly breakGlass: StaffBreakGlassRepository,
+    @Inject(forwardRef(() => StaffUserClientsRepository))
+    private readonly userClients: StaffUserClientsRepository,
   ) {}
 
   private get db(): Pool {
@@ -173,7 +177,7 @@ export class StaffAuthService {
     return this.issueTokens(user);
   }
 
-  refresh(refreshToken: string): StaffLoginResult {
+  refresh(refreshToken: string): Promise<StaffLoginResult> {
     const payload = verifyStaffJwt(refreshToken, this.config.staffJwtSecret);
     if (!payload || payload.token_type !== 'refresh') {
       throw new UnauthorizedException({ error: 'Invalid or expired refresh token' });
@@ -207,6 +211,7 @@ export class StaffAuthService {
     ]);
     const permission_sets = await this.permissionSets.loadUserSetCodes(accessPayload.sub);
     const position_code = await this.loadPositionCode(accessPayload.position_id);
+    const client_ids = await this.resolveJwtClientIds(accessPayload.sub, position_code);
     return {
       id: accessPayload.sub,
       email: accessPayload.email,
@@ -215,8 +220,27 @@ export class StaffAuthService {
       position_code: position_code ?? undefined,
       job_functions: jobFunctions.length ? jobFunctions : undefined,
       permission_sets: permission_sets.length ? permission_sets : undefined,
+      client_ids,
       caps,
     };
+  }
+
+  isSuperAdminPosition(positionCode: string | null | undefined): boolean {
+    return isSuperAdminPositionCode(positionCode);
+  }
+
+  async loadPositionCodePublic(positionId: number): Promise<string | null> {
+    return this.loadPositionCode(positionId);
+  }
+
+  private async resolveJwtClientIds(
+    userId: string,
+    positionCode: string | null,
+  ): Promise<string[] | undefined> {
+    if (!this.config.staffScopePilotEnabled) return undefined;
+    if (isSuperAdminPositionCode(positionCode)) return undefined;
+    const ids = await this.userClients.loadClientIdsForUser(userId);
+    return ids.length ? ids : undefined;
   }
 
   async listActiveStaff(): Promise<StaffRosterResponse> {
@@ -266,17 +290,20 @@ export class StaffAuthService {
     return caps.some((c) => c.section === section && c.action === action);
   }
 
-  private issueTokens(user: {
+  private async issueTokens(user: {
     id: string;
     email: string;
     displayName: string;
     positionId: number;
-  }): StaffLoginResult {
+  }): Promise<StaffLoginResult> {
+    const position_code = await this.loadPositionCode(user.positionId);
+    const client_ids = await this.resolveJwtClientIds(user.id, position_code);
     const base = {
       sub: user.id,
       email: user.email,
       display_name: user.displayName,
       position_id: user.positionId,
+      ...(client_ids?.length ? { client_ids } : {}),
     };
     const accessToken = signStaffJwt(
       { ...base, token_type: 'access' },
@@ -299,6 +326,8 @@ export class StaffAuthService {
         email: user.email,
         display_name: user.displayName,
         position_id: user.positionId,
+        position_code: position_code ?? undefined,
+        client_ids,
       },
     };
   }

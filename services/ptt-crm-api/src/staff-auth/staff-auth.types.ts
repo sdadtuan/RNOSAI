@@ -10,6 +10,7 @@ export interface StaffUserProfile {
   position_id: number;
   position_code?: string;
   job_functions?: string[];
+  client_ids?: string[];
 }
 
 export interface StaffLoginResult {
@@ -24,6 +25,7 @@ export interface StaffLoginResult {
 export interface StaffMeResponse extends StaffUserProfile {
   caps: StaffSectionCap[];
   permission_sets?: string[];
+  client_ids?: string[];
 }
 
 export interface StaffRosterRow {

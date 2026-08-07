@@ -52,6 +52,7 @@ export class AppConfigService {
   readonly staffRefreshTtlSec: number;
   readonly staffStubUsers: StaffStubUser[];
   readonly staffAllowStubUsers: boolean;
+  readonly staffScopePilotEnabled: boolean;
   readonly flaskMonolithUrl: string;
   readonly jobsEnabled: boolean;
   readonly webhookEnqueueEnabled: boolean;
@@ -176,6 +177,9 @@ export class AppConfigService {
     );
     this.staffStubUsers = this.parseStaffStubUsers();
     this.staffAllowStubUsers = this.resolveStaffAllowStubUsers();
+    this.staffScopePilotEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.STAFF_SCOPE_PILOT ?? '0').trim().toLowerCase(),
+    );
     this.flaskMonolithUrl = (process.env.PTT_FLASK_MONOLITH_URL ?? '').trim();
     this.jobsEnabled = this.resolveJobsEnabled();
     this.webhookEnqueueEnabled = this.resolveWebhookEnqueueEnabled();

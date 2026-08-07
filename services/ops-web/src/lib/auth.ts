@@ -18,6 +18,8 @@ export interface StoredStaffUser {
   /** R1.5 — optional until JWT carries job function metadata */
   position_code?: string;
   job_functions?: string[];
+  /** R3 pilot — explicit client workspace bindings (empty = unrestricted) */
+  client_ids?: string[];
 }
 
 export function saveSession(

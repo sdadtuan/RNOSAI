@@ -7,6 +7,7 @@ export interface StaffJwtPayload {
   email: string;
   display_name: string;
   position_id: number;
+  client_ids?: string[];
   token_type: StaffTokenType;
   iat: number;
   exp: number;

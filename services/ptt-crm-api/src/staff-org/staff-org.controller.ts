@@ -32,6 +32,7 @@ import type {
   PatchStaffOrgUserBody,
   PatchStaffTeamBody,
   PutStaffUserJobFunctionsBody,
+  PutStaffUserClientScopeBody,
 } from './staff-org.types';
 
 @Controller('api/v1/staff/org')
@@ -182,5 +183,21 @@ export class StaffOrgController {
   @UseGuards(StaffOrInternalKeyGuard, StaffOrgEffectiveCapsGuard)
   getEffectiveCaps(@Param('id') id: string) {
     return this.org.getEffectiveCaps(id);
+  }
+
+  @Get('users/:id/client-scope')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgRosterViewGuard)
+  getUserClientScope(@Param('id') id: string) {
+    return this.org.getUserClientScope(id);
+  }
+
+  @Put('users/:id/client-scope')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgConfigureGuard)
+  putUserClientScope(
+    @Param('id') id: string,
+    @Body() body: PutStaffUserClientScopeBody,
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.org.putUserClientScope(id, body, staffUser?.email ?? '');
   }
 }

@@ -93,6 +93,11 @@ export class SqliteLeadsRepository implements OnModuleDestroy {
       clauses.push(`json_extract(l.meta_json, '$.agency_client_id') = ?`);
       params.push(query.client_id.trim());
     }
+    if (query.allowed_client_ids?.length) {
+      const placeholders = query.allowed_client_ids.map(() => '?').join(', ');
+      clauses.push(`json_extract(l.meta_json, '$.agency_client_id') IN (${placeholders})`);
+      params.push(...query.allowed_client_ids);
+    }
     if (query.status?.trim()) {
       clauses.push('l.status = ?');
       params.push(query.status.trim());

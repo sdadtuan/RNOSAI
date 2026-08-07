@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminPageShell } from '@/components/admin';
 import { AdminOrgSubNav } from '@/components/rbac/AdminOrgSubNav';
 import { UserIdentityCard } from '@/components/rbac/UserIdentityCard';
+import { WinScopeBadge } from '@/components/rbac/WinScopeBadge';
 import { WinDrawer } from '@/components/win';
 import {
   fetchStaffOrgJobFunctionCatalog,
@@ -129,9 +130,12 @@ export default function AdminOrgUsersPage() {
                 </td>
                 <td>{row.email}</td>
                 <td>
-                  {row.position_code ?? row.position_id}
-                  {row.team_codes?.length ? ` · ${row.team_codes.join(', ')}` : ''}
-                  {row.job_functions?.length ? ` · ${row.job_functions.join(', ')}` : ''}
+                  <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
+                    {row.position_code ?? row.position_id}
+                    {row.team_codes?.length ? ` · ${row.team_codes.join(', ')}` : ''}
+                    {row.job_functions?.length ? ` · ${row.job_functions.join(', ')}` : ''}
+                    <WinScopeBadge clientIds={row.client_ids} />
+                  </span>
                 </td>
                 <td>{row.active === false ? 'Ngưng' : 'Hoạt động'}</td>
               </tr>

@@ -7684,6 +7684,7 @@ export interface StaffOrgUserSummary {
   team_ids?: number[];
   team_codes?: string[];
   job_functions: string[];
+  client_ids?: string[];
 }
 
 export interface CreateStaffOrgUserInput {
@@ -7803,6 +7804,25 @@ export async function putStaffUserJobFunctions(
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ functions }),
+  });
+}
+
+export async function fetchStaffUserClientScope(
+  token: string,
+  userId: string,
+): Promise<{ user_id: string; client_ids: string[] }> {
+  return crmFetch(token, `/api/v1/staff/org/users/${encodeURIComponent(userId)}/client-scope`);
+}
+
+export async function putStaffUserClientScope(
+  token: string,
+  userId: string,
+  clientIds: string[],
+): Promise<{ user_id: string; client_ids: string[] }> {
+  return crmFetch(token, `/api/v1/staff/org/users/${encodeURIComponent(userId)}/client-scope`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_ids: clientIds }),
   });
 }
 

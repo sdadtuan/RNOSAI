@@ -26,6 +26,7 @@ import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { hasGdkdAssign, hasGdkdViewAllLeads } from '../staff-permissions/staff-gdkd.util';
 import { StaffRbacAuditRepository } from '../staff-permissions/staff-rbac-audit.repository';
+import { StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
 import { WriteEnabledGuard } from './guards/write-enabled.guard';
 import { StaffLeadsWriteGuard } from './guards/staff-leads-write.guard';
 import { StaffLeadsViewGuard } from './guards/staff-leads-view.guard';
@@ -62,6 +63,7 @@ export class LeadsController {
     private readonly copilotContext: CopilotContextService,
     private readonly slaAutoTask: SlaAutoTaskService,
     private readonly rbacAudit: StaffRbacAuditRepository,
+    private readonly clientScope: StaffClientScopeService,
   ) {}
 
   @Get('lookup-options')
@@ -226,6 +228,9 @@ export class LeadsController {
       }
     }
 
+    const scope = await this.clientScope.resolveForRequest(req);
+    this.clientScope.assertListClientFilter(scope, clientId);
+
     return this.leadsService.listLeads({
       client_id: clientId,
       status,
@@ -239,6 +244,7 @@ export class LeadsController {
       owner_id: resolvedOwnerId,
       unassigned_only: truthy(unassignedOnly),
       lead_flow_kind: flowKind,
+      allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
     });
   }
 
@@ -302,11 +308,16 @@ export class LeadsController {
 
   @Get(':id')
   @UseGuards(StaffOrInternalKeyGuard)
-  async getLead(@Param('id', ParseIntPipe) id: number): Promise<LeadV1> {
+  async getLead(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ): Promise<LeadV1> {
     const lead = await this.leadsService.getLead(id);
     if (!lead) {
       throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
     }
+    const scope = await this.clientScope.resolveForRequest(req);
+    this.clientScope.assertLeadAccessible(scope, lead.client_id);
     return lead;
   }
 }

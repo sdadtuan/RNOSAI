@@ -79,6 +79,8 @@ export interface ListLeadsQuery {
   unassigned_only?: boolean;
   /** Filter by operational flow (spa CSKH vs B2B sales). */
   lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
+  /** WIN-3-C — restrict list to assigned agency clients. */
+  allowed_client_ids?: string[];
 }
 
 export interface CreateLeadV1Body {

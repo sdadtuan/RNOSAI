@@ -9,6 +9,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJobFunctionsRepository } from '../staff-permissions/staff-job-functions.repository';
 import { StaffBreakGlassRepository } from '../staff-break-glass/staff-break-glass.repository';
+import { StaffUserClientsRepository } from '../staff-client-scope/staff-user-clients.repository';
 import { StaffPermissionSetsRepository } from '../staff-permission-sets/staff-permission-sets.repository';
 import { JOB_FUNCTION_CATALOG } from '../staff-permissions/staff-job-functions.catalog';
 import {
@@ -29,7 +30,9 @@ import type {
   PatchStaffOrgUserBody,
   PatchStaffTeamBody,
   PutStaffUserJobFunctionsBody,
+  PutStaffUserClientScopeBody,
   StaffOrgUserSummary,
+  StaffUserClientScopeResponse,
   StaffUserEffectiveCapsResponse,
   StaffUserJobFunctionsResponse,
 } from './staff-org.types';
@@ -57,6 +60,7 @@ export class StaffOrgService implements OnModuleDestroy {
     private readonly jobFunctions: StaffJobFunctionsRepository,
     private readonly permissionSets: StaffPermissionSetsRepository,
     private readonly breakGlass: StaffBreakGlassRepository,
+    private readonly userClients: StaffUserClientsRepository,
   ) {}
 
   private get db(): Pool {
@@ -138,7 +142,14 @@ export class StaffOrgService implements OnModuleDestroy {
       const enriched: StaffOrgUserSummary[] = [];
       for (const row of rows) {
         const functions = await this.jobFunctions.loadUserFunctionCodes(row.id);
-        enriched.push({ ...row, job_functions: functions });
+        const client_ids = this.config.staffScopePilotEnabled
+          ? await this.userClients.loadClientIdsForUser(row.id)
+          : undefined;
+        enriched.push({
+          ...row,
+          job_functions: functions,
+          ...(client_ids?.length ? { client_ids } : {}),
+        });
       }
       return enriched;
     } catch {
@@ -239,6 +250,26 @@ export class StaffOrgService implements OnModuleDestroy {
     }
     await this.jobFunctions.replaceUserFunctions(user.id, functions, actorEmail);
     return this.getUserJobFunctions(user.id);
+  }
+
+  async getUserClientScope(userRef: string): Promise<StaffUserClientScopeResponse> {
+    const user = await this.resolveUser(userRef);
+    const client_ids = await this.userClients.loadClientIdsForUser(user.id);
+    return { user_id: user.id, client_ids };
+  }
+
+  async putUserClientScope(
+    userRef: string,
+    body: PutStaffUserClientScopeBody,
+    actorEmail: string,
+  ): Promise<StaffUserClientScopeResponse> {
+    const user = await this.resolveUser(userRef);
+    const client_ids = await this.userClients.replaceUserClients(
+      user.id,
+      body.client_ids ?? [],
+      actorEmail,
+    );
+    return { user_id: user.id, client_ids };
   }
 
   async getEffectiveCaps(userRef: string): Promise<StaffUserEffectiveCapsResponse> {

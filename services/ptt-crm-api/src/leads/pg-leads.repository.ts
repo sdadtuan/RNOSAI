@@ -95,6 +95,9 @@ export class PgLeadsRepository implements OnModuleDestroy {
     if (query.client_id?.trim()) {
       push('l.agency_client_id = ?::uuid', query.client_id.trim());
     }
+    if (query.allowed_client_ids?.length) {
+      push('l.agency_client_id = ANY(?::uuid[])', query.allowed_client_ids);
+    }
     if (query.status?.trim()) {
       push('l.status = ?', query.status.trim());
     }

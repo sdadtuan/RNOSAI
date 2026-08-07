@@ -25,3 +25,7 @@ export function winSimulatorEnabled(): boolean {
 export function winBreakGlassEnabled(): boolean {
   return process.env.NEXT_PUBLIC_WIN_BREAK_GLASS === '1';
 }
+
+export function winScopePilotEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_WIN_SCOPE_PILOT === '1';
+}

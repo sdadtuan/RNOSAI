@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EffectiveCapsPreview } from '@/components/rbac/EffectiveCapsPreview';
 import { JobFunctionPicker } from '@/components/rbac/JobFunctionPicker';
+import { ClientScopePicker } from '@/components/rbac/ClientScopePicker';
 import { WinReloginToast, WinSodBanner } from '@/components/win';
 import { PermissionSetPicker } from '@/components/rbac/PermissionSetPicker';
 import {
@@ -11,10 +12,12 @@ import {
   fetchStaffPermissionSets,
   fetchStaffUserEffectiveCaps,
   fetchStaffUserJobFunctions,
+  fetchStaffUserClientScope,
   fetchStaffUserPermissionSets,
   offboardStaffOrgUser,
   patchStaffOrgUser,
   putStaffUserJobFunctions,
+  putStaffUserClientScope,
   putStaffUserPermissionSets,
   type StaffOrgPositionRow,
   type StaffOrgUserSummary,
@@ -22,7 +25,7 @@ import {
   type StaffTeamRow,
   type StaffUserEffectiveCaps,
 } from '@/lib/api';
-import { winPermissionSetsEnabled } from '@/lib/win/flags';
+import { winPermissionSetsEnabled, winScopePilotEnabled } from '@/lib/win/flags';
 import { detectSodViolations } from '@/lib/rbac/sod-rules';
 
 type Props = {
@@ -49,6 +52,7 @@ export function UserIdentityCard({
   const [functions, setFunctions] = useState<string[]>(user.job_functions ?? []);
   const [teamIds, setTeamIds] = useState<number[]>(user.team_ids ?? []);
   const [setCodes, setSetCodes] = useState<string[]>([]);
+  const [clientIds, setClientIds] = useState<string[]>([]);
   const [setOptions, setSetOptions] = useState<StaffPermissionSetSummary[]>([]);
   const [teams, setTeams] = useState<StaffTeamRow[]>([]);
   const [preview, setPreview] = useState<StaffUserEffectiveCaps | null>(null);
@@ -69,6 +73,14 @@ export function UserIdentityCard({
         setSetCodes([...(sets.set_codes ?? [])].sort());
       } catch {
         setSetCodes([]);
+      }
+    }
+    if (winScopePilotEnabled()) {
+      try {
+        const scope = await fetchStaffUserClientScope(token, user.id);
+        setClientIds([...(scope.client_ids ?? [])].sort());
+      } catch {
+        setClientIds([]);
       }
     }
     try {
@@ -112,6 +124,9 @@ export function UserIdentityCard({
       await putStaffUserJobFunctions(token, user.id, functions);
       if (winPermissionSetsEnabled()) {
         await putStaffUserPermissionSets(token, user.id, setCodes);
+      }
+      if (winScopePilotEnabled()) {
+        await putStaffUserClientScope(token, user.id, clientIds);
       }
       await loadDetail();
       onSaved?.({ ...patched, job_functions: functions });
@@ -158,6 +173,7 @@ export function UserIdentityCard({
       team_ids: teamIds,
       job_functions: functions,
       set_codes: setCodes,
+      client_ids: clientIds,
     };
     void navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
   }
@@ -217,6 +233,15 @@ export function UserIdentityCard({
           value={setCodes}
           disabled={!canEdit || busy}
           onChange={setSetCodes}
+        />
+      ) : null}
+
+      {winScopePilotEnabled() ? (
+        <ClientScopePicker
+          token={token}
+          value={clientIds}
+          disabled={!canEdit || busy}
+          onChange={setClientIds}
         />
       ) : null}
 

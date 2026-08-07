@@ -9,6 +9,7 @@ import { MetaTrackingModule } from '../meta-tracking/meta-tracking.module';
 import { PerformanceModule } from '../performance/performance.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { StaffPermissionsModule } from '../staff-permissions/staff-permissions.module';
+import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope.module';
 import { LeadsIoService } from './leads-io.service';
 import { LeadAttributionService } from './lead-attribution.service';
 import { LeadsController } from './leads.controller';
@@ -38,6 +39,7 @@ import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.modul
     AiScoreAsyncModule,
     StaffAuthModule,
     StaffPermissionsModule,
+    StaffClientScopeModule,
     CrmConfigModule,
     CatalogModule,
     forwardRef(() => CrmLeadsLegacyModule),

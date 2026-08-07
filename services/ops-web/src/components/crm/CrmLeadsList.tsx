@@ -4,6 +4,7 @@ import type { LeadRow } from '@/lib/api';
 import type { LeadScoreSummary } from '@/lib/ai-api';
 import { LeadScoreBadge } from '@/components/ai/LeadScoreBadge';
 import { LeadReviewQueueTag } from '@/components/crm/LeadReviewQueueTag';
+import { WinScopeBadge } from '@/components/rbac/WinScopeBadge';
 import { LeadsMobileCardList } from '@/app/crm/leads/LeadsMobileCardList';
 import { WinEmptyState } from '@/components/win';
 import type { LeadsColumnId } from '@/lib/crm/leads-columns';
@@ -121,7 +122,14 @@ export function CrmLeadsList({
                     </Link>
                   </td>
                 ) : null}
-                {visibleColumns.has('name') ? <td>{lead.full_name || '—'}</td> : null}
+                {visibleColumns.has('name') ? (
+                  <td>
+                    <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
+                      {lead.full_name || '—'}
+                      <WinScopeBadge clientId={lead.client_id} />
+                    </span>
+                  </td>
+                ) : null}
                 {visibleColumns.has('phone') ? <td>{lead.phone || '—'}</td> : null}
                 {visibleColumns.has('status') ? <td>{lead.status}</td> : null}
                 {showLeadKindTags && visibleColumns.has('kind') ? (
