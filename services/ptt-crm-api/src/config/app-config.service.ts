@@ -106,6 +106,7 @@ export class AppConfigService {
   readonly mobileForceUpdate: boolean;
 
   constructor() {
+    this.applyRuntimeEnvOverrides();
     this.port = Number(process.env.PORT ?? process.env.CRM_API_PORT ?? 3000);
     this.sqlitePath = this.resolveSqlitePath();
     this.databaseUrl = (
@@ -417,6 +418,28 @@ export class AppConfigService {
       return raw;
     }
     return 'nest';
+  }
+
+  /** VPS/deploy-owned overrides when root .env is not writable by deploy user. */
+  private applyRuntimeEnvOverrides(): void {
+    const overridePath = path.resolve(__dirname, '..', '..', '..', 'deploy', 'runtime.env');
+    if (!fs.existsSync(overridePath)) {
+      return;
+    }
+    try {
+      const raw = fs.readFileSync(overridePath, 'utf8');
+      for (const line of raw.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eq = trimmed.indexOf('=');
+        if (eq <= 0) continue;
+        const key = trimmed.slice(0, eq).trim();
+        const val = trimmed.slice(eq + 1).trim();
+        if (key) process.env[key] = val;
+      }
+    } catch {
+      /* ignore unreadable override file */
+    }
   }
 
   staffSsoConfigured(): boolean {

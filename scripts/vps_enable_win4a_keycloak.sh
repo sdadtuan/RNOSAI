@@ -26,10 +26,37 @@ run_local() {
     set +a
   fi
 
-  echo "== nginx Keycloak /auth proxy =="
-  if [[ -x "$ROOT/scripts/apply_nginx_rs_vps_ssl.sh" ]]; then
-    sudo -n "$ROOT/scripts/apply_nginx_rs_vps_ssl.sh" || echo "WARN nginx apply skipped (sudo)"
+  echo "== .env SSO vars =="
+  RUNTIME_ENV="$ROOT/deploy/runtime.env"
+  {
+    echo "# WIN-4-A SSO — auto-generated $(date -Iseconds)"
+    echo "STAFF_AUTH_MODE=dual"
+    echo "STAFF_SCOPE_PILOT=1"
+    echo "PTT_STAFF_KEYCLOAK_ISSUER=$ISSUER"
+    echo "PTT_STAFF_KEYCLOAK_AUDIENCE=ptt-ops-web"
+    echo "STAFF_MFA_REQUIRED_POSITIONS=gdkd,super-admin"
+  } >"$RUNTIME_ENV"
+  echo "Wrote $RUNTIME_ENV (deploy-owned runtime overrides)"
+
+  ENV_FILE="$ROOT/.env"
+  if [[ -w "$ENV_FILE" ]]; then
+    grep -q '^STAFF_AUTH_MODE=' "$ENV_FILE" && sed -i.bak 's/^STAFF_AUTH_MODE=.*/STAFF_AUTH_MODE=dual/' "$ENV_FILE" || echo 'STAFF_AUTH_MODE=dual' >>"$ENV_FILE"
+    grep -q '^PTT_STAFF_KEYCLOAK_ISSUER=' "$ENV_FILE" && sed -i.bak "s|^PTT_STAFF_KEYCLOAK_ISSUER=.*|PTT_STAFF_KEYCLOAK_ISSUER=$ISSUER|" "$ENV_FILE" || echo "PTT_STAFF_KEYCLOAK_ISSUER=$ISSUER" >>"$ENV_FILE"
+  else
+    echo "Note: $ENV_FILE not writable — using deploy/runtime.env only"
   fi
+
+  echo "== nginx Keycloak /auth (via ptt include) =="
+  KC_INC="/var/www/ptt/deploy/nginx-keycloak-auth.conf"
+  cp "$ROOT/deploy/nginx-keycloak-auth.conf" "$KC_INC"
+  if ! grep -q 'nginx-keycloak-auth.conf' /var/www/ptt/deploy/nginx-seo-gate-a-redirect.conf 2>/dev/null; then
+    cat >>/var/www/ptt/deploy/nginx-seo-gate-a-redirect.conf <<'NGINX'
+
+# WIN-4-A Keycloak OIDC (deploy-managed include)
+include /var/www/ptt/deploy/nginx-keycloak-auth.conf;
+NGINX
+  fi
+  sudo -n /usr/sbin/nginx -t && sudo -n /usr/bin/systemctl reload nginx && echo "OK nginx reloaded" || echo "WARN nginx reload failed"
 
   echo "== Keycloak docker =="
   docker compose -f "$ROOT/docker-compose.keycloak.vps.yml" up -d
@@ -50,17 +77,9 @@ run_local() {
   echo "== PG seed group map + demo users =="
   bash "$ROOT/scripts/seed_win4a_sso_staging.sh"
 
-  echo "== .env SSO vars =="
-  ENV_FILE="$ROOT/.env"
-  touch "$ENV_FILE"
-  grep -q '^STAFF_AUTH_MODE=' "$ENV_FILE" && sed -i.bak 's/^STAFF_AUTH_MODE=.*/STAFF_AUTH_MODE=dual/' "$ENV_FILE" || echo 'STAFF_AUTH_MODE=dual' >>"$ENV_FILE"
-  grep -q '^STAFF_SCOPE_PILOT=' "$ENV_FILE" && sed -i.bak 's/^STAFF_SCOPE_PILOT=.*/STAFF_SCOPE_PILOT=1/' "$ENV_FILE" || echo 'STAFF_SCOPE_PILOT=1' >>"$ENV_FILE"
-  grep -q '^PTT_STAFF_KEYCLOAK_ISSUER=' "$ENV_FILE" && sed -i.bak "s|^PTT_STAFF_KEYCLOAK_ISSUER=.*|PTT_STAFF_KEYCLOAK_ISSUER=$ISSUER|" "$ENV_FILE" || echo "PTT_STAFF_KEYCLOAK_ISSUER=$ISSUER" >>"$ENV_FILE"
-  grep -q '^PTT_STAFF_KEYCLOAK_AUDIENCE=' "$ENV_FILE" || echo 'PTT_STAFF_KEYCLOAK_AUDIENCE=ptt-ops-web' >>"$ENV_FILE"
-  grep -q '^STAFF_MFA_REQUIRED_POSITIONS=' "$ENV_FILE" || echo 'STAFF_MFA_REQUIRED_POSITIONS=gdkd,super-admin' >>"$ENV_FILE"
-  grep -q '^NEXT_PUBLIC_WIN_SSO=' "$ENV_FILE" || echo 'NEXT_PUBLIC_WIN_SSO=1' >>"$ENV_FILE"
-
-  echo "== restart Nest API =="
+  echo "== Nest API rebuild + restart =="
+  cd "$ROOT/services/ptt-crm-api"
+  npm run build
   sudo -n /usr/bin/systemctl restart ptt-crm-api
   sleep 3
   curl -sf http://127.0.0.1:3000/health | python3 -c "import json,sys; d=json.load(sys.stdin); print('staff_auth_mode:', d.get('staff_auth_mode'), 'sso:', d.get('staff_sso_configured'))"
