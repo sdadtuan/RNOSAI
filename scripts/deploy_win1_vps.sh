@@ -47,6 +47,12 @@ run_local() {
     psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT COUNT(*) AS functions FROM staff_job_functions;" >/dev/null
   fi
 
+  if [[ "${WIN1_SEED_UAT_PERSONAS:-0}" == "1" ]]; then
+    echo "== WIN-1 UAT personas =="
+    "$PYTHON" "$ROOT/scripts/seed_super_admin_full_access.py" --apply
+    "$PYTHON" "$ROOT/scripts/seed_win1_uat_personas.py" --apply
+  fi
+
   echo "== Nest ptt-crm-api =="
   cd "$ROOT/services/ptt-crm-api"
   npm ci

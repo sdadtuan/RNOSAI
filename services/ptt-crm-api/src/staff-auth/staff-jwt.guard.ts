@@ -26,11 +26,12 @@ export class StaffJwtGuard implements CanActivate {
 }
 
 export const StaffUser = createParamDecorator(
-  (_data: unknown, ctx: ExecutionContext): StaffJwtPayload => {
-    const req = ctx.switchToHttp().getRequest<Request & { staffUser?: StaffJwtPayload }>();
-    if (!req.staffUser) {
-      throw new UnauthorizedException({ error: 'Unauthorized' });
-    }
-    return req.staffUser;
+  (_data: unknown, ctx: ExecutionContext): StaffJwtPayload | undefined => {
+    const req = ctx.switchToHttp().getRequest<
+      Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' }
+    >();
+    if (req.staffUser) return req.staffUser;
+    if (req.staffAuthVia === 'internal') return undefined;
+    throw new UnauthorizedException({ error: 'Unauthorized' });
   },
 );
