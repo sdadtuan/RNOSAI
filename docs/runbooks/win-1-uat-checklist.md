@@ -77,8 +77,7 @@
 
 ## 5. Ký acceptance
 
-- [ ] PO + QA ký [`win-1-acceptance-checklist.md`](../specs/win-1-acceptance-checklist.md)
-- [ ] Lưu PDF: `docs/exports/signed/WIN-1-acceptance-YYYY-MM-DD.pdf` (optional)
+- [ ] PO + QA ký PDF: [`docs/exports/signed/WIN-1-acceptance-2026-08-07.pdf`](../exports/signed/WIN-1-acceptance-2026-08-07.pdf)
 
 ---
 

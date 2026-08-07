@@ -42,8 +42,16 @@
 ## Evidence links
 
 - UAT checklist: [`docs/runbooks/win-1-uat-checklist.md`](../runbooks/win-1-uat-checklist.md)
-- Deploy commit: `git log -1 --oneline` on VPS
+- Deploy commit: `eac00e0` on VPS (`dd3b171` docs)
+- **PDF ký PO:** [`docs/exports/signed/WIN-1-acceptance-2026-08-07.pdf`](../exports/signed/WIN-1-acceptance-2026-08-07.pdf)
+- Markdown nguồn: [`docs/exports/WIN-1-acceptance-2026-08-07.md`](../exports/WIN-1-acceptance-2026-08-07.md)
 - Screenshots (optional): `docs/exports/win-ux-screenshots/WIN-1/`
+
+**Tái tạo PDF:**
+
+```bash
+python3 scripts/export_win1_acceptance_pdf.py
+```
 
 ---
 

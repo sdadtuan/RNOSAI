@@ -86,6 +86,6 @@ npx playwright test e2e/win-1-manual-uat-vux.spec.ts
 - [x] VUX-04 menu SEO/email vs Meta Ads **khác biệt rõ** (hướng B)
 - [x] VUX-05 SoD UI (functions + users)
 - [x] VUX-05 API 409
-- [ ] PO ký acceptance PDF
+- [ ] PO ký acceptance PDF → [`docs/exports/signed/WIN-1-acceptance-2026-08-07.pdf`](./signed/WIN-1-acceptance-2026-08-07.pdf)
 
 **Trạng thái WIN-1:** Automated + UI gates **PASS** — chờ PO sign-off.
