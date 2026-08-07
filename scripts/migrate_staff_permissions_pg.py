@@ -46,9 +46,30 @@ def main() -> int:
         action="store_true",
         help="Remove position grants not in code defaults (use with --apply for trim migrations)",
     )
+    parser.add_argument(
+        "--r2-gdkd",
+        action="store_true",
+        help="R2-A: map crm_leads.assign → crm_gdkd.assign + SUPER-ADMIN crm_gdkd.*",
+    )
     args = parser.parse_args()
 
     dry_run = args.dry_run or not args.apply
+
+    if args.r2_gdkd:
+        require_pg()
+        print("=== migrate_staff_permissions_pg --r2-gdkd (PostgreSQL only) ===")
+        print(f"  mode: {'dry-run' if dry_run else 'apply'}")
+        from ptt_jobs.db import pg_connection
+        from rbac_permissions_pg import migrate_r2_gdkd
+
+        with pg_connection() as conn:
+            with conn.cursor() as cur:
+                total = migrate_r2_gdkd(cur, dry_run=dry_run)
+            if not dry_run:
+                conn.commit()
+        print(f"Done — processed {total} cap rows")
+        return 0
+
     codes = _parse_codes(args)
 
     require_pg()

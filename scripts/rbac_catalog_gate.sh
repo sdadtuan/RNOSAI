@@ -14,3 +14,5 @@ export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 echo "== RBAC catalog gate =="
 "$PYTHON" scripts/rbac_catalog.py --check --write-json
+echo "== RBAC permission sets catalog subset =="
+"$PYTHON" scripts/rbac_permission_sets_gate.py

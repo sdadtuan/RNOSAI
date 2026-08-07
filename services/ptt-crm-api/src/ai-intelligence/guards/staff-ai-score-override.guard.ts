@@ -8,6 +8,7 @@ import {
 import { Request } from 'express';
 import { StaffAuthService } from '../../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
+import { hasGdkdAssign } from '../../staff-permissions/staff-gdkd.util';
 
 /** AI-UC-006 / BR-AI-05 — chỉ GDKD (assign) hoặc ai_admin được override score. */
 @Injectable()
@@ -28,16 +29,13 @@ export class StaffAiScoreOverrideGuard implements CanActivate {
     }
 
     const me = await this.staffAuth.me(req.staffUser);
-    if (
-      this.staffAuth.hasCap(me.caps, 'crm_leads', 'assign') ||
-      this.staffAuth.hasCap(me.caps, 'ai_admin', 'view')
-    ) {
+    if (hasGdkdAssign(me.caps) || this.staffAuth.hasCap(me.caps, 'ai_admin', 'view')) {
       return true;
     }
 
     throw new ForbiddenException({
       error: 'score_override_forbidden',
-      message: 'Requires crm_leads.assign or ai_admin.view (GDKD)',
+      message: 'Requires crm_gdkd.assign or ai_admin.view (GDKD)',
     });
   }
 }

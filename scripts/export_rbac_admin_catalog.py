@@ -20,6 +20,13 @@ from ptt_ui_button_permissions import CRM_UI_BUTTONS  # noqa: E402
 
 OUT = ROOT / "services" / "ptt-crm-api" / "src" / "staff-permissions" / "rbac-admin-catalog.json"
 
+GDKD_SECTION_ACTIONS: tuple[str, ...] = (
+    "override",
+    "assign",
+    "review_queue",
+    "view_all_leads",
+)
+
 EXTRA_ACTION_LABELS_VI = {
     "write": "Ghi / thao tác",
     "settings": "Cài đặt",
@@ -27,6 +34,9 @@ EXTRA_ACTION_LABELS_VI = {
     "deliverability": "Deliverability",
     "reports": "Báo cáo",
     "assign": "Phân công (GDKD)",
+    "override": "Override GDKD",
+    "review_queue": "Review queue",
+    "view_all_leads": "Xem toàn bộ lead",
     "query": "Truy vấn NL",
     "commit": "Commit forecast",
     "simulate": "Mô phỏng",
@@ -35,6 +45,8 @@ EXTRA_ACTION_LABELS_VI = {
 
 
 def section_action_ids(section_id: str) -> list[str]:
+    if section_id == "crm_gdkd":
+        return sorted(GDKD_SECTION_ACTIONS)
     acts = set(CMS_ACTIONS)
     for grants in _POSITION_DEFAULT.values():
         raw = grants.get(section_id)

@@ -8,6 +8,7 @@ import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJobFunctionsRepository } from '../staff-permissions/staff-job-functions.repository';
+import { StaffPermissionSetsRepository } from '../staff-permission-sets/staff-permission-sets.repository';
 import { JOB_FUNCTION_CATALOG } from '../staff-permissions/staff-job-functions.catalog';
 import {
   normalizeFunctionCodes,
@@ -53,6 +54,7 @@ export class StaffOrgService implements OnModuleDestroy {
     private readonly config: AppConfigService,
     private readonly staffAuth: StaffAuthService,
     private readonly jobFunctions: StaffJobFunctionsRepository,
+    private readonly permissionSets: StaffPermissionSetsRepository,
   ) {}
 
   private get db(): Pool {
@@ -240,13 +242,18 @@ export class StaffOrgService implements OnModuleDestroy {
   async getEffectiveCaps(userRef: string): Promise<StaffUserEffectiveCapsResponse> {
     const user = await this.resolveUser(userRef);
     const job_functions = await this.jobFunctions.loadUserFunctionCodes(user.id);
+    const permission_sets = await this.permissionSets.loadUserSetCodes(user.id);
     const baseCaps = await this.staffAuth.loadCaps(user.position_id);
     const functionCaps = await this.jobFunctions.loadCapsForFunctions(job_functions);
+    const setCaps = await this.permissionSets.loadCapsForUser(user.id);
     const map = new Map<string, { section: string; action: string }>();
     for (const cap of baseCaps) {
       map.set(`${cap.section}:${cap.action}`, cap);
     }
     for (const cap of functionCaps) {
+      map.set(`${cap.section_id}:${cap.action}`, { section: cap.section_id, action: cap.action });
+    }
+    for (const cap of setCaps) {
       map.set(`${cap.section_id}:${cap.action}`, { section: cap.section_id, action: cap.action });
     }
     return {
@@ -256,6 +263,7 @@ export class StaffOrgService implements OnModuleDestroy {
       position_id: user.position_id,
       position_code: user.position_code,
       job_functions,
+      permission_sets,
       caps: [...map.values()].sort((a, b) =>
         `${a.section}:${a.action}`.localeCompare(`${b.section}:${b.action}`, 'vi'),
       ),

@@ -1,11 +1,15 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { winPermissionSetsEnabled } from '@/lib/win/flags';
 
 const LINKS = [
   { href: '/admin/crm/permissions', label: 'Chức vụ', exact: true },
   { href: '/admin/crm/permissions/functions', label: 'Job function' },
   { href: '/admin/crm/permissions/users', label: 'Gán user' },
-];
+  ...(winPermissionSetsEnabled()
+    ? [{ href: '/admin/crm/permission-sets', label: 'Permission Sets' }]
+    : []),
+] as const;
 
 function isActive(pathname: string, href: string, exact?: boolean): boolean {
   if (exact) return pathname === href;
@@ -21,7 +25,9 @@ export function AdminPermissionsSubNav() {
           key={link.href}
           href={link.href}
           className={`admin-permissions-subnav__link${
-            isActive(pathname, link.href, link.exact) ? ' admin-permissions-subnav__link--active' : ''
+            isActive(pathname, link.href, 'exact' in link ? link.exact : undefined)
+              ? ' admin-permissions-subnav__link--active'
+              : ''
           }`}
         >
           {link.label}

@@ -13,3 +13,11 @@ export function winOrgUiEnabled(): boolean {
 export function winKpiSolutionEnabled(): boolean {
   return process.env.NEXT_PUBLIC_WIN_KPI_SOLUTION === '1';
 }
+
+export function winPermissionSetsEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_WIN_PERMISSION_SETS === '1';
+}
+
+export function winSimulatorEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_WIN_SIMULATOR === '1';
+}

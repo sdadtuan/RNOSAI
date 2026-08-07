@@ -74,6 +74,7 @@ export type StaffUserEffectiveCapsResponse = {
   position_id: number;
   position_code?: string;
   job_functions: string[];
+  permission_sets?: string[];
   caps: Array<{ section: string; action: string }>;
 };
 

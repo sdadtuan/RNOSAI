@@ -6,6 +6,7 @@ import { CskhBoardService } from '../cskh-board/cskh-board.service';
 import { parseB2CompletedAt } from '../cskh-board/cskh-board-sla.util';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+import { hasGdkdAssign } from '../staff-permissions/staff-gdkd.util';
 import { parseLeadMeta } from './care-pipeline.util';
 import {
   AdvancePresalesBody,
@@ -105,7 +106,7 @@ export class LeadsFunnelService {
     const me = await this.staffAuth.me(staffUser);
     return {
       caps: me.caps,
-      gdkdAssign: this.staffAuth.hasCap(me.caps, 'crm_leads', 'assign'),
+      gdkdAssign: hasGdkdAssign(me.caps),
     };
   }
 

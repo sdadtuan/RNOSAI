@@ -7719,6 +7719,7 @@ export interface StaffUserEffectiveCaps {
   position_id: number;
   position_code?: string;
   job_functions: string[];
+  permission_sets?: string[];
   caps: Array<{ section: string; action: string }>;
 }
 
@@ -7934,4 +7935,84 @@ export async function fetchStaffOrgChart(
   const qs = opts?.includeInactive ? '?include_inactive=1' : '';
   const data = await crmFetch<{ nodes: StaffOrgChartNode[] }>(token, `/api/v1/staff/org/chart${qs}`);
   return data.nodes ?? [];
+}
+
+export interface StaffPermissionSetSummary {
+  id: number;
+  code: string;
+  name: string;
+  active: boolean;
+  grant_count: number;
+}
+
+export interface StaffPermissionSetDetail {
+  id: number;
+  code: string;
+  name: string;
+  active: boolean;
+  grants: Array<{ section_id: string; action: string }>;
+  matrix: StaffPermissionMatrixRow[];
+}
+
+export async function fetchStaffPermissionSets(token: string): Promise<StaffPermissionSetSummary[]> {
+  const data = await crmFetch<{ sets: StaffPermissionSetSummary[] }>(token, '/api/v1/staff/permission-sets');
+  return data.sets ?? [];
+}
+
+export async function fetchStaffPermissionSet(token: string, code: string): Promise<StaffPermissionSetDetail> {
+  return crmFetch(token, `/api/v1/staff/permission-sets/${encodeURIComponent(code)}`);
+}
+
+export async function createStaffPermissionSet(
+  token: string,
+  body: { code: string; name: string },
+): Promise<StaffPermissionSetDetail> {
+  return crmFetch(token, '/api/v1/staff/permission-sets', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchStaffPermissionSet(
+  token: string,
+  code: string,
+  body: { name?: string; active?: boolean },
+): Promise<StaffPermissionSetDetail> {
+  return crmFetch(token, `/api/v1/staff/permission-sets/${encodeURIComponent(code)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function putStaffPermissionSetGrants(
+  token: string,
+  code: string,
+  grants: Array<{ section_id: string; action: string }>,
+): Promise<StaffPermissionSetDetail> {
+  return crmFetch(token, `/api/v1/staff/permission-sets/${encodeURIComponent(code)}/grants`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ grants }),
+  });
+}
+
+export async function fetchStaffUserPermissionSets(
+  token: string,
+  userId: string,
+): Promise<{ user_id: string; set_codes: string[] }> {
+  return crmFetch(token, `/api/v1/staff/permission-sets/users/${encodeURIComponent(userId)}`);
+}
+
+export async function putStaffUserPermissionSets(
+  token: string,
+  userId: string,
+  setCodes: string[],
+): Promise<{ user_id: string; set_codes: string[] }> {
+  return crmFetch(token, `/api/v1/staff/permission-sets/users/${encodeURIComponent(userId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ set_codes: setCodes }),
+  });
 }

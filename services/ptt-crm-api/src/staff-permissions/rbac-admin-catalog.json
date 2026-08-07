@@ -39,17 +39,25 @@
     }
   ],
   "extra_actions": [
+    "assign",
     "compliance",
     "deliverability",
+    "override",
     "reports",
+    "review_queue",
     "settings",
+    "view_all_leads",
     "write"
   ],
   "extra_action_labels": {
+    "assign": "Phân công (GDKD)",
     "compliance": "Tuân thủ",
     "deliverability": "Deliverability",
+    "override": "Override GDKD",
     "reports": "Báo cáo",
+    "review_queue": "Review queue",
     "settings": "Cài đặt",
+    "view_all_leads": "Xem toàn bộ lead",
     "write": "Ghi / thao tác"
   },
   "section_actions": {
@@ -305,6 +313,12 @@
       "export",
       "release",
       "view"
+    ],
+    "crm_gdkd": [
+      "assign",
+      "override",
+      "review_queue",
+      "view_all_leads"
     ],
     "crm_presales_solution": [
       "approve",
@@ -880,6 +894,13 @@
       "group": "CRM — Bảng CSKH",
       "page": "/crm/leads",
       "description": "Thu thập đa nguồn, chấm điểm, phân loại, gán owner, SLA và AI truy xuất."
+    },
+    {
+      "id": "crm_gdkd",
+      "label": "GDKD — Giám đốc kinh doanh",
+      "group": "CRM — Quản trị",
+      "page": "/crm/leads",
+      "description": "Override funnel, phân lead, review queue, xem toàn bộ lead (R2-A)."
     },
     {
       "id": "crm_presales_solution",
@@ -1467,6 +1488,7 @@
     "crm_data_config",
     "crm_email_mkt",
     "crm_facebook_ads",
+    "crm_gdkd",
     "crm_google_ads",
     "crm_hdsd",
     "crm_hub_campaigns",

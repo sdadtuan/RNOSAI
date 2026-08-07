@@ -24,6 +24,7 @@ import { memoryStorage } from 'multer';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+import { hasGdkdAssign, hasGdkdViewAllLeads } from '../staff-permissions/staff-gdkd.util';
 import { WriteEnabledGuard } from './guards/write-enabled.guard';
 import { StaffLeadsWriteGuard } from './guards/staff-leads-write.guard';
 import { StaffLeadsViewGuard } from './guards/staff-leads-view.guard';
@@ -170,13 +171,14 @@ export class LeadsController {
     }
     if (!req.staffUser) return {};
     const me = await this.staffAuth.me(req.staffUser);
-    const canAssign = this.staffAuth.hasCap(me.caps, 'crm_leads', 'assign');
+    const canAssign = hasGdkdAssign(me.caps);
     return { allowStatusOverride: canAssign };
   }
 
   @Get()
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
   async listLeads(
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
     @Query('client_id') clientId?: string,
     @Query('status') status?: string,
     @Query('source') source?: string,
@@ -196,6 +198,18 @@ export class LeadsController {
       leadFlowKind === 'spa_operational' || leadFlowKind === 'b2b_prospect'
         ? leadFlowKind
         : undefined;
+
+    let resolvedOwnerId = ownerId ? Number(ownerId) : undefined;
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      if (!hasGdkdViewAllLeads(me.caps)) {
+        const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+        if (staffId != null && resolvedOwnerId == null && !truthy(unassignedOnly)) {
+          resolvedOwnerId = staffId;
+        }
+      }
+    }
+
     return this.leadsService.listLeads({
       client_id: clientId,
       status,
@@ -206,7 +220,7 @@ export class LeadsController {
       offset: offset !== undefined ? Number(offset) : undefined,
       review_queue_only: truthy(reviewQueueOnly),
       hide_review_queue: hideExplicitFalse ? false : undefined,
-      owner_id: ownerId ? Number(ownerId) : undefined,
+      owner_id: resolvedOwnerId,
       unassigned_only: truthy(unassignedOnly),
       lead_flow_kind: flowKind,
     });

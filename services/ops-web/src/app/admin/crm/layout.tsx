@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { winOrgUiEnabled } from '@/lib/win/flags';
+import { winOrgUiEnabled, winPermissionSetsEnabled } from '@/lib/win/flags';
 
 const NAV_GROUPS = [
   {
@@ -19,6 +19,9 @@ const NAV_GROUPS = [
       { href: '/admin/crm/permissions', label: 'Chức vụ' },
       { href: '/admin/crm/permissions/functions', label: 'Job function' },
       { href: '/admin/crm/permissions/users', label: 'Gán user' },
+      ...(winPermissionSetsEnabled()
+        ? [{ href: '/admin/crm/permission-sets', label: 'Permission Sets' }]
+        : []),
     ],
   },
   ...(winOrgUiEnabled()
@@ -41,6 +44,9 @@ function isLinkActive(pathname: string, href: string): boolean {
     return pathname === href;
   }
   if (href.startsWith('/admin/crm/org/')) {
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
+  if (href.startsWith('/admin/crm/permission-sets')) {
     return pathname === href || pathname.startsWith(`${href}/`);
   }
   return pathname === href || pathname.startsWith(`${href}/`);

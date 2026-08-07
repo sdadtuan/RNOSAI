@@ -76,6 +76,7 @@ import { SeoTechnicalModule } from './seo-technical/seo-technical.module';
 import { StaffAuthModule } from './staff-auth/staff-auth.module';
 import { StaffPermissionsModule } from './staff-permissions/staff-permissions.module';
 import { StaffOrgModule } from './staff-org/staff-org.module';
+import { StaffPermissionSetsModule } from './staff-permission-sets/staff-permission-sets.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { TemporalModule } from './temporal/temporal.module';
 import { WorkflowsModule } from './workflows/workflows.module';
@@ -120,6 +121,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     PortalModule,
     StaffAuthModule,
     StaffPermissionsModule,
+    StaffPermissionSetsModule,
     StaffOrgModule,
     WebhooksModule,
     PortalSeoModule,

@@ -25,6 +25,9 @@ export function EffectiveCapsPreview({ preview, loading }: Props) {
           {preview.job_functions.length
             ? ` · functions: ${preview.job_functions.join(', ')}`
             : ' · không có job function add-on'}
+          {preview.permission_sets?.length
+            ? ` · sets: ${preview.permission_sets.join(', ')}`
+            : ''}
         </p>
       </div>
       <div className="table-scroll">

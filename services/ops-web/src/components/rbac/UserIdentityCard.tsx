@@ -5,18 +5,24 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EffectiveCapsPreview } from '@/components/rbac/EffectiveCapsPreview';
 import { JobFunctionPicker } from '@/components/rbac/JobFunctionPicker';
 import { WinReloginToast, WinSodBanner } from '@/components/win';
+import { PermissionSetPicker } from '@/components/rbac/PermissionSetPicker';
 import {
   fetchStaffOrgTeams,
+  fetchStaffPermissionSets,
   fetchStaffUserEffectiveCaps,
   fetchStaffUserJobFunctions,
+  fetchStaffUserPermissionSets,
   offboardStaffOrgUser,
   patchStaffOrgUser,
   putStaffUserJobFunctions,
+  putStaffUserPermissionSets,
   type StaffOrgPositionRow,
   type StaffOrgUserSummary,
+  type StaffPermissionSetSummary,
   type StaffTeamRow,
   type StaffUserEffectiveCaps,
 } from '@/lib/api';
+import { winPermissionSetsEnabled } from '@/lib/win/flags';
 import { detectSodViolations } from '@/lib/rbac/sod-rules';
 
 type Props = {
@@ -42,6 +48,8 @@ export function UserIdentityCard({
   const [positionId, setPositionId] = useState(user.position_id);
   const [functions, setFunctions] = useState<string[]>(user.job_functions ?? []);
   const [teamIds, setTeamIds] = useState<number[]>(user.team_ids ?? []);
+  const [setCodes, setSetCodes] = useState<string[]>([]);
+  const [setOptions, setSetOptions] = useState<StaffPermissionSetSummary[]>([]);
   const [teams, setTeams] = useState<StaffTeamRow[]>([]);
   const [preview, setPreview] = useState<StaffUserEffectiveCaps | null>(null);
   const [busy, setBusy] = useState(false);
@@ -55,6 +63,14 @@ export function UserIdentityCard({
   const loadDetail = useCallback(async () => {
     const detail = await fetchStaffUserJobFunctions(token, user.id);
     setFunctions([...(detail.functions ?? [])].sort());
+    if (winPermissionSetsEnabled()) {
+      try {
+        const sets = await fetchStaffUserPermissionSets(token, user.id);
+        setSetCodes([...(sets.set_codes ?? [])].sort());
+      } catch {
+        setSetCodes([]);
+      }
+    }
     try {
       setPreview(await fetchStaffUserEffectiveCaps(token, user.id));
     } catch {
@@ -74,6 +90,11 @@ export function UserIdentityCard({
     void fetchStaffOrgTeams(token).then(setTeams).catch(() => setTeams([]));
   }, [token]);
 
+  useEffect(() => {
+    if (!winPermissionSetsEnabled()) return;
+    void fetchStaffPermissionSets(token).then(setSetOptions).catch(() => setSetOptions([]));
+  }, [token]);
+
   async function save() {
     if (!canEdit) return;
     setBusy(true);
@@ -89,6 +110,9 @@ export function UserIdentityCard({
         team_ids: teamIds,
       });
       await putStaffUserJobFunctions(token, user.id, functions);
+      if (winPermissionSetsEnabled()) {
+        await putStaffUserPermissionSets(token, user.id, setCodes);
+      }
       await loadDetail();
       onSaved?.({ ...patched, job_functions: functions });
       setShowRelogin(true);
@@ -133,6 +157,7 @@ export function UserIdentityCard({
       position_id: positionId,
       team_ids: teamIds,
       job_functions: functions,
+      set_codes: setCodes,
     };
     void navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
   }
@@ -185,6 +210,15 @@ export function UserIdentityCard({
         disabled={!canEdit || busy}
         onChange={setFunctions}
       />
+
+      {winPermissionSetsEnabled() ? (
+        <PermissionSetPicker
+          options={setOptions}
+          value={setCodes}
+          disabled={!canEdit || busy}
+          onChange={setSetCodes}
+        />
+      ) : null}
 
       {sodViolations.map((v) => (
         <WinSodBanner key={v.id} sodId={v.id} message={v.message} />

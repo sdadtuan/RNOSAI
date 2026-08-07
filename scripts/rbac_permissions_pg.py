@@ -317,6 +317,8 @@ def build_super_admin_caps() -> list[tuple[str, str]]:
         ("crm_leads", "assign"),
     )
     caps.update(aggregate)
+    for act in ("override", "assign", "review_queue", "view_all_leads"):
+        caps.add(("crm_gdkd", act))
     return sorted(caps)
 
 
@@ -346,6 +348,38 @@ def sync_super_admin_missing_caps(
             (position_id, section_id, action),
         )
     return len(missing), len(existing)
+
+
+GDKD_ACTIONS: tuple[str, ...] = ("override", "assign", "review_queue", "view_all_leads")
+
+
+def migrate_r2_gdkd(cur, *, dry_run: bool = False) -> int:
+    """Map legacy crm_leads.assign → crm_gdkd.assign; seed full crm_gdkd.* for SUPER-ADMIN."""
+    cur.execute(
+        """
+        SELECT DISTINCT position_id
+        FROM staff_section_permissions
+        WHERE section_id = 'crm_leads' AND action = 'assign'
+        """
+    )
+    position_ids = [int(row[0]) for row in cur.fetchall()]
+    total = 0
+
+    for pid in position_ids:
+        total += upsert_grants(cur, pid, [("crm_gdkd", "assign")], dry_run=dry_run)
+
+    super_pid = fetch_position_id(cur, "SUPER-ADMIN") or PG_SUPER_ADMIN_POSITION_ID
+    total += upsert_grants(
+        cur,
+        super_pid,
+        [("crm_gdkd", act) for act in GDKD_ACTIONS],
+        dry_run=dry_run,
+    )
+
+    print(
+        f"{'DRY  ' if dry_run else 'OK   '} r2-gdkd migrated assign on {len(position_ids)} position(s); super-admin crm_gdkd.*"
+    )
+    return total
 
 
 def run_pg_job(fn: Callable[..., int], *, dry_run: bool = False, **kwargs: object) -> int:

@@ -246,6 +246,8 @@ gantt
 
 ## 7. WIN-3 — Enterprise UI (10–12 tuần)
 
+> **Kế hoạch chi tiết:** [`2026-08-07-win-3-implementation-plan.md`](./2026-08-07-win-3-implementation-plan.md) (sprint A–C, R2 backend, UAT, deploy)
+
 **Mục tiêu UI:** HubSpot-class admin · simulator · forecast cards.
 
 ### 7.1. Sprint WIN-3-A — RBAC enterprise UI

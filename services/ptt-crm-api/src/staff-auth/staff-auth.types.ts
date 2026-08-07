@@ -23,6 +23,7 @@ export interface StaffLoginResult {
 
 export interface StaffMeResponse extends StaffUserProfile {
   caps: StaffSectionCap[];
+  permission_sets?: string[];
 }
 
 export interface StaffRosterRow {

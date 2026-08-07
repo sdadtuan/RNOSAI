@@ -9,6 +9,7 @@ import { Request } from 'express';
 import { LeadsRepository } from '../../leads/leads.repository';
 import { StaffAuthService } from '../../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
+import { hasGdkdAssign } from '../../staff-permissions/staff-gdkd.util';
 import { AiRecommendationsRepository } from '../ai-recommendations.repository';
 
 /** BR-AI-04 — CSKH chỉ score lead của mình; GDKD (assign cap) hoặc internal bypass. */
@@ -91,7 +92,7 @@ export class StaffAiLeadAccessGuard implements CanActivate {
     }
 
     const me = await this.staffAuth.me(req.staffUser);
-    if (this.staffAuth.hasCap(me.caps, 'crm_leads', 'assign')) {
+    if (hasGdkdAssign(me.caps)) {
       return true;
     }
 

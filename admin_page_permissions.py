@@ -181,6 +181,13 @@ ADMIN_CRM_SECTIONS: tuple[dict[str, Any], ...] = (
         "description": "Thu thập đa nguồn, chấm điểm, phân loại, gán owner, SLA và AI truy xuất.",
     },
     {
+        "id": "crm_gdkd",
+        "label": "GDKD — Giám đốc kinh doanh",
+        "group": "CRM — Quản trị",
+        "page": "/crm/leads",
+        "description": "Override funnel, phân lead, review queue, xem toàn bộ lead (R2-A).",
+    },
+    {
         "id": "crm_presales_solution",
         "label": "Pre-sales — Solution/MKT",
         "group": "CRM — B2B Sales",

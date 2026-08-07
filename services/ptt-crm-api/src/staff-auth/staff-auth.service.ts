@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException, Inject, forwardRef } from '@nestjs/c
 import { Pool } from 'pg';
 import { AppConfigService, StaffStubUser } from '../config/app-config.service';
 import { StaffJobFunctionsRepository } from '../staff-permissions/staff-job-functions.repository';
+import { StaffPermissionSetsRepository } from '../staff-permission-sets/staff-permission-sets.repository';
 import { verifyPortalPassword } from '../portal/portal-password.util';
 import {
   StaffLoginResult,
@@ -128,6 +129,8 @@ export class StaffAuthService {
     private readonly config: AppConfigService,
     @Inject(forwardRef(() => StaffJobFunctionsRepository))
     private readonly jobFunctions: StaffJobFunctionsRepository,
+    @Inject(forwardRef(() => StaffPermissionSetsRepository))
+    private readonly permissionSets: StaffPermissionSetsRepository,
   ) {}
 
   private get db(): Pool {
@@ -192,7 +195,9 @@ export class StaffAuthService {
     const baseCaps = await this.loadCaps(accessPayload.position_id);
     const jobFunctions = await this.jobFunctions.loadUserFunctionCodes(accessPayload.sub);
     const functionCaps = await this.jobFunctions.loadCapsForFunctions(jobFunctions);
-    const caps = this.mergeCaps(baseCaps, functionCaps);
+    const setCaps = await this.permissionSets.loadCapsForUser(accessPayload.sub);
+    const caps = this.mergeCaps(baseCaps, [...functionCaps, ...setCaps]);
+    const permission_sets = await this.permissionSets.loadUserSetCodes(accessPayload.sub);
     const position_code = await this.loadPositionCode(accessPayload.position_id);
     return {
       id: accessPayload.sub,
@@ -201,6 +206,7 @@ export class StaffAuthService {
       position_id: accessPayload.position_id,
       position_code: position_code ?? undefined,
       job_functions: jobFunctions.length ? jobFunctions : undefined,
+      permission_sets: permission_sets.length ? permission_sets : undefined,
       caps,
     };
   }
