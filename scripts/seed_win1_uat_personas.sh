@@ -47,8 +47,10 @@ echo "=== WIN-1 UAT personas — apply ==="
 
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<SQL
 INSERT INTO crm_positions (code, name, active)
-VALUES ('MKT-02', 'Nhân viên Marketing', TRUE)
-ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, active = TRUE;
+SELECT 'MKT-02', 'Nhân viên Marketing', TRUE
+WHERE NOT EXISTS (
+  SELECT 1 FROM crm_positions WHERE lower(trim(code)) = 'mkt-02'
+);
 
 INSERT INTO staff_users (email, password_hash, display_name, position_id, active)
 VALUES (
