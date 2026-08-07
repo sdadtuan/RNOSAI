@@ -10,8 +10,8 @@
 
 | Persona | Position gợi ý | Job functions (test) | Mục đích |
 |---------|------------------|--------------------|----------|
-| **P1 Content** | MKT-02 | `content` | VUX-04 menu SEO/write |
-| **P2 Design** | MKT-02 | `design` | VUX-04 menu khác P1 |
+| **P1 Content** | MKT-02 | `content` | `win1-content@pttads.vn` |
+| **P2 Design** | MKT-02 | `design` | `win1-design@pttads.vn` |
 | **P3 Admin** | SUPER / IT | `crm_data_config.configure` | Ma trận + gán function |
 
 **Chuẩn bị:** Admin gán function tại `/admin/crm/permissions/users` → NV **đăng xuất / đăng nhập lại**.

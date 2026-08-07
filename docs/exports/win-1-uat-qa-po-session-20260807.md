@@ -18,11 +18,17 @@
 | Admin/CRM routes (307 unauth) | PASS |
 | Public rs.pttads.vn (manifest, SW, routes) | PASS |
 
-**SKIP:** Staff JWT login — `ADMIN_PASSWORD` trong `.env` không khớp hash `staff_users` trên VPS. API tests chạy qua `PTT_CRM_INTERNAL_KEY`.
+**SKIP:** ~~Staff JWT login~~ — đã sync password admin + personas (UAT 19/19 PASS).
 
-**Hotfix đã áp trên VPS (chưa commit git):**
-- `@StaffUser()` cho phép internal key trên route configure (fix PUT 401)
-- `scripts/run_win1_uat.sh` — fallback internal key, sửa CSKH path, sửa backtick
+**Test accounts (VUX-04):** mật khẩu = `ADMIN_PASSWORD` trong VPS `.env`
+
+| Email | Function | Persona |
+|-------|----------|---------|
+| `admin@pttads.vn` | SUPER-ADMIN | Admin configure |
+| `win1-content@pttads.vn` | `content` | P1 Content |
+| `win1-design@pttads.vn` | `design` | P2 Design |
+
+**Deploy commit:** `b832276`
 
 ---
 
@@ -78,21 +84,21 @@
 
 | # | Issue | Khuyến nghị |
 |---|-------|-------------|
-| 1 | Staff login UAT — ADMIN_PASSWORD ≠ staff hash | `OPS_E2E_STAFF_PASSWORD` trong `.env` hoặc chạy `seed_super_admin_full_access.py --apply` |
-| 2 | StaffUser internal-key fix | Commit + deploy chính thức (đã patch tạm trên VPS) |
-| 3 | Playwright trên VPS | `npx playwright install` trước khi chạy E2E |
-| 4 | WIN-1 chưa đóng | Cần manual VUX-02/04 + PO sign-off |
+| 1 | ~~Staff login UAT~~ | ✅ Sync qua `seed_win1_uat_personas.sh` |
+| 2 | StaffUser internal-key fix | ✅ Commit `6d772f3` |
+| 3 | Playwright trên VPS | `npx playwright install` trước E2E |
+| 4 | WIN-1 chưa đóng | Manual VUX-02/04/05 UI + PO sign-off |
 
 ---
 
 ## 4. Lệnh tái chạy
 
 ```bash
-# Trên VPS
-cd /var/www/rnosai && bash scripts/run_win1_uat.sh
+# Trên VPS — tạo lại personas
+cd /var/www/rnosai && bash scripts/seed_win1_uat_personas.sh --apply
 
-# Playwright (sau playwright install)
-cd services/ops-web && OPS_E2E_URL=http://127.0.0.1:3200 npx playwright test e2e/win-1-lane-a.spec.ts
+# UAT automated
+bash scripts/run_win1_uat.sh
 ```
 
 ---
