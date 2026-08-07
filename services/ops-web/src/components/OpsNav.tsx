@@ -390,7 +390,11 @@ function buildSections(
   if (agencyClient.length) sections.push({ label: 'Agency & Client', links: agencyClient, defaultOpen: true });
 
   const ads: NavLink[] = [];
-  if (hasCap(user, 'crm_facebook_ads', 'view') || hasCap(user, 'crm_agency', 'view')) {
+  const canMetaAds =
+    hasCap(user, 'crm_facebook_ads', 'view') ||
+    hasCap(user, 'crm_facebook_ads', 'edit') ||
+    hasCap(user, 'crm_agency', 'view');
+  if (canMetaAds) {
     ads.push({ href: '/meta/facebook-ads', label: 'Meta Ads' });
     if (metaAdsOpsEnabled() && canViewMetaAdsOps(user)) {
       ads.push({ href: '/meta/ads-ops', label: 'Meta Ads Ops' });

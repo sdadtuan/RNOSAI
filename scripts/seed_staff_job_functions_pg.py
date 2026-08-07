@@ -80,11 +80,13 @@ DEFAULT_JOB_FUNCTION_GRANTS: dict[str, dict[str, list[str]]] = {
     },
     "sales": {},
     "content": {
-        "crm_seo_aeo_write": ["create", "edit"],
-        "crm_email_mkt": ["write", "reports"],
+        "crm_seo_aeo": ["view"],
+        "crm_seo_aeo_write": ["view", "create", "edit"],
+        "crm_seo_aeo_reports": ["view"],
+        "crm_email_mkt": ["view", "write", "reports"],
     },
     "design": {
-        "crm_facebook_ads": ["edit"],
+        "crm_facebook_ads": ["view", "edit"],
         "meta_campaign_write": ["view"],
     },
     "analyst": {

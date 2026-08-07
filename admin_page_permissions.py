@@ -584,10 +584,8 @@ _POSITION_DEFAULT: dict[str, dict[str, frozenset[str]]] = {
         "crm_re_projects_kpi": frozenset({"view", "edit"}),
         "crm_daily_work_report": frozenset({"view", "create"}),
         "crm_hdsd": frozenset({"view", "export"}),
-        "crm_seo_aeo": frozenset({"view"}),
-        "crm_seo_aeo_write": frozenset({"view", "edit", "create"}),
-        "crm_seo_aeo_reports": frozenset({"view"}),
-        "crm_email_mkt": frozenset({"view", "write", "reports"}),
+        # SEO write + email write come from job function `content` (R1.5 / VUX-04)
+        "crm_email_mkt": frozenset({"view"}),
     },
     "VH-01": {
         "crm_board_kanban": frozenset({"view"}),

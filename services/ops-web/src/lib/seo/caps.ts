@@ -60,7 +60,7 @@ export function canViewSeoResearch(user: StoredStaffUser | null): boolean {
 
 export function canViewSeoContent(user: StoredStaffUser | null): boolean {
   if (!user || !seoContentEnabled()) return false;
-  return canViewSeoHub(user);
+  return canWriteSeo(user);
 }
 
 export function canWriteSeo(user: StoredStaffUser | null): boolean {

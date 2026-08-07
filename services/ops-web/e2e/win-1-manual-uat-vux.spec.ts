@@ -77,12 +77,7 @@ test.describe('WIN-1 Manual UAT — VUX-02/04/05', () => {
     const onlyDesign = [...designNav].filter((x) => !contentNav.has(x));
     expect(contentNav.size).toBeGreaterThan(0);
     expect(designNav.size).toBeGreaterThan(0);
-    if (onlyContent.length + onlyDesign.length === 0) {
-      test.info().annotations.push({
-        type: 'note',
-        description: 'Sidebar links identical — verify Meta Ads edit cap differs (design only)',
-      });
-    }
+    expect(onlyContent.length + onlyDesign.length).toBeGreaterThan(0);
 
     await contentCtx.close();
     await designCtx.close();

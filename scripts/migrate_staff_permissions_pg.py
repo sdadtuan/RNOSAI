@@ -41,6 +41,11 @@ def main() -> int:
         action="store_true",
         help="Write to PG (default without --apply is dry-run)",
     )
+    parser.add_argument(
+        "--sync",
+        action="store_true",
+        help="Remove position grants not in code defaults (use with --apply for trim migrations)",
+    )
     args = parser.parse_args()
 
     dry_run = args.dry_run or not args.apply
@@ -65,6 +70,7 @@ def main() -> int:
                     cur,
                     code,
                     dry_run=dry_run,
+                    sync=args.sync,
                 )
         if not dry_run:
             conn.commit()

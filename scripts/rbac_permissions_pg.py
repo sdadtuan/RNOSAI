@@ -168,12 +168,39 @@ def ensure_super_admin_crm_position(cur, *, dry_run: bool = False) -> int:
     return int(cur.fetchone()[0])
 
 
+def prune_position_defaults(
+    cur,
+    position_id: int,
+    position_code: str,
+    *,
+    dry_run: bool = False,
+) -> int:
+    """Remove position grants not in the code default matrix (idempotent sync)."""
+    desired = set(cap_rows_for_position(position_code))
+    current = fetch_pg_caps(cur, position_id)
+    removed = 0
+    for section_id, action in sorted(current - desired):
+        if dry_run:
+            print(f"  would delete position_id={position_id} {section_id}.{action}")
+        else:
+            cur.execute(
+                """
+                DELETE FROM staff_section_permissions
+                WHERE position_id = %s AND section_id = %s AND action = %s
+                """,
+                (position_id, section_id, action),
+            )
+        removed += 1
+    return removed
+
+
 def migrate_position_defaults(
     cur,
     position_code: str,
     *,
     dry_run: bool = False,
     ensure_exists: bool = True,
+    sync: bool = False,
 ) -> int:
     pid = fetch_position_id(cur, position_code)
     if pid is None:
@@ -191,8 +218,14 @@ def migrate_position_defaults(
         print(f"WARN  no default caps for {position_code}", file=sys.stderr)
         return 0
 
+    removed = 0
+    if sync and pid != -1:
+        removed = prune_position_defaults(cur, pid, position_code, dry_run=dry_run)
+        if removed:
+            print(f"{'DRY  ' if dry_run else 'OK   '} {position_code} pruned {removed} stale cap(s)")
+
     print(f"{'DRY  ' if dry_run else 'OK   '} {position_code} position_id={pid} caps={len(caps)}")
-    return upsert_grants(cur, pid, caps, dry_run=dry_run)
+    return removed + upsert_grants(cur, pid, caps, dry_run=dry_run)
 
 
 def migrate_presales_solution_grants(cur, *, dry_run: bool = False) -> int:
