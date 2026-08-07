@@ -40,7 +40,25 @@ run_local() {
     PYTHON="$ROOT/.venv/bin/python"
   fi
   export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
-  "$PYTHON" "$ROOT/scripts/migrate_staff_permissions_pg.py" --r2-gdkd --apply
+  if "$PYTHON" "$ROOT/scripts/migrate_staff_permissions_pg.py" --r2-gdkd --apply 2>/dev/null; then
+    echo "r2-gdkd via python OK"
+  else
+    echo "r2-gdkd via python skipped — applying SQL fallback"
+    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO staff_section_permissions (position_id, section_id, action)
+SELECT DISTINCT position_id, 'crm_gdkd', 'assign'
+FROM staff_section_permissions
+WHERE section_id = 'crm_leads' AND action = 'assign'
+ON CONFLICT (position_id, section_id, action) DO NOTHING;
+
+INSERT INTO staff_section_permissions (position_id, section_id, action)
+SELECT p.id, 'crm_gdkd', act
+FROM crm_positions p
+CROSS JOIN (VALUES ('override'), ('assign'), ('review_queue'), ('view_all_leads')) AS t(act)
+WHERE lower(trim(p.code)) = 'super-admin'
+ON CONFLICT (position_id, section_id, action) DO NOTHING;
+SQL
+  fi
 
   echo "== Nest ptt-crm-api =="
   cd "$ROOT/services/ptt-crm-api"

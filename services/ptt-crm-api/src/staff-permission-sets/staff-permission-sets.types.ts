@@ -17,7 +17,7 @@ export type StaffPermissionSetDetail = {
   name: string;
   active: boolean;
   grants: StaffPermissionSetGrant[];
-  matrix: import('./staff-permissions.types').StaffPermissionMatrixRow[];
+  matrix: import('../staff-permissions/staff-permissions.types').StaffPermissionMatrixRow[];
 };
 
 export type StaffPermissionSetsListResponse = {
