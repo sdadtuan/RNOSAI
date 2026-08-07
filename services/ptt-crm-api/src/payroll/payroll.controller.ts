@@ -10,8 +10,10 @@ import {
   Post,
   Put,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import {
   StaffPayrollSalaryEditGuard,
@@ -20,6 +22,7 @@ import {
   StaffPayrollViewGuard,
 } from './guards/staff-payroll.guard';
 import { PayrollService } from './payroll.service';
+import { buildPayrollXlsx } from './payroll-export.util';
 
 @Controller('api/crm/payroll')
 @UseGuards(StaffOrInternalKeyGuard)
@@ -69,6 +72,37 @@ export class PayrollController {
     @Query('q') q?: string,
   ) {
     return this.payroll.exportPayroll({ period, year, month, quarter, from, to, staff_id: staffId, q });
+  }
+
+  @Get('export.xlsx')
+  @UseGuards(StaffPayrollSalaryExportGuard)
+  async exportXlsx(
+    @Res({ passthrough: false }) res: Response,
+    @Query('period') period?: string,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('quarter') quarter?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('staff_id') staffId?: string,
+    @Query('q') q?: string,
+  ) {
+    const { buffer, filename } = await this.payroll.exportPayrollXlsx({
+      period,
+      year,
+      month,
+      quarter,
+      from,
+      to,
+      staff_id: staffId,
+      q,
+    });
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
   }
 
   @Get('attendance')

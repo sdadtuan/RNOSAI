@@ -25,8 +25,22 @@ export class KpiController {
   constructor(private readonly kpi: KpiService) {}
 
   @Get('board')
-  board(@Query('year') year?: string, @Query('month') month?: string) {
-    return this.kpi.boardSummary(year, month);
+  board(
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('team') team?: string,
+  ) {
+    return this.kpi.boardSummary(year, month, team);
+  }
+
+  @Get('solution')
+  solution(
+    @Query('team') team?: string,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('period') period?: string,
+  ) {
+    return this.kpi.solutionDashboard(team, year, month, period);
   }
 
   @Get('alerts')
@@ -34,8 +48,9 @@ export class KpiController {
     @Query('year') year?: string,
     @Query('month') month?: string,
     @Query('staff_id') staffId?: string,
+    @Query('team') team?: string,
   ) {
-    return this.kpi.listAlerts(year, month, staffId);
+    return this.kpi.listAlerts(year, month, staffId, team);
   }
 
   @Get('chart')
@@ -44,8 +59,9 @@ export class KpiController {
     @Query('year') year?: string,
     @Query('month') month?: string,
     @Query('staff_id') staffId?: string,
+    @Query('team') team?: string,
   ) {
-    return this.kpi.chart(metricId, year, month, staffId);
+    return this.kpi.chart(metricId, year, month, staffId, team);
   }
 
   @Get('trend')

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardShell } from '@/components/kpi/DashboardShell';
 import { KpiEditableGrid } from '@/components/kpi/KpiEditableGrid';
+import { KpiTeamToggle, type KpiTeamOption } from '@/components/kpi/KpiTeamToggle';
 import {
   KpiAlertList,
   KpiBarChart,
@@ -38,6 +39,8 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { winKpiSolutionEnabled } from '@/lib/win/flags';
+import Link from 'next/link';
 
 export default function CrmKpiPage() {
   const router = useRouter();
@@ -45,6 +48,7 @@ export default function CrmKpiPage() {
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [team, setTeam] = useState<KpiTeamOption>('all');
   const [metrics, setMetrics] = useState<KpiMetricRow[]>([]);
   const [board, setBoard] = useState<Awaited<ReturnType<typeof fetchKpiBoard>> | null>(null);
   const [chartMetricId, setChartMetricId] = useState('');
@@ -118,7 +122,7 @@ export default function CrmKpiPage() {
       try {
         const [metricRows, boardOut, aiMetricsOut, staffKpiRows] = await Promise.all([
           fetchKpiMetrics(access),
-          fetchKpiBoard(access, { year, month }),
+          fetchKpiBoard(access, { year, month, team: team === 'all' ? undefined : team }),
           fetchAiAcceptanceMetrics(access, { days: 7 }).catch(() => null),
           fetchStaffKpi(access, { year, month }).catch(() => []),
         ]);
@@ -135,6 +139,7 @@ export default function CrmKpiPage() {
             metric_id: Number(nextMetricId),
             year,
             month,
+            team: team === 'all' ? undefined : team,
           });
           setChartData(chart);
           await loadTrend(access, nextMetricId);
@@ -149,7 +154,7 @@ export default function CrmKpiPage() {
         setLoading(false);
       }
     },
-    [year, month, chartMetricId, loadTrend],
+    [year, month, chartMetricId, loadTrend, team],
   );
 
   useEffect(() => {
@@ -170,6 +175,7 @@ export default function CrmKpiPage() {
           metric_id: Number(nextMetricId),
           year,
           month,
+          team: team === 'all' ? undefined : team,
         }),
       );
       await loadTrend(access, nextMetricId);
@@ -272,6 +278,7 @@ export default function CrmKpiPage() {
       error={error}
       filters={
         <>
+          <KpiTeamToggle value={team} onChange={setTeam} />
           <input
             type="number"
             value={year}
@@ -291,6 +298,11 @@ export default function CrmKpiPage() {
           <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onExportExcel()}>
             Export Excel
           </button>
+          {winKpiSolutionEnabled() ? (
+            <Link href="/crm/kpi/solution" className="btn btn-sm btn-secondary">
+              KPI Solution
+            </Link>
+          ) : null}
         </>
       }
     >

@@ -7,6 +7,7 @@ import {
 import { AppConfigService } from '../config/app-config.service';
 import { PayrollPgRepository } from './payroll-pg.repository';
 import { PayrollSqliteRepository } from './payroll-sqlite.repository';
+import { buildPayrollXlsx } from './payroll-export.util';
 
 @Injectable()
 export class PayrollService {
@@ -119,6 +120,11 @@ export class PayrollService {
       });
     }
     return bundle;
+  }
+
+  async exportPayrollXlsx(query: Record<string, string | undefined>) {
+    const bundle = this.exportPayroll(query);
+    return buildPayrollXlsx(bundle);
   }
 
   listAttendance(query: Record<string, string | undefined>) {

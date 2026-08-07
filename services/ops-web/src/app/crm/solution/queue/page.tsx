@@ -4,12 +4,15 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
+import { KpiSlaTileGrid } from '@/components/kpi/KpiSlaTileGrid';
 import {
   claimLeadSolution,
+  fetchKpiSolution,
   fetchSolutionQueue,
   releaseLeadToSales,
   staffMe,
   staffRefresh,
+  type KpiSolutionDashboard,
   type SolutionQueueRow,
 } from '@/lib/api';
 import {
@@ -33,6 +36,7 @@ export default function CrmSolutionQueuePage() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [busyLeadId, setBusyLeadId] = useState<number | null>(null);
+  const [slaTiles, setSlaTiles] = useState<KpiSolutionDashboard | null>(null);
   const solutionCaps = resolvePresalesSolutionCaps(user);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
@@ -89,8 +93,12 @@ export default function CrmSolutionQueuePage() {
     }
     try {
       const status = filter === 'all' ? undefined : filter;
-      const out = await fetchSolutionQueue(token, { status, limit: 100 });
+      const [out, kpiOut] = await Promise.all([
+        fetchSolutionQueue(token, { status, limit: 100 }),
+        fetchKpiSolution(token).catch(() => null),
+      ]);
       setRows(out.rows ?? []);
+      setSlaTiles(kpiOut);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tải hàng chờ Solution thất bại');
       setRows([]);
@@ -155,6 +163,8 @@ export default function CrmSolutionQueuePage() {
           {message}
         </div>
       ) : null}
+
+      <KpiSlaTileGrid data={slaTiles} />
 
       <div className="toolbar-row" style={{ marginBottom: '0.75rem' }}>
         <label className="inline-label">

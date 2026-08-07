@@ -11,6 +11,7 @@ import { LeadsFunnelService } from '../leads-funnel/leads-funnel.service';
 import { KpiPgRepository } from './kpi-pg.repository';
 import { KpiSqliteRepository } from './kpi-sqlite.repository';
 import { buildStaffKpiXlsx } from './kpi-export.util';
+import { normalizeKpiTeam, type KpiTeamCode } from './kpi-team-filter.util';
 import {
   CreateKpiMetricBody,
   PatchKpiMetricBody,
@@ -91,7 +92,7 @@ export class KpiService {
     return { staff_kpi: staffKpi };
   }
 
-  async listAlerts(year?: string, month?: string, staffId?: string) {
+  async listAlerts(year?: string, month?: string, staffId?: string, team?: string) {
     const parsed = this.parseYearMonth(year, month);
     let sid: number | undefined;
     if (staffId) {
@@ -101,24 +102,32 @@ export class KpiService {
       }
       sid = n;
     }
-    if (this.config.crmKpiPg) {
-      return this.pg.listKpiAlerts(parsed.year, parsed.month, sid);
-    }
-    return this.sqlite.listKpiAlerts(parsed.year, parsed.month, sid);
+    const raw = this.config.crmKpiPg
+      ? await this.pg.listKpiAlerts(parsed.year, parsed.month, sid)
+      : this.sqlite.listKpiAlerts(parsed.year, parsed.month, sid);
+    return this.filterAlertsByTeam(raw, team);
   }
 
-  async boardSummary(year?: string, month?: string) {
+  async boardSummary(year?: string, month?: string, team?: string) {
     const parsed = this.parseYearMonth(year, month, true);
-    const alerts = this.config.crmKpiPg
-      ? await this.pg.listKpiAlerts(parsed.year, parsed.month)
-      : this.sqlite.listKpiAlerts(parsed.year, parsed.month);
-    const staffKpi = this.config.crmKpiPg
+    const alerts = await this.listAlerts(
+      String(parsed.year),
+      String(parsed.month),
+      undefined,
+      team,
+    );
+    let staffKpi = this.config.crmKpiPg
       ? await this.pg.listStaffKpi(parsed.year, parsed.month)
       : this.sqlite.listStaffKpi(parsed.year, parsed.month);
+    const teamIds = await this.resolveTeamStaffIds(normalizeKpiTeam(team));
+    if (teamIds) {
+      staffKpi = staffKpi.filter((row) => teamIds.has(row.staff_id));
+    }
     const staffIds = new Set(staffKpi.map((row) => row.staff_id));
     return {
       year: parsed.year,
       month: parsed.month,
+      team: normalizeKpiTeam(team),
       summary: alerts.summary,
       staff_count: staffIds.size,
       kpi_count: staffKpi.length,
@@ -126,7 +135,13 @@ export class KpiService {
     };
   }
 
-  async chart(metricIdRaw?: string, year?: string, month?: string, staffId?: string) {
+  async chart(
+    metricIdRaw?: string,
+    year?: string,
+    month?: string,
+    staffId?: string,
+    team?: string,
+  ) {
     const metricId = Number(metricIdRaw ?? 0);
     if (!Number.isFinite(metricId) || metricId <= 0) {
       throw new BadRequestException({ error: 'Cần metric_id (chỉ tiêu để vẽ biểu đồ)' });
@@ -146,7 +161,7 @@ export class KpiService {
     if (!chart) {
       throw new NotFoundException({ error: 'Không tìm thấy chỉ tiêu' });
     }
-    return chart;
+    return await this.filterChartByTeam(chart, team);
   }
 
   async metricTrend(metricIdRaw?: string, year?: string, month?: string, monthsRaw?: string) {
@@ -276,6 +291,108 @@ export class KpiService {
     }
 
     return base;
+  }
+
+  async solutionDashboard(team?: string, year?: string, month?: string, period?: string) {
+    let parsed = this.parseYearMonth(year, month, true);
+    const periodRaw = String(period ?? '').trim();
+    if (/^\d{4}-\d{2}$/.test(periodRaw)) {
+      const [y, m] = periodRaw.split('-').map(Number);
+      parsed = { year: y!, month: m! };
+    }
+
+    const monthStr = String(parsed.month).padStart(2, '0');
+    const lastDay = new Date(parsed.year, parsed.month, 0).getDate();
+    const periodStart = `${parsed.year}-${monthStr}-01`;
+    const periodEnd = `${parsed.year}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
+
+    const [funnelOut, slaOut, queueOut] = await Promise.all([
+      this.funnel.getPresalesFunnelMetrics({ periodStart, periodEnd }),
+      this.funnel.getPresalesConsultSlaSummary(null),
+      this.funnel.listSolutionQueue(undefined, 500),
+    ]);
+
+    let pending = 0;
+    let withSolution = 0;
+    for (const row of queueOut.rows ?? []) {
+      if (row.handoff_status === 'pending') pending += 1;
+      else if (row.handoff_status === 'with_solution') withSolution += 1;
+    }
+
+    return {
+      team: normalizeKpiTeam(team),
+      year: parsed.year,
+      month: parsed.month,
+      period_start: periodStart,
+      period_end: periodEnd,
+      funnel: funnelOut,
+      sla: slaOut.summary,
+      queue: {
+        pending,
+        with_solution: withSolution,
+        total: queueOut.count ?? queueOut.rows?.length ?? 0,
+      },
+    };
+  }
+
+  private async resolveTeamStaffIds(team: KpiTeamCode): Promise<Set<number> | null> {
+    if (team === 'all') return null;
+    const ids = this.config.crmKpiPg
+      ? await this.pg.staffIdsForTeam(team)
+      : this.sqlite.staffIdsForTeam(team);
+    return new Set(ids);
+  }
+
+  private async filterAlertsByTeam(
+    raw: { alerts: Array<Record<string, unknown>>; summary: { critical: number; warn: number }; year: number; month: number },
+    team?: string,
+  ) {
+    const teamIds = await this.resolveTeamStaffIds(normalizeKpiTeam(team));
+    if (!teamIds) {
+      return { ...raw, team: normalizeKpiTeam(team) };
+    }
+    const alerts = raw.alerts.filter((a) => teamIds.has(Number(a.staff_id)));
+    let critical = 0;
+    let warn = 0;
+    for (const a of alerts) {
+      if (a.level === 'critical') critical += 1;
+      else if (a.level === 'warn') warn += 1;
+    }
+    return {
+      alerts,
+      summary: { critical, warn },
+      year: raw.year,
+      month: raw.month,
+      team: normalizeKpiTeam(team),
+    };
+  }
+
+  private async filterChartByTeam(
+    chart: {
+      metric: Record<string, unknown>;
+      higher_is_better: boolean | number;
+      year: number;
+      month: number;
+      labels: string[];
+      achievement_pct: Array<number | null>;
+      staff_ids: number[];
+    },
+    team?: string,
+  ) {
+    const teamIds = await this.resolveTeamStaffIds(normalizeKpiTeam(team));
+    if (!teamIds) {
+      return chart;
+    }
+    const keep: number[] = [];
+    for (let i = 0; i < chart.staff_ids.length; i += 1) {
+      if (teamIds.has(chart.staff_ids[i]!)) keep.push(i);
+    }
+    return {
+      ...chart,
+      labels: keep.map((i) => chart.labels[i]!),
+      achievement_pct: keep.map((i) => chart.achievement_pct[i] ?? null),
+      staff_ids: keep.map((i) => chart.staff_ids[i]!),
+    };
   }
 
   private parseYearMonth(

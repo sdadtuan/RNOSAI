@@ -14,6 +14,7 @@ import {
   kpiAlertLabelVi,
   truthyFlag,
 } from './kpi.types';
+import { KPI_TEAM_DEPT_PATTERNS, type KpiTeamCode } from './kpi-team-filter.util';
 
 @Injectable()
 export class KpiPgRepository implements OnModuleDestroy {
@@ -546,5 +547,22 @@ export class KpiPgRepository implements OnModuleDestroy {
       staff_name: String(row.staff_name ?? ''),
       staff_code: String(row.staff_code ?? ''),
     };
+  }
+
+  async staffIdsForTeam(team: Exclude<KpiTeamCode, 'all'>): Promise<number[]> {
+    const patterns = KPI_TEAM_DEPT_PATTERNS[team];
+    const clauses = patterns
+      .map(
+        (_, i) =>
+          `(lower(coalesce(s.department, '')) LIKE $${i + 1} OR lower(coalesce(s.job_title, '')) LIKE $${i + 1})`,
+      )
+      .join(' OR ');
+    const result = await this.db.query(
+      `SELECT DISTINCT s.id
+       FROM crm_staff s
+       WHERE s.active = true AND (${clauses})`,
+      patterns,
+    );
+    return (result.rows as Array<{ id: number }>).map((r) => Number(r.id));
   }
 }

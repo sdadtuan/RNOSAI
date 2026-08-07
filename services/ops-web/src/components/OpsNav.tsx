@@ -9,6 +9,7 @@ import type { StoredStaffUser } from '@/lib/auth';
 import { getAccessToken, hasCap } from '@/lib/auth';
 import { fetchReviewQueueCount } from '@/lib/api';
 import { emailGateAEnabled, emailJourneysEnabled, emailModuleEnabled } from '@/lib/email-flags';
+import { winKpiSolutionEnabled } from '@/lib/win/flags';
 import { canViewEmailGateA } from '@/lib/email/caps';
 import { canViewMetaAdsOps, canViewMetaIntelligence, canViewMetaTracking } from '@/lib/meta/caps';
 import {
@@ -342,6 +343,9 @@ function buildSections(
   }
   if (hasCap(user, 'crm_kpi_records', 'view')) {
     hr.push({ href: '/crm/kpi', label: 'KPI' });
+    if (winKpiSolutionEnabled()) {
+      hr.push({ href: '/crm/kpi/solution', label: 'KPI Solution' });
+    }
     hr.push({ href: '/crm/ai/insights', label: 'AI Insights' });
     hr.push({ href: '/crm/ai/coach', label: 'Coach digest' });
   } else if (hasCap(user, 'crm_business_dashboard', 'view')) {

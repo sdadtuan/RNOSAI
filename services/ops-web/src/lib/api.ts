@@ -2703,10 +2703,22 @@ export interface KpiMetricRow {
 export interface KpiBoardSummary {
   year: number;
   month: number;
+  team?: string;
   summary: { critical: number; warn: number };
   staff_count: number;
   kpi_count: number;
   alerts: Array<Record<string, unknown>>;
+}
+
+export interface KpiSolutionDashboard {
+  team: string;
+  year: number;
+  month: number;
+  period_start: string;
+  period_end: string;
+  funnel: PresalesFunnelMetricsResponse;
+  sla: PresalesConsultSlaSummary;
+  queue: { pending: number; with_solution: number; total: number };
 }
 
 export interface KpiChartData {
@@ -2820,12 +2832,13 @@ export async function fetchSalesReports(token: string): Promise<Record<string, u
 
 export async function fetchKpiAlerts(
   token: string,
-  params?: { year?: number; month?: number; staff_id?: number },
+  params?: { year?: number; month?: number; staff_id?: number; team?: string },
 ): Promise<Array<Record<string, unknown>>> {
   const qs = new URLSearchParams();
   if (params?.year != null) qs.set('year', String(params.year));
   if (params?.month != null) qs.set('month', String(params.month));
   if (params?.staff_id != null) qs.set('staff_id', String(params.staff_id));
+  if (params?.team) qs.set('team', params.team);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   const out = await crmFetch<{ alerts: Array<Record<string, unknown>> }>(token, `/api/crm/kpi/alerts${suffix}`);
   return out.alerts ?? [];
@@ -2833,23 +2846,38 @@ export async function fetchKpiAlerts(
 
 export async function fetchKpiBoard(
   token: string,
-  params?: { year?: number; month?: number },
+  params?: { year?: number; month?: number; team?: string },
 ): Promise<KpiBoardSummary> {
   const qs = new URLSearchParams();
   if (params?.year != null) qs.set('year', String(params.year));
   if (params?.month != null) qs.set('month', String(params.month));
+  if (params?.team) qs.set('team', params.team);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return crmFetch<KpiBoardSummary>(token, `/api/crm/kpi/board${suffix}`);
 }
 
+export async function fetchKpiSolution(
+  token: string,
+  params?: { year?: number; month?: number; team?: string; period?: string },
+): Promise<KpiSolutionDashboard> {
+  const qs = new URLSearchParams();
+  if (params?.year != null) qs.set('year', String(params.year));
+  if (params?.month != null) qs.set('month', String(params.month));
+  if (params?.team) qs.set('team', params.team);
+  if (params?.period) qs.set('period', params.period);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return crmFetch<KpiSolutionDashboard>(token, `/api/crm/kpi/solution${suffix}`);
+}
+
 export async function fetchKpiChart(
   token: string,
-  params: { metric_id: number; year?: number; month?: number; staff_id?: number },
+  params: { metric_id: number; year?: number; month?: number; staff_id?: number; team?: string },
 ): Promise<KpiChartData> {
   const qs = new URLSearchParams({ metric_id: String(params.metric_id) });
   if (params.year != null) qs.set('year', String(params.year));
   if (params.month != null) qs.set('month', String(params.month));
   if (params.staff_id != null) qs.set('staff_id', String(params.staff_id));
+  if (params.team) qs.set('team', params.team);
   return crmFetch<KpiChartData>(token, `/api/crm/kpi/chart?${qs.toString()}`);
 }
 
@@ -3382,6 +3410,27 @@ export async function exportPayrollJson(
   if (params?.year != null) qs.set('year', String(params.year));
   if (params?.month != null) qs.set('month', String(params.month));
   return crmFetch(token, `/api/crm/payroll/export?${qs.toString()}`);
+}
+
+export async function downloadPayrollXlsx(
+  token: string,
+  params?: { year?: number; month?: number },
+): Promise<void> {
+  const qs = new URLSearchParams({ period: 'month' });
+  if (params?.year != null) qs.set('year', String(params.year));
+  if (params?.month != null) qs.set('month', String(params.month));
+  await downloadBinary(token, `/api/crm/payroll/export.xlsx?${qs.toString()}`, 'payroll-export.xlsx');
+}
+
+export async function savePayrollPolicy(
+  token: string,
+  body: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  return crmFetch(token, '/api/crm/payroll/policy', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 }
 
 export async function fetchFinanceBusinessDashboard(

@@ -15,6 +15,7 @@ import {
   kpiAlertLabelVi,
   truthyFlag,
 } from './kpi.types';
+import { KPI_TEAM_DEPT_PATTERNS, type KpiTeamCode } from './kpi-team-filter.util';
 
 @Injectable()
 export class KpiSqliteRepository implements OnModuleDestroy {
@@ -484,5 +485,23 @@ export class KpiSqliteRepository implements OnModuleDestroy {
       staff_name: String(row.staff_name ?? ''),
       staff_code: String(row.staff_code ?? ''),
     };
+  }
+
+  staffIdsForTeam(team: Exclude<KpiTeamCode, 'all'>): number[] {
+    const patterns = KPI_TEAM_DEPT_PATTERNS[team];
+    const clauses = patterns
+      .map(
+        () =>
+          `(lower(coalesce(department, '')) LIKE ? OR lower(coalesce(job_title, '')) LIKE ?)`,
+      )
+      .join(' OR ');
+    const params: string[] = [];
+    for (const p of patterns) {
+      params.push(p, p);
+    }
+    const rows = this.database
+      .prepare(`SELECT id FROM crm_staff WHERE active = 1 AND (${clauses})`)
+      .all(...params) as Array<{ id: number }>;
+    return rows.map((r) => Number(r.id));
   }
 }

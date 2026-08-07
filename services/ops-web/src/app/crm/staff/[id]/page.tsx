@@ -1,10 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { CrmHrPageShell } from '@/components/crm/CrmHrPageShell';
+import { KpiSparkline } from '@/components/kpi/KpiDashboardUi';
 import { DetailPageLayout } from '@/components/layout';
 import { fetchCrmStaffWorkspace, staffMe, staffRefresh } from '@/lib/api';
+import { formatVnd } from '@/lib/kpi/format';
 import {
   clearSession,
   getAccessToken,
@@ -16,6 +19,18 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 
+const PAGE_SIZE = 10;
+
+type WorkspaceCase = {
+  id: number;
+  title: string;
+  status_label?: string;
+  pipeline_stage?: string;
+  deal_value_vnd?: number;
+  customer_name?: string;
+  updated_at?: string;
+};
+
 export default function CrmStaffDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -24,6 +39,7 @@ export default function CrmStaffDetailPage() {
   const [bundle, setBundle] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -71,6 +87,7 @@ export default function CrmStaffDetailPage() {
       setLoading(true);
       try {
         setBundle(await fetchCrmStaffWorkspace(access, staffId));
+        setPage(1);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải workspace thất bại');
       } finally {
@@ -86,7 +103,22 @@ export default function CrmStaffDetailPage() {
 
   const staff = (bundle?.staff as Record<string, unknown>) ?? {};
   const stats = (bundle?.stats as Record<string, number>) ?? {};
-  const cases = (bundle?.cases as Array<{ id: number; title: string; status_label?: string }>) ?? [];
+  const cases = (bundle?.cases as WorkspaceCase[]) ?? [];
+
+  const sparkData = useMemo(() => {
+    const buckets = new Array(8).fill(0);
+    for (const c of cases) {
+      const raw = String(c.updated_at ?? '').slice(0, 10);
+      if (!raw) continue;
+      const ageDays = Math.floor((Date.now() - new Date(raw).getTime()) / 86_400_000);
+      const idx = Math.min(Math.max(Math.floor(ageDays / 7), 0), buckets.length - 1);
+      buckets[buckets.length - 1 - idx] += Number(c.deal_value_vnd ?? 0) / 1_000_000;
+    }
+    return buckets.some((v) => v > 0) ? buckets : cases.slice(0, 8).map((c) => Number(c.deal_value_vnd ?? 0) / 1_000_000);
+  }, [cases]);
+
+  const totalPages = Math.max(1, Math.ceil(cases.length / PAGE_SIZE));
+  const pageCases = cases.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   if (!user) {
     return (
@@ -121,17 +153,67 @@ export default function CrmStaffDetailPage() {
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
         {bundle && !loading ? (
-          cases.length === 0 ? (
-            <p className="muted">Chưa có case gán.</p>
-          ) : (
-            <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-              {cases.slice(0, 15).map((c) => (
-                <li key={c.id}>
-                  #{c.id} · {c.title} {c.status_label ? `— ${c.status_label}` : ''}
-                </li>
-              ))}
-            </ul>
-          )
+          <>
+            <section style={{ marginBottom: '1rem' }}>
+              <p className="muted" style={{ margin: '0 0 0.35rem', fontSize: '0.85rem' }}>
+                Giá trị case (triệu VND) — 8 tuần gần nhất
+              </p>
+              <KpiSparkline data={sparkData} label="Xu hướng case được gán" />
+            </section>
+            {cases.length === 0 ? (
+              <p className="muted">Chưa có case gán.</p>
+            ) : (
+              <>
+                <div className="table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Case</th>
+                        <th>Khách</th>
+                        <th>Stage</th>
+                        <th>Giá trị</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pageCases.map((c) => (
+                        <tr key={c.id}>
+                          <td>
+                            <Link href={`/crm/leads/${c.id}`}>#{c.id}</Link> · {c.title}
+                          </td>
+                          <td>{c.customer_name || '—'}</td>
+                          <td>{c.status_label ?? c.pipeline_stage ?? '—'}</td>
+                          <td>{formatVnd(Number(c.deal_value_vnd ?? 0))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {totalPages > 1 ? (
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    >
+                      ← Trước
+                    </button>
+                    <span className="muted" style={{ fontSize: '0.85rem' }}>
+                      Trang {page}/{totalPages} · {cases.length} case
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    >
+                      Sau →
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            )}
+          </>
         ) : null}
       </DetailPageLayout>
     </CrmHrPageShell>

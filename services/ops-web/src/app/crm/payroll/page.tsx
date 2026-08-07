@@ -1,18 +1,22 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CrmHrPageShell } from '@/components/crm/CrmHrPageShell';
+import { KpiTileGrid, type KpiTileProps } from '@/components/kpi/KpiDashboardUi';
 import {
   computePayroll,
+  downloadPayrollXlsx,
   exportPayrollJson,
   fetchPayrollAttendance,
   fetchPayrollDashboard,
   fetchPayrollPeriod,
   fetchPayrollPolicy,
+  savePayrollPolicy,
   staffMe,
   staffRefresh,
 } from '@/lib/api';
+import { formatVnd } from '@/lib/kpi/format';
 import {
   clearSession,
   getAccessToken,
@@ -23,6 +27,17 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+
+const POLICY_FIELDS: Array<{ key: string; label: string; type?: string }> = [
+  { key: 'shift_start', label: 'Giờ vào ca' },
+  { key: 'shift_end', label: 'Giờ tan ca' },
+  { key: 'break_minutes_default', label: 'Nghỉ (phút)', type: 'number' },
+  { key: 'late_grace_minutes', label: 'Grace trễ (phút)', type: 'number' },
+  { key: 'late_penalty_vnd_per_min', label: 'Phạt trễ / phút (VND)', type: 'number' },
+  { key: 'late_penalty_max_vnd', label: 'Phạt trễ tối đa (VND)', type: 'number' },
+  { key: 'standard_hours_per_day', label: 'Giờ chuẩn / ngày', type: 'number' },
+  { key: 'bonus_pct', label: 'Thưởng (%)', type: 'number' },
+];
 
 export default function CrmPayrollPage() {
   const router = useRouter();
@@ -35,10 +50,13 @@ export default function CrmPayrollPage() {
   const [payroll, setPayroll] = useState<Record<string, unknown> | null>(null);
   const [lines, setLines] = useState<Array<Record<string, unknown>>>([]);
   const [attendance, setAttendance] = useState<Array<Record<string, unknown>>>([]);
-  const [policy, setPolicy] = useState<Record<string, unknown> | null>(null);
+  const [policy, setPolicy] = useState<Record<string, unknown>>({});
+  const [policyDraft, setPolicyDraft] = useState<Record<string, unknown>>({});
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [computing, setComputing] = useState(false);
+  const [savingPolicy, setSavingPolicy] = useState(false);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -92,7 +110,9 @@ export default function CrmPayrollPage() {
         } else if (tab === 'attendance') {
           setAttendance(await fetchPayrollAttendance(access));
         } else if (tab === 'policy') {
-          setPolicy(await fetchPayrollPolicy(access));
+          const p = await fetchPayrollPolicy(access);
+          setPolicy(p);
+          setPolicyDraft(p);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải payroll thất bại');
@@ -121,6 +141,7 @@ export default function CrmPayrollPage() {
       setPayroll(out.payroll);
       setLines(out.lines ?? []);
       setTab('payroll');
+      setMessage('Đã tính / cập nhật bảng lương kỳ này.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tính lương thất bại');
     } finally {
@@ -128,7 +149,18 @@ export default function CrmPayrollPage() {
     }
   }
 
-  async function onExport() {
+  async function onExportExcel() {
+    const access = getAccessToken();
+    if (!access) return;
+    setError('');
+    try {
+      await downloadPayrollXlsx(access, { year, month });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Export Excel thất bại');
+    }
+  }
+
+  async function onExportJson() {
     const access = getAccessToken();
     if (!access) return;
     setError('');
@@ -142,7 +174,26 @@ export default function CrmPayrollPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Export thất bại');
+      setError(err instanceof Error ? err.message : 'Export JSON thất bại');
+    }
+  }
+
+  async function onSavePolicy() {
+    const access = getAccessToken();
+    if (!access) return;
+    setSavingPolicy(true);
+    setError('');
+    setMessage('');
+    try {
+      const out = await savePayrollPolicy(access, policyDraft);
+      const p = (out.policy as Record<string, unknown>) ?? out;
+      setPolicy(p);
+      setPolicyDraft(p);
+      setMessage('Đã lưu chính sách chấm công.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lưu chính sách thất bại');
+    } finally {
+      setSavingPolicy(false);
     }
   }
 
@@ -150,6 +201,22 @@ export default function CrmPayrollPage() {
     clearSession();
     router.push('/login');
   }
+
+  const dashboardTiles = useMemo((): KpiTileProps[] => {
+    if (!dashboard) return [];
+    return [
+      { label: 'NV active', value: String(dashboard.staff_active ?? 0) },
+      { label: 'Chấm công tháng', value: String(dashboard.attendance_records_month ?? 0) },
+      { label: 'Check-in hôm nay', value: String(dashboard.checked_in_today ?? 0) },
+      {
+        label: 'Trễ tháng',
+        value: String(dashboard.late_incidents_month ?? 0),
+        tone: Number(dashboard.late_incidents_month ?? 0) > 0 ? 'warning' : 'success',
+      },
+      { label: 'Giờ làm tháng', value: String(dashboard.total_hours_month ?? 0) },
+      { label: 'Ngày công chuẩn', value: String(dashboard.workdays_standard ?? 0) },
+    ];
+  }, [dashboard]);
 
   if (!user) {
     return (
@@ -173,14 +240,8 @@ export default function CrmPayrollPage() {
             type="number"
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            style={{
-              width: 90,
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.55rem 0.75rem',
-              color: 'var(--text)',
-            }}
+            aria-label="Năm"
+            className="kpi-input"
           />
           <input
             type="number"
@@ -188,14 +249,8 @@ export default function CrmPayrollPage() {
             max={12}
             value={month}
             onChange={(e) => setMonth(Number(e.target.value))}
-            style={{
-              width: 70,
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.55rem 0.75rem',
-              color: 'var(--text)',
-            }}
+            aria-label="Tháng"
+            className="kpi-input kpi-input--month"
           />
           {canEdit ? (
             <button type="button" className="btn btn-sm" disabled={computing} onClick={() => void onCompute()}>
@@ -203,9 +258,14 @@ export default function CrmPayrollPage() {
             </button>
           ) : null}
           {canExport ? (
-            <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onExport()}>
-              Export JSON
-            </button>
+            <>
+              <button type="button" className="btn btn-sm" onClick={() => void onExportExcel()}>
+                Export Excel
+              </button>
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onExportJson()}>
+                JSON (debug)
+              </button>
+            </>
           ) : null}
         </div>
         <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
@@ -222,20 +282,17 @@ export default function CrmPayrollPage() {
         </div>
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
+        {message ? <p className="muted">{message}</p> : null}
 
         {tab === 'dashboard' && dashboard ? (
-          <pre
-            style={{
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.75rem',
-              overflow: 'auto',
-              fontSize: '0.85rem',
-            }}
-          >
-            {JSON.stringify(dashboard, null, 2)}
-          </pre>
+          <>
+            <KpiTileGrid tiles={dashboardTiles} />
+            <p className="muted" style={{ fontSize: '0.85rem' }}>
+              Giờ chuẩn tháng: {String(dashboard.standard_hours_month ?? '—')} · Ca:{' '}
+              {String((dashboard.policy as Record<string, unknown>)?.shift_start ?? '—')} –{' '}
+              {String((dashboard.policy as Record<string, unknown>)?.shift_end ?? '—')}
+            </p>
+          </>
         ) : null}
 
         {tab === 'payroll' ? (
@@ -245,43 +302,110 @@ export default function CrmPayrollPage() {
                 Kỳ {String(payroll.year)}-{String(payroll.month)} · {String(payroll.status ?? 'draft')}
               </p>
             ) : (
-              <p className="muted">Chưa có bảng lương kỳ này.</p>
+              <p className="muted">Chưa có bảng lương kỳ này — bấm «Tính lương».</p>
             )}
-            <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-              {lines.map((line, i) => (
-                <li key={String(line.id ?? i)}>
-                  {String(line.staff_name ?? line.staff_id ?? '—')} · gross{' '}
-                  {Number(line.gross_vnd ?? line.base_salary_vnd ?? 0).toLocaleString('vi-VN')} VND
-                </li>
-              ))}
-            </ul>
+            {lines.length > 0 ? (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Nhân viên</th>
+                      <th>Ngày công</th>
+                      <th>Giờ làm</th>
+                      <th>Thực lĩnh</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lines.map((line, i) => (
+                      <tr key={String(line.id ?? i)}>
+                        <td>
+                          {String(line.staff_name ?? line.staff_id ?? '—')}
+                          {line.staff_code ? ` · ${String(line.staff_code)}` : ''}
+                        </td>
+                        <td>{String(line.days_present ?? '—')}</td>
+                        <td>{String(line.hours_worked_total ?? '—')}</td>
+                        <td>{formatVnd(Number(line.net_salary_vnd ?? line.gross_vnd ?? 0))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
           </>
         ) : null}
 
         {tab === 'attendance' ? (
-          <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-            {attendance.slice(0, 50).map((a, i) => (
-              <li key={String(a.id ?? i)}>
-                {String(a.staff_name ?? a.staff_id ?? '—')} · {String(a.work_date ?? '—')} · in{' '}
-                {String(a.time_in ?? '—')} out {String(a.time_out ?? '—')}
-              </li>
-            ))}
-          </ul>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Nhân viên</th>
+                  <th>Ngày</th>
+                  <th>Vào</th>
+                  <th>Ra</th>
+                </tr>
+              </thead>
+              <tbody>
+                {attendance.slice(0, 50).map((a, i) => (
+                  <tr key={String(a.id ?? i)}>
+                    <td>{String(a.staff_name ?? a.staff_id ?? '—')}</td>
+                    <td>{String(a.work_date ?? '—')}</td>
+                    <td>{String(a.time_in ?? a.check_in ?? '—')}</td>
+                    <td>{String(a.time_out ?? a.check_out ?? '—')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : null}
 
-        {tab === 'policy' && policy ? (
-          <pre
-            style={{
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.75rem',
-              overflow: 'auto',
-              fontSize: '0.85rem',
+        {tab === 'policy' ? (
+          <form
+            className="stack-gap"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void onSavePolicy();
             }}
           >
-            {JSON.stringify(policy, null, 2)}
-          </pre>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(14rem, 1fr))',
+                gap: '0.75rem',
+              }}
+            >
+              {POLICY_FIELDS.map((field) => (
+                <label key={field.key} className="stack-gap" style={{ gap: '0.25rem' }}>
+                  <span className="muted" style={{ fontSize: '0.85rem' }}>
+                    {field.label}
+                  </span>
+                  <input
+                    type={field.type ?? 'text'}
+                    className="input"
+                    value={String(policyDraft[field.key] ?? '')}
+                    readOnly={!canEdit}
+                    onChange={(e) =>
+                      setPolicyDraft((prev) => ({
+                        ...prev,
+                        [field.key]:
+                          field.type === 'number' ? Number(e.target.value) : e.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+            {Array.isArray(policy.work_weekday_labels) ? (
+              <p className="muted" style={{ fontSize: '0.85rem' }}>
+                Ngày làm việc: {(policy.work_weekday_labels as string[]).join(', ')}
+              </p>
+            ) : null}
+            {canEdit ? (
+              <button type="submit" className="btn btn-sm" disabled={savingPolicy}>
+                Lưu chính sách
+              </button>
+            ) : null}
+          </form>
         ) : null}
       </div>
     </CrmHrPageShell>
