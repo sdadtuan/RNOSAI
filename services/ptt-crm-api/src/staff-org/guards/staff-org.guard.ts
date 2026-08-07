@@ -103,6 +103,24 @@ export class StaffOrgConfigureGuard implements CanActivate {
 }
 
 @Injectable()
+export class StaffOrgRosterEditGuard implements CanActivate {
+  constructor(private readonly staffAuth: StaffAuthService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<
+      Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' }
+    >();
+    if (req.staffAuthVia === 'internal') return true;
+    if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
+    const me = await this.staffAuth.me(req.staffUser);
+    if (!this.staffAuth.hasCap(me.caps, 'crm_staff_roster', 'edit')) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_staff_roster', action: 'edit' });
+    }
+    return true;
+  }
+}
+
+@Injectable()
 export class StaffOrgEffectiveCapsGuard implements CanActivate {
   constructor(private readonly staffAuth: StaffAuthService) {}
 

@@ -73,6 +73,7 @@ export class AppConfigService {
   readonly crmIntakePg: boolean;
   readonly crmContractPg: boolean;
   readonly crmStaffPg: boolean;
+  readonly crmPayrollPg: boolean;
   readonly crmKpiPg: boolean;
   readonly crmLeadsLegacyPg: boolean;
   readonly crmServiceLifecyclePg: boolean;
@@ -205,6 +206,9 @@ export class AppConfigService {
     );
     this.crmStaffPg = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CRM_STAFF_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
+    );
+    this.crmPayrollPg = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CRM_PAYROLL_PG ?? '0').trim().toLowerCase(),
     );
     this.crmKpiPg = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CRM_KPI_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),

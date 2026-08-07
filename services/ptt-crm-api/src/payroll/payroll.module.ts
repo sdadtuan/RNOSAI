@@ -7,6 +7,7 @@ import {
   StaffPayrollViewGuard,
 } from './guards/staff-payroll.guard';
 import { PayrollController } from './payroll.controller';
+import { PayrollPgRepository } from './payroll-pg.repository';
 import { PayrollSqliteRepository } from './payroll-sqlite.repository';
 import { PayrollService } from './payroll.service';
 
@@ -16,6 +17,7 @@ import { PayrollService } from './payroll.service';
   providers: [
     PayrollService,
     PayrollSqliteRepository,
+    PayrollPgRepository,
     StaffPayrollViewGuard,
     StaffPayrollSalaryViewGuard,
     StaffPayrollSalaryEditGuard,

@@ -8,6 +8,7 @@ import {
   StaffOrgDepartmentsConfigureGuard,
   StaffOrgDepartmentsViewGuard,
   StaffOrgEffectiveCapsGuard,
+  StaffOrgRosterEditGuard,
   StaffOrgRosterViewGuard,
 } from './guards/staff-org.guard';
 
@@ -21,6 +22,7 @@ import {
     StaffOrgDepartmentsViewGuard,
     StaffOrgDepartmentsConfigureGuard,
     StaffOrgEffectiveCapsGuard,
+    StaffOrgRosterEditGuard,
   ],
   exports: [StaffOrgService],
 })

@@ -92,6 +92,11 @@ export function canConfigureOrgStructure(user: StoredStaffUser | null): boolean 
   );
 }
 
+export function canEditOrgUsers(user: StoredStaffUser | null): boolean {
+  if (!user) return false;
+  return hasCap(user, 'crm_staff_roster', 'edit');
+}
+
 export function canConfigureData(user: StoredStaffUser | null): boolean {
   if (!user) return false;
   return hasCap(user, 'crm_data_config', 'configure');

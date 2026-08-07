@@ -4,27 +4,37 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AppConfigService } from '../config/app-config.service';
+import { PayrollPgRepository } from './payroll-pg.repository';
 import { PayrollSqliteRepository } from './payroll-sqlite.repository';
 
 @Injectable()
 export class PayrollService {
-  constructor(private readonly sqlite: PayrollSqliteRepository) {}
+  constructor(
+    private readonly sqlite: PayrollSqliteRepository,
+    private readonly pg: PayrollPgRepository,
+    private readonly config: AppConfigService,
+  ) {}
+
+  private get repo(): PayrollSqliteRepository | PayrollPgRepository {
+    return this.config.crmPayrollPg ? this.pg : this.sqlite;
+  }
 
   dashboard(yearRaw?: string, monthRaw?: string) {
     const { year, month } = this.parseYearMonth(yearRaw, monthRaw, true);
-    return this.sqlite.fetchDashboard(year, month);
+    return this.repo.fetchDashboard(year, month);
   }
 
   getPolicy() {
-    return this.sqlite.getPolicy();
+    return this.repo.getPolicy();
   }
 
   updatePolicy(body: Record<string, unknown>) {
-    return this.sqlite.updatePolicy(body ?? {});
+    return this.repo.updatePolicy(body ?? {});
   }
 
   getPositionRates() {
-    return this.sqlite.getPositionRates();
+    return this.repo.getPositionRates();
   }
 
   updatePositionRates(body: Record<string, unknown>) {
@@ -32,18 +42,18 @@ export class PayrollService {
     if (!Array.isArray(items)) {
       throw new BadRequestException({ error: 'Cần mảng positions' });
     }
-    return this.sqlite.updatePositionRates(items);
+    return this.repo.updatePositionRates(items);
   }
 
   getPayroll(yearRaw?: string, monthRaw?: string) {
     const { year, month } = this.parseYearMonth(yearRaw, monthRaw);
-    return this.sqlite.getPayroll(year, month);
+    return this.repo.getPayroll(year, month);
   }
 
   computePayroll(body: Record<string, unknown>) {
     const { year, month } = this.parseYearMonthFromPayload(body);
     try {
-      return this.sqlite.computePayroll(year, month);
+      return this.repo.computePayroll(year, month);
     } catch (err) {
       if (err instanceof Error && err.message === 'PAYROLL_LOCKED') {
         throw new ConflictException({
@@ -55,7 +65,7 @@ export class PayrollService {
   }
 
   patchPayroll(payrollId: number, body: Record<string, unknown>) {
-    const updated = this.sqlite.patchPayroll(payrollId, body ?? {});
+    const updated = this.repo.patchPayroll(payrollId, body ?? {});
     if (!updated) {
       throw new NotFoundException({ error: 'Không tìm thấy kỳ lương' });
     }
@@ -64,7 +74,7 @@ export class PayrollService {
 
   patchPayrollLine(lineId: number, body: Record<string, unknown>) {
     try {
-      const updated = this.sqlite.patchPayrollLine(lineId, body ?? {});
+      const updated = this.repo.patchPayrollLine(lineId, body ?? {});
       if (!updated) {
         throw new NotFoundException({ error: 'Không tìm thấy dòng lương' });
       }
@@ -90,7 +100,7 @@ export class PayrollService {
     }
     let staffQ = String(query.q ?? '').trim();
     if (staffId != null && staffQ) staffQ = '';
-    const bundle = this.sqlite.exportPayrollBundle({
+    const bundle = this.repo.exportPayrollBundle({
       period: parsed.period,
       y0: parsed.y0,
       m0: parsed.m0,
@@ -129,7 +139,7 @@ export class PayrollService {
     if (dateTo && !this.validateDateYmd(dateTo)) {
       throw new BadRequestException({ error: 'to phải là YYYY-MM-DD' });
     }
-    return this.sqlite.listAttendance({
+    return this.repo.listAttendance({
       staffId,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
@@ -200,21 +210,13 @@ export class PayrollService {
       const m1 = m0 + 2;
       return { period, y0: year, m0, y1: year, m1 };
     }
-    const dateFrom = String(query.from ?? '').trim();
-    const dateTo = String(query.to ?? '').trim();
-    if (!this.validateDateYmd(dateFrom) || !this.validateDateYmd(dateTo)) {
-      throw new BadRequestException({ error: 'from và to phải là YYYY-MM-DD' });
+    const from = String(query.from ?? '').trim();
+    const to = String(query.to ?? '').trim();
+    if (!this.validateDateYmd(from) || !this.validateDateYmd(to)) {
+      throw new BadRequestException({ error: 'Cần from/to YYYY-MM-DD hợp lệ (kỳ range)' });
     }
-    if (dateFrom > dateTo) {
-      throw new BadRequestException({ error: 'from phải ≤ to' });
-    }
-    const y0 = Number(dateFrom.slice(0, 4));
-    const m0 = Number(dateFrom.slice(5, 7));
-    const y1 = Number(dateTo.slice(0, 4));
-    const m1 = Number(dateTo.slice(5, 7));
-    if (y0 < 2000 || y1 > 2100) {
-      throw new BadRequestException({ error: 'Khoảng năm không hợp lệ' });
-    }
-    return { period, y0, m0, y1, m1 };
+    const [y0, m0] = from.split('-').map(Number);
+    const [y1, m1] = to.split('-').map(Number);
+    return { period, y0: y0!, m0: m0!, y1: y1!, m1: m1! };
   }
 }

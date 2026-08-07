@@ -18,14 +18,18 @@ import {
   StaffOrgDepartmentsConfigureGuard,
   StaffOrgDepartmentsViewGuard,
   StaffOrgEffectiveCapsGuard,
+  StaffOrgRosterEditGuard,
   StaffOrgRosterViewGuard,
 } from './guards/staff-org.guard';
 import { StaffOrgService } from './staff-org.service';
 import type {
   CreateStaffDepartmentBody,
+  CreateStaffOrgUserBody,
   CreateStaffTeamBody,
+  OffboardStaffOrgUserBody,
   PatchStaffDepartmentBody,
   PatchStaffOrgPositionBody,
+  PatchStaffOrgUserBody,
   PatchStaffTeamBody,
   PutStaffUserJobFunctionsBody,
 } from './staff-org.types';
@@ -107,8 +111,48 @@ export class StaffOrgController {
 
   @Get('users')
   @UseGuards(StaffOrInternalKeyGuard, StaffOrgRosterViewGuard)
-  listUsers() {
-    return this.org.listUsers();
+  listUsers(
+    @Query('q') q?: string,
+    @Query('include_inactive') includeInactive?: string,
+  ) {
+    return this.org
+      .listUsers({
+        q,
+        includeInactive: includeInactive === '1' || includeInactive === 'true',
+      })
+      .then((users) => ({ users }));
+  }
+
+  @Get('users/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgRosterViewGuard)
+  getUser(@Param('id') id: string) {
+    return this.org.getUser(id);
+  }
+
+  @Post('users')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgRosterEditGuard)
+  createUser(@Body() body: CreateStaffOrgUserBody, @StaffUser() staffUser?: StaffJwtPayload) {
+    return this.org.createUser(body, staffUser?.email ?? '');
+  }
+
+  @Patch('users/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgRosterEditGuard)
+  patchUser(
+    @Param('id') id: string,
+    @Body() body: PatchStaffOrgUserBody,
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.org.patchUser(id, body, staffUser?.email ?? '');
+  }
+
+  @Post('users/:id/offboard')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgRosterEditGuard)
+  offboardUser(
+    @Param('id') id: string,
+    @Body() body: OffboardStaffOrgUserBody,
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.org.offboardUser(id, body, staffUser?.email ?? '');
   }
 
   @Get('users/:id/job-functions')

@@ -14,11 +14,17 @@ import {
   validateJobFunctionAssignment,
 } from './staff-org.sod.util';
 import { StaffOrgRepository } from './staff-org.repository';
+import { StaffOrgUsersRepository } from './staff-org-users.repository';
 import type {
   CreateStaffDepartmentBody,
+  CreateStaffOrgUserBody,
+  CreateStaffOrgUserResponse,
   CreateStaffTeamBody,
+  OffboardStaffOrgUserBody,
+  OffboardStaffOrgUserResponse,
   PatchStaffDepartmentBody,
   PatchStaffOrgPositionBody,
+  PatchStaffOrgUserBody,
   PatchStaffTeamBody,
   PutStaffUserJobFunctionsBody,
   StaffOrgUserSummary,
@@ -41,6 +47,7 @@ type ResolvedUser = {
 export class StaffOrgService implements OnModuleDestroy {
   private pool: Pool | null = null;
   private orgRepo: StaffOrgRepository | null = null;
+  private usersRepo: StaffOrgUsersRepository | null = null;
 
   constructor(
     private readonly config: AppConfigService,
@@ -62,10 +69,18 @@ export class StaffOrgService implements OnModuleDestroy {
     return this.orgRepo;
   }
 
+  private get usersRepository(): StaffOrgUsersRepository {
+    if (!this.usersRepo) {
+      this.usersRepo = new StaffOrgUsersRepository(this.db);
+    }
+    return this.usersRepo;
+  }
+
   onModuleDestroy(): void {
     void this.pool?.end();
     this.pool = null;
     this.orgRepo = null;
+    this.usersRepo = null;
   }
 
   listDepartments() {
@@ -109,34 +124,15 @@ export class StaffOrgService implements OnModuleDestroy {
     }));
   }
 
-  async listUsers(): Promise<StaffOrgUserSummary[]> {
+  async listUsers(opts?: { q?: string; includeInactive?: boolean }): Promise<StaffOrgUserSummary[]> {
     try {
-      const result = await this.db.query<{
-        id: string;
-        email: string;
-        display_name: string;
-        position_id: number;
-        position_code: string | null;
-      }>(
-        `SELECT u.id::text, u.email, u.display_name, u.position_id, p.code AS position_code
-         FROM staff_users u
-         LEFT JOIN crm_positions p ON p.id = u.position_id
-         WHERE u.active IS TRUE
-         ORDER BY u.display_name, u.email`,
-      );
-      const rows: StaffOrgUserSummary[] = [];
-      for (const row of result.rows) {
-        const functions = await this.jobFunctions.loadUserFunctionCodes(String(row.id));
-        rows.push({
-          id: String(row.id),
-          email: String(row.email),
-          display_name: String(row.display_name || row.email),
-          position_id: Number(row.position_id),
-          position_code: row.position_code ? String(row.position_code) : undefined,
-          job_functions: functions,
-        });
+      const rows = await this.usersRepository.listUsers(opts);
+      const enriched: StaffOrgUserSummary[] = [];
+      for (const row of rows) {
+        const functions = await this.jobFunctions.loadUserFunctionCodes(row.id);
+        enriched.push({ ...row, job_functions: functions });
       }
-      return rows;
+      return enriched;
     } catch {
       const roster = await this.staffAuth.listActiveStaff();
       const rows: StaffOrgUserSummary[] = [];
@@ -147,11 +143,66 @@ export class StaffOrgService implements OnModuleDestroy {
           email: row.email,
           display_name: row.display_name,
           position_id: row.position_id,
+          active: true,
           job_functions: functions,
         });
       }
       return rows;
     }
+  }
+
+  async getUser(userRef: string): Promise<StaffOrgUserSummary> {
+    const user = await this.resolveUser(userRef);
+    const detail = await this.usersRepository.getUserById(user.id);
+    if (!detail) throw new NotFoundException({ error: 'user_not_found', ref: userRef });
+    const functions = await this.jobFunctions.loadUserFunctionCodes(detail.id);
+    return { ...detail, job_functions: functions };
+  }
+
+  async createUser(
+    body: CreateStaffOrgUserBody,
+    actorEmail: string,
+  ): Promise<CreateStaffOrgUserResponse> {
+    const functions = normalizeFunctionCodes(body.functions ?? []);
+    const sod = validateJobFunctionAssignment(functions);
+    if (sod) {
+      throw new ConflictException({ error: 'sod_violation', sod_id: sod.id, message: sod.message });
+    }
+
+    const created = await this.usersRepository.createUser(body, actorEmail);
+    if (functions.length) {
+      await this.jobFunctions.replaceUserFunctions(created.user.id, functions, actorEmail);
+    }
+    const functionsLoaded = await this.jobFunctions.loadUserFunctionCodes(created.user.id);
+    return {
+      user: { ...created.user, job_functions: functionsLoaded },
+      temp_password: created.temp_password,
+    };
+  }
+
+  async patchUser(
+    userRef: string,
+    body: PatchStaffOrgUserBody,
+    actorEmail: string,
+  ): Promise<StaffOrgUserSummary> {
+    const user = await this.resolveUser(userRef);
+    const updated = await this.usersRepository.patchUser(user.id, body, actorEmail);
+    const functions = await this.jobFunctions.loadUserFunctionCodes(updated.id);
+    return { ...updated, job_functions: functions };
+  }
+
+  async offboardUser(
+    userRef: string,
+    body: OffboardStaffOrgUserBody,
+    actorEmail: string,
+  ): Promise<OffboardStaffOrgUserResponse> {
+    const user = await this.resolveUser(userRef);
+    const result = await this.usersRepository.offboardUser(user.id, body, actorEmail);
+    const functions = await this.jobFunctions.loadUserFunctionCodes(result.user.id);
+    return {
+      user: { ...result.user, job_functions: functions },
+      leads_reassigned: result.leads_reassigned,
+    };
   }
 
   async getUserJobFunctions(userRef: string): Promise<StaffUserJobFunctionsResponse> {

@@ -4,7 +4,54 @@ export type StaffOrgUserSummary = {
   display_name: string;
   position_id: number;
   position_code?: string;
+  active?: boolean;
+  crm_staff_id?: number;
+  team_ids?: number[];
+  team_codes?: string[];
   job_functions: string[];
+};
+
+export type StaffOrgUserDetail = StaffOrgUserSummary;
+
+export type CreateStaffOrgUserBody = {
+  email: string;
+  display_name?: string;
+  position_id: number;
+  team_ids?: number[];
+  functions?: string[];
+  password?: string;
+  crm_staff_id?: number;
+  crm_staff?: {
+    name?: string;
+    display_name?: string;
+    phone?: string;
+    job_title?: string;
+    internal_code?: string;
+    department_id?: number | null;
+  };
+};
+
+export type PatchStaffOrgUserBody = {
+  display_name?: string;
+  position_id?: number;
+  team_ids?: number[];
+  active?: boolean;
+  password?: string;
+};
+
+export type OffboardStaffOrgUserBody = {
+  reassign_to: number;
+  deactivate?: boolean;
+};
+
+export type CreateStaffOrgUserResponse = {
+  user: StaffOrgUserDetail;
+  temp_password?: string;
+};
+
+export type OffboardStaffOrgUserResponse = {
+  user: StaffOrgUserDetail;
+  leads_reassigned: number;
 };
 
 export type PutStaffUserJobFunctionsBody = {

@@ -3654,6 +3654,18 @@ export async function fetchCrmStaffList(
   return crmFetch(token, `/api/crm/staff${qs}`);
 }
 
+export async function patchCrmStaff(
+  token: string,
+  staffId: number,
+  body: Partial<{ name: string; phone: string; email: string; job_title: string }>,
+): Promise<CrmStaffRow> {
+  return crmFetch(token, `/api/crm/staff/${staffId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchCrmStaffWorkspace(
   token: string,
   staffId: number,
@@ -7565,7 +7577,37 @@ export interface StaffOrgUserSummary {
   display_name: string;
   position_id: number;
   position_code?: string;
+  active?: boolean;
+  crm_staff_id?: number;
+  team_ids?: number[];
+  team_codes?: string[];
   job_functions: string[];
+}
+
+export interface CreateStaffOrgUserInput {
+  email: string;
+  display_name?: string;
+  position_id: number;
+  team_ids?: number[];
+  functions?: string[];
+  password?: string;
+  crm_staff_id?: number;
+  crm_staff?: {
+    name?: string;
+    display_name?: string;
+    phone?: string;
+    job_title?: string;
+    internal_code?: string;
+    department_id?: number | null;
+  };
+}
+
+export interface PatchStaffOrgUserInput {
+  display_name?: string;
+  position_id?: number;
+  team_ids?: number[];
+  active?: boolean;
+  password?: string;
 }
 
 export interface StaffUserEffectiveCaps {
@@ -7578,8 +7620,58 @@ export interface StaffUserEffectiveCaps {
   caps: Array<{ section: string; action: string }>;
 }
 
-export async function fetchStaffOrgUsers(token: string): Promise<StaffOrgUserSummary[]> {
-  return crmFetch(token, '/api/v1/staff/org/users');
+export async function fetchStaffOrgUsers(
+  token: string,
+  opts?: { q?: string; includeInactive?: boolean },
+): Promise<StaffOrgUserSummary[]> {
+  const params = new URLSearchParams();
+  if (opts?.q) params.set('q', opts.q);
+  if (opts?.includeInactive) params.set('include_inactive', '1');
+  const qs = params.toString();
+  const data = await crmFetch<{ users: StaffOrgUserSummary[] }>(
+    token,
+    `/api/v1/staff/org/users${qs ? `?${qs}` : ''}`,
+  );
+  return data.users ?? (data as unknown as StaffOrgUserSummary[]);
+}
+
+export async function fetchStaffOrgUser(token: string, userId: string): Promise<StaffOrgUserSummary> {
+  return crmFetch(token, `/api/v1/staff/org/users/${encodeURIComponent(userId)}`);
+}
+
+export async function createStaffOrgUser(
+  token: string,
+  body: CreateStaffOrgUserInput,
+): Promise<{ user: StaffOrgUserSummary; temp_password?: string }> {
+  return crmFetch(token, '/api/v1/staff/org/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchStaffOrgUser(
+  token: string,
+  userId: string,
+  body: PatchStaffOrgUserInput,
+): Promise<StaffOrgUserSummary> {
+  return crmFetch(token, `/api/v1/staff/org/users/${encodeURIComponent(userId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function offboardStaffOrgUser(
+  token: string,
+  userId: string,
+  body: { reassign_to: number; deactivate?: boolean },
+): Promise<{ user: StaffOrgUserSummary; leads_reassigned: number }> {
+  return crmFetch(token, `/api/v1/staff/org/users/${encodeURIComponent(userId)}/offboard`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 }
 
 export async function fetchStaffOrgJobFunctionCatalog(

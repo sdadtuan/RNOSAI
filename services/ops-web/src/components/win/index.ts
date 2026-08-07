@@ -1,3 +1,4 @@
+export { WinDrawer } from './WinDrawer';
 export { WinDiffChip } from './WinDiffChip';
 export { WinEmptyState } from './WinEmptyState';
 export { WinExcelImportWizard } from './WinExcelImportWizard';

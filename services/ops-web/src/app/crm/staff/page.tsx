@@ -1,20 +1,24 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CrmHrPageShell } from '@/components/crm/CrmHrPageShell';
+import { StaffCompetencyForm } from '@/components/crm/StaffCompetencyForm';
+import { StaffLevelsForm } from '@/components/crm/StaffLevelsForm';
 import { WinExcelImportWizard } from '@/components/win';
 import {
   fetchCrmStaffList,
   fetchStaffCompetency,
   fetchStaffLevels,
+  fetchStaffOrgUsers,
   importCrmStaff,
   saveStaffCompetency,
   saveStaffLevels,
   staffMe,
   staffRefresh,
   type CrmStaffRow,
+  type StaffOrgUserSummary,
 } from '@/lib/api';
 import {
   clearSession,
@@ -26,6 +30,7 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { StaffEditDrawer } from './StaffEditDrawer';
 
 type StaffTab = 'roster' | 'import' | 'levels' | 'competency';
 
@@ -41,10 +46,13 @@ export default function CrmStaffPage() {
   const [tab, setTab] = useState<StaffTab>(() => parseStaffTab(searchParams.get('tab')));
   const [rows, setRows] = useState<CrmStaffRow[]>([]);
   const [summary, setSummary] = useState<Record<string, number>>({});
-  const [levelsJson, setLevelsJson] = useState('[]');
-  const [competencyJson, setCompetencyJson] = useState('{}');
+  const [orgUsersByEmail, setOrgUsersByEmail] = useState<Map<string, StaffOrgUserSummary>>(new Map());
+  const [levels, setLevels] = useState<Array<Record<string, unknown>>>([]);
+  const [competency, setCompetency] = useState<Record<string, unknown>>({});
   const [importJson, setImportJson] = useState('[]');
   const [rosterWizardOpen, setRosterWizardOpen] = useState(false);
+  const [editStaff, setEditStaff] = useState<CrmStaffRow | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const [q, setQ] = useState('');
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
@@ -93,12 +101,20 @@ export default function CrmStaffPage() {
         const out = await fetchCrmStaffList(access, { q: query || undefined });
         setRows(out.staff ?? []);
         setSummary(out.summary ?? {});
+        try {
+          const orgUsers = await fetchStaffOrgUsers(access, { includeInactive: true });
+          setOrgUsersByEmail(
+            new Map(orgUsers.map((u) => [u.email.trim().toLowerCase(), u])),
+          );
+        } catch {
+          setOrgUsersByEmail(new Map());
+        }
       } else if (nextTab === 'levels') {
-        const levels = await fetchStaffLevels(access);
-        setLevelsJson(JSON.stringify(levels, null, 2));
+        const levelRows = await fetchStaffLevels(access);
+        setLevels(levelRows);
       } else if (nextTab === 'competency') {
-        const competency = await fetchStaffCompetency(access);
-        setCompetencyJson(JSON.stringify(competency, null, 2));
+        const competencyRows = await fetchStaffCompetency(access);
+        setCompetency(competencyRows);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tải nhân viên thất bại');
@@ -126,8 +142,7 @@ export default function CrmStaffPage() {
     setSaving(true);
     setError('');
     try {
-      const parsed = JSON.parse(levelsJson) as Array<Record<string, unknown>>;
-      await saveStaffLevels(access, parsed);
+      await saveStaffLevels(access, levels);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lưu levels thất bại');
     } finally {
@@ -142,8 +157,7 @@ export default function CrmStaffPage() {
     setSaving(true);
     setError('');
     try {
-      const parsed = JSON.parse(competencyJson) as Record<string, unknown>;
-      await saveStaffCompetency(access, parsed);
+      await saveStaffCompetency(access, competency);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lưu competency thất bại');
     } finally {
@@ -185,6 +199,18 @@ export default function CrmStaffPage() {
   }
 
   const canEdit = hasCap(user, 'crm_staff_roster', 'edit');
+  const accessToken = getAccessToken();
+
+  const rosterItems = useMemo(
+    () =>
+      rows.map((s) => {
+        const orgUser = s.email
+          ? orgUsersByEmail.get(s.email.trim().toLowerCase())
+          : undefined;
+        return { staff: s, orgUser };
+      }),
+    [rows, orgUsersByEmail],
+  );
 
   return (
     <CrmHrPageShell user={user} onLogout={logout} title="Nhân viên">
@@ -241,7 +267,7 @@ export default function CrmStaffPage() {
               Tổng {summary.staff_total ?? rows.length} · Active {summary.staff_active ?? '—'}
             </p>
             <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-              {rows.map((s) => (
+              {rosterItems.map(({ staff: s, orgUser }) => (
                 <li key={s.id} style={{ marginBottom: '0.35rem' }}>
                   <Link href={`/crm/staff/${s.id}`} className="nav-link">
                     {s.name}
@@ -249,7 +275,32 @@ export default function CrmStaffPage() {
                   <span className="muted">
                     {s.internal_code} · {s.job_title || s.department || '—'}
                     {!s.active ? ' · inactive' : ''}
-                  </span>
+                    {orgUser?.position_code ? ` · ${orgUser.position_code}` : ''}
+                    {orgUser?.job_functions?.length
+                      ? ` · ${orgUser.job_functions.join(', ')}`
+                      : ''}
+                  </span>{' '}
+                  {orgUser ? (
+                    <Link href="/admin/crm/org/users" className="nav-link" style={{ fontSize: '0.85rem' }}>
+                      org user
+                    </Link>
+                  ) : null}
+                  {canEdit ? (
+                    <>
+                      {' · '}
+                      <button
+                        type="button"
+                        className="btn btn-link"
+                        style={{ fontSize: '0.85rem', padding: 0 }}
+                        onClick={() => {
+                          setEditStaff(s);
+                          setEditOpen(true);
+                        }}
+                      >
+                        Sửa
+                      </button>
+                    </>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -315,21 +366,10 @@ export default function CrmStaffPage() {
 
         {tab === 'levels' ? (
           <form onSubmit={(e) => void onSaveLevels(e)}>
-            <textarea
-              value={levelsJson}
-              onChange={(e) => setLevelsJson(e.target.value)}
-              rows={10}
+            <StaffLevelsForm
+              levels={levels as Array<Record<string, unknown>>}
               readOnly={!canEdit}
-              style={{
-                width: '100%',
-                background: 'var(--bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                padding: '0.75rem',
-                color: 'var(--text)',
-                fontFamily: 'monospace',
-                fontSize: '0.85rem',
-              }}
+              onChange={(next) => setLevels(next as Array<Record<string, unknown>>)}
             />
             {canEdit ? (
               <button type="submit" className="btn btn-secondary btn-sm" disabled={saving} style={{ marginTop: '0.5rem' }}>
@@ -341,21 +381,10 @@ export default function CrmStaffPage() {
 
         {tab === 'competency' ? (
           <form onSubmit={(e) => void onSaveCompetency(e)}>
-            <textarea
-              value={competencyJson}
-              onChange={(e) => setCompetencyJson(e.target.value)}
-              rows={10}
+            <StaffCompetencyForm
+              config={competency}
               readOnly={!canEdit}
-              style={{
-                width: '100%',
-                background: 'var(--bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                padding: '0.75rem',
-                color: 'var(--text)',
-                fontFamily: 'monospace',
-                fontSize: '0.85rem',
-              }}
+              onChange={setCompetency}
             />
             {canEdit ? (
               <button
@@ -370,6 +399,18 @@ export default function CrmStaffPage() {
           </form>
         ) : null}
       </div>
+      {accessToken ? (
+        <StaffEditDrawer
+          open={editOpen}
+          staff={editStaff}
+          token={accessToken}
+          canEdit={canEdit}
+          onClose={() => setEditOpen(false)}
+          onSaved={(updated) => {
+            setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+          }}
+        />
+      ) : null}
     </CrmHrPageShell>
   );
 }
