@@ -249,13 +249,13 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
     const started = this.nowIso();
     const promptVersion = input.prompt_version ?? 'v1';
     const initialStatus = input.status ?? 'running';
+    const startedAt = initialStatus === 'pending' ? null : started;
     if (await this.ensurePgReady()) {
       const res = await this.db.query(
         `INSERT INTO mkt_ai_jobs (
            lifecycle_id, job_type, status, prompt_version, model_name,
            input_json, actor_email, started_at, created_at, updated_at
-         ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7,
-           CASE WHEN $3::text = 'pending' THEN NULL::timestamptz ELSE NOW() END, NOW(), NOW())
+         ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, NOW(), NOW())
          RETURNING id, lifecycle_id, job_type, status, prompt_version, model_name,
                    input_json, output_json, error_message, latency_ms, actor_email,
                    started_at, ended_at, created_at`,
@@ -267,6 +267,7 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
           input.model_name,
           JSON.stringify(input.input_json),
           input.actor_email,
+          startedAt,
         ],
       );
       return this.mapJobRow(res.rows[0]);
