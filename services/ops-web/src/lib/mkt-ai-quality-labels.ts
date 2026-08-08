@@ -46,7 +46,7 @@ export function qualityScoreColor(score: number | undefined | null): string {
 }
 
 export function canExportFormat(
-  format: 'pdf' | 'docx' | 'xlsx',
+  format: 'pdf' | 'docx' | 'xlsx' | 'pptx',
   score: number | undefined | null,
 ): boolean {
   if (score == null || score < 60) return false;

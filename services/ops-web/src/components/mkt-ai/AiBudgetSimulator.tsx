@@ -54,6 +54,7 @@ export function AiBudgetSimulator({
   onMessage,
 }: Props) {
   const [busy, setBusy] = useState(false);
+  const [scenarioCount, setScenarioCount] = useState(3);
   const [selectedId, setSelectedId] = useState<number | null>(
     scenarios.find((s) => s.is_selected)?.id ?? scenarios.find((s) => s.slug === 'balanced')?.id ?? null,
   );
@@ -63,7 +64,7 @@ export function AiBudgetSimulator({
     setBusy(true);
     onError?.('');
     try {
-      const res = await postMktAiBudgetSimulateJob(token, lifecycleId);
+      const res = await postMktAiBudgetSimulateJob(token, lifecycleId, scenarioCount);
       const rows = res.output?.scenarios ?? [];
       if (rows.length) {
         onScenariosChange(rows);
@@ -71,7 +72,7 @@ export function AiBudgetSimulator({
         if (balanced) setSelectedId(balanced.id);
       }
       await onRefresh?.();
-      onMessage?.(`Đã sinh ${rows.length || 3} budget scenarios`);
+      onMessage?.(`Đã sinh ${rows.length || scenarioCount} budget scenarios`);
     } catch (err) {
       onError?.(err instanceof Error ? err.message : 'Sinh budget scenarios thất bại');
     } finally {
@@ -110,9 +111,25 @@ export function AiBudgetSimulator({
       </div>
 
       {canEdit ? (
-        <button type="button" className="btn btn-sm" disabled={paused || busy} onClick={() => void runSimulate()}>
-          {busy ? 'Đang xử lý…' : 'Sinh budget scenarios'}
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <label style={{ fontSize: '0.85rem' }}>
+            Số scenario{' '}
+            <select
+              value={scenarioCount}
+              disabled={paused || busy}
+              onChange={(e) => setScenarioCount(Number(e.target.value))}
+            >
+              {[2, 3, 4, 5].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="button" className="btn btn-sm" disabled={paused || busy} onClick={() => void runSimulate()}>
+            {busy ? 'Đang xử lý…' : 'Sinh budget scenarios'}
+          </button>
+        </div>
       ) : null}
 
       {scenarios.length === 0 ? (
@@ -130,6 +147,7 @@ export function AiBudgetSimulator({
                 <th>Content</th>
                 <th>Dự phòng</th>
                 <th>CPL est.</th>
+                <th>Lý do (VI)</th>
                 <th />
               </tr>
             </thead>
@@ -148,6 +166,9 @@ export function AiBudgetSimulator({
                     <td>{channelMix.content_pct ?? '—'}%</td>
                     <td>{channelMix.reserve_pct ?? '—'}%</td>
                     <td>{cplLabel(row, objective)}</td>
+                    <td style={{ maxWidth: '14rem', fontSize: '0.82rem' }}>
+                      {row.rationale_vi?.trim() || '—'}
+                    </td>
                     <td>
                       {canEdit ? (
                         <button

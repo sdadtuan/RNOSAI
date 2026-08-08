@@ -109,6 +109,7 @@ export interface MktAiDocumentRow {
   uploaded_by: string;
   created_at: string;
   updated_at: string;
+  metadata_json?: Record<string, unknown>;
 }
 
 export interface MktAiCampaignDraft {
@@ -173,7 +174,12 @@ export interface MktAiPlannerContext {
     multi_agent_enabled?: boolean;
     plan_depth_enabled?: boolean;
     brief_upload_enabled?: boolean;
+    scenario_compare_enabled?: boolean;
+    section_comments_enabled?: boolean;
+    export_pptx_enabled?: boolean;
   };
+  strategy_scenarios?: MktAiStrategyScenarioRow[];
+  section_comments?: MktAiSectionCommentRow[];
   documents?: MktAiDocumentRow[];
   rag?: { use_rag: boolean; indexed_count: number };
   budget_scenarios?: MktAiBudgetScenarioRow[];
@@ -287,6 +293,7 @@ export interface MktAiBudgetScenarioRow {
   };
   cpl_estimates_json: Record<string, number>;
   assumptions_json: Record<string, unknown>;
+  rationale_vi?: string | null;
   is_selected: boolean;
   sort_order: number;
   created_at: string;
@@ -308,9 +315,10 @@ export async function fetchMktAiDocuments(token: string, lifecycleId: number) {
   );
 }
 
-export async function uploadMktAiDocument(token: string, lifecycleId: number, file: File) {
+export async function uploadMktAiDocument(token: string, lifecycleId: number, file: File, tag?: string) {
   const form = new FormData();
   form.append('file', file);
+  if (tag?.trim()) form.append('tag', tag.trim());
   const res = await fetch(
     `${API_BASE}/api/crm/service-lifecycle/${lifecycleId}/ai-planner/documents`,
     {
@@ -398,13 +406,18 @@ export async function postMktAiQualityJob(token: string, lifecycleId: number) {
   });
 }
 
-export async function postMktAiBudgetSimulateJob(token: string, lifecycleId: number) {
+export async function postMktAiBudgetSimulateJob(
+  token: string,
+  lifecycleId: number,
+  count = 3,
+) {
   return mktAiFetch<{
     job_id: number;
     status: string;
     output?: { scenarios?: MktAiBudgetScenarioRow[]; count?: number };
   }>(token, lifecycleId, '/jobs/budget-simulate', {
     method: 'POST',
+    body: JSON.stringify({ count }),
   });
 }
 
@@ -765,4 +778,112 @@ export async function postMktAiMultiAgentJob(
 
 export async function fetchMktAiMultiAgentStatus(token: string, lifecycleId: number) {
   return mktAiFetch<MktAiMultiAgentStatusPayload>(token, lifecycleId, '/multi-agent/status');
+}
+
+export interface MktAiStrategyScenarioRow {
+  id: number;
+  lifecycle_id: number;
+  job_id: number | null;
+  label: string;
+  variant_slug: string;
+  variant_index: number;
+  strategy_framework_json: Record<string, string>;
+  target_market_prof_json: Record<string, string>;
+  swot_json: Record<string, unknown>;
+  channel_focus_json: Record<string, string>;
+  messaging_json: Record<string, string>;
+  is_selected: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MktAiStrategyScenarioComparePayload {
+  ok: boolean;
+  scenario_a: MktAiStrategyScenarioRow;
+  scenario_b: MktAiStrategyScenarioRow;
+  swot_diff: Record<string, { a: string[]; b: string[]; only_a: string[]; only_b: string[] }>;
+  channel_diff: Record<string, { a: string; b: string; changed: boolean }>;
+  messaging_diff: Record<string, { a: string; b: string; changed: boolean }>;
+  fields_changed: string[];
+}
+
+export interface MktAiSectionCommentRow {
+  id: number;
+  lifecycle_id: number;
+  section_key: string;
+  author_email: string;
+  body: string;
+  mention_email: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type MktAiPptxExportSection = 'strategy' | 'campaign' | 'content' | 'brief';
+
+export async function postMktAiStrategyScenariosJob(
+  token: string,
+  lifecycleId: number,
+  count = 3,
+) {
+  return mktAiFetch<{ job_id: number; status: string; scenarios: MktAiStrategyScenarioRow[] }>(
+    token,
+    lifecycleId,
+    '/jobs/strategy/scenarios',
+    { method: 'POST', body: JSON.stringify({ count }) },
+  );
+}
+
+export async function fetchMktAiStrategyScenarioCompare(
+  token: string,
+  lifecycleId: number,
+  scenarioA: number,
+  scenarioB: number,
+) {
+  const q = new URLSearchParams({ a: String(scenarioA), b: String(scenarioB) });
+  return mktAiFetch<MktAiStrategyScenarioComparePayload>(
+    token,
+    lifecycleId,
+    `/strategy/scenarios/compare?${q}`,
+  );
+}
+
+export async function postMktAiSelectStrategyScenario(
+  token: string,
+  lifecycleId: number,
+  scenarioId: number,
+) {
+  return mktAiFetch<{ scenario: MktAiStrategyScenarioRow; draft_updated: boolean }>(
+    token,
+    lifecycleId,
+    `/strategy/scenarios/${scenarioId}/select`,
+    { method: 'POST', body: '{}' },
+  );
+}
+
+export async function postMktAiSectionComment(
+  token: string,
+  lifecycleId: number,
+  body: { section_key: string; body: string; mention_email?: string },
+) {
+  return mktAiFetch<MktAiSectionCommentRow>(token, lifecycleId, '/section-comments', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function postMktAiExportPptx(
+  token: string,
+  lifecycleId: number,
+  sections: MktAiPptxExportSection[] = ['strategy', 'campaign'],
+) {
+  return mktAiFetch<{
+    format: string;
+    filename: string;
+    content: string;
+    mime_type: string;
+    encoding?: 'base64' | 'utf8';
+  }>(token, lifecycleId, '/export/pptx', {
+    method: 'POST',
+    body: JSON.stringify({ sections }),
+  });
 }

@@ -11,13 +11,18 @@ import type { MktAiBrief, MktAiBudgetScenarioRow, MktAiCampaignDraft } from './m
 export class MarketingAiBudgetService {
   constructor(private readonly repo: MarketingAiPlannerRepository) {}
 
-  async simulate(lifecycleId: number, brief: MktAiBrief, jobId: number | null): Promise<MktAiBudgetScenarioRow[]> {
+  async simulate(
+    lifecycleId: number,
+    brief: MktAiBrief,
+    jobId: number | null,
+    count = 3,
+  ): Promise<MktAiBudgetScenarioRow[]> {
     const budget = Number(brief.budget_monthly_vnd ?? 0);
     if (!Number.isFinite(budget) || budget <= 0) {
       throw new BadRequestException({ error: 'brief_budget_required' });
     }
 
-    const drafts = buildBudgetScenarios(brief);
+    const drafts = buildBudgetScenarios(brief, count);
     if (drafts.length < 2) {
       throw new BadRequestException({ error: 'budget_scenarios_empty' });
     }

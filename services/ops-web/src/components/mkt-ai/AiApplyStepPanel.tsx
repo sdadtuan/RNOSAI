@@ -13,11 +13,13 @@ import {
   downloadMktAiExportFile,
   postMktAiApply,
   postMktAiExport,
+  postMktAiExportPptx,
   postMktAiQualityJob,
   type MktAiDraft,
   type MktAiApprovalContext,
   type MktAiCommentRow,
   type MktAiPlanVersionSummary,
+  type MktAiPptxExportSection,
 } from '@/lib/mkt-ai-planner-api';
 
 interface Props {
@@ -28,6 +30,7 @@ interface Props {
   canEdit: boolean;
   canExport: boolean;
   canApprove: boolean;
+  exportPptxEnabled?: boolean;
   approval?: MktAiApprovalContext;
   comments?: MktAiCommentRow[];
   planVersions?: MktAiPlanVersionSummary[];
@@ -48,6 +51,7 @@ export function AiApplyStepPanel({
   canEdit,
   canExport,
   canApprove,
+  exportPptxEnabled = false,
   approval,
   comments,
   planVersions = [],
@@ -187,6 +191,20 @@ export function AiApplyStepPanel({
     }
   }
 
+  async function handleExportPptx(sections: MktAiPptxExportSection[]) {
+    setBusy(true);
+    onError('');
+    try {
+      const out = await postMktAiExportPptx(token, lifecycleId, sections);
+      downloadMktAiExportFile(out);
+      onMessage(`Đã tải ${out.filename}`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Export PPTX thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div style={{ display: 'grid', gap: '0.85rem' }}>
       {approval ? (
@@ -293,10 +311,12 @@ export function AiApplyStepPanel({
       <ExportPlanActions
         quality={quality}
         canExport={canExport}
+        exportPptxEnabled={exportPptxEnabled}
         approvalRequired={approvalRequired}
         approvalCanExport={approval?.can_export ?? true}
         busy={busy || paused}
         onExport={(format) => void handleExport(format)}
+        onExportPptx={(sections) => void handleExportPptx(sections)}
       />
 
       <AiApplyTmmtModal

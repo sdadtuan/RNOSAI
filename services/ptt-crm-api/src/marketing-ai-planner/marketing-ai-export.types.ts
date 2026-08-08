@@ -1,6 +1,6 @@
 import type { MktAiBrief, MktAiCampaignDraft, MktAiDraft } from './marketing-ai-planner.types';
 
-export type MktAiExportFormat = 'pdf' | 'docx' | 'xlsx';
+export type MktAiExportFormat = 'pdf' | 'docx' | 'xlsx' | 'pptx';
 
 export interface MktAiExportDocument {
   lifecycleId: number;

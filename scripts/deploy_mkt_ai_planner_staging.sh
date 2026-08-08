@@ -49,6 +49,9 @@ run_local() {
     "PTT_MKT_AI_MULTI_AGENT_ASYNC=1" \
     "PTT_MKT_AI_PLAN_DEPTH_ENABLED=1" \
     "PTT_MKT_AI_BRIEF_UPLOAD_ENABLED=1" \
+    "PTT_MKT_AI_SCENARIO_COMPARE=1" \
+    "PTT_MKT_AI_SECTION_COMMENTS=1" \
+    "PTT_MKT_AI_EXPORT_PPTX=1" \
     "NEXT_PUBLIC_MKT_AI_PLANNER=1"; do
     key="${kv%%=*}"
     if grep -q "^${key}=" "$RUNTIME_ENV" 2>/dev/null; then
@@ -71,7 +74,10 @@ run_local() {
     "PTT_MKT_AI_MULTI_AGENT_ENABLED=1" \
     "PTT_MKT_AI_MULTI_AGENT_ASYNC=1" \
     "PTT_MKT_AI_PLAN_DEPTH_ENABLED=1" \
-    "PTT_MKT_AI_BRIEF_UPLOAD_ENABLED=1"; do
+    "PTT_MKT_AI_BRIEF_UPLOAD_ENABLED=1" \
+    "PTT_MKT_AI_SCENARIO_COMPARE=1" \
+    "PTT_MKT_AI_SECTION_COMMENTS=1" \
+    "PTT_MKT_AI_EXPORT_PPTX=1"; do
     key="${kv%%=*}"
     if [[ -f "$ROOT/.env" && -w "$ROOT/.env" ]]; then
       if grep -q "^${key}=" "$ROOT/.env" 2>/dev/null; then
@@ -120,6 +126,13 @@ run_local() {
     bash "$ROOT/scripts/smoke_mkt_ai_plan_depth.sh" || echo "WARN plan depth smoke failed"
   else
     echo "SKIP plan depth smoke — DATABASE_URL not set"
+  fi
+
+  echo "== 5a2/5 Plan depth Wave 2 smoke (WS-P4-04) =="
+  if [[ -n "${DATABASE_URL:-}" ]]; then
+    bash "$ROOT/scripts/smoke_mkt_ai_plan_depth_wave2.sh" || echo "WARN plan depth wave2 smoke failed"
+  else
+    echo "SKIP plan depth wave2 smoke — DATABASE_URL not set"
   fi
 
   echo "== 5b/5 Build API + ops-web =="

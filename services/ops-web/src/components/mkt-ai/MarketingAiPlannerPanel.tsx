@@ -10,6 +10,7 @@ import { AiApplyStepPanel } from '@/components/mkt-ai/AiApplyStepPanel';
 import { AiCampaignBuilder } from '@/components/mkt-ai/AiCampaignBuilder';
 import { AiContentCalendar } from '@/components/mkt-ai/AiContentCalendar';
 import { AiStrategySections } from '@/components/mkt-ai/AiStrategySections';
+import { AiStrategyScenarioCompare } from '@/components/mkt-ai/AiStrategyScenarioCompare';
 import { AiKpiTreeEditor } from '@/components/mkt-ai/AiKpiTreeEditor';
 import { BriefIntakeForm } from '@/components/mkt-ai/BriefIntakeForm';
 import { AiJobProgressPanel } from '@/components/mkt-ai/AiJobProgressPanel';
@@ -33,6 +34,8 @@ import {
   type MktAiCitation,
   type MktAiDraft,
   type MktAiPlannerContext,
+  type MktAiSectionCommentRow,
+  type MktAiStrategyScenarioRow,
 } from '@/lib/mkt-ai-planner-api';
 import { ApiError } from '@/lib/api';
 import { hasStrategyContent } from '@/lib/mkt-ai-draft-fields';
@@ -110,6 +113,8 @@ export function MarketingAiPlannerPanel({
   );
   const [documents, setDocuments] = useState<MktAiPlannerContext['documents']>([]);
   const [budgetScenarios, setBudgetScenarios] = useState<MktAiBudgetScenarioRow[]>([]);
+  const [strategyScenarios, setStrategyScenarios] = useState<MktAiStrategyScenarioRow[]>([]);
+  const [sectionComments, setSectionComments] = useState<MktAiSectionCommentRow[]>([]);
   const [useRag, setUseRag] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -133,6 +138,8 @@ export function MarketingAiPlannerPanel({
       setBriefDraft(data.brief ?? { service_slug: data.service_slug });
       setDocuments(data.documents ?? []);
       setBudgetScenarios(data.budget_scenarios ?? []);
+      setStrategyScenarios(data.strategy_scenarios ?? []);
+      setSectionComments(data.section_comments ?? []);
       setUseRag(data.rag?.use_rag ?? data.brief?.use_rag !== false);
       setContextVersion((v) => v + 1);
       setDisabledReason('');
@@ -158,6 +165,8 @@ export function MarketingAiPlannerPanel({
       setBriefDraft(data.brief ?? { service_slug: data.service_slug });
       setDocuments(data.documents ?? []);
       setBudgetScenarios(data.budget_scenarios ?? []);
+      setStrategyScenarios(data.strategy_scenarios ?? []);
+      setSectionComments(data.section_comments ?? []);
       setUseRag(data.rag?.use_rag ?? data.brief?.use_rag !== false);
     } catch {
       /* silent poll — avoid VQ-09 flash */
@@ -461,7 +470,23 @@ export function MarketingAiPlannerPanel({
                 onDraftPersisted={handleDraftPersisted}
                 onSaveError={(msg) => setError(msg)}
                 onContinue={() => goToStep('campaign')}
+                sectionCommentsEnabled={Boolean(ctx?.flags.section_comments_enabled)}
+                sectionComments={sectionComments}
+                onSectionCommentAdded={(row) => setSectionComments((prev) => [...prev, row])}
               />
+              {ctx?.flags.scenario_compare_enabled ? (
+                <AiStrategyScenarioCompare
+                  token={token}
+                  lifecycleId={lifecycleId}
+                  canEdit={canEdit}
+                  paused={busy}
+                  scenarios={strategyScenarios}
+                  onScenariosChange={setStrategyScenarios}
+                  onSelected={() => void reload()}
+                  onError={(msg) => setError(msg)}
+                  onMessage={(msg) => setMessage(msg)}
+                />
+              ) : null}
               {ctx?.flags.plan_depth_enabled ? (
                 <AiKpiTreeEditor
                   token={token}
@@ -569,6 +594,7 @@ export function MarketingAiPlannerPanel({
               canEdit={canEdit}
               canExport={canExport}
               canApprove={canApprove}
+              exportPptxEnabled={Boolean(ctx?.flags.export_pptx_enabled)}
               approval={ctx?.approval}
               comments={ctx?.comments}
               planVersions={ctx?.plan_versions}

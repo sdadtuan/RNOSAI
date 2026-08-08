@@ -27,8 +27,16 @@ import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
 import { MarketingAiPlaybookService } from './marketing-ai-playbook.service';
 import { buildGovernanceContext } from './marketing-ai-playbook.util';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
+import { MarketingAiSectionCommentService } from './marketing-ai-section-comment.service';
+import { MarketingAiStrategyScenarioService } from './marketing-ai-strategy-scenario.service';
+import { buildMarketingPlanPptx, pickPptxSections } from './marketing-ai-pptx.util';
 import { MarketingAiRagService } from './marketing-ai-rag.service';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
+import {
+  buildExportDocument,
+  buildExportFilename,
+  buildExportSections,
+} from './marketing-ai-export.util';
 import type { MktAiExportFileResult } from './marketing-ai-export.types';
 import type {
   MktAiBrief,
@@ -44,7 +52,11 @@ import type {
   MktAiPlaybookApplyBody,
   MktAiPlaybookApplyResult,
   MktAiPlaybookListResult,
+  MktAiPptxExportBody,
   MktAiPlannerContext,
+  MktAiSectionCommentRow,
+  MktAiStrategyScenarioComparePayload,
+  MktAiStrategyScenarioRow,
   MktAiDashboardPayload,
 } from './marketing-ai-planner.types';
 
@@ -75,6 +87,8 @@ export class MarketingAiPlannerService {
     @Inject(forwardRef(() => MarketingAiMultiAgentService))
     private readonly multiAgent: MarketingAiMultiAgentService,
     private readonly briefUpload: MarketingAiBriefUploadService,
+    private readonly strategyScenarios: MarketingAiStrategyScenarioService,
+    private readonly sectionComments: MarketingAiSectionCommentService,
   ) {}
 
   private assertEnabled(serviceSlug?: string): void {
@@ -265,7 +279,16 @@ export class MarketingAiPlannerService {
         multi_agent_enabled: this.multiAgent.isEnabled(),
         plan_depth_enabled: this.config.mktAiPlanDepthEnabled,
         brief_upload_enabled: this.briefUpload.isFeatureEnabled(),
+        scenario_compare_enabled: this.strategyScenarios.isEnabled(),
+        section_comments_enabled: this.sectionComments.isEnabled(),
+        export_pptx_enabled: this.config.mktAiExportPptx,
       },
+      ...(this.strategyScenarios.isEnabled()
+        ? { strategy_scenarios: await this.strategyScenarios.list(lifecycleId) }
+        : {}),
+      ...(this.sectionComments.isEnabled()
+        ? { section_comments: await this.sectionComments.list(lifecycleId) }
+        : {}),
     };
   }
 
@@ -330,10 +353,11 @@ export class MarketingAiPlannerService {
     lifecycleId: number,
     file: Express.Multer.File,
     actorEmail: string,
+    tag?: string,
   ) {
     const lc = await this.loadLifecycleRow(lifecycleId);
     this.assertEnabled(String(lc.service_slug ?? ''));
-    const document = await this.rag.uploadDocument(lifecycleId, file, actorEmail);
+    const document = await this.rag.uploadDocument(lifecycleId, file, actorEmail, tag);
     return { document };
   }
 
@@ -636,13 +660,17 @@ export class MarketingAiPlannerService {
     });
   }
 
-  async runBudgetSimulateJob(lifecycleId: number, actorEmail: string) {
+  async runBudgetSimulateJob(
+    lifecycleId: number,
+    actorEmail: string,
+    count = 3,
+  ) {
     const lc = await this.loadLifecycleRow(lifecycleId);
     this.assertEnabled(String(lc.service_slug ?? ''));
     const brief = await this.requireBrief(lifecycleId);
 
     return this.runJob(lifecycleId, 'budget_simulate', actorEmail, async (jobId) => {
-      const scenarios = await this.budget.simulate(lifecycleId, brief, jobId);
+      const scenarios = await this.budget.simulate(lifecycleId, brief, jobId, count);
       return { scenarios, count: scenarios.length } as unknown as Record<string, unknown>;
     });
   }
@@ -931,5 +959,118 @@ export class MarketingAiPlannerService {
 
   async getMultiAgentStatus(lifecycleId: number): Promise<MktAiMultiAgentStatusPayload> {
     return this.multiAgent.getStatus(lifecycleId);
+  }
+
+  async runStrategyScenariosJob(
+    lifecycleId: number,
+    actorEmail: string,
+    count = 3,
+  ): Promise<{ job_id: number; status: string; scenarios: MktAiStrategyScenarioRow[] }> {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+    if (!this.strategyScenarios.isEnabled()) {
+      throw new NotFoundException({ error: 'mkt_ai_scenario_compare_disabled' });
+    }
+    const brief = await this.requireBrief(lifecycleId);
+
+    const job = await this.runJob(lifecycleId, 'strategy_scenarios', actorEmail, async (jobId) => {
+      const scenarios = await this.strategyScenarios.executeGenerate(
+        lifecycleId,
+        count,
+        jobId,
+        brief,
+      );
+      return { scenarios, count: scenarios.length } as unknown as Record<string, unknown>;
+    });
+    return {
+      job_id: job.job_id,
+      status: job.status,
+      scenarios: (job.output?.scenarios as MktAiStrategyScenarioRow[]) ?? [],
+    };
+  }
+
+  listStrategyScenarios(lifecycleId: number) {
+    return this.strategyScenarios.list(lifecycleId);
+  }
+
+  selectStrategyScenario(lifecycleId: number, scenarioId: number, actorEmail: string) {
+    return this.strategyScenarios.selectScenario(lifecycleId, scenarioId, actorEmail);
+  }
+
+  compareStrategyScenarios(
+    lifecycleId: number,
+    scenarioAId: number,
+    scenarioBId: number,
+  ): Promise<MktAiStrategyScenarioComparePayload> {
+    return this.strategyScenarios.compare(lifecycleId, scenarioAId, scenarioBId);
+  }
+
+  listSectionComments(lifecycleId: number, sectionKey?: string): Promise<MktAiSectionCommentRow[]> {
+    return this.sectionComments.list(lifecycleId, sectionKey);
+  }
+
+  createSectionComment(
+    lifecycleId: number,
+    body: { section_key: string; body: string; mention_email?: string | null },
+    actorEmail: string,
+  ) {
+    return this.sectionComments.create(lifecycleId, body, actorEmail);
+  }
+
+  async exportPptx(
+    lifecycleId: number,
+    body: MktAiPptxExportBody,
+    actorEmail: string,
+  ): Promise<MktAiExportFileResult> {
+    if (!this.config.mktAiExportPptx) {
+      throw new NotFoundException({ error: 'mkt_ai_export_pptx_disabled' });
+    }
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+
+    const ctx = await this.getContext(lifecycleId);
+    const score = ctx.quality_score?.score ?? 0;
+    if (score < 60) {
+      throw new BadRequestException({ error: 'quality_score_too_low', score });
+    }
+    this.approval.assertExportAllowed(
+      ctx.flags.approval_required,
+      ctx.approval?.latest?.status,
+    );
+
+    const picked = body.sections?.length
+      ? body.sections
+      : (['strategy', 'campaign'] as const);
+    const brand = ctx.brief?.brand_name ?? 'plan';
+    const isDraftExport = !ctx.tmmt_validation.ok;
+    const doc = buildExportDocument({
+      lifecycleId,
+      stage: ctx.stage,
+      serviceSlug: ctx.service_slug,
+      brand,
+      qualityScore: score,
+      isDraftExport,
+      brief: ctx.brief,
+      draft: ctx.draft,
+    });
+    const allSections = buildExportSections(doc);
+    const sections = pickPptxSections(allSections, [...picked]);
+    const buffer = await buildMarketingPlanPptx(sections);
+    const filename = buildExportFilename(brand, 'pptx', isDraftExport);
+
+    await this.repo.createExport({
+      lifecycle_id: lifecycleId,
+      format: 'pptx',
+      exported_by: actorEmail,
+      quality_score: score,
+    });
+
+    return {
+      format: 'pptx',
+      filename,
+      content: buffer.toString('base64'),
+      mime_type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      encoding: 'base64',
+    };
   }
 }

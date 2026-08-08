@@ -14,6 +14,7 @@ export interface MktAiBudgetScenarioDraft {
   channel_mix_json: MktAiBudgetChannelMix;
   cpl_estimates_json: Record<string, number>;
   assumptions_json: Record<string, unknown>;
+  rationale_vi?: string;
   sort_order: number;
 }
 
@@ -44,6 +45,20 @@ const LEAD_SCENARIOS: Array<{
     mix: { meta_pct: 45, google_pct: 30, content_pct: 5, reserve_pct: 20 },
     blended_cpl_vnd: 240_000,
     note: 'Scale Meta/Google · CPL có thể tăng khi mở rộng',
+  },
+  {
+    name: 'Test & Learn',
+    slug: 'test_learn',
+    mix: { meta_pct: 25, google_pct: 20, content_pct: 10, reserve_pct: 45 },
+    blended_cpl_vnd: 210_000,
+    note: 'Dành 45% dự phòng A/B test creative và landing — phù hợp giai đoạn pilot',
+  },
+  {
+    name: 'Content-led',
+    slug: 'content_led',
+    mix: { meta_pct: 25, google_pct: 20, content_pct: 35, reserve_pct: 20 },
+    blended_cpl_vnd: 205_000,
+    note: 'Ưu tiên content/SEO nurture — CPL trung bình, lead chất lượng hơn',
   },
 ];
 
@@ -76,12 +91,14 @@ function scenarioTemplates(objective: string): typeof LEAD_SCENARIOS {
   return LEAD_SCENARIOS;
 }
 
-export function buildBudgetScenarios(brief: MktAiBrief): MktAiBudgetScenarioDraft[] {
+export function buildBudgetScenarios(brief: MktAiBrief, count = 3): MktAiBudgetScenarioDraft[] {
   const objective = String(brief.objective ?? 'lead');
   const budget = Number(brief.budget_monthly_vnd ?? 0);
   const templates = scenarioTemplates(objective);
+  const n = Math.min(5, Math.max(2, count));
+  const picked = templates.slice(0, n);
 
-  return templates.map((t, idx) => ({
+  return picked.map((t, idx) => ({
     name: t.name,
     slug: t.slug,
     budget_monthly_vnd: budget,
@@ -96,6 +113,7 @@ export function buildBudgetScenarios(brief: MktAiBrief): MktAiBudgetScenarioDraf
       note: t.note,
       geo_markets: brief.geo_markets ?? [],
     },
+    rationale_vi: t.note,
     sort_order: idx,
   }));
 }

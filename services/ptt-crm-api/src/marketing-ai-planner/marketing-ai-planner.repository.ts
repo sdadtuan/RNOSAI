@@ -17,6 +17,8 @@ import type {
   MktAiPlanVersionRow,
   MktAiPlanVersionStatus,
   MktAiRagChunkHit,
+  MktAiSectionCommentRow,
+  MktAiStrategyScenarioRow,
 } from './marketing-ai-planner.types';
 import type { MktAiBudgetScenarioDraft } from './marketing-ai-budget.util';
 import type { MktAiTextChunk } from './marketing-ai-rag.util';
@@ -30,6 +32,8 @@ type MemoryStore = {
   exports: Array<Record<string, unknown>>;
   documents: MktAiDocumentRow[];
   budgetScenarios: MktAiBudgetScenarioRow[];
+  strategyScenarios: MktAiStrategyScenarioRow[];
+  sectionComments: MktAiSectionCommentRow[];
   planVersions: MktAiPlanVersionRow[];
   approvals: MktAiApprovalRow[];
   comments: MktAiCommentRow[];
@@ -46,6 +50,8 @@ type MemoryStore = {
   nextDocumentId: number;
   nextChunkId: number;
   nextBudgetScenarioId: number;
+  nextStrategyScenarioId: number;
+  nextSectionCommentId: number;
   nextPlanVersionId: number;
   nextApprovalId: number;
   nextCommentId: number;
@@ -64,6 +70,8 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
     exports: [],
     documents: [],
     budgetScenarios: [],
+    strategyScenarios: [],
+    sectionComments: [],
     planVersions: [],
     approvals: [],
     comments: [],
@@ -72,6 +80,8 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
     nextDocumentId: 1,
     nextChunkId: 1,
     nextBudgetScenarioId: 1,
+    nextStrategyScenarioId: 1,
+    nextSectionCommentId: 1,
     nextPlanVersionId: 1,
     nextApprovalId: 1,
     nextCommentId: 1,
@@ -512,7 +522,7 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
     if (await this.ensurePgReady()) {
       const res = await this.db.query(
         `SELECT id, lifecycle_id, filename, mime_type, file_size_bytes, status, chunk_count,
-                error_message, uploaded_by, created_at, updated_at
+                error_message, uploaded_by, metadata_json, created_at, updated_at
          FROM mkt_ai_documents
          WHERE lifecycle_id = $1 AND status <> 'archived'
          ORDER BY created_at DESC`,
@@ -555,16 +565,18 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
     sha256_hex: string;
     status: MktAiDocumentStatus;
     uploaded_by: string;
+    metadata_json?: Record<string, unknown>;
   }): Promise<MktAiDocumentRow> {
     const now = this.nowIso();
+    const metadata = row.metadata_json ?? {};
     if (await this.ensurePgReady()) {
       const res = await this.db.query(
         `INSERT INTO mkt_ai_documents (
            lifecycle_id, filename, mime_type, storage_key, file_size_bytes, sha256_hex,
-           status, chunk_count, uploaded_by, created_at, updated_at
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, NOW(), NOW())
+           metadata_json, status, chunk_count, uploaded_by, created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, 0, $9, NOW(), NOW())
          RETURNING id, lifecycle_id, filename, mime_type, file_size_bytes, status, chunk_count,
-                   error_message, uploaded_by, created_at, updated_at`,
+                   error_message, uploaded_by, metadata_json, created_at, updated_at`,
         [
           row.lifecycle_id,
           row.filename,
@@ -572,6 +584,7 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
           row.storage_key,
           row.file_size_bytes,
           row.sha256_hex,
+          JSON.stringify(metadata),
           row.status,
           row.uploaded_by,
         ],
@@ -588,6 +601,7 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
       chunk_count: 0,
       error_message: null,
       uploaded_by: row.uploaded_by,
+      metadata_json: row.metadata_json,
       created_at: now,
       updated_at: now,
     };
@@ -778,11 +792,11 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
         const res = await this.db.query(
           `INSERT INTO mkt_ai_budget_scenarios (
              lifecycle_id, job_id, name, slug, budget_monthly_vnd,
-             channel_mix_json, cpl_estimates_json, assumptions_json,
+             channel_mix_json, cpl_estimates_json, assumptions_json, rationale_vi,
              is_selected, sort_order, created_at, updated_at
-           ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, FALSE, $9, NOW(), NOW())
+           ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9, FALSE, $10, NOW(), NOW())
            RETURNING id, lifecycle_id, job_id, name, slug, budget_monthly_vnd,
-                     channel_mix_json, cpl_estimates_json, assumptions_json,
+                     channel_mix_json, cpl_estimates_json, assumptions_json, rationale_vi,
                      is_selected, sort_order, created_at, updated_at`,
           [
             lifecycleId,
@@ -793,6 +807,7 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
             JSON.stringify(s.channel_mix_json),
             JSON.stringify(s.cpl_estimates_json),
             JSON.stringify(s.assumptions_json),
+            s.rationale_vi ?? String(s.assumptions_json?.note ?? ''),
             s.sort_order,
           ],
         );
@@ -816,6 +831,7 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
         channel_mix_json: s.channel_mix_json as unknown as Record<string, number>,
         cpl_estimates_json: s.cpl_estimates_json,
         assumptions_json: s.assumptions_json,
+        rationale_vi: s.rationale_vi ?? null,
         is_selected: false,
         sort_order: s.sort_order,
         created_at: now,
@@ -887,6 +903,7 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
       channel_mix_json: (r.channel_mix_json as Record<string, number>) ?? {},
       cpl_estimates_json: (r.cpl_estimates_json as Record<string, number>) ?? {},
       assumptions_json: (r.assumptions_json as Record<string, unknown>) ?? {},
+      rationale_vi: r.rationale_vi != null ? String(r.rationale_vi) : null,
       is_selected: Boolean(r.is_selected),
       sort_order: Number(r.sort_order ?? 0),
       created_at: String(r.created_at ?? this.nowIso()),
@@ -905,6 +922,10 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
       chunk_count: Number(r.chunk_count ?? 0),
       error_message: r.error_message != null ? String(r.error_message) : null,
       uploaded_by: String(r.uploaded_by ?? ''),
+      metadata_json:
+        r.metadata_json && typeof r.metadata_json === 'object'
+          ? (r.metadata_json as Record<string, unknown>)
+          : undefined,
       created_at: String(r.created_at ?? this.nowIso()),
       updated_at: String(r.updated_at ?? this.nowIso()),
     };
@@ -1321,6 +1342,204 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
     return approval;
   }
 
+  async listStrategyScenarios(lifecycleId: number): Promise<MktAiStrategyScenarioRow[]> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, job_id, label, variant_slug, variant_index,
+                strategy_framework_json, target_market_prof_json, swot_json,
+                channel_focus_json, messaging_json, is_selected, created_at, updated_at
+         FROM mkt_ai_strategy_scenarios
+         WHERE lifecycle_id = $1
+         ORDER BY variant_index ASC, id ASC`,
+        [lifecycleId],
+      );
+      return res.rows.map((r) => this.mapStrategyScenarioRow(r));
+    }
+    return this.memory.strategyScenarios
+      .filter((s) => s.lifecycle_id === lifecycleId)
+      .sort((a, b) => a.variant_index - b.variant_index || a.id - b.id);
+  }
+
+  async replaceStrategyScenarios(
+    lifecycleId: number,
+    jobId: number,
+    scenarios: Array<{
+      label: string;
+      variant_slug: string;
+      variant_index: number;
+      strategy_framework_json: Record<string, string>;
+      target_market_prof_json: Record<string, string>;
+      swot_json: Record<string, unknown>;
+      channel_focus_json: Record<string, string>;
+      messaging_json: Record<string, string>;
+    }>,
+  ): Promise<MktAiStrategyScenarioRow[]> {
+    if (await this.ensurePgReady()) {
+      await this.db.query(`DELETE FROM mkt_ai_strategy_scenarios WHERE lifecycle_id = $1`, [
+        lifecycleId,
+      ]);
+      const rows: MktAiStrategyScenarioRow[] = [];
+      for (const s of scenarios) {
+        const res = await this.db.query(
+          `INSERT INTO mkt_ai_strategy_scenarios (
+             lifecycle_id, job_id, label, variant_slug, variant_index,
+             strategy_framework_json, target_market_prof_json, swot_json,
+             channel_focus_json, messaging_json, is_selected, created_at, updated_at
+           ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, FALSE, NOW(), NOW())
+           RETURNING id, lifecycle_id, job_id, label, variant_slug, variant_index,
+                     strategy_framework_json, target_market_prof_json, swot_json,
+                     channel_focus_json, messaging_json, is_selected, created_at, updated_at`,
+          [
+            lifecycleId,
+            jobId,
+            s.label,
+            s.variant_slug,
+            s.variant_index,
+            JSON.stringify(s.strategy_framework_json),
+            JSON.stringify(s.target_market_prof_json),
+            JSON.stringify(s.swot_json),
+            JSON.stringify(s.channel_focus_json),
+            JSON.stringify(s.messaging_json),
+          ],
+        );
+        rows.push(this.mapStrategyScenarioRow(res.rows[0]));
+      }
+      return rows;
+    }
+
+    this.memory.strategyScenarios = this.memory.strategyScenarios.filter(
+      (s) => s.lifecycle_id !== lifecycleId,
+    );
+    const now = this.nowIso();
+    return scenarios.map((s) => {
+      const row: MktAiStrategyScenarioRow = {
+        id: this.memory.nextStrategyScenarioId++,
+        lifecycle_id: lifecycleId,
+        job_id: jobId,
+        label: s.label,
+        variant_slug: s.variant_slug,
+        variant_index: s.variant_index,
+        strategy_framework_json: s.strategy_framework_json,
+        target_market_prof_json: s.target_market_prof_json,
+        swot_json: s.swot_json,
+        channel_focus_json: s.channel_focus_json,
+        messaging_json: s.messaging_json,
+        is_selected: false,
+        created_at: now,
+        updated_at: now,
+      };
+      this.memory.strategyScenarios.push(row);
+      return row;
+    });
+  }
+
+  async getStrategyScenario(
+    lifecycleId: number,
+    scenarioId: number,
+  ): Promise<MktAiStrategyScenarioRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, job_id, label, variant_slug, variant_index,
+                strategy_framework_json, target_market_prof_json, swot_json,
+                channel_focus_json, messaging_json, is_selected, created_at, updated_at
+         FROM mkt_ai_strategy_scenarios
+         WHERE lifecycle_id = $1 AND id = $2`,
+        [lifecycleId, scenarioId],
+      );
+      return res.rows[0] ? this.mapStrategyScenarioRow(res.rows[0]) : null;
+    }
+    return (
+      this.memory.strategyScenarios.find(
+        (s) => s.lifecycle_id === lifecycleId && s.id === scenarioId,
+      ) ?? null
+    );
+  }
+
+  async selectStrategyScenario(lifecycleId: number, scenarioId: number): Promise<void> {
+    if (await this.ensurePgReady()) {
+      await this.db.query(
+        `UPDATE mkt_ai_strategy_scenarios SET is_selected = FALSE, updated_at = NOW()
+         WHERE lifecycle_id = $1`,
+        [lifecycleId],
+      );
+      await this.db.query(
+        `UPDATE mkt_ai_strategy_scenarios SET is_selected = TRUE, updated_at = NOW()
+         WHERE lifecycle_id = $1 AND id = $2`,
+        [lifecycleId, scenarioId],
+      );
+      return;
+    }
+    for (const row of this.memory.strategyScenarios) {
+      if (row.lifecycle_id === lifecycleId) row.is_selected = row.id === scenarioId;
+    }
+  }
+
+  async listSectionComments(
+    lifecycleId: number,
+    sectionKey?: string,
+    limit = 100,
+  ): Promise<MktAiSectionCommentRow[]> {
+    if (await this.ensurePgReady()) {
+      const clauses = ['lifecycle_id = $1'];
+      const values: unknown[] = [lifecycleId];
+      if (sectionKey) {
+        clauses.push('section_key = $2');
+        values.push(sectionKey);
+      }
+      values.push(limit);
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, section_key, author_email, body, mention_email,
+                created_at::text, updated_at::text
+         FROM mkt_ai_section_comments
+         WHERE ${clauses.join(' AND ')}
+         ORDER BY created_at ASC
+         LIMIT $${values.length}`,
+        values,
+      );
+      return res.rows.map((r) => this.mapSectionCommentRow(r));
+    }
+    return this.memory.sectionComments
+      .filter(
+        (c) =>
+          c.lifecycle_id === lifecycleId && (!sectionKey || c.section_key === sectionKey),
+      )
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .slice(0, limit);
+  }
+
+  async createSectionComment(row: {
+    lifecycle_id: number;
+    section_key: string;
+    author_email: string;
+    body: string;
+    mention_email: string | null;
+  }): Promise<MktAiSectionCommentRow> {
+    const now = this.nowIso();
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `INSERT INTO mkt_ai_section_comments (
+           lifecycle_id, section_key, author_email, body, mention_email, created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+         RETURNING id, lifecycle_id, section_key, author_email, body, mention_email,
+                   created_at::text, updated_at::text`,
+        [row.lifecycle_id, row.section_key, row.author_email, row.body, row.mention_email],
+      );
+      return this.mapSectionCommentRow(res.rows[0]);
+    }
+    const comment: MktAiSectionCommentRow = {
+      id: this.memory.nextSectionCommentId++,
+      lifecycle_id: row.lifecycle_id,
+      section_key: row.section_key,
+      author_email: row.author_email,
+      body: row.body,
+      mention_email: row.mention_email,
+      created_at: now,
+      updated_at: now,
+    };
+    this.memory.sectionComments.push(comment);
+    return comment;
+  }
+
   private mapCommentRow(r: Record<string, unknown>): MktAiCommentRow {
     return {
       id: Number(r.id),
@@ -1330,6 +1549,38 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
       author_email: String(r.author_email ?? ''),
       body: String(r.body ?? ''),
       anchor_json: (r.anchor_json as Record<string, unknown>) ?? {},
+      created_at: String(r.created_at ?? this.nowIso()),
+      updated_at: String(r.updated_at ?? this.nowIso()),
+    };
+  }
+
+  private mapStrategyScenarioRow(r: Record<string, unknown>): MktAiStrategyScenarioRow {
+    return {
+      id: Number(r.id),
+      lifecycle_id: Number(r.lifecycle_id),
+      job_id: r.job_id != null ? Number(r.job_id) : null,
+      label: String(r.label ?? ''),
+      variant_slug: String(r.variant_slug ?? ''),
+      variant_index: Number(r.variant_index ?? 0),
+      strategy_framework_json: (r.strategy_framework_json as Record<string, string>) ?? {},
+      target_market_prof_json: (r.target_market_prof_json as Record<string, string>) ?? {},
+      swot_json: (r.swot_json as Record<string, unknown>) ?? {},
+      channel_focus_json: (r.channel_focus_json as Record<string, string>) ?? {},
+      messaging_json: (r.messaging_json as Record<string, string>) ?? {},
+      is_selected: Boolean(r.is_selected),
+      created_at: String(r.created_at ?? this.nowIso()),
+      updated_at: String(r.updated_at ?? this.nowIso()),
+    };
+  }
+
+  private mapSectionCommentRow(r: Record<string, unknown>): MktAiSectionCommentRow {
+    return {
+      id: Number(r.id),
+      lifecycle_id: Number(r.lifecycle_id),
+      section_key: String(r.section_key ?? ''),
+      author_email: String(r.author_email ?? ''),
+      body: String(r.body ?? ''),
+      mention_email: r.mention_email != null ? String(r.mention_email) : null,
       created_at: String(r.created_at ?? this.nowIso()),
       updated_at: String(r.updated_at ?? this.nowIso()),
     };

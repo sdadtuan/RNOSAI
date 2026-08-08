@@ -28,7 +28,7 @@ import {
   StaffMarketingAiPlannerViewGuard,
 } from './guards/staff-marketing-ai-planner.guard';
 import { MarketingAiPlannerService } from './marketing-ai-planner.service';
-import type { MktAiDraft, MktAiJobType, MktAiMultiAgentBody, MktAiOptimizeBody, MktAiPlaybookApplyBody } from './marketing-ai-planner.types';
+import type { MktAiDraft, MktAiJobType, MktAiMultiAgentBody, MktAiOptimizeBody, MktAiPlaybookApplyBody, MktAiPptxExportBody } from './marketing-ai-planner.types';
 
 const RETRY_TYPE_MAP: Record<string, MktAiJobType> = {
   strategy: 'strategy_generate',
@@ -171,16 +171,21 @@ export class MarketingAiPlannerController {
   uploadDocument(
     @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
     @UploadedFile() file: Express.Multer.File,
+    @Body('tag') tag: string | undefined,
     @Req() req: Request,
   ) {
-    return this.planner.uploadDocument(lifecycleId, file, actorEmail(req));
+    return this.planner.uploadDocument(lifecycleId, file, actorEmail(req), tag?.trim() || undefined);
   }
 
   @Post('jobs/budget-simulate')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffMarketingAiPlannerGenerateGuard)
-  budgetSimulate(@Param('lifecycleId', ParseIntPipe) lifecycleId: number, @Req() req: Request) {
-    return this.planner.runBudgetSimulateJob(lifecycleId, actorEmail(req));
+  budgetSimulate(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: { count?: number },
+    @Req() req: Request,
+  ) {
+    return this.planner.runBudgetSimulateJob(lifecycleId, actorEmail(req), body?.count ?? 3);
   }
 
   @Post('budget-scenarios/:scenarioId/apply')
@@ -323,5 +328,71 @@ export class MarketingAiPlannerController {
   @Get('multi-agent/status')
   multiAgentStatus(@Param('lifecycleId', ParseIntPipe) lifecycleId: number) {
     return this.planner.getMultiAgentStatus(lifecycleId);
+  }
+
+  @Post('jobs/strategy/scenarios')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffMarketingAiPlannerGenerateGuard)
+  strategyScenarios(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: { count?: number },
+    @Req() req: Request,
+  ) {
+    return this.planner.runStrategyScenariosJob(lifecycleId, actorEmail(req), body?.count ?? 3);
+  }
+
+  @Get('strategy/scenarios')
+  listStrategyScenarios(@Param('lifecycleId', ParseIntPipe) lifecycleId: number) {
+    return this.planner.listStrategyScenarios(lifecycleId);
+  }
+
+  @Get('strategy/scenarios/compare')
+  compareStrategyScenarios(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Query('a', ParseIntPipe) scenarioA: number,
+    @Query('b', ParseIntPipe) scenarioB: number,
+  ) {
+    return this.planner.compareStrategyScenarios(lifecycleId, scenarioA, scenarioB);
+  }
+
+  @Post('strategy/scenarios/:scenarioId/select')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffMarketingAiPlannerGenerateGuard)
+  selectStrategyScenario(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('scenarioId', ParseIntPipe) scenarioId: number,
+    @Req() req: Request,
+  ) {
+    return this.planner.selectStrategyScenario(lifecycleId, scenarioId, actorEmail(req));
+  }
+
+  @Get('section-comments')
+  listSectionComments(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Query('section_key') sectionKey?: string,
+  ) {
+    return this.planner.listSectionComments(lifecycleId, sectionKey?.trim() || undefined);
+  }
+
+  @Post('section-comments')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffMarketingAiPlannerGenerateGuard)
+  createSectionComment(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: { section_key: string; body: string; mention_email?: string },
+    @Req() req: Request,
+  ) {
+    return this.planner.createSectionComment(lifecycleId, body ?? {}, actorEmail(req));
+  }
+
+  @Post('export/pptx')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffMarketingAiPlannerExportGuard)
+  exportPptx(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: MktAiPptxExportBody,
+    @Req() req: Request,
+  ) {
+    return this.planner.exportPptx(lifecycleId, body ?? {}, actorEmail(req));
   }
 }

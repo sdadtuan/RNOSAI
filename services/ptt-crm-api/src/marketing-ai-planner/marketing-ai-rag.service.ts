@@ -50,6 +50,7 @@ export class MarketingAiRagService {
     lifecycleId: number,
     file: Express.Multer.File,
     actorEmail: string,
+    tag?: string,
   ): Promise<MktAiDocumentRow> {
     if (!this.isFeatureEnabled()) {
       throw new BadRequestException({ error: 'mkt_ai_rag_disabled' });
@@ -80,6 +81,7 @@ export class MarketingAiRagService {
       sha256_hex: hash,
       status: 'indexing',
       uploaded_by: actorEmail,
+      metadata_json: tag?.trim() ? { tag: tag.trim() } : {},
     });
 
     try {

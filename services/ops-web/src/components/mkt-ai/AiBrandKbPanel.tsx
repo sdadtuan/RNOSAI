@@ -37,6 +37,11 @@ function statusLabel(status: MktAiDocumentRow['status']): string {
   }
 }
 
+function documentTag(doc: MktAiDocumentRow): string | null {
+  const tag = doc.metadata_json?.tag;
+  return typeof tag === 'string' && tag.trim() ? tag.trim() : null;
+}
+
 export function AiBrandKbPanel({
   token,
   lifecycleId,
@@ -53,6 +58,7 @@ export function AiBrandKbPanel({
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [uploadTag, setUploadTag] = useState('');
 
   const refreshDocuments = useCallback(async () => {
     const res = await fetchMktAiDocuments(token, lifecycleId);
@@ -64,12 +70,13 @@ export function AiBrandKbPanel({
     setUploading(true);
     onError?.('');
     try {
-      const res = await uploadMktAiDocument(token, lifecycleId, file);
+      const res = await uploadMktAiDocument(token, lifecycleId, file, uploadTag.trim() || undefined);
       await refreshDocuments();
+      const tagNote = uploadTag.trim() ? ` · tag=${uploadTag.trim()}` : '';
       onMessage?.(
         res.document.status === 'indexed'
-          ? `Đã index ${res.document.filename} (${res.document.chunk_count} chunks)`
-          : `Upload ${res.document.filename}: ${res.document.status}`,
+          ? `Đã index ${res.document.filename} (${res.document.chunk_count} chunks)${tagNote}`
+          : `Upload ${res.document.filename}: ${res.document.status}${tagNote}`,
       );
     } catch (err) {
       onError?.(err instanceof Error ? err.message : 'Upload thất bại');
@@ -107,12 +114,23 @@ export function AiBrandKbPanel({
       <div>
         <h3 style={{ margin: '0 0 0.25rem', fontSize: '1rem' }}>Thư viện thương hiệu</h3>
         <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-          Upload PDF, DOCX hoặc TXT để RAG cite khi sinh chiến lược (EC-MKT-AI-06).
+          Upload PDF, DOCX, PPTX hoặc TXT — gắn tag để RAG lọc khi sinh chiến lược (EC-MKT-AI-06).
         </p>
       </div>
 
       {canEdit ? (
         <>
+          <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.85rem' }}>
+            Tag tài liệu (tuỳ chọn)
+            <input
+              value={uploadTag}
+              onChange={(e) => setUploadTag(e.target.value)}
+              placeholder="vd. brand-voice, catalog-2026"
+              disabled={uploading}
+              style={{ width: '100%', maxWidth: '20rem' }}
+            />
+          </label>
+
           <div
             className={`${styles.kbDropzone} ${dragOver ? styles.kbDropzoneActive : ''}`}
             onDragOver={(e) => {
@@ -136,7 +154,7 @@ export function AiBrandKbPanel({
             <input
               ref={inputRef}
               type="file"
-              accept=".pdf,.docx,.txt,.md,application/pdf,text/plain"
+              accept=".pdf,.docx,.pptx,.txt,.md,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.presentationml.presentation"
               style={{ display: 'none' }}
               disabled={uploading}
               onChange={(e) => {
@@ -146,7 +164,7 @@ export function AiBrandKbPanel({
               }}
             />
             <div style={{ fontSize: '0.9rem' }}>
-              {uploading ? 'Đang upload & index…' : 'Kéo thả hoặc bấm để chọn PDF / DOCX / TXT'}
+              {uploading ? 'Đang upload & index…' : 'Kéo thả hoặc bấm để chọn PDF / DOCX / PPTX / TXT'}
             </div>
             <div className="muted" style={{ fontSize: '0.78rem' }}>
               Tối đa 10 MB · chunk + FTS index tự động
@@ -175,18 +193,24 @@ export function AiBrandKbPanel({
             Chưa có tài liệu — upload brand guidelines hoặc catalog.
           </p>
         ) : (
-          documents.map((doc) => (
-            <div
-              key={doc.id}
-              className={styles.kbDocRow}
-              title={doc.error_message ?? undefined}
-            >
-              <span>📄 {doc.filename}</span>
-              <span className="muted" style={{ fontSize: '0.82rem' }}>
-                {doc.chunk_count > 0 ? `${doc.chunk_count} chunks` : '—'} · {statusLabel(doc.status)}
-              </span>
-            </div>
-          ))
+          documents.map((doc) => {
+            const tag = documentTag(doc);
+            return (
+              <div
+                key={doc.id}
+                className={styles.kbDocRow}
+                title={doc.error_message ?? undefined}
+              >
+                <span>
+                  📄 {doc.filename}
+                  {tag ? ` · #${tag}` : ''}
+                </span>
+                <span className="muted" style={{ fontSize: '0.82rem' }}>
+                  {doc.chunk_count > 0 ? `${doc.chunk_count} chunks` : '—'} · {statusLabel(doc.status)}
+                </span>
+              </div>
+            );
+          })
         )}
       </div>
     </div>

@@ -7,7 +7,8 @@ export type MktAiJobType =
   | 'apply_to_tmmt'
   | 'budget_simulate'
   | 'optimize'
-  | 'multi_agent';
+  | 'multi_agent'
+  | 'strategy_scenarios';
 
 export type MktAiJobStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 
@@ -50,6 +51,7 @@ export interface MktAiDocumentRow {
   uploaded_by: string;
   created_at: string;
   updated_at: string;
+  metadata_json?: Record<string, unknown>;
 }
 
 export interface MktAiRagChunkHit {
@@ -82,6 +84,7 @@ export interface MktAiBudgetScenarioRow {
   channel_mix_json: Record<string, number>;
   cpl_estimates_json: Record<string, number>;
   assumptions_json: Record<string, unknown>;
+  rationale_vi?: string | null;
   is_selected: boolean;
   sort_order: number;
   created_at: string;
@@ -211,7 +214,12 @@ export interface MktAiPlannerContext {
     multi_agent_enabled?: boolean;
     plan_depth_enabled?: boolean;
     brief_upload_enabled?: boolean;
+    scenario_compare_enabled?: boolean;
+    section_comments_enabled?: boolean;
+    export_pptx_enabled?: boolean;
   };
+  strategy_scenarios?: MktAiStrategyScenarioRow[];
+  section_comments?: MktAiSectionCommentRow[];
   documents?: MktAiDocumentRow[];
   rag?: { use_rag: boolean; indexed_count: number };
   budget_scenarios?: MktAiBudgetScenarioRow[];
@@ -459,6 +467,52 @@ export interface MktAiOptimizeResult {
   kpi_context: MktAiOptimizeKpiContext;
   recommendations: MktAiOptimizeRecommendation[];
   tasks_created?: Array<{ task_id: number; title: string; recommendation_id: string }>;
+}
+
+export type MktAiStrategyVariantSlug = 'conservative' | 'balanced' | 'aggressive';
+
+export interface MktAiStrategyScenarioRow {
+  id: number;
+  lifecycle_id: number;
+  job_id: number | null;
+  label: string;
+  variant_slug: MktAiStrategyVariantSlug | string;
+  variant_index: number;
+  strategy_framework_json: Record<string, string>;
+  target_market_prof_json: Record<string, string>;
+  swot_json: Record<string, unknown>;
+  channel_focus_json: Record<string, string>;
+  messaging_json: Record<string, string>;
+  is_selected: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MktAiStrategyScenarioComparePayload {
+  ok: boolean;
+  scenario_a: MktAiStrategyScenarioRow;
+  scenario_b: MktAiStrategyScenarioRow;
+  swot_diff: Record<string, { a: string[]; b: string[]; only_a: string[]; only_b: string[] }>;
+  channel_diff: Record<string, { a: string; b: string; changed: boolean }>;
+  messaging_diff: Record<string, { a: string; b: string; changed: boolean }>;
+  fields_changed: string[];
+}
+
+export interface MktAiSectionCommentRow {
+  id: number;
+  lifecycle_id: number;
+  section_key: string;
+  author_email: string;
+  body: string;
+  mention_email: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type MktAiPptxExportSection = 'strategy' | 'campaign' | 'content' | 'brief';
+
+export interface MktAiPptxExportBody {
+  sections?: MktAiPptxExportSection[];
 }
 
 export const REQUIRED_BRIEF_FIELDS = [

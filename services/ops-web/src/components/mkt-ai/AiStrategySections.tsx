@@ -10,7 +10,8 @@ import {
   TMMT_CORE_KEYS,
   TMMT_PROF_FIELD_ORDER,
 } from '@/lib/mkt-ai-draft-fields';
-import { patchMktAiDraft, type MktAiCitation, type MktAiDraft } from '@/lib/mkt-ai-planner-api';
+import { AiSectionCommentThread } from '@/components/mkt-ai/AiSectionCommentThread';
+import { patchMktAiDraft, type MktAiCitation, type MktAiDraft, type MktAiSectionCommentRow } from '@/lib/mkt-ai-planner-api';
 import { STRATEGY_LABELS, TMMT_PROF_LABELS } from '@/lib/tmmt-labels';
 import styles from '@/components/mkt-ai/mkt-ai-planner.module.css';
 
@@ -45,6 +46,9 @@ interface Props {
   onDirtyChange?: (dirty: boolean) => void;
   onSaveError?: (message: string) => void;
   onContinue?: () => void;
+  sectionCommentsEnabled?: boolean;
+  sectionComments?: MktAiSectionCommentRow[];
+  onSectionCommentAdded?: (row: MktAiSectionCommentRow) => void;
 }
 
 function swotLists(swot: Record<string, unknown>): Record<string, string[]> {
@@ -78,6 +82,9 @@ export function AiStrategySections({
   onDirtyChange,
   onSaveError,
   onContinue,
+  sectionCommentsEnabled = false,
+  sectionComments = [],
+  onSectionCommentAdded,
 }: Props) {
   const [sf, setSf] = useState(strategyFramework);
   const [prof, setProf] = useState(targetMarketProf);
@@ -269,6 +276,19 @@ export function AiStrategySections({
                       {prof[key] || '—'}
                     </div>
                   )}
+                  {sectionCommentsEnabled && key === 'segmentation_icp' ? (
+                    <AiSectionCommentThread
+                      token={token}
+                      lifecycleId={lifecycleId}
+                      sectionKey="segmentation_icp"
+                      sectionLabel="ICP / Segmentation"
+                      canEdit={canEdit}
+                      paused={paused}
+                      comments={sectionComments}
+                      onCommentAdded={(row) => onSectionCommentAdded?.(row)}
+                      onError={onSaveError}
+                    />
+                  ) : null}
                 </label>
               ))}
             </div>

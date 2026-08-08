@@ -5,6 +5,7 @@ export const MKT_AI_RAG_ALLOWED_MIMES = new Set([
   'text/plain',
   'text/markdown',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 ]);
 
 export const MKT_AI_RAG_MAX_BYTES = 10 * 1024 * 1024;
@@ -29,6 +30,9 @@ export function normalizeMime(mime: string, filename: string): string {
   if (lower.endsWith('.docx')) {
     return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   }
+  if (lower.endsWith('.pptx')) {
+    return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+  }
   if (lower.endsWith('.md')) return 'text/markdown';
   if (lower.endsWith('.txt')) return 'text/plain';
   return m || 'application/octet-stream';
@@ -42,10 +46,27 @@ export function extractDocumentText(buffer: Buffer, mimeType: string): string {
   if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
     return extractDocxText(buffer);
   }
+  if (mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
+    return extractPptxText(buffer);
+  }
   if (mime === 'application/pdf') {
     return extractPdfText(buffer);
   }
   throw new Error(`unsupported_mime:${mimeType}`);
+}
+
+function extractPptxText(buffer: Buffer): string {
+  const raw = buffer.toString('latin1');
+  const parts: string[] = [];
+  const re = /<a:t[^>]*>([^<]*)<\/a:t>/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(raw)) !== null) {
+    const text = match[1].trim();
+    if (text) parts.push(text);
+  }
+  const joined = parts.join(' ').replace(/\s+/g, ' ').trim();
+  if (!joined) throw new Error('pptx_text_empty');
+  return joined;
 }
 
 function extractDocxText(buffer: Buffer): string {
