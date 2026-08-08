@@ -917,6 +917,27 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
     return row;
   }
 
+  async listPlanVersions(lifecycleId: number, limit = 30): Promise<MktAiPlanVersionRow[]> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, version_no, label, status, brief_json,
+                strategy_framework_json, target_market_prof_json, campaigns_json,
+                content_json, quality_score_json, marketing_plan_id, applied_at,
+                created_by, created_at::text
+         FROM mkt_ai_plan_versions
+         WHERE lifecycle_id = $1
+         ORDER BY version_no DESC
+         LIMIT $2`,
+        [lifecycleId, limit],
+      );
+      return res.rows.map((r) => this.mapPlanVersionRow(r));
+    }
+    return this.memory.planVersions
+      .filter((v) => v.lifecycle_id === lifecycleId)
+      .sort((a, b) => b.version_no - a.version_no)
+      .slice(0, limit);
+  }
+
   async getPlanVersion(versionId: number): Promise<MktAiPlanVersionRow | null> {
     if (await this.ensurePgReady()) {
       const res = await this.db.query(

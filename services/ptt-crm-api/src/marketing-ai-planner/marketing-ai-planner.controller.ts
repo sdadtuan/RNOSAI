@@ -225,13 +225,27 @@ export class MarketingAiPlannerController {
   }
 
   @Get('versions')
-  listVersions() {
-    throw new NotImplementedException({ error: 'mkt_ai_versions_phase2' });
+  listVersions(@Param('lifecycleId', ParseIntPipe) lifecycleId: number) {
+    return this.planner.listPlanVersions(lifecycleId);
+  }
+
+  @Get('versions/:versionId')
+  getVersion(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('versionId', ParseIntPipe) versionId: number,
+  ) {
+    return this.planner.getPlanVersion(lifecycleId, versionId);
   }
 
   @Post('versions/:versionId/restore')
-  restoreVersion() {
-    throw new NotImplementedException({ error: 'mkt_ai_versions_phase2' });
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffMarketingAiPlannerGenerateGuard)
+  restoreVersion(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('versionId', ParseIntPipe) versionId: number,
+    @Req() req: Request,
+  ) {
+    return this.planner.restorePlanVersion(lifecycleId, versionId, actorEmail(req));
   }
 
   @Get('dashboard')

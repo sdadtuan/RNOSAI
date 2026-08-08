@@ -142,6 +142,7 @@ export interface MktAiPlannerContext {
   budget_scenarios?: MktAiBudgetScenarioRow[];
   approval?: MktAiApprovalContext;
   comments?: MktAiCommentRow[];
+  plan_versions?: MktAiPlanVersionSummary[];
 }
 
 export type MktAiApprovalStatus =
@@ -151,11 +152,31 @@ export type MktAiApprovalStatus =
   | 'rejected'
   | 'cancelled';
 
-export interface MktAiPlanVersionRow {
+export interface MktAiPlanVersionSummary {
   id: number;
   version_no: number;
   label: string;
   status: string;
+  created_by: string;
+  created_at: string;
+  quality_score: number | null;
+  campaign_count: number;
+}
+
+export interface MktAiPlanVersionRow {
+  id: number;
+  lifecycle_id: number;
+  version_no: number;
+  label: string;
+  status: string;
+  brief_json: MktAiBrief;
+  strategy_framework_json: Record<string, string>;
+  target_market_prof_json: Record<string, string>;
+  campaigns_json: MktAiCampaignDraft[];
+  content_json: Record<string, unknown>;
+  quality_score_json: Record<string, unknown>;
+  created_by: string;
+  created_at: string;
 }
 
 export interface MktAiApprovalRow {
@@ -423,4 +444,33 @@ export async function postMktAiComment(
     method: 'POST',
     body: JSON.stringify(body),
   });
+}
+
+export async function fetchMktAiPlanVersions(token: string, lifecycleId: number) {
+  return mktAiFetch<{ versions: MktAiPlanVersionRow[] }>(token, lifecycleId, '/versions');
+}
+
+export async function fetchMktAiPlanVersion(
+  token: string,
+  lifecycleId: number,
+  versionId: number,
+) {
+  return mktAiFetch<{ version: MktAiPlanVersionRow }>(
+    token,
+    lifecycleId,
+    `/versions/${versionId}`,
+  );
+}
+
+export async function postMktAiRestorePlanVersion(
+  token: string,
+  lifecycleId: number,
+  versionId: number,
+) {
+  return mktAiFetch<{ draft: MktAiDraft; version: MktAiPlanVersionRow }>(
+    token,
+    lifecycleId,
+    `/versions/${versionId}/restore`,
+    { method: 'POST', body: '{}' },
+  );
 }

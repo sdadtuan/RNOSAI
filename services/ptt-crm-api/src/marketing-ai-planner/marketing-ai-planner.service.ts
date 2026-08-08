@@ -11,6 +11,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { validateMktAiBrief, mergeBrief, emptyDraft } from './marketing-ai-brief.util';
 import { computeQualityScore } from './marketing-ai-quality.util';
+import { MarketingAiVersionService } from './marketing-ai-version.service';
 import { MarketingAiApprovalService } from './marketing-ai-approval.service';
 import { MarketingAiBudgetService } from './marketing-ai-budget.service';
 import { MarketingAiExportService } from './marketing-ai-export.service';
@@ -43,6 +44,7 @@ export class MarketingAiPlannerService {
     private readonly rag: MarketingAiRagService,
     private readonly budget: MarketingAiBudgetService,
     private readonly approval: MarketingAiApprovalService,
+    private readonly versions: MarketingAiVersionService,
     private readonly agentRuns: AiAgentRunsRepository,
     private readonly exportService: MarketingAiExportService,
   ) {}
@@ -127,6 +129,9 @@ export class MarketingAiPlannerService {
       draft,
       quality.can_export,
     );
+    const planVersions = this.versions.summarizeVersions(
+      await this.versions.listVersions(lifecycleId, 20),
+    );
 
     return {
       lifecycle_id: lifecycleId,
@@ -152,6 +157,7 @@ export class MarketingAiPlannerService {
       budget_scenarios: budgetScenarios,
       approval: approvalCtx.approval,
       comments: approvalCtx.comments,
+      plan_versions: planVersions,
       tmmt_validation: {
         ok: Boolean(tmmtPayload.validation?.ok),
         messages: tmmtPayload.validation?.messages ?? [],
@@ -523,6 +529,27 @@ export class MarketingAiPlannerService {
       anchor: (body.anchor as Record<string, unknown>) ?? undefined,
     });
     return { comment };
+  }
+
+  async listPlanVersions(lifecycleId: number) {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+    const versions = await this.versions.listVersions(lifecycleId);
+    return { versions };
+  }
+
+  async getPlanVersion(lifecycleId: number, versionId: number) {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+    const version = await this.versions.getVersion(lifecycleId, versionId);
+    return { version };
+  }
+
+  async restorePlanVersion(lifecycleId: number, versionId: number, actorEmail: string) {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+    const restored = await this.versions.restoreVersionToDraft(lifecycleId, versionId, actorEmail);
+    return restored;
   }
 
   async retryJob(lifecycleId: number, jobType: string, actorEmail: string) {

@@ -9,6 +9,7 @@ import {
   StaffMarketingAiPlannerGenerateGuard,
   StaffMarketingAiPlannerViewGuard,
 } from './guards/staff-marketing-ai-planner.guard';
+import { MarketingAiVersionService } from './marketing-ai-version.service';
 import { MarketingAiApprovalService } from './marketing-ai-approval.service';
 import { MarketingAiBudgetService } from './marketing-ai-budget.service';
 import { MarketingAiExportService } from './marketing-ai-export.service';
@@ -27,6 +28,7 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
     MarketingAiRagService,
     MarketingAiBudgetService,
     MarketingAiApprovalService,
+    MarketingAiVersionService,
     MarketingAiExportService,
     MarketingAiPlannerService,
     StaffMarketingAiPlannerViewGuard,

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AiApplyTmmtModal } from '@/components/mkt-ai/AiApplyTmmtModal';
 import { AiPlanApprovalBar } from '@/components/mkt-ai/AiPlanApprovalBar';
+import { AiVersionCompareDrawer } from '@/components/mkt-ai/AiVersionCompareDrawer';
 import { AiQualityScoreCard, type QualityScoreView } from '@/components/mkt-ai/AiQualityScoreCard';
 import { ExportPlanActions } from '@/components/mkt-ai/ExportPlanActions';
 import { fetchServiceLifecycleMarketingPlan } from '@/lib/api';
@@ -16,6 +17,7 @@ import {
   type MktAiDraft,
   type MktAiApprovalContext,
   type MktAiCommentRow,
+  type MktAiPlanVersionSummary,
 } from '@/lib/mkt-ai-planner-api';
 
 interface Props {
@@ -28,6 +30,7 @@ interface Props {
   canApprove: boolean;
   approval?: MktAiApprovalContext;
   comments?: MktAiCommentRow[];
+  planVersions?: MktAiPlanVersionSummary[];
   approvalRequired?: boolean;
   paused?: boolean;
   onOpenTmmtTab?: () => void;
@@ -47,6 +50,7 @@ export function AiApplyStepPanel({
   canApprove,
   approval,
   comments,
+  planVersions = [],
   approvalRequired = false,
   paused = false,
   onOpenTmmtTab,
@@ -58,6 +62,7 @@ export function AiApplyStepPanel({
   const [busy, setBusy] = useState(false);
   const [qualityLoading, setQualityLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [versionDrawerOpen, setVersionDrawerOpen] = useState(false);
   const [officialSf, setOfficialSf] = useState<Record<string, string>>({});
   const [officialProf, setOfficialProf] = useState<Record<string, string>>({});
   const [planLoaded, setPlanLoaded] = useState(false);
@@ -244,6 +249,15 @@ export function AiApplyStepPanel({
       </section>
 
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <button
+          type="button"
+          className="btn btn-sm btn-secondary"
+          disabled={busy || paused}
+          onClick={() => setVersionDrawerOpen(true)}
+        >
+          So sánh phiên bản
+          {planVersions.length > 0 ? ` (${planVersions.length})` : ''}
+        </button>
         {canEdit ? (
           <button
             type="button"
@@ -292,6 +306,19 @@ export function AiApplyStepPanel({
         diffs={diffs}
         onClose={() => !busy && setModalOpen(false)}
         onConfirm={() => void handleApplyConfirm()}
+      />
+
+      <AiVersionCompareDrawer
+        open={versionDrawerOpen}
+        token={token}
+        lifecycleId={lifecycleId}
+        canEdit={canEdit}
+        busy={busy || paused}
+        summaries={planVersions}
+        onClose={() => !busy && setVersionDrawerOpen(false)}
+        onRestored={onQualityUpdated}
+        onMessage={onMessage}
+        onError={onError}
       />
     </div>
   );

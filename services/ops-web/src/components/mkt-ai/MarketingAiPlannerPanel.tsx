@@ -519,6 +519,7 @@ export function MarketingAiPlannerPanel({
               canApprove={canApprove}
               approval={ctx?.approval}
               comments={ctx?.comments}
+              planVersions={ctx?.plan_versions}
               approvalRequired={ctx?.flags.approval_required}
               paused={busy}
               onOpenTmmtTab={onOpenTmmtTab}

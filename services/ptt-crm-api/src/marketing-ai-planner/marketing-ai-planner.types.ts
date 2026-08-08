@@ -152,6 +152,18 @@ export interface MktAiPlannerContext {
   budget_scenarios?: MktAiBudgetScenarioRow[];
   approval?: MktAiApprovalContext;
   comments?: MktAiCommentRow[];
+  plan_versions?: MktAiPlanVersionSummary[];
+}
+
+export interface MktAiPlanVersionSummary {
+  id: number;
+  version_no: number;
+  label: string;
+  status: MktAiPlanVersionStatus;
+  created_by: string;
+  created_at: string;
+  quality_score: number | null;
+  campaign_count: number;
 }
 
 export type MktAiApprovalStatus =

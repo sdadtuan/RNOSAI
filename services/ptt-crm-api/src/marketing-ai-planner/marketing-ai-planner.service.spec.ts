@@ -63,6 +63,10 @@ describe('MarketingAiPlannerService', () => {
     }),
     assertExportAllowed: jest.fn(),
   };
+  const versions = {
+    listVersions: jest.fn().mockResolvedValue([]),
+    summarizeVersions: jest.fn().mockReturnValue([]),
+  };
 
   let service: MarketingAiPlannerService;
 
@@ -76,6 +80,7 @@ describe('MarketingAiPlannerService', () => {
       rag as never,
       budget as never,
       approval as never,
+      versions as never,
       agentRuns as never,
       exportService as never,
     );
@@ -109,6 +114,7 @@ describe('MarketingAiPlannerService', () => {
       rag as never,
       budget as never,
       approval as never,
+      versions as never,
       agentRuns as never,
       exportService as never,
     );
