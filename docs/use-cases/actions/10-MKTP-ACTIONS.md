@@ -249,5 +249,5 @@ Bước 11 fail → **Thử lại** → success; strategy draft bước 8 vẫn 
 | 4 | SP | Service delivery | Mở lifecycle BĐS (`bds-lead-gen`) | tag `mkt-ai-seed-bds` | Tab AI Planner + playbook BĐS | ✓ |
 | 5 | SP | Same | Mở lifecycle SEO (`seo-retainer`) | tag `mkt-ai-seed-seo` | Playbook SEO prefill | ✓ |
 | 6 | PO | Runbook | Ký `mkt-ai-phase3-signoff.md` | — | UC-019…021 signed | ✓ |
-| 7 | DevOps | Prod pilot | `deploy/env.mkt-ai-ga.example` → 1 slug | — | Rollback ≤5 phút | ○ P4-01-T7 |
+| 7 | DevOps | Prod pilot | `deploy/env.mkt-ai-prod-pilot.example` + `deploy_mkt_ai_planner_prod_pilot.sh` | gate + 7d monitor | Rollback ≤5 phút | ✓ WS-P4-01-T7 |
 | 8 | DevOps | Rollback test | `PTT_MKT_AI_PLANNER_ENABLED=0` | — | Tab ẩn + API 404 disabled | ✓ |

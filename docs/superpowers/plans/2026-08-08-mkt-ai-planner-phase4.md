@@ -159,7 +159,7 @@ Child rows ghi `parent_job_id` thay vì chỉ `output_json.child_jobs[]` — dua
 | P4-01-T4 | `PTT_MKT_AI_PLANNER_SLUGS=meta-lead-gen,bds-lead-gen,seo-retainer` staging | 3 slug context 200 |
 | P4-01-T5 | Doc `mkt-ai-phase3-signoff.md` + BA matrix status Implemented | Doc merged |
 | P4-01-T6 | Prod env template `deploy/env.mkt-ai-ga.example` | DevOps review |
-| P4-01-T7 | Pilot prod: 1 lifecycle, flags on, monitor 7 ngày | No SEV-1 |
+| P4-01-T7 | Pilot prod: 1 lifecycle, flags on, monitor 7 ngày | `deploy_mkt_ai_planner_prod_pilot.sh` + runbook |
 
 ### 4.2. Files
 
@@ -169,7 +169,14 @@ Child rows ghi `parent_job_id` thay vì chỉ `output_json.child_jobs[]` — dua
 | Modify | `scripts/seed_mkt_ai_uat_lifecycle.sh` |
 | Modify | `docs/specs/modules/RNOSAI-BA-MKTP-UseCases.md` — status P3 |
 | Modify | `scripts/deploy_mkt_ai_planner_staging.sh` — 3 slugs |
-| Create | `deploy/env.mkt-ai-ga.example` |
+| Create | `deploy/env.mkt-ai-prod-pilot.example` |
+| Create | `docs/runbooks/mkt-ai-prod-pilot-checklist.md` |
+| Create | `scripts/deploy_mkt_ai_planner_prod_pilot.sh` |
+| Create | `scripts/mkt_ai_prod_pilot_gate.sh` |
+| Create | `scripts/mkt_ai_prod_pilot_monitor.sh` |
+| Create | `scripts/mkt_ai_prod_pilot_rollback.sh` |
+| Create | `scripts/verify_mkt_ai_pilot_lifecycle.sh` |
+| Create | `deploy/mkt-ai-prod-pilot-signoff.template.json` |
 
 ### 4.3. GA flags matrix
 

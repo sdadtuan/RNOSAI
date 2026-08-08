@@ -187,6 +187,19 @@ DDL tables giữ nguyên — re-enable bằng flag `=1`.
 
 ---
 
+## 11. Prod pilot (1 client · P4-01-T7)
+
+Runbook: [`mkt-ai-prod-pilot-checklist.md`](./mkt-ai-prod-pilot-checklist.md)
+
+```bash
+export MKT_AI_PILOT_LIFECYCLE_ID=<real lifecycle>
+APPLY=1 ./scripts/deploy_mkt_ai_planner_prod_pilot.sh
+bash scripts/mkt_ai_prod_pilot_monitor.sh   # daily × 7 days
+bash scripts/mkt_ai_prod_pilot_rollback.sh  # emergency
+```
+
+---
+
 ## 11. Liên kết
 
 | Tài liệu | Path |
