@@ -59,7 +59,7 @@ run_local() {
     "NEXT_PUBLIC_MKT_AI_PORTAL_SUMMARY=1" \
     "PTT_MKT_AI_OPS_WEEKLY_REPORT=1" \
     "PTT_MKT_AI_KPI_CLOSED_LOOP=1" \
-    "PTT_MKT_AI_WEEKLY_MEMO_CRON=0 9 * * 1" \
+    "PTT_MKT_AI_WEEKLY_MEMO_CRON='0 9 * * 1'" \
     "NEXT_PUBLIC_MKT_AI_PLANNER=1"; do
     key="${kv%%=*}"
     if grep -q "^${key}=" "$RUNTIME_ENV" 2>/dev/null; then
@@ -88,7 +88,7 @@ run_local() {
     "PTT_MKT_AI_EXPORT_PPTX=1" \
     "PTT_MKT_AI_PORTAL_SUMMARY=1" \
     "PTT_MKT_AI_KPI_CLOSED_LOOP=1" \
-    "PTT_MKT_AI_WEEKLY_MEMO_CRON=0 9 * * 1"; do
+    "PTT_MKT_AI_WEEKLY_MEMO_CRON='0 9 * * 1'"; do
     key="${kv%%=*}"
     if [[ -f "$ROOT/.env" && -w "$ROOT/.env" ]]; then
       if grep -q "^${key}=" "$ROOT/.env" 2>/dev/null; then
