@@ -329,6 +329,16 @@ export class LeadsFunnelController {
     return this.funnel.patchMarketingPlan(id, body, req.staffUser);
   }
 
+  @Post(':id/presales/marketing-plan/ai-draft')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  generatePresalesMarketingPlanAiDraft(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    return this.funnel.generatePresalesMarketingPlanAiDraft(id, req.staffUser);
+  }
+
   @Get(':id/presales/consult-brief')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
   getPresalesConsultBrief(@Param('id', ParseIntPipe) id: number) {

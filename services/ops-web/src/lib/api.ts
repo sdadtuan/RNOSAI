@@ -1579,11 +1579,33 @@ export async function fetchLeadPresalesMarketingPlan(
 export async function patchLeadPresalesMarketingPlan(
   token: string,
   leadId: number,
-  body: { name?: string; north_star?: string; objectives?: string; strategy_framework?: Record<string, string> },
+  body: {
+    name?: string;
+    north_star?: string;
+    objectives?: string;
+    strategy_framework?: Record<string, string>;
+    target_market_prof?: Record<string, string>;
+  },
 ): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot; validation: { ok: boolean; messages: string[] } }> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/marketing-plan`, {
     method: 'PATCH',
     body: JSON.stringify(body),
+  });
+}
+
+export async function postLeadPresalesMarketingPlanAiDraft(
+  token: string,
+  leadId: number,
+): Promise<{
+  ok: boolean;
+  plan: Record<string, unknown>;
+  funnel: LeadFunnelSnapshot;
+  validation: { ok: boolean; messages: string[] };
+  ai?: { stub_mode: boolean; model: string };
+}> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/marketing-plan/ai-draft`, {
+    method: 'POST',
+    body: JSON.stringify({}),
   });
 }
 

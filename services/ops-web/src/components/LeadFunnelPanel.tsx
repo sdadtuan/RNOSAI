@@ -13,6 +13,7 @@ import {
   fetchLeadPresalesMarketingPlan,
   patchLeadPresalesMarketingPlan,
   patchLeadPresalesTask,
+  postLeadPresalesMarketingPlanAiDraft,
   postLeadPresalesTaskAiAssist,
   releaseLeadReviewQueue,
   submitLeadCareReport,
@@ -98,6 +99,7 @@ export function LeadFunnelPanel({
   const [planValidation, setPlanValidation] = useState<string[]>([]);
   const [taskDrafts, setTaskDrafts] = useState<Record<number, Record<string, string>>>({});
   const [aiBusyTaskId, setAiBusyTaskId] = useState<number | null>(null);
+  const [aiPlanDraftBusy, setAiPlanDraftBusy] = useState(false);
   const presalesServiceOptions = useMemo(
     () => mergePresalesServiceOptions(serviceOptions),
     [serviceOptions],
@@ -220,6 +222,20 @@ export function LeadFunnelPanel({
   const useConsultWorkspaceTab =
     presalesStage === 'consult' || presalesStage === 'proposal';
 
+  async function applyMarketingPlanResponse(plan: Record<string, unknown>, validationMessages: string[]) {
+    setPlanName(String(plan.name ?? ''));
+    setPlanNorthStar(String(plan.north_star ?? ''));
+    setPlanObjectives(String(plan.objectives ?? ''));
+    let sf: Record<string, string> = {};
+    try {
+      sf = JSON.parse(String(plan.strategy_framework_json ?? '{}')) as Record<string, string>;
+    } catch {
+      sf = {};
+    }
+    setPlanStrategy(sf);
+    setPlanValidation(validationMessages);
+  }
+
   async function saveMarketingPlan() {
     const out = await patchLeadPresalesMarketingPlan(token, leadId, {
       name: planName,
@@ -231,6 +247,19 @@ export function LeadFunnelPanel({
     onFunnelChange?.(out.funnel);
     setPlanValidation(out.validation.messages ?? []);
     onMessage?.('Đã lưu KH MKT sơ bộ');
+  }
+
+  async function runMarketingPlanAiDraft() {
+    setAiPlanDraftBusy(true);
+    try {
+      const out = await postLeadPresalesMarketingPlanAiDraft(token, leadId);
+      setFunnel(out.funnel);
+      onFunnelChange?.(out.funnel);
+      await applyMarketingPlanResponse(out.plan, out.validation.messages ?? []);
+      onMessage?.(out.validation.ok ? 'Đã tạo AI draft KH MKT sơ bộ' : 'AI draft — cần bổ sung thêm trường');
+    } finally {
+      setAiPlanDraftBusy(false);
+    }
   }
 
   function renderPresalesTasks() {
@@ -302,13 +331,15 @@ export function LeadFunnelPanel({
       planObjectives={planObjectives}
       planStrategy={planStrategy}
       planValidation={planValidation}
-      disabled={busy}
+      disabled={busy || aiPlanDraftBusy}
       canEdit={canEdit}
       onPlanNameChange={setPlanName}
       onNorthStarChange={setPlanNorthStar}
       onObjectivesChange={setPlanObjectives}
       onStrategyChange={(key, value) => setPlanStrategy((prev) => ({ ...prev, [key]: value }))}
       onSave={() => void run(() => saveMarketingPlan(), true)}
+      onAiDraft={() => void run(() => runMarketingPlanAiDraft(), true)}
+      aiBusy={aiPlanDraftBusy}
     />
   );
 

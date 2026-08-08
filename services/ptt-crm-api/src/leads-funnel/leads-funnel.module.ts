@@ -18,6 +18,7 @@ import {
 } from './guards/staff-presales-solution.guard';
 import { PolicyModule } from '../policy/policy.module';
 import { IntakeModule } from '../intake/intake.module';
+import { MarketingAiPlannerModule } from '../marketing-ai-planner/marketing-ai-planner.module';
 import { ReviewQueueLlmService } from './review-queue-llm.service';
 
 @Module({
@@ -28,6 +29,7 @@ import { ReviewQueueLlmService } from './review-queue-llm.service';
     forwardRef(() => CskhBoardModule),
     forwardRef(() => AiIntelligenceModule),
     forwardRef(() => IntakeModule),
+    forwardRef(() => MarketingAiPlannerModule),
     PolicyModule,
   ],
   controllers: [LeadsFunnelController],

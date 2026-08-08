@@ -1316,10 +1316,19 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     if (body.strategy_framework) {
       content.strategy_framework = { ...content.strategy_framework, ...body.strategy_framework };
     }
+    let targetMarketProf: Record<string, string> = {};
+    try {
+      targetMarketProf = JSON.parse(String(plan.target_market_prof_json || '{}')) as Record<string, string>;
+    } catch {
+      targetMarketProf = {};
+    }
+    if (body.target_market_prof) {
+      targetMarketProf = { ...targetMarketProf, ...body.target_market_prof };
+    }
     const updated = await this.db.query(
       `UPDATE crm_marketing_plans
        SET name = $2, north_star = $3, objectives = $4,
-           strategy_framework_json = $5::jsonb, updated_at = NOW()
+           strategy_framework_json = $5::jsonb, target_market_prof_json = $6::jsonb, updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
       [
@@ -1328,6 +1337,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         northStar,
         objectives,
         JSON.stringify(content.strategy_framework),
+        JSON.stringify(targetMarketProf),
       ],
     );
     return updated.rows[0] as Record<string, unknown>;

@@ -1409,16 +1409,26 @@ export class LeadsFunnelSqliteRepository implements OnModuleDestroy {
     if (body.strategy_framework) {
       content.strategy_framework = { ...content.strategy_framework, ...body.strategy_framework };
     }
+    let targetMarketProf: Record<string, string> = {};
+    try {
+      targetMarketProf = JSON.parse(String(plan.target_market_prof_json || '{}')) as Record<string, string>;
+    } catch {
+      targetMarketProf = {};
+    }
+    if (body.target_market_prof) {
+      targetMarketProf = { ...targetMarketProf, ...body.target_market_prof };
+    }
     this.database
       .prepare(
         `UPDATE crm_marketing_plans SET name = ?, north_star = ?, objectives = ?,
-         strategy_framework_json = ?, updated_at = ? WHERE id = ?`,
+         strategy_framework_json = ?, target_market_prof_json = ?, updated_at = ? WHERE id = ?`,
       )
       .run(
         content.name.slice(0, 200),
         northStar,
         objectives,
         JSON.stringify(content.strategy_framework),
+        JSON.stringify(targetMarketProf),
         ts,
         planId,
       );

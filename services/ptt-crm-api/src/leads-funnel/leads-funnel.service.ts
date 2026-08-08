@@ -63,6 +63,8 @@ import {
 } from './presales-workflow-batch.util';
 import { ReviewQueueLlmService } from './review-queue-llm.service';
 import { PolicyService } from '../policy/policy.service';
+import { MarketingAiOrchestratorService } from '../marketing-ai-planner/marketing-ai-orchestrator.service';
+import { buildPresalesMktAiBrief, mapStrategyToPreliminaryPlan } from './presales-ai-draft.util';
 
 @Injectable()
 export class LeadsFunnelService {
@@ -78,6 +80,7 @@ export class LeadsFunnelService {
     private readonly llm: AiLlmClient,
     private readonly legacyLeads: CrmLeadsLegacyService,
     private readonly policy: PolicyService,
+    private readonly mktAiOrchestrator: MarketingAiOrchestratorService,
   ) {}
 
   private get usePgFunnel(): boolean {
@@ -703,6 +706,79 @@ export class LeadsFunnelService {
     const plan = this.sqliteRepo.patchMarketingPlan(leadId, body);
     const validation = validatePreliminaryPlan(plan);
     return { ok: true, plan, validation, funnel: await this.getFunnel(leadId) };
+  }
+
+  private assertPresalesMktAiEnabled(serviceSlug: string): void {
+    if (!this.config.mktAiPlannerEnabled) {
+      throw new ServiceUnavailableException({ error: 'mkt_ai_planner_disabled' });
+    }
+    const slugs = this.config.mktAiPlannerSlugs;
+    if (slugs.length && serviceSlug && !slugs.includes(serviceSlug)) {
+      throw new ForbiddenException({ error: 'mkt_ai_planner_slug_not_pilot', service_slug: serviceSlug });
+    }
+  }
+
+  async generatePresalesMarketingPlanAiDraft(leadId: number, staffUser?: StaffJwtPayload) {
+    try {
+      await this.assertConsultMutationAllowed(leadId, staffUser, 'consult');
+      const { snap, intakeSessions, leadName } = await this.loadPresalesContext(leadId);
+      const serviceSlug = snap.presales.service_slug;
+      this.assertPresalesMktAiEnabled(serviceSlug);
+
+      const leadTasks = snap.tasks.lead ?? [];
+      const leadTaskDone =
+        (snap.progress.lead?.total ?? 0) === 0 ||
+        (snap.progress.lead?.done ?? 0) >= (snap.progress.lead?.total ?? 0);
+      const consultBrief = buildPresalesConsultBrief({
+        presalesId: snap.presales.id,
+        leadId,
+        serviceSlug,
+        presalesStage: snap.presales.stage,
+        leadTaskDone,
+        leadTask: leadTasks[0] ?? null,
+        intakeSessions,
+      });
+
+      const existingPlan = this.usePgFunnel
+        ? await this.pgRepo.getOrCreatePreliminaryPlan(leadId, snap.presales.id, serviceSlug)
+        : this.sqliteRepo.getOrCreatePreliminaryPlan(leadId, snap.presales.id, serviceSlug);
+
+      const brief = buildPresalesMktAiBrief({
+        consultBrief,
+        serviceSlug,
+        leadName: leadName || `Lead #${leadId}`,
+      });
+      const strategy = await this.mktAiOrchestrator.generateStrategy(brief);
+      const patchBody = mapStrategyToPreliminaryPlan(strategy, {
+        leadId,
+        serviceSlug,
+        brief,
+        existingName: String(existingPlan.name ?? ''),
+      });
+
+      if (this.usePgFunnel) {
+        const plan = await this.pgRepo.patchMarketingPlan(leadId, patchBody);
+        const validation = validatePreliminaryPlan(plan);
+        return {
+          ok: true,
+          plan,
+          validation,
+          funnel: await this.getFunnel(leadId),
+          ai: { stub_mode: this.mktAiOrchestrator.stubMode, model: this.mktAiOrchestrator.modelName },
+        };
+      }
+      const plan = this.sqliteRepo.patchMarketingPlan(leadId, patchBody);
+      const validation = validatePreliminaryPlan(plan);
+      return {
+        ok: true,
+        plan,
+        validation,
+        funnel: await this.getFunnel(leadId),
+        ai: { stub_mode: this.mktAiOrchestrator.stubMode, model: this.mktAiOrchestrator.modelName },
+      };
+    } catch (err) {
+      this.funnelError(err);
+    }
   }
 
   private async loadPresalesContext(leadId: number) {

@@ -92,6 +92,31 @@ export class MarketingAiPlannerService {
       /* optional */
     }
 
+    try {
+      const mp = await this.lifecycle.marketingPlan(lifecycleId);
+      const plan = mp?.plan as Record<string, unknown> | null;
+      if (plan) {
+        const sf = (plan.strategy_framework ?? {}) as Record<string, string>;
+        if (sf.target_market && !brief.challenges) brief.challenges = sf.target_market;
+        if (sf.market_message && !brief.usp) brief.usp = sf.market_message;
+        if (plan.north_star) {
+          const ns = String(plan.north_star).trim();
+          if (ns) {
+            brief.notes = brief.notes ? `${brief.notes}\nNorth Star: ${ns}` : `North Star: ${ns}`;
+          }
+        }
+        if (plan.objectives) {
+          const obj = String(plan.objectives).trim();
+          if (obj) {
+            brief.notes = brief.notes ? `${brief.notes}\nMục tiêu: ${obj}` : `Mục tiêu: ${obj}`;
+          }
+        }
+        sources.push('presales-official-plan');
+      }
+    } catch {
+      /* optional */
+    }
+
     return { brief, sources };
   }
 

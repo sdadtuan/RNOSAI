@@ -269,6 +269,7 @@ export interface PatchMarketingPlanBody {
   north_star?: string;
   objectives?: string;
   strategy_framework?: Record<string, string>;
+  target_market_prof?: Record<string, string>;
 }
 
 export interface PatchPresalesL2DocsBody {

@@ -25,6 +25,8 @@ interface Props {
   onObjectivesChange: (value: string) => void;
   onStrategyChange: (key: string, value: string) => void;
   onSave: () => void;
+  onAiDraft?: () => void;
+  aiBusy?: boolean;
 }
 
 export function PresalesR5PlanForm({
@@ -40,6 +42,8 @@ export function PresalesR5PlanForm({
   onObjectivesChange,
   onStrategyChange,
   onSave,
+  onAiDraft,
+  aiBusy = false,
 }: Props) {
   return (
     <div className="stack-gap" id="funnel-presales-r5" style={{ marginTop: '1rem' }}>
@@ -97,9 +101,21 @@ export function PresalesR5PlanForm({
         </label>
       ))}
       {canEdit && (
-        <button type="button" className="btn btn-sm" disabled={disabled} onClick={onSave}>
-          Lưu KH MKT sơ bộ
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {onAiDraft && (
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              disabled={disabled || aiBusy}
+              onClick={onAiDraft}
+            >
+              {aiBusy ? 'Đang tạo AI draft…' : 'AI draft'}
+            </button>
+          )}
+          <button type="button" className="btn btn-sm" disabled={disabled || aiBusy} onClick={onSave}>
+            Lưu KH MKT sơ bộ
+          </button>
+        </div>
       )}
     </div>
   );

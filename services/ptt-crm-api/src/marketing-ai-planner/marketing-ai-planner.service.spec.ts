@@ -198,6 +198,30 @@ describe('MarketingAiPlannerService', () => {
     );
   });
 
+  it('getContext prefill includes promoted official marketing plan', async () => {
+    lifecycle.consultBrief.mockRejectedValue(new Error('no consult'));
+    lifecycle.onboardingBrief.mockRejectedValue(new Error('no onboard'));
+    lifecycle.marketingPlan.mockResolvedValue({
+      plan: {
+        north_star: 'ROAS 3x',
+        objectives: 'Tăng lead chất lượng',
+        strategy_framework: {
+          target_market: 'Spa cao cấp',
+          market_message: 'Premium experience',
+        },
+      },
+      validation: { ok: true, messages: [] },
+      filled_count: 2,
+    });
+
+    const ctx = await service.getContext(123);
+
+    expect(ctx.prefill_sources).toContain('presales-official-plan');
+    expect(ctx.brief?.challenges).toBe('Spa cao cấp');
+    expect(ctx.brief?.usp).toBe('Premium experience');
+    expect(ctx.brief?.notes).toContain('ROAS 3x');
+  });
+
   it('exportPlan rejects score below 60', async () => {
     repo.getDraft.mockResolvedValue({
       strategy_framework: {},
