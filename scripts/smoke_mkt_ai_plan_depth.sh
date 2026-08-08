@@ -5,11 +5,38 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+if [[ -f "$ROOT/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env"
+  set +a
+fi
+
 API_URL="${PTT_API_URL:-http://127.0.0.1:3000}"
 LIFECYCLE_ID="${LIFECYCLE_ID:-1}"
-KEY="${PTT_CRM_INTERNAL_KEY:?PTT_CRM_INTERNAL_KEY required}"
+KEY="${PTT_CRM_INTERNAL_KEY:-}"
+EMAIL="${ADMIN_EMAIL:-${OPS_E2E_STAFF_EMAIL:-admin@pttads.vn}}"
+PASS="${ADMIN_PASSWORD:-${OPS_E2E_STAFF_PASSWORD:-}}"
 
-auth=(-H "X-Internal-Key: $KEY" -H "Content-Type: application/json")
+AUTH=()
+if [[ -n "$KEY" ]]; then
+  AUTH=(-H "x-ptt-internal-key: $KEY")
+elif [[ -n "$PASS" ]]; then
+  TOKEN="$(
+    curl -sf "$API_URL/api/v1/staff/auth/login" \
+      -H 'Content-Type: application/json' \
+      -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" \
+    | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null || true
+  )"
+  [[ -n "$TOKEN" ]] && AUTH=(-H "Authorization: Bearer $TOKEN")
+fi
+
+if [[ ${#AUTH[@]} -eq 0 ]]; then
+  echo "FAIL: set PTT_CRM_INTERNAL_KEY or ADMIN_PASSWORD for smoke auth"
+  exit 1
+fi
+
+auth=("${AUTH[@]}" -H "Content-Type: application/json")
 base="$API_URL/api/crm/service-lifecycle/$LIFECYCLE_ID/ai-planner"
 
 echo "== smoke_mkt_ai_plan_depth S2 =="
@@ -20,6 +47,8 @@ echo "$ctx" | grep -q '"enabled":true' || { echo "FAIL: planner disabled"; exit 
 
 if ! echo "$ctx" | grep -q '"brief_readiness"'; then
   echo "WARN: brief_readiness missing (ok if depth flags off)"
+else
+  echo "OK brief_readiness in context"
 fi
 
 tmp="$(mktemp)"
@@ -32,14 +61,13 @@ Thị trường: HCM
 Thách thức: CPL cao trong smoke test
 EOF
 
-upload_out="$(curl -sf -H "X-Internal-Key: $KEY" -F "file=@$tmp;filename=brief-smoke.txt" "$base/brief/upload" 2>/dev/null || true)"
+upload_out="$(curl -sf "${AUTH[@]}" -F "file=@$tmp;filename=brief-smoke.txt" "$base/brief/upload" 2>/dev/null || true)"
 rm -f "$tmp"
 
 if [ -n "$upload_out" ]; then
-  echo "$upload_out" | grep -q 'readiness_score\|"score"' || echo "WARN: upload response shape"
-  echo "OK brief/upload"
+  echo "$upload_out" | grep -q '"score"' && echo "OK brief/upload" || echo "WARN: upload response shape"
 else
-  echo "SKIP brief/upload (flag off or 404)"
+  echo "SKIP brief/upload (flag off or error)"
 fi
 
 kpi_patch="$(curl -sf "${auth[@]}" -X PATCH "$base/draft" -d '{
