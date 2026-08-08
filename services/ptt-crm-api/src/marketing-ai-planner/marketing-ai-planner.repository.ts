@@ -255,7 +255,7 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
            lifecycle_id, job_type, status, prompt_version, model_name,
            input_json, actor_email, started_at, created_at, updated_at
          ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7,
-           CASE WHEN $3 = 'pending' THEN NULL ELSE NOW() END, NOW(), NOW())
+           CASE WHEN $3::text = 'pending' THEN NULL::timestamptz ELSE NOW() END, NOW(), NOW())
          RETURNING id, lifecycle_id, job_type, status, prompt_version, model_name,
                    input_json, output_json, error_message, latency_ms, actor_email,
                    started_at, ended_at, created_at`,
@@ -322,7 +322,7 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
            output_json = COALESCE($3::jsonb, output_json),
            error_message = COALESCE($4, error_message),
            latency_ms = COALESCE($5, latency_ms),
-           started_at = CASE WHEN $2 = 'running' AND started_at IS NULL THEN NOW() ELSE started_at END,
+           started_at = CASE WHEN $2::text = 'running' AND started_at IS NULL THEN NOW() ELSE started_at END,
            updated_at = NOW()
          WHERE id = $1
          RETURNING id, lifecycle_id, job_type, status, prompt_version, model_name,
