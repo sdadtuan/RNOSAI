@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
-# Seed one PG lifecycle for MKT-AI pilot smoke/UAT (staging only).
-# Idempotent: reuses row when service_slug=meta-lead-gen and notes tag present.
-# Also ensures official marketing_plan + optional brief row for apply UAT.
+# Seed MKT-AI UAT lifecycle + official marketing_plan + brief (psql — no psycopg2).
 #
 # Usage:
-#   export DATABASE_URL=postgresql://ptt:PASS@127.0.0.1:5432/rnosaidb
+#   export DATABASE_URL=postgresql://...
 #   ./scripts/seed_mkt_ai_uat_lifecycle.sh
 set -euo pipefail
 
@@ -18,112 +16,129 @@ fi
 
 : "${DATABASE_URL:?DATABASE_URL required}"
 
-export MKT_AI_SEED_TAG='mkt-ai-smoke-seed'
-export MKT_AI_SEED_SLUG='meta-lead-gen'
-export MKT_AI_SEED_STAGE='onboard'
+MKT_AI_SEED_TAG='mkt-ai-smoke-seed'
+MKT_AI_SEED_SLUG='meta-lead-gen'
+MKT_AI_SEED_STAGE='onboard'
 
 echo "== Seed MKT-AI UAT lifecycle (slug=${MKT_AI_SEED_SLUG}, stage=${MKT_AI_SEED_STAGE}) =="
 
-python3 - <<'PY'
-import json
-import os
-import psycopg2
-
-db = os.environ["DATABASE_URL"]
-tag = os.environ["MKT_AI_SEED_TAG"]
-slug = os.environ["MKT_AI_SEED_SLUG"]
-stage = os.environ["MKT_AI_SEED_STAGE"]
-
-brief_json = {
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<SQL
+DO \$\$
+DECLARE
+  v_lifecycle_id bigint;
+  v_plan_id bigint;
+  v_brief jsonb := '{
     "brand_name": "ABC Logistics",
     "industry": "Logistics B2B",
-    "service_slug": slug,
+    "service_slug": "${MKT_AI_SEED_SLUG}",
     "objective": "lead",
     "budget_monthly_vnd": 80000000,
     "geo_markets": ["HCM", "HN"],
     "challenges": "CPL cao, thiếu ICP rõ ràng",
     "competitors": ["Competitor A"],
-    "usp": "Giảm CPL 25% trong 90 ngày",
-}
+    "usp": "Giảm CPL 25% trong 90 ngày"
+  }'::jsonb;
+BEGIN
+  SELECT id, marketing_plan_id INTO v_lifecycle_id, v_plan_id
+  FROM crm_service_lifecycle
+  WHERE service_slug = '${MKT_AI_SEED_SLUG}' AND notes = '${MKT_AI_SEED_TAG}'
+  ORDER BY id DESC
+  LIMIT 1;
 
-conn = psycopg2.connect(db)
-conn.autocommit = False
-cur = conn.cursor()
-cur.execute(
-    """
-    SELECT id, marketing_plan_id FROM crm_service_lifecycle
-    WHERE service_slug = %s AND notes = %s
-    ORDER BY id DESC LIMIT 1
-    """,
-    (slug, tag),
-)
-row = cur.fetchone()
-if row:
-    lifecycle_id, plan_id = row[0], row[1]
-    print(f"REUSE lifecycle_id={lifecycle_id}")
-else:
-    cur.execute(
-        """
-        INSERT INTO crm_service_lifecycle
-            (service_slug, stage, status, notes)
-        VALUES (%s, %s, 'active', %s)
-        RETURNING id
-        """,
-        (slug, stage, tag),
+  IF v_lifecycle_id IS NULL THEN
+    INSERT INTO crm_service_lifecycle (service_slug, stage, status, notes)
+    VALUES ('${MKT_AI_SEED_SLUG}', '${MKT_AI_SEED_STAGE}', 'active', '${MKT_AI_SEED_TAG}')
+    RETURNING id INTO v_lifecycle_id;
+    RAISE NOTICE 'INSERT lifecycle_id=%', v_lifecycle_id;
+  ELSE
+    RAISE NOTICE 'REUSE lifecycle_id=%', v_lifecycle_id;
+  END IF;
+
+  IF v_plan_id IS NULL THEN
+    INSERT INTO crm_marketing_plans (
+      code, name, status, plan_kind, lifecycle_id,
+      north_star, objectives, notes,
+      strategy_framework_json, target_market_prof_json, target_market_steps4_json
     )
-    lifecycle_id = cur.fetchone()[0]
-    plan_id = None
-    conn.commit()
-    print(f"INSERT lifecycle_id={lifecycle_id}")
-
-if not plan_id:
-    cur.execute(
-        """
-        INSERT INTO crm_marketing_plans (
-          code, name, status, plan_kind, lifecycle_id,
-          north_star, objectives, notes,
-          strategy_framework_json, target_market_prof_json, target_market_steps4_json
-        )
-        VALUES (%s, %s, 'draft', 'official', %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb)
-        RETURNING id
-        """,
-        (
-            f"LC-{lifecycle_id}-OFFICIAL",
-            "ABC Logistics TMMT (chính thức)",
-            lifecycle_id,
-            "Lead gen logistics B2B",
-            "Tăng lead chất lượng Meta + Google",
-            "UAT seed official plan",
-            json.dumps({"target_market": "SMB logistics VN"}),
-            json.dumps({"market_context": "Seed context", "segmentation_icp": "Seed ICP placeholder"}),
-            json.dumps({}),
-        ),
+    VALUES (
+      format('LC-%s-OFFICIAL', v_lifecycle_id),
+      'ABC Logistics TMMT (chính thức)',
+      'draft',
+      'official',
+      v_lifecycle_id,
+      'Lead gen logistics B2B',
+      'Tăng lead chất lượng Meta + Google',
+      'UAT seed official plan',
+      '{"target_market":"SMB logistics VN"}'::jsonb,
+      '{"market_context":"Seed context","segmentation_icp":"Seed ICP placeholder"}'::jsonb,
+      '{}'::jsonb
     )
-    plan_id = cur.fetchone()[0]
-    cur.execute(
-        "UPDATE crm_service_lifecycle SET marketing_plan_id = %s WHERE id = %s",
-        (plan_id, lifecycle_id),
-    )
-    conn.commit()
-    print(f"INSERT official marketing_plan_id={plan_id}")
-else:
-    print(f"REUSE marketing_plan_id={plan_id}")
+    RETURNING id INTO v_plan_id;
 
-cur.execute(
-    """
-    INSERT INTO mkt_ai_briefs (lifecycle_id, brief_json, prefill_sources_json, created_by, updated_by)
-    VALUES (%s, %s::jsonb, '[]'::jsonb, 'uat-seed', 'uat-seed')
-    ON CONFLICT (lifecycle_id) DO UPDATE
-      SET brief_json = EXCLUDED.brief_json,
-          updated_by = 'uat-seed',
-          updated_at = NOW()
-    """,
-    (lifecycle_id, json.dumps(brief_json)),
-)
-conn.commit()
-print("UPSERT mkt_ai_briefs")
+    UPDATE crm_service_lifecycle
+    SET marketing_plan_id = v_plan_id
+    WHERE id = v_lifecycle_id;
 
-cur.close()
-conn.close()
-print(f"OK  LIFECYCLE_ID={lifecycle_id}")
-PY
+    RAISE NOTICE 'INSERT official marketing_plan_id=%', v_plan_id;
+  ELSE
+    RAISE NOTICE 'REUSE marketing_plan_id=%', v_plan_id;
+  END IF;
+
+  INSERT INTO mkt_ai_briefs (lifecycle_id, brief_json, prefill_sources_json, created_by, updated_by)
+  VALUES (v_lifecycle_id, v_brief, '[]'::jsonb, 'uat-seed', 'uat-seed')
+  ON CONFLICT (lifecycle_id) DO UPDATE
+    SET brief_json = EXCLUDED.brief_json,
+        updated_by = 'uat-seed',
+        updated_at = NOW();
+
+  RAISE NOTICE 'UPSERT mkt_ai_briefs lifecycle_id=%', v_lifecycle_id;
+END \$\$;
+
+DO \$\$
+DECLARE
+  v_id bigint := 1;
+  v_plan_id bigint;
+BEGIN
+  SELECT marketing_plan_id INTO v_plan_id
+  FROM crm_service_lifecycle WHERE id = v_id;
+
+  IF NOT FOUND OR v_plan_id IS NOT NULL THEN
+    RETURN;
+  END IF;
+
+  INSERT INTO crm_marketing_plans (
+    code, name, status, plan_kind, lifecycle_id,
+    north_star, objectives, notes,
+    strategy_framework_json, target_market_prof_json, target_market_steps4_json
+  )
+  VALUES (
+    format('LC-%s-OFFICIAL', v_id),
+    'Lifecycle #1 TMMT (chính thức)',
+    'draft',
+    'official',
+    v_id,
+    'UAT lifecycle #1',
+    'Pilot apply TMMT',
+    'Auto-seed for smoke/UAT lifecycle #1',
+    '{"target_market":"Pilot"}'::jsonb,
+    '{"market_context":"ctx","segmentation_icp":"ICP seed for lifecycle 1 apply UAT path"}'::jsonb,
+    '{}'::jsonb
+  )
+  RETURNING id INTO v_plan_id;
+
+  UPDATE crm_service_lifecycle SET marketing_plan_id = v_plan_id WHERE id = v_id;
+  RAISE NOTICE 'PATCH lifecycle #1 marketing_plan_id=%', v_plan_id;
+END \$\$;
+SQL
+
+SEED_ID="$(psql "$DATABASE_URL" -tAc \
+  "SELECT id FROM crm_service_lifecycle WHERE notes='${MKT_AI_SEED_TAG}' ORDER BY id DESC LIMIT 1" \
+  | tr -d '[:space:]')"
+
+PLAN1="$(psql "$DATABASE_URL" -tAc \
+  "SELECT COALESCE(marketing_plan_id::text, 'null') FROM crm_service_lifecycle WHERE id=1" \
+  | tr -d '[:space:]')"
+
+echo "OK  LIFECYCLE_ID=${SEED_ID:-?} (tag=${MKT_AI_SEED_TAG})"
+echo "OK  lifecycle #1 marketing_plan_id=${PLAN1}"
+echo "Tip: export LIFECYCLE_ID=${SEED_ID:-1} for UAT"
