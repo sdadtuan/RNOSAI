@@ -80,7 +80,13 @@ export interface MktAiPlannerContext {
   jobs: MktAiJobRow[];
   draft: MktAiDraft;
   tmmt_validation: { ok: boolean; messages: string[]; filled_count?: number };
-  quality_score?: { score: number; criteria: Record<string, boolean>; can_apply: boolean; can_export: boolean };
+  quality_score?: {
+    score: number;
+    criteria: Record<string, boolean>;
+    can_apply: boolean;
+    can_export: boolean;
+    can_export_docx_only?: boolean;
+  };
   flags: { rag_enabled: boolean; approval_required: boolean; stub_mode: boolean };
 }
 

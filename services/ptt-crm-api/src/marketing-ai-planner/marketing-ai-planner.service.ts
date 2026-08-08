@@ -126,6 +126,7 @@ export class MarketingAiPlannerService {
         criteria: quality.criteria,
         can_apply: quality.can_apply,
         can_export: quality.can_export,
+        can_export_docx_only: quality.can_export_docx_only,
       },
       flags: {
         rag_enabled: false,

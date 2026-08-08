@@ -110,6 +110,7 @@ export interface MktAiPlannerContext {
     criteria: Record<string, boolean>;
     can_apply: boolean;
     can_export: boolean;
+    can_export_docx_only?: boolean;
   };
   flags: { rag_enabled: boolean; approval_required: boolean; stub_mode: boolean };
 }

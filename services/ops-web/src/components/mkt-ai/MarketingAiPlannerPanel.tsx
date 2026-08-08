@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { AiApplyStepPanel } from '@/components/mkt-ai/AiApplyStepPanel';
 import { AiCampaignBuilder } from '@/components/mkt-ai/AiCampaignBuilder';
 import { AiContentCalendar } from '@/components/mkt-ai/AiContentCalendar';
 import { AiStrategySections } from '@/components/mkt-ai/AiStrategySections';
@@ -15,12 +16,9 @@ import {
 } from '@/lib/auth';
 import {
   fetchMktAiPlannerContext,
-  postMktAiApply,
   postMktAiCampaignsJob,
   postMktAiContentJob,
-  postMktAiExport,
   postMktAiJobRetry,
-  postMktAiQualityJob,
   postMktAiStrategyJob,
   type MktAiBrief,
   type MktAiDraft,
@@ -141,49 +139,6 @@ export function MarketingAiPlannerPanel({
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Job AI thất bại');
       await reload();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onApply() {
-    if (!canEdit || !ctx) return;
-    if (!window.confirm('Ghi đè TMMT chính thức bằng bản draft AI?')) return;
-    setBusy(true);
-    setError('');
-    setMessage('');
-    try {
-      const out = await postMktAiApply(token, lifecycleId, {
-        confirm_overwrite: true,
-        strategy_framework: ctx.draft.strategy_framework,
-        target_market_prof: ctx.draft.target_market_prof,
-      });
-      await reload();
-      setMessage(out.tmmt_validation.ok ? 'Đã apply vào TMMT chính thức' : 'Đã apply — gate TMMT chưa pass');
-      onApplied?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Apply TMMT thất bại');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onExport(format: 'pdf' | 'docx' | 'xlsx') {
-    if (!canExport) return;
-    setBusy(true);
-    setError('');
-    try {
-      const out = await postMktAiExport(token, lifecycleId, format);
-      const blob = new Blob([out.content], { type: out.mime_type || 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = out.filename;
-      a.click();
-      URL.revokeObjectURL(url);
-      setMessage(`Đã tải ${out.filename}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Export thất bại');
     } finally {
       setBusy(false);
     }
@@ -373,81 +328,21 @@ export function MarketingAiPlannerPanel({
             />
           ) : null}
 
-          {step === 'apply' ? (
-            <div className="card" style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
-              {canEdit ? (
-                <button
-                  type="button"
-                  className="btn btn-sm btn-secondary"
-                  disabled={busy}
-                  onClick={() => void runJob(() => postMktAiQualityJob(token, lifecycleId), 'Đã tính quality score')}
-                >
-                  Tính quality score
-                </button>
-              ) : null}
-              {quality ? (
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem' }}>
-                    <span style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--accent)' }}>
-                      {quality.score}
-                    </span>
-                    <span className="muted">/100</span>
-                  </div>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                      gap: '0.35rem',
-                      marginTop: '0.5rem',
-                      fontSize: '0.85rem',
-                    }}
-                  >
-                    {Object.entries(quality.criteria).map(([key, ok]) => (
-                      <span key={key}>
-                        {ok ? '✓' : '○'} {key.replace(/_/g, ' ')}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                {canEdit ? (
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    disabled={busy || !quality?.can_apply}
-                    onClick={() => void onApply()}
-                  >
-                    Apply vào TMMT chính thức
-                  </button>
-                ) : null}
-                {canExport ? (
-                  <>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-secondary"
-                      disabled={busy || (quality?.score ?? 0) < 60}
-                      onClick={() => void onExport('pdf')}
-                    >
-                      Export PDF
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-secondary"
-                      disabled={busy || (quality?.score ?? 0) < 60}
-                      onClick={() => void onExport('docx')}
-                    >
-                      Export DOCX
-                    </button>
-                  </>
-                ) : null}
-              </div>
-              {!quality?.can_apply && quality ? (
-                <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                  Cần quality ≥60 và đủ tiêu chí TMMT core trước khi apply.
-                </p>
-              ) : null}
-            </div>
+          {step === 'apply' && draft ? (
+            <AiApplyStepPanel
+              token={token}
+              lifecycleId={lifecycleId}
+              draft={draft}
+              quality={quality}
+              canEdit={canEdit}
+              canExport={canExport}
+              paused={busy}
+              onOpenTmmtTab={onOpenTmmtTab}
+              onApplied={onApplied}
+              onQualityUpdated={reload}
+              onMessage={setMessage}
+              onError={setError}
+            />
           ) : null}
         </div>
 
