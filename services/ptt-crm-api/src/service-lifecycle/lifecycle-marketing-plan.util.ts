@@ -22,23 +22,33 @@ export const OFFICIAL_TMMT_CORE_KEYS = [
 
 export const OFFICIAL_TMMT_MIN_FILLED = 6;
 
+function parseJsonRecord(raw: unknown): Record<string, string> {
+  if (raw == null) return {};
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as Record<string, string>;
+  }
+  try {
+    const parsed = JSON.parse(String(raw)) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, string>;
+    }
+  } catch {
+    /* fall through */
+  }
+  return {};
+}
+
 export function parsePlanContent(plan: Record<string, unknown> | null): {
   strategy_framework: Record<string, string>;
   target_market_prof: Record<string, string>;
 } {
-  let sf: Record<string, string> = {};
-  let prof: Record<string, string> = {};
-  try {
-    sf = JSON.parse(String(plan?.strategy_framework_json ?? '{}')) as Record<string, string>;
-  } catch {
-    sf = {};
+  if (!plan) {
+    return { strategy_framework: {}, target_market_prof: {} };
   }
-  try {
-    prof = JSON.parse(String(plan?.target_market_prof_json ?? '{}')) as Record<string, string>;
-  } catch {
-    prof = {};
-  }
-  return { strategy_framework: sf, target_market_prof: prof };
+  return {
+    strategy_framework: parseJsonRecord(plan.strategy_framework_json),
+    target_market_prof: parseJsonRecord(plan.target_market_prof_json),
+  };
 }
 
 export function mergeStrategyFramework(

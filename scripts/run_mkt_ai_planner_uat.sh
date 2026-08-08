@@ -218,14 +218,18 @@ echo "$APPLY_JSON" >"$ARTIFACT_DIR/apply.json"
 case "$APPLY_HTTP" in
   200)
     pass "POST apply HTTP 200"
-    python3 - <<PY || fail "EC-MKT-AI-03 gate after apply"
+    if python3 - <<PY
 import json
 d=json.load(open("$ARTIFACT_DIR/apply.json"))
 v=d.get("tmmt_validation") or {}
 assert v.get("ok") is True, v
 print("ok")
 PY
-    pass "EC-MKT-AI-03 — TMMT gate ok after apply"
+    then
+      pass "EC-MKT-AI-03 — TMMT gate ok after apply"
+    else
+      fail "EC-MKT-AI-03 gate after apply"
+    fi
     ;;
   409)
     blocked "POST apply 409 — seed official marketing_plan (./scripts/seed_mkt_ai_uat_lifecycle.sh)"

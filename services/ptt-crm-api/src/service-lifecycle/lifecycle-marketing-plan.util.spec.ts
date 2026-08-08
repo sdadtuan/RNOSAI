@@ -35,4 +35,19 @@ describe('lifecycle-marketing-plan.util', () => {
     });
     expect(gate.ok).toBe(true);
   });
+
+  it('reads jsonb objects from PostgreSQL rows', () => {
+    const gate = validateOfficialTmmt({
+      strategy_framework_json: { target_market: 'B2B SaaS' },
+      target_market_prof_json: {
+        market_context: 'ctx',
+        segmentation_icp: 'icp',
+        personas_roles: 'persona',
+        pains_desired_outcomes: 'pain',
+        tam_sam_som: 'tam',
+        geo_behavior: 'geo',
+      },
+    });
+    expect(gate.ok).toBe(true);
+  });
 });

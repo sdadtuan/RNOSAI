@@ -38,12 +38,24 @@ export LIFECYCLE_ID
 echo "UAT lifecycle: #${LIFECYCLE_ID}"
 
 echo ""
-echo "== 3/4 Smoke context =="
+echo "== 3/5 Rebuild Nest API (TMMT jsonb fix) =="
+cd "$ROOT/services/ptt-crm-api"
+npm run build
+if sudo -n systemctl restart ptt-crm-api 2>/dev/null; then
+  sleep 2
+  curl -sf http://127.0.0.1:3000/health && echo " Nest OK"
+else
+  echo "WARN: restart ptt-crm-api manually if code changed"
+fi
+cd "$ROOT"
+
+echo ""
+echo "== 4/5 Smoke context =="
 export PTT_API_URL="${PTT_API_URL:-http://127.0.0.1:3000}"
 bash "$ROOT/scripts/smoke_mkt_ai_planner_context.sh"
 
 echo ""
-echo "== 4/4 Full UAT =="
+echo "== 5/5 Full UAT =="
 bash "$ROOT/scripts/run_mkt_ai_planner_uat.sh"
 RC=$?
 
