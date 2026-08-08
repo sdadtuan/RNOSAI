@@ -15,10 +15,12 @@ import { MarketingAiApprovalService } from './marketing-ai-approval.service';
 import { MarketingAiBudgetService } from './marketing-ai-budget.service';
 import { MarketingAiExportService } from './marketing-ai-export.service';
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
+import { MarketingAiKpiAlertService } from './marketing-ai-kpi-alert.service';
 import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
 import { MarketingAiRagService } from './marketing-ai-rag.service';
 import { MarketingAiPlannerController } from './marketing-ai-planner.controller';
+import { MarketingAiKpiAlertController } from './marketing-ai-kpi-alert.controller';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
 import { MarketingAiPlannerService } from './marketing-ai-planner.service';
 
@@ -30,7 +32,7 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
     forwardRef(() => ServiceLifecycleModule),
     AiIntelligenceModule,
   ],
-  controllers: [MarketingAiPlannerController],
+  controllers: [MarketingAiPlannerController, MarketingAiKpiAlertController],
   providers: [
     MarketingAiPlannerRepository,
     MarketingAiOrchestratorService,
@@ -41,6 +43,7 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
     MarketingAiExportService,
     MarketingAiDashboardService,
     MarketingAiOptimizeService,
+    MarketingAiKpiAlertService,
     MarketingAiPlannerService,
     StaffMarketingAiPlannerViewGuard,
     StaffMarketingAiPlannerGenerateGuard,

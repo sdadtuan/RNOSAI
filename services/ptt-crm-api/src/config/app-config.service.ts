@@ -113,6 +113,10 @@ export class AppConfigService {
   readonly mktAiApproverNotifyUserIds: string[];
   readonly mktAiModel: string;
   readonly mktAiPlannerSlugs: string[];
+  readonly mktAiKpiAlertEnabled: boolean;
+  readonly mktAiKpiAlertCplPct: number;
+  readonly mktAiKpiAlertRoasPct: number;
+  readonly mktAiKpiAlertCooldownDays: number;
 
   constructor() {
     this.applyRuntimeEnvOverrides();
@@ -332,6 +336,21 @@ export class AppConfigService {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
+    this.mktAiKpiAlertEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MKT_AI_KPI_ALERT_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.mktAiKpiAlertCplPct = Math.max(
+      1,
+      Number(process.env.PTT_MKT_AI_KPI_ALERT_CPL_PCT ?? 15) || 15,
+    );
+    this.mktAiKpiAlertRoasPct = Math.max(
+      1,
+      Number(process.env.PTT_MKT_AI_KPI_ALERT_ROAS_PCT ?? 20) || 20,
+    );
+    this.mktAiKpiAlertCooldownDays = Math.max(
+      1,
+      Number(process.env.PTT_MKT_AI_KPI_ALERT_COOLDOWN_DAYS ?? 7) || 7,
+    );
   }
 
   private parsePortalCorsOrigins(): string[] {

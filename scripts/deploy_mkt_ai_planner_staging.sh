@@ -40,6 +40,7 @@ run_local() {
     "PTT_MKT_AI_PLANNER_SLUGS=meta-lead-gen" \
     "PTT_MKT_AI_RAG_ENABLED=1" \
     "PTT_MKT_AI_APPROVAL_REQUIRED=1" \
+    "PTT_MKT_AI_KPI_ALERT_ENABLED=1" \
     "NEXT_PUBLIC_MKT_AI_PLANNER=1"; do
     key="${kv%%=*}"
     if grep -q "^${key}=" "$RUNTIME_ENV" 2>/dev/null; then
@@ -54,7 +55,8 @@ run_local() {
     "PTT_MKT_AI_PLANNER_ENABLED=1" \
     "PTT_MKT_AI_PLANNER_SLUGS=meta-lead-gen" \
     "PTT_MKT_AI_RAG_ENABLED=1" \
-    "PTT_MKT_AI_APPROVAL_REQUIRED=1"; do
+    "PTT_MKT_AI_APPROVAL_REQUIRED=1" \
+    "PTT_MKT_AI_KPI_ALERT_ENABLED=1"; do
     key="${kv%%=*}"
     if [[ -f "$ROOT/.env" && -w "$ROOT/.env" ]]; then
       if grep -q "^${key}=" "$ROOT/.env" 2>/dev/null; then

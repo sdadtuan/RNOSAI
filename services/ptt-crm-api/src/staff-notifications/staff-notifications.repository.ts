@@ -9,7 +9,7 @@ import type {
 @Injectable()
 export class StaffNotificationsRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
-  private memory: Array<StaffNotificationRow & { user_id: string }> = [];
+  private memory: Array<StaffNotificationRow & { user_id: string; meta_json?: Record<string, unknown> }> = [];
   private seq = 1;
   private pgReady: boolean | null = null;
 
@@ -77,6 +77,7 @@ export class StaffNotificationsRepository implements OnModuleDestroy {
       link_href: link,
       read: false,
       created_at: now,
+      meta_json: meta,
     };
     this.memory.unshift(row);
     return row;
@@ -89,6 +90,31 @@ export class StaffNotificationsRepository implements OnModuleDestroy {
       count += 1;
     }
     return count;
+  }
+
+  async hasRecentAlertKey(alertKey: string, cooldownDays: number): Promise<boolean> {
+    const key = alertKey.trim();
+    if (!key) return false;
+    const days = Math.max(1, cooldownDays);
+
+    if (await this.ensurePgReady()) {
+      const result = await this.db.query(
+        `SELECT 1 FROM staff_notifications
+         WHERE meta_json->>'alert_key' = $1
+           AND created_at >= NOW() - ($2::text || ' days')::interval
+         LIMIT 1`,
+        [key, String(days)],
+      );
+      return (result.rowCount ?? 0) > 0;
+    }
+
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    return this.memory.some((row) => {
+      const ak = row.meta_json?.alert_key;
+      if (String(ak ?? '') !== key) return false;
+      const ts = Date.parse(row.created_at);
+      return Number.isFinite(ts) && ts >= cutoff;
+    });
   }
 
   async list(params: {

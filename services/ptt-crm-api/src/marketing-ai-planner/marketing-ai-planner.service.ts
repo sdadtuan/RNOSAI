@@ -16,6 +16,7 @@ import { MarketingAiApprovalService } from './marketing-ai-approval.service';
 import { MarketingAiBudgetService } from './marketing-ai-budget.service';
 import { MarketingAiExportService } from './marketing-ai-export.service';
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
+import { MarketingAiKpiAlertService } from './marketing-ai-kpi-alert.service';
 import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
 import { MarketingAiRagService } from './marketing-ai-rag.service';
@@ -54,6 +55,7 @@ export class MarketingAiPlannerService {
     private readonly exportService: MarketingAiExportService,
     private readonly dashboard: MarketingAiDashboardService,
     private readonly optimize: MarketingAiOptimizeService,
+    private readonly kpiAlerts: MarketingAiKpiAlertService,
   ) {}
 
   private assertEnabled(serviceSlug?: string): void {
@@ -727,5 +729,13 @@ export class MarketingAiPlannerService {
       recommendations: (output.recommendations ?? []) as MktAiOptimizeResult['recommendations'],
       tasks_created: output.tasks_created as MktAiOptimizeResult['tasks_created'],
     };
+  }
+
+  getKpiAlertStatus() {
+    return this.kpiAlerts.status();
+  }
+
+  runKpiAlertScan(opts: { dryRun?: boolean } = {}) {
+    return this.kpiAlerts.runWeeklyScan(opts);
   }
 }

@@ -73,6 +73,9 @@ export function StaffNotificationBell() {
                 <li key={n.id} className={n.read ? 'is-read' : 'is-unread'}>
                   <div>
                     <strong>{n.title}</strong>
+                    {n.kind === 'mkt_ai_kpi_drift' ? (
+                      <small className="staff-notif-bell__kind"> · KPI drift</small>
+                    ) : null}
                     {n.body ? <p>{n.body}</p> : null}
                     <small>{new Date(n.created_at).toLocaleString('vi-VN')}</small>
                   </div>
