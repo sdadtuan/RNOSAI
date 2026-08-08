@@ -66,7 +66,7 @@ Module **AI Marketing Planner** nhúng vào **Triển khai dịch vụ marketing
 | MKTP-UC-019 | Multi-agent pipeline | P2 | P3 | Implemented (staging) | — |
 | MKTP-UC-020 | Industry playbook | P2 | P3 | Implemented (staging) | — |
 | MKTP-UC-021 | Governance banner | P2 | P3 | Implemented (staging) | — |
-| MKTP-UC-024 | GA multi-slug rollout | P0 | P4 | In progress (WS-P4-01) | — |
+| MKTP-UC-024 | GA multi-slug rollout | P0 | P4 | Implemented (staging) | — |
 
 ---
 
