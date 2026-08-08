@@ -117,7 +117,11 @@ Quy tắc:
 - SWOT mỗi mảng 2–4 bullet ngắn.
 - Không thêm key ngoài schema.`;
 
-export function buildStrategyUserPrompt(brief: MktAiBrief, ragBlock?: string): string {
+export function buildStrategyUserPrompt(
+  brief: MktAiBrief,
+  ragBlock?: string,
+  playbookBlock?: string,
+): string {
   const objective = String(brief.objective ?? 'lead');
   const parts = [
     'Tạo chiến lược marketing từ brief sau:',
@@ -128,6 +132,9 @@ export function buildStrategyUserPrompt(brief: MktAiBrief, ragBlock?: string): s
     '',
     'Áp dụng framework 6T (target_market, market_message, media_reach, conversion, retention, nurture) và TMMT 12 mục.',
   ];
+  if (playbookBlock?.trim()) {
+    parts.push('', playbookBlock.trim());
+  }
   if (ragBlock?.trim()) {
     parts.push('', ragBlock.trim());
   }
@@ -156,13 +163,13 @@ Quy tắc:
 - timeline_weeks dạng "W1–W4".
 - milestones 3–5 bước thực thi.`;
 
-export function buildCampaignUserPrompt(brief: MktAiBrief): string {
+export function buildCampaignUserPrompt(brief: MktAiBrief, playbookBlock?: string): string {
   const objective = String(brief.objective ?? 'lead');
   const channels = OBJECTIVE_CHANNELS[objective] ?? OBJECTIVE_CHANNELS.lead;
   const channelTable = channels
     .map((c) => `| ${c.name} | ${c.goal} | ${c.kpi} | ${c.budget_pct}% |`)
     .join('\n');
-  return [
+  const parts = [
     'Thiết kế bộ chiến dịch từ brief:',
     '',
     buildBriefContextBlock(brief),
@@ -170,9 +177,12 @@ export function buildCampaignUserPrompt(brief: MktAiBrief): string {
     'Tham chiếu media mix (marketing_campaign_kit):',
     '| Kênh | Goal | KPI | Budget % |',
     channelTable,
-    '',
-    'Mỗi campaign gắn với 1–2 kênh trọng tâm; có milestone launch → optimize.',
-  ].join('\n');
+  ];
+  if (playbookBlock?.trim()) {
+    parts.push('', playbookBlock.trim());
+  }
+  parts.push('', 'Mỗi campaign gắn với 1–2 kênh trọng tâm; có milestone launch → optimize.');
+  return parts.join('\n');
 }
 
 export const MKT_AI_CONTENT_SYSTEM = `Bạn là content strategist marketing Việt Nam.

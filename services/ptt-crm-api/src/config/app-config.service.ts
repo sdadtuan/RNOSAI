@@ -117,6 +117,9 @@ export class AppConfigService {
   readonly mktAiKpiAlertCplPct: number;
   readonly mktAiKpiAlertRoasPct: number;
   readonly mktAiKpiAlertCooldownDays: number;
+  readonly mktAiPlaybooksEnabled: boolean;
+  readonly mktAiLaunchQaQualityGate: boolean;
+  readonly mktAiGovernanceBanner: boolean;
 
   constructor() {
     this.applyRuntimeEnvOverrides();
@@ -350,6 +353,15 @@ export class AppConfigService {
     this.mktAiKpiAlertCooldownDays = Math.max(
       1,
       Number(process.env.PTT_MKT_AI_KPI_ALERT_COOLDOWN_DAYS ?? 7) || 7,
+    );
+    this.mktAiPlaybooksEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MKT_AI_PLAYBOOKS_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.mktAiLaunchQaQualityGate = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MKT_AI_LAUNCH_QA_QUALITY_GATE ?? '0').trim().toLowerCase(),
+    );
+    this.mktAiGovernanceBanner = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MKT_AI_GOVERNANCE_BANNER ?? '0').trim().toLowerCase(),
     );
   }
 

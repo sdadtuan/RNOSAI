@@ -387,6 +387,10 @@ export function MarketingAiPlannerPanel({
                   canEdit={canEdit}
                   paused={busy}
                   resetAutosaveKey={contextVersion}
+                  playbooksEnabled={Boolean(ctx?.flags.playbooks_enabled)}
+                  playbookContext={ctx?.playbook}
+                  launchQaGate={ctx?.launch_qa_quality_gate}
+                  governanceEnabled={Boolean(ctx?.flags.playbook_governance_enabled)}
                   onPersisted={(out) => {
                     setBriefDraft(out.brief);
                     setCtx((prev) =>

@@ -54,15 +54,17 @@ export class MarketingAiOrchestratorService {
     opts?: {
       ragPromptBlock?: string;
       ragCitations?: Record<string, MktAiCitation[]>;
+      playbookPromptBlock?: string;
+      stubSwotJson?: Record<string, unknown>;
     },
   ): Promise<MktAiStrategyOutput> {
-    const fallback = this.buildStrategyStub(brief);
+    const fallback = this.buildStrategyStub(brief, opts?.stubSwotJson);
     if (opts?.ragCitations && Object.keys(opts.ragCitations).length) {
       fallback.rag_citations = opts.ragCitations;
     }
     const { parsed } = await this.llm.completeJson({
       systemPrompt: MKT_AI_STRATEGY_SYSTEM,
-      userContent: buildStrategyUserPrompt(brief, opts?.ragPromptBlock),
+      userContent: buildStrategyUserPrompt(brief, opts?.ragPromptBlock, opts?.playbookPromptBlock),
       model: this.modelName,
       stubJson: () => fallback as unknown as Record<string, unknown>,
     });
@@ -73,11 +75,14 @@ export class MarketingAiOrchestratorService {
     return out;
   }
 
-  async generateCampaigns(brief: MktAiBrief): Promise<MktAiCampaignDraft[]> {
+  async generateCampaigns(
+    brief: MktAiBrief,
+    opts?: { playbookPromptBlock?: string },
+  ): Promise<MktAiCampaignDraft[]> {
     const fallback = this.buildCampaignsStub(brief);
     const { parsed } = await this.llm.completeJson({
       systemPrompt: MKT_AI_CAMPAIGN_SYSTEM,
-      userContent: buildCampaignUserPrompt(brief),
+      userContent: buildCampaignUserPrompt(brief, opts?.playbookPromptBlock),
       model: this.modelName,
       stubJson: () => ({ campaigns: fallback }),
     });
@@ -111,7 +116,10 @@ export class MarketingAiOrchestratorService {
     return normalizeOptimizeRecommendations(parsed, fallback);
   }
 
-  private buildStrategyStub(brief: MktAiBrief): MktAiStrategyOutput {
+  private buildStrategyStub(
+    brief: MktAiBrief,
+    stubSwotJson?: Record<string, unknown>,
+  ): MktAiStrategyOutput {
     const brand = String(brief.brand_name ?? 'Khách hàng').trim();
     const industry = String(brief.industry ?? 'B2B').trim();
     const geo = (brief.geo_markets ?? []).join(', ') || 'Việt Nam';
@@ -159,7 +167,7 @@ export class MarketingAiOrchestratorService {
       if (!target_market_prof[key]) target_market_prof[key] = '';
     }
 
-    const swot_json = {
+    const swot_json = (stubSwotJson as Record<string, string[]> | undefined) ?? {
       strengths: [usp.slice(0, 80) || 'Sản phẩm/dịch vụ rõ ràng'],
       weaknesses: ['Brand awareness cần tăng'],
       opportunities: [`Tăng trưởng ${objective} trên ${geo}`],

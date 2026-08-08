@@ -136,13 +136,33 @@ export interface MktAiPlannerContext {
     can_export: boolean;
     can_export_docx_only?: boolean;
   };
-  flags: { rag_enabled: boolean; approval_required: boolean; stub_mode: boolean };
+  flags: {
+    rag_enabled: boolean;
+    approval_required: boolean;
+    stub_mode: boolean;
+    playbooks_enabled?: boolean;
+    playbook_governance_enabled?: boolean;
+    launch_qa_quality_gate_enabled?: boolean;
+  };
   documents?: MktAiDocumentRow[];
   rag?: { use_rag: boolean; indexed_count: number };
   budget_scenarios?: MktAiBudgetScenarioRow[];
   approval?: MktAiApprovalContext;
   comments?: MktAiCommentRow[];
   plan_versions?: MktAiPlanVersionSummary[];
+  playbook?: {
+    slug: string | null;
+    label_vi: string | null;
+    quality_gate: { min_score_launch_qa: number; met: boolean };
+    governance_notes: string[];
+  };
+  launch_qa_quality_gate?: {
+    required: boolean;
+    min_score: number;
+    current_score: number | null;
+    ok: boolean;
+    message_vi: string;
+  };
 }
 
 export type MktAiApprovalStatus =
@@ -561,6 +581,38 @@ export async function postMktAiOptimizeJob(
   },
 ) {
   return mktAiFetch<MktAiOptimizeResult>(token, lifecycleId, '/jobs/optimize', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export interface MktAiPlaybookListResult {
+  ok: boolean;
+  service_slug: string;
+  active_slug: string | null;
+  playbooks: Array<{
+    slug: string;
+    label_vi: string;
+    quality_gate: { min_score_launch_qa: number };
+  }>;
+}
+
+export async function fetchMktAiPlaybooks(token: string, lifecycleId: number) {
+  return mktAiFetch<MktAiPlaybookListResult>(token, lifecycleId, '/playbooks');
+}
+
+export async function postMktAiPlaybookApply(
+  token: string,
+  lifecycleId: number,
+  slug: string,
+  body: { confirm_overwrite?: boolean } = {},
+) {
+  return mktAiFetch<{
+    brief: MktAiBrief;
+    brief_validation: MktAiBriefValidation;
+    playbook_slug: string;
+    messages: string[];
+  }>(token, lifecycleId, `/playbooks/${encodeURIComponent(slug)}/apply`, {
     method: 'POST',
     body: JSON.stringify(body),
   });

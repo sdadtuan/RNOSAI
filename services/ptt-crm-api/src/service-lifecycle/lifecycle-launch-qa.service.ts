@@ -1,8 +1,11 @@
 import {
   BadRequestException,
+  ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
+  forwardRef,
 } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { CampaignWritesRepository } from '../campaign-writes/campaign-writes.repository';
@@ -20,6 +23,7 @@ import { isZaloLaunchQaItemKey } from '../zalo-tracking/launch-qa-zalo.util';
 import { launchQaGateFromRun, launchQaProgress } from './lifecycle-launch-gate.util';
 import { launchQaHandoverGateFromRun } from './lifecycle-launch-handover-gate.util';
 import { ServiceLifecycleSqliteRepository } from './service-lifecycle-sqlite.repository';
+import { MarketingAiPlaybookService } from '../marketing-ai-planner/marketing-ai-playbook.service';
 
 @Injectable()
 export class LifecycleLaunchQaService {
@@ -35,6 +39,8 @@ export class LifecycleLaunchQaService {
     private readonly config: AppConfigService,
     private readonly metaBridge: LaunchQaMetaBridgeService,
     private readonly zaloBridge: LaunchQaZaloBridgeService,
+    @Inject(forwardRef(() => MarketingAiPlaybookService))
+    private readonly playbooks: MarketingAiPlaybookService,
   ) {}
 
   async launchQa(lifecycleId: number) {
@@ -87,6 +93,19 @@ export class LifecycleLaunchQaService {
     if (!ctx.ok) {
       throw new BadRequestException({ error: ctx.message ?? 'missing_context' });
     }
+
+    const lcCtx = this.sqlite.getLifecycleContext(lifecycleId);
+    const serviceSlug = String(lcCtx?.service_slug ?? '');
+    const gate = await this.playbooks.checkLaunchQaQualityGate(lifecycleId, serviceSlug);
+    if (gate.required && !gate.ok) {
+      throw new ConflictException({
+        error: 'mkt_ai_quality_launch_qa_gate',
+        min_score: gate.min_score,
+        current_score: gate.current_score,
+        message_vi: gate.message_vi,
+      });
+    }
+
     const result = await this.autoStart.maybeStartOnDeliverEnter({
       agencyClientId: ctx.clientId!,
       externalCampaignId: ctx.campaignCode!,

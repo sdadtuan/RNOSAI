@@ -191,3 +191,18 @@ Bước 11 fail → **Thử lại** → success; strategy draft bước 8 vẫn 
 | MKTP-UC-015 | Lead R5 **AI draft** → promote → lifecycle prefill |
 
 *Chi tiết bước Phase 2 bổ sung khi ship MKT-AI-10…14.*
+
+---
+
+## MKTP-UC-020 — Industry playbook template (Phase 3)
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | SP | AI Planner → Brief | Mở tab Brief | — | Dropdown **Industry template** hiện playbook theo `service_slug` | ✓ `PTT_MKT_AI_PLAYBOOKS_ENABLED=1` |
+| 2 | SP | Same | **Áp dụng template** Meta Lead-gen | — | Brief prefill (objective, geo, pain); `_playbook_slug` lưu | ✓ |
+| 3 | SP | Same | (Tuỳ chọn) **Ghi đè toàn bộ** | confirm | Brief fields overwrite từ JSON playbook | ○ |
+| 4 | SP | Strategy/Campaign | **Sinh chiến lược / campaign** | — | Prompt có block playbook hints + KPI templates | ✓ |
+| 5 | SP | Apply / Quality | Chạy job Quality | — | Score ≥70 (playbook gate) | ✓ |
+| 6 | SP | Tab Launch QA | **Khởi tạo Launch QA** | — | 200 nếu score ≥70; 409 `mkt_ai_quality_launch_qa_gate` nếu thấp | ✓ `PTT_MKT_AI_LAUNCH_QA_QUALITY_GATE=1` |
+| 7 | SP | Launch QA | Đọc banner gate | — | Link `?tab=ai-planner&step=apply` | ✓ governance banner |
+| 8 | AM | Brief | Governance notes | — | 3 bullet BR-MKTP-01 / quality gate | ✓ `PTT_MKT_AI_GOVERNANCE_BANNER=1` |

@@ -27,6 +27,8 @@ export interface MktAiBrief {
   notes?: string;
   /** When true (default), strategy generation uses indexed Brand KB chunks. */
   use_rag?: boolean;
+  /** Internal metadata — industry playbook slug applied to brief. */
+  _playbook_slug?: string;
 }
 
 export type MktAiDocumentStatus =
@@ -146,7 +148,27 @@ export interface MktAiPlannerContext {
     can_export: boolean;
     can_export_docx_only?: boolean;
   };
-  flags: { rag_enabled: boolean; approval_required: boolean; stub_mode: boolean };
+  playbook?: {
+    slug: string | null;
+    label_vi: string | null;
+    quality_gate: { min_score_launch_qa: number; met: boolean };
+    governance_notes: string[];
+  };
+  launch_qa_quality_gate?: {
+    required: boolean;
+    min_score: number;
+    current_score: number | null;
+    ok: boolean;
+    message_vi: string;
+  };
+  flags: {
+    rag_enabled: boolean;
+    approval_required: boolean;
+    stub_mode: boolean;
+    playbooks_enabled?: boolean;
+    playbook_governance_enabled?: boolean;
+    launch_qa_quality_gate_enabled?: boolean;
+  };
   documents?: MktAiDocumentRow[];
   rag?: { use_rag: boolean; indexed_count: number };
   budget_scenarios?: MktAiBudgetScenarioRow[];
@@ -295,6 +317,28 @@ export interface MktAiOptimizeKpiContext {
   roas_stub: boolean;
   linked: boolean;
   target_cpl_vnd: number | null;
+}
+
+export interface MktAiPlaybookApplyBody {
+  confirm_overwrite?: boolean;
+}
+
+export interface MktAiPlaybookApplyResult {
+  brief: MktAiBrief;
+  brief_validation: MktAiBriefValidation;
+  playbook_slug: string;
+  messages: string[];
+}
+
+export interface MktAiPlaybookListResult {
+  ok: boolean;
+  service_slug: string;
+  active_slug: string | null;
+  playbooks: Array<{
+    slug: string;
+    label_vi: string;
+    quality_gate: { min_score_launch_qa: number };
+  }>;
 }
 
 export interface MktAiOptimizeResult {

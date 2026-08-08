@@ -17,6 +17,7 @@ import { MarketingAiExportService } from './marketing-ai-export.service';
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
 import { MarketingAiKpiAlertService } from './marketing-ai-kpi-alert.service';
 import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
+import { MarketingAiPlaybookService } from './marketing-ai-playbook.service';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
 import { MarketingAiRagService } from './marketing-ai-rag.service';
 import { MarketingAiPlannerController } from './marketing-ai-planner.controller';
@@ -44,12 +45,13 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
     MarketingAiDashboardService,
     MarketingAiOptimizeService,
     MarketingAiKpiAlertService,
+    MarketingAiPlaybookService,
     MarketingAiPlannerService,
     StaffMarketingAiPlannerViewGuard,
     StaffMarketingAiPlannerGenerateGuard,
     StaffMarketingAiPlannerExportGuard,
     StaffMarketingAiPlannerApproveGuard,
   ],
-  exports: [MarketingAiPlannerService, MarketingAiPlannerRepository],
+  exports: [MarketingAiPlannerService, MarketingAiPlannerRepository, MarketingAiPlaybookService],
 })
 export class MarketingAiPlannerModule {}

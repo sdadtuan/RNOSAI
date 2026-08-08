@@ -28,7 +28,7 @@ import {
   StaffMarketingAiPlannerViewGuard,
 } from './guards/staff-marketing-ai-planner.guard';
 import { MarketingAiPlannerService } from './marketing-ai-planner.service';
-import type { MktAiDraft, MktAiJobType, MktAiOptimizeBody } from './marketing-ai-planner.types';
+import type { MktAiDraft, MktAiJobType, MktAiOptimizeBody, MktAiPlaybookApplyBody } from './marketing-ai-planner.types';
 
 const RETRY_TYPE_MAP: Record<string, MktAiJobType> = {
   strategy: 'strategy_generate',
@@ -269,6 +269,23 @@ export class MarketingAiPlannerController {
     @Req() req: Request,
   ) {
     return this.planner.runOptimizeJob(lifecycleId, body ?? {}, actorEmail(req));
+  }
+
+  @Get('playbooks')
+  listPlaybooks(@Param('lifecycleId', ParseIntPipe) lifecycleId: number) {
+    return this.planner.listPlaybooks(lifecycleId);
+  }
+
+  @Post('playbooks/:slug/apply')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffMarketingAiPlannerGenerateGuard)
+  applyPlaybook(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('slug') slug: string,
+    @Body() body: MktAiPlaybookApplyBody,
+    @Req() req: Request,
+  ) {
+    return this.planner.applyPlaybook(lifecycleId, slug.trim(), body ?? {}, actorEmail(req));
   }
 
   @Post('jobs/multi-agent')

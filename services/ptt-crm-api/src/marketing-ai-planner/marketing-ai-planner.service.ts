@@ -18,6 +18,7 @@ import { MarketingAiExportService } from './marketing-ai-export.service';
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
 import { MarketingAiKpiAlertService } from './marketing-ai-kpi-alert.service';
 import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
+import { MarketingAiPlaybookService } from './marketing-ai-playbook.service';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
 import { MarketingAiRagService } from './marketing-ai-rag.service';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
@@ -29,6 +30,9 @@ import type {
   MktAiJobType,
   MktAiOptimizeBody,
   MktAiOptimizeResult,
+  MktAiPlaybookApplyBody,
+  MktAiPlaybookApplyResult,
+  MktAiPlaybookListResult,
   MktAiPlannerContext,
   MktAiDashboardPayload,
 } from './marketing-ai-planner.types';
@@ -56,6 +60,7 @@ export class MarketingAiPlannerService {
     private readonly dashboard: MarketingAiDashboardService,
     private readonly optimize: MarketingAiOptimizeService,
     private readonly kpiAlerts: MarketingAiKpiAlertService,
+    private readonly playbooks: MarketingAiPlaybookService,
   ) {}
 
   private assertEnabled(serviceSlug?: string): void {
@@ -166,6 +171,14 @@ export class MarketingAiPlannerService {
     const planVersions = this.versions.summarizeVersions(
       await this.versions.listVersions(lifecycleId, 20),
     );
+    const playbookCtx = this.playbooks.isEnabled()
+      ? this.playbooks.buildContextFromDraft({
+          brief: briefRow.brief_json,
+          draft,
+          serviceSlug,
+          qualityScore: quality.score,
+        })
+      : null;
 
     return {
       lifecycle_id: lifecycleId,
@@ -204,12 +217,68 @@ export class MarketingAiPlannerService {
         can_export: quality.can_export,
         can_export_docx_only: quality.can_export_docx_only,
       },
+      ...(playbookCtx
+        ? {
+            playbook: playbookCtx.playbook,
+            launch_qa_quality_gate: playbookCtx.launch_qa_quality_gate,
+          }
+        : {}),
       flags: {
         rag_enabled: this.rag.isFeatureEnabled(),
         approval_required: this.approval.isFeatureEnabled(),
         stub_mode: this.orchestrator.stubMode,
+        playbooks_enabled: this.playbooks.isEnabled(),
+        playbook_governance_enabled: this.playbooks.isGovernanceBannerEnabled(),
+        launch_qa_quality_gate_enabled: this.playbooks.isLaunchQaQualityGateEnabled(),
       },
     };
+  }
+
+  async listPlaybooks(lifecycleId: number): Promise<MktAiPlaybookListResult> {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    const serviceSlug = String(lc.service_slug ?? '');
+    this.assertEnabled(serviceSlug);
+    if (!this.playbooks.isEnabled()) {
+      return {
+        ok: true,
+        service_slug: serviceSlug,
+        active_slug: null,
+        playbooks: [],
+      };
+    }
+    const briefRow = await this.repo.getBrief(lifecycleId);
+    return this.playbooks.listForLifecycle(serviceSlug, briefRow?.brief_json ?? null);
+  }
+
+  async applyPlaybook(
+    lifecycleId: number,
+    slug: string,
+    body: MktAiPlaybookApplyBody,
+    actorEmail: string,
+  ): Promise<MktAiPlaybookApplyResult> {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    const serviceSlug = String(lc.service_slug ?? '');
+    this.assertEnabled(serviceSlug);
+    if (!this.playbooks.isEnabled()) {
+      throw new NotFoundException({ error: 'mkt_ai_playbooks_disabled' });
+    }
+
+    const existing = await this.repo.getBrief(lifecycleId);
+    return this.playbooks.mergeAndPersistPlaybook({
+      lifecycleId,
+      slug,
+      serviceSlug,
+      existingBrief: existing?.brief_json ?? null,
+      confirmOverwrite: Boolean(body.confirm_overwrite),
+      actorEmail,
+      prefillSources: existing?.prefill_sources_json ?? [],
+    });
+  }
+
+  private loadPlaybookPromptHints(brief: MktAiBrief, serviceSlug: string) {
+    if (!this.playbooks.isEnabled()) return {};
+    const playbook = this.playbooks.resolvePlaybook(brief._playbook_slug, serviceSlug);
+    return this.playbooks.buildPromptHints(playbook);
   }
 
   async listDocuments(lifecycleId: number) {
@@ -392,9 +461,12 @@ export class MarketingAiPlannerService {
       const ragCitations = ragCtx.enabled
         ? this.rag.attachCitations(ragCtx.chunks)
         : undefined;
+      const playbookHints = this.loadPlaybookPromptHints(brief, String(lc.service_slug ?? ''));
       const out = await this.orchestrator.generateStrategy(brief, {
         ragPromptBlock: ragCtx.promptBlock,
         ragCitations,
+        playbookPromptBlock: playbookHints.strategyBlock,
+        stubSwotJson: playbookHints.stubSwotJson,
       });
       const draft = await this.repo.ensureDraft(lifecycleId, actorEmail);
       await this.repo.upsertDraft(
@@ -421,7 +493,10 @@ export class MarketingAiPlannerService {
     const brief = await this.requireBrief(lifecycleId);
 
     return this.runJob(lifecycleId, 'campaign_generate', actorEmail, async () => {
-      const campaigns = await this.orchestrator.generateCampaigns(brief);
+      const playbookHints = this.loadPlaybookPromptHints(brief, String(lc.service_slug ?? ''));
+      const campaigns = await this.orchestrator.generateCampaigns(brief, {
+        playbookPromptBlock: playbookHints.campaignBlock,
+      });
       const draft = await this.repo.ensureDraft(lifecycleId, actorEmail);
       await this.repo.upsertDraft(lifecycleId, { ...draft, campaigns_json: campaigns }, actorEmail);
       await this.repo.replaceCampaigns(lifecycleId, null, campaigns);

@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { fetchMktAiPlannerContext } from '@/lib/mkt-ai-planner-api';
 import {
   fetchServiceLifecycleBudgetBrief,
   fetchServiceLifecycleCreativeBrief,
@@ -82,6 +84,14 @@ interface Props {
   lifecycleId: number;
 }
 
+type MktAiGateBanner = {
+  required: boolean;
+  min_score: number;
+  current_score: number | null;
+  ok: boolean;
+  message_vi: string;
+};
+
 const META_LAUNCH_QA_KEYS = new Set([
   'meta_pixel_configured',
   'meta_capi_test_ok',
@@ -119,19 +129,22 @@ export function LifecycleLaunchQaPanel({ token, user, lifecycleId }: Props) {
   const [creativeDesc, setCreativeDesc] = useState('');
   const [assetUrl, setAssetUrl] = useState('');
   const [budgetVnd, setBudgetVnd] = useState('');
+  const [mktAiGate, setMktAiGate] = useState<MktAiGateBanner | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [qa, br, bb] = await Promise.all([
+      const [qa, br, bb, mktCtx] = await Promise.all([
         fetchServiceLifecycleLaunchQa(token, lifecycleId),
         fetchServiceLifecycleCreativeBrief(token, lifecycleId),
         fetchServiceLifecycleBudgetBrief(token, lifecycleId),
+        fetchMktAiPlannerContext(token, lifecycleId).catch(() => null),
       ]);
       setData(qa);
       setBrief(br);
       setBudgetBrief(bb);
+      setMktAiGate(mktCtx?.launch_qa_quality_gate ?? null);
       if (!creativeTitle && br.suggested_brief?.title) {
         setCreativeTitle(br.suggested_brief.title);
       }
@@ -161,7 +174,12 @@ export function LifecycleLaunchQaPanel({ token, user, lifecycleId }: Props) {
       setMessage('Đã khởi tạo Launch QA run');
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Khởi tạo thất bại');
+      const message = err instanceof Error ? err.message : 'Khởi tạo thất bại';
+      if (message.includes('mkt_ai_quality_launch_qa_gate') || message.includes('Quality Score')) {
+        setError(message);
+      } else {
+        setError(message);
+      }
     } finally {
       setSaving(false);
     }
@@ -239,6 +257,32 @@ export function LifecycleLaunchQaPanel({ token, user, lifecycleId }: Props) {
     <div style={{ display: 'grid', gap: '1rem' }}>
       {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
 
+      {mktAiGate?.required && !mktAiGate.ok ? (
+        <div
+          className="card"
+          style={{
+            padding: '0.75rem 1rem',
+            border: '1px solid #c90',
+            background: 'rgba(255, 200, 0, 0.06)',
+          }}
+        >
+          <strong style={{ display: 'block', marginBottom: '0.35rem' }}>
+            Campaign Quality Score gate (MKT AI)
+          </strong>
+          <p style={{ margin: 0, fontSize: '0.85rem' }}>
+            {mktAiGate.message_vi}
+          </p>
+          <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
+            <Link
+              href={`/crm/service-delivery/${lifecycleId}?tab=ai-planner&step=apply`}
+              className="nav-link"
+            >
+              Mở AI Planner → Apply / Quality
+            </Link>
+          </p>
+        </div>
+      ) : null}
+
       <div className="card" style={{ padding: '1rem', display: 'grid', gap: '0.85rem' }}>
         <div>
           <h3 style={{ margin: 0, fontSize: '1rem' }}>Launch QA</h3>
@@ -270,7 +314,12 @@ export function LifecycleLaunchQaPanel({ token, user, lifecycleId }: Props) {
               {data.message ?? 'Chưa có Launch QA run.'}
             </p>
             {canEdit ? (
-              <button type="button" className="btn btn-sm" disabled={saving} onClick={() => void onStart()}>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={saving || Boolean(mktAiGate?.required && !mktAiGate.ok)}
+                onClick={() => void onStart()}
+              >
                 Khởi tạo Launch QA
               </button>
             ) : null}

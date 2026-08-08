@@ -9,6 +9,7 @@ import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { SvcFinanceModule } from '../svc-finance/svc-finance.module';
 import { TemporalModule } from '../temporal/temporal.module';
 import { LaunchQaModule } from '../launch-qa/launch-qa.module';
+import { MarketingAiPlannerModule } from '../marketing-ai-planner/marketing-ai-planner.module';
 import { WorkflowsModule } from '../workflows/workflows.module';
 import {
   StaffServiceLifecycleViewGuard,
@@ -40,6 +41,7 @@ import { ServiceLifecycleService } from './service-lifecycle.service';
     TemporalModule,
     WorkflowsModule,
     LaunchQaModule,
+    forwardRef(() => MarketingAiPlannerModule),
   ],
   controllers: [ServiceLifecycleController],
   providers: [

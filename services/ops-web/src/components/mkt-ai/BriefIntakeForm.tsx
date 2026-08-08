@@ -18,6 +18,9 @@ import {
   useIntakeAutosave,
 } from '@/lib/crm/use-intake-autosave';
 import { BRIEF_FIELD_LABELS } from '@/lib/tmmt-labels';
+import { AiGovernanceBanner } from '@/components/mkt-ai/AiGovernanceBanner';
+import { AiPlaybookSelector } from '@/components/mkt-ai/AiPlaybookSelector';
+import type { MktAiPlannerContext } from '@/lib/mkt-ai-planner-api';
 
 const inputStyle: React.CSSProperties = {
   background: 'var(--bg)',
@@ -43,6 +46,10 @@ interface Props {
   onPersisted: (result: { brief: MktAiBrief; brief_validation: MktAiBriefValidation }) => void;
   onContinue: () => void;
   onSaveError?: (message: string) => void;
+  playbooksEnabled?: boolean;
+  playbookContext?: MktAiPlannerContext['playbook'];
+  launchQaGate?: MktAiPlannerContext['launch_qa_quality_gate'];
+  governanceEnabled?: boolean;
 }
 
 export function BriefIntakeForm({
@@ -59,6 +66,10 @@ export function BriefIntakeForm({
   onPersisted,
   onContinue,
   onSaveError,
+  playbooksEnabled = false,
+  playbookContext,
+  launchQaGate,
+  governanceEnabled = false,
 }: Props) {
   const fieldRefs = useRef<Partial<Record<string, HTMLElement | null>>>({});
 
@@ -199,6 +210,34 @@ export function BriefIntakeForm({
         >
           Đã nhập từ: {prefillSources!.join(' · ')}
         </p>
+      ) : null}
+
+      {playbooksEnabled ? (
+        <AiPlaybookSelector
+          token={token}
+          lifecycleId={lifecycleId}
+          serviceSlug={serviceSlug}
+          canEdit={canEdit}
+          paused={paused}
+          activeSlug={playbookContext?.slug ?? null}
+          onApplied={(out) => {
+            onBriefChange(out.brief);
+            onPersisted(out);
+          }}
+          onError={onSaveError}
+        />
+      ) : null}
+
+      {governanceEnabled ? (
+        <AiGovernanceBanner
+          playbookLabel={playbookContext?.label_vi}
+          governanceNotes={playbookContext?.governance_notes ?? []}
+          qualityScore={launchQaGate?.current_score ?? null}
+          minScore={launchQaGate?.min_score ?? playbookContext?.quality_gate.min_score_launch_qa ?? 70}
+          gateOk={launchQaGate?.ok ?? true}
+          gateRequired={launchQaGate?.required ?? false}
+          gateMessage={launchQaGate?.message_vi}
+        />
       ) : null}
 
       <div
