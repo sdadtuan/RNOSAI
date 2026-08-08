@@ -143,6 +143,7 @@ export interface MktAiPlannerContext {
     playbooks_enabled?: boolean;
     playbook_governance_enabled?: boolean;
     launch_qa_quality_gate_enabled?: boolean;
+    multi_agent_enabled?: boolean;
   };
   documents?: MktAiDocumentRow[];
   rag?: { use_rag: boolean; indexed_count: number };
@@ -163,6 +164,7 @@ export interface MktAiPlannerContext {
     ok: boolean;
     message_vi: string;
   };
+  multi_agent?: MktAiMultiAgentStatusPayload;
 }
 
 export type MktAiApprovalStatus =
@@ -616,4 +618,74 @@ export async function postMktAiPlaybookApply(
     method: 'POST',
     body: JSON.stringify(body),
   });
+}
+
+export type MktAiPipelineStep = 'strategist' | 'planner' | 'copywriter' | 'analyst';
+
+export interface MktAiMultiAgentBody {
+  pipeline_key?: 'default_v1';
+  playbook_slug?: string;
+  steps?: MktAiPipelineStep[];
+  skip_analyst?: boolean;
+  stop_on_failure?: boolean;
+  start_from_step?: MktAiPipelineStep;
+}
+
+export interface MktAiMultiAgentChildJobRef {
+  step: MktAiPipelineStep;
+  job_type: string;
+  job_id: number;
+  status: 'succeeded' | 'failed' | 'skipped';
+  latency_ms?: number;
+  error_message?: string;
+}
+
+export interface MktAiMultiAgentOutput {
+  pipeline_key: string;
+  playbook_slug: string | null;
+  child_jobs: MktAiMultiAgentChildJobRef[];
+  failed_step?: MktAiPipelineStep;
+  quality_score?: number;
+}
+
+export interface MktAiMultiAgentResult {
+  ok: boolean;
+  job_id: number;
+  status: 'succeeded' | 'partial' | 'failed';
+  output: MktAiMultiAgentOutput;
+  draft?: MktAiDraft;
+}
+
+export interface MktAiMultiAgentStepState {
+  step: MktAiPipelineStep;
+  label_vi: string;
+  job_type: string;
+  state: 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped';
+  job_id?: number;
+}
+
+export interface MktAiMultiAgentStatusPayload {
+  ok: boolean;
+  parent_job: MktAiJobRow | null;
+  pipeline_key: string | null;
+  playbook_slug: string | null;
+  rollup_status: 'idle' | 'running' | 'succeeded' | 'partial' | 'failed';
+  steps: MktAiMultiAgentStepState[];
+  quality_score?: number;
+  failed_step?: MktAiPipelineStep;
+}
+
+export async function postMktAiMultiAgentJob(
+  token: string,
+  lifecycleId: number,
+  body: MktAiMultiAgentBody = {},
+) {
+  return mktAiFetch<MktAiMultiAgentResult>(token, lifecycleId, '/jobs/multi-agent', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchMktAiMultiAgentStatus(token: string, lifecycleId: number) {
+  return mktAiFetch<MktAiMultiAgentStatusPayload>(token, lifecycleId, '/multi-agent/status');
 }

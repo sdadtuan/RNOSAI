@@ -206,3 +206,18 @@ Bước 11 fail → **Thử lại** → success; strategy draft bước 8 vẫn 
 | 6 | SP | Tab Launch QA | **Khởi tạo Launch QA** | — | 200 nếu score ≥70; 409 `mkt_ai_quality_launch_qa_gate` nếu thấp | ✓ `PTT_MKT_AI_LAUNCH_QA_QUALITY_GATE=1` |
 | 7 | SP | Launch QA | Đọc banner gate | — | Link `?tab=ai-planner&step=apply` | ✓ governance banner |
 | 8 | AM | Brief | Governance notes | — | 3 bullet BR-MKTP-01 / quality gate | ✓ `PTT_MKT_AI_GOVERNANCE_BANNER=1` |
+
+---
+
+## MKTP-UC-019 — Multi-agent pipeline (Phase 3)
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | SP | AI Planner → Pipeline AI | Mở step **Pipeline AI** | — | 4 agent chips + playbook dropdown | ✓ `PTT_MKT_AI_MULTI_AGENT_ENABLED=1` |
+| 2 | SP | Same | Brief hợp lệ + chọn playbook | — | Nút **Chạy pipeline AI** enabled | ✓ |
+| 3 | SP | Same | **Chạy pipeline AI** | — | Parent job `multi_agent` + 4 child jobs | ✓ BR-MKTP-03 |
+| 4 | System | API | Tuần tự strategy → campaign → content → quality | — | Draft đầy đủ; job panel cập nhật | ✓ |
+| 5 | SP | Job panel | Xem parent **Pipeline AI · parent** | — | Child jobs riêng từng loại | ✓ |
+| 6 | SP | Same | (Test fail step 3) **Chạy từ bước hiện tại** | start_from_step | Partial — giữ draft bước 1–2 | ✓ EC-MKT-AI-05 |
+| 7 | SP | Same | Link **Xem trace admin →** | — | `/admin/ai/agents?plan=mkt_ai` | ✓ |
+| 8 | SP | Context | `GET multi-agent/status` | — | Step states succeeded/failed/pending | ✓ |

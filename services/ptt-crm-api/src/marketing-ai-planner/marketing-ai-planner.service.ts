@@ -17,6 +17,7 @@ import { MarketingAiBudgetService } from './marketing-ai-budget.service';
 import { MarketingAiExportService } from './marketing-ai-export.service';
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
 import { MarketingAiKpiAlertService } from './marketing-ai-kpi-alert.service';
+import { MarketingAiMultiAgentService } from './marketing-ai-multi-agent.service';
 import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
 import { MarketingAiPlaybookService } from './marketing-ai-playbook.service';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
@@ -30,6 +31,9 @@ import type {
   MktAiJobType,
   MktAiOptimizeBody,
   MktAiOptimizeResult,
+  MktAiMultiAgentBody,
+  MktAiMultiAgentResult,
+  MktAiMultiAgentStatusPayload,
   MktAiPlaybookApplyBody,
   MktAiPlaybookApplyResult,
   MktAiPlaybookListResult,
@@ -61,6 +65,7 @@ export class MarketingAiPlannerService {
     private readonly optimize: MarketingAiOptimizeService,
     private readonly kpiAlerts: MarketingAiKpiAlertService,
     private readonly playbooks: MarketingAiPlaybookService,
+    private readonly multiAgent: MarketingAiMultiAgentService,
   ) {}
 
   private assertEnabled(serviceSlug?: string): void {
@@ -223,6 +228,9 @@ export class MarketingAiPlannerService {
             launch_qa_quality_gate: playbookCtx.launch_qa_quality_gate,
           }
         : {}),
+      ...(this.multiAgent.isEnabled()
+        ? { multi_agent: await this.multiAgent.getStatus(lifecycleId) }
+        : {}),
       flags: {
         rag_enabled: this.rag.isFeatureEnabled(),
         approval_required: this.approval.isFeatureEnabled(),
@@ -230,6 +238,7 @@ export class MarketingAiPlannerService {
         playbooks_enabled: this.playbooks.isEnabled(),
         playbook_governance_enabled: this.playbooks.isGovernanceBannerEnabled(),
         launch_qa_quality_gate_enabled: this.playbooks.isLaunchQaQualityGateEnabled(),
+        multi_agent_enabled: this.multiAgent.isEnabled(),
       },
     };
   }
@@ -812,5 +821,33 @@ export class MarketingAiPlannerService {
 
   runKpiAlertScan(opts: { dryRun?: boolean } = {}) {
     return this.kpiAlerts.runWeeklyScan(opts);
+  }
+
+  loadLifecyclePublic(id: number) {
+    return this.loadLifecycleRow(id);
+  }
+
+  assertEnabledPublic(serviceSlug?: string) {
+    return this.assertEnabled(serviceSlug);
+  }
+
+  getOrchestratorModelName() {
+    return this.orchestrator.modelName;
+  }
+
+  isStubMode() {
+    return this.orchestrator.stubMode;
+  }
+
+  async runMultiAgentJob(
+    lifecycleId: number,
+    body: MktAiMultiAgentBody,
+    actorEmail: string,
+  ): Promise<MktAiMultiAgentResult> {
+    return this.multiAgent.run(lifecycleId, body, actorEmail);
+  }
+
+  async getMultiAgentStatus(lifecycleId: number): Promise<MktAiMultiAgentStatusPayload> {
+    return this.multiAgent.getStatus(lifecycleId);
   }
 }

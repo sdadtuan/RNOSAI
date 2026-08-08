@@ -120,6 +120,7 @@ export class AppConfigService {
   readonly mktAiPlaybooksEnabled: boolean;
   readonly mktAiLaunchQaQualityGate: boolean;
   readonly mktAiGovernanceBanner: boolean;
+  readonly mktAiMultiAgentEnabled: boolean;
 
   constructor() {
     this.applyRuntimeEnvOverrides();
@@ -362,6 +363,9 @@ export class AppConfigService {
     );
     this.mktAiGovernanceBanner = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_MKT_AI_GOVERNANCE_BANNER ?? '0').trim().toLowerCase(),
+    );
+    this.mktAiMultiAgentEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MKT_AI_MULTI_AGENT_ENABLED ?? '0').trim().toLowerCase(),
     );
   }
 

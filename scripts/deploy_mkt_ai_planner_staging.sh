@@ -44,6 +44,7 @@ run_local() {
     "PTT_MKT_AI_PLAYBOOKS_ENABLED=1" \
     "PTT_MKT_AI_LAUNCH_QA_QUALITY_GATE=1" \
     "PTT_MKT_AI_GOVERNANCE_BANNER=1" \
+    "PTT_MKT_AI_MULTI_AGENT_ENABLED=1" \
     "NEXT_PUBLIC_MKT_AI_PLANNER=1"; do
     key="${kv%%=*}"
     if grep -q "^${key}=" "$RUNTIME_ENV" 2>/dev/null; then
@@ -62,7 +63,8 @@ run_local() {
     "PTT_MKT_AI_KPI_ALERT_ENABLED=1" \
     "PTT_MKT_AI_PLAYBOOKS_ENABLED=1" \
     "PTT_MKT_AI_LAUNCH_QA_QUALITY_GATE=1" \
-    "PTT_MKT_AI_GOVERNANCE_BANNER=1"; do
+    "PTT_MKT_AI_GOVERNANCE_BANNER=1" \
+    "PTT_MKT_AI_MULTI_AGENT_ENABLED=1"; do
     key="${kv%%=*}"
     if [[ -f "$ROOT/.env" && -w "$ROOT/.env" ]]; then
       if grep -q "^${key}=" "$ROOT/.env" 2>/dev/null; then
@@ -102,7 +104,7 @@ run_local() {
   echo "     bash scripts/run_mkt_ai_planner_uat.sh"
 
   echo "== MKT-AI staging kickoff complete =="
-  echo "Flags: PTT_MKT_AI_PLANNER_ENABLED=1 PTT_MKT_AI_PLANNER_SLUGS=meta-lead-gen PTT_MKT_AI_PLAYBOOKS_ENABLED=1 PTT_MKT_AI_LAUNCH_QA_QUALITY_GATE=1 PTT_MKT_AI_GOVERNANCE_BANNER=1 NEXT_PUBLIC_MKT_AI_PLANNER=1"
+  echo "Flags: PTT_MKT_AI_PLANNER_ENABLED=1 PTT_MKT_AI_PLANNER_SLUGS=meta-lead-gen PTT_MKT_AI_PLAYBOOKS_ENABLED=1 PTT_MKT_AI_MULTI_AGENT_ENABLED=1 NEXT_PUBLIC_MKT_AI_PLANNER=1"
   echo "Ops-web: rebuild with NEXT_PUBLIC_MKT_AI_PLANNER=1 to show tab (deploy_ops_web.sh)"
 }
 

@@ -5,7 +5,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  NotImplementedException,
   Param,
   ParseIntPipe,
   Patch,
@@ -28,7 +27,7 @@ import {
   StaffMarketingAiPlannerViewGuard,
 } from './guards/staff-marketing-ai-planner.guard';
 import { MarketingAiPlannerService } from './marketing-ai-planner.service';
-import type { MktAiDraft, MktAiJobType, MktAiOptimizeBody, MktAiPlaybookApplyBody } from './marketing-ai-planner.types';
+import type { MktAiDraft, MktAiJobType, MktAiMultiAgentBody, MktAiOptimizeBody, MktAiPlaybookApplyBody } from './marketing-ai-planner.types';
 
 const RETRY_TYPE_MAP: Record<string, MktAiJobType> = {
   strategy: 'strategy_generate',
@@ -289,7 +288,18 @@ export class MarketingAiPlannerController {
   }
 
   @Post('jobs/multi-agent')
-  multiAgent() {
-    throw new NotImplementedException({ error: 'mkt_ai_multi_agent_phase4' });
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffMarketingAiPlannerGenerateGuard)
+  multiAgent(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: MktAiMultiAgentBody,
+    @Req() req: Request,
+  ) {
+    return this.planner.runMultiAgentJob(lifecycleId, body ?? {}, actorEmail(req));
+  }
+
+  @Get('multi-agent/status')
+  multiAgentStatus(@Param('lifecycleId', ParseIntPipe) lifecycleId: number) {
+    return this.planner.getMultiAgentStatus(lifecycleId);
   }
 }

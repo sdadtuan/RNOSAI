@@ -10,6 +10,7 @@ const JOB_LABELS: Record<string, string> = {
   content_generate: 'Content',
   quality_score: 'Quality score',
   apply_to_tmmt: 'Apply TMMT',
+  multi_agent: 'Pipeline AI',
 };
 
 interface Props {
@@ -95,7 +96,15 @@ export function AiJobProgressPanel({ jobs, stubMode, onRetry, retrying }: Props)
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <span style={{ width: 18, textAlign: 'center', color: meta.color }}>{meta.icon}</span>
-                    <span style={{ flex: 1 }}>{JOB_LABELS[job.job_type] ?? job.job_type}</span>
+                    <span style={{ flex: 1 }}>
+                      {JOB_LABELS[job.job_type] ?? job.job_type}
+                      {job.job_type === 'multi_agent' ? (
+                        <span className="muted" style={{ fontSize: '0.72rem' }}>
+                          {' '}
+                          · parent
+                        </span>
+                      ) : null}
+                    </span>
                     <span style={{ color: meta.color, fontSize: '0.75rem' }}>{meta.label}</span>
                     {failed && retryType && onRetry ? (
                       <button

@@ -16,6 +16,7 @@ import { MarketingAiBudgetService } from './marketing-ai-budget.service';
 import { MarketingAiExportService } from './marketing-ai-export.service';
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
 import { MarketingAiKpiAlertService } from './marketing-ai-kpi-alert.service';
+import { MarketingAiMultiAgentService } from './marketing-ai-multi-agent.service';
 import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
 import { MarketingAiPlaybookModule } from './marketing-ai-playbook.module';
 import { MarketingAiPlaybookService } from './marketing-ai-playbook.service';
@@ -47,6 +48,7 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
     MarketingAiDashboardService,
     MarketingAiOptimizeService,
     MarketingAiKpiAlertService,
+    MarketingAiMultiAgentService,
     MarketingAiPlannerService,
     StaffMarketingAiPlannerViewGuard,
     StaffMarketingAiPlannerGenerateGuard,

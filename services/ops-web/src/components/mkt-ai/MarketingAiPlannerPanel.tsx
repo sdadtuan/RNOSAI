@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { AiAgentPipelinePicker } from '@/components/mkt-ai/AiAgentPipelinePicker';
 import { AiPlannerKpiDashboard } from '@/components/mkt-ai/AiPlannerKpiDashboard';
 import { AiBrandKbPanel } from '@/components/mkt-ai/AiBrandKbPanel';
 import { AiBudgetSimulator } from '@/components/mkt-ai/AiBudgetSimulator';
@@ -40,6 +41,7 @@ const STEPS = [
   { id: 'campaign', label: 'Campaign' },
   { id: 'content', label: 'Content' },
   { id: 'apply', label: 'Apply' },
+  { id: 'agents', label: 'Pipeline AI' },
   { id: 'dashboard', label: 'Dashboard' },
 ] as const;
 
@@ -65,12 +67,13 @@ function parseStep(raw: string | null): StepId {
     raw === 'campaign' ||
     raw === 'content' ||
     raw === 'apply' ||
+    raw === 'agents' ||
     raw === 'dashboard'
   ) {
     return raw;
   }
   const n = Number(raw);
-  if (n >= 1 && n <= 6) return STEPS[n - 1].id;
+  if (n >= 1 && n <= 7) return STEPS[n - 1].id;
   return 'brief';
 }
 
@@ -188,8 +191,11 @@ export function MarketingAiPlannerPanel({
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', 'ai-planner');
     params.set('step', next);
-    if (next !== 'brief' && next !== 'campaign' && next !== 'dashboard') params.delete('sub');
+    if (next !== 'brief' && next !== 'campaign' && next !== 'dashboard' && next !== 'agents') {
+      params.delete('sub');
+    }
     if (next === 'dashboard') params.set('sub', 'dashboard');
+    if (next === 'agents') params.set('sub', 'agents');
     router.replace(`?${params.toString()}`, { scroll: false });
   }
 
@@ -303,6 +309,9 @@ export function MarketingAiPlannerPanel({
             (s.id === 'campaign' && campaigns.length > 0) ||
             (s.id === 'content' && calendar.length > 0) ||
             (s.id === 'apply' && Boolean(ctx?.tmmt_validation.ok)) ||
+            (s.id === 'agents' &&
+              (ctx?.multi_agent?.rollup_status === 'succeeded' ||
+                ctx?.multi_agent?.rollup_status === 'partial')) ||
             (s.id === 'dashboard' && (stage === 'deliver' || stage === 'retain'));
           return (
             <button
@@ -542,6 +551,35 @@ export function MarketingAiPlannerPanel({
               onQualityUpdated={reload}
               onMessage={setMessage}
               onError={setError}
+            />
+          ) : null}
+
+          {step === 'agents' ? (
+            <AiAgentPipelinePicker
+              token={token}
+              lifecycleId={lifecycleId}
+              serviceSlug={serviceSlug ?? ctx?.service_slug}
+              canEdit={canEdit}
+              paused={busy}
+              briefReady={Boolean(briefValidation?.ok)}
+              playbooksEnabled={Boolean(ctx?.flags.playbooks_enabled)}
+              governanceEnabled={Boolean(ctx?.flags.playbook_governance_enabled)}
+              playbookContext={ctx?.playbook}
+              launchQaGate={ctx?.launch_qa_quality_gate}
+              multiAgent={ctx?.multi_agent}
+              qualityScore={quality?.score ?? null}
+              onAppliedPlaybook={(out) => {
+                setBriefDraft(out.brief);
+                setCtx((prev) =>
+                  prev
+                    ? { ...prev, brief: out.brief, brief_validation: out.brief_validation }
+                    : prev,
+                );
+                setMessage(out.messages.join(' · ') || 'Đã áp dụng playbook');
+              }}
+              onPipelineFinished={() => void reload()}
+              onError={setError}
+              onMessage={setMessage}
             />
           ) : null}
 
