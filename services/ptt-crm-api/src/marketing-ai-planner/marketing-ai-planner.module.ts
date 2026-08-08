@@ -36,6 +36,6 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
     StaffMarketingAiPlannerExportGuard,
     StaffMarketingAiPlannerApproveGuard,
   ],
-  exports: [MarketingAiPlannerService, MarketingAiPlannerRepository, MarketingAiOrchestratorService],
+  exports: [MarketingAiPlannerService, MarketingAiPlannerRepository],
 })
 export class MarketingAiPlannerModule {}
