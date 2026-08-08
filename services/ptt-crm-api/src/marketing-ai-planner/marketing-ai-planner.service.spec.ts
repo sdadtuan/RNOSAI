@@ -55,6 +55,14 @@ describe('MarketingAiPlannerService', () => {
     simulate: jest.fn(),
     applyScenario: jest.fn(),
   };
+  const approval = {
+    isFeatureEnabled: jest.fn().mockReturnValue(false),
+    buildContext: jest.fn().mockResolvedValue({
+      approval: { required: false, latest: null, can_export: true, can_submit: false },
+      comments: [],
+    }),
+    assertExportAllowed: jest.fn(),
+  };
 
   let service: MarketingAiPlannerService;
 
@@ -67,6 +75,7 @@ describe('MarketingAiPlannerService', () => {
       orchestrator as never,
       rag as never,
       budget as never,
+      approval as never,
       agentRuns as never,
       exportService as never,
     );
@@ -99,6 +108,7 @@ describe('MarketingAiPlannerService', () => {
       orchestrator as never,
       rag as never,
       budget as never,
+      approval as never,
       agentRuns as never,
       exportService as never,
     );

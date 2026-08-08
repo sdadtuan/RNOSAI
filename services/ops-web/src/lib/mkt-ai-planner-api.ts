@@ -140,6 +140,52 @@ export interface MktAiPlannerContext {
   documents?: MktAiDocumentRow[];
   rag?: { use_rag: boolean; indexed_count: number };
   budget_scenarios?: MktAiBudgetScenarioRow[];
+  approval?: MktAiApprovalContext;
+  comments?: MktAiCommentRow[];
+}
+
+export type MktAiApprovalStatus =
+  | 'pending'
+  | 'approved'
+  | 'changes_requested'
+  | 'rejected'
+  | 'cancelled';
+
+export interface MktAiPlanVersionRow {
+  id: number;
+  version_no: number;
+  label: string;
+  status: string;
+}
+
+export interface MktAiApprovalRow {
+  id: number;
+  lifecycle_id: number;
+  plan_version_id: number;
+  status: MktAiApprovalStatus;
+  requested_by: string;
+  approver_email: string | null;
+  decision_note: string;
+  requested_at: string;
+  decided_at: string | null;
+  plan_version?: MktAiPlanVersionRow;
+}
+
+export interface MktAiCommentRow {
+  id: number;
+  lifecycle_id: number;
+  plan_version_id: number | null;
+  approval_id: number | null;
+  author_email: string;
+  body: string;
+  created_at: string;
+}
+
+export interface MktAiApprovalContext {
+  required: boolean;
+  latest: MktAiApprovalRow | null;
+  can_export: boolean;
+  can_submit: boolean;
 }
 
 export interface MktAiBudgetScenarioRow {
@@ -335,4 +381,46 @@ export function downloadMktAiExportFile(out: {
   a.download = out.filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export async function fetchMktAiApprovals(token: string, lifecycleId: number) {
+  return mktAiFetch<{ approvals: MktAiApprovalRow[] }>(token, lifecycleId, '/approvals');
+}
+
+export async function postMktAiSubmitApproval(
+  token: string,
+  lifecycleId: number,
+  body?: { label?: string; note?: string },
+) {
+  return mktAiFetch<{ approval: MktAiApprovalRow; plan_version_id: number }>(
+    token,
+    lifecycleId,
+    '/approvals',
+    { method: 'POST', body: JSON.stringify(body ?? {}) },
+  );
+}
+
+export async function postMktAiDecideApproval(
+  token: string,
+  lifecycleId: number,
+  approvalId: number,
+  body: { decision: 'approve' | 'changes_requested' | 'reject'; note?: string },
+) {
+  return mktAiFetch<{ approval: MktAiApprovalRow }>(
+    token,
+    lifecycleId,
+    `/approvals/${approvalId}/decide`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+export async function postMktAiComment(
+  token: string,
+  lifecycleId: number,
+  body: { body: string; approval_id?: number; plan_version_id?: number },
+) {
+  return mktAiFetch<{ comment: MktAiCommentRow }>(token, lifecycleId, '/comments', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }

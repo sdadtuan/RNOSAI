@@ -150,6 +150,74 @@ export interface MktAiPlannerContext {
   documents?: MktAiDocumentRow[];
   rag?: { use_rag: boolean; indexed_count: number };
   budget_scenarios?: MktAiBudgetScenarioRow[];
+  approval?: MktAiApprovalContext;
+  comments?: MktAiCommentRow[];
+}
+
+export type MktAiApprovalStatus =
+  | 'pending'
+  | 'approved'
+  | 'changes_requested'
+  | 'rejected'
+  | 'cancelled';
+
+export type MktAiPlanVersionStatus =
+  | 'draft'
+  | 'pending_approval'
+  | 'approved'
+  | 'applied'
+  | 'archived';
+
+export interface MktAiPlanVersionRow {
+  id: number;
+  lifecycle_id: number;
+  version_no: number;
+  label: string;
+  status: MktAiPlanVersionStatus;
+  brief_json: MktAiBrief;
+  strategy_framework_json: Record<string, string>;
+  target_market_prof_json: Record<string, string>;
+  campaigns_json: MktAiCampaignDraft[];
+  content_json: Record<string, unknown>;
+  quality_score_json: Record<string, unknown>;
+  marketing_plan_id: number | null;
+  applied_at: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface MktAiApprovalRow {
+  id: number;
+  lifecycle_id: number;
+  plan_version_id: number;
+  status: MktAiApprovalStatus;
+  requested_by: string;
+  approver_email: string | null;
+  decision_note: string;
+  requested_at: string;
+  decided_at: string | null;
+  created_at: string;
+  updated_at: string;
+  plan_version?: MktAiPlanVersionRow;
+}
+
+export interface MktAiCommentRow {
+  id: number;
+  lifecycle_id: number;
+  plan_version_id: number | null;
+  approval_id: number | null;
+  author_email: string;
+  body: string;
+  anchor_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MktAiApprovalContext {
+  required: boolean;
+  latest: MktAiApprovalRow | null;
+  can_export: boolean;
+  can_submit: boolean;
 }
 
 export const REQUIRED_BRIEF_FIELDS = [

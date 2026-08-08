@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AiApplyTmmtModal } from '@/components/mkt-ai/AiApplyTmmtModal';
+import { AiPlanApprovalBar } from '@/components/mkt-ai/AiPlanApprovalBar';
 import { AiQualityScoreCard, type QualityScoreView } from '@/components/mkt-ai/AiQualityScoreCard';
 import { ExportPlanActions } from '@/components/mkt-ai/ExportPlanActions';
 import { fetchServiceLifecycleMarketingPlan } from '@/lib/api';
@@ -13,6 +14,8 @@ import {
   postMktAiExport,
   postMktAiQualityJob,
   type MktAiDraft,
+  type MktAiApprovalContext,
+  type MktAiCommentRow,
 } from '@/lib/mkt-ai-planner-api';
 
 interface Props {
@@ -22,6 +25,10 @@ interface Props {
   quality: QualityScoreView | null | undefined;
   canEdit: boolean;
   canExport: boolean;
+  canApprove: boolean;
+  approval?: MktAiApprovalContext;
+  comments?: MktAiCommentRow[];
+  approvalRequired?: boolean;
   paused?: boolean;
   onOpenTmmtTab?: () => void;
   onApplied?: () => void;
@@ -37,6 +44,10 @@ export function AiApplyStepPanel({
   quality,
   canEdit,
   canExport,
+  canApprove,
+  approval,
+  comments,
+  approvalRequired = false,
   paused = false,
   onOpenTmmtTab,
   onApplied,
@@ -173,6 +184,21 @@ export function AiApplyStepPanel({
 
   return (
     <div style={{ display: 'grid', gap: '0.85rem' }}>
+      {approval ? (
+        <AiPlanApprovalBar
+          token={token}
+          lifecycleId={lifecycleId}
+          approval={approval}
+          comments={comments}
+          canEdit={canEdit}
+          canApprove={canApprove}
+          busy={busy || paused}
+          onRefresh={onQualityUpdated}
+          onMessage={onMessage}
+          onError={onError}
+        />
+      ) : null}
+
       <AiQualityScoreCard
         quality={quality}
         loading={qualityLoading}
@@ -253,6 +279,8 @@ export function AiApplyStepPanel({
       <ExportPlanActions
         quality={quality}
         canExport={canExport}
+        approvalRequired={approvalRequired}
+        approvalCanExport={approval?.can_export ?? true}
         busy={busy || paused}
         onExport={(format) => void handleExport(format)}
       />

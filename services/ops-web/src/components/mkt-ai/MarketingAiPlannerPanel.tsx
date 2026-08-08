@@ -13,6 +13,7 @@ import { AiJobProgressPanel } from '@/components/mkt-ai/AiJobProgressPanel';
 import { AiTmmtGateBanner } from '@/components/mkt-ai/AiTmmtGateBanner';
 import styles from '@/components/mkt-ai/mkt-ai-planner.module.css';
 import {
+  canApproveMktAiPlanner,
   canExportMktAiPlanner,
   canGenerateMktAiPlanner,
   type StoredStaffUser,
@@ -104,6 +105,7 @@ export function MarketingAiPlannerPanel({
 
   const canGenerate = canGenerateMktAiPlanner(user);
   const canExport = canExportMktAiPlanner(user);
+  const canApprove = canApproveMktAiPlanner(user);
   const readOnlyStage = !['onboard', 'deliver'].includes(stage);
   const canEdit = canGenerate && !readOnlyStage;
 
@@ -514,6 +516,10 @@ export function MarketingAiPlannerPanel({
               quality={quality}
               canEdit={canEdit}
               canExport={canExport}
+              canApprove={canApprove}
+              approval={ctx?.approval}
+              comments={ctx?.comments}
+              approvalRequired={ctx?.flags.approval_required}
               paused={busy}
               onOpenTmmtTab={onOpenTmmtTab}
               onApplied={onApplied}

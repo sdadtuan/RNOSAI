@@ -109,6 +109,8 @@ export class AppConfigService {
   readonly mobileForceUpdate: boolean;
   readonly mktAiPlannerEnabled: boolean;
   readonly mktAiRagEnabled: boolean;
+  readonly mktAiApprovalRequired: boolean;
+  readonly mktAiApproverNotifyUserIds: string[];
   readonly mktAiModel: string;
   readonly mktAiPlannerSlugs: string[];
 
@@ -318,6 +320,13 @@ export class AppConfigService {
     this.mktAiRagEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_MKT_AI_RAG_ENABLED ?? '0').trim().toLowerCase(),
     );
+    this.mktAiApprovalRequired = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MKT_AI_APPROVAL_REQUIRED ?? '0').trim().toLowerCase(),
+    );
+    this.mktAiApproverNotifyUserIds = (process.env.PTT_MKT_AI_APPROVER_NOTIFY_USER_IDS ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     this.mktAiModel = (process.env.PTT_MKT_AI_MODEL ?? '').trim();
     this.mktAiPlannerSlugs = (process.env.PTT_MKT_AI_PLANNER_SLUGS ?? '')
       .split(',')

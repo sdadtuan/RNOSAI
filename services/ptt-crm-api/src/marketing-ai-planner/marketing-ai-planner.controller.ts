@@ -10,6 +10,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Req,
   UploadedFile,
   UseGuards,
@@ -21,6 +22,7 @@ import type { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import {
+  StaffMarketingAiPlannerApproveGuard,
   StaffMarketingAiPlannerExportGuard,
   StaffMarketingAiPlannerGenerateGuard,
   StaffMarketingAiPlannerViewGuard,
@@ -176,23 +178,50 @@ export class MarketingAiPlannerController {
   }
 
   @Get('approvals')
-  listApprovals() {
-    throw new NotImplementedException({ error: 'mkt_ai_approvals_phase2' });
+  listApprovals(@Param('lifecycleId', ParseIntPipe) lifecycleId: number) {
+    return this.planner.listApprovals(lifecycleId);
   }
 
   @Post('approvals')
-  createApproval() {
-    throw new NotImplementedException({ error: 'mkt_ai_approvals_phase2' });
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffMarketingAiPlannerGenerateGuard)
+  submitApproval(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.planner.submitApproval(lifecycleId, body, actorEmail(req));
+  }
+
+  @Post('approvals/:approvalId/decide')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffMarketingAiPlannerApproveGuard)
+  decideApproval(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('approvalId', ParseIntPipe) approvalId: number,
+    @Body() body: { decision?: string; note?: string },
+    @Req() req: Request,
+  ) {
+    return this.planner.decideApproval(lifecycleId, approvalId, body, actorEmail(req));
   }
 
   @Get('comments')
-  listComments() {
-    throw new NotImplementedException({ error: 'mkt_ai_comments_phase2' });
+  listComments(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Query('plan_version_id') planVersionId?: string,
+  ) {
+    const pv = planVersionId ? Number(planVersionId) : undefined;
+    return this.planner.listComments(lifecycleId, Number.isFinite(pv) ? pv : undefined);
   }
 
   @Post('comments')
-  createComment() {
-    throw new NotImplementedException({ error: 'mkt_ai_comments_phase2' });
+  @HttpCode(HttpStatus.CREATED)
+  createComment(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.planner.createComment(lifecycleId, body, actorEmail(req));
   }
 
   @Get('versions')

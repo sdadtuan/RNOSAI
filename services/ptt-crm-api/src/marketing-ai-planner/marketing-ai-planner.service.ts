@@ -11,6 +11,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { validateMktAiBrief, mergeBrief, emptyDraft } from './marketing-ai-brief.util';
 import { computeQualityScore } from './marketing-ai-quality.util';
+import { MarketingAiApprovalService } from './marketing-ai-approval.service';
 import { MarketingAiBudgetService } from './marketing-ai-budget.service';
 import { MarketingAiExportService } from './marketing-ai-export.service';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
@@ -41,6 +42,7 @@ export class MarketingAiPlannerService {
     private readonly orchestrator: MarketingAiOrchestratorService,
     private readonly rag: MarketingAiRagService,
     private readonly budget: MarketingAiBudgetService,
+    private readonly approval: MarketingAiApprovalService,
     private readonly agentRuns: AiAgentRunsRepository,
     private readonly exportService: MarketingAiExportService,
   ) {}
@@ -119,6 +121,12 @@ export class MarketingAiPlannerService {
     const useRag = this.rag.shouldUseRag(briefRow.brief_json, indexedCount);
     const ragCitations = draft.quality_score_json?.rag_citations;
     const budgetScenarios = await this.repo.listBudgetScenarios(lifecycleId);
+    const approvalCtx = await this.approval.buildContext(
+      lifecycleId,
+      briefRow.brief_json,
+      draft,
+      quality.can_export,
+    );
 
     return {
       lifecycle_id: lifecycleId,
@@ -142,6 +150,8 @@ export class MarketingAiPlannerService {
         indexed_count: indexedCount,
       },
       budget_scenarios: budgetScenarios,
+      approval: approvalCtx.approval,
+      comments: approvalCtx.comments,
       tmmt_validation: {
         ok: Boolean(tmmtPayload.validation?.ok),
         messages: tmmtPayload.validation?.messages ?? [],
@@ -156,7 +166,7 @@ export class MarketingAiPlannerService {
       },
       flags: {
         rag_enabled: this.rag.isFeatureEnabled(),
-        approval_required: false,
+        approval_required: this.approval.isFeatureEnabled(),
         stub_mode: this.orchestrator.stubMode,
       },
     };
@@ -442,6 +452,79 @@ export class MarketingAiPlannerService {
     return applied;
   }
 
+  async listApprovals(lifecycleId: number) {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+    const approvals = await this.approval.listApprovals(lifecycleId);
+    return { approvals };
+  }
+
+  async submitApproval(
+    lifecycleId: number,
+    body: Record<string, unknown>,
+    actorEmail: string,
+  ) {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+    return this.approval.submitForApproval(lifecycleId, actorEmail, {
+      label: body.label != null ? String(body.label) : undefined,
+      note: body.note != null ? String(body.note) : undefined,
+    });
+  }
+
+  async decideApproval(
+    lifecycleId: number,
+    approvalId: number,
+    body: Record<string, unknown>,
+    actorEmail: string,
+  ) {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+    const decision = String(body.decision ?? '').trim();
+    const mapped =
+      decision === 'approve'
+        ? 'approved'
+        : decision === 'reject'
+          ? 'rejected'
+          : decision === 'changes_requested'
+            ? 'changes_requested'
+            : null;
+    if (!mapped) {
+      throw new BadRequestException({ error: 'invalid_decision', decision });
+    }
+    const approval = await this.approval.decideApproval(
+      lifecycleId,
+      approvalId,
+      mapped,
+      actorEmail,
+      body.note != null ? String(body.note) : undefined,
+    );
+    return { approval };
+  }
+
+  async listComments(lifecycleId: number, planVersionId?: number) {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+    const comments = await this.approval.listComments(lifecycleId, planVersionId);
+    return { comments };
+  }
+
+  async createComment(
+    lifecycleId: number,
+    body: Record<string, unknown>,
+    actorEmail: string,
+  ) {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+    const comment = await this.approval.addComment(lifecycleId, actorEmail, {
+      body: String(body.body ?? ''),
+      plan_version_id: body.plan_version_id != null ? Number(body.plan_version_id) : undefined,
+      approval_id: body.approval_id != null ? Number(body.approval_id) : undefined,
+      anchor: (body.anchor as Record<string, unknown>) ?? undefined,
+    });
+    return { comment };
+  }
+
   async retryJob(lifecycleId: number, jobType: string, actorEmail: string) {
     if (!RETRY_JOB_TYPES.includes(jobType as MktAiJobType)) {
       throw new BadRequestException({ error: 'invalid_job_type', job_type: jobType });
@@ -532,6 +615,11 @@ export class MarketingAiPlannerService {
     if (ctx.quality_score?.can_export_docx_only && fmt !== 'docx') {
       throw new BadRequestException({ error: 'export_docx_only', score });
     }
+
+    this.approval.assertExportAllowed(
+      ctx.flags.approval_required,
+      ctx.approval?.latest?.status,
+    );
 
     const isDraftExport = !ctx.tmmt_validation.ok;
     const result = await this.exportService.buildExport({

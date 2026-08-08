@@ -96,6 +96,10 @@ export function canExportMktAiPlanner(user: StoredStaffUser | null): boolean {
   return hasCap(user, 'crm_mkt_ai', 'export');
 }
 
+export function canApproveMktAiPlanner(user: StoredStaffUser | null): boolean {
+  return hasCap(user, 'crm_mkt_ai', 'approve');
+}
+
 export function updateStoredUser(user: StoredStaffUser): void {
   if (typeof window === 'undefined') return;
   sessionStorage.setItem(USER_KEY, JSON.stringify(user));

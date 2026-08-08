@@ -3,14 +3,19 @@ import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { emptyDraft } from './marketing-ai-brief.util';
 import type {
+  MktAiApprovalRow,
+  MktAiApprovalStatus,
   MktAiBrief,
   MktAiBudgetScenarioRow,
+  MktAiCommentRow,
   MktAiDocumentRow,
   MktAiDocumentStatus,
   MktAiDraft,
   MktAiJobRow,
   MktAiJobStatus,
   MktAiJobType,
+  MktAiPlanVersionRow,
+  MktAiPlanVersionStatus,
   MktAiRagChunkHit,
 } from './marketing-ai-planner.types';
 import type { MktAiBudgetScenarioDraft } from './marketing-ai-budget.util';
@@ -25,6 +30,9 @@ type MemoryStore = {
   exports: Array<Record<string, unknown>>;
   documents: MktAiDocumentRow[];
   budgetScenarios: MktAiBudgetScenarioRow[];
+  planVersions: MktAiPlanVersionRow[];
+  approvals: MktAiApprovalRow[];
+  comments: MktAiCommentRow[];
   chunks: Array<{
     id: number;
     document_id: number;
@@ -38,6 +46,9 @@ type MemoryStore = {
   nextDocumentId: number;
   nextChunkId: number;
   nextBudgetScenarioId: number;
+  nextPlanVersionId: number;
+  nextApprovalId: number;
+  nextCommentId: number;
 };
 
 @Injectable()
@@ -53,11 +64,17 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
     exports: [],
     documents: [],
     budgetScenarios: [],
+    planVersions: [],
+    approvals: [],
+    comments: [],
     chunks: [],
     nextJobId: 1,
     nextDocumentId: 1,
     nextChunkId: 1,
     nextBudgetScenarioId: 1,
+    nextPlanVersionId: 1,
+    nextApprovalId: 1,
+    nextCommentId: 1,
   };
 
   constructor(private readonly config: AppConfigService) {}
@@ -798,6 +815,397 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
       title: String(r.title ?? ''),
       body: String(r.body ?? ''),
       rank: Number(r.rank ?? 0),
+    };
+  }
+
+  async getNextPlanVersionNo(lifecycleId: number): Promise<number> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT COALESCE(MAX(version_no), 0) + 1 AS next_no
+         FROM mkt_ai_plan_versions WHERE lifecycle_id = $1`,
+        [lifecycleId],
+      );
+      return Number(res.rows[0]?.next_no ?? 1);
+    }
+    const max = this.memory.planVersions
+      .filter((v) => v.lifecycle_id === lifecycleId)
+      .reduce((acc, v) => Math.max(acc, v.version_no), 0);
+    return max + 1;
+  }
+
+  async createPlanVersion(row: {
+    lifecycle_id: number;
+    version_no: number;
+    label: string;
+    status: MktAiPlanVersionStatus;
+    brief_json: MktAiBrief;
+    strategy_framework_json: Record<string, string>;
+    target_market_prof_json: Record<string, string>;
+    campaigns_json: MktAiDraft['campaigns_json'];
+    content_json: Record<string, unknown>;
+    quality_score_json: Record<string, unknown>;
+    created_by: string;
+  }): Promise<MktAiPlanVersionRow> {
+    const now = this.nowIso();
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `INSERT INTO mkt_ai_plan_versions (
+           lifecycle_id, version_no, label, status, brief_json,
+           strategy_framework_json, target_market_prof_json, campaigns_json,
+           content_json, quality_score_json, created_by, created_at
+         ) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, NOW())
+         RETURNING id, lifecycle_id, version_no, label, status, brief_json,
+                   strategy_framework_json, target_market_prof_json, campaigns_json,
+                   content_json, quality_score_json, marketing_plan_id, applied_at,
+                   created_by, created_at::text`,
+        [
+          row.lifecycle_id,
+          row.version_no,
+          row.label,
+          row.status,
+          JSON.stringify(row.brief_json),
+          JSON.stringify(row.strategy_framework_json),
+          JSON.stringify(row.target_market_prof_json),
+          JSON.stringify(row.campaigns_json ?? []),
+          JSON.stringify(row.content_json ?? {}),
+          JSON.stringify(row.quality_score_json ?? {}),
+          row.created_by,
+        ],
+      );
+      return this.mapPlanVersionRow(res.rows[0]);
+    }
+    const version: MktAiPlanVersionRow = {
+      id: this.memory.nextPlanVersionId++,
+      lifecycle_id: row.lifecycle_id,
+      version_no: row.version_no,
+      label: row.label,
+      status: row.status,
+      brief_json: row.brief_json,
+      strategy_framework_json: row.strategy_framework_json,
+      target_market_prof_json: row.target_market_prof_json,
+      campaigns_json: row.campaigns_json ?? [],
+      content_json: row.content_json ?? {},
+      quality_score_json: row.quality_score_json ?? {},
+      marketing_plan_id: null,
+      applied_at: null,
+      created_by: row.created_by,
+      created_at: now,
+    };
+    this.memory.planVersions.push(version);
+    return version;
+  }
+
+  async updatePlanVersionStatus(
+    versionId: number,
+    status: MktAiPlanVersionStatus,
+  ): Promise<MktAiPlanVersionRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `UPDATE mkt_ai_plan_versions SET status = $2
+         WHERE id = $1
+         RETURNING id, lifecycle_id, version_no, label, status, brief_json,
+                   strategy_framework_json, target_market_prof_json, campaigns_json,
+                   content_json, quality_score_json, marketing_plan_id, applied_at,
+                   created_by, created_at::text`,
+        [versionId, status],
+      );
+      return res.rows[0] ? this.mapPlanVersionRow(res.rows[0]) : null;
+    }
+    const row = this.memory.planVersions.find((v) => v.id === versionId);
+    if (!row) return null;
+    row.status = status;
+    return row;
+  }
+
+  async getPlanVersion(versionId: number): Promise<MktAiPlanVersionRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, version_no, label, status, brief_json,
+                strategy_framework_json, target_market_prof_json, campaigns_json,
+                content_json, quality_score_json, marketing_plan_id, applied_at,
+                created_by, created_at::text
+         FROM mkt_ai_plan_versions WHERE id = $1`,
+        [versionId],
+      );
+      return res.rows[0] ? this.mapPlanVersionRow(res.rows[0]) : null;
+    }
+    return this.memory.planVersions.find((v) => v.id === versionId) ?? null;
+  }
+
+  async listApprovals(lifecycleId: number, limit = 20): Promise<MktAiApprovalRow[]> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT a.id, a.lifecycle_id, a.plan_version_id, a.status, a.requested_by,
+                a.approver_email, a.decision_note, a.requested_at::text, a.decided_at::text,
+                a.created_at::text, a.updated_at::text,
+                v.id AS pv_id, v.version_no, v.label AS pv_label, v.status AS pv_status
+         FROM mkt_ai_approvals a
+         JOIN mkt_ai_plan_versions v ON v.id = a.plan_version_id
+         WHERE a.lifecycle_id = $1
+         ORDER BY a.requested_at DESC
+         LIMIT $2`,
+        [lifecycleId, limit],
+      );
+      return res.rows.map((r) => this.mapApprovalRow(r));
+    }
+    return this.memory.approvals
+      .filter((a) => a.lifecycle_id === lifecycleId)
+      .sort((a, b) => b.requested_at.localeCompare(a.requested_at))
+      .slice(0, limit)
+      .map((a) => {
+        const pv = this.memory.planVersions.find((v) => v.id === a.plan_version_id);
+        return pv ? { ...a, plan_version: pv } : a;
+      });
+  }
+
+  async getLatestApproval(lifecycleId: number): Promise<MktAiApprovalRow | null> {
+    const rows = await this.listApprovals(lifecycleId, 1);
+    return rows[0] ?? null;
+  }
+
+  async getPendingApproval(lifecycleId: number): Promise<MktAiApprovalRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT a.id, a.lifecycle_id, a.plan_version_id, a.status, a.requested_by,
+                a.approver_email, a.decision_note, a.requested_at::text, a.decided_at::text,
+                a.created_at::text, a.updated_at::text,
+                v.id AS pv_id, v.version_no, v.label AS pv_label, v.status AS pv_status
+         FROM mkt_ai_approvals a
+         JOIN mkt_ai_plan_versions v ON v.id = a.plan_version_id
+         WHERE a.lifecycle_id = $1 AND a.status = 'pending'
+         ORDER BY a.requested_at DESC
+         LIMIT 1`,
+        [lifecycleId],
+      );
+      return res.rows[0] ? this.mapApprovalRow(res.rows[0]) : null;
+    }
+    const pending = this.memory.approvals
+      .filter((a) => a.lifecycle_id === lifecycleId && a.status === 'pending')
+      .sort((a, b) => b.requested_at.localeCompare(a.requested_at))[0];
+    if (!pending) return null;
+    const pv = this.memory.planVersions.find((v) => v.id === pending.plan_version_id);
+    return pv ? { ...pending, plan_version: pv } : pending;
+  }
+
+  async createApproval(row: {
+    lifecycle_id: number;
+    plan_version_id: number;
+    requested_by: string;
+    decision_note?: string;
+  }): Promise<MktAiApprovalRow> {
+    const now = this.nowIso();
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `INSERT INTO mkt_ai_approvals (
+           lifecycle_id, plan_version_id, status, requested_by, decision_note,
+           requested_at, created_at, updated_at
+         ) VALUES ($1, $2, 'pending', $3, $4, NOW(), NOW(), NOW())
+         RETURNING id, lifecycle_id, plan_version_id, status, requested_by,
+                   approver_email, decision_note, requested_at::text, decided_at::text,
+                   created_at::text, updated_at::text`,
+        [row.lifecycle_id, row.plan_version_id, row.requested_by, row.decision_note ?? ''],
+      );
+      const approval = this.mapApprovalRow(res.rows[0]);
+      const pv = await this.getPlanVersion(approval.plan_version_id);
+      return pv ? { ...approval, plan_version: pv } : approval;
+    }
+    const approval: MktAiApprovalRow = {
+      id: this.memory.nextApprovalId++,
+      lifecycle_id: row.lifecycle_id,
+      plan_version_id: row.plan_version_id,
+      status: 'pending',
+      requested_by: row.requested_by,
+      approver_email: null,
+      decision_note: row.decision_note ?? '',
+      requested_at: now,
+      decided_at: null,
+      created_at: now,
+      updated_at: now,
+    };
+    this.memory.approvals.push(approval);
+    const pv = this.memory.planVersions.find((v) => v.id === row.plan_version_id);
+    return pv ? { ...approval, plan_version: pv } : approval;
+  }
+
+  async decideApproval(
+    approvalId: number,
+    patch: {
+      status: MktAiApprovalStatus;
+      approver_email: string;
+      decision_note?: string;
+    },
+  ): Promise<MktAiApprovalRow | null> {
+    const now = this.nowIso();
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `UPDATE mkt_ai_approvals SET
+           status = $2,
+           approver_email = $3,
+           decision_note = COALESCE($4, decision_note),
+           decided_at = NOW(),
+           updated_at = NOW()
+         WHERE id = $1
+         RETURNING id, lifecycle_id, plan_version_id, status, requested_by,
+                   approver_email, decision_note, requested_at::text, decided_at::text,
+                   created_at::text, updated_at::text`,
+        [approvalId, patch.status, patch.approver_email, patch.decision_note ?? null],
+      );
+      if (!res.rows[0]) return null;
+      const approval = this.mapApprovalRow(res.rows[0]);
+      const pv = await this.getPlanVersion(approval.plan_version_id);
+      return pv ? { ...approval, plan_version: pv } : approval;
+    }
+    const row = this.memory.approvals.find((a) => a.id === approvalId);
+    if (!row) return null;
+    row.status = patch.status;
+    row.approver_email = patch.approver_email;
+    row.decision_note = patch.decision_note ?? row.decision_note;
+    row.decided_at = now;
+    row.updated_at = now;
+    const pv = this.memory.planVersions.find((v) => v.id === row.plan_version_id);
+    return pv ? { ...row, plan_version: pv } : row;
+  }
+
+  async listComments(lifecycleId: number, planVersionId?: number, limit = 50): Promise<MktAiCommentRow[]> {
+    if (await this.ensurePgReady()) {
+      const clauses = ['lifecycle_id = $1'];
+      const values: unknown[] = [lifecycleId];
+      if (planVersionId != null) {
+        clauses.push('plan_version_id = $2');
+        values.push(planVersionId);
+      }
+      values.push(limit);
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, plan_version_id, approval_id, author_email, body,
+                anchor_json, created_at::text, updated_at::text
+         FROM mkt_ai_comments
+         WHERE ${clauses.join(' AND ')}
+         ORDER BY created_at DESC
+         LIMIT $${values.length}`,
+        values,
+      );
+      return res.rows.map((r) => this.mapCommentRow(r));
+    }
+    return this.memory.comments
+      .filter(
+        (c) =>
+          c.lifecycle_id === lifecycleId &&
+          (planVersionId == null || c.plan_version_id === planVersionId),
+      )
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .slice(0, limit);
+  }
+
+  async createComment(row: {
+    lifecycle_id: number;
+    plan_version_id: number | null;
+    approval_id: number | null;
+    author_email: string;
+    body: string;
+    anchor_json?: Record<string, unknown>;
+  }): Promise<MktAiCommentRow> {
+    const now = this.nowIso();
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `INSERT INTO mkt_ai_comments (
+           lifecycle_id, plan_version_id, approval_id, author_email, body, anchor_json,
+           created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, NOW(), NOW())
+         RETURNING id, lifecycle_id, plan_version_id, approval_id, author_email, body,
+                   anchor_json, created_at::text, updated_at::text`,
+        [
+          row.lifecycle_id,
+          row.plan_version_id,
+          row.approval_id,
+          row.author_email,
+          row.body,
+          JSON.stringify(row.anchor_json ?? {}),
+        ],
+      );
+      return this.mapCommentRow(res.rows[0]);
+    }
+    const comment: MktAiCommentRow = {
+      id: this.memory.nextCommentId++,
+      lifecycle_id: row.lifecycle_id,
+      plan_version_id: row.plan_version_id,
+      approval_id: row.approval_id,
+      author_email: row.author_email,
+      body: row.body,
+      anchor_json: row.anchor_json ?? {},
+      created_at: now,
+      updated_at: now,
+    };
+    this.memory.comments.push(comment);
+    return comment;
+  }
+
+  private mapPlanVersionRow(r: Record<string, unknown>): MktAiPlanVersionRow {
+    return {
+      id: Number(r.id),
+      lifecycle_id: Number(r.lifecycle_id),
+      version_no: Number(r.version_no),
+      label: String(r.label ?? ''),
+      status: String(r.status ?? 'draft') as MktAiPlanVersionStatus,
+      brief_json: (r.brief_json as MktAiBrief) ?? {},
+      strategy_framework_json: (r.strategy_framework_json as Record<string, string>) ?? {},
+      target_market_prof_json: (r.target_market_prof_json as Record<string, string>) ?? {},
+      campaigns_json: (r.campaigns_json as MktAiDraft['campaigns_json']) ?? [],
+      content_json: (r.content_json as Record<string, unknown>) ?? {},
+      quality_score_json: (r.quality_score_json as Record<string, unknown>) ?? {},
+      marketing_plan_id: r.marketing_plan_id != null ? Number(r.marketing_plan_id) : null,
+      applied_at: r.applied_at ? String(r.applied_at) : null,
+      created_by: String(r.created_by ?? ''),
+      created_at: String(r.created_at ?? this.nowIso()),
+    };
+  }
+
+  private mapApprovalRow(r: Record<string, unknown>): MktAiApprovalRow {
+    const approval: MktAiApprovalRow = {
+      id: Number(r.id),
+      lifecycle_id: Number(r.lifecycle_id),
+      plan_version_id: Number(r.plan_version_id),
+      status: String(r.status ?? 'pending') as MktAiApprovalStatus,
+      requested_by: String(r.requested_by ?? ''),
+      approver_email: r.approver_email != null ? String(r.approver_email) : null,
+      decision_note: String(r.decision_note ?? ''),
+      requested_at: String(r.requested_at ?? this.nowIso()),
+      decided_at: r.decided_at ? String(r.decided_at) : null,
+      created_at: String(r.created_at ?? this.nowIso()),
+      updated_at: String(r.updated_at ?? this.nowIso()),
+    };
+    if (r.pv_id != null) {
+      approval.plan_version = {
+        id: Number(r.pv_id),
+        lifecycle_id: approval.lifecycle_id,
+        version_no: Number(r.version_no ?? 0),
+        label: String(r.pv_label ?? ''),
+        status: String(r.pv_status ?? 'draft') as MktAiPlanVersionStatus,
+        brief_json: {},
+        strategy_framework_json: {},
+        target_market_prof_json: {},
+        campaigns_json: [],
+        content_json: {},
+        quality_score_json: {},
+        marketing_plan_id: null,
+        applied_at: null,
+        created_by: '',
+        created_at: approval.requested_at,
+      };
+    }
+    return approval;
+  }
+
+  private mapCommentRow(r: Record<string, unknown>): MktAiCommentRow {
+    return {
+      id: Number(r.id),
+      lifecycle_id: Number(r.lifecycle_id),
+      plan_version_id: r.plan_version_id != null ? Number(r.plan_version_id) : null,
+      approval_id: r.approval_id != null ? Number(r.approval_id) : null,
+      author_email: String(r.author_email ?? ''),
+      body: String(r.body ?? ''),
+      anchor_json: (r.anchor_json as Record<string, unknown>) ?? {},
+      created_at: String(r.created_at ?? this.nowIso()),
+      updated_at: String(r.updated_at ?? this.nowIso()),
     };
   }
 

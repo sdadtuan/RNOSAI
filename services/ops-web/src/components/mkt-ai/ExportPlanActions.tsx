@@ -6,13 +6,23 @@ import type { QualityScoreView } from '@/components/mkt-ai/AiQualityScoreCard';
 interface Props {
   quality: QualityScoreView | null | undefined;
   canExport: boolean;
+  approvalRequired?: boolean;
+  approvalCanExport?: boolean;
   busy?: boolean;
   onExport: (format: 'pdf' | 'docx' | 'xlsx') => void;
 }
 
-export function ExportPlanActions({ quality, canExport, busy = false, onExport }: Props) {
+export function ExportPlanActions({
+  quality,
+  canExport,
+  approvalRequired = false,
+  approvalCanExport = true,
+  busy = false,
+  onExport,
+}: Props) {
   const score = quality?.score;
   const tier = getQualityTier(score);
+  const exportBlockedByApproval = approvalRequired && !approvalCanExport;
 
   if (!canExport) {
     return (
@@ -42,10 +52,14 @@ export function ExportPlanActions({ quality, canExport, busy = false, onExport }
         <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
           Điểm 60–69: chỉ export DOCX (BR-MKTP-05).
         </p>
+      ) : exportBlockedByApproval ? (
+        <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+          Export cần MKT Lead duyệt trước (BR-MKTP-09). Gửi duyệt trên thanh phía trên.
+        </p>
       ) : null}
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         {formats.map((f) => {
-          const enabled = canExportFormat(f.id, score);
+          const enabled = canExportFormat(f.id, score) && !exportBlockedByApproval;
           return (
             <button
               key={f.id}
@@ -53,13 +67,15 @@ export function ExportPlanActions({ quality, canExport, busy = false, onExport }
               className="btn btn-sm btn-secondary"
               disabled={busy || !enabled}
               title={
-                !canExport
-                  ? 'Cần quyền crm_mkt_ai.export'
-                  : !enabled && tier === 'conditional'
-                    ? 'Chỉ DOCX khi điểm 60–69'
-                    : !enabled
-                      ? 'Cần quality ≥60'
-                      : f.hint
+                exportBlockedByApproval
+                  ? 'Cần MKT Lead duyệt trước khi export'
+                  : !canExport
+                    ? 'Cần quyền crm_mkt_ai.export'
+                    : !enabled && tier === 'conditional'
+                      ? 'Chỉ DOCX khi điểm 60–69'
+                      : !enabled
+                        ? 'Cần quality ≥60'
+                        : f.hint
               }
               onClick={() => onExport(f.id)}
             >
