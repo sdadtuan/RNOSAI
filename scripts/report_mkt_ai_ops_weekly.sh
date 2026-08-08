@@ -95,15 +95,14 @@ ORDER BY 1 DESC
 LIMIT 24;
 
 \echo ''
-\echo '## Multi-agent parent p95 latency (ms)'
+\echo '## Multi-agent p95 latency (ms)'
 SELECT
-  COUNT(*) AS parent_jobs,
+  COUNT(*) AS multi_agent_jobs,
   ROUND(AVG(latency_ms)) AS avg_ms,
   ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms)) AS p95_ms,
   MAX(latency_ms) AS max_ms
 FROM mkt_ai_jobs
 WHERE job_type = 'multi_agent'
-  AND COALESCE(parent_job_id, 0) = 0
   AND status IN ('succeeded', 'partial', 'failed')
   AND latency_ms IS NOT NULL
   AND created_at >= NOW() - (:days || ' days')::interval;
@@ -199,7 +198,6 @@ P95_MS="$(psql "$DATABASE_URL" -tAc \
   "SELECT COALESCE(ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms)),0)
    FROM mkt_ai_jobs
    WHERE job_type='multi_agent'
-     AND COALESCE(parent_job_id,0)=0
      AND latency_ms IS NOT NULL
      AND created_at >= NOW() - interval '${REPORT_DAYS} days'" \
   | tr -d '[:space:]')"
