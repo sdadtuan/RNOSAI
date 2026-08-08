@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { AiCampaignBuilder } from '@/components/mkt-ai/AiCampaignBuilder';
+import { AiContentCalendar } from '@/components/mkt-ai/AiContentCalendar';
+import { AiStrategySections } from '@/components/mkt-ai/AiStrategySections';
 import { BriefIntakeForm } from '@/components/mkt-ai/BriefIntakeForm';
 import { AiJobProgressPanel } from '@/components/mkt-ai/AiJobProgressPanel';
 import { AiTmmtGateBanner } from '@/components/mkt-ai/AiTmmtGateBanner';
@@ -20,10 +23,11 @@ import {
   postMktAiQualityJob,
   postMktAiStrategyJob,
   type MktAiBrief,
+  type MktAiDraft,
   type MktAiPlannerContext,
 } from '@/lib/mkt-ai-planner-api';
 import { ApiError } from '@/lib/api';
-import { STRATEGY_LABELS, TMMT_PROF_LABELS } from '@/lib/tmmt-labels';
+import { hasStrategyContent } from '@/lib/mkt-ai-draft-fields';
 
 const STEPS = [
   { id: 'brief', label: 'Brief' },
@@ -187,11 +191,14 @@ export function MarketingAiPlannerPanel({
 
   const briefValidation = ctx?.brief_validation;
   const quality = ctx?.quality_score;
-  const hasStrategy =
-    Object.values(ctx?.draft.strategy_framework ?? {}).some((v) => String(v).trim()) ||
-    Object.values(ctx?.draft.target_market_prof ?? {}).some((v) => String(v).trim());
-  const campaigns = ctx?.draft.campaigns_json ?? [];
-  const calendar = (ctx?.draft.content_json?.calendar as Array<Record<string, string>>) ?? [];
+  const draft = ctx?.draft;
+  const hasStrategy = hasStrategyContent(draft?.strategy_framework, draft?.target_market_prof);
+  const campaigns = draft?.campaigns_json ?? [];
+  const calendar = (draft?.content_json?.calendar as Array<Record<string, string>>) ?? [];
+
+  function handleDraftPersisted(persisted: MktAiDraft) {
+    setCtx((prev) => (prev ? { ...prev, draft: persisted } : prev));
+  }
 
   if (disabledReason) {
     return (
@@ -293,180 +300,77 @@ export function MarketingAiPlannerPanel({
             />
           ) : null}
 
-          {step === 'strategy' ? (
-            <div className="card" style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                {canEdit ? (
-                  <>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      disabled={busy || !briefValidation?.ok}
-                      onClick={() =>
-                        void runJob(
-                          () => postMktAiStrategyJob(token, lifecycleId),
-                          'Đã sinh chiến lược',
-                          'campaign',
-                        )
-                      }
-                    >
-                      Sinh chiến lược AI
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-secondary"
-                      disabled={busy}
-                      onClick={() =>
-                        void runJob(() => postMktAiJobRetry(token, lifecycleId, 'strategy'), 'Đã sinh lại chiến lược')
-                      }
-                    >
-                      Sinh lại ↻
-                    </button>
-                  </>
-                ) : null}
-                {quality ? (
-                  <span className="muted">
-                    Chất lượng: <strong>{quality.score}/100</strong>
-                  </span>
-                ) : null}
-              </div>
-              {!hasStrategy ? (
-                <p className="muted" style={{ margin: 0 }}>
-                  Hoàn thiện Brief rồi bấm Sinh chiến lược AI
-                </p>
-              ) : (
-                <>
-                  <section>
-                    <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem' }}>Khung chiến lược</h4>
-                    <div style={{ display: 'grid', gap: '0.5rem' }}>
-                      {Object.entries(STRATEGY_LABELS).map(([key, label]) => {
-                        const val = ctx?.draft.strategy_framework?.[key] ?? '';
-                        if (!String(val).trim() && key !== 'target_market' && key !== 'market_message') return null;
-                        return (
-                          <div key={key} className="card" style={{ padding: '0.65rem 0.75rem' }}>
-                            <div className="muted" style={{ fontSize: '0.8rem', marginBottom: '0.25rem' }}>
-                              {label}
-                            </div>
-                            <div style={{ fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>{val || '—'}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-                  <section>
-                    <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem' }}>TMMT chi tiết (draft)</h4>
-                    <div style={{ display: 'grid', gap: '0.5rem' }}>
-                      {Object.entries(TMMT_PROF_LABELS).map(([key, label]) => {
-                        const val = ctx?.draft.target_market_prof?.[key] ?? '';
-                        if (!String(val).trim()) return null;
-                        return (
-                          <div key={key} className="card" style={{ padding: '0.65rem 0.75rem' }}>
-                            <div className="muted" style={{ fontSize: '0.8rem', marginBottom: '0.25rem' }}>
-                              {label}
-                            </div>
-                            <div style={{ fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>{val}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-                </>
-              )}
-              <button type="button" className="btn btn-sm btn-secondary" onClick={() => goToStep('campaign')}>
-                Tiếp → Campaign
-              </button>
-            </div>
+          {step === 'strategy' && draft ? (
+            <AiStrategySections
+              token={token}
+              lifecycleId={lifecycleId}
+              strategyFramework={draft.strategy_framework ?? {}}
+              targetMarketProf={draft.target_market_prof ?? {}}
+              swotJson={draft.swot_json ?? {}}
+              canEdit={canEdit}
+              paused={busy}
+              resetAutosaveKey={contextVersion}
+              briefReady={Boolean(briefValidation?.ok)}
+              qualityScore={quality?.score}
+              onGenerate={() =>
+                void runJob(
+                  () => postMktAiStrategyJob(token, lifecycleId),
+                  'Đã sinh chiến lược',
+                  'campaign',
+                )
+              }
+              onRetry={() =>
+                void runJob(() => postMktAiJobRetry(token, lifecycleId, 'strategy'), 'Đã sinh lại chiến lược')
+              }
+              onDraftPersisted={handleDraftPersisted}
+              onSaveError={(msg) => setError(msg)}
+              onContinue={() => goToStep('campaign')}
+            />
           ) : null}
 
-          {step === 'campaign' ? (
-            <div className="card" style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
-              {canEdit ? (
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  disabled={busy || !hasStrategy}
-                  onClick={() =>
-                    void runJob(
-                      () => postMktAiCampaignsJob(token, lifecycleId),
-                      'Đã sinh campaign',
-                      'content',
-                    )
-                  }
-                >
-                  Sinh campaign AI
-                </button>
-              ) : null}
-              {campaigns.length === 0 ? (
-                <p className="muted" style={{ margin: 0 }}>Chưa có campaign — sinh từ bước Strategy trước.</p>
-              ) : (
-                campaigns.map((c) => (
-                  <div key={c.name} className="card" style={{ padding: '0.85rem', border: '1px solid var(--border)' }}>
-                    <h4 style={{ margin: '0 0 0.35rem', fontSize: '0.95rem' }}>{c.name}</h4>
-                    <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                      {c.objective} · {c.budget_pct}% · {c.timeline_weeks ?? '—'}
-                    </p>
-                    <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
-                      Kênh: {(c.channel_mix ?? []).join(', ')}
-                    </p>
-                    {(c.kpis?.length ?? 0) > 0 ? (
-                      <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
-                        KPI: {c.kpis!.join(' · ')}
-                      </p>
-                    ) : null}
-                  </div>
-                ))
-              )}
-              <button type="button" className="btn btn-sm btn-secondary" onClick={() => goToStep('content')}>
-                Tiếp → Content
-              </button>
-            </div>
+          {step === 'campaign' && draft ? (
+            <AiCampaignBuilder
+              token={token}
+              lifecycleId={lifecycleId}
+              campaigns={campaigns}
+              canEdit={canEdit}
+              paused={busy}
+              resetAutosaveKey={contextVersion}
+              hasStrategy={hasStrategy}
+              defaultObjective={briefDraft.objective ?? 'lead'}
+              onGenerate={() =>
+                void runJob(
+                  () => postMktAiCampaignsJob(token, lifecycleId),
+                  'Đã sinh campaign',
+                  'content',
+                )
+              }
+              onDraftPersisted={handleDraftPersisted}
+              onSaveError={(msg) => setError(msg)}
+              onContinue={() => goToStep('content')}
+            />
           ) : null}
 
-          {step === 'content' ? (
-            <div className="card" style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
-              {canEdit ? (
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  disabled={busy || campaigns.length === 0}
-                  onClick={() =>
-                    void runJob(
-                      () => postMktAiContentJob(token, lifecycleId),
-                      'Đã sinh content',
-                      'apply',
-                    )
-                  }
-                >
-                  Sinh content AI
-                </button>
-              ) : null}
-              {calendar.length === 0 ? (
-                <p className="muted" style={{ margin: 0 }}>Chưa có lịch content.</p>
-              ) : (
-                <div style={{ display: 'grid', gap: '0.5rem' }}>
-                  {calendar.slice(0, 14).map((row) => (
-                    <div
-                      key={`${row.date}-${row.channel}`}
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '100px 80px 1fr',
-                        gap: '0.5rem',
-                        fontSize: '0.85rem',
-                        padding: '0.45rem 0',
-                        borderBottom: '1px solid var(--border)',
-                      }}
-                    >
-                      <span>{row.date}</span>
-                      <span className="muted">{row.channel}</span>
-                      <span>{row.copy}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <button type="button" className="btn btn-sm btn-secondary" onClick={() => goToStep('apply')}>
-                Tiếp → Apply
-              </button>
-            </div>
+          {step === 'content' && draft ? (
+            <AiContentCalendar
+              token={token}
+              lifecycleId={lifecycleId}
+              contentJson={draft.content_json ?? {}}
+              canEdit={canEdit}
+              paused={busy}
+              resetAutosaveKey={contextVersion}
+              hasCampaigns={campaigns.length > 0}
+              onGenerate={() =>
+                void runJob(
+                  () => postMktAiContentJob(token, lifecycleId),
+                  'Đã sinh content',
+                  'apply',
+                )
+              }
+              onDraftPersisted={handleDraftPersisted}
+              onSaveError={(msg) => setError(msg)}
+              onContinue={() => goToStep('apply')}
+            />
           ) : null}
 
           {step === 'apply' ? (
