@@ -6,6 +6,7 @@ export const QUALITY_CRITERIA_LABELS: Record<string, string> = {
   kpi_defined: 'KPI chiến dịch',
   channel_mix: 'Mix kênh (≥2 kênh)',
   risk_competitor: 'Rủi ro / đối thủ',
+  kpi_tree_complete: 'KPI tree North Star → campaign',
 };
 
 export const QUALITY_CRITERIA_ORDER = [
@@ -15,6 +16,7 @@ export const QUALITY_CRITERIA_ORDER = [
   'kpi_defined',
   'channel_mix',
   'risk_competitor',
+  'kpi_tree_complete',
 ] as const;
 
 export type QualityTier = 'blocked' | 'conditional' | 'ready';

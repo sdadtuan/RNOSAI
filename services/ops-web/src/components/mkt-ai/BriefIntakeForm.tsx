@@ -1,9 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   patchMktAiBrief,
+  uploadMktAiBrief,
   type MktAiBrief,
+  type MktAiBriefReadiness,
   type MktAiBriefValidation,
 } from '@/lib/mkt-ai-planner-api';
 import {
@@ -42,11 +44,17 @@ interface Props {
   paused?: boolean;
   /** Bump when parent reloads context — resets autosave baseline. */
   resetAutosaveKey?: string | number;
-  onPersisted: (result: { brief: MktAiBrief; brief_validation: MktAiBriefValidation }) => void;
+  onPersisted: (result: {
+    brief: MktAiBrief;
+    brief_validation: MktAiBriefValidation;
+    brief_readiness?: MktAiBriefReadiness;
+  }) => void;
   onContinue: () => void;
   onSaveError?: (message: string) => void;
   playbooksEnabled?: boolean;
   playbookContext?: MktAiPlannerContext['playbook'];
+  briefUploadEnabled?: boolean;
+  briefReadiness?: MktAiBriefReadiness;
 }
 
 export function BriefIntakeForm({
@@ -65,8 +73,12 @@ export function BriefIntakeForm({
   onSaveError,
   playbooksEnabled = false,
   playbookContext,
+  briefUploadEnabled = false,
+  briefReadiness,
 }: Props) {
   const fieldRefs = useRef<Partial<Record<string, HTMLElement | null>>>({});
+  const uploadRef = useRef<HTMLInputElement | null>(null);
+  const [uploadBusy, setUploadBusy] = useState(false);
 
   const snapshot = useMemo(
     () => briefAutosaveSnapshot(brief, serviceSlug),
@@ -174,6 +186,25 @@ export function BriefIntakeForm({
             ? 'Lưu tự động thất bại — bấm Lưu brief'
             : null;
 
+  async function handleBriefUpload(file: File) {
+    if (!canEdit || paused) return;
+    setUploadBusy(true);
+    try {
+      const out = await uploadMktAiBrief(token, lifecycleId, file);
+      onBriefChange(out.brief);
+      onPersisted(out);
+      autosave.markSavedNow(briefAutosaveSnapshot(out.brief, serviceSlug));
+    } catch (err) {
+      onSaveError?.(err instanceof Error ? err.message : 'Upload brief thất bại');
+    } finally {
+      setUploadBusy(false);
+      if (uploadRef.current) uploadRef.current.value = '';
+    }
+  }
+
+  const readinessLow =
+    briefReadiness != null && briefReadiness.score < briefReadiness.low_threshold;
+
   return (
     <div className="card" style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -205,6 +236,56 @@ export function BriefIntakeForm({
         >
           Đã nhập từ: {prefillSources!.join(' · ')}
         </p>
+      ) : null}
+
+      {briefUploadEnabled ? (
+        <div
+          style={{
+            display: 'grid',
+            gap: '0.5rem',
+            padding: '0.65rem',
+            borderRadius: 8,
+            border: '1px dashed var(--border)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Upload brief (PDF/DOCX/TXT)</span>
+            {briefReadiness != null ? (
+              <span
+                style={{
+                  fontSize: '0.85rem',
+                  color: readinessLow ? 'var(--accent)' : 'var(--success, #398b43)',
+                }}
+              >
+                Readiness {briefReadiness.score}/{briefReadiness.low_threshold}+
+              </span>
+            ) : null}
+          </div>
+          {readinessLow ? (
+            <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+              {briefReadiness?.messages[0] ?? 'Brief chưa đủ thông tin — bổ sung trước khi chạy pipeline AI.'}
+            </p>
+          ) : null}
+          {canEdit ? (
+            <>
+              <input
+                ref={uploadRef}
+                type="file"
+                accept=".pdf,.docx,.txt,application/pdf,text/plain"
+                disabled={paused || uploadBusy}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleBriefUpload(f);
+                }}
+              />
+              {uploadBusy ? (
+                <span className="muted" style={{ fontSize: '0.85rem' }}>
+                  Đang trích xuất brief…
+                </span>
+              ) : null}
+            </>
+          ) : null}
+        </div>
       ) : null}
 
       {playbooksEnabled ? (

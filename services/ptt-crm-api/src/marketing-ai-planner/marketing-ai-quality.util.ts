@@ -1,5 +1,6 @@
 import { OFFICIAL_TMMT_CORE_KEYS } from '../service-lifecycle/lifecycle-marketing-plan.util';
 import type { MktAiBrief, MktAiCampaignDraft, MktAiDraft } from './marketing-ai-planner.types';
+import { kpiTreeIsComplete } from './marketing-ai-kpi-tree.util';
 
 export interface QualityScoreResult {
   score: number;
@@ -12,6 +13,7 @@ export interface QualityScoreResult {
 export function computeQualityScore(
   brief: MktAiBrief | null,
   draft: MktAiDraft,
+  options?: { planDepthEnabled?: boolean },
 ): QualityScoreResult {
   const sf = draft.strategy_framework ?? {};
   const prof = draft.target_market_prof ?? {};
@@ -28,6 +30,10 @@ export function computeQualityScore(
       String(prof.buy_triggers_obstacles ?? prof.insights_evidence ?? '').trim().length > 20,
   };
 
+  if (options?.planDepthEnabled) {
+    criteria.kpi_tree_complete = kpiTreeIsComplete(draft.kpi_tree_json);
+  }
+
   const weights: Record<string, number> = {
     brief_complete: 20,
     icp_clarity: 20,
@@ -35,6 +41,7 @@ export function computeQualityScore(
     kpi_defined: 15,
     channel_mix: 15,
     risk_competitor: 15,
+    ...(options?.planDepthEnabled ? { kpi_tree_complete: 10 } : {}),
   };
 
   let score = 0;

@@ -2,6 +2,7 @@ import {
   BRIEF_FIELD_LABELS,
   type MktAiBrief,
   type MktAiBriefValidation,
+  type MktAiKpiTreeNode,
   REQUIRED_BRIEF_FIELDS,
 } from './marketing-ai-planner.types';
 
@@ -57,6 +58,7 @@ export function emptyDraft(): {
   campaigns_json: unknown[];
   content_json: Record<string, unknown>;
   quality_score_json: Record<string, unknown>;
+  kpi_tree_json: MktAiKpiTreeNode[];
 } {
   return {
     strategy_framework: {},
@@ -65,5 +67,6 @@ export function emptyDraft(): {
     campaigns_json: [],
     content_json: {},
     quality_score_json: {},
+    kpi_tree_json: [],
   };
 }

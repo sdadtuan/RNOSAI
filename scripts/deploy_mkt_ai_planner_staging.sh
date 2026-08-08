@@ -46,6 +46,8 @@ run_local() {
     "PTT_MKT_AI_LAUNCH_QA_QUALITY_GATE=1" \
     "PTT_MKT_AI_GOVERNANCE_BANNER=1" \
     "PTT_MKT_AI_MULTI_AGENT_ENABLED=1" \
+    "PTT_MKT_AI_PLAN_DEPTH_ENABLED=1" \
+    "PTT_MKT_AI_BRIEF_UPLOAD_ENABLED=1" \
     "NEXT_PUBLIC_MKT_AI_PLANNER=1"; do
     key="${kv%%=*}"
     if grep -q "^${key}=" "$RUNTIME_ENV" 2>/dev/null; then
@@ -65,7 +67,9 @@ run_local() {
     "PTT_MKT_AI_PLAYBOOKS_ENABLED=1" \
     "PTT_MKT_AI_LAUNCH_QA_QUALITY_GATE=1" \
     "PTT_MKT_AI_GOVERNANCE_BANNER=1" \
-    "PTT_MKT_AI_MULTI_AGENT_ENABLED=1"; do
+    "PTT_MKT_AI_MULTI_AGENT_ENABLED=1" \
+    "PTT_MKT_AI_PLAN_DEPTH_ENABLED=1" \
+    "PTT_MKT_AI_BRIEF_UPLOAD_ENABLED=1"; do
     key="${kv%%=*}"
     if [[ -f "$ROOT/.env" && -w "$ROOT/.env" ]]; then
       if grep -q "^${key}=" "$ROOT/.env" 2>/dev/null; then
@@ -109,7 +113,31 @@ run_local() {
   export PTT_CRM_INTERNAL_KEY="${PTT_CRM_INTERNAL_KEY:-}"
   bash "$ROOT/scripts/smoke_mkt_ai_planner_context.sh"
 
-  echo "== 5b/5 Full UAT (optional) =="
+  echo "== 5a/5 Plan depth smoke (WS-P4-02 S2) =="
+  if [[ -n "${DATABASE_URL:-}" ]]; then
+    bash "$ROOT/scripts/smoke_mkt_ai_plan_depth.sh" || echo "WARN plan depth smoke failed"
+  else
+    echo "SKIP plan depth smoke — DATABASE_URL not set"
+  fi
+
+  echo "== 5b/5 Build API + ops-web =="
+  if [[ -d "$ROOT/services/ptt-crm-api" ]]; then
+    (cd "$ROOT/services/ptt-crm-api" && npm ci && npm run build) || echo "WARN API build failed"
+  fi
+  if [[ -x "$ROOT/scripts/deploy_ops_web.sh" ]]; then
+    NEXT_PUBLIC_MKT_AI_PLANNER=1 bash "$ROOT/scripts/deploy_ops_web.sh" --restart 2>/dev/null \
+      || bash "$ROOT/scripts/deploy_ops_web.sh" 2>/dev/null \
+      || echo "WARN ops-web deploy skipped"
+  fi
+  if sudo -n /usr/bin/systemctl restart ptt-crm-api 2>/dev/null; then
+    sleep 3
+    curl -sf http://127.0.0.1:3000/health && echo " Nest OK (post-build)"
+  fi
+  if sudo -n /usr/bin/systemctl restart ptt-ops-web 2>/dev/null; then
+    echo "ops-web restarted"
+  fi
+
+  echo "== 5c/5 Full UAT (optional) =="
   echo "     bash scripts/run_mkt_ai_planner_uat.sh"
 
   echo "== MKT-AI staging kickoff complete =="

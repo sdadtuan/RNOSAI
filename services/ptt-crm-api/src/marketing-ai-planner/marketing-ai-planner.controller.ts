@@ -61,6 +61,23 @@ export class MarketingAiPlannerController {
     return this.planner.patchBrief(lifecycleId, body, actorEmail(req));
   }
 
+  @Post('brief/upload')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffMarketingAiPlannerGenerateGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  uploadBrief(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: Request,
+  ) {
+    return this.planner.uploadBrief(lifecycleId, file, actorEmail(req));
+  }
+
   @Patch('draft')
   @UseGuards(StaffMarketingAiPlannerGenerateGuard)
   patchDraft(

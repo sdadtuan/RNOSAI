@@ -20,6 +20,7 @@ import { MarketingAiMultiAgentService } from './marketing-ai-multi-agent.service
 import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
 import { MarketingAiPlaybookModule } from './marketing-ai-playbook.module';
 import { MarketingAiPlaybookService } from './marketing-ai-playbook.service';
+import { MarketingAiBriefUploadService } from './marketing-ai-brief-upload.service';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
 import { MarketingAiRagService } from './marketing-ai-rag.service';
 import { MarketingAiPlannerController } from './marketing-ai-planner.controller';
@@ -40,6 +41,7 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
   providers: [
     MarketingAiPlannerRepository,
     MarketingAiOrchestratorService,
+    MarketingAiBriefUploadService,
     MarketingAiRagService,
     MarketingAiBudgetService,
     MarketingAiApprovalService,

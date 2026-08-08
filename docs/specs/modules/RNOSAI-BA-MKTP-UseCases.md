@@ -5,12 +5,12 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Document ID | RNOSAI-BA-MKTP-UC |
-| Phiên bản | 1.0 |
+| Phiên bản | 1.1 |
 | Ngày xuất | 2026-08-08 |
 | Module | MOD-MKT-AI-PLANNER |
 | Nest module | `MarketingAiPlannerModule` |
-| Số UC | 24 |
-| Spec thủ công | 24/24 |
+| Số UC | 31 |
+| Spec thủ công | 24/31 (P0–P3 + P4-01 shipped; **UC-022…031 frozen**) |
 | Master index | [RNOSAI-BA-Master-Spec.md](../RNOSAI-BA-Master-Spec.md) |
 | Catalog gốc | [`docs/use-cases/10-MKT-AI-PLANNER.md`](../../use-cases/10-MKT-AI-PLANNER.md) |
 | Integration spec | [`2026-08-08-mkt-ai-planner-integration-spec.md`](../2026-08-08-mkt-ai-planner-integration-spec.md) |
@@ -40,6 +40,10 @@ Module **AI Marketing Planner** nhúng vào **Triển khai dịch vụ marketing
 | SCR-MKT-AI-022 | Approval | bar | P1 | MKTP-UC-013, 014 |
 | SCR-MKT-AI-030 | KPI dashboard | sub=dashboard | P2 | MKTP-UC-016, 018 |
 | SCR-MKT-AI-040 | Multi-agent | sub=agents | P3 | MKTP-UC-019, 020, 021 |
+| SCR-MKT-AI-041 | Plan depth — strategy & brief | step=strategy, brief | P4 | MKTP-UC-026, 030, 031 |
+| SCR-MKT-AI-042 | Scenario compare & collab | step=strategy, budget | P4 | MKTP-UC-027, 029 |
+| SCR-MKT-AI-043 | KPI closed-loop | sub=dashboard | P4 | MKTP-UC-028 |
+| SCR-PORTAL-MKT-AI | Portal plan summary | portal lifecycle | P4 | MKTP-UC-023 |
 
 ### 1.2. Ma trận UC
 
@@ -66,7 +70,18 @@ Module **AI Marketing Planner** nhúng vào **Triển khai dịch vụ marketing
 | MKTP-UC-019 | Multi-agent pipeline | P2 | P3 | Implemented (staging) | — |
 | MKTP-UC-020 | Industry playbook | P2 | P3 | Implemented (staging) | — |
 | MKTP-UC-021 | Governance banner | P2 | P3 | Implemented (staging) | — |
+| MKTP-UC-022 | Async multi-agent pipeline | P1 | P4 | **Frozen · backlog** | — |
+| MKTP-UC-023 | Portal plan summary read-only | P2 | P4 | **Frozen · backlog** | — |
 | MKTP-UC-024 | GA multi-slug rollout | P0 | P4 | Implemented (staging) | — |
+| MKTP-UC-025 | Ops monitoring & job SLO | P1 | P4 | **Frozen · backlog** | — |
+| MKTP-UC-026 | Plan depth — strategy & brief | P0 | P4 | **Frozen · backlog** | SVC-UC-003 |
+| MKTP-UC-027 | Plan depth — scenario & collab | P1 | P4 | **Frozen · backlog** | — |
+| MKTP-UC-028 | Plan depth — KPI closed-loop | P2 | P4 | **Frozen · backlog** | MKTP-UC-016 |
+| MKTP-UC-029 | Section comments & PPTX export | P2 | P4 | **Frozen · backlog** | MKTP-UC-027 |
+| MKTP-UC-030 | Content variants & creative brief | P2 | P4 | **Frozen · backlog** | MKTP-UC-026 |
+| MKTP-UC-031 | Brief readiness score | P2 | P4 | **Frozen · backlog** | MKTP-UC-026 |
+
+> **Freeze PO 2026-08-08:** UC-022…031 locked theo [`2026-08-08-mkt-ai-planner-phase4.md`](../../superpowers/plans/2026-08-08-mkt-ai-planner-phase4.md). Actions: [`10-MKTP-ACTIONS.md`](../../use-cases/actions/10-MKTP-ACTIONS.md) §Phase 4.
 
 ---
 
@@ -158,7 +173,16 @@ Module **AI Marketing Planner** nhúng vào **Triển khai dịch vụ marketing
 | GET | `/versions`, POST `/versions/:id/restore` | MKTP-UC-014 |
 | GET | `/dashboard` | MKTP-UC-016 |
 | POST | `/jobs/optimize` | MKTP-UC-017 |
-| POST | `/jobs/multi-agent` | MKTP-UC-019 |
+| POST | `/jobs/multi-agent` | MKTP-UC-019, 022 |
+| POST | `/jobs/multi-agent` (async 202) | MKTP-UC-022 |
+| POST | `/jobs/strategy/regenerate-section` | MKTP-UC-026 |
+| POST | `/brief/upload` | MKTP-UC-026, 031 |
+| POST | `/jobs/strategy/scenarios` | MKTP-UC-027 |
+| POST | `/export/pptx` | MKTP-UC-029 |
+| GET/POST | `/section-comments` | MKTP-UC-029 |
+| GET | `/portal/.../ai-planner/summary` | MKTP-UC-023 |
+| GET | `/kpi-closed-loop` | MKTP-UC-028 |
+| POST | `/jobs/optimize/weekly-memo` | MKTP-UC-028 |
 
 **Guards:** `crm_board.view`, `crm_board.edit`, `crm_mkt_ai.view`, `crm_mkt_ai.generate`, `crm_mkt_ai.export`, `crm_mkt_ai.approve`
 
@@ -177,7 +201,9 @@ Module **AI Marketing Planner** nhúng vào **Triển khai dịch vụ marketing
 | `mkt_ai_exports` | MKTP-UC-010 |
 | `mkt_ai_documents` / chunks | MKTP-UC-011 |
 | `mkt_ai_budget_scenarios` | MKTP-UC-012 |
-| `mkt_ai_approvals` / comments | MKTP-UC-013 |
+| `mkt_ai_approvals` / comments | MKTP-UC-013, 029 |
+| `mkt_ai_section_comments` | MKTP-UC-029 |
+| `mkt_ai_drafts` depth fields (`kpi_tree_json`, `risks_assumptions_json`, …) | MKTP-UC-026…028 |
 
 ---
 
@@ -192,8 +218,11 @@ Module **AI Marketing Planner** nhúng vào **Triển khai dịch vụ marketing
 | EC-MKT-AI-05 | MKTP-UC-009 | Retry keeps draft |
 | EC-MKT-AI-06 | MKTP-UC-011 | RAG citation |
 | EC-MKT-AI-07 | MKTP-UC-016 | Dashboard <3s |
+| EC-MKT-AI-08 | MKTP-UC-026 | Depth gate — risks + KPI tree before Apply |
+| EC-MKT-AI-09 | MKTP-UC-031 | Brief readiness ≥70 or PO override |
+| EC-MKT-AI-10 | MKTP-UC-022 | Async pipeline no HTTP 504 |
 
-**UAT script:** [`actions/10-MKTP-ACTIONS.md`](../../use-cases/actions/10-MKTP-ACTIONS.md) walkthrough 21 bước
+**UAT script:** [`actions/10-MKTP-ACTIONS.md`](../../use-cases/actions/10-MKTP-ACTIONS.md) walkthrough 21 bước (P0) + Phase 4 frozen §022…031
 
 ---
 
@@ -209,4 +238,4 @@ Module **AI Marketing Planner** nhúng vào **Triển khai dịch vụ marketing
 
 ---
 
-*Cập nhật trạng thái implementation khi MKT-AI-02 module ship.*
+*Cập nhật trạng thái implementation khi MKT-AI-02 module ship. **v1.1** — freeze UC-022…031 P4 backlog 2026-08-08.*

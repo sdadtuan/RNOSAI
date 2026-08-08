@@ -10,6 +10,7 @@ import { AiApplyStepPanel } from '@/components/mkt-ai/AiApplyStepPanel';
 import { AiCampaignBuilder } from '@/components/mkt-ai/AiCampaignBuilder';
 import { AiContentCalendar } from '@/components/mkt-ai/AiContentCalendar';
 import { AiStrategySections } from '@/components/mkt-ai/AiStrategySections';
+import { AiKpiTreeEditor } from '@/components/mkt-ai/AiKpiTreeEditor';
 import { BriefIntakeForm } from '@/components/mkt-ai/BriefIntakeForm';
 import { AiJobProgressPanel } from '@/components/mkt-ai/AiJobProgressPanel';
 import { AiTmmtGateBanner } from '@/components/mkt-ai/AiTmmtGateBanner';
@@ -406,11 +407,18 @@ export function MarketingAiPlannerPanel({
                   resetAutosaveKey={contextVersion}
                   playbooksEnabled={Boolean(ctx?.flags.playbooks_enabled)}
                   playbookContext={ctx?.playbook}
+                  briefUploadEnabled={Boolean(ctx?.flags.brief_upload_enabled)}
+                  briefReadiness={ctx?.brief_readiness}
                   onPersisted={(out) => {
                     setBriefDraft(out.brief);
                     setCtx((prev) =>
                       prev
-                        ? { ...prev, brief: out.brief, brief_validation: out.brief_validation }
+                        ? {
+                            ...prev,
+                            brief: out.brief,
+                            brief_validation: out.brief_validation,
+                            ...(out.brief_readiness ? { brief_readiness: out.brief_readiness } : {}),
+                          }
                         : prev,
                     );
                     setMessage(
@@ -427,32 +435,46 @@ export function MarketingAiPlannerPanel({
           ) : null}
 
           {step === 'strategy' && draft ? (
-            <AiStrategySections
-              token={token}
-              lifecycleId={lifecycleId}
-              strategyFramework={draft.strategy_framework ?? {}}
-              targetMarketProf={draft.target_market_prof ?? {}}
-              swotJson={draft.swot_json ?? {}}
-              ragCitations={ragCitations}
-              canEdit={canEdit}
-              paused={busy}
-              resetAutosaveKey={contextVersion}
-              briefReady={Boolean(briefValidation?.ok)}
-              qualityScore={quality?.score}
-              onGenerate={() =>
-                void runJob(
-                  () => postMktAiStrategyJob(token, lifecycleId),
-                  'Đã sinh chiến lược',
-                  'campaign',
-                )
-              }
-              onRetry={() =>
-                void runJob(() => postMktAiJobRetry(token, lifecycleId, 'strategy'), 'Đã sinh lại chiến lược')
-              }
-              onDraftPersisted={handleDraftPersisted}
-              onSaveError={(msg) => setError(msg)}
-              onContinue={() => goToStep('campaign')}
-            />
+            <>
+              <AiStrategySections
+                token={token}
+                lifecycleId={lifecycleId}
+                strategyFramework={draft.strategy_framework ?? {}}
+                targetMarketProf={draft.target_market_prof ?? {}}
+                swotJson={draft.swot_json ?? {}}
+                ragCitations={ragCitations}
+                canEdit={canEdit}
+                paused={busy}
+                resetAutosaveKey={contextVersion}
+                briefReady={Boolean(briefValidation?.ok)}
+                qualityScore={quality?.score}
+                onGenerate={() =>
+                  void runJob(
+                    () => postMktAiStrategyJob(token, lifecycleId),
+                    'Đã sinh chiến lược',
+                    'campaign',
+                  )
+                }
+                onRetry={() =>
+                  void runJob(() => postMktAiJobRetry(token, lifecycleId, 'strategy'), 'Đã sinh lại chiến lược')
+                }
+                onDraftPersisted={handleDraftPersisted}
+                onSaveError={(msg) => setError(msg)}
+                onContinue={() => goToStep('campaign')}
+              />
+              {ctx?.flags.plan_depth_enabled ? (
+                <AiKpiTreeEditor
+                  token={token}
+                  lifecycleId={lifecycleId}
+                  kpiTree={draft.kpi_tree_json ?? []}
+                  canEdit={canEdit}
+                  paused={busy}
+                  resetAutosaveKey={contextVersion}
+                  onDraftPersisted={handleDraftPersisted}
+                  onSaveError={(msg) => setError(msg)}
+                />
+              ) : null}
+            </>
           ) : null}
 
           {step === 'campaign' && draft ? (

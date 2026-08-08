@@ -63,6 +63,31 @@ export interface MktAiBriefValidation {
   messages: string[];
 }
 
+export interface MktAiBriefReadiness {
+  score: number;
+  criteria: Record<string, boolean>;
+  messages: string[];
+  missing: string[];
+  low_threshold: number;
+}
+
+export interface MktAiBriefUploadResult {
+  brief: MktAiBrief;
+  brief_validation: MktAiBriefValidation;
+  brief_readiness: MktAiBriefReadiness;
+  extracted_fields: Partial<MktAiBrief>;
+  missing: string[];
+  filename: string;
+}
+
+export interface MktAiKpiTreeNode {
+  id: string;
+  label: string;
+  target?: string;
+  unit?: string;
+  children?: MktAiKpiTreeNode[];
+}
+
 export interface MktAiCitation {
   chunk_id: number;
   document_id: number;
@@ -103,6 +128,7 @@ export interface MktAiDraft {
   campaigns_json: MktAiCampaignDraft[];
   content_json: Record<string, unknown>;
   quality_score_json: Record<string, unknown>;
+  kpi_tree_json?: MktAiKpiTreeNode[];
 }
 
 export interface MktAiJobRow {
@@ -125,6 +151,7 @@ export interface MktAiPlannerContext {
   enabled: boolean;
   brief: MktAiBrief | null;
   brief_validation: MktAiBriefValidation;
+  brief_readiness?: MktAiBriefReadiness;
   prefill_sources: string[];
   jobs: MktAiJobRow[];
   draft: MktAiDraft;
@@ -144,6 +171,8 @@ export interface MktAiPlannerContext {
     playbook_governance_enabled?: boolean;
     launch_qa_quality_gate_enabled?: boolean;
     multi_agent_enabled?: boolean;
+    plan_depth_enabled?: boolean;
+    brief_upload_enabled?: boolean;
   };
   documents?: MktAiDocumentRow[];
   rag?: { use_rag: boolean; indexed_count: number };
@@ -301,11 +330,33 @@ export async function uploadMktAiDocument(token: string, lifecycleId: number, fi
   return body;
 }
 
+export async function uploadMktAiBrief(token: string, lifecycleId: number, file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(
+    `${API_BASE}/api/crm/service-lifecycle/${lifecycleId}/ai-planner/brief/upload`,
+    {
+      method: 'POST',
+      headers: authHeaders(token) as Record<string, string>,
+      body: form,
+    },
+  );
+  const body = await parseJson<MktAiBriefUploadResult & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Brief upload failed', res.status);
+  }
+  return body;
+}
+
 export async function patchMktAiBrief(
   token: string,
   lifecycleId: number,
   body: Partial<MktAiBrief>,
-): Promise<{ brief: MktAiBrief; brief_validation: MktAiBriefValidation }> {
+): Promise<{
+  brief: MktAiBrief;
+  brief_validation: MktAiBriefValidation;
+  brief_readiness?: MktAiBriefReadiness;
+}> {
   return mktAiFetch(token, lifecycleId, '/brief', {
     method: 'PATCH',
     body: JSON.stringify(body),

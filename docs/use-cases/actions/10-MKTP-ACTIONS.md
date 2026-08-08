@@ -3,7 +3,7 @@
 > **UC gốc:** [`../10-MKT-AI-PLANNER.md`](../10-MKT-AI-PLANNER.md)  
 > **Spec:** [`specs/2026-08-08-mkt-ai-planner-integration-spec.md`](../../specs/2026-08-08-mkt-ai-planner-integration-spec.md) · **Prototype:** [`design/figma-prototypes/mkt-ai-planner-scr-001-prototype.html`](../../design/figma-prototypes/mkt-ai-planner-scr-001-prototype.html)  
 > **SVC parent:** [`02-SVC-ACTIONS.md`](02-SVC-ACTIONS.md) · **AI audit:** [`09-AI-ACTIONS.md`](09-AI-ACTIONS.md)  
-> **Phiên bản:** 1.0 · **Coverage:** MKTP-UC-001…010 (P0 UAT) + walkthrough end-to-end
+> **Phiên bản:** 1.1 · **Coverage:** MKTP-UC-001…010 (P0 UAT) + P3 walkthrough + **P4 frozen UC-022…031** (actions backlog)
 
 ---
 
@@ -251,3 +251,185 @@ Bước 11 fail → **Thử lại** → success; strategy draft bước 8 vẫn 
 | 6 | PO | Runbook | Ký `mkt-ai-phase3-signoff.md` | — | UC-019…021 signed | ✓ |
 | 7 | DevOps | Prod pilot | `deploy/env.mkt-ai-prod-pilot.example` + `deploy_mkt_ai_planner_prod_pilot.sh` | gate + 7d monitor | Rollback ≤5 phút | ✓ WS-P4-01-T7 |
 | 8 | DevOps | Rollback test | `PTT_MKT_AI_PLANNER_ENABLED=0` | — | Tab ẩn + API 404 disabled | ✓ |
+
+---
+
+## Phase 4 actions — frozen backlog (UC-022…031)
+
+> **Trạng thái:** PO freeze 2026-08-08 · Plan [`2026-08-08-mkt-ai-planner-phase4.md`](../../superpowers/plans/2026-08-08-mkt-ai-planner-phase4.md) · BA matrix `RNOSAI-BA-MKTP-UseCases.md` §1.2  
+> **Chưa ship:** checklist `[ ]` — cập nhật khi WS đóng.
+
+| UC | Tên | WS | Priority |
+|----|-----|-----|----------|
+| MKTP-UC-022 | Async multi-agent pipeline | P4-03 | P1 |
+| MKTP-UC-023 | Portal plan summary read-only | P4-05 | P2 |
+| MKTP-UC-025 | Ops monitoring & job SLO | P4-06 | P1 |
+| MKTP-UC-026 | Plan depth — strategy & brief | P4-02 | P0 |
+| MKTP-UC-027 | Plan depth — scenario & collab | P4-04 | P1 |
+| MKTP-UC-028 | Plan depth — KPI closed-loop | P4-09 | P2 |
+| MKTP-UC-029 | Section comments & PPTX export | P4-04 | P2 |
+| MKTP-UC-030 | Content variants & creative brief | P4-02 | P2 |
+| MKTP-UC-031 | Brief readiness score | P4-02 | P2 |
+
+---
+
+## MKTP-UC-022 — Async multi-agent pipeline (Phase 4 · WS-P4-03)
+
+**Mục tiêu:** *"Chạy pipeline 4 agent không timeout HTTP — poll job đến khi xong."*
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | SP | Pipeline AI | Brief hợp lệ + chọn playbook | — | Nút **Chạy pipeline AI** enabled | ✓ `PTT_MKT_AI_MULTI_AGENT_ASYNC=1` |
+| 2 | SP | Same | **Chạy pipeline AI** (async default) | `{ async: true }` | HTTP **202** + `job_id`, status `pending` | ✓ MKTP-UC-022 |
+| 3 | System | Worker | Pick parent `pending` → `running` | parent_job_id | Child steps tuần tự | ✓ BR-MKTP-03 |
+| 4 | SP | Job panel | Poll context / `GET multi-agent/status` mỗi 2s | — | Parent row + child jobs cập nhật | ✓ |
+| 5 | SP | Same | Pipeline hoàn tất ≤10 phút stub | — | status `succeeded` hoặc `partial` | ✓ no 504 |
+| 6 | SP | Same | Double-click **Chạy** khi đang chạy | — | 409 conflict | ✓ |
+| 7 | SP | Same | (Test fail step 3) **Chạy từ bước hiện tại** | start_from_step | Partial — giữ draft 1–2 | ✓ EC-MKT-AI-05 |
+| 8 | QA | Shell | `./scripts/smoke_mkt_ai_multi_agent_async.sh` | LIFECYCLE_ID=1 | Exit 0 | ✓ |
+
+#### Tiêu chí nghiệm thu
+- [ ] POST async không block HTTP >2s p95
+- [ ] Sync fallback khi `async=false` hoặc flag off
+- [ ] Parent + ≥4 child rows audit `mkt_ai_jobs`
+
+---
+
+## MKTP-UC-023 — Portal plan summary read-only (Phase 4 · WS-P4-05)
+
+**Mục tiêu:** *"Client xem tóm tắt kế hoạch AI — không chỉnh, không Apply."*
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | Client | Portal lifecycle | Mở card dịch vụ | portal JWT | Detail load | ✓ `PTT_MKT_AI_PORTAL_SUMMARY=1` |
+| 2 | Client | Summary card | Đọc excerpt chiến lược + campaign count | — | Redacted text ≤500 chars | ✓ MKTP-UC-023 |
+| 3 | Client | Same | Click **Mở planner (staff)** | — | Deep link ops-web (staff only) | ✓ |
+| 4 | System | API | `GET /portal/.../ai-planner/summary` | lifecycle_id | `MktAiPortalSummary` JSON | ✓ scope guard |
+| 5 | QA | (test) | Client JWT lifecycle khác | — | 403 | ✓ |
+| 6 | QA | (test) | Full draft JSON qua portal | — | Không expose | ✓ PII redaction |
+
+#### Tiêu chí nghiệm thu
+- [ ] Portal read-only — không POST generate/apply
+- [ ] Summary fields PO-approved (brand, score, excerpt, count)
+
+---
+
+## MKTP-UC-025 — Ops monitoring & job SLO (Phase 4 · WS-P4-06)
+
+**Mục tiêu:** *"DevOps thấy job fail rate và chạy full regression trước GA."*
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | DevOps | Shell | `./scripts/report_mkt_ai_ops_weekly.sh` | — | Markdown `docs/exports/mkt-ai-ops-*.md` | ✓ |
+| 2 | DevOps | Report | Review `mkt_ai_job_failed` by type | — | Alert nếu >5%/h | ✓ MKTP-UC-025 |
+| 3 | QA | Shell | `./scripts/run_mkt_ai_planner_full_regression.sh` | staging | P0…P3 + P4 blocks exit 0 | ✓ |
+| 4 | QA | UAT extend | P1 RAG, budget, P2 dashboard, P3 multi-agent | API | Timing asserts | ✓ |
+| 5 | DevOps | Cron | Weekly report prod | `PTT_MKT_AI_OPS_WEEKLY_REPORT=1` | Email/Slack optional | ○ |
+| 6 | PO | Runbook | Ký GA rollout checklist | — | Monitoring live | ✓ |
+
+#### Tiêu chí nghiệm thu
+- [ ] Full regression script exit 0 staging
+- [ ] Weekly report có fail rate + apply/gate ratio
+
+---
+
+## MKTP-UC-026 — Plan depth — strategy & brief (Phase 4 · WS-P4-02)
+
+**Mục tiêu:** *"Leader soạn TMMT chuyên sâu — regen từng section, KPI tree, risks trước Apply."*  
+**Bao gồm partial:** MKTP-UC-030 (variants), MKTP-UC-031 (readiness).
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | SP | Step 1 Brief | **Upload brief** PDF/DOCX | file | Extract fields + missing checklist | ✓ `PTT_MKT_AI_BRIEF_UPLOAD_ENABLED=1` |
+| 2 | SP | Same | Đọc **Readiness score** 0–100 | — | Banner vàng nếu &lt;70 | ✓ MKTP-UC-031 |
+| 3 | SP | Step 2 Strategy | **Sinh chiến lược AI** (full job) | — | Draft + `reasoning_vi[]` collapsible | ✓ |
+| 4 | SP | Same | **Sinh lại ↻** section **SWOT** only | section=swot | PATCH section; phần khác giữ | ✓ MKTP-UC-026 |
+| 5 | SP | Same | Regen **ICP**, **Channel**, **Messaging**, **KPI tree** | per section | Job + UI cập nhật | ✓ |
+| 6 | SP | Same | Review **KPI tree** north_star → campaign KPIs | — | `kpi_tree_json` editor | ✓ PRD §9.4 |
+| 7 | SP | Step 3 Campaign | Thêm **milestones** + **timeline_weeks** | dates, labels | Campaign card extended | ✓ |
+| 8 | SP | Step 4 Content | Review **≥3 variants** headline/CTA | — | `variants[]` per campaign | ✓ MKTP-UC-030 |
+| 9 | SP | Step 5 | Điền **Risks & assumptions** bắt buộc | textarea | `risks_assumptions_json` | ✓ depth gate |
+| 10 | SP | Same | Quality + **Apply** khi depth gate pass | — | 409 nếu thiếu risks/KPI tree | ✓ `PTT_MKT_AI_PLAN_DEPTH_ENABLED=1` |
+| 11 | QA | Shell | `./scripts/smoke_mkt_ai_plan_depth.sh` | LIFECYCLE_ID=1 | Exit 0 | ✓ |
+
+#### Tiêu chí nghiệm thu
+- [ ] Regenerate section không mất các section khác
+- [ ] Apply blocked khi depth enabled + thiếu risks/KPI tree (PO config)
+- [ ] Brief upload merge vào `mkt_ai_briefs` UNIQUE lifecycle
+
+---
+
+## MKTP-UC-027 — Plan depth — scenario & collab (Phase 4 · WS-P4-04)
+
+**Mục tiêu:** *"So sánh 2–3 phương án chiến lược và budget trước khi chốt draft."*  
+**Partial overlap:** MKTP-UC-029 (comments + PPTX).
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | SP | Step 2 Strategy | **Sinh 2–3 scenarios** | count=3 | `strategy_scenarios[]` | ✓ `PTT_MKT_AI_SCENARIO_COMPARE=1` |
+| 2 | SP | Compare UI | Chọn scenario A vs B | — | Diff SWOT/channel/messaging | ✓ MKTP-UC-027 |
+| 3 | SP | Budget sim | Chạy **2–5 budget scenarios** side-by-side | amounts | Columns + `rationale_vi` | ✓ |
+| 4 | SP | Strategy section | **Comment** trên block ICP | @mention staff | Thread lưu DB | ✓ MKTP-UC-029 |
+| 5 | SP | Step 5 Export | **PPTX Kế hoạch** — chọn sections | strategy,campaign | Download .pptx | ✓ MKTP-UC-029 |
+| 6 | SP | Brand KB | Upload DOCX/PPTX + **tag** | tag=brand-voice | RAG filter by tag | ✓ PRD §9.3 |
+| 7 | QA | Shell | `./scripts/smoke_mkt_ai_plan_depth_wave2.sh` | — | Exit 0 | ✓ |
+
+#### Tiêu chí nghiệm thu
+- [ ] Scenario compare không overwrite draft đang chọn
+- [ ] PPTX export audit row `mkt_ai_exports`
+
+---
+
+## MKTP-UC-028 — Plan depth — KPI closed-loop (Phase 4 · WS-P4-09)
+
+**Mục tiêu:** *"Sau triển khai — so sánh KPI plan vs thực tế và memo tối ưu hàng tuần."*
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | SP | KPI dashboard | Mở sub=dashboard | — | Cột **Target (plan)** vs **Actual** | ✓ `PTT_MKT_AI_KPI_CLOSED_LOOP=1` |
+| 2 | System | Ingest | Join `kpi_tree_json` targets + Meta/dashboard | — | Delta % per KPI | ✓ MKTP-UC-028 |
+| 3 | SP | Same | Alert KPI lệch >ngưỡng | — | Banner + link optimize | ✓ extends UC-018 |
+| 4 | System | Cron | **Weekly optimization memo** Monday 09:00 | cron | Staff notification + memo body | ✓ |
+| 5 | SP | Step 2 Strategy | **Competitor snapshot** block | brief competitors | `competitor_snapshot_json` | ✓ PRD §10 |
+| 6 | SP | Same | **Regenerate** competitor section | — | Updated snapshot | ✓ |
+| 7 | QA | Shell | `./scripts/smoke_mkt_ai_plan_depth_wave3.sh` | — | Exit 0 | ✓ |
+
+#### Tiêu chí nghiệm thu
+- [ ] Planned targets chỉ từ KPI tree đã Apply
+- [ ] Weekly memo không auto-Apply TMMT (BR-MKTP-01)
+
+---
+
+## MKTP-UC-029 — Section comments & PPTX export (Phase 4 · partial · WS-P4-04)
+
+> **Parent UC:** MKTP-UC-027 · Walkthrough chi tiết: §027 bước 4–5.
+
+| # | Actor | Thao tác | Gate |
+|---|-------|----------|------|
+| 1 | SP | Comment staff-only trên strategy/campaign section | ✓ `PTT_MKT_AI_SECTION_COMMENTS=1` |
+| 2 | SP | Export PPTX chọn sections | ✓ `PTT_MKT_AI_EXPORT_PPTX=1` |
+| 3 | QA | Comment không hiện portal client | ✓ |
+
+---
+
+## MKTP-UC-030 — Content variants & creative brief (Phase 4 · partial · WS-P4-02)
+
+> **Parent UC:** MKTP-UC-026 · Walkthrough chi tiết: §026 bước 8.
+
+| # | Actor | Thao tác | Gate |
+|---|-------|----------|------|
+| 1 | SP | Content step hiển thị ≥3 headline/CTA variants | ✓ |
+| 2 | SP | **Regenerate variants** per campaign | ✓ |
+| 3 | QA | Variants xuất hiện trong export PDF section content | ✓ |
+
+---
+
+## MKTP-UC-031 — Brief readiness score (Phase 4 · partial · WS-P4-02)
+
+> **Parent UC:** MKTP-UC-026 · Walkthrough chi tiết: §026 bước 1–2.
+
+| # | Actor | Thao tác | Gate |
+|---|-------|----------|------|
+| 1 | SP | Upload brief → score 0–100 hiển thị | ✓ |
+| 2 | System | Score &lt;70 → cảnh báo; optional block pipeline AI | ✓ PO config |
+| 3 | QA | Score tính từ missing required fields + extract quality | ✓ |

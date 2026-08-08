@@ -121,6 +121,8 @@ export class AppConfigService {
   readonly mktAiLaunchQaQualityGate: boolean;
   readonly mktAiGovernanceBanner: boolean;
   readonly mktAiMultiAgentEnabled: boolean;
+  readonly mktAiPlanDepthEnabled: boolean;
+  readonly mktAiBriefUploadEnabled: boolean;
 
   constructor() {
     this.applyRuntimeEnvOverrides();
@@ -366,6 +368,12 @@ export class AppConfigService {
     );
     this.mktAiMultiAgentEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_MKT_AI_MULTI_AGENT_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.mktAiPlanDepthEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MKT_AI_PLAN_DEPTH_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.mktAiBriefUploadEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MKT_AI_BRIEF_UPLOAD_ENABLED ?? '0').trim().toLowerCase(),
     );
   }
 

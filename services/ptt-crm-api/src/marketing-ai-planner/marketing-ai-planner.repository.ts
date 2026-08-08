@@ -156,7 +156,7 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
     if (await this.ensurePgReady()) {
       const res = await this.db.query(
         `SELECT strategy_framework_json, target_market_prof_json, swot_json, campaigns_json,
-                content_json, quality_score_json
+                content_json, quality_score_json, kpi_tree_json
          FROM mkt_ai_drafts WHERE lifecycle_id = $1`,
         [lifecycleId],
       );
@@ -169,6 +169,7 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
         campaigns_json: (r.campaigns_json as MktAiDraft['campaigns_json']) ?? [],
         content_json: (r.content_json as Record<string, unknown>) ?? {},
         quality_score_json: (r.quality_score_json as Record<string, unknown>) ?? {},
+        kpi_tree_json: (r.kpi_tree_json as MktAiDraft['kpi_tree_json']) ?? [],
       };
     }
     const row = this.memory.drafts.get(lifecycleId);
@@ -182,8 +183,8 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
       await this.db.query(
         `INSERT INTO mkt_ai_drafts (
            lifecycle_id, strategy_framework_json, target_market_prof_json, swot_json,
-           campaigns_json, content_json, quality_score_json, updated_by
-         ) VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8)
+           campaigns_json, content_json, quality_score_json, kpi_tree_json, updated_by
+         ) VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9)
          ON CONFLICT (lifecycle_id) DO UPDATE SET
            strategy_framework_json = EXCLUDED.strategy_framework_json,
            target_market_prof_json = EXCLUDED.target_market_prof_json,
@@ -191,6 +192,7 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
            campaigns_json = EXCLUDED.campaigns_json,
            content_json = EXCLUDED.content_json,
            quality_score_json = EXCLUDED.quality_score_json,
+           kpi_tree_json = EXCLUDED.kpi_tree_json,
            updated_by = EXCLUDED.updated_by,
            updated_at = NOW()`,
         [
@@ -201,6 +203,7 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
           JSON.stringify(draft.campaigns_json ?? []),
           JSON.stringify(draft.content_json ?? {}),
           JSON.stringify(draft.quality_score_json ?? {}),
+          JSON.stringify(draft.kpi_tree_json ?? []),
           actorEmail,
         ],
       );

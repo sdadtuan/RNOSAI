@@ -12,6 +12,9 @@ import { AiAgentRunsRepository } from '../ai-intelligence/ai-agent-runs.reposito
 import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { validateMktAiBrief, mergeBrief, emptyDraft } from './marketing-ai-brief.util';
+import { computeBriefReadiness } from './marketing-ai-brief-readiness.util';
+import { MarketingAiBriefUploadService } from './marketing-ai-brief-upload.service';
+import { normalizeKpiTree, suggestKpiTreeFromContext } from './marketing-ai-kpi-tree.util';
 import { computeQualityScore } from './marketing-ai-quality.util';
 import { MarketingAiVersionService } from './marketing-ai-version.service';
 import { MarketingAiApprovalService } from './marketing-ai-approval.service';
@@ -70,6 +73,7 @@ export class MarketingAiPlannerService {
     private readonly playbooks: MarketingAiPlaybookService,
     @Inject(forwardRef(() => MarketingAiMultiAgentService))
     private readonly multiAgent: MarketingAiMultiAgentService,
+    private readonly briefUpload: MarketingAiBriefUploadService,
   ) {}
 
   private assertEnabled(serviceSlug?: string): void {
@@ -161,8 +165,11 @@ export class MarketingAiPlannerService {
     const draft =
       (await this.repo.getDraft(lifecycleId)) ?? (emptyDraft() as MktAiDraft);
     const briefValidation = validateMktAiBrief(briefRow.brief_json);
+    const briefReadiness = computeBriefReadiness(briefRow.brief_json);
     const tmmtPayload = await this.lifecycle.marketingPlan(lifecycleId);
-    const quality = computeQualityScore(briefRow.brief_json, draft);
+    const quality = computeQualityScore(briefRow.brief_json, draft, {
+      planDepthEnabled: this.config.mktAiPlanDepthEnabled,
+    });
     const jobs = await this.repo.listJobs(lifecycleId);
     const documents = this.rag.isFeatureEnabled()
       ? await this.rag.listDocuments(lifecycleId)
@@ -206,6 +213,7 @@ export class MarketingAiPlannerService {
       enabled: true,
       brief: briefRow.brief_json,
       brief_validation: briefValidation,
+      brief_readiness: briefReadiness,
       prefill_sources: briefRow.prefill_sources_json ?? [],
       jobs,
       draft: {
@@ -254,6 +262,8 @@ export class MarketingAiPlannerService {
         playbook_governance_enabled: this.playbooks.isGovernanceBannerEnabled(),
         launch_qa_quality_gate_enabled: this.playbooks.isLaunchQaQualityGateEnabled(),
         multi_agent_enabled: this.multiAgent.isEnabled(),
+        plan_depth_enabled: this.config.mktAiPlanDepthEnabled,
+        brief_upload_enabled: this.briefUpload.isFeatureEnabled(),
       },
     };
   }
@@ -330,7 +340,11 @@ export class MarketingAiPlannerService {
     lifecycleId: number,
     patch: Record<string, unknown>,
     actorEmail: string,
-  ): Promise<{ brief: MktAiBrief; brief_validation: ReturnType<typeof validateMktAiBrief> }> {
+  ): Promise<{
+    brief: MktAiBrief;
+    brief_validation: ReturnType<typeof validateMktAiBrief>;
+    brief_readiness: ReturnType<typeof computeBriefReadiness>;
+  }> {
     const lc = await this.loadLifecycleRow(lifecycleId);
     this.assertEnabled(String(lc.service_slug ?? ''));
 
@@ -345,7 +359,43 @@ export class MarketingAiPlannerService {
       existing?.prefill_sources_json ?? [],
       actorEmail,
     );
-    return { brief: merged, brief_validation: validation };
+    return {
+      brief: merged,
+      brief_validation: validation,
+      brief_readiness: computeBriefReadiness(merged),
+    };
+  }
+
+  async uploadBrief(
+    lifecycleId: number,
+    file: Express.Multer.File,
+    actorEmail: string,
+  ) {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    const serviceSlug = String(lc.service_slug ?? '');
+    this.assertEnabled(serviceSlug);
+
+    const existing = await this.repo.getBrief(lifecycleId);
+    const result = this.briefUpload.uploadBriefFile(
+      file,
+      existing?.brief_json ?? null,
+      serviceSlug,
+    );
+
+    const prefill = existing?.prefill_sources_json ?? [];
+    const sources = prefill.includes('brief-upload')
+      ? prefill
+      : [...prefill, 'brief-upload'];
+
+    await this.repo.upsertBrief(lifecycleId, result.brief, sources, actorEmail);
+
+    await this.runJob(lifecycleId, 'brief_summarize', actorEmail, async () => ({
+      extracted_fields: result.extracted_fields,
+      readiness_score: result.brief_readiness.score,
+      filename: result.filename,
+    }));
+
+    return result;
   }
 
   async patchDraft(
@@ -363,6 +413,11 @@ export class MarketingAiPlannerService {
       strategy_framework: { ...current.strategy_framework, ...(patch.strategy_framework ?? {}) },
       target_market_prof: { ...current.target_market_prof, ...(patch.target_market_prof ?? {}) },
     };
+    if (patch.kpi_tree_json !== undefined) {
+      merged.kpi_tree_json = normalizeKpiTree(patch.kpi_tree_json);
+    } else if (!merged.kpi_tree_json?.length) {
+      merged.kpi_tree_json = [];
+    }
     await this.repo.upsertDraft(lifecycleId, merged, actorEmail);
     return merged;
   }
@@ -522,7 +577,14 @@ export class MarketingAiPlannerService {
         playbookPromptBlock: playbookHints.campaignBlock,
       });
       const draft = await this.repo.ensureDraft(lifecycleId, actorEmail);
-      await this.repo.upsertDraft(lifecycleId, { ...draft, campaigns_json: campaigns }, actorEmail);
+      const nextDraft: MktAiDraft = { ...draft, campaigns_json: campaigns };
+      if (
+        this.config.mktAiPlanDepthEnabled &&
+        (!draft.kpi_tree_json?.length || !draft.kpi_tree_json[0]?.children?.length)
+      ) {
+        nextDraft.kpi_tree_json = suggestKpiTreeFromContext(brief, campaigns);
+      }
+      await this.repo.upsertDraft(lifecycleId, nextDraft, actorEmail);
       await this.repo.replaceCampaigns(lifecycleId, null, campaigns);
       return { campaigns } as Record<string, unknown>;
     });
@@ -552,7 +614,9 @@ export class MarketingAiPlannerService {
     this.assertEnabled(String(lc.service_slug ?? ''));
     const briefRow = await this.repo.getBrief(lifecycleId);
     const draft = await this.repo.ensureDraft(lifecycleId, actorEmail);
-    const quality = computeQualityScore(briefRow?.brief_json ?? null, draft);
+    const quality = computeQualityScore(briefRow?.brief_json ?? null, draft, {
+      planDepthEnabled: this.config.mktAiPlanDepthEnabled,
+    });
 
     return this.runJob(lifecycleId, 'quality_score', actorEmail, async () => {
       const prevRag = draft.quality_score_json?.rag_citations;
@@ -717,7 +781,9 @@ export class MarketingAiPlannerService {
 
     const draft = await this.repo.ensureDraft(lifecycleId, actorEmail);
     const briefRow = await this.repo.getBrief(lifecycleId);
-    const quality = computeQualityScore(briefRow?.brief_json ?? null, draft);
+    const quality = computeQualityScore(briefRow?.brief_json ?? null, draft, {
+      planDepthEnabled: this.config.mktAiPlanDepthEnabled,
+    });
     if (!quality.can_apply) {
       throw new BadRequestException({
         error: 'quality_score_too_low',

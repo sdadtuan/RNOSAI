@@ -534,6 +534,62 @@
 
 ---
 
+## MKTP-UC-021 — Governance banner (Phase 3)
+
+| Thuộc tính | Giá trị |
+|------------|---------|
+| **Actor chính** | SP, AM |
+| **Priority** | P2 |
+| **Trigger** | Mở tab AI Planner |
+
+**Main flow:**
+
+1. Sticky banner BR-MKTP-01 + quality gate trước Launch QA.
+2. Context API trả `governance{}` + flags.
+3. Launch QA blocked nếu score &lt;70.
+
+**Traceability:** SCR-MKT-AI-040 · WS-P3-03
+
+---
+
+## MKTP-UC-024 — GA multi-slug rollout (Phase 4)
+
+| Thuộc tính | Giá trị |
+|------------|---------|
+| **Actor chính** | DevOps, PO |
+| **Priority** | P0 |
+| **Trigger** | Pilot → GA staging/prod |
+
+**Main flow:**
+
+1. Whitelist `PTT_MKT_AI_PLANNER_SLUGS` hoặc empty = all.
+2. Seed multi-slug lifecycles + sign-off P3.
+3. Prod pilot 1 client + rollback drill.
+
+**Traceability:** WS-P4-01 · [`10-MKTP-ACTIONS.md`](actions/10-MKTP-ACTIONS.md#mktp-uc-024)
+
+---
+
+## Phase 4 — frozen backlog (UC-022…031)
+
+> PO freeze 2026-08-08 · Plan [`2026-08-08-mkt-ai-planner-phase4.md`](../superpowers/plans/2026-08-08-mkt-ai-planner-phase4.md)
+
+| ID | Tên | Priority | WS |
+|----|-----|----------|-----|
+| MKTP-UC-022 | Async multi-agent pipeline | P1 | P4-03 |
+| MKTP-UC-023 | Portal plan summary read-only | P2 | P4-05 |
+| MKTP-UC-025 | Ops monitoring & job SLO | P1 | P4-06 |
+| MKTP-UC-026 | Plan depth — strategy & brief | P0 | P4-02 |
+| MKTP-UC-027 | Plan depth — scenario & collab | P1 | P4-04 |
+| MKTP-UC-028 | Plan depth — KPI closed-loop | P2 | P4-09 |
+| MKTP-UC-029 | Section comments & PPTX export | P2 | P4-04 |
+| MKTP-UC-030 | Content variants & creative brief | P2 | P4-02 |
+| MKTP-UC-031 | Brief readiness score | P2 | P4-02 |
+
+Chi tiết walkthrough: [`10-MKTP-ACTIONS.md`](actions/10-MKTP-ACTIONS.md) §Phase 4.
+
+---
+
 ## Sơ đồ phụ thuộc UC
 
 ```mermaid
@@ -591,3 +647,14 @@ flowchart TD
 | MKTP-UC-018 | KPI drift alert | P2 |
 | MKTP-UC-019 | Multi-agent pipeline | P2 |
 | MKTP-UC-020 | Industry playbook | P2 |
+| MKTP-UC-021 | Governance banner | P2 |
+| MKTP-UC-022 | Async multi-agent pipeline | P1 |
+| MKTP-UC-023 | Portal plan summary read-only | P2 |
+| MKTP-UC-024 | GA multi-slug rollout | P0 |
+| MKTP-UC-025 | Ops monitoring & job SLO | P1 |
+| MKTP-UC-026 | Plan depth — strategy & brief | P0 |
+| MKTP-UC-027 | Plan depth — scenario & collab | P1 |
+| MKTP-UC-028 | Plan depth — KPI closed-loop | P2 |
+| MKTP-UC-029 | Section comments & PPTX export | P2 |
+| MKTP-UC-030 | Content variants & creative brief | P2 |
+| MKTP-UC-031 | Brief readiness score | P2 |
