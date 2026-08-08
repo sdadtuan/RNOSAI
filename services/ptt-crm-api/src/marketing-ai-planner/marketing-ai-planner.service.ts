@@ -37,6 +37,7 @@ import type {
   MktAiJobType,
   MktAiOptimizeBody,
   MktAiOptimizeResult,
+  MktAiMultiAgentAsyncResult,
   MktAiMultiAgentBody,
   MktAiMultiAgentResult,
   MktAiMultiAgentStatusPayload,
@@ -924,7 +925,7 @@ export class MarketingAiPlannerService {
     lifecycleId: number,
     body: MktAiMultiAgentBody,
     actorEmail: string,
-  ): Promise<MktAiMultiAgentResult> {
+  ): Promise<MktAiMultiAgentResult | MktAiMultiAgentAsyncResult> {
     return this.multiAgent.run(lifecycleId, body, actorEmail);
   }
 

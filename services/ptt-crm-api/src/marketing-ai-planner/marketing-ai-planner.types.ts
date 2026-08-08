@@ -393,6 +393,16 @@ export interface MktAiMultiAgentBody {
   skip_analyst?: boolean;
   stop_on_failure?: boolean;
   start_from_step?: MktAiPipelineStep;
+  /** When true (or env default), enqueue parent job and return HTTP 202. */
+  async?: boolean;
+}
+
+export interface MktAiMultiAgentAsyncResult {
+  ok: boolean;
+  job_id: number;
+  status: 'pending';
+  output: null;
+  poll_url?: string;
 }
 
 export interface MktAiMultiAgentChildJobRef {
@@ -434,6 +444,9 @@ export interface MktAiMultiAgentStatusPayload {
   pipeline_key: string | null;
   playbook_slug: string | null;
   rollup_status: 'idle' | 'running' | 'succeeded' | 'partial' | 'failed';
+  parent_status?: MktAiJobStatus | null;
+  current_step?: MktAiPipelineStep | null;
+  progress_pct?: number;
   steps: MktAiMultiAgentStepState[];
   quality_score?: number;
   failed_step?: MktAiPipelineStep;

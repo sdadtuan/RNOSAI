@@ -91,6 +91,7 @@ export function rollupMultiAgentStatus(
 export function buildPipelineStepStates(args: {
   requestedSteps: MktAiPipelineStep[];
   childJobs: MktAiMultiAgentChildJobRef[];
+  parentStatus?: 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 }): Array<{
   step: MktAiPipelineStep;
   label_vi: string;
@@ -98,25 +99,68 @@ export function buildPipelineStepStates(args: {
   state: 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped';
   job_id?: number;
 }> {
+  type StepState = {
+    step: MktAiPipelineStep;
+    label_vi: string;
+    job_type: MktAiJobType;
+    state: 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped';
+    job_id?: number;
+  };
+
   const byStep = new Map(args.childJobs.map((j) => [j.step, j]));
-  return args.requestedSteps.map((step) => {
+  const states: StepState[] = args.requestedSteps.map((step) => {
     const child = byStep.get(step);
     if (!child) {
       return {
         step,
         label_vi: STEP_LABELS_VI[step],
         job_type: STEP_TO_JOB_TYPE[step],
-        state: 'pending' as const,
+        state: 'pending',
       };
     }
     return {
       step,
       label_vi: STEP_LABELS_VI[step],
       job_type: STEP_TO_JOB_TYPE[step],
-      state: child.status === 'skipped' ? ('skipped' as const) : child.status,
+      state: child.status === 'skipped' ? 'skipped' : child.status,
       job_id: child.job_id,
     };
   });
+
+  if (args.parentStatus === 'running' || args.parentStatus === 'pending') {
+    const runningIdx = states.findIndex((s) => s.state === 'pending');
+    if (runningIdx >= 0) {
+      states[runningIdx] = { ...states[runningIdx], state: 'running' };
+    }
+  }
+
+  return states;
+}
+
+export function computeMultiAgentProgress(args: {
+  requestedSteps: MktAiPipelineStep[];
+  childJobs: MktAiMultiAgentChildJobRef[];
+  parentStatus?: string;
+}): { progress_pct: number; current_step: MktAiPipelineStep | null } {
+  const total = args.requestedSteps.length || 1;
+  const terminal = args.childJobs.filter((j) => j.status === 'succeeded' || j.status === 'failed').length;
+  let progress_pct = Math.round((terminal / total) * 100);
+  if (
+    (args.parentStatus === 'running' || args.parentStatus === 'pending') &&
+    terminal < total
+  ) {
+    progress_pct = Math.min(99, Math.round(((terminal + 0.5) / total) * 100));
+  }
+  if (args.parentStatus === 'succeeded' || args.parentStatus === 'failed') {
+    progress_pct = 100;
+  }
+  const steps = buildPipelineStepStates({
+    requestedSteps: args.requestedSteps,
+    childJobs: args.childJobs,
+    parentStatus: args.parentStatus as 'pending' | 'running' | undefined,
+  });
+  const current = steps.find((s) => s.state === 'running')?.step ?? null;
+  return { progress_pct, current_step: current };
 }
 
 export function findLatestMultiAgentParentJob<

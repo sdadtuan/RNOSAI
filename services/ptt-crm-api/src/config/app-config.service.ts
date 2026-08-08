@@ -123,6 +123,7 @@ export class AppConfigService {
   readonly mktAiMultiAgentEnabled: boolean;
   readonly mktAiPlanDepthEnabled: boolean;
   readonly mktAiBriefUploadEnabled: boolean;
+  readonly mktAiMultiAgentAsync: boolean;
 
   constructor() {
     this.applyRuntimeEnvOverrides();
@@ -374,6 +375,9 @@ export class AppConfigService {
     );
     this.mktAiBriefUploadEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_MKT_AI_BRIEF_UPLOAD_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.mktAiMultiAgentAsync = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MKT_AI_MULTI_AGENT_ASYNC ?? '0').trim().toLowerCase(),
     );
   }
 

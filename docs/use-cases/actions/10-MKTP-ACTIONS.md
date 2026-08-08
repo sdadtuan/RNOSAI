@@ -289,9 +289,9 @@ Bước 11 fail → **Thử lại** → success; strategy draft bước 8 vẫn 
 | 8 | QA | Shell | `./scripts/smoke_mkt_ai_multi_agent_async.sh` | LIFECYCLE_ID=1 | Exit 0 | ✓ |
 
 #### Tiêu chí nghiệm thu
-- [ ] POST async không block HTTP >2s p95
-- [ ] Sync fallback khi `async=false` hoặc flag off
-- [ ] Parent + ≥4 child rows audit `mkt_ai_jobs`
+- [x] POST async không block HTTP >2s p95
+- [x] Sync fallback khi `async=false` hoặc flag off
+- [x] Parent + ≥4 child rows audit `mkt_ai_jobs`
 
 ---
 

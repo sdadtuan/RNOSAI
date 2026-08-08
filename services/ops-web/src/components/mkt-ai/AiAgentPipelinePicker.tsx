@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AiPlaybookSelector } from '@/components/mkt-ai/AiPlaybookSelector';
 import {
+  fetchMktAiMultiAgentStatus,
   postMktAiMultiAgentJob,
   type MktAiBrief,
   type MktAiBriefValidation,
@@ -41,6 +42,10 @@ function stepIcon(state: string): string {
   return '○';
 }
 
+function isTerminalStatus(status: MktAiMultiAgentStatusPayload['rollup_status']): boolean {
+  return status === 'succeeded' || status === 'partial' || status === 'failed';
+}
+
 export function AiAgentPipelinePicker({
   token,
   lifecycleId,
@@ -57,22 +62,85 @@ export function AiAgentPipelinePicker({
   onMessage,
 }: Props) {
   const [busy, setBusy] = useState(false);
+  const [liveStatus, setLiveStatus] = useState<MktAiMultiAgentStatusPayload | undefined>(multiAgent);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const steps = multiAgent?.steps ?? [];
-  const failedStep = multiAgent?.failed_step;
+  useEffect(() => {
+    setLiveStatus(multiAgent);
+  }, [multiAgent]);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
+  const steps = liveStatus?.steps ?? [];
+  const failedStep = liveStatus?.failed_step;
+  const pipelineRunning = liveStatus?.rollup_status === 'running';
   const firstPendingOrFailed = useMemo(
     () => steps.find((s) => s.state === 'pending' || s.state === 'failed')?.step,
     [steps],
   );
 
+  function stopPolling() {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }
+
+  function startPolling() {
+    stopPolling();
+    pollRef.current = setInterval(() => {
+      void (async () => {
+        try {
+          const status = await fetchMktAiMultiAgentStatus(token, lifecycleId);
+          setLiveStatus(status);
+          if (isTerminalStatus(status.rollup_status)) {
+            stopPolling();
+            setBusy(false);
+            onMessage?.(
+              status.rollup_status === 'succeeded'
+                ? 'Pipeline AI hoàn tất — draft đã cập nhật'
+                : status.rollup_status === 'partial'
+                  ? `Pipeline dừng ở bước ${status.failed_step ?? 'unknown'} — draft các bước trước được giữ`
+                  : 'Pipeline AI thất bại',
+            );
+            onPipelineFinished();
+          }
+        } catch (err) {
+          stopPolling();
+          setBusy(false);
+          onError?.(err instanceof Error ? err.message : 'Poll pipeline thất bại');
+        }
+      })();
+    }, 2000);
+  }
+
   async function runPipeline(startFrom?: MktAiPipelineStep) {
-    if (!canEdit || !briefReady) return;
+    if (!canEdit || !briefReady || busy || pipelineRunning) return;
     setBusy(true);
     onError?.('');
     try {
       const out = await postMktAiMultiAgentJob(token, lifecycleId, {
         start_from_step: startFrom,
+        async: true,
       });
+
+      if (out.status === 'pending') {
+        onMessage?.('Pipeline AI đang chạy — cập nhật tiến trình mỗi 2 giây…');
+        const status = await fetchMktAiMultiAgentStatus(token, lifecycleId);
+        setLiveStatus(status);
+        if (isTerminalStatus(status.rollup_status)) {
+          setBusy(false);
+          onPipelineFinished();
+          return;
+        }
+        startPolling();
+        return;
+      }
+
       onMessage?.(
         out.status === 'succeeded'
           ? 'Pipeline AI hoàn tất — draft đã cập nhật'
@@ -81,9 +149,9 @@ export function AiAgentPipelinePicker({
             : 'Pipeline AI thất bại',
       );
       onPipelineFinished();
+      setBusy(false);
     } catch (err) {
       onError?.(err instanceof Error ? err.message : 'Chạy pipeline AI thất bại');
-    } finally {
       setBusy(false);
     }
   }
@@ -108,7 +176,7 @@ export function AiAgentPipelinePicker({
           lifecycleId={lifecycleId}
           serviceSlug={serviceSlug}
           canEdit={canEdit}
-          paused={paused || busy}
+          paused={paused || busy || pipelineRunning}
           activeSlug={playbookContext?.slug ?? null}
           onApplied={onAppliedPlaybook}
           onError={onError}
@@ -161,10 +229,16 @@ export function AiAgentPipelinePicker({
         )}
       </div>
 
-      {multiAgent?.rollup_status && multiAgent.rollup_status !== 'idle' ? (
+      {liveStatus?.rollup_status && liveStatus.rollup_status !== 'idle' ? (
         <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-          Trạng thái pipeline: <strong>{multiAgent.rollup_status}</strong>
-          {multiAgent.quality_score != null ? ` · Quality ${multiAgent.quality_score}` : ''}
+          Trạng thái pipeline: <strong>{liveStatus.rollup_status}</strong>
+          {liveStatus.progress_pct != null && liveStatus.rollup_status === 'running'
+            ? ` · ${liveStatus.progress_pct}%`
+            : ''}
+          {liveStatus.current_step && liveStatus.rollup_status === 'running'
+            ? ` · đang chạy ${liveStatus.current_step}`
+            : ''}
+          {liveStatus.quality_score != null ? ` · Quality ${liveStatus.quality_score}` : ''}
           {failedStep ? ` · Lỗi tại ${failedStep}` : ''}
         </p>
       ) : null}
@@ -173,15 +247,15 @@ export function AiAgentPipelinePicker({
         <button
           type="button"
           className="btn btn-sm"
-          disabled={!canEdit || !briefReady || paused || busy}
+          disabled={!canEdit || !briefReady || paused || busy || pipelineRunning}
           onClick={() => void runPipeline()}
         >
-          Chạy pipeline AI
+          {busy || pipelineRunning ? 'Pipeline đang chạy…' : 'Chạy pipeline AI'}
         </button>
         <button
           type="button"
           className="btn btn-sm btn-secondary"
-          disabled={!canEdit || !briefReady || paused || busy || !firstPendingOrFailed}
+          disabled={!canEdit || !briefReady || paused || busy || pipelineRunning || !firstPendingOrFailed}
           onClick={() => void runPipeline(firstPendingOrFailed)}
         >
           Chạy từ bước hiện tại

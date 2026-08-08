@@ -11,13 +11,14 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import {
@@ -305,14 +306,18 @@ export class MarketingAiPlannerController {
   }
 
   @Post('jobs/multi-agent')
-  @HttpCode(HttpStatus.OK)
   @UseGuards(StaffMarketingAiPlannerGenerateGuard)
-  multiAgent(
+  async multiAgent(
     @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
     @Body() body: MktAiMultiAgentBody,
     @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    return this.planner.runMultiAgentJob(lifecycleId, body ?? {}, actorEmail(req));
+    const result = await this.planner.runMultiAgentJob(lifecycleId, body ?? {}, actorEmail(req));
+    if ('status' in result && result.status === 'pending') {
+      res.status(HttpStatus.ACCEPTED);
+    }
+    return result;
   }
 
   @Get('multi-agent/status')

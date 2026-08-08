@@ -692,6 +692,15 @@ export interface MktAiMultiAgentBody {
   skip_analyst?: boolean;
   stop_on_failure?: boolean;
   start_from_step?: MktAiPipelineStep;
+  async?: boolean;
+}
+
+export interface MktAiMultiAgentAsyncResult {
+  ok: boolean;
+  job_id: number;
+  status: 'pending';
+  output: null;
+  poll_url?: string;
 }
 
 export interface MktAiMultiAgentChildJobRef {
@@ -733,17 +742,22 @@ export interface MktAiMultiAgentStatusPayload {
   pipeline_key: string | null;
   playbook_slug: string | null;
   rollup_status: 'idle' | 'running' | 'succeeded' | 'partial' | 'failed';
+  parent_status?: string | null;
+  current_step?: MktAiPipelineStep | null;
+  progress_pct?: number;
   steps: MktAiMultiAgentStepState[];
   quality_score?: number;
   failed_step?: MktAiPipelineStep;
 }
 
+export type MktAiMultiAgentPostResult = MktAiMultiAgentResult | MktAiMultiAgentAsyncResult;
+
 export async function postMktAiMultiAgentJob(
   token: string,
   lifecycleId: number,
   body: MktAiMultiAgentBody = {},
-) {
-  return mktAiFetch<MktAiMultiAgentResult>(token, lifecycleId, '/jobs/multi-agent', {
+): Promise<MktAiMultiAgentPostResult> {
+  return mktAiFetch<MktAiMultiAgentPostResult>(token, lifecycleId, '/jobs/multi-agent', {
     method: 'POST',
     body: JSON.stringify(body),
   });

@@ -244,25 +244,29 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
     prompt_version?: string;
     input_json: Record<string, unknown>;
     actor_email: string;
+    status?: MktAiJobStatus;
   }): Promise<MktAiJobRow> {
     const started = this.nowIso();
     const promptVersion = input.prompt_version ?? 'v1';
+    const initialStatus = input.status ?? 'running';
     if (await this.ensurePgReady()) {
       const res = await this.db.query(
         `INSERT INTO mkt_ai_jobs (
            lifecycle_id, job_type, status, prompt_version, model_name,
            input_json, actor_email, started_at, created_at, updated_at
-         ) VALUES ($1, $2, 'running', $6, $3, $4::jsonb, $5, NOW(), NOW(), NOW())
+         ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7,
+           CASE WHEN $3 = 'pending' THEN NULL ELSE NOW() END, NOW(), NOW())
          RETURNING id, lifecycle_id, job_type, status, prompt_version, model_name,
                    input_json, output_json, error_message, latency_ms, actor_email,
                    started_at, ended_at, created_at`,
         [
           input.lifecycle_id,
           input.job_type,
+          initialStatus,
+          promptVersion,
           input.model_name,
           JSON.stringify(input.input_json),
           input.actor_email,
-          promptVersion,
         ],
       );
       return this.mapJobRow(res.rows[0]);
@@ -272,7 +276,7 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
       id,
       lifecycle_id: input.lifecycle_id,
       job_type: input.job_type,
-      status: 'running',
+      status: initialStatus,
       prompt_version: promptVersion,
       model_name: input.model_name,
       input_json: input.input_json,
@@ -280,12 +284,109 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
       error_message: null,
       latency_ms: null,
       actor_email: input.actor_email,
-      started_at: started,
+      started_at: initialStatus === 'pending' ? null : started,
       ended_at: null,
       created_at: started,
     };
     this.memory.jobs.push(row);
     return row;
+  }
+
+  async getJobById(jobId: number): Promise<MktAiJobRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, job_type, status, prompt_version, model_name,
+                input_json, output_json, error_message, latency_ms, actor_email,
+                started_at, ended_at, created_at
+         FROM mkt_ai_jobs WHERE id = $1`,
+        [jobId],
+      );
+      return res.rows[0] ? this.mapJobRow(res.rows[0]) : null;
+    }
+    return this.memory.jobs.find((j) => j.id === jobId) ?? null;
+  }
+
+  async patchJob(
+    jobId: number,
+    patch: {
+      status?: MktAiJobStatus;
+      output_json?: Record<string, unknown>;
+      error_message?: string | null;
+      latency_ms?: number;
+    },
+  ): Promise<MktAiJobRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `UPDATE mkt_ai_jobs SET
+           status = COALESCE($2, status),
+           output_json = COALESCE($3::jsonb, output_json),
+           error_message = COALESCE($4, error_message),
+           latency_ms = COALESCE($5, latency_ms),
+           started_at = CASE WHEN $2 = 'running' AND started_at IS NULL THEN NOW() ELSE started_at END,
+           updated_at = NOW()
+         WHERE id = $1
+         RETURNING id, lifecycle_id, job_type, status, prompt_version, model_name,
+                   input_json, output_json, error_message, latency_ms, actor_email,
+                   started_at, ended_at, created_at`,
+        [
+          jobId,
+          patch.status ?? null,
+          patch.output_json ? JSON.stringify(patch.output_json) : null,
+          patch.error_message === undefined ? null : patch.error_message,
+          patch.latency_ms ?? null,
+        ],
+      );
+      return res.rows[0] ? this.mapJobRow(res.rows[0]) : null;
+    }
+    const row = this.memory.jobs.find((j) => j.id === jobId);
+    if (!row) return null;
+    if (patch.status) row.status = patch.status;
+    if (patch.output_json) row.output_json = patch.output_json;
+    if (patch.error_message !== undefined) row.error_message = patch.error_message;
+    if (patch.latency_ms != null) row.latency_ms = patch.latency_ms;
+    if (patch.status === 'running' && !row.started_at) row.started_at = this.nowIso();
+    return row;
+  }
+
+  async claimPendingMultiAgentJob(jobId: number): Promise<MktAiJobRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `UPDATE mkt_ai_jobs SET status = 'running', started_at = NOW(), updated_at = NOW()
+         WHERE id = $1 AND job_type = 'multi_agent' AND status = 'pending'
+         RETURNING id, lifecycle_id, job_type, status, prompt_version, model_name,
+                   input_json, output_json, error_message, latency_ms, actor_email,
+                   started_at, ended_at, created_at`,
+        [jobId],
+      );
+      return res.rows[0] ? this.mapJobRow(res.rows[0]) : null;
+    }
+    const row = this.memory.jobs.find(
+      (j) => j.id === jobId && j.job_type === 'multi_agent' && j.status === 'pending',
+    );
+    if (!row) return null;
+    row.status = 'running';
+    row.started_at = this.nowIso();
+    return row;
+  }
+
+  async listPendingMultiAgentJobs(limit = 10): Promise<MktAiJobRow[]> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, job_type, status, prompt_version, model_name,
+                input_json, output_json, error_message, latency_ms, actor_email,
+                started_at, ended_at, created_at
+         FROM mkt_ai_jobs
+         WHERE job_type = 'multi_agent' AND status = 'pending'
+         ORDER BY id ASC
+         LIMIT $1`,
+        [limit],
+      );
+      return res.rows.map((r) => this.mapJobRow(r));
+    }
+    return this.memory.jobs
+      .filter((j) => j.job_type === 'multi_agent' && j.status === 'pending')
+      .sort((a, b) => a.id - b.id)
+      .slice(0, limit);
   }
 
   async finishJob(
