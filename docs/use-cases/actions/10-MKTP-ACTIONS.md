@@ -221,3 +221,18 @@ Bước 11 fail → **Thử lại** → success; strategy draft bước 8 vẫn 
 | 6 | SP | Same | (Test fail step 3) **Chạy từ bước hiện tại** | start_from_step | Partial — giữ draft bước 1–2 | ✓ EC-MKT-AI-05 |
 | 7 | SP | Same | Link **Xem trace admin →** | — | `/admin/ai/agents?plan=mkt_ai` | ✓ |
 | 8 | SP | Context | `GET multi-agent/status` | — | Step states succeeded/failed/pending | ✓ |
+
+---
+
+## MKTP-UC-021 — Governance banner (Phase 3 · WS-P3-03)
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | SP | AI Planner (mọi step) | Mở tab AI Planner | — | Banner **Governance** sticky trên cùng | ✓ `PTT_MKT_AI_GOVERNANCE_BANNER=1` |
+| 2 | SP | Same | Đọc checkbox gate | — | ☑ Campaign Quality Score gate trước Launch QA | ✓ `PTT_MKT_AI_LAUNCH_QA_QUALITY_GATE=1` |
+| 3 | SP | Same | Đọc governance notes | — | 3 bullet BR-MKTP-01 / quality / campaign count | ✓ playbook JSON |
+| 4 | SP | Tab Launch QA | Mở Launch QA | — | Cùng banner Governance + link Apply | ✓ |
+| 5 | SP | Launch QA | Score &lt;70 → **Khởi tạo Launch QA** | — | Nút disabled + banner vàng | ✓ |
+| 6 | SP | Apply step | Chạy job Quality ≥70 | — | Banner chuyển xanh ✓ đạt | ✓ |
+| 7 | AM | Context API | `GET .../context` | — | `flags.playbook_governance_enabled` + `governance{}` | ✓ |
+| 8 | System | Smoke | `smoke_mkt_ai_planner_context.sh` | LIFECYCLE_ID=1 | OK governance block | ✓ |

@@ -164,6 +164,18 @@ export interface MktAiPlannerContext {
     ok: boolean;
     message_vi: string;
   };
+  governance?: {
+    enabled: boolean;
+    playbook_label: string | null;
+    notes: string[];
+    launch_qa_gate: {
+      required: boolean;
+      min_score: number;
+      current_score: number | null;
+      ok: boolean;
+      message_vi: string;
+    };
+  };
   multi_agent?: MktAiMultiAgentStatusPayload;
 }
 

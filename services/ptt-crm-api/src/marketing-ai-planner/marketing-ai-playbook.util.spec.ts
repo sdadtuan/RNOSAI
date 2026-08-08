@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import {
   buildCampaignPlaybookBlock,
+  buildGovernanceContext,
   buildLaunchQaGateMessage,
   buildStrategyPlaybookBlock,
   evaluateLaunchQaQualityGate,
@@ -103,5 +104,37 @@ describe('marketing-ai-playbook.util', () => {
     });
     expect(gate.ok).toBe(true);
     expect(gate.required).toBe(false);
+  });
+
+  it('buildGovernanceContext returns null when disabled', () => {
+    expect(
+      buildGovernanceContext({
+        enabled: false,
+        playbookLabel: 'Meta',
+        governanceNotes: ['note'],
+        launchQaGate: evaluateLaunchQaQualityGate({
+          enabled: true,
+          minScore: 70,
+          currentScore: 80,
+        }),
+      }),
+    ).toBeNull();
+  });
+
+  it('buildGovernanceContext bundles notes and gate', () => {
+    const gate = evaluateLaunchQaQualityGate({
+      enabled: true,
+      minScore: 70,
+      currentScore: 55,
+    });
+    const gov = buildGovernanceContext({
+      enabled: true,
+      playbookLabel: 'Meta Lead-gen',
+      governanceNotes: ['BR-MKTP-01'],
+      launchQaGate: gate,
+    });
+    expect(gov?.playbook_label).toBe('Meta Lead-gen');
+    expect(gov?.notes).toEqual(['BR-MKTP-01']);
+    expect(gov?.launch_qa_gate.ok).toBe(false);
   });
 });

@@ -18,7 +18,6 @@ import {
   useIntakeAutosave,
 } from '@/lib/crm/use-intake-autosave';
 import { BRIEF_FIELD_LABELS } from '@/lib/tmmt-labels';
-import { AiGovernanceBanner } from '@/components/mkt-ai/AiGovernanceBanner';
 import { AiPlaybookSelector } from '@/components/mkt-ai/AiPlaybookSelector';
 import type { MktAiPlannerContext } from '@/lib/mkt-ai-planner-api';
 
@@ -48,8 +47,6 @@ interface Props {
   onSaveError?: (message: string) => void;
   playbooksEnabled?: boolean;
   playbookContext?: MktAiPlannerContext['playbook'];
-  launchQaGate?: MktAiPlannerContext['launch_qa_quality_gate'];
-  governanceEnabled?: boolean;
 }
 
 export function BriefIntakeForm({
@@ -68,8 +65,6 @@ export function BriefIntakeForm({
   onSaveError,
   playbooksEnabled = false,
   playbookContext,
-  launchQaGate,
-  governanceEnabled = false,
 }: Props) {
   const fieldRefs = useRef<Partial<Record<string, HTMLElement | null>>>({});
 
@@ -225,18 +220,6 @@ export function BriefIntakeForm({
             onPersisted(out);
           }}
           onError={onSaveError}
-        />
-      ) : null}
-
-      {governanceEnabled ? (
-        <AiGovernanceBanner
-          playbookLabel={playbookContext?.label_vi}
-          governanceNotes={playbookContext?.governance_notes ?? []}
-          qualityScore={launchQaGate?.current_score ?? null}
-          minScore={launchQaGate?.min_score ?? playbookContext?.quality_gate.min_score_launch_qa ?? 70}
-          gateOk={launchQaGate?.ok ?? true}
-          gateRequired={launchQaGate?.required ?? false}
-          gateMessage={launchQaGate?.message_vi}
         />
       ) : null}
 

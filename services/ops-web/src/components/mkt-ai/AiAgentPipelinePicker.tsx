@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { AiGovernanceBanner } from '@/components/mkt-ai/AiGovernanceBanner';
 import { AiPlaybookSelector } from '@/components/mkt-ai/AiPlaybookSelector';
 import {
   postMktAiMultiAgentJob,
@@ -21,11 +20,8 @@ interface Props {
   paused?: boolean;
   briefReady: boolean;
   playbookContext?: MktAiPlannerContext['playbook'];
-  launchQaGate?: MktAiPlannerContext['launch_qa_quality_gate'];
-  governanceEnabled?: boolean;
   playbooksEnabled?: boolean;
   multiAgent?: MktAiMultiAgentStatusPayload;
-  qualityScore?: number | null;
   onAppliedPlaybook: (result: {
     brief: MktAiBrief;
     brief_validation: MktAiBriefValidation;
@@ -53,11 +49,8 @@ export function AiAgentPipelinePicker({
   paused = false,
   briefReady,
   playbookContext,
-  launchQaGate,
-  governanceEnabled = false,
   playbooksEnabled = false,
   multiAgent,
-  qualityScore,
   onAppliedPlaybook,
   onPipelineFinished,
   onError,
@@ -119,18 +112,6 @@ export function AiAgentPipelinePicker({
           activeSlug={playbookContext?.slug ?? null}
           onApplied={onAppliedPlaybook}
           onError={onError}
-        />
-      ) : null}
-
-      {governanceEnabled ? (
-        <AiGovernanceBanner
-          playbookLabel={playbookContext?.label_vi}
-          governanceNotes={playbookContext?.governance_notes ?? []}
-          qualityScore={launchQaGate?.current_score ?? qualityScore ?? null}
-          minScore={launchQaGate?.min_score ?? playbookContext?.quality_gate.min_score_launch_qa ?? 70}
-          gateOk={launchQaGate?.ok ?? true}
-          gateRequired={launchQaGate?.required ?? false}
-          gateMessage={launchQaGate?.message_vi}
         />
       ) : null}
 

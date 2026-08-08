@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AiGovernanceBanner } from '@/components/mkt-ai/AiGovernanceBanner';
 import { fetchMktAiPlannerContext } from '@/lib/mkt-ai-planner-api';
+import { buildMktAiGovernanceBannerProps } from '@/lib/mkt-ai-governance';
 import {
   fetchServiceLifecycleBudgetBrief,
   fetchServiceLifecycleCreativeBrief,
@@ -84,13 +86,7 @@ interface Props {
   lifecycleId: number;
 }
 
-type MktAiGateBanner = {
-  required: boolean;
-  min_score: number;
-  current_score: number | null;
-  ok: boolean;
-  message_vi: string;
-};
+type MktAiPlannerCtx = Awaited<ReturnType<typeof fetchMktAiPlannerContext>>;
 
 const META_LAUNCH_QA_KEYS = new Set([
   'meta_pixel_configured',
@@ -129,7 +125,7 @@ export function LifecycleLaunchQaPanel({ token, user, lifecycleId }: Props) {
   const [creativeDesc, setCreativeDesc] = useState('');
   const [assetUrl, setAssetUrl] = useState('');
   const [budgetVnd, setBudgetVnd] = useState('');
-  const [mktAiGate, setMktAiGate] = useState<MktAiGateBanner | null>(null);
+  const [mktAiCtx, setMktAiCtx] = useState<MktAiPlannerCtx | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -144,7 +140,7 @@ export function LifecycleLaunchQaPanel({ token, user, lifecycleId }: Props) {
       setData(qa);
       setBrief(br);
       setBudgetBrief(bb);
-      setMktAiGate(mktCtx?.launch_qa_quality_gate ?? null);
+      setMktAiCtx(mktCtx);
       if (!creativeTitle && br.suggested_brief?.title) {
         setCreativeTitle(br.suggested_brief.title);
       }
@@ -164,6 +160,12 @@ export function LifecycleLaunchQaPanel({ token, user, lifecycleId }: Props) {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const governanceBanner = useMemo(
+    () => buildMktAiGovernanceBannerProps(mktAiCtx, { lifecycleId, includeLinks: true }),
+    [mktAiCtx, lifecycleId],
+  );
+  const mktAiGate = mktAiCtx?.launch_qa_quality_gate ?? null;
 
   async function onStart() {
     if (!canEdit) return;
@@ -257,7 +259,9 @@ export function LifecycleLaunchQaPanel({ token, user, lifecycleId }: Props) {
     <div style={{ display: 'grid', gap: '1rem' }}>
       {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
 
-      {mktAiGate?.required && !mktAiGate.ok ? (
+      {governanceBanner ? <AiGovernanceBanner {...governanceBanner} sticky /> : null}
+
+      {!governanceBanner && mktAiGate?.required && !mktAiGate.ok ? (
         <div
           className="card"
           style={{

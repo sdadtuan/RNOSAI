@@ -22,6 +22,7 @@ import { MarketingAiKpiAlertService } from './marketing-ai-kpi-alert.service';
 import { MarketingAiMultiAgentService } from './marketing-ai-multi-agent.service';
 import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
 import { MarketingAiPlaybookService } from './marketing-ai-playbook.service';
+import { buildGovernanceContext } from './marketing-ai-playbook.util';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
 import { MarketingAiRagService } from './marketing-ai-rag.service';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
@@ -188,6 +189,16 @@ export class MarketingAiPlannerService {
         })
       : null;
 
+    const governanceBlock =
+      playbookCtx && this.playbooks.isGovernanceBannerEnabled()
+        ? buildGovernanceContext({
+            enabled: true,
+            playbookLabel: playbookCtx.playbook.label_vi,
+            governanceNotes: playbookCtx.playbook.governance_notes,
+            launchQaGate: playbookCtx.launch_qa_quality_gate,
+          })
+        : undefined;
+
     return {
       lifecycle_id: lifecycleId,
       stage: String(lc.stage ?? ''),
@@ -229,6 +240,7 @@ export class MarketingAiPlannerService {
         ? {
             playbook: playbookCtx.playbook,
             launch_qa_quality_gate: playbookCtx.launch_qa_quality_gate,
+            ...(governanceBlock ? { governance: governanceBlock } : {}),
           }
         : {}),
       ...(this.multiAgent.isEnabled()

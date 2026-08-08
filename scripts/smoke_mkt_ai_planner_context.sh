@@ -101,4 +101,25 @@ for key in lifecycle_id brief draft jobs tmmt_validation flags; do
   fi
 done
 
+python3 <<'PY'
+import json
+with open('/tmp/mkt-ai-context.json') as f:
+    data = json.load(f)
+flags = data.get("flags") or {}
+if flags.get("playbook_governance_enabled"):
+    gov = data.get("governance")
+    if not gov or not gov.get("enabled"):
+        print("FAIL governance block missing while playbook_governance_enabled=1")
+        raise SystemExit(1)
+    if not isinstance(gov.get("notes"), list):
+        print("FAIL governance.notes must be array")
+        raise SystemExit(1)
+    gate = gov.get("launch_qa_gate") or {}
+    for k in ("required", "min_score", "ok", "message_vi"):
+        if k not in gate:
+            print(f"FAIL governance.launch_qa_gate missing {k}")
+            raise SystemExit(1)
+    print("OK  governance block present")
+PY
+
 echo "OK  smoke context passed (lifecycle #${LIFECYCLE_ID})"

@@ -239,6 +239,13 @@
   background: rgba(59, 130, 246, 0.06);
 }
 
+.governanceBannerSticky {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
 .approvalBar {
   position: sticky;
   top: 0;

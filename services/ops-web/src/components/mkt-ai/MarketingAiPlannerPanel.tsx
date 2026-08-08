@@ -13,6 +13,7 @@ import { AiStrategySections } from '@/components/mkt-ai/AiStrategySections';
 import { BriefIntakeForm } from '@/components/mkt-ai/BriefIntakeForm';
 import { AiJobProgressPanel } from '@/components/mkt-ai/AiJobProgressPanel';
 import { AiTmmtGateBanner } from '@/components/mkt-ai/AiTmmtGateBanner';
+import { AiGovernanceBanner } from '@/components/mkt-ai/AiGovernanceBanner';
 import styles from '@/components/mkt-ai/mkt-ai-planner.module.css';
 import {
   canApproveMktAiPlanner,
@@ -34,6 +35,7 @@ import {
 } from '@/lib/mkt-ai-planner-api';
 import { ApiError } from '@/lib/api';
 import { hasStrategyContent } from '@/lib/mkt-ai-draft-fields';
+import { buildMktAiGovernanceBannerProps } from '@/lib/mkt-ai-governance';
 
 const STEPS = [
   { id: 'brief', label: 'Brief' },
@@ -250,6 +252,10 @@ export function MarketingAiPlannerPanel({
   const ragCitations =
     (draft?.quality_score_json?.rag_citations as Record<string, MktAiCitation[]> | undefined) ??
     {};
+  const governanceBanner = useMemo(
+    () => buildMktAiGovernanceBannerProps(ctx, { lifecycleId, includeLinks: true }),
+    [ctx, lifecycleId],
+  );
 
   function handleDraftPersisted(persisted: MktAiDraft) {
     setCtx((prev) => (prev ? { ...prev, draft: persisted } : prev));
@@ -299,6 +305,8 @@ export function MarketingAiPlannerPanel({
         messages={ctx?.tmmt_validation.messages ?? []}
         onOpenTmmt={onOpenTmmtTab}
       />
+
+      {governanceBanner ? <AiGovernanceBanner {...governanceBanner} sticky /> : null}
 
       <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
         {STEPS.map((s, idx) => {
@@ -398,8 +406,6 @@ export function MarketingAiPlannerPanel({
                   resetAutosaveKey={contextVersion}
                   playbooksEnabled={Boolean(ctx?.flags.playbooks_enabled)}
                   playbookContext={ctx?.playbook}
-                  launchQaGate={ctx?.launch_qa_quality_gate}
-                  governanceEnabled={Boolean(ctx?.flags.playbook_governance_enabled)}
                   onPersisted={(out) => {
                     setBriefDraft(out.brief);
                     setCtx((prev) =>
@@ -563,11 +569,8 @@ export function MarketingAiPlannerPanel({
               paused={busy}
               briefReady={Boolean(briefValidation?.ok)}
               playbooksEnabled={Boolean(ctx?.flags.playbooks_enabled)}
-              governanceEnabled={Boolean(ctx?.flags.playbook_governance_enabled)}
               playbookContext={ctx?.playbook}
-              launchQaGate={ctx?.launch_qa_quality_gate}
               multiAgent={ctx?.multi_agent}
-              qualityScore={quality?.score ?? null}
               onAppliedPlaybook={(out) => {
                 setBriefDraft(out.brief);
                 setCtx((prev) =>

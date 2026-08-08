@@ -172,3 +172,23 @@ export function evaluateLaunchQaQualityGate(args: {
     message_vi: buildLaunchQaGateMessage(args.minScore, currentScore),
   };
 }
+
+export function buildGovernanceContext(args: {
+  enabled: boolean;
+  playbookLabel: string | null;
+  governanceNotes: string[];
+  launchQaGate: MktAiLaunchQaQualityGate;
+}): {
+  enabled: boolean;
+  playbook_label: string | null;
+  notes: string[];
+  launch_qa_gate: MktAiLaunchQaQualityGate;
+} | null {
+  if (!args.enabled) return null;
+  return {
+    enabled: true,
+    playbook_label: args.playbookLabel,
+    notes: args.governanceNotes,
+    launch_qa_gate: args.launchQaGate,
+  };
+}
