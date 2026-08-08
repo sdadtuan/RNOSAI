@@ -12,6 +12,10 @@ import {
   mergeBriefWithPlaybook,
   readPlaybookFile,
   resolveActivePlaybookSlug,
+  validateMktAiPlaybookDocument,
+  validatePlaybookFile,
+  discoverPlaybookJsonSlugs,
+  MKT_AI_PLAYBOOK_SLUGS,
 } from './marketing-ai-playbook.util';
 
 describe('marketing-ai-playbook.util', () => {
@@ -136,5 +140,26 @@ describe('marketing-ai-playbook.util', () => {
     expect(gov?.playbook_label).toBe('Meta Lead-gen');
     expect(gov?.notes).toEqual(['BR-MKTP-01']);
     expect(gov?.launch_qa_gate.ok).toBe(false);
+  });
+
+  it('validateMktAiPlaybookDocument passes shipped playbook JSON files', () => {
+    const slugs = discoverPlaybookJsonSlugs();
+    expect(slugs.length).toBeGreaterThanOrEqual(3);
+    for (const slug of slugs) {
+      expect(validatePlaybookFile(slug)).toEqual([]);
+    }
+    for (const slug of MKT_AI_PLAYBOOK_SLUGS) {
+      expect(slugs).toContain(slug);
+    }
+  });
+
+  it('validateMktAiPlaybookDocument rejects invalid docs', () => {
+    expect(validateMktAiPlaybookDocument({}, 'meta-lead-gen')).toContain('label_vi is required');
+    expect(
+      validateMktAiPlaybookDocument(
+        { slug: 'wrong-slug', label_vi: 'X', service_slugs: ['a'], brief_defaults: {}, strategy_prompt_hints: ['h'], campaign_kpi_templates: ['k'], quality_gate: { min_score_launch_qa: 70, require_campaign_count: 2 } },
+        'meta-lead-gen',
+      ),
+    ).toEqual(expect.arrayContaining([expect.stringContaining('must match filename')]));
   });
 });

@@ -28,6 +28,7 @@ import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.serv
 import { MarketingAiRagService } from './marketing-ai-rag.service';
 import { MarketingAiPlannerController } from './marketing-ai-planner.controller';
 import { MarketingAiKpiAlertController } from './marketing-ai-kpi-alert.controller';
+import { MarketingAiPlaybookAdminController } from './marketing-ai-playbook-admin.controller';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
 import { MarketingAiPlannerService } from './marketing-ai-planner.service';
 
@@ -40,7 +41,7 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
     AiIntelligenceModule,
     MarketingAiPlaybookModule,
   ],
-  controllers: [MarketingAiPlannerController, MarketingAiKpiAlertController],
+  controllers: [MarketingAiPlannerController, MarketingAiKpiAlertController, MarketingAiPlaybookAdminController],
   providers: [
     MarketingAiPlannerRepository,
     MarketingAiOrchestratorService,

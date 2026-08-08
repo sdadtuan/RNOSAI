@@ -42,9 +42,12 @@ step() {
   echo "==> $1"
 }
 
-step "0/8 Health"
+step "0/9 Health"
 curl -sf "${PTT_API_URL}/health" >/dev/null
 echo "OK  Nest /health"
+
+step "0b/9 Playbook schema gate (WS-P4-08)"
+bash "$ROOT/scripts/verify_mkt_ai_playbooks.sh"
 
 if [[ -n "${DATABASE_URL:-}" ]]; then
   step "1/8 Seed UAT lifecycles (idempotent)"
@@ -85,7 +88,7 @@ else
   echo "SKIP plan depth smokes — DATABASE_URL not set"
 fi
 
-step "8/8 Portal summary smoke (WS-P4-05)"
+step "8/9 Portal summary smoke (WS-P4-05)"
 if [[ "${SKIP_PORTAL_SMOKE:-0}" != "1" ]]; then
   bash "$ROOT/scripts/smoke_mkt_ai_portal_summary.sh" || {
     echo "WARN portal summary smoke skipped/failed (set PORTAL_EMAIL+PORTAL_PASSWORD or SKIP_PORTAL_SMOKE=1)"
@@ -93,6 +96,9 @@ if [[ "${SKIP_PORTAL_SMOKE:-0}" != "1" ]]; then
 else
   echo "SKIP portal summary (SKIP_PORTAL_SMOKE=1)"
 fi
+
+step "8b/9 Admin playbooks smoke (WS-P4-08)"
+bash "$ROOT/scripts/smoke_mkt_ai_playbooks_admin.sh" || echo "WARN admin playbooks smoke skipped"
 
 step "Ops weekly report (non-blocking)"
 if [[ -n "${DATABASE_URL:-}" ]]; then

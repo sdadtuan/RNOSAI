@@ -13,6 +13,9 @@ import {
   mergeBriefWithPlaybook,
   readPlaybookFile,
   resolveActivePlaybookSlug,
+  discoverPlaybookJsonSlugs,
+  validateMktAiPlaybookDocument,
+  MKT_AI_PLAYBOOK_SLUGS,
   type MktAiIndustryPlaybook,
   type MktAiLaunchQaQualityGate,
 } from './marketing-ai-playbook.util';
@@ -28,6 +31,30 @@ export interface MktAiPlaybookListResult {
   service_slug: string;
   active_slug: string | null;
   playbooks: MktAiPlaybookListItem[];
+}
+
+export interface MktAiAdminPlaybookRow {
+  slug: string;
+  label_vi: string;
+  service_slugs: string[];
+  file: string;
+  quality_gate: { min_score_launch_qa: number; require_campaign_count: number };
+  strategy_hint_count: number;
+  campaign_kpi_template_count: number;
+  governance_notes_count: number;
+  has_channel_mix: boolean;
+  has_stub_swot: boolean;
+  in_runtime_catalog: boolean;
+  schema_valid: boolean;
+  schema_errors: string[];
+}
+
+export interface MktAiAdminPlaybookListResult {
+  ok: boolean;
+  feature_enabled: boolean;
+  runtime_catalog_slugs: string[];
+  count: number;
+  playbooks: MktAiAdminPlaybookRow[];
 }
 
 export interface MktAiPlaybookContext {
@@ -99,6 +126,42 @@ export class MarketingAiPlaybookService {
         label_vi: p.label_vi,
         quality_gate: { min_score_launch_qa: p.quality_gate.min_score_launch_qa },
       })),
+    };
+  }
+
+  /** WS-P4-08 — read-only admin catalog from JSON files on disk */
+  listAdminCatalog(): MktAiAdminPlaybookListResult {
+    const slugs = discoverPlaybookJsonSlugs();
+    const runtimeSlugs = new Set<string>(MKT_AI_PLAYBOOK_SLUGS);
+    const playbooks: MktAiAdminPlaybookRow[] = slugs.map((slug) => {
+      const pb = readPlaybookFile(slug);
+      const schema_errors = validateMktAiPlaybookDocument(pb, slug);
+      return {
+        slug: pb.slug,
+        label_vi: pb.label_vi,
+        service_slugs: pb.service_slugs,
+        file: `${slug}.json`,
+        quality_gate: {
+          min_score_launch_qa: pb.quality_gate.min_score_launch_qa,
+          require_campaign_count: pb.quality_gate.require_campaign_count,
+        },
+        strategy_hint_count: pb.strategy_prompt_hints?.length ?? 0,
+        campaign_kpi_template_count: pb.campaign_kpi_templates?.length ?? 0,
+        governance_notes_count: pb.governance_notes_vi?.length ?? 0,
+        has_channel_mix: Boolean(pb.channel_mix_pct && Object.keys(pb.channel_mix_pct).length),
+        has_stub_swot: Boolean(pb.stub_swot_json),
+        in_runtime_catalog: runtimeSlugs.has(pb.slug),
+        schema_valid: schema_errors.length === 0,
+        schema_errors,
+      };
+    });
+
+    return {
+      ok: true,
+      feature_enabled: this.isEnabled(),
+      runtime_catalog_slugs: [...MKT_AI_PLAYBOOK_SLUGS],
+      count: playbooks.length,
+      playbooks,
     };
   }
 

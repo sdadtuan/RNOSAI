@@ -22,6 +22,100 @@ export const MKT_AI_PLAYBOOK_SLUGS = ['meta-lead-gen', 'bds-lead-gen', 'seo-reta
 
 const PLAYBOOKS_DIR = path.join(__dirname, 'playbooks');
 
+export function discoverPlaybookJsonSlugs(dir = PLAYBOOKS_DIR): string[] {
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir)
+    .filter((name) => name.endsWith('.json'))
+    .map((name) => name.replace(/\.json$/, ''))
+    .sort();
+}
+
+/** WS-P4-08 — schema gate for PR + verify_mkt_ai_playbooks.sh */
+export function validateMktAiPlaybookDocument(doc: unknown, fileSlug: string): string[] {
+  const errors: string[] = [];
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
+    return ['root must be a JSON object'];
+  }
+
+  const d = doc as Record<string, unknown>;
+  const slug = String(d.slug ?? fileSlug).trim();
+  if (!slug) errors.push('slug is required');
+  if (slug !== fileSlug) {
+    errors.push(`slug "${slug}" must match filename "${fileSlug}.json"`);
+  }
+  if (!String(d.label_vi ?? '').trim()) errors.push('label_vi is required');
+
+  const serviceSlugs = d.service_slugs;
+  if (!Array.isArray(serviceSlugs) || serviceSlugs.length === 0) {
+    errors.push('service_slugs must be a non-empty array');
+  } else if (!serviceSlugs.every((s) => typeof s === 'string' && String(s).trim())) {
+    errors.push('service_slugs entries must be non-empty strings');
+  }
+
+  if (!d.brief_defaults || typeof d.brief_defaults !== 'object' || Array.isArray(d.brief_defaults)) {
+    errors.push('brief_defaults must be an object');
+  }
+
+  const hints = d.strategy_prompt_hints;
+  if (!Array.isArray(hints) || hints.filter((h) => String(h).trim()).length === 0) {
+    errors.push('strategy_prompt_hints must contain ≥1 non-empty string');
+  }
+
+  const templates = d.campaign_kpi_templates;
+  if (!Array.isArray(templates) || templates.filter((t) => String(t).trim()).length === 0) {
+    errors.push('campaign_kpi_templates must contain ≥1 non-empty string');
+  }
+
+  const qg = d.quality_gate;
+  if (!qg || typeof qg !== 'object' || Array.isArray(qg)) {
+    errors.push('quality_gate is required');
+  } else {
+    const gate = qg as Record<string, unknown>;
+    const minScore = Number(gate.min_score_launch_qa);
+    if (!Number.isFinite(minScore) || minScore < 0 || minScore > 100) {
+      errors.push('quality_gate.min_score_launch_qa must be a number between 0 and 100');
+    }
+    const reqCampaigns = Number(gate.require_campaign_count);
+    if (!Number.isFinite(reqCampaigns) || reqCampaigns < 1) {
+      errors.push('quality_gate.require_campaign_count must be ≥1');
+    }
+  }
+
+  const mix = d.channel_mix_pct;
+  if (mix != null) {
+    if (typeof mix !== 'object' || Array.isArray(mix)) {
+      errors.push('channel_mix_pct must be an object');
+    } else if (
+      !Object.values(mix as Record<string, unknown>).every(
+        (v) => typeof v === 'number' && Number.isFinite(v),
+      )
+    ) {
+      errors.push('channel_mix_pct values must be numbers');
+    }
+  }
+
+  const notes = d.governance_notes_vi;
+  if (notes != null && (!Array.isArray(notes) || !notes.every((n) => typeof n === 'string'))) {
+    errors.push('governance_notes_vi must be an array of strings when present');
+  }
+
+  return errors;
+}
+
+export function validatePlaybookFile(slug: string, dir = PLAYBOOKS_DIR): string[] {
+  const filePath = path.join(dir, `${slug}.json`);
+  if (!fs.existsSync(filePath)) {
+    return [`missing file ${slug}.json`];
+  }
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown;
+    return validateMktAiPlaybookDocument(parsed, slug);
+  } catch (err) {
+    return [`invalid JSON in ${slug}.json: ${err instanceof Error ? err.message : String(err)}`];
+  }
+}
+
 function isBriefFieldEmpty(key: string, value: unknown): boolean {
   if (value == null) return true;
   if (typeof value === 'number') return !Number.isFinite(value) || value <= 0;

@@ -237,6 +237,8 @@ Cron (prod/staging): `PTT_MKT_AI_OPS_WEEKLY_REPORT=1` — xem GA rollout runbook
 | Full regression | `scripts/run_mkt_ai_planner_full_regression.sh` |
 | Ops weekly | `scripts/report_mkt_ai_ops_weekly.sh` |
 | GA rollout | `docs/runbooks/mkt-ai-planner-ga-rollout.md` |
+| Playbook ops | `docs/runbooks/mkt-ai-playbook-ops.md` |
+| Verify playbooks | `scripts/verify_mkt_ai_playbooks.sh` |
 
 ---
 

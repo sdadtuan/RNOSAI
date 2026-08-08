@@ -32,6 +32,9 @@ run_local() {
   echo "== 2/5 Verify DDL =="
   bash "$ROOT/scripts/verify_mkt_ai_ddl.sh"
 
+  echo "== 2b/5 Verify playbook JSON (WS-P4-08) =="
+  bash "$ROOT/scripts/verify_mkt_ai_playbooks.sh"
+
   echo "== 3/5 Enable API + FE flags =="
   RUNTIME_ENV="$ROOT/deploy/runtime.env"
   mkdir -p "$ROOT/deploy"
@@ -141,6 +144,9 @@ run_local() {
 
   echo "== 5a3/5 Portal plan summary smoke (WS-P4-05) =="
   bash "$ROOT/scripts/smoke_mkt_ai_portal_summary.sh" || echo "WARN portal summary smoke failed"
+
+  echo "== 5a4/5 Admin playbooks smoke (WS-P4-08) =="
+  bash "$ROOT/scripts/smoke_mkt_ai_playbooks_admin.sh" || echo "WARN admin playbooks smoke failed"
 
   echo "== 5b/5 Build API + ops-web =="
   if [[ -d "$ROOT/services/ptt-crm-api" ]]; then
