@@ -11,6 +11,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { validateMktAiBrief, mergeBrief, emptyDraft } from './marketing-ai-brief.util';
 import { computeQualityScore } from './marketing-ai-quality.util';
+import { MarketingAiBudgetService } from './marketing-ai-budget.service';
 import { MarketingAiExportService } from './marketing-ai-export.service';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
 import { MarketingAiRagService } from './marketing-ai-rag.service';
@@ -39,6 +40,7 @@ export class MarketingAiPlannerService {
     private readonly repo: MarketingAiPlannerRepository,
     private readonly orchestrator: MarketingAiOrchestratorService,
     private readonly rag: MarketingAiRagService,
+    private readonly budget: MarketingAiBudgetService,
     private readonly agentRuns: AiAgentRunsRepository,
     private readonly exportService: MarketingAiExportService,
   ) {}
@@ -116,6 +118,7 @@ export class MarketingAiPlannerService {
     const indexedCount = documents.filter((d) => d.status === 'indexed' && d.chunk_count > 0).length;
     const useRag = this.rag.shouldUseRag(briefRow.brief_json, indexedCount);
     const ragCitations = draft.quality_score_json?.rag_citations;
+    const budgetScenarios = await this.repo.listBudgetScenarios(lifecycleId);
 
     return {
       lifecycle_id: lifecycleId,
@@ -138,6 +141,7 @@ export class MarketingAiPlannerService {
         use_rag: useRag,
         indexed_count: indexedCount,
       },
+      budget_scenarios: budgetScenarios,
       tmmt_validation: {
         ok: Boolean(tmmtPayload.validation?.ok),
         messages: tmmtPayload.validation?.messages ?? [],
@@ -238,7 +242,7 @@ export class MarketingAiPlannerService {
     lifecycleId: number,
     jobType: MktAiJobType,
     actorEmail: string,
-    runner: () => Promise<Record<string, unknown>>,
+    runner: (jobId: number) => Promise<Record<string, unknown>>,
   ): Promise<{ job_id: number; status: string; output?: Record<string, unknown> }> {
     // P0: jobs run synchronously in-request; poll via GET /context (async worker deferred).
     const started = Date.now();
@@ -253,7 +257,7 @@ export class MarketingAiPlannerService {
     });
 
     try {
-      const output = await runner();
+      const output = await runner(job.id);
       const latency = Date.now() - started;
       await this.repo.finishJob(job.id, {
         status: 'succeeded',
@@ -416,6 +420,26 @@ export class MarketingAiPlannerService {
       );
       return quality as unknown as Record<string, unknown>;
     });
+  }
+
+  async runBudgetSimulateJob(lifecycleId: number, actorEmail: string) {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+    const brief = await this.requireBrief(lifecycleId);
+
+    return this.runJob(lifecycleId, 'budget_simulate', actorEmail, async (jobId) => {
+      const scenarios = await this.budget.simulate(lifecycleId, brief, jobId);
+      return { scenarios, count: scenarios.length } as unknown as Record<string, unknown>;
+    });
+  }
+
+  async applyBudgetScenario(lifecycleId: number, scenarioId: number, actorEmail: string) {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+    const draft = await this.repo.ensureDraft(lifecycleId, actorEmail);
+    const campaigns = (draft.campaigns_json ?? []) as MktAiCampaignDraft[];
+    const applied = await this.budget.applyScenario(lifecycleId, scenarioId, campaigns, actorEmail);
+    return applied;
   }
 
   async retryJob(lifecycleId: number, jobType: string, actorEmail: string) {

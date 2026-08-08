@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AiBrandKbPanel } from '@/components/mkt-ai/AiBrandKbPanel';
+import { AiBudgetSimulator } from '@/components/mkt-ai/AiBudgetSimulator';
 import { AiApplyStepPanel } from '@/components/mkt-ai/AiApplyStepPanel';
 import { AiCampaignBuilder } from '@/components/mkt-ai/AiCampaignBuilder';
 import { AiContentCalendar } from '@/components/mkt-ai/AiContentCalendar';
@@ -23,6 +24,7 @@ import {
   postMktAiJobRetry,
   postMktAiStrategyJob,
   type MktAiBrief,
+  type MktAiBudgetScenarioRow,
   type MktAiCitation,
   type MktAiDraft,
   type MktAiPlannerContext,
@@ -40,6 +42,7 @@ const STEPS = [
 
 type StepId = (typeof STEPS)[number]['id'];
 type BriefSubId = 'brief' | 'kb';
+type CampaignSubId = 'campaign' | 'budget';
 
 interface Props {
   token: string;
@@ -47,6 +50,7 @@ interface Props {
   lifecycleId: number;
   stage: string;
   serviceSlug?: string;
+  clientId?: string;
   onOpenTmmtTab?: () => void;
   onApplied?: () => void;
 }
@@ -64,12 +68,18 @@ function parseBriefSub(raw: string | null): BriefSubId {
   return raw === 'kb' ? 'kb' : 'brief';
 }
 
+function parseCampaignSub(raw: string | null, step: StepId): CampaignSubId {
+  if (step !== 'campaign') return 'campaign';
+  return raw === 'budget' ? 'budget' : 'campaign';
+}
+
 export function MarketingAiPlannerPanel({
   token,
   user,
   lifecycleId,
   stage,
   serviceSlug,
+  clientId,
   onOpenTmmtTab,
   onApplied,
 }: Props) {
@@ -79,7 +89,11 @@ export function MarketingAiPlannerPanel({
   const [briefDraft, setBriefDraft] = useState<MktAiBrief>({});
   const [step, setStep] = useState<StepId>(() => parseStep(searchParams.get('step')));
   const [briefSub, setBriefSub] = useState<BriefSubId>(() => parseBriefSub(searchParams.get('sub')));
+  const [campaignSub, setCampaignSub] = useState<CampaignSubId>(() =>
+    parseCampaignSub(searchParams.get('sub'), parseStep(searchParams.get('step'))),
+  );
   const [documents, setDocuments] = useState<MktAiPlannerContext['documents']>([]);
+  const [budgetScenarios, setBudgetScenarios] = useState<MktAiBudgetScenarioRow[]>([]);
   const [useRag, setUseRag] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -101,6 +115,7 @@ export function MarketingAiPlannerPanel({
       setCtx(data);
       setBriefDraft(data.brief ?? { service_slug: data.service_slug });
       setDocuments(data.documents ?? []);
+      setBudgetScenarios(data.budget_scenarios ?? []);
       setUseRag(data.rag?.use_rag ?? data.brief?.use_rag !== false);
       setContextVersion((v) => v + 1);
       setDisabledReason('');
@@ -125,6 +140,7 @@ export function MarketingAiPlannerPanel({
       setCtx(data);
       setBriefDraft(data.brief ?? { service_slug: data.service_slug });
       setDocuments(data.documents ?? []);
+      setBudgetScenarios(data.budget_scenarios ?? []);
       setUseRag(data.rag?.use_rag ?? data.brief?.use_rag !== false);
     } catch {
       /* silent poll — avoid VQ-09 flash */
@@ -150,8 +166,10 @@ export function MarketingAiPlannerPanel({
   }, [reload]);
 
   useEffect(() => {
-    setStep(parseStep(searchParams.get('step')));
+    const nextStep = parseStep(searchParams.get('step'));
+    setStep(nextStep);
     setBriefSub(parseBriefSub(searchParams.get('sub')));
+    setCampaignSub(parseCampaignSub(searchParams.get('sub'), nextStep));
   }, [searchParams]);
 
   function goToStep(next: StepId) {
@@ -159,7 +177,7 @@ export function MarketingAiPlannerPanel({
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', 'ai-planner');
     params.set('step', next);
-    if (next !== 'brief') params.delete('sub');
+    if (next !== 'brief' && next !== 'campaign') params.delete('sub');
     router.replace(`?${params.toString()}`, { scroll: false });
   }
 
@@ -169,6 +187,16 @@ export function MarketingAiPlannerPanel({
     params.set('tab', 'ai-planner');
     params.set('step', 'brief');
     if (next === 'kb') params.set('sub', 'kb');
+    else params.delete('sub');
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }
+
+  function goToCampaignSub(next: CampaignSubId) {
+    setCampaignSub(next);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', 'ai-planner');
+    params.set('step', 'campaign');
+    if (next === 'budget') params.set('sub', 'budget');
     else params.delete('sub');
     router.replace(`?${params.toString()}`, { scroll: false });
   }
@@ -396,26 +424,64 @@ export function MarketingAiPlannerPanel({
           ) : null}
 
           {step === 'campaign' && draft ? (
-            <AiCampaignBuilder
-              token={token}
-              lifecycleId={lifecycleId}
-              campaigns={campaigns}
-              canEdit={canEdit}
-              paused={busy}
-              resetAutosaveKey={contextVersion}
-              hasStrategy={hasStrategy}
-              defaultObjective={briefDraft.objective ?? 'lead'}
-              onGenerate={() =>
-                void runJob(
-                  () => postMktAiCampaignsJob(token, lifecycleId),
-                  'Đã sinh campaign',
-                  'content',
-                )
-              }
-              onDraftPersisted={handleDraftPersisted}
-              onSaveError={(msg) => setError(msg)}
-              onContinue={() => goToStep('content')}
-            />
+            <>
+              <div className={styles.kbSubTabs}>
+                <button
+                  type="button"
+                  className={campaignSub === 'campaign' ? 'btn btn-sm' : 'btn btn-sm btn-ghost'}
+                  onClick={() => goToCampaignSub('campaign')}
+                >
+                  Campaign
+                  {campaigns.length > 0 ? ' ✓' : ''}
+                </button>
+                <button
+                  type="button"
+                  className={campaignSub === 'budget' ? 'btn btn-sm' : 'btn btn-sm btn-ghost'}
+                  onClick={() => goToCampaignSub('budget')}
+                >
+                  Budget sim
+                  {budgetScenarios.some((s) => s.is_selected) ? ' ✓' : ''}
+                </button>
+              </div>
+              {campaignSub === 'budget' ? (
+                <AiBudgetSimulator
+                  token={token}
+                  lifecycleId={lifecycleId}
+                  canEdit={canEdit}
+                  paused={busy}
+                  budgetMonthlyVnd={briefDraft.budget_monthly_vnd ?? ctx?.brief?.budget_monthly_vnd}
+                  objective={briefDraft.objective ?? ctx?.brief?.objective ?? 'lead'}
+                  scenarios={budgetScenarios}
+                  hasCampaigns={campaigns.length > 0}
+                  clientId={clientId}
+                  onScenariosChange={setBudgetScenarios}
+                  onRefresh={reload}
+                  onError={setError}
+                  onMessage={setMessage}
+                />
+              ) : (
+                <AiCampaignBuilder
+                  token={token}
+                  lifecycleId={lifecycleId}
+                  campaigns={campaigns}
+                  canEdit={canEdit}
+                  paused={busy}
+                  resetAutosaveKey={contextVersion}
+                  hasStrategy={hasStrategy}
+                  defaultObjective={briefDraft.objective ?? 'lead'}
+                  onGenerate={() =>
+                    void runJob(
+                      () => postMktAiCampaignsJob(token, lifecycleId),
+                      'Đã sinh campaign',
+                      'content',
+                    )
+                  }
+                  onDraftPersisted={handleDraftPersisted}
+                  onSaveError={(msg) => setError(msg)}
+                  onContinue={() => goToStep('content')}
+                />
+              )}
+            </>
           ) : null}
 
           {step === 'content' && draft ? (

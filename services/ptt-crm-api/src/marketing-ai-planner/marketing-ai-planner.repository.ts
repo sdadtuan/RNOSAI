@@ -4,6 +4,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { emptyDraft } from './marketing-ai-brief.util';
 import type {
   MktAiBrief,
+  MktAiBudgetScenarioRow,
   MktAiDocumentRow,
   MktAiDocumentStatus,
   MktAiDraft,
@@ -12,6 +13,7 @@ import type {
   MktAiJobType,
   MktAiRagChunkHit,
 } from './marketing-ai-planner.types';
+import type { MktAiBudgetScenarioDraft } from './marketing-ai-budget.util';
 import type { MktAiTextChunk } from './marketing-ai-rag.util';
 
 type MemoryStore = {
@@ -22,6 +24,7 @@ type MemoryStore = {
   content: Map<number, unknown[]>;
   exports: Array<Record<string, unknown>>;
   documents: MktAiDocumentRow[];
+  budgetScenarios: MktAiBudgetScenarioRow[];
   chunks: Array<{
     id: number;
     document_id: number;
@@ -34,6 +37,7 @@ type MemoryStore = {
   nextJobId: number;
   nextDocumentId: number;
   nextChunkId: number;
+  nextBudgetScenarioId: number;
 };
 
 @Injectable()
@@ -48,10 +52,12 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
     content: new Map(),
     exports: [],
     documents: [],
+    budgetScenarios: [],
     chunks: [],
     nextJobId: 1,
     nextDocumentId: 1,
     nextChunkId: 1,
+    nextBudgetScenarioId: 1,
   };
 
   constructor(private readonly config: AppConfigService) {}
@@ -618,6 +624,152 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
       .sort((a, b) => b.rank - a.rank || a.chunk_index - b.chunk_index)
       .slice(0, limit);
     return hits;
+  }
+
+  async listBudgetScenarios(lifecycleId: number): Promise<MktAiBudgetScenarioRow[]> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, job_id, name, slug, budget_monthly_vnd,
+                channel_mix_json, cpl_estimates_json, assumptions_json,
+                is_selected, sort_order, created_at, updated_at
+         FROM mkt_ai_budget_scenarios
+         WHERE lifecycle_id = $1
+         ORDER BY sort_order ASC, id ASC`,
+        [lifecycleId],
+      );
+      return res.rows.map((r) => this.mapBudgetScenarioRow(r));
+    }
+    return this.memory.budgetScenarios
+      .filter((s) => s.lifecycle_id === lifecycleId)
+      .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+  }
+
+  async replaceBudgetScenarios(
+    lifecycleId: number,
+    jobId: number | null,
+    scenarios: MktAiBudgetScenarioDraft[],
+  ): Promise<MktAiBudgetScenarioRow[]> {
+    if (await this.ensurePgReady()) {
+      await this.db.query(`DELETE FROM mkt_ai_budget_scenarios WHERE lifecycle_id = $1`, [lifecycleId]);
+      const rows: MktAiBudgetScenarioRow[] = [];
+      for (const s of scenarios) {
+        const res = await this.db.query(
+          `INSERT INTO mkt_ai_budget_scenarios (
+             lifecycle_id, job_id, name, slug, budget_monthly_vnd,
+             channel_mix_json, cpl_estimates_json, assumptions_json,
+             is_selected, sort_order, created_at, updated_at
+           ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, FALSE, $9, NOW(), NOW())
+           RETURNING id, lifecycle_id, job_id, name, slug, budget_monthly_vnd,
+                     channel_mix_json, cpl_estimates_json, assumptions_json,
+                     is_selected, sort_order, created_at, updated_at`,
+          [
+            lifecycleId,
+            jobId,
+            s.name,
+            s.slug,
+            s.budget_monthly_vnd,
+            JSON.stringify(s.channel_mix_json),
+            JSON.stringify(s.cpl_estimates_json),
+            JSON.stringify(s.assumptions_json),
+            s.sort_order,
+          ],
+        );
+        rows.push(this.mapBudgetScenarioRow(res.rows[0]));
+      }
+      return rows;
+    }
+
+    this.memory.budgetScenarios = this.memory.budgetScenarios.filter(
+      (s) => s.lifecycle_id !== lifecycleId,
+    );
+    const now = this.nowIso();
+    const rows: MktAiBudgetScenarioRow[] = scenarios.map((s) => {
+      const row: MktAiBudgetScenarioRow = {
+        id: this.memory.nextBudgetScenarioId++,
+        lifecycle_id: lifecycleId,
+        job_id: jobId,
+        name: s.name,
+        slug: s.slug,
+        budget_monthly_vnd: s.budget_monthly_vnd,
+        channel_mix_json: s.channel_mix_json as unknown as Record<string, number>,
+        cpl_estimates_json: s.cpl_estimates_json,
+        assumptions_json: s.assumptions_json,
+        is_selected: false,
+        sort_order: s.sort_order,
+        created_at: now,
+        updated_at: now,
+      };
+      this.memory.budgetScenarios.push(row);
+      return row;
+    });
+    return rows;
+  }
+
+  async selectBudgetScenario(lifecycleId: number, scenarioId: number): Promise<MktAiBudgetScenarioRow | null> {
+    if (await this.ensurePgReady()) {
+      await this.db.query(
+        `UPDATE mkt_ai_budget_scenarios SET is_selected = FALSE, updated_at = NOW()
+         WHERE lifecycle_id = $1`,
+        [lifecycleId],
+      );
+      const res = await this.db.query(
+        `UPDATE mkt_ai_budget_scenarios SET is_selected = TRUE, updated_at = NOW()
+         WHERE lifecycle_id = $1 AND id = $2
+         RETURNING id, lifecycle_id, job_id, name, slug, budget_monthly_vnd,
+                   channel_mix_json, cpl_estimates_json, assumptions_json,
+                   is_selected, sort_order, created_at, updated_at`,
+        [lifecycleId, scenarioId],
+      );
+      return res.rows[0] ? this.mapBudgetScenarioRow(res.rows[0]) : null;
+    }
+
+    let selected: MktAiBudgetScenarioRow | null = null;
+    for (const row of this.memory.budgetScenarios) {
+      if (row.lifecycle_id !== lifecycleId) continue;
+      row.is_selected = row.id === scenarioId;
+      if (row.is_selected) selected = row;
+    }
+    return selected;
+  }
+
+  async getBudgetScenario(
+    lifecycleId: number,
+    scenarioId: number,
+  ): Promise<MktAiBudgetScenarioRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, job_id, name, slug, budget_monthly_vnd,
+                channel_mix_json, cpl_estimates_json, assumptions_json,
+                is_selected, sort_order, created_at, updated_at
+         FROM mkt_ai_budget_scenarios
+         WHERE lifecycle_id = $1 AND id = $2`,
+        [lifecycleId, scenarioId],
+      );
+      return res.rows[0] ? this.mapBudgetScenarioRow(res.rows[0]) : null;
+    }
+    return (
+      this.memory.budgetScenarios.find(
+        (s) => s.lifecycle_id === lifecycleId && s.id === scenarioId,
+      ) ?? null
+    );
+  }
+
+  private mapBudgetScenarioRow(r: Record<string, unknown>): MktAiBudgetScenarioRow {
+    return {
+      id: Number(r.id),
+      lifecycle_id: Number(r.lifecycle_id),
+      job_id: r.job_id != null ? Number(r.job_id) : null,
+      name: String(r.name ?? ''),
+      slug: String(r.slug ?? ''),
+      budget_monthly_vnd: Number(r.budget_monthly_vnd ?? 0),
+      channel_mix_json: (r.channel_mix_json as Record<string, number>) ?? {},
+      cpl_estimates_json: (r.cpl_estimates_json as Record<string, number>) ?? {},
+      assumptions_json: (r.assumptions_json as Record<string, unknown>) ?? {},
+      is_selected: Boolean(r.is_selected),
+      sort_order: Number(r.sort_order ?? 0),
+      created_at: String(r.created_at ?? this.nowIso()),
+      updated_at: String(r.updated_at ?? this.nowIso()),
+    };
   }
 
   private mapDocumentRow(r: Record<string, unknown>): MktAiDocumentRow {

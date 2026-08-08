@@ -26,6 +26,7 @@ describe('MarketingAiPlannerService', () => {
     replaceCampaigns: jest.fn(),
     replaceContentAssets: jest.fn(),
     createExport: jest.fn(),
+    listBudgetScenarios: jest.fn().mockResolvedValue([]),
   };
   const orchestrator = {
     stubMode: true,
@@ -50,6 +51,10 @@ describe('MarketingAiPlannerService', () => {
     attachCitations: jest.fn(),
     uploadDocument: jest.fn(),
   };
+  const budget = {
+    simulate: jest.fn(),
+    applyScenario: jest.fn(),
+  };
 
   let service: MarketingAiPlannerService;
 
@@ -61,6 +66,7 @@ describe('MarketingAiPlannerService', () => {
       repo as never,
       orchestrator as never,
       rag as never,
+      budget as never,
       agentRuns as never,
       exportService as never,
     );
@@ -92,6 +98,7 @@ describe('MarketingAiPlannerService', () => {
       repo as never,
       orchestrator as never,
       rag as never,
+      budget as never,
       agentRuns as never,
       exportService as never,
     );

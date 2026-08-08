@@ -158,9 +158,21 @@ export class MarketingAiPlannerController {
   }
 
   @Post('jobs/budget-simulate')
-  @HttpCode(HttpStatus.NOT_IMPLEMENTED)
-  budgetSimulate() {
-    throw new NotImplementedException({ error: 'mkt_ai_budget_simulate_phase2' });
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffMarketingAiPlannerGenerateGuard)
+  budgetSimulate(@Param('lifecycleId', ParseIntPipe) lifecycleId: number, @Req() req: Request) {
+    return this.planner.runBudgetSimulateJob(lifecycleId, actorEmail(req));
+  }
+
+  @Post('budget-scenarios/:scenarioId/apply')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffMarketingAiPlannerGenerateGuard)
+  applyBudgetScenario(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('scenarioId', ParseIntPipe) scenarioId: number,
+    @Req() req: Request,
+  ) {
+    return this.planner.applyBudgetScenario(lifecycleId, scenarioId, actorEmail(req));
   }
 
   @Get('approvals')

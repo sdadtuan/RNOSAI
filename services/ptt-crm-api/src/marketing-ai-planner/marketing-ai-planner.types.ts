@@ -70,6 +70,22 @@ export interface MktAiCitation {
   excerpt?: string;
 }
 
+export interface MktAiBudgetScenarioRow {
+  id: number;
+  lifecycle_id: number;
+  job_id: number | null;
+  name: string;
+  slug: string;
+  budget_monthly_vnd: number;
+  channel_mix_json: Record<string, number>;
+  cpl_estimates_json: Record<string, number>;
+  assumptions_json: Record<string, unknown>;
+  is_selected: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface MktAiBriefValidation {
   ok: boolean;
   missing: string[];
@@ -133,6 +149,7 @@ export interface MktAiPlannerContext {
   flags: { rag_enabled: boolean; approval_required: boolean; stub_mode: boolean };
   documents?: MktAiDocumentRow[];
   rag?: { use_rag: boolean; indexed_count: number };
+  budget_scenarios?: MktAiBudgetScenarioRow[];
 }
 
 export const REQUIRED_BRIEF_FIELDS = [

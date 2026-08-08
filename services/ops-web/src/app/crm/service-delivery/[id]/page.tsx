@@ -362,6 +362,7 @@ export default function CrmServiceDeliveryDetailPage() {
               lifecycleId={lifecycleId}
               stage={stage}
               serviceSlug={String(row.service_slug ?? '')}
+              clientId={String(row.agency_client_id ?? '').trim() || undefined}
               onOpenTmmtTab={() => switchTab('tmmt')}
               onApplied={() => void reloadDetail(token)}
             />

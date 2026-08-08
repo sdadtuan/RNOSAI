@@ -150,3 +150,31 @@
   font-size: 0.72rem;
   color: var(--text);
 }
+
+.budgetTableWrap {
+  overflow-x: auto;
+}
+
+.budgetTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.budgetTable th,
+.budgetTable td {
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.budgetTable th {
+  font-weight: 600;
+  color: var(--muted, #888);
+  font-size: 0.75rem;
+}
+
+.budgetRowSelected {
+  background: rgba(59, 130, 246, 0.06);
+}

@@ -139,6 +139,28 @@ export interface MktAiPlannerContext {
   flags: { rag_enabled: boolean; approval_required: boolean; stub_mode: boolean };
   documents?: MktAiDocumentRow[];
   rag?: { use_rag: boolean; indexed_count: number };
+  budget_scenarios?: MktAiBudgetScenarioRow[];
+}
+
+export interface MktAiBudgetScenarioRow {
+  id: number;
+  lifecycle_id: number;
+  job_id: number | null;
+  name: string;
+  slug: string;
+  budget_monthly_vnd: number;
+  channel_mix_json: {
+    meta_pct?: number;
+    google_pct?: number;
+    content_pct?: number;
+    reserve_pct?: number;
+  };
+  cpl_estimates_json: Record<string, number>;
+  assumptions_json: Record<string, unknown>;
+  is_selected: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export async function fetchMktAiPlannerContext(
@@ -220,6 +242,29 @@ export async function postMktAiContentJob(token: string, lifecycleId: number) {
 
 export async function postMktAiQualityJob(token: string, lifecycleId: number) {
   return mktAiFetch<{ job_id: number; status: string }>(token, lifecycleId, '/jobs/quality', {
+    method: 'POST',
+  });
+}
+
+export async function postMktAiBudgetSimulateJob(token: string, lifecycleId: number) {
+  return mktAiFetch<{
+    job_id: number;
+    status: string;
+    output?: { scenarios?: MktAiBudgetScenarioRow[]; count?: number };
+  }>(token, lifecycleId, '/jobs/budget-simulate', {
+    method: 'POST',
+  });
+}
+
+export async function applyMktAiBudgetScenario(
+  token: string,
+  lifecycleId: number,
+  scenarioId: number,
+) {
+  return mktAiFetch<{
+    scenario: MktAiBudgetScenarioRow;
+    campaigns: MktAiCampaignDraft[];
+  }>(token, lifecycleId, `/budget-scenarios/${scenarioId}/apply`, {
     method: 'POST',
   });
 }
