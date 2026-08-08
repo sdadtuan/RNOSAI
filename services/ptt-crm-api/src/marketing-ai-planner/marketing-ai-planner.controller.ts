@@ -249,8 +249,15 @@ export class MarketingAiPlannerController {
   }
 
   @Get('dashboard')
-  dashboard() {
-    throw new NotImplementedException({ error: 'mkt_ai_dashboard_phase3' });
+  dashboard(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Query('weeks') weeks?: string,
+    @Query('channel') channel?: string,
+  ) {
+    return this.planner.getDashboard(lifecycleId, {
+      weeks: weeks != null ? Number(weeks) : undefined,
+      channel: channel?.trim() || undefined,
+    });
   }
 
   @Post('jobs/optimize')

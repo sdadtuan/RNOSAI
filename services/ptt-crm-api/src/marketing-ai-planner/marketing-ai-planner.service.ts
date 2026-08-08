@@ -15,6 +15,7 @@ import { MarketingAiVersionService } from './marketing-ai-version.service';
 import { MarketingAiApprovalService } from './marketing-ai-approval.service';
 import { MarketingAiBudgetService } from './marketing-ai-budget.service';
 import { MarketingAiExportService } from './marketing-ai-export.service';
+import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
 import { MarketingAiRagService } from './marketing-ai-rag.service';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
@@ -25,6 +26,7 @@ import type {
   MktAiDraft,
   MktAiJobType,
   MktAiPlannerContext,
+  MktAiDashboardPayload,
 } from './marketing-ai-planner.types';
 
 const RETRY_JOB_TYPES: MktAiJobType[] = [
@@ -47,6 +49,7 @@ export class MarketingAiPlannerService {
     private readonly versions: MarketingAiVersionService,
     private readonly agentRuns: AiAgentRunsRepository,
     private readonly exportService: MarketingAiExportService,
+    private readonly dashboard: MarketingAiDashboardService,
   ) {}
 
   private assertEnabled(serviceSlug?: string): void {
@@ -689,5 +692,12 @@ export class MarketingAiPlannerService {
     });
 
     return result;
+  }
+
+  getDashboard(
+    lifecycleId: number,
+    opts: { weeks?: number; channel?: string } = {},
+  ): Promise<MktAiDashboardPayload> {
+    return this.dashboard.getDashboard(lifecycleId, opts);
   }
 }

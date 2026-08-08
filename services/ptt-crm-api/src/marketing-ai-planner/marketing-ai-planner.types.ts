@@ -232,6 +232,44 @@ export interface MktAiApprovalContext {
   can_submit: boolean;
 }
 
+export interface MktAiDashboardTrendWeek {
+  week_label: string;
+  week_start: string;
+  spend_vnd: number;
+  leads: number;
+  cpl: number | null;
+  roas: number | null;
+  roas_stub: boolean;
+}
+
+export interface MktAiDashboardPayload {
+  ok: boolean;
+  lifecycle_id: number;
+  stage: string;
+  agency_client_id: string | null;
+  linked: boolean;
+  period: { from: string; to: string; weeks: number; month_start: string };
+  tiles: {
+    spend_mtd_vnd: number;
+    leads_mtd: number;
+    cpl_mtd: number | null;
+    roas_mtd: number | null;
+    roas_stub: boolean;
+  };
+  targets: {
+    cpl_vnd: number | null;
+    roas: number | null;
+    source: 'daily_performance' | 'none';
+  };
+  trend: MktAiDashboardTrendWeek[];
+  deltas: {
+    cpl_vs_target_pct: number | null;
+    spend_vs_prev_week_pct: number | null;
+  };
+  flags: { perf_tables_ready: boolean };
+  messages: string[];
+}
+
 export const REQUIRED_BRIEF_FIELDS = [
   'brand_name',
   'industry',

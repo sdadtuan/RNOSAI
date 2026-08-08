@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { AiPlannerKpiDashboard } from '@/components/mkt-ai/AiPlannerKpiDashboard';
 import { AiBrandKbPanel } from '@/components/mkt-ai/AiBrandKbPanel';
 import { AiBudgetSimulator } from '@/components/mkt-ai/AiBudgetSimulator';
 import { AiApplyStepPanel } from '@/components/mkt-ai/AiApplyStepPanel';
@@ -39,6 +40,7 @@ const STEPS = [
   { id: 'campaign', label: 'Campaign' },
   { id: 'content', label: 'Content' },
   { id: 'apply', label: 'Apply' },
+  { id: 'dashboard', label: 'Dashboard' },
 ] as const;
 
 type StepId = (typeof STEPS)[number]['id'];
@@ -57,11 +59,18 @@ interface Props {
 }
 
 function parseStep(raw: string | null): StepId {
-  if (raw === 'brief' || raw === 'strategy' || raw === 'campaign' || raw === 'content' || raw === 'apply') {
+  if (
+    raw === 'brief' ||
+    raw === 'strategy' ||
+    raw === 'campaign' ||
+    raw === 'content' ||
+    raw === 'apply' ||
+    raw === 'dashboard'
+  ) {
     return raw;
   }
   const n = Number(raw);
-  if (n >= 1 && n <= 5) return STEPS[n - 1].id;
+  if (n >= 1 && n <= 6) return STEPS[n - 1].id;
   return 'brief';
 }
 
@@ -179,7 +188,8 @@ export function MarketingAiPlannerPanel({
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', 'ai-planner');
     params.set('step', next);
-    if (next !== 'brief' && next !== 'campaign') params.delete('sub');
+    if (next !== 'brief' && next !== 'campaign' && next !== 'dashboard') params.delete('sub');
+    if (next === 'dashboard') params.set('sub', 'dashboard');
     router.replace(`?${params.toString()}`, { scroll: false });
   }
 
@@ -292,7 +302,8 @@ export function MarketingAiPlannerPanel({
             (s.id === 'strategy' && hasStrategy) ||
             (s.id === 'campaign' && campaigns.length > 0) ||
             (s.id === 'content' && calendar.length > 0) ||
-            (s.id === 'apply' && Boolean(ctx?.tmmt_validation.ok));
+            (s.id === 'apply' && Boolean(ctx?.tmmt_validation.ok)) ||
+            (s.id === 'dashboard' && (stage === 'deliver' || stage === 'retain'));
           return (
             <button
               key={s.id}
@@ -527,6 +538,15 @@ export function MarketingAiPlannerPanel({
               onQualityUpdated={reload}
               onMessage={setMessage}
               onError={setError}
+            />
+          ) : null}
+
+          {step === 'dashboard' ? (
+            <AiPlannerKpiDashboard
+              token={token}
+              lifecycleId={lifecycleId}
+              stage={stage}
+              clientId={clientId}
             />
           ) : null}
         </div>

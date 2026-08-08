@@ -137,6 +137,31 @@
   flex-wrap: wrap;
 }
 
+.kpiTileGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.kpiTile {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg, transparent);
+}
+
+.kpiTileLabel {
+  font-size: 0.8rem;
+  color: var(--muted, #888);
+}
+
+.kpiDelta {
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+
 .citationChip {
   display: inline-flex;
   align-items: center;
