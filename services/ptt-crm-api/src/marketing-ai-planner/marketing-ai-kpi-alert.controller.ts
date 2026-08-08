@@ -17,4 +17,20 @@ export class MarketingAiKpiAlertController {
   run(@Body() body: { dry_run?: boolean }) {
     return this.planner.runKpiAlertScan({ dryRun: body?.dry_run === true });
   }
+
+  @Get('weekly-memo/status')
+  weeklyMemoStatus() {
+    return this.planner.getWeeklyMemoStatus();
+  }
+
+  @Post('weekly-memo/run')
+  @HttpCode(HttpStatus.OK)
+  runWeeklyMemo(@Body() body: { dry_run?: boolean }) {
+    return this.planner.runWeeklyMemoCron({ dryRun: body?.dry_run === true });
+  }
+
+  @Get('closed-loop/status')
+  closedLoopStatus() {
+    return this.planner.getKpiClosedLoopStatus();
+  }
 }

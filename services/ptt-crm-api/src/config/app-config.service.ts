@@ -128,6 +128,8 @@ export class AppConfigService {
   readonly mktAiSectionComments: boolean;
   readonly mktAiExportPptx: boolean;
   readonly mktAiPortalSummaryEnabled: boolean;
+  readonly mktAiKpiClosedLoopEnabled: boolean;
+  readonly mktAiWeeklyMemoCron: string;
 
   constructor() {
     this.applyRuntimeEnvOverrides();
@@ -395,6 +397,10 @@ export class AppConfigService {
     this.mktAiPortalSummaryEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_MKT_AI_PORTAL_SUMMARY ?? '0').trim().toLowerCase(),
     );
+    this.mktAiKpiClosedLoopEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MKT_AI_KPI_CLOSED_LOOP ?? '0').trim().toLowerCase(),
+    );
+    this.mktAiWeeklyMemoCron = (process.env.PTT_MKT_AI_WEEKLY_MEMO_CRON ?? '0 9 * * 1').trim();
   }
 
   private parsePortalCorsOrigins(): string[] {

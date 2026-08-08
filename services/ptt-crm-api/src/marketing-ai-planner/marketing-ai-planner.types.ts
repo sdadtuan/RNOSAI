@@ -7,6 +7,8 @@ export type MktAiJobType =
   | 'apply_to_tmmt'
   | 'budget_simulate'
   | 'optimize'
+  | 'weekly_memo'
+  | 'competitor_snapshot'
   | 'multi_agent'
   | 'strategy_scenarios';
 
@@ -122,6 +124,22 @@ export interface MktAiKpiTreeNode {
   children?: MktAiKpiTreeNode[];
 }
 
+export interface MktAiCompetitorSnapshotEntry {
+  name: string;
+  positioning?: string;
+  strengths?: string[];
+  weaknesses?: string[];
+  channels?: string[];
+  threat_level?: 'low' | 'medium' | 'high';
+}
+
+export interface MktAiCompetitorSnapshot {
+  generated_at: string;
+  source: 'brief' | 'ai' | 'stub';
+  competitors: MktAiCompetitorSnapshotEntry[];
+  summary_vi?: string;
+}
+
 export interface MktAiDraft {
   strategy_framework: Record<string, string>;
   target_market_prof: Record<string, string>;
@@ -130,6 +148,8 @@ export interface MktAiDraft {
   content_json: Record<string, unknown>;
   quality_score_json: Record<string, unknown>;
   kpi_tree_json?: MktAiKpiTreeNode[];
+  kpi_tree_applied_json?: MktAiKpiTreeNode[];
+  competitor_snapshot_json?: MktAiCompetitorSnapshot;
 }
 
 export interface MktAiCampaignDraft {
@@ -217,6 +237,7 @@ export interface MktAiPlannerContext {
     scenario_compare_enabled?: boolean;
     section_comments_enabled?: boolean;
     export_pptx_enabled?: boolean;
+    kpi_closed_loop_enabled?: boolean;
   };
   strategy_scenarios?: MktAiStrategyScenarioRow[];
   section_comments?: MktAiSectionCommentRow[];
@@ -368,6 +389,69 @@ export interface MktAiOptimizeKpiContext {
   roas_stub: boolean;
   linked: boolean;
   target_cpl_vnd: number | null;
+}
+
+export type MktAiKpiClosedLoopMetricKind = 'cpl' | 'leads' | 'roas' | 'spend' | 'other';
+
+export interface MktAiKpiClosedLoopRow {
+  id: string;
+  label: string;
+  metric_kind: MktAiKpiClosedLoopMetricKind;
+  target_display: string;
+  target_value: number | null;
+  actual_value: number | null;
+  actual_display: string;
+  delta_pct: number | null;
+  unit: string;
+  direction: 'lower_better' | 'higher_better';
+  alert: boolean;
+}
+
+export interface MktAiKpiClosedLoopPayload {
+  ok: boolean;
+  enabled: boolean;
+  lifecycle_id: number;
+  has_applied_kpi_tree: boolean;
+  linked: boolean;
+  threshold_pct: number;
+  period: { from: string; to: string; weeks: number; month_start: string };
+  rows: MktAiKpiClosedLoopRow[];
+  alerts: MktAiKpiClosedLoopRow[];
+  messages: string[];
+}
+
+export interface MktAiWeeklyMemoSection {
+  heading: string;
+  bullets: string[];
+}
+
+export interface MktAiWeeklyMemoPayload {
+  title: string;
+  body_vi: string;
+  sections: MktAiWeeklyMemoSection[];
+  week_label: string;
+  auto_apply: false;
+}
+
+export interface MktAiWeeklyMemoResult {
+  ok: boolean;
+  job_id: number;
+  status: string;
+  memo: MktAiWeeklyMemoPayload;
+  notification_sent?: boolean;
+  skipped?: boolean;
+  reason?: string;
+}
+
+export interface MktAiWeeklyMemoCronRunResult {
+  ok: boolean;
+  skipped?: boolean;
+  reason?: string;
+  scanned: number;
+  memos_generated: number;
+  notifications_sent: number;
+  skipped_dedupe: number;
+  errors: string[];
 }
 
 export interface MktAiPlaybookApplyBody {

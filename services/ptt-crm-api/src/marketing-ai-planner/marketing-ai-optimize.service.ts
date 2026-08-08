@@ -9,12 +9,15 @@ import {
   filterOptimizeRecommendations,
   type MktAiOptimizeContextInput,
 } from './marketing-ai-optimize.util';
+import { buildWeeklyOptimizationMemo } from './marketing-ai-weekly-memo.util';
 import type {
   MktAiBrief,
   MktAiCampaignDraft,
+  MktAiKpiClosedLoopPayload,
   MktAiOptimizeBody,
   MktAiOptimizeRecommendation,
   MktAiOptimizeResult,
+  MktAiWeeklyMemoPayload,
 } from './marketing-ai-planner.types';
 
 const MAX_TASKS_PER_RUN = 5;
@@ -99,5 +102,15 @@ export class MarketingAiOptimizeService {
     if (!ids?.length) return recs;
     const wanted = new Set(ids.map((id) => id.trim()).filter(Boolean));
     return recs.filter((r) => wanted.has(r.id));
+  }
+
+  /** WS-P4-09 — weekly optimization memo template (no TMMT auto-apply). */
+  buildWeeklyMemoTemplate(input: {
+    brandLabel: string;
+    weekLabel: string;
+    closedLoop: MktAiKpiClosedLoopPayload;
+    recommendations: MktAiOptimizeRecommendation[];
+  }): MktAiWeeklyMemoPayload {
+    return buildWeeklyOptimizationMemo(input);
   }
 }

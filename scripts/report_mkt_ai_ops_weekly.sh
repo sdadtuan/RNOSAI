@@ -69,6 +69,16 @@ GROUP BY job_type
 ORDER BY total DESC, job_type;
 
 \echo ''
+\echo '## Weekly memo jobs (WS-P4-09 / MKTP-UC-028)'
+SELECT
+  COUNT(*) FILTER (WHERE status = 'succeeded') AS succeeded,
+  COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+  COUNT(*) AS total
+FROM mkt_ai_jobs
+WHERE job_type = 'weekly_memo'
+  AND created_at >= NOW() - (:days || ' days')::interval;
+
+\echo ''
 \echo '## Global fail rate'
 SELECT
   COUNT(*) FILTER (WHERE status = 'failed') AS failed,

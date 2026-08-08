@@ -282,6 +282,18 @@ export class MarketingAiPlannerController {
     });
   }
 
+  @Get('kpi-closed-loop')
+  kpiClosedLoop(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Query('weeks') weeks?: string,
+    @Query('channel') channel?: string,
+  ) {
+    return this.planner.getKpiClosedLoop(lifecycleId, {
+      weeks: weeks != null ? Number(weeks) : undefined,
+      channel: channel?.trim() || undefined,
+    });
+  }
+
   @Post('jobs/optimize')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffMarketingAiPlannerGenerateGuard)
@@ -291,6 +303,27 @@ export class MarketingAiPlannerController {
     @Req() req: Request,
   ) {
     return this.planner.runOptimizeJob(lifecycleId, body ?? {}, actorEmail(req));
+  }
+
+  @Post('jobs/optimize/weekly-memo')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffMarketingAiPlannerGenerateGuard)
+  weeklyMemo(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: { notify?: boolean; dry_run?: boolean },
+    @Req() req: Request,
+  ) {
+    return this.planner.runWeeklyMemoJob(lifecycleId, actorEmail(req), body ?? {});
+  }
+
+  @Post('jobs/strategy/competitor-snapshot')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffMarketingAiPlannerGenerateGuard)
+  competitorSnapshot(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Req() req: Request,
+  ) {
+    return this.planner.runCompetitorSnapshotJob(lifecycleId, actorEmail(req));
   }
 
   @Get('playbooks')

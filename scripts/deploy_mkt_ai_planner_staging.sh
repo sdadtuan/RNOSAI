@@ -58,6 +58,8 @@ run_local() {
     "PTT_MKT_AI_PORTAL_SUMMARY=1" \
     "NEXT_PUBLIC_MKT_AI_PORTAL_SUMMARY=1" \
     "PTT_MKT_AI_OPS_WEEKLY_REPORT=1" \
+    "PTT_MKT_AI_KPI_CLOSED_LOOP=1" \
+    "PTT_MKT_AI_WEEKLY_MEMO_CRON=0 9 * * 1" \
     "NEXT_PUBLIC_MKT_AI_PLANNER=1"; do
     key="${kv%%=*}"
     if grep -q "^${key}=" "$RUNTIME_ENV" 2>/dev/null; then
@@ -84,7 +86,9 @@ run_local() {
     "PTT_MKT_AI_SCENARIO_COMPARE=1" \
     "PTT_MKT_AI_SECTION_COMMENTS=1" \
     "PTT_MKT_AI_EXPORT_PPTX=1" \
-    "PTT_MKT_AI_PORTAL_SUMMARY=1"; do
+    "PTT_MKT_AI_PORTAL_SUMMARY=1" \
+    "PTT_MKT_AI_KPI_CLOSED_LOOP=1" \
+    "PTT_MKT_AI_WEEKLY_MEMO_CRON=0 9 * * 1"; do
     key="${kv%%=*}"
     if [[ -f "$ROOT/.env" && -w "$ROOT/.env" ]]; then
       if grep -q "^${key}=" "$ROOT/.env" 2>/dev/null; then
@@ -140,6 +144,13 @@ run_local() {
     bash "$ROOT/scripts/smoke_mkt_ai_plan_depth_wave2.sh" || echo "WARN plan depth wave2 smoke failed"
   else
     echo "SKIP plan depth wave2 smoke — DATABASE_URL not set"
+  fi
+
+  echo "== 5a2b/5 Plan depth Wave 3 smoke (WS-P4-09) =="
+  if [[ -n "${DATABASE_URL:-}" ]]; then
+    bash "$ROOT/scripts/smoke_mkt_ai_plan_depth_wave3.sh" || echo "WARN plan depth wave3 smoke failed"
+  else
+    echo "SKIP plan depth wave3 smoke — DATABASE_URL not set"
   fi
 
   echo "== 5a3/5 Portal plan summary smoke (WS-P4-05) =="

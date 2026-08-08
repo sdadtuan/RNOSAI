@@ -59,6 +59,7 @@ export function emptyDraft(): {
   content_json: Record<string, unknown>;
   quality_score_json: Record<string, unknown>;
   kpi_tree_json: MktAiKpiTreeNode[];
+  kpi_tree_applied_json: MktAiKpiTreeNode[];
 } {
   return {
     strategy_framework: {},
@@ -68,5 +69,6 @@ export function emptyDraft(): {
     content_json: {},
     quality_score_json: {},
     kpi_tree_json: [],
+    kpi_tree_applied_json: [],
   };
 }

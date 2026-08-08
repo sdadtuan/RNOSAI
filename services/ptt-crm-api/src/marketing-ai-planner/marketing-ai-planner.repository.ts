@@ -8,6 +8,7 @@ import type {
   MktAiBrief,
   MktAiBudgetScenarioRow,
   MktAiCommentRow,
+  MktAiCompetitorSnapshot,
   MktAiDocumentRow,
   MktAiDocumentStatus,
   MktAiDraft,
@@ -166,7 +167,9 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
     if (await this.ensurePgReady()) {
       const res = await this.db.query(
         `SELECT strategy_framework_json, target_market_prof_json, swot_json, campaigns_json,
-                content_json, quality_score_json, kpi_tree_json
+                content_json, quality_score_json, kpi_tree_json,
+                COALESCE(competitor_snapshot_json, '{}'::jsonb) AS competitor_snapshot_json,
+                COALESCE(kpi_tree_applied_json, '[]'::jsonb) AS kpi_tree_applied_json
          FROM mkt_ai_drafts WHERE lifecycle_id = $1`,
         [lifecycleId],
       );
@@ -180,6 +183,8 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
         content_json: (r.content_json as Record<string, unknown>) ?? {},
         quality_score_json: (r.quality_score_json as Record<string, unknown>) ?? {},
         kpi_tree_json: (r.kpi_tree_json as MktAiDraft['kpi_tree_json']) ?? [],
+        competitor_snapshot_json: (r.competitor_snapshot_json as MktAiCompetitorSnapshot) ?? undefined,
+        kpi_tree_applied_json: (r.kpi_tree_applied_json as MktAiDraft['kpi_tree_applied_json']) ?? [],
       };
     }
     const row = this.memory.drafts.get(lifecycleId);
@@ -193,8 +198,9 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
       await this.db.query(
         `INSERT INTO mkt_ai_drafts (
            lifecycle_id, strategy_framework_json, target_market_prof_json, swot_json,
-           campaigns_json, content_json, quality_score_json, kpi_tree_json, updated_by
-         ) VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9)
+           campaigns_json, content_json, quality_score_json, kpi_tree_json,
+           competitor_snapshot_json, kpi_tree_applied_json, updated_by
+         ) VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11)
          ON CONFLICT (lifecycle_id) DO UPDATE SET
            strategy_framework_json = EXCLUDED.strategy_framework_json,
            target_market_prof_json = EXCLUDED.target_market_prof_json,
@@ -203,6 +209,8 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
            content_json = EXCLUDED.content_json,
            quality_score_json = EXCLUDED.quality_score_json,
            kpi_tree_json = EXCLUDED.kpi_tree_json,
+           competitor_snapshot_json = EXCLUDED.competitor_snapshot_json,
+           kpi_tree_applied_json = EXCLUDED.kpi_tree_applied_json,
            updated_by = EXCLUDED.updated_by,
            updated_at = NOW()`,
         [
@@ -214,6 +222,8 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
           JSON.stringify(draft.content_json ?? {}),
           JSON.stringify(draft.quality_score_json ?? {}),
           JSON.stringify(draft.kpi_tree_json ?? []),
+          JSON.stringify(draft.competitor_snapshot_json ?? {}),
+          JSON.stringify(draft.kpi_tree_applied_json ?? []),
           actorEmail,
         ],
       );

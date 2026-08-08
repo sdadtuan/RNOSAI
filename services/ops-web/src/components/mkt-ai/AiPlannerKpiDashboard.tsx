@@ -4,7 +4,12 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { AiOptimizationCopilot } from '@/components/mkt-ai/AiOptimizationCopilot';
 import styles from '@/components/mkt-ai/mkt-ai-planner.module.css';
-import { fetchMktAiDashboard, type MktAiDashboardPayload } from '@/lib/mkt-ai-planner-api';
+import {
+  fetchMktAiDashboard,
+  fetchMktAiKpiClosedLoop,
+  type MktAiDashboardPayload,
+  type MktAiKpiClosedLoopPayload,
+} from '@/lib/mkt-ai-planner-api';
 
 function fmtVnd(n: number): string {
   if (!n) return '—';
@@ -29,10 +34,19 @@ interface Props {
   stage: string;
   clientId?: string;
   canEdit?: boolean;
+  closedLoopEnabled?: boolean;
 }
 
-export function AiPlannerKpiDashboard({ token, lifecycleId, stage, clientId, canEdit = true }: Props) {
+export function AiPlannerKpiDashboard({
+  token,
+  lifecycleId,
+  stage,
+  clientId,
+  canEdit = true,
+  closedLoopEnabled = false,
+}: Props) {
   const [data, setData] = useState<MktAiDashboardPayload | null>(null);
+  const [closedLoop, setClosedLoop] = useState<MktAiKpiClosedLoopPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -42,13 +56,24 @@ export function AiPlannerKpiDashboard({ token, lifecycleId, stage, clientId, can
     try {
       const out = await fetchMktAiDashboard(token, lifecycleId, { weeks: 6, channel: 'meta' });
       setData(out);
+      if (closedLoopEnabled) {
+        try {
+          const loop = await fetchMktAiKpiClosedLoop(token, lifecycleId, { weeks: 6, channel: 'meta' });
+          setClosedLoop(loop);
+        } catch {
+          setClosedLoop(null);
+        }
+      } else {
+        setClosedLoop(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tải dashboard thất bại');
       setData(null);
+      setClosedLoop(null);
     } finally {
       setLoading(false);
     }
-  }, [token, lifecycleId]);
+  }, [token, lifecycleId, closedLoopEnabled]);
 
   useEffect(() => {
     void reload();
@@ -84,6 +109,8 @@ export function AiPlannerKpiDashboard({ token, lifecycleId, stage, clientId, can
       ? `/agency/clients/${encodeURIComponent(clientId)}?tab=performance`
       : null;
 
+  const optimizeHref = `/crm/service-delivery/${lifecycleId}?tab=ai-planner&step=dashboard&sub=dashboard#optimize`;
+
   return (
     <div className="stack-gap">
       {emphasizeDeliver ? (
@@ -96,10 +123,26 @@ export function AiPlannerKpiDashboard({ token, lifecycleId, stage, clientId, can
         </p>
       )}
 
-      {data.messages.length > 0 && (
+      {closedLoopEnabled && closedLoop && closedLoop.alerts.length > 0 ? (
+        <div className={styles.kpiAlertBanner} role="alert">
+          <strong>{closedLoop.alerts.length} KPI lệch &gt;{closedLoop.threshold_pct}%</strong>
+          <span className="muted" style={{ fontSize: '0.85rem' }}>
+            {' '}
+            so target từ KPI tree đã Apply — mở Optimize copilot bên dưới.
+          </span>
+          <a href={optimizeHref} className="link" style={{ marginLeft: '0.5rem', fontSize: '0.85rem' }}>
+            Xem đề xuất →
+          </a>
+        </div>
+      ) : null}
+
+      {(data.messages.length > 0 || (closedLoop?.messages.length ?? 0) > 0) && (
         <ul className="muted" style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.85rem' }}>
           {data.messages.map((m) => (
             <li key={m}>{m}</li>
+          ))}
+          {(closedLoop?.messages ?? []).map((m) => (
+            <li key={`cl-${m}`}>{m}</li>
           ))}
         </ul>
       )}
@@ -133,6 +176,41 @@ export function AiPlannerKpiDashboard({ token, lifecycleId, stage, clientId, can
           <strong>{data.tiles.roas_mtd != null ? data.tiles.roas_mtd.toFixed(2) : '—'}</strong>
         </div>
       </div>
+
+      {closedLoopEnabled && closedLoop && closedLoop.rows.length > 0 ? (
+        <div>
+          <h4 style={{ margin: '0 0 0.5rem' }}>Target (plan) vs Actual — KPI tree đã Apply</h4>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table" style={{ width: '100%', fontSize: '0.85rem' }}>
+              <thead>
+                <tr>
+                  <th>KPI</th>
+                  <th>Target (plan)</th>
+                  <th>Actual</th>
+                  <th>Delta</th>
+                </tr>
+              </thead>
+              <tbody>
+                {closedLoop.rows.map((row) => (
+                  <tr key={row.id} className={row.alert ? styles.kpiRowAlert : undefined}>
+                    <td>{row.label}</td>
+                    <td>{row.target_display}</td>
+                    <td>{row.actual_display}</td>
+                    <td>
+                      {fmtPct(row.delta_pct)}
+                      {row.alert ? ' ⚠' : ''}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : closedLoopEnabled && closedLoop && !closedLoop.has_applied_kpi_tree ? (
+        <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+          Closed-loop KPI: Apply TMMT sau khi hoàn thiện KPI tree để so sánh Target vs Actual.
+        </p>
+      ) : null}
 
       {data.deltas.spend_vs_prev_week_pct != null && (
         <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
@@ -185,7 +263,9 @@ export function AiPlannerKpiDashboard({ token, lifecycleId, stage, clientId, can
         {!data.flags.perf_tables_ready ? ' · PG performance chưa sẵn sàng' : ''}
       </p>
 
-      <AiOptimizationCopilot token={token} lifecycleId={lifecycleId} canEdit={canEdit} />
+      <div id="optimize">
+        <AiOptimizationCopilot token={token} lifecycleId={lifecycleId} canEdit={canEdit} />
+      </div>
     </div>
   );
 }

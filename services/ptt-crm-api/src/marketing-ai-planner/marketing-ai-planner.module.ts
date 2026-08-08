@@ -16,6 +16,8 @@ import { MarketingAiBudgetService } from './marketing-ai-budget.service';
 import { MarketingAiExportService } from './marketing-ai-export.service';
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
 import { MarketingAiKpiAlertService } from './marketing-ai-kpi-alert.service';
+import { MarketingAiKpiClosedLoopService } from './marketing-ai-kpi-closed-loop.service';
+import { MarketingAiWeeklyMemoService } from './marketing-ai-weekly-memo.service';
 import { MarketingAiMultiAgentService } from './marketing-ai-multi-agent.service';
 import { MarketingAiJobWorkerService } from './marketing-ai-job-worker.service';
 import { MarketingAiSectionCommentService } from './marketing-ai-section-comment.service';
@@ -54,6 +56,8 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
     MarketingAiDashboardService,
     MarketingAiOptimizeService,
     MarketingAiKpiAlertService,
+    MarketingAiKpiClosedLoopService,
+    MarketingAiWeeklyMemoService,
     MarketingAiMultiAgentService,
     MarketingAiJobWorkerService,
     MarketingAiStrategyScenarioService,

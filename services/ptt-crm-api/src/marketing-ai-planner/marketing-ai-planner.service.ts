@@ -22,6 +22,9 @@ import { MarketingAiBudgetService } from './marketing-ai-budget.service';
 import { MarketingAiExportService } from './marketing-ai-export.service';
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
 import { MarketingAiKpiAlertService } from './marketing-ai-kpi-alert.service';
+import { MarketingAiKpiClosedLoopService } from './marketing-ai-kpi-closed-loop.service';
+import { MarketingAiWeeklyMemoService } from './marketing-ai-weekly-memo.service';
+import { buildCompetitorSnapshotFromBrief } from './marketing-ai-competitor-snapshot.util';
 import { MarketingAiMultiAgentService } from './marketing-ai-multi-agent.service';
 import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
 import { MarketingAiPlaybookService } from './marketing-ai-playbook.service';
@@ -58,6 +61,8 @@ import type {
   MktAiStrategyScenarioComparePayload,
   MktAiStrategyScenarioRow,
   MktAiDashboardPayload,
+  MktAiKpiClosedLoopPayload,
+  MktAiWeeklyMemoResult,
 } from './marketing-ai-planner.types';
 
 const RETRY_JOB_TYPES: MktAiJobType[] = [
@@ -83,6 +88,8 @@ export class MarketingAiPlannerService {
     private readonly dashboard: MarketingAiDashboardService,
     private readonly optimize: MarketingAiOptimizeService,
     private readonly kpiAlerts: MarketingAiKpiAlertService,
+    private readonly kpiClosedLoop: MarketingAiKpiClosedLoopService,
+    private readonly weeklyMemo: MarketingAiWeeklyMemoService,
     private readonly playbooks: MarketingAiPlaybookService,
     @Inject(forwardRef(() => MarketingAiMultiAgentService))
     private readonly multiAgent: MarketingAiMultiAgentService,
@@ -282,6 +289,7 @@ export class MarketingAiPlannerService {
         scenario_compare_enabled: this.strategyScenarios.isEnabled(),
         section_comments_enabled: this.sectionComments.isEnabled(),
         export_pptx_enabled: this.config.mktAiExportPptx,
+        kpi_closed_loop_enabled: this.kpiClosedLoop.isEnabled(),
       },
       ...(this.strategyScenarios.isEnabled()
         ? { strategy_scenarios: await this.strategyScenarios.list(lifecycleId) }
@@ -443,6 +451,12 @@ export class MarketingAiPlannerService {
     } else if (!merged.kpi_tree_json?.length) {
       merged.kpi_tree_json = [];
     }
+    if (patch.kpi_tree_applied_json !== undefined) {
+      merged.kpi_tree_applied_json = normalizeKpiTree(patch.kpi_tree_applied_json);
+    }
+    if (patch.competitor_snapshot_json !== undefined) {
+      merged.competitor_snapshot_json = patch.competitor_snapshot_json;
+    }
     await this.repo.upsertDraft(lifecycleId, merged, actorEmail);
     return merged;
   }
@@ -573,6 +587,9 @@ export class MarketingAiPlannerService {
         stubSwotJson: playbookHints.stubSwotJson,
       });
       const draft = await this.repo.ensureDraft(lifecycleId, actorEmail);
+      const competitorSnapshot = this.kpiClosedLoop.isEnabled()
+        ? buildCompetitorSnapshotFromBrief(brief, this.orchestrator.stubMode ? 'stub' : 'ai')
+        : draft.competitor_snapshot_json;
       await this.repo.upsertDraft(
         lifecycleId,
         {
@@ -580,6 +597,7 @@ export class MarketingAiPlannerService {
           strategy_framework: out.strategy_framework,
           target_market_prof: out.target_market_prof,
           swot_json: out.swot_json,
+          ...(competitorSnapshot ? { competitor_snapshot_json: competitorSnapshot } : {}),
           quality_score_json: {
             ...draft.quality_score_json,
             ...(out.rag_citations ? { rag_citations: out.rag_citations } : {}),
@@ -842,6 +860,17 @@ export class MarketingAiPlannerService {
       validation: planPayload.validation,
     }));
 
+    if (draft.kpi_tree_json?.length) {
+      await this.repo.upsertDraft(
+        lifecycleId,
+        {
+          ...draft,
+          kpi_tree_applied_json: normalizeKpiTree(draft.kpi_tree_json),
+        },
+        actorEmail,
+      );
+    }
+
     return {
       plan: planPayload.plan,
       tmmt_validation: planPayload.validation,
@@ -931,6 +960,77 @@ export class MarketingAiPlannerService {
 
   runKpiAlertScan(opts: { dryRun?: boolean } = {}) {
     return this.kpiAlerts.runWeeklyScan(opts);
+  }
+
+  getKpiClosedLoopStatus() {
+    return this.kpiClosedLoop.status();
+  }
+
+  getKpiClosedLoop(
+    lifecycleId: number,
+    opts: { weeks?: number; channel?: string } = {},
+  ): Promise<MktAiKpiClosedLoopPayload> {
+    return this.kpiClosedLoop.getClosedLoop(lifecycleId, opts);
+  }
+
+  getWeeklyMemoStatus() {
+    return this.weeklyMemo.status();
+  }
+
+  runWeeklyMemoCron(opts: { dryRun?: boolean } = {}) {
+    return this.weeklyMemo.runWeeklyCron(opts);
+  }
+
+  async runWeeklyMemoJob(
+    lifecycleId: number,
+    actorEmail: string,
+    opts: { notify?: boolean; dry_run?: boolean } = {},
+  ): Promise<MktAiWeeklyMemoResult> {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+
+    const jobResult = await this.runJob(lifecycleId, 'weekly_memo', actorEmail, async () => {
+      const memo = await this.weeklyMemo.buildMemoForLifecycle(lifecycleId);
+      let notificationSent = false;
+      if (opts.notify !== false) {
+        notificationSent = await this.weeklyMemo.maybeNotifyMemo(lifecycleId, memo, {
+          dryRun: opts.dry_run === true,
+        });
+      }
+      return this.weeklyMemo.wrapJobResult(memo, notificationSent) as unknown as Record<string, unknown>;
+    });
+
+    const output = (jobResult.output ?? {}) as Record<string, unknown>;
+    return {
+      ok: true,
+      job_id: jobResult.job_id,
+      status: 'succeeded',
+      memo: output.memo as MktAiWeeklyMemoResult['memo'],
+      notification_sent: output.notification_sent as boolean | undefined,
+    };
+  }
+
+  async runCompetitorSnapshotJob(lifecycleId: number, actorEmail: string) {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+    if (!this.kpiClosedLoop.isEnabled()) {
+      throw new NotFoundException({ error: 'mkt_ai_kpi_closed_loop_disabled' });
+    }
+    const brief = await this.requireBrief(lifecycleId);
+
+    return this.runJob(lifecycleId, 'competitor_snapshot', actorEmail, async () => {
+      const snapshot = buildCompetitorSnapshotFromBrief(
+        brief,
+        this.orchestrator.stubMode ? 'stub' : 'ai',
+      );
+      const draft = await this.repo.ensureDraft(lifecycleId, actorEmail);
+      await this.repo.upsertDraft(
+        lifecycleId,
+        { ...draft, competitor_snapshot_json: snapshot },
+        actorEmail,
+      );
+      return { competitor_snapshot: snapshot } as unknown as Record<string, unknown>;
+    });
   }
 
   loadLifecyclePublic(id: number) {

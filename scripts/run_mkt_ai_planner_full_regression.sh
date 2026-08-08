@@ -80,10 +80,11 @@ fi
 step "6/8 Async multi-agent smoke (WS-P4-03)"
 bash "$ROOT/scripts/smoke_mkt_ai_multi_agent_async.sh"
 
-step "7/8 Plan depth smokes (WS-P4-02 / WS-P4-04)"
+step "7/8 Plan depth smokes (WS-P4-02 / WS-P4-04 / WS-P4-09)"
 if [[ -n "${DATABASE_URL:-}" ]]; then
   bash "$ROOT/scripts/smoke_mkt_ai_plan_depth.sh"
   bash "$ROOT/scripts/smoke_mkt_ai_plan_depth_wave2.sh"
+  bash "$ROOT/scripts/smoke_mkt_ai_plan_depth_wave3.sh"
 else
   echo "SKIP plan depth smokes — DATABASE_URL not set"
 fi

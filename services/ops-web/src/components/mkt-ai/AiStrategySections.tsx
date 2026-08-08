@@ -11,7 +11,7 @@ import {
   TMMT_PROF_FIELD_ORDER,
 } from '@/lib/mkt-ai-draft-fields';
 import { AiSectionCommentThread } from '@/components/mkt-ai/AiSectionCommentThread';
-import { patchMktAiDraft, type MktAiCitation, type MktAiDraft, type MktAiSectionCommentRow } from '@/lib/mkt-ai-planner-api';
+import { patchMktAiDraft, postMktAiCompetitorSnapshotJob, type MktAiCitation, type MktAiCompetitorSnapshot, type MktAiDraft, type MktAiSectionCommentRow } from '@/lib/mkt-ai-planner-api';
 import { STRATEGY_LABELS, TMMT_PROF_LABELS } from '@/lib/tmmt-labels';
 import styles from '@/components/mkt-ai/mkt-ai-planner.module.css';
 
@@ -49,6 +49,9 @@ interface Props {
   sectionCommentsEnabled?: boolean;
   sectionComments?: MktAiSectionCommentRow[];
   onSectionCommentAdded?: (row: MktAiSectionCommentRow) => void;
+  competitorSnapshotEnabled?: boolean;
+  competitorSnapshot?: MktAiCompetitorSnapshot | null;
+  onCompetitorSnapshotUpdated?: (snapshot: MktAiCompetitorSnapshot) => void;
 }
 
 function swotLists(swot: Record<string, unknown>): Record<string, string[]> {
@@ -85,9 +88,13 @@ export function AiStrategySections({
   sectionCommentsEnabled = false,
   sectionComments = [],
   onSectionCommentAdded,
+  competitorSnapshotEnabled = false,
+  competitorSnapshot = null,
+  onCompetitorSnapshotUpdated,
 }: Props) {
   const [sf, setSf] = useState(strategyFramework);
   const [prof, setProf] = useState(targetMarketProf);
+  const [snapshotBusy, setSnapshotBusy] = useState(false);
 
   useEffect(() => {
     setSf(strategyFramework);
@@ -173,6 +180,20 @@ export function AiStrategySections({
       if (!ok) return;
     }
     onRetry?.();
+  }
+
+  async function regenerateCompetitorSnapshot() {
+    if (!canEdit || snapshotBusy) return;
+    setSnapshotBusy(true);
+    try {
+      const out = await postMktAiCompetitorSnapshotJob(token, lifecycleId);
+      const snap = out.output?.competitor_snapshot;
+      if (snap) onCompetitorSnapshotUpdated?.(snap);
+    } catch (err) {
+      onSaveError?.(err instanceof Error ? err.message : 'Sinh lại competitor snapshot thất bại');
+    } finally {
+      setSnapshotBusy(false);
+    }
   }
 
   return (
@@ -328,6 +349,65 @@ export function AiStrategySections({
                   </div>
                 ))}
               </div>
+            </section>
+          ) : null}
+
+          {competitorSnapshotEnabled ? (
+            <section className={styles.competitorSnapshotCard}>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <h4 style={{ margin: 0, fontSize: '0.95rem' }}>Competitor snapshot</h4>
+                {canEdit ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-secondary"
+                    disabled={paused || snapshotBusy}
+                    onClick={() => void regenerateCompetitorSnapshot()}
+                  >
+                    {snapshotBusy ? 'Đang sinh…' : 'Sinh lại ↻'}
+                  </button>
+                ) : null}
+              </div>
+              {!competitorSnapshot?.competitors?.length ? (
+                <p className="muted" style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
+                  Thêm đối thủ trong Brief rồi bấm Sinh lại để tạo snapshot.
+                </p>
+              ) : (
+                <>
+                  {competitorSnapshot.summary_vi ? (
+                    <p style={{ margin: '0.5rem 0', fontSize: '0.85rem' }}>{competitorSnapshot.summary_vi}</p>
+                  ) : null}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                      gap: '0.5rem',
+                      marginTop: '0.5rem',
+                    }}
+                  >
+                    {competitorSnapshot.competitors.map((c) => (
+                      <div key={c.name} className="card" style={{ padding: '0.65rem 0.75rem', fontSize: '0.85rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                          <strong>{c.name}</strong>
+                          {c.threat_level ? (
+                            <span className="muted" style={{ fontSize: '0.75rem' }}>{c.threat_level}</span>
+                          ) : null}
+                        </div>
+                        {c.positioning ? (
+                          <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.8rem' }}>{c.positioning}</p>
+                        ) : null}
+                        {c.channels?.length ? (
+                          <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.75rem' }}>
+                            Kênh: {c.channels.join(', ')}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="muted" style={{ margin: '0.5rem 0 0', fontSize: '0.75rem' }}>
+                    Cập nhật: {new Date(competitorSnapshot.generated_at).toLocaleString('vi-VN')}
+                  </p>
+                </>
+              )}
             </section>
           ) : null}
         </>

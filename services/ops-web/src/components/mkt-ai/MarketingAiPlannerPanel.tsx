@@ -473,6 +473,15 @@ export function MarketingAiPlannerPanel({
                 sectionCommentsEnabled={Boolean(ctx?.flags.section_comments_enabled)}
                 sectionComments={sectionComments}
                 onSectionCommentAdded={(row) => setSectionComments((prev) => [...prev, row])}
+                competitorSnapshotEnabled={Boolean(ctx?.flags.kpi_closed_loop_enabled)}
+                competitorSnapshot={draft.competitor_snapshot_json ?? null}
+                onCompetitorSnapshotUpdated={(snap) => {
+                  void patchMktAiDraft(token, lifecycleId, { competitor_snapshot_json: snap })
+                    .then(handleDraftPersisted)
+                    .catch((err) =>
+                      setError(err instanceof Error ? err.message : 'Lưu competitor snapshot thất bại'),
+                    );
+                }}
               />
               {ctx?.flags.scenario_compare_enabled ? (
                 <AiStrategyScenarioCompare
@@ -641,6 +650,7 @@ export function MarketingAiPlannerPanel({
               stage={stage}
               clientId={clientId}
               canEdit={canEdit}
+              closedLoopEnabled={Boolean(ctx?.flags.kpi_closed_loop_enabled)}
             />
           ) : null}
         </div>

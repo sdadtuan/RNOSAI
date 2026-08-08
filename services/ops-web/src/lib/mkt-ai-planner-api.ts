@@ -130,6 +130,24 @@ export interface MktAiDraft {
   content_json: Record<string, unknown>;
   quality_score_json: Record<string, unknown>;
   kpi_tree_json?: MktAiKpiTreeNode[];
+  kpi_tree_applied_json?: MktAiKpiTreeNode[];
+  competitor_snapshot_json?: MktAiCompetitorSnapshot;
+}
+
+export interface MktAiCompetitorSnapshotEntry {
+  name: string;
+  positioning?: string;
+  strengths?: string[];
+  weaknesses?: string[];
+  channels?: string[];
+  threat_level?: 'low' | 'medium' | 'high';
+}
+
+export interface MktAiCompetitorSnapshot {
+  generated_at: string;
+  source: 'brief' | 'ai' | 'stub';
+  competitors: MktAiCompetitorSnapshotEntry[];
+  summary_vi?: string;
 }
 
 export interface MktAiJobRow {
@@ -181,6 +199,7 @@ export interface MktAiPlannerContext {
     scenario_compare_enabled?: boolean;
     section_comments_enabled?: boolean;
     export_pptx_enabled?: boolean;
+    kpi_closed_loop_enabled?: boolean;
   };
   strategy_scenarios?: MktAiStrategyScenarioRow[];
   section_comments?: MktAiSectionCommentRow[];
@@ -623,6 +642,79 @@ export async function fetchMktAiDashboard(
   if (params?.channel) qs.set('channel', params.channel);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return mktAiFetch<MktAiDashboardPayload>(token, lifecycleId, `/dashboard${suffix}`);
+}
+
+export interface MktAiKpiClosedLoopRow {
+  id: string;
+  label: string;
+  metric_kind: 'cpl' | 'leads' | 'roas' | 'spend' | 'other';
+  target_display: string;
+  target_value: number | null;
+  actual_value: number | null;
+  actual_display: string;
+  delta_pct: number | null;
+  unit: string;
+  direction: 'lower_better' | 'higher_better';
+  alert: boolean;
+}
+
+export interface MktAiKpiClosedLoopPayload {
+  ok: boolean;
+  enabled: boolean;
+  lifecycle_id: number;
+  has_applied_kpi_tree: boolean;
+  linked: boolean;
+  threshold_pct: number;
+  period: { from: string; to: string; weeks: number; month_start: string };
+  rows: MktAiKpiClosedLoopRow[];
+  alerts: MktAiKpiClosedLoopRow[];
+  messages: string[];
+}
+
+export async function fetchMktAiKpiClosedLoop(
+  token: string,
+  lifecycleId: number,
+  params?: { weeks?: number; channel?: string },
+) {
+  const qs = new URLSearchParams();
+  if (params?.weeks != null) qs.set('weeks', String(params.weeks));
+  if (params?.channel) qs.set('channel', params.channel);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return mktAiFetch<MktAiKpiClosedLoopPayload>(token, lifecycleId, `/kpi-closed-loop${suffix}`);
+}
+
+export interface MktAiWeeklyMemoResult {
+  ok: boolean;
+  job_id: number;
+  status: string;
+  memo: {
+    title: string;
+    body_vi: string;
+    week_label: string;
+    auto_apply: false;
+    sections: Array<{ heading: string; bullets: string[] }>;
+  };
+  notification_sent?: boolean;
+}
+
+export async function postMktAiWeeklyMemoJob(
+  token: string,
+  lifecycleId: number,
+  body?: { notify?: boolean; dry_run?: boolean },
+) {
+  return mktAiFetch<MktAiWeeklyMemoResult>(token, lifecycleId, '/jobs/optimize/weekly-memo', {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export async function postMktAiCompetitorSnapshotJob(token: string, lifecycleId: number) {
+  return mktAiFetch<{ job_id: number; status: string; output?: { competitor_snapshot: MktAiCompetitorSnapshot } }>(
+    token,
+    lifecycleId,
+    '/jobs/strategy/competitor-snapshot',
+    { method: 'POST', body: '{}' },
+  );
 }
 
 export interface MktAiOptimizeRecommendation {
