@@ -23,6 +23,7 @@ import {
   postMktAiJobRetry,
   postMktAiStrategyJob,
   type MktAiBrief,
+  type MktAiCitation,
   type MktAiDraft,
   type MktAiPlannerContext,
 } from '@/lib/mkt-ai-planner-api';
@@ -201,10 +202,8 @@ export function MarketingAiPlannerPanel({
   const campaigns = draft?.campaigns_json ?? [];
   const calendar = (draft?.content_json?.calendar as Array<Record<string, string>>) ?? [];
   const ragCitations =
-    (draft?.quality_score_json?.rag_citations as Record<
-      string,
-      Array<{ filename: string; page_no: number | null }>
-    >) ?? {};
+    (draft?.quality_score_json?.rag_citations as Record<string, MktAiCitation[]> | undefined) ??
+    {};
 
   function handleDraftPersisted(persisted: MktAiDraft) {
     setCtx((prev) => (prev ? { ...prev, draft: persisted } : prev));
