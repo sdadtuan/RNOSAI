@@ -131,13 +131,12 @@ WHERE created_at >= NOW() - (:days || ' days')::interval;
 \echo '## Export count by format'
 SELECT
   format,
-  status,
   COUNT(*) AS cnt,
   MAX(created_at) AS last_at
 FROM mkt_ai_exports
 WHERE created_at >= NOW() - (:days || ' days')::interval
-GROUP BY format, status
-ORDER BY format, status;
+GROUP BY format
+ORDER BY format;
 
 \echo ''
 \echo '## Export week-over-week (current vs prior window)'
