@@ -127,6 +127,7 @@ export class AppConfigService {
   readonly mktAiScenarioCompare: boolean;
   readonly mktAiSectionComments: boolean;
   readonly mktAiExportPptx: boolean;
+  readonly mktAiPortalSummaryEnabled: boolean;
 
   constructor() {
     this.applyRuntimeEnvOverrides();
@@ -390,6 +391,9 @@ export class AppConfigService {
     );
     this.mktAiExportPptx = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_MKT_AI_EXPORT_PPTX ?? '0').trim().toLowerCase(),
+    );
+    this.mktAiPortalSummaryEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MKT_AI_PORTAL_SUMMARY ?? '0').trim().toLowerCase(),
     );
   }
 

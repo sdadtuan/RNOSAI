@@ -355,6 +355,54 @@ input {
   font-size: 0.82rem;
 }
 
+.portal-mkt-ai-summary {
+  margin-bottom: 1rem;
+}
+
+.portal-mkt-ai-summary__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.65rem;
+}
+
+.portal-mkt-ai-summary__title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.portal-mkt-ai-summary__subtitle {
+  margin: 0.25rem 0 0;
+}
+
+.portal-mkt-ai-summary__score {
+  font-size: 0.82rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.portal-mkt-ai-summary__excerpt {
+  margin: 0 0 0.65rem;
+  line-height: 1.55;
+  font-size: 0.92rem;
+}
+
+.portal-mkt-ai-summary__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  font-size: 0.85rem;
+  color: var(--muted, #888);
+}
+
+.portal-mkt-ai-summary__footer {
+  margin: 0.75rem 0 0;
+  font-size: 0.82rem;
+}
+
 .perf-table tbody tr:hover {
   background: rgba(255, 255, 255, 0.02);
 }

@@ -431,6 +431,18 @@ export class ServiceLifecycleService {
     return ctx;
   }
 
+  async findPrimaryLifecycleByAgencyClientId(clientId: string): Promise<{
+    lifecycle_id: number;
+    service_slug: string;
+    stage: string;
+  } | null> {
+    const trimmed = String(clientId ?? '').trim();
+    if (!trimmed) return null;
+    return this.usePg
+      ? this.pg.findPrimaryLifecycleByAgencyClientId(trimmed)
+      : this.sqlite.findPrimaryLifecycleByAgencyClientId(trimmed);
+  }
+
   async sop(id: number) {
     const lc = await this.requireLifecycle(id);
     const autoStartEnabled = this.config.sopAutoStartOnLaunch;

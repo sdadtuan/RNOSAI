@@ -5,6 +5,7 @@ import { ChannelQuickLinks } from '@/components/dashboard/ChannelQuickLinks';
 import { DashboardKpiStrip } from '@/components/dashboard/DashboardKpiStrip';
 import { PendingApprovalsWidget } from '@/components/PendingApprovalsWidget';
 import { PortalAiReportSummary } from '@/components/PortalAiReportSummary';
+import { MktAiPlanSummaryCard } from '@/components/MktAiPlanSummaryCard';
 import { PerformancePanel } from '@/components/PerformancePanel';
 import { HubPageLayout } from '@/components/layout';
 import { PortalPageShell } from '@/components/PortalPageShell';
@@ -63,6 +64,10 @@ function DashboardContent({ token }: { token: string }) {
 
       <section className="portal-hub-section">
         <PortalAiReportSummary token={token} />
+      </section>
+
+      <section className="portal-hub-section">
+        <MktAiPlanSummaryCard token={token} />
       </section>
 
       <section className="portal-hub-section portal-hub-section--flush">

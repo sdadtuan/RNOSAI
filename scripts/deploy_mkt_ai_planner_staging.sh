@@ -52,6 +52,8 @@ run_local() {
     "PTT_MKT_AI_SCENARIO_COMPARE=1" \
     "PTT_MKT_AI_SECTION_COMMENTS=1" \
     "PTT_MKT_AI_EXPORT_PPTX=1" \
+    "PTT_MKT_AI_PORTAL_SUMMARY=1" \
+    "NEXT_PUBLIC_MKT_AI_PORTAL_SUMMARY=1" \
     "NEXT_PUBLIC_MKT_AI_PLANNER=1"; do
     key="${kv%%=*}"
     if grep -q "^${key}=" "$RUNTIME_ENV" 2>/dev/null; then
@@ -77,7 +79,8 @@ run_local() {
     "PTT_MKT_AI_BRIEF_UPLOAD_ENABLED=1" \
     "PTT_MKT_AI_SCENARIO_COMPARE=1" \
     "PTT_MKT_AI_SECTION_COMMENTS=1" \
-    "PTT_MKT_AI_EXPORT_PPTX=1"; do
+    "PTT_MKT_AI_EXPORT_PPTX=1" \
+    "PTT_MKT_AI_PORTAL_SUMMARY=1"; do
     key="${kv%%=*}"
     if [[ -f "$ROOT/.env" && -w "$ROOT/.env" ]]; then
       if grep -q "^${key}=" "$ROOT/.env" 2>/dev/null; then
@@ -135,6 +138,9 @@ run_local() {
     echo "SKIP plan depth wave2 smoke — DATABASE_URL not set"
   fi
 
+  echo "== 5a3/5 Portal plan summary smoke (WS-P4-05) =="
+  bash "$ROOT/scripts/smoke_mkt_ai_portal_summary.sh" || echo "WARN portal summary smoke failed"
+
   echo "== 5b/5 Build API + ops-web =="
   if [[ -d "$ROOT/services/ptt-crm-api" ]]; then
     (cd "$ROOT/services/ptt-crm-api" && npm ci && npm run build) || echo "WARN API build failed"
@@ -143,6 +149,10 @@ run_local() {
     NEXT_PUBLIC_MKT_AI_PLANNER=1 bash "$ROOT/scripts/deploy_ops_web.sh" --restart 2>/dev/null \
       || bash "$ROOT/scripts/deploy_ops_web.sh" 2>/dev/null \
       || echo "WARN ops-web deploy skipped"
+  fi
+  if [[ -x "$ROOT/scripts/wave_b2_rebuild_portal_web.sh" ]]; then
+    NEXT_PUBLIC_MKT_AI_PORTAL_SUMMARY=1 bash "$ROOT/scripts/wave_b2_rebuild_portal_web.sh" 2>/dev/null \
+      || echo "WARN portal-web rebuild skipped"
   fi
   if sudo -n /usr/bin/systemctl restart ptt-crm-api 2>/dev/null; then
     sleep 3

@@ -311,6 +311,36 @@ export class ServiceLifecyclePgRepository implements OnModuleDestroy {
     return row ? { lifecycle_id: Number(row.lifecycle_id) } : null;
   }
 
+  async findPrimaryLifecycleByAgencyClientId(
+    clientId: string,
+  ): Promise<{ lifecycle_id: number; service_slug: string; stage: string } | null> {
+    const result = await this.db.query(
+      `SELECT sl.id AS lifecycle_id, sl.service_slug, sl.stage
+       FROM crm_service_lifecycle sl
+       INNER JOIN crm_contracts ct ON ct.id = sl.contract_id
+       WHERE sl.status = 'active'
+         AND sl.stage IN ('onboard', 'deliver', 'retain')
+         AND TRIM(COALESCE(ct.agency_client_id, '')) = $1
+       ORDER BY CASE sl.stage
+                  WHEN 'deliver' THEN 0
+                  WHEN 'onboard' THEN 1
+                  ELSE 2
+                END,
+                sl.updated_at DESC
+       LIMIT 1`,
+      [clientId.trim()],
+    );
+    const row = result.rows[0] as
+      | { lifecycle_id: number; service_slug: string; stage: string }
+      | undefined;
+    if (!row) return null;
+    return {
+      lifecycle_id: Number(row.lifecycle_id),
+      service_slug: String(row.service_slug ?? '').trim(),
+      stage: String(row.stage ?? '').trim(),
+    };
+  }
+
   async buildLaunchQaLifecycleIndex(): Promise<Map<string, number>> {
     const index = new Map<string, number>();
     try {

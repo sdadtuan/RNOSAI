@@ -867,6 +867,60 @@ export async function fetchPortalAiReportSummary(
   return body;
 }
 
+export interface MktAiPortalLinkedLifecycle {
+  ok: boolean;
+  enabled: boolean;
+  lifecycle_id: number | null;
+  service_slug: string | null;
+  stage: string | null;
+}
+
+export interface MktAiPortalPlanSummary {
+  ok: boolean;
+  enabled: boolean;
+  lifecycle_id: number;
+  service_slug: string;
+  brand_name: string | null;
+  quality_score: number | null;
+  playbook_label: string | null;
+  strategy_excerpt: string;
+  campaign_count: number;
+  last_updated_at: string;
+  staff_planner_url: string;
+}
+
+export async function fetchPortalMktAiLinkedLifecycle(
+  token: string,
+): Promise<MktAiPortalLinkedLifecycle> {
+  const res = await fetch(`${API_BASE}/api/v1/portal/service-lifecycle/linked`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<MktAiPortalLinkedLifecycle & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Portal MKT-AI linked lifecycle failed', res.status);
+  }
+  return body;
+}
+
+export async function fetchPortalMktAiPlanSummary(
+  token: string,
+  lifecycleId: number,
+): Promise<MktAiPortalPlanSummary> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/portal/service-lifecycle/${lifecycleId}/ai-planner/summary`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    },
+  );
+  const body = await parseJson<MktAiPortalPlanSummary & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Portal MKT-AI plan summary failed', res.status);
+  }
+  return body;
+}
+
 export interface PortalPushVapidResponse {
   ok: boolean;
   enabled: boolean;
