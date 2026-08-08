@@ -15,6 +15,7 @@ import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.serv
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
 import type {
   MktAiBrief,
+  MktAiCampaignDraft,
   MktAiDraft,
   MktAiJobType,
   MktAiPlannerContext,
@@ -202,6 +203,7 @@ export class MarketingAiPlannerService {
       lifecycle_id: lifecycleId,
       job_type: jobType,
       model_name: modelName,
+      prompt_version: this.orchestrator.promptVersion,
       input_json: { lifecycle_id: lifecycleId },
       actor_email: actorEmail,
     });
@@ -288,7 +290,7 @@ export class MarketingAiPlannerService {
     const brief = await this.requireBrief(lifecycleId);
 
     return this.runJob(lifecycleId, 'strategy_generate', actorEmail, async () => {
-      const out = this.orchestrator.generateStrategy(brief);
+      const out = await this.orchestrator.generateStrategy(brief);
       const draft = await this.repo.ensureDraft(lifecycleId, actorEmail);
       await this.repo.upsertDraft(
         lifecycleId,
@@ -300,7 +302,7 @@ export class MarketingAiPlannerService {
         },
         actorEmail,
       );
-      return out;
+      return out as unknown as Record<string, unknown>;
     });
   }
 
@@ -310,11 +312,11 @@ export class MarketingAiPlannerService {
     const brief = await this.requireBrief(lifecycleId);
 
     return this.runJob(lifecycleId, 'campaign_generate', actorEmail, async () => {
-      const campaigns = this.orchestrator.generateCampaigns(brief);
+      const campaigns = await this.orchestrator.generateCampaigns(brief);
       const draft = await this.repo.ensureDraft(lifecycleId, actorEmail);
       await this.repo.upsertDraft(lifecycleId, { ...draft, campaigns_json: campaigns }, actorEmail);
       await this.repo.replaceCampaigns(lifecycleId, null, campaigns);
-      return { campaigns };
+      return { campaigns } as Record<string, unknown>;
     });
   }
 
@@ -323,19 +325,17 @@ export class MarketingAiPlannerService {
     this.assertEnabled(String(lc.service_slug ?? ''));
     const brief = await this.requireBrief(lifecycleId);
     const draft = await this.repo.ensureDraft(lifecycleId, actorEmail);
-    const campaigns = (draft.campaigns_json ?? []) as ReturnType<
-      MarketingAiOrchestratorService['generateCampaigns']
-    >;
+    const campaigns = (draft.campaigns_json ?? []) as MktAiCampaignDraft[];
 
     return this.runJob(lifecycleId, 'content_generate', actorEmail, async () => {
-      const out = this.orchestrator.generateContent(brief, campaigns);
+      const out = await this.orchestrator.generateContent(brief, campaigns);
       await this.repo.upsertDraft(
         lifecycleId,
         { ...draft, content_json: out.content_json },
         actorEmail,
       );
       await this.repo.replaceContentAssets(lifecycleId, null, out.assets);
-      return out;
+      return out as unknown as Record<string, unknown>;
     });
   }
 

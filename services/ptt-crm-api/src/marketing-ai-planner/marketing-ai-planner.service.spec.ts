@@ -29,6 +29,7 @@ describe('MarketingAiPlannerService', () => {
   const orchestrator = {
     stubMode: true,
     modelName: 'gpt-4o-mini',
+    promptVersion: 'v1-kit-port',
     generateStrategy: jest.fn(),
     generateCampaigns: jest.fn(),
     generateContent: jest.fn(),
@@ -135,7 +136,7 @@ describe('MarketingAiPlannerService', () => {
       content_json: {},
       quality_score_json: {},
     });
-    orchestrator.generateStrategy.mockReturnValue({
+    orchestrator.generateStrategy.mockResolvedValue({
       strategy_framework: { target_market: 'SMB' },
       target_market_prof: { market_context: 'ctx' },
       swot_json: {},

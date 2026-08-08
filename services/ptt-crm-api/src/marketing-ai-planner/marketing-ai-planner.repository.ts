@@ -195,16 +195,18 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
     lifecycle_id: number;
     job_type: MktAiJobType;
     model_name: string;
+    prompt_version?: string;
     input_json: Record<string, unknown>;
     actor_email: string;
   }): Promise<MktAiJobRow> {
     const started = this.nowIso();
+    const promptVersion = input.prompt_version ?? 'v1';
     if (await this.ensurePgReady()) {
       const res = await this.db.query(
         `INSERT INTO mkt_ai_jobs (
            lifecycle_id, job_type, status, prompt_version, model_name,
            input_json, actor_email, started_at, created_at, updated_at
-         ) VALUES ($1, $2, 'running', 'v1', $3, $4::jsonb, $5, NOW(), NOW(), NOW())
+         ) VALUES ($1, $2, 'running', $6, $3, $4::jsonb, $5, NOW(), NOW(), NOW())
          RETURNING id, lifecycle_id, job_type, status, prompt_version, model_name,
                    input_json, output_json, error_message, latency_ms, actor_email,
                    started_at, ended_at, created_at`,
@@ -214,6 +216,7 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
           input.model_name,
           JSON.stringify(input.input_json),
           input.actor_email,
+          promptVersion,
         ],
       );
       return this.mapJobRow(res.rows[0]);
@@ -224,7 +227,7 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
       lifecycle_id: input.lifecycle_id,
       job_type: input.job_type,
       status: 'running',
-      prompt_version: 'v1',
+      prompt_version: promptVersion,
       model_name: input.model_name,
       input_json: input.input_json,
       output_json: {},

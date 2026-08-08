@@ -1,24 +1,38 @@
 import { Injectable } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { AiIntelligenceConfigService } from '../ai-intelligence/ai-intelligence.config';
+import { AiLlmClient } from '../ai-intelligence/ai-llm.client';
 import { TARGET_MARKET_PROF_KEYS } from '../service-lifecycle/lifecycle-marketing-plan.util';
 import type { MktAiBrief, MktAiCampaignDraft } from './marketing-ai-planner.types';
-
-const STRATEGY_KEYS = [
-  'target_market',
-  'market_message',
-  'media_reach',
-  'conversion_strategy',
-  'retention_system',
-  'nurture_system',
-] as const;
+import {
+  MKT_AI_PROMPT_VERSION,
+  MKT_AI_CAMPAIGN_SYSTEM,
+  MKT_AI_CONTENT_SYSTEM,
+  MKT_AI_STRATEGY_SYSTEM,
+  STRATEGY_FRAMEWORK_KEYS,
+  buildCampaignUserPrompt,
+  buildContentUserPrompt,
+  buildStrategyUserPrompt,
+} from './marketing-ai-prompts';
+import {
+  normalizeCampaignsOutput,
+  normalizeContentOutput,
+  normalizeStrategyOutput,
+  type MktAiContentOutput,
+  type MktAiStrategyOutput,
+} from './marketing-ai-orchestrator.util';
 
 @Injectable()
 export class MarketingAiOrchestratorService {
   constructor(
     private readonly config: AppConfigService,
     private readonly aiConfig: AiIntelligenceConfigService,
+    private readonly llm: AiLlmClient,
   ) {}
+
+  get promptVersion(): string {
+    return MKT_AI_PROMPT_VERSION;
+  }
 
   get stubMode(): boolean {
     return !this.aiConfig.llmApiKey;
@@ -28,11 +42,43 @@ export class MarketingAiOrchestratorService {
     return this.config.mktAiModel || this.aiConfig.llmModel || 'gpt-4o-mini';
   }
 
-  generateStrategy(brief: MktAiBrief): {
-    strategy_framework: Record<string, string>;
-    target_market_prof: Record<string, string>;
-    swot_json: Record<string, string[]>;
-  } {
+  async generateStrategy(brief: MktAiBrief): Promise<MktAiStrategyOutput> {
+    const fallback = this.buildStrategyStub(brief);
+    const { parsed } = await this.llm.completeJson({
+      systemPrompt: MKT_AI_STRATEGY_SYSTEM,
+      userContent: buildStrategyUserPrompt(brief),
+      model: this.modelName,
+      stubJson: () => fallback as unknown as Record<string, unknown>,
+    });
+    return normalizeStrategyOutput(parsed, fallback);
+  }
+
+  async generateCampaigns(brief: MktAiBrief): Promise<MktAiCampaignDraft[]> {
+    const fallback = this.buildCampaignsStub(brief);
+    const { parsed } = await this.llm.completeJson({
+      systemPrompt: MKT_AI_CAMPAIGN_SYSTEM,
+      userContent: buildCampaignUserPrompt(brief),
+      model: this.modelName,
+      stubJson: () => ({ campaigns: fallback }),
+    });
+    return normalizeCampaignsOutput(parsed, fallback);
+  }
+
+  async generateContent(
+    brief: MktAiBrief,
+    campaigns: MktAiCampaignDraft[],
+  ): Promise<MktAiContentOutput> {
+    const fallback = this.buildContentStub(brief, campaigns);
+    const { parsed } = await this.llm.completeJson({
+      systemPrompt: MKT_AI_CONTENT_SYSTEM,
+      userContent: buildContentUserPrompt(brief, campaigns),
+      model: this.modelName,
+      stubJson: () => fallback as unknown as Record<string, unknown>,
+    });
+    return normalizeContentOutput(parsed, fallback);
+  }
+
+  private buildStrategyStub(brief: MktAiBrief): MktAiStrategyOutput {
     const brand = String(brief.brand_name ?? 'Khách hàng').trim();
     const industry = String(brief.industry ?? 'B2B').trim();
     const geo = (brief.geo_markets ?? []).join(', ') || 'Việt Nam';
@@ -44,16 +90,18 @@ export class MarketingAiOrchestratorService {
     const strategy_framework: Record<string, string> = {
       target_market: `${brand} — ${industry} tại ${geo}; mục tiêu ${objective}.`,
       market_message: usp.slice(0, 280),
-      media_reach: objective === 'lead'
-        ? 'Meta lead form 35% · Google Search intent 30% · Landing CRO 15% · Email nurture 10% · Dự phòng test 10%'
-        : 'Meta reach 30% · Video/TikTok 25% · Google 20% · Content/SEO 15% · Dự phòng 10%',
+      media_reach:
+        objective === 'lead'
+          ? 'Meta lead form 35% · Google Search intent 30% · Landing CRO 15% · Email nurture 10% · Dự phòng test 10%'
+          : 'Meta reach 30% · Video/TikTok 25% · Google 20% · Content/SEO 15% · Dự phòng 10%',
       conversion_strategy:
         'Landing + form chuẩn UTM · SLA SDR ≤4h · nurture email D0–D14 · dashboard CPL theo kênh.',
       retention_system: 'CSKH proactive · NPS hàng quý · upsell gói dịch vụ mở rộng.',
-      nurture_system: 'Email automation 5-touch · retargeting warm audience · Zalo OA nurture (nếu có).',
+      nurture_system:
+        'Email automation 5-touch · retargeting warm audience · Zalo OA nurture (nếu có).',
     };
 
-    for (const key of STRATEGY_KEYS) {
+    for (const key of STRATEGY_FRAMEWORK_KEYS) {
       if (!strategy_framework[key]) strategy_framework[key] = '';
     }
 
@@ -65,8 +113,10 @@ export class MarketingAiOrchestratorService {
     target_market_prof.personas_roles = 'Owner/GM · Trưởng MKT · Người ra quyết định mua dịch vụ agency.';
     target_market_prof.pains_desired_outcomes = `${pain} → Kết quả mong muốn: ${usp.slice(0, 120)}.`;
     target_market_prof.jobs_to_be_done = 'Tạo pipeline ổn định · Giảm CPL · Có dashboard minh bạch.';
-    target_market_prof.buy_triggers_obstacles = 'Trigger: KPI lệch / mùa cao điểm. Rào cản: ngân sách, trust agency.';
-    target_market_prof.criteria_vs_alternatives = 'So sánh in-house vs agency; ưu tiên SLA + minh bạch số liệu.';
+    target_market_prof.buy_triggers_obstacles =
+      'Trigger: KPI lệch / mùa cao điểm. Rào cản: ngân sách, trust agency.';
+    target_market_prof.criteria_vs_alternatives =
+      'So sánh in-house vs agency; ưu tiên SLA + minh bạch số liệu.';
     target_market_prof.insights_evidence = `Insight từ brief: ${pain.slice(0, 100)}`;
     target_market_prof.segment_priorities = `Phân khúc 1: ${geo} core; Phân khúc 2: online nationwide.`;
     target_market_prof.success_hypotheses_next =
@@ -88,7 +138,7 @@ export class MarketingAiOrchestratorService {
     return { strategy_framework, target_market_prof, swot_json };
   }
 
-  generateCampaigns(brief: MktAiBrief): MktAiCampaignDraft[] {
+  private buildCampaignsStub(brief: MktAiBrief): MktAiCampaignDraft[] {
     const objective = String(brief.objective ?? 'lead');
     if (objective === 'awareness') {
       return [
@@ -134,17 +184,10 @@ export class MarketingAiOrchestratorService {
     ];
   }
 
-  generateContent(brief: MktAiBrief, campaigns: MktAiCampaignDraft[]): {
-    content_json: Record<string, unknown>;
-    assets: Array<{
-      asset_type: string;
-      title: string;
-      body_text: string;
-      scheduled_date: string | null;
-      channel: string;
-      content_json: Record<string, unknown>;
-    }>;
-  } {
+  private buildContentStub(
+    brief: MktAiBrief,
+    campaigns: MktAiCampaignDraft[],
+  ): MktAiContentOutput {
     const brand = String(brief.brand_name ?? 'Thương hiệu').trim();
     const calendar: Array<Record<string, string>> = [];
     const base = new Date();
@@ -166,9 +209,14 @@ export class MarketingAiOrchestratorService {
         cta: 'Nhận tư vấn miễn phí',
       },
     ]);
-    const content_json = { calendar, ad_copy, email_sequence: ['D0 welcome', 'D3 case study', 'D7 offer'] };
+    const content_json = {
+      calendar,
+      ad_copy,
+      email_sequence: ['D0 welcome', 'D3 case study', 'D7 offer'],
+    };
     const assets = calendar.slice(0, 8).map((row) => ({
-      asset_type: row.type === 'social_post' ? 'social_post' : row.type === 'blog' ? 'blog' : 'email_sequence',
+      asset_type:
+        row.type === 'social_post' ? 'social_post' : row.type === 'blog' ? 'blog' : 'email_sequence',
       title: row.type,
       body_text: row.copy,
       scheduled_date: row.date,

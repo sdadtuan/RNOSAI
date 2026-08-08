@@ -68,6 +68,20 @@ export interface LlmReviewQueueTriageResult {
   stubMode: boolean;
 }
 
+export interface LlmJsonCompletionInput {
+  systemPrompt: string;
+  userContent: string;
+  model?: string;
+  stubJson: () => Record<string, unknown>;
+}
+
+export interface LlmJsonCompletionResult {
+  parsed: Record<string, unknown>;
+  tokenUsage: AiTokenUsage;
+  modelName: string;
+  stubMode: boolean;
+}
+
 @Injectable()
 export class AiLlmClient {
   constructor(private readonly aiConfig: AiIntelligenceConfigService) {}
@@ -188,6 +202,47 @@ export class AiLlmClient {
       if (parsed.source === 'llm') {
         parsed.source = 'llm';
       }
+      return { parsed, tokenUsage, modelName: model, stubMode: false };
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new ServiceUnavailableException({
+          error: 'llm_timeout',
+          error_code: AI_AUDIT_ERROR.LLM_TIMEOUT,
+          message: 'LLM timeout',
+        });
+      }
+      throw new ServiceUnavailableException({
+        error: 'llm_provider_error',
+        error_code: AI_AUDIT_ERROR.LLM_PROVIDER_ERROR,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  /** Generic JSON completion for modules that supply their own stub (e.g. MKT-AI planner). */
+  async completeJson(input: LlmJsonCompletionInput): Promise<LlmJsonCompletionResult> {
+    const apiKey = this.aiConfig.llmApiKey;
+    const model = input.model ?? this.aiConfig.llmModel;
+
+    if (!apiKey) {
+      return {
+        parsed: input.stubJson(),
+        tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+        modelName: `${model}-stub`,
+        stubMode: true,
+      };
+    }
+
+    try {
+      const raw = await this.callOpenAiChat({
+        apiKey,
+        model,
+        systemPrompt: input.systemPrompt,
+        userContent: input.userContent,
+        timeoutMs: this.aiConfig.llmTimeoutMs,
+      });
+      const tokenUsage = raw.tokenUsage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+      const { tokenUsage: _tu, ...parsed } = raw;
       return { parsed, tokenUsage, modelName: model, stubMode: false };
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
