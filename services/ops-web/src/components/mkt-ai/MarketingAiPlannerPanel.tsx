@@ -648,6 +648,7 @@ export function MarketingAiPlannerPanel({
         <div className={`${styles.jobCol} ${styles.jobColSticky}`}>
         <AiJobProgressPanel
           jobs={ctx?.jobs ?? []}
+          multiAgentStatus={ctx?.multi_agent}
           stubMode={ctx?.flags.stub_mode}
           retrying={busy}
           onRetry={

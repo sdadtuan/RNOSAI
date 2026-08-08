@@ -143,6 +143,10 @@ export interface MktAiJobRow {
   actor_email: string;
   created_at: string;
   ended_at: string | null;
+  /** WS-P4-07 — optional when PG column present */
+  parent_job_id?: number | null;
+  /** WS-P4-07 — child_jobs refs on multi_agent parent */
+  output_json?: Record<string, unknown>;
 }
 
 export interface MktAiPlannerContext {

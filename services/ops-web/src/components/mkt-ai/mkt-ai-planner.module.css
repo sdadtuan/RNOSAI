@@ -99,6 +99,146 @@
   border: 1px solid var(--border);
 }
 
+.jobPanelTitle {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+}
+
+.jobPanelList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+
+.jobRow,
+.jobChildRow {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  padding: 0.45rem 0;
+}
+
+.jobRowMain {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.jobStatusIcon {
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.jobRowLabel {
+  flex: 1;
+  min-width: 0;
+}
+
+.jobRowStatus {
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.jobRowError {
+  margin: 0;
+  font-size: 0.75rem;
+  padding-left: 1.6rem;
+}
+
+.jobStandaloneRow {
+  border-bottom: 1px solid var(--border);
+}
+
+.jobPipelineGroup {
+  border-bottom: 1px solid var(--border);
+}
+
+.jobPipelineParent {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.jobPipelineParentLabel {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+}
+
+.jobPipelineChevron {
+  color: var(--muted, #6b7280);
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.jobRunningBadge {
+  font-size: 0.68rem;
+  line-height: 1.2;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+  white-space: nowrap;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jobPipelineChildren {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0.35rem 0.85rem;
+  border-left: 2px solid var(--border);
+  display: grid;
+  gap: 0;
+}
+
+.jobPipelineChildrenCollapsed {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .jobPanelList {
+    gap: 0.35rem;
+  }
+
+  .jobPipelineGroup {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: rgba(128, 128, 128, 0.03);
+  }
+
+  .jobPipelineParent {
+    padding: 0.65rem 0.75rem;
+    background: rgba(59, 130, 246, 0.05);
+  }
+
+  .jobPipelineChildren {
+    padding: 0.25rem 0.75rem 0.5rem 1.1rem;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+
+  .jobStandaloneRow {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0 0.75rem;
+  }
+}
+
 @media (max-width: 767px) {
   .mobileWarn {
     display: block;
