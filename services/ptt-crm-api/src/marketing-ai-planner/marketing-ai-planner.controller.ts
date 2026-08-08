@@ -11,8 +11,12 @@ import {
   Patch,
   Post,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import type { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
@@ -131,10 +135,26 @@ export class MarketingAiPlannerController {
     return this.planner.exportPlan(lifecycleId, body?.format ?? 'pdf', actorEmail(req));
   }
 
+  @Get('documents')
+  listDocuments(@Param('lifecycleId', ParseIntPipe) lifecycleId: number) {
+    return this.planner.listDocuments(lifecycleId);
+  }
+
   @Post('documents')
-  @HttpCode(HttpStatus.NOT_IMPLEMENTED)
-  uploadDocument() {
-    throw new NotImplementedException({ error: 'mkt_ai_documents_phase2' });
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffMarketingAiPlannerGenerateGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  uploadDocument(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: Request,
+  ) {
+    return this.planner.uploadDocument(lifecycleId, file, actorEmail(req));
   }
 
   @Post('jobs/budget-simulate')

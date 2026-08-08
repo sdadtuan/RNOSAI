@@ -10,8 +10,9 @@ import {
   TMMT_CORE_KEYS,
   TMMT_PROF_FIELD_ORDER,
 } from '@/lib/mkt-ai-draft-fields';
-import { patchMktAiDraft, type MktAiDraft } from '@/lib/mkt-ai-planner-api';
+import { patchMktAiDraft, type MktAiCitation, type MktAiDraft } from '@/lib/mkt-ai-planner-api';
 import { STRATEGY_LABELS, TMMT_PROF_LABELS } from '@/lib/tmmt-labels';
+import styles from '@/components/mkt-ai/mkt-ai-planner.module.css';
 
 const textareaStyle: React.CSSProperties = {
   background: 'var(--bg)',
@@ -32,6 +33,7 @@ interface Props {
   strategyFramework: Record<string, string>;
   targetMarketProf: Record<string, string>;
   swotJson: Record<string, unknown>;
+  ragCitations?: Record<string, MktAiCitation[]>;
   canEdit: boolean;
   paused?: boolean;
   resetAutosaveKey?: string | number;
@@ -64,6 +66,7 @@ export function AiStrategySections({
   strategyFramework,
   targetMarketProf,
   swotJson,
+  ragCitations = {},
   canEdit,
   paused = false,
   resetAutosaveKey,
@@ -118,6 +121,25 @@ export function AiStrategySections({
     Object.values(prof).some((v) => String(v).trim());
 
   const swot = swotLists(swotJson);
+
+  function citationChips(sectionKey: string) {
+    const cites = ragCitations[sectionKey] ?? [];
+    if (!cites.length) return null;
+    return (
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+        {cites.map((c) => (
+          <span
+            key={`${sectionKey}-${c.chunk_id}-${c.page_no ?? 'na'}`}
+            className={styles.citationChip}
+            title={c.excerpt ?? c.filename}
+          >
+            📎 {c.filename}
+            {c.page_no != null ? ` p.${c.page_no}` : ''}
+          </span>
+        ))}
+      </div>
+    );
+  }
 
   async function flushAndContinue() {
     if (!canEdit) {
@@ -207,6 +229,7 @@ export function AiStrategySections({
                   <span className="muted" style={{ fontSize: '0.8rem' }}>
                     {STRATEGY_LABELS[key] ?? key}
                   </span>
+                  {citationChips(key)}
                   {canEdit ? (
                     <textarea
                       style={textareaStyle}
@@ -233,6 +256,7 @@ export function AiStrategySections({
                     {TMMT_PROF_LABELS[key] ?? key}
                     {TMMT_CORE_KEYS.has(key) ? ' *' : ''}
                   </span>
+                  {citationChips(key)}
                   {canEdit ? (
                     <textarea
                       style={textareaStyle}

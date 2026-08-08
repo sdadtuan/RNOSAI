@@ -59,6 +59,38 @@ describe('MarketingAiOrchestratorService', () => {
     expect(out.swot_json.strengths.length).toBeGreaterThan(0);
   });
 
+  it('generateStrategy injects rag block and preserves citations', async () => {
+    llm.completeJson.mockImplementation(async ({ stubJson }) => ({
+      parsed: stubJson(),
+      stubMode: true,
+      modelName: 'gpt-4o-mini-stub',
+      tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    }));
+
+    const ragCitations = {
+      insights_evidence: [
+        {
+          chunk_id: 1,
+          document_id: 2,
+          filename: 'Brand-Guidelines.pdf',
+          page_no: 4,
+        },
+      ],
+    };
+
+    const out = await orchestrator.generateStrategy(brief, {
+      ragPromptBlock: '[1] Brand-Guidelines.pdf p.4: USP evidence',
+      ragCitations,
+    });
+
+    expect(llm.completeJson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userContent: expect.stringContaining('Brand-Guidelines.pdf p.4'),
+      }),
+    );
+    expect(out.rag_citations?.insights_evidence?.[0].filename).toBe('Brand-Guidelines.pdf');
+  });
+
   it('generateStrategy merges partial LLM JSON with stub fallback', async () => {
     llm.completeJson.mockResolvedValue({
       parsed: {

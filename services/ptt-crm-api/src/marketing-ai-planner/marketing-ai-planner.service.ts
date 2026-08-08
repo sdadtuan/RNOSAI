@@ -13,6 +13,7 @@ import { validateMktAiBrief, mergeBrief, emptyDraft } from './marketing-ai-brief
 import { computeQualityScore } from './marketing-ai-quality.util';
 import { MarketingAiExportService } from './marketing-ai-export.service';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
+import { MarketingAiRagService } from './marketing-ai-rag.service';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
 import type { MktAiExportFileResult } from './marketing-ai-export.types';
 import type {
@@ -37,6 +38,7 @@ export class MarketingAiPlannerService {
     private readonly lifecycle: ServiceLifecycleService,
     private readonly repo: MarketingAiPlannerRepository,
     private readonly orchestrator: MarketingAiOrchestratorService,
+    private readonly rag: MarketingAiRagService,
     private readonly agentRuns: AiAgentRunsRepository,
     private readonly exportService: MarketingAiExportService,
   ) {}
@@ -108,6 +110,12 @@ export class MarketingAiPlannerService {
     const tmmtPayload = await this.lifecycle.marketingPlan(lifecycleId);
     const quality = computeQualityScore(briefRow.brief_json, draft);
     const jobs = await this.repo.listJobs(lifecycleId);
+    const documents = this.rag.isFeatureEnabled()
+      ? await this.rag.listDocuments(lifecycleId)
+      : [];
+    const indexedCount = documents.filter((d) => d.status === 'indexed' && d.chunk_count > 0).length;
+    const useRag = this.rag.shouldUseRag(briefRow.brief_json, indexedCount);
+    const ragCitations = draft.quality_score_json?.rag_citations;
 
     return {
       lifecycle_id: lifecycleId,
@@ -118,7 +126,18 @@ export class MarketingAiPlannerService {
       brief_validation: briefValidation,
       prefill_sources: briefRow.prefill_sources_json ?? [],
       jobs,
-      draft,
+      draft: {
+        ...draft,
+        quality_score_json: {
+          ...draft.quality_score_json,
+          ...(ragCitations ? { rag_citations: ragCitations } : {}),
+        },
+      },
+      documents,
+      rag: {
+        use_rag: useRag,
+        indexed_count: indexedCount,
+      },
       tmmt_validation: {
         ok: Boolean(tmmtPayload.validation?.ok),
         messages: tmmtPayload.validation?.messages ?? [],
@@ -132,11 +151,32 @@ export class MarketingAiPlannerService {
         can_export_docx_only: quality.can_export_docx_only,
       },
       flags: {
-        rag_enabled: false,
+        rag_enabled: this.rag.isFeatureEnabled(),
         approval_required: false,
         stub_mode: this.orchestrator.stubMode,
       },
     };
+  }
+
+  async listDocuments(lifecycleId: number) {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+    if (!this.rag.isFeatureEnabled()) {
+      return { documents: [] as const, rag_enabled: false };
+    }
+    const documents = await this.rag.listDocuments(lifecycleId);
+    return { documents, rag_enabled: true };
+  }
+
+  async uploadDocument(
+    lifecycleId: number,
+    file: Express.Multer.File,
+    actorEmail: string,
+  ) {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+    const document = await this.rag.uploadDocument(lifecycleId, file, actorEmail);
+    return { document };
   }
 
   async patchBrief(
@@ -294,7 +334,14 @@ export class MarketingAiPlannerService {
     const brief = await this.requireBrief(lifecycleId);
 
     return this.runJob(lifecycleId, 'strategy_generate', actorEmail, async () => {
-      const out = await this.orchestrator.generateStrategy(brief);
+      const ragCtx = await this.rag.buildForStrategy(lifecycleId, brief);
+      const ragCitations = ragCtx.enabled
+        ? this.rag.attachCitations(ragCtx.chunks)
+        : undefined;
+      const out = await this.orchestrator.generateStrategy(brief, {
+        ragPromptBlock: ragCtx.promptBlock,
+        ragCitations,
+      });
       const draft = await this.repo.ensureDraft(lifecycleId, actorEmail);
       await this.repo.upsertDraft(
         lifecycleId,
@@ -303,6 +350,10 @@ export class MarketingAiPlannerService {
           strategy_framework: out.strategy_framework,
           target_market_prof: out.target_market_prof,
           swot_json: out.swot_json,
+          quality_score_json: {
+            ...draft.quality_score_json,
+            ...(out.rag_citations ? { rag_citations: out.rag_citations } : {}),
+          },
         },
         actorEmail,
       );
@@ -351,9 +402,16 @@ export class MarketingAiPlannerService {
     const quality = computeQualityScore(briefRow?.brief_json ?? null, draft);
 
     return this.runJob(lifecycleId, 'quality_score', actorEmail, async () => {
+      const prevRag = draft.quality_score_json?.rag_citations;
       await this.repo.upsertDraft(
         lifecycleId,
-        { ...draft, quality_score_json: quality as unknown as Record<string, unknown> },
+        {
+          ...draft,
+          quality_score_json: {
+            ...(quality as unknown as Record<string, unknown>),
+            ...(prevRag ? { rag_citations: prevRag } : {}),
+          },
+        },
         actorEmail,
       );
       return quality as unknown as Record<string, unknown>;

@@ -5,6 +5,7 @@ describe('MarketingAiPlannerService', () => {
   const config = {
     mktAiPlannerEnabled: true,
     mktAiPlannerSlugs: [] as string[],
+    mktAiRagEnabled: false,
   };
   const lifecycle = {
     detail: jest.fn(),
@@ -41,6 +42,14 @@ describe('MarketingAiPlannerService', () => {
   const exportService = {
     buildExport: jest.fn(),
   };
+  const rag = {
+    isFeatureEnabled: jest.fn().mockReturnValue(false),
+    listDocuments: jest.fn().mockResolvedValue([]),
+    shouldUseRag: jest.fn().mockReturnValue(false),
+    buildForStrategy: jest.fn(),
+    attachCitations: jest.fn(),
+    uploadDocument: jest.fn(),
+  };
 
   let service: MarketingAiPlannerService;
 
@@ -51,6 +60,7 @@ describe('MarketingAiPlannerService', () => {
       lifecycle as never,
       repo as never,
       orchestrator as never,
+      rag as never,
       agentRuns as never,
       exportService as never,
     );
@@ -67,14 +77,21 @@ describe('MarketingAiPlannerService', () => {
     repo.listJobs.mockResolvedValue([]);
     repo.getDraft.mockResolvedValue(null);
     repo.getBrief.mockResolvedValue(null);
+    rag.buildForStrategy.mockResolvedValue({
+      enabled: false,
+      query: '',
+      chunks: [],
+      promptBlock: '',
+    });
   });
 
   it('getContext throws when planner disabled', async () => {
     const disabled = new MarketingAiPlannerService(
-      { mktAiPlannerEnabled: false, mktAiPlannerSlugs: [] } as never,
+      { mktAiPlannerEnabled: false, mktAiPlannerSlugs: [], mktAiRagEnabled: false } as never,
       lifecycle as never,
       repo as never,
       orchestrator as never,
+      rag as never,
       agentRuns as never,
       exportService as never,
     );

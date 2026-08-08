@@ -25,6 +25,49 @@ export interface MktAiBrief {
   timeline_start?: string;
   timeline_end?: string;
   notes?: string;
+  /** When true (default), strategy generation uses indexed Brand KB chunks. */
+  use_rag?: boolean;
+}
+
+export type MktAiDocumentStatus =
+  | 'pending'
+  | 'indexing'
+  | 'indexed'
+  | 'failed'
+  | 'archived';
+
+export interface MktAiDocumentRow {
+  id: number;
+  lifecycle_id: number;
+  filename: string;
+  mime_type: string;
+  file_size_bytes: number | null;
+  status: MktAiDocumentStatus;
+  chunk_count: number;
+  error_message: string | null;
+  uploaded_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MktAiRagChunkHit {
+  chunk_id: number;
+  document_id: number;
+  chunk_index: number;
+  page_no: number | null;
+  filename: string;
+  title: string;
+  body: string;
+  rank: number;
+}
+
+export interface MktAiCitation {
+  chunk_id: number;
+  document_id: number;
+  filename: string;
+  page_no: number | null;
+  section_key?: string;
+  excerpt?: string;
 }
 
 export interface MktAiBriefValidation {
@@ -88,6 +131,8 @@ export interface MktAiPlannerContext {
     can_export_docx_only?: boolean;
   };
   flags: { rag_enabled: boolean; approval_required: boolean; stub_mode: boolean };
+  documents?: MktAiDocumentRow[];
+  rag?: { use_rag: boolean; indexed_count: number };
 }
 
 export const REQUIRED_BRIEF_FIELDS = [

@@ -117,9 +117,9 @@ Quy tắc:
 - SWOT mỗi mảng 2–4 bullet ngắn.
 - Không thêm key ngoài schema.`;
 
-export function buildStrategyUserPrompt(brief: MktAiBrief): string {
+export function buildStrategyUserPrompt(brief: MktAiBrief, ragBlock?: string): string {
   const objective = String(brief.objective ?? 'lead');
-  return [
+  const parts = [
     'Tạo chiến lược marketing từ brief sau:',
     '',
     buildBriefContextBlock(brief),
@@ -127,7 +127,11 @@ export function buildStrategyUserPrompt(brief: MktAiBrief): string {
     `Gợi ý kênh theo mục tiêu "${objective}": ${objectiveChannelHint(objective)}`,
     '',
     'Áp dụng framework 6T (target_market, market_message, media_reach, conversion, retention, nurture) và TMMT 12 mục.',
-  ].join('\n');
+  ];
+  if (ragBlock?.trim()) {
+    parts.push('', ragBlock.trim());
+  }
+  return parts.join('\n');
 }
 
 export const MKT_AI_CAMPAIGN_SYSTEM = `Bạn là planner chiến dịch marketing tại Việt Nam.

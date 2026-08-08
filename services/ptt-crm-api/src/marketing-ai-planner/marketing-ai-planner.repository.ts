@@ -4,11 +4,15 @@ import { AppConfigService } from '../config/app-config.service';
 import { emptyDraft } from './marketing-ai-brief.util';
 import type {
   MktAiBrief,
+  MktAiDocumentRow,
+  MktAiDocumentStatus,
   MktAiDraft,
   MktAiJobRow,
   MktAiJobStatus,
   MktAiJobType,
+  MktAiRagChunkHit,
 } from './marketing-ai-planner.types';
+import type { MktAiTextChunk } from './marketing-ai-rag.util';
 
 type MemoryStore = {
   briefs: Map<number, { brief_json: MktAiBrief; prefill_sources_json: string[]; updated_by: string }>;
@@ -17,7 +21,19 @@ type MemoryStore = {
   campaigns: Map<number, unknown[]>;
   content: Map<number, unknown[]>;
   exports: Array<Record<string, unknown>>;
+  documents: MktAiDocumentRow[];
+  chunks: Array<{
+    id: number;
+    document_id: number;
+    chunk_index: number;
+    page_no: number | null;
+    title: string;
+    body: string;
+    token_count: number | null;
+  }>;
   nextJobId: number;
+  nextDocumentId: number;
+  nextChunkId: number;
 };
 
 @Injectable()
@@ -31,7 +47,11 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
     campaigns: new Map(),
     content: new Map(),
     exports: [],
+    documents: [],
+    chunks: [],
     nextJobId: 1,
+    nextDocumentId: 1,
+    nextChunkId: 1,
   };
 
   constructor(private readonly config: AppConfigService) {}
@@ -358,6 +378,275 @@ export class MarketingAiPlannerRepository implements OnModuleDestroy {
     const id = this.memory.exports.length + 1;
     this.memory.exports.push({ id, ...row, created_at: this.nowIso() });
     return { id };
+  }
+
+  async listDocuments(lifecycleId: number): Promise<MktAiDocumentRow[]> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, filename, mime_type, file_size_bytes, status, chunk_count,
+                error_message, uploaded_by, created_at, updated_at
+         FROM mkt_ai_documents
+         WHERE lifecycle_id = $1 AND status <> 'archived'
+         ORDER BY created_at DESC`,
+        [lifecycleId],
+      );
+      return res.rows.map((r) => this.mapDocumentRow(r));
+    }
+    return this.memory.documents
+      .filter((d) => d.lifecycle_id === lifecycleId && d.status !== 'archived')
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }
+
+  async findDocumentByHash(lifecycleId: number, sha256Hex: string): Promise<MktAiDocumentRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, filename, mime_type, file_size_bytes, status, chunk_count,
+                error_message, uploaded_by, created_at, updated_at
+         FROM mkt_ai_documents
+         WHERE lifecycle_id = $1 AND sha256_hex = $2 AND status <> 'archived'
+         ORDER BY id DESC LIMIT 1`,
+        [lifecycleId, sha256Hex],
+      );
+      return res.rows[0] ? this.mapDocumentRow(res.rows[0]) : null;
+    }
+    return (
+      this.memory.documents.find(
+        (d) =>
+          d.lifecycle_id === lifecycleId &&
+          d.status !== 'archived',
+      ) ?? null
+    );
+  }
+
+  async insertDocument(row: {
+    lifecycle_id: number;
+    filename: string;
+    mime_type: string;
+    storage_key: string;
+    file_size_bytes: number;
+    sha256_hex: string;
+    status: MktAiDocumentStatus;
+    uploaded_by: string;
+  }): Promise<MktAiDocumentRow> {
+    const now = this.nowIso();
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `INSERT INTO mkt_ai_documents (
+           lifecycle_id, filename, mime_type, storage_key, file_size_bytes, sha256_hex,
+           status, chunk_count, uploaded_by, created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, NOW(), NOW())
+         RETURNING id, lifecycle_id, filename, mime_type, file_size_bytes, status, chunk_count,
+                   error_message, uploaded_by, created_at, updated_at`,
+        [
+          row.lifecycle_id,
+          row.filename,
+          row.mime_type,
+          row.storage_key,
+          row.file_size_bytes,
+          row.sha256_hex,
+          row.status,
+          row.uploaded_by,
+        ],
+      );
+      return this.mapDocumentRow(res.rows[0]);
+    }
+    const doc: MktAiDocumentRow = {
+      id: this.memory.nextDocumentId++,
+      lifecycle_id: row.lifecycle_id,
+      filename: row.filename,
+      mime_type: row.mime_type,
+      file_size_bytes: row.file_size_bytes,
+      status: row.status,
+      chunk_count: 0,
+      error_message: null,
+      uploaded_by: row.uploaded_by,
+      created_at: now,
+      updated_at: now,
+    };
+    this.memory.documents.push(doc);
+    return doc;
+  }
+
+  async updateDocument(
+    documentId: number,
+    patch: {
+      status: MktAiDocumentStatus;
+      chunk_count: number;
+      error_message: string | null;
+    },
+  ): Promise<MktAiDocumentRow> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `UPDATE mkt_ai_documents SET
+           status = $2,
+           chunk_count = $3,
+           error_message = $4,
+           updated_at = NOW()
+         WHERE id = $1
+         RETURNING id, lifecycle_id, filename, mime_type, file_size_bytes, status, chunk_count,
+                   error_message, uploaded_by, created_at, updated_at`,
+        [documentId, patch.status, patch.chunk_count, patch.error_message],
+      );
+      return this.mapDocumentRow(res.rows[0]);
+    }
+    const doc = this.memory.documents.find((d) => d.id === documentId);
+    if (!doc) throw new Error('document_not_found');
+    doc.status = patch.status;
+    doc.chunk_count = patch.chunk_count;
+    doc.error_message = patch.error_message;
+    doc.updated_at = this.nowIso();
+    return doc;
+  }
+
+  async replaceDocumentChunks(documentId: number, chunks: MktAiTextChunk[]): Promise<void> {
+    if (await this.ensurePgReady()) {
+      await this.db.query(`DELETE FROM mkt_ai_document_chunks WHERE document_id = $1`, [documentId]);
+      for (const chunk of chunks) {
+        await this.db.query(
+          `INSERT INTO mkt_ai_document_chunks (
+             document_id, chunk_index, page_no, title, body, token_count, metadata_json
+           ) VALUES ($1, $2, $3, $4, $5, $6, '{}'::jsonb)`,
+          [
+            documentId,
+            chunk.chunk_index,
+            chunk.page_no,
+            chunk.title,
+            chunk.body,
+            chunk.token_count,
+          ],
+        );
+      }
+      return;
+    }
+    this.memory.chunks = this.memory.chunks.filter((c) => c.document_id !== documentId);
+    for (const chunk of chunks) {
+      this.memory.chunks.push({
+        id: this.memory.nextChunkId++,
+        document_id: documentId,
+        chunk_index: chunk.chunk_index,
+        page_no: chunk.page_no,
+        title: chunk.title,
+        body: chunk.body,
+        token_count: chunk.token_count,
+      });
+    }
+  }
+
+  async searchDocumentChunks(
+    lifecycleId: number,
+    query: string,
+    limit = 5,
+  ): Promise<MktAiRagChunkHit[]> {
+    const q = String(query ?? '').trim();
+    if (!q) return this.listTopDocumentChunks(lifecycleId, limit);
+
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT c.id AS chunk_id, c.document_id, c.chunk_index, c.page_no, c.title, c.body,
+                d.filename,
+                ts_rank(
+                  to_tsvector('simple', coalesce(c.title, '') || ' ' || c.body),
+                  plainto_tsquery('simple', $2)
+                ) AS rank
+         FROM mkt_ai_document_chunks c
+         JOIN mkt_ai_documents d ON d.id = c.document_id
+         WHERE d.lifecycle_id = $1
+           AND d.status = 'indexed'
+           AND to_tsvector('simple', coalesce(c.title, '') || ' ' || c.body) @@ plainto_tsquery('simple', $2)
+         ORDER BY rank DESC, c.id ASC
+         LIMIT $3`,
+        [lifecycleId, q, limit],
+      );
+      if (res.rows.length) {
+        return res.rows.map((r) => this.mapChunkHit(r));
+      }
+    }
+
+    return this.searchDocumentChunksMemory(lifecycleId, q, limit);
+  }
+
+  async listTopDocumentChunks(lifecycleId: number, limit = 5): Promise<MktAiRagChunkHit[]> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT c.id AS chunk_id, c.document_id, c.chunk_index, c.page_no, c.title, c.body,
+                d.filename, 1.0 AS rank
+         FROM mkt_ai_document_chunks c
+         JOIN mkt_ai_documents d ON d.id = c.document_id
+         WHERE d.lifecycle_id = $1 AND d.status = 'indexed'
+         ORDER BY c.document_id ASC, c.chunk_index ASC
+         LIMIT $2`,
+        [lifecycleId, limit],
+      );
+      if (res.rows.length) {
+        return res.rows.map((r) => this.mapChunkHit(r));
+      }
+    }
+    return this.searchDocumentChunksMemory(lifecycleId, '', limit);
+  }
+
+  private searchDocumentChunksMemory(
+    lifecycleId: number,
+    query: string,
+    limit: number,
+  ): MktAiRagChunkHit[] {
+    const indexedDocIds = new Set(
+      this.memory.documents
+        .filter((d) => d.lifecycle_id === lifecycleId && d.status === 'indexed')
+        .map((d) => d.id),
+    );
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const hits = this.memory.chunks
+      .filter((c) => indexedDocIds.has(c.document_id))
+      .map((c) => {
+        const doc = this.memory.documents.find((d) => d.id === c.document_id)!;
+        const hay = `${c.title} ${c.body}`.toLowerCase();
+        const rank = terms.length
+          ? terms.reduce((acc, t) => acc + (hay.includes(t) ? 1 : 0), 0)
+          : 1;
+        return {
+          chunk_id: c.id,
+          document_id: c.document_id,
+          chunk_index: c.chunk_index,
+          page_no: c.page_no,
+          filename: doc.filename,
+          title: c.title,
+          body: c.body,
+          rank,
+        };
+      })
+      .filter((h) => h.rank > 0)
+      .sort((a, b) => b.rank - a.rank || a.chunk_index - b.chunk_index)
+      .slice(0, limit);
+    return hits;
+  }
+
+  private mapDocumentRow(r: Record<string, unknown>): MktAiDocumentRow {
+    return {
+      id: Number(r.id),
+      lifecycle_id: Number(r.lifecycle_id),
+      filename: String(r.filename ?? ''),
+      mime_type: String(r.mime_type ?? ''),
+      file_size_bytes: r.file_size_bytes != null ? Number(r.file_size_bytes) : null,
+      status: String(r.status ?? 'pending') as MktAiDocumentStatus,
+      chunk_count: Number(r.chunk_count ?? 0),
+      error_message: r.error_message != null ? String(r.error_message) : null,
+      uploaded_by: String(r.uploaded_by ?? ''),
+      created_at: String(r.created_at ?? this.nowIso()),
+      updated_at: String(r.updated_at ?? this.nowIso()),
+    };
+  }
+
+  private mapChunkHit(r: Record<string, unknown>): MktAiRagChunkHit {
+    return {
+      chunk_id: Number(r.chunk_id),
+      document_id: Number(r.document_id),
+      chunk_index: Number(r.chunk_index),
+      page_no: r.page_no != null ? Number(r.page_no) : null,
+      filename: String(r.filename ?? ''),
+      title: String(r.title ?? ''),
+      body: String(r.body ?? ''),
+      rank: Number(r.rank ?? 0),
+    };
   }
 
   private mapJobRow(r: Record<string, unknown>): MktAiJobRow {

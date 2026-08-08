@@ -108,6 +108,7 @@ export class AppConfigService {
   readonly mobileMinVersion: string;
   readonly mobileForceUpdate: boolean;
   readonly mktAiPlannerEnabled: boolean;
+  readonly mktAiRagEnabled: boolean;
   readonly mktAiModel: string;
   readonly mktAiPlannerSlugs: string[];
 
@@ -313,6 +314,9 @@ export class AppConfigService {
 
     this.mktAiPlannerEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_MKT_AI_PLANNER_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.mktAiRagEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MKT_AI_RAG_ENABLED ?? '0').trim().toLowerCase(),
     );
     this.mktAiModel = (process.env.PTT_MKT_AI_MODEL ?? '').trim();
     this.mktAiPlannerSlugs = (process.env.PTT_MKT_AI_PLANNER_SLUGS ?? '')

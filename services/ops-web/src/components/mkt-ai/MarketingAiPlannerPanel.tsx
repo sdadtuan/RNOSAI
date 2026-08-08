@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { AiBrandKbPanel } from '@/components/mkt-ai/AiBrandKbPanel';
 import { AiApplyStepPanel } from '@/components/mkt-ai/AiApplyStepPanel';
 import { AiCampaignBuilder } from '@/components/mkt-ai/AiCampaignBuilder';
 import { AiContentCalendar } from '@/components/mkt-ai/AiContentCalendar';
@@ -37,6 +38,7 @@ const STEPS = [
 ] as const;
 
 type StepId = (typeof STEPS)[number]['id'];
+type BriefSubId = 'brief' | 'kb';
 
 interface Props {
   token: string;
@@ -57,6 +59,10 @@ function parseStep(raw: string | null): StepId {
   return 'brief';
 }
 
+function parseBriefSub(raw: string | null): BriefSubId {
+  return raw === 'kb' ? 'kb' : 'brief';
+}
+
 export function MarketingAiPlannerPanel({
   token,
   user,
@@ -71,6 +77,9 @@ export function MarketingAiPlannerPanel({
   const [ctx, setCtx] = useState<MktAiPlannerContext | null>(null);
   const [briefDraft, setBriefDraft] = useState<MktAiBrief>({});
   const [step, setStep] = useState<StepId>(() => parseStep(searchParams.get('step')));
+  const [briefSub, setBriefSub] = useState<BriefSubId>(() => parseBriefSub(searchParams.get('sub')));
+  const [documents, setDocuments] = useState<MktAiPlannerContext['documents']>([]);
+  const [useRag, setUseRag] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -90,6 +99,8 @@ export function MarketingAiPlannerPanel({
       const data = await fetchMktAiPlannerContext(token, lifecycleId);
       setCtx(data);
       setBriefDraft(data.brief ?? { service_slug: data.service_slug });
+      setDocuments(data.documents ?? []);
+      setUseRag(data.rag?.use_rag ?? data.brief?.use_rag !== false);
       setContextVersion((v) => v + 1);
       setDisabledReason('');
     } catch (err) {
@@ -112,6 +123,8 @@ export function MarketingAiPlannerPanel({
       const data = await fetchMktAiPlannerContext(token, lifecycleId);
       setCtx(data);
       setBriefDraft(data.brief ?? { service_slug: data.service_slug });
+      setDocuments(data.documents ?? []);
+      setUseRag(data.rag?.use_rag ?? data.brief?.use_rag !== false);
     } catch {
       /* silent poll — avoid VQ-09 flash */
     }
@@ -137,6 +150,7 @@ export function MarketingAiPlannerPanel({
 
   useEffect(() => {
     setStep(parseStep(searchParams.get('step')));
+    setBriefSub(parseBriefSub(searchParams.get('sub')));
   }, [searchParams]);
 
   function goToStep(next: StepId) {
@@ -144,6 +158,17 @@ export function MarketingAiPlannerPanel({
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', 'ai-planner');
     params.set('step', next);
+    if (next !== 'brief') params.delete('sub');
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }
+
+  function goToBriefSub(next: BriefSubId) {
+    setBriefSub(next);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', 'ai-planner');
+    params.set('step', 'brief');
+    if (next === 'kb') params.set('sub', 'kb');
+    else params.delete('sub');
     router.replace(`?${params.toString()}`, { scroll: false });
   }
 
@@ -175,6 +200,11 @@ export function MarketingAiPlannerPanel({
   const hasStrategy = hasStrategyContent(draft?.strategy_framework, draft?.target_market_prof);
   const campaigns = draft?.campaigns_json ?? [];
   const calendar = (draft?.content_json?.calendar as Array<Record<string, string>>) ?? [];
+  const ragCitations =
+    (draft?.quality_score_json?.rag_citations as Record<
+      string,
+      Array<{ filename: string; page_no: number | null }>
+    >) ?? {};
 
   function handleDraftPersisted(persisted: MktAiDraft) {
     setCtx((prev) => (prev ? { ...prev, draft: persisted } : prev));
@@ -262,33 +292,79 @@ export function MarketingAiPlannerPanel({
       <div className={styles.layout}>
         <div className={styles.mainCol}>
           {step === 'brief' ? (
-            <BriefIntakeForm
-              token={token}
-              lifecycleId={lifecycleId}
-              brief={briefDraft}
-              onBriefChange={setBriefDraft}
-              briefValidation={briefValidation}
-              prefillSources={ctx?.prefill_sources}
-              serviceSlug={serviceSlug ?? ctx?.service_slug}
-              canEdit={canEdit}
-              paused={busy}
-              resetAutosaveKey={contextVersion}
-              onPersisted={(out) => {
-                setBriefDraft(out.brief);
-                setCtx((prev) =>
-                  prev
-                    ? { ...prev, brief: out.brief, brief_validation: out.brief_validation }
-                    : prev,
-                );
-                setMessage(
-                  out.brief_validation.ok
-                    ? 'Brief hợp lệ — có thể sinh chiến lược'
-                    : 'Đã lưu brief',
-                );
-              }}
-              onSaveError={(msg) => setError(msg)}
-              onContinue={() => goToStep('strategy')}
-            />
+            <>
+              <div className={styles.kbSubTabs}>
+                <button
+                  type="button"
+                  className={briefSub === 'brief' ? 'btn btn-sm' : 'btn btn-sm btn-ghost'}
+                  onClick={() => goToBriefSub('brief')}
+                >
+                  Brief
+                </button>
+                <button
+                  type="button"
+                  className={briefSub === 'kb' ? 'btn btn-sm' : 'btn btn-sm btn-ghost'}
+                  onClick={() => goToBriefSub('kb')}
+                >
+                  Brand KB
+                  {(documents ?? []).some((d) => d.status === 'indexed') ? ' ✓' : ''}
+                </button>
+              </div>
+              {briefSub === 'kb' ? (
+                <AiBrandKbPanel
+                  token={token}
+                  lifecycleId={lifecycleId}
+                  canEdit={canEdit}
+                  ragEnabled={Boolean(ctx?.flags.rag_enabled)}
+                  useRag={useRag}
+                  documents={documents ?? []}
+                  onDocumentsChange={setDocuments}
+                  onUseRagChange={(next) => {
+                    setUseRag(next);
+                    setBriefDraft((prev) => ({ ...prev, use_rag: next }));
+                    setCtx((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            brief: { ...(prev.brief ?? {}), use_rag: next },
+                            rag: { ...(prev.rag ?? { indexed_count: 0 }), use_rag: next },
+                          }
+                        : prev,
+                    );
+                  }}
+                  onError={setError}
+                  onMessage={setMessage}
+                />
+              ) : (
+                <BriefIntakeForm
+                  token={token}
+                  lifecycleId={lifecycleId}
+                  brief={briefDraft}
+                  onBriefChange={setBriefDraft}
+                  briefValidation={briefValidation}
+                  prefillSources={ctx?.prefill_sources}
+                  serviceSlug={serviceSlug ?? ctx?.service_slug}
+                  canEdit={canEdit}
+                  paused={busy}
+                  resetAutosaveKey={contextVersion}
+                  onPersisted={(out) => {
+                    setBriefDraft(out.brief);
+                    setCtx((prev) =>
+                      prev
+                        ? { ...prev, brief: out.brief, brief_validation: out.brief_validation }
+                        : prev,
+                    );
+                    setMessage(
+                      out.brief_validation.ok
+                        ? 'Brief hợp lệ — có thể sinh chiến lược'
+                        : 'Đã lưu brief',
+                    );
+                  }}
+                  onSaveError={(msg) => setError(msg)}
+                  onContinue={() => goToStep('strategy')}
+                />
+              )}
+            </>
           ) : null}
 
           {step === 'strategy' && draft ? (
@@ -298,6 +374,7 @@ export function MarketingAiPlannerPanel({
               strategyFramework={draft.strategy_framework ?? {}}
               targetMarketProf={draft.target_market_prof ?? {}}
               swotJson={draft.swot_json ?? {}}
+              ragCitations={ragCitations}
               canEdit={canEdit}
               paused={busy}
               resetAutosaveKey={contextVersion}

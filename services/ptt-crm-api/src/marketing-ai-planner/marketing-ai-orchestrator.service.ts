@@ -3,7 +3,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { AiIntelligenceConfigService } from '../ai-intelligence/ai-intelligence.config';
 import { AiLlmClient } from '../ai-intelligence/ai-llm.client';
 import { TARGET_MARKET_PROF_KEYS } from '../service-lifecycle/lifecycle-marketing-plan.util';
-import type { MktAiBrief, MktAiCampaignDraft } from './marketing-ai-planner.types';
+import type { MktAiBrief, MktAiCampaignDraft, MktAiCitation } from './marketing-ai-planner.types';
 import {
   MKT_AI_PROMPT_VERSION,
   MKT_AI_CAMPAIGN_SYSTEM,
@@ -42,15 +42,28 @@ export class MarketingAiOrchestratorService {
     return this.config.mktAiModel || this.aiConfig.llmModel || 'gpt-4o-mini';
   }
 
-  async generateStrategy(brief: MktAiBrief): Promise<MktAiStrategyOutput> {
+  async generateStrategy(
+    brief: MktAiBrief,
+    opts?: {
+      ragPromptBlock?: string;
+      ragCitations?: Record<string, MktAiCitation[]>;
+    },
+  ): Promise<MktAiStrategyOutput> {
     const fallback = this.buildStrategyStub(brief);
+    if (opts?.ragCitations && Object.keys(opts.ragCitations).length) {
+      fallback.rag_citations = opts.ragCitations;
+    }
     const { parsed } = await this.llm.completeJson({
       systemPrompt: MKT_AI_STRATEGY_SYSTEM,
-      userContent: buildStrategyUserPrompt(brief),
+      userContent: buildStrategyUserPrompt(brief, opts?.ragPromptBlock),
       model: this.modelName,
       stubJson: () => fallback as unknown as Record<string, unknown>,
     });
-    return normalizeStrategyOutput(parsed, fallback);
+    const out = normalizeStrategyOutput(parsed, fallback);
+    if (opts?.ragCitations && Object.keys(opts.ragCitations).length) {
+      out.rag_citations = opts.ragCitations;
+    }
+    return out;
   }
 
   async generateCampaigns(brief: MktAiBrief): Promise<MktAiCampaignDraft[]> {

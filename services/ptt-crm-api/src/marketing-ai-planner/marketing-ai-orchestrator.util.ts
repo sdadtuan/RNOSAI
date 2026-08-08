@@ -1,11 +1,12 @@
 import { TARGET_MARKET_PROF_KEYS } from '../service-lifecycle/lifecycle-marketing-plan.util';
-import type { MktAiCampaignDraft } from './marketing-ai-planner.types';
+import type { MktAiCampaignDraft, MktAiCitation } from './marketing-ai-planner.types';
 import { STRATEGY_FRAMEWORK_KEYS } from './marketing-ai-prompts';
 
 export interface MktAiStrategyOutput {
   strategy_framework: Record<string, string>;
   target_market_prof: Record<string, string>;
   swot_json: Record<string, string[]>;
+  rag_citations?: Record<string, MktAiCitation[]>;
 }
 
 export interface MktAiContentOutput {
@@ -76,6 +77,11 @@ export function normalizeStrategyOutput(
   raw: Record<string, unknown>,
   fallback: MktAiStrategyOutput,
 ): MktAiStrategyOutput {
+  const ragRaw = raw.rag_citations;
+  const rag_citations =
+    ragRaw && typeof ragRaw === 'object'
+      ? (ragRaw as MktAiStrategyOutput['rag_citations'])
+      : fallback.rag_citations;
   return {
     strategy_framework: pickStringRecord(
       raw.strategy_framework,
@@ -88,6 +94,7 @@ export function normalizeStrategyOutput(
       fallback.target_market_prof,
     ),
     swot_json: normalizeSwot(raw.swot_json, fallback.swot_json),
+    rag_citations,
   };
 }
 

@@ -54,6 +54,7 @@ export interface MktAiBrief {
   timeline_start?: string;
   timeline_end?: string;
   notes?: string;
+  use_rag?: boolean;
 }
 
 export interface MktAiBriefValidation {
@@ -62,7 +63,28 @@ export interface MktAiBriefValidation {
   messages: string[];
 }
 
-export interface MktAiCampaignDraft {
+export interface MktAiCitation {
+  chunk_id: number;
+  document_id: number;
+  filename: string;
+  page_no: number | null;
+  section_key?: string;
+  excerpt?: string;
+}
+
+export interface MktAiDocumentRow {
+  id: number;
+  lifecycle_id: number;
+  filename: string;
+  mime_type: string;
+  file_size_bytes: number | null;
+  status: 'pending' | 'indexing' | 'indexed' | 'failed' | 'archived';
+  chunk_count: number;
+  error_message: string | null;
+  uploaded_by: string;
+  created_at: string;
+  updated_at: string;
+}
   name: string;
   objective: string;
   channel_mix: string[];
@@ -113,6 +135,8 @@ export interface MktAiPlannerContext {
     can_export_docx_only?: boolean;
   };
   flags: { rag_enabled: boolean; approval_required: boolean; stub_mode: boolean };
+  documents?: MktAiDocumentRow[];
+  rag?: { use_rag: boolean; indexed_count: number };
 }
 
 export async function fetchMktAiPlannerContext(
@@ -120,6 +144,36 @@ export async function fetchMktAiPlannerContext(
   lifecycleId: number,
 ): Promise<MktAiPlannerContext> {
   return mktAiFetch<MktAiPlannerContext>(token, lifecycleId, '/context');
+}
+
+export async function fetchMktAiDocuments(token: string, lifecycleId: number) {
+  return mktAiFetch<{ documents: MktAiDocumentRow[]; rag_enabled: boolean }>(
+    token,
+    lifecycleId,
+    '/documents',
+  );
+}
+
+export async function uploadMktAiDocument(token: string, lifecycleId: number, file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(
+    `${API_BASE}/api/crm/service-lifecycle/${lifecycleId}/ai-planner/documents`,
+    {
+      method: 'POST',
+      headers: authHeaders(token) as Record<string, string>,
+      body: form,
+    },
+  );
+  const body = await parseJson<{
+    document: MktAiDocumentRow;
+    error?: string;
+    message?: string;
+  }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Upload failed', res.status);
+  }
+  return body;
 }
 
 export async function patchMktAiBrief(
