@@ -2,9 +2,11 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
+  forwardRef,
 } from '@nestjs/common';
 import { AiAgentRunsRepository } from '../ai-intelligence/ai-agent-runs.repository';
 import { AppConfigService } from '../config/app-config.service';
@@ -65,6 +67,7 @@ export class MarketingAiPlannerService {
     private readonly optimize: MarketingAiOptimizeService,
     private readonly kpiAlerts: MarketingAiKpiAlertService,
     private readonly playbooks: MarketingAiPlaybookService,
+    @Inject(forwardRef(() => MarketingAiMultiAgentService))
     private readonly multiAgent: MarketingAiMultiAgentService,
   ) {}
 
