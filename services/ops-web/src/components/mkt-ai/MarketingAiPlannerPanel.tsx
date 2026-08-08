@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AiApplyStepPanel } from '@/components/mkt-ai/AiApplyStepPanel';
 import { AiCampaignBuilder } from '@/components/mkt-ai/AiCampaignBuilder';
@@ -9,6 +9,7 @@ import { AiStrategySections } from '@/components/mkt-ai/AiStrategySections';
 import { BriefIntakeForm } from '@/components/mkt-ai/BriefIntakeForm';
 import { AiJobProgressPanel } from '@/components/mkt-ai/AiJobProgressPanel';
 import { AiTmmtGateBanner } from '@/components/mkt-ai/AiTmmtGateBanner';
+import styles from '@/components/mkt-ai/mkt-ai-planner.module.css';
 import {
   canExportMktAiPlanner,
   canGenerateMktAiPlanner,
@@ -93,7 +94,7 @@ export function MarketingAiPlannerPanel({
       setDisabledReason('');
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        setDisabledReason('AI Marketing Planner chưa bật trên môi trường này.');
+        setDisabledReason('Module AI Planner chưa bật cho môi trường này.');
         setCtx(null);
       } else if (err instanceof ApiError && err.status === 403) {
         setDisabledReason('Dịch vụ này chưa nằm trong pilot AI Planner.');
@@ -105,6 +106,30 @@ export function MarketingAiPlannerPanel({
       setLoading(false);
     }
   }, [token, lifecycleId]);
+
+  const pollContext = useCallback(async () => {
+    try {
+      const data = await fetchMktAiPlannerContext(token, lifecycleId);
+      setCtx(data);
+      setBriefDraft(data.brief ?? { service_slug: data.service_slug });
+    } catch {
+      /* silent poll — avoid VQ-09 flash */
+    }
+  }, [token, lifecycleId]);
+
+  const hasActiveJobs = useMemo(
+    () =>
+      (ctx?.jobs ?? []).some((j) => j.status === 'pending' || j.status === 'running'),
+    [ctx?.jobs],
+  );
+
+  useEffect(() => {
+    if (!hasActiveJobs) return;
+    const id = window.setInterval(() => {
+      void pollContext();
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [hasActiveJobs, pollContext]);
 
   useEffect(() => {
     void reload();
@@ -164,7 +189,11 @@ export function MarketingAiPlannerPanel({
   }
 
   return (
-    <div style={{ display: 'grid', gap: '1rem' }}>
+    <div className={styles.plannerRoot}>
+      <p className={styles.mobileWarn}>
+        Vui lòng dùng desktop (≥768px) để sinh và apply kế hoạch AI — mobile chỉ xem/review.
+      </p>
+
       {readOnlyStage ? (
         <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
           {['lead', 'consult', 'proposal'].includes(stage)
@@ -219,12 +248,19 @@ export function MarketingAiPlannerPanel({
         })}
       </div>
 
-      {loading ? <p className="muted">Đang tải AI Planner…</p> : null}
+      {loading && !ctx ? (
+        <div className={styles.skeleton} aria-busy="true" aria-label="Đang tải AI Planner">
+          <div className={styles.skeletonBar} style={{ width: '72%' }} />
+          <div className={styles.skeletonBar} style={{ width: '55%' }} />
+          <div className={styles.skeletonBar} style={{ width: '88%' }} />
+        </div>
+      ) : null}
       {error ? <p className="error">{error}</p> : null}
       {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
 
-      <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <div style={{ flex: '1 1 480px', minWidth: 0 }}>
+      {!loading || ctx ? (
+      <div className={styles.layout}>
+        <div className={styles.mainCol}>
           {step === 'brief' ? (
             <BriefIntakeForm
               token={token}
@@ -346,6 +382,7 @@ export function MarketingAiPlannerPanel({
           ) : null}
         </div>
 
+        <div className={`${styles.jobCol} ${styles.jobColSticky}`}>
         <AiJobProgressPanel
           jobs={ctx?.jobs ?? []}
           stubMode={ctx?.flags.stub_mode}
@@ -356,7 +393,9 @@ export function MarketingAiPlannerPanel({
               : undefined
           }
         />
+        </div>
       </div>
+      ) : null}
     </div>
   );
 }

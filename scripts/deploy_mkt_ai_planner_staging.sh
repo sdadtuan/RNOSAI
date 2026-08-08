@@ -86,6 +86,9 @@ run_local() {
   export PTT_CRM_INTERNAL_KEY="${PTT_CRM_INTERNAL_KEY:-}"
   bash "$ROOT/scripts/smoke_mkt_ai_planner_context.sh"
 
+  echo "== 5b/5 Full UAT (optional) =="
+  echo "     bash scripts/run_mkt_ai_planner_uat.sh"
+
   echo "== MKT-AI staging kickoff complete =="
   echo "Flags: PTT_MKT_AI_PLANNER_ENABLED=1 PTT_MKT_AI_PLANNER_SLUGS=meta-lead-gen NEXT_PUBLIC_MKT_AI_PLANNER=1"
   echo "Ops-web: rebuild with NEXT_PUBLIC_MKT_AI_PLANNER=1 to show tab (deploy_ops_web.sh)"

@@ -1,0 +1,106 @@
+.plannerRoot {
+  display: grid;
+  gap: 1rem;
+}
+
+.mobileWarn {
+  display: none;
+  margin: 0;
+  font-size: 0.85rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.layout {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.mainCol {
+  flex: 1 1 480px;
+  min-width: 0;
+}
+
+.jobCol {
+  flex: 0 1 280px;
+  width: 100%;
+  max-width: 280px;
+}
+
+.jobColSticky {
+  position: sticky;
+  top: 1rem;
+  align-self: flex-start;
+}
+
+.skeleton {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.5rem 0;
+}
+
+.skeletonBar {
+  height: 0.85rem;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(128, 128, 128, 0.12) 25%,
+    rgba(128, 128, 128, 0.22) 50%,
+    rgba(128, 128, 128, 0.12) 75%
+  );
+  background-size: 200% 100%;
+  animation: mktAiShimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes mktAiShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (max-width: 1279px) {
+  .jobCol {
+    flex: 1 1 100%;
+    max-width: none;
+    order: 2;
+  }
+
+  .jobColSticky {
+    position: static;
+  }
+
+  .jobToggle {
+    display: flex !important;
+  }
+
+  .jobBodyCollapsed {
+    display: none;
+  }
+}
+
+.jobToggle {
+  display: none;
+  width: 100%;
+  justify-content: space-between;
+  margin-bottom: 0.65rem;
+}
+
+.jobPanelAside {
+  padding: 0.85rem;
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+@media (max-width: 767px) {
+  .mobileWarn {
+    display: block;
+  }
+}

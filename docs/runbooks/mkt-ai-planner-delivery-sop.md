@@ -1,119 +1,191 @@
-# Runbook — AI Marketing Planner (Triển khai DV)
+# MKT-AI Planner — Delivery SOP (S4 Polish / UAT sign-off)
 
-> **Module:** MarketingAiPlannerModule · **Plan:** [`docs/superpowers/plans/2026-08-08-mkt-ai-planner-module.md`](../superpowers/plans/2026-08-08-mkt-ai-planner-module.md)  
-> **Spec:** [`docs/specs/2026-08-08-mkt-ai-planner-integration-spec.md`](../specs/2026-08-08-mkt-ai-planner-integration-spec.md)  
-> **UAT:** [`docs/use-cases/actions/10-MKTP-ACTIONS.md`](../use-cases/actions/10-MKTP-ACTIONS.md)
-
----
-
-## 1. Feature flags
-
-| Flag | Layer | Required value | Effect |
-|------|-------|----------------|--------|
-| `PTT_MKT_AI_PLANNER_ENABLED` | API (`ptt-crm-api`) | `1` | Routes `/ai-planner/*` active |
-| `PTT_MKT_AI_PLANNER_SLUGS` | API | `meta-lead-gen` (pilot) or empty (all) | Pilot whitelist |
-| `PTT_MKT_AI_MODEL` | API | optional | Override LLM model |
-| `NEXT_PUBLIC_MKT_AI_PLANNER` | FE (`ops-web`) | `1` | Tab **AI Planner** visible |
-
-**Fail-closed:** FE flag off → tab hidden. API flag off → `404 mkt_ai_planner_disabled`.
+> **Module:** AI Marketing Planner · **Parent:** SVC-UC-003, SVC-UC-011  
+> **Staging:** https://rs.pttads.vn · **Repo:** `RNOSAI`  
+> **UAT script:** [`10-MKTP-ACTIONS.md`](../use-cases/actions/10-MKTP-ACTIONS.md) · **API UAT:** `scripts/run_mkt_ai_planner_uat.sh`
 
 ---
 
-## 2. Database (DDL)
+## 1. Phạm vi P0
+
+| UC | Mô tả |
+|----|--------|
+| MKTP-UC-001…010 | Wizard 5 bước, quality gate, apply TMMT, export PDF/DOCX/XLSX |
+| EC-MKT-AI-01…05 | Brief VI, 4 core prof, apply gate, export audit, retry giữ draft |
+
+**Không thay đổi:** SVC-UC-003 workflow gate (AM chuyển stage thủ công sau TMMT pass).
+
+---
+
+## 2. Flags & RBAC (bắt buộc trước pilot)
+
+### 2.1 Environment
+
+| Flag | Giá trị staging | File |
+|------|-----------------|------|
+| `PTT_MKT_AI_PLANNER_ENABLED` | `1` | `.env` / `deploy/runtime.env` |
+| `PTT_MKT_AI_PLANNER_SLUGS` | `meta-lead-gen` | same |
+| `NEXT_PUBLIC_MKT_AI_PLANNER` | `1` | ops-web build env |
 
 ```bash
-export DATABASE_URL=postgresql://USER:PASS@HOST:5432/DB
-./scripts/apply_pg_ddl_mkt_ai_planner.sh
-./scripts/verify_mkt_ai_ddl.sh
+# Kickoff one-shot (VPS)
+APPLY=1 ./scripts/deploy_mkt_ai_planner_staging.sh
 ```
 
-Expected: 11 tables + `schema_migrations` row `2026-08-08-mkt-ai-planner`.
+### 2.2 RBAC caps (Solution Strategist pilot)
 
-**Rollback (dev only):** drop tables in reverse dependency order — không chạy trên staging/prod.
+Gán qua Admin → Permissions hoặc SQL preset:
 
----
+| Cap | Mục đích |
+|-----|----------|
+| `crm_mkt_ai.view` | Tab AI Planner |
+| `crm_mkt_ai.generate` | Brief, jobs, apply |
+| `crm_mkt_ai.export` | PDF/DOCX/XLSX |
 
-## 3. RBAC pilot matrix
-
-| Role | Caps |
-|------|------|
-| Solution Strategist | `crm_board.view`, `crm_board.edit`, `crm_mkt_ai.generate`, `crm_mkt_ai.export` |
-| Account Manager | `crm_board.view`, `crm_mkt_ai.view` |
-| MKT Lead | + `crm_mkt_ai.approve` (Phase 2 export gate) |
-
-Gán qua **Admin → CRM Permissions** (`/admin/crm/permissions`), section **Triển khai DV — AI Marketing Planner** (`crm_mkt_ai`).
+**Blocker UAT thường gặp:** caps chưa gán → nút disabled (tooltip hiển thị lý do).
 
 ---
 
-## 4. Smoke test
+## 3. Deploy checklist
 
 ```bash
-# API enabled
-export PTT_MKT_AI_PLANNER_ENABLED=1
-export PTT_MKT_AI_PLANNER_SLUGS=meta-lead-gen
+# 1. Pull
+ssh deploy@rs.pttads.vn 'cd /var/www/rnosai && git pull --ff-only origin main'
 
-# Login SP → copy JWT
-export STAFF_JWT=eyJ...
-export LIFECYCLE_ID=123
-./scripts/smoke_mkt_ai_planner_context.sh
+# 2. DDL (lần đầu hoặc sau migration)
+bash scripts/apply_pg_ddl_mkt_ai_planner.sh
+bash scripts/verify_mkt_ai_ddl.sh
+
+# 3. BE
+cd services/ptt-crm-api && npm ci && npm run build
+npm test -- --testPathPattern=marketing-ai
+sudo systemctl restart ptt-crm-api
+
+# 4. FE
+./scripts/deploy_ops_web.sh
+sudo ./scripts/deploy_ops_web.sh --restart
+
+# 5. Smoke
+PTT_CRM_INTERNAL_KEY=... LIFECYCLE_ID=1 bash scripts/smoke_mkt_ai_planner_context.sh
 ```
 
 ---
 
-## 5. UAT lifecycle test data
-
-Chuẩn bị lifecycle UAT (ref `#123`):
-
-- Stage: `onboard`
-- `service_slug`: `meta-lead-gen` (hoặc slug trong pilot list)
-- **Official marketing plan** đã promote từ presales R5 (`marketing_plan_id` not null)
-- Assigned SP có cap generate
-
-Walkthrough 21 bước: `10-MKTP-ACTIONS.md` §Walkthrough.
-
----
-
-## 6. Local dev quickstart
+## 4. Seed UAT lifecycle
 
 ```bash
-# Terminal 1 — API
-cd services/ptt-crm-api
-export PTT_MKT_AI_PLANNER_ENABLED=1
-npm run start:dev
-
-# Terminal 2 — FE
-cd services/ops-web
-export NEXT_PUBLIC_MKT_AI_PLANNER=1
-export NEXT_PUBLIC_PTT_API_URL=http://127.0.0.1:3000
-npm run dev
+export DATABASE_URL=postgresql://...
+./scripts/seed_mkt_ai_uat_lifecycle.sh
+# → LIFECYCLE_ID, official marketing_plan, brief prefill
 ```
 
-Open: `http://127.0.0.1:3200/crm/service-delivery/{id}?tab=ai-planner&step=brief`
+Dùng lifecycle này cho walkthrough 21 bước (`#123` trong actions doc = id thực tế trên staging).
 
 ---
 
-## 7. Monitoring
+## 5. UAT automation (API)
 
-| Signal | Where |
-|--------|-------|
-| Job failures | `mkt_ai_jobs.status=failed` |
-| AI audit | `ai_agent_runs` `agent_name=mkt_ai_planner` |
-| Exports | `mkt_ai_exports` |
-| Apply → gate pass rate | Compare `tmmt_validation.ok` before/after apply |
+```bash
+export DATABASE_URL=...
+export PTT_CRM_INTERNAL_KEY=...   # hoặc ADMIN_PASSWORD
+export LIFECYCLE_ID=1
+./scripts/run_mkt_ai_planner_uat.sh
+```
 
----
+**Exit codes:** `0` pass · `1` fail · `2` blocked (apply 409 — thiếu official plan)
 
-## 8. Troubleshooting
+**Report:** `docs/exports/mkt-ai-uat-results-*.md`  
+**Artifacts:** `.local-dev/mkt-ai-uat/`
 
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| Tab không hiện | FE flag off hoặc thiếu cap | `NEXT_PUBLIC_MKT_AI_PLANNER=1` + `crm_mkt_ai.view/generate` |
-| 404 disabled | API flag off | `PTT_MKT_AI_PLANNER_ENABLED=1` |
-| 403 slug | Pilot whitelist | Add slug to `PTT_MKT_AI_PLANNER_SLUGS` |
-| Apply 409 | No official plan | Promote presales R5 → TMMT official |
-| Stub banner | No OpenAI key | Expected BR-MKTP-08; set LLM key for real generation |
-| Data not persisted | DDL not applied | Run apply + verify scripts |
+**E1 retry branch:**
+
+```bash
+RUN_E1=1 ./scripts/run_mkt_ai_planner_uat.sh
+```
 
 ---
 
-*S1 deliverable — cập nhật khi S2+ ship.*
+## 6. Manual walkthrough (21 bước)
+
+Chạy theo bảng trong [`10-MKTP-ACTIONS.md`](../use-cases/actions/10-MKTP-ACTIONS.md#walkthrough-uat--happy-path-onboard--tmmt-gate-45-ph).
+
+### Tiêu chí sign-off
+
+- [ ] 21 bước pass staging
+- [ ] Gate TMMT xanh sau Apply (bước 16–17)
+- [ ] Export PDF mở được, filename có client slug
+- [ ] VQ-01…10 visual QA (§19 integration spec)
+- [ ] EC-MKT-AI-01…05 pass API UAT script
+- [ ] Không regression tab Workflow / TMMT chính thức
+- [ ] SP + PO ký walkthrough
+
+---
+
+## 7. Visual QA (VQ) nhanh
+
+| # | Check |
+|---|--------|
+| VQ-01 | Tab AI Planner cùng style với Workflow/TMMT |
+| VQ-02 | Gate banner xanh/đỏ semantic |
+| VQ-03 | Không hiển thị JSON raw |
+| VQ-04 | Nút disabled có tooltip cap/stage |
+| VQ-05 | Job panel không che footer CTA |
+| VQ-06 | Apply modal diff đọc được ≥1024px |
+| VQ-07 | `<768px` không vỡ layout (banner mobile) |
+| VQ-08 | Token `var(--bg)`, `--border` đồng bộ TMMT |
+| VQ-09 | Skeleton load, không flash error rỗng |
+| VQ-10 | Label TMMT trùng tab TMMT chính thức |
+
+---
+
+## 8. Quality & export gates (BR-MKTP-05)
+
+| Score | Apply | Export |
+|-------|-------|--------|
+| &lt;60 | Disabled | Blocked |
+| 60–69 | Enabled (confirm) | DOCX only |
+| ≥70 | Enabled | PDF + DOCX + XLSX |
+
+Export trước Apply → watermark **DRAFT** trong file.
+
+---
+
+## 9. Rollback
+
+```bash
+# Tắt module (không xóa data)
+PTT_MKT_AI_PLANNER_ENABLED=0
+NEXT_PUBLIC_MKT_AI_PLANNER=0
+sudo systemctl restart ptt-crm-api
+sudo ./scripts/deploy_ops_web.sh --restart
+```
+
+DDL tables giữ nguyên — re-enable bằng flag `=1`.
+
+---
+
+## 10. Troubleshooting
+
+| Triệu chứng | Nguyên nhân | Fix |
+|-------------|-------------|-----|
+| Tab ẩn | FE flag off | Rebuild ops-web `NEXT_PUBLIC_MKT_AI_PLANNER=1` |
+| 404 context | BE flag off | `PTT_MKT_AI_PLANNER_ENABLED=1` + restart API |
+| 403 slug | Pilot whitelist | Thêm `service_slug` vào `PTT_MKT_AI_PLANNER_SLUGS` |
+| Apply 409 | Không có official plan | Promote presales R5 hoặc chạy seed script |
+| Export lỗi binary | FE cũ | Deploy ops-web có `downloadMktAiExportFile` base64 |
+| Quality &lt;60 | Brief/ICP thiếu | Hoàn thiện brief + ICP ≥80 ký tự + 2 kênh campaign |
+
+---
+
+## 11. Liên kết
+
+| Tài liệu | Path |
+|----------|------|
+| Integration spec | `docs/specs/2026-08-08-mkt-ai-planner-integration-spec.md` |
+| Implementation plan | `docs/superpowers/plans/2026-08-08-mkt-ai-planner-module.md` |
+| DDL | `docs/specs/2026-08-08-postgresql-ddl-mkt-ai-planner.sql` |
+| Smoke | `scripts/smoke_mkt_ai_planner_context.sh` |
+
+---
+
+*SOP v1.0 — cập nhật sau UAT walkthrough S4.*

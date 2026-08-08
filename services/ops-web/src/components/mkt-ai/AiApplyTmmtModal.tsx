@@ -52,7 +52,7 @@ export function AiApplyTmmtModal({ open, busy = false, score, diffs, onClose, on
       <div
         className="card"
         style={{
-          width: 'min(640px, 100%)',
+          width: 'min(720px, 100%)',
           maxHeight: 'min(85vh, 720px)',
           overflow: 'auto',
           padding: '1.25rem',

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DraftAutosaveHint } from '@/components/mkt-ai/DraftAutosaveHint';
+import { MktAiDisabledHint } from '@/components/mkt-ai/MktAiDisabledHint';
 import { useIntakeAutosave } from '@/lib/crm/use-intake-autosave';
 import {
   STRATEGY_FIELD_ORDER,
@@ -150,14 +151,19 @@ export function AiStrategySections({
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
         {canEdit ? (
           <>
-            <button
-              type="button"
-              className="btn btn-sm"
+            <MktAiDisabledHint
               disabled={paused || !briefReady}
-              onClick={() => onGenerate?.()}
+              title={!briefReady ? 'Hoàn thiện brief bước 1 trước khi sinh chiến lược' : 'Đang xử lý job khác'}
             >
-              Sinh chiến lược AI
-            </button>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={paused || !briefReady}
+                onClick={() => onGenerate?.()}
+              >
+                Sinh chiến lược AI
+              </button>
+            </MktAiDisabledHint>
             <button
               type="button"
               className="btn btn-sm btn-secondary"
@@ -167,7 +173,11 @@ export function AiStrategySections({
               Sinh lại ↻
             </button>
           </>
-        ) : null}
+        ) : (
+          <span className="muted" style={{ fontSize: '0.85rem' }} title="Cần quyền crm_mkt_ai.generate và stage onboard/deliver">
+            Chỉ xem — không có quyền sinh AI
+          </span>
+        )}
         {qualityScore != null ? (
           <span className="muted">
             Chất lượng: <strong>{qualityScore}/100</strong>

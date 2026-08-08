@@ -26,9 +26,9 @@ export function ExportPlanActions({ quality, canExport, busy = false, onExport }
   }
 
   const formats: Array<{ id: 'pdf' | 'docx' | 'xlsx'; label: string; hint?: string }> = [
-    { id: 'pdf', label: 'PDF Kế hoạch' },
-    { id: 'docx', label: 'DOCX' },
-    { id: 'xlsx', label: 'Excel KPI tree', hint: 'CSV stub P0' },
+    { id: 'pdf', label: 'PDF Kế hoạch', hint: 'Tóm tắt chiến lược + campaigns + lịch' },
+    { id: 'docx', label: 'DOCX', hint: 'Bản chỉnh sửa đầy đủ trong Word' },
+    { id: 'xlsx', label: 'Excel KPI tree', hint: 'Sheets KPI + campaigns + TMMT' },
   ];
 
   return (
@@ -53,11 +53,13 @@ export function ExportPlanActions({ quality, canExport, busy = false, onExport }
               className="btn btn-sm btn-secondary"
               disabled={busy || !enabled}
               title={
-                !enabled && tier === 'conditional'
-                  ? 'Chỉ DOCX khi điểm 60–69'
-                  : !enabled
-                    ? 'Cần quality ≥60'
-                    : f.hint
+                !canExport
+                  ? 'Cần quyền crm_mkt_ai.export'
+                  : !enabled && tier === 'conditional'
+                    ? 'Chỉ DOCX khi điểm 60–69'
+                    : !enabled
+                      ? 'Cần quality ≥60'
+                      : f.hint
               }
               onClick={() => onExport(f.id)}
             >
