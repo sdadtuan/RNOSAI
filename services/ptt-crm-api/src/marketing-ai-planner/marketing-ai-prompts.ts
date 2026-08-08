@@ -222,6 +222,77 @@ export function buildContentUserPrompt(
   ].join('\n');
 }
 
+export const MKT_AI_OPTIMIZE_SYSTEM = `Bạn là optimization copilot marketing tại Việt Nam (PTT Ads).
+Trả lời JSON hợp lệ (response_format json_object), tiếng Việt, actionable.
+
+Schema:
+{
+  "recommendations": [
+    {
+      "id": string,
+      "title": string,
+      "rationale": string,
+      "priority": "high" | "medium" | "low",
+      "suggested_task": {
+        "stage": "deliver" | "retain" | string,
+        "title": string,
+        "description": string
+      }
+    }
+  ]
+}
+
+Quy tắc (BR-MKTP-01):
+- 3–5 đề xuất tối đa; KHÔNG auto thay đổi campaign Meta/Google qua API.
+- Chỉ đề xuất hành động con người thực hiện (audience, creative, landing, pacing).
+- CPL lệch >15% → ưu tiên high: thu hẹp audience, refresh creative, review landing.
+- ROAS stub → ghi rõ trong rationale.
+- suggested_task.stage ∈ {deliver, retain} theo lifecycle.`;
+
+export function buildOptimizeUserPrompt(input: {
+  dashboard: {
+    tiles: { spend_mtd_vnd: number; leads_mtd: number; cpl_mtd: number | null; roas_mtd: number | null; roas_stub: boolean };
+    deltas: { cpl_vs_target_pct: number | null; spend_vs_prev_week_pct: number | null };
+    targets: { cpl_vnd: number | null };
+    linked: boolean;
+  };
+  brief: MktAiBrief | null;
+  campaigns: MktAiCampaignDraft[];
+  lifecycleStage: string;
+}): string {
+  const { dashboard: d, brief, campaigns, lifecycleStage } = input;
+  const campaignLines =
+    campaigns.length === 0
+      ? '(chưa có draft campaigns)'
+      : campaigns
+          .map((c) => `- ${c.name}: ${(c.kpis ?? []).join(', ')}`)
+          .join('\n');
+
+  const parts = [
+    `Lifecycle stage: ${lifecycleStage}`,
+    `Linked performance: ${d.linked ? 'yes' : 'no'}`,
+    '',
+    'KPI snapshot:',
+    `- Spend MTD: ${d.tiles.spend_mtd_vnd.toLocaleString('vi-VN')} VNĐ`,
+    `- Leads MTD: ${d.tiles.leads_mtd}`,
+    `- CPL MTD: ${d.tiles.cpl_mtd ?? 'n/a'}`,
+    `- CPL vs target: ${d.deltas.cpl_vs_target_pct != null ? `${d.deltas.cpl_vs_target_pct}%` : 'n/a'}`,
+    `- Target CPL: ${d.targets.cpl_vnd != null ? d.targets.cpl_vnd.toLocaleString('vi-VN') : 'n/a'}`,
+    `- Spend vs prev week: ${d.deltas.spend_vs_prev_week_pct != null ? `${d.deltas.spend_vs_prev_week_pct}%` : 'n/a'}`,
+    `- ROAS: ${d.tiles.roas_mtd ?? 'n/a'}${d.tiles.roas_stub ? ' (stub)' : ''}`,
+    '',
+    'Draft campaigns:',
+    campaignLines,
+  ];
+
+  if (brief) {
+    parts.push('', 'Brief context:', buildBriefContextBlock(brief));
+  }
+
+  parts.push('', 'Đề xuất 3–5 hành động optimize; mỗi item có suggested_task để AM tạo task lifecycle.');
+  return parts.join('\n');
+}
+
 /** User-facing brief checklist (from KPI_BRIEF_PROMPT in marketing_campaign_kit.py) */
 export const MKT_AI_BRIEF_CHECKLIST_HINT =
   'Brief cần: tên dự án, mục tiêu (lead/awareness/retention), ICP, timeline, ngân sách, kênh ưu tiên.';

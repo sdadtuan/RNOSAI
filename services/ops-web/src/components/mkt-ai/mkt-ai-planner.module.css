@@ -162,6 +162,41 @@
   color: var(--accent);
 }
 
+.copilotCard {
+  margin-top: 0.5rem;
+}
+
+.copilotList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.copilotItem {
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg, transparent);
+}
+
+.copilotItemHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.copilotPriority {
+  font-size: 0.72rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted, #888);
+}
+
 .citationChip {
   display: inline-flex;
   align-items: center;

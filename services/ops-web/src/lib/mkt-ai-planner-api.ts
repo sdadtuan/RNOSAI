@@ -522,3 +522,46 @@ export async function fetchMktAiDashboard(
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return mktAiFetch<MktAiDashboardPayload>(token, lifecycleId, `/dashboard${suffix}`);
 }
+
+export interface MktAiOptimizeRecommendation {
+  id: string;
+  title: string;
+  rationale: string;
+  priority: 'high' | 'medium' | 'low';
+  suggested_task: { stage: string; title: string; description: string };
+}
+
+export interface MktAiOptimizeResult {
+  ok: boolean;
+  job_id: number;
+  status: 'succeeded' | 'failed';
+  kpi_context: {
+    cpl_delta_pct: number | null;
+    spend_vs_prev_week_pct: number | null;
+    spend_mtd_vnd: number;
+    leads_mtd: number;
+    cpl_mtd: number | null;
+    roas_mtd: number | null;
+    roas_stub: boolean;
+    linked: boolean;
+    target_cpl_vnd: number | null;
+  };
+  recommendations: MktAiOptimizeRecommendation[];
+  tasks_created?: Array<{ task_id: number; title: string; recommendation_id: string }>;
+}
+
+export async function postMktAiOptimizeJob(
+  token: string,
+  lifecycleId: number,
+  body: {
+    channel?: 'meta' | 'google' | 'all';
+    confirm_create_tasks?: boolean;
+    recommendation_ids?: string[];
+    dismissed_recommendation_ids?: string[];
+  },
+) {
+  return mktAiFetch<MktAiOptimizeResult>(token, lifecycleId, '/jobs/optimize', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}

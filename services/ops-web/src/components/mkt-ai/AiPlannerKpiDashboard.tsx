@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { AiOptimizationCopilot } from '@/components/mkt-ai/AiOptimizationCopilot';
 import styles from '@/components/mkt-ai/mkt-ai-planner.module.css';
 import { fetchMktAiDashboard, type MktAiDashboardPayload } from '@/lib/mkt-ai-planner-api';
 
@@ -27,9 +28,10 @@ interface Props {
   lifecycleId: number;
   stage: string;
   clientId?: string;
+  canEdit?: boolean;
 }
 
-export function AiPlannerKpiDashboard({ token, lifecycleId, stage, clientId }: Props) {
+export function AiPlannerKpiDashboard({ token, lifecycleId, stage, clientId, canEdit = true }: Props) {
   const [data, setData] = useState<MktAiDashboardPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -182,6 +184,8 @@ export function AiPlannerKpiDashboard({ token, lifecycleId, stage, clientId }: P
         Kỳ: {data.period.month_start} → {data.period.to}
         {!data.flags.perf_tables_ready ? ' · PG performance chưa sẵn sàng' : ''}
       </p>
+
+      <AiOptimizationCopilot token={token} lifecycleId={lifecycleId} canEdit={canEdit} />
     </div>
   );
 }

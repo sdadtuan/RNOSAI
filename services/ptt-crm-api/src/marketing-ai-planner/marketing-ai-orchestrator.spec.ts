@@ -164,4 +164,48 @@ describe('MarketingAiOrchestratorService', () => {
     expect(out.assets.length).toBeGreaterThan(0);
     expect(out.assets[0].body_text).toBeTruthy();
   });
+
+  it('generateOptimizeRecommendations returns rule-based recs in stub mode', async () => {
+    llm.completeJson.mockImplementation(async ({ stubJson }) => ({
+      parsed: stubJson(),
+      stubMode: true,
+      modelName: 'gpt-4o-mini-stub',
+      tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    }));
+
+    const dashboard = {
+      ok: true,
+      lifecycle_id: 1,
+      stage: 'deliver',
+      agency_client_id: 'CLI-1',
+      linked: true,
+      period: { from: '2026-07-01', to: '2026-08-07', weeks: 6, month_start: '2026-08-01' },
+      tiles: {
+        spend_mtd_vnd: 5_000_000,
+        leads_mtd: 20,
+        cpl_mtd: 250_000,
+        roas_mtd: 2.1,
+        roas_stub: false,
+      },
+      targets: { cpl_vnd: 200_000, roas: null, source: 'daily_performance' as const },
+      trend: [],
+      deltas: { cpl_vs_target_pct: 25, spend_vs_prev_week_pct: 10 },
+      flags: { perf_tables_ready: true },
+      messages: [],
+    };
+
+    const recs = await orchestrator.generateOptimizeRecommendations({
+      dashboard,
+      brief,
+      campaigns: [],
+      lifecycleStage: 'deliver',
+    });
+
+    expect(recs.length).toBeGreaterThanOrEqual(3);
+    expect(llm.completeJson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        systemPrompt: expect.stringContaining('BR-MKTP-01'),
+      }),
+    );
+  });
 });

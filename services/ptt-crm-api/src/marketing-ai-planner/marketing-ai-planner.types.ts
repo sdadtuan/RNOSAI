@@ -270,6 +270,42 @@ export interface MktAiDashboardPayload {
   messages: string[];
 }
 
+export interface MktAiOptimizeRecommendation {
+  id: string;
+  title: string;
+  rationale: string;
+  priority: 'high' | 'medium' | 'low';
+  suggested_task: { stage: string; title: string; description: string };
+}
+
+export interface MktAiOptimizeBody {
+  channel?: 'meta' | 'google' | 'all';
+  confirm_create_tasks?: boolean;
+  recommendation_ids?: string[];
+  dismissed_recommendation_ids?: string[];
+}
+
+export interface MktAiOptimizeKpiContext {
+  cpl_delta_pct: number | null;
+  spend_vs_prev_week_pct: number | null;
+  spend_mtd_vnd: number;
+  leads_mtd: number;
+  cpl_mtd: number | null;
+  roas_mtd: number | null;
+  roas_stub: boolean;
+  linked: boolean;
+  target_cpl_vnd: number | null;
+}
+
+export interface MktAiOptimizeResult {
+  ok: boolean;
+  job_id: number;
+  status: 'succeeded' | 'failed';
+  kpi_context: MktAiOptimizeKpiContext;
+  recommendations: MktAiOptimizeRecommendation[];
+  tasks_created?: Array<{ task_id: number; title: string; recommendation_id: string }>;
+}
+
 export const REQUIRED_BRIEF_FIELDS = [
   'brand_name',
   'industry',

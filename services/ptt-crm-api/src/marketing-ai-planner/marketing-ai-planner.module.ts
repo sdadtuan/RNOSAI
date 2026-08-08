@@ -15,6 +15,7 @@ import { MarketingAiApprovalService } from './marketing-ai-approval.service';
 import { MarketingAiBudgetService } from './marketing-ai-budget.service';
 import { MarketingAiExportService } from './marketing-ai-export.service';
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
+import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
 import { MarketingAiRagService } from './marketing-ai-rag.service';
 import { MarketingAiPlannerController } from './marketing-ai-planner.controller';
@@ -39,6 +40,7 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
     MarketingAiVersionService,
     MarketingAiExportService,
     MarketingAiDashboardService,
+    MarketingAiOptimizeService,
     MarketingAiPlannerService,
     StaffMarketingAiPlannerViewGuard,
     StaffMarketingAiPlannerGenerateGuard,

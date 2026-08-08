@@ -16,6 +16,7 @@ import { MarketingAiApprovalService } from './marketing-ai-approval.service';
 import { MarketingAiBudgetService } from './marketing-ai-budget.service';
 import { MarketingAiExportService } from './marketing-ai-export.service';
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
+import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
 import { MarketingAiRagService } from './marketing-ai-rag.service';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
@@ -25,6 +26,8 @@ import type {
   MktAiCampaignDraft,
   MktAiDraft,
   MktAiJobType,
+  MktAiOptimizeBody,
+  MktAiOptimizeResult,
   MktAiPlannerContext,
   MktAiDashboardPayload,
 } from './marketing-ai-planner.types';
@@ -50,6 +53,7 @@ export class MarketingAiPlannerService {
     private readonly agentRuns: AiAgentRunsRepository,
     private readonly exportService: MarketingAiExportService,
     private readonly dashboard: MarketingAiDashboardService,
+    private readonly optimize: MarketingAiOptimizeService,
   ) {}
 
   private assertEnabled(serviceSlug?: string): void {
@@ -699,5 +703,29 @@ export class MarketingAiPlannerService {
     opts: { weeks?: number; channel?: string } = {},
   ): Promise<MktAiDashboardPayload> {
     return this.dashboard.getDashboard(lifecycleId, opts);
+  }
+
+  async runOptimizeJob(
+    lifecycleId: number,
+    body: MktAiOptimizeBody,
+    actorEmail: string,
+  ): Promise<MktAiOptimizeResult> {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+
+    const jobResult = await this.runJob(lifecycleId, 'optimize', actorEmail, async () => {
+      const payload = await this.optimize.execute(lifecycleId, body);
+      return payload as unknown as Record<string, unknown>;
+    });
+
+    const output = (jobResult.output ?? {}) as Record<string, unknown>;
+    return {
+      ok: true,
+      job_id: jobResult.job_id,
+      status: 'succeeded',
+      kpi_context: output.kpi_context as MktAiOptimizeResult['kpi_context'],
+      recommendations: (output.recommendations ?? []) as MktAiOptimizeResult['recommendations'],
+      tasks_created: output.tasks_created as MktAiOptimizeResult['tasks_created'],
+    };
   }
 }

@@ -547,6 +547,7 @@ export function MarketingAiPlannerPanel({
               lifecycleId={lifecycleId}
               stage={stage}
               clientId={clientId}
+              canEdit={canEdit}
             />
           ) : null}
         </div>

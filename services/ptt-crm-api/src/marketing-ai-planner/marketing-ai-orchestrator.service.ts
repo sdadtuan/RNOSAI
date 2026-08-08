@@ -3,15 +3,17 @@ import { AppConfigService } from '../config/app-config.service';
 import { AiIntelligenceConfigService } from '../ai-intelligence/ai-intelligence.config';
 import { AiLlmClient } from '../ai-intelligence/ai-llm.client';
 import { TARGET_MARKET_PROF_KEYS } from '../service-lifecycle/lifecycle-marketing-plan.util';
-import type { MktAiBrief, MktAiCampaignDraft, MktAiCitation } from './marketing-ai-planner.types';
+import type { MktAiBrief, MktAiCampaignDraft, MktAiCitation, MktAiOptimizeRecommendation } from './marketing-ai-planner.types';
 import {
   MKT_AI_PROMPT_VERSION,
   MKT_AI_CAMPAIGN_SYSTEM,
   MKT_AI_CONTENT_SYSTEM,
+  MKT_AI_OPTIMIZE_SYSTEM,
   MKT_AI_STRATEGY_SYSTEM,
   STRATEGY_FRAMEWORK_KEYS,
   buildCampaignUserPrompt,
   buildContentUserPrompt,
+  buildOptimizeUserPrompt,
   buildStrategyUserPrompt,
 } from './marketing-ai-prompts';
 import {
@@ -21,6 +23,11 @@ import {
   type MktAiContentOutput,
   type MktAiStrategyOutput,
 } from './marketing-ai-orchestrator.util';
+import {
+  buildRuleBasedOptimizeRecommendations,
+  normalizeOptimizeRecommendations,
+  type MktAiOptimizeContextInput,
+} from './marketing-ai-optimize.util';
 
 @Injectable()
 export class MarketingAiOrchestratorService {
@@ -89,6 +96,19 @@ export class MarketingAiOrchestratorService {
       stubJson: () => fallback as unknown as Record<string, unknown>,
     });
     return normalizeContentOutput(parsed, fallback);
+  }
+
+  async generateOptimizeRecommendations(
+    input: MktAiOptimizeContextInput,
+  ): Promise<MktAiOptimizeRecommendation[]> {
+    const fallback = buildRuleBasedOptimizeRecommendations(input);
+    const { parsed } = await this.llm.completeJson({
+      systemPrompt: MKT_AI_OPTIMIZE_SYSTEM,
+      userContent: buildOptimizeUserPrompt(input),
+      model: this.modelName,
+      stubJson: () => ({ recommendations: fallback }),
+    });
+    return normalizeOptimizeRecommendations(parsed, fallback);
   }
 
   private buildStrategyStub(brief: MktAiBrief): MktAiStrategyOutput {

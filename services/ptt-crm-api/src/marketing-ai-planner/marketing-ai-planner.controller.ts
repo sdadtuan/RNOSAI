@@ -28,7 +28,7 @@ import {
   StaffMarketingAiPlannerViewGuard,
 } from './guards/staff-marketing-ai-planner.guard';
 import { MarketingAiPlannerService } from './marketing-ai-planner.service';
-import type { MktAiDraft, MktAiJobType } from './marketing-ai-planner.types';
+import type { MktAiDraft, MktAiJobType, MktAiOptimizeBody } from './marketing-ai-planner.types';
 
 const RETRY_TYPE_MAP: Record<string, MktAiJobType> = {
   strategy: 'strategy_generate',
@@ -261,8 +261,14 @@ export class MarketingAiPlannerController {
   }
 
   @Post('jobs/optimize')
-  optimize() {
-    throw new NotImplementedException({ error: 'mkt_ai_optimize_phase3' });
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffMarketingAiPlannerGenerateGuard)
+  optimize(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: MktAiOptimizeBody,
+    @Req() req: Request,
+  ) {
+    return this.planner.runOptimizeJob(lifecycleId, body ?? {}, actorEmail(req));
   }
 
   @Post('jobs/multi-agent')
