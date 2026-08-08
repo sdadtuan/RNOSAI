@@ -20,6 +20,7 @@
 | **PLAT** | Platform — Auth, Webhook, Admin | [`07-PLATFORM-AUTH-WEBHOOKS.md`](07-PLATFORM-AUTH-WEBHOOKS.md) |
 | **ZALO** | Zalo Ads Operating System | [`08-ZALO-ADS.md`](08-ZALO-ADS.md) |
 | **AI** | AI Revenue Operating System | [`09-AI-REVENUE-OS.md`](09-AI-REVENUE-OS.md) |
+| **MKTP** | AI Marketing Planner (Triển khai DV) | [`10-MKT-AI-PLANNER.md`](10-MKT-AI-PLANNER.md) |
 | **MOB** | Mobile Experience (PWA / Push) | [`../specs/modules/RNOSAI-BA-MOB-UseCases.md`](../specs/modules/RNOSAI-BA-MOB-UseCases.md) · [`../specs/2026-08-01-rnosai-mobile-strategy-spec.md`](../specs/2026-08-01-rnosai-mobile-strategy-spec.md) |
 
 **Format mỗi UC:** ID · Tên · Actor · Priority (P0/P1/P2) · Trigger · Main flow · Extensions · Postconditions · Rules · Traceability (Screen/API)
@@ -36,21 +37,23 @@
 
 ## 2. Ma trận Actor × Module
 
-| Actor | CRM | SVC | Meta | SEO | EM | Zalo | Portal | Plat | AI |
-|-------|-----|-----|------|-----|-----|------|--------|------|-----|
-| Super Admin | ● | ● | ● | ● | ● | ● | ● | ● | ● |
-| AM | ● | ● | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
-| CSKH / Sales | ● | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ● |
-| Media Buyer | ○ | ○ | ● | ○ | ○ | ● | ○ | ○ | ○ |
-| Creative Lead | ○ | ● | ● | ○ | ○ | ○ | ○ | ○ | ○ |
-| Tracking/Tech | ○ | ○ | ● | ● | ○ | ● | ○ | ● | ○ |
-| SEO Strategist | ○ | ○ | ○ | ● | ○ | ○ | ○ | ○ | ○ |
-| Email Strategist | ○ | ○ | ○ | ○ | ● | ○ | ○ | ○ | ○ |
-| Compliance | ○ | ○ | ○ | ● | ● | ○ | ○ | ○ | ● |
-| Client Viewer | ○ | ○ | ○ | ○ | ○ | ○ | ● | ○ | ○ |
-| Client Approver | ○ | ○ | ○ | ○ | ○ | ○ | ● | ○ | ○ |
-| End Subscriber | ○ | ○ | ○ | ○ | ● | ○ | ○ | ○ | ○ |
-| System (Webhook/Worker) | ● | ○ | ● | ● | ● | ● | ○ | ● | ● |
+| Actor | CRM | SVC | Meta | SEO | EM | Zalo | Portal | Plat | AI | MKTP |
+|-------|-----|-----|------|-----|-----|------|--------|------|-----|------|
+| Super Admin | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| AM | ● | ● | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| CSKH / Sales | ● | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ● | ○ |
+| Solution / SP | ○ | ● | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ● |
+| Media Buyer | ○ | ○ | ● | ○ | ○ | ● | ○ | ○ | ○ | ○ |
+| Creative Lead | ○ | ● | ● | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| Tracking/Tech | ○ | ○ | ● | ● | ○ | ● | ○ | ● | ○ | ○ |
+| SEO Strategist | ○ | ○ | ○ | ● | ○ | ○ | ○ | ○ | ○ | ○ |
+| Email Strategist | ○ | ○ | ○ | ○ | ● | ○ | ○ | ○ | ○ | ○ |
+| Compliance | ○ | ○ | ○ | ● | ● | ○ | ○ | ○ | ● | ○ |
+| Client Viewer | ○ | ○ | ○ | ○ | ○ | ○ | ● | ○ | ○ | ○ |
+| Client Approver | ○ | ○ | ○ | ○ | ○ | ○ | ● | ○ | ○ | ○ |
+| End Subscriber | ○ | ○ | ○ | ○ | ● | ○ | ○ | ○ | ○ | ○ |
+| System (Webhook/Worker) | ● | ○ | ● | ● | ● | ● | ○ | ● | ● | ● |
+| MKT Lead / GDKD | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ● |
 
 ● = actor chính · ○ = actor phụ / có thể
 
@@ -255,7 +258,32 @@
 | AI-UC-019 | Channel CPL/ROAS anomaly digest | P2 (R4) |
 | AI-UC-020 | Workflow AI node simulate + publish | P1 (R2) |
 
-**Tổng:** ~147 use cases documented
+### 3.11. AI Marketing Planner (MKTP) — 20 UC
+
+| ID | Tên | Priority |
+|----|-----|----------|
+| MKTP-UC-001 | Mở AI Planner context | P0 |
+| MKTP-UC-002 | Lưu Brief intake | P0 |
+| MKTP-UC-003 | Sinh chiến lược AI | P0 |
+| MKTP-UC-004 | Sinh chiến dịch AI | P0 |
+| MKTP-UC-005 | Sinh lịch nội dung | P0 |
+| MKTP-UC-006 | Chỉnh sửa draft | P0 |
+| MKTP-UC-007 | Quality score | P0 |
+| MKTP-UC-008 | Apply TMMT chính thức | P0 |
+| MKTP-UC-009 | Retry job giữ draft | P0 |
+| MKTP-UC-010 | Export PDF/DOCX/XLSX | P0 |
+| MKTP-UC-011 | Brand KB RAG | P1 |
+| MKTP-UC-012 | Budget simulator | P1 |
+| MKTP-UC-013 | Approval workflow | P1 |
+| MKTP-UC-014 | Version compare | P1 |
+| MKTP-UC-015 | Presales R5 bridge | P1 |
+| MKTP-UC-016 | KPI dashboard | P1 |
+| MKTP-UC-017 | Optimization copilot | P2 |
+| MKTP-UC-018 | KPI drift alert | P2 |
+| MKTP-UC-019 | Multi-agent pipeline | P2 |
+| MKTP-UC-020 | Industry playbook | P2 |
+
+**Tổng:** ~167 use cases documented
 
 ---
 

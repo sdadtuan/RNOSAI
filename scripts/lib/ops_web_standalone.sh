@@ -67,21 +67,31 @@ ops_web_verify_static() {
 }
 
 ops_web_build() {
-  local app_dir root api_url pwa_enabled
+  local app_dir root api_url pwa_enabled mkt_ai_planner
   root="$(ops_web_root)"
   app_dir="$(ops_web_dir)"
   api_url="${NEXT_PUBLIC_PTT_API_URL:-https://rs.pttads.vn}"
   pwa_enabled="${NEXT_PUBLIC_PWA_ENABLED:-1}"
 
+  if [[ -f "$root/deploy/runtime.env" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "$root/deploy/runtime.env"
+    set +a
+  fi
+  mkt_ai_planner="${NEXT_PUBLIC_MKT_AI_PLANNER:-0}"
+
   cd "$app_dir"
   echo "== ops-web build =="
   echo "NEXT_PUBLIC_PTT_API_URL=$api_url"
   echo "NEXT_PUBLIC_PWA_ENABLED=$pwa_enabled"
+  echo "NEXT_PUBLIC_MKT_AI_PLANNER=$mkt_ai_planner"
   git -C "$root" log -1 --oneline
 
   npm ci
   export NEXT_PUBLIC_PTT_API_URL="$api_url"
   export NEXT_PUBLIC_PWA_ENABLED="$pwa_enabled"
+  export NEXT_PUBLIC_MKT_AI_PLANNER="$mkt_ai_planner"
   npm run build
   ops_web_sync_static
 }

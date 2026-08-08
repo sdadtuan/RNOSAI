@@ -49,7 +49,8 @@
     "view_all_leads",
     "view_financial",
     "view_pii",
-    "write"
+    "write",
+    "generate"
   ],
   "extra_action_labels": {
     "assign": "Phân công (GDKD)",
@@ -62,7 +63,8 @@
     "view_all_leads": "Xem toàn bộ lead",
     "view_financial": "Xem giá trị tài chính lead",
     "view_pii": "Xem PII (SĐT/email)",
-    "write": "Ghi / thao tác"
+    "write": "Ghi / thao tác",
+    "generate": "Sinh nội dung AI"
   },
   "section_actions": {
     "crm_board_funnel": [
@@ -184,6 +186,12 @@
       "edit",
       "export",
       "release",
+      "view"
+    ],
+    "crm_mkt_ai": [
+      "approve",
+      "export",
+      "generate",
       "view"
     ],
     "crm_business_dashboard": [
@@ -825,6 +833,13 @@
       "group": "CRM — Marketing",
       "page": "/crm/marketing-plan",
       "description": "KHTN, KHQT, CSKH — lập và chỉnh kế hoạch."
+    },
+    {
+      "id": "crm_mkt_ai",
+      "label": "Triển khai DV — AI Marketing Planner",
+      "group": "CRM — Triển khai dịch vụ",
+      "page": "/crm/service-delivery",
+      "description": "Tab AI Planner: brief, sinh chiến lược/campaign/content, apply TMMT, export."
     },
     {
       "id": "crm_business_dashboard",
@@ -1555,6 +1570,7 @@
     "crm_leads__btn_rules",
     "crm_leads__btn_save",
     "crm_mktplan",
+    "crm_mkt_ai",
     "crm_owner_weekly_dashboard",
     "crm_payroll_attendance",
     "crm_payroll_device",

@@ -6,33 +6,16 @@ import {
   patchServiceLifecycleMarketingPlan,
 } from '@/lib/api';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
+import { STRATEGY_LABELS, TMMT_PROF_LABELS } from '@/lib/tmmt-labels';
 
-const STRATEGY_LABELS: Record<string, string> = {
-  target_market: 'Thị trường mục tiêu (tóm tắt)',
-  market_message: 'Thông điệp thị trường',
-  media_reach: 'Kênh tiếp cận / Media',
-  conversion_strategy: 'Chiến lược chuyển đổi',
-  retention_system: 'Hệ thống giữ chân',
-  nurture_system: 'Nuôi dưỡng lead',
-  world_class_experience: 'Trải nghiệm đẳng cấp',
-  lifecycle_extension: 'Gia hạn lifecycle',
-  referral_engine: 'Giới thiệu / Referral',
-};
-
-const TMMT_PROF_LABELS: Record<string, string> = {
-  market_context: 'Bối cảnh thị trường',
-  tam_sam_som: 'TAM / SAM / SOM',
-  geo_behavior: 'Địa lý & hành vi',
-  segmentation_icp: 'Phân khúc & ICP',
-  personas_roles: 'Persona & vai trò mua',
-  jobs_to_be_done: 'Jobs-to-be-done',
-  pains_desired_outcomes: 'Pain & kết quả mong muốn',
-  buy_triggers_obstacles: 'Trigger mua & rào cản',
-  criteria_vs_alternatives: 'Tiêu chí vs phương án thay thế',
-  insights_evidence: 'Insight & bằng chứng',
-  segment_priorities: 'Ưu tiên phân khúc',
-  success_hypotheses_next: 'Giả thuyết & bước tiếp theo',
-};
+interface Props {
+  token: string;
+  user: StoredStaffUser;
+  lifecycleId: number;
+  stage: string;
+  onSaved?: () => void;
+  onOpenAiPlannerTab?: () => void;
+}
 
 type MarketingPlanPayload = {
   plan: {
@@ -50,15 +33,7 @@ type MarketingPlanPayload = {
   filled_count?: number;
 };
 
-interface Props {
-  token: string;
-  user: StoredStaffUser;
-  lifecycleId: number;
-  stage: string;
-  onSaved?: () => void;
-}
-
-export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved }: Props) {
+export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, onOpenAiPlannerTab }: Props) {
   const [data, setData] = useState<MarketingPlanPayload | null>(null);
   const [draftSf, setDraftSf] = useState<Record<string, string>>({});
   const [draftProf, setDraftProf] = useState<Record<string, string>>({});
@@ -146,6 +121,15 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved }:
       {stage === 'onboard' && !validation.ok ? (
         <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
           Hoàn thiện TMMT trước khi bấm <strong>Chuyển → Triển khai</strong> trên tab Workflow.
+          {onOpenAiPlannerTab ? (
+            <>
+              {' '}
+              Hoặc dùng{' '}
+              <button type="button" className="btn btn-sm btn-ghost" onClick={onOpenAiPlannerTab}>
+                AI Planner →
+              </button>
+            </>
+          ) : null}
         </p>
       ) : null}
 

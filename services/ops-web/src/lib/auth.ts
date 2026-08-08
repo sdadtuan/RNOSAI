@@ -83,6 +83,19 @@ export function hasCap(user: StoredStaffUser | null, section: string, action = '
   return user.caps.some((c) => c.section === section && c.action === action);
 }
 
+export function canViewMktAiPlanner(user: StoredStaffUser | null): boolean {
+  if (!hasCap(user, 'crm_board', 'view')) return false;
+  return hasCap(user, 'crm_mkt_ai', 'view') || hasCap(user, 'crm_mkt_ai', 'generate');
+}
+
+export function canGenerateMktAiPlanner(user: StoredStaffUser | null): boolean {
+  return hasCap(user, 'crm_board', 'edit') && hasCap(user, 'crm_mkt_ai', 'generate');
+}
+
+export function canExportMktAiPlanner(user: StoredStaffUser | null): boolean {
+  return hasCap(user, 'crm_mkt_ai', 'export');
+}
+
 export function updateStoredUser(user: StoredStaffUser): void {
   if (typeof window === 'undefined') return;
   sessionStorage.setItem(USER_KEY, JSON.stringify(user));

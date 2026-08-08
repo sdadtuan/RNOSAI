@@ -1,0 +1,105 @@
+export type MktAiJobType =
+  | 'brief_summarize'
+  | 'strategy_generate'
+  | 'campaign_generate'
+  | 'content_generate'
+  | 'quality_score'
+  | 'apply_to_tmmt'
+  | 'budget_simulate'
+  | 'optimize'
+  | 'multi_agent';
+
+export type MktAiJobStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+
+export interface MktAiBrief {
+  brand_name?: string;
+  industry?: string;
+  service_slug?: string;
+  objective?: 'lead' | 'awareness' | 'sales' | 'retention' | string;
+  budget_monthly_vnd?: number;
+  geo_markets?: string[];
+  competitors?: string[];
+  challenges?: string;
+  usp?: string;
+  website_url?: string;
+  timeline_start?: string;
+  timeline_end?: string;
+  notes?: string;
+}
+
+export interface MktAiBriefValidation {
+  ok: boolean;
+  missing: string[];
+  messages: string[];
+}
+
+export interface MktAiDraft {
+  strategy_framework: Record<string, string>;
+  target_market_prof: Record<string, string>;
+  swot_json: Record<string, unknown>;
+  campaigns_json: MktAiCampaignDraft[];
+  content_json: Record<string, unknown>;
+  quality_score_json: Record<string, unknown>;
+}
+
+export interface MktAiCampaignDraft {
+  name: string;
+  objective: string;
+  channel_mix: string[];
+  budget_pct: number;
+  timeline_weeks?: string;
+  milestones?: string[];
+  kpis?: string[];
+}
+
+export interface MktAiJobRow {
+  id: number;
+  lifecycle_id: number;
+  job_type: MktAiJobType;
+  status: MktAiJobStatus;
+  prompt_version: string;
+  model_name: string;
+  input_json: Record<string, unknown>;
+  output_json: Record<string, unknown>;
+  error_message: string | null;
+  latency_ms: number | null;
+  actor_email: string;
+  started_at: string | null;
+  ended_at: string | null;
+  created_at: string;
+}
+
+export interface MktAiPlannerContext {
+  lifecycle_id: number;
+  stage: string;
+  service_slug: string;
+  enabled: boolean;
+  brief: MktAiBrief | null;
+  brief_validation: MktAiBriefValidation;
+  prefill_sources: string[];
+  jobs: MktAiJobRow[];
+  draft: MktAiDraft;
+  tmmt_validation: { ok: boolean; messages: string[]; filled_count?: number };
+  quality_score?: { score: number; criteria: Record<string, boolean>; can_apply: boolean; can_export: boolean };
+  flags: { rag_enabled: boolean; approval_required: boolean; stub_mode: boolean };
+}
+
+export const REQUIRED_BRIEF_FIELDS = [
+  'brand_name',
+  'industry',
+  'service_slug',
+  'objective',
+  'budget_monthly_vnd',
+  'geo_markets',
+  'challenges',
+] as const;
+
+export const BRIEF_FIELD_LABELS: Record<string, string> = {
+  brand_name: 'Tên thương hiệu / KH',
+  industry: 'Ngành',
+  service_slug: 'Dịch vụ RNOSAI',
+  objective: 'Mục tiêu chiến dịch',
+  budget_monthly_vnd: 'Ngân sách tháng (VND)',
+  geo_markets: 'Thị trường / Geo',
+  challenges: 'Thách thức / pain',
+};

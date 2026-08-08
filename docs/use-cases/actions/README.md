@@ -65,6 +65,7 @@ Bổ sung cho mỗi Use Case **toàn bộ bước thao tác** mà người dùng
 | [07-PLAT-ACTIONS.md](07-PLAT-ACTIONS.md) | Platform | PLAT-001…010 |
 | [08-ZALO-ACTIONS.md](08-ZALO-ACTIONS.md) | Zalo Ads | ZALO-001…021 |
 | [09-AI-ACTIONS.md](09-AI-ACTIONS.md) | AI Revenue OS | AI-001…020 (+ 8-step pilot walkthrough) |
+| [10-MKTP-ACTIONS.md](10-MKTP-ACTIONS.md) | AI Marketing Planner | MKTP-001…010 (+ 21-step UAT walkthrough) |
 
 ---
 

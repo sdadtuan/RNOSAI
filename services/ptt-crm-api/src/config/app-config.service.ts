@@ -107,6 +107,9 @@ export class AppConfigService {
   readonly fcmServerKey: string | null;
   readonly mobileMinVersion: string;
   readonly mobileForceUpdate: boolean;
+  readonly mktAiPlannerEnabled: boolean;
+  readonly mktAiModel: string;
+  readonly mktAiPlannerSlugs: string[];
 
   constructor() {
     this.applyRuntimeEnvOverrides();
@@ -307,6 +310,15 @@ export class AppConfigService {
     this.mobileForceUpdate = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_MOBILE_FORCE_UPDATE ?? '0').trim().toLowerCase(),
     );
+
+    this.mktAiPlannerEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MKT_AI_PLANNER_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.mktAiModel = (process.env.PTT_MKT_AI_MODEL ?? '').trim();
+    this.mktAiPlannerSlugs = (process.env.PTT_MKT_AI_PLANNER_SLUGS ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
 
   private parsePortalCorsOrigins(): string[] {

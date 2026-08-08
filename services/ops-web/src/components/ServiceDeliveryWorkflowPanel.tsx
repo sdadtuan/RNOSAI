@@ -71,6 +71,7 @@ type Props = {
   onStageChanged?: (stage: string) => void;
   onFinanceRefresh?: () => void;
   onOpenTmmtTab?: () => void;
+  onOpenAiPlannerTab?: () => void;
   onOpenFinanceTab?: () => void;
   onOpenLaunchQaTab?: () => void;
 };
@@ -83,6 +84,7 @@ export function ServiceDeliveryWorkflowPanel({
   onStageChanged,
   onFinanceRefresh,
   onOpenTmmtTab,
+  onOpenAiPlannerTab,
   onOpenFinanceTab,
   onOpenLaunchQaTab,
 }: Props) {
@@ -245,6 +247,11 @@ export function ServiceDeliveryWorkflowPanel({
           {onOpenTmmtTab ? (
             <button type="button" className="btn btn-sm btn-secondary" onClick={onOpenTmmtTab}>
               Mở tab TMMT chính thức
+            </button>
+          ) : null}
+          {onOpenAiPlannerTab ? (
+            <button type="button" className="btn btn-sm" onClick={onOpenAiPlannerTab}>
+              Mở AI Planner →
             </button>
           ) : null}
         </div>

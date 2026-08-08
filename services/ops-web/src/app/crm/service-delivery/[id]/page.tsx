@@ -8,6 +8,7 @@ import { LifecycleHubLinksPanel } from '@/components/LifecycleHubLinksPanel';
 import { LifecycleSopPanel } from '@/components/LifecycleSopPanel';
 import { LifecycleStaffPicker } from '@/components/LifecycleStaffPicker';
 import { LifecycleTmmtPanel } from '@/components/LifecycleTmmtPanel';
+import { MarketingAiPlannerPanel } from '@/components/mkt-ai/MarketingAiPlannerPanel';
 import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
 import { DetailPageLayout } from '@/components/layout';
 import { ServiceDeliveryWorkflowPanel } from '@/components/ServiceDeliveryWorkflowPanel';
@@ -19,6 +20,7 @@ import {
   staffRefresh,
 } from '@/lib/api';
 import {
+  canViewMktAiPlanner,
   clearSession,
   getAccessToken,
   getRefreshToken,
@@ -28,6 +30,7 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { isMktAiPlannerFeEnabled } from '@/lib/mkt-ai-planner-flags';
 
 const STAGES = ['lead', 'consult', 'proposal', 'onboard', 'deliver', 'handover', 'retain'];
 
@@ -47,7 +50,9 @@ export default function CrmServiceDeliveryDetailPage() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [detailTab, setDetailTab] = useState<'workflow' | 'tmmt' | 'finance' | 'sop' | 'launch_qa'>('workflow');
+  const [detailTab, setDetailTab] = useState<
+    'workflow' | 'tmmt' | 'ai-planner' | 'finance' | 'sop' | 'launch_qa'
+  >('workflow');
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -118,10 +123,27 @@ export default function CrmServiceDeliveryDetailPage() {
 
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab === 'workflow' || tab === 'tmmt' || tab === 'finance' || tab === 'sop' || tab === 'launch_qa') {
+    if (
+      tab === 'workflow' ||
+      tab === 'tmmt' ||
+      tab === 'ai-planner' ||
+      tab === 'finance' ||
+      tab === 'sop' ||
+      tab === 'launch_qa'
+    ) {
       setDetailTab(tab);
     }
   }, [searchParams]);
+
+  function switchTab(tab: typeof detailTab) {
+    setDetailTab(tab);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', tab);
+    if (tab !== 'ai-planner') {
+      params.delete('step');
+    }
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }
 
   async function onSaveNotes(e: React.FormEvent) {
     e.preventDefault();
@@ -168,6 +190,7 @@ export default function CrmServiceDeliveryDetailPage() {
   }
 
   const events = (row?.events as Array<{ id: number; to_stage: string; notes: string; created_at: string }>) ?? [];
+  const showAiPlannerTab = isMktAiPlannerFeEnabled() && canViewMktAiPlanner(user);
 
   if (!user) {
     return (
@@ -263,39 +286,48 @@ export default function CrmServiceDeliveryDetailPage() {
             onError={setError}
           />
 
-          <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
             <button
               type="button"
               className={detailTab === 'workflow' ? 'btn btn-sm' : 'btn btn-sm btn-ghost'}
-              onClick={() => setDetailTab('workflow')}
+              onClick={() => switchTab('workflow')}
             >
               Workflow
             </button>
             <button
               type="button"
               className={detailTab === 'tmmt' ? 'btn btn-sm' : 'btn btn-sm btn-ghost'}
-              onClick={() => setDetailTab('tmmt')}
+              onClick={() => switchTab('tmmt')}
             >
               TMMT chính thức
             </button>
+            {showAiPlannerTab ? (
+              <button
+                type="button"
+                className={detailTab === 'ai-planner' ? 'btn btn-sm' : 'btn btn-sm btn-ghost'}
+                onClick={() => switchTab('ai-planner')}
+              >
+                AI Planner
+              </button>
+            ) : null}
             <button
               type="button"
               className={detailTab === 'finance' ? 'btn btn-sm' : 'btn btn-sm btn-ghost'}
-              onClick={() => setDetailTab('finance')}
+              onClick={() => switchTab('finance')}
             >
               Tài chính
             </button>
             <button
               type="button"
               className={detailTab === 'sop' ? 'btn btn-sm' : 'btn btn-sm btn-ghost'}
-              onClick={() => setDetailTab('sop')}
+              onClick={() => switchTab('sop')}
             >
               SOP Launch
             </button>
             <button
               type="button"
               className={detailTab === 'launch_qa' ? 'btn btn-sm' : 'btn btn-sm btn-ghost'}
-              onClick={() => setDetailTab('launch_qa')}
+              onClick={() => switchTab('launch_qa')}
             >
               Launch QA
             </button>
@@ -309,9 +341,10 @@ export default function CrmServiceDeliveryDetailPage() {
               initialStage={stage}
               onStageChanged={setStage}
               onFinanceRefresh={() => void reloadDetail(token)}
-              onOpenTmmtTab={() => setDetailTab('tmmt')}
-              onOpenFinanceTab={() => setDetailTab('finance')}
-              onOpenLaunchQaTab={() => setDetailTab('launch_qa')}
+              onOpenTmmtTab={() => switchTab('tmmt')}
+              onOpenAiPlannerTab={showAiPlannerTab ? () => switchTab('ai-planner') : undefined}
+              onOpenFinanceTab={() => switchTab('finance')}
+              onOpenLaunchQaTab={() => switchTab('launch_qa')}
             />
           ) : detailTab === 'tmmt' ? (
             <LifecycleTmmtPanel
@@ -320,6 +353,17 @@ export default function CrmServiceDeliveryDetailPage() {
               lifecycleId={lifecycleId}
               stage={stage}
               onSaved={() => void reloadDetail(token)}
+              onOpenAiPlannerTab={showAiPlannerTab ? () => switchTab('ai-planner') : undefined}
+            />
+          ) : detailTab === 'ai-planner' ? (
+            <MarketingAiPlannerPanel
+              token={token}
+              user={user}
+              lifecycleId={lifecycleId}
+              stage={stage}
+              serviceSlug={String(row.service_slug ?? '')}
+              onOpenTmmtTab={() => switchTab('tmmt')}
+              onApplied={() => void reloadDetail(token)}
             />
           ) : detailTab === 'finance' ? (
             <LifecycleFinancePanel
