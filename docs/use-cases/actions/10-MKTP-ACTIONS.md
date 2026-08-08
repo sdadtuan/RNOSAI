@@ -236,3 +236,18 @@ Bước 11 fail → **Thử lại** → success; strategy draft bước 8 vẫn 
 | 6 | SP | Apply step | Chạy job Quality ≥70 | — | Banner chuyển xanh ✓ đạt | ✓ |
 | 7 | AM | Context API | `GET .../context` | — | `flags.playbook_governance_enabled` + `governance{}` | ✓ |
 | 8 | System | Smoke | `smoke_mkt_ai_planner_context.sh` | LIFECYCLE_ID=1 | OK governance block | ✓ |
+
+---
+
+## MKTP-UC-024 — GA multi-slug rollout (Phase 4 · WS-P4-01)
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | DevOps | VPS / `.env` | Set `PTT_MKT_AI_PLANNER_SLUGS=meta-lead-gen,bds-lead-gen,seo-retainer` | — | API không 403 slug | ✓ |
+| 2 | DevOps | Seed | `./scripts/seed_mkt_ai_uat_lifecycle.sh` | — | 3 lifecycle + brief + official plan | ✓ |
+| 3 | QA | Shell | `./scripts/smoke_mkt_ai_multi_slug.sh` | — | Context 200 ×3 + governance block | ✓ |
+| 4 | SP | Service delivery | Mở lifecycle BĐS (`bds-lead-gen`) | tag `mkt-ai-seed-bds` | Tab AI Planner + playbook BĐS | ✓ |
+| 5 | SP | Same | Mở lifecycle SEO (`seo-retainer`) | tag `mkt-ai-seed-seo` | Playbook SEO prefill | ✓ |
+| 6 | PO | Runbook | Ký `mkt-ai-phase3-signoff.md` | — | UC-019…021 signed | ✓ |
+| 7 | DevOps | Prod pilot | `deploy/env.mkt-ai-ga.example` → 1 slug | — | Rollback ≤5 phút | ○ P4-01-T7 |
+| 8 | DevOps | Rollback test | `PTT_MKT_AI_PLANNER_ENABLED=0` | — | Tab ẩn + API 404 disabled | ✓ |

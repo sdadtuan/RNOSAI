@@ -9,6 +9,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+MKT_AI_GA_SLUGS='meta-lead-gen,bds-lead-gen,seo-retainer'
 VPS_HOST="${PTT_VPS_HOST:-rs.pttads.vn}"
 VPS_USER="${PTT_VPS_USER:-deploy}"
 VPS_ROOT="${PTT_VPS_ROOT:-/var/www/rnosai}"
@@ -37,7 +38,7 @@ run_local() {
   touch "$RUNTIME_ENV"
   for kv in \
     "PTT_MKT_AI_PLANNER_ENABLED=1" \
-    "PTT_MKT_AI_PLANNER_SLUGS=meta-lead-gen" \
+    "PTT_MKT_AI_PLANNER_SLUGS=${MKT_AI_GA_SLUGS}" \
     "PTT_MKT_AI_RAG_ENABLED=1" \
     "PTT_MKT_AI_APPROVAL_REQUIRED=1" \
     "PTT_MKT_AI_KPI_ALERT_ENABLED=1" \
@@ -57,7 +58,7 @@ run_local() {
 
   for kv in \
     "PTT_MKT_AI_PLANNER_ENABLED=1" \
-    "PTT_MKT_AI_PLANNER_SLUGS=meta-lead-gen" \
+    "PTT_MKT_AI_PLANNER_SLUGS=${MKT_AI_GA_SLUGS}" \
     "PTT_MKT_AI_RAG_ENABLED=1" \
     "PTT_MKT_AI_APPROVAL_REQUIRED=1" \
     "PTT_MKT_AI_KPI_ALERT_ENABLED=1" \
@@ -86,14 +87,22 @@ run_local() {
     echo "     Manual: sudo systemctl restart ptt-crm-api"
   fi
 
-  echo "== 4b/5 Seed UAT lifecycle (PG pilot slug) =="
+  echo "== 4b/5 Seed UAT lifecycles (3 pilot slugs) =="
   if [[ -n "${DATABASE_URL:-}" ]]; then
     bash "$ROOT/scripts/seed_mkt_ai_uat_lifecycle.sh" || echo "WARN seed failed — set LIFECYCLE_ID manually"
   else
     echo "SKIP seed — DATABASE_URL not set"
   fi
 
-  echo "== 5/5 Smoke ai-planner/context =="
+  echo "== 4c/5 Multi-slug smoke =="
+  export PTT_MKT_AI_PLANNER_SLUGS="${MKT_AI_GA_SLUGS}"
+  if [[ -n "${DATABASE_URL:-}" ]]; then
+    bash "$ROOT/scripts/smoke_mkt_ai_multi_slug.sh" || echo "WARN multi-slug smoke failed"
+  else
+    echo "SKIP multi-slug smoke — DATABASE_URL not set"
+  fi
+
+  echo "== 5/5 Smoke ai-planner/context (lifecycle #1) =="
   export PTT_API_URL="${PTT_API_URL:-http://127.0.0.1:3000}"
   export ADMIN_EMAIL="${OPS_E2E_STAFF_EMAIL:-admin@pttads.vn}"
   export ADMIN_PASSWORD="${OPS_E2E_STAFF_PASSWORD:-${ADMIN_PASSWORD:-}}"
@@ -104,7 +113,7 @@ run_local() {
   echo "     bash scripts/run_mkt_ai_planner_uat.sh"
 
   echo "== MKT-AI staging kickoff complete =="
-  echo "Flags: PTT_MKT_AI_PLANNER_ENABLED=1 PTT_MKT_AI_PLANNER_SLUGS=meta-lead-gen PTT_MKT_AI_PLAYBOOKS_ENABLED=1 PTT_MKT_AI_MULTI_AGENT_ENABLED=1 NEXT_PUBLIC_MKT_AI_PLANNER=1"
+  echo "Flags: PTT_MKT_AI_PLANNER_ENABLED=1 PTT_MKT_AI_PLANNER_SLUGS=${MKT_AI_GA_SLUGS} PTT_MKT_AI_PLAYBOOKS_ENABLED=1 PTT_MKT_AI_MULTI_AGENT_ENABLED=1 NEXT_PUBLIC_MKT_AI_PLANNER=1"
   echo "Ops-web: rebuild with NEXT_PUBLIC_MKT_AI_PLANNER=1 to show tab (deploy_ops_web.sh)"
 }
 

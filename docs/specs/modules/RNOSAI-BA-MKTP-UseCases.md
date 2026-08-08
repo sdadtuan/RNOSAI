@@ -9,8 +9,8 @@
 | Ngày xuất | 2026-08-08 |
 | Module | MOD-MKT-AI-PLANNER |
 | Nest module | `MarketingAiPlannerModule` |
-| Số UC | 20 |
-| Spec thủ công | 20/20 |
+| Số UC | 24 |
+| Spec thủ công | 24/24 |
 | Master index | [RNOSAI-BA-Master-Spec.md](../RNOSAI-BA-Master-Spec.md) |
 | Catalog gốc | [`docs/use-cases/10-MKT-AI-PLANNER.md`](../../use-cases/10-MKT-AI-PLANNER.md) |
 | Integration spec | [`2026-08-08-mkt-ai-planner-integration-spec.md`](../2026-08-08-mkt-ai-planner-integration-spec.md) |
@@ -39,32 +39,34 @@ Module **AI Marketing Planner** nhúng vào **Triển khai dịch vụ marketing
 | SCR-MKT-AI-021 | Budget sim | sub=budget | P1 | MKTP-UC-012 |
 | SCR-MKT-AI-022 | Approval | bar | P1 | MKTP-UC-013, 014 |
 | SCR-MKT-AI-030 | KPI dashboard | sub=dashboard | P2 | MKTP-UC-016, 018 |
-| SCR-MKT-AI-040 | Multi-agent | sub=agents | P3 | MKTP-UC-019, 020 |
+| SCR-MKT-AI-040 | Multi-agent | sub=agents | P3 | MKTP-UC-019, 020, 021 |
 
 ### 1.2. Ma trận UC
 
 | ID | Tên | Priority | Phase | Status | Parent SVC |
 | --- | --- | --- | --- | --- | --- |
-| MKTP-UC-001 | Mở AI Planner context | P0 | P0 | Spec | SVC-UC-003 |
-| MKTP-UC-002 | Lưu Brief intake | P0 | P0 | Spec | SVC-UC-003 |
-| MKTP-UC-003 | Sinh chiến lược AI | P0 | P0 | Spec | SVC-UC-003 |
-| MKTP-UC-004 | Sinh chiến dịch AI | P0 | P0 | Spec | SVC-UC-011 |
-| MKTP-UC-005 | Sinh lịch nội dung | P0 | P0 | Spec | SVC-UC-011 |
-| MKTP-UC-006 | Chỉnh sửa draft | P0 | P0 | Spec | — |
-| MKTP-UC-007 | Quality score | P0 | P0 | Spec | — |
-| MKTP-UC-008 | Apply TMMT chính thức | P0 | P0 | Spec | SVC-UC-003 |
-| MKTP-UC-009 | Retry job giữ draft | P0 | P0 | Spec | — |
-| MKTP-UC-010 | Export PDF/DOCX/XLSX | P0 | P0 | Spec | SVC-UC-011 |
-| MKTP-UC-011 | Brand KB RAG | P1 | P1 | Spec | — |
-| MKTP-UC-012 | Budget simulator | P1 | P1 | Spec | — |
-| MKTP-UC-013 | Approval workflow | P1 | P1 | Spec | — |
-| MKTP-UC-014 | Version compare | P1 | P1 | Spec | — |
-| MKTP-UC-015 | Presales R5 bridge | P1 | P1 | Spec | CRM-UC-005 |
-| MKTP-UC-016 | KPI dashboard | P1 | P2 | Spec | SVC-UC-010 |
-| MKTP-UC-017 | Optimization copilot | P2 | P2 | Spec | — |
-| MKTP-UC-018 | KPI drift alert | P2 | P2 | Spec | — |
-| MKTP-UC-019 | Multi-agent pipeline | P2 | P3 | Spec | — |
-| MKTP-UC-020 | Industry playbook | P2 | P3 | Spec | — |
+| MKTP-UC-001 | Mở AI Planner context | P0 | P0 | Implemented (staging) | SVC-UC-003 |
+| MKTP-UC-002 | Lưu Brief intake | P0 | P0 | Implemented (staging) | SVC-UC-003 |
+| MKTP-UC-003 | Sinh chiến lược AI | P0 | P0 | Implemented (staging) | SVC-UC-003 |
+| MKTP-UC-004 | Sinh chiến dịch AI | P0 | P0 | Implemented (staging) | SVC-UC-011 |
+| MKTP-UC-005 | Sinh lịch nội dung | P0 | P0 | Implemented (staging) | SVC-UC-011 |
+| MKTP-UC-006 | Chỉnh sửa draft | P0 | P0 | Implemented (staging) | — |
+| MKTP-UC-007 | Quality score | P0 | P0 | Implemented (staging) | — |
+| MKTP-UC-008 | Apply TMMT chính thức | P0 | P0 | Implemented (staging) | SVC-UC-003 |
+| MKTP-UC-009 | Retry job giữ draft | P0 | P0 | Implemented (staging) | — |
+| MKTP-UC-010 | Export PDF/DOCX/XLSX | P0 | P0 | Implemented (staging) | SVC-UC-011 |
+| MKTP-UC-011 | Brand KB RAG | P1 | P1 | Implemented (staging) | — |
+| MKTP-UC-012 | Budget simulator | P1 | P1 | Implemented (staging) | — |
+| MKTP-UC-013 | Approval workflow | P1 | P1 | Implemented (staging) | — |
+| MKTP-UC-014 | Version compare | P1 | P1 | Implemented (staging) | — |
+| MKTP-UC-015 | Presales R5 bridge | P1 | P1 | Implemented (staging) | CRM-UC-005 |
+| MKTP-UC-016 | KPI dashboard | P1 | P2 | Implemented (staging) | SVC-UC-010 |
+| MKTP-UC-017 | Optimization copilot | P2 | P2 | Implemented (staging) | — |
+| MKTP-UC-018 | KPI drift alert | P2 | P2 | Implemented (staging) | — |
+| MKTP-UC-019 | Multi-agent pipeline | P2 | P3 | Implemented (staging) | — |
+| MKTP-UC-020 | Industry playbook | P2 | P3 | Implemented (staging) | — |
+| MKTP-UC-021 | Governance banner | P2 | P3 | Implemented (staging) | — |
+| MKTP-UC-024 | GA multi-slug rollout | P0 | P4 | In progress (WS-P4-01) | — |
 
 ---
 

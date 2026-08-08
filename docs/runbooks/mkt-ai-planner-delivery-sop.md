@@ -24,7 +24,10 @@
 | Flag | Giá trị staging | File |
 |------|-----------------|------|
 | `PTT_MKT_AI_PLANNER_ENABLED` | `1` | `.env` / `deploy/runtime.env` |
-| `PTT_MKT_AI_PLANNER_SLUGS` | `meta-lead-gen` | same |
+| `PTT_MKT_AI_PLANNER_SLUGS` | `meta-lead-gen,bds-lead-gen,seo-retainer` | same |
+| `PTT_MKT_AI_MULTI_AGENT_ENABLED` | `1` | same |
+| `PTT_MKT_AI_PLAYBOOKS_ENABLED` | `1` | same |
+| `PTT_MKT_AI_GOVERNANCE_BANNER` | `1` | same |
 | `NEXT_PUBLIC_MKT_AI_PLANNER` | `1` | ops-web build env |
 
 ```bash
@@ -71,15 +74,22 @@ PTT_CRM_INTERNAL_KEY=... LIFECYCLE_ID=1 bash scripts/smoke_mkt_ai_planner_contex
 
 ---
 
-## 4. Seed UAT lifecycle
+## 4. Seed UAT lifecycles (multi-slug · WS-P4-01)
 
 ```bash
 export DATABASE_URL=postgresql://...
 ./scripts/seed_mkt_ai_uat_lifecycle.sh
-# → LIFECYCLE_ID, official marketing_plan, brief prefill
+# → meta (tag mkt-ai-smoke-seed), bds (mkt-ai-seed-bds), seo (mkt-ai-seed-seo)
+bash scripts/smoke_mkt_ai_multi_slug.sh
 ```
 
-Dùng lifecycle này cho walkthrough 21 bước (`#123` trong actions doc = id thực tế trên staging).
+| Slug | Tag | Lead |
+|------|-----|------|
+| `meta-lead-gen` | `mkt-ai-smoke-seed` | 900000901 |
+| `bds-lead-gen` | `mkt-ai-seed-bds` | 900000902 |
+| `seo-retainer` | `mkt-ai-seed-seo` | 900000903 |
+
+Dùng lifecycle meta cho walkthrough P0 (21 bước); lặp UC-020 trên cả 3 slug. Phase 3 sign-off: [`mkt-ai-phase3-signoff.md`](./mkt-ai-phase3-signoff.md) · gate `./scripts/close_mkt_ai_p3_signoff.sh`.
 
 ---
 
