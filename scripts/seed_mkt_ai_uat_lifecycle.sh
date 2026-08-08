@@ -19,14 +19,21 @@ fi
 MKT_AI_SEED_TAG='mkt-ai-smoke-seed'
 MKT_AI_SEED_SLUG='meta-lead-gen'
 MKT_AI_SEED_STAGE='onboard'
+MKT_AI_UAT_LEAD_ID='900000901'
 
 echo "== Seed MKT-AI UAT lifecycle (slug=${MKT_AI_SEED_SLUG}, stage=${MKT_AI_SEED_STAGE}) =="
 
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<SQL
+INSERT INTO crm_leads (sqlite_lead_id, full_name, phone, email, status, source)
+VALUES (${MKT_AI_UAT_LEAD_ID}, 'MKT-AI UAT Lead', '', 'mkt-ai-uat@pttads.vn', 'qualified', 'uat')
+ON CONFLICT (sqlite_lead_id) DO NOTHING;
+
 DO \$\$
 DECLARE
   v_lifecycle_id bigint;
   v_plan_id bigint;
+  v_lead_id bigint;
+  v_target bigint;
   v_brief jsonb := '{
     "brand_name": "ABC Logistics",
     "industry": "Logistics B2B",
@@ -39,50 +46,68 @@ DECLARE
     "usp": "Giảm CPL 25% trong 90 ngày"
   }'::jsonb;
 BEGIN
-  SELECT id, marketing_plan_id INTO v_lifecycle_id, v_plan_id
+  SELECT id INTO v_lifecycle_id
   FROM crm_service_lifecycle
   WHERE service_slug = '${MKT_AI_SEED_SLUG}' AND notes = '${MKT_AI_SEED_TAG}'
   ORDER BY id DESC
   LIMIT 1;
 
   IF v_lifecycle_id IS NULL THEN
-    INSERT INTO crm_service_lifecycle (service_slug, stage, status, notes)
-    VALUES ('${MKT_AI_SEED_SLUG}', '${MKT_AI_SEED_STAGE}', 'active', '${MKT_AI_SEED_TAG}')
+    INSERT INTO crm_service_lifecycle (service_slug, stage, status, notes, lead_id)
+    VALUES ('${MKT_AI_SEED_SLUG}', '${MKT_AI_SEED_STAGE}', 'active', '${MKT_AI_SEED_TAG}', ${MKT_AI_UAT_LEAD_ID})
     RETURNING id INTO v_lifecycle_id;
     RAISE NOTICE 'INSERT lifecycle_id=%', v_lifecycle_id;
   ELSE
+    UPDATE crm_service_lifecycle
+    SET lead_id = COALESCE(lead_id, ${MKT_AI_UAT_LEAD_ID})
+    WHERE id = v_lifecycle_id;
     RAISE NOTICE 'REUSE lifecycle_id=%', v_lifecycle_id;
   END IF;
 
-  IF v_plan_id IS NULL THEN
+  SELECT COALESCE(
+    (SELECT lead_id FROM crm_service_lifecycle WHERE id = v_lifecycle_id),
+    (SELECT sqlite_lead_id FROM crm_leads ORDER BY sqlite_lead_id LIMIT 1),
+    ${MKT_AI_UAT_LEAD_ID}::bigint
+  ) INTO v_lead_id;
+
+  FOR v_target IN SELECT unnest(ARRAY[v_lifecycle_id, 1::bigint]) LOOP
+    CONTINUE WHEN NOT EXISTS (SELECT 1 FROM crm_service_lifecycle WHERE id = v_target);
+
+    UPDATE crm_service_lifecycle
+    SET lead_id = COALESCE(lead_id, v_lead_id),
+        service_slug = COALESCE(NULLIF(trim(service_slug), ''), '${MKT_AI_SEED_SLUG}')
+    WHERE id = v_target;
+
+    SELECT marketing_plan_id INTO v_plan_id FROM crm_service_lifecycle WHERE id = v_target;
+    IF v_plan_id IS NOT NULL THEN
+      RAISE NOTICE 'REUSE lifecycle % marketing_plan_id=%', v_target, v_plan_id;
+      CONTINUE;
+    END IF;
+
     INSERT INTO crm_marketing_plans (
-      code, name, status, plan_kind, lifecycle_id,
+      code, name, status, plan_kind, lead_id, lifecycle_id,
       north_star, objectives, notes,
       strategy_framework_json, target_market_prof_json, target_market_steps4_json
     )
     VALUES (
-      format('LC-%s-OFFICIAL', v_lifecycle_id),
-      'ABC Logistics TMMT (chính thức)',
+      format('LC-%s-OFFICIAL', v_target),
+      format('Lifecycle #%s TMMT (chính thức)', v_target),
       'draft',
       'official',
-      v_lifecycle_id,
+      COALESCE((SELECT lead_id FROM crm_service_lifecycle WHERE id = v_target), v_lead_id),
+      v_target,
       'Lead gen logistics B2B',
       'Tăng lead chất lượng Meta + Google',
       'UAT seed official plan',
       '{"target_market":"SMB logistics VN"}'::jsonb,
-      '{"market_context":"Seed context","segmentation_icp":"Seed ICP placeholder"}'::jsonb,
+      '{"market_context":"Seed context","segmentation_icp":"Seed ICP placeholder for UAT apply path"}'::jsonb,
       '{}'::jsonb
     )
     RETURNING id INTO v_plan_id;
 
-    UPDATE crm_service_lifecycle
-    SET marketing_plan_id = v_plan_id
-    WHERE id = v_lifecycle_id;
-
-    RAISE NOTICE 'INSERT official marketing_plan_id=%', v_plan_id;
-  ELSE
-    RAISE NOTICE 'REUSE marketing_plan_id=%', v_plan_id;
-  END IF;
+    UPDATE crm_service_lifecycle SET marketing_plan_id = v_plan_id WHERE id = v_target;
+    RAISE NOTICE 'INSERT lifecycle % marketing_plan_id=%', v_target, v_plan_id;
+  END LOOP;
 
   INSERT INTO mkt_ai_briefs (lifecycle_id, brief_json, prefill_sources_json, created_by, updated_by)
   VALUES (v_lifecycle_id, v_brief, '[]'::jsonb, 'uat-seed', 'uat-seed')
@@ -92,42 +117,6 @@ BEGIN
         updated_at = NOW();
 
   RAISE NOTICE 'UPSERT mkt_ai_briefs lifecycle_id=%', v_lifecycle_id;
-END \$\$;
-
-DO \$\$
-DECLARE
-  v_id bigint := 1;
-  v_plan_id bigint;
-BEGIN
-  SELECT marketing_plan_id INTO v_plan_id
-  FROM crm_service_lifecycle WHERE id = v_id;
-
-  IF NOT FOUND OR v_plan_id IS NOT NULL THEN
-    RETURN;
-  END IF;
-
-  INSERT INTO crm_marketing_plans (
-    code, name, status, plan_kind, lifecycle_id,
-    north_star, objectives, notes,
-    strategy_framework_json, target_market_prof_json, target_market_steps4_json
-  )
-  VALUES (
-    format('LC-%s-OFFICIAL', v_id),
-    'Lifecycle #1 TMMT (chính thức)',
-    'draft',
-    'official',
-    v_id,
-    'UAT lifecycle #1',
-    'Pilot apply TMMT',
-    'Auto-seed for smoke/UAT lifecycle #1',
-    '{"target_market":"Pilot"}'::jsonb,
-    '{"market_context":"ctx","segmentation_icp":"ICP seed for lifecycle 1 apply UAT path"}'::jsonb,
-    '{}'::jsonb
-  )
-  RETURNING id INTO v_plan_id;
-
-  UPDATE crm_service_lifecycle SET marketing_plan_id = v_plan_id WHERE id = v_id;
-  RAISE NOTICE 'PATCH lifecycle #1 marketing_plan_id=%', v_plan_id;
 END \$\$;
 SQL
 
