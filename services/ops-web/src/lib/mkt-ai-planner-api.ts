@@ -85,6 +85,8 @@ export interface MktAiDocumentRow {
   created_at: string;
   updated_at: string;
 }
+
+export interface MktAiCampaignDraft {
   name: string;
   objective: string;
   channel_mix: string[];
