@@ -200,7 +200,33 @@ bash scripts/mkt_ai_prod_pilot_rollback.sh  # emergency
 
 ---
 
-## 11. Liên kết
+## 12. Phase 4 GA — ops monitoring & regression (WS-P4-06 · MKTP-UC-025)
+
+Runbook: [`mkt-ai-planner-ga-rollout.md`](./mkt-ai-planner-ga-rollout.md)
+
+```bash
+export DATABASE_URL=postgresql://...
+export PTT_CRM_INTERNAL_KEY=...   # hoặc ADMIN_PASSWORD
+export LIFECYCLE_ID=1
+
+# Full gate trước GA (P0 UAT + P1…P4 blocks + smokes)
+./scripts/run_mkt_ai_planner_full_regression.sh
+
+# Weekly ops report (fail rate + apply/gate ratio)
+./scripts/report_mkt_ai_ops_weekly.sh
+```
+
+| Script | Output | Exit |
+|--------|--------|------|
+| `run_mkt_ai_planner_full_regression.sh` | orchestrates UAT + smokes | 0 pass |
+| `report_mkt_ai_ops_weekly.sh` | `docs/exports/mkt-ai-ops-*.md` | 0 green · 2 SLO alert |
+| `run_mkt_ai_planner_uat.sh` | extended §10–§16 P1…P4 | 0 / 1 / 2 |
+
+Cron (prod/staging): `PTT_MKT_AI_OPS_WEEKLY_REPORT=1` — xem GA rollout runbook §3.1.
+
+---
+
+## 13. Liên kết
 
 | Tài liệu | Path |
 |----------|------|
@@ -208,6 +234,9 @@ bash scripts/mkt_ai_prod_pilot_rollback.sh  # emergency
 | Implementation plan | `docs/superpowers/plans/2026-08-08-mkt-ai-planner-module.md` |
 | DDL | `docs/specs/2026-08-08-postgresql-ddl-mkt-ai-planner.sql` |
 | Smoke | `scripts/smoke_mkt_ai_planner_context.sh` |
+| Full regression | `scripts/run_mkt_ai_planner_full_regression.sh` |
+| Ops weekly | `scripts/report_mkt_ai_ops_weekly.sh` |
+| GA rollout | `docs/runbooks/mkt-ai-planner-ga-rollout.md` |
 
 ---
 

@@ -54,6 +54,7 @@ run_local() {
     "PTT_MKT_AI_EXPORT_PPTX=1" \
     "PTT_MKT_AI_PORTAL_SUMMARY=1" \
     "NEXT_PUBLIC_MKT_AI_PORTAL_SUMMARY=1" \
+    "PTT_MKT_AI_OPS_WEEKLY_REPORT=1" \
     "NEXT_PUBLIC_MKT_AI_PLANNER=1"; do
     key="${kv%%=*}"
     if grep -q "^${key}=" "$RUNTIME_ENV" 2>/dev/null; then
@@ -162,8 +163,9 @@ run_local() {
     echo "ops-web restarted"
   fi
 
-  echo "== 5c/5 Full UAT (optional) =="
-  echo "     bash scripts/run_mkt_ai_planner_uat.sh"
+  echo "== 5c/5 Full regression + ops report (WS-P4-06) =="
+  echo "     SKIP_PORTAL_SMOKE=1 bash scripts/run_mkt_ai_planner_full_regression.sh"
+  echo "     bash scripts/report_mkt_ai_ops_weekly.sh"
 
   echo "== MKT-AI staging kickoff complete =="
   echo "Flags: PTT_MKT_AI_PLANNER_ENABLED=1 PTT_MKT_AI_PLANNER_SLUGS=${MKT_AI_GA_SLUGS} PTT_MKT_AI_PLAYBOOKS_ENABLED=1 PTT_MKT_AI_MULTI_AGENT_ENABLED=1 NEXT_PUBLIC_MKT_AI_PLANNER=1"

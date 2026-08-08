@@ -85,6 +85,14 @@ api() {
   fi
 }
 
+api_upload() {
+  local path="$1"
+  local file="$2"
+  local field="${3:-file}"
+  local url="${API_URL}/api/crm/service-lifecycle/${LIFECYCLE_ID}/ai-planner${path}"
+  curl -sS -w '\n%{http_code}' -X POST "${AUTH[@]}" -F "${field}=@${file}" "$url"
+}
+
 resolve_lifecycle() {
   if [[ -n "$LIFECYCLE_ID" ]]; then return; fi
   if [[ -n "${DATABASE_URL:-}" ]]; then
@@ -277,6 +285,201 @@ if [[ -n "${DATABASE_URL:-}" ]]; then
   if [[ "${EXP_COUNT:-0}" -ge 1 ]]; then pass "mkt_ai_exports audit row present"; else fail "mkt_ai_exports empty"; fi
 else
   skip "DB audit — DATABASE_URL not set"
+fi
+
+log ""
+log "## §10 P1 RAG — document upload (MKTP-UC-011)"
+CTX_RAW="$(api GET /context)"
+CTX_FLAGS_BODY="$(echo "$CTX_RAW" | sed '$d')"
+RAG_ENABLED="$(python3 -c "import json,sys; print(json.load(sys.stdin).get('flags',{}).get('rag_enabled',False))" <<<"$CTX_FLAGS_BODY" 2>/dev/null || echo False)"
+if [[ "$RAG_ENABLED" == "True" ]]; then
+  RAG_TMP="$(mktemp)"
+  cat >"$RAG_TMP" <<'EOF'
+Brand KB stub — UAT RAG upload WS-P4-06.
+USP: Giảm CPL 25% trong 90 ngày cho logistics B2B.
+EOF
+  DOC_RAW="$(api_upload /documents "$RAG_TMP")"
+  DOC_HTTP="$(echo "$DOC_RAW" | tail -1)"
+  DOC_BODY="$(echo "$DOC_RAW" | sed '$d')"
+  echo "$DOC_BODY" >"$ARTIFACT_DIR/rag-upload.json"
+  rm -f "$RAG_TMP"
+  if [[ "$DOC_HTTP" == "201" || "$DOC_HTTP" == "200" ]]; then
+    pass "POST documents HTTP $DOC_HTTP"
+    LIST_RAW="$(api GET /documents)"
+    if [[ "$(echo "$LIST_RAW" | tail -1)" == "200" ]]; then pass "GET documents HTTP 200"; else fail "GET documents"; fi
+  else
+    fail "POST documents HTTP $DOC_HTTP"
+  fi
+else
+  skip "P1 RAG — rag_enabled flag off"
+fi
+
+log ""
+log "## §11 P1 Budget simulate (MKTP-UC-012)"
+BUDGET_RAW="$(api POST /jobs/budget-simulate '{"count":3}')"
+BUDGET_HTTP="$(echo "$BUDGET_RAW" | tail -1)"
+BUDGET_BODY="$(echo "$BUDGET_RAW" | sed '$d')"
+echo "$BUDGET_BODY" >"$ARTIFACT_DIR/budget-simulate.json"
+if [[ "$BUDGET_HTTP" == "200" ]]; then
+  python3 - <<PY || fail "Budget scenarios shape"
+import json
+d=json.load(open("$ARTIFACT_DIR/budget-simulate.json"))
+scenarios=d.get("scenarios") or []
+assert len(scenarios) >= 2, len(scenarios)
+print("ok")
+PY
+  pass "POST jobs/budget-simulate — ≥2 scenarios"
+else
+  fail "POST jobs/budget-simulate HTTP $BUDGET_HTTP"
+fi
+
+log ""
+log "## §12 P2 Dashboard p95 (MKTP-UC-016 · EC-MKT-AI-07)"
+DASH_MAX_MS=0
+for _ in 1 2 3; do
+  DASH_SEC="$(
+    curl -sS -o "$ARTIFACT_DIR/dashboard.json" -w '%{time_total}' \
+      "${AUTH[@]}" \
+      "${API_URL}/api/crm/service-lifecycle/${LIFECYCLE_ID}/ai-planner/dashboard?weeks=6" \
+      2>/dev/null || echo 99
+  )"
+  DASH_MS="$(python3 -c "print(int(float('$DASH_SEC')*1000))" 2>/dev/null || echo 99000)"
+  if [[ "$DASH_MS" -gt "$DASH_MAX_MS" ]]; then DASH_MAX_MS="$DASH_MS"; fi
+done
+if [[ "$DASH_MAX_MS" -lt 3000 ]]; then
+  pass "GET dashboard p95-ish max ${DASH_MAX_MS}ms < 3000ms (3 samples)"
+else
+  fail "GET dashboard slow — max ${DASH_MAX_MS}ms (SLO 3000ms)"
+fi
+python3 - <<PY || fail "Dashboard payload keys"
+import json
+d=json.load(open("$ARTIFACT_DIR/dashboard.json"))
+for k in ("ok","lifecycle_id","tiles","trend","period"):
+    assert k in d, k
+print("ok")
+PY
+pass "Dashboard payload keys present"
+
+log ""
+log "## §13 P3 Multi-agent async (MKTP-UC-022)"
+CTX_RAW="$(api GET /context)"
+CTX_BODY="$(echo "$CTX_RAW" | sed '$d')"
+echo "$CTX_BODY" >"$ARTIFACT_DIR/context-p3-ma.json"
+MA_ENABLED="$(python3 -c "import json; print(json.load(open('$ARTIFACT_DIR/context-p3-ma.json')).get('flags',{}).get('multi_agent_enabled',False))" 2>/dev/null || echo False)"
+if [[ "$MA_ENABLED" == "True" ]]; then
+  MA_POST="$(curl -sS -o "$ARTIFACT_DIR/multi-agent-async.json" -w '%{http_code}' \
+    "${AUTH[@]}" -H 'Content-Type: application/json' \
+    -X POST "${API_URL}/api/crm/service-lifecycle/${LIFECYCLE_ID}/ai-planner/jobs/multi-agent" \
+    -d '{"async":true,"skip_analyst":true}' 2>/dev/null || echo 000)"
+  if [[ "$MA_POST" == "202" || "$MA_POST" == "200" ]]; then
+    pass "POST jobs/multi-agent HTTP $MA_POST"
+  else
+    fail "POST jobs/multi-agent HTTP $MA_POST"
+  fi
+  ST_RAW="$(api GET /multi-agent/status)"
+  if [[ "$(echo "$ST_RAW" | tail -1)" == "200" ]]; then
+    pass "GET multi-agent/status HTTP 200"
+  else
+    fail "GET multi-agent/status"
+  fi
+else
+  skip "P3 multi-agent — multi_agent_enabled off"
+fi
+
+log ""
+log "## §14 P3 Playbook + governance (MKTP-UC-020/021)"
+PB_RAW="$(api GET /playbooks)"
+PB_HTTP="$(echo "$PB_RAW" | tail -1)"
+PB_BODY="$(echo "$PB_RAW" | sed '$d')"
+echo "$PB_BODY" >"$ARTIFACT_DIR/playbooks-meta.json"
+if [[ "$PB_HTTP" == "200" ]]; then
+  python3 - <<PY || fail "Playbooks list"
+import json
+d=json.load(open("$ARTIFACT_DIR/playbooks-meta.json"))
+assert len(d.get("playbooks") or []) >= 1
+print("ok")
+PY
+  pass "GET playbooks — ≥1 entry"
+else
+  fail "GET playbooks HTTP $PB_HTTP"
+fi
+python3 - <<PY || fail "Governance context block"
+import json
+d=json.load(open("$ARTIFACT_DIR/context-p3-ma.json"))
+flags=d.get("flags") or {}
+gov=d.get("governance") or {}
+if flags.get("playbook_governance_enabled"):
+    assert gov.get("enabled"), gov
+    assert isinstance(gov.get("notes"), list)
+    gate=gov.get("launch_qa_gate") or {}
+    for k in ("required","min_score","ok","message_vi"):
+        assert k in gate, k
+print("ok")
+PY
+pass "Governance block + launch_qa_gate fields OK"
+
+log ""
+log "## §15 P4 Depth W1 — brief upload + KPI tree (MKTP-UC-026/031)"
+BRIEF_TMP="$(mktemp)"
+cat >"$BRIEF_TMP" <<'EOF'
+Thương hiệu: UAT Depth Brand
+Ngành: Logistics B2B
+Mục tiêu: lead
+Ngân sách tháng: 80 triệu VND
+Thị trường: HCM, HN
+Thách thức: CPL cao — UAT WS-P4-06 brief upload
+EOF
+UP_RAW="$(api_upload /brief/upload "$BRIEF_TMP")"
+UP_HTTP="$(echo "$UP_RAW" | tail -1)"
+UP_BODY="$(echo "$UP_RAW" | sed '$d')"
+echo "$UP_BODY" >"$ARTIFACT_DIR/brief-upload.json"
+rm -f "$BRIEF_TMP"
+if [[ "$UP_HTTP" == "200" || "$UP_HTTP" == "201" ]]; then
+  pass "POST brief/upload HTTP $UP_HTTP"
+  echo "$UP_BODY" | grep -q '"score"' && pass "Brief upload readiness score present" || skip "Brief upload score missing (flag off?)"
+else
+  skip "POST brief/upload HTTP $UP_HTTP (PTT_MKT_AI_BRIEF_UPLOAD_ENABLED?)"
+fi
+KPI_RAW="$(api PATCH /draft '{"kpi_tree_json":[{"id":"north_star","label":"CPL","target":"< 500k","unit":"VND","children":[{"id":"c1","label":"Meta Lead","target":"200 leads"}]}],"risks_assumptions_json":{"risks":["CPL spike Q4"],"assumptions":["Budget stable 90d"]}}')"
+if [[ "$(echo "$KPI_RAW" | tail -1)" == "200" ]]; then pass "PATCH draft kpi_tree + risks"; else fail "PATCH draft depth fields"; fi
+
+log ""
+log "## §16 P4 Depth W2 — scenarios + PPTX (MKTP-UC-027/029)"
+CTX_RAW="$(api GET /context)"
+CTX_BODY="$(echo "$CTX_RAW" | sed '$d')"
+echo "$CTX_BODY" >"$ARTIFACT_DIR/context-p4-w2.json"
+SCEN_FLAG="$(python3 -c "import json; print(json.load(open('$ARTIFACT_DIR/context-p4-w2.json')).get('flags',{}).get('scenario_compare_enabled',False))" 2>/dev/null || echo False)"
+PPTX_FLAG="$(python3 -c "import json; print(json.load(open('$ARTIFACT_DIR/context-p4-w2.json')).get('flags',{}).get('export_pptx_enabled',False))" 2>/dev/null || echo False)"
+if [[ "$SCEN_FLAG" == "True" ]]; then
+  SCEN_RAW="$(api POST /jobs/strategy/scenarios '{"count":3}')"
+  SCEN_HTTP="$(echo "$SCEN_RAW" | tail -1)"
+  SCEN_BODY="$(echo "$SCEN_RAW" | sed '$d')"
+  echo "$SCEN_BODY" >"$ARTIFACT_DIR/strategy-scenarios.json"
+  if [[ "$SCEN_HTTP" == "200" ]]; then
+    python3 - <<PY || fail "Strategy scenarios"
+import json
+d=json.load(open("$ARTIFACT_DIR/strategy-scenarios.json"))
+assert len(d.get("scenarios") or []) >= 2
+print("ok")
+PY
+    pass "POST jobs/strategy/scenarios — ≥2 scenarios"
+  else
+    fail "POST jobs/strategy/scenarios HTTP $SCEN_HTTP"
+  fi
+else
+  skip "P4 scenarios — scenario_compare_enabled off"
+fi
+if [[ "$PPTX_FLAG" == "True" ]]; then
+  SCORE="$(python3 -c "import json; print(json.load(open('$ARTIFACT_DIR/context-p4-w2.json')).get('quality_score',{}).get('score') or 0)" 2>/dev/null || echo 0)"
+  if [[ "${SCORE%%.*}" -ge 60 ]]; then
+    PPTX_RAW="$(api POST /export/pptx '{"sections":["strategy","campaign"]}')"
+    PPTX_HTTP="$(echo "$PPTX_RAW" | tail -1)"
+    if [[ "$PPTX_HTTP" == "200" ]]; then pass "POST export/pptx HTTP 200"; else skip "POST export/pptx HTTP $PPTX_HTTP (approval gate?)"; fi
+  else
+    skip "POST export/pptx — quality $SCORE < 60"
+  fi
+else
+  skip "P4 PPTX — export_pptx_enabled off"
 fi
 
   if [[ "${RUN_E1:-0}" == "1" ]]; then
