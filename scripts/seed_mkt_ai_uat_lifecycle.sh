@@ -236,7 +236,7 @@ BEGIN
         updated_at = NOW();
 
   RAISE NOTICE 'UPSERT mkt_ai_briefs lifecycle_id=% slug=%', v_lifecycle_id, v_slug;
-END $$;
+END \$\$;
 SQL
 
   local lifecycle_id
