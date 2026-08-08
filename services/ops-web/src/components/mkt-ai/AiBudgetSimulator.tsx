@@ -136,16 +136,17 @@ export function AiBudgetSimulator({
             <tbody>
               {scenarios.map((row) => {
                 const selected = row.id === selectedId || row.is_selected;
+                const channelMix = mix(row);
                 return (
                   <tr key={row.id} className={selected ? styles.budgetRowSelected : undefined}>
                     <td>
                       {row.name}
                       {row.slug === 'balanced' ? ' ★' : ''}
                     </td>
-                    <td>{mix.meta_pct ?? '—'}%</td>
-                    <td>{mix.google_pct ?? '—'}%</td>
-                    <td>{mix.content_pct ?? '—'}%</td>
-                    <td>{mix.reserve_pct ?? '—'}%</td>
+                    <td>{channelMix.meta_pct ?? '—'}%</td>
+                    <td>{channelMix.google_pct ?? '—'}%</td>
+                    <td>{channelMix.content_pct ?? '—'}%</td>
+                    <td>{channelMix.reserve_pct ?? '—'}%</td>
                     <td>{cplLabel(row, objective)}</td>
                     <td>
                       {canEdit ? (
