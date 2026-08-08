@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { BriefIntakeForm } from '@/components/mkt-ai/BriefIntakeForm';
 import { AiJobProgressPanel } from '@/components/mkt-ai/AiJobProgressPanel';
 import { AiTmmtGateBanner } from '@/components/mkt-ai/AiTmmtGateBanner';
 import {
@@ -11,7 +12,6 @@ import {
 } from '@/lib/auth';
 import {
   fetchMktAiPlannerContext,
-  patchMktAiBrief,
   postMktAiApply,
   postMktAiCampaignsJob,
   postMktAiContentJob,
@@ -23,7 +23,7 @@ import {
   type MktAiPlannerContext,
 } from '@/lib/mkt-ai-planner-api';
 import { ApiError } from '@/lib/api';
-import { BRIEF_FIELD_LABELS, STRATEGY_LABELS, TMMT_PROF_LABELS } from '@/lib/tmmt-labels';
+import { STRATEGY_LABELS, TMMT_PROF_LABELS } from '@/lib/tmmt-labels';
 
 const STEPS = [
   { id: 'brief', label: 'Brief' },
@@ -34,15 +34,6 @@ const STEPS = [
 ] as const;
 
 type StepId = (typeof STEPS)[number]['id'];
-
-const inputStyle: React.CSSProperties = {
-  background: 'var(--bg)',
-  border: '1px solid var(--border)',
-  borderRadius: 8,
-  padding: '0.55rem 0.75rem',
-  color: 'var(--text)',
-  width: '100%',
-};
 
 interface Props {
   token: string;
@@ -61,16 +52,6 @@ function parseStep(raw: string | null): StepId {
   const n = Number(raw);
   if (n >= 1 && n <= 5) return STEPS[n - 1].id;
   return 'brief';
-}
-
-function formatVnd(n: number | undefined): string {
-  if (!n || !Number.isFinite(n)) return '';
-  return new Intl.NumberFormat('vi-VN').format(n);
-}
-
-function parseVnd(raw: string): number | undefined {
-  const n = Number(String(raw).replace(/[^\d]/g, ''));
-  return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
 export function MarketingAiPlannerPanel({
@@ -92,6 +73,7 @@ export function MarketingAiPlannerPanel({
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [disabledReason, setDisabledReason] = useState('');
+  const [contextVersion, setContextVersion] = useState(0);
 
   const canGenerate = canGenerateMktAiPlanner(user);
   const canExport = canExportMktAiPlanner(user);
@@ -105,6 +87,7 @@ export function MarketingAiPlannerPanel({
       const data = await fetchMktAiPlannerContext(token, lifecycleId);
       setCtx(data);
       setBriefDraft(data.brief ?? { service_slug: data.service_slug });
+      setContextVersion((v) => v + 1);
       setDisabledReason('');
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
@@ -135,30 +118,6 @@ export function MarketingAiPlannerPanel({
     params.set('tab', 'ai-planner');
     params.set('step', next);
     router.replace(`?${params.toString()}`, { scroll: false });
-  }
-
-  async function saveBrief() {
-    if (!canEdit) return;
-    setBusy(true);
-    setMessage('');
-    setError('');
-    try {
-      const out = await patchMktAiBrief(token, lifecycleId, {
-        ...briefDraft,
-        service_slug: briefDraft.service_slug ?? serviceSlug ?? ctx?.service_slug,
-      });
-      setBriefDraft(out.brief);
-      setCtx((prev) =>
-        prev
-          ? { ...prev, brief: out.brief, brief_validation: out.brief_validation }
-          : prev,
-      );
-      setMessage(out.brief_validation.ok ? 'Brief hợp lệ — có thể sinh chiến lược' : 'Đã lưu brief');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Lưu brief thất bại');
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function runJob(
@@ -234,11 +193,6 @@ export function MarketingAiPlannerPanel({
   const campaigns = ctx?.draft.campaigns_json ?? [];
   const calendar = (ctx?.draft.content_json?.calendar as Array<Record<string, string>>) ?? [];
 
-  const briefFieldErrors = useMemo(() => {
-    const missing = new Set(briefValidation?.missing ?? []);
-    return missing;
-  }, [briefValidation]);
-
   if (disabledReason) {
     return (
       <div className="card" style={{ padding: '1rem' }}>
@@ -310,143 +264,33 @@ export function MarketingAiPlannerPanel({
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 480px', minWidth: 0 }}>
           {step === 'brief' ? (
-            <div className="card" style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1rem' }}>Thông tin dự án</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.65rem' }}>
-                {(['brand_name', 'industry', 'service_slug'] as const).map((key) => (
-                  <label key={key} style={{ display: 'grid', gap: '0.3rem' }}>
-                    <span className="muted">
-                      {BRIEF_FIELD_LABELS[key]}
-                      {briefFieldErrors.has(key) ? ' *' : ''}
-                    </span>
-                    <input
-                      style={{
-                        ...inputStyle,
-                        borderColor: briefFieldErrors.has(key) ? 'var(--accent)' : undefined,
-                      }}
-                      value={String(briefDraft[key] ?? (key === 'service_slug' ? serviceSlug ?? '' : ''))}
-                      disabled={!canEdit || busy || key === 'service_slug'}
-                      onChange={(e) => setBriefDraft((p) => ({ ...p, [key]: e.target.value }))}
-                    />
-                  </label>
-                ))}
-                <label style={{ display: 'grid', gap: '0.3rem' }}>
-                  <span className="muted">
-                    {BRIEF_FIELD_LABELS.budget_monthly_vnd}
-                    {briefFieldErrors.has('budget_monthly_vnd') ? ' *' : ''}
-                  </span>
-                  <input
-                    style={inputStyle}
-                    value={formatVnd(briefDraft.budget_monthly_vnd)}
-                    disabled={!canEdit || busy}
-                    onChange={(e) =>
-                      setBriefDraft((p) => ({ ...p, budget_monthly_vnd: parseVnd(e.target.value) }))
-                    }
-                  />
-                </label>
-                <label style={{ display: 'grid', gap: '0.3rem', gridColumn: '1 / -1' }}>
-                  <span className="muted">
-                    {BRIEF_FIELD_LABELS.objective}
-                    {briefFieldErrors.has('objective') ? ' *' : ''}
-                  </span>
-                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    {(['lead', 'awareness', 'sales', 'retention'] as const).map((obj) => (
-                      <label key={obj} style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-                        <input
-                          type="radio"
-                          name="objective"
-                          checked={(briefDraft.objective ?? 'lead') === obj}
-                          disabled={!canEdit || busy}
-                          onChange={() => setBriefDraft((p) => ({ ...p, objective: obj }))}
-                        />
-                        {obj}
-                      </label>
-                    ))}
-                  </div>
-                </label>
-                <label style={{ display: 'grid', gap: '0.3rem' }}>
-                  <span className="muted">
-                    {BRIEF_FIELD_LABELS.geo_markets}
-                    {briefFieldErrors.has('geo_markets') ? ' *' : ''}
-                  </span>
-                  <input
-                    style={inputStyle}
-                    value={(briefDraft.geo_markets ?? []).join(', ')}
-                    disabled={!canEdit || busy}
-                    onChange={(e) =>
-                      setBriefDraft((p) => ({
-                        ...p,
-                        geo_markets: e.target.value.split(',').map((x) => x.trim()).filter(Boolean),
-                      }))
-                    }
-                  />
-                </label>
-                <label style={{ display: 'grid', gap: '0.3rem' }}>
-                  <span className="muted">{BRIEF_FIELD_LABELS.competitors}</span>
-                  <input
-                    style={inputStyle}
-                    value={(briefDraft.competitors ?? []).join(', ')}
-                    disabled={!canEdit || busy}
-                    onChange={(e) =>
-                      setBriefDraft((p) => ({
-                        ...p,
-                        competitors: e.target.value.split(',').map((x) => x.trim()).filter(Boolean),
-                      }))
-                    }
-                  />
-                </label>
-                <label style={{ display: 'grid', gap: '0.3rem', gridColumn: '1 / -1' }}>
-                  <span className="muted">
-                    {BRIEF_FIELD_LABELS.challenges}
-                    {briefFieldErrors.has('challenges') ? ' *' : ''}
-                  </span>
-                  <textarea
-                    rows={3}
-                    style={inputStyle}
-                    value={briefDraft.challenges ?? ''}
-                    disabled={!canEdit || busy}
-                    onChange={(e) => setBriefDraft((p) => ({ ...p, challenges: e.target.value }))}
-                  />
-                </label>
-                <label style={{ display: 'grid', gap: '0.3rem', gridColumn: '1 / -1' }}>
-                  <span className="muted">{BRIEF_FIELD_LABELS.usp}</span>
-                  <textarea
-                    rows={2}
-                    style={inputStyle}
-                    value={briefDraft.usp ?? ''}
-                    disabled={!canEdit || busy}
-                    onChange={(e) => setBriefDraft((p) => ({ ...p, usp: e.target.value }))}
-                  />
-                </label>
-              </div>
-              {(ctx?.prefill_sources?.length ?? 0) > 0 ? (
-                <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                  Đã nhập từ: {ctx!.prefill_sources.join(' · ')}
-                </p>
-              ) : null}
-              {!briefValidation?.ok ? (
-                <ul className="error" style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.85rem' }}>
-                  {briefValidation?.messages.map((m) => (
-                    <li key={m}>{m}</li>
-                  ))}
-                </ul>
-              ) : null}
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                {canEdit ? (
-                  <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void saveBrief()}>
-                    Lưu brief
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="btn btn-sm btn-secondary"
-                  disabled={!briefValidation?.ok}
-                  onClick={() => goToStep('strategy')}
-                >
-                  Tiếp → Strategy
-                </button>
-              </div>
-            </div>
+            <BriefIntakeForm
+              token={token}
+              lifecycleId={lifecycleId}
+              brief={briefDraft}
+              onBriefChange={setBriefDraft}
+              briefValidation={briefValidation}
+              prefillSources={ctx?.prefill_sources}
+              serviceSlug={serviceSlug ?? ctx?.service_slug}
+              canEdit={canEdit}
+              paused={busy}
+              resetAutosaveKey={contextVersion}
+              onPersisted={(out) => {
+                setBriefDraft(out.brief);
+                setCtx((prev) =>
+                  prev
+                    ? { ...prev, brief: out.brief, brief_validation: out.brief_validation }
+                    : prev,
+                );
+                setMessage(
+                  out.brief_validation.ok
+                    ? 'Brief hợp lệ — có thể sinh chiến lược'
+                    : 'Đã lưu brief',
+                );
+              }}
+              onSaveError={(msg) => setError(msg)}
+              onContinue={() => goToStep('strategy')}
+            />
           ) : null}
 
           {step === 'strategy' ? (
