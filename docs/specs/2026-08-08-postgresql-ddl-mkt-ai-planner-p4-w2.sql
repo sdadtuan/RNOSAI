@@ -43,3 +43,20 @@ ALTER TABLE mkt_ai_budget_scenarios
   ADD COLUMN IF NOT EXISTS rationale_vi TEXT;
 
 COMMENT ON COLUMN mkt_ai_budget_scenarios.rationale_vi IS 'Vietnamese rationale for budget scenario (MKTP-UC-027)';
+
+-- Allow strategy_scenarios job type (WS-P4-04)
+ALTER TABLE mkt_ai_jobs DROP CONSTRAINT IF EXISTS mkt_ai_jobs_type_check;
+ALTER TABLE mkt_ai_jobs ADD CONSTRAINT mkt_ai_jobs_type_check CHECK (
+  job_type IN (
+    'brief_summarize',
+    'strategy_generate',
+    'campaign_generate',
+    'content_generate',
+    'quality_score',
+    'apply_to_tmmt',
+    'budget_simulate',
+    'optimize',
+    'multi_agent',
+    'strategy_scenarios'
+  )
+);
