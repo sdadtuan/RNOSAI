@@ -38,10 +38,19 @@ export class MarketingAiDashboardService {
     const serviceSlug = String((lc as Record<string, unknown>).service_slug ?? '');
     this.assertEnabled(serviceSlug);
 
-    const ctx = await this.lifecycle.context(lifecycleId);
-    const agencyClientId = String(ctx.contract.agency_client_id ?? '').trim() || null;
     const weeks = Math.min(12, Math.max(1, Number(opts.weeks ?? 6) || 6));
     const { dateFrom, dateTo, monthStart } = resolveDashboardDateWindow(weeks);
+
+    let agencyClientId: string | null = null;
+    const contextMessages: string[] = [];
+    try {
+      const ctx = await this.lifecycle.context(lifecycleId);
+      agencyClientId = String(ctx.contract.agency_client_id ?? '').trim() || null;
+    } catch {
+      contextMessages.push(
+        'Không tải lifecycle context — Actual KPI có thể thiếu (kiểm tra schema service_lifecycle).',
+      );
+    }
 
     if (!agencyClientId) {
       return {
@@ -63,6 +72,7 @@ export class MarketingAiDashboardService {
         deltas: { cpl_vs_target_pct: null, spend_vs_prev_week_pct: null },
         flags: { perf_tables_ready: false },
         messages: [
+          ...contextMessages,
           'HĐ chưa liên kết agency client — gán agency_client_id trên hợp đồng trước.',
         ],
       };
@@ -82,7 +92,7 @@ export class MarketingAiDashboardService {
       const trend = buildDashboardTrend(rows, weeks, dateTo);
       const deltas = buildDashboardDeltas(trend, targets);
 
-      const messages: string[] = [];
+      const messages: string[] = [...contextMessages];
       if (rows.length === 0) {
         messages.push(
           'Chưa có daily_performance — chạy sync Meta insights hoặc mở tab Performance agency client.',
