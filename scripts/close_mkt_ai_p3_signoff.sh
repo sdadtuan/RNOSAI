@@ -38,13 +38,25 @@ echo "== 3/4 Multi-slug context smoke =="
 bash "$ROOT/scripts/smoke_mkt_ai_multi_slug.sh"
 
 echo ""
-echo "== 4/4 P0 regression smoke (lifecycle #1) =="
+echo "== 4/5 P0 regression smoke (lifecycle #1) =="
 export LIFECYCLE_ID="${LIFECYCLE_ID:-1}"
 bash "$ROOT/scripts/smoke_mkt_ai_planner_context.sh"
 
 echo ""
-echo "OK  P3 API gate pass — proceed manual walkthrough:"
-echo "    docs/use-cases/actions/10-MKTP-ACTIONS.md (UC-019…021)"
-echo "    docs/runbooks/mkt-ai-phase3-signoff.md"
+echo "== 5/5 P3 UAT UC-019…021 (PO sign-off API gate) =="
+export LIFECYCLE_ID="${LIFECYCLE_ID:-1}"
+bash "$ROOT/scripts/run_mkt_ai_p3_uat.sh"
+RC=$?
+
 echo ""
-echo "Optional full P0 UAT: bash scripts/run_mkt_ai_planner_uat.sh"
+if [[ "$RC" -eq 0 ]]; then
+  echo "OK  P3 API UAT pass — PO sign manual UI rows in:"
+  echo "    docs/runbooks/mkt-ai-phase3-signoff.md"
+  echo "    docs/exports/mkt-ai-p3-signoff-*.md"
+elif [[ "$RC" -eq 2 ]]; then
+  echo "WARN P3 UAT blocked — check report in docs/exports/"
+  exit 2
+else
+  echo "FAIL P3 UAT — see docs/exports/mkt-ai-p3-signoff-*.md"
+  exit 1
+fi

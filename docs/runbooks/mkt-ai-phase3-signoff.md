@@ -2,7 +2,8 @@
 
 > **Staging:** https://rs.pttads.vn  
 > **UAT actions:** [`10-MKTP-ACTIONS.md`](../use-cases/actions/10-MKTP-ACTIONS.md) (UC-019…021)  
-> **API gate:** `./scripts/close_mkt_ai_p3_signoff.sh`  
+> **API gate:** `./scripts/close_mkt_ai_p3_signoff.sh` · `./scripts/run_mkt_ai_p3_uat.sh`  
+> **Export:** `docs/exports/mkt-ai-p3-signoff-*.md` (auto after P3 UAT pass)
 > **GA slug rollout:** [`MKTP-UC-024`](../use-cases/actions/10-MKTP-ACTIONS.md#mktp-uc-024--ga-multi-slug-rollout-phase-4--ws-p4-01)  
 > **SOP:** [`mkt-ai-planner-delivery-sop.md`](./mkt-ai-planner-delivery-sop.md)
 
@@ -12,12 +13,13 @@
 
 | # | Việc | Lệnh / bằng chứng | ✓ |
 |---|------|-------------------|---|
-| 1 | Seed 3 slug lifecycles | `./scripts/seed_mkt_ai_uat_lifecycle.sh` | |
-| 2 | Flags 3 slug staging | `PTT_MKT_AI_PLANNER_SLUGS=meta-lead-gen,bds-lead-gen,seo-retainer` | |
-| 3 | Multi-slug smoke | `./scripts/smoke_mkt_ai_multi_slug.sh` exit 0 | |
-| 4 | P0 regression smoke | `LIFECYCLE_ID=1 ./scripts/smoke_mkt_ai_planner_context.sh` | |
-| 5 | RBAC caps SP/AM | `./scripts/seed_mkt_ai_pilot_rbac.sh --apply` | |
-| 6 | Login SP có cap `crm_mkt_ai.generate` | JWT / UI nút Sinh chiến lược enabled | |
+| 1 | Seed 3 slug lifecycles | `./scripts/seed_mkt_ai_uat_lifecycle.sh` | ✓ auto |
+| 2 | Flags 3 slug staging | `PTT_MKT_AI_PLANNER_SLUGS=meta-lead-gen,bds-lead-gen,seo-retainer` | ✓ auto |
+| 3 | Multi-slug smoke | `./scripts/smoke_mkt_ai_multi_slug.sh` exit 0 | ✓ auto |
+| 4 | P0 regression smoke | `LIFECYCLE_ID=1 ./scripts/smoke_mkt_ai_planner_context.sh` | ✓ auto |
+| 5 | RBAC caps SP/AM | `./scripts/seed_mkt_ai_pilot_rbac.sh --apply` | ✓ auto |
+| 6 | P3 API UAT UC-019…021 | `./scripts/run_mkt_ai_p3_uat.sh` exit 0 | ✓ auto |
+| 7 | Login SP có cap `crm_mkt_ai.generate` | JWT / UI nút Sinh chiến lược enabled | PO manual |
 
 **One-shot:**
 
