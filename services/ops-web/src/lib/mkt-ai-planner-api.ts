@@ -210,8 +210,28 @@ export async function postMktAiExport(
     filename: string;
     content: string;
     mime_type: string;
+    encoding?: 'base64' | 'utf8';
   }>(token, lifecycleId, '/export', {
     method: 'POST',
     body: JSON.stringify({ format }),
   });
+}
+
+export function downloadMktAiExportFile(out: {
+  content: string;
+  mime_type: string;
+  filename: string;
+  encoding?: 'base64' | 'utf8';
+}) {
+  const bytes =
+    out.encoding === 'base64'
+      ? Uint8Array.from(atob(out.content), (c) => c.charCodeAt(0))
+      : new TextEncoder().encode(out.content);
+  const blob = new Blob([bytes], { type: out.mime_type || 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = out.filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }

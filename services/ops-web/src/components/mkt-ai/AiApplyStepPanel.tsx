@@ -8,6 +8,7 @@ import { fetchServiceLifecycleMarketingPlan } from '@/lib/api';
 import { buildTmmtApplyDiff, summarizeApplyDiff, truncatePreview } from '@/lib/mkt-ai-apply-diff';
 import { getQualityTier } from '@/lib/mkt-ai-quality-labels';
 import {
+  downloadMktAiExportFile,
   postMktAiApply,
   postMktAiExport,
   postMktAiQualityJob,
@@ -161,13 +162,7 @@ export function AiApplyStepPanel({
     onError('');
     try {
       const out = await postMktAiExport(token, lifecycleId, format);
-      const blob = new Blob([out.content], { type: out.mime_type || 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = out.filename;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadMktAiExportFile(out);
       onMessage(`Đã tải ${out.filename}`);
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Export thất bại');

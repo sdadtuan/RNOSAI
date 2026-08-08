@@ -42,7 +42,13 @@ describe('MarketingAiPlannerController', () => {
   });
 
   it('exportPlan defaults format to pdf', async () => {
-    planner.exportPlan.mockResolvedValue({ format: 'pdf', filename: 'a.pdf', content: '', mime_type: 'text/markdown' });
+    planner.exportPlan.mockResolvedValue({
+      format: 'pdf',
+      filename: 'a.pdf',
+      content: '',
+      mime_type: 'application/pdf',
+      encoding: 'base64',
+    });
     const req = { staffAuthVia: 'internal' } as never;
     await controller.exportPlan(123, {}, req);
     expect(planner.exportPlan).toHaveBeenCalledWith(123, 'pdf', 'internal');

@@ -8,6 +8,7 @@ import {
   StaffMarketingAiPlannerGenerateGuard,
   StaffMarketingAiPlannerViewGuard,
 } from './guards/staff-marketing-ai-planner.guard';
+import { MarketingAiExportService } from './marketing-ai-export.service';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
 import { MarketingAiPlannerController } from './marketing-ai-planner.controller';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
@@ -19,6 +20,7 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
   providers: [
     MarketingAiPlannerRepository,
     MarketingAiOrchestratorService,
+    MarketingAiExportService,
     MarketingAiPlannerService,
     StaffMarketingAiPlannerViewGuard,
     StaffMarketingAiPlannerGenerateGuard,

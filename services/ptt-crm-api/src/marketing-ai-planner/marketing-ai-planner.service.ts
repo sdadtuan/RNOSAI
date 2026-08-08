@@ -11,8 +11,10 @@ import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { validateMktAiBrief, mergeBrief, emptyDraft } from './marketing-ai-brief.util';
 import { computeQualityScore } from './marketing-ai-quality.util';
+import { MarketingAiExportService } from './marketing-ai-export.service';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
+import type { MktAiExportFileResult } from './marketing-ai-export.types';
 import type {
   MktAiBrief,
   MktAiCampaignDraft,
@@ -36,6 +38,7 @@ export class MarketingAiPlannerService {
     private readonly repo: MarketingAiPlannerRepository,
     private readonly orchestrator: MarketingAiOrchestratorService,
     private readonly agentRuns: AiAgentRunsRepository,
+    private readonly exportService: MarketingAiExportService,
   ) {}
 
   private assertEnabled(serviceSlug?: string): void {
@@ -430,7 +433,7 @@ export class MarketingAiPlannerService {
     lifecycleId: number,
     format: string,
     actorEmail: string,
-  ): Promise<{ format: string; filename: string; content: string; mime_type: string }> {
+  ): Promise<MktAiExportFileResult> {
     const lc = await this.loadLifecycleRow(lifecycleId);
     this.assertEnabled(String(lc.service_slug ?? ''));
 
@@ -444,27 +447,18 @@ export class MarketingAiPlannerService {
     if (score < 60) {
       throw new BadRequestException({ error: 'quality_score_too_low', score });
     }
+    if (ctx.quality_score?.can_export_docx_only && fmt !== 'docx') {
+      throw new BadRequestException({ error: 'export_docx_only', score });
+    }
 
-    const brand = ctx.brief?.brand_name ?? 'plan';
-    const date = new Date().toISOString().slice(0, 10);
     const isDraftExport = !ctx.tmmt_validation.ok;
-    const filename = `${brand.replace(/\s+/g, '-').toLowerCase()}${isDraftExport ? '-DRAFT' : ''}-${date}.${fmt === 'xlsx' ? 'csv' : fmt}`;
+    const result = await this.exportService.buildExport({
+      lifecycleId,
+      ctx,
+      format: fmt as 'pdf' | 'docx' | 'xlsx',
+      isDraftExport,
+    });
 
-    const lines = [
-      ...(isDraftExport ? ['> **DRAFT** — Chưa apply vào TMMT chính thức', ''] : []),
-      `# Kế hoạch Marketing AI — ${brand}`,
-      `Lifecycle: #${lifecycleId}`,
-      `Stage: ${ctx.stage}`,
-      `Quality score: ${score}/100`,
-      '',
-      '## Khung chiến lược',
-      ...Object.entries(ctx.draft.strategy_framework ?? {}).map(([k, v]) => `- **${k}**: ${v}`),
-      '',
-      '## TMMT chi tiết',
-      ...Object.entries(ctx.draft.target_market_prof ?? {}).map(([k, v]) => `- **${k}**: ${v}`),
-    ];
-
-    const content = lines.join('\n');
     await this.repo.createExport({
       lifecycle_id: lifecycleId,
       format: fmt,
@@ -472,13 +466,6 @@ export class MarketingAiPlannerService {
       quality_score: score,
     });
 
-    const mime =
-      fmt === 'pdf'
-        ? 'text/markdown'
-        : fmt === 'docx'
-          ? 'text/markdown'
-          : 'text/csv';
-
-    return { format: fmt, filename, content, mime_type: mime };
+    return result;
   }
 }

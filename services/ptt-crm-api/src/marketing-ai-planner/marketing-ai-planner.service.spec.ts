@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { MarketingAiPlannerService } from './marketing-ai-planner.service';
 
 describe('MarketingAiPlannerService', () => {
@@ -38,6 +38,9 @@ describe('MarketingAiPlannerService', () => {
     tableReady: jest.fn().mockResolvedValue(false),
     insertRun: jest.fn(),
   };
+  const exportService = {
+    buildExport: jest.fn(),
+  };
 
   let service: MarketingAiPlannerService;
 
@@ -49,6 +52,7 @@ describe('MarketingAiPlannerService', () => {
       repo as never,
       orchestrator as never,
       agentRuns as never,
+      exportService as never,
     );
     lifecycle.detail.mockResolvedValue({
       id: 123,
@@ -72,6 +76,7 @@ describe('MarketingAiPlannerService', () => {
       repo as never,
       orchestrator as never,
       agentRuns as never,
+      exportService as never,
     );
     await expect(disabled.getContext(123)).rejects.toBeInstanceOf(NotFoundException);
   });
@@ -151,5 +156,60 @@ describe('MarketingAiPlannerService', () => {
         status: 'succeeded',
       }),
     );
+  });
+
+  it('exportPlan rejects score below 60', async () => {
+    repo.getDraft.mockResolvedValue({
+      strategy_framework: {},
+      target_market_prof: {},
+      swot_json: {},
+      campaigns_json: [],
+      content_json: {},
+      quality_score_json: {},
+    });
+    repo.getBrief.mockResolvedValue(null);
+    lifecycle.detail.mockResolvedValue({
+      id: 123,
+      stage: 'onboard',
+      service_slug: 'meta-lead-gen',
+    });
+
+    await expect(service.exportPlan(123, 'pdf', 'sp@test.vn')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('exportPlan enforces docx-only when score 60-69', async () => {
+    repo.getDraft.mockResolvedValue({
+      strategy_framework: { target_market: 'SMB' },
+      target_market_prof: {
+        market_context: 'ctx',
+        segmentation_icp: 'short icp',
+        personas_roles: 'persona',
+      },
+      swot_json: {},
+      campaigns_json: [
+        { name: 'c1', objective: 'lead', channel_mix: ['Meta', 'Google'], budget_pct: 50, kpis: ['CPL'] },
+      ],
+      content_json: {},
+      quality_score_json: {},
+    });
+    repo.getBrief.mockResolvedValue({
+      brief_json: {
+        brand_name: 'Acme',
+        industry: 'B2B',
+        service_slug: 'meta-lead-gen',
+        objective: 'lead',
+        budget_monthly_vnd: 20000000,
+        geo_markets: ['VN'],
+        challenges: 'CPL cao',
+      },
+      prefill_sources_json: [],
+      updated_by: 'sp@test.vn',
+    });
+
+    await expect(service.exportPlan(123, 'pdf', 'sp@test.vn')).rejects.toMatchObject({
+      response: { error: 'export_docx_only' },
+    });
   });
 });
