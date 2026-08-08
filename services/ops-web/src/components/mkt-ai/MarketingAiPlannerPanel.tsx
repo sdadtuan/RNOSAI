@@ -25,6 +25,7 @@ import {
 } from '@/lib/auth';
 import {
   fetchMktAiPlannerContext,
+  patchMktAiDraft,
   postMktAiCampaignsJob,
   postMktAiContentJob,
   postMktAiJobRetry,
