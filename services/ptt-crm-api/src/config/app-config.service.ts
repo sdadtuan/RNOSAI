@@ -158,6 +158,8 @@ export class AppConfigService {
   readonly contentMarketingWeeklyMemoEnabled: boolean;
   readonly contentMarketingWeeklyMemoCron: string;
   readonly contentMarketingExternalMetricsEnabled: boolean;
+  readonly contentMarketingBriefGateEnabled: boolean;
+  readonly contentMarketingPiiConsentDefault: boolean;
 
   constructor() {
     this.applyRuntimeEnvOverrides();
@@ -498,6 +500,12 @@ export class AppConfigService {
     ).trim();
     this.contentMarketingExternalMetricsEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CMKT_EXTERNAL_METRICS ?? '1').trim().toLowerCase(),
+    );
+    this.contentMarketingBriefGateEnabled = !['0', 'false', 'no', 'off'].includes(
+      (process.env.PTT_CMKT_BRIEF_GATE ?? '1').trim().toLowerCase(),
+    );
+    this.contentMarketingPiiConsentDefault = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CMKT_PII_CONSENT_DEFAULT ?? '0').trim().toLowerCase(),
     );
   }
 

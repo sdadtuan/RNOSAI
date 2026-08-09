@@ -26,6 +26,13 @@ export type CmktGenerateInput = {
   variant_count?: number;
 };
 
+export type CmktRegenerateMode = 'rewrite' | 'refresh';
+
+export type CmktRegenerateInput = CmktGenerateInput & {
+  mode?: CmktRegenerateMode;
+  reason?: string;
+};
+
 const PROFILE_RULES: Record<CmktPromptProfile, string> = {
   blog_website: 'Blog SEO-friendly: H1 rõ, intro hook, 3–5 sections, CTA cuối bài.',
   social_fb: 'Facebook social_post: hook ≤125 ký tự; body ≤500; 1 CTA; hashtag ≤5.',
@@ -112,6 +119,42 @@ export function buildVariantsUserPrompt(
     `Goal: ${input.goal || item.funnel_goal || 'engagement'}`,
     `Generate exactly ${count} distinct hook/headline variants (Vietnamese).`,
     item.body_json?.markdown ? `Current body excerpt: ${String(item.body_json.markdown).slice(0, 280)}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+export function buildRegenerateSystemPrompt(
+  profile: CmktPromptProfile,
+  mode: CmktRegenerateMode,
+): string {
+  const modeRule =
+    mode === 'refresh'
+      ? 'Refresh: giữ cấu trúc chính, cập nhật hook/CTA và làm mới wording.'
+      : 'Rewrite: viết lại toàn bộ theo brief, tone và reason — có thể đổi cấu trúc.';
+  return [
+    'You rewrite existing marketing content based on human feedback.',
+    `Profile: ${profile}. Rules: ${PROFILE_RULES[profile]}`,
+    modeRule,
+    'Return JSON: { "markdown": string, "outline"?: string[] }',
+  ].join('\n');
+}
+
+export function buildRegenerateUserPrompt(
+  item: CmktItemRow,
+  brandContext: Record<string, unknown>,
+  input: CmktRegenerateInput,
+  existingMarkdown: string,
+): string {
+  const draftBase = buildDraftUserPrompt(item, brandContext, input);
+  const mode = input.mode ?? 'rewrite';
+  const reason = String(input.reason ?? '').trim();
+  return [
+    draftBase,
+    `Mode: ${mode}`,
+    reason ? `Rewrite reason: ${reason}` : '',
+    'Existing draft to improve:',
+    existingMarkdown.slice(0, 6000),
   ]
     .filter(Boolean)
     .join('\n');

@@ -203,6 +203,8 @@ export type CmktContextFlags = {
   fe_enabled: boolean;
   weekly_memo_enabled: boolean;
   external_metrics_enabled: boolean;
+  brief_gate_enabled: boolean;
+  pii_consent: boolean;
 };
 
 export type CmktContextPayload = {

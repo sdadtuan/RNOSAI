@@ -5,6 +5,8 @@ import { AiLlmClient } from '../ai-intelligence/ai-llm.client';
 import { AppConfigService } from '../config/app-config.service';
 import { ContentBrandContextService } from './content-brand-context.service';
 import {
+  buildRegenerateSystemPrompt,
+  buildRegenerateUserPrompt,
   buildDraftStub,
   buildDraftSystemPrompt,
   buildDraftUserPrompt,
@@ -24,7 +26,9 @@ import {
   normalizeVariantsOutput,
   resolvePromptProfile,
   type CmktGenerateInput,
+  type CmktRegenerateInput,
 } from './content-marketing-prompt.util';
+import { sanitizeItemForPrompt } from './content-pii-consent.util';
 import {
   mergeMediaJson,
   parseCarouselSlideTexts,
@@ -108,7 +112,10 @@ export class ContentJobWorkerService {
         return this.processMediaJob(jobId, claimed, item, started);
       }
 
-      const brand = await this.brandContext.resolveForLifecycle(claimed.lifecycle_id);
+      const brandRaw = await this.brandContext.resolveForLifecycle(claimed.lifecycle_id);
+      const piiConsent = brandRaw.pii_consent === true;
+      const brand = brandRaw;
+      const promptItem = sanitizeItemForPrompt(item, piiConsent);
       const genInput = (claimed.input_json ?? {}) as CmktGenerateInput;
       const profile = resolvePromptProfile(item.channel, item.format);
 
@@ -116,17 +123,32 @@ export class ContentJobWorkerService {
       let userPrompt: string;
       let stubJson: () => Record<string, unknown>;
       let useCase: string;
+      let versionReason = 'ai_generate';
 
       if (claimed.job_type === 'draft_generate') {
         systemPrompt = buildDraftSystemPrompt(profile);
-        userPrompt = buildDraftUserPrompt(item, brand, genInput);
-        stubJson = () => buildDraftStub(item, brand, genInput);
+        userPrompt = buildDraftUserPrompt(promptItem, brand, genInput);
+        stubJson = () => buildDraftStub(promptItem, brand, genInput);
         useCase = 'cmkt_draft_generate';
       } else if (claimed.job_type === 'variant_generate') {
         systemPrompt = buildVariantsSystemPrompt(profile);
-        userPrompt = buildVariantsUserPrompt(item, brand, genInput);
-        stubJson = () => buildVariantsStub(item, genInput);
+        userPrompt = buildVariantsUserPrompt(promptItem, brand, genInput);
+        stubJson = () => buildVariantsStub(promptItem, genInput);
         useCase = 'cmkt_variant_generate';
+      } else if (claimed.job_type === 'regenerate') {
+        const regInput = genInput as CmktRegenerateInput;
+        const existingMarkdown = String(item.body_json?.markdown ?? '').trim();
+        if (!existingMarkdown) {
+          return this.repo.finishContentJob(jobId, {
+            status: 'failed',
+            error_text: 'regenerate_body_required',
+          });
+        }
+        systemPrompt = buildRegenerateSystemPrompt(profile, regInput.mode ?? 'rewrite');
+        userPrompt = buildRegenerateUserPrompt(promptItem, brand, regInput, existingMarkdown);
+        stubJson = () => buildDraftStub(promptItem, brand, regInput);
+        useCase = 'cmkt_regenerate';
+        versionReason = 'ai_regenerate';
       } else if (claimed.job_type === 'repurpose') {
         const sourceId = Number(claimed.input_json?.source_item_id ?? 0);
         const source =
@@ -190,7 +212,7 @@ export class ContentJobWorkerService {
           aiRunId = run.id;
         }
 
-        if (claimed.job_type === 'draft_generate') {
+        if (claimed.job_type === 'draft_generate' || claimed.job_type === 'regenerate') {
           const draft = normalizeDraftOutput(parsed, stubJson());
           const bodyJson: CmktBodyJson = {
             markdown: draft.markdown,
@@ -202,12 +224,20 @@ export class ContentJobWorkerService {
             item.id,
             bodyJson,
             claimed.created_by,
-            'ai_generate',
+            versionReason,
             aiRunId,
           );
           return this.repo.finishContentJob(jobId, {
             status: 'succeeded',
-            output_json: { body_json: bodyJson, version_no: versionNo, profile, stub_mode: !this.aiConfig.llmApiKey },
+            output_json: {
+              body_json: bodyJson,
+              version_no: versionNo,
+              profile,
+              stub_mode: !this.aiConfig.llmApiKey,
+              regenerate: claimed.job_type === 'regenerate',
+              mode: claimed.job_type === 'regenerate' ? (genInput as CmktRegenerateInput).mode ?? 'rewrite' : undefined,
+              pii_consent: piiConsent,
+            },
             ai_run_id: aiRunId,
           });
         }

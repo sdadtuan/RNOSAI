@@ -8,7 +8,8 @@ import {
 import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { CMKT_P0_CHANNEL_DEFAULTS } from './content-marketing.constants';
-import { computePlannerSourceHash } from './content-plan-snapshot.util';
+import { buildBrandContextJson, computePlannerSourceHash } from './content-plan-snapshot.util';
+import { resolvePiiConsent } from './content-pii-consent.util';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import type { CmktContextPayload } from './content-marketing.types';
 
@@ -64,6 +65,15 @@ export class ContentMarketingService {
 
     const emailClientId = String(lcCtx?.contract?.agency_client_id ?? '').trim() || null;
 
+    let brandForConsent: Record<string, unknown> = {};
+    if (snapshotRow?.brand_context_json && Object.keys(snapshotRow.brand_context_json).length) {
+      brandForConsent = snapshotRow.brand_context_json;
+    } else if (plannerSource?.brief_json) {
+      brandForConsent = buildBrandContextJson(plannerSource.brief_json);
+    }
+    const piiConsent =
+      resolvePiiConsent(brandForConsent, lcCtx) || this.config.contentMarketingPiiConsentDefault;
+
     return {
       ok: true,
       lifecycle_id: lifecycleId,
@@ -93,6 +103,8 @@ export class ContentMarketingService {
         fe_enabled: this.config.contentMarketingFeEnabled,
         weekly_memo_enabled: this.config.contentMarketingWeeklyMemoEnabled,
         external_metrics_enabled: this.config.contentMarketingExternalMetricsEnabled,
+        brief_gate_enabled: this.config.contentMarketingBriefGateEnabled,
+        pii_consent: piiConsent,
       },
       channel_defaults: [...CMKT_P0_CHANNEL_DEFAULTS],
       email_client_id: emailClientId,

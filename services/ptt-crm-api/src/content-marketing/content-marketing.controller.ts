@@ -286,6 +286,18 @@ export class ContentMarketingController {
     return this.generate.startVariantsJob(lifecycleId, itemId, body, actorEmail(req));
   }
 
+  @Post('items/:itemId/jobs/regenerate')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  startRegenerateJob(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.generate.startRegenerateJob(lifecycleId, itemId, body, actorEmail(req));
+  }
+
   @Get('jobs/:jobId')
   getJob(
     @Param('lifecycleId', ParseIntPipe) lifecycleId: number,

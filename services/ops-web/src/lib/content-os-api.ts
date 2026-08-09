@@ -27,6 +27,7 @@ async function cmktFetch<T>(
       body.message ?? body.error ?? 'Content OS request failed',
       res.status,
       body.error,
+      body as Record<string, unknown>,
     );
   }
   return body;
@@ -37,6 +38,7 @@ export class CmktApiError extends ApiError {
     message: string,
     status: number,
     readonly code?: string,
+    readonly details?: Record<string, unknown>,
   ) {
     super(message, status);
     this.name = 'CmktApiError';
@@ -58,6 +60,10 @@ export function parseCmktGateError(err: unknown): string {
         return 'Comment từ chối tối thiểu 10 ký tự.';
       case 'media_copy_not_approved':
         return 'Media job chỉ chạy sau khi copy được duyệt nội bộ.';
+      case 'brief_incomplete':
+        return 'Brief thiếu audience hoặc goal — bổ sung trước khi generate.';
+      case 'regenerate_body_required':
+        return 'Cần nội dung draft trước khi regenerate.';
       default:
         break;
     }
@@ -99,6 +105,8 @@ export type ContentOsContext = {
     client_gate: boolean;
     portal_summary_enabled: boolean;
     fe_enabled: boolean;
+    brief_gate_enabled?: boolean;
+    pii_consent?: boolean;
   };
   channel_defaults: string[];
   email_client_id: string | null;
@@ -470,6 +478,24 @@ export function postContentOsVariantsJob(
   body?: { tone?: string; goal?: string; variant_count?: number },
 ): Promise<ContentOsJob> {
   return cmktFetch(token, lifecycleId, `/items/${itemId}/jobs/variants`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function postContentOsRegenerateJob(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body?: {
+    mode?: 'rewrite' | 'refresh';
+    reason?: string;
+    tone?: string;
+    length?: string;
+    goal?: string;
+  },
+): Promise<ContentOsJob> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/jobs/regenerate`, {
     method: 'POST',
     body: JSON.stringify(body ?? {}),
   });

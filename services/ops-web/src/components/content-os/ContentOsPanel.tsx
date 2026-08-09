@@ -622,8 +622,11 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
                     token={token}
                     lifecycleId={lifecycleId}
                     itemId={drawerItemId}
+                    item={drawerItem}
                     aiEnabled={Boolean(ctx?.flags.ai_enabled)}
                     canGenerate={canGenerate}
+                    canWrite={canWrite}
+                    piiConsent={Boolean(ctx?.flags.pii_consent)}
                     onJobDone={refreshDrawerItem}
                     onMessage={setMessage}
                     onError={setError}
