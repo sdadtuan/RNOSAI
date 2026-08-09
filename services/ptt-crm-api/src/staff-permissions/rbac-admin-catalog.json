@@ -194,6 +194,17 @@
       "generate",
       "view"
     ],
+    "crm_content": [
+      "admin",
+      "approve_internal",
+      "assign",
+      "generate",
+      "production",
+      "publish",
+      "qa",
+      "view",
+      "write"
+    ],
     "crm_business_dashboard": [
       "approve",
       "claim",
@@ -840,6 +851,13 @@
       "group": "CRM — Triển khai dịch vụ",
       "page": "/crm/service-delivery",
       "description": "Tab AI Planner: brief, sinh chiến lược/campaign/content, apply TMMT, export."
+    },
+    {
+      "id": "crm_content",
+      "label": "Triển khai DV — Content Board",
+      "group": "CRM — Triển khai dịch vụ",
+      "page": "/crm/service-delivery",
+      "description": "Tab Content OS: ideas, items, workflow duyệt, calendar, publish."
     },
     {
       "id": "crm_business_dashboard",
@@ -1571,6 +1589,7 @@
     "crm_leads__btn_save",
     "crm_mktplan",
     "crm_mkt_ai",
+    "crm_content",
     "crm_owner_weekly_dashboard",
     "crm_payroll_attendance",
     "crm_payroll_device",

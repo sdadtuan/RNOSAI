@@ -28,6 +28,7 @@ import { MetaAdsOpsModule } from './meta-ads-ops/meta-ads-ops.module';
 import { ZaloAdsOpsModule } from './zalo-ads-ops/zalo-ads-ops.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { MarketingAiPlannerModule } from './marketing-ai-planner/marketing-ai-planner.module';
+import { ContentMarketingModule } from './content-marketing/content-marketing.module';
 import { MarketingPlansModule } from './marketing-plans/marketing-plans.module';
 import { ServiceLifecycleModule } from './service-lifecycle/service-lifecycle.module';
 import { SvcFinanceModule } from './svc-finance/svc-finance.module';
@@ -117,6 +118,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     ReProjectsModule,
     MarketingPlansModule,
     MarketingAiPlannerModule,
+    ContentMarketingModule,
     ServiceLifecycleModule,
     LaunchQaModule,
     CrmCreativesModule,

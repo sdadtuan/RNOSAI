@@ -130,6 +130,13 @@ export class AppConfigService {
   readonly mktAiPortalSummaryEnabled: boolean;
   readonly mktAiKpiClosedLoopEnabled: boolean;
   readonly mktAiWeeklyMemoCron: string;
+  readonly contentMarketingEnabled: boolean;
+  readonly contentMarketingFeEnabled: boolean;
+  readonly contentMarketingAiEnabled: boolean;
+  readonly contentMarketingApprovalRequired: boolean;
+  readonly contentMarketingMediaEnabled: boolean;
+  readonly contentMarketingClientGate: boolean;
+  readonly contentMarketingSlugs: string[];
 
   constructor() {
     this.applyRuntimeEnvOverrides();
@@ -401,6 +408,28 @@ export class AppConfigService {
       (process.env.PTT_MKT_AI_KPI_CLOSED_LOOP ?? '0').trim().toLowerCase(),
     );
     this.mktAiWeeklyMemoCron = (process.env.PTT_MKT_AI_WEEKLY_MEMO_CRON ?? '0 9 * * 1').trim();
+    this.contentMarketingEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CONTENT_MARKETING_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.contentMarketingFeEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CONTENT_MARKETING_FE ?? '0').trim().toLowerCase(),
+    );
+    this.contentMarketingAiEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CONTENT_MARKETING_AI_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.contentMarketingApprovalRequired = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CONTENT_MARKETING_APPROVAL_REQUIRED ?? '0').trim().toLowerCase(),
+    );
+    this.contentMarketingMediaEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CONTENT_MARKETING_MEDIA_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.contentMarketingClientGate = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CONTENT_MARKETING_CLIENT_GATE ?? '0').trim().toLowerCase(),
+    );
+    this.contentMarketingSlugs = (process.env.PTT_CONTENT_MARKETING_SLUGS ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
 
   private parsePortalCorsOrigins(): string[] {
