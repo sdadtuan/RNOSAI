@@ -8,6 +8,11 @@ import { ContentCalendarService } from './content-calendar.service';
 import { ContentCommentsService } from './content-comments.service';
 import { ContentEmailBridgeService } from './content-email-bridge.service';
 import { ContentExternalMetricsService } from './content-external-metrics.service';
+import { ContentMediaAssetCacheService } from './content-media-asset-cache.service';
+import { ContentMediaCleanService } from './content-media-clean.service';
+import { ContentMediaStockProvider } from './content-media-stock.provider';
+import { ContentMediaTtsProvider } from './content-media-tts.provider';
+import { ContentMediaVideoProvider } from './content-media-video.provider';
 import { ContentGenerateService } from './content-generate.service';
 import { ContentIdeaService } from './content-idea.service';
 import { ContentIntelligenceService } from './content-intelligence.service';
@@ -72,6 +77,11 @@ import {
     ContentProductionService,
     StubMediaProvider,
     ReplicateMediaProvider,
+    ContentMediaAssetCacheService,
+    ContentMediaCleanService,
+    ContentMediaTtsProvider,
+    ContentMediaStockProvider,
+    ContentMediaVideoProvider,
     ContentMediaStorageService,
     ContentVisualQaService,
     ContentMediaImageProvider,

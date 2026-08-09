@@ -773,8 +773,11 @@ export type ContentOsMediaAsset = {
   slide_index?: number;
   provider_request_id?: string;
   storage_key?: string;
+  clean_storage_key?: string;
   duration_sec?: number;
   poster_url?: string;
+  ocr_confidence?: number;
+  brand_delta_e?: number;
 };
 
 export type ContentOsMediaJson = {
@@ -791,6 +794,9 @@ export type ContentOsMediaJson = {
     checks?: Record<string, boolean>;
     blocked?: boolean;
     notes?: string;
+    brand_delta_e_max?: number | null;
+    ocr_confidence?: number;
+    contrast_ratio?: number;
   };
   style_preset?: string;
   aspect_ratio?: string;

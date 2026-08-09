@@ -1,7 +1,7 @@
 import { ContentJobWorkerService } from './content-job-worker.service';
 
 describe('ContentJobWorkerService', () => {
-  const config = { mktAiModel: 'gpt-4o-mini' };
+  const config = { mktAiModel: 'gpt-4o-mini', contentMarketingVideoProvider: 'stub' };
   const aiConfig = { llmApiKey: '', llmModel: 'gpt-4o-mini' };
   const llm = {
     completeJson: jest.fn().mockResolvedValue({
@@ -25,20 +25,35 @@ describe('ContentJobWorkerService', () => {
 
   const mediaImages = {
     providerName: 'stub',
-    generateImages: jest.fn().mockResolvedValue([
-      {
-        id: 'asset-1',
-        type: 'image',
-        url: 'https://cdn.pttads.vn/cmkt/1/5/asset-1.webp',
-        ai_generated: true,
-        provider: 'stub',
-        selected: true,
-        draft_watermark: false,
-        prompt_hash: 'abc',
-        storage_key: '1/5/asset-1.webp',
-        visual_qa_score: 84,
+    generateImages: jest.fn().mockResolvedValue({
+      assets: [
+        {
+          id: 'asset-1',
+          type: 'image',
+          url: 'https://cdn.pttads.vn/cmkt/1/5/asset-1.webp',
+          ai_generated: true,
+          provider: 'stub',
+          selected: true,
+          draft_watermark: true,
+          clean_storage_key: '1/5/asset-1-clean.webp',
+          prompt_hash: 'abc',
+          storage_key: '1/5/asset-1.webp',
+          visual_qa_score: 84,
+          ocr_confidence: 0.8,
+          brand_delta_e: 6,
+        },
+      ],
+      qa: {
+        score: 84,
+        checks: { assets_present: true, dimensions_ok: true, brand_delta_e_ok: true, ocr_confidence_ok: true },
+        blocked: false,
+        brand_delta_e_max: 6,
+        ocr_confidence: 0.8,
       },
-    ]),
+    }),
+  };
+  const mediaVideo = {
+    generateShortVideo: jest.fn(),
   };
   const visualQa = {
     scoreAssets: jest.fn().mockReturnValue({
@@ -60,6 +75,7 @@ describe('ContentJobWorkerService', () => {
       repo as never,
       brandContext as never,
       mediaImages as never,
+      mediaVideo as never,
       visualQa as never,
     );
   });

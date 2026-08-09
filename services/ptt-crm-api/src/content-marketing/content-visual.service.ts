@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ContentMediaCleanService } from './content-media-clean.service';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import { ContentMarketingService } from './content-marketing.service';
 import { itemNeedsVisualApproval, mergeMediaJson } from './content-media.util';
@@ -12,6 +13,7 @@ export class ContentVisualService {
   constructor(
     private readonly core: ContentMarketingService,
     private readonly repo: ContentMarketingRepository,
+    private readonly mediaClean: ContentMediaCleanService,
   ) {}
 
   async listVisualReviewQueue(
@@ -73,16 +75,18 @@ export class ContentVisualService {
       },
     });
 
+    const promotedMedia = this.mediaClean.promoteMediaJson(media, lifecycleId, itemId);
+
     let production_json = item.production_json;
     if (item.format === 'carousel' || itemNeedsVisualApproval(item)) {
       production_json = mergeProductionJson(item.production_json, { phase: 'done' });
     }
 
-    const selected = media.selected_asset_id
-      ? [...(media.ai_assets ?? []), ...(media.carousel_slides ?? [])].find(
-          (a) => a.id === media.selected_asset_id,
+    const selected = promotedMedia.selected_asset_id
+      ? [...(promotedMedia.ai_assets ?? []), ...(promotedMedia.carousel_slides ?? [])].find(
+          (a) => a.id === promotedMedia.selected_asset_id,
         )
-      : [...(media.ai_assets ?? []), ...(media.carousel_slides ?? [])].find((a) => a.selected);
+      : [...(promotedMedia.ai_assets ?? []), ...(promotedMedia.carousel_slides ?? [])].find((a) => a.selected);
 
     if (selected?.url) {
       production_json = mergeProductionJson(production_json, {
@@ -92,7 +96,7 @@ export class ContentVisualService {
 
     const updated = await this.repo.patchItem(lifecycleId, itemId, {
       visual_status: 'approved',
-      media_json: media,
+      media_json: promotedMedia,
       production_json,
     });
     await this.repo.insertItemVersion(itemId, updated.body_json, actorEmail, 'visual_approve');

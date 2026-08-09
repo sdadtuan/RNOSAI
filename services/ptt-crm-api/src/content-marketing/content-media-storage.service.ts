@@ -24,16 +24,24 @@ export class ContentMediaStorageService {
     return this.config.contentMarketingCdnBase.replace(/\/$/, '');
   }
 
-  buildStorageKey(lifecycleId: number, itemId: number, assetId: string): string {
-    return `${lifecycleId}/${itemId}/${assetId}.webp`;
+  buildStorageKey(lifecycleId: number, itemId: number, assetId: string, ext = 'webp'): string {
+    const safeId = assetId.replace(/\.(webp|mp4|json)$/i, '');
+    return `${lifecycleId}/${itemId}/${safeId}.${ext}`;
   }
 
   buildPublicUrl(storageKey: string): string {
     return `${this.cdnBase}/${storageKey}`;
   }
 
-  async uploadAsset(input: CmktMediaUploadInput): Promise<CmktMediaUploadResult> {
-    const storageKey = this.buildStorageKey(input.lifecycleId, input.itemId, input.assetId);
+  async uploadAsset(input: CmktMediaUploadInput & { fileExt?: string }): Promise<CmktMediaUploadResult> {
+    const ext =
+      input.fileExt ??
+      (input.contentType.includes('json')
+        ? 'json'
+        : input.contentType.includes('mp4')
+          ? 'mp4'
+          : 'webp');
+    const storageKey = this.buildStorageKey(input.lifecycleId, input.itemId, input.assetId, ext);
     const bucket = this.config.contentMarketingS3Bucket;
     const hasS3 =
       bucket &&

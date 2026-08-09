@@ -364,17 +364,36 @@ export function ContentOsMediaStudio({
             {media.video_short.duration_sec ?? 45}s · {media.video_short.provider}
           </div>
           <a href={media.video_short.url} target="_blank" rel="noreferrer">
-            Mở video stub
+            Mở video preview
           </a>
+          {media.video_short.draft_watermark ? (
+            <span className="muted" style={{ marginLeft: 8, fontSize: '0.75rem' }}>
+              DRAFT watermark — clean sau visual approve
+            </span>
+          ) : null}
         </div>
       ) : null}
 
-      {qa?.checks ? (
-        <div className="muted" style={{ fontSize: '0.78rem' }}>
-          {Object.entries(qa.checks)
-            .filter(([, ok]) => ok)
-            .map(([k]) => k.replace(/_/g, ' '))
-            .join(' · ') || 'QA checks pending'}
+      {qa ? (
+        <div style={{ fontSize: '0.78rem', display: 'grid', gap: 4 }}>
+          <div>
+            Visual QA score: <strong>{qa.score}</strong>
+            {qa.blocked ? ' · blocked' : ''}
+          </div>
+          {qa.brand_delta_e_max != null ? (
+            <div className="muted">Brand ΔE max: {qa.brand_delta_e_max}</div>
+          ) : null}
+          {qa.ocr_confidence != null ? (
+            <div className="muted">OCR confidence: {Math.round(qa.ocr_confidence * 100)}%</div>
+          ) : null}
+          {qa.checks ? (
+            <div className="muted">
+              {Object.entries(qa.checks)
+                .filter(([, ok]) => ok)
+                .map(([k]) => k.replace(/_/g, ' '))
+                .join(' · ') || 'QA checks pending'}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

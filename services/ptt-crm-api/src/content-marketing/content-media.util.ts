@@ -101,6 +101,12 @@ export function mergeMediaJson(
   if (Array.isArray(patch.carousel_slides)) {
     next.carousel_slides = patch.carousel_slides as CmktMediaAsset[];
   }
+  if (patch.video_short !== undefined) {
+    next.video_short = patch.video_short as CmktMediaAsset | null;
+  }
+  if (patch.video_generation != null && typeof patch.video_generation === 'object') {
+    next.video_generation = patch.video_generation as CmktMediaJson['video_generation'];
+  }
   return next;
 }
 

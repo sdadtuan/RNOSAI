@@ -150,6 +150,10 @@ export class AppConfigService {
   readonly contentMarketingVideoGenEnabled: boolean;
   readonly contentMarketingPortalSummaryEnabled: boolean;
   readonly contentMarketingVideoProvider: string;
+  readonly contentMarketingTtsProvider: string;
+  readonly contentMarketingTtsVoice: string;
+  readonly contentMarketingStockProvider: string;
+  readonly contentMarketingStockApiKey: string;
   readonly contentMarketingSlugs: string[];
   readonly contentMarketingWeeklyMemoEnabled: boolean;
   readonly contentMarketingWeeklyMemoCron: string;
@@ -478,6 +482,10 @@ export class AppConfigService {
       (process.env.PTT_CMKT_PORTAL_SUMMARY ?? '0').trim().toLowerCase(),
     );
     this.contentMarketingVideoProvider = (process.env.PTT_CMKT_VIDEO_PROVIDER ?? 'stub').trim() || 'stub';
+    this.contentMarketingTtsProvider = (process.env.PTT_CMKT_TTS_PROVIDER ?? 'stub').trim() || 'stub';
+    this.contentMarketingTtsVoice = (process.env.PTT_CMKT_TTS_VOICE ?? 'alloy').trim() || 'alloy';
+    this.contentMarketingStockProvider = (process.env.PTT_CMKT_STOCK_PROVIDER ?? 'stub').trim() || 'stub';
+    this.contentMarketingStockApiKey = (process.env.PTT_CMKT_STOCK_API_KEY ?? '').trim();
     this.contentMarketingSlugs = (process.env.PTT_CONTENT_MARKETING_SLUGS ?? '')
       .split(',')
       .map((s) => s.trim())

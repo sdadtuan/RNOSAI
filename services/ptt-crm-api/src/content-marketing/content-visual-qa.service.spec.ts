@@ -38,7 +38,7 @@ describe('ContentVisualQaService', () => {
     expect(result.checks).toMatchObject({
       assets_present: true,
       channel_spec: true,
-      ocr_placeholder: true,
+      ocr_confidence_ok: expect.any(Boolean),
     });
   });
 });

@@ -37,6 +37,7 @@ import {
   parseMetricsRange,
 } from './content-intelligence.util';
 import { buildContentWeeklyMemo } from './content-weekly-memo.util';
+import { ContentMediaVideoProvider } from './content-media-video.provider';
 import { ContentVisualQaService } from './content-visual-qa.service';
 import { ContentMediaImageProvider } from './content-media-image.provider';
 import { ContentMarketingRepository } from './content-marketing.repository';
@@ -55,6 +56,7 @@ export class ContentJobWorkerService {
     private readonly repo: ContentMarketingRepository,
     private readonly brandContext: ContentBrandContextService,
     private readonly mediaImages: ContentMediaImageProvider,
+    private readonly mediaVideo: ContentMediaVideoProvider,
     private readonly visualQa: ContentVisualQaService,
   ) {}
 
@@ -302,10 +304,53 @@ export class ContentJobWorkerService {
     const stylePreset = String(input.style_preset ?? 'corporate');
     const draftWatermark = input.allow_draft_watermark === true || item.status === 'draft';
     const approvedCopy = String(item.body_json?.markdown ?? item.title).trim();
+    const brandContext = await this.brandContext.resolveForLifecycle(claimed.lifecycle_id);
 
     try {
       if (claimed.job_type === 'video_short_generate') {
-        const script = String(item.body_json?.markdown ?? item.title).trim();
+        const script = approvedCopy;
+        const usePipeline = this.config.contentMarketingVideoProvider !== 'stub';
+        if (usePipeline) {
+          const generated = await this.mediaVideo.generateShortVideo({
+            lifecycleId: claimed.lifecycle_id,
+            itemId: item.id,
+            script,
+            title: item.title,
+          });
+          const { asset, progress, pipeline } = generated;
+          const media = mergeMediaJson(item.media_json, {
+            video_short: asset,
+            video_generation: progress,
+            ai_assets: [asset],
+            selected_asset_id: asset.id,
+            provider: asset.provider,
+            aspect_ratio: resolveAspectRatio(input.aspect_ratio, item.channel, item.format),
+          });
+          const qa = this.visualQa.scoreAssets([asset], {
+            aspectRatio: resolveAspectRatio(input.aspect_ratio, item.channel, item.format),
+          });
+          media.visual_qa = qa;
+          await this.repo.patchItem(claimed.lifecycle_id, item.id, {
+            media_json: media,
+            visual_status: 'ai_ready',
+            production_json: {
+              ...(item.production_json ?? {}),
+              final_video_url: asset.url,
+              subtitle_text: script.slice(0, 200),
+            },
+          });
+          return this.repo.finishContentJob(jobId, {
+            status: 'succeeded',
+            output_json: {
+              video_short: asset,
+              video_generation: progress,
+              pipeline,
+              visual_qa: qa,
+              latency_ms: Date.now() - started,
+            },
+          });
+        }
+
         const { asset, progress } = buildVideoShortStub({
           lifecycleId: claimed.lifecycle_id,
           itemId: item.id,
@@ -365,7 +410,7 @@ export class ContentJobWorkerService {
       let assets: CmktMediaAsset[] = [];
       if (claimed.job_type === 'carousel_slides_generate') {
         const slides = parseCarouselSlideTexts(approvedCopy);
-        assets = await this.mediaImages.generateImages({
+        const bundle = await this.mediaImages.generateImages({
           lifecycleId: claimed.lifecycle_id,
           itemId: item.id,
           variantCount: slides.length,
@@ -376,7 +421,9 @@ export class ContentJobWorkerService {
           draftWatermark,
           slideTexts: slides,
           assetType: 'carousel_slide',
+          brandContext,
         });
+        const assets = bundle.assets;
         const media = mergeMediaJson(item.media_json, {
           carousel_slides: assets,
           ai_assets: assets,
@@ -385,8 +432,13 @@ export class ContentJobWorkerService {
           provider: this.mediaImages.providerName,
           prompt_hash: assets[0]?.prompt_hash,
         });
-        const qa = this.visualQa.scoreAssets(assets, { aspectRatio });
-        media.visual_qa = qa;
+        media.visual_qa = {
+          score: bundle.qa.score,
+          checks: bundle.qa.checks,
+          blocked: bundle.qa.blocked,
+          brand_delta_e_max: bundle.qa.brand_delta_e_max,
+          ocr_confidence: bundle.qa.ocr_confidence,
+        };
         await this.repo.patchItem(claimed.lifecycle_id, item.id, {
           media_json: media,
           visual_status: 'ai_ready',
@@ -395,14 +447,14 @@ export class ContentJobWorkerService {
           status: 'succeeded',
           output_json: {
             carousel_slides: assets,
-            visual_qa: qa,
+            visual_qa: media.visual_qa,
             latency_ms: Date.now() - started,
           },
         });
       }
 
       const variantCount = Math.min(Math.max(Number(input.variant_count ?? 3), 1), 5);
-      assets = await this.mediaImages.generateImages({
+      const bundle = await this.mediaImages.generateImages({
         lifecycleId: claimed.lifecycle_id,
         itemId: item.id,
         variantCount,
@@ -412,7 +464,9 @@ export class ContentJobWorkerService {
         approvedCopy,
         draftWatermark,
         assetType: 'image',
+        brandContext,
       });
+      assets = bundle.assets;
       const media = mergeMediaJson(item.media_json, {
         ai_assets: assets,
         aspect_ratio: aspectRatio,
@@ -421,8 +475,13 @@ export class ContentJobWorkerService {
         prompt_hash: assets[0]?.prompt_hash,
         selected_asset_id: assets.find((a) => a.selected)?.id ?? assets[0]?.id ?? null,
       });
-      const qa = this.visualQa.scoreAssets(assets, { aspectRatio });
-      media.visual_qa = qa;
+      media.visual_qa = {
+        score: bundle.qa.score,
+        checks: bundle.qa.checks,
+        blocked: bundle.qa.blocked,
+        brand_delta_e_max: bundle.qa.brand_delta_e_max,
+        ocr_confidence: bundle.qa.ocr_confidence,
+      };
       await this.repo.patchItem(claimed.lifecycle_id, item.id, {
         media_json: media,
         visual_status: 'ai_ready',
@@ -431,7 +490,7 @@ export class ContentJobWorkerService {
         status: 'succeeded',
         output_json: {
           ai_assets: assets,
-          visual_qa: qa,
+          visual_qa: media.visual_qa,
           latency_ms: Date.now() - started,
         },
       });
