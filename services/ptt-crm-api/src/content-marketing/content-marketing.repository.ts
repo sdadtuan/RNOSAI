@@ -9,6 +9,8 @@ import type {
   CmktContextCounts,
   CmktIdeaRow,
   CmktItemRow,
+  CmktItemVersionRow,
+  CmktJobRow,
   CmktPillarRow,
 } from './content-marketing.types';
 import type { PlannerIngestSource, SnapshotPillarDraft } from './content-plan-snapshot.util';
@@ -18,10 +20,14 @@ type MemoryStore = {
   items: Map<number, CmktItemRow[]>;
   snapshots: Map<number, CmktActiveSnapshotRow[]>;
   pillars: Map<number, CmktPillarRow[]>;
+  jobs: Map<number, CmktJobRow>;
+  versions: Map<number, CmktItemVersionRow[]>;
   nextIdeaId: number;
   nextItemId: number;
   nextSnapshotId: number;
   nextPillarId: number;
+  nextJobId: number;
+  nextVersionId: number;
   nextVersionNo: Map<number, number>;
   plannerSources: Map<number, PlannerIngestSource>;
 };
@@ -56,6 +62,23 @@ function mapIdeaRow(row: Record<string, unknown>): CmktIdeaRow {
     created_by: String(row.created_by ?? ''),
     created_at: new Date(String(row.created_at)).toISOString(),
     updated_at: new Date(String(row.updated_at)).toISOString(),
+  };
+}
+
+function mapJobRow(row: Record<string, unknown>): CmktJobRow {
+  return {
+    id: Number(row.id),
+    lifecycle_id: Number(row.lifecycle_id),
+    item_id: row.item_id != null ? Number(row.item_id) : null,
+    job_type: String(row.job_type ?? ''),
+    status: String(row.status ?? 'queued') as CmktJobRow['status'],
+    input_json: (row.input_json as Record<string, unknown>) ?? {},
+    output_json: (row.output_json as Record<string, unknown>) ?? {},
+    error_text: row.error_text != null ? String(row.error_text) : null,
+    ai_run_id: row.ai_run_id != null ? String(row.ai_run_id) : null,
+    created_by: String(row.created_by ?? ''),
+    created_at: new Date(String(row.created_at)).toISOString(),
+    finished_at: row.finished_at ? new Date(String(row.finished_at)).toISOString() : null,
   };
 }
 
@@ -97,10 +120,14 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     items: new Map(),
     snapshots: new Map(),
     pillars: new Map(),
+    jobs: new Map(),
+    versions: new Map(),
     nextIdeaId: 1,
     nextItemId: 1,
     nextSnapshotId: 1,
     nextPillarId: 1,
+    nextJobId: 1,
+    nextVersionId: 1,
     nextVersionNo: new Map(),
     plannerSources: new Map(),
   };
@@ -862,7 +889,8 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     bodyJson: CmktBodyJson,
     changedBy: string,
     changeReason: string,
-  ): Promise<void> {
+    aiRunId?: string | null,
+  ): Promise<number> {
     if (await this.ensurePgReady()) {
       const verRes = await this.db.query(
         `SELECT COALESCE(MAX(version_no), 0)::int AS max_v FROM cmkt_content_item_versions WHERE item_id = $1`,
@@ -870,13 +898,177 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       );
       const versionNo = Number(verRes.rows[0]?.max_v ?? 0) + 1;
       await this.db.query(
-        `INSERT INTO cmkt_content_item_versions (item_id, version_no, body_json, changed_by, change_reason)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [itemId, versionNo, JSON.stringify(bodyJson), changedBy, changeReason],
+        `INSERT INTO cmkt_content_item_versions (item_id, version_no, body_json, changed_by, change_reason, ai_run_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [itemId, versionNo, JSON.stringify(bodyJson), changedBy, changeReason, aiRunId ?? null],
       );
-      return;
+      return versionNo;
     }
     const versionNo = (this.memory.nextVersionNo.get(itemId) ?? 0) + 1;
     this.memory.nextVersionNo.set(itemId, versionNo);
+    const list = this.memory.versions.get(itemId) ?? [];
+    list.push({
+      id: this.memory.nextVersionId++,
+      item_id: itemId,
+      version_no: versionNo,
+      body_json: bodyJson,
+      changed_by: changedBy,
+      change_reason: changeReason,
+      ai_run_id: aiRunId ?? null,
+      created_at: new Date().toISOString(),
+    });
+    this.memory.versions.set(itemId, list);
+    return versionNo;
+  }
+
+  async listItemVersions(itemId: number): Promise<CmktItemVersionRow[]> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, item_id, version_no, body_json, changed_by, change_reason,
+                ai_run_id::text AS ai_run_id, created_at
+         FROM cmkt_content_item_versions
+         WHERE item_id = $1
+         ORDER BY version_no DESC`,
+        [itemId],
+      );
+      return res.rows.map((row) => ({
+        id: Number(row.id),
+        item_id: Number(row.item_id),
+        version_no: Number(row.version_no),
+        body_json: (row.body_json as CmktBodyJson) ?? emptyBodyJson(),
+        changed_by: String(row.changed_by ?? ''),
+        change_reason: String(row.change_reason ?? ''),
+        ai_run_id: row.ai_run_id != null ? String(row.ai_run_id) : null,
+        created_at: new Date(String(row.created_at)).toISOString(),
+      }));
+    }
+    return [...(this.memory.versions.get(itemId) ?? [])].sort((a, b) => b.version_no - a.version_no);
+  }
+
+  async createContentJob(input: {
+    lifecycle_id: number;
+    item_id: number;
+    job_type: string;
+    input_json: Record<string, unknown>;
+    created_by: string;
+  }): Promise<CmktJobRow> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `INSERT INTO cmkt_content_jobs (lifecycle_id, item_id, job_type, status, input_json, created_by)
+         VALUES ($1, $2, $3, 'queued', $4::jsonb, $5)
+         RETURNING *`,
+        [
+          input.lifecycle_id,
+          input.item_id,
+          input.job_type,
+          JSON.stringify(input.input_json),
+          input.created_by,
+        ],
+      );
+      return mapJobRow(res.rows[0]);
+    }
+    const now = new Date().toISOString();
+    const row: CmktJobRow = {
+      id: this.memory.nextJobId++,
+      lifecycle_id: input.lifecycle_id,
+      item_id: input.item_id,
+      job_type: input.job_type,
+      status: 'queued',
+      input_json: input.input_json,
+      output_json: {},
+      error_text: null,
+      ai_run_id: null,
+      created_by: input.created_by,
+      created_at: now,
+      finished_at: null,
+    };
+    this.memory.jobs.set(row.id, row);
+    return row;
+  }
+
+  async getContentJob(lifecycleId: number, jobId: number): Promise<CmktJobRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT * FROM cmkt_content_jobs WHERE lifecycle_id = $1 AND id = $2`,
+        [lifecycleId, jobId],
+      );
+      return res.rows[0] ? mapJobRow(res.rows[0]) : null;
+    }
+    const job = this.memory.jobs.get(jobId);
+    return job && job.lifecycle_id === lifecycleId ? job : null;
+  }
+
+  async claimContentJob(jobId: number): Promise<CmktJobRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `UPDATE cmkt_content_jobs SET status = 'running'
+         WHERE id = $1 AND status = 'queued'
+         RETURNING *`,
+        [jobId],
+      );
+      return res.rows[0] ? mapJobRow(res.rows[0]) : null;
+    }
+    const job = this.memory.jobs.get(jobId);
+    if (!job || job.status !== 'queued') return null;
+    job.status = 'running';
+    return job;
+  }
+
+  async finishContentJob(
+    jobId: number,
+    patch: {
+      status: CmktJobRow['status'];
+      output_json?: Record<string, unknown>;
+      error_text?: string | null;
+      ai_run_id?: string | null;
+    },
+  ): Promise<CmktJobRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `UPDATE cmkt_content_jobs
+         SET status = $2,
+             output_json = COALESCE($3::jsonb, output_json),
+             error_text = $4,
+             ai_run_id = $5::uuid,
+             finished_at = NOW()
+         WHERE id = $1
+         RETURNING *`,
+        [
+          jobId,
+          patch.status,
+          patch.output_json != null ? JSON.stringify(patch.output_json) : null,
+          patch.error_text ?? null,
+          patch.ai_run_id ?? null,
+        ],
+      );
+      return res.rows[0] ? mapJobRow(res.rows[0]) : null;
+    }
+    const job = this.memory.jobs.get(jobId);
+    if (!job) return null;
+    job.status = patch.status;
+    if (patch.output_json) job.output_json = patch.output_json;
+    job.error_text = patch.error_text ?? null;
+    job.ai_run_id = patch.ai_run_id ?? null;
+    job.finished_at = new Date().toISOString();
+    return job;
+  }
+
+  async cancelContentJob(lifecycleId: number, jobId: number): Promise<CmktJobRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `UPDATE cmkt_content_jobs SET status = 'cancelled', finished_at = NOW()
+         WHERE lifecycle_id = $1 AND id = $2 AND status IN ('queued', 'running')
+         RETURNING *`,
+        [lifecycleId, jobId],
+      );
+      return res.rows[0] ? mapJobRow(res.rows[0]) : null;
+    }
+    const job = this.memory.jobs.get(jobId);
+    if (!job || job.lifecycle_id !== lifecycleId || !['queued', 'running'].includes(job.status)) {
+      return null;
+    }
+    job.status = 'cancelled';
+    job.finished_at = new Date().toISOString();
+    return job;
   }
 }

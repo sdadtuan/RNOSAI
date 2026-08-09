@@ -233,3 +233,87 @@ export function postPlanSnapshotSeal(
 ): Promise<{ ok: boolean; snapshot_id: number; sealed: boolean }> {
   return cmktFetch(token, lifecycleId, '/plan-snapshot/seal', { method: 'POST', body: '{}' });
 }
+
+export type ContentOsJob = {
+  id: number;
+  lifecycle_id: number;
+  item_id: number | null;
+  job_type: string;
+  status: string;
+  input_json: Record<string, unknown>;
+  output_json: Record<string, unknown>;
+  error_text: string | null;
+  ai_run_id: string | null;
+  created_by: string;
+  created_at: string;
+  finished_at: string | null;
+};
+
+export type ContentOsItemVersion = {
+  id: number;
+  item_id: number;
+  version_no: number;
+  body_json: ContentOsItem['body_json'];
+  changed_by: string;
+  change_reason: string;
+  ai_run_id?: string | null;
+  created_at: string;
+};
+
+export function postContentOsDraftJob(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body?: {
+    tone?: string;
+    length?: string;
+    goal?: string;
+    include_outline?: boolean;
+    variant_count?: number;
+  },
+): Promise<ContentOsJob> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/jobs/draft`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function postContentOsVariantsJob(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body?: { tone?: string; goal?: string; variant_count?: number },
+): Promise<ContentOsJob> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/jobs/variants`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function fetchContentOsJob(
+  token: string,
+  lifecycleId: number,
+  jobId: number,
+): Promise<ContentOsJob> {
+  return cmktFetch(token, lifecycleId, `/jobs/${jobId}`);
+}
+
+export function fetchContentOsItemVersions(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<{ versions: ContentOsItemVersion[] }> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/versions`);
+}
+
+export function patchContentOsItemApplyVariant(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  selectedVariantIdx: number,
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ selected_variant_idx: selectedVariantIdx, apply_variant: true }),
+  });
+}

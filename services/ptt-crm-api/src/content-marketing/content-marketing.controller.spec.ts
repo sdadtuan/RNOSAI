@@ -9,6 +9,12 @@ describe('ContentMarketingController', () => {
     ingestPlanSnapshot: jest.fn(),
     sealPlanSnapshot: jest.fn(),
   };
+  const generate = {
+    startDraftJob: jest.fn(),
+    startVariantsJob: jest.fn(),
+    getJob: jest.fn(),
+    cancelJob: jest.fn(),
+  };
 
   let controller: ContentMarketingController;
 
@@ -19,6 +25,7 @@ describe('ContentMarketingController', () => {
       ideas as never,
       items as never,
       snapshots as never,
+      generate as never,
     );
   });
 
@@ -45,5 +52,15 @@ describe('ContentMarketingController', () => {
       { mode: 'merge' },
       'lead@test.vn',
     );
+  });
+
+  it('POST items/:id/jobs/draft delegates to generate service', async () => {
+    generate.startDraftJob.mockResolvedValue({ id: 9, status: 'succeeded' });
+    const req = { staffUser: { email: 'writer@test.vn' } } as never;
+    await expect(controller.startDraftJob(123, 42, { tone: 'bold' }, req)).resolves.toEqual({
+      id: 9,
+      status: 'succeeded',
+    });
+    expect(generate.startDraftJob).toHaveBeenCalledWith(123, 42, { tone: 'bold' }, 'writer@test.vn');
   });
 });

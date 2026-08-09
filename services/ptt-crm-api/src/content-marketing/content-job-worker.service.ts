@@ -1,0 +1,199 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { AiAgentRunsRepository } from '../ai-intelligence/ai-agent-runs.repository';
+import { AiIntelligenceConfigService } from '../ai-intelligence/ai-intelligence.config';
+import { AiLlmClient } from '../ai-intelligence/ai-llm.client';
+import { AppConfigService } from '../config/app-config.service';
+import { ContentBrandContextService } from './content-brand-context.service';
+import {
+  buildDraftStub,
+  buildDraftSystemPrompt,
+  buildDraftUserPrompt,
+  buildVariantsStub,
+  buildVariantsSystemPrompt,
+  buildVariantsUserPrompt,
+  hashPrompt,
+  normalizeDraftOutput,
+  normalizeVariantsOutput,
+  resolvePromptProfile,
+  type CmktGenerateInput,
+} from './content-marketing-prompt.util';
+import { ContentMarketingRepository } from './content-marketing.repository';
+import type { CmktBodyJson, CmktJobRow } from './content-marketing.types';
+
+@Injectable()
+export class ContentJobWorkerService {
+  private readonly logger = new Logger(ContentJobWorkerService.name);
+  private readonly inFlight = new Set<number>();
+
+  constructor(
+    private readonly config: AppConfigService,
+    private readonly aiConfig: AiIntelligenceConfigService,
+    private readonly llm: AiLlmClient,
+    private readonly agentRuns: AiAgentRunsRepository,
+    private readonly repo: ContentMarketingRepository,
+    private readonly brandContext: ContentBrandContextService,
+  ) {}
+
+  get modelName(): string {
+    return this.config.mktAiModel || this.aiConfig.llmModel || 'gpt-4o-mini';
+  }
+
+  async processJob(jobId: number): Promise<CmktJobRow | null> {
+    if (this.inFlight.has(jobId)) return null;
+    this.inFlight.add(jobId);
+    const started = Date.now();
+    try {
+      const claimed = await this.repo.claimContentJob(jobId);
+      if (!claimed) return null;
+
+      const item =
+        claimed.item_id != null
+          ? await this.repo.getItemById(claimed.lifecycle_id, claimed.item_id)
+          : null;
+      if (!item) {
+        return this.repo.finishContentJob(jobId, {
+          status: 'failed',
+          error_text: 'item_not_found',
+        });
+      }
+
+      const brand = await this.brandContext.resolveForLifecycle(claimed.lifecycle_id);
+      const genInput = (claimed.input_json ?? {}) as CmktGenerateInput;
+      const profile = resolvePromptProfile(item.channel, item.format);
+
+      let systemPrompt: string;
+      let userPrompt: string;
+      let stubJson: () => Record<string, unknown>;
+      let useCase: string;
+
+      if (claimed.job_type === 'draft_generate') {
+        systemPrompt = buildDraftSystemPrompt(profile);
+        userPrompt = buildDraftUserPrompt(item, brand, genInput);
+        stubJson = () => buildDraftStub(item, brand, genInput);
+        useCase = 'cmkt_draft_generate';
+      } else if (claimed.job_type === 'variant_generate') {
+        systemPrompt = buildVariantsSystemPrompt(profile);
+        userPrompt = buildVariantsUserPrompt(item, brand, genInput);
+        stubJson = () => buildVariantsStub(item, genInput);
+        useCase = 'cmkt_variant_generate';
+      } else {
+        return this.repo.finishContentJob(jobId, {
+          status: 'failed',
+          error_text: `unsupported_job_type:${claimed.job_type}`,
+        });
+      }
+
+      const promptHash = hashPrompt(systemPrompt, userPrompt);
+      let aiRunId: string | null = null;
+
+      try {
+        const { parsed, tokenUsage, modelName, stubMode } = await this.llm.completeJson({
+          systemPrompt,
+          userContent: userPrompt,
+          model: this.modelName,
+          stubJson,
+        });
+
+        if (await this.agentRuns.tableReady()) {
+          const run = await this.agentRuns.insertRun({
+            agentName: 'content_marketing',
+            useCase,
+            modelName,
+            promptHash,
+            inputJson: {
+              lifecycle_id: claimed.lifecycle_id,
+              item_id: item.id,
+              job_id: jobId,
+              profile,
+              stub_mode: stubMode,
+            },
+            outputJson: parsed,
+            status: 'succeeded',
+            latencyMs: Date.now() - started,
+            tokenUsage,
+            actorId: claimed.created_by,
+          });
+          aiRunId = run.id;
+        }
+
+        if (claimed.job_type === 'draft_generate') {
+          const draft = normalizeDraftOutput(parsed, stubJson());
+          const bodyJson: CmktBodyJson = {
+            markdown: draft.markdown,
+            html: item.body_json?.html ?? '',
+            variants: item.body_json?.variants ?? [],
+          };
+          await this.repo.patchItem(claimed.lifecycle_id, item.id, { body_json: bodyJson });
+          const versionNo = await this.repo.insertItemVersion(
+            item.id,
+            bodyJson,
+            claimed.created_by,
+            'ai_generate',
+            aiRunId,
+          );
+          return this.repo.finishContentJob(jobId, {
+            status: 'succeeded',
+            output_json: { body_json: bodyJson, version_no: versionNo, profile, stub_mode: !this.aiConfig.llmApiKey },
+            ai_run_id: aiRunId,
+          });
+        }
+
+        const minCount = Math.min(Math.max(Number(genInput.variant_count ?? 3), 3), 5);
+        const variants = normalizeVariantsOutput(parsed, stubJson(), minCount);
+        const bodyJson: CmktBodyJson = {
+          markdown: item.body_json?.markdown ?? '',
+          html: item.body_json?.html ?? '',
+          variants,
+        };
+        await this.repo.patchItem(claimed.lifecycle_id, item.id, { body_json: bodyJson });
+        const versionNo = await this.repo.insertItemVersion(
+          item.id,
+          bodyJson,
+          claimed.created_by,
+          'ai_generate',
+          aiRunId,
+        );
+        return this.repo.finishContentJob(jobId, {
+          status: 'succeeded',
+          output_json: {
+            variants,
+            variant_count: variants.length,
+            version_no: versionNo,
+            profile,
+            stub_mode: !this.aiConfig.llmApiKey,
+          },
+          ai_run_id: aiRunId,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`cmkt job ${jobId} AI failed: ${message}`);
+        if (await this.agentRuns.tableReady()) {
+          try {
+            const run = await this.agentRuns.insertRun({
+              agentName: 'content_marketing',
+              useCase,
+              modelName: this.modelName,
+              promptHash,
+              inputJson: { job_id: jobId, item_id: item.id },
+              outputJson: {},
+              status: 'failed',
+              latencyMs: Date.now() - started,
+              errorMessage: message,
+              actorId: claimed.created_by,
+            });
+            aiRunId = run.id;
+          } catch {
+            /* ignore audit failure */
+          }
+        }
+        return this.repo.finishContentJob(jobId, {
+          status: 'failed',
+          error_text: message,
+          ai_run_id: aiRunId,
+        });
+      }
+    } finally {
+      this.inFlight.delete(jobId);
+    }
+  }
+}

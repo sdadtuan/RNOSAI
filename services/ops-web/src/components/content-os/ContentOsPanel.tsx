@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { StoredStaffUser } from '@/lib/auth';
-import { canWriteContentOs } from '@/lib/auth';
+import { canGenerateContentOs, canWriteContentOs } from '@/lib/auth';
+import { ContentOsGeneratePanel } from '@/components/content-os/ContentOsGeneratePanel';
 import { ContentOsSnapshotBanner } from '@/components/content-os/ContentOsSnapshotBanner';
+import { ContentOsVariantsPicker } from '@/components/content-os/ContentOsVariantsPicker';
 import {
   CMKT_P0_PAIRS,
   channelFormatLabel,
   fetchContentOsContext,
   fetchContentOsIdeas,
   fetchContentOsItem,
+  fetchContentOsItemVersions,
   fetchContentOsItems,
   patchContentOsItem,
   postContentOsIdea,
@@ -17,9 +20,11 @@ import {
   type ContentOsContext,
   type ContentOsIdea,
   type ContentOsItem,
+  type ContentOsItemVersion,
 } from '@/lib/content-os-api';
 
 type SubView = 'overview' | 'ideas' | 'board';
+type DrawerTab = 'body' | 'variants' | 'versions';
 
 interface Props {
   token: string;
@@ -47,12 +52,15 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
   const [loading, setLoading] = useState(true);
   const [drawerItemId, setDrawerItemId] = useState<number | null>(null);
   const [drawerItem, setDrawerItem] = useState<ContentOsItem | null>(null);
+  const [drawerTab, setDrawerTab] = useState<DrawerTab>('body');
+  const [drawerVersions, setDrawerVersions] = useState<ContentOsItemVersion[]>([]);
   const [drawerMarkdown, setDrawerMarkdown] = useState('');
   const [saving, setSaving] = useState(false);
   const [newIdeaTitle, setNewIdeaTitle] = useState('');
   const [convertPair, setConvertPair] = useState('facebook|social_post');
 
   const canWrite = canWriteContentOs(user);
+  const canGenerate = canGenerateContentOs(user);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -80,18 +88,35 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
   useEffect(() => {
     if (drawerItemId == null) {
       setDrawerItem(null);
+      setDrawerVersions([]);
       return;
     }
     void (async () => {
       try {
-        const item = await fetchContentOsItem(token, lifecycleId, drawerItemId);
+        const [item, versionsRes] = await Promise.all([
+          fetchContentOsItem(token, lifecycleId, drawerItemId),
+          fetchContentOsItemVersions(token, lifecycleId, drawerItemId),
+        ]);
         setDrawerItem(item);
         setDrawerMarkdown(String(item.body_json?.markdown ?? ''));
+        setDrawerVersions(versionsRes.versions);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải item thất bại');
       }
     })();
   }, [drawerItemId, token, lifecycleId]);
+
+  async function refreshDrawerItem() {
+    if (drawerItemId == null) return;
+    const [item, versionsRes] = await Promise.all([
+      fetchContentOsItem(token, lifecycleId, drawerItemId),
+      fetchContentOsItemVersions(token, lifecycleId, drawerItemId),
+    ]);
+    setDrawerItem(item);
+    setDrawerMarkdown(String(item.body_json?.markdown ?? ''));
+    setDrawerVersions(versionsRes.versions);
+    await reload();
+  }
 
   async function onCreateIdea(e: React.FormEvent) {
     e.preventDefault();
@@ -340,33 +365,110 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
                 {channelFormatLabel(drawerItem.channel, drawerItem.format)} · {drawerItem.status}
               </p>
             ) : null}
-            <label style={{ display: 'grid', gap: '0.35rem', marginTop: '0.75rem' }}>
-              <span className="muted">Nội dung (markdown)</span>
-              <textarea
-                value={drawerMarkdown}
-                onChange={(e) => setDrawerMarkdown(e.target.value)}
-                rows={14}
-                disabled={!canWrite || saving}
+
+            <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.65rem', flexWrap: 'wrap' }}>
+              {(['body', 'variants', 'versions'] as DrawerTab[]).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  className={drawerTab === tab ? 'btn btn-sm' : 'btn btn-sm btn-ghost'}
+                  onClick={() => setDrawerTab(tab)}
+                >
+                  {tab === 'body' ? 'Body' : tab === 'variants' ? 'Variants' : 'Versions'}
+                </button>
+              ))}
+            </div>
+
+            {drawerTab === 'body' && drawerItemId != null ? (
+              <>
+                <div style={{ marginTop: '0.65rem' }}>
+                  <ContentOsGeneratePanel
+                    token={token}
+                    lifecycleId={lifecycleId}
+                    itemId={drawerItemId}
+                    aiEnabled={Boolean(ctx?.flags.ai_enabled)}
+                    canGenerate={canGenerate}
+                    onJobDone={refreshDrawerItem}
+                    onMessage={setMessage}
+                    onError={setError}
+                  />
+                </div>
+                <label style={{ display: 'grid', gap: '0.35rem', marginTop: '0.75rem' }}>
+                  <span className="muted">Nội dung (markdown)</span>
+                  <textarea
+                    value={drawerMarkdown}
+                    onChange={(e) => setDrawerMarkdown(e.target.value)}
+                    rows={14}
+                    disabled={!canWrite || saving}
+                    style={{
+                      background: 'var(--bg)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 8,
+                      padding: '0.55rem',
+                      color: 'var(--text)',
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                </label>
+                {canWrite ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    style={{ marginTop: '0.65rem' }}
+                    disabled={saving}
+                    onClick={() => void onSaveItemBody()}
+                  >
+                    Lưu nội dung
+                  </button>
+                ) : null}
+              </>
+            ) : null}
+
+            {drawerTab === 'variants' && drawerItem && drawerItemId != null ? (
+              <div style={{ marginTop: '0.75rem' }}>
+                <ContentOsVariantsPicker
+                  token={token}
+                  lifecycleId={lifecycleId}
+                  itemId={drawerItemId}
+                  variants={drawerItem.body_json?.variants ?? []}
+                  selectedIdx={drawerItem.selected_variant_idx}
+                  canWrite={canWrite}
+                  onApplied={refreshDrawerItem}
+                  onMessage={setMessage}
+                  onError={setError}
+                />
+              </div>
+            ) : null}
+
+            {drawerTab === 'versions' ? (
+              <ul
                 style={{
-                  background: 'var(--bg)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  padding: '0.55rem',
-                  color: 'var(--text)',
-                  fontFamily: 'inherit',
+                  listStyle: 'none',
+                  padding: 0,
+                  marginTop: '0.75rem',
+                  display: 'grid',
+                  gap: '0.45rem',
                 }}
-              />
-            </label>
-            {canWrite ? (
-              <button
-                type="button"
-                className="btn btn-sm"
-                style={{ marginTop: '0.65rem' }}
-                disabled={saving}
-                onClick={() => void onSaveItemBody()}
               >
-                Lưu nội dung
-              </button>
+                {drawerVersions.map((v) => (
+                  <li
+                    key={v.id}
+                    style={{
+                      border: '1px solid var(--border)',
+                      borderRadius: 8,
+                      padding: '0.55rem',
+                      fontSize: '0.85rem',
+                    }}
+                  >
+                    <strong>v{v.version_no}</strong> · {v.change_reason} · {v.changed_by}
+                    <div className="muted" style={{ fontSize: '0.78rem' }}>
+                      {new Date(v.created_at).toLocaleString('vi-VN')}
+                      {v.ai_run_id ? ` · ai_run ${v.ai_run_id.slice(0, 8)}` : ''}
+                    </div>
+                  </li>
+                ))}
+                {!drawerVersions.length ? <li className="muted">Chưa có version history.</li> : null}
+              </ul>
             ) : null}
           </div>
         </div>

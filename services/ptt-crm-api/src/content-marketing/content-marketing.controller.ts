@@ -15,11 +15,14 @@ import {
 import type { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+import { ContentGenerateService } from './content-generate.service';
 import { ContentIdeaService } from './content-idea.service';
 import { ContentItemService } from './content-item.service';
+import { ContentJobWorkerService } from './content-job-worker.service';
 import { ContentPlanSnapshotService } from './content-plan-snapshot.service';
 import { ContentMarketingService } from './content-marketing.service';
 import {
+  StaffContentMarketingGenerateGuard,
   StaffContentMarketingViewGuard,
   StaffContentMarketingWriteGuard,
 } from './guards/staff-content-marketing.guard';
@@ -37,6 +40,7 @@ export class ContentMarketingController {
     private readonly ideas: ContentIdeaService,
     private readonly items: ContentItemService,
     private readonly snapshots: ContentPlanSnapshotService,
+    private readonly generate: ContentGenerateService,
   ) {}
 
   @Get('context')
@@ -154,5 +158,55 @@ export class ContentMarketingController {
     @Req() req: Request,
   ) {
     return this.items.patchItem(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Get('items/:itemId/versions')
+  listItemVersions(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+  ) {
+    return this.items.listItemVersions(lifecycleId, itemId);
+  }
+
+  @Post('items/:itemId/jobs/draft')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  startDraftJob(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.generate.startDraftJob(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Post('items/:itemId/jobs/variants')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  startVariantsJob(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.generate.startVariantsJob(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Get('jobs/:jobId')
+  getJob(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('jobId', ParseIntPipe) jobId: number,
+  ) {
+    return this.generate.getJob(lifecycleId, jobId);
+  }
+
+  @Post('jobs/:jobId/cancel')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  cancelJob(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('jobId', ParseIntPipe) jobId: number,
+  ) {
+    return this.generate.cancelJob(lifecycleId, jobId);
   }
 }

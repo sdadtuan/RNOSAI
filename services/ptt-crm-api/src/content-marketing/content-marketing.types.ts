@@ -66,6 +66,7 @@ export type CmktItemVersionRow = {
   body_json: CmktBodyJson;
   changed_by: string;
   change_reason: string;
+  ai_run_id?: string | null;
   created_at: string;
 };
 
@@ -137,6 +138,23 @@ export type CmktIngestResult = {
   ideas_created: number;
   pillars_upserted: number;
   warnings: string[];
+};
+
+export type CmktJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+
+export type CmktJobRow = {
+  id: number;
+  lifecycle_id: number;
+  item_id: number | null;
+  job_type: string;
+  status: CmktJobStatus;
+  input_json: Record<string, unknown>;
+  output_json: Record<string, unknown>;
+  error_text: string | null;
+  ai_run_id: string | null;
+  created_by: string;
+  created_at: string;
+  finished_at: string | null;
 };
 
 export type CmktPlanSnapshotPayload = {

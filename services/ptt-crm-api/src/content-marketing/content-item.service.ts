@@ -3,7 +3,7 @@ import { assertValidChannelFormat } from './content-marketing-channel.util';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import { ContentMarketingService } from './content-marketing.service';
 import { emptyBodyJson } from './content-marketing.util';
-import type { CmktBodyJson, CmktIdeaRow, CmktItemRow } from './content-marketing.types';
+import type { CmktBodyJson, CmktIdeaRow, CmktItemRow, CmktItemVersionRow } from './content-marketing.types';
 
 @Injectable()
 export class ContentItemService {
@@ -106,8 +106,28 @@ export class ContentItemService {
       patch.format = format;
     }
 
+    if (body.selected_variant_idx != null) {
+      patch.selected_variant_idx = Number(body.selected_variant_idx);
+    }
+
     let versionReason: string | null = null;
-    if (body.body_json != null) {
+    if (body.apply_variant === true && body.selected_variant_idx != null) {
+      const idx = Number(body.selected_variant_idx);
+      const variants = existing.body_json?.variants ?? [];
+      if (idx < 0 || idx >= variants.length) {
+        throw new BadRequestException({ error: 'invalid_variant_idx', idx, count: variants.length });
+      }
+      const hook = variants[idx];
+      const rest = String(existing.body_json?.markdown ?? '').trim();
+      patch.body_json = {
+        ...existing.body_json,
+        markdown: rest ? `${hook}\n\n${rest}` : hook,
+        variants,
+        html: existing.body_json?.html ?? '',
+      };
+      patch.selected_variant_idx = idx;
+      versionReason = 'manual';
+    } else if (body.body_json != null) {
       patch.body_json = body.body_json as CmktBodyJson;
       versionReason = 'manual';
     }
@@ -117,5 +137,15 @@ export class ContentItemService {
       await this.repo.insertItemVersion(itemId, updated.body_json, actorEmail, versionReason);
     }
     return updated;
+  }
+
+  async listItemVersions(lifecycleId: number, itemId: number): Promise<{ versions: CmktItemVersionRow[] }> {
+    await this.core.ensureLifecycleEnabled(lifecycleId);
+    const item = await this.repo.getItemById(lifecycleId, itemId);
+    if (!item) {
+      throw new NotFoundException({ error: 'item_not_found', id: itemId });
+    }
+    const versions = await this.repo.listItemVersions(itemId);
+    return { versions };
   }
 }
