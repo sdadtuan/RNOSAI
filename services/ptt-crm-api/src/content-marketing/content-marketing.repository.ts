@@ -9,15 +9,21 @@ import type {
   CmktContextCounts,
   CmktIdeaRow,
   CmktItemRow,
+  CmktPillarRow,
 } from './content-marketing.types';
+import type { PlannerIngestSource, SnapshotPillarDraft } from './content-plan-snapshot.util';
 
 type MemoryStore = {
   ideas: Map<number, CmktIdeaRow[]>;
   items: Map<number, CmktItemRow[]>;
-  snapshots: Map<number, CmktActiveSnapshotRow>;
+  snapshots: Map<number, CmktActiveSnapshotRow[]>;
+  pillars: Map<number, CmktPillarRow[]>;
   nextIdeaId: number;
   nextItemId: number;
+  nextSnapshotId: number;
+  nextPillarId: number;
   nextVersionNo: Map<number, number>;
+  plannerSources: Map<number, PlannerIngestSource>;
 };
 
 function emptyCounts(): CmktContextCounts {
@@ -90,9 +96,13 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     ideas: new Map(),
     items: new Map(),
     snapshots: new Map(),
+    pillars: new Map(),
     nextIdeaId: 1,
     nextItemId: 1,
+    nextSnapshotId: 1,
+    nextPillarId: 1,
     nextVersionNo: new Map(),
+    plannerSources: new Map(),
   };
 
   constructor(private readonly config: AppConfigService) {}
@@ -134,6 +144,10 @@ export class ContentMarketingRepository implements OnModuleDestroy {
                 s.sealed,
                 s.ingested_at,
                 s.marketing_plan_id,
+                s.source_hash,
+                s.ingested_by,
+                s.snapshot_json,
+                s.brand_context_json,
                 COALESCE(p.cnt, 0)::int AS pillars_count
          FROM cmkt_plan_snapshots s
          LEFT JOIN LATERAL (
@@ -156,9 +170,320 @@ export class ContentMarketingRepository implements OnModuleDestroy {
         ingested_at: row.ingested_at as Date,
         marketing_plan_id: row.marketing_plan_id != null ? Number(row.marketing_plan_id) : null,
         pillars_count: Number(row.pillars_count ?? 0),
+        source_hash: String(row.source_hash ?? ''),
+        ingested_by: String(row.ingested_by ?? ''),
+        snapshot_json: (row.snapshot_json as Record<string, unknown>) ?? {},
+        brand_context_json: (row.brand_context_json as Record<string, unknown>) ?? {},
       };
     }
-    return this.memory.snapshots.get(lifecycleId) ?? null;
+    const list = this.memory.snapshots.get(lifecycleId) ?? [];
+    const active = list.find((s) => !s.sealed) ?? list[0];
+    return active ?? null;
+  }
+
+  async getActiveUnsealedSnapshot(lifecycleId: number): Promise<CmktActiveSnapshotRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT s.*, COALESCE(p.cnt, 0)::int AS pillars_count
+         FROM cmkt_plan_snapshots s
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*) AS cnt FROM cmkt_content_pillars p
+           WHERE p.lifecycle_id = s.lifecycle_id AND p.snapshot_id = s.id AND p.active = TRUE
+         ) p ON TRUE
+         WHERE s.lifecycle_id = $1 AND s.sealed = FALSE
+         ORDER BY s.ingested_at DESC
+         LIMIT 1`,
+        [lifecycleId],
+      );
+      const row = res.rows[0];
+      if (!row) return null;
+      return {
+        id: Number(row.id),
+        sealed: false,
+        ingested_at: row.ingested_at as Date,
+        marketing_plan_id: row.marketing_plan_id != null ? Number(row.marketing_plan_id) : null,
+        pillars_count: Number(row.pillars_count ?? 0),
+        source_hash: String(row.source_hash ?? ''),
+        ingested_by: String(row.ingested_by ?? ''),
+        snapshot_json: (row.snapshot_json as Record<string, unknown>) ?? {},
+        brand_context_json: (row.brand_context_json as Record<string, unknown>) ?? {},
+      };
+    }
+    return (this.memory.snapshots.get(lifecycleId) ?? []).find((s) => !s.sealed) ?? null;
+  }
+
+  async loadPlannerSource(lifecycleId: number): Promise<PlannerIngestSource | null> {
+    if (await this.ensurePgReady()) {
+      try {
+        const res = await this.db.query(
+          `SELECT lc.marketing_plan_id,
+                  COALESCE(d.content_json, '{}'::jsonb) AS content_json,
+                  COALESCE(d.campaigns_json, '[]'::jsonb) AS campaigns_json,
+                  COALESCE(d.strategy_framework_json, '{}'::jsonb) AS strategy_framework_json,
+                  COALESCE(d.target_market_prof_json, '{}'::jsonb) AS target_market_prof_json,
+                  COALESCE(b.brief_json, '{}'::jsonb) AS brief_json
+           FROM crm_service_lifecycle lc
+           LEFT JOIN mkt_ai_drafts d ON d.lifecycle_id = lc.id
+           LEFT JOIN mkt_ai_briefs b ON b.lifecycle_id = lc.id
+           WHERE lc.id = $1`,
+          [lifecycleId],
+        );
+        const row = res.rows[0];
+        if (!row?.marketing_plan_id) return null;
+        return {
+          marketing_plan_id: Number(row.marketing_plan_id),
+          brief_json: (row.brief_json as Record<string, unknown>) ?? {},
+          content_json: (row.content_json as Record<string, unknown>) ?? {},
+          campaigns_json: (row.campaigns_json as unknown[]) ?? [],
+          strategy_framework_json: (row.strategy_framework_json as Record<string, unknown>) ?? {},
+          target_market_prof_json: (row.target_market_prof_json as Record<string, unknown>) ?? {},
+        };
+      } catch {
+        return this.memory.plannerSources.get(lifecycleId) ?? null;
+      }
+    }
+    return this.memory.plannerSources.get(lifecycleId) ?? null;
+  }
+
+  /** Test/dev helper for memory mode smoke. */
+  setPlannerSourceForMemory(lifecycleId: number, source: PlannerIngestSource): void {
+    this.memory.plannerSources.set(lifecycleId, source);
+  }
+
+  async listPillars(lifecycleId: number, snapshotId?: number): Promise<CmktPillarRow[]> {
+    if (await this.ensurePgReady()) {
+      const params: unknown[] = [lifecycleId];
+      let clause = 'lifecycle_id = $1 AND active = TRUE';
+      if (snapshotId != null) {
+        params.push(snapshotId);
+        clause += ` AND snapshot_id = $${params.length}`;
+      }
+      const res = await this.db.query(
+        `SELECT * FROM cmkt_content_pillars WHERE ${clause} ORDER BY sort_order ASC, id ASC`,
+        params,
+      );
+      return res.rows.map((row) => ({
+        id: Number(row.id),
+        lifecycle_id: Number(row.lifecycle_id),
+        snapshot_id: row.snapshot_id != null ? Number(row.snapshot_id) : null,
+        name: String(row.name ?? ''),
+        goal: String(row.goal ?? ''),
+        topics_json: (row.topics_json as string[]) ?? [],
+        sort_order: Number(row.sort_order ?? 0),
+        active: Boolean(row.active),
+      }));
+    }
+    let pillars = this.memory.pillars.get(lifecycleId) ?? [];
+    if (snapshotId != null) pillars = pillars.filter((p) => p.snapshot_id === snapshotId);
+    return pillars.filter((p) => p.active);
+  }
+
+  async upsertActiveSnapshot(input: {
+    lifecycle_id: number;
+    marketing_plan_id: number;
+    snapshot_json: Record<string, unknown>;
+    brand_context_json: Record<string, unknown>;
+    source_hash: string;
+    ingested_by: string;
+  }): Promise<number> {
+    if (await this.ensurePgReady()) {
+      const existing = await this.getActiveUnsealedSnapshot(input.lifecycle_id);
+      if (existing) {
+        const res = await this.db.query(
+          `UPDATE cmkt_plan_snapshots
+           SET marketing_plan_id = $2,
+               snapshot_json = $3::jsonb,
+               brand_context_json = $4::jsonb,
+               source_hash = $5,
+               ingested_at = NOW(),
+               ingested_by = $6
+           WHERE id = $1
+           RETURNING id`,
+          [
+            existing.id,
+            input.marketing_plan_id,
+            JSON.stringify(input.snapshot_json),
+            JSON.stringify(input.brand_context_json),
+            input.source_hash,
+            input.ingested_by,
+          ],
+        );
+        return Number(res.rows[0].id);
+      }
+      const res = await this.db.query(
+        `INSERT INTO cmkt_plan_snapshots (
+           lifecycle_id, marketing_plan_id, snapshot_json, brand_context_json,
+           source_hash, ingested_by, sealed
+         ) VALUES ($1,$2,$3::jsonb,$4::jsonb,$5,$6,FALSE)
+         RETURNING id`,
+        [
+          input.lifecycle_id,
+          input.marketing_plan_id,
+          JSON.stringify(input.snapshot_json),
+          JSON.stringify(input.brand_context_json),
+          input.source_hash,
+          input.ingested_by,
+        ],
+      );
+      return Number(res.rows[0].id);
+    }
+    const now = new Date();
+    const list = this.memory.snapshots.get(input.lifecycle_id) ?? [];
+    const existing = list.find((s) => !s.sealed);
+    if (existing) {
+      existing.snapshot_json = input.snapshot_json;
+      existing.brand_context_json = input.brand_context_json;
+      existing.source_hash = input.source_hash;
+      existing.ingested_by = input.ingested_by;
+      existing.ingested_at = now;
+      existing.marketing_plan_id = input.marketing_plan_id;
+      return existing.id;
+    }
+    const row: CmktActiveSnapshotRow = {
+      id: this.memory.nextSnapshotId++,
+      sealed: false,
+      ingested_at: now,
+      marketing_plan_id: input.marketing_plan_id,
+      pillars_count: 0,
+      source_hash: input.source_hash,
+      ingested_by: input.ingested_by,
+      snapshot_json: input.snapshot_json,
+      brand_context_json: input.brand_context_json,
+    };
+    list.push(row);
+    this.memory.snapshots.set(input.lifecycle_id, list);
+    return row.id;
+  }
+
+  async sealActiveSnapshot(lifecycleId: number): Promise<CmktActiveSnapshotRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `UPDATE cmkt_plan_snapshots SET sealed = TRUE
+         WHERE lifecycle_id = $1 AND sealed = FALSE
+         RETURNING *`,
+        [lifecycleId],
+      );
+      const row = res.rows[0];
+      if (!row) return null;
+      return {
+        id: Number(row.id),
+        sealed: true,
+        ingested_at: row.ingested_at as Date,
+        marketing_plan_id: row.marketing_plan_id != null ? Number(row.marketing_plan_id) : null,
+        pillars_count: 0,
+        source_hash: String(row.source_hash ?? ''),
+        ingested_by: String(row.ingested_by ?? ''),
+        snapshot_json: (row.snapshot_json as Record<string, unknown>) ?? {},
+        brand_context_json: (row.brand_context_json as Record<string, unknown>) ?? {},
+      };
+    }
+    const list = this.memory.snapshots.get(lifecycleId) ?? [];
+    const active = list.find((s) => !s.sealed);
+    if (!active) return null;
+    active.sealed = true;
+    return active;
+  }
+
+  async replacePillarsForSnapshot(
+    lifecycleId: number,
+    snapshotId: number,
+    pillars: SnapshotPillarDraft[],
+  ): Promise<number> {
+    if (await this.ensurePgReady()) {
+      await this.db.query(
+        `UPDATE cmkt_content_pillars SET active = FALSE
+         WHERE lifecycle_id = $1 AND snapshot_id = $2`,
+        [lifecycleId, snapshotId],
+      );
+      let count = 0;
+      for (const pillar of pillars) {
+        await this.db.query(
+          `INSERT INTO cmkt_content_pillars (
+             lifecycle_id, snapshot_id, name, goal, topics_json, sort_order, active
+           ) VALUES ($1,$2,$3,$4,$5::jsonb,$6,TRUE)`,
+          [
+            lifecycleId,
+            snapshotId,
+            pillar.name,
+            pillar.goal,
+            JSON.stringify(pillar.topics),
+            pillar.sort_order,
+          ],
+        );
+        count++;
+      }
+      return count;
+    }
+    const list = (this.memory.pillars.get(lifecycleId) ?? []).map((p) =>
+      p.snapshot_id === snapshotId ? { ...p, active: false } : p,
+    );
+    for (const pillar of pillars) {
+      list.push({
+        id: this.memory.nextPillarId++,
+        lifecycle_id: lifecycleId,
+        snapshot_id: snapshotId,
+        name: pillar.name,
+        goal: pillar.goal,
+        topics_json: pillar.topics,
+        sort_order: pillar.sort_order,
+        active: true,
+      });
+    }
+    this.memory.pillars.set(lifecycleId, list);
+    return pillars.length;
+  }
+
+  async archivePlannerImportedIdeas(lifecycleId: number): Promise<number> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `UPDATE cmkt_content_ideas
+         SET status = 'archived', updated_at = NOW()
+         WHERE lifecycle_id = $1
+           AND source = 'planner_import'
+           AND status IN ('backlog', 'shortlisted')`,
+        [lifecycleId],
+      );
+      return res.rowCount ?? 0;
+    }
+    const ideas = this.memory.ideas.get(lifecycleId) ?? [];
+    let n = 0;
+    for (const idea of ideas) {
+      if (idea.source === 'planner_import' && ['backlog', 'shortlisted'].includes(idea.status)) {
+        idea.status = 'archived';
+        n++;
+      }
+    }
+    return n;
+  }
+
+  async listIdeaTitleKeys(lifecycleId: number): Promise<Set<string>> {
+    const ideas = await this.listIdeas(lifecycleId, {});
+    const keys = new Set<string>();
+    for (const idea of ideas) {
+      if (idea.status !== 'archived') {
+        keys.add(idea.title.trim().toLowerCase());
+      }
+    }
+    return keys;
+  }
+
+  async createIdeaFromImport(
+    lifecycleId: number,
+    input: {
+      title: string;
+      hook: string;
+      target_goal: string;
+      channel_hints: string[];
+      meta_json: Record<string, unknown>;
+      created_by: string;
+    },
+  ): Promise<CmktIdeaRow> {
+    return this.createIdea(lifecycleId, {
+      ...input,
+      pillar_id: null,
+      status: 'backlog',
+      source: 'planner_import',
+    });
   }
 
   async getContextCounts(lifecycleId: number): Promise<CmktContextCounts> {

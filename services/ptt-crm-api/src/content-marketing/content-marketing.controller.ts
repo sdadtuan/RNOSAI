@@ -17,6 +17,7 @@ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.gua
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { ContentIdeaService } from './content-idea.service';
 import { ContentItemService } from './content-item.service';
+import { ContentPlanSnapshotService } from './content-plan-snapshot.service';
 import { ContentMarketingService } from './content-marketing.service';
 import {
   StaffContentMarketingViewGuard,
@@ -35,11 +36,35 @@ export class ContentMarketingController {
     private readonly contentMarketing: ContentMarketingService,
     private readonly ideas: ContentIdeaService,
     private readonly items: ContentItemService,
+    private readonly snapshots: ContentPlanSnapshotService,
   ) {}
 
   @Get('context')
   context(@Param('lifecycleId', ParseIntPipe) lifecycleId: number) {
     return this.contentMarketing.getContext(lifecycleId);
+  }
+
+  @Get('plan-snapshot')
+  planSnapshot(@Param('lifecycleId', ParseIntPipe) lifecycleId: number) {
+    return this.snapshots.getPlanSnapshot(lifecycleId);
+  }
+
+  @Post('plan-snapshot/ingest')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  ingestPlanSnapshot(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.snapshots.ingestPlanSnapshot(lifecycleId, body, actorEmail(req));
+  }
+
+  @Post('plan-snapshot/seal')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  sealPlanSnapshot(@Param('lifecycleId', ParseIntPipe) lifecycleId: number) {
+    return this.snapshots.sealPlanSnapshot(lifecycleId);
   }
 
   @Get('ideas')

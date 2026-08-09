@@ -8,6 +8,7 @@ import {
 import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { CMKT_P0_CHANNEL_DEFAULTS } from './content-marketing.constants';
+import { computePlannerSourceHash } from './content-plan-snapshot.util';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import type { CmktContextPayload } from './content-marketing.types';
 
@@ -53,6 +54,13 @@ export class ContentMarketingService {
       this.repo.getContextCounts(lifecycleId),
     ]);
 
+    const plannerSource = await this.repo.loadPlannerSource(lifecycleId);
+    const currentHash = plannerSource ? computePlannerSourceHash(plannerSource) : null;
+    const plannerDrift =
+      Boolean(snapshotRow?.source_hash) &&
+      Boolean(currentHash) &&
+      snapshotRow!.source_hash !== currentHash;
+
     return {
       ok: true,
       lifecycle_id: lifecycleId,
@@ -66,6 +74,8 @@ export class ContentMarketingService {
             pillars_count: snapshotRow.pillars_count,
             ingested_at: snapshotRow.ingested_at.toISOString(),
             marketing_plan_id: snapshotRow.marketing_plan_id,
+            source_hash: snapshotRow.source_hash,
+            planner_drift: plannerDrift,
           }
         : null,
       counts,

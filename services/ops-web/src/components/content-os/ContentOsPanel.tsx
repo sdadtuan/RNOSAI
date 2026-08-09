@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { StoredStaffUser } from '@/lib/auth';
 import { canWriteContentOs } from '@/lib/auth';
+import { ContentOsSnapshotBanner } from '@/components/content-os/ContentOsSnapshotBanner';
 import {
   CMKT_P0_PAIRS,
   channelFormatLabel,
@@ -146,6 +147,16 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
 
   return (
     <div style={{ display: 'grid', gap: '0.75rem' }}>
+      <ContentOsSnapshotBanner
+        token={token}
+        lifecycleId={lifecycleId}
+        ctx={ctx}
+        canWrite={canWrite}
+        onChanged={reload}
+        onMessage={setMessage}
+        onError={setError}
+      />
+
       <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
         {(['overview', 'ideas', 'board'] as SubView[]).map((v) => (
           <button

@@ -19,6 +19,7 @@ describe('ContentMarketingService', () => {
   const repo = {
     getActiveSnapshotSummary: jest.fn(),
     getContextCounts: jest.fn(),
+    loadPlannerSource: jest.fn().mockResolvedValue(null),
   };
 
   let service: ContentMarketingService;
@@ -51,6 +52,10 @@ describe('ContentMarketingService', () => {
       ingested_at: new Date('2026-08-09T04:00:00.000Z'),
       marketing_plan_id: 99,
       pillars_count: 3,
+      source_hash: 'abc123',
+      ingested_by: 'lead@test.vn',
+      snapshot_json: {},
+      brand_context_json: {},
     });
     repo.getContextCounts.mockResolvedValue({
       ideas: 5,

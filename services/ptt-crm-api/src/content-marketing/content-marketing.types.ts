@@ -75,6 +75,8 @@ export type CmktSnapshotSummary = {
   pillars_count: number;
   ingested_at: string;
   marketing_plan_id: number | null;
+  source_hash?: string;
+  planner_drift?: boolean;
 };
 
 export type CmktContextCounts = {
@@ -112,4 +114,48 @@ export type CmktActiveSnapshotRow = {
   ingested_at: Date;
   marketing_plan_id: number | null;
   pillars_count: number;
+  source_hash: string;
+  ingested_by: string;
+  snapshot_json: Record<string, unknown>;
+  brand_context_json: Record<string, unknown>;
+};
+
+export type CmktPillarRow = {
+  id: number;
+  lifecycle_id: number;
+  snapshot_id: number | null;
+  name: string;
+  goal: string;
+  topics_json: string[];
+  sort_order: number;
+  active: boolean;
+};
+
+export type CmktIngestResult = {
+  ok: boolean;
+  snapshot_id: number;
+  ideas_created: number;
+  pillars_upserted: number;
+  warnings: string[];
+};
+
+export type CmktPlanSnapshotPayload = {
+  snapshot: {
+    id: number;
+    lifecycle_id: number;
+    marketing_plan_id: number | null;
+    sealed: boolean;
+    source_hash: string;
+    ingested_at: string;
+    ingested_by: string;
+    snapshot_json: Record<string, unknown>;
+    brand_context_json: Record<string, unknown>;
+  } | null;
+  pillars: CmktPillarRow[];
+  planner: {
+    marketing_plan_id: number | null;
+    has_applied_plan: boolean;
+    current_source_hash: string | null;
+    drift: boolean;
+  };
 };

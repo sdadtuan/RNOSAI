@@ -40,6 +40,8 @@ export type ContentOsContext = {
     pillars_count: number;
     ingested_at: string;
     marketing_plan_id: number | null;
+    source_hash?: string;
+    planner_drift?: boolean;
   } | null;
   counts: {
     ideas: number;
@@ -163,4 +165,71 @@ export function patchContentOsItem(
 export function channelFormatLabel(channel: string, format: string): string {
   const hit = CMKT_P0_PAIRS.find((p) => p.channel === channel && p.format === format);
   return hit?.label ?? `${channel} / ${format}`;
+}
+
+export type ContentOsPillar = {
+  id: number;
+  lifecycle_id: number;
+  snapshot_id: number | null;
+  name: string;
+  goal: string;
+  topics_json: string[];
+  sort_order: number;
+  active: boolean;
+};
+
+export type ContentOsPlanSnapshot = {
+  snapshot: {
+    id: number;
+    lifecycle_id: number;
+    marketing_plan_id: number | null;
+    sealed: boolean;
+    source_hash: string;
+    ingested_at: string;
+    ingested_by: string;
+    snapshot_json: Record<string, unknown>;
+    brand_context_json: Record<string, unknown>;
+  } | null;
+  pillars: ContentOsPillar[];
+  planner: {
+    marketing_plan_id: number | null;
+    has_applied_plan: boolean;
+    current_source_hash: string | null;
+    drift: boolean;
+  };
+};
+
+export type ContentOsIngestResult = {
+  ok: boolean;
+  snapshot_id: number;
+  ideas_created: number;
+  pillars_upserted: number;
+  warnings: string[];
+};
+
+export function fetchPlanSnapshot(token: string, lifecycleId: number): Promise<ContentOsPlanSnapshot> {
+  return cmktFetch(token, lifecycleId, '/plan-snapshot');
+}
+
+export function postPlanSnapshotIngest(
+  token: string,
+  lifecycleId: number,
+  body: {
+    marketing_plan_id?: number;
+    mode?: 'merge' | 'replace';
+    import_calendar?: boolean;
+    import_pillars?: boolean;
+  },
+): Promise<ContentOsIngestResult> {
+  return cmktFetch(token, lifecycleId, '/plan-snapshot/ingest', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function postPlanSnapshotSeal(
+  token: string,
+  lifecycleId: number,
+): Promise<{ ok: boolean; snapshot_id: number; sealed: boolean }> {
+  return cmktFetch(token, lifecycleId, '/plan-snapshot/seal', { method: 'POST', body: '{}' });
 }
