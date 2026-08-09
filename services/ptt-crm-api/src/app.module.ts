@@ -29,6 +29,7 @@ import { ZaloAdsOpsModule } from './zalo-ads-ops/zalo-ads-ops.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { MarketingAiPlannerModule } from './marketing-ai-planner/marketing-ai-planner.module';
 import { ContentMarketingModule } from './content-marketing/content-marketing.module';
+import { OpsModule } from './ops/ops.module';
 import { MarketingPlansModule } from './marketing-plans/marketing-plans.module';
 import { ServiceLifecycleModule } from './service-lifecycle/service-lifecycle.module';
 import { SvcFinanceModule } from './svc-finance/svc-finance.module';
@@ -120,6 +121,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     MarketingPlansModule,
     MarketingAiPlannerModule,
     ContentMarketingModule,
+    OpsModule,
     ServiceLifecycleModule,
     LaunchQaModule,
     CrmCreativesModule,

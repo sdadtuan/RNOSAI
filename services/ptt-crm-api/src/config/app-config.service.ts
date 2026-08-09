@@ -160,6 +160,10 @@ export class AppConfigService {
   readonly contentMarketingExternalMetricsEnabled: boolean;
   readonly contentMarketingBriefGateEnabled: boolean;
   readonly contentMarketingPiiConsentDefault: boolean;
+  readonly opsDvEnabled: boolean;
+  readonly opsWeeklySpawnEnabled: boolean;
+  readonly opsHubPilotDv: Set<string>;
+  readonly opsRouteMapPath: string;
 
   constructor() {
     this.applyRuntimeEnvOverrides();
@@ -507,6 +511,21 @@ export class AppConfigService {
     this.contentMarketingPiiConsentDefault = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CMKT_PII_CONSENT_DEFAULT ?? '0').trim().toLowerCase(),
     );
+    this.opsDvEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_OPS_DV_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.opsWeeklySpawnEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_OPS_WEEKLY_SPAWN ?? '0').trim().toLowerCase(),
+    );
+    this.opsHubPilotDv = new Set(
+      (process.env.PTT_OPS_HUB_PILOT_DV ?? 'DV02,DV05,DV04,DV20')
+        .split(',')
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean),
+    );
+    this.opsRouteMapPath =
+      process.env.PTT_OPS_ROUTE_MAP_PATH?.trim() ||
+      path.join(process.cwd(), 'docs/specs/ops-dv01-dv21-route-map.json');
   }
 
   private parsePortalCorsOrigins(): string[] {
