@@ -1,4 +1,5 @@
 import type {
+  CmktExternalMetricsSummary,
   CmktIntelligenceChannelStats,
   CmktIntelligenceResponse,
   CmktMetricWithItemRow,
@@ -131,6 +132,23 @@ export function summarizeMetrics(
     by_channel: intel.by_channel,
     entries_count: rows.length,
   };
+}
+
+export function mergeExternalIntoChannels(
+  by_channel: Record<string, CmktIntelligenceChannelStats>,
+  external: CmktExternalMetricsSummary,
+): Record<string, CmktIntelligenceChannelStats> {
+  if (!external.enabled) return by_channel;
+  const merged: Record<string, CmktIntelligenceChannelStats> = { ...by_channel };
+  for (const [channel, ext] of Object.entries(external.by_channel)) {
+    const existing = merged[channel] ?? { published: 0 };
+    merged[channel] = {
+      ...existing,
+      external_source: ext.source,
+      external_metrics: ext,
+    };
+  }
+  return merged;
 }
 
 export function buildTopicSuggestions(input: {

@@ -194,6 +194,8 @@ export type CmktContextFlags = {
   client_gate: boolean;
   portal_summary_enabled: boolean;
   fe_enabled: boolean;
+  weekly_memo_enabled: boolean;
+  external_metrics_enabled: boolean;
 };
 
 export type CmktContextPayload = {
@@ -350,6 +352,24 @@ export type CmktMetricWithItemRow = CmktMetricRow & {
   item_status: string;
 };
 
+export type CmktExternalChannelMetrics = {
+  source: string;
+  linked_items: number;
+  impressions?: number;
+  engagements?: number;
+  clicks?: number;
+  leads?: number;
+  open_rate_pct?: number;
+  emails_sent?: number;
+  note?: string;
+};
+
+export type CmktExternalMetricsSummary = {
+  enabled: boolean;
+  sources: string[];
+  by_channel: Record<string, CmktExternalChannelMetrics>;
+};
+
 export type CmktIntelligenceChannelStats = {
   published: number;
   avg_engagement?: number;
@@ -357,6 +377,35 @@ export type CmktIntelligenceChannelStats = {
   engagements?: number;
   clicks?: number;
   leads?: number;
+  external_source?: string;
+  external_metrics?: CmktExternalChannelMetrics;
+};
+
+export type CmktWeeklyMemoSection = {
+  heading: string;
+  bullets: string[];
+};
+
+export type CmktWeeklyMemoPayload = {
+  title: string;
+  body_vi: string;
+  sections: CmktWeeklyMemoSection[];
+  week_label: string;
+  auto_apply: boolean;
+};
+
+export type CmktWeeklyMemoPreview = {
+  title: string;
+  body_vi: string;
+  generated_at: string;
+  job_id: number;
+};
+
+export type CmktApplySuggestionsResult = {
+  ok: boolean;
+  ideas_created: number;
+  idea_ids: number[];
+  ideas: CmktIdeaRow[];
 };
 
 export type CmktIntelligenceResponse = {
@@ -367,6 +416,8 @@ export type CmktIntelligenceResponse = {
   top_items: Array<{ item_id: number; title: string; score: number; channel: string }>;
   suggestions: string[];
   metrics_count: number;
+  external_metrics?: CmktExternalMetricsSummary;
+  weekly_memo?: CmktWeeklyMemoPreview | null;
 };
 
 export type CmktMetricsSummaryResponse = {

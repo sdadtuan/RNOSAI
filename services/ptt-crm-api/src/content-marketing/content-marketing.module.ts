@@ -7,6 +7,7 @@ import { ContentBrandContextService } from './content-brand-context.service';
 import { ContentCalendarService } from './content-calendar.service';
 import { ContentCommentsService } from './content-comments.service';
 import { ContentEmailBridgeService } from './content-email-bridge.service';
+import { ContentExternalMetricsService } from './content-external-metrics.service';
 import { ContentGenerateService } from './content-generate.service';
 import { ContentIdeaService } from './content-idea.service';
 import { ContentIntelligenceService } from './content-intelligence.service';
@@ -62,6 +63,7 @@ import {
     ContentCommentsService,
     ContentMetricsService,
     ContentIntelligenceService,
+    ContentExternalMetricsService,
     ContentPillarService,
     ContentRepurposeService,
     ContentSeoBridgeService,

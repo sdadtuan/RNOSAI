@@ -1,6 +1,7 @@
 import {
   aggregateIntelligence,
   buildTopicSuggestions,
+  mergeExternalIntoChannels,
   parseMetricsRange,
   scoreMetricRow,
   summarizeMetrics,
@@ -64,6 +65,19 @@ describe('content-intelligence.util', () => {
     });
     expect(suggestions.length).toBeGreaterThan(0);
     expect(suggestions.some((s) => s.includes('Launch') || s.includes('Acme'))).toBe(true);
+  });
+
+  it('merges external metrics into channel stats', () => {
+    const intel = aggregateIntelligence([], range, { facebook: 1 });
+    const merged = mergeExternalIntoChannels(intel.by_channel, {
+      enabled: true,
+      sources: ['meta'],
+      by_channel: {
+        facebook: { source: 'meta', linked_items: 2, impressions: 100 },
+      },
+    });
+    expect(merged.facebook.external_source).toBe('meta');
+    expect(merged.facebook.external_metrics?.linked_items).toBe(2);
   });
 
   it('summarizes totals', () => {

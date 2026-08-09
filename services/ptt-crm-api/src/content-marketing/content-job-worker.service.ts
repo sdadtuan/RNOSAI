@@ -36,6 +36,7 @@ import {
   buildTopicSuggestions,
   parseMetricsRange,
 } from './content-intelligence.util';
+import { buildContentWeeklyMemo } from './content-weekly-memo.util';
 import { ContentVisualQaService } from './content-visual-qa.service';
 import { ContentMediaImageProvider } from './content-media-image.provider';
 import { ContentMarketingRepository } from './content-marketing.repository';
@@ -71,6 +72,14 @@ export class ContentJobWorkerService {
 
       if (claimed.job_type === 'topic_suggest') {
         return this.processTopicSuggestJob(jobId, claimed, started);
+      }
+
+      if (claimed.job_type === 'weekly_memo') {
+        return this.processWeeklyMemoJob(jobId, claimed, started);
+      }
+
+      if (claimed.job_type === 'intelligence_digest') {
+        return this.processIntelligenceDigestJob(jobId, claimed, started);
       }
 
       if (claimed.job_type === 'ideas_bulk') {
@@ -439,27 +448,97 @@ export class ContentJobWorkerService {
     started: number,
   ): Promise<CmktJobRow | null> {
     try {
-      const range = parseMetricsRange(String(claimed.input_json?.range ?? '30d'));
-      const [rows, publishedByChannel, brand, pillars] = await Promise.all([
-        this.repo.listLifecycleMetricsInRange(claimed.lifecycle_id, range.fromDate, range.toDate),
-        this.repo.countPublishedItemsByChannel(claimed.lifecycle_id, range.fromDate, range.toDate),
-        this.brandContext.resolveForLifecycle(claimed.lifecycle_id),
-        this.repo.listPillars(claimed.lifecycle_id),
-      ]);
-      const intelligence = aggregateIntelligence(rows, range, publishedByChannel);
-      const suggestions = buildTopicSuggestions({
-        intelligence,
-        pillarNames: pillars.map((p) => p.name),
-        brandName: String(brand.brand_name ?? 'Brand'),
-      });
+      const suggestions = await this.buildTopicSuggestionsForJob(claimed);
       await this.repo.setLatestTopicSuggestions(claimed.lifecycle_id, suggestions);
       return this.repo.finishContentJob(jobId, {
         status: 'succeeded',
         output_json: {
           suggestions,
-          range: range.range,
+          range: String(claimed.input_json?.range ?? '30d'),
           latency_ms: Date.now() - started,
           stub_mode: !this.aiConfig.llmApiKey,
+        },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return this.repo.finishContentJob(jobId, { status: 'failed', error_text: message });
+    }
+  }
+
+  private async buildTopicSuggestionsForJob(claimed: CmktJobRow): Promise<string[]> {
+    const range = parseMetricsRange(String(claimed.input_json?.range ?? '30d'));
+    const [rows, publishedByChannel, brand, pillars] = await Promise.all([
+      this.repo.listLifecycleMetricsInRange(claimed.lifecycle_id, range.fromDate, range.toDate),
+      this.repo.countPublishedItemsByChannel(claimed.lifecycle_id, range.fromDate, range.toDate),
+      this.brandContext.resolveForLifecycle(claimed.lifecycle_id),
+      this.repo.listPillars(claimed.lifecycle_id),
+    ]);
+    const intelligence = aggregateIntelligence(rows, range, publishedByChannel);
+    return buildTopicSuggestions({
+      intelligence,
+      pillarNames: pillars.map((p) => p.name),
+      brandName: String(brand.brand_name ?? 'Brand'),
+    });
+  }
+
+  private async processIntelligenceDigestJob(
+    jobId: number,
+    claimed: CmktJobRow,
+    started: number,
+  ): Promise<CmktJobRow | null> {
+    try {
+      const suggestions = await this.buildTopicSuggestionsForJob(claimed);
+      await this.repo.setLatestTopicSuggestions(claimed.lifecycle_id, suggestions);
+      return this.repo.finishContentJob(jobId, {
+        status: 'succeeded',
+        output_json: {
+          suggestions,
+          range: String(claimed.input_json?.range ?? '30d'),
+          latency_ms: Date.now() - started,
+          digest: true,
+        },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return this.repo.finishContentJob(jobId, { status: 'failed', error_text: message });
+    }
+  }
+
+  private async processWeeklyMemoJob(
+    jobId: number,
+    claimed: CmktJobRow,
+    started: number,
+  ): Promise<CmktJobRow | null> {
+    try {
+      const range = parseMetricsRange(String(claimed.input_json?.range ?? '7d'));
+      const [rows, publishedByChannel, brand, pillars, counts, reviewSummary, cached] =
+        await Promise.all([
+          this.repo.listLifecycleMetricsInRange(claimed.lifecycle_id, range.fromDate, range.toDate),
+          this.repo.countPublishedItemsByChannel(claimed.lifecycle_id, range.fromDate, range.toDate),
+          this.brandContext.resolveForLifecycle(claimed.lifecycle_id),
+          this.repo.listPillars(claimed.lifecycle_id),
+          this.repo.getContextCounts(claimed.lifecycle_id),
+          this.repo.getReviewQueueSummary(claimed.lifecycle_id),
+          this.repo.getLatestTopicSuggestions(claimed.lifecycle_id),
+        ]);
+      const intelligence = aggregateIntelligence(rows, range, publishedByChannel, cached);
+      const weekLabel = `${range.fromDate} → ${range.toDate}`;
+      const memo = buildContentWeeklyMemo({
+        brandName: String(brand.brand_name ?? 'Brand'),
+        weekLabel,
+        range,
+        intelligence,
+        counts,
+        reviewSummary,
+        suggestions: cached,
+        pillars: pillars.map((p) => p.name),
+      });
+      return this.repo.finishContentJob(jobId, {
+        status: 'succeeded',
+        output_json: {
+          memo,
+          range: range.range,
+          latency_ms: Date.now() - started,
         },
       });
     } catch (err) {

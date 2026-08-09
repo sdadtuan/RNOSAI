@@ -151,6 +151,9 @@ export class AppConfigService {
   readonly contentMarketingPortalSummaryEnabled: boolean;
   readonly contentMarketingVideoProvider: string;
   readonly contentMarketingSlugs: string[];
+  readonly contentMarketingWeeklyMemoEnabled: boolean;
+  readonly contentMarketingWeeklyMemoCron: string;
+  readonly contentMarketingExternalMetricsEnabled: boolean;
 
   constructor() {
     this.applyRuntimeEnvOverrides();
@@ -479,6 +482,15 @@ export class AppConfigService {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
+    this.contentMarketingWeeklyMemoEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CMKT_WEEKLY_MEMO ?? '1').trim().toLowerCase(),
+    );
+    this.contentMarketingWeeklyMemoCron = (
+      process.env.PTT_CMKT_WEEKLY_MEMO_CRON ?? '0 8 * * 1'
+    ).trim();
+    this.contentMarketingExternalMetricsEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CMKT_EXTERNAL_METRICS ?? '1').trim().toLowerCase(),
+    );
   }
 
   private parsePortalCorsOrigins(): string[] {

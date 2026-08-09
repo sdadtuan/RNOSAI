@@ -22,6 +22,7 @@ import type {
   CmktReviewQueueItem,
   CmktReviewQueueSummary,
   CmktVisualReviewItem,
+  CmktWeeklyMemoPreview,
 } from './content-marketing.types';
 import type { PlannerIngestSource, SnapshotPillarDraft } from './content-plan-snapshot.util';
 
@@ -1853,6 +1854,59 @@ export class ContentMarketingRepository implements OnModuleDestroy {
 
   async setLatestTopicSuggestions(lifecycleId: number, suggestions: string[]): Promise<void> {
     this.memory.topicSuggestions.set(lifecycleId, suggestions);
+  }
+
+  async getLatestJobOutput(
+    lifecycleId: number,
+    jobType: string,
+  ): Promise<{ job_id: number; output_json: Record<string, unknown>; finished_at: string | null } | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, output_json, finished_at
+         FROM cmkt_content_jobs
+         WHERE lifecycle_id = $1
+           AND job_type = $2
+           AND status = 'succeeded'
+         ORDER BY finished_at DESC NULLS LAST, id DESC
+         LIMIT 1`,
+        [lifecycleId, jobType],
+      );
+      const row = res.rows[0];
+      if (!row) return null;
+      return {
+        job_id: Number(row.id),
+        output_json: (row.output_json as Record<string, unknown>) ?? {},
+        finished_at: row.finished_at ? new Date(row.finished_at).toISOString() : null,
+      };
+    }
+    let latest: { job_id: number; output_json: Record<string, unknown>; finished_at: string | null } | null =
+      null;
+    for (const job of this.memory.jobs.values()) {
+      if (job.lifecycle_id !== lifecycleId || job.job_type !== jobType || job.status !== 'succeeded') {
+        continue;
+      }
+      if (!latest || job.id > latest.job_id) {
+        latest = {
+          job_id: job.id,
+          output_json: job.output_json ?? {},
+          finished_at: job.finished_at,
+        };
+      }
+    }
+    return latest;
+  }
+
+  async getLatestWeeklyMemo(lifecycleId: number): Promise<CmktWeeklyMemoPreview | null> {
+    const row = await this.getLatestJobOutput(lifecycleId, 'weekly_memo');
+    if (!row) return null;
+    const memo = row.output_json?.memo as { title?: string; body_vi?: string } | undefined;
+    if (!memo?.body_vi) return null;
+    return {
+      title: String(memo.title ?? 'Weekly content memo'),
+      body_vi: String(memo.body_vi),
+      generated_at: row.finished_at ?? new Date().toISOString(),
+      job_id: row.job_id,
+    };
   }
 
   async getPillarById(lifecycleId: number, pillarId: number): Promise<CmktPillarRow | null> {

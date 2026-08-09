@@ -1,11 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   fetchContentOsIntelligence,
   fetchContentOsItems,
+  postContentOsApplySuggestions,
+  postContentOsBulkApplySuggestions,
   postContentOsItemMetric,
   postContentOsTopicSuggestJob,
+  postContentOsWeeklyMemoJob,
   type ContentOsIntelligence,
   type ContentOsItem,
 } from '@/lib/content-os-api';
@@ -34,6 +37,8 @@ export function ContentOsIntelligenceView({
   const [publishedItems, setPublishedItems] = useState<ContentOsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(new Set());
+  const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
   const [itemId, setItemId] = useState('');
   const [metricDate, setMetricDate] = useState(new Date().toISOString().slice(0, 10));
   const [impressions, setImpressions] = useState('');
@@ -51,6 +56,7 @@ export function ContentOsIntelligenceView({
       ]);
       setIntel(intelRes);
       setPublishedItems(itemsRes.items.filter((i) => i.status === 'published'));
+      setSelectedSuggestions(new Set());
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Tải intelligence thất bại');
     } finally {
@@ -61,6 +67,30 @@ export function ContentOsIntelligenceView({
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const suggestionCount = intel?.suggestions?.length ?? 0;
+  const allSelected = useMemo(
+    () => suggestionCount > 0 && selectedSuggestions.size === suggestionCount,
+    [selectedSuggestions.size, suggestionCount],
+  );
+
+  function toggleSuggestion(index: number) {
+    setSelectedSuggestions((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  function toggleAllSuggestions() {
+    if (!intel?.suggestions?.length) return;
+    if (allSelected) {
+      setSelectedSuggestions(new Set());
+      return;
+    }
+    setSelectedSuggestions(new Set(intel.suggestions.map((_, index) => index)));
+  }
 
   async function submitMetric(e: React.FormEvent) {
     e.preventDefault();
@@ -106,6 +136,50 @@ export function ContentOsIntelligenceView({
     }
   }
 
+  async function runWeeklyMemo() {
+    if (!canGenerate) return;
+    setBusy(true);
+    try {
+      const job = await postContentOsWeeklyMemoJob(token, lifecycleId, { range: '7d' });
+      if (job.status === 'failed') {
+        onError(job.error_text ?? 'Weekly memo thất bại');
+      } else {
+        onMessage('Đã tạo weekly memo');
+        await reload();
+      }
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Weekly memo thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function applySelected(leaderConfirm: boolean) {
+    if (!canWrite) return;
+    const indices = [...selectedSuggestions].sort((a, b) => a - b);
+    if (!indices.length) {
+      onError('Chọn ít nhất một gợi ý');
+      return;
+    }
+    setBusy(true);
+    try {
+      const result =
+        indices.length > 1 || leaderConfirm
+          ? await postContentOsBulkApplySuggestions(token, lifecycleId, { suggestion_indices: indices })
+          : await postContentOsApplySuggestions(token, lifecycleId, {
+              suggestion_indices: indices,
+              leader_confirm: leaderConfirm,
+            });
+      onMessage(`Đã thêm ${result.ideas_created} ideas vào idea bank`);
+      setConfirmBulkOpen(false);
+      await reload();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Apply suggestions thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading && !intel) {
     return <p className="muted">Đang tải intelligence…</p>;
   }
@@ -131,14 +205,49 @@ export function ContentOsIntelligenceView({
         {intel ? (
           <span className="muted" style={{ fontSize: '0.82rem' }}>
             {intel.from_date} → {intel.to_date} · {intel.metrics_count} metric rows
+            {intel.external_metrics?.enabled ? ` · external: ${intel.external_metrics.sources.join(', ') || 'none'}` : ''}
           </span>
         ) : null}
         {canGenerate ? (
-          <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void runTopicSuggest()}>
-            Gợi ý topic tuần sau
-          </button>
+          <>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void runTopicSuggest()}>
+              Gợi ý topic tuần sau
+            </button>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void runWeeklyMemo()}>
+              Tạo weekly memo
+            </button>
+          </>
         ) : null}
       </div>
+
+      {intel?.weekly_memo ? (
+        <div
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            padding: '0.75rem',
+            background: 'var(--bg-subtle, var(--bg))',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <strong style={{ fontSize: '0.88rem' }}>{intel.weekly_memo.title}</strong>
+            <span className="muted" style={{ fontSize: '0.78rem' }}>
+              {intel.weekly_memo.generated_at.slice(0, 16).replace('T', ' ')}
+            </span>
+          </div>
+          <pre
+            style={{
+              margin: '0.55rem 0 0',
+              whiteSpace: 'pre-wrap',
+              fontFamily: 'inherit',
+              fontSize: '0.82rem',
+              lineHeight: 1.45,
+            }}
+          >
+            {intel.weekly_memo.body_vi}
+          </pre>
+        </div>
+      ) : null}
 
       {channels.length ? (
         <div
@@ -161,6 +270,17 @@ export function ContentOsIntelligenceView({
               <div className="muted" style={{ fontSize: '0.78rem', marginTop: 4 }}>
                 Published: {stats.published ?? 0}
               </div>
+              {stats.external_source ? (
+                <div className="muted" style={{ fontSize: '0.78rem' }}>
+                  External ({stats.external_source})
+                  {stats.external_metrics?.linked_items != null
+                    ? ` · ${stats.external_metrics.linked_items} linked`
+                    : ''}
+                  {stats.external_metrics?.open_rate_pct != null
+                    ? ` · OR ${stats.external_metrics.open_rate_pct}%`
+                    : ''}
+                </div>
+              ) : null}
               {stats.avg_engagement != null ? (
                 <div className="muted" style={{ fontSize: '0.78rem' }}>
                   ER: {stats.avg_engagement}%
@@ -198,12 +318,79 @@ export function ContentOsIntelligenceView({
 
       {intel?.suggestions?.length ? (
         <div>
-          <strong style={{ fontSize: '0.88rem' }}>Gợi ý topic</strong>
-          <ul style={{ margin: '0.45rem 0 0', paddingLeft: '1.1rem', fontSize: '0.84rem' }}>
-            {intel.suggestions.map((s) => (
-              <li key={s}>{s}</li>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <strong style={{ fontSize: '0.88rem' }}>Gợi ý topic</strong>
+            {canWrite ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  disabled={busy || selectedSuggestions.size === 0}
+                  onClick={() => void applySelected(false)}
+                >
+                  Thêm {selectedSuggestions.size || ''} ideas
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={busy || selectedSuggestions.size === 0}
+                  onClick={() => setConfirmBulkOpen(true)}
+                >
+                  Bulk apply (Leader)
+                </button>
+                <label style={{ fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input type="checkbox" checked={allSelected} onChange={toggleAllSuggestions} disabled={busy} />
+                  Chọn tất cả
+                </label>
+              </>
+            ) : null}
+          </div>
+          <ul style={{ margin: '0.45rem 0 0', paddingLeft: 0, listStyle: 'none', fontSize: '0.84rem' }}>
+            {intel.suggestions.map((s, index) => (
+              <li key={`${index}-${s}`} style={{ display: 'flex', gap: '0.45rem', marginBottom: 6 }}>
+                {canWrite ? (
+                  <input
+                    type="checkbox"
+                    checked={selectedSuggestions.has(index)}
+                    onChange={() => toggleSuggestion(index)}
+                    disabled={busy}
+                  />
+                ) : null}
+                <span>{s}</span>
+              </li>
             ))}
           </ul>
+        </div>
+      ) : null}
+
+      {confirmBulkOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            padding: '0.75rem',
+            background: 'var(--bg)',
+          }}
+        >
+          <strong style={{ fontSize: '0.88rem' }}>Xác nhận bulk apply</strong>
+          <p className="muted" style={{ fontSize: '0.82rem', margin: '0.45rem 0' }}>
+            Leader xác nhận tạo {selectedSuggestions.size} ideas từ intelligence suggestions vào idea bank.
+          </p>
+          <div style={{ display: 'flex', gap: '0.45rem' }}>
+            <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void applySelected(true)}>
+              Xác nhận
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              disabled={busy}
+              onClick={() => setConfirmBulkOpen(false)}
+            >
+              Hủy
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -255,7 +442,7 @@ export function ContentOsIntelligenceView({
         </form>
       ) : (
         <p className="muted" style={{ fontSize: '0.82rem' }}>
-          Cần quyền crm_content.write để nhập metrics.
+          Cần quyền crm_content.write để nhập metrics và apply suggestions.
         </p>
       )}
     </div>

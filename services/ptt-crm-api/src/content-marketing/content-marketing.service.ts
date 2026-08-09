@@ -91,6 +91,8 @@ export class ContentMarketingService {
         client_gate: this.config.contentMarketingClientGate,
         portal_summary_enabled: this.config.contentMarketingPortalSummaryEnabled,
         fe_enabled: this.config.contentMarketingFeEnabled,
+        weekly_memo_enabled: this.config.contentMarketingWeeklyMemoEnabled,
+        external_metrics_enabled: this.config.contentMarketingExternalMetricsEnabled,
       },
       channel_defaults: [...CMKT_P0_CHANNEL_DEFAULTS],
       email_client_id: emailClientId,

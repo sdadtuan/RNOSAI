@@ -775,6 +775,50 @@ export class ContentMarketingController {
     return this.intelligence.startTopicSuggestJob(lifecycleId, body, actorEmail(req));
   }
 
+  @Post('jobs/intelligence/weekly-memo')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  startWeeklyMemoJob(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.intelligence.startWeeklyMemoJob(lifecycleId, body, actorEmail(req));
+  }
+
+  @Post('jobs/intelligence/digest')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  startIntelligenceDigestJob(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.intelligence.startIntelligenceDigestJob(lifecycleId, body, actorEmail(req));
+  }
+
+  @Post('intelligence/suggestions/apply')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  applyIntelligenceSuggestions(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.intelligence.applySuggestions(lifecycleId, body, actorEmail(req));
+  }
+
+  @Post('intelligence/suggestions/bulk-apply')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  bulkApplyIntelligenceSuggestions(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.intelligence.bulkApplySuggestions(lifecycleId, body, actorEmail(req));
+  }
+
   @Get('pillars')
   listPillars(@Param('lifecycleId', ParseIntPipe) lifecycleId: number) {
     return this.pillars.listPillars(lifecycleId);

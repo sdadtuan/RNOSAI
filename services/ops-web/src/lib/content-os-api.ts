@@ -973,11 +973,40 @@ export type ContentOsIntelligence = {
       engagements?: number;
       clicks?: number;
       leads?: number;
+      external_source?: string;
+      external_metrics?: {
+        source: string;
+        linked_items: number;
+        impressions?: number;
+        engagements?: number;
+        clicks?: number;
+        leads?: number;
+        open_rate_pct?: number;
+        emails_sent?: number;
+        note?: string;
+      };
     }
   >;
   top_items: Array<{ item_id: number; title: string; score: number; channel: string }>;
   suggestions: string[];
   metrics_count: number;
+  external_metrics?: {
+    enabled: boolean;
+    sources: string[];
+    by_channel: Record<string, unknown>;
+  };
+  weekly_memo?: {
+    title: string;
+    body_vi: string;
+    generated_at: string;
+    job_id: number;
+  } | null;
+};
+
+export type ContentOsApplySuggestionsResult = {
+  ok: boolean;
+  ideas_created: number;
+  idea_ids: number[];
 };
 
 export function fetchContentOsIntelligence(
@@ -1016,6 +1045,42 @@ export function postContentOsTopicSuggestJob(
   return cmktFetch(token, lifecycleId, '/jobs/topic-suggest', {
     method: 'POST',
     body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function postContentOsWeeklyMemoJob(
+  token: string,
+  lifecycleId: number,
+  body?: { range?: string },
+): Promise<ContentOsJob> {
+  return cmktFetch(token, lifecycleId, '/jobs/intelligence/weekly-memo', {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function postContentOsApplySuggestions(
+  token: string,
+  lifecycleId: number,
+  body: {
+    suggestion_indices?: number[];
+    leader_confirm?: boolean;
+  },
+): Promise<ContentOsApplySuggestionsResult> {
+  return cmktFetch(token, lifecycleId, '/intelligence/suggestions/apply', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function postContentOsBulkApplySuggestions(
+  token: string,
+  lifecycleId: number,
+  body: { suggestion_indices?: number[] },
+): Promise<ContentOsApplySuggestionsResult> {
+  return cmktFetch(token, lifecycleId, '/intelligence/suggestions/bulk-apply', {
+    method: 'POST',
+    body: JSON.stringify(body),
   });
 }
 
