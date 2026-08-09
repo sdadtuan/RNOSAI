@@ -23,6 +23,8 @@ import { ContentCalendarService } from './content-calendar.service';
 import { ContentCommentsService } from './content-comments.service';
 import { ContentEmailBridgeService } from './content-email-bridge.service';
 import { ContentGenerateService } from './content-generate.service';
+import { ContentIntelligenceService } from './content-intelligence.service';
+import { ContentMetricsService } from './content-metrics.service';
 import { ContentIdeaService } from './content-idea.service';
 import { ContentItemService } from './content-item.service';
 import { ContentPlanSnapshotService } from './content-plan-snapshot.service';
@@ -68,6 +70,8 @@ export class ContentMarketingController {
     private readonly production: ContentProductionService,
     private readonly media: ContentMediaGenerateService,
     private readonly visual: ContentVisualService,
+    private readonly metrics: ContentMetricsService,
+    private readonly intelligence: ContentIntelligenceService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -610,5 +614,79 @@ export class ContentMarketingController {
     @Req() req: Request,
   ) {
     return this.visual.escalateHuman(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Get('intelligence')
+  getIntelligence(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Query('range') range?: string,
+  ) {
+    return this.intelligence.getIntelligence(lifecycleId, range);
+  }
+
+  @Get('intelligence/summary')
+  getIntelligenceSummary(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Query('range') range?: string,
+  ) {
+    return this.intelligence.getIntelligence(lifecycleId, range);
+  }
+
+  @Get('intelligence/suggestions')
+  getIntelligenceSuggestions(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Query('range') range?: string,
+  ) {
+    return this.intelligence.getSuggestions(lifecycleId, range);
+  }
+
+  @Get('metrics/summary')
+  getMetricsSummary(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Query('range') range?: string,
+  ) {
+    return this.intelligence.getMetricsSummary(lifecycleId, range);
+  }
+
+  @Get('items/:itemId/metrics')
+  listItemMetrics(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+  ) {
+    return this.metrics.listItemMetrics(lifecycleId, itemId);
+  }
+
+  @Post('items/:itemId/metrics')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  createItemMetric(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.metrics.createMetric(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Patch('items/:itemId/metrics/:metricId')
+  @UseGuards(StaffContentMarketingWriteGuard)
+  patchItemMetric(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Param('metricId', ParseIntPipe) metricId: number,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.metrics.patchMetric(lifecycleId, itemId, metricId, body);
+  }
+
+  @Post('jobs/topic-suggest')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  startTopicSuggestJob(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.intelligence.startTopicSuggestJob(lifecycleId, body, actorEmail(req));
   }
 }

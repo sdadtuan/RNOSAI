@@ -26,6 +26,11 @@ import {
   parseCarouselSlideTexts,
   resolveAspectRatio,
 } from './content-media.util';
+import {
+  aggregateIntelligence,
+  buildTopicSuggestions,
+  parseMetricsRange,
+} from './content-intelligence.util';
 import { ContentVisualQaService } from './content-visual-qa.service';
 import { ContentMediaImageProvider } from './content-media-image.provider';
 import { ContentMarketingRepository } from './content-marketing.repository';
@@ -58,6 +63,10 @@ export class ContentJobWorkerService {
     try {
       const claimed = await this.repo.claimContentJob(jobId);
       if (!claimed) return null;
+
+      if (claimed.job_type === 'topic_suggest') {
+        return this.processTopicSuggestJob(jobId, claimed, started);
+      }
 
       const item =
         claimed.item_id != null
@@ -369,6 +378,41 @@ export class ContentJobWorkerService {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await this.repo.patchItem(claimed.lifecycle_id, item.id, { visual_status: 'rejected' });
+      return this.repo.finishContentJob(jobId, { status: 'failed', error_text: message });
+    }
+  }
+
+  private async processTopicSuggestJob(
+    jobId: number,
+    claimed: CmktJobRow,
+    started: number,
+  ): Promise<CmktJobRow | null> {
+    try {
+      const range = parseMetricsRange(String(claimed.input_json?.range ?? '30d'));
+      const [rows, publishedByChannel, brand, pillars] = await Promise.all([
+        this.repo.listLifecycleMetricsInRange(claimed.lifecycle_id, range.fromDate, range.toDate),
+        this.repo.countPublishedItemsByChannel(claimed.lifecycle_id, range.fromDate, range.toDate),
+        this.brandContext.resolveForLifecycle(claimed.lifecycle_id),
+        this.repo.listPillars(claimed.lifecycle_id),
+      ]);
+      const intelligence = aggregateIntelligence(rows, range, publishedByChannel);
+      const suggestions = buildTopicSuggestions({
+        intelligence,
+        pillarNames: pillars.map((p) => p.name),
+        brandName: String(brand.brand_name ?? 'Brand'),
+      });
+      await this.repo.setLatestTopicSuggestions(claimed.lifecycle_id, suggestions);
+      return this.repo.finishContentJob(jobId, {
+        status: 'succeeded',
+        output_json: {
+          suggestions,
+          range: range.range,
+          latency_ms: Date.now() - started,
+          stub_mode: !this.aiConfig.llmApiKey,
+        },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       return this.repo.finishContentJob(jobId, { status: 'failed', error_text: message });
     }
   }

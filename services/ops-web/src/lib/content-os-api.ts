@@ -809,6 +809,79 @@ export function postContentOsEscalateHuman(
   });
 }
 
+export type ContentOsMetric = {
+  id: number;
+  item_id: number;
+  channel: string;
+  metric_date: string;
+  impressions: number | null;
+  engagements: number | null;
+  clicks: number | null;
+  leads: number | null;
+  source: string;
+  raw_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export type ContentOsIntelligence = {
+  range: string;
+  from_date: string;
+  to_date: string;
+  by_channel: Record<
+    string,
+    {
+      published: number;
+      avg_engagement?: number;
+      impressions?: number;
+      engagements?: number;
+      clicks?: number;
+      leads?: number;
+    }
+  >;
+  top_items: Array<{ item_id: number; title: string; score: number; channel: string }>;
+  suggestions: string[];
+  metrics_count: number;
+};
+
+export function fetchContentOsIntelligence(
+  token: string,
+  lifecycleId: number,
+  range = '30d',
+): Promise<ContentOsIntelligence> {
+  const q = new URLSearchParams({ range });
+  return cmktFetch(token, lifecycleId, `/intelligence?${q.toString()}`);
+}
+
+export function postContentOsItemMetric(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body: {
+    metric_date?: string;
+    channel?: string;
+    impressions?: number;
+    engagements?: number;
+    clicks?: number;
+    leads?: number;
+  },
+): Promise<{ metric: ContentOsMetric }> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/metrics`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function postContentOsTopicSuggestJob(
+  token: string,
+  lifecycleId: number,
+  body?: { range?: string },
+): Promise<ContentOsJob> {
+  return cmktFetch(token, lifecycleId, '/jobs/topic-suggest', {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
 export function itemNeedsVisualApproval(item: ContentOsItem): boolean {
   if (item.format === 'carousel' || item.format === 'video_script') return true;
   return item.brief_json?.needs_visual === true;

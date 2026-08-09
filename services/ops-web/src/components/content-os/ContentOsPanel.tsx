@@ -9,6 +9,7 @@ import { ContentOsBoardCard } from '@/components/content-os/ContentOsBoardCard';
 import { ContentOsCalendarView } from '@/components/content-os/ContentOsCalendarView';
 import { ContentOsCommentsPanel } from '@/components/content-os/ContentOsCommentsPanel';
 import { ContentOsGeneratePanel } from '@/components/content-os/ContentOsGeneratePanel';
+import { ContentOsIntelligenceView } from '@/components/content-os/ContentOsIntelligenceView';
 import { ContentOsMediaStudio } from '@/components/content-os/ContentOsMediaStudio';
 import { ContentOsProductionPanel } from '@/components/content-os/ContentOsProductionPanel';
 import { ContentOsRepurposeWizard } from '@/components/content-os/ContentOsRepurposeWizard';
@@ -256,6 +257,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
             ['calendar', 'Calendar'],
             ['repurpose', 'Repurpose'],
             ['audit', 'Audit'],
+            ['intelligence', 'Intelligence'],
           ] as const
         ).map(([v, label]) => (
           <button
@@ -451,6 +453,17 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
 
       {view === 'audit' ? (
         <ContentOsAuditPanel token={token} lifecycleId={lifecycleId} />
+      ) : null}
+
+      {view === 'intelligence' ? (
+        <ContentOsIntelligenceView
+          token={token}
+          lifecycleId={lifecycleId}
+          canWrite={canWrite || canApprove}
+          canGenerate={canGenerate}
+          onMessage={setMessage}
+          onError={setError}
+        />
       ) : null}
 
       {drawerItemId != null ? (

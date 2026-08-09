@@ -55,6 +55,17 @@ describe('ContentMarketingController', () => {
     rejectVisual: jest.fn(),
     escalateHuman: jest.fn(),
   };
+  const metrics = {
+    listItemMetrics: jest.fn(),
+    createMetric: jest.fn(),
+    patchMetric: jest.fn(),
+  };
+  const intelligence = {
+    getIntelligence: jest.fn(),
+    getMetricsSummary: jest.fn(),
+    getSuggestions: jest.fn(),
+    startTopicSuggestJob: jest.fn(),
+  };
   const staffAuth = { resolveStaffIdFromJwt: jest.fn() };
 
   let controller: ContentMarketingController;
@@ -77,6 +88,8 @@ describe('ContentMarketingController', () => {
       production as never,
       media as never,
       visual as never,
+      metrics as never,
+      intelligence as never,
       staffAuth as never,
     );
   });

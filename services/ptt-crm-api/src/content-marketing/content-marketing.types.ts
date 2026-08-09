@@ -313,6 +313,58 @@ export type CmktCommentRow = {
   created_at: string;
 };
 
+export type CmktMetricRow = {
+  id: number;
+  item_id: number;
+  channel: string;
+  metric_date: string;
+  impressions: number | null;
+  engagements: number | null;
+  clicks: number | null;
+  leads: number | null;
+  source: string;
+  raw_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export type CmktMetricWithItemRow = CmktMetricRow & {
+  item_title: string;
+  item_status: string;
+};
+
+export type CmktIntelligenceChannelStats = {
+  published: number;
+  avg_engagement?: number;
+  impressions?: number;
+  engagements?: number;
+  clicks?: number;
+  leads?: number;
+};
+
+export type CmktIntelligenceResponse = {
+  range: string;
+  from_date: string;
+  to_date: string;
+  by_channel: Record<string, CmktIntelligenceChannelStats>;
+  top_items: Array<{ item_id: number; title: string; score: number; channel: string }>;
+  suggestions: string[];
+  metrics_count: number;
+};
+
+export type CmktMetricsSummaryResponse = {
+  range: string;
+  from_date: string;
+  to_date: string;
+  totals: {
+    impressions: number;
+    engagements: number;
+    clicks: number;
+    leads: number;
+  };
+  by_channel: Record<string, CmktIntelligenceChannelStats>;
+  entries_count: number;
+};
+
 export type CmktVersionComparePayload = {
   item_id: number;
   v1: number;

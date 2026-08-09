@@ -7,7 +7,8 @@ export type ContentOsSubView =
   | 'review'
   | 'calendar'
   | 'repurpose'
-  | 'audit';
+  | 'audit'
+  | 'intelligence';
 
 export const CMKT_SUB_VIEWS: ContentOsSubView[] = [
   'overview',
@@ -17,6 +18,7 @@ export const CMKT_SUB_VIEWS: ContentOsSubView[] = [
   'calendar',
   'repurpose',
   'audit',
+  'intelligence',
 ];
 
 export function isContentOsSubView(value: string | null): value is ContentOsSubView {

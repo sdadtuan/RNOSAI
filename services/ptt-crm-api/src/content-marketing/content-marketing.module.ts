@@ -9,6 +9,8 @@ import { ContentCommentsService } from './content-comments.service';
 import { ContentEmailBridgeService } from './content-email-bridge.service';
 import { ContentGenerateService } from './content-generate.service';
 import { ContentIdeaService } from './content-idea.service';
+import { ContentIntelligenceService } from './content-intelligence.service';
+import { ContentMetricsService } from './content-metrics.service';
 import { ContentItemService } from './content-item.service';
 import { ContentJobWorkerService } from './content-job-worker.service';
 import { ContentPlanSnapshotService } from './content-plan-snapshot.service';
@@ -56,6 +58,8 @@ import {
     ContentCalendarService,
     ContentAuditService,
     ContentCommentsService,
+    ContentMetricsService,
+    ContentIntelligenceService,
     ContentRepurposeService,
     ContentSeoBridgeService,
     ContentEmailBridgeService,

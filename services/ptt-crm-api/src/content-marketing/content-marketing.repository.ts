@@ -16,6 +16,8 @@ import type {
   CmktCommentRow,
   CmktItemVersionRow,
   CmktJobRow,
+  CmktMetricRow,
+  CmktMetricWithItemRow,
   CmktPillarRow,
   CmktReviewQueueItem,
   CmktReviewQueueSummary,
@@ -32,6 +34,8 @@ type MemoryStore = {
   versions: Map<number, CmktItemVersionRow[]>;
   calendar: Map<number, CmktCalendarSlotRow[]>;
   comments: Map<number, Array<{ id: number; item_id: number; author_id: string; body: string; visibility: string; created_at: string }>>;
+  metrics: Map<number, CmktMetricRow[]>;
+  topicSuggestions: Map<number, string[]>;
   derivations: CmktDerivationRow[];
   nextIdeaId: number;
   nextItemId: number;
@@ -41,6 +45,7 @@ type MemoryStore = {
   nextVersionId: number;
   nextCalendarId: number;
   nextCommentId: number;
+  nextMetricId: number;
   nextDerivationId: number;
   nextVersionNo: Map<number, number>;
   plannerSources: Map<number, PlannerIngestSource>;
@@ -154,6 +159,8 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     versions: new Map(),
     calendar: new Map(),
     comments: new Map(),
+    metrics: new Map(),
+    topicSuggestions: new Map(),
     derivations: [],
     nextIdeaId: 1,
     nextItemId: 1,
@@ -163,6 +170,7 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     nextVersionId: 1,
     nextCalendarId: 1,
     nextCommentId: 1,
+    nextMetricId: 1,
     nextDerivationId: 1,
     nextVersionNo: new Map(),
     plannerSources: new Map(),
@@ -995,7 +1003,7 @@ export class ContentMarketingRepository implements OnModuleDestroy {
 
   async createContentJob(input: {
     lifecycle_id: number;
-    item_id: number;
+    item_id: number | null;
     job_type: string;
     input_json: Record<string, unknown>;
     created_by: string;
@@ -1586,5 +1594,225 @@ export class ContentMarketingRepository implements OnModuleDestroy {
         visual_qa_score: item.media_json?.visual_qa?.score ?? null,
       }))
       .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  }
+
+  private mapMetricRow(row: Record<string, unknown>): CmktMetricRow {
+    return {
+      id: Number(row.id),
+      item_id: Number(row.item_id),
+      channel: String(row.channel ?? ''),
+      metric_date: String(row.metric_date ?? '').slice(0, 10),
+      impressions: row.impressions != null ? Number(row.impressions) : null,
+      engagements: row.engagements != null ? Number(row.engagements) : null,
+      clicks: row.clicks != null ? Number(row.clicks) : null,
+      leads: row.leads != null ? Number(row.leads) : null,
+      source: String(row.source ?? 'manual'),
+      raw_json: (row.raw_json as Record<string, unknown>) ?? {},
+      created_at: new Date(String(row.created_at ?? Date.now())).toISOString(),
+    };
+  }
+
+  async insertMetricReturning(input: {
+    item_id: number;
+    channel: string;
+    metric_date: string;
+    impressions: number | null;
+    engagements: number | null;
+    clicks: number | null;
+    leads: number | null;
+    source: string;
+    raw_json: Record<string, unknown>;
+  }): Promise<CmktMetricRow> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `INSERT INTO cmkt_content_metrics (
+           item_id, channel, metric_date, impressions, engagements, clicks, leads, source, raw_json
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+         RETURNING *`,
+        [
+          input.item_id,
+          input.channel,
+          input.metric_date,
+          input.impressions,
+          input.engagements,
+          input.clicks,
+          input.leads,
+          input.source,
+          JSON.stringify(input.raw_json),
+        ],
+      );
+      return this.mapMetricRow(res.rows[0]);
+    }
+    const metric: CmktMetricRow = {
+      id: this.memory.nextMetricId++,
+      item_id: input.item_id,
+      channel: input.channel,
+      metric_date: input.metric_date,
+      impressions: input.impressions,
+      engagements: input.engagements,
+      clicks: input.clicks,
+      leads: input.leads,
+      source: input.source,
+      raw_json: input.raw_json,
+      created_at: new Date().toISOString(),
+    };
+    const list = this.memory.metrics.get(input.item_id) ?? [];
+    list.push(metric);
+    this.memory.metrics.set(input.item_id, list);
+    return metric;
+  }
+
+  async getMetricById(itemId: number, metricId: number): Promise<CmktMetricRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT * FROM cmkt_content_metrics WHERE item_id = $1 AND id = $2`,
+        [itemId, metricId],
+      );
+      return res.rows[0] ? this.mapMetricRow(res.rows[0]) : null;
+    }
+    return (this.memory.metrics.get(itemId) ?? []).find((m) => m.id === metricId) ?? null;
+  }
+
+  async patchMetric(
+    itemId: number,
+    metricId: number,
+    patch: Partial<CmktMetricRow>,
+  ): Promise<CmktMetricRow | null> {
+    if (await this.ensurePgReady()) {
+      const existing = await this.getMetricById(itemId, metricId);
+      if (!existing) return null;
+      const next = { ...existing, ...patch, id: existing.id, item_id: existing.item_id };
+      const res = await this.db.query(
+        `UPDATE cmkt_content_metrics
+         SET channel = $3, metric_date = $4, impressions = $5, engagements = $6,
+             clicks = $7, leads = $8
+         WHERE item_id = $1 AND id = $2
+         RETURNING *`,
+        [
+          itemId,
+          metricId,
+          next.channel,
+          next.metric_date,
+          next.impressions,
+          next.engagements,
+          next.clicks,
+          next.leads,
+        ],
+      );
+      return res.rows[0] ? this.mapMetricRow(res.rows[0]) : null;
+    }
+    const list = this.memory.metrics.get(itemId) ?? [];
+    const idx = list.findIndex((m) => m.id === metricId);
+    if (idx < 0) return null;
+    list[idx] = { ...list[idx], ...patch, id: list[idx].id, item_id: list[idx].item_id };
+    this.memory.metrics.set(itemId, list);
+    return list[idx];
+  }
+
+  async listItemMetrics(itemId: number): Promise<CmktMetricRow[]> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT * FROM cmkt_content_metrics WHERE item_id = $1 ORDER BY metric_date DESC, id DESC`,
+        [itemId],
+      );
+      return res.rows.map((row) => this.mapMetricRow(row));
+    }
+    return [...(this.memory.metrics.get(itemId) ?? [])].sort((a, b) =>
+      b.metric_date.localeCompare(a.metric_date),
+    );
+  }
+
+  async listLifecycleMetricsInRange(
+    lifecycleId: number,
+    fromDate: string,
+    toDate: string,
+  ): Promise<CmktMetricWithItemRow[]> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT m.*, i.title AS item_title, i.status AS item_status
+         FROM cmkt_content_metrics m
+         JOIN cmkt_content_items i ON i.id = m.item_id
+         WHERE i.lifecycle_id = $1
+           AND m.metric_date >= $2::date
+           AND m.metric_date <= $3::date
+         ORDER BY m.metric_date DESC, m.id DESC`,
+        [lifecycleId, fromDate, toDate],
+      );
+      return res.rows.map((row) => ({
+        ...this.mapMetricRow(row),
+        item_title: String(row.item_title ?? ''),
+        item_status: String(row.item_status ?? ''),
+      }));
+    }
+    const items = this.memory.items.get(lifecycleId) ?? [];
+    const itemById = new Map(items.map((i) => [i.id, i]));
+    const out: CmktMetricWithItemRow[] = [];
+    for (const item of items) {
+      for (const metric of this.memory.metrics.get(item.id) ?? []) {
+        if (metric.metric_date >= fromDate && metric.metric_date <= toDate) {
+          out.push({
+            ...metric,
+            item_title: item.title,
+            item_status: item.status,
+          });
+        }
+      }
+    }
+    return out.sort((a, b) => b.metric_date.localeCompare(a.metric_date));
+  }
+
+  async countPublishedItemsByChannel(
+    lifecycleId: number,
+    fromDate: string,
+    toDate: string,
+  ): Promise<Record<string, number>> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT channel, COUNT(*)::int AS cnt
+         FROM cmkt_content_items
+         WHERE lifecycle_id = $1
+           AND status = 'published'
+           AND published_at IS NOT NULL
+           AND published_at::date >= $2::date
+           AND published_at::date <= $3::date
+         GROUP BY channel`,
+        [lifecycleId, fromDate, toDate],
+      );
+      const out: Record<string, number> = {};
+      for (const row of res.rows) {
+        out[String(row.channel)] = Number(row.cnt);
+      }
+      return out;
+    }
+    const out: Record<string, number> = {};
+    for (const item of this.memory.items.get(lifecycleId) ?? []) {
+      if (item.status !== 'published' || !item.published_at) continue;
+      const day = item.published_at.slice(0, 10);
+      if (day < fromDate || day > toDate) continue;
+      out[item.channel] = (out[item.channel] ?? 0) + 1;
+    }
+    return out;
+  }
+
+  async getLatestTopicSuggestions(lifecycleId: number): Promise<string[]> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT output_json
+         FROM cmkt_content_jobs
+         WHERE lifecycle_id = $1
+           AND job_type = 'topic_suggest'
+           AND status = 'succeeded'
+         ORDER BY finished_at DESC NULLS LAST, id DESC
+         LIMIT 1`,
+        [lifecycleId],
+      );
+      const output = res.rows[0]?.output_json as { suggestions?: string[] } | undefined;
+      return Array.isArray(output?.suggestions) ? output!.suggestions! : [];
+    }
+    return this.memory.topicSuggestions.get(lifecycleId) ?? [];
+  }
+
+  async setLatestTopicSuggestions(lifecycleId: number, suggestions: string[]): Promise<void> {
+    this.memory.topicSuggestions.set(lifecycleId, suggestions);
   }
 }
