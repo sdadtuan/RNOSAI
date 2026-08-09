@@ -14,6 +14,7 @@ describe('ContentMarketingService', () => {
 
   const lifecycle = {
     detail: jest.fn(),
+    context: jest.fn().mockResolvedValue({ contract: { agency_client_id: '' } }),
   };
 
   const repo = {
@@ -63,6 +64,7 @@ describe('ContentMarketingService', () => {
       draft: 2,
       in_review: 1,
       published_mtd: 0,
+      scheduled_this_week: 3,
       in_review_sla_breach: 0,
     });
 
@@ -85,6 +87,7 @@ describe('ContentMarketingService', () => {
       draft: 0,
       in_review: 0,
       published_mtd: 0,
+      scheduled_this_week: 0,
       in_review_sla_breach: 0,
     });
 

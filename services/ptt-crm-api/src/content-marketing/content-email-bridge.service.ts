@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { EmailMarketingService } from '../email-marketing/email-marketing.service';
+import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import { ContentMarketingService } from './content-marketing.service';
 import type { CmktBridgeEmailStatus, CmktEmBridgeRef, CmktItemRow } from './content-marketing.types';
@@ -18,6 +19,7 @@ export class ContentEmailBridgeService {
     private readonly core: ContentMarketingService,
     private readonly repo: ContentMarketingRepository,
     private readonly email: EmailMarketingService,
+    private readonly lifecycle: ServiceLifecycleService,
   ) {}
 
   private assertEmailEligible(item: CmktItemRow): void {
@@ -65,11 +67,21 @@ export class ContentEmailBridgeService {
       };
     }
 
-    const clientId = String(body.client_id ?? '').trim();
+    const clientIdFromBody = String(body.client_id ?? '').trim();
+    let clientId = clientIdFromBody;
+    if (!clientId) {
+      try {
+        const lcCtx = await this.lifecycle.context(lifecycleId);
+        clientId = String(lcCtx.contract?.agency_client_id ?? '').trim();
+      } catch {
+        clientId = '';
+      }
+    }
     if (!clientId) {
       throw new BadRequestException({
-        error: 'email_client_required',
-        message: 'Cần client_id (UUID) để tạo draft campaign trong Email Marketing.',
+        error: 'email_client_not_linked',
+        message:
+          'Lifecycle chưa liên kết agency client — gán agency_client_id trên hợp đồng hoặc truyền client_id.',
       });
     }
 

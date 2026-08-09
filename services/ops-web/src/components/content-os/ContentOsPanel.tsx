@@ -8,10 +8,12 @@ import { ContentOsAssigneePicker } from '@/components/content-os/ContentOsAssign
 import { ContentOsAuditPanel } from '@/components/content-os/ContentOsAuditPanel';
 import { ContentOsBoardCard } from '@/components/content-os/ContentOsBoardCard';
 import { ContentOsCalendarView } from '@/components/content-os/ContentOsCalendarView';
+import { ContentOsChannelPickerModal } from '@/components/content-os/ContentOsChannelPickerModal';
 import { ContentOsCommentsPanel } from '@/components/content-os/ContentOsCommentsPanel';
 import { ContentOsGeneratePanel } from '@/components/content-os/ContentOsGeneratePanel';
 import { ContentOsIntelligenceView } from '@/components/content-os/ContentOsIntelligenceView';
 import { ContentOsMediaStudio } from '@/components/content-os/ContentOsMediaStudio';
+import { ContentOsOverview } from '@/components/content-os/ContentOsOverview';
 import { ContentOsPillarsView } from '@/components/content-os/ContentOsPillarsView';
 import { ContentOsProductionPanel } from '@/components/content-os/ContentOsProductionPanel';
 import { ContentOsRepurposeWizard } from '@/components/content-os/ContentOsRepurposeWizard';
@@ -28,6 +30,7 @@ import {
   fetchContentOsItem,
   fetchContentOsItemVersions,
   fetchContentOsItems,
+  fetchContentOsPillars,
   patchContentOsItem,
   postContentOsApproveItem,
   postContentOsClientApprove,
@@ -42,6 +45,7 @@ import {
   type ContentOsIdea,
   type ContentOsItem,
   type ContentOsItemVersion,
+  type ContentOsPillar,
 } from '@/lib/content-os-api';
 import { boardColumns, type ContentOsSubView } from '@/lib/content-os-status';
 import { useContentOsViewParams } from '@/lib/use-content-os-view-params';
@@ -83,6 +87,9 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
   const [newIdeaTitle, setNewIdeaTitle] = useState('');
   const [convertPair, setConvertPair] = useState('facebook|social_post');
   const [boardMineOnly, setBoardMineOnly] = useState(false);
+  const [pillars, setPillars] = useState<ContentOsPillar[]>([]);
+  const [channelPickerOpen, setChannelPickerOpen] = useState(false);
+  const [importTrigger, setImportTrigger] = useState(0);
 
   const [publishUrl, setPublishUrl] = useState('');
 
@@ -97,14 +104,16 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
     setLoading(true);
     setError('');
     try {
-      const [context, ideasRes, itemsRes] = await Promise.all([
+      const [context, ideasRes, itemsRes, pillarsRes] = await Promise.all([
         fetchContentOsContext(token, lifecycleId),
         fetchContentOsIdeas(token, lifecycleId),
         fetchContentOsItems(token, lifecycleId, boardMineOnly ? { assignee: 'me' } : undefined),
+        fetchContentOsPillars(token, lifecycleId),
       ]);
       setCtx(context);
       setIdeas(ideasRes.ideas);
       setItems(itemsRes.items);
+      setPillars(pillarsRes.pillars);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tải Content Board thất bại');
     } finally {
@@ -242,6 +251,13 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
   }
 
   const reviewBadge = ctx?.counts.in_review ?? 0;
+  const slaBreach = ctx?.counts.in_review_sla_breach ?? 0;
+  const hasAppliedPlan = Boolean(ctx?.snapshot?.marketing_plan_id);
+
+  const reviewTabLabel =
+    reviewBadge > 0
+      ? `Review (${reviewBadge})${slaBreach > 0 ? ' ⚠' : ''}`
+      : 'Review';
 
   const clearPlannerImportParam = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -257,6 +273,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
         ctx={ctx}
         canWrite={canWrite}
         plannerImportRequested={plannerImportRequested}
+        importRequestToken={importTrigger}
         onPlannerImportHandled={clearPlannerImportParam}
         onChanged={reload}
         onMessage={setMessage}
@@ -270,7 +287,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
             ['ideas', 'Ideas'],
             ['pillars', 'Pillars'],
             ['board', 'Board'],
-            ['review', `Review${reviewBadge ? ` (${reviewBadge})` : ''}`],
+            ['review', reviewTabLabel],
             ['calendar', 'Calendar'],
             ['repurpose', 'Repurpose'],
             ['audit', 'Audit'],
@@ -293,22 +310,16 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
       {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
 
       {view === 'overview' && ctx ? (
-        <div style={{ display: 'grid', gap: '0.5rem' }}>
-          <p className="muted">
-            Snapshot:{' '}
-            {ctx.snapshot
-              ? ctx.snapshot.sealed
-                ? 'Đã seal'
-                : `Draft (#${ctx.snapshot.id}, ${ctx.snapshot.pillars_count} pillars)`
-              : 'Chưa import Planner'}
-          </p>
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-            <span>Ideas: {ctx.counts.ideas}</span>
-            <span>Draft: {ctx.counts.draft}</span>
-            <span>Đang duyệt: {ctx.counts.in_review}</span>
-            <span>Published MTD: {ctx.counts.published_mtd}</span>
-          </div>
-        </div>
+        <ContentOsOverview
+          ctx={ctx}
+          pillars={pillars}
+          items={items}
+          canWrite={canWrite}
+          hasAppliedPlan={hasAppliedPlan}
+          onOpenCreateItem={() => setChannelPickerOpen(true)}
+          onImportPlanner={() => setImportTrigger((n) => n + 1)}
+          onOpenReview={() => setView('review')}
+        />
       ) : null}
 
       {view === 'ideas' ? (
@@ -725,6 +736,8 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
                 item={drawerItem}
                 canWrite={canWrite}
                 canProduction={canProduction}
+                emailClientId={ctx?.email_client_id}
+                emailClientLinked={ctx?.email_client_linked}
                 onChanged={refreshDrawerItem}
                 onMessage={setMessage}
                 onError={setError}
@@ -884,6 +897,20 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
           </div>
         </div>
       ) : null}
+
+      <ContentOsChannelPickerModal
+        open={channelPickerOpen}
+        token={token}
+        lifecycleId={lifecycleId}
+        pillars={pillars}
+        onClose={() => setChannelPickerOpen(false)}
+        onCreated={(itemId) => {
+          setMessage(`Đã tạo item #${itemId}`);
+          void reload();
+          openItem(itemId, 'board');
+        }}
+        onError={setError}
+      />
     </div>
   );
 }

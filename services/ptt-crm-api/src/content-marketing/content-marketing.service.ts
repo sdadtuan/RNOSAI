@@ -49,9 +49,10 @@ export class ContentMarketingService {
     const lc = await this.ensureLifecycleEnabled(lifecycleId);
     const serviceSlug = String(lc.service_slug ?? '');
 
-    const [snapshotRow, counts] = await Promise.all([
+    const [snapshotRow, counts, lcCtx] = await Promise.all([
       this.repo.getActiveSnapshotSummary(lifecycleId),
       this.repo.getContextCounts(lifecycleId),
+      this.lifecycle.context(lifecycleId).catch(() => null),
     ]);
 
     const plannerSource = await this.repo.loadPlannerSource(lifecycleId);
@@ -60,6 +61,8 @@ export class ContentMarketingService {
       Boolean(snapshotRow?.source_hash) &&
       Boolean(currentHash) &&
       snapshotRow!.source_hash !== currentHash;
+
+    const emailClientId = String(lcCtx?.contract?.agency_client_id ?? '').trim() || null;
 
     return {
       ok: true,
@@ -90,6 +93,8 @@ export class ContentMarketingService {
         fe_enabled: this.config.contentMarketingFeEnabled,
       },
       channel_defaults: [...CMKT_P0_CHANNEL_DEFAULTS],
+      email_client_id: emailClientId,
+      email_client_linked: Boolean(emailClientId),
     };
   }
 }

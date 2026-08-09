@@ -1,5 +1,6 @@
 'use client';
 
+import { ContentOsReviewSlaTile } from '@/components/content-os/ContentOsReviewSlaTile';
 import { useCallback, useEffect, useState } from 'react';
 import {
   channelFormatLabel,
@@ -39,7 +40,13 @@ export function ContentOsReviewQueueView({
   const [mode, setMode] = useState<QueueMode>('copy');
   const [items, setItems] = useState<ContentOsReviewQueueItem[]>([]);
   const [visualItems, setVisualItems] = useState<ContentOsVisualReviewItem[]>([]);
-  const [summary, setSummary] = useState<{ total: number; sla_breach: number } | null>(null);
+  const [summary, setSummary] = useState<{
+    total: number;
+    sla_breach: number;
+    sla_target_hours: number;
+    max_hours_in_review: number | null;
+    avg_hours_in_review: number | null;
+  } | null>(null);
   const [slaOnly, setSlaOnly] = useState(false);
   const [rejectId, setRejectId] = useState<number | null>(null);
   const [rejectComment, setRejectComment] = useState('');
@@ -142,16 +149,22 @@ export function ContentOsReviewQueueView({
       </div>
 
       {mode === 'copy' ? (
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span>In review: {summary?.total ?? items.length}</span>
-          <span style={{ color: summary?.sla_breach ? 'var(--warning, #e6a700)' : undefined }}>
-            SLA breach: {summary?.sla_breach ?? 0}
-          </span>
+        <>
+          <ContentOsReviewSlaTile
+            total={summary?.total ?? items.length}
+            slaBreach={summary?.sla_breach ?? 0}
+            slaTargetHours={summary?.sla_target_hours ?? 48}
+            maxHours={summary?.max_hours_in_review ?? null}
+            avgHours={summary?.avg_hours_in_review ?? null}
+            onFilterBreach={
+              (summary?.sla_breach ?? 0) > 0 ? () => setSlaOnly(true) : undefined
+            }
+          />
           <label style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', fontSize: '0.85rem' }}>
             <input type="checkbox" checked={slaOnly} onChange={(e) => setSlaOnly(e.target.checked)} />
             Chỉ SLA breach
           </label>
-        </div>
+        </>
       ) : (
         <p className="muted" style={{ fontSize: '0.85rem' }}>
           Filter: visual_status=ai_ready · {visualItems.length} item(s)

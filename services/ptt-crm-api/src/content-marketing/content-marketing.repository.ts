@@ -62,6 +62,7 @@ function emptyCounts(): CmktContextCounts {
     draft: 0,
     in_review: 0,
     published_mtd: 0,
+    scheduled_this_week: 0,
     in_review_sla_breach: 0,
   };
 }
@@ -603,12 +604,22 @@ export class ContentMarketingRepository implements OnModuleDestroy {
         [lifecycleId],
       );
 
+      const weekRes = await this.db.query(
+        `SELECT COUNT(*)::int AS cnt
+         FROM cmkt_calendar_slots
+         WHERE lifecycle_id = $1
+           AND scheduled_at >= date_trunc('week', NOW())
+           AND scheduled_at < date_trunc('week', NOW()) + INTERVAL '7 days'`,
+        [lifecycleId],
+      );
+
       return {
         ideas: Number(ideasRes.rows[0]?.cnt ?? 0),
         items_by_status,
         draft,
         in_review,
         published_mtd: Number(mtdRes.rows[0]?.cnt ?? 0),
+        scheduled_this_week: Number(weekRes.rows[0]?.cnt ?? 0),
         in_review_sla_breach: Number(slaRes.rows[0]?.cnt ?? 0),
       };
     }
@@ -628,6 +639,19 @@ export class ContentMarketingRepository implements OnModuleDestroy {
         now - new Date(i.in_review_at).getTime() > slaMs,
     ).length;
 
+    const weekStart = new Date();
+    weekStart.setHours(0, 0, 0, 0);
+    const day = weekStart.getDay();
+    const diffToMon = day === 0 ? -6 : 1 - day;
+    weekStart.setDate(weekStart.getDate() + diffToMon);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    const slots = this.memory.calendar.get(lifecycleId) ?? [];
+    const scheduled_this_week = slots.filter((s) => {
+      const t = new Date(s.scheduled_at).getTime();
+      return t >= weekStart.getTime() && t < weekEnd.getTime();
+    }).length;
+
     return {
       ideas: ideas.length,
       items_by_status,
@@ -639,6 +663,7 @@ export class ContentMarketingRepository implements OnModuleDestroy {
           i.published_at &&
           new Date(i.published_at).getMonth() === new Date().getMonth(),
       ).length,
+      scheduled_this_week,
       in_review_sla_breach,
     };
   }
@@ -1140,6 +1165,7 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     if (filters.channel) rows = rows.filter((r) => r.channel === filters.channel);
     if (filters.sla_breach) rows = rows.filter((r) => r.sla_breach);
     rows.sort((a, b) => {
+      if (a.sla_breach !== b.sla_breach) return a.sla_breach ? -1 : 1;
       const ta = a.in_review_at ? new Date(a.in_review_at).getTime() : 0;
       const tb = b.in_review_at ? new Date(b.in_review_at).getTime() : 0;
       return ta - tb;
@@ -1150,13 +1176,26 @@ export class ContentMarketingRepository implements OnModuleDestroy {
   async getReviewQueueSummary(lifecycleId: number): Promise<CmktReviewQueueSummary> {
     const rows = await this.listReviewQueue(lifecycleId, {});
     const by_channel: Record<string, number> = {};
+    const now = Date.now();
+    let maxHours: number | null = null;
+    let sumHours = 0;
+    let counted = 0;
     for (const row of rows) {
       by_channel[row.channel] = (by_channel[row.channel] ?? 0) + 1;
+      if (row.in_review_at) {
+        const hours = (now - new Date(row.in_review_at).getTime()) / 3600000;
+        sumHours += hours;
+        counted += 1;
+        if (maxHours == null || hours > maxHours) maxHours = hours;
+      }
     }
     return {
       total: rows.length,
       sla_breach: rows.filter((r) => r.sla_breach).length,
       by_channel,
+      sla_target_hours: CMKT_REVIEW_SLA_HOURS,
+      max_hours_in_review: maxHours != null ? Math.round(maxHours * 10) / 10 : null,
+      avg_hours_in_review: counted ? Math.round((sumHours / counted) * 10) / 10 : null,
     };
   }
 

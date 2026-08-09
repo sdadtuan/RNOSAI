@@ -87,6 +87,7 @@ export type ContentOsContext = {
     draft: number;
     in_review: number;
     published_mtd: number;
+    scheduled_this_week: number;
     in_review_sla_breach: number;
   };
   flags: {
@@ -100,6 +101,8 @@ export type ContentOsContext = {
     fe_enabled: boolean;
   };
   channel_defaults: string[];
+  email_client_id: string | null;
+  email_client_linked: boolean;
 };
 
 export type ContentOsIdea = {
@@ -327,6 +330,42 @@ export function fetchPlanSnapshot(token: string, lifecycleId: number): Promise<C
   return cmktFetch(token, lifecycleId, '/plan-snapshot');
 }
 
+export type ContentOsDriftDiff = {
+  drift: boolean;
+  can_reingest: boolean;
+  pillars: {
+    added: Array<{ name: string; goal: string; topics?: string[] }>;
+    removed: Array<{ name: string; goal: string; topics?: string[] }>;
+    changed: Array<{ name: string; field: string; before: string; after: string }>;
+  };
+  calendar: {
+    added: Array<{ title: string; date: string; channel: string }>;
+    removed: Array<{ title: string; date: string; channel: string }>;
+    changed: Array<{ title: string; field: string; before: string; after: string }>;
+  };
+};
+
+export function fetchPlanSnapshotDriftDiff(
+  token: string,
+  lifecycleId: number,
+): Promise<ContentOsDriftDiff> {
+  return cmktFetch(token, lifecycleId, '/plan-snapshot/drift-diff');
+}
+
+export function postContentOsItem(
+  token: string,
+  lifecycleId: number,
+  body: {
+    title: string;
+    channel: string;
+    format: string;
+    funnel_goal?: string;
+    brief_json?: Record<string, unknown>;
+  },
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, '/items', { method: 'POST', body: JSON.stringify(body) });
+}
+
 export function fetchContentOsPillars(
   token: string,
   lifecycleId: number,
@@ -481,7 +520,14 @@ export function fetchContentOsReviewQueue(
 export function fetchContentOsReviewQueueSummary(
   token: string,
   lifecycleId: number,
-): Promise<{ total: number; sla_breach: number; by_channel: Record<string, number> }> {
+): Promise<{
+  total: number;
+  sla_breach: number;
+  by_channel: Record<string, number>;
+  sla_target_hours: number;
+  max_hours_in_review: number | null;
+  avg_hours_in_review: number | null;
+}> {
   return cmktFetch(token, lifecycleId, '/review-queue/summary');
 }
 
@@ -637,7 +683,7 @@ export function postContentOsBridgeEmail(
   token: string,
   lifecycleId: number,
   itemId: number,
-  body: { client_id: string; template_id?: string; segment_id?: string; email_type?: string },
+  body: { client_id?: string; template_id?: string; segment_id?: string; email_type?: string },
 ): Promise<{ ok: boolean; item: ContentOsItem; campaign_id: string; href: string }> {
   return cmktFetch(token, lifecycleId, `/items/${itemId}/bridge/email`, {
     method: 'POST',

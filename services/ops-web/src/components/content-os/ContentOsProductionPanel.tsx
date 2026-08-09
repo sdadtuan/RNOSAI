@@ -30,6 +30,8 @@ interface Props {
   item: ContentOsItem;
   canWrite: boolean;
   canProduction: boolean;
+  emailClientId?: string | null;
+  emailClientLinked?: boolean;
   onChanged: () => void;
   onMessage: (msg: string) => void;
   onError: (msg: string) => void;
@@ -41,6 +43,8 @@ export function ContentOsProductionPanel({
   item,
   canWrite,
   canProduction,
+  emailClientId: lifecycleEmailClientId = null,
+  emailClientLinked = false,
   onChanged,
   onMessage,
   onError,
@@ -55,7 +59,6 @@ export function ContentOsProductionPanel({
   );
   const [creativeId, setCreativeId] = useState(String(prod.creative_id ?? ''));
   const [notes, setNotes] = useState(String(prod.notes ?? ''));
-  const [emailClientId, setEmailClientId] = useState('');
   const [seoStatus, setSeoStatus] = useState<string | null>(null);
   const [emailStatus, setEmailStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -199,28 +202,25 @@ export function ContentOsProductionPanel({
       ['newsletter', 'drip'].includes(item.channel) &&
       !emHref &&
       item.status === 'approved_internal' ? (
-        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <input
-            value={emailClientId}
-            onChange={(e) => setEmailClientId(e.target.value)}
-            placeholder="Email client UUID"
-            style={{
-              minWidth: 220,
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.35rem 0.5rem',
-            }}
-          />
+        <div style={{ display: 'grid', gap: '0.35rem' }}>
+          {emailClientLinked && lifecycleEmailClientId ? (
+            <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+              Email client: <code>{lifecycleEmailClientId}</code> (từ lifecycle)
+            </p>
+          ) : (
+            <p className="muted" style={{ margin: 0, fontSize: '0.85rem', color: 'var(--warning, #e6a700)' }}>
+              HĐ chưa liên kết agency client — gán trên hợp đồng trước khi bridge.
+            </p>
+          )}
           <button
             type="button"
             className="btn btn-sm btn-ghost"
-            disabled={saving || !emailClientId.trim()}
+            disabled={saving || !emailClientLinked}
             onClick={async () => {
               setSaving(true);
               try {
                 await postContentOsBridgeEmail(token, lifecycleId, item.id, {
-                  client_id: emailClientId.trim(),
+                  client_id: lifecycleEmailClientId?.trim() || undefined,
                 });
                 onMessage('Đã tạo draft email campaign');
                 onChanged();

@@ -10,10 +10,15 @@ import { ContentMarketingService } from './content-marketing.service';
 import {
   buildSnapshotJson,
   computePlannerSourceHash,
+  extractCalendarRows,
   extractIdeasFromPlanner,
   extractPillarsFromPlanner,
   normalizeIdeaTitle,
 } from './content-plan-snapshot.util';
+import {
+  buildDriftDiffPayload,
+  type CmktDriftCalendarRow,
+} from './content-plan-drift-diff.util';
 import type { CmktIngestResult, CmktPlanSnapshotPayload } from './content-marketing.types';
 
 @Injectable()
@@ -172,5 +177,53 @@ export class ContentPlanSnapshotService {
     const plannerSource = await this.repo.loadPlannerSource(lifecycleId);
     if (!snapshot?.source_hash || !plannerSource) return false;
     return snapshot.source_hash !== computePlannerSourceHash(plannerSource);
+  }
+
+  async getDriftDiff(lifecycleId: number) {
+    await this.core.ensureLifecycleEnabled(lifecycleId);
+    const snapshotRow = await this.repo.getActiveSnapshotSummary(lifecycleId);
+    const plannerSource = await this.repo.loadPlannerSource(lifecycleId);
+    const drift = await this.getPlannerDrift(lifecycleId);
+
+    const snapshotPillars = snapshotRow
+      ? (
+          await this.repo.listPillars(lifecycleId, snapshotRow.id)
+        ).map((p) => ({
+          name: p.name,
+          goal: p.goal,
+          topics: p.topics_json ?? [],
+          sort_order: p.sort_order,
+        }))
+      : [];
+
+    const snapshotCalendar: CmktDriftCalendarRow[] = Array.isArray(
+      snapshotRow?.snapshot_json?.calendar,
+    )
+      ? (snapshotRow!.snapshot_json.calendar as Array<Record<string, unknown>>).map((r) => ({
+          title: String(r.title ?? ''),
+          date: String(r.date ?? r.scheduled_at ?? ''),
+          channel: String(r.channel ?? ''),
+          type: String(r.type ?? r.format ?? ''),
+        }))
+      : [];
+
+    const currentPillars = plannerSource ? extractPillarsFromPlanner(plannerSource) : [];
+    const currentCalendar: CmktDriftCalendarRow[] = plannerSource
+      ? extractCalendarRows(plannerSource.content_json).map((r) => ({
+          title: String(r.title ?? ''),
+          date: String(r.date ?? ''),
+          channel: String(r.channel ?? ''),
+          type: String(r.type ?? ''),
+        }))
+      : [];
+
+    return buildDriftDiffPayload({
+      drift,
+      canReingest: Boolean(plannerSource?.marketing_plan_id),
+      snapshotPillars,
+      currentPillars,
+      snapshotCalendar,
+      currentCalendar,
+    });
   }
 }

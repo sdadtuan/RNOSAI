@@ -89,6 +89,11 @@ export class ContentMarketingController {
     return this.snapshots.getPlanSnapshot(lifecycleId);
   }
 
+  @Get('plan-snapshot/drift-diff')
+  planSnapshotDriftDiff(@Param('lifecycleId', ParseIntPipe) lifecycleId: number) {
+    return this.snapshots.getDriftDiff(lifecycleId);
+  }
+
   @Post('plan-snapshot/ingest')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffContentMarketingWriteGuard)

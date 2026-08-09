@@ -181,6 +181,7 @@ export type CmktContextCounts = {
   draft: number;
   in_review: number;
   published_mtd: number;
+  scheduled_this_week: number;
   in_review_sla_breach: number;
 };
 
@@ -205,6 +206,8 @@ export type CmktContextPayload = {
   counts: CmktContextCounts;
   flags: CmktContextFlags;
   channel_defaults: CmktChannelDefault[];
+  email_client_id: string | null;
+  email_client_linked: boolean;
 };
 
 export type CmktActiveSnapshotRow = {
@@ -264,6 +267,9 @@ export type CmktReviewQueueSummary = {
   total: number;
   sla_breach: number;
   by_channel: Record<string, number>;
+  sla_target_hours: number;
+  max_hours_in_review: number | null;
+  avg_hours_in_review: number | null;
 };
 
 export type CmktCalendarSlotRow = {
