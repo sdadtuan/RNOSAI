@@ -23,9 +23,47 @@ async function cmktFetch<T>(
   );
   const body = await parseJson<T & { error?: string; message?: string }>(res);
   if (!res.ok) {
-    throw new ApiError(body.message ?? body.error ?? 'Content OS request failed', res.status);
+    throw new CmktApiError(
+      body.message ?? body.error ?? 'Content OS request failed',
+      res.status,
+      body.error,
+    );
   }
   return body;
+}
+
+export class CmktApiError extends ApiError {
+  constructor(
+    message: string,
+    status: number,
+    readonly code?: string,
+  ) {
+    super(message, status);
+    this.name = 'CmktApiError';
+  }
+}
+
+export function parseCmktGateError(err: unknown): string {
+  if (err instanceof CmktApiError && err.code) {
+    switch (err.code) {
+      case 'visual_not_approved':
+        return 'Không thể publish — cần duyệt visual (tab Media AI).';
+      case 'production_not_done':
+        return 'Không thể publish — cần hoàn tất production (tab Production).';
+      case 'invalid_transition':
+        return 'Chuyển trạng thái không hợp lệ — kiểm tra workflow item.';
+      case 'body_required':
+        return 'Nội dung body không được trống trước khi submit.';
+      case 'reject_comment_required':
+        return 'Comment từ chối tối thiểu 10 ký tự.';
+      case 'media_copy_not_approved':
+        return 'Media job chỉ chạy sau khi copy được duyệt nội bộ.';
+      default:
+        break;
+    }
+  }
+  if (err instanceof Error) return err.message;
+  return 'Thao tác thất bại';
 }
 
 export type ContentOsContext = {

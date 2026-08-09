@@ -1,9 +1,11 @@
 # Design: Content Marketing OS — Module Nest độc lập + Content Board tab
 
-**Ngày:** 2026-08-09 (cập nhật channel registry)  
+**Ngày:** 2026-08-09 (cập nhật channel registry · implementation status v1.5)  
 **Document ID:** CMKT-OS-SPEC-20260809  
-**Phiên bản:** 1.4  
-**Trạng thái:** Draft for review — **chưa implement**  
+**Phiên bản:** 1.5  
+**Trạng thái:** **M0–M6 implemented** staging `356ce00` — gap & roadmap M7+  
+**Trạng thái triển khai:** [`2026-08-09-content-marketing-implementation-status.md`](./2026-08-09-content-marketing-implementation-status.md)  
+**Kế hoạch M7–M12:** [`../plans/2026-08-09-content-marketing-m7-m12-professionalization.md`](../plans/2026-08-09-content-marketing-m7-m12-professionalization.md)  
 **Nguồn PRD:** `PTTCOM/AI/PRD AI Create Content Marketing.docx` — *AI Content Marketing OS*  
 **Parent BA:** [`RNOSAI-BA-SVC-UseCases.md`](../../specs/modules/RNOSAI-BA-SVC-UseCases.md) · [`RNOSAI-BA-MKTP-UseCases.md`](../../specs/modules/RNOSAI-BA-MKTP-UseCases.md) · [`RNOSAI-BA-SEO-UseCases.md`](../../specs/modules/RNOSAI-BA-SEO-UseCases.md)  
 **Service pilot:** [`tiep-thi-noi-dung.md`](../../specs/services/tiep-thi-noi-dung.md) (`slug=tiep-thi-noi-dung`)  
@@ -2174,4 +2176,35 @@ Design/Video chuyển từ **sản xuất 100%** sang **polish + escalation + pr
 
 ---
 
-**Next step:** PO approve spec v1.4 → UX [`2026-08-09-content-marketing-integration-spec.md`](../../specs/2026-08-09-content-marketing-integration-spec.md) → thực thi [`2026-08-09-content-marketing-os-phase0-3.md`](../plans/2026-08-09-content-marketing-os-phase0-3.md) từ **WS-CMKT-00**.
+## Phụ lục D — Trạng thái triển khai (2026-08-09)
+
+> Bản đầy đủ UC matrix, SCR gap, BR coverage: [`2026-08-09-content-marketing-implementation-status.md`](./2026-08-09-content-marketing-implementation-status.md)
+
+### D.1. Milestones đã ship
+
+M0–M6 trên staging `rs.pttads.vn` @ `356ce00`. Smoke: `scripts/smoke_content_marketing_m0.sh` … `p2_media.sh`.
+
+### D.2. Gap ưu tiên (professionalization)
+
+| Tier | Nội dung | Milestone |
+|------|----------|-----------|
+| T1 | UAT sign-off, badge/chip board, audit tab, publish gate UX | M7 |
+| T1 | Assign SP/QA, comments, version diff, review diff | M8 |
+| T1 | Real image provider + CDN + visual QA rules | M9 |
+| T2 | Metrics + Intelligence view + topic suggest | M10 |
+| T2 | Planner deep link, AI 30 ideas, pillar UI, PDF brief | M11 |
+| T3 | Client gate, portal summary, AI short video | M12 |
+
+### D.3. Cập nhật §24.11 media roadmap
+
+| Phase | Deliverable | Trạng thái |
+|-------|-------------|------------|
+| **P1** | Image + carousel + visual QA + approve gate | ⚠️ Flow OK; provider stub → **M9** |
+| **P2** | Short video ≤60s | ❌ **M12** |
+| **P3** | Multi-provider fallback | Backlog post-M12 |
+
+**Next step:** Thực thi [`2026-08-09-content-marketing-m7-m12-professionalization.md`](../plans/2026-08-09-content-marketing-m7-m12-professionalization.md) từ **M7 Task 1**.
+
+---
+
+**Next step (legacy):** PO approve spec v1.4 → UX [`2026-08-09-content-marketing-integration-spec.md`](../../specs/2026-08-09-content-marketing-integration-spec.md) → thực thi [`2026-08-09-content-marketing-os-phase0-3.md`](../plans/2026-08-09-content-marketing-os-phase0-3.md) từ **WS-CMKT-00**.

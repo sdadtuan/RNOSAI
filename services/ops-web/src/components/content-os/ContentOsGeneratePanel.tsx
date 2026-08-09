@@ -30,11 +30,13 @@ export function ContentOsGeneratePanel({
   const [variantCount, setVariantCount] = useState(3);
   const [busy, setBusy] = useState(false);
   const [lastJob, setLastJob] = useState<ContentOsJob | null>(null);
+  const [lastJobKind, setLastJobKind] = useState<'draft' | 'variants' | null>(null);
 
   async function runJob(kind: 'draft' | 'variants') {
     if (!canGenerate || !aiEnabled) return;
     setBusy(true);
     onError('');
+    setLastJobKind(kind);
     try {
       const job =
         kind === 'draft'
@@ -61,6 +63,7 @@ export function ContentOsGeneratePanel({
         await onJobDone();
       }
     } catch (err) {
+      setLastJob(null);
       onError(err instanceof Error ? err.message : 'Generate thất bại');
     } finally {
       setBusy(false);
@@ -158,10 +161,30 @@ export function ContentOsGeneratePanel({
       {!canGenerate ? (
         <p className="muted" style={{ fontSize: '0.82rem' }}>Cần quyền crm_content.generate</p>
       ) : null}
-      {lastJob ? (
+      {lastJob?.status === 'failed' && lastJobKind ? (
+        <div style={{ display: 'grid', gap: '0.35rem' }}>
+          <p className="error" style={{ fontSize: '0.82rem', margin: 0 }}>
+            Job #{lastJob.id} thất bại
+            {lastJob.error_text ? ` — ${lastJob.error_text}` : ''}. Nội dung editor giữ nguyên.
+          </p>
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary"
+            disabled={!canGenerate || busy}
+            onClick={() => void runJob(lastJobKind)}
+          >
+            Thử lại
+          </button>
+        </div>
+      ) : null}
+      {lastJob?.status !== 'failed' && lastJob?.output_json?.fallback === true ? (
+        <p style={{ fontSize: '0.82rem', color: 'var(--warning, #e6a700)', margin: 0 }}>
+          Đang dùng template fallback — kiểm tra nội dung trước khi submit.
+        </p>
+      ) : null}
+      {lastJob && lastJob.status !== 'failed' ? (
         <p className="muted" style={{ fontSize: '0.82rem' }}>
           Job #{lastJob.id} · {lastJob.job_type} · {lastJob.status}
-          {lastJob.status === 'failed' && lastJob.error_text ? ` — ${lastJob.error_text}` : ''}
         </p>
       ) : null}
     </div>

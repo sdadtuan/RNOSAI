@@ -1,8 +1,6 @@
 # Content Marketing OS — Kế hoạch Coding (Vertical Slices · Dùng được thật)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) hoặc `superpowers:executing-plans` để thực thi **theo thứ tự milestone M1→M4** (P0). Không merge milestone nếu smoke/UAT gate của milestone đó chưa PASS.  
-> **Plan tổng quan WS:** [`2026-08-09-content-marketing-os-phase0-3.md`](./2026-08-09-content-marketing-os-phase0-3.md)  
-> **UAT gate:** [`docs/use-cases/actions/11-CMKT-ACTIONS.md`](../../use-cases/actions/11-CMKT-ACTIONS.md)
+> **Coding execution (vertical slices · UAT-gated):** [`2026-08-09-content-marketing-coding-milestones.md`](./2026-08-09-content-marketing-coding-milestones.md) — **M0–M6 DONE** · **M7+:** [`2026-08-09-content-marketing-m7-m12-professionalization.md`](./2026-08-09-content-marketing-m7-m12-professionalization.md)
 
 **Goal:** Ship `ContentMarketingModule` + tab **Content Board** sao cho Content team **làm việc thật** trên retainer `tiep-thi-noi-dung` — không chỉ scaffold Nest module / empty React panel.
 
@@ -577,4 +575,98 @@ PTT_CONTENT_MARKETING_APPROVAL_REQUIRED=1
 
 ---
 
-*Phiên bản: 1.0 · 2026-08-09 · Coding plan — vertical slices, UAT-gated.*
+## 14. Milestone M7 — P0 sign-off & UX polish (Tuần 1–2)
+
+**User outcome:** *"PO ký P0; board/calendar/review trông agency-grade; publish lỗi rõ gate."*
+
+| Task | Files | UC / EC |
+|------|-------|---------|
+| M7-1 UAT runner | `scripts/run_content_marketing_uat.sh`, `docs/exports/cmkt-uat-results-*.md` | 18 bước P0 |
+| M7-2 URL view sync | `ContentOsPanel.tsx`, `useContentOsViewParams.ts` | SCR-001 |
+| M7-3 Board badges | `ContentOsBoardCard.tsx`, `ContentOsPanel.tsx` | 012, EC-UX-06 chip |
+| M7-4 Calendar grid DnD | `ContentOsCalendarGrid.tsx` | 011 |
+| M7-5 Audit tab FE | `ContentOsAuditPanel.tsx`, `content-os-api.ts` | 028 |
+| M7-6 Publish gate UX | `ContentOsPanel.tsx` parse ApiError | EC-UX-07 |
+| M7-7 Job retry UX | `ContentOsGeneratePanel.tsx` | EC-UX-04, 029 |
+
+**Smoke gate:** `p0.sh` + manual UAT checklist signed.
+
+---
+
+## 15. Milestone M8 — Governance (Tuần 3–4)
+
+**User outcome:** *"Lead assign SP/QA; QA comment thread; duyệt có diff."*
+
+| Task | BE | FE |
+|------|----|----|
+| M8-1 Assign | `PATCH items` fields `assignee_sp`, `assignee_qa` | `ContentOsAssigneePicker.tsx` |
+| M8-2 Comments | `GET/POST items/:id/comments` | `ContentOsCommentsPanel.tsx` drawer tab |
+| M8-3 Version diff | `GET items/:id/versions/:v1/compare/:v2` | `ContentOsVersionDiff.tsx` |
+| M8-4 Review diff | reuse diff in `ContentOsReviewQueueView` | 014 |
+
+**Smoke:** `scripts/smoke_content_marketing_m8_governance.sh`
+
+---
+
+## 16. Milestone M9 — Media production-grade (Tuần 5–7)
+
+**User outcome:** *"Ảnh carousel brand-safe trên CDN; QA rules thật; không picsum."*
+
+| Task | Files |
+|------|-------|
+| M9-1 Provider adapter | `content-media-image.provider.ts` → Replicate/Flux; env `PTT_CMKT_IMAGE_PROVIDER` |
+| M9-2 Asset storage | `content-media-storage.service.ts`, S3 upload, `media_json` CDN URLs |
+| M9-3 Watermark | Server-side DRAFT overlay until `visual_status=approved` |
+| M9-4 Visual QA rules | `content-visual-qa.service.ts` — contrast stub + extensible checks |
+| M9-5 Job async poll FE | `ContentOsMediaStudio.tsx` poll `GET /jobs/:id` |
+
+**Env staging:**
+```bash
+PTT_CMKT_IMAGE_PROVIDER=replicate
+PTT_CMKT_MEDIA_STORAGE=s3
+PTT_CMKT_S3_BUCKET=ptt-cmkt-assets
+```
+
+**Smoke:** extend `p2_media.sh` assert CDN URL not picsum.
+
+---
+
+## 17. Milestone M10 — Intelligence (Tuần 8–10)
+
+**User outcome:** *"Leader thấy bài nào hiệu quả; gợi ý topic tuần sau."*
+
+| Task | UC |
+|------|-----|
+| M10-1 Metrics CRUD | 022 — `POST/PATCH /items/:id/metrics` |
+| M10-2 Intelligence aggregate | 023 — `GET /intelligence?range=` |
+| M10-3 FE Intelligence tab | SCR-005 — `ContentOsIntelligenceView.tsx` |
+| M10-4 Topic suggest job | 024 stub — `POST /jobs/topic-suggest` (P2 lite) |
+
+---
+
+## 18. Milestone M11 — Planner glue & export (Tuần 11–12)
+
+| Task | UC |
+|------|-----|
+| M11-1 Deep link post-Apply | EC-UX-08 — Planner toast → `?tab=content-os&import=planner` |
+| M11-2 Pillar UI | 003 — `ContentOsPillarsView.tsx` |
+| M11-3 AI 30 ideas | 005 — job `ideas_bulk` |
+| M11-4 PDF brief export | 027, 032 — `pdfkit` or existing export service |
+| M11-5 SEO URL sync | 019 — poll/webhook from SeoContentModule |
+
+---
+
+## 19. Milestone M12 — P2 client gate & video (Tuần 13–16)
+
+| Task | UC |
+|------|-----|
+| M12-1 Client gate workflow | 015 — statuses `pending_client`, `client_approved` |
+| M12-2 Portal summary | 030 — read-only portal route |
+| M12-3 Short video job | 036 — `video_short_generate` worker |
+| M12-4 Weekly memo | 026 — optional |
+
+**Kế hoạch chi tiết từng task:** [`2026-08-09-content-marketing-m7-m12-professionalization.md`](./2026-08-09-content-marketing-m7-m12-professionalization.md)
+
+---
+
+*Phiên bản: 1.1 · 2026-08-09 · M0–M6 done · M7+ roadmap added.*

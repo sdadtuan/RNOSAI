@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { StoredStaffUser } from '@/lib/auth';
 import { canApproveContentOs, canGenerateContentOs, canProductionContentOs, canPublishContentOs, canWriteContentOs } from '@/lib/auth';
+import { ContentOsAuditPanel } from '@/components/content-os/ContentOsAuditPanel';
+import { ContentOsBoardCard } from '@/components/content-os/ContentOsBoardCard';
 import { ContentOsCalendarView } from '@/components/content-os/ContentOsCalendarView';
 import { ContentOsGeneratePanel } from '@/components/content-os/ContentOsGeneratePanel';
 import { ContentOsMediaStudio } from '@/components/content-os/ContentOsMediaStudio';
@@ -26,13 +28,15 @@ import {
   postContentOsIdeaConvert,
   postContentOsPublishItem,
   postContentOsSubmitReview,
+  parseCmktGateError,
   type ContentOsContext,
   type ContentOsIdea,
   type ContentOsItem,
   type ContentOsItemVersion,
 } from '@/lib/content-os-api';
+import { type ContentOsSubView } from '@/lib/content-os-status';
+import { useContentOsViewParams } from '@/lib/use-content-os-view-params';
 
-type SubView = 'overview' | 'ideas' | 'board' | 'review' | 'calendar' | 'repurpose';
 type DrawerTab = 'body' | 'variants' | 'versions' | 'production' | 'media';
 
 interface Props {
@@ -52,14 +56,13 @@ const COLUMN_LABELS: Record<string, string> = {
 };
 
 export function ContentOsPanel({ token, user, lifecycleId }: Props) {
-  const [view, setView] = useState<SubView>('overview');
+  const { view, itemId: drawerItemId, setView, openItem, closeDrawer } = useContentOsViewParams('overview');
   const [ctx, setCtx] = useState<ContentOsContext | null>(null);
   const [ideas, setIdeas] = useState<ContentOsIdea[]>([]);
   const [items, setItems] = useState<ContentOsItem[]>([]);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  const [drawerItemId, setDrawerItemId] = useState<number | null>(null);
   const [drawerItem, setDrawerItem] = useState<ContentOsItem | null>(null);
   const [drawerTab, setDrawerTab] = useState<DrawerTab>('body');
   const [drawerVersions, setDrawerVersions] = useState<ContentOsItemVersion[]>([]);
@@ -158,8 +161,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
       const out = await postContentOsIdeaConvert(token, lifecycleId, ideaId, { channel, format });
       setMessage(`Đã convert → item #${out.item.id}`);
       await reload();
-      setDrawerItemId(out.item.id);
-      setView('board');
+      openItem(out.item.id, 'board');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Convert thất bại');
     } finally {
@@ -210,7 +212,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
       setMessage('Đã mark published');
       await refreshDrawerItem();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Publish thất bại');
+      setError(parseCmktGateError(err));
     } finally {
       setSaving(false);
     }
@@ -248,13 +250,14 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
             ['review', `Review${reviewBadge ? ` (${reviewBadge})` : ''}`],
             ['calendar', 'Calendar'],
             ['repurpose', 'Repurpose'],
+            ['audit', 'Audit'],
           ] as const
         ).map(([v, label]) => (
           <button
             key={v}
             type="button"
             className={view === v ? 'btn btn-sm' : 'btn btn-sm btn-ghost'}
-            onClick={() => setView(v)}
+            onClick={() => setView(v as ContentOsSubView)}
           >
             {label}
           </button>
@@ -370,25 +373,11 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
                 {items
                   .filter((i) => i.status === col)
                   .map((item) => (
-                    <button
+                    <ContentOsBoardCard
                       key={item.id}
-                      type="button"
-                      onClick={() => setDrawerItemId(item.id)}
-                      style={{
-                        textAlign: 'left',
-                        background: 'var(--bg)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 8,
-                        padding: '0.55rem',
-                        color: 'var(--text)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{item.title}</div>
-                      <div className="muted" style={{ fontSize: '0.78rem' }}>
-                        {channelFormatLabel(item.channel, item.format)}
-                      </div>
-                    </button>
+                      item={item}
+                      onClick={() => openItem(item.id, 'board')}
+                    />
                   ))}
               </div>
             </div>
@@ -402,7 +391,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
           lifecycleId={lifecycleId}
           canApprove={canApprove}
           onOpenItem={(id) => {
-            setDrawerItemId(id);
+            openItem(id, 'review');
             setDrawerTab('body');
           }}
           onChanged={reload}
@@ -417,7 +406,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
           lifecycleId={lifecycleId}
           canWrite={canWrite}
           onOpenItem={(id) => {
-            setDrawerItemId(id);
+            openItem(id, 'calendar');
             setDrawerTab('body');
           }}
           onChanged={reload}
@@ -432,13 +421,17 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
           lifecycleId={lifecycleId}
           canGenerate={canGenerate}
           onOpenItem={(id) => {
-            setDrawerItemId(id);
+            openItem(id, 'repurpose');
             setDrawerTab('body');
           }}
           onDone={reload}
           onMessage={setMessage}
           onError={setError}
         />
+      ) : null}
+
+      {view === 'audit' ? (
+        <ContentOsAuditPanel token={token} lifecycleId={lifecycleId} />
       ) : null}
 
       {drawerItemId != null ? (
@@ -452,7 +445,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
             display: 'flex',
             justifyContent: 'flex-end',
           }}
-          onClick={() => setDrawerItemId(null)}
+          onClick={() => closeDrawer()}
         >
           <div
             style={{
@@ -467,7 +460,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0 }}>{drawerItem?.title ?? `Item #${drawerItemId}`}</h3>
-              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setDrawerItemId(null)}>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => closeDrawer()}>
                 Đóng
               </button>
             </div>

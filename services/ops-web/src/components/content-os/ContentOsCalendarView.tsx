@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { ContentOsCalendarGrid } from '@/components/content-os/ContentOsCalendarGrid';
 import {
   channelFormatLabel,
   fetchContentOsCalendar,
@@ -75,6 +76,21 @@ export function ContentOsCalendarView({
 
   return (
     <div style={{ display: 'grid', gap: '0.75rem' }}>
+      <ContentOsCalendarGrid
+        token={token}
+        lifecycleId={lifecycleId}
+        canWrite={canWrite}
+        slots={slots}
+        approved={approved}
+        onOpenItem={onOpenItem}
+        onChanged={async () => {
+          await reload();
+          await onChanged();
+        }}
+        onError={onError}
+        onMessage={onMessage}
+      />
+
       {canWrite ? (
         <form onSubmit={(e) => void onSchedule(e)} style={{ display: 'grid', gap: '0.5rem' }}>
           <strong style={{ fontSize: '0.9rem' }}>Lên lịch (item đã duyệt)</strong>

@@ -1,10 +1,12 @@
 # Content Marketing OS — Integration & UX/UI Specification (Triển khai DV)
 
 > **Document ID:** CMKT-INTEGRATION-SPEC-20260809  
-> **Phiên bản:** 1.0 · **Ngày:** 2026-08-09  
-> **Trạng thái:** Draft for UX kickoff & P0 implement  
-> **Design spec:** [`superpowers/specs/2026-08-09-content-marketing-os-design.md`](../superpowers/specs/2026-08-09-content-marketing-os-design.md) (v1.4)  
-> **Implementation plan:** [`superpowers/plans/2026-08-09-content-marketing-os-phase0-3.md`](../superpowers/plans/2026-08-09-content-marketing-os-phase0-3.md)  
+> **Phiên bản:** 1.1 · **Ngày:** 2026-08-09 (cập nhật implementation status)  
+> **Trạng thái:** M0–M6 FE shipped · gap M7+ documented  
+> **Design spec:** [`superpowers/specs/2026-08-09-content-marketing-os-design.md`](../superpowers/specs/2026-08-09-content-marketing-os-design.md) (v1.5)  
+> **Implementation status:** [`superpowers/specs/2026-08-09-content-marketing-implementation-status.md`](../superpowers/specs/2026-08-09-content-marketing-implementation-status.md)  
+> **Implementation plan (M7+):** [`superpowers/plans/2026-08-09-content-marketing-m7-m12-professionalization.md`](../superpowers/plans/2026-08-09-content-marketing-m7-m12-professionalization.md)  
+> **Implementation plan (M0–M6):** [`superpowers/plans/2026-08-09-content-marketing-os-phase0-3.md`](../superpowers/plans/2026-08-09-content-marketing-os-phase0-3.md)  
 > **Use cases:** [`use-cases/11-CONTENT-MARKETING.md`](../use-cases/11-CONTENT-MARKETING.md) · **Actions:** [`use-cases/actions/11-CMKT-ACTIONS.md`](../use-cases/actions/11-CMKT-ACTIONS.md)  
 > **BA module:** [`modules/RNOSAI-BA-CMKT-UseCases.md`](./modules/RNOSAI-BA-CMKT-UseCases.md)  
 > **Design system:** [`SPEC_UI_UX_PTT.md`](../SPEC_UI_UX_PTT.md) · [`2026-08-07-rnosai-competitive-win-ui-ux-design.md`](./2026-08-07-rnosai-competitive-win-ui-ux-design.md)  
@@ -32,6 +34,7 @@
 15. [Backend contracts (FE)](#15-backend-contracts-fe)
 16. [Acceptance criteria UX (EC-CMKT-UX)](#16-acceptance-criteria-ux-ec-cmkt-ux)
 17. [Visual QA checklist](#17-visual-qa-checklist)
+18. [Trạng thái triển khai UX & backlog M7+](#18-trạng-thái-triển-khai-ux--backlog-m7)
 
 ---
 
@@ -588,4 +591,49 @@ type ContentOsContext = {
 
 ---
 
-**End of UX/UI Integration Spec**
+## 18. Trạng thái triển khai UX & backlog M7+
+
+> Matrix đầy đủ: [`superpowers/specs/2026-08-09-content-marketing-implementation-status.md`](../superpowers/specs/2026-08-09-content-marketing-implementation-status.md)
+
+### 18.1. EC-CMKT-UX — trạng thái hiện tại
+
+| ID | Criteria | TT | Milestone fix |
+|----|----------|-----|---------------|
+| EC-UX-01 | Tab hidden when flag off | ✅ | — |
+| EC-UX-02 | Invalid channel/format not selectable | ✅ | M11 modal matrix |
+| EC-UX-03 | Approve disabled for SP role | ✅ | — |
+| EC-UX-04 | Job fail → retry without clearing editor | ⚠️ | M7 |
+| EC-UX-05 | Review queue SLA breach first | ⚠️ | M7 sort default |
+| EC-UX-06 | DRAFT watermark pre visual approve | ⚠️ | M9 server watermark |
+| EC-UX-07 | Publish toast lists missing gate | ❌ | M7 |
+| EC-UX-08 | Import planner deep link | ❌ | M11 |
+| EC-UX-09 | Mobile drawer read-only AM | ❌ | M8 |
+| EC-UX-10 | Labels Vietnamese P0 | ✅ | — |
+
+### 18.2. Backlog component FE (ưu tiên)
+
+| Component | Mô tả | Milestone |
+|-----------|-------|-----------|
+| `ContentOsBoardCard.tsx` | Badge status màu + chip Text/Visual | M7 |
+| `ContentOsAuditPanel.tsx` | Tab/panel audit ai_run | M7 |
+| `ContentOsVersionDiff.tsx` | Compare 2 versions markdown | M8 |
+| `ContentOsCommentsPanel.tsx` | Thread internal comments | M8 |
+| `ContentOsAssigneePicker.tsx` | SP/QA staff dropdown | M8 |
+| `ContentOsIntelligenceView.tsx` | KPI channel + suggest topics | M10 |
+| `ContentOsChannelPickerModal.tsx` | Modal matrix §12 + icon | M11 |
+| `ContentOsCalendarGrid.tsx` | Tuần drag-drop (dnd-kit) | M7 |
+| `useContentOsViewParams.ts` | Sync `?view=` `&id=` URL | M7 |
+
+### 18.3. Wireframe delta (so với §6–8)
+
+| Wireframe | Gap | Target |
+|-----------|-----|--------|
+| §6.2 sub-nav Intelligence | Tab chưa có | M10 |
+| §6.3 Overview quick actions | Thiếu nút Review/Import nổi bật | M7 |
+| §6.4 Calendar drag | Form thay drag | M7 |
+| §7.1 Media Studio progress | Job inline sync | M9 async poll UI |
+| §8 Intelligence charts | Chưa build | M10 |
+
+---
+
+**End of UX/UI Integration Spec v1.1**
