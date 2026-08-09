@@ -14,8 +14,12 @@ import {
   buildRepurposeStub,
   buildRepurposeSystemPrompt,
   buildRepurposeUserPrompt,
+  buildIdeasBulkStub,
+  buildIdeasBulkSystemPrompt,
+  buildIdeasBulkUserPrompt,
   hashPrompt,
   normalizeDraftOutput,
+  normalizeIdeasBulkOutput,
   normalizeRepurposeOutput,
   normalizeVariantsOutput,
   resolvePromptProfile,
@@ -34,7 +38,7 @@ import {
 import { ContentVisualQaService } from './content-visual-qa.service';
 import { ContentMediaImageProvider } from './content-media-image.provider';
 import { ContentMarketingRepository } from './content-marketing.repository';
-import type { CmktBodyJson, CmktJobRow, CmktMediaAsset } from './content-marketing.types';
+import type { CmktBodyJson, CmktIdeaRow, CmktJobRow, CmktMediaAsset } from './content-marketing.types';
 
 @Injectable()
 export class ContentJobWorkerService {
@@ -66,6 +70,10 @@ export class ContentJobWorkerService {
 
       if (claimed.job_type === 'topic_suggest') {
         return this.processTopicSuggestJob(jobId, claimed, started);
+      }
+
+      if (claimed.job_type === 'ideas_bulk') {
+        return this.processIdeasBulkJob(jobId, claimed, started);
       }
 
       const item =
@@ -409,6 +417,75 @@ export class ContentJobWorkerService {
           range: range.range,
           latency_ms: Date.now() - started,
           stub_mode: !this.aiConfig.llmApiKey,
+        },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return this.repo.finishContentJob(jobId, { status: 'failed', error_text: message });
+    }
+  }
+
+  private async processIdeasBulkJob(
+    jobId: number,
+    claimed: CmktJobRow,
+    started: number,
+  ): Promise<CmktJobRow | null> {
+    try {
+      const ideaCount = Math.min(Math.max(Number(claimed.input_json?.idea_count ?? 30), 10), 40);
+      const brandCtx = await this.brandContext.resolveForLifecycle(claimed.lifecycle_id);
+      const pillars = await this.repo.listPillars(claimed.lifecycle_id);
+      const brand = {
+        brand_name: String(brandCtx.brand_name ?? 'Brand'),
+        audience: String(brandCtx.audience ?? ''),
+        pillars: pillars.map((p) => ({ name: p.name, goal: p.goal })),
+      };
+      const systemPrompt = buildIdeasBulkSystemPrompt();
+      const userPrompt = buildIdeasBulkUserPrompt(brand, {
+        idea_count: ideaCount,
+        month_label:
+          claimed.input_json?.month_label != null
+            ? String(claimed.input_json.month_label)
+            : undefined,
+      });
+      const stubJson = () => buildIdeasBulkStub(brand, { idea_count: ideaCount });
+      const promptHash = hashPrompt(systemPrompt, userPrompt);
+
+      const { parsed, tokenUsage, modelName, stubMode } = await this.llm.completeJson({
+        systemPrompt,
+        userContent: userPrompt,
+        model: this.modelName,
+        stubJson,
+      });
+
+      const drafts = normalizeIdeasBulkOutput(parsed, stubJson(), ideaCount);
+      const pillarByName = new Map(pillars.map((p) => [p.name.toLowerCase(), p.id]));
+      const created: CmktIdeaRow[] = [];
+      for (const draft of drafts) {
+        const pillarId =
+          draft.pillar_name != null
+            ? pillarByName.get(draft.pillar_name.toLowerCase()) ?? null
+            : null;
+        const row = await this.repo.createIdea(claimed.lifecycle_id, {
+          title: draft.title,
+          hook: draft.hook,
+          target_goal: draft.target_goal || 'engagement',
+          channel_hints: draft.channel_hints,
+          pillar_id: pillarId,
+          status: 'backlog',
+          meta_json: { source_job: jobId, profile: 'ideas_monthly' },
+          source: 'ai_bulk',
+          created_by: claimed.created_by,
+        });
+        created.push(row);
+      }
+
+      return this.repo.finishContentJob(jobId, {
+        status: 'succeeded',
+        output_json: {
+          ideas_created: created.length,
+          idea_ids: created.map((i) => i.id),
+          stub_mode: stubMode,
+          latency_ms: Date.now() - started,
         },
       });
     } catch (err) {

@@ -1815,4 +1815,52 @@ export class ContentMarketingRepository implements OnModuleDestroy {
   async setLatestTopicSuggestions(lifecycleId: number, suggestions: string[]): Promise<void> {
     this.memory.topicSuggestions.set(lifecycleId, suggestions);
   }
+
+  async getPillarById(lifecycleId: number, pillarId: number): Promise<CmktPillarRow | null> {
+    const pillars = await this.listPillars(lifecycleId);
+    return pillars.find((p) => p.id === pillarId) ?? null;
+  }
+
+  async patchPillar(
+    lifecycleId: number,
+    pillarId: number,
+    patch: Partial<CmktPillarRow>,
+  ): Promise<CmktPillarRow | null> {
+    if (await this.ensurePgReady()) {
+      const existing = await this.getPillarById(lifecycleId, pillarId);
+      if (!existing) return null;
+      const next = { ...existing, ...patch, id: existing.id, lifecycle_id: existing.lifecycle_id };
+      const res = await this.db.query(
+        `UPDATE cmkt_content_pillars
+         SET name = $3, goal = $4, topics_json = $5::jsonb, sort_order = $6
+         WHERE lifecycle_id = $1 AND id = $2 AND active = TRUE
+         RETURNING *`,
+        [
+          lifecycleId,
+          pillarId,
+          next.name,
+          next.goal,
+          JSON.stringify(next.topics_json ?? []),
+          next.sort_order,
+        ],
+      );
+      if (!res.rows[0]) return null;
+      return {
+        id: Number(res.rows[0].id),
+        lifecycle_id: Number(res.rows[0].lifecycle_id),
+        snapshot_id: res.rows[0].snapshot_id != null ? Number(res.rows[0].snapshot_id) : null,
+        name: String(res.rows[0].name ?? ''),
+        goal: String(res.rows[0].goal ?? ''),
+        topics_json: (res.rows[0].topics_json as string[]) ?? [],
+        sort_order: Number(res.rows[0].sort_order ?? 0),
+        active: Boolean(res.rows[0].active),
+      };
+    }
+    const list = this.memory.pillars.get(lifecycleId) ?? [];
+    const idx = list.findIndex((p) => p.id === pillarId && p.active);
+    if (idx < 0) return null;
+    list[idx] = { ...list[idx], ...patch, id: list[idx].id, lifecycle_id: list[idx].lifecycle_id };
+    this.memory.pillars.set(lifecycleId, list);
+    return list[idx];
+  }
 }

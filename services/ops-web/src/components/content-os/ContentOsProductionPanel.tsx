@@ -9,8 +9,10 @@ import {
   postContentOsBridgeEmail,
   postContentOsBridgeSeo,
   postContentOsExportDesignBrief,
+  postContentOsExportDesignBriefPdf,
   postContentOsExportScript,
   postContentOsProductionDone,
+  postContentOsSeoSync,
   type ContentOsItem,
 } from '@/lib/content-os-api';
 
@@ -80,8 +82,21 @@ export function ContentOsProductionPanel({
     }
   };
 
-  const downloadExport = async (kind: 'brief' | 'script') => {
+  const downloadExport = async (kind: 'brief' | 'brief_pdf' | 'script') => {
     try {
+      if (kind === 'brief_pdf') {
+        const res = await postContentOsExportDesignBriefPdf(token, lifecycleId, item.id);
+        const bytes = Uint8Array.from(atob(res.content_base64), (c) => c.charCodeAt(0));
+        const blob = new Blob([bytes], { type: res.content_type });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = res.filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        onMessage(`Đã export ${res.filename}`);
+        return;
+      }
       const res =
         kind === 'brief'
           ? await postContentOsExportDesignBrief(token, lifecycleId, item.id)
@@ -135,6 +150,28 @@ export function ContentOsProductionPanel({
         ) : null}
         {prod.creative_id ? <span className="badge">Creative: {String(prod.creative_id)}</span> : null}
       </div>
+
+      {canWrite && item.channel === 'website' && item.format === 'blog' && item.seo_bridge_id ? (
+        <button
+          type="button"
+          className="btn btn-sm btn-ghost"
+          disabled={saving}
+          onClick={async () => {
+            setSaving(true);
+            try {
+              const out = await postContentOsSeoSync(token, lifecycleId, item.id);
+              onMessage(out.synced ? `Đã sync URL: ${out.published_url}` : 'SEO chưa published — chưa sync');
+              if (out.synced) onChanged();
+            } catch (err) {
+              onError(err instanceof Error ? err.message : 'SEO sync thất bại');
+            } finally {
+              setSaving(false);
+            }
+          }}
+        >
+          Sync SEO published URL
+        </button>
+      ) : null}
 
       {canWrite && item.channel === 'website' && item.format === 'blog' && !item.seo_bridge_id ? (
         <button
@@ -292,6 +329,9 @@ export function ContentOsProductionPanel({
               </button>
               <button type="button" className="btn btn-sm btn-ghost" onClick={() => void downloadExport('brief')}>
                 Export brief
+              </button>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => void downloadExport('brief_pdf')}>
+                Export PDF
               </button>
               {item.format === 'video_script' ? (
                 <button type="button" className="btn btn-sm btn-ghost" onClick={() => void downloadExport('script')}>

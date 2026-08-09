@@ -235,3 +235,87 @@ export function normalizeRepurposeOutput(
 ): { markdown: string } {
   return { markdown: String(parsed.markdown ?? fallback.markdown ?? '').trim() };
 }
+
+export type CmktBulkIdeaDraft = {
+  title: string;
+  hook: string;
+  target_goal: string;
+  channel_hints: string[];
+  pillar_name?: string;
+};
+
+export function buildIdeasBulkSystemPrompt(): string {
+  return [
+    'You are a content marketing strategist.',
+    'Generate a monthly backlog of content ideas aligned to brand pillars and funnel goals.',
+    'Return JSON: { "ideas": [{ "title", "hook", "target_goal", "channel_hints": string[], "pillar_name"?: string }] }',
+    `Prompt version: ${CMKT_PROMPT_VERSION} profile=ideas_monthly`,
+  ].join('\n');
+}
+
+export function buildIdeasBulkUserPrompt(
+  brand: { brand_name: string; audience: string; pillars: Array<{ name: string; goal: string }> },
+  input: { idea_count?: number; month_label?: string },
+): string {
+  const count = Math.min(Math.max(Number(input.idea_count ?? 30), 10), 40);
+  const pillars = brand.pillars.map((p) => `${p.name}: ${p.goal}`).join('; ') || 'General brand';
+  return [
+    `Brand: ${brand.brand_name}`,
+    `Audience: ${brand.audience}`,
+    `Pillars: ${pillars}`,
+    `Month: ${input.month_label ?? 'next month'}`,
+    `Generate exactly ${count} distinct ideas.`,
+  ].join('\n');
+}
+
+export function buildIdeasBulkStub(
+  brand: { brand_name: string; pillars: Array<{ name: string; goal: string }> },
+  input: { idea_count?: number },
+): Record<string, unknown> {
+  const count = Math.min(Math.max(Number(input.idea_count ?? 30), 10), 40);
+  const pillarNames = brand.pillars.map((p) => p.name);
+  const ideas: CmktBulkIdeaDraft[] = [];
+  for (let i = 0; i < count; i++) {
+    const pillar = pillarNames[i % Math.max(pillarNames.length, 1)] ?? 'Brand';
+    ideas.push({
+      title: `${brand.brand_name} — ${pillar} idea ${i + 1}`,
+      hook: `Hook ${i + 1} for ${pillar}`,
+      target_goal: 'engagement',
+      channel_hints: i % 2 === 0 ? ['facebook'] : ['linkedin'],
+      pillar_name: pillar,
+    });
+  }
+  return { ideas };
+}
+
+export function normalizeIdeasBulkOutput(
+  parsed: Record<string, unknown>,
+  fallback: Record<string, unknown>,
+  minCount = 30,
+): CmktBulkIdeaDraft[] {
+  const raw = (parsed.ideas ?? fallback.ideas) as unknown;
+  const list = Array.isArray(raw) ? raw : [];
+  const out: CmktBulkIdeaDraft[] = list
+    .map((row) => {
+      const r = row as Record<string, unknown>;
+      const title = String(r.title ?? '').trim();
+      if (!title) return null;
+      return {
+        title,
+        hook: String(r.hook ?? '').trim(),
+        target_goal: String(r.target_goal ?? 'engagement').trim(),
+        channel_hints: Array.isArray(r.channel_hints)
+          ? r.channel_hints.map((v) => String(v))
+          : [],
+        pillar_name: r.pillar_name != null ? String(r.pillar_name) : undefined,
+      };
+    })
+    .filter(Boolean) as CmktBulkIdeaDraft[];
+  if (out.length >= minCount) return out.slice(0, minCount);
+  const stub = buildIdeasBulkStub(
+    { brand_name: 'Brand', pillars: [{ name: 'Core', goal: 'awareness' }] },
+    { idea_count: minCount },
+  );
+  const stubIdeas = (stub.ideas as CmktBulkIdeaDraft[]) ?? [];
+  return [...out, ...stubIdeas].slice(0, minCount);
+}

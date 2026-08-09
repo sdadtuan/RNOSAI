@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { StoredStaffUser } from '@/lib/auth';
 import { canApproveContentOs, canAssignContentOs, canGenerateContentOs, canProductionContentOs, canPublishContentOs, canWriteContentOs } from '@/lib/auth';
 import { ContentOsAssigneePicker } from '@/components/content-os/ContentOsAssigneePicker';
@@ -11,6 +12,7 @@ import { ContentOsCommentsPanel } from '@/components/content-os/ContentOsComment
 import { ContentOsGeneratePanel } from '@/components/content-os/ContentOsGeneratePanel';
 import { ContentOsIntelligenceView } from '@/components/content-os/ContentOsIntelligenceView';
 import { ContentOsMediaStudio } from '@/components/content-os/ContentOsMediaStudio';
+import { ContentOsPillarsView } from '@/components/content-os/ContentOsPillarsView';
 import { ContentOsProductionPanel } from '@/components/content-os/ContentOsProductionPanel';
 import { ContentOsRepurposeWizard } from '@/components/content-os/ContentOsRepurposeWizard';
 import { ContentOsReviewQueueView } from '@/components/content-os/ContentOsReviewQueueView';
@@ -29,6 +31,7 @@ import {
   patchContentOsItem,
   postContentOsApproveItem,
   postContentOsIdea,
+  postContentOsIdeasBulkJob,
   postContentOsIdeaConvert,
   postContentOsPublishItem,
   postContentOsSubmitReview,
@@ -60,6 +63,9 @@ const COLUMN_LABELS: Record<string, string> = {
 };
 
 export function ContentOsPanel({ token, user, lifecycleId }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const plannerImportRequested = searchParams.get('import') === 'planner';
   const { view, itemId: drawerItemId, setView, openItem, closeDrawer } = useContentOsViewParams('overview');
   const [ctx, setCtx] = useState<ContentOsContext | null>(null);
   const [ideas, setIdeas] = useState<ContentOsIdea[]>([]);
@@ -235,6 +241,12 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
 
   const reviewBadge = ctx?.counts.in_review ?? 0;
 
+  const clearPlannerImportParam = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('import');
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
   return (
     <div style={{ display: 'grid', gap: '0.75rem' }}>
       <ContentOsSnapshotBanner
@@ -242,6 +254,8 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
         lifecycleId={lifecycleId}
         ctx={ctx}
         canWrite={canWrite}
+        plannerImportRequested={plannerImportRequested}
+        onPlannerImportHandled={clearPlannerImportParam}
         onChanged={reload}
         onMessage={setMessage}
         onError={setError}
@@ -252,6 +266,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
           [
             ['overview', 'Tổng quan'],
             ['ideas', 'Ideas'],
+            ['pillars', 'Pillars'],
             ['board', 'Board'],
             ['review', `Review${reviewBadge ? ` (${reviewBadge})` : ''}`],
             ['calendar', 'Calendar'],
@@ -296,6 +311,34 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
 
       {view === 'ideas' ? (
         <div style={{ display: 'grid', gap: '0.75rem' }}>
+          {canGenerate ? (
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              disabled={saving}
+              onClick={() => {
+                void (async () => {
+                  setSaving(true);
+                  setError('');
+                  try {
+                    const job = await postContentOsIdeasBulkJob(token, lifecycleId, { idea_count: 30 });
+                    if (job.status === 'failed') {
+                      setError(job.error_text ?? 'AI ideas job failed');
+                    } else {
+                      setMessage('Đã generate 30 ideas tháng');
+                      await reload();
+                    }
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'AI 30 ideas thất bại');
+                  } finally {
+                    setSaving(false);
+                  }
+                })();
+              }}
+            >
+              AI 30 ideas tháng
+            </button>
+          ) : null}
           {canWrite ? (
             <form onSubmit={(e) => void onCreateIdea(e)} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <input
@@ -453,6 +496,16 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
 
       {view === 'audit' ? (
         <ContentOsAuditPanel token={token} lifecycleId={lifecycleId} />
+      ) : null}
+
+      {view === 'pillars' ? (
+        <ContentOsPillarsView
+          token={token}
+          lifecycleId={lifecycleId}
+          canWrite={canWrite}
+          onMessage={setMessage}
+          onError={setError}
+        />
       ) : null}
 
       {view === 'intelligence' ? (

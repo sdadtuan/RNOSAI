@@ -29,7 +29,9 @@ import { ContentIdeaService } from './content-idea.service';
 import { ContentItemService } from './content-item.service';
 import { ContentPlanSnapshotService } from './content-plan-snapshot.service';
 import { ContentProductionService } from './content-production.service';
+import { ContentPillarService } from './content-pillar.service';
 import { ContentRepurposeService } from './content-repurpose.service';
+import { ContentSeoBridgeSyncService } from './content-seo-bridge-sync.service';
 import { ContentMediaGenerateService } from './content-media-generate.service';
 import { ContentMediaImageProvider } from './content-media-image.provider';
 import { ContentVisualService } from './content-visual.service';
@@ -72,6 +74,8 @@ export class ContentMarketingController {
     private readonly visual: ContentVisualService,
     private readonly metrics: ContentMetricsService,
     private readonly intelligence: ContentIntelligenceService,
+    private readonly pillars: ContentPillarService,
+    private readonly seoBridgeSync: ContentSeoBridgeSyncService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -431,8 +435,28 @@ export class ContentMarketingController {
   seoBridgeStatus(
     @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
     @Param('itemId', ParseIntPipe) itemId: number,
+    @Query('sync') sync?: string,
+    @Req() req?: Request,
   ) {
+    if (sync === '1' || sync === 'true') {
+      return this.seoBridgeSync.getSeoBridgeStatusWithSync(
+        lifecycleId,
+        itemId,
+        actorEmail(req ?? ({} as Request)),
+      );
+    }
     return this.seoBridge.getSeoBridgeStatus(lifecycleId, itemId);
+  }
+
+  @Post('items/:itemId/bridge/seo/sync')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  syncSeoPublishedUrl(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Req() req: Request,
+  ) {
+    return this.seoBridgeSync.syncPublishedUrlFromSeo(lifecycleId, itemId, actorEmail(req));
   }
 
   @Post('items/:itemId/bridge/email')
@@ -505,6 +529,16 @@ export class ContentMarketingController {
     @Param('itemId', ParseIntPipe) itemId: number,
   ) {
     return this.production.exportDesignBrief(lifecycleId, itemId);
+  }
+
+  @Post('items/:itemId/export/brief-design/pdf')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingProductionGuard)
+  exportDesignBriefPdf(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+  ) {
+    return this.production.exportDesignBriefPdf(lifecycleId, itemId);
   }
 
   @Post('items/:itemId/export/script')
@@ -688,5 +722,31 @@ export class ContentMarketingController {
     @Req() req: Request,
   ) {
     return this.intelligence.startTopicSuggestJob(lifecycleId, body, actorEmail(req));
+  }
+
+  @Get('pillars')
+  listPillars(@Param('lifecycleId', ParseIntPipe) lifecycleId: number) {
+    return this.pillars.listPillars(lifecycleId);
+  }
+
+  @Patch('pillars/:pillarId')
+  @UseGuards(StaffContentMarketingWriteGuard)
+  patchPillar(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('pillarId', ParseIntPipe) pillarId: number,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.pillars.patchPillar(lifecycleId, pillarId, body);
+  }
+
+  @Post('jobs/ideas-bulk')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  startIdeasBulkJob(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.ideas.startBulkIdeasJob(lifecycleId, body, actorEmail(req));
   }
 }

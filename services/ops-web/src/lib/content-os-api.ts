@@ -325,6 +325,36 @@ export function fetchPlanSnapshot(token: string, lifecycleId: number): Promise<C
   return cmktFetch(token, lifecycleId, '/plan-snapshot');
 }
 
+export function fetchContentOsPillars(
+  token: string,
+  lifecycleId: number,
+): Promise<{ pillars: ContentOsPillar[] }> {
+  return cmktFetch(token, lifecycleId, '/pillars');
+}
+
+export function patchContentOsPillar(
+  token: string,
+  lifecycleId: number,
+  pillarId: number,
+  body: { name?: string; goal?: string; topics_json?: string[]; sort_order?: number },
+): Promise<{ pillar: ContentOsPillar }> {
+  return cmktFetch(token, lifecycleId, `/pillars/${pillarId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export function postContentOsIdeasBulkJob(
+  token: string,
+  lifecycleId: number,
+  body?: { idea_count?: number; month_label?: string },
+): Promise<ContentOsJob> {
+  return cmktFetch(token, lifecycleId, '/jobs/ideas-bulk', {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
 export function postPlanSnapshotIngest(
   token: string,
   lifecycleId: number,
@@ -647,6 +677,25 @@ export function postContentOsExportDesignBrief(
   itemId: number,
 ): Promise<{ ok: boolean; filename: string; content: string; content_type: string }> {
   return cmktFetch(token, lifecycleId, `/items/${itemId}/export/brief-design`, { method: 'POST', body: '{}' });
+}
+
+export function postContentOsExportDesignBriefPdf(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<{ ok: boolean; filename: string; content_base64: string; content_type: string }> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/export/brief-design/pdf`, {
+    method: 'POST',
+    body: '{}',
+  });
+}
+
+export function postContentOsSeoSync(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<{ synced: boolean; item: ContentOsItem; published_url?: string }> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/bridge/seo/sync`, { method: 'POST', body: '{}' });
 }
 
 export function postContentOsExportScript(

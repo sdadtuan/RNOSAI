@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   fetchPlanSnapshot,
   postPlanSnapshotIngest,
@@ -14,6 +14,8 @@ interface Props {
   lifecycleId: number;
   ctx: ContentOsContext | null;
   canWrite: boolean;
+  plannerImportRequested?: boolean;
+  onPlannerImportHandled?: () => void;
   onChanged: () => Promise<void> | void;
   onMessage: (msg: string) => void;
   onError: (msg: string) => void;
@@ -24,6 +26,8 @@ export function ContentOsSnapshotBanner({
   lifecycleId,
   ctx,
   canWrite,
+  plannerImportRequested = false,
+  onPlannerImportHandled,
   onChanged,
   onMessage,
   onError,
@@ -32,6 +36,7 @@ export function ContentOsSnapshotBanner({
   const [busy, setBusy] = useState(false);
   const [ingestMode, setIngestMode] = useState<'merge' | 'replace'>('merge');
   const [showDrift, setShowDrift] = useState(false);
+  const autoImportStarted = useRef(false);
 
   const loadSnapshot = useCallback(async () => {
     try {
@@ -69,12 +74,21 @@ export function ContentOsSnapshotBanner({
       );
       await loadSnapshot();
       await onChanged();
+      onPlannerImportHandled?.();
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Import Planner thất bại');
     } finally {
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    if (!plannerImportRequested || autoImportStarted.current) return;
+    if (!canWrite || !hasAppliedPlan || busy) return;
+    autoImportStarted.current = true;
+    void onImport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plannerImportRequested, canWrite, hasAppliedPlan]);
 
   async function onSeal() {
     if (!canWrite || snap?.sealed) return;

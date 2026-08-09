@@ -8,6 +8,10 @@ import {
   itemNeedsProduction,
   mergeProductionJson,
 } from './content-production.util';
+import {
+  designBriefPdfBuffer,
+  designBriefPdfFilename,
+} from './content-production-export.util';
 import type { CmktItemRow, CmktProductionJson } from './content-marketing.types';
 
 const PRODUCTION_EDIT_STATUSES = new Set([
@@ -83,6 +87,20 @@ export class ContentProductionService {
       filename: `creative-brief-${itemId}.md`,
       content: buildDesignBriefMarkdown(item),
       content_type: 'text/markdown',
+    };
+  }
+
+  async exportDesignBriefPdf(
+    lifecycleId: number,
+    itemId: number,
+  ): Promise<{ ok: boolean; filename: string; content_base64: string; content_type: string }> {
+    const item = await this.getEditableItem(lifecycleId, itemId);
+    const buffer = designBriefPdfBuffer(item);
+    return {
+      ok: true,
+      filename: designBriefPdfFilename(itemId),
+      content_base64: buffer.toString('base64'),
+      content_type: 'application/pdf',
     };
   }
 

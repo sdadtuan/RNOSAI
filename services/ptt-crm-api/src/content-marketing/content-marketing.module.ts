@@ -21,8 +21,10 @@ import { ContentMediaStorageService } from './content-media-storage.service';
 import { ReplicateMediaProvider } from './content-media-replicate.provider';
 import { StubMediaProvider } from './content-media-stub.provider';
 import { ContentVisualQaService } from './content-visual-qa.service';
+import { ContentPillarService } from './content-pillar.service';
 import { ContentRepurposeService } from './content-repurpose.service';
 import { ContentSeoBridgeService } from './content-seo-bridge.service';
+import { ContentSeoBridgeSyncService } from './content-seo-bridge-sync.service';
 import { ContentVisualService } from './content-visual.service';
 import { ContentWorkflowService } from './content-workflow.service';
 import { ContentMarketingController } from './content-marketing.controller';
@@ -60,8 +62,10 @@ import {
     ContentCommentsService,
     ContentMetricsService,
     ContentIntelligenceService,
+    ContentPillarService,
     ContentRepurposeService,
     ContentSeoBridgeService,
+    ContentSeoBridgeSyncService,
     ContentEmailBridgeService,
     ContentProductionService,
     StubMediaProvider,

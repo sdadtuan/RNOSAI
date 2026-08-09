@@ -2,7 +2,13 @@ import { ContentMarketingController } from './content-marketing.controller';
 
 describe('ContentMarketingController', () => {
   const contentMarketing = { getContext: jest.fn() };
-  const ideas = { listIdeas: jest.fn(), createIdea: jest.fn(), patchIdea: jest.fn(), convertIdea: jest.fn() };
+  const ideas = {
+    listIdeas: jest.fn(),
+    createIdea: jest.fn(),
+    patchIdea: jest.fn(),
+    convertIdea: jest.fn(),
+    startBulkIdeasJob: jest.fn(),
+  };
   const items = {
     listItems: jest.fn(),
     getItem: jest.fn(),
@@ -40,6 +46,7 @@ describe('ContentMarketingController', () => {
     markProductionDone: jest.fn(),
     linkCreative: jest.fn(),
     exportDesignBrief: jest.fn(),
+    exportDesignBriefPdf: jest.fn(),
     exportScript: jest.fn(),
   };
   const media = {
@@ -66,6 +73,8 @@ describe('ContentMarketingController', () => {
     getSuggestions: jest.fn(),
     startTopicSuggestJob: jest.fn(),
   };
+  const pillars = { listPillars: jest.fn(), patchPillar: jest.fn() };
+  const seoBridgeSync = { syncPublishedUrlFromSeo: jest.fn(), getSeoBridgeStatusWithSync: jest.fn() };
   const staffAuth = { resolveStaffIdFromJwt: jest.fn() };
 
   let controller: ContentMarketingController;
@@ -90,6 +99,8 @@ describe('ContentMarketingController', () => {
       visual as never,
       metrics as never,
       intelligence as never,
+      pillars as never,
+      seoBridgeSync as never,
       staffAuth as never,
     );
   });
@@ -134,5 +145,61 @@ describe('ContentMarketingController', () => {
     const req = { staffUser: { email: 'sp@test.vn' } } as never;
     await expect(controller.submitReview(123, 42, req)).resolves.toEqual({ id: 42, status: 'in_review' });
     expect(workflow.submitReview).toHaveBeenCalledWith(123, 42, 'sp@test.vn');
+  });
+
+  it('GET pillars delegates to pillar service', async () => {
+    pillars.listPillars.mockResolvedValue({ pillars: [{ id: 1, name: 'Launch' }] });
+    await expect(controller.listPillars(123)).resolves.toEqual({ pillars: [{ id: 1, name: 'Launch' }] });
+    expect(pillars.listPillars).toHaveBeenCalledWith(123);
+  });
+
+  it('PATCH pillars/:id delegates to pillar service', async () => {
+    pillars.patchPillar.mockResolvedValue({ pillar: { id: 2, name: 'Trust' } });
+    await expect(controller.patchPillar(123, 2, { name: 'Trust' })).resolves.toEqual({
+      pillar: { id: 2, name: 'Trust' },
+    });
+    expect(pillars.patchPillar).toHaveBeenCalledWith(123, 2, { name: 'Trust' });
+  });
+
+  it('POST jobs/ideas-bulk delegates to idea service', async () => {
+    ideas.startBulkIdeasJob.mockResolvedValue({ id: 77, status: 'succeeded', job_type: 'ideas_bulk' });
+    const req = { staffUser: { email: 'lead@test.vn' } } as never;
+    await expect(controller.startIdeasBulkJob(123, { idea_count: 30 }, req)).resolves.toEqual({
+      id: 77,
+      status: 'succeeded',
+      job_type: 'ideas_bulk',
+    });
+    expect(ideas.startBulkIdeasJob).toHaveBeenCalledWith(123, { idea_count: 30 }, 'lead@test.vn');
+  });
+
+  it('POST export brief-design/pdf delegates to production service', async () => {
+    production.exportDesignBriefPdf.mockResolvedValue({
+      ok: true,
+      filename: 'creative-brief-42.pdf',
+      content_base64: 'JVBERi0=',
+      content_type: 'application/pdf',
+    });
+    await expect(controller.exportDesignBriefPdf(123, 42)).resolves.toEqual({
+      ok: true,
+      filename: 'creative-brief-42.pdf',
+      content_base64: 'JVBERi0=',
+      content_type: 'application/pdf',
+    });
+    expect(production.exportDesignBriefPdf).toHaveBeenCalledWith(123, 42);
+  });
+
+  it('POST bridge/seo/sync delegates to seo bridge sync service', async () => {
+    seoBridgeSync.syncPublishedUrlFromSeo.mockResolvedValue({
+      synced: true,
+      item: { id: 42, published_url: '/blog/smoke-post' },
+      published_url: '/blog/smoke-post',
+    });
+    const req = { staffUser: { email: 'seo@test.vn' } } as never;
+    await expect(controller.syncSeoPublishedUrl(123, 42, req)).resolves.toEqual({
+      synced: true,
+      item: { id: 42, published_url: '/blog/smoke-post' },
+      published_url: '/blog/smoke-post',
+    });
+    expect(seoBridgeSync.syncPublishedUrlFromSeo).toHaveBeenCalledWith(123, 42, 'seo@test.vn');
   });
 });

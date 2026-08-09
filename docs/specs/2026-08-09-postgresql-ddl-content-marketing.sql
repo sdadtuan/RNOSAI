@@ -347,4 +347,31 @@ INSERT INTO schema_migrations (version, description) VALUES
     )
 ON CONFLICT (version) DO NOTHING;
 
+-- M11: extend async job types (topic_suggest, ideas_bulk)
+ALTER TABLE cmkt_content_jobs DROP CONSTRAINT IF EXISTS cmkt_content_jobs_type_check;
+ALTER TABLE cmkt_content_jobs ADD CONSTRAINT cmkt_content_jobs_type_check CHECK (
+    job_type IN (
+        'idea_batch',
+        'ideas_bulk',
+        'draft_generate',
+        'variant_generate',
+        'repurpose',
+        'optimize_hook',
+        'weekly_memo',
+        'intelligence_digest',
+        'topic_suggest',
+        'image_generate',
+        'carousel_slides_generate',
+        'video_short_generate',
+        'visual_qa_score'
+    )
+);
+
+INSERT INTO schema_migrations (version, description) VALUES
+    (
+        '2026-08-09-content-marketing-m11',
+        'Content Marketing M11: ideas_bulk, topic_suggest job types, planner glue'
+    )
+ON CONFLICT (version) DO NOTHING;
+
 COMMIT;

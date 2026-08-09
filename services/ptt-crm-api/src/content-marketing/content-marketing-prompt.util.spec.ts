@@ -1,7 +1,9 @@
 import {
   buildDraftStub,
+  buildIdeasBulkStub,
   buildVariantsStub,
   normalizeDraftOutput,
+  normalizeIdeasBulkOutput,
   normalizeVariantsOutput,
   resolvePromptProfile,
 } from './content-marketing-prompt.util';
@@ -53,5 +55,15 @@ describe('content-marketing-prompt.util', () => {
     const stub = buildVariantsStub(item, { variant_count: 3 });
     const variants = normalizeVariantsOutput(stub, stub, 3);
     expect(variants.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('buildIdeasBulkStub returns requested idea count', () => {
+    const stub = buildIdeasBulkStub(
+      { brand_name: 'Acme', pillars: [{ name: 'Launch', goal: 'awareness' }] },
+      { idea_count: 30 },
+    );
+    const ideas = normalizeIdeasBulkOutput(stub, stub, 30);
+    expect(ideas.length).toBe(30);
+    expect(ideas[0]?.title.length).toBeGreaterThan(3);
   });
 });

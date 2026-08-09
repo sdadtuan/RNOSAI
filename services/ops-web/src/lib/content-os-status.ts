@@ -3,6 +3,7 @@ import type { ContentOsItem } from '@/lib/content-os-api';
 export type ContentOsSubView =
   | 'overview'
   | 'ideas'
+  | 'pillars'
   | 'board'
   | 'review'
   | 'calendar'
@@ -13,6 +14,7 @@ export type ContentOsSubView =
 export const CMKT_SUB_VIEWS: ContentOsSubView[] = [
   'overview',
   'ideas',
+  'pillars',
   'board',
   'review',
   'calendar',

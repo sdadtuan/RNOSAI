@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AiApplyTmmtModal } from '@/components/mkt-ai/AiApplyTmmtModal';
 import { AiPlanApprovalBar } from '@/components/mkt-ai/AiPlanApprovalBar';
@@ -67,6 +68,7 @@ export function AiApplyStepPanel({
   const [qualityLoading, setQualityLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [versionDrawerOpen, setVersionDrawerOpen] = useState(false);
+  const [appliedOnce, setAppliedOnce] = useState(false);
   const [officialSf, setOfficialSf] = useState<Record<string, string>>({});
   const [officialProf, setOfficialProf] = useState<Record<string, string>>({});
   const [planLoaded, setPlanLoaded] = useState(false);
@@ -151,6 +153,7 @@ export function AiApplyStepPanel({
   const diffSummary = useMemo(() => summarizeApplyDiff(diffs), [diffs]);
   const tier = getQualityTier(quality?.score);
   const canApply = Boolean(canEdit && quality?.can_apply && tier !== 'blocked');
+  const contentOsImportHref = `/crm/service-delivery/${lifecycleId}?tab=content-os&view=ideas&import=planner`;
 
   async function handleApplyConfirm() {
     setBusy(true);
@@ -169,6 +172,7 @@ export function AiApplyStepPanel({
       } else {
         onMessage('Đã apply — Gate TMMT chưa pass, kiểm tra tab TMMT');
       }
+      setAppliedOnce(true);
       onApplied?.();
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Apply TMMT thất bại');
@@ -305,6 +309,14 @@ export function AiApplyStepPanel({
           {tier === 'blocked'
             ? 'Cần quality ≥60 và đủ tiêu chí brief/ICP/campaign trước khi apply.'
             : 'Apply bị khóa — kiểm tra draft và quality score.'}
+        </p>
+      ) : null}
+
+      {appliedOnce ? (
+        <p style={{ margin: 0, fontSize: '0.85rem' }}>
+          <Link href={contentOsImportHref} className="btn btn-sm btn-secondary">
+            Mở Content OS — Import Planner →
+          </Link>
         </p>
       ) : null}
 

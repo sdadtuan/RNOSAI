@@ -5,18 +5,22 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
+import { AppConfigService } from '../config/app-config.service';
 import { CMKT_IDEA_STATUSES } from './content-marketing.constants';
 import { assertValidChannelFormat } from './content-marketing-channel.util';
 import { ContentItemService } from './content-item.service';
+import { ContentJobWorkerService } from './content-job-worker.service';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import { ContentMarketingService } from './content-marketing.service';
-import type { CmktIdeaRow, CmktItemRow } from './content-marketing.types';
+import type { CmktIdeaRow, CmktItemRow, CmktJobRow } from './content-marketing.types';
 
 @Injectable()
 export class ContentIdeaService {
   constructor(
+    private readonly config: AppConfigService,
     private readonly core: ContentMarketingService,
     private readonly repo: ContentMarketingRepository,
+    private readonly worker: ContentJobWorkerService,
     @Inject(forwardRef(() => ContentItemService))
     private readonly items: ContentItemService,
   ) {}
@@ -115,5 +119,32 @@ export class ContentIdeaService {
     });
     const updatedIdea = await this.repo.patchIdea(lifecycleId, ideaId, { status: 'converted' });
     return { idea: updatedIdea, item };
+  }
+
+  async startBulkIdeasJob(
+    lifecycleId: number,
+    body: Record<string, unknown>,
+    actorEmail: string,
+  ): Promise<CmktJobRow> {
+    if (!this.config.contentMarketingAiEnabled) {
+      throw new BadRequestException({
+        error: 'cmkt_ai_disabled',
+        message: 'Bật PTT_CONTENT_MARKETING_AI_ENABLED=1 để dùng AI ideas.',
+      });
+    }
+    await this.core.ensureLifecycleEnabled(lifecycleId);
+    const ideaCount = Math.min(Math.max(Number(body.idea_count ?? 30), 10), 40);
+    const job = await this.repo.createContentJob({
+      lifecycle_id: lifecycleId,
+      item_id: null,
+      job_type: 'ideas_bulk',
+      input_json: {
+        idea_count: ideaCount,
+        month_label: body.month_label != null ? String(body.month_label) : undefined,
+      },
+      created_by: actorEmail,
+    });
+    const finished = await this.worker.processJob(job.id);
+    return finished ?? job;
   }
 }

@@ -16,12 +16,20 @@ describe('ContentIdeaService', () => {
   const items = {
     createItemFromIdea: jest.fn(),
   };
+  const config = { contentMarketingAiEnabled: true };
+  const worker = { processJob: jest.fn() };
 
   let service: ContentIdeaService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new ContentIdeaService(core as never, repo as never, items as never);
+    service = new ContentIdeaService(
+      config as never,
+      core as never,
+      repo as never,
+      worker as never,
+      items as never,
+    );
   });
 
   it('createIdea rejects empty title', async () => {
