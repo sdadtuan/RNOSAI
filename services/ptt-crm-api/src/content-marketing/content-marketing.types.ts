@@ -157,6 +157,39 @@ export type CmktJobRow = {
   finished_at: string | null;
 };
 
+export type CmktReviewQueueItem = CmktItemRow & {
+  sla_breach: boolean;
+  scheduled_at?: string | null;
+};
+
+export type CmktReviewQueueSummary = {
+  total: number;
+  sla_breach: number;
+  by_channel: Record<string, number>;
+};
+
+export type CmktCalendarSlotRow = {
+  id: number;
+  lifecycle_id: number;
+  item_id: number;
+  scheduled_at: string;
+  timezone: string;
+  reminder_sent: boolean;
+  item?: CmktItemRow;
+};
+
+export type CmktAuditRow = {
+  item_id: number;
+  item_title: string;
+  version_no: number;
+  change_reason: string;
+  changed_by: string;
+  created_at: string;
+  ai_run_id: string | null;
+  agent_name?: string | null;
+  use_case?: string | null;
+};
+
 export type CmktPlanSnapshotPayload = {
   snapshot: {
     id: number;

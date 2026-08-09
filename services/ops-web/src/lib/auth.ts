@@ -117,6 +117,15 @@ export function canGenerateContentOs(user: StoredStaffUser | null): boolean {
   return hasCap(user, 'crm_board', 'edit') && hasCap(user, 'crm_content', 'generate');
 }
 
+export function canApproveContentOs(user: StoredStaffUser | null): boolean {
+  if (!hasCap(user, 'crm_board', 'view')) return false;
+  return hasCap(user, 'crm_content', 'approve_internal') || hasCap(user, 'crm_content', 'qa');
+}
+
+export function canPublishContentOs(user: StoredStaffUser | null): boolean {
+  return hasCap(user, 'crm_board', 'edit') && (hasCap(user, 'crm_content', 'publish') || hasCap(user, 'crm_content', 'write'));
+}
+
 export function updateStoredUser(user: StoredStaffUser): void {
   if (typeof window === 'undefined') return;
   sessionStorage.setItem(USER_KEY, JSON.stringify(user));

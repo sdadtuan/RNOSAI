@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { CMKT_ITEM_STATUSES, CMKT_REVIEW_SLA_HOURS } from './content-marketing.constants';
+import { isReviewSlaBreach } from './content-workflow.util';
 import { emptyBodyJson } from './content-marketing.util';
 import type {
   CmktActiveSnapshotRow,
@@ -9,9 +10,13 @@ import type {
   CmktContextCounts,
   CmktIdeaRow,
   CmktItemRow,
+  CmktAuditRow,
+  CmktCalendarSlotRow,
   CmktItemVersionRow,
   CmktJobRow,
   CmktPillarRow,
+  CmktReviewQueueItem,
+  CmktReviewQueueSummary,
 } from './content-marketing.types';
 import type { PlannerIngestSource, SnapshotPillarDraft } from './content-plan-snapshot.util';
 
@@ -22,12 +27,16 @@ type MemoryStore = {
   pillars: Map<number, CmktPillarRow[]>;
   jobs: Map<number, CmktJobRow>;
   versions: Map<number, CmktItemVersionRow[]>;
+  calendar: Map<number, CmktCalendarSlotRow[]>;
+  comments: Map<number, Array<{ id: number; item_id: number; author_id: string; body: string; visibility: string; created_at: string }>>;
   nextIdeaId: number;
   nextItemId: number;
   nextSnapshotId: number;
   nextPillarId: number;
   nextJobId: number;
   nextVersionId: number;
+  nextCalendarId: number;
+  nextCommentId: number;
   nextVersionNo: Map<number, number>;
   plannerSources: Map<number, PlannerIngestSource>;
 };
@@ -82,6 +91,19 @@ function mapJobRow(row: Record<string, unknown>): CmktJobRow {
   };
 }
 
+function mapCalendarRow(row: Record<string, unknown>): CmktCalendarSlotRow {
+  const itemJson = row.item_json as Record<string, unknown> | undefined;
+  return {
+    id: Number(row.id),
+    lifecycle_id: Number(row.lifecycle_id),
+    item_id: Number(row.item_id),
+    scheduled_at: new Date(String(row.scheduled_at)).toISOString(),
+    timezone: String(row.timezone ?? 'Asia/Ho_Chi_Minh'),
+    reminder_sent: Boolean(row.reminder_sent),
+    item: itemJson ? mapItemRow(itemJson) : undefined,
+  };
+}
+
 function mapItemRow(row: Record<string, unknown>): CmktItemRow {
   return {
     id: Number(row.id),
@@ -122,12 +144,16 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     pillars: new Map(),
     jobs: new Map(),
     versions: new Map(),
+    calendar: new Map(),
+    comments: new Map(),
     nextIdeaId: 1,
     nextItemId: 1,
     nextSnapshotId: 1,
     nextPillarId: 1,
     nextJobId: 1,
     nextVersionId: 1,
+    nextCalendarId: 1,
+    nextCommentId: 1,
     nextVersionNo: new Map(),
     plannerSources: new Map(),
   };
@@ -1070,5 +1096,215 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     job.status = 'cancelled';
     job.finished_at = new Date().toISOString();
     return job;
+  }
+
+  async listReviewQueue(
+    lifecycleId: number,
+    filters: { sla_breach?: boolean; channel?: string },
+  ): Promise<CmktReviewQueueItem[]> {
+    const items = await this.listItems(lifecycleId, { status: 'in_review' });
+    let rows: CmktReviewQueueItem[] = items.map((item) => ({
+      ...item,
+      sla_breach: isReviewSlaBreach(item.in_review_at),
+    }));
+    if (filters.channel) rows = rows.filter((r) => r.channel === filters.channel);
+    if (filters.sla_breach) rows = rows.filter((r) => r.sla_breach);
+    rows.sort((a, b) => {
+      const ta = a.in_review_at ? new Date(a.in_review_at).getTime() : 0;
+      const tb = b.in_review_at ? new Date(b.in_review_at).getTime() : 0;
+      return ta - tb;
+    });
+    return rows;
+  }
+
+  async getReviewQueueSummary(lifecycleId: number): Promise<CmktReviewQueueSummary> {
+    const rows = await this.listReviewQueue(lifecycleId, {});
+    const by_channel: Record<string, number> = {};
+    for (const row of rows) {
+      by_channel[row.channel] = (by_channel[row.channel] ?? 0) + 1;
+    }
+    return {
+      total: rows.length,
+      sla_breach: rows.filter((r) => r.sla_breach).length,
+      by_channel,
+    };
+  }
+
+  async listCalendarSlots(
+    lifecycleId: number,
+    range?: { from?: string; to?: string },
+  ): Promise<CmktCalendarSlotRow[]> {
+    if (await this.ensurePgReady()) {
+      const params: unknown[] = [lifecycleId];
+      let clause = 's.lifecycle_id = $1';
+      if (range?.from) {
+        params.push(range.from);
+        clause += ` AND s.scheduled_at >= $${params.length}::timestamptz`;
+      }
+      if (range?.to) {
+        params.push(range.to);
+        clause += ` AND s.scheduled_at <= $${params.length}::timestamptz`;
+      }
+      const res = await this.db.query(
+        `SELECT s.*
+         FROM cmkt_calendar_slots s
+         WHERE ${clause}
+         ORDER BY s.scheduled_at ASC`,
+        params,
+      );
+      return res.rows.map((row) => mapCalendarRow(row));
+    }
+    let slots = this.memory.calendar.get(lifecycleId) ?? [];
+    if (range?.from) {
+      const fromMs = new Date(range.from).getTime();
+      slots = slots.filter((s) => new Date(s.scheduled_at).getTime() >= fromMs);
+    }
+    if (range?.to) {
+      const toMs = new Date(range.to).getTime();
+      slots = slots.filter((s) => new Date(s.scheduled_at).getTime() <= toMs);
+    }
+    return [...slots].sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at));
+  }
+
+  async upsertCalendarSlot(input: {
+    lifecycle_id: number;
+    item_id: number;
+    scheduled_at: string;
+    timezone?: string;
+  }): Promise<CmktCalendarSlotRow> {
+    const tz = input.timezone ?? 'Asia/Ho_Chi_Minh';
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `INSERT INTO cmkt_calendar_slots (lifecycle_id, item_id, scheduled_at, timezone)
+         VALUES ($1, $2, $3::timestamptz, $4)
+         ON CONFLICT (item_id) DO UPDATE SET scheduled_at = EXCLUDED.scheduled_at, timezone = EXCLUDED.timezone
+         RETURNING *`,
+        [input.lifecycle_id, input.item_id, input.scheduled_at, tz],
+      );
+      return mapCalendarRow(res.rows[0]);
+    }
+    const list = this.memory.calendar.get(input.lifecycle_id) ?? [];
+    const idx = list.findIndex((s) => s.item_id === input.item_id);
+    const row: CmktCalendarSlotRow = {
+      id: idx >= 0 ? list[idx].id : this.memory.nextCalendarId++,
+      lifecycle_id: input.lifecycle_id,
+      item_id: input.item_id,
+      scheduled_at: new Date(input.scheduled_at).toISOString(),
+      timezone: tz,
+      reminder_sent: false,
+    };
+    if (idx >= 0) list[idx] = row;
+    else list.push(row);
+    this.memory.calendar.set(input.lifecycle_id, list);
+    return row;
+  }
+
+  async deleteCalendarSlot(lifecycleId: number, itemId: number): Promise<boolean> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `DELETE FROM cmkt_calendar_slots WHERE lifecycle_id = $1 AND item_id = $2`,
+        [lifecycleId, itemId],
+      );
+      return (res.rowCount ?? 0) > 0;
+    }
+    const list = this.memory.calendar.get(lifecycleId) ?? [];
+    const next = list.filter((s) => s.item_id !== itemId);
+    this.memory.calendar.set(lifecycleId, next);
+    return next.length !== list.length;
+  }
+
+  async insertItemComment(input: {
+    item_id: number;
+    author_id: string;
+    body: string;
+    visibility?: string;
+  }): Promise<void> {
+    if (await this.ensurePgReady()) {
+      await this.db.query(
+        `INSERT INTO cmkt_content_comments (item_id, author_id, body, visibility)
+         VALUES ($1, $2, $3, $4)`,
+        [input.item_id, input.author_id, input.body, input.visibility ?? 'internal'],
+      );
+      return;
+    }
+    const list = this.memory.comments.get(input.item_id) ?? [];
+    list.push({
+      id: this.memory.nextCommentId++,
+      item_id: input.item_id,
+      author_id: input.author_id,
+      body: input.body,
+      visibility: input.visibility ?? 'internal',
+      created_at: new Date().toISOString(),
+    });
+    this.memory.comments.set(input.item_id, list);
+  }
+
+  async listAudit(lifecycleId: number, limit = 50): Promise<CmktAuditRow[]> {
+    const cap = Math.min(Math.max(limit, 1), 200);
+    if (await this.ensurePgReady()) {
+      try {
+        const res = await this.db.query(
+          `SELECT v.item_id, i.title AS item_title, v.version_no, v.change_reason,
+                  v.changed_by, v.created_at, v.ai_run_id::text AS ai_run_id,
+                  r.agent_name, r.use_case
+           FROM cmkt_content_item_versions v
+           JOIN cmkt_content_items i ON i.id = v.item_id
+           LEFT JOIN ai_agent_runs r ON r.id = v.ai_run_id
+           WHERE i.lifecycle_id = $1
+           ORDER BY v.created_at DESC
+           LIMIT $2`,
+          [lifecycleId, cap],
+        );
+        return res.rows.map((row) => ({
+          item_id: Number(row.item_id),
+          item_title: String(row.item_title ?? ''),
+          version_no: Number(row.version_no),
+          change_reason: String(row.change_reason ?? ''),
+          changed_by: String(row.changed_by ?? ''),
+          created_at: new Date(String(row.created_at)).toISOString(),
+          ai_run_id: row.ai_run_id != null ? String(row.ai_run_id) : null,
+          agent_name: row.agent_name != null ? String(row.agent_name) : null,
+          use_case: row.use_case != null ? String(row.use_case) : null,
+        }));
+      } catch {
+        /* fall through to versions-only query */
+      }
+      const res = await this.db.query(
+        `SELECT v.item_id, i.title AS item_title, v.version_no, v.change_reason,
+                v.changed_by, v.created_at, v.ai_run_id::text AS ai_run_id
+         FROM cmkt_content_item_versions v
+         JOIN cmkt_content_items i ON i.id = v.item_id
+         WHERE i.lifecycle_id = $1
+         ORDER BY v.created_at DESC
+         LIMIT $2`,
+        [lifecycleId, cap],
+      );
+      return res.rows.map((row) => ({
+        item_id: Number(row.item_id),
+        item_title: String(row.item_title ?? ''),
+        version_no: Number(row.version_no),
+        change_reason: String(row.change_reason ?? ''),
+        changed_by: String(row.changed_by ?? ''),
+        created_at: new Date(String(row.created_at)).toISOString(),
+        ai_run_id: row.ai_run_id != null ? String(row.ai_run_id) : null,
+      }));
+    }
+    const items = this.memory.items.get(lifecycleId) ?? [];
+    const titleById = new Map(items.map((i) => [i.id, i.title]));
+    const rows: CmktAuditRow[] = [];
+    for (const item of items) {
+      for (const v of this.memory.versions.get(item.id) ?? []) {
+        rows.push({
+          item_id: item.id,
+          item_title: titleById.get(item.id) ?? '',
+          version_no: v.version_no,
+          change_reason: v.change_reason,
+          changed_by: v.changed_by,
+          created_at: v.created_at,
+          ai_run_id: v.ai_run_id ?? null,
+        });
+      }
+    }
+    return rows.sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, cap);
   }
 }

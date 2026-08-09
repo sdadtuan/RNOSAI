@@ -3,7 +3,13 @@ import { ContentMarketingController } from './content-marketing.controller';
 describe('ContentMarketingController', () => {
   const contentMarketing = { getContext: jest.fn() };
   const ideas = { listIdeas: jest.fn(), createIdea: jest.fn(), patchIdea: jest.fn(), convertIdea: jest.fn() };
-  const items = { listItems: jest.fn(), getItem: jest.fn(), createItem: jest.fn(), patchItem: jest.fn() };
+  const items = {
+    listItems: jest.fn(),
+    getItem: jest.fn(),
+    createItem: jest.fn(),
+    patchItem: jest.fn(),
+    publishItem: jest.fn(),
+  };
   const snapshots = {
     getPlanSnapshot: jest.fn(),
     ingestPlanSnapshot: jest.fn(),
@@ -15,6 +21,15 @@ describe('ContentMarketingController', () => {
     getJob: jest.fn(),
     cancelJob: jest.fn(),
   };
+  const workflow = {
+    submitReview: jest.fn(),
+    approve: jest.fn(),
+    reject: jest.fn(),
+    listReviewQueue: jest.fn(),
+    reviewQueueSummary: jest.fn(),
+  };
+  const calendar = { listCalendar: jest.fn(), upsertSlot: jest.fn(), deleteSlot: jest.fn() };
+  const audit = { listAudit: jest.fn() };
 
   let controller: ContentMarketingController;
 
@@ -26,6 +41,9 @@ describe('ContentMarketingController', () => {
       items as never,
       snapshots as never,
       generate as never,
+      workflow as never,
+      calendar as never,
+      audit as never,
     );
   });
 
@@ -62,5 +80,12 @@ describe('ContentMarketingController', () => {
       status: 'succeeded',
     });
     expect(generate.startDraftJob).toHaveBeenCalledWith(123, 42, { tone: 'bold' }, 'writer@test.vn');
+  });
+
+  it('POST submit-review delegates to workflow service', async () => {
+    workflow.submitReview.mockResolvedValue({ id: 42, status: 'in_review' });
+    const req = { staffUser: { email: 'sp@test.vn' } } as never;
+    await expect(controller.submitReview(123, 42, req)).resolves.toEqual({ id: 42, status: 'in_review' });
+    expect(workflow.submitReview).toHaveBeenCalledWith(123, 42, 'sp@test.vn');
   });
 });

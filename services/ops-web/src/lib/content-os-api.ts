@@ -89,6 +89,9 @@ export type ContentOsItem = {
   brief_json: Record<string, unknown>;
   body_json: { markdown?: string; html?: string; variants?: string[] };
   selected_variant_idx: number | null;
+  in_review_at?: string | null;
+  published_url?: string | null;
+  published_at?: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -316,4 +319,125 @@ export function patchContentOsItemApplyVariant(
     method: 'PATCH',
     body: JSON.stringify({ selected_variant_idx: selectedVariantIdx, apply_variant: true }),
   });
+}
+
+export type ContentOsReviewQueueItem = ContentOsItem & { sla_breach: boolean };
+
+export function fetchContentOsReviewQueue(
+  token: string,
+  lifecycleId: number,
+  params?: { sla_breach?: boolean; channel?: string },
+): Promise<{ items: ContentOsReviewQueueItem[] }> {
+  const q = new URLSearchParams();
+  if (params?.sla_breach) q.set('sla_breach', '1');
+  if (params?.channel) q.set('channel', params.channel);
+  const suffix = q.toString() ? `?${q.toString()}` : '';
+  return cmktFetch(token, lifecycleId, `/review-queue${suffix}`);
+}
+
+export function fetchContentOsReviewQueueSummary(
+  token: string,
+  lifecycleId: number,
+): Promise<{ total: number; sla_breach: number; by_channel: Record<string, number> }> {
+  return cmktFetch(token, lifecycleId, '/review-queue/summary');
+}
+
+export function postContentOsSubmitReview(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/submit-review`, { method: 'POST', body: '{}' });
+}
+
+export function postContentOsApproveItem(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/approve`, { method: 'POST', body: '{}' });
+}
+
+export function postContentOsRejectItem(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  comment: string,
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ comment }),
+  });
+}
+
+export function postContentOsPublishItem(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body?: { published_url?: string },
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/publish`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export type ContentOsCalendarSlot = {
+  id: number;
+  lifecycle_id: number;
+  item_id: number;
+  scheduled_at: string;
+  timezone: string;
+  reminder_sent: boolean;
+  item?: ContentOsItem;
+};
+
+export function fetchContentOsCalendar(
+  token: string,
+  lifecycleId: number,
+  params?: { from?: string; to?: string },
+): Promise<{ slots: ContentOsCalendarSlot[] }> {
+  const q = new URLSearchParams();
+  if (params?.from) q.set('from', params.from);
+  if (params?.to) q.set('to', params.to);
+  const suffix = q.toString() ? `?${q.toString()}` : '';
+  return cmktFetch(token, lifecycleId, `/calendar${suffix}`);
+}
+
+export function putContentOsCalendarSlot(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body: { scheduled_at: string; timezone?: string },
+): Promise<{ slot: ContentOsCalendarSlot; item: ContentOsItem }> {
+  return cmktFetch(token, lifecycleId, `/calendar/slots/${itemId}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+export type ContentOsAuditRow = {
+  item_id: number;
+  item_title: string;
+  version_no: number;
+  change_reason: string;
+  changed_by: string;
+  created_at: string;
+  ai_run_id: string | null;
+  agent_name?: string | null;
+  use_case?: string | null;
+};
+
+export function fetchContentOsAudit(
+  token: string,
+  lifecycleId: number,
+  limit = 50,
+): Promise<{ audit: ContentOsAuditRow[] }> {
+  return cmktFetch(token, lifecycleId, `/audit?limit=${limit}`);
+}
+
+export function copyCaptionText(item: ContentOsItem): string {
+  const md = String(item.body_json?.markdown ?? '').trim();
+  const lines = md.split('\n').filter(Boolean);
+  return lines[0] ?? md;
 }

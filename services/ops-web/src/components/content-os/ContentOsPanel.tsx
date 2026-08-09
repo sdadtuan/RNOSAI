@@ -2,28 +2,34 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { StoredStaffUser } from '@/lib/auth';
-import { canGenerateContentOs, canWriteContentOs } from '@/lib/auth';
+import { canApproveContentOs, canGenerateContentOs, canPublishContentOs, canWriteContentOs } from '@/lib/auth';
+import { ContentOsCalendarView } from '@/components/content-os/ContentOsCalendarView';
 import { ContentOsGeneratePanel } from '@/components/content-os/ContentOsGeneratePanel';
+import { ContentOsReviewQueueView } from '@/components/content-os/ContentOsReviewQueueView';
 import { ContentOsSnapshotBanner } from '@/components/content-os/ContentOsSnapshotBanner';
 import { ContentOsVariantsPicker } from '@/components/content-os/ContentOsVariantsPicker';
 import {
   CMKT_P0_PAIRS,
   channelFormatLabel,
+  copyCaptionText,
   fetchContentOsContext,
   fetchContentOsIdeas,
   fetchContentOsItem,
   fetchContentOsItemVersions,
   fetchContentOsItems,
   patchContentOsItem,
+  postContentOsApproveItem,
   postContentOsIdea,
   postContentOsIdeaConvert,
+  postContentOsPublishItem,
+  postContentOsSubmitReview,
   type ContentOsContext,
   type ContentOsIdea,
   type ContentOsItem,
   type ContentOsItemVersion,
 } from '@/lib/content-os-api';
 
-type SubView = 'overview' | 'ideas' | 'board';
+type SubView = 'overview' | 'ideas' | 'board' | 'review' | 'calendar';
 type DrawerTab = 'body' | 'variants' | 'versions';
 
 interface Props {
@@ -59,8 +65,12 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
   const [newIdeaTitle, setNewIdeaTitle] = useState('');
   const [convertPair, setConvertPair] = useState('facebook|social_post');
 
+  const [publishUrl, setPublishUrl] = useState('');
+
   const canWrite = canWriteContentOs(user);
   const canGenerate = canGenerateContentOs(user);
+  const canApprove = canApproveContentOs(user);
+  const canPublish = canPublishContentOs(user);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -162,13 +172,56 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
         body_json: { markdown: drawerMarkdown, html: '', variants: drawerItem?.body_json?.variants ?? [] },
       });
       setMessage('Đã lưu nội dung');
-      await reload();
+      await refreshDrawerItem();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lưu thất bại');
     } finally {
       setSaving(false);
     }
   }
+
+  async function onSubmitReview() {
+    if (!canWrite || drawerItemId == null) return;
+    setSaving(true);
+    setError('');
+    try {
+      await postContentOsSubmitReview(token, lifecycleId, drawerItemId);
+      setMessage('Đã submit review');
+      await refreshDrawerItem();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Submit review thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onPublishItem() {
+    if (!canPublish || drawerItemId == null) return;
+    setSaving(true);
+    setError('');
+    try {
+      await postContentOsPublishItem(token, lifecycleId, drawerItemId, {
+        published_url: publishUrl.trim() || undefined,
+      });
+      setMessage('Đã mark published');
+      await refreshDrawerItem();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Publish thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function onCopyCaption() {
+    if (!drawerItem) return;
+    const text = copyCaptionText(drawerItem);
+    void navigator.clipboard.writeText(text).then(
+      () => setMessage('Đã copy caption'),
+      () => setError('Copy clipboard thất bại'),
+    );
+  }
+
+  const reviewBadge = ctx?.counts.in_review ?? 0;
 
   return (
     <div style={{ display: 'grid', gap: '0.75rem' }}>
@@ -183,14 +236,22 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
       />
 
       <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-        {(['overview', 'ideas', 'board'] as SubView[]).map((v) => (
+        {(
+          [
+            ['overview', 'Tổng quan'],
+            ['ideas', 'Ideas'],
+            ['board', 'Board'],
+            ['review', `Review${reviewBadge ? ` (${reviewBadge})` : ''}`],
+            ['calendar', 'Calendar'],
+          ] as const
+        ).map(([v, label]) => (
           <button
             key={v}
             type="button"
             className={view === v ? 'btn btn-sm' : 'btn btn-sm btn-ghost'}
             onClick={() => setView(v)}
           >
-            {v === 'overview' ? 'Tổng quan' : v === 'ideas' ? 'Ideas' : 'Board'}
+            {label}
           </button>
         ))}
       </div>
@@ -328,6 +389,36 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
             </div>
           ))}
         </div>
+      ) : null}
+
+      {view === 'review' ? (
+        <ContentOsReviewQueueView
+          token={token}
+          lifecycleId={lifecycleId}
+          canApprove={canApprove}
+          onOpenItem={(id) => {
+            setDrawerItemId(id);
+            setDrawerTab('body');
+          }}
+          onChanged={reload}
+          onMessage={setMessage}
+          onError={setError}
+        />
+      ) : null}
+
+      {view === 'calendar' ? (
+        <ContentOsCalendarView
+          token={token}
+          lifecycleId={lifecycleId}
+          canWrite={canWrite}
+          onOpenItem={(id) => {
+            setDrawerItemId(id);
+            setDrawerTab('body');
+          }}
+          onChanged={reload}
+          onMessage={setMessage}
+          onError={setError}
+        />
       ) : null}
 
       {drawerItemId != null ? (
@@ -469,6 +560,87 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
                 ))}
                 {!drawerVersions.length ? <li className="muted">Chưa có version history.</li> : null}
               </ul>
+            ) : null}
+
+            {drawerItem ? (
+              <div
+                style={{
+                  marginTop: '1rem',
+                  borderTop: '1px solid var(--border)',
+                  paddingTop: '0.75rem',
+                  display: 'grid',
+                  gap: '0.5rem',
+                }}
+              >
+                <strong style={{ fontSize: '0.9rem' }}>Workflow</strong>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {canWrite &&
+                  (drawerItem.status === 'draft' || drawerItem.status === 'changes_requested') ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={saving}
+                      onClick={() => void onSubmitReview()}
+                    >
+                      Submit review
+                    </button>
+                  ) : null}
+                  {canApprove && drawerItem.status === 'in_review' ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={saving}
+                      onClick={async () => {
+                        if (drawerItemId == null) return;
+                        setSaving(true);
+                        try {
+                          await postContentOsApproveItem(token, lifecycleId, drawerItemId);
+                          setMessage('Đã duyệt');
+                          await refreshDrawerItem();
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : 'Duyệt thất bại');
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                    >
+                      Duyệt
+                    </button>
+                  ) : null}
+                  {['facebook', 'linkedin'].includes(drawerItem.channel) ? (
+                    <button type="button" className="btn btn-sm btn-ghost" onClick={onCopyCaption}>
+                      Copy caption
+                    </button>
+                  ) : null}
+                  {canPublish &&
+                  (drawerItem.status === 'approved_internal' || drawerItem.status === 'scheduled') ? (
+                    <>
+                      <input
+                        value={publishUrl}
+                        onChange={(e) => setPublishUrl(e.target.value)}
+                        placeholder="Published URL (optional)"
+                        style={{
+                          flex: 1,
+                          minWidth: 180,
+                          background: 'var(--bg)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 8,
+                          padding: '0.35rem 0.5rem',
+                          color: 'var(--text)',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-secondary"
+                        disabled={saving}
+                        onClick={() => void onPublishItem()}
+                      >
+                        Mark published
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              </div>
             ) : null}
           </div>
         </div>

@@ -3,6 +3,7 @@ import { assertValidChannelFormat } from './content-marketing-channel.util';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import { ContentMarketingService } from './content-marketing.service';
 import { emptyBodyJson } from './content-marketing.util';
+import { assertTransition, CMKT_PUBLISH_FROM } from './content-workflow.util';
 import type { CmktBodyJson, CmktIdeaRow, CmktItemRow, CmktItemVersionRow } from './content-marketing.types';
 
 @Injectable()
@@ -106,10 +107,6 @@ export class ContentItemService {
       patch.format = format;
     }
 
-    if (body.selected_variant_idx != null) {
-      patch.selected_variant_idx = Number(body.selected_variant_idx);
-    }
-
     let versionReason: string | null = null;
     if (body.apply_variant === true && body.selected_variant_idx != null) {
       const idx = Number(body.selected_variant_idx);
@@ -147,5 +144,29 @@ export class ContentItemService {
     }
     const versions = await this.repo.listItemVersions(itemId);
     return { versions };
+  }
+
+  async publishItem(
+    lifecycleId: number,
+    itemId: number,
+    body: Record<string, unknown>,
+    actorEmail: string,
+  ): Promise<CmktItemRow> {
+    await this.core.ensureLifecycleEnabled(lifecycleId);
+    const item = await this.repo.getItemById(lifecycleId, itemId);
+    if (!item) {
+      throw new NotFoundException({ error: 'item_not_found', id: itemId });
+    }
+
+    assertTransition(item.status, CMKT_PUBLISH_FROM, 'publish');
+
+    const publishedUrl = body.published_url != null ? String(body.published_url).trim() : null;
+    const updated = await this.repo.patchItem(lifecycleId, itemId, {
+      status: 'published',
+      published_at: new Date().toISOString(),
+      published_url: publishedUrl || item.published_url,
+    });
+    await this.repo.insertItemVersion(itemId, updated.body_json, actorEmail, 'publish');
+    return updated;
   }
 }
