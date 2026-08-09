@@ -27,6 +27,8 @@ const item = (patch: Partial<CmktItemRow>): CmktItemRow =>
     seo_bridge_id: null,
     email_bridge_id: null,
     production_json: { phase: 'awaiting_design' },
+    visual_status: 'not_needed',
+    media_json: {},
     published_url: null,
     published_at: null,
     due_at: null,
@@ -47,6 +49,14 @@ describe('content-production.util', () => {
     expect(() => assertProductionGateForPublish(item({}))).toThrow(BadRequestException);
     expect(() =>
       assertProductionGateForPublish(item({ production_json: { phase: 'done' } })),
+    ).not.toThrow();
+  });
+
+  it('skips production gate when carousel visual approved', () => {
+    expect(() =>
+      assertProductionGateForPublish(
+        item({ format: 'carousel', production_json: { phase: 'awaiting_design' }, visual_status: 'approved' }),
+      ),
     ).not.toThrow();
   });
 

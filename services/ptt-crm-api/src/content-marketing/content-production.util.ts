@@ -59,6 +59,7 @@ export function mergeProductionJson(
 
 export function assertProductionGateForPublish(item: CmktItemRow): void {
   if (!itemNeedsProduction(item)) return;
+  if (item.format === 'carousel' && item.visual_status === 'approved') return;
   const phase = item.production_json?.phase ?? defaultProductionPhase(item);
   if (phase !== 'done') {
     throw new BadRequestException({

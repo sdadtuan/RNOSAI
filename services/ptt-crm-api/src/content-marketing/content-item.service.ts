@@ -4,12 +4,15 @@ import { ContentMarketingRepository } from './content-marketing.repository';
 import { ContentMarketingService } from './content-marketing.service';
 import { emptyBodyJson } from './content-marketing.util';
 import { assertProductionGateForPublish } from './content-production.util';
+import { assertVisualGateForPublish } from './content-media.util';
 import { assertTransition, CMKT_PUBLISH_FROM } from './content-workflow.util';
 import type { CmktBodyJson, CmktIdeaRow, CmktItemRow, CmktItemVersionRow } from './content-marketing.types';
+import { AppConfigService } from '../config/app-config.service';
 
 @Injectable()
 export class ContentItemService {
   constructor(
+    private readonly config: AppConfigService,
     private readonly core: ContentMarketingService,
     private readonly repo: ContentMarketingRepository,
   ) {}
@@ -161,6 +164,7 @@ export class ContentItemService {
 
     assertTransition(item.status, CMKT_PUBLISH_FROM, 'publish');
     assertProductionGateForPublish(item);
+    assertVisualGateForPublish(item, this.config.contentMarketingMediaEnabled);
 
     const publishedUrl = body.published_url != null ? String(body.published_url).trim() : null;
     const updated = await this.repo.patchItem(lifecycleId, itemId, {

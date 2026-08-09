@@ -5,6 +5,7 @@ import type { StoredStaffUser } from '@/lib/auth';
 import { canApproveContentOs, canGenerateContentOs, canProductionContentOs, canPublishContentOs, canWriteContentOs } from '@/lib/auth';
 import { ContentOsCalendarView } from '@/components/content-os/ContentOsCalendarView';
 import { ContentOsGeneratePanel } from '@/components/content-os/ContentOsGeneratePanel';
+import { ContentOsMediaStudio } from '@/components/content-os/ContentOsMediaStudio';
 import { ContentOsProductionPanel } from '@/components/content-os/ContentOsProductionPanel';
 import { ContentOsRepurposeWizard } from '@/components/content-os/ContentOsRepurposeWizard';
 import { ContentOsReviewQueueView } from '@/components/content-os/ContentOsReviewQueueView';
@@ -32,7 +33,7 @@ import {
 } from '@/lib/content-os-api';
 
 type SubView = 'overview' | 'ideas' | 'board' | 'review' | 'calendar' | 'repurpose';
-type DrawerTab = 'body' | 'variants' | 'versions' | 'production';
+type DrawerTab = 'body' | 'variants' | 'versions' | 'production' | 'media';
 
 interface Props {
   token: string;
@@ -477,7 +478,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
             ) : null}
 
             <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.65rem', flexWrap: 'wrap' }}>
-              {(['body', 'variants', 'versions', 'production'] as DrawerTab[]).map((tab) => (
+              {(['body', 'variants', 'versions', 'production', 'media'] as DrawerTab[]).map((tab) => (
                 <button
                   key={tab}
                   type="button"
@@ -490,7 +491,9 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
                       ? 'Variants'
                       : tab === 'versions'
                         ? 'Versions'
-                        : 'Production'}
+                        : tab === 'production'
+                          ? 'Production'
+                          : 'Media AI'}
                 </button>
               ))}
             </div>
@@ -593,6 +596,23 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
                 lifecycleId={lifecycleId}
                 item={drawerItem}
                 canWrite={canWrite}
+                canProduction={canProduction}
+                onChanged={refreshDrawerItem}
+                onMessage={setMessage}
+                onError={setError}
+              />
+            ) : null}
+
+            {drawerTab === 'media' && drawerItem ? (
+              <ContentOsMediaStudio
+                token={token}
+                lifecycleId={lifecycleId}
+                item={drawerItem}
+                mediaEnabled={Boolean(ctx?.flags.media_enabled)}
+                imageGenEnabled={Boolean(ctx?.flags.image_gen_enabled)}
+                canGenerate={canGenerate}
+                canWrite={canWrite}
+                canApprove={canApprove}
                 canProduction={canProduction}
                 onChanged={refreshDrawerItem}
                 onMessage={setMessage}

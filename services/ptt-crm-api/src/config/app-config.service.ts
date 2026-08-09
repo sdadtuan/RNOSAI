@@ -135,6 +135,8 @@ export class AppConfigService {
   readonly contentMarketingAiEnabled: boolean;
   readonly contentMarketingApprovalRequired: boolean;
   readonly contentMarketingMediaEnabled: boolean;
+  readonly contentMarketingImageGenEnabled: boolean;
+  readonly contentMarketingMediaDailyCap: number;
   readonly contentMarketingClientGate: boolean;
   readonly contentMarketingSlugs: string[];
 
@@ -423,6 +425,17 @@ export class AppConfigService {
     this.contentMarketingMediaEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CONTENT_MARKETING_MEDIA_ENABLED ?? '0').trim().toLowerCase(),
     );
+    this.contentMarketingImageGenEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (
+        process.env.PTT_CMKT_IMAGE_GEN ??
+        process.env.PTT_CONTENT_MARKETING_IMAGE_GEN ??
+        '0'
+      )
+        .trim()
+        .toLowerCase(),
+    );
+    const capRaw = Number(process.env.PTT_CMKT_MEDIA_DAILY_CAP_PER_LIFECYCLE ?? 20);
+    this.contentMarketingMediaDailyCap = Number.isFinite(capRaw) && capRaw > 0 ? Math.floor(capRaw) : 20;
     this.contentMarketingClientGate = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CONTENT_MARKETING_CLIENT_GATE ?? '0').trim().toLowerCase(),
     );

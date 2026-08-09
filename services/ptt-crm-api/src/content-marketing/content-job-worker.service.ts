@@ -21,8 +21,15 @@ import {
   resolvePromptProfile,
   type CmktGenerateInput,
 } from './content-marketing-prompt.util';
+import {
+  computeVisualQaScore,
+  mergeMediaJson,
+  parseCarouselSlideTexts,
+  resolveAspectRatio,
+} from './content-media.util';
+import { ContentMediaImageProvider } from './content-media-image.provider';
 import { ContentMarketingRepository } from './content-marketing.repository';
-import type { CmktBodyJson, CmktJobRow } from './content-marketing.types';
+import type { CmktBodyJson, CmktJobRow, CmktMediaAsset } from './content-marketing.types';
 
 @Injectable()
 export class ContentJobWorkerService {
@@ -36,6 +43,7 @@ export class ContentJobWorkerService {
     private readonly agentRuns: AiAgentRunsRepository,
     private readonly repo: ContentMarketingRepository,
     private readonly brandContext: ContentBrandContextService,
+    private readonly mediaImages: ContentMediaImageProvider,
   ) {}
 
   get modelName(): string {
@@ -59,6 +67,14 @@ export class ContentJobWorkerService {
           status: 'failed',
           error_text: 'item_not_found',
         });
+      }
+
+      if (
+        claimed.job_type === 'image_generate' ||
+        claimed.job_type === 'carousel_slides_generate' ||
+        claimed.job_type === 'visual_qa_score'
+      ) {
+        return this.processMediaJob(jobId, claimed, item, started);
       }
 
       const brand = await this.brandContext.resolveForLifecycle(claimed.lifecycle_id);
@@ -243,6 +259,112 @@ export class ContentJobWorkerService {
       }
     } finally {
       this.inFlight.delete(jobId);
+    }
+  }
+
+  private async processMediaJob(
+    jobId: number,
+    claimed: CmktJobRow,
+    item: NonNullable<Awaited<ReturnType<ContentMarketingRepository['getItemById']>>>,
+    started: number,
+  ): Promise<CmktJobRow | null> {
+    const input = claimed.input_json ?? {};
+    const aspectRatio = resolveAspectRatio(input.aspect_ratio, item.channel, item.format);
+    const stylePreset = String(input.style_preset ?? 'corporate');
+    const draftWatermark = input.allow_draft_watermark === true || item.status === 'draft';
+    const approvedCopy = String(item.body_json?.markdown ?? item.title).trim();
+
+    try {
+      if (claimed.job_type === 'visual_qa_score') {
+        const assets = [
+          ...(item.media_json?.ai_assets ?? []),
+          ...(item.media_json?.carousel_slides ?? []),
+        ];
+        const qa = computeVisualQaScore(assets);
+        const media = mergeMediaJson(item.media_json, { visual_qa: qa });
+        await this.repo.patchItem(claimed.lifecycle_id, item.id, {
+          media_json: media,
+          visual_status: item.visual_status === 'ai_pending' ? 'ai_ready' : item.visual_status,
+        });
+        return this.repo.finishContentJob(jobId, {
+          status: 'succeeded',
+          output_json: { visual_qa: qa },
+        });
+      }
+
+      let assets: CmktMediaAsset[] = [];
+      if (claimed.job_type === 'carousel_slides_generate') {
+        const slides = parseCarouselSlideTexts(approvedCopy);
+        assets = await this.mediaImages.generateImages({
+          variantCount: slides.length,
+          aspectRatio,
+          stylePreset,
+          title: item.title,
+          approvedCopy,
+          draftWatermark,
+          slideTexts: slides,
+          assetType: 'carousel_slide',
+        });
+        const media = mergeMediaJson(item.media_json, {
+          carousel_slides: assets,
+          ai_assets: assets,
+          aspect_ratio: aspectRatio,
+          style_preset: stylePreset,
+          provider: this.mediaImages.providerName,
+          prompt_hash: assets[0]?.prompt_hash,
+        });
+        const qa = computeVisualQaScore(assets);
+        media.visual_qa = qa;
+        await this.repo.patchItem(claimed.lifecycle_id, item.id, {
+          media_json: media,
+          visual_status: 'ai_ready',
+        });
+        return this.repo.finishContentJob(jobId, {
+          status: 'succeeded',
+          output_json: {
+            carousel_slides: assets,
+            visual_qa: qa,
+            latency_ms: Date.now() - started,
+          },
+        });
+      }
+
+      const variantCount = Math.min(Math.max(Number(input.variant_count ?? 3), 1), 5);
+      assets = await this.mediaImages.generateImages({
+        variantCount,
+        aspectRatio,
+        stylePreset,
+        title: item.title,
+        approvedCopy,
+        draftWatermark,
+        assetType: 'image',
+      });
+      const media = mergeMediaJson(item.media_json, {
+        ai_assets: assets,
+        aspect_ratio: aspectRatio,
+        style_preset: stylePreset,
+        provider: this.mediaImages.providerName,
+        prompt_hash: assets[0]?.prompt_hash,
+        selected_asset_id: assets.find((a) => a.selected)?.id ?? assets[0]?.id ?? null,
+      });
+      const qa = computeVisualQaScore(assets);
+      media.visual_qa = qa;
+      await this.repo.patchItem(claimed.lifecycle_id, item.id, {
+        media_json: media,
+        visual_status: 'ai_ready',
+      });
+      return this.repo.finishContentJob(jobId, {
+        status: 'succeeded',
+        output_json: {
+          ai_assets: assets,
+          visual_qa: qa,
+          latency_ms: Date.now() - started,
+        },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await this.repo.patchItem(claimed.lifecycle_id, item.id, { visual_status: 'rejected' });
+      return this.repo.finishContentJob(jobId, { status: 'failed', error_text: message });
     }
   }
 }

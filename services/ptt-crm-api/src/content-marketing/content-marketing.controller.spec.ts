@@ -41,6 +41,19 @@ describe('ContentMarketingController', () => {
     exportDesignBrief: jest.fn(),
     exportScript: jest.fn(),
   };
+  const media = {
+    startImageJob: jest.fn(),
+    startCarouselSlidesJob: jest.fn(),
+    startVisualQaJob: jest.fn(),
+    selectMediaAsset: jest.fn(),
+  };
+  const visual = {
+    listVisualReviewQueue: jest.fn(),
+    submitVisualReview: jest.fn(),
+    approveVisual: jest.fn(),
+    rejectVisual: jest.fn(),
+    escalateHuman: jest.fn(),
+  };
 
   let controller: ContentMarketingController;
 
@@ -59,6 +72,8 @@ describe('ContentMarketingController', () => {
       seoBridge as never,
       emailBridge as never,
       production as never,
+      media as never,
+      visual as never,
     );
   });
 

@@ -65,11 +65,15 @@ describe('ContentItemService', () => {
     insertItemVersion: jest.fn(),
   };
 
+  const config = {
+    contentMarketingMediaEnabled: false,
+  };
+
   let service: ContentItemService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new ContentItemService(core as never, repo as never);
+    service = new ContentItemService(config as never, core as never, repo as never);
   });
 
   it('createItem rejects invalid channel format', async () => {

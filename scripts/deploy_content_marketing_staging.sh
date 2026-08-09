@@ -39,6 +39,8 @@ run_local() {
     "PTT_CONTENT_MARKETING_SLUGS=${CMKT_PILOT_SLUGS}" \
     "PTT_CONTENT_MARKETING_AI_ENABLED=1" \
     "PTT_CONTENT_MARKETING_APPROVAL_REQUIRED=1" \
+    "PTT_CONTENT_MARKETING_MEDIA_ENABLED=1" \
+    "PTT_CMKT_IMAGE_GEN=1" \
     "NEXT_PUBLIC_CONTENT_MARKETING=1"; do
     key="${kv%%=*}"
     if grep -q "^${key}=" "$RUNTIME_ENV" 2>/dev/null; then
@@ -74,12 +76,14 @@ run_local() {
   export LIFECYCLE_ID="${LIFECYCLE_ID:-1}"
   if [[ -n "${STAFF_TOKEN:-}" ]]; then
     bash "$ROOT/scripts/smoke_content_marketing_m0.sh" || echo "WARN M0 smoke failed — grant crm_content.view cap"
+    bash "$ROOT/scripts/smoke_content_marketing_p2_media.sh" || echo "WARN P2 media smoke failed — check media caps/flags"
   else
     echo "SKIP smoke — set STAFF_TOKEN or run smoke_content_marketing_m0.sh after cap grant"
+    echo "      P2 media: bash scripts/smoke_content_marketing_p2_media.sh"
   fi
 
-  echo "== Content Marketing M0 staging complete =="
-  echo "Flags: PTT_CONTENT_MARKETING_ENABLED=1 PTT_CONTENT_MARKETING_SLUGS=${CMKT_PILOT_SLUGS}"
+  echo "== Content Marketing M6 staging complete =="
+  echo "Flags: PTT_CONTENT_MARKETING_MEDIA_ENABLED=1 PTT_CMKT_IMAGE_GEN=1"
   echo "Next: grant crm_content caps via Admin → Permission Sets; then M1 FE tab"
 }
 

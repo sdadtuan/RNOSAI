@@ -18,6 +18,7 @@ import type {
   CmktPillarRow,
   CmktReviewQueueItem,
   CmktReviewQueueSummary,
+  CmktVisualReviewItem,
 } from './content-marketing.types';
 import type { PlannerIngestSource, SnapshotPillarDraft } from './content-plan-snapshot.util';
 
@@ -127,6 +128,8 @@ function mapItemRow(row: Record<string, unknown>): CmktItemRow {
     seo_bridge_id: row.seo_bridge_id != null ? Number(row.seo_bridge_id) : null,
     email_bridge_id: row.email_bridge_id != null ? Number(row.email_bridge_id) : null,
     production_json: (row.production_json as CmktItemRow['production_json']) ?? {},
+    visual_status: String(row.visual_status ?? 'not_needed') as CmktItemRow['visual_status'],
+    media_json: (row.media_json as CmktItemRow['media_json']) ?? {},
     published_url: row.published_url != null ? String(row.published_url) : null,
     published_at: row.published_at ? new Date(String(row.published_at)).toISOString() : null,
     due_at: row.due_at ? new Date(String(row.due_at)).toISOString() : null,
@@ -864,6 +867,8 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       seo_bridge_id: null,
       email_bridge_id: null,
       production_json: {},
+      visual_status: 'not_needed',
+      media_json: {},
       published_url: null,
       published_at: null,
       due_at: null,
@@ -892,7 +897,8 @@ export class ContentMarketingRepository implements OnModuleDestroy {
           key === 'body_json' ||
           key === 'brief_json' ||
           key === 'quality_score_json' ||
-          key === 'production_json'
+          key === 'production_json' ||
+          key === 'media_json'
             ? JSON.stringify(value)
             : value;
         params.push(serialized);
@@ -916,6 +922,9 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       brief_json: (patch.brief_json as Record<string, unknown>) ?? list[idx].brief_json,
       production_json:
         (patch.production_json as CmktItemRow['production_json']) ?? list[idx].production_json,
+      media_json: (patch.media_json as CmktItemRow['media_json']) ?? list[idx].media_json,
+      visual_status:
+        (patch.visual_status as CmktItemRow['visual_status']) ?? list[idx].visual_status,
       updated_at: new Date().toISOString(),
     } as CmktItemRow;
     list[idx] = updated;
@@ -1375,6 +1384,8 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       seo_bridge_id: null,
       email_bridge_id: null,
       production_json: {},
+      visual_status: 'not_needed',
+      media_json: {},
       published_url: null,
       published_at: null,
       due_at: null,
@@ -1453,5 +1464,40 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     return this.memory.derivations
       .filter((d) => d.source_item_id === sourceItemId && byId.has(d.derived_item_id))
       .map((d) => ({ ...d, derived_item: byId.get(d.derived_item_id) }));
+  }
+
+  async countMediaJobsToday(lifecycleId: number): Promise<number> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT COUNT(*)::int AS c FROM cmkt_content_jobs
+         WHERE lifecycle_id = $1
+           AND job_type IN ('image_generate', 'carousel_slides_generate', 'visual_qa_score')
+           AND created_at >= date_trunc('day', NOW())`,
+        [lifecycleId],
+      );
+      return Number(res.rows[0]?.c ?? 0);
+    }
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    let count = 0;
+    for (const job of this.memory.jobs.values()) {
+      if (job.lifecycle_id !== lifecycleId) continue;
+      if (!['image_generate', 'carousel_slides_generate', 'visual_qa_score'].includes(job.job_type)) {
+        continue;
+      }
+      if (new Date(job.created_at).getTime() >= start.getTime()) count++;
+    }
+    return count;
+  }
+
+  async listVisualReviewQueue(lifecycleId: number): Promise<CmktVisualReviewItem[]> {
+    const items = await this.listItems(lifecycleId, {});
+    return items
+      .filter((item) => item.visual_status === 'ai_ready')
+      .map((item) => ({
+        ...item,
+        visual_qa_score: item.media_json?.visual_qa?.score ?? null,
+      }))
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   }
 }

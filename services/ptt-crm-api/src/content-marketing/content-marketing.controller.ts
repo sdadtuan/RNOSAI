@@ -26,6 +26,9 @@ import { ContentItemService } from './content-item.service';
 import { ContentPlanSnapshotService } from './content-plan-snapshot.service';
 import { ContentProductionService } from './content-production.service';
 import { ContentRepurposeService } from './content-repurpose.service';
+import { ContentMediaGenerateService } from './content-media-generate.service';
+import { ContentMediaImageProvider } from './content-media-image.provider';
+import { ContentVisualService } from './content-visual.service';
 import { ContentSeoBridgeService } from './content-seo-bridge.service';
 import { ContentWorkflowService } from './content-workflow.service';
 import { ContentMarketingService } from './content-marketing.service';
@@ -59,6 +62,8 @@ export class ContentMarketingController {
     private readonly seoBridge: ContentSeoBridgeService,
     private readonly emailBridge: ContentEmailBridgeService,
     private readonly production: ContentProductionService,
+    private readonly media: ContentMediaGenerateService,
+    private readonly visual: ContentVisualService,
   ) {}
 
   @Get('context')
@@ -448,5 +453,104 @@ export class ContentMarketingController {
     @Param('itemId', ParseIntPipe) itemId: number,
   ) {
     return this.production.exportScript(lifecycleId, itemId);
+  }
+
+  @Get('visual-review-queue')
+  listVisualReviewQueue(@Param('lifecycleId', ParseIntPipe) lifecycleId: number) {
+    return this.visual.listVisualReviewQueue(lifecycleId);
+  }
+
+  @Post('items/:itemId/jobs/image-generate')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  startImageGenerateJob(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.media.startImageJob(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Post('items/:itemId/jobs/carousel-slides')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  startCarouselSlidesJob(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.media.startCarouselSlidesJob(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Post('items/:itemId/jobs/visual-qa')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  startVisualQaJob(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.media.startVisualQaJob(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Patch('items/:itemId/media/select')
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  selectMediaAsset(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.media.selectMediaAsset(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Post('items/:itemId/visual/submit-review')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  submitVisualReview(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Req() req: Request,
+  ) {
+    return this.visual.submitVisualReview(lifecycleId, itemId, actorEmail(req));
+  }
+
+  @Post('items/:itemId/visual/approve')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingApproveGuard)
+  approveVisual(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.visual.approveVisual(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Post('items/:itemId/visual/reject')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingApproveGuard)
+  rejectVisual(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.visual.rejectVisual(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Post('items/:itemId/production/escalate-human')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingProductionGuard)
+  escalateHumanProduction(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.visual.escalateHuman(lifecycleId, itemId, body, actorEmail(req));
   }
 }

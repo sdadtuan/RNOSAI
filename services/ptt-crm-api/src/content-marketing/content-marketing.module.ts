@@ -12,8 +12,11 @@ import { ContentItemService } from './content-item.service';
 import { ContentJobWorkerService } from './content-job-worker.service';
 import { ContentPlanSnapshotService } from './content-plan-snapshot.service';
 import { ContentProductionService } from './content-production.service';
+import { ContentMediaGenerateService } from './content-media-generate.service';
+import { ContentMediaImageProvider } from './content-media-image.provider';
 import { ContentRepurposeService } from './content-repurpose.service';
 import { ContentSeoBridgeService } from './content-seo-bridge.service';
+import { ContentVisualService } from './content-visual.service';
 import { ContentWorkflowService } from './content-workflow.service';
 import { ContentMarketingController } from './content-marketing.controller';
 import { ContentMarketingRepository } from './content-marketing.repository';
@@ -50,6 +53,9 @@ import {
     ContentSeoBridgeService,
     ContentEmailBridgeService,
     ContentProductionService,
+    ContentMediaImageProvider,
+    ContentMediaGenerateService,
+    ContentVisualService,
     ContentGenerateService,
     ContentJobWorkerService,
     ContentIdeaService,

@@ -83,6 +83,7 @@ export class ContentMarketingService {
         ai_enabled: this.config.contentMarketingAiEnabled,
         approval_required: this.config.contentMarketingApprovalRequired,
         media_enabled: this.config.contentMarketingMediaEnabled,
+        image_gen_enabled: this.config.contentMarketingImageGenEnabled,
         client_gate: this.config.contentMarketingClientGate,
         fe_enabled: this.config.contentMarketingFeEnabled,
       },

@@ -5,9 +5,10 @@ import {
   normalizeVariantsOutput,
   resolvePromptProfile,
 } from './content-marketing-prompt.util';
+import type { CmktItemRow } from './content-marketing.types';
 
 describe('content-marketing-prompt.util', () => {
-  const item = {
+  const item: CmktItemRow = {
     id: 1,
     lifecycle_id: 2,
     idea_id: null,
@@ -26,6 +27,8 @@ describe('content-marketing-prompt.util', () => {
     seo_bridge_id: null,
     email_bridge_id: null,
     production_json: {},
+    visual_status: 'not_needed',
+    media_json: {},
     published_url: null,
     published_at: null,
     due_at: null,

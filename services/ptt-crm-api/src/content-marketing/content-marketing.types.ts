@@ -35,6 +35,48 @@ export type CmktProductionJson = {
   creative_id?: string | null;
   notes?: string | null;
   escalate_human?: boolean;
+  ai_assets?: CmktMediaAsset[];
+};
+
+export type CmktVisualStatus =
+  | 'not_needed'
+  | 'ai_pending'
+  | 'ai_ready'
+  | 'human_polish'
+  | 'approved'
+  | 'rejected';
+
+export type CmktMediaAsset = {
+  id: string;
+  type: 'image' | 'carousel_slide';
+  url: string;
+  ai_generated: boolean;
+  provider: string;
+  selected?: boolean;
+  visual_qa_score?: number;
+  draft_watermark?: boolean;
+  slide_index?: number;
+  prompt_hash?: string;
+};
+
+export type CmktMediaJson = {
+  ai_assets?: CmktMediaAsset[];
+  carousel_slides?: CmktMediaAsset[];
+  visual_qa?: {
+    score: number;
+    checks?: Record<string, boolean>;
+    blocked?: boolean;
+    notes?: string;
+  };
+  style_preset?: string;
+  aspect_ratio?: string;
+  provider?: string;
+  prompt_hash?: string;
+  selected_asset_id?: string | null;
+};
+
+export type CmktVisualReviewItem = CmktItemRow & {
+  visual_qa_score?: number | null;
 };
 
 export type CmktEmBridgeRef = {
@@ -89,6 +131,8 @@ export type CmktItemRow = {
   seo_bridge_id: number | null;
   email_bridge_id: number | null;
   production_json: CmktProductionJson;
+  visual_status: CmktVisualStatus;
+  media_json: CmktMediaJson;
   published_url: string | null;
   published_at: string | null;
   due_at: string | null;
@@ -132,6 +176,7 @@ export type CmktContextFlags = {
   ai_enabled: boolean;
   approval_required: boolean;
   media_enabled: boolean;
+  image_gen_enabled: boolean;
   client_gate: boolean;
   fe_enabled: boolean;
 };

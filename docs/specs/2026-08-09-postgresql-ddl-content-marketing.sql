@@ -317,4 +317,34 @@ INSERT INTO schema_migrations (version, description) VALUES
     )
 ON CONFLICT (version) DO NOTHING;
 
+-- M6: AI media §24
+ALTER TABLE cmkt_content_items
+    ADD COLUMN IF NOT EXISTS visual_status TEXT NOT NULL DEFAULT 'not_needed';
+ALTER TABLE cmkt_content_items
+    ADD COLUMN IF NOT EXISTS media_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.constraint_column_usage
+        WHERE table_name = 'cmkt_content_items' AND constraint_name = 'cmkt_content_items_visual_status_check'
+    ) THEN
+        ALTER TABLE cmkt_content_items
+            ADD CONSTRAINT cmkt_content_items_visual_status_check CHECK (
+                visual_status IN (
+                    'not_needed', 'ai_pending', 'ai_ready', 'human_polish', 'approved', 'rejected'
+                )
+            );
+    END IF;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
+
+INSERT INTO schema_migrations (version, description) VALUES
+    (
+        '2026-08-09-content-marketing-m6',
+        'Content Marketing M6: visual_status and media_json for AI media'
+    )
+ON CONFLICT (version) DO NOTHING;
+
 COMMIT;

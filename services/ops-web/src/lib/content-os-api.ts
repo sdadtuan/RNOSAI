@@ -55,6 +55,7 @@ export type ContentOsContext = {
     ai_enabled: boolean;
     approval_required: boolean;
     media_enabled: boolean;
+    image_gen_enabled: boolean;
     client_gate: boolean;
     fe_enabled: boolean;
   };
@@ -93,6 +94,8 @@ export type ContentOsItem = {
   seo_bridge_id?: number | null;
   email_bridge_id?: number | null;
   production_json?: Record<string, unknown>;
+  visual_status?: string;
+  media_json?: ContentOsMediaJson;
   in_review_at?: string | null;
   published_url?: string | null;
   published_at?: string | null;
@@ -555,4 +558,171 @@ export function getEmBridgeHref(item: ContentOsItem): string | null {
   if (ref?.href) return ref.href;
   if (ref?.campaign_id) return `/email/campaigns/${ref.campaign_id}`;
   return null;
+}
+
+export type ContentOsMediaAsset = {
+  id: string;
+  type: 'image' | 'carousel_slide';
+  url: string;
+  ai_generated: boolean;
+  provider: string;
+  selected?: boolean;
+  visual_qa_score?: number;
+  draft_watermark?: boolean;
+  slide_index?: number;
+};
+
+export type ContentOsMediaJson = {
+  ai_assets?: ContentOsMediaAsset[];
+  carousel_slides?: ContentOsMediaAsset[];
+  visual_qa?: {
+    score: number;
+    checks?: Record<string, boolean>;
+    blocked?: boolean;
+    notes?: string;
+  };
+  style_preset?: string;
+  aspect_ratio?: string;
+  selected_asset_id?: string | null;
+};
+
+export type ContentOsVisualReviewItem = ContentOsItem & {
+  visual_qa_score?: number | null;
+};
+
+export function fetchContentOsVisualReviewQueue(
+  token: string,
+  lifecycleId: number,
+): Promise<{ items: ContentOsVisualReviewItem[] }> {
+  return cmktFetch(token, lifecycleId, '/visual-review-queue');
+}
+
+export function postContentOsImageGenerateJob(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body?: {
+    variant_count?: number;
+    aspect_ratio?: string;
+    style_preset?: string;
+    use_approved_copy_overlay?: boolean;
+    include_logo_overlay?: boolean;
+    allow_draft_watermark?: boolean;
+  },
+): Promise<ContentOsJob> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/jobs/image-generate`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function postContentOsCarouselSlidesJob(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body?: {
+    aspect_ratio?: string;
+    style_preset?: string;
+    allow_draft_watermark?: boolean;
+  },
+): Promise<ContentOsJob> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/jobs/carousel-slides`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function postContentOsVisualQaJob(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body?: Record<string, unknown>,
+): Promise<ContentOsJob> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/jobs/visual-qa`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function patchContentOsMediaSelect(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  assetId: string,
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/media/select`, {
+    method: 'PATCH',
+    body: JSON.stringify({ asset_id: assetId }),
+  });
+}
+
+export function postContentOsVisualSubmitReview(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/visual/submit-review`, {
+    method: 'POST',
+    body: '{}',
+  });
+}
+
+export function postContentOsVisualApprove(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body?: { comment?: string; override?: boolean },
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/visual/approve`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function postContentOsVisualReject(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  comment: string,
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/visual/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ comment }),
+  });
+}
+
+export function postContentOsEscalateHuman(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body?: { notes?: string },
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/production/escalate-human`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function itemNeedsVisualApproval(item: ContentOsItem): boolean {
+  if (item.format === 'carousel' || item.format === 'video_script') return true;
+  return item.brief_json?.needs_visual === true;
+}
+
+export function visualStatusLabel(status: string | undefined): string {
+  switch (status) {
+    case 'not_needed':
+      return 'Không cần visual';
+    case 'ai_pending':
+      return 'AI đang chạy';
+    case 'ai_ready':
+      return 'Chờ duyệt visual';
+    case 'human_polish':
+      return 'Design/Video đang sửa';
+    case 'approved':
+      return 'Visual đã duyệt';
+    case 'rejected':
+      return 'Visual bị từ chối';
+    default:
+      return status ?? '—';
+  }
 }
