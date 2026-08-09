@@ -19,15 +19,20 @@ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.gua
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { ContentAuditService } from './content-audit.service';
 import { ContentCalendarService } from './content-calendar.service';
+import { ContentEmailBridgeService } from './content-email-bridge.service';
 import { ContentGenerateService } from './content-generate.service';
 import { ContentIdeaService } from './content-idea.service';
 import { ContentItemService } from './content-item.service';
 import { ContentPlanSnapshotService } from './content-plan-snapshot.service';
+import { ContentProductionService } from './content-production.service';
+import { ContentRepurposeService } from './content-repurpose.service';
+import { ContentSeoBridgeService } from './content-seo-bridge.service';
 import { ContentWorkflowService } from './content-workflow.service';
 import { ContentMarketingService } from './content-marketing.service';
 import {
   StaffContentMarketingApproveGuard,
   StaffContentMarketingGenerateGuard,
+  StaffContentMarketingProductionGuard,
   StaffContentMarketingPublishGuard,
   StaffContentMarketingViewGuard,
   StaffContentMarketingWriteGuard,
@@ -50,6 +55,10 @@ export class ContentMarketingController {
     private readonly workflow: ContentWorkflowService,
     private readonly calendar: ContentCalendarService,
     private readonly audit: ContentAuditService,
+    private readonly repurpose: ContentRepurposeService,
+    private readonly seoBridge: ContentSeoBridgeService,
+    private readonly emailBridge: ContentEmailBridgeService,
+    private readonly production: ContentProductionService,
   ) {}
 
   @Get('context')
@@ -318,5 +327,126 @@ export class ContentMarketingController {
   ) {
     const n = limit != null && limit !== '' ? Number(limit) : 50;
     return this.audit.listAudit(lifecycleId, n);
+  }
+
+  @Post('items/:itemId/repurpose')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  repurposeItem(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.repurpose.repurpose(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Get('items/:itemId/derivations')
+  listDerivations(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+  ) {
+    return this.repurpose.listDerivations(lifecycleId, itemId);
+  }
+
+  @Post('items/:itemId/bridge/seo')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  bridgeSeo(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Req() req: Request,
+  ) {
+    return this.seoBridge.bridgeSeo(lifecycleId, itemId, actorEmail(req));
+  }
+
+  @Get('items/:itemId/bridge/seo/status')
+  seoBridgeStatus(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+  ) {
+    return this.seoBridge.getSeoBridgeStatus(lifecycleId, itemId);
+  }
+
+  @Post('items/:itemId/bridge/email')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  bridgeEmail(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.emailBridge.bridgeEmail(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Get('items/:itemId/bridge/email/status')
+  emailBridgeStatus(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+  ) {
+    return this.emailBridge.getEmailBridgeStatus(lifecycleId, itemId);
+  }
+
+  @Get('items/:itemId/production')
+  getProduction(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+  ) {
+    return this.production.getProduction(lifecycleId, itemId);
+  }
+
+  @Patch('items/:itemId/production')
+  @UseGuards(StaffContentMarketingProductionGuard)
+  patchProduction(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.production.patchProduction(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Post('items/:itemId/production/done')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingProductionGuard)
+  markProductionDone(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Req() req: Request,
+  ) {
+    return this.production.markProductionDone(lifecycleId, itemId, actorEmail(req));
+  }
+
+  @Post('items/:itemId/link/creative')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingProductionGuard)
+  linkCreative(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.production.linkCreative(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Post('items/:itemId/export/brief-design')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingProductionGuard)
+  exportDesignBrief(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+  ) {
+    return this.production.exportDesignBrief(lifecycleId, itemId);
+  }
+
+  @Post('items/:itemId/export/script')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingProductionGuard)
+  exportScript(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+  ) {
+    return this.production.exportScript(lifecycleId, itemId);
   }
 }

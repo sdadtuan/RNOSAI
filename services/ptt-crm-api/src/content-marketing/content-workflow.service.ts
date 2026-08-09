@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import { ContentMarketingService } from './content-marketing.service';
+import { ContentProductionService } from './content-production.service';
 import {
   assertBodyNonEmpty,
   assertRejectComment,
@@ -15,6 +16,7 @@ export class ContentWorkflowService {
   constructor(
     private readonly core: ContentMarketingService,
     private readonly repo: ContentMarketingRepository,
+    private readonly production: ContentProductionService,
   ) {}
 
   async submitReview(
@@ -52,6 +54,7 @@ export class ContentWorkflowService {
       status: 'approved_internal',
     });
     await this.repo.insertItemVersion(itemId, updated.body_json, actorEmail, 'approve');
+    await this.production.initProductionOnApprove(lifecycleId, itemId);
     return updated;
   }
 

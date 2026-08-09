@@ -306,4 +306,15 @@ INSERT INTO schema_migrations (version, description) VALUES
     )
 ON CONFLICT (version) DO NOTHING;
 
+-- M5: production handoff §23
+ALTER TABLE cmkt_content_items
+    ADD COLUMN IF NOT EXISTS production_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+INSERT INTO schema_migrations (version, description) VALUES
+    (
+        '2026-08-09-content-marketing-m5',
+        'Content Marketing M5: production_json for design/video handoff'
+    )
+ON CONFLICT (version) DO NOTHING;
+
 COMMIT;

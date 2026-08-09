@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { StoredStaffUser } from '@/lib/auth';
-import { canApproveContentOs, canGenerateContentOs, canPublishContentOs, canWriteContentOs } from '@/lib/auth';
+import { canApproveContentOs, canGenerateContentOs, canProductionContentOs, canPublishContentOs, canWriteContentOs } from '@/lib/auth';
 import { ContentOsCalendarView } from '@/components/content-os/ContentOsCalendarView';
 import { ContentOsGeneratePanel } from '@/components/content-os/ContentOsGeneratePanel';
+import { ContentOsProductionPanel } from '@/components/content-os/ContentOsProductionPanel';
+import { ContentOsRepurposeWizard } from '@/components/content-os/ContentOsRepurposeWizard';
 import { ContentOsReviewQueueView } from '@/components/content-os/ContentOsReviewQueueView';
 import { ContentOsSnapshotBanner } from '@/components/content-os/ContentOsSnapshotBanner';
 import { ContentOsVariantsPicker } from '@/components/content-os/ContentOsVariantsPicker';
@@ -29,8 +31,8 @@ import {
   type ContentOsItemVersion,
 } from '@/lib/content-os-api';
 
-type SubView = 'overview' | 'ideas' | 'board' | 'review' | 'calendar';
-type DrawerTab = 'body' | 'variants' | 'versions';
+type SubView = 'overview' | 'ideas' | 'board' | 'review' | 'calendar' | 'repurpose';
+type DrawerTab = 'body' | 'variants' | 'versions' | 'production';
 
 interface Props {
   token: string;
@@ -71,6 +73,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
   const canGenerate = canGenerateContentOs(user);
   const canApprove = canApproveContentOs(user);
   const canPublish = canPublishContentOs(user);
+  const canProduction = canProductionContentOs(user);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -243,6 +246,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
             ['board', 'Board'],
             ['review', `Review${reviewBadge ? ` (${reviewBadge})` : ''}`],
             ['calendar', 'Calendar'],
+            ['repurpose', 'Repurpose'],
           ] as const
         ).map(([v, label]) => (
           <button
@@ -421,6 +425,21 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
         />
       ) : null}
 
+      {view === 'repurpose' ? (
+        <ContentOsRepurposeWizard
+          token={token}
+          lifecycleId={lifecycleId}
+          canGenerate={canGenerate}
+          onOpenItem={(id) => {
+            setDrawerItemId(id);
+            setDrawerTab('body');
+          }}
+          onDone={reload}
+          onMessage={setMessage}
+          onError={setError}
+        />
+      ) : null}
+
       {drawerItemId != null ? (
         <div
           role="dialog"
@@ -458,14 +477,20 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
             ) : null}
 
             <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.65rem', flexWrap: 'wrap' }}>
-              {(['body', 'variants', 'versions'] as DrawerTab[]).map((tab) => (
+              {(['body', 'variants', 'versions', 'production'] as DrawerTab[]).map((tab) => (
                 <button
                   key={tab}
                   type="button"
                   className={drawerTab === tab ? 'btn btn-sm' : 'btn btn-sm btn-ghost'}
                   onClick={() => setDrawerTab(tab)}
                 >
-                  {tab === 'body' ? 'Body' : tab === 'variants' ? 'Variants' : 'Versions'}
+                  {tab === 'body'
+                    ? 'Body'
+                    : tab === 'variants'
+                      ? 'Variants'
+                      : tab === 'versions'
+                        ? 'Versions'
+                        : 'Production'}
                 </button>
               ))}
             </div>
@@ -560,6 +585,19 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
                 ))}
                 {!drawerVersions.length ? <li className="muted">Chưa có version history.</li> : null}
               </ul>
+            ) : null}
+
+            {drawerTab === 'production' && drawerItem ? (
+              <ContentOsProductionPanel
+                token={token}
+                lifecycleId={lifecycleId}
+                item={drawerItem}
+                canWrite={canWrite}
+                canProduction={canProduction}
+                onChanged={refreshDrawerItem}
+                onMessage={setMessage}
+                onError={setError}
+              />
             ) : null}
 
             {drawerItem ? (

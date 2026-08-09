@@ -189,3 +189,49 @@ export function normalizeVariantsOutput(
   }
   return variants.slice(0, 5);
 }
+
+export function buildRepurposeSystemPrompt(profile: CmktPromptProfile): string {
+  return [
+    'You repurpose approved blog content into a new channel/format.',
+    `Target profile: ${profile}. Rules: ${PROFILE_RULES[profile]}`,
+    'Return JSON: { "markdown": string }',
+  ].join('\n');
+}
+
+export function buildRepurposeUserPrompt(
+  source: CmktItemRow,
+  target: { channel: string; format: string; title: string },
+  brandContext: Record<string, unknown>,
+  optimizeHooks: boolean,
+): string {
+  const brand = String(brandContext.brand_name ?? 'Thương hiệu').trim();
+  const excerpt = String(source.body_json?.markdown ?? '').slice(0, 4000);
+  return [
+    `Brand: ${brand}`,
+    `Source blog title: ${source.title}`,
+    `Target: ${target.channel} / ${target.format}`,
+    `Derived title: ${target.title}`,
+    optimizeHooks ? 'Optimize hook/opening for the target channel.' : '',
+    'Source markdown:',
+    excerpt,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+export function buildRepurposeStub(
+  source: CmktItemRow,
+  target: { channel: string; format: string; title: string },
+): Record<string, unknown> {
+  const hook = String(source.brief_json?.hook ?? source.title).trim();
+  const excerpt = String(source.body_json?.markdown ?? '').split('\n').slice(0, 3).join('\n');
+  const markdown = [`**${hook}**`, '', excerpt, '', `→ ${target.channel} / ${target.format}`].join('\n');
+  return { markdown };
+}
+
+export function normalizeRepurposeOutput(
+  parsed: Record<string, unknown>,
+  fallback: Record<string, unknown>,
+): { markdown: string } {
+  return { markdown: String(parsed.markdown ?? fallback.markdown ?? '').trim() };
+}

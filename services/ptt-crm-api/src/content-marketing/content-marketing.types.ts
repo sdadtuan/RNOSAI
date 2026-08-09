@@ -16,6 +16,44 @@ export type CmktBodyJson = {
   variants?: string[];
 };
 
+export type CmktProductionPhase =
+  | 'none'
+  | 'awaiting_design'
+  | 'awaiting_video'
+  | 'in_progress'
+  | 'done';
+
+export type CmktProductionJson = {
+  phase?: CmktProductionPhase;
+  assignee_designer_id?: number | null;
+  assignee_video_id?: number | null;
+  brief_exported_at?: string | null;
+  asset_urls?: string[];
+  final_video_url?: string | null;
+  subtitle_text?: string | null;
+  chapter_markers?: string[];
+  creative_id?: string | null;
+  notes?: string | null;
+  escalate_human?: boolean;
+};
+
+export type CmktEmBridgeRef = {
+  campaign_id: string;
+  status: string;
+  campaign_type?: string;
+  href?: string;
+};
+
+export type CmktDerivationRow = {
+  id: number;
+  source_item_id: number;
+  derived_item_id: number;
+  transform_type: string;
+  prompt_profile: string;
+  created_at: string;
+  derived_item?: CmktItemRow;
+};
+
 export type CmktIdeaRow = {
   id: number;
   lifecycle_id: number;
@@ -50,6 +88,7 @@ export type CmktItemRow = {
   quality_score_json: Record<string, unknown>;
   seo_bridge_id: number | null;
   email_bridge_id: number | null;
+  production_json: CmktProductionJson;
   published_url: string | null;
   published_at: string | null;
   due_at: string | null;
@@ -176,6 +215,34 @@ export type CmktCalendarSlotRow = {
   timezone: string;
   reminder_sent: boolean;
   item?: CmktItemRow;
+};
+
+export type CmktRepurposeTarget = {
+  channel: string;
+  format: string;
+  count?: number;
+};
+
+export type CmktRepurposeResult = {
+  ok: boolean;
+  source_item_id: number;
+  derived_items: CmktItemRow[];
+  derivations: CmktDerivationRow[];
+  jobs: CmktJobRow[];
+};
+
+export type CmktBridgeSeoStatus = {
+  linked: boolean;
+  seo_content_id: number | null;
+  workflow_status: string | null;
+  href: string | null;
+};
+
+export type CmktBridgeEmailStatus = {
+  linked: boolean;
+  campaign_id: string | null;
+  status: string | null;
+  href: string | null;
 };
 
 export type CmktAuditRow = {

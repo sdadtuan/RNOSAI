@@ -25,6 +25,7 @@ describe('content-marketing-prompt.util', () => {
     quality_score_json: {},
     seo_bridge_id: null,
     email_bridge_id: null,
+    production_json: {},
     published_url: null,
     published_at: null,
     due_at: null,

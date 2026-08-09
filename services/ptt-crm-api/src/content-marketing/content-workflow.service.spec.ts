@@ -12,11 +12,13 @@ describe('ContentWorkflowService', () => {
     getReviewQueueSummary: jest.fn(),
   };
 
+  const production = { initProductionOnApprove: jest.fn().mockResolvedValue(undefined) };
+
   let service: ContentWorkflowService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new ContentWorkflowService(core as never, repo as never);
+    service = new ContentWorkflowService(core as never, repo as never, production as never);
   });
 
   it('submitReview moves draft to in_review', async () => {

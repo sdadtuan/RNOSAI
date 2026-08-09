@@ -81,6 +81,7 @@ export type ContentOsItem = {
   id: number;
   lifecycle_id: number;
   idea_id: number | null;
+  parent_item_id?: number | null;
   title: string;
   format: string;
   channel: string;
@@ -89,6 +90,9 @@ export type ContentOsItem = {
   brief_json: Record<string, unknown>;
   body_json: { markdown?: string; html?: string; variants?: string[] };
   selected_variant_idx: number | null;
+  seo_bridge_id?: number | null;
+  email_bridge_id?: number | null;
+  production_json?: Record<string, unknown>;
   in_review_at?: string | null;
   published_url?: string | null;
   published_at?: string | null;
@@ -440,4 +444,115 @@ export function copyCaptionText(item: ContentOsItem): string {
   const md = String(item.body_json?.markdown ?? '').trim();
   const lines = md.split('\n').filter(Boolean);
   return lines[0] ?? md;
+}
+
+export type ContentOsRepurposeTarget = { channel: string; format: string; count?: number };
+
+export type ContentOsDerivation = {
+  id: number;
+  source_item_id: number;
+  derived_item_id: number;
+  transform_type: string;
+  prompt_profile: string;
+  created_at: string;
+  derived_item?: ContentOsItem;
+};
+
+export function postContentOsRepurpose(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body: { targets: ContentOsRepurposeTarget[]; optimize_hooks?: boolean },
+): Promise<{ ok: boolean; derived_items: ContentOsItem[]; derivations: ContentOsDerivation[] }> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/repurpose`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchContentOsDerivations(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<{ derivations: ContentOsDerivation[] }> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/derivations`);
+}
+
+export function postContentOsBridgeSeo(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<{ ok: boolean; item: ContentOsItem; seo_content_id: number; href: string }> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/bridge/seo`, { method: 'POST', body: '{}' });
+}
+
+export function fetchContentOsBridgeSeoStatus(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<{ linked: boolean; seo_content_id: number | null; workflow_status: string | null; href: string | null }> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/bridge/seo/status`);
+}
+
+export function postContentOsBridgeEmail(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body: { client_id: string; template_id?: string; segment_id?: string; email_type?: string },
+): Promise<{ ok: boolean; item: ContentOsItem; campaign_id: string; href: string }> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/bridge/email`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchContentOsBridgeEmailStatus(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<{ linked: boolean; campaign_id: string | null; status: string | null; href: string | null }> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/bridge/email/status`);
+}
+
+export function patchContentOsProduction(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body: Record<string, unknown>,
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/production`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export function postContentOsProductionDone(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/production/done`, { method: 'POST', body: '{}' });
+}
+
+export function postContentOsExportDesignBrief(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<{ ok: boolean; filename: string; content: string; content_type: string }> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/export/brief-design`, { method: 'POST', body: '{}' });
+}
+
+export function postContentOsExportScript(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<{ ok: boolean; filename: string; content: string; content_type: string }> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/export/script`, { method: 'POST', body: '{}' });
+}
+
+export function getEmBridgeHref(item: ContentOsItem): string | null {
+  const ref = item.brief_json?.em_bridge as { href?: string; campaign_id?: string } | undefined;
+  if (ref?.href) return ref.href;
+  if (ref?.campaign_id) return `/email/campaigns/${ref.campaign_id}`;
+  return null;
 }

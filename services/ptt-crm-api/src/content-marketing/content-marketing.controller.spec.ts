@@ -30,6 +30,17 @@ describe('ContentMarketingController', () => {
   };
   const calendar = { listCalendar: jest.fn(), upsertSlot: jest.fn(), deleteSlot: jest.fn() };
   const audit = { listAudit: jest.fn() };
+  const repurpose = { repurpose: jest.fn(), listDerivations: jest.fn() };
+  const seoBridge = { bridgeSeo: jest.fn(), getSeoBridgeStatus: jest.fn() };
+  const emailBridge = { bridgeEmail: jest.fn(), getEmailBridgeStatus: jest.fn() };
+  const production = {
+    getProduction: jest.fn(),
+    patchProduction: jest.fn(),
+    markProductionDone: jest.fn(),
+    linkCreative: jest.fn(),
+    exportDesignBrief: jest.fn(),
+    exportScript: jest.fn(),
+  };
 
   let controller: ContentMarketingController;
 
@@ -44,6 +55,10 @@ describe('ContentMarketingController', () => {
       workflow as never,
       calendar as never,
       audit as never,
+      repurpose as never,
+      seoBridge as never,
+      emailBridge as never,
+      production as never,
     );
   });
 

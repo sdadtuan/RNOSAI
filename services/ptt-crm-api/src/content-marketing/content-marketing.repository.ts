@@ -8,6 +8,7 @@ import type {
   CmktActiveSnapshotRow,
   CmktBodyJson,
   CmktContextCounts,
+  CmktDerivationRow,
   CmktIdeaRow,
   CmktItemRow,
   CmktAuditRow,
@@ -29,6 +30,7 @@ type MemoryStore = {
   versions: Map<number, CmktItemVersionRow[]>;
   calendar: Map<number, CmktCalendarSlotRow[]>;
   comments: Map<number, Array<{ id: number; item_id: number; author_id: string; body: string; visibility: string; created_at: string }>>;
+  derivations: CmktDerivationRow[];
   nextIdeaId: number;
   nextItemId: number;
   nextSnapshotId: number;
@@ -37,6 +39,7 @@ type MemoryStore = {
   nextVersionId: number;
   nextCalendarId: number;
   nextCommentId: number;
+  nextDerivationId: number;
   nextVersionNo: Map<number, number>;
   plannerSources: Map<number, PlannerIngestSource>;
 };
@@ -123,6 +126,7 @@ function mapItemRow(row: Record<string, unknown>): CmktItemRow {
     quality_score_json: (row.quality_score_json as Record<string, unknown>) ?? {},
     seo_bridge_id: row.seo_bridge_id != null ? Number(row.seo_bridge_id) : null,
     email_bridge_id: row.email_bridge_id != null ? Number(row.email_bridge_id) : null,
+    production_json: (row.production_json as CmktItemRow['production_json']) ?? {},
     published_url: row.published_url != null ? String(row.published_url) : null,
     published_at: row.published_at ? new Date(String(row.published_at)).toISOString() : null,
     due_at: row.due_at ? new Date(String(row.due_at)).toISOString() : null,
@@ -146,6 +150,7 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     versions: new Map(),
     calendar: new Map(),
     comments: new Map(),
+    derivations: [],
     nextIdeaId: 1,
     nextItemId: 1,
     nextSnapshotId: 1,
@@ -154,6 +159,7 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     nextVersionId: 1,
     nextCalendarId: 1,
     nextCommentId: 1,
+    nextDerivationId: 1,
     nextVersionNo: new Map(),
     plannerSources: new Map(),
   };
@@ -857,6 +863,7 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       quality_score_json: {},
       seo_bridge_id: null,
       email_bridge_id: null,
+      production_json: {},
       published_url: null,
       published_at: null,
       due_at: null,
@@ -882,7 +889,10 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       const params: unknown[] = [lifecycleId, itemId];
       for (const [key, value] of Object.entries(patch)) {
         const serialized =
-          key === 'body_json' || key === 'brief_json' || key === 'quality_score_json'
+          key === 'body_json' ||
+          key === 'brief_json' ||
+          key === 'quality_score_json' ||
+          key === 'production_json'
             ? JSON.stringify(value)
             : value;
         params.push(serialized);
@@ -904,6 +914,8 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       ...patch,
       body_json: (patch.body_json as CmktBodyJson) ?? list[idx].body_json,
       brief_json: (patch.brief_json as Record<string, unknown>) ?? list[idx].brief_json,
+      production_json:
+        (patch.production_json as CmktItemRow['production_json']) ?? list[idx].production_json,
       updated_at: new Date().toISOString(),
     } as CmktItemRow;
     list[idx] = updated;
@@ -1306,5 +1318,140 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       }
     }
     return rows.sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, cap);
+  }
+
+  async createDerivedItem(
+    lifecycleId: number,
+    input: {
+      parent_item_id: number;
+      title: string;
+      channel: string;
+      format: string;
+      funnel_goal: string;
+      brief_json: Record<string, unknown>;
+      created_by: string;
+    },
+  ): Promise<CmktItemRow> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `INSERT INTO cmkt_content_items (
+           lifecycle_id, parent_item_id, title, format, channel, funnel_goal, status,
+           brief_json, body_json, created_by
+         ) VALUES ($1,$2,$3,$4,$5,$6,'draft',$7,$8,$9)
+         RETURNING *`,
+        [
+          lifecycleId,
+          input.parent_item_id,
+          input.title,
+          input.format,
+          input.channel,
+          input.funnel_goal,
+          JSON.stringify(input.brief_json),
+          JSON.stringify(emptyBodyJson()),
+          input.created_by,
+        ],
+      );
+      const item = mapItemRow(res.rows[0]);
+      await this.insertItemVersion(item.id, item.body_json, input.created_by, 'repurpose');
+      return item;
+    }
+    const now = new Date().toISOString();
+    const row: CmktItemRow = {
+      id: this.memory.nextItemId++,
+      lifecycle_id: lifecycleId,
+      idea_id: null,
+      parent_item_id: input.parent_item_id,
+      title: input.title,
+      format: input.format,
+      channel: input.channel,
+      funnel_goal: input.funnel_goal,
+      status: 'draft',
+      assignee_sp: null,
+      assignee_qa: null,
+      brief_json: input.brief_json,
+      body_json: emptyBodyJson(),
+      selected_variant_idx: null,
+      quality_score_json: {},
+      seo_bridge_id: null,
+      email_bridge_id: null,
+      production_json: {},
+      published_url: null,
+      published_at: null,
+      due_at: null,
+      in_review_at: null,
+      created_by: input.created_by,
+      created_at: now,
+      updated_at: now,
+    };
+    const list = this.memory.items.get(lifecycleId) ?? [];
+    list.push(row);
+    this.memory.items.set(lifecycleId, list);
+    this.memory.nextVersionNo.set(row.id, 1);
+    return row;
+  }
+
+  async insertDerivation(input: {
+    source_item_id: number;
+    derived_item_id: number;
+    transform_type: string;
+    prompt_profile: string;
+  }): Promise<CmktDerivationRow> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `INSERT INTO cmkt_content_item_derivations (
+           source_item_id, derived_item_id, transform_type, prompt_profile
+         ) VALUES ($1,$2,$3,$4)
+         RETURNING *`,
+        [input.source_item_id, input.derived_item_id, input.transform_type, input.prompt_profile],
+      );
+      const row = res.rows[0];
+      return {
+        id: Number(row.id),
+        source_item_id: Number(row.source_item_id),
+        derived_item_id: Number(row.derived_item_id),
+        transform_type: String(row.transform_type),
+        prompt_profile: String(row.prompt_profile),
+        created_at: new Date(String(row.created_at)).toISOString(),
+      };
+    }
+    const row: CmktDerivationRow = {
+      id: this.memory.nextDerivationId++,
+      source_item_id: input.source_item_id,
+      derived_item_id: input.derived_item_id,
+      transform_type: input.transform_type,
+      prompt_profile: input.prompt_profile,
+      created_at: new Date().toISOString(),
+    };
+    this.memory.derivations.push(row);
+    return row;
+  }
+
+  async listDerivations(lifecycleId: number, sourceItemId: number): Promise<CmktDerivationRow[]> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT d.*, row_to_json(i.*) AS derived_item_json
+         FROM cmkt_content_item_derivations d
+         JOIN cmkt_content_items i ON i.id = d.derived_item_id
+         WHERE d.source_item_id = $1 AND i.lifecycle_id = $2
+         ORDER BY d.created_at ASC, d.id ASC`,
+        [sourceItemId, lifecycleId],
+      );
+      return res.rows.map((row) => ({
+        id: Number(row.id),
+        source_item_id: Number(row.source_item_id),
+        derived_item_id: Number(row.derived_item_id),
+        transform_type: String(row.transform_type),
+        prompt_profile: String(row.prompt_profile),
+        created_at: new Date(String(row.created_at)).toISOString(),
+        derived_item: row.derived_item_json
+          ? mapItemRow(row.derived_item_json as Record<string, unknown>)
+          : undefined,
+      }));
+    }
+    const items = this.memory.items.get(lifecycleId) ?? [];
+    const byId = new Map(items.map((i) => [i.id, i]));
+    return this.memory.derivations
+      .filter((d) => d.source_item_id === sourceItemId && byId.has(d.derived_item_id))
+      .map((d) => ({ ...d, derived_item: byId.get(d.derived_item_id) }));
   }
 }

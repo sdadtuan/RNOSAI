@@ -3,6 +3,7 @@ import { assertValidChannelFormat } from './content-marketing-channel.util';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import { ContentMarketingService } from './content-marketing.service';
 import { emptyBodyJson } from './content-marketing.util';
+import { assertProductionGateForPublish } from './content-production.util';
 import { assertTransition, CMKT_PUBLISH_FROM } from './content-workflow.util';
 import type { CmktBodyJson, CmktIdeaRow, CmktItemRow, CmktItemVersionRow } from './content-marketing.types';
 
@@ -159,6 +160,7 @@ export class ContentItemService {
     }
 
     assertTransition(item.status, CMKT_PUBLISH_FROM, 'publish');
+    assertProductionGateForPublish(item);
 
     const publishedUrl = body.published_url != null ? String(body.published_url).trim() : null;
     const updated = await this.repo.patchItem(lifecycleId, itemId, {

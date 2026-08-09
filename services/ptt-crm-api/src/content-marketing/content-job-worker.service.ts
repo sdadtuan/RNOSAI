@@ -11,8 +11,12 @@ import {
   buildVariantsStub,
   buildVariantsSystemPrompt,
   buildVariantsUserPrompt,
+  buildRepurposeStub,
+  buildRepurposeSystemPrompt,
+  buildRepurposeUserPrompt,
   hashPrompt,
   normalizeDraftOutput,
+  normalizeRepurposeOutput,
   normalizeVariantsOutput,
   resolvePromptProfile,
   type CmktGenerateInput,
@@ -76,6 +80,29 @@ export class ContentJobWorkerService {
         userPrompt = buildVariantsUserPrompt(item, brand, genInput);
         stubJson = () => buildVariantsStub(item, genInput);
         useCase = 'cmkt_variant_generate';
+      } else if (claimed.job_type === 'repurpose') {
+        const sourceId = Number(claimed.input_json?.source_item_id ?? 0);
+        const source =
+          sourceId > 0 ? await this.repo.getItemById(claimed.lifecycle_id, sourceId) : null;
+        if (!source) {
+          return this.repo.finishContentJob(jobId, {
+            status: 'failed',
+            error_text: 'repurpose_source_not_found',
+          });
+        }
+        const targetProfile = String(
+          claimed.input_json?.prompt_profile ?? resolvePromptProfile(item.channel, item.format),
+        ) as ReturnType<typeof resolvePromptProfile>;
+        systemPrompt = buildRepurposeSystemPrompt(targetProfile);
+        userPrompt = buildRepurposeUserPrompt(
+          source,
+          { channel: item.channel, format: item.format, title: item.title },
+          brand,
+          claimed.input_json?.optimize_hooks !== false,
+        );
+        stubJson = () =>
+          buildRepurposeStub(source, { channel: item.channel, format: item.format, title: item.title });
+        useCase = 'cmkt_repurpose';
       } else {
         return this.repo.finishContentJob(jobId, {
           status: 'failed',
@@ -134,6 +161,28 @@ export class ContentJobWorkerService {
           return this.repo.finishContentJob(jobId, {
             status: 'succeeded',
             output_json: { body_json: bodyJson, version_no: versionNo, profile, stub_mode: !this.aiConfig.llmApiKey },
+            ai_run_id: aiRunId,
+          });
+        }
+
+        if (claimed.job_type === 'repurpose') {
+          const repurpose = normalizeRepurposeOutput(parsed, stubJson());
+          const bodyJson: CmktBodyJson = {
+            markdown: repurpose.markdown,
+            html: item.body_json?.html ?? '',
+            variants: item.body_json?.variants ?? [],
+          };
+          await this.repo.patchItem(claimed.lifecycle_id, item.id, { body_json: bodyJson });
+          const versionNo = await this.repo.insertItemVersion(
+            item.id,
+            bodyJson,
+            claimed.created_by,
+            'repurpose',
+            aiRunId,
+          );
+          return this.repo.finishContentJob(jobId, {
+            status: 'succeeded',
+            output_json: { body_json: bodyJson, version_no: versionNo, stub_mode: !this.aiConfig.llmApiKey },
             ai_run_id: aiRunId,
           });
         }
