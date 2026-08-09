@@ -126,6 +126,8 @@ export type ContentOsItem = {
   channel: string;
   funnel_goal: string;
   status: string;
+  assignee_sp?: number | null;
+  assignee_qa?: number | null;
   brief_json: Record<string, unknown>;
   body_json: { markdown?: string; html?: string; variants?: string[] };
   selected_variant_idx: number | null;
@@ -186,8 +188,15 @@ export function postContentOsIdeaConvert(
 export function fetchContentOsItems(
   token: string,
   lifecycleId: number,
+  params?: { status?: string; format?: string; assignee?: number | 'me' },
 ): Promise<{ items: ContentOsItem[] }> {
-  return cmktFetch(token, lifecycleId, '/items');
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set('status', params.status);
+  if (params?.format) qs.set('format', params.format);
+  if (params?.assignee === 'me') qs.set('assignee', 'me');
+  else if (params?.assignee != null) qs.set('assignee', String(params.assignee));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return cmktFetch(token, lifecycleId, `/items${suffix}`);
 }
 
 export function fetchContentOsItem(
@@ -208,6 +217,63 @@ export function patchContentOsItem(
     method: 'PATCH',
     body: JSON.stringify(body),
   });
+}
+
+export function patchContentOsItemAssignees(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body: { assignee_sp?: number | null; assignee_qa?: number | null },
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/assignees`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export type ContentOsComment = {
+  id: number;
+  item_id: number;
+  author_id: string;
+  body: string;
+  visibility: string;
+  created_at: string;
+};
+
+export function fetchContentOsItemComments(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<{ comments: ContentOsComment[] }> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/comments`);
+}
+
+export function postContentOsItemComment(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body: { body: string; visibility?: 'internal' | 'client' },
+): Promise<{ comment: ContentOsComment }> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/comments`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export type ContentOsVersionDiffLine = {
+  type: 'add' | 'del' | 'same';
+  text: string;
+};
+
+export function fetchContentOsVersionCompare(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  v1: number,
+  v2: number,
+): Promise<{ item_id: number; v1: number; v2: number; lines: ContentOsVersionDiffLine[] }> {
+  const qs = new URLSearchParams({ v1: String(v1), v2: String(v2) });
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/versions/compare?${qs.toString()}`);
 }
 
 export function channelFormatLabel(channel: string, format: string): string {

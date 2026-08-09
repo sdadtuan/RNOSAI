@@ -302,6 +302,22 @@ export type CmktAuditRow = {
   use_case?: string | null;
 };
 
+export type CmktCommentRow = {
+  id: number;
+  item_id: number;
+  author_id: string;
+  body: string;
+  visibility: string;
+  created_at: string;
+};
+
+export type CmktVersionComparePayload = {
+  item_id: number;
+  v1: number;
+  v2: number;
+  lines: Array<{ type: 'add' | 'del' | 'same'; text: string }>;
+};
+
 export type CmktPlanSnapshotPayload = {
   snapshot: {
     id: number;

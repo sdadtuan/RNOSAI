@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { StoredStaffUser } from '@/lib/auth';
-import { canApproveContentOs, canGenerateContentOs, canProductionContentOs, canPublishContentOs, canWriteContentOs } from '@/lib/auth';
+import { canApproveContentOs, canAssignContentOs, canGenerateContentOs, canProductionContentOs, canPublishContentOs, canWriteContentOs } from '@/lib/auth';
+import { ContentOsAssigneePicker } from '@/components/content-os/ContentOsAssigneePicker';
 import { ContentOsAuditPanel } from '@/components/content-os/ContentOsAuditPanel';
 import { ContentOsBoardCard } from '@/components/content-os/ContentOsBoardCard';
 import { ContentOsCalendarView } from '@/components/content-os/ContentOsCalendarView';
+import { ContentOsCommentsPanel } from '@/components/content-os/ContentOsCommentsPanel';
 import { ContentOsGeneratePanel } from '@/components/content-os/ContentOsGeneratePanel';
 import { ContentOsMediaStudio } from '@/components/content-os/ContentOsMediaStudio';
 import { ContentOsProductionPanel } from '@/components/content-os/ContentOsProductionPanel';
@@ -13,6 +15,7 @@ import { ContentOsRepurposeWizard } from '@/components/content-os/ContentOsRepur
 import { ContentOsReviewQueueView } from '@/components/content-os/ContentOsReviewQueueView';
 import { ContentOsSnapshotBanner } from '@/components/content-os/ContentOsSnapshotBanner';
 import { ContentOsVariantsPicker } from '@/components/content-os/ContentOsVariantsPicker';
+import { ContentOsVersionDiff } from '@/components/content-os/ContentOsVersionDiff';
 import {
   CMKT_P0_PAIRS,
   channelFormatLabel,
@@ -37,7 +40,7 @@ import {
 import { type ContentOsSubView } from '@/lib/content-os-status';
 import { useContentOsViewParams } from '@/lib/use-content-os-view-params';
 
-type DrawerTab = 'body' | 'variants' | 'versions' | 'production' | 'media';
+type DrawerTab = 'body' | 'variants' | 'versions' | 'comments' | 'production' | 'media';
 
 interface Props {
   token: string;
@@ -70,6 +73,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
   const [saving, setSaving] = useState(false);
   const [newIdeaTitle, setNewIdeaTitle] = useState('');
   const [convertPair, setConvertPair] = useState('facebook|social_post');
+  const [boardMineOnly, setBoardMineOnly] = useState(false);
 
   const [publishUrl, setPublishUrl] = useState('');
 
@@ -78,6 +82,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
   const canApprove = canApproveContentOs(user);
   const canPublish = canPublishContentOs(user);
   const canProduction = canProductionContentOs(user);
+  const canAssign = canAssignContentOs(user);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -86,7 +91,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
       const [context, ideasRes, itemsRes] = await Promise.all([
         fetchContentOsContext(token, lifecycleId),
         fetchContentOsIdeas(token, lifecycleId),
-        fetchContentOsItems(token, lifecycleId),
+        fetchContentOsItems(token, lifecycleId, boardMineOnly ? { assignee: 'me' } : undefined),
       ]);
       setCtx(context);
       setIdeas(ideasRes.ideas);
@@ -96,7 +101,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [token, lifecycleId]);
+  }, [token, lifecycleId, boardMineOnly]);
 
   useEffect(() => {
     void reload();
@@ -363,7 +368,20 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
       ) : null}
 
       {view === 'board' ? (
-        <div style={{ display: 'flex', gap: '0.65rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+        <div style={{ display: 'grid', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', fontSize: '0.82rem' }}>
+              <input
+                type="checkbox"
+                checked={boardMineOnly}
+                onChange={(e) => {
+                  setBoardMineOnly(e.target.checked);
+                }}
+              />
+              Chỉ của tôi (assignee SP)
+            </label>
+          </div>
+          <div style={{ display: 'flex', gap: '0.65rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
           {BOARD_COLUMNS.map((col) => (
             <div key={col} style={{ minWidth: 200, flex: '0 0 200px' }}>
               <div className="muted" style={{ marginBottom: '0.35rem', fontWeight: 600 }}>
@@ -383,6 +401,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
             </div>
           ))}
         </div>
+        </div>
       ) : null}
 
       {view === 'review' ? (
@@ -392,7 +411,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
           canApprove={canApprove}
           onOpenItem={(id) => {
             openItem(id, 'review');
-            setDrawerTab('body');
+            setDrawerTab(canApprove ? 'versions' : 'body');
           }}
           onChanged={reload}
           onMessage={setMessage}
@@ -465,13 +484,24 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
               </button>
             </div>
             {drawerItem ? (
-              <p className="muted" style={{ fontSize: '0.85rem' }}>
-                {channelFormatLabel(drawerItem.channel, drawerItem.format)} · {drawerItem.status}
-              </p>
+              <>
+                <p className="muted" style={{ fontSize: '0.85rem' }}>
+                  {channelFormatLabel(drawerItem.channel, drawerItem.format)} · {drawerItem.status}
+                </p>
+                <ContentOsAssigneePicker
+                  token={token}
+                  lifecycleId={lifecycleId}
+                  item={drawerItem}
+                  canAssign={canAssign}
+                  onChanged={refreshDrawerItem}
+                  onMessage={setMessage}
+                  onError={setError}
+                />
+              </>
             ) : null}
 
             <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.65rem', flexWrap: 'wrap' }}>
-              {(['body', 'variants', 'versions', 'production', 'media'] as DrawerTab[]).map((tab) => (
+              {(['body', 'variants', 'versions', 'comments', 'production', 'media'] as DrawerTab[]).map((tab) => (
                 <button
                   key={tab}
                   type="button"
@@ -484,9 +514,11 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
                       ? 'Variants'
                       : tab === 'versions'
                         ? 'Versions'
-                        : tab === 'production'
-                          ? 'Production'
-                          : 'Media AI'}
+                        : tab === 'comments'
+                          ? 'Comments'
+                          : tab === 'production'
+                            ? 'Production'
+                            : 'Media AI'}
                 </button>
               ))}
             </div>
@@ -553,34 +585,56 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
             ) : null}
 
             {drawerTab === 'versions' ? (
-              <ul
-                style={{
-                  listStyle: 'none',
-                  padding: 0,
-                  marginTop: '0.75rem',
-                  display: 'grid',
-                  gap: '0.45rem',
-                }}
-              >
-                {drawerVersions.map((v) => (
-                  <li
-                    key={v.id}
-                    style={{
-                      border: '1px solid var(--border)',
-                      borderRadius: 8,
-                      padding: '0.55rem',
-                      fontSize: '0.85rem',
-                    }}
-                  >
-                    <strong>v{v.version_no}</strong> · {v.change_reason} · {v.changed_by}
-                    <div className="muted" style={{ fontSize: '0.78rem' }}>
-                      {new Date(v.created_at).toLocaleString('vi-VN')}
-                      {v.ai_run_id ? ` · ai_run ${v.ai_run_id.slice(0, 8)}` : ''}
-                    </div>
-                  </li>
-                ))}
-                {!drawerVersions.length ? <li className="muted">Chưa có version history.</li> : null}
-              </ul>
+              <>
+                <ul
+                  style={{
+                    listStyle: 'none',
+                    padding: 0,
+                    marginTop: '0.75rem',
+                    display: 'grid',
+                    gap: '0.45rem',
+                  }}
+                >
+                  {drawerVersions.map((v) => (
+                    <li
+                      key={v.id}
+                      style={{
+                        border: '1px solid var(--border)',
+                        borderRadius: 8,
+                        padding: '0.55rem',
+                        fontSize: '0.85rem',
+                      }}
+                    >
+                      <strong>v{v.version_no}</strong> · {v.change_reason} · {v.changed_by}
+                      <div className="muted" style={{ fontSize: '0.78rem' }}>
+                        {new Date(v.created_at).toLocaleString('vi-VN')}
+                        {v.ai_run_id ? ` · ai_run ${v.ai_run_id.slice(0, 8)}` : ''}
+                      </div>
+                    </li>
+                  ))}
+                  {!drawerVersions.length ? <li className="muted">Chưa có version history.</li> : null}
+                </ul>
+                {drawerItemId != null ? (
+                  <ContentOsVersionDiff
+                    token={token}
+                    lifecycleId={lifecycleId}
+                    itemId={drawerItemId}
+                    versions={drawerVersions}
+                    onError={setError}
+                  />
+                ) : null}
+              </>
+            ) : null}
+
+            {drawerTab === 'comments' && drawerItemId != null ? (
+              <ContentOsCommentsPanel
+                token={token}
+                lifecycleId={lifecycleId}
+                itemId={drawerItemId}
+                canWrite={canWrite}
+                onMessage={setMessage}
+                onError={setError}
+              />
             ) : null}
 
             {drawerTab === 'production' && drawerItem ? (

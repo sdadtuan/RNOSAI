@@ -5,6 +5,7 @@ import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { ContentAuditService } from './content-audit.service';
 import { ContentBrandContextService } from './content-brand-context.service';
 import { ContentCalendarService } from './content-calendar.service';
+import { ContentCommentsService } from './content-comments.service';
 import { ContentEmailBridgeService } from './content-email-bridge.service';
 import { ContentGenerateService } from './content-generate.service';
 import { ContentIdeaService } from './content-idea.service';
@@ -25,6 +26,7 @@ import { EmailMarketingModule } from '../email-marketing/email-marketing.module'
 import { SeoContentModule } from '../seo-content/seo-content.module';
 import {
   StaffContentMarketingApproveGuard,
+  StaffContentMarketingAssignGuard,
   StaffContentMarketingGenerateGuard,
   StaffContentMarketingProductionGuard,
   StaffContentMarketingPublishGuard,
@@ -49,6 +51,7 @@ import {
     ContentWorkflowService,
     ContentCalendarService,
     ContentAuditService,
+    ContentCommentsService,
     ContentRepurposeService,
     ContentSeoBridgeService,
     ContentEmailBridgeService,
@@ -64,6 +67,7 @@ import {
     StaffContentMarketingWriteGuard,
     StaffContentMarketingGenerateGuard,
     StaffContentMarketingApproveGuard,
+    StaffContentMarketingAssignGuard,
     StaffContentMarketingPublishGuard,
     StaffContentMarketingProductionGuard,
   ],

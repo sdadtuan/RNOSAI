@@ -134,6 +134,26 @@ export class StaffContentMarketingPublishGuard implements CanActivate {
 }
 
 @Injectable()
+export class StaffContentMarketingAssignGuard implements CanActivate {
+  constructor(private readonly staffAuth: StaffAuthService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<StaffReq>();
+    if (req.staffAuthVia === 'internal') return true;
+    if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
+
+    const me = await this.staffAuth.me(req.staffUser);
+    if (!this.staffAuth.hasCap(me.caps, 'crm_board', 'edit')) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_board', action: 'edit' });
+    }
+    if (!this.staffAuth.hasCap(me.caps, 'crm_content', 'assign')) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_content', action: 'assign' });
+    }
+    return true;
+  }
+}
+
+@Injectable()
 export class StaffContentMarketingProductionGuard implements CanActivate {
   constructor(private readonly staffAuth: StaffAuthService) {}
 

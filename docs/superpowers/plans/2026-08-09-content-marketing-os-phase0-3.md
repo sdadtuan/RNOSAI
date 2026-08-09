@@ -1,6 +1,8 @@
 # Content Marketing OS — Kế hoạch triển khai `ContentMarketingModule` (Phase 0 → 3)
 
-> **Coding execution (vertical slices · UAT-gated):** [`2026-08-09-content-marketing-coding-milestones.md`](./2026-08-09-content-marketing-coding-milestones.md) — **dùng plan này khi implement**; plan WS bên dưới là map phase/timeline.  
+> **Coding execution (vertical slices · UAT-gated):** [`2026-08-09-content-marketing-coding-milestones.md`](./2026-08-09-content-marketing-coding-milestones.md) — **M0–M6 DONE** staging `356ce00`.  
+> **Professionalization M7–M12:** [`2026-08-09-content-marketing-m7-m12-professionalization.md`](./2026-08-09-content-marketing-m7-m12-professionalization.md) — **implement tiếp từ đây**.  
+> **Implementation status:** [`../specs/2026-08-09-content-marketing-implementation-status.md`](../specs/2026-08-09-content-marketing-implementation-status.md)  
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) hoặc `superpowers:executing-plans` để thực thi từng workstream. Mỗi WS có exit criteria, smoke script và trace UC.
 
 **Goal:** Triển khai module Nest **`ContentMarketingModule`** + tab **`content-os`** trên service-delivery — EXECUTE layer tách khỏi MKT-AI Planner — pilot slug `tiep-thi-noi-dung` trên staging, mở rộng GA theo phase.

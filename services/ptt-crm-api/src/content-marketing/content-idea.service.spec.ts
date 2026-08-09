@@ -63,6 +63,8 @@ describe('ContentItemService', () => {
     createItem: jest.fn(),
     patchItem: jest.fn(),
     insertItemVersion: jest.fn(),
+    staffExists: jest.fn(),
+    getItemVersionByNo: jest.fn(),
   };
 
   const config = {
@@ -106,5 +108,38 @@ describe('ContentItemService', () => {
       'writer@test.vn',
       'manual',
     );
+  });
+
+  it('patchItemAssignees validates staff id', async () => {
+    repo.getItemById.mockResolvedValue({ id: 10, status: 'draft' });
+    repo.staffExists.mockResolvedValue(false);
+    await expect(
+      service.patchItemAssignees(1, 10, { assignee_sp: 999 }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('patchItemAssignees updates assignees', async () => {
+    repo.getItemById.mockResolvedValue({ id: 10, status: 'draft' });
+    repo.staffExists.mockResolvedValue(true);
+    repo.patchItem.mockResolvedValue({ id: 10, assignee_sp: 3, assignee_qa: null });
+
+    const out = await service.patchItemAssignees(1, 10, { assignee_sp: 3, assignee_qa: null });
+    expect(out.assignee_sp).toBe(3);
+    expect(repo.patchItem).toHaveBeenCalledWith(1, 10, { assignee_sp: 3, assignee_qa: null });
+  });
+
+  it('compareItemVersions returns diff lines', async () => {
+    repo.getItemById.mockResolvedValue({ id: 10, status: 'draft' });
+    repo.getItemVersionByNo.mockImplementation((_id: number, v: number) =>
+      v === 1
+        ? { version_no: 1, body_json: { markdown: 'a\nb' } }
+        : { version_no: 2, body_json: { markdown: 'a\nc' } },
+    );
+
+    const out = await service.compareItemVersions(1, 10, 1, 2);
+    expect(out.v1).toBe(1);
+    expect(out.v2).toBe(2);
+    expect(out.lines.some((l) => l.type === 'del' && l.text === 'b')).toBe(true);
+    expect(out.lines.some((l) => l.type === 'add' && l.text === 'c')).toBe(true);
   });
 });

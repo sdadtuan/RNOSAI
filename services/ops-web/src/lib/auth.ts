@@ -130,6 +130,10 @@ export function canProductionContentOs(user: StoredStaffUser | null): boolean {
   return hasCap(user, 'crm_board', 'edit') && (hasCap(user, 'crm_content', 'production') || hasCap(user, 'crm_content', 'write'));
 }
 
+export function canAssignContentOs(user: StoredStaffUser | null): boolean {
+  return hasCap(user, 'crm_board', 'edit') && hasCap(user, 'crm_content', 'assign');
+}
+
 export function updateStoredUser(user: StoredStaffUser): void {
   if (typeof window === 'undefined') return;
   sessionStorage.setItem(USER_KEY, JSON.stringify(user));

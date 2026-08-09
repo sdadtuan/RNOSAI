@@ -6,7 +6,8 @@ import { emptyBodyJson } from './content-marketing.util';
 import { assertProductionGateForPublish } from './content-production.util';
 import { assertVisualGateForPublish } from './content-media.util';
 import { assertTransition, CMKT_PUBLISH_FROM } from './content-workflow.util';
-import type { CmktBodyJson, CmktIdeaRow, CmktItemRow, CmktItemVersionRow } from './content-marketing.types';
+import { diffMarkdownLines } from './content-version-diff.util';
+import type { CmktBodyJson, CmktIdeaRow, CmktItemRow, CmktItemVersionRow, CmktVersionComparePayload } from './content-marketing.types';
 import { AppConfigService } from '../config/app-config.service';
 
 @Injectable()
@@ -138,6 +139,74 @@ export class ContentItemService {
       await this.repo.insertItemVersion(itemId, updated.body_json, actorEmail, versionReason);
     }
     return updated;
+  }
+
+  async patchItemAssignees(
+    lifecycleId: number,
+    itemId: number,
+    body: Record<string, unknown>,
+  ): Promise<CmktItemRow> {
+    await this.core.ensureLifecycleEnabled(lifecycleId);
+    const existing = await this.repo.getItemById(lifecycleId, itemId);
+    if (!existing) {
+      throw new NotFoundException({ error: 'item_not_found', id: itemId });
+    }
+    if (existing.status === 'published' || existing.status === 'archived') {
+      throw new BadRequestException({ error: 'item_locked', status: existing.status });
+    }
+
+    const patch: Record<string, unknown> = {};
+    if ('assignee_sp' in body) {
+      patch.assignee_sp = await this.parseAssigneeId(body.assignee_sp);
+    }
+    if ('assignee_qa' in body) {
+      patch.assignee_qa = await this.parseAssigneeId(body.assignee_qa);
+    }
+    if (!Object.keys(patch).length) {
+      throw new BadRequestException({ error: 'assignee_required', message: 'Cần assignee_sp hoặc assignee_qa.' });
+    }
+    return this.repo.patchItem(lifecycleId, itemId, patch);
+  }
+
+  async compareItemVersions(
+    lifecycleId: number,
+    itemId: number,
+    v1: number,
+    v2: number,
+  ): Promise<CmktVersionComparePayload> {
+    await this.core.ensureLifecycleEnabled(lifecycleId);
+    const item = await this.repo.getItemById(lifecycleId, itemId);
+    if (!item) {
+      throw new NotFoundException({ error: 'item_not_found', id: itemId });
+    }
+    if (!Number.isFinite(v1) || !Number.isFinite(v2) || v1 <= 0 || v2 <= 0) {
+      throw new BadRequestException({ error: 'invalid_version', v1, v2 });
+    }
+
+    const [versionA, versionB] = await Promise.all([
+      this.repo.getItemVersionByNo(itemId, v1),
+      this.repo.getItemVersionByNo(itemId, v2),
+    ]);
+    if (!versionA || !versionB) {
+      throw new NotFoundException({ error: 'version_not_found', v1, v2 });
+    }
+
+    const before = String(versionA.body_json?.markdown ?? '');
+    const after = String(versionB.body_json?.markdown ?? '');
+    const diff = diffMarkdownLines(before, after);
+    return { item_id: itemId, v1, v2, lines: diff.lines };
+  }
+
+  private async parseAssigneeId(value: unknown): Promise<number | null> {
+    if (value == null || value === '') return null;
+    const id = Number(value);
+    if (!Number.isFinite(id) || id <= 0) {
+      throw new BadRequestException({ error: 'invalid_assignee', value });
+    }
+    if (!(await this.repo.staffExists(id))) {
+      throw new BadRequestException({ error: 'assignee_not_found', id });
+    }
+    return id;
   }
 
   async listItemVersions(lifecycleId: number, itemId: number): Promise<{ versions: CmktItemVersionRow[] }> {

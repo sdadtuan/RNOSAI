@@ -13,6 +13,7 @@ import type {
   CmktItemRow,
   CmktAuditRow,
   CmktCalendarSlotRow,
+  CmktCommentRow,
   CmktItemVersionRow,
   CmktJobRow,
   CmktPillarRow,
@@ -1240,24 +1241,110 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     body: string;
     visibility?: string;
   }): Promise<void> {
+    await this.insertItemCommentReturning(input);
+  }
+
+  async insertItemCommentReturning(input: {
+    item_id: number;
+    author_id: string;
+    body: string;
+    visibility?: string;
+  }): Promise<CmktCommentRow> {
+    const visibility = input.visibility ?? 'internal';
     if (await this.ensurePgReady()) {
-      await this.db.query(
+      const res = await this.db.query(
         `INSERT INTO cmkt_content_comments (item_id, author_id, body, visibility)
-         VALUES ($1, $2, $3, $4)`,
-        [input.item_id, input.author_id, input.body, input.visibility ?? 'internal'],
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, item_id, author_id, body, visibility, created_at`,
+        [input.item_id, input.author_id, input.body, visibility],
       );
-      return;
+      const row = res.rows[0];
+      return {
+        id: Number(row.id),
+        item_id: Number(row.item_id),
+        author_id: String(row.author_id ?? ''),
+        body: String(row.body ?? ''),
+        visibility: String(row.visibility ?? 'internal'),
+        created_at: new Date(String(row.created_at)).toISOString(),
+      };
     }
     const list = this.memory.comments.get(input.item_id) ?? [];
-    list.push({
+    const comment = {
       id: this.memory.nextCommentId++,
       item_id: input.item_id,
       author_id: input.author_id,
       body: input.body,
-      visibility: input.visibility ?? 'internal',
+      visibility,
       created_at: new Date().toISOString(),
-    });
+    };
+    list.push(comment);
     this.memory.comments.set(input.item_id, list);
+    return comment;
+  }
+
+  async listItemComments(itemId: number): Promise<CmktCommentRow[]> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, item_id, author_id, body, visibility, created_at
+         FROM cmkt_content_comments
+         WHERE item_id = $1
+         ORDER BY created_at ASC, id ASC`,
+        [itemId],
+      );
+      return res.rows.map((row) => ({
+        id: Number(row.id),
+        item_id: Number(row.item_id),
+        author_id: String(row.author_id ?? ''),
+        body: String(row.body ?? ''),
+        visibility: String(row.visibility ?? 'internal'),
+        created_at: new Date(String(row.created_at)).toISOString(),
+      }));
+    }
+    return [...(this.memory.comments.get(itemId) ?? [])].sort((a, b) =>
+      a.created_at.localeCompare(b.created_at),
+    );
+  }
+
+  async staffExists(staffId: number): Promise<boolean> {
+    if (!Number.isFinite(staffId) || staffId <= 0) return false;
+    if (await this.ensurePgReady()) {
+      try {
+        const res = await this.db.query(
+          `SELECT 1 FROM crm_staff WHERE id = $1 AND COALESCE(active, TRUE) = TRUE LIMIT 1`,
+          [staffId],
+        );
+        return (res.rowCount ?? 0) > 0;
+      } catch {
+        return false;
+      }
+    }
+    return staffId > 0 && staffId < 100000;
+  }
+
+  async getItemVersionByNo(itemId: number, versionNo: number): Promise<CmktItemVersionRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, item_id, version_no, body_json, changed_by, change_reason,
+                ai_run_id::text AS ai_run_id, created_at
+         FROM cmkt_content_item_versions
+         WHERE item_id = $1 AND version_no = $2
+         LIMIT 1`,
+        [itemId, versionNo],
+      );
+      if (!res.rows[0]) return null;
+      const row = res.rows[0];
+      return {
+        id: Number(row.id),
+        item_id: Number(row.item_id),
+        version_no: Number(row.version_no),
+        body_json: row.body_json as CmktBodyJson,
+        changed_by: String(row.changed_by ?? ''),
+        change_reason: String(row.change_reason ?? ''),
+        ai_run_id: row.ai_run_id != null ? String(row.ai_run_id) : null,
+        created_at: new Date(String(row.created_at)).toISOString(),
+      };
+    }
+    return (this.memory.versions.get(itemId) ?? []).find((v) => v.version_no === versionNo) ?? null;
   }
 
   async listAudit(lifecycleId: number, limit = 50): Promise<CmktAuditRow[]> {

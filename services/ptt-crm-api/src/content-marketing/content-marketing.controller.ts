@@ -16,9 +16,11 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { ContentAuditService } from './content-audit.service';
 import { ContentCalendarService } from './content-calendar.service';
+import { ContentCommentsService } from './content-comments.service';
 import { ContentEmailBridgeService } from './content-email-bridge.service';
 import { ContentGenerateService } from './content-generate.service';
 import { ContentIdeaService } from './content-idea.service';
@@ -34,6 +36,7 @@ import { ContentWorkflowService } from './content-workflow.service';
 import { ContentMarketingService } from './content-marketing.service';
 import {
   StaffContentMarketingApproveGuard,
+  StaffContentMarketingAssignGuard,
   StaffContentMarketingGenerateGuard,
   StaffContentMarketingProductionGuard,
   StaffContentMarketingPublishGuard,
@@ -58,12 +61,14 @@ export class ContentMarketingController {
     private readonly workflow: ContentWorkflowService,
     private readonly calendar: ContentCalendarService,
     private readonly audit: ContentAuditService,
+    private readonly comments: ContentCommentsService,
     private readonly repurpose: ContentRepurposeService,
     private readonly seoBridge: ContentSeoBridgeService,
     private readonly emailBridge: ContentEmailBridgeService,
     private readonly production: ContentProductionService,
     private readonly media: ContentMediaGenerateService,
     private readonly visual: ContentVisualService,
+    private readonly staffAuth: StaffAuthService,
   ) {}
 
   @Get('context')
@@ -140,16 +145,24 @@ export class ContentMarketingController {
   }
 
   @Get('items')
-  listItems(
+  async listItems(
     @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
     @Query('status') status?: string,
     @Query('format') format?: string,
     @Query('assignee') assignee?: string,
+    @Req() req?: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
   ) {
+    let assigneeId: number | undefined;
+    if (assignee === 'me' && req?.staffUser) {
+      const sid = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (sid != null) assigneeId = sid;
+    } else if (assignee != null && assignee !== '' && assignee !== 'me') {
+      assigneeId = Number(assignee);
+    }
     return this.items.listItems(lifecycleId, {
       status: status || undefined,
       format: format || undefined,
-      assignee: assignee != null && assignee !== '' ? Number(assignee) : undefined,
+      assignee: assigneeId,
     });
   }
 
@@ -183,12 +196,57 @@ export class ContentMarketingController {
     return this.items.patchItem(lifecycleId, itemId, body, actorEmail(req));
   }
 
+  @Patch('items/:itemId/assignees')
+  @UseGuards(StaffContentMarketingAssignGuard)
+  patchItemAssignees(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.items.patchItemAssignees(lifecycleId, itemId, body);
+  }
+
   @Get('items/:itemId/versions')
   listItemVersions(
     @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
     @Param('itemId', ParseIntPipe) itemId: number,
   ) {
     return this.items.listItemVersions(lifecycleId, itemId);
+  }
+
+  @Get('items/:itemId/versions/compare')
+  compareItemVersions(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Query('v1') v1?: string,
+    @Query('v2') v2?: string,
+  ) {
+    return this.items.compareItemVersions(
+      lifecycleId,
+      itemId,
+      Number(v1),
+      Number(v2),
+    );
+  }
+
+  @Get('items/:itemId/comments')
+  listItemComments(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+  ) {
+    return this.comments.listComments(lifecycleId, itemId);
+  }
+
+  @Post('items/:itemId/comments')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  addItemComment(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.comments.addComment(lifecycleId, itemId, body, actorEmail(req));
   }
 
   @Post('items/:itemId/jobs/draft')
