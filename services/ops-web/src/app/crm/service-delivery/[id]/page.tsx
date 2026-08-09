@@ -396,7 +396,7 @@ export default function CrmServiceDeliveryDetailPage() {
           ) : detailTab === 'content-os' ? (
             <ContentOsPanel token={token} user={user} lifecycleId={lifecycleId} />
           ) : detailTab === 'ops-hub' && showOpsHubTab ? (
-            <OpsServiceHubPanel token={token} lifecycleId={lifecycleId} />
+            <OpsServiceHubPanel token={token} lifecycleId={lifecycleId} user={user} />
           ) : detailTab === 'finance' ? (
             <LifecycleFinancePanel
               token={token}

@@ -3,9 +3,11 @@ import type {
   OpsHubEngine,
   OpsHubFlags,
   OpsHubPayload,
+  OpsKpiMetricPayload,
   OpsReadiness,
   OpsRouteMapService,
   OpsServiceProfileRow,
+  OpsWeeklyChecklistPayload,
 } from './ops.types';
 
 export function currentIsoWeek(date = new Date()): string {
@@ -47,8 +49,19 @@ export function buildOpsHubPayload(input: {
   dv: OpsRouteMapService;
   profile: OpsServiceProfileRow | null;
   flags: OpsHubFlags;
+  weeklySnapshot?: {
+    spawned: boolean;
+    tasks_pending: number;
+    tasks_done: number;
+    items?: OpsWeeklyChecklistPayload[];
+  };
+  kpiSnapshot?: {
+    period_type: 'week' | 'month';
+    period_key: string;
+    metrics: OpsKpiMetricPayload[];
+  };
 }): OpsHubPayload {
-  const { ctx, dv, profile, flags } = input;
+  const { ctx, dv, profile, flags, weeklySnapshot, kpiSnapshot } = input;
   const opsWeb = (profile?.ops_web_json ?? dv.ops_web ?? {}) as {
     execution?: Array<{ route: string; purpose?: string }>;
   };
@@ -84,6 +97,7 @@ export function buildOpsHubPayload(input: {
       slug: ctx.serviceSlug,
       client_name: ctx.clientName,
       status: ctx.status,
+      stage: ctx.stage,
       package_tier: ctx.packageTier,
     },
     dv: {
@@ -94,11 +108,13 @@ export function buildOpsHubPayload(input: {
     engines,
     weekly: {
       iso_week: currentIsoWeek(),
-      spawned: false,
-      tasks_pending: 0,
-      tasks_done: 0,
+      spawned: weeklySnapshot?.spawned ?? false,
+      tasks_pending: weeklySnapshot?.tasks_pending ?? 0,
+      tasks_done: weeklySnapshot?.tasks_done ?? 0,
+      items: weeklySnapshot?.items,
     },
-    kpi: {
+    kpi: kpiSnapshot ?? {
+      period_type: 'month',
       period_key: currentMonthKey(),
       metrics: [],
     },

@@ -6,6 +6,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const mapPath = path.join(ROOT, 'docs/specs/ops-dv01-dv21-route-map.json');
+const pilotSeedPath = path.join(ROOT, 'docs/specs/ops-dv-pilot-weekly-kpi-seed.json');
 const databaseUrl = process.env.DATABASE_URL;
 
 const pgModulePath = path.join(ROOT, 'services/ptt-crm-api/node_modules/pg');
@@ -17,6 +18,9 @@ if (!databaseUrl) {
 }
 
 const map = JSON.parse(fs.readFileSync(mapPath, 'utf8'));
+const pilotSeed = fs.existsSync(pilotSeedPath)
+  ? JSON.parse(fs.readFileSync(pilotSeedPath, 'utf8'))
+  : { pilot_dv: {} };
 if (!map.services || map.services.length !== 21) {
   console.error('Expected 21 services in route map');
   process.exit(1);
@@ -28,11 +32,14 @@ async function main() {
 
   for (const entry of map.services) {
     const sortOrder = Number(String(entry.code).replace('DV', '')) || 0;
+    const pilot = pilotSeed.pilot_dv?.[entry.code] ?? {};
+    const weeklyTemplate = pilot.weekly_process_template ?? [];
+    const kpiDefinitions = pilot.kpi_definitions ?? [];
     await client.query(
       `INSERT INTO ops_service_profile
          (dv_code, service_slug, name, readiness, service_slugs_json, ops_web_json, nest_api_json,
-          depends_on_dv, gaps, sort_order)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          depends_on_dv, gaps, sort_order, weekly_process_template, kpi_definitions)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        ON CONFLICT (dv_code) DO UPDATE SET
          service_slug = EXCLUDED.service_slug,
          name = EXCLUDED.name,
@@ -43,6 +50,16 @@ async function main() {
          depends_on_dv = EXCLUDED.depends_on_dv,
          gaps = EXCLUDED.gaps,
          sort_order = EXCLUDED.sort_order,
+         weekly_process_template = CASE
+           WHEN EXCLUDED.weekly_process_template::text NOT IN ('[]', '{}', 'null')
+           THEN EXCLUDED.weekly_process_template
+           ELSE ops_service_profile.weekly_process_template
+         END,
+         kpi_definitions = CASE
+           WHEN EXCLUDED.kpi_definitions::text NOT IN ('[]', '{}', 'null')
+           THEN EXCLUDED.kpi_definitions
+           ELSE ops_service_profile.kpi_definitions
+         END,
          updated_at = NOW()`,
       [
         entry.code,
@@ -55,6 +72,8 @@ async function main() {
         JSON.stringify(entry.depends_on_dv ?? []),
         JSON.stringify(entry.gaps ?? []),
         sortOrder,
+        JSON.stringify(weeklyTemplate),
+        JSON.stringify(kpiDefinitions),
       ],
     );
 

@@ -62,12 +62,33 @@ export type OpsHubEngine = {
   badge: string | null;
 };
 
+export type OpsKpiMetricPayload = {
+  key: string;
+  label: string;
+  unit?: string;
+  actual: number | null;
+  target: number | null;
+  status_label?: 'Dat' | 'CanChuY' | 'KhongDat';
+};
+
+export type OpsWeeklyChecklistPayload = {
+  id: number;
+  template_task_id: string;
+  title: string;
+  owner_role: string;
+  day_of_week: number | null;
+  status: 'pending' | 'done' | 'skipped';
+  kpi_key: string | null;
+  completed_at: string | null;
+};
+
 export type OpsHubPayload = {
   lifecycle: {
     id: number;
     slug: string;
     client_name: string;
     status: string;
+    stage?: string;
     package_tier: string;
   };
   dv: {
@@ -81,10 +102,12 @@ export type OpsHubPayload = {
     spawned: boolean;
     tasks_pending: number;
     tasks_done: number;
+    items?: OpsWeeklyChecklistPayload[];
   };
   kpi: {
+    period_type: 'week' | 'month';
     period_key: string;
-    metrics: unknown[];
+    metrics: OpsKpiMetricPayload[];
   };
   flags: {
     ops_dv_enabled: boolean;
@@ -93,10 +116,25 @@ export type OpsHubPayload = {
   };
 };
 
+export type OpsSpawnWeekResult = {
+  iso_week: string;
+  dv_code: string;
+  created: number;
+  already_spawned: boolean;
+  items: OpsWeeklyChecklistPayload[];
+};
+
+export type OpsKpiUpsertBody = {
+  period_type?: 'week' | 'month';
+  period_key?: string;
+  metrics: Record<string, { actual?: number | null; target?: number | null }>;
+};
+
 export type OpsHubBuildContext = {
   lifecycleId: number;
   serviceSlug: string;
   status: string;
+  stage?: string;
   clientName: string;
   packageTier: string;
   agencyClientId?: string;

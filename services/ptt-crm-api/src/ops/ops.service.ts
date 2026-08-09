@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
   OnModuleInit,
@@ -8,17 +9,45 @@ import {
 import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { OPS_PACKAGE_TIERS } from './ops.constants';
-import { buildOpsHubPayload } from './ops-hub.builder';
+import { currentIsoWeek, currentMonthKey, buildOpsHubPayload } from './ops-hub.builder';
+import {
+  computeMetricLabels,
+  type OpsKpiDefinition,
+  type OpsKpiMetricInput,
+} from './ops-kpi-label.util';
+import { OpsKpiPgRepository } from './ops-kpi-pg.repository';
 import { OpsProfilePgRepository } from './ops-profile-pg.repository';
 import { OpsRouteMapLoader } from './ops-route-map.loader';
 import { resolveDvByLifecycleSlug } from './ops-slug-resolver.util';
+import { OpsWeeklyPgRepository } from './ops-weekly-pg.repository';
+import {
+  canSpawnWeeklyTasks,
+  flattenWeeklyTemplate,
+} from './ops-weekly-template.util';
 import type {
   OpsCatalogItem,
   OpsCatalogResponse,
   OpsHubPayload,
+  OpsKpiMetricPayload,
+  OpsKpiUpsertBody,
   OpsRouteMapService,
   OpsServiceProfileRow,
+  OpsSpawnWeekResult,
+  OpsWeeklyChecklistPayload,
 } from './ops.types';
+
+type ResolvedLifecycleDv = {
+  lifecycleId: number;
+  serviceSlug: string;
+  status: string;
+  stage: string;
+  packageTier: string;
+  clientName: string;
+  agencyClientId?: string;
+  dv: OpsRouteMapService;
+  profile: OpsServiceProfileRow | null;
+  kpiDefinitions: OpsKpiDefinition[];
+};
 
 @Injectable()
 export class OpsService implements OnModuleInit {
@@ -26,6 +55,8 @@ export class OpsService implements OnModuleInit {
     private readonly config: AppConfigService,
     private readonly routeMapLoader: OpsRouteMapLoader,
     private readonly profiles: OpsProfilePgRepository,
+    private readonly weekly: OpsWeeklyPgRepository,
+    private readonly kpi: OpsKpiPgRepository,
     private readonly lifecycle: ServiceLifecycleService,
   ) {}
 
@@ -55,10 +86,106 @@ export class OpsService implements OnModuleInit {
     };
   }
 
+  private parseKpiDefinitions(profile: OpsServiceProfileRow | null): OpsKpiDefinition[] {
+    const raw = profile?.kpi_definitions ?? [];
+    if (!Array.isArray(raw)) return [];
+    const out: OpsKpiDefinition[] = [];
+    for (const item of raw) {
+      const row = item as Record<string, unknown>;
+      const key = String(row.key ?? '').trim();
+      if (!key) continue;
+      out.push({
+        key,
+        label: String(row.label ?? key),
+        unit: row.unit != null ? String(row.unit) : undefined,
+        target: row.target != null ? Number(row.target) : undefined,
+        target_by_tier: row.target_by_tier as Record<string, number> | undefined,
+      });
+    }
+    return out;
+  }
+
+  private mapChecklistItem(item: {
+    id: number;
+    template_task_id: string;
+    title: string;
+    owner_role: string;
+    day_of_week: number | null;
+    status: 'pending' | 'done' | 'skipped';
+    kpi_key: string | null;
+    completed_at: string | null;
+  }): OpsWeeklyChecklistPayload {
+    return {
+      id: item.id,
+      template_task_id: item.template_task_id,
+      title: item.title,
+      owner_role: item.owner_role,
+      day_of_week: item.day_of_week,
+      status: item.status,
+      kpi_key: item.kpi_key,
+      completed_at: item.completed_at,
+    };
+  }
+
+  private mapKpiMetrics(metrics: OpsKpiMetricInput[]): OpsKpiMetricPayload[] {
+    return metrics.map((m) => ({
+      key: m.key,
+      label: m.label,
+      unit: m.unit,
+      actual: m.actual ?? null,
+      target: m.target ?? null,
+      status_label: m.status_label,
+    }));
+  }
+
+  private async resolveLifecycleDv(lifecycleId: number): Promise<ResolvedLifecycleDv> {
+    const detail = await this.lifecycle.detail(lifecycleId);
+    const serviceSlug = String(detail.service_slug ?? '').trim();
+    const map = this.routeMapLoader.getMap();
+    const dv = resolveDvByLifecycleSlug(serviceSlug, map);
+    if (!dv) {
+      throw new UnprocessableEntityException({
+        error: 'unknown_service_slug',
+        slug: serviceSlug,
+      });
+    }
+
+    let profile: OpsServiceProfileRow | null = null;
+    try {
+      profile = await this.profiles.getByDvCode(dv.code);
+    } catch {
+      profile = null;
+    }
+
+    let clientName = '';
+    let agencyClientId = '';
+    try {
+      const ctx = await this.lifecycle.context(lifecycleId);
+      clientName = String(ctx.lead?.full_name ?? ctx.contract?.title ?? '').trim();
+      agencyClientId = String(ctx.contract?.agency_client_id ?? '').trim();
+    } catch {
+      clientName = '';
+    }
+
+    return {
+      lifecycleId,
+      serviceSlug,
+      status: String(detail.status ?? ''),
+      stage: String(detail.stage ?? ''),
+      packageTier: 'standard',
+      clientName,
+      agencyClientId: agencyClientId || undefined,
+      dv,
+      profile,
+      kpiDefinitions: this.parseKpiDefinitions(profile),
+    };
+  }
+
   health() {
     return {
       ok: true,
       ops_dv_enabled: this.config.opsDvEnabled,
+      ops_weekly_spawn_enabled: this.config.opsWeeklySpawnEnabled,
       route_map: this.routeMapLoader.isLoaded()
         ? this.routeMapLoader.getLoadedPath()
         : null,
@@ -143,48 +270,214 @@ export class OpsService implements OnModuleInit {
     };
   }
 
+  private async loadWeeklySnapshot(lifecycleId: number, isoWeek: string) {
+    try {
+      const summary = await this.weekly.countChecklistSummary(lifecycleId, isoWeek);
+      const items = summary.spawned
+        ? (await this.weekly.listChecklistItems(lifecycleId, isoWeek)).map((item) =>
+            this.mapChecklistItem(item),
+          )
+        : [];
+      return { ...summary, items };
+    } catch {
+      return { pending: 0, done: 0, spawned: false, items: [] as OpsWeeklyChecklistPayload[] };
+    }
+  }
+
+  private async loadKpiSnapshot(
+    resolved: ResolvedLifecycleDv,
+    periodType: 'week' | 'month',
+    periodKey: string,
+  ) {
+    try {
+      const record = await this.kpi.getRecord(resolved.lifecycleId, periodType, periodKey);
+      if (record) {
+        const raw = record.metrics_json as Record<
+          string,
+          { actual?: number | null; target?: number | null; label?: string; unit?: string; status_label?: string }
+        >;
+        const metrics = computeMetricLabels(raw, resolved.kpiDefinitions, resolved.packageTier);
+        return this.mapKpiMetrics(metrics);
+      }
+    } catch {
+      // fall through
+    }
+    return this.mapKpiMetrics(
+      computeMetricLabels({}, resolved.kpiDefinitions, resolved.packageTier),
+    );
+  }
+
   async getHub(lifecycleId: number): Promise<OpsHubPayload> {
     this.assertEnabled();
-    const detail = await this.lifecycle.detail(lifecycleId);
-    const serviceSlug = String(detail.service_slug ?? '').trim();
-    const map = this.routeMapLoader.getMap();
-    const dv = resolveDvByLifecycleSlug(serviceSlug, map);
-    if (!dv) {
-      throw new UnprocessableEntityException({
-        error: 'unknown_service_slug',
-        slug: serviceSlug,
-      });
-    }
-
-    let profile: OpsServiceProfileRow | null = null;
-    try {
-      profile = await this.profiles.getByDvCode(dv.code);
-    } catch {
-      profile = null;
-    }
-
-    let clientName = '';
-    let agencyClientId = '';
-    try {
-      const ctx = await this.lifecycle.context(lifecycleId);
-      clientName = String(ctx.lead?.full_name ?? ctx.contract?.title ?? '').trim();
-      agencyClientId = String(ctx.contract?.agency_client_id ?? '').trim();
-    } catch {
-      clientName = '';
-    }
+    const resolved = await this.resolveLifecycleDv(lifecycleId);
+    const isoWeek = currentIsoWeek();
+    const [weeklySnapshot, kpiMetrics] = await Promise.all([
+      this.loadWeeklySnapshot(lifecycleId, isoWeek),
+      this.loadKpiSnapshot(resolved, 'month', currentMonthKey()),
+    ]);
 
     return buildOpsHubPayload({
       ctx: {
-        lifecycleId,
-        serviceSlug,
-        status: String(detail.status ?? ''),
-        clientName,
-        packageTier: 'standard',
-        agencyClientId: agencyClientId || undefined,
+        lifecycleId: resolved.lifecycleId,
+        serviceSlug: resolved.serviceSlug,
+        status: resolved.status,
+        stage: resolved.stage,
+        clientName: resolved.clientName,
+        packageTier: resolved.packageTier,
+        agencyClientId: resolved.agencyClientId,
       },
-      dv,
-      profile,
+      dv: resolved.dv,
+      profile: resolved.profile,
       flags: this.hubFlags(),
+      weeklySnapshot: {
+        spawned: weeklySnapshot.spawned,
+        tasks_pending: weeklySnapshot.pending,
+        tasks_done: weeklySnapshot.done,
+        items: weeklySnapshot.items,
+      },
+      kpiSnapshot: {
+        period_type: 'month',
+        period_key: currentMonthKey(),
+        metrics: kpiMetrics,
+      },
     });
+  }
+
+  async spawnWeek(lifecycleId: number, spawnedBy = 'staff'): Promise<OpsSpawnWeekResult> {
+    this.assertEnabled();
+    const resolved = await this.resolveLifecycleDv(lifecycleId);
+    const gate = canSpawnWeeklyTasks({
+      status: resolved.status,
+      stage: resolved.stage,
+      spawnEnabled: this.config.opsWeeklySpawnEnabled,
+    });
+    if (!gate.ok) {
+      throw new BadRequestException({ error: gate.error });
+    }
+
+    const templateTasks = flattenWeeklyTemplate(resolved.profile?.weekly_process_template);
+    if (templateTasks.length === 0) {
+      throw new UnprocessableEntityException({ error: 'empty_weekly_template', dv_code: resolved.dv.code });
+    }
+
+    const isoWeek = currentIsoWeek();
+    const result = await this.weekly.spawnWeek({
+      lifecycleId,
+      isoWeek,
+      dvCode: resolved.dv.code,
+      tasks: templateTasks,
+      spawnedBy,
+    });
+
+    return {
+      iso_week: isoWeek,
+      dv_code: resolved.dv.code,
+      created: result.created,
+      already_spawned: result.already_spawned,
+      items: result.items.map((item) => this.mapChecklistItem(item)),
+    };
+  }
+
+  async getWeeklyChecklist(lifecycleId: number, isoWeek?: string) {
+    this.assertEnabled();
+    await this.resolveLifecycleDv(lifecycleId);
+    const week = isoWeek?.trim() || currentIsoWeek();
+    const items = await this.weekly.listChecklistItems(lifecycleId, week);
+    const summary = await this.weekly.countChecklistSummary(lifecycleId, week);
+    return {
+      iso_week: week,
+      spawned: summary.spawned,
+      tasks_pending: summary.pending,
+      tasks_done: summary.done,
+      items: items.map((item) => this.mapChecklistItem(item)),
+    };
+  }
+
+  async patchWeeklyItem(
+    lifecycleId: number,
+    itemId: number,
+    status: 'pending' | 'done' | 'skipped',
+  ) {
+    this.assertEnabled();
+    await this.resolveLifecycleDv(lifecycleId);
+    const updated = await this.weekly.updateChecklistItemStatus(lifecycleId, itemId, status);
+    if (!updated) {
+      throw new NotFoundException({ error: 'checklist_item_not_found' });
+    }
+    return this.mapChecklistItem(updated);
+  }
+
+  async getKpiRecords(
+    lifecycleId: number,
+    periodType?: 'week' | 'month',
+    periodKey?: string,
+  ) {
+    this.assertEnabled();
+    const resolved = await this.resolveLifecycleDv(lifecycleId);
+    const type = periodType ?? 'month';
+    const key = periodKey?.trim() || (type === 'month' ? currentMonthKey() : currentIsoWeek());
+    const metrics = await this.loadKpiSnapshot(resolved, type, key);
+    return {
+      lifecycle_id: lifecycleId,
+      dv_code: resolved.dv.code,
+      period_type: type,
+      period_key: key,
+      metrics,
+    };
+  }
+
+  async upsertKpi(lifecycleId: number, body: OpsKpiUpsertBody) {
+    this.assertEnabled();
+    const resolved = await this.resolveLifecycleDv(lifecycleId);
+    const periodType = body.period_type ?? 'month';
+    const periodKey =
+      body.period_key?.trim() || (periodType === 'month' ? currentMonthKey() : currentIsoWeek());
+    if (!body.metrics || typeof body.metrics !== 'object') {
+      throw new BadRequestException({ error: 'metrics_required' });
+    }
+
+    const result = await this.kpi.upsertMetrics({
+      lifecycleId,
+      dvCode: resolved.dv.code,
+      periodType,
+      periodKey,
+      metrics: body.metrics,
+      definitions: resolved.kpiDefinitions,
+      packageTier: resolved.packageTier,
+      source: 'manual',
+    });
+
+    return {
+      lifecycle_id: lifecycleId,
+      dv_code: resolved.dv.code,
+      period_type: periodType,
+      period_key: periodKey,
+      metrics: this.mapKpiMetrics(result.metrics),
+    };
+  }
+
+  async computeKpiLabels(
+    lifecycleId: number,
+    periodType: 'week' | 'month' = 'month',
+    periodKey?: string,
+  ) {
+    this.assertEnabled();
+    const resolved = await this.resolveLifecycleDv(lifecycleId);
+    const key =
+      periodKey?.trim() || (periodType === 'month' ? currentMonthKey() : currentIsoWeek());
+    const result = await this.kpi.recomputeLabels(
+      lifecycleId,
+      periodType,
+      key,
+      resolved.kpiDefinitions,
+      resolved.packageTier,
+    );
+    return {
+      lifecycle_id: lifecycleId,
+      dv_code: resolved.dv.code,
+      period_type: periodType,
+      period_key: key,
+      metrics: this.mapKpiMetrics(result.metrics),
+    };
   }
 }
