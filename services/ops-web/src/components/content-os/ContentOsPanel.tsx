@@ -30,6 +30,8 @@ import {
   fetchContentOsItems,
   patchContentOsItem,
   postContentOsApproveItem,
+  postContentOsClientApprove,
+  postContentOsSubmitClient,
   postContentOsIdea,
   postContentOsIdeasBulkJob,
   postContentOsIdeaConvert,
@@ -41,7 +43,7 @@ import {
   type ContentOsItem,
   type ContentOsItemVersion,
 } from '@/lib/content-os-api';
-import { type ContentOsSubView } from '@/lib/content-os-status';
+import { boardColumns, type ContentOsSubView } from '@/lib/content-os-status';
 import { useContentOsViewParams } from '@/lib/use-content-os-view-params';
 
 type DrawerTab = 'body' | 'variants' | 'versions' | 'comments' | 'production' | 'media';
@@ -52,12 +54,12 @@ interface Props {
   lifecycleId: number;
 }
 
-const BOARD_COLUMNS = ['draft', 'in_review', 'approved_internal', 'scheduled', 'published'] as const;
-
 const COLUMN_LABELS: Record<string, string> = {
   draft: 'Draft',
   in_review: 'Đang duyệt',
   approved_internal: 'Đã duyệt',
+  pending_client: 'Chờ KH',
+  client_approved: 'KH OK',
   scheduled: 'Đã lên lịch',
   published: 'Published',
 };
@@ -427,7 +429,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
             </label>
           </div>
           <div style={{ display: 'flex', gap: '0.65rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
-          {BOARD_COLUMNS.map((col) => (
+          {boardColumns(Boolean(ctx?.flags.client_gate)).map((col) => (
             <div key={col} style={{ minWidth: 200, flex: '0 0 200px' }}>
               <div className="muted" style={{ marginBottom: '0.35rem', fontWeight: 600 }}>
                 {COLUMN_LABELS[col] ?? col} ({items.filter((i) => i.status === col).length})
@@ -554,6 +556,19 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
                 <p className="muted" style={{ fontSize: '0.85rem' }}>
                   {channelFormatLabel(drawerItem.channel, drawerItem.format)} · {drawerItem.status}
                 </p>
+                {drawerItem.status === 'pending_client' ? (
+                  <p
+                    style={{
+                      margin: '0.35rem 0 0',
+                      padding: '0.45rem 0.65rem',
+                      borderRadius: 8,
+                      background: 'color-mix(in srgb, var(--warning, #e6a700) 15%, transparent)',
+                      fontSize: '0.85rem',
+                    }}
+                  >
+                    Chờ KH duyệt — client sẽ thấy trên Portal khi bật PTT_CMKT_PORTAL_SUMMARY.
+                  </p>
+                ) : null}
                 <ContentOsAssigneePicker
                   token={token}
                   lifecycleId={lifecycleId}
@@ -723,6 +738,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
                 item={drawerItem}
                 mediaEnabled={Boolean(ctx?.flags.media_enabled)}
                 imageGenEnabled={Boolean(ctx?.flags.image_gen_enabled)}
+                videoGenEnabled={Boolean(ctx?.flags.video_gen_enabled)}
                 canGenerate={canGenerate}
                 canWrite={canWrite}
                 canApprove={canApprove}
@@ -778,13 +794,65 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
                       Duyệt
                     </button>
                   ) : null}
+                  {canWrite &&
+                  ctx?.flags.client_gate &&
+                  drawerItem.status === 'approved_internal' ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      disabled={saving}
+                      onClick={async () => {
+                        if (drawerItemId == null) return;
+                        setSaving(true);
+                        try {
+                          await postContentOsSubmitClient(token, lifecycleId, drawerItemId);
+                          setMessage('Đã gửi KH duyệt');
+                          await refreshDrawerItem();
+                          await reload();
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : 'Gửi KH thất bại');
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                    >
+                      Gửi KH duyệt
+                    </button>
+                  ) : null}
+                  {canApprove &&
+                  ctx?.flags.client_gate &&
+                  drawerItem.status === 'pending_client' ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost"
+                      disabled={saving}
+                      onClick={async () => {
+                        if (drawerItemId == null) return;
+                        setSaving(true);
+                        try {
+                          await postContentOsClientApprove(token, lifecycleId, drawerItemId);
+                          setMessage('Đã ghi nhận KH duyệt (staff simulate)');
+                          await refreshDrawerItem();
+                          await reload();
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : 'Client approve thất bại');
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                    >
+                      Simulate KH duyệt
+                    </button>
+                  ) : null}
                   {['facebook', 'linkedin'].includes(drawerItem.channel) ? (
                     <button type="button" className="btn btn-sm btn-ghost" onClick={onCopyCaption}>
                       Copy caption
                     </button>
                   ) : null}
                   {canPublish &&
-                  (drawerItem.status === 'approved_internal' || drawerItem.status === 'scheduled') ? (
+                  (ctx?.flags.client_gate
+                    ? drawerItem.status === 'scheduled'
+                    : drawerItem.status === 'approved_internal' || drawerItem.status === 'scheduled') ? (
                     <>
                       <input
                         value={publishUrl}

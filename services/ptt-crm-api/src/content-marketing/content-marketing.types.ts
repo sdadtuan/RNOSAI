@@ -48,7 +48,7 @@ export type CmktVisualStatus =
 
 export type CmktMediaAsset = {
   id: string;
-  type: 'image' | 'carousel_slide';
+  type: 'image' | 'carousel_slide' | 'video';
   url: string;
   ai_generated: boolean;
   provider: string;
@@ -59,11 +59,21 @@ export type CmktMediaAsset = {
   prompt_hash?: string;
   provider_request_id?: string;
   storage_key?: string;
+  duration_sec?: number;
+  poster_url?: string;
+};
+
+export type CmktVideoGenerationProgress = {
+  progress_pct: number;
+  steps: Record<string, 'pending' | 'running' | 'done' | 'failed'>;
+  eta_sec?: number;
 };
 
 export type CmktMediaJson = {
   ai_assets?: CmktMediaAsset[];
   carousel_slides?: CmktMediaAsset[];
+  video_short?: CmktMediaAsset | null;
+  video_generation?: CmktVideoGenerationProgress;
   visual_qa?: {
     score: number;
     checks?: Record<string, boolean>;
@@ -179,7 +189,9 @@ export type CmktContextFlags = {
   approval_required: boolean;
   media_enabled: boolean;
   image_gen_enabled: boolean;
+  video_gen_enabled: boolean;
   client_gate: boolean;
+  portal_summary_enabled: boolean;
   fe_enabled: boolean;
 };
 

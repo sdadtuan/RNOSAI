@@ -30,6 +30,7 @@ import {
   parseCarouselSlideTexts,
   resolveAspectRatio,
 } from './content-media.util';
+import { buildVideoShortStub } from './content-media-video.util';
 import {
   aggregateIntelligence,
   buildTopicSuggestions,
@@ -90,7 +91,8 @@ export class ContentJobWorkerService {
       if (
         claimed.job_type === 'image_generate' ||
         claimed.job_type === 'carousel_slides_generate' ||
-        claimed.job_type === 'visual_qa_score'
+        claimed.job_type === 'visual_qa_score' ||
+        claimed.job_type === 'video_short_generate'
       ) {
         return this.processMediaJob(jobId, claimed, item, started);
       }
@@ -293,6 +295,47 @@ export class ContentJobWorkerService {
     const approvedCopy = String(item.body_json?.markdown ?? item.title).trim();
 
     try {
+      if (claimed.job_type === 'video_short_generate') {
+        const script = String(item.body_json?.markdown ?? item.title).trim();
+        const { asset, progress } = buildVideoShortStub({
+          lifecycleId: claimed.lifecycle_id,
+          itemId: item.id,
+          script,
+          provider: this.config.contentMarketingVideoProvider,
+          cdnBase: this.config.contentMarketingCdnBase,
+        });
+        const media = mergeMediaJson(item.media_json, {
+          video_short: asset,
+          video_generation: progress,
+          ai_assets: [asset],
+          selected_asset_id: asset.id,
+          provider: asset.provider,
+          aspect_ratio: resolveAspectRatio(input.aspect_ratio, item.channel, item.format),
+        });
+        const qa = this.visualQa.scoreAssets([asset], {
+          aspectRatio: resolveAspectRatio(input.aspect_ratio, item.channel, item.format),
+        });
+        media.visual_qa = qa;
+        await this.repo.patchItem(claimed.lifecycle_id, item.id, {
+          media_json: media,
+          visual_status: 'ai_ready',
+          production_json: {
+            ...(item.production_json ?? {}),
+            final_video_url: asset.url,
+            subtitle_text: script.slice(0, 200),
+          },
+        });
+        return this.repo.finishContentJob(jobId, {
+          status: 'succeeded',
+          output_json: {
+            video_short: asset,
+            video_generation: progress,
+            visual_qa: qa,
+            latency_ms: Date.now() - started,
+          },
+        });
+      }
+
       if (claimed.job_type === 'visual_qa_score') {
         const assets = [
           ...(item.media_json?.ai_assets ?? []),

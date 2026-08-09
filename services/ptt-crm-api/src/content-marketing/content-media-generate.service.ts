@@ -7,11 +7,17 @@ import {
   mergeMediaJson,
   resolveAspectRatio,
 } from './content-media.util';
+import { itemEligibleForVideoShort } from './content-media-video.util';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import { ContentMarketingService } from './content-marketing.service';
 import type { CmktItemRow, CmktJobRow } from './content-marketing.types';
 
-const MEDIA_JOB_TYPES = new Set(['image_generate', 'carousel_slides_generate', 'visual_qa_score']);
+const MEDIA_JOB_TYPES = new Set([
+  'image_generate',
+  'carousel_slides_generate',
+  'visual_qa_score',
+  'video_short_generate',
+]);
 
 @Injectable()
 export class ContentMediaGenerateService {
@@ -28,6 +34,16 @@ export class ContentMediaGenerateService {
       throw new BadRequestException({
         error: 'cmkt_media_disabled',
         message: 'Bật PTT_CONTENT_MARKETING_MEDIA_ENABLED=1 và PTT_CMKT_IMAGE_GEN=1.',
+      });
+    }
+  }
+
+  private ensureVideoEnabled(): void {
+    this.ensureMediaEnabled();
+    if (!this.config.contentMarketingVideoGenEnabled) {
+      throw new BadRequestException({
+        error: 'cmkt_video_disabled',
+        message: 'Bật PTT_CMKT_VIDEO_GEN=1 để generate short video.',
       });
     }
   }
@@ -69,6 +85,51 @@ export class ContentMediaGenerateService {
     actorEmail: string,
   ): Promise<CmktJobRow> {
     return this.startMediaJob(lifecycleId, itemId, 'visual_qa_score', body, actorEmail);
+  }
+
+  async startVideoShortJob(
+    lifecycleId: number,
+    itemId: number,
+    body: Record<string, unknown>,
+    actorEmail: string,
+  ): Promise<CmktJobRow> {
+    this.ensureVideoEnabled();
+    await this.core.ensureLifecycleEnabled(lifecycleId);
+    await this.assertDailyCap(lifecycleId);
+
+    const item = await this.repo.getItemById(lifecycleId, itemId);
+    if (!item) throw new NotFoundException({ error: 'item_not_found', id: itemId });
+    if (!itemEligibleForVideoShort(item)) {
+      throw new BadRequestException({
+        error: 'video_format_required',
+        message: 'Short video chỉ cho format video_script hoặc channel short_video.',
+      });
+    }
+    assertMediaJobEligible(item, body.allow_draft_watermark === true);
+
+    await this.repo.patchItem(lifecycleId, itemId, { visual_status: 'ai_pending' });
+
+    const job = await this.repo.createContentJob({
+      lifecycle_id: lifecycleId,
+      item_id: itemId,
+      job_type: 'video_short_generate',
+      input_json: {
+        aspect_ratio: resolveAspectRatio(body.aspect_ratio, item.channel, item.format),
+        style_preset: String(body.style_preset ?? 'corporate'),
+        allow_draft_watermark: body.allow_draft_watermark === true,
+      },
+      created_by: actorEmail,
+    });
+
+    if (this.config.contentMarketingMediaAsync) {
+      setImmediate(() => {
+        void this.worker.processJob(job.id).catch(() => undefined);
+      });
+      return job;
+    }
+
+    const finished = await this.worker.processJob(job.id);
+    return finished ?? job;
   }
 
   private async startMediaJob(

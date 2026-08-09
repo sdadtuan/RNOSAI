@@ -147,6 +147,9 @@ export class AppConfigService {
   readonly awsSecretAccessKey: string;
   readonly awsRegion: string;
   readonly contentMarketingClientGate: boolean;
+  readonly contentMarketingVideoGenEnabled: boolean;
+  readonly contentMarketingPortalSummaryEnabled: boolean;
+  readonly contentMarketingVideoProvider: string;
   readonly contentMarketingSlugs: string[];
 
   constructor() {
@@ -465,6 +468,13 @@ export class AppConfigService {
     this.contentMarketingClientGate = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CONTENT_MARKETING_CLIENT_GATE ?? '0').trim().toLowerCase(),
     );
+    this.contentMarketingVideoGenEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CMKT_VIDEO_GEN ?? '0').trim().toLowerCase(),
+    );
+    this.contentMarketingPortalSummaryEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CMKT_PORTAL_SUMMARY ?? '0').trim().toLowerCase(),
+    );
+    this.contentMarketingVideoProvider = (process.env.PTT_CMKT_VIDEO_PROVIDER ?? 'stub').trim() || 'stub';
     this.contentMarketingSlugs = (process.env.PTT_CONTENT_MARKETING_SLUGS ?? '')
       .split(',')
       .map((s) => s.trim())

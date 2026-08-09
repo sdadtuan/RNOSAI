@@ -31,6 +31,9 @@ describe('ContentMarketingController', () => {
     submitReview: jest.fn(),
     approve: jest.fn(),
     reject: jest.fn(),
+    submitToClient: jest.fn(),
+    clientApprove: jest.fn(),
+    clientReject: jest.fn(),
     listReviewQueue: jest.fn(),
     reviewQueueSummary: jest.fn(),
   };
@@ -53,6 +56,7 @@ describe('ContentMarketingController', () => {
     startImageJob: jest.fn(),
     startCarouselSlidesJob: jest.fn(),
     startVisualQaJob: jest.fn(),
+    startVideoShortJob: jest.fn(),
     selectMediaAsset: jest.fn(),
   };
   const visual = {
@@ -201,5 +205,31 @@ describe('ContentMarketingController', () => {
       published_url: '/blog/smoke-post',
     });
     expect(seoBridgeSync.syncPublishedUrlFromSeo).toHaveBeenCalledWith(123, 42, 'seo@test.vn');
+  });
+
+  it('POST submit-client delegates to workflow service', async () => {
+    workflow.submitToClient.mockResolvedValue({ id: 42, status: 'pending_client' });
+    const req = { staffUser: { email: 'am@test.vn' } } as never;
+    await expect(controller.submitToClient(123, 42, req)).resolves.toEqual({
+      id: 42,
+      status: 'pending_client',
+    });
+    expect(workflow.submitToClient).toHaveBeenCalledWith(123, 42, 'am@test.vn');
+  });
+
+  it('POST jobs/video-short delegates to media service', async () => {
+    media.startVideoShortJob.mockResolvedValue({ id: 88, status: 'succeeded', job_type: 'video_short_generate' });
+    const req = { staffUser: { email: 'writer@test.vn' } } as never;
+    await expect(controller.startVideoShortJob(123, 42, { aspect_ratio: '9:16' }, req)).resolves.toEqual({
+      id: 88,
+      status: 'succeeded',
+      job_type: 'video_short_generate',
+    });
+    expect(media.startVideoShortJob).toHaveBeenCalledWith(
+      123,
+      42,
+      { aspect_ratio: '9:16' },
+      'writer@test.vn',
+    );
   });
 });

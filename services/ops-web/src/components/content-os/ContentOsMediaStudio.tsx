@@ -8,6 +8,7 @@ import {
   postContentOsCarouselSlidesJob,
   postContentOsEscalateHuman,
   postContentOsImageGenerateJob,
+  postContentOsVideoShortJob,
   postContentOsVisualApprove,
   postContentOsVisualQaJob,
   postContentOsVisualReject,
@@ -27,6 +28,7 @@ interface Props {
   item: ContentOsItem;
   mediaEnabled: boolean;
   imageGenEnabled: boolean;
+  videoGenEnabled: boolean;
   canGenerate: boolean;
   canWrite: boolean;
   canApprove: boolean;
@@ -42,6 +44,7 @@ export function ContentOsMediaStudio({
   item,
   mediaEnabled,
   imageGenEnabled,
+  videoGenEnabled,
   canGenerate,
   canWrite,
   canApprove,
@@ -59,47 +62,50 @@ export function ContentOsMediaStudio({
   const [approveComment, setApproveComment] = useState('');
   const [escalateNotes, setEscalateNotes] = useState('');
   const [showReject, setShowReject] = useState(false);
+  const [videoProgress, setVideoProgress] = useState<number | null>(null);
 
   const needsVisual = itemNeedsVisualApproval(item);
+  const isVideoItem = item.format === 'video_script' || item.channel === 'short_video';
   const media = item.media_json ?? {};
   const assets: ContentOsMediaAsset[] = [
     ...(media.ai_assets ?? []),
     ...(media.carousel_slides ?? []),
+    ...(media.video_short ? [media.video_short] : []),
   ];
   const qa = media.visual_qa;
   const copyReady = ['approved_internal', 'scheduled', 'client_approved'].includes(item.status);
 
-  async function pollJobUntilDone(jobId: number): Promise<ContentOsJob> {
-    for (let attempt = 0; attempt < 60; attempt++) {
-      const polled = await fetchContentOsJob(token, lifecycleId, jobId);
-      if (polled.status === 'succeeded' || polled.status === 'failed') return polled;
-      if (polled.status !== 'queued' && polled.status !== 'running') return polled;
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-    }
-    throw new Error('Media job timeout — thử refresh item');
-  }
-
   async function runJob(
     fn: () => Promise<ContentOsJob>,
     okMsg: string,
+    opts?: { trackVideo?: boolean },
   ): Promise<void> {
     if (!canGenerate || !mediaEnabled || !imageGenEnabled) return;
     setBusy(true);
     onError('');
+    if (opts?.trackVideo) setVideoProgress(8);
     try {
       let job = await fn();
       if (job.status === 'queued' || job.status === 'running') {
-        job = await pollJobUntilDone(job.id);
+        for (let attempt = 0; attempt < 60; attempt++) {
+          if (opts?.trackVideo) setVideoProgress(Math.min(92, 12 + attempt * 12));
+          job = await fetchContentOsJob(token, lifecycleId, job.id);
+          if (job.status === 'succeeded' || job.status === 'failed') break;
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
       }
       setLastJob(job);
       if (job.status === 'failed') {
         onError(job.error_text ?? 'Media job failed');
+        if (opts?.trackVideo) setVideoProgress(null);
       } else {
+        if (opts?.trackVideo) setVideoProgress(100);
         onMessage(okMsg);
         await onChanged();
       }
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Media job thất bại');
+      if (opts?.trackVideo) setVideoProgress(null);
     } finally {
       setBusy(false);
     }
@@ -235,6 +241,32 @@ export function ContentOsMediaStudio({
               Generate carousel slides
             </button>
           ) : null}
+          {isVideoItem ? (
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              disabled={busy || !videoGenEnabled || (!copyReady && item.status !== 'draft')}
+              title={
+                videoGenEnabled
+                  ? 'Generate short video từ script'
+                  : 'Bật PTT_CMKT_VIDEO_GEN=1'
+              }
+              onClick={() =>
+                void runJob(
+                  () =>
+                    postContentOsVideoShortJob(token, lifecycleId, item.id, {
+                      aspect_ratio: aspectRatio,
+                      style_preset: stylePreset,
+                      allow_draft_watermark: item.status === 'draft',
+                    }),
+                  'Đã generate short video',
+                  { trackVideo: true },
+                )
+              }
+            >
+              Generate short video
+            </button>
+          ) : null}
           {assets.length ? (
             <button
               type="button"
@@ -297,6 +329,45 @@ export function ContentOsMediaStudio({
       ) : (
         <p className="muted" style={{ fontSize: '0.82rem' }}>Chưa có preview — generate image hoặc carousel slides.</p>
       )}
+
+      {videoProgress != null ? (
+        <div style={{ display: 'grid', gap: '0.35rem' }}>
+          <div style={{ fontSize: '0.82rem' }}>Generating short video · {videoProgress}%</div>
+          <div
+            style={{
+              height: 8,
+              borderRadius: 999,
+              background: 'var(--border)',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                width: `${videoProgress}%`,
+                height: '100%',
+                background: 'var(--accent)',
+                transition: 'width 0.4s ease',
+              }}
+            />
+          </div>
+          <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
+            Steps: Script ✓ · TTS ✓ · Clips {videoProgress >= 100 ? '✓' : '⟳'} · Stitch{' '}
+            {videoProgress >= 100 ? '✓' : '○'}
+          </p>
+        </div>
+      ) : null}
+
+      {media.video_short?.url ? (
+        <div style={{ fontSize: '0.82rem' }}>
+          <strong>Short video preview</strong>
+          <div className="muted" style={{ fontSize: '0.75rem' }}>
+            {media.video_short.duration_sec ?? 45}s · {media.video_short.provider}
+          </div>
+          <a href={media.video_short.url} target="_blank" rel="noreferrer">
+            Mở video stub
+          </a>
+        </div>
+      ) : null}
 
       {qa?.checks ? (
         <div className="muted" style={{ fontSize: '0.78rem' }}>

@@ -94,6 +94,7 @@ import {
     ContentGenerateService,
     ContentIdeaService,
     ContentItemService,
+    ContentWorkflowService,
   ],
 })
 export class ContentMarketingModule {}

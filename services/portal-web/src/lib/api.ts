@@ -921,6 +921,63 @@ export async function fetchPortalMktAiPlanSummary(
   return body;
 }
 
+export type CmktPortalContentSummary = {
+  ok: boolean;
+  enabled: boolean;
+  lifecycle_id: number;
+  service_slug: string;
+  items_by_status: Record<string, number>;
+  pending_client_count: number;
+  published_mtd: number;
+  pending_items: Array<{
+    id: number;
+    title: string;
+    channel: string;
+    format: string;
+    status: string;
+    updated_at: string;
+  }>;
+  staff_content_url: string;
+};
+
+export async function fetchPortalCmktContentSummary(
+  token: string,
+  lifecycleId: number,
+): Promise<CmktPortalContentSummary> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/portal/service-lifecycle/${lifecycleId}/content-summary`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    },
+  );
+  const body = await parseJson<CmktPortalContentSummary & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Portal content summary failed', res.status);
+  }
+  return body;
+}
+
+export async function postPortalCmktClientApprove(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<{ ok: boolean }> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/portal/service-lifecycle/${lifecycleId}/content-marketing/items/${itemId}/client-approve`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: '{}',
+    },
+  );
+  const body = await parseJson<{ ok?: boolean; error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Portal client approve failed', res.status);
+  }
+  return { ok: Boolean(body.ok) };
+}
+
 export interface PortalPushVapidResponse {
   ok: boolean;
   enabled: boolean;

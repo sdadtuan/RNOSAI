@@ -333,6 +333,40 @@ export class ContentMarketingController {
     return this.workflow.reject(lifecycleId, itemId, body, actorEmail(req));
   }
 
+  @Post('items/:itemId/submit-client')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  submitToClient(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Req() req: Request,
+  ) {
+    return this.workflow.submitToClient(lifecycleId, itemId, actorEmail(req));
+  }
+
+  @Post('items/:itemId/client-approve')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingApproveGuard)
+  clientApproveItem(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Req() req: Request,
+  ) {
+    return this.workflow.clientApprove(lifecycleId, itemId, actorEmail(req));
+  }
+
+  @Post('items/:itemId/client-reject')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingApproveGuard)
+  clientRejectItem(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.workflow.clientReject(lifecycleId, itemId, body, actorEmail(req));
+  }
+
   @Post('items/:itemId/publish')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffContentMarketingPublishGuard)
@@ -590,6 +624,18 @@ export class ContentMarketingController {
     @Req() req: Request,
   ) {
     return this.media.startVisualQaJob(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Post('items/:itemId/jobs/video-short')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  startVideoShortJob(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.media.startVideoShortJob(lifecycleId, itemId, body, actorEmail(req));
   }
 
   @Patch('items/:itemId/media/select')

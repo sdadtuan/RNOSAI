@@ -94,7 +94,9 @@ export type ContentOsContext = {
     approval_required: boolean;
     media_enabled: boolean;
     image_gen_enabled: boolean;
+    video_gen_enabled: boolean;
     client_gate: boolean;
+    portal_summary_enabled: boolean;
     fe_enabled: boolean;
   };
   channel_defaults: string[];
@@ -715,7 +717,7 @@ export function getEmBridgeHref(item: ContentOsItem): string | null {
 
 export type ContentOsMediaAsset = {
   id: string;
-  type: 'image' | 'carousel_slide';
+  type: 'image' | 'carousel_slide' | 'video';
   url: string;
   ai_generated: boolean;
   provider: string;
@@ -725,11 +727,19 @@ export type ContentOsMediaAsset = {
   slide_index?: number;
   provider_request_id?: string;
   storage_key?: string;
+  duration_sec?: number;
+  poster_url?: string;
 };
 
 export type ContentOsMediaJson = {
   ai_assets?: ContentOsMediaAsset[];
   carousel_slides?: ContentOsMediaAsset[];
+  video_short?: ContentOsMediaAsset | null;
+  video_generation?: {
+    progress_pct: number;
+    steps: Record<string, 'pending' | 'running' | 'done' | 'failed'>;
+    eta_sec?: number;
+  };
   visual_qa?: {
     score: number;
     checks?: Record<string, boolean>;
@@ -797,6 +807,38 @@ export function postContentOsVisualQaJob(
     method: 'POST',
     body: JSON.stringify(body ?? {}),
   });
+}
+
+export function postContentOsVideoShortJob(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body?: {
+    aspect_ratio?: string;
+    style_preset?: string;
+    allow_draft_watermark?: boolean;
+  },
+): Promise<ContentOsJob> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/jobs/video-short`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function postContentOsSubmitClient(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/submit-client`, { method: 'POST', body: '{}' });
+}
+
+export function postContentOsClientApprove(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/client-approve`, { method: 'POST', body: '{}' });
 }
 
 export function patchContentOsMediaSelect(

@@ -5,7 +5,7 @@ import { ContentMarketingService } from './content-marketing.service';
 import { emptyBodyJson } from './content-marketing.util';
 import { assertProductionGateForPublish } from './content-production.util';
 import { assertVisualGateForPublish } from './content-media.util';
-import { assertTransition, CMKT_PUBLISH_FROM } from './content-workflow.util';
+import { assertTransition, publishFromStatuses } from './content-workflow.util';
 import { diffMarkdownLines } from './content-version-diff.util';
 import type { CmktBodyJson, CmktIdeaRow, CmktItemRow, CmktItemVersionRow, CmktVersionComparePayload } from './content-marketing.types';
 import { AppConfigService } from '../config/app-config.service';
@@ -231,7 +231,7 @@ export class ContentItemService {
       throw new NotFoundException({ error: 'item_not_found', id: itemId });
     }
 
-    assertTransition(item.status, CMKT_PUBLISH_FROM, 'publish');
+    assertTransition(item.status, publishFromStatuses(this.config.contentMarketingClientGate), 'publish');
     assertProductionGateForPublish(item);
     assertVisualGateForPublish(item, this.config.contentMarketingMediaEnabled);
 

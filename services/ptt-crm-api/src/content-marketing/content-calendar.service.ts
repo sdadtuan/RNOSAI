@@ -1,16 +1,17 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { AppConfigService } from '../config/app-config.service';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import { ContentMarketingService } from './content-marketing.service';
 import {
-  assertBodyNonEmpty,
   assertTransition,
-  CMKT_SCHEDULE_FROM,
+  scheduleFromStatuses,
 } from './content-workflow.util';
 import type { CmktCalendarSlotRow } from './content-marketing.types';
 
 @Injectable()
 export class ContentCalendarService {
   constructor(
+    private readonly config: AppConfigService,
     private readonly core: ContentMarketingService,
     private readonly repo: ContentMarketingRepository,
   ) {}
@@ -43,7 +44,11 @@ export class ContentCalendarService {
     const item = await this.repo.getItemById(lifecycleId, itemId);
     if (!item) throw new NotFoundException({ error: 'item_not_found', id: itemId });
 
-    assertTransition(item.status, CMKT_SCHEDULE_FROM, 'schedule');
+    assertTransition(
+      item.status,
+      scheduleFromStatuses(this.config.contentMarketingClientGate),
+      'schedule',
+    );
 
     const scheduledAt = String(body.scheduled_at ?? '').trim();
     if (!scheduledAt) {
@@ -69,7 +74,8 @@ export class ContentCalendarService {
     if (!deleted) throw new NotFoundException({ error: 'calendar_slot_not_found', item_id: itemId });
     const item = await this.repo.getItemById(lifecycleId, itemId);
     if (item?.status === 'scheduled') {
-      await this.repo.patchItem(lifecycleId, itemId, { status: 'approved_internal' });
+      const revertStatus = this.config.contentMarketingClientGate ? 'client_approved' : 'approved_internal';
+      await this.repo.patchItem(lifecycleId, itemId, { status: revertStatus });
     }
     return { ok: true };
   }

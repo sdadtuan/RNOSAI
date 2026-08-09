@@ -47,6 +47,10 @@ export function statusLabel(status: string): string {
       return 'Đang duyệt';
     case 'approved_internal':
       return 'Đã duyệt';
+    case 'pending_client':
+      return 'Chờ KH duyệt';
+    case 'client_approved':
+      return 'KH đã duyệt';
     case 'scheduled':
       return 'Đã lên lịch';
     case 'published':
@@ -66,6 +70,10 @@ export function statusAccentColor(status: string): string {
       return 'var(--warning, #e6a700)';
     case 'approved_internal':
       return 'var(--accent)';
+    case 'pending_client':
+      return 'var(--warning, #e6a700)';
+    case 'client_approved':
+      return '#8bc34a';
     case 'scheduled':
       return '#6b9bd1';
     case 'published':
@@ -82,6 +90,21 @@ export type DualGateChips = {
   textOk: boolean;
   visualOk: boolean;
 };
+
+export function boardColumns(clientGate: boolean): readonly string[] {
+  if (!clientGate) {
+    return ['draft', 'in_review', 'approved_internal', 'scheduled', 'published'];
+  }
+  return [
+    'draft',
+    'in_review',
+    'approved_internal',
+    'pending_client',
+    'client_approved',
+    'scheduled',
+    'published',
+  ];
+}
 
 export function dualGateChips(item: ContentOsItem): DualGateChips {
   if (!itemNeedsVisualApproval(item)) {

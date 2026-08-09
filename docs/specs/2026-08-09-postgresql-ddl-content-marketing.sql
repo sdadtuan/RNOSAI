@@ -374,4 +374,11 @@ INSERT INTO schema_migrations (version, description) VALUES
     )
 ON CONFLICT (version) DO NOTHING;
 
+INSERT INTO schema_migrations (version, description) VALUES
+    (
+        '2026-08-09-content-marketing-m12',
+        'Content Marketing M12: client gate, portal summary, video_short_generate (flags only)'
+    )
+ON CONFLICT (version) DO NOTHING;
+
 COMMIT;
