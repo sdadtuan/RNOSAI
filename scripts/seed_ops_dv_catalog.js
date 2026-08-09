@@ -3,11 +3,13 @@
 
 const fs = require('fs');
 const path = require('path');
-const { Client } = require('pg');
 
 const ROOT = path.join(__dirname, '..');
 const mapPath = path.join(ROOT, 'docs/specs/ops-dv01-dv21-route-map.json');
 const databaseUrl = process.env.DATABASE_URL;
+
+const pgModulePath = path.join(ROOT, 'services/ptt-crm-api/node_modules/pg');
+const { Client } = require(pgModulePath);
 
 if (!databaseUrl) {
   console.error('DATABASE_URL required');

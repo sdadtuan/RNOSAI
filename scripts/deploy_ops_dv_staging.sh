@@ -29,6 +29,9 @@ run_local() {
   bash "$ROOT/scripts/apply_pg_ddl_ops_dv.sh"
 
   echo "== 2/5 Seed ops_service_profile (21 DV) =="
+  if [[ ! -d "$ROOT/services/ptt-crm-api/node_modules/pg" ]]; then
+    (cd "$ROOT/services/ptt-crm-api" && npm ci)
+  fi
   node "$ROOT/scripts/seed_ops_dv_catalog.js"
 
   echo "== 3/5 Enable API + FE flags =="
