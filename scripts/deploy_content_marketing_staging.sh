@@ -38,7 +38,8 @@ run_local() {
     "PTT_CONTENT_MARKETING_FE=1" \
     "PTT_CONTENT_MARKETING_SLUGS=${CMKT_PILOT_SLUGS}" \
     "PTT_CONTENT_MARKETING_AI_ENABLED=0" \
-    "PTT_CONTENT_MARKETING_APPROVAL_REQUIRED=1"; do
+    "PTT_CONTENT_MARKETING_APPROVAL_REQUIRED=1" \
+    "NEXT_PUBLIC_CONTENT_MARKETING=1"; do
     key="${kv%%=*}"
     if grep -q "^${key}=" "$RUNTIME_ENV" 2>/dev/null; then
       sed -i.bak "s|^${key}=.*|${kv}|" "$RUNTIME_ENV"
@@ -51,6 +52,11 @@ run_local() {
   echo "== 3/4 Build + restart Nest API =="
   if [[ -d "$ROOT/services/ptt-crm-api" ]]; then
     (cd "$ROOT/services/ptt-crm-api" && npm ci && npm run build)
+  fi
+  if [[ -x "$ROOT/scripts/deploy_ops_web.sh" ]]; then
+    NEXT_PUBLIC_CONTENT_MARKETING=1 bash "$ROOT/scripts/deploy_ops_web.sh" --restart 2>/dev/null \
+      || NEXT_PUBLIC_CONTENT_MARKETING=1 bash "$ROOT/scripts/deploy_ops_web.sh" 2>/dev/null \
+      || echo "WARN ops-web deploy skipped"
   fi
   if sudo -n /usr/bin/systemctl restart ptt-crm-api 2>/dev/null; then
     sleep 3

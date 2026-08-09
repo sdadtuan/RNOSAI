@@ -38,10 +38,15 @@ export class ContentMarketingService {
     return detail as Record<string, unknown>;
   }
 
-  async getContext(lifecycleId: number): Promise<CmktContextPayload> {
+  async ensureLifecycleEnabled(lifecycleId: number): Promise<Record<string, unknown>> {
     const lc = await this.loadLifecycleRow(lifecycleId);
+    this.assertEnabled(String(lc.service_slug ?? ''));
+    return lc;
+  }
+
+  async getContext(lifecycleId: number): Promise<CmktContextPayload> {
+    const lc = await this.ensureLifecycleEnabled(lifecycleId);
     const serviceSlug = String(lc.service_slug ?? '');
-    this.assertEnabled(serviceSlug);
 
     const [snapshotRow, counts] = await Promise.all([
       this.repo.getActiveSnapshotSummary(lifecycleId),

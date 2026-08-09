@@ -9,6 +9,7 @@ import { LifecycleSopPanel } from '@/components/LifecycleSopPanel';
 import { LifecycleStaffPicker } from '@/components/LifecycleStaffPicker';
 import { LifecycleTmmtPanel } from '@/components/LifecycleTmmtPanel';
 import { MarketingAiPlannerPanel } from '@/components/mkt-ai/MarketingAiPlannerPanel';
+import { ContentOsPanel } from '@/components/content-os/ContentOsPanel';
 import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
 import { DetailPageLayout } from '@/components/layout';
 import { ServiceDeliveryWorkflowPanel } from '@/components/ServiceDeliveryWorkflowPanel';
@@ -21,6 +22,7 @@ import {
 } from '@/lib/api';
 import {
   canViewMktAiPlanner,
+  canViewContentOs,
   clearSession,
   getAccessToken,
   getRefreshToken,
@@ -31,6 +33,7 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 import { isMktAiPlannerFeEnabled } from '@/lib/mkt-ai-planner-flags';
+import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
 
 const STAGES = ['lead', 'consult', 'proposal', 'onboard', 'deliver', 'handover', 'retain'];
 
@@ -51,7 +54,7 @@ export default function CrmServiceDeliveryDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [detailTab, setDetailTab] = useState<
-    'workflow' | 'tmmt' | 'ai-planner' | 'finance' | 'sop' | 'launch_qa'
+    'workflow' | 'tmmt' | 'ai-planner' | 'content-os' | 'finance' | 'sop' | 'launch_qa'
   >('workflow');
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
@@ -127,6 +130,7 @@ export default function CrmServiceDeliveryDetailPage() {
       tab === 'workflow' ||
       tab === 'tmmt' ||
       tab === 'ai-planner' ||
+      tab === 'content-os' ||
       tab === 'finance' ||
       tab === 'sop' ||
       tab === 'launch_qa'
@@ -191,6 +195,7 @@ export default function CrmServiceDeliveryDetailPage() {
 
   const events = (row?.events as Array<{ id: number; to_stage: string; notes: string; created_at: string }>) ?? [];
   const showAiPlannerTab = isMktAiPlannerFeEnabled() && canViewMktAiPlanner(user);
+  const showContentOsTab = isContentMarketingFeEnabled() && canViewContentOs(user);
 
   if (!user) {
     return (
@@ -310,6 +315,15 @@ export default function CrmServiceDeliveryDetailPage() {
                 AI Planner
               </button>
             ) : null}
+            {showContentOsTab ? (
+              <button
+                type="button"
+                className={detailTab === 'content-os' ? 'btn btn-sm' : 'btn btn-sm btn-ghost'}
+                onClick={() => switchTab('content-os')}
+              >
+                Content Board
+              </button>
+            ) : null}
             <button
               type="button"
               className={detailTab === 'finance' ? 'btn btn-sm' : 'btn btn-sm btn-ghost'}
@@ -366,6 +380,8 @@ export default function CrmServiceDeliveryDetailPage() {
               onOpenTmmtTab={() => switchTab('tmmt')}
               onApplied={() => void reloadDetail(token)}
             />
+          ) : detailTab === 'content-os' ? (
+            <ContentOsPanel token={token} user={user} lifecycleId={lifecycleId} />
           ) : detailTab === 'finance' ? (
             <LifecycleFinancePanel
               token={token}

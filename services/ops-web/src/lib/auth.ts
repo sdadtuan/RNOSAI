@@ -100,6 +100,19 @@ export function canApproveMktAiPlanner(user: StoredStaffUser | null): boolean {
   return hasCap(user, 'crm_mkt_ai', 'approve');
 }
 
+export function canViewContentOs(user: StoredStaffUser | null): boolean {
+  if (!hasCap(user, 'crm_board', 'view')) return false;
+  return (
+    hasCap(user, 'crm_content', 'view') ||
+    hasCap(user, 'crm_content', 'write') ||
+    hasCap(user, 'crm_content', 'generate')
+  );
+}
+
+export function canWriteContentOs(user: StoredStaffUser | null): boolean {
+  return hasCap(user, 'crm_board', 'edit') && hasCap(user, 'crm_content', 'write');
+}
+
 export function updateStoredUser(user: StoredStaffUser): void {
   if (typeof window === 'undefined') return;
   sessionStorage.setItem(USER_KEY, JSON.stringify(user));

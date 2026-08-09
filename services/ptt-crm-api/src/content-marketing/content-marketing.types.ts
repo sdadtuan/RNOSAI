@@ -1,8 +1,73 @@
-import type { CMKT_CHANNELS, CMKT_ITEM_STATUSES, CMKT_P0_CHANNEL_DEFAULTS } from './content-marketing.constants';
+import type {
+  CMKT_CHANNELS,
+  CMKT_FORMATS,
+  CMKT_ITEM_STATUSES,
+  CMKT_P0_CHANNEL_DEFAULTS,
+} from './content-marketing.constants';
 
 export type CmktItemStatus = (typeof CMKT_ITEM_STATUSES)[number];
 export type CmktChannel = (typeof CMKT_CHANNELS)[number];
+export type CmktFormat = (typeof CMKT_FORMATS)[number];
 export type CmktChannelDefault = (typeof CMKT_P0_CHANNEL_DEFAULTS)[number];
+
+export type CmktBodyJson = {
+  markdown?: string;
+  html?: string;
+  variants?: string[];
+};
+
+export type CmktIdeaRow = {
+  id: number;
+  lifecycle_id: number;
+  pillar_id: number | null;
+  title: string;
+  hook: string;
+  target_goal: string;
+  channel_hints: string[];
+  source: string;
+  status: string;
+  meta_json: Record<string, unknown>;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CmktItemRow = {
+  id: number;
+  lifecycle_id: number;
+  idea_id: number | null;
+  parent_item_id: number | null;
+  title: string;
+  format: string;
+  channel: string;
+  funnel_goal: string;
+  status: string;
+  assignee_sp: number | null;
+  assignee_qa: number | null;
+  brief_json: Record<string, unknown>;
+  body_json: CmktBodyJson;
+  selected_variant_idx: number | null;
+  quality_score_json: Record<string, unknown>;
+  seo_bridge_id: number | null;
+  email_bridge_id: number | null;
+  published_url: string | null;
+  published_at: string | null;
+  due_at: string | null;
+  in_review_at: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CmktItemVersionRow = {
+  id: number;
+  item_id: number;
+  version_no: number;
+  body_json: CmktBodyJson;
+  changed_by: string;
+  change_reason: string;
+  created_at: string;
+};
 
 export type CmktSnapshotSummary = {
   id: number;
