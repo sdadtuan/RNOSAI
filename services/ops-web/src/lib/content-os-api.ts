@@ -674,6 +674,8 @@ export type ContentOsMediaAsset = {
   visual_qa_score?: number;
   draft_watermark?: boolean;
   slide_index?: number;
+  provider_request_id?: string;
+  storage_key?: string;
 };
 
 export type ContentOsMediaJson = {

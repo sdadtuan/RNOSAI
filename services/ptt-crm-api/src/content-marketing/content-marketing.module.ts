@@ -15,6 +15,10 @@ import { ContentPlanSnapshotService } from './content-plan-snapshot.service';
 import { ContentProductionService } from './content-production.service';
 import { ContentMediaGenerateService } from './content-media-generate.service';
 import { ContentMediaImageProvider } from './content-media-image.provider';
+import { ContentMediaStorageService } from './content-media-storage.service';
+import { ReplicateMediaProvider } from './content-media-replicate.provider';
+import { StubMediaProvider } from './content-media-stub.provider';
+import { ContentVisualQaService } from './content-visual-qa.service';
 import { ContentRepurposeService } from './content-repurpose.service';
 import { ContentSeoBridgeService } from './content-seo-bridge.service';
 import { ContentVisualService } from './content-visual.service';
@@ -56,6 +60,10 @@ import {
     ContentSeoBridgeService,
     ContentEmailBridgeService,
     ContentProductionService,
+    StubMediaProvider,
+    ReplicateMediaProvider,
+    ContentMediaStorageService,
+    ContentVisualQaService,
     ContentMediaImageProvider,
     ContentMediaGenerateService,
     ContentVisualService,

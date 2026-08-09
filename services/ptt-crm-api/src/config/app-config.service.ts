@@ -137,6 +137,15 @@ export class AppConfigService {
   readonly contentMarketingMediaEnabled: boolean;
   readonly contentMarketingImageGenEnabled: boolean;
   readonly contentMarketingMediaDailyCap: number;
+  readonly contentMarketingMediaAsync: boolean;
+  readonly contentMarketingImageProvider: string;
+  readonly contentMarketingImageModel: string;
+  readonly contentMarketingCdnBase: string;
+  readonly contentMarketingS3Bucket: string;
+  readonly replicateApiToken: string;
+  readonly awsAccessKeyId: string;
+  readonly awsSecretAccessKey: string;
+  readonly awsRegion: string;
   readonly contentMarketingClientGate: boolean;
   readonly contentMarketingSlugs: string[];
 
@@ -436,6 +445,23 @@ export class AppConfigService {
     );
     const capRaw = Number(process.env.PTT_CMKT_MEDIA_DAILY_CAP_PER_LIFECYCLE ?? 20);
     this.contentMarketingMediaDailyCap = Number.isFinite(capRaw) && capRaw > 0 ? Math.floor(capRaw) : 20;
+    this.contentMarketingMediaAsync = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CMKT_MEDIA_ASYNC ?? '0').trim().toLowerCase(),
+    );
+    this.contentMarketingImageProvider = (
+      process.env.PTT_CMKT_IMAGE_PROVIDER ?? 'stub'
+    ).trim() || 'stub';
+    this.contentMarketingImageModel = (
+      process.env.PTT_CMKT_IMAGE_MODEL ?? 'black-forest-labs/flux-schnell'
+    ).trim();
+    this.contentMarketingCdnBase = (
+      process.env.PTT_CMKT_CDN_BASE ?? 'https://cdn.pttads.vn/cmkt'
+    ).trim();
+    this.contentMarketingS3Bucket = (process.env.PTT_CMKT_S3_BUCKET ?? '').trim();
+    this.replicateApiToken = (process.env.REPLICATE_API_TOKEN ?? '').trim();
+    this.awsAccessKeyId = (process.env.AWS_ACCESS_KEY_ID ?? '').trim();
+    this.awsSecretAccessKey = (process.env.AWS_SECRET_ACCESS_KEY ?? '').trim();
+    this.awsRegion = (process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? 'ap-southeast-1').trim();
     this.contentMarketingClientGate = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CONTENT_MARKETING_CLIENT_GATE ?? '0').trim().toLowerCase(),
     );

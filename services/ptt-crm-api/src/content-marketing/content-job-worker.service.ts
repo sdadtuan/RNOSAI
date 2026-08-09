@@ -22,11 +22,11 @@ import {
   type CmktGenerateInput,
 } from './content-marketing-prompt.util';
 import {
-  computeVisualQaScore,
   mergeMediaJson,
   parseCarouselSlideTexts,
   resolveAspectRatio,
 } from './content-media.util';
+import { ContentVisualQaService } from './content-visual-qa.service';
 import { ContentMediaImageProvider } from './content-media-image.provider';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import type { CmktBodyJson, CmktJobRow, CmktMediaAsset } from './content-marketing.types';
@@ -44,6 +44,7 @@ export class ContentJobWorkerService {
     private readonly repo: ContentMarketingRepository,
     private readonly brandContext: ContentBrandContextService,
     private readonly mediaImages: ContentMediaImageProvider,
+    private readonly visualQa: ContentVisualQaService,
   ) {}
 
   get modelName(): string {
@@ -280,7 +281,7 @@ export class ContentJobWorkerService {
           ...(item.media_json?.ai_assets ?? []),
           ...(item.media_json?.carousel_slides ?? []),
         ];
-        const qa = computeVisualQaScore(assets);
+        const qa = this.visualQa.scoreAssets(assets, { aspectRatio });
         const media = mergeMediaJson(item.media_json, { visual_qa: qa });
         await this.repo.patchItem(claimed.lifecycle_id, item.id, {
           media_json: media,
@@ -296,6 +297,8 @@ export class ContentJobWorkerService {
       if (claimed.job_type === 'carousel_slides_generate') {
         const slides = parseCarouselSlideTexts(approvedCopy);
         assets = await this.mediaImages.generateImages({
+          lifecycleId: claimed.lifecycle_id,
+          itemId: item.id,
           variantCount: slides.length,
           aspectRatio,
           stylePreset,
@@ -313,7 +316,7 @@ export class ContentJobWorkerService {
           provider: this.mediaImages.providerName,
           prompt_hash: assets[0]?.prompt_hash,
         });
-        const qa = computeVisualQaScore(assets);
+        const qa = this.visualQa.scoreAssets(assets, { aspectRatio });
         media.visual_qa = qa;
         await this.repo.patchItem(claimed.lifecycle_id, item.id, {
           media_json: media,
@@ -331,6 +334,8 @@ export class ContentJobWorkerService {
 
       const variantCount = Math.min(Math.max(Number(input.variant_count ?? 3), 1), 5);
       assets = await this.mediaImages.generateImages({
+        lifecycleId: claimed.lifecycle_id,
+        itemId: item.id,
         variantCount,
         aspectRatio,
         stylePreset,
@@ -347,7 +352,7 @@ export class ContentJobWorkerService {
         prompt_hash: assets[0]?.prompt_hash,
         selected_asset_id: assets.find((a) => a.selected)?.id ?? assets[0]?.id ?? null,
       });
-      const qa = computeVisualQaScore(assets);
+      const qa = this.visualQa.scoreAssets(assets, { aspectRatio });
       media.visual_qa = qa;
       await this.repo.patchItem(claimed.lifecycle_id, item.id, {
         media_json: media,

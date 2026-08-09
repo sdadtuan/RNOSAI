@@ -108,6 +108,13 @@ export class ContentMediaGenerateService {
       created_by: actorEmail,
     });
 
+    if (this.config.contentMarketingMediaAsync) {
+      setImmediate(() => {
+        void this.worker.processJob(job.id).catch(() => undefined);
+      });
+      return job;
+    }
+
     const finished = await this.worker.processJob(job.id);
     return finished ?? job;
   }

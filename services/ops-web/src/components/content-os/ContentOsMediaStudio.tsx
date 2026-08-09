@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import {
+  fetchContentOsJob,
   itemNeedsVisualApproval,
   patchContentOsMediaSelect,
   postContentOsCarouselSlidesJob,
@@ -68,6 +69,16 @@ export function ContentOsMediaStudio({
   const qa = media.visual_qa;
   const copyReady = ['approved_internal', 'scheduled', 'client_approved'].includes(item.status);
 
+  async function pollJobUntilDone(jobId: number): Promise<ContentOsJob> {
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const polled = await fetchContentOsJob(token, lifecycleId, jobId);
+      if (polled.status === 'succeeded' || polled.status === 'failed') return polled;
+      if (polled.status !== 'queued' && polled.status !== 'running') return polled;
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+    throw new Error('Media job timeout — thử refresh item');
+  }
+
   async function runJob(
     fn: () => Promise<ContentOsJob>,
     okMsg: string,
@@ -76,7 +87,10 @@ export function ContentOsMediaStudio({
     setBusy(true);
     onError('');
     try {
-      const job = await fn();
+      let job = await fn();
+      if (job.status === 'queued' || job.status === 'running') {
+        job = await pollJobUntilDone(job.id);
+      }
       setLastJob(job);
       if (job.status === 'failed') {
         onError(job.error_text ?? 'Media job failed');

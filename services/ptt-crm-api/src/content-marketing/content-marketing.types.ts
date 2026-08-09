@@ -57,6 +57,8 @@ export type CmktMediaAsset = {
   draft_watermark?: boolean;
   slide_index?: number;
   prompt_hash?: string;
+  provider_request_id?: string;
+  storage_key?: string;
 };
 
 export type CmktMediaJson = {

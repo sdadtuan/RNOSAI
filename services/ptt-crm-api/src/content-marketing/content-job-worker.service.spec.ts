@@ -29,15 +29,23 @@ describe('ContentJobWorkerService', () => {
       {
         id: 'asset-1',
         type: 'image',
-        url: 'https://picsum.photos/seed/test/1080/1080',
+        url: 'https://cdn.pttads.vn/cmkt/1/5/asset-1.webp',
         ai_generated: true,
         provider: 'stub',
         selected: true,
         draft_watermark: false,
         prompt_hash: 'abc',
+        storage_key: '1/5/asset-1.webp',
         visual_qa_score: 84,
       },
     ]),
+  };
+  const visualQa = {
+    scoreAssets: jest.fn().mockReturnValue({
+      score: 84,
+      checks: { assets_present: true, dimensions_ok: true },
+      blocked: false,
+    }),
   };
 
   let worker: ContentJobWorkerService;
@@ -52,6 +60,7 @@ describe('ContentJobWorkerService', () => {
       repo as never,
       brandContext as never,
       mediaImages as never,
+      visualQa as never,
     );
   });
 

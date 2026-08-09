@@ -83,6 +83,28 @@ curl -sf "${AUTH[@]}" -H 'Content-Type: application/json' -d '{}' \
   -X POST "$BASE/items/$CAR_ID/jobs/visual-qa" >/dev/null
 
 ITEM="$(curl -sf "${AUTH[@]}" "$BASE/items/$CAR_ID")"
+CDN_OK="$(echo "$ITEM" | python3 -c "
+import sys, json
+m = json.load(sys.stdin).get('media_json') or {}
+slides = m.get('carousel_slides') or []
+if not slides:
+  print('0')
+  raise SystemExit
+for s in slides:
+  url = str(s.get('url') or '')
+  if 'picsum.photos' in url or 'placeholder.com' in url:
+    print('0')
+    raise SystemExit
+  if '/cmkt/' not in url and 'cdn.' not in url:
+    print('0')
+    raise SystemExit
+print('1')
+")"
+if [[ "$CDN_OK" != "1" ]]; then
+  echo "FAIL carousel URLs must use CDN (no picsum)"
+  exit 1
+fi
+
 VS="$(echo "$ITEM" | python3 -c "import sys,json; print(json.load(sys.stdin).get('visual_status',''))")"
 SLIDES="$(echo "$ITEM" | python3 -c "import sys,json; m=json.load(sys.stdin).get('media_json') or {}; print(len(m.get('carousel_slides') or []))")"
 if [[ "$SLIDES" -lt 1 ]]; then

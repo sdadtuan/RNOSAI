@@ -30,6 +30,7 @@ describe('ContentMarketingController', () => {
   };
   const calendar = { listCalendar: jest.fn(), upsertSlot: jest.fn(), deleteSlot: jest.fn() };
   const audit = { listAudit: jest.fn() };
+  const comments = { listComments: jest.fn(), addComment: jest.fn() };
   const repurpose = { repurpose: jest.fn(), listDerivations: jest.fn() };
   const seoBridge = { bridgeSeo: jest.fn(), getSeoBridgeStatus: jest.fn() };
   const emailBridge = { bridgeEmail: jest.fn(), getEmailBridgeStatus: jest.fn() };
@@ -54,6 +55,7 @@ describe('ContentMarketingController', () => {
     rejectVisual: jest.fn(),
     escalateHuman: jest.fn(),
   };
+  const staffAuth = { resolveStaffIdFromJwt: jest.fn() };
 
   let controller: ContentMarketingController;
 
@@ -68,12 +70,14 @@ describe('ContentMarketingController', () => {
       workflow as never,
       calendar as never,
       audit as never,
+      comments as never,
       repurpose as never,
       seoBridge as never,
       emailBridge as never,
       production as never,
       media as never,
       visual as never,
+      staffAuth as never,
     );
   });
 
