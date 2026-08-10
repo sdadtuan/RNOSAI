@@ -22,6 +22,6 @@ import { OpsWeeklyPgRepository } from './ops-weekly-pg.repository';
     StaffOpsViewGuard,
     StaffOpsWriteGuard,
   ],
-  exports: [OpsService],
+  exports: [OpsService, OpsRouteMapLoader, OpsProfilePgRepository],
 })
 export class OpsModule {}

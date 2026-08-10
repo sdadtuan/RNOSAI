@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { QuoteBuilderWizard } from '@/components/quote/QuoteBuilderWizard';
 import { HubPageLayout, StaffPageShell } from '@/components/layout';
 import {
   createProposal,
@@ -24,10 +25,13 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { isOpsDvFeEnabled } from '@/lib/ops-dv-flags';
+import { QUOTE_TIER_LABEL } from '@/lib/quote-api';
 
 export function ProposalsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const quoteBuilderEnabled = isOpsDvFeEnabled();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [customerId, setCustomerId] = useState('');
@@ -37,6 +41,8 @@ export function ProposalsContent() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
+  const [token, setToken] = useState('');
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -54,6 +60,7 @@ export function ProposalsContent() {
         setError('Không có quyền đề xuất');
         return null;
       }
+      setToken(access);
       return access;
     } catch {
       const refresh = getRefreshToken();
@@ -68,9 +75,15 @@ export function ProposalsContent() {
       const me = await staffMe(access);
       setUser(me);
       updateStoredUser(me);
+      setToken(access);
       return access;
     }
   }, [router]);
+
+  const reloadProposals = useCallback(async (access: string, cid: string) => {
+    if (!cid) return;
+    setProposals(await fetchProposals(access, Number(cid)));
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -88,13 +101,14 @@ export function ProposalsContent() {
         else if (data[0]) setCustomerId(String(data[0].id));
         if (prefillSlugs) setServiceSlugs(prefillSlugs);
         if (prefillNotes) setNotes(prefillNotes);
+        if (quoteBuilderEnabled && searchParams.get('wizard') === '1') setShowWizard(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải khách hàng thất bại');
       } finally {
         setLoading(false);
       }
     })();
-  }, [ensureAuth, searchParams]);
+  }, [ensureAuth, quoteBuilderEnabled, searchParams]);
 
   useEffect(() => {
     void (async () => {
@@ -103,14 +117,14 @@ export function ProposalsContent() {
       setLoading(true);
       setError('');
       try {
-        setProposals(await fetchProposals(access, Number(customerId)));
+        await reloadProposals(access, customerId);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải đề xuất thất bại');
       } finally {
         setLoading(false);
       }
     })();
-  }, [customerId]);
+  }, [customerId, reloadProposals]);
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -131,7 +145,7 @@ export function ProposalsContent() {
       });
       setServiceSlugs('');
       setNotes('');
-      setProposals(await fetchProposals(access, Number(customerId)));
+      await reloadProposals(access, customerId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tạo đề xuất thất bại');
     } finally {
@@ -145,7 +159,7 @@ export function ProposalsContent() {
     setError('');
     try {
       await generateProposal(access, id);
-      setProposals(await fetchProposals(access, Number(customerId)));
+      await reloadProposals(access, customerId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Generate AI chưa sẵn sàng');
     }
@@ -158,7 +172,7 @@ export function ProposalsContent() {
     setError('');
     try {
       await deleteProposal(access, id);
-      setProposals(await fetchProposals(access, Number(customerId)));
+      await reloadProposals(access, customerId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Xóa thất bại');
     }
@@ -185,10 +199,13 @@ export function ProposalsContent() {
       breadcrumb={[
         { label: 'CRM', href: '/crm' },
         { label: 'Bán hàng', href: '/crm/proposals' },
-        { label: 'Đề xuất' },
+        { label: 'Báo giá' },
       ]}
     >
-      <HubPageLayout title="Đề xuất dịch vụ" subtitle={`${proposals.length} đề xuất`}>
+      <HubPageLayout
+        title={quoteBuilderEnabled ? 'Quote Builder (3 gói DV)' : 'Đề xuất dịch vụ'}
+        subtitle={`${proposals.length} đề xuất`}
+      >
         <div style={{ marginBottom: '0.25rem' }}>
           <label className="muted" style={{ display: 'block', marginBottom: '0.35rem' }}>
             Khách hàng
@@ -198,6 +215,7 @@ export function ProposalsContent() {
             value={customerId}
             onChange={(e) => setCustomerId(e.target.value)}
             style={{ width: '100%', maxWidth: 420 }}
+            disabled={showWizard}
           >
             {customers.map((c) => (
               <option key={c.id} value={String(c.id)}>
@@ -206,49 +224,89 @@ export function ProposalsContent() {
             ))}
           </select>
         </div>
+
+        {quoteBuilderEnabled && hasCap(user, 'crm_board', 'edit') ? (
+          <div style={{ marginBottom: '1rem' }}>
+            {!showWizard ? (
+              <button type="button" className="btn btn-sm" onClick={() => setShowWizard(true)}>
+                + Quote Builder (DV + 3 gói)
+              </button>
+            ) : (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowWizard(false)}>
+                ← Danh sách đề xuất
+              </button>
+            )}
+          </div>
+        ) : null}
+
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
-        <ul style={{ margin: '0 0 1rem', paddingLeft: '1.1rem' }}>
-          {proposals.map((p) => (
-            <li key={p.id} style={{ marginBottom: '0.5rem' }}>
-              #{p.id} · {p.service_slugs.join(', ')} · {p.total_vnd.toLocaleString('vi-VN')} VND
-              {hasCap(user, 'crm_board', 'edit') ? (
-                <>
-                  {' '}
-                  <button type="button" className="btn btn-sm" onClick={() => void onGenerate(p.id)}>
-                    AI
-                  </button>{' '}
-                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onDelete(p.id)}>
-                    Xóa
-                  </button>
-                </>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-        {proposals.length === 0 && !loading ? <p className="muted">Chưa có đề xuất.</p> : null}
-        {hasCap(user, 'crm_board', 'edit') ? (
-          <form onSubmit={(e) => void onCreate(e)} style={{ display: 'grid', gap: '0.5rem', maxWidth: 520 }}>
-            <input
-              className="kpi-input"
-              value={serviceSlugs}
-              onChange={(e) => setServiceSlugs(e.target.value)}
-              placeholder="service slugs (vd: seo, ads)"
-              disabled={saving}
-            />
-            <textarea
-              className="kpi-input"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ghi chú"
-              rows={2}
-              disabled={saving}
-            />
-            <button type="submit" className="btn btn-secondary btn-sm" disabled={saving || !serviceSlugs.trim()}>
-              + Đề xuất
-            </button>
-          </form>
-        ) : null}
+
+        {showWizard && token ? (
+          <QuoteBuilderWizard
+            token={token}
+            user={user}
+            customers={customers}
+            initialCustomerId={customerId}
+            onDone={async () => {
+              setShowWizard(false);
+              const access = getAccessToken();
+              if (access && customerId) await reloadProposals(access, customerId);
+            }}
+          />
+        ) : (
+          <>
+            <ul style={{ margin: '0 0 1rem', paddingLeft: '1.1rem' }}>
+              {proposals.map((p) => (
+                <li key={p.id} style={{ marginBottom: '0.5rem' }}>
+                  #{p.id}
+                  {'status' in p && p.status ? ` · ${String(p.status)}` : ''} ·{' '}
+                  {(p.service_slugs ?? []).join(', ') || 'quote lines'} ·{' '}
+                  {p.total_vnd.toLocaleString('vi-VN')} VND
+                  {hasCap(user, 'crm_board', 'edit') ? (
+                    <>
+                      {' '}
+                      <button type="button" className="btn btn-sm" onClick={() => void onGenerate(p.id)}>
+                        AI
+                      </button>{' '}
+                      <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onDelete(p.id)}>
+                        Xóa
+                      </button>
+                    </>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+            {proposals.length === 0 && !loading ? <p className="muted">Chưa có đề xuất.</p> : null}
+            {!quoteBuilderEnabled && hasCap(user, 'crm_board', 'edit') ? (
+              <form onSubmit={(e) => void onCreate(e)} style={{ display: 'grid', gap: '0.5rem', maxWidth: 520 }}>
+                <input
+                  className="kpi-input"
+                  value={serviceSlugs}
+                  onChange={(e) => setServiceSlugs(e.target.value)}
+                  placeholder="service slugs (vd: seo, ads)"
+                  disabled={saving}
+                />
+                <textarea
+                  className="kpi-input"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Ghi chú"
+                  rows={2}
+                  disabled={saving}
+                />
+                <button type="submit" className="btn btn-secondary btn-sm" disabled={saving || !serviceSlugs.trim()}>
+                  + Đề xuất (legacy)
+                </button>
+              </form>
+            ) : null}
+            {quoteBuilderEnabled ? (
+              <p className="muted" style={{ marginTop: '0.75rem' }}>
+                Gói: {Object.values(QUOTE_TIER_LABEL).join(' · ')} — giá tham khảo từ catalog DV.
+              </p>
+            ) : null}
+          </>
+        )}
       </HubPageLayout>
     </StaffPageShell>
   );

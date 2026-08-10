@@ -80,5 +80,28 @@ export function isValidStage(stage: string): boolean {
 }
 
 export function isValidSlug(slug: string): boolean {
-  return VALID_SLUGS.has(String(slug ?? '').trim());
+  const s = String(slug ?? '').trim();
+  if (VALID_SLUGS.has(s)) return true;
+  return OPS_DV_PRIMARY_SLUGS.has(s);
 }
+
+/** Primary slugs from ops-dv01-dv21-route-map — quote accept → lifecycle (INT-P2). */
+export const OPS_DV_PRIMARY_SLUGS = new Set([
+  'nhan-dien-thuong-hieu',
+  'nuoi-duong-khach-hang',
+  'ai-chatbot-ban-hang',
+  'thiet-lap-crm',
+  'marketing-automation-nurture',
+  'ai-system-intelligence',
+  'marketing-automation-setup',
+  'phan-tich-thi-truong',
+  'dashboard-bao-cao-ai',
+  'pr-booking-bao-chi',
+  'san-xuat-video-tvc',
+  'kol-koc-booking',
+  'su-kien-activation-btl',
+  'media-planning-ooh',
+  'van-hanh-tmdt',
+  'email-sms-zalo-marketing',
+  'trade-marketing-posm',
+]);

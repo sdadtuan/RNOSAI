@@ -1,4 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
+import { OpsModule } from '../ops/ops.module';
+import { ServiceLifecycleModule } from '../service-lifecycle/service-lifecycle.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import {
   StaffProposalsViewGuard,
@@ -9,7 +11,7 @@ import { ProposalsSqliteRepository } from './proposals-sqlite.repository';
 import { ProposalsService } from './proposals.service';
 
 @Module({
-  imports: [StaffAuthModule],
+  imports: [StaffAuthModule, forwardRef(() => OpsModule), forwardRef(() => ServiceLifecycleModule)],
   controllers: [ProposalsController],
   providers: [
     ProposalsService,
