@@ -47,15 +47,11 @@ run_local() {
     echo "Note: $ENV_FILE not writable — using deploy/runtime.env only"
   fi
 
-  echo "== nginx Keycloak /auth (via ptt include) =="
-  KC_INC="/var/www/ptt/deploy/nginx-keycloak-auth.conf"
-  cp "$ROOT/deploy/nginx-keycloak-auth.conf" "$KC_INC"
-  if ! grep -q 'nginx-keycloak-auth.conf' /var/www/ptt/deploy/nginx-seo-gate-a-redirect.conf 2>/dev/null; then
-    cat >>/var/www/ptt/deploy/nginx-seo-gate-a-redirect.conf <<'NGINX'
-
-# WIN-4-A Keycloak OIDC (deploy-managed include)
-include /var/www/ptt/deploy/nginx-keycloak-auth.conf;
-NGINX
+  echo "== nginx Keycloak /auth (rs site include only) =="
+  mkdir -p /var/www/ptt/deploy
+  cp "$ROOT/deploy/nginx-keycloak-auth.conf" /var/www/ptt/deploy/nginx-keycloak-auth.conf
+  if [[ -x "$ROOT/scripts/fix_nginx_keycloak_duplicate.sh" ]]; then
+    sudo -n "$ROOT/scripts/fix_nginx_keycloak_duplicate.sh" || true
   fi
   sudo -n /usr/sbin/nginx -t && sudo -n /usr/bin/systemctl reload nginx && echo "OK nginx reloaded" || echo "WARN nginx reload failed"
 

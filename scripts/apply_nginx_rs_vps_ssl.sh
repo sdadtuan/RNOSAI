@@ -25,6 +25,10 @@ nginx_ssl_rewrite_site "$DEST" "$DOMAIN"
 
 ln -sf "$DEST" "/etc/nginx/sites-enabled/${DOMAIN}"
 
+if [[ -x "$ROOT/scripts/fix_nginx_keycloak_duplicate.sh" ]]; then
+  "$ROOT/scripts/fix_nginx_keycloak_duplicate.sh"
+fi
+
 nginx -t
 systemctl reload nginx
 echo "OK  nginx $DOMAIN applied (TLS from $nginx_ssl_dir)"
