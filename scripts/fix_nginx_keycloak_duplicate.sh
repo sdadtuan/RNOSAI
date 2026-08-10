@@ -16,11 +16,10 @@ fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SEO_GATE="/var/www/ptt/deploy/nginx-seo-gate-a-redirect.conf"
-KC_SRC="$ROOT/deploy/nginx-keycloak-auth.conf"
-KC_DST="$ROOT/deploy/nginx-keycloak-auth.conf"
 
-if [[ -f "$KC_SRC" ]]; then
-  cp "$KC_SRC" "$KC_DST"
+mkdir -p /var/www/ptt/deploy
+if [[ -f "$ROOT/deploy/nginx-keycloak-auth.conf" ]]; then
+  cp "$ROOT/deploy/nginx-keycloak-auth.conf" /var/www/ptt/deploy/nginx-keycloak-auth.conf
 fi
 
 if [[ ! -f "$SEO_GATE" ]]; then
