@@ -41,6 +41,7 @@ run_local() {
   for kv in \
     "PTT_OPS_DV_ENABLED=1" \
     "PTT_OPS_WEEKLY_SPAWN=1" \
+    "PTT_OPS_AGENT_ENABLED=1" \
     "PTT_OPS_HUB_PILOT_DV=DV02,DV05,DV04,DV20" \
     "NEXT_PUBLIC_OPS_DV=1"; do
     key="${kv%%=*}"

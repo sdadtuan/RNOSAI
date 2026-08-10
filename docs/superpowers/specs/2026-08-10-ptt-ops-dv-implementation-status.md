@@ -1,8 +1,8 @@
 # PTT Ops DV01–DV21 — Implementation Status
 
 **Last updated:** 2026-08-10  
-**Overall:** ~60% — INT-P1 staging; INT-P2 Quote Builder implemented locally  
-**Plan:** `docs/superpowers/plans/2026-08-10-ptt-ops-int-p2-implementation.md`
+**Overall:** ~75% — INT-P1/P2 staging; INT-P3 Agent + Alerts + Dashboard implemented locally  
+**Plan:** `docs/superpowers/plans/2026-08-10-ptt-ops-int-p3-implementation.md`
 
 ---
 
@@ -14,8 +14,11 @@
 | **Ops-M0** | Catalog + hub read-only | ✅ Done | Staging @ `4903576` |
 | **INT-P1 / Ops-M1** | Weekly spawn | ✅ Done | POST spawn-week, checklist PATCH |
 | **INT-P1 / Ops-M2** | KPI records + labels | ✅ Done | Staging @ ec9d2b3 |
-| **INT-P2 / Ops-M3** | Quote Builder 3 gói | ✅ Done | local — chưa deploy |
+| **INT-P2 / Ops-M3** | Quote Builder 3 gói | ✅ Done | Staging @ 0d377cf |
+| **INT-P3 / Ops-M4** | L2 Ops Agent + alerts | ✅ Done | local — chưa deploy |
+| **INT-P3 / M5** | Role dashboards | ✅ Done | local — chưa deploy |
 | **INT-P2b** | AI suggest-quote | ⬜ Deferred | |
+| **INT-P4** | L3 RAG chat | ⬜ Deferred | |
 
 ---
 
@@ -28,13 +31,14 @@
 | GET/PATCH `/api/ops/lifecycle/:id/weekly` | ✅ |
 | GET/PUT `/api/ops/lifecycle/:id/kpi` | ✅ |
 | POST `/api/ops/lifecycle/:id/kpi/compute-labels` | ✅ |
-| Hub weekly + KPI enrichment | ✅ |
+| Hub weekly + KPI + **alerts** enrichment | ✅ |
+| `ops_alert_log` PG repo | ✅ |
+| `OpsAgentScanService` + daily cron tick | ✅ |
+| GET/PATCH `/api/ops/alerts` | ✅ |
+| POST `/api/ops/agent/run` | ✅ |
+| GET `/api/ops/dashboard/*` (4 roles) | ✅ |
 | POST `/api/crm/proposals` + lines | ✅ |
-| PUT `/api/crm/proposals/:id/lines` | ✅ |
-| PATCH status + accept → lifecycle | ✅ |
-| POST export PDF/DOCX | ✅ |
-| GET `/api/crm/proposals/quote-catalog` | ✅ |
-| Tier pricing seed | ✅ `ops-dv-tier-pricing-seed.json` |
+| Quote accept → lifecycle | ✅ |
 
 ---
 
@@ -43,51 +47,34 @@
 | Component | Status |
 |-----------|--------|
 | `OpsServiceHubPanel` | ✅ |
-| `OpsWeeklyPanel` | ✅ spawn + checklist toggle |
-| `QuoteBuilderWizard` | ✅ 4 bước DV + 3 gói |
-| `quote-api.ts` | ✅ |
-| `/crm/proposals` | ✅ wizard + legacy list |
+| `OpsWeeklyPanel` | ✅ |
+| `OpsKpiPanel` | ✅ |
+| `OpsAlertsPanel` | ✅ |
+| `/crm/ops/dashboard` | ✅ 4 role tabs |
+| `/crm/ops/alerts` | ✅ alert center |
+| `/crm/ops/my-tasks` | ✅ specialist tasks |
+| `QuoteBuilderWizard` | ✅ |
+| `/crm/proposals` | ✅ |
 
 ---
 
-## Pilot DV (P0)
+## Env (staging target)
 
-| DV | Slug | Hub | Spawn | KPI | Template seed |
-|----|------|-----|-------|-----|---------------|
-| DV02 | `tiep-thi-noi-dung` | ✅ | ✅ | ✅ | ✅ 3 tasks |
-| DV05 | `seo-retainer` | ✅ | ✅ | ✅ | ✅ 3 tasks |
-| DV04 | ads slugs | ✅ | ✅ | ✅ | ✅ 3 tasks |
-| DV20 | `email-marketing` | ✅ | ✅ | ✅ | ✅ 3 tasks |
-
----
-
-## Environment (staging)
-
-| Variable | Target |
-|----------|--------|
+| Flag | Value |
+|------|-------|
 | `PTT_OPS_DV_ENABLED` | `1` |
-| `PTT_OPS_WEEKLY_SPAWN` | `1` (INT-P1) |
+| `PTT_OPS_WEEKLY_SPAWN` | `1` |
+| `PTT_OPS_AGENT_ENABLED` | `1` (INT-P3) |
 | `NEXT_PUBLIC_OPS_DV` | `1` |
 
----
+Deploy: `APPLY=1 ./scripts/deploy_ops_dv_staging.sh`
 
-## Next action
-
-1. Commit + push INT-P2
-2. Re-seed tier_pricing staging
-3. Deploy + smoke quote
-
-```bash
-STAFF_TOKEN=... CUSTOMER_ID=... bash scripts/smoke_ops_quote.sh
-ACCEPT=1 ... bash scripts/smoke_ops_quote.sh
-```
+Smoke INT-P3: `STAFF_TOKEN=... bash scripts/smoke_ops_agent.sh`
 
 ---
 
-## Changelog
+## Next
 
-| Date | Change |
-|------|--------|
-| 2026-08-10 | Ops-M0 staging deploy |
-| 2026-08-10 | INT-P1 staging deploy |
-| 2026-08-10 | INT-P2: Quote Builder, export, accept→lifecycle |
+- Deploy INT-P3 staging + smoke with real lifecycle/KPI data
+- INT-P4: L3 RAG chat + AI draft report (§6.2–6.5)
+- Notify channel (email/Zalo) for alerts

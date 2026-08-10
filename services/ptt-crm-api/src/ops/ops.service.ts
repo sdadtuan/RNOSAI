@@ -16,6 +16,7 @@ import {
   type OpsKpiMetricInput,
 } from './ops-kpi-label.util';
 import { OpsKpiPgRepository } from './ops-kpi-pg.repository';
+import { OpsAlertPgRepository } from './ops-alert-pg.repository';
 import { OpsProfilePgRepository } from './ops-profile-pg.repository';
 import { OpsRouteMapLoader } from './ops-route-map.loader';
 import { resolveDvByLifecycleSlug } from './ops-slug-resolver.util';
@@ -57,6 +58,7 @@ export class OpsService implements OnModuleInit {
     private readonly profiles: OpsProfilePgRepository,
     private readonly weekly: OpsWeeklyPgRepository,
     private readonly kpi: OpsKpiPgRepository,
+    private readonly alerts: OpsAlertPgRepository,
     private readonly lifecycle: ServiceLifecycleService,
   ) {}
 
@@ -83,6 +85,7 @@ export class OpsService implements OnModuleInit {
       opsDvEnabled: this.config.opsDvEnabled,
       opsWeeklySpawnEnabled: this.config.opsWeeklySpawnEnabled,
       opsHubPilotDv: this.config.opsHubPilotDv,
+      opsAgentEnabled: this.config.opsAgentEnabled,
     };
   }
 
@@ -186,6 +189,7 @@ export class OpsService implements OnModuleInit {
       ok: true,
       ops_dv_enabled: this.config.opsDvEnabled,
       ops_weekly_spawn_enabled: this.config.opsWeeklySpawnEnabled,
+      ops_agent_enabled: this.config.opsAgentEnabled,
       route_map: this.routeMapLoader.isLoaded()
         ? this.routeMapLoader.getLoadedPath()
         : null,
@@ -307,13 +311,29 @@ export class OpsService implements OnModuleInit {
     );
   }
 
+  private async loadAlertsSnapshot(lifecycleId: number) {
+    try {
+      const [openCount, rows] = await Promise.all([
+        this.alerts.countOpen(lifecycleId),
+        this.alerts.listAlerts({ lifecycleId, status: 'open', limit: 20 }),
+      ]);
+      return {
+        open_count: openCount,
+        items: rows.map((row) => this.alerts.mapToPayload(row)),
+      };
+    } catch {
+      return { open_count: 0, items: [] };
+    }
+  }
+
   async getHub(lifecycleId: number): Promise<OpsHubPayload> {
     this.assertEnabled();
     const resolved = await this.resolveLifecycleDv(lifecycleId);
     const isoWeek = currentIsoWeek();
-    const [weeklySnapshot, kpiMetrics] = await Promise.all([
+    const [weeklySnapshot, kpiMetrics, alertsSnapshot] = await Promise.all([
       this.loadWeeklySnapshot(lifecycleId, isoWeek),
       this.loadKpiSnapshot(resolved, 'month', currentMonthKey()),
+      this.loadAlertsSnapshot(lifecycleId),
     ]);
 
     return buildOpsHubPayload({
@@ -340,6 +360,7 @@ export class OpsService implements OnModuleInit {
         period_key: currentMonthKey(),
         metrics: kpiMetrics,
       },
+      alertsSnapshot,
     });
   }
 
@@ -479,5 +500,23 @@ export class OpsService implements OnModuleInit {
       period_key: key,
       metrics: this.mapKpiMetrics(result.metrics),
     };
+  }
+
+  async listAlerts(input: { lifecycleId?: number; status?: 'open' | 'acknowledged'; limit?: number }) {
+    this.assertEnabled();
+    const rows = await this.alerts.listAlerts(input);
+    return {
+      items: rows.map((row) => this.alerts.mapToPayload(row)),
+      total: rows.length,
+    };
+  }
+
+  async acknowledgeAlert(alertId: number, actor: string) {
+    this.assertEnabled();
+    const row = await this.alerts.acknowledgeAlert(alertId, actor);
+    if (!row) {
+      throw new NotFoundException({ error: 'alert_not_found' });
+    }
+    return this.alerts.mapToPayload(row);
   }
 }

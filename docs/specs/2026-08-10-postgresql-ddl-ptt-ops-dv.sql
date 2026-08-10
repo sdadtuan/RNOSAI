@@ -118,8 +118,32 @@ CREATE INDEX IF NOT EXISTS idx_ops_weekly_checklist_lifecycle_week
 -- ALTER TABLE service_lifecycle ADD COLUMN IF NOT EXISTS package_tier VARCHAR(20) NULL;
 
 -- ---------------------------------------------------------------------------
--- 7. Seed placeholder — full seed via scripts/seed_ops_dv_catalog.ts
+-- 8. Ops alert log (INT-P3 L2 agent)
 -- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ops_alert_log (
+  id SERIAL PRIMARY KEY,
+  lifecycle_id INT NOT NULL,
+  dv_code VARCHAR(8) NOT NULL,
+  alert_type VARCHAR(40) NOT NULL,
+  severity VARCHAR(20) NOT NULL DEFAULT 'warning',
+  title VARCHAR(500) NOT NULL,
+  message TEXT NOT NULL DEFAULT '',
+  source_key VARCHAR(160) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'open',
+  acknowledged_by VARCHAR(80) NULL,
+  acknowledged_at TIMESTAMPTZ NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (source_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ops_alert_lifecycle
+  ON ops_alert_log (lifecycle_id);
+
+CREATE INDEX IF NOT EXISTS idx_ops_alert_status
+  ON ops_alert_log (status)
+  WHERE status = 'open';
+
+COMMENT ON TABLE ops_alert_log IS 'L2 Ops Agent alerts — task due/overdue + KPI CanChuY/KhongDat';
 -- Example single-row upsert (DV02 pilot):
 --
 -- INSERT INTO ops_service_profile (

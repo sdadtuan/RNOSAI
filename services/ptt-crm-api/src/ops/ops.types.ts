@@ -82,6 +82,23 @@ export type OpsWeeklyChecklistPayload = {
   completed_at: string | null;
 };
 
+export type OpsAlertPayload = {
+  id: number;
+  lifecycle_id: number;
+  dv_code: string;
+  alert_type: string;
+  severity: 'info' | 'warning' | 'critical';
+  title: string;
+  message: string;
+  status: 'open' | 'acknowledged' | 'resolved';
+  created_at: string;
+};
+
+export type OpsHubAlertsSnapshot = {
+  open_count: number;
+  items: OpsAlertPayload[];
+};
+
 export type OpsHubPayload = {
   lifecycle: {
     id: number;
@@ -109,10 +126,12 @@ export type OpsHubPayload = {
     period_key: string;
     metrics: OpsKpiMetricPayload[];
   };
+  alerts: OpsHubAlertsSnapshot;
   flags: {
     ops_dv_enabled: boolean;
     weekly_spawn_enabled: boolean;
     pilot_dv: boolean;
+    ops_agent_enabled: boolean;
   };
 };
 
@@ -144,4 +163,5 @@ export type OpsHubFlags = {
   opsDvEnabled: boolean;
   opsWeeklySpawnEnabled: boolean;
   opsHubPilotDv: Set<string>;
+  opsAgentEnabled: boolean;
 };

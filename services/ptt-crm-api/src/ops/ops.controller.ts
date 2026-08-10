@@ -16,6 +16,8 @@ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.gua
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { StaffOpsViewGuard } from './guards/staff-ops-view.guard';
 import { StaffOpsWriteGuard } from './guards/staff-ops-write.guard';
+import { OpsAgentCronService } from './ops-agent-cron.service';
+import { OpsDashboardService } from './ops-dashboard.service';
 import { OpsService } from './ops.service';
 import type { OpsKpiUpsertBody } from './ops.types';
 
@@ -24,7 +26,11 @@ type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'interna
 @Controller('api/ops')
 @UseGuards(StaffOrInternalKeyGuard, StaffOpsViewGuard)
 export class OpsController {
-  constructor(private readonly ops: OpsService) {}
+  constructor(
+    private readonly ops: OpsService,
+    private readonly agent: OpsAgentCronService,
+    private readonly dashboard: OpsDashboardService,
+  ) {}
 
   @Get('health')
   health() {
@@ -95,5 +101,59 @@ export class OpsController {
     @Query('period_key') periodKey?: string,
   ) {
     return this.ops.computeKpiLabels(lifecycleId, periodType ?? 'month', periodKey);
+  }
+
+  @Get('alerts')
+  listAlerts(
+    @Query('lifecycle_id') lifecycleId?: string,
+    @Query('status') status?: 'open' | 'acknowledged',
+    @Query('limit') limit?: string,
+  ) {
+    const lc = lifecycleId ? Number(lifecycleId) : undefined;
+    return this.ops.listAlerts({
+      lifecycleId: lc && Number.isFinite(lc) ? lc : undefined,
+      status,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Patch('alerts/:alertId/ack')
+  @UseGuards(StaffOpsWriteGuard)
+  ackAlert(@Param('alertId', ParseIntPipe) alertId: number, @Req() req: StaffReq) {
+    const actor = req.staffUser?.email ?? req.staffAuthVia ?? 'staff';
+    return this.ops.acknowledgeAlert(alertId, String(actor));
+  }
+
+  @Get('agent/status')
+  agentStatus() {
+    return this.agent.agentStatus();
+  }
+
+  @Post('agent/run')
+  @UseGuards(StaffOpsWriteGuard)
+  runAgent(@Body() body: { dry_run?: boolean }) {
+    return this.agent.runScan({ dryRun: body?.dry_run === true });
+  }
+
+  @Get('dashboard/am')
+  dashboardAm(@Req() req: StaffReq, @Query('am_id') amId?: string) {
+    const staffId = amId?.trim() || req.staffUser?.sub;
+    const parsed = staffId ? Number(staffId) : undefined;
+    return this.dashboard.getAmDashboard(parsed && Number.isFinite(parsed) ? parsed : undefined);
+  }
+
+  @Get('dashboard/team-lead')
+  dashboardTeamLead(@Query('department') department?: string) {
+    return this.dashboard.getTeamLeadDashboard(department?.trim() || undefined);
+  }
+
+  @Get('dashboard/specialist')
+  dashboardSpecialist() {
+    return this.dashboard.getSpecialistDashboard();
+  }
+
+  @Get('dashboard/executive')
+  dashboardExecutive() {
+    return this.dashboard.getExecutiveDashboard();
   }
 }

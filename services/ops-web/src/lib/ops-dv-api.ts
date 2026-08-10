@@ -74,7 +74,77 @@ export type OpsHubPayload = {
     ops_dv_enabled: boolean;
     weekly_spawn_enabled: boolean;
     pilot_dv: boolean;
+    ops_agent_enabled: boolean;
   };
+  alerts: {
+    open_count: number;
+    items: OpsAlertItem[];
+  };
+};
+
+export type OpsAlertItem = {
+  id: number;
+  lifecycle_id: number;
+  dv_code: string;
+  alert_type: string;
+  severity: 'info' | 'warning' | 'critical';
+  title: string;
+  message: string;
+  status: 'open' | 'acknowledged' | 'resolved';
+  created_at: string;
+};
+
+export type OpsDashboardInstance = {
+  lifecycle_id: number;
+  client_name: string;
+  dv_code: string;
+  dv_name: string;
+  package_tier: string;
+  stage: string;
+  kpi_label: 'Dat' | 'CanChuY' | 'KhongDat' | null;
+  tasks_done_pct: number;
+  alerts_open: number;
+  department?: string;
+};
+
+export type OpsDashboardAmPayload = {
+  role: 'am';
+  instances: OpsDashboardInstance[];
+  summary: { total: number; alerts_open: number; kpi_dat_pct: number };
+};
+
+export type OpsDashboardTeamLeadPayload = {
+  role: 'team_lead';
+  departments: Array<{
+    department: string;
+    instances: OpsDashboardInstance[];
+    alerts_open: number;
+  }>;
+};
+
+export type OpsDashboardSpecialistPayload = {
+  role: 'specialist';
+  tasks: Array<{
+    checklist_item_id: number;
+    lifecycle_id: number;
+    dv_code: string;
+    title: string;
+    owner_role: string;
+    status: string;
+    iso_week: string;
+  }>;
+  summary: { pending: number; done: number };
+};
+
+export type OpsDashboardExecutivePayload = {
+  role: 'executive';
+  summary: {
+    active_instances: number;
+    kpi_dat_pct: number;
+    alerts_open: number;
+    pilot_dv_count: number;
+  };
+  by_dv: Array<{ dv_code: string; name: string; instances: number; alerts_open: number }>;
 };
 
 export type OpsCatalogResponse = {
@@ -162,6 +232,57 @@ export async function putOpsKpi(
     method: 'PUT',
     body: JSON.stringify(body),
   });
+}
+
+export async function fetchOpsAlerts(
+  token: string,
+  query?: { lifecycle_id?: number; status?: 'open' | 'acknowledged'; limit?: number },
+): Promise<{ items: OpsAlertItem[]; total: number }> {
+  const params = new URLSearchParams();
+  if (query?.lifecycle_id) params.set('lifecycle_id', String(query.lifecycle_id));
+  if (query?.status) params.set('status', query.status);
+  if (query?.limit) params.set('limit', String(query.limit));
+  const qs = params.toString();
+  return opsFetch(token, `/api/ops/alerts${qs ? `?${qs}` : ''}`);
+}
+
+export async function acknowledgeOpsAlert(token: string, alertId: number): Promise<OpsAlertItem> {
+  return opsFetch<OpsAlertItem>(token, `/api/ops/alerts/${alertId}/ack`, { method: 'PATCH' });
+}
+
+export async function fetchOpsAgentStatus(token: string): Promise<Record<string, unknown>> {
+  return opsFetch(token, '/api/ops/agent/status');
+}
+
+export async function runOpsAgentScan(
+  token: string,
+  dryRun = false,
+): Promise<Record<string, unknown>> {
+  return opsFetch(token, '/api/ops/agent/run', {
+    method: 'POST',
+    body: JSON.stringify({ dry_run: dryRun }),
+  });
+}
+
+export async function fetchOpsDashboardAm(token: string, amId?: string): Promise<OpsDashboardAmPayload> {
+  const qs = amId ? `?am_id=${encodeURIComponent(amId)}` : '';
+  return opsFetch(token, `/api/ops/dashboard/am${qs}`);
+}
+
+export async function fetchOpsDashboardTeamLead(
+  token: string,
+  department?: string,
+): Promise<OpsDashboardTeamLeadPayload> {
+  const qs = department ? `?department=${encodeURIComponent(department)}` : '';
+  return opsFetch(token, `/api/ops/dashboard/team-lead${qs}`);
+}
+
+export async function fetchOpsDashboardSpecialist(token: string): Promise<OpsDashboardSpecialistPayload> {
+  return opsFetch(token, '/api/ops/dashboard/specialist');
+}
+
+export async function fetchOpsDashboardExecutive(token: string): Promise<OpsDashboardExecutivePayload> {
+  return opsFetch(token, '/api/ops/dashboard/executive');
 }
 
 export function parseOpsHubError(err: unknown): string {

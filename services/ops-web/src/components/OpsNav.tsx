@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import type { StoredStaffUser } from '@/lib/auth';
 import { getAccessToken, hasCap } from '@/lib/auth';
 import { fetchReviewQueueCount } from '@/lib/api';
+import { isOpsDvFeEnabled } from '@/lib/ops-dv-flags';
 import { emailGateAEnabled, emailJourneysEnabled, emailModuleEnabled } from '@/lib/email-flags';
 import { winKpiSolutionEnabled, winLeaveLiteEnabled, winPayslipPortalEnabled } from '@/lib/win/flags';
 import { StaffNotificationBell } from '@/components/staff/StaffNotificationBell';
@@ -327,6 +328,11 @@ function buildSections(
     delivery.push({ href: '/crm/launch-qa', label: 'Launch QA' });
     delivery.push({ href: '/crm/creatives', label: 'Creative Hub' });
     delivery.push({ href: '/crm/campaign-writes', label: 'Campaign Write' });
+    if (isOpsDvFeEnabled()) {
+      delivery.push({ href: '/crm/ops/dashboard', label: 'Ops Dashboard' });
+      delivery.push({ href: '/crm/ops/my-tasks', label: 'Ops tasks' });
+      delivery.push({ href: '/crm/ops/alerts', label: 'Ops alerts' });
+    }
   }
   if (delivery.length) sections.push({ label: 'CRM · Triển khai dịch vụ', links: delivery, defaultOpen: true });
 

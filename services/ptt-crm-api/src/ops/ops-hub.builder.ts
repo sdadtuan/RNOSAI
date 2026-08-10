@@ -1,4 +1,5 @@
 import type {
+  OpsHubAlertsSnapshot,
   OpsHubBuildContext,
   OpsHubEngine,
   OpsHubFlags,
@@ -60,8 +61,9 @@ export function buildOpsHubPayload(input: {
     period_key: string;
     metrics: OpsKpiMetricPayload[];
   };
+  alertsSnapshot?: OpsHubAlertsSnapshot;
 }): OpsHubPayload {
-  const { ctx, dv, profile, flags, weeklySnapshot, kpiSnapshot } = input;
+  const { ctx, dv, profile, flags, weeklySnapshot, kpiSnapshot, alertsSnapshot } = input;
   const opsWeb = (profile?.ops_web_json ?? dv.ops_web ?? {}) as {
     execution?: Array<{ route: string; purpose?: string }>;
   };
@@ -118,10 +120,12 @@ export function buildOpsHubPayload(input: {
       period_key: currentMonthKey(),
       metrics: [],
     },
+    alerts: alertsSnapshot ?? { open_count: 0, items: [] },
     flags: {
       ops_dv_enabled: flags.opsDvEnabled,
       weekly_spawn_enabled: flags.opsWeeklySpawnEnabled,
       pilot_dv: flags.opsHubPilotDv.has(dv.code),
+      ops_agent_enabled: flags.opsAgentEnabled,
     },
   };
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { OpsAlertsPanel } from '@/components/ops/OpsAlertsPanel';
 import { OpsEngineGrid } from '@/components/ops/OpsEngineGrid';
 import { OpsHubHeader } from '@/components/ops/OpsHubHeader';
 import { OpsKpiPanel } from '@/components/ops/OpsKpiPanel';
@@ -58,6 +59,13 @@ export function OpsServiceHubPanel({ token, lifecycleId, user }: Props) {
         token={token}
         lifecycleId={lifecycleId}
         kpi={hub.kpi}
+        canEdit={canEdit}
+        onRefresh={reload}
+      />
+      <OpsAlertsPanel
+        token={token}
+        lifecycleId={lifecycleId}
+        alerts={hub.alerts}
         canEdit={canEdit}
         onRefresh={reload}
       />

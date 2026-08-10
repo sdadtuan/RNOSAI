@@ -164,6 +164,7 @@ export class AppConfigService {
   readonly opsWeeklySpawnEnabled: boolean;
   readonly opsHubPilotDv: Set<string>;
   readonly opsRouteMapPath: string;
+  readonly opsAgentEnabled: boolean;
 
   constructor() {
     this.applyRuntimeEnvOverrides();
@@ -526,6 +527,9 @@ export class AppConfigService {
     this.opsRouteMapPath =
       process.env.PTT_OPS_ROUTE_MAP_PATH?.trim() ||
       path.join(process.cwd(), 'docs/specs/ops-dv01-dv21-route-map.json');
+    this.opsAgentEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_OPS_AGENT_ENABLED ?? '0').trim().toLowerCase(),
+    );
   }
 
   private parsePortalCorsOrigins(): string[] {

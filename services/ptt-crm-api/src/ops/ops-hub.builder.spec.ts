@@ -54,6 +54,7 @@ describe('ops-hub.builder', () => {
         opsDvEnabled: true,
         opsWeeklySpawnEnabled: false,
         opsHubPilotDv: new Set(['DV02']),
+        opsAgentEnabled: false,
       },
     });
     expect(payload.dv.dv_code).toBe('DV02');
@@ -82,6 +83,7 @@ describe('ops-hub.builder', () => {
         opsDvEnabled: true,
         opsWeeklySpawnEnabled: false,
         opsHubPilotDv: new Set(),
+        opsAgentEnabled: false,
       },
     });
     expect(payload.engines.every((e) => e.status === 'gap' || e.badge)).toBe(true);
