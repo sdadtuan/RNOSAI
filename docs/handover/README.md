@@ -25,6 +25,7 @@ Bộ tài liệu này là **gói bàn giao chính thức** cho khách hàng và 
 |---|----------|-----------|-------|
 | **01** | [Tổng quan hệ thống](01-TONG-QUAN-HE-THONG.md) | PO, lãnh đạo | Vision, module đã giao, URL, giới hạn đã thống nhất |
 | **02** | [Hướng dẫn người dùng nội bộ](02-HUONG-DAN-NGUOI-DUNG-NOI-BO.md) | AM, CSKH, MKT, Ops | CRM, Meta, SEO, Email — thao tác hàng ngày |
+| **02b** | [Hướng dẫn sử dụng theo domain](../huong-dan-su-dung/README.md) | Mọi vai trò | 15 file chi tiết từng domain (CRM, Ops DV, Content, …) |
 | **03** | [Hướng dẫn Portal khách hàng](03-HUONG-DAN-PORTAL-KHACH-HANG.md) | Client viewer/approver | Đăng nhập, duyệt, báo cáo Meta/SEO/Email |
 | **04** | [Kiến trúc & triển khai bàn giao](04-KIEN-TRUC-TRIEN-KHAI-BAN-GIAO.md) | PO, IT khách, DevOps | Sơ đồ, domain, dịch vụ, smoke test, rollback |
 | **Ops** | [Hướng dẫn vận hành VPS](../runbooks/rnosai-vps-operations-guide.md) | DevOps, on-call | Vận hành hàng ngày, deploy, backup, xử lý sự cố |

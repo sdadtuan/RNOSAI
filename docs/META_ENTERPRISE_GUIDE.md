@@ -97,6 +97,8 @@ Onboard client → Kết nối ad account (Meta) → Sync insights T-1
 - **System User** với quyền `ads_management` (B15 create/edit).
 - **Webhook subscriptions** — leadgen, ad account status (B13).
 
+**Quy trình tạo từ đầu trên Meta:** [`huong-dan-meta-setup-tai-khoan-app-form-token.md`](huong-dan-meta-setup-tai-khoan-app-form-token.md)
+
 ---
 
 ## 3. Setup hệ thống (đầy đủ)
