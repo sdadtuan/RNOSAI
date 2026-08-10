@@ -42,8 +42,10 @@ run_local() {
     "PTT_OPS_DV_ENABLED=1" \
     "PTT_OPS_WEEKLY_SPAWN=1" \
     "PTT_OPS_AGENT_ENABLED=1" \
+    "PTT_OPS_PORTAL_SUMMARY=1" \
     "PTT_OPS_HUB_PILOT_DV=DV02,DV05,DV04,DV20" \
-    "NEXT_PUBLIC_OPS_DV=1"; do
+    "NEXT_PUBLIC_OPS_DV=1" \
+    "NEXT_PUBLIC_OPS_PORTAL_SUMMARY=1"; do
     key="${kv%%=*}"
     if grep -q "^${key}=" "$RUNTIME_ENV" 2>/dev/null; then
       sed -i.bak "s|^${key}=.*|${kv}|" "$RUNTIME_ENV"
@@ -61,6 +63,10 @@ run_local() {
     NEXT_PUBLIC_OPS_DV=1 bash "$ROOT/scripts/deploy_ops_web.sh" --restart 2>/dev/null \
       || NEXT_PUBLIC_OPS_DV=1 bash "$ROOT/scripts/deploy_ops_web.sh" 2>/dev/null \
       || echo "WARN ops-web deploy skipped"
+  fi
+  if [[ -x "$ROOT/scripts/wave_b2_rebuild_portal_web.sh" ]]; then
+    NEXT_PUBLIC_OPS_PORTAL_SUMMARY=1 bash "$ROOT/scripts/wave_b2_rebuild_portal_web.sh" 2>/dev/null \
+      || echo "WARN portal-web rebuild skipped"
   fi
   if sudo -n /usr/bin/systemctl restart ptt-crm-api 2>/dev/null; then
     sleep 3

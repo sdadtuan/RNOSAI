@@ -53,6 +53,7 @@ import { PortalSeoModule } from './portal-seo/portal-seo.module';
 import { PortalAiModule } from './portal-ai/portal-ai.module';
 import { PortalMktAiModule } from './portal-mkt-ai/portal-mkt-ai.module';
 import { PortalContentMarketingModule } from './portal-content-marketing/portal-content-marketing.module';
+import { PortalOpsModule } from './portal-ops/portal-ops.module';
 import { PortalModule } from './portal/portal.module';
 import { OwnerWeeklyModule } from './owner-weekly/owner-weekly.module';
 import { PayrollModule } from './payroll/payroll.module';
@@ -146,6 +147,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     PortalAiModule,
     PortalMktAiModule,
     PortalContentMarketingModule,
+    PortalOpsModule,
     PortalEmailModule,
     SeoAdminModule,
     SeoContentModule,

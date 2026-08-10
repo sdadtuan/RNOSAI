@@ -6,6 +6,7 @@ import { DashboardKpiStrip } from '@/components/dashboard/DashboardKpiStrip';
 import { PendingApprovalsWidget } from '@/components/PendingApprovalsWidget';
 import { PortalAiReportSummary } from '@/components/PortalAiReportSummary';
 import { MktAiPlanSummaryCard } from '@/components/MktAiPlanSummaryCard';
+import { OpsDvSummaryCard } from '@/components/OpsDvSummaryCard';
 import { ContentMarketingSummaryCard } from '@/components/ContentMarketingSummaryCard';
 import { PerformancePanel } from '@/components/PerformancePanel';
 import { HubPageLayout } from '@/components/layout';
@@ -73,6 +74,10 @@ function DashboardContent({ token }: { token: string }) {
 
       <section className="portal-hub-section">
         <ContentMarketingSummaryCard token={token} />
+      </section>
+
+      <section className="portal-hub-section">
+        <OpsDvSummaryCard token={token} />
       </section>
 
       <section className="portal-hub-section portal-hub-section--flush">

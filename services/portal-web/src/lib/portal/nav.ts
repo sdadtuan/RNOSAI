@@ -1,4 +1,5 @@
 import type { StoredUser } from '@/lib/auth';
+import { isOpsPortalSummaryFeEnabled } from '@/lib/ops-portal-flags';
 
 export type PortalNavLink = { href: string; label: string; badge?: number };
 
@@ -105,6 +106,15 @@ export function buildPortalNavSections(ctx: PortalNavContext): PortalNavSection[
     });
   }
 
+  if (isOpsPortalSummaryFeEnabled()) {
+    sections.splice(1, 0, {
+      id: 'service-delivery',
+      label: 'Triển khai dịch vụ',
+      shortLabel: 'DV',
+      links: [{ href: '/service-delivery', label: 'Tiến độ & KPI' }],
+    });
+  }
+
   sections.push({
     id: 'settings',
     label: 'Cài đặt',
@@ -128,6 +138,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/seo/content': 'SEO Content review',
   '/email': 'Email dashboard',
   '/email/approvals': 'Email approvals',
+  '/service-delivery': 'Triển khai dịch vụ',
 };
 
 export function portalPageTitle(pathname: string): string {

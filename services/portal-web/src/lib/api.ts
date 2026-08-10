@@ -921,6 +921,74 @@ export async function fetchPortalMktAiPlanSummary(
   return body;
 }
 
+export type OpsPortalLinkedLifecycle = {
+  ok: boolean;
+  enabled: boolean;
+  lifecycle_id: number | null;
+  service_slug: string | null;
+  dv_code: string | null;
+  stage: string | null;
+};
+
+export type OpsPortalSummary = {
+  ok: boolean;
+  enabled: boolean;
+  lifecycle_id: number;
+  service_slug: string;
+  dv_code: string;
+  dv_name: string;
+  stage: string;
+  package_tier: string;
+  iso_week: string;
+  weekly: {
+    spawned: boolean;
+    tasks_done: number;
+    tasks_total: number;
+    progress_pct: number;
+  };
+  kpi: {
+    period_type: 'month';
+    period_key: string;
+    overall_label: 'Dat' | 'CanChuY' | 'KhongDat' | null;
+    metrics: Array<{
+      key: string;
+      label: string;
+      status_label: 'Dat' | 'CanChuY' | 'KhongDat';
+      progress_pct: number | null;
+    }>;
+  };
+  status_message_vi: string;
+};
+
+export async function fetchPortalOpsLinkedLifecycle(
+  token: string,
+): Promise<OpsPortalLinkedLifecycle> {
+  const res = await fetch(`${API_BASE}/api/v1/portal/ops/linked`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<OpsPortalLinkedLifecycle & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Portal ops linked lifecycle failed', res.status);
+  }
+  return body;
+}
+
+export async function fetchPortalOpsLifecycleSummary(
+  token: string,
+  lifecycleId: number,
+): Promise<OpsPortalSummary> {
+  const res = await fetch(`${API_BASE}/api/v1/portal/ops/lifecycle/${lifecycleId}/summary`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<OpsPortalSummary & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Portal ops summary failed', res.status);
+  }
+  return body;
+}
+
 export type CmktPortalContentSummary = {
   ok: boolean;
   enabled: boolean;

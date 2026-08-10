@@ -1,8 +1,8 @@
 # PTT Ops DV01–DV21 — Implementation Status
 
 **Last updated:** 2026-08-10  
-**Overall:** ~75% — INT-P1/P2 staging; INT-P3 Agent + Alerts + Dashboard implemented locally  
-**Plan:** `docs/superpowers/plans/2026-08-10-ptt-ops-int-p3-implementation.md`
+**Overall:** ~85% — INT-P1/P2/P3 staging; INT-P4 Portal implemented locally  
+**Plan:** `docs/superpowers/plans/2026-08-10-ptt-ops-int-p4-implementation.md`
 
 ---
 
@@ -11,14 +11,13 @@
 | Milestone | Scope | Status | Notes |
 |-----------|-------|--------|-------|
 | **Spec** | Design + integration + DDL + route map | ✅ Done | |
-| **Ops-M0** | Catalog + hub read-only | ✅ Done | Staging @ `4903576` |
-| **INT-P1 / Ops-M1** | Weekly spawn | ✅ Done | POST spawn-week, checklist PATCH |
-| **INT-P1 / Ops-M2** | KPI records + labels | ✅ Done | Staging @ ec9d2b3 |
-| **INT-P2 / Ops-M3** | Quote Builder 3 gói | ✅ Done | Staging @ 0d377cf |
-| **INT-P3 / Ops-M4** | L2 Ops Agent + alerts | ✅ Done | local — chưa deploy |
-| **INT-P3 / M5** | Role dashboards | ✅ Done | local — chưa deploy |
+| **Ops-M0** | Catalog + hub read-only | ✅ Done | Staging |
+| **INT-P1** | Weekly spawn + KPI | ✅ Done | Staging |
+| **INT-P2** | Quote Builder | ✅ Done | Staging |
+| **INT-P3** | Ops Agent + dashboards | ✅ Done | Staging @ 0181782 |
+| **INT-P4** | Portal lifecycle KPI | ✅ Done | local — chưa deploy |
 | **INT-P2b** | AI suggest-quote | ⬜ Deferred | |
-| **INT-P4** | L3 RAG chat | ⬜ Deferred | |
+| **INT-P5** | L3 RAG chat | ⬜ Deferred | |
 
 ---
 
@@ -26,35 +25,22 @@
 
 | Component | Status |
 |-----------|--------|
-| `ops` Nest module | ✅ |
-| POST `/api/ops/lifecycle/:id/spawn-week` | ✅ |
-| GET/PATCH `/api/ops/lifecycle/:id/weekly` | ✅ |
-| GET/PUT `/api/ops/lifecycle/:id/kpi` | ✅ |
-| POST `/api/ops/lifecycle/:id/kpi/compute-labels` | ✅ |
-| Hub weekly + KPI + **alerts** enrichment | ✅ |
-| `ops_alert_log` PG repo | ✅ |
-| `OpsAgentScanService` + daily cron tick | ✅ |
-| GET/PATCH `/api/ops/alerts` | ✅ |
-| POST `/api/ops/agent/run` | ✅ |
-| GET `/api/ops/dashboard/*` (4 roles) | ✅ |
-| POST `/api/crm/proposals` + lines | ✅ |
-| Quote accept → lifecycle | ✅ |
+| Ops module (catalog, hub, spawn, KPI, alerts, dashboards) | ✅ |
+| `portal-ops` module | ✅ |
+| GET `/api/v1/portal/ops/linked` | ✅ |
+| GET `/api/v1/portal/ops/lifecycle/:id/summary` | ✅ |
+| Portal JWT + client lifecycle guard | ✅ |
 
 ---
 
-## Frontend (ops-web)
+## Frontend
 
-| Component | Status |
-|-----------|--------|
-| `OpsServiceHubPanel` | ✅ |
-| `OpsWeeklyPanel` | ✅ |
-| `OpsKpiPanel` | ✅ |
-| `OpsAlertsPanel` | ✅ |
-| `/crm/ops/dashboard` | ✅ 4 role tabs |
-| `/crm/ops/alerts` | ✅ alert center |
-| `/crm/ops/my-tasks` | ✅ specialist tasks |
-| `QuoteBuilderWizard` | ✅ |
-| `/crm/proposals` | ✅ |
+| App | Component | Status |
+|-----|-----------|--------|
+| ops-web | Ops Hub, dashboards, alerts | ✅ staging |
+| portal-web | `OpsDvSummaryCard` | ✅ |
+| portal-web | `/service-delivery` | ✅ |
+| portal-web | Dashboard card + nav | ✅ |
 
 ---
 
@@ -63,18 +49,16 @@
 | Flag | Value |
 |------|-------|
 | `PTT_OPS_DV_ENABLED` | `1` |
-| `PTT_OPS_WEEKLY_SPAWN` | `1` |
-| `PTT_OPS_AGENT_ENABLED` | `1` (INT-P3) |
-| `NEXT_PUBLIC_OPS_DV` | `1` |
+| `PTT_OPS_PORTAL_SUMMARY` | `1` (INT-P4) |
+| `NEXT_PUBLIC_OPS_PORTAL_SUMMARY` | `1` |
 
 Deploy: `APPLY=1 ./scripts/deploy_ops_dv_staging.sh`
 
-Smoke INT-P3: `STAFF_TOKEN=... bash scripts/smoke_ops_agent.sh`
+Smoke: `PORTAL_TOKEN=... bash scripts/smoke_ops_portal_summary.sh`
 
 ---
 
 ## Next
 
-- Deploy INT-P3 staging + smoke with real lifecycle/KPI data
-- INT-P4: L3 RAG chat + AI draft report (§6.2–6.5)
-- Notify channel (email/Zalo) for alerts
+- Deploy INT-P4 staging + portal smoke
+- INT-P2b / INT-P5 AI layers

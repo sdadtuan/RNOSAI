@@ -165,6 +165,7 @@ export class AppConfigService {
   readonly opsHubPilotDv: Set<string>;
   readonly opsRouteMapPath: string;
   readonly opsAgentEnabled: boolean;
+  readonly opsPortalSummaryEnabled: boolean;
 
   constructor() {
     this.applyRuntimeEnvOverrides();
@@ -529,6 +530,9 @@ export class AppConfigService {
       path.join(process.cwd(), 'docs/specs/ops-dv01-dv21-route-map.json');
     this.opsAgentEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_OPS_AGENT_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.opsPortalSummaryEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_OPS_PORTAL_SUMMARY ?? '0').trim().toLowerCase(),
     );
   }
 
