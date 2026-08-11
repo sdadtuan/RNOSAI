@@ -839,7 +839,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
 
   async getLeadConvertedCustomerId(leadId: number): Promise<number | null> {
     const result = await this.db.query(
-      `SELECT converted_customer_id FROM crm_leads WHERE id = $1 LIMIT 1`,
+      `SELECT converted_customer_id FROM crm_leads WHERE sqlite_lead_id = $1 LIMIT 1`,
       [leadId],
     );
     const raw = result.rows[0] as { converted_customer_id: number | null } | undefined;
