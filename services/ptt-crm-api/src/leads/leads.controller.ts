@@ -26,6 +26,7 @@ import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { hasGdkdAssign, hasGdkdViewAllLeads } from '../staff-permissions/staff-gdkd.util';
 import { StaffRbacAuditRepository } from '../staff-permissions/staff-rbac-audit.repository';
+import { PiiAccessAuditService } from '../admin-audit/admin-config-snapshot.service';
 import { StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
 import {
   assertLeadPatchFieldsAllowed,
@@ -70,6 +71,7 @@ export class LeadsController {
     private readonly slaAutoTask: SlaAutoTaskService,
     private readonly rbacAudit: StaffRbacAuditRepository,
     private readonly clientScope: StaffClientScopeService,
+    private readonly piiAudit: PiiAccessAuditService,
   ) {}
 
   @Get('lookup-options')
@@ -349,7 +351,15 @@ export class LeadsController {
     this.clientScope.assertLeadAccessible(scope, lead.client_id);
     if (req.staffAuthVia === 'internal' || !req.staffUser) return lead;
     const caps = await this.resolveCaps(req);
-    return serializeLeadForCaps(lead, caps, (c, s, a) => this.staffAuth.hasCap(c, s, a));
+    const serialized = serializeLeadForCaps(lead, caps, (c, s, a) => this.staffAuth.hasCap(c, s, a));
+    if (this.staffAuth.hasCap(caps, 'crm_leads', 'view_pii') && req.staffUser.email) {
+      void this.piiAudit.logLeadPiiView({
+        actor_email: req.staffUser.email,
+        lead_id: id,
+        request_path: req.originalUrl ?? `/api/v1/leads/${id}`,
+      });
+    }
+    return serialized;
   }
 
   private async resolveCaps(

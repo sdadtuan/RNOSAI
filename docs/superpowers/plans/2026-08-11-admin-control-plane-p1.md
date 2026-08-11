@@ -361,7 +361,8 @@ Kỳ vọng: `OK ops-web local static` + `OK public static`.
 |------|----------|------|
 | **P2** | Roster bridge: callout, cột Login/RBAC, deep links, optional `?admin=1` | [`2026-08-11-admin-control-plane-p2.md`](../../superpowers/plans/2026-08-11-admin-control-plane-p2.md) |
 | **P3** | Admin search, mobile drawer, a11y axe, E2E onboard wizard | [`2026-08-11-admin-control-plane-p3.md`](../../superpowers/plans/2026-08-11-admin-control-plane-p3.md) |
-| **R3+** | Audit Center, access review, OPA | Spec §13 |
+| **R3** | Audit Center, export, drift alert, PII log | [`2026-08-11-admin-control-plane-r3.md`](../../superpowers/plans/2026-08-11-admin-control-plane-r3.md) |
+| **R4+** | Access review, integrations, OPA | Spec §13 |
 
 **Spec đầy đủ:** [`2026-08-11-admin-control-plane-ia.md`](../specs/2026-08-11-admin-control-plane-ia.md) §12–13.
 

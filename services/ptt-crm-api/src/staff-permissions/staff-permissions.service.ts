@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { AdminAuditRepository } from '../admin-audit/admin-audit.repository';
 import {
   catalogActionLabel,
   loadStaffPermissionCatalog,
@@ -18,6 +19,7 @@ export class StaffPermissionsService {
   constructor(
     private readonly repo: StaffPermissionsRepository,
     private readonly jobFunctions: StaffJobFunctionsRepository,
+    private readonly adminAudit: AdminAuditRepository,
   ) {}
 
   getCatalog() {
@@ -121,6 +123,7 @@ export class StaffPermissionsService {
 
   async patchJobFunction(code: string, body: PatchStaffJobFunctionGrantsBody, actorEmail: string) {
     const result = await this.jobFunctions.replaceGrants(code, body.grants ?? {}, actorEmail);
+    await this.adminAudit.insertPermissionFunctionAudit(code, actorEmail, result.diff);
     const detail = await this.getJobFunction(code);
     return {
       ok: true,

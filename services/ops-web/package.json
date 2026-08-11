@@ -53,6 +53,7 @@
     "test:e2e:intake-bant-phase25": "playwright test e2e/intake-bant-phase25-stepper.spec.ts",
     "test:e2e:consult-workspace": "playwright test e2e/consult-workspace.spec.ts",
     "test:e2e:admin-control-plane": "playwright test e2e/admin-control-plane-*.spec.ts",
+    "test:e2e:admin-audit": "playwright test e2e/admin-control-plane-r3-audit.spec.ts",
     "test:e2e:admin-a11y": "playwright test e2e/admin-control-plane-p3.spec.ts --grep a11y"
   },
   "engines": {

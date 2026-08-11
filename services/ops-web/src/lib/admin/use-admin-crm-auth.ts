@@ -101,3 +101,8 @@ export function canConfigureData(user: StoredStaffUser | null): boolean {
   if (!user) return false;
   return hasCap(user, 'crm_data_config', 'configure');
 }
+
+export function canViewAdminAudit(user: StoredStaffUser | null): boolean {
+  if (!user) return false;
+  return hasCap(user, 'crm_data_config', 'view');
+}

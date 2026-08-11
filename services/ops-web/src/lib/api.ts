@@ -8271,3 +8271,117 @@ export async function approveBreakGlassGrant(
     body: JSON.stringify(body),
   });
 }
+
+export type AdminAuditEventCategory =
+  | 'permission_matrix'
+  | 'permission_function'
+  | 'org_user'
+  | 'org_structure'
+  | 'rbac_event'
+  | 'pii_access'
+  | 'config_snapshot';
+
+export type AdminAuditSeverity = 'info' | 'warning' | 'critical';
+
+export type AdminAuditEvent = {
+  id: string;
+  source: string;
+  category: AdminAuditEventCategory;
+  severity: AdminAuditSeverity;
+  actor_email: string;
+  subject_label?: string;
+  subject_id?: string;
+  action: string;
+  summary: string;
+  diff_json: Record<string, unknown>;
+  created_at: string;
+};
+
+export type AdminAuditListResponse = {
+  events: AdminAuditEvent[];
+  next_cursor: string | null;
+  has_more: boolean;
+};
+
+export async function fetchAdminAuditEvents(
+  token: string,
+  params?: {
+    from?: string;
+    to?: string;
+    actor?: string;
+    subject?: string;
+    category?: string;
+    severity?: string;
+    q?: string;
+    cursor?: string;
+    limit?: number;
+  },
+): Promise<AdminAuditListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.from) qs.set('from', params.from);
+  if (params?.to) qs.set('to', params.to);
+  if (params?.actor) qs.set('actor', params.actor);
+  if (params?.subject) qs.set('subject', params.subject);
+  if (params?.category) qs.set('category', params.category);
+  if (params?.severity) qs.set('severity', params.severity);
+  if (params?.q) qs.set('q', params.q);
+  if (params?.cursor) qs.set('cursor', params.cursor);
+  if (params?.limit != null) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return crmFetch(token, `/api/v1/admin/audit${suffix}`);
+}
+
+export async function fetchAdminAuditEvent(token: string, eventId: string): Promise<AdminAuditEvent> {
+  return crmFetch(token, `/api/v1/admin/audit/events/${encodeURIComponent(eventId)}`);
+}
+
+export async function requestAdminAuditExport(
+  token: string,
+  body: {
+    format: 'csv' | 'json';
+    from?: string;
+    to?: string;
+    actor?: string;
+    subject?: string;
+    category?: string;
+    severity?: string;
+    q?: string;
+  },
+): Promise<{ job_id: string; status: string; format: string; created_at: string }> {
+  return crmFetch(token, '/api/v1/admin/audit/export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function signAdminConfigSnapshot(
+  token: string,
+  body: {
+    snapshot_type: 'permission_matrix' | 'org_chart';
+    entity_key: string;
+    note?: string;
+    payload?: Record<string, unknown>;
+  },
+): Promise<{ ok: boolean; snapshot_id: number }> {
+  return crmFetch(token, '/api/v1/admin/audit/snapshots', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function pollAdminAuditExportJob(
+  token: string,
+  jobId: string,
+): Promise<{ job_id: string; status: string; row_count?: number; error_message?: string }> {
+  return crmFetch(token, `/api/v1/admin/audit/export/${encodeURIComponent(jobId)}`);
+}
+
+export async function downloadAdminAuditExport(token: string, jobId: string, format: 'csv' | 'json') {
+  await downloadBinary(
+    token,
+    `/api/v1/admin/audit/export/${encodeURIComponent(jobId)}`,
+    `admin-audit.${format}`,
+  );
+}

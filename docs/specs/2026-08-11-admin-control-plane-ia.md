@@ -474,6 +474,16 @@ Copy: `Cần quyền {section}.{action} — liên hệ Quản trị hệ thống
 
 ---
 
+## Bước tiếp R3
+
+| Wave | Nội dung | Plan |
+|------|----------|------|
+| **R3** | Audit Center, export, drift alert, PII log | [`2026-08-11-admin-control-plane-r3.md`](2026-08-11-admin-control-plane-r3.md) |
+
+**Spec đầy đủ:** [`2026-08-11-admin-control-plane-ia.md`](../specs/2026-08-11-admin-control-plane-ia.md) §13–15.
+
+---
+
 ## 13. Roadmap nâng cao R3 → R5 (thắng cao đối thủ)
 
 Phần này mở rộng **vượt T1/T2** — nhắm **T3 Enterprise** và moat dài hạn. Không ship trong P0–P3.
@@ -489,6 +499,8 @@ Phần này mở rộng **vượt T1/T2** — nhắm **T3 Enterprise** và moat 
 | **Config drift alert** | Email khi matrix prod ≠ last signed snapshot | Unique moat |
 | **Immutable log** | Append-only `admin_audit_log` PG | Enterprise req |
 | **Who viewed PII** | Field-level access log (prep ABAC) | GDPR-ready |
+
+**Plan chi tiết:** [`docs/superpowers/plans/2026-08-11-admin-control-plane-r3.md`](../superpowers/plans/2026-08-11-admin-control-plane-r3.md)
 
 **UI:** Table + detail drawer; badge “critical change” cho matrix PATCH.
 

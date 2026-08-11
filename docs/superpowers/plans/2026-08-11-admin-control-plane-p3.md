@@ -2,7 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans. Steps dùng checkbox (`- [ ]`) để tracking.
 
-> **Trạng thái:** ✅ Implemented locally · **Phụ thuộc:** P2 shipped (`2ce8544`)  
+> **Trạng thái:** ✅ Shipped · **Commit:** `36750eb`
+
+---
+
+## Bước tiếp R3
+
+| Wave | Nội dung | Plan |
+|------|----------|------|
+| **R3** | Audit Center, export compliance, config drift, PII log | [`2026-08-11-admin-control-plane-r3.md`](2026-08-11-admin-control-plane-r3.md) |  
 > **Spec:** [`docs/specs/2026-08-11-admin-control-plane-ia.md`](../specs/2026-08-11-admin-control-plane-ia.md) §12 P3, §7, §9  
 > **App:** `services/ops-web` · **Domain:** `https://rs.pttads.vn`
 

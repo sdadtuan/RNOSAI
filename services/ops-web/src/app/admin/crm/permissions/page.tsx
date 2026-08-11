@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AdminPageShell } from '@/components/admin';
@@ -14,6 +15,7 @@ import {
   fetchStaffPermissionPosition,
   fetchStaffPermissionPositions,
   patchStaffPermissionPosition,
+  signAdminConfigSnapshot,
   staffMe,
   staffRefresh,
   type StaffPermissionAuditRow,
@@ -212,6 +214,27 @@ export default function AdminCrmPermissionsPage() {
     }
   }
 
+  async function handleSignSnapshot() {
+    const access = getAccessToken();
+    if (!access || selectedId == null) return;
+    const pos = positions.find((p) => p.id === selectedId);
+    if (!pos) return;
+    setBusy(true);
+    setError('');
+    try {
+      await signAdminConfigSnapshot(access, {
+        snapshot_type: 'permission_matrix',
+        entity_key: pos.code,
+        note: `Snapshot ma trận ${pos.code}`,
+        payload: { grants, position_id: selectedId, position_code: pos.code },
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ký snapshot thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!user) {
     return (
       <AdminPageShell
@@ -246,6 +269,16 @@ export default function AdminCrmPermissionsPage() {
           <button type="button" className="btn btn--secondary" disabled={busy || selectedId == null} onClick={() => void handleExport()}>
             Xuất MD
           </button>
+          {canConfigure ? (
+            <button
+              type="button"
+              className="btn btn--secondary"
+              disabled={busy || selectedId == null}
+              onClick={() => void handleSignSnapshot()}
+            >
+              Ký snapshot
+            </button>
+          ) : null}
           <button
             type="button"
             className="btn btn--primary"
@@ -306,7 +339,12 @@ export default function AdminCrmPermissionsPage() {
         />
 
         <section className="stack-gap">
-          <h3 className="section-title">Audit log (20 gần nhất)</h3>
+          <div className="toolbar-actions">
+            <h3 className="section-title">Audit log (20 gần nhất)</h3>
+            <Link href="/admin/audit?category=permission_matrix" className="muted">
+              Xem toàn bộ audit →
+            </Link>
+          </div>
           {audit.length === 0 ? (
             <p className="muted">Chưa có bản ghi audit cho chức vụ này.</p>
           ) : (

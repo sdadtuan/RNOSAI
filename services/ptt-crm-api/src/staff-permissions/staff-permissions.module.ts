@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { AdminAuditModule } from '../admin-audit/admin-audit.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { StaffOrgModule } from '../staff-org/staff-org.module';
 import { StaffPermissionSetsModule } from '../staff-permission-sets/staff-permission-sets.module';
@@ -18,6 +19,7 @@ import {
 @Module({
   imports: [
     forwardRef(() => StaffAuthModule),
+    AdminAuditModule,
     StaffPermissionSetsModule,
     forwardRef(() => StaffOrgModule),
   ],

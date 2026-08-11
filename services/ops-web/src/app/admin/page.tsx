@@ -26,6 +26,7 @@ const WORKSPACE_ICONS: Record<string, string> = {
   rbac: '🔐',
   data: '📋',
   ai: '🤖',
+  compliance: '🛡',
 };
 
 export default function AdminControlPlaneHubPage() {

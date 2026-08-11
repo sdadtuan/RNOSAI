@@ -8,7 +8,7 @@ import {
 } from '@/lib/win/flags';
 import type { ModuleNavLink } from './module-nav';
 
-export type AdminNavGroupId = 'org' | 'rbac' | 'data' | 'ai';
+export type AdminNavGroupId = 'org' | 'rbac' | 'data' | 'ai' | 'compliance';
 
 export type AdminNavLink = ModuleNavLink;
 
@@ -90,6 +90,14 @@ function buildOrgLinks(user: StoredStaffUser): AdminNavLink[] {
   ];
 }
 
+function buildComplianceLinks(user: StoredStaffUser): AdminNavLink[] {
+  if (!hasCap(user, 'crm_data_config', 'view')) return [];
+  return [
+    { href: '/admin/audit', label: 'Audit Center' },
+    { href: '/admin/audit?category=permission_matrix', label: 'Lịch sử ma trận' },
+  ];
+}
+
 function buildAiLinks(user: StoredStaffUser): AdminNavLink[] {
   if (!hasCap(user, 'ai_admin', 'view')) return [];
   return [
@@ -141,6 +149,16 @@ export function buildAdminNavGroups(user: StoredStaffUser | null): AdminNavGroup
       label: 'AI Platform',
       description: 'Agents, tools, runs',
       links: aiLinks,
+    });
+  }
+
+  const complianceLinks = buildComplianceLinks(user);
+  if (complianceLinks.length) {
+    groups.push({
+      id: 'compliance',
+      label: 'Audit & Tuân thủ',
+      description: 'Timeline thay đổi, export compliance',
+      links: complianceLinks,
     });
   }
 
