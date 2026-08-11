@@ -1,16 +1,9 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import {
-  ModuleSubNav,
-  PageToolbar,
-  StaffPageShell,
-  type BreadcrumbItem,
-} from '@/components/layout';
-import {
-  buildAiAutomationModuleLinks,
-  buildCrmConfigModuleLinks,
-} from '@/lib/admin/module-nav';
+import { usePathname } from 'next/navigation';
+import { AdminLeftRail } from '@/components/admin/AdminLeftRail';
+import { PageToolbar, StaffPageShell, type BreadcrumbItem } from '@/components/layout';
 import type { StoredStaffUser } from '@/lib/auth';
 
 type AdminSection = 'ai-automation' | 'crm-config';
@@ -30,22 +23,8 @@ type AdminPageShellProps = {
   children: ReactNode;
 };
 
-function moduleLinksForSection(user: StoredStaffUser | null, section: AdminSection) {
-  if (section === 'crm-config') return buildCrmConfigModuleLinks(user);
-  return buildAiAutomationModuleLinks(user);
-}
-
-function defaultBreadcrumb(section: AdminSection, title: string): BreadcrumbItem[] {
-  if (section === 'crm-config') {
-    return [
-      { label: 'Cấu hình CRM', href: '/admin/crm/custom-fields' },
-      { label: title },
-    ];
-  }
-  return [
-    { label: 'AI & Automation', href: '/crm/automation' },
-    { label: title },
-  ];
+function defaultBreadcrumb(title: string): BreadcrumbItem[] {
+  return [{ label: 'Quản trị hệ thống', href: '/admin' }, { label: title }];
 }
 
 export function AdminPageShell({
@@ -55,28 +34,31 @@ export function AdminPageShell({
   subtitle,
   actions,
   breadcrumb,
-  section,
-  showModuleNav = true,
+  section: _section,
+  showModuleNav: _showModuleNav = false,
   hideToolbar = false,
   width = 'wide',
   loading,
   children,
 }: AdminPageShellProps) {
-  const moduleLinks = moduleLinksForSection(user, section);
+  const pathname = usePathname() ?? '';
+  const showRail = pathname.startsWith('/admin') && pathname !== '/admin';
 
   return (
     <StaffPageShell
       user={user}
       onLogout={onLogout}
-      breadcrumb={breadcrumb ?? defaultBreadcrumb(section, title)}
+      breadcrumb={breadcrumb ?? defaultBreadcrumb(title)}
       width={width}
       loading={loading}
     >
-      {hideToolbar ? null : <PageToolbar title={title} subtitle={subtitle} actions={actions} />}
-      {showModuleNav ? (
-        <ModuleSubNav links={moduleLinks} ariaLabel="Admin module navigation" />
-      ) : null}
-      {children}
+      <div className={showRail ? 'admin-cp-layout' : undefined}>
+        {showRail ? <AdminLeftRail user={user} /> : null}
+        <div className="admin-cp-main">
+          {hideToolbar ? null : <PageToolbar title={title} subtitle={subtitle} actions={actions} />}
+          {children}
+        </div>
+      </div>
     </StaffPageShell>
   );
 }

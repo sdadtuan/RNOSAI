@@ -119,6 +119,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/health': 'CS Health score',
   '/crm/owner-weekly': 'Báo cáo tuần chủ DN',
   '/crm/financials': 'Tài chính',
+  '/admin': 'Quản trị hệ thống',
   '/admin/crm/custom-fields': 'Custom fields',
   '/admin/crm/pipeline': 'Pipeline sales',
   '/admin/crm/lead-lookups': 'Nguồn & Kênh',
