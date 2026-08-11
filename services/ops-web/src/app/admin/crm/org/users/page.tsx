@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AdminPageShell } from '@/components/admin';
 import { AdminOrgSubNav } from '@/components/rbac/AdminOrgSubNav';
 import { ClientScopeImport } from '@/components/rbac/ClientScopeImport';
@@ -24,13 +25,16 @@ import {
 const PAGE_SIZE = 20;
 
 export default function AdminOrgUsersPage() {
+  const searchParams = useSearchParams();
+  const emailParam = searchParams.get('email')?.trim() ?? '';
+  const deepLinkHandled = useRef(false);
   const { user, token, error, loading, logout } = useAdminCrmAuth(canViewOrgAdmin);
   const [rows, setRows] = useState<StaffOrgUserSummary[]>([]);
   const [positions, setPositions] = useState<StaffOrgPositionRow[]>([]);
   const [catalog, setCatalog] = useState<Array<{ code: string; label: string }>>([]);
   const [loadError, setLoadError] = useState('');
-  const [q, setQ] = useState('');
-  const [query, setQuery] = useState('');
+  const [q, setQ] = useState(() => emailParam);
+  const [query, setQuery] = useState(() => emailParam);
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<StaffOrgUserSummary | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -55,6 +59,19 @@ export default function AdminOrgUsersPage() {
     );
   }, [token, query, reload]);
 
+  useEffect(() => {
+    if (!emailParam || deepLinkHandled.current || !rows.length) return;
+    const needle = emailParam.toLowerCase();
+    const matches = rows.filter((r) => r.email.trim().toLowerCase() === needle);
+    if (matches.length === 1) {
+      deepLinkHandled.current = true;
+      setSelected(matches[0]!);
+      setDrawerOpen(true);
+    }
+  }, [emailParam, rows]);
+
+  const highlightEmail = emailParam.toLowerCase();
+
   const pageRows = useMemo(() => {
     const start = page * PAGE_SIZE;
     return rows.slice(start, start + PAGE_SIZE);
@@ -75,9 +92,8 @@ export default function AdminOrgUsersPage() {
       title="Nhân viên"
       subtitle="Tài khoản staff + onboard wizard"
       breadcrumb={[
-        { label: 'Cấu hình CRM', href: '/admin/crm/custom-fields' },
-        { label: 'Tổ chức', href: '/admin/crm/org/users' },
-        { label: 'Nhân viên' },
+        { label: 'Quản trị hệ thống', href: '/admin' },
+        { label: 'Người dùng' },
       ]}
       loading={loading}
       actions={
@@ -127,7 +143,14 @@ export default function AdminOrgUsersPage() {
           </thead>
           <tbody>
             {pageRows.map((row) => (
-              <tr key={row.id}>
+              <tr
+                key={row.id}
+                className={
+                  highlightEmail && row.email.trim().toLowerCase() === highlightEmail
+                    ? 'is-highlighted'
+                    : undefined
+                }
+              >
                 <td>
                   <button type="button" className="btn btn-link" onClick={() => openUser(row)}>
                     {row.display_name}

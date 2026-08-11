@@ -439,13 +439,15 @@ Copy: `Cần quyền {section}.{action} — liên hệ Quản trị hệ thống
 
 **Exit:** Demo script “Settings tour” 5 phút không lộ URL.
 
-### P2 — HR bridge (2–3 ngày)
+### P2 — HR bridge (2–3 ngày) 🚧 Implemented locally
 
 | ID | Task |
 |----|------|
 | P2-1 | Roster callout + Login/RBAC column |
 | P2-2 | StaffEditDrawer copy + deep link |
 | P2-3 | Optional: `/crm/staff` admin chrome khi from `/admin` |
+
+**Plan chi tiết:** [`docs/superpowers/plans/2026-08-11-admin-control-plane-p2.md`](../superpowers/plans/2026-08-11-admin-control-plane-p2.md)
 
 **Exit:** HR UAT onboard 2-step flow pass.
 

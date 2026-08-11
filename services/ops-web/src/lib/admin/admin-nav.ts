@@ -86,7 +86,7 @@ function buildOrgLinks(user: StoredStaffUser): AdminNavLink[] {
     { href: '/admin/crm/org/teams', label: 'Team' },
     { href: '/admin/crm/org/positions', label: 'Chức vụ (HR)' },
     { href: '/admin/crm/org/chart', label: 'Sơ đồ tổ chức' },
-    { href: '/crm/staff', label: 'Hồ sơ roster' },
+    { href: '/crm/staff?admin=1', label: 'Hồ sơ roster' },
   ];
 }
 

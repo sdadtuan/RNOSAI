@@ -4,7 +4,14 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { WinDrawer } from '@/components/win';
 import { WinRbacBadge } from '@/components/win/WinRbacBadge';
+import {
+  buildOrgOnboardDeepLink,
+  buildOrgUsersDeepLink,
+  canLinkToOrgAdmin,
+  canOnboardFromRoster,
+} from '@/lib/admin/staff-bridge';
 import { patchCrmStaff, type CrmStaffRow, type StaffOrgUserSummary } from '@/lib/api';
+import type { StoredStaffUser } from '@/lib/auth';
 
 type Props = {
   open: boolean;
@@ -12,6 +19,7 @@ type Props = {
   orgUser?: StaffOrgUserSummary | null;
   token: string;
   canEdit: boolean;
+  viewer: StoredStaffUser | null;
   onClose: () => void;
   onSaved: (row: CrmStaffRow) => void;
 };
@@ -22,6 +30,7 @@ export function StaffEditDrawer({
   orgUser,
   token,
   canEdit,
+  viewer,
   onClose,
   onSaved,
 }: Props) {
@@ -31,6 +40,9 @@ export function StaffEditDrawer({
   const [jobTitle, setJobTitle] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  const canLink = canLinkToOrgAdmin(viewer);
+  const canOnboard = canOnboardFromRoster(viewer);
 
   useEffect(() => {
     if (!staff) return;
@@ -62,6 +74,8 @@ export function StaffEditDrawer({
   }
 
   if (!staff) return null;
+
+  const emailTrimmed = email.trim();
 
   return (
     <WinDrawer
@@ -96,12 +110,37 @@ export function StaffEditDrawer({
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.35rem' }}>
             <span className="muted">RBAC:</span>
             <WinRbacBadge positionCode={orgUser.position_code} jobFunctions={orgUser.job_functions} />
-            <Link href="/admin/crm/org/users" className="nav-link" style={{ fontSize: '0.85rem' }}>
-              Mở org user
-            </Link>
+            {canLink && emailTrimmed ? (
+              <Link
+                href={buildOrgUsersDeepLink(emailTrimmed)}
+                className="nav-link"
+                style={{ fontSize: '0.85rem' }}
+              >
+                Cấu hình tài khoản & quyền
+              </Link>
+            ) : null}
           </div>
         ) : (
-          <div className="muted">Chưa liên kết org user — dùng onboard wizard.</div>
+          <div className="stack-gap" style={{ gap: '0.35rem' }}>
+            <p className="muted" style={{ margin: 0 }}>
+              Chưa có tài khoản login.
+            </p>
+            {canOnboard && emailTrimmed ? (
+              <Link
+                href={buildOrgOnboardDeepLink({
+                  email: emailTrimmed,
+                  crmStaffId: staff.id,
+                  name: name.trim() || staff.name,
+                  phone: phone.trim() || staff.phone,
+                  jobTitle: jobTitle.trim() || staff.job_title,
+                  internalCode: staff.internal_code,
+                })}
+                className="btn btn-sm btn-secondary"
+              >
+                Onboard NV
+              </Link>
+            ) : null}
+          </div>
         )}
       </div>
       <label>

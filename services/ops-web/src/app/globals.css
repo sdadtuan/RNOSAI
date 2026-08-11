@@ -616,6 +616,63 @@ body:has(.ops-sidebar) main {
   font-size: 0.9rem;
 }
 
+.staff-roster-callout {
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(23, 105, 47, 0.2);
+  background: rgba(23, 105, 47, 0.06);
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.staff-roster-callout p {
+  margin: 0;
+}
+
+.staff-login-rbac-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.staff-login-rbac-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.staff-login-rbac-badge--success {
+  background: rgba(23, 105, 47, 0.12);
+  color: var(--brand, #17692f);
+}
+
+.staff-login-rbac-badge--warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #b45309;
+}
+
+.staff-login-rbac-badge--muted {
+  background: var(--surface-muted, #f3f4f6);
+  color: var(--muted, #6b7280);
+}
+
+.staff-login-rbac-action {
+  font-size: 0.85rem;
+}
+
+.staff-admin-bridge-banner {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.data-table tr.is-highlighted {
+  background: rgba(23, 105, 47, 0.06);
+}
+
 .admin-hubspot-layout {
   display: grid;
   grid-template-columns: 11rem minmax(0, 1fr);

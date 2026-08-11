@@ -357,10 +357,10 @@ Kỳ vọng: `OK ops-web local static` + `OK public static`.
 
 ## 14. Bước tiếp P2–P3
 
-| Wave | Nội dung |
-|------|----------|
-| **P2** | Roster bridge: cột Login/RBAC; StaffEditDrawer deep link; optional admin chrome trên `/crm/staff?admin=1` |
-| **P3** | Admin route search; mobile drawer; axe a11y; E2E onboard wizard smoke |
+| Wave | Nội dung | Plan |
+|------|----------|------|
+| **P2** | Roster bridge: callout, cột Login/RBAC, deep links, optional `?admin=1` | [`2026-08-11-admin-control-plane-p2.md`](../../superpowers/plans/2026-08-11-admin-control-plane-p2.md) |
+| **P3** | Admin route search; mobile drawer; axe a11y; E2E onboard wizard smoke | TBD |
 
 **Spec đầy đủ:** [`2026-08-11-admin-control-plane-ia.md`](../specs/2026-08-11-admin-control-plane-ia.md) §12–13.
 

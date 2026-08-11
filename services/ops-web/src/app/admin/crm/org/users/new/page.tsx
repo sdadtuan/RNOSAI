@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { AdminPageShell } from '@/components/admin';
 import { AdminOrgSubNav } from '@/components/rbac/AdminOrgSubNav';
@@ -42,9 +42,11 @@ function generatePassword(): string {
 
 export default function AdminOrgUserOnboardPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, token, error, loading, logout } = useAdminCrmAuth(canViewOrgAdmin);
   const canEdit = canEditOrgUsers(user);
 
+  const [crmStaffId, setCrmStaffId] = useState<number | undefined>(undefined);
   const [step, setStep] = useState<StepId>('profile');
   const [startedAt] = useState(() => Date.now());
   const [positions, setPositions] = useState<StaffOrgPositionRow[]>([]);
@@ -82,6 +84,25 @@ export default function AdminOrgUserOnboardPage() {
       if (pos[0] && positionId === '') setPositionId(pos[0].id);
     });
   }, [token, positionId]);
+
+  useEffect(() => {
+    const email = searchParams.get('email')?.trim();
+    const nameParam = searchParams.get('name')?.trim();
+    const phoneParam = searchParams.get('phone')?.trim();
+    const jobTitleParam = searchParams.get('job_title')?.trim();
+    const internalCodeParam = searchParams.get('internal_code')?.trim();
+    const staffIdRaw = searchParams.get('crm_staff_id')?.trim();
+
+    if (email) setEmail(email);
+    if (nameParam) {
+      setName(nameParam);
+      setDisplayName(nameParam);
+    }
+    if (phoneParam) setPhone(phoneParam);
+    if (jobTitleParam) setJobTitle(jobTitleParam);
+    if (internalCodeParam) setInternalCode(internalCodeParam);
+    if (staffIdRaw && /^\d+$/.test(staffIdRaw)) setCrmStaffId(Number(staffIdRaw));
+  }, [searchParams]);
 
   const steps = useMemo(
     () =>
@@ -160,6 +181,7 @@ export default function AdminOrgUserOnboardPage() {
         team_ids: teamIds,
         functions,
         password,
+        ...(crmStaffId != null ? { crm_staff_id: crmStaffId } : {}),
         crm_staff: {
           name: name.trim(),
           phone: phone.trim(),
@@ -192,8 +214,8 @@ export default function AdminOrgUserOnboardPage() {
       title="Onboard nhân viên"
       subtitle={`Wizard WIN-2 · mục tiêu ≤15 ph · đã ${elapsedMin} phút`}
       breadcrumb={[
-        { label: 'Cấu hình CRM', href: '/admin/crm/custom-fields' },
-        { label: 'Tổ chức', href: '/admin/crm/org/users' },
+        { label: 'Quản trị hệ thống', href: '/admin' },
+        { label: 'Người dùng', href: '/admin/crm/org/users' },
         { label: 'Onboard' },
       ]}
       loading={loading}
@@ -204,6 +226,11 @@ export default function AdminOrgUserOnboardPage() {
       }
     >
       <AdminOrgSubNav />
+      {crmStaffId != null ? (
+        <p className="staff-roster-callout" role="status">
+          Đang onboard từ hồ sơ roster (crm_staff #{crmStaffId}).
+        </p>
+      ) : null}
       {error ? <p className="form-error">{error}</p> : null}
       {formError ? <p className="form-error">{formError}</p> : null}
       {tempPasswordShown ? (

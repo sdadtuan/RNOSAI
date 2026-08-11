@@ -3,11 +3,13 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CrmHrPageShell } from '@/components/crm/CrmHrPageShell';
+import { AdminLeftRail } from '@/components/admin/AdminLeftRail';
 import { StaffCompetencyForm } from '@/components/crm/StaffCompetencyForm';
 import { StaffLevelsForm } from '@/components/crm/StaffLevelsForm';
+import { StaffLoginRbacCell } from '@/components/crm/StaffLoginRbacCell';
+import { StaffRosterIdentityCallout } from '@/components/crm/StaffRosterIdentityCallout';
+import { CrmHrPageShell } from '@/components/crm/CrmHrPageShell';
 import { WinExcelImportWizard } from '@/components/win';
-import { WinRbacBadge } from '@/components/win/WinRbacBadge';
 import {
   fetchCrmStaffList,
   fetchStaffCompetency,
@@ -21,6 +23,7 @@ import {
   type CrmStaffRow,
   type StaffOrgUserSummary,
 } from '@/lib/api';
+import { canLinkToOrgAdmin } from '@/lib/admin/staff-bridge';
 import {
   clearSession,
   getAccessToken,
@@ -43,6 +46,7 @@ function parseStaffTab(raw: string | null): StaffTab {
 export function StaffContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const adminBridge = searchParams.get('admin') === '1';
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [tab, setTab] = useState<StaffTab>(() => parseStaffTab(searchParams.get('tab')));
   const [rows, setRows] = useState<CrmStaffRow[]>([]);
@@ -117,12 +121,16 @@ export function StaffContent() {
         const out = await fetchCrmStaffList(access, { q: query || undefined });
         setRows(out.staff ?? []);
         setSummary(out.summary ?? {});
-        try {
-          const orgUsers = await fetchStaffOrgUsers(access, { includeInactive: true });
-          setOrgUsersByEmail(
-            new Map(orgUsers.map((u) => [u.email.trim().toLowerCase(), u])),
-          );
-        } catch {
+        if (canLinkToOrgAdmin(getStoredUser())) {
+          try {
+            const orgUsers = await fetchStaffOrgUsers(access, { includeInactive: true });
+            setOrgUsersByEmail(
+              new Map(orgUsers.map((u) => [u.email.trim().toLowerCase(), u])),
+            );
+          } catch {
+            setOrgUsersByEmail(new Map());
+          }
+        } else {
           setOrgUsersByEmail(new Map());
         }
       } else if (nextTab === 'levels') {
@@ -216,193 +224,227 @@ export function StaffContent() {
 
   const canEdit = hasCap(user, 'crm_staff_roster', 'edit');
   const accessToken = getAccessToken();
+  const showOrgBridge = canLinkToOrgAdmin(user);
 
-  return (
-    <CrmHrPageShell user={user} onLogout={logout} title="Nhân viên">
-      <div className="page-card stack-gap">
-        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          {(
-            [
-              { id: 'roster', label: 'Roster' },
-              { id: 'import', label: 'Import' },
-              { id: 'levels', label: 'Levels' },
-              { id: 'competency', label: 'Competency' },
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={`btn btn-sm${tab === t.id ? '' : ' btn-secondary'}`}
-              onClick={() => setTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        {loading ? <p className="muted">Đang tải…</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+  const rosterBody = (
+    <>
+      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+        {(
+          [
+            { id: 'roster', label: 'Roster' },
+            { id: 'import', label: 'Import' },
+            { id: 'levels', label: 'Levels' },
+            { id: 'competency', label: 'Competency' },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={`btn btn-sm${tab === t.id ? '' : ' btn-secondary'}`}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {loading ? <p className="muted">Đang tải…</p> : null}
+      {error ? <p className="error">{error}</p> : null}
 
-        {tab === 'roster' ? (
-          <>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                setQuery(q.trim());
+      {tab === 'roster' ? (
+        <>
+          {showOrgBridge ? <StaffRosterIdentityCallout /> : null}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setQuery(q.trim());
+            }}
+            style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}
+          >
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Tìm tên / mã…"
+              style={{
+                flex: 1,
+                background: 'var(--bg)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: '0.55rem 0.75rem',
+                color: 'var(--text)',
               }}
-              style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}
+            />
+            <button type="submit" className="btn btn-sm">
+              Tìm
+            </button>
+          </form>
+          <p className="muted">
+            Tổng {summary.staff_total ?? rows.length} · Active {summary.staff_active ?? '—'}
+          </p>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Tên</th>
+                  <th>Mã</th>
+                  <th>Phòng</th>
+                  {showOrgBridge ? <th>Login / RBAC</th> : null}
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {rosterItems.map(({ staff: s, orgUser }) => (
+                  <tr key={s.id}>
+                    <td>
+                      <Link href={`/crm/staff/${s.id}`} className="nav-link">
+                        {s.name}
+                      </Link>
+                      {!s.active ? <span className="muted"> · inactive</span> : null}
+                    </td>
+                    <td>{s.internal_code || '—'}</td>
+                    <td>{s.department || '—'}</td>
+                    {showOrgBridge ? (
+                      <td>
+                        <StaffLoginRbacCell staff={s} orgUser={orgUser} viewer={user} />
+                      </td>
+                    ) : null}
+                    <td>
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          className="btn btn-link"
+                          style={{ fontSize: '0.85rem', padding: 0 }}
+                          onClick={() => {
+                            setEditStaff(s);
+                            setEditOpen(true);
+                          }}
+                        >
+                          Sửa
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+
+      {tab === 'import' && canEdit ? (
+        <div className="stack-gap">
+          <div>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Import roster từ CSV/Excel theo template tiếng Việt.
+            </p>
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={saving}
+              onClick={() => setRosterWizardOpen(true)}
             >
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Tìm tên / mã…"
+              Import wizard (CSV/Excel)
+            </button>
+          </div>
+          <details>
+            <summary className="muted">Import JSON nâng cao</summary>
+            <form onSubmit={(e) => void onImport(e)} style={{ marginTop: '0.75rem' }}>
+              <p className="muted">JSON array of staff rows (name, internal_code, …)</p>
+              <textarea
+                value={importJson}
+                onChange={(e) => setImportJson(e.target.value)}
+                rows={8}
+                disabled={saving}
                 style={{
-                  flex: 1,
+                  width: '100%',
                   background: 'var(--bg)',
                   border: '1px solid var(--border)',
                   borderRadius: 8,
-                  padding: '0.55rem 0.75rem',
+                  padding: '0.75rem',
                   color: 'var(--text)',
+                  fontFamily: 'monospace',
+                  fontSize: '0.85rem',
                 }}
               />
-              <button type="submit" className="btn btn-sm">
-                Tìm
+              <button type="submit" className="btn btn-secondary btn-sm" disabled={saving} style={{ marginTop: '0.5rem' }}>
+                Import JSON
               </button>
             </form>
-            <p className="muted">
-              Tổng {summary.staff_total ?? rows.length} · Active {summary.staff_active ?? '—'}
-            </p>
-            <ul style={{ margin: 0, paddingLeft: 0, listStyle: 'none' }}>
-              {rosterItems.map(({ staff: s, orgUser }) => (
-                <li key={s.id} className="staff-roster-item">
-                  <Link href={`/crm/staff/${s.id}`} className="nav-link">
-                    {s.name}
-                  </Link>
-                  {orgUser ? (
-                    <WinRbacBadge
-                      positionCode={orgUser.position_code}
-                      jobFunctions={orgUser.job_functions}
-                    />
-                  ) : null}
-                  <span className="muted">
-                    {s.internal_code}
-                    {!s.active ? ' · inactive' : ''}
-                  </span>
-                  {orgUser ? (
-                    <Link href="/admin/crm/org/users" className="nav-link" style={{ fontSize: '0.85rem' }}>
-                      org user
-                    </Link>
-                  ) : null}
-                  {canEdit ? (
-                    <button
-                      type="button"
-                      className="btn btn-link"
-                      style={{ fontSize: '0.85rem', padding: 0 }}
-                      onClick={() => {
-                        setEditStaff(s);
-                        setEditOpen(true);
-                      }}
-                    >
-                      Sửa
-                    </button>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : null}
-
-        {tab === 'import' && canEdit ? (
-          <div className="stack-gap">
-            <div>
-              <p className="muted" style={{ marginTop: 0 }}>
-                Import roster từ CSV/Excel theo template tiếng Việt.
-              </p>
-              <button
-                type="button"
-                className="btn btn-sm"
-                disabled={saving}
-                onClick={() => setRosterWizardOpen(true)}
-              >
-                Import wizard (CSV/Excel)
-              </button>
-            </div>
-            <details>
-              <summary className="muted">Import JSON nâng cao</summary>
-              <form onSubmit={(e) => void onImport(e)} style={{ marginTop: '0.75rem' }}>
-                <p className="muted">JSON array of staff rows (name, internal_code, …)</p>
-                <textarea
-                  value={importJson}
-                  onChange={(e) => setImportJson(e.target.value)}
-                  rows={8}
-                  disabled={saving}
-                  style={{
-                    width: '100%',
-                    background: 'var(--bg)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 8,
-                    padding: '0.75rem',
-                    color: 'var(--text)',
-                    fontFamily: 'monospace',
-                    fontSize: '0.85rem',
-                  }}
-                />
-                <button type="submit" className="btn btn-secondary btn-sm" disabled={saving} style={{ marginTop: '0.5rem' }}>
-                  Import JSON
-                </button>
-              </form>
-            </details>
-            {getAccessToken() ? (
-              <WinExcelImportWizard
-                open={rosterWizardOpen}
-                mode="staff"
-                token={getAccessToken()!}
-                onClose={() => setRosterWizardOpen(false)}
-                onComplete={() => {
-                  const access = getAccessToken();
-                  if (access) void loadTab(access, 'roster');
-                  setTab('roster');
-                }}
-                onError={(message) => setError(message)}
-              />
-            ) : null}
-          </div>
-        ) : null}
-
-        {tab === 'levels' ? (
-          <form onSubmit={(e) => void onSaveLevels(e)}>
-            <StaffLevelsForm
-              levels={levels as Array<Record<string, unknown>>}
-              readOnly={!canEdit}
-              onChange={(next) => setLevels(next as Array<Record<string, unknown>>)}
+          </details>
+          {getAccessToken() ? (
+            <WinExcelImportWizard
+              open={rosterWizardOpen}
+              mode="staff"
+              token={getAccessToken()!}
+              onClose={() => setRosterWizardOpen(false)}
+              onComplete={() => {
+                const access = getAccessToken();
+                if (access) void loadTab(access, 'roster');
+                setTab('roster');
+              }}
+              onError={(message) => setError(message)}
             />
-            {canEdit ? (
-              <button type="submit" className="btn btn-secondary btn-sm" disabled={saving} style={{ marginTop: '0.5rem' }}>
-                Lưu levels
-              </button>
-            ) : null}
-          </form>
-        ) : null}
+          ) : null}
+        </div>
+      ) : null}
 
-        {tab === 'competency' ? (
-          <form onSubmit={(e) => void onSaveCompetency(e)}>
-            <StaffCompetencyForm
-              config={competency}
-              readOnly={!canEdit}
-              onChange={setCompetency}
-            />
-            {canEdit ? (
-              <button
-                type="submit"
-                className="btn btn-secondary btn-sm"
-                disabled={saving}
-                style={{ marginTop: '0.5rem' }}
-              >
-                Lưu competency
-              </button>
-            ) : null}
-          </form>
-        ) : null}
-      </div>
+      {tab === 'levels' ? (
+        <form onSubmit={(e) => void onSaveLevels(e)}>
+          <StaffLevelsForm
+            levels={levels as Array<Record<string, unknown>>}
+            readOnly={!canEdit}
+            onChange={(next) => setLevels(next as Array<Record<string, unknown>>)}
+          />
+          {canEdit ? (
+            <button type="submit" className="btn btn-secondary btn-sm" disabled={saving} style={{ marginTop: '0.5rem' }}>
+              Lưu levels
+            </button>
+          ) : null}
+        </form>
+      ) : null}
+
+      {tab === 'competency' ? (
+        <form onSubmit={(e) => void onSaveCompetency(e)}>
+          <StaffCompetencyForm
+            config={competency}
+            readOnly={!canEdit}
+            onChange={setCompetency}
+          />
+          {canEdit ? (
+            <button
+              type="submit"
+              className="btn btn-secondary btn-sm"
+              disabled={saving}
+              style={{ marginTop: '0.5rem' }}
+            >
+              Lưu competency
+            </button>
+          ) : null}
+        </form>
+      ) : null}
+    </>
+  );
+
+  const pageInner = (
+    <div className="page-card stack-gap">
+      {adminBridge ? (
+        <p className="muted staff-admin-bridge-banner">
+          Bridge mode — <Link href="/admin">Quản trị hệ thống</Link>
+        </p>
+      ) : null}
+      {adminBridge ? (
+        <div className="admin-cp-layout">
+          <AdminLeftRail user={user} />
+          <div className="admin-cp-main">{rosterBody}</div>
+        </div>
+      ) : (
+        rosterBody
+      )}
+    </div>
+  );
+
+  return (
+    <CrmHrPageShell user={user} onLogout={logout} title="Nhân viên">
+      {pageInner}
       {accessToken ? (
         <StaffEditDrawer
           open={editOpen}
@@ -414,6 +456,7 @@ export function StaffContent() {
           }
           token={accessToken}
           canEdit={canEdit}
+          viewer={user}
           onClose={() => setEditOpen(false)}
           onSaved={(updated) => {
             setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
