@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { AdminPageShell } from '@/components/admin';
 import { AdminOrgSubNav } from '@/components/rbac/AdminOrgSubNav';
 import { JobFunctionPicker } from '@/components/rbac/JobFunctionPicker';
@@ -40,7 +40,7 @@ function generatePassword(): string {
   return out;
 }
 
-export default function AdminOrgUserOnboardPage() {
+function AdminOrgUserOnboardPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, token, error, loading, logout } = useAdminCrmAuth(canViewOrgAdmin);
@@ -363,5 +363,25 @@ export default function AdminOrgUserOnboardPage() {
         </div>
       </div>
     </AdminPageShell>
+  );
+}
+
+export default function AdminOrgUserOnboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <AdminPageShell
+          user={null}
+          onLogout={() => {}}
+          section="crm-config"
+          title="Onboard nhân viên"
+          loading
+        >
+          <span />
+        </AdminPageShell>
+      }
+    >
+      <AdminOrgUserOnboardPageContent />
+    </Suspense>
   );
 }

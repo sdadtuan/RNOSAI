@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AdminPageShell } from '@/components/admin';
 import { AdminOrgSubNav } from '@/components/rbac/AdminOrgSubNav';
@@ -24,7 +24,7 @@ import {
 
 const PAGE_SIZE = 20;
 
-export default function AdminOrgUsersPage() {
+function AdminOrgUsersPageContent() {
   const searchParams = useSearchParams();
   const emailParam = searchParams.get('email')?.trim() ?? '';
   const deepLinkHandled = useRef(false);
@@ -211,5 +211,25 @@ export default function AdminOrgUsersPage() {
         </WinDrawer>
       ) : null}
     </AdminPageShell>
+  );
+}
+
+export default function AdminOrgUsersPage() {
+  return (
+    <Suspense
+      fallback={
+        <AdminPageShell
+          user={null}
+          onLogout={() => {}}
+          section="crm-config"
+          title="Nhân viên"
+          loading
+        >
+          <span />
+        </AdminPageShell>
+      }
+    >
+      <AdminOrgUsersPageContent />
+    </Suspense>
   );
 }
