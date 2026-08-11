@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   ForbiddenException,
+  GoneException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   StreamableFile,
 } from '@nestjs/common';
 import { LeadsRepository } from '../leads/leads.repository';
@@ -37,6 +39,20 @@ import {
 } from './deal-room-pack.util';
 import type { DealRoomSnapshot } from './deal-room.types';
 import { catalogTs } from '../catalog/catalog-slug.util';
+import { DealRoomTeaserRepository } from './deal-room-teaser.repository';
+import type {
+  DealRoomTeaserCreateResponse,
+  DealRoomTeaserPublicView,
+  DealRoomTeaserRevokeResponse,
+} from './deal-room-teaser.types';
+import {
+  buildDealTeaserUrl,
+  buildTeaserMailtoHref,
+  buildTeaserStrategyBlocks,
+  generateDealTeaserToken,
+  hashDealTeaserToken,
+  teaserExpiresAt,
+} from './deal-room-teaser.util';
 
 @Injectable()
 export class DealRoomService {
@@ -49,6 +65,7 @@ export class DealRoomService {
     private readonly routeMap: OpsRouteMapLoader,
     private readonly opsProfiles: OpsProfilePgRepository,
     private readonly config: AppConfigService,
+    private readonly teaserRepo: DealRoomTeaserRepository,
   ) {}
 
   async getSnapshot(leadId: number): Promise<DealRoomSnapshot> {
@@ -126,6 +143,9 @@ export class DealRoomService {
       serviceSlug,
       activeProposal?.id ?? null,
     );
+    const teaserState = await this.loadTeaserState(leadId);
+    const canShareTeaser =
+      this.config.dealRoomPortalTeaser && proposalGate.ok && (await this.teaserRepo.tablesReady());
 
     return {
       ok: true,
@@ -158,8 +178,9 @@ export class DealRoomService {
       },
       actions: {
         can_export_pack: proposalGate.ok && this.config.dealRoomPackPdf,
-        can_share_teaser: false,
+        can_share_teaser: canShareTeaser,
         proposals_href: handoff.proposals_href,
+        teaser: teaserState,
       },
       proposal_gate: proposalGate,
       l1_checklist: l1Checklist,
@@ -230,6 +251,172 @@ export class DealRoomService {
       type: 'application/pdf',
       disposition: `attachment; filename="${filename}"`,
     });
+  }
+
+  async createTeaser(
+    leadId: number,
+    actor: string,
+    userId: number | null,
+  ): Promise<DealRoomTeaserCreateResponse> {
+    if (!this.config.dealRoomPortalTeaser) {
+      throw new ForbiddenException({
+        error: 'deal_room_teaser_disabled',
+        message: 'Bật PTT_DEAL_ROOM_PORTAL_TEASER=1 để chia sẻ link Portal.',
+      });
+    }
+    if (!(await this.teaserRepo.tablesReady())) {
+      throw new ServiceUnavailableException({
+        error: 'deal_room_teaser_not_ready',
+        message: 'Chạy scripts/apply_pg_ddl_deal_room_s0.sh trên PostgreSQL.',
+      });
+    }
+
+    const gateResp = await this.funnel.getPresalesProposalGate(leadId);
+    if (!gateResp.gate.ok) {
+      throw new BadRequestException({
+        error: 'g4_blocked',
+        messages: gateResp.gate.messages,
+        message:
+          gateResp.gate.messages[0] ?? 'Hoàn thành G4 R5 trước khi chia sẻ teaser Portal.',
+      });
+    }
+
+    await this.teaserRepo.revokeActiveForLead(leadId);
+    const rawToken = generateDealTeaserToken();
+    const expiresAt = teaserExpiresAt(this.config.dealRoomTeaserTtlDays);
+    const row = await this.teaserRepo.insertToken({
+      leadId,
+      tokenHash: hashDealTeaserToken(rawToken),
+      expiresAt,
+      createdBy: userId,
+    });
+    const url = buildDealTeaserUrl(this.config.portalPublicUrl, rawToken);
+
+    await this.legacy.createActivity(
+      leadId,
+      {
+        activity_type: 'deal_room_teaser_created',
+        content: `Tạo Portal teaser · hết hạn ${expiresAt.toISOString().slice(0, 10)}`,
+        result: 'ok',
+      },
+      actor,
+      userId,
+    );
+
+    return {
+      ok: true,
+      lead_id: leadId,
+      url,
+      expires_at: row.expires_at,
+      token_id: row.id,
+    };
+  }
+
+  async revokeTeaser(leadId: number, actor: string, userId: number | null): Promise<DealRoomTeaserRevokeResponse> {
+    if (!this.config.dealRoomPortalTeaser) {
+      throw new ForbiddenException({
+        error: 'deal_room_teaser_disabled',
+        message: 'Bật PTT_DEAL_ROOM_PORTAL_TEASER=1 để quản lý link Portal.',
+      });
+    }
+    if (!(await this.teaserRepo.tablesReady())) {
+      throw new ServiceUnavailableException({ error: 'deal_room_teaser_not_ready' });
+    }
+
+    const revoked = await this.teaserRepo.revokeByLeadId(leadId);
+    if (revoked) {
+      await this.legacy.createActivity(
+        leadId,
+        {
+          activity_type: 'deal_room_teaser_revoked',
+          content: 'Thu hồi link Portal teaser',
+          result: 'ok',
+        },
+        actor,
+        userId,
+      );
+    }
+
+    return { ok: true, lead_id: leadId, revoked };
+  }
+
+  async getPublicTeaser(rawToken: string): Promise<DealRoomTeaserPublicView> {
+    if (!this.config.dealRoomPortalTeaser) {
+      throw new NotFoundException({ error: 'deal_teaser_disabled' });
+    }
+    if (!(await this.teaserRepo.tablesReady())) {
+      throw new ServiceUnavailableException({ error: 'deal_room_teaser_not_ready' });
+    }
+
+    const token = String(rawToken ?? '').trim();
+    if (!token) {
+      throw new NotFoundException({ error: 'invalid_token' });
+    }
+
+    const row = await this.teaserRepo.findByTokenHash(hashDealTeaserToken(token));
+    if (!row) {
+      throw new NotFoundException({ error: 'invalid_token' });
+    }
+    if (row.revoked_at) {
+      throw new GoneException({ error: 'teaser_revoked', message: 'Link đã được thu hồi.' });
+    }
+    const expiresMs = Date.parse(row.expires_at);
+    if (!Number.isFinite(expiresMs) || expiresMs <= Date.now()) {
+      throw new GoneException({ error: 'teaser_expired', message: 'Link đã hết hạn.' });
+    }
+
+    const leadId = row.lead_id;
+    const lead = await this.leads.getLeadById(leadId);
+    if (!lead) {
+      throw new NotFoundException({ error: 'lead_not_found' });
+    }
+
+    const funnel = await this.funnel.getFunnel(leadId);
+    if (!funnel.presales) {
+      throw new NotFoundException({ error: 'presales_required' });
+    }
+
+    const planResp = await this.funnel.getMarketingPlan(leadId);
+    const planContent = planContentFromRow(planResp.plan as Record<string, unknown>);
+    const serviceSlug = String(funnel.presales.presales.service_slug ?? '').trim();
+    const ownerId = lead.owner_id;
+    let ownerName: string | null = null;
+    if (ownerId) {
+      ownerName = this.leadSqlite.staffNamesByIds([ownerId]).get(ownerId) ?? null;
+    }
+
+    const projectName = planContent.name || lead.full_name || `Lead #${leadId}`;
+    const strategyBlocks = buildTeaserStrategyBlocks(planContent.strategy_framework);
+
+    return {
+      ok: true,
+      project_name: projectName,
+      client_name: String(lead.full_name ?? '').trim() || projectName,
+      service_slug: serviceSlug,
+      north_star: planContent.north_star,
+      strategy_blocks: strategyBlocks,
+      account_manager_name: ownerName,
+      contact_cta: {
+        mailto_href: buildTeaserMailtoHref(projectName, ownerName),
+        label: ownerName ? `Liên hệ ${ownerName}` : 'Liên hệ AM',
+      },
+      expires_at: row.expires_at,
+    };
+  }
+
+  private async loadTeaserState(leadId: number) {
+    if (!this.config.dealRoomPortalTeaser || !(await this.teaserRepo.tablesReady())) {
+      return { active: false, url: null, expires_at: null };
+    }
+    const row = await this.teaserRepo.findActiveByLeadId(leadId);
+    if (!row) {
+      return { active: false, url: null, expires_at: null };
+    }
+    return {
+      active: true,
+      url: null,
+      expires_at: row.expires_at,
+    };
   }
 
   private async buildSnapshotQuoteTiers(serviceSlug: string, proposalId: number | null) {

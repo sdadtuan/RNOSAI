@@ -56,6 +56,11 @@ export interface DealRoomActionsView {
   can_export_pack: boolean;
   can_share_teaser: boolean;
   proposals_href: string;
+  teaser: {
+    active: boolean;
+    url: string | null;
+    expires_at: string | null;
+  };
 }
 
 export interface DealRoomSnapshot {

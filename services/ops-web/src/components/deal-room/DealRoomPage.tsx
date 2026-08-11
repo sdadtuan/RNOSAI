@@ -7,6 +7,7 @@ import { DealRoomConsultPanel } from '@/components/deal-room/DealRoomConsultPane
 import { DealRoomGateStrip } from '@/components/deal-room/DealRoomGateStrip';
 import { DealRoomL1Panel } from '@/components/deal-room/DealRoomL1Panel';
 import { DealRoomQuotePanel } from '@/components/deal-room/DealRoomQuotePanel';
+import { DealRoomTeaserPanel } from '@/components/deal-room/DealRoomTeaserPanel';
 import { PresalesConsultSlaBanner } from '@/components/PresalesConsultSlaBanner';
 import { fetchLeadDealRoom, staffMe, staffRefresh, type DealRoomSnapshot } from '@/lib/api';
 import {
@@ -205,6 +206,21 @@ export function DealRoomPage({ leadId }: Props) {
               onMessage={setMessage}
               onError={setError}
               onQuoteCreated={() => load(getAccessToken() ?? '')}
+            />
+            <DealRoomTeaserPanel
+              leadId={leadId}
+              token={getAccessToken() ?? ''}
+              canShare={snapshot.actions.can_share_teaser}
+              blockReason={
+                !snapshot.actions.can_share_teaser && !snapshot.proposal_gate.ok
+                  ? snapshot.proposal_gate.messages[0]
+                  : undefined
+              }
+              teaserActive={snapshot.actions.teaser?.active ?? false}
+              teaserExpiresAt={snapshot.actions.teaser?.expires_at}
+              onMessage={setMessage}
+              onError={setError}
+              onUpdated={() => load(getAccessToken() ?? '')}
             />
           </>
         ) : null}

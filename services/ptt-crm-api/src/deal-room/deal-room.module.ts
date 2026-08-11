@@ -7,7 +7,9 @@ import { ProposalsModule } from '../proposals/proposals.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { DealRoomController } from './deal-room.controller';
 import { DealRoomService } from './deal-room.service';
+import { DealRoomTeaserRepository } from './deal-room-teaser.repository';
 import { DealRoomEnabledGuard } from './guards/deal-room-enabled.guard';
+import { PortalDealTeaserController } from './portal-deal-teaser.controller';
 
 @Module({
   imports: [
@@ -18,8 +20,8 @@ import { DealRoomEnabledGuard } from './guards/deal-room-enabled.guard';
     forwardRef(() => ProposalsModule),
     OpsModule,
   ],
-  controllers: [DealRoomController],
-  providers: [DealRoomService, DealRoomEnabledGuard],
+  controllers: [DealRoomController, PortalDealTeaserController],
+  providers: [DealRoomService, DealRoomTeaserRepository, DealRoomEnabledGuard],
   exports: [DealRoomService],
 })
 export class DealRoomModule {}

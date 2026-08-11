@@ -1697,6 +1697,11 @@ export interface DealRoomSnapshot {
     can_export_pack: boolean;
     can_share_teaser: boolean;
     proposals_href: string;
+    teaser: {
+      active: boolean;
+      url: string | null;
+      expires_at: string | null;
+    };
   };
   proposal_gate: ProposalAdvanceGate;
   l1_checklist: Array<{ key: string; label: string; done: boolean }>;
@@ -1704,6 +1709,20 @@ export interface DealRoomSnapshot {
 
 export async function fetchLeadDealRoom(token: string, leadId: number): Promise<DealRoomSnapshot> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/deal-room`, { method: 'GET' });
+}
+
+export async function createDealRoomTeaser(
+  token: string,
+  leadId: number,
+): Promise<{ ok: true; lead_id: number; url: string; expires_at: string; token_id: number }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/deal-room/teaser`, { method: 'POST' });
+}
+
+export async function revokeDealRoomTeaser(
+  token: string,
+  leadId: number,
+): Promise<{ ok: true; lead_id: number; revoked: boolean }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/deal-room/teaser`, { method: 'DELETE' });
 }
 
 export async function exportLeadDealRoomPack(

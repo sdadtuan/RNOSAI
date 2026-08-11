@@ -95,6 +95,8 @@ export class AppConfigService {
   readonly dealRoomEnabled: boolean;
   readonly dealRoomPackPdf: boolean;
   readonly dealRoomGateStrict: boolean;
+  readonly dealRoomPortalTeaser: boolean;
+  readonly dealRoomTeaserTtlDays: number;
   readonly presalesBatchUpgradeEnabled: boolean;
   readonly crmServiceDeliveryNest: boolean;
   readonly sopAutoStartOnLaunch: boolean;
@@ -339,6 +341,13 @@ export class AppConfigService {
     );
     this.dealRoomGateStrict = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_DEAL_ROOM_GATE_STRICT ?? '0').trim().toLowerCase(),
+    );
+    this.dealRoomPortalTeaser = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_DEAL_ROOM_PORTAL_TEASER ?? '0').trim().toLowerCase(),
+    );
+    this.dealRoomTeaserTtlDays = Math.max(
+      1,
+      Number((process.env.PTT_DEAL_ROOM_TEASER_TTL_DAYS ?? '14').trim()) || 14,
     );
     this.presalesBatchUpgradeEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_PRESALES_BATCH_UPGRADE ?? '0').trim().toLowerCase(),

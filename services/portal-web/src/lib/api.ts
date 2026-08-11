@@ -263,6 +263,29 @@ export async function fetchNestHealth(): Promise<Record<string, unknown>> {
   return parseJson(res);
 }
 
+export interface PublicDealTeaser {
+  ok: true;
+  project_name: string;
+  client_name: string;
+  service_slug: string;
+  north_star: string;
+  strategy_blocks: Array<{ key: string; label: string; content: string }>;
+  account_manager_name: string | null;
+  contact_cta: { mailto_href: string; label: string };
+  expires_at: string;
+}
+
+export async function fetchPublicDealTeaser(token: string): Promise<PublicDealTeaser> {
+  const res = await fetch(`${API_BASE}/api/portal/deal-teaser/${encodeURIComponent(token)}`, {
+    cache: 'no-store',
+  });
+  const body = await parseJson<PublicDealTeaser & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Teaser unavailable', res.status);
+  }
+  return body;
+}
+
 export async function fetchPerformance(
   token: string,
   params?: { from?: string; to?: string; group_by?: 'day' | 'campaign'; channel?: PerformanceChannel },

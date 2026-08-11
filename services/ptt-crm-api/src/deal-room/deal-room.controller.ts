@@ -1,8 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Post,
@@ -13,6 +16,7 @@ import { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { StaffLeadsViewGuard } from '../leads/guards/staff-leads-view.guard';
+import { StaffLeadsWriteGuard } from '../leads/guards/staff-leads-write.guard';
 import {
   LeadsFunnelEnabledGuard,
   PresalesOnLeadGuard,
@@ -45,5 +49,22 @@ export class DealRoomController {
     const actor = req.staffUser?.email ?? 'staff';
     const userId = req.staffUser?.sub != null ? Number(req.staffUser.sub) : null;
     return this.dealRoom.exportPack(id, body ?? {}, actor, Number.isFinite(userId) ? userId : null);
+  }
+
+  @Post(':id/deal-room/teaser')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard)
+  createTeaser(@Param('id', ParseIntPipe) id: number, @Req() req: StaffReq) {
+    const actor = req.staffUser?.email ?? 'staff';
+    const userId = req.staffUser?.sub != null ? Number(req.staffUser.sub) : null;
+    return this.dealRoom.createTeaser(id, actor, Number.isFinite(userId) ? userId : null);
+  }
+
+  @Delete(':id/deal-room/teaser')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard)
+  revokeTeaser(@Param('id', ParseIntPipe) id: number, @Req() req: StaffReq) {
+    const actor = req.staffUser?.email ?? 'staff';
+    const userId = req.staffUser?.sub != null ? Number(req.staffUser.sub) : null;
+    return this.dealRoom.revokeTeaser(id, actor, Number.isFinite(userId) ? userId : null);
   }
 }
