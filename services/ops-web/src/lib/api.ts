@@ -1695,6 +1695,37 @@ export async function fetchLeadDealRoom(token: string, leadId: number): Promise<
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/deal-room`, { method: 'GET' });
 }
 
+export async function exportLeadDealRoomPack(
+  token: string,
+  leadId: number,
+  body: { proposal_id?: number; include_timeline?: boolean } = {},
+): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/deal-room/export-pack`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let message = `Export Pack PDF failed (${res.status})`;
+    try {
+      const data = (await res.json()) as { message?: string; messages?: string[] };
+      message = data.message ?? data.messages?.[0] ?? message;
+    } catch {
+      const text = await res.text();
+      if (text) message = text.slice(0, 300);
+    }
+    throw new Error(message);
+  }
+  const cd = res.headers.get('content-disposition') ?? '';
+  const match = /filename="([^"]+)"/.exec(cd);
+  const filename = match?.[1] ?? `PTT-DealPack-${leadId}.pdf`;
+  const blob = await res.blob();
+  return { blob, filename };
+}
+
 export interface PresalesProposalHandoff {
   lead_id: number;
   customer_id: number | null;

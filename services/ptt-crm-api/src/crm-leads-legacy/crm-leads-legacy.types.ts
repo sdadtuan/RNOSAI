@@ -62,6 +62,7 @@ export const ACTIVITY_TYPES = [
   'solution_handoff',
   'solution_claimed',
   'solution_released',
+  'deal_room_pack_exported',
 ] as const;
 
 export const ACTIVITY_TYPE_LABELS: Record<string, string> = {
@@ -77,4 +78,5 @@ export const ACTIVITY_TYPE_LABELS: Record<string, string> = {
   solution_handoff: 'Giao Solution/MKT',
   solution_claimed: 'Solution nhận case',
   solution_released: 'Solution trả Sales',
+  deal_room_pack_exported: 'Deal Room — Export Pack PDF',
 };

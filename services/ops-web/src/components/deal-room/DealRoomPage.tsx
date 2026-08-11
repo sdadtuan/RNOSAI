@@ -173,10 +173,20 @@ export function DealRoomPage({ leadId }: Props) {
               />
             </div>
             <DealRoomQuotePanel
+              leadId={leadId}
+              token={getAccessToken() ?? ''}
               canCreate={snapshot.quote.can_create}
               blockReason={snapshot.quote.block_reason}
               proposalsHref={snapshot.actions.proposals_href}
               canExportPack={snapshot.actions.can_export_pack}
+              exportBlockReason={
+                !snapshot.actions.can_export_pack && !snapshot.proposal_gate.ok
+                  ? snapshot.proposal_gate.messages[0]
+                  : undefined
+              }
+              proposalId={snapshot.quote.proposal_id}
+              onMessage={setMessage}
+              onError={setError}
             />
           </>
         ) : null}

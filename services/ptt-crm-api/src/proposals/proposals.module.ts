@@ -19,5 +19,6 @@ import { ProposalsService } from './proposals.service';
     StaffProposalsViewGuard,
     StaffProposalsWriteGuard,
   ],
+  exports: [ProposalsService, ProposalsSqliteRepository],
 })
 export class ProposalsModule {}

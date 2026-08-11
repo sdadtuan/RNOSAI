@@ -6,7 +6,8 @@
     "deleteOutDir": true,
     "assets": [
       { "include": "leads-funnel/**/*.json", "watchAssets": true },
-      { "include": "marketing-ai-planner/playbooks/**/*.json", "watchAssets": true }
+      { "include": "marketing-ai-planner/playbooks/**/*.json", "watchAssets": true },
+      { "include": "deal-room/**/*.json", "watchAssets": true }
     ]
   }
 }

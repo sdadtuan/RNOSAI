@@ -1,22 +1,70 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
+import { exportLeadDealRoomPack } from '@/lib/api';
 
 interface Props {
+  leadId: number;
+  token: string;
   canCreate: boolean;
   blockReason: string;
   proposalsHref: string;
   canExportPack: boolean;
+  exportBlockReason?: string;
+  proposalId?: number | null;
+  onMessage?: (msg: string) => void;
+  onError?: (msg: string) => void;
 }
 
-export function DealRoomQuotePanel({ canCreate, blockReason, proposalsHref, canExportPack }: Props) {
+export function DealRoomQuotePanel({
+  leadId,
+  token,
+  canCreate,
+  blockReason,
+  proposalsHref,
+  canExportPack,
+  exportBlockReason,
+  proposalId,
+  onMessage,
+  onError,
+}: Props) {
+  const [exportBusy, setExportBusy] = useState(false);
+
+  async function handleExportPack() {
+    if (!canExportPack || exportBusy) return;
+    setExportBusy(true);
+    onError?.('');
+    try {
+      const { blob, filename } = await exportLeadDealRoomPack(token, leadId, {
+        proposal_id: proposalId ?? undefined,
+        include_timeline: true,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      onMessage?.(`Đã tải Pack PDF: ${filename}`);
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : 'Export Pack PDF thất bại');
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  const packTitle =
+    exportBlockReason ||
+    (!canExportPack ? 'Hoàn thành G4 R5 và bật PTT_DEAL_ROOM_PACK_PDF để export' : 'Tải Plan+Quote Pack PDF');
+
   return (
     <section className="deal-room-panel" aria-label="Quote">
       <div className="deal-room-panel__head">
         <h3 className="deal-room-panel__title">Báo giá</h3>
       </div>
       <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-        Gói Basic / Standard / Premium — liên kết catalog DV (F4). Pack PDF merge L1 + quote (F2).
+        Gói Basic / Standard / Premium — catalog DV. Pack PDF gộp L1 + báo giá 3 gói + timeline 90 ngày.
       </p>
 
       {!canCreate && blockReason ? (
@@ -34,14 +82,15 @@ export function DealRoomQuotePanel({ canCreate, blockReason, proposalsHref, canE
         >
           Tạo báo giá →
         </Link>
-        <button type="button" className="btn btn-sm btn-secondary" disabled title="Sprint F2 — Plan+Quote Pack PDF">
-          Export Pack PDF (F2)
+        <button
+          type="button"
+          className="btn btn-sm btn-secondary"
+          disabled={!canExportPack || exportBusy}
+          title={packTitle}
+          onClick={() => void handleExportPack()}
+        >
+          {exportBusy ? 'Đang xuất PDF…' : 'Export Pack PDF'}
         </button>
-        {canExportPack ? (
-          <span className="muted" style={{ fontSize: '0.8rem' }}>
-            Pack PDF sẵn sàng khi bật F2
-          </span>
-        ) : null}
       </div>
     </section>
   );
