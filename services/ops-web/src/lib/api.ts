@@ -1644,6 +1644,57 @@ export async function fetchLeadPresalesProposalGate(
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/proposal-gate`, { method: 'GET' });
 }
 
+export interface DealRoomGateChip {
+  key: string;
+  label: string;
+  status: 'ok' | 'warn' | 'block' | 'pending';
+  message: string;
+}
+
+export interface DealRoomSnapshot {
+  ok: true;
+  lead_id: number;
+  lead_name: string;
+  lead_flow_kind: string;
+  owner_id: number | null;
+  owner_name: string | null;
+  presales: NonNullable<LeadFunnelSnapshot['presales']>;
+  gates: {
+    g0_b2: DealRoomGateChip;
+    g1_consult: DealRoomGateChip;
+    g4_r5: DealRoomGateChip;
+    g5_proposal: DealRoomGateChip;
+    g6_accept: DealRoomGateChip;
+  };
+  marketing_plan: {
+    name: string;
+    north_star: string;
+    objectives: string;
+    strategy_framework: Record<string, string>;
+    validation_ok: boolean;
+    validation_messages: string[];
+  };
+  consult_progress: { done: number; total: number };
+  quote: {
+    proposal_id: number | null;
+    status: string | null;
+    total_vnd: number | null;
+    tiers: Array<{ tier: string; total_vnd: number | null }>;
+    can_create: boolean;
+    block_reason: string;
+  };
+  actions: {
+    can_export_pack: boolean;
+    can_share_teaser: boolean;
+    proposals_href: string;
+  };
+  proposal_gate: ProposalAdvanceGate;
+}
+
+export async function fetchLeadDealRoom(token: string, leadId: number): Promise<DealRoomSnapshot> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/deal-room`, { method: 'GET' });
+}
+
 export interface PresalesProposalHandoff {
   lead_id: number;
   customer_id: number | null;

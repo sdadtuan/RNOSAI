@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { StaffPageShell } from '@/components/layout';
@@ -27,6 +28,7 @@ import {
   showLeadConsultTab,
 } from '@/lib/crm/lead-consult-tab.util';
 import { aiCopilotEnabled } from '@/lib/ai-flags';
+import { dealRoomEnabled } from '@/lib/crm/deal-room-flags';
 import { MentionComposer } from '@/components/staff/MentionComposer';
 import {
   assignLead,
@@ -721,6 +723,20 @@ export default function CrmLeadDetailPage() {
                 onMessage={setMessage}
                 onError={setError}
               />
+            ) : null}
+
+            {accessToken && showB2bFlow && dealRoomEnabled() && funnelSnap?.presales ? (
+              <div className="deal-room-entry-banner">
+                <div>
+                  <strong>Deal Room</strong>
+                  <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
+                    1 màn: Consult + L1 R5 + báo giá + gates — chuẩn bị buổi chốt.
+                  </p>
+                </div>
+                <Link href={`/crm/leads/${leadId}/deal-room`} className="btn btn-sm btn-primary">
+                  Mở Deal Room →
+                </Link>
+              </div>
             ) : null}
 
             {showConsultTab && !useMobileTabs ? (

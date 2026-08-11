@@ -1,0 +1,186 @@
+'use client';
+
+import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
+import { StaffPageShell } from '@/components/layout';
+import { DealRoomConsultPanel } from '@/components/deal-room/DealRoomConsultPanel';
+import { DealRoomGateStrip } from '@/components/deal-room/DealRoomGateStrip';
+import { DealRoomL1Panel } from '@/components/deal-room/DealRoomL1Panel';
+import { DealRoomQuotePanel } from '@/components/deal-room/DealRoomQuotePanel';
+import { PresalesConsultSlaBanner } from '@/components/PresalesConsultSlaBanner';
+import { fetchLeadDealRoom, staffMe, staffRefresh, type DealRoomSnapshot } from '@/lib/api';
+import {
+  clearSession,
+  getAccessToken,
+  getRefreshToken,
+  getStoredUser,
+  hasCap,
+  updateAccessToken,
+  updateStoredUser,
+  type StoredStaffUser,
+} from '@/lib/auth';
+import { presalesStageLabel } from '@/lib/crm/lead-consult-tab.util';
+import { useRouter } from 'next/navigation';
+
+interface Props {
+  leadId: number;
+}
+
+export function DealRoomPage({ leadId }: Props) {
+  const router = useRouter();
+  const [user, setUser] = useState<StoredStaffUser | null>(null);
+  const [snapshot, setSnapshot] = useState<DealRoomSnapshot | null>(null);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(
+    async (access: string) => {
+      setLoading(true);
+      setError('');
+      try {
+        const snap = await fetchLeadDealRoom(access, leadId);
+        setSnapshot(snap);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Tải Deal Room thất bại');
+        setSnapshot(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [leadId],
+  );
+
+  useEffect(() => {
+    void (async () => {
+      let access = getAccessToken();
+      if (!access) {
+        router.replace('/login');
+        return;
+      }
+      const cached = getStoredUser();
+      if (cached) setUser(cached);
+      try {
+        const me = await staffMe(access);
+        setUser(me);
+        updateStoredUser(me);
+        if (!hasCap(me, 'crm_leads', 'view')) {
+          setError('Không có quyền xem CRM leads');
+          setLoading(false);
+          return;
+        }
+      } catch {
+        const refresh = getRefreshToken();
+        if (!refresh) {
+          clearSession();
+          router.replace('/login');
+          return;
+        }
+        const out = await staffRefresh(refresh);
+        updateAccessToken(out.access_token);
+        access = out.access_token;
+        const me = await staffMe(access);
+        setUser(me);
+        updateStoredUser(me);
+      }
+      await load(access);
+    })();
+  }, [leadId, load, router]);
+
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
+
+  if (!user) {
+    return (
+      <main style={{ padding: '2rem' }}>
+        <p className="muted">Đang tải…</p>
+      </main>
+    );
+  }
+
+  const presales = snapshot?.presales;
+  const solutionName = presales?.handoff?.solution_owner_name?.trim() || '—';
+  const serviceSlug = presales?.presales.service_slug ?? '—';
+  const stageLabel = presales ? presalesStageLabel(presales.presales.stage) : '—';
+
+  return (
+    <StaffPageShell
+      user={user}
+      onLogout={logout}
+      width="full"
+      breadcrumb={[
+        { label: 'CRM', href: '/crm/leads' },
+        { label: 'Leads', href: '/crm/leads' },
+        { label: snapshot?.lead_name ?? `#${leadId}`, href: `/crm/leads/${leadId}` },
+        { label: 'Deal Room' },
+      ]}
+    >
+      <div className="deal-room-page">
+        <header className="deal-room-header">
+          <div>
+            <p className="deal-room-header__eyebrow">Deal Room · Sprint 0</p>
+            <h1 className="deal-room-header__title">{snapshot?.lead_name ?? `Lead #${leadId}`}</h1>
+            <p className="deal-room-header__meta muted">
+              {serviceSlug} · {stageLabel}
+              {snapshot?.owner_name ? ` · AM: ${snapshot.owner_name}` : ''}
+              {solutionName !== '—' ? ` · Solution: ${solutionName}` : ''}
+            </p>
+          </div>
+          <Link href={`/crm/leads/${leadId}`} className="btn btn-sm btn-secondary">
+            ← Lead detail
+          </Link>
+        </header>
+
+        {loading ? <p className="muted">Đang tải Deal Room…</p> : null}
+        {error ? (
+          <div className="lead-alert lead-alert--error" role="alert">
+            {error}
+            {!snapshot ? (
+              <p style={{ marginTop: '0.5rem' }}>
+                <Link href={`/crm/leads/${leadId}`}>Quay lại lead</Link> — cần B2 xong và bắt đầu Pre-sales.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        {message ? (
+          <div className="lead-alert lead-alert--success" role="status">
+            {message}
+          </div>
+        ) : null}
+
+        {snapshot && !loading ? (
+          <>
+            <DealRoomGateStrip gates={snapshot.gates} />
+            {presales?.consult_proposal_sla ? (
+              <PresalesConsultSlaBanner sla={presales.consult_proposal_sla} />
+            ) : null}
+            <div className="deal-room-grid">
+              <DealRoomConsultPanel
+                done={snapshot.consult_progress.done}
+                total={snapshot.consult_progress.total}
+                leadId={leadId}
+              />
+              <DealRoomL1Panel
+                token={getAccessToken() ?? ''}
+                leadId={leadId}
+                user={user}
+                snapshot={snapshot}
+                onUpdated={setSnapshot}
+                onMessage={setMessage}
+                onError={setError}
+              />
+            </div>
+            <DealRoomQuotePanel
+              canCreate={snapshot.quote.can_create}
+              blockReason={snapshot.quote.block_reason}
+              proposalsHref={snapshot.actions.proposals_href}
+              canExportPack={snapshot.actions.can_export_pack}
+            />
+          </>
+        ) : null}
+      </div>
+    </StaffPageShell>
+  );
+}

@@ -92,6 +92,9 @@ export class AppConfigService {
   readonly crmSvcFinancePg: boolean;
   readonly crmSopPg: boolean;
   readonly presalesOnLead: boolean;
+  readonly dealRoomEnabled: boolean;
+  readonly dealRoomPackPdf: boolean;
+  readonly dealRoomGateStrict: boolean;
   readonly presalesBatchUpgradeEnabled: boolean;
   readonly crmServiceDeliveryNest: boolean;
   readonly sopAutoStartOnLaunch: boolean;
@@ -327,6 +330,15 @@ export class AppConfigService {
     );
     this.presalesOnLead = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_PRESALES_ON_LEAD ?? '1').trim().toLowerCase(),
+    );
+    this.dealRoomEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_DEAL_ROOM_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.dealRoomPackPdf = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_DEAL_ROOM_PACK_PDF ?? '0').trim().toLowerCase(),
+    );
+    this.dealRoomGateStrict = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_DEAL_ROOM_GATE_STRICT ?? '0').trim().toLowerCase(),
     );
     this.presalesBatchUpgradeEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_PRESALES_BATCH_UPGRADE ?? '0').trim().toLowerCase(),

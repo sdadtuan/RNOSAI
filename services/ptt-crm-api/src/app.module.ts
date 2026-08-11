@@ -43,6 +43,7 @@ import { HealthModule } from './health/health.module';
 import { LaunchQaModule } from './launch-qa/launch-qa.module';
 import { CrmCreativesModule } from './crm-creatives/crm-creatives.module';
 import { CrmCampaignWritesModule } from './crm-campaign-writes/crm-campaign-writes.module';
+import { DealRoomModule } from './deal-room/deal-room.module';
 import { LeadsFunnelModule } from './leads-funnel/leads-funnel.module';
 import { LeadsContractModule } from './leads-contract/leads-contract.module';
 import { LeadsModule } from './leads/leads.module';
@@ -102,6 +103,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     HealthModule,
     LeadsModule,
     LeadsFunnelModule,
+    DealRoomModule,
     LeadsContractModule,
     CatalogModule,
     CrmConfigModule,
