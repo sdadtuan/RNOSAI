@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { currentIsoWeek, currentMonthKey } from './ops-hub.builder';
@@ -21,6 +21,7 @@ import { OpsWeeklyPgRepository } from './ops-weekly-pg.repository';
 export class OpsDashboardService {
   constructor(
     private readonly config: AppConfigService,
+    @Inject(forwardRef(() => ServiceLifecycleService))
     private readonly lifecycle: ServiceLifecycleService,
     private readonly routeMap: OpsRouteMapLoader,
     private readonly alerts: OpsAlertPgRepository,

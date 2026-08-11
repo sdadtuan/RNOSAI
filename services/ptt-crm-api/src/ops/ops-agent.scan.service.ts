@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { currentIsoWeek, currentMonthKey } from './ops-hub.builder';
@@ -22,6 +22,7 @@ export class OpsAgentScanService {
     private readonly kpi: OpsKpiPgRepository,
     private readonly profiles: OpsProfilePgRepository,
     private readonly routeMap: OpsRouteMapLoader,
+    @Inject(forwardRef(() => ServiceLifecycleService))
     private readonly lifecycle: ServiceLifecycleService,
   ) {}
 

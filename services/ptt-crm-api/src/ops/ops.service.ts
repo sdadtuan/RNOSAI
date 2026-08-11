@@ -1,10 +1,12 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
   OnModuleInit,
   ServiceUnavailableException,
   UnprocessableEntityException,
+  forwardRef,
 } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
@@ -59,6 +61,7 @@ export class OpsService implements OnModuleInit {
     private readonly weekly: OpsWeeklyPgRepository,
     private readonly kpi: OpsKpiPgRepository,
     private readonly alerts: OpsAlertPgRepository,
+    @Inject(forwardRef(() => ServiceLifecycleService))
     private readonly lifecycle: ServiceLifecycleService,
   ) {}
 
