@@ -88,6 +88,7 @@ import { HrLeaveModule } from './hr-leave/hr-leave.module';
 import { StaffNotificationsModule } from './staff-notifications/staff-notifications.module';
 import { StaffOrgModule } from './staff-org/staff-org.module';
 import { AdminAuditModule } from './admin-audit/admin-audit.module';
+import { AdminGovernanceModule } from './admin-governance/admin-governance.module';
 import { StaffPermissionSetsModule } from './staff-permission-sets/staff-permission-sets.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { TemporalModule } from './temporal/temporal.module';
@@ -144,6 +145,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     StaffClientScopeModule,
     StaffOrgModule,
     AdminAuditModule,
+    AdminGovernanceModule,
     WebhooksModule,
     PortalSeoModule,
     PortalAiModule,

@@ -10604,6 +10604,45 @@ body {
   border: 1px solid var(--border, #e5e7eb);
 }
 
+.admin-governance-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-ar-campaign-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.admin-ar-campaign-status--active {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+}
+
+.admin-ar-campaign-status--completed {
+  background: color-mix(in srgb, var(--success, #15803d) 12%, transparent);
+}
+
+.admin-cert-inbox-row--overdue {
+  border-left: 3px solid var(--danger, #b91c1c);
+}
+
+.admin-integration-status--critical {
+  color: var(--danger, #b91c1c);
+  font-weight: 700;
+}
+
+.admin-break-glass-countdown {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
 .link-button {
   background: none;
   border: 0;

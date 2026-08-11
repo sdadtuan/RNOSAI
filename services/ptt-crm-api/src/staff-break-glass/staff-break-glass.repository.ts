@@ -9,7 +9,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { normalizeGrantPayload } from '../staff-permissions/staff-permissions.catalog';
 import type { BreakGlassCap, BreakGlassGrantRow, RequestBreakGlassBody } from './staff-break-glass.types';
 
-const TTL_HOURS = 24;
+const TTL_HOURS = Number(process.env.BREAK_GLASS_TTL_HOURS ?? 4);
 
 @Injectable()
 export class StaffBreakGlassRepository implements OnModuleDestroy {

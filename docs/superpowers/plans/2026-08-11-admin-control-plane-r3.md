@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans. Steps dùng checkbox (`- [ ]`) để tracking.
 
-> **Trạng thái:** ✅ Implemented locally · **Phụ thuộc:** P3 shipped (`36750eb`)  
+> **Trạng thái:** ✅ Shipped · **Commit:** `4112ce3` · **Phụ thuộc:** P3 shipped (`36750eb`)  
 > **Spec:** [`docs/specs/2026-08-11-admin-control-plane-ia.md`](../specs/2026-08-11-admin-control-plane-ia.md) §13 R3, §5.2, §8.2, §15  
 > **App:** `services/ops-web` + `services/ptt-crm-api` · **Domain:** `https://rs.pttads.vn`
 
@@ -763,8 +763,8 @@ e2e/admin-control-plane-r3-audit.spec.ts
 | P1 | [`2026-08-11-admin-control-plane-p1.md`](2026-08-11-admin-control-plane-p1.md) | ✅ |
 | P2 | [`2026-08-11-admin-control-plane-p2.md`](2026-08-11-admin-control-plane-p2.md) | ✅ |
 | P3 | [`2026-08-11-admin-control-plane-p3.md`](2026-08-11-admin-control-plane-p3.md) | ✅ `36750eb` |
-| **R3** | This document | 📋 Ready |
-| R4 | Spec §13 | TBD |
+| **R3** | This document | ✅ `4112ce3` |
+| R4 | [`2026-08-11-admin-control-plane-r4.md`](2026-08-11-admin-control-plane-r4.md) | 📋 Ready |
 | R5 | Spec §13 | TBD |
 
 ---

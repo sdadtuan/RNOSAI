@@ -474,11 +474,12 @@ Copy: `Cần quyền {section}.{action} — liên hệ Quản trị hệ thống
 
 ---
 
-## Bước tiếp R3
+## Bước tiếp R4
 
 | Wave | Nội dung | Plan |
 |------|----------|------|
-| **R3** | Audit Center, export, drift alert, PII log | [`2026-08-11-admin-control-plane-r3.md`](2026-08-11-admin-control-plane-r3.md) |
+| **R3** | Audit Center, export, drift alert, PII log | [`2026-08-11-admin-control-plane-r3.md`](2026-08-11-admin-control-plane-r3.md) ✅ |
+| **R4** | Access review campaigns, stale accounts, guest TTL, break-glass, integrations | [`2026-08-11-admin-control-plane-r4.md`](2026-08-11-admin-control-plane-r4.md) |
 
 **Spec đầy đủ:** [`2026-08-11-admin-control-plane-ia.md`](../specs/2026-08-11-admin-control-plane-ia.md) §13–15.
 
@@ -518,6 +519,8 @@ Phần này mở rộng **vượt T1/T2** — nhắm **T3 Enterprise** và moat 
 | **Guest / contractor TTL** | Tài khoản tự expire |
 | **Break-glass** | Emergency admin 4h + auto-revoke + audit (WIN break-glass flag) |
 | **Integration registry** `/admin/integrations` | Meta token, Zalo OA, webhooks — health + rotate |
+
+**Plan chi tiết:** [`docs/superpowers/plans/2026-08-11-admin-control-plane-r4.md`](../superpowers/plans/2026-08-11-admin-control-plane-r4.md)
 
 **KPI:** Access review cycle ≤5 ngày · 0 orphaned admin accounts.
 
@@ -600,9 +603,14 @@ Thang 1–5 (5 = best-in-class cho agency 100–300 NV).
 - [ ] Audit export 12 tháng ≤30 giây
 - [ ] 100% matrix PATCH có audit row
 
-### R5 exit
+### R4 exit
 
-- [ ] Access review campaign chạy pilot 1 phòng ban
+- [ ] Access review campaign pilot 1 phòng ban hoàn tất ≤5 ngày
+- [ ] Stale account report + 0 orphaned admin không được flag
+- [ ] Guest TTL auto-deactivate verified
+- [ ] Integration registry health visible trên `/admin/integrations`
+
+### R5 exit
 - [ ] Policy simulator what-if <2s p95
 - [ ] 2 enterprise deals cite Control Plane trong win report
 

@@ -8,7 +8,7 @@ import {
 } from '@/lib/win/flags';
 import type { ModuleNavLink } from './module-nav';
 
-export type AdminNavGroupId = 'org' | 'rbac' | 'data' | 'ai' | 'compliance';
+export type AdminNavGroupId = 'org' | 'rbac' | 'data' | 'ai' | 'compliance' | 'integrations';
 
 export type AdminNavLink = ModuleNavLink;
 
@@ -94,8 +94,21 @@ function buildComplianceLinks(user: StoredStaffUser): AdminNavLink[] {
   if (!hasCap(user, 'crm_data_config', 'view')) return [];
   return [
     { href: '/admin/audit', label: 'Audit Center' },
+    { href: '/admin/audit/access-reviews', label: 'Access review campaigns' },
+    { href: '/admin/audit/access-reviews/inbox', label: 'Inbox duyệt quyền' },
+    { href: '/admin/audit/stale-accounts', label: 'Tài khoản không hoạt động' },
+    { href: '/admin/audit/break-glass', label: 'Break-glass' },
     { href: '/admin/audit?category=permission_matrix', label: 'Lịch sử ma trận' },
   ];
+}
+
+function buildIntegrationsLinks(user: StoredStaffUser): AdminNavLink[] {
+  if (!hasCap(user, 'crm_data_config', 'view')) return [];
+  const links: AdminNavLink[] = [{ href: '/admin/integrations', label: 'Registry tích hợp' }];
+  if (winSsoEnabled()) {
+    links.push({ href: '/admin/crm/sso/groups', label: 'SSO groups' });
+  }
+  return links;
 }
 
 function buildAiLinks(user: StoredStaffUser): AdminNavLink[] {
@@ -157,8 +170,18 @@ export function buildAdminNavGroups(user: StoredStaffUser | null): AdminNavGroup
     groups.push({
       id: 'compliance',
       label: 'Audit & Tuân thủ',
-      description: 'Timeline thay đổi, export compliance',
+      description: 'Timeline, access review, break-glass',
       links: complianceLinks,
+    });
+  }
+
+  const integrationsLinks = buildIntegrationsLinks(user);
+  if (integrationsLinks.length) {
+    groups.push({
+      id: 'integrations',
+      label: 'Tích hợp & Kết nối',
+      description: 'Webhooks, OAuth tokens, SSO',
+      links: integrationsLinks,
     });
   }
 

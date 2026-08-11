@@ -10,6 +10,9 @@ export type StaffOrgUserSummary = {
   team_codes?: string[];
   job_functions: string[];
   client_ids?: string[];
+  account_kind?: string;
+  expires_at?: string | null;
+  last_login_at?: string | null;
 };
 
 export type StaffOrgUserDetail = StaffOrgUserSummary;
@@ -22,6 +25,8 @@ export type CreateStaffOrgUserBody = {
   functions?: string[];
   password?: string;
   crm_staff_id?: number;
+  account_kind?: 'staff' | 'guest' | 'contractor';
+  expires_at?: string | null;
   crm_staff?: {
     name?: string;
     display_name?: string;
@@ -38,6 +43,8 @@ export type PatchStaffOrgUserBody = {
   team_ids?: number[];
   active?: boolean;
   password?: string;
+  account_kind?: 'staff' | 'guest' | 'contractor';
+  expires_at?: string | null;
 };
 
 export type OffboardStaffOrgUserBody = {

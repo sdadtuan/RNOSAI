@@ -344,6 +344,10 @@ export default function AdminCrmPermissionsPage() {
             <Link href="/admin/audit?category=permission_matrix" className="muted">
               Xem toàn bộ audit →
             </Link>
+            {' · '}
+            <Link href="/admin/audit/access-reviews" className="muted">
+              Access review campaigns →
+            </Link>
           </div>
           {audit.length === 0 ? (
             <p className="muted">Chưa có bản ghi audit cho chức vụ này.</p>

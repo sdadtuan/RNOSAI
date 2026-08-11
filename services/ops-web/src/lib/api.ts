@@ -7818,6 +7818,8 @@ export interface CreateStaffOrgUserInput {
   functions?: string[];
   password?: string;
   crm_staff_id?: number;
+  account_kind?: 'staff' | 'guest' | 'contractor';
+  expires_at?: string | null;
   crm_staff?: {
     name?: string;
     display_name?: string;
@@ -7834,6 +7836,8 @@ export interface PatchStaffOrgUserInput {
   team_ids?: number[];
   active?: boolean;
   password?: string;
+  account_kind?: 'staff' | 'guest' | 'contractor';
+  expires_at?: string | null;
 }
 
 export interface StaffUserEffectiveCaps {
@@ -8384,4 +8388,165 @@ export async function downloadAdminAuditExport(token: string, jobId: string, for
     `/api/v1/admin/audit/export/${encodeURIComponent(jobId)}`,
     `admin-audit.${format}`,
   );
+}
+
+// --- Admin Governance R4 ---
+
+export type AccessReviewCampaignStatus = 'draft' | 'active' | 'completed' | 'cancelled';
+
+export type AccessReviewCampaign = {
+  id: string;
+  title: string;
+  quarter: string;
+  status: AccessReviewCampaignStatus;
+  scope_type: string;
+  scope_ref: string | null;
+  due_at: string;
+  owner_email: string;
+  launched_at: string | null;
+  closed_at: string | null;
+  item_counts: { pending: number; certified: number; revoke: number; total: number };
+  created_at: string;
+};
+
+export type AccessReviewItem = {
+  id: string;
+  campaign_id: string;
+  user_id: string;
+  user_email: string;
+  user_display_name: string;
+  position_code: string | null;
+  decision: string;
+  certifier_email: string | null;
+  certifier_note: string | null;
+  decided_at: string | null;
+  days_until_due?: number | null;
+  risk_flags?: string[];
+  snapshot_json?: Record<string, unknown>;
+};
+
+export type StaleAccountRow = {
+  user_id: string;
+  email: string;
+  display_name: string;
+  active: boolean;
+  account_kind: string;
+  last_login_at: string | null;
+  days_since_login: number | null;
+  position_code: string | null;
+  risk: string;
+  admin_cap_count: number;
+};
+
+export type AdminIntegrationRow = {
+  id: string;
+  kind: string;
+  name: string;
+  status: string;
+  detail: string;
+  redirect_href?: string;
+};
+
+export async function fetchAccessReviewCampaigns(
+  token: string,
+  status?: AccessReviewCampaignStatus,
+): Promise<{ campaigns: AccessReviewCampaign[] }> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  return crmFetch(token, `/api/v1/admin/governance/access-reviews/campaigns${qs}`);
+}
+
+export async function createAccessReviewCampaign(
+  token: string,
+  body: {
+    title: string;
+    quarter?: string;
+    scope_type?: string;
+    scope_ref?: string | null;
+    due_at?: string;
+  },
+): Promise<AccessReviewCampaign> {
+  return crmFetch(token, '/api/v1/admin/governance/access-reviews/campaigns', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchAccessReviewCampaign(token: string, id: string): Promise<AccessReviewCampaign> {
+  return crmFetch(token, `/api/v1/admin/governance/access-reviews/campaigns/${encodeURIComponent(id)}`);
+}
+
+export async function launchAccessReviewCampaign(
+  token: string,
+  id: string,
+): Promise<{ ok: boolean; launched: number; campaign: AccessReviewCampaign }> {
+  return crmFetch(token, `/api/v1/admin/governance/access-reviews/campaigns/${encodeURIComponent(id)}/launch`, {
+    method: 'POST',
+  });
+}
+
+export async function closeAccessReviewCampaign(
+  token: string,
+  id: string,
+  force?: boolean,
+): Promise<{ ok: boolean; applied_revokes: number; campaign: AccessReviewCampaign }> {
+  const qs = force ? '?force=1' : '';
+  return crmFetch(token, `/api/v1/admin/governance/access-reviews/campaigns/${encodeURIComponent(id)}/close${qs}`, {
+    method: 'POST',
+  });
+}
+
+export async function fetchAccessReviewItems(
+  token: string,
+  campaignId: string,
+  decision?: string,
+): Promise<{ items: AccessReviewItem[]; campaign_id: string }> {
+  const qs = decision ? `?decision=${encodeURIComponent(decision)}` : '';
+  return crmFetch(
+    token,
+    `/api/v1/admin/governance/access-reviews/campaigns/${encodeURIComponent(campaignId)}/items${qs}`,
+  );
+}
+
+export async function fetchAccessReviewInbox(
+  token: string,
+  campaignId?: string,
+): Promise<{ items: AccessReviewItem[]; count: number }> {
+  const qs = campaignId ? `?campaign_id=${encodeURIComponent(campaignId)}` : '';
+  return crmFetch(token, `/api/v1/admin/governance/access-reviews/inbox${qs}`);
+}
+
+export async function patchAccessReviewItem(
+  token: string,
+  itemId: string,
+  body: { decision: string; note?: string },
+): Promise<AccessReviewItem> {
+  return crmFetch(token, `/api/v1/admin/governance/access-reviews/items/${encodeURIComponent(itemId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchStaleAccounts(
+  token: string,
+  params?: { inactive_days?: number; admin_only?: boolean },
+): Promise<{ accounts: StaleAccountRow[]; threshold_days: number }> {
+  const qs = new URLSearchParams();
+  if (params?.inactive_days != null) qs.set('inactive_days', String(params.inactive_days));
+  if (params?.admin_only) qs.set('admin_only', '1');
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return crmFetch(token, `/api/v1/admin/governance/stale-accounts${suffix}`);
+}
+
+export async function fetchAdminIntegrations(
+  token: string,
+): Promise<{ integrations: AdminIntegrationRow[]; summary: Record<string, number> }> {
+  return crmFetch(token, '/api/v1/admin/integrations');
+}
+
+export async function fetchAdminIntegrationsHealth(
+  token: string,
+): Promise<{ ok: boolean; summary: Record<string, number>; expiring_count: number; critical_count: number }> {
+  return crmFetch(token, '/api/v1/admin/integrations/health');
 }

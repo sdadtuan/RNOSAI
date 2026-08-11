@@ -478,9 +478,10 @@ export class StaffAuthService {
     }
     try {
       const result = await this.db.query(
-        `SELECT id::text, email, password_hash, display_name, position_id
+        `SELECT id::text, email, password_hash, display_name, position_id, expires_at
          FROM staff_users
          WHERE LOWER(email) = $1 AND active IS TRUE
+           AND (expires_at IS NULL OR expires_at > NOW())
          LIMIT 1`,
         [email],
       );
@@ -491,6 +492,7 @@ export class StaffAuthService {
             password_hash: string;
             display_name: string;
             position_id: number;
+            expires_at: string | null;
           }
         | undefined;
       if (!row || !verifyPortalPassword(password, row.password_hash)) {

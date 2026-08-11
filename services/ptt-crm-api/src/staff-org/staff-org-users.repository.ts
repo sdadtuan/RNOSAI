@@ -270,6 +270,11 @@ export class StaffOrgUsersRepository {
     }
     const passwordHash = hashPortalPassword(plainPassword);
     const teamIds = (body.team_ids ?? []).map(Number).filter((n) => n > 0);
+    const accountKind = normalizeAccountKind(body.account_kind);
+    const expiresAt = body.expires_at ? String(body.expires_at).trim() : null;
+    if ((accountKind === 'guest' || accountKind === 'contractor') && !expiresAt) {
+      throw new BadRequestException({ error: 'expires_at_required', account_kind: accountKind });
+    }
 
     const client = await this.db.connect();
     try {
@@ -277,10 +282,10 @@ export class StaffOrgUsersRepository {
       await this.assertPosition(positionId, client);
 
       const inserted = await client.query<{ id: string }>(
-        `INSERT INTO staff_users (email, password_hash, display_name, position_id, active, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, TRUE, NOW(), NOW())
+        `INSERT INTO staff_users (email, password_hash, display_name, position_id, active, account_kind, expires_at, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, TRUE, $5, $6::timestamptz, NOW(), NOW())
          RETURNING id::text`,
-        [email, passwordHash, displayName, positionId],
+        [email, passwordHash, displayName, positionId, accountKind, expiresAt],
       );
       const userId = String(inserted.rows[0]!.id);
 
@@ -309,6 +314,8 @@ export class StaffOrgUsersRepository {
           display_name: displayName,
           position_id: positionId,
           team_ids: teamIds,
+          account_kind: accountKind,
+          expires_at: expiresAt,
         },
       });
 
@@ -362,6 +369,14 @@ export class StaffOrgUsersRepository {
         }
         sets.push(`password_hash = $${idx++}`);
         params.push(hashPortalPassword(plain));
+      }
+      if (body.account_kind !== undefined) {
+        sets.push(`account_kind = $${idx++}`);
+        params.push(normalizeAccountKind(body.account_kind));
+      }
+      if (body.expires_at !== undefined) {
+        sets.push(`expires_at = $${idx++}::timestamptz`);
+        params.push(body.expires_at ? String(body.expires_at).trim() : null);
       }
 
       if (sets.length) {
@@ -484,4 +499,10 @@ export class StaffOrgUsersRepository {
     if (!user) throw new NotFoundException({ error: 'user_not_found' });
     return { user, leads_reassigned: leadsReassigned };
   }
+}
+
+function normalizeAccountKind(raw?: string): 'staff' | 'guest' | 'contractor' {
+  const v = String(raw ?? 'staff').trim().toLowerCase();
+  if (v === 'guest' || v === 'contractor') return v;
+  return 'staff';
 }

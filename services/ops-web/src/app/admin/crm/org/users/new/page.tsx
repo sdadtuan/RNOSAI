@@ -65,6 +65,8 @@ function AdminOrgUserOnboardPageContent() {
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState(() => generatePassword());
+  const [accountKind, setAccountKind] = useState<'staff' | 'guest' | 'contractor'>('staff');
+  const [expiresAt, setExpiresAt] = useState('');
   const [uatChecks, setUatChecks] = useState<boolean[]>(() => UAT_ITEMS.map(() => false));
 
   const [busy, setBusy] = useState(false);
@@ -147,6 +149,10 @@ function AdminOrgUserOnboardPageContent() {
         setFormError('Email không hợp lệ');
         return;
       }
+      if ((accountKind === 'guest' || accountKind === 'contractor') && !expiresAt) {
+        setFormError('Guest/contractor cần ngày hết hạn');
+        return;
+      }
       setStep('uat');
     }
     setFormError('');
@@ -181,6 +187,8 @@ function AdminOrgUserOnboardPageContent() {
         team_ids: teamIds,
         functions,
         password,
+        account_kind: accountKind,
+        expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
         ...(crmStaffId != null ? { crm_staff_id: crmStaffId } : {}),
         crm_staff: {
           name: name.trim(),
@@ -323,6 +331,23 @@ function AdminOrgUserOnboardPageContent() {
                 </button>
               </div>
             </label>
+            <label>
+              Loại tài khoản
+              <select
+                value={accountKind}
+                onChange={(e) => setAccountKind(e.target.value as 'staff' | 'guest' | 'contractor')}
+              >
+                <option value="staff">Nhân viên</option>
+                <option value="guest">Khách (guest)</option>
+                <option value="contractor">Cộng tác viên</option>
+              </select>
+            </label>
+            {accountKind !== 'staff' ? (
+              <label>
+                Ngày hết hạn *
+                <input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
+              </label>
+            ) : null}
           </div>
         ) : null}
 

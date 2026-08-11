@@ -35,6 +35,11 @@ import {
     StaffPermissionsViewGuard,
     StaffPermissionsConfigureGuard,
   ],
-  exports: [StaffPermissionsService, StaffJobFunctionsRepository, StaffRbacAuditRepository],
+  exports: [
+    StaffPermissionsService,
+    StaffJobFunctionsRepository,
+    StaffRbacAuditRepository,
+    StaffAccessReviewActionsRepository,
+  ],
 })
 export class StaffPermissionsModule {}

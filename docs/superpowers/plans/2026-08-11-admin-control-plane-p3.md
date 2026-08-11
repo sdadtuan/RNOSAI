@@ -6,11 +6,12 @@
 
 ---
 
-## Bước tiếp R3
+## Bước tiếp R4
 
 | Wave | Nội dung | Plan |
 |------|----------|------|
-| **R3** | Audit Center, export compliance, config drift, PII log | [`2026-08-11-admin-control-plane-r3.md`](2026-08-11-admin-control-plane-r3.md) |  
+| **R3** | Audit Center, export compliance, config drift, PII log | [`2026-08-11-admin-control-plane-r3.md`](2026-08-11-admin-control-plane-r3.md) ✅ |
+| **R4** | Identity Governance — campaigns, inbox, stale, guest TTL, integrations | [`2026-08-11-admin-control-plane-r4.md`](2026-08-11-admin-control-plane-r4.md) |  
 > **Spec:** [`docs/specs/2026-08-11-admin-control-plane-ia.md`](../specs/2026-08-11-admin-control-plane-ia.md) §12 P3, §7, §9  
 > **App:** `services/ops-web` · **Domain:** `https://rs.pttads.vn`
 

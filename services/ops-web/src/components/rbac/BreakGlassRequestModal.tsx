@@ -85,8 +85,8 @@ export function BreakGlassRequestModal({
   return (
     <div className="win-modal-backdrop" role="dialog" aria-modal="true" data-testid="break-glass-modal">
       <div className="win-modal card stack-gap">
-        <h3 className="section-title">Break-glass (TTL 24h)</h3>
-        <p className="muted">Cấp tạm quyền GDKD override — tự thu hồi sau 24 giờ, có audit.</p>
+        <h3 className="section-title">Break-glass (TTL 4h)</h3>
+        <p className="muted">Cấp tạm quyền GDKD override — tự thu hồi sau 4 giờ, có audit.</p>
         {error ? <p className="error">{error}</p> : null}
 
         <label className="stack-gap" style={{ gap: '0.25rem' }}>

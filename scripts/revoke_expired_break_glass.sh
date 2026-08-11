@@ -1,24 +1,16 @@
 #!/usr/bin/env bash
-# Revoke expired break-glass grants (TTL 24h). Cron: hourly on VPS.
+# Revoke expired break-glass grants (cron every 15 min)
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5433/rnosaidb}"
+URL="${PTT_API_URL:-http://127.0.0.1:3000}"
+KEY="${PTT_INTERNAL_KEY:-}"
 
-if ! command -v psql >/dev/null 2>&1; then
-  echo "FAIL psql required for revoke_expired_break_glass" >&2
-  exit 1
+if [[ -z "$KEY" ]]; then
+  echo "WARN: PTT_INTERNAL_KEY not set — skip break-glass revoke"
+  exit 0
 fi
 
-echo "==> Revoke expired break-glass grants"
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
-UPDATE staff_break_glass_grants
-SET status = 'expired',
-    revoked_at = NOW(),
-    revoked_by = 'cron:revoke_expired_break_glass'
-WHERE status = 'approved'
-  AND revoked_at IS NULL
-  AND expires_at IS NOT NULL
-  AND expires_at <= NOW();
-SQL
-
-echo "OK  expired break-glass grants revoked"
+curl -sf -X POST "$URL/api/v1/staff/break-glass/revoke-expired" \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json"
+echo ""
+echo "OK break-glass revoke-expired"
