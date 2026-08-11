@@ -32,5 +32,6 @@ STAFF_TOKEN=... LIFECYCLE_ID=... CRM_API=https://rs.pttads.vn/api ./scripts/smok
 |------|-------|
 | `dich-vu-seo-tong-the` | DV05 — usually exists on staging |
 | `tiep-thi-noi-dung` | DV02 — create if missing for Content OS / Ops smoke |
+| `workshop-buoi1` | Lead `#900000910` — `./scripts/seed_workshop_buoi1_sandbox_lead.sh` |
 
 Document `LIFECYCLE_ID` after verifying on staging DB.

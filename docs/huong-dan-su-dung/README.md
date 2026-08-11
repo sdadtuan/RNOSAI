@@ -27,6 +27,7 @@ Tài liệu này mô tả **cách sử dụng từng chức năng** theo domain 
 | 13 | HR & Payroll | [13-hr-payroll.md](./13-hr-payroll.md) | HR, NV |
 | 14 | Client Portal | [14-client-portal.md](./14-client-portal.md) | Khách hàng |
 | 15 | Mobile (PWA / App) | [15-mobile.md](./15-mobile.md) | Khách hàng, AM |
+| 16 | **SOP chốt deal Sales/Solution** | [16-sales-solution-chot-deal-sop.md](./16-sales-solution-chot-deal-sop.md) | Sales, AM, Solution, GDKD |
 
 ## Tài liệu liên quan
 
