@@ -69,6 +69,11 @@ export class ProposalsSqliteRepository implements OnModuleDestroy {
     this.ensureColumn('crm_proposals', 'status', "TEXT NOT NULL DEFAULT 'draft'");
     this.ensureColumn('crm_proposals', 'valid_until', 'TEXT NULL');
     this.ensureColumn('crm_proposals', 'price_adjustment_reason', "TEXT NOT NULL DEFAULT ''");
+    this.ensureColumn('crm_proposals', 'lead_id', 'INTEGER NULL');
+    this.ensureColumn('crm_proposals', 'presales_id', 'INTEGER NULL');
+    this.database.exec(
+      'CREATE INDEX IF NOT EXISTS idx_crm_proposals_lead ON crm_proposals (lead_id)',
+    );
   }
 
   private ensureColumn(table: string, column: string, ddl: string): void {
@@ -82,6 +87,13 @@ export class ProposalsSqliteRepository implements OnModuleDestroy {
     const rows = this.database
       .prepare('SELECT * FROM crm_proposals WHERE customer_id = ? ORDER BY id DESC')
       .all(customerId) as unknown as Array<Record<string, unknown>>;
+    return rows.map((r) => this.mapProposalRow(r, false));
+  }
+
+  listByLeadId(leadId: number): ProposalRow[] {
+    const rows = this.database
+      .prepare('SELECT * FROM crm_proposals WHERE lead_id = ? ORDER BY id DESC')
+      .all(leadId) as unknown as Array<Record<string, unknown>>;
     return rows.map((r) => this.mapProposalRow(r, false));
   }
 
@@ -112,15 +124,19 @@ export class ProposalsSqliteRepository implements OnModuleDestroy {
   create(body: CreateProposalBody): { id: number } {
     const slugs = (body.service_slugs ?? []).map((s) => String(s).trim()).filter(Boolean);
     const ts = catalogTs();
+    const leadId = Number(body.lead_id ?? 0);
+    const presalesId = Number(body.presales_id ?? 0);
     const result = this.database
       .prepare(
         `INSERT INTO crm_proposals (
-           customer_id, lifecycle_id, service_slugs, total_vnd, timeline_months,
+           customer_id, lead_id, presales_id, lifecycle_id, service_slugs, total_vnd, timeline_months,
            notes, ai_output, status, valid_until, price_adjustment_reason, created_at, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, '', ?, ?)`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, '', ?, ?)`,
       )
       .run(
         Number(body.customer_id),
+        Number.isFinite(leadId) && leadId > 0 ? leadId : null,
+        Number.isFinite(presalesId) && presalesId > 0 ? presalesId : null,
         body.lifecycle_id != null ? Number(body.lifecycle_id) : null,
         JSON.stringify(slugs),
         Math.max(0, Number(body.total_vnd ?? 0)),
@@ -285,6 +301,8 @@ export class ProposalsSqliteRepository implements OnModuleDestroy {
     return {
       id: Number(row.id),
       customer_id: Number(row.customer_id),
+      lead_id: row.lead_id != null ? Number(row.lead_id) : null,
+      presales_id: row.presales_id != null ? Number(row.presales_id) : null,
       lifecycle_id: row.lifecycle_id != null ? Number(row.lifecycle_id) : null,
       service_slugs: serviceSlugs,
       total_vnd: Number(row.total_vnd ?? 0),

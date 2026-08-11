@@ -10,6 +10,8 @@ export const PROPOSAL_STATUS_FLOW: Record<ProposalStatus, ProposalStatus[]> = {
 export interface ProposalRow {
   id: number;
   customer_id: number;
+  lead_id: number | null;
+  presales_id: number | null;
   lifecycle_id: number | null;
   service_slugs: string[];
   total_vnd: number;
@@ -46,8 +48,12 @@ export interface QuoteLineInput {
 }
 
 export interface CreateProposalBody {
-  customer_id: number;
+  customer_id?: number;
   lead_id?: number;
+  presales_id?: number;
+  service_slug?: string;
+  package_tier?: string;
+  auto_lines?: boolean;
   service_slugs?: string[];
   lines?: QuoteLineInput[];
   total_vnd?: number;

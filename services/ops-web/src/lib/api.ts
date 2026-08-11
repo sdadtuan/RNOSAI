@@ -1679,7 +1679,17 @@ export interface DealRoomSnapshot {
     proposal_id: number | null;
     status: string | null;
     total_vnd: number | null;
-    tiers: Array<{ tier: string; total_vnd: number | null }>;
+    customer_id: number | null;
+    presales_id: number | null;
+    service_slug: string;
+    tiers: Array<{
+      tier: string;
+      tier_label: string;
+      total_vnd: number | null;
+      reference_min_vnd: number | null;
+      reference_max_vnd: number | null;
+      is_reference: boolean;
+    }>;
     can_create: boolean;
     block_reason: string;
   };
@@ -1725,6 +1735,65 @@ export async function exportLeadDealRoomPack(
   const filename = match?.[1] ?? `PTT-DealPack-${leadId}.pdf`;
   const blob = await res.blob();
   return { blob, filename };
+}
+
+export async function createDealRoomQuote(
+  token: string,
+  body: {
+    customer_id?: number;
+    lead_id: number;
+    presales_id?: number;
+    service_slug?: string;
+    package_tier?: 'basic' | 'standard' | 'premium';
+    auto_lines?: boolean;
+    notes?: string;
+  },
+) {
+  return crmFetch<{
+    id: number;
+    customer_id: number;
+    lead_id: number | null;
+    total_vnd: number;
+    status: string;
+    lines?: Array<{
+      dv_code: string;
+      package_tier: string;
+      final_price_vnd: number;
+      reference_price_min: number;
+      reference_price_max: number;
+    }>;
+  }>(token, '/api/crm/proposals', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchProposalsByLeadId(
+  token: string,
+  leadId: number,
+): Promise<
+  Array<{
+    id: number;
+    customer_id: number;
+    lead_id: number | null;
+    total_vnd: number;
+    status: string;
+    line_count?: number;
+  }>
+> {
+  const out = await crmFetch<{ proposals: Array<Record<string, unknown>> }>(
+    token,
+    `/api/crm/proposals?lead_id=${leadId}`,
+  );
+  return (out.proposals ?? []) as Array<{
+    id: number;
+    customer_id: number;
+    lead_id: number | null;
+    total_vnd: number;
+    status: string;
+    line_count?: number;
+  }>;
 }
 
 export interface PresalesProposalHandoff {

@@ -31,11 +31,23 @@ export interface L1GateChecklistItemView {
   done: boolean;
 }
 
+export interface DealRoomQuoteTierView {
+  tier: string;
+  tier_label: string;
+  total_vnd: number | null;
+  reference_min_vnd: number | null;
+  reference_max_vnd: number | null;
+  is_reference: boolean;
+}
+
 export interface DealRoomQuoteView {
   proposal_id: number | null;
   status: string | null;
   total_vnd: number | null;
-  tiers: Array<{ tier: string; total_vnd: number | null }>;
+  customer_id: number | null;
+  presales_id: number | null;
+  service_slug: string;
+  tiers: DealRoomQuoteTierView[];
   can_create: boolean;
   block_reason: string;
 }

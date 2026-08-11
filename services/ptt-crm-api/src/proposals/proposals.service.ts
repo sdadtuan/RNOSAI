@@ -19,6 +19,12 @@ import {
   type QuotePackageTier,
 } from './quote-pricing.util';
 import {
+  buildAutoQuoteLineInputs,
+  filterCatalogServicesForSlug,
+  loadDealRoomServiceDvMap,
+  resolveServiceDvMapping,
+} from './deal-room-quote.util';
+import {
   CreateProposalBody,
   PatchProposalStatusBody,
   PROPOSAL_STATUS_FLOW,
@@ -26,8 +32,6 @@ import {
   PutQuoteLinesBody,
   QuoteLineInput,
 } from './proposals.types';
-
-@Injectable()
 export class ProposalsService {
   constructor(
     private readonly sqlite: ProposalsSqliteRepository,
@@ -52,10 +56,18 @@ export class ProposalsService {
     }
   }
 
-  list(customerIdRaw?: string) {
+  list(customerIdRaw?: string, leadIdRaw?: string) {
+    const leadId = Number(leadIdRaw ?? 0);
+    if (Number.isFinite(leadId) && leadId > 0) {
+      const proposals = this.sqlite.listByLeadId(leadId).map((p) => ({
+        ...p,
+        line_count: this.sqlite.listLines(p.id).length,
+      }));
+      return { proposals };
+    }
     const customerId = Number(customerIdRaw ?? 0);
     if (!Number.isFinite(customerId) || customerId <= 0) {
-      throw new BadRequestException({ error: 'Cần customer_id' });
+      throw new BadRequestException({ error: 'Cần customer_id hoặc lead_id' });
     }
     const proposals = this.sqlite.listByCustomer(customerId).map((p) => ({
       ...p,
@@ -121,26 +133,75 @@ export class ProposalsService {
   }
 
   async create(body: CreateProposalBody) {
-    const customerId = Number(body.customer_id ?? 0);
-    if (!customerId) {
-      throw new BadRequestException({ error: 'Thiếu customer_id' });
-    }
+    let customerId = Number(body.customer_id ?? 0);
     const leadId = Number(body.lead_id ?? 0);
+    let presalesId = Number(body.presales_id ?? 0);
+    let serviceSlug = String(body.service_slug ?? '').trim();
+    let lines = body.lines ?? [];
+    const autoLines = Boolean(body.auto_lines);
+
     if (Number.isFinite(leadId) && leadId > 0) {
       await this.assertG4ForLeadContext(leadId);
-    }
-    const lines = body.lines ?? [];
-    const slugs = (body.service_slugs ?? []).map((s) => String(s).trim()).filter(Boolean);
-    if (!lines.length && !slugs.length) {
-      throw new BadRequestException({ error: 'Thiếu lines hoặc service_slugs' });
+      if (!customerId) {
+        const handoffResp = await this.funnel.getPresalesProposalHandoff(leadId);
+        customerId = Number(handoffResp.handoff.customer_id ?? 0);
+      }
+      if (!presalesId) {
+        const funnel = await this.funnel.getFunnel(leadId);
+        presalesId = Number(funnel.presales?.presales.id ?? 0);
+      }
+      if (!serviceSlug) {
+        const funnel = await this.funnel.getFunnel(leadId);
+        serviceSlug = String(funnel.presales?.presales.service_slug ?? '').trim();
+      }
     }
 
-    const created = this.sqlite.create(body);
+    if (!customerId) {
+      throw new BadRequestException({
+        error: 'customer_required',
+        message: 'Lead chưa gắn khách hàng — chọn customer_id hoặc promote lead trước.',
+      });
+    }
+
+    if (autoLines) {
+      const tier = normalizeQuoteTier(body.package_tier ?? 'standard') ?? 'standard';
+      lines = await this.buildAutoLines(serviceSlug, tier);
+    }
+
+    const slugs = (body.service_slugs ?? []).map((s) => String(s).trim()).filter(Boolean);
+    if (!lines.length && !slugs.length && !autoLines) {
+      throw new BadRequestException({ error: 'Thiếu lines hoặc service_slugs' });
+    }
+    if (serviceSlug && !slugs.length) {
+      slugs.push(serviceSlug);
+    }
+
+    const created = this.sqlite.create({
+      ...body,
+      customer_id: customerId,
+      lead_id: leadId > 0 ? leadId : undefined,
+      presales_id: presalesId > 0 ? presalesId : undefined,
+      service_slugs: slugs,
+    });
     if (lines.length) {
       const resolved = await Promise.all(lines.map((line) => this.resolveLinePricing(line)));
       this.sqlite.replaceLines(created.id, resolved);
     }
     return this.detail(created.id);
+  }
+
+  private async buildAutoLines(serviceSlug: string, tier: QuotePackageTier) {
+    const map = this.routeMap.getMap();
+    const dvMap = loadDealRoomServiceDvMap();
+    const mapping = resolveServiceDvMapping(serviceSlug, map, dvMap);
+    let tierPricing: Record<string, unknown> = {};
+    try {
+      const profile = await this.profiles.getByDvCode(mapping.primary_dv);
+      tierPricing = (profile?.tier_pricing ?? {}) as Record<string, unknown>;
+    } catch {
+      tierPricing = {};
+    }
+    return buildAutoQuoteLineInputs(mapping, tierPricing, tier);
   }
 
   async putLines(proposalId: number, body: PutQuoteLinesBody) {
@@ -268,18 +329,36 @@ export class ProposalsService {
     });
   }
 
-  getCatalogForQuote() {
+  getCatalogForQuote(serviceSlugRaw?: string) {
     const map = this.routeMap.getMap();
-    return {
+    const slug = String(serviceSlugRaw ?? '').trim();
+    const base = {
       schema_version: map.schema_version,
       package_tiers: ['basic', 'standard', 'premium'] as QuotePackageTier[],
-      services: map.services.map((s) => ({
-        dv_code: s.code,
-        name: s.name_vi,
-        service_slug: s.service_slugs.primary,
-        readiness: s.readiness,
-        depends_on_dv: s.depends_on_dv ?? [],
-      })),
+    };
+    if (!slug) {
+      return {
+        ...base,
+        services: map.services.map((s) => ({
+          dv_code: s.code,
+          name: s.name_vi,
+          service_slug: s.service_slugs.primary,
+          readiness: s.readiness,
+          depends_on_dv: s.depends_on_dv ?? [],
+        })),
+        suggested_bundle: [] as string[],
+        primary_dv: null as string | null,
+      };
+    }
+    const dvMap = loadDealRoomServiceDvMap();
+    const mapping = resolveServiceDvMapping(slug, map, dvMap);
+    return {
+      ...base,
+      service_slug: slug,
+      primary_dv: mapping.primary_dv,
+      primary_name: mapping.primary_name,
+      suggested_bundle: mapping.bundle_dv,
+      services: filterCatalogServicesForSlug(map, mapping),
     };
   }
 

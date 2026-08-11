@@ -33,13 +33,13 @@ export class ProposalsController {
   constructor(private readonly proposals: ProposalsService) {}
 
   @Get('quote-catalog')
-  getQuoteCatalog() {
-    return this.proposals.getCatalogForQuote();
+  getQuoteCatalog(@Query('service_slug') serviceSlug?: string) {
+    return this.proposals.getCatalogForQuote(serviceSlug);
   }
 
   @Get()
-  list(@Query('customer_id') customerId?: string) {
-    return this.proposals.list(customerId);
+  list(@Query('customer_id') customerId?: string, @Query('lead_id') leadId?: string) {
+    return this.proposals.list(customerId, leadId);
   }
 
   @Get(':id')

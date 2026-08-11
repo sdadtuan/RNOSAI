@@ -55,22 +55,26 @@ async function quoteFetch<T>(token: string, path: string, init?: RequestInit): P
   return body;
 }
 
-export async function fetchQuoteCatalog(token: string) {
-  return quoteFetch<{ services: QuoteCatalogService[]; package_tiers: string[] }>(
-    token,
-    '/api/crm/proposals/quote-catalog',
-  );
-}
-
-export async function fetchQuoteProposal(token: string, id: number) {
-  return quoteFetch<QuoteProposalDetail>(token, `/api/crm/proposals/${id}`);
+export async function fetchQuoteCatalog(token: string, serviceSlug?: string) {
+  const qs = serviceSlug ? `?service_slug=${encodeURIComponent(serviceSlug)}` : '';
+  return quoteFetch<{
+    services: QuoteCatalogService[];
+    package_tiers: string[];
+    primary_dv?: string | null;
+    suggested_bundle?: string[];
+  }>(token, `/api/crm/proposals/quote-catalog${qs}`);
 }
 
 export async function createQuoteProposal(
   token: string,
   body: {
-    customer_id: number;
-    lines: Array<{ dv_code: string; package_tier: string; final_price_vnd?: number; scope_notes?: string }>;
+    customer_id?: number;
+    lead_id?: number;
+    presales_id?: number;
+    service_slug?: string;
+    package_tier?: string;
+    auto_lines?: boolean;
+    lines?: Array<{ dv_code: string; package_tier: string; final_price_vnd?: number; scope_notes?: string }>;
     notes?: string;
     valid_until?: string | null;
   },
@@ -79,6 +83,10 @@ export async function createQuoteProposal(
     method: 'POST',
     body: JSON.stringify(body),
   });
+}
+
+export async function fetchQuoteProposal(token: string, id: number) {
+  return quoteFetch<QuoteProposalDetail>(token, `/api/crm/proposals/${id}`);
 }
 
 export async function putQuoteLines(

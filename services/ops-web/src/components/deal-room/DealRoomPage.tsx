@@ -195,9 +195,16 @@ export function DealRoomPage({ leadId }: Props) {
                   : undefined
               }
               proposalId={snapshot.quote.proposal_id}
+              proposalStatus={snapshot.quote.status}
+              proposalTotalVnd={snapshot.quote.total_vnd}
+              customerId={snapshot.quote.customer_id}
+              presalesId={snapshot.quote.presales_id}
+              serviceSlug={snapshot.quote.service_slug}
+              tiers={snapshot.quote.tiers}
               l1Checklist={snapshot.l1_checklist}
               onMessage={setMessage}
               onError={setError}
+              onQuoteCreated={() => load(getAccessToken() ?? '')}
             />
           </>
         ) : null}

@@ -16,6 +16,11 @@ import { OpsRouteMapLoader } from '../ops/ops-route-map.loader';
 import { resolveDvByLifecycleSlug } from '../ops/ops-slug-resolver.util';
 import { ProposalsSqliteRepository } from '../proposals/proposals-sqlite.repository';
 import {
+  buildDealRoomTierSummaries,
+  loadDealRoomServiceDvMap,
+  resolveServiceDvMapping,
+} from '../proposals/deal-room-quote.util';
+import {
   QUOTE_PACKAGE_TIERS,
   QUOTE_TIER_VI,
   resolveTierPricing,
@@ -111,6 +116,17 @@ export class DealRoomService {
       },
     });
 
+    const serviceSlug = String(funnel.presales.presales.service_slug ?? '').trim();
+    const presalesId = funnel.presales.presales.id;
+    const customerId = handoff.customer_id;
+    const leadProposals = this.proposals.listByLeadId(leadId);
+    const activeProposal =
+      leadProposals.find((p) => p.status === 'draft') ?? leadProposals[0] ?? null;
+    const quoteTiers = await this.buildSnapshotQuoteTiers(
+      serviceSlug,
+      activeProposal?.id ?? null,
+    );
+
     return {
       ok: true,
       lead_id: leadId,
@@ -130,10 +146,13 @@ export class DealRoomService {
       },
       consult_progress: { done: consultDone, total: consultTotal },
       quote: {
-        proposal_id: null,
-        status: null,
-        total_vnd: null,
-        tiers: [],
+        proposal_id: activeProposal?.id ?? null,
+        status: activeProposal?.status ?? null,
+        total_vnd: activeProposal?.total_vnd ?? null,
+        customer_id: customerId,
+        presales_id: presalesId,
+        service_slug: serviceSlug,
+        tiers: quoteTiers,
         can_create: canCreateQuote,
         block_reason: canCreateQuote ? '' : quoteBlockReason,
       },
@@ -211,6 +230,23 @@ export class DealRoomService {
       type: 'application/pdf',
       disposition: `attachment; filename="${filename}"`,
     });
+  }
+
+  private async buildSnapshotQuoteTiers(serviceSlug: string, proposalId: number | null) {
+    const map = this.routeMap.getMap();
+    const dvMap = loadDealRoomServiceDvMap();
+    const mapping = resolveServiceDvMapping(serviceSlug, map, dvMap);
+    let tierPricing: Record<string, unknown> = {};
+    if (this.opsProfiles.canUsePg()) {
+      try {
+        const profile = await this.opsProfiles.getByDvCode(mapping.primary_dv);
+        tierPricing = (profile?.tier_pricing ?? {}) as Record<string, unknown>;
+      } catch {
+        tierPricing = {};
+      }
+    }
+    const proposalLines = proposalId ? this.proposals.listLines(proposalId) : [];
+    return buildDealRoomTierSummaries(mapping, tierPricing, proposalLines);
   }
 
   private resolveProposalId(customerId: number | null, requestedId: number | null): number | null {
