@@ -6576,6 +6576,25 @@ body:has(.ops-sidebar) main {
   color: var(--text-muted);
 }
 
+.global-search-section {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.global-search-section-label {
+  display: block;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted, #6b7280);
+}
+
+.global-search-hit--admin .global-search-hit-type {
+  color: var(--brand, #17692f);
+}
+
 .global-search-empty,
 .global-search-meta {
   padding: 0.55rem 0.65rem;
@@ -10323,6 +10342,75 @@ body {
   font-weight: 600;
 }
 
+.admin-cp-rail__link:focus-visible,
+.admin-cp-rail__hub:focus-visible,
+.admin-cp-rail-trigger:focus-visible,
+.admin-cp-rail-drawer-close:focus-visible {
+  outline: 2px solid var(--brand, #17692f);
+  outline-offset: 2px;
+}
+
+.admin-cp-hub-search {
+  max-width: 28rem;
+  margin-top: 1rem;
+}
+
+.admin-cp-rail-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  border: 0;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+.admin-cp-rail-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 9999;
+  width: min(18rem, 88vw);
+  overflow-y: auto;
+  background: var(--surface, #fff);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+  padding: 1rem;
+}
+
+.admin-cp-rail-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.admin-cp-rail-drawer-close {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.admin-cp-rail-trigger {
+  display: none;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--border, #e5e7eb);
+  background: var(--surface, #fff);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .admin-cp-hub {
   display: flex;
   flex-direction: column;
@@ -10444,15 +10532,12 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .admin-cp-rail {
-    position: static;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 0.75rem;
+  .admin-cp-rail--desktop {
+    display: none;
   }
 
-  .admin-cp-rail__group {
-    flex: 1 1 12rem;
+  .admin-cp-rail-trigger {
+    display: inline-flex;
   }
 
   .admin-cp-hub__hero {

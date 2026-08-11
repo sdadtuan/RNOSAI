@@ -439,7 +439,7 @@ Copy: `Cần quyền {section}.{action} — liên hệ Quản trị hệ thống
 
 **Exit:** Demo script “Settings tour” 5 phút không lộ URL.
 
-### P2 — HR bridge (2–3 ngày) 🚧 Implemented locally
+### P2 — HR bridge (2–3 ngày) ✅ Shipped `2ce8544`
 
 | ID | Task |
 |----|------|
@@ -451,6 +451,16 @@ Copy: `Cần quyền {section}.{action} — liên hệ Quản trị hệ thống
 
 **Exit:** HR UAT onboard 2-step flow pass.
 
+---
+
+## Bước tiếp P3
+
+| Wave | Nội dung | Plan |
+|------|----------|------|
+| **P3** | Admin search, mobile drawer, a11y, E2E onboard | [`2026-08-11-admin-control-plane-p3.md`](2026-08-11-admin-control-plane-p3.md) |
+
+**Spec đầy đủ:** [`2026-08-11-admin-control-plane-ia.md`](../specs/2026-08-11-admin-control-plane-ia.md) §12–13.
+
 ### P3 — Polish (3–5 ngày)
 
 | ID | Task |
@@ -459,6 +469,8 @@ Copy: `Cần quyền {section}.{action} — liên hệ Quản trị hệ thống
 | P3-2 | Mobile drawer for AdminLeftRail |
 | P3-3 | axe a11y `/admin` ≥90 |
 | P3-4 | E2E: sidebar → onboard wizard smoke |
+
+**Plan chi tiết:** [`docs/superpowers/plans/2026-08-11-admin-control-plane-p3.md`](../superpowers/plans/2026-08-11-admin-control-plane-p3.md)
 
 ---
 

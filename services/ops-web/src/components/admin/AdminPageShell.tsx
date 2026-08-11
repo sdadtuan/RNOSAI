@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { AdminLeftRail } from '@/components/admin/AdminLeftRail';
+import { AdminControlPlaneLayout } from '@/components/admin/AdminLeftRail';
 import { PageToolbar, StaffPageShell, type BreadcrumbItem } from '@/components/layout';
 import type { StoredStaffUser } from '@/lib/auth';
 
@@ -52,13 +52,17 @@ export function AdminPageShell({
       width={width}
       loading={loading}
     >
-      <div className={showRail ? 'admin-cp-layout' : undefined}>
-        {showRail ? <AdminLeftRail user={user} /> : null}
-        <div className="admin-cp-main">
+      {showRail ? (
+        <AdminControlPlaneLayout user={user}>
           {hideToolbar ? null : <PageToolbar title={title} subtitle={subtitle} actions={actions} />}
           {children}
-        </div>
-      </div>
+        </AdminControlPlaneLayout>
+      ) : (
+        <>
+          {hideToolbar ? null : <PageToolbar title={title} subtitle={subtitle} actions={actions} />}
+          {children}
+        </>
+      )}
     </StaffPageShell>
   );
 }

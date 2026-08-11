@@ -360,7 +360,8 @@ Kỳ vọng: `OK ops-web local static` + `OK public static`.
 | Wave | Nội dung | Plan |
 |------|----------|------|
 | **P2** | Roster bridge: callout, cột Login/RBAC, deep links, optional `?admin=1` | [`2026-08-11-admin-control-plane-p2.md`](../../superpowers/plans/2026-08-11-admin-control-plane-p2.md) |
-| **P3** | Admin route search; mobile drawer; axe a11y; E2E onboard wizard smoke | TBD |
+| **P3** | Admin search, mobile drawer, a11y axe, E2E onboard wizard | [`2026-08-11-admin-control-plane-p3.md`](../../superpowers/plans/2026-08-11-admin-control-plane-p3.md) |
+| **R3+** | Audit Center, access review, OPA | Spec §13 |
 
 **Spec đầy đủ:** [`2026-08-11-admin-control-plane-ia.md`](../specs/2026-08-11-admin-control-plane-ia.md) §12–13.
 

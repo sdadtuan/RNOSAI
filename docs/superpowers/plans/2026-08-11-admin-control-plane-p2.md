@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans. Steps dùng checkbox (`- [ ]`) để tracking.
 
-> **Trạng thái:** 📋 Ready to implement · **Phụ thuộc:** P1 shipped (`95e11ce`)
+> **Trạng thái:** ✅ Shipped · **Commit:** `2ce8544` (+ `2ce8544` Suspense fix)
 > **Spec:** [`docs/specs/2026-08-11-admin-control-plane-ia.md`](../specs/2026-08-11-admin-control-plane-ia.md) §10, §12 P2  
 > **Runbook:** [`docs/runbooks/rbac-hr-org-workflow.md`](../runbooks/rbac-hr-org-workflow.md)  
 > **App:** `services/ops-web` · **Domain:** `https://rs.pttads.vn`
@@ -574,3 +574,11 @@ services/ops-web/src/
 5. P2-3 admin chrome (optional last)
 6. E2E + UAT script walkthrough
 7. Deploy VPS
+
+---
+
+## Bước tiếp P3
+
+| Wave | Nội dung | Plan |
+|------|----------|------|
+| **P3** | Admin search, mobile drawer, a11y axe, E2E onboard wizard | [`2026-08-11-admin-control-plane-p3.md`](2026-08-11-admin-control-plane-p3.md) |

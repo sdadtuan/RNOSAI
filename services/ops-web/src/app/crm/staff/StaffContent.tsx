@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AdminLeftRail } from '@/components/admin/AdminLeftRail';
+import { AdminControlPlaneLayout } from '@/components/admin/AdminLeftRail';
 import { StaffCompetencyForm } from '@/components/crm/StaffCompetencyForm';
 import { StaffLevelsForm } from '@/components/crm/StaffLevelsForm';
 import { StaffLoginRbacCell } from '@/components/crm/StaffLoginRbacCell';
@@ -432,10 +432,7 @@ export function StaffContent() {
         </p>
       ) : null}
       {adminBridge ? (
-        <div className="admin-cp-layout">
-          <AdminLeftRail user={user} />
-          <div className="admin-cp-main">{rosterBody}</div>
-        </div>
+        <AdminControlPlaneLayout user={user}>{rosterBody}</AdminControlPlaneLayout>
       ) : (
         rosterBody
       )}

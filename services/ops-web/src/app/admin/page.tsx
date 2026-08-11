@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { AdminHubSearch } from '@/components/admin/AdminHubSearch';
 import { StaffPageShell } from '@/components/layout';
 import {
   buildAdminHubWorkspaces,
@@ -98,6 +99,7 @@ export default function AdminControlPlaneHubPage() {
               Identity, RBAC, schema CRM và AI governance — một workspace tập trung, tách khỏi vận
               hành hàng ngày.
             </p>
+            <AdminHubSearch user={user} />
           </div>
           <div className="admin-cp-hub__meta">
             <span className="admin-cp-hub__pill">Onboard ≤15 phút</span>

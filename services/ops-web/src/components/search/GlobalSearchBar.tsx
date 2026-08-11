@@ -2,7 +2,13 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getAccessToken } from '@/lib/auth';
+import {
+  parseAdminSearchPrefix,
+  searchAdminRoutes,
+  type AdminSearchHit,
+} from '@/lib/admin/admin-search';
+import { canViewAdminSection } from '@/lib/admin/admin-nav';
+import { getAccessToken, getStoredUser } from '@/lib/auth';
 import {
   SEARCH_ENTITY_LABELS,
   fetchGlobalSearch,
@@ -10,8 +16,11 @@ import {
   type SearchEntityType,
 } from '@/lib/search-api';
 
-const ENTITY_FILTERS: Array<{ value: '' | SearchEntityType; label: string }> = [
+type EntityFilter = '' | SearchEntityType | 'admin';
+
+const ENTITY_FILTERS: Array<{ value: EntityFilter; label: string }> = [
   { value: '', label: 'Tất cả' },
+  { value: 'admin', label: 'Quản trị' },
   { value: 'lead', label: 'Lead' },
   { value: 'deal', label: 'Deal' },
   { value: 'ticket', label: 'Ticket' },
@@ -21,15 +30,26 @@ const ENTITY_FILTERS: Array<{ value: '' | SearchEntityType; label: string }> = [
 
 export function GlobalSearchBar() {
   const [query, setQuery] = useState('');
-  const [entityType, setEntityType] = useState<'' | SearchEntityType>('');
+  const [entityType, setEntityType] = useState<EntityFilter>('');
   const [hits, setHits] = useState<GlobalSearchHit[]>([]);
+  const [adminHits, setAdminHits] = useState<AdminSearchHit[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [engine, setEngine] = useState<'opensearch' | 'sqlite' | ''>('');
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  const runSearch = useCallback(async (q: string, type: '' | SearchEntityType) => {
+  const runAdminSearch = useCallback((raw: string, limit = 5) => {
+    const user = getStoredUser();
+    if (!user || !canViewAdminSection(user)) {
+      setAdminHits([]);
+      return;
+    }
+    const { query: q } = parseAdminSearchPrefix(raw);
+    setAdminHits(searchAdminRoutes(user, q, limit));
+  }, []);
+
+  const runCrmSearch = useCallback(async (q: string, type: '' | SearchEntityType) => {
     const token = getAccessToken();
     if (!token || q.trim().length < 2) {
       setHits([]);
@@ -48,7 +68,11 @@ export function GlobalSearchBar() {
       setOpen(true);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Tìm kiếm thất bại';
-      setError(msg.includes('503') || msg.toLowerCase().includes('opensearch') ? 'OpenSearch chưa sẵn sàng — cần OPENSEARCH_URL' : msg);
+      setError(
+        msg.includes('503') || msg.toLowerCase().includes('opensearch')
+          ? 'OpenSearch chưa sẵn sàng — cần OPENSEARCH_URL'
+          : msg,
+      );
       setHits([]);
     } finally {
       setBusy(false);
@@ -57,10 +81,30 @@ export function GlobalSearchBar() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void runSearch(query, entityType);
+      const { query: stripped, adminOnly } = parseAdminSearchPrefix(query);
+      const effectiveType: EntityFilter = adminOnly ? 'admin' : entityType;
+
+      if (stripped.trim().length < 2) {
+        setAdminHits([]);
+        setHits([]);
+        setEngine('');
+        return;
+      }
+
+      if (effectiveType === 'admin') {
+        runAdminSearch(stripped, 12);
+        setHits([]);
+        setEngine('');
+        setError('');
+        setOpen(true);
+        return;
+      }
+
+      runAdminSearch(stripped, 5);
+      void runCrmSearch(stripped, effectiveType === '' ? '' : effectiveType);
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [query, entityType, runSearch]);
+  }, [query, entityType, runAdminSearch, runCrmSearch]);
 
   useEffect(() => {
     const onDoc = (ev: MouseEvent) => {
@@ -70,19 +114,26 @@ export function GlobalSearchBar() {
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
 
+  const showDropdown =
+    open &&
+    (adminHits.length > 0 ||
+      hits.length > 0 ||
+      error ||
+      query.trim().length >= 2);
+
   return (
     <div className="global-search-bar" ref={wrapRef}>
       <div className="global-search-input-wrap">
         <input
           className="global-search-input"
           type="search"
-          placeholder="Tìm CRM… (lead, deal, ticket)"
+          placeholder="Tìm CRM hoặc Quản trị…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => {
-            if (hits.length) setOpen(true);
+            if (adminHits.length || hits.length) setOpen(true);
           }}
-          aria-label="Tìm kiếm CRM"
+          aria-label="Tìm kiếm CRM và Quản trị"
         />
         {busy ? <span className="global-search-spinner muted">…</span> : null}
       </div>
@@ -98,28 +149,49 @@ export function GlobalSearchBar() {
           </button>
         ))}
       </div>
-      {open && (hits.length > 0 || error || query.trim().length >= 2) ? (
+      {showDropdown ? (
         <div className="global-search-dropdown" role="listbox" aria-label="Kết quả tìm kiếm">
           {error ? <p className="global-search-empty error">{error}</p> : null}
-          {!error && hits.length === 0 && query.trim().length >= 2 ? (
-            <p className="global-search-empty muted">Không có kết quả</p>
+          {adminHits.length > 0 ? (
+            <div className="global-search-section">
+              <span className="global-search-section-label">Quản trị hệ thống</span>
+              {adminHits.map((hit) => (
+                <Link
+                  key={`admin:${hit.href}`}
+                  href={hit.href}
+                  className="global-search-hit global-search-hit--admin"
+                  onClick={() => setOpen(false)}
+                >
+                  <span className="global-search-hit-type">{hit.groupLabel}</span>
+                  <strong>{hit.label}</strong>
+                </Link>
+              ))}
+            </div>
           ) : null}
-          {hits.map((hit) => (
-            <Link
-              key={`${hit.entity_type}:${hit.entity_id}`}
-              href={hit.route_path ?? '/crm'}
-              className="global-search-hit"
-              onClick={() => setOpen(false)}
-            >
-              <span className="global-search-hit-type">{SEARCH_ENTITY_LABELS[hit.entity_type]}</span>
-              <strong>{hit.title}</strong>
-              {hit.subtitle ? <span className="muted">{hit.subtitle}</span> : null}
-              {hit.snippet ? <span className="global-search-hit-snippet">{hit.snippet}</span> : null}
-            </Link>
-          ))}
-          {engine ? (
+          {!error && entityType === 'admin' && adminHits.length === 0 && query.trim().length >= 2 ? (
+            <p className="global-search-empty muted">Không có route quản trị phù hợp</p>
+          ) : null}
+          {!error && entityType !== 'admin' && hits.length === 0 && adminHits.length === 0 && query.trim().length >= 2 ? (
+            <p className="global-search-empty muted">Không có kết quả CRM</p>
+          ) : null}
+          {entityType !== 'admin'
+            ? hits.map((hit) => (
+                <Link
+                  key={`${hit.entity_type}:${hit.entity_id}`}
+                  href={hit.route_path ?? '/crm'}
+                  className="global-search-hit"
+                  onClick={() => setOpen(false)}
+                >
+                  <span className="global-search-hit-type">{SEARCH_ENTITY_LABELS[hit.entity_type]}</span>
+                  <strong>{hit.title}</strong>
+                  {hit.subtitle ? <span className="muted">{hit.subtitle}</span> : null}
+                  {hit.snippet ? <span className="global-search-hit-snippet">{hit.snippet}</span> : null}
+                </Link>
+              ))
+            : null}
+          {engine && entityType !== 'admin' ? (
             <p className="global-search-meta muted">
-              Engine: {engine} · {hits.length} kết quả
+              Engine: {engine} · {hits.length} kết quả CRM
             </p>
           ) : null}
         </div>

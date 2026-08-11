@@ -1,66 +1,39 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { buildAdminNavGroups } from '@/lib/admin/admin-nav';
+import type { ReactNode } from 'react';
+import { AdminLeftRailDrawer } from '@/components/admin/AdminLeftRailDrawer';
+import { AdminLeftRailNav } from '@/components/admin/AdminLeftRailNav';
+import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import type { StoredStaffUser } from '@/lib/auth';
 
-function isActive(pathname: string, href: string): boolean {
-  if (href === '/admin/crm/permissions') {
-    return pathname === href;
-  }
-  if (href === '/admin') {
-    return pathname === href;
-  }
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-type AdminLeftRailProps = {
+type AdminControlPlaneLayoutProps = {
   user: StoredStaffUser | null;
+  children: ReactNode;
 };
 
-export function AdminLeftRail({ user }: AdminLeftRailProps) {
-  const pathname = usePathname() ?? '';
-  const groups = buildAdminNavGroups(user);
-
-  if (!groups.length) return null;
+export function AdminControlPlaneLayout({ user, children }: AdminControlPlaneLayoutProps) {
+  const isMobile = useMediaQuery('(max-width: 900px)');
 
   return (
-    <aside className="admin-cp-rail" aria-label="Quản trị hệ thống">
-      <Link
-        href="/admin"
-        className={`admin-cp-rail__hub${pathname === '/admin' ? ' admin-cp-rail__link--active' : ''}`}
-      >
-        <span className="admin-cp-rail__hub-icon" aria-hidden>
-          ⚙
-        </span>
-        <span>
-          <strong>Control Plane</strong>
-          <span className="muted admin-cp-rail__hub-sub">Quản trị hệ thống</span>
-        </span>
-      </Link>
+    <div className="admin-cp-layout">
+      {!isMobile ? (
+        <aside className="admin-cp-rail admin-cp-rail--desktop" aria-label="Quản trị hệ thống">
+          <AdminLeftRailNav user={user} />
+        </aside>
+      ) : null}
+      <div className="admin-cp-main">
+        {isMobile ? <AdminLeftRailDrawer user={user} /> : null}
+        {children}
+      </div>
+    </div>
+  );
+}
 
-      {groups.map((group) => (
-        <div key={group.id} className="admin-cp-rail__group">
-          <div className="admin-cp-rail__group-head">
-            <span className="admin-cp-rail__group-label">{group.label}</span>
-          </div>
-          <ul className="admin-cp-rail__list">
-            {group.links.map((link) => (
-              <li key={link.href}>
-                <Link
-                  href={link.href}
-                  className={`admin-cp-rail__link${
-                    isActive(pathname, link.href) ? ' admin-cp-rail__link--active' : ''
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+/** @deprecated Use AdminControlPlaneLayout — kept for direct imports during migration. */
+export function AdminLeftRail({ user }: { user: StoredStaffUser | null }) {
+  return (
+    <aside className="admin-cp-rail admin-cp-rail--desktop" aria-label="Quản trị hệ thống">
+      <AdminLeftRailNav user={user} />
     </aside>
   );
 }
