@@ -47,6 +47,7 @@ export interface QuoteLineInput {
 
 export interface CreateProposalBody {
   customer_id: number;
+  lead_id?: number;
   service_slugs?: string[];
   lines?: QuoteLineInput[];
   total_vnd?: number;

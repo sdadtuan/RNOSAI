@@ -10861,6 +10861,30 @@ body {
   font-size: 0.85rem;
 }
 
+.deal-room-checklist__item--ok {
+  color: var(--muted);
+  text-decoration: line-through;
+  opacity: 0.75;
+}
+
+.deal-room-gate-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.deal-room-gate-messages {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.deal-room-l1-checklist__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #b91c1c;
+}
+
 .deal-room-entry-banner {
   display: flex;
   align-items: center;

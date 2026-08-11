@@ -9,6 +9,7 @@ import { OpsProfilePgRepository } from '../ops/ops-profile-pg.repository';
 import { OpsRouteMapLoader } from '../ops/ops-route-map.loader';
 import { OpsService } from '../ops/ops.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
+import { LeadsFunnelService } from '../leads-funnel/leads-funnel.service';
 import { ProposalsSqliteRepository } from './proposals-sqlite.repository';
 import {
   normalizeQuoteTier,
@@ -35,7 +36,21 @@ export class ProposalsService {
     private readonly lifecycle: ServiceLifecycleService,
     private readonly ops: OpsService,
     private readonly config: AppConfigService,
+    private readonly funnel: LeadsFunnelService,
   ) {}
+
+  private async assertG4ForLeadContext(leadId: number): Promise<void> {
+    if (!this.config.dealRoomGateStrict) return;
+    const gateResp = await this.funnel.getPresalesProposalGate(leadId);
+    if (!gateResp.gate.ok) {
+      throw new BadRequestException({
+        error: 'g4_blocked',
+        messages: gateResp.gate.messages,
+        message:
+          gateResp.gate.messages[0] ?? 'Hoàn thành G4 R5 trước khi tạo báo giá (BR-SCLOSE-001).',
+      });
+    }
+  }
 
   list(customerIdRaw?: string) {
     const customerId = Number(customerIdRaw ?? 0);
@@ -109,6 +124,10 @@ export class ProposalsService {
     const customerId = Number(body.customer_id ?? 0);
     if (!customerId) {
       throw new BadRequestException({ error: 'Thiếu customer_id' });
+    }
+    const leadId = Number(body.lead_id ?? 0);
+    if (Number.isFinite(leadId) && leadId > 0) {
+      await this.assertG4ForLeadContext(leadId);
     }
     const lines = body.lines ?? [];
     const slugs = (body.service_slugs ?? []).map((s) => String(s).trim()).filter(Boolean);

@@ -20,7 +20,7 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 import { presalesStageLabel } from '@/lib/crm/lead-consult-tab.util';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface Props {
   leadId: number;
@@ -28,6 +28,8 @@ interface Props {
 
 export function DealRoomPage({ leadId }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const gateBlockedBanner = searchParams.get('gate_blocked') === '1';
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [snapshot, setSnapshot] = useState<DealRoomSnapshot | null>(null);
   const [error, setError] = useState('');
@@ -144,6 +146,11 @@ export function DealRoomPage({ leadId }: Props) {
             ) : null}
           </div>
         ) : null}
+        {gateBlockedBanner ? (
+          <div className="lead-alert lead-alert--warn" role="status">
+            Không thể tạo báo giá trực tiếp — hoàn thành checklist G4 (L1 R5) trên Deal Room trước.
+          </div>
+        ) : null}
         {message ? (
           <div className="lead-alert lead-alert--success" role="status">
             {message}
@@ -152,7 +159,10 @@ export function DealRoomPage({ leadId }: Props) {
 
         {snapshot && !loading ? (
           <>
-            <DealRoomGateStrip gates={snapshot.gates} />
+            <DealRoomGateStrip
+              gates={snapshot.gates}
+              g4Messages={snapshot.proposal_gate.messages}
+            />
             {presales?.consult_proposal_sla ? (
               <PresalesConsultSlaBanner sla={presales.consult_proposal_sla} />
             ) : null}
@@ -185,6 +195,7 @@ export function DealRoomPage({ leadId }: Props) {
                   : undefined
               }
               proposalId={snapshot.quote.proposal_id}
+              l1Checklist={snapshot.l1_checklist}
               onMessage={setMessage}
               onError={setError}
             />

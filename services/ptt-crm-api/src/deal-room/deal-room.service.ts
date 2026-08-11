@@ -22,6 +22,7 @@ import {
   type QuotePackageTier,
 } from '../proposals/quote-pricing.util';
 import { buildDealRoomGates } from './deal-room-gates.util';
+import { buildL1GateChecklist } from '../leads-funnel/presales-l1-gate-checklist.util';
 import type { ExportDealRoomPackBody } from './deal-room-export.types';
 import {
   buildDealRoomPackPdf,
@@ -94,9 +95,21 @@ export class DealRoomService {
     }
 
     const canCreateQuote = proposalGate.ok && handoff.can_open;
-    const quoteBlockReason = !proposalGate.ok
-      ? proposalGate.messages[0] ?? 'Hoàn thành G4 R5 trước khi tạo báo giá'
-      : handoff.block_reason || '';
+    const quoteBlockReason = !canCreateQuote
+      ? handoff.block_reason ||
+        proposalGate.messages[0] ||
+        'Hoàn thành G4 R5 trước khi tạo báo giá'
+      : '';
+
+    const l1Checklist = buildL1GateChecklist({
+      gate: proposalGate,
+      plan: {
+        name: planContent.name,
+        north_star: planContent.north_star,
+        objectives: planContent.objectives,
+        strategy_framework: planContent.strategy_framework,
+      },
+    });
 
     return {
       ok: true,
@@ -130,6 +143,7 @@ export class DealRoomService {
         proposals_href: handoff.proposals_href,
       },
       proposal_gate: proposalGate,
+      l1_checklist: l1Checklist,
     };
   }
 

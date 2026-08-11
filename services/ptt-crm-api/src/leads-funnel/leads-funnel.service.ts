@@ -34,6 +34,8 @@ import {
 } from './presales-ai-prompt.util';
 import { buildProposalAdvanceGate } from './presales-proposal-gate.util';
 import { buildPresalesProposalHandoff } from './presales-proposal-handoff.util';
+import { buildL1GateChecklist } from './presales-l1-gate-checklist.util';
+import { planContentFromRow } from './presales-marketing-plan.util';
 import { SERVICE_LABELS } from '../leads-contract/lifecycle-workflow-steps.util';
 import { IntakeService } from '../intake/intake.service';
 import { AiLlmClient } from '../ai-intelligence/ai-llm.client';
@@ -850,11 +852,43 @@ export class LeadsFunnelService {
         ? await this.pgRepo.getLeadConvertedCustomerId(leadId)
         : this.sqliteRepo.getLeadConvertedCustomerId(leadId);
       const consultTasks = snap.tasks.consult ?? [];
+      const plan = this.usePgFunnel
+        ? await this.pgRepo.getOrCreatePreliminaryPlan(
+            leadId,
+            snap.presales.id,
+            snap.presales.service_slug,
+          )
+        : this.sqliteRepo.getOrCreatePreliminaryPlan(
+            leadId,
+            snap.presales.id,
+            snap.presales.service_slug,
+          );
+      const planContent = planContentFromRow(plan as Record<string, unknown>);
+      const gate = buildProposalAdvanceGate({
+        consultProgress: snap.progress.consult ?? { total: 0, done: 0 },
+        plan: plan as {
+          name?: string | null;
+          north_star?: string | null;
+          objectives?: string | null;
+          strategy_framework_json?: string | null;
+        },
+      });
+      const l1Checklist = buildL1GateChecklist({
+        gate,
+        plan: {
+          name: planContent.name,
+          north_star: planContent.north_star,
+          objectives: planContent.objectives,
+          strategy_framework: planContent.strategy_framework,
+        },
+      });
       const handoff = buildPresalesProposalHandoff({
         leadId,
         serviceSlug: snap.presales.service_slug,
         customerId,
         consultTask: consultTasks[0] ?? null,
+        proposalGate: gate,
+        l1Checklist,
       });
       return { ok: true, handoff };
     } catch (err) {

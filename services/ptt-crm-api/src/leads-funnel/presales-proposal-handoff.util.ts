@@ -1,4 +1,6 @@
 import type { PresalesTaskRow } from './leads-funnel.types';
+import type { L1GateChecklistItem } from './presales-l1-gate-checklist.util';
+import type { ProposalAdvanceGate } from './presales-proposal-gate.util';
 
 export interface PresalesProposalHandoff {
   lead_id: number;
@@ -8,6 +10,10 @@ export interface PresalesProposalHandoff {
   service_slugs: string[];
   notes: string;
   proposals_href: string;
+  deal_room_href: string;
+  proposal_gate_ok: boolean;
+  proposal_gate_messages: string[];
+  l1_checklist: L1GateChecklistItem[];
 }
 
 function summarizeFormData(formData: Record<string, unknown>): string {
@@ -26,6 +32,8 @@ export function buildPresalesProposalHandoff(input: {
   serviceSlug: string;
   customerId: number | null;
   consultTask: Pick<PresalesTaskRow, 'form_data' | 'ai_output' | 'notes' | 'is_done'> | null;
+  proposalGate: ProposalAdvanceGate;
+  l1Checklist: L1GateChecklistItem[];
 }): PresalesProposalHandoff {
   const slug = String(input.serviceSlug ?? '').trim();
   const serviceSlugs = slug ? [slug] : [];
@@ -59,6 +67,9 @@ export function buildPresalesProposalHandoff(input: {
     blockReason = 'Chưa có task Consult trên pre-sales.';
   } else if (!input.consultTask.is_done) {
     blockReason = 'Hoàn thành task Consult trước khi tạo Proposal.';
+  } else if (!input.proposalGate.ok) {
+    blockReason =
+      input.proposalGate.messages[0] ?? 'Hoàn thành G4 R5 trước khi tạo báo giá';
   }
 
   return {
@@ -69,5 +80,9 @@ export function buildPresalesProposalHandoff(input: {
     service_slugs: serviceSlugs,
     notes,
     proposals_href: proposalsHref,
+    deal_room_href: `/crm/leads/${input.leadId}/deal-room`,
+    proposal_gate_ok: input.proposalGate.ok,
+    proposal_gate_messages: input.proposalGate.messages,
+    l1_checklist: input.l1Checklist,
   };
 }

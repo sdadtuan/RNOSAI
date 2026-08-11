@@ -41,6 +41,7 @@ import json, sys
 d = json.load(open("/tmp/deal-room-smoke.json"))
 assert d.get("ok") is True, d
 assert d.get("lead_id") == ${LEAD_ID}, d.get("lead_id")
+assert "l1_checklist" in d and isinstance(d["l1_checklist"], list), d.keys()
 assert "gates" in d and "g4_r5" in d["gates"], d.keys()
 assert "marketing_plan" in d and "consult_progress" in d
 print("OK  snapshot gates + marketing_plan + consult_progress")

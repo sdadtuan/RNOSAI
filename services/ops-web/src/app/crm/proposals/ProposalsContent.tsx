@@ -8,6 +8,7 @@ import {
   createProposal,
   deleteProposal,
   fetchCustomers,
+  fetchLeadPresalesProposalGate,
   fetchProposals,
   generateProposal,
   staffMe,
@@ -15,6 +16,7 @@ import {
   type CustomerRow,
   type ProposalRow,
 } from '@/lib/api';
+import { dealRoomEnabled } from '@/lib/crm/deal-room-flags';
 import {
   clearSession,
   getAccessToken,
@@ -43,6 +45,8 @@ export function ProposalsContent() {
   const [saving, setSaving] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [token, setToken] = useState('');
+  const [leadContextId, setLeadContextId] = useState<number | null>(null);
+  const [gateRedirecting, setGateRedirecting] = useState(false);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -101,6 +105,23 @@ export function ProposalsContent() {
         else if (data[0]) setCustomerId(String(data[0].id));
         if (prefillSlugs) setServiceSlugs(prefillSlugs);
         if (prefillNotes) setNotes(prefillNotes);
+        const leadIdRaw = searchParams.get('lead_id');
+        const leadId = leadIdRaw ? Number(leadIdRaw) : 0;
+        if (leadId > 0) {
+          setLeadContextId(leadId);
+          if (dealRoomEnabled()) {
+            try {
+              const gateResp = await fetchLeadPresalesProposalGate(access, leadId);
+              if (!gateResp.gate.ok) {
+                setGateRedirecting(true);
+                router.replace(`/crm/leads/${leadId}/deal-room?gate_blocked=1`);
+                return;
+              }
+            } catch {
+              // fall through — proposals page still usable without gate API
+            }
+          }
+        }
         if (quoteBuilderEnabled && searchParams.get('wizard') === '1') setShowWizard(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải khách hàng thất bại');
@@ -108,7 +129,7 @@ export function ProposalsContent() {
         setLoading(false);
       }
     })();
-  }, [ensureAuth, quoteBuilderEnabled, searchParams]);
+  }, [ensureAuth, quoteBuilderEnabled, router, searchParams]);
 
   useEffect(() => {
     void (async () => {
@@ -140,6 +161,7 @@ export function ProposalsContent() {
     try {
       await createProposal(access, {
         customer_id: Number(customerId),
+        lead_id: leadContextId ?? undefined,
         service_slugs: slugs,
         notes: notes.trim() || undefined,
       });
@@ -183,7 +205,7 @@ export function ProposalsContent() {
     router.push('/login');
   }
 
-  if (!user) {
+  if (!user || gateRedirecting) {
     return (
       <StaffPageShell user={null} onLogout={logout} loading>
         <span />

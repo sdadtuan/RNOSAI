@@ -39,7 +39,7 @@ export function buildDealRoomGates(input: {
         'g4_r5',
         'G4 R5',
         'block',
-        input.proposalGate.messages[0] ?? 'R5 chưa đủ điều kiện',
+        input.proposalGate.messages.filter(Boolean).join(' · ') || 'R5 chưa đủ điều kiện',
       );
 
   let g5: DealRoomGateChip;

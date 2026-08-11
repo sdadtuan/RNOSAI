@@ -25,6 +25,12 @@ export interface DealRoomMarketingPlanView {
   validation_messages: string[];
 }
 
+export interface L1GateChecklistItemView {
+  key: string;
+  label: string;
+  done: boolean;
+}
+
 export interface DealRoomQuoteView {
   proposal_id: number | null;
   status: string | null;
@@ -54,4 +60,5 @@ export interface DealRoomSnapshot {
   quote: DealRoomQuoteView;
   actions: DealRoomActionsView;
   proposal_gate: ProposalAdvanceGate;
+  l1_checklist: L1GateChecklistItemView[];
 }

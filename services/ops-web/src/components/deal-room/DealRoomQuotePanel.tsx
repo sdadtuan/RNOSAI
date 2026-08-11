@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { L1GateChecklist, type L1GateChecklistItem } from '@/components/deal-room/L1GateChecklist';
 import { exportLeadDealRoomPack } from '@/lib/api';
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
   canExportPack: boolean;
   exportBlockReason?: string;
   proposalId?: number | null;
+  l1Checklist?: L1GateChecklistItem[];
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
 }
@@ -26,6 +28,7 @@ export function DealRoomQuotePanel({
   canExportPack,
   exportBlockReason,
   proposalId,
+  l1Checklist = [],
   onMessage,
   onError,
 }: Props) {
@@ -58,6 +61,10 @@ export function DealRoomQuotePanel({
     exportBlockReason ||
     (!canExportPack ? 'Hoàn thành G4 R5 và bật PTT_DEAL_ROOM_PACK_PDF để export' : 'Tải Plan+Quote Pack PDF');
 
+  const createTitle = canCreate
+    ? 'Mở Quote Builder với context lead'
+    : blockReason || 'Hoàn thành checklist G4 trước khi tạo báo giá';
+
   return (
     <section className="deal-room-panel" aria-label="Quote">
       <div className="deal-room-panel__head">
@@ -67,7 +74,13 @@ export function DealRoomQuotePanel({
         Gói Basic / Standard / Premium — catalog DV. Pack PDF gộp L1 + báo giá 3 gói + timeline 90 ngày.
       </p>
 
-      {!canCreate && blockReason ? (
+      {!canCreate && l1Checklist.length ? (
+        <div style={{ marginTop: '0.75rem' }}>
+          <L1GateChecklist items={l1Checklist} />
+        </div>
+      ) : null}
+
+      {!canCreate && !l1Checklist.length && blockReason ? (
         <ul className="deal-room-checklist deal-room-checklist--block" style={{ marginTop: '0.75rem' }}>
           <li>{blockReason}</li>
         </ul>
@@ -78,6 +91,7 @@ export function DealRoomQuotePanel({
           href={proposalsHref}
           className={`btn btn-sm ${canCreate ? 'btn-primary' : 'btn-secondary'}`}
           aria-disabled={!canCreate}
+          title={createTitle}
           style={canCreate ? undefined : { pointerEvents: 'none', opacity: 0.55 }}
         >
           Tạo báo giá →

@@ -1689,6 +1689,7 @@ export interface DealRoomSnapshot {
     proposals_href: string;
   };
   proposal_gate: ProposalAdvanceGate;
+  l1_checklist: Array<{ key: string; label: string; done: boolean }>;
 }
 
 export async function fetchLeadDealRoom(token: string, leadId: number): Promise<DealRoomSnapshot> {
@@ -1734,6 +1735,10 @@ export interface PresalesProposalHandoff {
   service_slugs: string[];
   notes: string;
   proposals_href: string;
+  deal_room_href?: string;
+  proposal_gate_ok?: boolean;
+  proposal_gate_messages?: string[];
+  l1_checklist?: Array<{ key: string; label: string; done: boolean }>;
 }
 
 export async function fetchLeadPresalesProposalHandoff(
@@ -3244,6 +3249,7 @@ export async function createProposal(
   token: string,
   body: {
     customer_id: number;
+    lead_id?: number;
     service_slugs: string[];
     total_vnd?: number;
     timeline_months?: number;
