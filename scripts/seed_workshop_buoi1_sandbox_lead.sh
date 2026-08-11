@@ -121,7 +121,7 @@ INSERT INTO crm_lead_intake_sessions (
   bant_json, bant_total, lead_temperature, decision, decision_reason,
   answers_json, started_at, completed_at, created_at, updated_at
 ) VALUES (
-  :lead_id, :slug, 'phone', 'completed',
+  :lead_id, :'slug', 'phone', 'completed',
   'Chị Lan — Marketing Manager', 'ABC Logistics Việt Nam', 'workshop',
   '{"budget":5,"authority":5,"need":5,"timeline":5,"fit":3,"history":3}'::jsonb,
   26, 'warm', 'go', 'Workshop seed — BANT Go 26/30',
