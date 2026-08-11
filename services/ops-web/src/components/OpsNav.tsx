@@ -1,5 +1,6 @@
 'use client';
 
+import { buildAdminSidebarLinks, canViewAdminSection } from '@/lib/admin/admin-nav';
 import { GlobalSearchBar } from '@/components/search/GlobalSearchBar';
 import { WinRbacBadge } from '@/components/win';
 import { iconForHref, NavIcon, sectionIcon, sectionShortLabel } from '@/components/layout/nav-icons';
@@ -121,6 +122,19 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/crm/custom-fields': 'Custom fields',
   '/admin/crm/pipeline': 'Pipeline sales',
   '/admin/crm/lead-lookups': 'Nguồn & Kênh',
+  '/admin/crm/permissions': 'Ma trận chức vụ',
+  '/admin/crm/permissions/functions': 'Job function',
+  '/admin/crm/permissions/users': 'Gán user',
+  '/admin/crm/permissions/simulator': 'Simulator',
+  '/admin/crm/permissions/fields': 'Field ABAC',
+  '/admin/crm/permission-sets': 'Permission Sets',
+  '/admin/crm/sso/groups': 'SSO groups',
+  '/admin/crm/org/users': 'Người dùng',
+  '/admin/crm/org/users/new': 'Onboard NV',
+  '/admin/crm/org/departments': 'Phòng ban',
+  '/admin/crm/org/teams': 'Team',
+  '/admin/crm/org/positions': 'Chức vụ',
+  '/admin/crm/org/chart': 'Sơ đồ tổ chức',
   '/admin/ai/agents': 'AI Agents',
   '/admin/ai/runs': 'AI agent runs',
   '/admin/ai/tools': 'AI Tools',
@@ -480,20 +494,18 @@ function buildSections(
   if (hasCap(user, 'playbooks', 'view')) {
     aiAutomation.push({ href: '/crm/playbooks', label: 'Playbooks' });
   }
-  if (hasCap(user, 'ai_admin', 'view')) {
-    aiAutomation.push({ href: '/admin/ai/agents', label: 'AI Agents' });
-    aiAutomation.push({ href: '/admin/ai/runs', label: 'AI agent runs' });
-    aiAutomation.push({ href: '/admin/ai/tools', label: 'Tools' });
-  }
   if (aiAutomation.length) sections.push({ label: 'AI & Automation', links: aiAutomation });
 
-  const config: NavLink[] = [];
-  if (hasCap(user, 'crm_data_config', 'view')) {
-    config.push({ href: '/admin/crm/custom-fields', label: 'Custom fields' });
-    config.push({ href: '/admin/crm/pipeline', label: 'Pipeline sales' });
-    config.push({ href: '/admin/crm/lead-lookups', label: 'Nguồn & Kênh' });
+  if (canViewAdminSection(user)) {
+    const adminLinks = buildAdminSidebarLinks(user);
+    if (adminLinks.length) {
+      sections.push({
+        label: 'Quản trị hệ thống',
+        links: adminLinks.map((l) => ({ href: l.href, label: l.label })),
+        defaultOpen: false,
+      });
+    }
   }
-  if (config.length) sections.push({ label: 'Cấu hình CRM', links: config });
 
   return sections;
 }

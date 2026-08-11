@@ -552,6 +552,7 @@ export const SECTION_ICONS: Record<string, string> = {
   'Triển khai DV': 'lifecycle',
   'Nhân sự & KPI': 'staff',
   'Quản trị': 'finance',
+  'Hệ thống': 'settings',
   Agency: 'agency',
   'Quảng cáo': 'megaphone',
   SEO: 'seo',
@@ -576,6 +577,7 @@ export const SECTION_LABELS: Record<string, string> = {
   'SEO / AEO': 'SEO',
   'Email Marketing': 'Email',
   'AI & Automation': 'AI',
+  'Quản trị hệ thống': 'Hệ thống',
   'Cấu hình CRM': 'Cấu hình',
 };
 

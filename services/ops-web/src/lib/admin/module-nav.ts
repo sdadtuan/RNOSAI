@@ -1,4 +1,5 @@
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
+import { buildCrmConfigModuleLinksFromAdminNav } from './admin-nav';
 
 export type ModuleNavLink = {
   href: string;
@@ -55,22 +56,10 @@ export function buildAiAutomationModuleLinks(user: StoredStaffUser | null): Modu
   if (hasCap(user, 'playbooks', 'view')) {
     links.push({ href: '/crm/playbooks', label: 'Playbooks' });
   }
-  if (hasCap(user, 'ai_admin', 'view')) {
-    links.push({ href: '/admin/ai/agents', label: 'AI Agents' });
-    links.push({ href: '/admin/ai/runs', label: 'AI Runs' });
-    links.push({ href: '/admin/ai/tools', label: 'Tools' });
-  }
 
   return links;
 }
 
 export function buildCrmConfigModuleLinks(user: StoredStaffUser | null): ModuleNavLink[] {
-  if (!hasCap(user, 'crm_data_config', 'view')) return [];
-
-  return [
-    { href: '/admin/crm/custom-fields', label: 'Custom fields' },
-    { href: '/admin/crm/pipeline', label: 'Pipeline sales' },
-    { href: '/admin/crm/lead-lookups', label: 'Nguồn & Kênh' },
-    { href: '/admin/crm/permissions', label: 'Ma trận phân quyền' },
-  ];
+  return buildCrmConfigModuleLinksFromAdminNav(user);
 }

@@ -1,4 +1,5 @@
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
+import { winOrgUiEnabled } from '@/lib/win/flags';
 
 export type HrHubGroupId = 'workforce' | 'identity' | 'timepay' | 'performance' | 'talent';
 
@@ -107,16 +108,16 @@ export function buildHrHubGroups(user: StoredStaffUser | null): HrHubGroup[] {
       group: 'identity',
       label: 'Ma trận job function',
       description: 'Add-on content, design, leader…',
-      planned: true,
-      badge: 'R1.5',
+      href: '/admin/crm/permissions/functions',
     });
     cards.push({
       id: 'org-users',
       group: 'identity',
       label: 'Người dùng & quyền',
       description: 'Onboard login + position + functions',
-      planned: true,
-      badge: 'R2-HR',
+      ...(winOrgUiEnabled()
+        ? { href: '/admin/crm/org/users' }
+        : { planned: true, badge: 'WIN-2' }),
     });
   }
 

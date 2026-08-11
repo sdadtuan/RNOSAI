@@ -10,6 +10,19 @@
 
 Domain này quản lý **đăng nhập**, **phân quyền RBAC**, **org chart**, **webhook**, và **console AI admin**. End-user thường ngày chỉ cần đăng nhập; Admin dùng các màn `/admin/*`.
 
+### 1.1 Truy cập Quản trị hệ thống (sidebar)
+
+1. Đăng nhập ops-web với tài khoản có quyền Admin/HR/IT
+2. Sidebar → mở rộng menu (nút **»**)
+3. Nhóm **Quản trị hệ thống** — chọn mục cần:
+   - **Người dùng** — onboard, offboard, gán quyền
+   - **Ma trận chức vụ** / **Job function** — RBAC
+   - **Custom fields**, **Pipeline**, **Nguồn & Kênh** — schema CRM
+   - **AI Agents** — governance AI (nếu có cap `ai_admin`)
+4. HR vận hành roster: **Nhân sự & Hiệu suất → Nhân viên** (`/crm/staff`) — khác với tài khoản login
+
+Spec: [`docs/specs/2026-08-11-admin-control-plane-ia.md`](../specs/2026-08-11-admin-control-plane-ia.md)
+
 ---
 
 ## 2. Đăng nhập staff
@@ -44,7 +57,7 @@ Domain này quản lý **đăng nhập**, **phân quyền RBAC**, **org chart**,
 
 **Route:** `/admin/crm/permissions`
 
-1. Mở **Admin → Phân quyền CRM**
+1. Sidebar → **Quản trị hệ thống** → **Ma trận chức vụ**
 2. Bảng hiển thị **section × action** (view, create, edit, delete, export, …)
 3. Mỗi role template có tick cap tương ứng
 
