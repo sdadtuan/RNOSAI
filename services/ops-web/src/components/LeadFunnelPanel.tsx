@@ -27,7 +27,7 @@ import {
   b2NegativeCareSuggestLost,
   type B2NegativeCareStatus,
 } from '@/lib/crm/care-status';
-import { hasCap, canMktAiGenerate, type StoredStaffUser } from '@/lib/auth';
+import { hasCap, canGenerateMktAiPlanner, type StoredStaffUser } from '@/lib/auth';
 
 interface Props {
   token: string;
@@ -178,7 +178,7 @@ export function LeadFunnelPanel({
 
   const canEdit = Boolean(user && hasCap(user, 'crm_leads', 'edit'));
   const canAssign = Boolean(user && hasCap(user, 'crm_leads', 'assign'));
-  const canAiDraft = Boolean(user && canMktAiGenerate(user));
+  const canAiDraft = Boolean(user && canGenerateMktAiPlanner(user));
 
   async function run(action: () => Promise<void>, refreshContract = false) {
     setBusy(true);
