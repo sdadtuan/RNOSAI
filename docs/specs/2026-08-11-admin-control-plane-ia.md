@@ -424,16 +424,18 @@ Copy: `Cần quyền {section}.{action} — liên hệ Quản trị hệ thống
 
 **Exit:** IT tìm `/admin/crm/org/users` từ sidebar ≤30 giây.
 
-### P1 — Admin Hub + Shell (3–5 ngày)
+### P1 — Admin Hub + Shell (3–5 ngày) ✅ Shipped `49e5ed8`
 
 | ID | Task | Files |
 |----|------|-------|
 | P1-1 | `app/admin/page.tsx` hub launcher | new |
 | P1-2 | `AdminShell` + `AdminLeftRail` | new components |
 | P1-3 | `buildAdminNav` SSoT | `lib/admin/admin-nav.ts` |
-| P1-4 | Wrap admin routes với AdminShell | `app/admin/**/layout.tsx` |
+| P1-4 | Wrap admin routes với AdminShell | `AdminPageShell` (no separate layout) |
 | P1-5 | Deprecate duplicate subnav trong `admin/crm/layout.tsx` | merge |
-| P1-6 | Redirect `/admin/crm/org` → hub or users | org/page.tsx |
+| P1-6 | Redirect `/admin/crm/org` → users | `org/page.tsx` |
+
+**Plan chi tiết:** [`docs/superpowers/plans/2026-08-11-admin-control-plane-p1.md`](../superpowers/plans/2026-08-11-admin-control-plane-p1.md)
 
 **Exit:** Demo script “Settings tour” 5 phút không lộ URL.
 
