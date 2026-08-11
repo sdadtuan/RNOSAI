@@ -58,4 +58,32 @@ describe('marketing-ai-kpi-closed-loop.util', () => {
     expect(leadRow?.target_value).toBe(100);
     expect(leadRow?.actual_value).toBe(80);
   });
+
+  it('uses ops actual when meta dashboard not linked', () => {
+    const { rows } = buildKpiClosedLoopRows({
+      appliedTree: [
+        {
+          id: 'k1',
+          label: 'Leads tháng',
+          target: '100 leads',
+          unit: '',
+          children: [],
+        },
+      ],
+      dashboard: {
+        ...dashboard,
+        linked: false,
+        tiles: {
+          spend_mtd_vnd: 0,
+          leads_mtd: 0,
+          cpl_mtd: null,
+          roas_mtd: null,
+          roas_stub: false,
+        },
+      },
+      thresholdPct: 15,
+      opsMetrics: { leads: { actual: 72 } },
+    });
+    expect(rows[0]?.actual_value).toBe(72);
+  });
 });

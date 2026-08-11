@@ -13,6 +13,12 @@ import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { validateMktAiBrief, mergeBrief, emptyDraft } from './marketing-ai-brief.util';
 import { computeBriefReadiness } from './marketing-ai-brief-readiness.util';
+import {
+  assessTmmtPrefillReadiness,
+  buildTmmtPrefillFromL1AndConsult,
+  mergeTmmtPrefillBrief,
+  TMMT_PREFILL_SOURCE,
+} from './marketing-ai-tmmt-prefill.util';
 import { MarketingAiBriefUploadService } from './marketing-ai-brief-upload.service';
 import { normalizeKpiTree, suggestKpiTreeFromContext } from './marketing-ai-kpi-tree.util';
 import { computeQualityScore } from './marketing-ai-quality.util';
@@ -117,56 +123,99 @@ export class MarketingAiPlannerService {
     brief: MktAiBrief;
     sources: string[];
   }> {
-    const brief: MktAiBrief = { service_slug: serviceSlug };
-    const sources: string[] = [];
+    let consultBrief: Record<string, unknown> | null = null;
+    let leadName = '';
+    try {
+      consultBrief = (await this.lifecycle.consultBrief(lifecycleId)) as Record<string, unknown>;
+    } catch {
+      consultBrief = null;
+    }
 
     try {
-      const consult = (await this.lifecycle.consultBrief(lifecycleId)) as Record<string, unknown>;
-      const highlights = (consult.highlights ?? {}) as Record<string, unknown>;
-      if (highlights.pain) brief.challenges = String(highlights.pain);
-      if (highlights.budget_vnd != null) brief.budget_monthly_vnd = Number(highlights.budget_vnd);
-      if (highlights.niche) brief.industry = String(highlights.niche);
-      if (highlights.goal) brief.objective = String(highlights.goal);
-      if (consult.company_name) brief.brand_name = String(consult.company_name);
-      sources.push('consult-brief');
+      const lc = await this.loadLifecycleRow(lifecycleId);
+      leadName = String(lc.client_name ?? lc.customer_name ?? '').trim();
     } catch {
-      /* optional */
+      leadName = '';
     }
+
+    let l1PlanRow: Record<string, unknown> | null = null;
+    try {
+      const mp = await this.lifecycle.marketingPlan(lifecycleId);
+      l1PlanRow = (mp?.plan as Record<string, unknown> | null) ?? null;
+      if (l1PlanRow) {
+        l1PlanRow = {
+          ...l1PlanRow,
+          strategy_framework_json: JSON.stringify(
+            (l1PlanRow.strategy_framework as Record<string, string> | undefined) ?? {},
+          ),
+        };
+      }
+    } catch {
+      l1PlanRow = null;
+    }
+
+    const prefill = buildTmmtPrefillFromL1AndConsult({
+      serviceSlug,
+      leadName,
+      consultBrief,
+      l1PlanRow,
+    });
 
     try {
       const onboard = (await this.lifecycle.onboardingBrief(lifecycleId)) as Record<string, unknown>;
-      if (onboard.client_name && !brief.brand_name) brief.brand_name = String(onboard.client_name);
-      sources.push('onboarding-brief');
-    } catch {
-      /* optional */
-    }
-
-    try {
-      const mp = await this.lifecycle.marketingPlan(lifecycleId);
-      const plan = mp?.plan as Record<string, unknown> | null;
-      if (plan) {
-        const sf = (plan.strategy_framework ?? {}) as Record<string, string>;
-        if (sf.target_market && !brief.challenges) brief.challenges = sf.target_market;
-        if (sf.market_message && !brief.usp) brief.usp = sf.market_message;
-        if (plan.north_star) {
-          const ns = String(plan.north_star).trim();
-          if (ns) {
-            brief.notes = brief.notes ? `${brief.notes}\nNorth Star: ${ns}` : `North Star: ${ns}`;
-          }
-        }
-        if (plan.objectives) {
-          const obj = String(plan.objectives).trim();
-          if (obj) {
-            brief.notes = brief.notes ? `${brief.notes}\nMục tiêu: ${obj}` : `Mục tiêu: ${obj}`;
-          }
-        }
-        sources.push('presales-official-plan');
+      if (onboard.client_name && !prefill.brief.brand_name) {
+        prefill.brief.brand_name = String(onboard.client_name);
+      }
+      if (!prefill.sources.includes('onboarding-brief')) {
+        prefill.sources.push('onboarding-brief');
       }
     } catch {
       /* optional */
     }
 
-    return { brief, sources };
+    if (l1PlanRow && !prefill.sources.includes('presales-official-plan')) {
+      prefill.sources.push('presales-official-plan');
+    }
+
+    return prefill;
+  }
+
+  async prefillBriefFromL1Consult(
+    lifecycleId: number,
+    actorEmail: string,
+    opts: { overwrite?: boolean } = {},
+  ): Promise<{
+    brief: MktAiBrief;
+    brief_validation: ReturnType<typeof validateMktAiBrief>;
+    brief_readiness: ReturnType<typeof computeBriefReadiness>;
+    prefill_sources: string[];
+    prefill_target_score: number;
+    prefill_meets_target: boolean;
+  }> {
+    const lc = await this.loadLifecycleRow(lifecycleId);
+    const serviceSlug = String(lc.service_slug ?? '');
+    this.assertEnabled(serviceSlug);
+
+    const built = await this.buildPrefillBrief(lifecycleId, serviceSlug);
+    const existing = await this.repo.getBrief(lifecycleId);
+    const merged = opts.overwrite
+      ? built.brief
+      : mergeTmmtPrefillBrief(existing?.brief_json ?? null, built.brief);
+    const sources = [...new Set([...(existing?.prefill_sources_json ?? []), ...built.sources])];
+    if (!sources.includes(TMMT_PREFILL_SOURCE) && built.sources.includes(TMMT_PREFILL_SOURCE)) {
+      sources.push(TMMT_PREFILL_SOURCE);
+    }
+
+    await this.repo.upsertBrief(lifecycleId, merged, sources, actorEmail);
+    const readiness = assessTmmtPrefillReadiness(merged);
+    return {
+      brief: merged,
+      brief_validation: validateMktAiBrief(merged),
+      brief_readiness: computeBriefReadiness(merged),
+      prefill_sources: sources,
+      prefill_target_score: readiness.target,
+      prefill_meets_target: readiness.meets_target,
+    };
   }
 
   async getContext(lifecycleId: number): Promise<MktAiPlannerContext> {
@@ -177,11 +226,18 @@ export class MarketingAiPlannerService {
     let briefRow = await this.repo.getBrief(lifecycleId);
     if (!briefRow) {
       const prefill = await this.buildPrefillBrief(lifecycleId, serviceSlug);
-      briefRow = {
-        brief_json: prefill.brief,
-        prefill_sources_json: prefill.sources,
-        updated_by: '',
-      };
+      const readiness = assessTmmtPrefillReadiness(prefill.brief);
+      if (readiness.meets_target && prefill.sources.includes(TMMT_PREFILL_SOURCE)) {
+        await this.repo.upsertBrief(lifecycleId, prefill.brief, prefill.sources, 'system-prefill');
+        briefRow = await this.repo.getBrief(lifecycleId);
+      }
+      if (!briefRow) {
+        briefRow = {
+          brief_json: prefill.brief,
+          prefill_sources_json: prefill.sources,
+          updated_by: '',
+        };
+      }
     }
 
     const draft =

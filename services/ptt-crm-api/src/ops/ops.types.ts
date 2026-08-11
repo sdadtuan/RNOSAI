@@ -46,6 +46,8 @@ export type OpsCatalogItem = {
   service_slug: string;
   readiness: OpsReadiness;
   package_tiers: string[];
+  depends_on_dv?: string[];
+  tier_pricing?: Record<string, unknown>;
   ops_web: Record<string, unknown>;
 };
 

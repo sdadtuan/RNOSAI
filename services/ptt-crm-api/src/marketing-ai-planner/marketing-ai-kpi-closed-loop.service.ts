@@ -1,5 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
+import { OpsAlertPgRepository } from '../ops/ops-alert-pg.repository';
+import { OpsService } from '../ops/ops.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
@@ -13,6 +15,8 @@ export class MarketingAiKpiClosedLoopService {
     private readonly lifecycle: ServiceLifecycleService,
     private readonly dashboard: MarketingAiDashboardService,
     private readonly repo: MarketingAiPlannerRepository,
+    @Inject(forwardRef(() => OpsService)) private readonly ops: OpsService,
+    private readonly opsAlerts: OpsAlertPgRepository,
   ) {}
 
   isEnabled(): boolean {
@@ -25,6 +29,7 @@ export class MarketingAiKpiClosedLoopService {
       enabled: this.isEnabled(),
       planner_enabled: this.config.mktAiPlannerEnabled,
       closed_loop_enabled: this.config.mktAiKpiClosedLoopEnabled,
+      ops_dv_enabled: this.config.opsDvEnabled,
       alert_threshold_pct: this.config.mktAiKpiAlertCplPct,
       weekly_memo_cron: this.config.mktAiWeeklyMemoCron,
     };
@@ -43,9 +48,53 @@ export class MarketingAiKpiClosedLoopService {
     }
   }
 
+  private async loadOpsMetrics(
+    lifecycleId: number,
+  ): Promise<Record<string, { actual?: number | null }> | undefined> {
+    if (!this.config.opsDvEnabled) return undefined;
+    try {
+      const kpi = await this.ops.getKpiRecords(lifecycleId, 'month');
+      const out: Record<string, { actual?: number | null }> = {};
+      for (const metric of kpi.metrics ?? []) {
+        out[metric.key] = { actual: metric.actual ?? null };
+      }
+      return Object.keys(out).length ? out : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async emitPlanOpsDriftAlerts(
+    lifecycleId: number,
+    payload: MktAiKpiClosedLoopPayload,
+  ): Promise<void> {
+    if (!payload.alerts.length || !this.config.opsDvEnabled || !this.opsAlerts.canUsePg()) {
+      return;
+    }
+    let dvCode = 'DV00';
+    try {
+      const kpi = await this.ops.getKpiRecords(lifecycleId, 'month');
+      dvCode = String(kpi.dv_code ?? 'DV00');
+    } catch {
+      return;
+    }
+
+    for (const row of payload.alerts) {
+      await this.opsAlerts.upsertAlert({
+        lifecycleId,
+        dvCode,
+        alertType: 'plan_ops_drift',
+        severity: 'warning',
+        title: `Plan vs Ops lệch: ${row.label}`,
+        message: `${row.label}: Plan ${row.target_display} · Actual ${row.actual_display} (${fmtPct(row.delta_pct)})`,
+        sourceKey: `plan_ops_drift:${lifecycleId}:${row.id}:${payload.period.month_start}`,
+      });
+    }
+  }
+
   async getClosedLoop(
     lifecycleId: number,
-    opts: { weeks?: number; channel?: string } = {},
+    opts: { weeks?: number; channel?: string; emitAlerts?: boolean } = {},
   ): Promise<MktAiKpiClosedLoopPayload> {
     const lc = await this.lifecycle.detail(lifecycleId);
     const serviceSlug = String((lc as Record<string, unknown>).service_slug ?? '');
@@ -56,13 +105,27 @@ export class MarketingAiKpiClosedLoopService {
       weeks: opts.weeks ?? 6,
       channel: opts.channel ?? 'meta',
     });
+    const opsMetrics = await this.loadOpsMetrics(lifecycleId);
 
-    return buildKpiClosedLoopPayload({
+    const payload = buildKpiClosedLoopPayload({
       enabled: true,
       lifecycleId,
       appliedTree: draft.kpi_tree_applied_json,
       dashboard,
       thresholdPct: this.config.mktAiKpiAlertCplPct,
+      opsMetrics,
     });
+
+    if (opts.emitAlerts !== false) {
+      await this.emitPlanOpsDriftAlerts(lifecycleId, payload);
+    }
+
+    return payload;
   }
+}
+
+function fmtPct(n: number | null): string {
+  if (n == null) return '—';
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${n.toFixed(1)}%`;
 }

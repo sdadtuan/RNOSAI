@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { AiIntelligenceModule } from '../ai-intelligence/ai-intelligence.module';
+import { OpsModule } from '../ops/ops.module';
 import { PerformanceModule } from '../performance/performance.module';
 import { StaffNotificationsModule } from '../staff-notifications/staff-notifications.module';
 import { ServiceLifecycleModule } from '../service-lifecycle/service-lifecycle.module';
@@ -40,6 +41,7 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
     StaffNotificationsModule,
     PerformanceModule,
     forwardRef(() => ServiceLifecycleModule),
+    forwardRef(() => OpsModule),
     AiIntelligenceModule,
     MarketingAiPlaybookModule,
   ],

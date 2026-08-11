@@ -52,6 +52,19 @@ export class MarketingAiPlannerController {
     return this.planner.getContext(lifecycleId);
   }
 
+  @Post('brief/prefill-l1-consult')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffMarketingAiPlannerGenerateGuard)
+  prefillBriefFromL1Consult(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Body() body: { overwrite?: boolean },
+    @Req() req: Request,
+  ) {
+    return this.planner.prefillBriefFromL1Consult(lifecycleId, actorEmail(req), {
+      overwrite: Boolean(body?.overwrite),
+    });
+  }
+
   @Patch('brief')
   @UseGuards(StaffMarketingAiPlannerGenerateGuard)
   patchBrief(

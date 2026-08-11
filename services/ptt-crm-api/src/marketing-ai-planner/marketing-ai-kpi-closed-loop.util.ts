@@ -75,37 +75,89 @@ function inferMetricKind(label: string, target: string): {
   return { kind: 'other', direction: 'higher_better' };
 }
 
+function resolveActualFromOps(
+  kind: MktAiKpiClosedLoopMetricKind,
+  opsMetrics: Record<string, { actual?: number | null }> | undefined,
+): { value: number | null; display: string } | null {
+  if (!opsMetrics) return null;
+  const pick = (...keys: string[]): number | null => {
+    for (const key of keys) {
+      const val = opsMetrics[key]?.actual;
+      if (val != null && Number.isFinite(Number(val))) return Number(val);
+    }
+    return null;
+  };
+  switch (kind) {
+    case 'cpl': {
+      const value = pick('cpl', 'cost_per_lead', 'cpl_vnd');
+      return value != null ? { value, display: fmtVnd(value) } : null;
+    }
+    case 'leads': {
+      const value = pick('leads', 'lead_count', 'qualified_leads');
+      return value != null ? { value, display: String(value) } : null;
+    }
+    case 'roas': {
+      const value = pick('roas', 'roas_mtd');
+      return value != null ? { value, display: value.toFixed(2) } : null;
+    }
+    case 'spend': {
+      const value = pick('spend', 'spend_vnd', 'ad_spend', 'budget_spent');
+      return value != null ? { value, display: fmtVnd(value) } : null;
+    }
+    default:
+      return null;
+  }
+}
+
 function resolveActual(
   kind: MktAiKpiClosedLoopMetricKind,
   dashboard: MktAiDashboardPayload,
-): { value: number | null; display: string } {
-  switch (kind) {
-    case 'cpl':
-      return {
-        value: dashboard.tiles.cpl_mtd,
-        display: dashboard.tiles.cpl_mtd != null ? fmtVnd(dashboard.tiles.cpl_mtd) : '—',
-      };
-    case 'leads':
-      return {
-        value: dashboard.tiles.leads_mtd,
-        display: dashboard.tiles.leads_mtd ? String(dashboard.tiles.leads_mtd) : '—',
-      };
-    case 'roas':
-      return {
-        value: dashboard.tiles.roas_mtd,
-        display:
-          dashboard.tiles.roas_mtd != null
-            ? `${dashboard.tiles.roas_mtd.toFixed(2)}${dashboard.tiles.roas_stub ? ' (ước tính)' : ''}`
-            : '—',
-      };
-    case 'spend':
-      return {
-        value: dashboard.tiles.spend_mtd_vnd,
-        display: dashboard.tiles.spend_mtd_vnd ? fmtVnd(dashboard.tiles.spend_mtd_vnd) : '—',
-      };
-    default:
-      return { value: null, display: '—' };
+  opsMetrics?: Record<string, { actual?: number | null }>,
+): { value: number | null; display: string; source: 'meta' | 'ops' | 'none' } {
+  const dash = (() => {
+    switch (kind) {
+      case 'cpl':
+        return {
+          value: dashboard.tiles.cpl_mtd,
+          display: dashboard.tiles.cpl_mtd != null ? fmtVnd(dashboard.tiles.cpl_mtd) : '—',
+        };
+      case 'leads':
+        return {
+          value: dashboard.tiles.leads_mtd,
+          display: dashboard.tiles.leads_mtd ? String(dashboard.tiles.leads_mtd) : '—',
+        };
+      case 'roas':
+        return {
+          value: dashboard.tiles.roas_mtd,
+          display:
+            dashboard.tiles.roas_mtd != null
+              ? `${dashboard.tiles.roas_mtd.toFixed(2)}${dashboard.tiles.roas_stub ? ' (ước tính)' : ''}`
+              : '—',
+        };
+      case 'spend':
+        return {
+          value: dashboard.tiles.spend_mtd_vnd,
+          display: dashboard.tiles.spend_mtd_vnd ? fmtVnd(dashboard.tiles.spend_mtd_vnd) : '—',
+        };
+      default:
+        return { value: null, display: '—' };
+    }
+  })();
+
+  if (dashboard.linked && dash.value != null) {
+    return { ...dash, source: 'meta' };
   }
+
+  const ops = resolveActualFromOps(kind, opsMetrics);
+  if (ops) {
+    return { ...ops, source: 'ops' };
+  }
+
+  if (dash.value != null) {
+    return { ...dash, source: dashboard.linked ? 'meta' : 'none' };
+  }
+
+  return { value: null, display: '—', source: 'none' };
 }
 
 function computeDeltaPct(
@@ -140,6 +192,7 @@ export function buildKpiClosedLoopRows(input: {
   appliedTree: MktAiKpiTreeNode[] | null | undefined;
   dashboard: MktAiDashboardPayload;
   thresholdPct: number;
+  opsMetrics?: Record<string, { actual?: number | null }>;
 }): { rows: MktAiKpiClosedLoopRow[]; messages: string[] } {
   const tree = normalizeKpiTree(input.appliedTree);
   const hasApplied = Array.isArray(input.appliedTree) && input.appliedTree.length > 0;
@@ -150,8 +203,10 @@ export function buildKpiClosedLoopRows(input: {
     return { rows: [], messages };
   }
 
-  if (!input.dashboard.linked) {
-    messages.push('HĐ chưa liên kết agency client — không có Actual từ Meta/dashboard.');
+  if (!input.dashboard.linked && input.opsMetrics && Object.keys(input.opsMetrics).length > 0) {
+    messages.push('Actual từ Ops KPI (Ops Hub) — so sánh với KPI tree đã Apply.');
+  } else if (!input.dashboard.linked) {
+    messages.push('HĐ chưa liên kết agency client — dùng Ops KPI nếu AM đã nhập actual.');
   }
 
   const rows: MktAiKpiClosedLoopRow[] = [];
@@ -161,7 +216,7 @@ export function buildKpiClosedLoopRows(input: {
 
     const { kind, direction } = inferMetricKind(node.label, targetDisplay);
     const targetValue = parseNumericTarget(targetDisplay);
-    const actual = resolveActual(kind, input.dashboard);
+    const actual = resolveActual(kind, input.dashboard, input.opsMetrics);
     let deltaPct: number | null = null;
 
     if (targetValue != null && actual.value != null) {
@@ -196,12 +251,14 @@ export function buildKpiClosedLoopPayload(input: {
   appliedTree: MktAiKpiTreeNode[] | null | undefined;
   dashboard: MktAiDashboardPayload;
   thresholdPct: number;
+  opsMetrics?: Record<string, { actual?: number | null }>;
 }): MktAiKpiClosedLoopPayload {
   const hasApplied = Array.isArray(input.appliedTree) && input.appliedTree.length > 0;
   const { rows, messages } = buildKpiClosedLoopRows({
     appliedTree: input.appliedTree,
     dashboard: input.dashboard,
     thresholdPct: input.thresholdPct,
+    opsMetrics: input.opsMetrics,
   });
   const alerts = rows.filter((r) => r.alert);
 

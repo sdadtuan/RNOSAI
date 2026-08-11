@@ -208,6 +208,8 @@ describe('MarketingAiPlannerService', () => {
         strategy_framework: {
           target_market: 'Spa cao cấp',
           market_message: 'Premium experience',
+          media_reach: 'Meta + Google',
+          conversion_strategy: 'Landing page',
         },
       },
       validation: { ok: true, messages: [] },
@@ -216,7 +218,8 @@ describe('MarketingAiPlannerService', () => {
 
     const ctx = await service.getContext(123);
 
-    expect(ctx.prefill_sources).toContain('presales-official-plan');
+    expect(ctx.prefill_sources).toContain('presales-l1-plan');
+    expect(ctx.prefill_sources).toContain('l1-consult-bridge');
     expect(ctx.brief?.challenges).toBe('Spa cao cấp');
     expect(ctx.brief?.usp).toBe('Premium experience');
     expect(ctx.brief?.notes).toContain('ROAS 3x');

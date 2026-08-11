@@ -1,6 +1,7 @@
 export type OpsAlertType =
   | 'kpi_warning'
   | 'kpi_critical'
+  | 'plan_ops_drift'
   | 'task_due_soon'
   | 'task_overdue';
 

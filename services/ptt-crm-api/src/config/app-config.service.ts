@@ -168,6 +168,7 @@ export class AppConfigService {
   readonly contentMarketingPiiConsentDefault: boolean;
   readonly opsDvEnabled: boolean;
   readonly opsWeeklySpawnEnabled: boolean;
+  readonly opsSpawnOnDeliverEnabled: boolean;
   readonly opsHubPilotDv: Set<string>;
   readonly opsRouteMapPath: string;
   readonly opsAgentEnabled: boolean;
@@ -543,6 +544,9 @@ export class AppConfigService {
     );
     this.opsWeeklySpawnEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_OPS_WEEKLY_SPAWN ?? '0').trim().toLowerCase(),
+    );
+    this.opsSpawnOnDeliverEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_OPS_SPAWN_ON_DELIVER ?? '0').trim().toLowerCase(),
     );
     this.opsHubPilotDv = new Set(
       (process.env.PTT_OPS_HUB_PILOT_DV ?? 'DV02,DV05,DV04,DV20')

@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
+import { OpsService } from '../ops/ops.service';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { SopPgRepository } from '../sop/sop-pg.repository';
 import { SopSqliteRepository } from '../sop/sop-sqlite.repository';
@@ -46,6 +47,7 @@ export class ServiceLifecycleService {
     private readonly lifecycleOnboarding: LifecycleOnboardingService,
     private readonly financeConfirmRepo: LifecycleFinanceConfirmRepository,
     private readonly staffAuth: StaffAuthService,
+    @Inject(forwardRef(() => OpsService)) private readonly ops: OpsService,
   ) {}
 
   private get usePg(): boolean {
@@ -190,6 +192,18 @@ export class ServiceLifecycleService {
           await this.lifecycleLaunchQa.maybeAutoStartOnDeliver(id);
         } catch {
           /* auto-start is best-effort on advance */
+        }
+        if (
+          this.config.opsSpawnOnDeliverEnabled &&
+          this.config.opsWeeklySpawnEnabled &&
+          this.config.opsDvEnabled
+        ) {
+          try {
+            const spawnedBy = actor?.email ?? 'system-deliver-advance';
+            await this.ops.spawnWeek(id, spawnedBy);
+          } catch {
+            /* spawn optional — deliver advance still succeeds */
+          }
         }
       }
       return advanced;

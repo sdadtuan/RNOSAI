@@ -394,6 +394,24 @@ export async function patchMktAiBrief(
   });
 }
 
+export async function prefillMktAiBriefFromL1Consult(
+  token: string,
+  lifecycleId: number,
+  opts?: { overwrite?: boolean },
+): Promise<{
+  brief: MktAiBrief;
+  brief_validation: MktAiBriefValidation;
+  brief_readiness?: MktAiBriefReadiness;
+  prefill_sources: string[];
+  prefill_target_score: number;
+  prefill_meets_target: boolean;
+}> {
+  return mktAiFetch(token, lifecycleId, '/brief/prefill-l1-consult', {
+    method: 'POST',
+    body: JSON.stringify({ overwrite: Boolean(opts?.overwrite) }),
+  });
+}
+
 export async function patchMktAiDraft(
   token: string,
   lifecycleId: number,

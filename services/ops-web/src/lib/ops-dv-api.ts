@@ -147,14 +147,20 @@ export type OpsDashboardExecutivePayload = {
   by_dv: Array<{ dv_code: string; name: string; instances: number; alerts_open: number }>;
 };
 
+export type OpsCatalogService = {
+  dv_code: string;
+  name: string;
+  service_slug: string;
+  readiness: 'ready' | 'partial' | 'gap' | string;
+  package_tiers?: string[];
+  depends_on_dv?: string[];
+  tier_pricing?: Record<string, unknown>;
+  ops_web?: Record<string, unknown>;
+};
+
 export type OpsCatalogResponse = {
   schema_version: string;
-  services: Array<{
-    dv_code: string;
-    name: string;
-    service_slug: string;
-    readiness: string;
-  }>;
+  services: OpsCatalogService[];
 };
 
 export type OpsSpawnWeekResult = {

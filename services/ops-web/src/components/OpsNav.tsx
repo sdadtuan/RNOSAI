@@ -344,6 +344,7 @@ function buildSections(
     delivery.push({ href: '/crm/creatives', label: 'Creative Hub' });
     delivery.push({ href: '/crm/campaign-writes', label: 'Campaign Write' });
     if (isOpsDvFeEnabled()) {
+      delivery.push({ href: '/crm/ops/catalog', label: 'Catalog DV21' });
       delivery.push({ href: '/crm/ops/dashboard', label: 'Ops Dashboard' });
       delivery.push({ href: '/crm/ops/my-tasks', label: 'Ops tasks' });
       delivery.push({ href: '/crm/ops/alerts', label: 'Ops alerts' });

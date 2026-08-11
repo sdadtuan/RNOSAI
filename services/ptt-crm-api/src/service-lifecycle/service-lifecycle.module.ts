@@ -4,6 +4,7 @@ import { CampaignWritesModule } from '../campaign-writes/campaign-writes.module'
 import { CreativesModule } from '../creatives/creatives.module';
 import { IntakeModule } from '../intake/intake.module';
 import { LeadsModule } from '../leads/leads.module';
+import { OpsModule } from '../ops/ops.module';
 import { SopModule } from '../sop/sop.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { SvcFinanceModule } from '../svc-finance/svc-finance.module';
@@ -42,6 +43,7 @@ import { ServiceLifecycleService } from './service-lifecycle.service';
     WorkflowsModule,
     LaunchQaModule,
     MarketingAiPlaybookModule,
+    forwardRef(() => OpsModule),
   ],
   controllers: [ServiceLifecycleController],
   providers: [

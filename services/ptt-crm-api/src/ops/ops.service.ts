@@ -189,6 +189,7 @@ export class OpsService implements OnModuleInit {
       ok: true,
       ops_dv_enabled: this.config.opsDvEnabled,
       ops_weekly_spawn_enabled: this.config.opsWeeklySpawnEnabled,
+      ops_spawn_on_deliver_enabled: this.config.opsSpawnOnDeliverEnabled,
       ops_agent_enabled: this.config.opsAgentEnabled,
       route_map: this.routeMapLoader.isLoaded()
         ? this.routeMapLoader.getLoadedPath()
@@ -203,17 +204,21 @@ export class OpsService implements OnModuleInit {
       service_slug: entry.service_slugs.primary,
       readiness: entry.readiness,
       package_tiers: [...OPS_PACKAGE_TIERS],
+      depends_on_dv: entry.depends_on_dv ?? [],
+      tier_pricing: {},
       ops_web: (entry.ops_web ?? {}) as Record<string, unknown>,
     };
   }
 
-  private profileToCatalogItem(row: OpsServiceProfileRow): OpsCatalogItem {
+  private profileToCatalogItem(row: OpsServiceProfileRow, entry?: OpsRouteMapService | null): OpsCatalogItem {
     return {
       dv_code: row.dv_code,
       name: row.name,
       service_slug: row.service_slug,
       readiness: row.readiness,
       package_tiers: [...OPS_PACKAGE_TIERS],
+      depends_on_dv: entry?.depends_on_dv ?? [],
+      tier_pricing: (row.tier_pricing ?? {}) as Record<string, unknown>,
       ops_web: row.ops_web_json,
     };
   }
@@ -229,7 +234,10 @@ export class OpsService implements OnModuleInit {
     }
     const services =
       rows.length > 0
-        ? rows.map((row) => this.profileToCatalogItem(row))
+        ? rows.map((row) => {
+            const entry = map.services.find((s) => s.code === row.dv_code) ?? null;
+            return this.profileToCatalogItem(row, entry);
+          })
         : map.services.map((entry) => this.routeEntryToCatalogItem(entry));
     return {
       schema_version: map.schema_version ?? '1.0.0',

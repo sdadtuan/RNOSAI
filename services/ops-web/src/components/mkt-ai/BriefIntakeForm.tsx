@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   patchMktAiBrief,
+  prefillMktAiBriefFromL1Consult,
   uploadMktAiBrief,
   type MktAiBrief,
   type MktAiBriefReadiness,
@@ -79,6 +80,9 @@ export function BriefIntakeForm({
   const fieldRefs = useRef<Partial<Record<string, HTMLElement | null>>>({});
   const uploadRef = useRef<HTMLInputElement | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
+  const [prefillBusy, setPrefillBusy] = useState(false);
+
+  const hasL1ConsultPrefill = prefillSources?.includes('l1-consult-bridge') ?? false;
 
   const snapshot = useMemo(
     () => briefAutosaveSnapshot(brief, serviceSlug),
@@ -223,8 +227,7 @@ export function BriefIntakeForm({
       ) : null}
 
       {(prefillSources?.length ?? 0) > 0 ? (
-        <p
-          className="muted"
+        <div
           style={{
             margin: 0,
             fontSize: '0.85rem',
@@ -232,10 +235,55 @@ export function BriefIntakeForm({
             borderRadius: 8,
             border: '1px solid var(--border)',
             background: 'rgba(57, 139, 67, 0.04)',
+            display: 'grid',
+            gap: '0.45rem',
           }}
         >
-          Đã nhập từ: {prefillSources!.join(' · ')}
-        </p>
+          <p style={{ margin: 0 }}>
+            {hasL1ConsultPrefill ? (
+              <>
+                <strong>Prefill TMMT (L1 + Consult)</strong>
+                {briefReadiness != null ? (
+                  <> — readiness {briefReadiness.score}/100 (mục tiêu ≥80%)</>
+                ) : null}
+              </>
+            ) : (
+              <>Đã nhập từ: {prefillSources!.join(' · ')}</>
+            )}
+          </p>
+          {hasL1ConsultPrefill && canEdit ? (
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={prefillBusy}
+                onClick={() => {
+                  void (async () => {
+                    setPrefillBusy(true);
+                    try {
+                      const out = await prefillMktAiBriefFromL1Consult(token, lifecycleId);
+                      onBriefChange(out.brief);
+                      onPersisted(out);
+                      autosave.markSavedNow(briefAutosaveSnapshot(out.brief, serviceSlug));
+                    } catch (err) {
+                      onSaveError?.(
+                        err instanceof Error ? err.message : 'Prefill L1 + Consult thất bại',
+                      );
+                    } finally {
+                      setPrefillBusy(false);
+                    }
+                  })();
+                }}
+              >
+                {prefillBusy ? 'Đang prefill…' : 'Áp dụng lại L1 + Consult'}
+              </button>
+            </div>
+          ) : (
+            <p className="muted" style={{ margin: 0 }}>
+              Nguồn: {prefillSources!.join(' · ')}
+            </p>
+          )}
+        </div>
       ) : null}
 
       {briefUploadEnabled ? (
