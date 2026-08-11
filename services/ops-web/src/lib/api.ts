@@ -8550,3 +8550,372 @@ export async function fetchAdminIntegrationsHealth(
 ): Promise<{ ok: boolean; summary: Record<string, number>; expiring_count: number; critical_count: number }> {
   return crmFetch(token, '/api/v1/admin/integrations/health');
 }
+
+// --- Admin Control Plane R5 (Policy Intelligence) ---
+
+export type AdminPolicyCapPatch = { section: string; action: string };
+
+export type SimulateMatrixImpactBody = {
+  position_id: number;
+  patch: {
+    added?: AdminPolicyCapPatch[];
+    removed?: AdminPolicyCapPatch[];
+  };
+  include_break_glass?: boolean;
+  limit?: number;
+};
+
+export type MatrixImpactSampleUser = {
+  user_id: string;
+  email: string;
+  display_name: string;
+  caps_removed: string[];
+  caps_added: string[];
+  menu_items_lost: string[];
+};
+
+export type MatrixImpactResult = {
+  position_code: string;
+  affected_user_count: number;
+  sample_users: MatrixImpactSampleUser[];
+  aggregate: {
+    caps_removed_unique: string[];
+    users_with_pii_loss: number;
+  };
+  elapsed_ms: number;
+};
+
+export async function simulateMatrixImpact(
+  token: string,
+  body: SimulateMatrixImpactBody,
+): Promise<MatrixImpactResult> {
+  return crmFetch(token, '/api/v1/admin/policy/simulate-impact', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export type AdminPolicyRow = {
+  id: string;
+  description: string;
+  enabled: boolean;
+  rego_preview?: string;
+  bundle_version?: string;
+};
+
+export async function fetchAdminPolicies(
+  token: string,
+): Promise<{ policies: AdminPolicyRow[]; bundle_version?: string }> {
+  return crmFetch(token, '/api/v1/admin/policies');
+}
+
+export async function fetchAdminPolicy(
+  token: string,
+  id: string,
+): Promise<{ policy: AdminPolicyRow; rego_text: string }> {
+  return crmFetch(token, `/api/v1/admin/policies/${encodeURIComponent(id)}`);
+}
+
+export async function patchAdminPolicy(
+  token: string,
+  id: string,
+  body: { description?: string; enabled?: boolean },
+): Promise<{ policy: AdminPolicyRow }> {
+  return crmFetch(token, `/api/v1/admin/policies/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function exportAdminPolicyBundle(token: string): Promise<void> {
+  await downloadBinary(token, '/api/v1/admin/policies/export-bundle', 'opa-bundle.zip');
+}
+
+export async function validateAdminPolicyBundle(
+  token: string,
+): Promise<{ ok: boolean; errors?: string[]; bundle_version?: string }> {
+  return crmFetch(token, '/api/v1/admin/policies/validate', { method: 'POST' });
+}
+
+export type AdminEnvSnapshotRow = {
+  id: string;
+  label: string;
+  snapshot_type: string;
+  created_at: string;
+  signed_by?: string;
+};
+
+export async function fetchAdminEnvSnapshots(
+  token: string,
+): Promise<{ snapshots: AdminEnvSnapshotRow[] }> {
+  return crmFetch(token, '/api/v1/admin/environments/snapshots');
+}
+
+export type AdminEnvDiffBody = {
+  left_snapshot_id?: string;
+  right_snapshot_id?: string;
+  upload_json?: unknown;
+};
+
+export type AdminEnvDiffResult = {
+  id: string;
+  summary: { added: number; removed: number; changed: number };
+  matrix_diff: Array<{ position_code: string; added: string[]; removed: string[] }>;
+  org_diff?: Array<{ entity: string; field: string; from: unknown; to: unknown }>;
+  severity: 'info' | 'warning' | 'critical';
+};
+
+export async function createAdminEnvDiff(
+  token: string,
+  body: AdminEnvDiffBody,
+): Promise<AdminEnvDiffResult> {
+  return crmFetch(token, '/api/v1/admin/environments/diff', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchAdminEnvDiff(token: string, id: string): Promise<AdminEnvDiffResult> {
+  return crmFetch(token, `/api/v1/admin/environments/diff/${encodeURIComponent(id)}`);
+}
+
+export type AdminAiPolicyRow = {
+  agent_code: string;
+  agent_name?: string;
+  allowed_tools: string[];
+  spend_cap_usd_monthly: number | null;
+  pii_block_fields: string[];
+  require_human_approval: boolean;
+  updated_by?: string;
+  updated_at?: string;
+};
+
+export async function fetchAdminAiPolicies(
+  token: string,
+): Promise<{ policies: AdminAiPolicyRow[]; agents_missing_policy?: number }> {
+  return crmFetch(token, '/api/v1/admin/ai/policies');
+}
+
+export async function patchAdminAiPolicy(
+  token: string,
+  agentCode: string,
+  body: Partial<
+    Pick<AdminAiPolicyRow, 'allowed_tools' | 'spend_cap_usd_monthly' | 'pii_block_fields' | 'require_human_approval'>
+  >,
+): Promise<{ policy: AdminAiPolicyRow }> {
+  return crmFetch(token, `/api/v1/admin/ai/policies/${encodeURIComponent(agentCode)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export type AdminChangeRequest = {
+  id: string;
+  kind: string;
+  entity_key: string;
+  patch_json: Record<string, unknown>;
+  impact_json?: Record<string, unknown> | null;
+  status: 'draft' | 'pending' | 'approved' | 'applied' | 'rejected';
+  requester_email: string;
+  approver_email?: string | null;
+  approver_note?: string | null;
+  applied_at?: string | null;
+  created_at: string;
+};
+
+export async function fetchChangeRequests(
+  token: string,
+  params?: { status?: string },
+): Promise<{ requests: AdminChangeRequest[]; pending_count?: number }> {
+  const qs = params?.status ? `?status=${encodeURIComponent(params.status)}` : '';
+  return crmFetch(token, `/api/v1/admin/change-requests${qs}`);
+}
+
+export async function createChangeRequest(
+  token: string,
+  body: {
+    kind?: string;
+    entity_key: string;
+    patch_json: Record<string, unknown>;
+    impact_json?: Record<string, unknown>;
+  },
+): Promise<{ request: AdminChangeRequest }> {
+  return crmFetch(token, '/api/v1/admin/change-requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function submitChangeRequest(
+  token: string,
+  id: string,
+): Promise<{ request: AdminChangeRequest }> {
+  return crmFetch(token, `/api/v1/admin/change-requests/${encodeURIComponent(id)}/submit`, {
+    method: 'POST',
+  });
+}
+
+export async function approveChangeRequest(
+  token: string,
+  id: string,
+  body?: { note?: string },
+): Promise<{ request: AdminChangeRequest }> {
+  return crmFetch(token, `/api/v1/admin/change-requests/${encodeURIComponent(id)}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export async function rejectChangeRequest(
+  token: string,
+  id: string,
+  body: { note?: string },
+): Promise<{ request: AdminChangeRequest }> {
+  return crmFetch(token, `/api/v1/admin/change-requests/${encodeURIComponent(id)}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export type CompliancePackRow = {
+  code: string;
+  label: string;
+  description: string;
+};
+
+export async function fetchCompliancePacks(
+  token: string,
+): Promise<{ packs: CompliancePackRow[] }> {
+  return crmFetch(token, '/api/v1/admin/compliance-packs');
+}
+
+export async function previewCompliancePack(
+  token: string,
+  code: string,
+): Promise<{
+  code: string;
+  summary: { added: number; removed: number; changed: number };
+  matrix_diff: Array<{ position_code: string; added: string[]; removed: string[] }>;
+}> {
+  return crmFetch(token, `/api/v1/admin/compliance-packs/${encodeURIComponent(code)}/preview`);
+}
+
+export async function applyCompliancePack(
+  token: string,
+  code: string,
+  body?: { dry_run?: boolean },
+): Promise<{ ok: boolean; change_request_id?: string; applied?: boolean }> {
+  return crmFetch(token, `/api/v1/admin/compliance-packs/${encodeURIComponent(code)}/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export type ServiceAccountRow = {
+  id: string;
+  name: string;
+  key_prefix: string;
+  scoped_caps: AdminPolicyCapPatch[];
+  active: boolean;
+  expires_at?: string | null;
+  created_by: string;
+  created_at: string;
+  last_used_at?: string | null;
+};
+
+export async function fetchServiceAccounts(
+  token: string,
+): Promise<{ accounts: ServiceAccountRow[] }> {
+  return crmFetch(token, '/api/v1/admin/service-accounts');
+}
+
+export async function createServiceAccount(
+  token: string,
+  body: { name: string; scoped_caps?: AdminPolicyCapPatch[]; expires_at?: string },
+): Promise<{ account: ServiceAccountRow; plain_key: string }> {
+  return crmFetch(token, '/api/v1/admin/service-accounts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function rotateServiceAccount(
+  token: string,
+  id: string,
+): Promise<{ account: ServiceAccountRow; plain_key: string }> {
+  return crmFetch(token, `/api/v1/admin/service-accounts/${encodeURIComponent(id)}/rotate`, {
+    method: 'POST',
+  });
+}
+
+export async function revokeServiceAccount(
+  token: string,
+  id: string,
+): Promise<{ ok: boolean }> {
+  return crmFetch(token, `/api/v1/admin/service-accounts/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+export type LegalEntityRow = {
+  id: number;
+  code: string;
+  name: string;
+  tax_id?: string | null;
+  country_code?: string;
+  active: boolean;
+};
+
+export async function fetchLegalEntities(
+  token: string,
+): Promise<{ entities: LegalEntityRow[] }> {
+  return crmFetch(token, '/api/v1/admin/org/legal-entities');
+}
+
+export async function createLegalEntity(
+  token: string,
+  body: { code: string; name: string; tax_id?: string; country_code?: string },
+): Promise<{ entity: LegalEntityRow }> {
+  return crmFetch(token, '/api/v1/admin/org/legal-entities', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export type OrgBranchRow = {
+  id: number;
+  legal_entity_id: number;
+  code: string;
+  name: string;
+  active: boolean;
+};
+
+export async function fetchOrgBranches(
+  token: string,
+  legalEntityId?: number,
+): Promise<{ branches: OrgBranchRow[] }> {
+  const qs =
+    legalEntityId != null ? `?legal_entity_id=${encodeURIComponent(String(legalEntityId))}` : '';
+  return crmFetch(token, `/api/v1/admin/org/branches${qs}`);
+}
+
+export async function createOrgBranch(
+  token: string,
+  body: { legal_entity_id: number; code: string; name: string },
+): Promise<{ branch: OrgBranchRow }> {
+  return crmFetch(token, '/api/v1/admin/org/branches', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}

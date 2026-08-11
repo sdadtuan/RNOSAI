@@ -53,3 +53,7 @@ export function winPayslipPortalEnabled(): boolean {
 export function winLeaveLiteEnabled(): boolean {
   return process.env.NEXT_PUBLIC_WIN_LEAVE_LITE === '1';
 }
+
+export function winMultiEntityEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_WIN_MULTI_ENTITY === '1';
+}

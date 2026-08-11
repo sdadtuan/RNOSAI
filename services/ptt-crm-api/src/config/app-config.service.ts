@@ -62,6 +62,7 @@ export class AppConfigService {
   readonly staffMfaRequiredPositionCodes: string[];
   readonly staffScopePilotEnabled: boolean;
   readonly staffPolicyOpaEnabled: boolean;
+  readonly adminMatrixApprovalRequired: boolean;
   readonly flaskMonolithUrl: string;
   readonly jobsEnabled: boolean;
   readonly webhookEnqueueEnabled: boolean;
@@ -266,6 +267,9 @@ export class AppConfigService {
     );
     this.staffPolicyOpaEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.STAFF_POLICY_OPA ?? '0').trim().toLowerCase(),
+    );
+    this.adminMatrixApprovalRequired = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.ADMIN_MATRIX_APPROVAL_REQUIRED ?? '0').trim().toLowerCase(),
     );
     this.flaskMonolithUrl = (process.env.PTT_FLASK_MONOLITH_URL ?? '').trim();
     this.jobsEnabled = this.resolveJobsEnabled();

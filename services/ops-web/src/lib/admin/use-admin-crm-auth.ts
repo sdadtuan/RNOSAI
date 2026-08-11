@@ -106,3 +106,13 @@ export function canViewAdminAudit(user: StoredStaffUser | null): boolean {
   if (!user) return false;
   return hasCap(user, 'crm_data_config', 'view');
 }
+
+export function canViewPolicyAdmin(user: StoredStaffUser | null): boolean {
+  if (!user) return false;
+  return hasCap(user, 'admin_scope', 'policy') || hasCap(user, 'crm_data_config', 'view');
+}
+
+export function canConfigurePolicyAdmin(user: StoredStaffUser | null): boolean {
+  if (!user) return false;
+  return hasCap(user, 'admin_scope', 'policy') || hasCap(user, 'crm_data_config', 'configure');
+}

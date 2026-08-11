@@ -474,12 +474,13 @@ Copy: `Cần quyền {section}.{action} — liên hệ Quản trị hệ thống
 
 ---
 
-## Bước tiếp R4
+## Bước tiếp R5
 
 | Wave | Nội dung | Plan |
 |------|----------|------|
-| **R3** | Audit Center, export, drift alert, PII log | [`2026-08-11-admin-control-plane-r3.md`](2026-08-11-admin-control-plane-r3.md) ✅ |
-| **R4** | Access review campaigns, stale accounts, guest TTL, break-glass, integrations | [`2026-08-11-admin-control-plane-r4.md`](2026-08-11-admin-control-plane-r4.md) |
+| **R3** | Audit Center, export, drift, PII log | [`2026-08-11-admin-control-plane-r3.md`](2026-08-11-admin-control-plane-r3.md) ✅ |
+| **R4** | Access review, stale, guest TTL, integrations | [`2026-08-11-admin-control-plane-r4.md`](2026-08-11-admin-control-plane-r4.md) ✅ |
+| **R5** | Policy simulator v2, OPA UI, env diff, AI governance, 2-person approval | [`2026-08-11-admin-control-plane-r5.md`](2026-08-11-admin-control-plane-r5.md) |
 
 **Spec đầy đủ:** [`2026-08-11-admin-control-plane-ia.md`](../specs/2026-08-11-admin-control-plane-ia.md) §13–15.
 
@@ -540,6 +541,8 @@ Phần này mở rộng **vượt T1/T2** — nhắm **T3 Enterprise** và moat 
 | **Change approval workflow** | Matrix change cần 2-person rule (SoD) | Banking-grade |
 | **Admin API keys** | Service accounts với scoped caps | Integration partners |
 | **Compliance packs** | Template RBAC theo ngành (agency, BĐS, spa) | Time-to-value sales |
+
+**Plan chi tiết:** [`docs/superpowers/plans/2026-08-11-admin-control-plane-r5.md`](../superpowers/plans/2026-08-11-admin-control-plane-r5.md)
 
 ### R5 diagram — Control Plane maturity
 

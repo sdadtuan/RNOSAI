@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { AdminAuditRepository } from '../admin-audit/admin-audit.repository';
+import { AppConfigService } from '../config/app-config.service';
 import {
   catalogActionLabel,
   loadStaffPermissionCatalog,
@@ -20,6 +21,7 @@ export class StaffPermissionsService {
     private readonly repo: StaffPermissionsRepository,
     private readonly jobFunctions: StaffJobFunctionsRepository,
     private readonly adminAudit: AdminAuditRepository,
+    private readonly config: AppConfigService,
   ) {}
 
   getCatalog() {
@@ -53,7 +55,19 @@ export class StaffPermissionsService {
     return detail;
   }
 
-  async patchPosition(positionId: number, body: PatchStaffPositionGrantsBody, actorEmail: string) {
+  async patchPosition(
+    positionId: number,
+    body: PatchStaffPositionGrantsBody,
+    actorEmail: string,
+    options?: { bypassApproval?: boolean },
+  ) {
+    if (this.config.adminMatrixApprovalRequired && !options?.bypassApproval) {
+      throw new BadRequestException({
+        error: 'matrix_approval_required',
+        message:
+          'Direct matrix PATCH is disabled. Create a change request via POST /api/v1/admin/change-requests',
+      });
+    }
     const position = await this.repo.getPosition(positionId);
     if (!position) throw new NotFoundException({ error: 'position_not_found', position_id: positionId });
 

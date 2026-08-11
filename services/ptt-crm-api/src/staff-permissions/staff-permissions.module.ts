@@ -37,6 +37,7 @@ import {
   ],
   exports: [
     StaffPermissionsService,
+    StaffPermissionsRepository,
     StaffJobFunctionsRepository,
     StaffRbacAuditRepository,
     StaffAccessReviewActionsRepository,

@@ -765,7 +765,7 @@ e2e/admin-control-plane-r3-audit.spec.ts
 | P3 | [`2026-08-11-admin-control-plane-p3.md`](2026-08-11-admin-control-plane-p3.md) | ✅ `36750eb` |
 | **R3** | This document | ✅ `4112ce3` |
 | R4 | [`2026-08-11-admin-control-plane-r4.md`](2026-08-11-admin-control-plane-r4.md) | 📋 Ready |
-| R5 | Spec §13 | TBD |
+| R5 | Spec §13 | [`2026-08-11-admin-control-plane-r5.md`](2026-08-11-admin-control-plane-r5.md) |
 
 ---
 

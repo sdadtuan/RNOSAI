@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { Request } from 'express';
 import { AppConfigService } from '../config/app-config.service';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
@@ -9,6 +9,7 @@ import {
   normalizeClientIds,
 } from './staff-client-scope.util';
 import { StaffUserClientsRepository } from './staff-user-clients.repository';
+import { Pool } from 'pg';
 
 export type ClientScopeContext = {
   restricted: boolean;
@@ -17,11 +18,55 @@ export type ClientScopeContext = {
 
 @Injectable()
 export class StaffClientScopeService {
+  private residencyPool: Pool | null = null;
+
   constructor(
     private readonly config: AppConfigService,
     private readonly staffAuth: StaffAuthService,
     private readonly userClients: StaffUserClientsRepository,
   ) {}
+
+  private get residencyDb(): Pool {
+    if (!this.residencyPool) {
+      this.residencyPool = new Pool({ connectionString: this.config.databaseUrl });
+    }
+    return this.residencyPool;
+  }
+
+  private async loadResidencyAllowedTags(userId: string): Promise<string[] | null> {
+    try {
+      const result = await this.residencyDb.query<{ allowed_tags: string[] }>(
+        `SELECT allowed_tags FROM staff_user_residency_rules WHERE user_id = $1::uuid LIMIT 1`,
+        [userId.trim()],
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      return Array.isArray(row.allowed_tags) ? row.allowed_tags.map(String) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async filterClientIdsByResidency(clientIds: string[], allowedTags: string[]): Promise<string[]> {
+    if (!clientIds.length || !allowedTags.length) return clientIds;
+    try {
+      const result = await this.residencyDb.query<{ id: string }>(
+        `SELECT id::text FROM clients
+         WHERE id = ANY($1::uuid[])
+           AND (data_residency_tag IS NULL OR data_residency_tag = ANY($2::text[]))`,
+        [clientIds, allowedTags],
+      );
+      return normalizeClientIds(result.rows.map((r) => String(r.id)));
+    } catch {
+      return clientIds;
+    }
+  }
+
+  private async applyResidencyFilter(userId: string, clientIds: string[]): Promise<string[]> {
+    const allowedTags = await this.loadResidencyAllowedTags(userId);
+    if (!allowedTags?.length) return clientIds;
+    return this.filterClientIdsByResidency(clientIds, allowedTags);
+  }
 
   pilotEnabled(): boolean {
     return this.config.staffScopePilotEnabled;
@@ -30,7 +75,8 @@ export class StaffClientScopeService {
   async loadClientIdsForUser(userId: string, positionCode?: string | null): Promise<string[] | undefined> {
     if (!this.pilotEnabled()) return undefined;
     if (positionCode && this.staffAuth.isSuperAdminPosition(positionCode)) return undefined;
-    const ids = await this.userClients.loadClientIdsForUser(userId);
+    let ids = await this.userClients.loadClientIdsForUser(userId);
+    ids = await this.applyResidencyFilter(userId, ids);
     return ids.length ? ids : undefined;
   }
 

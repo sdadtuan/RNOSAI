@@ -249,6 +249,15 @@
       "release",
       "view"
     ],
+    "admin_scope": [
+      "org",
+      "rbac",
+      "audit",
+      "policy"
+    ],
+    "admin_change": [
+      "approve"
+    ],
     "crm_ai_insights": [
       "view"
     ],
@@ -886,6 +895,20 @@
       "group": "CRM — Admin",
       "page": "/admin/ai/runs",
       "description": "Bảng ai_agent_runs — filter date/status/use case (RNOS-05)."
+    },
+    {
+      "id": "admin_scope",
+      "label": "Admin — Delegated scopes",
+      "group": "CRM — Admin",
+      "page": "/admin",
+      "description": "Phạm vi quản trị delegated: org, rbac, audit, policy."
+    },
+    {
+      "id": "admin_change",
+      "label": "Admin — Duyệt thay đổi",
+      "group": "CRM — Admin",
+      "page": "/admin/policies/approvals",
+      "description": "Duyệt change request ma trận 2 người (R5)."
     },
     {
       "id": "crm_ai_insights",

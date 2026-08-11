@@ -89,6 +89,7 @@ import { StaffNotificationsModule } from './staff-notifications/staff-notificati
 import { StaffOrgModule } from './staff-org/staff-org.module';
 import { AdminAuditModule } from './admin-audit/admin-audit.module';
 import { AdminGovernanceModule } from './admin-governance/admin-governance.module';
+import { AdminIntelligenceModule } from './admin-intelligence/admin-intelligence.module';
 import { StaffPermissionSetsModule } from './staff-permission-sets/staff-permission-sets.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { TemporalModule } from './temporal/temporal.module';
@@ -146,6 +147,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     StaffOrgModule,
     AdminAuditModule,
     AdminGovernanceModule,
+    AdminIntelligenceModule,
     WebhooksModule,
     PortalSeoModule,
     PortalAiModule,

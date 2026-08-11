@@ -8,7 +8,14 @@ import {
 } from '@/lib/win/flags';
 import type { ModuleNavLink } from './module-nav';
 
-export type AdminNavGroupId = 'org' | 'rbac' | 'data' | 'ai' | 'compliance' | 'integrations';
+export type AdminNavGroupId =
+  | 'org'
+  | 'rbac'
+  | 'data'
+  | 'ai'
+  | 'compliance'
+  | 'integrations'
+  | 'policy';
 
 export type AdminNavLink = ModuleNavLink;
 
@@ -111,13 +118,32 @@ function buildIntegrationsLinks(user: StoredStaffUser): AdminNavLink[] {
   return links;
 }
 
+function canViewPolicyAdmin(user: StoredStaffUser): boolean {
+  return hasCap(user, 'admin_scope', 'policy') || hasCap(user, 'crm_data_config', 'view');
+}
+
+function buildPolicyLinks(user: StoredStaffUser): AdminNavLink[] {
+  if (!canViewPolicyAdmin(user)) return [];
+  return [
+    { href: '/admin/policies', label: 'OPA & Compliance packs' },
+    { href: '/admin/environments', label: 'So sánh môi trường' },
+    { href: '/admin/policies/approvals', label: 'Duyệt thay đổi' },
+    { href: '/admin/crm/permissions/simulator', label: 'Simulator what-if' },
+    { href: '/admin/ai/policies', label: 'AI governance' },
+  ];
+}
+
 function buildAiLinks(user: StoredStaffUser): AdminNavLink[] {
   if (!hasCap(user, 'ai_admin', 'view')) return [];
-  return [
+  const links: AdminNavLink[] = [
     { href: '/admin/ai/agents', label: 'AI Agents' },
     { href: '/admin/ai/tools', label: 'AI Tools' },
     { href: '/admin/ai/runs', label: 'AI Runs' },
   ];
+  if (canViewPolicyAdmin(user)) {
+    links.push({ href: '/admin/ai/policies', label: 'AI governance' });
+  }
+  return links;
 }
 
 export function buildAdminNavGroups(user: StoredStaffUser | null): AdminNavGroup[] {
@@ -155,6 +181,16 @@ export function buildAdminNavGroups(user: StoredStaffUser | null): AdminNavGroup
     });
   }
 
+  const policyLinks = buildPolicyLinks(user);
+  if (policyLinks.length) {
+    groups.push({
+      id: 'policy',
+      label: 'Policy & Intelligence',
+      description: 'OPA, env diff, what-if, duyệt thay đổi',
+      links: policyLinks,
+    });
+  }
+
   const aiLinks = buildAiLinks(user);
   if (aiLinks.length) {
     groups.push({
@@ -188,14 +224,26 @@ export function buildAdminNavGroups(user: StoredStaffUser | null): AdminNavGroup
   return groups;
 }
 
-export function buildAdminHubWorkspaces(user: StoredStaffUser | null): AdminHubWorkspace[] {
-  return buildAdminNavGroups(user).map((group) => ({
-    id: group.id,
-    title: group.label,
-    description: group.description,
-    href: group.links[0]?.href ?? '/admin',
-    stat: `${group.links.length} mục`,
-  }));
+export function buildAdminHubWorkspaces(
+  user: StoredStaffUser | null,
+  stats?: Partial<Record<AdminNavGroupId, string>>,
+): AdminHubWorkspace[] {
+  return buildAdminNavGroups(user).map((group) => {
+    let stat = stats?.[group.id] ?? `${group.links.length} mục`;
+    if (!stats?.[group.id] && group.id === 'policy') {
+      stat = 'OPA · env diff · duyệt';
+    }
+    if (!stats?.[group.id] && group.id === 'ai') {
+      stat = 'Agents · governance';
+    }
+    return {
+      id: group.id,
+      title: group.label,
+      description: group.description,
+      href: group.links[0]?.href ?? '/admin',
+      stat,
+    };
+  });
 }
 
 /** Sidebar site nav — one hub entry (HubSpot Settings pattern). */
