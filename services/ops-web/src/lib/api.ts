@@ -1572,7 +1572,12 @@ export async function fetchPresalesPolicyPreview(
 export async function fetchLeadPresalesMarketingPlan(
   token: string,
   leadId: number,
-): Promise<{ ok: boolean; plan: Record<string, unknown>; validation: { ok: boolean; messages: string[] } }> {
+): Promise<{
+  ok: boolean;
+  plan: Record<string, unknown>;
+  validation: { ok: boolean; messages: string[] };
+  ai_draft?: { is_ai_draft: boolean; badge_vi?: string | null };
+}> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/marketing-plan`, { method: 'GET' });
 }
 
@@ -1602,6 +1607,9 @@ export async function postLeadPresalesMarketingPlanAiDraft(
   funnel: LeadFunnelSnapshot;
   validation: { ok: boolean; messages: string[] };
   ai?: { stub_mode: boolean; model: string };
+  ai_draft?: { is_ai_draft: boolean; badge_vi?: string | null };
+  requires_sp_review?: boolean;
+  badge_vi?: string;
 }> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/marketing-plan/ai-draft`, {
     method: 'POST',

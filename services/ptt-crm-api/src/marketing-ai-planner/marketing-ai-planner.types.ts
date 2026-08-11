@@ -238,7 +238,16 @@ export interface MktAiPlannerContext {
     section_comments_enabled?: boolean;
     export_pptx_enabled?: boolean;
     kpi_closed_loop_enabled?: boolean;
+    pilot_only?: boolean;
+    auto_customer_email_enabled?: boolean;
   };
+  pilot?: {
+    pilot_only: boolean;
+    pilot_dv_codes: readonly string[];
+    service_slug_in_pilot: boolean;
+    ga_blocked_message_vi: string | null;
+  };
+  customer_email_policy_vi?: string;
   strategy_scenarios?: MktAiStrategyScenarioRow[];
   section_comments?: MktAiSectionCommentRow[];
   documents?: MktAiDocumentRow[];

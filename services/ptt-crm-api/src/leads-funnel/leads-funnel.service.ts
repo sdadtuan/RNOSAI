@@ -67,6 +67,14 @@ import { ReviewQueueLlmService } from './review-queue-llm.service';
 import { PolicyService } from '../policy/policy.service';
 import { MarketingAiOrchestratorService } from '../marketing-ai-planner/marketing-ai-orchestrator.service';
 import { buildPresalesMktAiBrief, mapStrategyToPreliminaryPlan } from './presales-ai-draft.util';
+import {
+  clearPresalesAiDraftMeta,
+  parsePresalesAiDraftMeta,
+  parseTargetMarketProfJson,
+  PRESALES_AI_DRAFT_BADGE_VI,
+  stampPresalesAiDraftMeta,
+} from './presales-ai-draft-meta.util';
+import { rejectMktAiAutoCustomerEmail } from '../marketing-ai-planner/mkt-ai-governance.util';
 
 @Injectable()
 export class LeadsFunnelService {
@@ -685,7 +693,8 @@ export class LeadsFunnelService {
       if (!ps) throw new NotFoundException({ error: 'No presales for lead' });
       const plan = await this.pgRepo.getOrCreatePreliminaryPlan(leadId, ps.id, ps.service_slug);
       const validation = validatePreliminaryPlan(plan);
-      return { ok: true, plan, validation };
+      const ai_draft = parsePresalesAiDraftMeta(parseTargetMarketProfJson(plan.target_market_prof_json));
+      return { ok: true, plan, validation, ai_draft };
     }
     const snap = this.sqliteRepo.getPresalesSnapshot(leadId);
     if (!snap) throw new NotFoundException({ error: 'No presales for lead' });
@@ -695,24 +704,73 @@ export class LeadsFunnelService {
       snap.presales.service_slug,
     );
     const validation = validatePreliminaryPlan(plan);
-    return { ok: true, plan, validation };
+    const ai_draft = parsePresalesAiDraftMeta(parseTargetMarketProfJson(plan.target_market_prof_json));
+    return { ok: true, plan, validation, ai_draft };
+  }
+
+  private mergeManualMarketingPlanPatch(
+    plan: Record<string, unknown>,
+    body: PatchMarketingPlanBody,
+  ): PatchMarketingPlanBody {
+    const prof = parseTargetMarketProfJson(plan.target_market_prof_json);
+    return {
+      ...body,
+      target_market_prof: clearPresalesAiDraftMeta({ ...prof, ...(body.target_market_prof ?? {}) }),
+    };
   }
 
   async patchMarketingPlan(leadId: number, body: PatchMarketingPlanBody, staffUser?: StaffJwtPayload) {
     await this.assertConsultMutationAllowed(leadId, staffUser, 'consult');
     if (this.usePgFunnel) {
-      const plan = await this.pgRepo.patchMarketingPlan(leadId, body);
+      const ps = await this.pgRepo.getPresalesRowByLeadId(leadId);
+      if (!ps) throw new NotFoundException({ error: 'No presales for lead' });
+      const existing = await this.pgRepo.getOrCreatePreliminaryPlan(leadId, ps.id, ps.service_slug);
+      const patchBody = this.mergeManualMarketingPlanPatch(existing, body);
+      const plan = await this.pgRepo.patchMarketingPlan(leadId, patchBody);
       const validation = validatePreliminaryPlan(plan);
-      return { ok: true, plan, validation, funnel: await this.getFunnel(leadId) };
+      const ai_draft = parsePresalesAiDraftMeta(parseTargetMarketProfJson(plan.target_market_prof_json));
+      return { ok: true, plan, validation, ai_draft, funnel: await this.getFunnel(leadId) };
     }
-    const plan = this.sqliteRepo.patchMarketingPlan(leadId, body);
+    const snap = this.sqliteRepo.getPresalesSnapshot(leadId);
+    if (!snap) throw new NotFoundException({ error: 'No presales for lead' });
+    const existing = this.sqliteRepo.getOrCreatePreliminaryPlan(
+      leadId,
+      snap.presales.id,
+      snap.presales.service_slug,
+    );
+    const patchBody = this.mergeManualMarketingPlanPatch(existing, body);
+    const plan = this.sqliteRepo.patchMarketingPlan(leadId, patchBody);
     const validation = validatePreliminaryPlan(plan);
-    return { ok: true, plan, validation, funnel: await this.getFunnel(leadId) };
+    const ai_draft = parsePresalesAiDraftMeta(parseTargetMarketProfJson(plan.target_market_prof_json));
+    return { ok: true, plan, validation, ai_draft, funnel: await this.getFunnel(leadId) };
+  }
+
+  private async assertPresalesMktAiGenerateCap(staffUser?: StaffJwtPayload): Promise<void> {
+    if (!staffUser) return;
+    const me = await this.staffAuth.me(staffUser);
+    if (!this.staffAuth.hasCap(me.caps, 'crm_board', 'edit')) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_board', action: 'edit' });
+    }
+    if (!this.staffAuth.hasCap(me.caps, 'crm_mkt_ai', 'generate')) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_mkt_ai', action: 'generate' });
+    }
   }
 
   private assertPresalesMktAiEnabled(serviceSlug: string): void {
     if (!this.config.mktAiPlannerEnabled) {
       throw new ServiceUnavailableException({ error: 'mkt_ai_planner_disabled' });
+    }
+    if (
+      this.config.mktAiPilotOnlyEnabled &&
+      serviceSlug &&
+      !this.config.mktAiPilotServiceSlugs.includes(serviceSlug)
+    ) {
+      throw new ForbiddenException({
+        error: 'mkt_ai_pilot_slug_required',
+        message: 'Presales AI draft chỉ pilot DV02/DV04/DV05/DV20 (P2-13).',
+        pilot_dv: ['DV02', 'DV04', 'DV05', 'DV20'],
+        service_slug: serviceSlug,
+      });
     }
     const slugs = this.config.mktAiPlannerSlugs;
     if (slugs.length && serviceSlug && !slugs.includes(serviceSlug)) {
@@ -722,6 +780,8 @@ export class LeadsFunnelService {
 
   async generatePresalesMarketingPlanAiDraft(leadId: number, staffUser?: StaffJwtPayload) {
     try {
+      rejectMktAiAutoCustomerEmail(this.config.mktAiAutoCustomerEmailEnabled, {});
+      await this.assertPresalesMktAiGenerateCap(staffUser);
       await this.assertConsultMutationAllowed(leadId, staffUser, 'consult');
       const { snap, intakeSessions, leadName } = await this.loadPresalesContext(leadId);
       const serviceSlug = snap.presales.service_slug;
@@ -757,25 +817,37 @@ export class LeadsFunnelService {
         brief,
         existingName: String(existingPlan.name ?? ''),
       });
+      patchBody.target_market_prof = stampPresalesAiDraftMeta(
+        patchBody.target_market_prof ?? {},
+        staffUser?.email ?? 'unknown',
+      );
 
       if (this.usePgFunnel) {
         const plan = await this.pgRepo.patchMarketingPlan(leadId, patchBody);
         const validation = validatePreliminaryPlan(plan);
+        const ai_draft = parsePresalesAiDraftMeta(parseTargetMarketProfJson(plan.target_market_prof_json));
         return {
           ok: true,
           plan,
           validation,
           funnel: await this.getFunnel(leadId),
+          ai_draft,
+          requires_sp_review: true,
+          badge_vi: PRESALES_AI_DRAFT_BADGE_VI,
           ai: { stub_mode: this.mktAiOrchestrator.stubMode, model: this.mktAiOrchestrator.modelName },
         };
       }
       const plan = this.sqliteRepo.patchMarketingPlan(leadId, patchBody);
       const validation = validatePreliminaryPlan(plan);
+      const ai_draft = parsePresalesAiDraftMeta(parseTargetMarketProfJson(plan.target_market_prof_json));
       return {
         ok: true,
         plan,
         validation,
         funnel: await this.getFunnel(leadId),
+        ai_draft,
+        requires_sp_review: true,
+        badge_vi: PRESALES_AI_DRAFT_BADGE_VI,
         ai: { stub_mode: this.mktAiOrchestrator.stubMode, model: this.mktAiOrchestrator.modelName },
       };
     } catch (err) {

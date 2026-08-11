@@ -136,6 +136,9 @@ export class AppConfigService {
   readonly mktAiPortalSummaryEnabled: boolean;
   readonly mktAiKpiClosedLoopEnabled: boolean;
   readonly mktAiWeeklyMemoCron: string;
+  readonly mktAiPilotOnlyEnabled: boolean;
+  readonly mktAiPilotServiceSlugs: string[];
+  readonly mktAiAutoCustomerEmailEnabled: boolean;
   readonly contentMarketingEnabled: boolean;
   readonly contentMarketingFeEnabled: boolean;
   readonly contentMarketingAiEnabled: boolean;
@@ -463,6 +466,33 @@ export class AppConfigService {
       (process.env.PTT_MKT_AI_KPI_CLOSED_LOOP ?? '0').trim().toLowerCase(),
     );
     this.mktAiWeeklyMemoCron = (process.env.PTT_MKT_AI_WEEKLY_MEMO_CRON ?? '0 9 * * 1').trim();
+    this.mktAiPilotOnlyEnabled = !['0', 'false', 'no', 'off'].includes(
+      (process.env.PTT_MKT_AI_PILOT_ONLY ?? '1').trim().toLowerCase(),
+    );
+    this.mktAiPilotServiceSlugs = (process.env.PTT_MKT_AI_PILOT_SLUGS ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!this.mktAiPilotServiceSlugs.length) {
+      this.mktAiPilotServiceSlugs = [
+        'tiep-thi-noi-dung',
+        'quang-cao-facebook',
+        'quang-cao-google',
+        'lead-gen',
+        'thue-tai-khoan-quang-cao',
+        'dich-vu-seo-tong-the',
+        'dich-vu-seo-local',
+        'dich-vu-seo-audit',
+        'dich-vu-aeo',
+        'email-sms-zalo-marketing',
+        'meta-lead-gen',
+        'bds-lead-gen',
+        'seo-retainer',
+      ];
+    }
+    this.mktAiAutoCustomerEmailEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MKT_AI_AUTO_CUSTOMER_EMAIL ?? '0').trim().toLowerCase(),
+    );
     this.contentMarketingEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CONTENT_MARKETING_ENABLED ?? '0').trim().toLowerCase(),
     );

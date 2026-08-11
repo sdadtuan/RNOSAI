@@ -20,6 +20,8 @@ interface Props {
   planValidation: string[];
   disabled: boolean;
   canEdit: boolean;
+  showAiDraftBadge?: boolean;
+  canAiDraft?: boolean;
   onPlanNameChange: (value: string) => void;
   onNorthStarChange: (value: string) => void;
   onObjectivesChange: (value: string) => void;
@@ -37,6 +39,8 @@ export function PresalesR5PlanForm({
   planValidation,
   disabled,
   canEdit,
+  showAiDraftBadge = false,
+  canAiDraft = false,
   onPlanNameChange,
   onNorthStarChange,
   onObjectivesChange,
@@ -51,6 +55,19 @@ export function PresalesR5PlanForm({
       <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
         Bắt buộc trước <strong>Chuyển → Báo giá</strong> (gate G4).
       </p>
+      {showAiDraftBadge ? (
+        <div
+          className="banner banner-warning"
+          role="status"
+          style={{ margin: 0, fontSize: '0.85rem' }}
+          data-testid="presales-r5-ai-draft-badge"
+        >
+          <strong>Bản nháp — SP duyệt</strong>
+          <span className="muted" style={{ marginLeft: '0.35rem' }}>
+            Nội dung AI — Solution phải hiệu chỉnh trước khi gửi khách / chốt deal.
+          </span>
+        </div>
+      ) : null}
       {planValidation.length > 0 && (
         <ul className="muted" style={{ fontSize: '0.85rem', margin: 0, paddingLeft: '1.1rem' }}>
           {planValidation.map((m) => (
@@ -102,7 +119,7 @@ export function PresalesR5PlanForm({
       ))}
       {canEdit && (
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {onAiDraft && (
+          {onAiDraft && canAiDraft && (
             <button
               type="button"
               className="btn btn-sm btn-primary"
@@ -111,6 +128,11 @@ export function PresalesR5PlanForm({
             >
               {aiBusy ? 'Đang tạo AI draft…' : 'AI draft'}
             </button>
+          )}
+          {onAiDraft && !canAiDraft && (
+            <span className="muted" style={{ fontSize: '0.85rem', alignSelf: 'center' }}>
+              Cần quyền <code>crm_mkt_ai.generate</code> để AI draft.
+            </span>
           )}
           <button type="button" className="btn btn-sm" disabled={disabled || aiBusy} onClick={onSave}>
             Lưu KH MKT sơ bộ

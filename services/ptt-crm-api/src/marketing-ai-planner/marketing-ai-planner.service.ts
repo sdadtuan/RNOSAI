@@ -35,6 +35,11 @@ import { MarketingAiMultiAgentService } from './marketing-ai-multi-agent.service
 import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
 import { MarketingAiPlaybookService } from './marketing-ai-playbook.service';
 import { buildGovernanceContext } from './marketing-ai-playbook.util';
+import { buildMktAiPilotContext } from './mkt-ai-pilot.util';
+import {
+  MKT_AI_CUSTOMER_EMAIL_POLICY_VI,
+  rejectMktAiAutoCustomerEmail,
+} from './mkt-ai-governance.util';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
 import { MarketingAiSectionCommentService } from './marketing-ai-section-comment.service';
 import { MarketingAiStrategyScenarioService } from './marketing-ai-strategy-scenario.service';
@@ -107,6 +112,18 @@ export class MarketingAiPlannerService {
   private assertEnabled(serviceSlug?: string): void {
     if (!this.config.mktAiPlannerEnabled) {
       throw new NotFoundException({ error: 'mkt_ai_planner_disabled' });
+    }
+    if (
+      this.config.mktAiPilotOnlyEnabled &&
+      serviceSlug &&
+      !this.config.mktAiPilotServiceSlugs.includes(serviceSlug)
+    ) {
+      throw new ForbiddenException({
+        error: 'mkt_ai_pilot_slug_required',
+        message: 'AI Marketing chỉ pilot DV02/DV04/DV05/DV20 — tắt PTT_MKT_AI_PILOT_ONLY để GA toàn hệ.',
+        pilot_dv: ['DV02', 'DV04', 'DV05', 'DV20'],
+        service_slug: serviceSlug,
+      });
     }
     const slugs = this.config.mktAiPlannerSlugs;
     if (slugs.length && serviceSlug && !slugs.includes(serviceSlug)) {
@@ -346,7 +363,15 @@ export class MarketingAiPlannerService {
         section_comments_enabled: this.sectionComments.isEnabled(),
         export_pptx_enabled: this.config.mktAiExportPptx,
         kpi_closed_loop_enabled: this.kpiClosedLoop.isEnabled(),
+        pilot_only: this.config.mktAiPilotOnlyEnabled,
+        auto_customer_email_enabled: this.config.mktAiAutoCustomerEmailEnabled,
       },
+      pilot: buildMktAiPilotContext(
+        serviceSlug,
+        this.config.mktAiPilotOnlyEnabled,
+        this.config.mktAiPilotServiceSlugs,
+      ),
+      customer_email_policy_vi: MKT_AI_CUSTOMER_EMAIL_POLICY_VI,
       ...(this.strategyScenarios.isEnabled()
         ? { strategy_scenarios: await this.strategyScenarios.list(lifecycleId) }
         : {}),
@@ -911,9 +936,12 @@ export class MarketingAiPlannerService {
       }
       throw err;
     }
-    await this.runJob(lifecycleId, 'apply_to_tmmt', actorEmail, async () => ({
+    const jobResult = await this.runJob(lifecycleId, 'apply_to_tmmt', actorEmail, async () => ({
       applied: true,
       validation: planPayload.validation,
+      quality_score: quality.score,
+      quality_can_apply: quality.can_apply,
+      quality_criteria: quality.criteria,
     }));
 
     if (draft.kpi_tree_json?.length) {
@@ -931,6 +959,12 @@ export class MarketingAiPlannerService {
       plan: planPayload.plan,
       tmmt_validation: planPayload.validation,
       filled_count: planPayload.filled_count,
+      job_id: jobResult.job_id,
+      quality_score: {
+        score: quality.score,
+        can_apply: quality.can_apply,
+        criteria: quality.criteria,
+      },
     };
   }
 
@@ -1040,8 +1074,15 @@ export class MarketingAiPlannerService {
   async runWeeklyMemoJob(
     lifecycleId: number,
     actorEmail: string,
-    opts: { notify?: boolean; dry_run?: boolean } = {},
+    opts: {
+      notify?: boolean;
+      dry_run?: boolean;
+      send_email?: boolean;
+      email_customer?: boolean;
+      notify_client?: boolean;
+    } = {},
   ): Promise<MktAiWeeklyMemoResult> {
+    rejectMktAiAutoCustomerEmail(this.config.mktAiAutoCustomerEmailEnabled, opts);
     const lc = await this.loadLifecycleRow(lifecycleId);
     this.assertEnabled(String(lc.service_slug ?? ''));
 

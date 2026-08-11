@@ -43,6 +43,7 @@ import {
   StaffPresalesSolutionQueueGuard,
   StaffPresalesSolutionReleaseGuard,
 } from './guards/staff-presales-solution.guard';
+import { StaffMarketingAiPlannerGenerateGuard } from '../marketing-ai-planner/guards/staff-marketing-ai-planner.guard';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { LeadsFunnelService } from './leads-funnel.service';
 
@@ -331,7 +332,13 @@ export class LeadsFunnelController {
 
   @Post(':id/presales/marketing-plan/ai-draft')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  @UseGuards(
+    StaffOrInternalKeyGuard,
+    StaffLeadsWriteGuard,
+    StaffMarketingAiPlannerGenerateGuard,
+    PresalesOnLeadGuard,
+    LeadNotInReviewQueueGuard,
+  )
   generatePresalesMarketingPlanAiDraft(
     @Param('id', ParseIntPipe) id: number,
     @Req() req: Request & { staffUser?: StaffJwtPayload },

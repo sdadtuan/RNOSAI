@@ -27,7 +27,7 @@ import {
   b2NegativeCareSuggestLost,
   type B2NegativeCareStatus,
 } from '@/lib/crm/care-status';
-import { hasCap, type StoredStaffUser } from '@/lib/auth';
+import { hasCap, canMktAiGenerate, type StoredStaffUser } from '@/lib/auth';
 
 interface Props {
   token: string;
@@ -100,6 +100,7 @@ export function LeadFunnelPanel({
   const [taskDrafts, setTaskDrafts] = useState<Record<number, Record<string, string>>>({});
   const [aiBusyTaskId, setAiBusyTaskId] = useState<number | null>(null);
   const [aiPlanDraftBusy, setAiPlanDraftBusy] = useState(false);
+  const [showAiDraftBadge, setShowAiDraftBadge] = useState(false);
   const presalesServiceOptions = useMemo(
     () => mergePresalesServiceOptions(serviceOptions),
     [serviceOptions],
@@ -145,8 +146,10 @@ export function LeadFunnelPanel({
             }
             setPlanStrategy(sf);
             setPlanValidation(mp.validation.messages ?? []);
+            setShowAiDraftBadge(Boolean((mp as { ai_draft?: { is_ai_draft?: boolean } }).ai_draft?.is_ai_draft));
           } catch {
             setPlanValidation([]);
+            setShowAiDraftBadge(false);
           }
         }
       }
@@ -175,6 +178,7 @@ export function LeadFunnelPanel({
 
   const canEdit = Boolean(user && hasCap(user, 'crm_leads', 'edit'));
   const canAssign = Boolean(user && hasCap(user, 'crm_leads', 'assign'));
+  const canAiDraft = Boolean(user && canMktAiGenerate(user));
 
   async function run(action: () => Promise<void>, refreshContract = false) {
     setBusy(true);
@@ -246,6 +250,7 @@ export function LeadFunnelPanel({
     setFunnel(out.funnel);
     onFunnelChange?.(out.funnel);
     setPlanValidation(out.validation.messages ?? []);
+    setShowAiDraftBadge(false);
     onMessage?.('Đã lưu KH MKT sơ bộ');
   }
 
@@ -256,6 +261,7 @@ export function LeadFunnelPanel({
       setFunnel(out.funnel);
       onFunnelChange?.(out.funnel);
       await applyMarketingPlanResponse(out.plan, out.validation.messages ?? []);
+      setShowAiDraftBadge(Boolean(out.ai_draft?.is_ai_draft ?? out.requires_sp_review));
       onMessage?.(out.validation.ok ? 'Đã tạo AI draft KH MKT sơ bộ' : 'AI draft — cần bổ sung thêm trường');
     } finally {
       setAiPlanDraftBusy(false);
@@ -333,6 +339,8 @@ export function LeadFunnelPanel({
       planValidation={planValidation}
       disabled={busy || aiPlanDraftBusy}
       canEdit={canEdit}
+      showAiDraftBadge={showAiDraftBadge}
+      canAiDraft={canAiDraft}
       onPlanNameChange={setPlanName}
       onNorthStarChange={setPlanNorthStar}
       onObjectivesChange={setPlanObjectives}

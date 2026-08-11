@@ -19,6 +19,7 @@ import {
 import { PolicyModule } from '../policy/policy.module';
 import { IntakeModule } from '../intake/intake.module';
 import { MarketingAiOrchestratorService } from '../marketing-ai-planner/marketing-ai-orchestrator.service';
+import { StaffMarketingAiPlannerGenerateGuard } from '../marketing-ai-planner/guards/staff-marketing-ai-planner.guard';
 import { ReviewQueueLlmService } from './review-queue-llm.service';
 
 @Module({
@@ -45,6 +46,7 @@ import { ReviewQueueLlmService } from './review-queue-llm.service';
     StaffPresalesSolutionClaimGuard,
     StaffPresalesSolutionReleaseGuard,
     StaffPresalesSolutionQueueGuard,
+    StaffMarketingAiPlannerGenerateGuard,
   ],
   exports: [LeadsFunnelService, LeadsFunnelSqliteRepository, LeadsFunnelPgRepository, LeadNotInReviewQueueGuard],
 })
