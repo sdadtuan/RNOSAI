@@ -45,6 +45,7 @@ export type SpcOfferLineRow = {
   included_by_default: boolean;
   sort_order: number;
   active: boolean;
+  component_code?: string | null;
 };
 
 export type SpcPortfolioItem = {
@@ -104,7 +105,17 @@ export type SpcQuoteCatalogOffer = {
     label_vi: string;
     description_vi: string;
     included_by_default: boolean;
+    component_code?: string | null;
   }>;
+};
+
+export type SpcQuoteCatalogComponent = {
+  component_code: string;
+  name_vi: string;
+  description_vi: string;
+  deliverable_vi: string;
+  pricing_model: SpcPricingModel;
+  sort_order: number;
 };
 
 export type SpcQuoteCatalogFamily = {
@@ -114,6 +125,7 @@ export type SpcQuoteCatalogFamily = {
   depends_on_dv: string[];
   service_slug: string;
   default_sku_code: string;
+  components: SpcQuoteCatalogComponent[];
   offers: SpcQuoteCatalogOffer[];
   is_primary?: boolean;
   is_bundle_suggested?: boolean;

@@ -13,7 +13,22 @@ export type QuoteCatalogOffer = {
   label_vi: string;
   scope_summary_vi: string;
   pricing_model: Record<string, unknown>;
-  lines: Array<{ line_code: string; label_vi: string; description_vi: string; included_by_default: boolean }>;
+  lines: Array<{
+    line_code: string;
+    label_vi: string;
+    description_vi: string;
+    included_by_default: boolean;
+    component_code?: string | null;
+  }>;
+};
+
+export type QuoteCatalogComponent = {
+  component_code: string;
+  name_vi: string;
+  description_vi: string;
+  deliverable_vi: string;
+  pricing_model: Record<string, unknown>;
+  sort_order: number;
 };
 
 export type QuoteCatalogFamily = {
@@ -23,6 +38,7 @@ export type QuoteCatalogFamily = {
   depends_on_dv: string[];
   service_slug: string;
   default_sku_code: string;
+  components: QuoteCatalogComponent[];
   offers: QuoteCatalogOffer[];
   is_primary?: boolean;
   is_bundle_suggested?: boolean;

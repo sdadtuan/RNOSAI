@@ -216,6 +216,7 @@ export class SpcPgRepository implements OnModuleDestroy {
         included_by_default: line.included_by_default !== false,
         sort_order: Number(line.sort_order ?? 0),
         active: line.active !== false,
+        component_code: line.component_code != null ? String(line.component_code) : null,
       })),
     };
   }
@@ -428,6 +429,7 @@ export class SpcPgRepository implements OnModuleDestroy {
         included_by_default: row.included_by_default !== false,
         sort_order: Number(row.sort_order ?? 0),
         active: row.active !== false,
+        component_code: row.component_code != null ? String(row.component_code) : null,
       });
       linesBySku.set(sku, list);
     }

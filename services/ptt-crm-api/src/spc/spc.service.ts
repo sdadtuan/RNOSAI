@@ -161,6 +161,14 @@ export class SpcService {
       allowedDv = new Set([primaryDv, ...suggestedBundle, ...filtered]);
     }
 
+    const componentRows = await this.repo.listComponents(undefined, true);
+    const componentsByDv = new Map<string, typeof componentRows>();
+    for (const component of componentRows) {
+      const list = componentsByDv.get(component.dv_code) ?? [];
+      list.push(component);
+      componentsByDv.set(component.dv_code, list);
+    }
+
     const families = rows
       .filter((row) => !slug || allowedDv.has(row.family.dv_code))
       .map((row) => {
@@ -189,6 +197,14 @@ export class SpcService {
           default_sku_code: defaultSku,
           is_primary: row.family.dv_code === primaryDv,
           is_bundle_suggested: suggestedBundle.includes(row.family.dv_code),
+          components: (componentsByDv.get(row.family.dv_code) ?? []).map((c) => ({
+            component_code: c.component_code,
+            name_vi: c.name_vi,
+            description_vi: c.description_vi,
+            deliverable_vi: c.deliverable_vi,
+            pricing_model: c.pricing_model,
+            sort_order: c.sort_order,
+          })),
           offers: row.offers.map((offer) => ({
             sku_code: offer.sku_code,
             tier: offer.tier,
@@ -200,6 +216,7 @@ export class SpcService {
               label_vi: line.label_vi,
               description_vi: line.description_vi,
               included_by_default: line.included_by_default,
+              component_code: line.component_code ?? null,
             })),
           })),
         };
@@ -245,6 +262,14 @@ export class SpcService {
       String(scopeNotes ?? '').trim() ||
       offer.scope_summary_vi ||
       offer.lines.map((l) => l.label_vi).join('; ');
+    const component_lines = offer.lines
+      .filter((l) => l.component_code)
+      .map((l) => ({
+        component_code: l.component_code,
+        line_code: l.line_code,
+        label_vi: l.label_vi,
+        description_vi: l.description_vi,
+      }));
     return {
       sku_code: skuCode,
       dv_code: offer.dv_code,
@@ -255,6 +280,7 @@ export class SpcService {
       reference_price_max: reference.max_vnd,
       final_price_vnd: finalPrice,
       scope_notes: scope.slice(0, 2000),
+      component_lines,
     };
   }
 

@@ -42,6 +42,15 @@ function familyByDv(families: QuoteCatalogFamily[], dvCode: string) {
   return families.find((f) => f.dv_code === dvCode);
 }
 
+function offerScopeSummary(family: QuoteCatalogFamily | undefined, skuCode: string): string {
+  const offer = family?.offers.find((o) => o.sku_code === skuCode);
+  if (!offer) return '';
+  if (offer.lines?.length) {
+    return offer.lines.map((l) => l.label_vi).join('; ');
+  }
+  return offer.scope_summary_vi ?? '';
+}
+
 export function QuoteBuilderWizard({
   token,
   user,
@@ -100,7 +109,7 @@ export function QuoteBuilderWizard({
           final_price_vnd: 0,
           reference_min: 0,
           reference_max: 0,
-          scope_notes: family?.offers.find((o) => o.sku_code === sku)?.scope_summary_vi ?? '',
+          scope_notes: offerScopeSummary(family, sku),
         };
       });
       const created = await createQuoteProposal(token, {
@@ -252,6 +261,9 @@ export function QuoteBuilderWizard({
                 <span>
                   <strong>{svc.dv_code}</strong> {svc.name_vi}
                   <span className="muted"> · default {svc.default_sku_code}</span>
+                  {(svc.components?.length ?? 0) > 0 ? (
+                    <span className="muted"> · {svc.components.length} dịch vụ con</span>
+                  ) : null}
                   {svc.readiness !== 'ready' ? <span className="muted"> · {svc.readiness}</span> : null}
                 </span>
               </label>
@@ -277,6 +289,7 @@ export function QuoteBuilderWizard({
         <section style={{ display: 'grid', gap: '0.65rem' }}>
           {lines.map((line, index) => {
             const family = familyByDv(families, line.dv_code);
+            const offer = family?.offers.find((o) => o.sku_code === line.sku_code);
             return (
               <div
                 key={line.dv_code}
@@ -300,9 +313,15 @@ export function QuoteBuilderWizard({
                         checked={line.package_tier === tier}
                         onChange={() => {
                           const sku = skuForDvTier(line.dv_code, tier);
+                          const fam = familyByDv(families, line.dv_code);
                           setLines((prev) => {
                             const next = [...prev];
-                            next[index] = { ...next[index], package_tier: tier, sku_code: sku };
+                            next[index] = {
+                              ...next[index],
+                              package_tier: tier,
+                              sku_code: sku,
+                              scope_notes: offerScopeSummary(fam, sku),
+                            };
                             return next;
                           });
                         }}
@@ -314,6 +333,19 @@ export function QuoteBuilderWizard({
                 <div className="muted" style={{ fontSize: '0.85rem' }}>
                   Tham khảo SPC: {line.reference_min.toLocaleString('vi-VN')} – {line.reference_max.toLocaleString('vi-VN')} VND
                 </div>
+                {offer?.lines?.length ? (
+                  <ul className="muted" style={{ margin: '0.25rem 0 0', paddingLeft: '1.1rem', fontSize: '0.85rem' }}>
+                    {offer.lines.map((scopeLine) => (
+                      <li key={scopeLine.line_code}>
+                        {scopeLine.component_code ? (
+                          <strong>{scopeLine.component_code}</strong>
+                        ) : null}
+                        {scopeLine.component_code ? ' · ' : ''}
+                        {scopeLine.label_vi}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 <input
                   className="kpi-input"
                   type="number"

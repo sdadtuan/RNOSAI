@@ -38,6 +38,47 @@ async function upsertComponent(client, dvCode, component, serviceType) {
   return code;
 }
 
+async function syncOfferLinesFromBundle(client, skuCode, componentCodes) {
+  const sku = String(skuCode ?? '').trim().toUpperCase();
+  const codes = (componentCodes ?? []).map((c) => String(c).trim().toUpperCase()).filter(Boolean);
+  await client.query(`DELETE FROM service_offer_line WHERE sku_code = $1`, [sku]);
+  let lineCount = 0;
+  let sortOrder = 0;
+  for (const componentCode of codes) {
+    const res = await client.query(
+      `SELECT name_vi, description_vi, deliverable_vi
+       FROM service_component WHERE component_code = $1 AND active = TRUE`,
+      [componentCode],
+    );
+    const row = res.rows[0];
+    if (!row) continue;
+    sortOrder += 1;
+    lineCount += 1;
+    const lineCode = `${sku}-${componentCode}`;
+    await client.query(
+      `INSERT INTO service_offer_line
+         (line_code, sku_code, label_vi, description_vi, component_code, sort_order, included_by_default, active)
+       VALUES ($1,$2,$3,$4,$5,$6,TRUE,TRUE)
+       ON CONFLICT (line_code) DO UPDATE SET
+         label_vi=EXCLUDED.label_vi,
+         description_vi=EXCLUDED.description_vi,
+         component_code=EXCLUDED.component_code,
+         sort_order=EXCLUDED.sort_order,
+         included_by_default=TRUE,
+         active=TRUE`,
+      [
+        lineCode,
+        sku,
+        String(row.name_vi ?? componentCode),
+        String(row.deliverable_vi || row.description_vi || ''),
+        componentCode,
+        sortOrder,
+      ],
+    );
+  }
+  return lineCount;
+}
+
 async function syncBundleForSku(client, skuCode, componentCodes) {
   const sku = String(skuCode ?? '').trim().toUpperCase();
   const codes = (componentCodes ?? []).map((c) => String(c).trim().toUpperCase()).filter(Boolean);
@@ -52,6 +93,7 @@ async function syncBundleForSku(client, skuCode, componentCodes) {
       [sku, code, i],
     );
   }
+  await syncOfferLinesFromBundle(client, sku, codes);
   return codes.length;
 }
 
@@ -74,21 +116,24 @@ async function importFamilyComponentsFromDoc(client, family) {
   }
 
   let bundleItems = 0;
+  let offerLines = 0;
   const skus = [];
   for (const [tier, codes] of Object.entries(bundleByTier)) {
     const skuCode = `${dvCode}-${String(tier).trim().toUpperCase()}`;
     const offer = await client.query(`SELECT sku_code FROM service_offer WHERE sku_code = $1`, [skuCode]);
     if (!offer.rows.length) continue;
     bundleItems += await syncBundleForSku(client, skuCode, codes);
+    offerLines += codes.length;
     skus.push(skuCode);
   }
 
-  return { dv_code: dvCode, components: componentCount, bundle_items: bundleItems, skus };
+  return { dv_code: dvCode, components: componentCount, bundle_items: bundleItems, offer_lines: offerLines, skus };
 }
 
 module.exports = {
   resolveComponentPricing,
   upsertComponent,
   syncBundleForSku,
+  syncOfferLinesFromBundle,
   importFamilyComponentsFromDoc,
 };
