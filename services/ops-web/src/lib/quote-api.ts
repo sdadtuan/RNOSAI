@@ -7,6 +7,28 @@ export class QuoteApiError extends ApiError {
   }
 }
 
+export type QuoteCatalogOffer = {
+  sku_code: string;
+  tier: 'CB' | 'TC' | 'CS';
+  label_vi: string;
+  scope_summary_vi: string;
+  pricing_model: Record<string, unknown>;
+  lines: Array<{ line_code: string; label_vi: string; description_vi: string; included_by_default: boolean }>;
+};
+
+export type QuoteCatalogFamily = {
+  dv_code: string;
+  name_vi: string;
+  readiness: string;
+  depends_on_dv: string[];
+  service_slug: string;
+  default_sku_code: string;
+  offers: QuoteCatalogOffer[];
+  is_primary?: boolean;
+  is_bundle_suggested?: boolean;
+};
+
+/** @deprecated use QuoteCatalogFamily */
 export type QuoteCatalogService = {
   dv_code: string;
   name: string;
@@ -18,6 +40,7 @@ export type QuoteCatalogService = {
 export type QuoteLineItem = {
   id?: number;
   dv_code: string;
+  sku_code?: string | null;
   package_tier: 'basic' | 'standard' | 'premium';
   service_slug?: string;
   reference_price_min?: number;
@@ -58,11 +81,15 @@ async function quoteFetch<T>(token: string, path: string, init?: RequestInit): P
 export async function fetchQuoteCatalog(token: string, serviceSlug?: string) {
   const qs = serviceSlug ? `?service_slug=${encodeURIComponent(serviceSlug)}` : '';
   return quoteFetch<{
-    services: QuoteCatalogService[];
+    families: QuoteCatalogFamily[];
     package_tiers: string[];
     primary_dv?: string | null;
+    primary_sku?: string | null;
     suggested_bundle?: string[];
-  }>(token, `/api/crm/proposals/quote-catalog${qs}`);
+    combo_warnings?: Array<{ dv_code: string; message_vi: string }>;
+    /** legacy flat list for old UI */
+    services?: QuoteCatalogService[];
+  }>(token, `/api/spc/quote-catalog${qs}`);
 }
 
 export async function createQuoteProposal(
@@ -74,7 +101,13 @@ export async function createQuoteProposal(
     service_slug?: string;
     package_tier?: string;
     auto_lines?: boolean;
-    lines?: Array<{ dv_code: string; package_tier: string; final_price_vnd?: number; scope_notes?: string }>;
+    lines?: Array<{
+      dv_code?: string;
+      sku_code?: string;
+      package_tier?: string;
+      final_price_vnd?: number;
+      scope_notes?: string;
+    }>;
     notes?: string;
     valid_until?: string | null;
   },
@@ -125,7 +158,24 @@ export async function exportQuoteProposal(token: string, proposalId: number, for
 }
 
 export const QUOTE_TIER_LABEL: Record<string, string> = {
-  basic: 'Cơ bản',
-  standard: 'Tiêu chuẩn',
-  premium: 'Chuyên sâu',
+  basic: 'Cơ bản (CB)',
+  standard: 'Tiêu chuẩn (TC)',
+  premium: 'Chuyên sâu (CS)',
 };
+
+export const SKU_TIER_MAP: Record<'basic' | 'standard' | 'premium', 'CB' | 'TC' | 'CS'> = {
+  basic: 'CB',
+  standard: 'TC',
+  premium: 'CS',
+};
+
+export function skuForDvTier(dvCode: string, tier: 'basic' | 'standard' | 'premium'): string {
+  return `${dvCode}-${SKU_TIER_MAP[tier]}`;
+}
+
+export function tierFromSku(skuCode: string): 'basic' | 'standard' | 'premium' {
+  const suffix = skuCode.split('-').pop()?.toUpperCase();
+  if (suffix === 'CB') return 'basic';
+  if (suffix === 'CS') return 'premium';
+  return 'standard';
+}

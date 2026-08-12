@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { OpsRouteMapLoader } from '../ops/ops-route-map.loader';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import {
   StaffSpcEditGuard,
@@ -16,6 +17,7 @@ import { SpcService } from './spc.service';
   providers: [
     SpcService,
     SpcPgRepository,
+    OpsRouteMapLoader,
     StaffSpcViewGuard,
     StaffSpcEditGuard,
     StaffSpcPublishGuard,

@@ -529,4 +529,15 @@ export class ServiceLifecycleSqliteRepository implements OnModuleDestroy {
       updated_at: String(row.updated_at ?? ''),
     };
   }
+
+  setCommercialSku(lifecycleId: number, skuCode: string): void {
+    try {
+      this.database.exec('ALTER TABLE crm_service_lifecycle ADD COLUMN sku_code TEXT NULL');
+    } catch {
+      // column exists
+    }
+    this.database
+      .prepare(`UPDATE crm_service_lifecycle SET sku_code = ?, updated_at = ? WHERE id = ?`)
+      .run(String(skuCode).toUpperCase(), catalogTs(), lifecycleId);
+  }
 }

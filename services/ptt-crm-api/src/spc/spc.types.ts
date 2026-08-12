@@ -91,3 +91,43 @@ export type SpcPublishBody = {
   entity: 'offer' | 'family';
   key: string;
 };
+
+export type SpcQuoteCatalogOffer = {
+  sku_code: string;
+  tier: SpcTier;
+  label_vi: string;
+  scope_summary_vi: string;
+  pricing_model: SpcPricingModel;
+  lines: Array<{
+    line_code: string;
+    label_vi: string;
+    description_vi: string;
+    included_by_default: boolean;
+  }>;
+};
+
+export type SpcQuoteCatalogFamily = {
+  dv_code: string;
+  name_vi: string;
+  readiness: string;
+  depends_on_dv: string[];
+  service_slug: string;
+  default_sku_code: string;
+  offers: SpcQuoteCatalogOffer[];
+  is_primary?: boolean;
+  is_bundle_suggested?: boolean;
+};
+
+export type SpcQuoteCatalogResponse = {
+  schema_version: string;
+  package_tiers: QuotePackageTierLegacy[];
+  service_slug?: string;
+  primary_dv: string | null;
+  primary_sku: string | null;
+  primary_name?: string | null;
+  suggested_bundle: string[];
+  combo_warnings: Array<{ dv_code: string; message_vi: string }>;
+  families: SpcQuoteCatalogFamily[];
+};
+
+type QuotePackageTierLegacy = 'basic' | 'standard' | 'premium';

@@ -8,7 +8,9 @@ import {
   patchQuoteStatus,
   putQuoteLines,
   QUOTE_TIER_LABEL,
-  type QuoteCatalogService,
+  skuForDvTier,
+  tierFromSku,
+  type QuoteCatalogFamily,
   type QuoteLineItem,
   type QuoteProposalDetail,
 } from '@/lib/quote-api';
@@ -19,6 +21,7 @@ type WizardStep = 1 | 2 | 3 | 4;
 
 type DraftLine = {
   dv_code: string;
+  sku_code: string;
   package_tier: 'basic' | 'standard' | 'premium';
   final_price_vnd: number;
   reference_min: number;
@@ -34,10 +37,15 @@ type Props = {
   onDone: () => Promise<void>;
 };
 
+function familyByDv(families: QuoteCatalogFamily[], dvCode: string) {
+  return families.find((f) => f.dv_code === dvCode);
+}
+
 export function QuoteBuilderWizard({ token, user, customers, initialCustomerId, onDone }: Props) {
   const [step, setStep] = useState<WizardStep>(1);
   const [customerId, setCustomerId] = useState(initialCustomerId);
-  const [catalog, setCatalog] = useState<QuoteCatalogService[]>([]);
+  const [families, setFamilies] = useState<QuoteCatalogFamily[]>([]);
+  const [comboWarnings, setComboWarnings] = useState<Array<{ dv_code: string; message_vi: string }>>([]);
   const [selectedDv, setSelectedDv] = useState<string[]>([]);
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [proposal, setProposal] = useState<QuoteProposalDetail | null>(null);
@@ -48,7 +56,10 @@ export function QuoteBuilderWizard({ token, user, customers, initialCustomerId, 
 
   useEffect(() => {
     void fetchQuoteCatalog(token)
-      .then((data) => setCatalog(data.services ?? []))
+      .then((data) => {
+        setFamilies(data.families ?? []);
+        setComboWarnings(data.combo_warnings ?? []);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : 'Tải catalog thất bại'));
   }, [token]);
 
@@ -62,17 +73,23 @@ export function QuoteBuilderWizard({ token, user, customers, initialCustomerId, 
     setBusy(true);
     setError('');
     try {
-      const draftLines: DraftLine[] = selectedDv.map((dvCode) => ({
-        dv_code: dvCode,
-        package_tier: 'standard',
-        final_price_vnd: 20000000,
-        reference_min: 16000000,
-        reference_max: 25000000,
-        scope_notes: '',
-      }));
+      const draftLines: DraftLine[] = selectedDv.map((dvCode) => {
+        const family = familyByDv(families, dvCode);
+        const sku = family?.default_sku_code ?? skuForDvTier(dvCode, 'standard');
+        return {
+          dv_code: dvCode,
+          sku_code: sku,
+          package_tier: tierFromSku(sku),
+          final_price_vnd: 0,
+          reference_min: 0,
+          reference_max: 0,
+          scope_notes: family?.offers.find((o) => o.sku_code === sku)?.scope_summary_vi ?? '',
+        };
+      });
       const created = await createQuoteProposal(token, {
         customer_id: Number(customerId),
         lines: draftLines.map((l) => ({
+          sku_code: l.sku_code,
           dv_code: l.dv_code,
           package_tier: l.package_tier,
         })),
@@ -80,6 +97,7 @@ export function QuoteBuilderWizard({ token, user, customers, initialCustomerId, 
       });
       const hydrated: DraftLine[] = (created.lines ?? []).map((line) => ({
         dv_code: line.dv_code,
+        sku_code: line.sku_code ?? skuForDvTier(line.dv_code, line.package_tier),
         package_tier: (line.package_tier as DraftLine['package_tier']) ?? 'standard',
         final_price_vnd: line.final_price_vnd,
         reference_min: line.reference_price_min ?? 0,
@@ -103,6 +121,7 @@ export function QuoteBuilderWizard({ token, user, customers, initialCustomerId, 
     try {
       const payload: QuoteLineItem[] = lines.map((l) => ({
         dv_code: l.dv_code,
+        sku_code: l.sku_code,
         package_tier: l.package_tier,
         final_price_vnd: l.final_price_vnd,
         scope_notes: l.scope_notes,
@@ -166,9 +185,18 @@ export function QuoteBuilderWizard({ token, user, customers, initialCustomerId, 
   return (
     <div style={{ display: 'grid', gap: '1rem' }}>
       <div className="muted">
-        Bước {step}/4 — {step === 1 ? 'Khách hàng' : step === 2 ? 'Chọn DV + gói' : step === 3 ? 'Chỉnh giá' : 'Export / Chốt'}
+        Bước {step}/4 — {step === 1 ? 'Khách hàng' : step === 2 ? 'Chọn DV + SKU' : step === 3 ? 'Chỉnh giá' : 'Export / Chốt'}
       </div>
       {error ? <p className="error">{error}</p> : null}
+      {comboWarnings.length ? (
+        <div className="page-card" style={{ borderLeft: '4px solid #d97706' }}>
+          {comboWarnings.map((w) => (
+            <div key={w.dv_code} className="muted">
+              {w.message_vi}
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {step === 1 ? (
         <section style={{ display: 'grid', gap: '0.5rem', maxWidth: 480 }}>
@@ -195,9 +223,9 @@ export function QuoteBuilderWizard({ token, user, customers, initialCustomerId, 
 
       {step === 2 ? (
         <section>
-          <p className="muted">Chọn DV (multi) — giá tham khảo theo gói Tiêu chuẩn khi sang bước 3.</p>
+          <p className="muted">Chọn DV — mặc định SKU Tiêu chuẩn (TC) từ SPC catalog.</p>
           <div style={{ display: 'grid', gap: '0.35rem', maxHeight: 320, overflow: 'auto' }}>
-            {catalog.map((svc) => (
+            {families.map((svc) => (
               <label key={svc.dv_code} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                 <input
                   type="checkbox"
@@ -205,10 +233,9 @@ export function QuoteBuilderWizard({ token, user, customers, initialCustomerId, 
                   onChange={() => toggleDv(svc.dv_code)}
                 />
                 <span>
-                  <strong>{svc.dv_code}</strong> {svc.name}
-                  {svc.readiness !== 'ready' ? (
-                    <span className="muted"> · {svc.readiness}</span>
-                  ) : null}
+                  <strong>{svc.dv_code}</strong> {svc.name_vi}
+                  <span className="muted"> · default {svc.default_sku_code}</span>
+                  {svc.readiness !== 'ready' ? <span className="muted"> · {svc.readiness}</span> : null}
                 </span>
               </label>
             ))}
@@ -232,7 +259,7 @@ export function QuoteBuilderWizard({ token, user, customers, initialCustomerId, 
       {step === 3 && proposal ? (
         <section style={{ display: 'grid', gap: '0.65rem' }}>
           {lines.map((line, index) => {
-            const svc = catalog.find((s) => s.dv_code === line.dv_code);
+            const family = familyByDv(families, line.dv_code);
             return (
               <div
                 key={line.dv_code}
@@ -245,7 +272,7 @@ export function QuoteBuilderWizard({ token, user, customers, initialCustomerId, 
                 }}
               >
                 <div>
-                  <strong>{line.dv_code}</strong> {svc?.name}
+                  <strong>{line.sku_code}</strong> · {line.dv_code} {family?.name_vi}
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                   {(['basic', 'standard', 'premium'] as const).map((tier) => (
@@ -255,9 +282,10 @@ export function QuoteBuilderWizard({ token, user, customers, initialCustomerId, 
                         name={`tier-${line.dv_code}`}
                         checked={line.package_tier === tier}
                         onChange={() => {
+                          const sku = skuForDvTier(line.dv_code, tier);
                           setLines((prev) => {
                             const next = [...prev];
-                            next[index] = { ...next[index], package_tier: tier };
+                            next[index] = { ...next[index], package_tier: tier, sku_code: sku };
                             return next;
                           });
                         }}
@@ -267,7 +295,7 @@ export function QuoteBuilderWizard({ token, user, customers, initialCustomerId, 
                   ))}
                 </div>
                 <div className="muted" style={{ fontSize: '0.85rem' }}>
-                  Tham khảo: {line.reference_min.toLocaleString('vi-VN')} – {line.reference_max.toLocaleString('vi-VN')} VND
+                  Tham khảo SPC: {line.reference_min.toLocaleString('vi-VN')} – {line.reference_max.toLocaleString('vi-VN')} VND
                 </div>
                 <input
                   className="kpi-input"
@@ -311,8 +339,8 @@ export function QuoteBuilderWizard({ token, user, customers, initialCustomerId, 
           </p>
           <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
             {(proposal.lines ?? lines).map((l) => (
-              <li key={l.dv_code}>
-                {l.dv_code} ({QUOTE_TIER_LABEL[l.package_tier] ?? l.package_tier}):{' '}
+              <li key={`${l.dv_code}-${l.sku_code ?? l.package_tier}`}>
+                {l.sku_code ?? l.dv_code} ({QUOTE_TIER_LABEL[l.package_tier] ?? l.package_tier}):{' '}
                 {l.final_price_vnd.toLocaleString('vi-VN')} VND
                 {'lifecycle_id' in l && l.lifecycle_id ? (
                   <span className="muted"> · lifecycle #{l.lifecycle_id}</span>

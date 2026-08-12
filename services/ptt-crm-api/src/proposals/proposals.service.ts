@@ -10,6 +10,8 @@ import { OpsRouteMapLoader } from '../ops/ops-route-map.loader';
 import { OpsService } from '../ops/ops.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { LeadsFunnelService } from '../leads-funnel/leads-funnel.service';
+import { SpcService } from '../spc/spc.service';
+import { skuFromDvTier } from '../spc/spc-sku.util';
 import { ProposalsSqliteRepository } from './proposals-sqlite.repository';
 import {
   normalizeQuoteTier,
@@ -32,6 +34,8 @@ import {
   PutQuoteLinesBody,
   QuoteLineInput,
 } from './proposals.types';
+
+@Injectable()
 export class ProposalsService {
   constructor(
     private readonly sqlite: ProposalsSqliteRepository,
@@ -41,6 +45,7 @@ export class ProposalsService {
     private readonly ops: OpsService,
     private readonly config: AppConfigService,
     private readonly funnel: LeadsFunnelService,
+    private readonly spc: SpcService,
   ) {}
 
   private async assertG4ForLeadContext(leadId: number): Promise<void> {
@@ -103,10 +108,35 @@ export class ProposalsService {
   }
 
   private async resolveLinePricing(line: QuoteLineInput) {
-    const entry = this.resolveDvEntry(line.dv_code);
-    const tier = normalizeQuoteTier(line.package_tier);
+    if (line.sku_code?.trim()) {
+      try {
+        return await this.spc.resolveQuoteLineFromSku(
+          line.sku_code,
+          line.final_price_vnd,
+          line.scope_notes,
+        );
+      } catch (err) {
+        if (!line.dv_code || !line.package_tier) throw err;
+      }
+    }
+    const dvCode = String(line.dv_code ?? '').trim().toUpperCase();
+    if (!dvCode) {
+      throw new BadRequestException({ error: 'dv_or_sku_required' });
+    }
+    const entry = this.resolveDvEntry(dvCode);
+    const tier = normalizeQuoteTier(line.package_tier ?? 'standard');
     if (!tier) {
       throw new BadRequestException({ error: 'invalid_package_tier', tier: line.package_tier });
+    }
+    const skuCode = line.sku_code?.trim() || skuFromDvTier(entry.code, tier);
+    try {
+      return await this.spc.resolveQuoteLineFromSku(
+        skuCode,
+        line.final_price_vnd,
+        line.scope_notes,
+      );
+    } catch {
+      // fallback legacy tier_pricing
     }
     let tierPricing: Record<string, unknown> = {};
     try {
@@ -121,6 +151,7 @@ export class ProposalsService {
         ? Math.max(0, Number(line.final_price_vnd))
         : reference.suggested_vnd;
     return {
+      sku_code: skuCode,
       dv_code: entry.code,
       package_tier: tier,
       service_slug: entry.service_slugs.primary,
@@ -263,6 +294,14 @@ export class ProposalsService {
       });
       this.sqlite.activateLifecycle(created.id, 'onboard', note);
       this.sqlite.setLineLifecycle(line.id, created.id);
+      const skuCode =
+        line.sku_code?.trim() ||
+        skuFromDvTier(line.dv_code, normalizeQuoteTier(line.package_tier) ?? 'standard');
+      try {
+        await this.lifecycle.setCommercialSku(created.id, skuCode);
+      } catch {
+        this.sqlite.setLifecycleSkuCode(created.id, skuCode);
+      }
       lifecycles.push({ line_id: line.id, lifecycle_id: created.id, dv_code: line.dv_code });
 
       if (spawnWeek && this.config.opsWeeklySpawnEnabled && this.config.opsDvEnabled) {
@@ -329,7 +368,12 @@ export class ProposalsService {
     });
   }
 
-  getCatalogForQuote(serviceSlugRaw?: string) {
+  async getCatalogForQuote(serviceSlugRaw?: string) {
+    try {
+      return await this.spc.getQuoteCatalog(serviceSlugRaw);
+    } catch {
+      // legacy fallback when PG/SPC unavailable
+    }
     const map = this.routeMap.getMap();
     const slug = String(serviceSlugRaw ?? '').trim();
     const base = {

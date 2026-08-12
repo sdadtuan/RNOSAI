@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
 import { OpsModule } from '../ops/ops.module';
+import { SpcModule } from '../spc/spc.module';
 import { ServiceLifecycleModule } from '../service-lifecycle/service-lifecycle.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import {
@@ -14,6 +15,7 @@ import { ProposalsService } from './proposals.service';
 @Module({
   imports: [
     StaffAuthModule,
+    SpcModule,
     forwardRef(() => OpsModule),
     forwardRef(() => ServiceLifecycleModule),
     forwardRef(() => LeadsFunnelModule),

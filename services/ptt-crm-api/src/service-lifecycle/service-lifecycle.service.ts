@@ -115,6 +115,16 @@ export class ServiceLifecycleService {
     return this.usePg ? this.pg.createDraft(body) : this.sqlite.createDraft(body);
   }
 
+  async setCommercialSku(lifecycleId: number, skuCode: string): Promise<void> {
+    const sku = String(skuCode ?? '').trim().toUpperCase();
+    if (!sku) return;
+    if (this.usePg) {
+      await this.pg.setCommercialSku(lifecycleId, sku);
+      return;
+    }
+    this.sqlite.setCommercialSku(lifecycleId, sku);
+  }
+
   async patch(
     id: number,
     body: PatchServiceLifecycleBody,

@@ -155,6 +155,15 @@ export class ServiceLifecyclePgRepository implements OnModuleDestroy {
     return row;
   }
 
+  async setCommercialSku(lifecycleId: number, skuCode: string): Promise<void> {
+    const sku = String(skuCode ?? '').trim().toUpperCase();
+    if (!sku) return;
+    await this.db.query(
+      `UPDATE crm_service_lifecycle SET sku_code = $2, updated_at = NOW() WHERE id = $1`,
+      [lifecycleId, sku],
+    );
+  }
+
   async patchLifecycle(id: number, body: PatchServiceLifecycleBody): Promise<ServiceLifecycleRow | null> {
     const existing = await this.getLifecycleById(id);
     if (!existing) return null;

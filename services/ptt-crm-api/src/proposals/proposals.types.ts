@@ -30,6 +30,7 @@ export interface QuoteLineItemRow {
   id: number;
   proposal_id: number;
   dv_code: string;
+  sku_code: string | null;
   package_tier: string;
   service_slug: string;
   reference_price_min: number;
@@ -41,8 +42,9 @@ export interface QuoteLineItemRow {
 }
 
 export interface QuoteLineInput {
-  dv_code: string;
-  package_tier: string;
+  dv_code?: string;
+  sku_code?: string;
+  package_tier?: string;
   final_price_vnd?: number;
   scope_notes?: string;
 }

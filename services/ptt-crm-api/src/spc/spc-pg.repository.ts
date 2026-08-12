@@ -6,6 +6,7 @@ import type {
   SpcFamilyRow,
   SpcOfferDetail,
   SpcOfferRow,
+  SpcOfferLineRow,
   SpcPatchOfferBody,
   SpcPortfolioItem,
   SpcPricingModel,
@@ -343,5 +344,69 @@ export class SpcPgRepository implements OnModuleDestroy {
       ...mapOffer(row as Record<string, unknown>),
       lines_count: Number(row.lines_count ?? 0),
     }));
+  }
+
+  async listQuoteCatalogRows(): Promise<
+    Array<{
+      family: SpcFamilyRow;
+      offers: Array<SpcOfferRow & { lines: SpcOfferLineRow[] }>;
+      default_sku_code: string | null;
+      service_slug: string | null;
+    }>
+  > {
+    const familiesRes = await this.db.query(`
+      SELECT * FROM service_family WHERE active = TRUE ORDER BY sort_order, dv_code
+    `);
+    const offersRes = await this.db.query(`
+      SELECT o.* FROM service_offer o
+      WHERE o.status = 'published' AND o.active = TRUE
+      ORDER BY o.dv_code, o.sort_order, o.tier
+    `);
+    const linesRes = await this.db.query(`
+      SELECT * FROM service_offer_line WHERE active = TRUE ORDER BY sku_code, sort_order, line_code
+    `);
+    const slugRes = await this.db.query(`
+      SELECT dv_code, default_sku_code, slug FROM crm_catalog_services WHERE dv_code IS NOT NULL
+    `);
+    const slugByDv = new Map<string, { default_sku_code: string | null; slug: string | null }>();
+    for (const row of slugRes.rows) {
+      slugByDv.set(String(row.dv_code), {
+        default_sku_code: row.default_sku_code != null ? String(row.default_sku_code) : null,
+        slug: row.slug != null ? String(row.slug) : null,
+      });
+    }
+    const linesBySku = new Map<string, SpcOfferLineRow[]>();
+    for (const row of linesRes.rows) {
+      const sku = String(row.sku_code);
+      const list = linesBySku.get(sku) ?? [];
+      list.push({
+        line_code: String(row.line_code),
+        sku_code: sku,
+        label_vi: String(row.label_vi ?? ''),
+        description_vi: String(row.description_vi ?? ''),
+        unit: String(row.unit ?? 'once'),
+        included_by_default: row.included_by_default !== false,
+        sort_order: Number(row.sort_order ?? 0),
+        active: row.active !== false,
+      });
+      linesBySku.set(sku, list);
+    }
+    const offersByDv = new Map<string, Array<SpcOfferRow & { lines: SpcOfferLineRow[] }>>();
+    for (const row of offersRes.rows) {
+      const offer = mapOffer(row as Record<string, unknown>);
+      const list = offersByDv.get(offer.dv_code) ?? [];
+      list.push({ ...offer, lines: linesBySku.get(offer.sku_code) ?? [] });
+      offersByDv.set(offer.dv_code, list);
+    }
+    return familiesRes.rows.map((row) => {
+      const family = mapFamily(row as Record<string, unknown>);
+      const meta = slugByDv.get(family.dv_code);
+      return {
+        family,
+        offers: offersByDv.get(family.dv_code) ?? [],
+        default_sku_code: meta?.default_sku_code ?? `${family.dv_code}-TC`,
+        service_slug: meta?.slug ?? null,
+      };
+    });
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffSpcViewGuard } from './guards/staff-spc.guard';
 import { SpcService } from './spc.service';
@@ -11,6 +11,11 @@ export class SpcController {
   @Get('portfolio')
   getPortfolio() {
     return this.spc.getPortfolio(true);
+  }
+
+  @Get('quote-catalog')
+  getQuoteCatalog(@Query('service_slug') serviceSlug?: string) {
+    return this.spc.getQuoteCatalog(serviceSlug);
   }
 
   @Get('families/:dvCode')

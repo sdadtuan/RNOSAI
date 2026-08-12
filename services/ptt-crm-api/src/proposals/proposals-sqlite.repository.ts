@@ -71,9 +71,7 @@ export class ProposalsSqliteRepository implements OnModuleDestroy {
     this.ensureColumn('crm_proposals', 'price_adjustment_reason', "TEXT NOT NULL DEFAULT ''");
     this.ensureColumn('crm_proposals', 'lead_id', 'INTEGER NULL');
     this.ensureColumn('crm_proposals', 'presales_id', 'INTEGER NULL');
-    this.database.exec(
-      'CREATE INDEX IF NOT EXISTS idx_crm_proposals_lead ON crm_proposals (lead_id)',
-    );
+    this.ensureColumn('crm_quote_line_item', 'sku_code', 'TEXT NULL');
   }
 
   private ensureColumn(table: string, column: string, ddl: string): void {
@@ -154,6 +152,7 @@ export class ProposalsSqliteRepository implements OnModuleDestroy {
     proposalId: number,
     lines: Array<
       QuoteLineInput & {
+        sku_code?: string | null;
         service_slug: string;
         reference_price_min: number;
         reference_price_max: number;
@@ -172,15 +171,16 @@ export class ProposalsSqliteRepository implements OnModuleDestroy {
       this.database
         .prepare(
           `INSERT INTO crm_quote_line_item (
-             proposal_id, dv_code, package_tier, service_slug,
+             proposal_id, dv_code, sku_code, package_tier, service_slug,
              reference_price_min, reference_price_max, final_price_vnd,
              scope_notes, sort_order
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           proposalId,
-          line.dv_code.toUpperCase(),
-          line.package_tier,
+          String(line.dv_code ?? '').toUpperCase(),
+          line.sku_code != null ? String(line.sku_code).toUpperCase() : null,
+          line.package_tier ?? 'standard',
           line.service_slug,
           line.reference_price_min,
           line.reference_price_max,
@@ -242,6 +242,12 @@ export class ProposalsSqliteRepository implements OnModuleDestroy {
       .run(lifecycleId, ts, proposalId);
   }
 
+  setLifecycleSkuCode(lifecycleId: number, skuCode: string): void {
+    this.database
+      .prepare(`UPDATE crm_service_lifecycle SET sku_code = ?, updated_at = ? WHERE id = ?`)
+      .run(String(skuCode).toUpperCase(), catalogTs(), lifecycleId);
+  }
+
   activateLifecycle(lifecycleId: number, stage: string, notes: string): void {
     const ts = catalogTs();
     this.database
@@ -263,6 +269,7 @@ export class ProposalsSqliteRepository implements OnModuleDestroy {
       id: Number(row.id),
       proposal_id: Number(row.proposal_id),
       dv_code: String(row.dv_code ?? ''),
+      sku_code: row.sku_code != null ? String(row.sku_code) : null,
       package_tier: String(row.package_tier ?? ''),
       service_slug: String(row.service_slug ?? ''),
       reference_price_min: Number(row.reference_price_min ?? 0),
