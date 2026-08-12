@@ -4,16 +4,28 @@
 -- Apply via scripts/apply_pg_ddl_spc.sh or scripts/lib/spc-pg-bootstrap.js (idempotent)
 
 -- ---------------------------------------------------------------------------
--- 1. Extend existing tables
+-- 1. Extend existing tables (skip if base CRM schema not applied)
 -- ---------------------------------------------------------------------------
-ALTER TABLE service_lifecycle
-  ADD COLUMN IF NOT EXISTS sku_code VARCHAR(16) NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'crm_service_lifecycle'
+  ) THEN
+    ALTER TABLE crm_service_lifecycle
+      ADD COLUMN IF NOT EXISTS sku_code VARCHAR(16) NULL;
+    COMMENT ON COLUMN crm_service_lifecycle.sku_code IS 'Commercial SKU code, e.g. DV02-TC';
+  END IF;
 
-ALTER TABLE crm_catalog_services
-  ADD COLUMN IF NOT EXISTS default_sku_code VARCHAR(16) NULL;
-
-COMMENT ON COLUMN service_lifecycle.sku_code IS 'Commercial SKU code, e.g. DV02-TC';
-COMMENT ON COLUMN crm_catalog_services.default_sku_code IS 'Default SPC SKU for CRM slug intake';
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'crm_catalog_services'
+  ) THEN
+    ALTER TABLE crm_catalog_services
+      ADD COLUMN IF NOT EXISTS default_sku_code VARCHAR(16) NULL;
+    COMMENT ON COLUMN crm_catalog_services.default_sku_code IS 'Default SPC SKU for CRM slug intake';
+  END IF;
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- 2. L0 — service_family (DV portfolio)
