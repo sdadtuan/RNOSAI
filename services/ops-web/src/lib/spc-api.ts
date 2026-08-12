@@ -63,6 +63,30 @@ export type SpcFamilyDetail = {
   offers: SpcOfferRow[];
   phase_count: number;
   kpi_count: number;
+  component_count?: number;
+};
+
+export type SpcComponentRow = {
+  component_code: string;
+  dv_code: string;
+  name_vi: string;
+  description_vi: string;
+  deliverable_vi: string;
+  pricing_model: SpcPricingModel;
+  unit: string;
+  sort_order: number;
+  active: boolean;
+};
+
+export type SpcBundleItemRow = {
+  sku_code: string;
+  component_code: string;
+  included: boolean;
+  qty: number;
+  price_override_vnd: number | null;
+  sort_order: number;
+  name_vi?: string;
+  pricing_model?: SpcPricingModel;
 };
 
 export type SpcHubStats = {
@@ -159,6 +183,81 @@ export async function fetchSpcProcessLibrary(token: string, dvCode?: string) {
   return spcFetch<{ count: number; items: SpcProcessPhaseRow[] }>(
     token,
     `/api/v1/admin/spc/process${qs}`,
+  );
+}
+
+export async function fetchSpcComponents(token: string, dvCode: string) {
+  return spcFetch<{ count: number; items: SpcComponentRow[] }>(
+    token,
+    `/api/v1/admin/spc/components?dv_code=${encodeURIComponent(dvCode)}`,
+  );
+}
+
+export async function createSpcComponent(
+  token: string,
+  body: {
+    dv_code: string;
+    name_vi: string;
+    description_vi?: string;
+    deliverable_vi?: string;
+    pricing_model?: SpcPricingModel;
+    sort_order?: number;
+  },
+) {
+  return spcFetch<SpcComponentRow>(token, '/api/v1/admin/spc/components', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchSpcComponent(
+  token: string,
+  componentCode: string,
+  body: Partial<{
+    name_vi: string;
+    description_vi: string;
+    deliverable_vi: string;
+    pricing_model: SpcPricingModel;
+    sort_order: number;
+    active: boolean;
+  }>,
+) {
+  return spcFetch<SpcComponentRow>(token, `/api/v1/admin/spc/components/${encodeURIComponent(componentCode)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function archiveSpcComponent(token: string, componentCode: string) {
+  return spcFetch<SpcComponentRow>(
+    token,
+    `/api/v1/admin/spc/components/${encodeURIComponent(componentCode)}/archive`,
+    { method: 'POST' },
+  );
+}
+
+export async function fetchSpcOfferBundle(token: string, skuCode: string) {
+  return spcFetch<{ sku_code: string; dv_code: string; items: SpcBundleItemRow[] }>(
+    token,
+    `/api/v1/admin/spc/offers/${encodeURIComponent(skuCode)}/bundle`,
+  );
+}
+
+export async function putSpcOfferBundle(
+  token: string,
+  skuCode: string,
+  items: Array<{ component_code: string; included?: boolean; qty?: number }>,
+) {
+  return spcFetch<{ sku_code: string; items: SpcBundleItemRow[] }>(
+    token,
+    `/api/v1/admin/spc/offers/${encodeURIComponent(skuCode)}/bundle`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    },
   );
 }
 

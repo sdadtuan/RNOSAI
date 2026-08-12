@@ -18,6 +18,11 @@ export class SpcController {
     return this.spc.getQuoteCatalog(serviceSlug);
   }
 
+  @Get('families/:dvCode/components')
+  getFamilyComponents(@Param('dvCode') dvCode: string) {
+    return this.spc.getFamilyComponents(dvCode);
+  }
+
   @Get('families/:dvCode')
   getFamily(@Param('dvCode') dvCode: string) {
     return this.spc.getFamily(dvCode, true);

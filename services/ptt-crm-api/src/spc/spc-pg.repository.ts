@@ -13,6 +13,11 @@ import type {
   SpcProcessPhaseRow,
   SpcPublishLogRow,
   SpcPutProcessPhaseBody,
+  SpcComponentRow,
+  SpcCreateComponentBody,
+  SpcPatchComponentBody,
+  SpcBundleItemRow,
+  SpcPutOfferBundleBody,
 } from './spc.types';
 
 function iso(value: unknown): string {
@@ -90,6 +95,21 @@ function mapProcessPhase(row: Record<string, unknown>): SpcProcessPhaseRow {
   };
 }
 
+function mapComponent(row: Record<string, unknown>): SpcComponentRow {
+  return {
+    component_code: String(row.component_code ?? ''),
+    dv_code: String(row.dv_code ?? ''),
+    name_vi: String(row.name_vi ?? ''),
+    description_vi: String(row.description_vi ?? ''),
+    deliverable_vi: String(row.deliverable_vi ?? ''),
+    pricing_model: parseJson(row.pricing_model, {}),
+    unit: String(row.unit ?? 'once'),
+    sort_order: Number(row.sort_order ?? 0),
+    active: row.active !== false,
+    updated_at: iso(row.updated_at),
+  };
+}
+
 @Injectable()
 export class SpcPgRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
@@ -160,7 +180,8 @@ export class SpcPgRepository implements OnModuleDestroy {
     const counts = await this.db.query(
       `SELECT
          (SELECT COUNT(*)::int FROM service_process_phase WHERE dv_code = $1 AND active = TRUE) AS phases,
-         (SELECT COUNT(*)::int FROM service_kpi_def WHERE dv_code = $1) AS kpis`,
+         (SELECT COUNT(*)::int FROM service_kpi_def WHERE dv_code = $1) AS kpis,
+         (SELECT COUNT(*)::int FROM service_component WHERE dv_code = $1 AND active = TRUE) AS components`,
       [dvCode],
     );
     return {
@@ -168,6 +189,7 @@ export class SpcPgRepository implements OnModuleDestroy {
       offers: offersRes.rows.map((r) => mapOffer(r as Record<string, unknown>)),
       phase_count: Number(counts.rows[0]?.phases ?? 0),
       kpi_count: Number(counts.rows[0]?.kpis ?? 0),
+      component_count: Number(counts.rows[0]?.components ?? 0),
     };
   }
 
@@ -482,5 +504,150 @@ export class SpcPgRepository implements OnModuleDestroy {
     );
     const row = res.rows[0];
     return row ? mapProcessPhase(row as Record<string, unknown>) : null;
+  }
+
+  async listComponents(dvCode?: string, activeOnly = true): Promise<SpcComponentRow[]> {
+    const code = String(dvCode ?? '').trim().toUpperCase();
+    const activeClause = activeOnly ? 'AND active = TRUE' : '';
+    const res = code
+      ? await this.db.query(
+          `SELECT * FROM service_component WHERE dv_code = $1 ${activeClause} ORDER BY sort_order, component_code`,
+          [code],
+        )
+      : await this.db.query(
+          `SELECT * FROM service_component WHERE 1=1 ${activeClause} ORDER BY dv_code, sort_order, component_code`,
+        );
+    return res.rows.map((row) => mapComponent(row as Record<string, unknown>));
+  }
+
+  async getComponent(componentCode: string): Promise<SpcComponentRow | null> {
+    const code = String(componentCode ?? '').trim().toUpperCase();
+    const res = await this.db.query(`SELECT * FROM service_component WHERE component_code = $1`, [code]);
+    const row = res.rows[0];
+    return row ? mapComponent(row as Record<string, unknown>) : null;
+  }
+
+  async nextComponentCode(dvCode: string): Promise<string> {
+    const dv = String(dvCode ?? '').trim().toUpperCase();
+    const res = await this.db.query(
+      `SELECT component_code FROM service_component WHERE dv_code = $1 ORDER BY component_code DESC LIMIT 1`,
+      [dv],
+    );
+    const last = String(res.rows[0]?.component_code ?? '');
+    const match = last.match(new RegExp(`^${dv}-C(\\d+)$`, 'i'));
+    const next = match ? Number(match[1]) + 1 : 1;
+    return `${dv}-C${String(next).padStart(2, '0')}`;
+  }
+
+  async createComponent(body: SpcCreateComponentBody): Promise<SpcComponentRow> {
+    const dvCode = String(body.dv_code ?? '').trim().toUpperCase();
+    const componentCode =
+      String(body.component_code ?? '').trim().toUpperCase() || (await this.nextComponentCode(dvCode));
+    const res = await this.db.query(
+      `INSERT INTO service_component
+         (component_code, dv_code, name_vi, description_vi, deliverable_vi, pricing_model, unit, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8)
+       RETURNING *`,
+      [
+        componentCode,
+        dvCode,
+        String(body.name_vi ?? '').trim(),
+        String(body.description_vi ?? ''),
+        String(body.deliverable_vi ?? ''),
+        JSON.stringify(body.pricing_model ?? { type: 'one_time', min_vnd: 0, max_vnd: 0 }),
+        String(body.unit ?? 'once'),
+        Number(body.sort_order ?? 0),
+      ],
+    );
+    return mapComponent(res.rows[0] as Record<string, unknown>);
+  }
+
+  async patchComponent(
+    componentCode: string,
+    body: SpcPatchComponentBody,
+  ): Promise<SpcComponentRow | null> {
+    const code = String(componentCode ?? '').trim().toUpperCase();
+    const existing = await this.getComponent(code);
+    if (!existing) return null;
+    const res = await this.db.query(
+      `UPDATE service_component
+       SET name_vi = $2,
+           description_vi = $3,
+           deliverable_vi = $4,
+           pricing_model = $5::jsonb,
+           unit = $6,
+           sort_order = $7,
+           active = $8,
+           updated_at = NOW()
+       WHERE component_code = $1
+       RETURNING *`,
+      [
+        code,
+        body.name_vi != null ? String(body.name_vi) : existing.name_vi,
+        body.description_vi != null ? String(body.description_vi) : existing.description_vi,
+        body.deliverable_vi != null ? String(body.deliverable_vi) : existing.deliverable_vi,
+        JSON.stringify(body.pricing_model ?? existing.pricing_model),
+        body.unit != null ? String(body.unit) : existing.unit,
+        body.sort_order != null ? Number(body.sort_order) : existing.sort_order,
+        body.active != null ? Boolean(body.active) : existing.active,
+      ],
+    );
+    const row = res.rows[0];
+    return row ? mapComponent(row as Record<string, unknown>) : null;
+  }
+
+  async listBundleItems(skuCode: string): Promise<SpcBundleItemRow[]> {
+    const sku = String(skuCode ?? '').trim().toUpperCase();
+    const res = await this.db.query(
+      `SELECT b.*, c.name_vi, c.pricing_model
+       FROM service_bundle_item b
+       JOIN service_component c ON c.component_code = b.component_code
+       WHERE b.sku_code = $1
+       ORDER BY b.sort_order, b.component_code`,
+      [sku],
+    );
+    return res.rows.map((row) => ({
+      sku_code: String(row.sku_code),
+      component_code: String(row.component_code),
+      included: row.included !== false,
+      qty: Number(row.qty ?? 1),
+      price_override_vnd: row.price_override_vnd != null ? Number(row.price_override_vnd) : null,
+      sort_order: Number(row.sort_order ?? 0),
+      name_vi: String(row.name_vi ?? ''),
+      pricing_model: parseJson(row.pricing_model, {}),
+    }));
+  }
+
+  async replaceBundleItems(skuCode: string, body: SpcPutOfferBundleBody): Promise<SpcBundleItemRow[]> {
+    const sku = String(skuCode ?? '').trim().toUpperCase();
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`DELETE FROM service_bundle_item WHERE sku_code = $1`, [sku]);
+      let order = 0;
+      for (const item of body.items ?? []) {
+        order += 1;
+        await client.query(
+          `INSERT INTO service_bundle_item
+             (sku_code, component_code, included, qty, price_override_vnd, sort_order)
+           VALUES ($1,$2,$3,$4,$5,$6)`,
+          [
+            sku,
+            String(item.component_code ?? '').trim().toUpperCase(),
+            item.included !== false,
+            Math.max(1, Number(item.qty ?? 1)),
+            item.price_override_vnd != null ? Number(item.price_override_vnd) : null,
+            Number(item.sort_order ?? order),
+          ],
+        );
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+    return this.listBundleItems(sku);
   }
 }

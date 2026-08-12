@@ -62,6 +62,7 @@ export type SpcFamilyDetail = SpcFamilyRow & {
   offers: SpcOfferRow[];
   phase_count: number;
   kpi_count: number;
+  component_count: number;
 };
 
 export type SpcOfferDetail = SpcOfferRow & {
@@ -161,4 +162,59 @@ export type SpcPutProcessPhaseBody = {
   tasks_json?: unknown[];
   sort_order?: number;
   active?: boolean;
+};
+
+export type SpcComponentRow = {
+  component_code: string;
+  dv_code: string;
+  name_vi: string;
+  description_vi: string;
+  deliverable_vi: string;
+  pricing_model: SpcPricingModel;
+  unit: string;
+  sort_order: number;
+  active: boolean;
+  updated_at?: string;
+};
+
+export type SpcCreateComponentBody = {
+  dv_code: string;
+  component_code?: string;
+  name_vi: string;
+  description_vi?: string;
+  deliverable_vi?: string;
+  pricing_model?: SpcPricingModel;
+  unit?: string;
+  sort_order?: number;
+};
+
+export type SpcPatchComponentBody = {
+  name_vi?: string;
+  description_vi?: string;
+  deliverable_vi?: string;
+  pricing_model?: SpcPricingModel;
+  unit?: string;
+  sort_order?: number;
+  active?: boolean;
+};
+
+export type SpcBundleItemRow = {
+  sku_code: string;
+  component_code: string;
+  included: boolean;
+  qty: number;
+  price_override_vnd: number | null;
+  sort_order: number;
+  name_vi?: string;
+  pricing_model?: SpcPricingModel;
+};
+
+export type SpcPutOfferBundleBody = {
+  items: Array<{
+    component_code: string;
+    included?: boolean;
+    qty?: number;
+    price_override_vnd?: number | null;
+    sort_order?: number;
+  }>;
 };

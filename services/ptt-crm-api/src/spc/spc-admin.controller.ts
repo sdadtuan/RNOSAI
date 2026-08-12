@@ -8,7 +8,14 @@ import {
   StaffSpcViewGuard,
 } from './guards/staff-spc.guard';
 import { SpcService } from './spc.service';
-import type { SpcPatchOfferBody, SpcPublishBody, SpcPutProcessPhaseBody } from './spc.types';
+import type {
+  SpcPatchOfferBody,
+  SpcPublishBody,
+  SpcPutProcessPhaseBody,
+  SpcCreateComponentBody,
+  SpcPatchComponentBody,
+  SpcPutOfferBundleBody,
+} from './spc.types';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
 
@@ -64,5 +71,44 @@ export class SpcAdminController {
   @UseGuards(StaffSpcEditGuard)
   putProcess(@Param('phaseCode') phaseCode: string, @Body() body: SpcPutProcessPhaseBody) {
     return this.spc.putProcessPhase(phaseCode, body);
+  }
+
+  @Get('components')
+  listComponents(@Query('dv_code') dvCode?: string) {
+    return this.spc.listComponents(dvCode, false);
+  }
+
+  @Get('components/:componentCode')
+  getComponent(@Param('componentCode') componentCode: string) {
+    return this.spc.getComponent(componentCode);
+  }
+
+  @Post('components')
+  @UseGuards(StaffSpcEditGuard)
+  createComponent(@Body() body: SpcCreateComponentBody) {
+    return this.spc.createComponent(body);
+  }
+
+  @Patch('components/:componentCode')
+  @UseGuards(StaffSpcEditGuard)
+  patchComponent(@Param('componentCode') componentCode: string, @Body() body: SpcPatchComponentBody) {
+    return this.spc.patchComponent(componentCode, body);
+  }
+
+  @Post('components/:componentCode/archive')
+  @UseGuards(StaffSpcEditGuard)
+  archiveComponent(@Param('componentCode') componentCode: string) {
+    return this.spc.archiveComponent(componentCode);
+  }
+
+  @Get('offers/:skuCode/bundle')
+  getOfferBundle(@Param('skuCode') skuCode: string) {
+    return this.spc.getOfferBundle(skuCode);
+  }
+
+  @Put('offers/:skuCode/bundle')
+  @UseGuards(StaffSpcEditGuard)
+  putOfferBundle(@Param('skuCode') skuCode: string, @Body() body: SpcPutOfferBundleBody) {
+    return this.spc.putOfferBundle(skuCode, body);
   }
 }

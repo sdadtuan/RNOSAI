@@ -174,3 +174,43 @@ CREATE TABLE IF NOT EXISTS spc_publish_log (
 );
 
 COMMENT ON TABLE spc_publish_log IS 'SPC publish workflow audit trail';
+
+-- ---------------------------------------------------------------------------
+-- 9. S6 — L0.5 service_component (dịch vụ con) + bundle mapping
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS service_component (
+  component_code VARCHAR(16) PRIMARY KEY,
+  dv_code VARCHAR(8) NOT NULL REFERENCES service_family(dv_code),
+  name_vi VARCHAR(200) NOT NULL,
+  description_vi TEXT NOT NULL DEFAULT '',
+  deliverable_vi TEXT NOT NULL DEFAULT '',
+  pricing_model JSONB NOT NULL DEFAULT '{}'::jsonb,
+  unit VARCHAR(20) NOT NULL DEFAULT 'once',
+  sort_order INT NOT NULL DEFAULT 0,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_service_component_dv ON service_component (dv_code);
+
+COMMENT ON TABLE service_component IS 'L0.5 SPC sub-service — atomic sellable unit with pricing_model';
+
+CREATE TABLE IF NOT EXISTS service_bundle_item (
+  sku_code VARCHAR(16) NOT NULL REFERENCES service_offer(sku_code) ON DELETE CASCADE,
+  component_code VARCHAR(16) NOT NULL REFERENCES service_component(component_code),
+  included BOOLEAN NOT NULL DEFAULT TRUE,
+  qty INT NOT NULL DEFAULT 1,
+  price_override_vnd INT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (sku_code, component_code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_service_bundle_sku ON service_bundle_item (sku_code);
+
+COMMENT ON TABLE service_bundle_item IS 'S6 — maps commercial SKU to included service_component items';
+
+ALTER TABLE service_offer_line
+  ADD COLUMN IF NOT EXISTS component_code VARCHAR(16) NULL REFERENCES service_component(component_code);
+
+COMMENT ON COLUMN service_offer_line.component_code IS 'S6 optional link to service_component for quote lines';

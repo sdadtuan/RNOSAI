@@ -26,6 +26,9 @@ import type {
   SpcPutProcessPhaseBody,
   SpcQuoteCatalogResponse,
   SpcOfferProcessResponse,
+  SpcCreateComponentBody,
+  SpcPatchComponentBody,
+  SpcPutOfferBundleBody,
 } from './spc.types';
 
 @Injectable()
@@ -320,5 +323,72 @@ export class SpcService {
     const sku = String(skuCode ?? '').trim().toUpperCase();
     if (sku) return dvCodeFromSku(sku);
     return String(dvCode ?? '').trim().toUpperCase();
+  }
+
+  async listComponents(dvCode?: string, activeOnly = true) {
+    this.assertPg();
+    const items = await this.repo.listComponents(dvCode, activeOnly);
+    return { count: items.length, items };
+  }
+
+  async getComponent(componentCode: string) {
+    this.assertPg();
+    const code = String(componentCode ?? '').trim().toUpperCase();
+    const row = await this.repo.getComponent(code);
+    if (!row) throw new NotFoundException({ error: 'spc_component_not_found', component_code: code });
+    return row;
+  }
+
+  async createComponent(body: SpcCreateComponentBody) {
+    this.assertPg();
+    const dvCode = String(body.dv_code ?? '').trim().toUpperCase();
+    const family = await this.repo.getFamily(dvCode, false);
+    if (!family) throw new NotFoundException({ error: 'spc_family_not_found', dv_code: dvCode });
+    if (!String(body.name_vi ?? '').trim()) {
+      throw new BadRequestException({ error: 'spc_component_name_required' });
+    }
+    return this.repo.createComponent(body);
+  }
+
+  async patchComponent(componentCode: string, body: SpcPatchComponentBody) {
+    this.assertPg();
+    const code = String(componentCode ?? '').trim().toUpperCase();
+    const updated = await this.repo.patchComponent(code, body);
+    if (!updated) throw new NotFoundException({ error: 'spc_component_not_found', component_code: code });
+    return updated;
+  }
+
+  async archiveComponent(componentCode: string) {
+    return this.patchComponent(componentCode, { active: false });
+  }
+
+  async getOfferBundle(skuCode: string) {
+    this.assertPg();
+    const sku = String(skuCode ?? '').trim().toUpperCase();
+    const offer = await this.repo.getOffer(sku, false);
+    if (!offer) throw new NotFoundException({ error: 'spc_offer_not_found', sku_code: sku });
+    const items = await this.repo.listBundleItems(sku);
+    return { sku_code: sku, dv_code: offer.dv_code, items };
+  }
+
+  async putOfferBundle(skuCode: string, body: SpcPutOfferBundleBody) {
+    this.assertPg();
+    const sku = String(skuCode ?? '').trim().toUpperCase();
+    const offer = await this.repo.getOffer(sku, false);
+    if (!offer) throw new NotFoundException({ error: 'spc_offer_not_found', sku_code: sku });
+    if (!Array.isArray(body.items)) {
+      throw new BadRequestException({ error: 'spc_bundle_items_required' });
+    }
+    const items = await this.repo.replaceBundleItems(sku, body);
+    return { sku_code: sku, items };
+  }
+
+  async getFamilyComponents(dvCode: string) {
+    this.assertPg();
+    const code = String(dvCode ?? '').trim().toUpperCase();
+    const family = await this.repo.getFamily(code, true);
+    if (!family) throw new NotFoundException({ error: 'spc_family_not_found', dv_code: code });
+    const items = await this.repo.listComponents(code, true);
+    return { dv_code: code, count: items.length, items };
   }
 }

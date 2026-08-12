@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { AdminPageShell } from '@/components/admin';
+import { AdminSpcBundleTab } from '@/components/admin/AdminSpcBundleTab';
+import { AdminSpcComponentsTab } from '@/components/admin/AdminSpcComponentsTab';
 import {
   applyPricingField,
   fetchSpcFamily,
@@ -20,6 +22,8 @@ import {
   canViewSpcAdmin,
   useAdminCrmAuth,
 } from '@/lib/admin/use-admin-crm-auth';
+
+type FamilyTab = 'skus' | 'components' | 'bundle';
 
 function OfferEditor({
   offer,
@@ -158,6 +162,7 @@ export default function AdminServicesFamilyPage() {
   const { user, token, error, loading, logout } = useAdminCrmAuth(canViewSpcAdmin);
   const [family, setFamily] = useState<SpcFamilyDetail | null>(null);
   const [loadError, setLoadError] = useState('');
+  const [tab, setTab] = useState<FamilyTab>('skus');
 
   const reload = useCallback(async () => {
     if (!token || !dvCode) return;
@@ -181,7 +186,7 @@ export default function AdminServicesFamilyPage() {
       user={user}
       onLogout={logout}
       title={family ? `${family.dv_code} — ${family.name_vi}` : dvCode}
-      subtitle="Chỉnh SKU CB/TC/CS · draft vs published"
+      subtitle="SKU · dịch vụ con (components) · bundle gói CB/TC/CS"
       section="crm-config"
       loading={loading}
       breadcrumb={[
@@ -198,19 +203,60 @@ export default function AdminServicesFamilyPage() {
           <div className="page-card" style={{ marginBottom: '1rem' }}>
             <p className="muted" style={{ margin: 0 }}>
               {family.department} · {family.service_type} · {family.phase_count} phases · {family.kpi_count} KPI
+              {typeof family.component_count === 'number' ? ` · ${family.component_count} components` : ''}
             </p>
             <p style={{ margin: '0.5rem 0 0' }}>{family.description_vi || family.role_vi || '—'}</p>
           </div>
-          {(family.offers ?? []).map((offer) => (
-            <OfferEditor
-              key={offer.sku_code}
-              offer={offer}
+
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+            {(
+              [
+                ['skus', 'SKU & giá'],
+                ['components', 'Components'],
+                ['bundle', 'Bundle gói'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={tab === id ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
+                onClick={() => setTab(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'skus'
+            ? (family.offers ?? []).map((offer) => (
+                <OfferEditor
+                  key={offer.sku_code}
+                  offer={offer}
+                  canEdit={canEdit}
+                  canPublish={canPublish}
+                  token={token ?? ''}
+                  onSaved={() => void reload()}
+                />
+              ))
+            : null}
+
+          {tab === 'components' && token ? (
+            <AdminSpcComponentsTab
+              dvCode={dvCode}
+              token={token}
               canEdit={canEdit}
-              canPublish={canPublish}
-              token={token ?? ''}
-              onSaved={() => void reload()}
+              onChanged={() => void reload()}
             />
-          ))}
+          ) : null}
+
+          {tab === 'bundle' && token ? (
+            <AdminSpcBundleTab
+              dvCode={dvCode}
+              offers={family.offers ?? []}
+              token={token}
+              canEdit={canEdit}
+            />
+          ) : null}
         </>
       ) : null}
     </AdminPageShell>
