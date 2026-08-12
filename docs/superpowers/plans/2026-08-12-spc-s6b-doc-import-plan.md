@@ -22,4 +22,4 @@
 
 - **S6c:** quote-catalog `components[]` + offer lines `component_code`
 - **S6d:** publish workflow + bundle vs sum audit
-- **S6e:** rollout 21 DV components in doc bundle
+- **S6e:** rollout 21 DV components in doc bundle ✅ (`2026-08-12-spc-s6e-full-catalog-plan.md`)

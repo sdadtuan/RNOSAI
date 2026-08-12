@@ -2,7 +2,9 @@
 'use strict';
 /**
  * S6 — seed service_component + service_bundle_item from spc-chuan-hoa-bundle.json
- * Usage: DATABASE_URL=... node scripts/seed_spc_components.js [DV01]
+ * Usage:
+ *   node scripts/seed_spc_components.js          # all 21 DV (S6e)
+ *   node scripts/seed_spc_components.js DV01     # single pilot DV
  */
 const fs = require('fs');
 const path = require('path');

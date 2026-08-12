@@ -100,9 +100,22 @@
         }
       ],
       "bundle_by_tier": {
-        "CB": ["DV01-C02", "DV01-C03"],
-        "TC": ["DV01-C01", "DV01-C02", "DV01-C03", "DV01-C04"],
-        "CS": ["DV01-C01", "DV01-C02", "DV01-C03", "DV01-C04"]
+        "CB": [
+          "DV01-C02",
+          "DV01-C03"
+        ],
+        "TC": [
+          "DV01-C01",
+          "DV01-C02",
+          "DV01-C03",
+          "DV01-C04"
+        ],
+        "CS": [
+          "DV01-C01",
+          "DV01-C02",
+          "DV01-C03",
+          "DV01-C04"
+        ]
       },
       "risks_vi": [
         "Định vị mơ hồ, thông điệp không nhất quán, làm đẹp hình ảnh nhưng không gắn với doanh thu.",
@@ -184,7 +197,47 @@
       "service_type": "setup_retainer",
       "price_range_vi": "Setup 6-10tr + 7-45tr/tháng",
       "duration_hint_vi": "Setup 2-4 tuần, retainer liên tục",
-      "loai_hinh_vi": "Setup+Retainer"
+      "loai_hinh_vi": "Setup+Retainer",
+      "components": [
+        {
+          "component_code": "DV02-C01",
+          "name_vi": "Kế hoạch content",
+          "description_vi": "Xây content pillar, lập kế hoạch nội dung theo phễu, thiết lập kênh",
+          "deliverable_vi": "Kế hoạch content + lịch đăng",
+          "price_text_vi": "3.000.000đ – 5.000.000đ",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV02-C02",
+          "name_vi": "Bộ nội dung đầu tiên đã đăng",
+          "description_vi": "Sản xuất & đăng batch nội dung đầu tiên",
+          "deliverable_vi": "Bộ nội dung đầu tiên đã đăng",
+          "price_text_vi": "3.000.000đ – 5.000.000đ",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV02-C03",
+          "name_vi": "Báo cáo hiệu quả hàng tháng",
+          "description_vi": "Vận hành liên tục, đo theo mục tiêu lead/conversion, tối ưu theo dữ liệu",
+          "deliverable_vi": "Báo cáo hiệu quả hàng tháng",
+          "price_text_vi": "16.000.000đ – 22.000.000đ/tháng",
+          "sort_order": 3
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV02-C01"
+        ],
+        "TC": [
+          "DV02-C01",
+          "DV02-C02"
+        ],
+        "CS": [
+          "DV02-C01",
+          "DV02-C02",
+          "DV02-C03"
+        ]
+      }
     },
     {
       "dv_code": "DV03",
@@ -257,7 +310,49 @@
       "service_type": "one_time",
       "price_range_vi": "10tr – 130tr (+2-5tr/tháng bảo trì)",
       "duration_hint_vi": "3-6 tuần",
-      "loai_hinh_vi": "One-time (+bảo trì tuỳ chọn)"
+      "loai_hinh_vi": "One-time (+bảo trì tuỳ chọn)",
+      "components": [
+        {
+          "component_code": "DV03-C01",
+          "name_vi": "Wireframe",
+          "description_vi": "Wireframe, thiết kế UI theo mục tiêu chuyển đổi",
+          "deliverable_vi": "Wireframe + thiết kế UI",
+          "price_text_vi": "10.000.000đ – 16.666.667đ",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV03-C02",
+          "name_vi": "Website/landing page bản build",
+          "description_vi": "Phát triển website/landing page, gắn tracking",
+          "deliverable_vi": "Website/landing page bản build",
+          "price_text_vi": "10.000.000đ – 16.666.667đ",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV03-C03",
+          "name_vi": "Website chính thức",
+          "description_vi": "Go-live, A/B test CTA/form, tối ưu mobile",
+          "deliverable_vi": "Website chính thức + báo cáo A/B test",
+          "price_text_vi": "10.000.000đ – 16.666.667đ",
+          "sort_order": 3
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV03-C02",
+          "DV03-C03"
+        ],
+        "TC": [
+          "DV03-C01",
+          "DV03-C02",
+          "DV03-C03"
+        ],
+        "CS": [
+          "DV03-C01",
+          "DV03-C02",
+          "DV03-C03"
+        ]
+      }
     },
     {
       "dv_code": "DV04",
@@ -329,7 +424,47 @@
       "service_type": "retainer",
       "price_range_vi": "8tr – 30tr+/tháng (hoặc % budget)",
       "duration_hint_vi": "Liên tục",
-      "loai_hinh_vi": "Retainer"
+      "loai_hinh_vi": "Retainer",
+      "components": [
+        {
+          "component_code": "DV04-C01",
+          "name_vi": "Kế hoạch chiến dịch",
+          "description_vi": "Thiết lập tracking, phân nhóm creative/audience, chạy test nhỏ",
+          "deliverable_vi": "Kế hoạch chiến dịch + tài khoản đã setup",
+          "price_text_vi": "18.000.000đ – 25.000.000đ/tháng",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV04-C02",
+          "name_vi": "Báo cáo hiệu quả tuần đầu",
+          "description_vi": "Tối ưu theo CPA/CAC/ROAS, mở rộng ngân sách tập đối tượng hiệu quả",
+          "deliverable_vi": "Báo cáo hiệu quả tuần đầu",
+          "price_text_vi": "18.000.000đ – 25.000.000đ/tháng",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV04-C03",
+          "name_vi": "Báo cáo hàng tháng",
+          "description_vi": "Vận hành liên tục, thay creative mòn, liên kết dashboard",
+          "deliverable_vi": "Báo cáo hàng tháng",
+          "price_text_vi": "18.000.000đ – 25.000.000đ/tháng",
+          "sort_order": 3
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV04-C01"
+        ],
+        "TC": [
+          "DV04-C01",
+          "DV04-C02"
+        ],
+        "CS": [
+          "DV04-C01",
+          "DV04-C02",
+          "DV04-C03"
+        ]
+      }
     },
     {
       "dv_code": "DV05",
@@ -395,7 +530,38 @@
       "service_type": "setup_retainer",
       "price_range_vi": "Setup 5-8tr + 10-50tr/tháng",
       "duration_hint_vi": "Setup 4 tuần, retainer liên tục",
-      "loai_hinh_vi": "Setup+Retainer"
+      "loai_hinh_vi": "Setup+Retainer",
+      "components": [
+        {
+          "component_code": "DV05-C01",
+          "name_vi": "Báo cáo audit",
+          "description_vi": "Audit kỹ thuật, nghiên cứu từ khóa, chuẩn schema (setup một lần)",
+          "deliverable_vi": "Báo cáo audit + kế hoạch content cluster",
+          "price_text_vi": "5.000.000đ – 8.000.000đ",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV05-C02",
+          "name_vi": "Báo cáo ranking",
+          "description_vi": "Sản xuất content cluster, tối ưu technical SEO, theo dõi AI visibility",
+          "deliverable_vi": "Báo cáo ranking + traffic hàng tháng",
+          "price_text_vi": "20.000.000đ – 28.000.000đ/tháng",
+          "sort_order": 2
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV05-C01"
+        ],
+        "TC": [
+          "DV05-C01",
+          "DV05-C02"
+        ],
+        "CS": [
+          "DV05-C01",
+          "DV05-C02"
+        ]
+      }
     },
     {
       "dv_code": "DV06",
@@ -467,7 +633,47 @@
       "service_type": "retainer",
       "price_range_vi": "8tr – 45tr/tháng",
       "duration_hint_vi": "Liên tục",
-      "loai_hinh_vi": "Retainer"
+      "loai_hinh_vi": "Retainer",
+      "components": [
+        {
+          "component_code": "DV06-C01",
+          "name_vi": "Sơ đồ journey",
+          "description_vi": "Thiết kế journey theo phân khúc, lead scoring",
+          "deliverable_vi": "Sơ đồ journey + tiêu chí scoring",
+          "price_text_vi": "18.000.000đ – 25.000.000đ/tháng",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV06-C02",
+          "name_vi": "Chuỗi chăm sóc sẵn sàng",
+          "description_vi": "Xây dựng nội dung chăm sóc, cấu hình automation",
+          "deliverable_vi": "Chuỗi chăm sóc sẵn sàng",
+          "price_text_vi": "18.000.000đ – 25.000.000đ/tháng",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV06-C03",
+          "name_vi": "Báo cáo lead-to-customer hàng tháng",
+          "description_vi": "Kích hoạt, đặt SLA chuyển lead nóng, test chuỗi thường xuyên",
+          "deliverable_vi": "Báo cáo lead-to-customer hàng tháng",
+          "price_text_vi": "18.000.000đ – 25.000.000đ/tháng",
+          "sort_order": 3
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV06-C01"
+        ],
+        "TC": [
+          "DV06-C01",
+          "DV06-C02"
+        ],
+        "CS": [
+          "DV06-C01",
+          "DV06-C02",
+          "DV06-C03"
+        ]
+      }
     },
     {
       "dv_code": "DV07",
@@ -539,7 +745,47 @@
       "service_type": "setup_retainer",
       "price_range_vi": "Setup 5-60tr + 1.5-15tr/tháng",
       "duration_hint_vi": "Setup 4-6 tuần",
-      "loai_hinh_vi": "Setup+Retainer"
+      "loai_hinh_vi": "Setup+Retainer",
+      "components": [
+        {
+          "component_code": "DV07-C01",
+          "name_vi": "Sơ đồ luồng hội thoại",
+          "description_vi": "Thu thập FAQ, kịch bản bán hàng, thiết kế luồng hội thoại",
+          "deliverable_vi": "Sơ đồ luồng hội thoại",
+          "price_text_vi": "7.500.000đ – 12.500.000đ",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV07-C02",
+          "name_vi": "Chatbot hoạt động thử nghiệm",
+          "description_vi": "Cấu hình chatbot, giới hạn phạm vi trả lời, quy tắc chuyển người thật",
+          "deliverable_vi": "Chatbot hoạt động thử nghiệm",
+          "price_text_vi": "7.500.000đ – 12.500.000đ",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV07-C03",
+          "name_vi": "Báo cáo resolution/booking rate hàng tháng",
+          "description_vi": "Log hội thoại, cải tiến định kỳ",
+          "deliverable_vi": "Báo cáo resolution/booking rate hàng tháng",
+          "price_text_vi": "5.000.000đ – 8.000.000đ/tháng",
+          "sort_order": 3
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV07-C01"
+        ],
+        "TC": [
+          "DV07-C01",
+          "DV07-C02"
+        ],
+        "CS": [
+          "DV07-C01",
+          "DV07-C02",
+          "DV07-C03"
+        ]
+      }
     },
     {
       "dv_code": "DV08",
@@ -616,7 +862,59 @@
       "service_type": "one_time",
       "price_range_vi": "15tr – 150tr",
       "duration_hint_vi": "3-14 tuần",
-      "loai_hinh_vi": "One-time"
+      "loai_hinh_vi": "One-time",
+      "components": [
+        {
+          "component_code": "DV08-C01",
+          "name_vi": "Tài liệu quy trình CRM chuẩn hoá",
+          "description_vi": "Khám phá quy trình sales hiện tại, xác định luồng dữ liệu và yêu cầu tích hợp",
+          "deliverable_vi": "Tài liệu quy trình CRM chuẩn hoá",
+          "price_text_vi": "8.750.000đ – 15.000.000đ",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV08-C02",
+          "name_vi": "CRM đã cấu hình với dữ liệu đã làm sạch",
+          "description_vi": "Cấu hình CRM, làm sạch và di chuyển dữ liệu khách hàng hiện có",
+          "deliverable_vi": "CRM đã cấu hình với dữ liệu đã làm sạch",
+          "price_text_vi": "8.750.000đ – 15.000.000đ",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV08-C03",
+          "name_vi": "CRM tích hợp đầy đủ các nguồn dữ liệu",
+          "description_vi": "Tích hợp website/chatbot/ads vào CRM, thiết lập workflow automation cơ bản",
+          "deliverable_vi": "CRM tích hợp đầy đủ các nguồn dữ liệu",
+          "price_text_vi": "8.750.000đ – 15.000.000đ",
+          "sort_order": 3
+        },
+        {
+          "component_code": "DV08-C04",
+          "name_vi": "Tài liệu hướng dẫn sử dụng",
+          "description_vi": "Đào tạo người dùng theo vai trò, go-live, theo dõi adoption rate",
+          "deliverable_vi": "Tài liệu hướng dẫn sử dụng + buổi đào tạo trực tiếp",
+          "price_text_vi": "8.750.000đ – 15.000.000đ",
+          "sort_order": 4
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV08-C02",
+          "DV08-C03"
+        ],
+        "TC": [
+          "DV08-C01",
+          "DV08-C02",
+          "DV08-C03",
+          "DV08-C04"
+        ],
+        "CS": [
+          "DV08-C01",
+          "DV08-C02",
+          "DV08-C03",
+          "DV08-C04"
+        ]
+      }
     },
     {
       "dv_code": "DV09",
@@ -688,7 +986,47 @@
       "service_type": "setup_retainer",
       "price_range_vi": "Setup 10-80tr + 3-25tr/tháng",
       "duration_hint_vi": "Setup 2-8 tuần",
-      "loai_hinh_vi": "Setup+Retainer"
+      "loai_hinh_vi": "Setup+Retainer",
+      "components": [
+        {
+          "component_code": "DV09-C01",
+          "name_vi": "Sơ đồ workflow tự động hoá đầu tiên",
+          "description_vi": "Khám phá hành vi khách hàng trên CRM/web, thiết kế workflow (welcome, remarketing, win-back)",
+          "deliverable_vi": "Sơ đồ workflow tự động hoá đầu tiên",
+          "price_text_vi": "12.500.000đ – 20.000.000đ",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV09-C02",
+          "name_vi": "2-3 workflow sẵn sàng kích hoạt (gói Cơ bản)",
+          "description_vi": "Xây nội dung, cấu hình trigger, điều kiện thoát/chặn tần suất",
+          "deliverable_vi": "2-3 workflow sẵn sàng kích hoạt (gói Cơ bản)",
+          "price_text_vi": "12.500.000đ – 20.000.000đ",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV09-C03",
+          "name_vi": "Báo cáo hàng tháng (conversion uplift, reactivation rate)",
+          "description_vi": "Kích hoạt workflow, theo dõi tỷ lệ hoàn thành/uplift, mở rộng thêm workflow",
+          "deliverable_vi": "Báo cáo hàng tháng (conversion uplift, reactivation rate)",
+          "price_text_vi": "8.000.000đ – 12.000.000đ/tháng",
+          "sort_order": 3
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV09-C01"
+        ],
+        "TC": [
+          "DV09-C01",
+          "DV09-C02"
+        ],
+        "CS": [
+          "DV09-C01",
+          "DV09-C02",
+          "DV09-C03"
+        ]
+      }
     },
     {
       "dv_code": "DV10",
@@ -764,7 +1102,49 @@
       "service_type": "setup_retainer",
       "price_range_vi": "Setup 20-250tr + 5-40tr/tháng",
       "duration_hint_vi": "Setup 3-16 tuần",
-      "loai_hinh_vi": "Setup+Retainer"
+      "loai_hinh_vi": "Setup+Retainer",
+      "components": [
+        {
+          "component_code": "DV10-C01",
+          "name_vi": "Báo cáo đánh giá dữ liệu",
+          "description_vi": "Khám phá nguồn dữ liệu, đánh giá độ sẵn sàng, xác định use case ưu tiên",
+          "deliverable_vi": "Báo cáo đánh giá dữ liệu + danh sách use case",
+          "price_text_vi": "16.666.667đ – 30.000.000đ",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV10-C02",
+          "name_vi": "Hệ thống cảnh báo/báo cáo cơ bản hoạt động thử nghiệm",
+          "description_vi": "Triển khai công cụ/mô hình phân tích, thiết lập cảnh báo/báo cáo cơ bản",
+          "deliverable_vi": "Hệ thống cảnh báo/báo cáo cơ bản hoạt động thử nghiệm",
+          "price_text_vi": "16.666.667đ – 30.000.000đ",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV10-C03",
+          "name_vi": "Mô hình dự đoán",
+          "description_vi": "Xây mô hình dự đoán, tích hợp đa nguồn dữ liệu, human-in-the-loop",
+          "deliverable_vi": "Mô hình dự đoán + khuyến nghị hành động định kỳ",
+          "price_text_vi": "16.666.667đ – 30.000.000đ",
+          "sort_order": 3
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV10-C02",
+          "DV10-C03"
+        ],
+        "TC": [
+          "DV10-C01",
+          "DV10-C02",
+          "DV10-C03"
+        ],
+        "CS": [
+          "DV10-C01",
+          "DV10-C02",
+          "DV10-C03"
+        ]
+      }
     },
     {
       "dv_code": "DV11",
@@ -838,7 +1218,49 @@
       "service_type": "setup_retainer",
       "price_range_vi": "Setup 15-120tr + 5-30tr/tháng",
       "duration_hint_vi": "Setup 3-12 tuần",
-      "loai_hinh_vi": "Setup+Retainer"
+      "loai_hinh_vi": "Setup+Retainer",
+      "components": [
+        {
+          "component_code": "DV11-C01",
+          "name_vi": "Sơ đồ hạ tầng automation",
+          "description_vi": "Khám phá mục tiêu kinh doanh, rà soát hệ thống hiện có, thiết kế 3-5 workflow cốt lõi",
+          "deliverable_vi": "Sơ đồ hạ tầng automation + danh sách workflow ưu tiên",
+          "price_text_vi": "11.666.667đ – 18.333.333đ",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV11-C02",
+          "name_vi": "Hạ tầng automation hoạt động thử nghiệm",
+          "description_vi": "Cấu hình nền tảng automation, lead scoring, trigger (gói Cơ bản: 1 nền tảng)",
+          "deliverable_vi": "Hạ tầng automation hoạt động thử nghiệm",
+          "price_text_vi": "11.666.667đ – 18.333.333đ",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV11-C03",
+          "name_vi": "Hệ thống automation đa kênh hoàn chỉnh",
+          "description_vi": "Mở rộng đa kênh, tích hợp CRM sâu, giám sát lỗi tự động",
+          "deliverable_vi": "Hệ thống automation đa kênh hoàn chỉnh",
+          "price_text_vi": "11.666.667đ – 18.333.333đ",
+          "sort_order": 3
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV11-C02",
+          "DV11-C03"
+        ],
+        "TC": [
+          "DV11-C01",
+          "DV11-C02",
+          "DV11-C03"
+        ],
+        "CS": [
+          "DV11-C01",
+          "DV11-C02",
+          "DV11-C03"
+        ]
+      }
     },
     {
       "dv_code": "DV12",
@@ -907,7 +1329,49 @@
       "service_type": "one_time",
       "price_range_vi": "15tr – 120tr",
       "duration_hint_vi": "2-8 tuần",
-      "loai_hinh_vi": "One-time/theo quý"
+      "loai_hinh_vi": "One-time/theo quý",
+      "components": [
+        {
+          "component_code": "DV12-C01",
+          "name_vi": "Đề cương nghiên cứu chi tiết",
+          "description_vi": "Khám phá mục tiêu nghiên cứu, xác định phạm vi (ngành, đối thủ, phân khúc)",
+          "deliverable_vi": "Đề cương nghiên cứu chi tiết",
+          "price_text_vi": "10.000.000đ – 16.666.667đ",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV12-C02",
+          "name_vi": "Bộ dữ liệu và phân tích sơ bộ",
+          "description_vi": "Thu thập dữ liệu thứ cấp hoặc khảo sát khách hàng (gói cao hơn), phân tích đối thủ",
+          "deliverable_vi": "Bộ dữ liệu và phân tích sơ bộ",
+          "price_text_vi": "10.000.000đ – 16.666.667đ",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV12-C03",
+          "name_vi": "Báo cáo phân tích thị trường hoàn chỉnh",
+          "description_vi": "Tổng hợp insight theo phân khúc, gắn với quyết định hành động cụ thể",
+          "deliverable_vi": "Báo cáo phân tích thị trường hoàn chỉnh + buổi trình bày",
+          "price_text_vi": "10.000.000đ – 16.666.667đ",
+          "sort_order": 3
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV12-C02",
+          "DV12-C03"
+        ],
+        "TC": [
+          "DV12-C01",
+          "DV12-C02",
+          "DV12-C03"
+        ],
+        "CS": [
+          "DV12-C01",
+          "DV12-C02",
+          "DV12-C03"
+        ]
+      }
     },
     {
       "dv_code": "DV13",
@@ -976,7 +1440,49 @@
       "service_type": "setup_retainer",
       "price_range_vi": "Setup 20-180tr + 3-25tr/tháng",
       "duration_hint_vi": "Setup 3-14 tuần",
-      "loai_hinh_vi": "Setup+Retainer"
+      "loai_hinh_vi": "Setup+Retainer",
+      "components": [
+        {
+          "component_code": "DV13-C01",
+          "name_vi": "Danh sách KPI ưu tiên theo vai trò/phòng ban",
+          "description_vi": "Khám phá KPI cấp điều hành, rà soát nguồn dữ liệu hiện có",
+          "deliverable_vi": "Danh sách KPI ưu tiên theo vai trò/phòng ban",
+          "price_text_vi": "13.333.333đ – 23.333.333đ",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV13-C02",
+          "name_vi": "Dashboard hoạt động thử nghiệm với dữ liệu thật",
+          "description_vi": "Xây dashboard 1 hoặc đa nguồn dữ liệu, thiết kế cảnh báo theo ngưỡng",
+          "deliverable_vi": "Dashboard hoạt động thử nghiệm với dữ liệu thật",
+          "price_text_vi": "13.333.333đ – 23.333.333đ",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV13-C03",
+          "name_vi": "Dashboard chính thức",
+          "description_vi": "Go-live, phân tầng dashboard theo vai trò, đào tạo sử dụng",
+          "deliverable_vi": "Dashboard chính thức + tài liệu hướng dẫn",
+          "price_text_vi": "13.333.333đ – 23.333.333đ",
+          "sort_order": 3
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV13-C02",
+          "DV13-C03"
+        ],
+        "TC": [
+          "DV13-C01",
+          "DV13-C02",
+          "DV13-C03"
+        ],
+        "CS": [
+          "DV13-C01",
+          "DV13-C02",
+          "DV13-C03"
+        ]
+      }
     },
     {
       "dv_code": "DV14",
@@ -1047,7 +1553,49 @@
       "service_type": "retainer",
       "price_range_vi": "25tr – 150tr/tháng",
       "duration_hint_vi": "Liên tục",
-      "loai_hinh_vi": "Retainer"
+      "loai_hinh_vi": "Retainer",
+      "components": [
+        {
+          "component_code": "DV14-C01",
+          "name_vi": "Kế hoạch PR tháng",
+          "description_vi": "Khám phá thông điệp truyền thông, xác định đầu báo/chuyên mục phù hợp",
+          "deliverable_vi": "Kế hoạch PR tháng + danh sách đầu báo mục tiêu",
+          "price_text_vi": "45.000.000đ – 80.000.000đ/tháng",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV14-C02",
+          "name_vi": "Bản nháp bài viết",
+          "description_vi": "Soạn thông cáo báo chí/bài PR, booking vị trí đăng",
+          "deliverable_vi": "Bản nháp bài viết + lịch đăng dự kiến",
+          "price_text_vi": "45.000.000đ – 80.000.000đ/tháng",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV14-C03",
+          "name_vi": "Bài đăng chính thức",
+          "description_vi": "Đăng bài, theo dõi hiệu quả (reach, sentiment), báo cáo định kỳ",
+          "deliverable_vi": "Bài đăng chính thức + link bài + báo cáo hàng tháng",
+          "price_text_vi": "45.000.000đ – 80.000.000đ/tháng",
+          "sort_order": 3
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV14-C02",
+          "DV14-C03"
+        ],
+        "TC": [
+          "DV14-C01",
+          "DV14-C02",
+          "DV14-C03"
+        ],
+        "CS": [
+          "DV14-C01",
+          "DV14-C02",
+          "DV14-C03"
+        ]
+      }
     },
     {
       "dv_code": "DV15",
@@ -1118,7 +1666,49 @@
       "service_type": "one_time",
       "price_range_vi": "25tr – 400tr+",
       "duration_hint_vi": "2-6 tuần",
-      "loai_hinh_vi": "One-time"
+      "loai_hinh_vi": "One-time",
+      "components": [
+        {
+          "component_code": "DV15-C01",
+          "name_vi": "Kịch bản",
+          "description_vi": "Phát triển kịch bản/concept, storyboard, lập kế hoạch quay",
+          "deliverable_vi": "Kịch bản + storyboard + kế hoạch sản xuất",
+          "price_text_vi": "20.000.000đ – 50.000.000đ",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV15-C02",
+          "name_vi": "Bản dựng thô (rough cut) để duyệt",
+          "description_vi": "Sản xuất: quay hình, chỉ đạo diễn xuất/talent nếu có",
+          "deliverable_vi": "Bản dựng thô (rough cut) để duyệt",
+          "price_text_vi": "20.000.000đ – 50.000.000đ",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV15-C03",
+          "name_vi": "Video hoàn chỉnh (bản final)",
+          "description_vi": "Hậu kỳ: dựng phim, màu sắc, âm thanh, hiệu ứng",
+          "deliverable_vi": "Video hoàn chỉnh (bản final)",
+          "price_text_vi": "20.000.000đ – 50.000.000đ",
+          "sort_order": 3
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV15-C02",
+          "DV15-C03"
+        ],
+        "TC": [
+          "DV15-C01",
+          "DV15-C02",
+          "DV15-C03"
+        ],
+        "CS": [
+          "DV15-C01",
+          "DV15-C02",
+          "DV15-C03"
+        ]
+      }
     },
     {
       "dv_code": "DV16",
@@ -1190,7 +1780,49 @@
       "service_type": "one_time",
       "price_range_vi": "30tr – 500tr+",
       "duration_hint_vi": "3-6 tuần",
-      "loai_hinh_vi": "One-time theo chiến dịch"
+      "loai_hinh_vi": "One-time theo chiến dịch",
+      "components": [
+        {
+          "component_code": "DV16-C01",
+          "name_vi": "Danh sách KOL/KOC đề xuất kèm chi phí",
+          "description_vi": "Xác định đối tượng mục tiêu, đề xuất danh sách KOL/KOC phù hợp",
+          "deliverable_vi": "Danh sách KOL/KOC đề xuất kèm chi phí",
+          "price_text_vi": "26.666.667đ – 60.000.000đ",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV16-C02",
+          "name_vi": "Brief nội dung",
+          "description_vi": "Đàm phán hợp đồng, gửi brief sáng tạo, gửi sản phẩm mẫu",
+          "deliverable_vi": "Brief nội dung + hợp đồng đã ký với KOL/KOC",
+          "price_text_vi": "26.666.667đ – 60.000.000đ",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV16-C03",
+          "name_vi": "Nội dung đã đăng",
+          "description_vi": "Theo dõi tiến độ tạo nội dung, kiểm duyệt trước khi đăng, đo lường hiệu quả",
+          "deliverable_vi": "Nội dung đã đăng + báo cáo hiệu quả",
+          "price_text_vi": "26.666.667đ – 60.000.000đ",
+          "sort_order": 3
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV16-C02",
+          "DV16-C03"
+        ],
+        "TC": [
+          "DV16-C01",
+          "DV16-C02",
+          "DV16-C03"
+        ],
+        "CS": [
+          "DV16-C01",
+          "DV16-C02",
+          "DV16-C03"
+        ]
+      }
     },
     {
       "dv_code": "DV17",
@@ -1261,7 +1893,49 @@
       "service_type": "one_time",
       "price_range_vi": "30tr – 600tr+",
       "duration_hint_vi": "3-8 tuần",
-      "loai_hinh_vi": "One-time theo sự kiện"
+      "loai_hinh_vi": "One-time theo sự kiện",
+      "components": [
+        {
+          "component_code": "DV17-C01",
+          "name_vi": "Concept sự kiện",
+          "description_vi": "Lên ý tưởng, kịch bản sự kiện, chọn địa điểm, lập ngân sách",
+          "deliverable_vi": "Concept sự kiện + dự toán chi tiết",
+          "price_text_vi": "26.666.667đ – 66.666.667đ",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV17-C02",
+          "name_vi": "Kế hoạch vận hành chi tiết",
+          "description_vi": "Thiết kế & thi công (sân khấu, backdrop, gian hàng), chuẩn bị nhân sự",
+          "deliverable_vi": "Kế hoạch vận hành chi tiết + timeline ngày D",
+          "price_text_vi": "26.666.667đ – 66.666.667đ",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV17-C03",
+          "name_vi": "Ghi hình/livestream",
+          "description_vi": "Vận hành sự kiện, giám sát chất lượng, ghi nhận số liệu tham dự",
+          "deliverable_vi": "Ghi hình/livestream + báo cáo tổng kết",
+          "price_text_vi": "26.666.667đ – 66.666.667đ",
+          "sort_order": 3
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV17-C02",
+          "DV17-C03"
+        ],
+        "TC": [
+          "DV17-C01",
+          "DV17-C02",
+          "DV17-C03"
+        ],
+        "CS": [
+          "DV17-C01",
+          "DV17-C02",
+          "DV17-C03"
+        ]
+      }
     },
     {
       "dv_code": "DV18",
@@ -1332,7 +2006,49 @@
       "service_type": "retainer",
       "price_range_vi": "10tr – 60tr/tháng",
       "duration_hint_vi": "Liên tục",
-      "loai_hinh_vi": "Retainer"
+      "loai_hinh_vi": "Retainer",
+      "components": [
+        {
+          "component_code": "DV18-C01",
+          "name_vi": "Kế hoạch media",
+          "description_vi": "Xác định mục tiêu (awareness/traffic), đề xuất site/vị trí phù hợp",
+          "deliverable_vi": "Kế hoạch media + đề xuất site/vị trí",
+          "price_text_vi": "18.000.000đ – 30.000.000đ/tháng",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV18-C02",
+          "name_vi": "Xác nhận booking",
+          "description_vi": "Booking vị trí, thiết kế/chuẩn hoá banner theo chuẩn từng site",
+          "deliverable_vi": "Xác nhận booking + banner sẵn sàng",
+          "price_text_vi": "18.000.000đ – 30.000.000đ/tháng",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV18-C03",
+          "name_vi": "Báo cáo hiệu quả (CPM, reach, CTR) định kỳ",
+          "description_vi": "Chạy chiến dịch, theo dõi CPM/reach, tối ưu phân bổ site",
+          "deliverable_vi": "Báo cáo hiệu quả (CPM, reach, CTR) định kỳ",
+          "price_text_vi": "18.000.000đ – 30.000.000đ/tháng",
+          "sort_order": 3
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV18-C02",
+          "DV18-C03"
+        ],
+        "TC": [
+          "DV18-C01",
+          "DV18-C02",
+          "DV18-C03"
+        ],
+        "CS": [
+          "DV18-C01",
+          "DV18-C02",
+          "DV18-C03"
+        ]
+      }
     },
     {
       "dv_code": "DV19",
@@ -1395,7 +2111,38 @@
       "service_type": "setup_retainer",
       "price_range_vi": "Setup 5-8tr + 6-40tr/tháng",
       "duration_hint_vi": "Setup 1-4 tuần",
-      "loai_hinh_vi": "Setup+Retainer"
+      "loai_hinh_vi": "Setup+Retainer",
+      "components": [
+        {
+          "component_code": "DV19-C01",
+          "name_vi": "Gian hàng hoàn chỉnh trên sàn",
+          "description_vi": "Thiết lập gian hàng, tối ưu trang sản phẩm (SEO tiêu đề/mô tả, hình ảnh)",
+          "deliverable_vi": "Gian hàng hoàn chỉnh trên sàn + catalogue sản phẩm",
+          "price_text_vi": "12.000.000đ – 20.000.000đ/tháng",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV19-C02",
+          "name_vi": "Báo cáo doanh thu & hiệu quả hàng tháng",
+          "description_vi": "Vận hành: xử lý đơn hàng, chăm sóc khách hàng/đánh giá, tham gia chương trình sàn, chạy quảng cáo nội sàn",
+          "deliverable_vi": "Báo cáo doanh thu & hiệu quả hàng tháng",
+          "price_text_vi": "12.000.000đ – 20.000.000đ/tháng",
+          "sort_order": 2
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV19-C01"
+        ],
+        "TC": [
+          "DV19-C01",
+          "DV19-C02"
+        ],
+        "CS": [
+          "DV19-C01",
+          "DV19-C02"
+        ]
+      }
     },
     {
       "dv_code": "DV20",
@@ -1465,7 +2212,49 @@
       "service_type": "retainer",
       "price_range_vi": "6tr – 40tr/tháng",
       "duration_hint_vi": "Liên tục",
-      "loai_hinh_vi": "Retainer"
+      "loai_hinh_vi": "Retainer",
+      "components": [
+        {
+          "component_code": "DV20-C01",
+          "name_vi": "Kế hoạch chiến dịch tháng",
+          "description_vi": "Rà soát danh sách khách hàng/data, phân đoạn, lên kế hoạch nội dung tháng",
+          "deliverable_vi": "Kế hoạch chiến dịch tháng + phân đoạn khách hàng",
+          "price_text_vi": "12.000.000đ – 20.000.000đ/tháng",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV20-C02",
+          "name_vi": "Mẫu thiết kế",
+          "description_vi": "Thiết kế mẫu (email template/tin ZNS), soạn nội dung",
+          "deliverable_vi": "Mẫu thiết kế + nội dung sẵn sàng gửi",
+          "price_text_vi": "12.000.000đ – 20.000.000đ/tháng",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV20-C03",
+          "name_vi": "Báo cáo mở/click/chuyển đổi định kỳ",
+          "description_vi": "Gửi chiến dịch, theo dõi tỷ lệ mở/click, tối ưu thời điểm gửi",
+          "deliverable_vi": "Báo cáo mở/click/chuyển đổi định kỳ",
+          "price_text_vi": "12.000.000đ – 20.000.000đ/tháng",
+          "sort_order": 3
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV20-C02",
+          "DV20-C03"
+        ],
+        "TC": [
+          "DV20-C01",
+          "DV20-C02",
+          "DV20-C03"
+        ],
+        "CS": [
+          "DV20-C01",
+          "DV20-C02",
+          "DV20-C03"
+        ]
+      }
     },
     {
       "dv_code": "DV21",
@@ -1749,7 +2538,38 @@
       "service_type": "retainer",
       "price_range_vi": "20tr – 200tr+/tháng",
       "duration_hint_vi": "3-8 tuần",
-      "loai_hinh_vi": "Retainer/theo chiến dịch"
+      "loai_hinh_vi": "Retainer/theo chiến dịch",
+      "components": [
+        {
+          "component_code": "DV21-C01",
+          "name_vi": "Thiết kế POSM",
+          "description_vi": "Khảo sát điểm bán, thiết kế POSM (standee, kệ trưng bày, banner)",
+          "deliverable_vi": "Thiết kế POSM + danh sách điểm bán triển khai",
+          "price_text_vi": "45.000.000đ – 90.000.000đ/tháng",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV21-C02",
+          "name_vi": "Xác nhận triển khai từng điểm bán",
+          "description_vi": "Sản xuất & thi công POSM tại các điểm bán, đào tạo nhân viên bán hàng",
+          "deliverable_vi": "Xác nhận triển khai từng điểm bán + hình ảnh nghiệm thu",
+          "price_text_vi": "45.000.000đ – 90.000.000đ/tháng",
+          "sort_order": 2
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": [
+          "DV21-C01"
+        ],
+        "TC": [
+          "DV21-C01",
+          "DV21-C02"
+        ],
+        "CS": [
+          "DV21-C01",
+          "DV21-C02"
+        ]
+      }
     }
   ]
 }
