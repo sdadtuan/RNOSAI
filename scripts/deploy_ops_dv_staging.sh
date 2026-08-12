@@ -34,6 +34,8 @@ run_local() {
   fi
   node "$ROOT/scripts/seed_ops_dv_catalog.js"
 
+  # SPC S1 (optional): apply docs/specs/2026-08-12-postgresql-ddl-spc.sql then seed_spc_catalog.js
+
   echo "== 3/5 Enable API + FE flags =="
   RUNTIME_ENV="$ROOT/deploy/runtime.env"
   mkdir -p "$ROOT/deploy"
