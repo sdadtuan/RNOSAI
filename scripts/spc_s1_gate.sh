@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-: "${DATABASE_URL:?DATABASE_URL required}"
+export SPC_GATE_ROOT="$ROOT"
+# shellcheck disable=SC1091
+source "$ROOT/scripts/lib/spc-gate-env.sh"
+: "${DATABASE_URL:?DATABASE_URL required — run from repo root or: set -a && source .env && set +a}"
 
 pass=0; fail=0
 ok() { pass=$((pass+1)); echo "PASS  $1"; }
