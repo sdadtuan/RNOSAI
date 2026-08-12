@@ -3,7 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 : "${DATABASE_URL:?DATABASE_URL required}"
 : "${PTT_API_URL:=http://127.0.0.1:3000}"
-: "${PTT_INTERNAL_KEY:?PTT_INTERNAL_KEY required for API smoke}"
+: "${PTT_CRM_INTERNAL_KEY:?PTT_CRM_INTERNAL_KEY required for API smoke}"
 
 pass=0; fail=0
 ok() { pass=$((pass+1)); echo "PASS  $1"; }
@@ -17,7 +17,7 @@ bash "$ROOT/scripts/spc_s1_gate.sh"
 c=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM information_schema.columns WHERE table_name='service_offer' AND column_name='draft_pricing_model'")
 [[ "$c" == "1" ]] && ok "draft_pricing_model column" || bad "missing draft_pricing_model"
 
-portfolio=$(curl -sf -H "X-Internal-Key: $PTT_INTERNAL_KEY" "$PTT_API_URL/api/spc/portfolio")
+portfolio=$(curl -sf -H "x-ptt-internal-key: $PTT_CRM_INTERNAL_KEY" "$PTT_API_URL/api/spc/portfolio")
 count=$(node -e "const j=JSON.parse(process.argv[1]); console.log(j.count||0)" "$portfolio")
 [[ "$count" == "21" ]] && ok "GET /api/spc/portfolio 21 families" || bad "portfolio count=$count"
 
@@ -33,7 +33,7 @@ pub=$(psql "$DATABASE_URL" -tAc "SELECT pricing_model->>'monthly_min_vnd' FROM s
 draft=$(psql "$DATABASE_URL" -tAc "SELECT draft_pricing_model->>'monthly_min_vnd' FROM service_offer WHERE sku_code='DV02-TC'")
 [[ "$pub" != "$draft" ]] && ok "draft overlay distinct from published pricing" || bad "draft overlay not isolated pub=$pub draft=$draft"
 
-offer=$(curl -sf -H "X-Internal-Key: $PTT_INTERNAL_KEY" "$PTT_API_URL/api/spc/offers/DV02-TC")
+offer=$(curl -sf -H "x-ptt-internal-key: $PTT_CRM_INTERNAL_KEY" "$PTT_API_URL/api/spc/offers/DV02-TC")
 pubRead=$(node -e "const j=JSON.parse(process.argv[1]); console.log(j.pricing_model?.monthly_min_vnd||'')" "$offer")
 [[ "$pubRead" == "$pub" ]] && ok "published read unchanged after draft overlay" || bad "published read changed pubRead=$pubRead"
 
