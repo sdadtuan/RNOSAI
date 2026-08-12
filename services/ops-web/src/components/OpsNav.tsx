@@ -301,6 +301,9 @@ function buildSections(
   }
   if (hasCap(user, 'crm_board', 'view')) {
     b2bSales.push({ href: '/crm/proposals', label: 'Đề xuất' });
+    if (isOpsDvFeEnabled()) {
+      b2bSales.push({ href: '/crm/sales/services', label: 'Tra cứu dịch vụ' });
+    }
   }
   if (hasCap(user, 'crm_agency', 'view')) {
     b2bSales.push({ href: '/crm/hub', label: 'Hub · Hợp đồng' });

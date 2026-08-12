@@ -179,3 +179,47 @@ export function tierFromSku(skuCode: string): 'basic' | 'standard' | 'premium' {
   if (suffix === 'CS') return 'premium';
   return 'standard';
 }
+
+export function pricingModelRange(model: Record<string, unknown> | undefined): {
+  min_vnd: number;
+  max_vnd: number;
+  suggested_vnd: number;
+} {
+  if (!model || typeof model !== 'object') {
+    return { min_vnd: 0, max_vnd: 0, suggested_vnd: 0 };
+  }
+  const type = String(model.type ?? '');
+  if (type === 'one_time') {
+    const min = Number(model.min_vnd) || 0;
+    const max = Number(model.max_vnd) || min;
+    return { min_vnd: min, max_vnd: max, suggested_vnd: min || Math.round((min + max) / 2) };
+  }
+  if (type === 'retainer' || type === 'setup_plus_retainer') {
+    const min = Number(model.monthly_min_vnd) || 0;
+    const max = Number(model.monthly_max_vnd ?? model.max_vnd) || min;
+    return { min_vnd: min, max_vnd: max, suggested_vnd: min || Math.round((min + max) / 2) };
+  }
+  if (type === 'percent_of_ad_spend') {
+    const min = Number(model.min_fee_vnd) || 0;
+    return { min_vnd: min, max_vnd: min, suggested_vnd: min };
+  }
+  return { min_vnd: 0, max_vnd: 0, suggested_vnd: 0 };
+}
+
+export function formatPricingModelBrief(model: Record<string, unknown> | undefined): string {
+  if (!model?.type) return 'Liên hệ báo giá';
+  const range = pricingModelRange(model);
+  const fmt = (n: number) => (n > 0 ? `${n.toLocaleString('vi-VN')} ₫` : '—');
+  if (model.type === 'setup_plus_retainer') {
+    const setupMin = Number(model.setup_min_vnd) || 0;
+    const setupMax = Number(model.setup_max_vnd) || setupMin;
+    return `Setup ${fmt(setupMin)}–${fmt(setupMax)} · Tháng ${fmt(range.min_vnd)}–${fmt(range.max_vnd)}`;
+  }
+  if (model.type === 'retainer') {
+    return `Tháng ${fmt(range.min_vnd)}–${fmt(range.max_vnd)}`;
+  }
+  if (model.type === 'one_time') {
+    return `${fmt(range.min_vnd)}–${fmt(range.max_vnd)}`;
+  }
+  return String(model.type);
+}

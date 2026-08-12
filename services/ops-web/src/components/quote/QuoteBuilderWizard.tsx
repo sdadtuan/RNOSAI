@@ -34,6 +34,7 @@ type Props = {
   user: StoredStaffUser;
   customers: CustomerRow[];
   initialCustomerId: string;
+  initialSelectedDv?: string[];
   onDone: () => Promise<void>;
 };
 
@@ -41,7 +42,14 @@ function familyByDv(families: QuoteCatalogFamily[], dvCode: string) {
   return families.find((f) => f.dv_code === dvCode);
 }
 
-export function QuoteBuilderWizard({ token, user, customers, initialCustomerId, onDone }: Props) {
+export function QuoteBuilderWizard({
+  token,
+  user,
+  customers,
+  initialCustomerId,
+  initialSelectedDv = [],
+  onDone,
+}: Props) {
   const [step, setStep] = useState<WizardStep>(1);
   const [customerId, setCustomerId] = useState(initialCustomerId);
   const [families, setFamilies] = useState<QuoteCatalogFamily[]>([]);
@@ -59,9 +67,18 @@ export function QuoteBuilderWizard({ token, user, customers, initialCustomerId, 
       .then((data) => {
         setFamilies(data.families ?? []);
         setComboWarnings(data.combo_warnings ?? []);
+        if (initialSelectedDv.length) {
+          const valid = initialSelectedDv.filter((dv) =>
+            (data.families ?? []).some((f) => f.dv_code === dv),
+          );
+          if (valid.length) {
+            setSelectedDv(valid);
+            setStep(2);
+          }
+        }
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Tải catalog thất bại'));
-  }, [token]);
+  }, [token, initialSelectedDv]);
 
   const total = useMemo(() => lines.reduce((s, l) => s + l.final_price_vnd, 0), [lines]);
 

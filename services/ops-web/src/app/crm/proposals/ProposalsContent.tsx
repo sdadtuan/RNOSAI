@@ -44,6 +44,7 @@ export function ProposalsContent() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [prefillDv, setPrefillDv] = useState<string[]>([]);
   const [token, setToken] = useState('');
   const [leadContextId, setLeadContextId] = useState<number | null>(null);
   const [gateRedirecting, setGateRedirecting] = useState(false);
@@ -123,6 +124,12 @@ export function ProposalsContent() {
           }
         }
         if (quoteBuilderEnabled && searchParams.get('wizard') === '1') setShowWizard(true);
+        setPrefillDv(
+          (searchParams.get('prefill_dv') ?? '')
+            .split(',')
+            .map((s) => s.trim().toUpperCase())
+            .filter(Boolean),
+        );
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải khách hàng thất bại');
       } finally {
@@ -270,6 +277,7 @@ export function ProposalsContent() {
             user={user}
             customers={customers}
             initialCustomerId={customerId}
+            initialSelectedDv={prefillDv}
             onDone={async () => {
               setShowWizard(false);
               const access = getAccessToken();
