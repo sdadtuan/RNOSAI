@@ -23,6 +23,11 @@ export class SpcController {
     return this.spc.getFamily(dvCode, true);
   }
 
+  @Get('offers/:skuCode/process')
+  getOfferProcess(@Param('skuCode') skuCode: string) {
+    return this.spc.getOfferProcess(skuCode);
+  }
+
   @Get('offers/:skuCode')
   getOffer(@Param('skuCode') skuCode: string) {
     return this.spc.getOffer(skuCode, true);

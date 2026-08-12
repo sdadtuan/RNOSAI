@@ -127,6 +127,41 @@ export async function fetchSpcPublishLog(token: string) {
   );
 }
 
+export type SpcProcessPhaseRow = {
+  phase_code: string;
+  dv_code: string;
+  sku_code: string | null;
+  week_label_vi: string;
+  ptt_work_vi: string;
+  deliverable_vi: string;
+  client_action_vi: string;
+  tasks_json: unknown[];
+  sort_order: number;
+  active: boolean;
+};
+
+export type SpcOfferProcessResponse = {
+  sku_code: string;
+  dv_code: string;
+  phase_count: number;
+  phases: SpcProcessPhaseRow[];
+};
+
+export async function fetchSpcOfferProcess(token: string, skuCode: string) {
+  return spcFetch<SpcOfferProcessResponse>(
+    token,
+    `/api/spc/offers/${encodeURIComponent(skuCode)}/process`,
+  );
+}
+
+export async function fetchSpcProcessLibrary(token: string, dvCode?: string) {
+  const qs = dvCode ? `?dv_code=${encodeURIComponent(dvCode)}` : '';
+  return spcFetch<{ count: number; items: SpcProcessPhaseRow[] }>(
+    token,
+    `/api/v1/admin/spc/process${qs}`,
+  );
+}
+
 export function formatPricingModel(model: SpcPricingModel | undefined): string {
   if (!model?.type) return '—';
   switch (model.type) {

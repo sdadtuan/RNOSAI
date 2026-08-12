@@ -71,6 +71,9 @@ export default function AdminServicesHubPage() {
             <Link href="/admin/services/portfolio">Portfolio 21 DV</Link> — xem / sửa SKU theo DV
           </li>
           <li>
+            <Link href="/admin/services/process">Process phases (L3)</Link> — spawn-week theo DVxx-Tn / SKU
+          </li>
+          <li>
             <Link href="/admin/services/publish">Publish queue</Link> — IT publish draft → ops profile sync
           </li>
           <li>

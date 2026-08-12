@@ -10,7 +10,9 @@ import type {
   SpcPatchOfferBody,
   SpcPortfolioItem,
   SpcPricingModel,
+  SpcProcessPhaseRow,
   SpcPublishLogRow,
+  SpcPutProcessPhaseBody,
 } from './spc.types';
 
 function iso(value: unknown): string {
@@ -66,6 +68,22 @@ function mapOffer(row: Record<string, unknown>): SpcOfferRow {
     draft_pricing_model: draftPricing as SpcPricingModel | null,
     draft_scope_summary_vi: draftScope,
     has_pending_draft: draftPricing != null || (draftScope != null && draftScope.length > 0),
+    sort_order: Number(row.sort_order ?? 0),
+    active: row.active !== false,
+    updated_at: iso(row.updated_at),
+  };
+}
+
+function mapProcessPhase(row: Record<string, unknown>): SpcProcessPhaseRow {
+  return {
+    phase_code: String(row.phase_code ?? ''),
+    dv_code: String(row.dv_code ?? ''),
+    sku_code: row.sku_code != null ? String(row.sku_code) : null,
+    week_label_vi: String(row.week_label_vi ?? ''),
+    ptt_work_vi: String(row.ptt_work_vi ?? ''),
+    deliverable_vi: String(row.deliverable_vi ?? ''),
+    client_action_vi: String(row.client_action_vi ?? ''),
+    tasks_json: parseJson(row.tasks_json, []),
     sort_order: Number(row.sort_order ?? 0),
     active: row.active !== false,
     updated_at: iso(row.updated_at),
@@ -408,5 +426,61 @@ export class SpcPgRepository implements OnModuleDestroy {
         service_slug: meta?.slug ?? null,
       };
     });
+  }
+
+  async listProcessPhases(dvCode?: string): Promise<SpcProcessPhaseRow[]> {
+    const code = String(dvCode ?? '').trim().toUpperCase();
+    const res = code
+      ? await this.db.query(
+          `SELECT * FROM service_process_phase WHERE dv_code = $1 ORDER BY sort_order, phase_code`,
+          [code],
+        )
+      : await this.db.query(
+          `SELECT * FROM service_process_phase ORDER BY dv_code, sort_order, phase_code`,
+        );
+    return res.rows.map((row) => mapProcessPhase(row as Record<string, unknown>));
+  }
+
+  async getProcessPhase(phaseCode: string): Promise<SpcProcessPhaseRow | null> {
+    const code = String(phaseCode ?? '').trim().toUpperCase();
+    const res = await this.db.query(`SELECT * FROM service_process_phase WHERE phase_code = $1`, [code]);
+    const row = res.rows[0];
+    return row ? mapProcessPhase(row as Record<string, unknown>) : null;
+  }
+
+  async putProcessPhase(
+    phaseCode: string,
+    body: SpcPutProcessPhaseBody,
+  ): Promise<SpcProcessPhaseRow | null> {
+    const code = String(phaseCode ?? '').trim().toUpperCase();
+    const existing = await this.getProcessPhase(code);
+    if (!existing) return null;
+
+    const weekLabel =
+      body.week_label_vi != null ? String(body.week_label_vi) : existing.week_label_vi;
+    const pttWork = body.ptt_work_vi != null ? String(body.ptt_work_vi) : existing.ptt_work_vi;
+    const deliverable =
+      body.deliverable_vi != null ? String(body.deliverable_vi) : existing.deliverable_vi;
+    const clientAction =
+      body.client_action_vi != null ? String(body.client_action_vi) : existing.client_action_vi;
+    const tasksJson = body.tasks_json != null ? body.tasks_json : existing.tasks_json;
+    const sortOrder = body.sort_order != null ? Number(body.sort_order) : existing.sort_order;
+    const active = body.active != null ? Boolean(body.active) : existing.active;
+
+    const res = await this.db.query(
+      `UPDATE service_process_phase
+       SET week_label_vi = $2,
+           ptt_work_vi = $3,
+           deliverable_vi = $4,
+           client_action_vi = $5,
+           tasks_json = $6::jsonb,
+           sort_order = $7,
+           active = $8
+       WHERE phase_code = $1
+       RETURNING *`,
+      [code, weekLabel, pttWork, deliverable, clientAction, JSON.stringify(tasksJson), sortOrder, active],
+    );
+    const row = res.rows[0];
+    return row ? mapProcessPhase(row as Record<string, unknown>) : null;
   }
 }

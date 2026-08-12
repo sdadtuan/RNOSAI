@@ -131,3 +131,34 @@ export type SpcQuoteCatalogResponse = {
 };
 
 type QuotePackageTierLegacy = 'basic' | 'standard' | 'premium';
+
+export type SpcProcessPhaseRow = {
+  phase_code: string;
+  dv_code: string;
+  sku_code: string | null;
+  week_label_vi: string;
+  ptt_work_vi: string;
+  deliverable_vi: string;
+  client_action_vi: string;
+  tasks_json: unknown[];
+  sort_order: number;
+  active: boolean;
+  updated_at?: string;
+};
+
+export type SpcOfferProcessResponse = {
+  sku_code: string;
+  dv_code: string;
+  phase_count: number;
+  phases: SpcProcessPhaseRow[];
+};
+
+export type SpcPutProcessPhaseBody = {
+  week_label_vi?: string;
+  ptt_work_vi?: string;
+  deliverable_vi?: string;
+  client_action_vi?: string;
+  tasks_json?: unknown[];
+  sort_order?: number;
+  active?: boolean;
+};

@@ -119,7 +119,17 @@ async function upsertPhases(client, f) {
         ph.ptt_work_vi,
         ph.deliverable_vi,
         ph.client_action_vi,
-        JSON.stringify(ph.tasks || [{ title: ph.ptt_work_vi }]),
+        JSON.stringify(
+          ph.tasks || [
+            {
+              id: `${code}-1`,
+              title: ph.ptt_work_vi,
+              owner_role: 'TeamLead',
+              deliverable: ph.deliverable_vi,
+              client_action: ph.client_action_vi,
+            },
+          ],
+        ),
         ph.sort_order ?? n,
       ],
     );

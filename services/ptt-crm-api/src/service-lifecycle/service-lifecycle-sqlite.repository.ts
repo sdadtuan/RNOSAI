@@ -518,6 +518,7 @@ export class ServiceLifecycleSqliteRepository implements OnModuleDestroy {
       service_slug: String(row.service_slug ?? ''),
       stage: String(row.stage ?? ''),
       status: String(row.status ?? ''),
+      sku_code: row.sku_code != null ? String(row.sku_code) : null,
       assigned_am: row.assigned_am != null ? Number(row.assigned_am) : null,
       assigned_sp: row.assigned_sp != null ? Number(row.assigned_sp) : null,
       stage_entered_at: String(row.stage_entered_at ?? ''),

@@ -146,12 +146,24 @@ export class OpsWeeklyPgRepository implements OnModuleDestroy {
     };
   }
 
+  async countDistinctSpawnWeeks(lifecycleId: number): Promise<number> {
+    if (!this.canUsePg()) return 0;
+    await this.ensureSchema();
+    const res = await this.db.query(
+      `SELECT COUNT(*)::int AS c FROM ops_weekly_spawn_log WHERE lifecycle_id = $1`,
+      [lifecycleId],
+    );
+    return Number(res.rows[0]?.c ?? 0);
+  }
+
   async spawnWeek(input: {
     lifecycleId: number;
     isoWeek: string;
     dvCode: string;
     tasks: OpsWeeklyTemplateTask[];
     spawnedBy: string;
+    phaseCode?: string;
+    skuCode?: string;
   }): Promise<{ created: number; already_spawned: boolean; items: OpsWeeklyChecklistItem[] }> {
     if (!this.canUsePg()) {
       throw new Error('ops_weekly_pg_unavailable');

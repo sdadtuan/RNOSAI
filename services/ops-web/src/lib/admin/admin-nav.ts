@@ -140,6 +140,7 @@ function buildServicesLinks(user: StoredStaffUser): AdminNavLink[] {
   return [
     { href: '/admin/services', label: 'Hub catalog' },
     { href: '/admin/services/portfolio', label: 'Portfolio 21 DV' },
+    { href: '/admin/services/process', label: 'Process phases' },
     { href: '/admin/services/publish', label: 'Publish & audit' },
     { href: '/crm/ops/catalog', label: 'Ops catalog (read)' },
   ];

@@ -6,6 +6,7 @@ export interface ServiceLifecycleRow {
   service_slug: string;
   stage: string;
   status: string;
+  sku_code?: string | null;
   assigned_am: number | null;
   assigned_sp: number | null;
   stage_entered_at: string;

@@ -11,6 +11,7 @@ import {
 import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { SpcService } from '../spc/spc.service';
+import { tierFromSkuCode } from '../spc/spc-sku.util';
 import { OPS_PACKAGE_TIERS } from './ops.constants';
 import { currentIsoWeek, currentMonthKey, buildOpsHubPayload } from './ops-hub.builder';
 import {
@@ -46,6 +47,7 @@ type ResolvedLifecycleDv = {
   status: string;
   stage: string;
   packageTier: string;
+  skuCode: string | null;
   clientName: string;
   agencyClientId?: string;
   dv: OpsRouteMapService;
@@ -175,12 +177,19 @@ export class OpsService implements OnModuleInit {
       clientName = '';
     }
 
+    const skuCodeRaw = String(detail.sku_code ?? '').trim();
+    const skuCode = skuCodeRaw ? skuCodeRaw.toUpperCase() : null;
+    const packageTier = skuCode
+      ? tierFromSkuCode(skuCode) ?? 'standard'
+      : 'standard';
+
     return {
       lifecycleId,
       serviceSlug,
       status: String(detail.status ?? ''),
       stage: String(detail.stage ?? ''),
-      packageTier: 'standard',
+      packageTier,
+      skuCode,
       clientName,
       agencyClientId: agencyClientId || undefined,
       dv,
@@ -414,7 +423,28 @@ export class OpsService implements OnModuleInit {
       throw new BadRequestException({ error: gate.error });
     }
 
-    const templateTasks = flattenWeeklyTemplate(resolved.profile?.weekly_process_template);
+    const skuCode = this.spc.inferSkuForLifecycle(
+      resolved.dv.code,
+      resolved.skuCode,
+      resolved.packageTier,
+    );
+    let templateTasks = flattenWeeklyTemplate(resolved.profile?.weekly_process_template);
+    let phaseCode: string | undefined;
+    let taskSource: 'spc' | 'legacy' = 'legacy';
+
+    try {
+      const phases = await this.spc.resolveProcessPhases(resolved.dv.code, skuCode);
+      if (phases.length > 0) {
+        const spawnCount = await this.weekly.countDistinctSpawnWeeks(lifecycleId);
+        const spawnPhase = this.spc.resolveSpawnPhaseTasks(phases, spawnCount);
+        templateTasks = spawnPhase.tasks;
+        phaseCode = spawnPhase.phase_code;
+        taskSource = 'spc';
+      }
+    } catch {
+      // fallback legacy weekly_process_template
+    }
+
     if (templateTasks.length === 0) {
       throw new UnprocessableEntityException({ error: 'empty_weekly_template', dv_code: resolved.dv.code });
     }
@@ -426,11 +456,16 @@ export class OpsService implements OnModuleInit {
       dvCode: resolved.dv.code,
       tasks: templateTasks,
       spawnedBy,
+      phaseCode,
+      skuCode,
     });
 
     return {
       iso_week: isoWeek,
       dv_code: resolved.dv.code,
+      sku_code: skuCode,
+      phase_code: phaseCode,
+      task_source: taskSource,
       created: result.created,
       already_spawned: result.already_spawned,
       items: result.items.map((item) => this.mapChecklistItem(item)),

@@ -150,6 +150,9 @@ export type OpsHubPayload = {
 export type OpsSpawnWeekResult = {
   iso_week: string;
   dv_code: string;
+  sku_code?: string;
+  phase_code?: string;
+  task_source?: 'spc' | 'legacy';
   created: number;
   already_spawned: boolean;
   items: OpsWeeklyChecklistPayload[];

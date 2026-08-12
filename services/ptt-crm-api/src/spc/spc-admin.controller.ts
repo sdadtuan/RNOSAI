@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
@@ -8,7 +8,7 @@ import {
   StaffSpcViewGuard,
 } from './guards/staff-spc.guard';
 import { SpcService } from './spc.service';
-import type { SpcPatchOfferBody, SpcPublishBody } from './spc.types';
+import type { SpcPatchOfferBody, SpcPublishBody, SpcPutProcessPhaseBody } from './spc.types';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
 
@@ -53,5 +53,16 @@ export class SpcAdminController {
   @Get('publish-log')
   publishLog(@Query('limit') limit?: string) {
     return this.spc.getPublishLog(limit ? Number(limit) : undefined);
+  }
+
+  @Get('process')
+  listProcess(@Query('dv_code') dvCode?: string) {
+    return this.spc.listProcessLibrary(dvCode);
+  }
+
+  @Put('process/:phaseCode')
+  @UseGuards(StaffSpcEditGuard)
+  putProcess(@Param('phaseCode') phaseCode: string, @Body() body: SpcPutProcessPhaseBody) {
+    return this.spc.putProcessPhase(phaseCode, body);
   }
 }

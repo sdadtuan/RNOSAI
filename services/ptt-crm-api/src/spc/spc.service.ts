@@ -12,10 +12,21 @@ import {
 } from '../proposals/deal-room-quote.util';
 import { QUOTE_PACKAGE_TIERS } from '../proposals/quote-pricing.util';
 import { buildLegacyTierPricingFromOffers } from './spc-pricing-sync.util';
+import {
+  pickSpawnPhaseIndex,
+  resolveProcessPhasesForSku,
+  tasksFromProcessPhase,
+} from './spc-process.util';
 import { resolveQuotePriceFromPricingModel } from './spc-quote-pricing.util';
-import { skuFromDvTier, tierFromSkuCode } from './spc-sku.util';
+import { dvCodeFromSku, skuFromDvTier, tierFromSkuCode } from './spc-sku.util';
 import { SpcPgRepository } from './spc-pg.repository';
-import type { SpcPatchOfferBody, SpcPublishBody, SpcQuoteCatalogResponse } from './spc.types';
+import type {
+  SpcPatchOfferBody,
+  SpcPublishBody,
+  SpcPutProcessPhaseBody,
+  SpcQuoteCatalogResponse,
+  SpcOfferProcessResponse,
+} from './spc.types';
 
 @Injectable()
 export class SpcService {
@@ -234,5 +245,80 @@ export class SpcService {
       final_price_vnd: finalPrice,
       scope_notes: scope.slice(0, 2000),
     };
+  }
+
+  async resolveProcessPhases(dvCodeRaw: string, skuCodeRaw?: string | null) {
+    this.assertPg();
+    const dvCode = String(dvCodeRaw ?? '').trim().toUpperCase();
+    const rows = await this.repo.listProcessPhases(dvCode);
+    return resolveProcessPhasesForSku(rows, skuCodeRaw);
+  }
+
+  async getOfferProcess(skuCodeRaw: string): Promise<SpcOfferProcessResponse> {
+    this.assertPg();
+    const skuCode = String(skuCodeRaw ?? '').trim().toUpperCase();
+    const offer = await this.repo.getOffer(skuCode, true);
+    if (!offer) throw new NotFoundException({ error: 'spc_offer_not_found', sku_code: skuCode });
+    const phases = await this.resolveProcessPhases(offer.dv_code, skuCode);
+    return {
+      sku_code: skuCode,
+      dv_code: offer.dv_code,
+      phase_count: phases.length,
+      phases: phases.map((phase) => ({
+        phase_code: phase.phase_code,
+        dv_code: phase.dv_code,
+        sku_code: phase.sku_code,
+        week_label_vi: phase.week_label_vi,
+        ptt_work_vi: phase.ptt_work_vi,
+        deliverable_vi: phase.deliverable_vi,
+        client_action_vi: phase.client_action_vi,
+        tasks_json: Array.isArray(phase.tasks_json) ? phase.tasks_json : [],
+        sort_order: phase.sort_order,
+        active: phase.active !== false,
+      })),
+    };
+  }
+
+  async listProcessLibrary(dvCode?: string) {
+    this.assertPg();
+    const rows = await this.repo.listProcessPhases(dvCode);
+    return { count: rows.length, items: rows };
+  }
+
+  async putProcessPhase(phaseCode: string, body: SpcPutProcessPhaseBody) {
+    this.assertPg();
+    const code = String(phaseCode ?? '').trim().toUpperCase();
+    const updated = await this.repo.putProcessPhase(code, body);
+    if (!updated) throw new NotFoundException({ error: 'spc_phase_not_found', phase_code: code });
+    return updated;
+  }
+
+  resolveSpawnPhaseTasks(
+    phases: Awaited<ReturnType<SpcService['resolveProcessPhases']>>,
+    spawnCount: number,
+  ) {
+    if (!phases.length) {
+      throw new NotFoundException({ error: 'spc_process_phases_empty' });
+    }
+    const index = pickSpawnPhaseIndex(spawnCount, phases.length);
+    const phase = phases[index];
+    return {
+      phase_code: phase.phase_code,
+      phase_index: index,
+      week_label_vi: phase.week_label_vi,
+      tasks: tasksFromProcessPhase(phase),
+    };
+  }
+
+  inferSkuForLifecycle(dvCode: string, skuCode?: string | null, packageTier = 'standard') {
+    const sku = String(skuCode ?? '').trim().toUpperCase();
+    if (sku) return sku;
+    return skuFromDvTier(dvCode, (packageTier as 'basic' | 'standard' | 'premium') || 'standard');
+  }
+
+  inferDvFromSkuOrSlug(skuCode?: string | null, dvCode?: string | null) {
+    const sku = String(skuCode ?? '').trim().toUpperCase();
+    if (sku) return dvCodeFromSku(sku);
+    return String(dvCode ?? '').trim().toUpperCase();
   }
 }
