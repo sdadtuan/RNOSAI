@@ -9,14 +9,16 @@ const path = require('path');
 const { Client } = require('../services/ptt-crm-api/node_modules/pg');
 const { ensureSpcSchema } = require('./lib/spc-pg-bootstrap');
 const { importFamilyComponentsFromDoc } = require('./lib/spc-component-import');
+const { loadRepoEnv } = require('./lib/load-repo-env');
 
 const ROOT = path.join(__dirname, '..');
+loadRepoEnv(ROOT);
 const bundlePath = process.env.SPC_BUNDLE || path.join(ROOT, 'docs/specs/spc-chuan-hoa-bundle.json');
 const databaseUrl = process.env.DATABASE_URL;
 const filterDv = process.argv[2] ? String(process.argv[2]).trim().toUpperCase() : null;
 
 if (!databaseUrl) {
-  console.error('DATABASE_URL required');
+  console.error('DATABASE_URL required — set in .env or environment');
   process.exit(1);
 }
 
