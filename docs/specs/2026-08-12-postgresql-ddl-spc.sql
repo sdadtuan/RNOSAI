@@ -63,6 +63,8 @@ CREATE TABLE IF NOT EXISTS service_offer (
   status VARCHAR(20) NOT NULL DEFAULT 'draft'
     CHECK (status IN ('draft','published','archived')),
   published_version INT NOT NULL DEFAULT 0,
+  draft_pricing_model JSONB NULL,
+  draft_scope_summary_vi TEXT NULL,
   sort_order INT NOT NULL DEFAULT 0,
   active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -71,6 +73,10 @@ CREATE TABLE IF NOT EXISTS service_offer (
 );
 
 CREATE INDEX IF NOT EXISTS idx_service_offer_dv ON service_offer (dv_code);
+
+ALTER TABLE service_offer
+  ADD COLUMN IF NOT EXISTS draft_pricing_model JSONB NULL,
+  ADD COLUMN IF NOT EXISTS draft_scope_summary_vi TEXT NULL;
 
 COMMENT ON TABLE service_offer IS 'L1 SPC commercial SKU — 3 tiers per DV (CB/TC/CS)';
 

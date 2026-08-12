@@ -40,6 +40,14 @@ export type OpsServiceProfileRow = {
   tier_pricing: Record<string, unknown>;
 };
 
+export type OpsCatalogSku = {
+  sku_code: string;
+  tier: string;
+  label_vi: string;
+  pricing_model: Record<string, unknown>;
+  status: string;
+};
+
 export type OpsCatalogItem = {
   dv_code: string;
   name: string;
@@ -49,11 +57,13 @@ export type OpsCatalogItem = {
   depends_on_dv?: string[];
   tier_pricing?: Record<string, unknown>;
   ops_web: Record<string, unknown>;
+  skus?: OpsCatalogSku[];
 };
 
 export type OpsCatalogResponse = {
   schema_version: string;
   services: OpsCatalogItem[];
+  spc_enabled?: boolean;
 };
 
 export type OpsHubEngine = {

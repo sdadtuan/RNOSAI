@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
+import { SpcService } from '../spc/spc.service';
 import { OPS_PACKAGE_TIERS } from './ops.constants';
 import { currentIsoWeek, currentMonthKey, buildOpsHubPayload } from './ops-hub.builder';
 import {
@@ -61,6 +62,7 @@ export class OpsService implements OnModuleInit {
     private readonly weekly: OpsWeeklyPgRepository,
     private readonly kpi: OpsKpiPgRepository,
     private readonly alerts: OpsAlertPgRepository,
+    private readonly spc: SpcService,
     @Inject(forwardRef(() => ServiceLifecycleService))
     private readonly lifecycle: ServiceLifecycleService,
   ) {}
@@ -235,16 +237,41 @@ export class OpsService implements OnModuleInit {
     } catch {
       rows = [];
     }
+    let skuByDv = new Map<string, OpsCatalogItem['skus']>();
+    try {
+      const offers = await this.spc.listPublishedOffersForOpsCatalog();
+      skuByDv = offers.reduce((acc, offer) => {
+        const list = acc.get(offer.dv_code) ?? [];
+        list.push({
+          sku_code: offer.sku_code,
+          tier: offer.tier,
+          label_vi: offer.label_vi,
+          pricing_model: offer.pricing_model as Record<string, unknown>,
+          status: offer.status,
+        });
+        acc.set(offer.dv_code, list);
+        return acc;
+      }, new Map<string, NonNullable<OpsCatalogItem['skus']>>());
+    } catch {
+      skuByDv = new Map();
+    }
     const services =
       rows.length > 0
         ? rows.map((row) => {
             const entry = map.services.find((s) => s.code === row.dv_code) ?? null;
-            return this.profileToCatalogItem(row, entry);
+            const item = this.profileToCatalogItem(row, entry);
+            item.skus = skuByDv.get(row.dv_code) ?? [];
+            return item;
           })
-        : map.services.map((entry) => this.routeEntryToCatalogItem(entry));
+        : map.services.map((entry) => {
+            const item = this.routeEntryToCatalogItem(entry);
+            item.skus = skuByDv.get(entry.code) ?? [];
+            return item;
+          });
     return {
       schema_version: map.schema_version ?? '1.0.0',
       services,
+      spc_enabled: skuByDv.size > 0,
     };
   }
 

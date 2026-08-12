@@ -1,0 +1,347 @@
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Pool } from 'pg';
+import { AppConfigService } from '../config/app-config.service';
+import type {
+  SpcFamilyDetail,
+  SpcFamilyRow,
+  SpcOfferDetail,
+  SpcOfferRow,
+  SpcPatchOfferBody,
+  SpcPortfolioItem,
+  SpcPricingModel,
+  SpcPublishLogRow,
+} from './spc.types';
+
+function iso(value: unknown): string {
+  if (value == null) return '';
+  if (value instanceof Date) return value.toISOString();
+  return String(value);
+}
+
+function parseJson<T>(raw: unknown, fallback: T): T {
+  if (raw == null) return fallback;
+  if (typeof raw === 'object') return raw as T;
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+}
+
+function mapFamily(row: Record<string, unknown>): SpcFamilyRow {
+  return {
+    dv_code: String(row.dv_code ?? ''),
+    name_vi: String(row.name_vi ?? ''),
+    department: String(row.department ?? ''),
+    role_vi: String(row.role_vi ?? ''),
+    service_type: String(row.service_type ?? ''),
+    description_vi: String(row.description_vi ?? ''),
+    risks_json: parseJson(row.risks_json, []),
+    depends_on_dv: parseJson(row.depends_on_dv, []),
+    readiness: String(row.readiness ?? 'partial'),
+    sort_order: Number(row.sort_order ?? 0),
+    active: row.active !== false,
+    updated_at: iso(row.updated_at),
+  };
+}
+
+function mapOffer(row: Record<string, unknown>): SpcOfferRow {
+  const draftPricing = row.draft_pricing_model != null ? parseJson(row.draft_pricing_model, null) : null;
+  const draftScope =
+    row.draft_scope_summary_vi != null ? String(row.draft_scope_summary_vi) : null;
+  return {
+    sku_code: String(row.sku_code ?? ''),
+    dv_code: String(row.dv_code ?? ''),
+    tier: String(row.tier ?? 'TC') as SpcOfferRow['tier'],
+    label_vi: String(row.label_vi ?? ''),
+    scope_summary_vi: String(row.scope_summary_vi ?? ''),
+    pricing_model: parseJson(row.pricing_model, {}),
+    duration_hint_vi: String(row.duration_hint_vi ?? ''),
+    status: String(row.status ?? 'draft') as SpcOfferRow['status'],
+    published_version: Number(row.published_version ?? 0),
+    draft_pricing_model: draftPricing as SpcPricingModel | null,
+    draft_scope_summary_vi: draftScope,
+    has_pending_draft: draftPricing != null || (draftScope != null && draftScope.length > 0),
+    sort_order: Number(row.sort_order ?? 0),
+    active: row.active !== false,
+    updated_at: iso(row.updated_at),
+  };
+}
+
+@Injectable()
+export class SpcPgRepository implements OnModuleDestroy {
+  private pool: Pool | null = null;
+
+  constructor(private readonly config: AppConfigService) {}
+
+  private get db(): Pool {
+    if (!this.pool) {
+      if (!this.config.databaseUrl) {
+        throw new Error('spc_pg_requires_database_url');
+      }
+      this.pool = new Pool({ connectionString: this.config.databaseUrl });
+    }
+    return this.pool;
+  }
+
+  canUsePg(): boolean {
+    return Boolean(this.config.databaseUrl?.trim());
+  }
+
+  onModuleDestroy(): void {
+    void this.pool?.end();
+    this.pool = null;
+  }
+
+  async listPortfolio(includeDrafts: boolean): Promise<SpcPortfolioItem[]> {
+    const statusFilter = includeDrafts ? '' : "AND o.status = 'published'";
+    const { rows } = await this.db.query(`
+      SELECT
+        f.dv_code,
+        f.name_vi,
+        f.department,
+        f.readiness,
+        f.service_type,
+        COUNT(o.sku_code)::int AS offer_count,
+        COUNT(o.sku_code) FILTER (WHERE o.status = 'published')::int AS published_count,
+        COUNT(o.sku_code) FILTER (WHERE o.status = 'draft' OR o.draft_pricing_model IS NOT NULL OR NULLIF(o.draft_scope_summary_vi, '') IS NOT NULL)::int AS draft_count
+      FROM service_family f
+      LEFT JOIN service_offer o ON o.dv_code = f.dv_code AND o.active = TRUE ${statusFilter}
+      WHERE f.active = TRUE
+      GROUP BY f.dv_code, f.name_vi, f.department, f.readiness, f.service_type, f.sort_order
+      ORDER BY f.sort_order, f.dv_code
+    `);
+    return rows.map((row) => ({
+      dv_code: String(row.dv_code),
+      name_vi: String(row.name_vi),
+      department: String(row.department ?? ''),
+      readiness: String(row.readiness ?? 'partial'),
+      service_type: String(row.service_type ?? ''),
+      offer_count: Number(row.offer_count ?? 0),
+      published_count: Number(row.published_count ?? 0),
+      draft_count: Number(row.draft_count ?? 0),
+    }));
+  }
+
+  async getFamily(dvCode: string, publishedOnly: boolean): Promise<SpcFamilyDetail | null> {
+    const { rows } = await this.db.query(
+      `SELECT * FROM service_family WHERE dv_code = $1 AND active = TRUE LIMIT 1`,
+      [dvCode],
+    );
+    if (!rows[0]) return null;
+    const family = mapFamily(rows[0] as Record<string, unknown>);
+    const offerWhere = publishedOnly ? "AND status = 'published'" : '';
+    const offersRes = await this.db.query(
+      `SELECT * FROM service_offer WHERE dv_code = $1 AND active = TRUE ${offerWhere} ORDER BY sort_order, tier`,
+      [dvCode],
+    );
+    const counts = await this.db.query(
+      `SELECT
+         (SELECT COUNT(*)::int FROM service_process_phase WHERE dv_code = $1 AND active = TRUE) AS phases,
+         (SELECT COUNT(*)::int FROM service_kpi_def WHERE dv_code = $1) AS kpis`,
+      [dvCode],
+    );
+    return {
+      ...family,
+      offers: offersRes.rows.map((r) => mapOffer(r as Record<string, unknown>)),
+      phase_count: Number(counts.rows[0]?.phases ?? 0),
+      kpi_count: Number(counts.rows[0]?.kpis ?? 0),
+    };
+  }
+
+  async getOffer(skuCode: string, publishedOnly: boolean): Promise<SpcOfferDetail | null> {
+    const statusClause = publishedOnly ? "AND status = 'published'" : '';
+    const { rows } = await this.db.query(
+      `SELECT * FROM service_offer WHERE sku_code = $1 AND active = TRUE ${statusClause} LIMIT 1`,
+      [skuCode],
+    );
+    if (!rows[0]) return null;
+    const offer = mapOffer(rows[0] as Record<string, unknown>);
+    const linesRes = await this.db.query(
+      `SELECT * FROM service_offer_line WHERE sku_code = $1 AND active = TRUE ORDER BY sort_order, line_code`,
+      [skuCode],
+    );
+    return {
+      ...offer,
+      lines: linesRes.rows.map((line) => ({
+        line_code: String(line.line_code),
+        sku_code: String(line.sku_code),
+        label_vi: String(line.label_vi ?? ''),
+        description_vi: String(line.description_vi ?? ''),
+        unit: String(line.unit ?? 'once'),
+        included_by_default: line.included_by_default !== false,
+        sort_order: Number(line.sort_order ?? 0),
+        active: line.active !== false,
+      })),
+    };
+  }
+
+  async listOffersByDv(dvCode: string, publishedOnly: boolean): Promise<SpcOfferRow[]> {
+    const statusClause = publishedOnly ? "AND status = 'published'" : '';
+    const { rows } = await this.db.query(
+      `SELECT * FROM service_offer WHERE dv_code = $1 AND active = TRUE ${statusClause} ORDER BY sort_order, tier`,
+      [dvCode],
+    );
+    return rows.map((r) => mapOffer(r as Record<string, unknown>));
+  }
+
+  async patchOffer(skuCode: string, body: SpcPatchOfferBody): Promise<SpcOfferRow | null> {
+    const existingRes = await this.db.query(
+      `SELECT * FROM service_offer WHERE sku_code = $1 AND active = TRUE LIMIT 1`,
+      [skuCode],
+    );
+    if (!existingRes.rows[0]) return null;
+    const existing = mapOffer(existingRes.rows[0] as Record<string, unknown>);
+
+    const sets: string[] = ['updated_at = NOW()'];
+    const params: unknown[] = [];
+    let i = 1;
+
+    if (body.label_vi != null) {
+      sets.push(`label_vi = $${i++}`);
+      params.push(body.label_vi);
+    }
+    if (body.duration_hint_vi != null) {
+      sets.push(`duration_hint_vi = $${i++}`);
+      params.push(body.duration_hint_vi);
+    }
+
+    const hasPublished = existing.published_version > 0 || existing.status === 'published';
+    if (hasPublished) {
+      if (body.scope_summary_vi != null) {
+        sets.push(`draft_scope_summary_vi = $${i++}`);
+        params.push(body.scope_summary_vi);
+      }
+      if (body.pricing_model != null) {
+        sets.push(`draft_pricing_model = $${i++}::jsonb`);
+        params.push(JSON.stringify(body.pricing_model));
+      }
+    } else {
+      if (body.scope_summary_vi != null) {
+        sets.push(`scope_summary_vi = $${i++}`);
+        params.push(body.scope_summary_vi);
+      }
+      if (body.pricing_model != null) {
+        sets.push(`pricing_model = $${i++}::jsonb`);
+        params.push(JSON.stringify(body.pricing_model));
+      }
+      sets.push(`status = 'draft'`);
+    }
+
+    params.push(skuCode);
+    const { rows } = await this.db.query(
+      `UPDATE service_offer SET ${sets.join(', ')} WHERE sku_code = $${i} AND active = TRUE RETURNING *`,
+      params,
+    );
+    return rows[0] ? mapOffer(rows[0] as Record<string, unknown>) : null;
+  }
+
+  async publishOffer(skuCode: string, actorEmail: string): Promise<SpcOfferRow | null> {
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const cur = await client.query(`SELECT * FROM service_offer WHERE sku_code = $1 FOR UPDATE`, [skuCode]);
+      if (!cur.rows[0]) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+      const before = mapOffer(cur.rows[0] as Record<string, unknown>);
+      const nextVersion = before.published_version + 1;
+      const mergedPricing =
+        before.draft_pricing_model && Object.keys(before.draft_pricing_model).length
+          ? before.draft_pricing_model
+          : before.pricing_model;
+      const mergedScope = before.draft_scope_summary_vi ?? before.scope_summary_vi;
+      const { rows } = await client.query(
+        `UPDATE service_offer
+         SET status = 'published',
+             published_version = $2,
+             pricing_model = $3::jsonb,
+             scope_summary_vi = $4,
+             draft_pricing_model = NULL,
+             draft_scope_summary_vi = NULL,
+             updated_at = NOW()
+         WHERE sku_code = $1
+         RETURNING *`,
+        [skuCode, nextVersion, JSON.stringify(mergedPricing), mergedScope],
+      );
+      const after = mapOffer(rows[0] as Record<string, unknown>);
+      await client.query(
+        `INSERT INTO spc_publish_log (entity_type, entity_key, action, from_version, to_version, actor_email, diff_json)
+         VALUES ('offer', $1, 'publish', $2, $3, $4, $5::jsonb)`,
+        [
+          skuCode,
+          before.published_version,
+          nextVersion,
+          actorEmail,
+          JSON.stringify({ pricing_model: after.pricing_model, status: after.status }),
+        ],
+      );
+      await client.query('COMMIT');
+      return after;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async syncOpsProfileTierPricing(dvCode: string, tierPricing: Record<string, unknown>): Promise<void> {
+    await this.db.query(
+      `UPDATE ops_service_profile SET tier_pricing = $2::jsonb, updated_at = NOW() WHERE dv_code = $1`,
+      [dvCode, JSON.stringify(tierPricing)],
+    );
+  }
+
+  async countDraftOffers(): Promise<number> {
+    const { rows } = await this.db.query(
+      `SELECT COUNT(*)::int AS n FROM service_offer
+       WHERE active = TRUE
+         AND (
+           status = 'draft'
+           OR draft_pricing_model IS NOT NULL
+           OR NULLIF(draft_scope_summary_vi, '') IS NOT NULL
+         )`,
+    );
+    return Number(rows[0]?.n ?? 0);
+  }
+
+  async listPublishLog(limit = 50): Promise<SpcPublishLogRow[]> {
+    const { rows } = await this.db.query(
+      `SELECT * FROM spc_publish_log ORDER BY created_at DESC, id DESC LIMIT $1`,
+      [limit],
+    );
+    return rows.map((row) => ({
+      id: Number(row.id),
+      entity_type: String(row.entity_type),
+      entity_key: String(row.entity_key),
+      action: String(row.action),
+      from_version: row.from_version != null ? Number(row.from_version) : null,
+      to_version: row.to_version != null ? Number(row.to_version) : null,
+      actor_email: String(row.actor_email),
+      diff_json: parseJson(row.diff_json, {}),
+      created_at: iso(row.created_at),
+    }));
+  }
+
+  async listPublishedOffersForCatalog(): Promise<
+    Array<SpcOfferRow & { lines_count: number }>
+  > {
+    const { rows } = await this.db.query(`
+      SELECT o.*, COUNT(l.line_code)::int AS lines_count
+      FROM service_offer o
+      LEFT JOIN service_offer_line l ON l.sku_code = o.sku_code AND l.active = TRUE
+      WHERE o.status = 'published' AND o.active = TRUE
+      GROUP BY o.sku_code
+      ORDER BY o.dv_code, o.sort_order, o.tier
+    `);
+    return rows.map((row) => ({
+      ...mapOffer(row as Record<string, unknown>),
+      lines_count: Number(row.lines_count ?? 0),
+    }));
+  }
+}

@@ -60,6 +60,13 @@ export function OpsCatalogPanel({ services }: Props) {
 
   return (
     <div className="stack-gap" style={{ gap: '1rem' }}>
+      <div className="page-card" style={{ padding: '0.85rem 1rem', borderLeft: '4px solid var(--accent, #2563eb)' }}>
+        <strong>Catalog read-only</strong>
+        <span className="muted" style={{ marginLeft: '0.5rem' }}>
+          SKU published từ SPC. Chỉnh giá / scope →{' '}
+          <Link href="/admin/services/portfolio">Admin Dịch vụ & Catalog</Link>
+        </span>
+      </div>
       <div className="card" style={{ padding: '1rem' }}>
         <h2 style={{ margin: '0 0 0.35rem', fontSize: '1.1rem' }}>Catalog DV01–DV21</h2>
         <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
@@ -153,6 +160,20 @@ export function OpsCatalogPanel({ services }: Props) {
                   <dt className="muted">Giá tham chiếu (Standard)</dt>
                   <dd style={{ margin: '0.1rem 0 0' }}>{tierPriceSummary(selected.tier_pricing)}</dd>
                 </div>
+                {(selected.skus?.length ?? 0) > 0 ? (
+                  <div>
+                    <dt className="muted">SKU published (SPC)</dt>
+                    <dd style={{ margin: '0.1rem 0 0' }}>
+                      <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                        {selected.skus!.map((sku) => (
+                          <li key={sku.sku_code}>
+                            <strong>{sku.sku_code}</strong> — {sku.label_vi}
+                          </li>
+                        ))}
+                      </ul>
+                    </dd>
+                  </div>
+                ) : null}
               </dl>
 
               {comboSuggestions.length > 0 ? (

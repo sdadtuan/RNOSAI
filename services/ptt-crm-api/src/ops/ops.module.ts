@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
+import { SpcModule } from '../spc/spc.module';
 import { ServiceLifecycleModule } from '../service-lifecycle/service-lifecycle.module';
 import { StaffOpsViewGuard } from './guards/staff-ops-view.guard';
 import { StaffOpsWriteGuard } from './guards/staff-ops-write.guard';
@@ -15,7 +16,7 @@ import { OpsService } from './ops.service';
 import { OpsWeeklyPgRepository } from './ops-weekly-pg.repository';
 
 @Module({
-  imports: [StaffAuthModule, forwardRef(() => ServiceLifecycleModule)],
+  imports: [StaffAuthModule, SpcModule, forwardRef(() => ServiceLifecycleModule)],
   controllers: [OpsController],
   providers: [
     OpsService,

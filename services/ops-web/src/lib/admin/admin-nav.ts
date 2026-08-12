@@ -12,6 +12,7 @@ export type AdminNavGroupId =
   | 'org'
   | 'rbac'
   | 'data'
+  | 'services'
   | 'ai'
   | 'compliance'
   | 'integrations'
@@ -40,7 +41,8 @@ export function canViewAdminSection(user: StoredStaffUser | null): boolean {
     hasCap(user, 'crm_data_config', 'view') ||
     hasCap(user, 'crm_staff_departments', 'view') ||
     hasCap(user, 'crm_staff_roster', 'view') ||
-    hasCap(user, 'ai_admin', 'view')
+    hasCap(user, 'ai_admin', 'view') ||
+    hasCap(user, 'spc', 'view')
   );
 }
 
@@ -133,6 +135,16 @@ function buildPolicyLinks(user: StoredStaffUser): AdminNavLink[] {
   ];
 }
 
+function buildServicesLinks(user: StoredStaffUser): AdminNavLink[] {
+  if (!hasCap(user, 'spc', 'view') && !hasCap(user, 'crm_data_config', 'view')) return [];
+  return [
+    { href: '/admin/services', label: 'Hub catalog' },
+    { href: '/admin/services/portfolio', label: 'Portfolio 21 DV' },
+    { href: '/admin/services/publish', label: 'Publish & audit' },
+    { href: '/crm/ops/catalog', label: 'Ops catalog (read)' },
+  ];
+}
+
 function buildAiLinks(user: StoredStaffUser): AdminNavLink[] {
   if (!hasCap(user, 'ai_admin', 'view')) return [];
   const links: AdminNavLink[] = [
@@ -188,6 +200,16 @@ export function buildAdminNavGroups(user: StoredStaffUser | null): AdminNavGroup
       label: 'Policy & Intelligence',
       description: 'OPA, env diff, what-if, duyệt thay đổi',
       links: policyLinks,
+    });
+  }
+
+  const servicesLinks = buildServicesLinks(user);
+  if (servicesLinks.length) {
+    groups.push({
+      id: 'services',
+      label: 'Dịch vụ & Catalog',
+      description: 'SPC portfolio, SKU, publish',
+      links: servicesLinks,
     });
   }
 

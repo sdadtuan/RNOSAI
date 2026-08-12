@@ -112,6 +112,21 @@ export function canViewPolicyAdmin(user: StoredStaffUser | null): boolean {
   return hasCap(user, 'admin_scope', 'policy') || hasCap(user, 'crm_data_config', 'view');
 }
 
+export function canViewSpcAdmin(user: StoredStaffUser | null): boolean {
+  if (!user) return false;
+  return hasCap(user, 'spc', 'view') || hasCap(user, 'crm_data_config', 'view');
+}
+
+export function canEditSpc(user: StoredStaffUser | null): boolean {
+  if (!user) return false;
+  return hasCap(user, 'spc', 'edit') || hasCap(user, 'crm_data_config', 'configure');
+}
+
+export function canPublishSpc(user: StoredStaffUser | null): boolean {
+  if (!user) return false;
+  return hasCap(user, 'spc', 'publish') || hasCap(user, 'crm_data_config', 'configure');
+}
+
 export function canConfigurePolicyAdmin(user: StoredStaffUser | null): boolean {
   if (!user) return false;
   return hasCap(user, 'admin_scope', 'policy') || hasCap(user, 'crm_data_config', 'configure');

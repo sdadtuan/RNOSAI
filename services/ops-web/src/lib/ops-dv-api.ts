@@ -156,11 +156,19 @@ export type OpsCatalogService = {
   depends_on_dv?: string[];
   tier_pricing?: Record<string, unknown>;
   ops_web?: Record<string, unknown>;
+  skus?: Array<{
+    sku_code: string;
+    tier: string;
+    label_vi: string;
+    pricing_model: Record<string, unknown>;
+    status: string;
+  }>;
 };
 
 export type OpsCatalogResponse = {
   schema_version: string;
   services: OpsCatalogService[];
+  spc_enabled?: boolean;
 };
 
 export type OpsSpawnWeekResult = {

@@ -30,6 +30,7 @@ import { MetricsModule } from './metrics/metrics.module';
 import { MarketingAiPlannerModule } from './marketing-ai-planner/marketing-ai-planner.module';
 import { ContentMarketingModule } from './content-marketing/content-marketing.module';
 import { OpsModule } from './ops/ops.module';
+import { SpcModule } from './spc/spc.module';
 import { MarketingPlansModule } from './marketing-plans/marketing-plans.module';
 import { ServiceLifecycleModule } from './service-lifecycle/service-lifecycle.module';
 import { SvcFinanceModule } from './svc-finance/svc-finance.module';
@@ -128,6 +129,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     MarketingAiPlannerModule,
     ContentMarketingModule,
     OpsModule,
+    SpcModule,
     ServiceLifecycleModule,
     LaunchQaModule,
     CrmCreativesModule,
