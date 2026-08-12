@@ -25,6 +25,7 @@ import {
   listDocBundleFamiliesWithComponents,
   loadSpcDocBundle,
 } from './spc-doc-bundle.loader';
+import { auditBundlePrice } from './spc-bundle-audit.util';
 import type {
   SpcPatchOfferBody,
   SpcPublishBody,
@@ -37,6 +38,7 @@ import type {
   SpcFamilyTreeResponse,
   SpcImportDocBundleResponse,
   SpcImportDocBundleResult,
+  SpcBundlePriceAudit,
 } from './spc.types';
 
 @Injectable()
@@ -95,29 +97,37 @@ export class SpcService {
     if (!entity || !key) {
       throw new BadRequestException({ error: 'spc_publish_invalid_body' });
     }
-    if (entity !== 'offer') {
-      throw new BadRequestException({ error: 'spc_publish_entity_unsupported', entity });
-    }
-    const published = await this.repo.publishOffer(key, actorEmail);
-    if (!published) throw new NotFoundException({ error: 'spc_offer_not_found', sku_code: key });
+    if (entity === 'offer') {
+      const published = await this.repo.publishOffer(key, actorEmail);
+      if (!published) throw new NotFoundException({ error: 'spc_offer_not_found', sku_code: key });
 
-    const offers = await this.repo.listOffersByDv(published.dv_code, true);
-    const tierPricing = buildLegacyTierPricingFromOffers(offers);
-    if (Object.keys(tierPricing).length > 0) {
-      await this.repo.syncOpsProfileTierPricing(published.dv_code, tierPricing);
+      const offers = await this.repo.listOffersByDv(published.dv_code, true);
+      const tierPricing = buildLegacyTierPricingFromOffers(offers);
+      if (Object.keys(tierPricing).length > 0) {
+        await this.repo.syncOpsProfileTierPricing(published.dv_code, tierPricing);
+      }
+      return {
+        published,
+        ops_profile_synced: Object.keys(tierPricing).length > 0,
+        tier_pricing: tierPricing,
+      };
     }
-    return {
-      published,
-      ops_profile_synced: Object.keys(tierPricing).length > 0,
-      tier_pricing: tierPricing,
-    };
+    if (entity === 'component') {
+      const published = await this.repo.publishComponent(key, actorEmail);
+      if (!published) {
+        throw new NotFoundException({ error: 'spc_component_not_found', component_code: key });
+      }
+      return { published };
+    }
+    throw new BadRequestException({ error: 'spc_publish_entity_unsupported', entity });
   }
 
   async getPublishLog(limit?: number) {
     this.assertPg();
     const rows = await this.repo.listPublishLog(limit ?? 50);
     const draftCount = await this.repo.countDraftOffers();
-    return { draft_count: draftCount, items: rows };
+    const draftComponentCount = await this.repo.countDraftComponents();
+    return { draft_count: draftCount, draft_component_count: draftComponentCount, items: rows };
   }
 
   async getHubStats() {
@@ -161,7 +171,7 @@ export class SpcService {
       allowedDv = new Set([primaryDv, ...suggestedBundle, ...filtered]);
     }
 
-    const componentRows = await this.repo.listComponents(undefined, true);
+    const componentRows = await this.repo.listComponents(undefined, true, true);
     const componentsByDv = new Map<string, typeof componentRows>();
     for (const component of componentRows) {
       const list = componentsByDv.get(component.dv_code) ?? [];
@@ -422,8 +432,17 @@ export class SpcService {
     const code = String(dvCode ?? '').trim().toUpperCase();
     const family = await this.repo.getFamily(code, true);
     if (!family) throw new NotFoundException({ error: 'spc_family_not_found', dv_code: code });
-    const items = await this.repo.listComponents(code, true);
+    const items = await this.repo.listComponents(code, true, true);
     return { dv_code: code, count: items.length, items };
+  }
+
+  async getOfferBundleAudit(skuCode: string): Promise<SpcBundlePriceAudit> {
+    this.assertPg();
+    const sku = String(skuCode ?? '').trim().toUpperCase();
+    const offer = await this.repo.getOffer(sku, false);
+    if (!offer) throw new NotFoundException({ error: 'spc_offer_not_found', sku_code: sku });
+    const bundleItems = await this.repo.listBundleItems(sku);
+    return auditBundlePrice(sku, offer.pricing_model, bundleItems);
   }
 
   async getFamilyTree(dvCode: string): Promise<SpcFamilyTreeResponse> {

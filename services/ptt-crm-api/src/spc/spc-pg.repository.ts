@@ -96,6 +96,13 @@ function mapProcessPhase(row: Record<string, unknown>): SpcProcessPhaseRow {
 }
 
 function mapComponent(row: Record<string, unknown>): SpcComponentRow {
+  const draftPricing =
+    row.draft_pricing_model != null ? parseJson(row.draft_pricing_model, null) : null;
+  const draftName = row.draft_name_vi != null ? String(row.draft_name_vi) : null;
+  const draftDescription =
+    row.draft_description_vi != null ? String(row.draft_description_vi) : null;
+  const draftDeliverable =
+    row.draft_deliverable_vi != null ? String(row.draft_deliverable_vi) : null;
   return {
     component_code: String(row.component_code ?? ''),
     dv_code: String(row.dv_code ?? ''),
@@ -106,6 +113,17 @@ function mapComponent(row: Record<string, unknown>): SpcComponentRow {
     unit: String(row.unit ?? 'once'),
     sort_order: Number(row.sort_order ?? 0),
     active: row.active !== false,
+    status: String(row.status ?? 'draft') as SpcComponentRow['status'],
+    published_version: Number(row.published_version ?? 0),
+    draft_pricing_model: draftPricing as SpcPricingModel | null,
+    draft_name_vi: draftName,
+    draft_description_vi: draftDescription,
+    draft_deliverable_vi: draftDeliverable,
+    has_pending_draft:
+      draftPricing != null ||
+      (draftName != null && draftName.length > 0) ||
+      (draftDescription != null && draftDescription.length > 0) ||
+      (draftDeliverable != null && draftDeliverable.length > 0),
     updated_at: iso(row.updated_at),
   };
 }
@@ -352,6 +370,21 @@ export class SpcPgRepository implements OnModuleDestroy {
     return Number(rows[0]?.n ?? 0);
   }
 
+  async countDraftComponents(): Promise<number> {
+    const { rows } = await this.db.query(
+      `SELECT COUNT(*)::int AS n FROM service_component
+       WHERE active = TRUE
+         AND (
+           status = 'draft'
+           OR draft_pricing_model IS NOT NULL
+           OR NULLIF(draft_name_vi, '') IS NOT NULL
+           OR NULLIF(draft_description_vi, '') IS NOT NULL
+           OR NULLIF(draft_deliverable_vi, '') IS NOT NULL
+         )`,
+    );
+    return Number(rows[0]?.n ?? 0);
+  }
+
   async listPublishLog(limit = 50): Promise<SpcPublishLogRow[]> {
     const { rows } = await this.db.query(
       `SELECT * FROM spc_publish_log ORDER BY created_at DESC, id DESC LIMIT $1`,
@@ -508,16 +541,21 @@ export class SpcPgRepository implements OnModuleDestroy {
     return row ? mapProcessPhase(row as Record<string, unknown>) : null;
   }
 
-  async listComponents(dvCode?: string, activeOnly = true): Promise<SpcComponentRow[]> {
+  async listComponents(
+    dvCode?: string,
+    activeOnly = true,
+    publishedOnly = false,
+  ): Promise<SpcComponentRow[]> {
     const code = String(dvCode ?? '').trim().toUpperCase();
     const activeClause = activeOnly ? 'AND active = TRUE' : '';
+    const statusClause = publishedOnly ? "AND status = 'published'" : '';
     const res = code
       ? await this.db.query(
-          `SELECT * FROM service_component WHERE dv_code = $1 ${activeClause} ORDER BY sort_order, component_code`,
+          `SELECT * FROM service_component WHERE dv_code = $1 ${activeClause} ${statusClause} ORDER BY sort_order, component_code`,
           [code],
         )
       : await this.db.query(
-          `SELECT * FROM service_component WHERE 1=1 ${activeClause} ORDER BY dv_code, sort_order, component_code`,
+          `SELECT * FROM service_component WHERE 1=1 ${activeClause} ${statusClause} ORDER BY dv_code, sort_order, component_code`,
         );
     return res.rows.map((row) => mapComponent(row as Record<string, unknown>));
   }
@@ -547,8 +585,8 @@ export class SpcPgRepository implements OnModuleDestroy {
       String(body.component_code ?? '').trim().toUpperCase() || (await this.nextComponentCode(dvCode));
     const res = await this.db.query(
       `INSERT INTO service_component
-         (component_code, dv_code, name_vi, description_vi, deliverable_vi, pricing_model, unit, sort_order)
-       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8)
+         (component_code, dv_code, name_vi, description_vi, deliverable_vi, pricing_model, unit, sort_order, status)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,'draft')
        RETURNING *`,
       [
         componentCode,
@@ -569,33 +607,142 @@ export class SpcPgRepository implements OnModuleDestroy {
     body: SpcPatchComponentBody,
   ): Promise<SpcComponentRow | null> {
     const code = String(componentCode ?? '').trim().toUpperCase();
-    const existing = await this.getComponent(code);
-    if (!existing) return null;
+    const existingRes = await this.db.query(
+      `SELECT * FROM service_component WHERE component_code = $1 LIMIT 1`,
+      [code],
+    );
+    if (!existingRes.rows[0]) return null;
+    const existing = mapComponent(existingRes.rows[0] as Record<string, unknown>);
+
+    const sets: string[] = ['updated_at = NOW()'];
+    const params: unknown[] = [];
+    let i = 1;
+
+    if (body.unit != null) {
+      sets.push(`unit = $${i++}`);
+      params.push(String(body.unit));
+    }
+    if (body.sort_order != null) {
+      sets.push(`sort_order = $${i++}`);
+      params.push(Number(body.sort_order));
+    }
+    if (body.active != null) {
+      sets.push(`active = $${i++}`);
+      params.push(Boolean(body.active));
+    }
+
+    const hasPublished = (existing.published_version ?? 0) > 0 || existing.status === 'published';
+    if (hasPublished) {
+      if (body.name_vi != null) {
+        sets.push(`draft_name_vi = $${i++}`);
+        params.push(String(body.name_vi));
+      }
+      if (body.description_vi != null) {
+        sets.push(`draft_description_vi = $${i++}`);
+        params.push(String(body.description_vi));
+      }
+      if (body.deliverable_vi != null) {
+        sets.push(`draft_deliverable_vi = $${i++}`);
+        params.push(String(body.deliverable_vi));
+      }
+      if (body.pricing_model != null) {
+        sets.push(`draft_pricing_model = $${i++}::jsonb`);
+        params.push(JSON.stringify(body.pricing_model));
+      }
+    } else {
+      if (body.name_vi != null) {
+        sets.push(`name_vi = $${i++}`);
+        params.push(String(body.name_vi));
+      }
+      if (body.description_vi != null) {
+        sets.push(`description_vi = $${i++}`);
+        params.push(String(body.description_vi));
+      }
+      if (body.deliverable_vi != null) {
+        sets.push(`deliverable_vi = $${i++}`);
+        params.push(String(body.deliverable_vi));
+      }
+      if (body.pricing_model != null) {
+        sets.push(`pricing_model = $${i++}::jsonb`);
+        params.push(JSON.stringify(body.pricing_model));
+      }
+      sets.push(`status = 'draft'`);
+    }
+
+    params.push(code);
     const res = await this.db.query(
-      `UPDATE service_component
-       SET name_vi = $2,
-           description_vi = $3,
-           deliverable_vi = $4,
-           pricing_model = $5::jsonb,
-           unit = $6,
-           sort_order = $7,
-           active = $8,
-           updated_at = NOW()
-       WHERE component_code = $1
-       RETURNING *`,
-      [
-        code,
-        body.name_vi != null ? String(body.name_vi) : existing.name_vi,
-        body.description_vi != null ? String(body.description_vi) : existing.description_vi,
-        body.deliverable_vi != null ? String(body.deliverable_vi) : existing.deliverable_vi,
-        JSON.stringify(body.pricing_model ?? existing.pricing_model),
-        body.unit != null ? String(body.unit) : existing.unit,
-        body.sort_order != null ? Number(body.sort_order) : existing.sort_order,
-        body.active != null ? Boolean(body.active) : existing.active,
-      ],
+      `UPDATE service_component SET ${sets.join(', ')} WHERE component_code = $${i} RETURNING *`,
+      params,
     );
     const row = res.rows[0];
     return row ? mapComponent(row as Record<string, unknown>) : null;
+  }
+
+  async publishComponent(componentCode: string, actorEmail: string): Promise<SpcComponentRow | null> {
+    const code = String(componentCode ?? '').trim().toUpperCase();
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const cur = await client.query(`SELECT * FROM service_component WHERE component_code = $1 FOR UPDATE`, [
+        code,
+      ]);
+      if (!cur.rows[0]) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+      const before = mapComponent(cur.rows[0] as Record<string, unknown>);
+      const nextVersion = (before.published_version ?? 0) + 1;
+      const mergedPricing =
+        before.draft_pricing_model && Object.keys(before.draft_pricing_model).length
+          ? before.draft_pricing_model
+          : before.pricing_model;
+      const mergedName = before.draft_name_vi ?? before.name_vi;
+      const mergedDescription = before.draft_description_vi ?? before.description_vi;
+      const mergedDeliverable = before.draft_deliverable_vi ?? before.deliverable_vi;
+      const { rows } = await client.query(
+        `UPDATE service_component
+         SET status = 'published',
+             published_version = $2,
+             name_vi = $3,
+             description_vi = $4,
+             deliverable_vi = $5,
+             pricing_model = $6::jsonb,
+             draft_pricing_model = NULL,
+             draft_name_vi = NULL,
+             draft_description_vi = NULL,
+             draft_deliverable_vi = NULL,
+             updated_at = NOW()
+         WHERE component_code = $1
+         RETURNING *`,
+        [
+          code,
+          nextVersion,
+          mergedName,
+          mergedDescription,
+          mergedDeliverable,
+          JSON.stringify(mergedPricing),
+        ],
+      );
+      const after = mapComponent(rows[0] as Record<string, unknown>);
+      await client.query(
+        `INSERT INTO spc_publish_log (entity_type, entity_key, action, from_version, to_version, actor_email, diff_json)
+         VALUES ('component', $1, 'publish', $2, $3, $4, $5::jsonb)`,
+        [
+          code,
+          before.published_version,
+          nextVersion,
+          actorEmail,
+          JSON.stringify({ pricing_model: after.pricing_model, status: after.status }),
+        ],
+      );
+      await client.query('COMMIT');
+      return after;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async listBundleItems(skuCode: string): Promise<SpcBundleItemRow[]> {

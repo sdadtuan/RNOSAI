@@ -106,6 +106,11 @@ export class SpcAdminController {
     return this.spc.getOfferBundle(skuCode);
   }
 
+  @Get('offers/:skuCode/bundle-audit')
+  getOfferBundleAudit(@Param('skuCode') skuCode: string) {
+    return this.spc.getOfferBundleAudit(skuCode);
+  }
+
   @Put('offers/:skuCode/bundle')
   @UseGuards(StaffSpcEditGuard)
   putOfferBundle(@Param('skuCode') skuCode: string, @Body() body: SpcPutOfferBundleBody) {

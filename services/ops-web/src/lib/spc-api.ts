@@ -76,6 +76,13 @@ export type SpcComponentRow = {
   unit: string;
   sort_order: number;
   active: boolean;
+  status?: 'draft' | 'published' | 'archived';
+  published_version?: number;
+  draft_pricing_model?: SpcPricingModel | null;
+  draft_name_vi?: string | null;
+  draft_description_vi?: string | null;
+  draft_deliverable_vi?: string | null;
+  has_pending_draft?: boolean;
 };
 
 export type SpcBundleItemRow = {
@@ -136,12 +143,38 @@ export async function patchSpcOffer(
   });
 }
 
-export async function publishSpcEntity(token: string, entity: 'offer', key: string) {
-  return spcFetch<{ published: SpcOfferRow }>(token, '/api/v1/admin/spc/publish', {
+export async function publishSpcEntity(token: string, entity: 'offer' | 'component', key: string) {
+  return spcFetch<{ published: SpcOfferRow | SpcComponentRow }>(token, '/api/v1/admin/spc/publish', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ entity, key }),
   });
+}
+
+export type SpcBundlePriceAudit = {
+  sku_code: string;
+  offer_min_vnd: number;
+  offer_max_vnd: number;
+  components_min_sum_vnd: number;
+  components_max_sum_vnd: number;
+  delta_min_vnd: number;
+  delta_max_vnd: number;
+  status: 'ok' | 'warn_below_floor' | 'warn_above_ceiling' | 'no_components';
+  message_vi: string;
+  items: Array<{
+    component_code: string;
+    name_vi: string;
+    qty: number;
+    min_vnd: number;
+    max_vnd: number;
+  }>;
+};
+
+export async function fetchSpcOfferBundleAudit(token: string, skuCode: string) {
+  return spcFetch<SpcBundlePriceAudit>(
+    token,
+    `/api/v1/admin/spc/offers/${encodeURIComponent(skuCode)}/bundle-audit`,
+  );
 }
 
 export async function fetchSpcPublishLog(token: string) {

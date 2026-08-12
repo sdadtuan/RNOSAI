@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   applyPricingField,
   archiveSpcComponent,
@@ -9,19 +9,210 @@ import {
   formatPricingModel,
   patchSpcComponent,
   pricingModelFields,
+  publishSpcEntity,
   type SpcComponentRow,
   type SpcPricingModel,
 } from '@/lib/spc-api';
+
+function componentDraftPricing(row: SpcComponentRow): SpcPricingModel {
+  if (row.draft_pricing_model && Object.keys(row.draft_pricing_model).length) {
+    return row.draft_pricing_model;
+  }
+  return row.pricing_model ?? { type: 'one_time', min_vnd: 0, max_vnd: 0 };
+}
+
+function ComponentEditor({
+  row,
+  canEdit,
+  canPublish,
+  token,
+  onSaved,
+}: {
+  row: SpcComponentRow;
+  canEdit: boolean;
+  canPublish: boolean;
+  token: string;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(row.name_vi);
+  const [description, setDescription] = useState(row.description_vi);
+  const [deliverable, setDeliverable] = useState(row.deliverable_vi);
+  const [pricing, setPricing] = useState<SpcPricingModel>(componentDraftPricing(row));
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    setName(row.draft_name_vi ?? row.name_vi);
+    setDescription(row.draft_description_vi ?? row.description_vi);
+    setDeliverable(row.draft_deliverable_vi ?? row.deliverable_vi);
+    setPricing(componentDraftPricing(row));
+  }, [row]);
+
+  const fields = useMemo(() => pricingModelFields(pricing), [pricing]);
+
+  async function saveDraft() {
+    setBusy(true);
+    setMsg('');
+    try {
+      await patchSpcComponent(token, row.component_code, {
+        name_vi: name,
+        description_vi: description,
+        deliverable_vi: deliverable,
+        pricing_model: pricing,
+      });
+      setMsg('Đã lưu draft — catalog công khai vẫn dùng bản published.');
+      setEditing(false);
+      onSaved();
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : 'Lưu thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function publish() {
+    setBusy(true);
+    setMsg('');
+    try {
+      await publishSpcEntity(token, 'component', row.component_code);
+      setMsg('Đã publish component.');
+      setEditing(false);
+      onSaved();
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : 'Publish thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="page-card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+        <div>
+          <h4 style={{ margin: '0 0 0.25rem' }}>{row.component_code}</h4>
+          <p className="muted" style={{ margin: 0 }}>
+            v{row.published_version ?? 0} ·{' '}
+            <span
+              className={
+                row.has_pending_draft || row.status === 'draft' ? 'badge badge-warn' : 'badge badge-ok'
+              }
+            >
+              {row.has_pending_draft ? 'draft pending' : row.status ?? 'draft'}
+            </span>
+          </p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div className="muted">Giá published</div>
+          <div>{formatPricingModel(row.pricing_model)}</div>
+        </div>
+      </div>
+
+      {editing ? (
+        <>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            style={{ width: '100%', marginTop: '0.75rem' }}
+            disabled={busy}
+          />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            placeholder="Mô tả"
+            style={{ width: '100%', marginTop: '0.5rem' }}
+            disabled={busy}
+          />
+          <input
+            value={deliverable}
+            onChange={(e) => setDeliverable(e.target.value)}
+            placeholder="Deliverable"
+            style={{ width: '100%', marginTop: '0.5rem' }}
+            disabled={busy}
+          />
+          <div
+            style={{
+              display: 'grid',
+              gap: '0.5rem',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+              marginTop: '0.75rem',
+            }}
+          >
+            {fields.map((f) => (
+              <label key={f.key}>
+                <span className="muted">{f.label}</span>
+                <input
+                  type="number"
+                  value={f.value}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setPricing((prev) => applyPricingField(prev, f.key, Number(e.target.value)))
+                  }
+                  style={{ width: '100%' }}
+                />
+              </label>
+            ))}
+          </div>
+          <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {canEdit ? (
+              <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void saveDraft()}>
+                Lưu draft
+              </button>
+            ) : null}
+            {canPublish ? (
+              <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void publish()}>
+                Publish
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              onClick={() => setEditing(false)}
+              disabled={busy}
+            >
+              Hủy
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p style={{ margin: '0.75rem 0 0' }}>
+            <strong>{row.name_vi}</strong>
+          </p>
+          <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.88rem' }}>
+            {row.description_vi || '—'}
+          </p>
+          {row.deliverable_vi ? (
+            <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
+              Deliverable: {row.deliverable_vi}
+            </p>
+          ) : null}
+          {canEdit ? (
+            <div style={{ marginTop: '0.65rem', display: 'flex', gap: '0.5rem' }}>
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setEditing(true)}>
+                Sửa
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
+      {msg ? <p style={{ marginTop: '0.65rem' }}>{msg}</p> : null}
+    </div>
+  );
+}
 
 export function AdminSpcComponentsTab({
   dvCode,
   token,
   canEdit,
+  canPublish,
   onChanged,
 }: {
   dvCode: string;
   token: string;
   canEdit: boolean;
+  canPublish: boolean;
   onChanged: () => void;
 }) {
   const [items, setItems] = useState<SpcComponentRow[]>([]);
@@ -29,13 +220,6 @@ export function AdminSpcComponentsTab({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [newName, setNewName] = useState('');
-  const [editCode, setEditCode] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<{
-    name_vi: string;
-    description_vi: string;
-    deliverable_vi: string;
-    pricing: SpcPricingModel;
-  } | null>(null);
 
   const reload = useCallback(async () => {
     setLoadError('');
@@ -51,39 +235,6 @@ export function AdminSpcComponentsTab({
     void reload();
   }, [reload]);
 
-  function startEdit(row: SpcComponentRow) {
-    setEditCode(row.component_code);
-    setEditForm({
-      name_vi: row.name_vi,
-      description_vi: row.description_vi,
-      deliverable_vi: row.deliverable_vi,
-      pricing: row.pricing_model ?? { type: 'one_time', min_vnd: 0, max_vnd: 0 },
-    });
-  }
-
-  async function saveEdit() {
-    if (!editCode || !editForm) return;
-    setBusy(true);
-    setMsg('');
-    try {
-      await patchSpcComponent(token, editCode, {
-        name_vi: editForm.name_vi,
-        description_vi: editForm.description_vi,
-        deliverable_vi: editForm.deliverable_vi,
-        pricing_model: editForm.pricing,
-      });
-      setMsg(`Đã cập nhật ${editCode}`);
-      setEditCode(null);
-      setEditForm(null);
-      await reload();
-      onChanged();
-    } catch (err) {
-      setMsg(err instanceof Error ? err.message : 'Lưu thất bại');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function addComponent() {
     if (!newName.trim()) return;
     setBusy(true);
@@ -95,7 +246,7 @@ export function AdminSpcComponentsTab({
         pricing_model: { type: 'one_time', min_vnd: 0, max_vnd: 0 },
       });
       setNewName('');
-      setMsg('Đã thêm dịch vụ con');
+      setMsg('Đã thêm dịch vụ con (draft) — publish để lên catalog.');
       await reload();
       onChanged();
     } catch (err) {
@@ -133,100 +284,46 @@ export function AdminSpcComponentsTab({
             style={{ flex: 1, minWidth: 220 }}
             disabled={busy}
           />
-          <button type="button" className="btn btn-primary btn-sm" disabled={busy || !newName.trim()} onClick={() => void addComponent()}>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={busy || !newName.trim()}
+            onClick={() => void addComponent()}
+          >
             + Thêm component
           </button>
         </div>
       ) : null}
 
       {items.map((row) => (
-        <div key={row.component_code} className="page-card">
-          {editCode === row.component_code && editForm ? (
-            <>
-              <h4 style={{ margin: '0 0 0.5rem' }}>{row.component_code}</h4>
-              <input
-                value={editForm.name_vi}
-                onChange={(e) => setEditForm({ ...editForm, name_vi: e.target.value })}
-                style={{ width: '100%', marginBottom: '0.5rem' }}
+        <div key={row.component_code}>
+          <ComponentEditor
+            row={row}
+            canEdit={canEdit}
+            canPublish={canPublish}
+            token={token}
+            onSaved={() => {
+              void reload();
+              onChanged();
+            }}
+          />
+          {canEdit ? (
+            <div style={{ marginTop: '-0.5rem', marginBottom: '0.5rem' }}>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
                 disabled={busy}
-              />
-              <textarea
-                value={editForm.description_vi}
-                onChange={(e) => setEditForm({ ...editForm, description_vi: e.target.value })}
-                rows={2}
-                placeholder="Mô tả"
-                style={{ width: '100%', marginBottom: '0.5rem' }}
-                disabled={busy}
-              />
-              <input
-                value={editForm.deliverable_vi}
-                onChange={(e) => setEditForm({ ...editForm, deliverable_vi: e.target.value })}
-                placeholder="Deliverable"
-                style={{ width: '100%', marginBottom: '0.5rem' }}
-                disabled={busy}
-              />
-              <div style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
-                {pricingModelFields(editForm.pricing).map((f) => (
-                  <label key={f.key}>
-                    <span className="muted">{f.label}</span>
-                    <input
-                      type="number"
-                      value={f.value}
-                      disabled={busy}
-                      onChange={(e) =>
-                        setEditForm({
-                          ...editForm,
-                          pricing: applyPricingField(editForm.pricing, f.key, Number(e.target.value)),
-                        })
-                      }
-                      style={{ width: '100%' }}
-                    />
-                  </label>
-                ))}
-              </div>
-              <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem' }}>
-                <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void saveEdit()}>
-                  Lưu
-                </button>
-                <button type="button" className="btn btn-sm btn-secondary" onClick={() => { setEditCode(null); setEditForm(null); }}>
-                  Hủy
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-                <div>
-                  <strong>{row.component_code}</strong> · {row.name_vi}
-                  <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.88rem' }}>
-                    {row.description_vi || '—'}
-                  </p>
-                  {row.deliverable_vi ? (
-                    <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-                      Deliverable: {row.deliverable_vi}
-                    </p>
-                  ) : null}
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div className="muted">Khung giá</div>
-                  <div>{formatPricingModel(row.pricing_model)}</div>
-                </div>
-              </div>
-              {canEdit ? (
-                <div style={{ marginTop: '0.65rem', display: 'flex', gap: '0.5rem' }}>
-                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => startEdit(row)}>
-                    Sửa
-                  </button>
-                  <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void removeComponent(row.component_code)}>
-                    Ẩn
-                  </button>
-                </div>
-              ) : null}
-            </>
-          )}
+                onClick={() => void removeComponent(row.component_code)}
+              >
+                Ẩn {row.component_code}
+              </button>
+            </div>
+          ) : null}
         </div>
       ))}
-      {items.length === 0 ? <p className="muted">Chưa có dịch vụ con — thêm component để lắp gói CB/TC/CS.</p> : null}
+      {items.length === 0 ? (
+        <p className="muted">Chưa có dịch vụ con — thêm component để lắp gói CB/TC/CS.</p>
+      ) : null}
     </div>
   );
 }

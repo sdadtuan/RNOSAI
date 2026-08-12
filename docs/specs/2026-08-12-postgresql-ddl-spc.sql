@@ -194,6 +194,24 @@ CREATE TABLE IF NOT EXISTS service_component (
 
 CREATE INDEX IF NOT EXISTS idx_service_component_dv ON service_component (dv_code);
 
+ALTER TABLE service_component
+  ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'draft'
+    CHECK (status IN ('draft','published','archived')),
+  ADD COLUMN IF NOT EXISTS published_version INT NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS draft_pricing_model JSONB NULL,
+  ADD COLUMN IF NOT EXISTS draft_name_vi VARCHAR(200) NULL,
+  ADD COLUMN IF NOT EXISTS draft_description_vi TEXT NULL,
+  ADD COLUMN IF NOT EXISTS draft_deliverable_vi TEXT NULL;
+
+-- S6d — backfill seeded/imported components as published
+UPDATE service_component
+SET status = 'published',
+    published_version = GREATEST(published_version, 1)
+WHERE active = TRUE
+  AND published_version = 0
+  AND pricing_model IS NOT NULL
+  AND pricing_model != '{}'::jsonb;
+
 COMMENT ON TABLE service_component IS 'L0.5 SPC sub-service — atomic sellable unit with pricing_model';
 
 CREATE TABLE IF NOT EXISTS service_bundle_item (

@@ -247,6 +247,7 @@ export default function AdminServicesFamilyPage() {
               dvCode={dvCode}
               token={token}
               canEdit={canEdit}
+              canPublish={canPublish}
               onChanged={() => void reload()}
             />
           ) : null}

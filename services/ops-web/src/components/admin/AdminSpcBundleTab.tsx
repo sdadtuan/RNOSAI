@@ -4,11 +4,23 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   fetchSpcComponents,
   fetchSpcOfferBundle,
+  fetchSpcOfferBundleAudit,
   formatPricingModel,
   putSpcOfferBundle,
+  type SpcBundlePriceAudit,
   type SpcComponentRow,
   type SpcOfferRow,
 } from '@/lib/spc-api';
+
+function formatVnd(value: number) {
+  return new Intl.NumberFormat('vi-VN').format(value) + ' ₫';
+}
+
+function auditBadgeClass(status: SpcBundlePriceAudit['status']) {
+  if (status === 'ok') return 'badge badge-ok';
+  if (status === 'no_components') return 'badge badge-warn';
+  return 'badge badge-warn';
+}
 
 export function AdminSpcBundleTab({
   dvCode,
@@ -24,11 +36,16 @@ export function AdminSpcBundleTab({
   const [components, setComponents] = useState<SpcComponentRow[]>([]);
   const [selectedSku, setSelectedSku] = useState('');
   const [included, setIncluded] = useState<Record<string, boolean>>({});
+  const [audit, setAudit] = useState<SpcBundlePriceAudit | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [loadError, setLoadError] = useState('');
 
   const skus = useMemo(() => offers.map((o) => o.sku_code), [offers]);
+  const selectedOffer = useMemo(
+    () => offers.find((o) => o.sku_code === selectedSku),
+    [offers, selectedSku],
+  );
 
   useEffect(() => {
     if (skus.length && !selectedSku) setSelectedSku(skus[0]);
@@ -60,6 +77,15 @@ export function AdminSpcBundleTab({
     }
   }, [token, selectedSku, components]);
 
+  const reloadAudit = useCallback(async () => {
+    if (!selectedSku) return;
+    try {
+      setAudit(await fetchSpcOfferBundleAudit(token, selectedSku));
+    } catch {
+      setAudit(null);
+    }
+  }, [token, selectedSku]);
+
   useEffect(() => {
     void reloadComponents();
   }, [reloadComponents]);
@@ -67,6 +93,10 @@ export function AdminSpcBundleTab({
   useEffect(() => {
     if (components.length && selectedSku) void reloadBundle();
   }, [components, selectedSku, reloadBundle]);
+
+  useEffect(() => {
+    if (selectedSku) void reloadAudit();
+  }, [selectedSku, reloadAudit]);
 
   async function saveBundle() {
     if (!selectedSku) return;
@@ -82,6 +112,7 @@ export function AdminSpcBundleTab({
       await putSpcOfferBundle(token, selectedSku, items);
       setMsg(`Đã lưu bundle ${selectedSku}`);
       await reloadBundle();
+      await reloadAudit();
     } catch (err) {
       setMsg(err instanceof Error ? err.message : 'Lưu bundle thất bại');
     } finally {
@@ -113,6 +144,62 @@ export function AdminSpcBundleTab({
           Tick dịch vụ con gồm trong gói {selectedSku || '—'}.
         </p>
       </div>
+
+      {audit ? (
+        <div className="page-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+            <div>
+              <strong>Audit giá bundle</strong>
+              <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+                {audit.message_vi}
+              </p>
+            </div>
+            <span className={auditBadgeClass(audit.status)}>{audit.status}</span>
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gap: '0.75rem',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              marginTop: '0.75rem',
+            }}
+          >
+            <div>
+              <div className="muted">Giá gói (min–max)</div>
+              <div>
+                {formatVnd(audit.offer_min_vnd)} – {formatVnd(audit.offer_max_vnd)}
+              </div>
+              {selectedOffer ? (
+                <div className="muted" style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                  {formatPricingModel(selectedOffer.pricing_model)}
+                </div>
+              ) : null}
+            </div>
+            <div>
+              <div className="muted">Tổng component (min–max)</div>
+              <div>
+                {formatVnd(audit.components_min_sum_vnd)} – {formatVnd(audit.components_max_sum_vnd)}
+              </div>
+            </div>
+            <div>
+              <div className="muted">Delta (gói − tổng)</div>
+              <div>
+                min {formatVnd(audit.delta_min_vnd)} · max {formatVnd(audit.delta_max_vnd)}
+              </div>
+            </div>
+          </div>
+          {audit.items.length ? (
+            <ul style={{ margin: '0.75rem 0 0', paddingLeft: '1.25rem', fontSize: '0.88rem' }}>
+              {audit.items.map((item) => (
+                <li key={item.component_code}>
+                  {item.component_code} · {item.name_vi}: {formatVnd(item.min_vnd)} – {formatVnd(item.max_vnd)}
+                  {item.qty > 1 ? ` × ${item.qty}` : ''}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
 
       {components.map((c) => (
         <label

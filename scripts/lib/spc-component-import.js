@@ -15,8 +15,8 @@ async function upsertComponent(client, dvCode, component, serviceType) {
   const pricing = resolveComponentPricing(component, serviceType);
   await client.query(
     `INSERT INTO service_component
-       (component_code, dv_code, name_vi, description_vi, deliverable_vi, pricing_model, sort_order, active)
-     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,TRUE)
+       (component_code, dv_code, name_vi, description_vi, deliverable_vi, pricing_model, sort_order, active, status, published_version)
+     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,TRUE,'published',1)
      ON CONFLICT (component_code) DO UPDATE SET
        name_vi=EXCLUDED.name_vi,
        description_vi=EXCLUDED.description_vi,
@@ -24,6 +24,12 @@ async function upsertComponent(client, dvCode, component, serviceType) {
        pricing_model=EXCLUDED.pricing_model,
        sort_order=EXCLUDED.sort_order,
        active=TRUE,
+       status='published',
+       published_version=GREATEST(service_component.published_version, 1),
+       draft_pricing_model=NULL,
+       draft_name_vi=NULL,
+       draft_description_vi=NULL,
+       draft_deliverable_vi=NULL,
        updated_at=NOW()`,
     [
       code,

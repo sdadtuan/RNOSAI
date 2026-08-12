@@ -90,7 +90,7 @@ export type SpcPatchOfferBody = {
 };
 
 export type SpcPublishBody = {
-  entity: 'offer' | 'family';
+  entity: 'offer' | 'family' | 'component';
   key: string;
 };
 
@@ -186,7 +186,39 @@ export type SpcComponentRow = {
   unit: string;
   sort_order: number;
   active: boolean;
+  status?: 'draft' | 'published' | 'archived';
+  published_version?: number;
+  draft_pricing_model?: SpcPricingModel | null;
+  draft_name_vi?: string | null;
+  draft_description_vi?: string | null;
+  draft_deliverable_vi?: string | null;
+  has_pending_draft?: boolean;
   updated_at?: string;
+};
+
+export type SpcBundlePriceAuditStatus =
+  | 'ok'
+  | 'warn_below_floor'
+  | 'warn_above_ceiling'
+  | 'no_components';
+
+export type SpcBundlePriceAudit = {
+  sku_code: string;
+  offer_min_vnd: number;
+  offer_max_vnd: number;
+  components_min_sum_vnd: number;
+  components_max_sum_vnd: number;
+  delta_min_vnd: number;
+  delta_max_vnd: number;
+  status: SpcBundlePriceAuditStatus;
+  message_vi: string;
+  items: Array<{
+    component_code: string;
+    name_vi: string;
+    qty: number;
+    min_vnd: number;
+    max_vnd: number;
+  }>;
 };
 
 export type SpcCreateComponentBody = {
