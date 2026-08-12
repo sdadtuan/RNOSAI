@@ -4,7 +4,7 @@
  * S6 pilot — seed service_component + service_bundle_item for DV01.
  * Usage: DATABASE_URL=... node scripts/seed_spc_components.js
  */
-const { Client } = require('pg');
+const { Client } = require('../services/ptt-crm-api/node_modules/pg');
 const { ensureSpcSchema } = require('./lib/spc-pg-bootstrap');
 
 const databaseUrl = process.env.DATABASE_URL;
