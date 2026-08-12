@@ -20,6 +20,11 @@ import {
 import { resolveQuotePriceFromPricingModel } from './spc-quote-pricing.util';
 import { dvCodeFromSku, skuFromDvTier, tierFromSkuCode } from './spc-sku.util';
 import { SpcPgRepository } from './spc-pg.repository';
+import {
+  getDocBundleFamily,
+  listDocBundleFamiliesWithComponents,
+  loadSpcDocBundle,
+} from './spc-doc-bundle.loader';
 import type {
   SpcPatchOfferBody,
   SpcPublishBody,
@@ -29,6 +34,9 @@ import type {
   SpcCreateComponentBody,
   SpcPatchComponentBody,
   SpcPutOfferBundleBody,
+  SpcFamilyTreeResponse,
+  SpcImportDocBundleResponse,
+  SpcImportDocBundleResult,
 } from './spc.types';
 
 @Injectable()
@@ -390,5 +398,88 @@ export class SpcService {
     if (!family) throw new NotFoundException({ error: 'spc_family_not_found', dv_code: code });
     const items = await this.repo.listComponents(code, true);
     return { dv_code: code, count: items.length, items };
+  }
+
+  async getFamilyTree(dvCode: string): Promise<SpcFamilyTreeResponse> {
+    this.assertPg();
+    const code = String(dvCode ?? '').trim().toUpperCase();
+    const family = await this.repo.getFamily(code, false);
+    if (!family) throw new NotFoundException({ error: 'spc_family_not_found', dv_code: code });
+    const components = await this.repo.listComponents(code, true);
+    const offers = await Promise.all(
+      (family.offers ?? []).map(async (offer) => {
+        const bundleRows = await this.repo.listBundleItems(offer.sku_code);
+        return {
+          sku_code: offer.sku_code,
+          tier: offer.tier,
+          label_vi: offer.label_vi,
+          scope_summary_vi: offer.scope_summary_vi,
+          pricing_model: offer.pricing_model,
+          bundle: bundleRows
+            .filter((row) => row.included)
+            .map((row) => ({
+              component_code: row.component_code,
+              name_vi: row.name_vi ?? '',
+              included: row.included,
+              qty: row.qty,
+              pricing_model: row.pricing_model ?? {},
+            })),
+        };
+      }),
+    );
+    return {
+      dv_code: code,
+      name_vi: family.name_vi,
+      source_doc: loadSpcDocBundle().source_doc,
+      component_count: components.length,
+      components,
+      offers,
+    };
+  }
+
+  async importDocBundle(dvCodeRaw?: string): Promise<SpcImportDocBundleResponse> {
+    this.assertPg();
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { importFamilyComponentsFromDoc } = require('../../../../scripts/lib/spc-component-import.js');
+    const filter = String(dvCodeRaw ?? '').trim().toUpperCase();
+    const docFamily = filter ? getDocBundleFamily(filter) : null;
+    const docFamilies = filter
+      ? docFamily
+        ? [docFamily]
+        : []
+      : listDocBundleFamiliesWithComponents();
+    if (!docFamilies.length) {
+      throw new NotFoundException({
+        error: 'spc_doc_bundle_components_missing',
+        dv_code: filter || undefined,
+      });
+    }
+
+    const bundle = loadSpcDocBundle();
+    const results: SpcImportDocBundleResult[] = [];
+    for (const familyDoc of docFamilies) {
+      const code = String(familyDoc.dv_code ?? '').trim().toUpperCase();
+      const family = await this.repo.getFamily(code, false);
+      if (!family) {
+        throw new NotFoundException({ error: 'spc_family_not_found', dv_code: code });
+      }
+      const summary = await this.repo.withClient((client) =>
+        importFamilyComponentsFromDoc(client, familyDoc),
+      );
+      results.push({
+        dv_code: String((summary as SpcImportDocBundleResult).dv_code ?? code),
+        components: Number((summary as SpcImportDocBundleResult).components ?? 0),
+        bundle_items: Number((summary as SpcImportDocBundleResult).bundle_items ?? 0),
+        skus: Array.isArray((summary as SpcImportDocBundleResult).skus)
+          ? (summary as SpcImportDocBundleResult).skus.map(String)
+          : [],
+      });
+    }
+
+    return {
+      source_doc: bundle.source_doc,
+      imported: results.length,
+      results,
+    };
   }
 }

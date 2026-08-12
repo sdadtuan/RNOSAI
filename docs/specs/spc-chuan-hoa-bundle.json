@@ -65,6 +65,45 @@
           "duration_hint_vi": "—"
         }
       ],
+      "components": [
+        {
+          "component_code": "DV01-C01",
+          "name_vi": "Khám phá định vị & moodboard",
+          "description_vi": "Workshop định vị, phân tích đối thủ, moodboard hướng thương hiệu",
+          "deliverable_vi": "Tài liệu định vị + moodboard",
+          "price_text_vi": "8.000.000đ – 12.000.000đ",
+          "sort_order": 1
+        },
+        {
+          "component_code": "DV01-C02",
+          "name_vi": "Thiết kế Logo",
+          "description_vi": "Logo 3 phương án, chỉnh sửa và bàn giao file nguồn",
+          "deliverable_vi": "Logo vector + file nguồn",
+          "price_text_vi": "10.000.000đ – 15.000.000đ",
+          "sort_order": 2
+        },
+        {
+          "component_code": "DV01-C03",
+          "name_vi": "Brand Guideline",
+          "description_vi": "Bảng màu, typography, tone of voice, quy tắc ứng dụng cơ bản",
+          "deliverable_vi": "Brand guideline PDF",
+          "price_text_vi": "12.000.000đ – 18.000.000đ",
+          "sort_order": 3
+        },
+        {
+          "component_code": "DV01-C04",
+          "name_vi": "Ứng dụng nhận diện",
+          "description_vi": "Namecard, POSM, bao bì, ấn phẩm theo gói",
+          "deliverable_vi": "Bộ ứng dụng nhận diện",
+          "price_text_vi": "5.000.000đ – 25.000.000đ",
+          "sort_order": 4
+        }
+      ],
+      "bundle_by_tier": {
+        "CB": ["DV01-C02", "DV01-C03"],
+        "TC": ["DV01-C01", "DV01-C02", "DV01-C03", "DV01-C04"],
+        "CS": ["DV01-C01", "DV01-C02", "DV01-C03", "DV01-C04"]
+      },
       "risks_vi": [
         "Định vị mơ hồ, thông điệp không nhất quán, làm đẹp hình ảnh nhưng không gắn với doanh thu.",
         "Cần áp dụng đồng bộ cho website, content, ads, chatbot để phát huy hiệu quả."

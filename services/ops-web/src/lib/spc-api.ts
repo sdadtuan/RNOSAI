@@ -261,6 +261,48 @@ export async function putSpcOfferBundle(
   );
 }
 
+export type SpcFamilyTreeBundleComponent = {
+  component_code: string;
+  name_vi: string;
+  included: boolean;
+  qty: number;
+  pricing_model: SpcPricingModel;
+};
+
+export type SpcFamilyTreeOffer = {
+  sku_code: string;
+  tier: string;
+  label_vi: string;
+  scope_summary_vi: string;
+  pricing_model: SpcPricingModel;
+  bundle: SpcFamilyTreeBundleComponent[];
+};
+
+export type SpcFamilyTreeResponse = {
+  dv_code: string;
+  name_vi: string;
+  source_doc?: string;
+  component_count: number;
+  components: SpcComponentRow[];
+  offers: SpcFamilyTreeOffer[];
+};
+
+export async function fetchSpcFamilyTree(token: string, dvCode: string) {
+  return spcFetch<SpcFamilyTreeResponse>(
+    token,
+    `/api/v1/admin/spc/families/${encodeURIComponent(dvCode)}/tree`,
+  );
+}
+
+export async function importSpcDocBundle(token: string, dvCode?: string) {
+  const qs = dvCode ? `?dv_code=${encodeURIComponent(dvCode)}` : '';
+  return spcFetch<{
+    source_doc?: string;
+    imported: number;
+    results: Array<{ dv_code: string; components: number; bundle_items: number; skus: string[] }>;
+  }>(token, `/api/v1/admin/spc/import/doc-bundle${qs}`, { method: 'POST' });
+}
+
 export function formatPricingModel(model: SpcPricingModel | undefined): string {
   if (!model?.type) return '—';
   switch (model.type) {

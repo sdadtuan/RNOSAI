@@ -650,4 +650,13 @@ export class SpcPgRepository implements OnModuleDestroy {
     }
     return this.listBundleItems(sku);
   }
+
+  async withClient<T>(fn: (client: import('pg').PoolClient) => Promise<T>): Promise<T> {
+    const client = await this.db.connect();
+    try {
+      return await fn(client);
+    } finally {
+      client.release();
+    }
+  }
 }

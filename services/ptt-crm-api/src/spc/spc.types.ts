@@ -218,3 +218,42 @@ export type SpcPutOfferBundleBody = {
     sort_order?: number;
   }>;
 };
+
+export type SpcFamilyTreeBundleComponent = {
+  component_code: string;
+  name_vi: string;
+  included: boolean;
+  qty: number;
+  pricing_model: SpcPricingModel;
+};
+
+export type SpcFamilyTreeOffer = {
+  sku_code: string;
+  tier: SpcTier;
+  label_vi: string;
+  scope_summary_vi: string;
+  pricing_model: SpcPricingModel;
+  bundle: SpcFamilyTreeBundleComponent[];
+};
+
+export type SpcFamilyTreeResponse = {
+  dv_code: string;
+  name_vi: string;
+  source_doc?: string;
+  component_count: number;
+  components: SpcComponentRow[];
+  offers: SpcFamilyTreeOffer[];
+};
+
+export type SpcImportDocBundleResult = {
+  dv_code: string;
+  components: number;
+  bundle_items: number;
+  skus: string[];
+};
+
+export type SpcImportDocBundleResponse = {
+  source_doc?: string;
+  imported: number;
+  results: SpcImportDocBundleResult[];
+};

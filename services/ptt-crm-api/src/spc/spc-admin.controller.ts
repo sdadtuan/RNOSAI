@@ -111,4 +111,15 @@ export class SpcAdminController {
   putOfferBundle(@Param('skuCode') skuCode: string, @Body() body: SpcPutOfferBundleBody) {
     return this.spc.putOfferBundle(skuCode, body);
   }
+
+  @Get('families/:dvCode/tree')
+  getFamilyTree(@Param('dvCode') dvCode: string) {
+    return this.spc.getFamilyTree(dvCode);
+  }
+
+  @Post('import/doc-bundle')
+  @UseGuards(StaffSpcPublishGuard)
+  importDocBundle(@Query('dv_code') dvCode?: string) {
+    return this.spc.importDocBundle(dvCode);
+  }
 }

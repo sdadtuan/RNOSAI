@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { AdminPageShell } from '@/components/admin';
 import { AdminSpcBundleTab } from '@/components/admin/AdminSpcBundleTab';
 import { AdminSpcComponentsTab } from '@/components/admin/AdminSpcComponentsTab';
+import { AdminSpcFamilyTreeTab } from '@/components/admin/AdminSpcFamilyTreeTab';
 import {
   applyPricingField,
   fetchSpcFamily,
@@ -23,7 +24,7 @@ import {
   useAdminCrmAuth,
 } from '@/lib/admin/use-admin-crm-auth';
 
-type FamilyTab = 'skus' | 'components' | 'bundle';
+type FamilyTab = 'skus' | 'components' | 'bundle' | 'tree';
 
 function OfferEditor({
   offer,
@@ -211,6 +212,7 @@ export default function AdminServicesFamilyPage() {
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
             {(
               [
+                ['tree', 'Tree doc'],
                 ['skus', 'SKU & giá'],
                 ['components', 'Components'],
                 ['bundle', 'Bundle gói'],
@@ -246,6 +248,15 @@ export default function AdminServicesFamilyPage() {
               token={token}
               canEdit={canEdit}
               onChanged={() => void reload()}
+            />
+          ) : null}
+
+          {tab === 'tree' && token ? (
+            <AdminSpcFamilyTreeTab
+              dvCode={dvCode}
+              token={token}
+              canImport={canPublish}
+              onImported={() => void reload()}
             />
           ) : null}
 
