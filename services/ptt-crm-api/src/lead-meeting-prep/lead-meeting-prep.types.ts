@@ -75,6 +75,16 @@ export interface RunLeadMeetingPrepBody {
   force?: boolean;
   website_url?: string;
   social_urls?: string;
+  prep_stage?: LeadMeetingPrepStage;
+  mode?: 'full' | 'strategize_arm';
+}
+
+export interface ApplyOfferLadderResponse {
+  ok: true;
+  lead_id: number;
+  proposal_id: number;
+  href: string;
+  tiers_applied: Array<'CB' | 'TC' | 'CS'>;
 }
 
 export interface SelectEntityBody {

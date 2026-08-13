@@ -3,6 +3,7 @@ import { AiIntelligenceModule } from '../ai-intelligence/ai-intelligence.module'
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { LeadsModule } from '../leads/leads.module';
+import { ProposalsModule } from '../proposals/proposals.module';
 import { LeadMeetingPrepController } from './lead-meeting-prep.controller';
 import { LeadMeetingPrepInternalController } from './lead-meeting-prep-internal.controller';
 import { LeadMeetingPrepEnqueueService } from './lead-meeting-prep-enqueue.service';
@@ -18,6 +19,7 @@ import { StaffLmpRunGuard, StaffLmpViewGuard } from './guards/staff-lmp.guard';
     WebhooksModule,
     StaffAuthModule,
     AiIntelligenceModule,
+    ProposalsModule,
     forwardRef(() => LeadsModule),
   ],
   controllers: [LeadMeetingPrepController, LeadMeetingPrepInternalController],

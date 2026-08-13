@@ -40,6 +40,8 @@ import {
 import type { DealRoomSnapshot } from './deal-room.types';
 import { catalogTs } from '../catalog/catalog-slug.util';
 import { DealRoomTeaserRepository } from './deal-room-teaser.repository';
+import { LeadMeetingPrepRepository } from '../lead-meeting-prep/lead-meeting-prep.repository';
+import { buildLmpDealRoomSciSlice } from '../lead-meeting-prep/lmp-sci-slice.util';
 import type {
   DealRoomTeaserCreateResponse,
   DealRoomTeaserPublicView,
@@ -66,6 +68,7 @@ export class DealRoomService {
     private readonly opsProfiles: OpsProfilePgRepository,
     private readonly config: AppConfigService,
     private readonly teaserRepo: DealRoomTeaserRepository,
+    private readonly lmpRepo: LeadMeetingPrepRepository,
   ) {}
 
   async getSnapshot(leadId: number): Promise<DealRoomSnapshot> {
@@ -147,6 +150,18 @@ export class DealRoomService {
     const canShareTeaser =
       this.config.dealRoomPortalTeaser && proposalGate.ok && (await this.teaserRepo.tablesReady());
 
+    let sciSlice = buildLmpDealRoomSciSlice(null, leadId);
+    if (this.config.leadMeetingPrepEnabled) {
+      try {
+        if (await this.lmpRepo.tableReady()) {
+          const prepRow = await this.lmpRepo.getByLeadId(leadId);
+          sciSlice = buildLmpDealRoomSciSlice(prepRow, leadId);
+        }
+      } catch {
+        /* SCI slice optional */
+      }
+    }
+
     return {
       ok: true,
       lead_id: leadId,
@@ -184,6 +199,7 @@ export class DealRoomService {
       },
       proposal_gate: proposalGate,
       l1_checklist: l1Checklist,
+      sci: sciSlice,
     };
   }
 

@@ -12,6 +12,7 @@ import {
   SalesCockpitOfferTab,
   SalesCockpitTalkTrackTab,
 } from './SalesCockpitTabs';
+import { SalesCockpitDealReadyTab } from './SalesCockpitDealReadyTab';
 import type { LeadMeetingPrepResponse } from './lead-meeting-prep.types';
 
 type Props = {
@@ -31,6 +32,7 @@ const TABS = [
   { id: 'talk', label: 'Talk Track' },
   { id: 'offer', label: 'Offer Ladder' },
   { id: 'objections', label: 'Objections' },
+  { id: 'deal', label: 'Deal Ready' },
 ] as const;
 
 export function SalesCockpitPanel({
@@ -47,6 +49,9 @@ export function SalesCockpitPanel({
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('intel');
   const sci = prep.result?.close_intelligence;
   const canRun = canRunLmp(user);
+  const showDealReady =
+    prep.prep_stage === 'm3_pre_close' || Boolean(sci?.deal_room_payload);
+  const visibleTabs = showDealReady ? TABS : TABS.filter((t) => t.id !== 'deal');
 
   async function onFeedback(helpful: boolean) {
     try {
@@ -86,7 +91,7 @@ export function SalesCockpitPanel({
       {prep.status === 'ready' && sci && prep.result ? (
         <>
           <nav className="lmp-cockpit-tabs" aria-label="Sales Cockpit tabs">
-            {TABS.map((t) => (
+            {visibleTabs.map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -102,6 +107,16 @@ export function SalesCockpitPanel({
             {tab === 'talk' ? <SalesCockpitTalkTrackTab sci={sci} /> : null}
             {tab === 'offer' ? <SalesCockpitOfferTab sci={sci} /> : null}
             {tab === 'objections' ? <SalesCockpitObjectionsTab sci={sci} /> : null}
+            {tab === 'deal' && sci ? (
+              <SalesCockpitDealReadyTab
+                token={token}
+                leadId={leadId}
+                sci={sci}
+                prepStage={prep.prep_stage}
+                onMessage={onMessage}
+                onError={onError}
+              />
+            ) : null}
           </div>
           <footer className="lmp-cockpit-foot">
             <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onFeedback(true)}>

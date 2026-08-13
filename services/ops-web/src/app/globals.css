@@ -11398,3 +11398,98 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+.lmp-playbook-badge {
+  font-size: 0.85rem;
+  margin: 0 0 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  background: rgba(37, 99, 235, 0.08);
+  display: inline-block;
+}
+
+.lmp-deal-ready__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.lmp-deal-ready__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.deal-room-sci {
+  margin-top: 1rem;
+}
+
+.deal-room-sci--empty {
+  opacity: 0.9;
+}
+
+.deal-room-sci__block {
+  margin-top: 1rem;
+}
+
+.deal-room-sci__block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.deal-room-sci__block-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.deal-room-sci__close-ask {
+  font-weight: 600;
+}
+
+.deal-room-sci-ladder {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.deal-room-sci-ladder__item {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  padding: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.deal-room-sci-ladder__item.is-recommended {
+  border-color: rgba(37, 99, 235, 0.45);
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.deal-room-sci-flags {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.deal-room-sci-flags li {
+  margin-bottom: 0.35rem;
+}
+
+.deal-room-sci__actions {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+@media (max-width: 900px) {
+  .deal-room-sci-ladder {
+    grid-template-columns: 1fr;
+  }
+}

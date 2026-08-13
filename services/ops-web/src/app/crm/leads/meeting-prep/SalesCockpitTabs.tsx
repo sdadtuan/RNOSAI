@@ -31,6 +31,11 @@ export function SalesCockpitIntelTab({ result, sci }: Props) {
       </section>
       <section>
         <h3 className="lmp-panel__section-title">Góc competitive</h3>
+        {sci.competitive_angle.playbook_slug ? (
+          <p className="lmp-playbook-badge">
+            Playbook: <strong>{sci.competitive_angle.playbook_slug}</strong>
+          </p>
+        ) : null}
         <p>{sci.competitive_angle.vs_status_quo}</p>
         <p>{sci.competitive_angle.vs_generic_agency}</p>
       </section>

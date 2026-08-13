@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ptt_crm import lmp_llm_client
+from ptt_crm.lead_meeting_prep import playbook_rag
 
 PROMPT_VERSION = "lmp-strategize-v2"
 ROOT = Path(__file__).resolve().parents[2]
@@ -102,4 +103,15 @@ def run_strategize(
     if not isinstance(parsed, dict):
         parsed = stub
     parsed.setdefault("close_readiness_score", base_score)
+
+    service_slug = None
+    if base_result:
+        services = base_result.get("recommended_services") or []
+        if services and isinstance(services[0], dict):
+            service_slug = services[0].get("service_slug") or services[0].get("dv_code")
+    parsed = playbook_rag.inject_playbook_into_strategize(
+        parsed,
+        industry=inp.get("industry"),
+        service_slug=str(service_slug) if service_slug else None,
+    )
     return parsed

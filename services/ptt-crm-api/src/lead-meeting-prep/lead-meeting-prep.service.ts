@@ -1,10 +1,20 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { ProposalsService } from '../proposals/proposals.service';
+import { ProposalsSqliteRepository } from '../proposals/proposals-sqlite.repository';
 import { LeadMeetingPrepEnqueueService } from './lead-meeting-prep-enqueue.service';
 import { LeadMeetingPrepInputResolver } from './lead-meeting-prep-input.resolver';
 import { LeadMeetingPrepRepository } from './lead-meeting-prep.repository';
 import { extractReadinessBreakdown } from './close-readiness.util';
+import { buildQuoteLinesFromOfferLadder, type LmpOfferLadderRow } from './lmp-offer-ladder-quote.util';
+import { buildLmpDealRoomSciSlice } from './lmp-sci-slice.util';
 import type {
+  ApplyOfferLadderResponse,
   LeadMeetingPrepFeedbackBody,
+  LeadMeetingPrepStage,
   LeadMeetingPrepStatus,
   RunLeadMeetingPrepBody,
   SelectEntityBody,
@@ -20,12 +30,16 @@ const STATUS_LABEL_VI: Record<LeadMeetingPrepStatus, string> = {
   cancelled: 'Đã hủy',
 };
 
+const APPLY_LADDER_STAGES: LeadMeetingPrepStage[] = ['m2_qualify_win', 'm3_pre_close'];
+
 @Injectable()
 export class LeadMeetingPrepService {
   constructor(
     private readonly repo: LeadMeetingPrepRepository,
     private readonly enqueue: LeadMeetingPrepEnqueueService,
     private readonly inputResolver: LeadMeetingPrepInputResolver,
+    private readonly proposals: ProposalsService,
+    private readonly proposalsSqlite: ProposalsSqliteRepository,
   ) {}
 
   async getMeetingPrep(leadId: number) {
@@ -92,6 +106,74 @@ export class LeadMeetingPrepService {
     };
   }
 
+  async getDealRoomSlice(leadId: number) {
+    const ctx = await this.repo.getLeadContext(leadId);
+    if (!ctx) {
+      throw new NotFoundException({ error: 'Lead not found' });
+    }
+    const row = await this.repo.getByLeadId(leadId);
+    return {
+      ok: true,
+      lead_id: leadId,
+      sci: buildLmpDealRoomSciSlice(row, leadId),
+    };
+  }
+
+  async applyOfferLadder(leadId: number): Promise<ApplyOfferLadderResponse> {
+    const ctx = await this.repo.getLeadContext(leadId);
+    if (!ctx) {
+      throw new NotFoundException({ error: 'Lead not found' });
+    }
+
+    const row = await this.repo.getByLeadId(leadId);
+    if (!row || row.status !== 'ready') {
+      throw new BadRequestException({
+        error: 'prep_not_ready',
+        message: 'Cần prep status=ready trước khi áp offer ladder.',
+      });
+    }
+    if (!APPLY_LADDER_STAGES.includes(row.prep_stage)) {
+      throw new BadRequestException({
+        error: 'prep_stage_invalid',
+        message: 'apply-offer-ladder chỉ khả dụng ở M2/M3.',
+      });
+    }
+
+    const sci = row.result_json?.close_intelligence as Record<string, unknown> | undefined;
+    const ladder = sci?.offer_ladder;
+    if (!Array.isArray(ladder) || ladder.length !== 3) {
+      throw new BadRequestException({
+        error: 'offer_ladder_invalid',
+        message: 'close_intelligence.offer_ladder phải có đúng 3 gói CB/TC/CS.',
+      });
+    }
+
+    const lines = buildQuoteLinesFromOfferLadder(ladder as LmpOfferLadderRow[]);
+    const existingDraft = this.proposalsSqlite
+      .listByLeadId(leadId)
+      .find((p) => p.status === 'draft');
+
+    let proposalId: number;
+    if (existingDraft) {
+      const updated = await this.proposals.putLines(existingDraft.id, { lines });
+      proposalId = updated.proposal_id;
+    } else {
+      const created = await this.proposals.create({
+        lead_id: leadId,
+        lines,
+      });
+      proposalId = Number(created.id);
+    }
+
+    return {
+      ok: true,
+      lead_id: leadId,
+      proposal_id: proposalId,
+      href: `/crm/proposals/${proposalId}/edit`,
+      tiers_applied: ['CB', 'TC', 'CS'],
+    };
+  }
+
   async submitFeedback(
     leadId: number,
     body: LeadMeetingPrepFeedbackBody,
@@ -130,11 +212,14 @@ export class LeadMeetingPrepService {
       resolved.input.social_urls = body.social_urls.trim();
     }
 
+    const prepStage = body.prep_stage ?? 'm1_first_strike';
+    const mode = body.mode ?? (prepStage === 'm1_first_strike' ? 'full' : 'strategize_arm');
+
     const job = await this.enqueue.enqueueAfterLeadCreated({
       leadId,
       clientId: ctx.client_id,
-      prepStage: 'm1_first_strike',
-      mode: 'full',
+      prepStage,
+      mode,
       force: Boolean(body.force),
     });
 

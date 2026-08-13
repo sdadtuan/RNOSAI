@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, ParseIntPipe, Post, UseGuards } from '@ne
 import { StaffUser } from '../staff-auth/staff-jwt.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
+import { StaffProposalsWriteGuard } from '../proposals/guards/staff-proposals.guard';
 import { StaffLmpRunGuard, StaffLmpViewGuard } from './guards/staff-lmp.guard';
 import { LeadMeetingPrepEnabledGuard } from './guards/lead-meeting-prep-enabled.guard';
 import type {
@@ -42,5 +43,17 @@ export class LeadMeetingPrepController {
     @StaffUser() staffUser?: StaffJwtPayload,
   ) {
     return this.prep.submitFeedback(id, body ?? { helpful: false }, staffUser?.email ?? '');
+  }
+
+  @Get(':id/meeting-prep/deal-room-slice')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLmpViewGuard)
+  getDealRoomSlice(@Param('id', ParseIntPipe) id: number) {
+    return this.prep.getDealRoomSlice(id);
+  }
+
+  @Post(':id/meeting-prep/apply-offer-ladder')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLmpRunGuard, StaffProposalsWriteGuard)
+  applyOfferLadder(@Param('id', ParseIntPipe) id: number) {
+    return this.prep.applyOfferLadder(id);
   }
 }

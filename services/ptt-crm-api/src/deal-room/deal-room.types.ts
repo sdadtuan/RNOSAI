@@ -63,6 +63,26 @@ export interface DealRoomActionsView {
   };
 }
 
+export interface DealRoomSciSlice {
+  available: boolean;
+  prep_stage: string | null;
+  close_readiness_score: number | null;
+  opening_narrative_vi: string;
+  slide_bullets_vi: string[];
+  recommended_close_ask_vi: string;
+  offer_ladder_summary: Array<{
+    tier: string;
+    sku_code: string;
+    label_vi: string;
+    anchor_role: string;
+    price_hint_vnd: number | null;
+  }>;
+  red_flags: Array<{ flag_vi: string; severity: 'warn' | 'block'; mitigation_vi: string }>;
+  playbook_slug: string | null;
+  playbook_label_vi: string | null;
+  href_prep: string;
+}
+
 export interface DealRoomSnapshot {
   ok: true;
   lead_id: number;
@@ -78,4 +98,5 @@ export interface DealRoomSnapshot {
   actions: DealRoomActionsView;
   proposal_gate: ProposalAdvanceGate;
   l1_checklist: L1GateChecklistItemView[];
+  sci: DealRoomSciSlice;
 }

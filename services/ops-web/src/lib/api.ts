@@ -1713,7 +1713,28 @@ export interface DealRoomSnapshot {
   };
   proposal_gate: ProposalAdvanceGate;
   l1_checklist: Array<{ key: string; label: string; done: boolean }>;
+  sci: DealRoomSciSlice;
 }
+
+export type DealRoomSciSlice = {
+  available: boolean;
+  prep_stage: string | null;
+  close_readiness_score: number | null;
+  opening_narrative_vi: string;
+  slide_bullets_vi: string[];
+  recommended_close_ask_vi: string;
+  offer_ladder_summary: Array<{
+    tier: string;
+    sku_code: string;
+    label_vi: string;
+    anchor_role: string;
+    price_hint_vnd: number | null;
+  }>;
+  red_flags: Array<{ flag_vi: string; severity: 'warn' | 'block'; mitigation_vi: string }>;
+  playbook_slug: string | null;
+  playbook_label_vi: string | null;
+  href_prep: string;
+};
 
 export async function fetchLeadDealRoom(token: string, leadId: number): Promise<DealRoomSnapshot> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/deal-room`, { method: 'GET' });

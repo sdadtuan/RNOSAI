@@ -7,6 +7,7 @@ import { DealRoomConsultPanel } from '@/components/deal-room/DealRoomConsultPane
 import { DealRoomGateStrip } from '@/components/deal-room/DealRoomGateStrip';
 import { DealRoomL1Panel } from '@/components/deal-room/DealRoomL1Panel';
 import { DealRoomQuotePanel } from '@/components/deal-room/DealRoomQuotePanel';
+import { DealRoomSciPanel } from '@/components/deal-room/DealRoomSciPanel';
 import { DealRoomTeaserPanel } from '@/components/deal-room/DealRoomTeaserPanel';
 import { PresalesConsultSlaBanner } from '@/components/PresalesConsultSlaBanner';
 import { fetchLeadDealRoom, staffMe, staffRefresh, type DealRoomSnapshot } from '@/lib/api';
@@ -183,6 +184,16 @@ export function DealRoomPage({ leadId }: Props) {
                 onError={setError}
               />
             </div>
+            <DealRoomSciPanel
+              leadId={leadId}
+              token={getAccessToken() ?? ''}
+              sci={snapshot.sci}
+              canCreateQuote={snapshot.quote.can_create}
+              quoteBlockReason={snapshot.quote.block_reason}
+              onMessage={setMessage}
+              onError={setError}
+              onQuoteApplied={() => load(getAccessToken() ?? '')}
+            />
             <DealRoomQuotePanel
               leadId={leadId}
               token={getAccessToken() ?? ''}

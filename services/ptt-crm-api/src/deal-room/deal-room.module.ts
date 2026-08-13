@@ -2,6 +2,7 @@ import { forwardRef, Module } from '@nestjs/common';
 import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.module';
 import { LeadsModule } from '../leads/leads.module';
 import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
+import { LeadMeetingPrepModule } from '../lead-meeting-prep/lead-meeting-prep.module';
 import { OpsModule } from '../ops/ops.module';
 import { ProposalsModule } from '../proposals/proposals.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
@@ -18,6 +19,7 @@ import { PortalDealTeaserController } from './portal-deal-teaser.controller';
     forwardRef(() => LeadsFunnelModule),
     forwardRef(() => CrmLeadsLegacyModule),
     forwardRef(() => ProposalsModule),
+    LeadMeetingPrepModule,
     OpsModule,
   ],
   controllers: [DealRoomController, PortalDealTeaserController],

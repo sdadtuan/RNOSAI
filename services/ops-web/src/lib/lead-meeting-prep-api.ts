@@ -64,6 +64,29 @@ export async function submitLeadMeetingPrepFeedback(
   });
 }
 
+export async function fetchLeadMeetingPrepDealRoomSlice(
+  token: string,
+  leadId: number,
+): Promise<{ ok: boolean; lead_id: number; sci: import('@/lib/api').DealRoomSciSlice }> {
+  return lmpFetch(token, `/api/v1/leads/${leadId}/meeting-prep/deal-room-slice`);
+}
+
+export async function applyLeadMeetingPrepOfferLadder(
+  token: string,
+  leadId: number,
+): Promise<{
+  ok: boolean;
+  lead_id: number;
+  proposal_id: number;
+  href: string;
+  tiers_applied: Array<'CB' | 'TC' | 'CS'>;
+}> {
+  return lmpFetch(token, `/api/v1/leads/${leadId}/meeting-prep/apply-offer-ladder`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export function prepStatusChipLabel(status: LeadMeetingPrepResponse['status']): string | null {
   switch (status) {
     case 'ready':
