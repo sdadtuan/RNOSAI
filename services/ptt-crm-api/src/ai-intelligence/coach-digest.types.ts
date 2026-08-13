@@ -1,7 +1,7 @@
 export type CoachDigestSeverity = 'info' | 'warning' | 'critical';
 
 export interface CoachDigestCard {
-  key: 'sla' | 'sla_meta_24h' | 'ai_acceptance' | 'pipeline_risk' | 'channel_anomaly';
+  key: 'sla' | 'sla_meta_24h' | 'ai_acceptance' | 'pipeline_risk' | 'channel_anomaly' | 'sci_win_loop';
   title: string;
   summary: string;
   severity: CoachDigestSeverity;
@@ -39,6 +39,10 @@ export interface CoachDigestContext {
   top_anomaly_message: string | null;
   top_anomaly_channel: 'meta' | 'zalo' | null;
   top_anomaly_campaign_id: string | null;
+  sci_prep_ready?: number;
+  sci_debrief_count?: number;
+  sci_helpful_rate_pct?: number | null;
+  sci_top_tier?: string | null;
 }
 
 export interface CoachDigestSnapshot {

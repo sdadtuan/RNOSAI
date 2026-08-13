@@ -81,6 +81,105 @@ def get_result_json(lead_id: int) -> dict[str, Any] | None:
             return dict(val)
 
 
+def get_prep_row(lead_id: int) -> dict[str, Any] | None:
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT lead_id, status, prep_stage, win_outcome_json, result_json, collect_json
+                FROM crm_lead_meeting_prep WHERE lead_id = %s
+                """,
+                (lead_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            cols = [d[0] for d in cur.description]
+            out = dict(zip(cols, row))
+            for key in ("win_outcome_json", "result_json", "collect_json"):
+                val = out.get(key)
+                if isinstance(val, str):
+                    try:
+                        out[key] = json.loads(val)
+                    except json.JSONDecodeError:
+                        out[key] = {}
+            return out
+
+
+def update_win_outcome_json(lead_id: int, win_outcome: dict[str, Any]) -> None:
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO crm_lead_meeting_prep (lead_id, status, prep_stage, win_outcome_json)
+                VALUES (%s, 'ready', 'm4_learn', %s::jsonb)
+                ON CONFLICT (lead_id) DO UPDATE SET
+                  win_outcome_json = EXCLUDED.win_outcome_json,
+                  prep_stage = 'm4_learn',
+                  updated_at = NOW()
+                """,
+                (lead_id, json.dumps(win_outcome)),
+            )
+        conn.commit()
+
+
+def domain_cache_table_ready() -> bool:
+    if not pg_available():
+        return False
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_name = 'crm_lead_meeting_prep_domain_cache'
+                """
+            )
+            return cur.fetchone() is not None
+
+
+def get_domain_cache(domain: str) -> dict[str, Any] | None:
+    if not domain_cache_table_ready():
+        return None
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT collect_json FROM crm_lead_meeting_prep_domain_cache
+                WHERE domain = %s AND expires_at > NOW()
+                """,
+                [domain.lower().strip()],
+            )
+            row = cur.fetchone()
+            if not row or row[0] is None:
+                return None
+            val = row[0]
+            if isinstance(val, str):
+                return json.loads(val)
+            return dict(val)
+
+
+def upsert_domain_cache(domain: str, collect_json: dict[str, Any], *, ttl_days: int = 7) -> None:
+    if not domain_cache_table_ready():
+        return
+    dom = domain.lower().strip()
+    if not dom:
+        return
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO crm_lead_meeting_prep_domain_cache (domain, collect_json, expires_at)
+                VALUES (%s, %s::jsonb, NOW() + (%s::int * INTERVAL '1 day'))
+                ON CONFLICT (domain) DO UPDATE SET
+                  collect_json = EXCLUDED.collect_json,
+                  expires_at = EXCLUDED.expires_at
+                """,
+                (dom, json.dumps(collect_json), max(1, ttl_days)),
+            )
+        conn.commit()
+
+
 def set_status(
     lead_id: int,
     *,

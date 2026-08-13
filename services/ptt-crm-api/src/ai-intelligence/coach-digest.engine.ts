@@ -145,6 +145,28 @@ export function buildCoachDigest(context: CoachDigestContext): CoachDigestSnapsh
     }),
   );
 
+  const debriefCount = context.sci_debrief_count ?? 0;
+  const sciSeverity: CoachDigestSeverity =
+    debriefCount === 0 ? 'warning' : (context.sci_helpful_rate_pct ?? 100) < 50 ? 'warning' : 'info';
+  cards.push({
+    key: 'sci_win_loop',
+    title: 'SCI win loop (7 ngày)',
+    summary:
+      debriefCount > 0
+        ? `${debriefCount} debrief · prep ready ${context.sci_prep_ready ?? 0}${
+            context.sci_top_tier ? ` · tier phổ biến ${context.sci_top_tier}` : ''
+          }`
+        : 'Chưa có debrief SCI sau chốt/lost',
+    severity: sciSeverity,
+    metrics: {
+      prep_ready: context.sci_prep_ready ?? 0,
+      debrief_count: debriefCount,
+      helpful_rate_pct: context.sci_helpful_rate_pct ?? null,
+      top_tier: context.sci_top_tier ?? null,
+    },
+    drill_href: '/crm/ai/insights?tab=sci',
+  });
+
   const narrativeParts = [
     `Tuần ${context.week_label} — tóm tắt coach cho team.`,
     context.sla_breach > 0
@@ -172,6 +194,9 @@ export function buildCoachDigest(context: CoachDigestContext): CoachDigestSnapsh
       top_anomaly_channel: context.top_anomaly_channel,
       top_anomaly_campaign_id: context.top_anomaly_campaign_id,
     }),
+    debriefCount > 0
+      ? `SCI: ${debriefCount} debrief, helpful ${context.sci_helpful_rate_pct ?? '—'}%.`
+      : 'SCI: chưa có debrief win loop.',
   ].filter(Boolean);
 
   const narrative = narrativeParts.join(' ');

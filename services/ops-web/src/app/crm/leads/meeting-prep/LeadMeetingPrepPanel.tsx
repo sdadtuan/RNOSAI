@@ -11,12 +11,14 @@ import { canRunLmp, canViewLmp, type StoredStaffUser } from '@/lib/auth';
 import { LeadMeetingPrepEntityPicker } from './LeadMeetingPrepEntityPicker';
 import { LeadMeetingPrepProgress } from './LeadMeetingPrepProgress';
 import { SalesCockpitPanel } from './SalesCockpitPanel';
+import { PostCallDebriefModal } from './PostCallDebriefModal';
 import type { LeadMeetingPrepResponse } from './lead-meeting-prep.types';
 
 type Props = {
   token: string;
   leadId: number;
   user: StoredStaffUser | null;
+  leadStatus?: string | null;
   autoFocus?: boolean;
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
@@ -42,6 +44,7 @@ export function LeadMeetingPrepPanel({
   token,
   leadId,
   user,
+  leadStatus,
   autoFocus,
   onMessage,
   onError,
@@ -51,6 +54,7 @@ export function LeadMeetingPrepPanel({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [websiteUrl, setWebsiteUrl] = useState('');
+  const [debriefOpen, setDebriefOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const canView = canViewLmp(user);
@@ -97,6 +101,14 @@ export function LeadMeetingPrepPanel({
     const el = document.getElementById('lmp-panel');
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [autoFocus]);
+
+  const terminalStatus = String(leadStatus ?? '').trim().toLowerCase();
+  const showDebriefPrompt =
+    (terminalStatus === 'chot' || terminalStatus === 'lost') && prep?.debrief_pending;
+
+  useEffect(() => {
+    if (showDebriefPrompt) setDebriefOpen(true);
+  }, [showDebriefPrompt]);
 
   async function onRun(force = false) {
     if (!canRun) {
@@ -168,23 +180,53 @@ export function LeadMeetingPrepPanel({
 
   if (prep && status === 'ready' && result?.close_intelligence) {
     return (
-      <SalesCockpitPanel
-        token={token}
-        leadId={leadId}
-        user={user}
-        prep={prep}
-        busy={busy}
-        onRun={(force) => void onRun(force)}
-        onPrepareClose={() => void onPrepareClose()}
-        onPickEntity={(id) => void onPickEntity(id)}
-        onMessage={onMessage}
-        onError={onError}
-      />
+      <>
+        <SalesCockpitPanel
+          token={token}
+          leadId={leadId}
+          user={user}
+          prep={prep}
+          busy={busy}
+          onRun={(force) => void onRun(force)}
+          onPrepareClose={() => void onPrepareClose()}
+          onPickEntity={(id) => void onPickEntity(id)}
+          onMessage={onMessage}
+          onError={onError}
+        />
+        <PostCallDebriefModal
+          token={token}
+          leadId={leadId}
+          leadStatus={terminalStatus || 'chot'}
+          open={debriefOpen}
+          onClose={() => setDebriefOpen(false)}
+          onSubmitted={() => {
+            void load();
+            onMessage?.('Đã gửi debrief — cảm ơn AM');
+          }}
+          onError={onError}
+        />
+      </>
     );
   }
 
+  const debriefModal = (
+    <PostCallDebriefModal
+      token={token}
+      leadId={leadId}
+      leadStatus={terminalStatus || 'lost'}
+      open={debriefOpen}
+      onClose={() => setDebriefOpen(false)}
+      onSubmitted={() => {
+        void load();
+        onMessage?.('Đã gửi debrief — cảm ơn AM');
+      }}
+      onError={onError}
+    />
+  );
+
   return (
-    <section id="lmp-panel" className="lmp-panel">
+    <>
+      <section id="lmp-panel" className="lmp-panel">
       <header className="lmp-panel__head">
         <div>
           <h2 className="lmp-panel__title">Chuẩn bị cuộc hẹn</h2>
@@ -304,6 +346,17 @@ export function LeadMeetingPrepPanel({
       {(status === 'pending' || status === 'running') && !result ? (
         <p className="muted">AI đang research — thường 1,5–4 phút. Trang tự cập nhật.</p>
       ) : null}
-    </section>
+
+      {showDebriefPrompt ? (
+        <div className="banner banner-info" style={{ marginTop: '1rem' }}>
+          <p>Lead đã {terminalStatus === 'chot' ? 'chốt' : 'lost'} — vui lòng gửi debrief SCI.</p>
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => setDebriefOpen(true)}>
+            Mở debrief
+          </button>
+        </div>
+      ) : null}
+      </section>
+      {debriefModal}
+    </>
   );
 }

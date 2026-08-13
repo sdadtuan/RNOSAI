@@ -880,6 +880,7 @@ export default function CrmLeadDetailPage() {
                 token={accessToken}
                 leadId={leadId}
                 user={user}
+                leadStatus={lead?.status}
                 autoFocus={prepDeepLink}
                 onMessage={setMessage}
                 onError={setError}

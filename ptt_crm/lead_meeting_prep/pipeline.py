@@ -58,6 +58,11 @@ def process_lead_meeting_prep_payload(
     mode = str(payload.get("mode") or "full")
     selected_entity_id = payload.get("selected_entity_id")
 
+    if mode == "learn" or prep_stage == "m4_learn":
+        from ptt_crm.lead_meeting_prep import learn
+
+        return learn.process_learn(lead_id, payload=payload)
+
     repository.ensure_row(lead_id, prep_stage=prep_stage)
 
     row = repository.get_lead_context(lead_id)

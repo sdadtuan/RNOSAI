@@ -8,14 +8,17 @@ import { NbaAcceptancePanel } from '@/components/ai/NbaAcceptancePanel';
 import { PipelineRiskPanel } from '@/components/ai/PipelineRiskPanel';
 import { DashboardShell } from '@/components/kpi/DashboardShell';
 import { KpiTileGrid, type KpiTileProps } from '@/components/kpi/KpiDashboardUi';
+import { SciInsightsPanel } from '@/components/ai/SciInsightsPanel';
 import {
   fetchAiAcceptanceMetrics,
   fetchAiRecommendationsInbox,
+  fetchLmpSciAnalytics,
   fetchPipelineRiskAtRisk,
   patchPipelineRiskAssign,
   postPipelineRiskActivity,
   type AiAcceptanceMetrics,
   type AiRecommendationInboxItem,
+  type LmpSciAnalyticsMetrics,
   type PipelineRiskDealRow,
   type RecommendationStatus,
 } from '@/lib/ai-api';
@@ -46,6 +49,8 @@ function CrmAiInsightsContent() {
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [days, setDays] = useState(7);
   const [status, setStatus] = useState(() => searchParams.get('status') ?? '');
+  const activeTab = searchParams.get('tab') === 'sci' ? 'sci' : 'feedback';
+  const [sciMetrics, setSciMetrics] = useState<LmpSciAnalyticsMetrics | null>(null);
   const [metrics, setMetrics] = useState<AiAcceptanceMetrics | null>(null);
   const [rows, setRows] = useState<AiRecommendationInboxItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -95,7 +100,7 @@ function CrmAiInsightsContent() {
       setLoading(true);
       setError('');
       try {
-        const [metricsOut, inboxOut, riskOut, staffOut] = await Promise.all([
+        const [metricsOut, inboxOut, riskOut, staffOut, sciOut] = await Promise.all([
           fetchAiAcceptanceMetrics(access, { days }),
           fetchAiRecommendationsInbox(access, {
             days,
@@ -108,8 +113,10 @@ function CrmAiInsightsContent() {
             errors: [] as [],
           })),
           fetchCrmStaffList(access).catch(() => ({ staff: [], summary: {} })),
+          fetchLmpSciAnalytics(access, { days }).catch(() => null),
         ]);
         setMetrics(metricsOut.data);
+        setSciMetrics(sciOut?.data ?? null);
         setRows(inboxOut.data.recommendations);
         setTotal(inboxOut.data.total);
         setAtRiskDeals(riskOut.data.deals);
@@ -132,6 +139,13 @@ function CrmAiInsightsContent() {
       await loadPage(access);
     })();
   }, [ensureAuth, loadPage]);
+
+  function setTab(tab: 'feedback' | 'sci') {
+    const params = new URLSearchParams(searchParams.toString());
+    if (tab === 'sci') params.set('tab', 'sci');
+    else params.delete('tab');
+    router.replace(`/crm/ai/insights?${params.toString()}`);
+  }
 
   function logout() {
     clearSession();
@@ -184,12 +198,32 @@ function CrmAiInsightsContent() {
     <DashboardShell
       user={user}
       onLogout={logout}
-      title="AI Insights · Feedback loop"
+      title={activeTab === 'sci' ? 'AI Insights · SCI Win Loop' : 'AI Insights · Feedback loop'}
       periodHint={`${days} ngày gần nhất`}
       loading={loading}
       error={error || undefined}
       filters={
         <>
+          <div className="kpi-tab-row" role="tablist" aria-label="Insights tabs">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'feedback'}
+              className={`btn btn-sm ${activeTab === 'feedback' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setTab('feedback')}
+            >
+              Feedback loop
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'sci'}
+              className={`btn btn-sm ${activeTab === 'sci' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setTab('sci')}
+            >
+              SCI KPI
+            </button>
+          </div>
           <label className="muted">
             Khoảng (ngày)
             <input
@@ -230,37 +264,46 @@ function CrmAiInsightsContent() {
         </>
       }
     >
-      <KpiTileGrid tiles={tiles} />
+      {activeTab === 'sci' ? (
+        <SciInsightsPanel metrics={sciMetrics} days={days} loading={loading} />
+      ) : (
+        <>
+          <KpiTileGrid tiles={tiles} />
 
-      {getAccessToken() ? (
-        <CopilotAdoptionPanel token={getAccessToken()!} days={days} />
-      ) : null}
+          {getAccessToken() ? (
+            <CopilotAdoptionPanel token={getAccessToken()!} days={days} />
+          ) : null}
 
-      {getAccessToken() ? <NbaAcceptancePanel token={getAccessToken()!} days={days} /> : null}
+          {getAccessToken() ? <NbaAcceptancePanel token={getAccessToken()!} days={days} /> : null}
 
-      <PipelineRiskPanel
-        rows={atRiskDeals}
-        total={atRiskTotal}
-        lastScanAt={lastScanAt}
-        staffOptions={staffOptions}
-        onAssignOwner={async (recommendationId, staffId, staffName) => {
-          const access = getAccessToken();
-          if (!access) return;
-          await patchPipelineRiskAssign(access, recommendationId, { staff_id: staffId, staff_name: staffName });
-          await loadPage(access);
-        }}
-        onLogActivity={async (recommendationId, note) => {
-          const access = getAccessToken();
-          if (!access) return;
-          await postPipelineRiskActivity(access, recommendationId, { note });
-          await loadPage(access);
-        }}
-      />
+          <PipelineRiskPanel
+            rows={atRiskDeals}
+            total={atRiskTotal}
+            lastScanAt={lastScanAt}
+            staffOptions={staffOptions}
+            onAssignOwner={async (recommendationId, staffId, staffName) => {
+              const access = getAccessToken();
+              if (!access) return;
+              await patchPipelineRiskAssign(access, recommendationId, {
+                staff_id: staffId,
+                staff_name: staffName,
+              });
+              await loadPage(access);
+            }}
+            onLogActivity={async (recommendationId, note) => {
+              const access = getAccessToken();
+              if (!access) return;
+              await postPipelineRiskActivity(access, recommendationId, { note });
+              await loadPage(access);
+            }}
+          />
 
-      <section className="ai-insights-page__section">
-        <h3 className="kpi-section-title">Inbox gợi ý AI ({total})</h3>
-        <InsightsInboxTable rows={rows} />
-      </section>
+          <section className="ai-insights-page__section">
+            <h3 className="kpi-section-title">Inbox gợi ý AI ({total})</h3>
+            <InsightsInboxTable rows={rows} />
+          </section>
+        </>
+      )}
     </DashboardShell>
   );
 }

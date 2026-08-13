@@ -103,6 +103,23 @@ export async function applyLeadMeetingPrepOfferLadder(
   });
 }
 
+export async function submitLeadMeetingPrepDebrief(
+  token: string,
+  leadId: number,
+  body: {
+    closed_tier?: 'CB' | 'TC' | 'CS';
+    objection_faced?: string;
+    am_feedback?: string;
+    deal_value_vnd?: number;
+    sci_helpful?: boolean;
+  },
+): Promise<{ ok: boolean; win_outcome: unknown; prep: LeadMeetingPrepResponse }> {
+  return lmpFetch(token, `/api/v1/leads/${leadId}/meeting-prep/debrief`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export function prepStatusChipLabel(status: LeadMeetingPrepResponse['status']): string | null {
   switch (status) {
     case 'ready':

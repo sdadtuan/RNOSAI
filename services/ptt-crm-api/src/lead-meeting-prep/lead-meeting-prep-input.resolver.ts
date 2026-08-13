@@ -76,7 +76,19 @@ export class LeadMeetingPrepInputResolver {
     return { input, sources_map: sources };
   }
 
-  isEligibleForAutoEnqueue(row: LeadPrepContextRow, opts: { pilotClientIds: string[] }): string | null {
+  isEligibleForAutoEnqueue(
+    row: LeadPrepContextRow,
+    opts: { pilotClientIds: string[]; pilotOnly?: boolean },
+  ): string | null {
+    return this.isEligibleForEnqueue(row, opts, { requireInputFields: true });
+  }
+
+  /** M2/M3/M4 — lighter gate; GA skips pilot list when pilotOnly=false. */
+  isEligibleForEnqueue(
+    row: LeadPrepContextRow,
+    opts: { pilotClientIds: string[]; pilotOnly?: boolean },
+    gate: { requireInputFields?: boolean } = {},
+  ): string | null {
     if (row.is_duplicate) return 'duplicate_lead';
 
     const flowKind = resolveLeadFlowKind({
@@ -89,14 +101,18 @@ export class LeadMeetingPrepInputResolver {
     });
     if (flowKind === 'spa_operational') return 'spa_operational';
 
+    const pilotOnly = opts.pilotOnly !== false;
     const clientId = String(row.client_id ?? '').trim().toLowerCase();
-    if (opts.pilotClientIds.length > 0) {
+    if (pilotOnly && opts.pilotClientIds.length > 0) {
       if (!clientId || !opts.pilotClientIds.includes(clientId)) {
         return 'pilot_client_mismatch';
       }
     }
 
-    const resolved = this.resolve(row);
-    return resolved.skip_reason ?? null;
+    if (gate.requireInputFields) {
+      const resolved = this.resolve(row);
+      return resolved.skip_reason ?? null;
+    }
+    return null;
   }
 }

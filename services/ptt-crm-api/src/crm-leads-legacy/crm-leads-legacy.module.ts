@@ -3,6 +3,7 @@ import { AiIntelligenceModule } from '../ai-intelligence/ai-intelligence.module'
 import { CustomerTimelineModule } from '../customer-timeline/customer-timeline.module';
 import { LeadsModule } from '../leads/leads.module';
 import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
+import { LeadMeetingPrepAsyncModule } from '../lead-meeting-prep/lead-meeting-prep.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { StaffNotificationsModule } from '../staff-notifications/staff-notifications.module';
 import { CrmLeadsLegacyController } from './crm-leads-legacy.controller';
@@ -18,6 +19,7 @@ import { CrmLeadsSqliteRepository } from './crm-leads-sqlite.repository';
     forwardRef(() => LeadsModule),
     forwardRef(() => CustomerTimelineModule),
     forwardRef(() => LeadsFunnelModule),
+    LeadMeetingPrepAsyncModule,
   ],
   controllers: [CrmLeadsLegacyController],
   providers: [CrmLeadsLegacyService, CrmLeadsSqliteRepository, CrmLeadsPgRepository],

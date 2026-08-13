@@ -559,6 +559,42 @@ export interface AiRecommendationInboxResponse {
   errors: unknown[];
 }
 
+export interface LmpSciAnalyticsMetrics {
+  window_days: number;
+  prep_ready_count: number;
+  prep_running_count: number;
+  debrief_submitted_count: number;
+  chot_with_sci_count: number;
+  tier_mix: { CB: number; TC: number; CS: number; unknown: number };
+  avg_close_readiness: number | null;
+  helpful_rate_pct: number | null;
+  top_objections: Array<{ objection: string; count: number }>;
+}
+
+export interface LmpSciAnalyticsResponse {
+  data: LmpSciAnalyticsMetrics;
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
+export async function fetchLmpSciAnalytics(
+  token: string,
+  params?: { days?: number },
+): Promise<LmpSciAnalyticsResponse> {
+  const qs = new URLSearchParams();
+  if (params?.days != null) qs.set('days', String(params.days));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/analytics/sci${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<LmpSciAnalyticsResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch SCI analytics failed', res.status);
+  }
+  return body;
+}
+
 export async function fetchAiAcceptanceMetrics(
   token: string,
   params?: { from?: string; to?: string; days?: number; recommendation_type?: string },

@@ -11,13 +11,16 @@ import { LeadMeetingPrepRepository } from './lead-meeting-prep.repository';
 import { extractReadinessBreakdown } from './close-readiness.util';
 import { buildQuoteLinesFromOfferLadder, type LmpOfferLadderRow } from './lmp-offer-ladder-quote.util';
 import { buildLmpDealRoomSciSlice } from './lmp-sci-slice.util';
+import { buildWinOutcomeFromDebrief, winOutcomeHasDebrief } from './lmp-win-outcome.util';
 import type {
   ApplyOfferLadderResponse,
+  LeadMeetingPrepDebriefBody,
   LeadMeetingPrepFeedbackBody,
   LeadMeetingPrepStage,
   LeadMeetingPrepStatus,
   RunLeadMeetingPrepBody,
   SelectEntityBody,
+  WinOutcomeJson,
 } from './lead-meeting-prep.types';
 
 const STATUS_LABEL_VI: Record<LeadMeetingPrepStatus, string> = {
@@ -49,6 +52,7 @@ export class LeadMeetingPrepService {
     }
 
     let row = await this.repo.getByLeadId(leadId);
+    const terminal = ['chot', 'lost'].includes(String(ctx.status ?? '').trim().toLowerCase());
     if (!row) {
       const resolved = this.inputResolver.resolve(ctx);
       return {
@@ -69,6 +73,8 @@ export class LeadMeetingPrepService {
         error: null,
         prep_version: 0,
         updated_at: null,
+        win_outcome: null,
+        debrief_pending: terminal,
       };
     }
 
@@ -103,6 +109,8 @@ export class LeadMeetingPrepService {
       error: row.error_message,
       prep_version: row.prep_version,
       updated_at: row.updated_at,
+      win_outcome: row.win_outcome_json as unknown as WinOutcomeJson,
+      debrief_pending: terminal && !winOutcomeHasDebrief(row.win_outcome_json),
     };
   }
 
@@ -242,6 +250,53 @@ export class LeadMeetingPrepService {
       lead_id: leadId,
       enqueued: Boolean(job),
       job_id: job?.id ?? null,
+      prep: await this.getMeetingPrep(leadId),
+    };
+  }
+
+  async submitDebrief(
+    leadId: number,
+    body: LeadMeetingPrepDebriefBody,
+    actorEmail: string,
+  ) {
+    const ctx = await this.repo.getLeadContext(leadId);
+    if (!ctx) {
+      throw new NotFoundException({ error: 'Lead not found' });
+    }
+
+    const status = String(ctx.status ?? '').trim().toLowerCase();
+    if (status !== 'chot' && status !== 'lost') {
+      throw new BadRequestException({
+        error: 'terminal_status_required',
+        message: 'Debrief chỉ khả dụng khi lead ở trạng thái chot hoặc lost.',
+      });
+    }
+
+    if (!body.closed_tier && !body.objection_faced?.trim() && !body.am_feedback?.trim()) {
+      throw new BadRequestException({
+        error: 'debrief_empty',
+        message: 'Vui lòng trả lời ít nhất một câu debrief.',
+      });
+    }
+
+    const prepRow = await this.repo.getByLeadId(leadId);
+    const winOutcome = buildWinOutcomeFromDebrief({
+      leadStatus: status,
+      metaJson: ctx.meta_json ?? {},
+      debrief: body,
+      actorEmail,
+      prepStage: prepRow?.prep_stage ?? null,
+    });
+
+    await this.repo.updateWinOutcome(leadId, winOutcome as unknown as Record<string, unknown>);
+
+    const job = await this.enqueue.enqueueLearnAfterDebrief(leadId, ctx.client_id);
+
+    return {
+      ok: true,
+      lead_id: leadId,
+      win_outcome: winOutcome,
+      learn_enqueued: Boolean(job),
       prep: await this.getMeetingPrep(leadId),
     };
   }

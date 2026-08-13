@@ -60,6 +60,34 @@ export class LeadMeetingPrepEnqueueService {
     });
   }
 
+  /** S-LMP-6 — M4 learn loop after terminal status chot/lost. */
+  async enqueueAfterTerminalStatus(
+    leadId: number,
+    terminalStatus: 'chot' | 'lost',
+    clientId?: string | null,
+  ): Promise<EnqueuedJob | null> {
+    if (!this.isEnabled()) return null;
+    return this.enqueueForStage({
+      leadId,
+      clientId,
+      prepStage: 'm4_learn',
+      mode: 'learn',
+      force: false,
+      terminalStatus,
+    });
+  }
+
+  async enqueueLearnAfterDebrief(leadId: number, clientId?: string | null): Promise<EnqueuedJob | null> {
+    if (!this.isEnabled()) return null;
+    return this.enqueueForStage({
+      leadId,
+      clientId,
+      prepStage: 'm4_learn',
+      mode: 'learn',
+      force: true,
+    });
+  }
+
   async enqueueForStage(input: EnqueueLeadMeetingPrepInput): Promise<EnqueuedJob | null> {
     if (!this.isEnabled()) return null;
 
@@ -76,12 +104,14 @@ export class LeadMeetingPrepEnqueueService {
       if (!ctx) return null;
 
       const prepStage: LeadMeetingPrepStage = input.prepStage ?? 'm1_first_strike';
-      const skipPilot =
+      const pilotOpts = {
+        pilotClientIds: this.config.lmpPilotClientIds,
+        pilotOnly: this.config.lmpPilotOnly,
+      };
+      const skipReason =
         prepStage === 'm1_first_strike'
-          ? this.inputResolver.isEligibleForAutoEnqueue(ctx, {
-              pilotClientIds: this.config.lmpPilotClientIds,
-            })
-          : null;
+          ? this.inputResolver.isEligibleForAutoEnqueue(ctx, pilotOpts)
+          : this.inputResolver.isEligibleForEnqueue(ctx, pilotOpts);
 
       const resolved = this.inputResolver.resolve(ctx);
       const snapshot = {
@@ -89,13 +119,16 @@ export class LeadMeetingPrepEnqueueService {
         sources_map: resolved.sources_map,
       };
 
-      if (skipPilot || resolved.skip_reason) {
+      if (skipReason || (prepStage !== 'm4_learn' && resolved.skip_reason)) {
         if (prepStage === 'm1_first_strike') {
           await this.repo.markSkipped(
             leadId,
-            skipPilot ?? resolved.skip_reason ?? 'skipped',
+            skipReason ?? resolved.skip_reason ?? 'skipped',
             snapshot,
           );
+        }
+        if (prepStage === 'm4_learn') {
+          this.logger.debug(`M4 learn skipped lead=${leadId}: ${skipReason ?? resolved.skip_reason}`);
         }
         return null;
       }
@@ -110,12 +143,14 @@ export class LeadMeetingPrepEnqueueService {
           collectFresh,
         });
 
-      await this.repo.upsertPending({
-        leadId,
-        prepStage,
-        inputSnapshot: snapshot,
-        selectedEntityId: input.selectedEntityId ?? null,
-      });
+      if (prepStage !== 'm4_learn') {
+        await this.repo.upsertPending({
+          leadId,
+          prepStage,
+          inputSnapshot: snapshot,
+          selectedEntityId: input.selectedEntityId ?? null,
+        });
+      }
 
       const idempotencyKey = buildLmpIdempotencyKey(leadId, prepStage, Boolean(input.force));
 
@@ -127,6 +162,7 @@ export class LeadMeetingPrepEnqueueService {
         mode,
         selectedEntityId: input.selectedEntityId ?? null,
         idempotencyKey,
+        terminalStatus: input.terminalStatus,
       });
 
       if (job?.created) {

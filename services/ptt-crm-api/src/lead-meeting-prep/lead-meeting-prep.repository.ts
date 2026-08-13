@@ -168,6 +168,98 @@ export class LeadMeetingPrepRepository implements OnModuleDestroy {
     return { id: Number(result.rows[0]?.id ?? 0) };
   }
 
+  async updateWinOutcome(leadId: number, winOutcome: Record<string, unknown>): Promise<void> {
+    await this.db.query(
+      `INSERT INTO crm_lead_meeting_prep (lead_id, status, prep_stage, win_outcome_json)
+       VALUES ($1, 'ready', 'm4_learn', $2::jsonb)
+       ON CONFLICT (lead_id) DO UPDATE SET
+         win_outcome_json = EXCLUDED.win_outcome_json,
+         prep_stage = 'm4_learn',
+         updated_at = NOW()`,
+      [leadId, JSON.stringify(winOutcome)],
+    );
+  }
+
+  async aggregateSciMetrics(windowDays: number) {
+    const days = Math.max(1, Math.min(windowDays, 90));
+    const result = await this.db.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE p.status = 'ready') AS prep_ready_count,
+         COUNT(*) FILTER (WHERE p.status IN ('pending', 'running')) AS prep_running_count,
+         COUNT(*) FILTER (
+           WHERE COALESCE(p.win_outcome_json->>'submitted_at', '') <> ''
+         ) AS debrief_submitted_count,
+         COUNT(*) FILTER (
+           WHERE COALESCE(p.win_outcome_json->>'submitted_at', '') <> ''
+             AND COALESCE(p.win_outcome_json->>'outcome', '') = 'won'
+         ) AS chot_with_sci_count,
+         AVG(p.close_readiness_score) FILTER (WHERE p.close_readiness_score IS NOT NULL) AS avg_close_readiness,
+         COUNT(*) FILTER (
+           WHERE p.win_outcome_json->>'sci_helpful' = 'true'
+         ) AS sci_helpful_yes,
+         COUNT(*) FILTER (
+           WHERE p.win_outcome_json->>'sci_helpful' IN ('true', 'false')
+         ) AS sci_helpful_total
+       FROM crm_lead_meeting_prep p
+       WHERE p.updated_at >= NOW() - ($1::int * INTERVAL '1 day')`,
+      [days],
+    );
+
+    const tierResult = await this.db.query(
+      `SELECT COALESCE(p.win_outcome_json->>'closed_tier', 'unknown') AS tier, COUNT(*)::int AS cnt
+       FROM crm_lead_meeting_prep p
+       WHERE p.updated_at >= NOW() - ($1::int * INTERVAL '1 day')
+         AND COALESCE(p.win_outcome_json->>'submitted_at', '') <> ''
+       GROUP BY 1`,
+      [days],
+    );
+
+    const objectionResult = await this.db.query(
+      `SELECT TRIM(COALESCE(p.win_outcome_json->>'objection_faced', '')) AS objection,
+              COUNT(*)::int AS cnt
+       FROM crm_lead_meeting_prep p
+       WHERE p.updated_at >= NOW() - ($1::int * INTERVAL '1 day')
+         AND TRIM(COALESCE(p.win_outcome_json->>'objection_faced', '')) <> ''
+       GROUP BY 1
+       ORDER BY cnt DESC
+       LIMIT 5`,
+      [days],
+    );
+
+    const row = result.rows[0] as Record<string, unknown>;
+    const tierMix = { CB: 0, TC: 0, CS: 0, unknown: 0 };
+    for (const tr of tierResult.rows) {
+      const tier = String((tr as { tier?: string }).tier ?? 'unknown').toUpperCase();
+      const cnt = Number((tr as { cnt?: number }).cnt ?? 0);
+      if (tier === 'CB' || tier === 'TC' || tier === 'CS') {
+        tierMix[tier] = cnt;
+      } else {
+        tierMix.unknown += cnt;
+      }
+    }
+
+    const helpfulYes = Number(row.sci_helpful_yes ?? 0);
+    const helpfulTotal = Number(row.sci_helpful_total ?? 0);
+    const helpfulRate =
+      helpfulTotal > 0 ? Math.round((helpfulYes / helpfulTotal) * 1000) / 10 : null;
+
+    return {
+      window_days: days,
+      prep_ready_count: Number(row.prep_ready_count ?? 0),
+      prep_running_count: Number(row.prep_running_count ?? 0),
+      debrief_submitted_count: Number(row.debrief_submitted_count ?? 0),
+      chot_with_sci_count: Number(row.chot_with_sci_count ?? 0),
+      tier_mix: tierMix,
+      avg_close_readiness:
+        row.avg_close_readiness != null ? Math.round(Number(row.avg_close_readiness)) : null,
+      helpful_rate_pct: helpfulRate,
+      top_objections: objectionResult.rows.map((r) => ({
+        objection: String((r as { objection?: string }).objection ?? ''),
+        count: Number((r as { cnt?: number }).cnt ?? 0),
+      })),
+    };
+  }
+
   private mapRow(row: Record<string, unknown>): LeadMeetingPrepRow {
     return {
       id: Number(row.id),

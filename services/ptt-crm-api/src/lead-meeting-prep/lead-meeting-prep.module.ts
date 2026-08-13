@@ -9,6 +9,7 @@ import { LeadMeetingPrepInternalController } from './lead-meeting-prep-internal.
 import { LeadMeetingPrepEnqueueService } from './lead-meeting-prep-enqueue.service';
 import { LeadMeetingPrepInputResolver } from './lead-meeting-prep-input.resolver';
 import { LeadMeetingPrepLlmService } from './lead-meeting-prep-llm.service';
+import { LmpSciAnalyticsService } from './lmp-sci-analytics.service';
 import { LeadMeetingPrepRepository } from './lead-meeting-prep.repository';
 import { LeadMeetingPrepService } from './lead-meeting-prep.service';
 import { LeadMeetingPrepEnabledGuard } from './guards/lead-meeting-prep-enabled.guard';
@@ -29,11 +30,12 @@ import { StaffLmpRunGuard, StaffLmpViewGuard } from './guards/staff-lmp.guard';
     LeadMeetingPrepEnqueueService,
     LeadMeetingPrepService,
     LeadMeetingPrepLlmService,
+    LmpSciAnalyticsService,
     LeadMeetingPrepEnabledGuard,
     StaffLmpViewGuard,
     StaffLmpRunGuard,
   ],
-  exports: [LeadMeetingPrepEnqueueService, LeadMeetingPrepRepository],
+  exports: [LeadMeetingPrepEnqueueService, LeadMeetingPrepRepository, LmpSciAnalyticsService],
 })
 export class LeadMeetingPrepModule {}
 
@@ -44,7 +46,8 @@ export class LeadMeetingPrepModule {}
     LeadMeetingPrepRepository,
     LeadMeetingPrepInputResolver,
     LeadMeetingPrepEnqueueService,
+    LmpSciAnalyticsService,
   ],
-  exports: [LeadMeetingPrepEnqueueService, LeadMeetingPrepRepository],
+  exports: [LeadMeetingPrepEnqueueService, LeadMeetingPrepRepository, LmpSciAnalyticsService],
 })
 export class LeadMeetingPrepAsyncModule {}

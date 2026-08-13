@@ -8,7 +8,21 @@ export type LeadMeetingPrepStatus =
   | 'cancelled'
   | 'none';
 
-export type PrepStage = 'm1_first_strike' | 'm2_qualify_win' | 'm3_pre_close';
+export type PrepStage = 'm1_first_strike' | 'm2_qualify_win' | 'm3_pre_close' | 'm4_learn';
+
+export type WinOutcomeTier = 'CB' | 'TC' | 'CS';
+
+export type WinOutcomeJson = {
+  outcome: 'won' | 'lost';
+  deal_value_vnd: number | null;
+  closed_tier: WinOutcomeTier | null;
+  objection_faced: string | null;
+  am_feedback: string | null;
+  sci_helpful: boolean | null;
+  submitted_at: string;
+  submitted_by: string;
+  prep_stage_at_close: string | null;
+};
 
 export type EntityCandidate = {
   id: string;
@@ -127,6 +141,8 @@ export type LeadMeetingPrepResponse = {
   error: string | null;
   prep_version: number;
   updated_at: string | null;
+  win_outcome?: WinOutcomeJson | null;
+  debrief_pending?: boolean;
 };
 
 export type LeadMeetingPrepFeedbackBody = {

@@ -7,7 +7,28 @@ export type LeadMeetingPrepStatus =
   | 'skipped'
   | 'cancelled';
 
-export type LeadMeetingPrepStage = 'm1_first_strike' | 'm2_qualify_win' | 'm3_pre_close';
+export type LeadMeetingPrepStage =
+  | 'm1_first_strike'
+  | 'm2_qualify_win'
+  | 'm3_pre_close'
+  | 'm4_learn';
+
+export type WinOutcomeTier = 'CB' | 'TC' | 'CS';
+
+export interface WinOutcomeJson {
+  outcome: 'won' | 'lost';
+  deal_value_vnd: number | null;
+  closed_tier: WinOutcomeTier | null;
+  objection_faced: string | null;
+  am_feedback: string | null;
+  sci_helpful: boolean | null;
+  submitted_at: string;
+  submitted_by: string;
+  prep_stage_at_close: string | null;
+  learn_processed_at?: string | null;
+  recommended_dv_codes?: string[];
+  industry_slug?: string | null;
+}
 
 export interface LeadPrepContextRow {
   lead_id: number;
@@ -66,9 +87,10 @@ export interface EnqueueLeadMeetingPrepInput {
   clientId?: string | null;
   correlationId?: string | null;
   prepStage?: LeadMeetingPrepStage;
-  mode?: 'full' | 'resume_entity' | 'strategize_arm';
+  mode?: 'full' | 'resume_entity' | 'strategize_arm' | 'learn';
   selectedEntityId?: string | null;
   force?: boolean;
+  terminalStatus?: 'chot' | 'lost';
 }
 
 export interface RunLeadMeetingPrepBody {
@@ -95,4 +117,13 @@ export interface LeadMeetingPrepFeedbackBody {
   helpful: boolean;
   notes?: string;
   service_dv_code?: string;
+}
+
+/** S-LMP-6 — post-close debrief (3 câu). */
+export interface LeadMeetingPrepDebriefBody {
+  closed_tier?: WinOutcomeTier;
+  objection_faced?: string;
+  am_feedback?: string;
+  deal_value_vnd?: number;
+  sci_helpful?: boolean;
 }

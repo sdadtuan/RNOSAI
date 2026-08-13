@@ -8,6 +8,9 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlparse
+
+from ptt_crm.lead_meeting_prep import repository
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +123,19 @@ def _stub_collect(inp: dict[str, Any], *, reason: str) -> dict[str, Any]:
     }
 
 
+def _domain_from_url(url: str) -> str:
+    raw = str(url or "").strip()
+    if not raw:
+        return ""
+    if not raw.startswith(("http://", "https://")):
+        raw = f"https://{raw}"
+    try:
+        host = urlparse(raw).netloc.lower()
+        return host[4:] if host.startswith("www.") else host
+    except ValueError:
+        return ""
+
+
 def collect_company(inp: dict[str, Any]) -> dict[str, Any]:
     """
     Collect public company research via Tavily.
@@ -131,6 +147,13 @@ def collect_company(inp: dict[str, Any]) -> dict[str, Any]:
     company = _safe_company_query(str(inp.get("company_name") or ""))
     if len(company) < 2:
         return _stub_collect(inp, reason="missing_company_name")
+
+    domain = _domain_from_url(str(inp.get("website_url") or ""))
+    if domain:
+        cached = repository.get_domain_cache(domain)
+        if cached:
+            cached = {**cached, "cache_hit": True, "cache_domain": domain}
+            return cached
 
     if not api_key:
         return _stub_collect(inp, reason="TAVILY_API_KEY missing — stub collect")
@@ -201,7 +224,7 @@ def collect_company(inp: dict[str, Any]) -> dict[str, Any]:
                     }
                 )
 
-    return {
+    result = {
         "company_found": len(all_docs) > 0,
         "company_sources": all_docs[:12],
         "credits_used": credits,
@@ -211,3 +234,11 @@ def collect_company(inp: dict[str, Any]) -> dict[str, Any]:
         "stub": False,
         "queries": queries,
     }
+
+    if domain and result["company_found"] and not result.get("stub"):
+        try:
+            repository.upsert_domain_cache(domain, result)
+        except Exception as exc:
+            logger.debug("domain cache write skipped domain=%s: %s", domain, exc)
+
+    return result

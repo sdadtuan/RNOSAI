@@ -88,6 +88,7 @@ export class JobQueueRepository implements OnModuleDestroy {
     mode?: string;
     selectedEntityId?: string | null;
     idempotencyKey?: string;
+    terminalStatus?: 'chot' | 'lost';
   }): Promise<EnqueuedJob | null> {
     if (!this.config.jobsEnabled) {
       return null;
@@ -106,6 +107,7 @@ export class JobQueueRepository implements OnModuleDestroy {
         prep_stage: input.prepStage ?? 'm1_first_strike',
         mode: input.mode ?? 'full',
         selected_entity_id: input.selectedEntityId ?? null,
+        terminal_status: input.terminalStatus ?? null,
       },
       idempotencyKey: idem,
       correlationId: input.correlationId,

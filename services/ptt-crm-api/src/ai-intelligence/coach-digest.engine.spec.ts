@@ -32,12 +32,19 @@ describe('coach-digest.engine', () => {
       top_anomaly_message: 'CPL spike',
       top_anomaly_channel: 'meta',
       top_anomaly_campaign_id: 'camp_1',
+      sci_debrief_count: 3,
+      sci_prep_ready: 8,
+      sci_helpful_rate_pct: 72,
+      sci_top_tier: 'TC',
     });
 
-    expect(digest.cards).toHaveLength(5);
+    expect(digest.cards).toHaveLength(6);
     expect(digest.cards[0].drill_href).toBe('/crm/cskh-board?sla_filter=breach');
     expect(digest.cards[1].key).toBe('sla_meta_24h');
     expect(digest.cards[2].drill_href).toBe('/crm/ai/insights?status=dismissed');
+    expect(digest.cards.find((c) => c.key === 'sci_win_loop')?.drill_href).toBe(
+      '/crm/ai/insights?tab=sci',
+    );
     expect(digest.severity).toBe('critical');
     expect(digest.email_preview).toContain('Coach digest');
   });
@@ -67,6 +74,9 @@ describe('coach-digest.engine', () => {
       top_anomaly_message: null,
       top_anomaly_channel: null,
       top_anomaly_campaign_id: null,
+      sci_debrief_count: 2,
+      sci_prep_ready: 5,
+      sci_helpful_rate_pct: 80,
     });
     expect(digest.severity).toBe('info');
   });

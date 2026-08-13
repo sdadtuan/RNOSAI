@@ -29,5 +29,7 @@ describe('lmp-stage.util', () => {
     expect(PREP_STAGE_LABEL_VI.m1_first_strike).toContain('M1');
     expect(PREP_STAGE_LABEL_VI.m2_qualify_win).toContain('M2');
     expect(PREP_STAGE_LABEL_VI.m3_pre_close).toContain('M3');
+    expect(PREP_STAGE_LABEL_VI.m4_learn).toContain('M4');
+    expect(resolveModeForStage('m4_learn')).toBe('learn');
   });
 });

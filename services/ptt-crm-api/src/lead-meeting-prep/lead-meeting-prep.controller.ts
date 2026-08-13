@@ -6,6 +6,7 @@ import { StaffProposalsWriteGuard } from '../proposals/guards/staff-proposals.gu
 import { StaffLmpRunGuard, StaffLmpViewGuard } from './guards/staff-lmp.guard';
 import { LeadMeetingPrepEnabledGuard } from './guards/lead-meeting-prep-enabled.guard';
 import type {
+  LeadMeetingPrepDebriefBody,
   LeadMeetingPrepFeedbackBody,
   RunLeadMeetingPrepBody,
   SelectEntityBody,
@@ -61,5 +62,15 @@ export class LeadMeetingPrepController {
   @UseGuards(StaffOrInternalKeyGuard, StaffLmpRunGuard, StaffProposalsWriteGuard)
   applyOfferLadder(@Param('id', ParseIntPipe) id: number) {
     return this.prep.applyOfferLadder(id);
+  }
+
+  @Post(':id/meeting-prep/debrief')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLmpViewGuard)
+  submitDebrief(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: LeadMeetingPrepDebriefBody,
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.prep.submitDebrief(id, body ?? {}, staffUser?.email ?? '');
   }
 }

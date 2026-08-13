@@ -16,6 +16,7 @@ import {
 import { PipelineRiskService } from './pipeline-risk.service';
 import { AnomalyDigestService } from './anomaly-digest.service';
 import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
+import { LmpSciAnalyticsService } from '../lead-meeting-prep/lmp-sci-analytics.service';
 
 const DEFAULT_TEAM_ID = 'org';
 
@@ -29,6 +30,7 @@ export class ManagerCoachService {
     private readonly pipelineRisk: PipelineRiskService,
     private readonly anomalyDigest: AnomalyDigestService,
     private readonly delivery: CoachDigestDeliveryService,
+    private readonly lmpSci: LmpSciAnalyticsService,
   ) {}
 
   async generateDigest(input: CoachDigestGenerateRequest = {}): Promise<CoachDigestGenerateResponse> {
@@ -167,6 +169,21 @@ export class ManagerCoachService {
 
     const channelAnomaly = await this.anomalyDigest.buildCoachFields(7);
 
+    let sciMetrics = {
+      prep_ready_count: 0,
+      debrief_submitted_count: 0,
+      helpful_rate_pct: null as number | null,
+      tier_mix: { CB: 0, TC: 0, CS: 0, unknown: 0 },
+    };
+    try {
+      sciMetrics = await this.lmpSci.getMetrics(7);
+    } catch {
+      sciMetrics = sciMetrics;
+    }
+    const tierEntries = Object.entries(sciMetrics.tier_mix).filter(([k]) => k !== 'unknown');
+    const topTier =
+      tierEntries.sort((a, b) => b[1] - a[1]).find(([, v]) => v > 0)?.[0] ?? null;
+
     let managerIntel: Awaited<ReturnType<CskhBoardService['getManagerIntelligence']>> | null = null;
     try {
       managerIntel = await this.cskhBoard.getManagerIntelligence(acceptance.acceptance_rate_pct);
@@ -212,6 +229,10 @@ export class ManagerCoachService {
       top_dismiss_reasons: acceptance.top_dismiss_reasons,
       pipeline_at_risk: pipelineAtRisk,
       ...channelAnomaly,
+      sci_prep_ready: sciMetrics.prep_ready_count,
+      sci_debrief_count: sciMetrics.debrief_submitted_count,
+      sci_helpful_rate_pct: sciMetrics.helpful_rate_pct,
+      sci_top_tier: topTier,
     };
   }
 
