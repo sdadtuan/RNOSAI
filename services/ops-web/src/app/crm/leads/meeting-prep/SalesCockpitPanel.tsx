@@ -50,7 +50,7 @@ export function SalesCockpitPanel({
   onError,
 }: Props) {
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>(() =>
-    prep.prep_stage === 'm1_first_strike' ? 'talk' : 'intel',
+    prep.prep_stage === 'm1_first_strike' || prep.prep_stage === 'm2_qualify_win' ? 'talk' : 'intel',
   );
   const sci = prep.result?.close_intelligence;
   const canRun = canRunLmp(user);
@@ -114,6 +114,7 @@ export function SalesCockpitPanel({
                 sci={sci}
                 leadId={leadId}
                 token={token}
+                prepStage={prep.prep_stage}
                 onMessage={onMessage}
               />
             ) : null}

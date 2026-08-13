@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { trackLeadCallScriptCopy } from '@/lib/api';
 import type { CloseIntelligence, LeadMeetingPrepResult } from './lead-meeting-prep.types';
 import { getIntelSourceBadge } from './intel-source.util';
+import { BantQualifyChecklist } from './BantQualifyChecklist';
 
 type Props = {
   result: LeadMeetingPrepResult;
@@ -70,11 +71,13 @@ export function SalesCockpitTalkTrackTab({
   sci,
   leadId,
   token,
+  prepStage,
   onMessage,
 }: {
   sci: CloseIntelligence;
   leadId?: number;
   token?: string;
+  prepStage?: string;
   onMessage?: (msg: string) => void;
 }) {
   const [seconds, setSeconds] = useState(15 * 60);
@@ -100,6 +103,9 @@ export function SalesCockpitTalkTrackTab({
 
   return (
     <div className="lmp-cockpit-tab">
+      {prepStage === 'm2_qualify_win' && leadId ? (
+        <BantQualifyChecklist leadId={leadId} compact />
+      ) : null}
       <p className="lmp-talk-meta">
         {sci.talk_track.framework} · {sci.talk_track.total_minutes} phút · Timer {mm}:{ss}
       </p>

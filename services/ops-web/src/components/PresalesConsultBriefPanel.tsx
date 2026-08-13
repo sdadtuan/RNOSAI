@@ -6,6 +6,14 @@ import { hasCap, type StoredStaffUser } from '@/lib/auth';
 
 type ConsultBrief = {
   service_label?: string;
+  external_research_summary?: string;
+  external_research_sources?: number;
+  close_brief?: string;
+  meeting_prep?: {
+    status?: string;
+    prep_stage?: string | null;
+    close_readiness_score?: number | null;
+  };
   readiness?: {
     lead_task_done?: boolean;
     has_any_intake?: boolean;
@@ -125,6 +133,38 @@ export function PresalesConsultBriefPanel({ token, user, leadId, onPrefilled }: 
                 {brief.latest_intake_summary}
               </p>
             </div>
+          ) : null}
+
+          {brief.external_research_summary ? (
+            <div>
+              <span className="muted">
+                Research DN (SCI)
+                {brief.external_research_sources
+                  ? ` · ${brief.external_research_sources} nguồn`
+                  : ''}
+              </span>
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.9rem', whiteSpace: 'pre-wrap' }}>
+                {brief.external_research_summary.slice(0, 500)}
+                {brief.external_research_summary.length > 500 ? '…' : ''}
+              </p>
+            </div>
+          ) : null}
+
+          {brief.close_brief ? (
+            <div>
+              <span className="muted">Close brief (pain / handoff)</span>
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.9rem', whiteSpace: 'pre-wrap' }}>
+                {brief.close_brief.slice(0, 400)}
+                {brief.close_brief.length > 400 ? '…' : ''}
+              </p>
+            </div>
+          ) : null}
+
+          {brief.meeting_prep?.status === 'ready' ? (
+            <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+              SCI {brief.meeting_prep.prep_stage ?? '—'} · readiness{' '}
+              {brief.meeting_prep.close_readiness_score ?? '—'}/100
+            </p>
           ) : null}
 
           {(brief.recommended_actions?.length ?? 0) > 0 ? (

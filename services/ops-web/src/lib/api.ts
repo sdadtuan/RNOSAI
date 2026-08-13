@@ -877,6 +877,13 @@ export interface LeadCopilotContext {
   activities: CopilotActivitySnippet[];
   catalog: { services: CopilotCatalogService[] } | null;
   closed_loop: LeadClosedLoopContext;
+  meeting_prep?: {
+    status: string;
+    prep_stage: string | null;
+    summary: string;
+    top_dv_codes: string[];
+    close_readiness_score: number | null;
+  } | null;
 }
 
 /** Unified copilot context — replaces separate sla-care / closed-loop fetches on lead detail. */

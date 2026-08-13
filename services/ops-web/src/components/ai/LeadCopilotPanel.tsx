@@ -20,6 +20,7 @@ import { LeadRouteRepSection } from './LeadRouteRepSection';
 import { SummarizeSection } from './SummarizeSection';
 import { FollowUpDraftSection } from './FollowUpDraftSection';
 import { CallScriptDraftSection } from './CallScriptDraftSection';
+import { MeetingPrepCopilotSection } from './MeetingPrepCopilotSection';
 
 interface Props {
   token: string;
@@ -176,6 +177,13 @@ export function LeadCopilotPanel({
             onError={onCopilotError}
             callScript={copilotContext?.sla.drafts.call_script}
             scriptLoading={copilotContextLoading}
+          />
+
+          <MeetingPrepCopilotSection
+            token={token}
+            leadId={leadId}
+            copilotContext={copilotContext}
+            loading={copilotContextLoading}
           />
 
           <FollowUpDraftSection

@@ -11425,6 +11425,108 @@ body {
   font-size: 0.82rem;
 }
 
+.lmp-m2-card {
+  margin: 0.75rem 0 1rem;
+  padding: 1rem 1.1rem;
+  border-radius: 12px;
+  border: 1px solid #fde68a;
+  background: linear-gradient(180deg, #fffbeb 0%, #fff 100%);
+}
+
+.lmp-m2-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.lmp-m2-card__head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.lmp-m2-card__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.lmp-m2-card__readiness {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.lmp-m2-card__pain {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin: 0 0 0.75rem;
+}
+
+.lmp-m2-card__urgency {
+  margin: 0 0 0.75rem;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+}
+
+.lmp-m2-card__research summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.lmp-m2-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.lmp-bant-checklist {
+  margin: 0 0 0.85rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.lmp-bant-checklist--compact {
+  padding: 0.5rem 0.65rem;
+}
+
+.lmp-bant-checklist__head {
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.lmp-bant-checklist__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.lmp-bant-checklist__list label {
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-start;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.lmp-m2-copilot-prompts {
+  margin: 0.35rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.88rem;
+}
+
+.copilot-meeting-prep {
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
 .lmp-cskh-sci-link {
   display: inline-block;
   margin-top: 0.25rem;
