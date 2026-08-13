@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   fetchLeadMeetingPrep,
   runLeadMeetingPrep,
-  type LeadMeetingPrepResponse,
 } from '@/lib/lead-meeting-prep-api';
+import type { LeadMeetingPrepResponse } from './lead-meeting-prep.types';
 import { trackLeadCallScriptCopy } from '@/lib/api';
 import { canRunLmp, canViewLmp, type StoredStaffUser } from '@/lib/auth';
 import { leadMeetingPrepEnabled } from '@/lib/crm/lmp-flags';
