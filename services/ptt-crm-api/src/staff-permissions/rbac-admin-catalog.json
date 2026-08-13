@@ -361,6 +361,11 @@
       "view_financial",
       "view_pii"
     ],
+    "crm_lmp": [
+      "feedback",
+      "run",
+      "view"
+    ],
     "crm_gdkd": [
       "assign",
       "override",
@@ -984,6 +989,13 @@
       "group": "CRM — Bảng CSKH",
       "page": "/crm/leads",
       "description": "Thu thập đa nguồn, chấm điểm, phân loại, gán owner, SLA và AI truy xuất."
+    },
+    {
+      "id": "crm_lmp",
+      "label": "Lead Meeting Prep (SCI)",
+      "group": "CRM — B2B Sales",
+      "page": "/crm/leads",
+      "description": "Chuẩn bị cuộc hẹn — research DN, đề xuất DV, kịch bản gọi (AI-UC-021)."
     },
     {
       "id": "crm_gdkd",

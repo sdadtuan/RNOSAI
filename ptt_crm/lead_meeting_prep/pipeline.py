@@ -111,6 +111,21 @@ def process_lead_meeting_prep_payload(
             ai_agent_run_id=synth.get("ai_run_id"),
             error_message=None,
         )
+
+        try:
+            from ptt_crm.timeline_events import record_lead_meeting_prep_ready_timeline
+
+            services = (synth.get("result") or {}).get("recommended_services") or []
+            record_lead_meeting_prep_ready_timeline(
+                lead_id=lead_id,
+                client_id=str(inp.get("client_id") or "") or None,
+                dv_codes=[str(s.get("dv_code") or "") for s in services if isinstance(s, dict)],
+                dv_names=[str(s.get("name_vi") or "") for s in services if isinstance(s, dict)],
+                prep_version=1,
+            )
+        except Exception as exc:
+            logger.debug("timeline lmp ready skipped lead=%s: %s", lead_id, exc)
+
         logger.info(
             "lead_meeting_prep ready lead_id=%s readiness=%s stub=%s correlation=%s",
             lead_id,

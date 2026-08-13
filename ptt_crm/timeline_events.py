@@ -9,6 +9,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 TIMELINE_EVENT_LEAD_INGESTED = "lead.ingested"
+TIMELINE_EVENT_LEAD_MEETING_PREP_READY = "lead_meeting_prep_ready"
 TIMELINE_ENTITY_LEAD = "lead"
 
 
@@ -163,6 +164,44 @@ def record_lead_ingested_timeline(
         title=f"Lead ingest ({channel or 'unknown'})",
         payload=payload,
         occurred_at=occurred_at,
+        actor_id="system",
+        external_ref=external_ref,
+    )
+
+
+def record_lead_meeting_prep_ready_timeline(
+    *,
+    lead_id: int,
+    client_id: str | None = None,
+    dv_codes: list[str] | None = None,
+    dv_names: list[str] | None = None,
+    prep_version: int = 1,
+) -> str | None:
+    codes = [str(c) for c in (dv_codes or []) if c]
+    names = [str(n) for n in (dv_names or []) if n]
+    external_ref = f"lmp:ready:lead:{lead_id}:v{prep_version}"
+    title = "AI chuẩn bị cuộc hẹn sẵn sàng"
+    if names:
+        body = f"Đề xuất: {', '.join(names[:3])}"
+    elif codes:
+        body = f"Đề xuất: {', '.join(codes[:3])}"
+    else:
+        body = "Prep result ready"
+    payload = {
+        "lead_id": lead_id,
+        "dv_codes": codes,
+        "dv_names": names,
+        "prep_version": prep_version,
+    }
+    return insert_timeline_event(
+        entity_type=TIMELINE_ENTITY_LEAD,
+        entity_id=str(lead_id),
+        event_type=TIMELINE_EVENT_LEAD_MEETING_PREP_READY,
+        event_source="ai",
+        client_id=client_id,
+        title=title,
+        body=body,
+        payload=payload,
         actor_id="system",
         external_ref=external_ref,
     )

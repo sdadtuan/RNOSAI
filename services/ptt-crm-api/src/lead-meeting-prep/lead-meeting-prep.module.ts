@@ -11,6 +11,7 @@ import { LeadMeetingPrepLlmService } from './lead-meeting-prep-llm.service';
 import { LeadMeetingPrepRepository } from './lead-meeting-prep.repository';
 import { LeadMeetingPrepService } from './lead-meeting-prep.service';
 import { LeadMeetingPrepEnabledGuard } from './guards/lead-meeting-prep-enabled.guard';
+import { StaffLmpRunGuard, StaffLmpViewGuard } from './guards/staff-lmp.guard';
 
 @Module({
   imports: [
@@ -27,6 +28,8 @@ import { LeadMeetingPrepEnabledGuard } from './guards/lead-meeting-prep-enabled.
     LeadMeetingPrepService,
     LeadMeetingPrepLlmService,
     LeadMeetingPrepEnabledGuard,
+    StaffLmpViewGuard,
+    StaffLmpRunGuard,
   ],
   exports: [LeadMeetingPrepEnqueueService, LeadMeetingPrepRepository],
 })

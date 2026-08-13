@@ -5,6 +5,7 @@ export const TIMELINE_EVENT = {
   ACTIVITY: 'crm.activity',
   ASSIGNMENT: 'lead.assigned',
   AI_ACTION: 'ai.action',
+  LEAD_MEETING_PREP_READY: 'lead_meeting_prep_ready',
 } as const;
 
 export type TimelineEventType = (typeof TIMELINE_EVENT)[keyof typeof TIMELINE_EVENT];

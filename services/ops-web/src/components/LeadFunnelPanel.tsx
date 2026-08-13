@@ -27,7 +27,10 @@ import {
   b2NegativeCareSuggestLost,
   type B2NegativeCareStatus,
 } from '@/lib/crm/care-status';
-import { hasCap, canGenerateMktAiPlanner, type StoredStaffUser } from '@/lib/auth';
+import { hasCap, canGenerateMktAiPlanner, canViewLmp, type StoredStaffUser } from '@/lib/auth';
+import { leadMeetingPrepEnabled } from '@/lib/crm/lmp-flags';
+import { fetchLeadMeetingPrep, prepStatusChipLabel } from '@/lib/lead-meeting-prep-api';
+import type { LeadMeetingPrepStatus } from '@/app/crm/leads/meeting-prep/lead-meeting-prep.types';
 
 interface Props {
   token: string;
@@ -38,6 +41,7 @@ interface Props {
   syncFunnel?: LeadFunnelSnapshot | null;
   fetchOnMount?: boolean;
   onOpenConsultTab?: () => void;
+  onOpenMeetingPrepTab?: () => void;
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
   onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
@@ -77,6 +81,7 @@ export function LeadFunnelPanel({
   syncFunnel,
   fetchOnMount = true,
   onOpenConsultTab,
+  onOpenMeetingPrepTab,
   onMessage,
   onError,
   onFunnelChange,
@@ -101,6 +106,7 @@ export function LeadFunnelPanel({
   const [aiBusyTaskId, setAiBusyTaskId] = useState<number | null>(null);
   const [aiPlanDraftBusy, setAiPlanDraftBusy] = useState(false);
   const [showAiDraftBadge, setShowAiDraftBadge] = useState(false);
+  const [prepStatus, setPrepStatus] = useState<LeadMeetingPrepStatus | null>(null);
   const presalesServiceOptions = useMemo(
     () => mergePresalesServiceOptions(serviceOptions),
     [serviceOptions],
@@ -176,9 +182,17 @@ export function LeadFunnelPanel({
     }
   }, [syncFunnel]);
 
+  useEffect(() => {
+    if (!leadMeetingPrepEnabled() || !canViewLmp(user)) return;
+    void fetchLeadMeetingPrep(token, leadId)
+      .then((row) => setPrepStatus(row.status))
+      .catch(() => setPrepStatus(null));
+  }, [token, leadId, user]);
+
   const canEdit = Boolean(user && hasCap(user, 'crm_leads', 'edit'));
   const canAssign = Boolean(user && hasCap(user, 'crm_leads', 'assign'));
   const canAiDraft = Boolean(user && canGenerateMktAiPlanner(user));
+  const prepChip = prepStatus ? prepStatusChipLabel(prepStatus) : null;
 
   async function run(action: () => Promise<void>, refreshContract = false) {
     setBusy(true);
@@ -374,7 +388,14 @@ export function LeadFunnelPanel({
 
   return (
     <section className="card stack-gap lead-funnel-panel" id="lead-funnel-panel" style={{ marginTop: '1rem' }}>
-      <h2 style={{ margin: 0, fontSize: '1.1rem' }}>{panelTitle}</h2>
+      <div className="lead-funnel-panel__head">
+        <h2 style={{ margin: 0, fontSize: '1.1rem' }}>{panelTitle}</h2>
+        {prepChip && onOpenMeetingPrepTab ? (
+          <button type="button" className="lmp-funnel-chip" onClick={() => onOpenMeetingPrepTab()}>
+            {prepChip}
+          </button>
+        ) : null}
+      </div>
 
       {panelError ? (
         <div className="lead-alert lead-alert--error" role="alert">

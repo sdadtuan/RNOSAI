@@ -134,6 +134,14 @@ export function canAssignContentOs(user: StoredStaffUser | null): boolean {
   return hasCap(user, 'crm_board', 'edit') && hasCap(user, 'crm_content', 'assign');
 }
 
+export function canViewLmp(user: StoredStaffUser | null): boolean {
+  return hasCap(user, 'crm_lmp', 'view') || hasCap(user, 'crm_leads', 'view');
+}
+
+export function canRunLmp(user: StoredStaffUser | null): boolean {
+  return hasCap(user, 'crm_lmp', 'run') || hasCap(user, 'crm_leads', 'edit');
+}
+
 export function updateStoredUser(user: StoredStaffUser): void {
   if (typeof window === 'undefined') return;
   sessionStorage.setItem(USER_KEY, JSON.stringify(user));

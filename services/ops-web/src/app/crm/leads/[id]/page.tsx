@@ -29,6 +29,8 @@ import {
 } from '@/lib/crm/lead-consult-tab.util';
 import { aiCopilotEnabled } from '@/lib/ai-flags';
 import { dealRoomEnabled } from '@/lib/crm/deal-room-flags';
+import { leadMeetingPrepEnabled } from '@/lib/crm/lmp-flags';
+import { LeadMeetingPrepPanel } from '@/app/crm/leads/meeting-prep/LeadMeetingPrepPanel';
 import { MentionComposer } from '@/components/staff/MentionComposer';
 import {
   assignLead,
@@ -76,8 +78,8 @@ const ACTIVITY_TYPES = [
   { value: 'reminder', label: 'Nhắc việc' },
 ];
 
-type LeadDetailTab = 'detail' | 'consult' | 'activity' | 'ai';
-type B2bOverviewTab = 'overview' | 'consult';
+type LeadDetailTab = 'detail' | 'consult' | 'activity' | 'ai' | 'prep';
+type B2bOverviewTab = 'overview' | 'consult' | 'meeting-prep';
 
 async function copyLeadContact(value: string, label: string, onDone: (msg: string) => void) {
   const trimmed = value.trim();
@@ -190,6 +192,8 @@ export default function CrmLeadDetailPage() {
   const showB2bFlow = showB2bSalesFlowBar(leadFlowKind);
   const showContractPanel = showContractForFlow(leadFlowKind);
   const showConsultTab = showB2bFlow && showLeadConsultTab(funnelSnap);
+  const showLmpTab = leadMeetingPrepEnabled() && showB2bFlow;
+  const prepDeepLink = searchParams.get('prep') === '1';
 
   const reloadFunnel = useCallback(async (access: string) => {
     if (!showB2bFlow) return;
@@ -211,6 +215,14 @@ export default function CrmLeadDetailPage() {
         document.getElementById('funnel-presales')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     }
+  }, []);
+
+  const openMeetingPrepTab = useCallback(() => {
+    setB2bPane('meeting-prep');
+    setMobileTab('prep');
+    requestAnimationFrame(() => {
+      document.getElementById('lmp-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   }, []);
 
   const openOverviewTab = useCallback(() => {
@@ -362,13 +374,25 @@ export default function CrmLeadDetailPage() {
   }, [funnelSnap, openConsultTab]);
 
   useEffect(() => {
+    if (prepDeepLink && showLmpTab) {
+      openMeetingPrepTab();
+    }
+  }, [prepDeepLink, showLmpTab, openMeetingPrepTab]);
+
+  useEffect(() => {
     if (!showConsultTab && b2bPane === 'consult') {
       setB2bPane('overview');
     }
     if (!showConsultTab && mobileTab === 'consult') {
       setMobileTab('detail');
     }
-  }, [showConsultTab, b2bPane, mobileTab]);
+    if (!showLmpTab && b2bPane === 'meeting-prep') {
+      setB2bPane('overview');
+    }
+    if (!showLmpTab && mobileTab === 'prep') {
+      setMobileTab('detail');
+    }
+  }, [showConsultTab, showLmpTab, b2bPane, mobileTab]);
 
   useEffect(() => {
     const access = getAccessToken();
@@ -529,13 +553,20 @@ export default function CrmLeadDetailPage() {
   const showCopilotDrawer =
     copilotOn && !!lead && !loading && !!accessToken && !!user && layout.tablet && copilotDrawerOpen;
   const hideTimelinePane = useMobileTabs && mobileTab !== 'activity';
-  const hideOverviewContent = showConsultTab && b2bPane === 'consult' && !useMobileTabs;
+  const hideOverviewContent =
+    (showConsultTab && b2bPane === 'consult' && !useMobileTabs) ||
+    (showLmpTab && b2bPane === 'meeting-prep' && !useMobileTabs);
   const hideConsultWorkspace =
     (useMobileTabs && mobileTab !== 'consult') || (!useMobileTabs && b2bPane !== 'consult');
+  const hideMeetingPrep =
+    (useMobileTabs && mobileTab !== 'prep') || (!useMobileTabs && b2bPane !== 'meeting-prep');
   const showOverviewMain = useMobileTabs ? mobileTab === 'detail' : !hideOverviewContent;
   const showConsultMain = showConsultTab && (useMobileTabs ? mobileTab === 'consult' : !hideConsultWorkspace);
-  const hideMainPane = useMobileTabs && mobileTab !== 'detail' && mobileTab !== 'consult';
-  const hideFooterPane = useMobileTabs && mobileTab !== 'detail' && mobileTab !== 'consult';
+  const showMeetingPrepMain = showLmpTab && (useMobileTabs ? mobileTab === 'prep' : !hideMeetingPrep);
+  const hideMainPane =
+    useMobileTabs && mobileTab !== 'detail' && mobileTab !== 'consult' && mobileTab !== 'prep';
+  const hideFooterPane =
+    useMobileTabs && mobileTab !== 'detail' && mobileTab !== 'consult' && mobileTab !== 'prep';
 
   function renderCopilotPanel(variant: 'column' | 'drawer' | 'sheet', onCloseDrawer?: () => void) {
     if (!online) {
@@ -618,6 +649,17 @@ export default function CrmLeadDetailPage() {
               }}
             >
               Tư vấn
+            </button>
+          ) : null}
+          {showLmpTab ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobileTab === 'prep'}
+              className={mobileTab === 'prep' ? 'is-active' : ''}
+              onClick={() => openMeetingPrepTab()}
+            >
+              Prep
             </button>
           ) : null}
           <button
@@ -739,7 +781,7 @@ export default function CrmLeadDetailPage() {
               </div>
             ) : null}
 
-            {showConsultTab && !useMobileTabs ? (
+            {(showConsultTab || showLmpTab) && !useMobileTabs ? (
               <div className="lead-b2b-subtabs" role="tablist" aria-label="Pre-sales workspace">
                 <button
                   type="button"
@@ -750,15 +792,28 @@ export default function CrmLeadDetailPage() {
                 >
                   Tổng quan
                 </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={b2bPane === 'consult'}
-                  className={b2bPane === 'consult' ? 'is-active' : ''}
-                  onClick={() => openConsultTab()}
-                >
-                  Tư vấn
-                </button>
+                {showLmpTab ? (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={b2bPane === 'meeting-prep'}
+                    className={b2bPane === 'meeting-prep' ? 'is-active' : ''}
+                    onClick={() => openMeetingPrepTab()}
+                  >
+                    Chuẩn bị cuộc hẹn
+                  </button>
+                ) : null}
+                {showConsultTab ? (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={b2bPane === 'consult'}
+                    className={b2bPane === 'consult' ? 'is-active' : ''}
+                    onClick={() => openConsultTab()}
+                  >
+                    Tư vấn
+                  </button>
+                ) : null}
               </div>
             ) : null}
 
@@ -781,6 +836,7 @@ export default function CrmLeadDetailPage() {
                   name: service.name,
                 }))}
                 onOpenConsultTab={showConsultTab ? openConsultTab : undefined}
+                onOpenMeetingPrepTab={showLmpTab ? openMeetingPrepTab : undefined}
                 onMessage={setMessage}
                 onFunnelChange={setFunnelSnap}
                 onFunnelUpdated={() => {
@@ -816,6 +872,17 @@ export default function CrmLeadDetailPage() {
                 onMessage={setMessage}
                 onError={setError}
                 onEditR5={openR5EditOnOverview}
+              />
+            ) : null}
+
+            {showMeetingPrepMain && accessToken ? (
+              <LeadMeetingPrepPanel
+                token={accessToken}
+                leadId={leadId}
+                user={user}
+                autoFocus={prepDeepLink}
+                onMessage={setMessage}
+                onError={setError}
               />
             ) : null}
           </div>
