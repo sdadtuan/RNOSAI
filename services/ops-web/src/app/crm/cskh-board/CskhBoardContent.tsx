@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
 import { WinEmptyState } from '@/components/win';
@@ -9,6 +9,7 @@ import { CskhManagerIntelPanel } from '@/components/crm/CskhManagerIntelPanel';
 import { CskhClosedLoopPanel } from '@/components/crm/CskhClosedLoopPanel';
 import { CskhBreachBacklogPanel } from '@/components/crm/CskhBreachBacklogPanel';
 import { CskhShiftHandoffPanel } from '@/components/crm/CskhShiftHandoffPanel';
+import { CskhBoardPrepPanel } from '@/app/crm/cskh-board/CskhBoardPrepPanel';
 import {
   bulkAssignCskhLeads,
   bulkRescheduleCskhLeads,
@@ -28,10 +29,12 @@ import {
   getRefreshToken,
   getStoredUser,
   hasCap,
+  canViewLmp,
   updateAccessToken,
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { leadMeetingPrepEnabled } from '@/lib/crm/lmp-flags';
 
 const PAGE_SIZE = 50;
 
@@ -101,6 +104,10 @@ function formatElapsed(minutes: number | null | undefined): string {
   return mins ? `${hours}h ${mins}p` : `${hours}h`;
 }
 
+function isM1PreCallEligible(row: CskhBoardRow): boolean {
+  return !row.b2_completed_at;
+}
+
 function CskhLeadCard({
   row,
   canAssign,
@@ -108,6 +115,13 @@ function CskhLeadCard({
   onToggle,
   activeTier,
   predict,
+  showPrepPreview,
+  prepPreviewOpen,
+  onTogglePrepPreview,
+  token,
+  user,
+  onPrepMessage,
+  onPrepError,
 }: {
   row: CskhBoardRow;
   canAssign: boolean;
@@ -115,6 +129,13 @@ function CskhLeadCard({
   onToggle: () => void;
   activeTier: SlaTier;
   predict?: SlaPredictRow;
+  showPrepPreview: boolean;
+  prepPreviewOpen: boolean;
+  onTogglePrepPreview: () => void;
+  token: string;
+  user: StoredStaffUser | null;
+  onPrepMessage: (msg: string) => void;
+  onPrepError: (msg: string) => void;
 }) {
   const tier = tierSnapshot(row, activeTier);
   const badge = slaBadge(tier?.sla_state ?? row.sla_state);
@@ -179,12 +200,19 @@ function CskhLeadCard({
             Gọi
           </span>
         )}
-        <Link
-          href={`/crm/leads/${row.id}?prep=1`}
-          className="win-leads-mobile-card__action"
-        >
-          SCI
-        </Link>
+        {showPrepPreview ? (
+          <button
+            type="button"
+            className="win-leads-mobile-card__action"
+            onClick={onTogglePrepPreview}
+          >
+            {prepPreviewOpen ? 'Ẩn script' : 'Script M1'}
+          </button>
+        ) : (
+          <Link href={`/crm/leads/${row.id}?prep=1`} className="win-leads-mobile-card__action">
+            SCI
+          </Link>
+        )}
         <Link
           href={`/crm/leads/${row.id}`}
           className="win-leads-mobile-card__action win-leads-mobile-card__action--primary"
@@ -192,6 +220,16 @@ function CskhLeadCard({
           Chi tiết →
         </Link>
       </div>
+      {prepPreviewOpen && showPrepPreview ? (
+        <CskhBoardPrepPanel
+          token={token}
+          user={user}
+          leadId={row.id}
+          leadLabel={row.full_name || `#${row.id}`}
+          onMessage={onPrepMessage}
+          onError={onPrepError}
+        />
+      ) : null}
     </li>
   );
 }
@@ -220,8 +258,11 @@ export function CskhBoardContent() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [predictByLead, setPredictByLead] = useState<Map<number, SlaPredictRow>>(new Map());
+  const [expandedPrepId, setExpandedPrepId] = useState<number | null>(null);
 
   const canAssign = hasCap(user, 'crm_leads', 'assign');
+  const showLmpPrep = leadMeetingPrepEnabled() && canViewLmp(user);
+  const tableColSpan = (canAssign ? 1 : 0) + 10;
 
   const loadPredictions = useCallback(async (accessToken: string) => {
     try {
@@ -297,6 +338,7 @@ export function CskhBoardContent() {
 
       setLoading(true);
       setError('');
+      setExpandedPrepId(null);
       try {
         const data = await fetchCskhBoard(accessToken, {
           q: nextQuery || undefined,
@@ -706,59 +748,88 @@ export function CskhBoardContent() {
               {rows.map((row) => {
                 const tier = tierSnapshot(row, slaTier);
                 const predict = predictByLead.get(row.id);
+                const m1Eligible = isM1PreCallEligible(row);
+                const prepOpen = expandedPrepId === row.id;
+                const showRowPrep = showLmpPrep && m1Eligible;
                 return (
-                  <tr key={row.id} className={tier?.sla_state === 'breach' ? 'row-danger' : undefined}>
-                    {canAssign ? (
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={selected.has(row.id)}
-                          onChange={() => toggleOne(row.id)}
-                          aria-label={`Chọn lead ${row.id}`}
-                        />
-                      </td>
-                    ) : null}
-                    <td>
-                      <Link href={`/crm/leads/${row.id}`}>{row.full_name || `#${row.id}`}</Link>
-                      <div className="muted">{row.phone}</div>
-                      <Link href={`/crm/leads/${row.id}?prep=1`} className="lmp-cskh-sci-link">
-                        SCI · Talk Track
-                      </Link>
-                    </td>
-                    <td>{row.status}</td>
-                    <td>{row.owner_name ?? row.owner_id ?? '—'}</td>
-                    <td>{row.received_at?.slice(0, 16) ?? '—'}</td>
-                    <td>{row.first_call_at?.slice(0, 16) ?? '—'}</td>
-                    <td>{row.b2_completed_at?.slice(0, 16) ?? '—'}</td>
-                    <td>{row.closed_at?.slice(0, 16) ?? '—'}</td>
-                    <td>
-                      <div className="cskh-board-tier-inline">
-                        {row.sla_tiers.map((item) => (
-                          <span
-                            key={item.tier}
-                            className={`cskh-board-tier-pill cskh-board-tier-pill--${item.sla_state}${
-                              item.tier === slaTier ? ' is-active-tier' : ''
-                            }`}
-                          >
-                            {SLA_TIER_META[item.tier as SlaTier]?.title ?? item.tier}: {item.sla_state}
-                          </span>
-                        ))}
-                      </div>
-                      {tier?.elapsed_minutes != null ? (
-                        <span className="muted"> · {formatElapsed(tier.elapsed_minutes)}</span>
+                  <Fragment key={row.id}>
+                    <tr className={tier?.sla_state === 'breach' ? 'row-danger' : undefined}>
+                      {canAssign ? (
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={selected.has(row.id)}
+                            onChange={() => toggleOne(row.id)}
+                            aria-label={`Chọn lead ${row.id}`}
+                          />
+                        </td>
                       ) : null}
-                    </td>
-                    <td>
-                      {predict ? (
-                        <span className={`sla-predict-badge sla-predict-badge--${predict.risk}`}>
-                          {predictRiskLabel(predict)}
-                        </span>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </td>
-                    <td>{row.next_follow_up_at?.slice(0, 16) ?? '—'}</td>
-                  </tr>
+                      <td>
+                        <Link href={`/crm/leads/${row.id}`}>{row.full_name || `#${row.id}`}</Link>
+                        <div className="muted">{row.phone}</div>
+                        {showRowPrep ? (
+                          <button
+                            type="button"
+                            className="lmp-cskh-sci-link lmp-cskh-sci-link--button"
+                            onClick={() => setExpandedPrepId(prepOpen ? null : row.id)}
+                          >
+                            {prepOpen ? 'Ẩn script M1' : 'Xem script M1'}
+                          </button>
+                        ) : (
+                          <Link href={`/crm/leads/${row.id}?prep=1`} className="lmp-cskh-sci-link">
+                            SCI · Talk Track
+                          </Link>
+                        )}
+                      </td>
+                      <td>{row.status}</td>
+                      <td>{row.owner_name ?? row.owner_id ?? '—'}</td>
+                      <td>{row.received_at?.slice(0, 16) ?? '—'}</td>
+                      <td>{row.first_call_at?.slice(0, 16) ?? '—'}</td>
+                      <td>{row.b2_completed_at?.slice(0, 16) ?? '—'}</td>
+                      <td>{row.closed_at?.slice(0, 16) ?? '—'}</td>
+                      <td>
+                        <div className="cskh-board-tier-inline">
+                          {row.sla_tiers.map((item) => (
+                            <span
+                              key={item.tier}
+                              className={`cskh-board-tier-pill cskh-board-tier-pill--${item.sla_state}${
+                                item.tier === slaTier ? ' is-active-tier' : ''
+                              }`}
+                            >
+                              {SLA_TIER_META[item.tier as SlaTier]?.title ?? item.tier}: {item.sla_state}
+                            </span>
+                          ))}
+                        </div>
+                        {tier?.elapsed_minutes != null ? (
+                          <span className="muted"> · {formatElapsed(tier.elapsed_minutes)}</span>
+                        ) : null}
+                      </td>
+                      <td>
+                        {predict ? (
+                          <span className={`sla-predict-badge sla-predict-badge--${predict.risk}`}>
+                            {predictRiskLabel(predict)}
+                          </span>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                      <td>{row.next_follow_up_at?.slice(0, 16) ?? '—'}</td>
+                    </tr>
+                    {prepOpen && showRowPrep ? (
+                      <tr className="cskh-board-prep-expand-row">
+                        <td colSpan={tableColSpan}>
+                          <CskhBoardPrepPanel
+                            token={token}
+                            user={user}
+                            leadId={row.id}
+                            leadLabel={row.full_name || `#${row.id}`}
+                            onMessage={setMsg}
+                            onError={setError}
+                          />
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -786,6 +857,15 @@ export function CskhBoardContent() {
                   onToggle={() => toggleOne(row.id)}
                   activeTier={slaTier}
                   predict={predictByLead.get(row.id)}
+                  showPrepPreview={showLmpPrep && isM1PreCallEligible(row)}
+                  prepPreviewOpen={expandedPrepId === row.id}
+                  onTogglePrepPreview={() =>
+                    setExpandedPrepId(expandedPrepId === row.id ? null : row.id)
+                  }
+                  token={token}
+                  user={user}
+                  onPrepMessage={setMsg}
+                  onPrepError={setError}
                 />
               ))
             )}
