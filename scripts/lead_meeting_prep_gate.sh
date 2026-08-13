@@ -22,6 +22,14 @@ elif [[ -x "/var/www/ptt/.venv/bin/python" ]]; then
 fi
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
+ensure_pytest() {
+  if "$PYTHON" -m pytest --version >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "== install pytest for LMP gate =="
+  "$PYTHON" -m pip install -q pytest
+}
+
 PTT_API_URL="${PTT_API_URL:-http://127.0.0.1:3000}"
 
 pass=0
@@ -37,6 +45,7 @@ ok "DDL applied"
 TABLE=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_name='crm_lead_meeting_prep'")
 [[ "$TABLE" == "1" ]] && ok "crm_lead_meeting_prep exists" || bad "table missing"
 
+ensure_pytest
 "$PYTHON" -m pytest "$ROOT/tests/test_lmp_input_resolver.py" -q && ok "python input resolver tests" || bad "python input resolver tests"
 "$PYTHON" -m pytest "$ROOT/tests/test_lmp_verify.py" -q && ok "python verify tests" || bad "python verify tests"
 "$PYTHON" -m pytest "$ROOT/tests/test_lmp_schema.py" -q && ok "python schema tests" || bad "python schema tests"
@@ -49,7 +58,7 @@ else
 fi
 
 # Worker pipeline unit (no PG job / Tavily required)
-python3 - <<'PY' && ok "synthesize stub shape"
+"$PYTHON" - <<'PY' && ok "synthesize stub shape"
 from ptt_crm.lead_meeting_prep.synthesize import build_stub_llm_result
 from ptt_crm.lead_meeting_prep.collect import collect_company
 inp = {"lead_id": 1, "company_name": "Cty Gate", "industry": "BDS", "problem": "Can lead", "phone": "0901234567"}
