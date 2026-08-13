@@ -36,11 +36,10 @@ patch_runtime_env() {
 
 sync_worker_unit() {
   local unit="/etc/systemd/system/ptt-worker.service"
-  if ! sudo -n test -f "$unit" 2>/dev/null; then
-    echo "SKIP  worker unit install (no sudo)"
+  if ! sudo -n cp "$ROOT/deploy/ptt-worker.service" "$unit" 2>/dev/null; then
+    echo "SKIP  worker unit install (sudo cp blocked — run manually as root)"
     return 0
   fi
-  sudo -n cp "$ROOT/deploy/ptt-worker.service" "$unit"
   if [[ ! -x "$ROOT/.venv/bin/python" && -x "/var/www/ptt/.venv/bin/python" ]]; then
     sudo -n sed -i 's|/var/www/rnosai/.venv|/var/www/ptt/.venv|g' "$unit"
   fi

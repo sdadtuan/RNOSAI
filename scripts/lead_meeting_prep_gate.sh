@@ -14,6 +14,14 @@ fi
 : "${DATABASE_URL:?DATABASE_URL required}"
 : "${PTT_CRM_INTERNAL_KEY:?PTT_CRM_INTERNAL_KEY required}"
 
+PYTHON="${PYTHON:-python3}"
+if [[ -x "$ROOT/.venv/bin/python" ]]; then
+  PYTHON="$ROOT/.venv/bin/python"
+elif [[ -x "/var/www/ptt/.venv/bin/python" ]]; then
+  PYTHON="/var/www/ptt/.venv/bin/python"
+fi
+export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
+
 PTT_API_URL="${PTT_API_URL:-http://127.0.0.1:3000}"
 
 pass=0
@@ -29,9 +37,9 @@ ok "DDL applied"
 TABLE=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_name='crm_lead_meeting_prep'")
 [[ "$TABLE" == "1" ]] && ok "crm_lead_meeting_prep exists" || bad "table missing"
 
-python3 -m pytest "$ROOT/tests/test_lmp_input_resolver.py" -q && ok "python input resolver tests" || bad "python input resolver tests"
-python3 -m pytest "$ROOT/tests/test_lmp_verify.py" -q && ok "python verify tests" || bad "python verify tests"
-python3 -m pytest "$ROOT/tests/test_lmp_schema.py" -q && ok "python schema tests" || bad "python schema tests"
+"$PYTHON" -m pytest "$ROOT/tests/test_lmp_input_resolver.py" -q && ok "python input resolver tests" || bad "python input resolver tests"
+"$PYTHON" -m pytest "$ROOT/tests/test_lmp_verify.py" -q && ok "python verify tests" || bad "python verify tests"
+"$PYTHON" -m pytest "$ROOT/tests/test_lmp_schema.py" -q && ok "python schema tests" || bad "python schema tests"
 
 if [[ -d "$ROOT/services/ptt-crm-api/node_modules" ]]; then
   (cd "$ROOT/services/ptt-crm-api" && npm test -- --testPathPattern="lead-meeting-prep" --passWithNoTests 2>/dev/null) \
