@@ -18,6 +18,7 @@ import {
 } from './guards/staff-presales-solution.guard';
 import { PolicyModule } from '../policy/policy.module';
 import { IntakeModule } from '../intake/intake.module';
+import { LeadMeetingPrepAsyncModule } from '../lead-meeting-prep/lead-meeting-prep.module';
 import { MarketingAiOrchestratorService } from '../marketing-ai-planner/marketing-ai-orchestrator.service';
 import { StaffMarketingAiPlannerGenerateGuard } from '../marketing-ai-planner/guards/staff-marketing-ai-planner.guard';
 import { ReviewQueueLlmService } from './review-queue-llm.service';
@@ -30,6 +31,7 @@ import { ReviewQueueLlmService } from './review-queue-llm.service';
     forwardRef(() => CskhBoardModule),
     forwardRef(() => AiIntelligenceModule),
     forwardRef(() => IntakeModule),
+    LeadMeetingPrepAsyncModule,
     PolicyModule,
   ],
   controllers: [LeadsFunnelController],

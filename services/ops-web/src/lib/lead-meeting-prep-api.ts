@@ -34,11 +34,27 @@ export async function fetchLeadMeetingPrep(
 export async function runLeadMeetingPrep(
   token: string,
   leadId: number,
-  body: { force?: boolean; website_url?: string; social_urls?: string } = {},
+  body: {
+    force?: boolean;
+    website_url?: string;
+    social_urls?: string;
+    prep_stage?: 'm1_first_strike' | 'm2_qualify_win' | 'm3_pre_close';
+    mode?: 'full' | 'strategize_arm';
+  } = {},
 ): Promise<{ ok: boolean; enqueued: boolean; prep: LeadMeetingPrepResponse }> {
   return lmpFetch(token, `/api/v1/leads/${leadId}/meeting-prep/run`, {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+}
+
+export async function prepareLeadMeetingClose(
+  token: string,
+  leadId: number,
+): Promise<{ ok: boolean; enqueued: boolean; prep: LeadMeetingPrepResponse }> {
+  return lmpFetch(token, `/api/v1/leads/${leadId}/meeting-prep/prepare-close`, {
+    method: 'POST',
+    body: JSON.stringify({}),
   });
 }
 

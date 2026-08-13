@@ -79,4 +79,30 @@ describe('presales-consult-prefill.util', () => {
     expect(out.form_data.scope_recommendation).toContain('Full funnel');
     expect(out.filled.length).toBeGreaterThan(0);
   });
+
+  it('prefills scope from SCI recommended DV codes', () => {
+    const consultTask: PresalesTaskRow = {
+      id: 2,
+      presales_id: 1,
+      stage: 'consult',
+      step_index: 0,
+      title: 'Discovery funnel',
+      description: '',
+      form_fields: [{ key: 'scope_recommendation', label: 'Scope' }],
+      form_data: {},
+      ai_prompt_key: 'consult_analysis',
+      ai_output: '',
+      is_done: false,
+      done_at: '',
+      notes: '',
+    };
+    const out = prefillPresalesConsultTaskForm({
+      serviceSlug: 'lead-gen',
+      consultTask,
+      leadTask: null,
+      latestIntake: null,
+      recommendedDvCodes: ['DV02', 'DV05'],
+    });
+    expect(String(out.form_data.scope_recommendation)).toContain('DV02');
+  });
 });

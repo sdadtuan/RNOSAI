@@ -11,6 +11,7 @@ import {
 import { IntakePgRepository } from './intake-pg.repository';
 import { IntakeSqliteRepository } from './intake-sqlite.repository';
 import { CreateIntakeSessionBody, PatchIntakeSessionBody } from './intake.types';
+import { LeadMeetingPrepEnqueueService } from '../lead-meeting-prep/lead-meeting-prep-enqueue.service';
 
 @Injectable()
 export class IntakeService {
@@ -18,6 +19,7 @@ export class IntakeService {
     private readonly sqlite: IntakeSqliteRepository,
     private readonly pg: IntakePgRepository,
     private readonly config: AppConfigService,
+    private readonly lmpEnqueue: LeadMeetingPrepEnqueueService,
   ) {}
 
   private get usePg(): boolean {
@@ -95,6 +97,9 @@ export class IntakeService {
         : this.sqlite.completeSession(id, actorId);
       if (!updated) {
         throw new NotFoundException({ error: 'Không tìm thấy phiên' });
+      }
+      if (String(updated.decision ?? '').trim() === 'go' && updated.lead_id) {
+        void this.lmpEnqueue.enqueueAfterIntakeGo(updated.lead_id);
       }
       return updated;
     } catch (err) {

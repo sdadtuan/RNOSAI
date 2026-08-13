@@ -45,6 +45,6 @@ export class LeadMeetingPrepModule {}
     LeadMeetingPrepInputResolver,
     LeadMeetingPrepEnqueueService,
   ],
-  exports: [LeadMeetingPrepEnqueueService],
+  exports: [LeadMeetingPrepEnqueueService, LeadMeetingPrepRepository],
 })
 export class LeadMeetingPrepAsyncModule {}

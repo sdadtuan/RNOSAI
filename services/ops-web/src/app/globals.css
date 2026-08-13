@@ -11493,3 +11493,7 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+.intake-prep-card {
+  margin-bottom: 0.75rem;
+}

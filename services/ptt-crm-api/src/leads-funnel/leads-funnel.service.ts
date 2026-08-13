@@ -75,6 +75,13 @@ import {
   stampPresalesAiDraftMeta,
 } from './presales-ai-draft-meta.util';
 import { rejectMktAiAutoCustomerEmail } from '../marketing-ai-planner/mkt-ai-governance.util';
+import { LeadMeetingPrepEnqueueService } from '../lead-meeting-prep/lead-meeting-prep-enqueue.service';
+import { LeadMeetingPrepRepository } from '../lead-meeting-prep/lead-meeting-prep.repository';
+import {
+  applyLmpDvCodesToConsultPrefill,
+  extractLmpConsultMergeFields,
+  mergeLmpIntoConsultBrief,
+} from '../lead-meeting-prep/lmp-consult-merge.util';
 
 @Injectable()
 export class LeadsFunnelService {
@@ -91,6 +98,8 @@ export class LeadsFunnelService {
     private readonly legacyLeads: CrmLeadsLegacyService,
     private readonly policy: PolicyService,
     private readonly mktAiOrchestrator: MarketingAiOrchestratorService,
+    private readonly lmpEnqueue: LeadMeetingPrepEnqueueService,
+    private readonly lmpRepo: LeadMeetingPrepRepository,
   ) {}
 
   private get usePgFunnel(): boolean {
@@ -415,7 +424,19 @@ export class LeadsFunnelService {
     } catch (err) {
       this.funnelError(err);
     }
+    await this.maybeEnqueueM3Prep(leadId);
     return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  private async maybeEnqueueM3Prep(leadId: number): Promise<void> {
+    if (!this.lmpEnqueue.isEnabled()) return;
+    try {
+      const gateResp = await this.getPresalesProposalGate(leadId);
+      if (!gateResp.gate.ok) return;
+      await this.lmpEnqueue.enqueueAfterProposalGatePass(leadId);
+    } catch {
+      /* optional hook */
+    }
   }
 
   async listSolutionQueue(status?: string, limit?: number) {
@@ -607,6 +628,9 @@ export class LeadsFunnelService {
         await this.pgRepo.updatePresalesTask(taskId, patchBody, doneBy);
       } else {
         this.sqliteRepo.updatePresalesTask(taskId, patchBody, doneBy);
+      }
+      if (body.is_done === true) {
+        await this.maybeEnqueueM3Prep(leadId);
       }
       return { ok: true, funnel: await this.getFunnel(leadId) };
     } catch (err) {
@@ -882,15 +906,54 @@ export class LeadsFunnelService {
       leadTask: leadTasks[0] ?? null,
       intakeSessions,
     });
-    return { ok: true, brief };
+    let merged = brief;
+    if (this.config.leadMeetingPrepEnabled && (await this.lmpRepo.tableReady())) {
+      const prepRow = await this.lmpRepo.getByLeadId(leadId);
+      merged = mergeLmpIntoConsultBrief(brief, extractLmpConsultMergeFields(prepRow));
+    }
+    return { ok: true, brief: merged };
   }
 
   async prefillPresalesConsult(leadId: number, body: ConsultPrefillBody, staffUser?: StaffJwtPayload) {
     try {
       await this.assertConsultMutationAllowed(leadId, staffUser, 'consult');
+      const overwrite = Boolean(body.overwrite);
       const out = this.usePgFunnel
-        ? await this.pgRepo.runPresalesConsultPrefill(leadId, Boolean(body.overwrite))
-        : this.sqliteRepo.runPresalesConsultPrefill(leadId, Boolean(body.overwrite));
+        ? await this.pgRepo.runPresalesConsultPrefill(leadId, overwrite)
+        : await this.sqliteRepo.runPresalesConsultPrefill(leadId, overwrite);
+
+      if (
+        this.config.leadMeetingPrepEnabled &&
+        (await this.lmpRepo.tableReady()) &&
+        out.task_id
+      ) {
+        const prepRow = await this.lmpRepo.getByLeadId(leadId);
+        const lmp = extractLmpConsultMergeFields(prepRow);
+        if (lmp.recommended_dv_codes.length) {
+          const task = this.usePgFunnel
+            ? await this.pgRepo.getPresalesTaskById(out.task_id)
+            : this.sqliteRepo.getPresalesTaskById(out.task_id);
+          if (task) {
+            const applied = applyLmpDvCodesToConsultPrefill(
+              task.form_data ?? {},
+              lmp.recommended_dv_codes,
+              task.form_fields ?? [],
+              overwrite,
+            );
+            if (applied.filled.length) {
+              const patch = { form_data: applied.form_data };
+              if (this.usePgFunnel) {
+                await this.pgRepo.updatePresalesTask(out.task_id, patch, null);
+              } else {
+                this.sqliteRepo.updatePresalesTask(out.task_id, patch, null);
+              }
+              out.fields = [...new Set([...(out.fields ?? []), ...applied.filled])];
+              out.filled = (out.filled ?? 0) + applied.filled.length;
+            }
+          }
+        }
+      }
+
       return { ok: true, ...out, funnel: await this.getFunnel(leadId) };
     } catch (err) {
       this.funnelError(err);

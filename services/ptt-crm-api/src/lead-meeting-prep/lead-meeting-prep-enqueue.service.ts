@@ -3,9 +3,14 @@ import { EnqueuedJob, JobQueueRepository } from '../webhooks/job-queue.repositor
 import { AppConfigService } from '../config/app-config.service';
 import { LeadMeetingPrepInputResolver } from './lead-meeting-prep-input.resolver';
 import { LeadMeetingPrepRepository } from './lead-meeting-prep.repository';
-import type { EnqueueLeadMeetingPrepInput } from './lead-meeting-prep.types';
+import {
+  buildLmpIdempotencyKey,
+  LMP_M2_COLLECT_REUSE_HOURS,
+  resolveModeForStage,
+} from './lmp-stage.util';
+import type { EnqueueLeadMeetingPrepInput, LeadMeetingPrepStage } from './lead-meeting-prep.types';
 
-/** S-LMP-1 — enqueue lead_meeting_prep after LeadCreated (AI-UC-021). */
+/** S-LMP-1 / S-LMP-5 — enqueue lead_meeting_prep at funnel moments. */
 @Injectable()
 export class LeadMeetingPrepEnqueueService {
   private readonly logger = new Logger(LeadMeetingPrepEnqueueService.name);
@@ -22,6 +27,40 @@ export class LeadMeetingPrepEnqueueService {
   }
 
   async enqueueAfterLeadCreated(input: EnqueueLeadMeetingPrepInput): Promise<EnqueuedJob | null> {
+    return this.enqueueForStage({
+      ...input,
+      prepStage: input.prepStage ?? 'm1_first_strike',
+    });
+  }
+
+  async enqueueAfterIntakeGo(leadId: number, clientId?: string | null): Promise<EnqueuedJob | null> {
+    return this.enqueueForStage({
+      leadId,
+      clientId,
+      prepStage: 'm2_qualify_win',
+    });
+  }
+
+  async enqueueAfterProposalGatePass(
+    leadId: number,
+    clientId?: string | null,
+  ): Promise<EnqueuedJob | null> {
+    return this.enqueueForStage({
+      leadId,
+      clientId,
+      prepStage: 'm3_pre_close',
+    });
+  }
+
+  async enqueuePrepareClose(leadId: number, force = true): Promise<EnqueuedJob | null> {
+    return this.enqueueForStage({
+      leadId,
+      prepStage: 'm3_pre_close',
+      force,
+    });
+  }
+
+  async enqueueForStage(input: EnqueueLeadMeetingPrepInput): Promise<EnqueuedJob | null> {
     if (!this.isEnabled()) return null;
 
     const leadId = Number(input.leadId);
@@ -36,25 +75,41 @@ export class LeadMeetingPrepEnqueueService {
       const ctx = await this.repo.getLeadContext(leadId);
       if (!ctx) return null;
 
-      const skipReason = this.inputResolver.isEligibleForAutoEnqueue(ctx, {
-        pilotClientIds: this.config.lmpPilotClientIds,
-      });
+      const prepStage: LeadMeetingPrepStage = input.prepStage ?? 'm1_first_strike';
+      const skipPilot =
+        prepStage === 'm1_first_strike'
+          ? this.inputResolver.isEligibleForAutoEnqueue(ctx, {
+              pilotClientIds: this.config.lmpPilotClientIds,
+            })
+          : null;
+
       const resolved = this.inputResolver.resolve(ctx);
       const snapshot = {
         input: resolved.input,
         sources_map: resolved.sources_map,
       };
 
-      if (skipReason || resolved.skip_reason) {
-        await this.repo.markSkipped(
-          leadId,
-          skipReason ?? resolved.skip_reason ?? 'skipped',
-          snapshot,
-        );
+      if (skipPilot || resolved.skip_reason) {
+        if (prepStage === 'm1_first_strike') {
+          await this.repo.markSkipped(
+            leadId,
+            skipPilot ?? resolved.skip_reason ?? 'skipped',
+            snapshot,
+          );
+        }
         return null;
       }
 
-      const prepStage = input.prepStage ?? 'm1_first_strike';
+      const existing = await this.repo.getByLeadId(leadId);
+      const collectFresh = this.isCollectFresh(existing?.updated_at ?? null);
+      const hasCollect = Boolean(existing?.collect_json && Object.keys(existing.collect_json).length);
+      const mode =
+        input.mode ??
+        resolveModeForStage(prepStage, {
+          hasCollect,
+          collectFresh,
+        });
+
       await this.repo.upsertPending({
         leadId,
         prepStage,
@@ -62,27 +117,33 @@ export class LeadMeetingPrepEnqueueService {
         selectedEntityId: input.selectedEntityId ?? null,
       });
 
-      const idempotencyKey = input.force
-        ? `lead_meeting_prep:lead:${leadId}:manual:${Date.now()}`
-        : `lead_meeting_prep:lead:${leadId}`;
+      const idempotencyKey = buildLmpIdempotencyKey(leadId, prepStage, Boolean(input.force));
 
       const job = await this.jobQueue.enqueueLeadMeetingPrepJob({
         leadId,
         clientId: input.clientId ?? ctx.client_id,
         correlationId: input.correlationId ?? undefined,
         prepStage,
-        mode: input.mode ?? 'full',
+        mode,
         selectedEntityId: input.selectedEntityId ?? null,
         idempotencyKey,
       });
 
       if (job?.created) {
-        this.logger.debug(`lead_meeting_prep enqueued lead=${leadId}`);
+        this.logger.debug(`lead_meeting_prep enqueued lead=${leadId} stage=${prepStage} mode=${mode}`);
       }
       return job;
     } catch (err) {
       this.logger.warn(`lead_meeting_prep enqueue skipped lead=${leadId}: ${String(err)}`);
       return null;
     }
+  }
+
+  private isCollectFresh(updatedAt: string | null): boolean {
+    if (!updatedAt) return false;
+    const ms = Date.parse(updatedAt);
+    if (!Number.isFinite(ms)) return false;
+    const ttlMs = LMP_M2_COLLECT_REUSE_HOURS * 60 * 60 * 1000;
+    return Date.now() - ms <= ttlMs;
   }
 }

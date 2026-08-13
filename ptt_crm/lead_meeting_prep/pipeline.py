@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Any
 
 from ptt_crm.lead_meeting_prep import (
@@ -17,6 +18,26 @@ from ptt_crm.lead_meeting_prep import (
 )
 
 logger = logging.getLogger(__name__)
+
+COLLECT_REUSE_HOURS = int(os.environ.get("LMP_M2_COLLECT_REUSE_HOURS", "24") or "24")
+
+
+def _collect_is_fresh(collect_json: dict[str, Any], updated_at: str | None) -> bool:
+    if not collect_json:
+        return False
+    researched = collect_json.get("researched_at") or collect_json.get("collected_at")
+    ts = researched or updated_at
+    if not ts:
+        return False
+    try:
+        if isinstance(ts, str):
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        else:
+            return False
+    except ValueError:
+        return False
+    age_h = (datetime.now(timezone.utc) - dt.astimezone(timezone.utc)).total_seconds() / 3600.0
+    return age_h <= COLLECT_REUSE_HOURS
 
 
 def _tavily_required() -> bool:
@@ -65,9 +86,12 @@ def process_lead_meeting_prep_payload(
         apify_runs = 0
         if mode == "strategize_arm":
             collect_json = repository.get_collect_json(lead_id) or {}
-            existing_result = repository.get_result_json(lead_id)
-            if not collect_json:
-                collect_json = collect.collect_company(inp)
+            existing_result = repository.get_result_json(lead_id) or {}
+            meta = existing_result.get("meta") if isinstance(existing_result, dict) else {}
+            researched_at = meta.get("researched_at") if isinstance(meta, dict) else None
+            if not collect_json or not _collect_is_fresh(collect_json, str(researched_at or "")):
+                if prep_stage in {"m2_qualify_win", "m3_pre_close"} or not collect_json:
+                    collect_json = collect.collect_company(inp)
             verification = {"filtered_collect": collect_json, "website": None}
             if existing_result and isinstance(existing_result, dict):
                 synth = _rearm_only(

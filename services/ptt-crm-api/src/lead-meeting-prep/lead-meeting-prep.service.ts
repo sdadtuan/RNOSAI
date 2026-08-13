@@ -213,16 +213,30 @@ export class LeadMeetingPrepService {
     }
 
     const prepStage = body.prep_stage ?? 'm1_first_strike';
-    const mode = body.mode ?? (prepStage === 'm1_first_strike' ? 'full' : 'strategize_arm');
 
-    const job = await this.enqueue.enqueueAfterLeadCreated({
+    const job = await this.enqueue.enqueueForStage({
       leadId,
       clientId: ctx.client_id,
       prepStage,
-      mode,
+      mode: body.mode,
       force: Boolean(body.force),
     });
 
+    return {
+      ok: true,
+      lead_id: leadId,
+      enqueued: Boolean(job),
+      job_id: job?.id ?? null,
+      prep: await this.getMeetingPrep(leadId),
+    };
+  }
+
+  async prepareClose(leadId: number) {
+    const ctx = await this.repo.getLeadContext(leadId);
+    if (!ctx) {
+      throw new NotFoundException({ error: 'Lead not found' });
+    }
+    const job = await this.enqueue.enqueuePrepareClose(leadId, true);
     return {
       ok: true,
       lead_id: leadId,

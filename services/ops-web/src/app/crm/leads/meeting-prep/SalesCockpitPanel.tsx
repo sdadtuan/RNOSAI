@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { submitLeadMeetingPrepFeedback } from '@/lib/lead-meeting-prep-api';
 import { canRunLmp, type StoredStaffUser } from '@/lib/auth';
+import { prepStageSubtitle } from '@/lib/lmp-stage-labels';
 import { CloseReadinessGauge } from './CloseReadinessGauge';
 import { LeadMeetingPrepEntityPicker } from './LeadMeetingPrepEntityPicker';
 import { LeadMeetingPrepProgress } from './LeadMeetingPrepProgress';
@@ -22,6 +23,7 @@ type Props = {
   prep: LeadMeetingPrepResponse;
   busy: boolean;
   onRun: (force?: boolean) => void;
+  onPrepareClose?: () => void;
   onPickEntity: (entityId: string) => void;
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
@@ -42,6 +44,7 @@ export function SalesCockpitPanel({
   prep,
   busy,
   onRun,
+  onPrepareClose,
   onPickEntity,
   onMessage,
   onError,
@@ -68,7 +71,7 @@ export function SalesCockpitPanel({
         <div>
           <h2 className="lmp-panel__title">Sales Cockpit</h2>
           <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-            {prep.status_label_vi} · {prep.prep_stage}
+            {prep.status_label_vi} · {prepStageSubtitle(prep.prep_stage)}
           </p>
         </div>
         <CloseReadinessGauge score={prep.close_readiness_score} breakdown={prep.readiness_breakdown} />
@@ -126,9 +129,19 @@ export function SalesCockpitPanel({
               👎 Chưa ổn
             </button>
             {canRun ? (
-              <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => onRun(true)}>
-                Chạy lại
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  disabled={busy}
+                  onClick={() => onPrepareClose?.()}
+                >
+                  Chuẩn bị chốt
+                </button>
+                <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => onRun(true)}>
+                  Chạy lại
+                </button>
+              </>
             ) : null}
           </footer>
         </>

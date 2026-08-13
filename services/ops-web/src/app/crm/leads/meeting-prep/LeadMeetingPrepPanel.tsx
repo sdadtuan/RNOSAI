@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   fetchLeadMeetingPrep,
+  prepareLeadMeetingClose,
   runLeadMeetingPrep,
   selectLeadMeetingPrepEntity,
 } from '@/lib/lead-meeting-prep-api';
@@ -147,6 +148,24 @@ export function LeadMeetingPrepPanel({
   const status = prep?.status ?? 'none';
   const result = prep?.result;
 
+  async function onPrepareClose() {
+    if (!canRun) {
+      onError?.('Không có quyền crm_lmp.run');
+      return;
+    }
+    setBusy(true);
+    try {
+      const out = await prepareLeadMeetingClose(token, leadId);
+      setPrep(out.prep);
+      onStatusChange?.(out.prep.status);
+      onMessage?.(out.enqueued ? 'Đã xếp hàng M3 — Chuẩn bị chốt' : 'M3 không enqueue');
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : 'Chuẩn bị chốt thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (prep && status === 'ready' && result?.close_intelligence) {
     return (
       <SalesCockpitPanel
@@ -156,6 +175,7 @@ export function LeadMeetingPrepPanel({
         prep={prep}
         busy={busy}
         onRun={(force) => void onRun(force)}
+        onPrepareClose={() => void onPrepareClose()}
         onPickEntity={(id) => void onPickEntity(id)}
         onMessage={onMessage}
         onError={onError}

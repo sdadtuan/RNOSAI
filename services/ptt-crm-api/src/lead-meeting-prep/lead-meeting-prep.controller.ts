@@ -29,6 +29,12 @@ export class LeadMeetingPrepController {
     return this.prep.runMeetingPrep(id, body ?? {});
   }
 
+  @Post(':id/meeting-prep/prepare-close')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLmpRunGuard)
+  prepareClose(@Param('id', ParseIntPipe) id: number) {
+    return this.prep.prepareClose(id);
+  }
+
   @Post(':id/meeting-prep/select-entity')
   @UseGuards(StaffOrInternalKeyGuard, StaffLmpRunGuard)
   selectEntity(@Param('id', ParseIntPipe) id: number, @Body() body: SelectEntityBody) {

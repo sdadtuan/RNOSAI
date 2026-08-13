@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { LeadsModule } from '../leads/leads.module';
+import { LeadMeetingPrepAsyncModule } from '../lead-meeting-prep/lead-meeting-prep.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { StaffIntakeViewGuard, StaffIntakeWriteGuard } from './guards/staff-intake.guard';
 import { IntakeController } from './intake.controller';
@@ -8,7 +9,7 @@ import { IntakePgRepository } from './intake-pg.repository';
 import { IntakeSqliteRepository } from './intake-sqlite.repository';
 
 @Module({
-  imports: [StaffAuthModule, forwardRef(() => LeadsModule)],
+  imports: [StaffAuthModule, forwardRef(() => LeadsModule), LeadMeetingPrepAsyncModule],
   controllers: [IntakeController],
   providers: [
     IntakeService,

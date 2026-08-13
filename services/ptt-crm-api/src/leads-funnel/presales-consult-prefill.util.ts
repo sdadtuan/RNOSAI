@@ -2,6 +2,7 @@ import type { IntakeSessionRow } from '../intake/intake.types';
 import { prefillConsultTaskForm } from '../service-lifecycle/lifecycle-consult.util';
 import type { SvcTaskRow } from '../service-lifecycle/lifecycle-tasks.repository';
 import type { PresalesTaskRow } from './leads-funnel.types';
+import { applyLmpDvCodesToConsultPrefill } from '../lead-meeting-prep/lmp-consult-merge.util';
 
 function asSvcTaskRow(task: PresalesTaskRow): SvcTaskRow {
   return {
@@ -41,12 +42,25 @@ export function prefillPresalesConsultTaskForm(input: {
   leadTask: PresalesTaskRow | null;
   latestIntake: IntakeSessionRow | null;
   overwrite?: boolean;
+  recommendedDvCodes?: string[];
 }) {
-  return prefillConsultTaskForm({
+  const base = prefillConsultTaskForm({
     serviceSlug: input.serviceSlug,
     consultTask: asSvcTaskRow(input.consultTask),
     leadTask: input.leadTask ? asSvcTaskRow(input.leadTask) : null,
     latestIntake: input.latestIntake,
     overwrite: Boolean(input.overwrite),
   });
+  if (!input.recommendedDvCodes?.length) return base;
+  const lmpApplied = applyLmpDvCodesToConsultPrefill(
+    base.form_data,
+    input.recommendedDvCodes,
+    input.consultTask.form_fields ?? [],
+    Boolean(input.overwrite),
+  );
+  return {
+    ...base,
+    form_data: lmpApplied.form_data,
+    filled: [...new Set([...base.filled, ...lmpApplied.filled])].sort(),
+  };
 }

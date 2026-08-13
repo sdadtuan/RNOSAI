@@ -11,6 +11,7 @@ import { IntakeDiscoverySection } from '@/components/crm/intake/IntakeDiscoveryS
 import { IntakeValidationErrors } from '@/components/crm/intake/IntakeValidationErrors';
 import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
 import { IntakeLeadContextCard } from '@/components/crm/intake/IntakeLeadContextCard';
+import { IntakePrepSummaryCard } from '@/components/crm/intake/IntakePrepSummaryCard';
 import { IntakeSessionSidebar } from '@/components/crm/intake/IntakeSessionSidebar';
 import { IntakeCommitmentsSection } from '@/components/crm/intake/IntakeCommitmentsSection';
 import { IntakeRedFlagsSection } from '@/components/crm/intake/IntakeRedFlagsSection';
@@ -817,6 +818,10 @@ export function IntakeContent() {
             >
               {leadId > 0 && lead ? (
                 <IntakeLeadContextCard lead={lead} leadHref={`/crm/leads/${leadId}`} />
+              ) : null}
+
+              {leadId > 0 ? (
+                <IntakePrepSummaryCard token={getAccessToken() ?? ''} leadId={leadId} />
               ) : null}
 
               {leadId > 0 ? (

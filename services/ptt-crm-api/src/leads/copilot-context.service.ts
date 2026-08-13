@@ -1,9 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { AppConfigService } from '../config/app-config.service';
 import { CatalogService } from '../catalog/catalog.service';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
 import { LeadsFunnelService } from '../leads-funnel/leads-funnel.service';
 import type { LeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
 import type { CarePipelineState, PresalesCareGateState, ReviewQueuePublicState } from '../leads-funnel/leads-funnel.types';
+import { LeadMeetingPrepRepository } from '../lead-meeting-prep/lead-meeting-prep.repository';
+import { extractLmpConsultMergeFields } from '../lead-meeting-prep/lmp-consult-merge.util';
 import { ChotClosedLoopService, type LeadClosedLoopContextResponse } from './chot-closed-loop.service';
 import { LeadSlaCareService, type LeadSlaCareContextResponse } from './lead-sla-care.service';
 
@@ -29,6 +32,14 @@ export interface CopilotFunnelSlice {
   presales_on_lead_enabled: boolean;
 }
 
+export interface CopilotMeetingPrepSlice {
+  status: string;
+  prep_stage: string | null;
+  summary: string;
+  top_dv_codes: string[];
+  close_readiness_score: number | null;
+}
+
 export interface LeadCopilotContextResponse {
   lead_id: number;
   generated_at: string;
@@ -48,6 +59,7 @@ export interface LeadCopilotContextResponse {
   activities: CopilotActivitySnippet[];
   catalog: { services: CopilotCatalogService[] } | null;
   closed_loop: LeadClosedLoopContextResponse;
+  meeting_prep: CopilotMeetingPrepSlice | null;
 }
 
 @Injectable()
@@ -58,6 +70,8 @@ export class CopilotContextService {
     private readonly legacy: CrmLeadsLegacyService,
     private readonly funnel: LeadsFunnelService,
     private readonly catalog: CatalogService,
+    private readonly config: AppConfigService,
+    private readonly lmpRepo: LeadMeetingPrepRepository,
   ) {}
 
   async getContext(leadId: number): Promise<LeadCopilotContextResponse> {
@@ -93,6 +107,21 @@ export class CopilotContextService {
       };
     }
 
+    let meetingPrep: CopilotMeetingPrepSlice | null = null;
+    if (this.config.leadMeetingPrepEnabled && (await this.lmpRepo.tableReady())) {
+      const row = await this.lmpRepo.getByLeadId(leadId);
+      const lmp = extractLmpConsultMergeFields(row);
+      if (row) {
+        meetingPrep = {
+          status: row.status,
+          prep_stage: row.prep_stage,
+          summary: lmp.external_research_summary,
+          top_dv_codes: lmp.recommended_dv_codes.slice(0, 3),
+          close_readiness_score: lmp.close_readiness_score,
+        };
+      }
+    }
+
     return {
       lead_id: leadId,
       generated_at: new Date().toISOString(),
@@ -118,6 +147,7 @@ export class CopilotContextService {
       })),
       catalog: catalogSlice,
       closed_loop: loop,
+      meeting_prep: meetingPrep,
     };
   }
 }

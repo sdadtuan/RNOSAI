@@ -39,8 +39,7 @@ export function SalesCockpitDealReadyTab({
     return (
       <div className="lmp-cockpit-tab">
         <p className="muted">
-          Tab Deal Ready chỉ hiện ở M3 (chuẩn bị chốt). Chạy prep với{' '}
-          <code>prep_stage=m3_pre_close</code> hoặc nút &quot;Chuẩn bị chốt&quot; (S-LMP-5).
+          Tab Deal Ready hiện khi prep M3 hoặc đã có deal_room_payload. Dùng nút &quot;Chuẩn bị chốt&quot; trên Cockpit để chạy M3.
         </p>
       </div>
     );

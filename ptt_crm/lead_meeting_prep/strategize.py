@@ -72,6 +72,8 @@ def build_user_prompt(
     return (
         f"prep_stage: {prep_stage}\n\n"
         f"## Lead\n{json.dumps(inp, ensure_ascii=False, indent=2)}\n\n"
+        f"## BANT / intake hints\n"
+        f"bant_total={inp.get('bant_total')}, intake_decision={inp.get('intake_decision')}\n\n"
         f"## Collect summary\n"
         f"sources={len(collect.get('company_sources') or [])}, "
         f"company_found={collect.get('company_found')}\n\n"
