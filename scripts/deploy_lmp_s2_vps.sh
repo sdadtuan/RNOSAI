@@ -40,13 +40,26 @@ run_local() {
     source "$ROOT/.env"
     set +a
   fi
-  export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5433/rnosaidb}"
+  if [[ -f "$ROOT/deploy/runtime.env" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "$ROOT/deploy/runtime.env"
+    set +a
+  fi
+  if [[ -z "${DATABASE_URL:-}" ]]; then
+    export DATABASE_URL="postgresql://ptt:ptt_dev@127.0.0.1:5433/rnosaidb"
+  fi
+
+  PYTHON="${PYTHON:-python3}"
+  if [[ -x "$ROOT/.venv/bin/python" ]]; then
+    PYTHON="$ROOT/.venv/bin/python"
+  fi
 
   echo "== DDL LMP (idempotent) =="
   bash "$ROOT/scripts/apply_pg_ddl_lead_meeting_prep.sh"
 
   echo "== RBAC seed crm_lmp =="
-  python3 "$ROOT/scripts/seed_staff_lmp_permissions.py"
+  "$PYTHON" "$ROOT/scripts/seed_staff_lmp_permissions.py" --apply
 
   echo "== Nest ptt-crm-api =="
   cd "$ROOT/services/ptt-crm-api"
