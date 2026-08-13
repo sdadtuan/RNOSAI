@@ -14,6 +14,7 @@ import type {
   StaffOrgUserSummary,
 } from './staff-org.types';
 import type { StaffOrgAuditInput } from './staff-org.types';
+import { nextInternalCodeFromMax } from './staff-org-internal-code.util';
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -51,6 +52,26 @@ function mapUserSummary(row: {
 
 export class StaffOrgUsersRepository {
   constructor(private readonly db: Pool) {}
+
+  async nextInternalCode(client?: Pool | PoolClient): Promise<string> {
+    const db = client ?? this.db;
+    const result = await db.query<{ max_seq: string | null }>(
+      `SELECT MAX(CAST(substring(upper(trim(internal_code)) from 6) AS BIGINT)) AS max_seq
+       FROM crm_staff
+       WHERE upper(trim(internal_code)) ~ '^PTTCN[0-9]+$'`,
+    );
+    const maxSeq = result.rows[0]?.max_seq != null ? Number(result.rows[0].max_seq) : null;
+    return nextInternalCodeFromMax(Number.isFinite(maxSeq) ? maxSeq : null);
+  }
+
+  private async resolveInternalCode(
+    client: PoolClient,
+    provided?: string,
+  ): Promise<string> {
+    const trimmed = String(provided ?? '').trim().toUpperCase();
+    if (trimmed) return trimmed;
+    return this.nextInternalCode(client);
+  }
 
   private async writeAudit(client: Pool | PoolClient, input: StaffOrgAuditInput): Promise<void> {
     await client.query(
@@ -195,6 +216,7 @@ export class StaffOrgUsersRepository {
     );
     const departmentId =
       profile.department_id ?? posDept.rows[0]?.department_id ?? null;
+    const internalCode = await this.resolveInternalCode(client, profile.internal_code);
 
     const existing = await client.query<{ id: string }>(
       `SELECT id FROM crm_staff WHERE lower(trim(email)) = lower(trim($1)) LIMIT 1`,
@@ -213,7 +235,7 @@ export class StaffOrgUsersRepository {
           name,
           profile.phone ?? null,
           profile.job_title ?? null,
-          profile.internal_code ?? '',
+          internalCode,
           departmentId,
           positionId,
           id,
@@ -233,7 +255,7 @@ export class StaffOrgUsersRepository {
         profile.phone ?? '',
         email,
         profile.job_title ?? '',
-        profile.internal_code ?? '',
+        internalCode,
         departmentId,
         positionId,
       ],

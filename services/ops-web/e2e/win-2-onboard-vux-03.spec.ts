@@ -24,7 +24,8 @@ test.describe('WIN-2 VUX-03 onboard wizard', () => {
   test('wizard advances through access step', async ({ page }) => {
     await page.goto('/admin/crm/org/users/new');
     await page.getByLabel(/Họ tên/i).fill('WIN2 UAT NV');
+    await page.getByLabel(/Chức danh/i).selectOption({ index: 1 });
     await page.getByRole('button', { name: /^Tiếp$/i }).click();
-    await expect(page.getByText(/Chức vụ/i)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/Chức danh đã chọn/i)).toBeVisible({ timeout: 10_000 });
   });
 });

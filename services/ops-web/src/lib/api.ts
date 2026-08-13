@@ -8268,6 +8268,12 @@ export async function patchStaffOrgTeam(
   });
 }
 
+export async function fetchStaffOrgNextInternalCode(
+  token: string,
+): Promise<{ internal_code: string }> {
+  return crmFetch(token, '/api/v1/staff/org/users/next-internal-code');
+}
+
 export async function fetchStaffOrgPositions(token: string): Promise<StaffOrgPositionRow[]> {
   const data = await crmFetch<{ positions: StaffOrgPositionRow[] }>(token, '/api/v1/staff/org/positions');
   return data.positions ?? [];

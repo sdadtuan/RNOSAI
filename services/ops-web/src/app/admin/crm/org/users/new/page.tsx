@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminPageShell } from '@/components/admin';
 import { AdminOrgSubNav } from '@/components/rbac/AdminOrgSubNav';
 import { JobFunctionPicker } from '@/components/rbac/JobFunctionPicker';
@@ -10,6 +10,7 @@ import { WinWizardSteps } from '@/components/win';
 import {
   createStaffOrgUser,
   fetchStaffOrgJobFunctionCatalog,
+  fetchStaffOrgNextInternalCode,
   fetchStaffOrgPositions,
   fetchStaffOrgTeams,
   type StaffOrgPositionRow,
@@ -56,6 +57,7 @@ function AdminOrgUserOnboardPageContent() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [internalCode, setInternalCode] = useState('');
+  const [internalCodeLocked, setInternalCodeLocked] = useState(false);
   const [jobTitle, setJobTitle] = useState('');
 
   const [positionId, setPositionId] = useState<number | ''>('');
@@ -73,6 +75,20 @@ function AdminOrgUserOnboardPageContent() {
   const [formError, setFormError] = useState('');
   const [tempPasswordShown, setTempPasswordShown] = useState('');
 
+  const selectedPosition = useMemo(
+    () => positions.find((p) => p.id === positionId) ?? null,
+    [positions, positionId],
+  );
+
+  const selectPosition = useCallback(
+    (id: number) => {
+      setPositionId(id);
+      const pos = positions.find((p) => p.id === id);
+      if (pos) setJobTitle(pos.name);
+    },
+    [positions],
+  );
+
   useEffect(() => {
     if (!token) return;
     void Promise.all([
@@ -80,31 +96,48 @@ function AdminOrgUserOnboardPageContent() {
       fetchStaffOrgTeams(token),
       fetchStaffOrgJobFunctionCatalog(token),
     ]).then(([pos, tms, fnCat]) => {
-      setPositions(pos);
+      setPositions(pos.filter((p) => p.active !== false));
       setTeams(tms);
       setCatalog(fnCat.map((f) => ({ code: f.code, label: f.label })));
-      if (pos[0] && positionId === '') setPositionId(pos[0].id);
     });
-  }, [token, positionId]);
+  }, [token]);
 
   useEffect(() => {
-    const email = searchParams.get('email')?.trim();
+    if (!token || internalCodeLocked) return;
+    void fetchStaffOrgNextInternalCode(token)
+      .then((res) => setInternalCode(res.internal_code))
+      .catch(() => setInternalCode('PTTCN100001'));
+  }, [token, internalCodeLocked]);
+
+  useEffect(() => {
+    const emailParam = searchParams.get('email')?.trim();
     const nameParam = searchParams.get('name')?.trim();
     const phoneParam = searchParams.get('phone')?.trim();
     const jobTitleParam = searchParams.get('job_title')?.trim();
     const internalCodeParam = searchParams.get('internal_code')?.trim();
     const staffIdRaw = searchParams.get('crm_staff_id')?.trim();
 
-    if (email) setEmail(email);
+    if (emailParam) setEmail(emailParam);
     if (nameParam) {
       setName(nameParam);
       setDisplayName(nameParam);
     }
     if (phoneParam) setPhone(phoneParam);
     if (jobTitleParam) setJobTitle(jobTitleParam);
-    if (internalCodeParam) setInternalCode(internalCodeParam);
+    if (internalCodeParam) {
+      setInternalCode(internalCodeParam);
+      setInternalCodeLocked(true);
+    }
     if (staffIdRaw && /^\d+$/.test(staffIdRaw)) setCrmStaffId(Number(staffIdRaw));
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!positions.length || positionId !== '') return;
+    const match = jobTitle
+      ? positions.find((p) => p.name === jobTitle || p.code === jobTitle)
+      : null;
+    if (match) selectPosition(match.id);
+  }, [positions, positionId, jobTitle, selectPosition]);
 
   const steps = useMemo(
     () =>
@@ -133,16 +166,20 @@ function AdminOrgUserOnboardPageContent() {
   function nextStep() {
     if (step === 'profile') {
       if (!name.trim()) {
-        setFormError('Nhập tên NV');
+        setFormError('Nhập họ tên nhân viên');
+        return;
+      }
+      if (!positionId) {
+        setFormError('Chọn chức danh từ danh mục Admin');
+        return;
+      }
+      if (!internalCode.trim()) {
+        setFormError('Mã nhân viên chưa sẵn sàng — thử tải lại trang');
         return;
       }
       setDisplayName(name.trim());
       setStep('access');
     } else if (step === 'access') {
-      if (!positionId) {
-        setFormError('Chọn chức vụ');
-        return;
-      }
       setStep('account');
     } else if (step === 'account') {
       if (!email.trim() || !email.includes('@')) {
@@ -194,7 +231,7 @@ function AdminOrgUserOnboardPageContent() {
           name: name.trim(),
           phone: phone.trim(),
           internal_code: internalCode.trim(),
-          job_title: jobTitle.trim(),
+          job_title: jobTitle.trim() || selectedPosition?.name || '',
         },
       });
       setTempPasswordShown(out.temp_password ?? password);
@@ -249,46 +286,89 @@ function AdminOrgUserOnboardPageContent() {
 
       <WinWizardSteps steps={steps} onStepClick={(id) => setStep(id as StepId)} />
 
-      <div className="win-excel-wizard" style={{ marginTop: '1rem' }}>
+      <div className="onboard-wizard">
         {step === 'profile' ? (
-          <div className="stack-gap">
-            <label>
-              Họ tên *
-              <input value={name} onChange={(e) => setName(e.target.value)} />
-            </label>
-            <label>
-              SĐT
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </label>
-            <label>
-              Mã NV
-              <input value={internalCode} onChange={(e) => setInternalCode(e.target.value)} />
-            </label>
-            <label>
-              Chức danh
-              <input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
-            </label>
+          <div className="page-card onboard-wizard__panel">
+            <div className="onboard-wizard__panel-head">
+              <h3>Hồ sơ nhân viên</h3>
+              <p className="muted">Thông tin cơ bản và chức danh từ danh mục Admin.</p>
+            </div>
+            <div className="onboard-wizard__grid">
+              <label className="onboard-wizard__field onboard-wizard__field--wide">
+                <span className="onboard-wizard__label">Họ tên *</span>
+                <input
+                  className="onboard-wizard__input"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Nguyễn Văn A"
+                  autoComplete="name"
+                />
+              </label>
+              <label className="onboard-wizard__field">
+                <span className="onboard-wizard__label">Số điện thoại</span>
+                <input
+                  className="onboard-wizard__input"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="09xx xxx xxx"
+                  inputMode="tel"
+                />
+              </label>
+              <label className="onboard-wizard__field">
+                <span className="onboard-wizard__label">Mã nhân viên</span>
+                <input
+                  className="onboard-wizard__input onboard-wizard__input--code"
+                  value={internalCode}
+                  readOnly
+                  aria-readonly="true"
+                />
+                <span className="onboard-wizard__hint">
+                  Tự động theo mẫu PTTCN100001, PTTCN100002…
+                </span>
+              </label>
+              <label className="onboard-wizard__field onboard-wizard__field--wide">
+                <span className="onboard-wizard__label">Chức danh *</span>
+                <select
+                  className="onboard-wizard__input"
+                  value={positionId === '' ? '' : String(positionId)}
+                  onChange={(e) => selectPosition(Number(e.target.value))}
+                >
+                  <option value="">— Chọn chức danh —</option>
+                  {positions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.code} — {p.name}
+                    </option>
+                  ))}
+                </select>
+                <span className="onboard-wizard__hint">
+                  Danh sách từ{' '}
+                  <Link href="/admin/crm/org/positions" className="onboard-wizard__link">
+                    Admin → Chức vụ (HR)
+                  </Link>
+                </span>
+              </label>
+            </div>
           </div>
         ) : null}
 
         {step === 'access' ? (
-          <div className="stack-gap">
-            <label>
-              Chức vụ *
-              <select
-                value={positionId === '' ? '' : String(positionId)}
-                onChange={(e) => setPositionId(Number(e.target.value))}
-              >
-                {positions.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.code} — {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <div className="page-card onboard-wizard__panel stack-gap">
+            <div className="onboard-wizard__summary">
+              <div>
+                <div className="muted">Chức danh đã chọn</div>
+                <strong>
+                  {selectedPosition
+                    ? `${selectedPosition.code} — ${selectedPosition.name}`
+                    : '—'}
+                </strong>
+              </div>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStep('profile')}>
+                Sửa hồ sơ
+              </button>
+            </div>
             <JobFunctionPicker options={catalog} value={functions} onChange={setFunctions} />
             <div>
-              <p className="muted">Team</p>
+              <p className="onboard-wizard__label">Team</p>
               <div className="win-filter-chips">
                 {teams.map((t) => (
                   <button
@@ -306,19 +386,33 @@ function AdminOrgUserOnboardPageContent() {
         ) : null}
 
         {step === 'account' ? (
-          <div className="stack-gap">
-            <label>
-              Email đăng nhập *
-              <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
+          <div className="page-card onboard-wizard__panel stack-gap">
+            <label className="onboard-wizard__field onboard-wizard__field--wide">
+              <span className="onboard-wizard__label">Email đăng nhập *</span>
+              <input
+                className="onboard-wizard__input"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                type="email"
+                placeholder="name@pttads.vn"
+              />
             </label>
-            <label>
-              Tên hiển thị
-              <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+            <label className="onboard-wizard__field onboard-wizard__field--wide">
+              <span className="onboard-wizard__label">Tên hiển thị</span>
+              <input
+                className="onboard-wizard__input"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+              />
             </label>
-            <label>
-              Mật khẩu tạm
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input value={password} readOnly style={{ flex: 1, fontFamily: 'monospace' }} />
+            <label className="onboard-wizard__field onboard-wizard__field--wide">
+              <span className="onboard-wizard__label">Mật khẩu tạm</span>
+              <div className="onboard-wizard__inline-actions">
+                <input
+                  className="onboard-wizard__input onboard-wizard__input--code"
+                  value={password}
+                  readOnly
+                />
                 <button type="button" className="btn btn-sm" onClick={() => setPassword(generatePassword())}>
                   Tạo lại
                 </button>
@@ -331,9 +425,10 @@ function AdminOrgUserOnboardPageContent() {
                 </button>
               </div>
             </label>
-            <label>
-              Loại tài khoản
+            <label className="onboard-wizard__field onboard-wizard__field--wide">
+              <span className="onboard-wizard__label">Loại tài khoản</span>
               <select
+                className="onboard-wizard__input"
                 value={accountKind}
                 onChange={(e) => setAccountKind(e.target.value as 'staff' | 'guest' | 'contractor')}
               >
@@ -343,34 +438,41 @@ function AdminOrgUserOnboardPageContent() {
               </select>
             </label>
             {accountKind !== 'staff' ? (
-              <label>
-                Ngày hết hạn *
-                <input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
+              <label className="onboard-wizard__field">
+                <span className="onboard-wizard__label">Ngày hết hạn *</span>
+                <input
+                  className="onboard-wizard__input"
+                  type="date"
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                />
               </label>
             ) : null}
           </div>
         ) : null}
 
         {step === 'uat' ? (
-          <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-            {UAT_ITEMS.map((label, i) => (
-              <li key={label} style={{ marginBottom: '0.5rem' }}>
-                <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                  <input
-                    type="checkbox"
-                    checked={uatChecks[i]}
-                    onChange={(e) =>
-                      setUatChecks((prev) => prev.map((v, idx) => (idx === i ? e.target.checked : v)))
-                    }
-                  />
-                  {label}
-                </label>
-              </li>
-            ))}
-          </ul>
+          <div className="page-card onboard-wizard__panel">
+            <ul className="onboard-wizard__uat-list">
+              {UAT_ITEMS.map((label, i) => (
+                <li key={label}>
+                  <label className="onboard-wizard__uat-item">
+                    <input
+                      type="checkbox"
+                      checked={uatChecks[i]}
+                      onChange={(e) =>
+                        setUatChecks((prev) => prev.map((v, idx) => (idx === i ? e.target.checked : v)))
+                      }
+                    />
+                    <span>{label}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : null}
 
-        <div className="modal-actions" style={{ marginTop: '1.25rem' }}>
+        <div className="onboard-wizard__actions">
           {step !== 'profile' ? (
             <button type="button" className="btn btn-ghost" onClick={prevStep} disabled={busy}>
               Quay lại

@@ -118,6 +118,12 @@ export class StaffOrgController {
     return { functions: this.org.listJobFunctionCatalog() };
   }
 
+  @Get('users/next-internal-code')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgRosterViewGuard)
+  nextInternalCode() {
+    return this.org.getNextInternalCode();
+  }
+
   @Get('users')
   @UseGuards(StaffOrInternalKeyGuard, StaffOrgRosterViewGuard)
   listUsers(

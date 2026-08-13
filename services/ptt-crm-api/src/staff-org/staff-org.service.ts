@@ -180,6 +180,15 @@ export class StaffOrgService implements OnModuleDestroy {
     return { ...detail, job_functions: functions };
   }
 
+  async getNextInternalCode(): Promise<{ internal_code: string }> {
+    try {
+      const internal_code = await this.usersRepository.nextInternalCode();
+      return { internal_code };
+    } catch {
+      return { internal_code: 'PTTCN100001' };
+    }
+  }
+
   async createUser(
     body: CreateStaffOrgUserBody,
     actorEmail: string,
