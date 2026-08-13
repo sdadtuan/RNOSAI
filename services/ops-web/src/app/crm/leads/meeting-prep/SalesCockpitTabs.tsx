@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { trackLeadCallScriptCopy } from '@/lib/api';
 import type { CloseIntelligence, LeadMeetingPrepResult } from './lead-meeting-prep.types';
 
 type Props = {
@@ -58,7 +59,17 @@ export function SalesCockpitIntelTab({ result, sci }: Props) {
   );
 }
 
-export function SalesCockpitTalkTrackTab({ sci }: { sci: CloseIntelligence }) {
+export function SalesCockpitTalkTrackTab({
+  sci,
+  leadId,
+  token,
+  onMessage,
+}: {
+  sci: CloseIntelligence;
+  leadId?: number;
+  token?: string;
+  onMessage?: (msg: string) => void;
+}) {
   const [seconds, setSeconds] = useState(15 * 60);
   useEffect(() => {
     const t = setInterval(() => setSeconds((s) => Math.max(0, s - 1)), 1000);
@@ -67,6 +78,18 @@ export function SalesCockpitTalkTrackTab({ sci }: { sci: CloseIntelligence }) {
   const mm = String(Math.floor(seconds / 60)).padStart(2, '0');
   const ss = String(seconds % 60).padStart(2, '0');
   const fullScript = sci.talk_track.phases.map((p) => p.script_vi).join('\n\n');
+
+  async function onCopyTalkTrack() {
+    try {
+      if (token && leadId) {
+        await trackLeadCallScriptCopy(token, leadId);
+      }
+      await navigator.clipboard.writeText(fullScript);
+      onMessage?.('Đã copy talk track SCI');
+    } catch {
+      /* ignore */
+    }
+  }
 
   return (
     <div className="lmp-cockpit-tab">
@@ -81,20 +104,10 @@ export function SalesCockpitTalkTrackTab({ sci }: { sci: CloseIntelligence }) {
           </li>
         ))}
       </ol>
-      <CopyInline text={fullScript} />
+      <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onCopyTalkTrack()}>
+        Copy toàn bộ talk track
+      </button>
     </div>
-  );
-}
-
-function CopyInline({ text }: { text: string }) {
-  return (
-    <button
-      type="button"
-      className="btn btn-sm btn-secondary"
-      onClick={() => void navigator.clipboard.writeText(text)}
-    >
-      Copy toàn bộ talk track
-    </button>
   );
 }
 

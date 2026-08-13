@@ -30,6 +30,7 @@ import {
 import { hasCap, canGenerateMktAiPlanner, canViewLmp, type StoredStaffUser } from '@/lib/auth';
 import { leadMeetingPrepEnabled } from '@/lib/crm/lmp-flags';
 import { fetchLeadMeetingPrep, prepStatusChipLabel } from '@/lib/lead-meeting-prep-api';
+import { M1FirstCallCard } from '@/app/crm/leads/meeting-prep/M1FirstCallCard';
 import type { LeadMeetingPrepStatus } from '@/app/crm/leads/meeting-prep/lead-meeting-prep.types';
 
 interface Props {
@@ -378,6 +379,9 @@ export function LeadFunnelPanel({
     : 'Funnel B2 → Pre-sales';
 
   const b2Stage = funnel.care_pipeline.stages[0];
+  const b2Done = Boolean(b2Stage?.done);
+  const showM1Card =
+    showPresales && !b2Done && leadMeetingPrepEnabled() && canViewLmp(user);
   const inReview = funnel.review_queue.active;
   const b2ContactOkReported = Boolean(funnel.care_pipeline.contact_ok_reported);
   const canCompleteB2 = b2ContactOkReported && careNote.trim().length >= 3;
@@ -406,6 +410,18 @@ export function LeadFunnelPanel({
         <div className="lead-alert lead-alert--success" role="status">
           {panelMessage}
         </div>
+      ) : null}
+
+      {showM1Card ? (
+        <M1FirstCallCard
+          token={token}
+          leadId={leadId}
+          user={user}
+          show={showM1Card}
+          onOpenTalkTrack={onOpenMeetingPrepTab}
+          onMessage={onMessage}
+          onError={onError}
+        />
       ) : null}
 
       {inReview && (

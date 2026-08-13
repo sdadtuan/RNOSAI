@@ -9,8 +9,11 @@ type Props = {
 export function CopyScriptButton({ text, label = 'Copy script', onCopied }: Props) {
   async function onCopy() {
     try {
+      if (onCopied) {
+        await onCopied();
+        return;
+      }
       await navigator.clipboard.writeText(text);
-      onCopied?.();
     } catch {
       /* ignore */
     }

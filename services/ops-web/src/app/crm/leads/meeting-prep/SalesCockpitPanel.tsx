@@ -49,7 +49,9 @@ export function SalesCockpitPanel({
   onMessage,
   onError,
 }: Props) {
-  const [tab, setTab] = useState<(typeof TABS)[number]['id']>('intel');
+  const [tab, setTab] = useState<(typeof TABS)[number]['id']>(() =>
+    prep.prep_stage === 'm1_first_strike' ? 'talk' : 'intel',
+  );
   const sci = prep.result?.close_intelligence;
   const canRun = canRunLmp(user);
   const showDealReady =
@@ -107,7 +109,14 @@ export function SalesCockpitPanel({
           </nav>
           <div className="lmp-cockpit-body">
             {tab === 'intel' ? <SalesCockpitIntelTab result={prep.result} sci={sci} /> : null}
-            {tab === 'talk' ? <SalesCockpitTalkTrackTab sci={sci} /> : null}
+            {tab === 'talk' ? (
+              <SalesCockpitTalkTrackTab
+                sci={sci}
+                leadId={leadId}
+                token={token}
+                onMessage={onMessage}
+              />
+            ) : null}
             {tab === 'offer' ? <SalesCockpitOfferTab sci={sci} /> : null}
             {tab === 'objections' ? <SalesCockpitObjectionsTab sci={sci} /> : null}
             {tab === 'deal' && sci ? (

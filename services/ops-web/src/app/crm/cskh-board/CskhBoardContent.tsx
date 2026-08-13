@@ -180,6 +180,12 @@ function CskhLeadCard({
           </span>
         )}
         <Link
+          href={`/crm/leads/${row.id}?prep=1`}
+          className="win-leads-mobile-card__action"
+        >
+          SCI
+        </Link>
+        <Link
           href={`/crm/leads/${row.id}`}
           className="win-leads-mobile-card__action win-leads-mobile-card__action--primary"
         >
@@ -715,6 +721,9 @@ export function CskhBoardContent() {
                     <td>
                       <Link href={`/crm/leads/${row.id}`}>{row.full_name || `#${row.id}`}</Link>
                       <div className="muted">{row.phone}</div>
+                      <Link href={`/crm/leads/${row.id}?prep=1`} className="lmp-cskh-sci-link">
+                        SCI · Talk Track
+                      </Link>
                     </td>
                     <td>{row.status}</td>
                     <td>{row.owner_name ?? row.owner_id ?? '—'}</td>

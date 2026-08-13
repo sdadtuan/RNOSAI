@@ -11371,6 +11371,62 @@ body {
   align-items: center;
 }
 
+.lmp-m1-card {
+  margin: 0.75rem 0 1rem;
+  padding: 1rem 1.1rem;
+  border-radius: 12px;
+  border: 1px solid #bfdbfe;
+  background: linear-gradient(180deg, #eff6ff 0%, #fff 100%);
+}
+
+.lmp-m1-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.lmp-m1-card__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.lmp-m1-card__opening {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin: 0 0 0.75rem;
+}
+
+.lmp-m1-card__sub {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+}
+
+.lmp-m1-card__questions {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+}
+
+.lmp-m1-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.lmp-m1-checklist {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+}
+
+.lmp-cskh-sci-link {
+  display: inline-block;
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+}
+
 .lmp-gauge {
   display: flex;
   gap: 0.65rem;
