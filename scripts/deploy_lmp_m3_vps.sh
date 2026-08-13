@@ -23,11 +23,12 @@ run_local() {
 
   echo "== ptt-crm-api build (no_sci_before_chot + script-copy sci) =="
   cd "$ROOT/services/ptt-crm-api"
-  npm ci --omit=dev 2>/dev/null || npm install --omit=dev
+  npm ci
   npm run build
+  npm test -- --testPathPattern=chot-closed-loop.util.spec --passWithNoTests
   sudo -n /usr/bin/systemctl restart ptt-crm-api 2>/dev/null || true
   sleep 3
-  curl -sf http://127.0.0.1:3100/health -o /dev/null && echo " api OK" || echo "WARN  api health check failed"
+  curl -sf http://127.0.0.1:3000/health -o /dev/null && echo " api OK" || echo "WARN  api health check failed"
 
   echo "== ops-web build (objections pin + Deal Room SOP + mobile debrief) =="
   cd "$ROOT"
