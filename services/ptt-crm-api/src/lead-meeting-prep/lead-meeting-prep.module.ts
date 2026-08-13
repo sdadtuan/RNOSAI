@@ -21,7 +21,12 @@ export class LeadMeetingPrepModule {}
 
 /** Isolated export for LeadsModule — avoids circular imports. */
 @Module({
-  imports: [LeadMeetingPrepModule],
+  imports: [WebhooksModule],
+  providers: [
+    LeadMeetingPrepRepository,
+    LeadMeetingPrepInputResolver,
+    LeadMeetingPrepEnqueueService,
+  ],
   exports: [LeadMeetingPrepEnqueueService],
 })
 export class LeadMeetingPrepAsyncModule {}
