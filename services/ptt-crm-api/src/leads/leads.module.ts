@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { AiScoreAsyncModule } from '../ai-intelligence/ai-score-async.module';
+import { LeadMeetingPrepAsyncModule } from '../lead-meeting-prep/lead-meeting-prep.module';
 import { CrmConfigModule } from '../crm-config/crm-config.module';
 import { CatalogModule } from '../catalog/catalog.module';
 import { CustomerTimelineModule } from '../customer-timeline/customer-timeline.module';
@@ -38,6 +39,7 @@ import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.modul
   imports: [
     EventsModule,
     AiScoreAsyncModule,
+    LeadMeetingPrepAsyncModule,
     StaffAuthModule,
     StaffPermissionsModule,
     StaffClientScopeModule,

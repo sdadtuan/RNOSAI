@@ -79,6 +79,41 @@ export class JobQueueRepository implements OnModuleDestroy {
     return null;
   }
 
+  /** S-LMP-1 — async lead meeting prep (AI-UC-021). */
+  async enqueueLeadMeetingPrepJob(input: {
+    leadId: number;
+    clientId?: string | null;
+    correlationId?: string;
+    prepStage?: string;
+    mode?: string;
+    selectedEntityId?: string | null;
+    idempotencyKey?: string;
+  }): Promise<EnqueuedJob | null> {
+    if (!this.config.jobsEnabled) {
+      return null;
+    }
+    const leadId = Number(input.leadId);
+    if (!Number.isFinite(leadId) || leadId <= 0) {
+      return null;
+    }
+    const idem =
+      input.idempotencyKey?.trim() || `lead_meeting_prep:lead:${leadId}`;
+    return this.enqueueJobRecord({
+      jobType: 'lead_meeting_prep',
+      payload: {
+        lead_id: leadId,
+        client_id: input.clientId ?? null,
+        prep_stage: input.prepStage ?? 'm1_first_strike',
+        mode: input.mode ?? 'full',
+        selected_entity_id: input.selectedEntityId ?? null,
+      },
+      idempotencyKey: idem,
+      correlationId: input.correlationId,
+      clientId: this.normalizeClientUuid(input.clientId ?? undefined),
+      maxAttempts: 3,
+    });
+  }
+
   /** RNOS-08 — async lead score consumer (AI-UC-001). */
   async enqueueScoreLeadJob(input: {
     leadId: number;

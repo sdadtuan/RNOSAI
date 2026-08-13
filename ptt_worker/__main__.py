@@ -152,6 +152,10 @@ def run_worker(*, poll_interval: float = 1.0, once: bool = False) -> int:
                 from ptt_jobs.handlers.score_lead import run_score_lead_job
 
                 run_score_lead_job(job)
+            elif job_type == "lead_meeting_prep":
+                from ptt_jobs.handlers.lead_meeting_prep import run_lead_meeting_prep_job
+
+                run_lead_meeting_prep_job(job)
             elif job_type == "pipeline_risk_scan":
                 from ptt_jobs.handlers.pipeline_risk_scan import run_pipeline_risk_scan_job
 

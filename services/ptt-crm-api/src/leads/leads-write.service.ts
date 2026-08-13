@@ -6,6 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { AiScoreAsyncService } from '../ai-intelligence/ai-score-async.service';
+import { LeadMeetingPrepEnqueueService } from '../lead-meeting-prep/lead-meeting-prep-enqueue.service';
 import { DomainEventService } from '../events/domain-event.service';
 import { CustomerTimelineService } from '../customer-timeline/customer-timeline.service';
 import { MetaConversionSideEffectsService } from '../meta-tracking/meta-conversion-side-effects.service';
@@ -29,6 +30,7 @@ export class LeadsWriteService {
     private readonly conversionFx: MetaConversionSideEffectsService,
     private readonly performance: PerformanceService,
     private readonly scoreAsync: AiScoreAsyncService,
+    private readonly meetingPrepEnqueue: LeadMeetingPrepEnqueueService,
     private readonly statusGate: LeadStatusGateService,
   ) {}
 
@@ -66,6 +68,13 @@ export class LeadsWriteService {
         clientId: body.client_id ?? lead.client_id ?? null,
         correlationId,
       });
+      if (!enriched.is_duplicate) {
+        await this.meetingPrepEnqueue.enqueueAfterLeadCreated({
+          leadId: lead.id,
+          clientId: body.client_id ?? lead.client_id ?? null,
+          correlationId,
+        });
+      }
       return lead;
     } catch (err) {
       this.rethrowPg(err);

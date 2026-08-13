@@ -45,6 +45,7 @@ import { LaunchQaModule } from './launch-qa/launch-qa.module';
 import { CrmCreativesModule } from './crm-creatives/crm-creatives.module';
 import { CrmCampaignWritesModule } from './crm-campaign-writes/crm-campaign-writes.module';
 import { DealRoomModule } from './deal-room/deal-room.module';
+import { LeadMeetingPrepModule } from './lead-meeting-prep/lead-meeting-prep.module';
 import { LeadsFunnelModule } from './leads-funnel/leads-funnel.module';
 import { LeadsContractModule } from './leads-contract/leads-contract.module';
 import { LeadsModule } from './leads/leads.module';
@@ -105,6 +106,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     LeadsModule,
     LeadsFunnelModule,
     DealRoomModule,
+    LeadMeetingPrepModule,
     LeadsContractModule,
     CatalogModule,
     CrmConfigModule,

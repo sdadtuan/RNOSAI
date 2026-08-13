@@ -97,6 +97,9 @@ export class AppConfigService {
   readonly dealRoomGateStrict: boolean;
   readonly dealRoomPortalTeaser: boolean;
   readonly dealRoomTeaserTtlDays: number;
+  readonly leadMeetingPrepEnabled: boolean;
+  readonly lmpPilotOnly: boolean;
+  readonly lmpPilotClientIds: string[];
   readonly presalesBatchUpgradeEnabled: boolean;
   readonly crmServiceDeliveryNest: boolean;
   readonly sopAutoStartOnLaunch: boolean;
@@ -353,6 +356,16 @@ export class AppConfigService {
       1,
       Number((process.env.PTT_DEAL_ROOM_TEASER_TTL_DAYS ?? '14').trim()) || 14,
     );
+    this.leadMeetingPrepEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_LEAD_MEETING_PREP_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.lmpPilotOnly = !['0', 'false', 'no', 'off'].includes(
+      (process.env.PTT_LMP_PILOT_ONLY ?? '1').trim().toLowerCase(),
+    );
+    this.lmpPilotClientIds = (process.env.PTT_LMP_PILOT_CLIENT_IDS ?? '')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
     this.presalesBatchUpgradeEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_PRESALES_BATCH_UPGRADE ?? '0').trim().toLowerCase(),
     );

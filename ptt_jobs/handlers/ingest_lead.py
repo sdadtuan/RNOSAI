@@ -136,6 +136,16 @@ def process_ingest_lead_payload(
                 )
             except Exception as exc:
                 logger.debug("score_lead enqueue after ingest skipped: %s", exc)
+            try:
+                from ptt_crm.lmp_enqueue import enqueue_lead_meeting_prep_job
+
+                enqueue_lead_meeting_prep_job(
+                    lead_id=int(lead_id),
+                    client_id=client_id if client_id not in {"", "unknown"} else None,
+                    correlation_id=correlation_id,
+                )
+            except Exception as exc:
+                logger.debug("lead_meeting_prep enqueue after ingest skipped: %s", exc)
 
         try:
             from ptt_crm.lead_sync import sync_after_ingest

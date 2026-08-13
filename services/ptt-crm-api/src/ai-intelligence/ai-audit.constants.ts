@@ -27,6 +27,7 @@ export const AI_USE_CASE = {
   CPL_WEEKLY_DIGEST: 'cpl_weekly_digest',
   BUDGET_RECOMMEND: 'budget_recommend',
   ROUTE_REP: 'route_rep',
+  LEAD_MEETING_PREP: 'lead_meeting_prep',
   REVIEW_QUEUE_TRIAGE: 'review_queue_triage',
   UPSELL_SUGGEST: 'upsell_suggest',
   UPSELL_APPROVE: 'upsell_approve',

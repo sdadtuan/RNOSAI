@@ -30,6 +30,18 @@ def ai_score_async_enabled() -> bool:
     return _truthy("PTT_AI_SCORE_ASYNC", "1")
 
 
+def lead_meeting_prep_enabled() -> bool:
+    """S-LMP-1 — async lead meeting prep after LeadCreated."""
+    return _truthy("PTT_LEAD_MEETING_PREP_ENABLED", "0")
+
+
+def lmp_pilot_client_ids() -> list[str]:
+    raw = (os.environ.get("PTT_LMP_PILOT_CLIENT_IDS") or "").strip()
+    if not raw:
+        return []
+    return [part.strip().lower() for part in raw.split(",") if part.strip()]
+
+
 def dual_run_timeout_sec() -> float:
     try:
         return max(0.5, float(os.environ.get("PTT_DUAL_RUN_TIMEOUT_SEC", "2.0")))
