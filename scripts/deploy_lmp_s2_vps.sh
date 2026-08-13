@@ -17,6 +17,10 @@ APPLY="${APPLY:-0}"
 patch_runtime_env() {
   local env_file="$1"
   [[ -f "$env_file" ]] || return 0
+  [[ -w "$env_file" ]] || {
+    echo "SKIP  $env_file (not writable)"
+    return 0
+  }
   for kv in \
     "PTT_LEAD_MEETING_PREP_ENABLED=1" \
     "PTT_JOBS_ENABLED=1" \
@@ -28,6 +32,20 @@ patch_runtime_env() {
       echo "$kv" >> "$env_file"
     fi
   done
+}
+
+sync_worker_unit() {
+  local unit="/etc/systemd/system/ptt-worker.service"
+  if ! sudo -n test -f "$unit" 2>/dev/null; then
+    echo "SKIP  worker unit install (no sudo)"
+    return 0
+  fi
+  sudo -n cp "$ROOT/deploy/ptt-worker.service" "$unit"
+  if [[ ! -x "$ROOT/.venv/bin/python" && -x "/var/www/ptt/.venv/bin/python" ]]; then
+    sudo -n sed -i 's|/var/www/rnosai/.venv|/var/www/ptt/.venv|g' "$unit"
+  fi
+  sudo -n systemctl daemon-reload
+  echo "OK  ptt-worker unit synced to rnosai + runtime.env"
 }
 
 run_local() {
@@ -64,6 +82,13 @@ run_local() {
   echo "== RBAC seed crm_lmp =="
   "$PYTHON" "$ROOT/scripts/seed_staff_lmp_permissions.py" --apply
 
+  echo "== runtime flags =="
+  mkdir -p "$ROOT/deploy"
+  touch "$ROOT/deploy/runtime.env"
+  patch_runtime_env "$ROOT/deploy/runtime.env"
+  patch_runtime_env "$ROOT/.env"
+  patch_runtime_env "/etc/ptt/runtime.env" || true
+
   echo "== Nest ptt-crm-api =="
   cd "$ROOT/services/ptt-crm-api"
   npm ci
@@ -82,12 +107,10 @@ run_local() {
   sleep 2
   curl -sf http://127.0.0.1:3200/login -o /dev/null && echo " ops-web OK"
 
-  echo "== runtime flags =="
-  patch_runtime_env "$ROOT/.env"
-  patch_runtime_env "/etc/ptt/runtime.env" || true
-
-  echo "== worker restart (requires DATABASE_URL in unit) =="
-  sudo -n /usr/bin/systemctl restart ptt-worker || echo "WARN  ptt-worker restart failed — check DATABASE_URL"
+  echo "== worker unit + restart =="
+  sync_worker_unit
+  sudo -n /usr/bin/systemctl restart ptt-worker && sleep 2 && systemctl is-active ptt-worker && echo " worker OK" \
+    || echo "WARN  ptt-worker restart failed — check DATABASE_URL in /var/www/rnosai/.env"
 
   echo "== gate (unit, no Tavily) =="
   bash "$ROOT/scripts/lead_meeting_prep_gate.sh"

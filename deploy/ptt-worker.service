@@ -19,6 +19,7 @@ WorkingDirectory=/var/www/rnosai
 Environment=PATH=/var/www/rnosai/.venv/bin
 Environment=PTT_JOBS_ENABLED=1
 EnvironmentFile=-/var/www/rnosai/.env
+EnvironmentFile=-/var/www/rnosai/deploy/runtime.env
 ExecStart=/var/www/rnosai/.venv/bin/python -m ptt_worker
 Restart=always
 RestartSec=3
