@@ -13,6 +13,8 @@ type Props = {
   sci: DealRoomSciSlice;
   canCreateQuote: boolean;
   quoteBlockReason?: string;
+  isGdkd?: boolean;
+  sciQuoteBlocked?: boolean;
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
   onQuoteApplied?: () => void | Promise<void>;
@@ -45,11 +47,14 @@ export function DealRoomSciPanel({
   sci,
   canCreateQuote,
   quoteBlockReason,
+  isGdkd = false,
+  sciQuoteBlocked = false,
   onMessage,
   onError,
   onQuoteApplied,
 }: Props) {
   const [busy, setBusy] = useState(false);
+  const quoteDisabled = busy || !canCreateQuote || (sciQuoteBlocked && !isGdkd);
 
   async function trackSciCopy() {
     try {
@@ -75,9 +80,20 @@ export function DealRoomSciPanel({
   }
 
   async function handleApplyLadder() {
+    const needsOverride = sciQuoteBlocked && isGdkd;
+    if (needsOverride) {
+      const ok = window.confirm(
+        'SCI có red flag block. GDKD override để tạo báo giá 3 gói?\n\n' +
+          (quoteBlockReason ?? sci.red_flags.filter((f) => f.severity === 'block').map((f) => f.flag_vi).join('; ')),
+      );
+      if (!ok) return;
+    }
+
     setBusy(true);
     try {
-      const out = await applyLeadMeetingPrepOfferLadder(token, leadId);
+      const out = await applyLeadMeetingPrepOfferLadder(token, leadId, {
+        gdkdOverride: needsOverride,
+      });
       onMessage?.(`Đã tạo báo giá 3 gói — proposal #${out.proposal_id}`);
       await onQuoteApplied?.();
     } catch (err) {
@@ -191,15 +207,17 @@ export function DealRoomSciPanel({
         <button
           type="button"
           className="btn btn-primary"
-          disabled={busy || !canCreateQuote}
-          title={!canCreateQuote ? quoteBlockReason : undefined}
+          disabled={quoteDisabled}
+          title={quoteDisabled ? quoteBlockReason : undefined}
           onClick={() => void handleApplyLadder()}
         >
-          {busy ? 'Đang tạo…' : 'Tạo báo giá 3 gói từ SCI (1-click)'}
+          {busy
+            ? 'Đang tạo…'
+            : sciQuoteBlocked && isGdkd
+              ? 'GDKD override — Tạo báo giá 3 gói'
+              : 'Tạo báo giá 3 gói từ SCI (1-click)'}
         </button>
-        {!canCreateQuote && quoteBlockReason ? (
-          <p className="muted">{quoteBlockReason}</p>
-        ) : null}
+        {quoteBlockReason ? <p className="muted">{quoteBlockReason}</p> : null}
       </footer>
     </section>
   );

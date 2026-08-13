@@ -42,6 +42,7 @@ import { catalogTs } from '../catalog/catalog-slug.util';
 import { DealRoomTeaserRepository } from './deal-room-teaser.repository';
 import { LeadMeetingPrepRepository } from '../lead-meeting-prep/lead-meeting-prep.repository';
 import { buildLmpDealRoomSciSlice } from '../lead-meeting-prep/lmp-sci-slice.util';
+import { buildSciRedFlagBlockInfo } from '../lead-meeting-prep/lmp-red-flag-block.util';
 import type {
   DealRoomTeaserCreateResponse,
   DealRoomTeaserPublicView,
@@ -119,12 +120,30 @@ export class DealRoomService {
       ownerName = this.leadSqlite.staffNamesByIds([ownerId]).get(ownerId) ?? null;
     }
 
+    let sciSlice = buildLmpDealRoomSciSlice(null, leadId);
+    if (this.config.leadMeetingPrepEnabled) {
+      try {
+        if (await this.lmpRepo.tableReady()) {
+          const prepRow = await this.lmpRepo.getByLeadId(leadId);
+          sciSlice = buildLmpDealRoomSciSlice(prepRow, leadId);
+        }
+      } catch {
+        /* SCI slice optional */
+      }
+    }
+
     const canCreateQuote = proposalGate.ok && handoff.can_open;
-    const quoteBlockReason = !canCreateQuote
+    const sciRedFlagBlock = buildSciRedFlagBlockInfo(
+      sciSlice.available ? ({ red_flags: sciSlice.red_flags } as Record<string, unknown>) : null,
+    );
+    let quoteBlockReason = !canCreateQuote
       ? handoff.block_reason ||
         proposalGate.messages[0] ||
         'Hoàn thành G4 R5 trước khi tạo báo giá'
       : '';
+    if (canCreateQuote && sciRedFlagBlock.active) {
+      quoteBlockReason = sciRedFlagBlock.reason;
+    }
 
     const l1Checklist = buildL1GateChecklist({
       gate: proposalGate,
@@ -149,18 +168,6 @@ export class DealRoomService {
     const teaserState = await this.loadTeaserState(leadId);
     const canShareTeaser =
       this.config.dealRoomPortalTeaser && proposalGate.ok && (await this.teaserRepo.tablesReady());
-
-    let sciSlice = buildLmpDealRoomSciSlice(null, leadId);
-    if (this.config.leadMeetingPrepEnabled) {
-      try {
-        if (await this.lmpRepo.tableReady()) {
-          const prepRow = await this.lmpRepo.getByLeadId(leadId);
-          sciSlice = buildLmpDealRoomSciSlice(prepRow, leadId);
-        }
-      } catch {
-        /* SCI slice optional */
-      }
-    }
 
     return {
       ok: true,
@@ -189,7 +196,8 @@ export class DealRoomService {
         service_slug: serviceSlug,
         tiers: quoteTiers,
         can_create: canCreateQuote,
-        block_reason: canCreateQuote ? '' : quoteBlockReason,
+        block_reason: quoteBlockReason,
+        sci_red_flag_block: sciRedFlagBlock,
       },
       actions: {
         can_export_pack: proposalGate.ok && this.config.dealRoomPackPdf,

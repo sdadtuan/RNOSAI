@@ -11,6 +11,9 @@ type Props = {
   sci: CloseIntelligence;
   prepStage: string;
   canApplyQuote?: boolean;
+  quoteBlockReason?: string;
+  isGdkd?: boolean;
+  sciQuoteBlocked?: boolean;
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
 };
@@ -28,10 +31,14 @@ export function SalesCockpitDealReadyTab({
   sci,
   prepStage,
   canApplyQuote = true,
+  quoteBlockReason = '',
+  isGdkd = false,
+  sciQuoteBlocked = false,
   onMessage,
   onError,
 }: Props) {
   const [busy, setBusy] = useState(false);
+  const quoteDisabled = busy || !canApplyQuote || (sciQuoteBlocked && !isGdkd);
   const drp = sci.deal_room_payload;
   const isM3 = prepStage === 'm3_pre_close' || Boolean(drp);
 
@@ -54,9 +61,19 @@ export function SalesCockpitDealReadyTab({
   }
 
   async function handleQuote() {
+    const needsOverride = sciQuoteBlocked && isGdkd;
+    if (needsOverride) {
+      const ok = window.confirm(
+        `SCI red flag block — GDKD override?\n\n${quoteBlockReason || sci.red_flags.filter((f) => f.severity === 'block').map((f) => f.flag_vi).join('; ')}`,
+      );
+      if (!ok) return;
+    }
+
     setBusy(true);
     try {
-      const out = await applyLeadMeetingPrepOfferLadder(token, leadId);
+      const out = await applyLeadMeetingPrepOfferLadder(token, leadId, {
+        gdkdOverride: needsOverride,
+      });
       onMessage?.(`Proposal #${out.proposal_id} — mở editor để chỉnh`);
       window.open(out.href, '_blank', 'noopener,noreferrer');
     } catch (err) {
@@ -116,12 +133,18 @@ export function SalesCockpitDealReadyTab({
         <button
           type="button"
           className="btn btn-sm btn-secondary"
-          disabled={busy || !canApplyQuote}
+          disabled={quoteDisabled}
+          title={quoteDisabled ? quoteBlockReason : undefined}
           onClick={() => void handleQuote()}
         >
-          {busy ? 'Đang tạo…' : '→ Quote 3 gói'}
+          {busy
+            ? 'Đang tạo…'
+            : sciQuoteBlocked && isGdkd
+              ? 'GDKD override — Quote 3 gói'
+              : '→ Quote 3 gói'}
         </button>
       </div>
+      {quoteBlockReason ? <p className="muted">{quoteBlockReason}</p> : null}
     </div>
   );
 }

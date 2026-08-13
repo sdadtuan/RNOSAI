@@ -40,6 +40,12 @@ export interface DealRoomQuoteTierView {
   is_reference: boolean;
 }
 
+export interface SciRedFlagBlockView {
+  active: boolean;
+  reason: string;
+  flags: Array<{ flag_vi: string; severity: 'warn' | 'block'; mitigation_vi: string }>;
+}
+
 export interface DealRoomQuoteView {
   proposal_id: number | null;
   status: string | null;
@@ -50,6 +56,7 @@ export interface DealRoomQuoteView {
   tiers: DealRoomQuoteTierView[];
   can_create: boolean;
   block_reason: string;
+  sci_red_flag_block: SciRedFlagBlockView;
 }
 
 export interface DealRoomActionsView {

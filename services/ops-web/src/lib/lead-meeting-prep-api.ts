@@ -90,6 +90,7 @@ export async function fetchLeadMeetingPrepDealRoomSlice(
 export async function applyLeadMeetingPrepOfferLadder(
   token: string,
   leadId: number,
+  options: { gdkdOverride?: boolean } = {},
 ): Promise<{
   ok: boolean;
   lead_id: number;
@@ -99,7 +100,7 @@ export async function applyLeadMeetingPrepOfferLadder(
 }> {
   return lmpFetch(token, `/api/v1/leads/${leadId}/meeting-prep/apply-offer-ladder`, {
     method: 'POST',
-    body: JSON.stringify({}),
+    body: JSON.stringify({ gdkd_override: Boolean(options.gdkdOverride) }),
   });
 }
 

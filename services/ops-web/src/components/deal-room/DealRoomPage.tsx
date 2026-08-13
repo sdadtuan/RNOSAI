@@ -21,6 +21,7 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { sciBlocksQuoteForUser, blockingRedFlags } from '@/lib/lmp-red-flag-block.util';
 import { presalesStageLabel } from '@/lib/crm/lead-consult-tab.util';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -108,6 +109,15 @@ export function DealRoomPage({ leadId }: Props) {
   const solutionName = presales?.handoff?.solution_owner_name?.trim() || '—';
   const serviceSlug = presales?.presales.service_slug ?? '—';
   const stageLabel = presales ? presalesStageLabel(presales.presales.stage) : '—';
+  const isGdkd = hasCap(user, 'crm_leads', 'assign');
+  const sciBlock = sciBlocksQuoteForUser(snapshot?.sci.red_flags, isGdkd);
+  const hasSciBlockFlags = blockingRedFlags(snapshot?.sci.red_flags).length > 0;
+  const quoteCanCreate = Boolean(snapshot?.quote.can_create) && !sciBlock.blocked;
+  const quoteBlockReason =
+    (!snapshot?.quote.can_create ? snapshot?.quote.block_reason : '') ||
+    sciBlock.reason ||
+    snapshot?.quote.sci_red_flag_block?.reason ||
+    '';
 
   return (
     <StaffPageShell
@@ -188,8 +198,10 @@ export function DealRoomPage({ leadId }: Props) {
               leadId={leadId}
               token={getAccessToken() ?? ''}
               sci={snapshot.sci}
-              canCreateQuote={snapshot.quote.can_create}
-              quoteBlockReason={snapshot.quote.block_reason}
+              canCreateQuote={Boolean(snapshot.quote.can_create)}
+              quoteBlockReason={quoteBlockReason}
+              isGdkd={isGdkd}
+              sciQuoteBlocked={hasSciBlockFlags}
               onMessage={setMessage}
               onError={setError}
               onQuoteApplied={() => load(getAccessToken() ?? '')}
@@ -197,8 +209,8 @@ export function DealRoomPage({ leadId }: Props) {
             <DealRoomQuotePanel
               leadId={leadId}
               token={getAccessToken() ?? ''}
-              canCreate={snapshot.quote.can_create}
-              blockReason={snapshot.quote.block_reason}
+              canCreate={quoteCanCreate || (Boolean(snapshot.quote.can_create) && isGdkd)}
+              blockReason={quoteBlockReason}
               proposalsHref={snapshot.actions.proposals_href}
               canExportPack={snapshot.actions.can_export_pack}
               exportBlockReason={

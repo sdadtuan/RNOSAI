@@ -1,16 +1,14 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ProposalsService } from '../proposals/proposals.service';
 import { ProposalsSqliteRepository } from '../proposals/proposals-sqlite.repository';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { LeadMeetingPrepEnqueueService } from './lead-meeting-prep-enqueue.service';
 import { LeadMeetingPrepInputResolver } from './lead-meeting-prep-input.resolver';
 import { LeadMeetingPrepRepository } from './lead-meeting-prep.repository';
 import { extractReadinessBreakdown } from './close-readiness.util';
 import { buildQuoteLinesFromOfferLadder, type LmpOfferLadderRow } from './lmp-offer-ladder-quote.util';
 import { buildLmpDealRoomSciSlice } from './lmp-sci-slice.util';
+import { buildSciRedFlagBlockInfo } from './lmp-red-flag-block.util';
 import { buildWinOutcomeFromDebrief, winOutcomeHasDebrief } from './lmp-win-outcome.util';
 import type {
   ApplyOfferLadderResponse,
@@ -44,6 +42,7 @@ export class LeadMeetingPrepService {
     private readonly inputResolver: LeadMeetingPrepInputResolver,
     private readonly proposals: ProposalsService,
     private readonly proposalsSqlite: ProposalsSqliteRepository,
+    private readonly staffAuth: StaffAuthService,
   ) {}
 
   async getMeetingPrep(leadId: number) {
@@ -128,7 +127,10 @@ export class LeadMeetingPrepService {
     };
   }
 
-  async applyOfferLadder(leadId: number): Promise<ApplyOfferLadderResponse> {
+  async applyOfferLadder(
+    leadId: number,
+    options: { gdkdOverride?: boolean; actorPositionId?: number } = {},
+  ): Promise<ApplyOfferLadderResponse> {
     const ctx = await this.repo.getLeadContext(leadId);
     if (!ctx) {
       throw new NotFoundException({ error: 'Lead not found' });
@@ -149,6 +151,22 @@ export class LeadMeetingPrepService {
     }
 
     const sci = row.result_json?.close_intelligence as Record<string, unknown> | undefined;
+    const redFlagBlock = buildSciRedFlagBlockInfo(sci);
+    if (redFlagBlock.active) {
+      let canOverride = false;
+      if (options.gdkdOverride && options.actorPositionId) {
+        const caps = await this.staffAuth.loadCaps(options.actorPositionId);
+        canOverride = this.staffAuth.hasCap(caps, 'crm_leads', 'assign');
+      }
+      if (!canOverride) {
+        throw new BadRequestException({
+          error: 'sci_red_flag_block',
+          message: redFlagBlock.reason,
+          red_flags: redFlagBlock.flags,
+        });
+      }
+    }
+
     const ladder = sci?.offer_ladder;
     if (!Array.isArray(ladder) || ladder.length !== 3) {
       throw new BadRequestException({

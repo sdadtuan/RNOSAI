@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { submitLeadMeetingPrepFeedback } from '@/lib/lead-meeting-prep-api';
-import { canRunLmp, type StoredStaffUser } from '@/lib/auth';
+import { canRunLmp, hasCap, type StoredStaffUser } from '@/lib/auth';
+import { sciBlocksQuoteForUser } from '@/lib/lmp-red-flag-block.util';
 import { prepStageSubtitle } from '@/lib/lmp-stage-labels';
 import { CloseReadinessGauge } from './CloseReadinessGauge';
 import { LeadMeetingPrepEntityPicker } from './LeadMeetingPrepEntityPicker';
@@ -60,6 +61,9 @@ export function SalesCockpitPanel({
   const showObjectionsPin =
     prep.prep_stage === 'm3_pre_close' || Boolean(sci?.deal_room_payload);
   const visibleTabs = showDealReady ? TABS : TABS.filter((t) => t.id !== 'deal');
+  const isGdkd = hasCap(user, 'crm_leads', 'assign');
+  const sciQuoteBlock = sciBlocksQuoteForUser(sci?.red_flags, isGdkd);
+  const hasSciBlockFlags = Boolean(sci?.red_flags?.some((f) => f.severity === 'block'));
 
   async function onFeedback(helpful: boolean) {
     try {
@@ -129,6 +133,10 @@ export function SalesCockpitPanel({
                 leadId={leadId}
                 sci={sci}
                 prepStage={prep.prep_stage}
+                canApplyQuote={!sciQuoteBlock.blocked}
+                quoteBlockReason={sciQuoteBlock.reason}
+                isGdkd={isGdkd}
+                sciQuoteBlocked={hasSciBlockFlags}
                 onMessage={onMessage}
                 onError={onError}
               />

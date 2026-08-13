@@ -117,6 +117,7 @@ export type LeadMeetingPrepResult = {
     prompt_version?: string;
     prep_stage?: PrepStage | string;
     tavily_credits_used?: number;
+    apify_runs?: number;
     partial_collect?: boolean;
     close_readiness_score?: number;
     readiness_breakdown?: ReadinessBreakdownFactor[];

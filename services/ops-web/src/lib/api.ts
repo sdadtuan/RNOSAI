@@ -1722,6 +1722,11 @@ export interface DealRoomSnapshot {
     }>;
     can_create: boolean;
     block_reason: string;
+    sci_red_flag_block?: {
+      active: boolean;
+      reason: string;
+      flags: Array<{ flag_vi: string; severity: 'warn' | 'block'; mitigation_vi: string }>;
+    };
   };
   actions: {
     can_export_pack: boolean;

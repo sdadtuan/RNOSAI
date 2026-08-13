@@ -61,8 +61,15 @@ export class LeadMeetingPrepController {
 
   @Post(':id/meeting-prep/apply-offer-ladder')
   @UseGuards(StaffOrInternalKeyGuard, StaffLmpRunGuard, StaffProposalsWriteGuard)
-  applyOfferLadder(@Param('id', ParseIntPipe) id: number) {
-    return this.prep.applyOfferLadder(id);
+  applyOfferLadder(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { gdkd_override?: boolean },
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.prep.applyOfferLadder(id, {
+      gdkdOverride: Boolean(body?.gdkd_override),
+      actorPositionId: staffUser?.position_id,
+    });
   }
 
   @Post(':id/meeting-prep/call-debrief')
