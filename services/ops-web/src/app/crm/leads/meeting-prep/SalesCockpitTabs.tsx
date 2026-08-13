@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { trackLeadCallScriptCopy } from '@/lib/api';
 import type { CloseIntelligence, LeadMeetingPrepResult } from './lead-meeting-prep.types';
+import { getIntelSourceBadge } from './intel-source.util';
 
 type Props = {
   result: LeadMeetingPrepResult;
@@ -10,8 +11,14 @@ type Props = {
 };
 
 export function SalesCockpitIntelTab({ result, sci }: Props) {
+  const intelBadge = getIntelSourceBadge(result);
+
   return (
     <div className="lmp-cockpit-tab">
+      <p className={`lmp-intel-badge lmp-intel-badge--${intelBadge.tone}`}>
+        {intelBadge.label}
+        {intelBadge.detail ? <span className="muted"> · {intelBadge.detail}</span> : null}
+      </p>
       <section>
         <h3 className="lmp-panel__section-title">Chân dung doanh nghiệp</h3>
         <p>{result.company_profile.summary}</p>

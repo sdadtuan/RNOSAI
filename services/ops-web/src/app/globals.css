@@ -11490,6 +11490,32 @@ body {
   display: none;
 }
 
+.lmp-intel-badge {
+  margin: 0 0 0.85rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.lmp-intel-badge--live {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.lmp-intel-badge--partial {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.lmp-intel-badge--stub {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
 .lmp-gauge {
   display: flex;
   gap: 0.65rem;
