@@ -127,3 +127,11 @@ export interface LeadMeetingPrepDebriefBody {
   deal_value_vnd?: number;
   sci_helpful?: boolean;
 }
+
+/** Post-call debrief ngắn sau log activity call (non-terminal). */
+export interface LeadMeetingPrepCallDebriefBody {
+  activity_id?: number;
+  objection_faced?: string;
+  am_feedback?: string;
+  sci_helpful?: boolean;
+}

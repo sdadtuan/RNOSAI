@@ -15,6 +15,7 @@ import { buildWinOutcomeFromDebrief, winOutcomeHasDebrief } from './lmp-win-outc
 import type {
   ApplyOfferLadderResponse,
   LeadMeetingPrepDebriefBody,
+  LeadMeetingPrepCallDebriefBody,
   LeadMeetingPrepFeedbackBody,
   LeadMeetingPrepStage,
   LeadMeetingPrepStatus,
@@ -199,6 +200,66 @@ export class LeadMeetingPrepService {
       serviceDvCode: body.service_dv_code?.trim() || null,
       actorEmail: actorEmail || 'unknown',
     });
+    return {
+      ok: true,
+      lead_id: leadId,
+      feedback_id: feedback.id,
+    };
+  }
+
+  async submitCallDebrief(
+    leadId: number,
+    body: LeadMeetingPrepCallDebriefBody,
+    actorEmail: string,
+  ) {
+    const ctx = await this.repo.getLeadContext(leadId);
+    if (!ctx) {
+      throw new NotFoundException({ error: 'Lead not found' });
+    }
+
+    const status = String(ctx.status ?? '').trim().toLowerCase();
+    if (status === 'chot' || status === 'lost') {
+      throw new BadRequestException({
+        error: 'terminal_status_use_debrief',
+        message: 'Lead đã chốt/lost — dùng debrief chốt.',
+      });
+    }
+
+    const hasObjection = Boolean(body.objection_faced?.trim());
+    const hasFeedback = Boolean(body.am_feedback?.trim());
+    const hasSciHelpful = body.sci_helpful !== undefined;
+    if (!hasObjection && !hasFeedback && !hasSciHelpful) {
+      throw new BadRequestException({
+        error: 'debrief_empty',
+        message: 'Vui lòng trả lời ít nhất một câu debrief.',
+      });
+    }
+
+    const resolved = this.inputResolver.resolve(ctx);
+    const prepRow = await this.repo.ensurePrepRow(leadId, {
+      input: resolved.input,
+      sources_map: resolved.sources_map,
+    });
+
+    const noteLines: string[] = ['[call_debrief]'];
+    if (body.activity_id != null && Number.isFinite(body.activity_id)) {
+      noteLines.push(`activity_id=${body.activity_id}`);
+    }
+    if (hasObjection) {
+      noteLines.push(`objection: ${body.objection_faced!.trim()}`);
+    }
+    if (hasFeedback) {
+      noteLines.push(`am: ${body.am_feedback!.trim()}`);
+    }
+
+    const feedback = await this.repo.insertFeedback({
+      leadId,
+      prepId: prepRow.id,
+      helpful: hasSciHelpful ? Boolean(body.sci_helpful) : true,
+      notes: noteLines.join('\n'),
+      actorEmail: actorEmail || 'unknown',
+    });
+
     return {
       ok: true,
       lead_id: leadId,

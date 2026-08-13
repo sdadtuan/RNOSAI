@@ -103,6 +103,22 @@ export async function applyLeadMeetingPrepOfferLadder(
   });
 }
 
+export async function submitLeadMeetingPrepCallDebrief(
+  token: string,
+  leadId: number,
+  body: {
+    activity_id?: number;
+    objection_faced?: string;
+    am_feedback?: string;
+    sci_helpful?: boolean;
+  },
+): Promise<{ ok: boolean; feedback_id: number }> {
+  return lmpFetch(token, `/api/v1/leads/${leadId}/meeting-prep/call-debrief`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function submitLeadMeetingPrepDebrief(
   token: string,
   leadId: number,

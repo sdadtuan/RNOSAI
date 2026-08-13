@@ -92,6 +92,27 @@ export class LeadMeetingPrepRepository implements OnModuleDestroy {
     return this.mapRow(row);
   }
 
+  async ensurePrepRow(
+    leadId: number,
+    inputSnapshot: Record<string, unknown> = {},
+  ): Promise<LeadMeetingPrepRow> {
+    const existing = await this.getByLeadId(leadId);
+    if (existing) return existing;
+
+    await this.db.query(
+      `INSERT INTO crm_lead_meeting_prep (lead_id, status, input_snapshot_json)
+       VALUES ($1, 'skipped', $2::jsonb)
+       ON CONFLICT (lead_id) DO NOTHING`,
+      [leadId, JSON.stringify(inputSnapshot)],
+    );
+
+    const row = await this.getByLeadId(leadId);
+    if (!row) {
+      throw new Error(`ensurePrepRow failed for lead ${leadId}`);
+    }
+    return row;
+  }
+
   async upsertPending(input: {
     leadId: number;
     prepStage: LeadMeetingPrepStage;

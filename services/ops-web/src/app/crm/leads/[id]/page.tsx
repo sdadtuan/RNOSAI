@@ -31,6 +31,8 @@ import { aiCopilotEnabled } from '@/lib/ai-flags';
 import { dealRoomEnabled } from '@/lib/crm/deal-room-flags';
 import { leadMeetingPrepEnabled } from '@/lib/crm/lmp-flags';
 import { LeadMeetingPrepPanel } from '@/app/crm/leads/meeting-prep/LeadMeetingPrepPanel';
+import { PostCallDebriefModal } from '@/app/crm/leads/meeting-prep/PostCallDebriefModal';
+import { ShortCallDebriefModal } from '@/app/crm/leads/meeting-prep/ShortCallDebriefModal';
 import { MentionComposer } from '@/components/staff/MentionComposer';
 import {
   assignLead,
@@ -62,6 +64,7 @@ import {
   getRefreshToken,
   getStoredUser,
   hasCap,
+  canViewLmp,
   updateAccessToken,
   updateStoredUser,
   type StoredStaffUser,
@@ -177,6 +180,9 @@ export default function CrmLeadDetailPage() {
   const [statusOptionsLoading, setStatusOptionsLoading] = useState(false);
   const [copilotContext, setCopilotContext] = useState<LeadCopilotContext | null>(null);
   const [copilotContextLoading, setCopilotContextLoading] = useState(false);
+  const [callDebriefOpen, setCallDebriefOpen] = useState(false);
+  const [callDebriefActivityId, setCallDebriefActivityId] = useState<number | null>(null);
+  const [terminalDebriefOpen, setTerminalDebriefOpen] = useState(false);
   const layout = useLeadDetailLayout();
   const online = useNetworkOnline();
   const copilotOn = aiCopilotEnabled();
@@ -507,7 +513,7 @@ export default function CrmLeadDetailPage() {
     setError('');
     setMessage('');
     try {
-      await createLeadActivity(access, leadId, {
+      const activity = await createLeadActivity(access, leadId, {
         activity_type: activityType,
         content,
       });
@@ -517,6 +523,19 @@ export default function CrmLeadDetailPage() {
       await reloadCopilotContext(access);
       if (['call', 'email', 'message', 'meeting'].includes(activityType)) {
         await reloadStatusOptions(access);
+      }
+      if (
+        activityType === 'call' &&
+        leadMeetingPrepEnabled() &&
+        canViewLmp(user)
+      ) {
+        const leadStatus = String(lead?.status ?? status).trim().toLowerCase();
+        if (leadStatus === 'chot' || leadStatus === 'lost') {
+          setTerminalDebriefOpen(true);
+        } else {
+          setCallDebriefActivityId(activity.id);
+          setCallDebriefOpen(true);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Thêm hoạt động thất bại');
@@ -1121,6 +1140,31 @@ export default function CrmLeadDetailPage() {
         >
           AI Copilot
         </button>
+      ) : null}
+      {accessToken && leadMeetingPrepEnabled() && canViewLmp(user) ? (
+        <>
+          <ShortCallDebriefModal
+            token={accessToken}
+            leadId={leadId}
+            activityId={callDebriefActivityId}
+            open={callDebriefOpen}
+            onClose={() => {
+              setCallDebriefOpen(false);
+              setCallDebriefActivityId(null);
+            }}
+            onSubmitted={() => setMessage('Đã gửi debrief nhanh — cảm ơn AM')}
+            onError={(msg) => setError(msg)}
+          />
+          <PostCallDebriefModal
+            token={accessToken}
+            leadId={leadId}
+            leadStatus={lead?.status ?? status}
+            open={terminalDebriefOpen}
+            onClose={() => setTerminalDebriefOpen(false)}
+            onSubmitted={() => setMessage('Đã gửi debrief — cảm ơn AM')}
+            onError={(msg) => setError(msg)}
+          />
+        </>
       ) : null}
       </div>
     </StaffPageShell>
