@@ -53,7 +53,10 @@ run_local() {
   PYTHON="${PYTHON:-python3}"
   if [[ -x "$ROOT/.venv/bin/python" ]]; then
     PYTHON="$ROOT/.venv/bin/python"
+  elif [[ -x "/var/www/ptt/.venv/bin/python" ]]; then
+    PYTHON="/var/www/ptt/.venv/bin/python"
   fi
+  export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
   echo "== DDL LMP (idempotent) =="
   bash "$ROOT/scripts/apply_pg_ddl_lead_meeting_prep.sh"
