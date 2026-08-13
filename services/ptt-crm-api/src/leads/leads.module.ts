@@ -1,6 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { AiScoreAsyncModule } from '../ai-intelligence/ai-score-async.module';
-import { LeadMeetingPrepAsyncModule } from '../lead-meeting-prep/lead-meeting-prep.module';
+import { LeadMeetingPrepAsyncModule } from '../lead-meeting-prep/lead-meeting-prep-async.module';
 import { CrmConfigModule } from '../crm-config/crm-config.module';
 import { CatalogModule } from '../catalog/catalog.module';
 import { CustomerTimelineModule } from '../customer-timeline/customer-timeline.module';

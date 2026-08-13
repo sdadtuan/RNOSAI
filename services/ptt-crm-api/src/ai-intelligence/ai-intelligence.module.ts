@@ -7,7 +7,7 @@ import { AgencyModule } from '../agency/agency.module';
 import { ServiceLifecycleModule } from '../service-lifecycle/service-lifecycle.module';
 import { CrmConfigModule } from '../crm-config/crm-config.module';
 import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.module';
-import { LeadMeetingPrepAsyncModule } from '../lead-meeting-prep/lead-meeting-prep.module';
+import { LeadMeetingPrepAsyncModule } from '../lead-meeting-prep/lead-meeting-prep-async.module';
 import { CustomerTimelineModule } from '../customer-timeline/customer-timeline.module';
 import { EventsModule } from '../events/events.module';
 import { LeadsModule } from '../leads/leads.module';

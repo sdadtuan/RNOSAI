@@ -1,6 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { LeadsModule } from '../leads/leads.module';
-import { LeadMeetingPrepAsyncModule } from '../lead-meeting-prep/lead-meeting-prep.module';
+import { LeadMeetingPrepAsyncModule } from '../lead-meeting-prep/lead-meeting-prep-async.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { StaffIntakeViewGuard, StaffIntakeWriteGuard } from './guards/staff-intake.guard';
 import { IntakeController } from './intake.controller';

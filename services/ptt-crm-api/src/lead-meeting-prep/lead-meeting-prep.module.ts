@@ -38,16 +38,3 @@ import { StaffLmpRunGuard, StaffLmpViewGuard } from './guards/staff-lmp.guard';
   exports: [LeadMeetingPrepEnqueueService, LeadMeetingPrepRepository, LmpSciAnalyticsService],
 })
 export class LeadMeetingPrepModule {}
-
-/** Isolated export for LeadsModule — avoids circular imports. */
-@Module({
-  imports: [WebhooksModule],
-  providers: [
-    LeadMeetingPrepRepository,
-    LeadMeetingPrepInputResolver,
-    LeadMeetingPrepEnqueueService,
-    LmpSciAnalyticsService,
-  ],
-  exports: [LeadMeetingPrepEnqueueService, LeadMeetingPrepRepository, LmpSciAnalyticsService],
-})
-export class LeadMeetingPrepAsyncModule {}
