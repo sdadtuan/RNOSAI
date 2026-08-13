@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { DealRoomScreenShareChecklist } from '@/components/deal-room/DealRoomScreenShareChecklist';
 import { applyLeadMeetingPrepOfferLadder } from '@/lib/lead-meeting-prep-api';
+import { trackLeadCallScriptCopy } from '@/lib/api';
 import type { DealRoomSciSlice } from '@/lib/api';
 
 type Props = {
@@ -16,11 +18,20 @@ type Props = {
   onQuoteApplied?: () => void | Promise<void>;
 };
 
-function copyText(text: string, onMessage?: (msg: string) => void) {
-  void navigator.clipboard.writeText(text).then(
-    () => onMessage?.('Đã copy — paste vào Zalo/call notes'),
-    () => onMessage?.('Không copy được — chọn text thủ công'),
-  );
+function copyText(
+  text: string,
+  onMessage?: (msg: string) => void,
+  onTrack?: () => void | Promise<void>,
+) {
+  void (async () => {
+    try {
+      await onTrack?.();
+      await navigator.clipboard.writeText(text);
+      onMessage?.('Đã copy — paste vào Zalo/call notes');
+    } catch {
+      onMessage?.('Không copy được — chọn text thủ công');
+    }
+  })();
 }
 
 function formatVnd(value: number | null): string {
@@ -39,6 +50,14 @@ export function DealRoomSciPanel({
   onQuoteApplied,
 }: Props) {
   const [busy, setBusy] = useState(false);
+
+  async function trackSciCopy() {
+    try {
+      await trackLeadCallScriptCopy(token, leadId, 'sci');
+    } catch {
+      /* non-blocking */
+    }
+  }
 
   if (!sci.available) {
     return (
@@ -83,13 +102,15 @@ export function DealRoomSciPanel({
         </Link>
       </header>
 
+      <DealRoomScreenShareChecklist leadId={leadId} />
+
       <div className="deal-room-sci__block">
         <div className="deal-room-sci__block-head">
           <h3>Opening narrative</h3>
           <button
             type="button"
             className="btn btn-sm btn-secondary"
-            onClick={() => copyText(sci.opening_narrative_vi, onMessage)}
+            onClick={() => copyText(sci.opening_narrative_vi, onMessage, trackSciCopy)}
           >
             Copy
           </button>
@@ -104,7 +125,7 @@ export function DealRoomSciPanel({
             <button
               type="button"
               className="btn btn-sm btn-secondary"
-              onClick={() => copyText(sci.slide_bullets_vi.join('\n'), onMessage)}
+              onClick={() => copyText(sci.slide_bullets_vi.join('\n'), onMessage, trackSciCopy)}
             >
               Copy
             </button>
@@ -124,7 +145,7 @@ export function DealRoomSciPanel({
             <button
               type="button"
               className="btn btn-sm btn-secondary"
-              onClick={() => copyText(sci.recommended_close_ask_vi, onMessage)}
+              onClick={() => copyText(sci.recommended_close_ask_vi, onMessage, trackSciCopy)}
             >
               Copy
             </button>
@@ -174,7 +195,7 @@ export function DealRoomSciPanel({
           title={!canCreateQuote ? quoteBlockReason : undefined}
           onClick={() => void handleApplyLadder()}
         >
-          {busy ? 'Đang tạo…' : 'Tạo báo giá 3 gói từ SCI'}
+          {busy ? 'Đang tạo…' : 'Tạo báo giá 3 gói từ SCI (1-click)'}
         </button>
         {!canCreateQuote && quoteBlockReason ? (
           <p className="muted">{quoteBlockReason}</p>

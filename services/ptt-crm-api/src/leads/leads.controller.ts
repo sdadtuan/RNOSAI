@@ -306,16 +306,20 @@ export class LeadsController {
     return this.copilotContext.getContext(id);
   }
 
-  /** Phase 3 — Track AI call script copy for playbook A/B. */
+  /** Phase 3 — Track SCI/talk-track copy for playbook A/B. */
   @Post(':id/closed-loop/script-copy')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard)
   trackCallScriptCopy(
     @Param('id', ParseIntPipe) id: number,
+    @Body() body: { source?: string },
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
     const actor = String(req.staffUser?.email ?? req.headers['x-ptt-actor'] ?? 'staff');
-    return this.closedLoop.trackCallScriptCopy(id, actor, 'ai_v1').then(() => ({ ok: true }));
+    const raw = String(body?.source ?? 'sci').trim().toLowerCase();
+    const source =
+      raw === 'sop' || raw === 'manual' ? 'sop' : raw === 'ai_v1' || raw === 'ai' ? 'ai_v1' : 'sci';
+    return this.closedLoop.trackCallScriptCopy(id, actor, source).then(() => ({ ok: true }));
   }
 
   /** E2 — safe SLA reminder activity (BR-AI-01: internal note only). */

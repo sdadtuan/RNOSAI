@@ -39,6 +39,7 @@ describe('chot-closed-loop.util', () => {
   it('buildClosedLoopMetaPatch merges parsed value into meta patch', () => {
     const patch = buildClosedLoopMetaPatch({
       auditNote: 'Chốt Mai — gói facial cơ bản — 1.500.000 đ',
+      existingMeta: { call_script_source: 'sci' },
       activities: [{ activity_type: 'call' }],
       firstCallAt: '2026-08-01T10:00:00Z',
       b2CompletedAt: '2026-08-01T11:00:00Z',
@@ -76,9 +77,23 @@ describe('chot-closed-loop.util', () => {
   });
 
   it('normalizeCallScriptSource maps aliases', () => {
+    expect(normalizeCallScriptSource('sci')).toBe('sci');
     expect(normalizeCallScriptSource('ai_v1')).toBe('ai_v1');
     expect(normalizeCallScriptSource('manual')).toBe('sop');
     expect(normalizeCallScriptSource('')).toBe('unknown');
+  });
+
+  it('evaluateChotQaFlags adds no_sci_before_chot when SCI not used', () => {
+    const flags = evaluateChotQaFlags({
+      auditNote: 'Chốt Lan — gói facial — 2tr',
+      dealValueVnd: 2_000_000,
+      activities: [{ activity_type: 'call' }],
+      firstCallAt: '2026-08-01T10:00:00Z',
+      b2CompletedAt: '2026-08-01T11:00:00Z',
+      sciUsedBeforeChot: false,
+    });
+    expect(flags).toContain('no_sci_before_chot');
+    expect(flags).not.toContain('missing_deal_value');
   });
 
   it('closedWithin24h respects 24h window', () => {

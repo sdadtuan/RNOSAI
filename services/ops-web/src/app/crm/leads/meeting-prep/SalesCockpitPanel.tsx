@@ -14,6 +14,7 @@ import {
   SalesCockpitTalkTrackTab,
 } from './SalesCockpitTabs';
 import { SalesCockpitDealReadyTab } from './SalesCockpitDealReadyTab';
+import { SalesCockpitObjectionsPin } from './SalesCockpitObjectionsPin';
 import type { LeadMeetingPrepResponse } from './lead-meeting-prep.types';
 
 type Props = {
@@ -55,6 +56,8 @@ export function SalesCockpitPanel({
   const sci = prep.result?.close_intelligence;
   const canRun = canRunLmp(user);
   const showDealReady =
+    prep.prep_stage === 'm3_pre_close' || Boolean(sci?.deal_room_payload);
+  const showObjectionsPin =
     prep.prep_stage === 'm3_pre_close' || Boolean(sci?.deal_room_payload);
   const visibleTabs = showDealReady ? TABS : TABS.filter((t) => t.id !== 'deal');
 
@@ -107,7 +110,7 @@ export function SalesCockpitPanel({
               </button>
             ))}
           </nav>
-          <div className="lmp-cockpit-body">
+          <div className={`lmp-cockpit-body${showObjectionsPin ? ' lmp-cockpit-body--with-pin' : ''}`}>
             {tab === 'intel' ? <SalesCockpitIntelTab result={prep.result} sci={sci} /> : null}
             {tab === 'talk' ? (
               <SalesCockpitTalkTrackTab
@@ -129,6 +132,9 @@ export function SalesCockpitPanel({
                 onMessage={onMessage}
                 onError={onError}
               />
+            ) : null}
+            {showObjectionsPin && tab !== 'objections' ? (
+              <SalesCockpitObjectionsPin sci={sci} />
             ) : null}
           </div>
           <footer className="lmp-cockpit-foot">

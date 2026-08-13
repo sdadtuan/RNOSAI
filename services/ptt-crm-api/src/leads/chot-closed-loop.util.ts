@@ -6,15 +6,17 @@ export type ChotQaFlag =
   | 'missing_deal_value'
   | 'no_call_before_chot'
   | 'missing_b2_confirmation'
-  | 'weak_audit_evidence';
+  | 'weak_audit_evidence'
+  | 'no_sci_before_chot';
 
-export type CallScriptSource = 'ai_v1' | 'sop' | 'unknown';
+export type CallScriptSource = 'ai_v1' | 'sop' | 'sci' | 'unknown';
 
 export const CHOT_QA_FLAG_LABELS: Record<ChotQaFlag, string> = {
   missing_deal_value: 'Thiếu giá trị VND (ROAS)',
   no_call_before_chot: 'Chốt không có call trước đó',
   missing_b2_confirmation: 'Chưa hoàn thành B2',
   weak_audit_evidence: 'Audit note thiếu bằng chứng',
+  no_sci_before_chot: 'Chốt không qua SCI (coaching — không block)',
 };
 
 const CALL_ACTIVITY_TYPES = new Set(['call', 'zalo_call', 'phone']);
@@ -114,9 +116,36 @@ export function normalizeCallScriptSource(raw: unknown): CallScriptSource {
   const v = String(raw ?? '')
     .trim()
     .toLowerCase();
+  if (v === 'sci') return 'sci';
   if (v === 'ai_v1' || v === 'ai') return 'ai_v1';
   if (v === 'sop' || v === 'manual') return 'sop';
   return 'unknown';
+}
+
+/** True when AM used SCI prep (M3 ready, script copy, or deal_room_payload). */
+export function hadSciBeforeChot(input: {
+  meta?: Record<string, unknown> | null;
+  prepStatus?: string | null;
+  prepStage?: string | null;
+  hasDealRoomPayload?: boolean;
+}): boolean {
+  const meta = input.meta ?? {};
+  const source = normalizeCallScriptSource(meta.call_script_source);
+  if (source === 'sci' || source === 'ai_v1') return true;
+  if (typeof meta.call_script_copied_at === 'string' && meta.call_script_copied_at.trim()) {
+    return true;
+  }
+
+  const status = String(input.prepStatus ?? '')
+    .trim()
+    .toLowerCase();
+  const stage = String(input.prepStage ?? '')
+    .trim()
+    .toLowerCase();
+  if (status === 'ready' && stage === 'm3_pre_close') return true;
+  if (input.hasDealRoomPayload) return true;
+
+  return false;
 }
 
 export function evaluateChotQaFlags(input: {
@@ -125,6 +154,7 @@ export function evaluateChotQaFlags(input: {
   activities: ChotActivitySnippet[];
   firstCallAt: string | null;
   b2CompletedAt: string | null;
+  sciUsedBeforeChot?: boolean;
 }): ChotQaFlag[] {
   const flags: ChotQaFlag[] = [];
   const note = String(input.auditNote ?? '').trim();
@@ -149,6 +179,10 @@ export function evaluateChotQaFlags(input: {
     flags.push('weak_audit_evidence');
   }
 
+  if (input.sciUsedBeforeChot === false) {
+    flags.push('no_sci_before_chot');
+  }
+
   return flags;
 }
 
@@ -158,6 +192,7 @@ export function buildClosedLoopMetaPatch(input: {
   activities: ChotActivitySnippet[];
   firstCallAt: string | null;
   b2CompletedAt: string | null;
+  sciUsedBeforeChot?: boolean;
   now?: Date;
 }): ChotClosedLoopMetaPatch {
   const existing = input.existingMeta ?? {};
@@ -170,12 +205,17 @@ export function buildClosedLoopMetaPatch(input: {
     typeof existing.chot_package === 'string' ? existing.chot_package.trim() : '';
   const chotPackage = parsedPackage ?? (existingPackage || null);
 
+  const sciUsed =
+    input.sciUsedBeforeChot ??
+    hadSciBeforeChot({ meta: existing });
+
   const qaFlags = evaluateChotQaFlags({
     auditNote: input.auditNote,
     dealValueVnd,
     activities: input.activities,
     firstCallAt: input.firstCallAt,
     b2CompletedAt: input.b2CompletedAt,
+    sciUsedBeforeChot: sciUsed,
   });
 
   const now = (input.now ?? new Date()).toISOString();
@@ -221,10 +261,12 @@ export function buildPlaybookAbMetrics(rows: PlaybookAbRow[], windowDays = 30): 
   const buckets: Record<CallScriptSource, PlaybookAbRow[]> = {
     ai_v1: [],
     sop: [],
+    sci: [],
     unknown: [],
   };
   for (const row of rows) {
-    buckets[row.call_script_source].push(row);
+    const key = row.call_script_source === 'sci' ? 'ai_v1' : row.call_script_source;
+    buckets[key].push(row);
   }
 
   const ai = summarizePlaybookBucket(buckets.ai_v1);

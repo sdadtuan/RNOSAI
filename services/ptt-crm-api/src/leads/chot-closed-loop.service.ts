@@ -6,6 +6,7 @@ import { CrmLeadsSqliteRepository } from '../crm-leads-legacy/crm-leads-sqlite.r
 import { parseB2CompletedAt } from '../cskh-board/cskh-board-sla.util';
 import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
 import { LeadAttributionService } from './lead-attribution.service';
+import { LeadMeetingPrepRepository } from '../lead-meeting-prep/lead-meeting-prep.repository';
 import { PgLeadsWriteRepository } from './pg-leads-write.repository';
 import {
   CHOT_QA_FLAG_LABELS,
@@ -13,6 +14,7 @@ import {
   buildClosedLoopMetaPatch,
   buildPlaybookAbMetrics,
   closedWithin24h,
+  hadSciBeforeChot,
   normalizeCallScriptSource,
   type CallScriptSource,
   type ChotQaFlag,
@@ -63,6 +65,7 @@ export class ChotClosedLoopService implements OnModuleDestroy {
     private readonly leadSqlite: CrmLeadsSqliteRepository,
     private readonly pgWrite: PgLeadsWriteRepository,
     private readonly attribution: LeadAttributionService,
+    private readonly lmpRepo: LeadMeetingPrepRepository,
   ) {}
 
   private get db(): Pool {
@@ -109,6 +112,23 @@ export class ChotClosedLoopService implements OnModuleDestroy {
     const firstCallAt = firstCallMap.get(input.leadId) ?? null;
     const b2CompletedAt = parseB2CompletedAt(row.care_stages_done_json);
     const meta = this.parseMeta(row.meta_json);
+    const prepRow = await this.lmpRepo.getByLeadId(input.leadId);
+    const resultJson =
+      prepRow?.result_json && typeof prepRow.result_json === 'object' && !Array.isArray(prepRow.result_json)
+        ? (prepRow.result_json as Record<string, unknown>)
+        : null;
+    const closeIntel =
+      resultJson?.close_intelligence &&
+      typeof resultJson.close_intelligence === 'object' &&
+      !Array.isArray(resultJson.close_intelligence)
+        ? (resultJson.close_intelligence as Record<string, unknown>)
+        : null;
+    const sciUsedBeforeChot = hadSciBeforeChot({
+      meta,
+      prepStatus: prepRow?.status ?? null,
+      prepStage: prepRow?.prep_stage ?? null,
+      hasDealRoomPayload: Boolean(closeIntel?.deal_room_payload),
+    });
 
     const patch = buildClosedLoopMetaPatch({
       auditNote: note,
@@ -119,6 +139,7 @@ export class ChotClosedLoopService implements OnModuleDestroy {
       })),
       firstCallAt,
       b2CompletedAt,
+      sciUsedBeforeChot,
     });
 
     const merged: Record<string, unknown> = { ...patch };
@@ -131,7 +152,7 @@ export class ChotClosedLoopService implements OnModuleDestroy {
     }
   }
 
-  async trackCallScriptCopy(leadId: number, actor: string, source: CallScriptSource = 'ai_v1'): Promise<void> {
+  async trackCallScriptCopy(leadId: number, actor: string, source: CallScriptSource = 'sci'): Promise<void> {
     if (!this.config.crmLeadsLegacyPg) return;
     await this.pgWrite.mergeLeadMeta(leadId, {
       call_script_source: source,
@@ -322,7 +343,10 @@ export class ChotClosedLoopService implements OnModuleDestroy {
       const receivedAt = row.received_at ?? row.created_at;
       return {
         lead_id: Number(row.sqlite_lead_id),
-        call_script_source: normalizeCallScriptSource(meta.call_script_source),
+        call_script_source: (() => {
+          const s = normalizeCallScriptSource(meta.call_script_source);
+          return s === 'sci' ? 'ai_v1' : s;
+        })(),
         deal_value_vnd: parseDealValueVnd(meta),
         closed_within_24h: closedWithin24h(receivedAt, row.updated_at),
         received_at: receivedAt,

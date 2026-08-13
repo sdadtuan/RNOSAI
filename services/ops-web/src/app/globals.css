@@ -11802,3 +11802,157 @@ body {
 .intake-prep-card {
   margin-bottom: 0.75rem;
 }
+
+/* P3 M3 — objections pin + Deal Room SOP + mobile debrief */
+.lmp-cockpit-body--with-pin {
+  position: relative;
+  padding-right: min(280px, 34%);
+}
+
+.lmp-objections-pin {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(260px, 100%);
+  max-height: min(420px, 70vh);
+  overflow: auto;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  background: var(--surface, #fff);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+}
+
+.lmp-objections-pin__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.lmp-objections-pin__toggle {
+  margin-left: auto;
+}
+
+.lmp-objections-pin__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.lmp-objections-pin__item details summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.lmp-objections-pin__item p {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+}
+
+.lmp-objections-pin__more {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+}
+
+.deal-room-sop-checklist {
+  margin: 0.75rem 0 0;
+  padding: 0.75rem;
+  border: 1px dashed rgba(37, 99, 235, 0.35);
+  border-radius: 10px;
+  background: rgba(239, 246, 255, 0.5);
+}
+
+.deal-room-sop-checklist__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.deal-room-sop-checklist__head h3 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.deal-room-sop-checklist__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.deal-room-sop-checklist__list li.is-done {
+  opacity: 0.65;
+}
+
+.deal-room-sop-checklist__list label {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 0.35rem 0.5rem;
+  align-items: baseline;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.deal-room-sop-checklist__time {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #2563eb;
+  white-space: nowrap;
+}
+
+.deal-room-sop-checklist__hint {
+  grid-column: 2 / -1;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .lmp-cockpit-body--with-pin {
+    padding-right: 0;
+    padding-bottom: 12rem;
+  }
+
+  .lmp-objections-pin {
+    position: fixed;
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    top: auto;
+    width: auto;
+    max-height: 40vh;
+    z-index: 1100;
+  }
+}
+
+@media (max-width: 640px) {
+  .lmp-debrief-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .lmp-debrief-modal,
+  .lmp-debrief-modal--short {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 16px 16px 0 0;
+    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .lmp-debrief-modal__actions {
+    flex-direction: column-reverse;
+  }
+
+  .lmp-debrief-modal__actions .btn {
+    width: 100%;
+  }
+}

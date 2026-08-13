@@ -906,7 +906,8 @@ export type ChotQaFlag =
   | 'missing_deal_value'
   | 'no_call_before_chot'
   | 'missing_b2_confirmation'
-  | 'weak_audit_evidence';
+  | 'weak_audit_evidence'
+  | 'no_sci_before_chot';
 
 export interface LeadClosedLoopContext {
   lead_id: number;
@@ -917,7 +918,7 @@ export interface LeadClosedLoopContext {
   qa_flags: ChotQaFlag[];
   qa_flag_labels: Record<ChotQaFlag, string>;
   closed_loop_at: string | null;
-  call_script_source: 'ai_v1' | 'sop' | 'unknown';
+  call_script_source: 'ai_v1' | 'sop' | 'sci' | 'unknown';
   hub_mapped: boolean;
   hub_href: string | null;
   roas_hint: string;
@@ -938,10 +939,15 @@ export async function fetchLeadClosedLoopContext(
   return body;
 }
 
-export async function trackLeadCallScriptCopy(token: string, leadId: number): Promise<void> {
+export async function trackLeadCallScriptCopy(
+  token: string,
+  leadId: number,
+  source: 'sci' | 'ai_v1' | 'sop' = 'sci',
+): Promise<void> {
   const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/closed-loop/script-copy`, {
     method: 'POST',
-    headers: authHeaders(token),
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source }),
   });
   if (!res.ok) {
     const body = await parseJson<{ error?: string }>(res);

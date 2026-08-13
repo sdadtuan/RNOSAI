@@ -75,7 +75,15 @@ export function ClosedLoopPanel({ token, leadId, status, closedLoop, copilotLoad
         </div>
         <div>
           <dt>Script nguồn</dt>
-          <dd>{ctx.call_script_source === 'ai_v1' ? 'AI v1' : ctx.call_script_source === 'sop' ? 'SOP' : 'Chưa gắn'}</dd>
+          <dd>
+            {ctx.call_script_source === 'sci'
+              ? 'SCI talk track'
+              : ctx.call_script_source === 'ai_v1'
+                ? 'AI v1'
+                : ctx.call_script_source === 'sop'
+                  ? 'SOP'
+                  : 'Chưa gắn'}
+          </dd>
         </div>
       </dl>
 
