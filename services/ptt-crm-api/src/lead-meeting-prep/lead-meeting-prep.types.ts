@@ -80,3 +80,9 @@ export interface RunLeadMeetingPrepBody {
 export interface SelectEntityBody {
   entity_id: string;
 }
+
+export interface LeadMeetingPrepFeedbackBody {
+  helpful: boolean;
+  notes?: string;
+  service_dv_code?: string;
+}

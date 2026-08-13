@@ -53,6 +53,17 @@ export async function selectLeadMeetingPrepEntity(
   });
 }
 
+export async function submitLeadMeetingPrepFeedback(
+  token: string,
+  leadId: number,
+  body: { helpful: boolean; notes?: string; service_dv_code?: string },
+): Promise<{ ok: boolean; feedback_id: number }> {
+  return lmpFetch(token, `/api/v1/leads/${leadId}/meeting-prep/feedback`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export function prepStatusChipLabel(status: LeadMeetingPrepResponse['status']): string | null {
   switch (status) {
     case 'ready':

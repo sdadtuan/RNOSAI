@@ -61,12 +61,16 @@ fi
 "$PYTHON" - <<'PY' && ok "synthesize stub shape"
 from ptt_crm.lead_meeting_prep.synthesize import build_stub_llm_result
 from ptt_crm.lead_meeting_prep.collect import collect_company
+from ptt_crm.lead_meeting_prep import close_intelligence
 inp = {"lead_id": 1, "company_name": "Cty Gate", "industry": "BDS", "problem": "Can lead", "phone": "0901234567"}
 collect = collect_company(inp)
 result = build_stub_llm_result(inp, collect, verify_website=None, prep_stage="m1_first_strike")
+close_intelligence.enrich_close_intelligence(result, inp, collect, prep_stage="m1_first_strike")
 assert result["contact_profile"]["found"] is False
 assert 1 <= len(result["recommended_services"]) <= 3
-assert result["meta"]["prompt_version"] == "lmp-synth-v1"
+sci = result["close_intelligence"]
+assert len(sci["offer_ladder"]) == 3
+assert len(sci["talk_track"]["phases"]) >= 3
 PY
 
 if [[ "${LMP_E2E:-0}" == "1" ]]; then

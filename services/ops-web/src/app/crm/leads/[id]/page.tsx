@@ -800,7 +800,7 @@ export default function CrmLeadDetailPage() {
                     className={b2bPane === 'meeting-prep' ? 'is-active' : ''}
                     onClick={() => openMeetingPrepTab()}
                   >
-                    Chuẩn bị cuộc hẹn
+                    Sales Cockpit
                   </button>
                 ) : null}
                 {showConsultTab ? (

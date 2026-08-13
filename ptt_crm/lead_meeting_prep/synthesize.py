@@ -7,8 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ptt_crm.lead_meeting_prep import schema, spc_catalog
-from ptt_crm.lead_meeting_prep.readiness import compute_readiness_score
+from ptt_crm.lead_meeting_prep import schema, spc_catalog, close_intelligence
 from ptt_crm.lead_meeting_prep import stub_synthesize
 from ptt_crm import lmp_llm_client
 
@@ -102,12 +101,22 @@ def synthesize_prep(
 
     if not llm_out.get("ok"):
         result = build_stub_llm_result(inp, collect, verify_website=verify_website, prep_stage=prep_stage)
+        validated = schema.validate_prep_result(result, allowed_dv_codes=allowed, prep_stage=prep_stage)
+        enriched = close_intelligence.enrich_close_intelligence(
+            validated,
+            inp,
+            {**collect, "verify_website_confidence": (verify_website or {}).get("confidence")},
+            prep_stage=prep_stage,
+            correlation_id=correlation_id,
+        )
         return {
-            "result": schema.validate_prep_result(result, allowed_dv_codes=allowed, prep_stage=prep_stage),
+            "result": validated,
             "ai_run_id": None,
             "model": "stub-fallback",
             "stub_mode": True,
             "llm_error": llm_out.get("error"),
+            "readiness_score": enriched["readiness_score"],
+            "readiness_breakdown": enriched.get("readiness_breakdown"),
         }
 
     parsed = llm_out.get("parsed") or {}
@@ -125,8 +134,30 @@ def synthesize_prep(
     parsed["meta"] = meta
 
     validated = schema.validate_prep_result(parsed, allowed_dv_codes=allowed, prep_stage=prep_stage)
-    readiness = compute_readiness_score(inp, {**collect, "verify_website_confidence": (verify_website or {}).get("confidence")})
-    validated["meta"]["close_readiness_score"] = readiness
+
+    sku_codes: set[str] = set()
+    try:
+        from ptt_jobs.db import pg_available, pg_connection
+
+        if pg_available():
+            with pg_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT sku_code FROM spc_offer WHERE status = 'published' AND active = true"
+                    )
+                    sku_codes = {str(r[0]).upper() for r in cur.fetchall()}
+    except Exception:
+        pass
+
+    enriched = close_intelligence.enrich_close_intelligence(
+        validated,
+        inp,
+        {**collect, "verify_website_confidence": (verify_website or {}).get("confidence")},
+        prep_stage=prep_stage,
+        correlation_id=correlation_id,
+        allowed_sku_codes=sku_codes or None,
+    )
+    readiness = enriched["readiness_score"]
 
     return {
         "result": validated,
@@ -134,4 +165,5 @@ def synthesize_prep(
         "model": meta["model"],
         "stub_mode": bool(llm_out.get("stub_mode")),
         "readiness_score": readiness,
+        "readiness_breakdown": enriched.get("readiness_breakdown"),
     }

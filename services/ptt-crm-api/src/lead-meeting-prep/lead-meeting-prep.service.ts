@@ -2,7 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { LeadMeetingPrepEnqueueService } from './lead-meeting-prep-enqueue.service';
 import { LeadMeetingPrepInputResolver } from './lead-meeting-prep-input.resolver';
 import { LeadMeetingPrepRepository } from './lead-meeting-prep.repository';
+import { extractReadinessBreakdown } from './close-readiness.util';
 import type {
+  LeadMeetingPrepFeedbackBody,
   LeadMeetingPrepStatus,
   RunLeadMeetingPrepBody,
   SelectEntityBody,
@@ -58,10 +60,14 @@ export class LeadMeetingPrepService {
 
     const stepsCompleted: string[] = [];
     if (row.status === 'ready' || row.status === 'failed') {
-      stepsCompleted.push('collect', 'verify', 'synthesize');
+      stepsCompleted.push('collect', 'verify', 'strategize', 'arm');
     } else if (row.status === 'running') {
-      stepsCompleted.push('collect');
+      stepsCompleted.push('collect', 'verify');
     }
+
+    const result =
+      row.status === 'ready' ? (row.result_json as Record<string, unknown>) : null;
+    const readinessBreakdown = extractReadinessBreakdown(result);
 
     return {
       ok: true,
@@ -75,13 +81,38 @@ export class LeadMeetingPrepService {
       },
       prep_stage: row.prep_stage,
       close_readiness_score: row.close_readiness_score,
+      readiness_breakdown: readinessBreakdown,
       input_snapshot: row.input_snapshot_json,
       entity_candidates:
         row.status === 'awaiting_entity_choice' ? row.entity_candidates_json : null,
-      result: row.status === 'ready' ? row.result_json : null,
+      result,
       error: row.error_message,
       prep_version: row.prep_version,
       updated_at: row.updated_at,
+    };
+  }
+
+  async submitFeedback(
+    leadId: number,
+    body: LeadMeetingPrepFeedbackBody,
+    actorEmail: string,
+  ) {
+    const row = await this.repo.getByLeadId(leadId);
+    if (!row) {
+      throw new NotFoundException({ error: 'meeting_prep_not_found' });
+    }
+    const feedback = await this.repo.insertFeedback({
+      leadId,
+      prepId: row.id,
+      helpful: Boolean(body.helpful),
+      notes: body.notes?.trim() || null,
+      serviceDvCode: body.service_dv_code?.trim() || null,
+      actorEmail: actorEmail || 'unknown',
+    });
+    return {
+      ok: true,
+      lead_id: leadId,
+      feedback_id: feedback.id,
     };
   }
 

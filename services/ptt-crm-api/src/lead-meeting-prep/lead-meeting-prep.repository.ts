@@ -143,6 +143,31 @@ export class LeadMeetingPrepRepository implements OnModuleDestroy {
     );
   }
 
+  async insertFeedback(input: {
+    leadId: number;
+    prepId: number;
+    helpful: boolean;
+    notes?: string | null;
+    serviceDvCode?: string | null;
+    actorEmail: string;
+  }): Promise<{ id: number }> {
+    const result = await this.db.query(
+      `INSERT INTO crm_lead_meeting_prep_feedback
+         (lead_id, prep_id, helpful, notes, service_dv_code, actor_email)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id`,
+      [
+        input.leadId,
+        input.prepId,
+        input.helpful,
+        input.notes ?? null,
+        input.serviceDvCode ?? null,
+        input.actorEmail,
+      ],
+    );
+    return { id: Number(result.rows[0]?.id ?? 0) };
+  }
+
   private mapRow(row: Record<string, unknown>): LeadMeetingPrepRow {
     return {
       id: Number(row.id),

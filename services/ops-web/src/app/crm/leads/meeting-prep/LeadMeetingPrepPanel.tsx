@@ -9,6 +9,7 @@ import {
 import { canRunLmp, canViewLmp, type StoredStaffUser } from '@/lib/auth';
 import { LeadMeetingPrepEntityPicker } from './LeadMeetingPrepEntityPicker';
 import { LeadMeetingPrepProgress } from './LeadMeetingPrepProgress';
+import { SalesCockpitPanel } from './SalesCockpitPanel';
 import type { LeadMeetingPrepResponse } from './lead-meeting-prep.types';
 
 type Props = {
@@ -145,6 +146,22 @@ export function LeadMeetingPrepPanel({
 
   const status = prep?.status ?? 'none';
   const result = prep?.result;
+
+  if (prep && status === 'ready' && result?.close_intelligence) {
+    return (
+      <SalesCockpitPanel
+        token={token}
+        leadId={leadId}
+        user={user}
+        prep={prep}
+        busy={busy}
+        onRun={(force) => void onRun(force)}
+        onPickEntity={(id) => void onPickEntity(id)}
+        onMessage={onMessage}
+        onError={onError}
+      />
+    );
+  }
 
   return (
     <section id="lmp-panel" className="lmp-panel">

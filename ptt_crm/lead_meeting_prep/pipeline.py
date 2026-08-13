@@ -1,11 +1,20 @@
-"""Lead Meeting Prep job pipeline — S-LMP-1b (collect → verify → synthesize)."""
+"""Lead Meeting Prep job pipeline — S-LMP-3 (collect → verify → synthesize → strategize → arm)."""
 from __future__ import annotations
 
+import json
 import logging
 import os
 from typing import Any
 
-from ptt_crm.lead_meeting_prep import collect, input_resolver, repository, synthesize, verify
+from ptt_crm.lead_meeting_prep import (
+    apify_facebook,
+    close_intelligence,
+    collect,
+    input_resolver,
+    repository,
+    synthesize,
+    verify,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +62,31 @@ def process_lead_meeting_prep_payload(
     repository.set_status(lead_id, status="running", input_snapshot=snapshot, prep_stage=prep_stage)
 
     try:
-        if mode == "resume_entity" and selected_entity_id:
+        apify_runs = 0
+        if mode == "strategize_arm":
+            collect_json = repository.get_collect_json(lead_id) or {}
+            existing_result = repository.get_result_json(lead_id)
+            if not collect_json:
+                collect_json = collect.collect_company(inp)
+            verification = {"filtered_collect": collect_json, "website": None}
+            if existing_result and isinstance(existing_result, dict):
+                synth = _rearm_only(
+                    inp,
+                    collect_json,
+                    existing_result,
+                    prep_stage=prep_stage,
+                    correlation_id=correlation_id,
+                )
+                return _finalize_ready(
+                    lead_id,
+                    inp,
+                    collect_json,
+                    verification,
+                    synth,
+                    prep_stage=prep_stage,
+                    apify_runs=0,
+                )
+        elif mode == "resume_entity" and selected_entity_id:
             collect_json = repository.get_collect_json(lead_id) or {}
             if not collect_json:
                 collect_json = collect.collect_company(inp)
@@ -63,6 +96,10 @@ def process_lead_meeting_prep_payload(
             collect_json = collect.collect_company(inp)
         else:
             collect_json = repository.get_collect_json(lead_id) or collect.collect_company(inp)
+
+        social, apify_runs = apify_facebook.enrich_social_channels(inp, collect_json)
+        if social:
+            collect_json = {**collect_json, "social_channels": social}
 
         verification = verify.verify_entities(
             collect_json,
@@ -99,48 +136,100 @@ def process_lead_meeting_prep_payload(
             correlation_id=correlation_id,
         )
 
-        repository.set_status(
+        return _finalize_ready(
             lead_id,
-            status="ready",
-            collect_json=filtered_collect,
-            result_json=synth["result"],
-            tavily_credits=int(filtered_collect.get("credits_used") or 0),
-            close_readiness_score=int(synth.get("readiness_score") or 0),
+            inp,
+            filtered_collect,
+            verification,
+            synth,
             prep_stage=prep_stage,
+            apify_runs=apify_runs,
             selected_entity_id=verification.get("selected_entity_id"),
-            ai_agent_run_id=synth.get("ai_run_id"),
-            error_message=None,
         )
-
-        try:
-            from ptt_crm.timeline_events import record_lead_meeting_prep_ready_timeline
-
-            services = (synth.get("result") or {}).get("recommended_services") or []
-            record_lead_meeting_prep_ready_timeline(
-                lead_id=lead_id,
-                client_id=str(inp.get("client_id") or "") or None,
-                dv_codes=[str(s.get("dv_code") or "") for s in services if isinstance(s, dict)],
-                dv_names=[str(s.get("name_vi") or "") for s in services if isinstance(s, dict)],
-                prep_version=1,
-            )
-        except Exception as exc:
-            logger.debug("timeline lmp ready skipped lead=%s: %s", lead_id, exc)
-
-        logger.info(
-            "lead_meeting_prep ready lead_id=%s readiness=%s stub=%s correlation=%s",
-            lead_id,
-            synth.get("readiness_score"),
-            synth.get("stub_mode"),
-            correlation_id,
-        )
-        return {
-            "ok": True,
-            "lead_id": lead_id,
-            "status": "ready",
-            "close_readiness_score": synth.get("readiness_score"),
-            "ai_run_id": synth.get("ai_run_id"),
-        }
     except Exception as exc:
         repository.set_status(lead_id, status="failed", error_message=str(exc))
         logger.exception("lead_meeting_prep failed lead_id=%s", lead_id)
         return {"ok": False, "error": str(exc), "lead_id": lead_id}
+
+
+def _rearm_only(
+    inp: dict[str, Any],
+    collect_json: dict[str, Any],
+    existing_result: dict[str, Any],
+    *,
+    prep_stage: str,
+    correlation_id: str | None,
+) -> dict[str, Any]:
+    result = json.loads(json.dumps(existing_result))
+    enriched = close_intelligence.enrich_close_intelligence(
+        result,
+        inp,
+        collect_json,
+        prep_stage=prep_stage,
+        correlation_id=correlation_id,
+    )
+    return {
+        "result": result,
+        "readiness_score": enriched["readiness_score"],
+        "readiness_breakdown": enriched.get("readiness_breakdown"),
+        "ai_run_id": None,
+        "stub_mode": True,
+    }
+
+
+def _finalize_ready(
+    lead_id: int,
+    inp: dict[str, Any],
+    filtered_collect: dict[str, Any],
+    verification: dict[str, Any],
+    synth: dict[str, Any],
+    *,
+    prep_stage: str,
+    apify_runs: int = 0,
+    selected_entity_id: str | None = None,
+) -> dict[str, Any]:
+    result = synth.get("result") or {}
+    if social := filtered_collect.get("social_channels"):
+        result["social_channels"] = social
+
+    repository.set_status(
+        lead_id,
+        status="ready",
+        collect_json=filtered_collect,
+        result_json=result,
+        tavily_credits=int(filtered_collect.get("credits_used") or 0),
+        close_readiness_score=int(synth.get("readiness_score") or 0),
+        prep_stage=prep_stage,
+        selected_entity_id=selected_entity_id or verification.get("selected_entity_id"),
+        ai_agent_run_id=synth.get("ai_run_id"),
+        apify_runs=apify_runs,
+        error_message=None,
+    )
+
+    try:
+        from ptt_crm.timeline_events import record_lead_meeting_prep_ready_timeline
+
+        services = result.get("recommended_services") or []
+        record_lead_meeting_prep_ready_timeline(
+            lead_id=lead_id,
+            client_id=str(inp.get("client_id") or "") or None,
+            dv_codes=[str(s.get("dv_code") or "") for s in services if isinstance(s, dict)],
+            dv_names=[str(s.get("name_vi") or "") for s in services if isinstance(s, dict)],
+            prep_version=1,
+        )
+    except Exception as exc:
+        logger.debug("timeline lmp ready skipped lead=%s: %s", lead_id, exc)
+
+    logger.info(
+        "lead_meeting_prep ready lead_id=%s readiness=%s stub=%s",
+        lead_id,
+        synth.get("readiness_score"),
+        synth.get("stub_mode"),
+    )
+    return {
+        "ok": True,
+        "lead_id": lead_id,
+        "status": "ready",
+        "close_readiness_score": synth.get("readiness_score"),
+        "ai_run_id": synth.get("ai_run_id"),
+    }

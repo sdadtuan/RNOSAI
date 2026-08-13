@@ -11280,3 +11280,121 @@ body {
     justify-content: flex-start;
   }
 }
+
+/* Sales Cockpit (S-LMP-3) */
+.lmp-cockpit-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.75rem 0;
+}
+
+.lmp-cockpit-tabs button {
+  border: 1px solid var(--border, #e5e7eb);
+  background: var(--surface, #fff);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.lmp-cockpit-tabs button.is-active {
+  border-color: rgba(37, 99, 235, 0.5);
+  background: rgba(37, 99, 235, 0.1);
+  font-weight: 600;
+}
+
+.lmp-cockpit-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
+.lmp-gauge {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+}
+
+.lmp-gauge__ring {
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  border: 3px solid currentColor;
+}
+
+.lmp-gauge--red { color: #dc2626; }
+.lmp-gauge--yellow { color: #ca8a04; }
+.lmp-gauge--green { color: #16a34a; }
+
+.lmp-gauge__breakdown {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  font-size: 0.72rem;
+}
+
+.lmp-gauge__breakdown .is-off {
+  opacity: 0.45;
+}
+
+.lmp-offer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.lmp-offer-card {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: var(--surface-muted, #f8fafc);
+}
+
+.lmp-offer-card--rec {
+  border-color: rgba(37, 99, 235, 0.55);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15);
+}
+
+.lmp-offer-card__tier {
+  font-size: 0.7rem;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.lmp-objection-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lmp-objection-card {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+}
+
+.lmp-badge--block {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
+
+.lmp-badge--warn {
+  background: rgba(245, 158, 11, 0.15);
+  color: #b45309;
+}
+
+@media (max-width: 900px) {
+  .lmp-offer-grid {
+    grid-template-columns: 1fr;
+  }
+}

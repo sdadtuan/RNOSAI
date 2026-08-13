@@ -1,8 +1,14 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, UseGuards } from '@nestjs/common';
+import { StaffUser } from '../staff-auth/staff-jwt.guard';
+import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffLmpRunGuard, StaffLmpViewGuard } from './guards/staff-lmp.guard';
 import { LeadMeetingPrepEnabledGuard } from './guards/lead-meeting-prep-enabled.guard';
-import type { RunLeadMeetingPrepBody, SelectEntityBody } from './lead-meeting-prep.types';
+import type {
+  LeadMeetingPrepFeedbackBody,
+  RunLeadMeetingPrepBody,
+  SelectEntityBody,
+} from './lead-meeting-prep.types';
 import { LeadMeetingPrepService } from './lead-meeting-prep.service';
 
 @Controller('api/v1/leads')
@@ -26,5 +32,15 @@ export class LeadMeetingPrepController {
   @UseGuards(StaffOrInternalKeyGuard, StaffLmpRunGuard)
   selectEntity(@Param('id', ParseIntPipe) id: number, @Body() body: SelectEntityBody) {
     return this.prep.selectEntity(id, body);
+  }
+
+  @Post(':id/meeting-prep/feedback')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLmpViewGuard)
+  submitFeedback(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: LeadMeetingPrepFeedbackBody,
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.prep.submitFeedback(id, body ?? { helpful: false }, staffUser?.email ?? '');
   }
 }

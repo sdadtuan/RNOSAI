@@ -5,12 +5,15 @@ import type { LeadMeetingPrepStatus } from './lead-meeting-prep.types';
 const STEPS = [
   { key: 'collect', label: 'Thu thập' },
   { key: 'verify', label: 'Xác minh' },
-  { key: 'synthesize', label: 'Phân tích' },
+  { key: 'strategize', label: 'Chiến lược' },
+  { key: 'arm', label: 'Vũ trang' },
 ] as const;
 
 function stepIndex(status: LeadMeetingPrepStatus, completed: string[]): number {
-  if (status === 'ready' || status === 'failed') return 3;
+  if (status === 'ready' || status === 'failed') return 4;
   if (status === 'awaiting_entity_choice') return 2;
+  if (completed.includes('arm')) return 4;
+  if (completed.includes('strategize')) return 3;
   if (completed.includes('verify')) return 2;
   if (completed.includes('collect') || status === 'running') return 1;
   if (status === 'pending') return 0;
@@ -38,8 +41,9 @@ export function LeadMeetingPrepProgress({ status, stepsCompleted = [], message }
     <div className="lmp-progress" aria-label="Tiến trình prep">
       <ol className="lmp-progress__track">
         {STEPS.map((step, idx) => {
-          const done = active > idx || (status === 'ready' && idx < 3);
-          const current = active === idx + 1 || (status === 'running' && idx === 0 && active === 1);
+          const done = active > idx || (status === 'ready' && idx < 4);
+          const current =
+            active === idx + 1 || (status === 'running' && idx === 0 && active === 1);
           return (
             <li
               key={step.key}
