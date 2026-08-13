@@ -49,6 +49,22 @@ def get_lead_context(lead_id: int) -> dict[str, Any] | None:
             return out
 
 
+def get_collect_json(lead_id: int) -> dict[str, Any] | None:
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT collect_json FROM crm_lead_meeting_prep WHERE lead_id = %s",
+                (lead_id,),
+            )
+            row = cur.fetchone()
+            if not row or row[0] is None:
+                return None
+            val = row[0]
+            if isinstance(val, str):
+                return json.loads(val)
+            return dict(val)
+
+
 def set_status(
     lead_id: int,
     *,
@@ -62,6 +78,8 @@ def set_status(
     tavily_credits: int | None = None,
     close_readiness_score: int | None = None,
     prep_stage: str | None = None,
+    selected_entity_id: str | None = None,
+    ai_agent_run_id: str | None = None,
 ) -> None:
     sets = ["status = %s", "updated_at = NOW()"]
     params: list[Any] = [status]
@@ -93,6 +111,12 @@ def set_status(
     if prep_stage is not None:
         sets.append("prep_stage = %s")
         params.append(prep_stage)
+    if selected_entity_id is not None:
+        sets.append("selected_entity_id = %s")
+        params.append(selected_entity_id)
+    if ai_agent_run_id is not None:
+        sets.append("ai_agent_run_id = %s::uuid")
+        params.append(ai_agent_run_id)
 
     params.append(lead_id)
     sql = f"UPDATE crm_lead_meeting_prep SET {', '.join(sets)} WHERE lead_id = %s"

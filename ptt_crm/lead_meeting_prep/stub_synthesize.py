@@ -121,15 +121,6 @@ def build_stub_result(inp: dict[str, Any], collect: dict[str, Any]) -> dict[str,
 
 
 def compute_readiness_score(inp: dict[str, Any], collect: dict[str, Any]) -> int:
-    score = 35
-    if inp.get("phone") or inp.get("email"):
-        score += 15
-    if inp.get("company_name"):
-        score += 20
-    if inp.get("industry"):
-        score += 10
-    if inp.get("problem"):
-        score += 10
-    if not collect.get("stub"):
-        score += 10
-    return min(100, max(0, score))
+    from ptt_crm.lead_meeting_prep.readiness import compute_readiness_score as _score
+
+    return _score(inp, collect)

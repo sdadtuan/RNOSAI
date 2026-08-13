@@ -1,12 +1,17 @@
-"""Lead Meeting Prep job pipeline — S-LMP-1 skeleton."""
+"""Lead Meeting Prep job pipeline — S-LMP-1b (collect → verify → synthesize)."""
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
-from ptt_crm.lead_meeting_prep import input_resolver, repository, stub_synthesize
+from ptt_crm.lead_meeting_prep import collect, input_resolver, repository, synthesize, verify
 
 logger = logging.getLogger(__name__)
+
+
+def _tavily_required() -> bool:
+    return os.environ.get("LMP_REQUIRE_TAVILY", "0").strip().lower() in {"1", "true", "yes"}
 
 
 def process_lead_meeting_prep_payload(
@@ -20,6 +25,9 @@ def process_lead_meeting_prep_payload(
         return {"ok": False, "error": "crm_lead_meeting_prep_table_missing"}
 
     prep_stage = str(payload.get("prep_stage") or "m1_first_strike")
+    mode = str(payload.get("mode") or "full")
+    selected_entity_id = payload.get("selected_entity_id")
+
     repository.ensure_row(lead_id, prep_stage=prep_stage)
 
     row = repository.get_lead_context(lead_id)
@@ -45,27 +53,78 @@ def process_lead_meeting_prep_payload(
     repository.set_status(lead_id, status="running", input_snapshot=snapshot, prep_stage=prep_stage)
 
     try:
-        collect = stub_synthesize.stub_collect(inp)
-        result = stub_synthesize.build_stub_result(inp, collect)
-        readiness = stub_synthesize.compute_readiness_score(inp, collect)
+        if mode == "resume_entity" and selected_entity_id:
+            collect_json = repository.get_collect_json(lead_id) or {}
+            if not collect_json:
+                collect_json = collect.collect_company(inp)
+        elif mode in {"full", "refresh", "resume_entity"}:
+            if _tavily_required() and not os.environ.get("TAVILY_API_KEY"):
+                raise RuntimeError("TAVILY_API_KEY missing")
+            collect_json = collect.collect_company(inp)
+        else:
+            collect_json = repository.get_collect_json(lead_id) or collect.collect_company(inp)
+
+        verification = verify.verify_entities(
+            collect_json,
+            inp,
+            selected_entity_id=str(selected_entity_id) if selected_entity_id else None,
+        )
+
+        if verification.get("needs_entity_choice"):
+            repository.set_status(
+                lead_id,
+                status="awaiting_entity_choice",
+                collect_json=collect_json,
+                entity_candidates=verification.get("entity_candidates") or [],
+                prep_stage=prep_stage,
+            )
+            return {
+                "ok": True,
+                "lead_id": lead_id,
+                "status": "awaiting_entity_choice",
+            }
+
+        filtered_collect = verification.get("filtered_collect") or collect_json
+        if verification.get("website"):
+            filtered_collect = {
+                **filtered_collect,
+                "verify_website_confidence": verification["website"].get("confidence"),
+            }
+
+        synth = synthesize.synthesize_prep(
+            inp,
+            filtered_collect,
+            verify_website=verification.get("website"),
+            prep_stage=prep_stage,
+            correlation_id=correlation_id,
+        )
 
         repository.set_status(
             lead_id,
             status="ready",
-            collect_json=collect,
-            result_json=result,
-            tavily_credits=int(collect.get("credits_used") or 0),
-            close_readiness_score=readiness,
+            collect_json=filtered_collect,
+            result_json=synth["result"],
+            tavily_credits=int(filtered_collect.get("credits_used") or 0),
+            close_readiness_score=int(synth.get("readiness_score") or 0),
             prep_stage=prep_stage,
+            selected_entity_id=verification.get("selected_entity_id"),
+            ai_agent_run_id=synth.get("ai_run_id"),
             error_message=None,
         )
         logger.info(
-            "lead_meeting_prep ready lead_id=%s readiness=%s correlation=%s",
+            "lead_meeting_prep ready lead_id=%s readiness=%s stub=%s correlation=%s",
             lead_id,
-            readiness,
+            synth.get("readiness_score"),
+            synth.get("stub_mode"),
             correlation_id,
         )
-        return {"ok": True, "lead_id": lead_id, "status": "ready", "close_readiness_score": readiness}
+        return {
+            "ok": True,
+            "lead_id": lead_id,
+            "status": "ready",
+            "close_readiness_score": synth.get("readiness_score"),
+            "ai_run_id": synth.get("ai_run_id"),
+        }
     except Exception as exc:
         repository.set_status(lead_id, status="failed", error_message=str(exc))
         logger.exception("lead_meeting_prep failed lead_id=%s", lead_id)

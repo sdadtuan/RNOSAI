@@ -1,22 +1,31 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { AiIntelligenceModule } from '../ai-intelligence/ai-intelligence.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { LeadsModule } from '../leads/leads.module';
 import { LeadMeetingPrepController } from './lead-meeting-prep.controller';
+import { LeadMeetingPrepInternalController } from './lead-meeting-prep-internal.controller';
 import { LeadMeetingPrepEnqueueService } from './lead-meeting-prep-enqueue.service';
 import { LeadMeetingPrepInputResolver } from './lead-meeting-prep-input.resolver';
+import { LeadMeetingPrepLlmService } from './lead-meeting-prep-llm.service';
 import { LeadMeetingPrepRepository } from './lead-meeting-prep.repository';
 import { LeadMeetingPrepService } from './lead-meeting-prep.service';
 import { LeadMeetingPrepEnabledGuard } from './guards/lead-meeting-prep-enabled.guard';
 
 @Module({
-  imports: [WebhooksModule, StaffAuthModule, forwardRef(() => LeadsModule)],
-  controllers: [LeadMeetingPrepController],
+  imports: [
+    WebhooksModule,
+    StaffAuthModule,
+    AiIntelligenceModule,
+    forwardRef(() => LeadsModule),
+  ],
+  controllers: [LeadMeetingPrepController, LeadMeetingPrepInternalController],
   providers: [
     LeadMeetingPrepRepository,
     LeadMeetingPrepInputResolver,
     LeadMeetingPrepEnqueueService,
     LeadMeetingPrepService,
+    LeadMeetingPrepLlmService,
     LeadMeetingPrepEnabledGuard,
   ],
   exports: [LeadMeetingPrepEnqueueService, LeadMeetingPrepRepository],

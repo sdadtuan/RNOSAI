@@ -42,6 +42,18 @@ def lmp_pilot_client_ids() -> list[str]:
     return [part.strip().lower() for part in raw.split(",") if part.strip()]
 
 
+def tavily_api_key() -> str | None:
+    key = (os.environ.get("TAVILY_API_KEY") or "").strip()
+    return key or None
+
+
+def max_tavily_credits_per_lead() -> int:
+    try:
+        return max(1, int(os.environ.get("MAX_TAVILY_CREDITS_PER_LEAD", "8") or 8))
+    except ValueError:
+        return 8
+
+
 def dual_run_timeout_sec() -> float:
     try:
         return max(0.5, float(os.environ.get("PTT_DUAL_RUN_TIMEOUT_SEC", "2.0")))

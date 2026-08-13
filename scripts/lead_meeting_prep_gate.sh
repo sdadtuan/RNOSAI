@@ -29,24 +29,27 @@ ok "DDL applied"
 TABLE=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_name='crm_lead_meeting_prep'")
 [[ "$TABLE" == "1" ]] && ok "crm_lead_meeting_prep exists" || bad "table missing"
 
-python3 -m pytest "$ROOT/tests/test_lmp_input_resolver.py" -q && ok "python input resolver tests" || bad "python tests"
+python3 -m pytest "$ROOT/tests/test_lmp_input_resolver.py" -q && ok "python input resolver tests" || bad "python input resolver tests"
+python3 -m pytest "$ROOT/tests/test_lmp_verify.py" -q && ok "python verify tests" || bad "python verify tests"
+python3 -m pytest "$ROOT/tests/test_lmp_schema.py" -q && ok "python schema tests" || bad "python schema tests"
 
 if [[ -d "$ROOT/services/ptt-crm-api/node_modules" ]]; then
-  (cd "$ROOT/services/ptt-crm-api" && npm test -- --testPathPattern=lead-meeting-prep-input.resolver.spec --passWithNoTests 2>/dev/null) \
-    && ok "nest input resolver spec" || bad "nest spec"
+  (cd "$ROOT/services/ptt-crm-api" && npm test -- --testPathPattern="lead-meeting-prep" --passWithNoTests 2>/dev/null) \
+    && ok "nest LMP specs" || bad "nest LMP specs"
 else
   echo "SKIP  nest spec (npm install in ptt-crm-api)"
 fi
 
-# Worker pipeline unit (no PG job required)
-python3 - <<'PY' && ok "stub result shape"
-from ptt_crm.lead_meeting_prep.stub_synthesize import build_stub_result, stub_collect
-inp = {"company_name": "Cty Gate", "industry": "BDS", "problem": "Can lead"}
-collect = stub_collect(inp)
-result = build_stub_result(inp, collect)
+# Worker pipeline unit (no PG job / Tavily required)
+python3 - <<'PY' && ok "synthesize stub shape"
+from ptt_crm.lead_meeting_prep.synthesize import build_stub_llm_result
+from ptt_crm.lead_meeting_prep.collect import collect_company
+inp = {"lead_id": 1, "company_name": "Cty Gate", "industry": "BDS", "problem": "Can lead", "phone": "0901234567"}
+collect = collect_company(inp)
+result = build_stub_llm_result(inp, collect, verify_website=None, prep_stage="m1_first_strike")
 assert result["contact_profile"]["found"] is False
 assert 1 <= len(result["recommended_services"]) <= 3
-assert result["meta"]["prompt_version"]
+assert result["meta"]["prompt_version"] == "lmp-synth-v1"
 PY
 
 if [[ "$fail" -eq 0 ]]; then
