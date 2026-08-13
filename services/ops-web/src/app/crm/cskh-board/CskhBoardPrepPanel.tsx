@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { trackLeadCallScriptCopy } from '@/lib/api';
+import type { SlaCareTierSnapshot } from '@/lib/api';
 import { canRunLmp, canViewLmp, type StoredStaffUser } from '@/lib/auth';
 import { leadMeetingPrepEnabled } from '@/lib/crm/lmp-flags';
 import {
@@ -17,11 +18,27 @@ type Props = {
   user: StoredStaffUser | null;
   leadId: number;
   leadLabel?: string;
+  slaTiers?: SlaCareTierSnapshot[];
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
 };
 
-export function CskhBoardPrepPanel({ token, user, leadId, leadLabel, onMessage, onError }: Props) {
+function tierPillClass(state: SlaCareTierSnapshot['sla_state']): string {
+  if (state === 'breach') return 'cskh-board-tier-pill cskh-board-tier-pill--breach';
+  if (state === 'warning') return 'cskh-board-tier-pill cskh-board-tier-pill--warning';
+  if (state === 'ok') return 'cskh-board-tier-pill cskh-board-tier-pill--ok';
+  return 'cskh-board-tier-pill';
+}
+
+export function CskhBoardPrepPanel({
+  token,
+  user,
+  leadId,
+  leadLabel,
+  slaTiers = [],
+  onMessage,
+  onError,
+}: Props) {
   const [prep, setPrep] = useState<Awaited<ReturnType<typeof fetchLeadMeetingPrep>> | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -88,18 +105,31 @@ export function CskhBoardPrepPanel({ token, user, leadId, leadLabel, onMessage, 
   const title = leadLabel?.trim() || `#${leadId}`;
 
   return (
-    <section className="cskh-board-prep-panel lmp-m1-card" aria-label={`Script M1 — ${title}`}>
+    <section className="cskh-board-prep-panel lmp-m1-card" aria-label={`SLA + SCI — ${title}`}>
       <header className="lmp-m1-card__head">
         <div>
-          <h3 className="lmp-m1-card__title">M1 · Script gọi đầu — {title}</h3>
+          <h3 className="lmp-m1-card__title">SLA + SCI · Gọi đầu — {title}</h3>
           <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-            Xem trước trên board — không cần mở lead detail
+            Deadline SLA + script M1 trên board
           </p>
         </div>
         <Link href={`/crm/leads/${leadId}?prep=1`} className="btn btn-sm btn-secondary">
-          Talk Track đầy đủ →
+          Talk Track →
         </Link>
       </header>
+
+      {slaTiers.length > 0 ? (
+        <div className="cskh-board-tier-inline" style={{ marginBottom: '0.75rem' }}>
+          {slaTiers
+            .filter((t) => t.sla_state !== 'na')
+            .map((tier) => (
+              <span key={tier.tier} className={tierPillClass(tier.sla_state)}>
+                {tier.label}
+                {tier.elapsed_minutes != null ? ` · ${tier.elapsed_minutes}p` : ''}
+              </span>
+            ))}
+        </div>
+      ) : null}
 
       {loading && !prep ? <p className="muted">Đang tải script…</p> : null}
 

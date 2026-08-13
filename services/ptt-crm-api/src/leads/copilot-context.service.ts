@@ -54,6 +54,7 @@ export interface LeadCopilotContextResponse {
     | 'nba'
     | 'drafts'
     | 'lost_reason_options'
+    | 'sci'
   >;
   funnel: CopilotFunnelSlice | null;
   activities: CopilotActivitySnippet[];
@@ -135,6 +136,7 @@ export class CopilotContextService {
         nba: sla.nba,
         drafts: sla.drafts,
         lost_reason_options: sla.lost_reason_options,
+        sci: sla.sci,
       },
       funnel: funnelSlice,
       activities: activities.map((a) => ({

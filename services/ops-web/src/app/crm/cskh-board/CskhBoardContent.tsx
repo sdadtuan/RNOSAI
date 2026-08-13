@@ -226,6 +226,7 @@ function CskhLeadCard({
           user={user}
           leadId={row.id}
           leadLabel={row.full_name || `#${row.id}`}
+          slaTiers={row.sla_tiers}
           onMessage={onPrepMessage}
           onError={onPrepError}
         />
@@ -823,6 +824,7 @@ export function CskhBoardContent() {
                             user={user}
                             leadId={row.id}
                             leadLabel={row.full_name || `#${row.id}`}
+                            slaTiers={row.sla_tiers}
                             onMessage={setMsg}
                             onError={setError}
                           />

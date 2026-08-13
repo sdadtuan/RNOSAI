@@ -808,6 +808,14 @@ export interface LeadSlaCareContext {
     } | null;
   };
   lost_reason_options: Array<{ id: string; label: string; confidence: number }>;
+  sci?: {
+    enabled: boolean;
+    status: string | null;
+    prep_stage: string | null;
+    opening: string | null;
+    script_full: string | null;
+    close_readiness_score: number | null;
+  } | null;
 }
 
 export async function fetchLeadSlaCareContext(
@@ -853,6 +861,7 @@ export interface LeadCopilotContext {
     nba: LeadSlaCareContext['nba'];
     drafts: LeadSlaCareContext['drafts'];
     lost_reason_options: LeadSlaCareContext['lost_reason_options'];
+    sci?: LeadSlaCareContext['sci'];
   };
   funnel: {
     care_pipeline: {

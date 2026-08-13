@@ -564,6 +564,11 @@ export default function CrmLeadDetailPage() {
   }
 
   const accessToken = getAccessToken();
+  const b2StageDone = Boolean(funnelSnap?.care_pipeline.stages[0]?.done);
+  const showSlaSciUnifiedPanel =
+    Boolean(accessToken) &&
+    (leadFlowKind === 'spa_operational' ||
+      (showB2bFlow && Boolean(funnelSnap?.presales_on_lead_enabled) && !b2StageDone));
   const useMobileTabs = layout.mobile;
   const showCopilotInline =
     copilotOn && !!lead && !loading && !!accessToken && !!user && layout.desktop;
@@ -726,9 +731,9 @@ export default function CrmLeadDetailPage() {
             flowLabel={leadFlowKindLabel(leadFlowKind)}
           />
 
-          {accessToken && leadFlowKind === 'spa_operational' ? (
+          {showSlaSciUnifiedPanel ? (
             <LeadSlaCarePanel
-              token={accessToken}
+              token={accessToken!}
               leadId={leadId}
               status={status}
               onAuditNoteSuggest={(text) => setAuditNote(text)}
@@ -741,6 +746,7 @@ export default function CrmLeadDetailPage() {
               }}
               copilotContext={copilotContext}
               copilotLoading={copilotContextLoading}
+              onOpenMeetingPrep={showLmpTab ? openMeetingPrepTab : undefined}
             />
           ) : null}
 
@@ -863,6 +869,7 @@ export default function CrmLeadDetailPage() {
                   const access = getAccessToken();
                   if (access) void reloadTimeline(access);
                 }}
+                hideM1Card={showSlaSciUnifiedPanel && leadMeetingPrepEnabled()}
               />
             ) : null}
 

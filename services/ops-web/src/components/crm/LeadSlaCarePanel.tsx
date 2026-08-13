@@ -13,6 +13,8 @@ import {
   type NextBestActionResponse,
 } from '@/lib/ai-api';
 import { DismissReasonModal } from '@/components/ai/DismissReasonModal';
+import { SlaSciCallSection } from '@/components/crm/SlaSciCallSection';
+import { leadMeetingPrepEnabled } from '@/lib/crm/lmp-flags';
 
 interface Props {
   token: string;
@@ -23,6 +25,7 @@ interface Props {
   /** When set, skips GET /sla-care-context (unified copilot-context). */
   copilotContext?: LeadCopilotContext | null;
   copilotLoading?: boolean;
+  onOpenMeetingPrep?: () => void;
 }
 
 function mapCopilotToSlaCare(c: LeadCopilotContext): LeadSlaCareContext {
@@ -37,6 +40,7 @@ function mapCopilotToSlaCare(c: LeadCopilotContext): LeadSlaCareContext {
     nba: c.sla.nba,
     drafts: c.sla.drafts,
     lost_reason_options: c.sla.lost_reason_options,
+    sci: c.sla.sci,
   };
 }
 
@@ -55,6 +59,7 @@ export function LeadSlaCarePanel({
   onReload,
   copilotContext,
   copilotLoading = false,
+  onOpenMeetingPrep,
 }: Props) {
   const [ctx, setCtx] = useState<LeadSlaCareContext | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,7 +67,9 @@ export function LeadSlaCarePanel({
   const [nbaRec, setNbaRec] = useState<NextBestActionResponse['data'] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [showDismiss, setShowDismiss] = useState(false);
-  const [scriptOpen, setScriptOpen] = useState(false);
+
+  const showUnifiedCallSection =
+    Boolean(ctx?.drafts.call_script || ctx?.sci?.enabled) && leadMeetingPrepEnabled();
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -120,6 +127,7 @@ export function LeadSlaCarePanel({
   const callScript = ctx.drafts.call_script;
   const auditDraft = ctx.drafts.audit_note;
   const showLostReasons = status === 'lost' && ctx.lost_reason_options.length > 0;
+  const showTierRow = !showUnifiedCallSection;
 
   function scrollToTarget(target: string) {
     const el = document.querySelector(target);
@@ -170,12 +178,6 @@ export function LeadSlaCarePanel({
     if (auditDraft?.template) onAuditNoteSuggest?.(auditDraft.template);
   }
 
-  const scriptText = callScript
-    ? [callScript.greeting, callScript.intro, ...callScript.questions.map((q, i) => `${i + 1}. ${q}`), callScript.closing].join(
-        '\n\n',
-      )
-    : '';
-
   return (
     <section className="lead-sla-care" aria-label="SLA care CSKH">
       {showBanner ? (
@@ -188,7 +190,7 @@ export function LeadSlaCarePanel({
         </div>
       ) : null}
 
-      <div className="lead-sla-tier-row">
+      <div className={`lead-sla-tier-row${showTierRow ? '' : ' lead-sla-tier-row--hidden'}`}>
         {ctx.sla_tiers
           .filter((t) => t.sla_state !== 'na')
           .map((tier) => (
@@ -231,19 +233,39 @@ export function LeadSlaCarePanel({
 
       {message ? <p className="lead-sla-care__message">{message}</p> : null}
 
-      {callScript ? (
-        <details
-          className="lead-sla-script"
-          open={scriptOpen}
-          onToggle={(e) => setScriptOpen((e.target as HTMLDetailsElement).open)}
-        >
+      {showUnifiedCallSection ? (
+        <SlaSciCallSection
+          token={token}
+          leadId={leadId}
+          slaTiers={ctx.sla_tiers}
+          sci={ctx.sci}
+          genericScript={callScript}
+          onOpenTalkTrack={onOpenMeetingPrep}
+          talkTrackHref={`/crm/leads/${leadId}?prep=1`}
+          onMessage={setMessage}
+          onError={setMessage}
+        />
+      ) : callScript ? (
+        <details className="lead-sla-script">
           <summary>Script gọi lần đầu (gợi ý)</summary>
-          <pre className="lead-sla-script__body">{scriptText}</pre>
+          <pre className="lead-sla-script__body">
+            {[callScript.greeting, callScript.intro, ...callScript.questions.map((q, i) => `${i + 1}. ${q}`), callScript.closing]
+              .filter(Boolean)
+              .join('\n\n')}
+          </pre>
           <p className="muted lead-sla-script__disclaimer">{callScript.disclaimer}</p>
           <button
             type="button"
             className="btn btn-sm btn-secondary"
-            onClick={() => void navigator.clipboard.writeText(scriptText).then(() => setMessage('Đã copy script.'))}
+            onClick={() =>
+              void navigator.clipboard
+                .writeText(
+                  [callScript.greeting, callScript.intro, ...callScript.questions.map((q, i) => `${i + 1}. ${q}`), callScript.closing]
+                    .filter(Boolean)
+                    .join('\n\n'),
+                )
+                .then(() => setMessage('Đã copy script.'))
+            }
           >
             Copy script
           </button>

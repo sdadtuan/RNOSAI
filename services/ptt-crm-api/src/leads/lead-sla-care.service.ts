@@ -23,6 +23,8 @@ import {
   type SlaCareNba,
 } from './lead-sla-care.util';
 import type { CskhSlaTierSnapshot } from '../cskh-board/cskh-board-sla.util';
+import { LeadMeetingPrepRepository } from '../lead-meeting-prep/lead-meeting-prep.repository';
+import { buildM1ScriptFromPrepRow } from '../lead-meeting-prep/lmp-m1-script.util';
 
 export interface LeadSlaCareContextResponse {
   lead_id: number;
@@ -38,6 +40,14 @@ export interface LeadSlaCareContextResponse {
     audit_note: AuditNoteDraft | null;
   };
   lost_reason_options: LostReasonOption[];
+  sci: {
+    enabled: boolean;
+    status: string | null;
+    prep_stage: string | null;
+    opening: string | null;
+    script_full: string | null;
+    close_readiness_score: number | null;
+  } | null;
 }
 
 @Injectable()
@@ -49,6 +59,7 @@ export class LeadSlaCareService implements OnModuleDestroy {
     private readonly config: AppConfigService,
     private readonly legacy: CrmLeadsLegacyService,
     private readonly leadSqlite: CrmLeadsSqliteRepository,
+    private readonly lmpRepo: LeadMeetingPrepRepository,
   ) {}
 
   private get db(): Pool {
@@ -91,7 +102,8 @@ export class LeadSlaCareService implements OnModuleDestroy {
       hasPresales,
     });
 
-    const applicable = flowKind === 'spa_operational';
+    const applicable =
+      flowKind === 'spa_operational' || (flowKind === 'b2b_prospect' && hasPresales);
     if (!applicable) {
       return {
         lead_id: leadId,
@@ -104,6 +116,7 @@ export class LeadSlaCareService implements OnModuleDestroy {
         nba: null,
         drafts: { call_script: null, audit_note: null },
         lost_reason_options: [],
+        sci: null,
       };
     }
 
@@ -142,6 +155,22 @@ export class LeadSlaCareService implements OnModuleDestroy {
     const nba = resolveSlaCareNba({ ...sla, status: row.status });
     const showCallScript = !firstCallAt && !isSpaClosedStatus(row.status);
 
+    let sci: LeadSlaCareContextResponse['sci'] = null;
+    if (this.config.leadMeetingPrepEnabled && showCallScript) {
+      const prepRow = (await this.lmpRepo.tableReady())
+        ? await this.lmpRepo.getByLeadId(leadId)
+        : null;
+      const script = buildM1ScriptFromPrepRow(prepRow);
+      sci = {
+        enabled: true,
+        status: prepRow?.status ?? 'none',
+        prep_stage: prepRow?.prep_stage ?? null,
+        opening: script.opening || null,
+        script_full: script.script_full || null,
+        close_readiness_score: prepRow?.close_readiness_score ?? null,
+      };
+    }
+
     return {
       lead_id: leadId,
       lead_flow_kind: flowKind,
@@ -166,6 +195,7 @@ export class LeadSlaCareService implements OnModuleDestroy {
         }),
       },
       lost_reason_options: suggestLostReasons({ activities: activitySnippets, status: row.status }),
+      sci,
     };
   }
 

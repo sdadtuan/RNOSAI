@@ -47,6 +47,8 @@ interface Props {
   onError?: (msg: string) => void;
   onFunnelChange?: (funnel: LeadFunnelSnapshot) => void;
   onFunnelUpdated?: () => void;
+  /** Hero SLA+SCI panel đã gộp — ẩn thẻ M1 trùng trong funnel */
+  hideM1Card?: boolean;
 }
 
 const DEFAULT_PRESALES_SERVICES: Array<{ slug: string; name: string }> = [
@@ -87,6 +89,7 @@ export function LeadFunnelPanel({
   onError,
   onFunnelChange,
   onFunnelUpdated,
+  hideM1Card = false,
 }: Props) {
   const [funnel, setFunnel] = useState<LeadFunnelSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -412,7 +415,7 @@ export function LeadFunnelPanel({
         </div>
       ) : null}
 
-      {showM1Card ? (
+      {showM1Card && !hideM1Card ? (
         <M1FirstCallCard
           token={token}
           leadId={leadId}
