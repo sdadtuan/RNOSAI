@@ -1596,6 +1596,106 @@ describe('MarketResearchService', () => {
     expect(repo.updateReportVersionSnapshot).not.toHaveBeenCalled();
   });
 
+  it('approve-exec-en with stored en null/empty is 400 validation_error', async () => {
+    for (const en of [null, '']) {
+      repo.updateReportVersionSnapshot.mockClear();
+      stubScopedProject();
+      repo.getReport.mockResolvedValue({ id: 1, project_id: 9, status: 'draft' });
+      repo.getReportVersion.mockResolvedValue({
+        id: 10,
+        report_id: 1,
+        version: 1,
+        content_snapshot: {
+          cover: { client: 'Acme', title: 'T', confidential: true, version: 1, as_of: '2026-08-14' },
+          exec: { vi: 'xin chào', en, en_status: 'draft' },
+          findings: [],
+          recs: [],
+          methodology: { stub: true, population: '', source_plan: '', limitation: '' },
+          evidence_index: [],
+          status: 'draft',
+          insight_ids: [7],
+        },
+        generated_by: 'am@ptt',
+        content_hash: 'abc',
+        created_at: '2026-08-14',
+      });
+      repo.updateReportVersionSnapshot.mockResolvedValue({
+        id: 10,
+        report_id: 1,
+        version: 1,
+        content_snapshot: { exec: { vi: 'xin chào', en, en_status: 'approved' } },
+        generated_by: 'am@ptt',
+        content_hash: 'abc',
+        created_at: '2026-08-14',
+      });
+
+      try {
+        await service.approveReportExecEn(
+          1,
+          10,
+          { restricted: true, allowedClientIds: ['acme'] },
+          'lead@ptt',
+        );
+        throw new Error('expected validation_error');
+      } catch (err) {
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect((err as BadRequestException).getStatus()).toBe(400);
+        expect((err as BadRequestException).getResponse()).toEqual({
+          error: 'validation_error',
+          messages: ['en is required'],
+        });
+      }
+      expect(repo.updateReportVersionSnapshot).not.toHaveBeenCalled();
+    }
+  });
+
+  it('approve-exec-en when approved is 400 exec_en_locked', async () => {
+    stubScopedProject();
+    repo.getReport.mockResolvedValue({ id: 1, project_id: 9, status: 'draft' });
+    repo.getReportVersion.mockResolvedValue({
+      id: 10,
+      report_id: 1,
+      version: 1,
+      content_snapshot: {
+        cover: { client: 'Acme', title: 'T', confidential: true, version: 1, as_of: '2026-08-14' },
+        exec: { vi: 'xin chào', en: 'hello', en_status: 'approved' },
+        findings: [],
+        recs: [],
+        methodology: { stub: true, population: '', source_plan: '', limitation: '' },
+        evidence_index: [],
+        status: 'draft',
+        insight_ids: [7],
+      },
+      generated_by: 'am@ptt',
+      content_hash: 'abc',
+      created_at: '2026-08-14',
+    });
+    repo.updateReportVersionSnapshot.mockResolvedValue({
+      id: 10,
+      report_id: 1,
+      version: 1,
+      content_snapshot: { exec: { vi: 'xin chào', en: 'hello', en_status: 'approved' } },
+      generated_by: 'am@ptt',
+      content_hash: 'abc',
+      created_at: '2026-08-14',
+    });
+
+    try {
+      await service.approveReportExecEn(
+        1,
+        10,
+        { restricted: true, allowedClientIds: ['acme'] },
+        'lead@ptt',
+      );
+      throw new Error('expected exec_en_locked');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'exec_en_locked' });
+    }
+    expect(repo.updateReportVersionSnapshot).not.toHaveBeenCalled();
+  });
+
   it('createReport rejects insights below approved_internal', async () => {
     stubScopedProject();
     repo.getInsight.mockResolvedValue(insightRow({ status: 'draft', evidence_ids: [3] }));

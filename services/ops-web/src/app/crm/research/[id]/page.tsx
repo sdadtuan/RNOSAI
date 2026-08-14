@@ -62,7 +62,6 @@ import {
   isMethodologyComplete,
   isMethodologyExportable,
   normalizeReportExec,
-  TRANSITION_REASON_VI,
   updateResearchReportExecEn,
   type CreateEvidenceBody,
   type CreateInsightBody,
@@ -1542,8 +1541,8 @@ function ReportTab({
           marginBottom: '0.75rem',
           padding: '0.55rem 0.7rem',
           borderRadius: 8,
-          background: '#fff7ed',
-          border: '1px solid #fdba74',
+          background: 'color-mix(in srgb, var(--primary) 10%, var(--bg))',
+          border: '1px solid var(--border)',
           fontSize: '0.85rem',
         }}
       >
@@ -1740,7 +1739,7 @@ function ReportTab({
                   <button
                     type="button"
                     className="btn btn-sm"
-                    disabled={saving || enLocked || !enValue.trim()}
+                    disabled={saving || enLocked || !String(exec.en ?? '').trim()}
                     onClick={() => onApproveExecEn(report.id, version.id)}
                   >
                     Duyệt bản dịch

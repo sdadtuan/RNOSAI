@@ -1421,6 +1421,21 @@ export class MarketResearchService {
     }
     const snapshot = { ...version.content_snapshot };
     const exec = normalizeReportExec(snapshot.exec);
+    try {
+      assertExecEnEditable(exec);
+    } catch (err) {
+      if ((err as Error & { code?: string }).code === 'exec_en_locked') {
+        throw new BadRequestException({ error: 'exec_en_locked' });
+      }
+      throw err;
+    }
+    const en = String(exec.en ?? '').trim();
+    if (!en) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['en is required'],
+      });
+    }
     const updated = await this.repo.updateReportVersionSnapshot(reportId, versionId, {
       ...snapshot,
       exec: { vi: exec.vi, en: exec.en, en_status: 'approved' },
