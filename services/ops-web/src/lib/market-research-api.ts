@@ -193,6 +193,8 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   survey_pii_forbidden: 'CSV codebook không được chứa SĐT hoặc email.',
   codebook_csv_invalid: 'CSV codebook không hợp lệ.',
   codebook_row_cap: 'CSV codebook vượt quá 500 dòng.',
+  vw_not_price_offer: 'Van Westendorp chỉ dùng cho dự án PRICE_OFFER.',
+  vw_insufficient_n: 'Cần ≥4 người trả lời hợp lệ để tính Van Westendorp.',
 };
 
 export type MethodologyBlock = {
@@ -512,6 +514,45 @@ export type CreateWaveBody = {
   field_start?: string | null;
   field_end?: string | null;
   metric_json: { key: string; value: number | null }[];
+};
+
+export type VwBin = {
+  price: number;
+  too_cheap: number;
+  cheap: number;
+  expensive: number;
+  too_expensive: number;
+};
+
+export type VwPoints = {
+  pmc: number | null;
+  pme: number | null;
+  opp: number | null;
+  idp: number | null;
+};
+
+export type VwSummary = {
+  n: number;
+  unit: string;
+  bins: VwBin[];
+  points: VwPoints;
+  limitation_note: string;
+  statistical_inference: false;
+};
+
+export type ResearchVwSummaryRow = VwSummary & {
+  id: number;
+  project_id: number;
+  study_id: number | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export const VW_LIMITATION =
+  'Van Westendorp trên mẫu convenience — không phải census. Không ghi MOE / 95% confidence.';
+
+export type CreateVanWestendorpBody = {
+  study_id?: number | null;
 };
 
 export const DECISION_STATUSES = ['open', 'done', 'dropped'] as const;
@@ -1280,6 +1321,24 @@ export async function createResearchWave(
   body: CreateWaveBody,
 ): Promise<ResearchWave> {
   return researchFetch(token, `/api/v1/research/projects/${projectId}/waves`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchResearchVanWestendorp(
+  token: string,
+  projectId: number,
+): Promise<{ summary: ResearchVwSummaryRow | null }> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/van-westendorp`);
+}
+
+export async function createResearchVanWestendorp(
+  token: string,
+  projectId: number,
+  body: CreateVanWestendorpBody = {},
+): Promise<ResearchVwSummaryRow> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/van-westendorp`, {
     method: 'POST',
     body: JSON.stringify(body),
   });

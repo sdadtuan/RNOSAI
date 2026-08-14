@@ -16,6 +16,8 @@ import { CompetitorPane } from '@/components/research/CompetitorPane';
 import { StudiesPane } from '@/components/research/StudiesPane';
 import { DecisionLogPane } from '@/components/research/DecisionLogPane';
 import { WavesPane } from '@/components/research/WavesPane';
+import { VwPane } from '@/components/research/VwPane';
+import { shouldShowVwTab } from '@/components/research/vw-pane.util';
 import { SourceKeepTable } from '@/components/research/SourceKeepTable';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
@@ -966,6 +968,7 @@ function CrmResearchWorkspaceContent() {
               {[
                 ...TABS,
                 ...(project.product_type === 'TRACKER' ? ([{ id: 'waves', label: 'Waves' }] as const) : []),
+                ...(shouldShowVwTab(project.product_type) ? ([{ id: 'vw', label: 'Giá VW' }] as const) : []),
               ].map((t) => (
                 <Link
                   key={t.id}
@@ -1098,6 +1101,8 @@ function CrmResearchWorkspaceContent() {
               />
             ) : tab === 'waves' && project.product_type === 'TRACKER' ? (
               <WavesPane projectId={project.id} canEdit={canEdit} />
+            ) : tab === 'vw' && shouldShowVwTab(project.product_type) ? (
+              <VwPane projectId={project.id} canEdit={canEdit} />
             ) : tab === 'decisions' ? (
               <DecisionLogPane
                 projectId={project.id}
