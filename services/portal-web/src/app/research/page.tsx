@@ -6,6 +6,7 @@ import { HubPageLayout } from '@/components/layout';
 import { PortalPageShell } from '@/components/PortalPageShell';
 import { portalResearchReports, type PortalResearchReportCard } from '@/lib/api';
 import { isMarketResearchPortalFeEnabled } from '@/lib/market-research-portal-flags';
+import { portalResearchErrorVi } from '@/lib/portal-research-errors';
 
 export default function PortalResearchListPage() {
   return (
@@ -34,7 +35,7 @@ function ResearchListContent({ token }: { token: string }) {
         const data = await portalResearchReports(token);
         setItems(data.items ?? []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Không tải được báo cáo');
+        setError(portalResearchErrorVi(err instanceof Error ? err.message : ''));
       } finally {
         setLoading(false);
       }

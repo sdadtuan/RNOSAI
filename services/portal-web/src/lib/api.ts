@@ -1276,6 +1276,18 @@ export async function portalResearchReport(
   return body;
 }
 
+export async function portalResearchReportPdf(token: string, versionId: number): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/api/v1/portal/research/reports/${versionId}/export.pdf`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string; message?: string }>(res);
+    throw new ApiError(body.error ?? body.message ?? 'Research PDF failed', res.status);
+  }
+  return res.blob();
+}
+
 export async function testNativePush(token: string): Promise<NativePushTestResponse> {
   const res = await fetch(`${API_BASE}/api/v1/mobile/push/test`, {
     method: 'POST',

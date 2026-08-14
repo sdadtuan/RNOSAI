@@ -1,6 +1,33 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, StreamableFile } from '@nestjs/common';
+import * as pdfUtil from '../market-research/market-research-pdf.util';
 import { PortalResearchRepository } from './portal-research.repository';
 import { PortalResearchService } from './portal-research.service';
+
+function decodePdfUtf16Be(buffer: Buffer): string {
+  const raw = buffer.toString('latin1');
+  const chunks: string[] = [];
+  const re = /<([0-9a-fA-F]+)>/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(raw))) {
+    const hex = match[1];
+    let text = '';
+    for (let i = 0; i + 3 < hex.length; i += 4) {
+      const code = parseInt(hex.slice(i, i + 4), 16);
+      if (code === 0xfeff) continue;
+      text += String.fromCharCode(code);
+    }
+    chunks.push(text);
+  }
+  return chunks.join('\n');
+}
+
+async function streamableBuffer(file: StreamableFile): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of file.getStream()) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
 
 const ACME = '550e8400-e29b-41d4-a716-446655440000';
 const BETA = '660e8400-e29b-41d4-a716-446655440001';
@@ -162,5 +189,79 @@ describe('PortalResearchService', () => {
     expect(body.exec).toEqual({ vi: 'Tóm tắt', en: null });
     expect(body).not.toHaveProperty('project');
     expect(body).not.toHaveProperty('title');
+  });
+
+  it('M2-1a: published + in-window PDF → %PDF- buffer and watermark', async () => {
+    repo.getPortalReportVersion.mockResolvedValue(acmeVersion());
+    const svc = new PortalResearchService(repo);
+
+    const out = await svc.exportReportPdf(acmeUser, 42);
+    expect(out).toBeInstanceOf(StreamableFile);
+    const headers = out.getHeaders();
+    expect(headers.type).toBe('application/pdf');
+    expect(headers.disposition).toBe('attachment; filename="research-v1.pdf"');
+
+    const buffer = await streamableBuffer(out);
+    expect(buffer.subarray(0, 5).toString()).toBe('%PDF-');
+    const decoded = decodePdfUtf16Be(buffer);
+    expect(decoded).toContain('CONFIDENTIAL · ');
+    expect(decoded).toContain(ACME);
+    expect(decoded).toContain(acmeUser.email);
+    expect(decoded).toMatch(/CONFIDENTIAL · .+ · .+ · \d{4}-\d{2}-\d{2}/);
+  });
+
+  it('M2-1b: unpublished same-tenant PDF → 404 not_found (no file)', async () => {
+    const spy = jest.spyOn(pdfUtil, 'buildResearchReportPdf');
+    repo.getPortalReportVersion.mockResolvedValue(acmeVersion({ portal_visible: false }));
+    const svc = new PortalResearchService(repo);
+
+    try {
+      await svc.exportReportPdf(acmeUser, 42);
+      throw new Error('expected not_found');
+    } catch (err) {
+      expect(err).toBeInstanceOf(NotFoundException);
+      expect((err as NotFoundException).getResponse()).toEqual({ error: 'not_found' });
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('M2-1c: other client PDF → 403 forbidden; JSON.stringify(body) has no title', async () => {
+    const spy = jest.spyOn(pdfUtil, 'buildResearchReportPdf');
+    repo.getPortalReportVersion.mockResolvedValue(acmeVersion());
+    const svc = new PortalResearchService(repo);
+
+    try {
+      await svc.exportReportPdf(betaUser, 42);
+      throw new Error('expected forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const body = (err as ForbiddenException).getResponse();
+      expect(body).toEqual({ error: 'forbidden' });
+      expect(JSON.stringify(body)).not.toContain('title');
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('M2-1d: expired PDF → 403 report_expired (no file)', async () => {
+    const spy = jest.spyOn(pdfUtil, 'buildResearchReportPdf');
+    repo.getPortalReportVersion.mockResolvedValue(
+      acmeVersion({ expires_at: '2020-01-01T00:00:00Z' }),
+    );
+    const svc = new PortalResearchService(repo);
+
+    try {
+      await svc.exportReportPdf(acmeUser, 42);
+      throw new Error('expected report_expired');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect((err as ForbiddenException).getResponse()).toEqual({ error: 'report_expired' });
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

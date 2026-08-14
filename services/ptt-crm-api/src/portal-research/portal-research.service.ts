@@ -1,4 +1,7 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, StreamableFile } from '@nestjs/common';
+import { sectionsFromReportSnapshot } from '../market-research/market-research-docx.util';
+import { buildResearchReportPdf } from '../market-research/market-research-pdf.util';
+import type { ResearchReportSnapshot } from '../market-research/market-research-report-snapshot.util';
 import {
   assertPortalReportReadable,
   buildPortalWatermark,
@@ -84,6 +87,37 @@ export class PortalResearchService {
   }
 
   async getReport(user: PortalJwtPayload, versionId: number): Promise<PortalResearchReportDetail> {
+    const { row, now } = await this.loadReadableVersion(user, versionId);
+    const snapshot = row.content_snapshot;
+    return {
+      ...toCard(row, watermarkFor(user, now)),
+      exec: portalExec(snapshot),
+      findings: Array.isArray(snapshot.findings) ? snapshot.findings : [],
+      recs: Array.isArray(snapshot.recs) ? snapshot.recs : [],
+      methodology: snapshot.methodology ?? null,
+      evidence_index: Array.isArray(snapshot.evidence_index) ? snapshot.evidence_index : [],
+    };
+  }
+
+  async exportReportPdf(user: PortalJwtPayload, versionId: number): Promise<StreamableFile> {
+    const { row, now } = await this.loadReadableVersion(user, versionId);
+    const raw = row.content_snapshot as ResearchReportSnapshot;
+    const snapshot: ResearchReportSnapshot = {
+      ...raw,
+      exec: normalizeReportExec(raw.exec),
+    };
+    const watermark = buildPortalWatermark({ clientId: user.client_id, email: user.email, at: now });
+    const buffer = buildResearchReportPdf(sectionsFromReportSnapshot(snapshot), watermark);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="research-v${row.version}.pdf"`,
+    });
+  }
+
+  private async loadReadableVersion(
+    user: PortalJwtPayload,
+    versionId: number,
+  ): Promise<{ row: PortalResearchVersionRecord; now: Date }> {
     const row = await this.repo.getPortalReportVersion(versionId);
     if (!row) {
       throw new NotFoundException({ error: 'not_found' });
@@ -102,14 +136,6 @@ export class PortalResearchService {
     } catch (err) {
       mapReadableError(err);
     }
-    const snapshot = row.content_snapshot;
-    return {
-      ...toCard(row, watermarkFor(user, now)),
-      exec: portalExec(snapshot),
-      findings: Array.isArray(snapshot.findings) ? snapshot.findings : [],
-      recs: Array.isArray(snapshot.recs) ? snapshot.recs : [],
-      methodology: snapshot.methodology ?? null,
-      evidence_index: Array.isArray(snapshot.evidence_index) ? snapshot.evidence_index : [],
-    };
+    return { row, now };
   }
 }

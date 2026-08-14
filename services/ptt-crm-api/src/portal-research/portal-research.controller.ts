@@ -14,6 +14,14 @@ export class PortalResearchController {
     return this.research.listReports(user);
   }
 
+  @Get('reports/:versionId/export.pdf')
+  exportPdf(
+    @PortalUser() user: PortalJwtPayload,
+    @Param('versionId', ParseIntPipe) versionId: number,
+  ) {
+    return this.research.exportReportPdf(user, versionId);
+  }
+
   @Get('reports/:versionId')
   detail(
     @PortalUser() user: PortalJwtPayload,

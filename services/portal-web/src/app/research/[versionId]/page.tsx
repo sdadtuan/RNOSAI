@@ -5,8 +5,9 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { HubPageLayout } from '@/components/layout';
 import { PortalPageShell } from '@/components/PortalPageShell';
-import { portalResearchReport, type PortalResearchReportDetail } from '@/lib/api';
+import { portalResearchReport, portalResearchReportPdf, type PortalResearchReportDetail } from '@/lib/api';
 import { isMarketResearchPortalFeEnabled } from '@/lib/market-research-portal-flags';
+import { portalResearchErrorVi } from '@/lib/portal-research-errors';
 
 export default function PortalResearchDetailPage() {
   return (
@@ -55,6 +56,7 @@ function ResearchDetailContent({ token }: { token: string }) {
   const [report, setReport] = useState<PortalResearchReportDetail | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   useEffect(() => {
     if (!isMarketResearchPortalFeEnabled()) {
@@ -62,7 +64,7 @@ function ResearchDetailContent({ token }: { token: string }) {
       return;
     }
     if (!Number.isFinite(versionId)) {
-      setError('not_found');
+      setError(portalResearchErrorVi('not_found'));
       setLoading(false);
       return;
     }
@@ -73,12 +75,31 @@ function ResearchDetailContent({ token }: { token: string }) {
         setReport(await portalResearchReport(token, versionId));
       } catch (err) {
         setReport(null);
-        setError(err instanceof Error ? err.message : 'Không tải được báo cáo');
+        setError(portalResearchErrorVi(err instanceof Error ? err.message : ''));
       } finally {
         setLoading(false);
       }
     })();
   }, [token, versionId]);
+
+  async function handleDownloadPdf() {
+    if (!report) return;
+    setPdfBusy(true);
+    setError('');
+    try {
+      const blob = await portalResearchReportPdf(token, report.version_id);
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = `research-v${report.version}.pdf`;
+      anchor.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      setError(portalResearchErrorVi(err instanceof Error ? err.message : ''));
+    } finally {
+      setPdfBusy(false);
+    }
+  }
 
   if (!isMarketResearchPortalFeEnabled()) {
     return (
@@ -98,9 +119,21 @@ function ResearchDetailContent({ token }: { token: string }) {
       title="Báo cáo nghiên cứu"
       subtitle={report ? `Phiên bản ${report.version}` : 'Chỉ xem'}
       actions={
-        <Link href="/research" className="btn btn-secondary btn-sm">
-          ← Danh sách
-        </Link>
+        <>
+          {report ? (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={pdfBusy}
+              onClick={() => void handleDownloadPdf()}
+            >
+              Tải PDF
+            </button>
+          ) : null}
+          <Link href="/research" className="btn btn-secondary btn-sm">
+            ← Danh sách
+          </Link>
+        </>
       }
     >
       {error ? <p className="error">{error}</p> : null}
