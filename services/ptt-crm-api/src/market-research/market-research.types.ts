@@ -370,6 +370,40 @@ export type WhisperIngestResult = {
   note?: string;
 };
 
+export const SURVEY_IMPORT_FORMATS = ['codebook', 'vw'] as const;
+export type SurveyImportFormat = (typeof SURVEY_IMPORT_FORMATS)[number];
+
+export type CodebookEvidenceDraft = {
+  locator: string;
+  value_num: number;
+  unit: string;
+  value_base: string;
+  period_note: string;
+  geography: string;
+  respondent_id: string;
+};
+
+export type SurveyImportResult = {
+  ok: true;
+  study_id: number;
+  source_id: number;
+  evidence_ids: number[];
+  n: number;
+};
+
+export const VW_BASES = ['too_cheap', 'cheap', 'expensive', 'too_expensive'] as const;
+export type VwBase = (typeof VW_BASES)[number];
+
+export type VwRespondent = {
+  too_cheap: number;
+  cheap: number;
+  expensive: number;
+  too_expensive: number;
+};
+
+export const CODEBOOK_LIMITATION =
+  'Codebook Forms — không phải panel xác suất. Không suy MOE.';
+
 export type SparkToroSourceCandidate = {
   url: string;
   title: string;

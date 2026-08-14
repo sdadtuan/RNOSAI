@@ -78,6 +78,8 @@ import type {
 
 const WHISPER_MAX_BYTES = 25 * 1024 * 1024;
 const WHISPER_MIME = new Set(['audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a']);
+const SURVEY_CSV_MAX_BYTES = 2 * 1024 * 1024;
+const SURVEY_CSV_MIME = new Set(['text/csv', 'text/plain', 'application/csv']);
 const WHISPER_MIME_EXT: Record<string, string> = {
   'audio/mpeg': '.mp3',
   'audio/wav': '.wav',
@@ -388,6 +390,58 @@ export class MarketResearchController {
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.createStudy(id, scope, body ?? ({} as CreateStudyInput), actorEmail(req));
+  }
+
+  @Post('projects/:id/import-survey')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: SURVEY_CSV_MAX_BYTES },
+    }),
+  )
+  async importSurvey(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['file is required'],
+      });
+    }
+    const mime = String(file.mimetype ?? '').trim().toLowerCase();
+    if (!SURVEY_CSV_MIME.has(mime)) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['file mime is invalid'],
+      });
+    }
+    const body = (req.body ?? {}) as {
+      format?: string;
+      study_id?: string;
+      expert_review?: string;
+      period_note?: string;
+      geography?: string;
+      unit?: string;
+    };
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    const rawStudyId = body.study_id;
+    return this.research.importSurvey(
+      id,
+      scope,
+      {
+        csvText: file.buffer.toString('utf8'),
+        format: body.format ?? '',
+        studyId: rawStudyId != null && String(rawStudyId).trim() !== '' ? Number(rawStudyId) : null,
+        expertReview: body.expert_review,
+        periodNote: body.period_note,
+        geography: body.geography,
+        unit: body.unit,
+      },
+      actorEmail(req),
+    );
   }
 
   @Post('projects/:id/studies/:studyId/whisper')

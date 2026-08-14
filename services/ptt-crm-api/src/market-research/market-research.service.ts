@@ -52,6 +52,7 @@ import { collectSparkToro } from './sparktoro-collect';
 import { mapSparkToroResponse } from './sparktoro-mapper.util';
 import type {
   ApproveInsightInput,
+  CodebookEvidenceDraft,
   ConfidenceJson,
   ConfidenceRubric,
   CreateCompetitorInput,
@@ -102,6 +103,8 @@ import type {
   ResearchSourceRow,
   PublishPortalInput,
   ResearchExportFormat,
+  SurveyImportFormat,
+  SurveyImportResult,
   UpdateExecEnInput,
   UpdateReportEmbargoInput,
   RunDeepInput,
@@ -117,7 +120,20 @@ import type {
   TrendSignal,
   SubmitReviewInput,
 } from './market-research.types';
-import { CONSENT_TYPES, DECISION_STATUSES, STUDY_METHODS, STUDY_MODES } from './market-research.types';
+import {
+  CODEBOOK_LIMITATION,
+  CONSENT_TYPES,
+  DECISION_STATUSES,
+  STUDY_METHODS,
+  STUDY_MODES,
+  SURVEY_IMPORT_FORMATS,
+  VW_BASES,
+} from './market-research.types';
+import {
+  isSurveyEvidenceLocator,
+  parseCodebookCsv,
+  parseVwCsv,
+} from './survey-codebook.util';
 import { buildResearchReportDocx, sectionsFromReportSnapshot } from './market-research-docx.util';
 import { buildResearchReportPdf } from './market-research-pdf.util';
 import {
@@ -652,6 +668,163 @@ export class MarketResearchService {
         instrument_version: this.optionalText(input.instrument_version),
         weighting_note: this.optionalText(input.weighting_note),
       },
+      actor,
+    );
+  }
+
+  async importSurvey(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: {
+      csvText: string;
+      format: string;
+      studyId?: number | null;
+      expertReview?: string | null;
+      periodNote?: string | null;
+      geography?: string | null;
+      unit?: string | null;
+    },
+    actor: string,
+  ): Promise<SurveyImportResult> {
+    await this.loadScopedProject(projectId, scope);
+    const format = String(input.format ?? '').trim().toLowerCase();
+    if (!SURVEY_IMPORT_FORMATS.includes(format as SurveyImportFormat)) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['format is invalid'],
+      });
+    }
+
+    let drafts: CodebookEvidenceDraft[];
+    try {
+      drafts = format === 'vw' ? this.draftsFromVw(input) : parseCodebookCsv(input.csvText);
+    } catch (err) {
+      this.rethrowUtilCode(err, [
+        'survey_pii_forbidden',
+        'codebook_csv_invalid',
+        'codebook_row_cap',
+      ]);
+    }
+
+    if (!drafts.length) {
+      throw new BadRequestException({
+        error: 'codebook_csv_invalid',
+        messages: ['codebook_csv_invalid'],
+      });
+    }
+
+    for (const draft of drafts) {
+      const messages = validateCreateEvidence({
+        study_id: 1,
+        source_id: 1,
+        locator: draft.locator,
+        value_num: draft.value_num,
+        unit: draft.unit,
+        value_base: draft.value_base,
+        period_note: draft.period_note,
+        geography: draft.geography,
+      });
+      if (messages.length) {
+        throw new BadRequestException({ error: 'validation_error', messages });
+      }
+    }
+
+    const study = await this.resolveImportStudy(projectId, scope, input.studyId, actor);
+    const expert = String(input.expertReview ?? '').trim();
+    const source = await this.createSource(projectId, scope, {
+      title: study.name,
+      publisher: 'Forms',
+      reliability_tier: 'medium',
+      limitation_note: expert || CODEBOOK_LIMITATION,
+      ai_generated: false,
+    });
+
+    const evidence_ids: number[] = [];
+    for (const draft of drafts) {
+      const ev = await this.createEvidence(
+        projectId,
+        scope,
+        {
+          study_id: study.id,
+          source_id: source.id,
+          locator: draft.locator,
+          value_num: draft.value_num,
+          unit: draft.unit,
+          value_base: draft.value_base,
+          period_note: draft.period_note,
+          geography: draft.geography,
+        },
+        actor,
+      );
+      evidence_ids.push(ev.id);
+    }
+
+    const n = new Set(drafts.map((d) => d.respondent_id)).size;
+    await this.patchStudy(study.id, scope, { n });
+    return {
+      ok: true,
+      study_id: study.id,
+      source_id: source.id,
+      evidence_ids,
+      n,
+    };
+  }
+
+  private draftsFromVw(input: {
+    csvText: string;
+    periodNote?: string | null;
+    geography?: string | null;
+    unit?: string | null;
+  }): CodebookEvidenceDraft[] {
+    const unit = String(input.unit ?? '').trim() || 'VND';
+    const period_note = String(input.periodNote ?? '').trim();
+    const geography = String(input.geography ?? '').trim();
+    const respondents = parseVwCsv(input.csvText);
+    const drafts: CodebookEvidenceDraft[] = [];
+    for (const row of respondents) {
+      for (const base of VW_BASES) {
+        drafts.push({
+          locator: `R-${row.respondent_id}:${base}`,
+          value_num: row[base],
+          unit,
+          value_base: base,
+          period_note,
+          geography,
+          respondent_id: row.respondent_id,
+        });
+      }
+    }
+    return drafts;
+  }
+
+  private async resolveImportStudy(
+    projectId: number,
+    scope: ClientScopeContext,
+    studyId: number | null | undefined,
+    actor: string,
+  ): Promise<ResearchStudy> {
+    if (studyId != null && String(studyId).trim() !== '') {
+      const id = Number(studyId);
+      if (!Number.isInteger(id) || id < 1) {
+        throw new BadRequestException({
+          error: 'validation_error',
+          messages: ['study_id is invalid'],
+        });
+      }
+      const existing = await this.repo.getStudy(id);
+      if (!existing || existing.project_id !== projectId || existing.method !== 'survey') {
+        throw new BadRequestException({
+          error: 'validation_error',
+          messages: ['study_id is invalid'],
+        });
+      }
+      return existing;
+    }
+    const utcDate = new Date().toISOString().slice(0, 10);
+    return this.createStudy(
+      projectId,
+      scope,
+      { name: `Codebook ${utcDate}`, method: 'survey' },
       actor,
     );
   }
@@ -2224,6 +2397,14 @@ export class MarketResearchService {
 
   private applyStudyEvidenceGates(input: CreateEvidenceInput): void {
     if (input.study_id == null) return;
+    if (isSurveyEvidenceLocator(String(input.locator ?? ''))) {
+      try {
+        assertExcerptNotRawTranscript(input.excerpt);
+      } catch (err) {
+        this.rethrowUtilCode(err, ['raw_transcript_forbidden']);
+      }
+      return;
+    }
     try {
       assertTranscriptLocator(String(input.locator ?? ''));
       assertExcerptNotRawTranscript(input.excerpt);

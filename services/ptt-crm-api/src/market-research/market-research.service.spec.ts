@@ -9,11 +9,12 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import { MarketResearchService } from './market-research.service';
-import type {
-  ResearchEvidenceRow,
-  ResearchInsightRow,
-  ResearchProjectRow,
-  ResearchReportVersionRow,
+import {
+  CODEBOOK_LIMITATION,
+  type ResearchEvidenceRow,
+  type ResearchInsightRow,
+  type ResearchProjectRow,
+  type ResearchReportVersionRow,
 } from './market-research.types';
 import { transcribeAudio } from './whisper-transcribe';
 import { collectSparkToro } from './sparktoro-collect';
@@ -3130,6 +3131,204 @@ describe('MarketResearchService', () => {
     expect(out.cycle_time_hours.sample).toBe(3);
     expect(out.evidence_completeness).toEqual({ projects: 1, with_verified_pct: 100 });
     expect(repo.getOpsAnalytics).toHaveBeenCalledWith({}, ['beta']);
+  });
+
+  const codebookCsv = [
+    'respondent_id,question_code,value,unit,value_base,period_note,geography',
+    'R001,Q1,15000,VND,mean,2026-Q1,VN',
+    'R002,Q1,18000,VND,mean,2026-Q1,VN',
+  ].join('\n');
+
+  function stubSurveyImportWrites(): void {
+    stubScopedProject();
+    const study = {
+      id: 5,
+      project_id: 9,
+      name: 'Codebook 2026-08-14',
+      method: 'survey',
+      n: 2,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    };
+    const source = {
+      id: 20,
+      project_id: 9,
+      question_id: null,
+      source_type: 'web',
+      title: study.name,
+      publisher: 'Forms',
+      url: null,
+      published_at: null,
+      accessed_at: null,
+      geo: null,
+      license_note: null,
+      reliability_tier: 'medium',
+      limitation_note: CODEBOOK_LIMITATION,
+      snapshot_uri: null,
+      content_hash: null,
+      ai_generated: false,
+      keep: null,
+      triangulated: false,
+      single_source_accepted: false,
+      superseded_by: null,
+      created_at: '2026-08-14',
+      updated_at: '2026-08-14',
+    };
+    repo.createStudy.mockResolvedValue(study);
+    repo.getStudy.mockResolvedValue(study);
+    repo.createSource.mockResolvedValue(source);
+    repo.getSource.mockResolvedValue(source);
+    repo.patchStudy.mockResolvedValue(study);
+    repo.createEvidence
+      .mockResolvedValueOnce(evidenceRow({ id: 101, study_id: 5, source_id: 20, locator: 'Q-Q1' }))
+      .mockResolvedValueOnce(evidenceRow({ id: 102, study_id: 5, source_id: 20, locator: 'Q-Q1' }));
+  }
+
+  it('M1-2a: codebook 2 rows → 2 evidence; createInsight is not called', async () => {
+    stubSurveyImportWrites();
+
+    const out = await service.importSurvey(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { csvText: codebookCsv, format: 'codebook' },
+      'am@ptt',
+    );
+
+    expect(out).toEqual({
+      ok: true,
+      study_id: 5,
+      source_id: 20,
+      evidence_ids: [101, 102],
+      n: 2,
+    });
+    expect(out).not.toHaveProperty('insight_id');
+    expect(out).not.toHaveProperty('statement');
+    expect(repo.createStudy).toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({
+        method: 'survey',
+        name: expect.stringMatching(/^Codebook \d{4}-\d{2}-\d{2}$/),
+      }),
+      'am@ptt',
+    );
+    expect(repo.createSource).toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({
+        publisher: 'Forms',
+        title: 'Codebook 2026-08-14',
+        reliability_tier: 'medium',
+        limitation_note: CODEBOOK_LIMITATION,
+        ai_generated: false,
+      }),
+    );
+    expect(repo.createEvidence).toHaveBeenCalledTimes(2);
+    expect(repo.createEvidence).toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({
+        study_id: 5,
+        source_id: 20,
+        locator: 'Q-Q1',
+        value_num: 15000,
+        unit: 'VND',
+        value_base: 'mean',
+        period_note: '2026-Q1',
+        geography: 'VN',
+      }),
+      'am@ptt',
+    );
+    expect(repo.patchStudy).toHaveBeenCalledWith(5, { n: 2 });
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('M1-2b: email in CSV → 400 survey_pii_forbidden; 0 evidence', async () => {
+    stubSurveyImportWrites();
+    const csv = [
+      'respondent_id,question_code,value,unit,value_base,period_note,geography',
+      'R001,Q1,15000,VND,mean,2026-Q1,analyst@ptt.vn',
+    ].join('\n');
+
+    try {
+      await service.importSurvey(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { csvText: csv, format: 'codebook' },
+        'am@ptt',
+      );
+      throw new Error('expected survey_pii_forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+      expect((err as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ error: 'survey_pii_forbidden' }),
+      );
+    }
+    expect(repo.createStudy).not.toHaveBeenCalled();
+    expect(repo.createSource).not.toHaveBeenCalled();
+    expect(repo.createEvidence).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('M1-2c: GET evidence outside scope is 403 without study name', async () => {
+    repo.getEvidence.mockResolvedValue(
+      evidenceRow({ id: 1, study_id: 4, excerpt: 'quoted line', locator: 'T-00:00' }),
+    );
+    repo.getStudy.mockResolvedValue({
+      id: 4,
+      project_id: 9,
+      name: 'SecretStudyName',
+      method: 'survey',
+      n: 8,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    });
+    repo.getProjectClientId.mockResolvedValue('other-client');
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+
+    try {
+      await service.getEvidence(1, { restricted: true, allowedClientIds: ['acme'] });
+      throw new Error('expected forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const body = (err as ForbiddenException).getResponse();
+      expect(body).toEqual({ error: 'forbidden' });
+      expect(JSON.stringify(body)).not.toContain('SecretStudyName');
+      expect(JSON.stringify(body)).not.toContain('name');
+    }
+    expect(repo.getStudy).not.toHaveBeenCalled();
+  });
+
+  it('M1-2d: missing unit on a codebook row → 400; no inserts', async () => {
+    stubSurveyImportWrites();
+    const csv = [
+      'respondent_id,question_code,value,unit,value_base,period_note,geography',
+      'R001,Q1,15000,,mean,2026-Q1,VN',
+    ].join('\n');
+
+    try {
+      await service.importSurvey(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { csvText: csv, format: 'codebook' },
+        'am@ptt',
+      );
+      throw new Error('expected validation_error');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+      expect((err as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ error: 'validation_error' }),
+      );
+    }
+    expect(repo.createStudy).not.toHaveBeenCalled();
+    expect(repo.createSource).not.toHaveBeenCalled();
+    expect(repo.createEvidence).not.toHaveBeenCalled();
+    expect(repo.patchStudy).not.toHaveBeenCalled();
   });
 });
 
