@@ -13,10 +13,17 @@ type ResearchJobChipProps = {
   token: string | null;
   projectId: number;
   runId: number | null;
+  kind?: 'desk' | 'deep';
   onSettled: (run: ResearchAiRun) => void;
 };
 
-export function ResearchJobChip({ token, projectId, runId, onSettled }: ResearchJobChipProps) {
+export function ResearchJobChip({
+  token,
+  projectId,
+  runId,
+  kind = 'desk',
+  onSettled,
+}: ResearchJobChipProps) {
   const [run, setRun] = useState<ResearchAiRun | null>(null);
   const settledRef = useRef<(run: ResearchAiRun) => void>(onSettled);
   settledRef.current = onSettled;
@@ -56,14 +63,17 @@ export function ResearchJobChip({ token, projectId, runId, onSettled }: Research
   if (!runId) return null;
   const status = run?.status ?? 'pending';
   const busy = status === 'pending' || status === 'running';
+  const noun = kind === 'deep' ? 'Deep' : 'Desk';
   const label =
     status === 'running'
-      ? 'Đang lấy nguồn…'
+      ? kind === 'deep'
+        ? 'Đang Deep Research…'
+        : 'Đang lấy nguồn…'
       : status === 'pending'
-        ? 'Desk đang chờ'
+        ? `${noun} đang chờ`
         : status === 'succeeded'
-          ? 'Desk xong'
-          : TRANSITION_REASON_VI[run?.error_message ?? ''] ?? run?.error_message ?? 'Desk thất bại';
+          ? `${noun} xong`
+          : TRANSITION_REASON_VI[run?.error_message ?? ''] ?? run?.error_message ?? `${noun} thất bại`;
 
   return (
     <span

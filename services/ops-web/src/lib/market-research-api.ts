@@ -121,6 +121,7 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   tavily_unconfigured: 'Chưa cấu hình Tavily — job failed, project không đổi.',
   tavily_credit_cap: 'Hết credit Tavily của dự án',
   jobs_disabled: 'Hàng đợi job đang tắt — thử lại sau.',
+  deep_research_disabled: 'Deep Research đang tắt.',
 };
 
 export type ResearchQuestion = {
@@ -159,6 +160,7 @@ export type ResearchProject = {
   ai_runs?: ResearchAiRun[];
   tavily_credits_used?: number;
   tavily_credits_limit?: number;
+  deep_research_provider?: string;
   valid_transitions?: ProjectStatus[];
 };
 
@@ -390,6 +392,23 @@ export async function runResearchDesk(
   questionId: number,
 ): Promise<{ ok: true; run_id: number; status: string; note?: string }> {
   return researchFetch(token, `/api/v1/research/projects/${projectId}/run-desk`, {
+    method: 'POST',
+    body: JSON.stringify({ question_id: questionId }),
+  });
+}
+
+export async function fetchResearchHealth(
+  token: string,
+): Promise<{ ok: true; enabled: true; deep_provider: string }> {
+  return researchFetch(token, '/api/v1/research/health');
+}
+
+export async function runResearchDeep(
+  token: string,
+  projectId: number,
+  questionId: number,
+): Promise<{ ok: true; run_id: number; status: string; note?: string }> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/run-deep`, {
     method: 'POST',
     body: JSON.stringify({ question_id: questionId }),
   });

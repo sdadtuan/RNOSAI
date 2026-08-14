@@ -53,6 +53,7 @@ describe('MarketResearchService', () => {
     patchInsight: jest.fn(),
     getQuestion: jest.fn(),
     findInFlightDeskRun: jest.fn(),
+    findInFlightDeepRun: jest.fn(),
     insertAiRun: jest.fn(),
     failAiRun: jest.fn(),
     getAiRun: jest.fn(),
@@ -65,13 +66,23 @@ describe('MarketResearchService', () => {
   };
   const jobQueue = {
     enqueueResearchDeskJob: jest.fn(),
+    enqueueResearchDeepJob: jest.fn(),
+  };
+  const config = {
+    researchDeepProvider: 'openai',
   };
 
   let service: MarketResearchService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new MarketResearchService(repo as never, clientScope as never, jobQueue as never);
+    config.researchDeepProvider = 'openai';
+    service = new MarketResearchService(
+      repo as never,
+      clientScope as never,
+      jobQueue as never,
+      config as never,
+    );
   });
 
   function stubScopedProject(): void {
@@ -481,6 +492,65 @@ describe('MarketResearchService', () => {
       note: 'jobs_disabled',
     });
     expect(repo.failAiRun).toHaveBeenCalledWith(77, 'jobs_disabled');
+  });
+
+  it('runDeep throws deep_research_disabled when provider is off', async () => {
+    config.researchDeepProvider = 'off';
+    stubScopedProject();
+
+    try {
+      await service.runDeep(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { question_id: 10 },
+        'am@ptt',
+      );
+      throw new Error('expected 400');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'deep_research_disabled' });
+    }
+    expect(repo.insertAiRun).not.toHaveBeenCalled();
+    expect(jobQueue.enqueueResearchDeepJob).not.toHaveBeenCalled();
+  });
+
+  it('runDeep throws job_in_flight when a pending deep run exists for the question', async () => {
+    stubScopedProject();
+    repo.getQuestion.mockResolvedValue({
+      id: 10,
+      project_id: 9,
+      sort_order: 1,
+      question_vi: 'Quy mô?',
+      question_en: null,
+      analysis_frame: null,
+      created_at: '2026-08-14',
+    });
+    repo.findInFlightDeepRun.mockResolvedValue({ id: 88, status: 'running' });
+
+    try {
+      await service.runDeep(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { question_id: 10 },
+        'am@ptt',
+      );
+      throw new Error('expected conflict');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConflictException);
+      expect((err as ConflictException).getResponse()).toEqual({ error: 'job_in_flight' });
+    }
+    expect(repo.insertAiRun).not.toHaveBeenCalled();
+    expect(jobQueue.enqueueResearchDeepJob).not.toHaveBeenCalled();
+  });
+
+  it('health exposes deep_provider for FE hide/show', () => {
+    expect(service.health()).toEqual({
+      ok: true,
+      enabled: true,
+      deep_provider: 'openai',
+    });
+    config.researchDeepProvider = 'off';
+    expect(service.health().deep_provider).toBe('off');
   });
 });
 

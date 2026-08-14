@@ -809,6 +809,22 @@ export class MarketResearchRepository implements OnModuleDestroy {
     return row ? this.mapAiRun(row) : null;
   }
 
+  async findInFlightDeepRun(
+    projectId: number,
+    questionId: number,
+  ): Promise<ResearchAiRunRow | null> {
+    const result = await this.db.query(
+      `${this.aiRunSelect}
+       WHERE project_id = $1 AND question_id = $2
+         AND job_type = 'deep_research'
+         AND status IN ('pending', 'running')
+       ORDER BY id DESC LIMIT 1`,
+      [projectId, questionId],
+    );
+    const row = result.rows[0];
+    return row ? this.mapAiRun(row) : null;
+  }
+
   async insertAiRun(input: {
     projectId: number;
     questionId: number;

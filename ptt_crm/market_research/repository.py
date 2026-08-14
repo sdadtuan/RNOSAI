@@ -101,6 +101,20 @@ def fail_run(run_id: int, error: str, *, credits_used: int = 0) -> None:
         conn.commit()
 
 
+def set_run_provider(run_id: int, provider: str) -> None:
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE crm_research_ai_runs
+                SET provider = %s
+                WHERE id = %s
+                """,
+                (str(provider)[:80], run_id),
+            )
+        conn.commit()
+
+
 def succeed_run(run_id: int, *, credits_used: int, output: dict[str, Any]) -> None:
     with pg_connection() as conn:
         with conn.cursor() as cur:

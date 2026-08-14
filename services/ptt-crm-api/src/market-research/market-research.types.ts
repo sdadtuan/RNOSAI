@@ -111,6 +111,7 @@ export type ResearchProjectDetail = ResearchProjectRow & {
   ai_runs: ResearchAiRunRow[];
   tavily_credits_used: number;
   tavily_credits_limit: number;
+  deep_research_provider: string;
   valid_transitions: ProjectStatus[];
 };
 
@@ -124,6 +125,12 @@ export type RunDeskResult = {
   status: string;
   note?: string;
 };
+
+export type RunDeepInput = {
+  question_id: number;
+};
+
+export type RunDeepResult = RunDeskResult;
 
 export type CreateSourceInput = {
   title: string;

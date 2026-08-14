@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AppConfigService } from '../config/app-config.service';
 import { ClientScopeContext, StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
 import { JobQueueRepository } from '../webhooks/job-queue.repository';
 import {
@@ -38,6 +39,8 @@ import type {
   ResearchProjectRow,
   ResearchQuestionRow,
   ResearchSourceRow,
+  RunDeepInput,
+  RunDeepResult,
   RunDeskInput,
   RunDeskResult,
 } from './market-research.types';
@@ -50,7 +53,22 @@ export class MarketResearchService {
     private readonly repo: MarketResearchRepository,
     private readonly clientScope: StaffClientScopeService,
     private readonly jobQueue: JobQueueRepository,
+    private readonly config: AppConfigService,
   ) {}
+
+  health(): { ok: true; enabled: true; deep_provider: string } {
+    return {
+      ok: true,
+      enabled: true,
+      deep_provider: this.config.researchDeepProvider,
+    };
+  }
+
+  private deepFallbackProvider(): string {
+    return this.config.researchDeepProvider === 'gemini'
+      ? 'gemini_fallback_tavily'
+      : 'openai_fallback_tavily';
+  }
 
   private assertClientInScope(scope: ClientScopeContext, clientId: string): void {
     if (!scope.restricted) return;
@@ -490,6 +508,52 @@ export class MarketResearchService {
     return { ok: true, run_id: run.id, status: 'pending' };
   }
 
+  async runDeep(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: RunDeepInput,
+    actor: string,
+  ): Promise<RunDeepResult> {
+    if (this.config.researchDeepProvider === 'off') {
+      throw new BadRequestException({ error: 'deep_research_disabled' });
+    }
+    const project = await this.loadScopedProject(projectId, scope);
+    const questionId = Number(input.question_id);
+    if (!Number.isFinite(questionId) || questionId <= 0) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['question_id is required'],
+      });
+    }
+    const question = await this.repo.getQuestion(questionId);
+    if (!question || question.project_id !== projectId) {
+      throw new NotFoundException({ error: 'not_found' });
+    }
+    const inFlight = await this.repo.findInFlightDeepRun(projectId, questionId);
+    if (inFlight) {
+      throw new ConflictException({ error: 'job_in_flight' });
+    }
+    const run = await this.repo.insertAiRun({
+      projectId,
+      questionId,
+      jobType: 'deep_research',
+      provider: this.deepFallbackProvider(),
+      actor,
+    });
+    const job = await this.jobQueue.enqueueResearchDeepJob({
+      projectId,
+      questionId,
+      runId: run.id,
+      clientId: project.client_id,
+      idempotencyKey: `research_deep:${projectId}:${questionId}:run:${run.id}`,
+    });
+    if (!job) {
+      await this.repo.failAiRun(run.id, 'jobs_disabled');
+      return { ok: true, run_id: run.id, status: 'failed', note: 'jobs_disabled' };
+    }
+    return { ok: true, run_id: run.id, status: 'pending' };
+  }
+
   async getJob(
     projectId: number,
     runId: number,
@@ -572,6 +636,7 @@ export class MarketResearchService {
       ai_runs,
       tavily_credits_used,
       tavily_credits_limit: MAX_TAVILY_CREDITS_PER_RESEARCH,
+      deep_research_provider: this.config.researchDeepProvider,
       valid_transitions: listValidTransitions(project.status, {
         rqCount: project.rq_count,
         verifiedInsightCount: project.verified_insight_count,

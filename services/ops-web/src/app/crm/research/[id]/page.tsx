@@ -9,6 +9,7 @@ import { EvidenceIdChip } from '@/components/research/EvidenceIdChip';
 import { InsightCard } from '@/components/research/InsightCard';
 import { InsightDrawer } from '@/components/research/InsightDrawer';
 import { InsightGateDialog } from '@/components/research/InsightGateDialog';
+import { DeepResearchModal } from '@/components/research/DeepResearchModal';
 import { ResearchJobChip } from '@/components/research/ResearchJobChip';
 import { ResearchStatusChip } from '@/components/research/ResearchStatusChip';
 import { SourceKeepTable } from '@/components/research/SourceKeepTable';
@@ -31,7 +32,9 @@ import {
   createResearchInsight,
   createResearchSource,
   deleteResearchQuestion,
+  fetchResearchHealth,
   fetchResearchProject,
+  runResearchDeep,
   runResearchDesk,
   patchResearchEvidence,
   patchResearchInsight,
@@ -99,6 +102,10 @@ function CrmResearchWorkspaceContent() {
   const [deskQuestionId, setDeskQuestionId] = useState<number | null>(null);
   const [deskRunId, setDeskRunId] = useState<number | null>(null);
   const [deskBanner, setDeskBanner] = useState('');
+  const [deepProvider, setDeepProvider] = useState<string>('off');
+  const [deepOpen, setDeepOpen] = useState(false);
+  const [deepRunId, setDeepRunId] = useState<number | null>(null);
+  const [deepBanner, setDeepBanner] = useState('');
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -138,6 +145,16 @@ function CrmResearchWorkspaceContent() {
     async (access: string) => {
       const data = await fetchResearchProject(access, id);
       setProject(data);
+      if (data.deep_research_provider) {
+        setDeepProvider(data.deep_research_provider);
+      } else {
+        try {
+          const health = await fetchResearchHealth(access);
+          setDeepProvider(health.deep_provider);
+        } catch {
+          setDeepProvider('off');
+        }
+      }
     },
     [id],
   );
@@ -440,6 +457,54 @@ function CrmResearchWorkspaceContent() {
     }
   }
 
+  async function onRunDeep() {
+    const access = getAccessToken();
+    const qid = deskQuestionId ?? project?.questions?.[0]?.id;
+    if (!access || !project || !qid) return;
+    setSaving(true);
+    setError('');
+    setDeepBanner('');
+    try {
+      const out = await runResearchDeep(access, project.id, qid);
+      setDeskQuestionId(qid);
+      setDeepRunId(out.run_id);
+      setDeepOpen(false);
+      if (out.status === 'failed') {
+        const note = out.note ?? 'jobs_disabled';
+        setDeepBanner(TRANSITION_REASON_VI[note] ?? note);
+      }
+    } catch (err) {
+      if (err instanceof ResearchApiError && err.code === 'job_in_flight') {
+        setError(TRANSITION_REASON_VI.job_in_flight);
+      } else if (err instanceof ResearchApiError && err.code === 'deep_research_disabled') {
+        setError(TRANSITION_REASON_VI.deep_research_disabled);
+        setDeepOpen(false);
+      } else {
+        setError(err instanceof Error ? err.message : 'Chạy Deep Research thất bại');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onDeepSettled(run: ResearchAiRun) {
+    const access = getAccessToken();
+    if (run.status === 'failed') {
+      const code = run.error_message ?? 'failed';
+      setDeepBanner(TRANSITION_REASON_VI[code] ?? code);
+    } else {
+      setDeepBanner('');
+      setDeepRunId(null);
+    }
+    if (access) {
+      try {
+        await load(access);
+      } catch {
+        /* keep chip state */
+      }
+    }
+  }
+
   async function onDeskSettled(run: ResearchAiRun) {
     const access = getAccessToken();
     if (run.status === 'failed') {
@@ -570,10 +635,15 @@ function CrmResearchWorkspaceContent() {
                   questionId={deskQuestionId ?? project.questions?.[0]?.id ?? null}
                   runId={deskRunId}
                   banner={deskBanner}
+                  deepProvider={deepProvider}
+                  deepRunId={deepRunId}
+                  deepBanner={deepBanner}
                   onQuestionChange={setDeskQuestionId}
                   onRun={() => void onRunDesk()}
                   onRetry={() => void onRunDesk(deskQuestionId ?? project.questions?.[0]?.id)}
                   onSettled={onDeskSettled}
+                  onOpenDeep={() => setDeepOpen(true)}
+                  onDeepSettled={onDeepSettled}
                 />
                 <SourceKeepTable
                   sources={project.sources ?? []}
@@ -642,6 +712,17 @@ function CrmResearchWorkspaceContent() {
               onApprove={onApproveInsight}
             />
             <InsightGateDialog open={gateOpen} messages={gateMessages} onClose={() => setGateOpen(false)} />
+            <DeepResearchModal
+              open={deepOpen}
+              provider={deepProvider}
+              questionLabel={
+                project.questions?.find((q) => q.id === (deskQuestionId ?? project.questions?.[0]?.id))
+                  ?.question_vi ?? '—'
+              }
+              saving={saving}
+              onClose={() => setDeepOpen(false)}
+              onConfirm={() => void onRunDeep()}
+            />
           </>
         ) : null}
       </div>
@@ -656,10 +737,15 @@ function SourcesDeskBar({
   questionId,
   runId,
   banner,
+  deepProvider,
+  deepRunId,
+  deepBanner,
   onQuestionChange,
   onRun,
   onRetry,
   onSettled,
+  onOpenDeep,
+  onDeepSettled,
 }: {
   project: ResearchProject;
   canRun: boolean;
@@ -667,16 +753,23 @@ function SourcesDeskBar({
   questionId: number | null;
   runId: number | null;
   banner: string;
+  deepProvider: string;
+  deepRunId: number | null;
+  deepBanner: string;
   onQuestionChange: (id: number) => void;
   onRun: () => void;
   onRetry: () => void;
   onSettled: (run: ResearchAiRun) => void;
+  onOpenDeep: () => void;
+  onDeepSettled: (run: ResearchAiRun) => void;
 }) {
   const questions = project.questions ?? [];
   const used = project.tavily_credits_used ?? 0;
   const limit = project.tavily_credits_limit ?? 12;
   const inFlight = Boolean(runId) && !banner;
   const failed = Boolean(banner);
+  const deepEnabled = deepProvider && deepProvider !== 'off';
+  const deepInFlight = Boolean(deepRunId) && !deepBanner;
   return (
     <div className="stack-gap" style={{ marginBottom: '0.85rem' }}>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -708,11 +801,29 @@ function SourcesDeskBar({
             {failed ? 'Thử lại Desk' : 'Chạy Desk Tavily'}
           </button>
         ) : null}
+        {canRun && deepEnabled ? (
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={saving || !questionId || deepInFlight}
+            title={deepInFlight ? TRANSITION_REASON_VI.job_in_flight : undefined}
+            onClick={onOpenDeep}
+          >
+            Chạy Deep Research
+          </button>
+        ) : null}
         <ResearchJobChip
           token={getAccessToken()}
           projectId={project.id}
           runId={runId}
           onSettled={onSettled}
+        />
+        <ResearchJobChip
+          token={getAccessToken()}
+          projectId={project.id}
+          runId={deepRunId}
+          kind="deep"
+          onSettled={onDeepSettled}
         />
         <span className="muted" style={{ fontSize: '0.85rem' }}>
           Tavily {used}/{limit} credit dự án
@@ -730,6 +841,20 @@ function SourcesDeskBar({
           }}
         >
           {banner}
+        </p>
+      ) : null}
+      {deepBanner ? (
+        <p
+          role="status"
+          style={{
+            margin: 0,
+            padding: '0.55rem 0.75rem',
+            borderRadius: 8,
+            border: '1px solid rgba(234, 179, 8, 0.45)',
+            background: 'rgba(234, 179, 8, 0.12)',
+          }}
+        >
+          {deepBanner}
         </p>
       ) : null}
     </div>

@@ -40,6 +40,7 @@ import type {
   PatchProjectInput,
   PatchQuestionInput,
   PatchSourceInput,
+  RunDeepInput,
   RunDeskInput,
 } from './market-research.types';
 
@@ -60,7 +61,7 @@ export class MarketResearchController {
 
   @Get('health')
   health() {
-    return { ok: true, enabled: true };
+    return this.research.health();
   }
 
   @Get('projects')
@@ -146,6 +147,18 @@ export class MarketResearchController {
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.runDesk(id, scope, body ?? ({} as RunDeskInput), actorEmail(req));
+  }
+
+  @Post('projects/:id/run-deep')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  async runDeep(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: RunDeepInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.runDeep(id, scope, body ?? ({} as RunDeepInput), actorEmail(req));
   }
 
   @Get('projects/:id/jobs/:runId')
