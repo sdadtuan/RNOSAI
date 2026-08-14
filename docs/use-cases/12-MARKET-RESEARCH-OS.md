@@ -28,6 +28,7 @@
 | Studies / agent / bilingual / KPI | RES-UC-030…033 | P2 |
 | Portal / waves / decision | RES-UC-040…042 | P3 |
 | PDF + Content OS cite | RES-UC-050…051 | P4 |
+| Whisper excerpts + SparkToro sources | RES-UC-060…061 | P5 |
 | EC-RES-01…12 | Actions walkthrough | P0 |
 
 **API base:** `/api/v1/research`  
@@ -44,6 +45,7 @@
 | **P2 — Integrate** | RES-UC-030…033 | P2 | Spec ready |
 | **P3 — Client-grade** | RES-UC-040…042 | P3 | Spec ready |
 | **P4 — Deliverable + activation** | RES-UC-050…051 | P4 | Spec ready |
+| **P5 — Qual ingest + audience source** | RES-UC-060…061 | P5 | Spec ready |
 
 ---
 
@@ -330,6 +332,19 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 |----|---------|
 | 050 | Staff + portal PDF (DOCX không regress) |
 | 051 | Cite insight_id vào Content OS |
+
+---
+
+## P5 — RES-UC-060…061
+
+| UC | Tóm tắt |
+|----|---------|
+| 060 | Upload audio IDI/FGD → evidence excerpt ≤ 500 + locator `T-mm:ss` (consent bắt buộc; không persist transcript thô) |
+| 061 | Chạy SparkToro → source candidates audience/overlap (tier low/medium + limitation; không auto-insight; flag mặc định tắt) |
+
+**API:** `POST /api/v1/research/projects/:id/studies/:studyId/whisper` · `POST /api/v1/research/projects/:id/run-sparktoro`  
+**Gates:** thiếu consent → 400 `consent_required` / `consent_expired`; excerpt > 500 → 400 `raw_transcript_forbidden`; paid tier `high` → 400 `reliability_capped`. SparkToro off → `sparktoro_disabled` (project không fail). Không `createInsight`.  
+**UAT:** [`actions/12-RES-ACTIONS.md`](actions/12-RES-ACTIONS.md) Walkthrough UAT P5.
 
 ---
 

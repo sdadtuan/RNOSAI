@@ -9,8 +9,8 @@
 | Ngày xuất | 2026-08-14 |
 | Module | MOD-MARKET-RESEARCH |
 | Nest module | `MarketResearchModule` |
-| Số UC | 36 (RES-UC-001…020 P0 · 021…027 P1 · 030…033 P2 · 040…042 P3 · 050…051 P4) |
-| Spec thủ công | 36/36 |
+| Số UC | 38 (RES-UC-001…020 P0 · 021…027 P1 · 030…033 P2 · 040…042 P3 · 050…051 P4 · 060…061 P5) |
+| Spec thủ công | 38/38 |
 | Master index | [RNOSAI-BA-Master-Spec.md](../RNOSAI-BA-Master-Spec.md) |
 | Design spec | [`../superpowers/specs/2026-08-14-market-research-os-design.md`](../../superpowers/specs/2026-08-14-market-research-os-design.md) |
 | SRS | [`../2026-08-14-market-research-os-srs.md`](../2026-08-14-market-research-os-srs.md) |
@@ -37,7 +37,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | SCR-RES-002 | Wizard G0 | `/crm/research/new` | P0 | 002 |
 | SCR-RES-003 | Workspace | `/crm/research/[id]` | P0 | 015 |
 | SCR-RES-003a | Brief | `?tab=brief` | P0 | 003 |
-| SCR-RES-003b | Sources | `?tab=sources` | P0 | 004, 005, 014, 019 |
+| SCR-RES-003b | Sources | `?tab=sources` | P0 | 004, 005, 014, 019, 061 |
 | SCR-RES-003c | Evidence | `?tab=evidence` | P0 | 006, 017 |
 | SCR-RES-003d | Insights | `?tab=insights` | P0 | 007, 008, 011, 018 |
 | SCR-RES-003e | Report | `?tab=report` | P0 | 009, 012 |
@@ -52,7 +52,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | SCR-RES-020 | Competitors | `?tab=competitors` | P1 | 022 |
 | SCR-RES-021 | Insert → plan | `/crm/marketing-plan/[id]` | P1 | 023 |
 | SCR-RES-022 | Confidence rubric | drawer | P1 | 021 |
-| SCR-RES-030 | Studies | `?tab=studies` | P2 | 030 |
+| SCR-RES-030 | Studies | `?tab=studies` | P2 | 030, 060 |
 | SCR-RES-031 | Ops KPI | `/crm/research/analytics` | P2 | 033 |
 | SCR-RES-040 | Portal report | portal | P3 | 040 |
 
@@ -96,6 +96,8 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-042 | Decision log | P3 | P3 | Spec ready | — |
 | RES-UC-050 | Xuất PDF staff + portal | P4 | P4 | Spec ready | FR-RPT-04 · US-CL-30 |
 | RES-UC-051 | Cite insight Content OS | P4 | P4 | Spec ready | FR-INT-02 |
+| RES-UC-060 | Whisper audio → excerpt + locator | P5 | P5 | Spec ready | FR-STD-02 · FR-STD-03 · NFR-PRI-01/02 |
+| RES-UC-061 | SparkToro source candidates | P5 | P5 | Spec ready | FR-CI · BR-RES-09 · BR-RES-11 |
 
 ---
 
@@ -568,7 +570,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 
 ---
 
-## 4. Chi tiết Use Case — P2–P4
+## 4. Chi tiết Use Case — P2–P5
 
 ### RES-UC-030 — Study survey/IDI + consent
 
@@ -614,6 +616,22 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - `POST /content-items/:itemId/insights` freeze `insight_ids`; không copy statement
 - PATCH brief strip inbound `market_research`; giữ cite cũ
 
+### RES-UC-060 — Whisper audio → excerpt + locator
+
+- `POST /api/v1/research/projects/:id/studies/:studyId/whisper` multipart `file`; cap `run`
+- Consent còn hạn bắt buộc; thiếu / hết hạn → 400 `consent_required` / `consent_expired`
+- Evidence `excerpt` ≤ 500 + locator `T-mm:ss`; excerpt > 500 → 400 `raw_transcript_forbidden`
+- Không persist transcript thô / `audio_uri`; complete payload = `excerpt_ids` only
+- MIME `audio/mpeg|audio/wav|audio/mp4|audio/x-m4a`; ≤ 25 MB; xóa file tạm trong `finally`
+
+### RES-UC-061 — SparkToro source candidates
+
+- `POST /api/v1/research/projects/:id/run-sparktoro` body `{ question_id }`; cap `run`
+- Query = `question_vi` + geo only (BR-RES-11); PII → 400
+- Sources `publisher=SparkToro`, `reliability_tier` ∈ {low, medium} + `limitation_note`; tier `high` → 400 `reliability_capped`
+- Flag/key off → `200 {ok:true, note:sparktoro_disabled}`; `GET /health` `sparktoro_enabled` false → ẩn CTA
+- **Cấm** `createInsight` / `createReport` / publish-portal từ job này
+
 ---
 
 ## 5. API map
@@ -629,6 +647,8 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | PATCH | `/sources/:id` | 014 |
 | POST | `/projects/:id/run-desk` | 004 |
 | POST | `/projects/:id/run-deep` | 005 |
+| POST | `/projects/:id/studies/:studyId/whisper` | 060 |
+| POST | `/projects/:id/run-sparktoro` | 061 |
 | GET | `/projects/:id/jobs/:runId` | 020 |
 | POST | `/projects/:id/evidence` | 006 |
 | POST | `/evidence/:id/verify` | 006 |
@@ -655,16 +675,16 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | --- | --- |
 | `crm_research_projects` | 002, 015 |
 | `crm_research_questions` | 003 |
-| `crm_research_sources` | 004, 005, 014, 019 |
+| `crm_research_sources` | 004, 005, 014, 019, 061 |
 | `crm_research_evidence` | 006, 017 |
 | `crm_research_insights` | 007, 008, 018 |
 | `crm_research_insight_evidence` | 007 |
 | `crm_research_reviews` | 008, 018 |
 | `crm_research_reports` | 009 |
 | `crm_research_report_versions` | 009, 012 |
-| `crm_research_ai_runs` | 004, 005, 011, 012, 016, 020 |
+| `crm_research_ai_runs` | 004, 005, 011, 012, 016, 020, 060, 061 |
 | `crm_research_competitors` (P1) | 022 |
-| `crm_research_studies` (P2) | 030 |
+| `crm_research_studies` (P2) | 030, 060 |
 
 ---
 

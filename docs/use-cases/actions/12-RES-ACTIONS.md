@@ -4,7 +4,7 @@
 > **BA:** [`../../specs/modules/RNOSAI-BA-RES-UseCases.md`](../../specs/modules/RNOSAI-BA-RES-UseCases.md)  
 > **UX:** [`../../specs/2026-08-14-market-research-os-ui-ux.md`](../../specs/2026-08-14-market-research-os-ui-ux.md)  
 > **SRS:** [`../../specs/2026-08-14-market-research-os-srs.md`](../../specs/2026-08-14-market-research-os-srs.md)  
-> **Phiên bản:** 1.0 · **Coverage:** RES-UC-001…020 (P0 UAT) + walkthrough P1–P4 + backlog P5
+> **Phiên bản:** 1.0 · **Coverage:** RES-UC-001…020 (P0 UAT) + walkthrough P1–P5 (UAT 060–061) + backlog P6+
 
 ---
 
@@ -335,9 +335,57 @@ POST wave `value: NaN` / `Infinity`: 400 `metric value must be number or null`.
 
 ---
 
-## P5 (backlog — không UAT P0/P1/P2/P3/P4)
+## Walkthrough UAT P5 — Whisper + SparkToro (≈20 phút)
 
-| Hạng mục | Hành động tóm tắt |
-|----------|-------------------|
-| Whisper | Ingest audio / transcript |
-| SparkToro | Nguồn audience / overlap |
+**Mục tiêu khách hàng:** *«Analyst ghi consent → tải audio IDI → excerpt ≤ 500 + locator; F5 không transcript; SparkToro (hoặc disabled) → source có limitation; không insight mới; F5 còn.»*
+
+**Actors:** Research Analyst (AN), QA
+
+**Dữ liệu test:** Client `acme` trong scope · Flag research = 1 (P0 đã bật) · `RESEARCH_SPARKTORO_ENABLED` mặc định `0` (không bật trong deploy) · Study + consent còn hạn · Audio ≤ 25 MB MIME `audio/mpeg|wav|mp4|x-m4a` · Caps `crm_research.run` (Whisper / SparkToro), `edit` (evidence), `view` (GET)
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | AN | Studies `?tab=studies` | Ghi **consent** còn hạn trên study | `expires_at` > now (recorded_at + 24 tháng) | Consent saved | ✓ RES-UC-060 · NFR-PRI-01 |
+| 2 | AN | Same | **Tải audio** (cap `run`) | file ≤ 25 MB | 202 `{ok, run_id, excerpt_ids}` · poll job | ✓ RES-UC-060 |
+| 3 | AN | Evidence | Kiểm excerpt | locator `T-mm:ss` | Mỗi excerpt length ≤ 500 | ✓ NFR-PRI-02 |
+| 4 | AN | Same · F5 | Reload | — | Excerpts còn · **không** transcript / `audio_uri` / ô dán transcript | ✓ F5 · NFR-PRI-02 |
+| 5 | AN | Sources `?tab=sources` | **Chạy SparkToro** — hoặc thấy nút ẩn + note disabled | `question_id` (question_vi + geo; không PII) | `200 {ok:true, note:sparktoro_disabled}` **hoặc** `202` sources | ✓ RES-UC-061 |
+| 6 | AN | Same | Kiểm source SparkToro (nếu job chạy) | publisher `SparkToro` | `limitation_note` bắt buộc · `reliability_tier` ∈ {low, medium} | ✓ BR-RES-09 |
+| 7 | AN | Insights | Đếm insight | — | **Không** insight mới từ Whisper / SparkToro (`createInsight` không gọi) | ✓ BR-RES-06/08 |
+| 8 | AN / QA | Same · F5 | Reload | — | Excerpts + sources (nếu có) còn · không raw transcript | ✓ F5 |
+
+#### Nhánh E-Consent
+
+Bước 2 study 0 consent / hết hạn: 400 `{error:consent_required|consent_expired}` · không gọi OpenAI.
+
+#### Nhánh E-Raw transcript
+
+Evidence excerpt > 500: 400 `{error:raw_transcript_forbidden}`. Complete payload chỉ `excerpt_ids` — không key `transcript`.
+
+#### Nhánh E-SparkToro off
+
+`GET /health` `sparktoro_enabled=false` (flag hoặc key off) → **không** CTA **Chạy SparkToro**. `POST …/run-sparktoro` → `200 {ok:true, note:sparktoro_disabled}` — project không fail.
+
+#### Nhánh E-Tier
+
+Paid estimate `sparktoro|similarweb|semrush` + tier `high`: 400 `{error:reliability_capped}`. Question có email/SĐT: 400 (BR-RES-11).
+
+#### Tiêu chí nghiệm thu walkthrough P5
+
+- [ ] Bước 1–8 pass staging (SparkToro skip live nếu `sparktoro_enabled` false / không audio fixture / API down)
+- [ ] Consent 400; excerpt > 500 → `raw_transcript_forbidden`; SparkToro không `createInsight`; paid tier `high` → `reliability_capped`
+- [ ] Không đụng `/crm/sales?tab=market`
+- [ ] Không bật `RESEARCH_SPARKTORO_ENABLED` / không ghi `SPARKTORO_API_KEY` trên prod
+- [ ] PO / Research Lead sign P5 ECs
+
+---
+
+## P6+ (backlog — không UAT P0–P5)
+
+| Hạng mục | Hành động tóm tắt | Điều kiện mở |
+|----------|-------------------|--------------|
+| Qualtrics | Import response → study + evidence `value+unit+base`; ExpertReview = source note, không auto-insight | PO có retainer Qualtrics **hoặc** chấp nhận Forms + codebook |
+| Van Westendorp | 4 câu giá → bảng `too_cheap`…`too_expensive` trên project `PRICE_OFFER`; **không** market simulator | Cùng plan P6 nếu cùng `PRICE_OFFER` |
+| RAG | Embeddings **chỉ** insight `published` / `approved_client_facing` | Gold-set unsupported-claim ổn; DPA embeddings |
+| Taxonomy | `crm_research_taxonomy` theme + synonym; gắn `insight_id`; không thay statement | P7 cùng RAG |
+| **Apify login** | **Out (Design §20)** — không scrape Facebook login / group. LMP public page giữ nguyên | Không mở |
