@@ -975,7 +975,15 @@ function CrmResearchWorkspaceContent() {
                 canEdit={canEdit}
               />
             ) : tab === 'studies' ? (
-              <StudiesPane projectId={project.id} canEdit={canEdit} />
+              <StudiesPane
+                projectId={project.id}
+                canEdit={canEdit}
+                canRun={canRun}
+                onIngested={() => {
+                  const access = getAccessToken();
+                  if (access) void load(access);
+                }}
+              />
             ) : tab === 'evidence' ? (
               <EvidenceTab
                 project={project}

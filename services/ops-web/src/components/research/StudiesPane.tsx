@@ -9,17 +9,28 @@ import {
   createResearchStudy,
   fetchResearchConsents,
   fetchResearchStudies,
+  ingestResearchWhisper,
   STUDY_METHOD_LABELS,
   STUDY_METHODS,
   STUDY_MODE_LABELS,
   STUDY_MODES,
+  TRANSITION_REASON_VI,
   ResearchApiError,
   type ConsentType,
+  type ResearchAiRun,
   type ResearchConsent,
   type ResearchStudy,
   type StudyMethod,
   type StudyMode,
 } from '@/lib/market-research-api';
+import { ResearchJobChip } from '@/components/research/ResearchJobChip';
+import {
+  UPLOAD_DISABLED_TITLE,
+  WHISPER_AUDIO_MIMES,
+  WHISPER_PRIVACY_BANNER,
+  isWhisperAudioMime,
+  studyHasUnexpiredConsent,
+} from '@/components/research/studies-whisper.util';
 
 const emptyStudy = {
   name: '',
@@ -33,14 +44,23 @@ const emptyStudy = {
 export function StudiesPane({
   projectId,
   canEdit,
+  canRun,
+  onIngested,
 }: {
   projectId: number;
   canEdit: boolean;
+  canRun: boolean;
+  onIngested?: () => void;
 }) {
   const [studies, setStudies] = useState<ResearchStudy[]>([]);
   const [consents, setConsents] = useState<ResearchConsent[]>([]);
+  const [consentsByStudy, setConsentsByStudy] = useState<Record<number, ResearchConsent[]>>({});
+  const [filesByStudy, setFilesByStudy] = useState<Record<number, File | undefined>>({});
   const [error, setError] = useState('');
+  const [ingestNote, setIngestNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploadingStudyId, setUploadingStudyId] = useState<number | null>(null);
+  const [whisperRunId, setWhisperRunId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyStudy);
   const [consentStudyId, setConsentStudyId] = useState<number | null>(null);
   const [subjectCode, setSubjectCode] = useState('');
@@ -51,6 +71,17 @@ export function StudiesPane({
     if (!token) return;
     const out = await fetchResearchStudies(token, projectId);
     setStudies(out.studies);
+    const entries = await Promise.all(
+      out.studies.map(async (row) => {
+        try {
+          const listed = await fetchResearchConsents(token, row.id);
+          return [row.id, listed.consents] as const;
+        } catch {
+          return [row.id, []] as const;
+        }
+      }),
+    );
+    setConsentsByStudy(Object.fromEntries(entries));
   }, [projectId]);
 
   useEffect(() => {
@@ -93,8 +124,10 @@ export function StudiesPane({
     try {
       const out = await fetchResearchConsents(token, studyId);
       setConsents(out.consents);
+      setConsentsByStudy((prev) => ({ ...prev, [studyId]: out.consents }));
     } catch (err) {
       setConsents([]);
+      setConsentsByStudy((prev) => ({ ...prev, [studyId]: [] }));
       setError(err instanceof Error ? err.message : 'Tải consent thất bại');
     }
   }
@@ -113,6 +146,7 @@ export function StudiesPane({
       setSubjectCode('');
       const out = await fetchResearchConsents(token, consentStudyId);
       setConsents(out.consents);
+      setConsentsByStudy((prev) => ({ ...prev, [consentStudyId]: out.consents }));
     } catch (err) {
       const api = err instanceof ResearchApiError ? err : null;
       if (api?.code === 'consent_pii_forbidden') {
@@ -125,6 +159,70 @@ export function StudiesPane({
     }
   }
 
+  function onPickAudio(studyId: number, file: File | undefined) {
+    setError('');
+    setIngestNote('');
+    if (!file) {
+      setFilesByStudy((prev) => ({ ...prev, [studyId]: undefined }));
+      return;
+    }
+    if (!isWhisperAudioMime(file.type)) {
+      setError('Chỉ nhận audio/mpeg, audio/wav, audio/mp4, audio/x-m4a.');
+      setFilesByStudy((prev) => ({ ...prev, [studyId]: undefined }));
+      return;
+    }
+    setFilesByStudy((prev) => ({ ...prev, [studyId]: file }));
+  }
+
+  async function onUploadAudio(studyId: number) {
+    const token = getAccessToken();
+    const file = filesByStudy[studyId];
+    const ingestible = studyHasUnexpiredConsent(consentsByStudy[studyId] ?? []);
+    if (!token || !canRun || !ingestible) return;
+    if (!file || !isWhisperAudioMime(file.type)) {
+      setError('Chỉ nhận audio/mpeg, audio/wav, audio/mp4, audio/x-m4a.');
+      return;
+    }
+    setUploadingStudyId(studyId);
+    setError('');
+    setIngestNote('');
+    setWhisperRunId(null);
+    try {
+      const out = await ingestResearchWhisper(token, projectId, studyId, file);
+      setWhisperRunId(out.run_id);
+      if ((out.excerpt_ids ?? []).length > 0) {
+        setIngestNote('Đã tạo excerpt — mở tab Evidence');
+        onIngested?.();
+      } else if (out.status === 'failed') {
+        setError(
+          TRANSITION_REASON_VI[out.note ?? ''] ?? out.note ?? 'Tải audio thất bại',
+        );
+      }
+    } catch (err) {
+      const api = err instanceof ResearchApiError ? err : null;
+      setError(
+        (api?.code ? TRANSITION_REASON_VI[api.code] : undefined) ??
+          (err instanceof Error ? err.message : 'Tải audio thất bại'),
+      );
+      setWhisperRunId(null);
+    } finally {
+      setUploadingStudyId(null);
+    }
+  }
+
+  function onWhisperSettled(run: ResearchAiRun) {
+    if (run.status === 'succeeded') {
+      setIngestNote('Đã tạo excerpt — mở tab Evidence');
+      onIngested?.();
+      return;
+    }
+    setError(
+      TRANSITION_REASON_VI[run.error_message ?? ''] ??
+        run.error_message ??
+        'Tải audio thất bại',
+    );
+  }
+
   return (
     <section className="card" style={{ padding: '0.9rem' }}>
       <div className="stack-gap">
@@ -132,7 +230,20 @@ export function StudiesPane({
         <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
           Study IDI/FGD/survey. Consent dùng mã giả danh (ví dụ R-004) — không nhập SĐT.
         </p>
+        <p className="muted" role="note" style={{ margin: 0, fontSize: '0.85rem' }}>
+          {WHISPER_PRIVACY_BANNER}
+        </p>
         {error ? <p className="error" style={{ margin: 0 }}>{error}</p> : null}
+        {ingestNote ? <p className="muted" style={{ margin: 0 }}>{ingestNote}</p> : null}
+        {whisperRunId != null ? (
+          <ResearchJobChip
+            token={getAccessToken()}
+            projectId={projectId}
+            runId={whisperRunId}
+            kind="whisper"
+            onSettled={onWhisperSettled}
+          />
+        ) : null}
         {canEdit ? (
           <form onSubmit={(e) => void onAdd(e)} style={{ display: 'grid', gap: '0.5rem' }}>
             <label>
@@ -232,25 +343,51 @@ export function StudiesPane({
                   Field: {row.field_start ?? '—'} → {row.field_end ?? '—'}
                 </p>
               ) : null}
-              {canEdit ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center', marginTop: 8 }}>
+                {canEdit ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => void openConsent(row.id)}
+                  >
+                    Consent
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-secondary"
+                    onClick={() => void openConsent(row.id)}
+                  >
+                    Xem consent
+                  </button>
+                )}
+                <input
+                  type="file"
+                  accept={WHISPER_AUDIO_MIMES.join(',')}
+                  aria-label={`Chọn audio study ${row.name}`}
+                  disabled={!canRun || !studyHasUnexpiredConsent(consentsByStudy[row.id] ?? [])}
+                  onChange={(e) => onPickAudio(row.id, e.target.files?.[0])}
+                  style={{ maxWidth: '14rem' }}
+                />
                 <button
                   type="button"
                   className="btn btn-sm"
-                  style={{ marginTop: 8 }}
-                  onClick={() => void openConsent(row.id)}
+                  disabled={
+                    !canRun ||
+                    !studyHasUnexpiredConsent(consentsByStudy[row.id] ?? []) ||
+                    uploadingStudyId === row.id ||
+                    !filesByStudy[row.id]
+                  }
+                  title={
+                    !canRun || !studyHasUnexpiredConsent(consentsByStudy[row.id] ?? [])
+                      ? UPLOAD_DISABLED_TITLE
+                      : undefined
+                  }
+                  onClick={() => void onUploadAudio(row.id)}
                 >
-                  Consent
+                  Tải audio
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn-sm btn-secondary"
-                  style={{ marginTop: 8 }}
-                  onClick={() => void openConsent(row.id)}
-                >
-                  Xem consent
-                </button>
-              )}
+              </div>
             </article>
           ))
         )}

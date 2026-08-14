@@ -13,7 +13,7 @@ type ResearchJobChipProps = {
   token: string | null;
   projectId: number;
   runId: number | null;
-  kind?: 'desk' | 'deep' | 'triangulate' | 'pulse';
+  kind?: 'desk' | 'deep' | 'triangulate' | 'pulse' | 'whisper';
   onSettled: (run: ResearchAiRun) => void;
 };
 
@@ -64,7 +64,15 @@ export function ResearchJobChip({
   const status = run?.status ?? 'pending';
   const busy = status === 'pending' || status === 'running';
   const noun =
-    kind === 'deep' ? 'Deep' : kind === 'triangulate' ? 'Tam giác nguồn' : kind === 'pulse' ? 'Pulse' : 'Desk';
+    kind === 'deep'
+      ? 'Deep'
+      : kind === 'triangulate'
+        ? 'Tam giác nguồn'
+        : kind === 'pulse'
+          ? 'Pulse'
+          : kind === 'whisper'
+            ? 'Audio'
+            : 'Desk';
   const label =
     status === 'running'
       ? kind === 'deep'
@@ -73,7 +81,9 @@ export function ResearchJobChip({
           ? 'Đang tam giác nguồn…'
           : kind === 'pulse'
             ? 'Đang chạy pulse…'
-            : 'Đang lấy nguồn…'
+            : kind === 'whisper'
+              ? 'Đang cắt excerpt…'
+              : 'Đang lấy nguồn…'
       : status === 'pending'
         ? `${noun} đang chờ`
         : status === 'succeeded'

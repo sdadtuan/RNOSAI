@@ -185,6 +185,10 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   waves_not_tracker: 'Waves chỉ dùng cho dự án TRACKER.',
   wave_no_duplicate: 'Số wave đã tồn tại trên dự án này.',
   decision_locked: 'Không sửa nội dung decision — tạo dòng mới (BR-RES-05).',
+  consent_required: 'Cần consent còn hạn trước khi tải audio.',
+  consent_expired: 'Consent đã hết hạn — không tải audio được.',
+  whisper_disabled: 'Whisper đang tắt — project không đổi.',
+  raw_transcript_forbidden: 'Chỉ lưu đoạn trích ≤ 500 ký tự. Không lưu transcript đầy đủ.',
 };
 
 export type MethodologyBlock = {
@@ -665,9 +669,13 @@ export type CreateProjectBody = {
 };
 
 async function researchFetch<T>(token: string, path: string, init?: RequestInit): Promise<T> {
+  const isForm = typeof FormData !== 'undefined' && init?.body instanceof FormData;
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: { ...authHeaders(token), ...(init?.headers ?? {}) },
+    headers: {
+      ...(isForm ? { Authorization: `Bearer ${token}` } : authHeaders(token)),
+      ...(isForm ? {} : (init?.headers ?? {})),
+    },
   });
   const body = await parseJson<
     T & {
@@ -836,6 +844,30 @@ export async function fetchResearchJob(
   runId: number,
 ): Promise<ResearchAiRun> {
   return researchFetch(token, `/api/v1/research/projects/${projectId}/jobs/${runId}`);
+}
+
+export type WhisperIngestClientResult = {
+  ok: true;
+  run_id: number;
+  study_id: number;
+  excerpt_ids: number[];
+  status?: string;
+  note?: string;
+};
+
+export async function ingestResearchWhisper(
+  token: string,
+  projectId: number,
+  studyId: number,
+  file: File,
+): Promise<WhisperIngestClientResult> {
+  const form = new FormData();
+  form.append('file', file);
+  return researchFetch(
+    token,
+    `/api/v1/research/projects/${projectId}/studies/${studyId}/whisper`,
+    { method: 'POST', body: form },
+  );
 }
 
 export async function createResearchSource(
