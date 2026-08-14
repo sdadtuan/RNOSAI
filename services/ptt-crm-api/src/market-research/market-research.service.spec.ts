@@ -2544,6 +2544,7 @@ describe('MarketResearchService', () => {
     expect(llm.completeJson).not.toHaveBeenCalled();
     expect(repo.createInsight).not.toHaveBeenCalled();
     expect(repo.insertAiRun).not.toHaveBeenCalled();
+    expect(repo.listEmbeddings).not.toHaveBeenCalled();
   });
 
   it('insightCopilot is llm_unconfigured when Anthropic is missing', async () => {
@@ -2569,6 +2570,150 @@ describe('MarketResearchService', () => {
     expect(llm.completeJson).not.toHaveBeenCalled();
     expect(repo.createInsight).not.toHaveBeenCalled();
     expect(repo.failAiRun).toHaveBeenCalledWith(91, 'llm_unconfigured');
+    expect(repo.listEmbeddings).not.toHaveBeenCalled();
+  });
+
+  function stubInsightCopilotSuccess(excerpt = 'Share premium 18%'): void {
+    stubScopedProject();
+    repo.getEvidence.mockResolvedValue(evidenceRow({ id: 3, qc_status: 'verified', excerpt }));
+    repo.insertAiRun.mockResolvedValue({ id: 91, status: 'pending' });
+    repo.createInsight.mockResolvedValue(insightRow({ id: 70, status: 'draft', ai_generated: true }));
+    repo.getInsight.mockResolvedValue(insightRow({ id: 70, status: 'draft', ai_generated: true }));
+    llm.completeJson.mockResolvedValue({
+      parsed: {
+        statement: 'Draft từ evidence 3',
+        observation: '',
+        interpretation: '',
+        implication: '',
+        recommendation: '',
+        confidence_rationale: '',
+      },
+      modelName: 'claude',
+    });
+  }
+
+  it('M2-1b: flag off returns P0 array prompt, one draft, rag_disabled', async () => {
+    stubInsightCopilotSuccess();
+
+    const out = await service.insightCopilot(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { evidence_ids: [3] },
+      'am@ptt',
+    );
+
+    const userPrompt = llm.completeJson.mock.calls[0][0].userPrompt as string;
+    expect(Array.isArray(JSON.parse(userPrompt))).toBe(true);
+    expect(repo.createInsight).toHaveBeenCalledTimes(1);
+    expect(out.rag_hits).toEqual([]);
+    expect(out.rag_note).toBe('rag_disabled');
+    expect(repo.listEmbeddings).not.toHaveBeenCalled();
+  });
+
+  it('M2-1c: flag on injects approved rag hits and still creates one draft', async () => {
+    config.researchRagEnabled = true;
+    stubInsightCopilotSuccess();
+    const embedding = embedInsightText('Giá premium thắng tại MT HCM');
+    repo.listEmbeddings.mockResolvedValue([
+      {
+        insight_id: 88,
+        project_id: 4,
+        status: 'approved_client_facing',
+        statement: 'Giá premium thắng tại MT HCM',
+        observation: null,
+        embedding,
+        theme_codes: ['PRICE'],
+      },
+      {
+        insight_id: 99,
+        project_id: 4,
+        status: 'draft',
+        statement: 'Giá premium thắng tại MT HCM',
+        observation: null,
+        embedding,
+        theme_codes: [],
+      },
+    ]);
+
+    const out = await service.insightCopilot(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { evidence_ids: [3] },
+      'am@ptt',
+    );
+
+    expect(out.insight.id).toBe(70);
+    expect(out.rag_hits.map((h) => h.insight_id)).toEqual([88]);
+    expect(out.rag_note).toBeUndefined();
+    expect(repo.createInsight).toHaveBeenCalledTimes(1);
+    expect(repo.replaceInsightEvidence).toHaveBeenCalledWith(70, [3]);
+    const userPrompt = llm.completeJson.mock.calls[0][0].userPrompt as string;
+    const priorIds = (JSON.parse(userPrompt).prior_approved_insights as { insight_id: number }[]).map(
+      (h) => h.insight_id,
+    );
+    expect(priorIds).toContain(88);
+    expect(priorIds).not.toContain(99);
+    expect(repo.succeedAiRun.mock.calls[0][1].outputJson.rag_hit_ids).toEqual([88]);
+  });
+
+  it('M2-1d: flag on + PII excerpt skips RAG and still drafts once', async () => {
+    config.researchRagEnabled = true;
+    stubInsightCopilotSuccess('SĐT 0901234567');
+
+    const out = await service.insightCopilot(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { evidence_ids: [3] },
+      'am@ptt',
+    );
+
+    expect(repo.listEmbeddings).not.toHaveBeenCalled();
+    expect(out.rag_note).toBe('rag_skipped_pii');
+    expect(llm.completeJson).toHaveBeenCalledTimes(1);
+    expect(repo.createInsight).toHaveBeenCalledTimes(1);
+  });
+
+  it('M2-1e: flag on + empty embeddings uses v2 empty prior and rag_empty', async () => {
+    config.researchRagEnabled = true;
+    stubInsightCopilotSuccess();
+    repo.listEmbeddings.mockResolvedValue([]);
+
+    const out = await service.insightCopilot(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { evidence_ids: [3] },
+      'am@ptt',
+    );
+
+    expect(out.rag_note).toBe('rag_empty');
+    const { userPrompt, systemPrompt } = llm.completeJson.mock.calls[0][0] as {
+      userPrompt: string;
+      systemPrompt: string;
+    };
+    expect(JSON.parse(userPrompt).prior_approved_insights).toEqual([]);
+    expect(systemPrompt).toMatch(/invent insight_id/i);
+  });
+
+  it('M2-1f: copilot does not createReport, publish, or approveInsight', async () => {
+    stubInsightCopilotSuccess();
+    const createReport = jest.spyOn(service, 'createReport');
+    const publishPortal = jest.spyOn(service, 'publishPortal');
+    const approveInsight = jest.spyOn(service, 'approveInsight');
+
+    await service.insightCopilot(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { evidence_ids: [3] },
+      'am@ptt',
+    );
+
+    expect(createReport).not.toHaveBeenCalled();
+    expect(publishPortal).not.toHaveBeenCalled();
+    expect(approveInsight).not.toHaveBeenCalled();
+    expect(repo.createReportDraft).not.toHaveBeenCalled();
+    createReport.mockRestore();
+    publishPortal.mockRestore();
+    approveInsight.mockRestore();
   });
 
   it('createReport snapshot has evidence_index when insight has EV', async () => {

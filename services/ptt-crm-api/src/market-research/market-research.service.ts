@@ -81,6 +81,8 @@ import type {
   PatchStudyInput,
   InsightCopilotInput,
   InsightCopilotResult,
+  CopilotRagHit,
+  CopilotRagNote,
   ListProjectsFilters,
   OpsAnalyticsPayload,
   PatchEvidenceInput,
@@ -132,6 +134,7 @@ import {
   CODEBOOK_LIMITATION,
   CONSENT_TYPES,
   DECISION_STATUSES,
+  RAG_COPILOT_HIT_LIMIT,
   STUDY_METHODS,
   STUDY_MODES,
   SURVEY_IMPORT_FORMATS,
@@ -150,6 +153,11 @@ import {
   rankRagHits,
   shouldSkipRagEmbed,
 } from './research-rag.util';
+import {
+  buildCopilotRagQuery,
+  shouldSkipCopilotRag,
+  toCopilotRagHits,
+} from './research-copilot-rag.util';
 import { buildResearchReportDocx, sectionsFromReportSnapshot } from './market-research-docx.util';
 import { buildResearchReportPdf } from './market-research-pdf.util';
 import {
@@ -2040,7 +2048,7 @@ export class MarketResearchService {
     input: InsightCopilotInput,
     actor: string,
   ): Promise<InsightCopilotResult> {
-    await this.loadScopedProject(projectId, scope);
+    const project = await this.loadScopedProject(projectId, scope);
     const evidenceIds = normalizePositiveIds(input.evidence_ids);
     if (evidenceIds.length === 0) {
       throw new BadRequestException({
@@ -2060,6 +2068,29 @@ export class MarketResearchService {
       evidence.push(ev);
     }
 
+    const evidenceFields = evidence.map(toInsightCopilotEvidenceFields);
+    let ragHits: CopilotRagHit[] = [];
+    let ragNote: CopilotRagNote | undefined = 'rag_disabled';
+    let prompt = buildInsightCopilotPrompt(evidenceFields);
+    let promptVersion = 'research-insight-v1';
+
+    if (this.config.researchRagEnabled) {
+      const q = buildCopilotRagQuery(evidenceFields);
+      if (shouldSkipCopilotRag(q)) {
+        ragNote = q.trim() ? 'rag_skipped_pii' : 'rag_empty';
+      } else {
+        const search = await this.searchInsights(scope, {
+          q,
+          client_id: project.client_id,
+          limit: RAG_COPILOT_HIT_LIMIT,
+        });
+        ragHits = toCopilotRagHits(search.hits);
+        ragNote = ragHits.length ? undefined : 'rag_empty';
+        prompt = buildInsightCopilotPrompt(evidenceFields, { ragHits });
+        promptVersion = 'research-insight-v2';
+      }
+    }
+
     const run = await this.repo.insertAiRun({
       projectId,
       jobType: 'insight_draft',
@@ -2071,7 +2102,6 @@ export class MarketResearchService {
       throw new ServiceUnavailableException({ error: 'llm_unconfigured' });
     }
 
-    const prompt = buildInsightCopilotPrompt(evidence.map(toInsightCopilotEvidenceFields));
     const inputHash = hashPrompt(prompt.system, prompt.user);
     try {
       const { parsed, modelName } = await this.llm.completeJson({
@@ -2094,15 +2124,17 @@ export class MarketResearchService {
       }
       await this.repo.succeedAiRun(run.id, {
         model: modelName,
-        promptVersion: 'research-insight-v1',
+        promptVersion,
         inputHash,
         outputJson: {
           insight_id: insight.id,
           status: insight.status,
           evidence: evidence.map(redactEvidenceForAiRunLog),
+          rag_hit_ids: ragHits.map((h) => h.insight_id),
+          rag_note: ragNote ?? null,
         },
       });
-      return { ok: true, insight, run_id: run.id };
+      return { ok: true, insight, run_id: run.id, rag_hits: ragHits, rag_note: ragNote };
     } catch (err) {
       if (err instanceof ServiceUnavailableException) {
         await this.repo.failAiRun(run.id, errorCode(err) ?? 'llm_provider_error');

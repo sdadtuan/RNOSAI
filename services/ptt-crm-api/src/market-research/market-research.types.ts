@@ -710,6 +710,8 @@ export type InsightCopilotResult = {
   ok: true;
   insight: ResearchInsightRow;
   run_id: number;
+  rag_hits: CopilotRagHit[];
+  rag_note?: CopilotRagNote;
 };
 
 export type ReportCopilotResult = {
