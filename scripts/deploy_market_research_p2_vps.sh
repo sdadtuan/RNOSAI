@@ -5,6 +5,8 @@
 # signals / exec EN columns must exist before the new worker starts.
 # Forward path already applies DDL as 1/4 and worker as 4/4 — do not change that order.
 # Step 1/4: P0 + P1 + P2 DDL (P2 last, still before npm/build/worker).
+# P2 pulse alerts need ops_alert_log (ops DV DDL / Nest ensureSchema).
+# Do NOT apply ops DV DDL from this script.
 #
 # From laptop:
 #   APPLY=1 ./scripts/deploy_market_research_p2_vps.sh

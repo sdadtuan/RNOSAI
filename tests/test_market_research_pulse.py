@@ -81,6 +81,43 @@ def test_process_pulse_upserts_ops_alert_when_lifecycle_id_set(monkeypatch):
     )
 
 
+def test_process_pulse_ops_alert_failure_keeps_ok(monkeypatch):
+    from ptt_crm.market_research import pulse
+
+    repo = MagicMock()
+    repo.load_pulse_context.return_value = {
+        "question_vi": "Giá đối thủ đổi thế nào?",
+        "geo": ["VN"],
+        "product_type": "COMP_LAND",
+    }
+    repo.list_competitor_snapshot_pairs.return_value = [
+        {"prev": {"price": "10", "message": "a"}, "next": {"price": "12", "message": "a"}},
+    ]
+    repo.insert_trend_signal.return_value = {
+        "id": 1,
+        "topic": "price",
+        "metric": "price",
+        "baseline": 10.0,
+        "current": 12.0,
+        "velocity": 0.2,
+        "lifecycle": "rising",
+    }
+    repo.upsert_ops_alert.side_effect = RuntimeError("ops_alert_log missing")
+    monkeypatch.setattr(pulse, "repository", repo)
+
+    out = pulse.process_research_pulse_payload(
+        {"project_id": 1, "question_id": 2, "run_id": 3, "lifecycle_id": 12}
+    )
+
+    assert out["ok"] is True
+    assert out["insight_ids"] == []
+    assert out.get("signals")
+    repo.insert_trend_signal.assert_called_once()
+    repo.upsert_ops_alert.assert_called_once()
+    repo.fail_run.assert_not_called()
+    repo.succeed_run.assert_called_once()
+
+
 def test_tavily_exception_after_signals_keeps_ok(monkeypatch):
     monkeypatch.setenv("TAVILY_API_KEY", "fake-key")
     import urllib.error

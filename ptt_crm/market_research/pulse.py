@@ -151,15 +151,23 @@ def process_research_pulse_payload(payload: dict[str, Any]) -> dict[str, Any]:
         if row:
             signals.append(row)
             if lifecycle_id > 0:
-                repository.upsert_ops_alert(
-                    lifecycle_id=lifecycle_id,
-                    dv_code="DV12",
-                    alert_type="research_pulse",
-                    severity="warning",
-                    title=f"Pulse: {topic}",
-                    message=f"Đối thủ đổi {topic} trên project {project_id}",
-                    source_key=f"research_pulse:{project_id}:{row.get('id')}",
-                )
+                try:
+                    repository.upsert_ops_alert(
+                        lifecycle_id=lifecycle_id,
+                        dv_code="DV12",
+                        alert_type="research_pulse",
+                        severity="warning",
+                        title=f"Pulse: {topic}",
+                        message=f"Đối thủ đổi {topic} trên project {project_id}",
+                        source_key=f"research_pulse:{project_id}:{row.get('id')}",
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "ops_alert_log insert failed project_id=%s signal_id=%s: %s",
+                        project_id,
+                        row.get("id"),
+                        exc,
+                    )
 
     credits_used = 0
     question_vi = str(ctx.get("question_vi") or "")

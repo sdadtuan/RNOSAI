@@ -42,12 +42,34 @@ CREATE TABLE IF NOT EXISTS crm_research_trend_signals (
 );
 
 DO $$
+DECLARE
+  orphan_ids TEXT;
 BEGIN
-  ALTER TABLE crm_research_evidence
-    ADD CONSTRAINT crm_research_evidence_study_fk
-    FOREIGN KEY (study_id) REFERENCES crm_research_studies(id) ON DELETE RESTRICT;
-EXCEPTION
-  WHEN duplicate_object THEN NULL;
+  BEGIN
+    ALTER TABLE crm_research_evidence
+      ADD CONSTRAINT crm_research_evidence_study_fk
+      FOREIGN KEY (study_id) REFERENCES crm_research_studies(id) ON DELETE RESTRICT
+      NOT VALID;
+  EXCEPTION
+    WHEN duplicate_object THEN NULL;
+  END;
+
+  BEGIN
+    ALTER TABLE crm_research_evidence
+      VALIDATE CONSTRAINT crm_research_evidence_study_fk;
+  EXCEPTION
+    WHEN foreign_key_violation THEN
+      SELECT string_agg(e.id::text, ', ' ORDER BY e.id)
+        INTO orphan_ids
+      FROM crm_research_evidence e
+      WHERE e.study_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM crm_research_studies s WHERE s.id = e.study_id
+        );
+      RAISE EXCEPTION
+        'crm_research_evidence_study_fk VALIDATE failed: orphan study_id on crm_research_evidence.id = %',
+        COALESCE(orphan_ids, '(query returned no ids)');
+  END;
 END $$;
 
 ALTER TABLE crm_research_ai_runs DROP CONSTRAINT IF EXISTS crm_research_ai_runs_type_chk;
