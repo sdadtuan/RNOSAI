@@ -1229,6 +1229,53 @@ export async function unregisterNativeDeviceToken(
   return body;
 }
 
+export type PortalResearchReportCard = {
+  version_id: number;
+  version: number;
+  as_of: string | null;
+  expires_at: string | null;
+  watermark: string;
+};
+
+export type PortalResearchReportDetail = PortalResearchReportCard & {
+  exec: { vi: string; en: string | null };
+  findings: unknown[];
+  recs: unknown[];
+  methodology: unknown;
+  evidence_index: unknown[];
+};
+
+export async function portalResearchReports(
+  token: string,
+): Promise<{ items: PortalResearchReportCard[] }> {
+  const res = await fetch(`${API_BASE}/api/v1/portal/research/reports`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<{ items: PortalResearchReportCard[] } & { error?: string; message?: string }>(
+    res,
+  );
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Research reports failed', res.status);
+  }
+  return body;
+}
+
+export async function portalResearchReport(
+  token: string,
+  versionId: number,
+): Promise<PortalResearchReportDetail> {
+  const res = await fetch(`${API_BASE}/api/v1/portal/research/reports/${versionId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<PortalResearchReportDetail & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Research report failed', res.status);
+  }
+  return body;
+}
+
 export async function testNativePush(token: string): Promise<NativePushTestResponse> {
   const res = await fetch(`${API_BASE}/api/v1/mobile/push/test`, {
     method: 'POST',

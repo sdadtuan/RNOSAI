@@ -1,4 +1,5 @@
 import type { StoredUser } from '@/lib/auth';
+import { isMarketResearchPortalFeEnabled } from '@/lib/market-research-portal-flags';
 import { isOpsPortalSummaryFeEnabled } from '@/lib/ops-portal-flags';
 
 export type PortalNavLink = { href: string; label: string; badge?: number };
@@ -115,6 +116,15 @@ export function buildPortalNavSections(ctx: PortalNavContext): PortalNavSection[
     });
   }
 
+  if (isMarketResearchPortalFeEnabled()) {
+    sections.push({
+      id: 'research',
+      label: 'Nghiên cứu',
+      shortLabel: 'NC',
+      links: [{ href: '/research', label: 'Báo cáo nghiên cứu' }],
+    });
+  }
+
   sections.push({
     id: 'settings',
     label: 'Cài đặt',
@@ -139,11 +149,13 @@ const PAGE_TITLES: Record<string, string> = {
   '/email': 'Email dashboard',
   '/email/approvals': 'Email approvals',
   '/service-delivery': 'Triển khai dịch vụ',
+  '/research': 'Báo cáo nghiên cứu',
 };
 
 export function portalPageTitle(pathname: string): string {
   if (pathname.startsWith('/email/campaigns/')) return 'Campaign performance';
   if (pathname.startsWith('/seo/content/') && pathname !== '/seo/content') return 'SEO content detail';
+  if (pathname.startsWith('/research/') && pathname !== '/research') return 'Báo cáo nghiên cứu';
   return PAGE_TITLES[pathname] ?? 'Client Portal';
 }
 

@@ -498,6 +498,22 @@ export type ResearchReportVersionRow = {
   created_at: string;
 };
 
+export type PortalResearchReportCard = {
+  version_id: number;
+  version: number;
+  as_of: string | null;
+  expires_at: string | null;
+  watermark: string;
+};
+
+export type PortalResearchReportDetail = PortalResearchReportCard & {
+  exec: { vi: string; en: string | null };
+  findings: unknown[];
+  recs: unknown[];
+  methodology: unknown;
+  evidence_index: unknown[];
+};
+
 export type ResearchReportRow = {
   id: number;
   project_id: number;

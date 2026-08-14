@@ -2674,3 +2674,37 @@ body {
   font-size: 0.75rem;
 }
 
+.research-report-watermark {
+  position: relative;
+  isolation: isolate;
+}
+
+.research-report-watermark__repeat {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: space-around;
+  justify-content: space-around;
+  gap: 2.5rem 3rem;
+  color: var(--primary);
+  opacity: 0.08;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transform: rotate(-24deg) scale(1.15);
+  user-select: none;
+}
+
+.research-report-watermark__repeat span {
+  white-space: nowrap;
+}
+
+.research-report-body {
+  position: relative;
+  z-index: 0;
+}
+

@@ -53,6 +53,7 @@ import { LeadsModule } from './leads/leads.module';
 import { ObservabilityModule } from './observability/observability.module';
 import { PerformanceModule } from './performance/performance.module';
 import { PortalEmailModule } from './portal-email/portal-email.module';
+import { PortalResearchModule } from './portal-research/portal-research.module';
 import { PortalSeoModule } from './portal-seo/portal-seo.module';
 import { PortalAiModule } from './portal-ai/portal-ai.module';
 import { PortalMktAiModule } from './portal-mkt-ai/portal-mkt-ai.module';
@@ -157,6 +158,7 @@ import { WorkflowsModule } from './workflows/workflows.module';
     AdminGovernanceModule,
     AdminIntelligenceModule,
     WebhooksModule,
+    PortalResearchModule,
     PortalSeoModule,
     PortalAiModule,
     PortalMktAiModule,
