@@ -98,6 +98,10 @@ export class AppConfigService {
   readonly dealRoomPortalTeaser: boolean;
   readonly dealRoomTeaserTtlDays: number;
   readonly leadMeetingPrepEnabled: boolean;
+  readonly marketResearchEnabled: boolean;
+  readonly maxTavilyCreditsPerResearch: number;
+  readonly researchDeepProvider: string;
+  readonly researchDeepTimeoutSec: number;
   readonly lmpPilotOnly: boolean;
   readonly lmpPilotClientIds: string[];
   readonly presalesBatchUpgradeEnabled: boolean;
@@ -358,6 +362,18 @@ export class AppConfigService {
     );
     this.leadMeetingPrepEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_LEAD_MEETING_PREP_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.marketResearchEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MARKET_RESEARCH_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.maxTavilyCreditsPerResearch = Math.max(
+      1,
+      Number((process.env.MAX_TAVILY_CREDITS_PER_RESEARCH ?? '12').trim()) || 12,
+    );
+    this.researchDeepProvider = (process.env.RESEARCH_DEEP_PROVIDER ?? 'openai').trim().toLowerCase();
+    this.researchDeepTimeoutSec = Math.max(
+      60,
+      Number((process.env.RESEARCH_DEEP_TIMEOUT_SEC ?? '900').trim()) || 900,
     );
     this.lmpPilotOnly = !['0', 'false', 'no', 'off'].includes(
       (process.env.PTT_LMP_PILOT_ONLY ?? '1').trim().toLowerCase(),

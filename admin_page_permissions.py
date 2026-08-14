@@ -317,6 +317,13 @@ ADMIN_CRM_SECTIONS: tuple[dict[str, Any], ...] = (
         "description": "Phân tích thị trường, đối thủ, đề xuất chiến lược.",
     },
     {
+        "id": "crm_research",
+        "label": "Nghiên cứu thị trường (DV12)",
+        "group": "CRM — Lên kế hoạch",
+        "page": "/crm/research",
+        "description": "Market Research OS DV12: project, desk/deep, evidence, insight, report.",
+    },
+    {
         "id": "crm_sales_reports",
         "label": "KD — Báo cáo kết quả",
         "group": "CRM — Kinh doanh",
@@ -529,6 +536,7 @@ _POSITION_DEFAULT: dict[str, dict[str, frozenset[str]]] = {
         "crm_seo_aeo": frozenset({"view"}),
         "crm_seo_aeo_settings": frozenset({"view", "edit", "configure"}),
         "crm_seo_aeo_reports": frozenset({"view", "export"}),
+        "crm_research": frozenset({"view", "create", "edit", "export"}),
     },
     "MKT-01": {
         "crm_hub_campaigns": frozenset({"view", "edit", "create", "delete"}),
@@ -572,6 +580,7 @@ _POSITION_DEFAULT: dict[str, dict[str, frozenset[str]]] = {
         "crm_seo_aeo_settings": frozenset({"view", "edit", "configure"}),
         "crm_seo_aeo_reports": frozenset({"view", "export"}),
         "crm_email_mkt": frozenset({"view", "write", "settings", "compliance", "approve", "deliverability", "reports"}),
+        "crm_research": frozenset({"view", "create", "edit", "export"}),
     },
     "MKT-02": {
         "crm_hub_campaigns": frozenset({"view", "edit", "create"}),

@@ -50,7 +50,8 @@
     "view_financial",
     "view_pii",
     "write",
-    "generate"
+    "generate",
+    "run"
   ],
   "extra_action_labels": {
     "assign": "Phân công (GDKD)",
@@ -64,7 +65,8 @@
     "view_financial": "Xem giá trị tài chính lead",
     "view_pii": "Xem PII (SĐT/email)",
     "write": "Ghi / thao tác",
-    "generate": "Sinh nội dung AI"
+    "generate": "Sinh nội dung AI",
+    "run": "Chạy job (desk/deep)"
   },
   "section_actions": {
     "crm_board_funnel": [
@@ -204,6 +206,15 @@
       "qa",
       "view",
       "write"
+    ],
+    "crm_research": [
+      "approve",
+      "configure",
+      "create",
+      "edit",
+      "export",
+      "run",
+      "view"
     ],
     "crm_business_dashboard": [
       "approve",
@@ -877,6 +888,13 @@
       "group": "CRM — Triển khai dịch vụ",
       "page": "/crm/service-delivery",
       "description": "Tab Content OS: ideas, items, workflow duyệt, calendar, publish."
+    },
+    {
+      "id": "crm_research",
+      "label": "Nghiên cứu thị trường (DV12)",
+      "group": "CRM — Lên kế hoạch",
+      "page": "/crm/research",
+      "description": "Market Research OS DV12: project, desk/deep, evidence, insight, report."
     },
     {
       "id": "crm_business_dashboard",
@@ -1638,6 +1656,7 @@
     "crm_mktplan",
     "crm_mkt_ai",
     "crm_content",
+    "crm_research",
     "crm_owner_weekly_dashboard",
     "crm_payroll_attendance",
     "crm_payroll_device",
