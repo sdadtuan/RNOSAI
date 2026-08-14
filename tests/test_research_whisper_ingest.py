@@ -121,6 +121,14 @@ def test_transcribe_sends_audio_filename_and_mime(monkeypatch):
         audio.unlink(missing_ok=True)
 
 
+def test_evidence_pii_class_mirrors_nest_resolve():
+    from ptt_crm.market_research.pii_guard import evidence_pii_class
+
+    assert evidence_pii_class("quoted line about brand") == "none"
+    assert evidence_pii_class("Gọi 0909123456 sau buổi IDI") == "internal"
+    assert evidence_pii_class("Contact analyst@ptt.vn for the raw table") == "internal"
+
+
 def test_unlink_refuses_path_outside_temp_or_without_prefix(tmp_path):
     from ptt_crm.market_research.whisper_ingest import _unlink_quiet
 

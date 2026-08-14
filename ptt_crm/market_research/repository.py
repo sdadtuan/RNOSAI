@@ -373,6 +373,9 @@ def insert_evidence(
     excerpt: str,
     created_by: str = "whisper_ingest",
 ) -> dict[str, Any]:
+    from ptt_crm.market_research.pii_guard import evidence_pii_class
+
+    pii_class = evidence_pii_class(excerpt)
     with pg_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -381,7 +384,7 @@ def insert_evidence(
                   project_id, source_id, study_id, question_id, locator, excerpt,
                   pii_class, created_by
                 ) VALUES (
-                  %s, NULL, %s, %s, %s, %s, 'none', %s
+                  %s, NULL, %s, %s, %s, %s, %s, %s
                 )
                 RETURNING id, excerpt, locator
                 """,
@@ -391,6 +394,7 @@ def insert_evidence(
                     question_id,
                     str(locator)[:200],
                     str(excerpt)[:500],
+                    pii_class,
                     created_by,
                 ),
             )

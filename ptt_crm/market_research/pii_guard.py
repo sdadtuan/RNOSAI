@@ -19,3 +19,8 @@ def strip_pii(text: str) -> str:
 def pii_hint(text: str) -> bool:
     raw = str(text or "")
     return bool(_EMAIL_RE.search(raw) or _PHONE_RE.search(raw))
+
+
+def evidence_pii_class(excerpt: str) -> str:
+    """Mirror Nest resolvePiiClass: PII in excerpt → internal, else none."""
+    return "internal" if pii_hint(excerpt) else "none"

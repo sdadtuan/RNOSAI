@@ -366,6 +366,8 @@ Evidence excerpt > 500: 400 `{error:raw_transcript_forbidden}`. Complete payload
 
 `GET /health` `sparktoro_enabled=false` (flag hoặc key off) → **không** CTA **Chạy SparkToro**. `POST …/run-sparktoro` → `200 {ok:true, note:sparktoro_disabled}` — project không fail.
 
+P5 **không** có live SparkToro HTTP: `collect` trả fixture rỗng. Flag + key on vẫn 0 source cho đến khi PO mua API (P6+). RES-UC-061 UAT verify bằng fixture / `sparktoro_disabled`, không census live.
+
 #### Nhánh E-Tier
 
 Paid estimate `sparktoro|similarweb|semrush` + tier `high`: 400 `{error:reliability_capped}`. Question có email/SĐT: 400 (BR-RES-11).
