@@ -35,6 +35,7 @@ import {
   approveResearchInsight,
   approveResearchReportExecEn,
   attachResearchInsightEvidence,
+  attachResearchInsightTheme,
   copilotResearchInsight,
   copilotResearchReport,
   createResearchEvidence,
@@ -440,6 +441,22 @@ function CrmResearchWorkspaceContent() {
       await persistInsight(body, evidenceIds);
     } catch (err) {
       if (!openGate(err)) setError(err instanceof Error ? err.message : 'Lưu insight thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onAttachInsightTheme(taxonomyId: number) {
+    const access = getAccessToken();
+    if (!access || !activeInsight) return;
+    setSaving(true);
+    setError('');
+    try {
+      const updated = await attachResearchInsightTheme(access, activeInsight.id, taxonomyId);
+      setActiveInsight({ ...activeInsight, statement: updated.statement });
+      await load(access);
+    } catch (err) {
+      if (!openGate(err)) setError(err instanceof Error ? err.message : 'Gắn theme thất bại');
     } finally {
       setSaving(false);
     }
@@ -1174,6 +1191,7 @@ function CrmResearchWorkspaceContent() {
                 )
               }
               onApprove={onApproveInsight}
+              onAttachTheme={onAttachInsightTheme}
             />
             <InsightGateDialog open={gateOpen} messages={gateMessages} onClose={() => setGateOpen(false)} />
             <DeepResearchModal

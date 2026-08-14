@@ -24,6 +24,7 @@ import {
   type ResearchProject,
 } from '@/lib/market-research-api';
 import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
+import { shouldShowTaxonomyNav } from '@/components/research/taxonomy-pane.util';
 
 export default function CrmResearchListPage() {
   return (
@@ -160,11 +161,18 @@ function CrmResearchListContent() {
       <div className="page-card stack-gap">
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
           <h1 style={{ margin: 0, fontSize: '1.25rem' }}>Nghiên cứu thị trường</h1>
-          {hasCap(user, 'crm_research', 'create') ? (
-            <Link href="/crm/research/new" className="btn btn-sm">
-              Tạo project
-            </Link>
-          ) : null}
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+            {shouldShowTaxonomyNav(hasCap(user, 'crm_research', 'configure')) ? (
+              <Link href="/crm/research/taxonomy" className="btn btn-sm btn-secondary">
+                Taxonomy
+              </Link>
+            ) : null}
+            {hasCap(user, 'crm_research', 'create') ? (
+              <Link href="/crm/research/new" className="btn btn-sm">
+                Tạo project
+              </Link>
+            ) : null}
+          </div>
         </div>
         <form
           onSubmit={(e) => {

@@ -5,6 +5,7 @@ import { ConfidenceRubric, EMPTY_RUBRIC } from '@/components/research/Confidence
 import { EvidenceIdChip } from '@/components/research/EvidenceIdChip';
 import {
   canSubmitInsightReview,
+  fetchResearchTaxonomy,
   hasPersistedInsightRubric,
   insightConfidencePayload,
   INSIGHT_GATE_COPY,
@@ -15,7 +16,10 @@ import {
   type CreateInsightBody,
   type ResearchEvidence,
   type ResearchInsight,
+  type ResearchTaxonomyTheme,
 } from '@/lib/market-research-api';
+import { getAccessToken } from '@/lib/auth';
+import { TAXONOMY_BANNER } from './taxonomy-pane.util';
 
 const BLOCKS = [
   { id: 'observation', label: 'Quan sát' },
@@ -73,6 +77,7 @@ export function InsightDrawer({
   onSave,
   onSubmitReview,
   onApprove,
+  onAttachTheme,
 }: {
   open: boolean;
   insight: ResearchInsight | null;
@@ -85,12 +90,15 @@ export function InsightDrawer({
   onSave: (body: CreateInsightBody, evidenceIds: number[]) => Promise<void>;
   onSubmitReview: (body: CreateInsightBody, evidenceIds: number[]) => Promise<void>;
   onApprove: (target: 'approved_internal' | 'approved_client_facing') => Promise<void>;
+  onAttachTheme?: (taxonomyId: number) => Promise<void>;
 }) {
   const [form, setForm] = useState(empty);
   const [rubric, setRubric] = useState<ConfidenceRubricValue>({ ...EMPTY_RUBRIC });
   const [rubricTouched, setRubricTouched] = useState(false);
   const [block, setBlock] = useState<BlockId>('observation');
   const [selected, setSelected] = useState<number[]>([]);
+  const [themes, setThemes] = useState<ResearchTaxonomyTheme[]>([]);
+  const [taxonomyId, setTaxonomyId] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -109,7 +117,17 @@ export function InsightDrawer({
     setRubricTouched(false);
     setSelected(insight?.evidence_ids ?? []);
     setBlock('observation');
+    setTaxonomyId('');
   }, [open, insight]);
+
+  useEffect(() => {
+    if (!open || !canEdit) return;
+    const token = getAccessToken();
+    if (!token) return;
+    void fetchResearchTaxonomy(token)
+      .then((out) => setThemes(out.themes.filter((theme) => theme.active)))
+      .catch(() => setThemes([]));
+  }, [open, canEdit]);
 
   if (!open) return null;
 
@@ -206,6 +224,41 @@ export function InsightDrawer({
             style={{ display: 'block', width: '100%', marginTop: 4 }}
           />
         </label>
+        {canEdit && insight && onAttachTheme ? (
+          <fieldset style={{ border: '1px solid #d8e0d8', borderRadius: 8, padding: '0.6rem' }}>
+            <legend>Theme</legend>
+            <p className="muted" style={{ margin: '0 0 0.4rem', fontSize: '0.85rem' }}>
+              {TAXONOMY_BANNER}
+            </p>
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <label style={{ flex: '1 1 12rem' }}>
+                Gắn theme
+                <select
+                  className="kpi-input"
+                  value={taxonomyId}
+                  disabled={saving}
+                  onChange={(e) => setTaxonomyId(e.target.value)}
+                  style={{ display: 'block', width: '100%', marginTop: 4 }}
+                >
+                  <option value="">Chọn theme</option>
+                  {themes.map((theme) => (
+                    <option key={theme.id} value={String(theme.id)}>
+                      {theme.theme_code} — {theme.label_vi}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={saving || !taxonomyId}
+                onClick={() => void onAttachTheme(Number(taxonomyId))}
+              >
+                Lưu
+              </button>
+            </div>
+          </fieldset>
+        ) : null}
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
           {BLOCKS.map((b) => (
             <button

@@ -417,7 +417,7 @@ POST van-westendorp trên `CAT_REVIEW` (không `PRICE_OFFER`): 400 `{error:vw_no
 
 `GET /health` `qualtrics_enabled=false` (flag hoặc key off) → **không** CTA **Chạy Qualtrics**. `POST …/run-qualtrics` → `200 {ok:true, note:qualtrics_disabled}` — project không fail. Không enqueue. Không `createInsight`.
 
-P6 **không** có live Qualtrics HTTP / SDK. Flag + key on vẫn `qualtrics_disabled` cho đến khi PO mua retainer (P7+).
+P6 **không** có live Qualtrics HTTP / SDK. Flag + key on vẫn `qualtrics_disabled` cho đến khi PO mua retainer (P8+).
 
 #### Tiêu chí nghiệm thu walkthrough P6
 
@@ -429,12 +429,65 @@ P6 **không** có live Qualtrics HTTP / SDK. Flag + key on vẫn `qualtrics_disa
 
 ---
 
-## P7+ (backlog — không UAT P0–P6)
+## Walkthrough UAT P7 — RAG search + taxonomy (≈15 phút)
+
+**Mục tiêu khách hàng:** *«Lead duyệt insight bản khách → (flag on staging) F5 còn embedding → search q hit đúng id / không draft → gắn theme PRICE → search lọc theme → statement không đổi → flag off ẩn ô tìm / rag_disabled → F5.»*
+
+**Actors:** Research Analyst (AN), Research Lead (RL), QA
+
+**Dữ liệu test:** Client `acme` trong scope · Flag research = 1 (P0 đã bật) · `RESEARCH_RAG_ENABLED` mặc định `0` (không bật trong deploy; staging only sau PO) · Fixture `scripts/fixtures/research-rag-goldset.json` · Caps `crm_research.view` (search), `edit` (attach), `configure` (CRUD theme), `approve` (embed side-effect)
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | RL | Insight drawer | Duyệt **bản khách** | insight đã đủ evidence | Status `approved_client_facing` | ✓ RES-UC-070 · BR-RES-01 |
+| 2 | AN | Same · F5 (flag on staging) | Reload | `RESEARCH_RAG_ENABLED=1` staging | Embedding còn; PII skip embed | ✓ F5 · BR-RES-11 |
+| 3 | AN | Insights `?tab=insights` | **Tìm insight đã duyệt** | q khớp statement | Hit đúng id · **không** draft | ✓ RES-UC-070 |
+| 4 | AN | Insight drawer (edit) | Gắn theme **PRICE** | select + Lưu | Join row; banner taxonomy | ✓ RES-UC-071 |
+| 5 | AN | Same search | Lọc theme PRICE | chip / `theme_code=PRICE` | Chỉ hit đã gắn PRICE | ✓ RES-UC-071 |
+| 6 | AN | Same | Kiểm statement | — | Statement **không** đổi | ✓ BR-RES-06 |
+| 7 | AN | Same (flag off) | Tắt RAG | `RESEARCH_RAG_ENABLED=0` | Ẩn ô tìm; API `rag_disabled` | ✓ flag |
+| 8 | AN / QA | Same · F5 | Reload | — | Theme còn · ô tìm vẫn ẩn · không insight mới | ✓ F5 |
+
+#### Nhánh E-draft
+
+Search không trả insight `draft` / chưa duyệt bản khách — kể cả cùng câu.
+
+#### Nhánh E-PII embed
+
+Statement có email/SĐT: `shouldSkipRagEmbed` → không upsert embedding; approve vẫn 200.
+
+#### Nhánh E-403
+
+`GET …/insights/search` ngoài scope: 403 `{error:forbidden}` — **không** `statement`.
+
+#### Nhánh E-attach
+
+`POST …/insights/:id/themes` không gọi `createInsight` / không PATCH statement.
+
+#### Nhánh E-RAG off
+
+`GET /health` `rag_enabled=false` → **không** ô **Tìm insight đã duyệt**. `GET …/insights/search` → `200 {hits:[], note:rag_disabled}`.
+
+P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / portal RAG / copilot inject. Deploy **không** ghi `RESEARCH_RAG_ENABLED=1`.
+
+#### Tiêu chí nghiệm thu walkthrough P7
+
+- [ ] Bước 1–8 pass staging (RAG skip live nếu `rag_enabled` false / API down)
+- [ ] Draft no hit; PII skip embed; 403 no statement; `rag_disabled`; attach không đổi statement; không `createInsight`
+- [ ] Không đụng `/crm/sales?tab=market`
+- [ ] Không bật `RESEARCH_RAG_ENABLED` / Qualtrics / SparkToro trên prod
+- [ ] PO / Research Lead sign P7 ECs
+
+---
+
+## P8+ (backlog — không UAT P0–P7)
 
 | Hạng mục | Hành động tóm tắt | Điều kiện mở |
 |----------|-------------------|--------------|
 | Qualtrics **live** | Connector HTTP thật → import response | PO retainer Qualtrics + key staging |
-| RAG | Embeddings **chỉ** insight `published` / `approved_client_facing` | Gold-set unsupported-claim ổn; DPA embeddings |
-| Taxonomy | `crm_research_taxonomy` theme + synonym; gắn `insight_id`; không thay statement | P7 cùng RAG |
+| OpenAI embeddings | Embeddings vendor (optional) thay hash local | DPA vendor + gold-set semantic |
 | Conjoint / simulator | Conjoint đầy đủ + market simulator | P8+ · scorecard 100đ |
+| Portal RAG | Search insight trên portal khách | Sau search staff ổn |
+| Inject RAG vào insight copilot | Gợi ý từ corpus đã duyệt | Sau khi search ổn |
+| Cluster quý | Cluster insight theo quý | Scorecard 100đ |
 | **Apify login** | **Out (Design §20)** — không scrape Facebook login / group. LMP public page giữ nguyên | Không mở |

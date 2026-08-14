@@ -885,6 +885,41 @@ export async function searchResearchInsights(
   return researchFetch(token, `/api/v1/research/insights/search?${qs.toString()}`);
 }
 
+export type ResearchTaxonomyTheme = {
+  id: number;
+  theme_code: string;
+  label_vi: string;
+  synonyms: string[];
+  active: boolean;
+};
+
+export async function fetchResearchTaxonomy(
+  token: string,
+): Promise<{ themes: ResearchTaxonomyTheme[] }> {
+  return researchFetch(token, '/api/v1/research/taxonomy');
+}
+
+export async function createResearchTaxonomy(
+  token: string,
+  body: { theme_code: string; label_vi: string; synonyms?: string[] },
+): Promise<ResearchTaxonomyTheme> {
+  return researchFetch(token, '/api/v1/research/taxonomy', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function attachResearchInsightTheme(
+  token: string,
+  insightId: number,
+  taxonomyId: number,
+): Promise<ResearchInsight> {
+  return researchFetch(token, `/api/v1/research/insights/${insightId}/themes`, {
+    method: 'POST',
+    body: JSON.stringify({ taxonomy_id: taxonomyId }),
+  });
+}
+
 export async function runResearchDeep(
   token: string,
   projectId: number,

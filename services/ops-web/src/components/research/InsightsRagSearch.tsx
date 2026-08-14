@@ -1,14 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getAccessToken } from '@/lib/auth';
 import {
+  fetchResearchTaxonomy,
   INSIGHT_STATUS_LABELS,
   ResearchApiError,
   searchResearchInsights,
   TRANSITION_REASON_VI,
   type ResearchRagHit,
+  type ResearchTaxonomyTheme,
 } from '@/lib/market-research-api';
 import { RAG_SEARCH_BANNER, shouldShowRagSearch } from './insights-rag.util';
 
@@ -20,10 +22,21 @@ export function InsightsRagSearch({
   clientId?: string;
 }) {
   const [q, setQ] = useState('');
+  const [themeCode, setThemeCode] = useState('');
+  const [themes, setThemes] = useState<ResearchTaxonomyTheme[]>([]);
   const [hits, setHits] = useState<ResearchRagHit[]>([]);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (!shouldShowRagSearch(ragEnabled, true)) return;
+    const token = getAccessToken();
+    if (!token) return;
+    void fetchResearchTaxonomy(token)
+      .then((out) => setThemes(out.themes.filter((theme) => theme.active)))
+      .catch(() => setThemes([]));
+  }, [ragEnabled]);
 
   if (!shouldShowRagSearch(ragEnabled, true)) return null;
 
@@ -43,6 +56,7 @@ export function InsightsRagSearch({
     try {
       const out = await searchResearchInsights(token, {
         q: query,
+        theme_code: themeCode || undefined,
         client_id: clientId,
       });
       setHits(out.hits);
@@ -84,6 +98,24 @@ export function InsightsRagSearch({
           Tìm
         </button>
       </div>
+      {themes.length > 0 ? (
+        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.45rem' }}>
+          {themes.map((theme) => {
+            const active = themeCode === theme.theme_code;
+            return (
+              <button
+                key={theme.id}
+                type="button"
+                className={active ? 'btn btn-sm' : 'btn btn-sm btn-secondary'}
+                disabled={searching}
+                onClick={() => setThemeCode(active ? '' : theme.theme_code)}
+              >
+                {theme.label_vi}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
       {error ? (
         <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.85rem' }}>
           {error}

@@ -53,6 +53,7 @@ import {
 } from '@/lib/seo/flags';
 import { metaAdsOpsEnabled, metaIntelligenceEnabled, metaTrackingEnabled } from '@/lib/meta/flags';
 import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
+import { shouldShowTaxonomyNav } from '@/components/research/taxonomy-pane.util';
 
 interface OpsNavProps {
   user: StoredStaffUser | null;
@@ -95,6 +96,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/research': 'Nghiên cứu thị trường',
   '/crm/research/new': 'Tạo dự án nghiên cứu',
   '/crm/research/analytics': 'Phân tích nghiên cứu',
+  '/crm/research/taxonomy': 'Taxonomy',
   '/crm/marketing-plan': 'Kế hoạch marketing',
   '/crm/service-delivery': 'Triển khai dịch vụ',
   '/crm/sop': 'Quy trình SOP',
@@ -202,7 +204,8 @@ function pageTitleFor(pathname: string): string {
     pathname.startsWith('/crm/research/') &&
     pathname !== '/crm/research' &&
     pathname !== '/crm/research/new' &&
-    pathname !== '/crm/research/analytics'
+    pathname !== '/crm/research/analytics' &&
+    pathname !== '/crm/research/taxonomy'
   ) {
     return 'Workspace nghiên cứu';
   }
@@ -354,6 +357,9 @@ function buildSections(
   if (isMarketResearchFeEnabled() && hasCap(user, 'crm_research', 'view')) {
     plan.push({ href: '/crm/research', label: 'Nghiên cứu thị trường' });
     plan.push({ href: '/crm/research/analytics', label: 'Phân tích nghiên cứu' });
+    if (shouldShowTaxonomyNav(hasCap(user, 'crm_research', 'configure'))) {
+      plan.push({ href: '/crm/research/taxonomy', label: 'Taxonomy' });
+    }
   }
   if (hasCap(user, 'crm_board', 'view')) {
     plan.push({ href: '/crm/marketing-plan', label: 'Kế hoạch marketing' });

@@ -30,10 +30,11 @@
 | PDF + Content OS cite | RES-UC-050…051 | P4 |
 | Whisper excerpts + SparkToro sources | RES-UC-060…061 | P5 |
 | Codebook import + Van Westendorp lite | RES-UC-062…063 | P6 |
+| RAG search + taxonomy | RES-UC-070…071 | P7 |
 | EC-RES-01…12 | Actions walkthrough | P0 |
 
 **API base:** `/api/v1/research`  
-**UI primary:** `/crm/research` · `/crm/research/new` · `/crm/research/[id]`
+**UI primary:** `/crm/research` · `/crm/research/new` · `/crm/research/[id]` · `/crm/research/taxonomy`
 
 ---
 
@@ -48,6 +49,7 @@
 | **P4 — Deliverable + activation** | RES-UC-050…051 | P4 | Spec ready |
 | **P5 — Qual ingest + audience source** | RES-UC-060…061 | P5 | Spec ready |
 | **P6 — Survey codebook + VW lite** | RES-UC-062…063 | P6 | Spec ready |
+| **P7 — RAG search + taxonomy** | RES-UC-070…071 | P7 | Spec ready |
 
 ---
 
@@ -363,6 +365,19 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P7 — RES-UC-070…071
+
+| UC | Tóm tắt |
+|----|---------|
+| 070 | Tìm insight đã duyệt bản khách / published (RAG local). Ẩn ô khi flag off. Không draft. Không tự tạo insight. |
+| 071 | CRUD taxonomy (configure) + gắn theme vào insight (edit). Statement không đổi. |
+
+**API:** `GET /api/v1/research/insights/search` · `GET|POST /api/v1/research/taxonomy` · `PATCH /api/v1/research/taxonomy/:id` · `POST|DELETE /api/v1/research/insights/:id/themes`  
+**Gates:** draft không hit; PII skip embed; 403 không `statement`; flag off → `{hits:[], note:rag_disabled}`; attach không đổi statement; không `createInsight`.  
+**UAT:** [`actions/12-RES-ACTIONS.md`](actions/12-RES-ACTIONS.md) Walkthrough UAT P7.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |
@@ -374,5 +389,7 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 | `RESEARCH_DEEP_PROVIDER` | openai \| gemini \| off |
 | `RESEARCH_QUALTRICS_ENABLED` | default `0` — stub only; không bật deploy |
 | `QUALTRICS_API_KEY` | không log / không trả health / không ghi deploy |
+| `RESEARCH_RAG_ENABLED` | default `0` — không bật trong deploy prod; staging only sau PO |
+| `RESEARCH_SPARKTORO_ENABLED` | default `0` — không bật deploy |
 
 GDKD `crm_leads.assign` **không** hiện Approve insight.

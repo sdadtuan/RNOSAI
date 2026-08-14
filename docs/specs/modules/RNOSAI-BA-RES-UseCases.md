@@ -100,6 +100,8 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-061 | SparkToro source candidates | P5 | P5 | Spec ready | FR-CI · BR-RES-09 · BR-RES-11 |
 | RES-UC-062 | Import survey codebook CSV | P6 | P6 | Spec ready | FR-STD-01 · BR-RES-02 · BR-RES-11 |
 | RES-UC-063 | Van Westendorp lite PRICE_OFFER | P6 | P6 | Spec ready | BR-RES-03 · FR-STD |
+| RES-UC-070 | Tìm insight đã duyệt (RAG) | P7 | P7 | Spec ready | FR-INT · BR-RES-06/08/12 · NFR-AI-04 |
+| RES-UC-071 | Taxonomy theme + gắn insight | P7 | P7 | Spec ready | BR-RES-06 · UC-071 |
 
 ---
 
@@ -658,6 +660,26 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - `GET /health` `qualtrics_enabled` = flag **và** key; không trả `QUALTRICS_API_KEY`
 - FE: ẩn CTA trừ khi `shouldShowQualtricsButton(qualtrics_enabled, canRun)`
 
+### RES-UC-070 — Tìm insight đã duyệt (RAG)
+
+- `GET /api/v1/research/insights/search?q=&theme_code=&client_id=&limit=` cap `view`
+- Flag off → `200 {hits:[], note:rag_disabled}`; ô tìm ẩn khi `shouldShowRagSearch` false
+- Empty q → 400 `rag_query_required`; draft / chưa duyệt bản khách không hit
+- PII skip embed (`shouldSkipRagEmbed`); approve vẫn 200
+- Cross-tenant → 403 `{error:forbidden}` không `statement`
+- Banner: `Chỉ insight đã duyệt bản khách / published. Không tìm draft. Không tự tạo insight.`
+- **Cấm** `createInsight` / `createResearchInsight` từ search; không portal RAG; không OpenAI embeddings
+
+### RES-UC-071 — Taxonomy theme + gắn insight
+
+- `GET /api/v1/research/taxonomy` cap `view` → seed PRICE…GEO
+- `POST /api/v1/research/taxonomy` · `PATCH /taxonomy/:id` cap `configure`; thiếu configure → 403
+- `POST /insights/:id/themes` · `DELETE /insights/:id/themes/:taxonomyId` cap `edit`
+- Attach trả insight **cùng** `statement` (không sửa nội dung)
+- Trang `/crm/research/taxonomy` ẩn trừ `hasCap(configure)`; banner `Gắn theme — không sửa nội dung insight.`
+- Search `theme_code` lọc code hoặc synonym (case-insensitive)
+- **Cấm** `createInsight` trên path attach; không conjoint
+
 ---
 
 ## 5. API map
@@ -678,6 +700,12 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | POST | `/projects/:id/import-survey` | 062 |
 | GET/POST | `/projects/:id/van-westendorp` | 063 |
 | POST | `/projects/:id/run-qualtrics` | 062 |
+| GET | `/insights/search` | 070 |
+| GET | `/taxonomy` | 071 |
+| POST | `/taxonomy` | 071 |
+| PATCH | `/taxonomy/:id` | 071 |
+| POST | `/insights/:id/themes` | 071 |
+| DELETE | `/insights/:id/themes/:taxonomyId` | 071 |
 | GET | `/projects/:id/jobs/:runId` | 020 |
 | POST | `/projects/:id/evidence` | 006 |
 | POST | `/evidence/:id/verify` | 006 |
@@ -714,6 +742,9 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | `crm_research_ai_runs` | 004, 005, 011, 012, 016, 020, 060, 061 |
 | `crm_research_competitors` (P1) | 022 |
 | `crm_research_studies` (P2) | 030, 060 |
+| `crm_research_insight_embeddings` (P7) | 070 |
+| `crm_research_taxonomy` (P7) | 071 |
+| `crm_research_insight_themes` (P7) | 071 |
 
 ---
 
