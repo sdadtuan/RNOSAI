@@ -54,6 +54,15 @@ export function hasPersistedInsightRubric(
   return RUBRIC_DIMS.every((d) => typeof src[d] === 'number');
 }
 
+/** Omit EMPTY_RUBRIC fallback unless the analyst touched it or a stored rubric exists. */
+export function insightConfidencePayload(
+  rubric: ConfidenceRubric,
+  opts: { touched: boolean; hasStoredRubric: boolean },
+): ConfidenceRubric | undefined {
+  if (opts.touched || opts.hasStoredRubric) return rubric;
+  return undefined;
+}
+
 export const INSIGHT_GATE_COPY: Record<string, string> = {
   missing_verified_evidence: 'Cần ≥1 evidence đã verify',
   missing_confidence_rationale: 'Thiếu giải thích độ tin cậy',
@@ -167,6 +176,9 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   llm_provider_error: 'Claude không trả lời được — thử lại sau.',
   llm_timeout: 'Claude hết thời gian chờ.',
   methodology_incomplete: 'Gói TC/CS bắt buộc phụ lục phương pháp trước khi xuất.',
+  client_mismatch: 'Insight không thuộc khách hàng đã chọn.',
+  insight_not_approved: 'Chỉ được chèn insight đã duyệt nội bộ trở lên.',
+  forbidden: 'Không đủ quyền với khách hàng này.',
 };
 
 export type MethodologyBlock = {

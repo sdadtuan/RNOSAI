@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Deploy Market Research OS P1 — P0+P1 DDL + API + ops-web + worker.
 #
+# Ordering: P1 DDL MUST apply before worker restart. insert_ai_sources now writes
+# `triangulated`. Do NOT roll back P1 DDL while leaving the new worker.
+# Forward path already applies DDL as 1/4 and worker as 4/4 — do not change that order.
+#
 # From laptop:
 #   APPLY=1 ./scripts/deploy_market_research_p1_vps.sh
 #

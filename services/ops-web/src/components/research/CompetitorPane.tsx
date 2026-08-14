@@ -32,9 +32,11 @@ function KindChip({ kind }: { kind: 'fact' | 'hypothesis' }) {
         fontWeight: 600,
         padding: '0.1rem 0.45rem',
         borderRadius: 999,
-        border: hypothesis ? '1px dashed #8a6d3b' : '1px solid #2f6f4e',
-        background: hypothesis ? '#fff8e6' : '#e8f5ee',
-        color: hypothesis ? '#6a4f1b' : '#1d4d35',
+        border: hypothesis ? '1px dashed var(--border)' : '1px solid var(--primary)',
+        background: hypothesis
+          ? 'color-mix(in srgb, var(--text) 8%, var(--bg))'
+          : 'color-mix(in srgb, var(--primary) 12%, white)',
+        color: hypothesis ? 'var(--text)' : 'var(--primary)',
       }}
     >
       {hypothesis ? '◇ Giả thuyết' : '● Fact'}
@@ -176,7 +178,7 @@ export function CompetitorPane({
         <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
           Snapshot fact cần <code>source_id</code> cùng project. Similarweb/Semrush không lên High.
         </p>
-        {error ? <p style={{ color: '#a33', margin: 0 }}>{error}</p> : null}
+        {error ? <p className="error" style={{ margin: 0 }}>{error}</p> : null}
         {canEdit ? (
           <form onSubmit={(e) => void onAdd(e)} style={{ display: 'grid', gap: '0.5rem' }}>
             <label>
@@ -292,7 +294,7 @@ export function CompetitorPane({
                       style={{ display: 'block', width: '100%', marginTop: 4 }}
                     />
                   </label>
-                  <fieldset style={{ border: '1px solid #d8e0d8', borderRadius: 8, padding: '0.5rem' }}>
+                  <fieldset style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '0.5rem' }}>
                     <legend>Loại</legend>
                     <label style={{ marginRight: 12 }}>
                       <input

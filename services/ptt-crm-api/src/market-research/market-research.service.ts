@@ -407,10 +407,17 @@ export class MarketResearchService {
         messages: ['source_id is required'],
       });
     }
-    if (!String(input.observed_at ?? '').trim()) {
+    const observedAt = String(input.observed_at ?? '').trim();
+    if (!observedAt) {
       throw new BadRequestException({
         error: 'validation_error',
         messages: ['observed_at is required'],
+      });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(observedAt) || Number.isNaN(Date.parse(observedAt))) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['observed_at must be YYYY-MM-DD'],
       });
     }
     const kind = String(input.kind ?? '').trim();
@@ -447,7 +454,7 @@ export class MarketResearchService {
       existing.project_id,
       {
         source_id: sourceId,
-        observed_at: String(input.observed_at).trim(),
+        observed_at: observedAt,
         kind,
         fact: sanitizeCompetitorFact(input.fact),
         limitation_note,

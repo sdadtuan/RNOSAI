@@ -295,6 +295,28 @@ describe('MarketResearchService', () => {
     expect(repo.createCompetitorSnapshot).not.toHaveBeenCalled();
   });
 
+  it('createSnapshot invalid observed_at is 400 validation_error', async () => {
+    stubScopedProject();
+    repo.getCompetitor.mockResolvedValue(competitorRow());
+
+    try {
+      await service.createSnapshot(
+        4,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { source_id: 11, observed_at: '14/08/2026', kind: 'fact', fact: { price: '12000' } },
+        'am@ptt',
+      );
+      throw new Error('expected validation_error');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ error: 'validation_error' }),
+      );
+    }
+    expect(repo.createCompetitorSnapshot).not.toHaveBeenCalled();
+    expect(repo.getSource).not.toHaveBeenCalled();
+  });
+
   it('createSnapshot Similarweb unknown tier with limitation_note inserts', async () => {
     stubScopedProject();
     repo.getCompetitor.mockResolvedValue(competitorRow());

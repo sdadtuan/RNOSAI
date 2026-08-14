@@ -40,7 +40,7 @@ export function ConfidenceRubric({
   }
 
   return (
-    <fieldset style={{ border: '1px solid #d8e0d8', borderRadius: 8, padding: '0.6rem' }}>
+    <fieldset style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '0.6rem' }}>
       <legend>Rubric độ tin cậy</legend>
       <p className="muted" style={{ margin: '0 0 0.5rem', fontSize: '0.85rem' }}>
         Không ghi 95% confidence trừ khi đây là inference thống kê.

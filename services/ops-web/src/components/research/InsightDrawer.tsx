@@ -5,6 +5,8 @@ import { ConfidenceRubric, EMPTY_RUBRIC } from '@/components/research/Confidence
 import { EvidenceIdChip } from '@/components/research/EvidenceIdChip';
 import {
   canSubmitInsightReview,
+  hasPersistedInsightRubric,
+  insightConfidencePayload,
   INSIGHT_GATE_COPY,
   INSIGHT_STATUS_LABELS,
   type ConfidenceBand,
@@ -86,6 +88,7 @@ export function InsightDrawer({
 }) {
   const [form, setForm] = useState(empty);
   const [rubric, setRubric] = useState<ConfidenceRubricValue>({ ...EMPTY_RUBRIC });
+  const [rubricTouched, setRubricTouched] = useState(false);
   const [block, setBlock] = useState<BlockId>('observation');
   const [selected, setSelected] = useState<number[]>([]);
 
@@ -103,6 +106,7 @@ export function InsightDrawer({
       valid_to: insight?.valid_to ?? '',
     });
     setRubric(rubricFromInsight(insight));
+    setRubricTouched(false);
     setSelected(insight?.evidence_ids ?? []);
     setBlock('observation');
   }, [open, insight]);
@@ -122,7 +126,7 @@ export function InsightDrawer({
   }
 
   function toBody(): CreateInsightBody {
-    return {
+    const body: CreateInsightBody = {
       statement: form.statement.trim(),
       observation: form.observation.trim() || null,
       interpretation: form.interpretation.trim() || null,
@@ -130,10 +134,15 @@ export function InsightDrawer({
       recommendation: form.recommendation.trim() || null,
       audience: form.audience.trim() || null,
       confidence_rationale: form.confidence_rationale.trim() || null,
-      confidence_json: rubric,
       valid_from: form.valid_from.trim() || null,
       valid_to: form.valid_to.trim() || null,
     };
+    const confidence_json = insightConfidencePayload(rubric, {
+      touched: rubricTouched,
+      hasStoredRubric: insight ? hasPersistedInsightRubric(insight) : false,
+    });
+    if (confidence_json !== undefined) body.confidence_json = confidence_json;
+    return body;
   }
 
   function toggleEvidence(id: number) {
@@ -262,7 +271,10 @@ export function InsightDrawer({
           value={rubric}
           band={bandFromInsight(insight)}
           disabled={!canEdit}
-          onChange={setRubric}
+          onChange={(next) => {
+            setRubricTouched(true);
+            setRubric(next);
+          }}
         />
         <label>
           Audience
