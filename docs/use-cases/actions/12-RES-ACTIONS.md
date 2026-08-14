@@ -4,7 +4,7 @@
 > **BA:** [`../../specs/modules/RNOSAI-BA-RES-UseCases.md`](../../specs/modules/RNOSAI-BA-RES-UseCases.md)  
 > **UX:** [`../../specs/2026-08-14-market-research-os-ui-ux.md`](../../specs/2026-08-14-market-research-os-ui-ux.md)  
 > **SRS:** [`../../specs/2026-08-14-market-research-os-srs.md`](../../specs/2026-08-14-market-research-os-srs.md)  
-> **Phiên bản:** 1.0 · **Coverage:** RES-UC-001…020 (P0 UAT) + walkthrough P1–P5 (UAT 060–061) + backlog P6+
+> **Phiên bản:** 1.0 · **Coverage:** RES-UC-001…020 (P0 UAT) + walkthrough P1–P7 + P8 UAT 072 (this update does not re-sign P0–P7)
 
 ---
 
@@ -480,14 +480,25 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 ---
 
-## P8+ (backlog — không UAT P0–P7)
+## Walkthrough UAT P8 — Copilot + RAG (≈10 phút)
 
-| Hạng mục | Hành động tóm tắt | Điều kiện mở |
-|----------|-------------------|--------------|
-| Qualtrics **live** | Connector HTTP thật → import response | PO retainer Qualtrics + key staging |
-| OpenAI embeddings | Embeddings vendor (optional) thay hash local | DPA vendor + gold-set semantic |
-| Conjoint / simulator | Conjoint đầy đủ + market simulator | P8+ · scorecard 100đ |
-| Portal RAG | Search insight trên portal khách | Sau search staff ổn |
-| Inject RAG vào insight copilot | Gợi ý từ corpus đã duyệt | Sau khi search ổn |
-| Cluster quý | Cluster insight theo quý | Scorecard 100đ |
-| **Apify login** | **Out (Design §20)** — không scrape Facebook login / group. LMP public page giữ nguyên | Không mở |
+**Mục tiêu:** *«AN chọn evidence verified → Gợi ý insight; (staging flag on) thấy banner + chip tham chiếu insight đã duyệt cùng khách; draft mới status draft; F5 còn; flag off không banner / rag_disabled.»*
+
+| # | Actor | Thao tác | Phản hồi | Gate |
+|---|-------|----------|----------|------|
+| 1 | AN | Insights · chọn ≥1 EV verified · **Gợi ý insight** (flag off prod) | 1 insight draft · không banner | ✓ P0 |
+| 2 | AN | Staging `RESEARCH_RAG_ENABLED=1` · cùng thao tác | Banner verbatim · `rag_hits` 0..5 | ✓ RES-UC-072 |
+| 3 | AN | Có hit | Chip `Tham chiếu #id` · statement hit không thành published | ✓ BR-06 |
+| 4 | AN | Excerpt EV có SĐT (staging) | Copilot vẫn draft · `rag_note=rag_skipped_pii` | ✓ BR-11 |
+| 5 | QA | F5 | Draft còn · không portal publish | ✓ F5 |
+
+## P9+ (backlog — không UAT P0–P8)
+
+| Hạng mục | Điều kiện mở |
+|----------|--------------|
+| SparkToro **live** HTTP | PO mua API + key staging |
+| Qualtrics **live** | Retainer + key staging |
+| OpenAI embeddings | DPA vendor + gold-set semantic |
+| Portal RAG | Sau copilot+search staging ổn |
+| Conjoint / simulator / cluster quý / Talkwalker / ISO 20252 | Scorecard 100đ |
+| **Apify login** | **Out (Design §20)** |

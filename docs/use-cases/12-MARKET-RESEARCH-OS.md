@@ -31,6 +31,7 @@
 | Whisper excerpts + SparkToro sources | RES-UC-060…061 | P5 |
 | Codebook import + Van Westendorp lite | RES-UC-062…063 | P6 |
 | RAG search + taxonomy | RES-UC-070…071 | P7 |
+| RAG copilot inject | RES-UC-072 | P8 |
 | EC-RES-01…12 | Actions walkthrough | P0 |
 
 **API base:** `/api/v1/research`  
@@ -50,6 +51,7 @@
 | **P5 — Qual ingest + audience source** | RES-UC-060…061 | P5 | Spec ready |
 | **P6 — Survey codebook + VW lite** | RES-UC-062…063 | P6 | Spec ready |
 | **P7 — RAG search + taxonomy** | RES-UC-070…071 | P7 | Spec ready |
+| **P8 — Copilot RAG inject** | RES-UC-072 | P8 | Spec ready |
 
 ---
 
@@ -375,6 +377,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 **API:** `GET /api/v1/research/insights/search` · `GET|POST /api/v1/research/taxonomy` · `PATCH /api/v1/research/taxonomy/:id` · `POST|DELETE /api/v1/research/insights/:id/themes`  
 **Gates:** draft không hit; PII skip embed; 403 không `statement`; flag off → `{hits:[], note:rag_disabled}`; attach không đổi statement; không `createInsight`.  
 **UAT:** [`actions/12-RES-ACTIONS.md`](actions/12-RES-ACTIONS.md) Walkthrough UAT P7.
+
+---
+
+## P8 — RES-UC-072
+
+| UC | Tóm tắt |
+|----|---------|
+| 072 | Inject RAG vào insight copilot (cùng client). Flag off = P0. 1 draft. Không tự duyệt. |
+
+**API:** `POST /api/v1/research/projects/:id/insights/copilot` (giữ) — response thêm `rag_hits`, `rag_note?`
+**Gates:** flag off → `rag_disabled` + prompt P0; PII query → `rag_skipped_pii`; draft không trong prior; `createInsight` ×1.
 
 ---
 

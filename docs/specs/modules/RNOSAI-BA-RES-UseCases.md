@@ -102,6 +102,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-063 | Van Westendorp lite PRICE_OFFER | P6 | P6 | Spec ready | BR-RES-03 · FR-STD |
 | RES-UC-070 | Tìm insight đã duyệt (RAG) | P7 | P7 | Spec ready | FR-INT · BR-RES-06/08/12 · NFR-AI-04 |
 | RES-UC-071 | Taxonomy theme + gắn insight | P7 | P7 | Spec ready | BR-RES-06 · UC-071 |
+| RES-UC-072 | Inject RAG vào insight copilot | P8 | P8 | Spec ready | FR-AI-03 · BR-RES-06 · UC-011 |
 
 ---
 
@@ -680,6 +681,32 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - Search `theme_code` lọc code hoặc synonym (case-insensitive)
 - **Cấm** `createInsight` trên path attach; không conjoint
 
+### RES-UC-072 — Inject RAG vào insight copilot
+
+- **Actor chính:** Analyst (`run`)
+- **API / job:** `POST /api/v1/research/projects/:id/insights/copilot` (`research_insight_draft`)
+- **Trace ref:** FR-AI-03, NFR-AI-03, BR-RES-06, RES-UC-011
+- **Tham chiếu:** corpus đã duyệt (cùng client)
+
+#### Luồng chính
+
+| Bước | Mô tả |
+| --- | --- |
+| 1 | Chọn evidence_ids verified |
+| 2 | **Gợi ý insight (Claude)** — tham chiếu corpus đã duyệt cùng khách khi flag on |
+| 3 | Prompt **chỉ** excerpt/value các ID đó + rag_hits corpus đã duyệt — không web thêm |
+| 4 | Tạo insight `draft` `ai_generated=true` (`createInsight` ×1) |
+| 5 | Analyst sửa rồi RES-UC-007 |
+
+#### Ngoại lệ
+
+| Mã | Mô tả |
+| --- | --- |
+| E1 | 0 evidence → nút disabled |
+| E2 | LLM fail → failed run; không insight rỗng |
+| E3 | Flag off → `rag_note=rag_disabled` + prompt P0 (không banner) |
+| E4 | PII query → `rag_skipped_pii`; vẫn 1 draft |
+
 ---
 
 ## 5. API map
@@ -710,6 +737,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | POST | `/projects/:id/evidence` | 006 |
 | POST | `/evidence/:id/verify` | 006 |
 | POST | `/projects/:id/insights` | 007 |
+| POST | `/projects/:id/insights/copilot` | 011, 072 |
 | POST | `/insights/:id/attach-evidence` | 007 |
 | POST | `/insights/:id/submit-review` | 007 |
 | POST | `/insights/:id/approve` | 008, 018 |
