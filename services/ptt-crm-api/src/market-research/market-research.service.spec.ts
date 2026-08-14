@@ -142,6 +142,41 @@ describe('MarketResearchService', () => {
     clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
   }
 
+  function pulseCompetitorWithPriceDiff() {
+    return {
+      id: 4,
+      project_id: 9,
+      name: 'Rival',
+      aliases: [],
+      snapshots: [
+        {
+          id: 1,
+          competitor_id: 4,
+          project_id: 9,
+          source_id: 1,
+          observed_at: '2026-08-01',
+          kind: 'fact',
+          fact: { price: '10' },
+          limitation_note: null,
+          created_by: 'am@ptt',
+          created_at: '2026-08-01',
+        },
+        {
+          id: 2,
+          competitor_id: 4,
+          project_id: 9,
+          source_id: 2,
+          observed_at: '2026-08-14',
+          kind: 'fact',
+          fact: { price: '12' },
+          limitation_note: null,
+          created_by: 'am@ptt',
+          created_at: '2026-08-14',
+        },
+      ],
+    };
+  }
+
   it('createProject throws validation_error without hitting the repository', async () => {
     await expect(
       service.createProject({ restricted: false, allowedClientIds: [] }, {} as never, 'am@ptt'),
@@ -1139,49 +1174,18 @@ describe('MarketResearchService', () => {
         projectId: 9,
         questionId: 10,
         runId: 77,
+        lifecycleId: null,
         idempotencyKey: 'research_pulse:9:10:run:77',
       }),
     );
+    expect(repo.insertTrendSignal).not.toHaveBeenCalled();
     expect(repo.createInsight).not.toHaveBeenCalled();
   });
 
   it('runPulse without lifecycle_id inserts signal and does not upsert alert', async () => {
     stubScopedProject();
     repo.findInFlightPulseRun.mockResolvedValue(null);
-    repo.listCompetitors.mockResolvedValue([
-      {
-        id: 4,
-        project_id: 9,
-        name: 'Rival',
-        aliases: [],
-        snapshots: [
-          {
-            id: 1,
-            competitor_id: 4,
-            project_id: 9,
-            source_id: 1,
-            observed_at: '2026-08-01',
-            kind: 'fact',
-            fact: { price: '10' },
-            limitation_note: null,
-            created_by: 'am@ptt',
-            created_at: '2026-08-01',
-          },
-          {
-            id: 2,
-            competitor_id: 4,
-            project_id: 9,
-            source_id: 2,
-            observed_at: '2026-08-14',
-            kind: 'fact',
-            fact: { price: '12' },
-            limitation_note: null,
-            created_by: 'am@ptt',
-            created_at: '2026-08-14',
-          },
-        ],
-      },
-    ]);
+    repo.listCompetitors.mockResolvedValue([pulseCompetitorWithPriceDiff()]);
     repo.insertTrendSignal.mockResolvedValue({
       id: 31,
       project_id: 9,
@@ -1204,12 +1208,80 @@ describe('MarketResearchService', () => {
       created_at: '2026-08-14',
       finished_at: null,
     });
-    jobQueue.enqueueResearchPulseJob.mockResolvedValue({ id: 'job-pulse' });
+    jobQueue.enqueueResearchPulseJob.mockResolvedValue(null);
 
     await service.runPulse(9, { restricted: true, allowedClientIds: ['acme'] }, {}, 'am@ptt');
 
     expect(repo.insertTrendSignal).toHaveBeenCalled();
     expect(opsAlerts.upsertAlert).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('runPulse jobsEnabled enqueue does not insert trend signal on Nest', async () => {
+    stubScopedProject();
+    repo.findInFlightPulseRun.mockResolvedValue(null);
+    repo.listCompetitors.mockResolvedValue([pulseCompetitorWithPriceDiff()]);
+    repo.insertAiRun.mockResolvedValue({
+      id: 79,
+      project_id: 9,
+      question_id: null,
+      job_type: 'research_pulse',
+      provider: 'tavily',
+      status: 'pending',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: null,
+    });
+    jobQueue.enqueueResearchPulseJob.mockResolvedValue({ id: 'job-pulse' });
+
+    const out = await service.runPulse(9, { restricted: true, allowedClientIds: ['acme'] }, {}, 'am@ptt');
+
+    expect(out).toEqual({ ok: true, run_id: 79, status: 'pending' });
+    expect(repo.insertTrendSignal).not.toHaveBeenCalled();
+    expect(opsAlerts.upsertAlert).not.toHaveBeenCalled();
+  });
+
+  it('runPulse jobs_disabled with lifecycle_id upserts DV12 alert', async () => {
+    stubScopedProject();
+    repo.getProject.mockResolvedValue({ ...project, lifecycle_id: 12 });
+    repo.findInFlightPulseRun.mockResolvedValue(null);
+    repo.listCompetitors.mockResolvedValue([pulseCompetitorWithPriceDiff()]);
+    repo.insertTrendSignal.mockResolvedValue({
+      id: 31,
+      project_id: 9,
+      topic: 'price',
+      metric: 'price',
+      baseline: 10,
+      current: 12,
+      velocity: 0.2,
+      lifecycle: 'rising',
+    });
+    repo.insertAiRun.mockResolvedValue({
+      id: 80,
+      project_id: 9,
+      question_id: null,
+      job_type: 'research_pulse',
+      provider: 'tavily',
+      status: 'pending',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: null,
+    });
+    jobQueue.enqueueResearchPulseJob.mockResolvedValue(null);
+
+    await service.runPulse(9, { restricted: true, allowedClientIds: ['acme'] }, {}, 'am@ptt');
+
+    expect(repo.insertTrendSignal).toHaveBeenCalled();
+    expect(opsAlerts.upsertAlert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lifecycleId: 12,
+        dvCode: 'DV12',
+        alertType: 'research_pulse',
+        sourceKey: 'research_pulse:9:31',
+      }),
+    );
     expect(repo.createInsight).not.toHaveBeenCalled();
   });
 

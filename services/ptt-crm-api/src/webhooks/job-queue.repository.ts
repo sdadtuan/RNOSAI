@@ -144,6 +144,7 @@ export class JobQueueRepository implements OnModuleDestroy {
     questionId?: number | null;
     runId: number;
     clientId?: string | null;
+    lifecycleId?: number | null;
     idempotencyKey: string;
   }): Promise<EnqueuedJob | null> {
     if (!this.config.jobsEnabled) return null;
@@ -153,6 +154,7 @@ export class JobQueueRepository implements OnModuleDestroy {
         project_id: input.projectId,
         question_id: input.questionId ?? null,
         run_id: input.runId,
+        lifecycle_id: input.lifecycleId ?? null,
       },
       idempotencyKey: input.idempotencyKey,
       clientId: this.normalizeClientUuid(input.clientId ?? undefined),

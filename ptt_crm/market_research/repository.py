@@ -146,6 +146,38 @@ def insert_trend_signal(
     }
 
 
+def upsert_ops_alert(
+    *,
+    lifecycle_id: int,
+    dv_code: str,
+    alert_type: str,
+    severity: str,
+    title: str,
+    message: str,
+    source_key: str,
+) -> None:
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO ops_alert_log
+                  (lifecycle_id, dv_code, alert_type, severity, title, message, source_key)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (source_key) DO NOTHING
+                """,
+                (
+                    int(lifecycle_id),
+                    str(dv_code)[:8],
+                    str(alert_type)[:40],
+                    str(severity)[:20],
+                    str(title)[:500],
+                    str(message)[:4000],
+                    str(source_key)[:160],
+                ),
+            )
+        conn.commit()
+
+
 def sum_project_tavily_credits(project_id: int, *, exclude_run_id: int | None = None) -> int:
     with pg_connection() as conn:
         with conn.cursor() as cur:

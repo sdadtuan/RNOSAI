@@ -1047,10 +1047,11 @@ export class MarketResearchService {
       questionId,
       runId: run.id,
       clientId: project.client_id,
+      lifecycleId: project.lifecycle_id,
       idempotencyKey: `research_pulse:${projectId}:${questionId ?? 0}:run:${run.id}`,
     });
-    await this.persistPulseSignalsFromSnapshots(project);
     if (!job) {
+      await this.persistPulseSignalsFromSnapshots(project);
       await this.repo.failAiRun(run.id, 'jobs_disabled');
       return { ok: true, run_id: run.id, status: 'failed', note: 'jobs_disabled' };
     }
