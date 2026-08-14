@@ -31,7 +31,7 @@ export function capBandForSingleSource(band: ConfidenceBand, hasUnauditedSingleS
   return band;
 }
 
-const FORBIDDEN = /95\s*%\s*confidence/i;
+const FORBIDDEN = /95\s*%\s*confidence|\bMOE\b|margin of error|sai số mẫu/i;
 
 export function assertNoFakeConfidence(rationale: string, statisticalInference: boolean): void {
   if (statisticalInference) return;

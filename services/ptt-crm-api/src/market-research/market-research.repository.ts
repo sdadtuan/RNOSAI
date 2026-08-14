@@ -22,6 +22,9 @@ import type {
   ResearchStudy,
   ResearchWave,
   ResearchDecision,
+  ResearchVwSummaryRow,
+  VwBin,
+  VwPoints,
   InsertReviewInput,
   ListProjectsFilters,
   OpsAnalyticsRaw,
@@ -1484,6 +1487,72 @@ export class MarketResearchRepository implements OnModuleDestroy {
       projectId,
     ]);
     return this.mapWave(result.rows[0]);
+  }
+
+  private mapVwSummary(row: Record<string, unknown>): ResearchVwSummaryRow {
+    return {
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      study_id: row.study_id != null ? Number(row.study_id) : null,
+      unit: String(row.unit),
+      n: Number(row.n),
+      bins: parseJsonCol<VwBin[]>(row.bins, []),
+      points: parseJsonCol<VwPoints>(row.points, { pmc: null, pme: null, opp: null, idp: null }),
+      limitation_note: String(row.limitation_note),
+      statistical_inference: false,
+      created_by: row.created_by != null ? String(row.created_by) : null,
+      created_at: String(row.created_at),
+    };
+  }
+
+  private readonly vwSummarySelect = `
+    SELECT id, project_id, study_id, unit, n, bins, points, limitation_note,
+           statistical_inference, created_by, created_at::text AS created_at
+    FROM crm_research_vw_summaries
+  `;
+
+  async getLatestVwSummary(projectId: number): Promise<ResearchVwSummaryRow | null> {
+    const result = await this.db.query(
+      `${this.vwSummarySelect} WHERE project_id = $1 ORDER BY id DESC LIMIT 1`,
+      [projectId],
+    );
+    const row = result.rows[0];
+    return row ? this.mapVwSummary(row) : null;
+  }
+
+  async insertVwSummary(
+    projectId: number,
+    input: {
+      study_id: number | null;
+      unit: string;
+      n: number;
+      bins: VwBin[];
+      points: VwPoints;
+      limitation_note: string;
+      statistical_inference: false;
+    },
+    actor: string,
+  ): Promise<ResearchVwSummaryRow> {
+    const result = await this.db.query(
+      `INSERT INTO crm_research_vw_summaries (
+         project_id, study_id, unit, n, bins, points, limitation_note,
+         statistical_inference, created_by
+       ) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9)
+       RETURNING id, project_id, study_id, unit, n, bins, points, limitation_note,
+                 statistical_inference, created_by, created_at::text AS created_at`,
+      [
+        projectId,
+        input.study_id,
+        input.unit,
+        input.n,
+        JSON.stringify(input.bins ?? []),
+        JSON.stringify(input.points ?? { pmc: null, pme: null, opp: null, idp: null }),
+        input.limitation_note,
+        false,
+        actor,
+      ],
+    );
+    return this.mapVwSummary(result.rows[0]);
   }
 
   private mapDecision(row: Record<string, unknown>): ResearchDecision {

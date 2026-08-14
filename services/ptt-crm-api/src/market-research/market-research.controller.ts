@@ -510,6 +510,25 @@ export class MarketResearchController {
     return this.research.createWave(id, scope, body ?? ({} as CreateWaveInput), actorEmail(req));
   }
 
+  @Get('projects/:id/van-westendorp')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async getVanWestendorp(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.getVanWestendorp(id, scope);
+  }
+
+  @Post('projects/:id/van-westendorp')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async createVanWestendorp(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { study_id?: number | null },
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.createVanWestendorp(id, scope, body ?? {}, actorEmail(req));
+  }
+
   @Get('projects/:id/decisions')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
   async listDecisions(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {

@@ -401,6 +401,41 @@ export type VwRespondent = {
   too_expensive: number;
 };
 
+export type VwBin = {
+  price: number;
+  too_cheap: number;
+  cheap: number;
+  expensive: number;
+  too_expensive: number;
+};
+
+export type VwPoints = {
+  pmc: number | null;
+  pme: number | null;
+  opp: number | null;
+  idp: number | null;
+};
+
+export type VwSummary = {
+  n: number;
+  unit: string;
+  bins: VwBin[];
+  points: VwPoints;
+  limitation_note: string;
+  statistical_inference: false;
+};
+
+export type ResearchVwSummaryRow = VwSummary & {
+  id: number;
+  project_id: number;
+  study_id: number | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export const VW_LIMITATION =
+  'Van Westendorp trên mẫu convenience — không phải census. Không ghi MOE / 95% confidence.';
+
 export const CODEBOOK_LIMITATION =
   'Codebook Forms — không phải panel xác suất. Không suy MOE.';
 

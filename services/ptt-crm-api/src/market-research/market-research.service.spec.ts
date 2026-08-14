@@ -115,6 +115,8 @@ describe('MarketResearchService', () => {
     findConsultFormDataByClientId: jest.fn(),
     listWaves: jest.fn(),
     createWave: jest.fn(),
+    insertVwSummary: jest.fn(),
+    getLatestVwSummary: jest.fn(),
     listDecisions: jest.fn(),
     createDecision: jest.fn(),
     getDecision: jest.fn(),
@@ -3367,7 +3369,192 @@ describe('MarketResearchService', () => {
     expect(repo.createEvidence).not.toHaveBeenCalled();
     expect(repo.patchStudy).not.toHaveBeenCalled();
   });
+
+  it('M1 leftover: format=vw 1 respondent → 4 evidence; createInsight is not called', async () => {
+    stubSurveyImportWrites();
+    repo.createEvidence
+      .mockReset()
+      .mockResolvedValueOnce(evidenceRow({ id: 201, study_id: 5, source_id: 20, locator: 'R-R001:too_cheap' }))
+      .mockResolvedValueOnce(evidenceRow({ id: 202, study_id: 5, source_id: 20, locator: 'R-R001:cheap' }))
+      .mockResolvedValueOnce(evidenceRow({ id: 203, study_id: 5, source_id: 20, locator: 'R-R001:expensive' }))
+      .mockResolvedValueOnce(evidenceRow({ id: 204, study_id: 5, source_id: 20, locator: 'R-R001:too_expensive' }));
+    const csv = ['respondent_id,too_cheap,cheap,expensive,too_expensive', 'R001,10,20,40,50'].join('\n');
+
+    const out = await service.importSurvey(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { csvText: csv, format: 'vw', periodNote: '2026-Q1', geography: 'VN', unit: 'VND' },
+      'am@ptt',
+    );
+
+    expect(out.evidence_ids).toEqual([201, 202, 203, 204]);
+    expect(out.n).toBe(1);
+    expect(repo.createEvidence).toHaveBeenCalledTimes(4);
+    expect(repo.createEvidence).toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({
+        locator: 'R-R001:too_cheap',
+        value_num: 10,
+        unit: 'VND',
+        value_base: 'too_cheap',
+        period_note: '2026-Q1',
+        geography: 'VN',
+      }),
+      'am@ptt',
+    );
+    expect(out).not.toHaveProperty('insight_id');
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('M3-2a: POST van-westendorp on CAT_REVIEW is 400 vw_not_price_offer', async () => {
+    stubScopedProject();
+
+    try {
+      await service.createVanWestendorp(9, { restricted: true, allowedClientIds: ['acme'] }, {}, 'am@ptt');
+      throw new Error('expected vw_not_price_offer');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'vw_not_price_offer' });
+    }
+    expect(repo.insertVwSummary).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('M3-2b: PRICE_OFFER + 4 respondent evidence persists summary; createInsight is not called', async () => {
+    const priceOffer = { ...project, product_type: 'PRICE_OFFER' as const };
+    repo.getProjectClientId.mockResolvedValue('acme');
+    repo.getProject.mockResolvedValue(priceOffer);
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.getStudy.mockResolvedValue({
+      id: 5,
+      project_id: 9,
+      name: 'VW study',
+      method: 'survey',
+      n: 4,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    });
+    repo.listEvidence.mockResolvedValue(vwEvidenceFourRespondents());
+    const persisted = {
+      id: 1,
+      project_id: 9,
+      study_id: 5,
+      unit: 'VND',
+      n: 4,
+      bins: [],
+      points: { pmc: null, pme: null, opp: null, idp: null },
+      limitation_note:
+        'Van Westendorp trên mẫu convenience — không phải census. Không ghi MOE / 95% confidence.',
+      statistical_inference: false as const,
+      created_by: 'am@ptt',
+      created_at: '2026-08-14',
+    };
+    repo.insertVwSummary.mockResolvedValue(persisted);
+
+    const out = await service.createVanWestendorp(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { study_id: 5 },
+      'am@ptt',
+    );
+
+    expect(out.n).toBe(4);
+    expect(out.statistical_inference).toBe(false);
+    expect(repo.insertVwSummary).toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({
+        study_id: 5,
+        n: 4,
+        statistical_inference: false,
+        limitation_note: persisted.limitation_note,
+      }),
+      'am@ptt',
+    );
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('M3-2c: GET van-westendorp outside scope is 403 without name', async () => {
+    repo.getProjectClientId.mockResolvedValue('other-client');
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.getLatestVwSummary.mockResolvedValue({
+      id: 1,
+      project_id: 9,
+      study_id: 4,
+      unit: 'VND',
+      n: 4,
+      bins: [],
+      points: { pmc: null, pme: null, opp: null, idp: null },
+      limitation_note: 'note',
+      statistical_inference: false,
+      created_by: 'am@ptt',
+      created_at: '2026-08-14',
+    });
+    repo.getStudy.mockResolvedValue({
+      id: 4,
+      project_id: 9,
+      name: 'SecretStudyName',
+      method: 'survey',
+      n: 4,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    });
+
+    try {
+      await service.getVanWestendorp(9, { restricted: true, allowedClientIds: ['acme'] });
+      throw new Error('expected forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const body = (err as ForbiddenException).getResponse();
+      expect(body).toEqual({ error: 'forbidden' });
+      expect(JSON.stringify(body)).not.toContain('SecretStudyName');
+      expect(JSON.stringify(body)).not.toContain('name');
+    }
+    expect(repo.getLatestVwSummary).not.toHaveBeenCalled();
+    expect(repo.getStudy).not.toHaveBeenCalled();
+  });
 });
+
+function vwEvidenceFourRespondents(): ResearchEvidenceRow[] {
+  const rows: Array<{
+    id: string;
+    too_cheap: number;
+    cheap: number;
+    expensive: number;
+    too_expensive: number;
+  }> = [
+    { id: 'R1', too_cheap: 10, cheap: 20, expensive: 40, too_expensive: 50 },
+    { id: 'R2', too_cheap: 12, cheap: 22, expensive: 42, too_expensive: 55 },
+    { id: 'R3', too_cheap: 8, cheap: 18, expensive: 38, too_expensive: 48 },
+    { id: 'R4', too_cheap: 15, cheap: 25, expensive: 45, too_expensive: 60 },
+  ];
+  const bases = ['too_cheap', 'cheap', 'expensive', 'too_expensive'] as const;
+  const out: ResearchEvidenceRow[] = [];
+  let id = 300;
+  for (const row of rows) {
+    for (const base of bases) {
+      out.push(
+        evidenceRow({
+          id: id++,
+          study_id: 5,
+          locator: `R-${row.id}:${base}`,
+          value_num: row[base],
+          unit: 'VND',
+          value_base: base,
+          period_note: '2026-Q1',
+          geography: 'VN',
+        }),
+      );
+    }
+  }
+  return out;
+}
 
 function competitorRow() {
   return {

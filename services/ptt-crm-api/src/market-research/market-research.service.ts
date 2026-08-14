@@ -119,6 +119,7 @@ import type {
   WhisperIngestResult,
   TrendSignal,
   SubmitReviewInput,
+  ResearchVwSummaryRow,
 } from './market-research.types';
 import {
   CODEBOOK_LIMITATION,
@@ -134,6 +135,7 @@ import {
   parseCodebookCsv,
   parseVwCsv,
 } from './survey-codebook.util';
+import { computeVanWestendorp, respondentsFromVwEvidence } from './van-westendorp.util';
 import { buildResearchReportDocx, sectionsFromReportSnapshot } from './market-research-docx.util';
 import { buildResearchReportPdf } from './market-research-pdf.util';
 import {
@@ -833,6 +835,87 @@ export class MarketResearchService {
     if (project.product_type !== 'TRACKER') {
       throw new BadRequestException({ error: 'waves_not_tracker' });
     }
+  }
+
+  private assertPriceOffer(project: ResearchProjectRow): void {
+    if (project.product_type !== 'PRICE_OFFER') {
+      throw new BadRequestException({ error: 'vw_not_price_offer' });
+    }
+  }
+
+  async getVanWestendorp(
+    projectId: number,
+    scope: ClientScopeContext,
+  ): Promise<{ summary: ResearchVwSummaryRow | null }> {
+    await this.loadScopedProject(projectId, scope);
+    const summary = await this.repo.getLatestVwSummary(projectId);
+    return { summary: summary ?? null };
+  }
+
+  async createVanWestendorp(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: { study_id?: number | null },
+    actor: string,
+  ): Promise<ResearchVwSummaryRow> {
+    const project = await this.loadScopedProject(projectId, scope);
+    this.assertPriceOffer(project);
+
+    let studyId: number | null = null;
+    if (input.study_id != null && String(input.study_id).trim() !== '') {
+      const id = Number(input.study_id);
+      if (!Number.isInteger(id) || id < 1) {
+        throw new BadRequestException({
+          error: 'validation_error',
+          messages: ['study_id is invalid'],
+        });
+      }
+      const existing = await this.repo.getStudy(id);
+      if (!existing || existing.project_id !== projectId || existing.method !== 'survey') {
+        throw new BadRequestException({
+          error: 'validation_error',
+          messages: ['study_id is invalid'],
+        });
+      }
+      studyId = id;
+    }
+
+    const evidence = await this.repo.listEvidence(projectId);
+    const bases = new Set<string>(VW_BASES);
+    let rows = evidence.filter((row) => bases.has(String(row.value_base ?? '')));
+    if (studyId != null) {
+      rows = rows.filter((row) => row.study_id === studyId);
+    }
+
+    const respondents = respondentsFromVwEvidence(
+      rows.map((row) => ({
+        value_num: row.value_num,
+        value_base: String(row.value_base ?? ''),
+        locator: String(row.locator ?? ''),
+      })),
+    );
+
+    let computed: ReturnType<typeof computeVanWestendorp>;
+    try {
+      computed = computeVanWestendorp(respondents);
+    } catch (err) {
+      this.rethrowUtilCode(err, ['vw_insufficient_n', 'forbidden_confidence_wording']);
+    }
+
+    const unit = String(rows.find((row) => String(row.unit ?? '').trim())?.unit ?? '').trim() || 'VND';
+    return this.repo.insertVwSummary(
+      projectId,
+      {
+        study_id: studyId,
+        unit,
+        n: computed.n,
+        bins: computed.bins,
+        points: computed.points,
+        limitation_note: computed.limitation_note,
+        statistical_inference: false,
+      },
+      actor,
+    );
   }
 
   async listWaves(
