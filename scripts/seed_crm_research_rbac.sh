@@ -3,9 +3,8 @@
 #
 # Positions:
 #   SUPER-ADMIN — all crm_research actions
-#   MKT-01      — Analyst/SP-like: view/create/edit/run/export
-#   KD-01       — AM: view/create/edit/export
-#   Lead        — analyst set + approve (codes: lead, mkt-lead, kd-lead if present)
+#   MKT-01      — Research Lead stand-in: view/create/edit/run/export/approve
+#   KD-01       — AM: view/create/edit/export (no approve, no run)
 #   GDKD        — view only
 #
 # Usage:
@@ -44,7 +43,7 @@ CROSS JOIN (VALUES
 WHERE lower(trim(p.code)) = 'super-admin'
 ON CONFLICT (position_id, section_id, action) DO NOTHING;
 
--- Analyst/SP-like (MKT-01)
+-- Research Lead stand-in (MKT-01) until a dedicated position exists
 INSERT INTO staff_section_permissions (position_id, section_id, action)
 SELECT p.id, g.section_id, g.action
 FROM crm_positions p
@@ -53,7 +52,8 @@ CROSS JOIN (VALUES
   ('crm_research', 'create'),
   ('crm_research', 'edit'),
   ('crm_research', 'run'),
-  ('crm_research', 'export')
+  ('crm_research', 'export'),
+  ('crm_research', 'approve')
 ) AS g(section_id, action)
 WHERE lower(trim(p.code)) = 'mkt-01'
 ON CONFLICT (position_id, section_id, action) DO NOTHING;
@@ -71,21 +71,6 @@ CROSS JOIN (VALUES
 WHERE lower(trim(p.code)) = 'kd-01'
 ON CONFLICT (position_id, section_id, action) DO NOTHING;
 
--- Lead — analyst set + approve (if those position codes exist)
-INSERT INTO staff_section_permissions (position_id, section_id, action)
-SELECT p.id, g.section_id, g.action
-FROM crm_positions p
-CROSS JOIN (VALUES
-  ('crm_research', 'view'),
-  ('crm_research', 'create'),
-  ('crm_research', 'edit'),
-  ('crm_research', 'run'),
-  ('crm_research', 'export'),
-  ('crm_research', 'approve')
-) AS g(section_id, action)
-WHERE lower(trim(p.code)) IN ('lead', 'mkt-lead', 'kd-lead')
-ON CONFLICT (position_id, section_id, action) DO NOTHING;
-
 -- GDKD — view only
 INSERT INTO staff_section_permissions (position_id, section_id, action)
 SELECT p.id, 'crm_research', 'view'
@@ -100,9 +85,8 @@ echo "== Market Research OS RBAC caps =="
 if [[ "$APPLY" != "--apply" ]]; then
   echo "Dry-run — caps to grant:"
   echo "  SUPER-ADMIN: crm_research.view/create/edit/run/approve/export/configure"
-  echo "  MKT-01: crm_research.view/create/edit/run/export"
+  echo "  MKT-01: crm_research.view/create/edit/run/export/approve"
   echo "  KD-01: crm_research.view/create/edit/export"
-  echo "  Lead (lead/mkt-lead/kd-lead if present): + approve"
   echo "  GDKD: crm_research.view"
   echo ""
   echo "SQL:"
