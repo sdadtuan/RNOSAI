@@ -1,3 +1,5 @@
+import type { CopilotRagHit } from './market-research.types';
+
 export type InsightCopilotEvidence = {
   id: number;
   locator: string;
@@ -54,32 +56,53 @@ export function redactEvidenceForAiRunLog(
   return fields;
 }
 
-export function buildInsightCopilotPrompt(evidence: InsightCopilotEvidence[]): {
-  system: string;
-  user: string;
-} {
-  const grounded = evidence.map((row) => {
-    const next: InsightCopilotEvidence = {
-      id: row.id,
-      locator: row.locator,
-      excerpt: row.excerpt,
-      value: row.value,
-      unit: row.unit,
-      period: row.period,
-      geo: row.geo,
+export function buildInsightCopilotPrompt(
+  evidence: InsightCopilotEvidence[],
+  opts?: { ragHits?: CopilotRagHit[] },
+): { system: string; user: string } {
+  const grounded = evidence.map((row) => ({
+    id: row.id,
+    locator: row.locator,
+    excerpt: row.excerpt,
+    value: row.value,
+    unit: row.unit,
+    period: row.period,
+    geo: row.geo,
+  }));
+  const ragHits = opts?.ragHits;
+  if (ragHits === undefined) {
+    return {
+      system: [
+        'You are a market-research insight copilot (G6).',
+        'Use only the supplied evidence objects — fields id, locator, excerpt, value, unit, period, geo.',
+        'Do not fill gaps. Do not invent numbers, sources, geographies, or recommendations beyond the evidence.',
+        'Cấm fill gaps — chỉ dùng evidence đã chọn.',
+        'Return JSON only with keys: statement, observation, interpretation, implication, recommendation, confidence_rationale.',
+        'Never set status published. Output is a draft for an analyst to edit.',
+      ].join(' '),
+      user: JSON.stringify(grounded),
     };
-    return next;
-  });
+  }
+  const prior = ragHits.map((hit) => ({
+    insight_id: hit.insight_id,
+    statement: hit.statement,
+    status: hit.status,
+    score: hit.score,
+    theme_codes: hit.theme_codes,
+  }));
   return {
     system: [
       'You are a market-research insight copilot (G6).',
       'Use only the supplied evidence objects — fields id, locator, excerpt, value, unit, period, geo.',
+      'prior_approved_insights are context only (same client, already approved).',
+      'Cite insight_id only when the id appears in prior_approved_insights. Do not invent insight_id.',
+      'Do not copy a prior statement as a published claim. Do not set status published.',
       'Do not fill gaps. Do not invent numbers, sources, geographies, or recommendations beyond the evidence.',
       'Cấm fill gaps — chỉ dùng evidence đã chọn.',
       'Return JSON only with keys: statement, observation, interpretation, implication, recommendation, confidence_rationale.',
       'Never set status published. Output is a draft for an analyst to edit.',
     ].join(' '),
-    user: JSON.stringify(grounded),
+    user: JSON.stringify({ evidence: grounded, prior_approved_insights: prior }),
   };
 }
 

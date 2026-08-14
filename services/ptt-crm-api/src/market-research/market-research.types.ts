@@ -806,6 +806,21 @@ export type RagSearchResult = {
   note?: 'rag_disabled';
 };
 
+export const RAG_COPILOT_HIT_LIMIT = 5;
+
+export const RAG_COPILOT_BANNER =
+  'Copilot có thể tham chiếu insight đã duyệt cùng khách. Bản nháp — không tự duyệt, không tự công bố.';
+
+export type CopilotRagNote = 'rag_disabled' | 'rag_skipped_pii' | 'rag_empty';
+
+export type CopilotRagHit = {
+  insight_id: number;
+  statement: string;
+  status: RagCorpusStatus;
+  score: number;
+  theme_codes: string[];
+};
+
 export type RagEmbeddingRow = RagEmbedInput & {
   project_id: number;
   embedding: number[];
