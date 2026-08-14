@@ -46,6 +46,12 @@ export class ContentMarketingService {
     return lc;
   }
 
+  /** Client id only — no enabled/slug check, so cross-tenant lookups cannot leak those codes. */
+  async getLifecycleClientId(lifecycleId: number): Promise<string> {
+    const lcCtx = await this.lifecycle.context(lifecycleId).catch(() => null);
+    return String(lcCtx?.contract?.agency_client_id ?? '').trim();
+  }
+
   async getContext(lifecycleId: number): Promise<CmktContextPayload> {
     const lc = await this.ensureLifecycleEnabled(lifecycleId);
     const serviceSlug = String(lc.service_slug ?? '');

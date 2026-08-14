@@ -133,6 +133,7 @@ describe('MarketResearchService', () => {
   };
   const contentMarketing = {
     getContext: jest.fn(),
+    getLifecycleClientId: jest.fn(),
   };
   const config = {
     researchDeepProvider: 'openai',
@@ -2284,6 +2285,7 @@ describe('MarketResearchService', () => {
       body_json: { markdown: 'keep me' },
     });
     contentMarketing.getContext.mockResolvedValue({ email_client_id: 'acme' });
+    contentMarketing.getLifecycleClientId.mockResolvedValue('acme');
     repo.getInsight.mockResolvedValue(insightRow({ status: 'draft' }));
 
     try {
@@ -2312,6 +2314,7 @@ describe('MarketResearchService', () => {
       brief_json: { hook: 'old' },
     });
     contentMarketing.getContext.mockResolvedValue({ email_client_id: 'acme' });
+    contentMarketing.getLifecycleClientId.mockResolvedValue('acme');
 
     try {
       await service.insertContentInsights(
@@ -2341,6 +2344,7 @@ describe('MarketResearchService', () => {
       body_json: { markdown: 'keep me' },
     });
     contentMarketing.getContext.mockResolvedValue({ email_client_id: 'acme' });
+    contentMarketing.getLifecycleClientId.mockResolvedValue('acme');
     repo.getInsight.mockResolvedValue(
       insightRow({ status: 'approved_internal', statement: 'Premium SKU tăng share ở MT HCM' }),
     );
@@ -2422,6 +2426,7 @@ describe('MarketResearchService', () => {
       brief_json: {},
     });
     contentMarketing.getContext.mockResolvedValue({ email_client_id: null });
+    contentMarketing.getLifecycleClientId.mockResolvedValue('');
 
     try {
       await service.insertContentInsights(
@@ -2438,6 +2443,68 @@ describe('MarketResearchService', () => {
     expect(contentItems.patchItem).not.toHaveBeenCalled();
   });
 
+  it('insertContentInsights empty lifecycle + out-of-scope body client is 403 without title', async () => {
+    clientScope.allowedClientIdsForList.mockReturnValue(['beta']);
+    contentItems.findItemById.mockResolvedValue({
+      id: 44,
+      lifecycle_id: 3,
+      title: 'Secret content title',
+      brief_json: {},
+    });
+    contentMarketing.getContext.mockResolvedValue({ email_client_id: null });
+    contentMarketing.getLifecycleClientId.mockResolvedValue('');
+
+    try {
+      await service.insertContentInsights(
+        44,
+        { restricted: true, allowedClientIds: ['beta'] },
+        { client_id: 'acme', insight_ids: [7] },
+        'am@ptt',
+      );
+      throw new Error('expected forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const body = (err as ForbiddenException).getResponse();
+      expect(body).toEqual({ error: 'forbidden' });
+      expect(JSON.stringify(body)).not.toContain('title');
+      expect(JSON.stringify(body)).not.toContain('Secret');
+    }
+    expect(contentItems.patchItem).not.toHaveBeenCalled();
+    expect(contentMarketing.getContext).not.toHaveBeenCalled();
+  });
+
+  it('insertContentInsights published item is 400 item_locked without patch', async () => {
+    stubScopedProject();
+    contentItems.findItemById.mockResolvedValue({
+      id: 44,
+      lifecycle_id: 3,
+      title: 'Secret content title',
+      status: 'published',
+      brief_json: { hook: 'old' },
+    });
+    contentMarketing.getContext.mockResolvedValue({ email_client_id: 'acme' });
+    contentMarketing.getLifecycleClientId.mockResolvedValue('acme');
+    repo.getInsight.mockResolvedValue(insightRow({ status: 'approved_internal' }));
+
+    try {
+      await service.insertContentInsights(
+        44,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { client_id: 'acme', insight_ids: [7] },
+        'am@ptt',
+      );
+      throw new Error('expected item_locked');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual({
+        error: 'item_locked',
+        status: 'published',
+      });
+      expect(JSON.stringify((err as BadRequestException).getResponse())).not.toContain('Secret');
+    }
+    expect(contentItems.patchItem).not.toHaveBeenCalled();
+  });
+
   it('insertContentInsights cross-tenant item is 403 without title', async () => {
     clientScope.allowedClientIdsForList.mockReturnValue(['beta']);
     contentItems.findItemById.mockResolvedValue({
@@ -2447,6 +2514,7 @@ describe('MarketResearchService', () => {
       brief_json: {},
     });
     contentMarketing.getContext.mockResolvedValue({ email_client_id: 'acme' });
+    contentMarketing.getLifecycleClientId.mockResolvedValue('acme');
 
     try {
       await service.insertContentInsights(

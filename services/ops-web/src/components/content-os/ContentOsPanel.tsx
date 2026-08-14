@@ -590,15 +590,17 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
                   onMessage={setMessage}
                   onError={setError}
                 />
-                <InsertInsightContentPanel
-                  itemId={drawerItem.id}
-                  lifecycleClientId={ctx?.email_client_id ?? ''}
-                  briefJson={drawerItem.brief_json}
-                  user={user}
-                  onInserted={() => {
-                    void refreshDrawerItem();
-                  }}
-                />
+                {drawerItem.status !== 'published' && drawerItem.status !== 'archived' ? (
+                  <InsertInsightContentPanel
+                    itemId={drawerItem.id}
+                    lifecycleClientId={ctx?.email_client_id ?? ''}
+                    briefJson={drawerItem.brief_json}
+                    user={user}
+                    onInserted={() => {
+                      void refreshDrawerItem();
+                    }}
+                  />
+                ) : null}
               </>
             ) : null}
 

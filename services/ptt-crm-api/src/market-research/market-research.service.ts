@@ -242,20 +242,23 @@ export class MarketResearchService {
     if (!clientId) {
       throw new BadRequestException({ error: 'validation_error', messages: ['client_id is required'] });
     }
+    this.assertClientInScope(scope, clientId);
 
     const item = await this.contentItems.findItemById(itemId);
     if (!item) throw new NotFoundException({ error: 'not_found' });
 
-    const ctx = await this.contentMarketing.getContext(item.lifecycle_id);
-    const lifecycleClientId = String(ctx.email_client_id ?? '').trim();
-    if (!lifecycleClientId) {
+    const lifecycleClientId = await this.contentMarketing.getLifecycleClientId(item.lifecycle_id);
+    if (lifecycleClientId) {
+      this.assertClientInScope(scope, lifecycleClientId);
+    } else {
       throw new BadRequestException({ error: 'content_item_no_client' });
     }
-
-    this.assertClientInScope(scope, lifecycleClientId);
-    this.assertClientInScope(scope, clientId);
     if (clientId !== lifecycleClientId) {
       throw new BadRequestException({ error: 'content_item_client_mismatch' });
+    }
+
+    if (item.status === 'published' || item.status === 'archived') {
+      throw new BadRequestException({ error: 'item_locked', status: item.status });
     }
 
     const insightIds = normalizePositiveIds(input.insight_ids);
