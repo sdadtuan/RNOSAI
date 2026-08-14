@@ -1583,6 +1583,66 @@ describe('MarketResearchService', () => {
     expect(fs.existsSync(tempPath)).toBe(false);
   });
 
+  it('ingestWhisper enqueue payload includes mime and handed-off .mp3 temp is not unlinked', async () => {
+    stubScopedProject();
+    repo.getStudy.mockResolvedValue({
+      id: 4,
+      project_id: 9,
+      name: 'IDI sữa uống',
+      method: 'idi',
+      n: 8,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    });
+    repo.listConsents.mockResolvedValue([
+      {
+        id: 1,
+        study_id: 4,
+        project_id: 9,
+        subject_code: 'R-004',
+        consent_type: 'record',
+        recorded_at: '2026-08-14',
+        expires_at: '2028-08-14T00:00:00.000Z',
+        notes: null,
+      },
+    ]);
+    repo.insertAiRun.mockResolvedValue({
+      id: 77,
+      project_id: 9,
+      question_id: null,
+      job_type: 'whisper_ingest',
+      provider: 'openai',
+      status: 'pending',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: null,
+    });
+    jobQueue.enqueueResearchWhisperJob.mockResolvedValue({ id: 'job-1' });
+    const tempPath = writeTempAudio('.mp3');
+
+    try {
+      const out = await service.ingestWhisper(
+        9,
+        4,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { tempPath, mime: 'audio/mpeg' },
+        'am@ptt',
+      );
+      expect(out.status).toBe('pending');
+      expect(tempPath).toMatch(/\.mp3$/);
+      expect(jobQueue.enqueueResearchWhisperJob).toHaveBeenCalledWith(
+        expect.objectContaining({ tempPath, mime: 'audio/mpeg' }),
+      );
+      expect(fs.existsSync(tempPath)).toBe(true);
+    } finally {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    }
+  });
+
   it('getEvidence outside scope is 403 without study name in the body', async () => {
     repo.getEvidence.mockResolvedValue(
       evidenceRow({ id: 1, study_id: 4, excerpt: 'quoted line', locator: 'T-00:00' }),
@@ -2813,8 +2873,11 @@ function similarwebSource(overrides: { reliability_tier: string }) {
   };
 }
 
-function writeTempAudio(): string {
-  const tempPath = path.join(os.tmpdir(), `whisper-m1-${Date.now()}-${Math.random().toString(16).slice(2)}.wav`);
+function writeTempAudio(ext = '.wav'): string {
+  const tempPath = path.join(
+    os.tmpdir(),
+    `research-whisper-${Date.now()}-${Math.random().toString(16).slice(2)}${ext}`,
+  );
   fs.writeFileSync(tempPath, Buffer.from('fake-audio'));
   return tempPath;
 }

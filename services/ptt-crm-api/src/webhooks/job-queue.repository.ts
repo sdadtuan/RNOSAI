@@ -168,6 +168,7 @@ export class JobQueueRepository implements OnModuleDestroy {
     studyId: number;
     runId: number;
     tempPath: string;
+    mime?: string | null;
     questionId?: number | null;
     clientId?: string | null;
     idempotencyKey: string;
@@ -180,6 +181,7 @@ export class JobQueueRepository implements OnModuleDestroy {
         study_id: input.studyId,
         run_id: input.runId,
         temp_path: input.tempPath,
+        mime: input.mime ?? null,
         question_id: input.questionId ?? null,
       },
       idempotencyKey: input.idempotencyKey,

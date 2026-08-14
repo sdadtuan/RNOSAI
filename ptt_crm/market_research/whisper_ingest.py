@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import tempfile
 from typing import Any
 
 from ptt_crm.market_research import repository
@@ -55,7 +56,11 @@ def assert_no_raw_in_payload(payload: Any) -> None:
         raise ValueError("raw_transcript_forbidden")
 
 
-def transcribe_audio(path: str) -> str:
+_WHISPER_MIME = frozenset({"audio/mpeg", "audio/wav", "audio/mp4", "audio/x-m4a"})
+_MIME_BY_EXT = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4"}
+
+
+def transcribe_audio(path: str, mime: str | None = None) -> str:
     key = (os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENAI_KEY") or "").strip()
     if not key:
         raise WhisperDisabled("whisper_disabled")
@@ -64,14 +69,15 @@ def transcribe_audio(path: str) -> str:
 
     model = (os.environ.get("OPENAI_WHISPER_MODEL") or "whisper-1").strip()
     boundary = "----whisper" + os.urandom(8).hex()
-    filename = os.path.basename(path) or "audio.wav"
+    filename = os.path.basename(path) or "audio.mp3"
+    content_type = _whisper_content_type(path, mime)
     with open(path, "rb") as fh:
         audio = fh.read()
     body = (
         f"--{boundary}\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\n{model}\r\n".encode()
         + (
             f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\n"
-            "Content-Type: application/octet-stream\r\n\r\n"
+            f"Content-Type: {content_type}\r\n\r\n"
         ).encode()
         + audio
         + f"\r\n--{boundary}--\r\n".encode()
@@ -98,6 +104,7 @@ def process_research_whisper_payload(payload: dict[str, Any]) -> dict[str, Any]:
     study_id = int(payload.get("study_id") or 0)
     run_id = int(payload.get("run_id") or 0)
     temp_path = str(payload.get("temp_path") or "")
+    mime = str(payload.get("mime") or "").strip() or None
     raw_qid = payload.get("question_id")
     try:
         question_id = int(raw_qid) if raw_qid not in (None, "") else None
@@ -110,7 +117,7 @@ def process_research_whisper_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
         repository.mark_run_running(run_id)
         try:
-            text = transcribe_audio(temp_path)
+            text = transcribe_audio(temp_path, mime)
         except WhisperDisabled:
             repository.fail_run(run_id, "whisper_disabled")
             return {"ok": True, "skipped": True, "error": "whisper_disabled", "excerpt_ids": []}
@@ -155,8 +162,27 @@ def _has_forbidden_raw_key(value: Any) -> bool:
     return any(_has_forbidden_raw_key(item) for item in value.values())
 
 
-def _unlink_quiet(temp_path: str) -> None:
+def _whisper_content_type(path: str, mime: str | None) -> str:
+    cleaned = (mime or "").strip().lower()
+    if cleaned in _WHISPER_MIME:
+        return cleaned
+    ext = os.path.splitext(path)[1].lower()
+    return _MIME_BY_EXT.get(ext, "audio/mpeg")
+
+
+def _is_allowed_whisper_temp(temp_path: str) -> bool:
     if not temp_path:
+        return False
+    resolved = os.path.realpath(temp_path)
+    temp_root = os.path.realpath(tempfile.gettempdir())
+    name = os.path.basename(resolved)
+    return os.path.dirname(resolved) == temp_root and name.startswith("research-whisper-")
+
+
+def _unlink_quiet(temp_path: str) -> None:
+    if not _is_allowed_whisper_temp(temp_path):
+        if temp_path:
+            logger.warning("whisper temp unlink refused path=%s", temp_path)
         return
     try:
         os.unlink(temp_path)

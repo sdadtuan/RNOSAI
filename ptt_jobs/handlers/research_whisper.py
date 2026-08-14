@@ -3,10 +3,9 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from typing import Any
 
-from ptt_crm.market_research.whisper_ingest import process_research_whisper_payload
+from ptt_crm.market_research.whisper_ingest import process_research_whisper_payload, _unlink_quiet
 from ptt_jobs.store import mark_job_done
 
 logger = logging.getLogger(__name__)
@@ -49,14 +48,3 @@ def run_research_whisper_job(job: dict[str, Any]) -> None:
 
     error = str(outcome.get("error") or "research_whisper_ingest failed")
     logger.warning("research_whisper_ingest terminal job_id=%s error=%s", job_id, error)
-
-
-def _unlink_quiet(temp_path: str) -> None:
-    if not temp_path:
-        return
-    try:
-        os.unlink(temp_path)
-    except FileNotFoundError:
-        return
-    except OSError as exc:
-        logger.warning("whisper handler unlink failed path=%s: %s", temp_path, exc)

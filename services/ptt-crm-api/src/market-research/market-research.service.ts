@@ -1,5 +1,7 @@
 import { createHash } from 'crypto';
 import { unlink } from 'fs/promises';
+import { tmpdir } from 'os';
+import { basename, dirname, resolve as resolvePath } from 'path';
 import {
   BadRequestException,
   ConflictException,
@@ -865,7 +867,7 @@ export class MarketResearchService {
     projectId: number,
     studyId: number,
     scope: ClientScopeContext,
-    input: { tempPath: string; questionId?: number | null },
+    input: { tempPath: string; mime?: string | null; questionId?: number | null },
     actor: string,
   ): Promise<WhisperIngestResult> {
     let handedOff = false;
@@ -910,6 +912,7 @@ export class MarketResearchService {
         studyId,
         runId: run.id,
         tempPath: input.tempPath,
+        mime: input.mime ?? null,
         questionId,
         clientId: project.client_id,
         idempotencyKey: `research_whisper_ingest:${projectId}:${studyId}:run:${run.id}`,
@@ -2216,8 +2219,14 @@ export class MarketResearchService {
   }
 }
 
+function isAllowedWhisperTemp(tempPath: string): boolean {
+  const resolved = resolvePath(tempPath);
+  const tempRoot = resolvePath(tmpdir());
+  return dirname(resolved) === tempRoot && basename(resolved).startsWith('research-whisper-');
+}
+
 async function unlinkQuiet(tempPath: string | undefined): Promise<void> {
-  if (!tempPath) return;
+  if (!tempPath || !isAllowedWhisperTemp(tempPath)) return;
   try {
     await unlink(tempPath);
   } catch {

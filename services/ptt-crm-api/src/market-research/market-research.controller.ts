@@ -76,6 +76,12 @@ import type {
 
 const WHISPER_MAX_BYTES = 25 * 1024 * 1024;
 const WHISPER_MIME = new Set(['audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a']);
+const WHISPER_MIME_EXT: Record<string, string> = {
+  'audio/mpeg': '.mp3',
+  'audio/wav': '.wav',
+  'audio/mp4': '.m4a',
+  'audio/x-m4a': '.m4a',
+};
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
 
@@ -394,7 +400,8 @@ export class MarketResearchController {
     }
     const scope = await resolveStaffClientScope(req, this.clientScope);
     const rawQid = (req.body as { question_id?: string } | undefined)?.question_id ?? questionId;
-    const tempPath = join(tmpdir(), `research-whisper-${randomUUID()}`);
+    const ext = WHISPER_MIME_EXT[mime] ?? '';
+    const tempPath = join(tmpdir(), `research-whisper-${randomUUID()}${ext}`);
     await writeFile(tempPath, file.buffer);
     return this.research.ingestWhisper(
       id,
@@ -402,6 +409,7 @@ export class MarketResearchController {
       scope,
       {
         tempPath,
+        mime,
         questionId: rawQid != null && String(rawQid).trim() !== '' ? Number(rawQid) : null,
       },
       actorEmail(req),
