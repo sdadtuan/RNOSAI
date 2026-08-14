@@ -103,4 +103,64 @@ describe('PortalResearchService', () => {
       expect((err as ForbiddenException).getResponse()).toEqual({ error: 'report_expired' });
     }
   });
+
+  it('listReports skips embargo/expired/unpublished; remaining card has watermark and no title', async () => {
+    repo.listPortalVisibleVersions.mockResolvedValue([
+      acmeVersion({
+        id: 10,
+        embargo_until: '2099-01-01T00:00:00Z',
+      }),
+      acmeVersion({
+        id: 11,
+        expires_at: '2020-01-01T00:00:00Z',
+      }),
+      acmeVersion({
+        id: 12,
+        portal_visible: false,
+      }),
+      acmeVersion({ id: 42 }),
+    ]);
+    const svc = new PortalResearchService(repo);
+
+    const { items } = await svc.listReports(acmeUser);
+
+    expect(items).toHaveLength(1);
+    const card = items[0];
+    expect(card.version_id).toBe(42);
+    expect(card.watermark).toMatch(/^CONFIDENTIAL · /);
+    expect(card.watermark).toContain(ACME);
+    expect(card.watermark).toContain(acmeUser.email);
+    expect(JSON.stringify(card)).not.toContain('title');
+  });
+
+  it('getReport happy path: watermark, exec.en null when not approved, no project/title', async () => {
+    repo.getPortalReportVersion.mockResolvedValue(
+      acmeVersion({
+        content_snapshot: {
+          cover: {
+            client: 'Acme',
+            title: 'Secret Acme title',
+            confidential: true,
+            version: 1,
+            as_of: '2026-08-14',
+          },
+          exec: { vi: 'Tóm tắt', en: 'Summary', en_status: 'draft' },
+          findings: [],
+          recs: [],
+          methodology: { stub: true, population: '', source_plan: '', limitation: '' },
+          evidence_index: [],
+        },
+      }),
+    );
+    const svc = new PortalResearchService(repo);
+
+    const body = await svc.getReport(acmeUser, 42);
+
+    expect(body.watermark).toMatch(/^CONFIDENTIAL · /);
+    expect(body.watermark).toContain(ACME);
+    expect(body.watermark).toContain(acmeUser.email);
+    expect(body.exec).toEqual({ vi: 'Tóm tắt', en: null });
+    expect(body).not.toHaveProperty('project');
+    expect(body).not.toHaveProperty('title');
+  });
 });
