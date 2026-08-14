@@ -272,6 +272,7 @@ def build_super_admin_caps() -> list[tuple[str, str]]:
             "compliance",
             "deliverability",
             "reports",
+            "run",
         }
     )
     actions = set(CMS_ACTIONS) | set(extra_actions)

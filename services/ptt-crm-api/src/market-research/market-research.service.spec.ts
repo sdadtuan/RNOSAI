@@ -86,6 +86,7 @@ describe('MarketResearchService', () => {
   };
   const config = {
     researchDeepProvider: 'openai',
+    maxTavilyCreditsPerResearch: 12,
   };
 
   let service: MarketResearchService;
@@ -93,6 +94,7 @@ describe('MarketResearchService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     config.researchDeepProvider = 'openai';
+    config.maxTavilyCreditsPerResearch = 12;
     llm.isConfigured.mockReturnValue(true);
     service = new MarketResearchService(
       repo as never,
@@ -114,6 +116,20 @@ describe('MarketResearchService', () => {
       service.createProject({ restricted: false, allowedClientIds: [] }, {} as never, 'am@ptt'),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(repo.createProject).not.toHaveBeenCalled();
+  });
+
+  it('getProject toDetail uses config maxTavilyCreditsPerResearch', async () => {
+    stubScopedProject();
+    repo.listQuestions.mockResolvedValue([]);
+    repo.listSources.mockResolvedValue([]);
+    repo.listEvidence.mockResolvedValue([]);
+    repo.listInsights.mockResolvedValue([]);
+    repo.listRecentAiRuns.mockResolvedValue([]);
+    repo.sumTavilyCredits.mockResolvedValue(0);
+    config.maxTavilyCreditsPerResearch = 6;
+
+    const out = await service.getProject(9, { restricted: true, allowedClientIds: ['acme'] });
+    expect(out.tavily_credits_limit).toBe(6);
   });
 
   it('getProject outside scope is 403 without title in the body', async () => {
@@ -221,6 +237,33 @@ describe('MarketResearchService', () => {
       expect((err as ConflictException).getResponse()).toEqual({ error: 'evidence_immutable' });
     }
     expect(repo.patchEvidence).not.toHaveBeenCalled();
+  });
+
+  it('patchEvidence locator-only keeps existing pii_class', async () => {
+    const existing = evidenceRow({
+      pii_class: 'pii_restricted',
+      excerpt: 'public market size excerpt',
+      qc_status: 'pending',
+    });
+    repo.getEvidence.mockResolvedValue(existing);
+    stubScopedProject();
+    repo.patchEvidence.mockImplementation(async (_id, input) => ({
+      ...existing,
+      locator: input.locator ?? existing.locator,
+      pii_class: input.pii_class ?? existing.pii_class,
+    }));
+
+    const out = await service.patchEvidence(
+      3,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { locator: 'new' },
+    );
+
+    expect(out.pii_class).toBe('pii_restricted');
+    expect(repo.patchEvidence).toHaveBeenCalledWith(
+      3,
+      expect.objectContaining({ locator: 'new', pii_class: 'pii_restricted' }),
+    );
   });
 
   it('patchEvidence when superseded is 409 evidence_immutable', async () => {

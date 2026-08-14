@@ -40,7 +40,7 @@ EXTRA_ACTION_LABELS_VI = {
     "query": "Truy vấn NL",
     "commit": "Commit forecast",
     "simulate": "Mô phỏng",
-    "run": "Chạy",
+    "run": "Chạy job (desk/deep)",
 }
 
 

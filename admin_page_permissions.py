@@ -580,7 +580,7 @@ _POSITION_DEFAULT: dict[str, dict[str, frozenset[str]]] = {
         "crm_seo_aeo_settings": frozenset({"view", "edit", "configure"}),
         "crm_seo_aeo_reports": frozenset({"view", "export"}),
         "crm_email_mkt": frozenset({"view", "write", "settings", "compliance", "approve", "deliverability", "reports"}),
-        "crm_research": frozenset({"view", "create", "edit", "export"}),
+        "crm_research": frozenset({"view", "create", "edit", "run", "export", "approve"}),
     },
     "MKT-02": {
         "crm_hub_campaigns": frozenset({"view", "edit", "create"}),

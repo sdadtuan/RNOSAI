@@ -1067,7 +1067,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
     const result = await this.db.query(
       `SELECT COALESCE(SUM(credits_used), 0)::int AS n
        FROM crm_research_ai_runs
-       WHERE project_id = $1 AND job_type = 'desk_tavily'`,
+       WHERE project_id = $1 AND job_type IN ('desk_tavily', 'deep_research')`,
       [projectId],
     );
     return Number(result.rows[0]?.n ?? 0);

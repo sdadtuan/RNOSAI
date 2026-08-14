@@ -14,7 +14,6 @@ import { JobQueueRepository } from '../webhooks/job-queue.repository';
 import {
   APPROVED_INTERNAL_PLUS,
   INSIGHT_STATUSES,
-  MAX_TAVILY_CREDITS_PER_RESEARCH,
   PROJECT_STATUSES,
   type InsightStatus,
   type ProjectStatus,
@@ -297,7 +296,7 @@ export class MarketResearchService {
     }
     const { pii_class, pii_warning } = this.resolvePiiClass({
       ...merged,
-      pii_class: input.pii_class,
+      pii_class: merged.pii_class,
     });
     const updated = await this.repo.patchEvidence(evidenceId, { ...input, pii_class });
     if (!updated) throw new NotFoundException({ error: 'not_found' });
@@ -949,7 +948,7 @@ export class MarketResearchService {
       insights,
       ai_runs,
       tavily_credits_used,
-      tavily_credits_limit: MAX_TAVILY_CREDITS_PER_RESEARCH,
+      tavily_credits_limit: this.config.maxTavilyCreditsPerResearch,
       deep_research_provider: this.config.researchDeepProvider,
       valid_transitions: listValidTransitions(project.status, {
         rqCount: project.rq_count,

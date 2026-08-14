@@ -4,6 +4,52 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 
+def test_collect_deep_credit_cap_does_not_call_tavily(monkeypatch):
+    monkeypatch.setenv("TAVILY_API_KEY", "fake-key")
+    monkeypatch.setenv("MAX_TAVILY_CREDITS_PER_RESEARCH", "12")
+    from ptt_crm.market_research import deep_research
+
+    def boom(*_args, **_kwargs):
+        raise AssertionError("Tavily must not be called over credit cap")
+
+    monkeypatch.setattr(deep_research, "_search_advanced", boom)
+
+    out = deep_research.collect_deep(
+        question_vi="Quy mô thị trường?",
+        geo=["VN"],
+        credits_already_used=12,
+    )
+    assert out["ok"] is False
+    assert out["error"] == "tavily_credit_cap"
+
+
+def test_process_deep_payload_records_credits_used_on_collect_fail(monkeypatch):
+    from ptt_crm.market_research import deep_research
+
+    repo = MagicMock()
+    repo.load_desk_context.return_value = {"question_vi": "Quy mô?", "geo": ["VN"]}
+    repo.sum_project_tavily_credits.return_value = 0
+    monkeypatch.setattr(deep_research, "repository", repo)
+    monkeypatch.setattr(
+        deep_research,
+        "collect_deep",
+        lambda **_k: {
+            "ok": False,
+            "error": "tavily_search_failed: timeout",
+            "credits_used": 2,
+        },
+    )
+
+    out = deep_research.process_research_deep_payload(
+        {"project_id": 1, "question_id": 2, "run_id": 3}
+    )
+
+    assert out["ok"] is False
+    repo.fail_run.assert_called_once_with(
+        3, "tavily_search_failed: timeout", credits_used=2
+    )
+
+
 def test_collect_deep_builds_sources_and_outline_without_insights(monkeypatch):
     monkeypatch.setenv("TAVILY_API_KEY", "fake-key")
     monkeypatch.setenv("RESEARCH_DEEP_PROVIDER", "openai")

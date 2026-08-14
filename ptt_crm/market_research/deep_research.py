@@ -14,6 +14,7 @@ from typing import Any
 from ptt_crm.market_research import repository
 from ptt_crm.market_research.desk_collect import (
     TAVILY_SEARCH_URL,
+    _credits_limit,
     _domain_from_url,
     _post_json,
     _tavily_key,
@@ -96,6 +97,7 @@ def collect_deep(
     *,
     question_vi: str,
     geo: list[str] | None = None,
+    credits_already_used: int = 0,
 ) -> dict[str, Any]:
     """
     Tavily advanced search → candidate sources + outline JSON.
@@ -103,6 +105,8 @@ def collect_deep(
     Prompt constraint (BR-RES-11): query = question_vi + geo only, PII stripped.
     Does not invent statistics and does not emit insights.
     """
+    limit = _credits_limit()
+    remaining = limit - max(0, int(credits_already_used or 0))
     query = build_desk_query(question_vi, geo)
     provider = fallback_provider_label()
     empty: dict[str, Any] = {
@@ -110,10 +114,14 @@ def collect_deep(
         "sources": [],
         "outline": build_outline(question_vi, []),
         "credits_used": 0,
+        "credits_limit": limit,
         "query": query,
         "provider": provider,
         "researched_at": datetime.now(timezone.utc).isoformat(),
     }
+
+    if remaining <= 0:
+        return {**empty, "error": "tavily_credit_cap"}
 
     api_key = _tavily_key()
     if not api_key:
@@ -171,12 +179,18 @@ def process_research_deep_payload(payload: dict[str, Any]) -> dict[str, Any]:
         return {"ok": False, "error": "not_found"}
 
     repository.mark_run_running(run_id)
+    already = repository.sum_project_tavily_credits(project_id, exclude_run_id=run_id)
     result = collect_deep(
         question_vi=str(ctx.get("question_vi") or ""),
         geo=list(ctx.get("geo") or []),
+        credits_already_used=already,
     )
     if not result.get("ok"):
-        repository.fail_run(run_id, str(result.get("error") or "deep_failed"), credits_used=0)
+        repository.fail_run(
+            run_id,
+            str(result.get("error") or "deep_failed"),
+            credits_used=int(result.get("credits_used") or 0),
+        )
         return result
 
     source_ids = repository.insert_ai_sources(

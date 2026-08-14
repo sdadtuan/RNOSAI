@@ -1,7 +1,7 @@
 """M4 — Desk Tavily collect: PII guard, missing key, credit cap."""
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 def test_pii_guard_strips_phone_and_email():
@@ -63,6 +63,34 @@ def test_collect_desk_mocked_tavily_returns_sources(monkeypatch):
     assert out["credits_used"] == 1
     assert out["sources"][0]["url"] == "https://example.com/dairy"
     assert "0909999999" not in (out.get("query") or "")
+
+
+def test_process_desk_payload_records_credits_used_on_collect_fail(monkeypatch):
+    from ptt_crm.market_research import desk_collect, repository
+
+    fail = MagicMock()
+    monkeypatch.setattr(
+        repository, "load_desk_context", lambda *_a, **_k: {"question_vi": "Quy mô?", "geo": ["VN"]}
+    )
+    monkeypatch.setattr(repository, "sum_project_tavily_credits", lambda *_a, **_k: 0)
+    monkeypatch.setattr(repository, "mark_run_running", lambda *_a, **_k: None)
+    monkeypatch.setattr(repository, "fail_run", fail)
+    monkeypatch.setattr(
+        desk_collect,
+        "collect_desk",
+        lambda **_k: {
+            "ok": False,
+            "error": "tavily_search_failed: timeout",
+            "credits_used": 1,
+        },
+    )
+
+    out = desk_collect.process_research_desk_payload(
+        {"project_id": 1, "question_id": 2, "run_id": 3}
+    )
+
+    assert out["ok"] is False
+    fail.assert_called_once_with(3, "tavily_search_failed: timeout", credits_used=1)
 
 
 @patch("ptt_jobs.handlers.research_desk.mark_job_done")

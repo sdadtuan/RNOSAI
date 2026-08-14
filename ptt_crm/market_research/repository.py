@@ -52,7 +52,7 @@ def sum_project_tavily_credits(project_id: int, *, exclude_run_id: int | None = 
                     SELECT COALESCE(SUM(credits_used), 0)::int
                     FROM crm_research_ai_runs
                     WHERE project_id = %s
-                      AND job_type = 'desk_tavily'
+                      AND job_type IN ('desk_tavily', 'deep_research')
                       AND id <> %s
                     """,
                     (project_id, exclude_run_id),
@@ -62,7 +62,8 @@ def sum_project_tavily_credits(project_id: int, *, exclude_run_id: int | None = 
                     """
                     SELECT COALESCE(SUM(credits_used), 0)::int
                     FROM crm_research_ai_runs
-                    WHERE project_id = %s AND job_type = 'desk_tavily'
+                    WHERE project_id = %s
+                      AND job_type IN ('desk_tavily', 'deep_research')
                     """,
                     (project_id,),
                 )

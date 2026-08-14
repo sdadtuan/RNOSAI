@@ -227,7 +227,11 @@ def process_research_desk_payload(payload: dict[str, Any]) -> dict[str, Any]:
         credits_already_used=already,
     )
     if not result.get("ok"):
-        repository.fail_run(run_id, str(result.get("error") or "desk_failed"), credits_used=0)
+        repository.fail_run(
+            run_id,
+            str(result.get("error") or "desk_failed"),
+            credits_used=int(result.get("credits_used") or 0),
+        )
         return result
 
     source_ids = repository.insert_ai_sources(
