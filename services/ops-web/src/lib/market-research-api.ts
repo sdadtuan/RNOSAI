@@ -43,6 +43,17 @@ export function canSubmitInsightReview(status: InsightStatus | null | undefined)
   return status == null || status === 'draft' || status === 'evidence_attached' || status === 'rejected';
 }
 
+export function hasPersistedInsightRubric(
+  insight: Pick<ResearchInsight, 'confidence_json'>,
+): boolean {
+  const raw = insight.confidence_json;
+  if (!raw || typeof raw !== 'object') return false;
+  if ('band' in raw && (raw as ConfidenceJson).band) return true;
+  const nested = 'rubric' in raw && raw.rubric && typeof raw.rubric === 'object' ? raw.rubric : raw;
+  const src = nested as Partial<ConfidenceRubric>;
+  return RUBRIC_DIMS.every((d) => typeof src[d] === 'number');
+}
+
 export const INSIGHT_GATE_COPY: Record<string, string> = {
   missing_verified_evidence: 'Cần ≥1 evidence đã verify',
   missing_confidence_rationale: 'Thiếu giải thích độ tin cậy',
@@ -568,12 +579,19 @@ export async function attachResearchInsightEvidence(
   });
 }
 
+export type SubmitInsightReviewBody = {
+  confidence_json?: ConfidenceRubric;
+  confidence_rationale?: string | null;
+};
+
 export async function submitResearchInsightReview(
   token: string,
   insightId: number,
+  body?: SubmitInsightReviewBody,
 ): Promise<ResearchInsight> {
   return researchFetch(token, `/api/v1/research/insights/${insightId}/submit-review`, {
     method: 'POST',
+    ...(body ? { body: JSON.stringify(body) } : {}),
   });
 }
 

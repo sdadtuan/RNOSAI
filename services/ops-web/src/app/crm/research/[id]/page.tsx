@@ -404,7 +404,16 @@ function CrmResearchWorkspaceContent() {
         if (!saved) return;
         target = saved;
       }
-      await submitResearchInsightReview(access, target.id);
+      await submitResearchInsightReview(
+        access,
+        target.id,
+        body
+          ? {
+              confidence_json: body.confidence_json,
+              confidence_rationale: body.confidence_rationale,
+            }
+          : undefined,
+      );
       await load(access);
       setInsightOpen(false);
     } catch (err) {

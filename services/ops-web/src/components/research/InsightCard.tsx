@@ -3,6 +3,7 @@
 import { EvidenceIdChip } from '@/components/research/EvidenceIdChip';
 import {
   canSubmitInsightReview,
+  hasPersistedInsightRubric,
   INSIGHT_GATE_COPY,
   INSIGHT_STATUS_LABELS,
   type ResearchEvidence,
@@ -28,7 +29,17 @@ export function InsightCard({
     evidence.some((ev) => ev.id === id && ev.qc_status === 'verified'),
   ).length;
   const canSubmit = canSubmitInsightReview(insight.status);
-  const submitDisabled = saving || !canSubmit || verifiedCount < 1;
+  const hasRubric = hasPersistedInsightRubric(insight);
+  const hasRationale = Boolean(insight.confidence_rationale?.trim());
+  const submitDisabled = saving || !canSubmit || verifiedCount < 1 || !hasRubric || !hasRationale;
+  const submitTitle =
+    verifiedCount < 1
+      ? INSIGHT_GATE_COPY.missing_verified_evidence
+      : !hasRubric
+        ? INSIGHT_GATE_COPY.missing_confidence_rubric
+        : !hasRationale
+          ? INSIGHT_GATE_COPY.missing_confidence_rationale
+          : undefined;
 
   return (
     <article className="card" style={{ padding: '0.85rem' }}>
@@ -70,7 +81,7 @@ export function InsightCard({
             type="button"
             className="btn btn-sm"
             disabled={submitDisabled}
-            title={verifiedCount < 1 ? INSIGHT_GATE_COPY.missing_verified_evidence : undefined}
+            title={submitTitle}
             onClick={() => onSubmitReview(insight)}
           >
             Gửi Lead duyệt
