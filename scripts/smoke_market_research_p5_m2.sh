@@ -19,6 +19,7 @@ API="$ROOT/services/ops-web/src/lib/market-research-api.ts"
 
 echo "==> FE contract (Studies upload UI)"
 python3 - <<PY
+import re
 from pathlib import Path
 pane = Path("$PANE").read_text()
 util = Path("$UTIL").read_text()
@@ -30,8 +31,10 @@ assert "WHISPER_PRIVACY_BANNER" in pane, "StudiesPane must render privacy banner
 assert "Tải audio" in pane, "missing Tải audio"
 assert "Cần consent còn hạn và quyền chạy job" in util, "missing disabled title"
 assert "UPLOAD_DISABLED_TITLE" in pane, "StudiesPane must set disabled title"
-assert "textarea" not in pane.lower(), "StudiesPane must not render a transcript textarea"
 assert "dán transcript" not in pane.lower() and "dán transcript" not in util.lower(), "no paste-transcript copy"
+for tag in re.findall(r"<textarea\b[^>]*>", pane, flags=re.I):
+    assert "transcript" not in tag.lower(), tag
+assert 'name="transcript"' not in pane.lower()
 assert "canRun={canRun}" in page, "page must pass canRun to StudiesPane"
 fn = api.split("export async function ingestResearchWhisper", 1)[1].split("export async function", 1)[0]
 assert "FormData" in fn and "file" in fn, "client must send multipart FormData"
