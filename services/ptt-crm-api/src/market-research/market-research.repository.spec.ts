@@ -27,4 +27,16 @@ describe('MarketResearchRepository', () => {
     expect(sql).toContain('deep_research');
     expect(sql).toMatch(/job_type IN \('desk_tavily',\s*'deep_research'\)/);
   });
+
+  it('listProjects filters by lifecycle_id', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const repo = repoWithMock();
+
+    await repo.listProjects({ lifecycle_id: 12 });
+
+    const sql = String(queryMock.mock.calls[0][0]);
+    const params = queryMock.mock.calls[0][1] as unknown[];
+    expect(sql).toMatch(/p\.lifecycle_id = \$1/);
+    expect(params).toContain(12);
+  });
 });

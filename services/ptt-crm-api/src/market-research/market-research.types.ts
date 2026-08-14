@@ -146,6 +146,7 @@ export type ListProjectsFilters = {
   status?: string;
   product_type?: string;
   q?: string;
+  lifecycle_id?: number;
 };
 
 export type ResearchQuestionRow = {

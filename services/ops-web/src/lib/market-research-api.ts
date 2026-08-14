@@ -226,6 +226,7 @@ export type ResearchProject = {
   id: number;
   client_id: string;
   client_name: string | null;
+  lifecycle_id?: number | null;
   title: string;
   product_type: ProductType;
   dv12_tier: 'CB' | 'TC' | 'CS';
@@ -440,6 +441,7 @@ export type CreateProjectBody = {
   geo: string[];
   languages: string[];
   risk_class: 'low' | 'medium' | 'high';
+  lifecycle_id?: number | null;
   questions: Array<{ question_vi: string; question_en?: string; sort_order?: number }>;
 };
 
@@ -474,13 +476,16 @@ async function researchFetch<T>(token: string, path: string, init?: RequestInit)
 
 export async function fetchResearchProjects(
   token: string,
-  params?: { client_id?: string; status?: string; product_type?: string; q?: string },
+  params?: { client_id?: string; status?: string; product_type?: string; q?: string; lifecycle_id?: string | number },
 ): Promise<{ projects: ResearchProject[] }> {
   const qs = new URLSearchParams();
   if (params?.client_id) qs.set('client_id', params.client_id);
   if (params?.status) qs.set('status', params.status);
   if (params?.product_type) qs.set('product_type', params.product_type);
   if (params?.q) qs.set('q', params.q);
+  if (params?.lifecycle_id != null && params.lifecycle_id !== '') {
+    qs.set('lifecycle_id', String(params.lifecycle_id));
+  }
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return researchFetch(token, `/api/v1/research/projects${suffix}`);
 }

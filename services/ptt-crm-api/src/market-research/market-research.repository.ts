@@ -144,6 +144,9 @@ export class MarketResearchRepository implements OnModuleDestroy {
     if (filters.status?.trim()) add('p.status = ?', filters.status.trim());
     if (filters.product_type?.trim()) add('p.product_type = ?', filters.product_type.trim());
     if (filters.q?.trim()) add('p.title ILIKE ?', `%${filters.q.trim()}%`);
+    if (filters.lifecycle_id != null && Number.isFinite(filters.lifecycle_id)) {
+      add('p.lifecycle_id = ?', filters.lifecycle_id);
+    }
     if (allowedClientIds) {
       params.push(allowedClientIds);
       where.push(`p.client_id = ANY($${params.length}::text[])`);

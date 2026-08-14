@@ -105,13 +105,16 @@ export class MarketResearchController {
     @Query('status') status?: string,
     @Query('product_type') productType?: string,
     @Query('q') q?: string,
+    @Query('lifecycle_id') lifecycleId?: string,
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
+    const lifecycleNum = lifecycleId != null && lifecycleId !== '' ? Number(lifecycleId) : undefined;
     return this.research.listProjects(scope, {
       client_id: clientId,
       status,
       product_type: productType,
       q,
+      lifecycle_id: lifecycleNum != null && Number.isFinite(lifecycleNum) ? lifecycleNum : undefined,
     });
   }
 

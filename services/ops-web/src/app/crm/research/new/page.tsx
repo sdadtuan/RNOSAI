@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { StaffPageShell } from '@/components/layout';
 import { ProductTypeCard } from '@/components/research/ProductTypeCard';
 import { RqListEditor, type RqDraft } from '@/components/research/RqListEditor';
@@ -29,6 +29,7 @@ const GEO_CHIPS = ['VN', 'HCM', 'HN', 'SEA', 'Global'];
 
 export default function CrmResearchNewPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [clients, setClients] = useState<Array<{ id: string; name: string }>>([]);
   const [step, setStep] = useState(0);
@@ -79,6 +80,13 @@ export default function CrmResearchNewPage() {
   }, [router]);
 
   useEffect(() => {
+    const prefillClient = searchParams.get('client_id')?.trim() ?? '';
+    const prefillTitle = searchParams.get('title')?.trim() ?? '';
+    if (prefillClient) setClientId(prefillClient);
+    if (prefillTitle) setTitle(prefillTitle);
+  }, [searchParams]);
+
+  useEffect(() => {
     void (async () => {
       if (!isMarketResearchFeEnabled()) {
         setUser(getStoredUser());
@@ -127,6 +135,8 @@ export default function CrmResearchNewPage() {
     }
     setSaving(true);
     setError('');
+    const lifecycleRaw = searchParams.get('lifecycle_id');
+    const lifecycleId = lifecycleRaw != null && lifecycleRaw !== '' ? Number(lifecycleRaw) : NaN;
     try {
       const out = await createResearchProject(access, {
         client_id: clientId,
@@ -137,6 +147,7 @@ export default function CrmResearchNewPage() {
         geo: geo.length ? geo : ['VN'],
         languages: langEn ? ['vi', 'en'] : ['vi'],
         risk_class: risk,
+        lifecycle_id: Number.isFinite(lifecycleId) ? lifecycleId : undefined,
         questions: questions
           .filter((q) => q.question_vi.trim())
           .map((q, i) => ({

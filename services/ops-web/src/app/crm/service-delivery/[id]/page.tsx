@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { LifecycleLaunchQaPanel } from '@/components/LifecycleLaunchQaPanel';
 import { LifecycleFinancePanel } from '@/components/LifecycleFinancePanel';
@@ -36,6 +37,9 @@ import {
 import { isMktAiPlannerFeEnabled } from '@/lib/mkt-ai-planner-flags';
 import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
 import { isOpsDvFeEnabled } from '@/lib/ops-dv-flags';
+import { fetchResearchProjects } from '@/lib/market-research-api';
+import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
+import { researchCtaHref } from '@/lib/research-cta';
 
 const STAGES = ['lead', 'consult', 'proposal', 'onboard', 'deliver', 'handover', 'retain'];
 
@@ -58,6 +62,7 @@ export default function CrmServiceDeliveryDetailPage() {
   const [detailTab, setDetailTab] = useState<
     'workflow' | 'tmmt' | 'ai-planner' | 'content-os' | 'ops-hub' | 'finance' | 'sop' | 'launch_qa'
   >('workflow');
+  const [existingResearchProjectId, setExistingResearchProjectId] = useState<number | null>(null);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -200,6 +205,46 @@ export default function CrmServiceDeliveryDetailPage() {
   const showAiPlannerTab = isMktAiPlannerFeEnabled() && canViewMktAiPlanner(user);
   const showContentOsTab = isContentMarketingFeEnabled() && canViewContentOs(user);
   const showOpsHubTab = isOpsDvFeEnabled() && hasCap(user, 'crm_board', 'view');
+  const showResearchCta =
+    isMarketResearchFeEnabled() && hasCap(user, 'crm_research', 'view');
+  const contract = context as { contract?: { agency_client_id?: string; title?: string } } | null;
+  const researchClientId =
+    String(contract?.contract?.agency_client_id ?? row?.agency_client_id ?? '').trim() || null;
+  const researchTitle = String(contract?.contract?.title ?? '').trim();
+
+  useEffect(() => {
+    if (!token || !showResearchCta || String(row?.service_slug ?? '') !== 'phan-tich-thi-truong') {
+      setExistingResearchProjectId(null);
+      return;
+    }
+    void fetchResearchProjects(token, { lifecycle_id: lifecycleId })
+      .then((out) => {
+        const first = out.projects[0];
+        setExistingResearchProjectId(first?.id ?? null);
+      })
+      .catch(() => setExistingResearchProjectId(null));
+  }, [token, showResearchCta, row?.service_slug, lifecycleId]);
+
+  const researchHref = useMemo(() => {
+    if (!showResearchCta) return null;
+    const href = researchCtaHref({
+      slug: String(row?.service_slug ?? ''),
+      lifecycleId,
+      clientId: researchClientId,
+      existingProjectId: existingResearchProjectId,
+    });
+    if (!href || !researchTitle || !href.startsWith('/crm/research/new?')) return href;
+    const q = new URLSearchParams(href.slice(href.indexOf('?') + 1));
+    q.set('title', researchTitle);
+    return `/crm/research/new?${q.toString()}`;
+  }, [
+    showResearchCta,
+    row?.service_slug,
+    lifecycleId,
+    researchClientId,
+    existingResearchProjectId,
+    researchTitle,
+  ]);
 
   if (!user) {
     return (
@@ -226,6 +271,13 @@ export default function CrmServiceDeliveryDetailPage() {
         backLabel="← Service delivery"
         title={`#${lifecycleId} · ${String(row?.service_slug ?? '')}`}
         subtitle={row ? `Stage: ${stage} · Status: ${String(row.status ?? '')}` : undefined}
+        actions={
+          researchHref ? (
+            <Link href={researchHref} className="btn btn-sm">
+              Mở Research Project
+            </Link>
+          ) : null
+        }
       >
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
