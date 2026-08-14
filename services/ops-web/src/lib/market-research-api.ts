@@ -166,7 +166,35 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   llm_unconfigured: 'Chưa cấu hình Claude (ANTHROPIC_API_KEY).',
   llm_provider_error: 'Claude không trả lời được — thử lại sau.',
   llm_timeout: 'Claude hết thời gian chờ.',
+  methodology_incomplete: 'Gói TC/CS bắt buộc phụ lục phương pháp trước khi xuất.',
 };
+
+export type MethodologyBlock = {
+  population: string;
+  source_plan: string;
+  limitation: string;
+  stub?: boolean;
+};
+
+export const METHODOLOGY_EXPORT_BANNER =
+  'Gói TC/CS bắt buộc phụ lục phương pháp trước khi xuất.';
+
+export function isMethodologyComplete(
+  m: Pick<MethodologyBlock, 'population' | 'source_plan' | 'limitation'>,
+): boolean {
+  return [m.population, m.source_plan, m.limitation].every(
+    (f) => String(f ?? '').trim().length >= 8,
+  );
+}
+
+export function isMethodologyExportable(
+  tier: 'CB' | 'TC' | 'CS',
+  m: MethodologyBlock | undefined | null,
+): boolean {
+  if (tier === 'CB' && m?.stub === true) return true;
+  if (!m) return tier === 'CB';
+  return isMethodologyComplete(m);
+}
 
 export type ResearchReportSnapshot = {
   cover?: {
@@ -179,7 +207,7 @@ export type ResearchReportSnapshot = {
   exec?: string;
   findings?: unknown[];
   recs?: unknown[];
-  methodology?: { stub?: boolean; note?: string };
+  methodology?: MethodologyBlock;
   evidence_index?: Array<{ ev_id: number; locator: string; insight_id: number }>;
   status?: string;
 };
@@ -707,6 +735,7 @@ export async function createResearchReport(
   token: string,
   projectId: number,
   insightIds: number[],
+  methodology?: MethodologyBlock,
 ): Promise<{
   ok: true;
   report_id: number;
@@ -717,7 +746,7 @@ export async function createResearchReport(
 }> {
   return researchFetch(token, `/api/v1/research/projects/${projectId}/reports`, {
     method: 'POST',
-    body: JSON.stringify({ insight_ids: insightIds }),
+    body: JSON.stringify({ insight_ids: insightIds, methodology }),
   });
 }
 

@@ -1,3 +1,14 @@
+import type { MethodologyBlock } from './market-research.types';
+
+export type { MethodologyBlock };
+
+export const CB_METHODOLOGY_STUB: MethodologyBlock = {
+  stub: true,
+  population: '',
+  source_plan: '',
+  limitation: '',
+};
+
 export type ReportCover = {
   client: string;
   title: string;
@@ -31,7 +42,7 @@ export type ResearchReportSnapshot = {
   exec: string;
   findings: ReportFinding[];
   recs: ReportRec[];
-  methodology: { stub: true; note: string };
+  methodology: MethodologyBlock;
   evidence_index: ReportEvidenceIndexRow[];
   status: string;
   insight_ids: number[];
@@ -123,6 +134,7 @@ export function buildReportSnapshot(input: {
   version: number;
   llmDraft?: LlmReportDraft | Record<string, unknown> | null;
   asOf?: string;
+  methodology?: MethodologyBlock;
 }): ResearchReportSnapshot {
   const selected = selectedSet(input.selectedInsightIds);
   const chosen = input.insights.filter((row) => selected.has(row.id));
@@ -199,7 +211,7 @@ export function buildReportSnapshot(input: {
     exec,
     findings,
     recs,
-    methodology: { stub: true, note: 'P0 CB methodology stub' },
+    methodology: input.methodology ?? CB_METHODOLOGY_STUB,
     evidence_index: evidenceIndex,
     status: 'draft',
     insight_ids: chosen.map((row) => row.id),

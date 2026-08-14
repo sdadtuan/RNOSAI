@@ -54,9 +54,13 @@ import {
   supersedeResearchEvidence,
   TRANSITION_REASON_VI,
   verifyResearchEvidence,
+  METHODOLOGY_EXPORT_BANNER,
+  isMethodologyComplete,
+  isMethodologyExportable,
   type CreateEvidenceBody,
   type CreateInsightBody,
   type InsightStatus,
+  type MethodologyBlock,
   type ProjectStatus,
   type ResearchAiRun,
   type ResearchEvidence,
@@ -456,17 +460,21 @@ function CrmResearchWorkspaceContent() {
     }
   }
 
-  async function onCreateReport(insightIds: number[]) {
+  async function onCreateReport(insightIds: number[], methodology?: MethodologyBlock) {
     const access = getAccessToken();
     if (!access || !project) return;
     setSaving(true);
     setError('');
     try {
-      const out = await createResearchReport(access, project.id, insightIds);
+      const out = await createResearchReport(access, project.id, insightIds, methodology);
       setReportSnapshot(out.content_snapshot);
       await load(access);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Tạo phiên bản báo cáo thất bại');
+      if (err instanceof ResearchApiError && err.code === 'methodology_incomplete') {
+        setError(TRANSITION_REASON_VI.methodology_incomplete);
+      } else {
+        setError(err instanceof Error ? err.message : 'Tạo phiên bản báo cáo thất bại');
+      }
     } finally {
       setSaving(false);
     }
@@ -486,7 +494,11 @@ function CrmResearchWorkspaceContent() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Xuất DOCX thất bại');
+      if (err instanceof ResearchApiError && err.code === 'methodology_incomplete') {
+        setError(TRANSITION_REASON_VI.methodology_incomplete);
+      } else {
+        setError(err instanceof Error ? err.message : 'Xuất DOCX thất bại');
+      }
     } finally {
       setSaving(false);
     }
@@ -791,7 +803,7 @@ function CrmResearchWorkspaceContent() {
                 snapshot={reportSnapshot}
                 reports={reports}
                 onCopilot={(ids) => void onReportCopilot(ids)}
-                onCreate={(ids) => void onCreateReport(ids)}
+                onCreate={(ids, methodology) => void onCreateReport(ids, methodology)}
                 onExport={(reportId, versionId) => void onExportReport(reportId, versionId)}
               />
             ) : (
@@ -1210,14 +1222,24 @@ function ReportTab({
   snapshot: ResearchReportSnapshot | null;
   reports: ResearchReport[];
   onCopilot: (insightIds: number[]) => void;
-  onCreate: (insightIds: number[]) => void;
+  onCreate: (insightIds: number[], methodology?: MethodologyBlock) => void;
   onExport: (reportId: number, versionId: number) => void;
 }) {
   const approved = (project.insights ?? []).filter((row) => APPROVED_INTERNAL_PLUS.includes(row.status));
   const [selected, setSelected] = useState<number[]>(() => approved.map((row) => row.id));
+  const [population, setPopulation] = useState('');
+  const [sourcePlan, setSourcePlan] = useState('');
+  const [limitation, setLimitation] = useState('');
   const versions = reports.flatMap((report) =>
     report.versions.map((version) => ({ report, version })),
   );
+  const formMethodology: MethodologyBlock = {
+    population,
+    source_plan: sourcePlan,
+    limitation,
+    stub: project.dv12_tier === 'CB' && !isMethodologyComplete({ population, source_plan: sourcePlan, limitation }),
+  };
+  const formComplete = isMethodologyExportable(project.dv12_tier, formMethodology);
   return (
     <section className="card" style={{ padding: '0.9rem' }}>
       <div
@@ -1233,6 +1255,19 @@ function ReportTab({
       >
         BR-RES-05: Báo cáo đã duyệt không sửa tại chỗ — tạo phiên bản mới (version++).
       </div>
+      <div
+        role="status"
+        style={{
+          marginBottom: '0.75rem',
+          padding: '0.55rem 0.7rem',
+          borderRadius: 8,
+          background: '#fff7ed',
+          border: '1px solid #fdba74',
+          fontSize: '0.85rem',
+        }}
+      >
+        {METHODOLOGY_EXPORT_BANNER}
+      </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0, fontSize: '1rem' }}>Báo cáo</h2>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -1240,9 +1275,15 @@ function ReportTab({
             <button
               type="button"
               className="btn btn-sm"
-              disabled={saving || selected.length === 0}
-              title={selected.length === 0 ? 'Chọn ≥1 insight đã duyệt nội bộ' : undefined}
-              onClick={() => onCreate(selected)}
+              disabled={saving || selected.length === 0 || !formComplete}
+              title={
+                selected.length === 0
+                  ? 'Chọn ≥1 insight đã duyệt nội bộ'
+                  : !formComplete
+                    ? METHODOLOGY_EXPORT_BANNER
+                    : undefined
+              }
+              onClick={() => onCreate(selected, formMethodology)}
             >
               Tạo phiên bản
             </button>
@@ -1263,6 +1304,38 @@ function ReportTab({
       <p className="muted" style={{ margin: '0.5rem 0 0.75rem' }}>
         Snapshot từ insight approved_internal+. Xuất DOCX có appendix Evidence index.
       </p>
+      <div style={{ display: 'grid', gap: '0.55rem', marginBottom: '0.75rem' }}>
+        <label style={{ display: 'grid', gap: 4, fontSize: '0.85rem' }}>
+          Dân số
+          <textarea
+            rows={2}
+            disabled={saving}
+            value={population}
+            onChange={(e) => setPopulation(e.target.value)}
+            style={{ width: '100%', resize: 'vertical' }}
+          />
+        </label>
+        <label style={{ display: 'grid', gap: 4, fontSize: '0.85rem' }}>
+          Kế hoạch nguồn
+          <textarea
+            rows={2}
+            disabled={saving}
+            value={sourcePlan}
+            onChange={(e) => setSourcePlan(e.target.value)}
+            style={{ width: '100%', resize: 'vertical' }}
+          />
+        </label>
+        <label style={{ display: 'grid', gap: 4, fontSize: '0.85rem' }}>
+          Hạn chế
+          <textarea
+            rows={2}
+            disabled={saving}
+            value={limitation}
+            onChange={(e) => setLimitation(e.target.value)}
+            style={{ width: '100%', resize: 'vertical' }}
+          />
+        </label>
+      </div>
       {approved.length === 0 ? (
         <p className="muted">Chưa có insight approved_internal+.</p>
       ) : (
@@ -1324,7 +1397,15 @@ function ReportTab({
                 <button
                   type="button"
                   className="btn btn-sm"
-                  disabled={saving}
+                  disabled={
+                    saving ||
+                    !isMethodologyExportable(project.dv12_tier, version.content_snapshot?.methodology)
+                  }
+                  title={
+                    !isMethodologyExportable(project.dv12_tier, version.content_snapshot?.methodology)
+                      ? METHODOLOGY_EXPORT_BANNER
+                      : undefined
+                  }
                   onClick={() => onExport(report.id, version.id)}
                 >
                   Xuất DOCX

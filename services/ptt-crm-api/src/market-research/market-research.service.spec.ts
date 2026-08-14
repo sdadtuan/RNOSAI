@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   ServiceUnavailableException,
+  StreamableFile,
 } from '@nestjs/common';
 import { MarketResearchService } from './market-research.service';
 import type { ResearchEvidenceRow, ResearchInsightRow, ResearchProjectRow } from './market-research.types';
@@ -895,6 +896,66 @@ describe('MarketResearchService', () => {
     expect(index.length).toBeGreaterThanOrEqual(1);
     expect(out.version).toBe(1);
     expect(repo.insertReportVersion).toHaveBeenCalled();
+  });
+
+  it('createReport TC + methodology stub is 400 methodology_incomplete', async () => {
+    stubScopedProject();
+    repo.getProject.mockResolvedValue({ ...project, dv12_tier: 'TC' });
+    repo.getInsight.mockResolvedValue(insightRow({ status: 'approved_internal', evidence_ids: [3] }));
+
+    try {
+      await service.createReport(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        {
+          insight_ids: [7],
+          methodology: { stub: true, population: '', source_plan: '', limitation: '' },
+        },
+        'am@ptt',
+      );
+      throw new Error('expected 400');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'methodology_incomplete' });
+    }
+    expect(repo.insertReportVersion).not.toHaveBeenCalled();
+  });
+
+  it('exportReportVersion CB + stub still exports (P0 no regress)', async () => {
+    stubScopedProject();
+    repo.getReport.mockResolvedValue({
+      id: 1,
+      project_id: 9,
+      template: 'std',
+      status: 'draft',
+      created_at: '2026-08-14',
+      versions: [],
+    });
+    repo.getReportVersion.mockResolvedValue({
+      id: 10,
+      report_id: 1,
+      version: 1,
+      content_snapshot: {
+        cover: { client: 'Acme', title: 'T', confidential: true, version: 1, as_of: '2026-08-14' },
+        exec: 'exec',
+        findings: [],
+        recs: [],
+        methodology: { stub: true, population: '', source_plan: '', limitation: '' },
+        evidence_index: [],
+        status: 'draft',
+        insight_ids: [7],
+      },
+      generated_by: 'am@ptt',
+      content_hash: 'abc',
+      created_at: '2026-08-14',
+    });
+
+    const out = await service.exportReportVersion(1, 10, {
+      restricted: true,
+      allowedClientIds: ['acme'],
+    });
+    expect(out).toBeInstanceOf(StreamableFile);
   });
 
   it('createReport rejects insights below approved_internal', async () => {

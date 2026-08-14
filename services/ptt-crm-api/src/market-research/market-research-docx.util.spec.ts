@@ -64,4 +64,36 @@ describe('buildResearchReportDocx', () => {
     expect(xml).toContain('Evidence');
     expect(xml).toContain('EV-3');
   });
+
+  it('unzip DOCX TC contains Limitation / Hạn chế', async () => {
+    const snapshot = buildReportSnapshot({
+      project: {
+        client_id: 'acme',
+        client_name: 'Acme',
+        title: 'Category review sữa uống 2026',
+        decision_statement: 'Quyết định có mở SKU premium Q4 hay không.',
+      },
+      insights: [
+        {
+          id: 11,
+          statement: 'Premium SKU tăng share ở MT HCM',
+          recommendation: 'Mở SKU premium',
+          evidence_ids: [3],
+        },
+      ],
+      questions: [{ id: 21, question_vi: 'Quy mô thị trường?', sort_order: 1 }],
+      evidence: [{ id: 3, locator: 'https://example.com#p3', question_id: 21 }],
+      selectedInsightIds: [11],
+      version: 1,
+      methodology: {
+        population: 'Shopper MT HCM 18-45',
+        source_plan: 'Desk research + storecheck',
+        limitation: 'Không có panel định lượng 2026',
+      },
+    });
+    const buffer = await buildResearchReportDocx(sectionsFromReportSnapshot(snapshot));
+    const xml = unzipEntry(buffer, 'word/document.xml');
+    expect(xml.includes('Limitation') || xml.includes('Hạn chế')).toBe(true);
+    expect(xml).toContain('Không có panel định lượng 2026');
+  });
 });

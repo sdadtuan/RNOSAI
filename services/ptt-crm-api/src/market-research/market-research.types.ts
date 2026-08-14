@@ -43,6 +43,13 @@ export type PlanInsightSnapshot = {
   inserted_by: string;
 };
 
+export type MethodologyBlock = {
+  population: string;
+  source_plan: string;
+  limitation: string;
+  stub?: boolean;
+};
+
 export type InsertPlanInsightsInput = {
   client_id: string;
   insight_ids: number[];
@@ -331,6 +338,7 @@ export type ReportCopilotInput = {
 
 export type CreateReportInput = {
   insight_ids: number[];
+  methodology?: MethodologyBlock;
 };
 
 export type ResearchReportVersionRow = {

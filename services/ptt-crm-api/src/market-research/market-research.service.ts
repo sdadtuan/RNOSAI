@@ -42,6 +42,7 @@ import type {
   CreateInsightInput,
   CreateProjectInput,
   InsertPlanInsightsInput,
+  MethodologyBlock,
   PlanInsightSnapshot,
   CreateQuestionInput,
   CreateReportInput,
@@ -77,9 +78,11 @@ import type {
 import { buildResearchReportDocx, sectionsFromReportSnapshot } from './market-research-docx.util';
 import {
   buildReportSnapshot,
+  CB_METHODOLOGY_STUB,
   type ResearchReportSnapshot,
 } from './market-research-report-snapshot.util';
 import { validateCreateEvidence, validateCreateProject } from './market-research.validation';
+import { assertMethodologyExportable } from './methodology-gate.util';
 import { assertNoInsightTextLeak, freezePlanInsights } from './plan-insight-snapshot.util';
 import { canTransitionProject, listValidTransitions } from './project-state.util';
 
@@ -975,10 +978,13 @@ export class MarketResearchService {
   ): Promise<CreateReportResult> {
     const project = await this.loadScopedProject(projectId, scope);
     const insights = await this.loadApprovedInsights(projectId, input.insight_ids);
+    const methodology = this.assertMethodologyForTier(project.dv12_tier, input.methodology);
     const snapshot = await this.snapshotFromInsights(
       project,
       insights,
       insights.map((row) => row.id),
+      undefined,
+      methodology,
     );
     const draft = await this.repo.insertReportVersion({
       projectId,
@@ -1010,10 +1016,11 @@ export class MarketResearchService {
   ): Promise<StreamableFile> {
     const report = await this.repo.getReport(reportId);
     if (!report) throw new NotFoundException({ error: 'not_found' });
-    await this.loadScopedProject(report.project_id, scope);
+    const project = await this.loadScopedProject(report.project_id, scope);
     const version = await this.repo.getReportVersion(reportId, versionId);
     if (!version) throw new NotFoundException({ error: 'not_found' });
     const snapshot = version.content_snapshot as ResearchReportSnapshot;
+    this.assertMethodologyForTier(project.dv12_tier, snapshot.methodology);
     const buffer = await buildResearchReportDocx(sectionsFromReportSnapshot(snapshot));
     return new StreamableFile(buffer, {
       type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -1057,6 +1064,7 @@ export class MarketResearchService {
     insights: ResearchInsightRow[],
     selectedInsightIds: number[],
     llmDraft?: Record<string, unknown> | null,
+    methodology?: MethodologyBlock,
   ): Promise<ResearchReportSnapshot> {
     const [questions, evidence] = await Promise.all([
       this.repo.listQuestions(project.id),
@@ -1071,7 +1079,24 @@ export class MarketResearchService {
       selectedInsightIds,
       version: nextVersion,
       llmDraft,
+      methodology,
     });
+  }
+
+  private assertMethodologyForTier(
+    tier: ResearchProjectRow['dv12_tier'],
+    raw?: MethodologyBlock | null,
+  ): MethodologyBlock {
+    const methodology: MethodologyBlock = raw ?? CB_METHODOLOGY_STUB;
+    try {
+      assertMethodologyExportable(tier, methodology);
+    } catch (err) {
+      if ((err as Error & { code?: string }).code === 'methodology_incomplete') {
+        throw new BadRequestException({ error: 'methodology_incomplete' });
+      }
+      throw err;
+    }
+    return methodology;
   }
 
   private async nextReportVersion(projectId: number): Promise<number> {

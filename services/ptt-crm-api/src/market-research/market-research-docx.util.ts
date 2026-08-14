@@ -28,6 +28,21 @@ function sectionToWordXml(section: ResearchDocxSection): string {
   return parts.join('');
 }
 
+function methodologyLines(m: ResearchReportSnapshot['methodology'] | undefined): string[] {
+  const population = String(m?.population ?? '');
+  const sourcePlan = String(m?.source_plan ?? '');
+  const limitation = String(m?.limitation ?? '');
+  const lines = [
+    `Population / Dân số: ${population}`,
+    `Source plan / Kế hoạch nguồn: ${sourcePlan}`,
+    `Limitation / Hạn chế: ${limitation}`,
+  ];
+  if (m?.stub === true && !population.trim() && !sourcePlan.trim() && !limitation.trim()) {
+    lines.unshift('P0 CB methodology stub');
+  }
+  return lines;
+}
+
 export function sectionsFromReportSnapshot(snapshot: ResearchReportSnapshot): ResearchDocxSection[] {
   const cover = snapshot.cover;
   const findingsByHeading = new Map<string, string[]>();
@@ -68,7 +83,7 @@ export function sectionsFromReportSnapshot(snapshot: ResearchReportSnapshot): Re
     },
     {
       title: 'Methodology',
-      lines: [snapshot.methodology?.note || 'P0 CB methodology stub'],
+      lines: methodologyLines(snapshot.methodology),
     },
     {
       title: 'Evidence index',
