@@ -109,6 +109,13 @@ export class MarketResearchController {
     );
   }
 
+  @Get('analytics/ops')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async getOpsAnalytics(@Req() req: StaffReq, @Query('client_id') clientId?: string) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.getOpsAnalytics(scope, clientId);
+  }
+
   @Get('projects')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
   async listProjects(

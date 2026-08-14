@@ -37,6 +37,7 @@ describe('MarketResearchService', () => {
     getProjectClientId: jest.fn(),
     getProject: jest.fn(),
     listProjects: jest.fn(),
+    getOpsAnalytics: jest.fn(),
     createProject: jest.fn(),
     listQuestions: jest.fn(),
     listSources: jest.fn(),
@@ -1877,6 +1878,52 @@ describe('MarketResearchService', () => {
     }
     expect(plans.patchPlan).not.toHaveBeenCalled();
     expect(repo.getInsight).not.toHaveBeenCalled();
+  });
+
+  it('getOpsAnalytics out-of-scope client_id is 403 without title', async () => {
+    clientScope.allowedClientIdsForList.mockReturnValue(['beta']);
+    clientScope.assertListClientFilter.mockImplementation((scope, clientId) => {
+      if (scope.restricted && clientId && !scope.allowedClientIds.includes(clientId)) {
+        throw new ForbiddenException({ error: 'forbidden' });
+      }
+    });
+
+    try {
+      await service.getOpsAnalytics({ restricted: true, allowedClientIds: ['beta'] }, 'acme');
+      throw new Error('expected forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const body = (err as ForbiddenException).getResponse();
+      expect(body).toEqual({ error: 'forbidden' });
+      expect(JSON.stringify(body)).not.toContain('title');
+      expect(JSON.stringify(body)).not.toContain('Secret title');
+    }
+    expect(repo.getOpsAnalytics).not.toHaveBeenCalled();
+  });
+
+  it('getOpsAnalytics scoped list omits a project outside allowedClientIds', async () => {
+    clientScope.allowedClientIdsForList.mockReturnValue(['beta']);
+    repo.getOpsAnalytics.mockResolvedValue({
+      cycleHours: [10, 20, 30],
+      totalProjects: 1,
+      withVerified: 1,
+      distributedProjects: 0,
+      approvedReports: 0,
+      projects: [
+        { id: 1, client_id: 'beta', status: 'approved', verified_ev: 2 },
+        { id: 2, client_id: 'acme', status: 'distributed', verified_ev: 4 },
+      ],
+    });
+
+    const out = await service.getOpsAnalytics({ restricted: true, allowedClientIds: ['beta'] });
+
+    expect(out.projects.map((p) => p.client_id)).not.toContain('acme');
+    expect(out.projects).toEqual([{ id: 1, client_id: 'beta', status: 'approved', verified_ev: 2 }]);
+    expect(JSON.stringify(out)).not.toContain('title');
+    expect(out.cycle_time_hours.designed_to_approved_p50).toBe(20);
+    expect(out.cycle_time_hours.sample).toBe(3);
+    expect(out.evidence_completeness).toEqual({ projects: 1, with_verified_pct: 100 });
+    expect(repo.getOpsAnalytics).toHaveBeenCalledWith({}, ['beta']);
   });
 });
 

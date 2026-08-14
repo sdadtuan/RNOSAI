@@ -66,6 +66,7 @@ import type {
   InsightCopilotInput,
   InsightCopilotResult,
   ListProjectsFilters,
+  OpsAnalyticsPayload,
   PatchEvidenceInput,
   PatchInsightInput,
   PatchProjectInput,
@@ -107,6 +108,7 @@ import { buildResearchPrefill, EMPTY_RESEARCH_PREFILL, stripPrefillPii } from '.
 import { assertMethodologyExportable } from './methodology-gate.util';
 import { assertExecEnEditable, normalizeReportExec } from './report-exec.util';
 import { assertNoInsightTextLeak, freezePlanInsights } from './plan-insight-snapshot.util';
+import { completenessPct, percentile50 } from './ops-analytics.util';
 import { canTransitionProject, listValidTransitions } from './project-state.util';
 
 @Injectable()
@@ -219,6 +221,37 @@ export class MarketResearchService {
     const allowed = this.clientScope.allowedClientIdsForList(scope);
     const projects = await this.repo.listProjects(filters, allowed);
     return { projects };
+  }
+
+  async getOpsAnalytics(scope: ClientScopeContext, clientId?: string): Promise<OpsAnalyticsPayload> {
+    const cid = clientId?.trim();
+    if (cid) {
+      try {
+        this.clientScope.assertListClientFilter(scope, cid);
+      } catch {
+        throw new ForbiddenException({ error: 'forbidden' });
+      }
+    }
+    const allowed = this.clientScope.allowedClientIdsForList(scope);
+    const raw = await this.repo.getOpsAnalytics(cid ? { client_id: cid } : {}, allowed);
+    const projects = allowed
+      ? raw.projects.filter((row) => allowed.includes(row.client_id))
+      : raw.projects;
+    return {
+      cycle_time_hours: {
+        designed_to_approved_p50: percentile50(raw.cycleHours),
+        sample: raw.cycleHours.length,
+      },
+      evidence_completeness: {
+        projects: raw.totalProjects,
+        with_verified_pct: completenessPct(raw.totalProjects, raw.withVerified),
+      },
+      activation: {
+        distributed_projects: raw.distributedProjects,
+        approved_reports: raw.approvedReports,
+      },
+      projects,
+    };
   }
 
   async getPrefill(scope: ClientScopeContext, clientId: string): Promise<ResearchPrefill> {

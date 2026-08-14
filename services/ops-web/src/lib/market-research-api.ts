@@ -554,6 +554,32 @@ export type ResearchPrefill = {
   suggested_rqs: string[];
 };
 
+export type OpsAnalytics = {
+  cycle_time_hours: {
+    designed_to_approved_p50: number | null;
+    sample: number;
+  };
+  evidence_completeness: {
+    projects: number;
+    with_verified_pct: number;
+  };
+  activation: {
+    distributed_projects: number;
+    approved_reports: number;
+  };
+};
+
+export type OpsAnalyticsProject = {
+  id: number;
+  client_id: string;
+  status: ProjectStatus;
+  verified_ev: number;
+};
+
+export type OpsAnalyticsPayload = OpsAnalytics & {
+  projects: OpsAnalyticsProject[];
+};
+
 export type CreateProjectBody = {
   client_id: string;
   title: string;
@@ -604,6 +630,16 @@ export async function fetchResearchPrefill(
   const qs = new URLSearchParams();
   if (clientId.trim()) qs.set('client_id', clientId.trim());
   return researchFetch(token, `/api/v1/research/prefill?${qs.toString()}`);
+}
+
+export async function fetchResearchOpsAnalytics(
+  token: string,
+  params?: { client_id?: string },
+): Promise<OpsAnalyticsPayload> {
+  const qs = new URLSearchParams();
+  if (params?.client_id) qs.set('client_id', params.client_id);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return researchFetch(token, `/api/v1/research/analytics/ops${suffix}`);
 }
 
 export async function fetchResearchProjects(

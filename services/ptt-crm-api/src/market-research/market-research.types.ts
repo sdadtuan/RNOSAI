@@ -159,6 +159,26 @@ export type OpsAnalytics = {
   };
 };
 
+export type OpsAnalyticsProjectRow = {
+  id: number;
+  client_id: string;
+  status: ProjectStatus;
+  verified_ev: number;
+};
+
+export type OpsAnalyticsPayload = OpsAnalytics & {
+  projects: OpsAnalyticsProjectRow[];
+};
+
+export type OpsAnalyticsRaw = {
+  cycleHours: number[];
+  totalProjects: number;
+  withVerified: number;
+  distributedProjects: number;
+  approvedReports: number;
+  projects: OpsAnalyticsProjectRow[];
+};
+
 export const CONSENT_TYPES = ['record', 'quote', 'store'] as const;
 export type ConsentType = (typeof CONSENT_TYPES)[number];
 

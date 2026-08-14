@@ -68,4 +68,34 @@ describe('MarketResearchRepository', () => {
     const repo = repoWithMock();
     expect(await repo.findConsultFormDataByClientId('acme')).toBeNull();
   });
+
+  it('getOpsAnalytics scopes SQL to allowedClientIds and never selects title', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const repo = repoWithMock();
+
+    await repo.getOpsAnalytics({}, ['beta']);
+
+    expect(queryMock).toHaveBeenCalled();
+    for (const [sql, params] of queryMock.mock.calls) {
+      const text = String(sql);
+      expect(text).not.toMatch(/\btitle\b/);
+      expect(text).not.toMatch(/marketing.?plan/i);
+      expect(text).toMatch(/p\.client_id = ANY\(\$\d+::text\[\]\)/);
+      expect(params).toContainEqual(['beta']);
+    }
+    const cycleSql = String(queryMock.mock.calls[0][0]);
+    expect(cycleSql).toMatch(/EXTRACT\(EPOCH FROM \(p\.updated_at - p\.created_at\)\)\/3600/);
+    expect(cycleSql).toMatch(/p\.status IN \('approved','distributed'\)/);
+    const verifiedSql = String(queryMock.mock.calls[2][0]);
+    expect(verifiedSql).toMatch(/qc_status = 'verified'/);
+    expect(verifiedSql).toMatch(/COUNT\(DISTINCT e\.project_id\)/);
+    const versionsSql = String(queryMock.mock.calls[4][0]);
+    expect(versionsSql).toMatch(/crm_research_report_versions/);
+    expect(versionsSql).toMatch(/crm_research_reports/);
+    const listSql = String(queryMock.mock.calls[5][0]);
+    expect(listSql).toMatch(/verified_ev/);
+    expect(listSql).toMatch(/p\.id/);
+    expect(listSql).toMatch(/p\.client_id/);
+    expect(listSql).toMatch(/p\.status/);
+  });
 });

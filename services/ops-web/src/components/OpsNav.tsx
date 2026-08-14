@@ -94,6 +94,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/intake': 'Lead Intake',
   '/crm/research': 'Nghiên cứu thị trường',
   '/crm/research/new': 'Tạo dự án nghiên cứu',
+  '/crm/research/analytics': 'Phân tích nghiên cứu',
   '/crm/marketing-plan': 'Kế hoạch marketing',
   '/crm/service-delivery': 'Triển khai dịch vụ',
   '/crm/sop': 'Quy trình SOP',
@@ -197,7 +198,12 @@ function pageTitleFor(pathname: string): string {
   if (pathname.startsWith('/crm/b2b/leads')) return PAGE_TITLES['/crm/b2b/leads'];
   if (pathname.startsWith('/crm/leads/') && pathname !== '/crm/leads') return 'Chi tiết lead';
   if (pathname.startsWith('/crm/customers/') && pathname !== '/crm/customers') return 'Chi tiết khách hàng';
-  if (pathname.startsWith('/crm/research/') && pathname !== '/crm/research' && pathname !== '/crm/research/new') {
+  if (
+    pathname.startsWith('/crm/research/') &&
+    pathname !== '/crm/research' &&
+    pathname !== '/crm/research/new' &&
+    pathname !== '/crm/research/analytics'
+  ) {
     return 'Workspace nghiên cứu';
   }
   if (pathname.startsWith('/crm/marketing-plan/') && pathname !== '/crm/marketing-plan') {
@@ -347,6 +353,7 @@ function buildSections(
   const plan: NavLink[] = [];
   if (isMarketResearchFeEnabled() && hasCap(user, 'crm_research', 'view')) {
     plan.push({ href: '/crm/research', label: 'Nghiên cứu thị trường' });
+    plan.push({ href: '/crm/research/analytics', label: 'Phân tích nghiên cứu' });
   }
   if (hasCap(user, 'crm_board', 'view')) {
     plan.push({ href: '/crm/marketing-plan', label: 'Kế hoạch marketing' });

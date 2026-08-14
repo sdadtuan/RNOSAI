@@ -19,6 +19,7 @@ import type {
   ResearchStudy,
   InsertReviewInput,
   ListProjectsFilters,
+  OpsAnalyticsRaw,
   PatchCompetitorInput,
   PatchEvidenceInput,
   PatchInsightInput,
@@ -1564,5 +1565,79 @@ export class MarketResearchRepository implements OnModuleDestroy {
       ],
     );
     return { id: Number(result.rows[0].id) };
+  }
+
+  async getOpsAnalytics(
+    filters: { client_id?: string },
+    allowedClientIds?: string[],
+  ): Promise<OpsAnalyticsRaw> {
+    const scope: string[] = [];
+    const params: unknown[] = [];
+    if (filters.client_id?.trim()) {
+      params.push(filters.client_id.trim());
+      scope.push(`p.client_id = $${params.length}`);
+    }
+    if (allowedClientIds) {
+      params.push(allowedClientIds);
+      scope.push(`p.client_id = ANY($${params.length}::text[])`);
+    }
+    const extra = scope.length ? `AND ${scope.join(' AND ')}` : '';
+    const where = scope.length ? `WHERE ${scope.join(' AND ')}` : '';
+
+    const cycle = await this.db.query(
+      `SELECT EXTRACT(EPOCH FROM (p.updated_at - p.created_at))/3600 AS hours
+       FROM crm_research_projects p
+       WHERE p.status IN ('approved','distributed') ${extra}`,
+      params,
+    );
+    const totals = await this.db.query(
+      `SELECT COUNT(*)::int AS n FROM crm_research_projects p ${where}`,
+      params,
+    );
+    const verified = await this.db.query(
+      `SELECT COUNT(DISTINCT e.project_id)::int AS n
+       FROM crm_research_evidence e
+       JOIN crm_research_projects p ON p.id = e.project_id
+       WHERE e.qc_status = 'verified' ${extra}`,
+      params,
+    );
+    const distributed = await this.db.query(
+      `SELECT COUNT(*)::int AS n
+       FROM crm_research_projects p
+       WHERE p.status = 'distributed' ${extra}`,
+      params,
+    );
+    const versions = await this.db.query(
+      `SELECT COUNT(*)::int AS n
+       FROM crm_research_report_versions v
+       JOIN crm_research_reports r ON r.id = v.report_id
+       JOIN crm_research_projects p ON p.id = r.project_id
+       ${where}`,
+      params,
+    );
+    const projects = await this.db.query(
+      `SELECT p.id, p.client_id, p.status,
+              (SELECT COUNT(*)::int FROM crm_research_evidence e
+                WHERE e.project_id = p.id AND e.qc_status = 'verified') AS verified_ev
+       FROM crm_research_projects p
+       ${where}
+       ORDER BY p.updated_at DESC
+       LIMIT 200`,
+      params,
+    );
+
+    return {
+      cycleHours: cycle.rows.map((row) => Number(row.hours)),
+      totalProjects: Number(totals.rows[0]?.n ?? 0),
+      withVerified: Number(verified.rows[0]?.n ?? 0),
+      distributedProjects: Number(distributed.rows[0]?.n ?? 0),
+      approvedReports: Number(versions.rows[0]?.n ?? 0),
+      projects: projects.rows.map((row) => ({
+        id: Number(row.id),
+        client_id: String(row.client_id),
+        status: row.status as ProjectStatus,
+        verified_ev: Number(row.verified_ev ?? 0),
+      })),
+    };
   }
 }
