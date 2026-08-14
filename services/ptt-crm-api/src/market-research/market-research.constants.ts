@@ -48,7 +48,11 @@ export const APPROVED_INTERNAL_PLUS: InsightStatus[] = [
   'published',
 ];
 
-export type InsightGateCode = 'missing_verified_evidence' | 'missing_confidence_rationale';
+export type InsightGateCode =
+  | 'missing_verified_evidence'
+  | 'missing_confidence_rationale'
+  | 'missing_confidence_rubric'
+  | 'forbidden_confidence_wording';
 
 export type ResearchJobType =
   | 'desk_tavily'

@@ -46,7 +46,37 @@ export function canSubmitInsightReview(status: InsightStatus | null | undefined)
 export const INSIGHT_GATE_COPY: Record<string, string> = {
   missing_verified_evidence: 'Cần ≥1 evidence đã verify',
   missing_confidence_rationale: 'Thiếu giải thích độ tin cậy',
+  missing_confidence_rubric: 'Thiếu rubric 5 chiều (0–4)',
+  forbidden_confidence_wording: 'Không ghi 95% confidence trừ khi đây là inference thống kê.',
   cannot_self_approve: 'Người tạo không tự duyệt — nhờ Research Lead.',
+};
+
+export const RUBRIC_DIMS = ['S', 'F', 'T', 'A', 'R'] as const;
+export type RubricDim = (typeof RUBRIC_DIMS)[number];
+
+export type ConfidenceRubric = {
+  S: number;
+  F: number;
+  T: number;
+  A: number;
+  R: number;
+  statistical_inference?: boolean;
+};
+
+export type ConfidenceBand = 'low' | 'medium' | 'high' | 'very_high';
+
+export const CONFIDENCE_BAND_LABELS: Record<ConfidenceBand, string> = {
+  low: 'Thấp',
+  medium: 'Trung bình',
+  high: 'Cao',
+  very_high: 'Rất cao',
+};
+
+export type ConfidenceJson = {
+  rubric: ConfidenceRubric;
+  score: number;
+  band: ConfidenceBand;
+  override_down?: boolean;
 };
 
 function authHeaders(token: string): HeadersInit {
@@ -209,6 +239,7 @@ export type ResearchInsight = {
   audience: string | null;
   status: InsightStatus;
   confidence_rationale: string | null;
+  confidence_json?: ConfidenceJson | ConfidenceRubric | null;
   ai_generated: boolean;
   created_by: string | null;
   valid_from: string | null;
@@ -226,6 +257,7 @@ export type CreateInsightBody = {
   recommendation?: string | null;
   audience?: string | null;
   confidence_rationale?: string | null;
+  confidence_json?: ConfidenceRubric;
   valid_from?: string | null;
   valid_to?: string | null;
 };

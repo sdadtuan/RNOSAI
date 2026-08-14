@@ -28,9 +28,12 @@ import { MarketResearchLlmService } from './market-research-llm.service';
 import { MarketResearchRepository } from './market-research.repository';
 import { evidenceChecksum } from './evidence-checksum.util';
 import { assertEvidenceMutable, piiHint } from './evidence-immutable.util';
-import { assertNotSelfApprove, canApproveTarget, evaluateInsightGate } from './insight-gate.util';
+import { assertNoFakeConfidence, buildConfidenceJson } from './confidence-rubric.util';
+import { assertNotSelfApprove, canApproveTarget, evaluateInsightGate, extractRubric } from './insight-gate.util';
 import type {
   ApproveInsightInput,
+  ConfidenceJson,
+  ConfidenceRubric,
   CreateEvidenceInput,
   CreateInsightInput,
   CreateProjectInput,
@@ -60,6 +63,7 @@ import type {
   RunDeepResult,
   RunDeskInput,
   RunDeskResult,
+  SubmitReviewInput,
 } from './market-research.types';
 import { buildResearchReportDocx, sectionsFromReportSnapshot } from './market-research-docx.util';
 import {
@@ -375,7 +379,8 @@ export class MarketResearchService {
         messages: ['statement is required'],
       });
     }
-    return this.repo.createInsight(projectId, input, actor);
+    this.assertConfidenceWording(input.confidence_rationale, input.confidence_json);
+    return this.repo.createInsight(projectId, this.withComputedConfidence(input), actor);
   }
 
   async patchInsight(
@@ -391,7 +396,11 @@ export class MarketResearchService {
         messages: ['statement is required'],
       });
     }
-    const updated = await this.repo.patchInsight(insightId, input);
+    this.assertConfidenceWording(
+      input.confidence_rationale !== undefined ? input.confidence_rationale : existing.confidence_rationale,
+      input.confidence_json !== undefined ? input.confidence_json : existing.confidence_json,
+    );
+    const updated = await this.repo.patchInsight(insightId, this.withComputedConfidence(input));
     if (!updated) throw new NotFoundException({ error: 'not_found' });
     return updated;
   }
@@ -434,12 +443,25 @@ export class MarketResearchService {
     return refreshed;
   }
 
-  async submitReview(insightId: number, scope: ClientScopeContext): Promise<ResearchInsightRow> {
+  async submitReview(
+    insightId: number,
+    scope: ClientScopeContext,
+    input: SubmitReviewInput = {},
+  ): Promise<ResearchInsightRow> {
     const existing = await this.loadScopedInsight(insightId, scope);
     if (existing.status !== 'draft' && existing.status !== 'evidence_attached' && existing.status !== 'rejected') {
       throw new ConflictException({ error: 'invalid_transition' });
     }
-    this.assertInsightGate(await this.repo.countVerifiedEvidenceForInsight(insightId), existing.confidence_rationale);
+    const rubric =
+      extractRubric(input.confidence_json) ?? extractRubric(existing.confidence_json);
+    this.assertInsightGate(
+      await this.repo.countVerifiedEvidenceForInsight(insightId),
+      existing.confidence_rationale,
+      rubric,
+    );
+    await this.repo.patchInsight(insightId, {
+      confidence_json: buildConfidenceJson({ rubric: rubric! }),
+    } as PatchInsightInput);
     const updated = await this.repo.updateInsightStatus(insightId, 'analyst_verified');
     if (!updated) throw new NotFoundException({ error: 'not_found' });
     return updated;
@@ -468,6 +490,7 @@ export class MarketResearchService {
       this.assertInsightGate(
         await this.repo.countVerifiedEvidenceForInsight(insightId),
         existing.confidence_rationale,
+        extractRubric(existing.confidence_json),
       );
     }
     const project = await this.repo.getProject(existing.project_id);
@@ -894,11 +917,40 @@ export class MarketResearchService {
     }
   }
 
-  private assertInsightGate(verifiedEvidenceCount: number, confidenceRationale: string | null): void {
-    const gate = evaluateInsightGate({ verifiedEvidenceCount, confidenceRationale });
+  private assertInsightGate(
+    verifiedEvidenceCount: number,
+    confidenceRationale: string | null,
+    confidenceRubric?: ConfidenceRubric | null,
+  ): void {
+    const gate = evaluateInsightGate({ verifiedEvidenceCount, confidenceRationale, confidenceRubric });
     if (!gate.ok) {
       throw new BadRequestException({ error: gate.error, messages: gate.messages });
     }
+  }
+
+  private assertConfidenceWording(
+    rationale: string | null | undefined,
+    raw: ConfidenceRubric | ConfidenceJson | null | undefined,
+  ): void {
+    try {
+      assertNoFakeConfidence(String(rationale || ''), Boolean(extractRubric(raw)?.statistical_inference));
+    } catch (err) {
+      if ((err as Error & { code?: string }).code === 'forbidden_confidence_wording') {
+        throw new BadRequestException({
+          error: 'insight_gate',
+          messages: ['forbidden_confidence_wording'],
+        });
+      }
+      throw err;
+    }
+  }
+
+  private withComputedConfidence<T extends { confidence_json?: ConfidenceRubric | ConfidenceJson }>(
+    input: T,
+  ): T {
+    if (input.confidence_json == null) return input;
+    const rubric = extractRubric(input.confidence_json) ?? (input.confidence_json as ConfidenceRubric);
+    return { ...input, confidence_json: buildConfidenceJson({ rubric }) };
   }
 
   private assertMutable(qcStatus: string): void {

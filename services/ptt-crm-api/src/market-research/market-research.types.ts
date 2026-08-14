@@ -3,6 +3,27 @@ import type { InsightStatus, ProductType, ProjectStatus } from './market-researc
 export type Dv12Tier = 'CB' | 'TC' | 'CS';
 export type RiskClass = 'low' | 'medium' | 'high';
 
+export const RUBRIC_DIMS = ['S', 'F', 'T', 'A', 'R'] as const;
+export type RubricDim = (typeof RUBRIC_DIMS)[number];
+
+export type ConfidenceRubric = {
+  S: number; // source quality 0–4
+  F: number; // fit & coverage
+  T: number; // triangulation
+  A: number; // analytical robustness
+  R: number; // recency & stability
+  statistical_inference?: boolean;
+};
+
+export type ConfidenceBand = 'low' | 'medium' | 'high' | 'very_high';
+
+export type ConfidenceJson = {
+  rubric: ConfidenceRubric;
+  score: number;
+  band: ConfidenceBand;
+  override_down?: boolean;
+};
+
 export type CreateProjectQuestionInput = {
   question_vi: string;
   question_en?: string | null;
@@ -228,6 +249,7 @@ export type CreateInsightInput = {
   recommendation?: string | null;
   audience?: string | null;
   confidence_rationale?: string | null;
+  confidence_json?: ConfidenceRubric | ConfidenceJson;
   valid_from?: string | null;
   valid_to?: string | null;
   ai_generated?: boolean;
@@ -295,8 +317,13 @@ export type PatchInsightInput = {
   recommendation?: string | null;
   audience?: string | null;
   confidence_rationale?: string | null;
+  confidence_json?: ConfidenceRubric | ConfidenceJson;
   valid_from?: string | null;
   valid_to?: string | null;
+};
+
+export type SubmitReviewInput = {
+  confidence_json?: ConfidenceRubric;
 };
 
 export type AttachInsightEvidenceInput = {
@@ -329,7 +356,7 @@ export type ResearchInsightRow = {
   audience: string | null;
   status: InsightStatus;
   confidence_rationale: string | null;
-  confidence_json: unknown | null;
+  confidence_json: ConfidenceJson | ConfidenceRubric | null;
   ai_generated: boolean;
   created_by: string | null;
   valid_from: string | null;

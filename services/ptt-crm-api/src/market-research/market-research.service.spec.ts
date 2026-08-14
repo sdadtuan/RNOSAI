@@ -356,7 +356,11 @@ describe('MarketResearchService', () => {
   it('submitReview with 0 verified evidence is 400 insight_gate', async () => {
     stubScopedProject();
     repo.getInsight.mockResolvedValue(
-      insightRow({ confidence_rationale: 'Method OK', status: 'draft' }),
+      insightRow({
+        confidence_rationale: 'Method OK',
+        status: 'draft',
+        confidence_json: validRubric,
+      }),
     );
     repo.countVerifiedEvidenceForInsight.mockResolvedValue(0);
 
@@ -373,12 +377,62 @@ describe('MarketResearchService', () => {
     expect(repo.updateInsightStatus).not.toHaveBeenCalled();
   });
 
+  it('submitReview missing rubric is 400 missing_confidence_rubric', async () => {
+    stubScopedProject();
+    repo.getInsight.mockResolvedValue(
+      insightRow({ confidence_rationale: 'Method OK', status: 'draft', confidence_json: null }),
+    );
+    repo.countVerifiedEvidenceForInsight.mockResolvedValue(1);
+
+    try {
+      await service.submitReview(7, { restricted: true, allowedClientIds: ['acme'] });
+      throw new Error('expected insight_gate');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual({
+        error: 'insight_gate',
+        messages: ['missing_confidence_rubric'],
+      });
+    }
+    expect(repo.updateInsightStatus).not.toHaveBeenCalled();
+  });
+
+  it('submitReview persists computed confidence_json and sets analyst_verified', async () => {
+    stubScopedProject();
+    const current = insightRow({
+      confidence_rationale: 'Nguồn verified, sample 2025',
+      status: 'draft',
+      confidence_json: validRubric,
+    });
+    const verified = insightRow({ ...current, status: 'analyst_verified' });
+    repo.getInsight.mockResolvedValue(current);
+    repo.countVerifiedEvidenceForInsight.mockResolvedValue(1);
+    repo.patchInsight.mockResolvedValue(current);
+    repo.updateInsightStatus.mockResolvedValue(verified);
+
+    const out = await service.submitReview(7, { restricted: true, allowedClientIds: ['acme'] });
+
+    expect(out.status).toBe('analyst_verified');
+    expect(repo.patchInsight).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({
+        confidence_json: expect.objectContaining({
+          score: 3,
+          band: 'high',
+          rubric: expect.objectContaining(validRubric),
+        }),
+      }),
+    );
+    expect(repo.updateInsightStatus).toHaveBeenCalledWith(7, 'analyst_verified');
+  });
+
   it('submitReview from approved_internal is 409 invalid_transition', async () => {
     stubScopedProject();
     repo.getInsight.mockResolvedValue(
       insightRow({
         status: 'approved_internal',
         confidence_rationale: 'Method OK',
+        confidence_json: validRubric,
       }),
     );
     repo.countVerifiedEvidenceForInsight.mockResolvedValue(1);
@@ -415,6 +469,7 @@ describe('MarketResearchService', () => {
         created_by: 'analyst@ptt',
         status: 'analyst_verified',
         confidence_rationale: 'Method OK',
+        confidence_json: validRubric,
       }),
     );
     repo.countVerifiedEvidenceForInsight.mockResolvedValue(1);
@@ -441,6 +496,7 @@ describe('MarketResearchService', () => {
       created_by: 'analyst@ptt',
       status: 'analyst_verified',
       confidence_rationale: 'Nguồn verified, sample 2025',
+      confidence_json: validRubric,
     });
     const approved = insightRow({
       ...current,
@@ -751,6 +807,8 @@ function evidenceRow(overrides: Partial<ResearchEvidenceRow> = {}): ResearchEvid
     ...overrides,
   };
 }
+
+const validRubric = { S: 3, F: 3, T: 3, A: 3, R: 3 };
 
 function insightRow(overrides: Partial<ResearchInsightRow> = {}): ResearchInsightRow {
   return {

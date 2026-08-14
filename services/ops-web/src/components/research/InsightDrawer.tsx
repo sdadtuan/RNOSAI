@@ -1,11 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ConfidenceRubric, EMPTY_RUBRIC } from '@/components/research/ConfidenceRubric';
 import { EvidenceIdChip } from '@/components/research/EvidenceIdChip';
 import {
   canSubmitInsightReview,
   INSIGHT_GATE_COPY,
   INSIGHT_STATUS_LABELS,
+  type ConfidenceBand,
+  type ConfidenceJson,
+  type ConfidenceRubric as ConfidenceRubricValue,
   type CreateInsightBody,
   type ResearchEvidence,
   type ResearchInsight,
@@ -31,6 +35,29 @@ const empty = {
   valid_from: '',
   valid_to: '',
 };
+
+function rubricFromInsight(insight: ResearchInsight | null): ConfidenceRubricValue {
+  const raw = insight?.confidence_json;
+  if (!raw || typeof raw !== 'object') return { ...EMPTY_RUBRIC };
+  const nested = 'rubric' in raw && raw.rubric && typeof raw.rubric === 'object' ? raw.rubric : raw;
+  const src = nested as ConfidenceRubricValue;
+  return {
+    S: Number(src.S) || 0,
+    F: Number(src.F) || 0,
+    T: Number(src.T) || 0,
+    A: Number(src.A) || 0,
+    R: Number(src.R) || 0,
+    statistical_inference: Boolean(src.statistical_inference),
+  };
+}
+
+function bandFromInsight(insight: ResearchInsight | null): ConfidenceBand | null {
+  const raw = insight?.confidence_json;
+  if (!raw || typeof raw !== 'object' || !('band' in raw)) return null;
+  const band = (raw as ConfidenceJson).band;
+  if (band === 'low' || band === 'medium' || band === 'high' || band === 'very_high') return band;
+  return null;
+}
 
 export function InsightDrawer({
   open,
@@ -58,6 +85,7 @@ export function InsightDrawer({
   onApprove: (target: 'approved_internal' | 'approved_client_facing') => Promise<void>;
 }) {
   const [form, setForm] = useState(empty);
+  const [rubric, setRubric] = useState<ConfidenceRubricValue>({ ...EMPTY_RUBRIC });
   const [block, setBlock] = useState<BlockId>('observation');
   const [selected, setSelected] = useState<number[]>([]);
 
@@ -74,6 +102,7 @@ export function InsightDrawer({
       valid_from: insight?.valid_from ?? '',
       valid_to: insight?.valid_to ?? '',
     });
+    setRubric(rubricFromInsight(insight));
     setSelected(insight?.evidence_ids ?? []);
     setBlock('observation');
   }, [open, insight]);
@@ -101,6 +130,7 @@ export function InsightDrawer({
       recommendation: form.recommendation.trim() || null,
       audience: form.audience.trim() || null,
       confidence_rationale: form.confidence_rationale.trim() || null,
+      confidence_json: rubric,
       valid_from: form.valid_from.trim() || null,
       valid_to: form.valid_to.trim() || null,
     };
@@ -228,6 +258,12 @@ export function InsightDrawer({
             style={{ display: 'block', width: '100%', marginTop: 4 }}
           />
         </label>
+        <ConfidenceRubric
+          value={rubric}
+          band={bandFromInsight(insight)}
+          disabled={!canEdit}
+          onChange={setRubric}
+        />
         <label>
           Audience
           <input

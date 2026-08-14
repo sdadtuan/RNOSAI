@@ -41,6 +41,7 @@ import type {
   PatchEvidenceInput,
   PatchInsightInput,
   PatchProjectInput,
+  SubmitReviewInput,
   PatchQuestionInput,
   PatchSourceInput,
   ReportCopilotInput,
@@ -277,9 +278,13 @@ export class MarketResearchController {
 
   @Post('insights/:id/submit-review')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
-  async submitInsightReview(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+  async submitInsightReview(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body?: SubmitReviewInput,
+  ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
-    return this.research.submitReview(id, scope);
+    return this.research.submitReview(id, scope, body ?? {});
   }
 
   @Post('projects/:id/insights/copilot')

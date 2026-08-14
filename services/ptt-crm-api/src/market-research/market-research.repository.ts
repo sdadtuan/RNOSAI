@@ -684,8 +684,8 @@ export class MarketResearchRepository implements OnModuleDestroy {
     const result = await this.db.query(
       `INSERT INTO crm_research_insights (
          project_id, statement, observation, interpretation, implication, recommendation,
-         audience, status, confidence_rationale, created_by, valid_from, valid_to, ai_generated
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', $8, $9, $10, $11, $12)
+         audience, status, confidence_rationale, confidence_json, created_by, valid_from, valid_to, ai_generated
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', $8, $9, $10, $11, $12, $13)
        RETURNING id`,
       [
         projectId,
@@ -696,6 +696,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
         input.recommendation?.trim() || null,
         input.audience?.trim() || null,
         input.confidence_rationale?.trim() || null,
+        input.confidence_json != null ? JSON.stringify(input.confidence_json) : null,
         actor,
         input.valid_from?.trim() || null,
         input.valid_to?.trim() || null,
@@ -729,6 +730,9 @@ export class MarketResearchRepository implements OnModuleDestroy {
     if (input.audience !== undefined) add('audience', input.audience?.trim() || null);
     if (input.confidence_rationale !== undefined) {
       add('confidence_rationale', input.confidence_rationale?.trim() || null);
+    }
+    if (input.confidence_json !== undefined) {
+      add('confidence_json', input.confidence_json == null ? null : JSON.stringify(input.confidence_json));
     }
     if (input.valid_from !== undefined) add('valid_from', input.valid_from?.trim() || null);
     if (input.valid_to !== undefined) add('valid_to', input.valid_to?.trim() || null);
