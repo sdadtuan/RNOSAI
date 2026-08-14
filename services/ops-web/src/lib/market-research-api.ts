@@ -190,6 +190,9 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   whisper_disabled: 'Whisper đang tắt — project không đổi.',
   raw_transcript_forbidden: 'Chỉ lưu đoạn trích ≤ 500 ký tự. Không lưu transcript đầy đủ.',
   sparktoro_disabled: 'SparkToro đang tắt — không tạo insight.',
+  survey_pii_forbidden: 'CSV codebook không được chứa SĐT hoặc email.',
+  codebook_csv_invalid: 'CSV codebook không hợp lệ.',
+  codebook_row_cap: 'CSV codebook vượt quá 500 dòng.',
 };
 
 export type MethodologyBlock = {
@@ -880,6 +883,25 @@ export async function ingestResearchWhisper(
     `/api/v1/research/projects/${projectId}/studies/${studyId}/whisper`,
     { method: 'POST', body: form },
   );
+}
+
+export type SurveyImportResult = {
+  ok: true;
+  study_id: number;
+  source_id: number;
+  evidence_ids: number[];
+  n: number;
+};
+
+export async function importResearchSurvey(
+  token: string,
+  projectId: number,
+  formData: FormData,
+): Promise<SurveyImportResult> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/import-survey`, {
+    method: 'POST',
+    body: formData,
+  });
 }
 
 export async function createResearchSource(

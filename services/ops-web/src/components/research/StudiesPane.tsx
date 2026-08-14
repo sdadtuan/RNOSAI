@@ -10,6 +10,7 @@ import {
   fetchResearchConsents,
   fetchResearchStudies,
   ingestResearchWhisper,
+  importResearchSurvey,
   STUDY_METHOD_LABELS,
   STUDY_METHODS,
   STUDY_MODE_LABELS,
@@ -31,6 +32,18 @@ import {
   isWhisperAudioMime,
   studyHasUnexpiredConsent,
 } from '@/components/research/studies-whisper.util';
+import {
+  CODEBOOK_CSV_ACCEPT,
+  CODEBOOK_IMPORT_BANNER,
+  CODEBOOK_IMPORT_DISABLED_TITLE,
+  DEFAULT_VW_UNIT,
+  EXPERT_REVIEW_PLACEHOLDER,
+  SURVEY_IMPORT_FORMATS,
+  type SurveyImportFormat,
+  isCodebookCsvFile,
+  isVwGeographyMissing,
+  surveyStudiesForImport,
+} from '@/components/research/studies-codebook.util';
 
 const emptyStudy = {
   name: '',
@@ -65,6 +78,14 @@ export function StudiesPane({
   const [consentStudyId, setConsentStudyId] = useState<number | null>(null);
   const [subjectCode, setSubjectCode] = useState('');
   const [consentType, setConsentType] = useState<ConsentType>('record');
+  const [importFile, setImportFile] = useState<File | undefined>();
+  const [importFormat, setImportFormat] = useState<SurveyImportFormat>('codebook');
+  const [importStudyId, setImportStudyId] = useState('');
+  const [periodNote, setPeriodNote] = useState('');
+  const [geography, setGeography] = useState('');
+  const [unit, setUnit] = useState(DEFAULT_VW_UNIT);
+  const [expertReview, setExpertReview] = useState('');
+  const [importing, setImporting] = useState(false);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -223,6 +244,62 @@ export function StudiesPane({
     );
   }
 
+  function onPickCodebook(file: File | undefined) {
+    setError('');
+    setIngestNote('');
+    if (!file) {
+      setImportFile(undefined);
+      return;
+    }
+    if (!isCodebookCsvFile(file)) {
+      setError('Chỉ nhận file CSV.');
+      setImportFile(undefined);
+      return;
+    }
+    setImportFile(file);
+  }
+
+  async function onImportCodebook(e: React.FormEvent) {
+    e.preventDefault();
+    const token = getAccessToken();
+    if (!token || !canEdit) return;
+    if (!importFile || !isCodebookCsvFile(importFile)) {
+      setError('Chỉ nhận file CSV.');
+      return;
+    }
+    if (isVwGeographyMissing(importFormat, geography)) {
+      setError('Geography bắt buộc với format VW.');
+      return;
+    }
+    setImporting(true);
+    setError('');
+    setIngestNote('');
+    try {
+      const form = new FormData();
+      form.append('file', importFile);
+      form.append('format', importFormat);
+      if (importStudyId.trim()) form.append('study_id', importStudyId.trim());
+      if (expertReview.trim()) form.append('expert_review', expertReview.trim());
+      if (periodNote.trim()) form.append('period_note', periodNote.trim());
+      if (geography.trim()) form.append('geography', geography.trim());
+      if (importFormat === 'vw') form.append('unit', unit.trim() || DEFAULT_VW_UNIT);
+      const out = await importResearchSurvey(token, projectId, form);
+      setIngestNote(`Đã nhập ${out.n} evidence — mở tab Evidence`);
+      setImportFile(undefined);
+      setExpertReview('');
+      await load();
+      onIngested?.();
+    } catch (err) {
+      const api = err instanceof ResearchApiError ? err : null;
+      setError(
+        (api?.code ? TRANSITION_REASON_VI[api.code] : undefined) ??
+          (err instanceof Error ? err.message : 'Nhập codebook thất bại'),
+      );
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <section className="card" style={{ padding: '0.9rem' }}>
       <div className="stack-gap">
@@ -232,6 +309,9 @@ export function StudiesPane({
         </p>
         <p className="muted" role="note" style={{ margin: 0, fontSize: '0.85rem' }}>
           {WHISPER_PRIVACY_BANNER}
+        </p>
+        <p className="muted" role="note" style={{ margin: 0, fontSize: '0.85rem' }}>
+          {CODEBOOK_IMPORT_BANNER}
         </p>
         {error ? <p className="error" style={{ margin: 0 }}>{error}</p> : null}
         {ingestNote ? <p className="muted" style={{ margin: 0 }}>{ingestNote}</p> : null}
@@ -325,6 +405,109 @@ export function StudiesPane({
             </button>
           </form>
         ) : null}
+        <form
+          onSubmit={(e) => void onImportCodebook(e)}
+          style={{ display: 'grid', gap: '0.5rem' }}
+        >
+          <h3 style={{ margin: 0, fontSize: '0.95rem' }}>Nhập codebook</h3>
+          <label>
+            Format *
+            <select
+              className="kpi-input"
+              value={importFormat}
+              disabled={!canEdit}
+              onChange={(e) => setImportFormat(e.target.value as SurveyImportFormat)}
+              style={{ display: 'block', width: '100%', marginTop: 4 }}
+            >
+              {SURVEY_IMPORT_FORMATS.map((fmt) => (
+                <option key={fmt} value={fmt}>
+                  {fmt}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Study (survey)
+            <select
+              className="kpi-input"
+              value={importStudyId}
+              disabled={!canEdit}
+              onChange={(e) => setImportStudyId(e.target.value)}
+              style={{ display: 'block', width: '100%', marginTop: 4 }}
+            >
+              <option value="">Tạo study mới</option>
+              {surveyStudiesForImport(studies).map((row) => (
+                <option key={row.id} value={String(row.id)}>
+                  {row.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            File CSV *
+            <input
+              type="file"
+              accept={CODEBOOK_CSV_ACCEPT}
+              aria-label="Chọn CSV codebook"
+              disabled={!canEdit}
+              onChange={(e) => onPickCodebook(e.target.files?.[0])}
+              style={{ display: 'block', width: '100%', marginTop: 4 }}
+            />
+          </label>
+          <label>
+            Period note
+            <input
+              className="kpi-input"
+              value={periodNote}
+              disabled={!canEdit}
+              onChange={(e) => setPeriodNote(e.target.value)}
+              style={{ display: 'block', width: '100%', marginTop: 4 }}
+            />
+          </label>
+          <label>
+            Geography{importFormat === 'vw' ? ' *' : ''}
+            <input
+              className="kpi-input"
+              value={geography}
+              disabled={!canEdit}
+              required={importFormat === 'vw'}
+              onChange={(e) => setGeography(e.target.value)}
+              style={{ display: 'block', width: '100%', marginTop: 4 }}
+            />
+          </label>
+          {importFormat === 'vw' ? (
+            <label>
+              Unit
+              <input
+                className="kpi-input"
+                value={unit}
+                disabled={!canEdit}
+                onChange={(e) => setUnit(e.target.value)}
+                style={{ display: 'block', width: '100%', marginTop: 4 }}
+              />
+            </label>
+          ) : null}
+          <label>
+            ExpertReview
+            <textarea
+              className="kpi-input"
+              value={expertReview}
+              disabled={!canEdit}
+              placeholder={EXPERT_REVIEW_PLACEHOLDER}
+              onChange={(e) => setExpertReview(e.target.value)}
+              rows={3}
+              style={{ display: 'block', width: '100%', marginTop: 4 }}
+            />
+          </label>
+          <button
+            type="submit"
+            className="btn btn-sm"
+            disabled={!canEdit || importing || !importFile}
+            title={!canEdit ? CODEBOOK_IMPORT_DISABLED_TITLE : undefined}
+          >
+            Nhập codebook
+          </button>
+        </form>
         {studies.length === 0 ? (
           <p className="muted">Chưa có study.</p>
         ) : (

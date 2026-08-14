@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  importResearchSurvey,
   insightConfidencePayload,
   ingestResearchWhisper,
   normalizeReportExec,
@@ -58,6 +59,49 @@ describe('ingestResearchWhisper', () => {
     expect(init.body).toBeInstanceOf(FormData);
     const form = init.body as FormData;
     expect(form.get('file')).toBe(file);
+    const headers = new Headers(init.headers);
+    expect(headers.get('Authorization')).toBe('Bearer tok');
+    expect(headers.get('Content-Type')).toBeNull();
+  });
+});
+
+describe('importResearchSurvey', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('POSTs multipart FormData without JSON-encoding the file', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ ok: true, study_id: 5, source_id: 20, evidence_ids: [101, 102], n: 2 }),
+        { status: 201, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const file = new File(['respondent_id,question_code\nR001,Q1'], 'codebook.csv', {
+      type: 'text/csv',
+    });
+    const form = new FormData();
+    form.append('file', file);
+    form.append('format', 'codebook');
+    form.append('expert_review', 'Forms convenience');
+
+    const out = await importResearchSurvey('tok', 9, form);
+
+    expect(out).toEqual({
+      ok: true,
+      study_id: 5,
+      source_id: 20,
+      evidence_ids: [101, 102],
+      n: 2,
+    });
+    expect(out).not.toHaveProperty('insight_id');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toMatch(/\/api\/v1\/research\/projects\/9\/import-survey$/);
+    expect(init.method).toBe('POST');
+    expect(init.body).toBe(form);
+    expect(init.body).toBeInstanceOf(FormData);
     const headers = new Headers(init.headers);
     expect(headers.get('Authorization')).toBe('Bearer tok');
     expect(headers.get('Content-Type')).toBeNull();
