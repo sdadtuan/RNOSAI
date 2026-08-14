@@ -751,6 +751,43 @@ describe('MarketResearchService', () => {
     expect(repo.createEvidence).not.toHaveBeenCalled();
   });
 
+  it('createEvidence on IDI study with Q-Q1 locator is 400 invalid_transcript_locator', async () => {
+    stubScopedProject();
+    repo.getStudy.mockResolvedValue({
+      id: 4,
+      project_id: 9,
+      name: 'IDI sữa uống',
+      method: 'idi',
+      n: 8,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    });
+
+    try {
+      await service.createEvidence(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        {
+          study_id: 4,
+          locator: 'Q-Q1',
+          excerpt: 'quoted line',
+        },
+        'am@ptt',
+      );
+      throw new Error('expected invalid_transcript_locator');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+      expect((err as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ error: 'invalid_transcript_locator' }),
+      );
+    }
+    expect(repo.createEvidence).not.toHaveBeenCalled();
+  });
+
   it('createEvidence with value_num but missing unit/base/period/geo is validation_error (BR-RES-02)', async () => {
     repo.getProjectClientId.mockResolvedValue('acme');
     repo.getProject.mockResolvedValue(project);

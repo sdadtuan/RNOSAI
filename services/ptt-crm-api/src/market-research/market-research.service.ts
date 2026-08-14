@@ -1184,8 +1184,8 @@ export class MarketResearchService {
       throw new BadRequestException({ error: 'validation_error', messages });
     }
     await this.assertSourceInProject(projectId, input.source_id);
-    await this.assertStudyInProject(projectId, input.study_id);
-    this.applyStudyEvidenceGates(input);
+    const study = await this.assertStudyInProject(projectId, input.study_id);
+    this.applyStudyEvidenceGates(input, study);
     const { pii_class, pii_warning } = this.resolvePiiClass(input);
     const row = await this.repo.createEvidence(projectId, { ...input, pii_class }, actor);
     return pii_warning ? { ...row, pii_warning: true } : row;
@@ -1217,8 +1217,8 @@ export class MarketResearchService {
     if (messages.length) {
       throw new BadRequestException({ error: 'validation_error', messages });
     }
-    await this.assertStudyInProject(existing.project_id, merged.study_id);
-    this.applyStudyEvidenceGates(merged);
+    const study = await this.assertStudyInProject(existing.project_id, merged.study_id);
+    this.applyStudyEvidenceGates(merged, study);
     const { pii_class, pii_warning } = this.resolvePiiClass({
       ...merged,
       pii_class: merged.pii_class,
@@ -1278,8 +1278,8 @@ export class MarketResearchService {
       throw new BadRequestException({ error: 'validation_error', messages });
     }
     await this.assertSourceInProject(existing.project_id, body.source_id);
-    await this.assertStudyInProject(existing.project_id, body.study_id);
-    this.applyStudyEvidenceGates(body);
+    const study = await this.assertStudyInProject(existing.project_id, body.study_id);
+    this.applyStudyEvidenceGates(body, study);
     const { pii_class, pii_warning } = this.resolvePiiClass(body);
     const result = await this.repo.supersedeEvidence(
       existing,
@@ -2395,9 +2395,9 @@ export class MarketResearchService {
     return study;
   }
 
-  private applyStudyEvidenceGates(input: CreateEvidenceInput): void {
+  private applyStudyEvidenceGates(input: CreateEvidenceInput, study?: ResearchStudy): void {
     if (input.study_id == null) return;
-    if (isSurveyEvidenceLocator(String(input.locator ?? ''))) {
+    if (study?.method === 'survey' && isSurveyEvidenceLocator(String(input.locator ?? ''))) {
       try {
         assertExcerptNotRawTranscript(input.excerpt);
       } catch (err) {
