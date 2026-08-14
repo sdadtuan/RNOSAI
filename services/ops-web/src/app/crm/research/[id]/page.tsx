@@ -805,7 +805,11 @@ function CrmResearchWorkspaceContent() {
               onClose={() => setInsightOpen(false)}
               onSave={onSaveInsight}
               onSubmitReview={(body, evidenceIds) =>
-                void onSubmitInsight(activeInsight ?? { id: 0, evidence_ids: evidenceIds } as ResearchInsight, body, evidenceIds)
+                onSubmitInsight(
+                  activeInsight ?? { id: 0, evidence_ids: evidenceIds } as ResearchInsight,
+                  body,
+                  evidenceIds,
+                )
               }
               onApprove={onApproveInsight}
             />
