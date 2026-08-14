@@ -39,7 +39,7 @@ import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
 import { isOpsDvFeEnabled } from '@/lib/ops-dv-flags';
 import { fetchResearchProjects } from '@/lib/market-research-api';
 import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
-import { researchCtaHref } from '@/lib/research-cta';
+import { researchCtaHref, researchCtaReady, type ResearchProjectLookup } from '@/lib/research-cta';
 
 const STAGES = ['lead', 'consult', 'proposal', 'onboard', 'deliver', 'handover', 'retain'];
 
@@ -62,7 +62,9 @@ export default function CrmServiceDeliveryDetailPage() {
   const [detailTab, setDetailTab] = useState<
     'workflow' | 'tmmt' | 'ai-planner' | 'content-os' | 'ops-hub' | 'finance' | 'sop' | 'launch_qa'
   >('workflow');
-  const [existingResearchProjectId, setExistingResearchProjectId] = useState<number | null>(null);
+  const [researchProjectLookup, setResearchProjectLookup] =
+    useState<ResearchProjectLookup>('pending');
+  const [researchLookupError, setResearchLookupError] = useState('');
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -214,24 +216,30 @@ export default function CrmServiceDeliveryDetailPage() {
 
   useEffect(() => {
     if (!token || !showResearchCta || String(row?.service_slug ?? '') !== 'phan-tich-thi-truong') {
-      setExistingResearchProjectId(null);
+      setResearchProjectLookup('pending');
+      setResearchLookupError('');
       return;
     }
+    setResearchProjectLookup('pending');
+    setResearchLookupError('');
     void fetchResearchProjects(token, { lifecycle_id: lifecycleId })
       .then((out) => {
         const first = out.projects[0];
-        setExistingResearchProjectId(first?.id ?? null);
+        setResearchProjectLookup(first?.id ?? 'none');
       })
-      .catch(() => setExistingResearchProjectId(null));
+      .catch(() => {
+        setResearchProjectLookup('error');
+        setResearchLookupError('Không tải được Research Project');
+      });
   }, [token, showResearchCta, row?.service_slug, lifecycleId]);
 
   const researchHref = useMemo(() => {
-    if (!showResearchCta) return null;
+    if (!showResearchCta || !researchCtaReady(researchProjectLookup)) return null;
     const href = researchCtaHref({
       slug: String(row?.service_slug ?? ''),
       lifecycleId,
       clientId: researchClientId,
-      existingProjectId: existingResearchProjectId,
+      existingProjectId: typeof researchProjectLookup === 'number' ? researchProjectLookup : null,
     });
     if (!href || !researchTitle || !href.startsWith('/crm/research/new?')) return href;
     const q = new URLSearchParams(href.slice(href.indexOf('?') + 1));
@@ -242,7 +250,7 @@ export default function CrmServiceDeliveryDetailPage() {
     row?.service_slug,
     lifecycleId,
     researchClientId,
-    existingResearchProjectId,
+    researchProjectLookup,
     researchTitle,
   ]);
 
@@ -281,6 +289,7 @@ export default function CrmServiceDeliveryDetailPage() {
       >
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
+        {researchLookupError ? <p className="error">{researchLookupError}</p> : null}
         {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
         {row && !loading && token ? (
           <>

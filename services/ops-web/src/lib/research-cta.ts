@@ -10,3 +10,9 @@ export function researchCtaHref(input: {
   if (input.clientId) q.set('client_id', input.clientId);
   return `/crm/research/new?${q.toString()}`;
 }
+
+export type ResearchProjectLookup = 'pending' | number | 'none' | 'error';
+
+export function researchCtaReady(lookup: ResearchProjectLookup): boolean {
+  return lookup === 'none' || typeof lookup === 'number';
+}
