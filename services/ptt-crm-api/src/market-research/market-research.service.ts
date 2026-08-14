@@ -892,8 +892,27 @@ export class MarketResearchService {
     const evidence = await this.repo.listEvidence(projectId);
     const bases = new Set<string>(VW_BASES);
     let rows = evidence.filter((row) => bases.has(String(row.value_base ?? '')));
-    if (studyId != null) {
-      rows = rows.filter((row) => row.study_id === studyId);
+    if (studyId == null) {
+      const studies = await this.repo.listStudies(projectId);
+      const surveyIds = new Set(
+        studies.filter((study) => study.method === 'survey').map((study) => study.id),
+      );
+      const candidateIds = [
+        ...new Set(
+          rows
+            .map((row) => row.study_id)
+            .filter((id): id is number => id != null && surveyIds.has(id)),
+        ),
+      ].sort((a, b) => b - a);
+      studyId = candidateIds[0] ?? null;
+    }
+    rows = studyId != null ? rows.filter((row) => row.study_id === studyId) : [];
+
+    const units = new Set(
+      rows.map((row) => String(row.unit ?? '').trim()).filter((unit) => unit.length > 0),
+    );
+    if (units.size > 1) {
+      throw new BadRequestException({ error: 'vw_mixed_unit' });
     }
 
     const respondents = respondentsFromVwEvidence(

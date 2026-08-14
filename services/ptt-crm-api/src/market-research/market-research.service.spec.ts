@@ -18,6 +18,7 @@ import {
 } from './market-research.types';
 import { transcribeAudio } from './whisper-transcribe';
 import { collectSparkToro } from './sparktoro-collect';
+import { computeVanWestendorp } from './van-westendorp.util';
 
 jest.mock('./whisper-transcribe', () => ({
   transcribeAudio: jest.fn(),
@@ -3595,33 +3596,156 @@ describe('MarketResearchService', () => {
     expect(repo.getLatestVwSummary).not.toHaveBeenCalled();
     expect(repo.getStudy).not.toHaveBeenCalled();
   });
+
+  it('I1: POST {} with two survey studies and colliding R001–R004 uses newest study only', async () => {
+    const priceOffer = { ...project, product_type: 'PRICE_OFFER' as const };
+    repo.getProjectClientId.mockResolvedValue('acme');
+    repo.getProject.mockResolvedValue(priceOffer);
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    const older = {
+      id: 5,
+      project_id: 9,
+      name: 'VW wave 1',
+      method: 'survey' as const,
+      n: 4,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    };
+    const newest = {
+      ...older,
+      id: 8,
+      name: 'VW wave 2',
+    };
+    repo.listStudies.mockResolvedValue([older, newest]);
+    const olderRespondents = [
+      { id: 'R001', too_cheap: 10, cheap: 20, expensive: 40, too_expensive: 50 },
+      { id: 'R002', too_cheap: 12, cheap: 22, expensive: 42, too_expensive: 55 },
+      { id: 'R003', too_cheap: 8, cheap: 18, expensive: 38, too_expensive: 48 },
+      { id: 'R004', too_cheap: 15, cheap: 25, expensive: 45, too_expensive: 60 },
+    ];
+    const newestRespondents = [
+      { id: 'R001', too_cheap: 100, cheap: 200, expensive: 400, too_expensive: 500 },
+      { id: 'R002', too_cheap: 110, cheap: 210, expensive: 410, too_expensive: 510 },
+      { id: 'R003', too_cheap: 90, cheap: 190, expensive: 390, too_expensive: 490 },
+      { id: 'R004', too_cheap: 120, cheap: 220, expensive: 420, too_expensive: 520 },
+    ];
+    repo.listEvidence.mockResolvedValue([
+      ...vwEvidenceForStudy(8, newestRespondents, 'VND', 400),
+      ...vwEvidenceForStudy(5, olderRespondents, 'VND', 300),
+    ]);
+    const expected = computeVanWestendorp(
+      newestRespondents.map(({ too_cheap, cheap, expensive, too_expensive }) => ({
+        too_cheap,
+        cheap,
+        expensive,
+        too_expensive,
+      })),
+    );
+    const persisted = {
+      id: 2,
+      project_id: 9,
+      study_id: 8,
+      unit: 'VND',
+      n: 4,
+      bins: expected.bins,
+      points: expected.points,
+      limitation_note: expected.limitation_note,
+      statistical_inference: false as const,
+      created_by: 'am@ptt',
+      created_at: '2026-08-14',
+    };
+    repo.insertVwSummary.mockResolvedValue(persisted);
+
+    const out = await service.createVanWestendorp(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      {},
+      'am@ptt',
+    );
+
+    expect(out.n).toBe(4);
+    expect(out.study_id).toBe(8);
+    expect(repo.insertVwSummary).toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({
+        study_id: 8,
+        n: 4,
+        bins: expected.bins,
+        points: expected.points,
+      }),
+      'am@ptt',
+    );
+    const inserted = repo.insertVwSummary.mock.calls[0][1] as { bins: Array<{ price: number }> };
+    const prices = inserted.bins.map((bin) => bin.price);
+    expect(prices.some((price) => price < 90)).toBe(false);
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('I1: mixed units on the scoped study is 400 vw_mixed_unit', async () => {
+    const priceOffer = { ...project, product_type: 'PRICE_OFFER' as const };
+    repo.getProjectClientId.mockResolvedValue('acme');
+    repo.getProject.mockResolvedValue(priceOffer);
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.getStudy.mockResolvedValue({
+      id: 5,
+      project_id: 9,
+      name: 'VW study',
+      method: 'survey',
+      n: 4,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    });
+    const mixed = vwEvidenceFourRespondents();
+    mixed[0] = { ...mixed[0], unit: 'USD' };
+    repo.listEvidence.mockResolvedValue(mixed);
+
+    try {
+      await service.createVanWestendorp(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { study_id: 5 },
+        'am@ptt',
+      );
+      throw new Error('expected vw_mixed_unit');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'vw_mixed_unit' });
+    }
+    expect(repo.insertVwSummary).not.toHaveBeenCalled();
+  });
 });
 
-function vwEvidenceFourRespondents(): ResearchEvidenceRow[] {
-  const rows: Array<{
+function vwEvidenceForStudy(
+  studyId: number,
+  rows: Array<{
     id: string;
     too_cheap: number;
     cheap: number;
     expensive: number;
     too_expensive: number;
-  }> = [
-    { id: 'R1', too_cheap: 10, cheap: 20, expensive: 40, too_expensive: 50 },
-    { id: 'R2', too_cheap: 12, cheap: 22, expensive: 42, too_expensive: 55 },
-    { id: 'R3', too_cheap: 8, cheap: 18, expensive: 38, too_expensive: 48 },
-    { id: 'R4', too_cheap: 15, cheap: 25, expensive: 45, too_expensive: 60 },
-  ];
+  }>,
+  unit = 'VND',
+  startId = 300,
+): ResearchEvidenceRow[] {
   const bases = ['too_cheap', 'cheap', 'expensive', 'too_expensive'] as const;
   const out: ResearchEvidenceRow[] = [];
-  let id = 300;
+  let id = startId;
   for (const row of rows) {
     for (const base of bases) {
       out.push(
         evidenceRow({
           id: id++,
-          study_id: 5,
+          study_id: studyId,
           locator: `R-${row.id}:${base}`,
           value_num: row[base],
-          unit: 'VND',
+          unit,
           value_base: base,
           period_note: '2026-Q1',
           geography: 'VN',
@@ -3630,6 +3754,15 @@ function vwEvidenceFourRespondents(): ResearchEvidenceRow[] {
     }
   }
   return out;
+}
+
+function vwEvidenceFourRespondents(): ResearchEvidenceRow[] {
+  return vwEvidenceForStudy(5, [
+    { id: 'R1', too_cheap: 10, cheap: 20, expensive: 40, too_expensive: 50 },
+    { id: 'R2', too_cheap: 12, cheap: 22, expensive: 42, too_expensive: 55 },
+    { id: 'R3', too_cheap: 8, cheap: 18, expensive: 38, too_expensive: 48 },
+    { id: 'R4', too_cheap: 15, cheap: 25, expensive: 45, too_expensive: 60 },
+  ]);
 }
 
 function competitorRow() {
