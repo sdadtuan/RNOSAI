@@ -1070,6 +1070,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
       `SELECT v.id, v.report_id, v.version, v.content_snapshot, v.generated_by,
               v.content_hash, v.embargo_until::text AS embargo_until,
               v.expires_at::text AS expires_at, v.portal_visible,
+              v.published_by, v.published_at::text AS published_at,
               v.created_at::text AS created_at
        FROM crm_research_report_versions v
        JOIN crm_research_reports r ON r.id = v.report_id
@@ -1120,7 +1121,8 @@ export class MarketResearchRepository implements OnModuleDestroy {
        WHERE id = $1 AND report_id = $2
        RETURNING id, report_id, version, content_snapshot, generated_by, content_hash,
                  embargo_until::text AS embargo_until, expires_at::text AS expires_at,
-                 portal_visible, created_at::text AS created_at`,
+                 portal_visible, published_by, published_at::text AS published_at,
+                 created_at::text AS created_at`,
       [versionId, reportId, JSON.stringify(contentSnapshot), hash],
     );
     const row = result.rows[0];
@@ -1134,7 +1136,8 @@ export class MarketResearchRepository implements OnModuleDestroy {
     const result = await this.db.query(
       `SELECT id, report_id, version, content_snapshot, generated_by, content_hash,
               embargo_until::text AS embargo_until, expires_at::text AS expires_at,
-              portal_visible, created_at::text AS created_at
+              portal_visible, published_by, published_at::text AS published_at,
+              created_at::text AS created_at
        FROM crm_research_report_versions
        WHERE id = $1 AND report_id = $2`,
       [versionId, reportId],
@@ -1166,7 +1169,8 @@ export class MarketResearchRepository implements OnModuleDestroy {
        WHERE id = $${params.length - 1} AND report_id = $${params.length}
        RETURNING id, report_id, version, content_snapshot, generated_by, content_hash,
                  embargo_until::text AS embargo_until, expires_at::text AS expires_at,
-                 portal_visible, created_at::text AS created_at`,
+                 portal_visible, published_by, published_at::text AS published_at,
+                 created_at::text AS created_at`,
       params,
     );
     const row = result.rows[0];
@@ -1177,15 +1181,25 @@ export class MarketResearchRepository implements OnModuleDestroy {
     reportId: number,
     versionId: number,
     visible: boolean,
+    actor?: string,
   ): Promise<ResearchReportVersionRow | null> {
     const result = await this.db.query(
-      `UPDATE crm_research_report_versions
+      visible
+        ? `UPDATE crm_research_report_versions
+       SET portal_visible = $3, published_by = $4, published_at = now()
+       WHERE id = $1 AND report_id = $2
+       RETURNING id, report_id, version, content_snapshot, generated_by, content_hash,
+                 embargo_until::text AS embargo_until, expires_at::text AS expires_at,
+                 portal_visible, published_by, published_at::text AS published_at,
+                 created_at::text AS created_at`
+        : `UPDATE crm_research_report_versions
        SET portal_visible = $3
        WHERE id = $1 AND report_id = $2
        RETURNING id, report_id, version, content_snapshot, generated_by, content_hash,
                  embargo_until::text AS embargo_until, expires_at::text AS expires_at,
-                 portal_visible, created_at::text AS created_at`,
-      [versionId, reportId, visible],
+                 portal_visible, published_by, published_at::text AS published_at,
+                 created_at::text AS created_at`,
+      visible ? [versionId, reportId, visible, actor ?? null] : [versionId, reportId, visible],
     );
     const row = result.rows[0];
     return row ? this.mapReportVersion(row) : null;
@@ -1206,6 +1220,8 @@ export class MarketResearchRepository implements OnModuleDestroy {
       embargo_until: row.embargo_until != null ? String(row.embargo_until) : null,
       expires_at: row.expires_at != null ? String(row.expires_at) : null,
       portal_visible: Boolean(row.portal_visible),
+      published_by: row.published_by != null ? String(row.published_by) : null,
+      published_at: row.published_at != null ? String(row.published_at) : null,
       created_at: String(row.created_at),
     };
   }

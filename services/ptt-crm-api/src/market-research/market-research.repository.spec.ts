@@ -109,6 +109,52 @@ describe('MarketResearchRepository', () => {
     expect(sql).toMatch(/embargo_until/);
     expect(sql).toMatch(/expires_at/);
     expect(sql).toMatch(/portal_visible/);
+    expect(sql).toMatch(/published_by/);
+    expect(sql).toMatch(/published_at/);
     expect(sql).not.toMatch(/ADD COLUMN/);
+  });
+
+  it('updateReportVersionPortalVisible stamps published_by and published_at when visible', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const repo = repoWithMock();
+
+    await repo.updateReportVersionPortalVisible(1, 10, true, 'lead@ptt');
+
+    const sql = String(queryMock.mock.calls[0][0]);
+    const params = queryMock.mock.calls[0][1] as unknown[];
+    expect(sql).toMatch(/published_by/);
+    expect(sql).toMatch(/published_at\s*=\s*now\(\)/);
+    expect(params).toEqual(expect.arrayContaining([10, 1, true, 'lead@ptt']));
+  });
+
+  it('updateReportVersionPortalVisible does not clear audit columns when unpublishing', async () => {
+    queryMock.mockResolvedValue({
+      rows: [
+        {
+          id: 10,
+          report_id: 1,
+          version: 1,
+          content_snapshot: {},
+          generated_by: 'am@ptt',
+          content_hash: 'abc',
+          embargo_until: null,
+          expires_at: null,
+          portal_visible: false,
+          published_by: 'lead@ptt',
+          published_at: '2026-08-14T10:00:00.000Z',
+          created_at: '2026-08-14',
+        },
+      ],
+    });
+    const repo = repoWithMock();
+
+    const row = await repo.updateReportVersionPortalVisible(1, 10, false);
+
+    const sql = String(queryMock.mock.calls[0][0]);
+    expect(sql).toMatch(/portal_visible/);
+    expect(sql).not.toMatch(/published_by\s*=/);
+    expect(sql).not.toMatch(/published_at\s*=/);
+    expect(row?.published_by).toBe('lead@ptt');
+    expect(row?.published_at).toBeTruthy();
   });
 });

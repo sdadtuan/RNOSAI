@@ -2046,6 +2046,7 @@ describe('MarketResearchService', () => {
     );
 
     expect(out.portal_visible).toBe(false);
+    expect(out.published_by).toBe(null);
     expect(repo.updateReportVersionPortalVisible).not.toHaveBeenCalled();
   });
 
@@ -2105,6 +2106,56 @@ describe('MarketResearchService', () => {
       expect((err as ForbiddenException).getResponse()).toEqual({ error: 'cannot_self_approve' });
     }
     expect(repo.updateReportVersionPortalVisible).not.toHaveBeenCalled();
+  });
+
+  it('publish stamps published_by / published_at; unpublish keeps audit', async () => {
+    stubScopedProject();
+    repo.getReport.mockResolvedValue({ id: 1, project_id: 9, status: 'draft' });
+    repo.getReportVersion.mockResolvedValue(
+      versionRow({
+        content_snapshot: { insight_ids: [7] },
+        generated_by: 'am@ptt',
+      }),
+    );
+    repo.getInsight.mockResolvedValue(insightRow({ status: 'approved_client_facing' }));
+    repo.updateReportVersionPortalVisible.mockImplementation(
+      (...args: unknown[]) => {
+        const visible = args[2] as boolean;
+        const actor = args[3] as string | undefined;
+        return Promise.resolve(
+          versionRow({
+            portal_visible: visible,
+            published_by: visible ? actor ?? null : 'lead@ptt',
+            published_at: visible
+              ? actor
+                ? '2026-08-14T10:00:00.000Z'
+                : null
+              : '2026-08-14T10:00:00.000Z',
+          }),
+        );
+      },
+    );
+
+    const published = await service.publishPortal(
+      1,
+      10,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { visible: true },
+      'lead@ptt',
+    );
+    expect(published.published_by).toBeTruthy();
+    expect(published.published_at).toBeTruthy();
+
+    const unpublished = await service.publishPortal(
+      1,
+      10,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { visible: false },
+      'lead@ptt',
+    );
+    expect(unpublished.portal_visible).toBe(false);
+    expect(unpublished.published_by).toBe('lead@ptt');
+    expect(unpublished.published_at).toBeTruthy();
   });
 
   it('reportCopilot with 0 insights is 400', async () => {
@@ -2642,6 +2693,8 @@ function versionRow(overrides: Partial<ResearchReportVersionRow> = {}): Research
     embargo_until: null,
     expires_at: null,
     portal_visible: false,
+    published_by: null,
+    published_at: null,
     created_at: '2026-08-14',
     ...overrides,
   };

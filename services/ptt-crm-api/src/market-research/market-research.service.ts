@@ -1562,6 +1562,7 @@ export class MarketResearchService {
       content_snapshot: draft.content_snapshot,
       content_hash: draft.content_hash,
       portal_visible: false,
+      published_by: null,
     };
   }
 
@@ -1756,6 +1757,7 @@ export class MarketResearchService {
       reportId,
       versionId,
       input.visible,
+      actor,
     );
     if (!updated) throw new NotFoundException({ error: 'not_found' });
     if (input.visible && project.status === 'approved') {

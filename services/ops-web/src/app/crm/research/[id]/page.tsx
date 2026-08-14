@@ -1953,6 +1953,11 @@ function ReportTab({
                 <span className="muted">
                   {version.portal_visible ? 'Đã công bố portal' : 'Chưa công bố portal'}
                 </span>
+                {version.published_by || version.published_at ? (
+                  <span className="muted">
+                    Công bố bởi {version.published_by} lúc {version.published_at}
+                  </span>
+                ) : null}
               </div>
             </li>
             );

@@ -1,4 +1,8 @@
-import { validateCreateDecision, validateCreateProject } from './market-research.validation';
+import {
+  validateCreateDecision,
+  validateCreateProject,
+  validateCreateWave,
+} from './market-research.validation';
 
 const valid = {
   client_id: 'acme',
@@ -60,5 +64,19 @@ describe('validateCreateDecision', () => {
     expect(validateCreateDecision({ ...validDecision, decision_text: 'abc' })).toContain(
       'decision_text must be at least 10 characters',
     );
+  });
+});
+
+describe('validateCreateWave', () => {
+  it('rejects NaN metric value', () => {
+    expect(
+      validateCreateWave({ wave_no: 1, metric_json: [{ key: 'nps', value: Number.NaN }] }),
+    ).toContain('metric value must be number or null');
+  });
+
+  it('rejects Infinity metric value', () => {
+    expect(
+      validateCreateWave({ wave_no: 1, metric_json: [{ key: 'nps', value: Infinity }] }),
+    ).toContain('metric value must be number or null');
   });
 });

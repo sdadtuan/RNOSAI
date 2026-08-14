@@ -981,6 +981,8 @@ export type ResearchReportVersion = {
   embargo_until: string | null;
   expires_at: string | null;
   portal_visible: boolean;
+  published_by?: string | null;
+  published_at?: string | null;
   created_at: string;
 };
 

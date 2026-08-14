@@ -496,6 +496,8 @@ export type ResearchReportVersionRow = {
   embargo_until: string | null;
   expires_at: string | null;
   portal_visible: boolean;
+  published_by: string | null;
+  published_at: string | null;
   created_at: string;
 };
 
@@ -588,6 +590,7 @@ export type CreateReportResult = {
   content_snapshot: Record<string, unknown>;
   content_hash: string;
   portal_visible: boolean;
+  published_by: string | null;
 };
 
 export type InsightCopilotResult = {

@@ -85,6 +85,10 @@ export function validateCreateWave(input: CreateWaveInput): string[] {
       messages.push('metric value must be number or null');
       break;
     }
+    if (row.value != null && !Number.isFinite(row.value)) {
+      messages.push('metric value must be number or null');
+      break;
+    }
   }
   return messages;
 }
