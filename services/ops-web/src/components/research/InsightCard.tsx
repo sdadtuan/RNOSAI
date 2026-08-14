@@ -2,6 +2,7 @@
 
 import { EvidenceIdChip } from '@/components/research/EvidenceIdChip';
 import {
+  canSubmitInsightReview,
   INSIGHT_GATE_COPY,
   INSIGHT_STATUS_LABELS,
   type ResearchEvidence,
@@ -26,7 +27,8 @@ export function InsightCard({
   const verifiedCount = insight.evidence_ids.filter((id) =>
     evidence.some((ev) => ev.id === id && ev.qc_status === 'verified'),
   ).length;
-  const submitDisabled = saving || verifiedCount < 1;
+  const canSubmit = canSubmitInsightReview(insight.status);
+  const submitDisabled = saving || !canSubmit || verifiedCount < 1;
 
   return (
     <article className="card" style={{ padding: '0.85rem' }}>
@@ -49,7 +51,7 @@ export function InsightCard({
         <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => onOpen(insight)}>
           Mở
         </button>
-        {canEdit ? (
+        {canEdit && canSubmit ? (
           <button
             type="button"
             className="btn btn-sm"

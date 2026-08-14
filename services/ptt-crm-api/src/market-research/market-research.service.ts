@@ -331,7 +331,8 @@ export class MarketResearchService {
     scope: ClientScopeContext,
     input: PatchInsightInput,
   ): Promise<ResearchInsightRow> {
-    await this.loadScopedInsight(insightId, scope);
+    const existing = await this.loadScopedInsight(insightId, scope);
+    this.assertInsightContentMutable(existing.status);
     if (input.statement != null && !input.statement.trim()) {
       throw new BadRequestException({
         error: 'validation_error',
@@ -349,6 +350,7 @@ export class MarketResearchService {
     evidenceIds: number[],
   ): Promise<ResearchInsightRow> {
     const existing = await this.loadScopedInsight(insightId, scope);
+    this.assertInsightContentMutable(existing.status);
     const ids = (Array.isArray(evidenceIds) ? evidenceIds : [])
       .map(Number)
       .filter((id) => Number.isFinite(id) && id > 0);
@@ -382,6 +384,9 @@ export class MarketResearchService {
 
   async submitReview(insightId: number, scope: ClientScopeContext): Promise<ResearchInsightRow> {
     const existing = await this.loadScopedInsight(insightId, scope);
+    if (existing.status !== 'draft' && existing.status !== 'evidence_attached' && existing.status !== 'rejected') {
+      throw new ConflictException({ error: 'invalid_transition' });
+    }
     this.assertInsightGate(await this.repo.countVerifiedEvidenceForInsight(insightId), existing.confidence_rationale);
     const updated = await this.repo.updateInsightStatus(insightId, 'analyst_verified');
     if (!updated) throw new NotFoundException({ error: 'not_found' });
@@ -439,6 +444,12 @@ export class MarketResearchService {
     if (!existing) throw new NotFoundException({ error: 'not_found' });
     await this.loadScopedProject(existing.project_id, scope);
     return existing;
+  }
+
+  private assertInsightContentMutable(status: InsightStatus): void {
+    if (status === 'approved_internal' || status === 'approved_client_facing' || status === 'published') {
+      throw new ConflictException({ error: 'invalid_transition' });
+    }
   }
 
   private assertInsightGate(verifiedEvidenceCount: number, confidenceRationale: string | null): void {

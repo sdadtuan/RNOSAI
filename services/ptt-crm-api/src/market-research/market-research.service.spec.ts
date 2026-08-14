@@ -49,6 +49,8 @@ describe('MarketResearchService', () => {
     countVerifiedEvidenceForInsight: jest.fn(),
     updateInsightStatus: jest.fn(),
     insertReview: jest.fn(),
+    replaceInsightEvidence: jest.fn(),
+    patchInsight: jest.fn(),
   };
   const clientScope = {
     allowedClientIdsForList: jest.fn(),
@@ -286,6 +288,41 @@ describe('MarketResearchService', () => {
         messages: ['missing_verified_evidence'],
       });
     }
+    expect(repo.updateInsightStatus).not.toHaveBeenCalled();
+  });
+
+  it('submitReview from approved_internal is 409 invalid_transition', async () => {
+    stubScopedProject();
+    repo.getInsight.mockResolvedValue(
+      insightRow({
+        status: 'approved_internal',
+        confidence_rationale: 'Method OK',
+      }),
+    );
+    repo.countVerifiedEvidenceForInsight.mockResolvedValue(1);
+
+    try {
+      await service.submitReview(7, { restricted: true, allowedClientIds: ['acme'] });
+      throw new Error('expected conflict');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConflictException);
+      expect((err as ConflictException).getResponse()).toEqual({ error: 'invalid_transition' });
+    }
+    expect(repo.updateInsightStatus).not.toHaveBeenCalled();
+  });
+
+  it('attachEvidence [] on approved_internal is 409 invalid_transition', async () => {
+    stubScopedProject();
+    repo.getInsight.mockResolvedValue(insightRow({ status: 'approved_internal' }));
+
+    try {
+      await service.attachEvidence(7, { restricted: true, allowedClientIds: ['acme'] }, []);
+      throw new Error('expected conflict');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConflictException);
+      expect((err as ConflictException).getResponse()).toEqual({ error: 'invalid_transition' });
+    }
+    expect(repo.replaceInsightEvidence).not.toHaveBeenCalled();
     expect(repo.updateInsightStatus).not.toHaveBeenCalled();
   });
 

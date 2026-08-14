@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { EvidenceIdChip } from '@/components/research/EvidenceIdChip';
 import {
+  canSubmitInsightReview,
   INSIGHT_GATE_COPY,
   INSIGHT_STATUS_LABELS,
   type CreateInsightBody,
@@ -81,7 +82,8 @@ export function InsightDrawer({
 
   const verified = evidence.filter((ev) => ev.qc_status === 'verified');
   const verifiedSelected = selected.filter((id) => verified.some((ev) => ev.id === id));
-  const submitDisabled = saving || !form.statement.trim() || verifiedSelected.length < 1;
+  const canSubmit = canSubmitInsightReview(insight?.status);
+  const submitDisabled = saving || !canSubmit || !form.statement.trim() || verifiedSelected.length < 1;
   const showInternalApprove =
     canApprove && !isCreator && (insight?.status === 'analyst_verified' || insight?.status === 'peer_reviewed');
   const showClientApprove = canApprove && !isCreator && insight?.status === 'approved_internal';
@@ -266,7 +268,7 @@ export function InsightDrawer({
               Lưu
             </button>
           ) : null}
-          {canEdit ? (
+          {canEdit && canSubmit ? (
             <button
               type="button"
               className="btn btn-sm"

@@ -39,6 +39,10 @@ export const INSIGHT_STATUS_LABELS: Record<InsightStatus, string> = {
   rejected: 'Từ chối',
 };
 
+export function canSubmitInsightReview(status: InsightStatus | null | undefined): boolean {
+  return status == null || status === 'draft' || status === 'evidence_attached' || status === 'rejected';
+}
+
 export const INSIGHT_GATE_COPY: Record<string, string> = {
   missing_verified_evidence: 'Cần ≥1 evidence đã verify',
   missing_confidence_rationale: 'Thiếu giải thích độ tin cậy',
