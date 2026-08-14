@@ -71,6 +71,11 @@ describe('MarketResearchService', () => {
     listReports: jest.fn(),
     getReport: jest.fn(),
     getReportVersion: jest.fn(),
+    listCompetitors: jest.fn(),
+    getCompetitor: jest.fn(),
+    createCompetitor: jest.fn(),
+    patchCompetitor: jest.fn(),
+    createCompetitorSnapshot: jest.fn(),
   };
   const llm = {
     isConfigured: jest.fn(),
@@ -169,6 +174,57 @@ describe('MarketResearchService', () => {
       });
     }
     expect(repo.patchProject).not.toHaveBeenCalled();
+  });
+
+  it('createSnapshot without source_id is 400 validation_error', async () => {
+    stubScopedProject();
+    repo.getCompetitor.mockResolvedValue({
+      id: 4,
+      project_id: 9,
+      name: 'Vinamilk',
+      aliases: [],
+      created_by: 'am@ptt',
+      created_at: '2026-08-14',
+      updated_at: '2026-08-14',
+      snapshots: [],
+    });
+
+    try {
+      await service.createSnapshot(
+        4,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { observed_at: '2026-08-01', kind: 'fact', fact: { price: '12000' } },
+        'am@ptt',
+      );
+      throw new Error('expected validation_error');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual({
+        error: 'validation_error',
+        messages: expect.arrayContaining(['source_id is required']),
+      });
+    }
+    expect(repo.createCompetitorSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('listCompetitors outside scope is 403 without competitor name in the body', async () => {
+    repo.getProjectClientId.mockResolvedValue('other-client');
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.listCompetitors.mockResolvedValue([
+      { id: 4, project_id: 9, name: 'SecretRivalName', aliases: [], snapshots: [] },
+    ]);
+
+    try {
+      await service.listCompetitors(9, { restricted: true, allowedClientIds: ['acme'] });
+      throw new Error('expected forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const body = (err as ForbiddenException).getResponse();
+      expect(body).toEqual({ error: 'forbidden' });
+      expect(JSON.stringify(body)).not.toContain('SecretRivalName');
+      expect(JSON.stringify(body)).not.toContain('name');
+    }
+    expect(repo.listCompetitors).not.toHaveBeenCalled();
   });
 
   it('createEvidence with value_num but missing unit/base/period/geo is validation_error (BR-RES-02)', async () => {

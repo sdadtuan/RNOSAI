@@ -24,6 +24,60 @@ export type ConfidenceJson = {
   override_down?: boolean;
 };
 
+export const COMPETITOR_FACT_KEYS = [
+  'price',
+  'share_claim',
+  'channel',
+  'message',
+  'promo',
+  'geo',
+  'period',
+] as const;
+
+export type CompetitorFact = Partial<Record<(typeof COMPETITOR_FACT_KEYS)[number], string | number | null>>;
+
+export type CreateCompetitorInput = {
+  name: string;
+  aliases?: string[];
+};
+
+export type PatchCompetitorInput = {
+  name?: string;
+  aliases?: string[];
+};
+
+export type CreateCompetitorSnapshotInput = {
+  source_id?: number;
+  observed_at?: string;
+  kind?: string;
+  fact?: unknown;
+  limitation_note?: string | null;
+};
+
+export type ResearchCompetitorSnapshotRow = {
+  id: number;
+  competitor_id: number;
+  project_id: number;
+  source_id: number;
+  observed_at: string;
+  kind: 'fact' | 'hypothesis';
+  fact: CompetitorFact;
+  limitation_note: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type ResearchCompetitorRow = {
+  id: number;
+  project_id: number;
+  name: string;
+  aliases: string[];
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  snapshots: ResearchCompetitorSnapshotRow[];
+};
+
 export type CreateProjectQuestionInput = {
   question_vi: string;
   question_en?: string | null;

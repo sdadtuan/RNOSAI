@@ -12,6 +12,7 @@ import { InsightGateDialog } from '@/components/research/InsightGateDialog';
 import { DeepResearchModal } from '@/components/research/DeepResearchModal';
 import { ResearchJobChip } from '@/components/research/ResearchJobChip';
 import { ResearchStatusChip } from '@/components/research/ResearchStatusChip';
+import { CompetitorPane } from '@/components/research/CompetitorPane';
 import { SourceKeepTable } from '@/components/research/SourceKeepTable';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
@@ -71,6 +72,7 @@ import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
 const TABS = [
   { id: 'brief', label: 'Brief' },
   { id: 'sources', label: 'Nguồn' },
+  { id: 'competitors', label: 'Đối thủ' },
   { id: 'evidence', label: 'Evidence' },
   { id: 'insights', label: 'Insight' },
   { id: 'report', label: 'Báo cáo' },
@@ -747,6 +749,12 @@ function CrmResearchWorkspaceContent() {
                   onCreateEvidence={openCreateEvidence}
                 />
               </section>
+            ) : tab === 'competitors' ? (
+              <CompetitorPane
+                projectId={project.id}
+                sources={project.sources ?? []}
+                canEdit={canEdit}
+              />
             ) : tab === 'evidence' ? (
               <EvidenceTab
                 project={project}

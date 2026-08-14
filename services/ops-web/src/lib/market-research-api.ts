@@ -273,6 +273,66 @@ export type CreateInsightBody = {
   valid_to?: string | null;
 };
 
+export const COMPETITOR_FACT_KEYS = [
+  'price',
+  'share_claim',
+  'channel',
+  'message',
+  'promo',
+  'geo',
+  'period',
+] as const;
+
+export type CompetitorFactKey = (typeof COMPETITOR_FACT_KEYS)[number];
+export type CompetitorFact = Partial<Record<CompetitorFactKey, string | number | null>>;
+
+export const COMPETITOR_FACT_LABELS: Record<CompetitorFactKey, string> = {
+  price: 'Giá',
+  share_claim: 'Share',
+  channel: 'Kênh',
+  message: 'Message',
+  promo: 'Promo',
+  geo: 'Địa bàn',
+  period: 'Kỳ',
+};
+
+export type ResearchCompetitorSnapshot = {
+  id: number;
+  competitor_id: number;
+  project_id: number;
+  source_id: number;
+  observed_at: string;
+  kind: 'fact' | 'hypothesis';
+  fact: CompetitorFact;
+  limitation_note: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type ResearchCompetitor = {
+  id: number;
+  project_id: number;
+  name: string;
+  aliases: string[];
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  snapshots: ResearchCompetitorSnapshot[];
+};
+
+export type CreateCompetitorBody = {
+  name: string;
+  aliases?: string[];
+};
+
+export type CreateCompetitorSnapshotBody = {
+  source_id: number;
+  observed_at: string;
+  kind: 'fact' | 'hypothesis';
+  fact?: CompetitorFact;
+  limitation_note?: string | null;
+};
+
 export type ResearchSource = {
   id: number;
   project_id: number;
@@ -682,6 +742,46 @@ export async function exportResearchReportVersion(
   const match = /filename="([^"]+)"/.exec(cd);
   const filename = match?.[1] ?? `research-report-${reportId}.docx`;
   return { blob: await res.blob(), filename };
+}
+
+export async function fetchResearchCompetitors(
+  token: string,
+  projectId: number,
+): Promise<{ competitors: ResearchCompetitor[] }> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/competitors`);
+}
+
+export async function createResearchCompetitor(
+  token: string,
+  projectId: number,
+  body: CreateCompetitorBody,
+): Promise<ResearchCompetitor> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/competitors`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchResearchCompetitor(
+  token: string,
+  competitorId: number,
+  body: { name?: string; aliases?: string[] },
+): Promise<ResearchCompetitor> {
+  return researchFetch(token, `/api/v1/research/competitors/${competitorId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function createResearchCompetitorSnapshot(
+  token: string,
+  competitorId: number,
+  body: CreateCompetitorSnapshotBody,
+): Promise<ResearchCompetitorSnapshot> {
+  return researchFetch(token, `/api/v1/research/competitors/${competitorId}/snapshots`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }
 
 export async function copilotResearchReport(

@@ -29,11 +29,14 @@ import { MarketResearchRepository } from './market-research.repository';
 import { evidenceChecksum } from './evidence-checksum.util';
 import { assertEvidenceMutable, piiHint } from './evidence-immutable.util';
 import { assertNoFakeConfidence, buildConfidenceJson } from './confidence-rubric.util';
+import { assertSimilarwebTier, sanitizeCompetitorFact } from './competitor-snapshot.util';
 import { assertNotSelfApprove, canApproveTarget, evaluateInsightGate, extractRubric } from './insight-gate.util';
 import type {
   ApproveInsightInput,
   ConfidenceJson,
   ConfidenceRubric,
+  CreateCompetitorInput,
+  CreateCompetitorSnapshotInput,
   CreateEvidenceInput,
   CreateInsightInput,
   CreateProjectInput,
@@ -41,6 +44,7 @@ import type {
   CreateReportInput,
   CreateReportResult,
   CreateSourceInput,
+  PatchCompetitorInput,
   InsightCopilotInput,
   InsightCopilotResult,
   ListProjectsFilters,
@@ -52,6 +56,8 @@ import type {
   ReportCopilotInput,
   ReportCopilotResult,
   ResearchAiRunRow,
+  ResearchCompetitorRow,
+  ResearchCompetitorSnapshotRow,
   ResearchEvidenceRow,
   ResearchInsightRow,
   ResearchProjectDetail,
@@ -253,6 +259,122 @@ export class MarketResearchService {
     const updated = await this.repo.patchSourceKeep(sourceId, input.keep);
     if (!updated) throw new NotFoundException({ error: 'not_found' });
     return updated;
+  }
+
+  async listCompetitors(
+    projectId: number,
+    scope: ClientScopeContext,
+  ): Promise<{ competitors: ResearchCompetitorRow[] }> {
+    await this.loadScopedProject(projectId, scope);
+    const competitors = await this.repo.listCompetitors(projectId);
+    return { competitors };
+  }
+
+  async createCompetitor(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: CreateCompetitorInput,
+    actor: string,
+  ): Promise<ResearchCompetitorRow> {
+    await this.loadScopedProject(projectId, scope);
+    if (!String(input.name ?? '').trim()) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['name is required'],
+      });
+    }
+    return this.repo.createCompetitor(projectId, {
+      name: String(input.name).trim().slice(0, 200),
+      aliases: this.sanitizeAliases(input.aliases),
+    }, actor);
+  }
+
+  async patchCompetitor(
+    competitorId: number,
+    scope: ClientScopeContext,
+    input: PatchCompetitorInput,
+  ): Promise<ResearchCompetitorRow> {
+    const existing = await this.repo.getCompetitor(competitorId);
+    if (!existing) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(existing.project_id, scope);
+    if (input.name != null && !String(input.name).trim()) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['name is required'],
+      });
+    }
+    const updated = await this.repo.patchCompetitor(competitorId, {
+      name: input.name != null ? String(input.name).trim().slice(0, 200) : undefined,
+      aliases: input.aliases != null ? this.sanitizeAliases(input.aliases) : undefined,
+    });
+    if (!updated) throw new NotFoundException({ error: 'not_found' });
+    return updated;
+  }
+
+  async createSnapshot(
+    competitorId: number,
+    scope: ClientScopeContext,
+    input: CreateCompetitorSnapshotInput,
+    actor: string,
+  ): Promise<ResearchCompetitorSnapshotRow> {
+    const existing = await this.repo.getCompetitor(competitorId);
+    if (!existing) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(existing.project_id, scope);
+    const sourceId = Number(input.source_id);
+    if (!Number.isFinite(sourceId) || sourceId <= 0) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['source_id is required'],
+      });
+    }
+    if (!String(input.observed_at ?? '').trim()) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['observed_at is required'],
+      });
+    }
+    const kind = String(input.kind ?? '').trim();
+    if (kind !== 'fact' && kind !== 'hypothesis') {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['kind must be fact or hypothesis'],
+      });
+    }
+    await this.assertSourceInProject(existing.project_id, sourceId);
+    const source = await this.repo.getSource(sourceId);
+    if (!source) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['source_id is invalid'],
+      });
+    }
+    const limitation_note = input.limitation_note ?? null;
+    try {
+      assertSimilarwebTier({
+        publisher: source.publisher,
+        url: source.url,
+        reliability_tier: source.reliability_tier,
+        limitation_note,
+      });
+    } catch (err) {
+      const code = (err as Error & { code?: string }).code;
+      if (code === 'reliability_capped' || code === 'limitation_required') {
+        throw new BadRequestException({ error: code, messages: [code] });
+      }
+      throw err;
+    }
+    return this.repo.createCompetitorSnapshot(
+      competitorId,
+      existing.project_id,
+      {
+        source_id: sourceId,
+        observed_at: String(input.observed_at).trim(),
+        kind,
+        fact: sanitizeCompetitorFact(input.fact),
+        limitation_note,
+      },
+      actor,
+    );
   }
 
   async createEvidence(
@@ -970,6 +1092,14 @@ export class MarketResearchService {
       return { pii_class: 'internal', pii_warning: true };
     }
     return { pii_class: provided ? String(input.pii_class).trim() : 'none', pii_warning: false };
+  }
+
+  private sanitizeAliases(raw: unknown): string[] {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map((a) => String(a).trim())
+      .filter(Boolean)
+      .slice(0, 20);
   }
 
   private async assertSourceInProject(projectId: number, sourceId?: number | null): Promise<void> {

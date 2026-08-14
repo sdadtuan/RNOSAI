@@ -8,14 +8,19 @@ import type {
   CreateInsightInput,
   CreateProjectInput,
   CreateQuestionInput,
+  CreateCompetitorInput,
+  CreateCompetitorSnapshotInput,
   CreateSourceInput,
   InsertReviewInput,
   ListProjectsFilters,
+  PatchCompetitorInput,
   PatchEvidenceInput,
   PatchInsightInput,
   PatchProjectInput,
   PatchQuestionInput,
   ResearchAiRunRow,
+  ResearchCompetitorRow,
+  ResearchCompetitorSnapshotRow,
   ResearchEvidenceRow,
   ResearchInsightRow,
   ResearchProjectRow,
@@ -1075,6 +1080,164 @@ export class MarketResearchRepository implements OnModuleDestroy {
       [projectId],
     );
     return Number(result.rows[0]?.n ?? 0);
+  }
+
+  private mapCompetitorSnapshot(row: Record<string, unknown>): ResearchCompetitorSnapshotRow {
+    return {
+      id: Number(row.id),
+      competitor_id: Number(row.competitor_id),
+      project_id: Number(row.project_id),
+      source_id: Number(row.source_id),
+      observed_at: String(row.observed_at),
+      kind: row.kind === 'hypothesis' ? 'hypothesis' : 'fact',
+      fact: parseJsonCol(row.fact, {}),
+      limitation_note: row.limitation_note != null ? String(row.limitation_note) : null,
+      created_by: row.created_by != null ? String(row.created_by) : null,
+      created_at: String(row.created_at),
+    };
+  }
+
+  private mapCompetitor(
+    row: Record<string, unknown>,
+    snapshots: ResearchCompetitorSnapshotRow[],
+  ): ResearchCompetitorRow {
+    return {
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      name: String(row.name),
+      aliases: parseJsonCol<string[]>(row.aliases, []),
+      created_by: row.created_by != null ? String(row.created_by) : null,
+      created_at: String(row.created_at),
+      updated_at: String(row.updated_at),
+      snapshots,
+    };
+  }
+
+  private readonly competitorSelect = `
+    SELECT id, project_id, name, aliases,
+           created_by, created_at::text AS created_at, updated_at::text AS updated_at
+    FROM crm_research_competitors
+  `;
+
+  private readonly snapshotSelect = `
+    SELECT id, competitor_id, project_id, source_id, observed_at::text AS observed_at,
+           kind, fact, limitation_note, created_by, created_at::text AS created_at
+    FROM crm_research_competitor_snapshots
+  `;
+
+  async listSnapshots(projectId: number): Promise<ResearchCompetitorSnapshotRow[]> {
+    const result = await this.db.query(
+      `${this.snapshotSelect} WHERE project_id = $1 ORDER BY id ASC`,
+      [projectId],
+    );
+    return result.rows.map((row) => this.mapCompetitorSnapshot(row));
+  }
+
+  async listCompetitors(projectId: number): Promise<ResearchCompetitorRow[]> {
+    const [comps, snaps] = await Promise.all([
+      this.db.query(`${this.competitorSelect} WHERE project_id = $1 ORDER BY id ASC`, [projectId]),
+      this.listSnapshots(projectId),
+    ]);
+    const byComp = new Map<number, ResearchCompetitorSnapshotRow[]>();
+    for (const snap of snaps) {
+      const list = byComp.get(snap.competitor_id) ?? [];
+      list.push(snap);
+      byComp.set(snap.competitor_id, list);
+    }
+    return comps.rows.map((row) => this.mapCompetitor(row, byComp.get(Number(row.id)) ?? []));
+  }
+
+  async getCompetitor(id: number): Promise<ResearchCompetitorRow | null> {
+    const result = await this.db.query(`${this.competitorSelect} WHERE id = $1`, [id]);
+    const row = result.rows[0];
+    if (!row) return null;
+    const snaps = await this.db.query(
+      `${this.snapshotSelect} WHERE competitor_id = $1 ORDER BY id ASC`,
+      [id],
+    );
+    return this.mapCompetitor(
+      row,
+      snaps.rows.map((s) => this.mapCompetitorSnapshot(s)),
+    );
+  }
+
+  async createCompetitor(
+    projectId: number,
+    input: CreateCompetitorInput,
+    actor: string,
+  ): Promise<ResearchCompetitorRow> {
+    const result = await this.db.query(
+      `INSERT INTO crm_research_competitors (project_id, name, aliases, created_by)
+       VALUES ($1, $2, $3::jsonb, $4)
+       RETURNING id, project_id, name, aliases,
+                 created_by, created_at::text AS created_at, updated_at::text AS updated_at`,
+      [projectId, input.name.trim(), JSON.stringify(input.aliases ?? []), actor],
+    );
+    await this.db.query(`UPDATE crm_research_projects SET updated_at = now() WHERE id = $1`, [
+      projectId,
+    ]);
+    return this.mapCompetitor(result.rows[0], []);
+  }
+
+  async patchCompetitor(id: number, input: PatchCompetitorInput): Promise<ResearchCompetitorRow | null> {
+    const sets: string[] = ['updated_at = now()'];
+    const vals: unknown[] = [];
+    if (input.name != null) {
+      vals.push(input.name.trim());
+      sets.push(`name = $${vals.length}`);
+    }
+    if (input.aliases != null) {
+      vals.push(JSON.stringify(input.aliases));
+      sets.push(`aliases = $${vals.length}::jsonb`);
+    }
+    vals.push(id);
+    const result = await this.db.query(
+      `UPDATE crm_research_competitors SET ${sets.join(', ')} WHERE id = $${vals.length}
+       RETURNING id, project_id, name, aliases,
+                 created_by, created_at::text AS created_at, updated_at::text AS updated_at`,
+      vals,
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    const snaps = await this.db.query(
+      `${this.snapshotSelect} WHERE competitor_id = $1 ORDER BY id ASC`,
+      [id],
+    );
+    return this.mapCompetitor(
+      row,
+      snaps.rows.map((s) => this.mapCompetitorSnapshot(s)),
+    );
+  }
+
+  async createCompetitorSnapshot(
+    competitorId: number,
+    projectId: number,
+    input: CreateCompetitorSnapshotInput & {
+      source_id: number;
+      observed_at: string;
+      kind: 'fact' | 'hypothesis';
+      fact: unknown;
+    },
+    actor: string,
+  ): Promise<ResearchCompetitorSnapshotRow> {
+    const result = await this.db.query(
+      `INSERT INTO crm_research_competitor_snapshots (
+         competitor_id, project_id, source_id, observed_at, kind, fact, limitation_note, created_by
+       ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
+       RETURNING id, competitor_id, project_id, source_id, observed_at::text AS observed_at,
+                 kind, fact, limitation_note, created_by, created_at::text AS created_at`,
+      [
+        competitorId,
+        projectId,
+        input.source_id,
+        input.observed_at,
+        input.kind,
+        JSON.stringify(input.fact ?? {}),
+        input.limitation_note?.trim() || null,
+        actor,
+      ],
+    );
+    return this.mapCompetitorSnapshot(result.rows[0]);
   }
 
   async insertReview(input: InsertReviewInput): Promise<{ id: number }> {

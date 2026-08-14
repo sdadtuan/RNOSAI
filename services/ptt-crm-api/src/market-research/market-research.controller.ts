@@ -31,6 +31,8 @@ import { MarketResearchService } from './market-research.service';
 import type {
   ApproveInsightInput,
   AttachInsightEvidenceInput,
+  CreateCompetitorInput,
+  CreateCompetitorSnapshotInput,
   CreateEvidenceInput,
   CreateInsightInput,
   CreateProjectInput,
@@ -38,6 +40,7 @@ import type {
   CreateReportInput,
   CreateSourceInput,
   InsightCopilotInput,
+  PatchCompetitorInput,
   PatchEvidenceInput,
   PatchInsightInput,
   PatchProjectInput,
@@ -187,6 +190,53 @@ export class MarketResearchController {
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.createSource(id, scope, body ?? ({} as CreateSourceInput));
+  }
+
+  @Get('projects/:id/competitors')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async listCompetitors(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.listCompetitors(id, scope);
+  }
+
+  @Post('projects/:id/competitors')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async createCompetitor(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CreateCompetitorInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.createCompetitor(id, scope, body ?? ({} as CreateCompetitorInput), actorEmail(req));
+  }
+
+  @Patch('competitors/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async patchCompetitor(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PatchCompetitorInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.patchCompetitor(id, scope, body ?? {});
+  }
+
+  @Post('competitors/:id/snapshots')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async createSnapshot(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CreateCompetitorSnapshotInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.createSnapshot(
+      id,
+      scope,
+      body ?? ({} as CreateCompetitorSnapshotInput),
+      actorEmail(req),
+    );
   }
 
   @Patch('sources/:id')
