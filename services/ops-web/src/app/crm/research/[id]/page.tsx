@@ -6,6 +6,9 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { StaffPageShell } from '@/components/layout';
 import { EvidenceFormDrawer } from '@/components/research/EvidenceFormDrawer';
 import { EvidenceIdChip } from '@/components/research/EvidenceIdChip';
+import { InsightCard } from '@/components/research/InsightCard';
+import { InsightDrawer } from '@/components/research/InsightDrawer';
+import { InsightGateDialog } from '@/components/research/InsightGateDialog';
 import { ResearchStatusChip } from '@/components/research/ResearchStatusChip';
 import { SourceKeepTable } from '@/components/research/SourceKeepTable';
 import { staffMe, staffRefresh } from '@/lib/api';
@@ -21,22 +24,31 @@ import {
 } from '@/lib/auth';
 import {
   addResearchQuestion,
+  approveResearchInsight,
+  attachResearchInsightEvidence,
   createResearchEvidence,
+  createResearchInsight,
   createResearchSource,
   deleteResearchQuestion,
   fetchResearchProject,
   patchResearchEvidence,
+  patchResearchInsight,
   patchResearchProject,
   patchResearchQuestion,
   patchResearchSourceKeep,
   PRODUCT_TYPE_CARDS,
+  ResearchApiError,
   STATUS_LABELS,
+  submitResearchInsightReview,
   supersedeResearchEvidence,
   TRANSITION_REASON_VI,
   verifyResearchEvidence,
   type CreateEvidenceBody,
+  type CreateInsightBody,
+  type InsightStatus,
   type ProjectStatus,
   type ResearchEvidence,
+  type ResearchInsight,
   type ResearchProject,
   type ResearchQuestion,
   type ResearchSource,
@@ -77,6 +89,10 @@ function CrmResearchWorkspaceContent() {
   const [drawerSource, setDrawerSource] = useState<ResearchSource | null>(null);
   const [drawerEvidence, setDrawerEvidence] = useState<ResearchEvidence | null>(null);
   const [piiWarning, setPiiWarning] = useState(false);
+  const [insightOpen, setInsightOpen] = useState(false);
+  const [activeInsight, setActiveInsight] = useState<ResearchInsight | null>(null);
+  const [gateOpen, setGateOpen] = useState(false);
+  const [gateMessages, setGateMessages] = useState<string[]>([]);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -292,6 +308,90 @@ function CrmResearchWorkspaceContent() {
     }
   }
 
+  function openGate(err: unknown): boolean {
+    if (!(err instanceof ResearchApiError)) return false;
+    if (err.code === 'insight_gate') {
+      setGateMessages(err.messages?.length ? err.messages : ['insight_gate']);
+      setGateOpen(true);
+      return true;
+    }
+    if (err.code === 'cannot_self_approve') {
+      setGateMessages(['cannot_self_approve']);
+      setGateOpen(true);
+      return true;
+    }
+    return false;
+  }
+
+  function isInsightCreator(insight: ResearchInsight | null): boolean {
+    const email = user?.email?.trim().toLowerCase();
+    if (!email) return false;
+    if (!insight?.created_by) return true;
+    return insight.created_by.trim().toLowerCase() === email;
+  }
+
+  async function persistInsight(body: CreateInsightBody, evidenceIds: number[]): Promise<ResearchInsight | null> {
+    const access = getAccessToken();
+    if (!access || !project) return null;
+    const saved = activeInsight
+      ? await patchResearchInsight(access, activeInsight.id, body)
+      : await createResearchInsight(access, project.id, body);
+    const attached = await attachResearchInsightEvidence(access, saved.id, evidenceIds);
+    setActiveInsight(attached);
+    await load(access);
+    return attached;
+  }
+
+  async function onSaveInsight(body: CreateInsightBody, evidenceIds: number[]) {
+    setSaving(true);
+    setError('');
+    try {
+      await persistInsight(body, evidenceIds);
+    } catch (err) {
+      if (!openGate(err)) setError(err instanceof Error ? err.message : 'Lưu insight thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onSubmitInsight(insight: ResearchInsight, body?: CreateInsightBody, evidenceIds?: number[]) {
+    const access = getAccessToken();
+    if (!access || !project) return;
+    setSaving(true);
+    setError('');
+    try {
+      let target = insight;
+      if (body) {
+        const saved = await persistInsight(body, evidenceIds ?? insight.evidence_ids);
+        if (!saved) return;
+        target = saved;
+      }
+      await submitResearchInsightReview(access, target.id);
+      await load(access);
+      setInsightOpen(false);
+    } catch (err) {
+      if (!openGate(err)) setError(err instanceof Error ? err.message : 'Gửi duyệt thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onApproveInsight(target: Extract<InsightStatus, 'approved_internal' | 'approved_client_facing'>) {
+    const access = getAccessToken();
+    if (!access || !activeInsight) return;
+    setSaving(true);
+    setError('');
+    try {
+      await approveResearchInsight(access, activeInsight.id, { target_status: target });
+      await load(access);
+      setInsightOpen(false);
+    } catch (err) {
+      if (!openGate(err)) setError(err instanceof Error ? err.message : 'Duyệt insight thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function onVerifyEvidence(ev: ResearchEvidence) {
     const access = getAccessToken();
     if (!access || !project) return;
@@ -332,6 +432,7 @@ function CrmResearchWorkspaceContent() {
 
   const typeLabel = PRODUCT_TYPE_CARDS.find((c) => c.type === project?.product_type)?.label;
   const canEdit = hasCap(user, 'crm_research', 'edit');
+  const canApprove = hasCap(user, 'crm_research', 'approve');
 
   return (
     <StaffPageShell
@@ -430,8 +531,23 @@ function CrmResearchWorkspaceContent() {
                 onOpen={openEditEvidence}
                 onSupersede={openSupersede}
               />
+            ) : tab === 'insights' ? (
+              <InsightsTab
+                project={project}
+                canEdit={canEdit}
+                saving={saving}
+                onCreate={() => {
+                  setActiveInsight(null);
+                  setInsightOpen(true);
+                }}
+                onOpen={(insight) => {
+                  setActiveInsight(insight);
+                  setInsightOpen(true);
+                }}
+                onSubmitReview={(insight) => void onSubmitInsight(insight)}
+              />
             ) : (
-              <p className="muted">P0: dùng tab Brief / Nguồn / Evidence. Tab {TABS.find((t) => t.id === tab)?.label} sẽ có ở milestone sau.</p>
+              <p className="muted">P0: dùng tab Brief / Nguồn / Evidence / Insight. Tab {TABS.find((t) => t.id === tab)?.label} sẽ có ở milestone sau.</p>
             )}
             <EvidenceFormDrawer
               open={drawerOpen}
@@ -447,6 +563,22 @@ function CrmResearchWorkspaceContent() {
               onSave={onSaveEvidence}
               onVerify={onVerifyEvidence}
             />
+            <InsightDrawer
+              open={insightOpen}
+              insight={activeInsight}
+              evidence={project.evidence ?? []}
+              canEdit={canEdit}
+              canApprove={canApprove}
+              isCreator={isInsightCreator(activeInsight)}
+              saving={saving}
+              onClose={() => setInsightOpen(false)}
+              onSave={onSaveInsight}
+              onSubmitReview={(body, evidenceIds) =>
+                void onSubmitInsight(activeInsight ?? { id: 0, evidence_ids: evidenceIds } as ResearchInsight, body, evidenceIds)
+              }
+              onApprove={onApproveInsight}
+            />
+            <InsightGateDialog open={gateOpen} messages={gateMessages} onClose={() => setGateOpen(false)} />
           </>
         ) : null}
       </div>
@@ -538,6 +670,60 @@ function BriefTab({
         </ol>
       </aside>
     </div>
+  );
+}
+
+function InsightsTab({
+  project,
+  canEdit,
+  saving,
+  onCreate,
+  onOpen,
+  onSubmitReview,
+}: {
+  project: ResearchProject;
+  canEdit: boolean;
+  saving: boolean;
+  onCreate: () => void;
+  onOpen: (insight: ResearchInsight) => void;
+  onSubmitReview: (insight: ResearchInsight) => void;
+}) {
+  const rows = project.insights ?? [];
+  return (
+    <section className="card" style={{ padding: '0.9rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <h2 style={{ margin: 0, fontSize: '1rem' }}>Insight</h2>
+        {canEdit ? (
+          <button type="button" className="btn btn-sm" disabled={saving} onClick={onCreate}>
+            + Insight
+          </button>
+        ) : null}
+      </div>
+      {rows.length === 0 ? (
+        <p className="muted">Gắn evidence rồi soạn insight — không viết từ AI suông.</p>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: '0.75rem',
+            marginTop: '0.75rem',
+          }}
+        >
+          {rows.map((insight) => (
+            <InsightCard
+              key={insight.id}
+              insight={insight}
+              evidence={project.evidence ?? []}
+              canEdit={canEdit}
+              saving={saving}
+              onOpen={onOpen}
+              onSubmitReview={onSubmitReview}
+            />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

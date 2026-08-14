@@ -1,17 +1,21 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
-import type { ProductType, ProjectStatus } from './market-research.constants';
+import type { InsightStatus, ProductType, ProjectStatus } from './market-research.constants';
 import type {
   CreateEvidenceInput,
+  CreateInsightInput,
   CreateProjectInput,
   CreateQuestionInput,
   CreateSourceInput,
+  InsertReviewInput,
   ListProjectsFilters,
   PatchEvidenceInput,
+  PatchInsightInput,
   PatchProjectInput,
   PatchQuestionInput,
   ResearchEvidenceRow,
+  ResearchInsightRow,
   ResearchProjectRow,
   ResearchQuestionRow,
   ResearchSourceRow,
@@ -615,5 +619,171 @@ export class MarketResearchRepository implements OnModuleDestroy {
     } finally {
       client.release();
     }
+  }
+
+  private readonly insightSelect = `
+    SELECT i.id, i.project_id, i.statement, i.observation, i.interpretation, i.implication,
+           i.recommendation, i.audience, i.status, i.confidence_rationale, i.confidence_json,
+           i.ai_generated, i.created_by,
+           i.valid_from::text AS valid_from, i.valid_to::text AS valid_to,
+           i.created_at::text AS created_at, i.updated_at::text AS updated_at,
+           COALESCE((
+             SELECT json_agg(ie.evidence_id ORDER BY ie.evidence_id)
+             FROM crm_research_insight_evidence ie
+             WHERE ie.insight_id = i.id
+           ), '[]'::json) AS evidence_ids
+    FROM crm_research_insights i
+  `;
+
+  private mapInsight(row: Record<string, unknown>): ResearchInsightRow {
+    return {
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      statement: String(row.statement),
+      observation: row.observation != null ? String(row.observation) : null,
+      interpretation: row.interpretation != null ? String(row.interpretation) : null,
+      implication: row.implication != null ? String(row.implication) : null,
+      recommendation: row.recommendation != null ? String(row.recommendation) : null,
+      audience: row.audience != null ? String(row.audience) : null,
+      status: row.status as InsightStatus,
+      confidence_rationale: row.confidence_rationale != null ? String(row.confidence_rationale) : null,
+      confidence_json: row.confidence_json != null ? parseJsonCol(row.confidence_json, null) : null,
+      ai_generated: Boolean(row.ai_generated),
+      created_by: row.created_by != null ? String(row.created_by) : null,
+      valid_from: row.valid_from != null ? String(row.valid_from) : null,
+      valid_to: row.valid_to != null ? String(row.valid_to) : null,
+      created_at: String(row.created_at),
+      updated_at: String(row.updated_at),
+      evidence_ids: parseJsonCol<number[]>(row.evidence_ids, []).map(Number),
+    };
+  }
+
+  async listInsights(projectId: number): Promise<ResearchInsightRow[]> {
+    const result = await this.db.query(
+      `${this.insightSelect} WHERE i.project_id = $1 ORDER BY i.id ASC`,
+      [projectId],
+    );
+    return result.rows.map((row) => this.mapInsight(row));
+  }
+
+  async getInsight(id: number): Promise<ResearchInsightRow | null> {
+    const result = await this.db.query(`${this.insightSelect} WHERE i.id = $1`, [id]);
+    const row = result.rows[0];
+    return row ? this.mapInsight(row) : null;
+  }
+
+  async createInsight(
+    projectId: number,
+    input: CreateInsightInput,
+    actor: string,
+  ): Promise<ResearchInsightRow> {
+    const result = await this.db.query(
+      `INSERT INTO crm_research_insights (
+         project_id, statement, observation, interpretation, implication, recommendation,
+         audience, status, confidence_rationale, created_by, valid_from, valid_to
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', $8, $9, $10, $11)
+       RETURNING id`,
+      [
+        projectId,
+        input.statement.trim(),
+        input.observation?.trim() || null,
+        input.interpretation?.trim() || null,
+        input.implication?.trim() || null,
+        input.recommendation?.trim() || null,
+        input.audience?.trim() || null,
+        input.confidence_rationale?.trim() || null,
+        actor,
+        input.valid_from?.trim() || null,
+        input.valid_to?.trim() || null,
+      ],
+    );
+    await this.db.query(`UPDATE crm_research_projects SET updated_at = now() WHERE id = $1`, [
+      projectId,
+    ]);
+    const row = await this.getInsight(Number(result.rows[0].id));
+    if (!row) throw new Error(`createInsight failed for project ${projectId}`);
+    return row;
+  }
+
+  async patchInsight(id: number, input: PatchInsightInput): Promise<ResearchInsightRow | null> {
+    const sets: string[] = ['updated_at = now()'];
+    const params: unknown[] = [];
+    const add = (col: string, value: unknown) => {
+      params.push(value);
+      sets.push(`${col} = $${params.length}`);
+    };
+    if (input.statement != null) add('statement', input.statement.trim());
+    if (input.observation !== undefined) add('observation', input.observation?.trim() || null);
+    if (input.interpretation !== undefined) {
+      add('interpretation', input.interpretation?.trim() || null);
+    }
+    if (input.implication !== undefined) add('implication', input.implication?.trim() || null);
+    if (input.recommendation !== undefined) {
+      add('recommendation', input.recommendation?.trim() || null);
+    }
+    if (input.audience !== undefined) add('audience', input.audience?.trim() || null);
+    if (input.confidence_rationale !== undefined) {
+      add('confidence_rationale', input.confidence_rationale?.trim() || null);
+    }
+    if (input.valid_from !== undefined) add('valid_from', input.valid_from?.trim() || null);
+    if (input.valid_to !== undefined) add('valid_to', input.valid_to?.trim() || null);
+    if (sets.length === 1) return this.getInsight(id);
+    params.push(id);
+    await this.db.query(
+      `UPDATE crm_research_insights SET ${sets.join(', ')} WHERE id = $${params.length}`,
+      params,
+    );
+    return this.getInsight(id);
+  }
+
+  async replaceInsightEvidence(insightId: number, evidenceIds: number[]): Promise<void> {
+    await this.db.query(`DELETE FROM crm_research_insight_evidence WHERE insight_id = $1`, [
+      insightId,
+    ]);
+    for (const evidenceId of evidenceIds) {
+      await this.db.query(
+        `INSERT INTO crm_research_insight_evidence (insight_id, evidence_id) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING`,
+        [insightId, evidenceId],
+      );
+    }
+  }
+
+  async countVerifiedEvidenceForInsight(insightId: number): Promise<number> {
+    const result = await this.db.query(
+      `SELECT COUNT(*)::int AS n
+       FROM crm_research_insight_evidence ie
+       JOIN crm_research_evidence e ON e.id = ie.evidence_id
+       WHERE ie.insight_id = $1 AND e.qc_status = 'verified'`,
+      [insightId],
+    );
+    return Number(result.rows[0]?.n ?? 0);
+  }
+
+  async updateInsightStatus(id: number, status: InsightStatus): Promise<ResearchInsightRow | null> {
+    await this.db.query(
+      `UPDATE crm_research_insights SET status = $1, updated_at = now() WHERE id = $2`,
+      [status, id],
+    );
+    return this.getInsight(id);
+  }
+
+  async insertReview(input: InsertReviewInput): Promise<{ id: number }> {
+    const result = await this.db.query(
+      `INSERT INTO crm_research_reviews (
+         project_id, object_type, object_id, reviewer, role, decision, comments
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id`,
+      [
+        input.project_id,
+        input.object_type,
+        input.object_id,
+        input.reviewer,
+        input.role,
+        input.decision,
+        input.comments ?? null,
+      ],
+    );
+    return { id: Number(result.rows[0].id) };
   }
 }

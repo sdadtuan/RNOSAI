@@ -6,21 +6,26 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ClientScopeContext, StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
-import { PROJECT_STATUSES, type ProjectStatus } from './market-research.constants';
+import { INSIGHT_STATUSES, PROJECT_STATUSES, type InsightStatus, type ProjectStatus } from './market-research.constants';
 import { MarketResearchRepository } from './market-research.repository';
 import { evidenceChecksum } from './evidence-checksum.util';
 import { assertEvidenceMutable, piiHint } from './evidence-immutable.util';
+import { assertNotSelfApprove, canApproveTarget, evaluateInsightGate } from './insight-gate.util';
 import type {
+  ApproveInsightInput,
   CreateEvidenceInput,
+  CreateInsightInput,
   CreateProjectInput,
   CreateQuestionInput,
   CreateSourceInput,
   ListProjectsFilters,
   PatchEvidenceInput,
+  PatchInsightInput,
   PatchProjectInput,
   PatchQuestionInput,
   PatchSourceInput,
   ResearchEvidenceRow,
+  ResearchInsightRow,
   ResearchProjectDetail,
   ResearchProjectRow,
   ResearchQuestionRow,
@@ -305,6 +310,144 @@ export class MarketResearchService {
     return pii_warning ? { ...result, evidence: { ...result.evidence, pii_warning: true } } : result;
   }
 
+  async createInsight(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: CreateInsightInput,
+    actor: string,
+  ): Promise<ResearchInsightRow> {
+    await this.loadScopedProject(projectId, scope);
+    if (!String(input.statement ?? '').trim()) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['statement is required'],
+      });
+    }
+    return this.repo.createInsight(projectId, input, actor);
+  }
+
+  async patchInsight(
+    insightId: number,
+    scope: ClientScopeContext,
+    input: PatchInsightInput,
+  ): Promise<ResearchInsightRow> {
+    await this.loadScopedInsight(insightId, scope);
+    if (input.statement != null && !input.statement.trim()) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['statement is required'],
+      });
+    }
+    const updated = await this.repo.patchInsight(insightId, input);
+    if (!updated) throw new NotFoundException({ error: 'not_found' });
+    return updated;
+  }
+
+  async attachEvidence(
+    insightId: number,
+    scope: ClientScopeContext,
+    evidenceIds: number[],
+  ): Promise<ResearchInsightRow> {
+    const existing = await this.loadScopedInsight(insightId, scope);
+    const ids = (Array.isArray(evidenceIds) ? evidenceIds : [])
+      .map(Number)
+      .filter((id) => Number.isFinite(id) && id > 0);
+    const verifiedIds: number[] = [];
+    for (const id of ids) {
+      const ev = await this.repo.getEvidence(id);
+      if (!ev || ev.project_id !== existing.project_id) {
+        throw new BadRequestException({
+          error: 'validation_error',
+          messages: ['evidence_ids is invalid'],
+        });
+      }
+      if (ev.qc_status === 'verified') verifiedIds.push(id);
+    }
+    await this.repo.replaceInsightEvidence(insightId, verifiedIds);
+    const nextStatus =
+      existing.status === 'draft' || existing.status === 'evidence_attached'
+        ? verifiedIds.length >= 1
+          ? 'evidence_attached'
+          : 'draft'
+        : existing.status;
+    if (nextStatus !== existing.status) {
+      const updated = await this.repo.updateInsightStatus(insightId, nextStatus);
+      if (!updated) throw new NotFoundException({ error: 'not_found' });
+      return updated;
+    }
+    const refreshed = await this.repo.getInsight(insightId);
+    if (!refreshed) throw new NotFoundException({ error: 'not_found' });
+    return refreshed;
+  }
+
+  async submitReview(insightId: number, scope: ClientScopeContext): Promise<ResearchInsightRow> {
+    const existing = await this.loadScopedInsight(insightId, scope);
+    this.assertInsightGate(await this.repo.countVerifiedEvidenceForInsight(insightId), existing.confidence_rationale);
+    const updated = await this.repo.updateInsightStatus(insightId, 'analyst_verified');
+    if (!updated) throw new NotFoundException({ error: 'not_found' });
+    return updated;
+  }
+
+  async approveInsight(
+    insightId: number,
+    scope: ClientScopeContext,
+    input: ApproveInsightInput,
+    reviewer: string,
+  ): Promise<ResearchInsightRow> {
+    const existing = await this.loadScopedInsight(insightId, scope);
+    try {
+      assertNotSelfApprove(existing.created_by, reviewer);
+    } catch (err) {
+      if ((err as Error & { code?: string }).code === 'cannot_self_approve') {
+        throw new ForbiddenException({ error: 'cannot_self_approve' });
+      }
+      throw err;
+    }
+    const target = String(input.target_status ?? '') as InsightStatus;
+    if (!INSIGHT_STATUSES.includes(target)) {
+      throw new ConflictException({ error: 'invalid_transition' });
+    }
+    if (target === 'approved_internal' || target === 'approved_client_facing') {
+      this.assertInsightGate(
+        await this.repo.countVerifiedEvidenceForInsight(insightId),
+        existing.confidence_rationale,
+      );
+    }
+    const project = await this.repo.getProject(existing.project_id);
+    if (!canApproveTarget(existing.status, target, project?.risk_class ?? 'low')) {
+      throw new ConflictException({ error: 'invalid_transition' });
+    }
+    const updated = await this.repo.updateInsightStatus(insightId, target);
+    if (!updated) throw new NotFoundException({ error: 'not_found' });
+    await this.repo.insertReview({
+      project_id: existing.project_id,
+      object_type: 'insight',
+      object_id: insightId,
+      reviewer,
+      role: 'approver',
+      decision: target === 'rejected' ? 'reject' : 'approve',
+      comments: input.comments ?? null,
+    });
+    return updated;
+  }
+
+  private async loadScopedInsight(
+    insightId: number,
+    scope: ClientScopeContext,
+  ): Promise<ResearchInsightRow> {
+    const existing = await this.repo.getInsight(insightId);
+    if (!existing) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(existing.project_id, scope);
+    return existing;
+  }
+
+  private assertInsightGate(verifiedEvidenceCount: number, confidenceRationale: string | null): void {
+    const gate = evaluateInsightGate({ verifiedEvidenceCount, confidenceRationale });
+    if (!gate.ok) {
+      throw new BadRequestException({ error: gate.error, messages: gate.messages });
+    }
+  }
+
   private assertMutable(qcStatus: string): void {
     try {
       assertEvidenceMutable(qcStatus);
@@ -336,16 +479,18 @@ export class MarketResearchService {
   }
 
   private async toDetail(project: ResearchProjectRow): Promise<ResearchProjectDetail> {
-    const [questions, sources, evidence] = await Promise.all([
+    const [questions, sources, evidence, insights] = await Promise.all([
       this.repo.listQuestions(project.id),
       this.repo.listSources(project.id),
       this.repo.listEvidence(project.id),
+      this.repo.listInsights(project.id),
     ]);
     return {
       ...project,
       questions,
       sources,
       evidence,
+      insights,
       valid_transitions: listValidTransitions(project.status, {
         rqCount: project.rq_count,
         verifiedInsightCount: project.verified_insight_count,

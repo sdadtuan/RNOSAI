@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { MarketResearchService } from './market-research.service';
-import type { ResearchEvidenceRow, ResearchProjectRow } from './market-research.types';
+import type { ResearchEvidenceRow, ResearchInsightRow, ResearchProjectRow } from './market-research.types';
 
 const project: ResearchProjectRow = {
   id: 9,
@@ -35,6 +35,7 @@ describe('MarketResearchService', () => {
     listQuestions: jest.fn(),
     listSources: jest.fn(),
     listEvidence: jest.fn(),
+    listInsights: jest.fn(),
     patchProject: jest.fn(),
     createSource: jest.fn(),
     getSource: jest.fn(),
@@ -44,6 +45,10 @@ describe('MarketResearchService', () => {
     patchEvidence: jest.fn(),
     verifyEvidence: jest.fn(),
     supersedeEvidence: jest.fn(),
+    getInsight: jest.fn(),
+    countVerifiedEvidenceForInsight: jest.fn(),
+    updateInsightStatus: jest.fn(),
+    insertReview: jest.fn(),
   };
   const clientScope = {
     allowedClientIdsForList: jest.fn(),
@@ -263,6 +268,90 @@ describe('MarketResearchService', () => {
       expect((err as ConflictException).getResponse()).toEqual({ error: 'evidence_duplicate_checksum' });
     }
   });
+
+  it('submitReview with 0 verified evidence is 400 insight_gate', async () => {
+    stubScopedProject();
+    repo.getInsight.mockResolvedValue(
+      insightRow({ confidence_rationale: 'Method OK', status: 'draft' }),
+    );
+    repo.countVerifiedEvidenceForInsight.mockResolvedValue(0);
+
+    try {
+      await service.submitReview(7, { restricted: true, allowedClientIds: ['acme'] });
+      throw new Error('expected insight_gate');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual({
+        error: 'insight_gate',
+        messages: ['missing_verified_evidence'],
+      });
+    }
+    expect(repo.updateInsightStatus).not.toHaveBeenCalled();
+  });
+
+  it('approveInsight by creator is 403 cannot_self_approve', async () => {
+    stubScopedProject();
+    repo.getInsight.mockResolvedValue(
+      insightRow({
+        created_by: 'analyst@ptt',
+        status: 'analyst_verified',
+        confidence_rationale: 'Method OK',
+      }),
+    );
+    repo.countVerifiedEvidenceForInsight.mockResolvedValue(1);
+
+    try {
+      await service.approveInsight(
+        7,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { target_status: 'approved_internal', comments: 'ok' },
+        'analyst@ptt',
+      );
+      throw new Error('expected cannot_self_approve');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect((err as ForbiddenException).getResponse()).toEqual({ error: 'cannot_self_approve' });
+    }
+    expect(repo.updateInsightStatus).not.toHaveBeenCalled();
+    expect(repo.insertReview).not.toHaveBeenCalled();
+  });
+
+  it('approveInsight happy path writes approved_internal and a review', async () => {
+    stubScopedProject();
+    const current = insightRow({
+      created_by: 'analyst@ptt',
+      status: 'analyst_verified',
+      confidence_rationale: 'Nguồn verified, sample 2025',
+    });
+    const approved = insightRow({
+      ...current,
+      status: 'approved_internal',
+    });
+    repo.getInsight.mockResolvedValue(current);
+    repo.countVerifiedEvidenceForInsight.mockResolvedValue(1);
+    repo.updateInsightStatus.mockResolvedValue(approved);
+    repo.insertReview.mockResolvedValue({ id: 1 });
+
+    const out = await service.approveInsight(
+      7,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { target_status: 'approved_internal', comments: 'Method OK' },
+      'lead@ptt',
+    );
+
+    expect(out.status).toBe('approved_internal');
+    expect(repo.updateInsightStatus).toHaveBeenCalledWith(7, 'approved_internal');
+    expect(repo.insertReview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project_id: 9,
+        object_type: 'insight',
+        object_id: 7,
+        reviewer: 'lead@ptt',
+        decision: 'approve',
+        comments: 'Method OK',
+      }),
+    );
+  });
 });
 
 function evidenceRow(overrides: Partial<ResearchEvidenceRow> = {}): ResearchEvidenceRow {
@@ -286,6 +375,30 @@ function evidenceRow(overrides: Partial<ResearchEvidenceRow> = {}): ResearchEvid
     created_by: 'am@ptt',
     superseded_by: null,
     created_at: '2026-08-14',
+    ...overrides,
+  };
+}
+
+function insightRow(overrides: Partial<ResearchInsightRow> = {}): ResearchInsightRow {
+  return {
+    id: 7,
+    project_id: 9,
+    statement: 'Premium SKU tăng share ở MT HCM',
+    observation: null,
+    interpretation: null,
+    implication: null,
+    recommendation: null,
+    audience: null,
+    status: 'draft',
+    confidence_rationale: null,
+    confidence_json: null,
+    ai_generated: false,
+    created_by: 'analyst@ptt',
+    valid_from: null,
+    valid_to: null,
+    created_at: '2026-08-14',
+    updated_at: '2026-08-14',
+    evidence_ids: [],
     ...overrides,
   };
 }

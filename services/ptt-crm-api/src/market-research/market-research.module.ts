@@ -3,6 +3,7 @@ import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope.module';
 import { MarketResearchEnabledGuard } from './guards/market-research-enabled.guard';
 import {
+  StaffMarketResearchApproveGuard,
   StaffMarketResearchCreateGuard,
   StaffMarketResearchEditGuard,
   StaffMarketResearchViewGuard,
@@ -21,6 +22,7 @@ import { MarketResearchService } from './market-research.service';
     StaffMarketResearchViewGuard,
     StaffMarketResearchCreateGuard,
     StaffMarketResearchEditGuard,
+    StaffMarketResearchApproveGuard,
   ],
 })
 export class MarketResearchModule {}

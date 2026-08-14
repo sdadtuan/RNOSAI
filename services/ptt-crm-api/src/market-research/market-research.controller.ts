@@ -20,17 +20,22 @@ import { StaffClientScopeService } from '../staff-client-scope/staff-client-scop
 import { resolveStaffClientScope } from '../staff-client-scope/staff-client-scope.http.util';
 import { MarketResearchEnabledGuard } from './guards/market-research-enabled.guard';
 import {
+  StaffMarketResearchApproveGuard,
   StaffMarketResearchCreateGuard,
   StaffMarketResearchEditGuard,
   StaffMarketResearchViewGuard,
 } from './guards/staff-market-research.guard';
 import { MarketResearchService } from './market-research.service';
 import type {
+  ApproveInsightInput,
+  AttachInsightEvidenceInput,
   CreateEvidenceInput,
+  CreateInsightInput,
   CreateProjectInput,
   CreateQuestionInput,
   CreateSourceInput,
   PatchEvidenceInput,
+  PatchInsightInput,
   PatchProjectInput,
   PatchQuestionInput,
   PatchSourceInput,
@@ -192,5 +197,57 @@ export class MarketResearchController {
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.supersedeEvidence(id, scope, body ?? ({} as CreateEvidenceInput), actorEmail(req));
+  }
+
+  @Post('projects/:id/insights')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async createInsight(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CreateInsightInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.createInsight(id, scope, body ?? ({} as CreateInsightInput), actorEmail(req));
+  }
+
+  @Patch('insights/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async patchInsight(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PatchInsightInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.patchInsight(id, scope, body ?? {});
+  }
+
+  @Post('insights/:id/attach-evidence')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async attachInsightEvidence(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: AttachInsightEvidenceInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.attachEvidence(id, scope, body?.evidence_ids ?? []);
+  }
+
+  @Post('insights/:id/submit-review')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async submitInsightReview(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.submitReview(id, scope);
+  }
+
+  @Post('insights/:id/approve')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchApproveGuard)
+  async approveInsight(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: ApproveInsightInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.approveInsight(id, scope, body ?? ({} as ApproveInsightInput), actorEmail(req));
   }
 }

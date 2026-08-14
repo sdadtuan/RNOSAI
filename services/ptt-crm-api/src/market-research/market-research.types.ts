@@ -1,4 +1,4 @@
-import type { ProductType, ProjectStatus } from './market-research.constants';
+import type { InsightStatus, ProductType, ProjectStatus } from './market-research.constants';
 
 export type Dv12Tier = 'CB' | 'TC' | 'CS';
 export type RiskClass = 'low' | 'medium' | 'high';
@@ -92,6 +92,7 @@ export type ResearchProjectDetail = ResearchProjectRow & {
   questions: ResearchQuestionRow[];
   sources: ResearchSourceRow[];
   evidence: ResearchEvidenceRow[];
+  insights: ResearchInsightRow[];
   valid_transitions: ProjectStatus[];
 };
 
@@ -181,4 +182,68 @@ export type ResearchEvidenceRow = {
   superseded_by: number | null;
   created_at: string;
   pii_warning?: boolean;
+};
+
+export type CreateInsightInput = {
+  statement: string;
+  observation?: string | null;
+  interpretation?: string | null;
+  implication?: string | null;
+  recommendation?: string | null;
+  audience?: string | null;
+  confidence_rationale?: string | null;
+  valid_from?: string | null;
+  valid_to?: string | null;
+};
+
+export type PatchInsightInput = {
+  statement?: string;
+  observation?: string | null;
+  interpretation?: string | null;
+  implication?: string | null;
+  recommendation?: string | null;
+  audience?: string | null;
+  confidence_rationale?: string | null;
+  valid_from?: string | null;
+  valid_to?: string | null;
+};
+
+export type AttachInsightEvidenceInput = {
+  evidence_ids: number[];
+};
+
+export type ApproveInsightInput = {
+  target_status: string;
+  comments?: string | null;
+};
+
+export type InsertReviewInput = {
+  project_id: number;
+  object_type: 'insight' | 'report' | 'source' | 'project';
+  object_id: number;
+  reviewer: string;
+  role: string;
+  decision: 'approve' | 'reject' | 'request_changes' | 'risk_accept';
+  comments?: string | null;
+};
+
+export type ResearchInsightRow = {
+  id: number;
+  project_id: number;
+  statement: string;
+  observation: string | null;
+  interpretation: string | null;
+  implication: string | null;
+  recommendation: string | null;
+  audience: string | null;
+  status: InsightStatus;
+  confidence_rationale: string | null;
+  confidence_json: unknown | null;
+  ai_generated: boolean;
+  created_by: string | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  created_at: string;
+  updated_at: string;
+  evidence_ids: number[];
 };

@@ -1,5 +1,50 @@
 import { API_BASE, ApiError, parseJson } from './api';
 
+export class ResearchApiError extends ApiError {
+  constructor(
+    message: string,
+    status: number,
+    readonly code?: string,
+    readonly messages?: string[],
+  ) {
+    super(message, status);
+    this.name = 'ResearchApiError';
+  }
+}
+
+export const INSIGHT_STATUSES = [
+  'draft',
+  'evidence_attached',
+  'analyst_verified',
+  'peer_reviewed',
+  'approved_internal',
+  'approved_client_facing',
+  'published',
+  'superseded',
+  'expired',
+  'rejected',
+] as const;
+export type InsightStatus = (typeof INSIGHT_STATUSES)[number];
+
+export const INSIGHT_STATUS_LABELS: Record<InsightStatus, string> = {
+  draft: 'Nháp',
+  evidence_attached: 'Đã gắn evidence',
+  analyst_verified: 'Analyst đã verify',
+  peer_reviewed: 'Peer review',
+  approved_internal: 'Duyệt nội bộ',
+  approved_client_facing: 'Duyệt bản khách',
+  published: 'Đã phát hành',
+  superseded: 'Thay thế',
+  expired: 'Hết hạn',
+  rejected: 'Từ chối',
+};
+
+export const INSIGHT_GATE_COPY: Record<string, string> = {
+  missing_verified_evidence: 'Cần ≥1 evidence đã verify',
+  missing_confidence_rationale: 'Thiếu giải thích độ tin cậy',
+  cannot_self_approve: 'Người tạo không tự duyệt — nhờ Research Lead.',
+};
+
 function authHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 }
@@ -102,7 +147,40 @@ export type ResearchProject = {
   questions?: ResearchQuestion[];
   sources?: ResearchSource[];
   evidence?: ResearchEvidence[];
+  insights?: ResearchInsight[];
   valid_transitions?: ProjectStatus[];
+};
+
+export type ResearchInsight = {
+  id: number;
+  project_id: number;
+  statement: string;
+  observation: string | null;
+  interpretation: string | null;
+  implication: string | null;
+  recommendation: string | null;
+  audience: string | null;
+  status: InsightStatus;
+  confidence_rationale: string | null;
+  ai_generated: boolean;
+  created_by: string | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  created_at: string;
+  updated_at: string;
+  evidence_ids: number[];
+};
+
+export type CreateInsightBody = {
+  statement: string;
+  observation?: string | null;
+  interpretation?: string | null;
+  implication?: string | null;
+  recommendation?: string | null;
+  audience?: string | null;
+  confidence_rationale?: string | null;
+  valid_from?: string | null;
+  valid_to?: string | null;
 };
 
 export type ResearchSource = {
@@ -211,7 +289,7 @@ async function researchFetch<T>(token: string, path: string, init?: RequestInit)
       (typeof body.message === 'string' ? body.message : undefined) ??
       (errorCode ? TRANSITION_REASON_VI[errorCode] ?? errorCode : undefined) ??
       'Yêu cầu nghiên cứu thất bại';
-    throw new ApiError(detail, res.status);
+    throw new ResearchApiError(detail, res.status, errorCode, messages);
   }
   return body;
 }
@@ -337,6 +415,59 @@ export async function supersedeResearchEvidence(
   body: CreateEvidenceBody,
 ): Promise<{ old: ResearchEvidence; evidence: ResearchEvidence }> {
   return researchFetch(token, `/api/v1/research/evidence/${evidenceId}/supersede`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function createResearchInsight(
+  token: string,
+  projectId: number,
+  body: CreateInsightBody,
+): Promise<ResearchInsight> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/insights`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchResearchInsight(
+  token: string,
+  insightId: number,
+  body: Partial<CreateInsightBody>,
+): Promise<ResearchInsight> {
+  return researchFetch(token, `/api/v1/research/insights/${insightId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function attachResearchInsightEvidence(
+  token: string,
+  insightId: number,
+  evidenceIds: number[],
+): Promise<ResearchInsight> {
+  return researchFetch(token, `/api/v1/research/insights/${insightId}/attach-evidence`, {
+    method: 'POST',
+    body: JSON.stringify({ evidence_ids: evidenceIds }),
+  });
+}
+
+export async function submitResearchInsightReview(
+  token: string,
+  insightId: number,
+): Promise<ResearchInsight> {
+  return researchFetch(token, `/api/v1/research/insights/${insightId}/submit-review`, {
+    method: 'POST',
+  });
+}
+
+export async function approveResearchInsight(
+  token: string,
+  insightId: number,
+  body: { target_status: InsightStatus; comments?: string },
+): Promise<ResearchInsight> {
+  return researchFetch(token, `/api/v1/research/insights/${insightId}/approve`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
