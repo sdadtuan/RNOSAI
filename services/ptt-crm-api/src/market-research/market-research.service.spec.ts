@@ -207,6 +207,93 @@ describe('MarketResearchService', () => {
     expect(repo.createCompetitorSnapshot).not.toHaveBeenCalled();
   });
 
+  it('createSnapshot Similarweb unknown tier with limitation_note inserts', async () => {
+    stubScopedProject();
+    repo.getCompetitor.mockResolvedValue(competitorRow());
+    repo.getSource.mockResolvedValue(
+      similarwebSource({ reliability_tier: 'unknown' }),
+    );
+    repo.createCompetitorSnapshot.mockResolvedValue({
+      id: 1,
+      competitor_id: 4,
+      project_id: 9,
+      source_id: 11,
+      observed_at: '2026-08-01',
+      kind: 'fact',
+      fact: { price: '12000' },
+      limitation_note: 'Paid panel estimate',
+      created_by: 'am@ptt',
+      created_at: '2026-08-14',
+    });
+
+    await service.createSnapshot(
+      4,
+      { restricted: true, allowedClientIds: ['acme'] },
+      {
+        source_id: 11,
+        observed_at: '2026-08-01',
+        kind: 'fact',
+        fact: { price: '12000' },
+        limitation_note: 'Paid panel estimate',
+      },
+      'am@ptt',
+    );
+
+    expect(repo.createCompetitorSnapshot).toHaveBeenCalled();
+  });
+
+  it('createSnapshot Similarweb unknown tier without note is 400 limitation_required', async () => {
+    stubScopedProject();
+    repo.getCompetitor.mockResolvedValue(competitorRow());
+    repo.getSource.mockResolvedValue(
+      similarwebSource({ reliability_tier: 'unknown' }),
+    );
+
+    try {
+      await service.createSnapshot(
+        4,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { source_id: 11, observed_at: '2026-08-01', kind: 'fact', fact: { price: '12000' } },
+        'am@ptt',
+      );
+      throw new Error('expected limitation_required');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ error: 'limitation_required' }),
+      );
+    }
+    expect(repo.createCompetitorSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('createSnapshot Similarweb high tier with note is 400 reliability_capped', async () => {
+    stubScopedProject();
+    repo.getCompetitor.mockResolvedValue(competitorRow());
+    repo.getSource.mockResolvedValue(similarwebSource({ reliability_tier: 'high' }));
+
+    try {
+      await service.createSnapshot(
+        4,
+        { restricted: true, allowedClientIds: ['acme'] },
+        {
+          source_id: 11,
+          observed_at: '2026-08-01',
+          kind: 'fact',
+          fact: { price: '12000' },
+          limitation_note: 'Paid panel estimate',
+        },
+        'am@ptt',
+      );
+      throw new Error('expected reliability_capped');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ error: 'reliability_capped' }),
+      );
+    }
+    expect(repo.createCompetitorSnapshot).not.toHaveBeenCalled();
+  });
+
   it('listCompetitors outside scope is 403 without competitor name in the body', async () => {
     repo.getProjectClientId.mockResolvedValue('other-client');
     clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
@@ -838,6 +925,29 @@ describe('MarketResearchService', () => {
     expect(repo.createReportDraft).not.toHaveBeenCalled();
   });
 });
+
+function competitorRow() {
+  return {
+    id: 4,
+    project_id: 9,
+    name: 'Vinamilk',
+    aliases: [],
+    created_by: 'am@ptt',
+    created_at: '2026-08-14',
+    updated_at: '2026-08-14',
+    snapshots: [],
+  };
+}
+
+function similarwebSource(overrides: { reliability_tier: string }) {
+  return {
+    id: 11,
+    project_id: 9,
+    publisher: 'Similarweb',
+    url: 'https://www.similarweb.com/website/example',
+    reliability_tier: overrides.reliability_tier,
+  };
+}
 
 function evidenceRow(overrides: Partial<ResearchEvidenceRow> = {}): ResearchEvidenceRow {
   return {

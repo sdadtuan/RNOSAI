@@ -340,8 +340,7 @@ export class MarketResearchService {
         messages: ['kind must be fact or hypothesis'],
       });
     }
-    await this.assertSourceInProject(existing.project_id, sourceId);
-    const source = await this.repo.getSource(sourceId);
+    const source = await this.assertSourceInProject(existing.project_id, sourceId);
     if (!source) {
       throw new BadRequestException({
         error: 'validation_error',
@@ -353,7 +352,7 @@ export class MarketResearchService {
       assertSimilarwebTier({
         publisher: source.publisher,
         url: source.url,
-        reliability_tier: source.reliability_tier,
+        reliability_tier: this.effectiveSimilarwebTier(source),
         limitation_note,
       });
     } catch (err) {
@@ -1102,8 +1101,19 @@ export class MarketResearchService {
       .slice(0, 20);
   }
 
-  private async assertSourceInProject(projectId: number, sourceId?: number | null): Promise<void> {
-    if (sourceId == null) return;
+  private effectiveSimilarwebTier(source: ResearchSourceRow): string {
+    const hay = `${source.publisher ?? ''} ${source.url ?? ''}`.toLowerCase();
+    const paid = /similarweb|semrush/.test(hay);
+    const tier = String(source.reliability_tier ?? '').trim();
+    if (paid && (tier === 'unknown' || tier === '')) return 'medium';
+    return source.reliability_tier;
+  }
+
+  private async assertSourceInProject(
+    projectId: number,
+    sourceId?: number | null,
+  ): Promise<ResearchSourceRow | undefined> {
+    if (sourceId == null) return undefined;
     const source = await this.repo.getSource(sourceId);
     if (!source || source.project_id !== projectId) {
       throw new BadRequestException({
@@ -1111,6 +1121,7 @@ export class MarketResearchService {
         messages: ['source_id is invalid'],
       });
     }
+    return source;
   }
 
   private async toDetail(project: ResearchProjectRow): Promise<ResearchProjectDetail> {
