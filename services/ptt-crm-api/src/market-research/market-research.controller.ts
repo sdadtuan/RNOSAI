@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -555,9 +556,13 @@ export class MarketResearchController {
     @Req() req: StaffReq,
     @Param('id', ParseIntPipe) id: number,
     @Param('versionId', ParseIntPipe) versionId: number,
+    @Query('format') format?: string,
   ) {
+    if (format != null && format !== 'pdf' && format !== 'docx') {
+      throw new BadRequestException({ error: 'validation_error' });
+    }
     const scope = await resolveStaffClientScope(req, this.clientScope);
-    return this.research.exportReportVersion(id, versionId, scope);
+    return this.research.exportReportVersion(id, versionId, scope, format ?? 'docx');
   }
 
   @Post('reports/:reportId/versions/:versionId/exec-en')

@@ -91,6 +91,7 @@ import type {
   ResearchReportVersionRow,
   ResearchSourceRow,
   PublishPortalInput,
+  ResearchExportFormat,
   UpdateExecEnInput,
   UpdateReportEmbargoInput,
   RunDeepInput,
@@ -105,6 +106,7 @@ import type {
 } from './market-research.types';
 import { CONSENT_TYPES, DECISION_STATUSES, STUDY_METHODS, STUDY_MODES } from './market-research.types';
 import { buildResearchReportDocx, sectionsFromReportSnapshot } from './market-research-docx.util';
+import { buildResearchReportPdf } from './market-research-pdf.util';
 import {
   buildReportSnapshot,
   CB_METHODOLOGY_STUB,
@@ -1511,6 +1513,7 @@ export class MarketResearchService {
     reportId: number,
     versionId: number,
     scope: ClientScopeContext,
+    format: ResearchExportFormat = 'docx',
   ): Promise<StreamableFile> {
     const report = await this.repo.getReport(reportId);
     if (!report) throw new NotFoundException({ error: 'not_found' });
@@ -1523,7 +1526,15 @@ export class MarketResearchService {
       exec: normalizeReportExec(raw.exec),
     };
     this.assertMethodologyForTier(project.dv12_tier, snapshot.methodology);
-    const buffer = await buildResearchReportDocx(sectionsFromReportSnapshot(snapshot));
+    const sections = sectionsFromReportSnapshot(snapshot);
+    if (format === 'pdf') {
+      const buffer = buildResearchReportPdf(sections);
+      return new StreamableFile(buffer, {
+        type: 'application/pdf',
+        disposition: `attachment; filename="research-report-${reportId}-v${version.version}.pdf"`,
+      });
+    }
+    const buffer = await buildResearchReportDocx(sections);
     return new StreamableFile(buffer, {
       type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       disposition: `attachment; filename="research-report-${reportId}-v${version.version}.docx"`,

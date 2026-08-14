@@ -2,6 +2,7 @@ import type { InsightStatus, ProductType, ProjectStatus } from './market-researc
 
 export type Dv12Tier = 'CB' | 'TC' | 'CS';
 export type RiskClass = 'low' | 'medium' | 'high';
+export type ResearchExportFormat = 'docx' | 'pdf';
 
 export const RUBRIC_DIMS = ['S', 'F', 'T', 'A', 'R'] as const;
 export type RubricDim = (typeof RUBRIC_DIMS)[number];

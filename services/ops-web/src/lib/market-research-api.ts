@@ -1023,9 +1023,11 @@ export async function exportResearchReportVersion(
   token: string,
   reportId: number,
   versionId: number,
+  format: 'docx' | 'pdf' = 'docx',
 ): Promise<{ blob: Blob; filename: string }> {
+  const qs = format === 'pdf' ? '?format=pdf' : '';
   const res = await fetch(
-    `${API_BASE}/api/v1/research/reports/${reportId}/versions/${versionId}/export`,
+    `${API_BASE}/api/v1/research/reports/${reportId}/versions/${versionId}/export${qs}`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
   if (!res.ok) {
@@ -1038,7 +1040,7 @@ export async function exportResearchReportVersion(
   }
   const cd = res.headers.get('content-disposition') ?? '';
   const match = /filename="([^"]+)"/.exec(cd);
-  const filename = match?.[1] ?? `research-report-${reportId}.docx`;
+  const filename = match?.[1] ?? `research-report-${reportId}.${format === 'pdf' ? 'pdf' : 'docx'}`;
   return { blob: await res.blob(), filename };
 }
 

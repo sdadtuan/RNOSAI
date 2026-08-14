@@ -1679,6 +1679,146 @@ describe('MarketResearchService', () => {
       allowedClientIds: ['acme'],
     });
     expect(out).toBeInstanceOf(StreamableFile);
+    const headers = out.getHeaders();
+    expect(headers.type).toBe(
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    );
+    expect(headers.disposition).toContain('.docx');
+  });
+
+  it('exportReportVersion format=pdf returns application/pdf and .pdf filename', async () => {
+    stubScopedProject();
+    repo.getReport.mockResolvedValue({
+      id: 1,
+      project_id: 9,
+      template: 'std',
+      status: 'draft',
+      created_at: '2026-08-14',
+      versions: [],
+    });
+    repo.getReportVersion.mockResolvedValue({
+      id: 10,
+      report_id: 1,
+      version: 1,
+      content_snapshot: {
+        cover: { client: 'Acme', title: 'T', confidential: true, version: 1, as_of: '2026-08-14' },
+        exec: 'exec',
+        findings: [],
+        recs: [],
+        methodology: { stub: true, population: '', source_plan: '', limitation: '' },
+        evidence_index: [],
+        status: 'draft',
+        insight_ids: [7],
+      },
+      generated_by: 'am@ptt',
+      content_hash: 'abc',
+      created_at: '2026-08-14',
+    });
+
+    const out = await service.exportReportVersion(
+      1,
+      10,
+      { restricted: true, allowedClientIds: ['acme'] },
+      'pdf',
+    );
+    expect(out).toBeInstanceOf(StreamableFile);
+    const headers = out.getHeaders();
+    expect(headers.type).toBe('application/pdf');
+    expect(headers.disposition).toBe('attachment; filename="research-report-1-v1.pdf"');
+  });
+
+  it('exportReportVersion TC + stub + format=pdf is 400 methodology_incomplete', async () => {
+    stubScopedProject();
+    repo.getProject.mockResolvedValue({ ...project, dv12_tier: 'TC' });
+    repo.getReport.mockResolvedValue({
+      id: 1,
+      project_id: 9,
+      template: 'std',
+      status: 'draft',
+      created_at: '2026-08-14',
+      versions: [],
+    });
+    repo.getReportVersion.mockResolvedValue({
+      id: 10,
+      report_id: 1,
+      version: 1,
+      content_snapshot: {
+        cover: { client: 'Acme', title: 'Secret title must not leak', confidential: true, version: 1, as_of: '2026-08-14' },
+        exec: 'exec',
+        findings: [],
+        recs: [],
+        methodology: { stub: true, population: '', source_plan: '', limitation: '' },
+        evidence_index: [],
+        status: 'draft',
+        insight_ids: [7],
+      },
+      generated_by: 'am@ptt',
+      content_hash: 'abc',
+      created_at: '2026-08-14',
+    });
+
+    try {
+      await service.exportReportVersion(
+        1,
+        10,
+        { restricted: true, allowedClientIds: ['acme'] },
+        'pdf',
+      );
+      throw new Error('expected 400');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'methodology_incomplete' });
+    }
+  });
+
+  it('exportReportVersion outside scope is 403 without title', async () => {
+    repo.getReport.mockResolvedValue({
+      id: 1,
+      project_id: 9,
+      template: 'std',
+      status: 'draft',
+      created_at: '2026-08-14',
+      versions: [],
+    });
+    repo.getProjectClientId.mockResolvedValue('other-client');
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.getReportVersion.mockResolvedValue({
+      id: 10,
+      report_id: 1,
+      version: 1,
+      content_snapshot: {
+        cover: { client: 'Acme', title: 'Secret title must not leak', confidential: true, version: 1, as_of: '2026-08-14' },
+        exec: 'exec',
+        findings: [],
+        recs: [],
+        methodology: { stub: true, population: '', source_plan: '', limitation: '' },
+        evidence_index: [],
+        status: 'draft',
+        insight_ids: [7],
+      },
+      generated_by: 'am@ptt',
+      content_hash: 'abc',
+      created_at: '2026-08-14',
+    });
+
+    try {
+      await service.exportReportVersion(
+        1,
+        10,
+        { restricted: true, allowedClientIds: ['acme'] },
+        'pdf',
+      );
+      throw new Error('expected forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const body = (err as ForbiddenException).getResponse();
+      expect(body).toEqual({ error: 'forbidden' });
+      expect(JSON.stringify(body)).not.toContain('title');
+      expect(JSON.stringify(body)).not.toContain('Secret title');
+    }
+    expect(repo.getReportVersion).not.toHaveBeenCalled();
+    expect(repo.getProject).not.toHaveBeenCalled();
   });
 
   it('approve-exec-en by generated_by is 403 cannot_self_approve', async () => {

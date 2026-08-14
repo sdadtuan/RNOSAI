@@ -503,13 +503,13 @@ function CrmResearchWorkspaceContent() {
     }
   }
 
-  async function onExportReport(reportId: number, versionId: number) {
+  async function onExportReport(reportId: number, versionId: number, format: 'docx' | 'pdf' = 'docx') {
     const access = getAccessToken();
     if (!access) return;
     setSaving(true);
     setError('');
     try {
-      const { blob, filename } = await exportResearchReportVersion(access, reportId, versionId);
+      const { blob, filename } = await exportResearchReportVersion(access, reportId, versionId, format);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -520,7 +520,7 @@ function CrmResearchWorkspaceContent() {
       if (err instanceof ResearchApiError && err.code === 'methodology_incomplete') {
         setError(TRANSITION_REASON_VI.methodology_incomplete);
       } else {
-        setError(err instanceof Error ? err.message : 'Xuất DOCX thất bại');
+        setError(err instanceof Error ? err.message : format === 'pdf' ? 'Xuất PDF thất bại' : 'Xuất DOCX thất bại');
       }
     } finally {
       setSaving(false);
@@ -1014,7 +1014,7 @@ function CrmResearchWorkspaceContent() {
                 reports={reports}
                 onCopilot={(ids) => void onReportCopilot(ids)}
                 onCreate={(ids, methodology) => void onCreateReport(ids, methodology)}
-                onExport={(reportId, versionId) => void onExportReport(reportId, versionId)}
+                onExport={(reportId, versionId, format) => void onExportReport(reportId, versionId, format)}
                 onSaveExecEn={(reportId, versionId, en) => void onSaveExecEn(reportId, versionId, en)}
                 onApproveExecEn={(reportId, versionId) => void onApproveExecEn(reportId, versionId)}
                 onSaveEmbargo={(reportId, versionId, body) => void onSaveEmbargo(reportId, versionId, body)}
@@ -1569,7 +1569,7 @@ function ReportTab({
   reports: ResearchReport[];
   onCopilot: (insightIds: number[]) => void;
   onCreate: (insightIds: number[], methodology?: MethodologyBlock) => void;
-  onExport: (reportId: number, versionId: number) => void;
+  onExport: (reportId: number, versionId: number, format?: 'docx' | 'pdf') => void;
   onSaveExecEn: (reportId: number, versionId: number, en: string) => void;
   onApproveExecEn: (reportId: number, versionId: number) => void;
   onSaveEmbargo: (
@@ -1765,6 +1765,12 @@ function ReportTab({
             const exec = normalizeReportExec(version.content_snapshot?.exec);
             const enValue = enDrafts[version.id] ?? exec.en ?? '';
             const enLocked = exec.en_status === 'approved';
+            const methodologyOk = isMethodologyExportable(
+              project.dv12_tier,
+              version.content_snapshot?.methodology,
+            );
+            const exportDisabled = saving || !methodologyOk;
+            const exportTitle = methodologyOk ? undefined : METHODOLOGY_EXPORT_BANNER;
             return (
             <li
               key={version.id}
@@ -1790,22 +1796,26 @@ function ReportTab({
                   {enLocked ? <span className="muted"> · EN đã duyệt</span> : null}
                 </span>
                 {canExport ? (
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    disabled={
-                      saving ||
-                      !isMethodologyExportable(project.dv12_tier, version.content_snapshot?.methodology)
-                    }
-                    title={
-                      !isMethodologyExportable(project.dv12_tier, version.content_snapshot?.methodology)
-                        ? METHODOLOGY_EXPORT_BANNER
-                        : undefined
-                    }
-                    onClick={() => onExport(report.id, version.id)}
-                  >
-                    Xuất DOCX
-                  </button>
+                  <span style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={exportDisabled}
+                      title={exportTitle}
+                      onClick={() => onExport(report.id, version.id)}
+                    >
+                      Xuất DOCX
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={exportDisabled}
+                      title={exportTitle}
+                      onClick={() => onExport(report.id, version.id, 'pdf')}
+                    >
+                      Xuất PDF
+                    </button>
+                  </span>
                 ) : null}
               </div>
               <label style={{ display: 'grid', gap: 4, fontSize: '0.85rem' }}>
