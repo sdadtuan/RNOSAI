@@ -198,6 +198,7 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   vw_insufficient_n: 'Cần ≥4 người trả lời hợp lệ để tính Van Westendorp.',
   rag_disabled: 'Tìm insight đã duyệt đang tắt.',
   rag_query_required: 'Nhập câu hỏi để tìm insight đã duyệt.',
+  taxonomy_code_exists: 'Mã theme đã tồn tại.',
 };
 
 export type MethodologyBlock = {

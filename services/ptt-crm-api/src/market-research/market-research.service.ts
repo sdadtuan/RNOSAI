@@ -1626,11 +1626,18 @@ export class MarketResearchService {
         messages: ['label_vi is required'],
       });
     }
-    return this.repo.createTaxonomy({
-      theme_code: themeCode,
-      label_vi: labelVi,
-      synonyms: sanitizeSynonyms(input.synonyms),
-    });
+    try {
+      return await this.repo.createTaxonomy({
+        theme_code: themeCode,
+        label_vi: labelVi,
+        synonyms: sanitizeSynonyms(input.synonyms),
+      });
+    } catch (err) {
+      if ((err as { code?: string }).code === '23505') {
+        throw new ConflictException({ error: 'taxonomy_code_exists' });
+      }
+      throw err;
+    }
   }
 
   async patchTaxonomy(id: number, input: PatchTaxonomyInput): Promise<TaxonomyTheme> {

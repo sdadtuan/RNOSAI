@@ -2414,6 +2414,20 @@ describe('MarketResearchService', () => {
     expect(repo.createTaxonomy).not.toHaveBeenCalled();
   });
 
+  it('POST taxonomy theme_code=PRICE when PRICE exists is 409 taxonomy_code_exists', async () => {
+    const pgErr = Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
+    repo.createTaxonomy.mockRejectedValue(pgErr);
+
+    try {
+      await service.createTaxonomy({ theme_code: 'PRICE', label_vi: 'Giá' });
+      throw new Error('expected taxonomy_code_exists');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConflictException);
+      expect((err as ConflictException).getStatus()).toBe(409);
+      expect((err as ConflictException).getResponse()).toEqual({ error: 'taxonomy_code_exists' });
+    }
+  });
+
   it('inactive theme attach is 400 taxonomy_inactive', async () => {
     stubScopedProject();
     repo.getInsight.mockResolvedValue(insightRow({ statement: 'Premium SKU tăng share ở MT HCM' }));
