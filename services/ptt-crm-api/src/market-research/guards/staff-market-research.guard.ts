@@ -108,6 +108,22 @@ export class StaffResearchMktplanEditGuard implements CanActivate {
 }
 
 @Injectable()
+export class StaffResearchContentWriteGuard implements CanActivate {
+  constructor(private readonly staffAuth: StaffAuthService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<StaffReq>();
+    if (req.staffAuthVia === 'internal') return true;
+    if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
+    const me = await this.staffAuth.me(req.staffUser);
+    if (!this.staffAuth.hasCap(me.caps, 'crm_content', 'write')) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_content', action: 'write' });
+    }
+    return true;
+  }
+}
+
+@Injectable()
 export class StaffMarketResearchExportGuard implements CanActivate {
   constructor(private readonly staffAuth: StaffAuthService) {}
 

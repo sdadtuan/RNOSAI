@@ -27,6 +27,7 @@ import {
   StaffMarketResearchExportGuard,
   StaffMarketResearchRunGuard,
   StaffMarketResearchViewGuard,
+  StaffResearchContentWriteGuard,
   StaffResearchMktplanEditGuard,
 } from './guards/staff-market-research.guard';
 import { MarketResearchService } from './market-research.service';
@@ -109,6 +110,22 @@ export class MarketResearchController {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.insertPlanInsights(
       planId,
+      scope,
+      body ?? ({ client_id: '', insight_ids: [] } as InsertPlanInsightsInput),
+      actorEmail(req),
+    );
+  }
+
+  @Post('content-items/:itemId/insights')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard, StaffResearchContentWriteGuard)
+  async insertContentInsights(
+    @Req() req: StaffReq,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: InsertPlanInsightsInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.insertContentInsights(
+      itemId,
       scope,
       body ?? ({ client_id: '', insight_ids: [] } as InsertPlanInsightsInput),
       actorEmail(req),

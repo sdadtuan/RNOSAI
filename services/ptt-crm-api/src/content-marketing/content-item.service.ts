@@ -1,4 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  CONTENT_RESEARCH_BRIEF_KEY,
+  stripContentResearchFromBrief,
+} from '../market-research/content-insight-snapshot.util';
 import { assertValidChannelFormat } from './content-marketing-channel.util';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import { ContentMarketingService } from './content-marketing.service';
@@ -100,7 +104,14 @@ export class ContentItemService {
     const patch: Record<string, unknown> = {};
     if (body.title != null) patch.title = String(body.title).trim();
     if (body.funnel_goal != null) patch.funnel_goal = String(body.funnel_goal).trim();
-    if (body.brief_json != null) patch.brief_json = body.brief_json;
+    if (body.brief_json != null) {
+      const stripped = stripContentResearchFromBrief(body.brief_json as Record<string, unknown>);
+      const existingCite = (existing.brief_json ?? {})[CONTENT_RESEARCH_BRIEF_KEY];
+      patch.brief_json =
+        existingCite !== undefined
+          ? { ...stripped, [CONTENT_RESEARCH_BRIEF_KEY]: existingCite }
+          : stripped;
+    }
     if (body.selected_variant_idx != null) {
       patch.selected_variant_idx = Number(body.selected_variant_idx);
     }

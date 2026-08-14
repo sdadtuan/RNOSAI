@@ -21,6 +21,7 @@ import { ContentOsReviewQueueView } from '@/components/content-os/ContentOsRevie
 import { ContentOsSnapshotBanner } from '@/components/content-os/ContentOsSnapshotBanner';
 import { ContentOsVariantsPicker } from '@/components/content-os/ContentOsVariantsPicker';
 import { ContentOsVersionDiff } from '@/components/content-os/ContentOsVersionDiff';
+import { InsertInsightContentPanel } from '@/components/research/InsertInsightContentPanel';
 import {
   CMKT_P0_PAIRS,
   channelFormatLabel,
@@ -588,6 +589,15 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
                   onChanged={refreshDrawerItem}
                   onMessage={setMessage}
                   onError={setError}
+                />
+                <InsertInsightContentPanel
+                  itemId={drawerItem.id}
+                  lifecycleClientId={ctx?.email_client_id ?? ''}
+                  briefJson={drawerItem.brief_json}
+                  user={user}
+                  onInserted={() => {
+                    void refreshDrawerItem();
+                  }}
                 />
               </>
             ) : null}

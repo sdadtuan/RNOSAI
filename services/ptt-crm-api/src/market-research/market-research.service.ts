@@ -9,6 +9,8 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
+import { ContentMarketingRepository } from '../content-marketing/content-marketing.repository';
+import { ContentMarketingService } from '../content-marketing/content-marketing.service';
 import { MarketingPlansSqliteRepository } from '../marketing-plans/marketing-plans-sqlite.repository';
 import { OpsAlertPgRepository } from '../ops/ops-alert-pg.repository';
 import { ClientScopeContext, StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
@@ -123,6 +125,7 @@ import { buildResearchPrefill, EMPTY_RESEARCH_PREFILL, stripPrefillPii } from '.
 import { assertMethodologyExportable } from './methodology-gate.util';
 import { assertExecEnEditable, normalizeReportExec } from './report-exec.util';
 import { assertPublishableInsights } from './portal-publish.util';
+import { CONTENT_RESEARCH_BRIEF_KEY, freezeContentInsights } from './content-insight-snapshot.util';
 import { assertNoInsightTextLeak, freezePlanInsights } from './plan-insight-snapshot.util';
 import { completenessPct, percentile50 } from './ops-analytics.util';
 import { canTransitionProject, listValidTransitions } from './project-state.util';
@@ -137,6 +140,8 @@ export class MarketResearchService {
     private readonly llm: MarketResearchLlmService,
     private readonly plans: MarketingPlansSqliteRepository,
     private readonly opsAlerts: OpsAlertPgRepository,
+    private readonly contentItems: ContentMarketingRepository,
+    private readonly contentMarketing: ContentMarketingService,
   ) {}
 
   health(): { ok: true; enabled: true; deep_provider: string } {
@@ -224,6 +229,62 @@ export class MarketResearchService {
     });
     assertNoInsightTextLeak(snapshot);
     this.plans.patchPlan(planId, { khtn_market_research_json: JSON.stringify(snapshot) });
+    return { ok: true, snapshot };
+  }
+
+  async insertContentInsights(
+    itemId: number,
+    scope: ClientScopeContext,
+    input: InsertPlanInsightsInput,
+    actor: string,
+  ): Promise<{ ok: true; snapshot: PlanInsightSnapshot }> {
+    const clientId = String(input.client_id ?? '').trim();
+    if (!clientId) {
+      throw new BadRequestException({ error: 'validation_error', messages: ['client_id is required'] });
+    }
+
+    const item = await this.contentItems.findItemById(itemId);
+    if (!item) throw new NotFoundException({ error: 'not_found' });
+
+    const ctx = await this.contentMarketing.getContext(item.lifecycle_id);
+    const lifecycleClientId = String(ctx.email_client_id ?? '').trim();
+    if (!lifecycleClientId) {
+      throw new BadRequestException({ error: 'content_item_no_client' });
+    }
+
+    this.assertClientInScope(scope, lifecycleClientId);
+    this.assertClientInScope(scope, clientId);
+    if (clientId !== lifecycleClientId) {
+      throw new BadRequestException({ error: 'content_item_client_mismatch' });
+    }
+
+    const insightIds = normalizePositiveIds(input.insight_ids);
+    if (insightIds.length === 0) {
+      throw new BadRequestException({ error: 'validation_error', messages: ['insight_ids is required'] });
+    }
+
+    for (const id of insightIds) {
+      const insight = await this.loadScopedInsight(id, scope);
+      const insightClientId = await this.repo.getProjectClientId(insight.project_id);
+      if (insightClientId !== clientId) {
+        throw new BadRequestException({ error: 'client_mismatch' });
+      }
+      if (!APPROVED_INTERNAL_PLUS.includes(insight.status)) {
+        throw new BadRequestException({ error: 'insight_not_approved' });
+      }
+    }
+
+    const snapshot = freezeContentInsights({
+      client_id: clientId,
+      insight_ids: insightIds,
+      inserted_by: actor,
+    });
+    assertNoInsightTextLeak(snapshot);
+    const brief_json = {
+      ...(item.brief_json ?? {}),
+      [CONTENT_RESEARCH_BRIEF_KEY]: snapshot,
+    };
+    await this.contentItems.patchItem(item.lifecycle_id, itemId, { brief_json });
     return { ok: true, snapshot };
   }
 

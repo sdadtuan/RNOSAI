@@ -846,6 +846,18 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     return (this.memory.items.get(lifecycleId) ?? []).find((i) => i.id === itemId) ?? null;
   }
 
+  async findItemById(itemId: number): Promise<CmktItemRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(`SELECT * FROM cmkt_content_items WHERE id = $1`, [itemId]);
+      return res.rows[0] ? mapItemRow(res.rows[0]) : null;
+    }
+    for (const items of this.memory.items.values()) {
+      const found = items.find((i) => i.id === itemId);
+      if (found) return found;
+    }
+    return null;
+  }
+
   async createItem(
     lifecycleId: number,
     input: {

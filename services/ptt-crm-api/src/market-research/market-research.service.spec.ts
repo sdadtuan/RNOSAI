@@ -127,6 +127,13 @@ describe('MarketResearchService', () => {
   const opsAlerts = {
     upsertAlert: jest.fn(),
   };
+  const contentItems = {
+    findItemById: jest.fn(),
+    patchItem: jest.fn(),
+  };
+  const contentMarketing = {
+    getContext: jest.fn(),
+  };
   const config = {
     researchDeepProvider: 'openai',
     maxTavilyCreditsPerResearch: 12,
@@ -148,6 +155,8 @@ describe('MarketResearchService', () => {
       llm as never,
       plans as never,
       opsAlerts as never,
+      contentItems as never,
+      contentMarketing as never,
     );
   });
 
@@ -2263,6 +2272,198 @@ describe('MarketResearchService', () => {
     }
     expect(plans.patchPlan).not.toHaveBeenCalled();
     expect(repo.getInsight).not.toHaveBeenCalled();
+  });
+
+  it('insertContentInsights draft insight is 400 insight_not_approved', async () => {
+    stubScopedProject();
+    contentItems.findItemById.mockResolvedValue({
+      id: 44,
+      lifecycle_id: 3,
+      title: 'Secret content title',
+      brief_json: { hook: 'old' },
+      body_json: { markdown: 'keep me' },
+    });
+    contentMarketing.getContext.mockResolvedValue({ email_client_id: 'acme' });
+    repo.getInsight.mockResolvedValue(insightRow({ status: 'draft' }));
+
+    try {
+      await service.insertContentInsights(
+        44,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { client_id: 'acme', insight_ids: [7] },
+        'am@ptt',
+      );
+      throw new Error('expected insight_not_approved');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'insight_not_approved' });
+      expect(JSON.stringify((err as BadRequestException).getResponse())).not.toContain('Secret');
+    }
+    expect(contentItems.patchItem).not.toHaveBeenCalled();
+  });
+
+  it('insertContentInsights body client ≠ lifecycle client is 400 content_item_client_mismatch', async () => {
+    stubScopedProject();
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme', 'other-client']);
+    contentItems.findItemById.mockResolvedValue({
+      id: 44,
+      lifecycle_id: 3,
+      title: 'Secret content title',
+      brief_json: { hook: 'old' },
+    });
+    contentMarketing.getContext.mockResolvedValue({ email_client_id: 'acme' });
+
+    try {
+      await service.insertContentInsights(
+        44,
+        { restricted: true, allowedClientIds: ['acme', 'other-client'] },
+        { client_id: 'other-client', insight_ids: [7] },
+        'am@ptt',
+      );
+      throw new Error('expected content_item_client_mismatch');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual({
+        error: 'content_item_client_mismatch',
+      });
+      expect(JSON.stringify((err as BadRequestException).getResponse())).not.toContain('Secret');
+    }
+    expect(contentItems.patchItem).not.toHaveBeenCalled();
+  });
+
+  it('insertContentInsights persists ids only and leak assert passes', async () => {
+    stubScopedProject();
+    contentItems.findItemById.mockResolvedValue({
+      id: 44,
+      lifecycle_id: 3,
+      title: 'Secret content title',
+      brief_json: { hook: 'old' },
+      body_json: { markdown: 'keep me' },
+    });
+    contentMarketing.getContext.mockResolvedValue({ email_client_id: 'acme' });
+    repo.getInsight.mockResolvedValue(
+      insightRow({ status: 'approved_internal', statement: 'Premium SKU tăng share ở MT HCM' }),
+    );
+    contentItems.patchItem.mockImplementation(
+      (_lifecycleId: number, _itemId: number, patch: { brief_json?: Record<string, unknown> }) => {
+        const stored = patch.brief_json ?? {};
+        expect(stored).toHaveProperty('hook', 'old');
+        expect(stored.market_research).not.toHaveProperty('statement');
+        expect(JSON.stringify(stored)).not.toContain('Premium SKU');
+        expect(JSON.stringify(stored)).not.toContain('statement');
+        return { id: 44, brief_json: stored, body_json: { markdown: 'keep me' } };
+      },
+    );
+
+    const { assertNoInsightTextLeak } = await import('./plan-insight-snapshot.util');
+    expect(() =>
+      assertNoInsightTextLeak({
+        client_id: 'acme',
+        insight_ids: [7],
+        statement: 'Premium SKU tăng share ở MT HCM',
+      }),
+    ).toThrow('plan_must_not_copy_insight_text');
+
+    const out = await service.insertContentInsights(
+      44,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { client_id: 'acme', insight_ids: [7] },
+      'am@ptt',
+    );
+
+    expect(contentItems.patchItem).toHaveBeenCalledTimes(1);
+    expect(contentItems.patchItem.mock.calls[0][0]).toBe(3);
+    expect(contentItems.patchItem.mock.calls[0][1]).toBe(44);
+    const persisted = contentItems.patchItem.mock.calls[0][2] as {
+      brief_json: Record<string, unknown>;
+      body_json?: unknown;
+      title?: unknown;
+    };
+    expect(persisted).not.toHaveProperty('body_json');
+    expect(persisted).not.toHaveProperty('title');
+    const snap = persisted.brief_json.market_research as Record<string, unknown>;
+    expect(Object.keys(snap).sort()).toEqual(
+      ['client_id', 'inserted_at', 'inserted_by', 'insight_ids'].sort(),
+    );
+    expect(snap.insight_ids).toEqual([7]);
+    expect(snap.client_id).toBe('acme');
+    expect(JSON.stringify(snap)).not.toContain('statement');
+    assertNoInsightTextLeak(snap);
+    expect(out.snapshot.insight_ids).toEqual([7]);
+  });
+
+  it('insertContentInsights missing item is 404 without title', async () => {
+    contentItems.findItemById.mockResolvedValue(null);
+
+    try {
+      await service.insertContentInsights(
+        99,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { client_id: 'acme', insight_ids: [7] },
+        'am@ptt',
+      );
+      throw new Error('expected not_found');
+    } catch (err) {
+      expect((err as { getStatus?: () => number }).getStatus?.()).toBe(404);
+      const body = (err as { getResponse: () => unknown }).getResponse();
+      expect(body).toEqual({ error: 'not_found' });
+      expect(JSON.stringify(body)).not.toContain('title');
+      expect(JSON.stringify(body)).not.toContain('Secret');
+    }
+    expect(contentItems.patchItem).not.toHaveBeenCalled();
+  });
+
+  it('insertContentInsights empty lifecycle client is 400 content_item_no_client', async () => {
+    stubScopedProject();
+    contentItems.findItemById.mockResolvedValue({
+      id: 44,
+      lifecycle_id: 3,
+      title: 'Secret content title',
+      brief_json: {},
+    });
+    contentMarketing.getContext.mockResolvedValue({ email_client_id: null });
+
+    try {
+      await service.insertContentInsights(
+        44,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { client_id: 'acme', insight_ids: [7] },
+        'am@ptt',
+      );
+      throw new Error('expected content_item_no_client');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'content_item_no_client' });
+    }
+    expect(contentItems.patchItem).not.toHaveBeenCalled();
+  });
+
+  it('insertContentInsights cross-tenant item is 403 without title', async () => {
+    clientScope.allowedClientIdsForList.mockReturnValue(['beta']);
+    contentItems.findItemById.mockResolvedValue({
+      id: 44,
+      lifecycle_id: 3,
+      title: 'Secret content title',
+      brief_json: {},
+    });
+    contentMarketing.getContext.mockResolvedValue({ email_client_id: 'acme' });
+
+    try {
+      await service.insertContentInsights(
+        44,
+        { restricted: true, allowedClientIds: ['beta'] },
+        { client_id: 'acme', insight_ids: [7] },
+        'am@ptt',
+      );
+      throw new Error('expected forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const body = (err as ForbiddenException).getResponse();
+      expect(body).toEqual({ error: 'forbidden' });
+      expect(JSON.stringify(body)).not.toContain('title');
+      expect(JSON.stringify(body)).not.toContain('Secret');
+    }
+    expect(contentItems.patchItem).not.toHaveBeenCalled();
   });
 
   it('getOpsAnalytics out-of-scope client_id is 403 without title', async () => {

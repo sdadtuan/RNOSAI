@@ -1073,6 +1073,20 @@ export async function insertPlanInsights(
   });
 }
 
+export async function insertContentInsights(
+  token: string,
+  itemId: number,
+  body: { client_id: string; insight_ids: number[] },
+): Promise<{ ok: true; snapshot: PlanInsightSnapshot }> {
+  return researchFetch(token, `/api/v1/research/content-items/${itemId}/insights`, {
+    method: 'POST',
+    body: JSON.stringify({
+      client_id: body.client_id,
+      insight_ids: body.insight_ids,
+    }),
+  });
+}
+
 export function parsePlanInsightSnapshot(raw: unknown): PlanInsightSnapshot | null {
   let obj: unknown = raw;
   if (typeof raw === 'string') {

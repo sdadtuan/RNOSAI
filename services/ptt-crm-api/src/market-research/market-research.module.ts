@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ContentMarketingModule } from '../content-marketing/content-marketing.module';
 import { MarketingPlansModule } from '../marketing-plans/marketing-plans.module';
 import { OpsModule } from '../ops/ops.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
@@ -12,6 +13,7 @@ import {
   StaffMarketResearchExportGuard,
   StaffMarketResearchRunGuard,
   StaffMarketResearchViewGuard,
+  StaffResearchContentWriteGuard,
   StaffResearchMktplanEditGuard,
 } from './guards/staff-market-research.guard';
 import { MarketResearchController } from './market-research.controller';
@@ -20,7 +22,14 @@ import { MarketResearchRepository } from './market-research.repository';
 import { MarketResearchService } from './market-research.service';
 
 @Module({
-  imports: [StaffAuthModule, StaffClientScopeModule, WebhooksModule, MarketingPlansModule, OpsModule],
+  imports: [
+    StaffAuthModule,
+    StaffClientScopeModule,
+    WebhooksModule,
+    MarketingPlansModule,
+    OpsModule,
+    ContentMarketingModule,
+  ],
   controllers: [MarketResearchController],
   providers: [
     MarketResearchEnabledGuard,
@@ -34,6 +43,7 @@ import { MarketResearchService } from './market-research.service';
     StaffMarketResearchRunGuard,
     StaffMarketResearchExportGuard,
     StaffResearchMktplanEditGuard,
+    StaffResearchContentWriteGuard,
   ],
 })
 export class MarketResearchModule {}

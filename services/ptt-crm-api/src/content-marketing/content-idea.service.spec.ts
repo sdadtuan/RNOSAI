@@ -96,6 +96,43 @@ describe('ContentItemService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('patchItem strips inbound market_research and keeps existing cite', async () => {
+    const existingCite = {
+      client_id: 'acme',
+      insight_ids: [7],
+      inserted_at: '2026-08-14T05:00:00.000Z',
+      inserted_by: 'am@ptt',
+    };
+    repo.getItemById.mockResolvedValue({
+      id: 10,
+      status: 'draft',
+      channel: 'facebook',
+      format: 'social_post',
+      brief_json: { hook: 'old', market_research: existingCite },
+      body_json: { markdown: '' },
+    });
+    repo.patchItem.mockImplementation(
+      (_lifecycleId: number, _itemId: number, patch: { brief_json?: Record<string, unknown> }) => ({
+        id: 10,
+        brief_json: patch.brief_json,
+        body_json: { markdown: '' },
+      }),
+    );
+
+    await service.patchItem(
+      1,
+      10,
+      { brief_json: { hook: 'n', market_research: { statement: 'leak' } } },
+      'writer@test.vn',
+    );
+
+    const stored = repo.patchItem.mock.calls[0][2].brief_json as Record<string, unknown>;
+    expect(stored.hook).toBe('n');
+    expect(stored.market_research).toEqual(existingCite);
+    expect(JSON.stringify(stored)).not.toContain('leak');
+    expect(JSON.stringify(stored)).not.toContain('statement');
+  });
+
   it('patchItem writes version on body change', async () => {
     repo.getItemById.mockResolvedValue({
       id: 10,
