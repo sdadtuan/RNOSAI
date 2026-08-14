@@ -29,6 +29,7 @@ import {
 import {
   addResearchQuestion,
   approveResearchInsight,
+  approveResearchReportExecEn,
   attachResearchInsightEvidence,
   copilotResearchInsight,
   copilotResearchReport,
@@ -60,6 +61,9 @@ import {
   METHODOLOGY_EXPORT_BANNER,
   isMethodologyComplete,
   isMethodologyExportable,
+  normalizeReportExec,
+  TRANSITION_REASON_VI,
+  updateResearchReportExecEn,
   type CreateEvidenceBody,
   type CreateInsightBody,
   type InsightStatus,
@@ -535,6 +539,46 @@ function CrmResearchWorkspaceContent() {
     }
   }
 
+  async function onSaveExecEn(reportId: number, versionId: number, en: string) {
+    const access = getAccessToken();
+    if (!access) return;
+    setSaving(true);
+    setError('');
+    try {
+      const out = await updateResearchReportExecEn(access, reportId, versionId, en);
+      setReportSnapshot(out.content_snapshot);
+      await load(access);
+    } catch (err) {
+      if (err instanceof ResearchApiError && err.code && TRANSITION_REASON_VI[err.code]) {
+        setError(TRANSITION_REASON_VI[err.code]);
+      } else {
+        setError(err instanceof Error ? err.message : 'Lưu bản dịch thất bại');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onApproveExecEn(reportId: number, versionId: number) {
+    const access = getAccessToken();
+    if (!access) return;
+    setSaving(true);
+    setError('');
+    try {
+      const out = await approveResearchReportExecEn(access, reportId, versionId);
+      setReportSnapshot(out.content_snapshot);
+      await load(access);
+    } catch (err) {
+      if (err instanceof ResearchApiError && err.code && TRANSITION_REASON_VI[err.code]) {
+        setError(TRANSITION_REASON_VI[err.code]);
+      } else {
+        setError(err instanceof Error ? err.message : 'Duyệt bản dịch thất bại');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function onVerifyEvidence(ev: ResearchEvidence) {
     const access = getAccessToken();
     if (!access || !project) return;
@@ -912,12 +956,15 @@ function CrmResearchWorkspaceContent() {
                 canEdit={canEdit}
                 canRun={canRun}
                 canExport={canExport}
+                canApprove={canApprove}
                 saving={saving}
                 snapshot={reportSnapshot}
                 reports={reports}
                 onCopilot={(ids) => void onReportCopilot(ids)}
                 onCreate={(ids, methodology) => void onCreateReport(ids, methodology)}
                 onExport={(reportId, versionId) => void onExportReport(reportId, versionId)}
+                onSaveExecEn={(reportId, versionId, en) => void onSaveExecEn(reportId, versionId, en)}
+                onApproveExecEn={(reportId, versionId) => void onApproveExecEn(reportId, versionId)}
               />
             ) : (
               <p className="muted">P0: dùng tab Brief / Nguồn / Evidence / Insight. Tab {TABS.find((t) => t.id === tab)?.label} sẽ có ở milestone sau.</p>
@@ -1420,29 +1467,37 @@ function ReportTab({
   canEdit,
   canRun,
   canExport,
+  canApprove,
   saving,
   snapshot,
   reports,
   onCopilot,
   onCreate,
   onExport,
+  onSaveExecEn,
+  onApproveExecEn,
 }: {
   project: ResearchProject;
   canEdit: boolean;
   canRun: boolean;
   canExport: boolean;
+  canApprove: boolean;
   saving: boolean;
   snapshot: ResearchReportSnapshot | null;
   reports: ResearchReport[];
   onCopilot: (insightIds: number[]) => void;
   onCreate: (insightIds: number[], methodology?: MethodologyBlock) => void;
   onExport: (reportId: number, versionId: number) => void;
+  onSaveExecEn: (reportId: number, versionId: number, en: string) => void;
+  onApproveExecEn: (reportId: number, versionId: number) => void;
 }) {
   const approved = (project.insights ?? []).filter((row) => APPROVED_INTERNAL_PLUS.includes(row.status));
   const [selected, setSelected] = useState<number[]>(() => approved.map((row) => row.id));
   const [population, setPopulation] = useState('');
   const [sourcePlan, setSourcePlan] = useState('');
   const [limitation, setLimitation] = useState('');
+  const [enDrafts, setEnDrafts] = useState<Record<number, string>>({});
+  const snapshotExec = normalizeReportExec(snapshot?.exec);
   const versions = reports.flatMap((report) =>
     report.versions.map((version) => ({ report, version })),
   );
@@ -1480,6 +1535,19 @@ function ReportTab({
         }}
       >
         {METHODOLOGY_EXPORT_BANNER}
+      </div>
+      <div
+        role="status"
+        style={{
+          marginBottom: '0.75rem',
+          padding: '0.55rem 0.7rem',
+          borderRadius: 8,
+          background: '#fff7ed',
+          border: '1px solid #fdba74',
+          fontSize: '0.85rem',
+        }}
+      >
+        Lead duyệt bản dịch trước khi gửi khách.
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0, fontSize: '1rem' }}>Báo cáo</h2>
@@ -1589,58 +1657,125 @@ function ReportTab({
         <p className="muted">Chưa có phiên bản báo cáo.</p>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0.75rem' }}>
-          {versions.map(({ report, version }) => (
+          {versions.map(({ report, version }) => {
+            const exec = normalizeReportExec(version.content_snapshot?.exec);
+            const enValue = enDrafts[version.id] ?? exec.en ?? '';
+            const enLocked = exec.en_status === 'approved';
+            return (
             <li
               key={version.id}
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                gap: '0.75rem',
-                alignItems: 'center',
+                display: 'grid',
+                gap: '0.45rem',
                 padding: '0.45rem 0',
                 borderBottom: '1px solid #e6ebe6',
                 fontSize: '0.85rem',
               }}
             >
-              <span>
-                v{version.version} · {version.created_at.slice(0, 10)} · {version.generated_by ?? '—'}
-                <span className="muted"> · {version.content_hash.slice(0, 8)}</span>
-              </span>
-              {canExport ? (
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  disabled={
-                    saving ||
-                    !isMethodologyExportable(project.dv12_tier, version.content_snapshot?.methodology)
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                  alignItems: 'center',
+                }}
+              >
+                <span>
+                  v{version.version} · {version.created_at.slice(0, 10)} · {version.generated_by ?? '—'}
+                  <span className="muted"> · {version.content_hash.slice(0, 8)}</span>
+                  {enLocked ? <span className="muted"> · EN đã duyệt</span> : null}
+                </span>
+                {canExport ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={
+                      saving ||
+                      !isMethodologyExportable(project.dv12_tier, version.content_snapshot?.methodology)
+                    }
+                    title={
+                      !isMethodologyExportable(project.dv12_tier, version.content_snapshot?.methodology)
+                        ? METHODOLOGY_EXPORT_BANNER
+                        : undefined
+                    }
+                    onClick={() => onExport(report.id, version.id)}
+                  >
+                    Xuất DOCX
+                  </button>
+                ) : null}
+              </div>
+              <label style={{ display: 'grid', gap: 4, fontSize: '0.85rem' }}>
+                Executive (VI)
+                <textarea
+                  rows={3}
+                  readOnly
+                  value={exec.vi}
+                  style={{ width: '100%', resize: 'vertical', background: '#f6f7f6' }}
+                />
+              </label>
+              <label style={{ display: 'grid', gap: 4, fontSize: '0.85rem' }}>
+                Executive (EN)
+                <textarea
+                  rows={3}
+                  disabled={saving || enLocked || !canEdit}
+                  value={enValue}
+                  onChange={(e) =>
+                    setEnDrafts((prev) => ({ ...prev, [version.id]: e.target.value }))
                   }
-                  title={
-                    !isMethodologyExportable(project.dv12_tier, version.content_snapshot?.methodology)
-                      ? METHODOLOGY_EXPORT_BANNER
-                      : undefined
-                  }
-                  onClick={() => onExport(report.id, version.id)}
-                >
-                  Xuất DOCX
-                </button>
-              ) : null}
+                  style={{ width: '100%', resize: 'vertical' }}
+                />
+              </label>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {canEdit ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={saving || enLocked || !enValue.trim()}
+                    onClick={() => onSaveExecEn(report.id, version.id, enValue)}
+                  >
+                    Lưu bản dịch
+                  </button>
+                ) : null}
+                {canApprove ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={saving || enLocked || !enValue.trim()}
+                    onClick={() => onApproveExecEn(report.id, version.id)}
+                  >
+                    Duyệt bản dịch
+                  </button>
+                ) : null}
+              </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
       {snapshot ? (
-        <pre
-          style={{
-            margin: 0,
-            padding: '0.75rem',
-            background: '#f6f7f6',
-            borderRadius: 8,
-            overflow: 'auto',
-            fontSize: '0.8rem',
-          }}
-        >
-          {JSON.stringify(snapshot, null, 2)}
-        </pre>
+        <div style={{ display: 'grid', gap: '0.55rem' }}>
+          <label style={{ display: 'grid', gap: 4, fontSize: '0.85rem' }}>
+            Executive (VI)
+            <textarea
+              rows={3}
+              readOnly
+              value={snapshotExec.vi}
+              style={{ width: '100%', resize: 'vertical', background: '#f6f7f6' }}
+            />
+          </label>
+          <pre
+            style={{
+              margin: 0,
+              padding: '0.75rem',
+              background: '#f6f7f6',
+              borderRadius: 8,
+              overflow: 'auto',
+              fontSize: '0.8rem',
+            }}
+          >
+            {JSON.stringify(snapshot, null, 2)}
+          </pre>
+        </div>
       ) : null}
     </section>
   );

@@ -53,6 +53,7 @@ import type {
   PatchQuestionInput,
   PatchSourceInput,
   ReportCopilotInput,
+  UpdateExecEnInput,
   RunDeepInput,
   RunDeskInput,
   RunPulseInput,
@@ -496,6 +497,35 @@ export class MarketResearchController {
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.exportReportVersion(id, versionId, scope);
+  }
+
+  @Post('reports/:reportId/versions/:versionId/exec-en')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async updateReportExecEn(
+    @Req() req: StaffReq,
+    @Param('reportId', ParseIntPipe) reportId: number,
+    @Param('versionId', ParseIntPipe) versionId: number,
+    @Body() body: UpdateExecEnInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.updateReportExecEn(
+      reportId,
+      versionId,
+      scope,
+      body ?? { en: '' },
+      actorEmail(req),
+    );
+  }
+
+  @Post('reports/:reportId/versions/:versionId/approve-exec-en')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchApproveGuard)
+  async approveReportExecEn(
+    @Req() req: StaffReq,
+    @Param('reportId', ParseIntPipe) reportId: number,
+    @Param('versionId', ParseIntPipe) versionId: number,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.approveReportExecEn(reportId, versionId, scope, actorEmail(req));
   }
 
   @Post('projects/:id/reports/copilot')

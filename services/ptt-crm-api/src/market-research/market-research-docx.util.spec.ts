@@ -96,4 +96,34 @@ describe('buildResearchReportDocx', () => {
     expect(xml.includes('Limitation') || xml.includes('Hạn chế')).toBe(true);
     expect(xml).toContain('Không có panel định lượng 2026');
   });
+
+  it('unzip DOCX has Executive (EN) when en present', async () => {
+    const snapshot = buildReportSnapshot({
+      project: {
+        client_id: 'acme',
+        client_name: 'Acme',
+        title: 'Category review sữa uống 2026',
+        decision_statement: 'Quyết định có mở SKU premium Q4 hay không.',
+      },
+      insights: [
+        {
+          id: 11,
+          statement: 'Premium SKU tăng share ở MT HCM',
+          recommendation: 'Mở SKU premium',
+          evidence_ids: [3],
+        },
+      ],
+      questions: [{ id: 21, question_vi: 'Quy mô thị trường?', sort_order: 1 }],
+      evidence: [{ id: 3, locator: 'https://example.com#p3', question_id: 21 }],
+      selectedInsightIds: [11],
+      version: 1,
+      llmDraft: {
+        exec: { vi: 'Mở SKU premium Q4.', en: 'Launch the premium SKU in Q4.' },
+      },
+    });
+    const buffer = await buildResearchReportDocx(sectionsFromReportSnapshot(snapshot));
+    const xml = unzipEntry(buffer, 'word/document.xml');
+    expect(xml).toContain('Executive (EN)');
+    expect(xml).toContain('Launch the premium SKU in Q4.');
+  });
 });

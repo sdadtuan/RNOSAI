@@ -179,6 +179,8 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   client_mismatch: 'Insight không thuộc khách hàng đã chọn.',
   insight_not_approved: 'Chỉ được chèn insight đã duyệt nội bộ trở lên.',
   forbidden: 'Không đủ quyền với khách hàng này.',
+  cannot_self_approve: 'Người tạo không tự duyệt — nhờ Research Lead.',
+  exec_en_locked: 'Bản dịch EN đã duyệt — tạo phiên bản mới để sửa (BR-RES-05).',
 };
 
 export type MethodologyBlock = {
@@ -208,6 +210,24 @@ export function isMethodologyExportable(
   return isMethodologyComplete(m);
 }
 
+export type ReportExec = {
+  vi: string;
+  en: string | null;
+  en_status: 'none' | 'draft' | 'approved';
+};
+
+export function normalizeReportExec(raw: unknown): ReportExec {
+  if (typeof raw === 'string') {
+    return { vi: raw, en: null, en_status: 'none' };
+  }
+  const obj = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const vi = String(obj.vi ?? obj.exec ?? '').trim();
+  const en = obj.en == null ? null : String(obj.en).trim() || null;
+  const st = obj.en_status;
+  const en_status = st === 'draft' || st === 'approved' || st === 'none' ? st : en ? 'draft' : 'none';
+  return { vi, en, en_status };
+}
+
 export type ResearchReportSnapshot = {
   cover?: {
     client?: string;
@@ -216,7 +236,7 @@ export type ResearchReportSnapshot = {
     version?: number;
     as_of?: string;
   };
-  exec?: string;
+  exec?: ReportExec | string;
   findings?: unknown[];
   recs?: unknown[];
   methodology?: MethodologyBlock;
@@ -1052,6 +1072,30 @@ export async function createResearchConsent(
     method: 'POST',
     body: JSON.stringify(body),
   });
+}
+
+export async function updateResearchReportExecEn(
+  token: string,
+  reportId: number,
+  versionId: number,
+  en: string,
+): Promise<ResearchReportVersion> {
+  return researchFetch(token, `/api/v1/research/reports/${reportId}/versions/${versionId}/exec-en`, {
+    method: 'POST',
+    body: JSON.stringify({ en }),
+  });
+}
+
+export async function approveResearchReportExecEn(
+  token: string,
+  reportId: number,
+  versionId: number,
+): Promise<ResearchReportVersion> {
+  return researchFetch(
+    token,
+    `/api/v1/research/reports/${reportId}/versions/${versionId}/approve-exec-en`,
+    { method: 'POST' },
+  );
 }
 
 export async function copilotResearchReport(

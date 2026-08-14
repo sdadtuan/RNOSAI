@@ -452,6 +452,10 @@ export type CreateReportInput = {
   methodology?: MethodologyBlock;
 };
 
+export type UpdateExecEnInput = {
+  en: string;
+};
+
 export type ResearchReportVersionRow = {
   id: number;
   report_id: number;

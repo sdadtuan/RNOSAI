@@ -1,6 +1,7 @@
 import archiver from 'archiver';
 import { PassThrough } from 'stream';
 import type { ResearchReportSnapshot } from './market-research-report-snapshot.util';
+import { normalizeReportExec } from './report-exec.util';
 
 export type ResearchDocxSection = {
   title: string;
@@ -45,6 +46,7 @@ function methodologyLines(m: ResearchReportSnapshot['methodology'] | undefined):
 
 export function sectionsFromReportSnapshot(snapshot: ResearchReportSnapshot): ResearchDocxSection[] {
   const cover = snapshot.cover;
+  const exec = normalizeReportExec(snapshot.exec);
   const findingsByHeading = new Map<string, string[]>();
   for (const finding of snapshot.findings) {
     const heading = finding.heading || 'Findings';
@@ -71,8 +73,9 @@ export function sectionsFromReportSnapshot(snapshot: ResearchReportSnapshot): Re
     },
     {
       title: 'Executive answer',
-      lines: [snapshot.exec || '(none)'],
+      lines: [exec.vi || '(none)'],
     },
+    ...(exec.en ? [{ title: 'Executive (EN)', lines: [exec.en] }] : []),
     ...findingSections,
     {
       title: 'Recommendations',

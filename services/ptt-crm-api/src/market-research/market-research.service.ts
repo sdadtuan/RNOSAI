@@ -82,7 +82,9 @@ import type {
   ResearchProjectRow,
   ResearchQuestionRow,
   ResearchReportRow,
+  ResearchReportVersionRow,
   ResearchSourceRow,
+  UpdateExecEnInput,
   RunDeepInput,
   RunDeepResult,
   RunDeskInput,
@@ -103,6 +105,7 @@ import {
 import { validateCreateEvidence, validateCreateProject } from './market-research.validation';
 import { buildResearchPrefill, EMPTY_RESEARCH_PREFILL, stripPrefillPii } from './research-prefill.util';
 import { assertMethodologyExportable } from './methodology-gate.util';
+import { assertExecEnEditable, normalizeReportExec } from './report-exec.util';
 import { assertNoInsightTextLeak, freezePlanInsights } from './plan-insight-snapshot.util';
 import { canTransitionProject, listValidTransitions } from './project-state.util';
 
@@ -1346,13 +1349,84 @@ export class MarketResearchService {
     const project = await this.loadScopedProject(report.project_id, scope);
     const version = await this.repo.getReportVersion(reportId, versionId);
     if (!version) throw new NotFoundException({ error: 'not_found' });
-    const snapshot = version.content_snapshot as ResearchReportSnapshot;
+    const raw = version.content_snapshot as ResearchReportSnapshot;
+    const snapshot: ResearchReportSnapshot = {
+      ...raw,
+      exec: normalizeReportExec(raw.exec),
+    };
     this.assertMethodologyForTier(project.dv12_tier, snapshot.methodology);
     const buffer = await buildResearchReportDocx(sectionsFromReportSnapshot(snapshot));
     return new StreamableFile(buffer, {
       type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       disposition: `attachment; filename="research-report-${reportId}-v${version.version}.docx"`,
     });
+  }
+
+  async updateReportExecEn(
+    reportId: number,
+    versionId: number,
+    scope: ClientScopeContext,
+    input: UpdateExecEnInput,
+    _actor: string,
+  ): Promise<ResearchReportVersionRow> {
+    const report = await this.repo.getReport(reportId);
+    if (!report) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(report.project_id, scope);
+    const version = await this.repo.getReportVersion(reportId, versionId);
+    if (!version) throw new NotFoundException({ error: 'not_found' });
+
+    const snapshot = { ...version.content_snapshot };
+    const exec = normalizeReportExec(snapshot.exec);
+    try {
+      assertExecEnEditable(exec);
+    } catch (err) {
+      if ((err as Error & { code?: string }).code === 'exec_en_locked') {
+        throw new BadRequestException({ error: 'exec_en_locked' });
+      }
+      throw err;
+    }
+    const en = String(input?.en ?? '').trim();
+    if (!en) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['en is required'],
+      });
+    }
+    const updated = await this.repo.updateReportVersionSnapshot(reportId, versionId, {
+      ...snapshot,
+      exec: { vi: exec.vi, en, en_status: 'draft' },
+    });
+    if (!updated) throw new NotFoundException({ error: 'not_found' });
+    return updated;
+  }
+
+  async approveReportExecEn(
+    reportId: number,
+    versionId: number,
+    scope: ClientScopeContext,
+    actor: string,
+  ): Promise<ResearchReportVersionRow> {
+    const report = await this.repo.getReport(reportId);
+    if (!report) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(report.project_id, scope);
+    const version = await this.repo.getReportVersion(reportId, versionId);
+    if (!version) throw new NotFoundException({ error: 'not_found' });
+    try {
+      assertNotSelfApprove(version.generated_by, actor);
+    } catch (err) {
+      if ((err as Error & { code?: string }).code === 'cannot_self_approve') {
+        throw new ForbiddenException({ error: 'cannot_self_approve' });
+      }
+      throw err;
+    }
+    const snapshot = { ...version.content_snapshot };
+    const exec = normalizeReportExec(snapshot.exec);
+    const updated = await this.repo.updateReportVersionSnapshot(reportId, versionId, {
+      ...snapshot,
+      exec: { vi: exec.vi, en: exec.en, en_status: 'approved' },
+    });
+    if (!updated) throw new NotFoundException({ error: 'not_found' });
+    return updated;
   }
 
   private async loadApprovedInsights(

@@ -77,6 +77,7 @@ describe('MarketResearchService', () => {
     listReports: jest.fn(),
     getReport: jest.fn(),
     getReportVersion: jest.fn(),
+    updateReportVersionSnapshot: jest.fn(),
     listCompetitors: jest.fn(),
     getCompetitor: jest.fn(),
     createCompetitor: jest.fn(),
@@ -1517,6 +1518,82 @@ describe('MarketResearchService', () => {
       allowedClientIds: ['acme'],
     });
     expect(out).toBeInstanceOf(StreamableFile);
+  });
+
+  it('approve-exec-en by generated_by is 403 cannot_self_approve', async () => {
+    stubScopedProject();
+    repo.getReport.mockResolvedValue({ id: 1, project_id: 9, status: 'draft' });
+    repo.getReportVersion.mockResolvedValue({
+      id: 10,
+      report_id: 1,
+      version: 1,
+      content_snapshot: {
+        cover: { client: 'Acme', title: 'T', confidential: true, version: 1, as_of: '2026-08-14' },
+        exec: { vi: 'xin chào', en: 'hello', en_status: 'draft' },
+        findings: [],
+        recs: [],
+        methodology: { stub: true, population: '', source_plan: '', limitation: '' },
+        evidence_index: [],
+        status: 'draft',
+        insight_ids: [7],
+      },
+      generated_by: 'am@ptt',
+      content_hash: 'abc',
+      created_at: '2026-08-14',
+    });
+
+    try {
+      await service.approveReportExecEn(
+        1,
+        10,
+        { restricted: true, allowedClientIds: ['acme'] },
+        'am@ptt',
+      );
+      throw new Error('expected cannot_self_approve');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect((err as ForbiddenException).getResponse()).toEqual({ error: 'cannot_self_approve' });
+    }
+    expect(repo.updateReportVersionSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('POST exec-en when approved is 400 exec_en_locked', async () => {
+    stubScopedProject();
+    repo.getReport.mockResolvedValue({ id: 1, project_id: 9, status: 'draft' });
+    repo.getReportVersion.mockResolvedValue({
+      id: 10,
+      report_id: 1,
+      version: 1,
+      content_snapshot: {
+        cover: { client: 'Acme', title: 'T', confidential: true, version: 1, as_of: '2026-08-14' },
+        exec: { vi: 'xin chào', en: 'hello', en_status: 'approved' },
+        findings: [],
+        recs: [],
+        methodology: { stub: true, population: '', source_plan: '', limitation: '' },
+        evidence_index: [],
+        status: 'draft',
+        insight_ids: [7],
+      },
+      generated_by: 'am@ptt',
+      content_hash: 'abc',
+      created_at: '2026-08-14',
+    });
+
+    try {
+      await service.updateReportExecEn(
+        1,
+        10,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { en: 'new translation' },
+        'lead@ptt',
+      );
+      throw new Error('expected exec_en_locked');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'exec_en_locked' });
+    }
+    expect(repo.updateReportVersionSnapshot).not.toHaveBeenCalled();
   });
 
   it('createReport rejects insights below approved_internal', async () => {

@@ -69,5 +69,22 @@ describe('buildReportSnapshot', () => {
     expect(JSON.stringify(snapshot.cover)).not.toContain('HALLUCINATED');
     expect(snapshot.findings.every((row) => Number(row.insight_id) === 11)).toBe(true);
     expect(snapshot.recs.every((row) => Number(row.insight_id) === 11)).toBe(true);
+    expect(snapshot.exec).toEqual({ vi: 'LLM exec', en: null, en_status: 'none' });
+  });
+
+  it('normalizes decision_statement string exec for P0 versions', () => {
+    const snapshot = buildReportSnapshot({
+      project,
+      insights,
+      questions,
+      evidence,
+      selectedInsightIds: [11],
+      version: 1,
+    });
+    expect(snapshot.exec).toEqual({
+      vi: 'Quyết định có mở SKU premium Q4 hay không.',
+      en: null,
+      en_status: 'none',
+    });
   });
 });

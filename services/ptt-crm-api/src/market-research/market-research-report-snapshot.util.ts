@@ -1,4 +1,5 @@
-import type { MethodologyBlock } from './market-research.types';
+import type { MethodologyBlock, ReportExec } from './market-research.types';
+import { normalizeReportExec } from './report-exec.util';
 
 export type { MethodologyBlock };
 
@@ -39,7 +40,7 @@ export type ReportEvidenceIndexRow = {
 
 export type ResearchReportSnapshot = {
   cover: ReportCover;
-  exec: string;
+  exec: ReportExec;
   findings: ReportFinding[];
   recs: ReportRec[];
   methodology: MethodologyBlock;
@@ -195,10 +196,18 @@ export function buildReportSnapshot(input: {
             recommendation: String(insight.recommendation),
           }));
 
-  const exec =
-    typeof draft.exec === 'string' && draft.exec.trim()
-      ? draft.exec
-      : String(input.project.decision_statement ?? '');
+  const draftRec = asRecord(draft) ?? {};
+  let rawExec: unknown = draftRec.exec;
+  if (typeof rawExec === 'string' && draftRec.en != null) {
+    rawExec = { vi: rawExec, en: draftRec.en };
+  }
+  if (rawExec == null || (typeof rawExec === 'string' && !rawExec.trim())) {
+    rawExec = input.project.decision_statement ?? '';
+  }
+  const exec = normalizeReportExec(rawExec);
+  if (exec.en_status === 'approved') {
+    exec.en_status = exec.en ? 'draft' : 'none';
+  }
 
   return {
     cover: {

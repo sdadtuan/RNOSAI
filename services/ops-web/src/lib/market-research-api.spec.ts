@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { insightConfidencePayload, type ConfidenceRubric } from './market-research-api';
+import { insightConfidencePayload, normalizeReportExec, type ConfidenceRubric } from './market-research-api';
 
 const empty: ConfidenceRubric = { S: 0, F: 0, T: 0, A: 0, R: 0 };
+
+describe('normalizeReportExec', () => {
+  it("normalizeReportExec('hello') → { vi: 'hello', en: null, en_status: 'none' }", () => {
+    expect(normalizeReportExec('hello')).toEqual({
+      vi: 'hello',
+      en: null,
+      en_status: 'none',
+    });
+  });
+});
 
 describe('insightConfidencePayload', () => {
   it('omits all-zero fallback when untouched and no stored rubric', () => {

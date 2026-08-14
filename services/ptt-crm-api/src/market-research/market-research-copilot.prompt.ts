@@ -102,6 +102,7 @@ export function buildReportCopilotPrompt(insights: ReportCopilotInsight[]): {
       'Write a draft report outline only from the approved insights provided.',
       'Do not fill gaps. Do not publish. Do not add findings without an insight id.',
       'Return JSON with keys: cover, exec, findings, recs, methodology, evidence_index.',
+      'exec may be a VI string or { vi, en } with en as a draft translation. Never set en_status to approved.',
       'methodology must remain a P0 CB stub. status must stay draft.',
     ].join(' '),
     user: JSON.stringify(payload),

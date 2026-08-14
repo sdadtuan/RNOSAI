@@ -3,6 +3,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { APPROVED_INTERNAL_PLUS, type InsightStatus, type ProductType, type ProjectStatus } from './market-research.constants';
+import { normalizeReportExec } from './report-exec.util';
 import type {
   CreateEvidenceInput,
   CreateInsightInput,
@@ -1099,6 +1100,24 @@ export class MarketResearchRepository implements OnModuleDestroy {
     };
   }
 
+  async updateReportVersionSnapshot(
+    reportId: number,
+    versionId: number,
+    contentSnapshot: Record<string, unknown>,
+  ): Promise<ResearchReportVersionRow | null> {
+    const hash = createHash('sha256').update(JSON.stringify(contentSnapshot)).digest('hex');
+    const result = await this.db.query(
+      `UPDATE crm_research_report_versions
+       SET content_snapshot = $3::jsonb, content_hash = $4
+       WHERE id = $1 AND report_id = $2
+       RETURNING id, report_id, version, content_snapshot, generated_by, content_hash,
+                 created_at::text AS created_at`,
+      [versionId, reportId, JSON.stringify(contentSnapshot), hash],
+    );
+    const row = result.rows[0];
+    return row ? this.mapReportVersion(row) : null;
+  }
+
   async getReportVersion(
     reportId: number,
     versionId: number,
@@ -1115,11 +1134,15 @@ export class MarketResearchRepository implements OnModuleDestroy {
   }
 
   private mapReportVersion(row: Record<string, unknown>): ResearchReportVersionRow {
+    const snapshot = parseJsonCol<Record<string, unknown>>(row.content_snapshot, {});
     return {
       id: Number(row.id),
       report_id: Number(row.report_id),
       version: Number(row.version),
-      content_snapshot: parseJsonCol(row.content_snapshot, {}),
+      content_snapshot: {
+        ...snapshot,
+        exec: normalizeReportExec(snapshot.exec),
+      },
       generated_by: row.generated_by != null ? String(row.generated_by) : null,
       content_hash: String(row.content_hash),
       created_at: String(row.created_at),
