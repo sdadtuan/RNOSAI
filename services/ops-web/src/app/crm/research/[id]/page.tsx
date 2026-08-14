@@ -4,7 +4,10 @@ import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { StaffPageShell } from '@/components/layout';
+import { EvidenceFormDrawer } from '@/components/research/EvidenceFormDrawer';
+import { EvidenceIdChip } from '@/components/research/EvidenceIdChip';
 import { ResearchStatusChip } from '@/components/research/ResearchStatusChip';
+import { SourceKeepTable } from '@/components/research/SourceKeepTable';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -18,16 +21,25 @@ import {
 } from '@/lib/auth';
 import {
   addResearchQuestion,
+  createResearchEvidence,
+  createResearchSource,
   deleteResearchQuestion,
   fetchResearchProject,
+  patchResearchEvidence,
   patchResearchProject,
   patchResearchQuestion,
+  patchResearchSourceKeep,
   PRODUCT_TYPE_CARDS,
   STATUS_LABELS,
+  supersedeResearchEvidence,
   TRANSITION_REASON_VI,
+  verifyResearchEvidence,
+  type CreateEvidenceBody,
   type ProjectStatus,
+  type ResearchEvidence,
   type ResearchProject,
   type ResearchQuestion,
+  type ResearchSource,
 } from '@/lib/market-research-api';
 import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
 
@@ -60,6 +72,11 @@ function CrmResearchWorkspaceContent() {
   const [loading, setLoading] = useState(false);
   const [newRq, setNewRq] = useState('');
   const [saving, setSaving] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<'create' | 'edit' | 'supersede'>('create');
+  const [drawerSource, setDrawerSource] = useState<ResearchSource | null>(null);
+  const [drawerEvidence, setDrawerEvidence] = useState<ResearchEvidence | null>(null);
+  const [piiWarning, setPiiWarning] = useState(false);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -189,6 +206,108 @@ function CrmResearchWorkspaceContent() {
     }
   }
 
+  function openCreateEvidence(source?: ResearchSource | null) {
+    setDrawerMode('create');
+    setDrawerSource(source ?? null);
+    setDrawerEvidence(null);
+    setPiiWarning(false);
+    setDrawerOpen(true);
+  }
+
+  function openEditEvidence(ev: ResearchEvidence) {
+    const src = (project?.sources ?? []).find((s) => s.id === ev.source_id) ?? null;
+    setDrawerMode('edit');
+    setDrawerSource(src);
+    setDrawerEvidence(ev);
+    setPiiWarning(Boolean(ev.pii_warning));
+    setDrawerOpen(true);
+  }
+
+  function openSupersede(ev: ResearchEvidence) {
+    const src = (project?.sources ?? []).find((s) => s.id === ev.source_id) ?? null;
+    setDrawerMode('supersede');
+    setDrawerSource(src);
+    setDrawerEvidence(ev);
+    setPiiWarning(false);
+    setDrawerOpen(true);
+  }
+
+  async function onKeepSource(source: ResearchSource, keep: boolean) {
+    const access = getAccessToken();
+    if (!access || !project) return;
+    setSaving(true);
+    setError('');
+    try {
+      await patchResearchSourceKeep(access, source.id, keep);
+      await load(access);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Cập nhật keep thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onCreateManual(input: {
+    title: string;
+    url?: string;
+    publisher?: string;
+    question_id?: number | null;
+  }) {
+    const access = getAccessToken();
+    if (!access || !project) return;
+    setSaving(true);
+    setError('');
+    try {
+      await createResearchSource(access, project.id, input);
+      await load(access);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Thêm nguồn thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onSaveEvidence(body: CreateEvidenceBody) {
+    const access = getAccessToken();
+    if (!access || !project) return;
+    setSaving(true);
+    setError('');
+    try {
+      if (drawerMode === 'supersede' && drawerEvidence) {
+        const out = await supersedeResearchEvidence(access, drawerEvidence.id, body);
+        setPiiWarning(Boolean(out.evidence.pii_warning));
+      } else if (drawerMode === 'edit' && drawerEvidence) {
+        const out = await patchResearchEvidence(access, drawerEvidence.id, body);
+        setPiiWarning(Boolean(out.pii_warning));
+      } else {
+        const out = await createResearchEvidence(access, project.id, body);
+        setPiiWarning(Boolean(out.pii_warning));
+      }
+      await load(access);
+      setDrawerOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lưu evidence thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onVerifyEvidence(ev: ResearchEvidence) {
+    const access = getAccessToken();
+    if (!access || !project) return;
+    setSaving(true);
+    setError('');
+    try {
+      await verifyResearchEvidence(access, ev.id);
+      await load(access);
+      setDrawerOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Verify thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (!isMarketResearchFeEnabled()) {
     const body = (
       <div className="page-card">
@@ -290,9 +409,44 @@ function CrmResearchWorkspaceContent() {
                 onPatchRq={onPatchRq}
                 onDeleteRq={onDeleteRq}
               />
+            ) : tab === 'sources' ? (
+              <section className="card" style={{ padding: '0.9rem' }}>
+                <SourceKeepTable
+                  sources={project.sources ?? []}
+                  questions={project.questions ?? []}
+                  canEdit={canEdit}
+                  saving={saving}
+                  onKeep={onKeepSource}
+                  onCreateManual={onCreateManual}
+                  onCreateEvidence={openCreateEvidence}
+                />
+              </section>
+            ) : tab === 'evidence' ? (
+              <EvidenceTab
+                project={project}
+                canEdit={canEdit}
+                saving={saving}
+                onCreate={() => openCreateEvidence(null)}
+                onOpen={openEditEvidence}
+                onSupersede={openSupersede}
+              />
             ) : (
-              <p className="muted">P0: dùng tab Brief. Tab {TABS.find((t) => t.id === tab)?.label} sẽ có ở milestone sau.</p>
+              <p className="muted">P0: dùng tab Brief / Nguồn / Evidence. Tab {TABS.find((t) => t.id === tab)?.label} sẽ có ở milestone sau.</p>
             )}
+            <EvidenceFormDrawer
+              open={drawerOpen}
+              mode={drawerMode}
+              canEdit={canEdit}
+              saving={saving}
+              sources={project.sources ?? []}
+              questions={project.questions ?? []}
+              source={drawerSource}
+              evidence={drawerEvidence}
+              piiWarning={piiWarning}
+              onClose={() => setDrawerOpen(false)}
+              onSave={onSaveEvidence}
+              onVerify={onVerifyEvidence}
+            />
           </>
         ) : null}
       </div>
@@ -384,6 +538,92 @@ function BriefTab({
         </ol>
       </aside>
     </div>
+  );
+}
+
+function EvidenceTab({
+  project,
+  canEdit,
+  saving,
+  onCreate,
+  onOpen,
+  onSupersede,
+}: {
+  project: ResearchProject;
+  canEdit: boolean;
+  saving: boolean;
+  onCreate: () => void;
+  onOpen: (ev: ResearchEvidence) => void;
+  onSupersede: (ev: ResearchEvidence) => void;
+}) {
+  const rows = project.evidence ?? [];
+  return (
+    <section className="card" style={{ padding: '0.9rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <h2 style={{ margin: 0, fontSize: '1rem' }}>Evidence</h2>
+        {canEdit ? (
+          <button type="button" className="btn btn-sm" disabled={saving} onClick={onCreate}>
+            + Evidence
+          </button>
+        ) : null}
+      </div>
+      {rows.length === 0 ? (
+        <p className="muted">Chưa có evidence. Tạo từ nguồn đã keep hoặc nút + Evidence.</p>
+      ) : (
+        <div style={{ overflowX: 'auto', marginTop: '0.75rem' }}>
+          <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left', padding: '0.4rem' }}>ID</th>
+                <th style={{ textAlign: 'left', padding: '0.4rem' }}>RQ</th>
+                <th style={{ textAlign: 'left', padding: '0.4rem' }}>Locator</th>
+                <th style={{ textAlign: 'left', padding: '0.4rem' }}>Excerpt / Value</th>
+                <th style={{ textAlign: 'left', padding: '0.4rem' }}>Unit</th>
+                <th style={{ textAlign: 'left', padding: '0.4rem' }}>Period</th>
+                <th style={{ textAlign: 'left', padding: '0.4rem' }}>Geo</th>
+                <th style={{ textAlign: 'left', padding: '0.4rem' }}>QC</th>
+                <th style={{ textAlign: 'left', padding: '0.4rem' }} />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((ev) => {
+                const rq = (project.questions ?? []).find((q) => q.id === ev.question_id);
+                const verified = ev.qc_status === 'verified';
+                return (
+                  <tr key={ev.id}>
+                    <td style={{ padding: '0.4rem' }}>
+                      <EvidenceIdChip id={ev.id} locator={ev.locator} />
+                    </td>
+                    <td style={{ padding: '0.4rem' }}>{rq ? `Q${rq.sort_order}` : '—'}</td>
+                    <td style={{ padding: '0.4rem' }}>{ev.locator}</td>
+                    <td style={{ padding: '0.4rem' }}>
+                      {verified ? '🔒 ' : ''}
+                      {ev.excerpt || (ev.value_num != null ? String(ev.value_num) : '—')}
+                    </td>
+                    <td style={{ padding: '0.4rem' }}>{ev.unit || '—'}</td>
+                    <td style={{ padding: '0.4rem' }}>{ev.period_note || '—'}</td>
+                    <td style={{ padding: '0.4rem' }}>{ev.geography || '—'}</td>
+                    <td style={{ padding: '0.4rem' }}>{ev.qc_status}</td>
+                    <td style={{ padding: '0.4rem' }}>
+                      {canEdit && !verified ? (
+                        <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => onOpen(ev)}>
+                          Mở
+                        </button>
+                      ) : null}
+                      {canEdit && verified ? (
+                        <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => onSupersede(ev)}>
+                          Thay thế (supersede)
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 

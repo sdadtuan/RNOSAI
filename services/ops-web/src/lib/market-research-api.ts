@@ -66,6 +66,7 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   need_rq: 'Cần ≥1 câu hỏi nghiên cứu',
   cannot_revert_approved: 'Không thể hoàn trạng thái đã duyệt',
   need_verified_insight: 'Cần ≥1 insight đã verify',
+  evidence_immutable: 'Evidence đã verify không sửa được — hãy thay thế (supersede)',
 };
 
 export type ResearchQuestion = {
@@ -98,7 +99,79 @@ export type ResearchProject = {
   rq_count: number;
   verified_insight_count: number;
   questions?: ResearchQuestion[];
+  sources?: ResearchSource[];
+  evidence?: ResearchEvidence[];
   valid_transitions?: ProjectStatus[];
+};
+
+export type ResearchSource = {
+  id: number;
+  project_id: number;
+  question_id: number | null;
+  source_type: string;
+  title: string;
+  publisher: string | null;
+  url: string | null;
+  published_at: string | null;
+  accessed_at: string | null;
+  geo: string | null;
+  license_note: string | null;
+  reliability_tier: string;
+  ai_generated: boolean;
+  keep: boolean | null;
+  superseded_by: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ResearchEvidence = {
+  id: number;
+  project_id: number;
+  source_id: number | null;
+  study_id: number | null;
+  question_id: number | null;
+  locator: string;
+  excerpt: string | null;
+  value_num: number | null;
+  unit: string | null;
+  value_base: string | null;
+  period_note: string | null;
+  geography: string | null;
+  captured_at: string;
+  pii_class: string;
+  qc_status: string;
+  checksum: string | null;
+  created_by: string | null;
+  superseded_by: number | null;
+  created_at: string;
+  pii_warning?: boolean;
+};
+
+export type CreateSourceBody = {
+  title: string;
+  source_type?: string;
+  publisher?: string;
+  url?: string;
+  published_at?: string;
+  accessed_at?: string;
+  geo?: string;
+  license_note?: string;
+  reliability_tier?: string;
+  question_id?: number | null;
+};
+
+export type CreateEvidenceBody = {
+  source_id?: number | null;
+  study_id?: number | null;
+  question_id?: number | null;
+  locator: string;
+  excerpt?: string | null;
+  value_num?: number | null;
+  unit?: string | null;
+  value_base?: string | null;
+  period_note?: string | null;
+  geography?: string | null;
+  pii_class?: string | null;
 };
 
 export type CreateProjectBody = {
@@ -119,14 +192,23 @@ async function researchFetch<T>(token: string, path: string, init?: RequestInit)
     headers: { ...authHeaders(token), ...(init?.headers ?? {}) },
   });
   const body = await parseJson<
-    T & { error?: string; message?: string; messages?: string[]; reason?: string }
+    T & {
+      error?: string;
+      message?: string | { error?: string; messages?: string[]; reason?: string };
+      messages?: string[];
+      reason?: string;
+    }
   >(res);
   if (!res.ok) {
+    const nested = typeof body.message === 'object' && body.message ? body.message : null;
+    const errorCode = nested?.error ?? body.error;
+    const messages = body.messages ?? nested?.messages;
+    const reason = body.reason ?? nested?.reason;
     const detail =
-      body.messages?.join(' · ') ??
-      (body.reason ? TRANSITION_REASON_VI[body.reason] ?? body.reason : undefined) ??
-      body.message ??
-      body.error ??
+      messages?.join(' · ') ??
+      (reason ? TRANSITION_REASON_VI[reason] ?? reason : undefined) ??
+      (typeof body.message === 'string' ? body.message : undefined) ??
+      (errorCode ? TRANSITION_REASON_VI[errorCode] ?? errorCode : undefined) ??
       'Yêu cầu nghiên cứu thất bại';
     throw new ApiError(detail, res.status);
   }
@@ -195,4 +277,66 @@ export async function patchResearchQuestion(
 
 export async function deleteResearchQuestion(token: string, questionId: number): Promise<{ ok: true }> {
   return researchFetch(token, `/api/v1/research/questions/${questionId}`, { method: 'DELETE' });
+}
+
+export async function createResearchSource(
+  token: string,
+  projectId: number,
+  body: CreateSourceBody,
+): Promise<ResearchSource> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/sources`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchResearchSourceKeep(
+  token: string,
+  sourceId: number,
+  keep: boolean,
+): Promise<ResearchSource> {
+  return researchFetch(token, `/api/v1/research/sources/${sourceId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ keep }),
+  });
+}
+
+export async function createResearchEvidence(
+  token: string,
+  projectId: number,
+  body: CreateEvidenceBody,
+): Promise<ResearchEvidence> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/evidence`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchResearchEvidence(
+  token: string,
+  evidenceId: number,
+  body: Partial<CreateEvidenceBody>,
+): Promise<ResearchEvidence> {
+  return researchFetch(token, `/api/v1/research/evidence/${evidenceId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function verifyResearchEvidence(
+  token: string,
+  evidenceId: number,
+): Promise<ResearchEvidence> {
+  return researchFetch(token, `/api/v1/research/evidence/${evidenceId}/verify`, { method: 'POST' });
+}
+
+export async function supersedeResearchEvidence(
+  token: string,
+  evidenceId: number,
+  body: CreateEvidenceBody,
+): Promise<{ old: ResearchEvidence; evidence: ResearchEvidence }> {
+  return researchFetch(token, `/api/v1/research/evidence/${evidenceId}/supersede`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }

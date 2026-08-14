@@ -3,13 +3,18 @@ import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import type { ProductType, ProjectStatus } from './market-research.constants';
 import type {
+  CreateEvidenceInput,
   CreateProjectInput,
   CreateQuestionInput,
+  CreateSourceInput,
   ListProjectsFilters,
+  PatchEvidenceInput,
   PatchProjectInput,
   PatchQuestionInput,
+  ResearchEvidenceRow,
   ResearchProjectRow,
   ResearchQuestionRow,
+  ResearchSourceRow,
 } from './market-research.types';
 
 function parseJsonCol<T>(val: unknown, fallback: T): T {
@@ -332,6 +337,283 @@ export class MarketResearchRepository implements OnModuleDestroy {
       await this.db.query(`UPDATE crm_research_projects SET updated_at = now() WHERE id = $1`, [
         existing.project_id,
       ]);
+    }
+  }
+
+  private mapSource(row: Record<string, unknown>): ResearchSourceRow {
+    return {
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      question_id: row.question_id != null ? Number(row.question_id) : null,
+      source_type: String(row.source_type),
+      title: String(row.title),
+      publisher: row.publisher != null ? String(row.publisher) : null,
+      url: row.url != null ? String(row.url) : null,
+      published_at: row.published_at != null ? String(row.published_at) : null,
+      accessed_at: row.accessed_at != null ? String(row.accessed_at) : null,
+      geo: row.geo != null ? String(row.geo) : null,
+      license_note: row.license_note != null ? String(row.license_note) : null,
+      reliability_tier: String(row.reliability_tier ?? 'unknown'),
+      snapshot_uri: row.snapshot_uri != null ? String(row.snapshot_uri) : null,
+      content_hash: row.content_hash != null ? String(row.content_hash) : null,
+      ai_generated: Boolean(row.ai_generated),
+      keep: row.keep == null ? null : Boolean(row.keep),
+      superseded_by: row.superseded_by != null ? Number(row.superseded_by) : null,
+      created_at: String(row.created_at),
+      updated_at: String(row.updated_at),
+    };
+  }
+
+  private mapEvidence(row: Record<string, unknown>): ResearchEvidenceRow {
+    return {
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      source_id: row.source_id != null ? Number(row.source_id) : null,
+      study_id: row.study_id != null ? Number(row.study_id) : null,
+      question_id: row.question_id != null ? Number(row.question_id) : null,
+      locator: String(row.locator),
+      excerpt: row.excerpt != null ? String(row.excerpt) : null,
+      value_num: row.value_num != null ? Number(row.value_num) : null,
+      unit: row.unit != null ? String(row.unit) : null,
+      value_base: row.value_base != null ? String(row.value_base) : null,
+      period_note: row.period_note != null ? String(row.period_note) : null,
+      geography: row.geography != null ? String(row.geography) : null,
+      captured_at: String(row.captured_at),
+      pii_class: String(row.pii_class ?? 'none'),
+      qc_status: String(row.qc_status ?? 'pending'),
+      checksum: row.checksum != null ? String(row.checksum) : null,
+      created_by: row.created_by != null ? String(row.created_by) : null,
+      superseded_by: row.superseded_by != null ? Number(row.superseded_by) : null,
+      created_at: String(row.created_at),
+    };
+  }
+
+  private readonly sourceSelect = `
+    SELECT id, project_id, question_id, source_type, title, publisher, url,
+           published_at::text AS published_at, accessed_at::text AS accessed_at,
+           geo, license_note, reliability_tier, snapshot_uri, content_hash,
+           ai_generated, keep, superseded_by,
+           created_at::text AS created_at, updated_at::text AS updated_at
+    FROM crm_research_sources
+  `;
+
+  private readonly evidenceSelect = `
+    SELECT id, project_id, source_id, study_id, question_id, locator, excerpt,
+           value_num, unit, value_base, period_note, geography,
+           captured_at::text AS captured_at, pii_class, qc_status, checksum,
+           created_by, superseded_by, created_at::text AS created_at
+    FROM crm_research_evidence
+  `;
+
+  async listSources(projectId: number): Promise<ResearchSourceRow[]> {
+    const result = await this.db.query(
+      `${this.sourceSelect} WHERE project_id = $1 ORDER BY id ASC`,
+      [projectId],
+    );
+    return result.rows.map((row) => this.mapSource(row));
+  }
+
+  async getSource(id: number): Promise<ResearchSourceRow | null> {
+    const result = await this.db.query(`${this.sourceSelect} WHERE id = $1`, [id]);
+    const row = result.rows[0];
+    return row ? this.mapSource(row) : null;
+  }
+
+  async createSource(projectId: number, input: CreateSourceInput): Promise<ResearchSourceRow> {
+    const result = await this.db.query(
+      `INSERT INTO crm_research_sources (
+         project_id, question_id, source_type, title, publisher, url,
+         published_at, accessed_at, geo, license_note, reliability_tier, ai_generated
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false)
+       RETURNING id, project_id, question_id, source_type, title, publisher, url,
+                 published_at::text AS published_at, accessed_at::text AS accessed_at,
+                 geo, license_note, reliability_tier, snapshot_uri, content_hash,
+                 ai_generated, keep, superseded_by,
+                 created_at::text AS created_at, updated_at::text AS updated_at`,
+      [
+        projectId,
+        input.question_id ?? null,
+        String(input.source_type ?? 'web').trim() || 'web',
+        input.title.trim(),
+        input.publisher?.trim() || null,
+        input.url?.trim() || null,
+        input.published_at?.trim() || null,
+        input.accessed_at?.trim() || null,
+        input.geo?.trim() || null,
+        input.license_note?.trim() || null,
+        String(input.reliability_tier ?? 'unknown').trim() || 'unknown',
+      ],
+    );
+    await this.db.query(`UPDATE crm_research_projects SET updated_at = now() WHERE id = $1`, [
+      projectId,
+    ]);
+    return this.mapSource(result.rows[0]);
+  }
+
+  async patchSourceKeep(id: number, keep: boolean): Promise<ResearchSourceRow | null> {
+    const result = await this.db.query(
+      `UPDATE crm_research_sources SET keep = $1, updated_at = now() WHERE id = $2
+       RETURNING id, project_id, question_id, source_type, title, publisher, url,
+                 published_at::text AS published_at, accessed_at::text AS accessed_at,
+                 geo, license_note, reliability_tier, snapshot_uri, content_hash,
+                 ai_generated, keep, superseded_by,
+                 created_at::text AS created_at, updated_at::text AS updated_at`,
+      [keep, id],
+    );
+    const row = result.rows[0];
+    return row ? this.mapSource(row) : null;
+  }
+
+  async listEvidence(projectId: number): Promise<ResearchEvidenceRow[]> {
+    const result = await this.db.query(
+      `${this.evidenceSelect} WHERE project_id = $1 ORDER BY id ASC`,
+      [projectId],
+    );
+    return result.rows.map((row) => this.mapEvidence(row));
+  }
+
+  async getEvidence(id: number): Promise<ResearchEvidenceRow | null> {
+    const result = await this.db.query(`${this.evidenceSelect} WHERE id = $1`, [id]);
+    const row = result.rows[0];
+    return row ? this.mapEvidence(row) : null;
+  }
+
+  async createEvidence(
+    projectId: number,
+    input: CreateEvidenceInput,
+    actor: string,
+  ): Promise<ResearchEvidenceRow> {
+    const result = await this.db.query(
+      `INSERT INTO crm_research_evidence (
+         project_id, source_id, study_id, question_id, locator, excerpt,
+         value_num, unit, value_base, period_note, geography, pii_class, created_by
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       RETURNING id, project_id, source_id, study_id, question_id, locator, excerpt,
+                 value_num, unit, value_base, period_note, geography,
+                 captured_at::text AS captured_at, pii_class, qc_status, checksum,
+                 created_by, superseded_by, created_at::text AS created_at`,
+      [
+        projectId,
+        input.source_id ?? null,
+        input.study_id ?? null,
+        input.question_id ?? null,
+        String(input.locator ?? '').trim(),
+        input.excerpt?.trim() || null,
+        input.value_num ?? null,
+        input.unit?.trim() || null,
+        input.value_base?.trim() || null,
+        input.period_note?.trim() || null,
+        input.geography?.trim() || null,
+        input.pii_class?.trim() || 'none',
+        actor,
+      ],
+    );
+    await this.db.query(`UPDATE crm_research_projects SET updated_at = now() WHERE id = $1`, [
+      projectId,
+    ]);
+    return this.mapEvidence(result.rows[0]);
+  }
+
+  async patchEvidence(id: number, input: PatchEvidenceInput): Promise<ResearchEvidenceRow | null> {
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    const add = (col: string, value: unknown) => {
+      params.push(value);
+      sets.push(`${col} = $${params.length}`);
+    };
+    if (input.locator != null) add('locator', input.locator.trim());
+    if (input.excerpt !== undefined) add('excerpt', input.excerpt?.trim() || null);
+    if (input.value_num !== undefined) add('value_num', input.value_num);
+    if (input.unit !== undefined) add('unit', input.unit?.trim() || null);
+    if (input.value_base !== undefined) add('value_base', input.value_base?.trim() || null);
+    if (input.period_note !== undefined) add('period_note', input.period_note?.trim() || null);
+    if (input.geography !== undefined) add('geography', input.geography?.trim() || null);
+    if (input.pii_class !== undefined) add('pii_class', input.pii_class?.trim() || 'none');
+    if (input.question_id !== undefined) add('question_id', input.question_id);
+    if (!sets.length) return this.getEvidence(id);
+    params.push(id);
+    const result = await this.db.query(
+      `UPDATE crm_research_evidence SET ${sets.join(', ')}
+       WHERE id = $${params.length}
+       RETURNING id, project_id, source_id, study_id, question_id, locator, excerpt,
+                 value_num, unit, value_base, period_note, geography,
+                 captured_at::text AS captured_at, pii_class, qc_status, checksum,
+                 created_by, superseded_by, created_at::text AS created_at`,
+      params,
+    );
+    const row = result.rows[0];
+    return row ? this.mapEvidence(row) : null;
+  }
+
+  async verifyEvidence(id: number, checksum: string): Promise<ResearchEvidenceRow | null> {
+    const result = await this.db.query(
+      `UPDATE crm_research_evidence
+       SET qc_status = 'verified', checksum = $1
+       WHERE id = $2
+       RETURNING id, project_id, source_id, study_id, question_id, locator, excerpt,
+                 value_num, unit, value_base, period_note, geography,
+                 captured_at::text AS captured_at, pii_class, qc_status, checksum,
+                 created_by, superseded_by, created_at::text AS created_at`,
+      [checksum, id],
+    );
+    const row = result.rows[0];
+    return row ? this.mapEvidence(row) : null;
+  }
+
+  async supersedeEvidence(
+    existing: ResearchEvidenceRow,
+    input: CreateEvidenceInput,
+    actor: string,
+  ): Promise<{ old: ResearchEvidenceRow; evidence: ResearchEvidenceRow }> {
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const inserted = await client.query(
+        `INSERT INTO crm_research_evidence (
+           project_id, source_id, study_id, question_id, locator, excerpt,
+           value_num, unit, value_base, period_note, geography, pii_class, created_by
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         RETURNING id, project_id, source_id, study_id, question_id, locator, excerpt,
+                   value_num, unit, value_base, period_note, geography,
+                   captured_at::text AS captured_at, pii_class, qc_status, checksum,
+                   created_by, superseded_by, created_at::text AS created_at`,
+        [
+          existing.project_id,
+          input.source_id ?? null,
+          input.study_id ?? null,
+          input.question_id ?? null,
+          String(input.locator ?? '').trim(),
+          input.excerpt?.trim() || null,
+          input.value_num ?? null,
+          input.unit?.trim() || null,
+          input.value_base?.trim() || null,
+          input.period_note?.trim() || null,
+          input.geography?.trim() || null,
+          input.pii_class?.trim() || 'none',
+          actor,
+        ],
+      );
+      const created = this.mapEvidence(inserted.rows[0]);
+      const updated = await client.query(
+        `UPDATE crm_research_evidence
+         SET qc_status = 'superseded', superseded_by = $1
+         WHERE id = $2
+         RETURNING id, project_id, source_id, study_id, question_id, locator, excerpt,
+                   value_num, unit, value_base, period_note, geography,
+                   captured_at::text AS captured_at, pii_class, qc_status, checksum,
+                   created_by, superseded_by, created_at::text AS created_at`,
+        [created.id, existing.id],
+      );
+      await client.query(`UPDATE crm_research_projects SET updated_at = now() WHERE id = $1`, [
+        existing.project_id,
+      ]);
+      await client.query('COMMIT');
+      return { old: this.mapEvidence(updated.rows[0]), evidence: created };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
   }
 }

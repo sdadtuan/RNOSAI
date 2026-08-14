@@ -90,5 +90,95 @@ export type ResearchProjectRow = {
 
 export type ResearchProjectDetail = ResearchProjectRow & {
   questions: ResearchQuestionRow[];
+  sources: ResearchSourceRow[];
+  evidence: ResearchEvidenceRow[];
   valid_transitions: ProjectStatus[];
+};
+
+export type CreateSourceInput = {
+  title: string;
+  source_type?: string;
+  publisher?: string | null;
+  url?: string | null;
+  published_at?: string | null;
+  accessed_at?: string | null;
+  geo?: string | null;
+  license_note?: string | null;
+  reliability_tier?: string;
+  question_id?: number | null;
+};
+
+export type PatchSourceInput = {
+  keep: boolean;
+};
+
+export type CreateEvidenceInput = {
+  source_id?: number | null;
+  study_id?: number | null;
+  question_id?: number | null;
+  locator?: string;
+  excerpt?: string | null;
+  value_num?: number | null;
+  unit?: string | null;
+  value_base?: string | null;
+  period_note?: string | null;
+  geography?: string | null;
+  pii_class?: string | null;
+};
+
+export type PatchEvidenceInput = {
+  locator?: string;
+  excerpt?: string | null;
+  value_num?: number | null;
+  unit?: string | null;
+  value_base?: string | null;
+  period_note?: string | null;
+  geography?: string | null;
+  pii_class?: string | null;
+  question_id?: number | null;
+};
+
+export type ResearchSourceRow = {
+  id: number;
+  project_id: number;
+  question_id: number | null;
+  source_type: string;
+  title: string;
+  publisher: string | null;
+  url: string | null;
+  published_at: string | null;
+  accessed_at: string | null;
+  geo: string | null;
+  license_note: string | null;
+  reliability_tier: string;
+  snapshot_uri: string | null;
+  content_hash: string | null;
+  ai_generated: boolean;
+  keep: boolean | null;
+  superseded_by: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ResearchEvidenceRow = {
+  id: number;
+  project_id: number;
+  source_id: number | null;
+  study_id: number | null;
+  question_id: number | null;
+  locator: string;
+  excerpt: string | null;
+  value_num: number | null;
+  unit: string | null;
+  value_base: string | null;
+  period_note: string | null;
+  geography: string | null;
+  captured_at: string;
+  pii_class: string;
+  qc_status: string;
+  checksum: string | null;
+  created_by: string | null;
+  superseded_by: number | null;
+  created_at: string;
+  pii_warning?: boolean;
 };

@@ -8,17 +8,25 @@ import {
 import { ClientScopeContext, StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
 import { PROJECT_STATUSES, type ProjectStatus } from './market-research.constants';
 import { MarketResearchRepository } from './market-research.repository';
+import { evidenceChecksum } from './evidence-checksum.util';
+import { assertEvidenceMutable, piiHint } from './evidence-immutable.util';
 import type {
+  CreateEvidenceInput,
   CreateProjectInput,
   CreateQuestionInput,
+  CreateSourceInput,
   ListProjectsFilters,
+  PatchEvidenceInput,
   PatchProjectInput,
   PatchQuestionInput,
+  PatchSourceInput,
+  ResearchEvidenceRow,
   ResearchProjectDetail,
   ResearchProjectRow,
   ResearchQuestionRow,
+  ResearchSourceRow,
 } from './market-research.types';
-import { validateCreateProject } from './market-research.validation';
+import { validateCreateEvidence, validateCreateProject } from './market-research.validation';
 import { canTransitionProject, listValidTransitions } from './project-state.util';
 
 @Injectable()
@@ -152,11 +160,183 @@ export class MarketResearchService {
     return { ok: true };
   }
 
+  async createSource(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: CreateSourceInput,
+  ): Promise<ResearchSourceRow> {
+    await this.loadScopedProject(projectId, scope);
+    if (!String(input.title ?? '').trim()) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['title is required'],
+      });
+    }
+    return this.repo.createSource(projectId, input);
+  }
+
+  async patchSource(
+    sourceId: number,
+    scope: ClientScopeContext,
+    input: PatchSourceInput,
+  ): Promise<ResearchSourceRow> {
+    const existing = await this.repo.getSource(sourceId);
+    if (!existing) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(existing.project_id, scope);
+    if (typeof input.keep !== 'boolean') {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['keep is required'],
+      });
+    }
+    const updated = await this.repo.patchSourceKeep(sourceId, input.keep);
+    if (!updated) throw new NotFoundException({ error: 'not_found' });
+    return updated;
+  }
+
+  async createEvidence(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: CreateEvidenceInput,
+    actor: string,
+  ): Promise<ResearchEvidenceRow> {
+    await this.loadScopedProject(projectId, scope);
+    const messages = validateCreateEvidence(input);
+    if (messages.length) {
+      throw new BadRequestException({ error: 'validation_error', messages });
+    }
+    await this.assertSourceInProject(projectId, input.source_id);
+    const { pii_class, pii_warning } = this.resolvePiiClass(input);
+    const row = await this.repo.createEvidence(projectId, { ...input, pii_class }, actor);
+    return pii_warning ? { ...row, pii_warning: true } : row;
+  }
+
+  async patchEvidence(
+    evidenceId: number,
+    scope: ClientScopeContext,
+    input: PatchEvidenceInput,
+  ): Promise<ResearchEvidenceRow> {
+    const existing = await this.repo.getEvidence(evidenceId);
+    if (!existing) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(existing.project_id, scope);
+    this.assertMutable(existing.qc_status);
+    const merged: CreateEvidenceInput = {
+      source_id: existing.source_id,
+      study_id: existing.study_id,
+      question_id: input.question_id !== undefined ? input.question_id : existing.question_id,
+      locator: input.locator !== undefined ? input.locator : existing.locator,
+      excerpt: input.excerpt !== undefined ? input.excerpt : existing.excerpt,
+      value_num: input.value_num !== undefined ? input.value_num : existing.value_num,
+      unit: input.unit !== undefined ? input.unit : existing.unit,
+      value_base: input.value_base !== undefined ? input.value_base : existing.value_base,
+      period_note: input.period_note !== undefined ? input.period_note : existing.period_note,
+      geography: input.geography !== undefined ? input.geography : existing.geography,
+      pii_class: input.pii_class !== undefined ? input.pii_class : existing.pii_class,
+    };
+    const messages = validateCreateEvidence(merged);
+    if (messages.length) {
+      throw new BadRequestException({ error: 'validation_error', messages });
+    }
+    const { pii_class, pii_warning } = this.resolvePiiClass({
+      ...merged,
+      pii_class: input.pii_class,
+    });
+    const updated = await this.repo.patchEvidence(evidenceId, { ...input, pii_class });
+    if (!updated) throw new NotFoundException({ error: 'not_found' });
+    return pii_warning ? { ...updated, pii_warning: true } : updated;
+  }
+
+  async verifyEvidence(
+    evidenceId: number,
+    scope: ClientScopeContext,
+  ): Promise<ResearchEvidenceRow> {
+    const existing = await this.repo.getEvidence(evidenceId);
+    if (!existing) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(existing.project_id, scope);
+    this.assertMutable(existing.qc_status);
+    const checksum = evidenceChecksum(existing);
+    const updated = await this.repo.verifyEvidence(evidenceId, checksum);
+    if (!updated) throw new NotFoundException({ error: 'not_found' });
+    return updated;
+  }
+
+  async supersedeEvidence(
+    evidenceId: number,
+    scope: ClientScopeContext,
+    input: CreateEvidenceInput,
+    actor: string,
+  ): Promise<{ old: ResearchEvidenceRow; evidence: ResearchEvidenceRow }> {
+    const existing = await this.repo.getEvidence(evidenceId);
+    if (!existing) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(existing.project_id, scope);
+    const body: CreateEvidenceInput = {
+      source_id: input.source_id ?? existing.source_id,
+      study_id: input.study_id ?? existing.study_id,
+      question_id: input.question_id !== undefined ? input.question_id : existing.question_id,
+      locator: input.locator ?? existing.locator,
+      excerpt: input.excerpt !== undefined ? input.excerpt : existing.excerpt,
+      value_num: input.value_num !== undefined ? input.value_num : existing.value_num,
+      unit: input.unit !== undefined ? input.unit : existing.unit,
+      value_base: input.value_base !== undefined ? input.value_base : existing.value_base,
+      period_note: input.period_note !== undefined ? input.period_note : existing.period_note,
+      geography: input.geography !== undefined ? input.geography : existing.geography,
+      pii_class: input.pii_class,
+    };
+    const messages = validateCreateEvidence(body);
+    if (messages.length) {
+      throw new BadRequestException({ error: 'validation_error', messages });
+    }
+    await this.assertSourceInProject(existing.project_id, body.source_id);
+    const { pii_class, pii_warning } = this.resolvePiiClass(body);
+    const result = await this.repo.supersedeEvidence(
+      existing,
+      { ...body, pii_class },
+      actor,
+    );
+    return pii_warning ? { ...result, evidence: { ...result.evidence, pii_warning: true } } : result;
+  }
+
+  private assertMutable(qcStatus: string): void {
+    try {
+      assertEvidenceMutable(qcStatus);
+    } catch (err) {
+      if ((err as Error & { code?: string }).code === 'evidence_immutable') {
+        throw new ConflictException({ error: 'evidence_immutable' });
+      }
+      throw err;
+    }
+  }
+
+  private resolvePiiClass(input: CreateEvidenceInput): { pii_class: string; pii_warning: boolean } {
+    const provided = input.pii_class != null && String(input.pii_class).trim() !== '';
+    if (input.excerpt && piiHint(input.excerpt) && !provided) {
+      return { pii_class: 'internal', pii_warning: true };
+    }
+    return { pii_class: provided ? String(input.pii_class).trim() : 'none', pii_warning: false };
+  }
+
+  private async assertSourceInProject(projectId: number, sourceId?: number | null): Promise<void> {
+    if (sourceId == null) return;
+    const source = await this.repo.getSource(sourceId);
+    if (!source || source.project_id !== projectId) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['source_id is invalid'],
+      });
+    }
+  }
+
   private async toDetail(project: ResearchProjectRow): Promise<ResearchProjectDetail> {
-    const questions = await this.repo.listQuestions(project.id);
+    const [questions, sources, evidence] = await Promise.all([
+      this.repo.listQuestions(project.id),
+      this.repo.listSources(project.id),
+      this.repo.listEvidence(project.id),
+    ]);
     return {
       ...project,
       questions,
+      sources,
+      evidence,
       valid_transitions: listValidTransitions(project.status, {
         rqCount: project.rq_count,
         verifiedInsightCount: project.verified_insight_count,

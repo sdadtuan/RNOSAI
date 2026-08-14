@@ -26,10 +26,14 @@ import {
 } from './guards/staff-market-research.guard';
 import { MarketResearchService } from './market-research.service';
 import type {
+  CreateEvidenceInput,
   CreateProjectInput,
   CreateQuestionInput,
+  CreateSourceInput,
+  PatchEvidenceInput,
   PatchProjectInput,
   PatchQuestionInput,
+  PatchSourceInput,
 } from './market-research.types';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
@@ -123,5 +127,70 @@ export class MarketResearchController {
   async deleteQuestion(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.deleteQuestion(id, scope);
+  }
+
+  @Post('projects/:id/sources')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async createSource(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CreateSourceInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.createSource(id, scope, body ?? ({} as CreateSourceInput));
+  }
+
+  @Patch('sources/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async patchSource(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PatchSourceInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.patchSource(id, scope, body ?? ({} as PatchSourceInput));
+  }
+
+  @Post('projects/:id/evidence')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async createEvidence(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CreateEvidenceInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.createEvidence(id, scope, body ?? ({} as CreateEvidenceInput), actorEmail(req));
+  }
+
+  @Patch('evidence/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async patchEvidence(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PatchEvidenceInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.patchEvidence(id, scope, body ?? {});
+  }
+
+  @Post('evidence/:id/verify')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async verifyEvidence(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.verifyEvidence(id, scope);
+  }
+
+  @Post('evidence/:id/supersede')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async supersedeEvidence(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CreateEvidenceInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.supersedeEvidence(id, scope, body ?? ({} as CreateEvidenceInput), actorEmail(req));
   }
 }

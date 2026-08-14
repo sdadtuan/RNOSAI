@@ -1,5 +1,5 @@
 import { PRODUCT_TYPES } from './market-research.constants';
-import type { CreateProjectInput } from './market-research.types';
+import type { CreateEvidenceInput, CreateProjectInput } from './market-research.types';
 
 export function validateCreateProject(input: CreateProjectInput): string[] {
   const messages: string[] = [];
@@ -24,6 +24,31 @@ export function validateCreateProject(input: CreateProjectInput): string[] {
       messages.push('question_vi is required');
       break;
     }
+  }
+  return messages;
+}
+
+export function validateCreateEvidence(input: CreateEvidenceInput): string[] {
+  const messages: string[] = [];
+  if (!String(input.locator ?? '').trim()) {
+    messages.push('locator is required');
+  }
+  const hasExcerpt = Boolean(String(input.excerpt ?? '').trim());
+  const hasValueTriple =
+    input.value_num != null &&
+    Boolean(String(input.unit ?? '').trim()) &&
+    Boolean(String(input.value_base ?? '').trim());
+  if (!hasExcerpt && !hasValueTriple) {
+    messages.push('excerpt or value+unit+base is required');
+  }
+  if (input.value_num != null) {
+    if (!String(input.unit ?? '').trim()) messages.push('unit is required');
+    if (!String(input.value_base ?? '').trim()) messages.push('value_base is required');
+    if (!String(input.period_note ?? '').trim()) messages.push('period_note is required');
+    if (!String(input.geography ?? '').trim()) messages.push('geography is required');
+  }
+  if (input.source_id == null && input.study_id == null) {
+    messages.push('source_id or study_id is required');
   }
   return messages;
 }

@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { MarketResearchService } from './market-research.service';
-import type { ResearchProjectRow } from './market-research.types';
+import type { ResearchEvidenceRow, ResearchProjectRow } from './market-research.types';
 
 const project: ResearchProjectRow = {
   id: 9,
@@ -33,7 +33,17 @@ describe('MarketResearchService', () => {
     listProjects: jest.fn(),
     createProject: jest.fn(),
     listQuestions: jest.fn(),
+    listSources: jest.fn(),
+    listEvidence: jest.fn(),
     patchProject: jest.fn(),
+    createSource: jest.fn(),
+    getSource: jest.fn(),
+    patchSourceKeep: jest.fn(),
+    createEvidence: jest.fn(),
+    getEvidence: jest.fn(),
+    patchEvidence: jest.fn(),
+    verifyEvidence: jest.fn(),
+    supersedeEvidence: jest.fn(),
   };
   const clientScope = {
     allowedClientIdsForList: jest.fn(),
@@ -91,5 +101,73 @@ describe('MarketResearchService', () => {
       });
     }
     expect(repo.patchProject).not.toHaveBeenCalled();
+  });
+
+  it('createEvidence with value_num but missing unit/base/period/geo is validation_error (BR-RES-02)', async () => {
+    repo.getProjectClientId.mockResolvedValue('acme');
+    repo.getProject.mockResolvedValue(project);
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+
+    try {
+      await service.createEvidence(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        {
+          source_id: 1,
+          locator: 'https://example.com#p3',
+          value_num: 12.5,
+        },
+        'am@ptt',
+      );
+      throw new Error('expected validation_error');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual({
+        error: 'validation_error',
+        messages: expect.arrayContaining(['unit is required', 'value_base is required', 'period_note is required', 'geography is required']),
+      });
+    }
+    expect(repo.createEvidence).not.toHaveBeenCalled();
+  });
+
+  it('patchEvidence content when verified is 409 evidence_immutable', async () => {
+    const verified: ResearchEvidenceRow = {
+      id: 3,
+      project_id: 9,
+      source_id: 1,
+      study_id: null,
+      question_id: null,
+      locator: 'https://example.com#p3',
+      excerpt: 'locked excerpt',
+      value_num: null,
+      unit: null,
+      value_base: null,
+      period_note: null,
+      geography: null,
+      captured_at: '2026-08-14',
+      pii_class: 'none',
+      qc_status: 'verified',
+      checksum: 'abc',
+      created_by: 'am@ptt',
+      superseded_by: null,
+      created_at: '2026-08-14',
+    };
+    repo.getEvidence.mockResolvedValue(verified);
+    repo.getProjectClientId.mockResolvedValue('acme');
+    repo.getProject.mockResolvedValue(project);
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+
+    try {
+      await service.patchEvidence(
+        3,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { excerpt: 'changed' },
+      );
+      throw new Error('expected conflict');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConflictException);
+      expect((err as ConflictException).getResponse()).toEqual({ error: 'evidence_immutable' });
+    }
+    expect(repo.patchEvidence).not.toHaveBeenCalled();
   });
 });
