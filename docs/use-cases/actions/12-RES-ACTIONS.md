@@ -4,7 +4,7 @@
 > **BA:** [`../../specs/modules/RNOSAI-BA-RES-UseCases.md`](../../specs/modules/RNOSAI-BA-RES-UseCases.md)  
 > **UX:** [`../../specs/2026-08-14-market-research-os-ui-ux.md`](../../specs/2026-08-14-market-research-os-ui-ux.md)  
 > **SRS:** [`../../specs/2026-08-14-market-research-os-srs.md`](../../specs/2026-08-14-market-research-os-srs.md)  
-> **Phiên bản:** 1.0 · **Coverage:** RES-UC-001…020 (P0 UAT) + ghi chú P1–P3
+> **Phiên bản:** 1.0 · **Coverage:** RES-UC-001…020 (P0 UAT) + walkthrough P1–P2 + backlog P3
 
 ---
 
@@ -211,14 +211,50 @@ PATCH excerpt evidence verified: 409 · phải supersede (RES-UC-017).
 
 ---
 
-## P2–P3 (backlog actions — không UAT P0/P1)
+## Walkthrough UAT P2 — Study → analytics (≈20 phút)
+
+**Mục tiêu khách hàng:** *«Analyst gắn study/consent (không transcript thô); pulse báo Ops khi trend đổi (không auto-publish insight); Lead duyệt exec EN; AM xem cycle time trên analytics.»*
+
+**Actors:** AM, Research Analyst (AN), Research Lead (LD), QA
+
+**Dữ liệu test:** Client `acme` trong scope · Flag research = 1 (P0 đã bật) · Project P0/P1 hoặc tạo mới · Caps `crm_research.edit` (study/consent), `run` (pulse), `approve` (exec EN), `view` (analytics)
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | AN | Workspace tab **Studies** | **+ Thêm study** | IDI sữa / idi / n=8 | Study row | ✓ RES-UC-030 |
+| 2 | AN | Same · **Consent** | **Ghi consent** mã giả danh | R-004 / record · notes không SĐT | 201 consent | ✓ RES-UC-030 |
+| 3 | AN | Evidence | Tạo evidence gắn `study_id` + locator | T-12:03 · excerpt ngắn | EV gắn study · excerpt 800 → 400 `raw_transcript_forbidden` | ✓ RES-UC-030 |
+| 4 | AN | Sources | **Chạy pulse** (cap `run`) | question_id | Job `research_pulse` 202 · **0** insight mới | ✓ RES-UC-031 |
+| 5 | AN / Ops | `/crm/ops/alerts` | Mở **«Cảnh báo pulse»** | lifecycle có DV12 | `ops_alert_log` `alert_type=research_pulse` · `dv_code=DV12` | ✓ RES-UC-031 |
+| 6 | AN | Report | Điền **Executive (EN)** | bản dịch draft | `en_status=draft` · VI không đổi | ✓ RES-UC-032 |
+| 7 | LD | Same | **Duyệt bản dịch** (user ≠ `generated_by`) | cap `approve` | `en_status=approved` · sửa lại → 400 `exec_en_locked` | ✓ RES-UC-032 · BR-RES-05/07 |
+| 8 | AM | `/crm/research/analytics` | Mở **Phân tích nghiên cứu** | cap `view` | 3 thẻ: chu kỳ p50 / % evidence verify / project đã giao · Beta 403 không `title` | ✓ RES-UC-033 |
+
+#### Nhánh E-Consent PII
+
+Bước 2 notes chứa `0909123456`: 400 `consent_pii_forbidden` · không persist.
+
+#### Nhánh E-Pulse no insight
+
+Bước 4: worker `insight_ids: []` · Jest `createInsight` không được gọi · không published insight.
+
+#### Nhánh E-SoD EN
+
+AN tự **Duyệt bản dịch**: 403 `cannot_self_approve`.
+
+#### Tiêu chí nghiệm thu walkthrough P2
+
+- [ ] Bước 1–8 pass staging (pulse skip live nếu API down / không Tavily)
+- [ ] Consent PII 400; pulse không tạo insight; EN approved khóa; analytics 403 không title
+- [ ] Không đụng `/crm/sales?tab=market`
+- [ ] PO / Research Lead sign P2 ECs
+
+---
+
+## P3 (backlog — không UAT P0/P1/P2)
 
 | UC | Hành động tóm tắt |
 |----|-------------------|
-| 030 | Tab Studies + consent |
-| 031 | Alert pulse trên Ops |
-| 032 | Tick EN exec · Lead duyệt |
-| 033 | `/crm/research/analytics` |
 | 040 | Portal watermark |
 | 041 | Wave dates TRACKER |
 | 042 | Ghi decision sau readout |
