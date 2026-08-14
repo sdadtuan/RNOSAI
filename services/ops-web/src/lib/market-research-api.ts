@@ -181,6 +181,7 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   forbidden: 'Không đủ quyền với khách hàng này.',
   cannot_self_approve: 'Người tạo không tự duyệt — nhờ Research Lead.',
   exec_en_locked: 'Bản dịch EN đã duyệt — tạo phiên bản mới để sửa (BR-RES-05).',
+  insights_not_client_facing: 'Chỉ công bố khi insight đã duyệt bản khách. Không tự đăng.',
 };
 
 export type MethodologyBlock = {
@@ -908,6 +909,9 @@ export type ResearchReportVersion = {
   content_snapshot: ResearchReportSnapshot;
   generated_by: string | null;
   content_hash: string;
+  embargo_until: string | null;
+  expires_at: string | null;
+  portal_visible: boolean;
   created_at: string;
 };
 
@@ -1131,6 +1135,31 @@ export async function approveResearchReportExecEn(
     token,
     `/api/v1/research/reports/${reportId}/versions/${versionId}/approve-exec-en`,
     { method: 'POST' },
+  );
+}
+
+export async function updateResearchReportEmbargo(
+  token: string,
+  reportId: number,
+  versionId: number,
+  body: { embargo_until?: string | null; expires_at?: string | null },
+): Promise<ResearchReportVersion> {
+  return researchFetch(token, `/api/v1/research/reports/${reportId}/versions/${versionId}/embargo`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function publishResearchReportPortal(
+  token: string,
+  reportId: number,
+  versionId: number,
+  visible: boolean,
+): Promise<ResearchReportVersion> {
+  return researchFetch(
+    token,
+    `/api/v1/research/reports/${reportId}/versions/${versionId}/publish-portal`,
+    { method: 'POST', body: JSON.stringify({ visible }) },
   );
 }
 

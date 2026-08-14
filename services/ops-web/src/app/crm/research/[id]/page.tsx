@@ -62,6 +62,8 @@ import {
   isMethodologyComplete,
   isMethodologyExportable,
   normalizeReportExec,
+  publishResearchReportPortal,
+  updateResearchReportEmbargo,
   updateResearchReportExecEn,
   type CreateEvidenceBody,
   type CreateInsightBody,
@@ -578,6 +580,51 @@ function CrmResearchWorkspaceContent() {
     }
   }
 
+  async function onSaveEmbargo(
+    reportId: number,
+    versionId: number,
+    body: { embargo_until?: string | null; expires_at?: string | null },
+  ) {
+    const access = getAccessToken();
+    if (!access) return;
+    setSaving(true);
+    setError('');
+    try {
+      await updateResearchReportEmbargo(access, reportId, versionId, body);
+      await load(access);
+    } catch (err) {
+      if (err instanceof ResearchApiError && err.code && TRANSITION_REASON_VI[err.code]) {
+        setError(TRANSITION_REASON_VI[err.code]);
+      } else {
+        setError(err instanceof Error ? err.message : 'Lưu hạn công bố thất bại');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onPublishPortal(reportId: number, versionId: number, visible: boolean) {
+    const access = getAccessToken();
+    if (!access) return;
+    setSaving(true);
+    setError('');
+    try {
+      await publishResearchReportPortal(access, reportId, versionId, visible);
+      await load(access);
+    } catch (err) {
+      if (err instanceof ResearchApiError && err.code === 'cannot_self_approve') {
+        setGateMessages(['cannot_self_approve']);
+        setGateOpen(true);
+      } else if (err instanceof ResearchApiError && err.code && TRANSITION_REASON_VI[err.code]) {
+        setError(TRANSITION_REASON_VI[err.code]);
+      } else {
+        setError(err instanceof Error ? err.message : 'Công bố portal thất bại');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function onVerifyEvidence(ev: ResearchEvidence) {
     const access = getAccessToken();
     if (!access || !project) return;
@@ -964,6 +1011,10 @@ function CrmResearchWorkspaceContent() {
                 onExport={(reportId, versionId) => void onExportReport(reportId, versionId)}
                 onSaveExecEn={(reportId, versionId, en) => void onSaveExecEn(reportId, versionId, en)}
                 onApproveExecEn={(reportId, versionId) => void onApproveExecEn(reportId, versionId)}
+                onSaveEmbargo={(reportId, versionId, body) => void onSaveEmbargo(reportId, versionId, body)}
+                onPublishPortal={(reportId, versionId, visible) =>
+                  void onPublishPortal(reportId, versionId, visible)
+                }
               />
             ) : (
               <p className="muted">P0: dùng tab Brief / Nguồn / Evidence / Insight. Tab {TABS.find((t) => t.id === tab)?.label} sẽ có ở milestone sau.</p>
@@ -1461,6 +1512,22 @@ const APPROVED_INTERNAL_PLUS: InsightStatus[] = [
   'published',
 ];
 
+function toDatetimeLocal(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromDatetimeLocal(local: string): string | null {
+  const text = local.trim();
+  if (!text) return null;
+  const d = new Date(text);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
 function ReportTab({
   project,
   canEdit,
@@ -1475,6 +1542,8 @@ function ReportTab({
   onExport,
   onSaveExecEn,
   onApproveExecEn,
+  onSaveEmbargo,
+  onPublishPortal,
 }: {
   project: ResearchProject;
   canEdit: boolean;
@@ -1489,6 +1558,12 @@ function ReportTab({
   onExport: (reportId: number, versionId: number) => void;
   onSaveExecEn: (reportId: number, versionId: number, en: string) => void;
   onApproveExecEn: (reportId: number, versionId: number) => void;
+  onSaveEmbargo: (
+    reportId: number,
+    versionId: number,
+    body: { embargo_until?: string | null; expires_at?: string | null },
+  ) => void;
+  onPublishPortal: (reportId: number, versionId: number, visible: boolean) => void;
 }) {
   const approved = (project.insights ?? []).filter((row) => APPROVED_INTERNAL_PLUS.includes(row.status));
   const [selected, setSelected] = useState<number[]>(() => approved.map((row) => row.id));
@@ -1496,6 +1571,9 @@ function ReportTab({
   const [sourcePlan, setSourcePlan] = useState('');
   const [limitation, setLimitation] = useState('');
   const [enDrafts, setEnDrafts] = useState<Record<number, string>>({});
+  const [embargoDrafts, setEmbargoDrafts] = useState<Record<number, { embargo: string; expires: string }>>(
+    {},
+  );
   const snapshotExec = normalizeReportExec(snapshot?.exec);
   const versions = reports.flatMap((report) =>
     report.versions.map((version) => ({ report, version })),
@@ -1547,6 +1625,19 @@ function ReportTab({
         }}
       >
         Lead duyệt bản dịch trước khi gửi khách.
+      </div>
+      <div
+        role="status"
+        style={{
+          marginBottom: '0.75rem',
+          padding: '0.55rem 0.7rem',
+          borderRadius: 8,
+          background: 'color-mix(in srgb, var(--primary) 10%, var(--bg))',
+          border: '1px solid var(--border)',
+          fontSize: '0.85rem',
+        }}
+      >
+        Chỉ công bố khi insight đã duyệt bản khách. Không tự đăng.
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0, fontSize: '1rem' }}>Báo cáo</h2>
@@ -1745,6 +1836,99 @@ function ReportTab({
                     Duyệt bản dịch
                   </button>
                 ) : null}
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gap: '0.45rem',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                }}
+              >
+                <label style={{ display: 'grid', gap: 4, fontSize: '0.85rem' }}>
+                  Cấm công bố đến
+                  <input
+                    type="datetime-local"
+                    disabled={saving || !canEdit}
+                    value={
+                      embargoDrafts[version.id]?.embargo ?? toDatetimeLocal(version.embargo_until)
+                    }
+                    onChange={(e) =>
+                      setEmbargoDrafts((prev) => ({
+                        ...prev,
+                        [version.id]: {
+                          embargo: e.target.value,
+                          expires:
+                            prev[version.id]?.expires ?? toDatetimeLocal(version.expires_at),
+                        },
+                      }))
+                    }
+                  />
+                </label>
+                <label style={{ display: 'grid', gap: 4, fontSize: '0.85rem' }}>
+                  Hết hạn
+                  <input
+                    type="datetime-local"
+                    disabled={saving || !canEdit}
+                    value={
+                      embargoDrafts[version.id]?.expires ?? toDatetimeLocal(version.expires_at)
+                    }
+                    onChange={(e) =>
+                      setEmbargoDrafts((prev) => ({
+                        ...prev,
+                        [version.id]: {
+                          embargo:
+                            prev[version.id]?.embargo ?? toDatetimeLocal(version.embargo_until),
+                          expires: e.target.value,
+                        },
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                {canEdit ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={saving}
+                    onClick={() =>
+                      onSaveEmbargo(report.id, version.id, {
+                        embargo_until: fromDatetimeLocal(
+                          embargoDrafts[version.id]?.embargo ?? toDatetimeLocal(version.embargo_until),
+                        ),
+                        expires_at: fromDatetimeLocal(
+                          embargoDrafts[version.id]?.expires ?? toDatetimeLocal(version.expires_at),
+                        ),
+                      })
+                    }
+                  >
+                    Lưu hạn
+                  </button>
+                ) : null}
+                {canApprove ? (
+                  version.portal_visible ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={saving}
+                      onClick={() => onPublishPortal(report.id, version.id, false)}
+                    >
+                      Gỡ khỏi portal
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={saving}
+                      onClick={() => onPublishPortal(report.id, version.id, true)}
+                    >
+                      Công bố portal
+                    </button>
+                  )
+                ) : null}
+                <span className="muted">
+                  {version.portal_visible ? 'Đã công bố portal' : 'Chưa công bố portal'}
+                </span>
               </div>
             </li>
             );

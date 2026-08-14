@@ -6,7 +6,12 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import { MarketResearchService } from './market-research.service';
-import type { ResearchEvidenceRow, ResearchInsightRow, ResearchProjectRow } from './market-research.types';
+import type {
+  ResearchEvidenceRow,
+  ResearchInsightRow,
+  ResearchProjectRow,
+  ResearchReportVersionRow,
+} from './market-research.types';
 
 const project: ResearchProjectRow = {
   id: 9,
@@ -79,6 +84,8 @@ describe('MarketResearchService', () => {
     getReport: jest.fn(),
     getReportVersion: jest.fn(),
     updateReportVersionSnapshot: jest.fn(),
+    updateReportVersionEmbargo: jest.fn(),
+    updateReportVersionPortalVisible: jest.fn(),
     listCompetitors: jest.fn(),
     getCompetitor: jest.fn(),
     createCompetitor: jest.fn(),
@@ -1712,6 +1719,90 @@ describe('MarketResearchService', () => {
     expect(repo.insertReportVersion).not.toHaveBeenCalled();
   });
 
+  it('createReport → portal_visible === false', async () => {
+    stubScopedProject();
+    repo.getInsight.mockResolvedValue(
+      insightRow({ status: 'approved_internal', evidence_ids: [3] }),
+    );
+    repo.listQuestions.mockResolvedValue([]);
+    repo.listEvidence.mockResolvedValue([]);
+    repo.listReports.mockResolvedValue([]);
+    repo.insertReportVersion.mockImplementation(async (input: { contentSnapshot: Record<string, unknown> }) => ({
+      report_id: 1,
+      version_id: 10,
+      version: 1,
+      content_snapshot: input.contentSnapshot,
+      content_hash: 'abc',
+    }));
+
+    const out = await service.createReport(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { insight_ids: [7] },
+      'am@ptt',
+    );
+
+    expect(out.portal_visible).toBe(false);
+    expect(repo.updateReportVersionPortalVisible).not.toHaveBeenCalled();
+  });
+
+  it('publish when insight approved_internal is 400 insights_not_client_facing', async () => {
+    stubScopedProject();
+    repo.getReport.mockResolvedValue({ id: 1, project_id: 9, status: 'draft' });
+    repo.getReportVersion.mockResolvedValue(
+      versionRow({
+        content_snapshot: { insight_ids: [7] },
+        generated_by: 'am@ptt',
+      }),
+    );
+    repo.getInsight.mockResolvedValue(insightRow({ status: 'approved_internal' }));
+
+    try {
+      await service.publishPortal(
+        1,
+        10,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { visible: true },
+        'lead@ptt',
+      );
+      throw new Error('expected insights_not_client_facing');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+      expect((err as BadRequestException).getResponse()).toEqual({
+        error: 'insights_not_client_facing',
+      });
+    }
+    expect(repo.updateReportVersionPortalVisible).not.toHaveBeenCalled();
+  });
+
+  it('publish by generated_by is 403 cannot_self_approve', async () => {
+    stubScopedProject();
+    repo.getReport.mockResolvedValue({ id: 1, project_id: 9, status: 'draft' });
+    repo.getReportVersion.mockResolvedValue(
+      versionRow({
+        content_snapshot: { insight_ids: [7] },
+        generated_by: 'am@ptt',
+      }),
+    );
+    repo.getInsight.mockResolvedValue(insightRow({ status: 'approved_client_facing' }));
+
+    try {
+      await service.publishPortal(
+        1,
+        10,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { visible: true },
+        'am@ptt',
+      );
+      throw new Error('expected cannot_self_approve');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect((err as ForbiddenException).getResponse()).toEqual({ error: 'cannot_self_approve' });
+    }
+    expect(repo.updateReportVersionPortalVisible).not.toHaveBeenCalled();
+  });
+
   it('reportCopilot with 0 insights is 400', async () => {
     stubScopedProject();
 
@@ -1976,6 +2067,22 @@ function evidenceRow(overrides: Partial<ResearchEvidenceRow> = {}): ResearchEvid
 }
 
 const validRubric = { S: 3, F: 3, T: 3, A: 3, R: 3 };
+
+function versionRow(overrides: Partial<ResearchReportVersionRow> = {}): ResearchReportVersionRow {
+  return {
+    id: 10,
+    report_id: 1,
+    version: 1,
+    content_snapshot: { insight_ids: [7] },
+    generated_by: 'am@ptt',
+    content_hash: 'abc',
+    embargo_until: null,
+    expires_at: null,
+    portal_visible: false,
+    created_at: '2026-08-14',
+    ...overrides,
+  };
+}
 
 function insightRow(overrides: Partial<ResearchInsightRow> = {}): ResearchInsightRow {
   return {

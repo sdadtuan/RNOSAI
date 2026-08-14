@@ -98,4 +98,17 @@ describe('MarketResearchRepository', () => {
     expect(listSql).toMatch(/p\.client_id/);
     expect(listSql).toMatch(/p\.status/);
   });
+
+  it('getReportVersion selects embargo_until, expires_at, and portal_visible', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const repo = repoWithMock();
+
+    await repo.getReportVersion(1, 10);
+
+    const sql = String(queryMock.mock.calls[0][0]);
+    expect(sql).toMatch(/embargo_until/);
+    expect(sql).toMatch(/expires_at/);
+    expect(sql).toMatch(/portal_visible/);
+    expect(sql).not.toMatch(/ADD COLUMN/);
+  });
 });

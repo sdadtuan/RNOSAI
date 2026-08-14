@@ -53,7 +53,9 @@ import type {
   PatchQuestionInput,
   PatchSourceInput,
   ReportCopilotInput,
+  PublishPortalInput,
   UpdateExecEnInput,
+  UpdateReportEmbargoInput,
   RunDeepInput,
   RunDeskInput,
   RunPulseInput,
@@ -533,6 +535,36 @@ export class MarketResearchController {
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.approveReportExecEn(reportId, versionId, scope, actorEmail(req));
+  }
+
+  @Patch('reports/:reportId/versions/:versionId/embargo')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async updateReportEmbargo(
+    @Req() req: StaffReq,
+    @Param('reportId', ParseIntPipe) reportId: number,
+    @Param('versionId', ParseIntPipe) versionId: number,
+    @Body() body: UpdateReportEmbargoInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.updateReportEmbargo(reportId, versionId, scope, body ?? {});
+  }
+
+  @Post('reports/:reportId/versions/:versionId/publish-portal')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchApproveGuard)
+  async publishPortal(
+    @Req() req: StaffReq,
+    @Param('reportId', ParseIntPipe) reportId: number,
+    @Param('versionId', ParseIntPipe) versionId: number,
+    @Body() body: PublishPortalInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.publishPortal(
+      reportId,
+      versionId,
+      scope,
+      body ?? ({} as PublishPortalInput),
+      actorEmail(req),
+    );
   }
 
   @Post('projects/:id/reports/copilot')

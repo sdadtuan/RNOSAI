@@ -476,6 +476,15 @@ export type UpdateExecEnInput = {
   en: string;
 };
 
+export type UpdateReportEmbargoInput = {
+  embargo_until?: string | null;
+  expires_at?: string | null;
+};
+
+export type PublishPortalInput = {
+  visible: boolean;
+};
+
 export type ResearchReportVersionRow = {
   id: number;
   report_id: number;
@@ -483,6 +492,9 @@ export type ResearchReportVersionRow = {
   content_snapshot: Record<string, unknown>;
   generated_by: string | null;
   content_hash: string;
+  embargo_until: string | null;
+  expires_at: string | null;
+  portal_visible: boolean;
   created_at: string;
 };
 
@@ -502,6 +514,7 @@ export type CreateReportResult = {
   version: number;
   content_snapshot: Record<string, unknown>;
   content_hash: string;
+  portal_visible: boolean;
 };
 
 export type InsightCopilotResult = {

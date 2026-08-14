@@ -85,7 +85,9 @@ import type {
   ResearchReportRow,
   ResearchReportVersionRow,
   ResearchSourceRow,
+  PublishPortalInput,
   UpdateExecEnInput,
+  UpdateReportEmbargoInput,
   RunDeepInput,
   RunDeepResult,
   RunDeskInput,
@@ -107,6 +109,7 @@ import { validateCreateEvidence, validateCreateProject } from './market-research
 import { buildResearchPrefill, EMPTY_RESEARCH_PREFILL, stripPrefillPii } from './research-prefill.util';
 import { assertMethodologyExportable } from './methodology-gate.util';
 import { assertExecEnEditable, normalizeReportExec } from './report-exec.util';
+import { assertPublishableInsights } from './portal-publish.util';
 import { assertNoInsightTextLeak, freezePlanInsights } from './plan-insight-snapshot.util';
 import { completenessPct, percentile50 } from './ops-analytics.util';
 import { canTransitionProject, listValidTransitions } from './project-state.util';
@@ -1361,6 +1364,7 @@ export class MarketResearchService {
       version: draft.version,
       content_snapshot: draft.content_snapshot,
       content_hash: draft.content_hash,
+      portal_visible: false,
     };
   }
 
@@ -1474,6 +1478,83 @@ export class MarketResearchService {
       exec: { vi: exec.vi, en: exec.en, en_status: 'approved' },
     });
     if (!updated) throw new NotFoundException({ error: 'not_found' });
+    return updated;
+  }
+
+  async updateReportEmbargo(
+    reportId: number,
+    versionId: number,
+    scope: ClientScopeContext,
+    input: UpdateReportEmbargoInput,
+  ): Promise<ResearchReportVersionRow> {
+    const report = await this.repo.getReport(reportId);
+    if (!report) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(report.project_id, scope);
+    const version = await this.repo.getReportVersion(reportId, versionId);
+    if (!version) throw new NotFoundException({ error: 'not_found' });
+    const patch: UpdateReportEmbargoInput = {};
+    if (input.embargo_until !== undefined) {
+      patch.embargo_until = parseOptionalIso(input.embargo_until, 'embargo_until');
+    }
+    if (input.expires_at !== undefined) {
+      patch.expires_at = parseOptionalIso(input.expires_at, 'expires_at');
+    }
+    const updated = await this.repo.updateReportVersionEmbargo(reportId, versionId, patch);
+    if (!updated) throw new NotFoundException({ error: 'not_found' });
+    return updated;
+  }
+
+  async publishPortal(
+    reportId: number,
+    versionId: number,
+    scope: ClientScopeContext,
+    input: PublishPortalInput,
+    actor: string,
+  ): Promise<ResearchReportVersionRow> {
+    const report = await this.repo.getReport(reportId);
+    if (!report) throw new NotFoundException({ error: 'not_found' });
+    const project = await this.loadScopedProject(report.project_id, scope);
+    const version = await this.repo.getReportVersion(reportId, versionId);
+    if (!version) throw new NotFoundException({ error: 'not_found' });
+    if (typeof input?.visible !== 'boolean') {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['visible is required'],
+      });
+    }
+    if (input.visible) {
+      const insightIds = snapshotInsightIds(version.content_snapshot);
+      const statuses: Array<string | null | undefined> = [];
+      for (const id of insightIds) {
+        const insight = await this.repo.getInsight(id);
+        statuses.push(insight?.status);
+      }
+      try {
+        assertPublishableInsights(statuses);
+      } catch (err) {
+        if ((err as Error & { code?: string }).code === 'insights_not_client_facing') {
+          throw new BadRequestException({ error: 'insights_not_client_facing' });
+        }
+        throw err;
+      }
+      try {
+        assertNotSelfApprove(version.generated_by, actor);
+      } catch (err) {
+        if ((err as Error & { code?: string }).code === 'cannot_self_approve') {
+          throw new ForbiddenException({ error: 'cannot_self_approve' });
+        }
+        throw err;
+      }
+    }
+    const updated = await this.repo.updateReportVersionPortalVisible(
+      reportId,
+      versionId,
+      input.visible,
+    );
+    if (!updated) throw new NotFoundException({ error: 'not_found' });
+    if (input.visible && project.status === 'approved') {
+      await this.repo.patchProject(project.id, { status: 'distributed' }, actor);
+    }
     return updated;
   }
 
@@ -1800,6 +1881,29 @@ function normalizePositiveIds(raw: unknown): number[] {
     ids.push(id);
   }
   return ids;
+}
+
+function snapshotInsightIds(snapshot: Record<string, unknown>): number[] {
+  return normalizePositiveIds(snapshot.insight_ids);
+}
+
+function parseOptionalIso(value: string | null, field: string): string | null {
+  if (value == null) return null;
+  const text = String(value).trim();
+  if (!text) {
+    throw new BadRequestException({
+      error: 'validation_error',
+      messages: [`${field} must be ISO or null`],
+    });
+  }
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new BadRequestException({
+      error: 'validation_error',
+      messages: [`${field} must be ISO or null`],
+    });
+  }
+  return text;
 }
 
 function hashPrompt(system: string, user: string): string {
