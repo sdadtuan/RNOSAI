@@ -10,7 +10,12 @@ import type {
   CreateQuestionInput,
   CreateCompetitorInput,
   CreateCompetitorSnapshotInput,
+  CreateConsentInput,
   CreateSourceInput,
+  CreateStudyInput,
+  PatchStudyInput,
+  ResearchConsent,
+  ResearchStudy,
   InsertReviewInput,
   ListProjectsFilters,
   PatchCompetitorInput,
@@ -1304,6 +1309,154 @@ export class MarketResearchRepository implements OnModuleDestroy {
       ],
     );
     return this.mapCompetitorSnapshot(result.rows[0]);
+  }
+
+  private mapStudy(row: Record<string, unknown>): ResearchStudy {
+    const method = String(row.method);
+    const mode = row.mode != null ? String(row.mode) : null;
+    return {
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      name: String(row.name),
+      method: method as ResearchStudy['method'],
+      n: row.n != null ? Number(row.n) : null,
+      field_start: row.field_start != null ? String(row.field_start) : null,
+      field_end: row.field_end != null ? String(row.field_end) : null,
+      mode: mode as ResearchStudy['mode'],
+      instrument_version: row.instrument_version != null ? String(row.instrument_version) : null,
+      weighting_note: row.weighting_note != null ? String(row.weighting_note) : null,
+    };
+  }
+
+  private mapConsent(row: Record<string, unknown>): ResearchConsent {
+    const consentType = String(row.consent_type);
+    return {
+      id: Number(row.id),
+      study_id: Number(row.study_id),
+      project_id: Number(row.project_id),
+      subject_code: String(row.subject_code),
+      consent_type: consentType as ResearchConsent['consent_type'],
+      recorded_at: String(row.recorded_at),
+      expires_at: String(row.expires_at),
+      notes: row.notes != null ? String(row.notes) : null,
+    };
+  }
+
+  private readonly studySelect = `
+    SELECT id, project_id, name, method, n,
+           field_start::text AS field_start, field_end::text AS field_end,
+           mode, instrument_version, weighting_note
+    FROM crm_research_studies
+  `;
+
+  private readonly consentSelect = `
+    SELECT id, study_id, project_id, subject_code, consent_type,
+           recorded_at::text AS recorded_at, expires_at::text AS expires_at, notes
+    FROM crm_research_consents
+  `;
+
+  async listStudies(projectId: number): Promise<ResearchStudy[]> {
+    const result = await this.db.query(`${this.studySelect} WHERE project_id = $1 ORDER BY id ASC`, [
+      projectId,
+    ]);
+    return result.rows.map((row) => this.mapStudy(row));
+  }
+
+  async getStudy(id: number): Promise<ResearchStudy | null> {
+    const result = await this.db.query(`${this.studySelect} WHERE id = $1`, [id]);
+    const row = result.rows[0];
+    return row ? this.mapStudy(row) : null;
+  }
+
+  async createStudy(
+    projectId: number,
+    input: CreateStudyInput,
+    actor: string,
+  ): Promise<ResearchStudy> {
+    const result = await this.db.query(
+      `INSERT INTO crm_research_studies (
+         project_id, name, method, n, field_start, field_end, mode,
+         instrument_version, weighting_note, created_by
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING id, project_id, name, method, n,
+                 field_start::text AS field_start, field_end::text AS field_end,
+                 mode, instrument_version, weighting_note`,
+      [
+        projectId,
+        input.name.trim(),
+        input.method,
+        input.n ?? null,
+        input.field_start ?? null,
+        input.field_end ?? null,
+        input.mode ?? null,
+        input.instrument_version ?? null,
+        input.weighting_note ?? null,
+        actor,
+      ],
+    );
+    await this.db.query(`UPDATE crm_research_projects SET updated_at = now() WHERE id = $1`, [
+      projectId,
+    ]);
+    return this.mapStudy(result.rows[0]);
+  }
+
+  async patchStudy(id: number, input: PatchStudyInput): Promise<ResearchStudy | null> {
+    const sets: string[] = ['updated_at = now()'];
+    const vals: unknown[] = [];
+    const add = (col: string, value: unknown) => {
+      vals.push(value);
+      sets.push(`${col} = $${vals.length}`);
+    };
+    if (input.name != null) add('name', input.name.trim());
+    if (input.n !== undefined) add('n', input.n);
+    if (input.field_start !== undefined) add('field_start', input.field_start);
+    if (input.field_end !== undefined) add('field_end', input.field_end);
+    if (input.mode !== undefined) add('mode', input.mode);
+    if (input.instrument_version !== undefined) add('instrument_version', input.instrument_version);
+    if (input.weighting_note !== undefined) add('weighting_note', input.weighting_note);
+    vals.push(id);
+    const result = await this.db.query(
+      `UPDATE crm_research_studies SET ${sets.join(', ')} WHERE id = $${vals.length}
+       RETURNING id, project_id, name, method, n,
+                 field_start::text AS field_start, field_end::text AS field_end,
+                 mode, instrument_version, weighting_note`,
+      vals,
+    );
+    const row = result.rows[0];
+    return row ? this.mapStudy(row) : null;
+  }
+
+  async listConsents(studyId: number): Promise<ResearchConsent[]> {
+    const result = await this.db.query(`${this.consentSelect} WHERE study_id = $1 ORDER BY id ASC`, [
+      studyId,
+    ]);
+    return result.rows.map((row) => this.mapConsent(row));
+  }
+
+  async createConsent(
+    studyId: number,
+    projectId: number,
+    input: CreateConsentInput & { recorded_at: Date; expires_at: Date },
+    actor: string,
+  ): Promise<ResearchConsent> {
+    const result = await this.db.query(
+      `INSERT INTO crm_research_consents (
+         study_id, project_id, subject_code, consent_type, recorded_at, expires_at, notes, created_by
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, study_id, project_id, subject_code, consent_type,
+                 recorded_at::text AS recorded_at, expires_at::text AS expires_at, notes`,
+      [
+        studyId,
+        projectId,
+        input.subject_code.trim(),
+        input.consent_type,
+        input.recorded_at,
+        input.expires_at,
+        input.notes?.trim() || null,
+        actor,
+      ],
+    );
+    return this.mapConsent(result.rows[0]);
   }
 
   async insertReview(input: InsertReviewInput): Promise<{ id: number }> {

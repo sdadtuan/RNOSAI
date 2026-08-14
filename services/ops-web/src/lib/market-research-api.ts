@@ -374,6 +374,76 @@ export type CreateCompetitorSnapshotBody = {
   limitation_note?: string | null;
 };
 
+export const STUDY_METHODS = ['survey', 'idi', 'fgd', 'diary'] as const;
+export type StudyMethod = (typeof STUDY_METHODS)[number];
+
+export const STUDY_MODES = ['online', 'f2f', 'phone', 'mixed'] as const;
+export type StudyMode = (typeof STUDY_MODES)[number];
+
+export const CONSENT_TYPES = ['record', 'quote', 'store'] as const;
+export type ConsentType = (typeof CONSENT_TYPES)[number];
+
+export const STUDY_METHOD_LABELS: Record<StudyMethod, string> = {
+  survey: 'Khảo sát',
+  idi: 'IDI',
+  fgd: 'FGD',
+  diary: 'Nhật ký',
+};
+
+export const STUDY_MODE_LABELS: Record<StudyMode, string> = {
+  online: 'Online',
+  f2f: 'Trực tiếp',
+  phone: 'Điện thoại',
+  mixed: 'Hỗn hợp',
+};
+
+export const CONSENT_TYPE_LABELS: Record<ConsentType, string> = {
+  record: 'Ghi âm',
+  quote: 'Trích dẫn',
+  store: 'Lưu trữ',
+};
+
+export type ResearchStudy = {
+  id: number;
+  project_id: number;
+  name: string;
+  method: StudyMethod;
+  n: number | null;
+  field_start: string | null;
+  field_end: string | null;
+  mode: StudyMode | null;
+  instrument_version: string | null;
+  weighting_note: string | null;
+};
+
+export type ResearchConsent = {
+  id: number;
+  study_id: number;
+  project_id: number;
+  subject_code: string;
+  consent_type: ConsentType;
+  recorded_at: string;
+  expires_at: string;
+  notes: string | null;
+};
+
+export type CreateStudyBody = {
+  name: string;
+  method: StudyMethod;
+  n?: number | null;
+  field_start?: string | null;
+  field_end?: string | null;
+  mode?: StudyMode | null;
+  instrument_version?: string | null;
+  weighting_note?: string | null;
+};
+
+export type CreateConsentBody = {
+  subject_code: string;
+  consent_type: ConsentType;
+  notes?: string | null;
+};
+
 export type ResearchSource = {
   id: number;
   project_id: number;
@@ -909,6 +979,53 @@ export async function createResearchCompetitorSnapshot(
   body: CreateCompetitorSnapshotBody,
 ): Promise<ResearchCompetitorSnapshot> {
   return researchFetch(token, `/api/v1/research/competitors/${competitorId}/snapshots`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchResearchStudies(
+  token: string,
+  projectId: number,
+): Promise<{ studies: ResearchStudy[] }> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/studies`);
+}
+
+export async function createResearchStudy(
+  token: string,
+  projectId: number,
+  body: CreateStudyBody,
+): Promise<ResearchStudy> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/studies`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchResearchStudy(
+  token: string,
+  studyId: number,
+  body: Partial<CreateStudyBody>,
+): Promise<ResearchStudy> {
+  return researchFetch(token, `/api/v1/research/studies/${studyId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchResearchConsents(
+  token: string,
+  studyId: number,
+): Promise<{ consents: ResearchConsent[] }> {
+  return researchFetch(token, `/api/v1/research/studies/${studyId}/consents`);
+}
+
+export async function createResearchConsent(
+  token: string,
+  studyId: number,
+  body: CreateConsentBody,
+): Promise<ResearchConsent> {
+  return researchFetch(token, `/api/v1/research/studies/${studyId}/consents`, {
     method: 'POST',
     body: JSON.stringify(body),
   });

@@ -34,6 +34,7 @@ import type {
   AttachInsightEvidenceInput,
   CreateCompetitorInput,
   CreateCompetitorSnapshotInput,
+  CreateConsentInput,
   CreateEvidenceInput,
   CreateInsightInput,
   CreateProjectInput,
@@ -42,7 +43,9 @@ import type {
   CreateReportInput,
   CreateSourceInput,
   InsightCopilotInput,
+  CreateStudyInput,
   PatchCompetitorInput,
+  PatchStudyInput,
   PatchEvidenceInput,
   PatchInsightInput,
   PatchProjectInput,
@@ -284,6 +287,55 @@ export class MarketResearchController {
       body ?? ({} as CreateCompetitorSnapshotInput),
       actorEmail(req),
     );
+  }
+
+  @Get('projects/:id/studies')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async listStudies(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.listStudies(id, scope);
+  }
+
+  @Post('projects/:id/studies')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async createStudy(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CreateStudyInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.createStudy(id, scope, body ?? ({} as CreateStudyInput), actorEmail(req));
+  }
+
+  @Patch('studies/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async patchStudy(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PatchStudyInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.patchStudy(id, scope, body ?? {});
+  }
+
+  @Get('studies/:id/consents')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async listConsents(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.listConsents(id, scope);
+  }
+
+  @Post('studies/:id/consents')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async createConsent(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CreateConsentInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.createConsent(id, scope, body ?? ({} as CreateConsentInput), actorEmail(req));
   }
 
   @Patch('sources/:id')

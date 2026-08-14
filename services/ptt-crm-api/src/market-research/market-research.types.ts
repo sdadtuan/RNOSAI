@@ -97,6 +97,98 @@ export type ResearchCompetitorRow = {
   snapshots: ResearchCompetitorSnapshotRow[];
 };
 
+export const STUDY_METHODS = ['survey', 'idi', 'fgd', 'diary'] as const;
+export type StudyMethod = (typeof STUDY_METHODS)[number];
+
+export const STUDY_MODES = ['online', 'f2f', 'phone', 'mixed'] as const;
+export type StudyMode = (typeof STUDY_MODES)[number];
+
+export type ResearchStudy = {
+  id: number;
+  project_id: number;
+  name: string;
+  method: StudyMethod;
+  n: number | null;
+  field_start: string | null;
+  field_end: string | null;
+  mode: StudyMode | null;
+  instrument_version: string | null;
+  weighting_note: string | null;
+};
+
+export type ResearchConsent = {
+  id: number;
+  study_id: number;
+  project_id: number;
+  subject_code: string; // pseudonym R-004 — not a person name
+  consent_type: 'record' | 'quote' | 'store';
+  recorded_at: string;
+  expires_at: string;
+  notes: string | null;
+};
+
+export type ReportExec = {
+  vi: string;
+  en: string | null;
+  en_status: 'none' | 'draft' | 'approved';
+};
+
+export type TrendSignal = {
+  id: number;
+  project_id: number;
+  topic: string;
+  metric: string;
+  baseline: number | null;
+  current: number | null;
+  velocity: number | null;
+  lifecycle: 'new' | 'rising' | 'stable' | 'fading';
+};
+
+export type OpsAnalytics = {
+  cycle_time_hours: {
+    designed_to_approved_p50: number | null;
+    sample: number;
+  };
+  evidence_completeness: {
+    projects: number;
+    with_verified_pct: number;
+  };
+  activation: {
+    distributed_projects: number;
+    approved_reports: number;
+  };
+};
+
+export const CONSENT_TYPES = ['record', 'quote', 'store'] as const;
+export type ConsentType = (typeof CONSENT_TYPES)[number];
+
+export type CreateStudyInput = {
+  name: string;
+  method: string;
+  n?: number | null;
+  field_start?: string | null;
+  field_end?: string | null;
+  mode?: string | null;
+  instrument_version?: string | null;
+  weighting_note?: string | null;
+};
+
+export type PatchStudyInput = {
+  name?: string;
+  n?: number | null;
+  field_start?: string | null;
+  field_end?: string | null;
+  mode?: string | null;
+  instrument_version?: string | null;
+  weighting_note?: string | null;
+};
+
+export type CreateConsentInput = {
+  subject_code: string;
+  consent_type: string;
+  notes?: string | null;
+};
+
 export type CreateProjectQuestionInput = {
   question_vi: string;
   question_en?: string | null;

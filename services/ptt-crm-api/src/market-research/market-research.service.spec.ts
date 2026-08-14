@@ -79,6 +79,12 @@ describe('MarketResearchService', () => {
     createCompetitor: jest.fn(),
     patchCompetitor: jest.fn(),
     createCompetitorSnapshot: jest.fn(),
+    listStudies: jest.fn(),
+    getStudy: jest.fn(),
+    createStudy: jest.fn(),
+    patchStudy: jest.fn(),
+    listConsents: jest.fn(),
+    createConsent: jest.fn(),
     listApprovedInsightsByClient: jest.fn(),
     findConsultFormDataByClientId: jest.fn(),
   };
@@ -422,6 +428,92 @@ describe('MarketResearchService', () => {
       expect(JSON.stringify(body)).not.toContain('name');
     }
     expect(repo.listCompetitors).not.toHaveBeenCalled();
+  });
+
+  it('createConsent notes containing a phone is 400 consent_pii_forbidden', async () => {
+    repo.getStudy.mockResolvedValue({
+      id: 4,
+      project_id: 9,
+      name: 'IDI sữa uống',
+      method: 'idi',
+      n: 8,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    });
+    stubScopedProject();
+
+    try {
+      await service.createConsent(
+        4,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { subject_code: 'R-004', consent_type: 'record', notes: 'gọi 0909123456' },
+        'am@ptt',
+      );
+      throw new Error('expected consent_pii_forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ error: 'consent_pii_forbidden' }),
+      );
+    }
+    expect(repo.createConsent).not.toHaveBeenCalled();
+  });
+
+  it('listStudies outside scope is 403 without study name in the body', async () => {
+    repo.getProjectClientId.mockResolvedValue('other-client');
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.listStudies.mockResolvedValue([{ id: 4, project_id: 9, name: 'SecretStudyName', method: 'idi' }]);
+
+    try {
+      await service.listStudies(9, { restricted: true, allowedClientIds: ['acme'] });
+      throw new Error('expected forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const body = (err as ForbiddenException).getResponse();
+      expect(body).toEqual({ error: 'forbidden' });
+      expect(JSON.stringify(body)).not.toContain('SecretStudyName');
+      expect(JSON.stringify(body)).not.toContain('name');
+    }
+    expect(repo.listStudies).not.toHaveBeenCalled();
+  });
+
+  it('createEvidence with study_id and 800-char excerpt is 400 raw_transcript_forbidden', async () => {
+    stubScopedProject();
+    repo.getStudy.mockResolvedValue({
+      id: 4,
+      project_id: 9,
+      name: 'IDI sữa uống',
+      method: 'idi',
+      n: 8,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    });
+
+    try {
+      await service.createEvidence(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        {
+          study_id: 4,
+          locator: 'T-12:03',
+          excerpt: 'x'.repeat(800),
+        },
+        'am@ptt',
+      );
+      throw new Error('expected raw_transcript_forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ error: 'raw_transcript_forbidden' }),
+      );
+    }
+    expect(repo.createEvidence).not.toHaveBeenCalled();
   });
 
   it('createEvidence with value_num but missing unit/base/period/geo is validation_error (BR-RES-02)', async () => {

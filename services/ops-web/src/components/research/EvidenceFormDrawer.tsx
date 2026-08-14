@@ -1,7 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { CreateEvidenceBody, ResearchEvidence, ResearchQuestion, ResearchSource } from '@/lib/market-research-api';
+import { getAccessToken } from '@/lib/auth';
+import {
+  fetchResearchStudies,
+  type CreateEvidenceBody,
+  type ResearchEvidence,
+  type ResearchQuestion,
+  type ResearchSource,
+  type ResearchStudy,
+} from '@/lib/market-research-api';
 
 type Mode = 'create' | 'edit' | 'supersede';
 
@@ -10,6 +18,7 @@ type EvidenceFormDrawerProps = {
   mode: Mode;
   canEdit: boolean;
   saving: boolean;
+  projectId: number;
   sources: ResearchSource[];
   questions: ResearchQuestion[];
   source?: ResearchSource | null;
@@ -30,6 +39,7 @@ const empty = {
   geography: '',
   pii_class: '',
   source_id: '',
+  study_id: '',
   question_id: '',
 };
 
@@ -38,6 +48,7 @@ export function EvidenceFormDrawer({
   mode,
   canEdit,
   saving,
+  projectId,
   sources,
   questions,
   source,
@@ -48,6 +59,7 @@ export function EvidenceFormDrawer({
   onVerify,
 }: EvidenceFormDrawerProps) {
   const [form, setForm] = useState(empty);
+  const [studies, setStudies] = useState<ResearchStudy[]>([]);
   const locked =
     mode === 'edit' &&
     (evidence?.qc_status === 'verified' ||
@@ -66,9 +78,15 @@ export function EvidenceFormDrawer({
       geography: evidence?.geography ?? '',
       pii_class: evidence?.pii_class && evidence.pii_class !== 'none' ? evidence.pii_class : '',
       source_id: String(source?.id ?? evidence?.source_id ?? ''),
+      study_id: evidence?.study_id != null ? String(evidence.study_id) : '',
       question_id: String(source?.question_id ?? evidence?.question_id ?? ''),
     });
-  }, [open, source, evidence]);
+    const token = getAccessToken();
+    if (!token || !projectId) return;
+    void fetchResearchStudies(token, projectId)
+      .then((out) => setStudies(out.studies))
+      .catch(() => setStudies([]));
+  }, [open, source, evidence, projectId]);
 
   if (!open) return null;
 
@@ -79,6 +97,7 @@ export function EvidenceFormDrawer({
   function toBody(): CreateEvidenceBody {
     return {
       source_id: form.source_id ? Number(form.source_id) : null,
+      study_id: form.study_id ? Number(form.study_id) : null,
       question_id: form.question_id ? Number(form.question_id) : null,
       locator: form.locator.trim(),
       excerpt: form.excerpt.trim() || null,
@@ -137,19 +156,36 @@ export function EvidenceFormDrawer({
         {locked ? (
           <p className="muted">Đã verify — không sửa excerpt. Dùng Thay thế (supersede).</p>
         ) : (
-          <p className="muted">Locator bắt buộc. Excerpt hoặc value + unit + base. Claim số cần period và địa lý.</p>
+          <p className="muted">Locator bắt buộc. Excerpt ≤ 500 hoặc value + unit + base. Study dùng locator T-12:03.</p>
         )}
         {piiWarning ? (
           <p className="muted">Phát hiện email/SĐT trong excerpt — đã gắn pii_class = internal.</p>
         ) : null}
         <label>
-          Nguồn *
+          Study
+          <select
+            className="kpi-input"
+            value={form.study_id}
+            disabled={locked || !canEdit}
+            onChange={(e) => set('study_id', e.target.value)}
+            style={{ display: 'block', width: '100%', marginTop: 4 }}
+          >
+            <option value="">—</option>
+            {studies.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Nguồn {form.study_id ? '' : '*'}
           <select
             className="kpi-input"
             value={form.source_id}
             disabled={locked || !canEdit}
             onChange={(e) => set('source_id', e.target.value)}
-            required
+            required={!form.study_id}
             style={{ display: 'block', width: '100%', marginTop: 4 }}
           >
             <option value="">Chọn nguồn</option>
@@ -185,7 +221,7 @@ export function EvidenceFormDrawer({
             disabled={locked || !canEdit}
             onChange={(e) => set('locator', e.target.value)}
             required
-            placeholder="URL#đoạn / trang / timestamp"
+            placeholder="T-12:03 hoặc URL#t=12"
             style={{ display: 'block', width: '100%', marginTop: 4 }}
           />
         </label>

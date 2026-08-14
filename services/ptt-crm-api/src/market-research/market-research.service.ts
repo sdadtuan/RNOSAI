@@ -32,16 +32,26 @@ import { assertEvidenceMutable, piiHint } from './evidence-immutable.util';
 import { assertNoFakeConfidence, buildConfidenceJson } from './confidence-rubric.util';
 import { assertSimilarwebTier, sanitizeCompetitorFact } from './competitor-snapshot.util';
 import { assertNotSelfApprove, canApproveTarget, evaluateInsightGate, extractRubric } from './insight-gate.util';
+import {
+  assertConsentHasNoPii,
+  assertExcerptNotRawTranscript,
+  assertTranscriptLocator,
+  defaultConsentExpiry,
+} from './study-consent.util';
 import type {
   ApproveInsightInput,
   ConfidenceJson,
   ConfidenceRubric,
   CreateCompetitorInput,
   CreateCompetitorSnapshotInput,
+  CreateConsentInput,
   CreateEvidenceInput,
   CreateInsightInput,
   CreateProjectInput,
+  CreateStudyInput,
+  ResearchConsent,
   ResearchPrefill,
+  ResearchStudy,
   InsertPlanInsightsInput,
   MethodologyBlock,
   PlanInsightSnapshot,
@@ -50,6 +60,7 @@ import type {
   CreateReportResult,
   CreateSourceInput,
   PatchCompetitorInput,
+  PatchStudyInput,
   InsightCopilotInput,
   InsightCopilotResult,
   ListProjectsFilters,
@@ -77,6 +88,7 @@ import type {
   RunTriangulateResult,
   SubmitReviewInput,
 } from './market-research.types';
+import { CONSENT_TYPES, STUDY_METHODS, STUDY_MODES } from './market-research.types';
 import { buildResearchReportDocx, sectionsFromReportSnapshot } from './market-research-docx.util';
 import {
   buildReportSnapshot,
@@ -463,6 +475,135 @@ export class MarketResearchService {
     );
   }
 
+  async listStudies(
+    projectId: number,
+    scope: ClientScopeContext,
+  ): Promise<{ studies: ResearchStudy[] }> {
+    await this.loadScopedProject(projectId, scope);
+    const studies = await this.repo.listStudies(projectId);
+    return { studies };
+  }
+
+  async createStudy(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: CreateStudyInput,
+    actor: string,
+  ): Promise<ResearchStudy> {
+    await this.loadScopedProject(projectId, scope);
+    const name = String(input.name ?? '').trim();
+    if (!name) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['name is required'],
+      });
+    }
+    const method = String(input.method ?? '').trim();
+    if (!STUDY_METHODS.includes(method as (typeof STUDY_METHODS)[number])) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['method is invalid'],
+      });
+    }
+    return this.repo.createStudy(
+      projectId,
+      {
+        name: name.slice(0, 200),
+        method,
+        n: this.optionalPositiveInt(input.n),
+        field_start: this.optionalDate(input.field_start, 'field_start'),
+        field_end: this.optionalDate(input.field_end, 'field_end'),
+        mode: this.optionalStudyMode(input.mode),
+        instrument_version: this.optionalText(input.instrument_version),
+        weighting_note: this.optionalText(input.weighting_note),
+      },
+      actor,
+    );
+  }
+
+  async patchStudy(
+    studyId: number,
+    scope: ClientScopeContext,
+    input: PatchStudyInput,
+  ): Promise<ResearchStudy> {
+    const existing = await this.repo.getStudy(studyId);
+    if (!existing) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(existing.project_id, scope);
+    if (input.name != null && !String(input.name).trim()) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['name is required'],
+      });
+    }
+    const updated = await this.repo.patchStudy(studyId, {
+      name: input.name != null ? String(input.name).trim().slice(0, 200) : undefined,
+      n: input.n !== undefined ? this.optionalPositiveInt(input.n) : undefined,
+      field_start: input.field_start !== undefined ? this.optionalDate(input.field_start, 'field_start') : undefined,
+      field_end: input.field_end !== undefined ? this.optionalDate(input.field_end, 'field_end') : undefined,
+      mode: input.mode !== undefined ? this.optionalStudyMode(input.mode) : undefined,
+      instrument_version:
+        input.instrument_version !== undefined ? this.optionalText(input.instrument_version) : undefined,
+      weighting_note: input.weighting_note !== undefined ? this.optionalText(input.weighting_note) : undefined,
+    });
+    if (!updated) throw new NotFoundException({ error: 'not_found' });
+    return updated;
+  }
+
+  async listConsents(
+    studyId: number,
+    scope: ClientScopeContext,
+  ): Promise<{ consents: ResearchConsent[] }> {
+    const existing = await this.repo.getStudy(studyId);
+    if (!existing) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(existing.project_id, scope);
+    const consents = await this.repo.listConsents(studyId);
+    return { consents };
+  }
+
+  async createConsent(
+    studyId: number,
+    scope: ClientScopeContext,
+    input: CreateConsentInput,
+    actor: string,
+  ): Promise<ResearchConsent> {
+    const existing = await this.repo.getStudy(studyId);
+    if (!existing) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(existing.project_id, scope);
+    const subject_code = String(input.subject_code ?? '').trim();
+    if (!subject_code) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['subject_code is required'],
+      });
+    }
+    const consent_type = String(input.consent_type ?? '').trim();
+    if (!CONSENT_TYPES.includes(consent_type as (typeof CONSENT_TYPES)[number])) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['consent_type is invalid'],
+      });
+    }
+    const notes = input.notes != null ? String(input.notes) : null;
+    try {
+      assertConsentHasNoPii({ subject_code, notes });
+    } catch (err) {
+      this.rethrowUtilCode(err, ['consent_pii_forbidden']);
+    }
+    const recordedAt = new Date();
+    return this.repo.createConsent(
+      existing.id,
+      existing.project_id,
+      {
+        subject_code: subject_code.slice(0, 64),
+        consent_type,
+        notes: notes?.trim() || null,
+        recorded_at: recordedAt,
+        expires_at: defaultConsentExpiry(recordedAt),
+      },
+      actor,
+    );
+  }
+
   async createEvidence(
     projectId: number,
     scope: ClientScopeContext,
@@ -475,6 +616,8 @@ export class MarketResearchService {
       throw new BadRequestException({ error: 'validation_error', messages });
     }
     await this.assertSourceInProject(projectId, input.source_id);
+    await this.assertStudyInProject(projectId, input.study_id);
+    this.applyStudyEvidenceGates(input);
     const { pii_class, pii_warning } = this.resolvePiiClass(input);
     const row = await this.repo.createEvidence(projectId, { ...input, pii_class }, actor);
     return pii_warning ? { ...row, pii_warning: true } : row;
@@ -506,6 +649,8 @@ export class MarketResearchService {
     if (messages.length) {
       throw new BadRequestException({ error: 'validation_error', messages });
     }
+    await this.assertStudyInProject(existing.project_id, merged.study_id);
+    this.applyStudyEvidenceGates(merged);
     const { pii_class, pii_warning } = this.resolvePiiClass({
       ...merged,
       pii_class: merged.pii_class,
@@ -565,6 +710,8 @@ export class MarketResearchService {
       throw new BadRequestException({ error: 'validation_error', messages });
     }
     await this.assertSourceInProject(existing.project_id, body.source_id);
+    await this.assertStudyInProject(existing.project_id, body.study_id);
+    this.applyStudyEvidenceGates(body);
     const { pii_class, pii_warning } = this.resolvePiiClass(body);
     const result = await this.repo.supersedeEvidence(
       existing,
@@ -1312,6 +1459,81 @@ export class MarketResearchService {
       });
     }
     return source;
+  }
+
+  private async assertStudyInProject(
+    projectId: number,
+    studyId?: number | null,
+  ): Promise<ResearchStudy | undefined> {
+    if (studyId == null) return undefined;
+    const study = await this.repo.getStudy(studyId);
+    if (!study || study.project_id !== projectId) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['study_id is invalid'],
+      });
+    }
+    return study;
+  }
+
+  private applyStudyEvidenceGates(input: CreateEvidenceInput): void {
+    if (input.study_id == null) return;
+    try {
+      assertTranscriptLocator(String(input.locator ?? ''));
+      assertExcerptNotRawTranscript(input.excerpt);
+    } catch (err) {
+      this.rethrowUtilCode(err, ['invalid_transcript_locator', 'raw_transcript_forbidden']);
+    }
+  }
+
+  private rethrowUtilCode(err: unknown, allowed: string[]): never {
+    const code = err && typeof err === 'object' && 'code' in err ? String((err as { code?: string }).code) : '';
+    if (allowed.includes(code)) {
+      throw new BadRequestException({ error: code, messages: [code] });
+    }
+    throw err;
+  }
+
+  private optionalText(value: string | null | undefined): string | null {
+    if (value == null) return null;
+    const s = String(value).trim();
+    return s || null;
+  }
+
+  private optionalPositiveInt(value: number | null | undefined): number | null {
+    if (value == null) return null;
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['n must be a positive integer'],
+      });
+    }
+    return n;
+  }
+
+  private optionalDate(value: string | null | undefined, field: string): string | null {
+    if (value == null || String(value).trim() === '') return null;
+    const s = String(value).trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(Date.parse(s))) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: [`${field} must be YYYY-MM-DD`],
+      });
+    }
+    return s;
+  }
+
+  private optionalStudyMode(value: string | null | undefined): string | null {
+    if (value == null || String(value).trim() === '') return null;
+    const mode = String(value).trim();
+    if (!STUDY_MODES.includes(mode as (typeof STUDY_MODES)[number])) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['mode is invalid'],
+      });
+    }
+    return mode;
   }
 
   private async toDetail(project: ResearchProjectRow): Promise<ResearchProjectDetail> {

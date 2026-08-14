@@ -13,6 +13,7 @@ import { DeepResearchModal } from '@/components/research/DeepResearchModal';
 import { ResearchJobChip } from '@/components/research/ResearchJobChip';
 import { ResearchStatusChip } from '@/components/research/ResearchStatusChip';
 import { CompetitorPane } from '@/components/research/CompetitorPane';
+import { StudiesPane } from '@/components/research/StudiesPane';
 import { SourceKeepTable } from '@/components/research/SourceKeepTable';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
@@ -78,6 +79,7 @@ const TABS = [
   { id: 'brief', label: 'Brief' },
   { id: 'sources', label: 'Nguồn' },
   { id: 'competitors', label: 'Đối thủ' },
+  { id: 'studies', label: 'Studies' },
   { id: 'evidence', label: 'Evidence' },
   { id: 'insights', label: 'Insight' },
   { id: 'report', label: 'Báo cáo' },
@@ -349,7 +351,14 @@ function CrmResearchWorkspaceContent() {
       await load(access);
       setDrawerOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Lưu evidence thất bại');
+      const api = err instanceof ResearchApiError ? err : null;
+      if (api?.code === 'raw_transcript_forbidden') {
+        setError('Không lưu transcript thô — excerpt tối đa 500 ký tự.');
+      } else if (api?.code === 'invalid_transcript_locator') {
+        setError('Locator study phải dạng T-12:03 hoặc URL#t=.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Lưu evidence thất bại');
+      }
     } finally {
       setSaving(false);
     }
@@ -818,6 +827,8 @@ function CrmResearchWorkspaceContent() {
                 sources={project.sources ?? []}
                 canEdit={canEdit}
               />
+            ) : tab === 'studies' ? (
+              <StudiesPane projectId={project.id} canEdit={canEdit} />
             ) : tab === 'evidence' ? (
               <EvidenceTab
                 project={project}
@@ -865,6 +876,7 @@ function CrmResearchWorkspaceContent() {
               mode={drawerMode}
               canEdit={canEdit}
               saving={saving}
+              projectId={project.id}
               sources={project.sources ?? []}
               questions={project.questions ?? []}
               source={drawerSource}
