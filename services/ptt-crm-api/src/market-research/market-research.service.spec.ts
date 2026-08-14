@@ -2654,6 +2654,7 @@ describe('MarketResearchService', () => {
     expect(priorIds).toContain(88);
     expect(priorIds).not.toContain(99);
     expect(repo.succeedAiRun.mock.calls[0][1].outputJson.rag_hit_ids).toEqual([88]);
+    expect(repo.listEmbeddings).toHaveBeenCalledWith(expect.objectContaining({ client_id: 'acme' }));
   });
 
   it('M2-1d: flag on + PII excerpt skips RAG and still drafts once', async () => {
@@ -2671,6 +2672,9 @@ describe('MarketResearchService', () => {
     expect(out.rag_note).toBe('rag_skipped_pii');
     expect(llm.completeJson).toHaveBeenCalledTimes(1);
     expect(repo.createInsight).toHaveBeenCalledTimes(1);
+    const userPrompt = llm.completeJson.mock.calls[0][0].userPrompt as string;
+    expect(Array.isArray(JSON.parse(userPrompt))).toBe(true);
+    expect(repo.succeedAiRun.mock.calls[0][1].promptVersion).toBe('research-insight-v1');
   });
 
   it('M2-1e: flag on + empty embeddings uses v2 empty prior and rag_empty', async () => {
@@ -2694,8 +2698,31 @@ describe('MarketResearchService', () => {
     expect(systemPrompt).toMatch(/invent insight_id/i);
   });
 
-  it('M2-1f: copilot does not createReport, publish, or approveInsight', async () => {
+  it('insightCopilot: flag on + listEmbeddings reject still drafts with P0 prompt and rag_empty', async () => {
+    config.researchRagEnabled = true;
     stubInsightCopilotSuccess();
+    repo.listEmbeddings.mockRejectedValue(new Error('embeddings_unavailable'));
+
+    const out = await service.insightCopilot(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { evidence_ids: [3] },
+      'am@ptt',
+    );
+
+    expect(repo.listEmbeddings).toHaveBeenCalled();
+    expect(llm.completeJson).toHaveBeenCalledTimes(1);
+    expect(repo.createInsight).toHaveBeenCalledTimes(1);
+    expect(out.rag_note).toBe('rag_empty');
+    expect(out.rag_hits).toEqual([]);
+    const userPrompt = llm.completeJson.mock.calls[0][0].userPrompt as string;
+    expect(Array.isArray(JSON.parse(userPrompt))).toBe(true);
+  });
+
+  it('M2-1f: copilot does not createReport, publish, or approveInsight', async () => {
+    config.researchRagEnabled = true;
+    stubInsightCopilotSuccess();
+    repo.listEmbeddings.mockResolvedValue([]);
     const createReport = jest.spyOn(service, 'createReport');
     const publishPortal = jest.spyOn(service, 'publishPortal');
     const approveInsight = jest.spyOn(service, 'approveInsight');

@@ -2079,15 +2079,20 @@ export class MarketResearchService {
       if (shouldSkipCopilotRag(q)) {
         ragNote = q.trim() ? 'rag_skipped_pii' : 'rag_empty';
       } else {
-        const search = await this.searchInsights(scope, {
-          q,
-          client_id: project.client_id,
-          limit: RAG_COPILOT_HIT_LIMIT,
-        });
-        ragHits = toCopilotRagHits(search.hits);
-        ragNote = ragHits.length ? undefined : 'rag_empty';
-        prompt = buildInsightCopilotPrompt(evidenceFields, { ragHits });
-        promptVersion = 'research-insight-v2';
+        try {
+          const search = await this.searchInsights(scope, {
+            q,
+            client_id: project.client_id,
+            limit: RAG_COPILOT_HIT_LIMIT,
+          });
+          ragHits = toCopilotRagHits(search.hits);
+          ragNote = ragHits.length ? undefined : 'rag_empty';
+          prompt = buildInsightCopilotPrompt(evidenceFields, { ragHits });
+          promptVersion = 'research-insight-v2';
+        } catch {
+          ragHits = [];
+          ragNote = 'rag_empty';
+        }
       }
     }
 

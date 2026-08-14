@@ -228,6 +228,10 @@ function CrmResearchWorkspaceContent() {
   );
 
   useEffect(() => {
+    setCopilotRagHits([]);
+  }, [id]);
+
+  useEffect(() => {
     void (async () => {
       if (!isMarketResearchFeEnabled()) {
         setUser(getStoredUser());
@@ -1703,7 +1707,7 @@ function InsightsTab({
           )}
         </div>
       ) : null}
-      {copilotRagHits.length > 0 ? (
+      {shouldShowRagCopilotBanner(ragEnabled, canRun) && copilotRagHits.length > 0 ? (
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
           {copilotRagHits.map((hit) => (
             <span

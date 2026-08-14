@@ -94,9 +94,23 @@ describe('buildInsightCopilotPrompt', () => {
     ];
     const { system, user } = buildInsightCopilotPrompt([evA], { ragHits });
     const parsed = JSON.parse(user) as {
-      evidence: unknown;
+      evidence: Array<{ id: number }>;
       prior_approved_insights: Array<{ insight_id: number }>;
     };
+    expect(Array.isArray(parsed.evidence)).toBe(true);
+    expect(parsed.evidence).toEqual([
+      {
+        id: 11,
+        locator: 'https://a.example#p1',
+        excerpt: 'Share premium 18%',
+        value: 18,
+        unit: '%',
+        period: '2025',
+        geo: 'VN',
+      },
+    ]);
+    expect(parsed.evidence.map((row) => row.id)).toEqual([11]);
+    expect(parsed.evidence.map((row) => row.id)).not.toContain(88);
     expect(parsed.prior_approved_insights[0].insight_id).toBe(88);
     expect(system).toMatch(/do not invent insight_id/i);
     expect(system).toContain('Never set status published');
