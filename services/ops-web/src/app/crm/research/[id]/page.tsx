@@ -91,6 +91,7 @@ import {
   shouldShowSparktoroButton,
 } from '@/components/research/sources-sparktoro.util';
 import { shouldShowQualtricsButton } from '@/components/research/qualtrics-stub.util';
+import { InsightsRagSearch } from '@/components/research/InsightsRagSearch';
 
 const TABS = [
   { id: 'brief', label: 'Brief' },
@@ -146,6 +147,7 @@ function CrmResearchWorkspaceContent() {
   const [pulseBanner, setPulseBanner] = useState('');
   const [sparktoroEnabled, setSparktoroEnabled] = useState(false);
   const [qualtricsEnabled, setQualtricsEnabled] = useState(false);
+  const [ragEnabled, setRagEnabled] = useState(false);
   const [sparktoroRunId, setSparktoroRunId] = useState<number | null>(null);
   const [sparktoroBanner, setSparktoroBanner] = useState('');
   const [reportSnapshot, setReportSnapshot] = useState<ResearchReportSnapshot | null>(null);
@@ -202,12 +204,14 @@ function CrmResearchWorkspaceContent() {
         const health = await fetchResearchHealth(access);
         setSparktoroEnabled(health.sparktoro_enabled === true);
         setQualtricsEnabled(health.qualtrics_enabled === true);
+        setRagEnabled(health.rag_enabled === true);
         if (!data.deep_research_provider) {
           setDeepProvider(health.deep_provider);
         }
       } catch {
         setSparktoroEnabled(false);
         setQualtricsEnabled(false);
+        setRagEnabled(false);
         if (!data.deep_research_provider) {
           setDeepProvider('off');
         }
@@ -1089,6 +1093,7 @@ function CrmResearchWorkspaceContent() {
             ) : tab === 'insights' ? (
               <InsightsTab
                 project={project}
+                ragEnabled={ragEnabled}
                 canEdit={canEdit}
                 canRun={canRun}
                 saving={saving}
@@ -1575,6 +1580,7 @@ function BriefTab({
 
 function InsightsTab({
   project,
+  ragEnabled,
   canEdit,
   canRun,
   saving,
@@ -1584,6 +1590,7 @@ function InsightsTab({
   onCopilot,
 }: {
   project: ResearchProject;
+  ragEnabled: boolean;
   canEdit: boolean;
   canRun: boolean;
   saving: boolean;
@@ -1618,6 +1625,7 @@ function InsightsTab({
           ) : null}
         </div>
       </div>
+      <InsightsRagSearch ragEnabled={ragEnabled} clientId={project.client_id} />
       {canRun ? (
         <div style={{ marginTop: '0.75rem' }}>
           <p className="muted" style={{ margin: '0 0 0.4rem', fontSize: '0.85rem' }}>

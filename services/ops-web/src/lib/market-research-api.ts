@@ -196,6 +196,8 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   codebook_row_cap: 'CSV codebook vượt quá 500 dòng.',
   vw_not_price_offer: 'Van Westendorp chỉ dùng cho dự án PRICE_OFFER.',
   vw_insufficient_n: 'Cần ≥4 người trả lời hợp lệ để tính Van Westendorp.',
+  rag_disabled: 'Tìm insight đã duyệt đang tắt.',
+  rag_query_required: 'Nhập câu hỏi để tìm insight đã duyệt.',
 };
 
 export type MethodologyBlock = {
@@ -852,8 +854,35 @@ export async function fetchResearchHealth(
   deep_provider: string;
   sparktoro_enabled: boolean;
   qualtrics_enabled: boolean;
+  rag_enabled: boolean;
 }> {
   return researchFetch(token, '/api/v1/research/health');
+}
+
+export type ResearchRagHit = {
+  insight_id: number;
+  project_id: number;
+  statement: string;
+  status: 'approved_client_facing' | 'published';
+  score: number;
+  theme_codes: string[];
+};
+
+export type ResearchRagSearchResult = {
+  hits: ResearchRagHit[];
+  note?: 'rag_disabled';
+};
+
+export async function searchResearchInsights(
+  token: string,
+  params: { q: string; theme_code?: string; client_id?: string; limit?: number },
+): Promise<ResearchRagSearchResult> {
+  const qs = new URLSearchParams();
+  qs.set('q', params.q);
+  if (params.theme_code) qs.set('theme_code', params.theme_code);
+  if (params.client_id) qs.set('client_id', params.client_id);
+  if (params.limit != null) qs.set('limit', String(params.limit));
+  return researchFetch(token, `/api/v1/research/insights/search?${qs.toString()}`);
 }
 
 export async function runResearchDeep(
