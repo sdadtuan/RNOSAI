@@ -6,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
+  StreamableFile,
 } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { ClientScopeContext, StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
@@ -35,6 +36,8 @@ import type {
   CreateInsightInput,
   CreateProjectInput,
   CreateQuestionInput,
+  CreateReportInput,
+  CreateReportResult,
   CreateSourceInput,
   InsightCopilotInput,
   InsightCopilotResult,
@@ -52,12 +55,18 @@ import type {
   ResearchProjectDetail,
   ResearchProjectRow,
   ResearchQuestionRow,
+  ResearchReportRow,
   ResearchSourceRow,
   RunDeepInput,
   RunDeepResult,
   RunDeskInput,
   RunDeskResult,
 } from './market-research.types';
+import { buildResearchReportDocx, sectionsFromReportSnapshot } from './market-research-docx.util';
+import {
+  buildReportSnapshot,
+  type ResearchReportSnapshot,
+} from './market-research-report-snapshot.util';
 import { validateCreateEvidence, validateCreateProject } from './market-research.validation';
 import { canTransitionProject, listValidTransitions } from './project-state.util';
 
@@ -703,16 +712,6 @@ export class MarketResearchService {
       throw new ServiceUnavailableException({ error: 'llm_unconfigured' });
     }
 
-    const evidenceIndex: Array<{ ev_id: number; locator: string; insight_id: number }> = [];
-    for (const insight of insights) {
-      for (const evId of insight.evidence_ids) {
-        const ev = await this.repo.getEvidence(evId);
-        if (ev && ev.project_id === projectId) {
-          evidenceIndex.push({ ev_id: ev.id, locator: ev.locator, insight_id: insight.id });
-        }
-      }
-    }
-
     const prompt = buildReportCopilotPrompt(
       insights.map((row) => ({
         id: row.id,
@@ -730,11 +729,7 @@ export class MarketResearchService {
         systemPrompt: prompt.system,
         userPrompt: prompt.user,
       });
-      const snapshot = normalizeReportSnapshot(parsed, {
-        clientId: project.client_id,
-        title: project.title,
-        evidenceIndex,
-      });
+      const snapshot = await this.snapshotFromInsights(project, insights, insightIds, parsed);
       const draft = await this.repo.createReportDraft({
         projectId,
         contentSnapshot: snapshot,
@@ -749,7 +744,7 @@ export class MarketResearchService {
           version: draft.version,
           status: 'draft',
           insight_ids: insightIds,
-          evidence: evidenceIndex,
+          evidence: snapshot.evidence_index,
         },
       });
       return {
@@ -768,6 +763,120 @@ export class MarketResearchService {
       await this.repo.failAiRun(run.id, message);
       throw new ServiceUnavailableException({ error: 'llm_provider_error', message });
     }
+  }
+
+  async createReport(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: CreateReportInput,
+    actor: string,
+  ): Promise<CreateReportResult> {
+    const project = await this.loadScopedProject(projectId, scope);
+    const insights = await this.loadApprovedInsights(projectId, input.insight_ids);
+    const snapshot = await this.snapshotFromInsights(
+      project,
+      insights,
+      insights.map((row) => row.id),
+    );
+    const draft = await this.repo.insertReportVersion({
+      projectId,
+      contentSnapshot: snapshot,
+      generatedBy: actor,
+    });
+    return {
+      ok: true,
+      report_id: draft.report_id,
+      version_id: draft.version_id,
+      version: draft.version,
+      content_snapshot: draft.content_snapshot,
+      content_hash: draft.content_hash,
+    };
+  }
+
+  async listReports(
+    projectId: number,
+    scope: ClientScopeContext,
+  ): Promise<{ reports: ResearchReportRow[] }> {
+    await this.loadScopedProject(projectId, scope);
+    return { reports: await this.repo.listReports(projectId) };
+  }
+
+  async exportReportVersion(
+    reportId: number,
+    versionId: number,
+    scope: ClientScopeContext,
+  ): Promise<StreamableFile> {
+    const report = await this.repo.getReport(reportId);
+    if (!report) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(report.project_id, scope);
+    const version = await this.repo.getReportVersion(reportId, versionId);
+    if (!version) throw new NotFoundException({ error: 'not_found' });
+    const snapshot = version.content_snapshot as ResearchReportSnapshot;
+    const buffer = await buildResearchReportDocx(sectionsFromReportSnapshot(snapshot));
+    return new StreamableFile(buffer, {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      disposition: `attachment; filename="research-report-${reportId}-v${version.version}.docx"`,
+    });
+  }
+
+  private async loadApprovedInsights(
+    projectId: number,
+    rawIds: unknown,
+  ): Promise<ResearchInsightRow[]> {
+    const insightIds = normalizePositiveIds(rawIds);
+    if (insightIds.length === 0) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['insight_ids is required'],
+      });
+    }
+    const insights: ResearchInsightRow[] = [];
+    for (const id of insightIds) {
+      const insight = await this.repo.getInsight(id);
+      if (!insight || insight.project_id !== projectId) {
+        throw new BadRequestException({
+          error: 'validation_error',
+          messages: ['insight_ids is invalid'],
+        });
+      }
+      if (!APPROVED_INTERNAL_PLUS.includes(insight.status)) {
+        throw new BadRequestException({
+          error: 'validation_error',
+          messages: ['insight must be approved_internal+'],
+        });
+      }
+      insights.push(insight);
+    }
+    return insights;
+  }
+
+  private async snapshotFromInsights(
+    project: ResearchProjectRow,
+    insights: ResearchInsightRow[],
+    selectedInsightIds: number[],
+    llmDraft?: Record<string, unknown> | null,
+  ): Promise<ResearchReportSnapshot> {
+    const [questions, evidence] = await Promise.all([
+      this.repo.listQuestions(project.id),
+      this.repo.listEvidence(project.id),
+    ]);
+    const nextVersion = await this.nextReportVersion(project.id);
+    return buildReportSnapshot({
+      project,
+      insights,
+      questions,
+      evidence,
+      selectedInsightIds,
+      version: nextVersion,
+      llmDraft,
+    });
+  }
+
+  private async nextReportVersion(projectId: number): Promise<number> {
+    const reports = await this.repo.listReports(projectId);
+    const latest = reports.at(-1);
+    const maxVersion = latest?.versions.reduce((max, row) => Math.max(max, row.version), 0) ?? 0;
+    return maxVersion + 1;
   }
 
   private async loadScopedInsight(
@@ -882,35 +991,6 @@ function normalizeInsightDraft(parsed: Record<string, unknown>): CreateInsightIn
     recommendation: asTrimmed(parsed.recommendation),
     confidence_rationale: asTrimmed(parsed.confidence_rationale),
     ai_generated: true,
-  };
-}
-
-function normalizeReportSnapshot(
-  parsed: Record<string, unknown>,
-  ctx: {
-    clientId: string;
-    title: string;
-    evidenceIndex: Array<{ ev_id: number; locator: string; insight_id: number }>;
-  },
-): Record<string, unknown> {
-  const cover =
-    parsed.cover && typeof parsed.cover === 'object' && !Array.isArray(parsed.cover)
-      ? (parsed.cover as Record<string, unknown>)
-      : {};
-  return {
-    cover: {
-      client: cover.client ?? ctx.clientId,
-      title: cover.title ?? ctx.title,
-      confidential: true,
-      version: 1,
-      as_of: new Date().toISOString().slice(0, 10),
-    },
-    exec: typeof parsed.exec === 'string' ? parsed.exec : '',
-    findings: Array.isArray(parsed.findings) ? parsed.findings : [],
-    recs: Array.isArray(parsed.recs) ? parsed.recs : [],
-    methodology: { stub: true, note: 'P0 CB methodology stub' },
-    evidence_index: ctx.evidenceIndex,
-    status: 'draft',
   };
 }
 

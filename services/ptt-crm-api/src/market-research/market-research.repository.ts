@@ -20,6 +20,8 @@ import type {
   ResearchInsightRow,
   ResearchProjectRow,
   ResearchQuestionRow,
+  ResearchReportRow,
+  ResearchReportVersionRow,
   ResearchSourceRow,
 } from './market-research.types';
 
@@ -896,30 +898,137 @@ export class MarketResearchRepository implements OnModuleDestroy {
     generatedBy: string;
   }): Promise<{
     report_id: number;
+    version_id: number;
+    version: number;
+    content_snapshot: Record<string, unknown>;
+    content_hash: string;
+  }> {
+    return this.insertReportVersion(input);
+  }
+
+  async insertReportVersion(input: {
+    projectId: number;
+    contentSnapshot: Record<string, unknown>;
+    generatedBy: string;
+  }): Promise<{
+    report_id: number;
+    version_id: number;
     version: number;
     content_snapshot: Record<string, unknown>;
     content_hash: string;
   }> {
     const snapshot = { ...input.contentSnapshot, status: 'draft' };
     const hash = createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
-    const report = await this.db.query(
-      `INSERT INTO crm_research_reports (project_id, template, status)
-       VALUES ($1, 'dv12_cb_v1', 'draft')
-       RETURNING id`,
+    const existing = await this.db.query(
+      `SELECT id FROM crm_research_reports WHERE project_id = $1 ORDER BY id DESC LIMIT 1`,
       [input.projectId],
     );
-    const reportId = Number(report.rows[0].id);
-    await this.db.query(
+    let reportId: number;
+    if (existing.rows[0]) {
+      reportId = Number(existing.rows[0].id);
+    } else {
+      const report = await this.db.query(
+        `INSERT INTO crm_research_reports (project_id, template, status)
+         VALUES ($1, 'dv12_cb_v1', 'draft')
+         RETURNING id`,
+        [input.projectId],
+      );
+      reportId = Number(report.rows[0].id);
+    }
+    const next = await this.db.query(
+      `SELECT COALESCE(MAX(version), 0) + 1 AS version
+       FROM crm_research_report_versions WHERE report_id = $1`,
+      [reportId],
+    );
+    const version = Number(next.rows[0].version);
+    const inserted = await this.db.query(
       `INSERT INTO crm_research_report_versions (
          report_id, version, content_snapshot, generated_by, content_hash
-       ) VALUES ($1, 1, $2::jsonb, $3, $4)`,
-      [reportId, JSON.stringify(snapshot), input.generatedBy, hash],
+       ) VALUES ($1, $2, $3::jsonb, $4, $5)
+       RETURNING id`,
+      [reportId, version, JSON.stringify(snapshot), input.generatedBy, hash],
     );
     return {
       report_id: reportId,
-      version: 1,
+      version_id: Number(inserted.rows[0].id),
+      version,
       content_snapshot: snapshot,
       content_hash: hash,
+    };
+  }
+
+  async listReports(projectId: number): Promise<ResearchReportRow[]> {
+    const reports = await this.db.query(
+      `SELECT id, project_id, template, status, created_at::text AS created_at
+       FROM crm_research_reports
+       WHERE project_id = $1
+       ORDER BY id ASC`,
+      [projectId],
+    );
+    const versions = await this.db.query(
+      `SELECT v.id, v.report_id, v.version, v.content_snapshot, v.generated_by,
+              v.content_hash, v.created_at::text AS created_at
+       FROM crm_research_report_versions v
+       JOIN crm_research_reports r ON r.id = v.report_id
+       WHERE r.project_id = $1
+       ORDER BY v.report_id ASC, v.version ASC`,
+      [projectId],
+    );
+    const byReport = new Map<number, ResearchReportVersionRow[]>();
+    for (const row of versions.rows) {
+      const reportId = Number(row.report_id);
+      const list = byReport.get(reportId) ?? [];
+      list.push(this.mapReportVersion(row));
+      byReport.set(reportId, list);
+    }
+    return reports.rows.map((row) => ({
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      template: String(row.template),
+      status: String(row.status),
+      created_at: String(row.created_at),
+      versions: byReport.get(Number(row.id)) ?? [],
+    }));
+  }
+
+  async getReport(reportId: number): Promise<{ id: number; project_id: number; status: string } | null> {
+    const result = await this.db.query(
+      `SELECT id, project_id, status FROM crm_research_reports WHERE id = $1`,
+      [reportId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      status: String(row.status),
+    };
+  }
+
+  async getReportVersion(
+    reportId: number,
+    versionId: number,
+  ): Promise<ResearchReportVersionRow | null> {
+    const result = await this.db.query(
+      `SELECT id, report_id, version, content_snapshot, generated_by, content_hash,
+              created_at::text AS created_at
+       FROM crm_research_report_versions
+       WHERE id = $1 AND report_id = $2`,
+      [versionId, reportId],
+    );
+    const row = result.rows[0];
+    return row ? this.mapReportVersion(row) : null;
+  }
+
+  private mapReportVersion(row: Record<string, unknown>): ResearchReportVersionRow {
+    return {
+      id: Number(row.id),
+      report_id: Number(row.report_id),
+      version: Number(row.version),
+      content_snapshot: parseJsonCol(row.content_snapshot, {}),
+      generated_by: row.generated_by != null ? String(row.generated_by) : null,
+      content_hash: String(row.content_hash),
+      created_at: String(row.created_at),
     };
   }
 

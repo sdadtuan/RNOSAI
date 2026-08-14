@@ -241,6 +241,38 @@ export type ReportCopilotInput = {
   insight_ids: number[];
 };
 
+export type CreateReportInput = {
+  insight_ids: number[];
+};
+
+export type ResearchReportVersionRow = {
+  id: number;
+  report_id: number;
+  version: number;
+  content_snapshot: Record<string, unknown>;
+  generated_by: string | null;
+  content_hash: string;
+  created_at: string;
+};
+
+export type ResearchReportRow = {
+  id: number;
+  project_id: number;
+  template: string;
+  status: string;
+  created_at: string;
+  versions: ResearchReportVersionRow[];
+};
+
+export type CreateReportResult = {
+  ok: true;
+  report_id: number;
+  version_id: number;
+  version: number;
+  content_snapshot: Record<string, unknown>;
+  content_hash: string;
+};
+
 export type InsightCopilotResult = {
   ok: true;
   insight: ResearchInsightRow;

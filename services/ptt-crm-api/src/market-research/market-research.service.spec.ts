@@ -67,6 +67,10 @@ describe('MarketResearchService', () => {
     sumTavilyCredits: jest.fn(),
     createInsight: jest.fn(),
     createReportDraft: jest.fn(),
+    insertReportVersion: jest.fn(),
+    listReports: jest.fn(),
+    getReport: jest.fn(),
+    getReportVersion: jest.fn(),
   };
   const llm = {
     isConfigured: jest.fn(),
@@ -610,6 +614,54 @@ describe('MarketResearchService', () => {
     expect(llm.completeJson).not.toHaveBeenCalled();
     expect(repo.createInsight).not.toHaveBeenCalled();
     expect(repo.failAiRun).toHaveBeenCalledWith(91, 'llm_unconfigured');
+  });
+
+  it('createReport snapshot has evidence_index when insight has EV', async () => {
+    stubScopedProject();
+    repo.getInsight.mockResolvedValue(
+      insightRow({ status: 'approved_internal', evidence_ids: [3] }),
+    );
+    repo.listQuestions.mockResolvedValue([
+      { id: 21, project_id: 9, sort_order: 1, question_vi: 'Quy mô?', question_en: null, analysis_frame: null, created_at: '2026-08-14' },
+    ]);
+    repo.listEvidence.mockResolvedValue([
+      evidenceRow({ id: 3, locator: 'https://example.com#p3', question_id: 21 }),
+    ]);
+    repo.listReports.mockResolvedValue([]);
+    repo.insertReportVersion.mockImplementation(async (input: { contentSnapshot: Record<string, unknown> }) => ({
+      report_id: 1,
+      version_id: 10,
+      version: 1,
+      content_snapshot: input.contentSnapshot,
+      content_hash: 'abc',
+    }));
+
+    const out = await service.createReport(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { insight_ids: [7] },
+      'am@ptt',
+    );
+
+    const index = out.content_snapshot.evidence_index as unknown[];
+    expect(index.length).toBeGreaterThanOrEqual(1);
+    expect(out.version).toBe(1);
+    expect(repo.insertReportVersion).toHaveBeenCalled();
+  });
+
+  it('createReport rejects insights below approved_internal', async () => {
+    stubScopedProject();
+    repo.getInsight.mockResolvedValue(insightRow({ status: 'draft', evidence_ids: [3] }));
+
+    await expect(
+      service.createReport(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { insight_ids: [7] },
+        'am@ptt',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.insertReportVersion).not.toHaveBeenCalled();
   });
 
   it('reportCopilot with 0 insights is 400', async () => {

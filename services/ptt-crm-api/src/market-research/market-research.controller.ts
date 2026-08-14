@@ -23,6 +23,7 @@ import {
   StaffMarketResearchApproveGuard,
   StaffMarketResearchCreateGuard,
   StaffMarketResearchEditGuard,
+  StaffMarketResearchExportGuard,
   StaffMarketResearchRunGuard,
   StaffMarketResearchViewGuard,
 } from './guards/staff-market-research.guard';
@@ -34,6 +35,7 @@ import type {
   CreateInsightInput,
   CreateProjectInput,
   CreateQuestionInput,
+  CreateReportInput,
   CreateSourceInput,
   InsightCopilotInput,
   PatchEvidenceInput,
@@ -290,6 +292,36 @@ export class MarketResearchController {
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.insightCopilot(id, scope, body ?? { evidence_ids: [] }, actorEmail(req));
+  }
+
+  @Post('projects/:id/reports')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async createReport(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CreateReportInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.createReport(id, scope, body ?? { insight_ids: [] }, actorEmail(req));
+  }
+
+  @Get('projects/:id/reports')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async listReports(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.listReports(id, scope);
+  }
+
+  @Get('reports/:id/versions/:versionId/export')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchExportGuard)
+  async exportReportVersion(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('versionId', ParseIntPipe) versionId: number,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.exportReportVersion(id, versionId, scope);
   }
 
   @Post('projects/:id/reports/copilot')

@@ -7,6 +7,7 @@ import {
   StaffMarketResearchApproveGuard,
   StaffMarketResearchCreateGuard,
   StaffMarketResearchEditGuard,
+  StaffMarketResearchExportGuard,
   StaffMarketResearchRunGuard,
   StaffMarketResearchViewGuard,
 } from './guards/staff-market-research.guard';
@@ -28,6 +29,7 @@ import { MarketResearchService } from './market-research.service';
     StaffMarketResearchEditGuard,
     StaffMarketResearchApproveGuard,
     StaffMarketResearchRunGuard,
+    StaffMarketResearchExportGuard,
   ],
 })
 export class MarketResearchModule {}

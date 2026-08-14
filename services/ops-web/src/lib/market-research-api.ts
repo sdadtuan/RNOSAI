@@ -567,6 +567,73 @@ export async function copilotResearchInsight(
   });
 }
 
+export type ResearchReportVersion = {
+  id: number;
+  report_id: number;
+  version: number;
+  content_snapshot: ResearchReportSnapshot;
+  generated_by: string | null;
+  content_hash: string;
+  created_at: string;
+};
+
+export type ResearchReport = {
+  id: number;
+  project_id: number;
+  template: string;
+  status: string;
+  created_at: string;
+  versions: ResearchReportVersion[];
+};
+
+export async function fetchResearchReports(
+  token: string,
+  projectId: number,
+): Promise<{ reports: ResearchReport[] }> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/reports`);
+}
+
+export async function createResearchReport(
+  token: string,
+  projectId: number,
+  insightIds: number[],
+): Promise<{
+  ok: true;
+  report_id: number;
+  version_id: number;
+  version: number;
+  content_snapshot: ResearchReportSnapshot;
+  content_hash: string;
+}> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/reports`, {
+    method: 'POST',
+    body: JSON.stringify({ insight_ids: insightIds }),
+  });
+}
+
+export async function exportResearchReportVersion(
+  token: string,
+  reportId: number,
+  versionId: number,
+): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/research/reports/${reportId}/versions/${versionId}/export`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string; message?: string }>(res);
+    throw new ResearchApiError(
+      body.message ?? body.error ?? `Export failed (${res.status})`,
+      res.status,
+      body.error,
+    );
+  }
+  const cd = res.headers.get('content-disposition') ?? '';
+  const match = /filename="([^"]+)"/.exec(cd);
+  const filename = match?.[1] ?? `research-report-${reportId}.docx`;
+  return { blob: await res.blob(), filename };
+}
+
 export async function copilotResearchReport(
   token: string,
   projectId: number,

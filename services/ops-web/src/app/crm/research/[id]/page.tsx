@@ -31,6 +31,9 @@ import {
   copilotResearchInsight,
   copilotResearchReport,
   createResearchEvidence,
+  createResearchReport,
+  exportResearchReportVersion,
+  fetchResearchReports,
   createResearchInsight,
   createResearchSource,
   deleteResearchQuestion,
@@ -59,6 +62,7 @@ import {
   type ResearchInsight,
   type ResearchProject,
   type ResearchQuestion,
+  type ResearchReport,
   type ResearchReportSnapshot,
   type ResearchSource,
 } from '@/lib/market-research-api';
@@ -110,6 +114,7 @@ function CrmResearchWorkspaceContent() {
   const [deepRunId, setDeepRunId] = useState<number | null>(null);
   const [deepBanner, setDeepBanner] = useState('');
   const [reportSnapshot, setReportSnapshot] = useState<ResearchReportSnapshot | null>(null);
+  const [reports, setReports] = useState<ResearchReport[]>([]);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -149,6 +154,12 @@ function CrmResearchWorkspaceContent() {
     async (access: string) => {
       const data = await fetchResearchProject(access, id);
       setProject(data);
+      try {
+        const listed = await fetchResearchReports(access, id);
+        setReports(listed.reports);
+      } catch {
+        setReports([]);
+      }
       if (data.deep_research_provider) {
         setDeepProvider(data.deep_research_provider);
       } else {
@@ -434,6 +445,42 @@ function CrmResearchWorkspaceContent() {
     }
   }
 
+  async function onCreateReport(insightIds: number[]) {
+    const access = getAccessToken();
+    if (!access || !project) return;
+    setSaving(true);
+    setError('');
+    try {
+      const out = await createResearchReport(access, project.id, insightIds);
+      setReportSnapshot(out.content_snapshot);
+      await load(access);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tạo phiên bản báo cáo thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onExportReport(reportId: number, versionId: number) {
+    const access = getAccessToken();
+    if (!access) return;
+    setSaving(true);
+    setError('');
+    try {
+      const { blob, filename } = await exportResearchReportVersion(access, reportId, versionId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Xuất DOCX thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function onReportCopilot(insightIds: number[]) {
     const access = getAccessToken();
     if (!access || !project) return;
@@ -584,6 +631,7 @@ function CrmResearchWorkspaceContent() {
   const canEdit = hasCap(user, 'crm_research', 'edit');
   const canApprove = hasCap(user, 'crm_research', 'approve');
   const canRun = hasCap(user, 'crm_research', 'run');
+  const canExport = hasCap(user, 'crm_research', 'export');
 
   return (
     <StaffPageShell
@@ -719,10 +767,15 @@ function CrmResearchWorkspaceContent() {
             ) : tab === 'report' ? (
               <ReportTab
                 project={project}
+                canEdit={canEdit}
                 canRun={canRun}
+                canExport={canExport}
                 saving={saving}
                 snapshot={reportSnapshot}
+                reports={reports}
                 onCopilot={(ids) => void onReportCopilot(ids)}
+                onCreate={(ids) => void onCreateReport(ids)}
+                onExport={(reportId, versionId) => void onExportReport(reportId, versionId)}
               />
             ) : (
               <p className="muted">P0: dùng tab Brief / Nguồn / Evidence / Insight. Tab {TABS.find((t) => t.id === tab)?.label} sẽ có ở milestone sau.</p>
@@ -1118,37 +1171,76 @@ const APPROVED_INTERNAL_PLUS: InsightStatus[] = [
 
 function ReportTab({
   project,
+  canEdit,
   canRun,
+  canExport,
   saving,
   snapshot,
+  reports,
   onCopilot,
+  onCreate,
+  onExport,
 }: {
   project: ResearchProject;
+  canEdit: boolean;
   canRun: boolean;
+  canExport: boolean;
   saving: boolean;
   snapshot: ResearchReportSnapshot | null;
+  reports: ResearchReport[];
   onCopilot: (insightIds: number[]) => void;
+  onCreate: (insightIds: number[]) => void;
+  onExport: (reportId: number, versionId: number) => void;
 }) {
   const approved = (project.insights ?? []).filter((row) => APPROVED_INTERNAL_PLUS.includes(row.status));
   const [selected, setSelected] = useState<number[]>(() => approved.map((row) => row.id));
+  const versions = reports.flatMap((report) =>
+    report.versions.map((version) => ({ report, version })),
+  );
   return (
     <section className="card" style={{ padding: '0.9rem' }}>
+      <div
+        role="status"
+        style={{
+          marginBottom: '0.75rem',
+          padding: '0.55rem 0.7rem',
+          borderRadius: 8,
+          background: '#fff7ed',
+          border: '1px solid #fdba74',
+          fontSize: '0.85rem',
+        }}
+      >
+        BR-RES-05: Báo cáo đã duyệt không sửa tại chỗ — tạo phiên bản mới (version++).
+      </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0, fontSize: '1rem' }}>Báo cáo</h2>
-        {canRun ? (
-          <button
-            type="button"
-            className="btn btn-sm"
-            disabled={saving || selected.length === 0}
-            title={selected.length === 0 ? 'Chọn ≥1 insight đã duyệt nội bộ' : undefined}
-            onClick={() => onCopilot(selected)}
-          >
-            Gợi ý dàn báo cáo
-          </button>
-        ) : null}
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {canEdit ? (
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={saving || selected.length === 0}
+              title={selected.length === 0 ? 'Chọn ≥1 insight đã duyệt nội bộ' : undefined}
+              onClick={() => onCreate(selected)}
+            >
+              Tạo phiên bản
+            </button>
+          ) : null}
+          {canRun ? (
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={saving || selected.length === 0}
+              title={selected.length === 0 ? 'Chọn ≥1 insight đã duyệt nội bộ' : undefined}
+              onClick={() => onCopilot(selected)}
+            >
+              Gợi ý dàn báo cáo
+            </button>
+          ) : null}
+        </div>
       </div>
       <p className="muted" style={{ margin: '0.5rem 0 0.75rem' }}>
-        Dàn ý nháp từ insight đã duyệt. Xuất DOCX ở milestone sau — không phát hành.
+        Snapshot từ insight approved_internal+. Xuất DOCX có appendix Evidence index.
       </p>
       {approved.length === 0 ? (
         <p className="muted">Chưa có insight approved_internal+.</p>
@@ -1185,6 +1277,41 @@ function ReportTab({
             );
           })}
         </div>
+      )}
+      {versions.length === 0 ? (
+        <p className="muted">Chưa có phiên bản báo cáo.</p>
+      ) : (
+        <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0.75rem' }}>
+          {versions.map(({ report, version }) => (
+            <li
+              key={version.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: '0.75rem',
+                alignItems: 'center',
+                padding: '0.45rem 0',
+                borderBottom: '1px solid #e6ebe6',
+                fontSize: '0.85rem',
+              }}
+            >
+              <span>
+                v{version.version} · {version.created_at.slice(0, 10)} · {version.generated_by ?? '—'}
+                <span className="muted"> · {version.content_hash.slice(0, 8)}</span>
+              </span>
+              {canExport ? (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={saving}
+                  onClick={() => onExport(report.id, version.id)}
+                >
+                  Xuất DOCX
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
       )}
       {snapshot ? (
         <pre
