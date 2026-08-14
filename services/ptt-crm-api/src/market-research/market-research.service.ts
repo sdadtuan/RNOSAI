@@ -115,6 +115,8 @@ import type {
   RunPulseResult,
   RunSparktoroInput,
   RunSparktoroResult,
+  RagSearchResult,
+  SearchInsightsInput,
   RunQualtricsResult,
   RunTriangulateResult,
   WhisperIngestResult,
@@ -137,6 +139,13 @@ import {
   parseVwCsv,
 } from './survey-codebook.util';
 import { computeVanWestendorp, respondentsFromVwEvidence } from './van-westendorp.util';
+import {
+  embedInsightText,
+  insightEmbedText,
+  isRagCorpusStatus,
+  rankRagHits,
+  shouldSkipRagEmbed,
+} from './research-rag.util';
 import { buildResearchReportDocx, sectionsFromReportSnapshot } from './market-research-docx.util';
 import { buildResearchReportPdf } from './market-research-pdf.util';
 import {
@@ -180,6 +189,7 @@ export class MarketResearchService {
     deep_provider: string;
     sparktoro_enabled: boolean;
     qualtrics_enabled: boolean;
+    rag_enabled: boolean;
   } {
     const sparktoroKey = String(this.config.sparktoroApiKey ?? '').trim();
     const qualtricsKey = String(this.config.qualtricsApiKey ?? '').trim();
@@ -189,6 +199,7 @@ export class MarketResearchService {
       deep_provider: this.config.researchDeepProvider,
       sparktoro_enabled: Boolean(this.config.researchSparktoroEnabled && sparktoroKey),
       qualtrics_enabled: Boolean(this.config.researchQualtricsEnabled && qualtricsKey),
+      rag_enabled: Boolean(this.config.researchRagEnabled),
     };
   }
 
@@ -1548,7 +1559,50 @@ export class MarketResearchService {
       decision: target === 'rejected' ? 'reject' : 'approve',
       comments: input.comments ?? null,
     });
+    if (isRagCorpusStatus(target)) {
+      const embedText = insightEmbedText({
+        statement: updated.statement,
+        observation: updated.observation,
+      });
+      if (!shouldSkipRagEmbed(embedText)) {
+        await this.repo.upsertInsightEmbedding({
+          insight_id: updated.id,
+          project_id: updated.project_id,
+          embedding: embedInsightText(embedText),
+          embed_text: embedText,
+        });
+      }
+    } else if (target === 'superseded' || target === 'expired' || target === 'rejected') {
+      await this.repo.deleteInsightEmbedding(insightId);
+    }
     return updated;
+  }
+
+  async searchInsights(scope: ClientScopeContext, input: SearchInsightsInput): Promise<RagSearchResult> {
+    if (!this.config.researchRagEnabled) {
+      return { hits: [], note: 'rag_disabled' };
+    }
+    const q = String(input.q ?? '').trim();
+    if (!q) {
+      throw new BadRequestException({ error: 'rag_query_required' });
+    }
+    const clientId = String(input.client_id ?? '').trim();
+    if (clientId) {
+      this.assertClientInScope(scope, clientId);
+    }
+    const rawLimit = Number(input.limit);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 20) : 10;
+    const themeCode = String(input.theme_code ?? '').trim() || undefined;
+    const allowedClientIds =
+      !clientId && scope.restricted
+        ? this.clientScope.allowedClientIdsForList(scope) ?? []
+        : undefined;
+    const rows = await this.repo.listEmbeddings({
+      client_id: clientId || undefined,
+      allowedClientIds,
+      theme_code: themeCode,
+    });
+    return { hits: rankRagHits(q, rows, { theme_code: themeCode, limit }) };
   }
 
   async runDesk(

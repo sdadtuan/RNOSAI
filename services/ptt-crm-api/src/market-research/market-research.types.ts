@@ -806,6 +806,33 @@ export type RagSearchResult = {
   note?: 'rag_disabled';
 };
 
+export type RagEmbeddingRow = RagEmbedInput & {
+  project_id: number;
+  embedding: number[];
+  theme_codes: string[];
+  client_id?: string;
+};
+
+export type UpsertInsightEmbeddingInput = {
+  insight_id: number;
+  project_id: number;
+  embedding: number[];
+  embed_text: string;
+};
+
+export type ListEmbeddingsFilters = {
+  client_id?: string;
+  allowedClientIds?: string[];
+  theme_code?: string;
+};
+
+export type SearchInsightsInput = {
+  q?: string;
+  theme_code?: string;
+  client_id?: string;
+  limit?: string | number;
+};
+
 export type TaxonomyTheme = {
   id: number;
   theme_code: string;

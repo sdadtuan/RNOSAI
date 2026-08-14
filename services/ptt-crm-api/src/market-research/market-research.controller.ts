@@ -121,6 +121,16 @@ export class MarketResearchController {
     return this.research.listApprovedInsightsForClient(scope, clientId ?? '');
   }
 
+  @Get('insights/search')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async searchInsights(
+    @Req() req: StaffReq,
+    @Query() query: { q?: string; theme_code?: string; client_id?: string; limit?: string },
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.searchInsights(scope, query);
+  }
+
   @Post('plans/:planId/insights')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard, StaffResearchMktplanEditGuard)
   async insertPlanInsights(

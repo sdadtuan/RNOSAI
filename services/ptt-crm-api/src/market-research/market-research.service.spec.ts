@@ -19,6 +19,7 @@ import {
 import { transcribeAudio } from './whisper-transcribe';
 import { collectSparkToro } from './sparktoro-collect';
 import { computeVanWestendorp } from './van-westendorp.util';
+import { embedInsightText, insightEmbedText, isRagCorpusStatus } from './research-rag.util';
 
 jest.mock('./whisper-transcribe', () => ({
   transcribeAudio: jest.fn(),
@@ -93,6 +94,9 @@ describe('MarketResearchService', () => {
     listRecentAiRuns: jest.fn(),
     sumTavilyCredits: jest.fn(),
     createInsight: jest.fn(),
+    upsertInsightEmbedding: jest.fn(),
+    deleteInsightEmbedding: jest.fn(),
+    listEmbeddings: jest.fn(),
     createReportDraft: jest.fn(),
     insertReportVersion: jest.fn(),
     listReports: jest.fn(),
@@ -161,6 +165,7 @@ describe('MarketResearchService', () => {
     sparktoroApiKey: '',
     researchQualtricsEnabled: false,
     qualtricsApiKey: '',
+    researchRagEnabled: false,
   };
 
   let service: MarketResearchService;
@@ -173,6 +178,7 @@ describe('MarketResearchService', () => {
     config.sparktoroApiKey = '';
     config.researchQualtricsEnabled = false;
     config.qualtricsApiKey = '';
+    config.researchRagEnabled = false;
     repo.listTrendSignals.mockResolvedValue([]);
     llm.isConfigured.mockReturnValue(true);
     service = new MarketResearchService(
@@ -1152,6 +1158,89 @@ describe('MarketResearchService', () => {
     );
   });
 
+  it('M2-1a: approve to approved_client_facing upserts embedding; createInsight draft does not', async () => {
+    stubScopedProject();
+    const current = insightRow({
+      created_by: 'analyst@ptt',
+      status: 'approved_internal',
+      confidence_rationale: 'Nguồn verified, sample 2025',
+      confidence_json: validRubric,
+    });
+    const approved = insightRow({
+      ...current,
+      status: 'approved_client_facing',
+    });
+    repo.getInsight.mockResolvedValue(current);
+    repo.countVerifiedEvidenceForInsight.mockResolvedValue(1);
+    repo.updateInsightStatus.mockResolvedValue(approved);
+    repo.insertReview.mockResolvedValue({ id: 1 });
+
+    const out = await service.approveInsight(
+      7,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { target_status: 'approved_client_facing', comments: 'ok' },
+      'lead@ptt',
+    );
+
+    expect(out.status).toBe('approved_client_facing');
+    expect(isRagCorpusStatus(out.status)).toBe(true);
+    expect(repo.insertReview).toHaveBeenCalled();
+    const embedText = insightEmbedText({
+      statement: approved.statement,
+      observation: approved.observation,
+    });
+    expect(repo.upsertInsightEmbedding).toHaveBeenCalledWith(
+      expect.objectContaining({
+        insight_id: 7,
+        project_id: 9,
+        embed_text: embedText,
+        embedding: embedInsightText(embedText),
+      }),
+    );
+
+    repo.upsertInsightEmbedding.mockClear();
+    const draft = insightRow({ status: 'draft' });
+    repo.createInsight.mockResolvedValue(draft);
+    await service.createInsight(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { statement: draft.statement },
+      'analyst@ptt',
+    );
+    expect(repo.createInsight).toHaveBeenCalled();
+    expect(repo.upsertInsightEmbedding).not.toHaveBeenCalled();
+  });
+
+  it('M2-1b: email in statement skips upsert; approve still returns the insight', async () => {
+    stubScopedProject();
+    const current = insightRow({
+      created_by: 'analyst@ptt',
+      status: 'approved_internal',
+      statement: 'Contact analyst@ptt.vn — Premium SKU tăng share',
+      confidence_rationale: 'Nguồn verified, sample 2025',
+      confidence_json: validRubric,
+    });
+    const approved = insightRow({
+      ...current,
+      status: 'approved_client_facing',
+    });
+    repo.getInsight.mockResolvedValue(current);
+    repo.countVerifiedEvidenceForInsight.mockResolvedValue(1);
+    repo.updateInsightStatus.mockResolvedValue(approved);
+    repo.insertReview.mockResolvedValue({ id: 1 });
+
+    const out = await service.approveInsight(
+      7,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { target_status: 'approved_client_facing', comments: 'ok' },
+      'lead@ptt',
+    );
+
+    expect(out.status).toBe('approved_client_facing');
+    expect(out.statement).toBe(approved.statement);
+    expect(repo.upsertInsightEmbedding).not.toHaveBeenCalled();
+  });
+
   it('runDesk throws job_in_flight when a pending run exists for the question', async () => {
     stubScopedProject();
     repo.getQuestion.mockResolvedValue({
@@ -2070,6 +2159,7 @@ describe('MarketResearchService', () => {
       deep_provider: 'openai',
       sparktoro_enabled: false,
       qualtrics_enabled: false,
+      rag_enabled: false,
     });
     config.researchDeepProvider = 'off';
     expect(service.health().deep_provider).toBe('off');
@@ -2124,6 +2214,99 @@ describe('MarketResearchService', () => {
     expect(payload.qualtrics_enabled).toBe(true);
     expect(JSON.stringify(payload)).not.toContain('qx-secret-never-leak');
     expect(JSON.stringify(payload)).not.toMatch(/qualtricsApiKey|QUALTRICS_API_KEY/);
+  });
+
+  it('health rag_enabled is false by default and does not leak RESEARCH_RAG', () => {
+    const payload = service.health();
+    expect(payload.rag_enabled).toBe(false);
+    expect(JSON.stringify(payload)).not.toMatch(/RESEARCH_RAG/);
+    expect(payload).not.toHaveProperty('researchRagEnabled');
+  });
+
+  it('health rag_enabled is true when flag is on; payload has no RESEARCH_RAG key leak', () => {
+    config.researchRagEnabled = true;
+    const payload = service.health();
+    expect(payload.rag_enabled).toBe(true);
+    expect(JSON.stringify(payload)).not.toMatch(/RESEARCH_RAG/);
+    expect(payload).not.toHaveProperty('researchRagEnabled');
+  });
+
+  it('M2-1c: search q matches published; draft with the same sentence is not a hit', async () => {
+    config.researchRagEnabled = true;
+    const sentence = 'Giá sữa học đường tăng ở MT HCM';
+    const published = {
+      insight_id: 1,
+      project_id: 9,
+      status: 'published',
+      statement: sentence,
+      observation: null,
+      embedding: embedInsightText(insightEmbedText({ statement: sentence, observation: null })),
+      theme_codes: [],
+    };
+    const draft = {
+      insight_id: 2,
+      project_id: 9,
+      status: 'draft',
+      statement: sentence,
+      observation: null,
+      embedding: embedInsightText(insightEmbedText({ statement: sentence, observation: null })),
+      theme_codes: [],
+    };
+    repo.listEmbeddings.mockResolvedValue([published, draft]);
+
+    const out = await service.searchInsights(
+      { restricted: false, allowedClientIds: [] },
+      { q: sentence },
+    );
+
+    expect(out.hits.map((h) => h.insight_id)).toEqual([1]);
+    expect(out.hits.map((h) => h.status)).toEqual(['published']);
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('M2-1d: flag off returns rag_disabled and does not call listEmbeddings', async () => {
+    const out = await service.searchInsights(
+      { restricted: false, allowedClientIds: [] },
+      { q: 'Giá sữa học đường' },
+    );
+
+    expect(out).toEqual({ hits: [], note: 'rag_disabled' });
+    expect(repo.listEmbeddings).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('M2-1e: search outside scope is 403 without statement', async () => {
+    config.researchRagEnabled = true;
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.listEmbeddings.mockResolvedValue([
+      {
+        insight_id: 1,
+        project_id: 9,
+        status: 'published',
+        statement: 'Secret statement must not leak',
+        observation: null,
+        embedding: embedInsightText(
+          insightEmbedText({ statement: 'Secret statement must not leak', observation: null }),
+        ),
+        theme_codes: [],
+      },
+    ]);
+
+    try {
+      await service.searchInsights(
+        { restricted: true, allowedClientIds: ['acme'] },
+        { q: 'Secret statement must not leak', client_id: 'other-client' },
+      );
+      throw new Error('expected forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const body = (err as ForbiddenException).getResponse();
+      expect(body).toEqual({ error: 'forbidden' });
+      expect(JSON.stringify(body)).not.toContain('statement');
+      expect(JSON.stringify(body)).not.toContain('Secret statement');
+    }
+    expect(repo.listEmbeddings).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
   });
 
   it('flag or key off returns qualtrics_disabled without enqueue or insight', async () => {

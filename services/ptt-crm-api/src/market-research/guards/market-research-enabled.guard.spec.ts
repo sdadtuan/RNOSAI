@@ -38,6 +38,7 @@ describe('Market Research config parse', () => {
     'SPARKTORO_API_KEY',
     'RESEARCH_QUALTRICS_ENABLED',
     'QUALTRICS_API_KEY',
+    'RESEARCH_RAG_ENABLED',
   ];
 
   beforeEach(() => {
@@ -64,6 +65,7 @@ describe('Market Research config parse', () => {
     expect(config.sparktoroApiKey).toBe('');
     expect(config.researchQualtricsEnabled).toBe(false);
     expect(config.qualtricsApiKey).toBe('');
+    expect(config.researchRagEnabled).toBe(false);
   });
 
   it('parses enabled flag and numeric caps from env', () => {
@@ -80,6 +82,7 @@ describe('Market Research config parse', () => {
     expect(config.sparktoroApiKey).toBe('');
     expect(config.researchQualtricsEnabled).toBe(false);
     expect(config.qualtricsApiKey).toBe('');
+    expect(config.researchRagEnabled).toBe(false);
   });
 
   it('parses SparkToro flag on and key without exposing the key in health-shaped fields', () => {
@@ -98,5 +101,12 @@ describe('Market Research config parse', () => {
     const config = new AppConfigService();
     expect(config.researchQualtricsEnabled).toBe(true);
     expect(config.qualtricsApiKey).toBe('qx-secret');
+    expect(config.researchRagEnabled).toBe(false);
+  });
+
+  it('parses RESEARCH_RAG_ENABLED on; default remains off', () => {
+    process.env.RESEARCH_RAG_ENABLED = '1';
+    const config = new AppConfigService();
+    expect(config.researchRagEnabled).toBe(true);
   });
 });

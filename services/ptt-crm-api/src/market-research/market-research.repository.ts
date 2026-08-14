@@ -26,7 +26,10 @@ import type {
   VwBin,
   VwPoints,
   InsertReviewInput,
+  ListEmbeddingsFilters,
   ListProjectsFilters,
+  RagEmbeddingRow,
+  UpsertInsightEmbeddingInput,
   OpsAnalyticsRaw,
   PatchCompetitorInput,
   PatchEvidenceInput,
@@ -1859,6 +1862,84 @@ export class MarketResearchRepository implements OnModuleDestroy {
       ],
     );
     return { id: Number(result.rows[0].id) };
+  }
+
+  async upsertInsightEmbedding(input: UpsertInsightEmbeddingInput): Promise<void> {
+    await this.db.query(
+      `INSERT INTO crm_research_insight_embeddings (insight_id, project_id, embedding, embed_text)
+       VALUES ($1, $2, $3::jsonb, $4)
+       ON CONFLICT (insight_id) DO UPDATE SET
+         project_id = EXCLUDED.project_id,
+         embedding = EXCLUDED.embedding,
+         embed_text = EXCLUDED.embed_text,
+         updated_at = now()`,
+      [input.insight_id, input.project_id, JSON.stringify(input.embedding), input.embed_text],
+    );
+  }
+
+  async deleteInsightEmbedding(insightId: number): Promise<void> {
+    await this.db.query(`DELETE FROM crm_research_insight_embeddings WHERE insight_id = $1`, [
+      insightId,
+    ]);
+  }
+
+  async listEmbeddings(filters: ListEmbeddingsFilters = {}): Promise<RagEmbeddingRow[]> {
+    const where: string[] = [];
+    const params: unknown[] = [];
+    const clientId = filters.client_id?.trim();
+    if (clientId) {
+      params.push(clientId);
+      where.push(`p.client_id = $${params.length}`);
+    }
+    if (filters.allowedClientIds) {
+      params.push(filters.allowedClientIds);
+      where.push(`p.client_id = ANY($${params.length}::text[])`);
+    }
+    const themeCode = filters.theme_code?.trim();
+    if (themeCode) {
+      params.push(themeCode);
+      where.push(`EXISTS (
+        SELECT 1
+        FROM crm_research_insight_themes it2
+        JOIN crm_research_taxonomy t2 ON t2.id = it2.taxonomy_id
+        WHERE it2.insight_id = i.id AND t2.theme_code = $${params.length}
+      )`);
+    }
+    const extra = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const result = await this.db.query(
+      `SELECT e.insight_id,
+              e.project_id,
+              e.embedding,
+              i.status,
+              i.statement,
+              i.observation,
+              p.client_id,
+              COALESCE(
+                array_agg(t.theme_code) FILTER (WHERE t.theme_code IS NOT NULL),
+                '{}'
+              ) AS theme_codes
+       FROM crm_research_insight_embeddings e
+       JOIN crm_research_insights i ON i.id = e.insight_id
+       JOIN crm_research_projects p ON p.id = e.project_id
+       LEFT JOIN crm_research_insight_themes it ON it.insight_id = i.id
+       LEFT JOIN crm_research_taxonomy t ON t.id = it.taxonomy_id
+       ${extra}
+       GROUP BY e.insight_id, e.project_id, e.embedding, i.status, i.statement, i.observation, p.client_id
+       ORDER BY e.insight_id ASC`,
+      params,
+    );
+    return result.rows.map((row) => ({
+      insight_id: Number(row.insight_id),
+      project_id: Number(row.project_id),
+      status: String(row.status),
+      statement: String(row.statement),
+      observation: row.observation != null ? String(row.observation) : null,
+      embedding: parseJsonCol<number[]>(row.embedding, []).map(Number),
+      theme_codes: Array.isArray(row.theme_codes)
+        ? row.theme_codes.map((code: unknown) => String(code))
+        : [],
+      client_id: row.client_id != null ? String(row.client_id) : undefined,
+    }));
   }
 
   async getOpsAnalytics(
