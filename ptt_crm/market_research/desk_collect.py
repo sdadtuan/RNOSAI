@@ -17,9 +17,6 @@ logger = logging.getLogger(__name__)
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
 TAVILY_EXTRACT_URL = "https://api.tavily.com/extract"
 
-TERMINAL_COLLECT_ERRORS = frozenset({"tavily_unconfigured", "tavily_credit_cap"})
-
-
 def _credits_limit() -> int:
     try:
         return max(1, int(os.environ.get("MAX_TAVILY_CREDITS_PER_RESEARCH", "12") or 12))

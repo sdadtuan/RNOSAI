@@ -80,3 +80,21 @@ def test_handler_marks_done_when_tavily_unconfigured(process_mock, done_mock):
         }
     )
     done_mock.assert_called_once_with("job-1")
+
+
+@patch("ptt_jobs.handlers.research_desk.mark_job_done")
+@patch("ptt_jobs.handlers.research_desk.process_research_desk_payload")
+def test_handler_marks_done_when_tavily_search_failed(process_mock, done_mock):
+    """Collect fail is terminal for the queue; FE Thử lại is the only retry."""
+    from ptt_jobs.handlers.research_desk import run_research_desk_job
+
+    process_mock.return_value = {"ok": False, "error": "tavily_search_failed: timeout"}
+    run_research_desk_job(
+        {
+            "id": "job-1",
+            "payload": {"project_id": 1, "question_id": 2, "run_id": 3},
+            "attempts": 1,
+            "max_attempts": 2,
+        }
+    )
+    done_mock.assert_called_once_with("job-1")
