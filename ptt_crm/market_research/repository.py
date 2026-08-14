@@ -311,3 +311,40 @@ def insert_ai_sources(
                     ids.append(int(row[0]))
         conn.commit()
     return ids
+
+
+def insert_evidence(
+    *,
+    project_id: int,
+    study_id: int,
+    question_id: int | None,
+    locator: str,
+    excerpt: str,
+    created_by: str = "whisper_ingest",
+) -> dict[str, Any]:
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO crm_research_evidence (
+                  project_id, source_id, study_id, question_id, locator, excerpt,
+                  pii_class, created_by
+                ) VALUES (
+                  %s, NULL, %s, %s, %s, %s, 'none', %s
+                )
+                RETURNING id, excerpt, locator
+                """,
+                (
+                    project_id,
+                    study_id,
+                    question_id,
+                    str(locator)[:200],
+                    str(excerpt)[:500],
+                    created_by,
+                ),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    if not row:
+        raise RuntimeError("insert_evidence failed")
+    return {"id": int(row[0]), "excerpt": row[1], "locator": row[2]}

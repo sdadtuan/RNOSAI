@@ -61,6 +61,8 @@ export type ResearchJobType =
   | 'research_pulse'
   | 'insight_draft'
   | 'report_draft'
-  | 'pii_scan';
+  | 'pii_scan'
+  | 'whisper_ingest'
+  | 'sparktoro';
 
 export const MAX_TAVILY_CREDITS_PER_RESEARCH = 12;

@@ -1,3 +1,7 @@
+import { randomUUID } from 'crypto';
+import { writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import {
   BadRequestException,
   Body,
@@ -12,9 +16,13 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
+import { memoryStorage } from 'multer';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
@@ -65,6 +73,9 @@ import type {
   RunDeskInput,
   RunPulseInput,
 } from './market-research.types';
+
+const WHISPER_MAX_BYTES = 25 * 1024 * 1024;
+const WHISPER_MIME = new Set(['audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a']);
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
 
@@ -352,6 +363,51 @@ export class MarketResearchController {
     return this.research.createStudy(id, scope, body ?? ({} as CreateStudyInput), actorEmail(req));
   }
 
+  @Post('projects/:id/studies/:studyId/whisper')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: WHISPER_MAX_BYTES },
+    }),
+  )
+  async ingestWhisper(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('studyId', ParseIntPipe) studyId: number,
+    @UploadedFile() file: Express.Multer.File,
+    @Query('question_id') questionId?: string,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['file is required'],
+      });
+    }
+    const mime = String(file.mimetype ?? '').trim().toLowerCase();
+    if (!WHISPER_MIME.has(mime)) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['file mime is invalid'],
+      });
+    }
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    const rawQid = (req.body as { question_id?: string } | undefined)?.question_id ?? questionId;
+    const tempPath = join(tmpdir(), `research-whisper-${randomUUID()}`);
+    await writeFile(tempPath, file.buffer);
+    return this.research.ingestWhisper(
+      id,
+      studyId,
+      scope,
+      {
+        tempPath,
+        questionId: rawQid != null && String(rawQid).trim() !== '' ? Number(rawQid) : null,
+      },
+      actorEmail(req),
+    );
+  }
+
   @Get('projects/:id/waves')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
   async listWaves(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
@@ -447,6 +503,13 @@ export class MarketResearchController {
   async acceptSingleSource(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.acceptSingleSource(id, scope);
+  }
+
+  @Get('evidence/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async getEvidence(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.getEvidence(id, scope);
   }
 
   @Post('projects/:id/evidence')

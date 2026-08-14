@@ -28,3 +28,16 @@ export function defaultConsentExpiry(recordedAt: Date, now = recordedAt): Date {
   d.setMonth(d.getMonth() + 24);
   return d;
 }
+
+export function assertStudyIngestable(
+  consents: Array<{ expires_at: string | Date }>,
+  now: Date,
+): void {
+  if (!consents.length) {
+    throw Object.assign(new Error('consent_required'), { code: 'consent_required' });
+  }
+  const fresh = consents.some((row) => new Date(row.expires_at).getTime() > now.getTime());
+  if (!fresh) {
+    throw Object.assign(new Error('consent_expired'), { code: 'consent_expired' });
+  }
+}

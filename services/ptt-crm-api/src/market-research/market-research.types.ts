@@ -356,6 +356,20 @@ export type RunPulseInput = {
 
 export type RunPulseResult = RunDeskResult;
 
+export type WhisperExcerpt = {
+  locator: string; // T-mm:ss
+  excerpt: string; // trim, length 1–500
+};
+
+export type WhisperIngestResult = {
+  ok: true;
+  run_id: number;
+  study_id: number;
+  excerpt_ids: number[];
+  status?: string;
+  note?: string;
+};
+
 export type CreateSourceInput = {
   title: string;
   source_type?: string;

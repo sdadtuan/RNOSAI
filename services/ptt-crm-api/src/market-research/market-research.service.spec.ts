@@ -1,3 +1,6 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import {
   BadRequestException,
   ConflictException,
@@ -12,6 +15,11 @@ import type {
   ResearchProjectRow,
   ResearchReportVersionRow,
 } from './market-research.types';
+import { transcribeAudio } from './whisper-transcribe';
+
+jest.mock('./whisper-transcribe', () => ({
+  transcribeAudio: jest.fn(),
+}));
 
 const project: ResearchProjectRow = {
   id: 9,
@@ -123,6 +131,7 @@ describe('MarketResearchService', () => {
     enqueueResearchDeepJob: jest.fn(),
     enqueueResearchTriangulateJob: jest.fn(),
     enqueueResearchPulseJob: jest.fn(),
+    enqueueResearchWhisperJob: jest.fn(),
   };
   const opsAlerts = {
     upsertAlert: jest.fn(),
@@ -1457,6 +1466,155 @@ describe('MarketResearchService', () => {
     expect(repo.createInsight).not.toHaveBeenCalled();
   });
 
+  it('ingestWhisper with 0 consents is 400 consent_required and does not enqueue', async () => {
+    stubScopedProject();
+    repo.getStudy.mockResolvedValue({
+      id: 4,
+      project_id: 9,
+      name: 'IDI sữa uống',
+      method: 'idi',
+      n: 8,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    });
+    repo.listConsents.mockResolvedValue([]);
+    const tempPath = writeTempAudio();
+
+    try {
+      await service.ingestWhisper(
+        9,
+        4,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { tempPath },
+        'am@ptt',
+      );
+      throw new Error('expected consent_required');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ error: 'consent_required' }),
+      );
+    }
+    expect(jobQueue.enqueueResearchWhisperJob).not.toHaveBeenCalled();
+    expect(repo.insertAiRun).not.toHaveBeenCalled();
+    expect(fs.existsSync(tempPath)).toBe(false);
+  });
+
+  it('ingestWhisper jobs_disabled persists excerpts without transcript or insight', async () => {
+    stubScopedProject();
+    repo.getStudy.mockResolvedValue({
+      id: 4,
+      project_id: 9,
+      name: 'IDI sữa uống',
+      method: 'idi',
+      n: 8,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    });
+    repo.listConsents.mockResolvedValue([
+      {
+        id: 1,
+        study_id: 4,
+        project_id: 9,
+        subject_code: 'R-004',
+        consent_type: 'record',
+        recorded_at: '2026-08-14',
+        expires_at: '2028-08-14T00:00:00.000Z',
+        notes: null,
+      },
+    ]);
+    repo.insertAiRun.mockResolvedValue({
+      id: 77,
+      project_id: 9,
+      question_id: null,
+      job_type: 'whisper_ingest',
+      provider: 'openai',
+      status: 'pending',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: null,
+    });
+    jobQueue.enqueueResearchWhisperJob.mockResolvedValue(null);
+    (transcribeAudio as jest.Mock).mockResolvedValue(
+      'First sentence is short. Second sentence is also short. Third sentence wraps it up.',
+    );
+    repo.createEvidence
+      .mockResolvedValueOnce(evidenceRow({ id: 101, study_id: 4, locator: 'T-00:00', excerpt: 'First sentence is short.' }))
+      .mockResolvedValueOnce(evidenceRow({ id: 102, study_id: 4, locator: 'T-00:30', excerpt: 'Second sentence is also short.' }))
+      .mockResolvedValueOnce(evidenceRow({ id: 103, study_id: 4, locator: 'T-01:00', excerpt: 'Third sentence wraps it up.' }));
+    repo.succeedAiRun.mockResolvedValue({
+      id: 77,
+      project_id: 9,
+      question_id: null,
+      job_type: 'whisper_ingest',
+      provider: 'openai',
+      status: 'succeeded',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: '2026-08-14',
+    });
+    const tempPath = writeTempAudio();
+
+    const out = await service.ingestWhisper(
+      9,
+      4,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { tempPath },
+      'am@ptt',
+    );
+
+    expect(out.ok).toBe(true);
+    expect(out.excerpt_ids).toEqual([101, 102, 103]);
+    expect(repo.createEvidence).toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+    expect(repo.succeedAiRun).toHaveBeenCalled();
+    const completeBody = repo.succeedAiRun.mock.calls[0][1].outputJson as Record<string, unknown>;
+    expect(completeBody).not.toHaveProperty('transcript');
+    expect(JSON.stringify(completeBody)).not.toContain('transcript');
+    expect(completeBody).toEqual({ excerpt_ids: [101, 102, 103] });
+    expect(fs.existsSync(tempPath)).toBe(false);
+  });
+
+  it('getEvidence outside scope is 403 without study name in the body', async () => {
+    repo.getEvidence.mockResolvedValue(
+      evidenceRow({ id: 1, study_id: 4, excerpt: 'quoted line', locator: 'T-00:00' }),
+    );
+    repo.getStudy.mockResolvedValue({
+      id: 4,
+      project_id: 9,
+      name: 'SecretStudyName',
+      method: 'idi',
+      n: 8,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    });
+    repo.getProjectClientId.mockResolvedValue('other-client');
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+
+    try {
+      await service.getEvidence(1, { restricted: true, allowedClientIds: ['acme'] });
+      throw new Error('expected forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const body = (err as ForbiddenException).getResponse();
+      expect(body).toEqual({ error: 'forbidden' });
+      expect(JSON.stringify(body)).not.toContain('SecretStudyName');
+      expect(JSON.stringify(body)).not.toContain('name');
+    }
+    expect(repo.getStudy).not.toHaveBeenCalled();
+  });
+
   it('acceptSingleSource sets single_source_accepted', async () => {
     stubScopedProject();
     repo.getSource.mockResolvedValue({
@@ -2653,6 +2811,12 @@ function similarwebSource(overrides: { reliability_tier: string }) {
     url: 'https://www.similarweb.com/website/example',
     reliability_tier: overrides.reliability_tier,
   };
+}
+
+function writeTempAudio(): string {
+  const tempPath = path.join(os.tmpdir(), `whisper-m1-${Date.now()}-${Math.random().toString(16).slice(2)}.wav`);
+  fs.writeFileSync(tempPath, Buffer.from('fake-audio'));
+  return tempPath;
 }
 
 function evidenceRow(overrides: Partial<ResearchEvidenceRow> = {}): ResearchEvidenceRow {

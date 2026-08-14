@@ -162,6 +162,32 @@ export class JobQueueRepository implements OnModuleDestroy {
     });
   }
 
+  /** P5 M1 — async Whisper ingest; payload has temp_path, never transcript. */
+  async enqueueResearchWhisperJob(input: {
+    projectId: number;
+    studyId: number;
+    runId: number;
+    tempPath: string;
+    questionId?: number | null;
+    clientId?: string | null;
+    idempotencyKey: string;
+  }): Promise<EnqueuedJob | null> {
+    if (!this.config.jobsEnabled) return null;
+    return this.enqueueJobRecord({
+      jobType: 'research_whisper_ingest',
+      payload: {
+        project_id: input.projectId,
+        study_id: input.studyId,
+        run_id: input.runId,
+        temp_path: input.tempPath,
+        question_id: input.questionId ?? null,
+      },
+      idempotencyKey: input.idempotencyKey,
+      clientId: this.normalizeClientUuid(input.clientId ?? undefined),
+      maxAttempts: 2,
+    });
+  }
+
   /** M6 — async dual Tavily triangulation (basic + advanced). */
   async enqueueResearchTriangulateJob(input: {
     projectId: number;

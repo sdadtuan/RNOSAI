@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { unlink } from 'fs/promises';
 import {
   BadRequestException,
   ConflictException,
@@ -39,9 +40,12 @@ import { assertNotSelfApprove, canApproveTarget, evaluateInsightGate, extractRub
 import {
   assertConsentHasNoPii,
   assertExcerptNotRawTranscript,
+  assertStudyIngestable,
   assertTranscriptLocator,
   defaultConsentExpiry,
 } from './study-consent.util';
+import { assertNoRawInPayload, excerptsFromTranscript } from './whisper-excerpt.util';
+import { transcribeAudio } from './whisper-transcribe';
 import type {
   ApproveInsightInput,
   ConfidenceJson,
@@ -103,6 +107,7 @@ import type {
   RunPulseInput,
   RunPulseResult,
   RunTriangulateResult,
+  WhisperIngestResult,
   TrendSignal,
   SubmitReviewInput,
 } from './market-research.types';
@@ -844,6 +849,145 @@ export class MarketResearchService {
       },
       actor,
     );
+  }
+
+  async getEvidence(
+    evidenceId: number,
+    scope: ClientScopeContext,
+  ): Promise<ResearchEvidenceRow> {
+    const existing = await this.repo.getEvidence(evidenceId);
+    if (!existing) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(existing.project_id, scope);
+    return existing;
+  }
+
+  async ingestWhisper(
+    projectId: number,
+    studyId: number,
+    scope: ClientScopeContext,
+    input: { tempPath: string; questionId?: number | null },
+    actor: string,
+  ): Promise<WhisperIngestResult> {
+    let handedOff = false;
+    try {
+      const project = await this.loadScopedProject(projectId, scope);
+      const study = await this.repo.getStudy(studyId);
+      if (!study || study.project_id !== projectId) {
+        throw new NotFoundException({ error: 'not_found' });
+      }
+      const consents = await this.repo.listConsents(studyId);
+      try {
+        assertStudyIngestable(consents, new Date());
+      } catch (err) {
+        this.rethrowUtilCode(err, ['consent_required', 'consent_expired']);
+      }
+
+      let questionId: number | null = null;
+      const rawQid = input.questionId;
+      if (rawQid != null && rawQid !== ('' as unknown as number)) {
+        questionId = Number(rawQid);
+        if (!Number.isFinite(questionId) || questionId <= 0) {
+          throw new BadRequestException({
+            error: 'validation_error',
+            messages: ['question_id is invalid'],
+          });
+        }
+        const question = await this.repo.getQuestion(questionId);
+        if (!question || question.project_id !== projectId) {
+          throw new NotFoundException({ error: 'not_found' });
+        }
+      }
+
+      const run = await this.repo.insertAiRun({
+        projectId,
+        questionId,
+        jobType: 'whisper_ingest',
+        provider: 'openai',
+        actor,
+      });
+      const job = await this.jobQueue.enqueueResearchWhisperJob({
+        projectId,
+        studyId,
+        runId: run.id,
+        tempPath: input.tempPath,
+        questionId,
+        clientId: project.client_id,
+        idempotencyKey: `research_whisper_ingest:${projectId}:${studyId}:run:${run.id}`,
+      });
+      if (job) {
+        handedOff = true;
+        return { ok: true, run_id: run.id, study_id: studyId, excerpt_ids: [], status: 'pending' };
+      }
+      return await this.persistWhisperExcerpts({
+        projectId,
+        studyId,
+        scope,
+        runId: run.id,
+        tempPath: input.tempPath,
+        questionId,
+        actor,
+      });
+    } finally {
+      if (!handedOff) {
+        await unlinkQuiet(input.tempPath);
+      }
+    }
+  }
+
+  private async persistWhisperExcerpts(input: {
+    projectId: number;
+    studyId: number;
+    scope: ClientScopeContext;
+    runId: number;
+    tempPath: string;
+    questionId: number | null;
+    actor: string;
+  }): Promise<WhisperIngestResult> {
+    try {
+      const text = await transcribeAudio(input.tempPath);
+      const excerpts = excerptsFromTranscript(text);
+      const excerpt_ids: number[] = [];
+      for (const row of excerpts) {
+        const ev = await this.createEvidence(
+          input.projectId,
+          input.scope,
+          {
+            study_id: input.studyId,
+            question_id: input.questionId,
+            locator: row.locator,
+            excerpt: row.excerpt,
+          },
+          input.actor,
+        );
+        excerpt_ids.push(ev.id);
+      }
+      const output = { excerpt_ids };
+      assertNoRawInPayload(output);
+      await this.repo.succeedAiRun(input.runId, { outputJson: output });
+      return {
+        ok: true,
+        run_id: input.runId,
+        study_id: input.studyId,
+        excerpt_ids,
+      };
+    } catch (err) {
+      const code =
+        err && typeof err === 'object' && 'code' in err
+          ? String((err as { code?: string }).code)
+          : '';
+      if (code === 'whisper_disabled') {
+        await this.repo.failAiRun(input.runId, 'whisper_disabled');
+        return {
+          ok: true,
+          run_id: input.runId,
+          study_id: input.studyId,
+          excerpt_ids: [],
+          status: 'failed',
+          note: 'whisper_disabled',
+        };
+      }
+      throw err;
+    }
   }
 
   async createEvidence(
@@ -2069,6 +2213,15 @@ export class MarketResearchService {
         verifiedInsightCount: project.verified_insight_count,
       }),
     };
+  }
+}
+
+async function unlinkQuiet(tempPath: string | undefined): Promise<void> {
+  if (!tempPath) return;
+  try {
+    await unlink(tempPath);
+  } catch {
+    // already gone
   }
 }
 
