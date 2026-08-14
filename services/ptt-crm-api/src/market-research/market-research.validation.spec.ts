@@ -1,4 +1,4 @@
-import { validateCreateProject } from './market-research.validation';
+import { validateCreateDecision, validateCreateProject } from './market-research.validation';
 
 const valid = {
   client_id: 'acme',
@@ -41,6 +41,24 @@ describe('validateCreateProject', () => {
     );
     expect(validateCreateProject({ ...valid, questions: [{ question_vi: '   ' }] })).toContain(
       'question_vi is required',
+    );
+  });
+});
+
+describe('validateCreateDecision', () => {
+  const validDecision = {
+    insight_id: 7,
+    decision_text: 'Launch premium SKU in Q4 after readout',
+    owner_email: 'am@ptt',
+  };
+
+  it('returns no messages for a valid payload', () => {
+    expect(validateCreateDecision(validDecision)).toEqual([]);
+  });
+
+  it('rejects decision_text shorter than 10 after trim', () => {
+    expect(validateCreateDecision({ ...validDecision, decision_text: 'abc' })).toContain(
+      'decision_text must be at least 10 characters',
     );
   });
 });

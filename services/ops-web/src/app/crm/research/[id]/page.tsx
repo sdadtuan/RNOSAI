@@ -14,6 +14,7 @@ import { ResearchJobChip } from '@/components/research/ResearchJobChip';
 import { ResearchStatusChip } from '@/components/research/ResearchStatusChip';
 import { CompetitorPane } from '@/components/research/CompetitorPane';
 import { StudiesPane } from '@/components/research/StudiesPane';
+import { DecisionLogPane } from '@/components/research/DecisionLogPane';
 import { WavesPane } from '@/components/research/WavesPane';
 import { SourceKeepTable } from '@/components/research/SourceKeepTable';
 import { staffMe, staffRefresh } from '@/lib/api';
@@ -90,6 +91,7 @@ const TABS = [
   { id: 'evidence', label: 'Evidence' },
   { id: 'insights', label: 'Insight' },
   { id: 'report', label: 'Báo cáo' },
+  { id: 'decisions', label: 'Quyết định' },
   { id: 'activity', label: 'Nhật ký' },
 ] as const;
 
@@ -1022,6 +1024,12 @@ function CrmResearchWorkspaceContent() {
               />
             ) : tab === 'waves' && project.product_type === 'TRACKER' ? (
               <WavesPane projectId={project.id} canEdit={canEdit} />
+            ) : tab === 'decisions' ? (
+              <DecisionLogPane
+                projectId={project.id}
+                insights={project.insights ?? []}
+                canEdit={canEdit}
+              />
             ) : (
               <p className="muted">P0: dùng tab Brief / Nguồn / Evidence / Insight. Tab {TABS.find((t) => t.id === tab)?.label} sẽ có ở milestone sau.</p>
             )}

@@ -45,6 +45,8 @@ import type {
   InsightCopilotInput,
   CreateStudyInput,
   CreateWaveInput,
+  CreateDecisionInput,
+  PatchDecisionInput,
   PatchCompetitorInput,
   PatchStudyInput,
   PatchEvidenceInput,
@@ -349,6 +351,36 @@ export class MarketResearchController {
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.createWave(id, scope, body ?? ({} as CreateWaveInput), actorEmail(req));
+  }
+
+  @Get('projects/:id/decisions')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async listDecisions(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.listDecisions(id, scope);
+  }
+
+  @Post('projects/:id/decisions')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async createDecision(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CreateDecisionInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.createDecision(id, scope, body ?? ({} as CreateDecisionInput), actorEmail(req));
+  }
+
+  @Patch('decisions/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async patchDecision(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PatchDecisionInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.patchDecision(id, scope, body ?? {});
   }
 
   @Patch('studies/:id')

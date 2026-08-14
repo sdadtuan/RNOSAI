@@ -15,10 +15,13 @@ import type {
   CreateSourceInput,
   CreateStudyInput,
   CreateWaveInput,
+  CreateDecisionInput,
+  PatchDecisionInput,
   PatchStudyInput,
   ResearchConsent,
   ResearchStudy,
   ResearchWave,
+  ResearchDecision,
   InsertReviewInput,
   ListProjectsFilters,
   OpsAnalyticsRaw,
@@ -1460,6 +1463,94 @@ export class MarketResearchRepository implements OnModuleDestroy {
       projectId,
     ]);
     return this.mapWave(result.rows[0]);
+  }
+
+  private mapDecision(row: Record<string, unknown>): ResearchDecision {
+    const status = String(row.status);
+    return {
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      insight_id: Number(row.insight_id),
+      decision_text: String(row.decision_text),
+      owner_email: String(row.owner_email),
+      due_at: row.due_at != null ? String(row.due_at) : null,
+      status: status as ResearchDecision['status'],
+      created_by: row.created_by != null ? String(row.created_by) : null,
+      created_at: String(row.created_at),
+    };
+  }
+
+  private readonly decisionSelect = `
+    SELECT id, project_id, insight_id, decision_text, owner_email,
+           due_at::text AS due_at, status, created_by,
+           created_at::text AS created_at
+    FROM crm_research_decisions
+  `;
+
+  async listDecisions(projectId: number): Promise<ResearchDecision[]> {
+    const result = await this.db.query(
+      `${this.decisionSelect} WHERE project_id = $1 ORDER BY created_at DESC`,
+      [projectId],
+    );
+    return result.rows.map((row) => this.mapDecision(row));
+  }
+
+  async getDecision(id: number): Promise<ResearchDecision | null> {
+    const result = await this.db.query(`${this.decisionSelect} WHERE id = $1`, [id]);
+    const row = result.rows[0];
+    return row ? this.mapDecision(row) : null;
+  }
+
+  async createDecision(
+    projectId: number,
+    input: CreateDecisionInput,
+    actor: string,
+  ): Promise<ResearchDecision> {
+    const result = await this.db.query(
+      `INSERT INTO crm_research_decisions (
+         project_id, insight_id, decision_text, owner_email, due_at, status, created_by
+       ) VALUES ($1, $2, $3, $4, $5, 'open', $6)
+       RETURNING id, project_id, insight_id, decision_text, owner_email,
+                 due_at::text AS due_at, status, created_by,
+                 created_at::text AS created_at`,
+      [
+        projectId,
+        input.insight_id,
+        input.decision_text,
+        input.owner_email,
+        input.due_at ?? null,
+        actor,
+      ],
+    );
+    await this.db.query(`UPDATE crm_research_projects SET updated_at = now() WHERE id = $1`, [
+      projectId,
+    ]);
+    return this.mapDecision(result.rows[0]);
+  }
+
+  async patchDecision(id: number, input: PatchDecisionInput): Promise<ResearchDecision | null> {
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    const add = (col: string, value: unknown) => {
+      vals.push(value);
+      sets.push(`${col} = $${vals.length}`);
+    };
+    if (input.status != null) add('status', input.status);
+    if (input.due_at !== undefined) add('due_at', input.due_at);
+    if (input.owner_email != null) add('owner_email', input.owner_email);
+    if (sets.length === 0) {
+      return this.getDecision(id);
+    }
+    vals.push(id);
+    const result = await this.db.query(
+      `UPDATE crm_research_decisions SET ${sets.join(', ')} WHERE id = $${vals.length}
+       RETURNING id, project_id, insight_id, decision_text, owner_email,
+                 due_at::text AS due_at, status, created_by,
+                 created_at::text AS created_at`,
+      vals,
+    );
+    const row = result.rows[0];
+    return row ? this.mapDecision(row) : null;
   }
 
   private mapStudy(row: Record<string, unknown>): ResearchStudy {

@@ -101,6 +101,10 @@ describe('MarketResearchService', () => {
     findConsultFormDataByClientId: jest.fn(),
     listWaves: jest.fn(),
     createWave: jest.fn(),
+    listDecisions: jest.fn(),
+    createDecision: jest.fn(),
+    getDecision: jest.fn(),
+    patchDecision: jest.fn(),
   };
   const plans = {
     getPlanById: jest.fn(),
@@ -573,6 +577,112 @@ describe('MarketResearchService', () => {
     }
     expect(repo.listWaves).not.toHaveBeenCalled();
     expect(repo.getProject).not.toHaveBeenCalled();
+  });
+
+  it('POST decision with draft insight is 400 insight_not_approved', async () => {
+    stubScopedProject();
+    repo.getInsight.mockResolvedValue(insightRow({ status: 'draft' }));
+
+    try {
+      await service.createDecision(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        {
+          insight_id: 7,
+          decision_text: 'Launch premium SKU in Q4 after readout',
+          owner_email: 'am@ptt',
+        },
+        'am@ptt',
+      );
+      throw new Error('expected insight_not_approved');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'insight_not_approved' });
+    }
+    expect(repo.createDecision).not.toHaveBeenCalled();
+  });
+
+  it('POST decision with 3-char text is 400 validation_error', async () => {
+    stubScopedProject();
+    repo.getInsight.mockResolvedValue(insightRow({ status: 'approved_internal' }));
+
+    try {
+      await service.createDecision(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { insight_id: 7, decision_text: 'abc', owner_email: 'am@ptt' },
+        'am@ptt',
+      );
+      throw new Error('expected validation_error');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+      expect((err as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ error: 'validation_error' }),
+      );
+    }
+    expect(repo.createDecision).not.toHaveBeenCalled();
+  });
+
+  it('GET decisions out of scope is 403 without title', async () => {
+    repo.getProjectClientId.mockResolvedValue('other-client');
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.listDecisions.mockResolvedValue([
+      {
+        id: 1,
+        project_id: 9,
+        insight_id: 7,
+        decision_text: 'Secret title must not leak',
+        owner_email: 'am@ptt',
+        due_at: null,
+        status: 'open',
+        created_by: 'am@ptt',
+        created_at: '2026-08-14',
+      },
+    ]);
+
+    try {
+      await service.listDecisions(9, { restricted: true, allowedClientIds: ['acme'] });
+      throw new Error('expected forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const body = (err as ForbiddenException).getResponse();
+      expect(body).toEqual({ error: 'forbidden' });
+      expect(JSON.stringify(body)).not.toContain('title');
+      expect(JSON.stringify(body)).not.toContain('Secret title');
+    }
+    expect(repo.listDecisions).not.toHaveBeenCalled();
+    expect(repo.getProject).not.toHaveBeenCalled();
+  });
+
+  it('PATCH decision_text is 400 decision_locked', async () => {
+    stubScopedProject();
+    repo.getDecision.mockResolvedValue({
+      id: 3,
+      project_id: 9,
+      insight_id: 7,
+      decision_text: 'Launch premium SKU in Q4 after readout',
+      owner_email: 'am@ptt',
+      due_at: null,
+      status: 'open',
+      created_by: 'am@ptt',
+      created_at: '2026-08-14',
+    });
+
+    try {
+      await service.patchDecision(
+        3,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { decision_text: 'Rewrite the locked decision text' },
+      );
+      throw new Error('expected decision_locked');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'decision_locked' });
+    }
+    expect(repo.patchDecision).not.toHaveBeenCalled();
   });
 
   it('createEvidence with study_id and 800-char excerpt is 400 raw_transcript_forbidden', async () => {
@@ -1231,6 +1341,7 @@ describe('MarketResearchService', () => {
     );
     expect(repo.insertTrendSignal).not.toHaveBeenCalled();
     expect(repo.createInsight).not.toHaveBeenCalled();
+    expect(repo.createDecision).not.toHaveBeenCalled();
   });
 
   it('runPulse without lifecycle_id inserts signal and does not upsert alert', async () => {
@@ -1816,6 +1927,7 @@ describe('MarketResearchService', () => {
       });
     }
     expect(repo.updateReportVersionPortalVisible).not.toHaveBeenCalled();
+    expect(repo.createDecision).not.toHaveBeenCalled();
   });
 
   it('publish by generated_by is 403 cannot_self_approve', async () => {

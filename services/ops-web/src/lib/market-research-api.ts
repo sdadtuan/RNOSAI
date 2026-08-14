@@ -184,6 +184,7 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   insights_not_client_facing: 'Chỉ công bố khi insight đã duyệt bản khách. Không tự đăng.',
   waves_not_tracker: 'Waves chỉ dùng cho dự án TRACKER.',
   wave_no_duplicate: 'Số wave đã tồn tại trên dự án này.',
+  decision_locked: 'Không sửa nội dung decision — tạo dòng mới (BR-RES-05).',
 };
 
 export type MethodologyBlock = {
@@ -503,6 +504,46 @@ export type CreateWaveBody = {
   field_start?: string | null;
   field_end?: string | null;
   metric_json: { key: string; value: number | null }[];
+};
+
+export const DECISION_STATUSES = ['open', 'done', 'dropped'] as const;
+export type DecisionStatus = (typeof DECISION_STATUSES)[number];
+
+export const DECISION_STATUS_LABELS: Record<DecisionStatus, string> = {
+  open: 'Mở',
+  done: 'Xong',
+  dropped: 'Bỏ',
+};
+
+export const APPROVED_INTERNAL_PLUS: InsightStatus[] = [
+  'approved_internal',
+  'approved_client_facing',
+  'published',
+];
+
+export type ResearchDecision = {
+  id: number;
+  project_id: number;
+  insight_id: number;
+  decision_text: string;
+  owner_email: string;
+  due_at: string | null;
+  status: DecisionStatus;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type CreateDecisionBody = {
+  insight_id: number;
+  decision_text: string;
+  owner_email: string;
+  due_at?: string | null;
+};
+
+export type PatchDecisionBody = {
+  status?: DecisionStatus;
+  due_at?: string | null;
+  owner_email?: string;
 };
 
 export type ResearchSource = {
@@ -1156,6 +1197,35 @@ export async function createResearchWave(
 ): Promise<ResearchWave> {
   return researchFetch(token, `/api/v1/research/projects/${projectId}/waves`, {
     method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchResearchDecisions(
+  token: string,
+  projectId: number,
+): Promise<{ decisions: ResearchDecision[] }> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/decisions`);
+}
+
+export async function createResearchDecision(
+  token: string,
+  projectId: number,
+  body: CreateDecisionBody,
+): Promise<ResearchDecision> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/decisions`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchResearchDecision(
+  token: string,
+  decisionId: number,
+  body: PatchDecisionBody,
+): Promise<ResearchDecision> {
+  return researchFetch(token, `/api/v1/research/decisions/${decisionId}`, {
+    method: 'PATCH',
     body: JSON.stringify(body),
   });
 }

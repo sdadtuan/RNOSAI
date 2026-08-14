@@ -52,7 +52,9 @@ import type {
   CreateProjectInput,
   CreateStudyInput,
   CreateWaveInput,
+  CreateDecisionInput,
   ResearchConsent,
+  ResearchDecision,
   ResearchPrefill,
   ResearchStudy,
   ResearchWave,
@@ -64,6 +66,7 @@ import type {
   CreateReportResult,
   CreateSourceInput,
   PatchCompetitorInput,
+  PatchDecisionInput,
   PatchStudyInput,
   InsightCopilotInput,
   InsightCopilotResult,
@@ -100,14 +103,19 @@ import type {
   TrendSignal,
   SubmitReviewInput,
 } from './market-research.types';
-import { CONSENT_TYPES, STUDY_METHODS, STUDY_MODES } from './market-research.types';
+import { CONSENT_TYPES, DECISION_STATUSES, STUDY_METHODS, STUDY_MODES } from './market-research.types';
 import { buildResearchReportDocx, sectionsFromReportSnapshot } from './market-research-docx.util';
 import {
   buildReportSnapshot,
   CB_METHODOLOGY_STUB,
   type ResearchReportSnapshot,
 } from './market-research-report-snapshot.util';
-import { validateCreateEvidence, validateCreateProject, validateCreateWave } from './market-research.validation';
+import {
+  validateCreateDecision,
+  validateCreateEvidence,
+  validateCreateProject,
+  validateCreateWave,
+} from './market-research.validation';
 import { compareLatestWaves } from './wave-compare.util';
 import { buildResearchPrefill, EMPTY_RESEARCH_PREFILL, stripPrefillPii } from './research-prefill.util';
 import { assertMethodologyExportable } from './methodology-gate.util';
@@ -619,6 +627,74 @@ export class MarketResearchService {
       }
       throw err;
     }
+  }
+
+  async listDecisions(
+    projectId: number,
+    scope: ClientScopeContext,
+  ): Promise<{ decisions: ResearchDecision[] }> {
+    await this.loadScopedProject(projectId, scope);
+    const decisions = await this.repo.listDecisions(projectId);
+    return { decisions };
+  }
+
+  async createDecision(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: CreateDecisionInput,
+    actor: string,
+  ): Promise<ResearchDecision> {
+    await this.loadScopedProject(projectId, scope);
+    const messages = validateCreateDecision(input ?? ({} as CreateDecisionInput));
+    if (messages.length) {
+      throw new BadRequestException({ error: 'validation_error', messages });
+    }
+    const insight = await this.repo.getInsight(Number(input.insight_id));
+    if (!insight || insight.project_id !== projectId || !APPROVED_INTERNAL_PLUS.includes(insight.status)) {
+      throw new BadRequestException({ error: 'insight_not_approved' });
+    }
+    return this.repo.createDecision(
+      projectId,
+      {
+        insight_id: insight.id,
+        decision_text: String(input.decision_text).trim(),
+        owner_email: String(input.owner_email).trim(),
+        due_at: this.optionalDate(input.due_at, 'due_at'),
+      },
+      actor,
+    );
+  }
+
+  async patchDecision(
+    decisionId: number,
+    scope: ClientScopeContext,
+    input: PatchDecisionInput,
+  ): Promise<ResearchDecision> {
+    const existing = await this.repo.getDecision(decisionId);
+    if (!existing) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(existing.project_id, scope);
+    if (input != null && ('decision_text' in input || 'insight_id' in input)) {
+      throw new BadRequestException({ error: 'decision_locked' });
+    }
+    if (input?.status != null && !DECISION_STATUSES.includes(input.status)) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['status is invalid'],
+      });
+    }
+    if (input?.owner_email !== undefined && !String(input.owner_email).trim()) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['owner_email is required'],
+      });
+    }
+    const updated = await this.repo.patchDecision(decisionId, {
+      status: input?.status,
+      due_at: input?.due_at !== undefined ? this.optionalDate(input.due_at, 'due_at') : undefined,
+      owner_email: input?.owner_email != null ? String(input.owner_email).trim() : undefined,
+    });
+    if (!updated) throw new NotFoundException({ error: 'not_found' });
+    return updated;
   }
 
   async patchStudy(

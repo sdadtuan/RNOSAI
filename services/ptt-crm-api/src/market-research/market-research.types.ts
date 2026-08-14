@@ -540,6 +540,36 @@ export type WaveCompareRow = {
   delta: number | null;
 };
 
+export const DECISION_STATUSES = ['open', 'done', 'dropped'] as const;
+export type DecisionStatus = (typeof DECISION_STATUSES)[number];
+
+export type ResearchDecision = {
+  id: number;
+  project_id: number;
+  insight_id: number;
+  decision_text: string;
+  owner_email: string;
+  due_at: string | null;
+  status: DecisionStatus;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type CreateDecisionInput = {
+  insight_id: number;
+  decision_text: string;
+  owner_email: string;
+  due_at?: string | null;
+};
+
+export type PatchDecisionInput = {
+  status?: DecisionStatus;
+  due_at?: string | null;
+  owner_email?: string;
+  decision_text?: string;
+  insight_id?: number;
+};
+
 export type ResearchReportRow = {
   id: number;
   project_id: number;

@@ -1,5 +1,10 @@
 import { PRODUCT_TYPES } from './market-research.constants';
-import type { CreateEvidenceInput, CreateProjectInput, CreateWaveInput } from './market-research.types';
+import type {
+  CreateDecisionInput,
+  CreateEvidenceInput,
+  CreateProjectInput,
+  CreateWaveInput,
+} from './market-research.types';
 
 export function validateCreateProject(input: CreateProjectInput): string[] {
   const messages: string[] = [];
@@ -80,6 +85,21 @@ export function validateCreateWave(input: CreateWaveInput): string[] {
       messages.push('metric value must be number or null');
       break;
     }
+  }
+  return messages;
+}
+
+export function validateCreateDecision(input: CreateDecisionInput): string[] {
+  const messages: string[] = [];
+  if (String(input?.decision_text ?? '').trim().length < 10) {
+    messages.push('decision_text must be at least 10 characters');
+  }
+  if (!String(input?.owner_email ?? '').trim()) {
+    messages.push('owner_email is required');
+  }
+  const insightId = Number(input?.insight_id);
+  if (!Number.isInteger(insightId) || insightId < 1) {
+    messages.push('insight_id is required');
   }
   return messages;
 }
