@@ -190,6 +190,28 @@ export class JobQueueRepository implements OnModuleDestroy {
     });
   }
 
+  /** P5 M3 — async SparkToro audience source candidates. */
+  async enqueueResearchSparktoroJob(input: {
+    projectId: number;
+    questionId: number;
+    runId: number;
+    clientId?: string | null;
+    idempotencyKey: string;
+  }): Promise<EnqueuedJob | null> {
+    if (!this.config.jobsEnabled) return null;
+    return this.enqueueJobRecord({
+      jobType: 'research_sparktoro',
+      payload: {
+        project_id: input.projectId,
+        question_id: input.questionId,
+        run_id: input.runId,
+      },
+      idempotencyKey: input.idempotencyKey,
+      clientId: this.normalizeClientUuid(input.clientId ?? undefined),
+      maxAttempts: 2,
+    });
+  }
+
   /** M6 — async dual Tavily triangulation (basic + advanced). */
   async enqueueResearchTriangulateJob(input: {
     projectId: number;

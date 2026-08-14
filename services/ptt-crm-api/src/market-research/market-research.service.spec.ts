@@ -16,9 +16,14 @@ import type {
   ResearchReportVersionRow,
 } from './market-research.types';
 import { transcribeAudio } from './whisper-transcribe';
+import { collectSparkToro } from './sparktoro-collect';
 
 jest.mock('./whisper-transcribe', () => ({
   transcribeAudio: jest.fn(),
+}));
+
+jest.mock('./sparktoro-collect', () => ({
+  collectSparkToro: jest.fn(),
 }));
 
 const project: ResearchProjectRow = {
@@ -132,6 +137,7 @@ describe('MarketResearchService', () => {
     enqueueResearchTriangulateJob: jest.fn(),
     enqueueResearchPulseJob: jest.fn(),
     enqueueResearchWhisperJob: jest.fn(),
+    enqueueResearchSparktoroJob: jest.fn(),
   };
   const opsAlerts = {
     upsertAlert: jest.fn(),
@@ -147,6 +153,8 @@ describe('MarketResearchService', () => {
   const config = {
     researchDeepProvider: 'openai',
     maxTavilyCreditsPerResearch: 12,
+    researchSparktoroEnabled: false,
+    sparktoroApiKey: '',
   };
 
   let service: MarketResearchService;
@@ -155,6 +163,8 @@ describe('MarketResearchService', () => {
     jest.clearAllMocks();
     config.researchDeepProvider = 'openai';
     config.maxTavilyCreditsPerResearch = 12;
+    config.researchSparktoroEnabled = false;
+    config.sparktoroApiKey = '';
     repo.listTrendSignals.mockResolvedValue([]);
     llm.isConfigured.mockReturnValue(true);
     service = new MarketResearchService(
@@ -1641,6 +1651,253 @@ describe('MarketResearchService', () => {
     } finally {
       if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
     }
+  });
+
+  it('M3-2a: runSparktoro enqueue does not createInsight', async () => {
+    stubScopedProject();
+    config.researchSparktoroEnabled = true;
+    config.sparktoroApiKey = 'st-test-key';
+    repo.getQuestion.mockResolvedValue({
+      id: 10,
+      project_id: 9,
+      sort_order: 1,
+      question_vi: 'Ai overlap audience sữa uống?',
+      question_en: null,
+      analysis_frame: null,
+      created_at: '2026-08-14',
+    });
+    repo.insertAiRun.mockResolvedValue({
+      id: 81,
+      project_id: 9,
+      question_id: 10,
+      job_type: 'sparktoro',
+      provider: 'sparktoro',
+      status: 'pending',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: null,
+    });
+    jobQueue.enqueueResearchSparktoroJob.mockResolvedValue({ id: 'job-st' });
+
+    const out = await service.runSparktoro(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { question_id: 10 },
+      'am@ptt',
+    );
+
+    expect(out).toEqual({ ok: true, run_id: 81, status: 'pending' });
+    expect(repo.insertAiRun).toHaveBeenCalledWith(
+      expect.objectContaining({ jobType: 'sparktoro', provider: 'sparktoro' }),
+    );
+    expect(jobQueue.enqueueResearchSparktoroJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 9,
+        questionId: 10,
+        runId: 81,
+        idempotencyKey: 'research_sparktoro:9:10:run:81',
+      }),
+    );
+    expect(repo.createSource).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+    expect(collectSparkToro).not.toHaveBeenCalled();
+  });
+
+  it('M3-2b: runSparktoro with email in question_vi is 400 and does not enqueue', async () => {
+    stubScopedProject();
+    config.researchSparktoroEnabled = true;
+    config.sparktoroApiKey = 'st-test-key';
+    repo.getQuestion.mockResolvedValue({
+      id: 10,
+      project_id: 9,
+      sort_order: 1,
+      question_vi: 'Gửi kết quả cho analyst@ptt.vn',
+      question_en: null,
+      analysis_frame: null,
+      created_at: '2026-08-14',
+    });
+
+    try {
+      await service.runSparktoro(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { question_id: 10 },
+        'am@ptt',
+      );
+      throw new Error('expected pii 400');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ error: 'validation_error' }),
+      );
+    }
+    expect(jobQueue.enqueueResearchSparktoroJob).not.toHaveBeenCalled();
+    expect(repo.insertAiRun).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('M3-2c: jobs_disabled persist SparkToro source with medium tier and limitation', async () => {
+    stubScopedProject();
+    config.researchSparktoroEnabled = true;
+    config.sparktoroApiKey = 'st-test-key';
+    repo.getQuestion.mockResolvedValue({
+      id: 10,
+      project_id: 9,
+      sort_order: 1,
+      question_vi: 'Ai overlap audience sữa uống?',
+      question_en: null,
+      analysis_frame: null,
+      created_at: '2026-08-14',
+    });
+    repo.insertAiRun.mockResolvedValue({
+      id: 82,
+      project_id: 9,
+      question_id: 10,
+      job_type: 'sparktoro',
+      provider: 'sparktoro',
+      status: 'pending',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: null,
+    });
+    jobQueue.enqueueResearchSparktoroJob.mockResolvedValue(null);
+    (collectSparkToro as jest.Mock).mockResolvedValue({
+      results: [
+        {
+          url: 'https://sparktoro.com/audience/sua-uong',
+          title: 'Audience overlap sữa uống',
+          snippet: 'Ước lượng overlap audience ngành sữa uống tại VN.',
+        },
+      ],
+    });
+    repo.createSource.mockResolvedValue({
+      id: 44,
+      project_id: 9,
+      question_id: 10,
+      title: 'Audience overlap sữa uống',
+      publisher: 'SparkToro',
+      url: 'https://sparktoro.com/audience/sua-uong',
+      reliability_tier: 'medium',
+      limitation_note:
+        'Ước lượng audience SparkToro — không phải census. Không suy “người Việt nghĩ rằng…”.',
+      ai_generated: true,
+      keep: true,
+    });
+    repo.succeedAiRun.mockResolvedValue({
+      id: 82,
+      project_id: 9,
+      question_id: 10,
+      job_type: 'sparktoro',
+      provider: 'sparktoro',
+      status: 'succeeded',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: '2026-08-14',
+    });
+
+    const out = await service.runSparktoro(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { question_id: 10 },
+      'am@ptt',
+    );
+
+    expect(out.ok).toBe(true);
+    expect(out.run_id).toBe(82);
+    expect(repo.createSource).toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({
+        title: 'Audience overlap sữa uống',
+        publisher: 'SparkToro',
+        url: 'https://sparktoro.com/audience/sua-uong',
+        reliability_tier: 'medium',
+        limitation_note: expect.stringMatching(/\S/),
+        question_id: 10,
+        ai_generated: true,
+        keep: true,
+      }),
+    );
+    const tier = repo.createSource.mock.calls[0][1].reliability_tier;
+    expect(['low', 'medium']).toContain(tier);
+    expect(repo.createInsight).not.toHaveBeenCalled();
+    expect(collectSparkToro).toHaveBeenCalledWith(
+      expect.objectContaining({ query: expect.stringContaining('Ai overlap audience sữa uống?') }),
+    );
+  });
+
+  it('flag or key off returns sparktoro_disabled without enqueue or insight', async () => {
+    stubScopedProject();
+    repo.getQuestion.mockResolvedValue({
+      id: 10,
+      project_id: 9,
+      sort_order: 1,
+      question_vi: 'Ai overlap audience sữa uống?',
+      question_en: null,
+      analysis_frame: null,
+      created_at: '2026-08-14',
+    });
+
+    const out = await service.runSparktoro(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { question_id: 10 },
+      'am@ptt',
+    );
+
+    expect(out).toEqual({ ok: true, note: 'sparktoro_disabled' });
+    expect(jobQueue.enqueueResearchSparktoroJob).not.toHaveBeenCalled();
+    expect(repo.createSource).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+    expect(repo.insertAiRun).not.toHaveBeenCalled();
+    expect(collectSparkToro).not.toHaveBeenCalled();
+  });
+
+  it('M3-2d: acceptSingleSource outside scope is 403 without source title or competitor/study name', async () => {
+    repo.getSource.mockResolvedValue({
+      id: 5,
+      project_id: 9,
+      title: 'SecretSourceTitle',
+      publisher: 'SparkToro',
+      single_source_accepted: false,
+      triangulated: false,
+    });
+    repo.getProjectClientId.mockResolvedValue('other-client');
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.listCompetitors.mockResolvedValue([
+      { id: 4, project_id: 9, name: 'SecretRivalName', aliases: [], snapshots: [] },
+    ]);
+    repo.getStudy.mockResolvedValue({
+      id: 4,
+      project_id: 9,
+      name: 'SecretStudyName',
+      method: 'idi',
+      n: 8,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    });
+
+    try {
+      await service.acceptSingleSource(5, { restricted: true, allowedClientIds: ['acme'] });
+      throw new Error('expected forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const body = (err as ForbiddenException).getResponse();
+      expect(body).toEqual({ error: 'forbidden' });
+      expect(JSON.stringify(body)).not.toContain('SecretSourceTitle');
+      expect(JSON.stringify(body)).not.toContain('SecretRivalName');
+      expect(JSON.stringify(body)).not.toContain('SecretStudyName');
+      expect(JSON.stringify(body)).not.toContain('title');
+      expect(JSON.stringify(body)).not.toContain('name');
+    }
+    expect(repo.acceptSingleSource).not.toHaveBeenCalled();
+    expect(repo.listCompetitors).not.toHaveBeenCalled();
+    expect(repo.getStudy).not.toHaveBeenCalled();
   });
 
   it('getEvidence outside scope is 403 without study name in the body', async () => {

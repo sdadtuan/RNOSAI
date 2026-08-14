@@ -313,6 +313,57 @@ def insert_ai_sources(
     return ids
 
 
+def insert_sparktoro_sources(
+    *,
+    project_id: int,
+    question_id: int,
+    sources: list[dict[str, Any]],
+    geo: list[str] | None = None,
+) -> list[int]:
+    ids: list[int] = []
+    geo_text = (geo or [None])[0] if geo else None
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            for src in sources:
+                title = str(src.get("title") or src.get("url") or "").strip()
+                url = str(src.get("url") or "").strip() or None
+                if not title:
+                    continue
+                tier = str(src.get("reliability_tier") or "medium").strip()
+                if tier not in {"low", "medium"}:
+                    continue
+                note = str(src.get("limitation_note") or "").strip()
+                if not note:
+                    continue
+                cur.execute(
+                    """
+                    INSERT INTO crm_research_sources (
+                      project_id, question_id, source_type, title, publisher, url,
+                      accessed_at, geo, reliability_tier, limitation_note,
+                      ai_generated, keep, triangulated
+                    ) VALUES (
+                      %s, %s, %s, %s, 'SparkToro', %s, now(), %s, %s, %s, true, true, false
+                    )
+                    RETURNING id
+                    """,
+                    (
+                        project_id,
+                        question_id,
+                        str(src.get("source_type") or "web"),
+                        title[:500],
+                        url,
+                        geo_text,
+                        tier,
+                        note,
+                    ),
+                )
+                row = cur.fetchone()
+                if row:
+                    ids.append(int(row[0]))
+        conn.commit()
+    return ids
+
+
 def insert_evidence(
     *,
     project_id: int,

@@ -1,1 +1,1 @@
-"""Market Research OS — Python workers (desk, deep, triangulate, pulse, whisper)."""
+"""Market Research OS — Python workers (desk, deep, triangulate, pulse, whisper, sparktoro)."""

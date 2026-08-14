@@ -14,3 +14,8 @@ def strip_pii(text: str) -> str:
     cleaned = _EMAIL_RE.sub(" ", str(text or ""))
     cleaned = _PHONE_RE.sub(" ", cleaned)
     return " ".join(cleaned.split())
+
+
+def pii_hint(text: str) -> bool:
+    raw = str(text or "")
+    return bool(_EMAIL_RE.search(raw) or _PHONE_RE.search(raw))

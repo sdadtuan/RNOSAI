@@ -11,14 +11,14 @@ export function sanitizeCompetitorFact(raw: unknown): CompetitorFact {
   return out;
 }
 
-export function assertSimilarwebTier(input: {
+export function assertPaidEstimateTier(input: {
   publisher?: string | null;
   url?: string | null;
   reliability_tier: string;
   limitation_note?: string | null;
 }): void {
   const hay = `${input.publisher ?? ''} ${input.url ?? ''}`.toLowerCase();
-  const paid = /similarweb|semrush/.test(hay);
+  const paid = /similarweb|semrush|sparktoro/.test(hay);
   if (!paid) return;
   if (!['low', 'medium'].includes(input.reliability_tier)) {
     throw Object.assign(new Error('reliability_capped'), { code: 'reliability_capped' });
@@ -27,3 +27,5 @@ export function assertSimilarwebTier(input: {
     throw Object.assign(new Error('limitation_required'), { code: 'limitation_required' });
   }
 }
+
+export const assertSimilarwebTier = assertPaidEstimateTier;

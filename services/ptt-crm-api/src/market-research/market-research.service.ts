@@ -48,6 +48,8 @@ import {
 } from './study-consent.util';
 import { assertNoRawInPayload, excerptsFromTranscript } from './whisper-excerpt.util';
 import { transcribeAudio } from './whisper-transcribe';
+import { collectSparkToro } from './sparktoro-collect';
+import { mapSparkToroResponse } from './sparktoro-mapper.util';
 import type {
   ApproveInsightInput,
   ConfidenceJson,
@@ -108,6 +110,8 @@ import type {
   RunDeskResult,
   RunPulseInput,
   RunPulseResult,
+  RunSparktoroInput,
+  RunSparktoroResult,
   RunTriangulateResult,
   WhisperIngestResult,
   TrendSignal,
@@ -1441,6 +1445,93 @@ export class MarketResearchService {
     return { ok: true, run_id: run.id, status: 'pending' };
   }
 
+  async runSparktoro(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: RunSparktoroInput,
+    actor: string,
+  ): Promise<RunSparktoroResult> {
+    const project = await this.loadScopedProject(projectId, scope);
+    const questionId = Number(input.question_id);
+    if (!Number.isFinite(questionId) || questionId <= 0) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['question_id is required'],
+      });
+    }
+    const question = await this.repo.getQuestion(questionId);
+    if (!question || question.project_id !== projectId) {
+      throw new NotFoundException({ error: 'not_found' });
+    }
+    if (piiHint(question.question_vi)) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['question_vi contains pii'],
+      });
+    }
+    const apiKey = String(this.config.sparktoroApiKey ?? '').trim();
+    if (!this.config.researchSparktoroEnabled || !apiKey) {
+      return { ok: true, note: 'sparktoro_disabled' };
+    }
+    const run = await this.repo.insertAiRun({
+      projectId,
+      questionId,
+      jobType: 'sparktoro',
+      provider: 'sparktoro',
+      actor,
+    });
+    const job = await this.jobQueue.enqueueResearchSparktoroJob({
+      projectId,
+      questionId,
+      runId: run.id,
+      clientId: project.client_id,
+      idempotencyKey: `research_sparktoro:${projectId}:${questionId}:run:${run.id}`,
+    });
+    if (job) {
+      return { ok: true, run_id: run.id, status: 'pending' };
+    }
+    return this.persistSparktoroSources({
+      projectId,
+      questionId,
+      runId: run.id,
+      questionVi: question.question_vi,
+      geo: project.geo,
+      apiKey,
+    });
+  }
+
+  private async persistSparktoroSources(input: {
+    projectId: number;
+    questionId: number;
+    runId: number;
+    questionVi: string;
+    geo: string[];
+    apiKey: string;
+  }): Promise<RunSparktoroResult> {
+    const query = [input.questionVi.trim(), ...input.geo.map((g) => String(g).trim()).filter(Boolean)]
+      .join(' ')
+      .slice(0, 500);
+    const raw = await collectSparkToro({ query, apiKey: input.apiKey });
+    const candidates = mapSparkToroResponse(raw);
+    const source_ids: number[] = [];
+    for (const row of candidates) {
+      const created = await this.repo.createSource(input.projectId, {
+        title: row.title,
+        url: row.url,
+        publisher: row.publisher,
+        reliability_tier: row.reliability_tier,
+        limitation_note: row.limitation_note,
+        question_id: input.questionId,
+        source_type: 'web',
+        ai_generated: true,
+        keep: true,
+      });
+      source_ids.push(created.id);
+    }
+    await this.repo.succeedAiRun(input.runId, { outputJson: { source_ids, query } });
+    return { ok: true, run_id: input.runId, status: 'succeeded', source_ids };
+  }
+
   private async persistPulseSignalsFromSnapshots(project: ResearchProjectRow): Promise<TrendSignal[]> {
     const competitors = await this.repo.listCompetitors(project.id);
     const signals: TrendSignal[] = [];
@@ -2093,7 +2184,7 @@ export class MarketResearchService {
 
   private effectiveSimilarwebTier(source: ResearchSourceRow): string {
     const hay = `${source.publisher ?? ''} ${source.url ?? ''}`.toLowerCase();
-    const paid = /similarweb|semrush/.test(hay);
+    const paid = /similarweb|semrush|sparktoro/.test(hay);
     const tier = String(source.reliability_tier ?? '').trim();
     if (paid && (tier === 'unknown' || tier === '')) return 'medium';
     return source.reliability_tier;

@@ -16,12 +16,13 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { memoryStorage } from 'multer';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
@@ -72,6 +73,7 @@ import type {
   RunDeepInput,
   RunDeskInput,
   RunPulseInput,
+  RunSparktoroInput,
 } from './market-research.types';
 
 const WHISPER_MAX_BYTES = 25 * 1024 * 1024;
@@ -278,6 +280,25 @@ export class MarketResearchController {
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.runPulse(id, scope, body ?? {}, actorEmail(req));
+  }
+
+  @Post('projects/:id/run-sparktoro')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  async runSparktoro(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: RunSparktoroInput,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    const out = await this.research.runSparktoro(
+      id,
+      scope,
+      body ?? ({} as RunSparktoroInput),
+      actorEmail(req),
+    );
+    res.status(out.note === 'sparktoro_disabled' ? HttpStatus.OK : HttpStatus.ACCEPTED);
+    return out;
   }
 
   @Get('projects/:id/jobs/:runId')

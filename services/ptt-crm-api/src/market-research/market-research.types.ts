@@ -370,6 +370,27 @@ export type WhisperIngestResult = {
   note?: string;
 };
 
+export type SparkToroSourceCandidate = {
+  url: string;
+  title: string;
+  publisher: 'SparkToro';
+  reliability_tier: 'low' | 'medium';
+  limitation_note: string;
+  snippet: string; // ≤ 500, không PII
+};
+
+export type RunSparktoroInput = {
+  question_id: number;
+};
+
+export type RunSparktoroResult = {
+  ok: true;
+  run_id?: number;
+  status?: string;
+  note?: string;
+  source_ids?: number[];
+};
+
 export type CreateSourceInput = {
   title: string;
   source_type?: string;
@@ -380,7 +401,10 @@ export type CreateSourceInput = {
   geo?: string | null;
   license_note?: string | null;
   reliability_tier?: string;
+  limitation_note?: string | null;
   question_id?: number | null;
+  ai_generated?: boolean;
+  keep?: boolean | null;
 };
 
 export type PatchSourceInput = {
@@ -426,6 +450,7 @@ export type ResearchSourceRow = {
   geo: string | null;
   license_note: string | null;
   reliability_tier: string;
+  limitation_note: string | null;
   snapshot_uri: string | null;
   content_hash: string | null;
   ai_generated: boolean;

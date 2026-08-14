@@ -34,6 +34,8 @@ describe('Market Research config parse', () => {
     'MAX_TAVILY_CREDITS_PER_RESEARCH',
     'RESEARCH_DEEP_PROVIDER',
     'RESEARCH_DEEP_TIMEOUT_SEC',
+    'RESEARCH_SPARKTORO_ENABLED',
+    'SPARKTORO_API_KEY',
   ];
 
   beforeEach(() => {
@@ -56,6 +58,8 @@ describe('Market Research config parse', () => {
     expect(config.maxTavilyCreditsPerResearch).toBe(12);
     expect(config.researchDeepProvider).toBe('openai');
     expect(config.researchDeepTimeoutSec).toBe(900);
+    expect(config.researchSparktoroEnabled).toBe(false);
+    expect(config.sparktoroApiKey).toBe('');
   });
 
   it('parses enabled flag and numeric caps from env', () => {
@@ -68,5 +72,15 @@ describe('Market Research config parse', () => {
     expect(config.maxTavilyCreditsPerResearch).toBe(8);
     expect(config.researchDeepProvider).toBe('anthropic');
     expect(config.researchDeepTimeoutSec).toBe(120);
+    expect(config.researchSparktoroEnabled).toBe(false);
+    expect(config.sparktoroApiKey).toBe('');
+  });
+
+  it('parses SparkToro flag on and key without exposing the key in health-shaped fields', () => {
+    process.env.RESEARCH_SPARKTORO_ENABLED = '1';
+    process.env.SPARKTORO_API_KEY = 'st-secret';
+    const config = new AppConfigService();
+    expect(config.researchSparktoroEnabled).toBe(true);
+    expect(config.sparktoroApiKey).toBe('st-secret');
   });
 });

@@ -400,6 +400,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
       geo: row.geo != null ? String(row.geo) : null,
       license_note: row.license_note != null ? String(row.license_note) : null,
       reliability_tier: String(row.reliability_tier ?? 'unknown'),
+      limitation_note: row.limitation_note != null ? String(row.limitation_note) : null,
       snapshot_uri: row.snapshot_uri != null ? String(row.snapshot_uri) : null,
       content_hash: row.content_hash != null ? String(row.content_hash) : null,
       ai_generated: Boolean(row.ai_generated),
@@ -439,7 +440,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
   private readonly sourceSelect = `
     SELECT id, project_id, question_id, source_type, title, publisher, url,
            published_at::text AS published_at, accessed_at::text AS accessed_at,
-           geo, license_note, reliability_tier, snapshot_uri, content_hash,
+           geo, license_note, reliability_tier, limitation_note, snapshot_uri, content_hash,
            ai_generated, keep, triangulated, single_source_accepted, superseded_by,
            created_at::text AS created_at, updated_at::text AS updated_at
     FROM crm_research_sources
@@ -471,11 +472,12 @@ export class MarketResearchRepository implements OnModuleDestroy {
     const result = await this.db.query(
       `INSERT INTO crm_research_sources (
          project_id, question_id, source_type, title, publisher, url,
-         published_at, accessed_at, geo, license_note, reliability_tier, ai_generated
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false)
+         published_at, accessed_at, geo, license_note, reliability_tier, limitation_note,
+         ai_generated, keep
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING id, project_id, question_id, source_type, title, publisher, url,
                  published_at::text AS published_at, accessed_at::text AS accessed_at,
-                 geo, license_note, reliability_tier, snapshot_uri, content_hash,
+                 geo, license_note, reliability_tier, limitation_note, snapshot_uri, content_hash,
                  ai_generated, keep, triangulated, single_source_accepted, superseded_by,
                  created_at::text AS created_at, updated_at::text AS updated_at`,
       [
@@ -490,6 +492,9 @@ export class MarketResearchRepository implements OnModuleDestroy {
         input.geo?.trim() || null,
         input.license_note?.trim() || null,
         String(input.reliability_tier ?? 'unknown').trim() || 'unknown',
+        input.limitation_note?.trim() || null,
+        input.ai_generated === true,
+        input.keep === undefined ? null : input.keep,
       ],
     );
     await this.db.query(`UPDATE crm_research_projects SET updated_at = now() WHERE id = $1`, [
@@ -503,7 +508,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
       `UPDATE crm_research_sources SET keep = $1, updated_at = now() WHERE id = $2
        RETURNING id, project_id, question_id, source_type, title, publisher, url,
                  published_at::text AS published_at, accessed_at::text AS accessed_at,
-                 geo, license_note, reliability_tier, snapshot_uri, content_hash,
+                 geo, license_note, reliability_tier, limitation_note, snapshot_uri, content_hash,
                  ai_generated, keep, triangulated, single_source_accepted, superseded_by,
                  created_at::text AS created_at, updated_at::text AS updated_at`,
       [keep, id],
@@ -921,7 +926,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
        WHERE id = $1
        RETURNING id, project_id, question_id, source_type, title, publisher, url,
                  published_at::text AS published_at, accessed_at::text AS accessed_at,
-                 geo, license_note, reliability_tier, snapshot_uri, content_hash,
+                 geo, license_note, reliability_tier, limitation_note, snapshot_uri, content_hash,
                  ai_generated, keep, triangulated, single_source_accepted, superseded_by,
                  created_at::text AS created_at, updated_at::text AS updated_at`,
       [id],

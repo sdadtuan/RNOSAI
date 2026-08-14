@@ -102,6 +102,8 @@ export class AppConfigService {
   readonly maxTavilyCreditsPerResearch: number;
   readonly researchDeepProvider: string;
   readonly researchDeepTimeoutSec: number;
+  readonly researchSparktoroEnabled: boolean;
+  readonly sparktoroApiKey: string;
   readonly lmpPilotOnly: boolean;
   readonly lmpPilotClientIds: string[];
   readonly presalesBatchUpgradeEnabled: boolean;
@@ -375,6 +377,10 @@ export class AppConfigService {
       60,
       Number((process.env.RESEARCH_DEEP_TIMEOUT_SEC ?? '900').trim()) || 900,
     );
+    this.researchSparktoroEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.RESEARCH_SPARKTORO_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.sparktoroApiKey = (process.env.SPARKTORO_API_KEY ?? '').trim();
     this.lmpPilotOnly = !['0', 'false', 'no', 'off'].includes(
       (process.env.PTT_LMP_PILOT_ONLY ?? '1').trim().toLowerCase(),
     );
