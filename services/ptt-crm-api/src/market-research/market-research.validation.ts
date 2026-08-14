@@ -107,3 +107,12 @@ export function validateCreateDecision(input: CreateDecisionInput): string[] {
   }
   return messages;
 }
+
+const THEME_CODE_RE = /^[A-Z][A-Z0-9_]{1,31}$/;
+
+export function validateThemeCode(code: string): 'taxonomy_code_invalid' | undefined {
+  if (!THEME_CODE_RE.test(String(code ?? '').trim())) {
+    return 'taxonomy_code_invalid';
+  }
+  return undefined;
+}

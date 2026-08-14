@@ -30,6 +30,9 @@ import type {
   ListProjectsFilters,
   RagEmbeddingRow,
   UpsertInsightEmbeddingInput,
+  TaxonomyTheme,
+  CreateTaxonomyInput,
+  PatchTaxonomyInput,
   OpsAnalyticsRaw,
   PatchCompetitorInput,
   PatchEvidenceInput,
@@ -48,6 +51,16 @@ import type {
   ResearchSourceRow,
   TrendSignal,
 } from './market-research.types';
+
+function mapTaxonomy(row: Record<string, unknown>): TaxonomyTheme {
+  return {
+    id: Number(row.id),
+    theme_code: String(row.theme_code),
+    label_vi: String(row.label_vi),
+    synonyms: Array.isArray(row.synonyms) ? row.synonyms.map((s) => String(s)) : [],
+    active: Boolean(row.active),
+  };
+}
 
 function parseJsonCol<T>(val: unknown, fallback: T): T {
   if (val == null) return fallback;
@@ -1902,7 +1915,14 @@ export class MarketResearchRepository implements OnModuleDestroy {
         SELECT 1
         FROM crm_research_insight_themes it2
         JOIN crm_research_taxonomy t2 ON t2.id = it2.taxonomy_id
-        WHERE it2.insight_id = i.id AND t2.theme_code = $${params.length}
+        WHERE it2.insight_id = i.id
+          AND (
+            lower(t2.theme_code) = lower($${params.length})
+            OR EXISTS (
+              SELECT 1 FROM unnest(t2.synonyms) syn
+              WHERE lower(syn) = lower($${params.length})
+            )
+          )
       )`);
     }
     const extra = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -1917,7 +1937,17 @@ export class MarketResearchRepository implements OnModuleDestroy {
               COALESCE(
                 array_agg(t.theme_code) FILTER (WHERE t.theme_code IS NOT NULL),
                 '{}'
-              ) AS theme_codes
+              ) AS theme_codes,
+              COALESCE(
+                (
+                  SELECT array_agg(s)
+                  FROM crm_research_insight_themes it3
+                  JOIN crm_research_taxonomy t3 ON t3.id = it3.taxonomy_id
+                  CROSS JOIN unnest(t3.synonyms) s
+                  WHERE it3.insight_id = i.id
+                ),
+                '{}'
+              ) AS theme_synonyms
        FROM crm_research_insight_embeddings e
        JOIN crm_research_insights i ON i.id = e.insight_id
        JOIN crm_research_projects p ON p.id = e.project_id
@@ -1938,8 +1968,80 @@ export class MarketResearchRepository implements OnModuleDestroy {
       theme_codes: Array.isArray(row.theme_codes)
         ? row.theme_codes.map((code: unknown) => String(code))
         : [],
+      theme_synonyms: Array.isArray(row.theme_synonyms)
+        ? row.theme_synonyms.map((syn: unknown) => String(syn))
+        : [],
       client_id: row.client_id != null ? String(row.client_id) : undefined,
     }));
+  }
+
+  async listTaxonomy(): Promise<TaxonomyTheme[]> {
+    const result = await this.db.query(
+      `SELECT id, theme_code, label_vi, synonyms, active
+       FROM crm_research_taxonomy
+       ORDER BY theme_code ASC`,
+    );
+    return result.rows.map((row) => mapTaxonomy(row));
+  }
+
+  async getTaxonomy(id: number): Promise<TaxonomyTheme | null> {
+    const result = await this.db.query(
+      `SELECT id, theme_code, label_vi, synonyms, active
+       FROM crm_research_taxonomy WHERE id = $1`,
+      [id],
+    );
+    return result.rows[0] ? mapTaxonomy(result.rows[0]) : null;
+  }
+
+  async createTaxonomy(input: CreateTaxonomyInput & { synonyms: string[] }): Promise<TaxonomyTheme> {
+    const result = await this.db.query(
+      `INSERT INTO crm_research_taxonomy (theme_code, label_vi, synonyms)
+       VALUES ($1, $2, $3::text[])
+       RETURNING id, theme_code, label_vi, synonyms, active`,
+      [input.theme_code, input.label_vi, input.synonyms],
+    );
+    return mapTaxonomy(result.rows[0]);
+  }
+
+  async patchTaxonomy(id: number, input: PatchTaxonomyInput): Promise<TaxonomyTheme | null> {
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    if (input.label_vi != null) {
+      params.push(input.label_vi);
+      sets.push(`label_vi = $${params.length}`);
+    }
+    if (input.synonyms != null) {
+      params.push(input.synonyms);
+      sets.push(`synonyms = $${params.length}::text[]`);
+    }
+    if (input.active != null) {
+      params.push(input.active);
+      sets.push(`active = $${params.length}`);
+    }
+    if (sets.length === 0) return this.getTaxonomy(id);
+    params.push(id);
+    const result = await this.db.query(
+      `UPDATE crm_research_taxonomy SET ${sets.join(', ')} WHERE id = $${params.length}
+       RETURNING id, theme_code, label_vi, synonyms, active`,
+      params,
+    );
+    return result.rows[0] ? mapTaxonomy(result.rows[0]) : null;
+  }
+
+  async attachInsightTheme(insightId: number, taxonomyId: number, actor: string): Promise<void> {
+    await this.db.query(
+      `INSERT INTO crm_research_insight_themes (insight_id, taxonomy_id, created_by)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (insight_id, taxonomy_id) DO NOTHING`,
+      [insightId, taxonomyId, actor],
+    );
+  }
+
+  async detachInsightTheme(insightId: number, taxonomyId: number): Promise<void> {
+    await this.db.query(
+      `DELETE FROM crm_research_insight_themes WHERE insight_id = $1 AND taxonomy_id = $2`,
+      [insightId, taxonomyId],
+    );
   }
 
   async getOpsAnalytics(

@@ -117,6 +117,10 @@ import type {
   RunSparktoroResult,
   RagSearchResult,
   SearchInsightsInput,
+  TaxonomyTheme,
+  CreateTaxonomyInput,
+  PatchTaxonomyInput,
+  AttachInsightThemeInput,
   RunQualtricsResult,
   RunTriangulateResult,
   WhisperIngestResult,
@@ -158,6 +162,7 @@ import {
   validateCreateEvidence,
   validateCreateProject,
   validateCreateWave,
+  validateThemeCode,
 } from './market-research.validation';
 import { compareLatestWaves } from './wave-compare.util';
 import { buildResearchPrefill, EMPTY_RESEARCH_PREFILL, stripPrefillPii } from './research-prefill.util';
@@ -1605,6 +1610,84 @@ export class MarketResearchService {
     return { hits: rankRagHits(q, rows, { theme_code: themeCode, limit }) };
   }
 
+  async listTaxonomy(): Promise<{ themes: TaxonomyTheme[] }> {
+    return { themes: await this.repo.listTaxonomy() };
+  }
+
+  async createTaxonomy(input: CreateTaxonomyInput): Promise<TaxonomyTheme> {
+    const themeCode = String(input.theme_code ?? '').trim();
+    if (validateThemeCode(themeCode)) {
+      throw new BadRequestException({ error: 'taxonomy_code_invalid' });
+    }
+    const labelVi = String(input.label_vi ?? '').trim();
+    if (!labelVi) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['label_vi is required'],
+      });
+    }
+    return this.repo.createTaxonomy({
+      theme_code: themeCode,
+      label_vi: labelVi,
+      synonyms: sanitizeSynonyms(input.synonyms),
+    });
+  }
+
+  async patchTaxonomy(id: number, input: PatchTaxonomyInput): Promise<TaxonomyTheme> {
+    const existing = await this.repo.getTaxonomy(id);
+    if (!existing) throw new NotFoundException({ error: 'not_found' });
+    if (input.label_vi != null && !String(input.label_vi).trim()) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['label_vi is required'],
+      });
+    }
+    const updated = await this.repo.patchTaxonomy(id, {
+      label_vi: input.label_vi != null ? String(input.label_vi).trim() : undefined,
+      synonyms: input.synonyms != null ? sanitizeSynonyms(input.synonyms) : undefined,
+      active: input.active,
+    });
+    if (!updated) throw new NotFoundException({ error: 'not_found' });
+    return updated;
+  }
+
+  async attachInsightTheme(
+    insightId: number,
+    scope: ClientScopeContext,
+    input: AttachInsightThemeInput,
+    actor: string,
+  ): Promise<ResearchInsightRow> {
+    const existing = await this.loadScopedInsight(insightId, scope);
+    const taxonomyId = Number(input.taxonomy_id);
+    if (!Number.isFinite(taxonomyId) || taxonomyId <= 0) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['taxonomy_id is required'],
+      });
+    }
+    const theme = await this.repo.getTaxonomy(taxonomyId);
+    if (!theme) throw new NotFoundException({ error: 'not_found' });
+    if (!theme.active) {
+      throw new BadRequestException({ error: 'taxonomy_inactive' });
+    }
+    await this.repo.attachInsightTheme(existing.id, taxonomyId, actor);
+    const refreshed = await this.repo.getInsight(existing.id);
+    if (!refreshed) throw new NotFoundException({ error: 'not_found' });
+    return refreshed;
+  }
+
+  async detachInsightTheme(
+    insightId: number,
+    taxonomyId: number,
+    scope: ClientScopeContext,
+  ): Promise<ResearchInsightRow> {
+    const existing = await this.loadScopedInsight(insightId, scope);
+    await this.repo.detachInsightTheme(existing.id, taxonomyId);
+    const refreshed = await this.repo.getInsight(existing.id);
+    if (!refreshed) throw new NotFoundException({ error: 'not_found' });
+    return refreshed;
+  }
+
   async runDesk(
     projectId: number,
     scope: ClientScopeContext,
@@ -2665,6 +2748,21 @@ export class MarketResearchService {
       }),
     };
   }
+}
+
+function sanitizeSynonyms(raw?: string[]): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    const s = String(item ?? '').trim();
+    if (!s) continue;
+    const key = s.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(s);
+  }
+  return out;
 }
 
 function isAllowedWhisperTemp(tempPath: string): boolean {

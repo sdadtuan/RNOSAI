@@ -24,9 +24,30 @@ export function shouldSkipRagEmbed(text: string): boolean {
   return !text.trim() || piiHint(text);
 }
 
+function themeFilterMatches(
+  needle: string | undefined,
+  codes: string[],
+  synonyms: string[] = [],
+): boolean {
+  if (!needle) return true;
+  const n = needle.trim().toLowerCase();
+  if (!n) return true;
+  return (
+    codes.some((code) => code.toLowerCase() === n) ||
+    synonyms.some((syn) => syn.toLowerCase() === n)
+  );
+}
+
 export function rankRagHits(
   query: string,
-  rows: Array<RagEmbedInput & { project_id: number; embedding: number[]; theme_codes: string[] }>,
+  rows: Array<
+    RagEmbedInput & {
+      project_id: number;
+      embedding: number[];
+      theme_codes: string[];
+      theme_synonyms?: string[];
+    }
+  >,
   opts?: { theme_code?: string; limit?: number; minScore?: number },
 ): RagHit[] {
   const minScore = opts?.minScore ?? 0.12;
@@ -36,7 +57,7 @@ export function rankRagHits(
 
   for (const row of rows) {
     if (!isRagCorpusStatus(row.status)) continue;
-    if (opts?.theme_code && !row.theme_codes.includes(opts.theme_code)) continue;
+    if (!themeFilterMatches(opts?.theme_code, row.theme_codes, row.theme_synonyms)) continue;
     const score = 0.7 * cosineSimilarity(queryVec, row.embedding) + 0.3 * keywordScore(query, row.statement);
     if (score < minScore) continue;
     hits.push({

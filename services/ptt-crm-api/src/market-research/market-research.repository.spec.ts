@@ -69,6 +69,20 @@ describe('MarketResearchRepository', () => {
     expect(await repo.findConsultFormDataByClientId('acme')).toBeNull();
   });
 
+  it('listEmbeddings filters theme_code by code or synonym case-insensitively', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const repo = repoWithMock();
+
+    await repo.listEmbeddings({ theme_code: 'Pricing' });
+
+    const sql = String(queryMock.mock.calls[0][0]);
+    const params = queryMock.mock.calls[0][1] as unknown[];
+    expect(sql).toMatch(/lower\(t2\.theme_code\) = lower\(\$\d+\)/);
+    expect(sql).toMatch(/unnest\(t2\.synonyms\)/);
+    expect(sql).toMatch(/theme_synonyms/);
+    expect(params).toContain('Pricing');
+  });
+
   it('getOpsAnalytics scopes SQL to allowedClientIds and never selects title', async () => {
     queryMock.mockResolvedValue({ rows: [] });
     const repo = repoWithMock();

@@ -97,6 +97,12 @@ describe('MarketResearchService', () => {
     upsertInsightEmbedding: jest.fn(),
     deleteInsightEmbedding: jest.fn(),
     listEmbeddings: jest.fn(),
+    listTaxonomy: jest.fn(),
+    getTaxonomy: jest.fn(),
+    createTaxonomy: jest.fn(),
+    patchTaxonomy: jest.fn(),
+    attachInsightTheme: jest.fn(),
+    detachInsightTheme: jest.fn(),
     createReportDraft: jest.fn(),
     insertReportVersion: jest.fn(),
     listReports: jest.fn(),
@@ -2306,6 +2312,158 @@ describe('MarketResearchService', () => {
       expect(JSON.stringify(body)).not.toContain('Secret statement');
     }
     expect(repo.listEmbeddings).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('M4-1a: attach PRICE → join row; statement unchanged', async () => {
+    stubScopedProject();
+    const existing = insightRow({
+      id: 7,
+      statement: 'Premium SKU tăng share ở MT HCM',
+    });
+    const statementBefore = structuredClone(existing.statement);
+    repo.getInsight.mockResolvedValue(existing);
+    repo.getTaxonomy.mockResolvedValue({
+      id: 11,
+      theme_code: 'PRICE',
+      label_vi: 'Giá',
+      synonyms: ['pricing', 'giá bán'],
+      active: true,
+    });
+    repo.attachInsightTheme.mockResolvedValue({ insight_id: 7, taxonomy_id: 11 });
+
+    const out = await service.attachInsightTheme(
+      7,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { taxonomy_id: 11 },
+      'analyst@ptt',
+    );
+
+    expect(out.statement).toEqual(statementBefore);
+    expect(repo.attachInsightTheme).toHaveBeenCalledWith(7, 11, 'analyst@ptt');
+    expect(repo.patchInsight).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('M4-1b: search theme_code=PRICE excludes insight not tagged PRICE', async () => {
+    config.researchRagEnabled = true;
+    const sentence = 'Giá sữa học đường tăng ở MT HCM';
+    const priced = {
+      insight_id: 1,
+      project_id: 9,
+      status: 'published',
+      statement: sentence,
+      observation: null,
+      embedding: embedInsightText(insightEmbedText({ statement: sentence, observation: null })),
+      theme_codes: ['PRICE'],
+      theme_synonyms: ['pricing', 'giá bán'],
+    };
+    const other = {
+      insight_id: 2,
+      project_id: 9,
+      status: 'published',
+      statement: sentence,
+      observation: null,
+      embedding: embedInsightText(insightEmbedText({ statement: sentence, observation: null })),
+      theme_codes: ['CHANNEL'],
+      theme_synonyms: ['phân phối'],
+    };
+    repo.listEmbeddings.mockResolvedValue([priced, other]);
+
+    const out = await service.searchInsights(
+      { restricted: false, allowedClientIds: [] },
+      { q: sentence, theme_code: 'PRICE' },
+    );
+
+    expect(out.hits.map((h) => h.insight_id)).toEqual([1]);
+    expect(out.hits.map((h) => h.insight_id)).not.toContain(2);
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('M4-1d: attach does not call createInsight', async () => {
+    stubScopedProject();
+    const existing = insightRow({ statement: 'Premium SKU tăng share ở MT HCM' });
+    repo.getInsight.mockResolvedValue(existing);
+    repo.getTaxonomy.mockResolvedValue({
+      id: 11,
+      theme_code: 'PRICE',
+      label_vi: 'Giá',
+      synonyms: ['pricing', 'giá bán'],
+      active: true,
+    });
+    repo.attachInsightTheme.mockResolvedValue({ insight_id: 7, taxonomy_id: 11 });
+
+    await service.attachInsightTheme(
+      7,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { taxonomy_id: 11 },
+      'analyst@ptt',
+    );
+
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('POST taxonomy invalid theme_code is 400 taxonomy_code_invalid', async () => {
+    try {
+      await service.createTaxonomy({ theme_code: 'price', label_vi: 'Giá' });
+      throw new Error('expected taxonomy_code_invalid');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'taxonomy_code_invalid' });
+    }
+    expect(repo.createTaxonomy).not.toHaveBeenCalled();
+  });
+
+  it('inactive theme attach is 400 taxonomy_inactive', async () => {
+    stubScopedProject();
+    repo.getInsight.mockResolvedValue(insightRow({ statement: 'Premium SKU tăng share ở MT HCM' }));
+    repo.getTaxonomy.mockResolvedValue({
+      id: 11,
+      theme_code: 'PRICE',
+      label_vi: 'Giá',
+      synonyms: ['pricing'],
+      active: false,
+    });
+
+    try {
+      await service.attachInsightTheme(
+        7,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { taxonomy_id: 11 },
+        'analyst@ptt',
+      );
+      throw new Error('expected taxonomy_inactive');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'taxonomy_inactive' });
+    }
+    expect(repo.attachInsightTheme).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('attach outside scope is 403 without statement', async () => {
+    repo.getInsight.mockResolvedValue(
+      insightRow({ statement: 'Secret statement must not leak', project_id: 9 }),
+    );
+    repo.getProjectClientId.mockResolvedValue('other');
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+
+    try {
+      await service.attachInsightTheme(
+        7,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { taxonomy_id: 11 },
+        'analyst@ptt',
+      );
+      throw new Error('expected forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const body = (err as ForbiddenException).getResponse();
+      expect(body).toEqual({ error: 'forbidden' });
+      expect(JSON.stringify(body)).not.toContain('statement');
+      expect(JSON.stringify(body)).not.toContain('Secret statement');
+    }
+    expect(repo.attachInsightTheme).not.toHaveBeenCalled();
     expect(repo.createInsight).not.toHaveBeenCalled();
   });
 

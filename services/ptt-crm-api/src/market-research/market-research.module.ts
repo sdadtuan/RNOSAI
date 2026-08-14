@@ -8,6 +8,7 @@ import { WebhooksModule } from '../webhooks/webhooks.module';
 import { MarketResearchEnabledGuard } from './guards/market-research-enabled.guard';
 import {
   StaffMarketResearchApproveGuard,
+  StaffMarketResearchConfigureGuard,
   StaffMarketResearchCreateGuard,
   StaffMarketResearchEditGuard,
   StaffMarketResearchExportGuard,
@@ -42,6 +43,7 @@ import { MarketResearchService } from './market-research.service';
     StaffMarketResearchApproveGuard,
     StaffMarketResearchRunGuard,
     StaffMarketResearchExportGuard,
+    StaffMarketResearchConfigureGuard,
     StaffResearchMktplanEditGuard,
     StaffResearchContentWriteGuard,
   ],

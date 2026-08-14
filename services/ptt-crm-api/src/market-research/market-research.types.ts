@@ -810,6 +810,7 @@ export type RagEmbeddingRow = RagEmbedInput & {
   project_id: number;
   embedding: number[];
   theme_codes: string[];
+  theme_synonyms?: string[];
   client_id?: string;
 };
 
@@ -839,6 +840,22 @@ export type TaxonomyTheme = {
   label_vi: string;
   synonyms: string[];
   active: boolean;
+};
+
+export type CreateTaxonomyInput = {
+  theme_code: string;
+  label_vi: string;
+  synonyms?: string[];
+};
+
+export type PatchTaxonomyInput = {
+  label_vi?: string;
+  synonyms?: string[];
+  active?: boolean;
+};
+
+export type AttachInsightThemeInput = {
+  taxonomy_id: number;
 };
 
 export const SEED_TAXONOMY: ReadonlyArray<{ theme_code: string; label_vi: string; synonyms: string[] }> = [

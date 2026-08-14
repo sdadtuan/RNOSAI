@@ -31,6 +31,7 @@ import { resolveStaffClientScope } from '../staff-client-scope/staff-client-scop
 import { MarketResearchEnabledGuard } from './guards/market-research-enabled.guard';
 import {
   StaffMarketResearchApproveGuard,
+  StaffMarketResearchConfigureGuard,
   StaffMarketResearchCreateGuard,
   StaffMarketResearchEditGuard,
   StaffMarketResearchExportGuard,
@@ -43,6 +44,9 @@ import { MarketResearchService } from './market-research.service';
 import type {
   ApproveInsightInput,
   AttachInsightEvidenceInput,
+  AttachInsightThemeInput,
+  CreateTaxonomyInput,
+  PatchTaxonomyInput,
   CreateCompetitorInput,
   CreateCompetitorSnapshotInput,
   CreateConsentInput,
@@ -129,6 +133,28 @@ export class MarketResearchController {
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.searchInsights(scope, query);
+  }
+
+  @Get('taxonomy')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async listTaxonomy() {
+    return this.research.listTaxonomy();
+  }
+
+  @Post('taxonomy')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchConfigureGuard)
+  async createTaxonomy(@Body() body: CreateTaxonomyInput) {
+    return this.research.createTaxonomy(body ?? ({} as CreateTaxonomyInput));
+  }
+
+  @Patch('taxonomy/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchConfigureGuard)
+  async patchTaxonomy(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PatchTaxonomyInput,
+  ) {
+    return this.research.patchTaxonomy(id, body ?? {});
   }
 
   @Post('plans/:planId/insights')
@@ -706,6 +732,28 @@ export class MarketResearchController {
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.attachEvidence(id, scope, body?.evidence_ids ?? []);
+  }
+
+  @Post('insights/:id/themes')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async attachInsightTheme(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: AttachInsightThemeInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.attachInsightTheme(id, scope, body ?? { taxonomy_id: 0 }, actorEmail(req));
+  }
+
+  @Delete('insights/:id/themes/:taxonomyId')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async detachInsightTheme(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('taxonomyId', ParseIntPipe) taxonomyId: number,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.detachInsightTheme(id, taxonomyId, scope);
   }
 
   @Post('insights/:id/submit-review')

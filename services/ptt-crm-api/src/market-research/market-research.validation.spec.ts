@@ -2,6 +2,7 @@ import {
   validateCreateDecision,
   validateCreateProject,
   validateCreateWave,
+  validateThemeCode,
 } from './market-research.validation';
 
 const valid = {
@@ -64,6 +65,14 @@ describe('validateCreateDecision', () => {
     expect(validateCreateDecision({ ...validDecision, decision_text: 'abc' })).toContain(
       'decision_text must be at least 10 characters',
     );
+  });
+});
+
+describe('validateThemeCode', () => {
+  it('accepts PRICE and rejects lowercase / too-short codes', () => {
+    expect(validateThemeCode('PRICE')).toBeUndefined();
+    expect(validateThemeCode('price')).toBe('taxonomy_code_invalid');
+    expect(validateThemeCode('P')).toBe('taxonomy_code_invalid');
   });
 });
 

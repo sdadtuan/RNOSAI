@@ -59,6 +59,37 @@ describe('embedInsightText', () => {
   });
 });
 
+describe('rankRagHits theme filter', () => {
+  const sentence = 'Giá sữa học đường tăng ở MT HCM';
+
+  function row(insightId: number, theme_codes: string[], theme_synonyms: string[] = []) {
+    return {
+      insight_id: insightId,
+      project_id: 1,
+      status: 'published' as const,
+      statement: sentence,
+      observation: null,
+      embedding: embedInsightText(insightEmbedText({ statement: sentence, observation: null })),
+      theme_codes,
+      theme_synonyms,
+    };
+  }
+
+  it('M4-1b: theme_code=PRICE excludes insight not tagged PRICE', () => {
+    const hits = rankRagHits(sentence, [row(1, ['PRICE'], ['pricing']), row(2, ['CHANNEL'], ['phân phối'])], {
+      theme_code: 'PRICE',
+    });
+    expect(hits.map((h) => h.insight_id)).toEqual([1]);
+  });
+
+  it('matches theme synonym case-insensitively', () => {
+    const hits = rankRagHits(sentence, [row(1, ['PRICE'], ['pricing', 'giá bán']), row(2, ['CHANNEL'])], {
+      theme_code: 'Pricing',
+    });
+    expect(hits.map((h) => h.insight_id)).toEqual([1]);
+  });
+});
+
 describe('shouldSkipRagEmbed', () => {
   it('skips empty text, PII, and keeps clean insight text', () => {
     expect(shouldSkipRagEmbed('')).toBe(true);
