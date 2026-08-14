@@ -377,6 +377,8 @@ export type ResearchSource = {
   reliability_tier: string;
   ai_generated: boolean;
   keep: boolean | null;
+  triangulated?: boolean;
+  single_source_accepted?: boolean;
   superseded_by: number | null;
   created_at: string;
   updated_at: string;
@@ -567,6 +569,18 @@ export async function runResearchDeep(
     method: 'POST',
     body: JSON.stringify({ question_id: questionId }),
   });
+}
+
+export async function runResearchTriangulate(
+  token: string,
+  projectId: number,
+  questionId: number,
+): Promise<{ ok: true; run_id: number; status: string; note?: string }> {
+  return researchFetch(
+    token,
+    `/api/v1/research/projects/${projectId}/questions/${questionId}/run-triangulate`,
+    { method: 'POST' },
+  );
 }
 
 export async function fetchResearchJob(

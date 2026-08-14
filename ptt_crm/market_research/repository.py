@@ -52,7 +52,7 @@ def sum_project_tavily_credits(project_id: int, *, exclude_run_id: int | None = 
                     SELECT COALESCE(SUM(credits_used), 0)::int
                     FROM crm_research_ai_runs
                     WHERE project_id = %s
-                      AND job_type IN ('desk_tavily', 'deep_research')
+                      AND job_type IN ('desk_tavily', 'deep_research', 'research_triangulate')
                       AND id <> %s
                     """,
                     (project_id, exclude_run_id),
@@ -63,7 +63,7 @@ def sum_project_tavily_credits(project_id: int, *, exclude_run_id: int | None = 
                     SELECT COALESCE(SUM(credits_used), 0)::int
                     FROM crm_research_ai_runs
                     WHERE project_id = %s
-                      AND job_type IN ('desk_tavily', 'deep_research')
+                      AND job_type IN ('desk_tavily', 'deep_research', 'research_triangulate')
                     """,
                     (project_id,),
                 )
@@ -154,9 +154,9 @@ def insert_ai_sources(
                     """
                     INSERT INTO crm_research_sources (
                       project_id, question_id, source_type, title, publisher, url,
-                      accessed_at, geo, reliability_tier, ai_generated, keep
+                      accessed_at, geo, reliability_tier, ai_generated, keep, triangulated
                     ) VALUES (
-                      %s, %s, %s, %s, %s, %s, now(), %s, 'unknown', true, NULL
+                      %s, %s, %s, %s, %s, %s, now(), %s, 'unknown', true, NULL, %s
                     )
                     RETURNING id
                     """,
@@ -168,6 +168,7 @@ def insert_ai_sources(
                         (str(src.get("publisher") or "").strip() or None),
                         url,
                         geo_text,
+                        bool(src.get("triangulated")),
                     ),
                 )
                 row = cur.fetchone()

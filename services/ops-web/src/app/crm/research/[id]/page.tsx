@@ -42,6 +42,7 @@ import {
   fetchResearchProject,
   runResearchDeep,
   runResearchDesk,
+  runResearchTriangulate,
   patchResearchEvidence,
   patchResearchInsight,
   patchResearchProject,
@@ -119,6 +120,8 @@ function CrmResearchWorkspaceContent() {
   const [deepOpen, setDeepOpen] = useState(false);
   const [deepRunId, setDeepRunId] = useState<number | null>(null);
   const [deepBanner, setDeepBanner] = useState('');
+  const [triRunId, setTriRunId] = useState<number | null>(null);
+  const [triBanner, setTriBanner] = useState('');
   const [reportSnapshot, setReportSnapshot] = useState<ResearchReportSnapshot | null>(null);
   const [reports, setReports] = useState<ResearchReport[]>([]);
 
@@ -592,6 +595,50 @@ function CrmResearchWorkspaceContent() {
     }
   }
 
+  async function onRunTriangulate() {
+    const access = getAccessToken();
+    const qid = deskQuestionId ?? project?.questions?.[0]?.id;
+    if (!access || !project || !qid) return;
+    setSaving(true);
+    setError('');
+    setTriBanner('');
+    try {
+      const out = await runResearchTriangulate(access, project.id, qid);
+      setDeskQuestionId(qid);
+      setTriRunId(out.run_id);
+      if (out.status === 'failed') {
+        const note = out.note ?? 'jobs_disabled';
+        setTriBanner(TRANSITION_REASON_VI[note] ?? note);
+      }
+    } catch (err) {
+      if (err instanceof ResearchApiError && err.code === 'job_in_flight') {
+        setError(TRANSITION_REASON_VI.job_in_flight);
+      } else {
+        setError(err instanceof Error ? err.message : 'Chạy Tam giác nguồn thất bại');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onTriSettled(run: ResearchAiRun) {
+    const access = getAccessToken();
+    if (run.status === 'failed') {
+      const code = run.error_message ?? 'failed';
+      setTriBanner(TRANSITION_REASON_VI[code] ?? code);
+    } else {
+      setTriBanner('');
+      setTriRunId(null);
+    }
+    if (access) {
+      try {
+        await load(access);
+      } catch {
+        /* keep chip state */
+      }
+    }
+  }
+
   async function onDeepSettled(run: ResearchAiRun) {
     const access = getAccessToken();
     if (run.status === 'failed') {
@@ -744,12 +791,16 @@ function CrmResearchWorkspaceContent() {
                   deepProvider={deepProvider}
                   deepRunId={deepRunId}
                   deepBanner={deepBanner}
+                  triRunId={triRunId}
+                  triBanner={triBanner}
                   onQuestionChange={setDeskQuestionId}
                   onRun={() => void onRunDesk()}
                   onRetry={() => void onRunDesk(deskQuestionId ?? project.questions?.[0]?.id)}
                   onSettled={onDeskSettled}
                   onOpenDeep={() => setDeepOpen(true)}
                   onDeepSettled={onDeepSettled}
+                  onRunTriangulate={() => void onRunTriangulate()}
+                  onTriSettled={onTriSettled}
                 />
                 <SourceKeepTable
                   sources={project.sources ?? []}
@@ -871,12 +922,16 @@ function SourcesDeskBar({
   deepProvider,
   deepRunId,
   deepBanner,
+  triRunId,
+  triBanner,
   onQuestionChange,
   onRun,
   onRetry,
   onSettled,
   onOpenDeep,
   onDeepSettled,
+  onRunTriangulate,
+  onTriSettled,
 }: {
   project: ResearchProject;
   canRun: boolean;
@@ -887,12 +942,16 @@ function SourcesDeskBar({
   deepProvider: string;
   deepRunId: number | null;
   deepBanner: string;
+  triRunId: number | null;
+  triBanner: string;
   onQuestionChange: (id: number) => void;
   onRun: () => void;
   onRetry: () => void;
   onSettled: (run: ResearchAiRun) => void;
   onOpenDeep: () => void;
   onDeepSettled: (run: ResearchAiRun) => void;
+  onRunTriangulate: () => void;
+  onTriSettled: (run: ResearchAiRun) => void;
 }) {
   const questions = project.questions ?? [];
   const used = project.tavily_credits_used ?? 0;
@@ -901,6 +960,8 @@ function SourcesDeskBar({
   const failed = Boolean(banner);
   const deepEnabled = deepProvider && deepProvider !== 'off';
   const deepInFlight = Boolean(deepRunId) && !deepBanner;
+  const triInFlight = Boolean(triRunId) && !triBanner;
+  const triFailed = Boolean(triBanner);
   return (
     <div className="stack-gap" style={{ marginBottom: '0.85rem' }}>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -943,6 +1004,17 @@ function SourcesDeskBar({
             Chạy Deep Research
           </button>
         ) : null}
+        {canRun ? (
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={saving || !questionId || triInFlight}
+            title={triInFlight ? TRANSITION_REASON_VI.job_in_flight : undefined}
+            onClick={onRunTriangulate}
+          >
+            {triFailed ? 'Thử lại Tam giác nguồn' : 'Tam giác nguồn'}
+          </button>
+        ) : null}
         <ResearchJobChip
           token={getAccessToken()}
           projectId={project.id}
@@ -955,6 +1027,13 @@ function SourcesDeskBar({
           runId={deepRunId}
           kind="deep"
           onSettled={onDeepSettled}
+        />
+        <ResearchJobChip
+          token={getAccessToken()}
+          projectId={project.id}
+          runId={triRunId}
+          kind="triangulate"
+          onSettled={onTriSettled}
         />
         <span className="muted" style={{ fontSize: '0.85rem' }}>
           Tavily {used}/{limit} credit dự án
@@ -986,6 +1065,20 @@ function SourcesDeskBar({
           }}
         >
           {deepBanner}
+        </p>
+      ) : null}
+      {triBanner ? (
+        <p
+          role="status"
+          style={{
+            margin: 0,
+            padding: '0.55rem 0.75rem',
+            borderRadius: 8,
+            border: '1px solid rgba(234, 179, 8, 0.45)',
+            background: 'rgba(234, 179, 8, 0.12)',
+          }}
+        >
+          {triBanner}
         </p>
       ) : null}
     </div>

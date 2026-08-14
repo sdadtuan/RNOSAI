@@ -374,6 +374,8 @@ export class MarketResearchRepository implements OnModuleDestroy {
       content_hash: row.content_hash != null ? String(row.content_hash) : null,
       ai_generated: Boolean(row.ai_generated),
       keep: row.keep == null ? null : Boolean(row.keep),
+      triangulated: Boolean(row.triangulated),
+      single_source_accepted: Boolean(row.single_source_accepted),
       superseded_by: row.superseded_by != null ? Number(row.superseded_by) : null,
       created_at: String(row.created_at),
       updated_at: String(row.updated_at),
@@ -408,7 +410,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
     SELECT id, project_id, question_id, source_type, title, publisher, url,
            published_at::text AS published_at, accessed_at::text AS accessed_at,
            geo, license_note, reliability_tier, snapshot_uri, content_hash,
-           ai_generated, keep, superseded_by,
+           ai_generated, keep, triangulated, single_source_accepted, superseded_by,
            created_at::text AS created_at, updated_at::text AS updated_at
     FROM crm_research_sources
   `;
@@ -444,7 +446,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
        RETURNING id, project_id, question_id, source_type, title, publisher, url,
                  published_at::text AS published_at, accessed_at::text AS accessed_at,
                  geo, license_note, reliability_tier, snapshot_uri, content_hash,
-                 ai_generated, keep, superseded_by,
+                 ai_generated, keep, triangulated, single_source_accepted, superseded_by,
                  created_at::text AS created_at, updated_at::text AS updated_at`,
       [
         projectId,
@@ -472,7 +474,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
        RETURNING id, project_id, question_id, source_type, title, publisher, url,
                  published_at::text AS published_at, accessed_at::text AS accessed_at,
                  geo, license_note, reliability_tier, snapshot_uri, content_hash,
-                 ai_generated, keep, superseded_by,
+                 ai_generated, keep, triangulated, single_source_accepted, superseded_by,
                  created_at::text AS created_at, updated_at::text AS updated_at`,
       [keep, id],
     );
@@ -853,6 +855,38 @@ export class MarketResearchRepository implements OnModuleDestroy {
     return row ? this.mapAiRun(row) : null;
   }
 
+  async findInFlightTriangulateRun(
+    projectId: number,
+    questionId: number,
+  ): Promise<ResearchAiRunRow | null> {
+    const result = await this.db.query(
+      `${this.aiRunSelect}
+       WHERE project_id = $1 AND question_id = $2
+         AND job_type = 'research_triangulate'
+         AND status IN ('pending', 'running')
+       ORDER BY id DESC LIMIT 1`,
+      [projectId, questionId],
+    );
+    const row = result.rows[0];
+    return row ? this.mapAiRun(row) : null;
+  }
+
+  async acceptSingleSource(id: number): Promise<ResearchSourceRow | null> {
+    const result = await this.db.query(
+      `UPDATE crm_research_sources
+       SET single_source_accepted = true, updated_at = now()
+       WHERE id = $1
+       RETURNING id, project_id, question_id, source_type, title, publisher, url,
+                 published_at::text AS published_at, accessed_at::text AS accessed_at,
+                 geo, license_note, reliability_tier, snapshot_uri, content_hash,
+                 ai_generated, keep, triangulated, single_source_accepted, superseded_by,
+                 created_at::text AS created_at, updated_at::text AS updated_at`,
+      [id],
+    );
+    const row = result.rows[0];
+    return row ? this.mapSource(row) : null;
+  }
+
   async insertAiRun(input: {
     projectId: number;
     questionId?: number | null;
@@ -1091,7 +1125,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
     const result = await this.db.query(
       `SELECT COALESCE(SUM(credits_used), 0)::int AS n
        FROM crm_research_ai_runs
-       WHERE project_id = $1 AND job_type IN ('desk_tavily', 'deep_research')`,
+       WHERE project_id = $1 AND job_type IN ('desk_tavily', 'deep_research', 'research_triangulate')`,
       [projectId],
     );
     return Number(result.rows[0]?.n ?? 0);

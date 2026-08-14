@@ -166,6 +166,20 @@ export function SourceKeepTable({
                       ) : (
                         s.title
                       )}
+                      {s.triangulated ? (
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            marginLeft: 8,
+                            padding: '0.05rem 0.4rem',
+                            border: '1px solid var(--primary)',
+                            borderRadius: 4,
+                            fontSize: '0.75rem',
+                          }}
+                        >
+                          Trùng 2 provider
+                        </span>
+                      ) : null}
                     </td>
                     <td style={{ padding: '0.4rem' }}>{s.publisher || '—'}</td>
                     <td style={{ padding: '0.4rem' }}>{rq ? `Q${rq.sort_order}` : '—'}</td>

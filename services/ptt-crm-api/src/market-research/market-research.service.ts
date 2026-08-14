@@ -73,6 +73,7 @@ import type {
   RunDeepResult,
   RunDeskInput,
   RunDeskResult,
+  RunTriangulateResult,
   SubmitReviewInput,
 } from './market-research.types';
 import { buildResearchReportDocx, sectionsFromReportSnapshot } from './market-research-docx.util';
@@ -563,7 +564,8 @@ export class MarketResearchService {
       });
     }
     this.assertConfidenceWording(input.confidence_rationale, input.confidence_json);
-    return this.repo.createInsight(projectId, this.withComputedConfidence(input), actor);
+    const singleSource = await this.resolveSingleSource(projectId, []);
+    return this.repo.createInsight(projectId, this.withComputedConfidence(input, singleSource), actor);
   }
 
   async patchInsight(
@@ -583,7 +585,11 @@ export class MarketResearchService {
       input.confidence_rationale !== undefined ? input.confidence_rationale : existing.confidence_rationale,
       input.confidence_json !== undefined ? input.confidence_json : existing.confidence_json,
     );
-    const updated = await this.repo.patchInsight(insightId, this.withComputedConfidence(input));
+    const singleSource = await this.resolveSingleSource(existing.project_id, existing.evidence_ids);
+    const updated = await this.repo.patchInsight(
+      insightId,
+      this.withComputedConfidence(input, singleSource),
+    );
     if (!updated) throw new NotFoundException({ error: 'not_found' });
     return updated;
   }
@@ -642,8 +648,9 @@ export class MarketResearchService {
       existing.confidence_rationale,
       rubric,
     );
+    const singleSource = await this.resolveSingleSource(existing.project_id, existing.evidence_ids);
     await this.repo.patchInsight(insightId, {
-      confidence_json: buildConfidenceJson({ rubric: rubric! }),
+      confidence_json: buildConfidenceJson({ rubric: rubric!, single_source: singleSource }),
     } as PatchInsightInput);
     const updated = await this.repo.updateInsightStatus(insightId, 'analyst_verified');
     if (!updated) throw new NotFoundException({ error: 'not_found' });
@@ -781,6 +788,60 @@ export class MarketResearchService {
       return { ok: true, run_id: run.id, status: 'failed', note: 'jobs_disabled' };
     }
     return { ok: true, run_id: run.id, status: 'pending' };
+  }
+
+  async runTriangulate(
+    projectId: number,
+    questionId: number,
+    scope: ClientScopeContext,
+    actor: string,
+  ): Promise<RunTriangulateResult> {
+    const project = await this.loadScopedProject(projectId, scope);
+    if (!Number.isFinite(questionId) || questionId <= 0) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['question_id is required'],
+      });
+    }
+    const question = await this.repo.getQuestion(questionId);
+    if (!question || question.project_id !== projectId) {
+      throw new NotFoundException({ error: 'not_found' });
+    }
+    const inFlight = await this.repo.findInFlightTriangulateRun(projectId, questionId);
+    if (inFlight) {
+      throw new ConflictException({ error: 'job_in_flight' });
+    }
+    const run = await this.repo.insertAiRun({
+      projectId,
+      questionId,
+      jobType: 'research_triangulate',
+      provider: 'tavily',
+      actor,
+    });
+    const job = await this.jobQueue.enqueueResearchTriangulateJob({
+      projectId,
+      questionId,
+      runId: run.id,
+      clientId: project.client_id,
+      idempotencyKey: `research_triangulate:${projectId}:${questionId}:run:${run.id}`,
+    });
+    if (!job) {
+      await this.repo.failAiRun(run.id, 'jobs_disabled');
+      return { ok: true, run_id: run.id, status: 'failed', note: 'jobs_disabled' };
+    }
+    return { ok: true, run_id: run.id, status: 'pending' };
+  }
+
+  async acceptSingleSource(
+    sourceId: number,
+    scope: ClientScopeContext,
+  ): Promise<ResearchSourceRow> {
+    const existing = await this.repo.getSource(sourceId);
+    if (!existing) throw new NotFoundException({ error: 'not_found' });
+    await this.loadScopedProject(existing.project_id, scope);
+    const updated = await this.repo.acceptSingleSource(sourceId);
+    if (!updated) throw new NotFoundException({ error: 'not_found' });
+    return updated;
   }
 
   async getJob(
@@ -1150,12 +1211,33 @@ export class MarketResearchService {
     }
   }
 
+  private async resolveSingleSource(projectId: number, evidenceIds: number[]): Promise<boolean> {
+    const ids = (Array.isArray(evidenceIds) ? evidenceIds : [])
+      .map(Number)
+      .filter((id) => Number.isFinite(id) && id > 0);
+    if (ids.length === 0) return false;
+    const sources: ResearchSourceRow[] = [];
+    const seen = new Set<number>();
+    for (const evId of ids) {
+      const ev = await this.repo.getEvidence(evId);
+      if (!ev || ev.project_id !== projectId || ev.source_id == null) continue;
+      if (seen.has(ev.source_id)) continue;
+      seen.add(ev.source_id);
+      const src = await this.repo.getSource(ev.source_id);
+      if (src) sources.push(src);
+    }
+    if (sources.length === 0) return false;
+    if (sources.some((s) => s.single_source_accepted)) return true;
+    return sources.length === 1 && !sources[0].triangulated;
+  }
+
   private withComputedConfidence<T extends { confidence_json?: ConfidenceRubric | ConfidenceJson }>(
     input: T,
+    singleSource = false,
   ): T {
     if (input.confidence_json == null) return input;
     const rubric = extractRubric(input.confidence_json) ?? (input.confidence_json as ConfidenceRubric);
-    return { ...input, confidence_json: buildConfidenceJson({ rubric }) };
+    return { ...input, confidence_json: buildConfidenceJson({ rubric, single_source: singleSource }) };
   }
 
   private assertMutable(qcStatus: string): void {

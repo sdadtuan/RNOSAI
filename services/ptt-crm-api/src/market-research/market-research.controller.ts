@@ -197,6 +197,18 @@ export class MarketResearchController {
     return this.research.runDeep(id, scope, body ?? ({} as RunDeepInput), actorEmail(req));
   }
 
+  @Post('projects/:id/questions/:qid/run-triangulate')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  async runTriangulate(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('qid', ParseIntPipe) qid: number,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.runTriangulate(id, qid, scope, actorEmail(req));
+  }
+
   @Get('projects/:id/jobs/:runId')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
   async getJob(
@@ -276,6 +288,13 @@ export class MarketResearchController {
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.patchSource(id, scope, body ?? ({} as PatchSourceInput));
+  }
+
+  @Post('sources/:id/accept-single-source')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchApproveGuard)
+  async acceptSingleSource(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.acceptSingleSource(id, scope);
   }
 
   @Post('projects/:id/evidence')

@@ -28,6 +28,10 @@ ALTER TABLE crm_research_sources
   ADD COLUMN IF NOT EXISTS triangulated BOOLEAN NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS single_source_accepted BOOLEAN NOT NULL DEFAULT false;
 
+ALTER TABLE crm_research_ai_runs DROP CONSTRAINT IF EXISTS crm_research_ai_runs_type_chk;
+ALTER TABLE crm_research_ai_runs ADD CONSTRAINT crm_research_ai_runs_type_chk CHECK (job_type IN (
+  'desk_tavily','deep_research','insight_draft','report_draft','pii_scan','research_triangulate'));
+
 CREATE INDEX IF NOT EXISTS crm_research_competitors_project_idx
   ON crm_research_competitors (project_id, id);
 

@@ -60,6 +60,8 @@ describe('MarketResearchService', () => {
     getQuestion: jest.fn(),
     findInFlightDeskRun: jest.fn(),
     findInFlightDeepRun: jest.fn(),
+    findInFlightTriangulateRun: jest.fn(),
+    acceptSingleSource: jest.fn(),
     insertAiRun: jest.fn(),
     failAiRun: jest.fn(),
     succeedAiRun: jest.fn(),
@@ -94,6 +96,7 @@ describe('MarketResearchService', () => {
   const jobQueue = {
     enqueueResearchDeskJob: jest.fn(),
     enqueueResearchDeepJob: jest.fn(),
+    enqueueResearchTriangulateJob: jest.fn(),
   };
   const config = {
     researchDeepProvider: 'openai',
@@ -779,6 +782,174 @@ describe('MarketResearchService', () => {
     }
     expect(repo.insertAiRun).not.toHaveBeenCalled();
     expect(jobQueue.enqueueResearchDeepJob).not.toHaveBeenCalled();
+  });
+
+  it('runDeep enqueues deep job and does not insert insight', async () => {
+    stubScopedProject();
+    repo.getQuestion.mockResolvedValue({
+      id: 10,
+      project_id: 9,
+      sort_order: 1,
+      question_vi: 'Quy mô?',
+      question_en: null,
+      analysis_frame: null,
+      created_at: '2026-08-14',
+    });
+    repo.findInFlightDeepRun.mockResolvedValue(null);
+    repo.insertAiRun.mockResolvedValue({
+      id: 88,
+      project_id: 9,
+      question_id: 10,
+      job_type: 'deep_research',
+      provider: 'openai_fallback_tavily',
+      status: 'pending',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: null,
+    });
+    jobQueue.enqueueResearchDeepJob.mockResolvedValue({ id: 'job-deep' });
+
+    const out = await service.runDeep(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { question_id: 10 },
+      'am@ptt',
+    );
+
+    expect(out).toEqual({ ok: true, run_id: 88, status: 'pending' });
+    expect(jobQueue.enqueueResearchDeepJob).toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('runTriangulate enqueues research_triangulate and does not insert insight', async () => {
+    stubScopedProject();
+    repo.getQuestion.mockResolvedValue({
+      id: 10,
+      project_id: 9,
+      sort_order: 1,
+      question_vi: 'Quy mô?',
+      question_en: null,
+      analysis_frame: null,
+      created_at: '2026-08-14',
+    });
+    repo.findInFlightTriangulateRun.mockResolvedValue(null);
+    repo.insertAiRun.mockResolvedValue({
+      id: 99,
+      project_id: 9,
+      question_id: 10,
+      job_type: 'research_triangulate',
+      provider: 'tavily',
+      status: 'pending',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: null,
+    });
+    jobQueue.enqueueResearchTriangulateJob.mockResolvedValue({ id: 'job-tri' });
+
+    const out = await service.runTriangulate(
+      9,
+      10,
+      { restricted: true, allowedClientIds: ['acme'] },
+      'am@ptt',
+    );
+
+    expect(out).toEqual({ ok: true, run_id: 99, status: 'pending' });
+    expect(repo.insertAiRun).toHaveBeenCalledWith(
+      expect.objectContaining({ jobType: 'research_triangulate' }),
+    );
+    expect(jobQueue.enqueueResearchTriangulateJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 9,
+        questionId: 10,
+        runId: 99,
+        idempotencyKey: 'research_triangulate:9:10:run:99',
+      }),
+    );
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('runTriangulate throws job_in_flight when a pending triangulate run exists', async () => {
+    stubScopedProject();
+    repo.getQuestion.mockResolvedValue({
+      id: 10,
+      project_id: 9,
+      sort_order: 1,
+      question_vi: 'Quy mô?',
+      question_en: null,
+      analysis_frame: null,
+      created_at: '2026-08-14',
+    });
+    repo.findInFlightTriangulateRun.mockResolvedValue({ id: 44, status: 'pending' });
+
+    try {
+      await service.runTriangulate(9, 10, { restricted: true, allowedClientIds: ['acme'] }, 'am@ptt');
+      throw new Error('expected conflict');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConflictException);
+      expect((err as ConflictException).getResponse()).toEqual({ error: 'job_in_flight' });
+    }
+    expect(repo.insertAiRun).not.toHaveBeenCalled();
+    expect(jobQueue.enqueueResearchTriangulateJob).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('acceptSingleSource sets single_source_accepted', async () => {
+    stubScopedProject();
+    repo.getSource.mockResolvedValue({
+      id: 5,
+      project_id: 9,
+      title: 'One source',
+      single_source_accepted: false,
+      triangulated: false,
+    });
+    repo.acceptSingleSource.mockResolvedValue({
+      id: 5,
+      project_id: 9,
+      title: 'One source',
+      single_source_accepted: true,
+      triangulated: false,
+    });
+
+    const out = await service.acceptSingleSource(5, { restricted: true, allowedClientIds: ['acme'] });
+
+    expect(out.single_source_accepted).toBe(true);
+    expect(repo.acceptSingleSource).toHaveBeenCalledWith(5);
+  });
+
+  it('submitReview caps high band to medium when attached source is single_source_accepted', async () => {
+    stubScopedProject();
+    const current = insightRow({
+      confidence_rationale: 'Nguồn verified, sample 2025',
+      status: 'draft',
+      confidence_json: validRubric,
+      evidence_ids: [3],
+    });
+    const verified = insightRow({ ...current, status: 'analyst_verified' });
+    repo.getInsight.mockResolvedValue(current);
+    repo.countVerifiedEvidenceForInsight.mockResolvedValue(1);
+    repo.getEvidence.mockResolvedValue(evidenceRow({ id: 3, source_id: 5, qc_status: 'verified' }));
+    repo.getSource.mockResolvedValue({
+      id: 5,
+      project_id: 9,
+      triangulated: false,
+      single_source_accepted: true,
+    });
+    repo.patchInsight.mockResolvedValue(current);
+    repo.updateInsightStatus.mockResolvedValue(verified);
+
+    await service.submitReview(7, { restricted: true, allowedClientIds: ['acme'] });
+
+    expect(repo.patchInsight).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({
+        confidence_json: expect.objectContaining({
+          score: 3,
+          band: 'medium',
+        }),
+      }),
+    );
   });
 
   it('runDeep throws job_in_flight when a pending deep run exists for the question', async () => {

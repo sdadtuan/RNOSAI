@@ -15,7 +15,7 @@ describe('MarketResearchRepository', () => {
     return repo;
   }
 
-  it('sumTavilyCredits includes desk_tavily and deep_research', async () => {
+  it('sumTavilyCredits includes desk_tavily, deep_research, and research_triangulate', async () => {
     queryMock.mockResolvedValue({ rows: [{ n: 3 }] });
     const repo = repoWithMock();
 
@@ -25,7 +25,10 @@ describe('MarketResearchRepository', () => {
     const sql = String(queryMock.mock.calls[0][0]);
     expect(sql).toContain('desk_tavily');
     expect(sql).toContain('deep_research');
-    expect(sql).toMatch(/job_type IN \('desk_tavily',\s*'deep_research'\)/);
+    expect(sql).toContain('research_triangulate');
+    expect(sql).toMatch(
+      /job_type IN \('desk_tavily',\s*'deep_research',\s*'research_triangulate'\)/,
+    );
   });
 
   it('listProjects filters by lifecycle_id', async () => {

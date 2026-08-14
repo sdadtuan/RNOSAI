@@ -227,6 +227,8 @@ export type RunDeepInput = {
 
 export type RunDeepResult = RunDeskResult;
 
+export type RunTriangulateResult = RunDeskResult;
+
 export type CreateSourceInput = {
   title: string;
   source_type?: string;
@@ -287,6 +289,8 @@ export type ResearchSourceRow = {
   content_hash: string | null;
   ai_generated: boolean;
   keep: boolean | null;
+  triangulated: boolean;
+  single_source_accepted: boolean;
   superseded_by: number | null;
   created_at: string;
   updated_at: string;
