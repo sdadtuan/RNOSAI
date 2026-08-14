@@ -1148,11 +1148,27 @@ export async function approveResearchInsight(
   });
 }
 
+export type InsightCopilotRagHit = {
+  insight_id: number;
+  statement: string;
+  status: string;
+  score: number;
+  theme_codes: string[];
+};
+
+export type InsightCopilotRagNote = 'rag_disabled' | 'rag_skipped_pii' | 'rag_empty';
+
 export async function copilotResearchInsight(
   token: string,
   projectId: number,
   evidenceIds: number[],
-): Promise<{ ok: true; insight: ResearchInsight; run_id: number }> {
+): Promise<{
+  ok: true;
+  insight: ResearchInsight;
+  run_id: number;
+  rag_hits: InsightCopilotRagHit[];
+  rag_note?: InsightCopilotRagNote;
+}> {
   return researchFetch(token, `/api/v1/research/projects/${projectId}/insights/copilot`, {
     method: 'POST',
     body: JSON.stringify({ evidence_ids: evidenceIds }),

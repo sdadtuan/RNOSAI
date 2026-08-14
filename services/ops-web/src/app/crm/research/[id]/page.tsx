@@ -84,6 +84,7 @@ import {
   type ResearchQuestion,
   type ResearchReport,
   type ResearchReportSnapshot,
+  type InsightCopilotRagHit,
   type ResearchSource,
 } from '@/lib/market-research-api';
 import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
@@ -93,6 +94,10 @@ import {
 } from '@/components/research/sources-sparktoro.util';
 import { shouldShowQualtricsButton } from '@/components/research/qualtrics-stub.util';
 import { InsightsRagSearch } from '@/components/research/InsightsRagSearch';
+import {
+  RAG_COPILOT_BANNER,
+  shouldShowRagCopilotBanner,
+} from '@/components/research/insight-copilot-rag.util';
 
 const TABS = [
   { id: 'brief', label: 'Brief' },
@@ -149,6 +154,7 @@ function CrmResearchWorkspaceContent() {
   const [sparktoroEnabled, setSparktoroEnabled] = useState(false);
   const [qualtricsEnabled, setQualtricsEnabled] = useState(false);
   const [ragEnabled, setRagEnabled] = useState(false);
+  const [copilotRagHits, setCopilotRagHits] = useState<InsightCopilotRagHit[]>([]);
   const [sparktoroRunId, setSparktoroRunId] = useState<number | null>(null);
   const [sparktoroBanner, setSparktoroBanner] = useState('');
   const [reportSnapshot, setReportSnapshot] = useState<ResearchReportSnapshot | null>(null);
@@ -515,7 +521,8 @@ function CrmResearchWorkspaceContent() {
     setSaving(true);
     setError('');
     try {
-      await copilotResearchInsight(access, project.id, evidenceIds);
+      const out = await copilotResearchInsight(access, project.id, evidenceIds);
+      setCopilotRagHits(out.rag_hits ?? []);
       await load(access);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gợi ý insight thất bại');
@@ -1111,6 +1118,7 @@ function CrmResearchWorkspaceContent() {
               <InsightsTab
                 project={project}
                 ragEnabled={ragEnabled}
+                copilotRagHits={copilotRagHits}
                 canEdit={canEdit}
                 canRun={canRun}
                 saving={saving}
@@ -1599,6 +1607,7 @@ function BriefTab({
 function InsightsTab({
   project,
   ragEnabled,
+  copilotRagHits,
   canEdit,
   canRun,
   saving,
@@ -1609,6 +1618,7 @@ function InsightsTab({
 }: {
   project: ResearchProject;
   ragEnabled: boolean;
+  copilotRagHits: InsightCopilotRagHit[];
   canEdit: boolean;
   canRun: boolean;
   saving: boolean;
@@ -1643,6 +1653,11 @@ function InsightsTab({
           ) : null}
         </div>
       </div>
+      {shouldShowRagCopilotBanner(ragEnabled, canRun) ? (
+        <p className="muted" data-testid="rag-copilot-banner" style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
+          {RAG_COPILOT_BANNER}
+        </p>
+      ) : null}
       <InsightsRagSearch ragEnabled={ragEnabled} clientId={project.client_id} />
       {canRun ? (
         <div style={{ marginTop: '0.75rem' }}>
@@ -1686,6 +1701,26 @@ function InsightsTab({
               })}
             </div>
           )}
+        </div>
+      ) : null}
+      {copilotRagHits.length > 0 ? (
+        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+          {copilotRagHits.map((hit) => (
+            <span
+              key={hit.insight_id}
+              className="muted"
+              style={{
+                display: 'inline-block',
+                padding: '0.1rem 0.45rem',
+                borderRadius: 999,
+                background: 'color-mix(in srgb, var(--primary) 12%, white)',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+              }}
+            >
+              {`Tham chiếu #${hit.insight_id}`}
+            </span>
+          ))}
         </div>
       ) : null}
       {rows.length === 0 ? (
