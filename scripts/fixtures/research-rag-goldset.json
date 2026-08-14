@@ -1,0 +1,23 @@
+{
+  "cases": [
+    {
+      "id": "G1",
+      "q": "giá sữa học đường",
+      "corpus": [
+        { "insight_id": 1, "status": "approved_client_facing", "statement": "Giá sữa học đường tăng tại Hà Nội", "observation": null },
+        { "insight_id": 2, "status": "draft", "statement": "Giá sữa học đường tăng tại Hà Nội", "observation": null }
+      ],
+      "must_include": [1],
+      "must_exclude": [2]
+    },
+    {
+      "id": "G2",
+      "q": "transcript buổi IDI",
+      "corpus": [
+        { "insight_id": 3, "status": "published", "statement": "Phụ huynh chọn kênh cửa hàng tiện lợi", "observation": null }
+      ],
+      "must_include": [],
+      "must_exclude": [3]
+    }
+  ]
+}

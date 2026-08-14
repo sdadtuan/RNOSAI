@@ -776,3 +776,51 @@ export type ResearchInsightRow = {
   updated_at: string;
   evidence_ids: number[];
 };
+
+export const RAG_CORPUS_STATUSES = ['approved_client_facing', 'published'] as const;
+export type RagCorpusStatus = (typeof RAG_CORPUS_STATUSES)[number];
+
+export const RAG_EMBED_DIMS = 64;
+
+export const RAG_SEARCH_BANNER =
+  'Chỉ insight đã duyệt bản khách / published. Không tìm draft. Không tự tạo insight.';
+
+export type RagEmbedInput = {
+  insight_id: number;
+  status: string;
+  statement: string;
+  observation: string | null;
+};
+
+export type RagHit = {
+  insight_id: number;
+  project_id: number;
+  statement: string;
+  status: RagCorpusStatus;
+  score: number;
+  theme_codes: string[];
+};
+
+export type RagSearchResult = {
+  hits: RagHit[];
+  note?: 'rag_disabled';
+};
+
+export type TaxonomyTheme = {
+  id: number;
+  theme_code: string;
+  label_vi: string;
+  synonyms: string[];
+  active: boolean;
+};
+
+export const SEED_TAXONOMY: ReadonlyArray<{ theme_code: string; label_vi: string; synonyms: string[] }> = [
+  { theme_code: 'PRICE', label_vi: 'Giá', synonyms: ['pricing', 'giá bán'] },
+  { theme_code: 'CHANNEL', label_vi: 'Kênh', synonyms: ['phân phối'] },
+  { theme_code: 'COMPETITOR', label_vi: 'Đối thủ', synonyms: ['cạnh tranh'] },
+  { theme_code: 'TREND', label_vi: 'Xu hướng', synonyms: ['emerging'] },
+  { theme_code: 'SEGMENT', label_vi: 'Phân khúc', synonyms: ['đối tượng'] },
+  { theme_code: 'RISK', label_vi: 'Rủi ro', synonyms: ['limitation'] },
+  { theme_code: 'MESSAGE', label_vi: 'Thông điệp', synonyms: ['claim'] },
+  { theme_code: 'GEO', label_vi: 'Địa bàn', synonyms: ['khu vực'] },
+];
