@@ -52,6 +52,7 @@ import {
   seoTechnicalEnabled,
 } from '@/lib/seo/flags';
 import { metaAdsOpsEnabled, metaIntelligenceEnabled, metaTrackingEnabled } from '@/lib/meta/flags';
+import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
 
 interface OpsNavProps {
   user: StoredStaffUser | null;
@@ -91,6 +92,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/catalog': 'CRM Catalog',
   '/crm/customers': 'Khách hàng',
   '/crm/intake': 'Lead Intake',
+  '/crm/research': 'Nghiên cứu thị trường',
+  '/crm/research/new': 'Tạo dự án nghiên cứu',
   '/crm/marketing-plan': 'Kế hoạch marketing',
   '/crm/service-delivery': 'Triển khai dịch vụ',
   '/crm/sop': 'Quy trình SOP',
@@ -194,6 +197,9 @@ function pageTitleFor(pathname: string): string {
   if (pathname.startsWith('/crm/b2b/leads')) return PAGE_TITLES['/crm/b2b/leads'];
   if (pathname.startsWith('/crm/leads/') && pathname !== '/crm/leads') return 'Chi tiết lead';
   if (pathname.startsWith('/crm/customers/') && pathname !== '/crm/customers') return 'Chi tiết khách hàng';
+  if (pathname.startsWith('/crm/research/') && pathname !== '/crm/research' && pathname !== '/crm/research/new') {
+    return 'Workspace nghiên cứu';
+  }
   if (pathname.startsWith('/crm/marketing-plan/') && pathname !== '/crm/marketing-plan') {
     return 'Chi tiết kế hoạch';
   }
@@ -338,9 +344,19 @@ function buildSections(
     sections.push({ label: 'CRM · Bán hàng & Hợp đồng', links: salesContract, defaultOpen: true });
   }
 
+  const plan: NavLink[] = [];
+  if (isMarketResearchFeEnabled() && hasCap(user, 'crm_research', 'view')) {
+    plan.push({ href: '/crm/research', label: 'Nghiên cứu thị trường' });
+  }
+  if (hasCap(user, 'crm_board', 'view')) {
+    plan.push({ href: '/crm/marketing-plan', label: 'Kế hoạch marketing' });
+  }
+  if (plan.length) {
+    sections.push({ label: 'Lên kế hoạch', links: plan, defaultOpen: true });
+  }
+
   const delivery: NavLink[] = [];
   if (hasCap(user, 'crm_board', 'view')) {
-    delivery.push({ href: '/crm/marketing-plan', label: 'Kế hoạch marketing' });
     delivery.push({ href: '/crm/service-delivery', label: 'Triển khai DV' });
     delivery.push({ href: '/crm/sop', label: 'Quy trình SOP' });
     delivery.push({ href: '/crm/launch-qa', label: 'Launch QA' });

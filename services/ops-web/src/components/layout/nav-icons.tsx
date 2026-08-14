@@ -437,6 +437,12 @@ const GLYPHS: Record<string, ReactNode> = {
       <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
     </>
   ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.5-3.5" />
+    </>
+  ),
   dot: <circle cx="12" cy="12" r="2" />,
 };
 
@@ -470,6 +476,7 @@ export const LINK_ICONS: Record<string, string> = {
   '/crm/proposals': 'proposal',
   '/crm/orders': 'order',
   '/crm/re-projects': 'building',
+  '/crm/research': 'search',
   '/crm/marketing-plan': 'calendar',
   '/crm/service-delivery': 'lifecycle',
   '/crm/sop': 'checklist',
@@ -550,6 +557,7 @@ export const SECTION_ICONS: Record<string, string> = {
   'Lead chung': 'leads',
   'Lead & CSKH': 'leads',
   'Bán hàng': 'sales',
+  'Lên kế hoạch': 'search',
   'Triển khai DV': 'lifecycle',
   'Nhân sự & KPI': 'staff',
   'Quản trị': 'finance',
@@ -570,6 +578,7 @@ export const SECTION_LABELS: Record<string, string> = {
   'CRM · Lead chung': 'Lead chung',
   'CRM · Lead & CSKH': 'Lead & CSKH',
   'CRM · Bán hàng & Hợp đồng': 'Bán hàng',
+  'Lên kế hoạch': 'Lên kế hoạch',
   'CRM · Triển khai dịch vụ': 'Triển khai DV',
   'CRM · Nhân sự & KPI': 'Nhân sự & KPI',
   'Quản trị & Tài chính': 'Quản trị',

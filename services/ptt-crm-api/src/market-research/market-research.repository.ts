@@ -1,0 +1,337 @@
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Pool } from 'pg';
+import { AppConfigService } from '../config/app-config.service';
+import type { ProductType, ProjectStatus } from './market-research.constants';
+import type {
+  CreateProjectInput,
+  CreateQuestionInput,
+  ListProjectsFilters,
+  PatchProjectInput,
+  PatchQuestionInput,
+  ResearchProjectRow,
+  ResearchQuestionRow,
+} from './market-research.types';
+
+function parseJsonCol<T>(val: unknown, fallback: T): T {
+  if (val == null) return fallback;
+  if (typeof val === 'object') return val as T;
+  if (typeof val === 'string') {
+    try {
+      return JSON.parse(val) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+}
+
+const PROJECT_SELECT = `
+  SELECT p.id,
+         p.client_id,
+         c.name AS client_name,
+         p.lifecycle_id,
+         p.title,
+         p.product_type,
+         p.dv12_tier,
+         p.decision_statement,
+         p.geo,
+         p.languages,
+         p.risk_class,
+         p.status,
+         p.owner_user_id,
+         p.data_residency,
+         p.related_sales_market_id,
+         p.created_by,
+         p.updated_by,
+         p.created_at::text AS created_at,
+         p.updated_at::text AS updated_at,
+         (SELECT COUNT(*)::int FROM crm_research_questions q WHERE q.project_id = p.id) AS rq_count,
+         (SELECT COUNT(*)::int FROM crm_research_insights i
+           WHERE i.project_id = p.id
+             AND i.status IN ('analyst_verified','peer_reviewed','approved_internal','approved_client_facing','published')
+         ) AS verified_insight_count
+  FROM crm_research_projects p
+  LEFT JOIN clients c ON c.id::text = p.client_id
+`;
+
+@Injectable()
+export class MarketResearchRepository implements OnModuleDestroy {
+  private pool: Pool | null = null;
+
+  constructor(private readonly config: AppConfigService) {}
+
+  private get db(): Pool {
+    if (!this.pool) {
+      this.pool = new Pool({ connectionString: this.config.databaseUrl });
+    }
+    return this.pool;
+  }
+
+  onModuleDestroy(): void {
+    void this.pool?.end();
+    this.pool = null;
+  }
+
+  private mapProject(row: Record<string, unknown>): ResearchProjectRow {
+    return {
+      id: Number(row.id),
+      client_id: String(row.client_id),
+      client_name: row.client_name != null ? String(row.client_name) : null,
+      lifecycle_id: row.lifecycle_id != null ? Number(row.lifecycle_id) : null,
+      title: String(row.title),
+      product_type: row.product_type as ProductType,
+      dv12_tier: row.dv12_tier as ResearchProjectRow['dv12_tier'],
+      decision_statement: String(row.decision_statement),
+      geo: parseJsonCol<string[]>(row.geo, []),
+      languages: parseJsonCol<string[]>(row.languages, ['vi']),
+      risk_class: row.risk_class as ResearchProjectRow['risk_class'],
+      status: row.status as ProjectStatus,
+      owner_user_id: row.owner_user_id != null ? Number(row.owner_user_id) : null,
+      data_residency: row.data_residency != null ? String(row.data_residency) : null,
+      related_sales_market_id:
+        row.related_sales_market_id != null ? Number(row.related_sales_market_id) : null,
+      created_by: row.created_by != null ? String(row.created_by) : null,
+      updated_by: row.updated_by != null ? String(row.updated_by) : null,
+      created_at: String(row.created_at),
+      updated_at: String(row.updated_at),
+      rq_count: Number(row.rq_count ?? 0),
+      verified_insight_count: Number(row.verified_insight_count ?? 0),
+    };
+  }
+
+  private mapQuestion(row: Record<string, unknown>): ResearchQuestionRow {
+    return {
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      sort_order: Number(row.sort_order ?? 0),
+      question_vi: String(row.question_vi),
+      question_en: row.question_en != null ? String(row.question_en) : null,
+      analysis_frame: row.analysis_frame != null ? String(row.analysis_frame) : null,
+      created_at: String(row.created_at),
+    };
+  }
+
+  async listProjects(
+    filters: ListProjectsFilters,
+    allowedClientIds?: string[],
+  ): Promise<ResearchProjectRow[]> {
+    const where: string[] = [];
+    const params: unknown[] = [];
+    const add = (sql: string, value: unknown) => {
+      params.push(value);
+      where.push(sql.replace('?', `$${params.length}`));
+    };
+
+    if (filters.client_id?.trim()) add('p.client_id = ?', filters.client_id.trim());
+    if (filters.status?.trim()) add('p.status = ?', filters.status.trim());
+    if (filters.product_type?.trim()) add('p.product_type = ?', filters.product_type.trim());
+    if (filters.q?.trim()) add('p.title ILIKE ?', `%${filters.q.trim()}%`);
+    if (allowedClientIds) {
+      params.push(allowedClientIds);
+      where.push(`p.client_id = ANY($${params.length}::text[])`);
+    }
+
+    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const result = await this.db.query(
+      `${PROJECT_SELECT} ${clause} ORDER BY p.updated_at DESC LIMIT 200`,
+      params,
+    );
+    return result.rows.map((row) => this.mapProject(row));
+  }
+
+  async getProject(id: number): Promise<ResearchProjectRow | null> {
+    const result = await this.db.query(`${PROJECT_SELECT} WHERE p.id = $1`, [id]);
+    const row = result.rows[0];
+    return row ? this.mapProject(row) : null;
+  }
+
+  async getProjectClientId(id: number): Promise<string | null> {
+    const result = await this.db.query(
+      `SELECT client_id FROM crm_research_projects WHERE id = $1`,
+      [id],
+    );
+    const row = result.rows[0];
+    return row ? String(row.client_id) : null;
+  }
+
+  async listQuestions(projectId: number): Promise<ResearchQuestionRow[]> {
+    const result = await this.db.query(
+      `SELECT id, project_id, sort_order, question_vi, question_en, analysis_frame,
+              created_at::text AS created_at
+       FROM crm_research_questions
+       WHERE project_id = $1
+       ORDER BY sort_order ASC, id ASC`,
+      [projectId],
+    );
+    return result.rows.map((row) => this.mapQuestion(row));
+  }
+
+  async createProject(input: CreateProjectInput, actor: string): Promise<ResearchProjectRow> {
+    const client = await this.db.connect();
+    let id: number;
+    try {
+      await client.query('BEGIN');
+      const inserted = await client.query(
+        `INSERT INTO crm_research_projects (
+           client_id, title, product_type, dv12_tier, decision_statement,
+           geo, languages, risk_class, lifecycle_id, status, created_by, updated_by
+         ) VALUES (
+           $1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, 'intake', $10, $10
+         ) RETURNING id`,
+        [
+          input.client_id.trim(),
+          input.title.trim(),
+          input.product_type,
+          ['CB', 'TC', 'CS'].includes(String(input.dv12_tier ?? '')) ? input.dv12_tier : 'CB',
+          input.decision_statement.trim(),
+          JSON.stringify(input.geo?.length ? input.geo : ['VN']),
+          JSON.stringify(input.languages?.length ? input.languages : ['vi']),
+          ['low', 'medium', 'high'].includes(String(input.risk_class ?? ''))
+            ? input.risk_class
+            : 'low',
+          input.lifecycle_id ?? null,
+          actor,
+        ],
+      );
+      id = Number(inserted.rows[0].id);
+      for (const [idx, q] of input.questions.entries()) {
+        await client.query(
+          `INSERT INTO crm_research_questions (project_id, sort_order, question_vi, question_en, analysis_frame)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [
+            id,
+            q.sort_order ?? idx + 1,
+            q.question_vi.trim(),
+            q.question_en?.trim() || null,
+            q.analysis_frame?.trim() || null,
+          ],
+        );
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+    const row = await this.getProject(id);
+    if (!row) throw new Error(`createProject failed for id ${id}`);
+    return row;
+  }
+
+  async patchProject(
+    id: number,
+    input: PatchProjectInput,
+    actor: string,
+  ): Promise<ResearchProjectRow | null> {
+    const sets: string[] = ['updated_at = now()', 'updated_by = $1'];
+    const params: unknown[] = [actor];
+    const add = (col: string, value: unknown) => {
+      params.push(value);
+      sets.push(`${col} = $${params.length}`);
+    };
+    if (input.title != null) add('title', input.title.trim());
+    if (input.decision_statement != null) add('decision_statement', input.decision_statement.trim());
+    if (input.geo != null) {
+      params.push(JSON.stringify(input.geo));
+      sets.push(`geo = $${params.length}::jsonb`);
+    }
+    if (input.languages != null) {
+      params.push(JSON.stringify(input.languages));
+      sets.push(`languages = $${params.length}::jsonb`);
+    }
+    if (input.risk_class != null) add('risk_class', input.risk_class);
+    if (input.dv12_tier != null) add('dv12_tier', input.dv12_tier);
+    if (input.status != null) add('status', input.status);
+    params.push(id);
+    await this.db.query(
+      `UPDATE crm_research_projects SET ${sets.join(', ')} WHERE id = $${params.length}`,
+      params,
+    );
+    return this.getProject(id);
+  }
+
+  async addQuestion(projectId: number, input: CreateQuestionInput): Promise<ResearchQuestionRow> {
+    const result = await this.db.query(
+      `INSERT INTO crm_research_questions (project_id, sort_order, question_vi, question_en, analysis_frame)
+       VALUES (
+         $1,
+         COALESCE($2, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM crm_research_questions WHERE project_id = $1)),
+         $3, $4, $5
+       )
+       RETURNING id, project_id, sort_order, question_vi, question_en, analysis_frame,
+                 created_at::text AS created_at`,
+      [
+        projectId,
+        input.sort_order ?? null,
+        input.question_vi.trim(),
+        input.question_en?.trim() || null,
+        input.analysis_frame?.trim() || null,
+      ],
+    );
+    await this.db.query(`UPDATE crm_research_projects SET updated_at = now() WHERE id = $1`, [
+      projectId,
+    ]);
+    return this.mapQuestion(result.rows[0]);
+  }
+
+  async getQuestion(id: number): Promise<ResearchQuestionRow | null> {
+    const result = await this.db.query(
+      `SELECT id, project_id, sort_order, question_vi, question_en, analysis_frame,
+              created_at::text AS created_at
+       FROM crm_research_questions WHERE id = $1`,
+      [id],
+    );
+    const row = result.rows[0];
+    return row ? this.mapQuestion(row) : null;
+  }
+
+  async patchQuestion(id: number, input: PatchQuestionInput): Promise<ResearchQuestionRow | null> {
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    const add = (col: string, value: unknown) => {
+      params.push(value);
+      sets.push(`${col} = $${params.length}`);
+    };
+    if (input.question_vi != null) add('question_vi', input.question_vi.trim());
+    if (input.question_en !== undefined) add('question_en', input.question_en?.trim() || null);
+    if (input.analysis_frame !== undefined) {
+      add('analysis_frame', input.analysis_frame?.trim() || null);
+    }
+    if (input.sort_order != null) add('sort_order', input.sort_order);
+    if (!sets.length) return this.getQuestion(id);
+    params.push(id);
+    const result = await this.db.query(
+      `UPDATE crm_research_questions SET ${sets.join(', ')}
+       WHERE id = $${params.length}
+       RETURNING id, project_id, sort_order, question_vi, question_en, analysis_frame,
+                 created_at::text AS created_at`,
+      params,
+    );
+    const row = result.rows[0];
+    if (row) {
+      await this.db.query(`UPDATE crm_research_projects SET updated_at = now() WHERE id = $1`, [
+        row.project_id,
+      ]);
+    }
+    return row ? this.mapQuestion(row) : null;
+  }
+
+  async countEvidenceForQuestion(questionId: number): Promise<number> {
+    const result = await this.db.query(
+      `SELECT COUNT(*)::int AS n FROM crm_research_evidence WHERE question_id = $1`,
+      [questionId],
+    );
+    return Number(result.rows[0]?.n ?? 0);
+  }
+
+  async deleteQuestion(id: number): Promise<void> {
+    const existing = await this.getQuestion(id);
+    await this.db.query(`DELETE FROM crm_research_questions WHERE id = $1`, [id]);
+    if (existing) {
+      await this.db.query(`UPDATE crm_research_projects SET updated_at = now() WHERE id = $1`, [
+        existing.project_id,
+      ]);
+    }
+  }
+}

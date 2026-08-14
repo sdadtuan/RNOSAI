@@ -138,6 +138,10 @@ export function canViewLmp(user: StoredStaffUser | null): boolean {
   return hasCap(user, 'crm_lmp', 'view') || hasCap(user, 'crm_leads', 'view');
 }
 
+export function canViewMarketResearch(user: StoredStaffUser | null): boolean {
+  return hasCap(user, 'crm_research', 'view');
+}
+
 export function canRunLmp(user: StoredStaffUser | null): boolean {
   return hasCap(user, 'crm_lmp', 'run') || hasCap(user, 'crm_leads', 'edit');
 }
