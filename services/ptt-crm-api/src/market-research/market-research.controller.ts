@@ -303,6 +303,14 @@ export class MarketResearchController {
     return out;
   }
 
+  @Post('projects/:id/run-qualtrics')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  async runQualtrics(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.runQualtrics(id, scope, actorEmail(req));
+  }
+
   @Get('projects/:id/jobs/:runId')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
   async getJob(

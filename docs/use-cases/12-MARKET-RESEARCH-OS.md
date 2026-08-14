@@ -29,6 +29,7 @@
 | Portal / waves / decision | RES-UC-040…042 | P3 |
 | PDF + Content OS cite | RES-UC-050…051 | P4 |
 | Whisper excerpts + SparkToro sources | RES-UC-060…061 | P5 |
+| Codebook import + Van Westendorp lite | RES-UC-062…063 | P6 |
 | EC-RES-01…12 | Actions walkthrough | P0 |
 
 **API base:** `/api/v1/research`  
@@ -46,6 +47,7 @@
 | **P3 — Client-grade** | RES-UC-040…042 | P3 | Spec ready |
 | **P4 — Deliverable + activation** | RES-UC-050…051 | P4 | Spec ready |
 | **P5 — Qual ingest + audience source** | RES-UC-060…061 | P5 | Spec ready |
+| **P6 — Survey codebook + VW lite** | RES-UC-062…063 | P6 | Spec ready |
 
 ---
 
@@ -348,6 +350,19 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P6 — RES-UC-062…063
+
+| UC | Tóm tắt |
+|----|---------|
+| 062 | Nhập CSV codebook (Forms) → study survey + evidence `value+unit+base` (không PII; không auto-insight; Qualtrics live out) |
+| 063 | Van Westendorp lite trên `PRICE_OFFER` → bảng too_cheap…too_expensive + limitation; không MOE/95%; không insight |
+
+**API:** `POST /api/v1/research/projects/:id/import-survey` · `GET|POST /api/v1/research/projects/:id/van-westendorp` · `POST /api/v1/research/projects/:id/run-qualtrics`  
+**Gates:** PII cell → 400 `survey_pii_forbidden`; thiếu value+unit+base → 400 (BR-RES-02); không `PRICE_OFFER` → 400 `vw_not_price_offer`. Qualtrics off → `200 {ok:true, note:qualtrics_disabled}` (project không fail; CTA ẩn khi `qualtrics_enabled !== true`). Không `createInsight`.  
+**UAT:** [`actions/12-RES-ACTIONS.md`](actions/12-RES-ACTIONS.md) Walkthrough UAT P6.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |
@@ -357,5 +372,7 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 | `crm_research.*` | view/create/edit/run/approve/export/configure |
 | `MAX_TAVILY_CREDITS_PER_RESEARCH` | default 12 |
 | `RESEARCH_DEEP_PROVIDER` | openai \| gemini \| off |
+| `RESEARCH_QUALTRICS_ENABLED` | default `0` — stub only; không bật deploy |
+| `QUALTRICS_API_KEY` | không log / không trả health / không ghi deploy |
 
 GDKD `crm_leads.assign` **không** hiện Approve insight.

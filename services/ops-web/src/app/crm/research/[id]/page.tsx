@@ -49,6 +49,7 @@ import {
   runResearchDeep,
   runResearchDesk,
   runResearchPulse,
+  runResearchQualtrics,
   runResearchSparktoro,
   runResearchTriangulate,
   patchResearchEvidence,
@@ -89,6 +90,7 @@ import {
   SPARKTORO_SOURCES_BANNER,
   shouldShowSparktoroButton,
 } from '@/components/research/sources-sparktoro.util';
+import { shouldShowQualtricsButton } from '@/components/research/qualtrics-stub.util';
 
 const TABS = [
   { id: 'brief', label: 'Brief' },
@@ -143,6 +145,7 @@ function CrmResearchWorkspaceContent() {
   const [pulseRunId, setPulseRunId] = useState<number | null>(null);
   const [pulseBanner, setPulseBanner] = useState('');
   const [sparktoroEnabled, setSparktoroEnabled] = useState(false);
+  const [qualtricsEnabled, setQualtricsEnabled] = useState(false);
   const [sparktoroRunId, setSparktoroRunId] = useState<number | null>(null);
   const [sparktoroBanner, setSparktoroBanner] = useState('');
   const [reportSnapshot, setReportSnapshot] = useState<ResearchReportSnapshot | null>(null);
@@ -198,11 +201,13 @@ function CrmResearchWorkspaceContent() {
       try {
         const health = await fetchResearchHealth(access);
         setSparktoroEnabled(health.sparktoro_enabled === true);
+        setQualtricsEnabled(health.qualtrics_enabled === true);
         if (!data.deep_research_provider) {
           setDeepProvider(health.deep_provider);
         }
       } catch {
         setSparktoroEnabled(false);
+        setQualtricsEnabled(false);
         if (!data.deep_research_provider) {
           setDeepProvider('off');
         }
@@ -815,6 +820,23 @@ function CrmResearchWorkspaceContent() {
     }
   }
 
+  async function onRunQualtrics() {
+    const access = getAccessToken();
+    if (!access || !project) return;
+    setSaving(true);
+    setError('');
+    try {
+      const out = await runResearchQualtrics(access, project.id);
+      if (out.note === 'qualtrics_disabled') {
+        setError(TRANSITION_REASON_VI.qualtrics_disabled);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Chạy Qualtrics thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function onSparktoroSettled(run: ResearchAiRun) {
     const access = getAccessToken();
     if (run.status === 'failed') {
@@ -1014,6 +1036,7 @@ function CrmResearchWorkspaceContent() {
                   sparktoroEnabled={sparktoroEnabled}
                   sparktoroRunId={sparktoroRunId}
                   sparktoroBanner={sparktoroBanner}
+                  qualtricsEnabled={qualtricsEnabled}
                   onQuestionChange={setDeskQuestionId}
                   onRun={() => void onRunDesk()}
                   onRetry={() => void onRunDesk(deskQuestionId ?? project.questions?.[0]?.id)}
@@ -1026,6 +1049,7 @@ function CrmResearchWorkspaceContent() {
                   onPulseSettled={onPulseSettled}
                   onRunSparktoro={() => void onRunSparktoro()}
                   onSparktoroSettled={onSparktoroSettled}
+                  onRunQualtrics={() => void onRunQualtrics()}
                 />
                 <SourceKeepTable
                   sources={project.sources ?? []}
@@ -1182,6 +1206,7 @@ function SourcesDeskBar({
   sparktoroEnabled,
   sparktoroRunId,
   sparktoroBanner,
+  qualtricsEnabled,
   onQuestionChange,
   onRun,
   onRetry,
@@ -1194,6 +1219,7 @@ function SourcesDeskBar({
   onPulseSettled,
   onRunSparktoro,
   onSparktoroSettled,
+  onRunQualtrics,
 }: {
   project: ResearchProject;
   canRun: boolean;
@@ -1211,6 +1237,7 @@ function SourcesDeskBar({
   sparktoroEnabled: boolean;
   sparktoroRunId: number | null;
   sparktoroBanner: string;
+  qualtricsEnabled: boolean;
   onQuestionChange: (id: number) => void;
   onRun: () => void;
   onRetry: () => void;
@@ -1223,6 +1250,7 @@ function SourcesDeskBar({
   onPulseSettled: (run: ResearchAiRun) => void;
   onRunSparktoro: () => void;
   onSparktoroSettled: (run: ResearchAiRun) => void;
+  onRunQualtrics: () => void;
 }) {
   const questions = project.questions ?? [];
   const used = project.tavily_credits_used ?? 0;
@@ -1236,6 +1264,7 @@ function SourcesDeskBar({
   const pulseInFlight = Boolean(pulseRunId) && !pulseBanner;
   const pulseFailed = Boolean(pulseBanner);
   const showSparktoro = shouldShowSparktoroButton(sparktoroEnabled, canRun);
+  const showQualtrics = shouldShowQualtricsButton(qualtricsEnabled, canRun);
   const sparktoroInFlight = Boolean(sparktoroRunId) && !sparktoroBanner;
   const sparktoroFailed = Boolean(sparktoroBanner);
   const hasPulseSignals = (project.trend_signals ?? []).length > 0;
@@ -1312,6 +1341,11 @@ function SourcesDeskBar({
             onClick={onRunSparktoro}
           >
             {sparktoroFailed ? 'Thử lại SparkToro' : 'Chạy SparkToro'}
+          </button>
+        ) : null}
+        {showQualtrics ? (
+          <button type="button" className="btn btn-sm" disabled={saving} onClick={onRunQualtrics}>
+            Chạy Qualtrics
           </button>
         ) : null}
         <ResearchJobChip

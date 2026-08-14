@@ -158,6 +158,8 @@ describe('MarketResearchService', () => {
     maxTavilyCreditsPerResearch: 12,
     researchSparktoroEnabled: false,
     sparktoroApiKey: '',
+    researchQualtricsEnabled: false,
+    qualtricsApiKey: '',
   };
 
   let service: MarketResearchService;
@@ -168,6 +170,8 @@ describe('MarketResearchService', () => {
     config.maxTavilyCreditsPerResearch = 12;
     config.researchSparktoroEnabled = false;
     config.sparktoroApiKey = '';
+    config.researchQualtricsEnabled = false;
+    config.qualtricsApiKey = '';
     repo.listTrendSignals.mockResolvedValue([]);
     llm.isConfigured.mockReturnValue(true);
     service = new MarketResearchService(
@@ -2064,6 +2068,7 @@ describe('MarketResearchService', () => {
       enabled: true,
       deep_provider: 'openai',
       sparktoro_enabled: false,
+      qualtrics_enabled: false,
     });
     config.researchDeepProvider = 'off';
     expect(service.health().deep_provider).toBe('off');
@@ -2092,6 +2097,77 @@ describe('MarketResearchService', () => {
     expect(payload.sparktoro_enabled).toBe(true);
     expect(JSON.stringify(payload)).not.toContain('st-secret-never-leak');
     expect(JSON.stringify(payload)).not.toMatch(/sparktoroApiKey|SPARKTORO_API_KEY/);
+  });
+
+  it('health qualtrics_enabled is false when flag is on but key is missing', () => {
+    config.researchQualtricsEnabled = true;
+    config.qualtricsApiKey = '';
+    expect(service.health().qualtrics_enabled).toBe(false);
+  });
+
+  it('health qualtrics_enabled is false when key is present but flag is off', () => {
+    config.researchQualtricsEnabled = false;
+    config.qualtricsApiKey = 'qx-secret-never-leak';
+    const payload = service.health();
+    expect(payload.qualtrics_enabled).toBe(false);
+    expect(JSON.stringify(payload)).not.toContain('qx-secret-never-leak');
+    expect(payload).not.toHaveProperty('qualtricsApiKey');
+    expect(payload).not.toHaveProperty('qualtrics_api_key');
+    expect(JSON.stringify(payload)).not.toMatch(/QUALTRICS_API_KEY/);
+  });
+
+  it('health qualtrics_enabled is true only when flag and key are both present', () => {
+    config.researchQualtricsEnabled = true;
+    config.qualtricsApiKey = 'qx-secret-never-leak';
+    const payload = service.health();
+    expect(payload.qualtrics_enabled).toBe(true);
+    expect(JSON.stringify(payload)).not.toContain('qx-secret-never-leak');
+    expect(JSON.stringify(payload)).not.toMatch(/qualtricsApiKey|QUALTRICS_API_KEY/);
+  });
+
+  it('flag or key off returns qualtrics_disabled without enqueue or insight', async () => {
+    stubScopedProject();
+
+    const out = await service.runQualtrics(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      'am@ptt',
+    );
+
+    expect(out).toEqual({ ok: true, note: 'qualtrics_disabled' });
+    expect(repo.createInsight).not.toHaveBeenCalled();
+    expect(repo.insertAiRun).not.toHaveBeenCalled();
+    expect(repo.createSource).not.toHaveBeenCalled();
+    expect(repo.createReportDraft).not.toHaveBeenCalled();
+    expect(Object.keys(jobQueue).some((k) => /qualtrics/i.test(k))).toBe(false);
+    for (const fn of Object.values(jobQueue)) {
+      if (typeof fn === 'function' && 'mock' in fn) {
+        expect(fn).not.toHaveBeenCalled();
+      }
+    }
+  });
+
+  it('flag and key on still returns qualtrics_disabled without enqueue or insight', async () => {
+    stubScopedProject();
+    config.researchQualtricsEnabled = true;
+    config.qualtricsApiKey = 'qx-secret-never-leak';
+
+    const out = await service.runQualtrics(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      'am@ptt',
+    );
+
+    expect(out).toEqual({ ok: true, note: 'qualtrics_disabled' });
+    expect(repo.createInsight).not.toHaveBeenCalled();
+    expect(repo.insertAiRun).not.toHaveBeenCalled();
+    expect(repo.createSource).not.toHaveBeenCalled();
+    expect(repo.createReportDraft).not.toHaveBeenCalled();
+    for (const fn of Object.values(jobQueue)) {
+      if (typeof fn === 'function' && 'mock' in fn) {
+        expect(fn).not.toHaveBeenCalled();
+      }
+    }
   });
 
   it('insightCopilot with 0 evidence is 400 and does not call the LLM', async () => {

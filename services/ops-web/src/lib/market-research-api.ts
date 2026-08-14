@@ -190,6 +190,7 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   whisper_disabled: 'Whisper đang tắt — project không đổi.',
   raw_transcript_forbidden: 'Chỉ lưu đoạn trích ≤ 500 ký tự. Không lưu transcript đầy đủ.',
   sparktoro_disabled: 'SparkToro đang tắt — không tạo insight.',
+  qualtrics_disabled: 'Qualtrics đang tắt — không tạo insight.',
   survey_pii_forbidden: 'CSV codebook không được chứa SĐT hoặc email.',
   codebook_csv_invalid: 'CSV codebook không hợp lệ.',
   codebook_row_cap: 'CSV codebook vượt quá 500 dòng.',
@@ -845,7 +846,13 @@ export async function runResearchDesk(
 
 export async function fetchResearchHealth(
   token: string,
-): Promise<{ ok: true; enabled: true; deep_provider: string; sparktoro_enabled: boolean }> {
+): Promise<{
+  ok: true;
+  enabled: true;
+  deep_provider: string;
+  sparktoro_enabled: boolean;
+  qualtrics_enabled: boolean;
+}> {
   return researchFetch(token, '/api/v1/research/health');
 }
 
@@ -891,6 +898,15 @@ export async function runResearchSparktoro(
   return researchFetch(token, `/api/v1/research/projects/${projectId}/run-sparktoro`, {
     method: 'POST',
     body: JSON.stringify({ question_id: questionId }),
+  });
+}
+
+export async function runResearchQualtrics(
+  token: string,
+  projectId: number,
+): Promise<{ ok: true; note: 'qualtrics_disabled' }> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/run-qualtrics`, {
+    method: 'POST',
   });
 }
 

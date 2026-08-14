@@ -460,6 +460,11 @@ export type RunSparktoroResult = {
   source_ids?: number[];
 };
 
+export type RunQualtricsResult = {
+  ok: true;
+  note: 'qualtrics_disabled';
+};
+
 export type CreateSourceInput = {
   title: string;
   source_type?: string;

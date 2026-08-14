@@ -115,6 +115,7 @@ import type {
   RunPulseResult,
   RunSparktoroInput,
   RunSparktoroResult,
+  RunQualtricsResult,
   RunTriangulateResult,
   WhisperIngestResult,
   TrendSignal,
@@ -173,13 +174,21 @@ export class MarketResearchService {
     private readonly contentMarketing: ContentMarketingService,
   ) {}
 
-  health(): { ok: true; enabled: true; deep_provider: string; sparktoro_enabled: boolean } {
-    const apiKey = String(this.config.sparktoroApiKey ?? '').trim();
+  health(): {
+    ok: true;
+    enabled: true;
+    deep_provider: string;
+    sparktoro_enabled: boolean;
+    qualtrics_enabled: boolean;
+  } {
+    const sparktoroKey = String(this.config.sparktoroApiKey ?? '').trim();
+    const qualtricsKey = String(this.config.qualtricsApiKey ?? '').trim();
     return {
       ok: true,
       enabled: true,
       deep_provider: this.config.researchDeepProvider,
-      sparktoro_enabled: Boolean(this.config.researchSparktoroEnabled && apiKey),
+      sparktoro_enabled: Boolean(this.config.researchSparktoroEnabled && sparktoroKey),
+      qualtrics_enabled: Boolean(this.config.researchQualtricsEnabled && qualtricsKey),
     };
   }
 
@@ -1756,6 +1765,15 @@ export class MarketResearchService {
       geo: project.geo,
       apiKey,
     });
+  }
+
+  async runQualtrics(
+    projectId: number,
+    scope: ClientScopeContext,
+    _actor: string,
+  ): Promise<RunQualtricsResult> {
+    await this.loadScopedProject(projectId, scope);
+    return { ok: true, note: 'qualtrics_disabled' };
   }
 
   private async persistSparktoroSources(input: {

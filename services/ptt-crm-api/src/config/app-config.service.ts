@@ -104,6 +104,8 @@ export class AppConfigService {
   readonly researchDeepTimeoutSec: number;
   readonly researchSparktoroEnabled: boolean;
   readonly sparktoroApiKey: string;
+  readonly researchQualtricsEnabled: boolean;
+  readonly qualtricsApiKey: string;
   readonly lmpPilotOnly: boolean;
   readonly lmpPilotClientIds: string[];
   readonly presalesBatchUpgradeEnabled: boolean;
@@ -381,6 +383,10 @@ export class AppConfigService {
       (process.env.RESEARCH_SPARKTORO_ENABLED ?? '0').trim().toLowerCase(),
     );
     this.sparktoroApiKey = (process.env.SPARKTORO_API_KEY ?? '').trim();
+    this.researchQualtricsEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.RESEARCH_QUALTRICS_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.qualtricsApiKey = (process.env.QUALTRICS_API_KEY ?? '').trim();
     this.lmpPilotOnly = !['0', 'false', 'no', 'off'].includes(
       (process.env.PTT_LMP_PILOT_ONLY ?? '1').trim().toLowerCase(),
     );

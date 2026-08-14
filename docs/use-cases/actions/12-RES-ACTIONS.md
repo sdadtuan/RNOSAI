@@ -382,12 +382,59 @@ Paid estimate `sparktoro|similarweb|semrush` + tier `high`: 400 `{error:reliabil
 
 ---
 
-## P6+ (backlog — không UAT P0–P5)
+## Walkthrough UAT P6 — Codebook + VW lite + Qualtrics stub (≈15 phút)
+
+**Mục tiêu khách hàng:** *«Analyst chọn study survey → nhập codebook → evidence value+unit+base; F5 còn; PRICE_OFFER tính VW + limitation; không insight; Qualtrics ẩn/disabled; F5 còn.»*
+
+**Actors:** Research Analyst (AN), QA
+
+**Dữ liệu test:** Client `acme` trong scope · Flag research = 1 (P0 đã bật) · `RESEARCH_QUALTRICS_ENABLED` mặc định `0` (không bật trong deploy) · Study method survey · Fixture `scripts/fixtures/research-codebook.sample.csv` + `research-vw.sample.csv` · Caps `crm_research.edit` (import/VW), `run` (Qualtrics stub), `view`
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | AN | Studies `?tab=studies` | Tạo/chọn study **survey** | method survey | Study hiện trên tab | ✓ RES-UC-062 |
+| 2 | AN | Same | **Nhập codebook** (cap `edit`) | CSV 2–4 hàng, không PII | 201 `{ok, study_id, evidence_ids, n}` | ✓ RES-UC-062 · BR-RES-02 |
+| 3 | AN | Evidence | Kiểm evidence số | value + unit + base | Locator `Q-…`; không insight | ✓ BR-RES-02 · BR-RES-06 |
+| 4 | AN | Same · F5 | Reload | — | Evidence còn · không PII / không insight mới | ✓ F5 |
+| 5 | AN | Giá VW `?tab=` (chỉ `PRICE_OFFER`) | **Tính Van Westendorp** | study VW / 4 respondents | Bảng too_cheap…too_expensive + limitation | ✓ RES-UC-063 · BR-RES-03 |
+| 6 | AN | Same | Kiểm limitation | — | Không MOE / 95%; **không** insight mới | ✓ BR-RES-03 · BR-RES-06/08 |
+| 7 | AN | Sources / Studies | Qualtrics **ẩn** (hoặc disabled) | `GET /health` `qualtrics_enabled=false` | Không CTA **Chạy Qualtrics**; `POST …/run-qualtrics` → `200 {ok:true, note:qualtrics_disabled}` | ✓ stub |
+| 8 | AN / QA | Same · F5 | Reload | — | Evidence + VW (nếu có) còn · Qualtrics vẫn ẩn | ✓ F5 |
+
+#### Nhánh E-PII
+
+Bước 2 CSV có email/SĐT: 400 `{error:survey_pii_forbidden}` · 0 evidence.
+
+#### Nhánh E-BR-RES-02
+
+Thiếu value / unit / base: 400 · không insert.
+
+#### Nhánh E-VW type
+
+POST van-westendorp trên `CAT_REVIEW` (không `PRICE_OFFER`): 400 `{error:vw_not_price_offer}`.
+
+#### Nhánh E-Qualtrics off
+
+`GET /health` `qualtrics_enabled=false` (flag hoặc key off) → **không** CTA **Chạy Qualtrics**. `POST …/run-qualtrics` → `200 {ok:true, note:qualtrics_disabled}` — project không fail. Không enqueue. Không `createInsight`.
+
+P6 **không** có live Qualtrics HTTP / SDK. Flag + key on vẫn `qualtrics_disabled` cho đến khi PO mua retainer (P7+).
+
+#### Tiêu chí nghiệm thu walkthrough P6
+
+- [ ] Bước 1–8 pass staging (Qualtrics skip live nếu `qualtrics_enabled` false / API down)
+- [ ] PII 400; BR-RES-02 400; `vw_not_price_offer`; không `createInsight`; Qualtrics disabled 200
+- [ ] Không đụng `/crm/sales?tab=market`
+- [ ] Không bật `RESEARCH_QUALTRICS_ENABLED` / không ghi `QUALTRICS_API_KEY` trên prod
+- [ ] PO / Research Lead sign P6 ECs
+
+---
+
+## P7+ (backlog — không UAT P0–P6)
 
 | Hạng mục | Hành động tóm tắt | Điều kiện mở |
 |----------|-------------------|--------------|
-| Qualtrics | Import response → study + evidence `value+unit+base`; ExpertReview = source note, không auto-insight | PO có retainer Qualtrics **hoặc** chấp nhận Forms + codebook |
-| Van Westendorp | 4 câu giá → bảng `too_cheap`…`too_expensive` trên project `PRICE_OFFER`; **không** market simulator | Cùng plan P6 nếu cùng `PRICE_OFFER` |
+| Qualtrics **live** | Connector HTTP thật → import response | PO retainer Qualtrics + key staging |
 | RAG | Embeddings **chỉ** insight `published` / `approved_client_facing` | Gold-set unsupported-claim ổn; DPA embeddings |
 | Taxonomy | `crm_research_taxonomy` theme + synonym; gắn `insight_id`; không thay statement | P7 cùng RAG |
+| Conjoint / simulator | Conjoint đầy đủ + market simulator | P8+ · scorecard 100đ |
 | **Apify login** | **Out (Design §20)** — không scrape Facebook login / group. LMP public page giữ nguyên | Không mở |

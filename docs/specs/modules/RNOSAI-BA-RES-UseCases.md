@@ -98,6 +98,8 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-051 | Cite insight Content OS | P4 | P4 | Spec ready | FR-INT-02 |
 | RES-UC-060 | Whisper audio → excerpt + locator | P5 | P5 | Spec ready | FR-STD-02 · FR-STD-03 · NFR-PRI-01/02 |
 | RES-UC-061 | SparkToro source candidates | P5 | P5 | Spec ready | FR-CI · BR-RES-09 · BR-RES-11 |
+| RES-UC-062 | Import survey codebook CSV | P6 | P6 | Spec ready | FR-STD-01 · BR-RES-02 · BR-RES-11 |
+| RES-UC-063 | Van Westendorp lite PRICE_OFFER | P6 | P6 | Spec ready | BR-RES-03 · FR-STD |
 
 ---
 
@@ -632,6 +634,30 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - Flag/key off → `200 {ok:true, note:sparktoro_disabled}`; `GET /health` `sparktoro_enabled` false → ẩn CTA
 - **Cấm** `createInsight` / `createReport` / publish-portal từ job này
 
+### RES-UC-062 — Import survey codebook CSV
+
+- `POST /api/v1/research/projects/:id/import-survey` multipart `file` + `format=codebook|vw`; cap `edit`
+- Codebook → study survey + evidence `value+unit+base` (+ period/geo); PII cell → 400 `survey_pii_forbidden` (0 evidence)
+- Thiếu value/unit/base → 400 (BR-RES-02); ExpertReview = source note, không auto-insight
+- Fixture: `scripts/fixtures/research-codebook.sample.csv` (2–4 hàng, không PII)
+- **Cấm** `createInsight` / `createReport` / publish-portal / `xlsx`
+
+### RES-UC-063 — Van Westendorp lite PRICE_OFFER
+
+- `GET /api/v1/research/projects/:id/van-westendorp` cap `view` → `{ summary }`
+- `POST /api/v1/research/projects/:id/van-westendorp` body `{ study_id? }` cap `edit`
+- Không `PRICE_OFFER` → 400 `vw_not_price_offer`; n < 4 → 400 `vw_insufficient_n`
+- Bảng too_cheap / cheap / expensive / too_expensive + `limitation_note`; không MOE / 95%
+- Fixture VW: `scripts/fixtures/research-vw.sample.csv` (4 respondents)
+- **Cấm** `createInsight` / market simulator / conjoint
+
+### RES-UC-062/063 — Qualtrics stub (không live)
+
+- `POST /api/v1/research/projects/:id/run-qualtrics` cap `run`
+- Flag/key off (default) → `200 {ok:true, note:qualtrics_disabled}`; flag+key on vẫn stub (không enqueue, không HTTP Qualtrics)
+- `GET /health` `qualtrics_enabled` = flag **và** key; không trả `QUALTRICS_API_KEY`
+- FE: ẩn CTA trừ khi `shouldShowQualtricsButton(qualtrics_enabled, canRun)`
+
 ---
 
 ## 5. API map
@@ -649,6 +675,9 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | POST | `/projects/:id/run-deep` | 005 |
 | POST | `/projects/:id/studies/:studyId/whisper` | 060 |
 | POST | `/projects/:id/run-sparktoro` | 061 |
+| POST | `/projects/:id/import-survey` | 062 |
+| GET/POST | `/projects/:id/van-westendorp` | 063 |
+| POST | `/projects/:id/run-qualtrics` | 062 |
 | GET | `/projects/:id/jobs/:runId` | 020 |
 | POST | `/projects/:id/evidence` | 006 |
 | POST | `/evidence/:id/verify` | 006 |
