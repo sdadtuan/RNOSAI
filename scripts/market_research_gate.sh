@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Market Research OS P0+P1+P2 gate — EC-RES-02,04,05,06,08,10,11 (+ skip notes for live-only ECs).
+# Market Research OS P0+P1+P2+P3 gate — EC-RES-02,04,05,06,08,10,11 (+ skip notes for live-only ECs).
 #
 #   bash scripts/market_research_gate.sh
 #
@@ -17,7 +17,7 @@ if [[ -f "$ROOT/.env" ]]; then
   set +a
 fi
 
-echo "== Market Research P0+P1+P2 gate @ $(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown) =="
+echo "== Market Research P0+P1+P2+P3 gate @ $(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown) =="
 
 echo "== syntax =="
 bash -n "$ROOT/scripts/market_research_gate.sh"
@@ -44,12 +44,33 @@ fi
 if [[ -f "$ROOT/scripts/deploy_market_research_p2_vps.sh" ]]; then
   bash -n "$ROOT/scripts/deploy_market_research_p2_vps.sh"
 fi
-echo "OK  bash -n gate / smoke_p0 / deploy / smoke_p1 / deploy_p1 / smoke_p2 / deploy_p2"
+if [[ -f "$ROOT/scripts/smoke_market_research_p3.sh" ]]; then
+  bash -n "$ROOT/scripts/smoke_market_research_p3.sh"
+fi
+if [[ -f "$ROOT/scripts/smoke_market_research_p3_m1.sh" ]]; then
+  bash -n "$ROOT/scripts/smoke_market_research_p3_m1.sh"
+fi
+if [[ -f "$ROOT/scripts/smoke_market_research_p3_m2.sh" ]]; then
+  bash -n "$ROOT/scripts/smoke_market_research_p3_m2.sh"
+fi
+if [[ -f "$ROOT/scripts/smoke_market_research_p3_m3.sh" ]]; then
+  bash -n "$ROOT/scripts/smoke_market_research_p3_m3.sh"
+fi
+if [[ -f "$ROOT/scripts/smoke_market_research_p3_m4.sh" ]]; then
+  bash -n "$ROOT/scripts/smoke_market_research_p3_m4.sh"
+fi
+if [[ -f "$ROOT/scripts/smoke_market_research_p3_m5.sh" ]]; then
+  bash -n "$ROOT/scripts/smoke_market_research_p3_m5.sh"
+fi
+if [[ -f "$ROOT/scripts/deploy_market_research_p3_vps.sh" ]]; then
+  bash -n "$ROOT/scripts/deploy_market_research_p3_vps.sh"
+fi
+echo "OK  bash -n gate / smoke_p0 / deploy / smoke_p1 / deploy_p1 / smoke_p2 / deploy_p2 / smoke_p3 / deploy_p3"
 
-echo "== unit (EC-RES-04/05/06/08/10/11) =="
+echo "== unit (EC-RES-04/05/06/08/10/11 + P3 portal) =="
 (
   cd "$ROOT/services/ptt-crm-api"
-  npm test -- --testPathPattern=market-research --no-coverage
+  npm test -- --testPathPattern='market-research|portal-research' --no-coverage
 )
 
 echo "EC-RES-01 nav — MANUAL: sidebar Lên kế hoạch shows Research + Marketing plan"
@@ -75,6 +96,12 @@ echo "EC-P2-consent PII 400 — Jest createConsent notes phone → consent_pii_f
 echo "EC-P2-pulse no insight — Jest createInsight not called / pulse insight_ids: []"
 echo "EC-P2-exec_en_locked — Jest POST exec-en when approved is 400 exec_en_locked"
 echo "EC-P2-analytics 403 no title — Jest getOpsAnalytics out-of-scope client_id is 403 without title"
+
+echo "== P3 ECs (Jest only; no live API required) =="
+echo "EC-P3-publish not client-facing 400 — Jest publish when insight approved_internal is 400 insights_not_client_facing"
+echo "EC-P3-portal cross-tenant 403 no title — Jest M2-1a cross-tenant GET → 403, JSON.stringify(body) has no title"
+echo "EC-P3-waves CAT_REVIEW 400 — Jest POST wave on CAT_REVIEW is 400 waves_not_tracker"
+echo "EC-P3-decision draft insight 400 — Jest POST decision with draft insight is 400 insight_not_approved"
 
 if [[ -n "${BETA_TOKEN:-}" && -n "${ACME_PROJECT_ID:-}" ]]; then
   echo "== EC-RES-06 live tenancy =="

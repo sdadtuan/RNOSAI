@@ -4,7 +4,7 @@
 > **BA:** [`../../specs/modules/RNOSAI-BA-RES-UseCases.md`](../../specs/modules/RNOSAI-BA-RES-UseCases.md)  
 > **UX:** [`../../specs/2026-08-14-market-research-os-ui-ux.md`](../../specs/2026-08-14-market-research-os-ui-ux.md)  
 > **SRS:** [`../../specs/2026-08-14-market-research-os-srs.md`](../../specs/2026-08-14-market-research-os-srs.md)  
-> **Phiên bản:** 1.0 · **Coverage:** RES-UC-001…020 (P0 UAT) + walkthrough P1–P2 + backlog P3
+> **Phiên bản:** 1.0 · **Coverage:** RES-UC-001…020 (P0 UAT) + walkthrough P1–P3 + backlog P4
 
 ---
 
@@ -251,10 +251,55 @@ AN tự **Duyệt bản dịch**: 403 `cannot_self_approve`.
 
 ---
 
-## P3 (backlog — không UAT P0/P1/P2)
+## Walkthrough UAT P3 — Embargo → decision (≈20 phút)
 
-| UC | Hành động tóm tắt |
-|----|-------------------|
-| 040 | Portal watermark |
-| 041 | Wave dates TRACKER |
-| 042 | Ghi decision sau readout |
+**Mục tiêu khách hàng:** *«AM công bố report đã duyệt lên portal (không auto); khách Acme đọc watermark; Beta không thấy title; Analyst gắn 2 wave TRACKER và so sánh; AM ghi decision sau readout.»*
+
+**Actors:** AM, Research Analyst (AN), Research Lead (LD), Client Acme, Client Beta, QA
+
+**Dữ liệu test:** Client `acme` trong scope · Client `beta` ngoài scope · Flag research = 1 (P0 đã bật) · Report version đã duyệt insight client-facing · Project `TRACKER` (waves) + project bất kỳ (decision) · Caps `crm_research.edit` (embargo, waves, decisions), `approve` (publish-portal), `view` (GET) · Portal JWT `client_id` = `clients.id`
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | AM | Report tab | Điền **embargo** / **expiry** | ISO datetime | Version giữ snapshot/vi · `embargo_until` / `expires_at` | ✓ RES-UC-040 |
+| 2 | LD | Same | **Công bố portal** (cap `approve`, user ≠ `generated_by`) | `{ visible: true }` | `portal_visible=true` · insight chưa client-facing → 400 `insights_not_client_facing` | ✓ RES-UC-040 · BR-RES-01 |
+| 3 | Acme | Portal `/research` + `/research/:versionId` | Mở report đã công bố | Portal JWT Acme | Watermark `CONFIDENTIAL · {client_id} · {email} · {YYYY-MM-DD}` · không `title` | ✓ RES-UC-040 · US-CL-30 |
+| 4 | Beta | Same GET version Acme | Đọc chéo tenant | Portal JWT Beta | 403 `{error:forbidden}` · JSON **không** `title` | ✓ EC-P3-portal · BR-RES-12 |
+| 5 | AN | Workspace tab **Waves** (TRACKER) | **+ Wave** ×2 | wave_no 1–2 + `metric_json` | 2 row persist · CAT_REVIEW → 400 `waves_not_tracker` | ✓ RES-UC-041 |
+| 6 | AN | Same | Xem **So sánh 2 wave gần nhất** | 2 wave cùng `key` | Hàng delta (`waveDelta`) | ✓ RES-UC-041 |
+| 7 | AM | Tab **Quyết định** | Ghi decision gắn insight ≥ `approved_internal` | text ≥ 10 + owner | 201 decision `open` · draft insight → 400 `insight_not_approved` | ✓ RES-UC-042 |
+| 8 | AM / QA | Same · F5 | Reload | — | Decision + 2 wave + `portal_visible` còn | ✓ F5 |
+
+#### Nhánh E-Publish gate
+
+Bước 2 insight `approved_internal` (chưa client-facing): 400 `insights_not_client_facing` · `portal_visible` vẫn `false`. Tạo report mới **không** tự công bố.
+
+#### Nhánh E-Portal tenancy
+
+Bước 4: Beta 403 `{ error: 'forbidden' }` · `JSON.stringify(body)` không chứa `title` / competitor `name` / study `name`.
+
+#### Nhánh E-Waves CAT_REVIEW
+
+Bước 5 trên project không TRACKER: 400 `waves_not_tracker` · tab Waves ẩn.
+
+#### Nhánh E-Decision draft
+
+Bước 7 insight `draft`: 400 `insight_not_approved`. Text 3 ký tự: 400 `validation_error`. Pulse / publish-portal **không** insert decision.
+
+#### Tiêu chí nghiệm thu walkthrough P3
+
+- [ ] Bước 1–8 pass staging (portal skip live nếu API/portal down)
+- [ ] Publish không client-facing 400; portal cross-tenant 403 không title; waves CAT_REVIEW 400; decision draft insight 400
+- [ ] Không đụng `/crm/sales?tab=market`
+- [ ] PO / Research Lead sign P3 ECs
+
+---
+
+## P4 (backlog — không UAT P0/P1/P2/P3)
+
+| Hạng mục | Hành động tóm tắt |
+|----------|-------------------|
+| PDF binary (FR-RPT-04) | Xuất file PDF (P3 portal = HTML + watermark) |
+| Content OS cite (FR-INT-02) | Cite insight sang Content OS |
+| Whisper | Ingest audio / transcript |
+| SparkToro | Nguồn audience / overlap |
