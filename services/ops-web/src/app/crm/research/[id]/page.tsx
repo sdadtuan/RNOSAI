@@ -47,6 +47,7 @@ import {
   runResearchDeep,
   runResearchDesk,
   runResearchPulse,
+  runResearchSparktoro,
   runResearchTriangulate,
   patchResearchEvidence,
   patchResearchInsight,
@@ -82,6 +83,10 @@ import {
   type ResearchSource,
 } from '@/lib/market-research-api';
 import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
+import {
+  SPARKTORO_SOURCES_BANNER,
+  shouldShowSparktoroButton,
+} from '@/components/research/sources-sparktoro.util';
 
 const TABS = [
   { id: 'brief', label: 'Brief' },
@@ -135,6 +140,9 @@ function CrmResearchWorkspaceContent() {
   const [triBanner, setTriBanner] = useState('');
   const [pulseRunId, setPulseRunId] = useState<number | null>(null);
   const [pulseBanner, setPulseBanner] = useState('');
+  const [sparktoroEnabled, setSparktoroEnabled] = useState(false);
+  const [sparktoroRunId, setSparktoroRunId] = useState<number | null>(null);
+  const [sparktoroBanner, setSparktoroBanner] = useState('');
   const [reportSnapshot, setReportSnapshot] = useState<ResearchReportSnapshot | null>(null);
   const [reports, setReports] = useState<ResearchReport[]>([]);
 
@@ -184,11 +192,16 @@ function CrmResearchWorkspaceContent() {
       }
       if (data.deep_research_provider) {
         setDeepProvider(data.deep_research_provider);
-      } else {
-        try {
-          const health = await fetchResearchHealth(access);
+      }
+      try {
+        const health = await fetchResearchHealth(access);
+        setSparktoroEnabled(health.sparktoro_enabled === true);
+        if (!data.deep_research_provider) {
           setDeepProvider(health.deep_provider);
-        } catch {
+        }
+      } catch {
+        setSparktoroEnabled(false);
+        if (!data.deep_research_provider) {
           setDeepProvider('off');
         }
       }
@@ -770,6 +783,54 @@ function CrmResearchWorkspaceContent() {
     }
   }
 
+  async function onRunSparktoro() {
+    const access = getAccessToken();
+    const qid = deskQuestionId ?? project?.questions?.[0]?.id;
+    if (!access || !project || !qid) return;
+    setSaving(true);
+    setError('');
+    setSparktoroBanner('');
+    try {
+      const out = await runResearchSparktoro(access, project.id, qid);
+      setDeskQuestionId(qid);
+      if (out.note === 'sparktoro_disabled') {
+        setSparktoroBanner(TRANSITION_REASON_VI.sparktoro_disabled);
+        return;
+      }
+      if (out.run_id) setSparktoroRunId(out.run_id);
+      if (out.status === 'failed') {
+        const note = out.note ?? 'jobs_disabled';
+        setSparktoroBanner(TRANSITION_REASON_VI[note] ?? note);
+      }
+    } catch (err) {
+      if (err instanceof ResearchApiError && err.code === 'job_in_flight') {
+        setError(TRANSITION_REASON_VI.job_in_flight);
+      } else {
+        setError(err instanceof Error ? err.message : 'Chạy SparkToro thất bại');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onSparktoroSettled(run: ResearchAiRun) {
+    const access = getAccessToken();
+    if (run.status === 'failed') {
+      const code = run.error_message ?? 'failed';
+      setSparktoroBanner(TRANSITION_REASON_VI[code] ?? code);
+    } else {
+      setSparktoroBanner('');
+      setSparktoroRunId(null);
+    }
+    if (access) {
+      try {
+        await load(access);
+      } catch {
+        /* keep chip state */
+      }
+    }
+  }
+
   async function onTriSettled(run: ResearchAiRun) {
     const access = getAccessToken();
     if (run.status === 'failed') {
@@ -947,6 +1008,9 @@ function CrmResearchWorkspaceContent() {
                   triBanner={triBanner}
                   pulseRunId={pulseRunId}
                   pulseBanner={pulseBanner}
+                  sparktoroEnabled={sparktoroEnabled}
+                  sparktoroRunId={sparktoroRunId}
+                  sparktoroBanner={sparktoroBanner}
                   onQuestionChange={setDeskQuestionId}
                   onRun={() => void onRunDesk()}
                   onRetry={() => void onRunDesk(deskQuestionId ?? project.questions?.[0]?.id)}
@@ -957,6 +1021,8 @@ function CrmResearchWorkspaceContent() {
                   onTriSettled={onTriSettled}
                   onRunPulse={() => void onRunPulse()}
                   onPulseSettled={onPulseSettled}
+                  onRunSparktoro={() => void onRunSparktoro()}
+                  onSparktoroSettled={onSparktoroSettled}
                 />
                 <SourceKeepTable
                   sources={project.sources ?? []}
@@ -1108,6 +1174,9 @@ function SourcesDeskBar({
   triBanner,
   pulseRunId,
   pulseBanner,
+  sparktoroEnabled,
+  sparktoroRunId,
+  sparktoroBanner,
   onQuestionChange,
   onRun,
   onRetry,
@@ -1118,6 +1187,8 @@ function SourcesDeskBar({
   onTriSettled,
   onRunPulse,
   onPulseSettled,
+  onRunSparktoro,
+  onSparktoroSettled,
 }: {
   project: ResearchProject;
   canRun: boolean;
@@ -1132,6 +1203,9 @@ function SourcesDeskBar({
   triBanner: string;
   pulseRunId: number | null;
   pulseBanner: string;
+  sparktoroEnabled: boolean;
+  sparktoroRunId: number | null;
+  sparktoroBanner: string;
   onQuestionChange: (id: number) => void;
   onRun: () => void;
   onRetry: () => void;
@@ -1142,6 +1216,8 @@ function SourcesDeskBar({
   onTriSettled: (run: ResearchAiRun) => void;
   onRunPulse: () => void;
   onPulseSettled: (run: ResearchAiRun) => void;
+  onRunSparktoro: () => void;
+  onSparktoroSettled: (run: ResearchAiRun) => void;
 }) {
   const questions = project.questions ?? [];
   const used = project.tavily_credits_used ?? 0;
@@ -1154,6 +1230,9 @@ function SourcesDeskBar({
   const triFailed = Boolean(triBanner);
   const pulseInFlight = Boolean(pulseRunId) && !pulseBanner;
   const pulseFailed = Boolean(pulseBanner);
+  const showSparktoro = shouldShowSparktoroButton(sparktoroEnabled, canRun);
+  const sparktoroInFlight = Boolean(sparktoroRunId) && !sparktoroBanner;
+  const sparktoroFailed = Boolean(sparktoroBanner);
   const hasPulseSignals = (project.trend_signals ?? []).length > 0;
   return (
     <div className="stack-gap" style={{ marginBottom: '0.85rem' }}>
@@ -1219,6 +1298,17 @@ function SourcesDeskBar({
             {pulseFailed ? 'Thử lại pulse' : 'Chạy pulse'}
           </button>
         ) : null}
+        {showSparktoro ? (
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={saving || !questionId || sparktoroInFlight}
+            title={sparktoroInFlight ? TRANSITION_REASON_VI.job_in_flight : undefined}
+            onClick={onRunSparktoro}
+          >
+            {sparktoroFailed ? 'Thử lại SparkToro' : 'Chạy SparkToro'}
+          </button>
+        ) : null}
         <ResearchJobChip
           token={getAccessToken()}
           projectId={project.id}
@@ -1245,6 +1335,13 @@ function SourcesDeskBar({
           runId={pulseRunId}
           kind="pulse"
           onSettled={onPulseSettled}
+        />
+        <ResearchJobChip
+          token={getAccessToken()}
+          projectId={project.id}
+          runId={sparktoroRunId}
+          kind="sparktoro"
+          onSettled={onSparktoroSettled}
         />
         <span className="muted" style={{ fontSize: '0.85rem' }}>
           Tavily {used}/{limit} credit dự án
@@ -1306,6 +1403,32 @@ function SourcesDeskBar({
           {pulseBanner}
         </p>
       ) : null}
+      {sparktoroBanner ? (
+        <p
+          role="status"
+          style={{
+            margin: 0,
+            padding: '0.55rem 0.75rem',
+            borderRadius: 8,
+            border: '1px solid rgba(234, 179, 8, 0.45)',
+            background: 'rgba(234, 179, 8, 0.12)',
+          }}
+        >
+          {sparktoroBanner}
+        </p>
+      ) : null}
+      <p
+        role="status"
+        style={{
+          margin: 0,
+          padding: '0.55rem 0.75rem',
+          borderRadius: 8,
+          border: '1px solid rgba(234, 179, 8, 0.45)',
+          background: 'rgba(234, 179, 8, 0.12)',
+        }}
+      >
+        {SPARKTORO_SOURCES_BANNER}
+      </p>
       {hasPulseSignals ? (
         <p
           role="status"

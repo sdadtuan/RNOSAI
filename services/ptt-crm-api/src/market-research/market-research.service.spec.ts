@@ -2023,9 +2023,35 @@ describe('MarketResearchService', () => {
       ok: true,
       enabled: true,
       deep_provider: 'openai',
+      sparktoro_enabled: false,
     });
     config.researchDeepProvider = 'off';
     expect(service.health().deep_provider).toBe('off');
+  });
+
+  it('health sparktoro_enabled is false when flag is on but key is missing', () => {
+    config.researchSparktoroEnabled = true;
+    config.sparktoroApiKey = '';
+    expect(service.health().sparktoro_enabled).toBe(false);
+  });
+
+  it('health sparktoro_enabled is false when key is present but flag is off', () => {
+    config.researchSparktoroEnabled = false;
+    config.sparktoroApiKey = 'st-secret-never-leak';
+    const payload = service.health();
+    expect(payload.sparktoro_enabled).toBe(false);
+    expect(JSON.stringify(payload)).not.toContain('st-secret-never-leak');
+    expect(payload).not.toHaveProperty('sparktoroApiKey');
+    expect(payload).not.toHaveProperty('sparktoro_api_key');
+  });
+
+  it('health sparktoro_enabled is true only when flag and key are both present', () => {
+    config.researchSparktoroEnabled = true;
+    config.sparktoroApiKey = 'st-secret-never-leak';
+    const payload = service.health();
+    expect(payload.sparktoro_enabled).toBe(true);
+    expect(JSON.stringify(payload)).not.toContain('st-secret-never-leak');
+    expect(JSON.stringify(payload)).not.toMatch(/sparktoroApiKey|SPARKTORO_API_KEY/);
   });
 
   it('insightCopilot with 0 evidence is 400 and does not call the LLM', async () => {

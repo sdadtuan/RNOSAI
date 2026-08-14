@@ -155,11 +155,13 @@ export class MarketResearchService {
     private readonly contentMarketing: ContentMarketingService,
   ) {}
 
-  health(): { ok: true; enabled: true; deep_provider: string } {
+  health(): { ok: true; enabled: true; deep_provider: string; sparktoro_enabled: boolean } {
+    const apiKey = String(this.config.sparktoroApiKey ?? '').trim();
     return {
       ok: true,
       enabled: true,
       deep_provider: this.config.researchDeepProvider,
+      sparktoro_enabled: Boolean(this.config.researchSparktoroEnabled && apiKey),
     };
   }
 

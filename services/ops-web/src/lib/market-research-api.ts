@@ -189,6 +189,7 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   consent_expired: 'Consent đã hết hạn — không tải audio được.',
   whisper_disabled: 'Whisper đang tắt — project không đổi.',
   raw_transcript_forbidden: 'Chỉ lưu đoạn trích ≤ 500 ký tự. Không lưu transcript đầy đủ.',
+  sparktoro_disabled: 'SparkToro đang tắt — không tạo insight.',
 };
 
 export type MethodologyBlock = {
@@ -800,7 +801,7 @@ export async function runResearchDesk(
 
 export async function fetchResearchHealth(
   token: string,
-): Promise<{ ok: true; enabled: true; deep_provider: string }> {
+): Promise<{ ok: true; enabled: true; deep_provider: string; sparktoro_enabled: boolean }> {
   return researchFetch(token, '/api/v1/research/health');
 }
 
@@ -835,6 +836,17 @@ export async function runResearchPulse(
   return researchFetch(token, `/api/v1/research/projects/${projectId}/run-pulse`, {
     method: 'POST',
     body: JSON.stringify(questionId ? { question_id: questionId } : {}),
+  });
+}
+
+export async function runResearchSparktoro(
+  token: string,
+  projectId: number,
+  questionId: number,
+): Promise<{ ok: true; run_id?: number; status?: string; note?: string }> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/run-sparktoro`, {
+    method: 'POST',
+    body: JSON.stringify({ question_id: questionId }),
   });
 }
 
