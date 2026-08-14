@@ -9,6 +9,7 @@ import { EvidenceIdChip } from '@/components/research/EvidenceIdChip';
 import { InsightCard } from '@/components/research/InsightCard';
 import { InsightDrawer } from '@/components/research/InsightDrawer';
 import { InsightGateDialog } from '@/components/research/InsightGateDialog';
+import { ResearchJobChip } from '@/components/research/ResearchJobChip';
 import { ResearchStatusChip } from '@/components/research/ResearchStatusChip';
 import { SourceKeepTable } from '@/components/research/SourceKeepTable';
 import { staffMe, staffRefresh } from '@/lib/api';
@@ -31,6 +32,7 @@ import {
   createResearchSource,
   deleteResearchQuestion,
   fetchResearchProject,
+  runResearchDesk,
   patchResearchEvidence,
   patchResearchInsight,
   patchResearchProject,
@@ -47,6 +49,7 @@ import {
   type CreateInsightBody,
   type InsightStatus,
   type ProjectStatus,
+  type ResearchAiRun,
   type ResearchEvidence,
   type ResearchInsight,
   type ResearchProject,
@@ -93,6 +96,9 @@ function CrmResearchWorkspaceContent() {
   const [activeInsight, setActiveInsight] = useState<ResearchInsight | null>(null);
   const [gateOpen, setGateOpen] = useState(false);
   const [gateMessages, setGateMessages] = useState<string[]>([]);
+  const [deskQuestionId, setDeskQuestionId] = useState<number | null>(null);
+  const [deskRunId, setDeskRunId] = useState<number | null>(null);
+  const [deskBanner, setDeskBanner] = useState('');
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -408,6 +414,50 @@ function CrmResearchWorkspaceContent() {
     }
   }
 
+  async function onRunDesk(questionId?: number | null) {
+    const access = getAccessToken();
+    const qid = questionId ?? deskQuestionId ?? project?.questions?.[0]?.id;
+    if (!access || !project || !qid) return;
+    setSaving(true);
+    setError('');
+    setDeskBanner('');
+    try {
+      const out = await runResearchDesk(access, project.id, qid);
+      setDeskQuestionId(qid);
+      setDeskRunId(out.run_id);
+      if (out.status === 'failed') {
+        const note = out.note ?? 'jobs_disabled';
+        setDeskBanner(TRANSITION_REASON_VI[note] ?? note);
+      }
+    } catch (err) {
+      if (err instanceof ResearchApiError && err.code === 'job_in_flight') {
+        setError(TRANSITION_REASON_VI.job_in_flight);
+      } else {
+        setError(err instanceof Error ? err.message : 'Chạy Desk thất bại');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onDeskSettled(run: ResearchAiRun) {
+    const access = getAccessToken();
+    if (run.status === 'failed') {
+      const code = run.error_message ?? 'failed';
+      setDeskBanner(TRANSITION_REASON_VI[code] ?? code);
+    } else {
+      setDeskBanner('');
+      setDeskRunId(null);
+    }
+    if (access) {
+      try {
+        await load(access);
+      } catch {
+        /* keep chip state */
+      }
+    }
+  }
+
   if (!isMarketResearchFeEnabled()) {
     const body = (
       <div className="page-card">
@@ -433,6 +483,7 @@ function CrmResearchWorkspaceContent() {
   const typeLabel = PRODUCT_TYPE_CARDS.find((c) => c.type === project?.product_type)?.label;
   const canEdit = hasCap(user, 'crm_research', 'edit');
   const canApprove = hasCap(user, 'crm_research', 'approve');
+  const canRun = hasCap(user, 'crm_research', 'run');
 
   return (
     <StaffPageShell
@@ -512,6 +563,18 @@ function CrmResearchWorkspaceContent() {
               />
             ) : tab === 'sources' ? (
               <section className="card" style={{ padding: '0.9rem' }}>
+                <SourcesDeskBar
+                  project={project}
+                  canRun={canRun}
+                  saving={saving}
+                  questionId={deskQuestionId ?? project.questions?.[0]?.id ?? null}
+                  runId={deskRunId}
+                  banner={deskBanner}
+                  onQuestionChange={setDeskQuestionId}
+                  onRun={() => void onRunDesk()}
+                  onRetry={() => void onRunDesk(deskQuestionId ?? project.questions?.[0]?.id)}
+                  onSettled={onDeskSettled}
+                />
                 <SourceKeepTable
                   sources={project.sources ?? []}
                   questions={project.questions ?? []}
@@ -583,6 +646,93 @@ function CrmResearchWorkspaceContent() {
         ) : null}
       </div>
     </StaffPageShell>
+  );
+}
+
+function SourcesDeskBar({
+  project,
+  canRun,
+  saving,
+  questionId,
+  runId,
+  banner,
+  onQuestionChange,
+  onRun,
+  onRetry,
+  onSettled,
+}: {
+  project: ResearchProject;
+  canRun: boolean;
+  saving: boolean;
+  questionId: number | null;
+  runId: number | null;
+  banner: string;
+  onQuestionChange: (id: number) => void;
+  onRun: () => void;
+  onRetry: () => void;
+  onSettled: (run: ResearchAiRun) => void;
+}) {
+  const questions = project.questions ?? [];
+  const used = project.tavily_credits_used ?? 0;
+  const limit = project.tavily_credits_limit ?? 12;
+  const inFlight = Boolean(runId) && !banner;
+  const failed = Boolean(banner);
+  return (
+    <div className="stack-gap" style={{ marginBottom: '0.85rem' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <label>
+          Câu hỏi
+          <select
+            className="kpi-input"
+            value={questionId ?? ''}
+            disabled={!canRun || saving || questions.length === 0}
+            onChange={(e) => onQuestionChange(Number(e.target.value))}
+            style={{ display: 'block', marginTop: 4 }}
+          >
+            {questions.length === 0 ? <option value="">Chưa có RQ</option> : null}
+            {questions.map((q) => (
+              <option key={q.id} value={q.id}>
+                Q{q.sort_order}: {q.question_vi}
+              </option>
+            ))}
+          </select>
+        </label>
+        {canRun ? (
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={saving || !questionId || inFlight}
+            title={inFlight ? TRANSITION_REASON_VI.job_in_flight : undefined}
+            onClick={failed ? onRetry : onRun}
+          >
+            {failed ? 'Thử lại Desk' : 'Chạy Desk Tavily'}
+          </button>
+        ) : null}
+        <ResearchJobChip
+          token={getAccessToken()}
+          projectId={project.id}
+          runId={runId}
+          onSettled={onSettled}
+        />
+        <span className="muted" style={{ fontSize: '0.85rem' }}>
+          Tavily {used}/{limit} credit dự án
+        </span>
+      </div>
+      {banner ? (
+        <p
+          role="status"
+          style={{
+            margin: 0,
+            padding: '0.55rem 0.75rem',
+            borderRadius: 8,
+            border: '1px solid rgba(234, 179, 8, 0.45)',
+            background: 'rgba(234, 179, 8, 0.12)',
+          }}
+        >
+          {banner}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

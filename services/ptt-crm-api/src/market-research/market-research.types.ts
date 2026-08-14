@@ -88,12 +88,41 @@ export type ResearchProjectRow = {
   verified_insight_count: number;
 };
 
+export type ResearchAiRunRow = {
+  id: number;
+  project_id: number;
+  question_id: number | null;
+  job_type: string;
+  provider: string;
+  model: string | null;
+  status: string;
+  credits_used: number;
+  error_message: string | null;
+  actor: string | null;
+  created_at: string;
+  finished_at: string | null;
+};
+
 export type ResearchProjectDetail = ResearchProjectRow & {
   questions: ResearchQuestionRow[];
   sources: ResearchSourceRow[];
   evidence: ResearchEvidenceRow[];
   insights: ResearchInsightRow[];
+  ai_runs: ResearchAiRunRow[];
+  tavily_credits_used: number;
+  tavily_credits_limit: number;
   valid_transitions: ProjectStatus[];
+};
+
+export type RunDeskInput = {
+  question_id: number;
+};
+
+export type RunDeskResult = {
+  ok: true;
+  run_id: number;
+  status: string;
+  note?: string;
 };
 
 export type CreateSourceInput = {

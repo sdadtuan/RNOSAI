@@ -23,6 +23,7 @@ import {
   StaffMarketResearchApproveGuard,
   StaffMarketResearchCreateGuard,
   StaffMarketResearchEditGuard,
+  StaffMarketResearchRunGuard,
   StaffMarketResearchViewGuard,
 } from './guards/staff-market-research.guard';
 import { MarketResearchService } from './market-research.service';
@@ -39,6 +40,7 @@ import type {
   PatchProjectInput,
   PatchQuestionInput,
   PatchSourceInput,
+  RunDeskInput,
 } from './market-research.types';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
@@ -132,6 +134,29 @@ export class MarketResearchController {
   async deleteQuestion(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.deleteQuestion(id, scope);
+  }
+
+  @Post('projects/:id/run-desk')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  async runDesk(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: RunDeskInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.runDesk(id, scope, body ?? ({} as RunDeskInput), actorEmail(req));
+  }
+
+  @Get('projects/:id/jobs/:runId')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async getJob(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('runId', ParseIntPipe) runId: number,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.getJob(id, runId, scope);
   }
 
   @Post('projects/:id/sources')

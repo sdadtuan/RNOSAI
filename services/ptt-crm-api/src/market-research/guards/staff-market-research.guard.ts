@@ -14,7 +14,7 @@ type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'interna
 async function requireResearchCap(
   staffAuth: StaffAuthService,
   req: StaffReq,
-  action: 'view' | 'create' | 'edit' | 'approve',
+  action: 'view' | 'create' | 'edit' | 'approve' | 'run',
 ): Promise<boolean> {
   if (req.staffAuthVia === 'internal') return true;
   if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
@@ -74,6 +74,19 @@ export class StaffMarketResearchApproveGuard implements CanActivate {
       this.staffAuth,
       context.switchToHttp().getRequest<StaffReq>(),
       'approve',
+    );
+  }
+}
+
+@Injectable()
+export class StaffMarketResearchRunGuard implements CanActivate {
+  constructor(private readonly staffAuth: StaffAuthService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    return requireResearchCap(
+      this.staffAuth,
+      context.switchToHttp().getRequest<StaffReq>(),
+      'run',
     );
   }
 }

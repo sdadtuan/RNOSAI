@@ -117,6 +117,10 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   need_verified_insight: 'Cần ≥1 insight đã verify',
   evidence_immutable: 'Evidence đã khóa (verified / superseded / rejected) — không sửa được',
   evidence_duplicate_checksum: 'Checksum trùng evidence đã verify trong project',
+  job_in_flight: 'Job đang chạy cho câu hỏi này',
+  tavily_unconfigured: 'Chưa cấu hình Tavily — job failed, project không đổi.',
+  tavily_credit_cap: 'Hết credit Tavily của dự án',
+  jobs_disabled: 'Hàng đợi job đang tắt — thử lại sau.',
 };
 
 export type ResearchQuestion = {
@@ -152,7 +156,25 @@ export type ResearchProject = {
   sources?: ResearchSource[];
   evidence?: ResearchEvidence[];
   insights?: ResearchInsight[];
+  ai_runs?: ResearchAiRun[];
+  tavily_credits_used?: number;
+  tavily_credits_limit?: number;
   valid_transitions?: ProjectStatus[];
+};
+
+export type ResearchAiRun = {
+  id: number;
+  project_id: number;
+  question_id: number | null;
+  job_type: string;
+  provider: string;
+  model: string | null;
+  status: string;
+  credits_used: number;
+  error_message: string | null;
+  actor: string | null;
+  created_at: string;
+  finished_at: string | null;
 };
 
 export type ResearchInsight = {
@@ -360,6 +382,25 @@ export async function patchResearchQuestion(
 
 export async function deleteResearchQuestion(token: string, questionId: number): Promise<{ ok: true }> {
   return researchFetch(token, `/api/v1/research/questions/${questionId}`, { method: 'DELETE' });
+}
+
+export async function runResearchDesk(
+  token: string,
+  projectId: number,
+  questionId: number,
+): Promise<{ ok: true; run_id: number; status: string; note?: string }> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/run-desk`, {
+    method: 'POST',
+    body: JSON.stringify({ question_id: questionId }),
+  });
+}
+
+export async function fetchResearchJob(
+  token: string,
+  projectId: number,
+  runId: number,
+): Promise<ResearchAiRun> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/jobs/${runId}`);
 }
 
 export async function createResearchSource(

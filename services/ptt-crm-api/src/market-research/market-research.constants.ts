@@ -50,3 +50,5 @@ export type ResearchJobType =
   | 'insight_draft'
   | 'report_draft'
   | 'pii_scan';
+
+export const MAX_TAVILY_CREDITS_PER_RESEARCH = 12;

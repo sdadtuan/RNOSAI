@@ -51,17 +51,27 @@ describe('MarketResearchService', () => {
     insertReview: jest.fn(),
     replaceInsightEvidence: jest.fn(),
     patchInsight: jest.fn(),
+    getQuestion: jest.fn(),
+    findInFlightDeskRun: jest.fn(),
+    insertAiRun: jest.fn(),
+    failAiRun: jest.fn(),
+    getAiRun: jest.fn(),
+    listRecentAiRuns: jest.fn(),
+    sumTavilyCredits: jest.fn(),
   };
   const clientScope = {
     allowedClientIdsForList: jest.fn(),
     assertListClientFilter: jest.fn(),
+  };
+  const jobQueue = {
+    enqueueResearchDeskJob: jest.fn(),
   };
 
   let service: MarketResearchService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new MarketResearchService(repo as never, clientScope as never);
+    service = new MarketResearchService(repo as never, clientScope as never, jobQueue as never);
   });
 
   function stubScopedProject(): void {
@@ -388,6 +398,89 @@ describe('MarketResearchService', () => {
         comments: 'Method OK',
       }),
     );
+  });
+
+  it('runDesk throws job_in_flight when a pending run exists for the question', async () => {
+    stubScopedProject();
+    repo.getQuestion.mockResolvedValue({
+      id: 10,
+      project_id: 9,
+      sort_order: 1,
+      question_vi: 'Quy mô?',
+      question_en: null,
+      analysis_frame: null,
+      created_at: '2026-08-14',
+    });
+    repo.findInFlightDeskRun.mockResolvedValue({ id: 55, status: 'pending' });
+
+    try {
+      await service.runDesk(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { question_id: 10 },
+        'am@ptt',
+      );
+      throw new Error('expected conflict');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConflictException);
+      expect((err as ConflictException).getResponse()).toEqual({ error: 'job_in_flight' });
+    }
+    expect(repo.insertAiRun).not.toHaveBeenCalled();
+    expect(jobQueue.enqueueResearchDeskJob).not.toHaveBeenCalled();
+  });
+
+  it('runDesk marks the run failed jobs_disabled when enqueue returns null', async () => {
+    stubScopedProject();
+    repo.getQuestion.mockResolvedValue({
+      id: 10,
+      project_id: 9,
+      sort_order: 1,
+      question_vi: 'Quy mô?',
+      question_en: null,
+      analysis_frame: null,
+      created_at: '2026-08-14',
+    });
+    repo.findInFlightDeskRun.mockResolvedValue(null);
+    repo.insertAiRun.mockResolvedValue({
+      id: 77,
+      project_id: 9,
+      question_id: 10,
+      job_type: 'desk_tavily',
+      provider: 'tavily',
+      status: 'pending',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: null,
+    });
+    repo.failAiRun.mockResolvedValue({
+      id: 77,
+      project_id: 9,
+      question_id: 10,
+      job_type: 'desk_tavily',
+      provider: 'tavily',
+      status: 'failed',
+      credits_used: 0,
+      error_message: 'jobs_disabled',
+      created_at: '2026-08-14',
+      finished_at: '2026-08-14',
+    });
+    jobQueue.enqueueResearchDeskJob.mockResolvedValue(null);
+
+    const out = await service.runDesk(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { question_id: 10 },
+      'am@ptt',
+    );
+
+    expect(out).toEqual({
+      ok: true,
+      run_id: 77,
+      status: 'failed',
+      note: 'jobs_disabled',
+    });
+    expect(repo.failAiRun).toHaveBeenCalledWith(77, 'jobs_disabled');
   });
 });
 

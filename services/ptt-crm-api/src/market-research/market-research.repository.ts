@@ -14,6 +14,7 @@ import type {
   PatchInsightInput,
   PatchProjectInput,
   PatchQuestionInput,
+  ResearchAiRunRow,
   ResearchEvidenceRow,
   ResearchInsightRow,
   ResearchProjectRow,
@@ -766,6 +767,106 @@ export class MarketResearchRepository implements OnModuleDestroy {
       [status, id],
     );
     return this.getInsight(id);
+  }
+
+  private readonly aiRunSelect = `
+    SELECT id, project_id, question_id, job_type, provider, model, status,
+           credits_used, error_message, actor,
+           created_at::text AS created_at, finished_at::text AS finished_at
+    FROM crm_research_ai_runs
+  `;
+
+  private mapAiRun(row: Record<string, unknown>): ResearchAiRunRow {
+    return {
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      question_id: row.question_id != null ? Number(row.question_id) : null,
+      job_type: String(row.job_type),
+      provider: String(row.provider),
+      model: row.model != null ? String(row.model) : null,
+      status: String(row.status),
+      credits_used: Number(row.credits_used ?? 0),
+      error_message: row.error_message != null ? String(row.error_message) : null,
+      actor: row.actor != null ? String(row.actor) : null,
+      created_at: String(row.created_at),
+      finished_at: row.finished_at != null ? String(row.finished_at) : null,
+    };
+  }
+
+  async findInFlightDeskRun(
+    projectId: number,
+    questionId: number,
+  ): Promise<ResearchAiRunRow | null> {
+    const result = await this.db.query(
+      `${this.aiRunSelect}
+       WHERE project_id = $1 AND question_id = $2
+         AND job_type = 'desk_tavily'
+         AND status IN ('pending', 'running')
+       ORDER BY id DESC LIMIT 1`,
+      [projectId, questionId],
+    );
+    const row = result.rows[0];
+    return row ? this.mapAiRun(row) : null;
+  }
+
+  async insertAiRun(input: {
+    projectId: number;
+    questionId: number;
+    jobType: string;
+    provider: string;
+    actor: string;
+  }): Promise<ResearchAiRunRow> {
+    const result = await this.db.query(
+      `INSERT INTO crm_research_ai_runs (
+         project_id, question_id, job_type, provider, status, actor
+       ) VALUES ($1, $2, $3, $4, 'pending', $5)
+       RETURNING id, project_id, question_id, job_type, provider, model, status,
+                 credits_used, error_message, actor,
+                 created_at::text AS created_at, finished_at::text AS finished_at`,
+      [input.projectId, input.questionId, input.jobType, input.provider, input.actor],
+    );
+    return this.mapAiRun(result.rows[0]);
+  }
+
+  async failAiRun(runId: number, error: string): Promise<ResearchAiRunRow | null> {
+    const result = await this.db.query(
+      `UPDATE crm_research_ai_runs
+       SET status = 'failed', error_message = $1, finished_at = now()
+       WHERE id = $2
+       RETURNING id, project_id, question_id, job_type, provider, model, status,
+                 credits_used, error_message, actor,
+                 created_at::text AS created_at, finished_at::text AS finished_at`,
+      [error, runId],
+    );
+    const row = result.rows[0];
+    return row ? this.mapAiRun(row) : null;
+  }
+
+  async getAiRun(projectId: number, runId: number): Promise<ResearchAiRunRow | null> {
+    const result = await this.db.query(
+      `${this.aiRunSelect} WHERE id = $1 AND project_id = $2`,
+      [runId, projectId],
+    );
+    const row = result.rows[0];
+    return row ? this.mapAiRun(row) : null;
+  }
+
+  async listRecentAiRuns(projectId: number, limit = 20): Promise<ResearchAiRunRow[]> {
+    const result = await this.db.query(
+      `${this.aiRunSelect} WHERE project_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2`,
+      [projectId, limit],
+    );
+    return result.rows.map((row) => this.mapAiRun(row));
+  }
+
+  async sumTavilyCredits(projectId: number): Promise<number> {
+    const result = await this.db.query(
+      `SELECT COALESCE(SUM(credits_used), 0)::int AS n
+       FROM crm_research_ai_runs
+       WHERE project_id = $1 AND job_type = 'desk_tavily'`,
+      [projectId],
+    );
+    return Number(result.rows[0]?.n ?? 0);
   }
 
   async insertReview(input: InsertReviewInput): Promise<{ id: number }> {

@@ -111,7 +111,7 @@ export function SourceKeepTable({
         </form>
       ) : null}
       {sources.length === 0 ? (
-        <p className="muted">Chưa có nguồn. Thêm nguồn thủ công để tạo evidence.</p>
+        <p className="muted">Chạy Desk Tavily hoặc thêm nguồn thủ công</p>
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>

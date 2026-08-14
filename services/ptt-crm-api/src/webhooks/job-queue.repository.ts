@@ -116,6 +116,28 @@ export class JobQueueRepository implements OnModuleDestroy {
     });
   }
 
+  /** M4 — async market-research desk Tavily collect. */
+  async enqueueResearchDeskJob(input: {
+    projectId: number;
+    questionId: number;
+    runId: number;
+    clientId?: string | null;
+    idempotencyKey: string;
+  }): Promise<EnqueuedJob | null> {
+    if (!this.config.jobsEnabled) return null;
+    return this.enqueueJobRecord({
+      jobType: 'research_desk_collect',
+      payload: {
+        project_id: input.projectId,
+        question_id: input.questionId,
+        run_id: input.runId,
+      },
+      idempotencyKey: input.idempotencyKey,
+      clientId: this.normalizeClientUuid(input.clientId ?? undefined),
+      maxAttempts: 2,
+    });
+  }
+
   /** RNOS-08 — async lead score consumer (AI-UC-001). */
   async enqueueScoreLeadJob(input: {
     leadId: number;

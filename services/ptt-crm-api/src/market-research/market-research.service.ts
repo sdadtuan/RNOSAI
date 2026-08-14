@@ -6,7 +6,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ClientScopeContext, StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
-import { INSIGHT_STATUSES, PROJECT_STATUSES, type InsightStatus, type ProjectStatus } from './market-research.constants';
+import { JobQueueRepository } from '../webhooks/job-queue.repository';
+import {
+  INSIGHT_STATUSES,
+  MAX_TAVILY_CREDITS_PER_RESEARCH,
+  PROJECT_STATUSES,
+  type InsightStatus,
+  type ProjectStatus,
+} from './market-research.constants';
 import { MarketResearchRepository } from './market-research.repository';
 import { evidenceChecksum } from './evidence-checksum.util';
 import { assertEvidenceMutable, piiHint } from './evidence-immutable.util';
@@ -24,12 +31,15 @@ import type {
   PatchProjectInput,
   PatchQuestionInput,
   PatchSourceInput,
+  ResearchAiRunRow,
   ResearchEvidenceRow,
   ResearchInsightRow,
   ResearchProjectDetail,
   ResearchProjectRow,
   ResearchQuestionRow,
   ResearchSourceRow,
+  RunDeskInput,
+  RunDeskResult,
 } from './market-research.types';
 import { validateCreateEvidence, validateCreateProject } from './market-research.validation';
 import { canTransitionProject, listValidTransitions } from './project-state.util';
@@ -39,6 +49,7 @@ export class MarketResearchService {
   constructor(
     private readonly repo: MarketResearchRepository,
     private readonly clientScope: StaffClientScopeService,
+    private readonly jobQueue: JobQueueRepository,
   ) {}
 
   private assertClientInScope(scope: ClientScopeContext, clientId: string): void {
@@ -436,6 +447,60 @@ export class MarketResearchService {
     return updated;
   }
 
+  async runDesk(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: RunDeskInput,
+    actor: string,
+  ): Promise<RunDeskResult> {
+    const project = await this.loadScopedProject(projectId, scope);
+    const questionId = Number(input.question_id);
+    if (!Number.isFinite(questionId) || questionId <= 0) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['question_id is required'],
+      });
+    }
+    const question = await this.repo.getQuestion(questionId);
+    if (!question || question.project_id !== projectId) {
+      throw new NotFoundException({ error: 'not_found' });
+    }
+    const inFlight = await this.repo.findInFlightDeskRun(projectId, questionId);
+    if (inFlight) {
+      throw new ConflictException({ error: 'job_in_flight' });
+    }
+    const run = await this.repo.insertAiRun({
+      projectId,
+      questionId,
+      jobType: 'desk_tavily',
+      provider: 'tavily',
+      actor,
+    });
+    const job = await this.jobQueue.enqueueResearchDeskJob({
+      projectId,
+      questionId,
+      runId: run.id,
+      clientId: project.client_id,
+      idempotencyKey: `research_desk:${projectId}:${questionId}:run:${run.id}`,
+    });
+    if (!job) {
+      await this.repo.failAiRun(run.id, 'jobs_disabled');
+      return { ok: true, run_id: run.id, status: 'failed', note: 'jobs_disabled' };
+    }
+    return { ok: true, run_id: run.id, status: 'pending' };
+  }
+
+  async getJob(
+    projectId: number,
+    runId: number,
+    scope: ClientScopeContext,
+  ): Promise<ResearchAiRunRow> {
+    await this.loadScopedProject(projectId, scope);
+    const run = await this.repo.getAiRun(projectId, runId);
+    if (!run) throw new NotFoundException({ error: 'not_found' });
+    return run;
+  }
+
   private async loadScopedInsight(
     insightId: number,
     scope: ClientScopeContext,
@@ -490,11 +555,13 @@ export class MarketResearchService {
   }
 
   private async toDetail(project: ResearchProjectRow): Promise<ResearchProjectDetail> {
-    const [questions, sources, evidence, insights] = await Promise.all([
+    const [questions, sources, evidence, insights, ai_runs, tavily_credits_used] = await Promise.all([
       this.repo.listQuestions(project.id),
       this.repo.listSources(project.id),
       this.repo.listEvidence(project.id),
       this.repo.listInsights(project.id),
+      this.repo.listRecentAiRuns(project.id),
+      this.repo.sumTavilyCredits(project.id),
     ]);
     return {
       ...project,
@@ -502,6 +569,9 @@ export class MarketResearchService {
       sources,
       evidence,
       insights,
+      ai_runs,
+      tavily_credits_used,
+      tavily_credits_limit: MAX_TAVILY_CREDITS_PER_RESEARCH,
       valid_transitions: listValidTransitions(project.status, {
         rqCount: project.rq_count,
         verifiedInsightCount: project.verified_insight_count,
