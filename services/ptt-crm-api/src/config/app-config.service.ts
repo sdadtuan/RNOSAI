@@ -746,6 +746,10 @@ export class AppConfigService {
 
   /** VPS/deploy-owned overrides when root .env is not writable by deploy user. */
   private applyRuntimeEnvOverrides(): void {
+    // Jest on VPS would otherwise inherit deploy/runtime.env (flag=true) and fail default-off specs.
+    if (process.env.JEST_WORKER_ID) {
+      return;
+    }
     const candidates = [
       path.resolve(process.cwd(), '..', '..', 'deploy', 'runtime.env'),
       path.resolve(__dirname, '..', '..', '..', '..', 'deploy', 'runtime.env'),
