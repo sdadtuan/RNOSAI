@@ -255,7 +255,16 @@ export class MarketResearchService {
     await this.loadScopedProject(existing.project_id, scope);
     this.assertMutable(existing.qc_status);
     const checksum = evidenceChecksum(existing);
-    const updated = await this.repo.verifyEvidence(evidenceId, checksum);
+    let updated: ResearchEvidenceRow | null;
+    try {
+      updated = await this.repo.verifyEvidence(evidenceId, checksum);
+    } catch (err) {
+      const pgCode = err && typeof err === 'object' && 'code' in err ? String((err as { code?: string }).code) : '';
+      if (pgCode === '23505') {
+        throw new ConflictException({ error: 'evidence_duplicate_checksum' });
+      }
+      throw err;
+    }
     if (!updated) throw new NotFoundException({ error: 'not_found' });
     return updated;
   }

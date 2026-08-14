@@ -88,8 +88,12 @@ CREATE TABLE IF NOT EXISTS crm_research_evidence (
   CONSTRAINT crm_research_evidence_src_chk CHECK (source_id IS NOT NULL OR study_id IS NOT NULL)
 );
 
+-- Unique checksum only among verified rows. Superseded/pending may share a hash
+-- after supersede-then-verify of an identical 6-tuple. Existing DBs: see
+-- 2026-08-14-postgresql-ddl-market-research-m2.sql (DROP + recreate).
 CREATE UNIQUE INDEX IF NOT EXISTS crm_research_evidence_hash_uq
-  ON crm_research_evidence (project_id, checksum) WHERE checksum IS NOT NULL;
+  ON crm_research_evidence (project_id, checksum)
+  WHERE qc_status = 'verified' AND checksum IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS crm_research_insights (
   id                   BIGSERIAL PRIMARY KEY,

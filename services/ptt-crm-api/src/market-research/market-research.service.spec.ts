@@ -57,6 +57,12 @@ describe('MarketResearchService', () => {
     service = new MarketResearchService(repo as never, clientScope as never);
   });
 
+  function stubScopedProject(): void {
+    repo.getProjectClientId.mockResolvedValue('acme');
+    repo.getProject.mockResolvedValue(project);
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+  }
+
   it('createProject throws validation_error without hitting the repository', async () => {
     await expect(
       service.createProject({ restricted: false, allowedClientIds: [] }, {} as never, 'am@ptt'),
@@ -170,4 +176,116 @@ describe('MarketResearchService', () => {
     }
     expect(repo.patchEvidence).not.toHaveBeenCalled();
   });
+
+  it('patchEvidence when superseded is 409 evidence_immutable', async () => {
+    repo.getEvidence.mockResolvedValue(evidenceRow({ qc_status: 'superseded', checksum: 'abc', superseded_by: 4 }));
+    stubScopedProject();
+
+    try {
+      await service.patchEvidence(
+        3,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { excerpt: 'changed' },
+      );
+      throw new Error('expected conflict');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConflictException);
+      expect((err as ConflictException).getResponse()).toEqual({ error: 'evidence_immutable' });
+    }
+    expect(repo.patchEvidence).not.toHaveBeenCalled();
+  });
+
+  it('verifyEvidence when rejected is 409 evidence_immutable', async () => {
+    repo.getEvidence.mockResolvedValue(evidenceRow({ qc_status: 'rejected' }));
+    stubScopedProject();
+
+    try {
+      await service.verifyEvidence(3, { restricted: true, allowedClientIds: ['acme'] });
+      throw new Error('expected conflict');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConflictException);
+      expect((err as ConflictException).getResponse()).toEqual({ error: 'evidence_immutable' });
+    }
+    expect(repo.verifyEvidence).not.toHaveBeenCalled();
+  });
+
+  it('supersede identical 6-tuple then verify successor does not throw', async () => {
+    const verified = evidenceRow({ qc_status: 'verified', checksum: 'abc' });
+    const successor = evidenceRow({
+      id: 4,
+      qc_status: 'pending',
+      checksum: null,
+      superseded_by: null,
+    });
+    const verifiedSuccessor = evidenceRow({
+      id: 4,
+      qc_status: 'verified',
+      checksum: 'abc',
+    });
+    stubScopedProject();
+    repo.getSource.mockResolvedValue({ id: 1, project_id: 9 });
+    repo.getEvidence.mockResolvedValueOnce(verified).mockResolvedValueOnce(successor);
+    repo.supersedeEvidence.mockResolvedValue({
+      old: evidenceRow({ qc_status: 'superseded', checksum: 'abc', superseded_by: 4 }),
+      evidence: successor,
+    });
+    repo.verifyEvidence.mockResolvedValue(verifiedSuccessor);
+
+    const body = {
+      source_id: 1,
+      locator: verified.locator,
+      excerpt: verified.excerpt,
+      value_num: verified.value_num,
+      unit: verified.unit,
+      value_base: verified.value_base,
+      period_note: verified.period_note,
+      geography: verified.geography,
+    };
+    await expect(
+      service.supersedeEvidence(3, { restricted: true, allowedClientIds: ['acme'] }, body, 'am@ptt'),
+    ).resolves.toMatchObject({ evidence: { id: 4, qc_status: 'pending' } });
+    await expect(
+      service.verifyEvidence(4, { restricted: true, allowedClientIds: ['acme'] }),
+    ).resolves.toMatchObject({ id: 4, qc_status: 'verified' });
+  });
+
+  it('verifyEvidence maps PG unique violation 23505 to 409 evidence_duplicate_checksum', async () => {
+    repo.getEvidence.mockResolvedValue(evidenceRow({ qc_status: 'pending' }));
+    stubScopedProject();
+    const pgErr = Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
+    repo.verifyEvidence.mockRejectedValue(pgErr);
+
+    try {
+      await service.verifyEvidence(3, { restricted: true, allowedClientIds: ['acme'] });
+      throw new Error('expected conflict');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConflictException);
+      expect((err as ConflictException).getResponse()).toEqual({ error: 'evidence_duplicate_checksum' });
+    }
+  });
 });
+
+function evidenceRow(overrides: Partial<ResearchEvidenceRow> = {}): ResearchEvidenceRow {
+  return {
+    id: 3,
+    project_id: 9,
+    source_id: 1,
+    study_id: null,
+    question_id: null,
+    locator: 'https://example.com#p3',
+    excerpt: 'locked excerpt',
+    value_num: null,
+    unit: null,
+    value_base: null,
+    period_note: null,
+    geography: null,
+    captured_at: '2026-08-14',
+    pii_class: 'none',
+    qc_status: 'pending',
+    checksum: null,
+    created_by: 'am@ptt',
+    superseded_by: null,
+    created_at: '2026-08-14',
+    ...overrides,
+  };
+}

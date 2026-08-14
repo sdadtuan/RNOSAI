@@ -66,7 +66,8 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   need_rq: 'Cần ≥1 câu hỏi nghiên cứu',
   cannot_revert_approved: 'Không thể hoàn trạng thái đã duyệt',
   need_verified_insight: 'Cần ≥1 insight đã verify',
-  evidence_immutable: 'Evidence đã verify không sửa được — hãy thay thế (supersede)',
+  evidence_immutable: 'Evidence đã khóa (verified / superseded / rejected) — không sửa được',
+  evidence_duplicate_checksum: 'Checksum trùng evidence đã verify trong project',
 };
 
 export type ResearchQuestion = {

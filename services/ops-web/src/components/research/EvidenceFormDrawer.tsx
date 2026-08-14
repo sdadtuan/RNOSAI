@@ -48,7 +48,11 @@ export function EvidenceFormDrawer({
   onVerify,
 }: EvidenceFormDrawerProps) {
   const [form, setForm] = useState(empty);
-  const locked = mode === 'edit' && evidence?.qc_status === 'verified';
+  const locked =
+    mode === 'edit' &&
+    (evidence?.qc_status === 'verified' ||
+      evidence?.qc_status === 'superseded' ||
+      evidence?.qc_status === 'rejected');
 
   useEffect(() => {
     if (!open) return;

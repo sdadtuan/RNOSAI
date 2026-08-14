@@ -11,6 +11,26 @@ describe('assertEvidenceMutable', () => {
     }
   });
 
+  it('throws evidence_immutable when qcStatus is superseded', () => {
+    expect(() => assertEvidenceMutable('superseded')).toThrow();
+    try {
+      assertEvidenceMutable('superseded');
+    } catch (err) {
+      expect((err as Error & { code: string }).code).toBe('evidence_immutable');
+      expect((err as Error).message).toBe('evidence_immutable');
+    }
+  });
+
+  it('throws evidence_immutable when qcStatus is rejected', () => {
+    expect(() => assertEvidenceMutable('rejected')).toThrow();
+    try {
+      assertEvidenceMutable('rejected');
+    } catch (err) {
+      expect((err as Error & { code: string }).code).toBe('evidence_immutable');
+      expect((err as Error).message).toBe('evidence_immutable');
+    }
+  });
+
   it('does not throw when qcStatus is pending', () => {
     expect(() => assertEvidenceMutable('pending')).not.toThrow();
   });

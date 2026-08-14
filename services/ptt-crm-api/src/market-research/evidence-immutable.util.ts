@@ -1,5 +1,5 @@
 export function assertEvidenceMutable(qcStatus: string): void {
-  if (qcStatus === 'verified') {
+  if (qcStatus === 'verified' || qcStatus === 'superseded' || qcStatus === 'rejected') {
     const err = new Error('evidence_immutable');
     (err as Error & { code: string }).code = 'evidence_immutable';
     throw err;

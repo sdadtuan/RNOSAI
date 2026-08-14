@@ -589,6 +589,7 @@ function EvidenceTab({
               {rows.map((ev) => {
                 const rq = (project.questions ?? []).find((q) => q.id === ev.question_id);
                 const verified = ev.qc_status === 'verified';
+                const locked = verified || ev.qc_status === 'superseded' || ev.qc_status === 'rejected';
                 return (
                   <tr key={ev.id}>
                     <td style={{ padding: '0.4rem' }}>
@@ -597,7 +598,7 @@ function EvidenceTab({
                     <td style={{ padding: '0.4rem' }}>{rq ? `Q${rq.sort_order}` : '—'}</td>
                     <td style={{ padding: '0.4rem' }}>{ev.locator}</td>
                     <td style={{ padding: '0.4rem' }}>
-                      {verified ? '🔒 ' : ''}
+                      {locked ? '🔒 ' : ''}
                       {ev.excerpt || (ev.value_num != null ? String(ev.value_num) : '—')}
                     </td>
                     <td style={{ padding: '0.4rem' }}>{ev.unit || '—'}</td>
@@ -605,7 +606,7 @@ function EvidenceTab({
                     <td style={{ padding: '0.4rem' }}>{ev.geography || '—'}</td>
                     <td style={{ padding: '0.4rem' }}>{ev.qc_status}</td>
                     <td style={{ padding: '0.4rem' }}>
-                      {canEdit && !verified ? (
+                      {canEdit && !locked ? (
                         <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={() => onOpen(ev)}>
                           Mở
                         </button>
