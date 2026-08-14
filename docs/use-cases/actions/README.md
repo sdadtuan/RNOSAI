@@ -66,6 +66,8 @@ Bổ sung cho mỗi Use Case **toàn bộ bước thao tác** mà người dùng
 | [08-ZALO-ACTIONS.md](08-ZALO-ACTIONS.md) | Zalo Ads | ZALO-001…021 |
 | [09-AI-ACTIONS.md](09-AI-ACTIONS.md) | AI Revenue OS | AI-001…020 (+ 8-step pilot walkthrough) |
 | [10-MKTP-ACTIONS.md](10-MKTP-ACTIONS.md) | AI Marketing Planner | MKTP-001…010 (+ 21-step UAT walkthrough) |
+| [11-CMKT-ACTIONS.md](11-CMKT-ACTIONS.md) | Content Marketing OS | CMKT (nếu có) |
+| [12-RES-ACTIONS.md](12-RES-ACTIONS.md) | Market Research OS (DV12) | RES-001…020 P0 walkthrough + P1–P3 backlog |
 
 ---
 

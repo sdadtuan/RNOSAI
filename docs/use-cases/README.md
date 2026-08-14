@@ -22,6 +22,7 @@
 | **AI** | AI Revenue Operating System | [`09-AI-REVENUE-OS.md`](09-AI-REVENUE-OS.md) |
 | **MKTP** | AI Marketing Planner (Triển khai DV) | [`10-MKT-AI-PLANNER.md`](10-MKT-AI-PLANNER.md) |
 | **MOB** | Mobile Experience (PWA / Push) | [`../specs/modules/RNOSAI-BA-MOB-UseCases.md`](../specs/modules/RNOSAI-BA-MOB-UseCases.md) · [`../specs/2026-08-01-rnosai-mobile-strategy-spec.md`](../specs/2026-08-01-rnosai-mobile-strategy-spec.md) |
+| **RES** | Market Research OS (DV12) | [`12-MARKET-RESEARCH-OS.md`](12-MARKET-RESEARCH-OS.md) |
 
 **Format mỗi UC:** ID · Tên · Actor · Priority (P0/P1/P2) · Trigger · Main flow · Extensions · Postconditions · Rules · Traceability (Screen/API)
 
@@ -37,23 +38,24 @@
 
 ## 2. Ma trận Actor × Module
 
-| Actor | CRM | SVC | Meta | SEO | EM | Zalo | Portal | Plat | AI | MKTP |
-|-------|-----|-----|------|-----|-----|------|--------|------|-----|------|
-| Super Admin | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
-| AM | ● | ● | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
-| CSKH / Sales | ● | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ● | ○ |
-| Solution / SP | ○ | ● | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ● |
-| Media Buyer | ○ | ○ | ● | ○ | ○ | ● | ○ | ○ | ○ | ○ |
-| Creative Lead | ○ | ● | ● | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
-| Tracking/Tech | ○ | ○ | ● | ● | ○ | ● | ○ | ● | ○ | ○ |
-| SEO Strategist | ○ | ○ | ○ | ● | ○ | ○ | ○ | ○ | ○ | ○ |
-| Email Strategist | ○ | ○ | ○ | ○ | ● | ○ | ○ | ○ | ○ | ○ |
-| Compliance | ○ | ○ | ○ | ● | ● | ○ | ○ | ○ | ● | ○ |
-| Client Viewer | ○ | ○ | ○ | ○ | ○ | ○ | ● | ○ | ○ | ○ |
-| Client Approver | ○ | ○ | ○ | ○ | ○ | ○ | ● | ○ | ○ | ○ |
-| End Subscriber | ○ | ○ | ○ | ○ | ● | ○ | ○ | ○ | ○ | ○ |
-| System (Webhook/Worker) | ● | ○ | ● | ● | ● | ● | ○ | ● | ● | ● |
-| MKT Lead / GDKD | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ● |
+| Actor | CRM | SVC | Meta | SEO | EM | Zalo | Portal | Plat | AI | MKTP | RES |
+|-------|-----|-----|------|-----|-----|------|--------|------|-----|------|-----|
+| Super Admin | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| AM | ● | ● | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ● |
+| CSKH / Sales | ● | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ● | ○ | ○ |
+| Solution / SP | ○ | ● | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ● | ○ |
+| Research Analyst / Lead | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ● |
+| Media Buyer | ○ | ○ | ● | ○ | ○ | ● | ○ | ○ | ○ | ○ | ○ |
+| Creative Lead | ○ | ● | ● | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| Tracking/Tech | ○ | ○ | ● | ● | ○ | ● | ○ | ● | ○ | ○ | ○ |
+| SEO Strategist | ○ | ○ | ○ | ● | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| Email Strategist | ○ | ○ | ○ | ○ | ● | ○ | ○ | ○ | ○ | ○ | ○ |
+| Compliance | ○ | ○ | ○ | ● | ● | ○ | ○ | ○ | ● | ○ | ○ |
+| Client Viewer | ○ | ○ | ○ | ○ | ○ | ○ | ● | ○ | ○ | ○ | ○ |
+| Client Approver | ○ | ○ | ○ | ○ | ○ | ○ | ● | ○ | ○ | ○ | ○ |
+| End Subscriber | ○ | ○ | ○ | ○ | ● | ○ | ○ | ○ | ○ | ○ | ○ |
+| System (Webhook/Worker) | ● | ○ | ● | ● | ● | ● | ○ | ● | ● | ● | ● |
+| MKT Lead / GDKD | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ● | ○ |
 
 ● = actor chính · ○ = actor phụ / có thể
 
@@ -283,7 +285,37 @@
 | MKTP-UC-019 | Multi-agent pipeline | P2 |
 | MKTP-UC-020 | Industry playbook | P2 |
 
-**Tổng:** ~167 use cases documented
+### 3.12. Market Research OS (RES) — 34 UC
+
+Chi tiết: [`12-MARKET-RESEARCH-OS.md`](12-MARKET-RESEARCH-OS.md) · Actions: [`actions/12-RES-ACTIONS.md`](actions/12-RES-ACTIONS.md)
+
+| ID | Tên | Priority |
+|----|-----|----------|
+| RES-UC-001 | Nav Lên kế hoạch + list | P0 |
+| RES-UC-002 | Wizard tạo project G0 | P0 |
+| RES-UC-003 | CRUD Research Questions | P0 |
+| RES-UC-004 | Chạy Desk Tavily | P0 |
+| RES-UC-005 | Chạy Deep Research | P0 |
+| RES-UC-006 | Verify source / evidence | P0 |
+| RES-UC-007 | Soạn insight | P0 |
+| RES-UC-008 | Lead duyệt insight | P0 |
+| RES-UC-009 | Report + xuất DOCX | P0 |
+| RES-UC-010 | Client tenancy | P0 |
+| RES-UC-011 | Copilot insight từ evidence | P0 |
+| RES-UC-012 | Copilot report draft | P0 |
+| RES-UC-013 | Feature flag | P0 |
+| RES-UC-014 | Keep / reject source | P0 |
+| RES-UC-015 | State machine project | P0 |
+| RES-UC-016 | Activity / AI runs | P0 |
+| RES-UC-017 | Evidence supersede | P0 |
+| RES-UC-018 | AM duyệt bản khách | P0 |
+| RES-UC-019 | Nguồn thủ công | P0 |
+| RES-UC-020 | Poll / retry job | P0 |
+| RES-UC-021…027 | Rubric, CI, plan insert, DV12, dual-DR, prefill | P1 |
+| RES-UC-030…033 | Studies, pulse, bilingual, ops KPI | P2 |
+| RES-UC-040…042 | Portal, waves, decision log | P3 |
+
+**Tổng:** ~201 use cases documented
 
 ---
 
@@ -333,6 +365,7 @@ flowchart TB
 | [`specs/2026-07-26-ai-phase1-90-day-plan.md`](../specs/2026-07-26-ai-phase1-90-day-plan.md) | AI-UC-001…010, UAT tuần 11 |
 | [`SPEC_UI_UX_*`](../SPEC_UI_UX_PTT.md) | Screen refs trong từng UC |
 | [`SPEC_UI_UX_AI_REVENUE_OS.md`](../SPEC_UI_UX_AI_REVENUE_OS.md) | AI Copilot, forecast, automation UI |
+| [`specs/2026-08-14-market-research-os-srs.md`](../specs/2026-08-14-market-research-os-srs.md) | RES-UC-001…042 |
 | [`product-model-v1.md`](../product-model-v1.md) | CRM-UC-001…007 |
 
 ---

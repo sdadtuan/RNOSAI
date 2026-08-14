@@ -17,3 +17,4 @@
 11. **[RNOSAI-BA-ZALO-UseCases.md](modules/RNOSAI-BA-ZALO-UseCases.md)** — 21 UC
 12. **[RNOSAI-BA-MOB-UseCases.md](modules/RNOSAI-BA-MOB-UseCases.md)** — 10 UC
 13. **[../samples/RNOSAI_BA_Spec.xlsx](../samples/RNOSAI_BA_Spec.xlsx)** — Excel workbook
+14. **[RNOSAI-BA-RES-UseCases.md](modules/RNOSAI-BA-RES-UseCases.md)** — Market Research OS (DV12) 34 UC

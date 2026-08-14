@@ -433,6 +433,7 @@ _Cột **Sheet Excel** = tên tab UC (click mã UC hoặc «→ Sheet spec» ở
 | **AI Revenue OS** | [`modules/RNOSAI-BA-AI-UseCases.md`](modules/RNOSAI-BA-AI-UseCases.md) | 20 | Copilot, score, forecast, automation |
 | **Zalo Ads OS** | [`modules/RNOSAI-BA-ZALO-UseCases.md`](modules/RNOSAI-BA-ZALO-UseCases.md) | 21 | Hub, ingest, portal, onboard |
 | **Mobile Experience** | [`modules/RNOSAI-BA-MOB-UseCases.md`](modules/RNOSAI-BA-MOB-UseCases.md) | 10 | PWA staff/portal, push, mobile SCR |
+| **Market Research OS** | [`modules/RNOSAI-BA-RES-UseCases.md`](modules/RNOSAI-BA-RES-UseCases.md) | 34 | DV12 evidence-first; `/crm/research`; P0–P3 |
 
 ---
 
