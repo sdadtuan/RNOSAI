@@ -99,6 +99,8 @@ describe('MarketResearchService', () => {
     createConsent: jest.fn(),
     listApprovedInsightsByClient: jest.fn(),
     findConsultFormDataByClientId: jest.fn(),
+    listWaves: jest.fn(),
+    createWave: jest.fn(),
   };
   const plans = {
     getPlanById: jest.fn(),
@@ -531,6 +533,46 @@ describe('MarketResearchService', () => {
       expect(JSON.stringify(body)).not.toContain('name');
     }
     expect(repo.listStudies).not.toHaveBeenCalled();
+  });
+
+  it('POST wave on CAT_REVIEW is 400 waves_not_tracker', async () => {
+    stubScopedProject();
+
+    try {
+      await service.createWave(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { wave_no: 1, metric_json: [{ key: 'nps', value: 10 }] },
+        'am@ptt',
+      );
+      throw new Error('expected waves_not_tracker');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'waves_not_tracker' });
+    }
+    expect(repo.createWave).not.toHaveBeenCalled();
+  });
+
+  it('GET waves out of scope is 403 without title', async () => {
+    repo.getProjectClientId.mockResolvedValue('other-client');
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.listWaves.mockResolvedValue([
+      { id: 1, project_id: 9, wave_no: 1, label: 'Secret title must not leak', metric_json: [] },
+    ]);
+
+    try {
+      await service.listWaves(9, { restricted: true, allowedClientIds: ['acme'] });
+      throw new Error('expected forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const body = (err as ForbiddenException).getResponse();
+      expect(body).toEqual({ error: 'forbidden' });
+      expect(JSON.stringify(body)).not.toContain('title');
+      expect(JSON.stringify(body)).not.toContain('Secret title');
+    }
+    expect(repo.listWaves).not.toHaveBeenCalled();
+    expect(repo.getProject).not.toHaveBeenCalled();
   });
 
   it('createEvidence with study_id and 800-char excerpt is 400 raw_transcript_forbidden', async () => {

@@ -514,6 +514,32 @@ export type PortalResearchReportDetail = PortalResearchReportCard & {
   evidence_index: unknown[];
 };
 
+export type ResearchWave = {
+  id: number;
+  project_id: number;
+  wave_no: number;
+  label: string | null;
+  field_start: string | null;
+  field_end: string | null;
+  metric_json: { key: string; value: number | null }[];
+  created_at: string;
+};
+
+export type CreateWaveInput = {
+  wave_no: number;
+  label?: string | null;
+  field_start?: string | null;
+  field_end?: string | null;
+  metric_json: { key: string; value: number | null }[];
+};
+
+export type WaveCompareRow = {
+  key: string;
+  prev: number | null;
+  curr: number | null;
+  delta: number | null;
+};
+
 export type ResearchReportRow = {
   id: number;
   project_id: number;

@@ -14,9 +14,11 @@ import type {
   CreateConsentInput,
   CreateSourceInput,
   CreateStudyInput,
+  CreateWaveInput,
   PatchStudyInput,
   ResearchConsent,
   ResearchStudy,
+  ResearchWave,
   InsertReviewInput,
   ListProjectsFilters,
   OpsAnalyticsRaw,
@@ -1402,6 +1404,62 @@ export class MarketResearchRepository implements OnModuleDestroy {
       ],
     );
     return this.mapCompetitorSnapshot(result.rows[0]);
+  }
+
+  private mapWave(row: Record<string, unknown>): ResearchWave {
+    return {
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      wave_no: Number(row.wave_no),
+      label: row.label != null ? String(row.label) : null,
+      field_start: row.field_start != null ? String(row.field_start) : null,
+      field_end: row.field_end != null ? String(row.field_end) : null,
+      metric_json: parseJsonCol<{ key: string; value: number | null }[]>(row.metric_json, []),
+      created_at: String(row.created_at),
+    };
+  }
+
+  private readonly waveSelect = `
+    SELECT id, project_id, wave_no, label,
+           field_start::text AS field_start, field_end::text AS field_end,
+           metric_json, created_at::text AS created_at
+    FROM crm_research_waves
+  `;
+
+  async listWaves(projectId: number): Promise<ResearchWave[]> {
+    const result = await this.db.query(
+      `${this.waveSelect} WHERE project_id = $1 ORDER BY wave_no ASC`,
+      [projectId],
+    );
+    return result.rows.map((row) => this.mapWave(row));
+  }
+
+  async createWave(
+    projectId: number,
+    input: CreateWaveInput,
+    actor: string,
+  ): Promise<ResearchWave> {
+    const result = await this.db.query(
+      `INSERT INTO crm_research_waves (
+         project_id, wave_no, label, field_start, field_end, metric_json, created_by
+       ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+       RETURNING id, project_id, wave_no, label,
+                 field_start::text AS field_start, field_end::text AS field_end,
+                 metric_json, created_at::text AS created_at`,
+      [
+        projectId,
+        input.wave_no,
+        input.label ?? null,
+        input.field_start ?? null,
+        input.field_end ?? null,
+        JSON.stringify(input.metric_json ?? []),
+        actor,
+      ],
+    );
+    await this.db.query(`UPDATE crm_research_projects SET updated_at = now() WHERE id = $1`, [
+      projectId,
+    ]);
+    return this.mapWave(result.rows[0]);
   }
 
   private mapStudy(row: Record<string, unknown>): ResearchStudy {

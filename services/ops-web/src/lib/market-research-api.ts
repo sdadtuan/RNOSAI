@@ -182,6 +182,8 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   cannot_self_approve: 'Người tạo không tự duyệt — nhờ Research Lead.',
   exec_en_locked: 'Bản dịch EN đã duyệt — tạo phiên bản mới để sửa (BR-RES-05).',
   insights_not_client_facing: 'Chỉ công bố khi insight đã duyệt bản khách. Không tự đăng.',
+  waves_not_tracker: 'Waves chỉ dùng cho dự án TRACKER.',
+  wave_no_duplicate: 'Số wave đã tồn tại trên dự án này.',
 };
 
 export type MethodologyBlock = {
@@ -475,6 +477,32 @@ export type CreateConsentBody = {
   subject_code: string;
   consent_type: ConsentType;
   notes?: string | null;
+};
+
+export type ResearchWave = {
+  id: number;
+  project_id: number;
+  wave_no: number;
+  label: string | null;
+  field_start: string | null;
+  field_end: string | null;
+  metric_json: { key: string; value: number | null }[];
+  created_at: string;
+};
+
+export type WaveCompareRow = {
+  key: string;
+  prev: number | null;
+  curr: number | null;
+  delta: number | null;
+};
+
+export type CreateWaveBody = {
+  wave_no: number;
+  label?: string | null;
+  field_start?: string | null;
+  field_end?: string | null;
+  metric_json: { key: string; value: number | null }[];
 };
 
 export type ResearchSource = {
@@ -1109,6 +1137,24 @@ export async function createResearchConsent(
   body: CreateConsentBody,
 ): Promise<ResearchConsent> {
   return researchFetch(token, `/api/v1/research/studies/${studyId}/consents`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchResearchWaves(
+  token: string,
+  projectId: number,
+): Promise<{ waves: ResearchWave[]; compare: WaveCompareRow[] }> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/waves`);
+}
+
+export async function createResearchWave(
+  token: string,
+  projectId: number,
+  body: CreateWaveBody,
+): Promise<ResearchWave> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/waves`, {
     method: 'POST',
     body: JSON.stringify(body),
   });

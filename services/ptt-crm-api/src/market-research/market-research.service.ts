@@ -51,9 +51,11 @@ import type {
   CreateInsightInput,
   CreateProjectInput,
   CreateStudyInput,
+  CreateWaveInput,
   ResearchConsent,
   ResearchPrefill,
   ResearchStudy,
+  ResearchWave,
   InsertPlanInsightsInput,
   MethodologyBlock,
   PlanInsightSnapshot,
@@ -105,7 +107,8 @@ import {
   CB_METHODOLOGY_STUB,
   type ResearchReportSnapshot,
 } from './market-research-report-snapshot.util';
-import { validateCreateEvidence, validateCreateProject } from './market-research.validation';
+import { validateCreateEvidence, validateCreateProject, validateCreateWave } from './market-research.validation';
+import { compareLatestWaves } from './wave-compare.util';
 import { buildResearchPrefill, EMPTY_RESEARCH_PREFILL, stripPrefillPii } from './research-prefill.util';
 import { assertMethodologyExportable } from './methodology-gate.util';
 import { assertExecEnEditable, normalizeReportExec } from './report-exec.util';
@@ -564,6 +567,58 @@ export class MarketResearchService {
       },
       actor,
     );
+  }
+
+  private assertTracker(project: ResearchProjectRow): void {
+    if (project.product_type !== 'TRACKER') {
+      throw new BadRequestException({ error: 'waves_not_tracker' });
+    }
+  }
+
+  async listWaves(
+    projectId: number,
+    scope: ClientScopeContext,
+  ): Promise<{ waves: ResearchWave[]; compare: ReturnType<typeof compareLatestWaves> }> {
+    const project = await this.loadScopedProject(projectId, scope);
+    this.assertTracker(project);
+    const waves = await this.repo.listWaves(projectId);
+    return { waves, compare: compareLatestWaves(waves) };
+  }
+
+  async createWave(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: CreateWaveInput,
+    actor: string,
+  ): Promise<ResearchWave> {
+    const project = await this.loadScopedProject(projectId, scope);
+    this.assertTracker(project);
+    const messages = validateCreateWave(input ?? ({} as CreateWaveInput));
+    if (messages.length) {
+      throw new BadRequestException({ error: 'validation_error', messages });
+    }
+    const metric_json = (Array.isArray(input.metric_json) ? input.metric_json : []).map((row) => ({
+      key: String(row.key).trim().slice(0, 40),
+      value: row.value == null ? null : Number(row.value),
+    }));
+    try {
+      return await this.repo.createWave(
+        projectId,
+        {
+          wave_no: Number(input.wave_no),
+          label: this.optionalText(input.label),
+          field_start: this.optionalDate(input.field_start, 'field_start'),
+          field_end: this.optionalDate(input.field_end, 'field_end'),
+          metric_json,
+        },
+        actor,
+      );
+    } catch (err) {
+      if ((err as { code?: string }).code === '23505') {
+        throw new ConflictException({ error: 'wave_no_duplicate' });
+      }
+      throw err;
+    }
   }
 
   async patchStudy(

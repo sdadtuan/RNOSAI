@@ -14,6 +14,7 @@ import { ResearchJobChip } from '@/components/research/ResearchJobChip';
 import { ResearchStatusChip } from '@/components/research/ResearchStatusChip';
 import { CompetitorPane } from '@/components/research/CompetitorPane';
 import { StudiesPane } from '@/components/research/StudiesPane';
+import { WavesPane } from '@/components/research/WavesPane';
 import { SourceKeepTable } from '@/components/research/SourceKeepTable';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
@@ -899,7 +900,10 @@ function CrmResearchWorkspaceContent() {
               </p>
             </header>
             <nav style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', borderBottom: '1px solid #d8e0d8' }}>
-              {TABS.map((t) => (
+              {[
+                ...TABS,
+                ...(project.product_type === 'TRACKER' ? ([{ id: 'waves', label: 'Waves' }] as const) : []),
+              ].map((t) => (
                 <Link
                   key={t.id}
                   href={`/crm/research/${id}?tab=${t.id}`}
@@ -1016,6 +1020,8 @@ function CrmResearchWorkspaceContent() {
                   void onPublishPortal(reportId, versionId, visible)
                 }
               />
+            ) : tab === 'waves' && project.product_type === 'TRACKER' ? (
+              <WavesPane projectId={project.id} canEdit={canEdit} />
             ) : (
               <p className="muted">P0: dùng tab Brief / Nguồn / Evidence / Insight. Tab {TABS.find((t) => t.id === tab)?.label} sẽ có ở milestone sau.</p>
             )}

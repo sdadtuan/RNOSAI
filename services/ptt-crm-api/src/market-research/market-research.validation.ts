@@ -1,5 +1,5 @@
 import { PRODUCT_TYPES } from './market-research.constants';
-import type { CreateEvidenceInput, CreateProjectInput } from './market-research.types';
+import type { CreateEvidenceInput, CreateProjectInput, CreateWaveInput } from './market-research.types';
 
 export function validateCreateProject(input: CreateProjectInput): string[] {
   const messages: string[] = [];
@@ -49,6 +49,37 @@ export function validateCreateEvidence(input: CreateEvidenceInput): string[] {
   }
   if (input.source_id == null && input.study_id == null) {
     messages.push('source_id or study_id is required');
+  }
+  return messages;
+}
+
+export function validateCreateWave(input: CreateWaveInput): string[] {
+  const messages: string[] = [];
+  const waveNo = Number(input?.wave_no);
+  if (!Number.isInteger(waveNo) || waveNo < 1) {
+    messages.push('wave_no must be >= 1');
+  }
+  if (!Array.isArray(input?.metric_json)) {
+    messages.push('metric_json is required');
+    return messages;
+  }
+  if (input.metric_json.length > 20) {
+    messages.push('metric_json max 20 keys');
+  }
+  for (const row of input.metric_json) {
+    const key = String(row?.key ?? '').trim();
+    if (!key) {
+      messages.push('metric key is required');
+      break;
+    }
+    if (key.length > 40) {
+      messages.push('metric key must be <= 40 chars');
+      break;
+    }
+    if (row.value != null && typeof row.value !== 'number') {
+      messages.push('metric value must be number or null');
+      break;
+    }
   }
   return messages;
 }

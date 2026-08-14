@@ -44,6 +44,7 @@ import type {
   CreateSourceInput,
   InsightCopilotInput,
   CreateStudyInput,
+  CreateWaveInput,
   PatchCompetitorInput,
   PatchStudyInput,
   PatchEvidenceInput,
@@ -329,6 +330,25 @@ export class MarketResearchController {
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.createStudy(id, scope, body ?? ({} as CreateStudyInput), actorEmail(req));
+  }
+
+  @Get('projects/:id/waves')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async listWaves(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.listWaves(id, scope);
+  }
+
+  @Post('projects/:id/waves')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async createWave(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CreateWaveInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.createWave(id, scope, body ?? ({} as CreateWaveInput), actorEmail(req));
   }
 
   @Patch('studies/:id')
