@@ -34,7 +34,21 @@ export function InsightCard({
     <article className="card" style={{ padding: '0.85rem' }}>
       <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
         Insight #{insight.id} · {INSIGHT_STATUS_LABELS[insight.status]}
-        {insight.ai_generated ? ' · AI' : ''}
+        {insight.ai_generated ? (
+          <span
+            style={{
+              marginLeft: 6,
+              padding: '0.05rem 0.4rem',
+              borderRadius: 999,
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              background: 'rgba(99, 102, 241, 0.14)',
+              color: '#3730a3',
+            }}
+          >
+            AI
+          </span>
+        ) : null}
       </p>
       <p style={{ margin: '0.4rem 0', fontWeight: 600 }}>{insight.statement}</p>
       <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>

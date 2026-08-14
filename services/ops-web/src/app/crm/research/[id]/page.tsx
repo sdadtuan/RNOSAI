@@ -28,6 +28,8 @@ import {
   addResearchQuestion,
   approveResearchInsight,
   attachResearchInsightEvidence,
+  copilotResearchInsight,
+  copilotResearchReport,
   createResearchEvidence,
   createResearchInsight,
   createResearchSource,
@@ -57,6 +59,7 @@ import {
   type ResearchInsight,
   type ResearchProject,
   type ResearchQuestion,
+  type ResearchReportSnapshot,
   type ResearchSource,
 } from '@/lib/market-research-api';
 import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
@@ -106,6 +109,7 @@ function CrmResearchWorkspaceContent() {
   const [deepOpen, setDeepOpen] = useState(false);
   const [deepRunId, setDeepRunId] = useState<number | null>(null);
   const [deepBanner, setDeepBanner] = useState('');
+  const [reportSnapshot, setReportSnapshot] = useState<ResearchReportSnapshot | null>(null);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -415,6 +419,37 @@ function CrmResearchWorkspaceContent() {
     }
   }
 
+  async function onInsightCopilot(evidenceIds: number[]) {
+    const access = getAccessToken();
+    if (!access || !project) return;
+    setSaving(true);
+    setError('');
+    try {
+      await copilotResearchInsight(access, project.id, evidenceIds);
+      await load(access);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gợi ý insight thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onReportCopilot(insightIds: number[]) {
+    const access = getAccessToken();
+    if (!access || !project) return;
+    setSaving(true);
+    setError('');
+    try {
+      const out = await copilotResearchReport(access, project.id, insightIds);
+      setReportSnapshot(out.content_snapshot);
+      await load(access);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gợi ý dàn báo cáo thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function onVerifyEvidence(ev: ResearchEvidence) {
     const access = getAccessToken();
     if (!access || !project) return;
@@ -668,6 +703,7 @@ function CrmResearchWorkspaceContent() {
               <InsightsTab
                 project={project}
                 canEdit={canEdit}
+                canRun={canRun}
                 saving={saving}
                 onCreate={() => {
                   setActiveInsight(null);
@@ -678,6 +714,15 @@ function CrmResearchWorkspaceContent() {
                   setInsightOpen(true);
                 }}
                 onSubmitReview={(insight) => void onSubmitInsight(insight)}
+                onCopilot={(ids) => void onInsightCopilot(ids)}
+              />
+            ) : tab === 'report' ? (
+              <ReportTab
+                project={project}
+                canRun={canRun}
+                saving={saving}
+                snapshot={reportSnapshot}
+                onCopilot={(ids) => void onReportCopilot(ids)}
               />
             ) : (
               <p className="muted">P0: dùng tab Brief / Nguồn / Evidence / Insight. Tab {TABS.find((t) => t.id === tab)?.label} sẽ có ở milestone sau.</p>
@@ -951,29 +996,92 @@ function BriefTab({
 function InsightsTab({
   project,
   canEdit,
+  canRun,
   saving,
   onCreate,
   onOpen,
   onSubmitReview,
+  onCopilot,
 }: {
   project: ResearchProject;
   canEdit: boolean;
+  canRun: boolean;
   saving: boolean;
   onCreate: () => void;
   onOpen: (insight: ResearchInsight) => void;
   onSubmitReview: (insight: ResearchInsight) => void;
+  onCopilot: (evidenceIds: number[]) => void;
 }) {
   const rows = project.insights ?? [];
+  const verified = (project.evidence ?? []).filter((ev) => ev.qc_status === 'verified');
+  const [selected, setSelected] = useState<number[]>([]);
   return (
     <section className="card" style={{ padding: '0.9rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0, fontSize: '1rem' }}>Insight</h2>
-        {canEdit ? (
-          <button type="button" className="btn btn-sm" disabled={saving} onClick={onCreate}>
-            + Insight
-          </button>
-        ) : null}
+        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+          {canRun ? (
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={saving || selected.length === 0}
+              title={selected.length === 0 ? 'Chọn ≥1 evidence đã verify' : undefined}
+              onClick={() => onCopilot(selected)}
+            >
+              Gợi ý insight (Claude)
+            </button>
+          ) : null}
+          {canEdit ? (
+            <button type="button" className="btn btn-sm btn-secondary" disabled={saving} onClick={onCreate}>
+              + Insight
+            </button>
+          ) : null}
+        </div>
       </div>
+      {canRun ? (
+        <div style={{ marginTop: '0.75rem' }}>
+          <p className="muted" style={{ margin: '0 0 0.4rem', fontSize: '0.85rem' }}>
+            Chọn evidence đã verify — Claude chỉ được dùng các ID này.
+          </p>
+          {verified.length === 0 ? (
+            <p className="muted" style={{ margin: 0 }}>
+              Chưa có evidence verified — nút gợi ý tắt.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {verified.map((ev) => {
+                const checked = selected.includes(ev.id);
+                return (
+                  <label
+                    key={ev.id}
+                    style={{
+                      display: 'inline-flex',
+                      gap: 6,
+                      alignItems: 'center',
+                      fontSize: '0.85rem',
+                      border: '1px solid #d8e0d8',
+                      borderRadius: 8,
+                      padding: '0.25rem 0.5rem',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={saving}
+                      onChange={() =>
+                        setSelected((prev) =>
+                          checked ? prev.filter((id) => id !== ev.id) : [...prev, ev.id],
+                        )
+                      }
+                    />
+                    EV-{ev.id}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : null}
       {rows.length === 0 ? (
         <p className="muted">Gắn evidence rồi soạn insight — không viết từ AI suông.</p>
       ) : (
@@ -998,6 +1106,100 @@ function InsightsTab({
           ))}
         </div>
       )}
+    </section>
+  );
+}
+
+const APPROVED_INTERNAL_PLUS: InsightStatus[] = [
+  'approved_internal',
+  'approved_client_facing',
+  'published',
+];
+
+function ReportTab({
+  project,
+  canRun,
+  saving,
+  snapshot,
+  onCopilot,
+}: {
+  project: ResearchProject;
+  canRun: boolean;
+  saving: boolean;
+  snapshot: ResearchReportSnapshot | null;
+  onCopilot: (insightIds: number[]) => void;
+}) {
+  const approved = (project.insights ?? []).filter((row) => APPROVED_INTERNAL_PLUS.includes(row.status));
+  const [selected, setSelected] = useState<number[]>(() => approved.map((row) => row.id));
+  return (
+    <section className="card" style={{ padding: '0.9rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <h2 style={{ margin: 0, fontSize: '1rem' }}>Báo cáo</h2>
+        {canRun ? (
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={saving || selected.length === 0}
+            title={selected.length === 0 ? 'Chọn ≥1 insight đã duyệt nội bộ' : undefined}
+            onClick={() => onCopilot(selected)}
+          >
+            Gợi ý dàn báo cáo
+          </button>
+        ) : null}
+      </div>
+      <p className="muted" style={{ margin: '0.5rem 0 0.75rem' }}>
+        Dàn ý nháp từ insight đã duyệt. Xuất DOCX ở milestone sau — không phát hành.
+      </p>
+      {approved.length === 0 ? (
+        <p className="muted">Chưa có insight approved_internal+.</p>
+      ) : (
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+          {approved.map((insight) => {
+            const checked = selected.includes(insight.id);
+            return (
+              <label
+                key={insight.id}
+                style={{
+                  display: 'inline-flex',
+                  gap: 6,
+                  alignItems: 'center',
+                  fontSize: '0.85rem',
+                  border: '1px solid #d8e0d8',
+                  borderRadius: 8,
+                  padding: '0.25rem 0.5rem',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={saving}
+                  onChange={() =>
+                    setSelected((prev) =>
+                      checked ? prev.filter((id) => id !== insight.id) : [...prev, insight.id],
+                    )
+                  }
+                />
+                #{insight.id}
+                {insight.ai_generated ? ' · AI' : ''}
+              </label>
+            );
+          })}
+        </div>
+      )}
+      {snapshot ? (
+        <pre
+          style={{
+            margin: 0,
+            padding: '0.75rem',
+            background: '#f6f7f6',
+            borderRadius: 8,
+            overflow: 'auto',
+            fontSize: '0.8rem',
+          }}
+        >
+          {JSON.stringify(snapshot, null, 2)}
+        </pre>
+      ) : null}
     </section>
   );
 }

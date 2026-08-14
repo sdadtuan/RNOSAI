@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
@@ -681,8 +682,8 @@ export class MarketResearchRepository implements OnModuleDestroy {
     const result = await this.db.query(
       `INSERT INTO crm_research_insights (
          project_id, statement, observation, interpretation, implication, recommendation,
-         audience, status, confidence_rationale, created_by, valid_from, valid_to
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', $8, $9, $10, $11)
+         audience, status, confidence_rationale, created_by, valid_from, valid_to, ai_generated
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', $8, $9, $10, $11, $12)
        RETURNING id`,
       [
         projectId,
@@ -696,6 +697,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
         actor,
         input.valid_from?.trim() || null,
         input.valid_to?.trim() || null,
+        Boolean(input.ai_generated),
       ],
     );
     await this.db.query(`UPDATE crm_research_projects SET updated_at = now() WHERE id = $1`, [
@@ -827,21 +829,98 @@ export class MarketResearchRepository implements OnModuleDestroy {
 
   async insertAiRun(input: {
     projectId: number;
-    questionId: number;
+    questionId?: number | null;
     jobType: string;
     provider: string;
     actor: string;
+    model?: string | null;
   }): Promise<ResearchAiRunRow> {
     const result = await this.db.query(
       `INSERT INTO crm_research_ai_runs (
-         project_id, question_id, job_type, provider, status, actor
-       ) VALUES ($1, $2, $3, $4, 'pending', $5)
+         project_id, question_id, job_type, provider, model, status, actor
+       ) VALUES ($1, $2, $3, $4, $5, 'pending', $6)
        RETURNING id, project_id, question_id, job_type, provider, model, status,
                  credits_used, error_message, actor,
                  created_at::text AS created_at, finished_at::text AS finished_at`,
-      [input.projectId, input.questionId, input.jobType, input.provider, input.actor],
+      [
+        input.projectId,
+        input.questionId ?? null,
+        input.jobType,
+        input.provider,
+        input.model ?? null,
+        input.actor,
+      ],
     );
     return this.mapAiRun(result.rows[0]);
+  }
+
+  async succeedAiRun(
+    runId: number,
+    input: {
+      model?: string | null;
+      promptVersion?: string | null;
+      inputHash?: string | null;
+      outputJson?: unknown;
+      creditsUsed?: number;
+    },
+  ): Promise<ResearchAiRunRow | null> {
+    const result = await this.db.query(
+      `UPDATE crm_research_ai_runs
+       SET status = 'succeeded',
+           model = COALESCE($1, model),
+           prompt_version = $2,
+           input_hash = $3,
+           output_json = $4::jsonb,
+           credits_used = $5,
+           finished_at = now()
+       WHERE id = $6
+       RETURNING id, project_id, question_id, job_type, provider, model, status,
+                 credits_used, error_message, actor,
+                 created_at::text AS created_at, finished_at::text AS finished_at`,
+      [
+        input.model ?? null,
+        input.promptVersion ?? null,
+        input.inputHash ?? null,
+        JSON.stringify(input.outputJson ?? {}),
+        input.creditsUsed ?? 0,
+        runId,
+      ],
+    );
+    const row = result.rows[0];
+    return row ? this.mapAiRun(row) : null;
+  }
+
+  async createReportDraft(input: {
+    projectId: number;
+    contentSnapshot: Record<string, unknown>;
+    generatedBy: string;
+  }): Promise<{
+    report_id: number;
+    version: number;
+    content_snapshot: Record<string, unknown>;
+    content_hash: string;
+  }> {
+    const snapshot = { ...input.contentSnapshot, status: 'draft' };
+    const hash = createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
+    const report = await this.db.query(
+      `INSERT INTO crm_research_reports (project_id, template, status)
+       VALUES ($1, 'dv12_cb_v1', 'draft')
+       RETURNING id`,
+      [input.projectId],
+    );
+    const reportId = Number(report.rows[0].id);
+    await this.db.query(
+      `INSERT INTO crm_research_report_versions (
+         report_id, version, content_snapshot, generated_by, content_hash
+       ) VALUES ($1, 1, $2::jsonb, $3, $4)`,
+      [reportId, JSON.stringify(snapshot), input.generatedBy, hash],
+    );
+    return {
+      report_id: reportId,
+      version: 1,
+      content_snapshot: snapshot,
+      content_hash: hash,
+    };
   }
 
   async failAiRun(runId: number, error: string): Promise<ResearchAiRunRow | null> {

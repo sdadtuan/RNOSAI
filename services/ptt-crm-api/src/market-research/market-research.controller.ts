@@ -35,11 +35,13 @@ import type {
   CreateProjectInput,
   CreateQuestionInput,
   CreateSourceInput,
+  InsightCopilotInput,
   PatchEvidenceInput,
   PatchInsightInput,
   PatchProjectInput,
   PatchQuestionInput,
   PatchSourceInput,
+  ReportCopilotInput,
   RunDeepInput,
   RunDeskInput,
 } from './market-research.types';
@@ -276,6 +278,30 @@ export class MarketResearchController {
   async submitInsightReview(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.submitReview(id, scope);
+  }
+
+  @Post('projects/:id/insights/copilot')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  async insightCopilot(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: InsightCopilotInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.insightCopilot(id, scope, body ?? { evidence_ids: [] }, actorEmail(req));
+  }
+
+  @Post('projects/:id/reports/copilot')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  async reportCopilot(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: ReportCopilotInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.reportCopilot(id, scope, body ?? { insight_ids: [] }, actorEmail(req));
   }
 
   @Post('insights/:id/approve')

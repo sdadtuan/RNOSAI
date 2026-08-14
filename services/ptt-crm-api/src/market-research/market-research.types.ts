@@ -230,6 +230,29 @@ export type CreateInsightInput = {
   confidence_rationale?: string | null;
   valid_from?: string | null;
   valid_to?: string | null;
+  ai_generated?: boolean;
+};
+
+export type InsightCopilotInput = {
+  evidence_ids: number[];
+};
+
+export type ReportCopilotInput = {
+  insight_ids: number[];
+};
+
+export type InsightCopilotResult = {
+  ok: true;
+  insight: ResearchInsightRow;
+  run_id: number;
+};
+
+export type ReportCopilotResult = {
+  ok: true;
+  report_id: number;
+  version: number;
+  content_snapshot: Record<string, unknown>;
+  run_id: number;
 };
 
 export type PatchInsightInput = {

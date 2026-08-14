@@ -122,6 +122,25 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   tavily_credit_cap: 'Hết credit Tavily của dự án',
   jobs_disabled: 'Hàng đợi job đang tắt — thử lại sau.',
   deep_research_disabled: 'Deep Research đang tắt.',
+  llm_unconfigured: 'Chưa cấu hình Claude (ANTHROPIC_API_KEY).',
+  llm_provider_error: 'Claude không trả lời được — thử lại sau.',
+  llm_timeout: 'Claude hết thời gian chờ.',
+};
+
+export type ResearchReportSnapshot = {
+  cover?: {
+    client?: string;
+    title?: string;
+    confidential?: boolean;
+    version?: number;
+    as_of?: string;
+  };
+  exec?: string;
+  findings?: unknown[];
+  recs?: unknown[];
+  methodology?: { stub?: boolean; note?: string };
+  evidence_index?: Array<{ ev_id: number; locator: string; insight_id: number }>;
+  status?: string;
 };
 
 export type ResearchQuestion = {
@@ -534,5 +553,33 @@ export async function approveResearchInsight(
   return researchFetch(token, `/api/v1/research/insights/${insightId}/approve`, {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+}
+
+export async function copilotResearchInsight(
+  token: string,
+  projectId: number,
+  evidenceIds: number[],
+): Promise<{ ok: true; insight: ResearchInsight; run_id: number }> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/insights/copilot`, {
+    method: 'POST',
+    body: JSON.stringify({ evidence_ids: evidenceIds }),
+  });
+}
+
+export async function copilotResearchReport(
+  token: string,
+  projectId: number,
+  insightIds: number[],
+): Promise<{
+  ok: true;
+  report_id: number;
+  version: number;
+  content_snapshot: ResearchReportSnapshot;
+  run_id: number;
+}> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/reports/copilot`, {
+    method: 'POST',
+    body: JSON.stringify({ insight_ids: insightIds }),
   });
 }

@@ -1,20 +1,30 @@
+import { createHash } from 'crypto';
 import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { ClientScopeContext, StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
 import { JobQueueRepository } from '../webhooks/job-queue.repository';
 import {
+  APPROVED_INTERNAL_PLUS,
   INSIGHT_STATUSES,
   MAX_TAVILY_CREDITS_PER_RESEARCH,
   PROJECT_STATUSES,
   type InsightStatus,
   type ProjectStatus,
 } from './market-research.constants';
+import {
+  buildInsightCopilotPrompt,
+  buildReportCopilotPrompt,
+  redactEvidenceForAiRunLog,
+  toInsightCopilotEvidenceFields,
+} from './market-research-copilot.prompt';
+import { MarketResearchLlmService } from './market-research-llm.service';
 import { MarketResearchRepository } from './market-research.repository';
 import { evidenceChecksum } from './evidence-checksum.util';
 import { assertEvidenceMutable, piiHint } from './evidence-immutable.util';
@@ -26,12 +36,16 @@ import type {
   CreateProjectInput,
   CreateQuestionInput,
   CreateSourceInput,
+  InsightCopilotInput,
+  InsightCopilotResult,
   ListProjectsFilters,
   PatchEvidenceInput,
   PatchInsightInput,
   PatchProjectInput,
   PatchQuestionInput,
   PatchSourceInput,
+  ReportCopilotInput,
+  ReportCopilotResult,
   ResearchAiRunRow,
   ResearchEvidenceRow,
   ResearchInsightRow,
@@ -54,6 +68,7 @@ export class MarketResearchService {
     private readonly clientScope: StaffClientScopeService,
     private readonly jobQueue: JobQueueRepository,
     private readonly config: AppConfigService,
+    private readonly llm: MarketResearchLlmService,
   ) {}
 
   health(): { ok: true; enabled: true; deep_provider: string } {
@@ -565,6 +580,196 @@ export class MarketResearchService {
     return run;
   }
 
+  async insightCopilot(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: InsightCopilotInput,
+    actor: string,
+  ): Promise<InsightCopilotResult> {
+    await this.loadScopedProject(projectId, scope);
+    const evidenceIds = normalizePositiveIds(input.evidence_ids);
+    if (evidenceIds.length === 0) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['evidence_ids is required'],
+      });
+    }
+    const evidence: ResearchEvidenceRow[] = [];
+    for (const id of evidenceIds) {
+      const ev = await this.repo.getEvidence(id);
+      if (!ev || ev.project_id !== projectId || ev.qc_status !== 'verified') {
+        throw new BadRequestException({
+          error: 'validation_error',
+          messages: ['evidence_ids is invalid'],
+        });
+      }
+      evidence.push(ev);
+    }
+
+    const run = await this.repo.insertAiRun({
+      projectId,
+      jobType: 'insight_draft',
+      provider: 'anthropic',
+      actor,
+    });
+    if (!this.llm.isConfigured()) {
+      await this.repo.failAiRun(run.id, 'llm_unconfigured');
+      throw new ServiceUnavailableException({ error: 'llm_unconfigured' });
+    }
+
+    const prompt = buildInsightCopilotPrompt(evidence.map(toInsightCopilotEvidenceFields));
+    const inputHash = hashPrompt(prompt.system, prompt.user);
+    try {
+      const { parsed, modelName } = await this.llm.completeJson({
+        systemPrompt: prompt.system,
+        userPrompt: prompt.user,
+      });
+      const draft = normalizeInsightDraft(parsed);
+      if (!draft.statement.trim()) {
+        throw new Error('invalid_llm_output');
+      }
+      const created = await this.repo.createInsight(
+        projectId,
+        { ...draft, ai_generated: true },
+        actor,
+      );
+      await this.repo.replaceInsightEvidence(created.id, evidence.map((row) => row.id));
+      const insight = (await this.repo.getInsight(created.id)) ?? created;
+      if (insight.status === 'published') {
+        throw new Error('ai_insight_must_stay_draft');
+      }
+      await this.repo.succeedAiRun(run.id, {
+        model: modelName,
+        promptVersion: 'research-insight-v1',
+        inputHash,
+        outputJson: {
+          insight_id: insight.id,
+          status: insight.status,
+          evidence: evidence.map(redactEvidenceForAiRunLog),
+        },
+      });
+      return { ok: true, insight, run_id: run.id };
+    } catch (err) {
+      if (err instanceof ServiceUnavailableException) {
+        await this.repo.failAiRun(run.id, errorCode(err) ?? 'llm_provider_error');
+        throw err;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      await this.repo.failAiRun(run.id, message);
+      throw new ServiceUnavailableException({ error: 'llm_provider_error', message });
+    }
+  }
+
+  async reportCopilot(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: ReportCopilotInput,
+    actor: string,
+  ): Promise<ReportCopilotResult> {
+    const project = await this.loadScopedProject(projectId, scope);
+    const insightIds = normalizePositiveIds(input.insight_ids);
+    if (insightIds.length === 0) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['insight_ids is required'],
+      });
+    }
+    const insights: ResearchInsightRow[] = [];
+    for (const id of insightIds) {
+      const insight = await this.repo.getInsight(id);
+      if (!insight || insight.project_id !== projectId) {
+        throw new BadRequestException({
+          error: 'validation_error',
+          messages: ['insight_ids is invalid'],
+        });
+      }
+      if (!APPROVED_INTERNAL_PLUS.includes(insight.status)) {
+        throw new BadRequestException({
+          error: 'validation_error',
+          messages: ['insight must be approved_internal+'],
+        });
+      }
+      insights.push(insight);
+    }
+
+    const run = await this.repo.insertAiRun({
+      projectId,
+      jobType: 'report_draft',
+      provider: 'anthropic',
+      actor,
+    });
+    if (!this.llm.isConfigured()) {
+      await this.repo.failAiRun(run.id, 'llm_unconfigured');
+      throw new ServiceUnavailableException({ error: 'llm_unconfigured' });
+    }
+
+    const evidenceIndex: Array<{ ev_id: number; locator: string; insight_id: number }> = [];
+    for (const insight of insights) {
+      for (const evId of insight.evidence_ids) {
+        const ev = await this.repo.getEvidence(evId);
+        if (ev && ev.project_id === projectId) {
+          evidenceIndex.push({ ev_id: ev.id, locator: ev.locator, insight_id: insight.id });
+        }
+      }
+    }
+
+    const prompt = buildReportCopilotPrompt(
+      insights.map((row) => ({
+        id: row.id,
+        statement: row.statement,
+        observation: row.observation,
+        interpretation: row.interpretation,
+        implication: row.implication,
+        recommendation: row.recommendation,
+        evidence_ids: row.evidence_ids,
+      })),
+    );
+    const inputHash = hashPrompt(prompt.system, prompt.user);
+    try {
+      const { parsed, modelName } = await this.llm.completeJson({
+        systemPrompt: prompt.system,
+        userPrompt: prompt.user,
+      });
+      const snapshot = normalizeReportSnapshot(parsed, {
+        clientId: project.client_id,
+        title: project.title,
+        evidenceIndex,
+      });
+      const draft = await this.repo.createReportDraft({
+        projectId,
+        contentSnapshot: snapshot,
+        generatedBy: actor,
+      });
+      await this.repo.succeedAiRun(run.id, {
+        model: modelName,
+        promptVersion: 'research-report-v1',
+        inputHash,
+        outputJson: {
+          report_id: draft.report_id,
+          version: draft.version,
+          status: 'draft',
+          insight_ids: insightIds,
+          evidence: evidenceIndex,
+        },
+      });
+      return {
+        ok: true,
+        report_id: draft.report_id,
+        version: draft.version,
+        content_snapshot: draft.content_snapshot,
+        run_id: run.id,
+      };
+    } catch (err) {
+      if (err instanceof ServiceUnavailableException) {
+        await this.repo.failAiRun(run.id, errorCode(err) ?? 'llm_provider_error');
+        throw err;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      await this.repo.failAiRun(run.id, message);
+      throw new ServiceUnavailableException({ error: 'llm_provider_error', message });
+    }
+  }
+
   private async loadScopedInsight(
     insightId: number,
     scope: ClientScopeContext,
@@ -643,4 +848,76 @@ export class MarketResearchService {
       }),
     };
   }
+}
+
+function normalizePositiveIds(raw: unknown): number[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<number>();
+  const ids: number[] = [];
+  for (const value of raw) {
+    const id = Number(value);
+    if (!Number.isFinite(id) || id <= 0 || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+function hashPrompt(system: string, user: string): string {
+  return createHash('sha256').update(`${system}\n---\n${user}`).digest('hex').slice(0, 16);
+}
+
+function asTrimmed(value: unknown): string | null {
+  if (value == null) return null;
+  const text = String(value).trim();
+  return text || null;
+}
+
+function normalizeInsightDraft(parsed: Record<string, unknown>): CreateInsightInput {
+  return {
+    statement: asTrimmed(parsed.statement) ?? '',
+    observation: asTrimmed(parsed.observation),
+    interpretation: asTrimmed(parsed.interpretation),
+    implication: asTrimmed(parsed.implication),
+    recommendation: asTrimmed(parsed.recommendation),
+    confidence_rationale: asTrimmed(parsed.confidence_rationale),
+    ai_generated: true,
+  };
+}
+
+function normalizeReportSnapshot(
+  parsed: Record<string, unknown>,
+  ctx: {
+    clientId: string;
+    title: string;
+    evidenceIndex: Array<{ ev_id: number; locator: string; insight_id: number }>;
+  },
+): Record<string, unknown> {
+  const cover =
+    parsed.cover && typeof parsed.cover === 'object' && !Array.isArray(parsed.cover)
+      ? (parsed.cover as Record<string, unknown>)
+      : {};
+  return {
+    cover: {
+      client: cover.client ?? ctx.clientId,
+      title: cover.title ?? ctx.title,
+      confidential: true,
+      version: 1,
+      as_of: new Date().toISOString().slice(0, 10),
+    },
+    exec: typeof parsed.exec === 'string' ? parsed.exec : '',
+    findings: Array.isArray(parsed.findings) ? parsed.findings : [],
+    recs: Array.isArray(parsed.recs) ? parsed.recs : [],
+    methodology: { stub: true, note: 'P0 CB methodology stub' },
+    evidence_index: ctx.evidenceIndex,
+    status: 'draft',
+  };
+}
+
+function errorCode(err: ServiceUnavailableException): string | null {
+  const body = err.getResponse();
+  if (body && typeof body === 'object' && 'error' in body) {
+    return String((body as { error?: unknown }).error ?? '') || null;
+  }
+  return null;
 }

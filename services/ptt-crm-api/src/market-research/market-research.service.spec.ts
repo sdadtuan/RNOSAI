@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { MarketResearchService } from './market-research.service';
 import type { ResearchEvidenceRow, ResearchInsightRow, ResearchProjectRow } from './market-research.types';
 
@@ -56,9 +61,16 @@ describe('MarketResearchService', () => {
     findInFlightDeepRun: jest.fn(),
     insertAiRun: jest.fn(),
     failAiRun: jest.fn(),
+    succeedAiRun: jest.fn(),
     getAiRun: jest.fn(),
     listRecentAiRuns: jest.fn(),
     sumTavilyCredits: jest.fn(),
+    createInsight: jest.fn(),
+    createReportDraft: jest.fn(),
+  };
+  const llm = {
+    isConfigured: jest.fn(),
+    completeJson: jest.fn(),
   };
   const clientScope = {
     allowedClientIdsForList: jest.fn(),
@@ -77,11 +89,13 @@ describe('MarketResearchService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     config.researchDeepProvider = 'openai';
+    llm.isConfigured.mockReturnValue(true);
     service = new MarketResearchService(
       repo as never,
       clientScope as never,
       jobQueue as never,
       config as never,
+      llm as never,
     );
   });
 
@@ -551,6 +565,70 @@ describe('MarketResearchService', () => {
     });
     config.researchDeepProvider = 'off';
     expect(service.health().deep_provider).toBe('off');
+  });
+
+  it('insightCopilot with 0 evidence is 400 and does not call the LLM', async () => {
+    stubScopedProject();
+
+    try {
+      await service.insightCopilot(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { evidence_ids: [] },
+        'am@ptt',
+      );
+      throw new Error('expected 400');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+    }
+    expect(llm.completeJson).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+    expect(repo.insertAiRun).not.toHaveBeenCalled();
+  });
+
+  it('insightCopilot is llm_unconfigured when Anthropic is missing', async () => {
+    stubScopedProject();
+    llm.isConfigured.mockReturnValue(false);
+    repo.getEvidence.mockResolvedValue(evidenceRow({ id: 3, qc_status: 'verified' }));
+    repo.insertAiRun.mockResolvedValue({ id: 91, status: 'pending' });
+
+    try {
+      await service.insightCopilot(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { evidence_ids: [3] },
+        'am@ptt',
+      );
+      throw new Error('expected unconfigured');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ServiceUnavailableException);
+      expect((err as ServiceUnavailableException).getResponse()).toEqual({
+        error: 'llm_unconfigured',
+      });
+    }
+    expect(llm.completeJson).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+    expect(repo.failAiRun).toHaveBeenCalledWith(91, 'llm_unconfigured');
+  });
+
+  it('reportCopilot with 0 insights is 400', async () => {
+    stubScopedProject();
+
+    try {
+      await service.reportCopilot(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { insight_ids: [] },
+        'am@ptt',
+      );
+      throw new Error('expected 400');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+    }
+    expect(llm.completeJson).not.toHaveBeenCalled();
+    expect(repo.createReportDraft).not.toHaveBeenCalled();
   });
 });
 

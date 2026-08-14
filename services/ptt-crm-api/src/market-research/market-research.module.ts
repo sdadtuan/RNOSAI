@@ -11,6 +11,7 @@ import {
   StaffMarketResearchViewGuard,
 } from './guards/staff-market-research.guard';
 import { MarketResearchController } from './market-research.controller';
+import { MarketResearchLlmService } from './market-research-llm.service';
 import { MarketResearchRepository } from './market-research.repository';
 import { MarketResearchService } from './market-research.service';
 
@@ -20,6 +21,7 @@ import { MarketResearchService } from './market-research.service';
   providers: [
     MarketResearchEnabledGuard,
     MarketResearchRepository,
+    MarketResearchLlmService,
     MarketResearchService,
     StaffMarketResearchViewGuard,
     StaffMarketResearchCreateGuard,

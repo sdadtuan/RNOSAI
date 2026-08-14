@@ -42,6 +42,12 @@ export const INSIGHT_STATUSES = [
 ] as const;
 export type InsightStatus = (typeof INSIGHT_STATUSES)[number];
 
+export const APPROVED_INTERNAL_PLUS: InsightStatus[] = [
+  'approved_internal',
+  'approved_client_facing',
+  'published',
+];
+
 export type InsightGateCode = 'missing_verified_evidence' | 'missing_confidence_rationale';
 
 export type ResearchJobType =
