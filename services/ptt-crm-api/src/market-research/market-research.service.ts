@@ -41,6 +41,7 @@ import type {
   CreateEvidenceInput,
   CreateInsightInput,
   CreateProjectInput,
+  ResearchPrefill,
   InsertPlanInsightsInput,
   MethodologyBlock,
   PlanInsightSnapshot,
@@ -83,6 +84,7 @@ import {
   type ResearchReportSnapshot,
 } from './market-research-report-snapshot.util';
 import { validateCreateEvidence, validateCreateProject } from './market-research.validation';
+import { buildResearchPrefill, EMPTY_RESEARCH_PREFILL, stripPrefillPii } from './research-prefill.util';
 import { assertMethodologyExportable } from './methodology-gate.util';
 import { assertNoInsightTextLeak, freezePlanInsights } from './plan-insight-snapshot.util';
 import { canTransitionProject, listValidTransitions } from './project-state.util';
@@ -198,6 +200,15 @@ export class MarketResearchService {
     return { projects };
   }
 
+  async getPrefill(scope: ClientScopeContext, clientId: string): Promise<ResearchPrefill> {
+    const cid = String(clientId ?? '').trim();
+    if (!cid) return { ...EMPTY_RESEARCH_PREFILL };
+    this.assertClientInScope(scope, cid);
+    const formData = await this.repo.findConsultFormDataByClientId(cid);
+    if (!formData) return { ...EMPTY_RESEARCH_PREFILL };
+    return buildResearchPrefill(formData);
+  }
+
   async createProject(
     scope: ClientScopeContext,
     input: CreateProjectInput,
@@ -209,6 +220,12 @@ export class MarketResearchService {
     }
     this.assertClientInScope(scope, input.client_id);
     const project = await this.repo.createProject(input, actor);
+    const names = Array.isArray(input.prefill_competitors) ? input.prefill_competitors : [];
+    for (const raw of names) {
+      const name = stripPrefillPii(String(raw ?? '')).slice(0, 200);
+      if (!name) continue;
+      await this.repo.createCompetitor(project.id, { name, aliases: [] }, actor);
+    }
     return { ok: true, project: await this.toDetail(project) };
   }
 

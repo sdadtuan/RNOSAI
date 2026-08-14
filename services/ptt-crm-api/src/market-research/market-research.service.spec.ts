@@ -80,6 +80,7 @@ describe('MarketResearchService', () => {
     patchCompetitor: jest.fn(),
     createCompetitorSnapshot: jest.fn(),
     listApprovedInsightsByClient: jest.fn(),
+    findConsultFormDataByClientId: jest.fn(),
   };
   const plans = {
     getPlanById: jest.fn(),
@@ -131,6 +132,83 @@ describe('MarketResearchService', () => {
       service.createProject({ restricted: false, allowedClientIds: [] }, {} as never, 'am@ptt'),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(repo.createProject).not.toHaveBeenCalled();
+  });
+
+  it('getPrefill returns empty JSON when no consult row exists — never 404', async () => {
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.findConsultFormDataByClientId.mockResolvedValue(null);
+
+    const out = await service.getPrefill({ restricted: true, allowedClientIds: ['acme'] }, 'acme');
+    expect(out).toEqual({ industry: null, competitor_names: [], suggested_rqs: [] });
+    expect(repo.findConsultFormDataByClientId).toHaveBeenCalledWith('acme');
+  });
+
+  it('getPrefill form containing 0909 does not include that number', async () => {
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.findConsultFormDataByClientId.mockResolvedValue({
+      industry: 'Sữa uống 0909123456',
+      top_competitors: 'Vinamilk 0909888777',
+      phone: '0909123456',
+      email: 'am@acme.vn',
+      name: 'Nguyen Van A',
+    });
+
+    const out = await service.getPrefill({ restricted: true, allowedClientIds: ['acme'] }, 'acme');
+    const blob = JSON.stringify(out);
+    expect(blob).not.toContain('0909');
+    expect(blob).not.toContain('am@acme.vn');
+    expect(blob).not.toContain('Nguyen Van A');
+    expect(out.industry).toBe('Sữa uống');
+    expect(out.competitor_names).toEqual(['Vinamilk']);
+  });
+
+  it('createProject with prefill_competitors creates draft competitors name-only', async () => {
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.createProject.mockResolvedValue(project);
+    repo.listQuestions.mockResolvedValue([]);
+    repo.listSources.mockResolvedValue([]);
+    repo.listEvidence.mockResolvedValue([]);
+    repo.listInsights.mockResolvedValue([]);
+    repo.listRecentAiRuns.mockResolvedValue([]);
+    repo.sumTavilyCredits.mockResolvedValue(0);
+    repo.createCompetitor.mockResolvedValue({
+      id: 1,
+      project_id: 9,
+      name: 'Vinamilk',
+      aliases: [],
+      created_by: 'am@ptt',
+      created_at: '2026-08-14',
+      updated_at: '2026-08-14',
+      snapshots: [],
+    });
+
+    await service.createProject(
+      { restricted: true, allowedClientIds: ['acme'] },
+      {
+        client_id: 'acme',
+        title: 'Category review sữa uống 2026',
+        product_type: 'CAT_REVIEW',
+        decision_statement: 'Quyết định có mở SKU premium Q4 hay không.',
+        questions: [{ question_vi: 'Quy mô thị trường sữa uống VN?' }],
+        prefill_competitors: ['Vinamilk', 'TH True Milk 0909888777', ''],
+      },
+      'am@ptt',
+    );
+
+    expect(repo.createCompetitor).toHaveBeenCalledTimes(2);
+    expect(repo.createCompetitor).toHaveBeenNthCalledWith(
+      1,
+      9,
+      { name: 'Vinamilk', aliases: [] },
+      'am@ptt',
+    );
+    expect(repo.createCompetitor).toHaveBeenNthCalledWith(
+      2,
+      9,
+      { name: 'TH True Milk', aliases: [] },
+      'am@ptt',
+    );
+    expect(repo.createCompetitorSnapshot).not.toHaveBeenCalled();
   });
 
   it('getProject toDetail uses config maxTavilyCreditsPerResearch', async () => {

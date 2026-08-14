@@ -74,6 +74,13 @@ export class MarketResearchController {
     return this.research.health();
   }
 
+  @Get('prefill')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchCreateGuard)
+  async getPrefill(@Req() req: StaffReq, @Query('client_id') clientId?: string) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.getPrefill(scope, clientId ?? '');
+  }
+
   @Get('insights')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
   async listApprovedInsights(@Req() req: StaffReq, @Query('client_id') clientId?: string) {

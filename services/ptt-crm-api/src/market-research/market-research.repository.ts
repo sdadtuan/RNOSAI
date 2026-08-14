@@ -175,6 +175,23 @@ export class MarketResearchRepository implements OnModuleDestroy {
     return row ? String(row.client_id) : null;
   }
 
+  async findConsultFormDataByClientId(clientId: string): Promise<Record<string, unknown> | null> {
+    const result = await this.db.query(
+      `SELECT t.form_data
+       FROM crm_svc_tasks t
+       INNER JOIN crm_service_lifecycle sl ON sl.id = t.lifecycle_id
+       INNER JOIN crm_contracts ct ON ct.id = sl.contract_id
+       WHERE t.stage = 'consult'
+         AND TRIM(COALESCE(ct.agency_client_id, '')) = $1
+       ORDER BY t.updated_at DESC, t.id DESC
+       LIMIT 1`,
+      [clientId.trim()],
+    );
+    const row = result.rows[0] as { form_data?: unknown } | undefined;
+    if (!row) return null;
+    return parseJsonCol<Record<string, unknown>>(row.form_data, {});
+  }
+
   async listQuestions(projectId: number): Promise<ResearchQuestionRow[]> {
     const result = await this.db.query(
       `SELECT id, project_id, sort_order, question_vi, question_en, analysis_frame,

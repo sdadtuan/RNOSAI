@@ -434,6 +434,12 @@ export type CreateEvidenceBody = {
   pii_class?: string | null;
 };
 
+export type ResearchPrefill = {
+  industry: string | null;
+  competitor_names: string[];
+  suggested_rqs: string[];
+};
+
 export type CreateProjectBody = {
   client_id: string;
   title: string;
@@ -445,6 +451,7 @@ export type CreateProjectBody = {
   risk_class: 'low' | 'medium' | 'high';
   lifecycle_id?: number | null;
   questions: Array<{ question_vi: string; question_en?: string; sort_order?: number }>;
+  prefill_competitors?: string[];
 };
 
 async function researchFetch<T>(token: string, path: string, init?: RequestInit): Promise<T> {
@@ -474,6 +481,15 @@ async function researchFetch<T>(token: string, path: string, init?: RequestInit)
     throw new ResearchApiError(detail, res.status, errorCode, messages);
   }
   return body;
+}
+
+export async function fetchResearchPrefill(
+  token: string,
+  clientId: string,
+): Promise<ResearchPrefill> {
+  const qs = new URLSearchParams();
+  if (clientId.trim()) qs.set('client_id', clientId.trim());
+  return researchFetch(token, `/api/v1/research/prefill?${qs.toString()}`);
 }
 
 export async function fetchResearchProjects(

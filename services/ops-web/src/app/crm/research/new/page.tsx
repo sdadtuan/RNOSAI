@@ -19,8 +19,10 @@ import {
 } from '@/lib/auth';
 import {
   createResearchProject,
+  fetchResearchPrefill,
   PRODUCT_TYPE_CARDS,
   type ProductType,
+  type ResearchPrefill,
 } from '@/lib/market-research-api';
 import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
 
@@ -44,6 +46,9 @@ export default function CrmResearchNewPage() {
   const [questions, setQuestions] = useState<RqDraft[]>([{ question_vi: '' }]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [prefill, setPrefill] = useState<ResearchPrefill | null>(null);
+  const [useIndustry, setUseIndustry] = useState<boolean | null>(null);
+  const [competitorChoice, setCompetitorChoice] = useState<Record<string, boolean | null>>({});
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -103,6 +108,38 @@ export default function CrmResearchNewPage() {
     })();
   }, [ensureAuth]);
 
+  useEffect(() => {
+    if (!clientId.trim() || !isMarketResearchFeEnabled()) {
+      setPrefill(null);
+      setUseIndustry(null);
+      setCompetitorChoice({});
+      return;
+    }
+    const access = getAccessToken();
+    if (!access) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const out = await fetchResearchPrefill(access, clientId);
+        if (cancelled) return;
+        setPrefill(out);
+        setUseIndustry(null);
+        const next: Record<string, boolean | null> = {};
+        for (const name of out.competitor_names) next[name] = null;
+        setCompetitorChoice(next);
+      } catch {
+        if (!cancelled) {
+          setPrefill({ industry: null, competitor_names: [], suggested_rqs: [] });
+          setUseIndustry(null);
+          setCompetitorChoice({});
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId]);
+
   function logout() {
     clearSession();
     router.push('/login');
@@ -148,6 +185,9 @@ export default function CrmResearchNewPage() {
         languages: langEn ? ['vi', 'en'] : ['vi'],
         risk_class: risk,
         lifecycle_id: Number.isFinite(lifecycleId) ? lifecycleId : undefined,
+        prefill_competitors: Object.entries(competitorChoice)
+          .filter(([, chosen]) => chosen === true)
+          .map(([name]) => name),
         questions: questions
           .filter((q) => q.question_vi.trim())
           .map((q, i) => ({
@@ -246,6 +286,54 @@ export default function CrmResearchNewPage() {
                 CB = desk 1 shot; TC = + consumer; CS = STP + sizing.
               </p>
             </fieldset>
+            {prefill?.industry ? (
+              <div>
+                <p style={{ margin: '0 0 0.4rem' }}>Gợi ý ngành từ consult: {prefill.industry}</p>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${useIndustry === true ? '' : 'btn-secondary'}`}
+                  onClick={() => {
+                    setUseIndustry(true);
+                    setTitle((prev) => (prev.trim() ? prev : prefill.industry ?? prev));
+                  }}
+                  style={{ marginRight: 6 }}
+                >
+                  Dùng gợi ý
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${useIndustry === false ? '' : 'btn-secondary'}`}
+                  onClick={() => setUseIndustry(false)}
+                >
+                  Bỏ
+                </button>
+              </div>
+            ) : null}
+            {prefill?.competitor_names.length ? (
+              <div className="stack-gap">
+                <p style={{ margin: 0 }}>Gợi ý đối thủ từ consult — xác nhận từng dòng</p>
+                {prefill.competitor_names.map((name) => (
+                  <div key={name}>
+                    <span style={{ marginRight: 8 }}>{name}</span>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${competitorChoice[name] === true ? '' : 'btn-secondary'}`}
+                      onClick={() => setCompetitorChoice((prev) => ({ ...prev, [name]: true }))}
+                      style={{ marginRight: 6 }}
+                    >
+                      Dùng gợi ý
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${competitorChoice[name] === false ? '' : 'btn-secondary'}`}
+                      onClick={() => setCompetitorChoice((prev) => ({ ...prev, [name]: false }))}
+                    >
+                      Bỏ
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         ) : null}
 

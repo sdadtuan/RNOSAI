@@ -17,13 +17,19 @@ if [[ -f "$ROOT/.env" ]]; then
   set +a
 fi
 
-echo "== Market Research P0 gate @ $(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown) =="
+echo "== Market Research P0+P1 gate @ $(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown) =="
 
 echo "== syntax =="
 bash -n "$ROOT/scripts/market_research_gate.sh"
 bash -n "$ROOT/scripts/smoke_market_research_p0.sh"
 bash -n "$ROOT/scripts/deploy_market_research_vps.sh"
-echo "OK  bash -n gate / smoke_p0 / deploy"
+if [[ -f "$ROOT/scripts/smoke_market_research_p1.sh" ]]; then
+  bash -n "$ROOT/scripts/smoke_market_research_p1.sh"
+fi
+if [[ -f "$ROOT/scripts/deploy_market_research_p1_vps.sh" ]]; then
+  bash -n "$ROOT/scripts/deploy_market_research_p1_vps.sh"
+fi
+echo "OK  bash -n gate / smoke_p0 / deploy / smoke_p1 / deploy_p1"
 
 echo "== unit (EC-RES-04/05/06/08/10/11) =="
 (
@@ -42,6 +48,12 @@ echo "EC-RES-09 deep no insight insert — live-only; skip if RESEARCH_DEEP_PROV
 echo "EC-RES-10 409 immutable — Jest PATCH verified evidence"
 echo "EC-RES-11 self-approve 403 — Jest cannot_self_approve"
 echo "EC-RES-12 ai_runs after desk — live-only; skip if no desk job"
+
+echo "== P1 ECs (Jest only; no live API required) =="
+echo "EC-P1-rubric 400 — Jest submitReview missing_confidence_rubric / insight-gate.util"
+echo "EC-P1-methodology TC 400 — Jest createReport TC + stub → methodology_incomplete"
+echo "EC-P1-plan JSON no statement — Jest insertPlanInsights / assertNoInsightTextLeak"
+echo "EC-P1-triangulate no insight insert — Jest runTriangulate does not call createInsight"
 
 if [[ -n "${BETA_TOKEN:-}" && -n "${ACME_PROJECT_ID:-}" ]]; then
   echo "== EC-RES-06 live tenancy =="

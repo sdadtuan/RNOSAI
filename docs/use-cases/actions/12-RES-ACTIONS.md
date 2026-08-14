@@ -178,17 +178,43 @@ PATCH excerpt evidence verified: 409 · phải supersede (RES-UC-017).
 
 ---
 
-## P1–P3 (backlog actions — không UAT P0)
+## Walkthrough UAT P1 — Rubric → consult chip (≈25 phút)
+
+**Mục tiêu khách hàng:** *«AM/Analyst siết rubric, snapshot đối thủ, chèn insight vào plan, chặn TC thiếu methodology, mở Research từ DV12, tam giác nguồn, prefill consult.»*
+
+**Actors:** AM, Research Analyst (AN), Research Lead (LD), QA
+
+**Dữ liệu test:** Client `acme` trong scope · Flag research = 1 (P0 đã bật) · Project P0 hoặc tạo mới · Consult `form_data` có industry + đối thủ (có thể kèm `0909…` để xác nhận strip)
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | AN | Insight drawer | Mở rubric 5 slider S/F/T/A/R | 0–4 | JSON lưu `confidence_json` | ✓ RES-UC-021 |
+| 2 | AN | Same | Gửi duyệt thiếu rubric | — | 400 `missing_confidence_rubric` | ✓ EC-P1-rubric |
+| 3 | AN | Tab Đối thủ | Thêm alias + snapshot gắn source | fact + source_id | Snapshot name-only không leak | ✓ RES-UC-022 |
+| 4 | AM | Marketing-plan | **Chèn insight** cùng `client_id` | insight_ids | Snapshot JSON **không** có `statement` | ✓ RES-UC-023 |
+| 5 | AN | Report TC | Export thiếu methodology | stub | 400 `methodology_incomplete` | ✓ RES-UC-024 |
+| 6 | AN | Report TC | Điền population / source_plan / limitation | 3 field | Export OK | ✓ |
+| 7 | AM | Service-delivery DV12 | CTA **Mở Research Project** | slug `phan-tich-thi-truong` | Wizard `lifecycle_id` + `client_id` từ `agency_client_id` | ✓ RES-UC-025 |
+| 8 | AN | Sources | **Tam giác nguồn** | question_id | Job `research_triangulate` 202 | ✓ RES-UC-026 |
+| 9 | AN | Same | Đợi overlap URL | — | Badge «Trùng 2 provider» · **0** insight mới | ✓ EC-P1-triangulate |
+| 10 | AM | Wizard bước 1 | Chọn client có consult | client_id | Chip ngành + từng đối thủ | ✓ RES-UC-027 |
+| 11 | AM | Same | «Dùng gợi ý» / «Bỏ» từng dòng | confirm | `prefill_competitors` → đối thủ nháp (không snapshot) | ✓ |
+| 12 | QA | Prefill JSON | Form có `0909…` | GET `/prefill?client_id=` | 200 · JSON **không** chứa số đó · không 404 | ✓ BR-RES-11 |
+
+#### Tiêu chí nghiệm thu walkthrough P1
+
+- [ ] Bước 1–12 pass staging (triangulate skip live nếu không Tavily)
+- [ ] Plan snapshot không chứa `statement`
+- [ ] Prefill không chứa SĐT/email/tên người
+- [ ] Không đụng `/crm/sales?tab=market`
+- [ ] PO / Research Lead sign P1 ECs
+
+---
+
+## P2–P3 (backlog actions — không UAT P0/P1)
 
 | UC | Hành động tóm tắt |
 |----|-------------------|
-| 021 | Mở rubric 5 slider trên drawer; lưu JSON |
-| 022 | Tab Đối thủ · thêm alias · snapshot + source |
-| 023 | Marketing-plan · Chèn insight ID cùng client |
-| 024 | Export TC thiếu methodology → chặn |
-| 025 | Lifecycle DV12 · CTA mở wizard prefill |
-| 026 | Chạy 2 provider · so URL |
-| 027 | Wizard hiện gợi ý consult |
 | 030 | Tab Studies + consent |
 | 031 | Alert pulse trên Ops |
 | 032 | Tick EN exec · Lead duyệt |

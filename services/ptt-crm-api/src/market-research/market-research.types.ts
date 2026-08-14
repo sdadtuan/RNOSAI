@@ -104,6 +104,12 @@ export type CreateProjectQuestionInput = {
   sort_order?: number;
 };
 
+export type ResearchPrefill = {
+  industry: string | null;
+  competitor_names: string[];
+  suggested_rqs: string[];
+};
+
 export type CreateProjectInput = {
   client_id: string;
   title: string;
@@ -115,6 +121,7 @@ export type CreateProjectInput = {
   risk_class?: string;
   lifecycle_id?: number | null;
   questions: CreateProjectQuestionInput[];
+  prefill_competitors?: string[];
 };
 
 export type PatchProjectInput = {

@@ -42,4 +42,29 @@ describe('MarketResearchRepository', () => {
     expect(sql).toMatch(/p\.lifecycle_id = \$1/);
     expect(params).toContain(12);
   });
+
+  it('findConsultFormDataByClientId joins consult tasks via contract agency_client_id', async () => {
+    queryMock.mockResolvedValue({
+      rows: [{ form_data: { industry: 'Sữa uống', top_competitors: 'Vinamilk' } }],
+    });
+    const repo = repoWithMock();
+
+    const form = await repo.findConsultFormDataByClientId('acme');
+
+    expect(form).toEqual({ industry: 'Sữa uống', top_competitors: 'Vinamilk' });
+    const sql = String(queryMock.mock.calls[0][0]);
+    const params = queryMock.mock.calls[0][1] as unknown[];
+    expect(sql).toMatch(/crm_svc_tasks/);
+    expect(sql).toMatch(/crm_service_lifecycle/);
+    expect(sql).toMatch(/crm_contracts/);
+    expect(sql).toMatch(/agency_client_id/);
+    expect(sql).toMatch(/t\.stage = 'consult'/);
+    expect(params).toEqual(['acme']);
+  });
+
+  it('findConsultFormDataByClientId returns null when no consult row', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const repo = repoWithMock();
+    expect(await repo.findConsultFormDataByClientId('acme')).toBeNull();
+  });
 });
