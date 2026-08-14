@@ -41,6 +41,7 @@ class TestRbacPermissionsPg(unittest.TestCase):
 
     def test_crm_research_defaults_mkt01_has_run_approve_kd01_does_not(self) -> None:
         from admin_page_permissions import _POSITION_DEFAULT
+        from rbac_permissions_pg import cap_rows_for_position
 
         mkt = _POSITION_DEFAULT["MKT-01"]["crm_research"]
         kd = _POSITION_DEFAULT["KD-01"]["crm_research"]
@@ -48,6 +49,13 @@ class TestRbacPermissionsPg(unittest.TestCase):
         self.assertIn("approve", mkt)
         self.assertNotIn("run", kd)
         self.assertNotIn("approve", kd)
+
+        mkt_rows = {f"{s}.{a}" for s, a in cap_rows_for_position("MKT-01")}
+        kd_rows = {f"{s}.{a}" for s, a in cap_rows_for_position("KD-01")}
+        self.assertIn("crm_research.run", mkt_rows)
+        self.assertIn("crm_research.approve", mkt_rows)
+        self.assertNotIn("crm_research.run", kd_rows)
+        self.assertNotIn("crm_research.approve", kd_rows)
 
     def test_pilot_codes_subset_of_defaults(self) -> None:
         from rbac_permissions_pg import PILOT_POSITION_CODES, all_default_position_codes

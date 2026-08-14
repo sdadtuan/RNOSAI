@@ -644,7 +644,9 @@ def default_grants_for_position(position_code: str) -> dict[str, list[str]]:
     for sec in ADMIN_CRM_SECTIONS:
         sid = sec["id"]
         acts = raw.get(sid, frozenset())
-        out[sid] = sorted(a for a in CMS_ACTIONS if a in acts)
+        # Include extra actions declared on the matrix (e.g. crm_research.run).
+        # Filtering to CMS_ACTIONS only lets --sync prune those grants.
+        out[sid] = sorted(acts)
     for btn in CRM_UI_BUTTONS:
         bid = btn["id"]
         req = btn["requires_action"]
