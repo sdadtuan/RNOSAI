@@ -9,8 +9,8 @@
 | Ngày xuất | 2026-08-14 |
 | Module | MOD-MARKET-RESEARCH |
 | Nest module | `MarketResearchModule` |
-| Số UC | 34 (RES-UC-001…020 P0 · 021…027 P1 · 030…033 P2 · 040…042 P3) |
-| Spec thủ công | 34/34 |
+| Số UC | 36 (RES-UC-001…020 P0 · 021…027 P1 · 030…033 P2 · 040…042 P3 · 050…051 P4) |
+| Spec thủ công | 36/36 |
 | Master index | [RNOSAI-BA-Master-Spec.md](../RNOSAI-BA-Master-Spec.md) |
 | Design spec | [`../superpowers/specs/2026-08-14-market-research-os-design.md`](../../superpowers/specs/2026-08-14-market-research-os-design.md) |
 | SRS | [`../2026-08-14-market-research-os-srs.md`](../2026-08-14-market-research-os-srs.md) |
@@ -94,6 +94,8 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-040 | Portal khách đọc report | P3 | P3 | Spec ready | FR-INT-04 · US-CL-30 |
 | RES-UC-041 | Waves tracker | P3 | P3 | Spec ready | FR-PRJ-08 |
 | RES-UC-042 | Decision log | P3 | P3 | Spec ready | — |
+| RES-UC-050 | Xuất PDF staff + portal | P4 | P4 | Spec ready | FR-RPT-04 · US-CL-30 |
+| RES-UC-051 | Cite insight Content OS | P4 | P4 | Spec ready | FR-INT-02 |
 
 ---
 
@@ -566,7 +568,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 
 ---
 
-## 4. Chi tiết Use Case — P2–P3
+## 4. Chi tiết Use Case — P2–P4
 
 ### RES-UC-030 — Study survey/IDI + consent
 
@@ -602,6 +604,16 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 
 - G9: action owner sau readout; link insight_id
 
+### RES-UC-050 — Xuất PDF staff + portal
+
+- Staff `GET …/export?format=pdf` → `%PDF-`; default/docx vẫn DOCX
+- Portal `GET …/reports/:versionId/export.pdf` watermark; Beta 403 không title
+
+### RES-UC-051 — Cite insight Content OS
+
+- `POST /content-items/:itemId/insights` freeze `insight_ids`; không copy statement
+- PATCH brief strip inbound `market_research`; giữ cite cũ
+
 ---
 
 ## 5. API map
@@ -626,6 +638,9 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | POST | `/insights/:id/approve` | 008, 018 |
 | POST | `/projects/:id/reports` | 009, 012 |
 | GET | `/reports/:id/versions/:versionId/export` | 009 |
+| GET | `/reports/:id/versions/:versionId/export?format=pdf` | 050 |
+| GET | `/api/v1/portal/research/reports/:versionId/export.pdf` | 050 |
+| POST | `/content-items/:itemId/insights` | 051 |
 | POST | `/internal/research/jobs/:id/complete` | 004, 005, 011, 012 |
 | GET | `/analytics/ops` | 033 |
 

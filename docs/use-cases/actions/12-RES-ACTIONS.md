@@ -4,7 +4,7 @@
 > **BA:** [`../../specs/modules/RNOSAI-BA-RES-UseCases.md`](../../specs/modules/RNOSAI-BA-RES-UseCases.md)  
 > **UX:** [`../../specs/2026-08-14-market-research-os-ui-ux.md`](../../specs/2026-08-14-market-research-os-ui-ux.md)  
 > **SRS:** [`../../specs/2026-08-14-market-research-os-srs.md`](../../specs/2026-08-14-market-research-os-srs.md)  
-> **Phiên bản:** 1.0 · **Coverage:** RES-UC-001…020 (P0 UAT) + walkthrough P1–P3 + backlog P4
+> **Phiên bản:** 1.0 · **Coverage:** RES-UC-001…020 (P0 UAT) + walkthrough P1–P4 + backlog P5
 
 ---
 
@@ -295,11 +295,49 @@ Bước 7 insight `draft`: 400 `insight_not_approved`. Text 3 ký tự: 400 `val
 
 ---
 
-## P4 (backlog — không UAT P0/P1/P2/P3)
+## Walkthrough UAT P4 — PDF → cite (≈20 phút)
+
+**Mục tiêu khách hàng:** *«AM xuất PDF staff (DOCX vẫn OK); Lead công bố; Acme tải PDF watermark; Beta 403 không title; AM cite insight vào Content OS; PATCH brief không mất cite; F5 còn.»*
+
+**Actors:** AM, Research Analyst (AN), Research Lead (LD), Client Acme, Client Beta, QA
+
+**Dữ liệu test:** Client `acme` trong scope · Client `beta` ngoài scope · Flag research = 1 (P0 đã bật) · Report version đã duyệt insight client-facing · Content OS item cùng `agency_client_id` · Caps `crm_research.export` (PDF staff), `view` (GET), `approve` (publish), `edit` + `crm_content.write` (cite) · Portal JWT `client_id` = `clients.id`
+
+| # | Actor | Màn hình | Thao tác | Input | Phản hồi | Gate |
+|---|-------|----------|----------|-------|----------|------|
+| 1 | AM | Report tab | **Xuất PDF** | `format=pdf` | 200 `application/pdf` · buffer `%PDF-` | ✓ RES-UC-050 |
+| 2 | AM | Same | **Xuất DOCX** | no format / `docx` | 200 DOCX (P0 không regress) | ✓ RES-UC-009 · 050 |
+| 3 | LD | Same | **Công bố portal** (cap `approve`, user ≠ `generated_by`) | `{ visible: true }` | `portal_visible=true` · `published_by` / `published_at` stamp | ✓ RES-UC-040 · M4 |
+| 4 | Acme | Portal `/research/:versionId` | **Tải PDF** | Portal JWT Acme | 200 `%PDF-` · watermark `CONFIDENTIAL · {client_id} · {email} · {YYYY-MM-DD}` | ✓ RES-UC-050 · US-CL-30 |
+| 5 | Beta | Same GET `export.pdf` Acme | Đọc chéo tenant | Portal JWT Beta | 403 `{error:forbidden}` · JSON **không** `title` | ✓ EC-P4-portal · BR-RES-12 |
+| 6 | AM | Content OS item | **Chèn insight** cùng client | `insight_ids` ≥ `approved_internal` | Snapshot `brief_json.market_research` **không** `statement` · draft → 400 `insight_not_approved` | ✓ RES-UC-051 |
+| 7 | AM | Same | PATCH brief (hook/body) | `brief_json` không gửi cite | Cite `insight_ids` **còn** · inbound `market_research` bị strip | ✓ RES-UC-051 |
+| 8 | AM / QA | Same · F5 | Reload | — | PDF staff + portal + cite + publish audit còn | ✓ F5 |
+
+#### Nhánh E-Portal PDF tenancy
+
+Bước 5: Beta 403 `{ error: 'forbidden' }` · `JSON.stringify(body)` không chứa `title`. PDF **không** được build.
+
+#### Nhánh E-Cite draft
+
+Bước 6 insight `draft`: 400 `insight_not_approved`. Thiếu `crm_content.write`: 403 `missing_cap`.
+
+#### Nhánh E-Wave NaN
+
+POST wave `value: NaN` / `Infinity`: 400 `metric value must be number or null`.
+
+#### Tiêu chí nghiệm thu walkthrough P4
+
+- [ ] Bước 1–8 pass staging (portal/cite skip live nếu API/portal down)
+- [ ] Staff PDF `%PDF-`; DOCX không regress; portal cross-tenant 403 không title; cite draft 400; wave NaN 400
+- [ ] Không đụng `/crm/sales?tab=market`
+- [ ] PO / Research Lead sign P4 ECs
+
+---
+
+## P5 (backlog — không UAT P0/P1/P2/P3/P4)
 
 | Hạng mục | Hành động tóm tắt |
 |----------|-------------------|
-| PDF binary (FR-RPT-04) | Xuất file PDF (P3 portal = HTML + watermark) |
-| Content OS cite (FR-INT-02) | Cite insight sang Content OS |
 | Whisper | Ingest audio / transcript |
 | SparkToro | Nguồn audience / overlap |

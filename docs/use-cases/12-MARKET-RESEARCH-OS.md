@@ -27,6 +27,7 @@
 | Rubric / CI / plan insert / DV12 | RES-UC-021…027 | P1 |
 | Studies / agent / bilingual / KPI | RES-UC-030…033 | P2 |
 | Portal / waves / decision | RES-UC-040…042 | P3 |
+| PDF + Content OS cite | RES-UC-050…051 | P4 |
 | EC-RES-01…12 | Actions walkthrough | P0 |
 
 **API base:** `/api/v1/research`  
@@ -42,6 +43,7 @@
 | **P1 — Pilot ops** | RES-UC-021…027 | P1 | Spec ready |
 | **P2 — Integrate** | RES-UC-030…033 | P2 | Spec ready |
 | **P3 — Client-grade** | RES-UC-040…042 | P3 | Spec ready |
+| **P4 — Deliverable + activation** | RES-UC-050…051 | P4 | Spec ready |
 
 ---
 
@@ -319,6 +321,15 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 | 040 | Portal read-only + watermark + expiry |
 | 041 | Waves trên TRACKER |
 | 042 | Decision log G9 |
+
+---
+
+## P4 — RES-UC-050…051
+
+| UC | Tóm tắt |
+|----|---------|
+| 050 | Staff + portal PDF (DOCX không regress) |
+| 051 | Cite insight_id vào Content OS |
 
 ---
 

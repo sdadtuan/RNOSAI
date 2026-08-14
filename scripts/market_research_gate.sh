@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Market Research OS P0+P1+P2+P3 gate — EC-RES-02,04,05,06,08,10,11 (+ skip notes for live-only ECs).
+# Market Research OS P0+P1+P2+P3+P4 gate — EC-RES-02,04,05,06,08,10,11 (+ skip notes for live-only ECs).
 #
 #   bash scripts/market_research_gate.sh
 #
@@ -17,7 +17,7 @@ if [[ -f "$ROOT/.env" ]]; then
   set +a
 fi
 
-echo "== Market Research P0+P1+P2+P3 gate @ $(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown) =="
+echo "== Market Research P0+P1+P2+P3+P4 gate @ $(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown) =="
 
 echo "== syntax =="
 bash -n "$ROOT/scripts/market_research_gate.sh"
@@ -65,7 +65,34 @@ fi
 if [[ -f "$ROOT/scripts/deploy_market_research_p3_vps.sh" ]]; then
   bash -n "$ROOT/scripts/deploy_market_research_p3_vps.sh"
 fi
-echo "OK  bash -n gate / smoke_p0 / deploy / smoke_p1 / deploy_p1 / smoke_p2 / deploy_p2 / smoke_p3 / deploy_p3"
+if [[ -f "$ROOT/scripts/smoke_market_research_p4.sh" ]]; then
+  bash -n "$ROOT/scripts/smoke_market_research_p4.sh"
+fi
+if [[ -f "$ROOT/scripts/smoke_market_research_p4_m1.sh" ]]; then
+  bash -n "$ROOT/scripts/smoke_market_research_p4_m1.sh"
+fi
+if [[ -f "$ROOT/scripts/smoke_market_research_p4_m2.sh" ]]; then
+  bash -n "$ROOT/scripts/smoke_market_research_p4_m2.sh"
+fi
+if [[ -f "$ROOT/scripts/smoke_market_research_p4_m3.sh" ]]; then
+  bash -n "$ROOT/scripts/smoke_market_research_p4_m3.sh"
+fi
+if [[ -f "$ROOT/scripts/smoke_market_research_p4_m4.sh" ]]; then
+  bash -n "$ROOT/scripts/smoke_market_research_p4_m4.sh"
+fi
+if [[ -f "$ROOT/scripts/smoke_market_research_p4_m5.sh" ]]; then
+  bash -n "$ROOT/scripts/smoke_market_research_p4_m5.sh"
+fi
+if [[ -f "$ROOT/scripts/deploy_market_research_p4_vps.sh" ]]; then
+  bash -n "$ROOT/scripts/deploy_market_research_p4_vps.sh"
+fi
+if [[ -f "$ROOT/scripts/apply_pg_ddl_market_research_p4.sh" ]]; then
+  bash -n "$ROOT/scripts/apply_pg_ddl_market_research_p4.sh"
+fi
+if [[ -f "$ROOT/scripts/apply_pg_ddl_market_research_p2.sh" ]]; then
+  bash -n "$ROOT/scripts/apply_pg_ddl_market_research_p2.sh"
+fi
+echo "OK  bash -n gate / smoke_p0 / deploy / smoke_p1 / deploy_p1 / smoke_p2 / deploy_p2 / smoke_p3 / deploy_p3 / smoke_p4 / deploy_p4"
 
 echo "== unit (EC-RES-04/05/06/08/10/11 + P3 portal) =="
 (
@@ -102,6 +129,12 @@ echo "EC-P3-publish not client-facing 400 — Jest publish when insight approved
 echo "EC-P3-portal cross-tenant 403 no title — Jest M2-1a cross-tenant GET → 403, JSON.stringify(body) has no title"
 echo "EC-P3-waves CAT_REVIEW 400 — Jest POST wave on CAT_REVIEW is 400 waves_not_tracker"
 echo "EC-P3-decision draft insight 400 — Jest POST decision with draft insight is 400 insight_not_approved"
+
+echo "== P4 ECs (Jest only; no live API required) =="
+echo "EC-P4-export pdf %PDF- — Jest export format=pdf buffer starts %PDF-"
+echo "EC-P4-portal PDF cross-tenant 403 no title — Jest M2-1c Beta GET export.pdf → 403, JSON.stringify(body) has no title"
+echo "EC-P4-cite draft insight 400 — Jest POST content-items/:itemId/insights draft → 400 insight_not_approved"
+echo "EC-P4-wave NaN 400 — Jest validateCreateWave NaN/Infinity → metric value must be number or null"
 
 if [[ -n "${BETA_TOKEN:-}" && -n "${ACME_PROJECT_ID:-}" ]]; then
   echo "== EC-RES-06 live tenancy =="
