@@ -26,6 +26,7 @@ import {
   StaffMarketResearchExportGuard,
   StaffMarketResearchRunGuard,
   StaffMarketResearchViewGuard,
+  StaffResearchMktplanEditGuard,
 } from './guards/staff-market-research.guard';
 import { MarketResearchService } from './market-research.service';
 import type {
@@ -37,6 +38,7 @@ import type {
   CreateInsightInput,
   CreateProjectInput,
   CreateQuestionInput,
+  InsertPlanInsightsInput,
   CreateReportInput,
   CreateSourceInput,
   InsightCopilotInput,
@@ -70,6 +72,29 @@ export class MarketResearchController {
   @Get('health')
   health() {
     return this.research.health();
+  }
+
+  @Get('insights')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async listApprovedInsights(@Req() req: StaffReq, @Query('client_id') clientId?: string) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.listApprovedInsightsForClient(scope, clientId ?? '');
+  }
+
+  @Post('plans/:planId/insights')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard, StaffResearchMktplanEditGuard)
+  async insertPlanInsights(
+    @Req() req: StaffReq,
+    @Param('planId', ParseIntPipe) planId: number,
+    @Body() body: InsertPlanInsightsInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.insertPlanInsights(
+      planId,
+      scope,
+      body ?? ({ client_id: '', insight_ids: [] } as InsertPlanInsightsInput),
+      actorEmail(req),
+    );
   }
 
   @Get('projects')

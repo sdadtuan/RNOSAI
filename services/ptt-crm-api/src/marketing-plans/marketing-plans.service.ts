@@ -53,7 +53,8 @@ export class MarketingPlansService {
         throw new BadRequestException({ error: 'Tên không được trống' });
       }
     }
-    const updated = this.sqlite.patchPlan(id, body);
+    const { khtn_market_research_json: _ignored, ...safe } = body;
+    const updated = this.sqlite.patchPlan(id, safe);
     if (!updated) {
       throw new NotFoundException({ error: 'Không tìm thấy kế hoạch' });
     }

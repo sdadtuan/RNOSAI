@@ -17,6 +17,6 @@ import { MarketingPlansService } from './marketing-plans.service';
     StaffMarketingPlansViewGuard,
     StaffMarketingPlansWriteGuard,
   ],
-  exports: [MarketingPlansService],
+  exports: [MarketingPlansService, MarketingPlansSqliteRepository],
 })
 export class MarketingPlansModule {}

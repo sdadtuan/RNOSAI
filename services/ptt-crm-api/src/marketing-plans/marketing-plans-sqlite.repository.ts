@@ -243,12 +243,16 @@ export class MarketingPlansSqliteRepository implements OnModuleDestroy {
     if ('objectives' in body && typeof body.objectives === 'string') {
       merged.objectives = body.objectives.trim().slice(0, 32000);
     }
+    if ('khtn_market_research_json' in body && typeof body.khtn_market_research_json === 'string') {
+      merged.khtn_market_research_json = body.khtn_market_research_json;
+    }
 
     const ts = catalogTs();
     this.database
       .prepare(
         `UPDATE crm_marketing_plans
-         SET name = ?, status = ?, priority = ?, notes = ?, objectives = ?, updated_at = ?
+         SET name = ?, status = ?, priority = ?, notes = ?, objectives = ?,
+             khtn_market_research_json = ?, updated_at = ?
          WHERE id = ?`,
       )
       .run(
@@ -257,6 +261,7 @@ export class MarketingPlansSqliteRepository implements OnModuleDestroy {
         String(merged.priority ?? ''),
         String(merged.notes ?? ''),
         String(merged.objectives ?? ''),
+        String(merged.khtn_market_research_json ?? '{}'),
         ts,
         planId,
       );

@@ -36,6 +36,18 @@ export const COMPETITOR_FACT_KEYS = [
 
 export type CompetitorFact = Partial<Record<(typeof COMPETITOR_FACT_KEYS)[number], string | number | null>>;
 
+export type PlanInsightSnapshot = {
+  client_id: string;
+  insight_ids: number[];
+  inserted_at: string;
+  inserted_by: string;
+};
+
+export type InsertPlanInsightsInput = {
+  client_id: string;
+  insight_ids: number[];
+};
+
 export type CreateCompetitorInput = {
   name: string;
   aliases?: string[];

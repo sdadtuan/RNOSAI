@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
-import type { InsightStatus, ProductType, ProjectStatus } from './market-research.constants';
+import { APPROVED_INTERNAL_PLUS, type InsightStatus, type ProductType, type ProjectStatus } from './market-research.constants';
 import type {
   CreateEvidenceInput,
   CreateInsightInput,
@@ -671,6 +671,18 @@ export class MarketResearchRepository implements OnModuleDestroy {
     const result = await this.db.query(
       `${this.insightSelect} WHERE i.project_id = $1 ORDER BY i.id ASC`,
       [projectId],
+    );
+    return result.rows.map((row) => this.mapInsight(row));
+  }
+
+  async listApprovedInsightsByClient(clientId: string): Promise<ResearchInsightRow[]> {
+    const result = await this.db.query(
+      `${this.insightSelect}
+       JOIN crm_research_projects p ON p.id = i.project_id
+       WHERE p.client_id = $1
+         AND i.status = ANY($2::text[])
+       ORDER BY i.id ASC`,
+      [clientId, APPROVED_INTERNAL_PLUS],
     );
     return result.rows.map((row) => this.mapInsight(row));
   }

@@ -81,6 +81,7 @@ export interface PatchMarketingPlanBody {
   priority?: string;
   notes?: string;
   objectives?: string;
+  khtn_market_research_json?: string;
 }
 
 export const CRM_MARKETING_PLAN_STATUSES = [

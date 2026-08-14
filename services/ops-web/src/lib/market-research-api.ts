@@ -744,6 +744,60 @@ export async function exportResearchReportVersion(
   return { blob: await res.blob(), filename };
 }
 
+export type PlanInsightSnapshot = {
+  client_id: string;
+  insight_ids: number[];
+  inserted_at: string;
+  inserted_by: string;
+};
+
+export async function fetchApprovedInsightsForClient(
+  token: string,
+  clientId: string,
+): Promise<{ insights: ResearchInsight[] }> {
+  const qs = new URLSearchParams({ client_id: clientId });
+  return researchFetch(token, `/api/v1/research/insights?${qs.toString()}`);
+}
+
+export async function insertPlanInsights(
+  token: string,
+  planId: number,
+  body: { client_id: string; insight_ids: number[] },
+): Promise<{ ok: true; snapshot: PlanInsightSnapshot }> {
+  return researchFetch(token, `/api/v1/research/plans/${planId}/insights`, {
+    method: 'POST',
+    body: JSON.stringify({
+      client_id: body.client_id,
+      insight_ids: body.insight_ids,
+    }),
+  });
+}
+
+export function parsePlanInsightSnapshot(raw: unknown): PlanInsightSnapshot | null {
+  let obj: unknown = raw;
+  if (typeof raw === 'string') {
+    const text = raw.trim();
+    if (!text || text === '{}') return null;
+    try {
+      obj = JSON.parse(text);
+    } catch {
+      return null;
+    }
+  }
+  if (!obj || typeof obj !== 'object') return null;
+  const rec = obj as Record<string, unknown>;
+  const ids = Array.isArray(rec.insight_ids)
+    ? rec.insight_ids.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+    : [];
+  if (!ids.length) return null;
+  return {
+    client_id: String(rec.client_id ?? ''),
+    insight_ids: ids,
+    inserted_at: String(rec.inserted_at ?? ''),
+    inserted_by: String(rec.inserted_by ?? ''),
+  };
+}
+
 export async function fetchResearchCompetitors(
   token: string,
   projectId: number,

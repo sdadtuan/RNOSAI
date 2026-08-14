@@ -9,6 +9,7 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
+import { MarketingPlansSqliteRepository } from '../marketing-plans/marketing-plans-sqlite.repository';
 import { ClientScopeContext, StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
 import { JobQueueRepository } from '../webhooks/job-queue.repository';
 import {
@@ -40,6 +41,8 @@ import type {
   CreateEvidenceInput,
   CreateInsightInput,
   CreateProjectInput,
+  InsertPlanInsightsInput,
+  PlanInsightSnapshot,
   CreateQuestionInput,
   CreateReportInput,
   CreateReportResult,
@@ -77,6 +80,7 @@ import {
   type ResearchReportSnapshot,
 } from './market-research-report-snapshot.util';
 import { validateCreateEvidence, validateCreateProject } from './market-research.validation';
+import { assertNoInsightTextLeak, freezePlanInsights } from './plan-insight-snapshot.util';
 import { canTransitionProject, listValidTransitions } from './project-state.util';
 
 @Injectable()
@@ -87,6 +91,7 @@ export class MarketResearchService {
     private readonly jobQueue: JobQueueRepository,
     private readonly config: AppConfigService,
     private readonly llm: MarketResearchLlmService,
+    private readonly plans: MarketingPlansSqliteRepository,
   ) {}
 
   health(): { ok: true; enabled: true; deep_provider: string } {
@@ -121,6 +126,60 @@ export class MarketResearchService {
     const project = await this.repo.getProject(id);
     if (!project) throw new NotFoundException({ error: 'not_found' });
     return project;
+  }
+
+  async listApprovedInsightsForClient(
+    scope: ClientScopeContext,
+    clientId: string,
+  ): Promise<{ insights: ResearchInsightRow[] }> {
+    const cid = String(clientId ?? '').trim();
+    if (!cid) {
+      throw new BadRequestException({ error: 'validation_error', messages: ['client_id is required'] });
+    }
+    this.assertClientInScope(scope, cid);
+    const insights = await this.repo.listApprovedInsightsByClient(cid);
+    return { insights };
+  }
+
+  async insertPlanInsights(
+    planId: number,
+    scope: ClientScopeContext,
+    input: InsertPlanInsightsInput,
+    actor: string,
+  ): Promise<{ ok: true; snapshot: PlanInsightSnapshot }> {
+    const clientId = String(input.client_id ?? '').trim();
+    if (!clientId) {
+      throw new BadRequestException({ error: 'validation_error', messages: ['client_id is required'] });
+    }
+    this.assertClientInScope(scope, clientId);
+
+    const plan = this.plans.getPlanById(planId);
+    if (!plan) throw new NotFoundException({ error: 'not_found' });
+
+    const insightIds = normalizePositiveIds(input.insight_ids);
+    if (insightIds.length === 0) {
+      throw new BadRequestException({ error: 'validation_error', messages: ['insight_ids is required'] });
+    }
+
+    for (const id of insightIds) {
+      const insight = await this.loadScopedInsight(id, scope);
+      const insightClientId = await this.repo.getProjectClientId(insight.project_id);
+      if (insightClientId !== clientId) {
+        throw new BadRequestException({ error: 'client_mismatch' });
+      }
+      if (!APPROVED_INTERNAL_PLUS.includes(insight.status)) {
+        throw new BadRequestException({ error: 'insight_not_approved' });
+      }
+    }
+
+    const snapshot = freezePlanInsights({
+      client_id: clientId,
+      insight_ids: insightIds,
+      inserted_by: actor,
+    });
+    assertNoInsightTextLeak(snapshot);
+    this.plans.patchPlan(planId, { khtn_market_research_json: JSON.stringify(snapshot) });
+    return { ok: true, snapshot };
   }
 
   async listProjects(

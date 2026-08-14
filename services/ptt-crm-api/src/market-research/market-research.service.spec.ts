@@ -76,6 +76,11 @@ describe('MarketResearchService', () => {
     createCompetitor: jest.fn(),
     patchCompetitor: jest.fn(),
     createCompetitorSnapshot: jest.fn(),
+    listApprovedInsightsByClient: jest.fn(),
+  };
+  const plans = {
+    getPlanById: jest.fn(),
+    patchPlan: jest.fn(),
   };
   const llm = {
     isConfigured: jest.fn(),
@@ -107,6 +112,7 @@ describe('MarketResearchService', () => {
       jobQueue as never,
       config as never,
       llm as never,
+      plans as never,
     );
   });
 
@@ -923,6 +929,155 @@ describe('MarketResearchService', () => {
     }
     expect(llm.completeJson).not.toHaveBeenCalled();
     expect(repo.createReportDraft).not.toHaveBeenCalled();
+  });
+
+  it('listApprovedInsightsForClient outside scope is 403 without title', async () => {
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.listApprovedInsightsByClient.mockResolvedValue([
+      insightRow({ statement: 'Secret title must not leak' }),
+    ]);
+
+    try {
+      await service.listApprovedInsightsForClient(
+        { restricted: true, allowedClientIds: ['acme'] },
+        'other-client',
+      );
+      throw new Error('expected forbidden');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ForbiddenException);
+      const body = (err as ForbiddenException).getResponse();
+      expect(body).toEqual({ error: 'forbidden' });
+      expect(JSON.stringify(body)).not.toContain('title');
+      expect(JSON.stringify(body)).not.toContain('Secret title');
+    }
+    expect(repo.listApprovedInsightsByClient).not.toHaveBeenCalled();
+  });
+
+  it('listApprovedInsightsForClient returns approved_internal+ for that client', async () => {
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    const approved = insightRow({
+      status: 'approved_internal',
+      statement: 'Premium SKU tăng share ở MT HCM',
+    });
+    repo.listApprovedInsightsByClient.mockResolvedValue([approved]);
+
+    const out = await service.listApprovedInsightsForClient(
+      { restricted: true, allowedClientIds: ['acme'] },
+      'acme',
+    );
+
+    expect(out.insights).toEqual([approved]);
+    expect(repo.listApprovedInsightsByClient).toHaveBeenCalledWith('acme');
+  });
+
+  it('insertPlanInsights persists ids only and rejects statement in persist payload', async () => {
+    stubScopedProject();
+    plans.getPlanById.mockReturnValue({
+      id: 3,
+      name: 'Secret plan title',
+      khtn_market_research_json: '{}',
+    });
+    repo.getInsight.mockResolvedValue(
+      insightRow({ status: 'approved_internal', statement: 'Premium SKU tăng share ở MT HCM' }),
+    );
+    plans.patchPlan.mockImplementation((_id: number, body: { khtn_market_research_json?: string }) => {
+      const stored = JSON.parse(String(body.khtn_market_research_json ?? '{}'));
+      expect(stored).not.toHaveProperty('statement');
+      expect(JSON.stringify(stored)).not.toContain('Premium SKU');
+      expect(JSON.stringify(stored)).not.toContain('statement');
+      return { id: 3, khtn_market_research_json: JSON.stringify(stored) };
+    });
+
+    const { assertNoInsightTextLeak } = await import('./plan-insight-snapshot.util');
+    expect(() =>
+      assertNoInsightTextLeak({
+        client_id: 'acme',
+        insight_ids: [7],
+        statement: 'Premium SKU tăng share ở MT HCM',
+      }),
+    ).toThrow('plan_must_not_copy_insight_text');
+
+    const out = await service.insertPlanInsights(
+      3,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { client_id: 'acme', insight_ids: [7] },
+      'am@ptt',
+    );
+
+    expect(plans.patchPlan).toHaveBeenCalledTimes(1);
+    const persisted = JSON.parse(
+      String((plans.patchPlan.mock.calls[0][1] as { khtn_market_research_json: string }).khtn_market_research_json),
+    );
+    expect(Object.keys(persisted).sort()).toEqual(
+      ['client_id', 'inserted_at', 'inserted_by', 'insight_ids'].sort(),
+    );
+    expect(persisted.insight_ids).toEqual([7]);
+    expect(persisted.client_id).toBe('acme');
+    expect(JSON.stringify(persisted)).not.toContain('statement');
+    expect(out.snapshot.insight_ids).toEqual([7]);
+  });
+
+  it('insertPlanInsights client mismatch is 400 client_mismatch', async () => {
+    stubScopedProject();
+    plans.getPlanById.mockReturnValue({ id: 3, name: 'Secret plan title', khtn_market_research_json: '{}' });
+    repo.getInsight.mockResolvedValue(insightRow({ status: 'approved_internal' }));
+    repo.getProjectClientId.mockResolvedValue('acme');
+
+    try {
+      await service.insertPlanInsights(
+        3,
+        { restricted: false, allowedClientIds: [] },
+        { client_id: 'other-client', insight_ids: [7] },
+        'am@ptt',
+      );
+      throw new Error('expected client_mismatch');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'client_mismatch' });
+    }
+    expect(plans.patchPlan).not.toHaveBeenCalled();
+  });
+
+  it('insertPlanInsights unapproved insight is 400 insight_not_approved', async () => {
+    stubScopedProject();
+    plans.getPlanById.mockReturnValue({ id: 3, name: 'Secret plan title', khtn_market_research_json: '{}' });
+    repo.getInsight.mockResolvedValue(insightRow({ status: 'draft' }));
+
+    try {
+      await service.insertPlanInsights(
+        3,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { client_id: 'acme', insight_ids: [7] },
+        'am@ptt',
+      );
+      throw new Error('expected insight_not_approved');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'insight_not_approved' });
+    }
+    expect(plans.patchPlan).not.toHaveBeenCalled();
+  });
+
+  it('insertPlanInsights missing plan is 404 not_found without title', async () => {
+    plans.getPlanById.mockReturnValue(null);
+
+    try {
+      await service.insertPlanInsights(
+        99,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { client_id: 'acme', insight_ids: [7] },
+        'am@ptt',
+      );
+      throw new Error('expected not_found');
+    } catch (err) {
+      expect((err as { getStatus?: () => number }).getStatus?.()).toBe(404);
+      const body = (err as { getResponse: () => unknown }).getResponse();
+      expect(body).toEqual({ error: 'not_found' });
+      expect(JSON.stringify(body)).not.toContain('title');
+      expect(JSON.stringify(body)).not.toContain('Secret');
+    }
+    expect(plans.patchPlan).not.toHaveBeenCalled();
+    expect(repo.getInsight).not.toHaveBeenCalled();
   });
 });
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
 import { DetailPageLayout } from '@/components/layout';
+import { InsertInsightPlanPanel } from '@/components/research/InsertInsightPlanPanel';
 import { fetchMarketingPlanDetail, patchMarketingPlan, staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -218,6 +219,19 @@ export default function CrmMarketingPlanDetailPage() {
               </div>
             ) : null}
           </form>
+        ) : null}
+        {plan && !loading ? (
+          <InsertInsightPlanPanel
+            planId={planId}
+            researchJson={plan.khtn_market_research_json}
+            user={user}
+            onInserted={(snapshot) => {
+              setPlan((prev) =>
+                prev ? { ...prev, khtn_market_research_json: JSON.stringify(snapshot) } : prev,
+              );
+              setMessage('Đã chèn insight');
+            }}
+          />
         ) : null}
       </DetailPageLayout>
     </CrmDeliveryPageShell>
