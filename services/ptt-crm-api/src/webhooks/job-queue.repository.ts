@@ -138,6 +138,28 @@ export class JobQueueRepository implements OnModuleDestroy {
     });
   }
 
+  /** P2 M2 — async competitor snapshot pulse + optional Tavily. */
+  async enqueueResearchPulseJob(input: {
+    projectId: number;
+    questionId?: number | null;
+    runId: number;
+    clientId?: string | null;
+    idempotencyKey: string;
+  }): Promise<EnqueuedJob | null> {
+    if (!this.config.jobsEnabled) return null;
+    return this.enqueueJobRecord({
+      jobType: 'research_pulse',
+      payload: {
+        project_id: input.projectId,
+        question_id: input.questionId ?? null,
+        run_id: input.runId,
+      },
+      idempotencyKey: input.idempotencyKey,
+      clientId: this.normalizeClientUuid(input.clientId ?? undefined),
+      maxAttempts: 2,
+    });
+  }
+
   /** M6 — async dual Tavily triangulation (basic + advanced). */
   async enqueueResearchTriangulateJob(input: {
     projectId: number;

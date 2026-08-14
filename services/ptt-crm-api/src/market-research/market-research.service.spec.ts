@@ -61,6 +61,9 @@ describe('MarketResearchService', () => {
     findInFlightDeskRun: jest.fn(),
     findInFlightDeepRun: jest.fn(),
     findInFlightTriangulateRun: jest.fn(),
+    findInFlightPulseRun: jest.fn(),
+    insertTrendSignal: jest.fn(),
+    listTrendSignals: jest.fn(),
     acceptSingleSource: jest.fn(),
     insertAiRun: jest.fn(),
     failAiRun: jest.fn(),
@@ -104,6 +107,10 @@ describe('MarketResearchService', () => {
     enqueueResearchDeskJob: jest.fn(),
     enqueueResearchDeepJob: jest.fn(),
     enqueueResearchTriangulateJob: jest.fn(),
+    enqueueResearchPulseJob: jest.fn(),
+  };
+  const opsAlerts = {
+    upsertAlert: jest.fn(),
   };
   const config = {
     researchDeepProvider: 'openai',
@@ -116,6 +123,7 @@ describe('MarketResearchService', () => {
     jest.clearAllMocks();
     config.researchDeepProvider = 'openai';
     config.maxTavilyCreditsPerResearch = 12;
+    repo.listTrendSignals.mockResolvedValue([]);
     llm.isConfigured.mockReturnValue(true);
     service = new MarketResearchService(
       repo as never,
@@ -124,6 +132,7 @@ describe('MarketResearchService', () => {
       config as never,
       llm as never,
       plans as never,
+      opsAlerts as never,
     );
   });
 
@@ -1084,6 +1093,123 @@ describe('MarketResearchService', () => {
     }
     expect(repo.insertAiRun).not.toHaveBeenCalled();
     expect(jobQueue.enqueueResearchTriangulateJob).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('runPulse enqueues research_pulse and does not insert insight', async () => {
+    stubScopedProject();
+    repo.getQuestion.mockResolvedValue({
+      id: 10,
+      project_id: 9,
+      sort_order: 1,
+      question_vi: 'Giá đối thủ?',
+      question_en: null,
+      analysis_frame: null,
+      created_at: '2026-08-14',
+    });
+    repo.findInFlightPulseRun.mockResolvedValue(null);
+    repo.listCompetitors.mockResolvedValue([]);
+    repo.insertAiRun.mockResolvedValue({
+      id: 77,
+      project_id: 9,
+      question_id: 10,
+      job_type: 'research_pulse',
+      provider: 'tavily',
+      status: 'pending',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: null,
+    });
+    jobQueue.enqueueResearchPulseJob.mockResolvedValue({ id: 'job-pulse' });
+
+    const out = await service.runPulse(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { question_id: 10 },
+      'am@ptt',
+    );
+
+    expect(out).toEqual({ ok: true, run_id: 77, status: 'pending' });
+    expect(repo.insertAiRun).toHaveBeenCalledWith(
+      expect.objectContaining({ jobType: 'research_pulse' }),
+    );
+    expect(jobQueue.enqueueResearchPulseJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 9,
+        questionId: 10,
+        runId: 77,
+        idempotencyKey: 'research_pulse:9:10:run:77',
+      }),
+    );
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('runPulse without lifecycle_id inserts signal and does not upsert alert', async () => {
+    stubScopedProject();
+    repo.findInFlightPulseRun.mockResolvedValue(null);
+    repo.listCompetitors.mockResolvedValue([
+      {
+        id: 4,
+        project_id: 9,
+        name: 'Rival',
+        aliases: [],
+        snapshots: [
+          {
+            id: 1,
+            competitor_id: 4,
+            project_id: 9,
+            source_id: 1,
+            observed_at: '2026-08-01',
+            kind: 'fact',
+            fact: { price: '10' },
+            limitation_note: null,
+            created_by: 'am@ptt',
+            created_at: '2026-08-01',
+          },
+          {
+            id: 2,
+            competitor_id: 4,
+            project_id: 9,
+            source_id: 2,
+            observed_at: '2026-08-14',
+            kind: 'fact',
+            fact: { price: '12' },
+            limitation_note: null,
+            created_by: 'am@ptt',
+            created_at: '2026-08-14',
+          },
+        ],
+      },
+    ]);
+    repo.insertTrendSignal.mockResolvedValue({
+      id: 31,
+      project_id: 9,
+      topic: 'price',
+      metric: 'price',
+      baseline: 10,
+      current: 12,
+      velocity: 0.2,
+      lifecycle: 'rising',
+    });
+    repo.insertAiRun.mockResolvedValue({
+      id: 78,
+      project_id: 9,
+      question_id: null,
+      job_type: 'research_pulse',
+      provider: 'tavily',
+      status: 'pending',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: null,
+    });
+    jobQueue.enqueueResearchPulseJob.mockResolvedValue({ id: 'job-pulse' });
+
+    await service.runPulse(9, { restricted: true, allowedClientIds: ['acme'] }, {}, 'am@ptt');
+
+    expect(repo.insertTrendSignal).toHaveBeenCalled();
+    expect(opsAlerts.upsertAlert).not.toHaveBeenCalled();
     expect(repo.createInsight).not.toHaveBeenCalled();
   });
 

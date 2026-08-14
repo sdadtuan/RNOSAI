@@ -10,8 +10,10 @@ import {
 } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { MarketingPlansSqliteRepository } from '../marketing-plans/marketing-plans-sqlite.repository';
+import { OpsAlertPgRepository } from '../ops/ops-alert-pg.repository';
 import { ClientScopeContext, StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
 import { JobQueueRepository } from '../webhooks/job-queue.repository';
+import { lifecycleFromVelocity, snapshotFactDiff, velocity } from './pulse-signal.util';
 import {
   APPROVED_INTERNAL_PLUS,
   INSIGHT_STATUSES,
@@ -85,7 +87,10 @@ import type {
   RunDeepResult,
   RunDeskInput,
   RunDeskResult,
+  RunPulseInput,
+  RunPulseResult,
   RunTriangulateResult,
+  TrendSignal,
   SubmitReviewInput,
 } from './market-research.types';
 import { CONSENT_TYPES, STUDY_METHODS, STUDY_MODES } from './market-research.types';
@@ -110,6 +115,7 @@ export class MarketResearchService {
     private readonly config: AppConfigService,
     private readonly llm: MarketResearchLlmService,
     private readonly plans: MarketingPlansSqliteRepository,
+    private readonly opsAlerts: OpsAlertPgRepository,
   ) {}
 
   health(): { ok: true; enabled: true; deep_provider: string } {
@@ -1003,6 +1009,94 @@ export class MarketResearchService {
     return { ok: true, run_id: run.id, status: 'pending' };
   }
 
+  async runPulse(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: RunPulseInput,
+    actor: string,
+  ): Promise<RunPulseResult> {
+    const project = await this.loadScopedProject(projectId, scope);
+    const rawQid = input.question_id;
+    let questionId: number | null = null;
+    if (rawQid != null && rawQid !== ('' as unknown as number)) {
+      questionId = Number(rawQid);
+      if (!Number.isFinite(questionId) || questionId <= 0) {
+        throw new BadRequestException({
+          error: 'validation_error',
+          messages: ['question_id is invalid'],
+        });
+      }
+      const question = await this.repo.getQuestion(questionId);
+      if (!question || question.project_id !== projectId) {
+        throw new NotFoundException({ error: 'not_found' });
+      }
+    }
+    const inFlight = await this.repo.findInFlightPulseRun(projectId);
+    if (inFlight) {
+      throw new ConflictException({ error: 'job_in_flight' });
+    }
+    const run = await this.repo.insertAiRun({
+      projectId,
+      questionId,
+      jobType: 'research_pulse',
+      provider: 'tavily',
+      actor,
+    });
+    const job = await this.jobQueue.enqueueResearchPulseJob({
+      projectId,
+      questionId,
+      runId: run.id,
+      clientId: project.client_id,
+      idempotencyKey: `research_pulse:${projectId}:${questionId ?? 0}:run:${run.id}`,
+    });
+    await this.persistPulseSignalsFromSnapshots(project);
+    if (!job) {
+      await this.repo.failAiRun(run.id, 'jobs_disabled');
+      return { ok: true, run_id: run.id, status: 'failed', note: 'jobs_disabled' };
+    }
+    return { ok: true, run_id: run.id, status: 'pending' };
+  }
+
+  private async persistPulseSignalsFromSnapshots(project: ResearchProjectRow): Promise<TrendSignal[]> {
+    const competitors = await this.repo.listCompetitors(project.id);
+    const signals: TrendSignal[] = [];
+    for (const comp of competitors) {
+      const snaps = [...(comp.snapshots ?? [])].sort((a, b) => a.id - b.id);
+      if (snaps.length < 2) continue;
+      const prev = snaps[snaps.length - 2];
+      const next = snaps[snaps.length - 1];
+      const prevFact = (prev.fact ?? {}) as Record<string, unknown>;
+      const nextFact = (next.fact ?? {}) as Record<string, unknown>;
+      const { changed, topic } = snapshotFactDiff(prevFact, nextFact);
+      if (!changed.length || !topic) continue;
+      const baseline = parseFactNumber(prevFact[topic]);
+      const current = parseFactNumber(nextFact[topic]);
+      const vel = velocity(baseline, current);
+      const signal = await this.repo.insertTrendSignal({
+        projectId: project.id,
+        topic,
+        metric: topic,
+        baseline,
+        current,
+        velocity: vel,
+        lifecycle: lifecycleFromVelocity(vel),
+      });
+      signals.push(signal);
+      if (project.lifecycle_id != null) {
+        await this.opsAlerts.upsertAlert({
+          lifecycleId: project.lifecycle_id,
+          dvCode: 'DV12',
+          alertType: 'research_pulse',
+          severity: 'warning',
+          title: `Pulse: ${topic}`,
+          message: `Đối thủ đổi ${topic} trên project ${project.id}`,
+          sourceKey: `research_pulse:${project.id}:${signal.id}`,
+        });
+      }
+    }
+    return signals;
+  }
+
   async acceptSingleSource(
     sourceId: number,
     scope: ClientScopeContext,
@@ -1537,14 +1631,16 @@ export class MarketResearchService {
   }
 
   private async toDetail(project: ResearchProjectRow): Promise<ResearchProjectDetail> {
-    const [questions, sources, evidence, insights, ai_runs, tavily_credits_used] = await Promise.all([
-      this.repo.listQuestions(project.id),
-      this.repo.listSources(project.id),
-      this.repo.listEvidence(project.id),
-      this.repo.listInsights(project.id),
-      this.repo.listRecentAiRuns(project.id),
-      this.repo.sumTavilyCredits(project.id),
-    ]);
+    const [questions, sources, evidence, insights, ai_runs, trend_signals, tavily_credits_used] =
+      await Promise.all([
+        this.repo.listQuestions(project.id),
+        this.repo.listSources(project.id),
+        this.repo.listEvidence(project.id),
+        this.repo.listInsights(project.id),
+        this.repo.listRecentAiRuns(project.id),
+        this.repo.listTrendSignals(project.id),
+        this.repo.sumTavilyCredits(project.id),
+      ]);
     return {
       ...project,
       questions,
@@ -1552,6 +1648,7 @@ export class MarketResearchService {
       evidence,
       insights,
       ai_runs,
+      trend_signals,
       tavily_credits_used,
       tavily_credits_limit: this.config.maxTavilyCreditsPerResearch,
       deep_research_provider: this.config.researchDeepProvider,
@@ -1561,6 +1658,12 @@ export class MarketResearchService {
       }),
     };
   }
+}
+
+function parseFactNumber(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 function normalizePositiveIds(raw: unknown): number[] {

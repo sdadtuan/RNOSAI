@@ -43,6 +43,109 @@ def load_desk_context(project_id: int, question_id: int) -> dict[str, Any] | Non
             return {"question_vi": str(row[0] or ""), "geo": _as_list(row[1])}
 
 
+def load_pulse_context(project_id: int, question_id: int | None = None) -> dict[str, Any] | None:
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            if question_id:
+                cur.execute(
+                    """
+                    SELECT p.geo, p.product_type, q.question_vi
+                    FROM crm_research_projects p
+                    LEFT JOIN crm_research_questions q
+                      ON q.id = %s AND q.project_id = p.id
+                    WHERE p.id = %s
+                    """,
+                    (question_id, project_id),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT p.geo, p.product_type, NULL
+                    FROM crm_research_projects p
+                    WHERE p.id = %s
+                    """,
+                    (project_id,),
+                )
+            row = cur.fetchone()
+            if not row:
+                return None
+            return {
+                "geo": _as_list(row[0]),
+                "product_type": str(row[1] or ""),
+                "question_vi": str(row[2] or ""),
+            }
+
+
+def list_competitor_snapshot_pairs(project_id: int) -> list[dict[str, Any]]:
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT competitor_id, fact
+                FROM crm_research_competitor_snapshots
+                WHERE project_id = %s
+                ORDER BY competitor_id ASC, id ASC
+                """,
+                (project_id,),
+            )
+            rows = cur.fetchall() or []
+    by_comp: dict[int, list[Any]] = {}
+    for row in rows:
+        cid = int(row[0])
+        fact = row[1]
+        if isinstance(fact, str):
+            try:
+                fact = json.loads(fact)
+            except json.JSONDecodeError:
+                fact = {}
+        if not isinstance(fact, dict):
+            fact = {}
+        by_comp.setdefault(cid, []).append(fact)
+    pairs: list[dict[str, Any]] = []
+    for facts in by_comp.values():
+        if len(facts) < 2:
+            continue
+        pairs.append({"prev": facts[-2], "next": facts[-1]})
+    return pairs
+
+
+def insert_trend_signal(
+    *,
+    project_id: int,
+    topic: str,
+    metric: str,
+    baseline: float | None,
+    current: float | None,
+    velocity: float | None,
+    lifecycle: str,
+) -> dict[str, Any] | None:
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO crm_research_trend_signals (
+                  project_id, topic, metric, baseline, current, velocity, lifecycle
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id, project_id, topic, metric, baseline, current, velocity, lifecycle
+                """,
+                (project_id, topic, metric, baseline, current, velocity, lifecycle),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    if not row:
+        return None
+    return {
+        "id": int(row[0]),
+        "project_id": int(row[1]),
+        "topic": str(row[2]),
+        "metric": str(row[3]),
+        "baseline": float(row[4]) if row[4] is not None else None,
+        "current": float(row[5]) if row[5] is not None else None,
+        "velocity": float(row[6]) if row[6] is not None else None,
+        "lifecycle": str(row[7]),
+    }
+
+
 def sum_project_tavily_credits(project_id: int, *, exclude_run_id: int | None = None) -> int:
     with pg_connection() as conn:
         with conn.cursor() as cur:
@@ -52,7 +155,7 @@ def sum_project_tavily_credits(project_id: int, *, exclude_run_id: int | None = 
                     SELECT COALESCE(SUM(credits_used), 0)::int
                     FROM crm_research_ai_runs
                     WHERE project_id = %s
-                      AND job_type IN ('desk_tavily', 'deep_research', 'research_triangulate')
+                      AND job_type IN ('desk_tavily', 'deep_research', 'research_triangulate', 'research_pulse')
                       AND id <> %s
                     """,
                     (project_id, exclude_run_id),
@@ -63,7 +166,7 @@ def sum_project_tavily_credits(project_id: int, *, exclude_run_id: int | None = 
                     SELECT COALESCE(SUM(credits_used), 0)::int
                     FROM crm_research_ai_runs
                     WHERE project_id = %s
-                      AND job_type IN ('desk_tavily', 'deep_research', 'research_triangulate')
+                      AND job_type IN ('desk_tavily', 'deep_research', 'research_triangulate', 'research_pulse')
                     """,
                     (project_id,),
                 )

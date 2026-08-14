@@ -303,6 +303,7 @@ export type ResearchProjectDetail = ResearchProjectRow & {
   evidence: ResearchEvidenceRow[];
   insights: ResearchInsightRow[];
   ai_runs: ResearchAiRunRow[];
+  trend_signals: TrendSignal[];
   tavily_credits_used: number;
   tavily_credits_limit: number;
   deep_research_provider: string;
@@ -327,6 +328,12 @@ export type RunDeepInput = {
 export type RunDeepResult = RunDeskResult;
 
 export type RunTriangulateResult = RunDeskResult;
+
+export type RunPulseInput = {
+  question_id?: number;
+};
+
+export type RunPulseResult = RunDeskResult;
 
 export type CreateSourceInput = {
   title: string;

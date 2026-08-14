@@ -33,6 +33,7 @@ import type {
   ResearchReportRow,
   ResearchReportVersionRow,
   ResearchSourceRow,
+  TrendSignal,
 } from './market-research.types';
 
 function parseJsonCol<T>(val: unknown, fallback: T): T {
@@ -893,6 +894,19 @@ export class MarketResearchRepository implements OnModuleDestroy {
     return row ? this.mapAiRun(row) : null;
   }
 
+  async findInFlightPulseRun(projectId: number): Promise<ResearchAiRunRow | null> {
+    const result = await this.db.query(
+      `${this.aiRunSelect}
+       WHERE project_id = $1
+         AND job_type = 'research_pulse'
+         AND status IN ('pending', 'running')
+       ORDER BY id DESC LIMIT 1`,
+      [projectId],
+    );
+    const row = result.rows[0];
+    return row ? this.mapAiRun(row) : null;
+  }
+
   async acceptSingleSource(id: number): Promise<ResearchSourceRow | null> {
     const result = await this.db.query(
       `UPDATE crm_research_sources
@@ -1147,7 +1161,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
     const result = await this.db.query(
       `SELECT COALESCE(SUM(credits_used), 0)::int AS n
        FROM crm_research_ai_runs
-       WHERE project_id = $1 AND job_type IN ('desk_tavily', 'deep_research', 'research_triangulate')`,
+       WHERE project_id = $1 AND job_type IN ('desk_tavily', 'deep_research', 'research_triangulate', 'research_pulse')`,
       [projectId],
     );
     return Number(result.rows[0]?.n ?? 0);
@@ -1457,6 +1471,57 @@ export class MarketResearchRepository implements OnModuleDestroy {
       ],
     );
     return this.mapConsent(result.rows[0]);
+  }
+
+  private mapTrendSignal(row: Record<string, unknown>): TrendSignal {
+    return {
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      topic: String(row.topic),
+      metric: String(row.metric),
+      baseline: row.baseline != null ? Number(row.baseline) : null,
+      current: row.current != null ? Number(row.current) : null,
+      velocity: row.velocity != null ? Number(row.velocity) : null,
+      lifecycle: row.lifecycle as TrendSignal['lifecycle'],
+    };
+  }
+
+  async listTrendSignals(projectId: number): Promise<TrendSignal[]> {
+    const result = await this.db.query(
+      `SELECT id, project_id, topic, metric, baseline, current, velocity, lifecycle
+       FROM crm_research_trend_signals
+       WHERE project_id = $1
+       ORDER BY id DESC`,
+      [projectId],
+    );
+    return result.rows.map((row) => this.mapTrendSignal(row));
+  }
+
+  async insertTrendSignal(input: {
+    projectId: number;
+    topic: string;
+    metric: string;
+    baseline: number | null;
+    current: number | null;
+    velocity: number | null;
+    lifecycle: TrendSignal['lifecycle'];
+  }): Promise<TrendSignal> {
+    const result = await this.db.query(
+      `INSERT INTO crm_research_trend_signals (
+         project_id, topic, metric, baseline, current, velocity, lifecycle
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, project_id, topic, metric, baseline, current, velocity, lifecycle`,
+      [
+        input.projectId,
+        input.topic,
+        input.metric,
+        input.baseline,
+        input.current,
+        input.velocity,
+        input.lifecycle,
+      ],
+    );
+    return this.mapTrendSignal(result.rows[0]);
   }
 
   async insertReview(input: InsertReviewInput): Promise<{ id: number }> {

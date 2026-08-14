@@ -168,6 +168,10 @@ def run_worker(*, poll_interval: float = 1.0, once: bool = False) -> int:
                 from ptt_jobs.handlers.research_triangulate import run_research_triangulate_job
 
                 run_research_triangulate_job(job)
+            elif job_type == "research_pulse":
+                from ptt_jobs.handlers.research_pulse import run_research_pulse_job
+
+                run_research_pulse_job(job)
             elif job_type == "pipeline_risk_scan":
                 from ptt_jobs.handlers.pipeline_risk_scan import run_pipeline_risk_scan_job
 

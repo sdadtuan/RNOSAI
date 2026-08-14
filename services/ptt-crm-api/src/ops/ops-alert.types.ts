@@ -3,7 +3,8 @@ export type OpsAlertType =
   | 'kpi_critical'
   | 'plan_ops_drift'
   | 'task_due_soon'
-  | 'task_overdue';
+  | 'task_overdue'
+  | 'research_pulse';
 
 export type OpsAlertSeverity = 'info' | 'warning' | 'critical';
 

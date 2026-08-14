@@ -58,6 +58,7 @@ export type ResearchJobType =
   | 'desk_tavily'
   | 'deep_research'
   | 'research_triangulate'
+  | 'research_pulse'
   | 'insight_draft'
   | 'report_draft'
   | 'pii_scan';

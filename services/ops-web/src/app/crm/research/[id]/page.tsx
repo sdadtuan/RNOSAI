@@ -43,6 +43,7 @@ import {
   fetchResearchProject,
   runResearchDeep,
   runResearchDesk,
+  runResearchPulse,
   runResearchTriangulate,
   patchResearchEvidence,
   patchResearchInsight,
@@ -124,6 +125,8 @@ function CrmResearchWorkspaceContent() {
   const [deepBanner, setDeepBanner] = useState('');
   const [triRunId, setTriRunId] = useState<number | null>(null);
   const [triBanner, setTriBanner] = useState('');
+  const [pulseRunId, setPulseRunId] = useState<number | null>(null);
+  const [pulseBanner, setPulseBanner] = useState('');
   const [reportSnapshot, setReportSnapshot] = useState<ResearchReportSnapshot | null>(null);
   const [reports, setReports] = useState<ResearchReport[]>([]);
 
@@ -604,6 +607,32 @@ function CrmResearchWorkspaceContent() {
     }
   }
 
+  async function onRunPulse() {
+    const access = getAccessToken();
+    const qid = deskQuestionId ?? project?.questions?.[0]?.id;
+    if (!access || !project) return;
+    setSaving(true);
+    setError('');
+    setPulseBanner('');
+    try {
+      const out = await runResearchPulse(access, project.id, qid);
+      if (qid) setDeskQuestionId(qid);
+      setPulseRunId(out.run_id);
+      if (out.status === 'failed') {
+        const note = out.note ?? 'jobs_disabled';
+        setPulseBanner(TRANSITION_REASON_VI[note] ?? note);
+      }
+    } catch (err) {
+      if (err instanceof ResearchApiError && err.code === 'job_in_flight') {
+        setError(TRANSITION_REASON_VI.job_in_flight);
+      } else {
+        setError(err instanceof Error ? err.message : 'Chạy pulse thất bại');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function onRunTriangulate() {
     const access = getAccessToken();
     const qid = deskQuestionId ?? project?.questions?.[0]?.id;
@@ -627,6 +656,24 @@ function CrmResearchWorkspaceContent() {
       }
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onPulseSettled(run: ResearchAiRun) {
+    const access = getAccessToken();
+    if (run.status === 'failed') {
+      const code = run.error_message ?? 'failed';
+      setPulseBanner(TRANSITION_REASON_VI[code] ?? code);
+    } else {
+      setPulseBanner('');
+      setPulseRunId(null);
+    }
+    if (access) {
+      try {
+        await load(access);
+      } catch {
+        /* keep chip state */
+      }
     }
   }
 
@@ -802,6 +849,8 @@ function CrmResearchWorkspaceContent() {
                   deepBanner={deepBanner}
                   triRunId={triRunId}
                   triBanner={triBanner}
+                  pulseRunId={pulseRunId}
+                  pulseBanner={pulseBanner}
                   onQuestionChange={setDeskQuestionId}
                   onRun={() => void onRunDesk()}
                   onRetry={() => void onRunDesk(deskQuestionId ?? project.questions?.[0]?.id)}
@@ -810,6 +859,8 @@ function CrmResearchWorkspaceContent() {
                   onDeepSettled={onDeepSettled}
                   onRunTriangulate={() => void onRunTriangulate()}
                   onTriSettled={onTriSettled}
+                  onRunPulse={() => void onRunPulse()}
+                  onPulseSettled={onPulseSettled}
                 />
                 <SourceKeepTable
                   sources={project.sources ?? []}
@@ -936,6 +987,8 @@ function SourcesDeskBar({
   deepBanner,
   triRunId,
   triBanner,
+  pulseRunId,
+  pulseBanner,
   onQuestionChange,
   onRun,
   onRetry,
@@ -944,6 +997,8 @@ function SourcesDeskBar({
   onDeepSettled,
   onRunTriangulate,
   onTriSettled,
+  onRunPulse,
+  onPulseSettled,
 }: {
   project: ResearchProject;
   canRun: boolean;
@@ -956,6 +1011,8 @@ function SourcesDeskBar({
   deepBanner: string;
   triRunId: number | null;
   triBanner: string;
+  pulseRunId: number | null;
+  pulseBanner: string;
   onQuestionChange: (id: number) => void;
   onRun: () => void;
   onRetry: () => void;
@@ -964,6 +1021,8 @@ function SourcesDeskBar({
   onDeepSettled: (run: ResearchAiRun) => void;
   onRunTriangulate: () => void;
   onTriSettled: (run: ResearchAiRun) => void;
+  onRunPulse: () => void;
+  onPulseSettled: (run: ResearchAiRun) => void;
 }) {
   const questions = project.questions ?? [];
   const used = project.tavily_credits_used ?? 0;
@@ -974,6 +1033,9 @@ function SourcesDeskBar({
   const deepInFlight = Boolean(deepRunId) && !deepBanner;
   const triInFlight = Boolean(triRunId) && !triBanner;
   const triFailed = Boolean(triBanner);
+  const pulseInFlight = Boolean(pulseRunId) && !pulseBanner;
+  const pulseFailed = Boolean(pulseBanner);
+  const hasPulseSignals = (project.trend_signals ?? []).length > 0;
   return (
     <div className="stack-gap" style={{ marginBottom: '0.85rem' }}>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1027,6 +1089,17 @@ function SourcesDeskBar({
             {triFailed ? 'Thử lại Tam giác nguồn' : 'Tam giác nguồn'}
           </button>
         ) : null}
+        {canRun ? (
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={saving || pulseInFlight}
+            title={pulseInFlight ? TRANSITION_REASON_VI.job_in_flight : undefined}
+            onClick={onRunPulse}
+          >
+            {pulseFailed ? 'Thử lại pulse' : 'Chạy pulse'}
+          </button>
+        ) : null}
         <ResearchJobChip
           token={getAccessToken()}
           projectId={project.id}
@@ -1046,6 +1119,13 @@ function SourcesDeskBar({
           runId={triRunId}
           kind="triangulate"
           onSettled={onTriSettled}
+        />
+        <ResearchJobChip
+          token={getAccessToken()}
+          projectId={project.id}
+          runId={pulseRunId}
+          kind="pulse"
+          onSettled={onPulseSettled}
         />
         <span className="muted" style={{ fontSize: '0.85rem' }}>
           Tavily {used}/{limit} credit dự án
@@ -1091,6 +1171,34 @@ function SourcesDeskBar({
           }}
         >
           {triBanner}
+        </p>
+      ) : null}
+      {pulseBanner ? (
+        <p
+          role="status"
+          style={{
+            margin: 0,
+            padding: '0.55rem 0.75rem',
+            borderRadius: 8,
+            border: '1px solid rgba(234, 179, 8, 0.45)',
+            background: 'rgba(234, 179, 8, 0.12)',
+          }}
+        >
+          {pulseBanner}
+        </p>
+      ) : null}
+      {hasPulseSignals ? (
+        <p
+          role="status"
+          style={{
+            margin: 0,
+            padding: '0.55rem 0.75rem',
+            borderRadius: 8,
+            border: '1px solid rgba(234, 179, 8, 0.45)',
+            background: 'rgba(234, 179, 8, 0.12)',
+          }}
+        >
+          <Link href="/crm/ops/alerts">«Cảnh báo pulse»</Link>
         </p>
       ) : null}
     </div>

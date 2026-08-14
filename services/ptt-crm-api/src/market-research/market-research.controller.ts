@@ -55,6 +55,7 @@ import type {
   ReportCopilotInput,
   RunDeepInput,
   RunDeskInput,
+  RunPulseInput,
 } from './market-research.types';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
@@ -217,6 +218,18 @@ export class MarketResearchController {
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.runTriangulate(id, qid, scope, actorEmail(req));
+  }
+
+  @Post('projects/:id/run-pulse')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  async runPulse(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: RunPulseInput,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.runPulse(id, scope, body ?? {}, actorEmail(req));
   }
 
   @Get('projects/:id/jobs/:runId')

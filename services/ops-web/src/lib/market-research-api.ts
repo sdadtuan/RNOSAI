@@ -263,6 +263,18 @@ export type ResearchProject = {
   tavily_credits_limit?: number;
   deep_research_provider?: string;
   valid_transitions?: ProjectStatus[];
+  trend_signals?: ResearchTrendSignal[];
+};
+
+export type ResearchTrendSignal = {
+  id: number;
+  project_id: number;
+  topic: string;
+  metric: string;
+  baseline: number | null;
+  current: number | null;
+  velocity: number | null;
+  lifecycle: 'new' | 'rising' | 'stable' | 'fading';
 };
 
 export type ResearchAiRun = {
@@ -679,6 +691,17 @@ export async function runResearchTriangulate(
     `/api/v1/research/projects/${projectId}/questions/${questionId}/run-triangulate`,
     { method: 'POST' },
   );
+}
+
+export async function runResearchPulse(
+  token: string,
+  projectId: number,
+  questionId?: number | null,
+): Promise<{ ok: true; run_id: number; status: string; note?: string }> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/run-pulse`, {
+    method: 'POST',
+    body: JSON.stringify(questionId ? { question_id: questionId } : {}),
+  });
 }
 
 export async function fetchResearchJob(

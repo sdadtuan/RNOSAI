@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MarketingPlansModule } from '../marketing-plans/marketing-plans.module';
+import { OpsModule } from '../ops/ops.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
@@ -19,7 +20,7 @@ import { MarketResearchRepository } from './market-research.repository';
 import { MarketResearchService } from './market-research.service';
 
 @Module({
-  imports: [StaffAuthModule, StaffClientScopeModule, WebhooksModule, MarketingPlansModule],
+  imports: [StaffAuthModule, StaffClientScopeModule, WebhooksModule, MarketingPlansModule, OpsModule],
   controllers: [MarketResearchController],
   providers: [
     MarketResearchEnabledGuard,
