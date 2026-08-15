@@ -13,7 +13,7 @@ type ResearchJobChipProps = {
   token: string | null;
   projectId: number;
   runId: number | null;
-  kind?: 'desk' | 'deep' | 'triangulate' | 'pulse' | 'whisper' | 'sparktoro' | 'qualtrics';
+  kind?: 'desk' | 'deep' | 'triangulate' | 'pulse' | 'whisper' | 'sparktoro' | 'talkwalker' | 'qualtrics';
   onSettled: (run: ResearchAiRun) => void;
 };
 
@@ -74,9 +74,11 @@ export function ResearchJobChip({
             ? 'Audio'
             : kind === 'sparktoro'
               ? 'SparkToro'
-              : kind === 'qualtrics'
-                ? 'Qualtrics'
-                : 'Desk';
+              : kind === 'talkwalker'
+                ? 'Talkwalker'
+                : kind === 'qualtrics'
+                  ? 'Qualtrics'
+                  : 'Desk';
   const label =
     status === 'running'
       ? kind === 'deep'
@@ -89,9 +91,11 @@ export function ResearchJobChip({
               ? 'Đang cắt excerpt…'
               : kind === 'sparktoro'
                 ? 'Đang lấy nguồn SparkToro…'
-                : kind === 'qualtrics'
-                  ? 'Đang export Qualtrics…'
-                  : 'Đang lấy nguồn…'
+                : kind === 'talkwalker'
+                  ? 'Đang lấy nguồn Talkwalker…'
+                  : kind === 'qualtrics'
+                    ? 'Đang export Qualtrics…'
+                    : 'Đang lấy nguồn…'
       : status === 'pending'
         ? `${noun} đang chờ`
         : status === 'succeeded'

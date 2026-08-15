@@ -50,6 +50,17 @@ describe('assertSimilarwebTier', () => {
     }
   });
 
+  it('P23 url/publisher talkwalker + tier high is reliability_capped', () => {
+    expect(() =>
+      assertPaidEstimateTier({
+        publisher: 'Talkwalker',
+        url: 'https://news.example/a',
+        reliability_tier: 'high',
+        limitation_note: 'x',
+      }),
+    ).toThrow('reliability_capped');
+  });
+
   it('M3-1b: SparkToro medium tier with empty limitation is limitation_required', () => {
     expect(() =>
       assertPaidEstimateTier({

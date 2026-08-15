@@ -78,6 +78,7 @@ import type {
   RunDeskInput,
   RunPulseInput,
   RunSparktoroInput,
+  RunTalkwalkerInput,
   RunQualtricsInput,
 } from './market-research.types';
 
@@ -371,6 +372,25 @@ export class MarketResearchController {
       actorEmail(req),
     );
     res.status(out.note === 'sparktoro_disabled' ? HttpStatus.OK : HttpStatus.ACCEPTED);
+    return out;
+  }
+
+  @Post('projects/:id/run-talkwalker')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  async runTalkwalker(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: RunTalkwalkerInput,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    const out = await this.research.runTalkwalker(
+      id,
+      scope,
+      body ?? ({} as RunTalkwalkerInput),
+      actorEmail(req),
+    );
+    res.status(out.note === 'talkwalker_disabled' ? HttpStatus.OK : HttpStatus.ACCEPTED);
     return out;
   }
 

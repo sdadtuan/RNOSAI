@@ -190,6 +190,7 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   whisper_disabled: 'Whisper đang tắt — project không đổi.',
   raw_transcript_forbidden: 'Chỉ lưu đoạn trích ≤ 500 ký tự. Không lưu transcript đầy đủ.',
   sparktoro_disabled: 'SparkToro đang tắt — không tạo insight.',
+  talkwalker_disabled: 'Talkwalker đang tắt — không tạo insight.',
   qualtrics_disabled: 'Qualtrics đang tắt — không tạo insight.',
   qualtrics_failed: 'Export Qualtrics thất bại — thử lại hoặc kiểm tra map/SV ID.',
   qualtrics_map_required: 'Thiếu column map — gửi body hoặc ghi qualtrics_column_map vào weighting_note.',
@@ -933,6 +934,7 @@ export async function fetchResearchHealth(
   enabled: true;
   deep_provider: string;
   sparktoro_enabled: boolean;
+  talkwalker_enabled: boolean;
   qualtrics_enabled: boolean;
   rag_enabled: boolean;
   rag_openai_embed_enabled: boolean;
@@ -1044,6 +1046,17 @@ export async function runResearchSparktoro(
   questionId: number,
 ): Promise<{ ok: true; run_id?: number; status?: string; note?: string }> {
   return researchFetch(token, `/api/v1/research/projects/${projectId}/run-sparktoro`, {
+    method: 'POST',
+    body: JSON.stringify({ question_id: questionId }),
+  });
+}
+
+export async function runResearchTalkwalker(
+  token: string,
+  projectId: number,
+  questionId: number,
+): Promise<{ ok: true; run_id?: number; status?: string; note?: string }> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/run-talkwalker`, {
     method: 'POST',
     body: JSON.stringify({ question_id: questionId }),
   });

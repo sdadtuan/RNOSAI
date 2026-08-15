@@ -191,6 +191,8 @@ describe('MarketResearchService', () => {
     researchQualtricsEnabled: false,
     qualtricsApiKey: '',
     qualtricsDatacenter: '',
+    researchTalkwalkerEnabled: false,
+    talkwalkerAccessToken: '',
     researchRagEnabled: false,
     researchRagOpenaiEmbedEnabled: false,
     researchRagPgvectorEnabled: false,
@@ -207,6 +209,8 @@ describe('MarketResearchService', () => {
     config.researchQualtricsEnabled = false;
     config.qualtricsApiKey = '';
     config.qualtricsDatacenter = '';
+    config.researchTalkwalkerEnabled = false;
+    config.talkwalkerAccessToken = '';
     config.researchRagEnabled = false;
     config.researchRagOpenaiEmbedEnabled = false;
     config.researchRagPgvectorEnabled = false;
@@ -2269,6 +2273,7 @@ describe('MarketResearchService', () => {
       deep_provider: 'openai',
       sparktoro_enabled: false,
       qualtrics_enabled: false,
+      talkwalker_enabled: false,
       rag_enabled: false,
       rag_openai_embed_enabled: false,
       rag_embed_model: 'local',
@@ -2374,6 +2379,97 @@ describe('MarketResearchService', () => {
     expect(JSON.stringify(payload)).not.toMatch(/OPENAI_API_KEY/);
     if (prev !== undefined) process.env.OPENAI_API_KEY = prev;
     else delete process.env.OPENAI_API_KEY;
+  });
+
+  const scope = { restricted: true, allowedClientIds: ['acme'] };
+
+  it('P23 flag and token both off returns talkwalker_disabled without enqueue or insight', async () => {
+    stubScopedProject();
+    repo.getQuestion.mockResolvedValue({ id: 9, project_id: 9, question_vi: 'Quy mô sữa uống?' });
+    const out = await service.runTalkwalker(9, scope, { question_id: 9 }, 'an@ptt');
+    expect(out).toEqual({ ok: true, note: 'talkwalker_disabled' });
+    expect(repo.insertAiRun).not.toHaveBeenCalled();
+    expect(repo.createSource).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+    expect(jobQueue.enqueueResearchDeskJob).not.toHaveBeenCalled();
+    expect(jobQueue.enqueueResearchDeepJob).not.toHaveBeenCalled();
+    expect(jobQueue.enqueueResearchTriangulateJob).not.toHaveBeenCalled();
+    expect(jobQueue.enqueueResearchPulseJob).not.toHaveBeenCalled();
+    expect(jobQueue.enqueueResearchWhisperJob).not.toHaveBeenCalled();
+    expect(jobQueue.enqueueResearchSparktoroJob).not.toHaveBeenCalled();
+    expect(jobQueue.enqueueResearchQualtricsJob).not.toHaveBeenCalled();
+    expect(jobQueue.enqueueResearchRagReembedJob).not.toHaveBeenCalled();
+  });
+
+  it('P23 health talkwalker_enabled is false when flag is on but token is missing', () => {
+    config.researchTalkwalkerEnabled = true;
+    config.talkwalkerAccessToken = '';
+    expect(service.health().talkwalker_enabled).toBe(false);
+  });
+
+  it('P23 health talkwalker_enabled is false when token is present but flag is off', () => {
+    config.researchTalkwalkerEnabled = false;
+    config.talkwalkerAccessToken = 'tw-secret';
+    const payload = service.health();
+    expect(payload.talkwalker_enabled).toBe(false);
+    expect(JSON.stringify(payload)).not.toContain('tw-secret');
+    expect(payload).not.toHaveProperty('talkwalkerAccessToken');
+    expect(payload).not.toHaveProperty('talkwalker_access_token');
+  });
+
+  it('P23 health talkwalker_enabled is true only when flag and token are both present', () => {
+    config.researchTalkwalkerEnabled = true;
+    config.talkwalkerAccessToken = 'tw-secret-never-leak';
+    const payload = service.health();
+    expect(payload.talkwalker_enabled).toBe(true);
+    expect(JSON.stringify(payload)).not.toMatch(/tw-secret|TALKWALKER_ACCESS_TOKEN/);
+  });
+
+  it('P23 stub persist creates Talkwalker sources and no insight', async () => {
+    stubScopedProject();
+    config.researchTalkwalkerEnabled = true;
+    config.talkwalkerAccessToken = 'tw-secret';
+    repo.getQuestion.mockResolvedValue({ id: 9, project_id: 9, question_vi: 'Quy mô sữa uống?' });
+    repo.insertAiRun.mockResolvedValue({ id: 77 });
+    repo.createSource.mockResolvedValueOnce({ id: 501 }).mockResolvedValueOnce({ id: 502 });
+    const out = await service.runTalkwalker(9, scope, { question_id: 9 }, 'an@ptt');
+    expect(out).toEqual({
+      ok: true,
+      run_id: 77,
+      status: 'succeeded',
+      source_ids: [501, 502],
+      note: 'talkwalker_stub',
+    });
+    expect(repo.insertAiRun).toHaveBeenCalledWith(
+      expect.objectContaining({ jobType: 'talkwalker', provider: 'talkwalker' }),
+    );
+    expect(repo.createSource).toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({
+        publisher: 'Talkwalker',
+        source_type: 'social_public',
+        ai_generated: true,
+        keep: true,
+      }),
+    );
+    expect(repo.createInsight).not.toHaveBeenCalled();
+    const output = repo.succeedAiRun.mock.calls[0][1];
+    expect(output.outputJson.stub).toBe(true);
+  });
+
+  it('P23 PII question_vi is 400 before persist', async () => {
+    stubScopedProject();
+    config.researchTalkwalkerEnabled = true;
+    config.talkwalkerAccessToken = 'tw-secret';
+    repo.getQuestion.mockResolvedValue({
+      id: 9,
+      project_id: 9,
+      question_vi: 'Gọi 0901234567 hỏi panel',
+    });
+    await expect(service.runTalkwalker(9, scope, { question_id: 9 }, 'an@ptt')).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(repo.insertAiRun).not.toHaveBeenCalled();
   });
 
   describe('P11 OpenAI embed path', () => {

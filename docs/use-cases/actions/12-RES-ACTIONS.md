@@ -693,7 +693,24 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
-## P22+ (backlog — Talkwalker / pgvector prod)
+## Walkthrough UAT P23 — Talkwalker stub (≈8 phút)
+
+**Mục tiêu:** *«Analyst bấm Chạy Talkwalker khi flag off → không source mới; staging flag+token → source Talkwalker + limitation, không insight.»*
+
+**Tiền đề:** Prod flags Talkwalker off. Staging UAT bước 4–6 cần flag+token **staging only**.
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | AN | Sources, prod/default health | Không thấy **Chạy Talkwalker** |
+| 2 | QA | `POST …/run-talkwalker` flag off | `200 {note:talkwalker_disabled}`; 0 source |
+| 3 | QA | Health JSON | `talkwalker_enabled=false`; không token |
+| 4 | AN | Staging flag+token, chọn RQ, **Chạy Talkwalker** | Source `publisher=Talkwalker` + limitation |
+| 5 | QA | Activity / ai_run | `job_type=talkwalker`; `output_json.stub=true`; 0 insight |
+| 6 | QA | Prod sau deploy P23 | Button ẩn; Talkwalker/RAG/pgvector flags không đổi |
+
+- [ ] Bước 1–6 pass staging
+
+## P23+ (backlog — pgvector prod / portal report-detail stale)
 
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 

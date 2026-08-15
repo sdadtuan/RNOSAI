@@ -527,6 +527,33 @@ export type RunSparktoroResult = {
   source_ids?: number[];
 };
 
+export type TalkwalkerSourceCandidate = {
+  url: string;
+  title: string;
+  publisher: 'Talkwalker';
+  reliability_tier: 'low' | 'medium';
+  limitation_note: string;
+  snippet: string; // ≤ 500, không PII
+};
+
+export type TalkwalkerNormalized = {
+  results: Array<{
+    url: string;
+    title: string;
+    snippet: string;
+    published_at?: string;
+    source_name?: string;
+  }>;
+};
+
+export type RunTalkwalkerInput = {
+  question_id: number;
+};
+
+export type RunTalkwalkerResult =
+  | { ok: true; note: 'talkwalker_disabled' }
+  | { ok: true; run_id: number; status: 'succeeded'; source_ids: number[]; note: 'talkwalker_stub' };
+
 export type RunQualtricsInput = {
   study_id: number;
   column_map?: Record<string, QualtricsColumnMapEntry>;

@@ -107,6 +107,8 @@ export class AppConfigService {
   readonly researchQualtricsEnabled: boolean;
   readonly qualtricsApiKey: string;
   readonly qualtricsDatacenter: string;
+  readonly researchTalkwalkerEnabled: boolean;
+  readonly talkwalkerAccessToken: string;
   readonly researchRagEnabled: boolean;
   readonly researchRagOpenaiEmbedEnabled: boolean;
   readonly researchRagPgvectorEnabled: boolean;
@@ -392,6 +394,10 @@ export class AppConfigService {
     );
     this.qualtricsApiKey = (process.env.QUALTRICS_API_KEY ?? '').trim();
     this.qualtricsDatacenter = (process.env.QUALTRICS_DATACENTER ?? '').trim();
+    this.researchTalkwalkerEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.RESEARCH_TALKWALKER_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.talkwalkerAccessToken = (process.env.TALKWALKER_ACCESS_TOKEN ?? '').trim();
     this.researchRagEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.RESEARCH_RAG_ENABLED ?? '0').trim().toLowerCase(),
     );

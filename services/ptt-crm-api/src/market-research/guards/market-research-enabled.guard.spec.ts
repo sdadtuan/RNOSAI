@@ -38,6 +38,8 @@ describe('Market Research config parse', () => {
     'SPARKTORO_API_KEY',
     'RESEARCH_QUALTRICS_ENABLED',
     'QUALTRICS_API_KEY',
+    'RESEARCH_TALKWALKER_ENABLED',
+    'TALKWALKER_ACCESS_TOKEN',
     'RESEARCH_RAG_ENABLED',
   ];
 
@@ -65,6 +67,8 @@ describe('Market Research config parse', () => {
     expect(config.sparktoroApiKey).toBe('');
     expect(config.researchQualtricsEnabled).toBe(false);
     expect(config.qualtricsApiKey).toBe('');
+    expect(config.researchTalkwalkerEnabled).toBe(false);
+    expect(config.talkwalkerAccessToken).toBe('');
     expect(config.researchRagEnabled).toBe(false);
   });
 
@@ -108,5 +112,13 @@ describe('Market Research config parse', () => {
     process.env.RESEARCH_RAG_ENABLED = '1';
     const config = new AppConfigService();
     expect(config.researchRagEnabled).toBe(true);
+  });
+
+  it('parses Talkwalker flag on and token; default remains off', () => {
+    process.env.RESEARCH_TALKWALKER_ENABLED = '1';
+    process.env.TALKWALKER_ACCESS_TOKEN = 'tw-secret';
+    const config = new AppConfigService();
+    expect(config.researchTalkwalkerEnabled).toBe(true);
+    expect(config.talkwalkerAccessToken).toBe('tw-secret');
   });
 });

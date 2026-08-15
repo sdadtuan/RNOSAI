@@ -18,7 +18,7 @@ export function assertPaidEstimateTier(input: {
   limitation_note?: string | null;
 }): void {
   const hay = `${input.publisher ?? ''} ${input.url ?? ''}`.toLowerCase();
-  const paid = /similarweb|semrush|sparktoro/.test(hay);
+  const paid = /similarweb|semrush|sparktoro|talkwalker/.test(hay);
   if (!paid) return;
   if (!['low', 'medium'].includes(input.reliability_tier)) {
     throw Object.assign(new Error('reliability_capped'), { code: 'reliability_capped' });

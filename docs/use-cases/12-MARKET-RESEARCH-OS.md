@@ -512,6 +512,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P23 — RES-UC-084
+
+| UC | Tóm tắt |
+|----|---------|
+| 084 | Stub Talkwalker → source candidates + scorecard bake-off; không HTTP vendor. |
+
+**API:** `POST /api/v1/research/projects/:id/run-talkwalker`  
+**Gates:** api + ops-web + job_type DDL; không portal; không bật flag/token prod.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |
@@ -525,5 +536,7 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 | `QUALTRICS_API_KEY` | không log / không trả health / không ghi deploy |
 | `RESEARCH_RAG_ENABLED` | default `0` — không bật trong deploy prod; staging only sau PO |
 | `RESEARCH_SPARKTORO_ENABLED` | default `0` — không bật deploy |
+| `RESEARCH_TALKWALKER_ENABLED` | default `0` — stub; không bật deploy |
+| `TALKWALKER_ACCESS_TOKEN` | không log / không trả health / không ghi deploy |
 
 GDKD `crm_leads.assign` **không** hiện Approve insight.

@@ -56,6 +56,7 @@ import {
   runResearchPulse,
   runResearchQualtrics,
   runResearchSparktoro,
+  runResearchTalkwalker,
   runResearchTriangulate,
   patchResearchEvidence,
   patchResearchInsight,
@@ -97,6 +98,11 @@ import {
   SPARKTORO_SOURCES_BANNER,
   shouldShowSparktoroButton,
 } from '@/components/research/sources-sparktoro.util';
+import {
+  TALKWALKER_DISABLED_TITLE,
+  TALKWALKER_SOURCES_BANNER,
+  shouldShowTalkwalkerButton,
+} from '@/components/research/sources-talkwalker.util';
 import { shouldShowQualtricsButton } from '@/components/research/qualtrics-stub.util';
 import {
   qualtricsRunDisabled,
@@ -161,11 +167,14 @@ function CrmResearchWorkspaceContent() {
   const [pulseRunId, setPulseRunId] = useState<number | null>(null);
   const [pulseBanner, setPulseBanner] = useState('');
   const [sparktoroEnabled, setSparktoroEnabled] = useState(false);
+  const [talkwalkerEnabled, setTalkwalkerEnabled] = useState(false);
   const [qualtricsEnabled, setQualtricsEnabled] = useState(false);
   const [ragEnabled, setRagEnabled] = useState(false);
   const [copilotRagHits, setCopilotRagHits] = useState<InsightCopilotRagHit[]>([]);
   const [sparktoroRunId, setSparktoroRunId] = useState<number | null>(null);
   const [sparktoroBanner, setSparktoroBanner] = useState('');
+  const [talkwalkerRunId, setTalkwalkerRunId] = useState<number | null>(null);
+  const [talkwalkerBanner, setTalkwalkerBanner] = useState('');
   const [qualtricsStudies, setQualtricsStudies] = useState<ResearchStudy[]>([]);
   const [qualtricsStudyId, setQualtricsStudyId] = useState<number | null>(null);
   const [qualtricsRunId, setQualtricsRunId] = useState<number | null>(null);
@@ -223,6 +232,7 @@ function CrmResearchWorkspaceContent() {
       try {
         const health = await fetchResearchHealth(access);
         setSparktoroEnabled(health.sparktoro_enabled === true);
+        setTalkwalkerEnabled(health.talkwalker_enabled === true);
         setQualtricsEnabled(health.qualtrics_enabled === true);
         setRagEnabled(health.rag_enabled === true);
         if (!data.deep_research_provider) {
@@ -230,6 +240,7 @@ function CrmResearchWorkspaceContent() {
         }
       } catch {
         setSparktoroEnabled(false);
+        setTalkwalkerEnabled(false);
         setQualtricsEnabled(false);
         setRagEnabled(false);
         if (!data.deep_research_provider) {
@@ -886,6 +897,36 @@ function CrmResearchWorkspaceContent() {
     }
   }
 
+  async function onRunTalkwalker() {
+    const access = getAccessToken();
+    const qid = deskQuestionId ?? project?.questions?.[0]?.id;
+    if (!access || !project || !qid) return;
+    setSaving(true);
+    setError('');
+    setTalkwalkerBanner('');
+    try {
+      const out = await runResearchTalkwalker(access, project.id, qid);
+      setDeskQuestionId(qid);
+      if (out.note === 'talkwalker_disabled') {
+        setTalkwalkerBanner(TRANSITION_REASON_VI.talkwalker_disabled);
+        return;
+      }
+      if (out.run_id) setTalkwalkerRunId(out.run_id);
+      if (out.status === 'failed') {
+        const note = out.note ?? 'jobs_disabled';
+        setTalkwalkerBanner(TRANSITION_REASON_VI[note] ?? note);
+      }
+    } catch (err) {
+      if (err instanceof ResearchApiError && err.code === 'job_in_flight') {
+        setError(TRANSITION_REASON_VI.job_in_flight);
+      } else {
+        setError(err instanceof Error ? err.message : 'Chạy Talkwalker thất bại');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function onRunQualtrics() {
     const access = getAccessToken();
     if (!access || !project || qualtricsStudyId == null) return;
@@ -940,6 +981,24 @@ function CrmResearchWorkspaceContent() {
     } else {
       setSparktoroBanner('');
       setSparktoroRunId(null);
+    }
+    if (access) {
+      try {
+        await load(access);
+      } catch {
+        /* keep chip state */
+      }
+    }
+  }
+
+  async function onTalkwalkerSettled(run: ResearchAiRun) {
+    const access = getAccessToken();
+    if (run.status === 'failed') {
+      const code = run.error_message ?? 'failed';
+      setTalkwalkerBanner(TRANSITION_REASON_VI[code] ?? code);
+    } else {
+      setTalkwalkerBanner('');
+      setTalkwalkerRunId(null);
     }
     if (access) {
       try {
@@ -1134,6 +1193,9 @@ function CrmResearchWorkspaceContent() {
                   sparktoroEnabled={sparktoroEnabled}
                   sparktoroRunId={sparktoroRunId}
                   sparktoroBanner={sparktoroBanner}
+                  talkwalkerEnabled={talkwalkerEnabled}
+                  talkwalkerRunId={talkwalkerRunId}
+                  talkwalkerBanner={talkwalkerBanner}
                   qualtricsEnabled={qualtricsEnabled}
                   qualtricsStudies={qualtricsStudies}
                   qualtricsStudyId={qualtricsStudyId}
@@ -1151,6 +1213,8 @@ function CrmResearchWorkspaceContent() {
                   onPulseSettled={onPulseSettled}
                   onRunSparktoro={() => void onRunSparktoro()}
                   onSparktoroSettled={onSparktoroSettled}
+                  onRunTalkwalker={() => void onRunTalkwalker()}
+                  onTalkwalkerSettled={onTalkwalkerSettled}
                   onRunQualtrics={() => void onRunQualtrics()}
                   onQualtricsSettled={onQualtricsSettled}
                   onQualtricsStudyChange={setQualtricsStudyId}
@@ -1316,6 +1380,9 @@ function SourcesDeskBar({
   sparktoroEnabled,
   sparktoroRunId,
   sparktoroBanner,
+  talkwalkerEnabled,
+  talkwalkerRunId,
+  talkwalkerBanner,
   qualtricsEnabled,
   qualtricsStudies,
   qualtricsStudyId,
@@ -1333,6 +1400,8 @@ function SourcesDeskBar({
   onPulseSettled,
   onRunSparktoro,
   onSparktoroSettled,
+  onRunTalkwalker,
+  onTalkwalkerSettled,
   onRunQualtrics,
   onQualtricsSettled,
   onQualtricsStudyChange,
@@ -1353,6 +1422,9 @@ function SourcesDeskBar({
   sparktoroEnabled: boolean;
   sparktoroRunId: number | null;
   sparktoroBanner: string;
+  talkwalkerEnabled: boolean;
+  talkwalkerRunId: number | null;
+  talkwalkerBanner: string;
   qualtricsEnabled: boolean;
   qualtricsStudies: ResearchStudy[];
   qualtricsStudyId: number | null;
@@ -1370,6 +1442,8 @@ function SourcesDeskBar({
   onPulseSettled: (run: ResearchAiRun) => void;
   onRunSparktoro: () => void;
   onSparktoroSettled: (run: ResearchAiRun) => void;
+  onRunTalkwalker: () => void;
+  onTalkwalkerSettled: (run: ResearchAiRun) => void;
   onRunQualtrics: () => void;
   onQualtricsSettled: (run: ResearchAiRun) => void;
   onQualtricsStudyChange: (id: number) => void;
@@ -1386,9 +1460,11 @@ function SourcesDeskBar({
   const pulseInFlight = Boolean(pulseRunId) && !pulseBanner;
   const pulseFailed = Boolean(pulseBanner);
   const showSparktoro = shouldShowSparktoroButton(sparktoroEnabled, canRun);
+  const showTalkwalker = shouldShowTalkwalkerButton(talkwalkerEnabled, canRun);
   const showQualtrics = shouldShowQualtricsButton(qualtricsEnabled, canRun);
   const sparktoroInFlight = Boolean(sparktoroRunId) && !sparktoroBanner;
   const sparktoroFailed = Boolean(sparktoroBanner);
+  const talkwalkerInFlight = Boolean(talkwalkerRunId) && !talkwalkerBanner;
   const qualtricsInFlight = Boolean(qualtricsRunId) && !qualtricsBanner;
   const qualtricsFailed = Boolean(qualtricsBanner);
   const hasPulseSignals = (project.trend_signals ?? []).length > 0;
@@ -1467,6 +1543,17 @@ function SourcesDeskBar({
             {sparktoroFailed ? 'Thử lại SparkToro' : 'Chạy SparkToro'}
           </button>
         ) : null}
+        {showTalkwalker ? (
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={saving || !questionId || talkwalkerInFlight}
+            title={TALKWALKER_DISABLED_TITLE}
+            onClick={onRunTalkwalker}
+          >
+            Chạy Talkwalker
+          </button>
+        ) : null}
         {showQualtrics ? (
           <>
             <label>
@@ -1536,6 +1623,13 @@ function SourcesDeskBar({
           runId={sparktoroRunId}
           kind="sparktoro"
           onSettled={onSparktoroSettled}
+        />
+        <ResearchJobChip
+          token={getAccessToken()}
+          projectId={project.id}
+          runId={talkwalkerRunId}
+          kind="talkwalker"
+          onSettled={onTalkwalkerSettled}
         />
         <ResearchJobChip
           token={getAccessToken()}
@@ -1618,6 +1712,20 @@ function SourcesDeskBar({
           {sparktoroBanner}
         </p>
       ) : null}
+      {talkwalkerBanner ? (
+        <p
+          role="status"
+          style={{
+            margin: 0,
+            padding: '0.55rem 0.75rem',
+            borderRadius: 8,
+            border: '1px solid rgba(234, 179, 8, 0.45)',
+            background: 'rgba(234, 179, 8, 0.12)',
+          }}
+        >
+          {talkwalkerBanner}
+        </p>
+      ) : null}
       {qualtricsBanner ? (
         <p
           role="status"
@@ -1644,6 +1752,20 @@ function SourcesDeskBar({
       >
         {SPARKTORO_SOURCES_BANNER}
       </p>
+      {showTalkwalker ? (
+        <p
+          role="status"
+          style={{
+            margin: 0,
+            padding: '0.55rem 0.75rem',
+            borderRadius: 8,
+            border: '1px solid rgba(234, 179, 8, 0.45)',
+            background: 'rgba(234, 179, 8, 0.12)',
+          }}
+        >
+          {TALKWALKER_SOURCES_BANNER}
+        </p>
+      ) : null}
       {hasPulseSignals ? (
         <p
           role="status"

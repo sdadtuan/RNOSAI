@@ -50,6 +50,8 @@ import { assertNoRawInPayload, excerptsFromTranscript } from './whisper-excerpt.
 import { transcribeAudio } from './whisper-transcribe';
 import { collectSparkToro } from './sparktoro-collect';
 import { mapSparkToroResponse } from './sparktoro-mapper.util';
+import { mapTalkwalkerResponse } from './talkwalker-mapper.util';
+import { TALKWALKER_STUB_RESULTS } from './talkwalker-stub.util';
 import { collectQualtrics } from './qualtrics-collect';
 import { resolveQualtricsColumnMap } from './qualtrics-map.util';
 import type {
@@ -120,6 +122,8 @@ import type {
   RunPulseResult,
   RunSparktoroInput,
   RunSparktoroResult,
+  RunTalkwalkerInput,
+  RunTalkwalkerResult,
   RagSearchResult,
   RagReembedInput,
   RagReembedPreviewResult,
@@ -224,6 +228,7 @@ export class MarketResearchService {
     deep_provider: string;
     sparktoro_enabled: boolean;
     qualtrics_enabled: boolean;
+    talkwalker_enabled: boolean;
     rag_enabled: boolean;
     rag_openai_embed_enabled: boolean;
     rag_embed_model: 'openai' | 'local';
@@ -232,6 +237,7 @@ export class MarketResearchService {
     const sparktoroKey = String(this.config.sparktoroApiKey ?? '').trim();
     const qualtricsKey = String(this.config.qualtricsApiKey ?? '').trim();
     const qualtricsDc = String(this.config.qualtricsDatacenter ?? '').trim();
+    const talkwalkerToken = String(this.config.talkwalkerAccessToken ?? '').trim();
     const openaiKey = (process.env.OPENAI_API_KEY ?? process.env.OPENAI_KEY ?? '').trim();
     const openaiEmbedLive = Boolean(this.config.researchRagOpenaiEmbedEnabled && openaiKey);
     return {
@@ -242,6 +248,7 @@ export class MarketResearchService {
       qualtrics_enabled: Boolean(
         this.config.researchQualtricsEnabled && qualtricsKey && qualtricsDc,
       ),
+      talkwalker_enabled: Boolean(this.config.researchTalkwalkerEnabled && talkwalkerToken),
       rag_enabled: Boolean(this.config.researchRagEnabled),
       rag_openai_embed_enabled: openaiEmbedLive,
       rag_embed_model: openaiEmbedLive ? 'openai' : 'local',
@@ -2351,6 +2358,64 @@ export class MarketResearchService {
       geo: project.geo,
       apiKey,
     });
+  }
+
+  async runTalkwalker(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: RunTalkwalkerInput,
+    actor: string,
+  ): Promise<RunTalkwalkerResult> {
+    await this.loadScopedProject(projectId, scope);
+    const questionId = Number(input.question_id);
+    if (!Number.isFinite(questionId) || questionId <= 0) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['question_id is required'],
+      });
+    }
+    const question = await this.repo.getQuestion(questionId);
+    if (!question || question.project_id !== projectId) {
+      throw new NotFoundException({ error: 'not_found' });
+    }
+    if (piiHint(question.question_vi)) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['question_vi contains pii'],
+      });
+    }
+    const token = String(this.config.talkwalkerAccessToken ?? '').trim();
+    if (!this.config.researchTalkwalkerEnabled || !token) {
+      return { ok: true, note: 'talkwalker_disabled' };
+    }
+    const run = await this.repo.insertAiRun({
+      projectId,
+      questionId,
+      jobType: 'talkwalker',
+      provider: 'talkwalker',
+      actor,
+    });
+    const candidates = mapTalkwalkerResponse(TALKWALKER_STUB_RESULTS);
+    const source_ids: number[] = [];
+    for (const row of candidates) {
+      const created = await this.repo.createSource(projectId, {
+        title: row.title,
+        url: row.url,
+        publisher: row.publisher,
+        reliability_tier: row.reliability_tier,
+        limitation_note: row.limitation_note,
+        question_id: questionId,
+        source_type: 'social_public',
+        ai_generated: true,
+        keep: true,
+      });
+      source_ids.push(created.id);
+    }
+    await this.repo.succeedAiRun(run.id, {
+      creditsUsed: 0,
+      outputJson: { source_ids, stub: true, note: 'talkwalker_stub' },
+    });
+    return { ok: true, run_id: run.id, status: 'succeeded', source_ids, note: 'talkwalker_stub' };
   }
 
   async runQualtrics(

@@ -37,7 +37,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | SCR-RES-002 | Wizard G0 | `/crm/research/new` | P0 | 002 |
 | SCR-RES-003 | Workspace | `/crm/research/[id]` | P0 | 015 |
 | SCR-RES-003a | Brief | `?tab=brief` | P0 | 003 |
-| SCR-RES-003b | Sources | `?tab=sources` | P0 | 004, 005, 014, 019, 061 |
+| SCR-RES-003b | Sources | `?tab=sources` | P0 | 004, 005, 014, 019, 061, 084 |
 | SCR-RES-003c | Evidence | `?tab=evidence` | P0 | 006, 017 |
 | SCR-RES-003d | Insights | `?tab=insights` | P0 | 007, 008, 011, 018 |
 | SCR-RES-003e | Report | `?tab=report` | P0 | 009, 012 |
@@ -114,6 +114,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-081 | pgvector dual-write + gated ANN | P20 | P20 | Spec ready | FR-INT · NFR-AI-04 |
 | RES-UC-082 | Conjoint lite PRICE_OFFER | P21 | P21 | Spec ready | BR-RES-03 · Design PRICE_OFFER |
 | RES-UC-083 | Staff insight stale banner (RAG) | P22 | P22 | Spec ready | FR-INS-07 · UC-079 |
+| RES-UC-084 | Talkwalker source candidates (stub) | P23 | P23 | Spec ready | FR-SRC · BR-RES-04/06/08/09/11 |
 
 ---
 
@@ -797,6 +798,19 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - Banner: reuse P18 staff copy (`INSIGHT_STALE_BANNER`)
 - **Cấm** endpoint mới; không DDL; không portal; không ẩn hit stale
 
+### RES-UC-084 — Talkwalker source candidates (stub bake-off)
+
+- **Actor chính:** Analyst (`crm_research.run`)
+- **API:** `POST /api/v1/research/projects/:id/run-talkwalker` body `{ question_id }`
+- **Flag:** `RESEARCH_TALKWALKER_ENABLED` default 0; health `talkwalker_enabled` = flag **và** `TALKWALKER_ACCESS_TOKEN`
+- Flag/token off → `200 {ok:true, note:talkwalker_disabled}`; 0 source; 0 HTTP
+- Flag+token on → persist fixture sources `publisher=Talkwalker`, `source_type=social_public`, `note=talkwalker_stub`; **cấm** `createInsight`
+- PII `question_vi` → 400
+- **Màn hình:** Sources — **Chạy Talkwalker** ẩn khi health off
+- Banner: `Nguồn social công khai (stub bake-off) — ghi limitation. Không tự tạo insight.`
+- Scorecard: `docs/specs/2026-08-16-talkwalker-brandwatch-bakeoff-scorecard.md`
+- **Cấm** live Talkwalker HTTP; **cấm** bật flag/token trên prod deploy; không portal; không Brandwatch connector
+
 ### RES-UC-072 — Inject RAG vào insight copilot
 
 - **Actor chính:** Analyst (`run`)
@@ -843,6 +857,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | POST | `/projects/:id/import-survey` | 062 |
 | GET/POST | `/projects/:id/van-westendorp` | 063 |
 | POST | `/projects/:id/run-qualtrics` | 062 |
+| POST | `/projects/:id/run-talkwalker` | 084 |
 | GET | `/insights/search` | 070 |
 | GET | `/api/v1/portal/research/insights/search` | 073 |
 | GET | `/api/v1/portal/research/analytics/themes` | 076 |
