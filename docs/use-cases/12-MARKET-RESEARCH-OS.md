@@ -491,6 +491,16 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P21 — RES-UC-082
+
+| UC | Tóm tắt |
+|----|---------|
+| 082 | Conjoint lite: import CSV choice → bảng share theo thuộc tính + gợi ý gói. |
+
+**Gates:** api + ops-web + DDL P21; không portal; không RAG flags.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

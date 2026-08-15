@@ -43,6 +43,7 @@ import {
   isCodebookCsvFile,
   isVwGeographyMissing,
   surveyStudiesForImport,
+  surveyImportFormatsForProduct,
 } from '@/components/research/studies-codebook.util';
 
 const emptyStudy = {
@@ -56,11 +57,13 @@ const emptyStudy = {
 
 export function StudiesPane({
   projectId,
+  productType,
   canEdit,
   canRun,
   onIngested,
 }: {
   projectId: number;
+  productType?: string;
   canEdit: boolean;
   canRun: boolean;
   onIngested?: () => void;
@@ -86,6 +89,8 @@ export function StudiesPane({
   const [unit, setUnit] = useState(DEFAULT_VW_UNIT);
   const [expertReview, setExpertReview] = useState('');
   const [importing, setImporting] = useState(false);
+
+  const importFormats = surveyImportFormatsForProduct(productType ?? '');
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -419,7 +424,7 @@ export function StudiesPane({
               onChange={(e) => setImportFormat(e.target.value as SurveyImportFormat)}
               style={{ display: 'block', width: '100%', marginTop: 4 }}
             >
-              {SURVEY_IMPORT_FORMATS.map((fmt) => (
+              {importFormats.map((fmt) => (
                 <option key={fmt} value={fmt}>
                   {fmt}
                 </option>

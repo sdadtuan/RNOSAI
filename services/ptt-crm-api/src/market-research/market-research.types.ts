@@ -392,7 +392,7 @@ export type WhisperIngestResult = {
   note?: string;
 };
 
-export const SURVEY_IMPORT_FORMATS = ['codebook', 'vw'] as const;
+export const SURVEY_IMPORT_FORMATS = ['codebook', 'vw', 'conjoint'] as const;
 export type SurveyImportFormat = (typeof SURVEY_IMPORT_FORMATS)[number];
 
 export type CodebookEvidenceDraft = {
@@ -460,6 +460,51 @@ export const VW_LIMITATION =
 
 export const CODEBOOK_LIMITATION =
   'Codebook Forms — không phải panel xác suất. Không suy MOE.';
+
+export const CJ_MAX_ATTRIBUTES = 3;
+export const CJ_MIN_ATTRIBUTES = 2;
+
+export type CjLevelShare = {
+  label: string;
+  count: number;
+  share_pct: number;
+};
+
+export type CjAttributeSummary = {
+  name: string;
+  levels: CjLevelShare[];
+  top_level: string | null;
+};
+
+export type CjRecommendation = {
+  levels: Array<{ attribute: string; level: string; share_pct: number }>;
+};
+
+export type CjSummary = {
+  n: number;
+  n_choices: number;
+  attributes: CjAttributeSummary[];
+  recommendation: CjRecommendation;
+  limitation_note: string;
+  statistical_inference: false;
+};
+
+export type CjChoice = {
+  respondent_id: string;
+  task_id: string;
+  attributes: Record<string, string>;
+};
+
+export type ResearchCjSummaryRow = CjSummary & {
+  id: number;
+  project_id: number;
+  study_id: number | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export const CJ_LIMITATION =
+  'Conjoint lite trên mẫu convenience — đếm mức được chọn theo thuộc tính, không mô hình hoá tương tác. Không market simulator. Không ghi MOE / 95% confidence.';
 
 export type SparkToroSourceCandidate = {
   url: string;

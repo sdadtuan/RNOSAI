@@ -9,6 +9,7 @@ import {
   isCodebookCsvFile,
   isVwGeographyMissing,
   surveyStudiesForImport,
+  surveyImportFormatsForProduct,
 } from './studies-codebook.util';
 
 describe('studies-codebook.util', () => {
@@ -26,8 +27,10 @@ describe('studies-codebook.util', () => {
     expect(isCodebookCsvFile({ name: 'book.xlsx', type: 'application/vnd.ms-excel' })).toBe(false);
   });
 
-  it('lists codebook and vw formats and defaults VW unit to VND', () => {
-    expect(SURVEY_IMPORT_FORMATS).toEqual(['codebook', 'vw']);
+  it('lists codebook, vw, and conjoint formats for PRICE_OFFER', () => {
+    expect(SURVEY_IMPORT_FORMATS).toEqual(['codebook', 'vw', 'conjoint']);
+    expect(surveyImportFormatsForProduct('PRICE_OFFER')).toEqual(['codebook', 'vw', 'conjoint']);
+    expect(surveyImportFormatsForProduct('CAT_REVIEW')).toEqual(['codebook', 'vw']);
     expect(DEFAULT_VW_UNIT).toBe('VND');
   });
 

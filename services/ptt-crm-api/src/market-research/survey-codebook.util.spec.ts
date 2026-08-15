@@ -1,4 +1,4 @@
-import { parseCodebookCsv } from './survey-codebook.util';
+import { parseCodebookCsv, parseConjointCsv, conjointDraftsFromChoices } from './survey-codebook.util';
 
 const CODEBOOK_HEADER =
   'respondent_id,question_code,value,unit,value_base,period_note,geography';
@@ -65,5 +65,29 @@ describe('parseCodebookCsv', () => {
     } catch (err) {
       expect((err as Error & { code: string }).code).toBe('codebook_csv_invalid');
     }
+  });
+
+  it('P21 parseConjointCsv maps choices and drafts', () => {
+    const csv = [
+      'respondent_id,task_id,price,pack_size',
+      'R001,1,99k,500ml',
+      'R001,2,89k,500ml',
+      'R002,1,99k,1L',
+      'R002,2,89k,1L',
+      'R003,1,99k,500ml',
+      'R003,2,99k,1L',
+      'R004,1,89k,500ml',
+      'R004,2,89k,500ml',
+    ].join('\n');
+    const choices = parseConjointCsv(csv);
+    expect(choices).toHaveLength(8);
+    const drafts = conjointDraftsFromChoices(choices, '2026-Q1', 'VN');
+    expect(drafts[0].locator).toBe('C-R001:task-1:price');
+    expect(drafts[0].unit).toBe('99k');
+  });
+
+  it('P21 parseConjointCsv with 1 attribute → cj_too_few_attributes', () => {
+    const csv = ['respondent_id,task_id,price', 'R001,1,99k'].join('\n');
+    expect(() => parseConjointCsv(csv)).toThrow('cj_too_few_attributes');
   });
 });

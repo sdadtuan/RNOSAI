@@ -143,6 +143,8 @@ describe('MarketResearchService', () => {
     createWave: jest.fn(),
     insertVwSummary: jest.fn(),
     getLatestVwSummary: jest.fn(),
+    insertCjSummary: jest.fn(),
+    getLatestCjSummary: jest.fn(),
     listDecisions: jest.fn(),
     createDecision: jest.fn(),
     getDecision: jest.fn(),
@@ -4708,6 +4710,78 @@ describe('MarketResearchService', () => {
     expect(repo.createInsight).not.toHaveBeenCalled();
   });
 
+  it('P21-2a: POST conjoint on CAT_REVIEW is 400 cj_not_price_offer', async () => {
+    stubScopedProject();
+
+    try {
+      await service.createConjoint(9, { restricted: true, allowedClientIds: ['acme'] }, {}, 'am@ptt');
+      throw new Error('expected cj_not_price_offer');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'cj_not_price_offer' });
+    }
+    expect(repo.insertCjSummary).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('P21-2b: PRICE_OFFER + conjoint evidence persists summary; createInsight is not called', async () => {
+    const priceOffer = { ...project, product_type: 'PRICE_OFFER' as const };
+    repo.getProjectClientId.mockResolvedValue('acme');
+    repo.getProject.mockResolvedValue(priceOffer);
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.getStudy.mockResolvedValue({
+      id: 5,
+      project_id: 9,
+      name: 'CJ study',
+      method: 'survey',
+      n: 4,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    });
+    repo.listEvidence.mockResolvedValue(cjEvidenceForStudy(5));
+    const persisted = {
+      id: 1,
+      project_id: 9,
+      study_id: 5,
+      n: 4,
+      n_choices: 8,
+      attributes: [],
+      recommendation: { levels: [] },
+      limitation_note:
+        'Conjoint lite trên mẫu convenience — đếm mức được chọn theo thuộc tính, không mô hình hoá tương tác. Không market simulator. Không ghi MOE / 95% confidence.',
+      statistical_inference: false as const,
+      created_by: 'am@ptt',
+      created_at: '2026-08-15',
+    };
+    repo.insertCjSummary.mockResolvedValue(persisted);
+
+    const out = await service.createConjoint(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { study_id: 5 },
+      'am@ptt',
+    );
+
+    expect(out.n).toBe(4);
+    expect(out.n_choices).toBe(8);
+    expect(out.statistical_inference).toBe(false);
+    expect(repo.insertCjSummary).toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({
+        study_id: 5,
+        n: 4,
+        n_choices: 8,
+        statistical_inference: false,
+      }),
+      'am@ptt',
+    );
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
   it('M3-2c: GET van-westendorp outside scope is 403 without name', async () => {
     repo.getProjectClientId.mockResolvedValue('other-client');
     clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
@@ -5044,6 +5118,38 @@ function vwEvidenceFourRespondents(): ResearchEvidenceRow[] {
     { id: 'R3', too_cheap: 8, cheap: 18, expensive: 38, too_expensive: 48 },
     { id: 'R4', too_cheap: 15, cheap: 25, expensive: 45, too_expensive: 60 },
   ]);
+}
+
+function cjEvidenceForStudy(studyId: number, startId = 400): ResearchEvidenceRow[] {
+  const fixture = [
+    { respondent_id: 'R001', task_id: '1', price: '99k', pack_size: '500ml' },
+    { respondent_id: 'R001', task_id: '2', price: '89k', pack_size: '500ml' },
+    { respondent_id: 'R002', task_id: '1', price: '99k', pack_size: '1L' },
+    { respondent_id: 'R002', task_id: '2', price: '89k', pack_size: '1L' },
+    { respondent_id: 'R003', task_id: '1', price: '99k', pack_size: '500ml' },
+    { respondent_id: 'R003', task_id: '2', price: '99k', pack_size: '1L' },
+    { respondent_id: 'R004', task_id: '1', price: '89k', pack_size: '500ml' },
+    { respondent_id: 'R004', task_id: '2', price: '89k', pack_size: '500ml' },
+  ];
+  const out: ResearchEvidenceRow[] = [];
+  let id = startId;
+  for (const row of fixture) {
+    for (const attr of ['price', 'pack_size'] as const) {
+      out.push(
+        evidenceRow({
+          id: id++,
+          study_id: studyId,
+          locator: `C-${row.respondent_id}:task-${row.task_id}:${attr}`,
+          value_num: 1,
+          unit: row[attr],
+          value_base: attr,
+          period_note: '2026-Q1',
+          geography: 'VN',
+        }),
+      );
+    }
+  }
+  return out;
 }
 
 function competitorRow() {

@@ -3,8 +3,16 @@ export const CODEBOOK_IMPORT_BANNER =
 
 export const CODEBOOK_CSV_ACCEPT = '.csv,text/csv';
 
-export const SURVEY_IMPORT_FORMATS = ['codebook', 'vw'] as const;
+export const SURVEY_IMPORT_FORMATS = ['codebook', 'vw', 'conjoint'] as const;
 export type SurveyImportFormat = (typeof SURVEY_IMPORT_FORMATS)[number];
+
+export function surveyImportFormatsForProduct(productType: string): SurveyImportFormat[] {
+  const base: SurveyImportFormat[] = ['codebook', 'vw'];
+  if (productType === 'PRICE_OFFER') {
+    return [...base, 'conjoint'];
+  }
+  return base;
+}
 
 export const DEFAULT_VW_UNIT = 'VND';
 

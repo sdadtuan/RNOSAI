@@ -198,6 +198,11 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   codebook_csv_invalid: 'CSV codebook không hợp lệ.',
   codebook_row_cap: 'CSV codebook vượt quá 500 dòng.',
   vw_not_price_offer: 'Van Westendorp chỉ dùng cho dự án PRICE_OFFER.',
+  cj_not_price_offer: 'Conjoint lite chỉ dùng cho dự án PRICE_OFFER.',
+  cj_insufficient_n: 'Cần ≥4 người trả lời hợp lệ.',
+  cj_insufficient_choices: 'Cần ≥4 lựa chọn hợp lệ.',
+  cj_too_many_attributes: 'Conjoint lite tối đa 3 thuộc tính.',
+  cj_too_few_attributes: 'Conjoint lite cần ít nhất 2 thuộc tính.',
   vw_insufficient_n: 'Cần ≥4 người trả lời hợp lệ để tính Van Westendorp.',
   rag_disabled: 'Tìm insight đã duyệt đang tắt.',
   rag_query_required: 'Nhập câu hỏi để tìm insight đã duyệt.',
@@ -558,6 +563,46 @@ export type ResearchVwSummaryRow = VwSummary & {
 
 export const VW_LIMITATION =
   'Van Westendorp trên mẫu convenience — không phải census. Không ghi MOE / 95% confidence.';
+
+export type CjLevelShare = {
+  label: string;
+  count: number;
+  share_pct: number;
+};
+
+export type CjAttributeSummary = {
+  name: string;
+  levels: CjLevelShare[];
+  top_level: string | null;
+};
+
+export type CjRecommendation = {
+  levels: Array<{ attribute: string; level: string; share_pct: number }>;
+};
+
+export type CjSummary = {
+  n: number;
+  n_choices: number;
+  attributes: CjAttributeSummary[];
+  recommendation: CjRecommendation;
+  limitation_note: string;
+  statistical_inference: false;
+};
+
+export type ResearchCjSummaryRow = CjSummary & {
+  id: number;
+  project_id: number;
+  study_id: number | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export const CJ_LIMITATION =
+  'Conjoint lite trên mẫu convenience — đếm mức được chọn theo thuộc tính, không mô hình hoá tương tác. Không market simulator. Không ghi MOE / 95% confidence.';
+
+export type CreateConjointBody = {
+  study_id?: number | null;
+};
 
 export type CreateVanWestendorpBody = {
   study_id?: number | null;
@@ -1474,6 +1519,24 @@ export async function createResearchVanWestendorp(
   body: CreateVanWestendorpBody = {},
 ): Promise<ResearchVwSummaryRow> {
   return researchFetch(token, `/api/v1/research/projects/${projectId}/van-westendorp`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchResearchConjoint(
+  token: string,
+  projectId: number,
+): Promise<{ summary: ResearchCjSummaryRow | null }> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/conjoint`);
+}
+
+export async function createResearchConjoint(
+  token: string,
+  projectId: number,
+  body: CreateConjointBody = {},
+): Promise<ResearchCjSummaryRow> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/conjoint`, {
     method: 'POST',
     body: JSON.stringify(body),
   });

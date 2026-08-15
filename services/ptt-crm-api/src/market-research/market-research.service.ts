@@ -136,6 +136,7 @@ import type {
   WhisperIngestResult,
   TrendSignal,
   SubmitReviewInput,
+  ResearchCjSummaryRow,
   ResearchVwSummaryRow,
 } from './market-research.types';
 import {
@@ -158,8 +159,11 @@ import type { InsightEmbedResult } from './market-research.types';
 import {
   isSurveyEvidenceLocator,
   parseCodebookCsv,
+  parseConjointCsv,
+  conjointDraftsFromChoices,
   parseVwCsv,
 } from './survey-codebook.util';
+import { choicesFromCjEvidence, computeConjointLite } from './conjoint-lite.util';
 import { computeVanWestendorp, respondentsFromVwEvidence } from './van-westendorp.util';
 import {
   embedInsightText,
@@ -807,12 +811,20 @@ export class MarketResearchService {
 
     let drafts: CodebookEvidenceDraft[];
     try {
-      drafts = format === 'vw' ? this.draftsFromVw(input) : parseCodebookCsv(input.csvText);
+      if (format === 'vw') {
+        drafts = this.draftsFromVw(input);
+      } else if (format === 'conjoint') {
+        drafts = this.draftsFromConjoint(input);
+      } else {
+        drafts = parseCodebookCsv(input.csvText);
+      }
     } catch (err) {
       this.rethrowUtilCode(err, [
         'survey_pii_forbidden',
         'codebook_csv_invalid',
         'codebook_row_cap',
+        'cj_too_few_attributes',
+        'cj_too_many_attributes',
       ]);
     }
 
@@ -943,6 +955,17 @@ export class MarketResearchService {
     return drafts;
   }
 
+  private draftsFromConjoint(input: {
+    csvText: string;
+    periodNote?: string | null;
+    geography?: string | null;
+  }): CodebookEvidenceDraft[] {
+    const period_note = String(input.periodNote ?? '').trim();
+    const geography = String(input.geography ?? '').trim();
+    const choices = parseConjointCsv(input.csvText);
+    return conjointDraftsFromChoices(choices, period_note, geography);
+  }
+
   private async resolveImportStudy(
     projectId: number,
     scope: ClientScopeContext,
@@ -985,6 +1008,104 @@ export class MarketResearchService {
     if (project.product_type !== 'PRICE_OFFER') {
       throw new BadRequestException({ error: 'vw_not_price_offer' });
     }
+  }
+
+  private assertPriceOfferConjoint(project: ResearchProjectRow): void {
+    if (project.product_type !== 'PRICE_OFFER') {
+      throw new BadRequestException({ error: 'cj_not_price_offer' });
+    }
+  }
+
+  async getConjoint(
+    projectId: number,
+    scope: ClientScopeContext,
+  ): Promise<{ summary: ResearchCjSummaryRow | null }> {
+    await this.loadScopedProject(projectId, scope);
+    const summary = await this.repo.getLatestCjSummary(projectId);
+    return { summary: summary ?? null };
+  }
+
+  async createConjoint(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: { study_id?: number | null },
+    actor: string,
+  ): Promise<ResearchCjSummaryRow> {
+    const project = await this.loadScopedProject(projectId, scope);
+    this.assertPriceOfferConjoint(project);
+
+    let studyId: number | null = null;
+    if (input.study_id != null && String(input.study_id).trim() !== '') {
+      const id = Number(input.study_id);
+      if (!Number.isInteger(id) || id < 1) {
+        throw new BadRequestException({
+          error: 'validation_error',
+          messages: ['study_id is invalid'],
+        });
+      }
+      const existing = await this.repo.getStudy(id);
+      if (!existing || existing.project_id !== projectId || existing.method !== 'survey') {
+        throw new BadRequestException({
+          error: 'validation_error',
+          messages: ['study_id is invalid'],
+        });
+      }
+      studyId = id;
+    }
+
+    const evidence = await this.repo.listEvidence(projectId);
+    let rows = evidence.filter((row) => String(row.locator ?? '').trim().startsWith('C-'));
+    if (studyId == null) {
+      const studies = await this.repo.listStudies(projectId);
+      const surveyIds = new Set(
+        studies.filter((study) => study.method === 'survey').map((study) => study.id),
+      );
+      const candidateIds = [
+        ...new Set(
+          rows
+            .map((row) => row.study_id)
+            .filter((id): id is number => id != null && surveyIds.has(id)),
+        ),
+      ].sort((a, b) => b - a);
+      studyId = candidateIds[0] ?? null;
+    }
+    rows = studyId != null ? rows.filter((row) => row.study_id === studyId) : [];
+
+    const choices = choicesFromCjEvidence(
+      rows.map((row) => ({
+        value_num: row.value_num,
+        value_base: String(row.value_base ?? ''),
+        locator: String(row.locator ?? ''),
+        unit: row.unit != null ? String(row.unit) : null,
+      })),
+    );
+
+    let computed: ReturnType<typeof computeConjointLite>;
+    try {
+      computed = computeConjointLite(choices);
+    } catch (err) {
+      this.rethrowUtilCode(err, [
+        'cj_insufficient_n',
+        'cj_insufficient_choices',
+        'cj_too_few_attributes',
+        'cj_too_many_attributes',
+        'forbidden_confidence_wording',
+      ]);
+    }
+
+    return this.repo.insertCjSummary(
+      projectId,
+      {
+        study_id: studyId,
+        n: computed.n,
+        n_choices: computed.n_choices,
+        attributes: computed.attributes,
+        recommendation: computed.recommendation,
+        limitation_note: computed.limitation_note,
+        statistical_inference: false,
+      },
+      actor,
+    );
   }
 
   async getVanWestendorp(

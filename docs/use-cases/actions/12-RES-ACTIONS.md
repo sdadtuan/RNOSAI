@@ -659,7 +659,24 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
-## P20+ (backlog — conjoint / Talkwalker / staff RAG stale)
+## Walkthrough UAT P21 — Conjoint lite (≈10 phút)
+
+**Mục tiêu:** *«Analyst import conjoint CSV → evidence; PRICE_OFFER tính bảng share + gợi ý; không insight; F5 còn.»*
+
+**Tiền đề:** project `PRICE_OFFER` · fixture `scripts/fixtures/research-conjoint.sample.csv`
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | AN | Studies → import `format=conjoint` | Study + evidence `C-…`; không insight mới |
+| 2 | AN | Tab **Conjoint** → **Tính conjoint lite** | Bảng share % + gợi ý gói |
+| 3 | AN | F5 | Summary còn |
+| 4 | AN | Project `CAT_REVIEW` → POST conjoint | 400 `cj_not_price_offer` |
+| 5 | AN | <4 respondents | 400 `cj_insufficient_n` |
+| 6 | QA | Prod sau deploy P21 | Không đổi RAG/pgvector flags |
+
+- [ ] Bước 1–6 pass staging
+
+## P21+ (backlog — Talkwalker / staff RAG stale / pgvector prod)
 
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 

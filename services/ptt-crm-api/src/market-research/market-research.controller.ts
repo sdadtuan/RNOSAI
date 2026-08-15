@@ -619,6 +619,25 @@ export class MarketResearchController {
     return this.research.createVanWestendorp(id, scope, body ?? {}, actorEmail(req));
   }
 
+  @Get('projects/:id/conjoint')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async getConjoint(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.getConjoint(id, scope);
+  }
+
+  @Post('projects/:id/conjoint')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchEditGuard)
+  async createConjoint(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { study_id?: number | null },
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.createConjoint(id, scope, body ?? {}, actorEmail(req));
+  }
+
   @Get('projects/:id/decisions')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
   async listDecisions(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {

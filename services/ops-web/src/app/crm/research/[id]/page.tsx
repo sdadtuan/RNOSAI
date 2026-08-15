@@ -18,7 +18,9 @@ import { StudiesPane } from '@/components/research/StudiesPane';
 import { DecisionLogPane } from '@/components/research/DecisionLogPane';
 import { WavesPane } from '@/components/research/WavesPane';
 import { VwPane } from '@/components/research/VwPane';
+import { ConjointPane } from '@/components/research/ConjointPane';
 import { shouldShowVwTab } from '@/components/research/vw-pane.util';
+import { shouldShowConjointTab } from '@/components/research/conjoint-pane.util';
 import { SourceKeepTable } from '@/components/research/SourceKeepTable';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
@@ -1084,6 +1086,9 @@ function CrmResearchWorkspaceContent() {
                 ...TABS,
                 ...(project.product_type === 'TRACKER' ? ([{ id: 'waves', label: 'Waves' }] as const) : []),
                 ...(shouldShowVwTab(project.product_type) ? ([{ id: 'vw', label: 'Giá VW' }] as const) : []),
+                ...(shouldShowConjointTab(project.product_type)
+                  ? ([{ id: 'conjoint', label: 'Conjoint' }] as const)
+                  : []),
               ].map((t) => (
                 <Link
                   key={t.id}
@@ -1169,6 +1174,7 @@ function CrmResearchWorkspaceContent() {
             ) : tab === 'studies' ? (
               <StudiesPane
                 projectId={project.id}
+                productType={project.product_type}
                 canEdit={canEdit}
                 canRun={canRun}
                 onIngested={() => {
@@ -1228,6 +1234,8 @@ function CrmResearchWorkspaceContent() {
               <WavesPane projectId={project.id} canEdit={canEdit} />
             ) : tab === 'vw' && shouldShowVwTab(project.product_type) ? (
               <VwPane projectId={project.id} canEdit={canEdit} />
+            ) : tab === 'conjoint' && shouldShowConjointTab(project.product_type) ? (
+              <ConjointPane projectId={project.id} canEdit={canEdit} />
             ) : tab === 'decisions' ? (
               <DecisionLogPane
                 projectId={project.id}

@@ -24,6 +24,9 @@ import type {
   ResearchStudy,
   ResearchWave,
   ResearchDecision,
+  ResearchCjSummaryRow,
+  CjAttributeSummary,
+  CjRecommendation,
   ResearchVwSummaryRow,
   VwBin,
   VwPoints,
@@ -1575,6 +1578,72 @@ export class MarketResearchRepository implements OnModuleDestroy {
       ],
     );
     return this.mapVwSummary(result.rows[0]);
+  }
+
+  private mapCjSummary(row: Record<string, unknown>): ResearchCjSummaryRow {
+    return {
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      study_id: row.study_id != null ? Number(row.study_id) : null,
+      n: Number(row.n),
+      n_choices: Number(row.n_choices),
+      attributes: parseJsonCol(row.attributes, []),
+      recommendation: parseJsonCol(row.recommendation, { levels: [] }),
+      limitation_note: String(row.limitation_note),
+      statistical_inference: false,
+      created_by: row.created_by != null ? String(row.created_by) : null,
+      created_at: String(row.created_at),
+    };
+  }
+
+  private readonly cjSummarySelect = `
+    SELECT id, project_id, study_id, n, n_choices, attributes, recommendation,
+           limitation_note, statistical_inference, created_by, created_at::text AS created_at
+    FROM crm_research_cj_summaries
+  `;
+
+  async getLatestCjSummary(projectId: number): Promise<ResearchCjSummaryRow | null> {
+    const result = await this.db.query(
+      `${this.cjSummarySelect} WHERE project_id = $1 ORDER BY id DESC LIMIT 1`,
+      [projectId],
+    );
+    const row = result.rows[0];
+    return row ? this.mapCjSummary(row) : null;
+  }
+
+  async insertCjSummary(
+    projectId: number,
+    input: {
+      study_id: number | null;
+      n: number;
+      n_choices: number;
+      attributes: CjAttributeSummary[];
+      recommendation: CjRecommendation;
+      limitation_note: string;
+      statistical_inference: false;
+    },
+    actor: string,
+  ): Promise<ResearchCjSummaryRow> {
+    const result = await this.db.query(
+      `INSERT INTO crm_research_cj_summaries (
+         project_id, study_id, n, n_choices, attributes, recommendation,
+         limitation_note, statistical_inference, created_by
+       ) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9)
+       RETURNING id, project_id, study_id, n, n_choices, attributes, recommendation,
+                 limitation_note, statistical_inference, created_by, created_at::text AS created_at`,
+      [
+        projectId,
+        input.study_id,
+        input.n,
+        input.n_choices,
+        JSON.stringify(input.attributes ?? []),
+        JSON.stringify(input.recommendation ?? { levels: [] }),
+        input.limitation_note,
+        false,
+        actor,
+      ],
+    );
+    return this.mapCjSummary(result.rows[0]);
   }
 
   private mapDecision(row: Record<string, unknown>): ResearchDecision {

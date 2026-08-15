@@ -112,6 +112,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-079 | Insight stale banner (`valid_to`) | P18 | P18 | Spec ready | FR-INS-07 |
 | RES-UC-080 | Portal insight stale banner (RAG) | P19 | P19 | Spec ready | FR-INS-07 · UC-079 |
 | RES-UC-081 | pgvector dual-write + gated ANN | P20 | P20 | Spec ready | FR-INT · NFR-AI-04 |
+| RES-UC-082 | Conjoint lite PRICE_OFFER | P21 | P21 | Spec ready | BR-RES-03 · Design PRICE_OFFER |
 
 ---
 
@@ -776,6 +777,15 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Off:** JSONB + `rankRagHits` như P19
 - **On:** ANN prefilter same-dim → `rankRagHits`
 - **Cấm** bật flag trên prod deploy; không cắt JSONB; không IVFFlat/HNSW; không Talkwalker / conjoint
+
+### RES-UC-082 — Conjoint lite PRICE_OFFER
+
+- `GET /api/v1/research/projects/:id/conjoint` cap `view` → `{ summary }`
+- `POST /api/v1/research/projects/:id/conjoint` body `{ study_id? }` cap `edit`
+- `POST …/import-survey` `format=conjoint` → evidence locator `C-{id}:task-{n}:{attr}`
+- Không `PRICE_OFFER` → 400 `cj_not_price_offer`; n < 4 → `cj_insufficient_n`; n_choices < 4 → `cj_insufficient_choices`
+- Bảng level share + recommendation; **cấm** MOE / simulator / `createInsight`
+- Fixture: `scripts/fixtures/research-conjoint.sample.csv`
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 
