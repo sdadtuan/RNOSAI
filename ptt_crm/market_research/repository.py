@@ -403,3 +403,106 @@ def insert_evidence(
     if not row:
         raise RuntimeError("insert_evidence failed")
     return {"id": int(row[0]), "excerpt": row[1], "locator": row[2]}
+
+
+def load_study_for_project(study_id: int, project_id: int) -> dict[str, Any] | None:
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, project_id, name, method, instrument_version, weighting_note, n
+                FROM crm_research_studies
+                WHERE id = %s AND project_id = %s
+                """,
+                (study_id, project_id),
+            )
+            row = cur.fetchone()
+    if not row:
+        return None
+    return {
+        "id": int(row[0]),
+        "project_id": int(row[1]),
+        "name": row[2],
+        "method": row[3],
+        "instrument_version": row[4],
+        "weighting_note": row[5],
+        "n": row[6],
+    }
+
+
+def insert_qualtrics_codebook_evidence(
+    *,
+    project_id: int,
+    study_id: int,
+    study_name: str,
+    drafts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    from ptt_crm.market_research.pii_guard import pii_hint
+
+    for draft in drafts:
+        for key in ("locator", "unit", "value_base", "period_note", "geography", "respondent_id"):
+            if pii_hint(str(draft.get(key) or "")):
+                raise RuntimeError("survey_pii_forbidden")
+
+    evidence_ids: list[int] = []
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO crm_research_sources (
+                  project_id, source_type, title, publisher, reliability_tier,
+                  limitation_note, ai_generated, keep, triangulated
+                ) VALUES (
+                  %s, 'survey', %s, 'Qualtrics', 'medium', %s, true, true, false
+                )
+                RETURNING id
+                """,
+                (project_id, study_name[:500], QUALTRICS_LIMITATION_NOTE),
+            )
+            source_row = cur.fetchone()
+            if not source_row:
+                raise RuntimeError("insert_qualtrics_source failed")
+            source_id = int(source_row[0])
+
+            for draft in drafts:
+                cur.execute(
+                    """
+                    INSERT INTO crm_research_evidence (
+                      project_id, source_id, study_id, locator, value_num, unit,
+                      value_base, period_note, geography, pii_class, created_by
+                    ) VALUES (
+                      %s, %s, %s, %s, %s, %s, %s, %s, %s, 'none', 'qualtrics'
+                    )
+                    RETURNING id
+                    """,
+                    (
+                        project_id,
+                        source_id,
+                        study_id,
+                        str(draft.get("locator") or "")[:200],
+                        draft.get("value_num"),
+                        str(draft.get("unit") or "")[:80],
+                        str(draft.get("value_base") or "")[:80],
+                        str(draft.get("period_note") or "")[:200] or None,
+                        str(draft.get("geography") or "")[:80] or None,
+                    ),
+                )
+                ev_row = cur.fetchone()
+                if ev_row:
+                    evidence_ids.append(int(ev_row[0]))
+
+            respondents = {str(d.get("respondent_id") or "") for d in drafts if d.get("respondent_id")}
+            cur.execute(
+                """
+                UPDATE crm_research_studies SET n = %s, updated_at = now()
+                WHERE id = %s AND project_id = %s
+                """,
+                (len(respondents), study_id, project_id),
+            )
+        conn.commit()
+    return {"source_id": source_id, "evidence_ids": evidence_ids, "n": len(respondents)}
+
+
+QUALTRICS_LIMITATION_NOTE = (
+    "Mẫu convenience Qualtrics — không MOE/95%. Không suy đại diện dân số."
+)

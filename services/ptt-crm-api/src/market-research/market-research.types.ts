@@ -460,10 +460,32 @@ export type RunSparktoroResult = {
   source_ids?: number[];
 };
 
-export type RunQualtricsResult = {
-  ok: true;
-  note: 'qualtrics_disabled';
+export type RunQualtricsInput = {
+  study_id: number;
+  column_map?: Record<string, QualtricsColumnMapEntry>;
 };
+
+export type QualtricsColumnMapEntry = {
+  question_code: string;
+  unit: string;
+  value_base: string;
+  period_note?: string;
+  geography?: string;
+};
+
+export const QUALTRICS_LIMITATION_NOTE =
+  'Mẫu convenience Qualtrics — không MOE/95%. Không suy đại diện dân số.';
+
+export const QUALTRICS_SURVEY_ID_RE = /^SV_[A-Za-z0-9]+$/;
+
+export type RunQualtricsResult =
+  | { ok: true; note: 'qualtrics_disabled' }
+  | {
+      ok: true;
+      run_id: number;
+      status: 'pending' | 'succeeded' | 'failed';
+      evidence_ids?: number[];
+    };
 
 export type CreateSourceInput = {
   title: string;

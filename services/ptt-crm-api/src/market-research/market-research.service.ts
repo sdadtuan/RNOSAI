@@ -50,6 +50,8 @@ import { assertNoRawInPayload, excerptsFromTranscript } from './whisper-excerpt.
 import { transcribeAudio } from './whisper-transcribe';
 import { collectSparkToro } from './sparktoro-collect';
 import { mapSparkToroResponse } from './sparktoro-mapper.util';
+import { collectQualtrics } from './qualtrics-collect';
+import { resolveQualtricsColumnMap } from './qualtrics-map.util';
 import type {
   ApproveInsightInput,
   CodebookEvidenceDraft,
@@ -123,7 +125,9 @@ import type {
   CreateTaxonomyInput,
   PatchTaxonomyInput,
   AttachInsightThemeInput,
+  RunQualtricsInput,
   RunQualtricsResult,
+  QualtricsColumnMapEntry,
   RunTriangulateResult,
   WhisperIngestResult,
   TrendSignal,
@@ -134,6 +138,8 @@ import {
   CODEBOOK_LIMITATION,
   CONSENT_TYPES,
   DECISION_STATUSES,
+  QUALTRICS_LIMITATION_NOTE,
+  QUALTRICS_SURVEY_ID_RE,
   RAG_COPILOT_HIT_LIMIT,
   STUDY_METHODS,
   STUDY_MODES,
@@ -206,12 +212,15 @@ export class MarketResearchService {
   } {
     const sparktoroKey = String(this.config.sparktoroApiKey ?? '').trim();
     const qualtricsKey = String(this.config.qualtricsApiKey ?? '').trim();
+    const qualtricsDc = String(this.config.qualtricsDatacenter ?? '').trim();
     return {
       ok: true,
       enabled: true,
       deep_provider: this.config.researchDeepProvider,
       sparktoro_enabled: Boolean(this.config.researchSparktoroEnabled && sparktoroKey),
-      qualtrics_enabled: Boolean(this.config.researchQualtricsEnabled && qualtricsKey),
+      qualtrics_enabled: Boolean(
+        this.config.researchQualtricsEnabled && qualtricsKey && qualtricsDc,
+      ),
       rag_enabled: Boolean(this.config.researchRagEnabled),
     };
   }
@@ -766,21 +775,64 @@ export class MarketResearchService {
 
     const study = await this.resolveImportStudy(projectId, scope, input.studyId, actor);
     const expert = String(input.expertReview ?? '').trim();
-    const source = await this.createSource(projectId, scope, {
-      title: study.name,
+    const { source_id, evidence_ids, n } = await this.persistCodebookDrafts({
+      projectId,
+      study,
+      drafts,
       publisher: 'Forms',
-      reliability_tier: 'medium',
-      limitation_note: expert || CODEBOOK_LIMITATION,
-      ai_generated: false,
+      limitationNote: expert || CODEBOOK_LIMITATION,
+      aiGenerated: false,
+      actor,
+      scope,
     });
+    return {
+      ok: true,
+      study_id: study.id,
+      source_id,
+      evidence_ids,
+      n,
+    };
+  }
 
+  private async persistCodebookDrafts(input: {
+    projectId: number;
+    study: ResearchStudy;
+    drafts: CodebookEvidenceDraft[];
+    publisher: 'Qualtrics' | 'Forms';
+    limitationNote: string;
+    aiGenerated: boolean;
+    actor: string;
+    scope: ClientScopeContext;
+  }): Promise<{ source_id: number; evidence_ids: number[]; n: number }> {
+    for (const draft of input.drafts) {
+      const messages = validateCreateEvidence({
+        study_id: input.study.id,
+        source_id: 1,
+        locator: draft.locator,
+        value_num: draft.value_num,
+        unit: draft.unit,
+        value_base: draft.value_base,
+        period_note: draft.period_note,
+        geography: draft.geography,
+      });
+      if (messages.length) {
+        throw new BadRequestException({ error: 'validation_error', messages });
+      }
+    }
+    const source = await this.createSource(input.projectId, input.scope, {
+      title: input.study.name,
+      publisher: input.publisher,
+      reliability_tier: 'medium',
+      limitation_note: input.limitationNote,
+      ai_generated: input.aiGenerated,
+    });
     const evidence_ids: number[] = [];
-    for (const draft of drafts) {
+    for (const draft of input.drafts) {
       const ev = await this.createEvidence(
-        projectId,
-        scope,
+        input.projectId,
+        input.scope,
         {
-          study_id: study.id,
+          study_id: input.study.id,
           source_id: source.id,
           locator: draft.locator,
           value_num: draft.value_num,
@@ -789,20 +841,13 @@ export class MarketResearchService {
           period_note: draft.period_note,
           geography: draft.geography,
         },
-        actor,
+        input.actor,
       );
       evidence_ids.push(ev.id);
     }
-
-    const n = new Set(drafts.map((d) => d.respondent_id)).size;
-    await this.patchStudy(study.id, scope, { n });
-    return {
-      ok: true,
-      study_id: study.id,
-      source_id: source.id,
-      evidence_ids,
-      n,
-    };
+    const n = new Set(input.drafts.map((d) => d.respondent_id)).size;
+    await this.patchStudy(input.study.id, input.scope, { n });
+    return { source_id: source.id, evidence_ids, n };
   }
 
   private draftsFromVw(input: {
@@ -1941,10 +1986,126 @@ export class MarketResearchService {
   async runQualtrics(
     projectId: number,
     scope: ClientScopeContext,
-    _actor: string,
+    input: RunQualtricsInput,
+    actor: string,
   ): Promise<RunQualtricsResult> {
-    await this.loadScopedProject(projectId, scope);
-    return { ok: true, note: 'qualtrics_disabled' };
+    const project = await this.loadScopedProject(projectId, scope);
+    const apiKey = String(this.config.qualtricsApiKey ?? '').trim();
+    const datacenter = String(this.config.qualtricsDatacenter ?? '').trim();
+    if (!this.config.researchQualtricsEnabled || !apiKey || !datacenter) {
+      return { ok: true, note: 'qualtrics_disabled' };
+    }
+
+    const studyId = Number(input.study_id);
+    if (!Number.isFinite(studyId) || studyId <= 0) {
+      throw new BadRequestException({
+        error: 'validation_error',
+        messages: ['study_id is required'],
+      });
+    }
+    const study = await this.repo.getStudy(studyId);
+    if (!study || study.project_id !== projectId || study.method !== 'survey') {
+      throw new NotFoundException({ error: 'not_found' });
+    }
+    const surveyId = String(study.instrument_version ?? '').trim();
+    if (!QUALTRICS_SURVEY_ID_RE.test(surveyId)) {
+      throw new BadRequestException({
+        error: 'qualtrics_survey_id_required',
+        messages: ['qualtrics_survey_id_required'],
+      });
+    }
+    const columnMap = resolveQualtricsColumnMap(study, input.column_map);
+    if (!columnMap) {
+      throw new BadRequestException({
+        error: 'qualtrics_map_required',
+        messages: ['qualtrics_map_required'],
+      });
+    }
+
+    const run = await this.repo.insertAiRun({
+      projectId,
+      questionId: null,
+      jobType: 'qualtrics',
+      provider: 'qualtrics',
+      actor,
+    });
+    const job = await this.jobQueue.enqueueResearchQualtricsJob({
+      projectId,
+      studyId,
+      runId: run.id,
+      columnMap,
+      clientId: project.client_id,
+      idempotencyKey: `research_qualtrics:${projectId}:${studyId}:run:${run.id}`,
+    });
+    if (job) {
+      return { ok: true, run_id: run.id, status: 'pending' };
+    }
+    return this.persistQualtricsEvidence({
+      projectId,
+      study,
+      columnMap,
+      runId: run.id,
+      apiKey,
+      datacenter,
+      actor,
+      scope,
+    });
+  }
+
+  private async persistQualtricsEvidence(input: {
+    projectId: number;
+    study: ResearchStudy;
+    columnMap: Record<string, QualtricsColumnMapEntry>;
+    runId: number;
+    apiKey: string;
+    datacenter: string;
+    actor: string;
+    scope: ClientScopeContext;
+  }): Promise<RunQualtricsResult> {
+    const surveyId = String(input.study.instrument_version ?? '').trim();
+    let collected: Awaited<ReturnType<typeof collectQualtrics>>;
+    try {
+      collected = await collectQualtrics({
+        surveyId,
+        apiKey: input.apiKey,
+        datacenter: input.datacenter,
+        columnMap: input.columnMap,
+      });
+    } catch (err) {
+      const code =
+        err && typeof err === 'object' && 'code' in err ? String((err as { code?: string }).code) : '';
+      if (code === 'survey_pii_forbidden') {
+        await this.repo.failAiRun(input.runId, 'survey_pii_forbidden');
+        return { ok: true, run_id: input.runId, status: 'failed' };
+      }
+      await this.repo.failAiRun(input.runId, 'qualtrics_failed');
+      return { ok: true, run_id: input.runId, status: 'failed' };
+    }
+    if (!collected.drafts.length) {
+      await this.repo.failAiRun(input.runId, 'qualtrics_failed');
+      return { ok: true, run_id: input.runId, status: 'failed' };
+    }
+    const { source_id, evidence_ids, n } = await this.persistCodebookDrafts({
+      projectId: input.projectId,
+      study: input.study,
+      drafts: collected.drafts,
+      publisher: 'Qualtrics',
+      limitationNote: QUALTRICS_LIMITATION_NOTE,
+      aiGenerated: true,
+      actor: input.actor,
+      scope: input.scope,
+    });
+    await this.repo.succeedAiRun(input.runId, {
+      outputJson: {
+        evidence_ids,
+        source_id,
+        n,
+        progress_id: collected.progress_id,
+        file_id: collected.file_id,
+        survey_id: surveyId,
+      },
+    });
+    return { ok: true, run_id: input.runId, status: 'succeeded', evidence_ids };
   }
 
   private async persistSparktoroSources(input: {

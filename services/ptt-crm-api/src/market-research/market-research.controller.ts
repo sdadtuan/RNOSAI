@@ -78,6 +78,7 @@ import type {
   RunDeskInput,
   RunPulseInput,
   RunSparktoroInput,
+  RunQualtricsInput,
 } from './market-research.types';
 
 const WHISPER_MAX_BYTES = 25 * 1024 * 1024;
@@ -340,11 +341,22 @@ export class MarketResearchController {
   }
 
   @Post('projects/:id/run-qualtrics')
-  @HttpCode(HttpStatus.OK)
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
-  async runQualtrics(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+  async runQualtrics(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: RunQualtricsInput,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
-    return this.research.runQualtrics(id, scope, actorEmail(req));
+    const out = await this.research.runQualtrics(
+      id,
+      scope,
+      body ?? ({} as RunQualtricsInput),
+      actorEmail(req),
+    );
+    res.status(out.note === 'qualtrics_disabled' ? HttpStatus.OK : HttpStatus.ACCEPTED);
+    return out;
   }
 
   @Get('projects/:id/jobs/:runId')

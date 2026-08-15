@@ -191,6 +191,9 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   raw_transcript_forbidden: 'Chỉ lưu đoạn trích ≤ 500 ký tự. Không lưu transcript đầy đủ.',
   sparktoro_disabled: 'SparkToro đang tắt — không tạo insight.',
   qualtrics_disabled: 'Qualtrics đang tắt — không tạo insight.',
+  qualtrics_failed: 'Export Qualtrics thất bại — thử lại hoặc kiểm tra map/SV ID.',
+  qualtrics_map_required: 'Thiếu column map — gửi body hoặc ghi qualtrics_column_map vào weighting_note.',
+  qualtrics_survey_id_required: 'Study cần instrument_version dạng SV_…',
   survey_pii_forbidden: 'CSV codebook không được chứa SĐT hoặc email.',
   codebook_csv_invalid: 'CSV codebook không hợp lệ.',
   codebook_row_cap: 'CSV codebook vượt quá 500 dòng.',
@@ -969,9 +972,11 @@ export async function runResearchSparktoro(
 export async function runResearchQualtrics(
   token: string,
   projectId: number,
-): Promise<{ ok: true; note: 'qualtrics_disabled' }> {
+  body: { study_id: number; column_map?: Record<string, unknown> },
+): Promise<{ ok: true; note?: 'qualtrics_disabled'; run_id?: number; status?: string; evidence_ids?: number[] }> {
   return researchFetch(token, `/api/v1/research/projects/${projectId}/run-qualtrics`, {
     method: 'POST',
+    body: JSON.stringify(body),
   });
 }
 

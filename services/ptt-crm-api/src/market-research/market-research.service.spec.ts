@@ -18,6 +18,7 @@ import {
 } from './market-research.types';
 import { transcribeAudio } from './whisper-transcribe';
 import { collectSparkToro } from './sparktoro-collect';
+import { collectQualtrics } from './qualtrics-collect';
 import { computeVanWestendorp } from './van-westendorp.util';
 import { embedInsightText, insightEmbedText, isRagCorpusStatus } from './research-rag.util';
 
@@ -27,6 +28,10 @@ jest.mock('./whisper-transcribe', () => ({
 
 jest.mock('./sparktoro-collect', () => ({
   collectSparkToro: jest.fn(),
+}));
+
+jest.mock('./qualtrics-collect', () => ({
+  collectQualtrics: jest.fn(),
 }));
 
 const project: ResearchProjectRow = {
@@ -152,6 +157,7 @@ describe('MarketResearchService', () => {
     enqueueResearchPulseJob: jest.fn(),
     enqueueResearchWhisperJob: jest.fn(),
     enqueueResearchSparktoroJob: jest.fn(),
+    enqueueResearchQualtricsJob: jest.fn(),
   };
   const opsAlerts = {
     upsertAlert: jest.fn(),
@@ -171,6 +177,7 @@ describe('MarketResearchService', () => {
     sparktoroApiKey: '',
     researchQualtricsEnabled: false,
     qualtricsApiKey: '',
+    qualtricsDatacenter: '',
     researchRagEnabled: false,
   };
 
@@ -184,6 +191,7 @@ describe('MarketResearchService', () => {
     config.sparktoroApiKey = '';
     config.researchQualtricsEnabled = false;
     config.qualtricsApiKey = '';
+    config.qualtricsDatacenter = '';
     config.researchRagEnabled = false;
     repo.listTrendSignals.mockResolvedValue([]);
     llm.isConfigured.mockReturnValue(true);
@@ -2270,13 +2278,21 @@ describe('MarketResearchService', () => {
     expect(JSON.stringify(payload)).not.toMatch(/QUALTRICS_API_KEY/);
   });
 
-  it('health qualtrics_enabled is true only when flag and key are both present', () => {
+  it('health qualtrics_enabled is true only when flag, key and datacenter are present', () => {
     config.researchQualtricsEnabled = true;
     config.qualtricsApiKey = 'qx-secret-never-leak';
+    config.qualtricsDatacenter = 'iad1';
     const payload = service.health();
     expect(payload.qualtrics_enabled).toBe(true);
     expect(JSON.stringify(payload)).not.toContain('qx-secret-never-leak');
-    expect(JSON.stringify(payload)).not.toMatch(/qualtricsApiKey|QUALTRICS_API_KEY/);
+    expect(JSON.stringify(payload)).not.toMatch(/qualtricsApiKey|QUALTRICS_API_KEY|QUALTRICS_DATACENTER/);
+  });
+
+  it('health qualtrics_enabled is false when datacenter is missing', () => {
+    config.researchQualtricsEnabled = true;
+    config.qualtricsApiKey = 'qx-secret-never-leak';
+    config.qualtricsDatacenter = '';
+    expect(service.health().qualtrics_enabled).toBe(false);
   });
 
   it('health rag_enabled is false by default and does not leak RESEARCH_RAG', () => {
@@ -2544,6 +2560,7 @@ describe('MarketResearchService', () => {
     const out = await service.runQualtrics(
       9,
       { restricted: true, allowedClientIds: ['acme'] },
+      { study_id: 5 },
       'am@ptt',
     );
 
@@ -2552,35 +2569,252 @@ describe('MarketResearchService', () => {
     expect(repo.insertAiRun).not.toHaveBeenCalled();
     expect(repo.createSource).not.toHaveBeenCalled();
     expect(repo.createReportDraft).not.toHaveBeenCalled();
-    expect(Object.keys(jobQueue).some((k) => /qualtrics/i.test(k))).toBe(false);
-    for (const fn of Object.values(jobQueue)) {
-      if (typeof fn === 'function' && 'mock' in fn) {
-        expect(fn).not.toHaveBeenCalled();
-      }
-    }
+    expect(Object.keys(jobQueue).some((k) => /qualtrics/i.test(k))).toBe(true);
+    expect(jobQueue.enqueueResearchQualtricsJob).not.toHaveBeenCalled();
   });
 
-  it('flag and key on still returns qualtrics_disabled without enqueue or insight', async () => {
+  it('flag and key on without datacenter returns qualtrics_disabled without enqueue', async () => {
     stubScopedProject();
     config.researchQualtricsEnabled = true;
     config.qualtricsApiKey = 'qx-secret-never-leak';
+    config.qualtricsDatacenter = '';
 
     const out = await service.runQualtrics(
       9,
       { restricted: true, allowedClientIds: ['acme'] },
+      { study_id: 5 },
       'am@ptt',
     );
 
     expect(out).toEqual({ ok: true, note: 'qualtrics_disabled' });
     expect(repo.createInsight).not.toHaveBeenCalled();
     expect(repo.insertAiRun).not.toHaveBeenCalled();
-    expect(repo.createSource).not.toHaveBeenCalled();
-    expect(repo.createReportDraft).not.toHaveBeenCalled();
-    for (const fn of Object.values(jobQueue)) {
-      if (typeof fn === 'function' && 'mock' in fn) {
-        expect(fn).not.toHaveBeenCalled();
-      }
+    expect(jobQueue.enqueueResearchQualtricsJob).not.toHaveBeenCalled();
+  });
+
+  it('M3-1: runQualtrics enqueue does not createInsight', async () => {
+    stubScopedProject();
+    config.researchQualtricsEnabled = true;
+    config.qualtricsApiKey = 'qx-test-key';
+    config.qualtricsDatacenter = 'iad1';
+    repo.getStudy.mockResolvedValue({
+      id: 5,
+      project_id: 9,
+      name: 'Wave 1 survey',
+      method: 'survey',
+      instrument_version: 'SV_test123',
+      weighting_note: JSON.stringify({
+        qualtrics_column_map: {
+          QID1: { question_code: 'Q1', unit: 'VND', value_base: 'mean' },
+        },
+      }),
+      n: null,
+      field_start: null,
+      field_end: null,
+      mode: null,
+    });
+    repo.insertAiRun.mockResolvedValue({
+      id: 84,
+      project_id: 9,
+      question_id: null,
+      job_type: 'qualtrics',
+      provider: 'qualtrics',
+      status: 'pending',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: null,
+    });
+    jobQueue.enqueueResearchQualtricsJob.mockResolvedValue({ id: 'job-qx' });
+
+    const out = await service.runQualtrics(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { study_id: 5 },
+      'am@ptt',
+    );
+
+    expect(out).toEqual({ ok: true, run_id: 84, status: 'pending' });
+    expect(repo.insertAiRun).toHaveBeenCalledWith(
+      expect.objectContaining({ jobType: 'qualtrics', provider: 'qualtrics' }),
+    );
+    expect(jobQueue.enqueueResearchQualtricsJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 9,
+        studyId: 5,
+        runId: 84,
+        idempotencyKey: 'research_qualtrics:9:5:run:84',
+      }),
+    );
+    expect(repo.createInsight).not.toHaveBeenCalled();
+    expect(collectQualtrics).not.toHaveBeenCalled();
+  });
+
+  it('M3-2: jobs_disabled persistQualtrics evidence without createInsight', async () => {
+    stubScopedProject();
+    config.researchQualtricsEnabled = true;
+    config.qualtricsApiKey = 'qx-test-key';
+    config.qualtricsDatacenter = 'iad1';
+    repo.getStudy.mockResolvedValue({
+      id: 5,
+      project_id: 9,
+      name: 'Wave 1 survey',
+      method: 'survey',
+      instrument_version: 'SV_test123',
+      weighting_note: JSON.stringify({
+        qualtrics_column_map: {
+          QID1: { question_code: 'Q1', unit: 'VND', value_base: 'mean' },
+        },
+      }),
+      n: null,
+      field_start: null,
+      field_end: null,
+      mode: null,
+    });
+    repo.insertAiRun.mockResolvedValue({
+      id: 85,
+      project_id: 9,
+      question_id: null,
+      job_type: 'qualtrics',
+      provider: 'qualtrics',
+      status: 'pending',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: null,
+    });
+    jobQueue.enqueueResearchQualtricsJob.mockResolvedValue(null);
+    (collectQualtrics as jest.Mock).mockResolvedValue({
+      drafts: [
+        {
+          locator: 'Q-Q1',
+          value_num: 42,
+          unit: 'VND',
+          value_base: 'mean',
+          period_note: '2026-Q1',
+          geography: 'VN',
+          respondent_id: 'RSP_001',
+        },
+      ],
+      progress_id: 'ES_1',
+      file_id: 'FILE_1',
+    });
+    repo.createSource.mockResolvedValue({ id: 501, project_id: 9, title: 'Wave 1 survey' });
+    repo.getSource.mockResolvedValue({ id: 501, project_id: 9, title: 'Wave 1 survey' });
+    repo.createEvidence.mockResolvedValue(
+      evidenceRow({ id: 601, study_id: 5, source_id: 501, value_num: 42 }),
+    );
+    repo.patchStudy.mockResolvedValue({ id: 5, n: 1 });
+
+    const out = await service.runQualtrics(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { study_id: 5 },
+      'am@ptt',
+    );
+
+    expect(out).toEqual({ ok: true, run_id: 85, status: 'succeeded', evidence_ids: [601] });
+    expect(repo.createSource).toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({ publisher: 'Qualtrics', ai_generated: true }),
+    );
+    expect(repo.succeedAiRun).toHaveBeenCalledWith(
+      85,
+      expect.objectContaining({
+        outputJson: expect.objectContaining({
+          evidence_ids: [601],
+          progress_id: 'ES_1',
+          file_id: 'FILE_1',
+        }),
+      }),
+    );
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('M3-3: missing SV_ instrument_version is 400 qualtrics_survey_id_required', async () => {
+    stubScopedProject();
+    config.researchQualtricsEnabled = true;
+    config.qualtricsApiKey = 'qx-test-key';
+    config.qualtricsDatacenter = 'iad1';
+    repo.getStudy.mockResolvedValue({
+      id: 5,
+      project_id: 9,
+      name: 'Wave 1 survey',
+      method: 'survey',
+      instrument_version: 'v1',
+      weighting_note: null,
+      n: null,
+      field_start: null,
+      field_end: null,
+      mode: null,
+    });
+
+    try {
+      await service.runQualtrics(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { study_id: 5 },
+        'am@ptt',
+      );
+      throw new Error('expected 400');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual({
+        error: 'qualtrics_survey_id_required',
+        messages: ['qualtrics_survey_id_required'],
+      });
     }
+    expect(repo.insertAiRun).not.toHaveBeenCalled();
+  });
+
+  it('M3-4: PII in export fails run with survey_pii_forbidden', async () => {
+    stubScopedProject();
+    config.researchQualtricsEnabled = true;
+    config.qualtricsApiKey = 'qx-test-key';
+    config.qualtricsDatacenter = 'iad1';
+    repo.getStudy.mockResolvedValue({
+      id: 5,
+      project_id: 9,
+      name: 'Wave 1 survey',
+      method: 'survey',
+      instrument_version: 'SV_test123',
+      weighting_note: JSON.stringify({
+        qualtrics_column_map: {
+          QID1: { question_code: 'Q1', unit: 'VND', value_base: 'mean' },
+        },
+      }),
+      n: null,
+      field_start: null,
+      field_end: null,
+      mode: null,
+    });
+    repo.insertAiRun.mockResolvedValue({
+      id: 86,
+      project_id: 9,
+      question_id: null,
+      job_type: 'qualtrics',
+      provider: 'qualtrics',
+      status: 'pending',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: null,
+    });
+    jobQueue.enqueueResearchQualtricsJob.mockResolvedValue(null);
+    (collectQualtrics as jest.Mock).mockRejectedValue(
+      Object.assign(new Error('survey_pii_forbidden'), { code: 'survey_pii_forbidden' }),
+    );
+
+    const out = await service.runQualtrics(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { study_id: 5 },
+      'am@ptt',
+    );
+
+    expect(out).toEqual({ ok: true, run_id: 86, status: 'failed' });
+    expect(repo.failAiRun).toHaveBeenCalledWith(86, 'survey_pii_forbidden');
+    expect(repo.createInsight).not.toHaveBeenCalled();
   });
 
   it('insightCopilot with 0 evidence is 400 and does not call the LLM', async () => {

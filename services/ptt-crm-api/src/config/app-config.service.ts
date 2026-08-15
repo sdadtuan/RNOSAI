@@ -106,6 +106,7 @@ export class AppConfigService {
   readonly sparktoroApiKey: string;
   readonly researchQualtricsEnabled: boolean;
   readonly qualtricsApiKey: string;
+  readonly qualtricsDatacenter: string;
   readonly researchRagEnabled: boolean;
   readonly lmpPilotOnly: boolean;
   readonly lmpPilotClientIds: string[];
@@ -388,6 +389,7 @@ export class AppConfigService {
       (process.env.RESEARCH_QUALTRICS_ENABLED ?? '0').trim().toLowerCase(),
     );
     this.qualtricsApiKey = (process.env.QUALTRICS_API_KEY ?? '').trim();
+    this.qualtricsDatacenter = (process.env.QUALTRICS_DATACENTER ?? '').trim();
     this.researchRagEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.RESEARCH_RAG_ENABLED ?? '0').trim().toLowerCase(),
     );

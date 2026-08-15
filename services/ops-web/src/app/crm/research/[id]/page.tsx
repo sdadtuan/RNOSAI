@@ -47,6 +47,7 @@ import {
   deleteResearchQuestion,
   fetchResearchHealth,
   fetchResearchProject,
+  fetchResearchStudies,
   runResearchDeep,
   runResearchDesk,
   runResearchPulse,
@@ -78,6 +79,7 @@ import {
   type MethodologyBlock,
   type ProjectStatus,
   type ResearchAiRun,
+  type ResearchStudy,
   type ResearchEvidence,
   type ResearchInsight,
   type ResearchProject,
@@ -93,6 +95,10 @@ import {
   shouldShowSparktoroButton,
 } from '@/components/research/sources-sparktoro.util';
 import { shouldShowQualtricsButton } from '@/components/research/qualtrics-stub.util';
+import {
+  qualtricsRunDisabled,
+  qualtricsRunnableStudies,
+} from '@/components/research/qualtrics-run.util';
 import { InsightsRagSearch } from '@/components/research/InsightsRagSearch';
 import {
   RAG_COPILOT_BANNER,
@@ -157,6 +163,10 @@ function CrmResearchWorkspaceContent() {
   const [copilotRagHits, setCopilotRagHits] = useState<InsightCopilotRagHit[]>([]);
   const [sparktoroRunId, setSparktoroRunId] = useState<number | null>(null);
   const [sparktoroBanner, setSparktoroBanner] = useState('');
+  const [qualtricsStudies, setQualtricsStudies] = useState<ResearchStudy[]>([]);
+  const [qualtricsStudyId, setQualtricsStudyId] = useState<number | null>(null);
+  const [qualtricsRunId, setQualtricsRunId] = useState<number | null>(null);
+  const [qualtricsBanner, setQualtricsBanner] = useState('');
   const [reportSnapshot, setReportSnapshot] = useState<ResearchReportSnapshot | null>(null);
   const [reports, setReports] = useState<ResearchReport[]>([]);
 
@@ -230,6 +240,27 @@ function CrmResearchWorkspaceContent() {
   useEffect(() => {
     setCopilotRagHits([]);
   }, [id]);
+
+  useEffect(() => {
+    const access = getAccessToken();
+    if (!access || !qualtricsEnabled || !project) {
+      setQualtricsStudies([]);
+      setQualtricsStudyId(null);
+      return;
+    }
+    void fetchResearchStudies(access, project.id)
+      .then((out) => {
+        const runnable = qualtricsRunnableStudies(out.studies);
+        setQualtricsStudies(runnable);
+        setQualtricsStudyId((prev) =>
+          prev != null && runnable.some((row) => row.id === prev) ? prev : (runnable[0]?.id ?? null),
+        );
+      })
+      .catch(() => {
+        setQualtricsStudies([]);
+        setQualtricsStudyId(null);
+      });
+  }, [id, project, qualtricsEnabled]);
 
   useEffect(() => {
     void (async () => {
@@ -854,18 +885,47 @@ function CrmResearchWorkspaceContent() {
 
   async function onRunQualtrics() {
     const access = getAccessToken();
-    if (!access || !project) return;
+    if (!access || !project || qualtricsStudyId == null) return;
     setSaving(true);
     setError('');
+    setQualtricsBanner('');
     try {
-      const out = await runResearchQualtrics(access, project.id);
+      const out = await runResearchQualtrics(access, project.id, { study_id: qualtricsStudyId });
       if (out.note === 'qualtrics_disabled') {
-        setError(TRANSITION_REASON_VI.qualtrics_disabled);
+        setQualtricsBanner(TRANSITION_REASON_VI.qualtrics_disabled);
+        return;
+      }
+      if (out.run_id) setQualtricsRunId(out.run_id);
+      if (out.status === 'failed') {
+        const note = out.note ?? 'jobs_disabled';
+        setQualtricsBanner(TRANSITION_REASON_VI[note] ?? note);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Chạy Qualtrics thất bại');
+      if (err instanceof ResearchApiError && err.code === 'job_in_flight') {
+        setError(TRANSITION_REASON_VI.job_in_flight);
+      } else {
+        setError(err instanceof Error ? err.message : 'Chạy Qualtrics thất bại');
+      }
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onQualtricsSettled(run: ResearchAiRun) {
+    const access = getAccessToken();
+    if (run.status === 'failed') {
+      const code = run.error_message ?? 'failed';
+      setQualtricsBanner(TRANSITION_REASON_VI[code] ?? code);
+    } else {
+      setQualtricsBanner('');
+      setQualtricsRunId(null);
+    }
+    if (access) {
+      try {
+        await load(access);
+      } catch {
+        /* keep chip state */
+      }
     }
   }
 
@@ -1069,6 +1129,10 @@ function CrmResearchWorkspaceContent() {
                   sparktoroRunId={sparktoroRunId}
                   sparktoroBanner={sparktoroBanner}
                   qualtricsEnabled={qualtricsEnabled}
+                  qualtricsStudies={qualtricsStudies}
+                  qualtricsStudyId={qualtricsStudyId}
+                  qualtricsRunId={qualtricsRunId}
+                  qualtricsBanner={qualtricsBanner}
                   onQuestionChange={setDeskQuestionId}
                   onRun={() => void onRunDesk()}
                   onRetry={() => void onRunDesk(deskQuestionId ?? project.questions?.[0]?.id)}
@@ -1082,6 +1146,8 @@ function CrmResearchWorkspaceContent() {
                   onRunSparktoro={() => void onRunSparktoro()}
                   onSparktoroSettled={onSparktoroSettled}
                   onRunQualtrics={() => void onRunQualtrics()}
+                  onQualtricsSettled={onQualtricsSettled}
+                  onQualtricsStudyChange={setQualtricsStudyId}
                 />
                 <SourceKeepTable
                   sources={project.sources ?? []}
@@ -1242,6 +1308,10 @@ function SourcesDeskBar({
   sparktoroRunId,
   sparktoroBanner,
   qualtricsEnabled,
+  qualtricsStudies,
+  qualtricsStudyId,
+  qualtricsRunId,
+  qualtricsBanner,
   onQuestionChange,
   onRun,
   onRetry,
@@ -1255,6 +1325,8 @@ function SourcesDeskBar({
   onRunSparktoro,
   onSparktoroSettled,
   onRunQualtrics,
+  onQualtricsSettled,
+  onQualtricsStudyChange,
 }: {
   project: ResearchProject;
   canRun: boolean;
@@ -1273,6 +1345,10 @@ function SourcesDeskBar({
   sparktoroRunId: number | null;
   sparktoroBanner: string;
   qualtricsEnabled: boolean;
+  qualtricsStudies: ResearchStudy[];
+  qualtricsStudyId: number | null;
+  qualtricsRunId: number | null;
+  qualtricsBanner: string;
   onQuestionChange: (id: number) => void;
   onRun: () => void;
   onRetry: () => void;
@@ -1286,6 +1362,8 @@ function SourcesDeskBar({
   onRunSparktoro: () => void;
   onSparktoroSettled: (run: ResearchAiRun) => void;
   onRunQualtrics: () => void;
+  onQualtricsSettled: (run: ResearchAiRun) => void;
+  onQualtricsStudyChange: (id: number) => void;
 }) {
   const questions = project.questions ?? [];
   const used = project.tavily_credits_used ?? 0;
@@ -1302,6 +1380,8 @@ function SourcesDeskBar({
   const showQualtrics = shouldShowQualtricsButton(qualtricsEnabled, canRun);
   const sparktoroInFlight = Boolean(sparktoroRunId) && !sparktoroBanner;
   const sparktoroFailed = Boolean(sparktoroBanner);
+  const qualtricsInFlight = Boolean(qualtricsRunId) && !qualtricsBanner;
+  const qualtricsFailed = Boolean(qualtricsBanner);
   const hasPulseSignals = (project.trend_signals ?? []).length > 0;
   return (
     <div className="stack-gap" style={{ marginBottom: '0.85rem' }}>
@@ -1379,9 +1459,40 @@ function SourcesDeskBar({
           </button>
         ) : null}
         {showQualtrics ? (
-          <button type="button" className="btn btn-sm" disabled={saving} onClick={onRunQualtrics}>
-            Chạy Qualtrics
-          </button>
+          <>
+            <label>
+              Study Qualtrics
+              <select
+                className="kpi-input"
+                value={qualtricsStudyId ?? ''}
+                disabled={!canRun || saving || qualtricsStudies.length === 0}
+                onChange={(e) => onQualtricsStudyChange(Number(e.target.value))}
+                style={{ display: 'block', marginTop: 4 }}
+              >
+                {qualtricsStudies.length === 0 ? (
+                  <option value="">Chưa có study SV_…</option>
+                ) : null}
+                {qualtricsStudies.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.name} ({row.instrument_version})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={qualtricsRunDisabled({
+                saving,
+                studyId: qualtricsStudyId,
+                inFlight: qualtricsInFlight,
+              })}
+              title={qualtricsInFlight ? TRANSITION_REASON_VI.job_in_flight : undefined}
+              onClick={onRunQualtrics}
+            >
+              {qualtricsFailed ? 'Thử lại Qualtrics' : 'Chạy Qualtrics'}
+            </button>
+          </>
         ) : null}
         <ResearchJobChip
           token={getAccessToken()}
@@ -1416,6 +1527,13 @@ function SourcesDeskBar({
           runId={sparktoroRunId}
           kind="sparktoro"
           onSettled={onSparktoroSettled}
+        />
+        <ResearchJobChip
+          token={getAccessToken()}
+          projectId={project.id}
+          runId={qualtricsRunId}
+          kind="qualtrics"
+          onSettled={onQualtricsSettled}
         />
         <span className="muted" style={{ fontSize: '0.85rem' }}>
           Tavily {used}/{limit} credit dự án
@@ -1489,6 +1607,20 @@ function SourcesDeskBar({
           }}
         >
           {sparktoroBanner}
+        </p>
+      ) : null}
+      {qualtricsBanner ? (
+        <p
+          role="status"
+          style={{
+            margin: 0,
+            padding: '0.55rem 0.75rem',
+            borderRadius: 8,
+            border: '1px solid rgba(234, 179, 8, 0.45)',
+            background: 'rgba(234, 179, 8, 0.12)',
+          }}
+        >
+          {qualtricsBanner}
         </p>
       ) : null}
       <p

@@ -63,6 +63,7 @@ export type ResearchJobType =
   | 'report_draft'
   | 'pii_scan'
   | 'whisper_ingest'
-  | 'sparktoro';
+  | 'sparktoro'
+  | 'qualtrics';
 
 export const MAX_TAVILY_CREDITS_PER_RESEARCH = 12;

@@ -190,6 +190,30 @@ export class JobQueueRepository implements OnModuleDestroy {
     });
   }
 
+  /** P10 — async Qualtrics survey response export → codebook evidence. */
+  async enqueueResearchQualtricsJob(input: {
+    projectId: number;
+    studyId: number;
+    runId: number;
+    columnMap: Record<string, unknown>;
+    clientId?: string | null;
+    idempotencyKey: string;
+  }): Promise<EnqueuedJob | null> {
+    if (!this.config.jobsEnabled) return null;
+    return this.enqueueJobRecord({
+      jobType: 'research_qualtrics',
+      payload: {
+        project_id: input.projectId,
+        study_id: input.studyId,
+        run_id: input.runId,
+        column_map: input.columnMap,
+      },
+      idempotencyKey: input.idempotencyKey,
+      clientId: this.normalizeClientUuid(input.clientId ?? undefined),
+      maxAttempts: 2,
+    });
+  }
+
   /** P5 M3 — async SparkToro audience source candidates. */
   async enqueueResearchSparktoroJob(input: {
     projectId: number;
