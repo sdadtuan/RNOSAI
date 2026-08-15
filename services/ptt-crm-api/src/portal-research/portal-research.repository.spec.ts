@@ -43,4 +43,18 @@ describe('PortalResearchRepository', () => {
     expect(queryMock.mock.calls[0][1][0]).toBe('acme');
     expect(sql).not.toMatch(/approved_client_facing/);
   });
+
+  it('P15 getThemeQuarterAnalytics scopes published corpus and jwt client_id', async () => {
+    const repo = repoWithMock();
+    await repo.getThemeQuarterAnalytics('acme', 2026);
+    const [sql, params] = queryMock.mock.calls[0];
+    const text = String(sql);
+    expect(text).toMatch(/i\.status = 'published'/);
+    expect(text).not.toMatch(/approved_client_facing/);
+    expect(text).not.toMatch(/\btitle\b/);
+    expect(text).toMatch(/date_trunc\('quarter', i\.updated_at\)/);
+    expect(text).toMatch(/p\.client_id = \$1/);
+    expect(text).toMatch(/EXTRACT\(YEAR FROM i\.updated_at\) = \$2/);
+    expect(params).toEqual(['acme', 2026]);
+  });
 });

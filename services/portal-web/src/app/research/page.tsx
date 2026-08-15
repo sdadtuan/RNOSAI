@@ -1,13 +1,22 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { HubPageLayout } from '@/components/layout';
 import { PortalPageShell } from '@/components/PortalPageShell';
-import { portalResearchReports, type PortalResearchReportCard } from '@/lib/api';
+import { PortalResearchRagSearch } from '@/components/PortalResearchRagSearch';
+import { PortalThemeQuarterTable } from '@/components/PortalThemeQuarterTable';
+import {
+  portalResearchReports,
+  portalResearchThemeQuarterAnalytics,
+  type PortalResearchReportCard,
+  type PortalThemeQuarterAnalyticsPayload,
+} from '@/lib/api';
 import { isMarketResearchPortalFeEnabled } from '@/lib/market-research-portal-flags';
 import { portalResearchErrorVi } from '@/lib/portal-research-errors';
-import { PortalResearchRagSearch } from '@/components/PortalResearchRagSearch';
+
+const PORTAL_THEME_ANALYTICS_BANNER =
+  'Chỉ insight đã published cùng khách. Đếm theo theme gắn trên insight, bucket theo quý (updated_at).';
 
 export default function PortalResearchListPage() {
   return (
@@ -21,8 +30,16 @@ export default function PortalResearchListPage() {
 
 function ResearchListContent({ token }: { token: string }) {
   const [items, setItems] = useState<PortalResearchReportCard[]>([]);
+  const [themeData, setThemeData] = useState<PortalThemeQuarterAnalyticsPayload | null>(null);
+  const [selectedThemeCode, setSelectedThemeCode] = useState('');
+  const [year, setYear] = useState(() => new Date().getUTCFullYear());
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+
+  const yearOptions = useMemo(() => {
+    const current = new Date().getUTCFullYear();
+    return [current, current - 1, current - 2];
+  }, []);
 
   useEffect(() => {
     if (!isMarketResearchPortalFeEnabled()) {
@@ -33,15 +50,19 @@ function ResearchListContent({ token }: { token: string }) {
       setLoading(true);
       setError('');
       try {
-        const data = await portalResearchReports(token);
-        setItems(data.items ?? []);
+        const [reports, themes] = await Promise.all([
+          portalResearchReports(token),
+          portalResearchThemeQuarterAnalytics(token, { year }),
+        ]);
+        setItems(reports.items ?? []);
+        setThemeData(themes);
       } catch (err) {
         setError(portalResearchErrorVi(err instanceof Error ? err.message : ''));
       } finally {
         setLoading(false);
       }
     })();
-  }, [token]);
+  }, [token, year]);
 
   if (!isMarketResearchPortalFeEnabled()) {
     return (
@@ -53,7 +74,38 @@ function ResearchListContent({ token }: { token: string }) {
 
   return (
     <HubPageLayout title="Nghiên cứu" subtitle="Báo cáo đã công bố — chỉ xem">
-      <PortalResearchRagSearch token={token} />
+      <section className="stack-gap" style={{ marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0, fontSize: '1.05rem' }}>Theme theo quý</h2>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.9rem' }}>
+            Năm
+            <select
+              className="kpi-input"
+              value={year}
+              disabled={loading}
+              onChange={(e) => setYear(Number(e.target.value))}
+            >
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+          {PORTAL_THEME_ANALYTICS_BANNER}
+        </p>
+        {themeData ? (
+          <PortalThemeQuarterTable
+            rows={themeData.rows}
+            year={themeData.year}
+            selectedThemeCode={selectedThemeCode}
+            onThemeClick={setSelectedThemeCode}
+          />
+        ) : null}
+      </section>
+      <PortalResearchRagSearch token={token} prefillThemeCode={selectedThemeCode || undefined} />
       {error ? <p className="error">{error}</p> : null}
       {loading ? (
         <p className="muted">Đang tải…</p>

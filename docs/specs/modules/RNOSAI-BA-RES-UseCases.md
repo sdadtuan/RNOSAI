@@ -106,6 +106,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-073 | Portal tìm insight published (RAG) | P12 | P12 | Spec ready | FR-INT-04 · BR-RES-06/08/12 |
 | RES-UC-074 | RAG re-embed backfill (OpenAI 256-d) | P13 | P13 | Spec ready | FR-INT · BR-RES-06/11 · NFR-AI-04 |
 | RES-UC-075 | Cluster theme theo quý (analytics) | P14 | P14 | Spec ready | FR-INT · BR-RES-06 · UC-071 |
+| RES-UC-076 | Portal theme theo quý (analytics) | P15 | P15 | Spec ready | FR-INT-04 · BR-RES-06 · UC-073 |
 
 ---
 
@@ -712,6 +713,16 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - Banner: `Chỉ insight đã duyệt bản khách / published. Đếm theo theme gắn trên insight, bucket theo quý (updated_at).`
 - **Cấm** `createInsight`; không portal widget; không Talkwalker / conjoint / pgvector
 
+### RES-UC-076 — Portal theme theo quý (analytics)
+
+- **Actor chính:** Client portal (JWT `client_id`)
+- **API:** `GET /api/v1/portal/research/analytics/themes?year=`
+- **Corpus:** chỉ `published` cùng `client_id` JWT — **không** `approved_client_facing`, **không** draft
+- **Bucket:** quý theo `date_trunc('quarter', i.updated_at)`; đếm insight distinct theo `theme_code`
+- **Màn hình:** `/research` (portal-web) — bảng Q1–Q4; click theme → prefill portal RAG (`RES-UC-073`) khi flag on
+- Banner: `Chỉ insight đã published cùng khách. Đếm theo theme gắn trên insight, bucket theo quý (updated_at).`
+- **Cấm** `createInsight`; **cấm** link staff CRM; không Talkwalker / conjoint / pgvector
+
 ### RES-UC-072 — Inject RAG vào insight copilot
 
 - **Actor chính:** Analyst (`run`)
@@ -760,6 +771,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | POST | `/projects/:id/run-qualtrics` | 062 |
 | GET | `/insights/search` | 070 |
 | GET | `/api/v1/portal/research/insights/search` | 073 |
+| GET | `/api/v1/portal/research/analytics/themes` | 076 |
 | GET | `/api/v1/portal/research/health` | 073 |
 | GET | `/taxonomy` | 071 |
 | POST | `/taxonomy` | 071 |

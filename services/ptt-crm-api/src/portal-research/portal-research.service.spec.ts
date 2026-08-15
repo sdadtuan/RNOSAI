@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException, StreamableFile } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, StreamableFile, BadRequestException } from '@nestjs/common';
 import * as pdfUtil from '../market-research/market-research-pdf.util';
 import { embedInsightText } from '../market-research/research-rag.util';
 import { fetchOpenAIEmbedding } from '../market-research/openai-embed.util';
@@ -89,6 +89,7 @@ describe('PortalResearchService', () => {
     getPortalReportVersion: jest.fn(),
     listPortalVisibleVersions: jest.fn(),
     listPublishedEmbeddings: jest.fn(),
+    getThemeQuarterAnalytics: jest.fn(),
   } as unknown as jest.Mocked<PortalResearchRepository>;
 
   const config = {
@@ -367,6 +368,33 @@ describe('PortalResearchService', () => {
       expect(out).toEqual({ hits: [], note: 'rag_embed_failed' });
       expect(repo.listPublishedEmbeddings).not.toHaveBeenCalled();
       delete process.env.OPENAI_API_KEY;
+    });
+  });
+
+  describe('P15 portal theme quarter analytics', () => {
+    it('returns published corpus rows for jwt client_id only', async () => {
+      repo.getThemeQuarterAnalytics.mockResolvedValue([
+        { quarter: 2, theme_code: 'PRICE', label_vi: 'Giá', insight_count: 2 },
+      ]);
+      const service = makeService();
+      const out = await service.getThemeQuarterAnalytics(acmeUser, 2026);
+      expect(out.ok).toBe(true);
+      expect(out.year).toBe(2026);
+      expect(out.client_id).toBe(ACME);
+      expect(out.corpus_statuses).toEqual(['published']);
+      expect(out.rows).toEqual([
+        { quarter: 2, theme_code: 'PRICE', label_vi: 'Giá', insight_count: 2 },
+      ]);
+      expect(JSON.stringify(out)).not.toContain('title');
+      expect(repo.getThemeQuarterAnalytics).toHaveBeenCalledWith(ACME, 2026);
+    });
+
+    it('invalid year is 400 invalid_year', async () => {
+      const service = makeService();
+      await expect(service.getThemeQuarterAnalytics(acmeUser, 1999)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(repo.getThemeQuarterAnalytics).not.toHaveBeenCalled();
     });
   });
 });

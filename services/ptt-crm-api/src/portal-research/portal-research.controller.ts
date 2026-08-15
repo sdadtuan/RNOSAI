@@ -20,6 +20,16 @@ export class PortalResearchController {
     return this.research.searchInsights(user, query);
   }
 
+  @Get('analytics/themes')
+  getThemeQuarterAnalytics(
+    @PortalUser() user: PortalJwtPayload,
+    @Query('year') yearStr?: string,
+  ) {
+    const year =
+      yearStr != null && yearStr.trim() !== '' ? Number(yearStr.trim()) : undefined;
+    return this.research.getThemeQuarterAnalytics(user, year);
+  }
+
   @Get('reports')
   list(@PortalUser() user: PortalJwtPayload) {
     return this.research.listReports(user);

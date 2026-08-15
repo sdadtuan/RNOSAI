@@ -136,6 +136,33 @@ export class PortalResearchRepository implements OnModuleDestroy {
     }));
   }
 
+  async getThemeQuarterAnalytics(clientId: string, year: number): Promise<
+    Array<{ quarter: number; theme_code: string; label_vi: string; insight_count: number }>
+  > {
+    const result = await this.db.query(
+      `SELECT EXTRACT(QUARTER FROM date_trunc('quarter', i.updated_at))::int AS quarter,
+              t.theme_code,
+              t.label_vi,
+              COUNT(DISTINCT i.id)::int AS insight_count
+       FROM crm_research_insights i
+       JOIN crm_research_projects p ON p.id = i.project_id
+       JOIN crm_research_insight_themes it ON it.insight_id = i.id
+       JOIN crm_research_taxonomy t ON t.id = it.taxonomy_id
+       WHERE i.status = 'published'
+         AND p.client_id = $1
+         AND EXTRACT(YEAR FROM i.updated_at) = $2
+       GROUP BY quarter, t.theme_code, t.label_vi
+       ORDER BY quarter ASC, insight_count DESC, t.theme_code ASC`,
+      [clientId, year],
+    );
+    return result.rows.map((row) => ({
+      quarter: Number(row.quarter),
+      theme_code: String(row.theme_code),
+      label_vi: String(row.label_vi),
+      insight_count: Number(row.insight_count ?? 0),
+    }));
+  }
+
   private mapPortalVersion(row: Record<string, unknown>): PortalResearchVersionRecord {
     return {
       id: Number(row.id),
