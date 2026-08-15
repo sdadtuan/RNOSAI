@@ -105,6 +105,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-072 | Inject RAG vào insight copilot | P8 | P8 | Spec ready | FR-AI-03 · BR-RES-06 · UC-011 |
 | RES-UC-073 | Portal tìm insight published (RAG) | P12 | P12 | Spec ready | FR-INT-04 · BR-RES-06/08/12 |
 | RES-UC-074 | RAG re-embed backfill (OpenAI 256-d) | P13 | P13 | Spec ready | FR-INT · BR-RES-06/11 · NFR-AI-04 |
+| RES-UC-075 | Cluster theme theo quý (analytics) | P14 | P14 | Spec ready | FR-INT · BR-RES-06 · UC-071 |
 
 ---
 
@@ -700,6 +701,17 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - Banner: `Chỉ insight đã published cùng khách. Không tìm draft. Không tạo insight.`
 - **Cấm** `createInsight` / publish-portal từ search; **cấm** link staff CRM từ portal UI
 
+### RES-UC-075 — Cluster theme theo quý (analytics)
+
+- **Actor chính:** AM, Analyst, Lead (`crm_research.view`)
+- **API:** `GET /api/v1/research/analytics/themes?client_id=&year=`
+- **Corpus:** `approved_client_facing` \| `published` — **không** draft
+- **Bucket:** quý theo `date_trunc('quarter', i.updated_at)`; đếm insight distinct theo `theme_code` từ `crm_research_insight_themes`
+- **Tenancy:** filter JWT client scope; optional `client_id` (403 ngoài scope)
+- **Màn hình:** `/crm/research/analytics` — bảng Q1–Q4; click theme → prefill RAG search (`RES-UC-070`) khi flag on
+- Banner: `Chỉ insight đã duyệt bản khách / published. Đếm theo theme gắn trên insight, bucket theo quý (updated_at).`
+- **Cấm** `createInsight`; không portal widget; không Talkwalker / conjoint / pgvector
+
 ### RES-UC-072 — Inject RAG vào insight copilot
 
 - **Actor chính:** Analyst (`run`)
@@ -769,6 +781,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | POST | `/content-items/:itemId/insights` | 051 |
 | POST | `/internal/research/jobs/:id/complete` | 004, 005, 011, 012 |
 | GET | `/analytics/ops` | 033 |
+| GET | `/analytics/themes` | 075 |
 
 **Guards:** `StaffOrInternalKeyGuard` + `crm_research.view|create|edit|run|approve|export|configure`  
 **Flag off:** 404 `market_research_disabled`

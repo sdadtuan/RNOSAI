@@ -414,6 +414,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P14 — RES-UC-075
+
+| UC | Tóm tắt |
+|----|---------|
+| 075 | Cluster theme theo quý trên corpus `approved_client_facing` \| `published`; bucket `updated_at`; cap `view`. |
+
+**API:** `GET /api/v1/research/analytics/themes?client_id=&year=`  
+**Gates:** không DDL; không đổi RAG flags; click theme → prefill staff RAG search khi flag on.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

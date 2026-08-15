@@ -218,6 +218,19 @@ export class MarketResearchController {
     return this.research.getOpsAnalytics(scope, clientId);
   }
 
+  @Get('analytics/themes')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async getThemeQuarterAnalytics(
+    @Req() req: StaffReq,
+    @Query('client_id') clientId?: string,
+    @Query('year') yearStr?: string,
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    const year =
+      yearStr != null && yearStr.trim() !== '' ? Number(yearStr.trim()) : undefined;
+    return this.research.getThemeQuarterAnalytics(scope, { client_id: clientId, year });
+  }
+
   @Get('projects')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
   async listProjects(

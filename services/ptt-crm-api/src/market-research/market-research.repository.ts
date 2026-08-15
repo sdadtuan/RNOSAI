@@ -35,6 +35,7 @@ import type {
   CreateTaxonomyInput,
   PatchTaxonomyInput,
   OpsAnalyticsRaw,
+  ThemeQuarterRow,
   PatchCompetitorInput,
   PatchEvidenceInput,
   PatchInsightInput,
@@ -2213,5 +2214,45 @@ export class MarketResearchRepository implements OnModuleDestroy {
         verified_ev: Number(row.verified_ev ?? 0),
       })),
     };
+  }
+
+  async getThemeQuarterAnalytics(
+    filters: { client_id?: string; year: number },
+    allowedClientIds?: string[],
+  ): Promise<ThemeQuarterRow[]> {
+    const scope: string[] = [
+      `i.status IN ('approved_client_facing', 'published')`,
+      `EXTRACT(YEAR FROM i.updated_at) = $1`,
+    ];
+    const params: unknown[] = [filters.year];
+    if (filters.client_id?.trim()) {
+      params.push(filters.client_id.trim());
+      scope.push(`p.client_id = $${params.length}`);
+    }
+    if (allowedClientIds) {
+      params.push(allowedClientIds);
+      scope.push(`p.client_id = ANY($${params.length}::text[])`);
+    }
+    const where = `WHERE ${scope.join(' AND ')}`;
+    const result = await this.db.query(
+      `SELECT EXTRACT(QUARTER FROM date_trunc('quarter', i.updated_at))::int AS quarter,
+              t.theme_code,
+              t.label_vi,
+              COUNT(DISTINCT i.id)::int AS insight_count
+       FROM crm_research_insights i
+       JOIN crm_research_projects p ON p.id = i.project_id
+       JOIN crm_research_insight_themes it ON it.insight_id = i.id
+       JOIN crm_research_taxonomy t ON t.id = it.taxonomy_id
+       ${where}
+       GROUP BY quarter, t.theme_code, t.label_vi
+       ORDER BY quarter ASC, insight_count DESC, t.theme_code ASC`,
+      params,
+    );
+    return result.rows.map((row) => ({
+      quarter: Number(row.quarter),
+      theme_code: String(row.theme_code),
+      label_vi: String(row.label_vi),
+      insight_count: Number(row.insight_count ?? 0),
+    }));
   }
 }

@@ -566,6 +566,24 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 ## P13+ (backlog — conjoint / cluster / Talkwalker)
 
+## Walkthrough UAT P14 — Theme quarter analytics (≈8 phút)
+
+**Mục tiêu:** *«Staff mở Phân tích nghiên cứu → bảng theme Q1–Q4 theo năm → click theme → RAG search prefill (staging flag on).»*
+
+**Tiền đề:** corpus có insight `approved_client_facing`/`published` gắn theme · `NEXT_PUBLIC_MARKET_RESEARCH=1`
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | AM | Mở `/crm/research/analytics` | KPI ops + bảng «Theme theo quý» |
+| 2 | AM | Đổi năm dropdown | API `GET /analytics/themes?year=`; counts cập nhật |
+| 3 | AN | So sánh Q1–Q4 với DB | `insight_count` khớp insight gắn theme trong quý |
+| 4 | LD | `client_id` ngoài scope | 403 `{error:forbidden}` |
+| 5 | AN | Staging `RESEARCH_RAG_ENABLED=1` | Click theme → chip theme active trên ô RAG |
+| 6 | QA | Prod sau deploy P14 | Bảng theme hiện; RAG ẩn khi `rag_enabled=false` |
+
+- [ ] Bước 1–6 pass staging
+- [ ] Prod không bật RAG sau deploy
+
 ## Walkthrough UAT P13 — RAG re-embed backfill staging (≈10 phút)
 
 **Mục tiêu:** *«PO bật RAG + OpenAI embed staging → preview stale count → POST re-embed batch → insight hash 64-d → 256-d; search G3 hit; PII skip HTTP.»*
