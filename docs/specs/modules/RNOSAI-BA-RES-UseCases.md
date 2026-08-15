@@ -104,6 +104,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-071 | Taxonomy theme + gắn insight | P7 | P7 | Spec ready | BR-RES-06 · UC-071 |
 | RES-UC-072 | Inject RAG vào insight copilot | P8 | P8 | Spec ready | FR-AI-03 · BR-RES-06 · UC-011 |
 | RES-UC-073 | Portal tìm insight published (RAG) | P12 | P12 | Spec ready | FR-INT-04 · BR-RES-06/08/12 |
+| RES-UC-074 | RAG re-embed backfill (OpenAI 256-d) | P13 | P13 | Spec ready | FR-INT · BR-RES-06/11 · NFR-AI-04 |
 
 ---
 

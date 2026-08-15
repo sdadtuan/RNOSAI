@@ -136,6 +136,27 @@ export class MarketResearchController {
     return this.research.searchInsights(scope, query);
   }
 
+  @Get('rag/reembed/preview')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchConfigureGuard)
+  async previewRagReembed(
+    @Req() req: StaffReq,
+    @Query() query: { client_id?: string },
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.previewRagReembed(scope, query ?? {});
+  }
+
+  @Post('rag/reembed')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchConfigureGuard)
+  async startRagReembed(
+    @Req() req: StaffReq,
+    @Body() body: { client_id?: string; limit?: number; dry_run?: boolean },
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.startRagReembed(scope, body ?? {}, actorEmail(req));
+  }
+
   @Get('taxonomy')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
   async listTaxonomy() {

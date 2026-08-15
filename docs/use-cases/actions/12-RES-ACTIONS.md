@@ -565,3 +565,22 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 - [ ] Prod `rag_enabled=false` sau deploy
 
 ## P13+ (backlog — conjoint / cluster / Talkwalker)
+
+## Walkthrough UAT P13 — RAG re-embed backfill staging (≈10 phút)
+
+**Mục tiêu:** *«PO bật RAG + OpenAI embed staging → preview stale count → POST re-embed batch → insight hash 64-d → 256-d; search G3 hit; PII skip HTTP.»*
+
+**Tiền đề:** `RESEARCH_RAG_ENABLED=1` + `RESEARCH_RAG_OPENAI_EMBED_ENABLED=1` + `OPENAI_API_KEY` · restart `ptt-crm-api` + `ptt-worker` · corpus có insight `approved_client_facing`/`published` embed `embed_dims=64`
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | PO | Set 3 env + restart api + worker | `GET /research/health` → `rag_openai_embed_enabled=true` |
+| 2 | LD | `GET /research/rag/reembed/preview` | `stale_count` ≥ 1 |
+| 3 | LD | `POST /research/rag/reembed` `{ "limit": 50 }` | `status=pending` hoặc `succeeded`; `processed` ≥ 1 |
+| 4 | AN | DB check insight re-embedded | `embed_dims=256`, `embed_model=text-embedding-3-small` |
+| 5 | AN | Search paraphrase G3 | Hit insight vừa re-embed |
+| 6 | LD | Statement có email trong batch | `skipped_pii` ≥ 1; 0 HTTP OpenAI cho row đó |
+| 7 | QA | Prod sau deploy P13 | `rag_openai_embed_enabled=false`; script không ghi RAG flags |
+
+- [ ] Bước 1–7 pass staging
+- [ ] Prod không bật RAG/embed sau deploy

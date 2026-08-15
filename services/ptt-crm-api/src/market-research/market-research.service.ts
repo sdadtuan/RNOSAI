@@ -120,6 +120,9 @@ import type {
   RunSparktoroInput,
   RunSparktoroResult,
   RagSearchResult,
+  RagReembedInput,
+  RagReembedPreviewResult,
+  RagReembedStartResult,
   SearchInsightsInput,
   TaxonomyTheme,
   CreateTaxonomyInput,
@@ -142,6 +145,8 @@ import {
   QUALTRICS_SURVEY_ID_RE,
   RAG_COPILOT_HIT_LIMIT,
   RAG_EMBED_DIMS,
+  OPENAI_EMBED_DIMS,
+  OPENAI_EMBED_MODEL,
   STUDY_METHODS,
   STUDY_MODES,
   SURVEY_IMPORT_FORMATS,
@@ -1698,6 +1703,168 @@ export class MarketResearchService {
       theme_code: themeCode,
     });
     return { hits: rankRagHits(q, rows, { theme_code: themeCode, limit, queryVec }) };
+  }
+
+  private reembedFilters(scope: ClientScopeContext, clientId?: string) {
+    const trimmed = String(clientId ?? '').trim();
+    if (trimmed) {
+      this.assertClientInScope(scope, trimmed);
+    }
+    const allowedClientIds =
+      !trimmed && scope.restricted
+        ? this.clientScope.allowedClientIdsForList(scope) ?? []
+        : undefined;
+    return {
+      client_id: trimmed || undefined,
+      allowedClientIds,
+      target_dims: OPENAI_EMBED_DIMS,
+      target_model: OPENAI_EMBED_MODEL,
+    };
+  }
+
+  private assertRagReembedEnabled(): void {
+    if (!this.config.researchRagEnabled) {
+      throw new BadRequestException({ error: 'rag_disabled' });
+    }
+    if (!this.openaiEmbedLive()) {
+      throw new BadRequestException({ error: 'rag_reembed_disabled' });
+    }
+  }
+
+  async previewRagReembed(
+    scope: ClientScopeContext,
+    input: RagReembedInput,
+  ): Promise<RagReembedPreviewResult> {
+    this.assertRagReembedEnabled();
+    const filters = this.reembedFilters(scope, input.client_id);
+    const stale_count = await this.repo.countReembedStale(filters);
+    return {
+      ok: true,
+      stale_count,
+      target_dims: OPENAI_EMBED_DIMS,
+      target_model: OPENAI_EMBED_MODEL,
+    };
+  }
+
+  private async processRagReembedBatch(input: {
+    client_id?: string;
+    allowedClientIds?: string[];
+    limit: number;
+    runId: number;
+  }): Promise<{
+    processed: number;
+    skipped_pii: number;
+    failed: number;
+    remaining: number;
+  }> {
+    const filters = {
+      client_id: input.client_id,
+      allowedClientIds: input.allowedClientIds,
+      target_dims: OPENAI_EMBED_DIMS,
+      target_model: OPENAI_EMBED_MODEL,
+      limit: input.limit,
+    };
+    const candidates = await this.repo.listReembedCandidates(filters);
+    let processed = 0;
+    let skipped_pii = 0;
+    let failed = 0;
+    for (const row of candidates) {
+      const embedText = insightEmbedText(row);
+      if (shouldSkipRagEmbed(embedText)) {
+        skipped_pii += 1;
+        continue;
+      }
+      try {
+        const resolved = await this.resolveInsightEmbedding(embedText);
+        await this.repo.upsertInsightEmbedding({
+          insight_id: row.insight_id,
+          project_id: row.project_id,
+          embedding: resolved.embedding,
+          embed_text: embedText,
+          embed_model: resolved.model,
+          embed_dims: resolved.dims,
+        });
+        processed += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    const remaining = await this.repo.countReembedStale({
+      client_id: input.client_id,
+      allowedClientIds: input.allowedClientIds,
+      target_dims: OPENAI_EMBED_DIMS,
+      target_model: OPENAI_EMBED_MODEL,
+    });
+    const output = { processed, skipped_pii, failed, remaining };
+    if (failed > 0 && processed === 0) {
+      await this.repo.failAiRun(input.runId, 'rag_reembed_failed');
+    } else {
+      await this.repo.succeedAiRun(input.runId, {
+        outputJson: output,
+        creditsUsed: processed,
+      });
+    }
+    return output;
+  }
+
+  async startRagReembed(
+    scope: ClientScopeContext,
+    input: RagReembedInput,
+    actor: string,
+  ): Promise<RagReembedStartResult> {
+    this.assertRagReembedEnabled();
+    const filters = this.reembedFilters(scope, input.client_id);
+    const rawLimit = Number(input.limit);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 200) : 50;
+
+    if (input.dry_run) {
+      const stale_count = await this.repo.countReembedStale(filters);
+      return {
+        ok: true,
+        status: stale_count > 0 ? 'pending' : 'noop',
+        remaining: stale_count,
+      };
+    }
+
+    const anchor = await this.repo.listReembedCandidates({ ...filters, limit: 1 });
+    if (anchor.length === 0) {
+      return { ok: true, status: 'noop', processed: 0, skipped_pii: 0, failed: 0, remaining: 0 };
+    }
+
+    const run = await this.repo.insertAiRun({
+      projectId: anchor[0].project_id,
+      jobType: 'rag_reembed',
+      provider: 'openai',
+      model: OPENAI_EMBED_MODEL,
+      actor,
+    });
+
+    const job = await this.jobQueue.enqueueResearchRagReembedJob({
+      projectId: anchor[0].project_id,
+      runId: run.id,
+      clientId: filters.client_id,
+      allowedClientIds: filters.allowedClientIds,
+      limit,
+      idempotencyKey: `research_rag_reembed:${filters.client_id ?? 'all'}:run:${run.id}`,
+    });
+
+    if (!job) {
+      const batch = await this.processRagReembedBatch({
+        client_id: filters.client_id,
+        allowedClientIds: filters.allowedClientIds,
+        limit,
+        runId: run.id,
+      });
+      return {
+        ok: true,
+        run_id: run.id,
+        status: batch.failed > 0 && batch.processed === 0 ? 'failed' : 'succeeded',
+        note: 'jobs_disabled',
+        ...batch,
+      };
+    }
+
+    return { ok: true, run_id: run.id, status: 'pending' };
   }
 
   async listTaxonomy(): Promise<{ themes: TaxonomyTheme[] }> {

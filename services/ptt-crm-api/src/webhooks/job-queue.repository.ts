@@ -214,6 +214,31 @@ export class JobQueueRepository implements OnModuleDestroy {
     });
   }
 
+  /** P13 — async RAG OpenAI re-embed backfill for stale corpus embeddings. */
+  async enqueueResearchRagReembedJob(input: {
+    projectId: number;
+    runId: number;
+    clientId?: string | null;
+    allowedClientIds?: string[] | null;
+    limit: number;
+    idempotencyKey: string;
+  }): Promise<EnqueuedJob | null> {
+    if (!this.config.jobsEnabled) return null;
+    return this.enqueueJobRecord({
+      jobType: 'research_rag_reembed',
+      payload: {
+        project_id: input.projectId,
+        run_id: input.runId,
+        client_id: input.clientId ?? null,
+        allowed_client_ids: input.allowedClientIds ?? null,
+        limit: input.limit,
+      },
+      idempotencyKey: input.idempotencyKey,
+      clientId: this.normalizeClientUuid(input.clientId ?? undefined),
+      maxAttempts: 2,
+    });
+  }
+
   /** P5 M3 — async SparkToro audience source candidates. */
   async enqueueResearchSparktoroJob(input: {
     projectId: number;

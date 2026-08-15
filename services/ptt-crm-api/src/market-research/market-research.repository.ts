@@ -29,6 +29,7 @@ import type {
   ListEmbeddingsFilters,
   ListProjectsFilters,
   RagEmbeddingRow,
+  ReembedCandidate,
   UpsertInsightEmbeddingInput,
   TaxonomyTheme,
   CreateTaxonomyInput,
@@ -1903,6 +1904,93 @@ export class MarketResearchRepository implements OnModuleDestroy {
     await this.db.query(`DELETE FROM crm_research_insight_embeddings WHERE insight_id = $1`, [
       insightId,
     ]);
+  }
+
+  private buildReembedStaleWhere(
+    filters: {
+      client_id?: string;
+      allowedClientIds?: string[];
+      target_dims: number;
+      target_model: string;
+    },
+    params: unknown[],
+  ): string {
+    params.push(filters.target_dims);
+    const dimsIdx = params.length;
+    params.push(filters.target_model);
+    const modelIdx = params.length;
+    const where: string[] = [
+      `i.status IN ('approved_client_facing', 'published')`,
+      `(e.insight_id IS NULL OR e.embed_dims IS DISTINCT FROM $${dimsIdx} OR COALESCE(e.embed_model, '') <> $${modelIdx})`,
+    ];
+    const clientId = filters.client_id?.trim();
+    if (clientId) {
+      params.push(clientId);
+      where.push(`p.client_id = $${params.length}`);
+    }
+    if (filters.allowedClientIds) {
+      params.push(filters.allowedClientIds);
+      where.push(`p.client_id = ANY($${params.length}::text[])`);
+    }
+    return where.join(' AND ');
+  }
+
+  async countReembedStale(filters: {
+    client_id?: string;
+    allowedClientIds?: string[];
+    target_dims: number;
+    target_model: string;
+  }): Promise<number> {
+    const params: unknown[] = [];
+    const where = this.buildReembedStaleWhere(filters, params);
+    const result = await this.db.query(
+      `SELECT COUNT(*)::int AS n
+       FROM crm_research_insights i
+       JOIN crm_research_projects p ON p.id = i.project_id
+       LEFT JOIN crm_research_insight_embeddings e ON e.insight_id = i.id
+       WHERE ${where}`,
+      params,
+    );
+    return Number(result.rows[0]?.n ?? 0);
+  }
+
+  async listReembedCandidates(filters: {
+    client_id?: string;
+    allowedClientIds?: string[];
+    target_dims: number;
+    target_model: string;
+    limit: number;
+  }): Promise<ReembedCandidate[]> {
+    const params: unknown[] = [];
+    const where = this.buildReembedStaleWhere(filters, params);
+    params.push(Math.max(1, Math.min(filters.limit, 200)));
+    const result = await this.db.query(
+      `SELECT i.id AS insight_id,
+              i.project_id,
+              i.status,
+              i.statement,
+              i.observation,
+              p.client_id,
+              e.embed_dims,
+              e.embed_model
+       FROM crm_research_insights i
+       JOIN crm_research_projects p ON p.id = i.project_id
+       LEFT JOIN crm_research_insight_embeddings e ON e.insight_id = i.id
+       WHERE ${where}
+       ORDER BY i.id ASC
+       LIMIT $${params.length}`,
+      params,
+    );
+    return result.rows.map((row) => ({
+      insight_id: Number(row.insight_id),
+      project_id: Number(row.project_id),
+      status: String(row.status),
+      observation: row.observation != null ? String(row.observation) : null,
+      statement: String(row.statement),
+      client_id: row.client_id != null ? String(row.client_id) : undefined,
+      embed_dims: row.embed_dims != null ? Number(row.embed_dims) : null,
+      embed_model: row.embed_model != null ? String(row.embed_model) : null,
+    }));
   }
 
   async listEmbeddings(filters: ListEmbeddingsFilters = {}): Promise<RagEmbeddingRow[]> {

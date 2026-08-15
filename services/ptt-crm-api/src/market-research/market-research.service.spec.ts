@@ -108,6 +108,8 @@ describe('MarketResearchService', () => {
     upsertInsightEmbedding: jest.fn(),
     deleteInsightEmbedding: jest.fn(),
     listEmbeddings: jest.fn(),
+    countReembedStale: jest.fn(),
+    listReembedCandidates: jest.fn(),
     listTaxonomy: jest.fn(),
     getTaxonomy: jest.fn(),
     createTaxonomy: jest.fn(),
@@ -164,6 +166,7 @@ describe('MarketResearchService', () => {
     enqueueResearchWhisperJob: jest.fn(),
     enqueueResearchSparktoroJob: jest.fn(),
     enqueueResearchQualtricsJob: jest.fn(),
+    enqueueResearchRagReembedJob: jest.fn(),
   };
   const opsAlerts = {
     upsertAlert: jest.fn(),
@@ -4741,6 +4744,133 @@ describe('MarketResearchService', () => {
       expect((err as BadRequestException).getResponse()).toEqual({ error: 'vw_mixed_unit' });
     }
     expect(repo.insertVwSummary).not.toHaveBeenCalled();
+  });
+
+  describe('P13 RAG re-embed backfill', () => {
+    const staleRow = {
+      insight_id: 42,
+      project_id: 9,
+      status: 'approved_client_facing',
+      statement: 'Giá sữa học đường tăng tại Hà Nội',
+      observation: null,
+      client_id: 'acme',
+      embed_dims: 64,
+      embed_model: 'local-hash',
+    };
+
+    it('preview rag_reembed_disabled when OpenAI embed flag off', async () => {
+      config.researchRagEnabled = true;
+      config.researchRagOpenaiEmbedEnabled = false;
+      try {
+        await service.previewRagReembed({ restricted: false, allowedClientIds: [] }, {});
+        throw new Error('expected disabled');
+      } catch (err) {
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect((err as BadRequestException).getResponse()).toEqual({ error: 'rag_reembed_disabled' });
+      }
+    });
+
+    it('preview returns stale_count for corpus with local-hash embeddings', async () => {
+      config.researchRagEnabled = true;
+      config.researchRagOpenaiEmbedEnabled = true;
+      process.env.OPENAI_API_KEY = 'sk-test';
+      clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+      repo.countReembedStale.mockResolvedValue(3);
+
+      const out = await service.previewRagReembed(
+        { restricted: true, allowedClientIds: ['acme'] },
+        { client_id: 'acme' },
+      );
+
+      expect(out.stale_count).toBe(3);
+      expect(out.target_dims).toBe(256);
+      expect(out.target_model).toBe(OPENAI_EMBED_MODEL);
+      delete process.env.OPENAI_API_KEY;
+    });
+
+    it('start noop when no stale candidates', async () => {
+      config.researchRagEnabled = true;
+      config.researchRagOpenaiEmbedEnabled = true;
+      process.env.OPENAI_API_KEY = 'sk-test';
+      repo.listReembedCandidates.mockResolvedValue([]);
+
+      const out = await service.startRagReembed(
+        { restricted: false, allowedClientIds: [] },
+        {},
+        'lead@ptt',
+      );
+
+      expect(out.status).toBe('noop');
+      expect(repo.insertAiRun).not.toHaveBeenCalled();
+      delete process.env.OPENAI_API_KEY;
+    });
+
+    it('start jobs_disabled sync batch upserts OpenAI 256-d and skips PII', async () => {
+      config.researchRagEnabled = true;
+      config.researchRagOpenaiEmbedEnabled = true;
+      process.env.OPENAI_API_KEY = 'sk-test';
+      const clean = staleRow;
+      const pii = {
+        ...staleRow,
+        insight_id: 43,
+        statement: 'Liên hệ test@example.com',
+      };
+      repo.listReembedCandidates
+        .mockResolvedValueOnce([clean])
+        .mockResolvedValueOnce([clean, pii]);
+      repo.insertAiRun.mockResolvedValue({ id: 901, status: 'pending' });
+      jobQueue.enqueueResearchRagReembedJob.mockResolvedValue(null);
+      const vec = embedInsightText(clean.statement, 256);
+      (fetchOpenAIEmbedding as jest.Mock).mockResolvedValue({
+        embedding: vec,
+        model: OPENAI_EMBED_MODEL,
+        dims: 256,
+      });
+      repo.countReembedStale.mockResolvedValue(1);
+
+      const out = await service.startRagReembed(
+        { restricted: false, allowedClientIds: [] },
+        { limit: 10 },
+        'lead@ptt',
+      );
+
+      expect(out.status).toBe('succeeded');
+      expect(out.note).toBe('jobs_disabled');
+      expect(out.processed).toBe(1);
+      expect(out.skipped_pii).toBe(1);
+      expect(fetchOpenAIEmbedding).toHaveBeenCalledTimes(1);
+      expect(repo.upsertInsightEmbedding).toHaveBeenCalledWith(
+        expect.objectContaining({ insight_id: 42, embed_dims: 256, embed_model: OPENAI_EMBED_MODEL }),
+      );
+      expect(repo.createInsight).not.toHaveBeenCalled();
+      delete process.env.OPENAI_API_KEY;
+    });
+
+    it('start enqueues research_rag_reembed when jobs enabled', async () => {
+      config.researchRagEnabled = true;
+      config.researchRagOpenaiEmbedEnabled = true;
+      process.env.OPENAI_API_KEY = 'sk-test';
+      repo.listReembedCandidates.mockResolvedValue([staleRow]);
+      repo.insertAiRun.mockResolvedValue({ id: 902, status: 'pending' });
+      jobQueue.enqueueResearchRagReembedJob.mockResolvedValue({ id: 'job-reembed' });
+
+      const out = await service.startRagReembed(
+        { restricted: false, allowedClientIds: [] },
+        {},
+        'lead@ptt',
+      );
+
+      expect(out.status).toBe('pending');
+      expect(out.run_id).toBe(902);
+      expect(jobQueue.enqueueResearchRagReembedJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          runId: 902,
+          limit: 50,
+          idempotencyKey: 'research_rag_reembed:all:run:902',
+        }),
+      );
+      delete process.env.OPENAI_API_KEY;
+    });
   });
 });
 

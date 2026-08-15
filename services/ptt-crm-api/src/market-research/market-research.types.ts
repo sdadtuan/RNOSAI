@@ -840,6 +840,41 @@ export type RagSearchResult = {
   note?: 'rag_disabled' | 'rag_embed_failed' | 'rag_skipped_pii';
 };
 
+export type ReembedCandidate = {
+  insight_id: number;
+  project_id: number;
+  status: string;
+  statement: string;
+  observation: string | null;
+  client_id?: string;
+  embed_dims: number | null;
+  embed_model: string | null;
+};
+
+export type RagReembedInput = {
+  client_id?: string;
+  limit?: number;
+  dry_run?: boolean;
+};
+
+export type RagReembedPreviewResult = {
+  ok: true;
+  stale_count: number;
+  target_dims: number;
+  target_model: typeof OPENAI_EMBED_MODEL;
+};
+
+export type RagReembedStartResult = {
+  ok: true;
+  run_id?: number;
+  status: 'pending' | 'succeeded' | 'failed' | 'noop';
+  note?: 'jobs_disabled' | 'rag_reembed_disabled' | 'rag_disabled';
+  processed?: number;
+  skipped_pii?: number;
+  failed?: number;
+  remaining?: number;
+};
+
 export const PORTAL_RAG_CORPUS_STATUSES = ['published'] as const;
 
 export const PORTAL_RAG_BANNER =

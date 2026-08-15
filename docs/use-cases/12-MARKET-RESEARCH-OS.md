@@ -403,6 +403,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P13 — RES-UC-074
+
+| UC | Tóm tắt |
+|----|---------|
+| 074 | Backfill embedding OpenAI 256-d cho corpus `approved_client_facing` \| `published` còn hash 64-d. Configure cap. Job `research_rag_reembed`. Không createInsight. PII skip HTTP. |
+
+**API:** `GET /api/v1/research/rag/reembed/preview` · `POST /api/v1/research/rag/reembed`  
+**Gates:** flag RAG + OpenAI embed; prod deploy không bật flags; lặp POST cho đến `remaining=0`.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

@@ -184,6 +184,10 @@ def run_worker(*, poll_interval: float = 1.0, once: bool = False) -> int:
                 from ptt_jobs.handlers.research_qualtrics import run_research_qualtrics_job
 
                 run_research_qualtrics_job(job)
+            elif job_type == "research_rag_reembed":
+                from ptt_jobs.handlers.research_rag_reembed import run_research_rag_reembed_job
+
+                run_research_rag_reembed_job(job)
             elif job_type == "pipeline_risk_scan":
                 from ptt_jobs.handlers.pipeline_risk_scan import run_pipeline_risk_scan_job
 

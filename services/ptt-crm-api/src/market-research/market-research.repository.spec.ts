@@ -171,4 +171,24 @@ describe('MarketResearchRepository', () => {
     expect(row?.published_by).toBe('lead@ptt');
     expect(row?.published_at).toBeTruthy();
   });
+
+  it('listReembedCandidates binds corpus stale filter and client scope', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const repo = repoWithMock();
+
+    await repo.listReembedCandidates({
+      client_id: 'acme',
+      target_dims: 256,
+      target_model: 'text-embedding-3-small',
+      limit: 25,
+    });
+
+    const sql = String(queryMock.mock.calls[0][0]);
+    const params = queryMock.mock.calls[0][1] as unknown[];
+    expect(sql).toMatch(/approved_client_facing/);
+    expect(sql).toMatch(/published/);
+    expect(sql).toMatch(/embed_dims IS DISTINCT FROM/);
+    expect(sql).toMatch(/p\.client_id = \$3/);
+    expect(params).toEqual([256, 'text-embedding-3-small', 'acme', 25]);
+  });
 });

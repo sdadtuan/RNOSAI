@@ -506,3 +506,133 @@ def insert_qualtrics_codebook_evidence(
 QUALTRICS_LIMITATION_NOTE = (
     "Mẫu convenience Qualtrics — không MOE/95%. Không suy đại diện dân số."
 )
+
+
+def _insight_embed_text(statement: str, observation: str | None) -> str:
+    return " ".join(f"{statement or ''} {observation or ''}".split())
+
+
+def list_reembed_candidates(
+    *,
+    client_id: str | None,
+    allowed_client_ids: list[str] | None,
+    target_dims: int,
+    target_model: str,
+    limit: int,
+) -> list[dict[str, Any]]:
+    params: list[Any] = [target_dims, target_model]
+    where = [
+        "i.status IN ('approved_client_facing', 'published')",
+        "(e.insight_id IS NULL OR e.embed_dims IS DISTINCT FROM %s OR COALESCE(e.embed_model, '') <> %s)",
+    ]
+    if client_id:
+        params.append(client_id)
+        where.append(f"p.client_id = %s")
+    if allowed_client_ids is not None:
+        params.append(allowed_client_ids)
+        where.append("p.client_id = ANY(%s::text[])")
+    params.append(max(1, min(int(limit), 200)))
+    sql = f"""
+        SELECT i.id AS insight_id,
+               i.project_id,
+               i.status,
+               i.statement,
+               i.observation,
+               p.client_id,
+               e.embed_dims,
+               e.embed_model
+        FROM crm_research_insights i
+        JOIN crm_research_projects p ON p.id = i.project_id
+        LEFT JOIN crm_research_insight_embeddings e ON e.insight_id = i.id
+        WHERE {' AND '.join(where)}
+        ORDER BY i.id ASC
+        LIMIT %s
+    """
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall() or []
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        out.append(
+            {
+                "insight_id": int(row[0]),
+                "project_id": int(row[1]),
+                "status": str(row[2]),
+                "statement": str(row[3] or ""),
+                "observation": str(row[4]) if row[4] is not None else None,
+                "client_id": str(row[5]) if row[5] is not None else None,
+                "embed_dims": int(row[6]) if row[6] is not None else None,
+                "embed_model": str(row[7]) if row[7] is not None else None,
+            }
+        )
+    return out
+
+
+def count_reembed_stale(
+    *,
+    client_id: str | None,
+    allowed_client_ids: list[str] | None,
+    target_dims: int,
+    target_model: str,
+) -> int:
+    params: list[Any] = [target_dims, target_model]
+    where = [
+        "i.status IN ('approved_client_facing', 'published')",
+        "(e.insight_id IS NULL OR e.embed_dims IS DISTINCT FROM %s OR COALESCE(e.embed_model, '') <> %s)",
+    ]
+    if client_id:
+        params.append(client_id)
+        where.append("p.client_id = %s")
+    if allowed_client_ids is not None:
+        params.append(allowed_client_ids)
+        where.append("p.client_id = ANY(%s::text[])")
+    sql = f"""
+        SELECT COUNT(*)::int
+        FROM crm_research_insights i
+        JOIN crm_research_projects p ON p.id = i.project_id
+        LEFT JOIN crm_research_insight_embeddings e ON e.insight_id = i.id
+        WHERE {' AND '.join(where)}
+    """
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, tuple(params))
+            row = cur.fetchone()
+    return int(row[0] if row else 0)
+
+
+def upsert_insight_embedding(
+    *,
+    insight_id: int,
+    project_id: int,
+    embedding: list[float],
+    embed_text: str,
+    embed_model: str,
+    embed_dims: int,
+) -> None:
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO crm_research_insight_embeddings (
+                  insight_id, project_id, embedding, embed_text, embed_model, embed_dims
+                ) VALUES (%s, %s, %s::jsonb, %s, %s, %s)
+                ON CONFLICT (insight_id) DO UPDATE SET
+                  project_id = EXCLUDED.project_id,
+                  embedding = EXCLUDED.embedding,
+                  embed_text = EXCLUDED.embed_text,
+                  embed_model = EXCLUDED.embed_model,
+                  embed_dims = EXCLUDED.embed_dims,
+                  updated_at = now()
+                """,
+                (
+                    insight_id,
+                    project_id,
+                    json_dumps(embedding),
+                    embed_text,
+                    embed_model,
+                    embed_dims,
+                ),
+            )
+        conn.commit()
+
