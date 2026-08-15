@@ -373,18 +373,27 @@ describe('PortalResearchService', () => {
 
   describe('P15 portal theme quarter analytics', () => {
     it('returns published corpus rows for jwt client_id only', async () => {
-      repo.getThemeQuarterAnalytics.mockResolvedValue([
-        { quarter: 2, theme_code: 'PRICE', label_vi: 'Giá', insight_count: 2 },
-      ]);
+      repo.getThemeQuarterAnalytics
+        .mockResolvedValueOnce([
+          { quarter: 2, theme_code: 'PRICE', label_vi: 'Giá', insight_count: 2 },
+        ])
+        .mockResolvedValueOnce([]);
       const service = makeService();
       const out = await service.getThemeQuarterAnalytics(acmeUser, 2026);
       expect(out.ok).toBe(true);
       expect(out.year).toBe(2026);
       expect(out.client_id).toBe(ACME);
       expect(out.corpus_statuses).toEqual(['published']);
-      expect(out.rows).toEqual([
-        { quarter: 2, theme_code: 'PRICE', label_vi: 'Giá', insight_count: 2 },
-      ]);
+      expect(out.rows[0]).toMatchObject({
+        quarter: 2,
+        theme_code: 'PRICE',
+        label_vi: 'Giá',
+        insight_count: 2,
+        prev_qoq_count: 0,
+        prev_yoy_count: null,
+        delta_qoq_pct: null,
+        delta_yoy_pct: null,
+      });
       expect(JSON.stringify(out)).not.toContain('title');
       expect(repo.getThemeQuarterAnalytics).toHaveBeenCalledWith(ACME, 2026);
     });
@@ -395,6 +404,38 @@ describe('PortalResearchService', () => {
         BadRequestException,
       );
       expect(repo.getThemeQuarterAnalytics).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('P17 portal theme quarter deltas', () => {
+    it('P17 getThemeQuarterAnalytics enriches QoQ and YoY deltas', async () => {
+      repo.getThemeQuarterAnalytics
+        .mockResolvedValueOnce([
+          { quarter: 1, theme_code: 'PRICE', label_vi: 'Giá', insight_count: 2 },
+          { quarter: 2, theme_code: 'PRICE', label_vi: 'Giá', insight_count: 4 },
+        ])
+        .mockResolvedValueOnce([
+          { quarter: 2, theme_code: 'PRICE', label_vi: 'Giá', insight_count: 2 },
+        ]);
+      const service = makeService();
+      const out = await service.getThemeQuarterAnalytics(acmeUser, 2026);
+      expect(out.corpus_statuses).toEqual(['published']);
+      expect(out.rows[1]).toMatchObject({
+        quarter: 2,
+        insight_count: 4,
+        prev_qoq_count: 2,
+        delta_qoq_pct: 100,
+        prev_yoy_count: 2,
+        delta_yoy_pct: 100,
+      });
+      expect(out.rows[0]).toMatchObject({
+        quarter: 1,
+        prev_qoq_count: null,
+        delta_qoq_pct: null,
+      });
+      expect(JSON.stringify(out)).not.toContain('title');
+      expect(repo.getThemeQuarterAnalytics).toHaveBeenCalledWith(ACME, 2026);
+      expect(repo.getThemeQuarterAnalytics).toHaveBeenCalledWith(ACME, 2025);
     });
   });
 });

@@ -447,6 +447,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P17 — RES-UC-078
+
+| UC | Tóm tắt |
+|----|---------|
+| 078 | Portal theme analytics thêm Δ QoQ (trong năm) và YoY (cùng quý năm trước). |
+
+**API:** cùng `GET /api/v1/portal/research/analytics/themes` — rows enriched  
+**Gates:** api + portal-web; không DDL; không ops-web; không RAG flags.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

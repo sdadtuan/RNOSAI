@@ -1353,6 +1353,10 @@ export type PortalThemeQuarterAnalyticsPayload = {
     theme_code: string;
     label_vi: string;
     insight_count: number;
+    prev_qoq_count?: number | null;
+    prev_yoy_count?: number | null;
+    delta_qoq_pct?: number | null;
+    delta_yoy_pct?: number | null;
   }>;
 };
 

@@ -108,6 +108,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-075 | Cluster theme theo quý (analytics) | P14 | P14 | Spec ready | FR-INT · BR-RES-06 · UC-071 |
 | RES-UC-076 | Portal theme theo quý (analytics) | P15 | P15 | Spec ready | FR-INT-04 · BR-RES-06 · UC-073 |
 | RES-UC-077 | Theme QoQ / YoY delta (staff analytics) | P16 | P16 | Spec ready | FR-INT · BR-RES-06 · UC-075 |
+| RES-UC-078 | Theme QoQ / YoY delta (portal analytics) | P17 | P17 | Spec ready | FR-INT-04 · BR-RES-06 · UC-076 |
 
 ---
 
@@ -733,6 +734,17 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Δ:** `null` khi prior count = 0 hoặc không có dữ liệu
 - **Màn hình:** `/crm/research/analytics` — subtext Δ dưới mỗi ô quý
 - **Cấm** endpoint mới; không portal; không Talkwalker / conjoint / pgvector
+
+### RES-UC-078 — Theme QoQ / YoY delta (portal analytics)
+
+- **Actor chính:** Client portal (JWT `client_id`)
+- **API:** `GET /api/v1/portal/research/analytics/themes?year=` — payload rows thêm `prev_qoq_count`, `prev_yoy_count`, `delta_qoq_pct`, `delta_yoy_pct`
+- **Corpus:** chỉ `published` cùng `client_id` JWT
+- **QoQ:** quý trước trong cùng năm (Q1 → null)
+- **YoY:** cùng quý năm `year-1`
+- **Δ:** `null` khi prior count = 0 hoặc không có dữ liệu
+- **Màn hình:** `/research` (portal-web) — subtext Δ dưới mỗi ô quý
+- **Cấm** endpoint mới; không ops-web; không Talkwalker / conjoint / pgvector
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

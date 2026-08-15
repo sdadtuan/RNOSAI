@@ -24,6 +24,7 @@ import {
   type RagSearchResult,
 } from '../market-research/market-research.types';
 import { fetchOpenAIEmbedding } from '../market-research/openai-embed.util';
+import { enrichThemeQuarterRows } from '../market-research/theme-quarter-delta.util';
 import {
   rankRagHits,
   shouldSkipRagEmbed,
@@ -135,7 +136,12 @@ export class PortalResearchService {
     if (!Number.isInteger(year) || year < 2000 || year > 2100) {
       throw new BadRequestException({ error: 'invalid_year' });
     }
-    const rows = await this.repo.getThemeQuarterAnalytics(user.client_id, year);
+    const currentRows = await this.repo.getThemeQuarterAnalytics(user.client_id, year);
+    const priorYearRows =
+      year > 2000
+        ? await this.repo.getThemeQuarterAnalytics(user.client_id, year - 1)
+        : [];
+    const rows = enrichThemeQuarterRows(currentRows, priorYearRows);
     return {
       ok: true,
       year,

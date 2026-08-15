@@ -914,7 +914,7 @@ export type PortalThemeQuarterAnalyticsPayload = {
   year: number;
   client_id: string;
   corpus_statuses: readonly ['published'];
-  rows: ThemeQuarterCountRow[];
+  rows: ThemeQuarterRow[];
 };
 
 export type PortalResearchHealth = {
