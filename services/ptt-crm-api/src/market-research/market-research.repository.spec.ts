@@ -83,6 +83,15 @@ describe('MarketResearchRepository', () => {
     expect(params).toContain('Pricing');
   });
 
+  it('P22 listEmbeddings selects valid_to', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const repo = repoWithMock();
+    await repo.listEmbeddings({ client_id: 'acme' });
+    const sql = String(queryMock.mock.calls[0][0]);
+    expect(sql).toMatch(/i\.valid_to/);
+    expect(sql).toMatch(/GROUP BY.*i\.valid_to/s);
+  });
+
   it('P20 upsertInsightEmbedding writes embedding_vec when write_vec', async () => {
     queryMock.mockResolvedValue({ rows: [] });
     const repo = repoWithMock();

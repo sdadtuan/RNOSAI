@@ -2128,6 +2128,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
               i.status,
               i.statement,
               i.observation,
+              i.valid_to::text AS valid_to,
               p.client_id,
               COALESCE(
                 array_agg(t.theme_code) FILTER (WHERE t.theme_code IS NOT NULL),
@@ -2149,7 +2150,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
        LEFT JOIN crm_research_insight_themes it ON it.insight_id = i.id
        LEFT JOIN crm_research_taxonomy t ON t.id = it.taxonomy_id
        ${extra}
-       GROUP BY e.insight_id, e.project_id, e.embedding, i.status, i.statement, i.observation, p.client_id
+       GROUP BY e.insight_id, e.project_id, e.embedding, i.status, i.statement, i.observation, i.valid_to, p.client_id
        ORDER BY e.insight_id ASC`,
       params,
     );
@@ -2167,6 +2168,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
         ? row.theme_synonyms.map((syn: unknown) => String(syn))
         : [],
       client_id: row.client_id != null ? String(row.client_id) : undefined,
+      valid_to: row.valid_to != null ? String(row.valid_to) : null,
     }));
   }
 

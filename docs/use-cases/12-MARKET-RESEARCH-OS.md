@@ -501,6 +501,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P22 — RES-UC-083
+
+| UC | Tóm tắt |
+|----|---------|
+| 083 | Staff RAG hit hiện banner khi insight `valid_to` < hôm nay. |
+
+**API:** cùng staff insights/search — hits `valid_to`/`is_stale` populated  
+**Gates:** api + ops-web; không DDL; không portal; không RAG flags.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

@@ -12,6 +12,8 @@ import {
   type ResearchRagHit,
   type ResearchTaxonomyTheme,
 } from '@/lib/market-research-api';
+import { InsightStaleBanner } from '@/components/research/InsightStaleBanner';
+import { ragHitIsStale } from '@/components/research/insight-stale.util';
 import { RAG_SEARCH_BANNER, shouldShowRagSearch } from './insights-rag.util';
 
 export function InsightsRagSearch({
@@ -141,6 +143,7 @@ export function InsightsRagSearch({
                 {' '}
                 · {hit.score.toFixed(2)} · {INSIGHT_STATUS_LABELS[hit.status] ?? hit.status}
               </span>
+              {ragHitIsStale(hit) ? <InsightStaleBanner validTo={hit.valid_to} /> : null}
             </li>
           ))}
         </ul>

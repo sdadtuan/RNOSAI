@@ -22,3 +22,10 @@ export function insightIsStale(
   if (typeof insight.is_stale === 'boolean') return insight.is_stale;
   return isInsightStale(insight.valid_to, ref);
 }
+
+export function ragHitIsStale(
+  hit: { is_stale?: boolean; valid_to?: string | null },
+  ref: Date = new Date(),
+): boolean {
+  return insightIsStale(hit, ref);
+}

@@ -113,6 +113,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-080 | Portal insight stale banner (RAG) | P19 | P19 | Spec ready | FR-INS-07 · UC-079 |
 | RES-UC-081 | pgvector dual-write + gated ANN | P20 | P20 | Spec ready | FR-INT · NFR-AI-04 |
 | RES-UC-082 | Conjoint lite PRICE_OFFER | P21 | P21 | Spec ready | BR-RES-03 · Design PRICE_OFFER |
+| RES-UC-083 | Staff insight stale banner (RAG) | P22 | P22 | Spec ready | FR-INS-07 · UC-079 |
 
 ---
 
@@ -786,6 +787,15 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - Không `PRICE_OFFER` → 400 `cj_not_price_offer`; n < 4 → `cj_insufficient_n`; n_choices < 4 → `cj_insufficient_choices`
 - Bảng level share + recommendation; **cấm** MOE / simulator / `createInsight`
 - Fixture: `scripts/fixtures/research-conjoint.sample.csv`
+
+### RES-UC-083 — Staff insight stale banner (RAG search)
+
+- **Actor chính:** AM, Analyst, Lead (`crm_research.view`)
+- **API:** `GET /api/v1/research/insights/search` — mỗi hit thêm `valid_to`, `is_stale` (populated when staff `listEmbeddings` returns `valid_to`)
+- **Rule:** giống RES-UC-079 (UTC calendar)
+- **Màn hình:** `/crm/research/analytics` + project analytics RAG — banner dưới hit stale
+- Banner: reuse P18 staff copy (`INSIGHT_STALE_BANNER`)
+- **Cấm** endpoint mới; không DDL; không portal; không ẩn hit stale
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

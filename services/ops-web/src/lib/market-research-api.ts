@@ -948,6 +948,8 @@ export type ResearchRagHit = {
   status: 'approved_client_facing' | 'published';
   score: number;
   theme_codes: string[];
+  valid_to?: string | null;
+  is_stale?: boolean;
 };
 
 export type ResearchRagSearchResult = {

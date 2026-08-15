@@ -2614,6 +2614,35 @@ describe('MarketResearchService', () => {
     expect(out.hits[0]?.insight_id).toBe(20);
   });
 
+  it('P22 searchInsights returns is_stale from listEmbeddings valid_to', async () => {
+    config.researchRagEnabled = true;
+    const statement = 'Giá sữa học đường tăng tại Hà Nội';
+    const vec = embedInsightText(statement);
+    repo.listEmbeddings.mockResolvedValue([
+      {
+        insight_id: 20,
+        project_id: 9,
+        status: 'published',
+        statement,
+        observation: null,
+        embedding: vec,
+        theme_codes: [],
+        client_id: 'acme',
+        valid_to: '2020-01-01',
+      },
+    ]);
+    const out = await service.searchInsights(
+      { restricted: false, allowedClientIds: [] },
+      { q: statement },
+    );
+    expect(repo.listEmbeddings).toHaveBeenCalled();
+    expect(out.hits[0]).toMatchObject({
+      insight_id: 20,
+      valid_to: '2020-01-01',
+      is_stale: true,
+    });
+  });
+
   it('M2-1e: search outside scope is 403 without statement', async () => {
     config.researchRagEnabled = true;
     clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
