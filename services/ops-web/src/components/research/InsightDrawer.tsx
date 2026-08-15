@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { ConfidenceRubric, EMPTY_RUBRIC } from '@/components/research/ConfidenceRubric';
 import { EvidenceIdChip } from '@/components/research/EvidenceIdChip';
+import { InsightStaleBanner } from '@/components/research/InsightStaleBanner';
+import { insightIsStale } from '@/components/research/insight-stale.util';
 import {
   canSubmitInsightReview,
   fetchResearchTaxonomy,
@@ -168,6 +170,7 @@ export function InsightDrawer({
   }
 
   const title = insight ? `Insight #${insight.id} · ${INSIGHT_STATUS_LABELS[insight.status]}` : 'Insight mới';
+  const stale = insight ? insightIsStale(insight) : false;
 
   return (
     <div
@@ -212,6 +215,7 @@ export function InsightDrawer({
         {isCreator ? (
           <p className="muted">Người tạo không tự duyệt — nhờ Research Lead.</p>
         ) : null}
+        {stale ? <InsightStaleBanner validTo={insight?.valid_to} /> : null}
         <label>
           Statement *
           <textarea

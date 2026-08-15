@@ -109,6 +109,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-076 | Portal theme theo quý (analytics) | P15 | P15 | Spec ready | FR-INT-04 · BR-RES-06 · UC-073 |
 | RES-UC-077 | Theme QoQ / YoY delta (staff analytics) | P16 | P16 | Spec ready | FR-INT · BR-RES-06 · UC-075 |
 | RES-UC-078 | Theme QoQ / YoY delta (portal analytics) | P17 | P17 | Spec ready | FR-INT-04 · BR-RES-06 · UC-076 |
+| RES-UC-079 | Insight stale banner (`valid_to`) | P18 | P18 | Spec ready | FR-INS-07 |
 
 ---
 
@@ -745,6 +746,15 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Δ:** `null` khi prior count = 0 hoặc không có dữ liệu
 - **Màn hình:** `/research` (portal-web) — subtext Δ dưới mỗi ô quý
 - **Cấm** endpoint mới; không ops-web; không Talkwalker / conjoint / pgvector
+
+### RES-UC-079 — Insight stale banner (`valid_to`)
+
+- **Actor chính:** AM, Analyst, Lead (`crm_research.view` / edit insight)
+- **API:** insight rows từ project workspace / patch / approve — thêm `is_stale: boolean`
+- **Rule:** `is_stale = true` khi `valid_to` có giá trị và `valid_to < today` (UTC); `valid_to === today` → false
+- **Màn hình:** tab Insight project — banner trên card + drawer; filter «Chỉ hết hạn»
+- Banner: `Insight đã hết hạn (valid_to). Cập nhật hiệu lực trước khi dùng cho báo cáo / khách.`
+- **Cấm** endpoint mới; không DDL; không portal; không Talkwalker / conjoint / pgvector
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

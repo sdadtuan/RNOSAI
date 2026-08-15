@@ -360,6 +360,24 @@ describe('MarketResearchService', () => {
     expect(out.tavily_credits_limit).toBe(6);
   });
 
+  it('P18 getProject passes is_stale on insight rows', async () => {
+    stubScopedProject();
+    repo.listQuestions.mockResolvedValue([]);
+    repo.listSources.mockResolvedValue([]);
+    repo.listEvidence.mockResolvedValue([]);
+    repo.listInsights.mockResolvedValue([
+      insightRow({ id: 1, valid_to: '2020-01-01', is_stale: true }),
+      insightRow({ id: 2, valid_to: '2099-01-01', is_stale: false }),
+    ]);
+    repo.listRecentAiRuns.mockResolvedValue([]);
+    repo.listTrendSignals.mockResolvedValue([]);
+    repo.sumTavilyCredits.mockResolvedValue(0);
+
+    const out = await service.getProject(9, { restricted: true, allowedClientIds: ['acme'] });
+    expect(out.insights?.[0]?.is_stale).toBe(true);
+    expect(out.insights?.[1]?.is_stale).toBe(false);
+  });
+
   it('getProject outside scope is 403 without title in the body', async () => {
     repo.getProjectClientId.mockResolvedValue('other-client');
     clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
@@ -5090,6 +5108,7 @@ function insightRow(overrides: Partial<ResearchInsightRow> = {}): ResearchInsigh
     created_by: 'analyst@ptt',
     valid_from: null,
     valid_to: null,
+    is_stale: false,
     created_at: '2026-08-14',
     updated_at: '2026-08-14',
     evidence_ids: [],

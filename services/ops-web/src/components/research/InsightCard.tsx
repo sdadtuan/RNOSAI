@@ -1,6 +1,8 @@
 'use client';
 
 import { EvidenceIdChip } from '@/components/research/EvidenceIdChip';
+import { InsightStaleBanner } from '@/components/research/InsightStaleBanner';
+import { insightIsStale } from '@/components/research/insight-stale.util';
 import {
   canSubmitInsightReview,
   hasPersistedInsightRubric,
@@ -31,6 +33,7 @@ export function InsightCard({
   const canSubmit = canSubmitInsightReview(insight.status);
   const hasRubric = hasPersistedInsightRubric(insight);
   const hasRationale = Boolean(insight.confidence_rationale?.trim());
+  const stale = insightIsStale(insight);
   const submitDisabled = saving || !canSubmit || verifiedCount < 1 || !hasRubric || !hasRationale;
   const submitTitle =
     verifiedCount < 1
@@ -61,6 +64,7 @@ export function InsightCard({
           </span>
         ) : null}
       </p>
+      {stale ? <InsightStaleBanner validTo={insight.valid_to} /> : null}
       <p style={{ margin: '0.4rem 0', fontWeight: 600 }}>{insight.statement}</p>
       <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
         {insight.evidence_ids.length === 0 ? (
