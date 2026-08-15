@@ -1958,7 +1958,13 @@ export class MarketResearchService {
     const query = [input.questionVi.trim(), ...input.geo.map((g) => String(g).trim()).filter(Boolean)]
       .join(' ')
       .slice(0, 500);
-    const raw = await collectSparkToro({ query, apiKey: input.apiKey });
+    let raw: Awaited<ReturnType<typeof collectSparkToro>>;
+    try {
+      raw = await collectSparkToro({ query, apiKey: input.apiKey, geo: input.geo });
+    } catch {
+      await this.repo.failAiRun(input.runId, 'sparktoro_failed');
+      return { ok: true, run_id: input.runId, status: 'failed' };
+    }
     const candidates = mapSparkToroResponse(raw);
     const source_ids: number[] = [];
     for (const row of candidates) {
@@ -1975,7 +1981,16 @@ export class MarketResearchService {
       });
       source_ids.push(created.id);
     }
-    await this.repo.succeedAiRun(input.runId, { outputJson: { source_ids, query } });
+    await this.repo.succeedAiRun(input.runId, {
+      creditsUsed: Number(raw.credits_used ?? 0),
+      outputJson: {
+        source_ids,
+        query,
+        credits_used: raw.credits_used ?? 0,
+        report_id: raw.report_id ?? null,
+        location: raw.location ?? null,
+      },
+    });
     return { ok: true, run_id: input.runId, status: 'succeeded', source_ids };
   }
 

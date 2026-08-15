@@ -1,8 +1,24 @@
-/** Mockable SparkToro fetch. Tests replace this. Missing flag/key is handled by the service. */
+import {
+  fetchSparktoroAudienceWebsites,
+  resolveSparktoroLocation,
+} from './sparktoro-client.util';
 
-export async function collectSparkToro(_input: {
+/** SparkToro audience websites fetch. Tests replace fetchSparktoroAudienceWebsites via jest.mock on client. */
+
+export async function collectSparkToro(input: {
   query: string;
   apiKey: string;
-}): Promise<{ results: Array<{ url: string; title: string; snippet: string }> }> {
-  return { results: [] };
+  geo?: string[];
+}): Promise<{
+  results: Array<{ url: string; title: string; snippet: string }>;
+  credits_used?: number;
+  report_id?: string | null;
+  location?: string;
+}> {
+  const location = resolveSparktoroLocation(input.geo ?? []);
+  return fetchSparktoroAudienceWebsites({
+    query: input.query,
+    apiKey: input.apiKey,
+    location,
+  });
 }

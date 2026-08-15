@@ -635,6 +635,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - Query = `question_vi` + geo only (BR-RES-11); PII → 400
 - Sources `publisher=SparkToro`, `reliability_tier` ∈ {low, medium} + `limitation_note`; tier `high` → 400 `reliability_capped`
 - Flag/key off → `200 {ok:true, note:sparktoro_disabled}`; `GET /health` `sparktoro_enabled` false → ẩn CTA
+- Flag+key on (P9): HTTP live `POST /v3/describe/create` + `GET /v3/websites` → sources; ghi `credits_used` + `report_id` trên run
 - **Cấm** `createInsight` / `createReport` / publish-portal từ job này
 
 ### RES-UC-062 — Import survey codebook CSV

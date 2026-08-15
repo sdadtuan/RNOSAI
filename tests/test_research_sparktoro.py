@@ -128,6 +128,45 @@ def test_process_inserts_sparktoro_sources_not_insight(monkeypatch):
     assert "create_insight" not in called
 
 
+def test_fetch_sparktoro_normalizes_websites(monkeypatch):
+    from ptt_crm.market_research import sparktoro_collect
+
+    def fake_create(_q, _k, _loc):
+        return {"report_id": "rpt-9", "status": "ready"}
+
+    def fake_websites(_rid, _k, _limit):
+        return {
+            "data": [{"domain": "a.com", "affinity": 10, "category": "Biz", "meta_description": "A"}],
+            "meta": {"credits_charged": 2},
+        }
+
+    monkeypatch.setattr(sparktoro_collect, "_create_report", fake_create)
+    monkeypatch.setattr(sparktoro_collect, "_get_websites", fake_websites)
+    raw = sparktoro_collect._fetch_sparktoro("query", "key", ["VN"])
+    assert raw["results"][0]["url"] == "https://a.com"
+    assert raw["credits_used"] == 12
+    assert raw["report_id"] == "rpt-9"
+
+
+def test_collect_sparktoro_http_error(monkeypatch):
+    from ptt_crm.market_research import sparktoro_collect
+
+    monkeypatch.setenv("RESEARCH_SPARKTORO_ENABLED", "1")
+    monkeypatch.setenv("SPARKTORO_API_KEY", "st-test")
+
+    def boom(_q, _k, _geo):
+        raise RuntimeError("sparktoro_create_http_401")
+
+    out = sparktoro_collect.collect_sparktoro(
+        question_vi="Ai overlap?",
+        geo=["VN"],
+        fetch=boom,
+    )
+    assert out["ok"] is False
+    assert out["error"] == "sparktoro_create_http_401"
+    assert out["sources"] == []
+
+
 @patch("ptt_jobs.handlers.research_sparktoro.mark_job_done")
 @patch("ptt_jobs.handlers.research_sparktoro.process_research_sparktoro_payload")
 def test_handler_marks_done(process_mock, done_mock):

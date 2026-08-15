@@ -496,9 +496,30 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 | Hạng mục | Điều kiện mở |
 |----------|--------------|
-| SparkToro **live** HTTP | PO mua API + key staging |
+| SparkToro **live** HTTP | **Shipped P9** — UAT staging bên dưới |
 | Qualtrics **live** | Retainer + key staging |
 | OpenAI embeddings | DPA vendor + gold-set semantic |
 | Portal RAG | Sau copilot+search staging ổn |
 | Conjoint / simulator / cluster quý / Talkwalker / ISO 20252 | Scorecard 100đ |
 | **Apify login** | **Out (Design §20)** |
+
+## Walkthrough UAT P9 — SparkToro live HTTP staging (≈15 phút)
+
+**Mục tiêu:** *«PO bật key staging → Chạy SparkToro → sources websites + limitation_note + credits_used; không insight mới.»*
+
+**Tiền đề:** `RESEARCH_SPARKTORO_ENABLED=1` + `SPARKTORO_API_KEY` trong `runtime.env` staging · restart `ptt-crm-api` + `ptt-worker` · Client `acme` trong scope · Caps `crm_research.run`
+
+| # | Actor | Màn | Thao tác | Input | Kỳ vọng | UC |
+|---|-------|-----|----------|-------|---------|-----|
+| 1 | PO | VPS | Set flag + key staging | key PO | `GET /health` → `sparktoro_enabled=true` | 061 |
+| 2 | AN | Sources | **Chạy SparkToro** | `question_id` (không PII) | `202 {ok, run_id}` | 061 |
+| 3 | AN | Wait job | Poll run / F5 sources | — | Sources `publisher=SparkToro`, `limitation_note` | BR-RES-09 |
+| 4 | AN | Run detail | Xem `ai_runs` | — | `credits_used` ≥ 12 · `output_json.report_id` | P9 |
+| 5 | AN | Insights | Đếm insight | — | **Không** insight mới | BR-RES-06/08 |
+
+**Prod deploy:** script P9 **không** ghi flag/key · smoke M4 skip live.
+
+- [ ] Bước 1–5 pass staging
+- [ ] Prod `sparktoro_enabled=false` sau deploy
+
+## P10+ (backlog)

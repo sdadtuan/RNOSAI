@@ -1911,6 +1911,9 @@ describe('MarketResearchService', () => {
           snippet: 'Ước lượng overlap audience ngành sữa uống tại VN.',
         },
       ],
+      credits_used: 12,
+      report_id: 'rpt-1',
+      location: 'us',
     });
     repo.createSource.mockResolvedValue({
       id: 44,
@@ -1964,8 +1967,62 @@ describe('MarketResearchService', () => {
     expect(['low', 'medium']).toContain(tier);
     expect(repo.createInsight).not.toHaveBeenCalled();
     expect(collectSparkToro).toHaveBeenCalledWith(
-      expect.objectContaining({ query: expect.stringContaining('Ai overlap audience sữa uống?') }),
+      expect.objectContaining({
+        query: expect.stringContaining('Ai overlap audience sữa uống?'),
+        geo: expect.any(Array),
+      }),
     );
+    expect(repo.succeedAiRun).toHaveBeenCalledWith(
+      82,
+      expect.objectContaining({
+        creditsUsed: 12,
+        outputJson: expect.objectContaining({
+          credits_used: 12,
+          report_id: 'rpt-1',
+        }),
+      }),
+    );
+  });
+
+  it('M3-2e: jobs_disabled SparkToro HTTP error fails run without insight', async () => {
+    stubScopedProject();
+    config.researchSparktoroEnabled = true;
+    config.sparktoroApiKey = 'st-test-key';
+    repo.getQuestion.mockResolvedValue({
+      id: 10,
+      project_id: 9,
+      sort_order: 1,
+      question_vi: 'Ai overlap audience sữa uống?',
+      question_en: null,
+      analysis_frame: null,
+      created_at: '2026-08-14',
+    });
+    repo.insertAiRun.mockResolvedValue({
+      id: 83,
+      project_id: 9,
+      question_id: 10,
+      job_type: 'sparktoro',
+      provider: 'sparktoro',
+      status: 'pending',
+      credits_used: 0,
+      error_message: null,
+      created_at: '2026-08-14',
+      finished_at: null,
+    });
+    jobQueue.enqueueResearchSparktoroJob.mockResolvedValue(null);
+    (collectSparkToro as jest.Mock).mockRejectedValue(new Error('sparktoro_create_http_401'));
+
+    const out = await service.runSparktoro(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { question_id: 10 },
+      'am@ptt',
+    );
+
+    expect(out).toEqual({ ok: true, run_id: 83, status: 'failed' });
+    expect(repo.failAiRun).toHaveBeenCalledWith(83, 'sparktoro_failed');
+    expect(repo.createSource).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
   });
 
   it('flag or key off returns sparktoro_disabled without enqueue or insight', async () => {
