@@ -523,3 +523,24 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 - [ ] Prod `sparktoro_enabled=false` sau deploy
 
 ## P10+ (backlog)
+
+## Walkthrough UAT P11 — OpenAI embeddings staging (≈10 phút)
+
+**Mục tiêu:** *«PO bật RAG + OpenAI embed staging → duyệt insight corpus → search paraphrase G3 hit đúng id; PII skip HTTP; prod `rag_openai_embed_enabled=false`.»*
+
+**Tiền đề:** `RESEARCH_RAG_ENABLED=1` + `RESEARCH_RAG_OPENAI_EMBED_ENABLED=1` + `OPENAI_API_KEY` trong `runtime.env` staging · restart `ptt-crm-api` · PO đã xác nhận DPA gửi statement → OpenAI
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | PO | Set 3 env + restart api | `GET /health` → `rag_enabled=true`, `rag_openai_embed_enabled=true`, `rag_embed_model=openai` |
+| 2 | AN | Approve insight corpus (không PII) | DB `embed_dims=256`, `embed_model=text-embedding-3-small` |
+| 3 | AN | Search paraphrase G3 (`học sinh uống sữa đắt hơn ở thủ đô`) | Hit đúng `insight_id`; không draft |
+| 4 | AN | Statement có SĐT/email | Approve 200; **không** dòng embedding mới |
+| 5 | QA | Prod sau deploy P11 | `rag_openai_embed_enabled=false` |
+
+**Lưu ý:** Insight đã embed hash 64-d **không** hit query OpenAI 256-d cho đến khi approve lại (dim skip). P11 **không** backfill.
+
+- [ ] Bước 1–5 pass staging
+- [ ] Prod `rag_openai_embed_enabled=false` sau deploy
+
+## P12+ (backlog)

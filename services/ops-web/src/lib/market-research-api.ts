@@ -859,6 +859,8 @@ export async function fetchResearchHealth(
   sparktoro_enabled: boolean;
   qualtrics_enabled: boolean;
   rag_enabled: boolean;
+  rag_openai_embed_enabled: boolean;
+  rag_embed_model: 'openai' | 'local';
 }> {
   return researchFetch(token, '/api/v1/research/health');
 }

@@ -21,6 +21,12 @@ import { collectSparkToro } from './sparktoro-collect';
 import { collectQualtrics } from './qualtrics-collect';
 import { computeVanWestendorp } from './van-westendorp.util';
 import { embedInsightText, insightEmbedText, isRagCorpusStatus } from './research-rag.util';
+import { fetchOpenAIEmbedding } from './openai-embed.util';
+import { OPENAI_EMBED_MODEL, RAG_EMBED_DIMS } from './market-research.types';
+
+jest.mock('./openai-embed.util', () => ({
+  fetchOpenAIEmbedding: jest.fn(),
+}));
 
 jest.mock('./whisper-transcribe', () => ({
   transcribeAudio: jest.fn(),
@@ -179,6 +185,7 @@ describe('MarketResearchService', () => {
     qualtricsApiKey: '',
     qualtricsDatacenter: '',
     researchRagEnabled: false,
+    researchRagOpenaiEmbedEnabled: false,
   };
 
   let service: MarketResearchService;
@@ -193,6 +200,8 @@ describe('MarketResearchService', () => {
     config.qualtricsApiKey = '';
     config.qualtricsDatacenter = '';
     config.researchRagEnabled = false;
+    config.researchRagOpenaiEmbedEnabled = false;
+    (fetchOpenAIEmbedding as jest.Mock).mockReset();
     repo.listTrendSignals.mockResolvedValue([]);
     llm.isConfigured.mockReturnValue(true);
     service = new MarketResearchService(
@@ -1209,8 +1218,11 @@ describe('MarketResearchService', () => {
         project_id: 9,
         embed_text: embedText,
         embedding: embedInsightText(embedText),
+        embed_model: 'local-hash',
+        embed_dims: RAG_EMBED_DIMS,
       }),
     );
+    expect(fetchOpenAIEmbedding).not.toHaveBeenCalled();
 
     repo.upsertInsightEmbedding.mockClear();
     const draft = insightRow({ status: 'draft' });
@@ -2231,6 +2243,8 @@ describe('MarketResearchService', () => {
       sparktoro_enabled: false,
       qualtrics_enabled: false,
       rag_enabled: false,
+      rag_openai_embed_enabled: false,
+      rag_embed_model: 'local',
     });
     config.researchDeepProvider = 'off';
     expect(service.health().deep_provider).toBe('off');
@@ -2308,6 +2322,196 @@ describe('MarketResearchService', () => {
     expect(payload.rag_enabled).toBe(true);
     expect(JSON.stringify(payload)).not.toMatch(/RESEARCH_RAG/);
     expect(payload).not.toHaveProperty('researchRagEnabled');
+  });
+
+  it('health rag_openai_embed_enabled is false when flag is on but key is missing', () => {
+    config.researchRagOpenaiEmbedEnabled = true;
+    const prev = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_KEY;
+    const payload = service.health();
+    expect(payload.rag_openai_embed_enabled).toBe(false);
+    expect(payload.rag_embed_model).toBe('local');
+    if (prev !== undefined) process.env.OPENAI_API_KEY = prev;
+  });
+
+  it('health rag_openai_embed_enabled is true only when flag and key are present', () => {
+    config.researchRagOpenaiEmbedEnabled = true;
+    const prev = process.env.OPENAI_API_KEY;
+    process.env.OPENAI_API_KEY = 'sk-secret-never-leak';
+    const payload = service.health();
+    expect(payload.rag_openai_embed_enabled).toBe(true);
+    expect(payload.rag_embed_model).toBe('openai');
+    expect(JSON.stringify(payload)).not.toContain('sk-secret-never-leak');
+    expect(JSON.stringify(payload)).not.toMatch(/OPENAI_API_KEY/);
+    if (prev !== undefined) process.env.OPENAI_API_KEY = prev;
+    else delete process.env.OPENAI_API_KEY;
+  });
+
+  describe('P11 OpenAI embed path', () => {
+    it('flag embed off: approve upserts 64-d local-hash; fetchOpenAIEmbedding not called', async () => {
+      stubScopedProject();
+      const current = insightRow({
+        created_by: 'analyst@ptt',
+        status: 'approved_internal',
+        confidence_rationale: 'Nguồn verified, sample 2025',
+        confidence_json: validRubric,
+      });
+      const approved = insightRow({ ...current, status: 'approved_client_facing' });
+      repo.getInsight.mockResolvedValue(current);
+      repo.countVerifiedEvidenceForInsight.mockResolvedValue(1);
+      repo.updateInsightStatus.mockResolvedValue(approved);
+      repo.insertReview.mockResolvedValue({ id: 1 });
+
+      await service.approveInsight(
+        7,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { target_status: 'approved_client_facing' },
+        'lead@ptt',
+      );
+
+      expect(fetchOpenAIEmbedding).not.toHaveBeenCalled();
+      expect(repo.upsertInsightEmbedding).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embed_model: 'local-hash',
+          embed_dims: RAG_EMBED_DIMS,
+        }),
+      );
+      expect(repo.createInsight).not.toHaveBeenCalled();
+    });
+
+    it('flag+key on: approve upserts 256-d + model openai', async () => {
+      config.researchRagOpenaiEmbedEnabled = true;
+      process.env.OPENAI_API_KEY = 'sk-test';
+      stubScopedProject();
+      const current = insightRow({
+        created_by: 'analyst@ptt',
+        status: 'approved_internal',
+        confidence_rationale: 'Nguồn verified, sample 2025',
+        confidence_json: validRubric,
+      });
+      const approved = insightRow({ ...current, status: 'approved_client_facing' });
+      repo.getInsight.mockResolvedValue(current);
+      repo.countVerifiedEvidenceForInsight.mockResolvedValue(1);
+      repo.updateInsightStatus.mockResolvedValue(approved);
+      repo.insertReview.mockResolvedValue({ id: 1 });
+      const vec = Array.from({ length: 256 }, (_, i) => (i === 0 ? 1 : 0));
+      (fetchOpenAIEmbedding as jest.Mock).mockResolvedValue({
+        embedding: vec,
+        model: OPENAI_EMBED_MODEL,
+        dims: 256,
+      });
+
+      await service.approveInsight(
+        7,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { target_status: 'approved_client_facing' },
+        'lead@ptt',
+      );
+
+      expect(fetchOpenAIEmbedding).toHaveBeenCalled();
+      expect(repo.upsertInsightEmbedding).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embed_model: OPENAI_EMBED_MODEL,
+          embed_dims: 256,
+          embedding: vec,
+        }),
+      );
+      expect(repo.createInsight).not.toHaveBeenCalled();
+      delete process.env.OPENAI_API_KEY;
+    });
+
+    it('PII statement: 0 HTTP; no upsert; approve 200', async () => {
+      stubScopedProject();
+      const current = insightRow({
+        created_by: 'analyst@ptt',
+        status: 'approved_internal',
+        statement: 'Contact analyst@ptt.vn — Premium SKU tăng share',
+        confidence_rationale: 'Nguồn verified, sample 2025',
+        confidence_json: validRubric,
+      });
+      const approved = insightRow({ ...current, status: 'approved_client_facing' });
+      repo.getInsight.mockResolvedValue(current);
+      repo.countVerifiedEvidenceForInsight.mockResolvedValue(1);
+      repo.updateInsightStatus.mockResolvedValue(approved);
+      repo.insertReview.mockResolvedValue({ id: 1 });
+      config.researchRagOpenaiEmbedEnabled = true;
+      process.env.OPENAI_API_KEY = 'sk-test';
+
+      const out = await service.approveInsight(
+        7,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { target_status: 'approved_client_facing' },
+        'lead@ptt',
+      );
+
+      expect(out.status).toBe('approved_client_facing');
+      expect(fetchOpenAIEmbedding).not.toHaveBeenCalled();
+      expect(repo.upsertInsightEmbedding).not.toHaveBeenCalled();
+      delete process.env.OPENAI_API_KEY;
+    });
+
+    it('search flag off returns rag_disabled and does not call fetchOpenAIEmbedding', async () => {
+      const out = await service.searchInsights(
+        { restricted: false, allowedClientIds: [] },
+        { q: 'Giá sữa học đường' },
+      );
+      expect(out).toEqual({ hits: [], note: 'rag_disabled' });
+      expect(fetchOpenAIEmbedding).not.toHaveBeenCalled();
+      expect(repo.listEmbeddings).not.toHaveBeenCalled();
+    });
+
+    it('search embed on + OpenAI fail returns rag_embed_failed', async () => {
+      config.researchRagEnabled = true;
+      config.researchRagOpenaiEmbedEnabled = true;
+      process.env.OPENAI_API_KEY = 'sk-test';
+      (fetchOpenAIEmbedding as jest.Mock).mockRejectedValue(
+        Object.assign(new Error('openai_embed_failed'), { code: 'openai_embed_failed' }),
+      );
+
+      const out = await service.searchInsights(
+        { restricted: false, allowedClientIds: [] },
+        { q: 'Giá sữa học đường' },
+      );
+
+      expect(out).toEqual({ hits: [], note: 'rag_embed_failed' });
+      expect(repo.listEmbeddings).not.toHaveBeenCalled();
+      expect(repo.createInsight).not.toHaveBeenCalled();
+      delete process.env.OPENAI_API_KEY;
+    });
+
+    it('search embed on + matching queryVec returns G3 id in hits', async () => {
+      config.researchRagEnabled = true;
+      config.researchRagOpenaiEmbedEnabled = true;
+      process.env.OPENAI_API_KEY = 'sk-test';
+      const statement = 'Giá sữa học đường tăng tại Hà Nội';
+      const vec = embedInsightText(statement);
+      (fetchOpenAIEmbedding as jest.Mock).mockResolvedValue({
+        embedding: vec,
+        model: OPENAI_EMBED_MODEL,
+        dims: vec.length,
+      });
+      repo.listEmbeddings.mockResolvedValue([
+        {
+          insight_id: 10,
+          project_id: 9,
+          status: 'approved_client_facing',
+          statement,
+          observation: null,
+          embedding: vec,
+          theme_codes: [],
+        },
+      ]);
+
+      const out = await service.searchInsights(
+        { restricted: false, allowedClientIds: [] },
+        { q: 'học sinh uống sữa đắt hơn ở thủ đô' },
+      );
+
+      expect(out.hits.map((h) => h.insight_id)).toContain(10);
+      expect(repo.createInsight).not.toHaveBeenCalled();
+      delete process.env.OPENAI_API_KEY;
+    });
   });
 
   it('M2-1c: search q matches published; draft with the same sentence is not a hit', async () => {

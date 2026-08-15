@@ -141,11 +141,13 @@ import {
   QUALTRICS_LIMITATION_NOTE,
   QUALTRICS_SURVEY_ID_RE,
   RAG_COPILOT_HIT_LIMIT,
+  RAG_EMBED_DIMS,
   STUDY_METHODS,
   STUDY_MODES,
   SURVEY_IMPORT_FORMATS,
   VW_BASES,
 } from './market-research.types';
+import type { InsightEmbedResult } from './market-research.types';
 import {
   isSurveyEvidenceLocator,
   parseCodebookCsv,
@@ -159,6 +161,7 @@ import {
   rankRagHits,
   shouldSkipRagEmbed,
 } from './research-rag.util';
+import { fetchOpenAIEmbedding } from './openai-embed.util';
 import {
   buildCopilotRagQuery,
   shouldSkipCopilotRag,
@@ -209,10 +212,14 @@ export class MarketResearchService {
     sparktoro_enabled: boolean;
     qualtrics_enabled: boolean;
     rag_enabled: boolean;
+    rag_openai_embed_enabled: boolean;
+    rag_embed_model: 'openai' | 'local';
   } {
     const sparktoroKey = String(this.config.sparktoroApiKey ?? '').trim();
     const qualtricsKey = String(this.config.qualtricsApiKey ?? '').trim();
     const qualtricsDc = String(this.config.qualtricsDatacenter ?? '').trim();
+    const openaiKey = (process.env.OPENAI_API_KEY ?? process.env.OPENAI_KEY ?? '').trim();
+    const openaiEmbedLive = Boolean(this.config.researchRagOpenaiEmbedEnabled && openaiKey);
     return {
       ok: true,
       enabled: true,
@@ -222,7 +229,22 @@ export class MarketResearchService {
         this.config.researchQualtricsEnabled && qualtricsKey && qualtricsDc,
       ),
       rag_enabled: Boolean(this.config.researchRagEnabled),
+      rag_openai_embed_enabled: openaiEmbedLive,
+      rag_embed_model: openaiEmbedLive ? 'openai' : 'local',
     };
+  }
+
+  private openaiEmbedLive(): boolean {
+    const key = (process.env.OPENAI_API_KEY ?? process.env.OPENAI_KEY ?? '').trim();
+    return Boolean(this.config.researchRagOpenaiEmbedEnabled && key);
+  }
+
+  private async resolveInsightEmbedding(text: string): Promise<InsightEmbedResult> {
+    if (!this.openaiEmbedLive()) {
+      return { embedding: embedInsightText(text), model: 'local-hash', dims: RAG_EMBED_DIMS };
+    }
+    const key = (process.env.OPENAI_API_KEY ?? process.env.OPENAI_KEY ?? '').trim();
+    return fetchOpenAIEmbedding({ text, apiKey: key });
   }
 
   private deepFallbackProvider(): string {
@@ -1623,12 +1645,19 @@ export class MarketResearchService {
         observation: updated.observation,
       });
       if (!shouldSkipRagEmbed(embedText)) {
-        await this.repo.upsertInsightEmbedding({
-          insight_id: updated.id,
-          project_id: updated.project_id,
-          embedding: embedInsightText(embedText),
-          embed_text: embedText,
-        });
+        try {
+          const resolved = await this.resolveInsightEmbedding(embedText);
+          await this.repo.upsertInsightEmbedding({
+            insight_id: updated.id,
+            project_id: updated.project_id,
+            embedding: resolved.embedding,
+            embed_text: embedText,
+            embed_model: resolved.model,
+            embed_dims: resolved.dims,
+          });
+        } catch {
+          // skip upsert — approve already committed
+        }
       }
     } else if (target === 'superseded' || target === 'expired' || target === 'rejected') {
       await this.repo.deleteInsightEmbedding(insightId);
@@ -1651,6 +1680,14 @@ export class MarketResearchService {
     const rawLimit = Number(input.limit);
     const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 20) : 10;
     const themeCode = String(input.theme_code ?? '').trim() || undefined;
+    let queryVec: number[] | undefined;
+    if (this.openaiEmbedLive()) {
+      try {
+        queryVec = (await this.resolveInsightEmbedding(q)).embedding;
+      } catch {
+        return { hits: [], note: 'rag_embed_failed' };
+      }
+    }
     const allowedClientIds =
       !clientId && scope.restricted
         ? this.clientScope.allowedClientIdsForList(scope) ?? []
@@ -1660,7 +1697,7 @@ export class MarketResearchService {
       allowedClientIds,
       theme_code: themeCode,
     });
-    return { hits: rankRagHits(q, rows, { theme_code: themeCode, limit }) };
+    return { hits: rankRagHits(q, rows, { theme_code: themeCode, limit, queryVec }) };
   }
 
   async listTaxonomy(): Promise<{ themes: TaxonomyTheme[] }> {

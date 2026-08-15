@@ -19,6 +19,7 @@ type GoldCase = {
   corpus: GoldCorpusRow[];
   must_include: number[];
   must_exclude: number[];
+  needs_openai_query_vec?: boolean;
 };
 
 type GoldSet = { cases: GoldCase[] };
@@ -26,7 +27,7 @@ type GoldSet = { cases: GoldCase[] };
 const goldsetPath = join(__dirname, '../../../../scripts/fixtures/research-rag-goldset.json');
 const goldset = JSON.parse(readFileSync(goldsetPath, 'utf8')) as GoldSet;
 
-function rankGoldCase(c: GoldCase) {
+function rankGoldCase(c: GoldCase, queryVec?: number[]) {
   const corpusIds = new Set(c.corpus.map((row) => row.insight_id));
   const rows = c.corpus.map((row) => ({
     ...row,
@@ -34,7 +35,7 @@ function rankGoldCase(c: GoldCase) {
     embedding: embedInsightText(insightEmbedText(row)),
     theme_codes: [] as string[],
   }));
-  const hits = rankRagHits(c.q, rows);
+  const hits = rankRagHits(c.q, rows, queryVec ? { queryVec } : undefined);
   return { corpusIds, hits, hitIds: hits.map((h) => h.insight_id) };
 }
 
@@ -90,6 +91,48 @@ describe('rankRagHits theme filter', () => {
   });
 });
 
+describe('rankRagHits dim mismatch', () => {
+  it('skips rows whose embedding length differs from queryVec', () => {
+    const hits = rankRagHits(
+      'giá',
+      [
+        {
+          insight_id: 1,
+          project_id: 9,
+          status: 'published',
+          statement: 'Giá sữa',
+          observation: null,
+          embedding: [1, 0],
+          theme_codes: [],
+        },
+      ],
+      { queryVec: [1, 0, 0], minScore: 0 },
+    );
+    expect(hits).toEqual([]);
+  });
+
+  it('G3 with injected queryVec includes insight 10', () => {
+    const statement = 'Giá sữa học đường tăng tại Hà Nội';
+    const vec = embedInsightText(statement);
+    const hits = rankRagHits(
+      'học sinh uống sữa đắt hơn ở thủ đô',
+      [
+        {
+          insight_id: 10,
+          project_id: 9,
+          status: 'approved_client_facing',
+          statement,
+          observation: null,
+          embedding: vec,
+          theme_codes: [],
+        },
+      ],
+      { queryVec: vec, minScore: 0.12 },
+    );
+    expect(hits.map((h) => h.insight_id)).toContain(10);
+  });
+});
+
 describe('shouldSkipRagEmbed', () => {
   it('skips empty text, PII, and keeps clean insight text', () => {
     expect(shouldSkipRagEmbed('')).toBe(true);
@@ -126,8 +169,9 @@ describe('research-rag gold-set', () => {
   });
 
   it('every gold-set case honors must_include / must_exclude and corpus ids', () => {
-    expect(goldset.cases.map((c) => c.id)).toEqual(expect.arrayContaining(['G1', 'G2']));
+    expect(goldset.cases.map((c) => c.id)).toEqual(expect.arrayContaining(['G1', 'G2', 'G3']));
     for (const c of goldset.cases) {
+      if (c.needs_openai_query_vec) continue;
       const { corpusIds, hits, hitIds } = rankGoldCase(c);
       for (const id of c.must_include) {
         expect(hitIds).toContain(id);
@@ -140,5 +184,20 @@ describe('research-rag gold-set', () => {
       }
       expect(hits.every((h) => isRagCorpusStatus(h.status))).toBe(true);
     }
+  });
+
+  it('G3 with injected queryVec includes insight 10 (paraphrase gold-set)', () => {
+    const g3 = goldset.cases.find((c) => c.id === 'G3');
+    expect(g3).toBeDefined();
+    const statement = g3!.corpus[0].statement;
+    const vec = embedInsightText(insightEmbedText(g3!.corpus[0]));
+    const { hitIds } = rankGoldCase(g3!, vec);
+    for (const id of g3!.must_include) {
+      expect(hitIds).toContain(id);
+    }
+    for (const id of g3!.must_exclude) {
+      expect(hitIds).not.toContain(id);
+    }
+    expect(statement).toBe('Giá sữa học đường tăng tại Hà Nội');
   });
 });

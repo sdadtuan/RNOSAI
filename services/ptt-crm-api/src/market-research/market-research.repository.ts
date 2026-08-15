@@ -1879,14 +1879,23 @@ export class MarketResearchRepository implements OnModuleDestroy {
 
   async upsertInsightEmbedding(input: UpsertInsightEmbeddingInput): Promise<void> {
     await this.db.query(
-      `INSERT INTO crm_research_insight_embeddings (insight_id, project_id, embedding, embed_text)
-       VALUES ($1, $2, $3::jsonb, $4)
+      `INSERT INTO crm_research_insight_embeddings (insight_id, project_id, embedding, embed_text, embed_model, embed_dims)
+       VALUES ($1, $2, $3::jsonb, $4, $5, $6)
        ON CONFLICT (insight_id) DO UPDATE SET
          project_id = EXCLUDED.project_id,
          embedding = EXCLUDED.embedding,
          embed_text = EXCLUDED.embed_text,
+         embed_model = EXCLUDED.embed_model,
+         embed_dims = EXCLUDED.embed_dims,
          updated_at = now()`,
-      [input.insight_id, input.project_id, JSON.stringify(input.embedding), input.embed_text],
+      [
+        input.insight_id,
+        input.project_id,
+        JSON.stringify(input.embedding),
+        input.embed_text,
+        input.embed_model,
+        input.embed_dims,
+      ],
     );
   }
 

@@ -670,7 +670,10 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - PII skip embed (`shouldSkipRagEmbed`); approve vẫn 200
 - Cross-tenant → 403 `{error:forbidden}` không `statement`
 - Banner: `Chỉ insight đã duyệt bản khách / published. Không tìm draft. Không tự tạo insight.`
-- **Cấm** `createInsight` / `createResearchInsight` từ search; không portal RAG; không OpenAI embeddings
+- **Cấm** `createInsight` / `createResearchInsight` từ search; không portal RAG
+- OpenAI embeddings **optional staging**: khi `rag_openai_embed_enabled=true` (flag `RESEARCH_RAG_OPENAI_EMBED_ENABLED` + `OPENAI_API_KEY`); default local-hash 64-d
+- `GET /health` thêm `rag_openai_embed_enabled`, `rag_embed_model` (`openai` | `local`); không trả key
+- Dim mismatch (hash 64 vs OpenAI 256) → skip row; re-approve để re-embed
 
 ### RES-UC-071 — Taxonomy theme + gắn insight
 

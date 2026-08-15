@@ -48,16 +48,17 @@ export function rankRagHits(
       theme_synonyms?: string[];
     }
   >,
-  opts?: { theme_code?: string; limit?: number; minScore?: number },
+  opts?: { theme_code?: string; limit?: number; minScore?: number; queryVec?: number[] },
 ): RagHit[] {
   const minScore = opts?.minScore ?? 0.12;
   const limit = opts?.limit ?? 10;
-  const queryVec = embedInsightText(query);
+  const queryVec = opts?.queryVec ?? embedInsightText(query);
   const hits: RagHit[] = [];
 
   for (const row of rows) {
     if (!isRagCorpusStatus(row.status)) continue;
     if (!themeFilterMatches(opts?.theme_code, row.theme_codes, row.theme_synonyms)) continue;
+    if (row.embedding.length !== queryVec.length) continue;
     const score = 0.7 * cosineSimilarity(queryVec, row.embedding) + 0.3 * keywordScore(query, row.statement);
     if (score < minScore) continue;
     hits.push({

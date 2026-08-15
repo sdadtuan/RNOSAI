@@ -806,6 +806,16 @@ export type RagCorpusStatus = (typeof RAG_CORPUS_STATUSES)[number];
 
 export const RAG_EMBED_DIMS = 64;
 
+export const OPENAI_EMBED_MODEL = 'text-embedding-3-small';
+export const OPENAI_EMBED_DIMS = 256;
+export const OPENAI_EMBED_URL = 'https://api.openai.com/v1/embeddings';
+
+export type InsightEmbedResult = {
+  embedding: number[];
+  model: 'local-hash' | typeof OPENAI_EMBED_MODEL;
+  dims: number;
+};
+
 export const RAG_SEARCH_BANNER =
   'Chỉ insight đã duyệt bản khách / published. Không tìm draft. Không tự tạo insight.';
 
@@ -827,7 +837,7 @@ export type RagHit = {
 
 export type RagSearchResult = {
   hits: RagHit[];
-  note?: 'rag_disabled';
+  note?: 'rag_disabled' | 'rag_embed_failed';
 };
 
 export const RAG_COPILOT_HIT_LIMIT = 5;
@@ -858,6 +868,8 @@ export type UpsertInsightEmbeddingInput = {
   project_id: number;
   embedding: number[];
   embed_text: string;
+  embed_model: string;
+  embed_dims: number;
 };
 
 export type ListEmbeddingsFilters = {
