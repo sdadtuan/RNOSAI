@@ -566,6 +566,26 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 ## P13+ (backlog — conjoint / cluster / Talkwalker)
 
+## P15+ (backlog — conjoint / Talkwalker)
+
+## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
+
+**Mục tiêu:** *«Khách portal mở /research → bảng theme Q1–Q4 → click theme → RAG search prefill (staging flag on).»*
+
+**Tiền đề:** corpus có insight `published` gắn theme · portal JWT đúng `client_id`
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | CL | Mở `/research` | Bảng «Theme theo quý» + banner published-only |
+| 2 | CL | Đổi năm | `GET /portal/research/analytics/themes?year=` cập nhật |
+| 3 | AN | So sánh counts với DB | Chỉ `published` cùng client; không ACF/draft |
+| 4 | CL | JWT client B | 0 row client A; JSON không leak `statement` |
+| 5 | CL | Staging `RESEARCH_RAG_ENABLED=1` | Click theme → lọc theme trên ô RAG |
+| 6 | QA | Prod sau deploy P15 | Bảng hiện; RAG ẩn khi `rag_enabled=false` |
+
+- [ ] Bước 1–6 pass staging
+- [ ] Prod không bật RAG sau deploy
+
 ## Walkthrough UAT P14 — Theme quarter analytics (≈8 phút)
 
 **Mục tiêu:** *«Staff mở Phân tích nghiên cứu → bảng theme Q1–Q4 theo năm → click theme → RAG search prefill (staging flag on).»*

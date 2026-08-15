@@ -902,6 +902,14 @@ export type PortalRagSearchInput = {
   client_id?: string;
 };
 
+export type PortalThemeQuarterAnalyticsPayload = {
+  ok: true;
+  year: number;
+  client_id: string;
+  corpus_statuses: readonly ['published'];
+  rows: ThemeQuarterRow[];
+};
+
 export type PortalResearchHealth = {
   ok: true;
   enabled: true;

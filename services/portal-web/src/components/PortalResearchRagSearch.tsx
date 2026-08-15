@@ -13,9 +13,16 @@ import {
 import { isMarketResearchPortalFeEnabled } from '@/lib/market-research-portal-flags';
 import { portalResearchErrorVi } from '@/lib/portal-research-errors';
 
-export function PortalResearchRagSearch({ token }: { token: string }) {
+export function PortalResearchRagSearch({
+  token,
+  prefillThemeCode,
+}: {
+  token: string;
+  prefillThemeCode?: string;
+}) {
   const [ragEnabled, setRagEnabled] = useState(false);
   const [q, setQ] = useState('');
+  const [themeCode, setThemeCode] = useState('');
   const [hits, setHits] = useState<PortalResearchRagHit[]>([]);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
@@ -27,6 +34,10 @@ export function PortalResearchRagSearch({ token }: { token: string }) {
       .then((health) => setRagEnabled(health.rag_enabled))
       .catch(() => setRagEnabled(false));
   }, [token]);
+
+  useEffect(() => {
+    if (prefillThemeCode) setThemeCode(prefillThemeCode);
+  }, [prefillThemeCode]);
 
   if (!shouldShowPortalRagSearch(isMarketResearchPortalFeEnabled(), ragEnabled)) {
     return null;
@@ -44,7 +55,10 @@ export function PortalResearchRagSearch({ token }: { token: string }) {
     setError('');
     setNote('');
     try {
-      const out = await portalResearchInsightSearch(token, { q: query });
+      const out = await portalResearchInsightSearch(token, {
+        q: query,
+        theme_code: themeCode || undefined,
+      });
       setHits(out.hits);
       if (out.note) {
         setNote(portalResearchErrorVi(out.note));
@@ -79,6 +93,15 @@ export function PortalResearchRagSearch({ token }: { token: string }) {
           Tìm
         </button>
       </div>
+      {themeCode ? (
+        <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
+          Lọc theme: <strong>{themeCode}</strong>
+          {' '}
+          <button type="button" className="btn btn-sm btn-secondary" disabled={searching} onClick={() => setThemeCode('')}>
+            Bỏ lọc
+          </button>
+        </p>
+      ) : null}
       {error ? (
         <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.85rem' }}>
           {error}

@@ -20,6 +20,7 @@ import {
   type PortalResearchHealth,
   type PortalResearchReportCard,
   type PortalResearchReportDetail,
+  type PortalThemeQuarterAnalyticsPayload,
   type RagSearchResult,
 } from '../market-research/market-research.types';
 import { fetchOpenAIEmbedding } from '../market-research/openai-embed.util';
@@ -123,6 +124,24 @@ export class PortalResearchService {
         queryVec: resolved.queryVec,
         corpusStatuses: PORTAL_RAG_CORPUS_STATUSES,
       }),
+    };
+  }
+
+  async getThemeQuarterAnalytics(
+    user: PortalJwtPayload,
+    yearInput?: number,
+  ): Promise<PortalThemeQuarterAnalyticsPayload> {
+    const year = yearInput ?? new Date().getUTCFullYear();
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException({ error: 'invalid_year' });
+    }
+    const rows = await this.repo.getThemeQuarterAnalytics(user.client_id, year);
+    return {
+      ok: true,
+      year,
+      client_id: user.client_id,
+      corpus_statuses: PORTAL_RAG_CORPUS_STATUSES,
+      rows,
     };
   }
 

@@ -1343,6 +1343,37 @@ export async function portalResearchInsightSearch(
   return body;
 }
 
+export type PortalThemeQuarterAnalyticsPayload = {
+  ok: true;
+  year: number;
+  client_id: string;
+  corpus_statuses: readonly string[];
+  rows: Array<{
+    quarter: number;
+    theme_code: string;
+    label_vi: string;
+    insight_count: number;
+  }>;
+};
+
+export async function portalResearchThemeQuarterAnalytics(
+  token: string,
+  params?: { year?: number },
+): Promise<PortalThemeQuarterAnalyticsPayload> {
+  const qs = new URLSearchParams();
+  if (params?.year != null) qs.set('year', String(params.year));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/portal/research/analytics/themes${suffix}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<PortalThemeQuarterAnalyticsPayload & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Theme analytics failed', res.status);
+  }
+  return body;
+}
+
 export async function testNativePush(token: string): Promise<NativePushTestResponse> {
   const res = await fetch(`${API_BASE}/api/v1/mobile/push/test`, {
     method: 'POST',

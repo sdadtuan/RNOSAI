@@ -425,6 +425,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P15 — RES-UC-076
+
+| UC | Tóm tắt |
+|----|---------|
+| 076 | Portal cluster theme theo quý trên corpus `published`; bucket `updated_at`; JWT tenancy. |
+
+**API:** `GET /api/v1/portal/research/analytics/themes?year=`  
+**Gates:** rebuild portal-web; không DDL; click theme → prefill portal RAG khi flag on; **cấm** link staff CRM.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |
