@@ -4300,9 +4300,11 @@ describe('MarketResearchService', () => {
 
   it('P14 getThemeQuarterAnalytics returns corpus rows scoped by year', async () => {
     clientScope.allowedClientIdsForList.mockReturnValue(['beta']);
-    repo.getThemeQuarterAnalytics.mockResolvedValue([
-      { quarter: 1, theme_code: 'PRICE', label_vi: 'Giá', insight_count: 3 },
-    ]);
+    repo.getThemeQuarterAnalytics
+      .mockResolvedValueOnce([
+        { quarter: 1, theme_code: 'PRICE', label_vi: 'Giá', insight_count: 3 },
+      ])
+      .mockResolvedValueOnce([]);
 
     const out = await service.getThemeQuarterAnalytics(
       { restricted: true, allowedClientIds: ['beta'] },
@@ -4312,9 +4314,43 @@ describe('MarketResearchService', () => {
     expect(out.ok).toBe(true);
     expect(out.year).toBe(2026);
     expect(out.corpus_statuses).toEqual(['approved_client_facing', 'published']);
-    expect(out.rows).toEqual([{ quarter: 1, theme_code: 'PRICE', label_vi: 'Giá', insight_count: 3 }]);
+    expect(out.rows[0]).toMatchObject({
+      quarter: 1,
+      theme_code: 'PRICE',
+      label_vi: 'Giá',
+      insight_count: 3,
+      prev_qoq_count: null,
+      delta_qoq_pct: null,
+      prev_yoy_count: null,
+      delta_yoy_pct: null,
+    });
     expect(JSON.stringify(out)).not.toContain('title');
     expect(repo.getThemeQuarterAnalytics).toHaveBeenCalledWith({ client_id: undefined, year: 2026 }, ['beta']);
+    expect(repo.getThemeQuarterAnalytics).toHaveBeenCalledWith({ client_id: undefined, year: 2025 }, ['beta']);
+  });
+
+  it('P16 getThemeQuarterAnalytics enriches QoQ and YoY deltas', async () => {
+    clientScope.allowedClientIdsForList.mockReturnValue(undefined);
+    repo.getThemeQuarterAnalytics
+      .mockResolvedValueOnce([
+        { quarter: 1, theme_code: 'PRICE', label_vi: 'Giá', insight_count: 2 },
+        { quarter: 2, theme_code: 'PRICE', label_vi: 'Giá', insight_count: 4 },
+      ])
+      .mockResolvedValueOnce([
+        { quarter: 2, theme_code: 'PRICE', label_vi: 'Giá', insight_count: 2 },
+      ]);
+
+    const out = await service.getThemeQuarterAnalytics({ restricted: false, allowedClientIds: [] }, { year: 2026 });
+
+    expect(out.rows[1]).toMatchObject({
+      quarter: 2,
+      insight_count: 4,
+      prev_qoq_count: 2,
+      delta_qoq_pct: 100,
+      prev_yoy_count: 2,
+      delta_yoy_pct: 100,
+    });
+    expect(JSON.stringify(out)).not.toContain('title');
   });
 
   const codebookCsv = [

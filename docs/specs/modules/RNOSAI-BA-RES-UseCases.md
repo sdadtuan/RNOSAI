@@ -107,6 +107,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-074 | RAG re-embed backfill (OpenAI 256-d) | P13 | P13 | Spec ready | FR-INT · BR-RES-06/11 · NFR-AI-04 |
 | RES-UC-075 | Cluster theme theo quý (analytics) | P14 | P14 | Spec ready | FR-INT · BR-RES-06 · UC-071 |
 | RES-UC-076 | Portal theme theo quý (analytics) | P15 | P15 | Spec ready | FR-INT-04 · BR-RES-06 · UC-073 |
+| RES-UC-077 | Theme QoQ / YoY delta (staff analytics) | P16 | P16 | Spec ready | FR-INT · BR-RES-06 · UC-075 |
 
 ---
 
@@ -723,6 +724,16 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - Banner: `Chỉ insight đã published cùng khách. Đếm theo theme gắn trên insight, bucket theo quý (updated_at).`
 - **Cấm** `createInsight`; **cấm** link staff CRM; không Talkwalker / conjoint / pgvector
 
+### RES-UC-077 — Theme QoQ / YoY delta (staff analytics)
+
+- **Actor chính:** AM, Analyst, Lead (`crm_research.view`)
+- **API:** `GET /api/v1/research/analytics/themes?client_id=&year=` — payload rows thêm `prev_qoq_count`, `prev_yoy_count`, `delta_qoq_pct`, `delta_yoy_pct`
+- **QoQ:** quý trước trong cùng năm (Q1 → null)
+- **YoY:** cùng quý năm `year-1`
+- **Δ:** `null` khi prior count = 0 hoặc không có dữ liệu
+- **Màn hình:** `/crm/research/analytics` — subtext Δ dưới mỗi ô quý
+- **Cấm** endpoint mới; không portal; không Talkwalker / conjoint / pgvector
+
 ### RES-UC-072 — Inject RAG vào insight copilot
 
 - **Actor chính:** Analyst (`run`)
@@ -793,7 +804,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | POST | `/content-items/:itemId/insights` | 051 |
 | POST | `/internal/research/jobs/:id/complete` | 004, 005, 011, 012 |
 | GET | `/analytics/ops` | 033 |
-| GET | `/analytics/themes` | 075 |
+| GET | `/analytics/themes` | 075, 077 |
 
 **Guards:** `StaffOrInternalKeyGuard` + `crm_research.view|create|edit|run|approve|export|configure`  
 **Flag off:** 404 `market_research_disabled`

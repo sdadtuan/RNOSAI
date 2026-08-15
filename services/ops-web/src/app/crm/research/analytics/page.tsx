@@ -28,7 +28,7 @@ import {
 import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
 
 const THEME_ANALYTICS_BANNER =
-  'Chỉ insight đã duyệt bản khách / published. Đếm theo theme gắn trên insight, bucket theo quý (updated_at).';
+  'Chỉ insight đã duyệt bản khách / published. Đếm theo theme gắn trên insight, bucket theo quý (updated_at). Δ QoQ / YoY khi có số liệu quý trước.';
 
 export default function CrmResearchAnalyticsPage() {
   const router = useRouter();
