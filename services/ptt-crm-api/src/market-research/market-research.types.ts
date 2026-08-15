@@ -180,6 +180,21 @@ export type OpsAnalyticsRaw = {
   projects: OpsAnalyticsProjectRow[];
 };
 
+export type ThemeQuarterRow = {
+  quarter: number;
+  theme_code: string;
+  label_vi: string;
+  insight_count: number;
+};
+
+export type ThemeQuarterAnalyticsPayload = {
+  ok: true;
+  year: number;
+  client_id: string | null;
+  corpus_statuses: readonly RagCorpusStatus[];
+  rows: ThemeQuarterRow[];
+};
+
 export const CONSENT_TYPES = ['record', 'quote', 'store'] as const;
 export type ConsentType = (typeof CONSENT_TYPES)[number];
 

@@ -70,6 +70,7 @@ describe('MarketResearchService', () => {
     getProject: jest.fn(),
     listProjects: jest.fn(),
     getOpsAnalytics: jest.fn(),
+    getThemeQuarterAnalytics: jest.fn(),
     createProject: jest.fn(),
     listQuestions: jest.fn(),
     listSources: jest.fn(),
@@ -4272,6 +4273,48 @@ describe('MarketResearchService', () => {
     expect(out.cycle_time_hours.sample).toBe(3);
     expect(out.evidence_completeness).toEqual({ projects: 1, with_verified_pct: 100 });
     expect(repo.getOpsAnalytics).toHaveBeenCalledWith({}, ['beta']);
+  });
+
+  it('P14 getThemeQuarterAnalytics out-of-scope client_id is 403', async () => {
+    clientScope.allowedClientIdsForList.mockReturnValue(['beta']);
+    clientScope.assertListClientFilter.mockImplementation((scope, clientId) => {
+      if (scope.restricted && clientId && !scope.allowedClientIds.includes(clientId)) {
+        throw new ForbiddenException({ error: 'forbidden' });
+      }
+    });
+
+    await expect(
+      service.getThemeQuarterAnalytics({ restricted: true, allowedClientIds: ['beta'] }, { client_id: 'acme' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repo.getThemeQuarterAnalytics).not.toHaveBeenCalled();
+  });
+
+  it('P14 getThemeQuarterAnalytics invalid year is 400', async () => {
+    clientScope.allowedClientIdsForList.mockReturnValue(undefined);
+
+    await expect(
+      service.getThemeQuarterAnalytics({ restricted: false, allowedClientIds: [] }, { year: 1999 }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.getThemeQuarterAnalytics).not.toHaveBeenCalled();
+  });
+
+  it('P14 getThemeQuarterAnalytics returns corpus rows scoped by year', async () => {
+    clientScope.allowedClientIdsForList.mockReturnValue(['beta']);
+    repo.getThemeQuarterAnalytics.mockResolvedValue([
+      { quarter: 1, theme_code: 'PRICE', label_vi: 'Giá', insight_count: 3 },
+    ]);
+
+    const out = await service.getThemeQuarterAnalytics(
+      { restricted: true, allowedClientIds: ['beta'] },
+      { year: 2026 },
+    );
+
+    expect(out.ok).toBe(true);
+    expect(out.year).toBe(2026);
+    expect(out.corpus_statuses).toEqual(['approved_client_facing', 'published']);
+    expect(out.rows).toEqual([{ quarter: 1, theme_code: 'PRICE', label_vi: 'Giá', insight_count: 3 }]);
+    expect(JSON.stringify(out)).not.toContain('title');
+    expect(repo.getThemeQuarterAnalytics).toHaveBeenCalledWith({ client_id: undefined, year: 2026 }, ['beta']);
   });
 
   const codebookCsv = [

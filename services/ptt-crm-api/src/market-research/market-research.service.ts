@@ -87,6 +87,7 @@ import type {
   CopilotRagNote,
   ListProjectsFilters,
   OpsAnalyticsPayload,
+  ThemeQuarterAnalyticsPayload,
   PatchEvidenceInput,
   PatchInsightInput,
   PatchProjectInput,
@@ -143,6 +144,7 @@ import {
   DECISION_STATUSES,
   QUALTRICS_LIMITATION_NOTE,
   QUALTRICS_SURVEY_ID_RE,
+  RAG_CORPUS_STATUSES,
   RAG_COPILOT_HIT_LIMIT,
   RAG_EMBED_DIMS,
   OPENAI_EMBED_DIMS,
@@ -431,6 +433,36 @@ export class MarketResearchService {
         approved_reports: raw.approvedReports,
       },
       projects,
+    };
+  }
+
+  async getThemeQuarterAnalytics(
+    scope: ClientScopeContext,
+    opts?: { client_id?: string; year?: number },
+  ): Promise<ThemeQuarterAnalyticsPayload> {
+    const cid = opts?.client_id?.trim();
+    if (cid) {
+      try {
+        this.clientScope.assertListClientFilter(scope, cid);
+      } catch {
+        throw new ForbiddenException({ error: 'forbidden' });
+      }
+    }
+    const year = opts?.year ?? new Date().getUTCFullYear();
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException({ error: 'invalid_year' });
+    }
+    const allowed = this.clientScope.allowedClientIdsForList(scope);
+    const rows = await this.repo.getThemeQuarterAnalytics(
+      { client_id: cid, year },
+      allowed,
+    );
+    return {
+      ok: true,
+      year,
+      client_id: cid ?? null,
+      corpus_statuses: RAG_CORPUS_STATUSES,
+      rows,
     };
   }
 

@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { StaffPageShell } from '@/components/layout';
+import { InsightsRagSearch } from '@/components/research/InsightsRagSearch';
 import { ResearchStatusChip } from '@/components/research/ResearchStatusChip';
+import { ResearchThemeQuarterTable } from '@/components/research/ResearchThemeQuarterTable';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -17,17 +19,32 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 import {
+  fetchResearchHealth,
   fetchResearchOpsAnalytics,
+  fetchResearchThemeQuarterAnalytics,
   type OpsAnalyticsPayload,
+  type ThemeQuarterAnalyticsPayload,
 } from '@/lib/market-research-api';
 import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
+
+const THEME_ANALYTICS_BANNER =
+  'Chỉ insight đã duyệt bản khách / published. Đếm theo theme gắn trên insight, bucket theo quý (updated_at).';
 
 export default function CrmResearchAnalyticsPage() {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [data, setData] = useState<OpsAnalyticsPayload | null>(null);
+  const [themeData, setThemeData] = useState<ThemeQuarterAnalyticsPayload | null>(null);
+  const [ragEnabled, setRagEnabled] = useState(false);
+  const [selectedThemeCode, setSelectedThemeCode] = useState('');
+  const [year, setYear] = useState(() => new Date().getUTCFullYear());
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const yearOptions = useMemo(() => {
+    const current = new Date().getUTCFullYear();
+    return [current, current - 1, current - 2];
+  }, []);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -63,6 +80,28 @@ export default function CrmResearchAnalyticsPage() {
     }
   }, [router]);
 
+  const loadAnalytics = useCallback(
+    async (access: string, selectedYear: number) => {
+      setLoading(true);
+      setError('');
+      try {
+        const [ops, themes, health] = await Promise.all([
+          fetchResearchOpsAnalytics(access),
+          fetchResearchThemeQuarterAnalytics(access, { year: selectedYear }),
+          fetchResearchHealth(access).catch(() => ({ rag_enabled: false })),
+        ]);
+        setData(ops);
+        setThemeData(themes);
+        setRagEnabled(health.rag_enabled === true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Tải phân tích thất bại');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     void (async () => {
       if (!isMarketResearchFeEnabled()) {
@@ -71,17 +110,9 @@ export default function CrmResearchAnalyticsPage() {
       }
       const access = await ensureAuth();
       if (!access) return;
-      setLoading(true);
-      setError('');
-      try {
-        setData(await fetchResearchOpsAnalytics(access));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Tải phân tích thất bại');
-      } finally {
-        setLoading(false);
-      }
+      await loadAnalytics(access, year);
     })();
-  }, [ensureAuth]);
+  }, [ensureAuth, loadAnalytics, year]);
 
   function logout() {
     clearSession();
@@ -183,6 +214,42 @@ export default function CrmResearchAnalyticsPage() {
         {data && data.projects.length === 0 && !loading ? (
           <p className="muted">Chưa có dự án nghiên cứu</p>
         ) : null}
+
+        <section className="stack-gap" style={{ marginTop: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0, fontSize: '1.05rem' }}>Theme theo quý</h2>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.9rem' }}>
+              Năm
+              <select
+                className="kpi-input"
+                value={year}
+                disabled={loading}
+                onChange={(e) => setYear(Number(e.target.value))}
+              >
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+            {THEME_ANALYTICS_BANNER}
+          </p>
+          {themeData ? (
+            <ResearchThemeQuarterTable
+              rows={themeData.rows}
+              year={themeData.year}
+              selectedThemeCode={selectedThemeCode}
+              onThemeClick={setSelectedThemeCode}
+            />
+          ) : null}
+          <InsightsRagSearch
+            ragEnabled={ragEnabled}
+            prefillThemeCode={selectedThemeCode || undefined}
+          />
+        </section>
       </div>
     </StaffPageShell>
   );

@@ -706,6 +706,21 @@ export type OpsAnalyticsPayload = OpsAnalytics & {
   projects: OpsAnalyticsProject[];
 };
 
+export type ThemeQuarterRow = {
+  quarter: number;
+  theme_code: string;
+  label_vi: string;
+  insight_count: number;
+};
+
+export type ThemeQuarterAnalyticsPayload = {
+  ok: true;
+  year: number;
+  client_id: string | null;
+  corpus_statuses: readonly string[];
+  rows: ThemeQuarterRow[];
+};
+
 export type CreateProjectBody = {
   client_id: string;
   title: string;
@@ -770,6 +785,17 @@ export async function fetchResearchOpsAnalytics(
   if (params?.client_id) qs.set('client_id', params.client_id);
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return researchFetch(token, `/api/v1/research/analytics/ops${suffix}`);
+}
+
+export async function fetchResearchThemeQuarterAnalytics(
+  token: string,
+  params?: { client_id?: string; year?: number },
+): Promise<ThemeQuarterAnalyticsPayload> {
+  const qs = new URLSearchParams();
+  if (params?.client_id) qs.set('client_id', params.client_id);
+  if (params?.year != null) qs.set('year', String(params.year));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return researchFetch(token, `/api/v1/research/analytics/themes${suffix}`);
 }
 
 export async function fetchResearchProjects(

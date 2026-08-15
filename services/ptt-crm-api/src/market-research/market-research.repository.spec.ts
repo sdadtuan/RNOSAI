@@ -113,6 +113,26 @@ describe('MarketResearchRepository', () => {
     expect(listSql).toMatch(/p\.status/);
   });
 
+  it('getThemeQuarterAnalytics scopes corpus, year, and client tenancy', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const repo = repoWithMock();
+
+    await repo.getThemeQuarterAnalytics({ year: 2026 }, ['beta']);
+
+    expect(queryMock).toHaveBeenCalledTimes(1);
+    const [sql, params] = queryMock.mock.calls[0];
+    const text = String(sql);
+    expect(text).not.toMatch(/\btitle\b/);
+    expect(text).toMatch(/approved_client_facing/);
+    expect(text).toMatch(/published/);
+    expect(text).toMatch(/date_trunc\('quarter', i\.updated_at\)/);
+    expect(text).toMatch(/crm_research_insight_themes/);
+    expect(text).toMatch(/crm_research_taxonomy/);
+    expect(text).toMatch(/EXTRACT\(YEAR FROM i\.updated_at\) = \$1/);
+    expect(text).toMatch(/p\.client_id = ANY\(\$\d+::text\[\]\)/);
+    expect(params).toEqual([2026, ['beta']]);
+  });
+
   it('getReportVersion selects embargo_until, expires_at, and portal_visible', async () => {
     queryMock.mockResolvedValue({ rows: [] });
     const repo = repoWithMock();

@@ -17,9 +17,11 @@ import { RAG_SEARCH_BANNER, shouldShowRagSearch } from './insights-rag.util';
 export function InsightsRagSearch({
   ragEnabled,
   clientId,
+  prefillThemeCode,
 }: {
   ragEnabled: boolean;
   clientId?: string;
+  prefillThemeCode?: string;
 }) {
   const [q, setQ] = useState('');
   const [themeCode, setThemeCode] = useState('');
@@ -37,6 +39,10 @@ export function InsightsRagSearch({
       .then((out) => setThemes(out.themes.filter((theme) => theme.active)))
       .catch(() => setThemes([]));
   }, [ragEnabled]);
+
+  useEffect(() => {
+    if (prefillThemeCode) setThemeCode(prefillThemeCode);
+  }, [prefillThemeCode]);
 
   if (!shouldShowRagSearch(ragEnabled, true)) return null;
 
