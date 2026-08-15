@@ -180,11 +180,18 @@ export type OpsAnalyticsRaw = {
   projects: OpsAnalyticsProjectRow[];
 };
 
-export type ThemeQuarterRow = {
+export type ThemeQuarterCountRow = {
   quarter: number;
   theme_code: string;
   label_vi: string;
   insight_count: number;
+};
+
+export type ThemeQuarterRow = ThemeQuarterCountRow & {
+  prev_qoq_count: number | null;
+  prev_yoy_count: number | null;
+  delta_qoq_pct: number | null;
+  delta_yoy_pct: number | null;
 };
 
 export type ThemeQuarterAnalyticsPayload = {
@@ -907,7 +914,7 @@ export type PortalThemeQuarterAnalyticsPayload = {
   year: number;
   client_id: string;
   corpus_statuses: readonly ['published'];
-  rows: ThemeQuarterRow[];
+  rows: ThemeQuarterCountRow[];
 };
 
 export type PortalResearchHealth = {

@@ -436,6 +436,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P16 — RES-UC-077
+
+| UC | Tóm tắt |
+|----|---------|
+| 077 | Staff theme analytics thêm Δ QoQ (trong năm) và YoY (cùng quý năm trước). |
+
+**API:** cùng `GET /api/v1/research/analytics/themes` — rows enriched  
+**Gates:** api + ops-web; không DDL; không portal; không RAG flags.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

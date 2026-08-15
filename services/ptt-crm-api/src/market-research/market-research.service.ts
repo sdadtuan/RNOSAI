@@ -190,6 +190,7 @@ import {
 } from './market-research.validation';
 import { compareLatestWaves } from './wave-compare.util';
 import { buildResearchPrefill, EMPTY_RESEARCH_PREFILL, stripPrefillPii } from './research-prefill.util';
+import { enrichThemeQuarterRows } from './theme-quarter-delta.util';
 import { assertMethodologyExportable } from './methodology-gate.util';
 import { assertExecEnEditable, normalizeReportExec } from './report-exec.util';
 import { assertPublishableInsights } from './portal-publish.util';
@@ -453,10 +454,13 @@ export class MarketResearchService {
       throw new BadRequestException({ error: 'invalid_year' });
     }
     const allowed = this.clientScope.allowedClientIdsForList(scope);
-    const rows = await this.repo.getThemeQuarterAnalytics(
-      { client_id: cid, year },
-      allowed,
-    );
+    const filters = { client_id: cid, year };
+    const currentRows = await this.repo.getThemeQuarterAnalytics(filters, allowed);
+    const priorYearRows =
+      year > 2000
+        ? await this.repo.getThemeQuarterAnalytics({ client_id: cid, year: year - 1 }, allowed)
+        : [];
+    const rows = enrichThemeQuarterRows(currentRows, priorYearRows);
     return {
       ok: true,
       year,

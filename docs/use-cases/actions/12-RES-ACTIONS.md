@@ -568,6 +568,25 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 ## P15+ (backlog — conjoint / Talkwalker)
 
+## P16+ (backlog — conjoint / Talkwalker)
+
+## Walkthrough UAT P16 — Theme QoQ/YoY delta (≈8 phút)
+
+**Mục tiêu:** *«Staff mở Phân tích → bảng theme có Δ QoQ/YoY dưới mỗi quý.»*
+
+**Tiền đề:** insight gắn theme ít nhất 2 quý liên tiếp hoặc cùng quý năm trước
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | AM | Mở `/crm/research/analytics` | Ô quý hiện count + Δ QoQ/YoY (nếu có) |
+| 2 | AN | Q2 count=4, Q1 count=2 | Δ QoQ +100% |
+| 3 | AN | Q2 năm trước count=2 | Δ YoY +100% |
+| 4 | AN | Q1 bất kỳ | Không Δ QoQ |
+| 5 | AN | Prior count=0 | Δ = null (không hiện %) |
+| 6 | QA | Prod sau deploy P16 | Bảng + Δ; RAG ẩn khi flag off |
+
+- [ ] Bước 1–6 pass staging
+
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 
 **Mục tiêu:** *«Khách portal mở /research → bảng theme Q1–Q4 → click theme → RAG search prefill (staging flag on).»*

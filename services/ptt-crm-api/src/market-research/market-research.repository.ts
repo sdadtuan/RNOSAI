@@ -36,6 +36,7 @@ import type {
   PatchTaxonomyInput,
   OpsAnalyticsRaw,
   ThemeQuarterRow,
+  ThemeQuarterCountRow,
   PatchCompetitorInput,
   PatchEvidenceInput,
   PatchInsightInput,
@@ -2219,7 +2220,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
   async getThemeQuarterAnalytics(
     filters: { client_id?: string; year: number },
     allowedClientIds?: string[],
-  ): Promise<ThemeQuarterRow[]> {
+  ): Promise<ThemeQuarterCountRow[]> {
     const scope: string[] = [
       `i.status IN ('approved_client_facing', 'published')`,
       `EXTRACT(YEAR FROM i.updated_at) = $1`,
