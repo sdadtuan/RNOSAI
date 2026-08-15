@@ -544,3 +544,24 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 - [ ] Prod `rag_openai_embed_enabled=false` sau deploy
 
 ## P12+ (backlog)
+
+## Walkthrough UAT P12 — Portal RAG staging (≈10 phút)
+
+**Mục tiêu:** *«PO bật RAG staging → khách portal tìm paraphrase → hit insight published cùng client; draft/ACF không hit; prod `rag_enabled=false`.»*
+
+**Tiền đề:** `RESEARCH_RAG_ENABLED=1` trong `runtime.env` staging · restart `ptt-crm-api` · insight `published` + embedding (P7/P11) · portal JWT cùng `client_id`
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | PO | Set flag + restart api | Portal `GET …/health` → `rag_enabled=true` |
+| 2 | AN | Staff publish insight (status `published`) | Embedding có sẵn |
+| 3 | CL | Portal `/research` · tìm paraphrase | Hit đúng `insight_id`; status published |
+| 4 | CL | Insight chỉ `approved_client_facing` / draft | **Không** hit |
+| 5 | CL | JWT client khác | 0 hit; JSON không `statement` client A |
+| 6 | CL | Câu có email + embed live | `rag_skipped_pii`; 0 HTTP |
+| 7 | QA | Prod sau deploy P12 | `rag_enabled=false`; ô tìm ẩn |
+
+- [ ] Bước 1–7 pass staging
+- [ ] Prod `rag_enabled=false` sau deploy
+
+## P13+ (backlog — conjoint / cluster / Talkwalker)

@@ -1,4 +1,11 @@
-import { ForbiddenException, Injectable, NotFoundException, StreamableFile } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  StreamableFile,
+} from '@nestjs/common';
+import { AppConfigService } from '../config/app-config.service';
 import { sectionsFromReportSnapshot } from '../market-research/market-research-docx.util';
 import { buildResearchReportPdf } from '../market-research/market-research-pdf.util';
 import type { ResearchReportSnapshot } from '../market-research/market-research-report-snapshot.util';
@@ -7,13 +14,22 @@ import {
   buildPortalWatermark,
 } from '../market-research/portal-publish.util';
 import { normalizeReportExec } from '../market-research/report-exec.util';
+import {
+  PORTAL_RAG_CORPUS_STATUSES,
+  type PortalRagSearchInput,
+  type PortalResearchHealth,
+  type PortalResearchReportCard,
+  type PortalResearchReportDetail,
+  type RagSearchResult,
+} from '../market-research/market-research.types';
+import { fetchOpenAIEmbedding } from '../market-research/openai-embed.util';
+import {
+  rankRagHits,
+  shouldSkipRagEmbed,
+} from '../market-research/research-rag.util';
 import { PortalJwtPayload } from '../portal/portal-jwt.util';
 import { PortalResearchRepository } from './portal-research.repository';
-import type {
-  PortalResearchReportCard,
-  PortalResearchReportDetail,
-  PortalResearchVersionRecord,
-} from './portal-research.types';
+import type { PortalResearchVersionRecord } from './portal-research.types';
 
 function mapReadableError(err: unknown): never {
   const code = (err as Error & { code?: string }).code;
@@ -63,7 +79,52 @@ function toCard(row: PortalResearchVersionRecord, watermark: string): PortalRese
 
 @Injectable()
 export class PortalResearchService {
-  constructor(private readonly repo: PortalResearchRepository) {}
+  constructor(
+    private readonly repo: PortalResearchRepository,
+    private readonly config: AppConfigService,
+  ) {}
+
+  health(): PortalResearchHealth {
+    const openaiKey = (process.env.OPENAI_API_KEY ?? process.env.OPENAI_KEY ?? '').trim();
+    const embedLive = Boolean(this.config.researchRagOpenaiEmbedEnabled && openaiKey);
+    return {
+      ok: true,
+      enabled: true,
+      rag_enabled: Boolean(this.config.researchRagEnabled),
+      rag_openai_embed_enabled: embedLive,
+      rag_embed_model: embedLive ? 'openai' : 'local',
+    };
+  }
+
+  async searchInsights(
+    user: PortalJwtPayload,
+    input: PortalRagSearchInput,
+  ): Promise<RagSearchResult> {
+    if (!this.config.researchRagEnabled) {
+      return { hits: [], note: 'rag_disabled' };
+    }
+    const q = String(input.q ?? '').trim();
+    if (!q) {
+      throw new BadRequestException({ error: 'rag_query_required' });
+    }
+    const rawLimit = Number(input.limit);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 20) : 10;
+    const themeCode = String(input.theme_code ?? '').trim() || undefined;
+    const resolved = await this.resolveQueryVec(q);
+    if (!resolved.ok) {
+      return { hits: [], note: resolved.note };
+    }
+    const rows = await this.repo.listPublishedEmbeddings(user.client_id, themeCode);
+    const scoped = rows.filter((row) => row.client_id === user.client_id);
+    return {
+      hits: rankRagHits(q, scoped, {
+        theme_code: themeCode,
+        limit,
+        queryVec: resolved.queryVec,
+        corpusStatuses: PORTAL_RAG_CORPUS_STATUSES,
+      }),
+    };
+  }
 
   async listReports(user: PortalJwtPayload): Promise<{ items: PortalResearchReportCard[] }> {
     const rows = await this.repo.listPortalVisibleVersions(user.client_id);
@@ -112,6 +173,31 @@ export class PortalResearchService {
       type: 'application/pdf',
       disposition: `attachment; filename="research-v${row.version}.pdf"`,
     });
+  }
+
+  private openaiEmbedLive(): boolean {
+    const key = (process.env.OPENAI_API_KEY ?? process.env.OPENAI_KEY ?? '').trim();
+    return Boolean(this.config.researchRagOpenaiEmbedEnabled && key);
+  }
+
+  private async resolveQueryVec(
+    q: string,
+  ): Promise<
+    { ok: true; queryVec?: number[] } | { ok: false; note: 'rag_skipped_pii' | 'rag_embed_failed' }
+  > {
+    if (!this.openaiEmbedLive()) {
+      return { ok: true };
+    }
+    if (shouldSkipRagEmbed(q)) {
+      return { ok: false, note: 'rag_skipped_pii' };
+    }
+    try {
+      const key = (process.env.OPENAI_API_KEY ?? process.env.OPENAI_KEY ?? '').trim();
+      const resolved = await fetchOpenAIEmbedding({ text: q, apiKey: key });
+      return { ok: true, queryVec: resolved.embedding };
+    } catch {
+      return { ok: false, note: 'rag_embed_failed' };
+    }
   }
 
   private async loadReadableVersion(

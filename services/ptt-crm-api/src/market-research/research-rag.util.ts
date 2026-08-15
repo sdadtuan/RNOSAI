@@ -48,14 +48,22 @@ export function rankRagHits(
       theme_synonyms?: string[];
     }
   >,
-  opts?: { theme_code?: string; limit?: number; minScore?: number; queryVec?: number[] },
+  opts?: {
+    theme_code?: string;
+    limit?: number;
+    minScore?: number;
+    queryVec?: number[];
+    corpusStatuses?: readonly string[];
+  },
 ): RagHit[] {
   const minScore = opts?.minScore ?? 0.12;
   const limit = opts?.limit ?? 10;
   const queryVec = opts?.queryVec ?? embedInsightText(query);
+  const allowed = opts?.corpusStatuses ?? RAG_CORPUS_STATUSES;
   const hits: RagHit[] = [];
 
   for (const row of rows) {
+    if (!(allowed as readonly string[]).includes(row.status)) continue;
     if (!isRagCorpusStatus(row.status)) continue;
     if (!themeFilterMatches(opts?.theme_code, row.theme_codes, row.theme_synonyms)) continue;
     if (row.embedding.length !== queryVec.length) continue;

@@ -1,7 +1,13 @@
 import { ForbiddenException, NotFoundException, StreamableFile } from '@nestjs/common';
 import * as pdfUtil from '../market-research/market-research-pdf.util';
+import { embedInsightText } from '../market-research/research-rag.util';
+import { fetchOpenAIEmbedding } from '../market-research/openai-embed.util';
 import { PortalResearchRepository } from './portal-research.repository';
 import { PortalResearchService } from './portal-research.service';
+
+jest.mock('../market-research/openai-embed.util', () => ({
+  fetchOpenAIEmbedding: jest.fn(),
+}));
 
 function decodePdfUtf16Be(buffer: Buffer): string {
   const raw = buffer.toString('latin1');
@@ -82,18 +88,31 @@ describe('PortalResearchService', () => {
   const repo = {
     getPortalReportVersion: jest.fn(),
     listPortalVisibleVersions: jest.fn(),
+    listPublishedEmbeddings: jest.fn(),
   } as unknown as jest.Mocked<PortalResearchRepository>;
+
+  const config = {
+    researchRagEnabled: false,
+    researchRagOpenaiEmbedEnabled: false,
+  };
+
+  function makeService(): PortalResearchService {
+    return new PortalResearchService(repo, config as never);
+  }
 
   beforeEach(() => {
     jest.clearAllMocks();
+    config.researchRagEnabled = false;
+    config.researchRagOpenaiEmbedEnabled = false;
+    (fetchOpenAIEmbedding as jest.Mock).mockReset();
   });
 
   it('M2-1a: cross-tenant GET → 403, JSON.stringify(body) has no title', async () => {
     repo.getPortalReportVersion.mockResolvedValue(acmeVersion());
-    const svc = new PortalResearchService(repo);
+    const service = makeService();
 
     try {
-      await svc.getReport(betaUser, 42);
+      await service.getReport(betaUser, 42);
       throw new Error('expected forbidden');
     } catch (err) {
       expect(err).toBeInstanceOf(ForbiddenException);
@@ -105,10 +124,10 @@ describe('PortalResearchService', () => {
 
   it('M2-1b: unpublished same-tenant → 404 not_found', async () => {
     repo.getPortalReportVersion.mockResolvedValue(acmeVersion({ portal_visible: false }));
-    const svc = new PortalResearchService(repo);
+    const service = makeService();
 
     try {
-      await svc.getReport(acmeUser, 42);
+      await service.getReport(acmeUser, 42);
       throw new Error('expected not_found');
     } catch (err) {
       expect(err).toBeInstanceOf(NotFoundException);
@@ -120,10 +139,10 @@ describe('PortalResearchService', () => {
     repo.getPortalReportVersion.mockResolvedValue(
       acmeVersion({ expires_at: '2020-01-01T00:00:00Z' }),
     );
-    const svc = new PortalResearchService(repo);
+    const service = makeService();
 
     try {
-      await svc.getReport(acmeUser, 42);
+      await service.getReport(acmeUser, 42);
       throw new Error('expected report_expired');
     } catch (err) {
       expect(err).toBeInstanceOf(ForbiddenException);
@@ -147,9 +166,9 @@ describe('PortalResearchService', () => {
       }),
       acmeVersion({ id: 42 }),
     ]);
-    const svc = new PortalResearchService(repo);
+    const service = makeService();
 
-    const { items } = await svc.listReports(acmeUser);
+    const { items } = await service.listReports(acmeUser);
 
     expect(items).toHaveLength(1);
     const card = items[0];
@@ -179,9 +198,9 @@ describe('PortalResearchService', () => {
         },
       }),
     );
-    const svc = new PortalResearchService(repo);
+    const service = makeService();
 
-    const body = await svc.getReport(acmeUser, 42);
+    const body = await service.getReport(acmeUser, 42);
 
     expect(body.watermark).toMatch(/^CONFIDENTIAL · /);
     expect(body.watermark).toContain(ACME);
@@ -193,9 +212,9 @@ describe('PortalResearchService', () => {
 
   it('M2-1a: published + in-window PDF → %PDF- buffer and watermark', async () => {
     repo.getPortalReportVersion.mockResolvedValue(acmeVersion());
-    const svc = new PortalResearchService(repo);
+    const service = makeService();
 
-    const out = await svc.exportReportPdf(acmeUser, 42);
+    const out = await service.exportReportPdf(acmeUser, 42);
     expect(out).toBeInstanceOf(StreamableFile);
     const headers = out.getHeaders();
     expect(headers.type).toBe('application/pdf');
@@ -213,10 +232,10 @@ describe('PortalResearchService', () => {
   it('M2-1b: unpublished same-tenant PDF → 404 not_found (no file)', async () => {
     const spy = jest.spyOn(pdfUtil, 'buildResearchReportPdf');
     repo.getPortalReportVersion.mockResolvedValue(acmeVersion({ portal_visible: false }));
-    const svc = new PortalResearchService(repo);
+    const service = makeService();
 
     try {
-      await svc.exportReportPdf(acmeUser, 42);
+      await service.exportReportPdf(acmeUser, 42);
       throw new Error('expected not_found');
     } catch (err) {
       expect(err).toBeInstanceOf(NotFoundException);
@@ -230,10 +249,10 @@ describe('PortalResearchService', () => {
   it('M2-1c: other client PDF → 403 forbidden; JSON.stringify(body) has no title', async () => {
     const spy = jest.spyOn(pdfUtil, 'buildResearchReportPdf');
     repo.getPortalReportVersion.mockResolvedValue(acmeVersion());
-    const svc = new PortalResearchService(repo);
+    const service = makeService();
 
     try {
-      await svc.exportReportPdf(betaUser, 42);
+      await service.exportReportPdf(betaUser, 42);
       throw new Error('expected forbidden');
     } catch (err) {
       expect(err).toBeInstanceOf(ForbiddenException);
@@ -251,10 +270,10 @@ describe('PortalResearchService', () => {
     repo.getPortalReportVersion.mockResolvedValue(
       acmeVersion({ expires_at: '2020-01-01T00:00:00Z' }),
     );
-    const svc = new PortalResearchService(repo);
+    const service = makeService();
 
     try {
-      await svc.exportReportPdf(acmeUser, 42);
+      await service.exportReportPdf(acmeUser, 42);
       throw new Error('expected report_expired');
     } catch (err) {
       expect(err).toBeInstanceOf(ForbiddenException);
@@ -263,5 +282,91 @@ describe('PortalResearchService', () => {
     } finally {
       spy.mockRestore();
     }
+  });
+
+  describe('P12 portal RAG search', () => {
+    it('flag off returns rag_disabled and does not list embeddings', async () => {
+      const service = makeService();
+      const out = await service.searchInsights(acmeUser, { q: 'giá sữa' });
+      expect(out).toEqual({ hits: [], note: 'rag_disabled' });
+      expect(repo.listPublishedEmbeddings).not.toHaveBeenCalled();
+    });
+
+    it('G4: published hits; approved_client_facing and draft do not', async () => {
+      config.researchRagEnabled = true;
+      const statement = 'Giá sữa học đường tăng tại Hà Nội';
+      const vec = embedInsightText(statement);
+      repo.listPublishedEmbeddings.mockResolvedValue([
+        {
+          insight_id: 20,
+          project_id: 9,
+          status: 'published',
+          statement,
+          observation: null,
+          embedding: vec,
+          theme_codes: [],
+          client_id: ACME,
+        },
+      ]);
+      const service = makeService();
+      const out = await service.searchInsights(acmeUser, { q: statement });
+      expect(out.hits.map((h) => h.insight_id)).toEqual([20]);
+    });
+
+    it('cross-tenant: query uses jwt client only; no statement from other tenant', async () => {
+      config.researchRagEnabled = true;
+      repo.listPublishedEmbeddings.mockResolvedValue([
+        {
+          insight_id: 99,
+          project_id: 1,
+          status: 'published',
+          statement: 'Secret other tenant',
+          observation: null,
+          embedding: embedInsightText('Secret other tenant'),
+          theme_codes: [],
+          client_id: BETA,
+        },
+      ]);
+      const service = makeService();
+      const out = await service.searchInsights(acmeUser, { q: 'giá', client_id: BETA });
+      expect(repo.listPublishedEmbeddings).toHaveBeenCalledWith(ACME, undefined);
+      expect(out.hits).toEqual([]);
+      expect(JSON.stringify(out)).not.toContain('Secret other tenant');
+    });
+
+    it('health rag_enabled false by default; no OPENAI_API_KEY leak', () => {
+      const service = makeService();
+      const payload = service.health();
+      expect(payload.rag_enabled).toBe(false);
+      expect(payload.rag_openai_embed_enabled).toBe(false);
+      expect(payload.rag_embed_model).toBe('local');
+      expect(JSON.stringify(payload)).not.toMatch(/OPENAI_API_KEY|sk-/);
+    });
+
+    it('PII query + embed live: rag_skipped_pii; fetchOpenAIEmbedding not called', async () => {
+      config.researchRagEnabled = true;
+      config.researchRagOpenaiEmbedEnabled = true;
+      process.env.OPENAI_API_KEY = 'sk-test';
+      const service = makeService();
+      const out = await service.searchInsights(acmeUser, { q: 'liên hệ a@b.co giá sữa' });
+      expect(out).toEqual({ hits: [], note: 'rag_skipped_pii' });
+      expect(fetchOpenAIEmbedding).not.toHaveBeenCalled();
+      expect(repo.listPublishedEmbeddings).not.toHaveBeenCalled();
+      delete process.env.OPENAI_API_KEY;
+    });
+
+    it('embed live + transport fail: rag_embed_failed', async () => {
+      config.researchRagEnabled = true;
+      config.researchRagOpenaiEmbedEnabled = true;
+      process.env.OPENAI_API_KEY = 'sk-test';
+      (fetchOpenAIEmbedding as jest.Mock).mockRejectedValue(
+        Object.assign(new Error('openai_embed_failed'), { code: 'openai_embed_failed' }),
+      );
+      const service = makeService();
+      const out = await service.searchInsights(acmeUser, { q: 'giá sữa học đường' });
+      expect(out).toEqual({ hits: [], note: 'rag_embed_failed' });
+      expect(repo.listPublishedEmbeddings).not.toHaveBeenCalled();
+      delete process.env.OPENAI_API_KEY;
+    });
   });
 });

@@ -20,6 +20,7 @@ type GoldCase = {
   must_include: number[];
   must_exclude: number[];
   needs_openai_query_vec?: boolean;
+  portal_published_only?: boolean;
 };
 
 type GoldSet = { cases: GoldCase[] };
@@ -35,7 +36,10 @@ function rankGoldCase(c: GoldCase, queryVec?: number[]) {
     embedding: embedInsightText(insightEmbedText(row)),
     theme_codes: [] as string[],
   }));
-  const hits = rankRagHits(c.q, rows, queryVec ? { queryVec } : undefined);
+  const opts: { queryVec?: number[]; corpusStatuses?: readonly string[] } = {};
+  if (queryVec) opts.queryVec = queryVec;
+  if (c.portal_published_only) opts.corpusStatuses = ['published'];
+  const hits = rankRagHits(c.q, rows, Object.keys(opts).length ? opts : undefined);
   return { corpusIds, hits, hitIds: hits.map((h) => h.insight_id) };
 }
 
@@ -131,6 +135,25 @@ describe('rankRagHits dim mismatch', () => {
     );
     expect(hits.map((h) => h.insight_id)).toContain(10);
   });
+  it('portal corpusStatuses=published excludes approved_client_facing and draft', () => {
+    const statement = 'Giá sữa học đường tăng tại Hà Nội';
+    const vec = embedInsightText(statement);
+    const row = (id: number, status: string) => ({
+      insight_id: id,
+      project_id: 9,
+      status,
+      statement,
+      observation: null,
+      embedding: vec,
+      theme_codes: [] as string[],
+    });
+    const hits = rankRagHits(
+      statement,
+      [row(20, 'published'), row(21, 'approved_client_facing'), row(22, 'draft')],
+      { corpusStatuses: ['published'], minScore: 0 },
+    );
+    expect(hits.map((h) => h.insight_id)).toEqual([20]);
+  });
 });
 
 describe('shouldSkipRagEmbed', () => {
@@ -169,7 +192,7 @@ describe('research-rag gold-set', () => {
   });
 
   it('every gold-set case honors must_include / must_exclude and corpus ids', () => {
-    expect(goldset.cases.map((c) => c.id)).toEqual(expect.arrayContaining(['G1', 'G2', 'G3']));
+    expect(goldset.cases.map((c) => c.id)).toEqual(expect.arrayContaining(['G1', 'G2', 'G3', 'G4']));
     for (const c of goldset.cases) {
       if (c.needs_openai_query_vec) continue;
       const { corpusIds, hits, hitIds } = rankGoldCase(c);

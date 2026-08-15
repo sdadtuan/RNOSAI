@@ -1,5 +1,6 @@
-import { Controller, Get, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
 import { MarketResearchEnabledGuard } from '../market-research/guards/market-research-enabled.guard';
+import type { PortalRagSearchInput } from '../market-research/market-research.types';
 import { PortalJwtGuard, PortalUser } from '../portal/portal-jwt.guard';
 import { PortalJwtPayload } from '../portal/portal-jwt.util';
 import { PortalResearchService } from './portal-research.service';
@@ -8,6 +9,16 @@ import { PortalResearchService } from './portal-research.service';
 @UseGuards(PortalJwtGuard, MarketResearchEnabledGuard)
 export class PortalResearchController {
   constructor(private readonly research: PortalResearchService) {}
+
+  @Get('health')
+  health() {
+    return this.research.health();
+  }
+
+  @Get('insights/search')
+  searchInsights(@PortalUser() user: PortalJwtPayload, @Query() query: PortalRagSearchInput) {
+    return this.research.searchInsights(user, query);
+  }
 
   @Get('reports')
   list(@PortalUser() user: PortalJwtPayload) {

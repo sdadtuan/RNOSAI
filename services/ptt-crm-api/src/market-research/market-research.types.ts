@@ -837,7 +837,27 @@ export type RagHit = {
 
 export type RagSearchResult = {
   hits: RagHit[];
-  note?: 'rag_disabled' | 'rag_embed_failed';
+  note?: 'rag_disabled' | 'rag_embed_failed' | 'rag_skipped_pii';
+};
+
+export const PORTAL_RAG_CORPUS_STATUSES = ['published'] as const;
+
+export const PORTAL_RAG_BANNER =
+  'Chỉ insight đã published cùng khách. Không tìm draft. Không tạo insight.';
+
+export type PortalRagSearchInput = {
+  q?: string;
+  theme_code?: string;
+  limit?: string | number;
+  client_id?: string;
+};
+
+export type PortalResearchHealth = {
+  ok: true;
+  enabled: true;
+  rag_enabled: boolean;
+  rag_openai_embed_enabled: boolean;
+  rag_embed_model: 'openai' | 'local';
 };
 
 export const RAG_COPILOT_HIT_LIMIT = 5;

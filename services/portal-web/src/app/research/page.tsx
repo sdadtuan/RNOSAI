@@ -7,6 +7,7 @@ import { PortalPageShell } from '@/components/PortalPageShell';
 import { portalResearchReports, type PortalResearchReportCard } from '@/lib/api';
 import { isMarketResearchPortalFeEnabled } from '@/lib/market-research-portal-flags';
 import { portalResearchErrorVi } from '@/lib/portal-research-errors';
+import { PortalResearchRagSearch } from '@/components/PortalResearchRagSearch';
 
 export default function PortalResearchListPage() {
   return (
@@ -52,6 +53,7 @@ function ResearchListContent({ token }: { token: string }) {
 
   return (
     <HubPageLayout title="Nghiên cứu" subtitle="Báo cáo đã công bố — chỉ xem">
+      <PortalResearchRagSearch token={token} />
       {error ? <p className="error">{error}</p> : null}
       {loading ? (
         <p className="muted">Đang tải…</p>

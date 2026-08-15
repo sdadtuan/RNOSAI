@@ -1288,6 +1288,61 @@ export async function portalResearchReportPdf(token: string, versionId: number):
   return res.blob();
 }
 
+export async function portalResearchHealth(token: string): Promise<{
+  ok: true;
+  enabled: true;
+  rag_enabled: boolean;
+  rag_openai_embed_enabled: boolean;
+  rag_embed_model: 'openai' | 'local';
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/portal/research/health`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<{
+    ok: true;
+    enabled: true;
+    rag_enabled: boolean;
+    rag_openai_embed_enabled: boolean;
+    rag_embed_model: 'openai' | 'local';
+    error?: string;
+    message?: string;
+  }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Research health failed', res.status);
+  }
+  return body;
+}
+
+export type PortalResearchRagHit = {
+  insight_id: number;
+  project_id: number;
+  statement: string;
+  status: 'published';
+  score: number;
+  theme_codes: string[];
+};
+
+export async function portalResearchInsightSearch(
+  token: string,
+  input: { q: string; theme_code?: string; limit?: number },
+): Promise<{ hits: PortalResearchRagHit[]; note?: string }> {
+  const qs = new URLSearchParams({ q: input.q });
+  if (input.theme_code) qs.set('theme_code', input.theme_code);
+  if (input.limit) qs.set('limit', String(input.limit));
+  const res = await fetch(`${API_BASE}/api/v1/portal/research/insights/search?${qs}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<{ hits: PortalResearchRagHit[]; note?: string; error?: string; message?: string }>(
+    res,
+  );
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Research search failed', res.status);
+  }
+  return body;
+}
+
 export async function testNativePush(token: string): Promise<NativePushTestResponse> {
   const res = await fetch(`${API_BASE}/api/v1/mobile/push/test`, {
     method: 'POST',

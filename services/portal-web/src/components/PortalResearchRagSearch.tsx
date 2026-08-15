@@ -1,0 +1,107 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import {
+  portalResearchHealth,
+  portalResearchInsightSearch,
+  type PortalResearchRagHit,
+} from '@/lib/api';
+import {
+  PORTAL_RAG_BANNER,
+  shouldShowPortalRagSearch,
+} from '@/lib/portal-research-rag.util';
+import { isMarketResearchPortalFeEnabled } from '@/lib/market-research-portal-flags';
+import { portalResearchErrorVi } from '@/lib/portal-research-errors';
+
+export function PortalResearchRagSearch({ token }: { token: string }) {
+  const [ragEnabled, setRagEnabled] = useState(false);
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState<PortalResearchRagHit[]>([]);
+  const [note, setNote] = useState('');
+  const [error, setError] = useState('');
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (!isMarketResearchPortalFeEnabled()) return;
+    void portalResearchHealth(token)
+      .then((health) => setRagEnabled(health.rag_enabled))
+      .catch(() => setRagEnabled(false));
+  }, [token]);
+
+  if (!shouldShowPortalRagSearch(isMarketResearchPortalFeEnabled(), ragEnabled)) {
+    return null;
+  }
+
+  async function onSearch() {
+    const query = q.trim();
+    if (!query) {
+      setHits([]);
+      setNote('');
+      setError(portalResearchErrorVi('rag_query_required'));
+      return;
+    }
+    setSearching(true);
+    setError('');
+    setNote('');
+    try {
+      const out = await portalResearchInsightSearch(token, { q: query });
+      setHits(out.hits);
+      if (out.note) {
+        setNote(portalResearchErrorVi(out.note));
+      }
+    } catch (err) {
+      setHits([]);
+      setError(err instanceof Error ? err.message : portalResearchErrorVi('forbidden'));
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+      <p className="muted" style={{ margin: '0 0 0.4rem', fontSize: '0.85rem' }}>
+        {PORTAL_RAG_BANNER}
+      </p>
+      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <label style={{ flex: '1 1 12rem' }}>
+          Tìm insight đã published
+          <input
+            className="kpi-input"
+            value={q}
+            disabled={searching}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void onSearch();
+            }}
+          />
+        </label>
+        <button type="button" className="btn btn-sm" disabled={searching} onClick={() => void onSearch()}>
+          Tìm
+        </button>
+      </div>
+      {error ? (
+        <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.85rem' }}>
+          {error}
+        </p>
+      ) : null}
+      {note ? (
+        <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.85rem' }}>
+          {note}
+        </p>
+      ) : null}
+      {hits.length > 0 ? (
+        <ul style={{ margin: '0.6rem 0 0', paddingLeft: '1.1rem' }}>
+          {hits.map((hit) => (
+            <li key={hit.insight_id} style={{ marginBottom: '0.35rem', fontSize: '0.85rem' }}>
+              {hit.statement}
+              <span className="muted">
+                {' '}
+                · {hit.score.toFixed(2)} · published
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}

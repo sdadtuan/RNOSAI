@@ -103,6 +103,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-070 | Tìm insight đã duyệt (RAG) | P7 | P7 | Spec ready | FR-INT · BR-RES-06/08/12 · NFR-AI-04 |
 | RES-UC-071 | Taxonomy theme + gắn insight | P7 | P7 | Spec ready | BR-RES-06 · UC-071 |
 | RES-UC-072 | Inject RAG vào insight copilot | P8 | P8 | Spec ready | FR-AI-03 · BR-RES-06 · UC-011 |
+| RES-UC-073 | Portal tìm insight published (RAG) | P12 | P12 | Spec ready | FR-INT-04 · BR-RES-06/08/12 |
 
 ---
 
@@ -670,7 +671,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - PII skip embed (`shouldSkipRagEmbed`); approve vẫn 200
 - Cross-tenant → 403 `{error:forbidden}` không `statement`
 - Banner: `Chỉ insight đã duyệt bản khách / published. Không tìm draft. Không tự tạo insight.`
-- **Cấm** `createInsight` / `createResearchInsight` từ search; không portal RAG
+- **Cấm** `createInsight` / `createResearchInsight` từ search staff; portal search = **RES-UC-073**
 - OpenAI embeddings **optional staging**: khi `rag_openai_embed_enabled=true` (flag `RESEARCH_RAG_OPENAI_EMBED_ENABLED` + `OPENAI_API_KEY`); default local-hash 64-d
 - `GET /health` thêm `rag_openai_embed_enabled`, `rag_embed_model` (`openai` | `local`); không trả key
 - Dim mismatch (hash 64 vs OpenAI 256) → skip row; re-approve để re-embed
@@ -684,6 +685,19 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - Trang `/crm/research/taxonomy` ẩn trừ `hasCap(configure)`; banner `Gắn theme — không sửa nội dung insight.`
 - Search `theme_code` lọc code hoặc synonym (case-insensitive)
 - **Cấm** `createInsight` trên path attach; không conjoint
+
+### RES-UC-073 — Portal tìm insight published (RAG)
+
+- **Actor chính:** Client portal (JWT `client_id`)
+- **API:** `GET /api/v1/portal/research/insights/search?q=&theme_code=&limit=` · `GET /api/v1/portal/research/health`
+- **Corpus:** chỉ `published` cùng `client_id` JWT — **không** `approved_client_facing`, **không** draft
+- Flag off → `200 {hits:[], note:rag_disabled}`; ô tìm ẩn khi `rag_enabled=false`
+- Empty q → 400 `rag_query_required`
+- PII query + OpenAI live → `{hits:[], note:rag_skipped_pii}`; 0 HTTP vendor
+- OpenAI query fail → `{hits:[], note:rag_embed_failed}`
+- Cross-tenant → 0 hit; JSON **không** `statement` client khác
+- Banner: `Chỉ insight đã published cùng khách. Không tìm draft. Không tạo insight.`
+- **Cấm** `createInsight` / publish-portal từ search; **cấm** link staff CRM từ portal UI
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 
@@ -732,6 +746,8 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | GET/POST | `/projects/:id/van-westendorp` | 063 |
 | POST | `/projects/:id/run-qualtrics` | 062 |
 | GET | `/insights/search` | 070 |
+| GET | `/api/v1/portal/research/insights/search` | 073 |
+| GET | `/api/v1/portal/research/health` | 073 |
 | GET | `/taxonomy` | 071 |
 | POST | `/taxonomy` | 071 |
 | PATCH | `/taxonomy/:id` | 071 |

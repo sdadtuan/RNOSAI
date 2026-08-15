@@ -34,4 +34,13 @@ describe('PortalResearchRepository', () => {
     expect(sql).toMatch(/WHERE v\.id = \$1/);
     expect(sql).not.toMatch(/p\.title/);
   });
+
+  it('listPublishedEmbeddings binds jwt client and published status only', async () => {
+    const repo = repoWithMock();
+    await repo.listPublishedEmbeddings('acme', 'PRICE');
+    const sql = String(queryMock.mock.calls[0][0]);
+    expect(sql).toMatch(/i\.status = 'published'/);
+    expect(queryMock.mock.calls[0][1][0]).toBe('acme');
+    expect(sql).not.toMatch(/approved_client_facing/);
+  });
 });

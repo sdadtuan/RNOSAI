@@ -391,6 +391,18 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P12 — RES-UC-073
+
+| UC | Tóm tắt |
+|----|---------|
+| 073 | Portal tìm insight **published** cùng `client_id` JWT. Flag off → ô ẩn. Không draft/ACF. Không createInsight. |
+
+**API:** `GET /api/v1/portal/research/insights/search` · `GET /api/v1/portal/research/health`  
+**Gates:** corpus `published` only; 403/0 hit cross-tenant không leak `statement`; PII → `rag_skipped_pii`; FE không link `/crm/research`.  
+**UAT:** [`actions/12-RES-ACTIONS.md`](actions/12-RES-ACTIONS.md) Walkthrough UAT P12.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |
