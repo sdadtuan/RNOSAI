@@ -8,6 +8,7 @@ import { EvidenceFormDrawer } from '@/components/research/EvidenceFormDrawer';
 import { EvidenceIdChip } from '@/components/research/EvidenceIdChip';
 import { InsightCard } from '@/components/research/InsightCard';
 import { InsightDrawer } from '@/components/research/InsightDrawer';
+import { insightIsStale } from '@/components/research/insight-stale.util';
 import { InsightGateDialog } from '@/components/research/InsightGateDialog';
 import { DeepResearchModal } from '@/components/research/DeepResearchModal';
 import { ResearchJobChip } from '@/components/research/ResearchJobChip';
@@ -1766,6 +1767,9 @@ function InsightsTab({
   const rows = project.insights ?? [];
   const verified = (project.evidence ?? []).filter((ev) => ev.qc_status === 'verified');
   const [selected, setSelected] = useState<number[]>([]);
+  const [staleOnly, setStaleOnly] = useState(false);
+  const staleCount = rows.filter((row) => insightIsStale(row)).length;
+  const visibleRows = staleOnly ? rows.filter((row) => insightIsStale(row)) : rows;
   return (
     <section className="card" style={{ padding: '0.9rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -1793,6 +1797,24 @@ function InsightsTab({
         <p className="muted" data-testid="rag-copilot-banner" style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
           {RAG_COPILOT_BANNER}
         </p>
+      ) : null}
+      {rows.length > 0 && staleCount > 0 ? (
+        <label
+          style={{
+            display: 'inline-flex',
+            gap: 6,
+            alignItems: 'center',
+            marginTop: '0.65rem',
+            fontSize: '0.85rem',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={staleOnly}
+            onChange={(e) => setStaleOnly(e.target.checked)}
+          />
+          Chỉ hết hạn ({staleCount})
+        </label>
       ) : null}
       <InsightsRagSearch ragEnabled={ragEnabled} clientId={project.client_id} />
       {canRun ? (
@@ -1859,8 +1881,12 @@ function InsightsTab({
           ))}
         </div>
       ) : null}
-      {rows.length === 0 ? (
-        <p className="muted">Gắn evidence rồi soạn insight — không viết từ AI suông.</p>
+      {visibleRows.length === 0 ? (
+        <p className="muted">
+          {staleOnly
+            ? 'Không có insight hết hạn trong project này.'
+            : 'Gắn evidence rồi soạn insight — không viết từ AI suông.'}
+        </p>
       ) : (
         <div
           style={{
@@ -1870,7 +1896,7 @@ function InsightsTab({
             marginTop: '0.75rem',
           }}
         >
-          {rows.map((insight) => (
+          {visibleRows.map((insight) => (
             <InsightCard
               key={insight.id}
               insight={insight}

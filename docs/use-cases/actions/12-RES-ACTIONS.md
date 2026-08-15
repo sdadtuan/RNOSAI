@@ -606,6 +606,25 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
+## P18+ (backlog — conjoint / Talkwalker)
+
+## Walkthrough UAT P18 — Insight stale banner (≈8 phút)
+
+**Mục tiêu:** *«Analyst mở tab Insight → insight có valid_to quá khứ hiện banner hết hạn; filter «Chỉ hết hạn» hoạt động.»*
+
+**Tiền đề:** ít nhất 1 insight `valid_to` < hôm nay và 1 insight còn hiệu lực hoặc không có valid_to
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | AN | Mở project → tab Insight | Card insight hết hạn có banner vàng |
+| 2 | AN | Mở drawer insight hết hạn | Banner hiện đầu drawer |
+| 3 | AN | Insight valid_to = hôm nay | Không banner |
+| 4 | AN | Insight valid_to null | Không banner |
+| 5 | AN | Bật «Chỉ hết hạn» | Chỉ card stale |
+| 6 | QA | Prod sau deploy P18 | is_stale trên API; RAG flags không đổi |
+
+- [ ] Bước 1–6 pass staging
+
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 
 **Mục tiêu:** *«Khách portal mở /research → bảng theme Q1–Q4 → click theme → RAG search prefill (staging flag on).»*

@@ -458,6 +458,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P18 — RES-UC-079
+
+| UC | Tóm tắt |
+|----|---------|
+| 079 | Banner insight hết hạn khi `valid_to` < hôm nay; filter «Chỉ hết hạn» trên tab Insight. |
+
+**API:** insight rows thêm `is_stale` (không endpoint mới)  
+**Gates:** api + ops-web; không DDL; không portal; không RAG flags.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

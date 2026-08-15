@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { APPROVED_INTERNAL_PLUS, type InsightStatus, type ProductType, type ProjectStatus } from './market-research.constants';
 import { normalizeReportExec } from './report-exec.util';
+import { isInsightStale } from './insight-stale.util';
 import type {
   CreateEvidenceInput,
   CreateInsightInput,
@@ -723,6 +724,7 @@ export class MarketResearchRepository implements OnModuleDestroy {
       created_by: row.created_by != null ? String(row.created_by) : null,
       valid_from: row.valid_from != null ? String(row.valid_from) : null,
       valid_to: row.valid_to != null ? String(row.valid_to) : null,
+      is_stale: isInsightStale(row.valid_to != null ? String(row.valid_to) : null),
       created_at: String(row.created_at),
       updated_at: String(row.updated_at),
       evidence_ids: parseJsonCol<number[]>(row.evidence_ids, []).map(Number),

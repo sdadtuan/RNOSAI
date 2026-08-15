@@ -349,6 +349,7 @@ export type ResearchInsight = {
   created_by: string | null;
   valid_from: string | null;
   valid_to: string | null;
+  is_stale?: boolean;
   created_at: string;
   updated_at: string;
   evidence_ids: number[];
