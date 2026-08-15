@@ -469,6 +469,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P19 — RES-UC-080
+
+| UC | Tóm tắt |
+|----|---------|
+| 080 | Portal RAG hit hiện banner khi insight `valid_to` < hôm nay. |
+
+**API:** cùng portal insights/search — hits thêm `valid_to`, `is_stale`  
+**Gates:** api + portal-web; không DDL; không ops-web; không RAG flags.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

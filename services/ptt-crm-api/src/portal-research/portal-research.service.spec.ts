@@ -314,6 +314,32 @@ describe('PortalResearchService', () => {
       expect(out.hits.map((h) => h.insight_id)).toEqual([20]);
     });
 
+    it('P19 searchInsights returns is_stale on hits', async () => {
+      config.researchRagEnabled = true;
+      const statement = 'Giá sữa học đường tăng tại Hà Nội';
+      const vec = embedInsightText(statement);
+      repo.listPublishedEmbeddings.mockResolvedValue([
+        {
+          insight_id: 20,
+          project_id: 9,
+          status: 'published',
+          statement,
+          observation: null,
+          embedding: vec,
+          theme_codes: [],
+          client_id: ACME,
+          valid_to: '2020-06-01',
+        },
+      ]);
+      const service = makeService();
+      const out = await service.searchInsights(acmeUser, { q: statement });
+      expect(out.hits[0]).toMatchObject({
+        insight_id: 20,
+        valid_to: '2020-06-01',
+        is_stale: true,
+      });
+    });
+
     it('cross-tenant: query uses jwt client only; no statement from other tenant', async () => {
       config.researchRagEnabled = true;
       repo.listPublishedEmbeddings.mockResolvedValue([

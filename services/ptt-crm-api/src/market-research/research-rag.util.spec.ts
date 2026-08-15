@@ -96,6 +96,45 @@ describe('rankRagHits theme filter', () => {
 });
 
 describe('rankRagHits dim mismatch', () => {
+  it('P19 rankRagHits sets is_stale from valid_to', () => {
+    const statement = 'Giá tăng';
+    const vec = embedInsightText(statement);
+    const hits = rankRagHits(
+      statement,
+      [
+        {
+          insight_id: 1,
+          project_id: 9,
+          status: 'published',
+          statement,
+          observation: null,
+          embedding: vec,
+          theme_codes: [],
+          valid_to: '2020-01-01',
+        },
+        {
+          insight_id: 2,
+          project_id: 9,
+          status: 'published',
+          statement: 'Ổn định',
+          observation: null,
+          embedding: vec,
+          theme_codes: [],
+          valid_to: null,
+        },
+      ],
+      { minScore: 0 },
+    );
+    expect(hits.find((h) => h.insight_id === 1)).toMatchObject({
+      valid_to: '2020-01-01',
+      is_stale: true,
+    });
+    expect(hits.find((h) => h.insight_id === 2)).toMatchObject({
+      valid_to: null,
+      is_stale: false,
+    });
+  });
+
   it('skips rows whose embedding length differs from queryVec', () => {
     const hits = rankRagHits(
       'giá',

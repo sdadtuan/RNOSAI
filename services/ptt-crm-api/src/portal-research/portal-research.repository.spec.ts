@@ -40,6 +40,7 @@ describe('PortalResearchRepository', () => {
     await repo.listPublishedEmbeddings('acme', 'PRICE');
     const sql = String(queryMock.mock.calls[0][0]);
     expect(sql).toMatch(/i\.status = 'published'/);
+    expect(sql).toMatch(/i\.valid_to/);
     expect(queryMock.mock.calls[0][1][0]).toBe('acme');
     expect(sql).not.toMatch(/approved_client_facing/);
   });

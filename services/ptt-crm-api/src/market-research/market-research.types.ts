@@ -856,6 +856,8 @@ export type RagHit = {
   status: RagCorpusStatus;
   score: number;
   theme_codes: string[];
+  valid_to: string | null;
+  is_stale: boolean;
 };
 
 export type RagSearchResult = {
@@ -947,6 +949,7 @@ export type RagEmbeddingRow = RagEmbedInput & {
   theme_codes: string[];
   theme_synonyms?: string[];
   client_id?: string;
+  valid_to?: string | null;
 };
 
 export type UpsertInsightEmbeddingInput = {

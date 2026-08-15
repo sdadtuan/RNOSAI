@@ -1321,6 +1321,8 @@ export type PortalResearchRagHit = {
   status: 'published';
   score: number;
   theme_codes: string[];
+  valid_to?: string | null;
+  is_stale?: boolean;
 };
 
 export async function portalResearchInsightSearch(

@@ -10,6 +10,8 @@ import {
   PORTAL_RAG_BANNER,
   shouldShowPortalRagSearch,
 } from '@/lib/portal-research-rag.util';
+import { ragHitIsStale } from '@/lib/insight-stale.util';
+import { PortalInsightStaleBanner } from '@/components/PortalInsightStaleBanner';
 import { isMarketResearchPortalFeEnabled } from '@/lib/market-research-portal-flags';
 import { portalResearchErrorVi } from '@/lib/portal-research-errors';
 
@@ -121,6 +123,7 @@ export function PortalResearchRagSearch({
                 {' '}
                 · {hit.score.toFixed(2)} · published
               </span>
+              {ragHitIsStale(hit) ? <PortalInsightStaleBanner validTo={hit.valid_to} /> : null}
             </li>
           ))}
         </ul>

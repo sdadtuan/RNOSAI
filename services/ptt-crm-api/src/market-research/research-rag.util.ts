@@ -1,5 +1,6 @@
 import { cosineSimilarity, embedPlaybookText, keywordScore } from '../playbooks/playbooks.types';
 import { piiHint } from './evidence-immutable.util';
+import { isInsightStale } from './insight-stale.util';
 import {
   RAG_CORPUS_STATUSES,
   RAG_EMBED_DIMS,
@@ -46,6 +47,7 @@ export function rankRagHits(
       embedding: number[];
       theme_codes: string[];
       theme_synonyms?: string[];
+      valid_to?: string | null;
     }
   >,
   opts?: {
@@ -69,6 +71,7 @@ export function rankRagHits(
     if (row.embedding.length !== queryVec.length) continue;
     const score = 0.7 * cosineSimilarity(queryVec, row.embedding) + 0.3 * keywordScore(query, row.statement);
     if (score < minScore) continue;
+    const validTo = row.valid_to ?? null;
     hits.push({
       insight_id: row.insight_id,
       project_id: row.project_id,
@@ -76,6 +79,8 @@ export function rankRagHits(
       status: row.status,
       score,
       theme_codes: row.theme_codes,
+      valid_to: validTo,
+      is_stale: isInsightStale(validTo),
     });
   }
 

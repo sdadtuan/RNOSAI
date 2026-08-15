@@ -110,6 +110,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-077 | Theme QoQ / YoY delta (staff analytics) | P16 | P16 | Spec ready | FR-INT · BR-RES-06 · UC-075 |
 | RES-UC-078 | Theme QoQ / YoY delta (portal analytics) | P17 | P17 | Spec ready | FR-INT-04 · BR-RES-06 · UC-076 |
 | RES-UC-079 | Insight stale banner (`valid_to`) | P18 | P18 | Spec ready | FR-INS-07 |
+| RES-UC-080 | Portal insight stale banner (RAG) | P19 | P19 | Spec ready | FR-INS-07 · UC-079 |
 
 ---
 
@@ -755,6 +756,15 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Màn hình:** tab Insight project — banner trên card + drawer; filter «Chỉ hết hạn»
 - Banner: `Insight đã hết hạn (valid_to). Cập nhật hiệu lực trước khi dùng cho báo cáo / khách.`
 - **Cấm** endpoint mới; không DDL; không portal; không Talkwalker / conjoint / pgvector
+
+### RES-UC-080 — Portal insight stale banner (RAG search)
+
+- **Actor chính:** Client portal (JWT `client_id`)
+- **API:** `GET /api/v1/portal/research/insights/search` — mỗi hit thêm `valid_to`, `is_stale`
+- **Rule:** giống RES-UC-079 (UTC calendar)
+- **Màn hình:** `/research` — banner dưới hit RAG stale
+- Banner: `Insight này có thể đã lỗi thời (hết hiệu lực). Liên hệ account manager để được cập nhật.`
+- **Cấm** endpoint mới; không DDL; không ops-web; không ẩn hit stale
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 
