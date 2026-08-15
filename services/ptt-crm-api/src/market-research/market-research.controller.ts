@@ -355,7 +355,7 @@ export class MarketResearchController {
       body ?? ({} as RunQualtricsInput),
       actorEmail(req),
     );
-    res.status(out.note === 'qualtrics_disabled' ? HttpStatus.OK : HttpStatus.ACCEPTED);
+    res.status('note' in out && out.note === 'qualtrics_disabled' ? HttpStatus.OK : HttpStatus.ACCEPTED);
     return out;
   }
 
