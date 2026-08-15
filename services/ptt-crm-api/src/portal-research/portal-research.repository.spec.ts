@@ -45,6 +45,16 @@ describe('PortalResearchRepository', () => {
     expect(sql).not.toMatch(/approved_client_facing/);
   });
 
+  it('P20 listPublishedEmbeddingsByVec uses published corpus and <=> ordering', async () => {
+    const repo = repoWithMock();
+    await repo.listPublishedEmbeddingsByVec('acme', 'PRICE', [1, 0], 50);
+    const sql = String(queryMock.mock.calls[0][0]);
+    expect(sql).toMatch(/i\.status = 'published'/);
+    expect(sql).toMatch(/embedding_vec <=> \$/);
+    expect(sql).toMatch(/vector_dims\(e\.embedding_vec\)/);
+    expect(sql).not.toMatch(/approved_client_facing/);
+  });
+
   it('P15 getThemeQuarterAnalytics scopes published corpus and jwt client_id', async () => {
     const repo = repoWithMock();
     await repo.getThemeQuarterAnalytics('acme', 2026);

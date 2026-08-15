@@ -642,7 +642,24 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
-## P19+ (backlog — conjoint / Talkwalker)
+## Walkthrough UAT P20 — pgvector opt-in (≈8 phút)
+
+**Mục tiêu:** *«Prod flag off = search như P19. Staging flag on = ANN prefilter, cùng hit contract (kể cả is_stale).»*
+
+**Tiền đề:** staging có thể bật RAG + pgvector; prod giữ mọi flag off
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | QA | `GET /api/v1/research/health` | `rag_pgvector_enabled=false` |
+| 2 | QA | Prod search (RAG off) | `rag_disabled` như cũ |
+| 3 | AN | Staging RAG on, pgvector off | JSONB path; hits có `is_stale` |
+| 4 | AN | Staging cả hai flag on | Search 200; không leak tenant |
+| 5 | QA | `\d crm_research_insight_embeddings` | Có `embedding_vec` **hoặc** WARN skip nếu thiếu extension |
+| 6 | QA | Prod sau deploy P20 | Không ghi `RESEARCH_RAG_PGVECTOR_ENABLED=1` |
+
+- [ ] Bước 1–6 pass staging
+
+## P20+ (backlog — conjoint / Talkwalker / staff RAG stale)
 
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 

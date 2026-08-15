@@ -26,9 +26,11 @@ import {
 import { fetchOpenAIEmbedding } from '../market-research/openai-embed.util';
 import { enrichThemeQuarterRows } from '../market-research/theme-quarter-delta.util';
 import {
+  embedInsightText,
   rankRagHits,
   shouldSkipRagEmbed,
 } from '../market-research/research-rag.util';
+import { shouldUsePgvectorAnn } from '../market-research/pgvector.util';
 import { PortalJwtPayload } from '../portal/portal-jwt.util';
 import { PortalResearchRepository } from './portal-research.repository';
 import type { PortalResearchVersionRecord } from './portal-research.types';
@@ -95,6 +97,7 @@ export class PortalResearchService {
       rag_enabled: Boolean(this.config.researchRagEnabled),
       rag_openai_embed_enabled: embedLive,
       rag_embed_model: embedLive ? 'openai' : 'local',
+      rag_pgvector_enabled: Boolean(this.config.researchRagPgvectorEnabled),
     };
   }
 
@@ -116,13 +119,16 @@ export class PortalResearchService {
     if (!resolved.ok) {
       return { hits: [], note: resolved.note };
     }
-    const rows = await this.repo.listPublishedEmbeddings(user.client_id, themeCode);
+    const annVec = resolved.queryVec ?? embedInsightText(q);
+    const rows = shouldUsePgvectorAnn(this.config.researchRagPgvectorEnabled, annVec)
+      ? await this.repo.listPublishedEmbeddingsByVec(user.client_id, themeCode, annVec, 50)
+      : await this.repo.listPublishedEmbeddings(user.client_id, themeCode);
     const scoped = rows.filter((row) => row.client_id === user.client_id);
     return {
       hits: rankRagHits(q, scoped, {
         theme_code: themeCode,
         limit,
-        queryVec: resolved.queryVec,
+        queryVec: annVec,
         corpusStatuses: PORTAL_RAG_CORPUS_STATUSES,
       }),
     };

@@ -89,12 +89,14 @@ describe('PortalResearchService', () => {
     getPortalReportVersion: jest.fn(),
     listPortalVisibleVersions: jest.fn(),
     listPublishedEmbeddings: jest.fn(),
+    listPublishedEmbeddingsByVec: jest.fn(),
     getThemeQuarterAnalytics: jest.fn(),
   } as unknown as jest.Mocked<PortalResearchRepository>;
 
   const config = {
     researchRagEnabled: false,
     researchRagOpenaiEmbedEnabled: false,
+    researchRagPgvectorEnabled: false,
   };
 
   function makeService(): PortalResearchService {
@@ -105,6 +107,7 @@ describe('PortalResearchService', () => {
     jest.clearAllMocks();
     config.researchRagEnabled = false;
     config.researchRagOpenaiEmbedEnabled = false;
+    config.researchRagPgvectorEnabled = false;
     (fetchOpenAIEmbedding as jest.Mock).mockReset();
   });
 
@@ -340,6 +343,31 @@ describe('PortalResearchService', () => {
       });
     });
 
+    it('P20 searchInsights uses listPublishedEmbeddingsByVec when pgvector flag on', async () => {
+      config.researchRagEnabled = true;
+      config.researchRagPgvectorEnabled = true;
+      const statement = 'Giá sữa học đường tăng tại Hà Nội';
+      const vec = embedInsightText(statement);
+      repo.listPublishedEmbeddingsByVec.mockResolvedValue([
+        {
+          insight_id: 20,
+          project_id: 9,
+          status: 'published',
+          statement,
+          observation: null,
+          embedding: vec,
+          theme_codes: [],
+          client_id: ACME,
+          valid_to: null,
+        },
+      ]);
+      const service = makeService();
+      const out = await service.searchInsights(acmeUser, { q: statement });
+      expect(repo.listPublishedEmbeddingsByVec).toHaveBeenCalled();
+      expect(repo.listPublishedEmbeddings).not.toHaveBeenCalled();
+      expect(out.hits[0].insight_id).toBe(20);
+    });
+
     it('cross-tenant: query uses jwt client only; no statement from other tenant', async () => {
       config.researchRagEnabled = true;
       repo.listPublishedEmbeddings.mockResolvedValue([
@@ -367,6 +395,7 @@ describe('PortalResearchService', () => {
       expect(payload.rag_enabled).toBe(false);
       expect(payload.rag_openai_embed_enabled).toBe(false);
       expect(payload.rag_embed_model).toBe('local');
+      expect(payload.rag_pgvector_enabled).toBe(false);
       expect(JSON.stringify(payload)).not.toMatch(/OPENAI_API_KEY|sk-/);
     });
 

@@ -109,6 +109,7 @@ export class AppConfigService {
   readonly qualtricsDatacenter: string;
   readonly researchRagEnabled: boolean;
   readonly researchRagOpenaiEmbedEnabled: boolean;
+  readonly researchRagPgvectorEnabled: boolean;
   readonly lmpPilotOnly: boolean;
   readonly lmpPilotClientIds: string[];
   readonly presalesBatchUpgradeEnabled: boolean;
@@ -396,6 +397,9 @@ export class AppConfigService {
     );
     this.researchRagOpenaiEmbedEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.RESEARCH_RAG_OPENAI_EMBED_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.researchRagPgvectorEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.RESEARCH_RAG_PGVECTOR_ENABLED ?? '0').trim().toLowerCase(),
     );
     this.lmpPilotOnly = !['0', 'false', 'no', 'off'].includes(
       (process.env.PTT_LMP_PILOT_ONLY ?? '1').trim().toLowerCase(),

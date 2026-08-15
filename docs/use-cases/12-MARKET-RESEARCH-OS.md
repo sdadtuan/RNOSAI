@@ -480,6 +480,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P20 — RES-UC-081
+
+| UC | Tóm tắt |
+|----|---------|
+| 081 | Cột `embedding_vec` + ANN khi `RESEARCH_RAG_PGVECTOR_ENABLED=1`; mặc định tắt. |
+
+**API:** cùng insights/search  
+**Gates:** api + DDL P20 fail-soft; không ops-web/portal-web UI; không RAG/pgvector flags prod.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

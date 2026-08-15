@@ -83,6 +83,48 @@ describe('MarketResearchRepository', () => {
     expect(params).toContain('Pricing');
   });
 
+  it('P20 upsertInsightEmbedding writes embedding_vec when write_vec', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const repo = repoWithMock();
+    await repo.upsertInsightEmbedding({
+      insight_id: 1,
+      project_id: 9,
+      embedding: [1, 0],
+      embed_text: 'Giá',
+      embed_model: 'local-hash',
+      embed_dims: 2,
+      write_vec: true,
+    });
+    const sql = String(queryMock.mock.calls[0][0]);
+    expect(sql).toMatch(/embedding_vec/);
+    expect(queryMock.mock.calls[0][1]).toContain('[1,0]');
+  });
+
+  it('P20 upsertInsightEmbedding skips embedding_vec when write_vec false', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const repo = repoWithMock();
+    await repo.upsertInsightEmbedding({
+      insight_id: 1,
+      project_id: 9,
+      embedding: [1, 0],
+      embed_text: 'Giá',
+      embed_model: 'local-hash',
+      embed_dims: 2,
+    });
+    const sql = String(queryMock.mock.calls[0][0]);
+    expect(sql).not.toMatch(/embedding_vec/);
+  });
+
+  it('P20 listEmbeddingsByVec orders by <=> and filters same dims', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const repo = repoWithMock();
+    await repo.listEmbeddingsByVec({ client_id: 'acme' }, [1, 0], 50);
+    const sql = String(queryMock.mock.calls[0][0]);
+    expect(sql).toMatch(/embedding_vec <=> \$/);
+    expect(sql).toMatch(/vector_dims\(e\.embedding_vec\)/);
+    expect(sql).toMatch(/p\.client_id = \$/);
+  });
+
   it('getOpsAnalytics scopes SQL to allowedClientIds and never selects title', async () => {
     queryMock.mockResolvedValue({ rows: [] });
     const repo = repoWithMock();

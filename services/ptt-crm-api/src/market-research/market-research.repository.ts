@@ -5,6 +5,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { APPROVED_INTERNAL_PLUS, type InsightStatus, type ProductType, type ProjectStatus } from './market-research.constants';
 import { normalizeReportExec } from './report-exec.util';
 import { isInsightStale } from './insight-stale.util';
+import { toPgvectorLiteral } from './pgvector.util';
 import type {
   CreateEvidenceInput,
   CreateInsightInput,
@@ -1883,6 +1884,30 @@ export class MarketResearchRepository implements OnModuleDestroy {
   }
 
   async upsertInsightEmbedding(input: UpsertInsightEmbeddingInput): Promise<void> {
+    if (input.write_vec) {
+      await this.db.query(
+        `INSERT INTO crm_research_insight_embeddings (insight_id, project_id, embedding, embed_text, embed_model, embed_dims, embedding_vec)
+         VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7::vector)
+         ON CONFLICT (insight_id) DO UPDATE SET
+           project_id = EXCLUDED.project_id,
+           embedding = EXCLUDED.embedding,
+           embed_text = EXCLUDED.embed_text,
+           embed_model = EXCLUDED.embed_model,
+           embed_dims = EXCLUDED.embed_dims,
+           embedding_vec = EXCLUDED.embedding_vec,
+           updated_at = now()`,
+        [
+          input.insight_id,
+          input.project_id,
+          JSON.stringify(input.embedding),
+          input.embed_text,
+          input.embed_model,
+          input.embed_dims,
+          toPgvectorLiteral(input.embedding),
+        ],
+      );
+      return;
+    }
     await this.db.query(
       `INSERT INTO crm_research_insight_embeddings (insight_id, project_id, embedding, embed_text, embed_model, embed_dims)
        VALUES ($1, $2, $3::jsonb, $4, $5, $6)
@@ -2073,6 +2098,99 @@ export class MarketResearchRepository implements OnModuleDestroy {
         ? row.theme_synonyms.map((syn: unknown) => String(syn))
         : [],
       client_id: row.client_id != null ? String(row.client_id) : undefined,
+    }));
+  }
+
+  async listEmbeddingsByVec(
+    filters: ListEmbeddingsFilters,
+    queryVec: number[],
+    limit = 50,
+  ): Promise<RagEmbeddingRow[]> {
+    const where: string[] = [
+      'e.embedding_vec IS NOT NULL',
+    ];
+    const params: unknown[] = [];
+    params.push(queryVec.length);
+    where.push(`vector_dims(e.embedding_vec) = $${params.length}`);
+    const clientId = filters.client_id?.trim();
+    if (clientId) {
+      params.push(clientId);
+      where.push(`p.client_id = $${params.length}`);
+    }
+    if (filters.allowedClientIds) {
+      params.push(filters.allowedClientIds);
+      where.push(`p.client_id = ANY($${params.length}::text[])`);
+    }
+    const themeCode = filters.theme_code?.trim();
+    if (themeCode) {
+      params.push(themeCode);
+      where.push(`EXISTS (
+        SELECT 1
+        FROM crm_research_insight_themes it2
+        JOIN crm_research_taxonomy t2 ON t2.id = it2.taxonomy_id
+        WHERE it2.insight_id = i.id
+          AND (
+            lower(t2.theme_code) = lower($${params.length})
+            OR EXISTS (
+              SELECT 1 FROM unnest(t2.synonyms) syn
+              WHERE lower(syn) = lower($${params.length})
+            )
+          )
+      )`);
+    }
+    params.push(toPgvectorLiteral(queryVec));
+    const vecIdx = params.length;
+    params.push(Math.min(Math.max(limit, 1), 50));
+    const limitIdx = params.length;
+    const result = await this.db.query(
+      `SELECT e.insight_id,
+              e.project_id,
+              e.embedding,
+              i.status,
+              i.statement,
+              i.observation,
+              i.valid_to::text AS valid_to,
+              p.client_id,
+              COALESCE(
+                array_agg(t.theme_code) FILTER (WHERE t.theme_code IS NOT NULL),
+                '{}'
+              ) AS theme_codes,
+              COALESCE(
+                (
+                  SELECT array_agg(s)
+                  FROM crm_research_insight_themes it3
+                  JOIN crm_research_taxonomy t3 ON t3.id = it3.taxonomy_id
+                  CROSS JOIN unnest(t3.synonyms) s
+                  WHERE it3.insight_id = i.id
+                ),
+                '{}'
+              ) AS theme_synonyms
+       FROM crm_research_insight_embeddings e
+       JOIN crm_research_insights i ON i.id = e.insight_id
+       JOIN crm_research_projects p ON p.id = e.project_id
+       LEFT JOIN crm_research_insight_themes it ON it.insight_id = i.id
+       LEFT JOIN crm_research_taxonomy t ON t.id = it.taxonomy_id
+       WHERE ${where.join(' AND ')}
+       GROUP BY e.insight_id, e.project_id, e.embedding, i.status, i.statement, i.observation, p.client_id, i.valid_to, e.embedding_vec
+       ORDER BY e.embedding_vec <=> $${vecIdx}::vector
+       LIMIT $${limitIdx}`,
+      params,
+    );
+    return result.rows.map((row) => ({
+      insight_id: Number(row.insight_id),
+      project_id: Number(row.project_id),
+      status: String(row.status),
+      statement: String(row.statement),
+      observation: row.observation != null ? String(row.observation) : null,
+      embedding: parseJsonCol<number[]>(row.embedding, []).map(Number),
+      theme_codes: Array.isArray(row.theme_codes)
+        ? row.theme_codes.map((code: unknown) => String(code))
+        : [],
+      theme_synonyms: Array.isArray(row.theme_synonyms)
+        ? row.theme_synonyms.map((syn: unknown) => String(syn))
+        : [],
+      client_id: row.client_id != null ? String(row.client_id) : undefined,
+      valid_to: row.valid_to != null ? String(row.valid_to) : null,
     }));
   }
 

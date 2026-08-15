@@ -169,6 +169,7 @@ import {
   shouldSkipRagEmbed,
 } from './research-rag.util';
 import { fetchOpenAIEmbedding } from './openai-embed.util';
+import { shouldUsePgvectorAnn } from './pgvector.util';
 import {
   buildCopilotRagQuery,
   shouldSkipCopilotRag,
@@ -222,6 +223,7 @@ export class MarketResearchService {
     rag_enabled: boolean;
     rag_openai_embed_enabled: boolean;
     rag_embed_model: 'openai' | 'local';
+    rag_pgvector_enabled: boolean;
   } {
     const sparktoroKey = String(this.config.sparktoroApiKey ?? '').trim();
     const qualtricsKey = String(this.config.qualtricsApiKey ?? '').trim();
@@ -239,6 +241,7 @@ export class MarketResearchService {
       rag_enabled: Boolean(this.config.researchRagEnabled),
       rag_openai_embed_enabled: openaiEmbedLive,
       rag_embed_model: openaiEmbedLive ? 'openai' : 'local',
+      rag_pgvector_enabled: Boolean(this.config.researchRagPgvectorEnabled),
     };
   }
 
@@ -1695,6 +1698,7 @@ export class MarketResearchService {
             embed_text: embedText,
             embed_model: resolved.model,
             embed_dims: resolved.dims,
+            write_vec: this.config.researchRagPgvectorEnabled,
           });
         } catch {
           // skip upsert — approve already committed
@@ -1733,12 +1737,16 @@ export class MarketResearchService {
       !clientId && scope.restricted
         ? this.clientScope.allowedClientIdsForList(scope) ?? []
         : undefined;
-    const rows = await this.repo.listEmbeddings({
+    const annVec = queryVec ?? embedInsightText(q);
+    const embeddingFilters = {
       client_id: clientId || undefined,
       allowedClientIds,
       theme_code: themeCode,
-    });
-    return { hits: rankRagHits(q, rows, { theme_code: themeCode, limit, queryVec }) };
+    };
+    const rows = shouldUsePgvectorAnn(this.config.researchRagPgvectorEnabled, annVec)
+      ? await this.repo.listEmbeddingsByVec(embeddingFilters, annVec, 50)
+      : await this.repo.listEmbeddings(embeddingFilters);
+    return { hits: rankRagHits(q, rows, { theme_code: themeCode, limit, queryVec: annVec }) };
   }
 
   private reembedFilters(scope: ClientScopeContext, clientId?: string) {
@@ -1819,6 +1827,7 @@ export class MarketResearchService {
           embed_text: embedText,
           embed_model: resolved.model,
           embed_dims: resolved.dims,
+          write_vec: this.config.researchRagPgvectorEnabled,
         });
         processed += 1;
       } catch {

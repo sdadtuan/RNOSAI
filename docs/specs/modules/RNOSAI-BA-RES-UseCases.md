@@ -111,6 +111,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-078 | Theme QoQ / YoY delta (portal analytics) | P17 | P17 | Spec ready | FR-INT-04 · BR-RES-06 · UC-076 |
 | RES-UC-079 | Insight stale banner (`valid_to`) | P18 | P18 | Spec ready | FR-INS-07 |
 | RES-UC-080 | Portal insight stale banner (RAG) | P19 | P19 | Spec ready | FR-INS-07 · UC-079 |
+| RES-UC-081 | pgvector dual-write + gated ANN | P20 | P20 | Spec ready | FR-INT · NFR-AI-04 |
 
 ---
 
@@ -765,6 +766,16 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Màn hình:** `/research` — banner dưới hit RAG stale
 - Banner: `Insight này có thể đã lỗi thời (hết hiệu lực). Liên hệ account manager để được cập nhật.`
 - **Cấm** endpoint mới; không DDL; không ops-web; không ẩn hit stale
+
+### RES-UC-081 — pgvector dual-write + gated ANN
+
+- **Actor chính:** Analyst / portal (cùng search hiện có)
+- **API:** không endpoint mới — `GET …/insights/search` (staff + portal)
+- **Flag:** `RESEARCH_RAG_PGVECTOR_ENABLED` default 0
+- **DDL:** `vector` extension + `embedding_vec`; apply fail-soft nếu thiếu package
+- **Off:** JSONB + `rankRagHits` như P19
+- **On:** ANN prefilter same-dim → `rankRagHits`
+- **Cấm** bật flag trên prod deploy; không cắt JSONB; không IVFFlat/HNSW; không Talkwalker / conjoint
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

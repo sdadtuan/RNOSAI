@@ -926,6 +926,7 @@ export type PortalResearchHealth = {
   rag_enabled: boolean;
   rag_openai_embed_enabled: boolean;
   rag_embed_model: 'openai' | 'local';
+  rag_pgvector_enabled: boolean;
 };
 
 export const RAG_COPILOT_HIT_LIMIT = 5;
@@ -959,6 +960,7 @@ export type UpsertInsightEmbeddingInput = {
   embed_text: string;
   embed_model: string;
   embed_dims: number;
+  write_vec?: boolean;
 };
 
 export type ListEmbeddingsFilters = {

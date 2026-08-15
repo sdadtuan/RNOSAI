@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import type { RagEmbeddingRow } from '../market-research/market-research.types';
+import { toPgvectorLiteral } from '../market-research/pgvector.util';
 import type { PortalResearchVersionRecord } from './portal-research.types';
 
 function parseJsonCol<T>(val: unknown, fallback: T): T {
@@ -118,6 +119,89 @@ export class PortalResearchRepository implements OnModuleDestroy {
        WHERE ${where.join(' AND ')}
        GROUP BY e.insight_id, e.project_id, e.embedding, i.status, i.statement, i.observation, p.client_id, i.valid_to
        ORDER BY e.insight_id ASC`,
+      params,
+    );
+    return result.rows.map((row) => ({
+      insight_id: Number(row.insight_id),
+      project_id: Number(row.project_id),
+      status: String(row.status),
+      statement: String(row.statement),
+      observation: row.observation != null ? String(row.observation) : null,
+      embedding: parseJsonCol<number[]>(row.embedding, []).map(Number),
+      theme_codes: Array.isArray(row.theme_codes)
+        ? row.theme_codes.map((code: unknown) => String(code))
+        : [],
+      theme_synonyms: Array.isArray(row.theme_synonyms)
+        ? row.theme_synonyms.map((syn: unknown) => String(syn))
+        : [],
+      client_id: String(row.client_id),
+      valid_to: row.valid_to != null ? String(row.valid_to) : null,
+    }));
+  }
+
+  async listPublishedEmbeddingsByVec(
+    clientId: string,
+    themeCode: string | undefined,
+    queryVec: number[],
+    limit = 50,
+  ): Promise<RagEmbeddingRow[]> {
+    const params: unknown[] = [clientId];
+    const where = [`p.client_id = $1`, `i.status = 'published'`, 'e.embedding_vec IS NOT NULL'];
+    params.push(queryVec.length);
+    where.push(`vector_dims(e.embedding_vec) = $${params.length}`);
+    const theme = themeCode?.trim();
+    if (theme) {
+      params.push(theme);
+      where.push(`EXISTS (
+        SELECT 1
+        FROM crm_research_insight_themes it2
+        JOIN crm_research_taxonomy t2 ON t2.id = it2.taxonomy_id
+        WHERE it2.insight_id = i.id
+          AND (
+            lower(t2.theme_code) = lower($${params.length})
+            OR EXISTS (
+              SELECT 1 FROM unnest(t2.synonyms) syn
+              WHERE lower(syn) = lower($${params.length})
+            )
+          )
+      )`);
+    }
+    params.push(toPgvectorLiteral(queryVec));
+    const vecIdx = params.length;
+    params.push(Math.min(Math.max(limit, 1), 50));
+    const limitIdx = params.length;
+    const result = await this.db.query(
+      `SELECT e.insight_id,
+              e.project_id,
+              e.embedding,
+              i.status,
+              i.statement,
+              i.observation,
+              i.valid_to::text AS valid_to,
+              p.client_id,
+              COALESCE(
+                array_agg(t.theme_code) FILTER (WHERE t.theme_code IS NOT NULL),
+                '{}'
+              ) AS theme_codes,
+              COALESCE(
+                (
+                  SELECT array_agg(s)
+                  FROM crm_research_insight_themes it3
+                  JOIN crm_research_taxonomy t3 ON t3.id = it3.taxonomy_id
+                  CROSS JOIN unnest(t3.synonyms) s
+                  WHERE it3.insight_id = i.id
+                ),
+                '{}'
+              ) AS theme_synonyms
+       FROM crm_research_insight_embeddings e
+       JOIN crm_research_insights i ON i.id = e.insight_id
+       JOIN crm_research_projects p ON p.id = e.project_id
+       LEFT JOIN crm_research_insight_themes it ON it.insight_id = i.id
+       LEFT JOIN crm_research_taxonomy t ON t.id = it.taxonomy_id
+       WHERE ${where.join(' AND ')}
+       GROUP BY e.insight_id, e.project_id, e.embedding, i.status, i.statement, i.observation, p.client_id, i.valid_to, e.embedding_vec
+       ORDER BY e.embedding_vec <=> $${vecIdx}::vector
+       LIMIT $${limitIdx}`,
       params,
     );
     return result.rows.map((row) => ({

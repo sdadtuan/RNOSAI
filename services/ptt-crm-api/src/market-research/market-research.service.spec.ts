@@ -109,6 +109,7 @@ describe('MarketResearchService', () => {
     upsertInsightEmbedding: jest.fn(),
     deleteInsightEmbedding: jest.fn(),
     listEmbeddings: jest.fn(),
+    listEmbeddingsByVec: jest.fn(),
     countReembedStale: jest.fn(),
     listReembedCandidates: jest.fn(),
     listTaxonomy: jest.fn(),
@@ -190,6 +191,7 @@ describe('MarketResearchService', () => {
     qualtricsDatacenter: '',
     researchRagEnabled: false,
     researchRagOpenaiEmbedEnabled: false,
+    researchRagPgvectorEnabled: false,
   };
 
   let service: MarketResearchService;
@@ -205,6 +207,7 @@ describe('MarketResearchService', () => {
     config.qualtricsDatacenter = '';
     config.researchRagEnabled = false;
     config.researchRagOpenaiEmbedEnabled = false;
+    config.researchRagPgvectorEnabled = false;
     (fetchOpenAIEmbedding as jest.Mock).mockReset();
     repo.listTrendSignals.mockResolvedValue([]);
     llm.isConfigured.mockReturnValue(true);
@@ -2267,6 +2270,7 @@ describe('MarketResearchService', () => {
       rag_enabled: false,
       rag_openai_embed_enabled: false,
       rag_embed_model: 'local',
+      rag_pgvector_enabled: false,
     });
     config.researchDeepProvider = 'off';
     expect(service.health().deep_provider).toBe('off');
@@ -2577,7 +2581,35 @@ describe('MarketResearchService', () => {
 
     expect(out).toEqual({ hits: [], note: 'rag_disabled' });
     expect(repo.listEmbeddings).not.toHaveBeenCalled();
+    expect(repo.listEmbeddingsByVec).not.toHaveBeenCalled();
     expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('P20 searchInsights uses listEmbeddingsByVec when pgvector flag on', async () => {
+    config.researchRagEnabled = true;
+    config.researchRagPgvectorEnabled = true;
+    const statement = 'Giá sữa học đường tăng tại Hà Nội';
+    const vec = embedInsightText(statement);
+    repo.listEmbeddingsByVec.mockResolvedValue([
+      {
+        insight_id: 20,
+        project_id: 9,
+        status: 'published',
+        statement,
+        observation: null,
+        embedding: vec,
+        theme_codes: [],
+        client_id: 'acme',
+        valid_to: null,
+      },
+    ]);
+    const out = await service.searchInsights(
+      { restricted: false, allowedClientIds: [] },
+      { q: statement },
+    );
+    expect(repo.listEmbeddingsByVec).toHaveBeenCalled();
+    expect(repo.listEmbeddings).not.toHaveBeenCalled();
+    expect(out.hits[0]?.insight_id).toBe(20);
   });
 
   it('M2-1e: search outside scope is 403 without statement', async () => {
