@@ -53,6 +53,7 @@ import { collectSparkToro } from './sparktoro-collect';
 import { mapSparkToroResponse } from './sparktoro-mapper.util';
 import { mapTalkwalkerResponse } from './talkwalker-mapper.util';
 import { TALKWALKER_STUB_RESULTS } from './talkwalker-stub.util';
+import { collectTalkwalker } from './talkwalker-collect';
 import { collectQualtrics } from './qualtrics-collect';
 import { resolveQualtricsColumnMap } from './qualtrics-map.util';
 import type {
@@ -222,6 +223,7 @@ import { canTransitionProject, listValidTransitions } from './project-state.util
 @Injectable()
 export class MarketResearchService implements OnModuleInit {
   private ragPgvectorReady = false;
+  private ragIvfflatReady = false;
 
   constructor(
     private readonly repo: MarketResearchRepository,
@@ -241,6 +243,11 @@ export class MarketResearchService implements OnModuleInit {
     } catch {
       this.ragPgvectorReady = false;
     }
+    try {
+      this.ragIvfflatReady = await this.repo.probeIvfflatReady();
+    } catch {
+      this.ragIvfflatReady = false;
+    }
   }
 
   health(): {
@@ -250,16 +257,19 @@ export class MarketResearchService implements OnModuleInit {
     sparktoro_enabled: boolean;
     qualtrics_enabled: boolean;
     talkwalker_enabled: boolean;
+    talkwalker_live_enabled: boolean;
     rag_enabled: boolean;
     rag_openai_embed_enabled: boolean;
     rag_embed_model: 'openai' | 'local';
     rag_pgvector_enabled: boolean;
     rag_pgvector_ready: boolean;
+    rag_ivfflat_ready: boolean;
   } {
     const sparktoroKey = String(this.config.sparktoroApiKey ?? '').trim();
     const qualtricsKey = String(this.config.qualtricsApiKey ?? '').trim();
     const qualtricsDc = String(this.config.qualtricsDatacenter ?? '').trim();
     const talkwalkerToken = String(this.config.talkwalkerAccessToken ?? '').trim();
+    const talkwalkerProjectId = String(this.config.talkwalkerProjectId ?? '').trim();
     const openaiKey = (process.env.OPENAI_API_KEY ?? process.env.OPENAI_KEY ?? '').trim();
     const openaiEmbedLive = Boolean(this.config.researchRagOpenaiEmbedEnabled && openaiKey);
     return {
@@ -271,11 +281,15 @@ export class MarketResearchService implements OnModuleInit {
         this.config.researchQualtricsEnabled && qualtricsKey && qualtricsDc,
       ),
       talkwalker_enabled: Boolean(this.config.researchTalkwalkerEnabled && talkwalkerToken),
+      talkwalker_live_enabled: Boolean(
+        this.config.researchTalkwalkerEnabled && talkwalkerToken && talkwalkerProjectId,
+      ),
       rag_enabled: Boolean(this.config.researchRagEnabled),
       rag_openai_embed_enabled: openaiEmbedLive,
       rag_embed_model: openaiEmbedLive ? 'openai' : 'local',
       rag_pgvector_enabled: Boolean(this.config.researchRagPgvectorEnabled),
       rag_pgvector_ready: this.ragPgvectorReady,
+      rag_ivfflat_ready: this.ragIvfflatReady,
     };
   }
 
@@ -2457,6 +2471,7 @@ export class MarketResearchService implements OnModuleInit {
     if (!this.config.researchTalkwalkerEnabled || !token) {
       return { ok: true, note: 'talkwalker_disabled' };
     }
+    const talkwalkerProjectId = String(this.config.talkwalkerProjectId ?? '').trim();
     const run = await this.repo.insertAiRun({
       projectId,
       questionId,
@@ -2464,7 +2479,22 @@ export class MarketResearchService implements OnModuleInit {
       provider: 'talkwalker',
       actor,
     });
-    const candidates = mapTalkwalkerResponse(TALKWALKER_STUB_RESULTS);
+    let normalized = TALKWALKER_STUB_RESULTS;
+    let note: 'talkwalker_stub' | 'talkwalker_live' = 'talkwalker_stub';
+    if (talkwalkerProjectId) {
+      try {
+        normalized = await collectTalkwalker({
+          query: question.question_vi,
+          accessToken: token,
+          projectId: talkwalkerProjectId,
+        });
+        note = 'talkwalker_live';
+      } catch {
+        await this.repo.failAiRun(run.id, 'talkwalker_failed');
+        throw new BadRequestException({ error: 'talkwalker_failed' });
+      }
+    }
+    const candidates = mapTalkwalkerResponse(normalized);
     const source_ids: number[] = [];
     for (const row of candidates) {
       const created = await this.repo.createSource(projectId, {
@@ -2482,9 +2512,12 @@ export class MarketResearchService implements OnModuleInit {
     }
     await this.repo.succeedAiRun(run.id, {
       creditsUsed: 0,
-      outputJson: { source_ids, stub: true, note: 'talkwalker_stub' },
+      outputJson:
+        note === 'talkwalker_live'
+          ? { source_ids, live: true, note: 'talkwalker_live' }
+          : { source_ids, stub: true, note: 'talkwalker_stub' },
     });
-    return { ok: true, run_id: run.id, status: 'succeeded', source_ids, note: 'talkwalker_stub' };
+    return { ok: true, run_id: run.id, status: 'succeeded', source_ids, note };
   }
 
   async runQualtrics(

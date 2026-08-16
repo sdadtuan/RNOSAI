@@ -564,7 +564,13 @@ export type RunTalkwalkerInput = {
 
 export type RunTalkwalkerResult =
   | { ok: true; note: 'talkwalker_disabled' }
-  | { ok: true; run_id: number; status: 'succeeded'; source_ids: number[]; note: 'talkwalker_stub' };
+  | {
+      ok: true;
+      run_id: number;
+      status: 'succeeded';
+      source_ids: number[];
+      note: 'talkwalker_stub' | 'talkwalker_live';
+    };
 
 export type RunQualtricsInput = {
   study_id: number;

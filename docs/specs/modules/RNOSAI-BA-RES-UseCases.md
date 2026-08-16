@@ -127,6 +127,8 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-094 | Portal + staff show published_valid_to | P33 | P33 | Spec ready | FR-INS-07 · UC-093 |
 | RES-UC-095 | Conjoint what-if lite (staff) | P34 | P34 | Spec ready | BR-RES-03 · UC-082 |
 | RES-UC-096 | Portal conjoint lite (read-only) | P35 | P35 | Spec ready | BR-RES-03 · UC-082 · UC-095 |
+| RES-UC-097 | IVFFlat index fail-soft on embedding_vec | P36 | P36 | Spec ready | FR-INT · UC-081 · UC-087 |
+| RES-UC-098 | Live Talkwalker Search API (staging) | P36 | P36 | Spec ready | FR-SRC · UC-084 |
 
 ---
 
@@ -926,6 +928,20 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Rule:** không summary → `{ summary: null }` (200); DTO không `created_by` / `title`; `statistical_inference: false`
 - **Màn hình:** `/research` — bảng share + gợi ý gói; ẩn khối khi null
 - **Cấm** POST compute / what-if; **cấm** `createInsight`; **cấm** MOE / logit; không DDL; không ops-web; flags prod không đổi
+
+### RES-UC-097 — IVFFlat index fail-soft on `embedding_vec`
+
+- **Actor chính:** DevOps / QA (DDL apply + health probe)
+- **DDL:** `CREATE INDEX IF NOT EXISTS crm_research_emb_vec_ivf … USING ivfflat` — fail-soft nếu thiếu extension `vector`
+- **Health:** `rag_ivfflat_ready` = index tồn tại; **không** bật ANN / flags prod
+- **Cấm** drop JSONB; **cấm** bật `RESEARCH_RAG_PGVECTOR_ENABLED` trên deploy mặc định; không UI
+
+### RES-UC-098 — Live Talkwalker Search API (staging)
+
+- **Actor chính:** Analyst (`crm_research.run`) khi flag+token+`TALKWALKER_PROJECT_ID` bật staging
+- **API:** cùng `POST …/run-talkwalker` — có project_id → HTTP Search API; thiếu project_id → stub P23
+- **Rule:** sources only; PII → 400; HTTP fail → `talkwalker_failed`; health `talkwalker_live_enabled`
+- **Cấm** `createInsight`; **cấm** bật flag/token trên prod deploy mặc định; không portal
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

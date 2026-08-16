@@ -19,6 +19,7 @@ import {
 import { transcribeAudio } from './whisper-transcribe';
 import { collectSparkToro } from './sparktoro-collect';
 import { collectQualtrics } from './qualtrics-collect';
+import { collectTalkwalker } from './talkwalker-collect';
 import { computeVanWestendorp } from './van-westendorp.util';
 import { embedInsightText, insightEmbedText, isRagCorpusStatus } from './research-rag.util';
 import { fetchOpenAIEmbedding } from './openai-embed.util';
@@ -41,6 +42,10 @@ jest.mock('./sparktoro-collect', () => ({
 
 jest.mock('./qualtrics-collect', () => ({
   collectQualtrics: jest.fn(),
+}));
+
+jest.mock('./talkwalker-collect', () => ({
+  collectTalkwalker: jest.fn(),
 }));
 
 const project: ResearchProjectRow = {
@@ -154,6 +159,7 @@ describe('MarketResearchService', () => {
     getDecision: jest.fn(),
     patchDecision: jest.fn(),
     probePgvectorReady: jest.fn().mockResolvedValue(false),
+    probeIvfflatReady: jest.fn().mockResolvedValue(false),
   };
   const plans = {
     getPlanById: jest.fn(),
@@ -198,6 +204,7 @@ describe('MarketResearchService', () => {
     qualtricsDatacenter: '',
     researchTalkwalkerEnabled: false,
     talkwalkerAccessToken: '',
+    talkwalkerProjectId: '',
     researchRagEnabled: false,
     researchRagOpenaiEmbedEnabled: false,
     researchRagPgvectorEnabled: false,
@@ -216,6 +223,7 @@ describe('MarketResearchService', () => {
     config.qualtricsDatacenter = '';
     config.researchTalkwalkerEnabled = false;
     config.talkwalkerAccessToken = '';
+    config.talkwalkerProjectId = '';
     config.researchRagEnabled = false;
     config.researchRagOpenaiEmbedEnabled = false;
     config.researchRagPgvectorEnabled = false;
@@ -2279,11 +2287,13 @@ describe('MarketResearchService', () => {
       sparktoro_enabled: false,
       qualtrics_enabled: false,
       talkwalker_enabled: false,
+      talkwalker_live_enabled: false,
       rag_enabled: false,
       rag_openai_embed_enabled: false,
       rag_embed_model: 'local',
       rag_pgvector_enabled: false,
       rag_pgvector_ready: false,
+      rag_ivfflat_ready: false,
     });
     config.researchDeepProvider = 'off';
     expect(service.health().deep_provider).toBe('off');
@@ -2291,9 +2301,17 @@ describe('MarketResearchService', () => {
 
   it('P26 health rag_pgvector_ready true after probe on module init', async () => {
     repo.probePgvectorReady.mockResolvedValue(true);
+    repo.probeIvfflatReady.mockResolvedValue(false);
     await service.onModuleInit();
     expect(service.health().rag_pgvector_ready).toBe(true);
+    expect(service.health().rag_ivfflat_ready).toBe(false);
     expect(service.health().rag_pgvector_enabled).toBe(false);
+  });
+
+  it('P36 health rag_ivfflat_ready true after probe on module init', async () => {
+    repo.probeIvfflatReady.mockResolvedValue(true);
+    await service.onModuleInit();
+    expect(service.health().rag_ivfflat_ready).toBe(true);
   });
 
   it('health sparktoro_enabled is false when flag is on but key is missing', () => {
@@ -2483,6 +2501,67 @@ describe('MarketResearchService', () => {
       status: 400,
     });
     expect(repo.insertAiRun).not.toHaveBeenCalled();
+  });
+
+  it('P36 live Talkwalker persists sources when project_id configured', async () => {
+    stubScopedProject();
+    config.researchTalkwalkerEnabled = true;
+    config.talkwalkerAccessToken = 'tw-secret';
+    config.talkwalkerProjectId = 'tw-proj-live';
+    repo.getQuestion.mockResolvedValue({ id: 9, project_id: 9, question_vi: 'Quy mô sữa uống?' });
+    repo.insertAiRun.mockResolvedValue({ id: 88 });
+    (collectTalkwalker as jest.Mock).mockResolvedValue({
+      results: [
+        {
+          url: 'https://news.example/live',
+          title: 'Live title',
+          snippet: 'Live snippet',
+        },
+      ],
+    });
+    repo.createSource.mockResolvedValue({ id: 601 });
+    const out = await service.runTalkwalker(9, scope, { question_id: 9 }, 'an@ptt');
+    expect(out).toEqual({
+      ok: true,
+      run_id: 88,
+      status: 'succeeded',
+      source_ids: [601],
+      note: 'talkwalker_live',
+    });
+    expect(collectTalkwalker).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: 'Quy mô sữa uống?',
+        accessToken: 'tw-secret',
+        projectId: 'tw-proj-live',
+      }),
+    );
+    expect(repo.succeedAiRun.mock.calls[0][1].outputJson.live).toBe(true);
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('P36 live Talkwalker HTTP fail marks run failed', async () => {
+    stubScopedProject();
+    config.researchTalkwalkerEnabled = true;
+    config.talkwalkerAccessToken = 'tw-secret';
+    config.talkwalkerProjectId = 'tw-proj-live';
+    repo.getQuestion.mockResolvedValue({ id: 9, project_id: 9, question_vi: 'Quy mô sữa uống?' });
+    repo.insertAiRun.mockResolvedValue({ id: 89 });
+    (collectTalkwalker as jest.Mock).mockRejectedValue(new Error('talkwalker_search_http_401'));
+    await expect(service.runTalkwalker(9, scope, { question_id: 9 }, 'an@ptt')).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(repo.failAiRun).toHaveBeenCalledWith(89, 'talkwalker_failed');
+    expect(repo.createSource).not.toHaveBeenCalled();
+  });
+
+  it('P36 health talkwalker_live_enabled requires flag token and project_id', () => {
+    config.researchTalkwalkerEnabled = true;
+    config.talkwalkerAccessToken = 'tw-secret';
+    config.talkwalkerProjectId = '';
+    expect(service.health().talkwalker_live_enabled).toBe(false);
+    config.talkwalkerProjectId = 'tw-proj';
+    expect(service.health().talkwalker_live_enabled).toBe(true);
+    expect(JSON.stringify(service.health())).not.toMatch(/tw-secret|tw-proj/);
   });
 
   describe('P11 OpenAI embed path', () => {

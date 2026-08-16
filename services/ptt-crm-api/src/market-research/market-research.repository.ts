@@ -6,6 +6,7 @@ import { APPROVED_INTERNAL_PLUS, type InsightStatus, type ProductType, type Proj
 import { normalizeReportExec } from './report-exec.util';
 import { isInsightStale } from './insight-stale.util';
 import { PGVECTOR_READY_SQL, parsePgvectorReadyRow } from './pgvector-ready.util';
+import { IVFFLAT_READY_SQL, parseIvfflatReadyRow } from './pgvector-ivfflat.util';
 import { toPgvectorLiteral } from './pgvector.util';
 import type {
   CreateEvidenceInput,
@@ -2472,6 +2473,15 @@ export class MarketResearchRepository implements OnModuleDestroy {
     try {
       const result = await this.db.query(PGVECTOR_READY_SQL);
       return parsePgvectorReadyRow(result.rows[0] as { ext_ok?: boolean; col_ok?: boolean });
+    } catch {
+      return false;
+    }
+  }
+
+  async probeIvfflatReady(): Promise<boolean> {
+    try {
+      const result = await this.db.query(IVFFLAT_READY_SQL);
+      return parseIvfflatReadyRow(result.rows[0] as { idx_ok?: boolean });
     } catch {
       return false;
     }

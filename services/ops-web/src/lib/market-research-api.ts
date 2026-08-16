@@ -952,10 +952,14 @@ export async function fetchResearchHealth(
   deep_provider: string;
   sparktoro_enabled: boolean;
   talkwalker_enabled: boolean;
+  talkwalker_live_enabled?: boolean;
   qualtrics_enabled: boolean;
   rag_enabled: boolean;
   rag_openai_embed_enabled: boolean;
   rag_embed_model: 'openai' | 'local';
+  rag_pgvector_enabled?: boolean;
+  rag_pgvector_ready?: boolean;
+  rag_ivfflat_ready?: boolean;
 }> {
   return researchFetch(token, '/api/v1/research/health');
 }

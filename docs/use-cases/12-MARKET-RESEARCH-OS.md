@@ -655,6 +655,18 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P36 — RES-UC-097 / RES-UC-098
+
+| UC | Tóm tắt |
+|----|---------|
+| 097 | IVFFlat index fail-soft trên `embedding_vec`; health `rag_ivfflat_ready`. |
+| 098 | Live Talkwalker khi có `TALKWALKER_PROJECT_ID`; stub khi thiếu. |
+
+**API:** `POST …/run-talkwalker` (live/stub) · DDL P36 IVFFlat  
+**Gates:** api-only; không ops-web/portal; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

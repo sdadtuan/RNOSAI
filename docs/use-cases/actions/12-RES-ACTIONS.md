@@ -916,7 +916,24 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
-## P36+ (backlog — IVFFlat / live Talkwalker)
+## Walkthrough UAT P36 — IVFFlat + live Talkwalker (≈10 phút)
+
+**Mục tiêu:** *«DDL IVFFlat fail-soft; staging live Talkwalker khi có project_id; prod flags vẫn off.»*
+
+**Tiền đề:** staging có thể bật Talkwalker flag+token+project_id (PO)
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | DevOps | Apply P36 DDL (no pgvector) | WARN skip; không crash deploy |
+| 2 | DevOps | `install_pgvector_vps.sh` + P36 DDL | Index `crm_research_emb_vec_ivf`; health `rag_ivfflat_ready=true` |
+| 3 | QA | Prod health | `rag_ivfflat_ready` false hoặc true; RAG/pgvector flags off |
+| 4 | AN | Staging: flag+token, **không** project_id, Chạy Talkwalker | `note: talkwalker_stub` |
+| 5 | AN | Staging: + `TALKWALKER_PROJECT_ID`, Chạy Talkwalker | Sources persist; `note: talkwalker_live` |
+| 6 | QA | Prod deploy P36 | Talkwalker/RAG flags không đổi |
+
+- [ ] Bước 1–6 pass staging
+
+## P37+ (backlog — persist what-if / ISO 20252 gap-check)
 
 
 
