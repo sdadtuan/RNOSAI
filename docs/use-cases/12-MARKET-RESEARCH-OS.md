@@ -678,6 +678,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P38 — RES-UC-100
+
+| UC | Tóm tắt |
+|----|---------|
+| 100 | Lưu lịch sử what-if conjoint staff; F5 giữ scenario; không insight/portal. |
+
+**API:** `POST/GET …/conjoint/what-if` · DDL P38 `crm_research_cj_whatif_runs`  
+**Gates:** api + ops-web; không portal; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

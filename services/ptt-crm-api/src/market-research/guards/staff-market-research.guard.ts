@@ -108,6 +108,21 @@ export class StaffResearchMktplanEditGuard implements CanActivate {
 }
 
 @Injectable()
+export class StaffMarketResearchWhatIfGuard implements CanActivate {
+  constructor(private readonly staffAuth: StaffAuthService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<StaffReq>();
+    await requireResearchCap(this.staffAuth, req, 'view');
+    const body = req.body as { persist?: boolean } | undefined;
+    if (body?.persist === true) {
+      await requireResearchCap(this.staffAuth, req, 'edit');
+    }
+    return true;
+  }
+}
+
+@Injectable()
 export class StaffResearchContentWriteGuard implements CanActivate {
   constructor(private readonly staffAuth: StaffAuthService) {}
 

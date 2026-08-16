@@ -947,7 +947,22 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–5 pass staging
 
-## P38+ (backlog — persist conjoint what-if)
+## Walkthrough UAT P38 — Persist conjoint what-if (≈8 phút)
+
+**Mục tiêu:** *«Analyst chạy what-if + Lưu → F5 vẫn thấy hàng lịch sử; không insight mới; portal không đổi.»*
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | AN | PRICE_OFFER, what-if, **không** tick Lưu | Kết quả inline; history không tăng |
+| 2 | AN | Cùng scenario, tick **Lưu kết quả** | `run_id` + hàng history |
+| 3 | AN | F5 tab Conjoint | History còn |
+| 4 | Viewer | Tick Lưu | 403 forbidden |
+| 5 | QA | Portal `/research` | Không what-if / history staff |
+| 6 | QA | Prod deploy P38 | RAG/Talkwalker flags không đổi |
+
+- [ ] Bước 1–6 pass staging
+
+## P39+ (backlog — pgvector backfill staging)
 
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 

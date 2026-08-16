@@ -562,6 +562,25 @@ export type CjWhatIfResult = {
   statistical_inference: false;
 };
 
+export type CjWhatIfPersistResult = CjWhatIfResult & {
+  run_id?: number;
+  persisted_at?: string;
+};
+
+export type CjWhatIfRunRow = {
+  id: number;
+  project_id: number;
+  study_id: number | null;
+  scenario: Record<string, string>;
+  n_match: number;
+  n_choices: number;
+  match_pct: number;
+  limitation_note: string;
+  statistical_inference: false;
+  created_by: string | null;
+  created_at: string;
+};
+
 export const CJ_WHATIF_LIMITATION =
   'What-if conjoint lite — đếm lựa chọn trong mẫu khớp gói giả định. Không mô hình hoá tương tác. Không market share. Không suy diễn thống kê.';
 

@@ -154,6 +154,8 @@ describe('MarketResearchService', () => {
     insertVwSummary: jest.fn(),
     getLatestVwSummary: jest.fn(),
     insertCjSummary: jest.fn(),
+    insertCjWhatIfRun: jest.fn(),
+    listCjWhatIfRuns: jest.fn(),
     getLatestCjSummary: jest.fn(),
     listDecisions: jest.fn(),
     createDecision: jest.fn(),
@@ -5454,6 +5456,7 @@ describe('MarketResearchService', () => {
       expect((err as BadRequestException).getResponse()).toEqual({ error: 'cj_not_price_offer' });
     }
     expect(repo.insertCjSummary).not.toHaveBeenCalled();
+    expect(repo.insertCjWhatIfRun).not.toHaveBeenCalled();
     expect(repo.createInsight).not.toHaveBeenCalled();
   });
 
@@ -5489,7 +5492,95 @@ describe('MarketResearchService', () => {
       statistical_inference: false,
     });
     expect(repo.insertCjSummary).not.toHaveBeenCalled();
+    expect(repo.insertCjWhatIfRun).not.toHaveBeenCalled();
     expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('P38 what-if persist inserts run row with run_id', async () => {
+    const priceOffer = { ...project, product_type: 'PRICE_OFFER' as const };
+    repo.getProjectClientId.mockResolvedValue('acme');
+    repo.getProject.mockResolvedValue(priceOffer);
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.getStudy.mockResolvedValue({
+      id: 5,
+      project_id: 9,
+      name: 'CJ study',
+      method: 'survey',
+      n: 4,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    });
+    repo.listEvidence.mockResolvedValue(cjEvidenceForStudy(5));
+    repo.insertCjWhatIfRun.mockResolvedValue({
+      id: 12,
+      project_id: 9,
+      study_id: 5,
+      scenario: { price: '99k', pack_size: '500ml' },
+      n_match: 2,
+      n_choices: 8,
+      match_pct: 25,
+      limitation_note: 'note',
+      statistical_inference: false,
+      created_by: 'an@ptt',
+      created_at: '2026-08-16T10:00:00.000Z',
+    });
+
+    const out = await service.simulateConjointWhatIf(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { study_id: 5, scenario: { price: '99k', pack_size: '500ml' }, persist: true },
+      'an@ptt',
+    );
+
+    expect(out).toMatchObject({
+      n_match: 2,
+      n_choices: 8,
+      match_pct: 25,
+      run_id: 12,
+      persisted_at: '2026-08-16T10:00:00.000Z',
+    });
+    expect(repo.insertCjWhatIfRun).toHaveBeenCalledWith(
+      9,
+      5,
+      expect.objectContaining({ n_match: 2, n_choices: 8 }),
+      'an@ptt',
+    );
+    expect(repo.insertCjSummary).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('P38 listConjointWhatIfRuns returns scoped runs without title', async () => {
+    const priceOffer = { ...project, product_type: 'PRICE_OFFER' as const };
+    repo.getProjectClientId.mockResolvedValue('acme');
+    repo.getProject.mockResolvedValue(priceOffer);
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.listCjWhatIfRuns.mockResolvedValue([
+      {
+        id: 12,
+        project_id: 9,
+        study_id: 5,
+        scenario: { price: '99k', pack_size: '500ml' },
+        n_match: 2,
+        n_choices: 8,
+        match_pct: 25,
+        limitation_note: 'note',
+        statistical_inference: false,
+        created_by: 'an@ptt',
+        created_at: '2026-08-16T10:00:00.000Z',
+      },
+    ]);
+
+    const out = await service.listConjointWhatIfRuns(9, {
+      restricted: true,
+      allowedClientIds: ['acme'],
+    });
+
+    expect(out.runs).toHaveLength(1);
+    expect(JSON.stringify(out)).not.toContain('Secret title');
+    expect(repo.listCjWhatIfRuns).toHaveBeenCalledWith(9);
   });
 
   it('M3-2c: GET van-westendorp outside scope is 403 without name', async () => {

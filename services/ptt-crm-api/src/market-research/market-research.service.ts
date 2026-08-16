@@ -145,6 +145,8 @@ import type {
   ResearchCjSummaryRow,
   ResearchVwSummaryRow,
   CjWhatIfResult,
+  CjWhatIfPersistResult,
+  CjWhatIfRunRow,
   CjChoice,
   IsoGapCheckPayload,
 } from './market-research.types';
@@ -1207,17 +1209,19 @@ export class MarketResearchService implements OnModuleInit {
   async simulateConjointWhatIf(
     projectId: number,
     scope: ClientScopeContext,
-    input: { study_id?: number | null; scenario?: Record<string, string> },
-  ): Promise<CjWhatIfResult> {
+    input: { study_id?: number | null; scenario?: Record<string, string>; persist?: boolean },
+    actor?: string,
+  ): Promise<CjWhatIfPersistResult> {
     const project = await this.loadScopedProject(projectId, scope);
     this.assertPriceOfferConjoint(project);
-    const { choices } = await this.loadConjointChoices(projectId, input);
+    const { choices, studyId } = await this.loadConjointChoices(projectId, input);
     const scenario =
       input.scenario && typeof input.scenario === 'object' && !Array.isArray(input.scenario)
         ? input.scenario
         : {};
+    let computed: CjWhatIfResult;
     try {
-      return computeConjointWhatIf(choices, scenario);
+      computed = computeConjointWhatIf(choices, scenario);
     } catch (err) {
       this.rethrowUtilCode(err, [
         'cj_whatif_empty',
@@ -1226,6 +1230,30 @@ export class MarketResearchService implements OnModuleInit {
         'forbidden_confidence_wording',
       ]);
     }
+    if (input.persist !== true) {
+      return computed;
+    }
+    const row = await this.repo.insertCjWhatIfRun(
+      projectId,
+      studyId,
+      computed,
+      actor?.trim() || 'unknown',
+    );
+    return {
+      ...computed,
+      run_id: row.id,
+      persisted_at: row.created_at,
+    };
+  }
+
+  async listConjointWhatIfRuns(
+    projectId: number,
+    scope: ClientScopeContext,
+  ): Promise<{ runs: CjWhatIfRunRow[] }> {
+    const project = await this.loadScopedProject(projectId, scope);
+    this.assertPriceOfferConjoint(project);
+    const runs = await this.repo.listCjWhatIfRuns(projectId);
+    return { runs };
   }
 
   async getVanWestendorp(

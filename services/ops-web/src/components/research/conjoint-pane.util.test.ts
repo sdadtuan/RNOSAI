@@ -6,6 +6,8 @@ import {
   defaultWhatIfScenario,
   CJ_TAB_BANNER,
   CJ_WHATIF_BANNER,
+  CJ_WHATIF_PERSIST_BANNER,
+  formatScenarioSummary,
 } from './conjoint-pane.util';
 
 describe('conjoint-pane.util', () => {
@@ -38,5 +40,12 @@ describe('conjoint-pane.util', () => {
         { levels: [{ attribute: 'price', level: '89k' }] },
       ),
     ).toEqual({ price: '89k', pack_size: '500ml' });
+  });
+
+  it('P38 persist banner and scenario summary', () => {
+    expect(CJ_WHATIF_PERSIST_BANNER).toMatch(/không tạo insight/);
+    expect(formatScenarioSummary({ price: '99k', pack_size: '500ml' })).toBe(
+      'price: 99k · pack_size: 500ml',
+    );
   });
 });

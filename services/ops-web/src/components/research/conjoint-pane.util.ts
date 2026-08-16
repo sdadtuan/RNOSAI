@@ -4,6 +4,17 @@ export const CJ_TAB_BANNER =
 export const CJ_WHATIF_BANNER =
   'What-if lite — đếm lựa chọn trong mẫu khớp gói giả định. Không market share. Không suy diễn thống kê.';
 
+export const CJ_WHATIF_PERSIST_BANNER =
+  'Lưu scenario staff — không tạo insight; không hiển thị trên portal.';
+
+export function formatScenarioSummary(scenario: Record<string, string>): string {
+  const entries = Object.entries(scenario ?? {}).filter(
+    ([key, value]) => key.trim() && String(value ?? '').trim(),
+  );
+  if (!entries.length) return '—';
+  return entries.map(([key, value]) => `${key}: ${value}`).join(' · ');
+}
+
 export function defaultWhatIfScenario(
   attributes: Array<{ name: string; levels: Array<{ label: string }>; top_level?: string | null }>,
   recommendation?: { levels: Array<{ attribute: string; level: string }> },

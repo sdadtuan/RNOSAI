@@ -642,11 +642,28 @@ export type CjWhatIfResult = {
   scenario: Record<string, string>;
   limitation_note: string;
   statistical_inference: false;
+  run_id?: number;
+  persisted_at?: string;
+};
+
+export type CjWhatIfRunRow = {
+  id: number;
+  project_id: number;
+  study_id: number | null;
+  scenario: Record<string, string>;
+  n_match: number;
+  n_choices: number;
+  match_pct: number;
+  limitation_note: string;
+  statistical_inference: false;
+  created_by: string | null;
+  created_at: string;
 };
 
 export type SimulateConjointWhatIfBody = {
   study_id?: number | null;
   scenario: Record<string, string>;
+  persist?: boolean;
 };
 
 export type CreateVanWestendorpBody = {
@@ -1622,6 +1639,13 @@ export async function simulateResearchConjointWhatIf(
     method: 'POST',
     body: JSON.stringify(body),
   });
+}
+
+export async function fetchResearchConjointWhatIfRuns(
+  token: string,
+  projectId: number,
+): Promise<{ runs: CjWhatIfRunRow[] }> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/conjoint/what-if`);
 }
 
 export async function fetchResearchDecisions(

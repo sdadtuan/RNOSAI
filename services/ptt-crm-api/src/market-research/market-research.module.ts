@@ -14,6 +14,7 @@ import {
   StaffMarketResearchExportGuard,
   StaffMarketResearchRunGuard,
   StaffMarketResearchViewGuard,
+  StaffMarketResearchWhatIfGuard,
   StaffResearchContentWriteGuard,
   StaffResearchMktplanEditGuard,
 } from './guards/staff-market-research.guard';
@@ -43,8 +44,9 @@ import { MarketResearchService } from './market-research.service';
     StaffMarketResearchApproveGuard,
     StaffMarketResearchRunGuard,
     StaffMarketResearchExportGuard,
-    StaffMarketResearchConfigureGuard,
-    StaffResearchMktplanEditGuard,
+  StaffMarketResearchConfigureGuard,
+  StaffMarketResearchWhatIfGuard,
+  StaffResearchMktplanEditGuard,
     StaffResearchContentWriteGuard,
   ],
 })

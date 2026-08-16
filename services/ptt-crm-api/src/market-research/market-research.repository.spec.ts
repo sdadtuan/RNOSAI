@@ -296,4 +296,61 @@ describe('MarketResearchRepository', () => {
     expect(text).toMatch(/approved_client_facing/);
     expect(params).toEqual([42]);
   });
+
+  it('P38 insertCjWhatIfRun scopes SQL to project_id and never selects title', async () => {
+    queryMock.mockResolvedValue({
+      rows: [
+        {
+          id: 1,
+          project_id: 9,
+          study_id: 5,
+          scenario: { price: '99k' },
+          n_match: 2,
+          n_choices: 8,
+          match_pct: 25,
+          limitation_note: 'note',
+          statistical_inference: false,
+          created_by: 'an@ptt',
+          created_at: '2026-08-16',
+        },
+      ],
+    });
+    const repo = repoWithMock();
+
+    await repo.insertCjWhatIfRun(
+      9,
+      5,
+      {
+        n_match: 2,
+        n_choices: 8,
+        match_pct: 25,
+        scenario: { price: '99k' },
+        limitation_note: 'note',
+        statistical_inference: false,
+      },
+      'an@ptt',
+    );
+
+    const [sql, params] = queryMock.mock.calls[0];
+    expect(String(sql)).toMatch(/INSERT INTO crm_research_cj_whatif_runs/);
+    expect(String(sql)).not.toMatch(/\btitle\b/);
+    expect(params).toEqual(
+      expect.arrayContaining([9, 5, expect.any(String), 2, 8, 25, 'note', false, 'an@ptt']),
+    );
+  });
+
+  it('P38 listCjWhatIfRuns orders by id DESC with LIMIT 20', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const repo = repoWithMock();
+
+    await repo.listCjWhatIfRuns(9);
+
+    const [sql, params] = queryMock.mock.calls[0];
+    const text = String(sql);
+    expect(text).toMatch(/WHERE project_id = \$1/);
+    expect(text).toMatch(/ORDER BY id DESC/);
+    expect(text).toMatch(/LIMIT \$2/);
+    expect(text).not.toMatch(/\btitle\b/);
+    expect(params).toEqual([9, 20]);
+  });
 });

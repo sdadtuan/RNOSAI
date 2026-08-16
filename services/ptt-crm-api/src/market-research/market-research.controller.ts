@@ -37,6 +37,7 @@ import {
   StaffMarketResearchExportGuard,
   StaffMarketResearchRunGuard,
   StaffMarketResearchViewGuard,
+  StaffMarketResearchWhatIfGuard,
   StaffResearchContentWriteGuard,
   StaffResearchMktplanEditGuard,
 } from './guards/staff-market-research.guard';
@@ -665,16 +666,24 @@ export class MarketResearchController {
     return this.research.createConjoint(id, scope, body ?? {}, actorEmail(req));
   }
 
+  @Get('projects/:id/conjoint/what-if')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async listConjointWhatIfRuns(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.listConjointWhatIfRuns(id, scope);
+  }
+
   @Post('projects/:id/conjoint/what-if')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchWhatIfGuard)
   async simulateConjointWhatIf(
     @Req() req: StaffReq,
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { study_id?: number | null; scenario?: Record<string, string> },
+    @Body()
+    body: { study_id?: number | null; scenario?: Record<string, string>; persist?: boolean },
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
-    return this.research.simulateConjointWhatIf(id, scope, body ?? {});
+    return this.research.simulateConjointWhatIf(id, scope, body ?? {}, actorEmail(req));
   }
 
   @Get('projects/:id/decisions')

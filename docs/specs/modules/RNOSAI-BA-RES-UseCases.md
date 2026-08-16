@@ -130,6 +130,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-097 | IVFFlat index fail-soft on embedding_vec | P36 | P36 | Spec ready | FR-INT · UC-081 · UC-087 |
 | RES-UC-098 | Live Talkwalker Search API (staging) | P36 | P36 | Spec ready | FR-SRC · UC-084 |
 | RES-UC-099 | ISO 20252 gap-check read-only (staff) | P37 | P37 | Spec ready | FR-GOV · Design §6 |
+| RES-UC-100 | Persist conjoint what-if history (staff) | P38 | P38 | Spec ready | RES-UC-095 · UC-082 |
 
 ---
 
@@ -951,6 +952,14 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Rule:** read-only; derive từ artifact hiện có; không «ISO certified»; không leak `title`
 - **Màn hình:** ops-web tab **ISO gap** — banner «Gap-check nội bộ»
 - **Cấm** mutate project; **cấm** portal widget; **cấm** auto-fix; không DDL; flags prod không đổi
+
+### RES-UC-100 — Persist conjoint what-if history (staff)
+
+- **Actor chính:** Analyst (`crm_research.view` compute; `crm_research.edit` khi `persist=true`)
+- **API:** `POST …/conjoint/what-if` body `{ persist?: true }` → insert sau compute; `GET …/conjoint/what-if` → 20 run mới nhất
+- **Rule:** `persist` default false (P34 compatible); `statistical_inference: false`; chỉ `PRICE_OFFER`
+- **Màn hình:** ConjointPane — checkbox «Lưu kết quả» + bảng lịch sử what-if
+- **Cấm** MOE/logit; **cấm** `createInsight`; **cấm** portal; DDL P38 nhỏ
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

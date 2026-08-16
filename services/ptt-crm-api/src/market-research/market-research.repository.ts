@@ -27,6 +27,8 @@ import type {
   ResearchWave,
   ResearchDecision,
   ResearchCjSummaryRow,
+  CjWhatIfResult,
+  CjWhatIfRunRow,
   CjAttributeSummary,
   CjRecommendation,
   ResearchVwSummaryRow,
@@ -1666,6 +1668,65 @@ export class MarketResearchRepository implements OnModuleDestroy {
       ],
     );
     return this.mapCjSummary(result.rows[0]);
+  }
+
+  async insertCjWhatIfRun(
+    projectId: number,
+    studyId: number | null,
+    result: CjWhatIfResult,
+    actor: string,
+  ): Promise<CjWhatIfRunRow> {
+    const inserted = await this.db.query(
+      `INSERT INTO crm_research_cj_whatif_runs (
+         project_id, study_id, scenario, n_match, n_choices, match_pct,
+         limitation_note, statistical_inference, created_by
+       ) VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9)
+       RETURNING id, project_id, study_id, scenario, n_match, n_choices, match_pct,
+                 limitation_note, statistical_inference, created_by, created_at::text AS created_at`,
+      [
+        projectId,
+        studyId,
+        JSON.stringify(result.scenario ?? {}),
+        result.n_match,
+        result.n_choices,
+        result.match_pct,
+        result.limitation_note,
+        false,
+        actor,
+      ],
+    );
+    return this.mapCjWhatIfRun(inserted.rows[0]);
+  }
+
+  async listCjWhatIfRuns(projectId: number, limit = 20): Promise<CjWhatIfRunRow[]> {
+    const capped = Math.min(Math.max(Number(limit) || 20, 1), 20);
+    const result = await this.db.query(
+      `SELECT id, project_id, study_id, scenario, n_match, n_choices, match_pct,
+              limitation_note, statistical_inference, created_by, created_at::text AS created_at
+         FROM crm_research_cj_whatif_runs
+        WHERE project_id = $1
+        ORDER BY id DESC
+        LIMIT $2`,
+      [projectId, capped],
+    );
+    return result.rows.map((row) => this.mapCjWhatIfRun(row));
+  }
+
+  private mapCjWhatIfRun(row: Record<string, unknown>): CjWhatIfRunRow {
+    const scenarioRaw = parseJsonCol<Record<string, string>>(row.scenario, {});
+    return {
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      study_id: row.study_id != null ? Number(row.study_id) : null,
+      scenario: scenarioRaw,
+      n_match: Number(row.n_match),
+      n_choices: Number(row.n_choices),
+      match_pct: Number(row.match_pct),
+      limitation_note: String(row.limitation_note),
+      statistical_inference: false,
+      created_by: row.created_by != null ? String(row.created_by) : null,
+      created_at: String(row.created_at),
+    };
   }
 
   private mapDecision(row: Record<string, unknown>): ResearchDecision {

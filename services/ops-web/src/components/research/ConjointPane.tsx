@@ -5,16 +5,20 @@ import { getAccessToken } from '@/lib/auth';
 import {
   createResearchConjoint,
   fetchResearchConjoint,
+  fetchResearchConjointWhatIfRuns,
   simulateResearchConjointWhatIf,
   ResearchApiError,
   TRANSITION_REASON_VI,
   type CjWhatIfResult,
+  type CjWhatIfRunRow,
   type ResearchCjSummaryRow,
 } from '@/lib/market-research-api';
 import {
   CJ_TAB_BANNER,
   CJ_WHATIF_BANNER,
+  CJ_WHATIF_PERSIST_BANNER,
   defaultWhatIfScenario,
+  formatScenarioSummary,
   formatSharePct,
   formatWhatIfResult,
 } from '@/components/research/conjoint-pane.util';
@@ -32,6 +36,13 @@ export function ConjointPane({
   const [scenario, setScenario] = useState<Record<string, string>>({});
   const [whatIf, setWhatIf] = useState<CjWhatIfResult | null>(null);
   const [whatIfBusy, setWhatIfBusy] = useState(false);
+  const [persistWhatIf, setPersistWhatIf] = useState(false);
+  const [history, setHistory] = useState<CjWhatIfRunRow[]>([]);
+
+  const loadHistory = useCallback(async (token: string) => {
+    const out = await fetchResearchConjointWhatIfRuns(token, projectId);
+    setHistory(out.runs ?? []);
+  }, [projectId]);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -41,7 +52,8 @@ export function ConjointPane({
     if (out.summary) {
       setScenario(defaultWhatIfScenario(out.summary.attributes, out.summary.recommendation));
     }
-  }, [projectId]);
+    await loadHistory(token);
+  }, [loadHistory, projectId]);
 
   useEffect(() => {
     void load().catch((err) => {
@@ -75,8 +87,14 @@ export function ConjointPane({
     setWhatIfBusy(true);
     setError('');
     try {
-      const out = await simulateResearchConjointWhatIf(token, projectId, { scenario });
+      const out = await simulateResearchConjointWhatIf(token, projectId, {
+        scenario,
+        persist: persistWhatIf,
+      });
       setWhatIf(out);
+      if (persistWhatIf) {
+        await loadHistory(token);
+      }
     } catch (err) {
       const api = err instanceof ResearchApiError ? err : null;
       if (api?.code && TRANSITION_REASON_VI[api.code]) {
@@ -178,6 +196,22 @@ export function ConjointPane({
                   </select>
                 </label>
               ))}
+              {canEdit ? (
+                <label style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', fontSize: '0.85rem' }}>
+                  <input
+                    type="checkbox"
+                    data-testid="cj-whatif-persist"
+                    checked={persistWhatIf}
+                    onChange={(e) => setPersistWhatIf(e.target.checked)}
+                  />
+                  Lưu kết quả
+                </label>
+              ) : null}
+              {canEdit && persistWhatIf ? (
+                <p className="muted" style={{ margin: 0, fontSize: '0.82rem' }}>
+                  {CJ_WHATIF_PERSIST_BANNER}
+                </p>
+              ) : null}
               <button type="submit" className="btn btn-sm" disabled={whatIfBusy} data-testid="cj-whatif-run">
                 Đếm khớp mẫu
               </button>
@@ -187,6 +221,33 @@ export function ConjointPane({
                 </p>
               ) : null}
             </form>
+          ) : null}
+          {history.length ? (
+            <div data-testid="cj-whatif-history">
+              <h3 style={{ margin: '0.75rem 0 0.35rem', fontSize: '0.9rem' }}>Lịch sử what-if</h3>
+              <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '0.4rem' }}>Thời gian</th>
+                    <th style={{ textAlign: 'left', padding: '0.4rem' }}>Scenario</th>
+                    <th style={{ textAlign: 'left', padding: '0.4rem' }}>Khớp</th>
+                    <th style={{ textAlign: 'left', padding: '0.4rem' }}>Người lưu</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((row) => (
+                    <tr key={row.id} data-testid={`cj-whatif-history-row-${row.id}`}>
+                      <td style={{ padding: '0.4rem' }}>{row.created_at.slice(0, 16).replace('T', ' ')}</td>
+                      <td style={{ padding: '0.4rem' }}>{formatScenarioSummary(row.scenario)}</td>
+                      <td style={{ padding: '0.4rem' }}>
+                        {formatWhatIfResult(row.n_match, row.n_choices, row.match_pct)}
+                      </td>
+                      <td style={{ padding: '0.4rem' }}>{row.created_by ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : null}
         </>
       )}
