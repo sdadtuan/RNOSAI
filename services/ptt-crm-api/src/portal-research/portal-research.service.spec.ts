@@ -91,6 +91,7 @@ describe('PortalResearchService', () => {
     listPublishedEmbeddings: jest.fn(),
     listPublishedEmbeddingsByVec: jest.fn(),
     getThemeQuarterAnalytics: jest.fn(),
+    listPublishedInsightValidTo: jest.fn().mockResolvedValue(new Map()),
   } as unknown as jest.Mocked<PortalResearchRepository>;
 
   const config = {
@@ -109,6 +110,7 @@ describe('PortalResearchService', () => {
     config.researchRagOpenaiEmbedEnabled = false;
     config.researchRagPgvectorEnabled = false;
     (fetchOpenAIEmbedding as jest.Mock).mockReset();
+    repo.listPublishedInsightValidTo.mockResolvedValue(new Map());
   });
 
   it('M2-1a: cross-tenant GET → 403, JSON.stringify(body) has no title', async () => {
@@ -212,6 +214,70 @@ describe('PortalResearchService', () => {
     expect(body.exec).toEqual({ vi: 'Tóm tắt', en: null });
     expect(body).not.toHaveProperty('project');
     expect(body).not.toHaveProperty('title');
+  });
+
+  it('P24 getReport annotates stale finding from published valid_to', async () => {
+    repo.getPortalReportVersion.mockResolvedValue(
+      acmeVersion({
+        content_snapshot: {
+          exec: { vi: 'Tóm tắt', en: null, en_status: 'approved' },
+          findings: [{ insight_id: 11, statement: 'Old claim' }],
+          recs: [{ insight_id: 11, recommendation: 'Act' }],
+          methodology: { stub: true },
+          evidence_index: [],
+          insight_ids: [11],
+        },
+      }),
+    );
+    repo.listPublishedInsightValidTo.mockResolvedValue(new Map([[11, '2020-01-01']]));
+    const body = await makeService().getReport(acmeUser, 42);
+    expect(body.findings[0]).toMatchObject({ insight_id: 11, is_stale: true, valid_to: '2020-01-01' });
+    expect(body.recs[0]).toMatchObject({ insight_id: 11, is_stale: true });
+  });
+
+  it('P24 getReport valid_to today or null is not stale', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    repo.getPortalReportVersion.mockResolvedValue(
+      acmeVersion({
+        content_snapshot: {
+          exec: { vi: 'x', en: null, en_status: 'approved' },
+          findings: [
+            { insight_id: 1, statement: 'today' },
+            { insight_id: 2, statement: 'null' },
+          ],
+          recs: [],
+          methodology: {},
+          evidence_index: [],
+        },
+      }),
+    );
+    repo.listPublishedInsightValidTo.mockResolvedValue(
+      new Map([
+        [1, today],
+        [2, null],
+      ]),
+    );
+    const body = await makeService().getReport(acmeUser, 42);
+    expect(body.findings[0]).toMatchObject({ is_stale: false, valid_to: today });
+    expect(body.findings[1]).toMatchObject({ is_stale: false, valid_to: null });
+  });
+
+  it('P24 getReport does not leak other-tenant valid_to', async () => {
+    repo.getPortalReportVersion.mockResolvedValue(
+      acmeVersion({
+        content_snapshot: {
+          exec: { vi: 'x', en: null, en_status: 'approved' },
+          findings: [{ insight_id: 99, statement: 'foreign' }],
+          recs: [],
+          methodology: {},
+          evidence_index: [],
+        },
+      }),
+    );
+    repo.listPublishedInsightValidTo.mockResolvedValue(new Map()); // repo already filtered
+    const body = await makeService().getReport(acmeUser, 42);
+    expect(body.findings[0]).toMatchObject({ insight_id: 99, is_stale: false, valid_to: null });
+    expect(JSON.stringify(body)).not.toMatch(/2020-01-01/);
   });
 
   it('M2-1a: published + in-window PDF → %PDF- buffer and watermark', async () => {

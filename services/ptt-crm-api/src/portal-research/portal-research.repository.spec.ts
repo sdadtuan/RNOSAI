@@ -68,4 +68,23 @@ describe('PortalResearchRepository', () => {
     expect(text).toMatch(/EXTRACT\(YEAR FROM i\.updated_at\) = \$2/);
     expect(params).toEqual(['acme', 2026]);
   });
+
+  it('P24 listPublishedInsightValidTo filters published and client_id', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const repo = repoWithMock();
+    await repo.listPublishedInsightValidTo('acme', [11, 12]);
+    const sql = String(queryMock.mock.calls[0][0]);
+    const binds = queryMock.mock.calls[0][1];
+    expect(sql).toMatch(/i\.status = 'published'/);
+    expect(sql).toMatch(/p\.client_id = \$1/);
+    expect(sql).toMatch(/i\.id = ANY/);
+    expect(binds[0]).toBe('acme');
+  });
+
+  it('P24 listPublishedInsightValidTo skips SQL when ids empty', async () => {
+    const repo = repoWithMock();
+    const out = await repo.listPublishedInsightValidTo('acme', []);
+    expect(out.size).toBe(0);
+    expect(queryMock).not.toHaveBeenCalled();
+  });
 });

@@ -8,6 +8,8 @@ import { PortalPageShell } from '@/components/PortalPageShell';
 import { portalResearchReport, portalResearchReportPdf, type PortalResearchReportDetail } from '@/lib/api';
 import { isMarketResearchPortalFeEnabled } from '@/lib/market-research-portal-flags';
 import { portalResearchErrorVi } from '@/lib/portal-research-errors';
+import { reportRowIsStale } from '@/lib/insight-stale.util';
+import { PortalInsightStaleBanner } from '@/components/PortalInsightStaleBanner';
 
 export default function PortalResearchDetailPage() {
   return (
@@ -162,7 +164,14 @@ function ResearchDetailContent({ token }: { token: string }) {
               ) : (
                 <ul className="portal-list">
                   {findings.map((row, i) => (
-                    <li key={i}>{asText(row) || '—'}</li>
+                    <li key={i}>
+                      {asText(row) || '—'}
+                      {row && typeof row === 'object' && reportRowIsStale(row as { is_stale?: boolean; valid_to?: string | null }) ? (
+                        <PortalInsightStaleBanner
+                          validTo={(row as { valid_to?: string | null }).valid_to}
+                        />
+                      ) : null}
+                    </li>
                   ))}
                 </ul>
               )}
@@ -174,7 +183,14 @@ function ResearchDetailContent({ token }: { token: string }) {
               ) : (
                 <ul className="portal-list">
                   {recs.map((row, i) => (
-                    <li key={i}>{asText(row) || '—'}</li>
+                    <li key={i}>
+                      {asText(row) || '—'}
+                      {row && typeof row === 'object' && reportRowIsStale(row as { is_stale?: boolean; valid_to?: string | null }) ? (
+                        <PortalInsightStaleBanner
+                          validTo={(row as { valid_to?: string | null }).valid_to}
+                        />
+                      ) : null}
+                    </li>
                   ))}
                 </ul>
               )}

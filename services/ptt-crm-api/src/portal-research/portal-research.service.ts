@@ -32,6 +32,7 @@ import {
 } from '../market-research/research-rag.util';
 import { shouldUsePgvectorAnn } from '../market-research/pgvector.util';
 import { PortalJwtPayload } from '../portal/portal-jwt.util';
+import { annotatePortalReportRow, collectReportInsightIds } from './portal-report-stale.util';
 import { PortalResearchRepository } from './portal-research.repository';
 import type { PortalResearchVersionRecord } from './portal-research.types';
 
@@ -181,11 +182,19 @@ export class PortalResearchService {
   async getReport(user: PortalJwtPayload, versionId: number): Promise<PortalResearchReportDetail> {
     const { row, now } = await this.loadReadableVersion(user, versionId);
     const snapshot = row.content_snapshot;
+    const ids = collectReportInsightIds(snapshot);
+    const validToById = await this.repo.listPublishedInsightValidTo(user.client_id, ids);
+    const findings = (Array.isArray(snapshot.findings) ? snapshot.findings : []).map((item) =>
+      annotatePortalReportRow(item, validToById),
+    );
+    const recs = (Array.isArray(snapshot.recs) ? snapshot.recs : []).map((item) =>
+      annotatePortalReportRow(item, validToById),
+    );
     return {
       ...toCard(row, watermarkFor(user, now)),
       exec: portalExec(snapshot),
-      findings: Array.isArray(snapshot.findings) ? snapshot.findings : [],
-      recs: Array.isArray(snapshot.recs) ? snapshot.recs : [],
+      findings,
+      recs,
       methodology: snapshot.methodology ?? null,
       evidence_index: Array.isArray(snapshot.evidence_index) ? snapshot.evidence_index : [],
     };

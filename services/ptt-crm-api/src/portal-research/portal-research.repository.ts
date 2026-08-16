@@ -222,6 +222,28 @@ export class PortalResearchRepository implements OnModuleDestroy {
     }));
   }
 
+  async listPublishedInsightValidTo(
+    clientId: string,
+    insightIds: number[],
+  ): Promise<Map<number, string | null>> {
+    const ids = [...new Set(insightIds.filter((n) => Number.isFinite(n) && n > 0))];
+    const map = new Map<number, string | null>();
+    if (!ids.length) return map;
+    const result = await this.db.query(
+      `SELECT i.id, i.valid_to::text AS valid_to
+       FROM crm_research_insights i
+       JOIN crm_research_projects p ON p.id = i.project_id
+       WHERE p.client_id = $1
+         AND i.status = 'published'
+         AND i.id = ANY($2::int[])`,
+      [clientId, ids],
+    );
+    for (const row of result.rows) {
+      map.set(Number(row.id), row.valid_to != null ? String(row.valid_to) : null);
+    }
+    return map;
+  }
+
   async getThemeQuarterAnalytics(clientId: string, year: number): Promise<
     Array<{ quarter: number; theme_code: string; label_vi: string; insight_count: number }>
   > {

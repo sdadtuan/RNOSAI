@@ -710,7 +710,24 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
-## P23+ (backlog — pgvector prod / portal report-detail stale)
+## Walkthrough UAT P24 — Portal report-detail stale (≈8 phút)
+
+**Mục tiêu:** *«Khách mở báo cáo portal → finding gắn insight hết hạn có banner vàng; finding còn hiệu lực không banner.»*
+
+**Tiền đề:** ≥1 report portal-visible; ≥1 finding `insight_id` published stale + ≥1 còn hiệu lực / null
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | CL | Mở `/research/{versionId}` | Finding stale có banner P19 |
+| 2 | CL | Finding valid_to = hôm nay | Không banner |
+| 3 | CL | Finding valid_to null | Không banner |
+| 4 | CL | Finding còn hiệu lực | Không banner |
+| 5 | QA | GET report JSON | `is_stale` đúng trên finding/rec |
+| 6 | QA | Prod sau deploy P24 | Banner portal; RAG/Talkwalker flags không đổi |
+
+- [ ] Bước 1–6 pass staging
+
+## P24+ (backlog — pgvector prod / portal RAG «Chỉ hết hạn»)
 
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 

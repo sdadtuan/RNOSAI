@@ -22,3 +22,11 @@ export function ragHitIsStale(hit: {
   if (typeof hit.is_stale === 'boolean') return hit.is_stale;
   return isInsightStale(hit.valid_to);
 }
+
+export function reportRowIsStale(row: {
+  is_stale?: boolean;
+  valid_to?: string | null;
+}): boolean {
+  if (typeof row.is_stale === 'boolean') return row.is_stale;
+  return isInsightStale(row.valid_to);
+}

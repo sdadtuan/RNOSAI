@@ -523,6 +523,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P24 — RES-UC-085
+
+| UC | Tóm tắt |
+|----|---------|
+| 085 | Báo cáo portal: finding/rec gắn insight hết hạn hiện banner P19. |
+
+**API:** cùng GET portal report detail — findings/recs `valid_to`/`is_stale`  
+**Gates:** api + portal-web; không DDL; không ops-web; không RAG/Talkwalker flags.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

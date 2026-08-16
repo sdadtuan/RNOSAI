@@ -115,6 +115,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-082 | Conjoint lite PRICE_OFFER | P21 | P21 | Spec ready | BR-RES-03 · Design PRICE_OFFER |
 | RES-UC-083 | Staff insight stale banner (RAG) | P22 | P22 | Spec ready | FR-INS-07 · UC-079 |
 | RES-UC-084 | Talkwalker source candidates (stub) | P23 | P23 | Spec ready | FR-SRC · BR-RES-04/06/08/09/11 |
+| RES-UC-085 | Portal report-detail stale banner | P24 | P24 | Spec ready | FR-INS-07 · UC-080 |
 
 ---
 
@@ -810,6 +811,16 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - Banner: `Nguồn social công khai (stub bake-off) — ghi limitation. Không tự tạo insight.`
 - Scorecard: `docs/specs/2026-08-16-talkwalker-brandwatch-bakeoff-scorecard.md`
 - **Cấm** live Talkwalker HTTP; **cấm** bật flag/token trên prod deploy; không portal; không Brandwatch connector
+
+### RES-UC-085 — Portal report-detail stale banner
+
+- **Actor chính:** Client portal (JWT `client_id`)
+- **API:** `GET /api/v1/portal/research/reports/:versionId` — mỗi finding/rec object thêm `valid_to`, `is_stale` từ insight **published** cùng khách (live, không đóng băng snapshot)
+- **Rule:** giống RES-UC-079 (UTC calendar)
+- **Màn hình:** `/research/[versionId]` — banner dưới finding/rec stale
+- Banner: reuse P19 `PORTAL_INSIGHT_STALE_BANNER`
+- Insight thiếu / unpublished / khác tenant → `is_stale: false`
+- **Cấm** endpoint mới; không DDL; không ops-web; không ẩn dòng; không đổi PDF / `content_snapshot`
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 
