@@ -1,6 +1,7 @@
 import { inflateRawSync } from 'zlib';
 import { buildResearchReportDocx, sectionsFromReportSnapshot } from './market-research-docx.util';
 import { buildReportSnapshot } from './market-research-report-snapshot.util';
+import { REPORT_PDF_STALE_FOOTER_STAFF } from './report-pdf-stale.util';
 
 function unzipEntry(buf: Buffer, name: string): string {
   let eocd = -1;
@@ -125,5 +126,21 @@ describe('buildResearchReportDocx', () => {
     const xml = unzipEntry(buffer, 'word/document.xml');
     expect(xml).toContain('Executive (EN)');
     expect(xml).toContain('Launch the premium SKU in Q4.');
+  });
+
+  it('P31 embeds footerLine in word/footer1.xml when set', async () => {
+    const buffer = await buildResearchReportDocx(
+      [{ title: 'Cover', lines: ['x'] }],
+      REPORT_PDF_STALE_FOOTER_STAFF,
+    );
+    const footer = unzipEntry(buffer, 'word/footer1.xml');
+    expect(footer).toContain(REPORT_PDF_STALE_FOOTER_STAFF);
+    const doc = unzipEntry(buffer, 'word/document.xml');
+    expect(doc).toMatch(/footerReference/);
+  });
+
+  it('P31 omits footer part when footerLine omitted', async () => {
+    const buffer = await buildResearchReportDocx([{ title: 'Cover', lines: ['x'] }]);
+    expect(() => unzipEntry(buffer, 'word/footer1.xml')).toThrow(/zip entry missing/);
   });
 });

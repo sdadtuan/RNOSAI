@@ -99,24 +99,46 @@ export function sectionsFromReportSnapshot(snapshot: ResearchReportSnapshot): Re
 }
 
 /** Minimal OOXML DOCX via zip (editable in Word). Copied from marketing-ai-docx.util. */
-export async function buildResearchReportDocx(sections: ResearchDocxSection[]): Promise<Buffer> {
+export async function buildResearchReportDocx(
+  sections: ResearchDocxSection[],
+  footerLine?: string,
+): Promise<Buffer> {
   const bodyXml = sections.map(sectionToWordXml).join('');
+  const sectPr = footerLine
+    ? `<w:sectPr><w:footerReference w:type="default" r:id="rIdFtr"/></w:sectPr>`
+    : `<w:sectPr/>`;
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:body>${bodyXml}<w:sectPr/></w:body>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>${bodyXml}${sectPr}</w:body>
 </w:document>`;
 
+  const footerOverride = footerLine
+    ? `<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>`
+    : '';
   const contentTypes = `<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  ${footerOverride}
 </Types>`;
 
   const rels = `<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
 </Relationships>`;
+
+  const documentRels = `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdFtr" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
+</Relationships>`;
+
+  const footerXml = footerLine
+    ? `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p><w:r><w:t xml:space="preserve">${xmlEscape(footerLine)}</w:t></w:r></w:p>
+</w:ftr>`
+    : '';
 
   const archive = archiver('zip', { zlib: { level: 9 } });
   const stream = new PassThrough();
@@ -133,6 +155,10 @@ export async function buildResearchReportDocx(sections: ResearchDocxSection[]): 
   archive.append(contentTypes, { name: '[Content_Types].xml' });
   archive.append(rels, { name: '_rels/.rels' });
   archive.append(documentXml, { name: 'word/document.xml' });
+  if (footerLine) {
+    archive.append(documentRels, { name: 'word/_rels/document.xml.rels' });
+    archive.append(footerXml, { name: 'word/footer1.xml' });
+  }
   await archive.finalize();
   return done;
 }

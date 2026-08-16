@@ -600,6 +600,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P31 — RES-UC-092
+
+| UC | Tóm tắt |
+|----|---------|
+| 092 | Staff DOCX footer cảnh báo khi báo cáo có insight stale (live valid_to). |
+
+**API:** `buildResearchReportDocx(..., footerLine?)` + shared lookup với PDF  
+**Gates:** api-only; không DDL; portal không DOCX; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

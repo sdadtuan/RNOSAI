@@ -831,7 +831,24 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–7 pass staging
 
-## P31+ (backlog — IVFFlat / bake valid_to snapshot)
+## Walkthrough UAT P31 — Staff DOCX stale footer (≈8 phút)
+
+**Mục tiêu:** *«DOCX stale → footer staff; DOCX fresh → không footer; PDF P29 không regress.»*
+
+**Tiền đề:** report version có finding stale; 1 report chỉ insight còn hiệu lực
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | AN | Staff export DOCX report stale | Word: footer staff mọi trang |
+| 2 | AN | Staff export DOCX report fresh | Không footer |
+| 3 | AN | Staff export PDF cùng report stale | Footer P29 OK |
+| 4 | CL | Portal PDF stale | Footer portal P29 không đổi |
+| 5 | QA | `content_snapshot` DB | Không thêm field |
+| 6 | QA | Prod deploy P31 | RAG/pgvector flags không đổi |
+
+- [ ] Bước 1–6 pass staging
+
+## P32+ (backlog — IVFFlat / bake valid_to snapshot)
 
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 

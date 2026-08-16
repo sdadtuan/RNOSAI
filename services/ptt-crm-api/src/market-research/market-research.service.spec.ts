@@ -23,6 +23,7 @@ import { computeVanWestendorp } from './van-westendorp.util';
 import { embedInsightText, insightEmbedText, isRagCorpusStatus } from './research-rag.util';
 import { fetchOpenAIEmbedding } from './openai-embed.util';
 import * as pdfUtil from './market-research-pdf.util';
+import * as docxUtil from './market-research-docx.util';
 import { REPORT_PDF_STALE_FOOTER_STAFF } from './report-pdf-stale.util';
 import { OPENAI_EMBED_MODEL, RAG_EMBED_DIMS } from './market-research.types';
 
@@ -3822,6 +3823,81 @@ describe('MarketResearchService', () => {
     );
 
     expect(spy).toHaveBeenCalledWith(expect.anything(), undefined, undefined);
+    spy.mockRestore();
+  });
+
+  it('P31 exportReportVersion docx adds stale footer when finding expired', async () => {
+    stubScopedProject();
+    repo.getReport.mockResolvedValue({
+      id: 1,
+      project_id: 9,
+      template: 'std',
+      status: 'draft',
+      created_at: '2026-08-14',
+      versions: [],
+    });
+    repo.getReportVersion.mockResolvedValue({
+      id: 10,
+      report_id: 1,
+      version: 1,
+      content_snapshot: {
+        cover: { client: 'Acme', title: 'T', confidential: true, version: 1, as_of: '2026-08-14' },
+        exec: 'exec',
+        findings: [{ insight_id: 11, text: 'stale finding' }],
+        recs: [],
+        methodology: { stub: true, population: '', source_plan: '', limitation: '' },
+        evidence_index: [],
+        status: 'draft',
+        insight_ids: [11],
+      },
+      generated_by: 'am@ptt',
+      content_hash: 'abc',
+      created_at: '2026-08-14',
+    });
+    repo.listInsightValidToForProject.mockResolvedValue(new Map([[11, '2020-01-01']]));
+    const spy = jest.spyOn(docxUtil, 'buildResearchReportDocx');
+
+    await service.exportReportVersion(1, 10, { restricted: true, allowedClientIds: ['acme'] }, 'docx');
+
+    expect(repo.listInsightValidToForProject).toHaveBeenCalledWith(9, [11]);
+    expect(spy).toHaveBeenCalledWith(expect.anything(), REPORT_PDF_STALE_FOOTER_STAFF);
+    spy.mockRestore();
+  });
+
+  it('P31 exportReportVersion docx no footer when insights fresh', async () => {
+    stubScopedProject();
+    repo.getReport.mockResolvedValue({
+      id: 1,
+      project_id: 9,
+      template: 'std',
+      status: 'draft',
+      created_at: '2026-08-14',
+      versions: [],
+    });
+    repo.getReportVersion.mockResolvedValue({
+      id: 10,
+      report_id: 1,
+      version: 1,
+      content_snapshot: {
+        cover: { client: 'Acme', title: 'T', confidential: true, version: 1, as_of: '2026-08-14' },
+        exec: 'exec',
+        findings: [{ insight_id: 11, text: 'ok' }],
+        recs: [],
+        methodology: { stub: true, population: '', source_plan: '', limitation: '' },
+        evidence_index: [],
+        status: 'draft',
+        insight_ids: [11],
+      },
+      generated_by: 'am@ptt',
+      content_hash: 'abc',
+      created_at: '2026-08-14',
+    });
+    repo.listInsightValidToForProject.mockResolvedValue(new Map([[11, null]]));
+    const spy = jest.spyOn(docxUtil, 'buildResearchReportDocx');
+
+    await service.exportReportVersion(1, 10, { restricted: true, allowedClientIds: ['acme'] }, 'docx');
+
+    expect(spy).toHaveBeenCalledWith(expect.anything(), undefined);
     spy.mockRestore();
   });
 

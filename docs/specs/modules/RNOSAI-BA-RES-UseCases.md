@@ -122,6 +122,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-090 | pgvector ANN staging gate (flag ∧ ready) | P28 | P28 | Spec ready | FR-INT · NFR-AI-04 · UC-081 · UC-087 |
 | RES-UC-089 | PDF export stale footer (staff + portal) | P29 | P29 | Spec ready | FR-INS-07 · UC-079 · UC-085 |
 | RES-UC-091 | Staff RAG filter «Chỉ hết hạn» | P30 | P30 | Spec ready | FR-INS-07 · UC-086 · UC-088 |
+| RES-UC-092 | Staff DOCX export stale footer | P31 | P31 | Spec ready | FR-INS-07 · UC-089 |
 
 ---
 
@@ -882,6 +883,14 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - `stale_only` off → chỉ hit còn hiệu lực
 - `stale_only` on → chỉ hit hết hạn + banner P22; 0 hit → «Không có insight hết hạn khớp tìm kiếm.»
 - **Cấm** endpoint mới; không DDL; không portal; không copilot `stale_only`; không `include_stale`
+
+### RES-UC-092 — Staff DOCX export stale footer
+
+- **Actor chính:** AM, Analyst (staff export DOCX)
+- **API:** cùng `exportReportVersion` (default/`format=docx`) — footer OOXML mọi trang khi ≥1 insight stale (live `valid_to`)
+- **Rule:** giống RES-UC-079 / UC-089; lookup `listInsightValidToForProject` dùng chung với PDF
+- **Copy:** reuse `REPORT_PDF_STALE_FOOTER_STAFF`
+- **Cấm** endpoint mới; không DDL; không mutate `content_snapshot`; không portal DOCX; không ops-web UI
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

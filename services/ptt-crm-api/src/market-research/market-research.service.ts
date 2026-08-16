@@ -2948,19 +2948,19 @@ export class MarketResearchService implements OnModuleInit {
     };
     this.assertMethodologyForTier(project.dv12_tier, snapshot.methodology);
     const sections = sectionsFromReportSnapshot(snapshot);
+    const ids = collectReportInsightIds(snapshot);
+    const validToById = await this.repo.listInsightValidToForProject(project.id, ids);
+    const footer = reportSnapshotHasStaleInsights(snapshot, validToById)
+      ? REPORT_PDF_STALE_FOOTER_STAFF
+      : undefined;
     if (format === 'pdf') {
-      const ids = collectReportInsightIds(snapshot);
-      const validToById = await this.repo.listInsightValidToForProject(project.id, ids);
-      const footer = reportSnapshotHasStaleInsights(snapshot, validToById)
-        ? REPORT_PDF_STALE_FOOTER_STAFF
-        : undefined;
       const buffer = buildResearchReportPdf(sections, undefined, footer);
       return new StreamableFile(buffer, {
         type: 'application/pdf',
         disposition: `attachment; filename="research-report-${reportId}-v${version.version}.pdf"`,
       });
     }
-    const buffer = await buildResearchReportDocx(sections);
+    const buffer = await buildResearchReportDocx(sections, footer);
     return new StreamableFile(buffer, {
       type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       disposition: `attachment; filename="research-report-${reportId}-v${version.version}.docx"`,
