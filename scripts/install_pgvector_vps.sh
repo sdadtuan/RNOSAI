@@ -20,11 +20,11 @@ fi
 
 detect_pg_major() {
   if command -v psql >/dev/null 2>&1; then
-    psql --version | sed -nE 's/.* ([0-9]+)\.*/\1/p' | head -1
+    psql --version | sed -nE 's/.*PostgreSQL\) ([0-9]+)\..*/\1/p' | head -1
     return
   fi
   if command -v pg_config >/dev/null 2>&1; then
-    pg_config --version | sed -nE 's/.* ([0-9]+)\.*/\1/p' | head -1
+    pg_config --version | sed -nE 's/.*PostgreSQL\) ([0-9]+)\..*/\1/p' | head -1
     return
   fi
   echo ""
