@@ -7,7 +7,9 @@ async function bootstrap(): Promise<void> {
   initSentry('ptt-crm-api');
   const app = await NestFactory.create(AppModule, { logger: ['log', 'warn', 'error'], rawBody: true });
   const config = app.get(AppConfigService);
-  const origins = [...new Set([...config.portalCorsOrigins, ...config.opsCorsOrigins])];
+  const origins = [
+    ...new Set([...config.portalCorsOrigins, ...config.opsCorsOrigins, ...config.gtmCorsOrigins]),
+  ];
   if (origins.length > 0) {
     app.enableCors({
       origin: origins,

@@ -4,7 +4,7 @@ import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { KeycloakRedirect } from '@/components/login/KeycloakRedirect';
 import { WinSsoMigrationBanner } from '@/components/rbac/WinSsoMigrationBanner';
-import { fetchStaffSsoConfig, staffLogin, staffMe } from '@/lib/api';
+import { fetchStaffSsoConfig, sandboxLogin, staffLogin, staffMe } from '@/lib/api';
 import { saveSession, updateStoredUser } from '@/lib/auth';
 import { winSsoEnabled } from '@/lib/win/flags';
 
@@ -34,8 +34,15 @@ function LoginPageContent() {
     setError('');
     setLoading(true);
     try {
-      const out = await staffLogin(email.trim(), password);
+      const loginId = email.trim();
+      const out = loginId.startsWith('demo_')
+        ? await sandboxLogin(loginId, password)
+        : await staffLogin(loginId, password);
       saveSession(out.access_token, out.refresh_token, out.user);
+      if (out.user.position_code === 'sandbox_visitor') {
+        router.push('/sandbox/leads');
+        return;
+      }
       const me = await staffMe(out.access_token);
       updateStoredUser(me);
       const next = new URLSearchParams(window.location.search).get('next');

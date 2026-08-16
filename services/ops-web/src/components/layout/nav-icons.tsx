@@ -544,6 +544,8 @@ export const LINK_ICONS: Record<string, string> = {
   '/email/gate-a': 'seoGate',
   '/crm/automation': 'workflow',
   '/crm/playbooks': 'playbook',
+  '/crm/gtm/demos': 'inbox',
+  '/crm/gtm/cms': 'seoPublish',
   '/admin/ai/agents': 'agent',
   '/admin/ai/runs': 'run',
   '/admin/ai/tools': 'tool',
@@ -570,6 +572,7 @@ export const SECTION_ICONS: Record<string, string> = {
   Email: 'email',
   AI: 'agent',
   'Cấu hình': 'settings',
+  GTM: 'inbox',
 };
 
 /** Shorter labels for sidebar headers. */
@@ -591,6 +594,7 @@ export const SECTION_LABELS: Record<string, string> = {
   'AI & Automation': 'AI',
   'Quản trị hệ thống': 'Hệ thống',
   'Cấu hình CRM': 'Cấu hình',
+  GTM: 'inbox',
 };
 
 export function sectionShortLabel(fullLabel: string): string {

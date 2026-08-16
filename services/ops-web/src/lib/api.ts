@@ -84,6 +84,24 @@ export async function staffLogin(email: string, password: string): Promise<Staff
   return body;
 }
 
+export async function sandboxLogin(
+  username: string,
+  password: string,
+): Promise<StaffLoginResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/gtm/sandbox/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  const body = await parseJson<
+    StaffLoginResponse & { error?: string; message?: string; code?: string }
+  >(res);
+  if (!res.ok) {
+    throw new ApiError(body.code ?? body.error ?? body.message ?? 'Sandbox login failed', res.status);
+  }
+  return body;
+}
+
 export interface StaffSsoConfig {
   mode: 'nest' | 'keycloak' | 'dual';
   issuer: string | null;

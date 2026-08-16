@@ -3,6 +3,7 @@ const REFRESH_KEY = 'ptt_ops_refresh_token';
 const USER_KEY = 'ptt_ops_user';
 /** Session marker for Next.js middleware (cannot read sessionStorage). */
 export const AUTH_COOKIE = 'ptt_ops_auth';
+export const POSITION_COOKIE = 'ptt_ops_position_code';
 
 export interface StaffSectionCap {
   section: string;
@@ -20,6 +21,8 @@ export interface StoredStaffUser {
   job_functions?: string[];
   /** R3 pilot — explicit client workspace bindings (empty = unrestricted) */
   client_ids?: string[];
+  tenant?: string;
+  locale?: string;
 }
 
 export function saveSession(
@@ -31,7 +34,7 @@ export function saveSession(
   sessionStorage.setItem(TOKEN_KEY, accessToken);
   sessionStorage.setItem(REFRESH_KEY, refreshToken);
   sessionStorage.setItem(USER_KEY, JSON.stringify(user));
-  syncAuthCookie();
+  syncAuthCookie(user);
 }
 
 export function clearSession(): void {
@@ -43,14 +46,17 @@ export function clearSession(): void {
 }
 
 /** Mirror login state to cookie for edge middleware. */
-export function syncAuthCookie(): void {
+export function syncAuthCookie(user?: StoredStaffUser | null): void {
   if (typeof document === 'undefined') return;
   document.cookie = `${AUTH_COOKIE}=1; path=/; SameSite=Lax`;
+  const code = user?.position_code ?? getStoredUser()?.position_code ?? '';
+  document.cookie = `${POSITION_COOKIE}=${encodeURIComponent(code)}; path=/; SameSite=Lax`;
 }
 
 export function clearAuthCookie(): void {
   if (typeof document === 'undefined') return;
   document.cookie = `${AUTH_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+  document.cookie = `${POSITION_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
 }
 
 export function getAccessToken(): string | null {

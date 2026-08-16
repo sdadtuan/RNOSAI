@@ -54,6 +54,7 @@ import {
 import { metaAdsOpsEnabled, metaIntelligenceEnabled, metaTrackingEnabled } from '@/lib/meta/flags';
 import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
 import { shouldShowTaxonomyNav } from '@/components/research/taxonomy-pane.util';
+import { canViewGtmCms, canViewGtmDemos } from '@/lib/gtm/caps';
 
 interface OpsNavProps {
   user: StoredStaffUser | null;
@@ -97,6 +98,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/research/new': 'Tạo dự án nghiên cứu',
   '/crm/research/analytics': 'Phân tích nghiên cứu',
   '/crm/research/taxonomy': 'Taxonomy',
+  '/crm/gtm/demos': 'Demo PTTCRM',
+  '/crm/gtm/cms': 'CMS marketing',
   '/crm/marketing-plan': 'Kế hoạch marketing',
   '/crm/service-delivery': 'Triển khai dịch vụ',
   '/crm/sop': 'Quy trình SOP',
@@ -366,6 +369,17 @@ function buildSections(
   }
   if (plan.length) {
     sections.push({ label: 'Lên kế hoạch', links: plan, defaultOpen: true });
+  }
+
+  const gtm: NavLink[] = [];
+  if (canViewGtmDemos(user)) {
+    gtm.push({ href: '/crm/gtm/demos', label: 'Demo PTTCRM' });
+  }
+  if (canViewGtmCms(user)) {
+    gtm.push({ href: '/crm/gtm/cms', label: 'CMS marketing' });
+  }
+  if (gtm.length) {
+    sections.push({ label: 'GTM', links: gtm, defaultOpen: true });
   }
 
   const delivery: NavLink[] = [];

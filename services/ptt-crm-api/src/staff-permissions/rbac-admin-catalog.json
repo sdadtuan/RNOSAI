@@ -795,6 +795,15 @@
       "settings",
       "view",
       "write"
+    ],
+    "gtm.cms": [
+      "view",
+      "write",
+      "publish"
+    ],
+    "gtm_demos": [
+      "view",
+      "write"
     ]
   },
   "sections": [
@@ -1007,6 +1016,20 @@
       "group": "CRM — Bảng CSKH",
       "page": "/crm/leads",
       "description": "Thu thập đa nguồn, chấm điểm, phân loại, gán owner, SLA và AI truy xuất."
+    },
+    {
+      "id": "gtm_demos",
+      "label": "GTM — Demo requests",
+      "group": "GTM",
+      "page": "/crm/gtm/demos",
+      "description": "Inbox yêu cầu demo từ pttcrm.com."
+    },
+    {
+      "id": "gtm.cms",
+      "label": "GTM — CMS",
+      "group": "GTM",
+      "page": "/crm/gtm/cms",
+      "description": "Media, tin tức, sự kiện và slot ảnh cho site marketing."
     },
     {
       "id": "crm_lmp",
@@ -1698,6 +1721,8 @@
     "crm_staff_roster",
     "crm_staff_roster__btn_add",
     "crm_staff_roster__btn_export_xlsx",
-    "crm_staff_roster__btn_import"
+    "crm_staff_roster__btn_import",
+    "gtm.cms",
+    "gtm_demos"
   ]
 }

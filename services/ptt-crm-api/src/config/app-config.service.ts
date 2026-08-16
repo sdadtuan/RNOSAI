@@ -193,6 +193,16 @@ export class AppConfigService {
   readonly opsRouteMapPath: string;
   readonly opsAgentEnabled: boolean;
   readonly opsPortalSummaryEnabled: boolean;
+  readonly gtmIpSalt: string;
+  readonly gtmSalesUserIds: string[];
+  readonly gtmCorsOrigins: string[];
+  readonly cmsS3Bucket: string;
+  readonly cmsS3Region: string;
+  readonly cmsS3AccessKey: string;
+  readonly cmsS3SecretKey: string;
+  readonly cmsPublicBase: string;
+  readonly cmsRevalidateUrl: string | null;
+  readonly cmsRevalidateSecret: string | null;
 
   constructor() {
     this.applyRuntimeEnvOverrides();
@@ -654,6 +664,23 @@ export class AppConfigService {
     this.opsPortalSummaryEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_OPS_PORTAL_SUMMARY ?? '0').trim().toLowerCase(),
     );
+    this.gtmIpSalt = (process.env.GTM_IP_SALT ?? '').trim();
+    this.gtmSalesUserIds = (process.env.GTM_SALES_USER_IDS ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    this.gtmCorsOrigins = this.parseGtmCorsOrigins();
+    this.cmsS3Bucket = (process.env.GTM_CMS_S3_BUCKET ?? '').trim();
+    this.cmsS3Region = (process.env.GTM_CMS_S3_REGION ?? process.env.AWS_REGION ?? 'ap-southeast-1').trim();
+    this.cmsS3AccessKey = (process.env.GTM_CMS_S3_ACCESS_KEY ?? process.env.AWS_ACCESS_KEY_ID ?? '').trim();
+    this.cmsS3SecretKey = (process.env.GTM_CMS_S3_SECRET_KEY ?? process.env.AWS_SECRET_ACCESS_KEY ?? '').trim();
+    this.cmsPublicBase = (
+      process.env.GTM_CMS_PUBLIC_BASE ?? 'https://cdn.pttcrm.com'
+    )
+      .trim()
+      .replace(/\/$/, '');
+    this.cmsRevalidateUrl = (process.env.CMS_REVALIDATE_URL ?? '').trim() || null;
+    this.cmsRevalidateSecret = (process.env.CMS_REVALIDATE_SECRET ?? '').trim() || null;
   }
 
   private parsePortalCorsOrigins(): string[] {
@@ -668,6 +695,17 @@ export class AppConfigService {
   private parseOpsCorsOrigins(): string[] {
     const raw = (
       process.env.PTT_OPS_CORS_ORIGINS ?? 'http://127.0.0.1:3200,http://localhost:3200'
+    ).trim();
+    return raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  private parseGtmCorsOrigins(): string[] {
+    const raw = (
+      process.env.GTM_CORS_ORIGINS ??
+      'https://pttcrm.com,https://www.pttcrm.com,http://localhost:3300'
     ).trim();
     return raw
       .split(',')

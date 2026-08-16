@@ -99,6 +99,8 @@ import { StaffPermissionSetsModule } from './staff-permission-sets/staff-permiss
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { TemporalModule } from './temporal/temporal.module';
 import { WorkflowsModule } from './workflows/workflows.module';
+import { GtmModule } from './gtm/gtm.module';
+import { GtmCmsModule } from './gtm-cms/cms.module';
 
 @Module({
   imports: [
@@ -110,6 +112,8 @@ import { WorkflowsModule } from './workflows/workflows.module';
     DealRoomModule,
     LeadMeetingPrepModule,
     MarketResearchModule,
+    GtmModule,
+    GtmCmsModule,
     LeadsContractModule,
     CatalogModule,
     CrmConfigModule,
