@@ -7,7 +7,8 @@ export function toPgvectorLiteral(values: number[]): string {
 
 export function shouldUsePgvectorAnn(
   flag: boolean,
+  pgvectorReady: boolean,
   queryVec: number[] | undefined,
 ): boolean {
-  return Boolean(flag && queryVec && queryVec.length > 0);
+  return Boolean(flag && pgvectorReady && queryVec && queryVec.length > 0);
 }

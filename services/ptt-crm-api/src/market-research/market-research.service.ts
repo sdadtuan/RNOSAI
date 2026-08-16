@@ -1839,7 +1839,7 @@ export class MarketResearchService implements OnModuleInit {
             embed_text: embedText,
             embed_model: resolved.model,
             embed_dims: resolved.dims,
-            write_vec: this.config.researchRagPgvectorEnabled,
+            write_vec: this.config.researchRagPgvectorEnabled && this.ragPgvectorReady,
           });
         } catch {
           // skip upsert — approve already committed
@@ -1884,7 +1884,11 @@ export class MarketResearchService implements OnModuleInit {
       allowedClientIds,
       theme_code: themeCode,
     };
-    const rows = shouldUsePgvectorAnn(this.config.researchRagPgvectorEnabled, annVec)
+    const rows = shouldUsePgvectorAnn(
+      this.config.researchRagPgvectorEnabled,
+      this.ragPgvectorReady,
+      annVec,
+    )
       ? await this.repo.listEmbeddingsByVec(embeddingFilters, annVec, 50)
       : await this.repo.listEmbeddings(embeddingFilters);
     return { hits: rankRagHits(q, rows, { theme_code: themeCode, limit, queryVec: annVec }) };
@@ -1968,7 +1972,7 @@ export class MarketResearchService implements OnModuleInit {
           embed_text: embedText,
           embed_model: resolved.model,
           embed_dims: resolved.dims,
-          write_vec: this.config.researchRagPgvectorEnabled,
+          write_vec: this.config.researchRagPgvectorEnabled && this.ragPgvectorReady,
         });
         processed += 1;
       } catch {

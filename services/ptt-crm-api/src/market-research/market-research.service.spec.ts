@@ -2695,6 +2695,8 @@ describe('MarketResearchService', () => {
   it('P20 searchInsights uses listEmbeddingsByVec when pgvector flag on', async () => {
     config.researchRagEnabled = true;
     config.researchRagPgvectorEnabled = true;
+    repo.probePgvectorReady.mockResolvedValue(true);
+    await service.onModuleInit();
     const statement = 'Giá sữa học đường tăng tại Hà Nội';
     const vec = embedInsightText(statement);
     repo.listEmbeddingsByVec.mockResolvedValue([
@@ -2717,6 +2719,33 @@ describe('MarketResearchService', () => {
     expect(repo.listEmbeddingsByVec).toHaveBeenCalled();
     expect(repo.listEmbeddings).not.toHaveBeenCalled();
     expect(out.hits[0]?.insight_id).toBe(20);
+  });
+
+  it('P28 searchInsights falls back to listEmbeddings when pgvector flag on but not ready', async () => {
+    config.researchRagEnabled = true;
+    config.researchRagPgvectorEnabled = true;
+    const statement = 'Giá sữa học đường tăng tại Hà Nội';
+    const vec = embedInsightText(statement);
+    repo.listEmbeddings.mockResolvedValue([
+      {
+        insight_id: 21,
+        project_id: 9,
+        status: 'published',
+        statement,
+        observation: null,
+        embedding: vec,
+        theme_codes: [],
+        client_id: 'acme',
+        valid_to: null,
+      },
+    ]);
+    const out = await service.searchInsights(
+      { restricted: false, allowedClientIds: [] },
+      { q: statement },
+    );
+    expect(repo.listEmbeddings).toHaveBeenCalled();
+    expect(repo.listEmbeddingsByVec).not.toHaveBeenCalled();
+    expect(out.hits[0]?.insight_id).toBe(21);
   });
 
   it('P22 searchInsights returns is_stale from listEmbeddings valid_to', async () => {

@@ -135,7 +135,11 @@ export class PortalResearchService implements OnModuleInit {
       return { hits: [], note: resolved.note };
     }
     const annVec = resolved.queryVec ?? embedInsightText(q);
-    const rows = shouldUsePgvectorAnn(this.config.researchRagPgvectorEnabled, annVec)
+    const rows = shouldUsePgvectorAnn(
+      this.config.researchRagPgvectorEnabled,
+      this.ragPgvectorReady,
+      annVec,
+    )
       ? await this.repo.listPublishedEmbeddingsByVec(user.client_id, themeCode, annVec, 50)
       : await this.repo.listPublishedEmbeddings(user.client_id, themeCode);
     const scoped = rows.filter((row) => row.client_id === user.client_id);

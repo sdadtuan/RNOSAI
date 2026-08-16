@@ -119,6 +119,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-086 | Portal RAG filter «Chỉ hết hạn» | P25 | P25 | Spec ready | FR-INS-07 · UC-079 · UC-080 |
 | RES-UC-087 | pgvector prod readiness (VPS extension + health) | P26 | P26 | Spec ready | FR-INT · NFR-AI-04 · UC-081 |
 | RES-UC-088 | RAG default excludes stale hits | P27 | P27 | Spec ready | FR-INS-07 · UC-079 · UC-086 |
+| RES-UC-090 | pgvector ANN staging gate (flag ∧ ready) | P28 | P28 | Spec ready | FR-INT · NFR-AI-04 · UC-081 · UC-087 |
 
 ---
 
@@ -851,6 +852,15 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Rule:** giống RES-UC-079 (UTC calendar); opt-in stale qua portal `stale_only=1` (UC-086) hoặc staff tab Insight «Chỉ hết hạn» (UC-079)
 - **Copilot:** `rag_hits` không chứa insight stale
 - **Cấm** endpoint mới; không DDL; không đổi report-detail/PDF; không `include_stale` query mới trong P27
+
+### RES-UC-090 — pgvector ANN staging gate (flag ∧ ready)
+
+- **Actor chính:** DevOps / QA / Analyst (staging UAT)
+- **Mục tiêu:** ANN prefilter chỉ chạy khi `RESEARCH_RAG_PGVECTOR_ENABLED=1` **và** `rag_pgvector_ready=true`; dual-write `embedding_vec` cùng điều kiện
+- **Fail-soft:** flag on + ready false → JSONB `listEmbeddings` (không query `<=>`)
+- **Staging:** `deploy_market_research_p28_vps.sh --enable-pgvector-staging` (không bật RAG/OpenAI embed)
+- **Tiền đề:** P26 `install_pgvector_vps.sh` + backfill `embedding_vec` (P13 re-embed hoặc re-approve)
+- **Cấm** IVFFlat/HNSW; **cấm** prod pgvector flag trên deploy mặc định; **cấm** drop JSONB column
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

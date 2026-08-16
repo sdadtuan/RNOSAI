@@ -477,6 +477,7 @@ describe('PortalResearchService', () => {
     it('P20 searchInsights uses listPublishedEmbeddingsByVec when pgvector flag on', async () => {
       config.researchRagEnabled = true;
       config.researchRagPgvectorEnabled = true;
+      repo.probePgvectorReady.mockResolvedValue(true);
       const statement = 'Giá sữa học đường tăng tại Hà Nội';
       const vec = embedInsightText(statement);
       repo.listPublishedEmbeddingsByVec.mockResolvedValue([
@@ -493,10 +494,36 @@ describe('PortalResearchService', () => {
         },
       ]);
       const service = makeService();
+      await service.onModuleInit();
       const out = await service.searchInsights(acmeUser, { q: statement });
       expect(repo.listPublishedEmbeddingsByVec).toHaveBeenCalled();
       expect(repo.listPublishedEmbeddings).not.toHaveBeenCalled();
       expect(out.hits[0].insight_id).toBe(20);
+    });
+
+    it('P28 searchInsights falls back to listPublishedEmbeddings when flag on but not ready', async () => {
+      config.researchRagEnabled = true;
+      config.researchRagPgvectorEnabled = true;
+      const statement = 'Giá sữa học đường tăng tại Hà Nội';
+      const vec = embedInsightText(statement);
+      repo.listPublishedEmbeddings.mockResolvedValue([
+        {
+          insight_id: 21,
+          project_id: 9,
+          status: 'published',
+          statement,
+          observation: null,
+          embedding: vec,
+          theme_codes: [],
+          client_id: ACME,
+          valid_to: null,
+        },
+      ]);
+      const service = makeService();
+      const out = await service.searchInsights(acmeUser, { q: statement });
+      expect(repo.listPublishedEmbeddings).toHaveBeenCalled();
+      expect(repo.listPublishedEmbeddingsByVec).not.toHaveBeenCalled();
+      expect(out.hits[0].insight_id).toBe(21);
     });
 
     it('cross-tenant: query uses jwt client only; no statement from other tenant', async () => {

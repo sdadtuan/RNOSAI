@@ -567,6 +567,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P28 — RES-UC-090
+
+| UC | Tóm tắt |
+|----|---------|
+| 090 | ANN pgvector chỉ khi flag + `rag_pgvector_ready`; staging `--enable-pgvector-staging`. |
+
+**API:** cùng search — `shouldUsePgvectorAnn(flag, ready, queryVec)`; dual-write `write_vec` cùng gate  
+**Gates:** api-only; không DDL; deploy mặc định pgvector off; staging flag tách opt-in.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

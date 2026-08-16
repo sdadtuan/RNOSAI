@@ -778,7 +778,24 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
-## P28+ (backlog — PDF stale footer / pgvector ANN staging)
+## Walkthrough UAT P28 — pgvector ANN staging (≈8 phút)
+
+**Mục tiêu:** *«Flag + DB ready → ANN path; flag on + DB chưa ready → JSONB fallback; prod deploy pgvector off.»*
+
+**Tiền đề:** sudo VPS · corpus có embedding JSONB
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | DevOps | `install_pgvector_vps.sh` + verify | exit 0; health `rag_pgvector_ready=true` |
+| 2 | DevOps | Deploy `--enable-pgvector-staging` | health `rag_pgvector_enabled=true` |
+| 3 | AN | Re-approve / P13 re-embed 1 insight | `embedding_vec` NOT NULL |
+| 4 | AN | Staff search (RAG+OpenAI staging) | `listEmbeddingsByVec` path; hits OK |
+| 5 | QA | Tắt ready (mock) hoặc VPS chưa cài | JSONB fallback, không 500 |
+| 6 | QA | Prod deploy không `--enable-pgvector-staging` | `rag_pgvector_enabled=false` |
+
+- [ ] Bước 1–6 pass staging
+
+## P29+ (backlog — PDF stale footer / IVFFlat)
 
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 
