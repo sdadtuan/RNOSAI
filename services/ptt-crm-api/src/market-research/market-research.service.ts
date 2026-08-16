@@ -187,6 +187,11 @@ import {
 import { buildResearchReportDocx, sectionsFromReportSnapshot } from './market-research-docx.util';
 import { buildResearchReportPdf } from './market-research-pdf.util';
 import {
+  REPORT_PDF_STALE_FOOTER_STAFF,
+  reportSnapshotHasStaleInsights,
+} from './report-pdf-stale.util';
+import { collectReportInsightIds } from '../portal-research/portal-report-stale.util';
+import {
   buildReportSnapshot,
   CB_METHODOLOGY_STUB,
   type ResearchReportSnapshot,
@@ -2935,7 +2940,12 @@ export class MarketResearchService implements OnModuleInit {
     this.assertMethodologyForTier(project.dv12_tier, snapshot.methodology);
     const sections = sectionsFromReportSnapshot(snapshot);
     if (format === 'pdf') {
-      const buffer = buildResearchReportPdf(sections);
+      const ids = collectReportInsightIds(snapshot);
+      const validToById = await this.repo.listInsightValidToForProject(project.id, ids);
+      const footer = reportSnapshotHasStaleInsights(snapshot, validToById)
+        ? REPORT_PDF_STALE_FOOTER_STAFF
+        : undefined;
+      const buffer = buildResearchReportPdf(sections, undefined, footer);
       return new StreamableFile(buffer, {
         type: 'application/pdf',
         disposition: `attachment; filename="research-report-${reportId}-v${version.version}.pdf"`,

@@ -34,4 +34,21 @@ describe('buildResearchReportPdf', () => {
     const buffer = buildResearchReportPdf([]);
     expect(buffer.subarray(0, 5).toString()).toBe('%PDF-');
   });
+
+  it('P29 embeds footerLine on each page when set', () => {
+    const footer = 'Cảnh báo: báo cáo có insight hết hạn (valid_to).';
+    const sections = [
+      { title: 'A', lines: Array.from({ length: 50 }, (_, i) => `line ${i}`) },
+      { title: 'B', lines: ['tail'] },
+    ];
+    const buffer = buildResearchReportPdf(sections, undefined, footer);
+    const decoded = decodePdfUtf16Be(buffer);
+    const count = decoded.split(footer).length - 1;
+    expect(count).toBeGreaterThanOrEqual(2);
+  });
+
+  it('P29 no footer when footerLine omitted', () => {
+    const buffer = buildResearchReportPdf([{ title: 'Cover', lines: ['x'] }]);
+    expect(decodePdfUtf16Be(buffer)).not.toContain('Cảnh báo:');
+  });
 });

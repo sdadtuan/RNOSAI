@@ -744,6 +744,25 @@ export class MarketResearchRepository implements OnModuleDestroy {
     return result.rows.map((row) => this.mapInsight(row));
   }
 
+  async listInsightValidToForProject(
+    projectId: number,
+    insightIds: number[],
+  ): Promise<Map<number, string | null>> {
+    const ids = [...new Set(insightIds.filter((n) => Number.isFinite(n) && n > 0))];
+    const map = new Map<number, string | null>();
+    if (!ids.length) return map;
+    const result = await this.db.query(
+      `SELECT i.id, i.valid_to::text AS valid_to
+       FROM crm_research_insights i
+       WHERE i.project_id = $1 AND i.id = ANY($2::int[])`,
+      [projectId, ids],
+    );
+    for (const row of result.rows) {
+      map.set(Number(row.id), row.valid_to != null ? String(row.valid_to) : null);
+    }
+    return map;
+  }
+
   async listApprovedInsightsByClient(clientId: string): Promise<ResearchInsightRow[]> {
     const result = await this.db.query(
       `${this.insightSelect}

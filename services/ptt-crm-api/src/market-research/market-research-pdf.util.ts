@@ -43,7 +43,7 @@ function flattenSections(sections: ResearchDocxSection[]): string[] {
   return lines.length ? lines : [' '];
 }
 
-function buildPageStream(pageLines: string[]): string {
+function buildPageStream(pageLines: string[], footerLine?: string): string {
   let y = PAGE_HEIGHT - 60;
   const ops: string[] = ['BT', '/F1 11 Tf', `${MARGIN_LEFT} ${y} Td`];
   for (let i = 0; i < pageLines.length; i++) {
@@ -51,6 +51,14 @@ function buildPageStream(pageLines: string[]): string {
     ops.push(`${pdfHexUtf16Be(pageLines[i] || ' ')} Tj`);
   }
   ops.push('ET');
+  if (footerLine) {
+    const footerLines = wrapLine(footerLine, 90);
+    let fy = 24;
+    for (const line of footerLines) {
+      ops.push('BT', '/F1 9 Tf', `${MARGIN_LEFT} ${fy} Td`, `${pdfHexUtf16Be(line)} Tj`, 'ET');
+      fy += 12;
+    }
+  }
   return ops.join('\n');
 }
 
@@ -58,6 +66,7 @@ function buildPageStream(pageLines: string[]): string {
 export function buildResearchReportPdf(
   sections: ResearchDocxSection[],
   watermark?: string,
+  footerLine?: string,
 ): Buffer {
   const allLines = flattenSections(sections);
   const pageChunks: string[][] = [];
@@ -86,7 +95,7 @@ export function buildResearchReportPdf(
   let nextId = 2;
 
   for (const chunk of pageChunks) {
-    const stream = buildPageStream(chunk);
+    const stream = buildPageStream(chunk, footerLine);
     const contentId = nextId++;
     pushObj(
       `${contentId} 0 obj<< /Length ${Buffer.byteLength(stream, 'utf8')} >>stream\n${stream}\nendstream\nendobj`,

@@ -120,6 +120,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-087 | pgvector prod readiness (VPS extension + health) | P26 | P26 | Spec ready | FR-INT · NFR-AI-04 · UC-081 |
 | RES-UC-088 | RAG default excludes stale hits | P27 | P27 | Spec ready | FR-INS-07 · UC-079 · UC-086 |
 | RES-UC-090 | pgvector ANN staging gate (flag ∧ ready) | P28 | P28 | Spec ready | FR-INT · NFR-AI-04 · UC-081 · UC-087 |
+| RES-UC-089 | PDF export stale footer (staff + portal) | P29 | P29 | Spec ready | FR-INS-07 · UC-079 · UC-085 |
 
 ---
 
@@ -861,6 +862,15 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Staging:** `deploy_market_research_p28_vps.sh --enable-pgvector-staging` (không bật RAG/OpenAI embed)
 - **Tiền đề:** P26 `install_pgvector_vps.sh` + backfill `embedding_vec` (P13 re-embed hoặc re-approve)
 - **Cấm** IVFFlat/HNSW; **cấm** prod pgvector flag trên deploy mặc định; **cấm** drop JSONB column
+
+### RES-UC-089 — PDF export stale footer (staff + portal)
+
+- **Actor chính:** AM, Analyst (staff export); Client portal (PDF download)
+- **API:** cùng export PDF — staff `exportReportVersion format=pdf`; portal `exportReportPdf` — footer mọi trang khi ≥1 insight stale (live `valid_to`)
+- **Rule:** giống RES-UC-079 (UTC calendar); portal unpublished/khác tenant → không coi stale (P24)
+- **Staff lookup:** `listInsightValidToForProject(project_id, insight_ids)`; **Portal lookup:** `listPublishedInsightValidTo` (P24)
+- **Copy:** `REPORT_PDF_STALE_FOOTER_STAFF` / `REPORT_PDF_STALE_FOOTER_PORTAL` — rút gọn từ banner P18/P19
+- **Cấm** endpoint mới; không DDL; không mutate `content_snapshot`; không footer DOCX; không ops-web/portal-web UI
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

@@ -33,6 +33,10 @@ import {
   shouldSkipRagEmbed,
 } from '../market-research/research-rag.util';
 import { shouldUsePgvectorAnn } from '../market-research/pgvector.util';
+import {
+  REPORT_PDF_STALE_FOOTER_PORTAL,
+  reportSnapshotHasStaleInsights,
+} from '../market-research/report-pdf-stale.util';
 import { PortalJwtPayload } from '../portal/portal-jwt.util';
 import { annotatePortalReportRow, collectReportInsightIds } from './portal-report-stale.util';
 import { PortalResearchRepository } from './portal-research.repository';
@@ -227,7 +231,12 @@ export class PortalResearchService implements OnModuleInit {
       exec: normalizeReportExec(raw.exec),
     };
     const watermark = buildPortalWatermark({ clientId: user.client_id, email: user.email, at: now });
-    const buffer = buildResearchReportPdf(sectionsFromReportSnapshot(snapshot), watermark);
+    const ids = collectReportInsightIds(snapshot);
+    const validToById = await this.repo.listPublishedInsightValidTo(user.client_id, ids);
+    const footer = reportSnapshotHasStaleInsights(snapshot, validToById)
+      ? REPORT_PDF_STALE_FOOTER_PORTAL
+      : undefined;
+    const buffer = buildResearchReportPdf(sectionsFromReportSnapshot(snapshot), watermark, footer);
     return new StreamableFile(buffer, {
       type: 'application/pdf',
       disposition: `attachment; filename="research-v${row.version}.pdf"`,

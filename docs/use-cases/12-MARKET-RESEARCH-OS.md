@@ -578,6 +578,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P29 — RES-UC-089
+
+| UC | Tóm tắt |
+|----|---------|
+| 089 | PDF export footer cảnh báo mọi trang khi báo cáo có insight stale (live valid_to). |
+
+**API:** `buildResearchReportPdf(..., footerLine?)`; staff + portal export paths  
+**Gates:** api-only; không DDL; DOCX unchanged; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

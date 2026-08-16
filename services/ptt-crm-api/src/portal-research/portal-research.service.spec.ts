@@ -1,5 +1,6 @@
 import { ForbiddenException, NotFoundException, StreamableFile, BadRequestException } from '@nestjs/common';
 import * as pdfUtil from '../market-research/market-research-pdf.util';
+import { REPORT_PDF_STALE_FOOTER_PORTAL } from '../market-research/report-pdf-stale.util';
 import { embedInsightText } from '../market-research/research-rag.util';
 import { fetchOpenAIEmbedding } from '../market-research/openai-embed.util';
 import { PortalResearchRepository } from './portal-research.repository';
@@ -298,6 +299,40 @@ describe('PortalResearchService', () => {
     expect(decoded).toContain(ACME);
     expect(decoded).toContain(acmeUser.email);
     expect(decoded).toMatch(/CONFIDENTIAL · .+ · .+ · \d{4}-\d{2}-\d{2}/);
+  });
+
+  it('P29 exportReportPdf embeds portal stale footer when finding stale', async () => {
+    repo.getPortalReportVersion.mockResolvedValue(
+      acmeVersion({
+        content_snapshot: {
+          cover: {
+            client: 'Acme',
+            title: 'Secret Acme title',
+            confidential: true,
+            version: 1,
+            as_of: '2026-08-14',
+          },
+          exec: { vi: 'Tóm tắt', en: 'Summary', en_status: 'approved' },
+          findings: [{ insight_id: 11, text: 'finding' }],
+          recs: [],
+          methodology: { stub: true, population: '', source_plan: '', limitation: '' },
+          evidence_index: [],
+        },
+      }),
+    );
+    repo.listPublishedInsightValidTo.mockResolvedValue(new Map([[11, '2020-01-01']]));
+    const spy = jest.spyOn(pdfUtil, 'buildResearchReportPdf');
+    const service = makeService();
+
+    await service.exportReportPdf(acmeUser, 42);
+
+    expect(repo.listPublishedInsightValidTo).toHaveBeenCalledWith(ACME, [11]);
+    expect(spy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('CONFIDENTIAL'),
+      REPORT_PDF_STALE_FOOTER_PORTAL,
+    );
+    spy.mockRestore();
   });
 
   it('M2-1b: unpublished same-tenant PDF → 404 not_found (no file)', async () => {

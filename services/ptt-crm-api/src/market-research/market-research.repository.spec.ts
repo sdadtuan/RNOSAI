@@ -92,6 +92,23 @@ describe('MarketResearchRepository', () => {
     expect(sql).toMatch(/GROUP BY.*i\.valid_to/s);
   });
 
+  it('P29 listInsightValidToForProject filters project_id', async () => {
+    queryMock.mockResolvedValue({ rows: [{ id: 11, valid_to: '2020-01-01' }] });
+    const repo = repoWithMock();
+    const out = await repo.listInsightValidToForProject(9, [11, 12]);
+    const sql = String(queryMock.mock.calls[0][0]);
+    expect(sql).toMatch(/i\.project_id = \$1/);
+    expect(sql).toMatch(/i\.id = ANY\(\$2::int\[\]\)/);
+    expect(out.get(11)).toBe('2020-01-01');
+  });
+
+  it('P29 listInsightValidToForProject skips SQL when ids empty', async () => {
+    const repo = repoWithMock();
+    const out = await repo.listInsightValidToForProject(9, []);
+    expect(queryMock).not.toHaveBeenCalled();
+    expect(out.size).toBe(0);
+  });
+
   it('P20 upsertInsightEmbedding writes embedding_vec when write_vec', async () => {
     queryMock.mockResolvedValue({ rows: [] });
     const repo = repoWithMock();
