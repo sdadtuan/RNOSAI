@@ -744,7 +744,24 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
-## P25+ (backlog — pgvector prod / hide stale from ranking)
+## Walkthrough UAT P26 — pgvector prod readiness (≈8 phút)
+
+**Mục tiêu:** *«VPS có extension vector + cột embedding_vec; health báo ready; flag pgvector vẫn off prod.»*
+
+**Tiền đề:** quyền sudo trên VPS · `DATABASE_URL` trỏ DB prod/staging
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | DevOps | `bash scripts/install_pgvector_vps.sh` | apt cài package; CREATE EXTENSION OK |
+| 2 | DevOps | `bash scripts/verify_pgvector_market_research.sh` | exit 0 |
+| 3 | DevOps | `bash scripts/apply_pg_ddl_market_research_p20.sh` | OK (không WARN skip) |
+| 4 | QA | `GET /api/v1/research/health` | `rag_pgvector_ready=true`, `rag_pgvector_enabled=false` |
+| 5 | QA | `GET /api/v1/portal/research/health` | cùng `rag_pgvector_ready=true` |
+| 6 | QA | Prod sau deploy P26 | RAG/OpenAI/pgvector **flags** không đổi |
+
+- [ ] Bước 1–6 pass staging
+
+## P27+ (backlog — hide stale from ranking / PDF stale footer)
 
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 

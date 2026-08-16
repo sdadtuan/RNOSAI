@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import type { RagEmbeddingRow } from '../market-research/market-research.types';
+import { PGVECTOR_READY_SQL, parsePgvectorReadyRow } from '../market-research/pgvector-ready.util';
 import { toPgvectorLiteral } from '../market-research/pgvector.util';
 import type { PortalResearchVersionRecord } from './portal-research.types';
 
@@ -285,5 +286,14 @@ export class PortalResearchRepository implements OnModuleDestroy {
       created_at: String(row.created_at ?? ''),
       client_id: String(row.client_id),
     };
+  }
+
+  async probePgvectorReady(): Promise<boolean> {
+    try {
+      const result = await this.db.query(PGVECTOR_READY_SQL);
+      return parsePgvectorReadyRow(result.rows[0] as { ext_ok?: boolean; col_ok?: boolean });
+    } catch {
+      return false;
+    }
   }
 }

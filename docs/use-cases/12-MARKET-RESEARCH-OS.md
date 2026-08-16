@@ -545,6 +545,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P26 — RES-UC-087
+
+| UC | Tóm tắt |
+|----|---------|
+| 087 | VPS: cài pgvector; P20 DDL OK; health `rag_pgvector_ready`. |
+
+**API:** cùng GET research/portal health — thêm `rag_pgvector_ready` (probe DB lúc boot)  
+**Gates:** api-only deploy; không DDL mới; không bật RAG/pgvector flags prod; script `install_pgvector_vps.sh`.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

@@ -117,6 +117,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-084 | Talkwalker source candidates (stub) | P23 | P23 | Spec ready | FR-SRC · BR-RES-04/06/08/09/11 |
 | RES-UC-085 | Portal report-detail stale banner | P24 | P24 | Spec ready | FR-INS-07 · UC-080 |
 | RES-UC-086 | Portal RAG filter «Chỉ hết hạn» | P25 | P25 | Spec ready | FR-INS-07 · UC-079 · UC-080 |
+| RES-UC-087 | pgvector prod readiness (VPS extension + health) | P26 | P26 | Spec ready | FR-INT · NFR-AI-04 · UC-081 |
 
 ---
 
@@ -832,6 +833,15 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - `stale_only` off → hits bình thường + banner trên hit stale
 - `stale_only` on → chỉ hit hết hạn; 0 hit → copy «Không có insight hết hạn khớp tìm kiếm.»
 - **Cấm** endpoint mới; không DDL; không ops-web; không ẩn stale mặc định; không đổi ranking khi filter off
+
+### RES-UC-087 — pgvector prod readiness (VPS extension + health)
+
+- **Actor chính:** DevOps / QA
+- **Mục tiêu:** Cài `postgresql-*-pgvector` trên VPS; P20 DDL apply thành công; health báo DB sẵn sàng
+- **Script:** `scripts/install_pgvector_vps.sh`, `scripts/verify_pgvector_market_research.sh`
+- **API:** `GET /api/v1/research/health` và `GET /api/v1/portal/research/health` — thêm `rag_pgvector_ready` (DB probe lúc boot)
+- **Phân biệt:** `rag_pgvector_enabled` = env flag (vẫn `false` prod); `rag_pgvector_ready` = extension `vector` + cột `embedding_vec` tồn tại
+- **Cấm** bật `RESEARCH_RAG_PGVECTOR_ENABLED` / RAG / OpenAI embed trên prod deploy; **cấm** IVFFlat/HNSW; **cấm** ops-web/portal-web UI
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

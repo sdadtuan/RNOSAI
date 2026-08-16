@@ -8,6 +8,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  OnModuleInit,
   ServiceUnavailableException,
   StreamableFile,
 } from '@nestjs/common';
@@ -209,7 +210,9 @@ import { completenessPct, percentile50 } from './ops-analytics.util';
 import { canTransitionProject, listValidTransitions } from './project-state.util';
 
 @Injectable()
-export class MarketResearchService {
+export class MarketResearchService implements OnModuleInit {
+  private ragPgvectorReady = false;
+
   constructor(
     private readonly repo: MarketResearchRepository,
     private readonly clientScope: StaffClientScopeService,
@@ -222,6 +225,14 @@ export class MarketResearchService {
     private readonly contentMarketing: ContentMarketingService,
   ) {}
 
+  async onModuleInit(): Promise<void> {
+    try {
+      this.ragPgvectorReady = await this.repo.probePgvectorReady();
+    } catch {
+      this.ragPgvectorReady = false;
+    }
+  }
+
   health(): {
     ok: true;
     enabled: true;
@@ -233,6 +244,7 @@ export class MarketResearchService {
     rag_openai_embed_enabled: boolean;
     rag_embed_model: 'openai' | 'local';
     rag_pgvector_enabled: boolean;
+    rag_pgvector_ready: boolean;
   } {
     const sparktoroKey = String(this.config.sparktoroApiKey ?? '').trim();
     const qualtricsKey = String(this.config.qualtricsApiKey ?? '').trim();
@@ -253,6 +265,7 @@ export class MarketResearchService {
       rag_openai_embed_enabled: openaiEmbedLive,
       rag_embed_model: openaiEmbedLive ? 'openai' : 'local',
       rag_pgvector_enabled: Boolean(this.config.researchRagPgvectorEnabled),
+      rag_pgvector_ready: this.ragPgvectorReady,
     };
   }
 

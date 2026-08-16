@@ -1000,6 +1000,7 @@ export type PortalResearchHealth = {
   rag_openai_embed_enabled: boolean;
   rag_embed_model: 'openai' | 'local';
   rag_pgvector_enabled: boolean;
+  rag_pgvector_ready: boolean;
 };
 
 export const RAG_COPILOT_HIT_LIMIT = 5;

@@ -92,6 +92,7 @@ describe('PortalResearchService', () => {
     listPublishedEmbeddingsByVec: jest.fn(),
     getThemeQuarterAnalytics: jest.fn(),
     listPublishedInsightValidTo: jest.fn().mockResolvedValue(new Map()),
+    probePgvectorReady: jest.fn().mockResolvedValue(false),
   } as unknown as jest.Mocked<PortalResearchRepository>;
 
   const config = {
@@ -496,7 +497,16 @@ describe('PortalResearchService', () => {
       expect(payload.rag_openai_embed_enabled).toBe(false);
       expect(payload.rag_embed_model).toBe('local');
       expect(payload.rag_pgvector_enabled).toBe(false);
+      expect(payload.rag_pgvector_ready).toBe(false);
       expect(JSON.stringify(payload)).not.toMatch(/OPENAI_API_KEY|sk-/);
+    });
+
+    it('P26 health rag_pgvector_ready true after probe on module init', async () => {
+      repo.probePgvectorReady.mockResolvedValue(true);
+      const service = makeService();
+      await service.onModuleInit();
+      expect(service.health().rag_pgvector_ready).toBe(true);
+      expect(service.health().rag_pgvector_enabled).toBe(false);
     });
 
     it('PII query + embed live: rag_skipped_pii; fetchOpenAIEmbedding not called', async () => {

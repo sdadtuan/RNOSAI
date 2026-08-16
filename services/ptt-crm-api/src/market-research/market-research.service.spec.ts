@@ -149,6 +149,7 @@ describe('MarketResearchService', () => {
     createDecision: jest.fn(),
     getDecision: jest.fn(),
     patchDecision: jest.fn(),
+    probePgvectorReady: jest.fn().mockResolvedValue(false),
   };
   const plans = {
     getPlanById: jest.fn(),
@@ -2278,9 +2279,17 @@ describe('MarketResearchService', () => {
       rag_openai_embed_enabled: false,
       rag_embed_model: 'local',
       rag_pgvector_enabled: false,
+      rag_pgvector_ready: false,
     });
     config.researchDeepProvider = 'off';
     expect(service.health().deep_provider).toBe('off');
+  });
+
+  it('P26 health rag_pgvector_ready true after probe on module init', async () => {
+    repo.probePgvectorReady.mockResolvedValue(true);
+    await service.onModuleInit();
+    expect(service.health().rag_pgvector_ready).toBe(true);
+    expect(service.health().rag_pgvector_enabled).toBe(false);
   });
 
   it('health sparktoro_enabled is false when flag is on but key is missing', () => {

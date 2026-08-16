@@ -5,6 +5,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { APPROVED_INTERNAL_PLUS, type InsightStatus, type ProductType, type ProjectStatus } from './market-research.constants';
 import { normalizeReportExec } from './report-exec.util';
 import { isInsightStale } from './insight-stale.util';
+import { PGVECTOR_READY_SQL, parsePgvectorReadyRow } from './pgvector-ready.util';
 import { toPgvectorLiteral } from './pgvector.util';
 import type {
   CreateEvidenceInput,
@@ -2446,5 +2447,14 @@ export class MarketResearchRepository implements OnModuleDestroy {
       label_vi: String(row.label_vi),
       insight_count: Number(row.insight_count ?? 0),
     }));
+  }
+
+  async probePgvectorReady(): Promise<boolean> {
+    try {
+      const result = await this.db.query(PGVECTOR_READY_SQL);
+      return parsePgvectorReadyRow(result.rows[0] as { ext_ok?: boolean; col_ok?: boolean });
+    } catch {
+      return false;
+    }
   }
 }

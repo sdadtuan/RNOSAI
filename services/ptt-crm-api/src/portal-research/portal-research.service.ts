@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  OnModuleInit,
   StreamableFile,
 } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
@@ -84,11 +85,21 @@ function toCard(row: PortalResearchVersionRecord, watermark: string): PortalRese
 }
 
 @Injectable()
-export class PortalResearchService {
+export class PortalResearchService implements OnModuleInit {
+  private ragPgvectorReady = false;
+
   constructor(
     private readonly repo: PortalResearchRepository,
     private readonly config: AppConfigService,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    try {
+      this.ragPgvectorReady = await this.repo.probePgvectorReady();
+    } catch {
+      this.ragPgvectorReady = false;
+    }
+  }
 
   health(): PortalResearchHealth {
     const openaiKey = (process.env.OPENAI_API_KEY ?? process.env.OPENAI_KEY ?? '').trim();
@@ -100,6 +111,7 @@ export class PortalResearchService {
       rag_openai_embed_enabled: embedLive,
       rag_embed_model: embedLive ? 'openai' : 'local',
       rag_pgvector_enabled: Boolean(this.config.researchRagPgvectorEnabled),
+      rag_pgvector_ready: this.ragPgvectorReady,
     };
   }
 
