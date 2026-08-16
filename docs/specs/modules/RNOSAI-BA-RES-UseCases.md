@@ -123,6 +123,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-089 | PDF export stale footer (staff + portal) | P29 | P29 | Spec ready | FR-INS-07 · UC-079 · UC-085 |
 | RES-UC-091 | Staff RAG filter «Chỉ hết hạn» | P30 | P30 | Spec ready | FR-INS-07 · UC-086 · UC-088 |
 | RES-UC-092 | Staff DOCX export stale footer | P31 | P31 | Spec ready | FR-INS-07 · UC-089 |
+| RES-UC-093 | Bake published_valid_to at portal publish | P32 | P32 | Spec ready | FR-INS-07 · UC-085 · UC-089 |
 
 ---
 
@@ -891,6 +892,14 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Rule:** giống RES-UC-079 / UC-089; lookup `listInsightValidToForProject` dùng chung với PDF
 - **Copy:** reuse `REPORT_PDF_STALE_FOOTER_STAFF`
 - **Cấm** endpoint mới; không DDL; không mutate `content_snapshot`; không portal DOCX; không ops-web UI
+
+### RES-UC-093 — Bake `published_valid_to` at portal publish
+
+- **Actor chính:** Lead (publish portal, không self-approve)
+- **API:** cùng `publishPortal(visible=true)` — stamp `findings/recs[].published_valid_to` từ live `valid_to` rồi set visible
+- **Rule:** unpublish không xóa bake; re-publish ghi đè theo `valid_to` lúc đó; id miss → `null`
+- **Portal GET:** `is_stale` / `valid_to` **live** (P24); `published_valid_to` passthrough snapshot
+- **Cấm** dùng bake cho footer/banner; không DDL; không UI mới; không đổi PDF/DOCX
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

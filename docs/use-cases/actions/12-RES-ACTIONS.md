@@ -848,7 +848,24 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
-## P32+ (backlog — IVFFlat / bake valid_to snapshot)
+## Walkthrough UAT P32 — Bake published_valid_to (≈8 phút)
+
+**Mục tiêu:** *«Publish đóng băng published_valid_to; đổi valid_to sau → is_stale live, bake giữ; unpublish không xóa.»*
+
+**Tiền đề:** report draft có finding; Lead ≠ generated_by; insight client-facing
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | Lead | Publish portal `visible=true` | Snapshot có `published_valid_to` = `valid_to` lúc đó |
+| 2 | AN | Đổi insight `valid_to` quá khứ | GET portal: `is_stale=true`, bake **cũ** |
+| 3 | AN | Export PDF/DOCX | Footer live (P29/P31) |
+| 4 | Lead | Unpublish | Bake **còn** trong snapshot |
+| 5 | Lead | Publish lại | Bake **cập nhật** theo `valid_to` hiện tại |
+| 6 | QA | Prod deploy P32 | RAG/pgvector flags không đổi |
+
+- [ ] Bước 1–6 pass staging
+
+## P33+ (backlog — IVFFlat / live Talkwalker)
 
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 

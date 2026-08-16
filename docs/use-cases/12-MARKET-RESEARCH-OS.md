@@ -611,6 +611,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P32 — RES-UC-093
+
+| UC | Tóm tắt |
+|----|---------|
+| 093 | Publish portal đóng băng `published_valid_to` trên finding/rec; stale runtime vẫn live. |
+
+**API:** `bakePublishedValidTo` trong `publishPortal`  
+**Gates:** api-only; không DDL; không UI; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

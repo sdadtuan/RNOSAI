@@ -192,6 +192,7 @@ import {
   reportSnapshotHasStaleInsights,
 } from './report-pdf-stale.util';
 import { collectReportInsightIds } from '../portal-research/portal-report-stale.util';
+import { bakePublishedValidTo } from './report-publish-bake.util';
 import {
   buildReportSnapshot,
   CB_METHODOLOGY_STUB,
@@ -3113,6 +3114,14 @@ export class MarketResearchService implements OnModuleInit {
         }
         throw err;
       }
+      const ids = collectReportInsightIds(version.content_snapshot);
+      const validToById = await this.repo.listInsightValidToForProject(project.id, ids);
+      const baked = bakePublishedValidTo(version.content_snapshot, validToById);
+      await this.repo.updateReportVersionSnapshot(reportId, versionId, {
+        ...version.content_snapshot,
+        findings: baked.findings,
+        recs: baked.recs,
+      });
     }
     const updated = await this.repo.updateReportVersionPortalVisible(
       reportId,

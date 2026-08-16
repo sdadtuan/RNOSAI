@@ -24,12 +24,14 @@ export type ReportFinding = {
   heading: string;
   statement: string;
   text?: string;
+  published_valid_to?: string | null;
 };
 
 export type ReportRec = {
   insight_id: number;
   recommendation: string;
   text?: string;
+  published_valid_to?: string | null;
 };
 
 export type ReportEvidenceIndexRow = {

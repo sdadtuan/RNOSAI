@@ -282,6 +282,28 @@ describe('PortalResearchService', () => {
     expect(JSON.stringify(body)).not.toMatch(/2020-01-01/);
   });
 
+  it('P32 getReport keeps published_valid_to and live is_stale', async () => {
+    repo.getPortalReportVersion.mockResolvedValue(
+      acmeVersion({
+        content_snapshot: {
+          exec: { vi: 'Tóm tắt', en: null, en_status: 'approved' },
+          findings: [{ insight_id: 11, statement: 'Old claim', published_valid_to: '2026-12-31' }],
+          recs: [],
+          methodology: { stub: true },
+          evidence_index: [],
+          insight_ids: [11],
+        },
+      }),
+    );
+    repo.listPublishedInsightValidTo.mockResolvedValue(new Map([[11, '2020-01-01']]));
+    const body = await makeService().getReport(acmeUser, 42);
+    expect(body.findings[0]).toMatchObject({
+      published_valid_to: '2026-12-31',
+      valid_to: '2020-01-01',
+      is_stale: true,
+    });
+  });
+
   it('M2-1a: published + in-window PDF → %PDF- buffer and watermark', async () => {
     repo.getPortalReportVersion.mockResolvedValue(acmeVersion());
     const service = makeService();

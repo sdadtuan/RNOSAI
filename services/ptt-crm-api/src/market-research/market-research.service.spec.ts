@@ -4322,6 +4322,71 @@ describe('MarketResearchService', () => {
     expect(unpublished.published_at).toBeTruthy();
   });
 
+  it('P32 publishPortal visible bakes published_valid_to then sets visible', async () => {
+    stubScopedProject();
+    repo.getReport.mockResolvedValue({ id: 1, project_id: 9, status: 'draft' });
+    repo.getReportVersion.mockResolvedValue(
+      versionRow({
+        content_snapshot: {
+          insight_ids: [11],
+          findings: [{ insight_id: 11, text: 'x' }],
+          recs: [{ insight_id: 11, text: 'r' }],
+        },
+        generated_by: 'am@ptt',
+      }),
+    );
+    repo.getInsight.mockResolvedValue(insightRow({ id: 11, status: 'approved_client_facing' }));
+    repo.listInsightValidToForProject.mockResolvedValue(new Map([[11, '2026-12-31']]));
+    repo.updateReportVersionSnapshot.mockResolvedValue(versionRow());
+    repo.updateReportVersionPortalVisible.mockResolvedValue(
+      versionRow({ portal_visible: true, published_by: 'lead@ptt' }),
+    );
+
+    await service.publishPortal(
+      1,
+      10,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { visible: true },
+      'lead@ptt',
+    );
+
+    expect(repo.listInsightValidToForProject).toHaveBeenCalledWith(9, [11]);
+    expect(repo.updateReportVersionSnapshot).toHaveBeenCalledWith(
+      1,
+      10,
+      expect.objectContaining({
+        findings: [expect.objectContaining({ insight_id: 11, published_valid_to: '2026-12-31' })],
+        recs: [expect.objectContaining({ published_valid_to: '2026-12-31' })],
+      }),
+    );
+    expect(repo.updateReportVersionPortalVisible).toHaveBeenCalled();
+  });
+
+  it('P32 publishPortal unpublish does not rewrite snapshot', async () => {
+    stubScopedProject();
+    repo.getReport.mockResolvedValue({ id: 1, project_id: 9, status: 'draft' });
+    repo.getReportVersion.mockResolvedValue(
+      versionRow({
+        content_snapshot: { insight_ids: [11], findings: [{ insight_id: 11, published_valid_to: '2026-12-31' }] },
+        generated_by: 'am@ptt',
+      }),
+    );
+    repo.updateReportVersionPortalVisible.mockResolvedValue(
+      versionRow({ portal_visible: false, published_by: 'lead@ptt' }),
+    );
+
+    await service.publishPortal(
+      1,
+      10,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { visible: false },
+      'lead@ptt',
+    );
+
+    expect(repo.updateReportVersionSnapshot).not.toHaveBeenCalled();
+    expect(repo.listInsightValidToForProject).not.toHaveBeenCalled();
+  });
+
   it('reportCopilot with 0 insights is 400', async () => {
     stubScopedProject();
 
