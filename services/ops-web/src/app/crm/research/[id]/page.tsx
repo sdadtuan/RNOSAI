@@ -109,6 +109,7 @@ import {
   qualtricsRunnableStudies,
 } from '@/components/research/qualtrics-run.util';
 import { InsightsRagSearch } from '@/components/research/InsightsRagSearch';
+import { ReportPublishedValidToList } from '@/components/research/ReportPublishedValidToList';
 import {
   RAG_COPILOT_BANNER,
   shouldShowRagCopilotBanner,
@@ -2341,6 +2342,10 @@ function ReportTab({
                   </span>
                 ) : null}
               </div>
+              <ReportPublishedValidToList
+                findings={version.content_snapshot?.findings}
+                recs={version.content_snapshot?.recs}
+              />
               <label style={{ display: 'grid', gap: 4, fontSize: '0.85rem' }}>
                 Executive (VI)
                 <textarea

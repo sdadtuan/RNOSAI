@@ -865,7 +865,25 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
-## P33+ (backlog — IVFFlat / live Talkwalker)
+## Walkthrough UAT P33 — Hiện published_valid_to (≈8 phút)
+
+**Mục tiêu:** *«Khách thấy Hiệu lực lúc gửi; đổi valid_to sau → banner stale live, note bake giữ; PDF/DOCX không in bake.»*
+
+**Tiền đề:** report đã publish P32+ (snapshot có `published_valid_to`); một finding có ngày bake
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | CL | Mở report portal | Finding có `Hiệu lực lúc gửi: YYYY-MM-DD` |
+| 2 | AN | Đổi insight `valid_to` quá khứ | Banner stale **live**; note bake **cũ** |
+| 3 | Lead | Staff report version | List note cùng ngày bake |
+| 4 | AN | Export PDF/DOCX | Footer live; không in bake |
+| 5 | CL | Report publish trước P32 (không field) | Không note |
+| 6 | QA | Prod deploy P33 | RAG/pgvector/Talkwalker flags không đổi |
+
+- [ ] Bước 1–6 pass staging
+
+## P34+ (backlog — IVFFlat / live Talkwalker)
+
 
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 

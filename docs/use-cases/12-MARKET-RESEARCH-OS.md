@@ -622,6 +622,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P33 — RES-UC-094
+
+| UC | Tóm tắt |
+|----|---------|
+| 094 | Portal + staff hiện `published_valid_to` («Hiệu lực lúc gửi»); stale runtime vẫn live. |
+
+**UI:** `PublishedValidToNote` trên finding/rec portal; `ReportPublishedValidToList` trên staff version  
+**Gates:** ops-web + portal-web; không DDL; không endpoint; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

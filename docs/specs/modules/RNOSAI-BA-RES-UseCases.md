@@ -124,6 +124,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-091 | Staff RAG filter «Chỉ hết hạn» | P30 | P30 | Spec ready | FR-INS-07 · UC-086 · UC-088 |
 | RES-UC-092 | Staff DOCX export stale footer | P31 | P31 | Spec ready | FR-INS-07 · UC-089 |
 | RES-UC-093 | Bake published_valid_to at portal publish | P32 | P32 | Spec ready | FR-INS-07 · UC-085 · UC-089 |
+| RES-UC-094 | Portal + staff show published_valid_to | P33 | P33 | Spec ready | FR-INS-07 · UC-093 |
 
 ---
 
@@ -900,6 +901,13 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Rule:** unpublish không xóa bake; re-publish ghi đè theo `valid_to` lúc đó; id miss → `null`
 - **Portal GET:** `is_stale` / `valid_to` **live** (P24); `published_valid_to` passthrough snapshot
 - **Cấm** dùng bake cho footer/banner; không DDL; không UI mới; không đổi PDF/DOCX
+
+### RES-UC-094 — Portal + staff show `published_valid_to`
+
+- **Actor chính:** Client (portal report-detail), Lead/Analyst (staff report version)
+- **UI:** note `Hiệu lực lúc gửi: YYYY-MM-DD` trên finding/rec khi snapshot có ngày bake
+- **Rule:** thiếu / null / không phải ngày → không render; `is_stale` / `valid_to` **live** (P24); PDF/DOCX footer **không** dùng bake
+- **Cấm** endpoint mới; không DDL; không đổi `publishPortal` / annotate; không IVFFlat / Talkwalker flags
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

@@ -9,7 +9,9 @@ import { portalResearchReport, portalResearchReportPdf, type PortalResearchRepor
 import { isMarketResearchPortalFeEnabled } from '@/lib/market-research-portal-flags';
 import { portalResearchErrorVi } from '@/lib/portal-research-errors';
 import { reportRowIsStale } from '@/lib/insight-stale.util';
+import { publishedValidToFromRow } from '@/lib/published-valid-to.util';
 import { PortalInsightStaleBanner } from '@/components/PortalInsightStaleBanner';
+import { PublishedValidToNote } from '@/components/PublishedValidToNote';
 
 export default function PortalResearchDetailPage() {
   return (
@@ -171,6 +173,7 @@ function ResearchDetailContent({ token }: { token: string }) {
                           validTo={(row as { valid_to?: string | null }).valid_to}
                         />
                       ) : null}
+                      <PublishedValidToNote publishedValidTo={publishedValidToFromRow(row)} />
                     </li>
                   ))}
                 </ul>
@@ -190,6 +193,7 @@ function ResearchDetailContent({ token }: { token: string }) {
                           validTo={(row as { valid_to?: string | null }).valid_to}
                         />
                       ) : null}
+                      <PublishedValidToNote publishedValidTo={publishedValidToFromRow(row)} />
                     </li>
                   ))}
                 </ul>
