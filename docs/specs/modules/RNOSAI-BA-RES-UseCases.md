@@ -131,6 +131,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-098 | Live Talkwalker Search API (staging) | P36 | P36 | Spec ready | FR-SRC · UC-084 |
 | RES-UC-099 | ISO 20252 gap-check read-only (staff) | P37 | P37 | Spec ready | FR-GOV · Design §6 |
 | RES-UC-100 | Persist conjoint what-if history (staff) | P38 | P38 | Spec ready | RES-UC-095 · UC-082 |
+| RES-UC-101 | RAG re-embed backfill staging playbook | P39 | P39 | Spec ready | RES-UC-013 · UC-081 · UC-087 · UC-090 |
 
 ---
 
@@ -960,6 +961,15 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Rule:** `persist` default false (P34 compatible); `statistical_inference: false`; chỉ `PRICE_OFFER`
 - **Màn hình:** ConjointPane — checkbox «Lưu kết quả» + bảng lịch sử what-if
 - **Cấm** MOE/logit; **cấm** `createInsight`; **cấm** portal; DDL P38 nhỏ
+
+### RES-UC-101 — RAG re-embed backfill staging playbook (pgvector + flags)
+
+- **Actor chính:** PO / LD / Analyst (staging UAT)
+- **Ops:** `install_pgvector_vps.sh` (P20+P36) · `deploy_market_research_p39_vps.sh` · `--enable-rag-staging` (3 RAG flags)
+- **API (reuse P13):** `GET/POST /api/v1/research/rag/reembed/*` — batch 64-d → 256-d; dual-write `embedding_vec` khi flag∧ready
+- **Rule:** prod deploy **không** bật flags; `OPENAI_API_KEY` PO manual; worker restart bắt buộc
+- **Runbook:** `docs/runbooks/market-research-rag-staging-backfill.md`
+- **Cấm** prod RAG enable mặc định; **cấm** ghi secret deploy; **cấm** ops-web UI re-embed; không DDL mới
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

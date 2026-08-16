@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # One-time (or re-run safe): install postgresql-*-pgvector on Debian/Ubuntu VPS,
-# enable CREATE EXTENSION vector, then apply Market Research P20 DDL.
+# enable CREATE EXTENSION vector, then apply Market Research P20 + P36 DDL (IVFFlat).
 #
 # Usage (on VPS as deploy or root with sudo):
 #   cd /var/www/rnosai && bash scripts/install_pgvector_vps.sh
+#
+# After install: health should report rag_pgvector_ready + rag_ivfflat_ready (staging flags separate).
 #
 # Requires: apt, psql, DATABASE_URL or default dev URL.
 set -euo pipefail
@@ -52,7 +54,10 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS vecto
 echo "==> Apply Market Research P20 DDL"
 bash "$ROOT/scripts/apply_pg_ddl_market_research_p20.sh"
 
+echo "==> Apply Market Research P36 DDL (IVFFlat, fail-soft)"
+bash "$ROOT/scripts/apply_pg_ddl_market_research_p36.sh"
+
 echo "==> Verify pgvector readiness"
 bash "$ROOT/scripts/verify_pgvector_market_research.sh"
 
-echo "OK  pgvector installed and Market Research P20 schema ready"
+echo "OK  pgvector installed; P20 embedding_vec + P36 IVFFlat ready (check health rag_pgvector_ready / rag_ivfflat_ready)"

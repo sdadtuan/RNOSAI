@@ -689,6 +689,18 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P39 — RES-UC-101
+
+| UC | Tóm tắt |
+|----|---------|
+| 101 | Playbook staging pgvector install + RAG re-embed backfill; reuse API P13; prod flags off. |
+
+**Ops:** `install_pgvector_vps.sh` · `deploy_market_research_p39_vps.sh` · `--enable-rag-staging`  
+**Runbook:** `docs/runbooks/market-research-rag-staging-backfill.md`  
+**Gates:** api + worker; không ops-web/portal; không DDL mới; `OPENAI_API_KEY` PO manual.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

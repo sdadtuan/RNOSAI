@@ -962,7 +962,28 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
-## P39+ (backlog — pgvector backfill staging)
+## Walkthrough UAT P39 — RAG re-embed backfill staging (≈12 phút)
+
+**Mục tiêu:** *«PO cài pgvector → deploy P39 → bật staging RAG flags → preview stale → batch re-embed → DB 256-d + embedding_vec; search G3 hit; prod deploy không bật flags.»*
+
+**Tiền đề:** corpus insight `approved_client_facing`/`published` embed 64-d · VPS sudo cho pgvector · `OPENAI_API_KEY` trong `.env` (PO manual)
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | PO | `bash scripts/install_pgvector_vps.sh` + verify | ext + `embedding_vec` OK |
+| 2 | PO | `deploy_market_research_p39_vps.sh --local` (default) | WARN pgvector nếu chưa install; flags off |
+| 3 | PO | `--enable-rag-staging` + `OPENAI_API_KEY` + restart api + worker | health: 5 field RAG/pgvector true (ready sau bước 1) |
+| 4 | LD | `GET /research/rag/reembed/preview` | `stale_count` ≥ 1 |
+| 5 | LD | `POST /research/rag/reembed` `{ "limit": 50 }` | `processed` ≥ 1 |
+| 6 | AN | DB insight re-embedded | `embed_dims=256`; `embedding_vec` NOT NULL khi pgvector flag on |
+| 7 | AN | RAG search paraphrase G3 | Hit insight vừa re-embed |
+| 8 | AN | Health ANN | `rag_pgvector_enabled` ∧ `rag_pgvector_ready` → ANN path (ByVec) |
+| 9 | LD | Statement có PII trong batch | `skipped_pii` ≥ 1 |
+| 10 | QA | Prod deploy P39 **không** `--enable-rag-staging` | `rag_*` false; script không ghi API key |
+
+- [ ] Bước 1–10 pass staging
+- [ ] Prod không bật RAG/embed/pgvector sau deploy
+- [ ] Runbook: `docs/runbooks/market-research-rag-staging-backfill.md`
 
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 
