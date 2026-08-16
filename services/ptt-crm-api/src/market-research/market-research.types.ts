@@ -180,6 +180,53 @@ export type OpsAnalyticsRaw = {
   projects: OpsAnalyticsProjectRow[];
 };
 
+export type IsoGapStatus = 'pass' | 'partial' | 'fail' | 'na';
+
+export type IsoGapPhase = 'planning' | 'execution' | 'supervision' | 'reporting';
+
+export type IsoGapItem = {
+  id: string;
+  phase: IsoGapPhase;
+  label_vi: string;
+  status: IsoGapStatus;
+  hint_vi?: string;
+};
+
+export type IsoGapSummary = {
+  pass: number;
+  partial: number;
+  fail: number;
+  na: number;
+};
+
+export type IsoGapCheckPayload = {
+  ok: true;
+  project_id: number;
+  product_type: string;
+  items: IsoGapItem[];
+  summary: IsoGapSummary;
+};
+
+export type IsoGapFactsRow = {
+  decision_statement: string;
+  product_type: string;
+  dv12_tier: string;
+  geo: unknown;
+  rq_count: number;
+  source_count: number;
+  verified_evidence_count: number;
+  study_count: number;
+  ai_run_count: number;
+  review_count: number;
+  draft_count: number;
+  published_count: number;
+  acf_count: number;
+  acf_with_verified_evidence: number;
+  report_version_count: number;
+  latest_report_methodology: Record<string, unknown> | null;
+  latest_report_findings_count: number;
+};
+
 export type ThemeQuarterCountRow = {
   quarter: number;
   theme_code: string;

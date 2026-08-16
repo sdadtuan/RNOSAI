@@ -327,6 +327,33 @@ export type ResearchTrendSignal = {
   lifecycle: 'new' | 'rising' | 'stable' | 'fading';
 };
 
+export type IsoGapStatus = 'pass' | 'partial' | 'fail' | 'na';
+
+export type IsoGapPhase = 'planning' | 'execution' | 'supervision' | 'reporting';
+
+export type IsoGapItem = {
+  id: string;
+  phase: IsoGapPhase;
+  label_vi: string;
+  status: IsoGapStatus;
+  hint_vi?: string;
+};
+
+export type IsoGapSummary = {
+  pass: number;
+  partial: number;
+  fail: number;
+  na: number;
+};
+
+export type IsoGapCheckPayload = {
+  ok: true;
+  project_id: number;
+  product_type: string;
+  items: IsoGapItem[];
+  summary: IsoGapSummary;
+};
+
 export type ResearchAiRun = {
   id: number;
   project_id: number;
@@ -894,6 +921,13 @@ export async function createResearchProject(
 
 export async function fetchResearchProject(token: string, id: number): Promise<ResearchProject> {
   return researchFetch(token, `/api/v1/research/projects/${id}`);
+}
+
+export async function fetchResearchIsoGap(
+  token: string,
+  projectId: number,
+): Promise<IsoGapCheckPayload> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/governance/iso-gap`);
 }
 
 export async function patchResearchProject(

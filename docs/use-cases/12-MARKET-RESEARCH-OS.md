@@ -667,6 +667,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P37 — RES-UC-099
+
+| UC | Tóm tắt |
+|----|---------|
+| 099 | ISO 20252 gap-check read-only trên project; checklist 4 phase; không claim chứng nhận. |
+
+**API:** `GET …/governance/iso-gap`  
+**Gates:** api + ops-web; không DDL; không portal; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

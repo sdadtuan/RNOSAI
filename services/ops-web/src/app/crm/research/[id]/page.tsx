@@ -19,6 +19,7 @@ import { DecisionLogPane } from '@/components/research/DecisionLogPane';
 import { WavesPane } from '@/components/research/WavesPane';
 import { VwPane } from '@/components/research/VwPane';
 import { ConjointPane } from '@/components/research/ConjointPane';
+import { ResearchIsoGapPanel } from '@/components/research/ResearchIsoGapPanel';
 import { shouldShowVwTab } from '@/components/research/vw-pane.util';
 import { shouldShowConjointTab } from '@/components/research/conjoint-pane.util';
 import { SourceKeepTable } from '@/components/research/SourceKeepTable';
@@ -124,6 +125,7 @@ const TABS = [
   { id: 'insights', label: 'Insight' },
   { id: 'report', label: 'Báo cáo' },
   { id: 'decisions', label: 'Quyết định' },
+  { id: 'governance', label: 'ISO gap' },
   { id: 'activity', label: 'Nhật ký' },
 ] as const;
 
@@ -1307,6 +1309,8 @@ function CrmResearchWorkspaceContent() {
                 insights={project.insights ?? []}
                 canEdit={canEdit}
               />
+            ) : tab === 'governance' ? (
+              <ResearchIsoGapPanel projectId={project.id} />
             ) : (
               <p className="muted">P0: dùng tab Brief / Nguồn / Evidence / Insight. Tab {TABS.find((t) => t.id === tab)?.label} sẽ có ở milestone sau.</p>
             )}

@@ -129,6 +129,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-096 | Portal conjoint lite (read-only) | P35 | P35 | Spec ready | BR-RES-03 · UC-082 · UC-095 |
 | RES-UC-097 | IVFFlat index fail-soft on embedding_vec | P36 | P36 | Spec ready | FR-INT · UC-081 · UC-087 |
 | RES-UC-098 | Live Talkwalker Search API (staging) | P36 | P36 | Spec ready | FR-SRC · UC-084 |
+| RES-UC-099 | ISO 20252 gap-check read-only (staff) | P37 | P37 | Spec ready | FR-GOV · Design §6 |
 
 ---
 
@@ -942,6 +943,14 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **API:** cùng `POST …/run-talkwalker` — có project_id → HTTP Search API; thiếu project_id → stub P23
 - **Rule:** sources only; PII → 400; HTTP fail → `talkwalker_failed`; health `talkwalker_live_enabled`
 - **Cấm** `createInsight`; **cấm** bật flag/token trên prod deploy mặc định; không portal
+
+### RES-UC-099 — ISO 20252 gap-check read-only (staff)
+
+- **Actor chính:** Research Lead / Analyst (`crm_research.view`)
+- **API:** `GET /api/v1/research/projects/:id/governance/iso-gap` → checklist `{ items[], summary }` theo 4 phase ISO MVP
+- **Rule:** read-only; derive từ artifact hiện có; không «ISO certified»; không leak `title`
+- **Màn hình:** ops-web tab **ISO gap** — banner «Gap-check nội bộ»
+- **Cấm** mutate project; **cấm** portal widget; **cấm** auto-fix; không DDL; flags prod không đổi
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

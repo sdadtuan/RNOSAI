@@ -78,6 +78,7 @@ describe('MarketResearchService', () => {
     getProject: jest.fn(),
     listProjects: jest.fn(),
     getOpsAnalytics: jest.fn(),
+    getIsoGapFacts: jest.fn(),
     getThemeQuarterAnalytics: jest.fn(),
     createProject: jest.fn(),
     listQuestions: jest.fn(),
@@ -414,6 +415,49 @@ describe('MarketResearchService', () => {
       expect(JSON.stringify(body)).not.toContain('Secret title');
     }
     expect(repo.getProject).not.toHaveBeenCalled();
+  });
+
+  it('P37 getIsoGapCheck returns checklist without title or certified wording', async () => {
+    stubScopedProject();
+    repo.getIsoGapFacts.mockResolvedValue({
+      decision_statement: project.decision_statement,
+      product_type: project.product_type,
+      dv12_tier: project.dv12_tier,
+      geo: project.geo,
+      rq_count: 1,
+      source_count: 0,
+      verified_evidence_count: 0,
+      study_count: 0,
+      ai_run_count: 0,
+      review_count: 0,
+      draft_count: 0,
+      published_count: 0,
+      acf_count: 0,
+      acf_with_verified_evidence: 0,
+      report_version_count: 0,
+      latest_report_methodology: null,
+      latest_report_findings_count: 0,
+    });
+
+    const out = await service.getIsoGapCheck(9, { restricted: true, allowedClientIds: ['acme'] });
+    expect(out.ok).toBe(true);
+    expect(out.project_id).toBe(9);
+    expect(out.product_type).toBe('CAT_REVIEW');
+    expect(out.items.length).toBeGreaterThan(0);
+    expect(out.summary.fail).toBeGreaterThan(0);
+    expect(JSON.stringify(out)).not.toContain('Secret title');
+    expect(JSON.stringify(out)).not.toMatch(/ISO certified|đạt chuẩn ISO 20252/i);
+    expect(repo.getIsoGapFacts).toHaveBeenCalledWith(9);
+  });
+
+  it('P37 getIsoGapCheck outside scope is 403', async () => {
+    repo.getProjectClientId.mockResolvedValue('other-client');
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+
+    await expect(
+      service.getIsoGapCheck(9, { restricted: true, allowedClientIds: ['acme'] }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repo.getIsoGapFacts).not.toHaveBeenCalled();
   });
 
   it('patchProject intake→designed with rqCount=0 is invalid_transition need_rq', async () => {

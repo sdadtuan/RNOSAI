@@ -279,4 +279,21 @@ describe('MarketResearchRepository', () => {
     expect(sql).toMatch(/p\.client_id = \$3/);
     expect(params).toEqual([256, 'text-embedding-3-small', 'acme', 25]);
   });
+
+  it('P37 getIsoGapFacts scopes SQL to project_id and never selects title', async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const repo = repoWithMock();
+
+    await repo.getIsoGapFacts(42);
+
+    expect(queryMock).toHaveBeenCalledTimes(1);
+    const [sql, params] = queryMock.mock.calls[0];
+    const text = String(sql);
+    expect(text).toMatch(/WHERE p\.id = \$1/);
+    expect(text).not.toMatch(/\btitle\b/);
+    expect(text).toMatch(/crm_research_reviews/);
+    expect(text).toMatch(/crm_research_report_versions/);
+    expect(text).toMatch(/approved_client_facing/);
+    expect(params).toEqual([42]);
+  });
 });

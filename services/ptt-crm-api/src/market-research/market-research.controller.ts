@@ -261,6 +261,13 @@ export class MarketResearchController {
     return this.research.createProject(scope, body ?? ({} as CreateProjectInput), actorEmail(req));
   }
 
+  @Get('projects/:id/governance/iso-gap')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async getIsoGapCheck(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.getIsoGapCheck(id, scope);
+  }
+
   @Get('projects/:id')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
   async getProject(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {

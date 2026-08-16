@@ -146,6 +146,7 @@ import type {
   ResearchVwSummaryRow,
   CjWhatIfResult,
   CjChoice,
+  IsoGapCheckPayload,
 } from './market-research.types';
 import {
   CODEBOOK_LIMITATION,
@@ -173,6 +174,7 @@ import {
 } from './survey-codebook.util';
 import { choicesFromCjEvidence, computeConjointLite } from './conjoint-lite.util';
 import { simulateConjointWhatIf as computeConjointWhatIf } from './conjoint-whatif.util';
+import { buildIso20252GapCheck, summarizeIsoGapItems } from './iso20252-gap.util';
 import { computeVanWestendorp, respondentsFromVwEvidence } from './van-westendorp.util';
 import {
   embedInsightText,
@@ -553,6 +555,46 @@ export class MarketResearchService implements OnModuleInit {
   async getProject(id: number, scope: ClientScopeContext): Promise<ResearchProjectDetail> {
     const project = await this.loadScopedProject(id, scope);
     return this.toDetail(project);
+  }
+
+  async getIsoGapCheck(projectId: number, scope: ClientScopeContext): Promise<IsoGapCheckPayload> {
+    const project = await this.loadScopedProject(projectId, scope);
+    const facts = await this.repo.getIsoGapFacts(projectId);
+    if (!facts) throw new NotFoundException({ error: 'not_found' });
+    const items = buildIso20252GapCheck({
+      project: {
+        decision_statement: facts.decision_statement,
+        product_type: facts.product_type,
+        dv12_tier: facts.dv12_tier,
+        geo: facts.geo,
+      },
+      rq_count: facts.rq_count,
+      source_count: facts.source_count,
+      verified_evidence_count: facts.verified_evidence_count,
+      study_count: facts.study_count,
+      ai_run_count: facts.ai_run_count,
+      insight_counts: {
+        draft: facts.draft_count,
+        published: facts.published_count,
+        approved_client_facing: facts.acf_count,
+      },
+      acf_with_verified_evidence: facts.acf_with_verified_evidence,
+      review_count: facts.review_count,
+      latest_report:
+        facts.report_version_count > 0
+          ? {
+              methodology: facts.latest_report_methodology ?? undefined,
+              findings_count: facts.latest_report_findings_count,
+            }
+          : null,
+    });
+    return {
+      ok: true,
+      project_id: project.id,
+      product_type: project.product_type,
+      items,
+      summary: summarizeIsoGapItems(items),
+    };
   }
 
   async patchProject(

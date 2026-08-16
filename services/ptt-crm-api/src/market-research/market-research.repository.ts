@@ -42,6 +42,7 @@ import type {
   CreateTaxonomyInput,
   PatchTaxonomyInput,
   OpsAnalyticsRaw,
+  IsoGapFactsRow,
   ThemeQuarterRow,
   ThemeQuarterCountRow,
   PatchCompetitorInput,
@@ -2485,5 +2486,79 @@ export class MarketResearchRepository implements OnModuleDestroy {
     } catch {
       return false;
     }
+  }
+
+  async getIsoGapFacts(projectId: number): Promise<IsoGapFactsRow | null> {
+    const result = await this.db.query(
+      `SELECT p.decision_statement,
+              p.product_type,
+              p.dv12_tier,
+              p.geo,
+              (SELECT COUNT(*)::int FROM crm_research_questions q WHERE q.project_id = p.id) AS rq_count,
+              (SELECT COUNT(*)::int FROM crm_research_sources s WHERE s.project_id = p.id) AS source_count,
+              (SELECT COUNT(*)::int FROM crm_research_evidence e
+                WHERE e.project_id = p.id AND e.qc_status = 'verified') AS verified_evidence_count,
+              (SELECT COUNT(*)::int FROM crm_research_studies st WHERE st.project_id = p.id) AS study_count,
+              (SELECT COUNT(*)::int FROM crm_research_ai_runs ar WHERE ar.project_id = p.id) AS ai_run_count,
+              (SELECT COUNT(*)::int FROM crm_research_reviews rv WHERE rv.project_id = p.id) AS review_count,
+              (SELECT COUNT(*)::int FROM crm_research_insights i
+                WHERE i.project_id = p.id AND i.status = 'draft') AS draft_count,
+              (SELECT COUNT(*)::int FROM crm_research_insights i
+                WHERE i.project_id = p.id AND i.status = 'published') AS published_count,
+              (SELECT COUNT(*)::int FROM crm_research_insights i
+                WHERE i.project_id = p.id AND i.status = 'approved_client_facing') AS acf_count,
+              (SELECT COUNT(DISTINCT i.id)::int
+                 FROM crm_research_insights i
+                 JOIN crm_research_insight_evidence ie ON ie.insight_id = i.id
+                 JOIN crm_research_evidence e ON e.id = ie.evidence_id
+                WHERE i.project_id = p.id
+                  AND i.status = 'approved_client_facing'
+                  AND e.qc_status = 'verified') AS acf_with_verified_evidence,
+              (
+                SELECT v.content_snapshot
+                  FROM crm_research_report_versions v
+                  JOIN crm_research_reports r ON r.id = v.report_id
+                 WHERE r.project_id = p.id
+                 ORDER BY v.id DESC
+                 LIMIT 1
+              ) AS latest_report_snapshot,
+              (SELECT COUNT(*)::int
+                 FROM crm_research_report_versions v
+                 JOIN crm_research_reports r ON r.id = v.report_id
+                WHERE r.project_id = p.id) AS report_version_count
+         FROM crm_research_projects p
+        WHERE p.id = $1`,
+      [projectId],
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    if (!row) return null;
+
+    const snapshot = parseJsonCol<Record<string, unknown>>(row.latest_report_snapshot, {});
+    const methodologyRaw = snapshot.methodology;
+    const methodology =
+      methodologyRaw && typeof methodologyRaw === 'object'
+        ? (methodologyRaw as Record<string, unknown>)
+        : null;
+    const findings = Array.isArray(snapshot.findings) ? snapshot.findings : [];
+
+    return {
+      decision_statement: String(row.decision_statement ?? ''),
+      product_type: String(row.product_type ?? ''),
+      dv12_tier: String(row.dv12_tier ?? 'CB'),
+      geo: row.geo,
+      rq_count: Number(row.rq_count ?? 0),
+      source_count: Number(row.source_count ?? 0),
+      verified_evidence_count: Number(row.verified_evidence_count ?? 0),
+      study_count: Number(row.study_count ?? 0),
+      ai_run_count: Number(row.ai_run_count ?? 0),
+      review_count: Number(row.review_count ?? 0),
+      draft_count: Number(row.draft_count ?? 0),
+      published_count: Number(row.published_count ?? 0),
+      acf_count: Number(row.acf_count ?? 0),
+      acf_with_verified_evidence: Number(row.acf_with_verified_evidence ?? 0),
+      report_version_count: Number(row.report_version_count ?? 0),
+      latest_report_methodology: methodology,
+      latest_report_findings_count: findings.length,
+    };
   }
 }

@@ -933,9 +933,21 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
-## P37+ (backlog — persist what-if / ISO 20252 gap-check)
+## Walkthrough UAT P37 — ISO 20252 gap-check (≈8 phút)
 
+**Mục tiêu:** *«Lead mở project → thấy checklist ISO gap; không claim certified; prod flags không đổi.»*
 
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | Lead | Mở project mới (intake) | Nhiều `fail` ở execution/reporting |
+| 2 | AN | Thêm source + verified evidence + insight ACF | Execution/supervision cải thiện |
+| 3 | Lead | Report TC + methodology stub | `methodology_not_stub` = partial/fail |
+| 4 | QA | JSON response | Không «certified»; không leak client title |
+| 5 | QA | Prod deploy P37 | RAG/Talkwalker flags không đổi |
+
+- [ ] Bước 1–5 pass staging
+
+## P38+ (backlog — persist conjoint what-if)
 
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 
