@@ -1048,6 +1048,7 @@ export type SearchInsightsInput = {
   theme_code?: string;
   client_id?: string;
   limit?: string | number;
+  stale_only?: string | boolean;
 };
 
 export type TaxonomyTheme = {

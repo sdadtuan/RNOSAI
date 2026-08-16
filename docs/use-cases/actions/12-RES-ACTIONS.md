@@ -813,7 +813,25 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–7 pass staging
 
-## P30+ (backlog — IVFFlat / bake valid_to snapshot)
+## Walkthrough UAT P30 — Staff RAG «Chỉ hết hạn» (≈8 phút)
+
+**Mục tiêu:** *«Staff RAG mặc định chỉ fresh; checkbox → chỉ stale; portal/copilot không regress.»*
+
+**Tiền đề:** staging `RESEARCH_RAG_ENABLED=1` · corpus có insight stale + fresh cùng client
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | AN | Staff RAG search mặc định | Chỉ hit fresh |
+| 2 | AN | Bật «Chỉ hết hạn» | Chỉ hit stale + banner P22 |
+| 3 | AN | Query không khớp stale | Copy «Không có insight hết hạn…» |
+| 4 | AN | Tab Insight «Chỉ hết hạn» (P18) | Không đổi |
+| 5 | CL | Portal RAG `stale_only` (P25) | Không regress |
+| 6 | QA | Copilot draft | `rag_hits` không chứa stale |
+| 7 | QA | Prod deploy P30 | RAG/pgvector flags không đổi |
+
+- [ ] Bước 1–7 pass staging
+
+## P31+ (backlog — IVFFlat / bake valid_to snapshot)
 
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 

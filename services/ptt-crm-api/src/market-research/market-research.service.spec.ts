@@ -2812,6 +2812,78 @@ describe('MarketResearchService', () => {
     expect(out.hits.every((h) => !h.is_stale)).toBe(true);
   });
 
+  it('P30 searchInsights stale_only returns only stale hits', async () => {
+    config.researchRagEnabled = true;
+    const statement = 'Giá sữa học đường tăng tại Hà Nội';
+    const vec = embedInsightText(statement);
+    repo.listEmbeddings.mockResolvedValue([
+      {
+        insight_id: 20,
+        project_id: 9,
+        status: 'published',
+        statement,
+        observation: null,
+        embedding: vec,
+        theme_codes: [],
+        client_id: 'acme',
+        valid_to: '2020-01-01',
+      },
+      {
+        insight_id: 21,
+        project_id: 9,
+        status: 'published',
+        statement: 'Giá ổn định',
+        observation: null,
+        embedding: vec,
+        theme_codes: [],
+        client_id: 'acme',
+        valid_to: null,
+      },
+    ]);
+    const out = await service.searchInsights(
+      { restricted: false, allowedClientIds: [] },
+      { q: statement, stale_only: '1' },
+    );
+    expect(out.hits.map((h) => h.insight_id)).toEqual([20]);
+    expect(out.hits.every((h) => h.is_stale)).toBe(true);
+  });
+
+  it('P30 searchInsights default still excludes stale (P27)', async () => {
+    config.researchRagEnabled = true;
+    const statement = 'Giá sữa học đường tăng tại Hà Nội';
+    const vec = embedInsightText(statement);
+    repo.listEmbeddings.mockResolvedValue([
+      {
+        insight_id: 20,
+        project_id: 9,
+        status: 'published',
+        statement,
+        observation: null,
+        embedding: vec,
+        theme_codes: [],
+        client_id: 'acme',
+        valid_to: '2020-01-01',
+      },
+      {
+        insight_id: 21,
+        project_id: 9,
+        status: 'published',
+        statement: 'Giá ổn định',
+        observation: null,
+        embedding: vec,
+        theme_codes: [],
+        client_id: 'acme',
+        valid_to: null,
+      },
+    ]);
+    const out = await service.searchInsights(
+      { restricted: false, allowedClientIds: [] },
+      { q: statement },
+    );
+    expect(out.hits.every((h) => !h.is_stale)).toBe(true);
+    expect(out.hits.map((h) => h.insight_id)).toEqual([21]);
+  });
+
   it('P27 insightCopilot excludes stale rag hits when flag on', async () => {
     config.researchRagEnabled = true;
     stubInsightCopilotSuccess();

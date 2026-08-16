@@ -174,6 +174,7 @@ import {
   embedInsightText,
   insightEmbedText,
   isRagCorpusStatus,
+  parseRagStaleOnlyFlag,
   rankRagHits,
   shouldSkipRagEmbed,
 } from './research-rag.util';
@@ -1896,7 +1897,15 @@ export class MarketResearchService implements OnModuleInit {
     )
       ? await this.repo.listEmbeddingsByVec(embeddingFilters, annVec, 50)
       : await this.repo.listEmbeddings(embeddingFilters);
-    return { hits: rankRagHits(q, rows, { theme_code: themeCode, limit, queryVec: annVec }) };
+    const staleOnly = parseRagStaleOnlyFlag(input.stale_only);
+    return {
+      hits: rankRagHits(q, rows, {
+        theme_code: themeCode,
+        limit,
+        queryVec: annVec,
+        stale_only: staleOnly,
+      }),
+    };
   }
 
   private reembedFilters(scope: ClientScopeContext, clientId?: string) {

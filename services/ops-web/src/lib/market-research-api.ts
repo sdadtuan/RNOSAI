@@ -961,13 +961,14 @@ export type ResearchRagSearchResult = {
 
 export async function searchResearchInsights(
   token: string,
-  params: { q: string; theme_code?: string; client_id?: string; limit?: number },
+  params: { q: string; theme_code?: string; client_id?: string; limit?: number; stale_only?: boolean },
 ): Promise<ResearchRagSearchResult> {
   const qs = new URLSearchParams();
   qs.set('q', params.q);
   if (params.theme_code) qs.set('theme_code', params.theme_code);
   if (params.client_id) qs.set('client_id', params.client_id);
   if (params.limit != null) qs.set('limit', String(params.limit));
+  if (params.stale_only) qs.set('stale_only', '1');
   return researchFetch(token, `/api/v1/research/insights/search?${qs.toString()}`);
 }
 

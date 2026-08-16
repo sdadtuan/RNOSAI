@@ -121,6 +121,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-088 | RAG default excludes stale hits | P27 | P27 | Spec ready | FR-INS-07 · UC-079 · UC-086 |
 | RES-UC-090 | pgvector ANN staging gate (flag ∧ ready) | P28 | P28 | Spec ready | FR-INT · NFR-AI-04 · UC-081 · UC-087 |
 | RES-UC-089 | PDF export stale footer (staff + portal) | P29 | P29 | Spec ready | FR-INS-07 · UC-079 · UC-085 |
+| RES-UC-091 | Staff RAG filter «Chỉ hết hạn» | P30 | P30 | Spec ready | FR-INS-07 · UC-086 · UC-088 |
 
 ---
 
@@ -871,6 +872,16 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Staff lookup:** `listInsightValidToForProject(project_id, insight_ids)`; **Portal lookup:** `listPublishedInsightValidTo` (P24)
 - **Copy:** `REPORT_PDF_STALE_FOOTER_STAFF` / `REPORT_PDF_STALE_FOOTER_PORTAL` — rút gọn từ banner P18/P19
 - **Cấm** endpoint mới; không DDL; không mutate `content_snapshot`; không footer DOCX; không ops-web/portal-web UI
+
+### RES-UC-091 — Staff RAG filter «Chỉ hết hạn»
+
+- **Actor chính:** AM, Analyst, Lead (`crm_research.view`)
+- **API:** `GET /api/v1/research/insights/search?q=` — query `stale_only=1` chỉ trả hit `is_stale=true` (cùng `rankRagHits` P25/P27)
+- **Rule:** giống RES-UC-079 (UTC calendar); mặc định vẫn exclude stale (UC-088)
+- **Màn hình:** `/crm/research/analytics` + project Insights RAG — checkbox «Chỉ hết hạn» (`data-testid=staff-rag-stale-only`)
+- `stale_only` off → chỉ hit còn hiệu lực
+- `stale_only` on → chỉ hit hết hạn + banner P22; 0 hit → «Không có insight hết hạn khớp tìm kiếm.»
+- **Cấm** endpoint mới; không DDL; không portal; không copilot `stale_only`; không `include_stale`
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

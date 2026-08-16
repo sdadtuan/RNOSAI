@@ -131,7 +131,7 @@ export class MarketResearchController {
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
   async searchInsights(
     @Req() req: StaffReq,
-    @Query() query: { q?: string; theme_code?: string; client_id?: string; limit?: string },
+    @Query() query: { q?: string; theme_code?: string; client_id?: string; limit?: string; stale_only?: string },
   ) {
     const scope = await resolveStaffClientScope(req, this.clientScope);
     return this.research.searchInsights(scope, query);

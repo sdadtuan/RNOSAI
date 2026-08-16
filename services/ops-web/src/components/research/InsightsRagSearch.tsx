@@ -32,6 +32,7 @@ export function InsightsRagSearch({
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [searching, setSearching] = useState(false);
+  const [staleOnly, setStaleOnly] = useState(false);
 
   useEffect(() => {
     if (!shouldShowRagSearch(ragEnabled, true)) return;
@@ -48,10 +49,9 @@ export function InsightsRagSearch({
 
   if (!shouldShowRagSearch(ragEnabled, true)) return null;
 
-  async function onSearch() {
+  async function runSearch(query: string, nextStaleOnly: boolean) {
     const token = getAccessToken();
     if (!token) return;
-    const query = q.trim();
     if (!query) {
       setHits([]);
       setNote('');
@@ -66,6 +66,7 @@ export function InsightsRagSearch({
         q: query,
         theme_code: themeCode || undefined,
         client_id: clientId,
+        stale_only: nextStaleOnly || undefined,
       });
       setHits(out.hits);
       if (out.note === 'rag_disabled') {
@@ -82,6 +83,10 @@ export function InsightsRagSearch({
     } finally {
       setSearching(false);
     }
+  }
+
+  async function onSearch() {
+    await runSearch(q.trim(), staleOnly);
   }
 
   return (
@@ -106,6 +111,29 @@ export function InsightsRagSearch({
           Tìm
         </button>
       </div>
+      <label
+        data-testid="staff-rag-stale-only"
+        style={{
+          display: 'flex',
+          gap: '0.35rem',
+          alignItems: 'center',
+          marginTop: '0.45rem',
+          fontSize: '0.85rem',
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={staleOnly}
+          disabled={searching}
+          onChange={(e) => {
+            const next = e.target.checked;
+            setStaleOnly(next);
+            const query = q.trim();
+            if (query) void runSearch(query, next);
+          }}
+        />
+        Chỉ hết hạn{staleOnly ? ` (${hits.length})` : ''}
+      </label>
       {themes.length > 0 ? (
         <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.45rem' }}>
           {themes.map((theme) => {
@@ -132,6 +160,11 @@ export function InsightsRagSearch({
       {note ? (
         <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.85rem' }}>
           {note}
+        </p>
+      ) : null}
+      {!searching && staleOnly && hits.length === 0 && q.trim() && !error ? (
+        <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.85rem' }}>
+          Không có insight hết hạn khớp tìm kiếm.
         </p>
       ) : null}
       {hits.length > 0 ? (

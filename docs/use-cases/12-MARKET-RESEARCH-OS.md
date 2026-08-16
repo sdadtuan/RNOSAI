@@ -589,6 +589,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P30 — RES-UC-091
+
+| UC | Tóm tắt |
+|----|---------|
+| 091 | Staff RAG `stale_only=1` + checkbox «Chỉ hết hạn» (clone portal P25). |
+
+**API:** cùng `GET /insights/search` — `parseRagStaleOnlyFlag` → `rankRagHits`  
+**Gates:** api + ops-web; không DDL; copilot vẫn exclude stale; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |
