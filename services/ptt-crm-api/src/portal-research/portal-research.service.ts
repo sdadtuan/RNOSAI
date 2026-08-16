@@ -27,6 +27,7 @@ import { fetchOpenAIEmbedding } from '../market-research/openai-embed.util';
 import { enrichThemeQuarterRows } from '../market-research/theme-quarter-delta.util';
 import {
   embedInsightText,
+  parseRagStaleOnlyFlag,
   rankRagHits,
   shouldSkipRagEmbed,
 } from '../market-research/research-rag.util';
@@ -116,6 +117,7 @@ export class PortalResearchService {
     const rawLimit = Number(input.limit);
     const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 20) : 10;
     const themeCode = String(input.theme_code ?? '').trim() || undefined;
+    const staleOnly = parseRagStaleOnlyFlag(input.stale_only);
     const resolved = await this.resolveQueryVec(q);
     if (!resolved.ok) {
       return { hits: [], note: resolved.note };
@@ -131,6 +133,7 @@ export class PortalResearchService {
         limit,
         queryVec: annVec,
         corpusStatuses: PORTAL_RAG_CORPUS_STATUSES,
+        stale_only: staleOnly,
       }),
     };
   }

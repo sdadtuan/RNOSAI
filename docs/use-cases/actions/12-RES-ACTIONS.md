@@ -727,7 +727,24 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
-## P24+ (backlog — pgvector prod / portal RAG «Chỉ hết hạn»)
+## Walkthrough UAT P25 — Portal RAG «Chỉ hết hạn» (≈8 phút)
+
+**Mục tiêu:** *«Khách portal tìm RAG → bật «Chỉ hết hạn» → chỉ thấy insight published hết hạn; tắt filter → thấy cả hit còn hiệu lực + banner trên hit stale.»*
+
+**Tiền đề:** Staging `RESEARCH_RAG_ENABLED=1`; ≥1 insight published stale + ≥1 còn hiệu lực cùng client
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | CL | Mở `/research`, search keyword | Hit stale có banner P19; hit còn hiệu lực không banner |
+| 2 | CL | Bật **Chỉ hết hạn** | Chỉ hit stale; count khớp |
+| 3 | CL | Tắt filter | Hit còn hiệu lực hiện lại |
+| 4 | CL | Search keyword không có stale | Checkbox ẩn hoặc 0 stale |
+| 5 | QA | GET search `stale_only=1` | JSON chỉ `is_stale: true` |
+| 6 | QA | Prod sau deploy P25 | Filter portal; RAG/Talkwalker flags không đổi |
+
+- [ ] Bước 1–6 pass staging
+
+## P25+ (backlog — pgvector prod / hide stale from ranking)
 
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 

@@ -56,6 +56,7 @@ export function rankRagHits(
     minScore?: number;
     queryVec?: number[];
     corpusStatuses?: readonly string[];
+    stale_only?: boolean;
   },
 ): RagHit[] {
   const minScore = opts?.minScore ?? 0.12;
@@ -85,5 +86,12 @@ export function rankRagHits(
   }
 
   hits.sort((a, b) => b.score - a.score);
-  return hits.slice(0, limit);
+  const ranked = opts?.stale_only ? hits.filter((h) => h.is_stale) : hits;
+  return ranked.slice(0, limit);
+}
+
+export function parseRagStaleOnlyFlag(raw: unknown): boolean {
+  if (raw === true || raw === 1) return true;
+  const s = String(raw ?? '').trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'on';
 }

@@ -534,6 +534,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P25 — RES-UC-086
+
+| UC | Tóm tắt |
+|----|---------|
+| 086 | Portal RAG: checkbox «Chỉ hết hạn» + query `stale_only=1`. |
+
+**API:** cùng GET portal insights/search — `stale_only` lọc hit stale trước limit  
+**Gates:** api + portal-web; không DDL; không ops-web; không RAG/Talkwalker flags.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

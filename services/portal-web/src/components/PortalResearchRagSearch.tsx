@@ -26,6 +26,7 @@ export function PortalResearchRagSearch({
   const [q, setQ] = useState('');
   const [themeCode, setThemeCode] = useState('');
   const [hits, setHits] = useState<PortalResearchRagHit[]>([]);
+  const [staleOnly, setStaleOnly] = useState(false);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [searching, setSearching] = useState(false);
@@ -45,14 +46,9 @@ export function PortalResearchRagSearch({
     return null;
   }
 
-  async function onSearch() {
-    const query = q.trim();
-    if (!query) {
-      setHits([]);
-      setNote('');
-      setError(portalResearchErrorVi('rag_query_required'));
-      return;
-    }
+  const staleCount = hits.filter((hit) => ragHitIsStale(hit)).length;
+
+  async function runSearch(query: string, nextStaleOnly: boolean) {
     setSearching(true);
     setError('');
     setNote('');
@@ -60,6 +56,7 @@ export function PortalResearchRagSearch({
       const out = await portalResearchInsightSearch(token, {
         q: query,
         theme_code: themeCode || undefined,
+        stale_only: nextStaleOnly || undefined,
       });
       setHits(out.hits);
       if (out.note) {
@@ -71,6 +68,17 @@ export function PortalResearchRagSearch({
     } finally {
       setSearching(false);
     }
+  }
+
+  async function onSearch() {
+    const query = q.trim();
+    if (!query) {
+      setHits([]);
+      setNote('');
+      setError(portalResearchErrorVi('rag_query_required'));
+      return;
+    }
+    await runSearch(query, staleOnly);
   }
 
   return (
@@ -104,6 +112,30 @@ export function PortalResearchRagSearch({
           </button>
         </p>
       ) : null}
+      {hits.length > 0 && (staleCount > 0 || staleOnly) ? (
+        <label
+          style={{
+            display: 'inline-flex',
+            gap: 6,
+            alignItems: 'center',
+            marginTop: '0.65rem',
+            fontSize: '0.85rem',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={staleOnly}
+            disabled={searching}
+            onChange={(e) => {
+              const next = e.target.checked;
+              setStaleOnly(next);
+              const query = q.trim();
+              if (query) void runSearch(query, next);
+            }}
+          />
+          Chỉ hết hạn ({staleOnly ? hits.length : staleCount})
+        </label>
+      ) : null}
       {error ? (
         <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.85rem' }}>
           {error}
@@ -112,6 +144,11 @@ export function PortalResearchRagSearch({
       {note ? (
         <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.85rem' }}>
           {note}
+        </p>
+      ) : null}
+      {!searching && staleOnly && hits.length === 0 && q.trim() ? (
+        <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.85rem' }}>
+          Không có insight hết hạn khớp tìm kiếm.
         </p>
       ) : null}
       {hits.length > 0 ? (

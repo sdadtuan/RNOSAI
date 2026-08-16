@@ -982,6 +982,7 @@ export type PortalRagSearchInput = {
   theme_code?: string;
   limit?: string | number;
   client_id?: string;
+  stale_only?: string | boolean;
 };
 
 export type PortalThemeQuarterAnalyticsPayload = {

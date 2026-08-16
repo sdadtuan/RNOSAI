@@ -1327,11 +1327,12 @@ export type PortalResearchRagHit = {
 
 export async function portalResearchInsightSearch(
   token: string,
-  input: { q: string; theme_code?: string; limit?: number },
+  input: { q: string; theme_code?: string; limit?: number; stale_only?: boolean },
 ): Promise<{ hits: PortalResearchRagHit[]; note?: string }> {
   const qs = new URLSearchParams({ q: input.q });
   if (input.theme_code) qs.set('theme_code', input.theme_code);
   if (input.limit) qs.set('limit', String(input.limit));
+  if (input.stale_only) qs.set('stale_only', '1');
   const res = await fetch(`${API_BASE}/api/v1/portal/research/insights/search?${qs}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
