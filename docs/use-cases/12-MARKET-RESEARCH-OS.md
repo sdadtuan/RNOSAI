@@ -633,6 +633,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P34 — RES-UC-095
+
+| UC | Tóm tắt |
+|----|---------|
+| 095 | Staff what-if lite: đếm choice khớp gói giả định trên mẫu conjoint P21. |
+
+**API:** `POST /projects/:id/conjoint/what-if`  
+**Gates:** api + ops-web; không DDL; không portal; không persist; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

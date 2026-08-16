@@ -143,6 +143,8 @@ import type {
   SubmitReviewInput,
   ResearchCjSummaryRow,
   ResearchVwSummaryRow,
+  CjWhatIfResult,
+  CjChoice,
 } from './market-research.types';
 import {
   CODEBOOK_LIMITATION,
@@ -169,6 +171,7 @@ import {
   parseVwCsv,
 } from './survey-codebook.util';
 import { choicesFromCjEvidence, computeConjointLite } from './conjoint-lite.util';
+import { simulateConjointWhatIf as computeConjointWhatIf } from './conjoint-whatif.util';
 import { computeVanWestendorp, respondentsFromVwEvidence } from './van-westendorp.util';
 import {
   embedInsightText,
@@ -1043,24 +1046,10 @@ export class MarketResearchService implements OnModuleInit {
     }
   }
 
-  async getConjoint(
+  private async loadConjointChoices(
     projectId: number,
-    scope: ClientScopeContext,
-  ): Promise<{ summary: ResearchCjSummaryRow | null }> {
-    await this.loadScopedProject(projectId, scope);
-    const summary = await this.repo.getLatestCjSummary(projectId);
-    return { summary: summary ?? null };
-  }
-
-  async createConjoint(
-    projectId: number,
-    scope: ClientScopeContext,
     input: { study_id?: number | null },
-    actor: string,
-  ): Promise<ResearchCjSummaryRow> {
-    const project = await this.loadScopedProject(projectId, scope);
-    this.assertPriceOfferConjoint(project);
-
+  ): Promise<{ choices: CjChoice[]; studyId: number | null }> {
     let studyId: number | null = null;
     if (input.study_id != null && String(input.study_id).trim() !== '') {
       const id = Number(input.study_id);
@@ -1098,14 +1087,38 @@ export class MarketResearchService implements OnModuleInit {
     }
     rows = studyId != null ? rows.filter((row) => row.study_id === studyId) : [];
 
-    const choices = choicesFromCjEvidence(
-      rows.map((row) => ({
-        value_num: row.value_num,
-        value_base: String(row.value_base ?? ''),
-        locator: String(row.locator ?? ''),
-        unit: row.unit != null ? String(row.unit) : null,
-      })),
-    );
+    return {
+      studyId,
+      choices: choicesFromCjEvidence(
+        rows.map((row) => ({
+          value_num: row.value_num,
+          value_base: String(row.value_base ?? ''),
+          locator: String(row.locator ?? ''),
+          unit: row.unit != null ? String(row.unit) : null,
+        })),
+      ),
+    };
+  }
+
+  async getConjoint(
+    projectId: number,
+    scope: ClientScopeContext,
+  ): Promise<{ summary: ResearchCjSummaryRow | null }> {
+    await this.loadScopedProject(projectId, scope);
+    const summary = await this.repo.getLatestCjSummary(projectId);
+    return { summary: summary ?? null };
+  }
+
+  async createConjoint(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: { study_id?: number | null },
+    actor: string,
+  ): Promise<ResearchCjSummaryRow> {
+    const project = await this.loadScopedProject(projectId, scope);
+    this.assertPriceOfferConjoint(project);
+
+    const { choices, studyId } = await this.loadConjointChoices(projectId, input);
 
     let computed: ReturnType<typeof computeConjointLite>;
     try {
@@ -1133,6 +1146,30 @@ export class MarketResearchService implements OnModuleInit {
       },
       actor,
     );
+  }
+
+  async simulateConjointWhatIf(
+    projectId: number,
+    scope: ClientScopeContext,
+    input: { study_id?: number | null; scenario?: Record<string, string> },
+  ): Promise<CjWhatIfResult> {
+    const project = await this.loadScopedProject(projectId, scope);
+    this.assertPriceOfferConjoint(project);
+    const { choices } = await this.loadConjointChoices(projectId, input);
+    const scenario =
+      input.scenario && typeof input.scenario === 'object' && !Array.isArray(input.scenario)
+        ? input.scenario
+        : {};
+    try {
+      return computeConjointWhatIf(choices, scenario);
+    } catch (err) {
+      this.rethrowUtilCode(err, [
+        'cj_whatif_empty',
+        'cj_whatif_unknown_attribute',
+        'cj_whatif_no_choices',
+        'forbidden_confidence_wording',
+      ]);
+    }
   }
 
   async getVanWestendorp(

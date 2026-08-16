@@ -204,6 +204,9 @@ export const TRANSITION_REASON_VI: Record<string, string> = {
   cj_insufficient_choices: 'Cần ≥4 lựa chọn hợp lệ.',
   cj_too_many_attributes: 'Conjoint lite tối đa 3 thuộc tính.',
   cj_too_few_attributes: 'Conjoint lite cần ít nhất 2 thuộc tính.',
+  cj_whatif_empty: 'Chọn ít nhất một mức thuộc tính.',
+  cj_whatif_unknown_attribute: 'Thuộc tính không có trong mẫu conjoint.',
+  cj_whatif_no_choices: 'Chưa có lựa chọn conjoint để đếm khớp.',
   vw_insufficient_n: 'Cần ≥4 người trả lời hợp lệ để tính Van Westendorp.',
   rag_disabled: 'Tìm insight đã duyệt đang tắt.',
   rag_query_required: 'Nhập câu hỏi để tìm insight đã duyệt.',
@@ -603,6 +606,20 @@ export const CJ_LIMITATION =
 
 export type CreateConjointBody = {
   study_id?: number | null;
+};
+
+export type CjWhatIfResult = {
+  n_match: number;
+  n_choices: number;
+  match_pct: number;
+  scenario: Record<string, string>;
+  limitation_note: string;
+  statistical_inference: false;
+};
+
+export type SimulateConjointWhatIfBody = {
+  study_id?: number | null;
+  scenario: Record<string, string>;
 };
 
 export type CreateVanWestendorpBody = {
@@ -1553,6 +1570,17 @@ export async function createResearchConjoint(
   body: CreateConjointBody = {},
 ): Promise<ResearchCjSummaryRow> {
   return researchFetch(token, `/api/v1/research/projects/${projectId}/conjoint`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function simulateResearchConjointWhatIf(
+  token: string,
+  projectId: number,
+  body: SimulateConjointWhatIfBody,
+): Promise<CjWhatIfResult> {
+  return researchFetch(token, `/api/v1/research/projects/${projectId}/conjoint/what-if`, {
     method: 'POST',
     body: JSON.stringify(body),
   });

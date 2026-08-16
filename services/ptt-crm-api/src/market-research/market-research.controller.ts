@@ -658,6 +658,18 @@ export class MarketResearchController {
     return this.research.createConjoint(id, scope, body ?? {}, actorEmail(req));
   }
 
+  @Post('projects/:id/conjoint/what-if')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  async simulateConjointWhatIf(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { study_id?: number | null; scenario?: Record<string, string> },
+  ) {
+    const scope = await resolveStaffClientScope(req, this.clientScope);
+    return this.research.simulateConjointWhatIf(id, scope, body ?? {});
+  }
+
   @Get('projects/:id/decisions')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
   async listDecisions(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {

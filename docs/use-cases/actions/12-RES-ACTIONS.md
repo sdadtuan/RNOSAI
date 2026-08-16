@@ -882,7 +882,25 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
-## P34+ (backlog — IVFFlat / live Talkwalker)
+## Walkthrough UAT P34 — Conjoint what-if lite (≈8 phút)
+
+**Mục tiêu:** *«Analyst chọn gói giả định → Khớp mẫu n/N; F5 không persist; không insight mới; không MOE.»*
+
+**Tiền đề:** project `PRICE_OFFER` · đã import fixture conjoint · đã **Tính conjoint lite**
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | AN | Chọn 99k + 500ml, **Đếm khớp mẫu** | `Khớp mẫu: 2 / 8 (25%)` trên fixture |
+| 2 | AN | CAT_REVIEW POST what-if | 400 `cj_not_price_offer` |
+| 3 | AN | Scenario rỗng | 400 `cj_whatif_empty` |
+| 4 | AN | F5 tab Conjoint | Không hàng what-if mới |
+| 5 | QA | Insights | Không insight mới |
+| 6 | QA | Prod deploy P34 | RAG/pgvector/Talkwalker flags không đổi |
+
+- [ ] Bước 1–6 pass staging
+
+## P35+ (backlog — IVFFlat / live Talkwalker)
+
 
 
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)

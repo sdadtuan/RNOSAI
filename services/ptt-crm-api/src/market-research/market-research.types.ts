@@ -506,6 +506,18 @@ export type ResearchCjSummaryRow = CjSummary & {
 export const CJ_LIMITATION =
   'Conjoint lite trên mẫu convenience — đếm mức được chọn theo thuộc tính, không mô hình hoá tương tác. Không market simulator. Không ghi MOE / 95% confidence.';
 
+export type CjWhatIfResult = {
+  n_match: number;
+  n_choices: number;
+  match_pct: number;
+  scenario: Record<string, string>;
+  limitation_note: string;
+  statistical_inference: false;
+};
+
+export const CJ_WHATIF_LIMITATION =
+  'What-if conjoint lite — đếm lựa chọn trong mẫu khớp gói giả định. Không mô hình hoá tương tác. Không market share. Không suy diễn thống kê.';
+
 export type SparkToroSourceCandidate = {
   url: string;
   title: string;

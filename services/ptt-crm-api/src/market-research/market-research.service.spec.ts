@@ -5315,6 +5315,60 @@ describe('MarketResearchService', () => {
     expect(repo.createInsight).not.toHaveBeenCalled();
   });
 
+  it('P34 what-if on CAT_REVIEW is 400 cj_not_price_offer', async () => {
+    stubScopedProject();
+
+    try {
+      await service.simulateConjointWhatIf(
+        9,
+        { restricted: true, allowedClientIds: ['acme'] },
+        { scenario: { price: '99k' } },
+      );
+      throw new Error('expected cj_not_price_offer');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getStatus()).toBe(400);
+      expect((err as BadRequestException).getResponse()).toEqual({ error: 'cj_not_price_offer' });
+    }
+    expect(repo.insertCjSummary).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
+  it('P34 what-if on PRICE_OFFER counts fixture matches without persist', async () => {
+    const priceOffer = { ...project, product_type: 'PRICE_OFFER' as const };
+    repo.getProjectClientId.mockResolvedValue('acme');
+    repo.getProject.mockResolvedValue(priceOffer);
+    clientScope.allowedClientIdsForList.mockReturnValue(['acme']);
+    repo.getStudy.mockResolvedValue({
+      id: 5,
+      project_id: 9,
+      name: 'CJ study',
+      method: 'survey',
+      n: 4,
+      field_start: null,
+      field_end: null,
+      mode: null,
+      instrument_version: null,
+      weighting_note: null,
+    });
+    repo.listEvidence.mockResolvedValue(cjEvidenceForStudy(5));
+
+    const out = await service.simulateConjointWhatIf(
+      9,
+      { restricted: true, allowedClientIds: ['acme'] },
+      { study_id: 5, scenario: { price: '99k', pack_size: '500ml' } },
+    );
+
+    expect(out).toMatchObject({
+      n_match: 2,
+      n_choices: 8,
+      match_pct: 25,
+      statistical_inference: false,
+    });
+    expect(repo.insertCjSummary).not.toHaveBeenCalled();
+    expect(repo.createInsight).not.toHaveBeenCalled();
+  });
+
   it('M3-2c: GET van-westendorp outside scope is 403 without name', async () => {
     repo.getProjectClientId.mockResolvedValue('other-client');
     clientScope.allowedClientIdsForList.mockReturnValue(['acme']);

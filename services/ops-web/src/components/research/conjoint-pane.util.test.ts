@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { formatSharePct, shouldShowConjointTab, CJ_TAB_BANNER } from './conjoint-pane.util';
+import {
+  formatSharePct,
+  formatWhatIfResult,
+  shouldShowConjointTab,
+  defaultWhatIfScenario,
+  CJ_TAB_BANNER,
+  CJ_WHATIF_BANNER,
+} from './conjoint-pane.util';
 
 describe('conjoint-pane.util', () => {
   it('keeps conjoint tab banner verbatim', () => {
@@ -17,5 +24,19 @@ describe('conjoint-pane.util', () => {
   it('formats share pct', () => {
     expect(formatSharePct(50)).toBe('50');
     expect(formatSharePct(37.5)).toBe('37.5');
+  });
+
+  it('P34 formats what-if result and defaults scenario from recommendation', () => {
+    expect(CJ_WHATIF_BANNER).toMatch(/What-if lite/);
+    expect(formatWhatIfResult(2, 8, 25)).toBe('Khớp mẫu: 2 / 8 (25%)');
+    expect(
+      defaultWhatIfScenario(
+        [
+          { name: 'price', levels: [{ label: '89k' }, { label: '99k' }], top_level: '99k' },
+          { name: 'pack_size', levels: [{ label: '500ml' }], top_level: '500ml' },
+        ],
+        { levels: [{ attribute: 'price', level: '89k' }] },
+      ),
+    ).toEqual({ price: '89k', pack_size: '500ml' });
   });
 });

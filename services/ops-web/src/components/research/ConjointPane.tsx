@@ -5,11 +5,19 @@ import { getAccessToken } from '@/lib/auth';
 import {
   createResearchConjoint,
   fetchResearchConjoint,
+  simulateResearchConjointWhatIf,
   ResearchApiError,
   TRANSITION_REASON_VI,
+  type CjWhatIfResult,
   type ResearchCjSummaryRow,
 } from '@/lib/market-research-api';
-import { CJ_TAB_BANNER, formatSharePct } from '@/components/research/conjoint-pane.util';
+import {
+  CJ_TAB_BANNER,
+  CJ_WHATIF_BANNER,
+  defaultWhatIfScenario,
+  formatSharePct,
+  formatWhatIfResult,
+} from '@/components/research/conjoint-pane.util';
 
 export function ConjointPane({
   projectId,
@@ -21,12 +29,18 @@ export function ConjointPane({
   const [summary, setSummary] = useState<ResearchCjSummaryRow | null>(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [scenario, setScenario] = useState<Record<string, string>>({});
+  const [whatIf, setWhatIf] = useState<CjWhatIfResult | null>(null);
+  const [whatIfBusy, setWhatIfBusy] = useState(false);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
     if (!token) return;
     const out = await fetchResearchConjoint(token, projectId);
     setSummary(out.summary);
+    if (out.summary) {
+      setScenario(defaultWhatIfScenario(out.summary.attributes, out.summary.recommendation));
+    }
   }, [projectId]);
 
   useEffect(() => {
@@ -52,6 +66,26 @@ export function ConjointPane({
       }
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onWhatIf() {
+    const token = getAccessToken();
+    if (!token) return;
+    setWhatIfBusy(true);
+    setError('');
+    try {
+      const out = await simulateResearchConjointWhatIf(token, projectId, { scenario });
+      setWhatIf(out);
+    } catch (err) {
+      const api = err instanceof ResearchApiError ? err : null;
+      if (api?.code && TRANSITION_REASON_VI[api.code]) {
+        setError(TRANSITION_REASON_VI[api.code]);
+      } else {
+        setError(err instanceof Error ? err.message : 'Đếm khớp mẫu thất bại');
+      }
+    } finally {
+      setWhatIfBusy(false);
     }
   }
 
@@ -113,6 +147,46 @@ export function ConjointPane({
             <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
               {summary.limitation_note}
             </p>
+          ) : null}
+          {summary.attributes.length ? (
+            <form
+              data-testid="cj-whatif-form"
+              style={{ display: 'grid', gap: '0.45rem' }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                void onWhatIf();
+              }}
+            >
+              <h3 style={{ margin: '0.5rem 0 0', fontSize: '0.9rem' }}>What-if lite</h3>
+              <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+                {CJ_WHATIF_BANNER}
+              </p>
+              {summary.attributes.map((attr) => (
+                <label key={attr.name} style={{ display: 'grid', gap: 4, fontSize: '0.85rem' }}>
+                  {attr.name}
+                  <select
+                    value={scenario[attr.name] ?? ''}
+                    onChange={(e) =>
+                      setScenario((prev) => ({ ...prev, [attr.name]: e.target.value }))
+                    }
+                  >
+                    {attr.levels.map((level) => (
+                      <option key={level.label} value={level.label}>
+                        {level.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+              <button type="submit" className="btn btn-sm" disabled={whatIfBusy} data-testid="cj-whatif-run">
+                Đếm khớp mẫu
+              </button>
+              {whatIf ? (
+                <p className="muted" data-testid="cj-whatif-result" style={{ margin: 0, fontSize: '0.85rem' }}>
+                  {formatWhatIfResult(whatIf.n_match, whatIf.n_choices, whatIf.match_pct)}
+                </p>
+              ) : null}
+            </form>
           ) : null}
         </>
       )}

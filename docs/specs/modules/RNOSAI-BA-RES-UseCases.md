@@ -125,6 +125,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-092 | Staff DOCX export stale footer | P31 | P31 | Spec ready | FR-INS-07 · UC-089 |
 | RES-UC-093 | Bake published_valid_to at portal publish | P32 | P32 | Spec ready | FR-INS-07 · UC-085 · UC-089 |
 | RES-UC-094 | Portal + staff show published_valid_to | P33 | P33 | Spec ready | FR-INS-07 · UC-093 |
+| RES-UC-095 | Conjoint what-if lite (staff) | P34 | P34 | Spec ready | BR-RES-03 · UC-082 |
 
 ---
 
@@ -908,6 +909,14 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **UI:** note `Hiệu lực lúc gửi: YYYY-MM-DD` trên finding/rec khi snapshot có ngày bake
 - **Rule:** thiếu / null / không phải ngày → không render; `is_stale` / `valid_to` **live** (P24); PDF/DOCX footer **không** dùng bake
 - **Cấm** endpoint mới; không DDL; không đổi `publishPortal` / annotate; không IVFFlat / Talkwalker flags
+
+### RES-UC-095 — Conjoint what-if lite (staff)
+
+- **Actor chính:** Analyst / Lead (`crm_research.view`)
+- **API:** `POST /api/v1/research/projects/:id/conjoint/what-if` body `{ study_id?, scenario }`
+- **Rule:** chỉ `PRICE_OFFER`; đếm AND `n_match / n_choices` trên evidence `C-`; `statistical_inference: false`
+- **Màn hình:** tab Conjoint — form what-if + `Khớp mẫu: n / N (p%)`
+- **Cấm** persist; **cấm** `createInsight`; **cấm** MOE / logit / portal; không DDL; flags prod không đổi
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 
