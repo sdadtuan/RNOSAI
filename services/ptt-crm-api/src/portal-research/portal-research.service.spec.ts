@@ -403,11 +403,41 @@ describe('PortalResearchService', () => {
       ]);
       const service = makeService();
       const out = await service.searchInsights(acmeUser, { q: statement });
-      expect(out.hits[0]).toMatchObject({
-        insight_id: 20,
-        valid_to: '2020-06-01',
-        is_stale: true,
-      });
+      expect(out.hits).toEqual([]);
+    });
+
+    it('P27 searchInsights default excludes stale published hits', async () => {
+      config.researchRagEnabled = true;
+      const statement = 'Giá sữa học đường tăng tại Hà Nội';
+      const vec = embedInsightText(statement);
+      repo.listPublishedEmbeddings.mockResolvedValue([
+        {
+          insight_id: 20,
+          project_id: 9,
+          status: 'published',
+          statement,
+          observation: null,
+          embedding: vec,
+          theme_codes: [],
+          client_id: ACME,
+          valid_to: '2020-06-01',
+        },
+        {
+          insight_id: 21,
+          project_id: 9,
+          status: 'published',
+          statement: 'Giá ổn định',
+          observation: null,
+          embedding: vec,
+          theme_codes: [],
+          client_id: ACME,
+          valid_to: null,
+        },
+      ]);
+      const service = makeService();
+      const out = await service.searchInsights(acmeUser, { q: statement });
+      expect(out.hits.map((h) => h.insight_id)).toEqual([21]);
+      expect(out.hits.every((h) => !h.is_stale)).toBe(true);
     });
 
     it('P25 searchInsights stale_only returns only stale published hits', async () => {

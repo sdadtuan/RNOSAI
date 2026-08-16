@@ -761,7 +761,24 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
-## P27+ (backlog — hide stale from ranking / PDF stale footer)
+## Walkthrough UAT P27 — RAG default excludes stale (≈8 phút)
+
+**Mục tiêu:** *«RAG mặc định không trả insight hết hạn; portal «Chỉ hết hạn» vẫn hoạt động.»*
+
+**Tiền đề:** staging `RESEARCH_RAG_ENABLED=1`; corpus có insight fresh + stale (published/ACF)
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | AN | Staff RAG search keyword khớp stale + fresh | Chỉ hit fresh |
+| 2 | AN | Insight copilot (flag on) | `rag_hits` không có insight stale |
+| 3 | CL | Portal `/research` search mặc định | Không hit stale |
+| 4 | CL | Bật «Chỉ hết hạn» | Chỉ hit stale (P25 regression) |
+| 5 | QA | GET search không `stale_only` | JSON không có `is_stale: true` |
+| 6 | QA | Prod sau deploy P27 | RAG/Talkwalker/pgvector flags không đổi |
+
+- [ ] Bước 1–6 pass staging
+
+## P28+ (backlog — PDF stale footer / pgvector ANN staging)
 
 ## Walkthrough UAT P15 — Portal theme quarter analytics (≈8 phút)
 

@@ -96,7 +96,7 @@ describe('rankRagHits theme filter', () => {
 });
 
 describe('rankRagHits dim mismatch', () => {
-  it('P19 rankRagHits sets is_stale from valid_to', () => {
+  it('P19 rankRagHits sets is_stale from valid_to on fresh hits', () => {
     const statement = 'Giá tăng';
     const vec = embedInsightText(statement);
     const hits = rankRagHits(
@@ -125,14 +125,67 @@ describe('rankRagHits dim mismatch', () => {
       ],
       { minScore: 0 },
     );
-    expect(hits.find((h) => h.insight_id === 1)).toMatchObject({
-      valid_to: '2020-01-01',
-      is_stale: true,
-    });
-    expect(hits.find((h) => h.insight_id === 2)).toMatchObject({
+    expect(hits.map((h) => h.insight_id)).toEqual([2]);
+    expect(hits[0]).toMatchObject({
       valid_to: null,
       is_stale: false,
     });
+  });
+
+  it('P27 rankRagHits default excludes stale even when higher score', () => {
+    const staleStatement = 'Giá sữa học đường tăng tại Hà Nội';
+    const freshStatement = 'Ổn định';
+    const staleVec = embedInsightText(staleStatement);
+    const hits = rankRagHits(
+      staleStatement,
+      [
+        {
+          insight_id: 1,
+          project_id: 9,
+          status: 'published',
+          statement: staleStatement,
+          observation: null,
+          embedding: staleVec,
+          theme_codes: [],
+          valid_to: '2020-01-01',
+        },
+        {
+          insight_id: 2,
+          project_id: 9,
+          status: 'published',
+          statement: freshStatement,
+          observation: null,
+          embedding: embedInsightText(freshStatement),
+          theme_codes: [],
+          valid_to: null,
+        },
+      ],
+      { minScore: 0, limit: 10 },
+    );
+    expect(hits.map((h) => h.insight_id)).toEqual([2]);
+    expect(hits.every((h) => !h.is_stale)).toBe(true);
+  });
+
+  it('P27 rankRagHits default returns empty when corpus is all stale', () => {
+    const statement = 'Giá tăng';
+    const vec = embedInsightText(statement);
+    const hits = rankRagHits(
+      statement,
+      [
+        {
+          insight_id: 1,
+          project_id: 9,
+          status: 'published',
+          statement,
+          observation: null,
+          embedding: vec,
+          theme_codes: [],
+          valid_to: '2020-01-01',
+        },
+      ],
+      { minScore: 0 },
+    );
+    expect(hits).toEqual([]);
   });
 
   it('P25 rankRagHits stale_only returns only stale hits up to limit', () => {

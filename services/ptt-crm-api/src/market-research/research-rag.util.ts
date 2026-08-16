@@ -86,8 +86,8 @@ export function rankRagHits(
   }
 
   hits.sort((a, b) => b.score - a.score);
-  const ranked = opts?.stale_only ? hits.filter((h) => h.is_stale) : hits;
-  return ranked.slice(0, limit);
+  const pool = opts?.stale_only ? hits.filter((h) => h.is_stale) : hits.filter((h) => !h.is_stale);
+  return pool.slice(0, limit);
 }
 
 export function parseRagStaleOnlyFlag(raw: unknown): boolean {

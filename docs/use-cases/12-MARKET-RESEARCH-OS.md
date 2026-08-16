@@ -556,6 +556,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P27 — RES-UC-088
+
+| UC | Tóm tắt |
+|----|---------|
+| 088 | RAG mặc định loại insight hết hạn (staff + portal + copilot). |
+
+**API:** cùng search/copilot — `rankRagHits` filter `!is_stale` khi không có `stale_only`  
+**Gates:** api-only; không DDL; không ops-web/portal-web UI; portal `stale_only=1` (P25) giữ nguyên.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

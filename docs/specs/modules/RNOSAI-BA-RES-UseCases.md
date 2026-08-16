@@ -118,6 +118,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-085 | Portal report-detail stale banner | P24 | P24 | Spec ready | FR-INS-07 · UC-080 |
 | RES-UC-086 | Portal RAG filter «Chỉ hết hạn» | P25 | P25 | Spec ready | FR-INS-07 · UC-079 · UC-080 |
 | RES-UC-087 | pgvector prod readiness (VPS extension + health) | P26 | P26 | Spec ready | FR-INT · NFR-AI-04 · UC-081 |
+| RES-UC-088 | RAG default excludes stale hits | P27 | P27 | Spec ready | FR-INS-07 · UC-079 · UC-086 |
 
 ---
 
@@ -842,6 +843,14 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **API:** `GET /api/v1/research/health` và `GET /api/v1/portal/research/health` — thêm `rag_pgvector_ready` (DB probe lúc boot)
 - **Phân biệt:** `rag_pgvector_enabled` = env flag (vẫn `false` prod); `rag_pgvector_ready` = extension `vector` + cột `embedding_vec` tồn tại
 - **Cấm** bật `RESEARCH_RAG_PGVECTOR_ENABLED` / RAG / OpenAI embed trên prod deploy; **cấm** IVFFlat/HNSW; **cấm** ops-web/portal-web UI
+
+### RES-UC-088 — RAG default excludes stale hits
+
+- **Actor chính:** Analyst (staff RAG/copilot), Client portal (RAG)
+- **API:** cùng GET staff/portal insights/search + copilot inject — `rankRagHits` mặc định loại `is_stale=true` trước `limit`
+- **Rule:** giống RES-UC-079 (UTC calendar); opt-in stale qua portal `stale_only=1` (UC-086) hoặc staff tab Insight «Chỉ hết hạn» (UC-079)
+- **Copilot:** `rag_hits` không chứa insight stale
+- **Cấm** endpoint mới; không DDL; không đổi report-detail/PDF; không `include_stale` query mới trong P27
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 
