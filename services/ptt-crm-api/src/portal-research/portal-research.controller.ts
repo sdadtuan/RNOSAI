@@ -30,6 +30,11 @@ export class PortalResearchController {
     return this.research.getThemeQuarterAnalytics(user, year);
   }
 
+  @Get('conjoint')
+  getConjoint(@PortalUser() user: PortalJwtPayload) {
+    return this.research.getConjoint(user);
+  }
+
   @Get('reports')
   list(@PortalUser() user: PortalJwtPayload) {
     return this.research.listReports(user);

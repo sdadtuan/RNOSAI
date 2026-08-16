@@ -87,4 +87,39 @@ describe('PortalResearchRepository', () => {
     expect(out.size).toBe(0);
     expect(queryMock).not.toHaveBeenCalled();
   });
+
+  it('P35 getLatestCjSummaryForClient scopes PRICE_OFFER and jwt client_id without title or created_by', async () => {
+    queryMock.mockResolvedValue({
+      rows: [
+        {
+          n: 8,
+          n_choices: 8,
+          attributes: [{ name: 'price', levels: [{ label: '99k', count: 2, share_pct: 25 }], top_level: '99k' }],
+          recommendation: { levels: [{ attribute: 'price', level: '99k', share_pct: 25 }] },
+          limitation_note: 'note',
+          statistical_inference: false,
+        },
+      ],
+    });
+    const repo = repoWithMock();
+    const out = await repo.getLatestCjSummaryForClient('acme');
+    const sql = String(queryMock.mock.calls[0][0]);
+    expect(sql).toMatch(/crm_research_cj_summaries/);
+    expect(sql).toMatch(/p\.client_id = \$1/);
+    expect(sql).toMatch(/p\.product_type = 'PRICE_OFFER'/);
+    expect(sql).toMatch(/ORDER BY s\.id DESC/);
+    expect(sql).not.toMatch(/p\.title/);
+    expect(sql).not.toMatch(/created_by/);
+    expect(sql).not.toMatch(/ADD COLUMN/);
+    expect(queryMock.mock.calls[0][1]).toEqual(['acme']);
+    expect(out).toMatchObject({ n: 8, n_choices: 8, statistical_inference: false });
+    expect(out).not.toHaveProperty('created_by');
+    expect(out).not.toHaveProperty('title');
+  });
+
+  it('P35 getLatestCjSummaryForClient returns null when empty', async () => {
+    const repo = repoWithMock();
+    const out = await repo.getLatestCjSummaryForClient('acme');
+    expect(out).toBeNull();
+  });
 });

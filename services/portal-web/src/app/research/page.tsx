@@ -3,12 +3,15 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { HubPageLayout } from '@/components/layout';
+import { PortalConjointLite } from '@/components/PortalConjointLite';
 import { PortalPageShell } from '@/components/PortalPageShell';
 import { PortalResearchRagSearch } from '@/components/PortalResearchRagSearch';
 import { PortalThemeQuarterTable } from '@/components/PortalThemeQuarterTable';
 import {
+  portalResearchConjoint,
   portalResearchReports,
   portalResearchThemeQuarterAnalytics,
+  type PortalCjSummary,
   type PortalResearchReportCard,
   type PortalThemeQuarterAnalyticsPayload,
 } from '@/lib/api';
@@ -31,6 +34,7 @@ export default function PortalResearchListPage() {
 function ResearchListContent({ token }: { token: string }) {
   const [items, setItems] = useState<PortalResearchReportCard[]>([]);
   const [themeData, setThemeData] = useState<PortalThemeQuarterAnalyticsPayload | null>(null);
+  const [conjoint, setConjoint] = useState<PortalCjSummary | null>(null);
   const [selectedThemeCode, setSelectedThemeCode] = useState('');
   const [year, setYear] = useState(() => new Date().getUTCFullYear());
   const [error, setError] = useState('');
@@ -50,12 +54,14 @@ function ResearchListContent({ token }: { token: string }) {
       setLoading(true);
       setError('');
       try {
-        const [reports, themes] = await Promise.all([
+        const [reports, themes, cj] = await Promise.all([
           portalResearchReports(token),
           portalResearchThemeQuarterAnalytics(token, { year }),
+          portalResearchConjoint(token),
         ]);
         setItems(reports.items ?? []);
         setThemeData(themes);
+        setConjoint(cj.summary ?? null);
       } catch (err) {
         setError(portalResearchErrorVi(err instanceof Error ? err.message : ''));
       } finally {
@@ -105,6 +111,7 @@ function ResearchListContent({ token }: { token: string }) {
           />
         ) : null}
       </section>
+      {conjoint ? <PortalConjointLite summary={conjoint} /> : null}
       <PortalResearchRagSearch token={token} prefillThemeCode={selectedThemeCode || undefined} />
       {error ? <p className="error">{error}</p> : null}
       {loading ? (

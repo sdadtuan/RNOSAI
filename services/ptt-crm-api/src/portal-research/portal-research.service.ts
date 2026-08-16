@@ -40,7 +40,7 @@ import {
 import { PortalJwtPayload } from '../portal/portal-jwt.util';
 import { annotatePortalReportRow, collectReportInsightIds } from './portal-report-stale.util';
 import { PortalResearchRepository } from './portal-research.repository';
-import type { PortalResearchVersionRecord } from './portal-research.types';
+import type { PortalCjSummary, PortalResearchVersionRecord } from './portal-research.types';
 
 function mapReadableError(err: unknown): never {
   const code = (err as Error & { code?: string }).code;
@@ -200,6 +200,21 @@ export class PortalResearchService implements OnModuleInit {
       items.push(toCard(row, watermark));
     }
     return { items };
+  }
+
+  async getConjoint(user: PortalJwtPayload): Promise<{ summary: PortalCjSummary | null }> {
+    const row = await this.repo.getLatestCjSummaryForClient(user.client_id);
+    if (!row) return { summary: null };
+    return {
+      summary: {
+        n: row.n,
+        n_choices: row.n_choices,
+        attributes: row.attributes,
+        recommendation: row.recommendation,
+        limitation_note: row.limitation_note,
+        statistical_inference: false,
+      },
+    };
   }
 
   async getReport(user: PortalJwtPayload, versionId: number): Promise<PortalResearchReportDetail> {

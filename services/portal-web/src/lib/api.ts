@@ -1363,6 +1363,37 @@ export type PortalThemeQuarterAnalyticsPayload = {
   }>;
 };
 
+export type PortalCjSummary = {
+  n: number;
+  n_choices: number;
+  attributes: Array<{
+    name: string;
+    levels: Array<{ label: string; count: number; share_pct: number }>;
+    top_level: string | null;
+  }>;
+  recommendation: { levels: Array<{ attribute: string; level: string; share_pct: number }> };
+  limitation_note: string;
+  statistical_inference: false;
+};
+
+export async function portalResearchConjoint(
+  token: string,
+): Promise<{ summary: PortalCjSummary | null }> {
+  const res = await fetch(`${API_BASE}/api/v1/portal/research/conjoint`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<{
+    summary: PortalCjSummary | null;
+    error?: string;
+    message?: string;
+  }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'Conjoint lite failed', res.status);
+  }
+  return body;
+}
+
 export async function portalResearchThemeQuarterAnalytics(
   token: string,
   params?: { year?: number },

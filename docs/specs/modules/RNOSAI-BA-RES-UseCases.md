@@ -126,6 +126,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-093 | Bake published_valid_to at portal publish | P32 | P32 | Spec ready | FR-INS-07 · UC-085 · UC-089 |
 | RES-UC-094 | Portal + staff show published_valid_to | P33 | P33 | Spec ready | FR-INS-07 · UC-093 |
 | RES-UC-095 | Conjoint what-if lite (staff) | P34 | P34 | Spec ready | BR-RES-03 · UC-082 |
+| RES-UC-096 | Portal conjoint lite (read-only) | P35 | P35 | Spec ready | BR-RES-03 · UC-082 · UC-095 |
 
 ---
 
@@ -917,6 +918,14 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Rule:** chỉ `PRICE_OFFER`; đếm AND `n_match / n_choices` trên evidence `C-`; `statistical_inference: false`
 - **Màn hình:** tab Conjoint — form what-if + `Khớp mẫu: n / N (p%)`
 - **Cấm** persist; **cấm** `createInsight`; **cấm** MOE / logit / portal; không DDL; flags prod không đổi
+
+### RES-UC-096 — Portal conjoint lite (read-only)
+
+- **Actor chính:** Client (portal JWT)
+- **API:** `GET /api/v1/portal/research/conjoint` → `{ summary }` latest `crm_research_cj_summaries` JOIN project `client_id` + `PRICE_OFFER`
+- **Rule:** không summary → `{ summary: null }` (200); DTO không `created_by` / `title`; `statistical_inference: false`
+- **Màn hình:** `/research` — bảng share + gợi ý gói; ẩn khối khi null
+- **Cấm** POST compute / what-if; **cấm** `createInsight`; **cấm** MOE / logit; không DDL; không ops-web; flags prod không đổi
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

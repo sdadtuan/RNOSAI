@@ -5,6 +5,31 @@ import type {
 
 export type { PortalResearchReportCard, PortalResearchReportDetail };
 
+export type PortalCjLevelShare = {
+  label: string;
+  count: number;
+  share_pct: number;
+};
+
+export type PortalCjAttributeSummary = {
+  name: string;
+  levels: PortalCjLevelShare[];
+  top_level: string | null;
+};
+
+export type PortalCjRecommendation = {
+  levels: Array<{ attribute: string; level: string; share_pct: number }>;
+};
+
+export type PortalCjSummary = {
+  n: number;
+  n_choices: number;
+  attributes: PortalCjAttributeSummary[];
+  recommendation: PortalCjRecommendation;
+  limitation_note: string;
+  statistical_inference: false;
+};
+
 export type PortalResearchVersionRecord = {
   id: number;
   report_id: number;

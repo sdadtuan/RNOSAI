@@ -94,6 +94,7 @@ describe('PortalResearchService', () => {
     getThemeQuarterAnalytics: jest.fn(),
     listPublishedInsightValidTo: jest.fn().mockResolvedValue(new Map()),
     probePgvectorReady: jest.fn().mockResolvedValue(false),
+    getLatestCjSummaryForClient: jest.fn(),
   } as unknown as jest.Mocked<PortalResearchRepository>;
 
   const config = {
@@ -715,6 +716,45 @@ describe('PortalResearchService', () => {
       expect(JSON.stringify(out)).not.toContain('title');
       expect(repo.getThemeQuarterAnalytics).toHaveBeenCalledWith(ACME, 2026);
       expect(repo.getThemeQuarterAnalytics).toHaveBeenCalledWith(ACME, 2025);
+    });
+  });
+
+  describe('P35 portal conjoint lite', () => {
+    const cjRow = {
+      n: 8,
+      n_choices: 8,
+      attributes: [
+        { name: 'price', levels: [{ label: '99k', count: 2, share_pct: 25 }], top_level: '99k' },
+      ],
+      recommendation: { levels: [{ attribute: 'price', level: '99k', share_pct: 25 }] },
+      limitation_note: 'Conjoint lite trên mẫu convenience',
+      statistical_inference: false as const,
+    };
+
+    it('P35 getConjoint returns mapped summary without created_by or title', async () => {
+      repo.getLatestCjSummaryForClient.mockResolvedValue(cjRow);
+      const service = makeService();
+      const out = await service.getConjoint(acmeUser);
+      expect(out.summary).toMatchObject({ n: 8, n_choices: 8, statistical_inference: false });
+      expect(JSON.stringify(out)).not.toContain('created_by');
+      expect(JSON.stringify(out)).not.toContain('title');
+      expect(JSON.stringify(out)).not.toMatch(/\bMOE\b|95\s*%\s*confidence/i);
+      expect(repo.getLatestCjSummaryForClient).toHaveBeenCalledWith(ACME);
+    });
+
+    it('P35 getConjoint returns null summary when no row', async () => {
+      repo.getLatestCjSummaryForClient.mockResolvedValue(null);
+      const service = makeService();
+      const out = await service.getConjoint(acmeUser);
+      expect(out).toEqual({ summary: null });
+    });
+
+    it('P35 getConjoint binds jwt client_id only', async () => {
+      repo.getLatestCjSummaryForClient.mockResolvedValue(null);
+      const service = makeService();
+      await service.getConjoint(betaUser);
+      expect(repo.getLatestCjSummaryForClient).toHaveBeenCalledWith(BETA);
+      expect(repo.getLatestCjSummaryForClient).not.toHaveBeenCalledWith(ACME);
     });
   });
 });

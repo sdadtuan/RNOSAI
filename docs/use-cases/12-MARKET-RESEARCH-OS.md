@@ -644,6 +644,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P35 — RES-UC-096
+
+| UC | Tóm tắt |
+|----|---------|
+| 096 | Portal conjoint lite chỉ đọc: bảng share + gợi ý gói của project `PRICE_OFFER` cùng JWT `client_id`. |
+
+**API:** `GET /portal/research/conjoint`  
+**Gates:** api + portal-web; không DDL; không ops-web; không POST; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

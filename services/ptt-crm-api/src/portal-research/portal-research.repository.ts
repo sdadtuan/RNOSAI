@@ -4,7 +4,7 @@ import { AppConfigService } from '../config/app-config.service';
 import type { RagEmbeddingRow } from '../market-research/market-research.types';
 import { PGVECTOR_READY_SQL, parsePgvectorReadyRow } from '../market-research/pgvector-ready.util';
 import { toPgvectorLiteral } from '../market-research/pgvector.util';
-import type { PortalResearchVersionRecord } from './portal-research.types';
+import type { PortalCjSummary, PortalResearchVersionRecord } from './portal-research.types';
 
 function parseJsonCol<T>(val: unknown, fallback: T): T {
   if (val == null) return fallback;
@@ -285,6 +285,32 @@ export class PortalResearchRepository implements OnModuleDestroy {
       portal_visible: Boolean(row.portal_visible),
       created_at: String(row.created_at ?? ''),
       client_id: String(row.client_id),
+    };
+  }
+
+  async getLatestCjSummaryForClient(clientId: string): Promise<PortalCjSummary | null> {
+    const result = await this.db.query(
+      `SELECT s.n, s.n_choices, s.attributes, s.recommendation,
+              s.limitation_note, s.statistical_inference
+       FROM crm_research_cj_summaries s
+       JOIN crm_research_projects p ON p.id = s.project_id
+       WHERE p.client_id = $1 AND p.product_type = 'PRICE_OFFER'
+       ORDER BY s.id DESC
+       LIMIT 1`,
+      [clientId],
+    );
+    const row = result.rows[0];
+    return row ? this.mapPortalCjSummary(row) : null;
+  }
+
+  private mapPortalCjSummary(row: Record<string, unknown>): PortalCjSummary {
+    return {
+      n: Number(row.n),
+      n_choices: Number(row.n_choices),
+      attributes: parseJsonCol(row.attributes, []),
+      recommendation: parseJsonCol(row.recommendation, { levels: [] }),
+      limitation_note: String(row.limitation_note ?? ''),
+      statistical_inference: false,
     };
   }
 

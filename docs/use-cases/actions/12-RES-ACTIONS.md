@@ -899,7 +899,24 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
-## P35+ (backlog — IVFFlat / live Talkwalker)
+## Walkthrough UAT P35 — Portal conjoint lite (≈8 phút)
+
+**Mục tiêu:** *«Khách thấy bảng conjoint lite; JWT client B không thấy dữ liệu A; không nút what-if / tính conjoint.»*
+
+**Tiền đề:** project `PRICE_OFFER` cùng `client_id` · staff đã **Tính conjoint lite**
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | CL | Mở `/research` | Khối `portal-conjoint-lite` + bảng share + gợi ý gói |
+| 2 | CL | JWT client B | Không thấy bảng client A (`summary=null` hoặc bảng khác) |
+| 3 | CL | Không có summary | Khối ẩn; không 500 |
+| 4 | QA | UI | Không nút **Tính conjoint** / **Đếm khớp mẫu** |
+| 5 | QA | Payload | Không `created_by` / `title` |
+| 6 | QA | Prod deploy P35 | RAG/pgvector/Talkwalker flags không đổi |
+
+- [ ] Bước 1–6 pass staging
+
+## P36+ (backlog — IVFFlat / live Talkwalker)
 
 
 
