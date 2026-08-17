@@ -91,7 +91,10 @@ export default function CrmResearchAnalyticsPage() {
         const [ops, themes, health] = await Promise.all([
           fetchResearchOpsAnalytics(access),
           fetchResearchThemeQuarterAnalytics(access, { year: selectedYear }),
-          fetchResearchHealth(access).catch(() => ({ rag_enabled: false })),
+          fetchResearchHealth(access).catch(() => ({
+            rag_enabled: false,
+            rag_openai_embed_enabled: false,
+          })),
         ]);
         setData(ops);
         setThemeData(themes);
