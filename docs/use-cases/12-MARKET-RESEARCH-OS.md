@@ -736,6 +736,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P43 — RES-UC-105
+
+| UC | Tóm tắt |
+|----|---------|
+| 105 | Badge stale trên dòng meta `v{N}` tab Báo cáo staff (parity portal list P41). |
+
+**UI:** `StaffReportVersionStaleBadge` · `staff-report-version-stale-badge`  
+**Gates:** ops-web only; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

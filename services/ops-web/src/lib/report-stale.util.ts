@@ -61,3 +61,12 @@ export function collectReportSnapshotStaleRows(
   pushRows(recs, 'rec');
   return out;
 }
+
+export function reportVersionHasStaleInsights(
+  findings: unknown,
+  recs: unknown,
+  insights: ResearchInsight[],
+  ref: Date = new Date(),
+): boolean {
+  return collectReportSnapshotStaleRows(findings, recs, insights, ref).length > 0;
+}

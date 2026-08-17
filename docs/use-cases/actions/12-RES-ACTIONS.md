@@ -962,6 +962,23 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
+## Walkthrough UAT P43 — Staff version list stale badge (≈8 phút)
+
+**Mục tiêu:** *«Lead tab Báo cáo → dòng v stale có badge meta → scroll vẫn thấy P42 detail banners.»*
+
+**Tiền đề:** 2 version — một stale một fresh
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | AN | Seed version stale + fresh | Snapshot insight stale |
+| 2 | Lead | Tab Báo cáo | Badge trên dòng `v` stale; fresh không |
+| 3 | Lead | Scroll version stale | P42 `staff-report-stale-list` vẫn hiện |
+| 4 | AN | Đổi valid_to + F5 | Badge meta + detail mất |
+| 5 | CL | Portal list P41 | Không regress |
+| 6 | QA | Prod deploy P43 | ops-web only; flags off |
+
+- [ ] Bước 1–6 pass staging
+
 ## Walkthrough UAT P42 — Staff report version stale rows (≈8 phút)
 
 **Mục tiêu:** *«Lead mở tab Báo cáo → version có finding stale thấy banner live; đổi valid_to + F5 banner mất; portal P24 không regress.»*

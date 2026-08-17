@@ -135,6 +135,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-102 | Staff ops-web RAG re-embed panel | P40 | P40 | Spec ready | RES-UC-101 · RES-UC-013 |
 | RES-UC-103 | Portal report list stale badge | P41 | P41 | Spec ready | RES-UC-085 · FR-INS-07 |
 | RES-UC-104 | Staff report version live stale rows | P42 | P42 | Spec ready | RES-UC-085 · RES-UC-094 |
+| RES-UC-105 | Staff report version list stale badge | P43 | P43 | Spec ready | RES-UC-103 · RES-UC-104 |
 
 ---
 
@@ -999,6 +1000,14 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Rule:** giống P22/P24 (UTC calendar); **cấm** dùng `published_valid_to` cho stale
 - **Reuse:** `InsightStaleBanner` · `insightIsStale` · `ReportStaleInsightList`
 - **Cấm** endpoint mới; không DDL; không portal-web; không đổi PDF/DOCX footer
+
+### RES-UC-105 — Staff report version list stale badge
+
+- **Actor chính:** Lead / Analyst (`crm_research.view`) trên tab Báo cáo
+- **UI:** dòng meta `v{N}` — badge «Có nội dung có thể đã lỗi thời» khi version có insight stale (client-side join `project.insights`)
+- **Rule:** giống P41/P42; P42 detail banners **giữ nguyên**
+- **Reuse:** `reportVersionHasStaleInsights` · `StaffReportVersionStaleBadge`
+- **Cấm** endpoint mới; không DDL; không portal-web
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

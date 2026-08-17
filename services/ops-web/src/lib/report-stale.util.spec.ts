@@ -3,6 +3,7 @@ import {
   collectReportSnapshotStaleRows,
   insightsById,
   reportSnapshotRowIsStale,
+  reportVersionHasStaleInsights,
   snapshotInsightId,
 } from './report-stale.util';
 
@@ -40,5 +41,21 @@ describe('report-stale.util', () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ insightId: 11, kind: 'finding' });
     expect(rows[1]).toMatchObject({ insightId: 11, kind: 'rec' });
+  });
+
+  it('P43 reportVersionHasStaleInsights is true when any row stale', () => {
+    const insights = [{ id: 11, valid_to: '2020-01-01' } as never];
+    expect(
+      reportVersionHasStaleInsights(
+        [{ insight_id: 11 }],
+        [],
+        insights,
+        ref,
+      ),
+    ).toBe(true);
+    expect(reportVersionHasStaleInsights([], [], insights, ref)).toBe(false);
+    expect(
+      reportVersionHasStaleInsights([{ insight_id: 99 }], [], insights, ref),
+    ).toBe(false);
   });
 });

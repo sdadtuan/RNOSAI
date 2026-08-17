@@ -95,6 +95,7 @@ import {
   type ResearchSource,
 } from '@/lib/market-research-api';
 import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
+import { reportVersionHasStaleInsights } from '@/lib/report-stale.util';
 import {
   SPARKTORO_SOURCES_BANNER,
   shouldShowSparktoroButton,
@@ -112,6 +113,7 @@ import {
 import { InsightsRagSearch } from '@/components/research/InsightsRagSearch';
 import { ReportPublishedValidToList } from '@/components/research/ReportPublishedValidToList';
 import { ReportStaleInsightList } from '@/components/research/ReportStaleInsightList';
+import { StaffReportVersionStaleBadge } from '@/components/research/StaffReportVersionStaleBadge';
 import {
   RAG_COPILOT_BANNER,
   shouldShowRagCopilotBanner,
@@ -2300,9 +2302,15 @@ function ReportTab({
             );
             const exportDisabled = saving || !methodologyOk;
             const exportTitle = methodologyOk ? undefined : METHODOLOGY_EXPORT_BANNER;
+            const versionHasStaleInsights = reportVersionHasStaleInsights(
+              version.content_snapshot?.findings,
+              version.content_snapshot?.recs,
+              project.insights ?? [],
+            );
             return (
             <li
               key={version.id}
+              data-testid={`staff-report-version-row-${version.id}`}
               style={{
                 display: 'grid',
                 gap: '0.45rem',
@@ -2323,6 +2331,7 @@ function ReportTab({
                   v{version.version} · {version.created_at.slice(0, 10)} · {version.generated_by ?? '—'}
                   <span className="muted"> · {version.content_hash.slice(0, 8)}</span>
                   {enLocked ? <span className="muted"> · EN đã duyệt</span> : null}
+                  <StaffReportVersionStaleBadge hasStaleInsights={versionHasStaleInsights} />
                 </span>
                 {canExport ? (
                   <span style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
