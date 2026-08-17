@@ -820,6 +820,7 @@ export type PortalResearchReportCard = {
   as_of: string | null;
   expires_at: string | null;
   watermark: string;
+  has_stale_insights: boolean;
 };
 
 export type PortalResearchReportDetail = PortalResearchReportCard & {

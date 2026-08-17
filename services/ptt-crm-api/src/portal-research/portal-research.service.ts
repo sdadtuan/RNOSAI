@@ -78,13 +78,18 @@ function watermarkFor(user: PortalJwtPayload, at: Date): string {
   });
 }
 
-function toCard(row: PortalResearchVersionRecord, watermark: string): PortalResearchReportCard {
+function toCard(
+  row: PortalResearchVersionRecord,
+  watermark: string,
+  hasStaleInsights = false,
+): PortalResearchReportCard {
   return {
     version_id: row.id,
     version: row.version,
     as_of: asOfFromSnapshot(row.content_snapshot),
     expires_at: row.expires_at,
     watermark,
+    has_stale_insights: hasStaleInsights,
   };
 }
 
@@ -185,7 +190,7 @@ export class PortalResearchService implements OnModuleInit {
     const rows = await this.repo.listPortalVisibleVersions(user.client_id);
     const now = new Date();
     const watermark = watermarkFor(user, now);
-    const items: PortalResearchReportCard[] = [];
+    const readable: PortalResearchVersionRecord[] = [];
     for (const row of rows) {
       try {
         assertPortalReportReadable({
@@ -197,8 +202,25 @@ export class PortalResearchService implements OnModuleInit {
       } catch {
         continue;
       }
-      items.push(toCard(row, watermark));
+      readable.push(row);
     }
+    const allIds = new Set<number>();
+    for (const row of readable) {
+      for (const id of collectReportInsightIds(row.content_snapshot)) {
+        allIds.add(id);
+      }
+    }
+    const validToById =
+      allIds.size > 0
+        ? await this.repo.listPublishedInsightValidTo(user.client_id, [...allIds])
+        : new Map<number, string | null>();
+    const items = readable.map((row) =>
+      toCard(
+        row,
+        watermark,
+        reportSnapshotHasStaleInsights(row.content_snapshot, validToById, now),
+      ),
+    );
     return { items };
   }
 

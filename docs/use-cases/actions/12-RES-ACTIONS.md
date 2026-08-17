@@ -962,6 +962,23 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
+## Walkthrough UAT P41 — Portal report list stale badge (≈8 phút)
+
+**Mục tiêu:** *«Khách portal mở /research → row stale có badge list-level → detail P24 banner vẫn đúng; fresh row không badge.»*
+
+**Tiền đề:** ≥2 report portal-visible — một có insight published stale, một fresh
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | CL | Seed report stale + fresh | 2 version portal-visible |
+| 2 | CL | Mở `/research` | Row stale có badge; fresh không |
+| 3 | CL | Click stale → detail | Banner P24 vẫn dưới finding |
+| 4 | CL | Click fresh → detail | Không banner finding |
+| 5 | QA | GET list JSON | `has_stale_insights` đúng; không `title` |
+| 6 | QA | Prod deploy P41 | Flags off; badge hiện khi data stale |
+
+- [ ] Bước 1–6 pass staging
+
 ## Walkthrough UAT P40 — Staff RAG re-embed panel (≈8 phút)
 
 **Mục tiêu:** *«Configure user mở analytics staging → panel preview stale → chạy batch → kết quả inline; prod panel ẩn.»*

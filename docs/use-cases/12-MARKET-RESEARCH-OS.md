@@ -713,6 +713,18 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P41 — RES-UC-103
+
+| UC | Tóm tắt |
+|----|---------|
+| 103 | Badge cảnh báo trên danh sách báo cáo portal khi snapshot có insight stale (live valid_to). |
+
+**UI:** `/research` list — `portal-report-stale-badge`  
+**API:** mở rộng `GET …/portal/research/reports` — `has_stale_insights`  
+**Gates:** api + portal-web; không ops-web; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

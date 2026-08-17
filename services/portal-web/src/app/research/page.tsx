@@ -17,6 +17,10 @@ import {
 } from '@/lib/api';
 import { isMarketResearchPortalFeEnabled } from '@/lib/market-research-portal-flags';
 import { portalResearchErrorVi } from '@/lib/portal-research-errors';
+import {
+  PORTAL_REPORT_LIST_STALE_BADGE,
+  shouldShowReportListStaleBadge,
+} from '@/lib/portal-report-list.util';
 
 const PORTAL_THEME_ANALYTICS_BANNER =
   'Chỉ insight đã published cùng khách. Đếm theo theme gắn trên insight, bucket theo quý (updated_at).';
@@ -121,10 +125,31 @@ function ResearchListContent({ token }: { token: string }) {
       ) : (
         <ul className="portal-content-list">
           {items.map((item) => (
-            <li key={item.version_id} className="portal-content-list__item">
+            <li
+              key={item.version_id}
+              className="portal-content-list__item"
+              data-testid={`portal-report-list-row-${item.version_id}`}
+            >
               <Link href={`/research/${item.version_id}`} className="portal-content-list__link">
                 Phiên bản {item.version}
               </Link>
+              {shouldShowReportListStaleBadge(item) ? (
+                <span
+                  className="muted"
+                  data-testid="portal-report-stale-badge"
+                  style={{
+                    display: 'inline-block',
+                    marginLeft: '0.5rem',
+                    padding: '0.15rem 0.45rem',
+                    borderRadius: 6,
+                    fontSize: '0.78rem',
+                    background: 'rgba(180, 83, 9, 0.12)',
+                    color: '#92400e',
+                  }}
+                >
+                  {PORTAL_REPORT_LIST_STALE_BADGE}
+                </span>
+              ) : null}
               <span className="muted">
                 {item.as_of ? `As of ${item.as_of}` : 'As of —'}
                 {item.expires_at ? ` · Hết hạn ${item.expires_at}` : ''}

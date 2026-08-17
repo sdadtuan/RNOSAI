@@ -186,6 +186,67 @@ describe('PortalResearchService', () => {
     expect(card.watermark).toContain(ACME);
     expect(card.watermark).toContain(acmeUser.email);
     expect(JSON.stringify(card)).not.toContain('title');
+    expect(card.has_stale_insights).toBe(false);
+  });
+
+  it('P41 listReports sets has_stale_insights true when snapshot has stale insight', async () => {
+    repo.listPortalVisibleVersions.mockResolvedValue([
+      acmeVersion({
+        id: 40,
+        content_snapshot: {
+          exec: { vi: 'Fresh', en: null, en_status: 'approved' },
+          findings: [{ insight_id: 20, statement: 'Still good' }],
+          recs: [],
+          methodology: {},
+          evidence_index: [],
+        },
+      }),
+      acmeVersion({
+        id: 41,
+        content_snapshot: {
+          cover: { title: 'Secret stale title', version: 2, as_of: '2026-08-14' },
+          exec: { vi: 'Stale', en: null, en_status: 'approved' },
+          findings: [{ insight_id: 11, statement: 'Old claim' }],
+          recs: [],
+          methodology: {},
+          evidence_index: [],
+        },
+      }),
+    ]);
+    repo.listPublishedInsightValidTo.mockResolvedValue(
+      new Map([
+        [11, '2020-01-01'],
+        [20, new Date().toISOString().slice(0, 10)],
+      ]),
+    );
+    const { items } = await makeService().listReports(acmeUser);
+    expect(items).toHaveLength(2);
+    const fresh = items.find((item) => item.version_id === 40);
+    const stale = items.find((item) => item.version_id === 41);
+    expect(fresh?.has_stale_insights).toBe(false);
+    expect(stale?.has_stale_insights).toBe(true);
+    expect(repo.listPublishedInsightValidTo).toHaveBeenCalledTimes(1);
+    expect(repo.listPublishedInsightValidTo).toHaveBeenCalledWith(ACME, expect.arrayContaining([11, 20]));
+    expect(JSON.stringify(items)).not.toContain('title');
+    expect(JSON.stringify(items)).not.toContain('Secret stale title');
+  });
+
+  it('P41 listReports has_stale_insights false when valid_to missing from map', async () => {
+    repo.listPortalVisibleVersions.mockResolvedValue([
+      acmeVersion({
+        content_snapshot: {
+          exec: { vi: 'x', en: null, en_status: 'approved' },
+          findings: [{ insight_id: 99, statement: 'foreign' }],
+          recs: [],
+          methodology: {},
+          evidence_index: [],
+        },
+      }),
+    ]);
+    repo.listPublishedInsightValidTo.mockResolvedValue(new Map());
+    const { items } = await makeService().listReports(acmeUser);
+    expect(items).toHaveLength(1);
+    expect(items[0].has_stale_insights).toBe(false);
   });
 
   it('getReport happy path: watermark, exec.en null when not approved, no project/title', async () => {

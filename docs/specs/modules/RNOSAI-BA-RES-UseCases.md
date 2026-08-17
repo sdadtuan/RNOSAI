@@ -133,6 +133,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-100 | Persist conjoint what-if history (staff) | P38 | P38 | Spec ready | RES-UC-095 · UC-082 |
 | RES-UC-101 | RAG re-embed backfill staging playbook | P39 | P39 | Spec ready | RES-UC-013 · UC-081 · UC-087 · UC-090 |
 | RES-UC-102 | Staff ops-web RAG re-embed panel | P40 | P40 | Spec ready | RES-UC-101 · RES-UC-013 |
+| RES-UC-103 | Portal report list stale badge | P41 | P41 | Spec ready | RES-UC-085 · FR-INS-07 |
 
 ---
 
@@ -979,6 +980,16 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **API (reuse P13):** `GET/POST /api/v1/research/rag/reembed/*` — không endpoint mới
 - **Rule:** panel **ẩn** khi `rag_openai_embed_enabled=false` (prod default); cap `configure`
 - **Cấm** ghi secret / flip flags từ UI; **cấm** `createInsight`; không portal; không DDL
+
+### RES-UC-103 — Portal report list stale badge
+
+- **Actor chính:** Client portal (JWT `client_id`)
+- **API:** `GET /api/v1/portal/research/reports` — mỗi card thêm `has_stale_insights: boolean` (live `valid_to`, batch lookup)
+- **Rule:** giống RES-UC-085/P24 (UTC calendar); insight unpublished / khác tenant → `false`
+- **Màn hình:** `/research` — badge vàng trên row khi `has_stale_insights`; **không** ẩn report
+- Copy list-level: «Có nội dung có thể đã lỗi thời» — không claim «báo cáo hết hạn»
+- Detail P24/PDF P29 **không đổi** hành vi
+- **Cấm** endpoint mới; không DDL; không ops-web; **cấm** leak `title` / `statement`
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 
