@@ -95,7 +95,7 @@ import {
   type ResearchSource,
 } from '@/lib/market-research-api';
 import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
-import { reportVersionHasStaleInsights } from '@/lib/report-stale.util';
+import { staffReportVersionHasStaleInsights } from '@/lib/staff-report-stale.util';
 import {
   SPARKTORO_SOURCES_BANNER,
   shouldShowSparktoroButton,
@@ -2302,9 +2302,8 @@ function ReportTab({
             );
             const exportDisabled = saving || !methodologyOk;
             const exportTitle = methodologyOk ? undefined : METHODOLOGY_EXPORT_BANNER;
-            const versionHasStaleInsights = reportVersionHasStaleInsights(
-              version.content_snapshot?.findings,
-              version.content_snapshot?.recs,
+            const versionHasStaleInsights = staffReportVersionHasStaleInsights(
+              version,
               project.insights ?? [],
             );
             return (

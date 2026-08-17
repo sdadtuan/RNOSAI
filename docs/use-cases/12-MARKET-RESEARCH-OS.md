@@ -747,6 +747,18 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P44 — RES-UC-106
+
+| UC | Tóm tắt |
+|----|---------|
+| 106 | Staff `GET …/reports` trả `has_stale_insights` live trên mỗi version; ops-web ưu tiên API field. |
+
+**API:** `listReports` batch stale annotate  
+**UI:** `staffReportVersionHasStaleInsights` — API-first, P42 fallback  
+**Gates:** api + ops-web; không portal-web; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

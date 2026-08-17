@@ -979,6 +979,23 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
+## Walkthrough UAT P44 — Staff reports API stale flag (≈8 phút)
+
+**Mục tiêu:** *«Refetch reports sau khi insight hết hạn → API `has_stale_insights` true → badge P43 + banners P42 khớp.»*
+
+**Tiền đề:** 2 version — một stale một fresh
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | AN | Seed version stale + fresh | 2 version |
+| 2 | Lead | Tab Báo cáo | Badge P43 đúng |
+| 3 | AN | PATCH insight valid_to quá khứ | Refetch reports → API `has_stale_insights` true |
+| 4 | Lead | F5 tab Báo cáo | Badge + P42 banners khớp API |
+| 5 | CL | Portal list P41 | Không regress |
+| 6 | QA | Prod deploy P44 | api + ops-web; flags off |
+
+- [ ] Bước 1–6 pass staging
+
 ## Walkthrough UAT P42 — Staff report version stale rows (≈8 phút)
 
 **Mục tiêu:** *«Lead mở tab Báo cáo → version có finding stale thấy banner live; đổi valid_to + F5 banner mất; portal P24 không regress.»*

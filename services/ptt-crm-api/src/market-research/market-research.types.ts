@@ -812,6 +812,8 @@ export type ResearchReportVersionRow = {
   published_by: string | null;
   published_at: string | null;
   created_at: string;
+  /** Live at GET listReports; omitted on repo rows until service annotates. */
+  has_stale_insights?: boolean;
 };
 
 export type PortalResearchReportCard = {

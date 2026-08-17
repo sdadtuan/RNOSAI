@@ -3068,7 +3068,33 @@ export class MarketResearchService implements OnModuleInit {
     scope: ClientScopeContext,
   ): Promise<{ reports: ResearchReportRow[] }> {
     await this.loadScopedProject(projectId, scope);
-    return { reports: await this.repo.listReports(projectId) };
+    const reports = await this.repo.listReports(projectId);
+    const allIds = new Set<number>();
+    for (const report of reports) {
+      for (const version of report.versions) {
+        for (const id of collectReportInsightIds(version.content_snapshot)) {
+          allIds.add(id);
+        }
+      }
+    }
+    const validToById =
+      allIds.size > 0
+        ? await this.repo.listInsightValidToForProject(projectId, [...allIds])
+        : new Map<number, string | null>();
+    const now = new Date();
+    return {
+      reports: reports.map((report) => ({
+        ...report,
+        versions: report.versions.map((version) => ({
+          ...version,
+          has_stale_insights: reportSnapshotHasStaleInsights(
+            version.content_snapshot,
+            validToById,
+            now,
+          ),
+        })),
+      })),
+    };
   }
 
   async exportReportVersion(

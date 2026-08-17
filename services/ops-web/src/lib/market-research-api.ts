@@ -1397,6 +1397,7 @@ export type ResearchReportVersion = {
   published_by?: string | null;
   published_at?: string | null;
   created_at: string;
+  has_stale_insights?: boolean;
 };
 
 export type ResearchReport = {

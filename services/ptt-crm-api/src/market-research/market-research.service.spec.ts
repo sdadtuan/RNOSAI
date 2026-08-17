@@ -3951,6 +3951,111 @@ describe('MarketResearchService', () => {
     spy.mockRestore();
   });
 
+  it('P44 listReports sets has_stale_insights per version (stale vs fresh)', async () => {
+    stubScopedProject();
+    repo.listReports.mockResolvedValue([
+      {
+        id: 1,
+        project_id: 9,
+        template: 'std',
+        status: 'draft',
+        created_at: '2026-08-14',
+        versions: [
+          versionRow({
+            id: 10,
+            version: 1,
+            content_snapshot: {
+              findings: [{ insight_id: 11, text: 'stale' }],
+              recs: [],
+              insight_ids: [11],
+            },
+          }),
+          versionRow({
+            id: 11,
+            version: 2,
+            content_snapshot: {
+              findings: [{ insight_id: 12, text: 'fresh' }],
+              recs: [],
+              insight_ids: [12],
+            },
+          }),
+        ],
+      },
+    ]);
+    repo.listInsightValidToForProject.mockResolvedValue(
+      new Map([
+        [11, '2020-01-01'],
+        [12, '2026-12-31'],
+      ]),
+    );
+
+    const { reports } = await service.listReports(9, {
+      restricted: true,
+      allowedClientIds: ['acme'],
+    });
+
+    expect(repo.listInsightValidToForProject).toHaveBeenCalledWith(9, [11, 12]);
+    expect(reports[0].versions[0].has_stale_insights).toBe(true);
+    expect(reports[0].versions[1].has_stale_insights).toBe(false);
+  });
+
+  it('P44 listReports has_stale_insights false when insight id missing from map', async () => {
+    stubScopedProject();
+    repo.listReports.mockResolvedValue([
+      {
+        id: 1,
+        project_id: 9,
+        template: 'std',
+        status: 'draft',
+        created_at: '2026-08-14',
+        versions: [
+          versionRow({
+            content_snapshot: {
+              findings: [{ insight_id: 99, text: 'unknown' }],
+              recs: [],
+              insight_ids: [99],
+            },
+          }),
+        ],
+      },
+    ]);
+    repo.listInsightValidToForProject.mockResolvedValue(new Map());
+
+    const { reports } = await service.listReports(9, {
+      restricted: true,
+      allowedClientIds: ['acme'],
+    });
+
+    expect(reports[0].versions[0].has_stale_insights).toBe(false);
+    expect(reports[0].versions[0].content_snapshot).not.toHaveProperty('has_stale_insights');
+  });
+
+  it('P44 listReports skips listInsightValidToForProject when no insight ids', async () => {
+    stubScopedProject();
+    repo.listReports.mockResolvedValue([
+      {
+        id: 1,
+        project_id: 9,
+        template: 'std',
+        status: 'draft',
+        created_at: '2026-08-14',
+        versions: [
+          versionRow({
+            content_snapshot: { findings: [], recs: [], insight_ids: [] },
+          }),
+        ],
+      },
+    ]);
+
+    const { reports } = await service.listReports(9, {
+      restricted: true,
+      allowedClientIds: ['acme'],
+    });
+
+    expect(repo.listInsightValidToForProject).not.toHaveBeenCalled();
+    expect(reports[0].versions[0].has_stale_insights).toBe(false);
+  });
+
   it('P31 exportReportVersion docx adds stale footer when finding expired', async () => {
     stubScopedProject();
     repo.getReport.mockResolvedValue({
