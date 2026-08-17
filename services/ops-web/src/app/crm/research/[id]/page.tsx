@@ -111,6 +111,7 @@ import {
 } from '@/components/research/qualtrics-run.util';
 import { InsightsRagSearch } from '@/components/research/InsightsRagSearch';
 import { ReportPublishedValidToList } from '@/components/research/ReportPublishedValidToList';
+import { ReportStaleInsightList } from '@/components/research/ReportStaleInsightList';
 import {
   RAG_COPILOT_BANNER,
   shouldShowRagCopilotBanner,
@@ -2349,6 +2350,11 @@ function ReportTab({
               <ReportPublishedValidToList
                 findings={version.content_snapshot?.findings}
                 recs={version.content_snapshot?.recs}
+              />
+              <ReportStaleInsightList
+                findings={version.content_snapshot?.findings}
+                recs={version.content_snapshot?.recs}
+                insights={project.insights ?? []}
               />
               <label style={{ display: 'grid', gap: 4, fontSize: '0.85rem' }}>
                 Executive (VI)

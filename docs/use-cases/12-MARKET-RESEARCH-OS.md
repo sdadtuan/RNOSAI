@@ -725,6 +725,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P42 — RES-UC-104
+
+| UC | Tóm tắt |
+|----|---------|
+| 104 | Banner stale live dưới finding/rec trên staff tab Báo cáo (join insights client-side). |
+
+**UI:** `ReportStaleInsightList` · `staff-report-stale-list`  
+**Gates:** ops-web only; không api/portal; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |
