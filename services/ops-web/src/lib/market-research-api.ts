@@ -1015,6 +1015,44 @@ export async function fetchResearchHealth(
   return researchFetch(token, '/api/v1/research/health');
 }
 
+export type RagReembedPreview = {
+  ok: true;
+  stale_count: number;
+  target_dims: number;
+  target_model: string;
+};
+
+export type RagReembedStart = {
+  ok: true;
+  run_id?: number;
+  status: 'pending' | 'succeeded' | 'failed' | 'noop' | string;
+  note?: 'jobs_disabled' | 'rag_reembed_disabled' | 'rag_disabled' | string;
+  processed?: number;
+  skipped_pii?: number;
+  failed?: number;
+  remaining?: number;
+};
+
+export async function previewResearchRagReembed(
+  token: string,
+  params?: { client_id?: string },
+): Promise<RagReembedPreview> {
+  const qs = new URLSearchParams();
+  if (params?.client_id?.trim()) qs.set('client_id', params.client_id.trim());
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return researchFetch(token, `/api/v1/research/rag/reembed/preview${suffix}`);
+}
+
+export async function startResearchRagReembed(
+  token: string,
+  body: { limit?: number; client_id?: string },
+): Promise<RagReembedStart> {
+  return researchFetch(token, '/api/v1/research/rag/reembed', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export type ResearchRagHit = {
   insight_id: number;
   project_id: number;

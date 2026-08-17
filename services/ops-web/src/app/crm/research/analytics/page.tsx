@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { StaffPageShell } from '@/components/layout';
 import { InsightsRagSearch } from '@/components/research/InsightsRagSearch';
+import { ResearchRagReembedPanel } from '@/components/research/ResearchRagReembedPanel';
 import { ResearchStatusChip } from '@/components/research/ResearchStatusChip';
 import { ResearchThemeQuarterTable } from '@/components/research/ResearchThemeQuarterTable';
 import { staffMe, staffRefresh } from '@/lib/api';
@@ -36,6 +37,8 @@ export default function CrmResearchAnalyticsPage() {
   const [data, setData] = useState<OpsAnalyticsPayload | null>(null);
   const [themeData, setThemeData] = useState<ThemeQuarterAnalyticsPayload | null>(null);
   const [ragEnabled, setRagEnabled] = useState(false);
+  const [ragOpenaiEmbedEnabled, setRagOpenaiEmbedEnabled] = useState(false);
+  const [accessToken, setAccessToken] = useState('');
   const [selectedThemeCode, setSelectedThemeCode] = useState('');
   const [year, setYear] = useState(() => new Date().getUTCFullYear());
   const [error, setError] = useState('');
@@ -93,6 +96,7 @@ export default function CrmResearchAnalyticsPage() {
         setData(ops);
         setThemeData(themes);
         setRagEnabled(health.rag_enabled === true);
+        setRagOpenaiEmbedEnabled(health.rag_openai_embed_enabled === true);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải phân tích thất bại');
       } finally {
@@ -110,6 +114,7 @@ export default function CrmResearchAnalyticsPage() {
       }
       const access = await ensureAuth();
       if (!access) return;
+      setAccessToken(access);
       await loadAnalytics(access, year);
     })();
   }, [ensureAuth, loadAnalytics, year]);
@@ -156,6 +161,9 @@ export default function CrmResearchAnalyticsPage() {
       value: data ? String(data.activation.distributed_projects) : '—',
     },
   ];
+
+  const canConfigure = hasCap(user, 'crm_research', 'configure');
+  const showReembedPanel = ragOpenaiEmbedEnabled && canConfigure;
 
   return (
     <StaffPageShell
@@ -213,6 +221,10 @@ export default function CrmResearchAnalyticsPage() {
         ) : null}
         {data && data.projects.length === 0 && !loading ? (
           <p className="muted">Chưa có dự án nghiên cứu</p>
+        ) : null}
+
+        {showReembedPanel && accessToken ? (
+          <ResearchRagReembedPanel token={accessToken} />
         ) : null}
 
         <section className="stack-gap" style={{ marginTop: '1rem' }}>

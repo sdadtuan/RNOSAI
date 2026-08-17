@@ -962,6 +962,24 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
+## Walkthrough UAT P40 — Staff RAG re-embed panel (≈8 phút)
+
+**Mục tiêu:** *«Configure user mở analytics staging → panel preview stale → chạy batch → kết quả inline; prod panel ẩn.»*
+
+**Tiền đề:** P39 staging flags + `OPENAI_API_KEY` · user có `crm_research.configure`
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | PO | Staging embed on (P39) | health `rag_openai_embed_enabled=true` |
+| 2 | LD | Mở `/crm/research/analytics` | Panel `rag-reembed-panel` hiện |
+| 3 | LD | Xem preview | `rag-reembed-preview-count` ≥ 0 |
+| 4 | LD | Chạy batch limit 50 | `rag-reembed-result` có processed/remaining |
+| 5 | Viewer | Mở analytics (chỉ view) | Panel ẩn |
+| 6 | QA | Prod deploy P40 | Panel ẩn; flags off |
+
+- [ ] Bước 1–6 pass staging
+- [ ] Prod không bật RAG/embed sau deploy
+
 ## Walkthrough UAT P39 — RAG re-embed backfill staging (≈12 phút)
 
 **Mục tiêu:** *«PO cài pgvector → deploy P39 → bật staging RAG flags → preview stale → batch re-embed → DB 256-d + embedding_vec; search G3 hit; prod deploy không bật flags.»*

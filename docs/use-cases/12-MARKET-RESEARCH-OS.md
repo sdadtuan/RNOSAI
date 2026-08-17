@@ -701,6 +701,18 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P40 — RES-UC-102
+
+| UC | Tóm tắt |
+|----|---------|
+| 102 | Panel ops-web re-embed RAG trên analytics; preview + batch; ẩn khi embed off prod. |
+
+**UI:** `ResearchRagReembedPanel` · `/crm/research/analytics`  
+**API:** reuse P13 `GET/POST …/rag/reembed/*`  
+**Gates:** api + ops-web; cap `configure`; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |
