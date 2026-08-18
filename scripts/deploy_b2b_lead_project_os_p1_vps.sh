@@ -34,7 +34,30 @@ run_local() {
   bash "$ROOT/scripts/apply_pg_ddl_b2b_lead_project_os.sh"
 
   echo "== 2/4 RBAC crm_b2b_projects caps =="
-  python3 "$ROOT/scripts/migrate_b2b_projects_permissions.py" --apply
+  PYTHON="${PYTHON:-python3}"
+  if [[ -x "$ROOT/.venv/bin/python" ]]; then
+    PYTHON="$ROOT/.venv/bin/python"
+  fi
+  export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
+  if "$PYTHON" "$ROOT/scripts/migrate_b2b_projects_permissions.py" --apply 2>/dev/null; then
+    echo "RBAC via python OK"
+  else
+    echo "RBAC via python skipped — applying SQL fallback"
+    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO staff_section_permissions (position_id, section_id, action)
+SELECT p.id, 'crm_b2b_projects', 'view'
+FROM crm_positions p
+WHERE lower(trim(p.code)) = 'kd-01' AND p.active = TRUE
+ON CONFLICT (position_id, section_id, action) DO NOTHING;
+
+INSERT INTO staff_section_permissions (position_id, section_id, action)
+SELECT p.id, 'crm_b2b_projects', act
+FROM crm_positions p
+CROSS JOIN (VALUES ('view'), ('manage')) AS t(act)
+WHERE lower(trim(p.code)) = 'super-admin' AND p.active = TRUE
+ON CONFLICT (position_id, section_id, action) DO NOTHING;
+SQL
+  fi
 
   if [[ "$BACKFILL" == "1" ]]; then
     echo "== Backfill B2B leads → PTT-LEGACY =="
