@@ -31,12 +31,33 @@ export class WebhooksController {
     return this.dispatch(channel, req, res);
   }
 
+  @Get('webhooks/:channel/:projectSlug')
+  async getWebhookWithSlug(
+    @Param('channel') channel: string,
+    @Param('projectSlug') projectSlug: string,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<Record<string, unknown> | string> {
+    return this.dispatch(channel, req, res, projectSlug);
+  }
+
+  @Post('webhooks/:channel/:projectSlug')
+  async postWebhookWithSlug(
+    @Param('channel') channel: string,
+    @Param('projectSlug') projectSlug: string,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<Record<string, unknown> | string> {
+    return this.dispatch(channel, req, res, projectSlug);
+  }
+
   private async dispatch(
     channel: string,
     req: Request,
     res: Response,
+    projectSlug?: string,
   ): Promise<Record<string, unknown> | string> {
-    const out = await this.webhooks.handle(channel, req);
+    const out = await this.webhooks.handle(channel, req, projectSlug);
     res.status(out.status);
     if (out.contentType) {
       res.setHeader('Content-Type', out.contentType);

@@ -62,6 +62,7 @@ import {
   parseLeadsListUrl,
 } from '@/lib/crm/leads-list-url';
 import { readLeadsVisibleColumns, type LeadsColumnId } from '@/lib/crm/leads-columns';
+import { fetchB2bProjects, type B2bProjectListItem } from '@/lib/b2b-projects-api';
 
 const PAGE_SIZE = 50;
 
@@ -87,6 +88,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const [staffOptions, setStaffOptions] = useState<CrmStaffRow[]>([]);
   const [sourceOptions, setSourceOptions] = useState<CrmLeadLookupOption[]>([]);
   const [channelOptions, setChannelOptions] = useState<CrmLeadLookupOption[]>([]);
+  const [b2bProjects, setB2bProjects] = useState<B2bProjectListItem[]>([]);
   const [bulkOwnerId, setBulkOwnerId] = useState('');
   const [bulkBusy, setBulkBusy] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
@@ -241,6 +243,13 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       setReviewQueueCount(reviewOut.count ?? 0);
       setSourceOptions(sourceOut.options ?? []);
       setChannelOptions(channelOut.options ?? []);
+      if (hasCap(getStoredUser(), 'crm_b2b_projects', 'view')) {
+        try {
+          setB2bProjects(await fetchB2bProjects(access, 'active'));
+        } catch {
+          setB2bProjects([]);
+        }
+      }
     })();
   }, [ensureAuth, canReviewQueue]);
 
@@ -338,6 +347,13 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     }
     return map;
   }, [staffOptions]);
+  const projectLabelById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of b2bProjects) {
+      map[p.id] = `${p.name} (${p.code})`;
+    }
+    return map;
+  }, [b2bProjects]);
   const showScores = useMemo(
     () => aiCopilotEnabled() && canUseAiCopilot(user?.id, user?.caps),
     [user?.id, user?.caps],
@@ -658,6 +674,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             onToggleSelect={toggleSelect}
             onToggleAll={toggleAll}
             ownerNameById={ownerNameById}
+            projectLabelById={projectLabelById}
             visibleColumns={visibleColumns}
             showScores={showScores}
             scoreMap={scoreMap}

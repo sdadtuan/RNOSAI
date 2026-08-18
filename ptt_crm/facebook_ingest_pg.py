@@ -179,8 +179,11 @@ def _build_fb_pg_record(
     level = classify_level(score, status=st, conn=config_conn)
     meta_obj["lead_score"] = score
     meta_obj["lead_level"] = level
+    if item.get("lead_flow_kind"):
+        meta_obj["lead_flow_kind"] = str(item["lead_flow_kind"])
 
-    dup_matches = find_pg_contact_duplicates(phone=phone, email=email)
+    b2b_project_id = _normalize_uuid(item.get("b2b_project_id"))
+    dup_matches = find_pg_contact_duplicates(phone=phone, email=email, b2b_project_id=b2b_project_id)
     if not dup_matches:
         dup_matches = find_duplicate_matches(config_conn, phone=phone, email=email)
 
@@ -237,6 +240,8 @@ def _build_fb_pg_record(
         "is_duplicate": is_dup,
         "meta_json": json_dumps(meta_obj),
         "agency_client_id": _normalize_uuid(client_id),
+        "owner_company_id": _normalize_uuid(item.get("owner_company_id")),
+        "b2b_project_id": b2b_project_id,
         "channel": (channel or meta_obj.get("channel") or "meta")[:32],
         "external_lead_id": ext,
         "campaign_id": campaign_id,

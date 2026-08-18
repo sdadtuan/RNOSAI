@@ -11,6 +11,7 @@ import {
 import { extractMetaLeadgenContext } from './meta-webhook-context';
 import { MetaWebhookRepository } from './meta-webhook.repository';
 import { MetaOpsWebhookService } from './meta-ops-webhook.service';
+import { B2bIngestService } from '../b2b-projects/b2b-ingest.service';
 import { parseEmailWebhook } from './email-webhook.parser';
 import { parseGoogleWebhook } from './google-webhook.parser';
 import { parseZaloWebhook } from './zalo-webhook.parser';
@@ -31,6 +32,7 @@ export class WebhooksService {
     private readonly jobQueue: JobQueueRepository,
     private readonly metaWebhookRepo: MetaWebhookRepository,
     private readonly metaOpsWebhookService: MetaOpsWebhookService,
+    private readonly b2bIngest: B2bIngestService,
   ) {}
 
   listChannels(): Record<string, unknown> {
@@ -52,16 +54,16 @@ export class WebhooksService {
     };
   }
 
-  async handle(channelRaw: string, req: Request): Promise<WebhookHandleResult> {
+  async handle(channelRaw: string, req: Request, projectSlug?: string): Promise<WebhookHandleResult> {
     const channel = normalizeWebhookChannel(channelRaw);
     if (channel === 'meta' && this.config.webhooksNestMetaEnabled) {
-      return this.handleMeta(req);
+      return this.handleMeta(req, projectSlug);
     }
     if (channel === 'email' && this.config.webhooksNestEmailEnabled) {
       return this.handleEmail(req);
     }
     if (channel === 'zalo' && this.config.webhooksNestZaloEnabled) {
-      return this.handleZalo(req);
+      return this.handleZalo(req, projectSlug);
     }
     if (channel === 'google' && this.config.webhooksNestGoogleEnabled) {
       return this.handleGoogle(req);
@@ -69,7 +71,20 @@ export class WebhooksService {
     throw new ServiceUnavailableException({ error: 'channel_not_migrated', channel });
   }
 
-  private async handleMeta(req: Request): Promise<WebhookHandleResult> {
+  private async enqueuePreparedLeads(
+    channel: string,
+    leads: import('./webhook-lead.types').NormalizedLeadPayload[],
+    opts: { correlationId: string; clientId?: string; projectSlug?: string },
+  ): Promise<{ leads: import('./webhook-lead.types').NormalizedLeadPayload[]; unmatched: number }> {
+    const prepared = await this.b2bIngest.prepareWebhookLeads({
+      channel,
+      projectSlug: opts.projectSlug,
+      leads,
+    });
+    return { leads: prepared.toEnqueue, unmatched: prepared.unmatchedCount };
+  }
+
+  private async handleMeta(req: Request, projectSlug?: string): Promise<WebhookHandleResult> {
     const headers = req.headers as Record<string, string | string[] | undefined>;
     const rawBody = Buffer.isBuffer(req.rawBody)
       ? req.rawBody
@@ -150,8 +165,22 @@ export class WebhooksService {
       return { kind: 'json', status: 200, body: response };
     }
 
+    const { leads: leadsToEnqueue, unmatched } = await this.enqueuePreparedLeads('meta', parsed.leads, {
+      correlationId,
+      clientId: effectiveClientId !== 'unknown' ? effectiveClientId : undefined,
+      projectSlug,
+    });
+    response.b2b_unmatched_count = unmatched;
+    response.lead_count = leadsToEnqueue.length;
+
+    if (!leadsToEnqueue.length) {
+      response.created_count = 0;
+      response.accepted = true;
+      return { kind: 'json', status: 200, body: response };
+    }
+
     try {
-      const enqueue = await this.jobQueue.enqueueIngestLeads(parsed.leads, {
+      const enqueue = await this.jobQueue.enqueueIngestLeads(leadsToEnqueue, {
         channel: 'meta',
         correlationId,
         clientId: effectiveClientId !== 'unknown' ? effectiveClientId : undefined,
@@ -238,7 +267,7 @@ export class WebhooksService {
     return { kind: 'json', status: 200, body: response };
   }
 
-  private async handleZalo(req: Request): Promise<WebhookHandleResult> {
+  private async handleZalo(req: Request, projectSlug?: string): Promise<WebhookHandleResult> {
     const headers = req.headers as Record<string, string | string[] | undefined>;
     const rawBody = Buffer.isBuffer(req.rawBody)
       ? req.rawBody
@@ -269,8 +298,22 @@ export class WebhooksService {
       return { kind: 'json', status: 200, body: response };
     }
 
+    const { leads: leadsToEnqueue, unmatched } = await this.enqueuePreparedLeads('zalo', parsed.leads, {
+      correlationId,
+      clientId,
+      projectSlug,
+    });
+    response.b2b_unmatched_count = unmatched;
+    response.lead_count = leadsToEnqueue.length;
+
+    if (!leadsToEnqueue.length) {
+      response.created_count = 0;
+      response.accepted = true;
+      return { kind: 'json', status: 200, body: response };
+    }
+
     try {
-      const enqueue = await this.jobQueue.enqueueIngestLeads(parsed.leads, {
+      const enqueue = await this.jobQueue.enqueueIngestLeads(leadsToEnqueue, {
         channel: 'zalo',
         correlationId,
         clientId,

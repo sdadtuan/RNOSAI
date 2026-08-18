@@ -250,4 +250,103 @@ export class B2bProjectsRepository implements OnModuleDestroy {
       assignEnabled: Boolean(row.assign_enabled),
     }));
   }
+
+  async loadIngressCatalog(): Promise<import('./b2b-ingest.util').IngressCatalog> {
+    const formsResult = await this.db.query(
+      `SELECT f.form_id, p.page_id, p.project_id::text AS project_id, pr.code AS project_slug, f.active
+       FROM crm_b2b_project_page_forms f
+       JOIN crm_b2b_project_pages p ON p.id = f.page_row_id
+       JOIN crm_b2b_projects pr ON pr.id = p.project_id`,
+    );
+    const pagesResult = await this.db.query(
+      `SELECT p.page_id, p.project_id::text AS project_id, pr.code AS project_slug, p.active
+       FROM crm_b2b_project_pages p
+       JOIN crm_b2b_projects pr ON pr.id = p.project_id`,
+    );
+    const accountsResult = await this.db.query(
+      `SELECT channel_type, external_key, project_id::text AS project_id, pr.code AS project_slug, a.active
+       FROM crm_b2b_project_channel_accounts a
+       JOIN crm_b2b_projects pr ON pr.id = a.project_id`,
+    );
+    return {
+      forms: formsResult.rows.map((row) => ({
+        formId: String(row.form_id),
+        pageId: String(row.page_id),
+        projectId: String(row.project_id),
+        projectSlug: String(row.project_slug).toLowerCase(),
+        active: Boolean(row.active),
+      })),
+      pages: pagesResult.rows.map((row) => ({
+        pageId: String(row.page_id),
+        projectId: String(row.project_id),
+        projectSlug: String(row.project_slug).toLowerCase(),
+        active: Boolean(row.active),
+      })),
+      accounts: accountsResult.rows.map((row) => ({
+        channel: String(row.channel_type) as 'zalo' | 'webform' | 'api',
+        externalKey: String(row.external_key),
+        projectId: String(row.project_id),
+        projectSlug: String(row.project_slug).toLowerCase(),
+        active: Boolean(row.active),
+      })),
+    };
+  }
+
+  async insertUnmatchedIngress(input: {
+    channel: string;
+    projectSlug?: string;
+    externalKey: string;
+    payload: Record<string, unknown>;
+  }): Promise<void> {
+    await this.db.query(
+      `INSERT INTO crm_b2b_unmatched_ingress (channel, project_slug, external_key, payload_json)
+       VALUES ($1, $2, $3, $4::jsonb)`,
+      [input.channel, input.projectSlug ?? null, input.externalKey, JSON.stringify(input.payload)],
+    );
+  }
+
+  async listProjectPages(projectId: string) {
+    const result = await this.db.query(
+      `SELECT p.id::text, p.page_id, p.name, p.token_ref, p.active,
+              COALESCE(
+                json_agg(
+                  json_build_object(
+                    'form_id', f.form_id,
+                    'name', f.name,
+                    'active', f.active
+                  )
+                ) FILTER (WHERE f.id IS NOT NULL),
+                '[]'::json
+              ) AS forms
+       FROM crm_b2b_project_pages p
+       LEFT JOIN crm_b2b_project_page_forms f ON f.page_row_id = p.id
+       WHERE p.project_id = $1::uuid
+       GROUP BY p.id
+       ORDER BY p.page_id`,
+      [projectId],
+    );
+    return result.rows;
+  }
+
+  async listProjectChannels(projectId: string) {
+    const result = await this.db.query(
+      `SELECT id::text, channel_type, external_key, label, config_json, active
+       FROM crm_b2b_project_channel_accounts
+       WHERE project_id = $1::uuid
+       ORDER BY channel_type, external_key`,
+      [projectId],
+    );
+    return result.rows;
+  }
+
+  async listProjectStaff(projectId: string) {
+    const result = await this.db.query(
+      `SELECT staff_id, assign_enabled, sales_level
+       FROM crm_b2b_project_staff
+       WHERE project_id = $1::uuid
+       ORDER BY staff_id`,
+      [projectId],
+    );
+    return result.rows;
+  }
 }

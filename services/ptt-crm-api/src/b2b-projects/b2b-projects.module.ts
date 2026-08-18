@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { B2bLeadScopeService } from './b2b-lead-scope.service';
+import { B2bIngestService } from './b2b-ingest.service';
 import { B2bProjectsController } from './b2b-projects.controller';
 import { B2bProjectsRepository } from './b2b-projects.repository';
 import { B2bProjectsService } from './b2b-projects.service';
@@ -16,9 +17,10 @@ import {
     B2bProjectsService,
     B2bProjectsRepository,
     B2bLeadScopeService,
+    B2bIngestService,
     StaffB2bProjectsViewGuard,
     StaffB2bProjectsManageGuard,
   ],
-  exports: [B2bProjectsService, B2bProjectsRepository, B2bLeadScopeService],
+  exports: [B2bProjectsService, B2bProjectsRepository, B2bLeadScopeService, B2bIngestService],
 })
 export class B2bProjectsModule {}

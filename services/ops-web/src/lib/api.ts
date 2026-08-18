@@ -29,6 +29,8 @@ export interface LeadRow {
   created_at: string;
   received_at: string;
   is_duplicate: boolean;
+  b2b_project_id?: string | null;
+  lead_flow_kind?: 'spa_operational' | 'b2b_prospect' | string | null;
   expected_value?: number | null;
   margin_pct?: number | null;
   review_queue?: {
@@ -287,6 +289,7 @@ export interface CreateLeadBody {
   external_lead_id?: string | null;
   owner_id?: number | null;
   lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
+  b2b_project_id?: string | null;
 }
 
 export async function createLead(token: string, body: CreateLeadBody): Promise<LeadRow> {

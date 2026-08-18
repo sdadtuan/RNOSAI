@@ -55,6 +55,9 @@ export class JobQueueRepository implements OnModuleDestroy {
         lead,
         channel,
         client_id: opts.clientId || lead.client_id || '',
+        b2b_project_id: (lead as { b2b_project_id?: string }).b2b_project_id ?? null,
+        owner_company_id: (lead as { owner_company_id?: string }).owner_company_id ?? null,
+        lead_flow_kind: (lead as { lead_flow_kind?: string }).lead_flow_kind ?? null,
       };
       const clientId = this.normalizeClientUuid(opts.clientId || lead.client_id);
       jobs.push(

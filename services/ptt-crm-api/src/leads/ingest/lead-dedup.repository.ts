@@ -33,6 +33,7 @@ export class LeadDedupRepository implements OnModuleDestroy {
     phone?: string;
     email?: string;
     excludeId?: number;
+    b2bProjectId?: string | null;
   }): Promise<LeadDuplicateMatch[]> {
     const ph = normalizePhone(input.phone);
     const em = normalizeEmail(input.email);
@@ -53,6 +54,10 @@ export class LeadDedupRepository implements OnModuleDestroy {
     if (input.excludeId) {
       clauses.push(`sqlite_lead_id <> $${params.length + 1}`);
       params.push(input.excludeId);
+    }
+    if (input.b2bProjectId !== undefined) {
+      clauses.push(`b2b_project_id IS NOT DISTINCT FROM $${params.length + 1}::uuid`);
+      params.push(input.b2bProjectId || null);
     }
 
     const result = await this.db.query(

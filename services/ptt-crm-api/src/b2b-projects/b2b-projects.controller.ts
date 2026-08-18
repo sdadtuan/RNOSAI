@@ -69,4 +69,22 @@ export class B2bProjectsController {
   replaceStaff(@Param('id') id: string, @Body() body: { staff: B2bProjectStaffInput[] }) {
     return this.projects.replaceStaff(id, body.staff ?? []);
   }
+
+  @Get(':id/pages')
+  @UseGuards(StaffB2bProjectsViewGuard)
+  listPages(@Param('id') id: string) {
+    return this.projects.listPages(id);
+  }
+
+  @Get(':id/channels')
+  @UseGuards(StaffB2bProjectsViewGuard)
+  listChannels(@Param('id') id: string) {
+    return this.projects.listChannels(id);
+  }
+
+  @Get(':id/staff')
+  @UseGuards(StaffB2bProjectsViewGuard)
+  listStaff(@Param('id') id: string) {
+    return this.projects.listStaff(id);
+  }
 }

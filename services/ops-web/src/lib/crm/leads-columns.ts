@@ -4,6 +4,7 @@ export type LeadsColumnId =
   | 'phone'
   | 'status'
   | 'kind'
+  | 'project'
   | 'source'
   | 'channel'
   | 'score'
@@ -22,6 +23,7 @@ export const LEADS_COLUMN_DEFS: Array<{
   { id: 'phone', label: 'SĐT', defaultVisible: true },
   { id: 'status', label: 'Trạng thái', defaultVisible: true },
   { id: 'kind', label: 'Loại', defaultVisible: true },
+  { id: 'project', label: 'Dự án', defaultVisible: true },
   { id: 'source', label: 'Nguồn', defaultVisible: true },
   { id: 'channel', label: 'Kênh', defaultVisible: true },
   { id: 'score', label: 'AI Score', defaultVisible: true, scoreOnly: true },

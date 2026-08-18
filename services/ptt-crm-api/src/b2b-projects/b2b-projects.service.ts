@@ -64,6 +64,18 @@ export class B2bProjectsService {
     return { ok: true };
   }
 
+  listPages(id: string) {
+    return this.repo.listProjectPages(id);
+  }
+
+  listChannels(id: string) {
+    return this.repo.listProjectChannels(id);
+  }
+
+  listStaff(id: string) {
+    return this.repo.listProjectStaff(id);
+  }
+
   listStaffMemberships(staffId: number) {
     return this.repo.listStaffMemberships(staffId);
   }

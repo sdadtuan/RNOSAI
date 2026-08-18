@@ -96,7 +96,12 @@ def sqlite_row_to_pg_record(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]
 
 def upsert_pg_lead(record: dict[str, Any], *, write_source: str = "sync") -> None:
     ws = (write_source or "sync")[:32]
-    payload = {**record, "write_source": ws}
+    payload = {
+        **record,
+        "write_source": ws,
+        "owner_company_id": record.get("owner_company_id"),
+        "b2b_project_id": record.get("b2b_project_id"),
+    }
     with pg_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -104,6 +109,7 @@ def upsert_pg_lead(record: dict[str, Any], *, write_source: str = "sync") -> Non
                 INSERT INTO crm_leads (
                     sqlite_lead_id, full_name, phone, email, status, source,
                     owner_id, is_duplicate, meta_json, agency_client_id,
+                    owner_company_id, b2b_project_id,
                     channel, external_lead_id, campaign_id, received_at, created_at,
                     synced_at, sync_version, write_source
                 )
@@ -112,6 +118,8 @@ def upsert_pg_lead(record: dict[str, Any], *, write_source: str = "sync") -> Non
                     %(status)s, %(source)s, %(owner_id)s, %(is_duplicate)s,
                     %(meta_json)s::jsonb,
                     %(agency_client_id)s::uuid,
+                    %(owner_company_id)s::uuid,
+                    %(b2b_project_id)s::uuid,
                     %(channel)s, %(external_lead_id)s, %(campaign_id)s,
                     %(received_at)s, %(created_at)s, NOW(), 1, %(write_source)s
                 )
@@ -125,6 +133,8 @@ def upsert_pg_lead(record: dict[str, Any], *, write_source: str = "sync") -> Non
                     is_duplicate = EXCLUDED.is_duplicate,
                     meta_json = EXCLUDED.meta_json,
                     agency_client_id = EXCLUDED.agency_client_id,
+                    owner_company_id = EXCLUDED.owner_company_id,
+                    b2b_project_id = EXCLUDED.b2b_project_id,
                     channel = EXCLUDED.channel,
                     external_lead_id = EXCLUDED.external_lead_id,
                     campaign_id = EXCLUDED.campaign_id,

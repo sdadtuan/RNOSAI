@@ -476,6 +476,7 @@ export const LINK_ICONS: Record<string, string> = {
   '/crm/proposals': 'proposal',
   '/crm/orders': 'order',
   '/crm/re-projects': 'building',
+  '/crm/b2b-projects': 'briefcase',
   '/crm/research': 'search',
   '/crm/research/analytics': 'kpi',
   '/crm/research/taxonomy': 'catalog',

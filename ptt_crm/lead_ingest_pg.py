@@ -89,6 +89,7 @@ def find_pg_contact_duplicates(
     phone: str = "",
     email: str = "",
     exclude_id: int | None = None,
+    b2b_project_id: str | None = None,
 ) -> list[dict[str, Any]]:
     ph = normalize_phone(phone)
     em = normalize_email(email)
@@ -107,6 +108,9 @@ def find_pg_contact_duplicates(
     if exclude_id:
         clauses.append("sqlite_lead_id <> %s")
         params.append(int(exclude_id))
+    if b2b_project_id is not None:
+        clauses.append("b2b_project_id IS NOT DISTINCT FROM %s::uuid")
+        params.append(b2b_project_id)
     with pg_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -234,6 +238,8 @@ def legacy_item_to_pg_record(
     meta = dict(item.get("meta") if isinstance(item.get("meta"), dict) else {})
     if client_id:
         meta.setdefault("agency_client_id", client_id)
+    if item.get("lead_flow_kind"):
+        meta["lead_flow_kind"] = str(item["lead_flow_kind"])
     name = str(item.get("full_name") or "").strip() or str(item.get("phone") or item.get("email") or "Lead")
     phone = str(item.get("phone") or "").strip()
     email = str(item.get("email") or "").strip()
@@ -251,6 +257,8 @@ def legacy_item_to_pg_record(
         "is_duplicate": False,
         "meta_json": json_dumps(meta),
         "agency_client_id": _normalize_uuid(client_id),
+        "owner_company_id": _normalize_uuid(item.get("owner_company_id")),
+        "b2b_project_id": _normalize_uuid(item.get("b2b_project_id")),
         "channel": (channel or meta.get("channel") or "")[:32],
         "external_lead_id": ext,
         "campaign_id": campaign_id,
@@ -295,6 +303,17 @@ def ingest_legacy_item_pg(
     if not normalize_phone(phone) and not normalize_email(email):
         if not ext:
             return {"status": "skipped", "message": "Thiếu phone/email", "full_name": name}
+
+    b2b_project_id = _normalize_uuid(item.get("b2b_project_id"))
+    dup_matches = find_pg_contact_duplicates(phone=phone, email=email, b2b_project_id=b2b_project_id)
+    if dup_matches:
+        primary_id = int(dup_matches[0].get("lead_id") or dup_matches[0].get("sqlite_lead_id") or 0)
+        if primary_id:
+            return {
+                "status": "duplicate_seen",
+                "lead_id": primary_id,
+                "message": f"Lead trùng SĐT/email trong dự án (PG #{primary_id})",
+            }
 
     with pg_connection() as conn:
         with conn.cursor() as cur:
@@ -404,6 +423,9 @@ def process_ingest_lead_payload_pg(
     channel = str(payload.get("channel") or lead_dict.get("channel") or "meta")
     client_id = str(payload.get("client_id") or lead_dict.get("client_id") or "").strip()
     client_id_norm = client_id if client_id not in {"", "unknown"} else None
+    b2b_project_id = _normalize_uuid(payload.get("b2b_project_id") or lead_dict.get("b2b_project_id"))
+    owner_company_id = _normalize_uuid(payload.get("owner_company_id") or lead_dict.get("owner_company_id"))
+    lead_flow_kind = str(payload.get("lead_flow_kind") or lead_dict.get("lead_flow_kind") or "").strip() or None
 
     from ptt_channel.mappers import normalized_lead_to_legacy
 
@@ -412,6 +434,12 @@ def process_ingest_lead_payload_pg(
         meta = legacy_item.setdefault("meta", {})
         if isinstance(meta, dict):
             meta["agency_client_id"] = client_id_norm
+    if b2b_project_id:
+        legacy_item["b2b_project_id"] = b2b_project_id
+    if owner_company_id:
+        legacy_item["owner_company_id"] = owner_company_id
+    if lead_flow_kind:
+        legacy_item["lead_flow_kind"] = lead_flow_kind
 
     source = _default_source(channel)
     ts = _utc_ts()

@@ -120,6 +120,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/orders': 'Đơn hàng',
   '/crm/invoices': 'Hóa đơn',
   '/crm/re-projects': 'Dự án BĐS',
+  '/crm/b2b-projects': 'Dự án PTT',
   '/crm/payroll': 'Chấm công & lương',
   '/crm/payroll/me': 'Phiếu lương của tôi',
   '/crm/hr/leave': 'Nghỉ phép lite',
@@ -220,6 +221,7 @@ function pageTitleFor(pathname: string): string {
   }
   if (pathname.startsWith('/crm/staff/') && pathname !== '/crm/staff') return 'Workspace nhân viên';
   if (pathname.startsWith('/crm/re-projects/') && pathname !== '/crm/re-projects') return 'Chi tiết dự án BĐS';
+  if (pathname.startsWith('/crm/b2b-projects/') && pathname !== '/crm/b2b-projects') return 'Chi tiết dự án PTT';
   if (pathname.startsWith('/agency/clients/')) return 'Chi tiết client';
   if (pathname.startsWith('/email/templates/') && pathname !== '/email/templates') return 'Template editor';
   if (pathname.startsWith('/email/campaigns/') && pathname.endsWith('/review')) return 'Campaign review';
@@ -351,6 +353,9 @@ function buildSections(
   }
   if (hasCap(user, 'crm_re_projects', 'view') || hasCap(user, 'crm_re_projects_products', 'view')) {
     salesContract.push({ href: '/crm/re-projects', label: 'Dự án BĐS' });
+  }
+  if (hasCap(user, 'crm_b2b_projects', 'view')) {
+    salesContract.push({ href: '/crm/b2b-projects', label: 'Dự án PTT' });
   }
   if (salesContract.length) {
     sections.push({ label: 'CRM · Bán hàng & Hợp đồng', links: salesContract, defaultOpen: true });

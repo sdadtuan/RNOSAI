@@ -16,6 +16,7 @@ interface Props {
   onToggleSelect: (id: number) => void;
   onToggleAll: (checked: boolean) => void;
   ownerNameById?: Record<number, string>;
+  projectLabelById?: Record<string, string>;
   visibleColumns: Set<LeadsColumnId>;
   showScores?: boolean;
   scoreMap?: Record<string, LeadScoreSummary>;
@@ -31,6 +32,7 @@ function colSpan(visible: Set<LeadsColumnId>, showLeadKindTags: boolean, showSco
   if (visible.has('phone')) n += 1;
   if (visible.has('status')) n += 1;
   if (showLeadKindTags && visible.has('kind')) n += 1;
+  if (visible.has('project')) n += 1;
   if (visible.has('source')) n += 1;
   if (visible.has('channel')) n += 1;
   if (showScores && visible.has('score')) n += 1;
@@ -45,6 +47,7 @@ export function CrmLeadsList({
   onToggleSelect,
   onToggleAll,
   ownerNameById,
+  projectLabelById = {},
   visibleColumns,
   showScores = false,
   scoreMap = {},
@@ -90,6 +93,7 @@ export function CrmLeadsList({
               {visibleColumns.has('phone') ? <th>SĐT</th> : null}
               {visibleColumns.has('status') ? <th>Trạng thái</th> : null}
               {showLeadKindTags && visibleColumns.has('kind') ? <th>Loại</th> : null}
+              {visibleColumns.has('project') ? <th>Dự án</th> : null}
               {visibleColumns.has('source') ? <th>Nguồn</th> : null}
               {visibleColumns.has('channel') ? <th>Kênh</th> : null}
               {showScores && visibleColumns.has('score') ? <th>AI Score</th> : null}
@@ -134,6 +138,13 @@ export function CrmLeadsList({
                 {visibleColumns.has('status') ? <td>{lead.status}</td> : null}
                 {showLeadKindTags && visibleColumns.has('kind') ? (
                   <td>{lead.review_queue?.active ? <LeadReviewQueueTag lead={lead} /> : '—'}</td>
+                ) : null}
+                {visibleColumns.has('project') ? (
+                  <td>
+                    {lead.b2b_project_id
+                      ? projectLabelById[lead.b2b_project_id] ?? lead.b2b_project_id.slice(0, 8)
+                      : '—'}
+                  </td>
                 ) : null}
                 {visibleColumns.has('source') ? <td>{lead.source}</td> : null}
                 {visibleColumns.has('channel') ? <td>{lead.channel || '—'}</td> : null}

@@ -22,6 +22,10 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
     anyOf: [{ section: 'crm_leads', action: 'view' }],
   },
   {
+    prefix: '/crm/b2b-projects',
+    anyOf: [{ section: 'crm_b2b_projects', action: 'view' }],
+  },
+  {
     prefix: '/crm/b2b',
     anyOf: [{ section: 'crm_leads', action: 'view' }],
   },
@@ -77,6 +81,7 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
       { section: 'crm_staff_roster', action: 'view' },
       { section: 'crm_sop_runs', action: 'view' },
       { section: 'crm_re_projects', action: 'view' },
+      { section: 'crm_b2b_projects', action: 'view' },
       { section: 'crm_mktplan', action: 'view' },
       { section: 'crm_presales_solution', action: 'view' },
       { section: 'ai_analytics', action: 'query' },

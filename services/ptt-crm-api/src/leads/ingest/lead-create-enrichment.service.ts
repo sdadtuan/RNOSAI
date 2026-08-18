@@ -60,7 +60,11 @@ export class LeadCreateEnrichmentService {
       });
     }
 
-    const dupMatches = await this.dedup.findContactDuplicates({ phone, email });
+    const dupMatches = await this.dedup.findContactDuplicates({
+      phone,
+      email,
+      b2bProjectId: b2bProjectId ?? undefined,
+    });
     const isDuplicate = dupMatches.length > 0;
     const duplicateOfId = isDuplicate ? dupMatches[0].lead_id : null;
     if (duplicateOfId) {

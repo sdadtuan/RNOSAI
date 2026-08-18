@@ -31,6 +31,7 @@ import {
   type CrmLeadsFlowScope,
 } from '@/lib/crm/lead-flow-routes';
 import { statusOptionsForFlowKind } from '@/lib/crm/lead-flow-kind';
+import { fetchB2bProjects, type B2bProjectListItem } from '@/lib/b2b-projects-api';
 
 const SPA_STATUS_OPTIONS = [
   { value: 'moi', label: 'Mới' },
@@ -90,6 +91,8 @@ export function CrmNewLeadPageContent({
   const [channel, setChannel] = useState('');
   const [status, setStatus] = useState('moi');
   const [ownerId, setOwnerId] = useState('');
+  const [b2bProjectId, setB2bProjectId] = useState('');
+  const [b2bProjects, setB2bProjects] = useState<B2bProjectListItem[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -158,8 +161,17 @@ export function CrmNewLeadPageContent({
       if (presetClientId) {
         setClientId(presetClientId);
       }
+      if (isB2bFlow && hasCap(getStoredUser(), 'crm_b2b_projects', 'view')) {
+        try {
+          const projects = await fetchB2bProjects(currentToken, 'active');
+          setB2bProjects(projects);
+          if (projects.length === 1) setB2bProjectId(projects[0].id);
+        } catch {
+          setB2bProjects([]);
+        }
+      }
     })();
-  }, [presetClientId, router]);
+  }, [presetClientId, router, isB2bFlow]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -171,6 +183,10 @@ export function CrmNewLeadPageContent({
     }
     if (isOperationalFlow && !clientId) {
       setError('Chọn khách hàng agency (client) — bắt buộc với lead CSKH vận hành');
+      return;
+    }
+    if (isB2bFlow && b2bProjects.length > 0 && !b2bProjectId) {
+      setError('Chọn dự án PTT — bắt buộc với lead B2B');
       return;
     }
     setSaving(true);
@@ -186,6 +202,7 @@ export function CrmNewLeadPageContent({
         status,
         owner_id: ownerId ? Number(ownerId) : undefined,
         lead_flow_kind: isOperationalFlow ? 'spa_operational' : isB2bFlow ? 'b2b_prospect' : undefined,
+        b2b_project_id: isB2bFlow && b2bProjectId ? b2bProjectId : undefined,
       });
       router.push(`/crm/leads/${lead.id}`);
     } catch (err) {
@@ -281,6 +298,25 @@ export function CrmNewLeadPageContent({
                 ))}
               </select>
             </label>
+
+            {isB2bFlow && b2bProjects.length > 0 ? (
+              <label style={{ display: 'grid', gap: '0.35rem' }}>
+                <span>Dự án PTT *</span>
+                <select
+                  className="kpi-select"
+                  value={b2bProjectId}
+                  onChange={(e) => setB2bProjectId(e.target.value)}
+                  required
+                >
+                  <option value="">— Chọn dự án —</option>
+                  {b2bProjects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.code})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
               <label style={{ display: 'grid', gap: '0.35rem' }}>
