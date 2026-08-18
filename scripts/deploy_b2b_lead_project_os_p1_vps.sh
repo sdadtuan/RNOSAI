@@ -28,6 +28,7 @@ run_local() {
     source "$ROOT/.env"
     set +a
   fi
+  export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5433/rnosaidb}"
 
   echo "== 1/4 Apply DDL =="
   bash "$ROOT/scripts/apply_pg_ddl_b2b_lead_project_os.sh"
