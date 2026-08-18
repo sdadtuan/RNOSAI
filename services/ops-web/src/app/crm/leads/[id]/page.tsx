@@ -11,6 +11,7 @@ import { LeadB2bSalesFlowBar, type LeadContractFlowSummary } from '@/components/
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
 import { LeadAuditPanel } from '@/components/crm/LeadAuditPanel';
 import { LeadContactActions } from '@/components/crm/LeadContactActions';
+import { LeadMobileCallBar } from '@/components/crm/LeadMobileCallBar';
 import { LeadContractPanel } from '@/components/LeadContractPanel';
 import { LeadDetailHero } from '@/components/crm/LeadDetailHero';
 import { LeadSlaCarePanel } from '@/components/crm/LeadSlaCarePanel';
@@ -845,12 +846,14 @@ export default function CrmLeadDetailPage() {
             {showOverviewMain ? (
               <>
             {lead.phone ? (
-              <LeadContactActions
-                phone={lead.phone}
-                onCopy={onCopyContact}
-                leadId={lead.id}
-                accessToken={accessToken}
-              />
+              layout.mobile && mobileTab === 'detail' ? null : (
+                <LeadContactActions
+                  phone={lead.phone}
+                  onCopy={onCopyContact}
+                  leadId={lead.id}
+                  accessToken={accessToken}
+                />
+              )
             ) : null}
 
             {accessToken ? (
@@ -1119,6 +1122,15 @@ export default function CrmLeadDetailPage() {
             </div>
           </section>
         </div>
+      ) : null}
+
+      {layout.mobile && mobileTab === 'detail' && lead?.phone ? (
+        <LeadMobileCallBar
+          phone={lead.phone}
+          leadId={lead.id}
+          accessToken={accessToken}
+          onCopy={onCopyContact}
+        />
       ) : null}
 
       {showCopilotSheet ? (

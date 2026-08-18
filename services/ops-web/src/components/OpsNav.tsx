@@ -121,6 +121,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/invoices': 'Hóa đơn',
   '/crm/re-projects': 'Dự án BĐS',
   '/crm/b2b-projects': 'Dự án PTT',
+  '/crm/b2b-inbox': 'Inbox B2B',
   '/crm/payroll': 'Chấm công & lương',
   '/crm/payroll/me': 'Phiếu lương của tôi',
   '/crm/hr/leave': 'Nghỉ phép lite',
@@ -308,6 +309,7 @@ function buildSections(
   const b2bSales: NavLink[] = [];
   if (hasCap(user, 'crm_leads', 'view')) {
     b2bSales.push({ href: '/crm/b2b/leads', label: 'Lead B2B' });
+    b2bSales.push({ href: '/crm/b2b-inbox', label: 'Inbox B2B' });
     b2bSales.push({ href: '/crm/intake', label: 'Lead Intake' });
     if (hasCap(user, 'crm_presales_solution', 'view') || hasCap(user, 'crm_leads', 'view')) {
       b2bSales.push({ href: '/crm/solution/queue', label: 'Solution queue' });

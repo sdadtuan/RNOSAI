@@ -11956,3 +11956,121 @@ body {
     width: 100%;
   }
 }
+
+/* B2B Lead Project OS — P5 mobile inbox + sticky call */
+.b2b-inbox-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.b2b-inbox-item {
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  background: var(--surface);
+  display: grid;
+  gap: 0.5rem;
+}
+
+.b2b-inbox-item--unread {
+  border-color: rgba(220, 38, 38, 0.35);
+  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.08);
+}
+
+.b2b-inbox-item__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.b2b-inbox-item__body {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.b2b-inbox-item__time {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.b2b-inbox-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.b2b-inbox-chip--hot {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
+
+.b2b-inbox-chip--inbox {
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+
+.b2b-inbox-chip--normal {
+  background: rgba(23, 105, 47, 0.1);
+  color: var(--primary-800);
+}
+
+.b2b-inbox-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.lead-b2b-call-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem calc(0.65rem + env(safe-area-inset-bottom, 0px));
+  margin: 0 -0.75rem -0.75rem;
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid var(--surface-border);
+  backdrop-filter: blur(8px);
+}
+
+.lead-b2b-call-sticky__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-800) 100%);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  border: none;
+}
+
+.lead-b2b-call-sticky__secondary {
+  min-height: 44px;
+  padding: 0.65rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--surface-border);
+  background: #fff;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+@media (min-width: 768px) {
+  .lead-b2b-call-sticky {
+    display: none;
+  }
+}
