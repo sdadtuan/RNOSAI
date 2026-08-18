@@ -4,6 +4,7 @@ import { hasGdkdViewAllLeads } from '../staff-permissions/staff-gdkd.util';
 import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
 import { isB2bDirectorPosition } from './b2b-director.util';
 import { B2bProjectsRepository } from './b2b-projects.repository';
+import { resolveIsActivePttStaff } from './b2b-staff-active.util';
 import { canSeeB2bLead, type B2bLeadScopeRow, type B2bProjectMembership } from './b2b-visibility.util';
 
 export interface B2bLeadVisibilityInput {
@@ -46,20 +47,24 @@ export class B2bLeadScopeService {
   async assertLeadVisible(input: B2bLeadVisibilityInput): Promise<void> {
     const scopeRow = this.toScopeRow(input.lead);
     if (scopeRow.flowKind !== 'b2b_prospect') return;
-    const memberships = await this.loadMemberships(input.staffId);
-    const allowed = canSeeB2bLead(
-      {
-        staffId: input.staffId,
-        isDirector: isB2bDirectorPosition(input.positionCode),
-        hasViewAllLeads: hasGdkdViewAllLeads(input.caps),
-        isActivePttStaff: true,
-      },
-      scopeRow,
-      memberships,
-    );
+    const [memberships, actor] = await Promise.all([
+      this.loadMemberships(input.staffId),
+      this.buildVisibilityActor(input),
+    ]);
+    const allowed = canSeeB2bLead(actor, scopeRow, memberships);
     if (!allowed) {
       throw new NotFoundException({ error: 'not_found' });
     }
+  }
+
+  private async buildVisibilityActor(input: Omit<B2bLeadVisibilityInput, 'lead'>) {
+    const staff = await this.repo.findStaffActive(input.staffId);
+    return {
+      staffId: input.staffId,
+      isDirector: isB2bDirectorPosition(input.positionCode),
+      hasViewAllLeads: hasGdkdViewAllLeads(input.caps),
+      isActivePttStaff: resolveIsActivePttStaff(staff),
+    };
   }
 
   async loadMemberships(staffId: number): Promise<B2bProjectMembership[]> {
@@ -90,13 +95,10 @@ export class B2bLeadScopeService {
     rows: T[],
     input: Omit<B2bLeadVisibilityInput, 'lead'>,
   ): Promise<T[]> {
-    const memberships = await this.loadMemberships(input.staffId);
-    const actor = {
-      staffId: input.staffId,
-      isDirector: isB2bDirectorPosition(input.positionCode),
-      hasViewAllLeads: hasGdkdViewAllLeads(input.caps),
-      isActivePttStaff: true,
-    };
+    const [memberships, actor] = await Promise.all([
+      this.loadMemberships(input.staffId),
+      this.buildVisibilityActor(input),
+    ]);
     if (actor.hasViewAllLeads || actor.isDirector) return rows;
     return rows.filter((row) => {
       const meta =

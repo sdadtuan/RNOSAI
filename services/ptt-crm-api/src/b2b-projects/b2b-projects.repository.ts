@@ -251,6 +251,13 @@ export class B2bProjectsRepository implements OnModuleDestroy {
     }));
   }
 
+  async findStaffActive(staffId: number): Promise<{ active: boolean | null }> {
+    const result = await this.db.query(`SELECT active FROM crm_staff WHERE id = $1 LIMIT 1`, [staffId]);
+    const raw = result.rows[0]?.active;
+    if (raw == null) return { active: null };
+    return { active: Boolean(raw) };
+  }
+
   async loadIngressCatalog(): Promise<import('./b2b-ingest.util').IngressCatalog> {
     const formsResult = await this.db.query(
       `SELECT f.form_id, p.page_id, p.project_id::text AS project_id, pr.code AS project_slug, f.active
