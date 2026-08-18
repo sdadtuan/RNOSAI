@@ -60,6 +60,21 @@ export class LeadsWriteService {
           },
         });
       }
+      if (enriched.b2b_project_id && !enriched.is_duplicate) {
+        const scoreRaw = enriched.meta?.lead_score;
+        const score =
+          typeof scoreRaw === 'number'
+            ? scoreRaw
+            : typeof scoreRaw === 'string' && scoreRaw.trim()
+              ? Number(scoreRaw)
+              : null;
+        await this.b2bFirstAssign.notifyLeadArrival({
+          leadId: lead.id,
+          projectId: enriched.b2b_project_id,
+          ownerId: lead.owner_id != null ? Number(lead.owner_id) : null,
+          score: Number.isFinite(score) ? score : null,
+        });
+      }
       const correlationId = await this.events.emit(
         'LeadCreated',
         'lead',

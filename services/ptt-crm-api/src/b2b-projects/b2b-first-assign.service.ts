@@ -8,6 +8,9 @@ import {
   type AssignPoolMember,
   type DecideFirstAssignResult,
 } from './b2b-assign.util';
+import { B2bAlertsService } from './b2b-alerts.service';
+import { B2bProjectsRepository } from './b2b-projects.repository';
+import { isWithinBusinessHours } from './b2b-sla.util';
 import { B2bSlaRepository } from './b2b-sla.repository';
 
 export interface B2bFirstAssignInput {
@@ -61,6 +64,8 @@ export class B2bFirstAssignService {
   constructor(
     private readonly repo: B2bSlaRepository,
     private readonly ml: B2bFirstAssignMlAdapter,
+    private readonly alerts: B2bAlertsService,
+    private readonly projectsRepo: B2bProjectsRepository,
   ) {}
 
   async assign(input: B2bFirstAssignInput): Promise<DecideFirstAssignResult> {
@@ -120,6 +125,36 @@ export class B2bFirstAssignService {
       assignConfidence: input.assign.confidence,
       firstTouchPct: commission.firstTouchPct,
       closerPct: commission.closerPct,
+    });
+  }
+
+  async notifyLeadArrival(input: {
+    leadId: number;
+    projectId: string;
+    ownerId: number | null;
+    score: number | null;
+  }): Promise<void> {
+    const project = await this.repo.getProject(input.projectId);
+    const hours = this.repo.resolveBusinessHours(project);
+    const inHours = isWithinBusinessHours(hours, new Date());
+    const staffRows = await this.projectsRepo.listProjectStaff(input.projectId);
+    const receivers = staffRows.map((row) => ({
+      staffId: Number(row.staff_id),
+      assignEnabled: Boolean(row.assign_enabled),
+      isDirector: false,
+      hasViewAllLeads: false,
+      isActivePttStaff: true,
+    }));
+    await this.alerts.fanoutArrival({
+      lead: {
+        flowKind: 'b2b_prospect',
+        ownerId: input.ownerId,
+        projectId: input.projectId,
+        score: input.score,
+        leadId: input.leadId,
+      },
+      inHours,
+      receivers,
     });
   }
 }

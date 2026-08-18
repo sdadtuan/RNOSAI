@@ -17,6 +17,7 @@ export interface OpenB2bLeadRow {
   aiCallEnabled: boolean;
   channel: string | null;
   source: string | null;
+  phone: string | null;
 }
 
 export interface ApplyHopInput {
@@ -122,7 +123,8 @@ export class B2bSlaRepository implements OnModuleDestroy {
               l.b2b_project_id::text AS project_id,
               p.ai_call_enabled,
               l.channel,
-              l.source
+              l.source,
+              l.phone
        FROM crm_leads l
        JOIN crm_b2b_projects p ON p.id = l.b2b_project_id
        WHERE l.b2b_project_id IS NOT NULL
@@ -144,6 +146,7 @@ export class B2bSlaRepository implements OnModuleDestroy {
       aiCallEnabled: Boolean(row.ai_call_enabled),
       channel: row.channel ? String(row.channel) : null,
       source: row.source ? String(row.source) : null,
+      phone: row.phone ? String(row.phone) : null,
     }));
   }
 

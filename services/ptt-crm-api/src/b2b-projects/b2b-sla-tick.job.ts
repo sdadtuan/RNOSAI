@@ -12,9 +12,9 @@ export class B2bSlaTickJob {
   async handleTick(): Promise<void> {
     try {
       const out = await this.tickService.tick(new Date());
-      if (out.hopped || out.queued) {
+      if (out.hopped || out.queued || out.aiStarted) {
         this.logger.log(
-          `b2b sla tick processed=${out.processed} hopped=${out.hopped} gdkd=${out.queued}`,
+          `b2b sla tick processed=${out.processed} hopped=${out.hopped} gdkd=${out.queued} ai=${out.aiStarted}`,
         );
       }
     } catch (err) {

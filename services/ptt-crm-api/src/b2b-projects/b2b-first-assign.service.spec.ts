@@ -11,6 +11,8 @@ describe('B2bFirstAssignService', () => {
       {
         routeMl: () => new Promise(() => undefined),
       } as never,
+      { fanoutArrival: jest.fn() } as never,
+      { listProjectStaff: jest.fn() } as never,
     );
     const r = await svc.assign({ projectId: 'p', score: 80, now: Date.now() });
     expect(r.strategy).toBe('hybrid_timeout');
@@ -27,6 +29,8 @@ describe('B2bFirstAssignService', () => {
       {
         routeMl: async () => ({ staffId: 2, confidence: 0.9, reason: 'ml pick' }),
       } as never,
+      { fanoutArrival: jest.fn() } as never,
+      { listProjectStaff: jest.fn() } as never,
     );
     const r = await svc.assign({ projectId: 'p', score: 80 });
     expect(r.strategy).toBe('ai_analytics');

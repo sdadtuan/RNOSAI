@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { decideFirstAssign } from './b2b-assign.util';
-import { isWithinBusinessHours, resolveSlaAction } from './b2b-sla.util';
+import { B2bCallsService } from './b2b-calls.service';
+import { isWithinBusinessHours, resolveSlaAction, shouldStartAiCall } from './b2b-sla.util';
 import { B2bSlaRepository } from './b2b-sla.repository';
 
 @Injectable()
@@ -9,16 +10,18 @@ export class B2bSlaTickService {
   constructor(
     private readonly repo: B2bSlaRepository,
     private readonly config: AppConfigService,
+    private readonly calls: B2bCallsService,
   ) {}
 
-  async tick(now: Date): Promise<{ processed: number; hopped: number; queued: number }> {
+  async tick(now: Date): Promise<{ processed: number; hopped: number; queued: number; aiStarted: number }> {
     if (!this.config.b2bProjectOs) {
-      return { processed: 0, hopped: 0, queued: 0 };
+      return { processed: 0, hopped: 0, queued: 0, aiStarted: 0 };
     }
 
     const leads = await this.repo.listOpenB2bLeads();
     let hopped = 0;
     let queued = 0;
+    let aiStarted = 0;
 
     for (const lead of leads) {
       const project = await this.repo.getProject(lead.projectId);
@@ -36,7 +39,31 @@ export class B2bSlaTickService {
         sla,
       });
 
-      if (action === 'none' || action === 'ai_call') {
+      if (action === 'none') {
+        continue;
+      }
+
+      if (action === 'ai_call') {
+        const hasStaffDialed = await this.calls.hasHumanDial(lead.leadId);
+        const alreadyAiCalled = await this.calls.hasAiCall(lead.leadId);
+        if (
+          shouldStartAiCall({
+            action,
+            hasStaffDialed,
+            alreadyAiCalled,
+            aiCallEnabled: lead.aiCallEnabled,
+          })
+        ) {
+          const phone = String(lead.phone ?? '').trim();
+          if (phone) {
+            try {
+              await this.calls.startAiCall({ leadId: lead.leadId, phone });
+              aiStarted += 1;
+            } catch {
+              // AI gọi fail → log implicit; tiếp tục SLA hop ở tick sau
+            }
+          }
+        }
         continue;
       }
 
@@ -75,6 +102,6 @@ export class B2bSlaTickService {
       }
     }
 
-    return { processed: leads.length, hopped, queued };
+    return { processed: leads.length, hopped, queued, aiStarted };
   }
 }
