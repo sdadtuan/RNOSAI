@@ -95,6 +95,12 @@ import {
   type ResearchSource,
 } from '@/lib/market-research-api';
 import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
+import {
+  STAFF_REPORT_STALE_ONLY_EMPTY,
+  STAFF_REPORT_STALE_ONLY_LABEL,
+  countStaffReportVersionsWithStaleInsights,
+  filterStaffReportVersionsByStale,
+} from '@/lib/staff-report-list.util';
 import { staffReportVersionHasStaleInsights } from '@/lib/staff-report-stale.util';
 import {
   SPARKTORO_SOURCES_BANNER,
@@ -2119,10 +2125,14 @@ function ReportTab({
   const [embargoDrafts, setEmbargoDrafts] = useState<Record<number, { embargo: string; expires: string }>>(
     {},
   );
+  const [staleOnly, setStaleOnly] = useState(false);
   const snapshotExec = normalizeReportExec(snapshot?.exec);
-  const versions = reports.flatMap((report) =>
+  const insights = project.insights ?? [];
+  const allVersions = reports.flatMap((report) =>
     report.versions.map((version) => ({ report, version })),
   );
+  const staleCount = countStaffReportVersionsWithStaleInsights(allVersions, insights);
+  const visibleVersions = filterStaffReportVersionsByStale(allVersions, insights, staleOnly);
   const formMethodology: MethodologyBlock = {
     population,
     source_plan: sourcePlan,
@@ -2288,11 +2298,37 @@ function ReportTab({
           })}
         </div>
       )}
-      {versions.length === 0 ? (
+      {allVersions.length === 0 ? (
         <p className="muted">Chưa có phiên bản báo cáo.</p>
       ) : (
+        <>
+          {(staleCount > 0 || staleOnly) && allVersions.length > 0 ? (
+            <label
+              data-testid="staff-report-stale-only-filter"
+              style={{
+                display: 'inline-flex',
+                gap: 6,
+                alignItems: 'center',
+                marginBottom: '0.65rem',
+                fontSize: '0.85rem',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={staleOnly}
+                onChange={(e) => setStaleOnly(e.target.checked)}
+              />
+              {STAFF_REPORT_STALE_ONLY_LABEL} ({staleOnly ? visibleVersions.length : staleCount})
+            </label>
+          ) : null}
+          {staleOnly && visibleVersions.length === 0 && allVersions.length > 0 ? (
+            <p className="muted" data-testid="staff-report-stale-only-empty">
+              {STAFF_REPORT_STALE_ONLY_EMPTY}
+            </p>
+          ) : null}
+          {visibleVersions.length > 0 ? (
         <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0.75rem' }}>
-          {versions.map(({ report, version }) => {
+          {visibleVersions.map(({ report, version }) => {
             const exec = normalizeReportExec(version.content_snapshot?.exec);
             const enValue = enDrafts[version.id] ?? exec.en ?? '';
             const enLocked = exec.en_status === 'approved';
@@ -2509,6 +2545,8 @@ function ReportTab({
             );
           })}
         </ul>
+          ) : null}
+        </>
       )}
       {snapshot ? (
         <div style={{ display: 'grid', gap: '0.55rem' }}>

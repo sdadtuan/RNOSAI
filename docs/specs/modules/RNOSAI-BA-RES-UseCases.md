@@ -137,6 +137,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-104 | Staff report version live stale rows | P42 | P42 | Spec ready | RES-UC-085 · RES-UC-094 |
 | RES-UC-105 | Staff report version list stale badge | P43 | P43 | Spec ready | RES-UC-103 · RES-UC-104 |
 | RES-UC-106 | Staff reports API has_stale_insights | P44 | P44 | Spec ready | RES-UC-104 · RES-UC-105 |
+| RES-UC-107 | Staff report version stale filter | P45 | P45 | Spec ready | RES-UC-105 · RES-UC-106 |
 
 ---
 
@@ -1017,6 +1018,14 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Rule:** batch `listInsightValidToForProject` + `reportSnapshotHasStaleInsights`; scope project (giống P29 export PDF)
 - **UI:** ops-web ưu tiên field API; fallback client join P42 khi thiếu field
 - **Cấm** DDL; không portal-web; không bake snapshot
+
+### RES-UC-107 — Staff report version stale filter
+
+- **Actor chính:** Lead / Analyst (`crm_research.view`) trên tab Báo cáo
+- **UI:** checkbox «Chỉ version hết hạn (N)» — lọc client-side danh sách version; predicate `staffReportVersionHasStaleInsights` (API-first P44)
+- **Rule:** filter chỉ UI list; form tạo version luôn hiện; P42/P43 trên row còn visible
+- **Reuse:** `filterStaffReportVersionsByStale` · `countStaffReportVersionsWithStaleInsights`
+- **Cấm** endpoint mới; không DDL; không portal-web
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

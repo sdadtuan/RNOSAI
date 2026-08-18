@@ -759,6 +759,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P45 — RES-UC-107
+
+| UC | Tóm tắt |
+|----|---------|
+| 107 | Checkbox «Chỉ version hết hạn (N)» lọc client-side danh sách version stale trên tab Báo cáo staff. |
+
+**UI:** `staff-report-stale-only-filter` · `filterStaffReportVersionsByStale`  
+**Gates:** ops-web only; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |
