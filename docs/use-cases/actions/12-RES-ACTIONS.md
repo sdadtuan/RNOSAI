@@ -979,6 +979,23 @@ P7 **không** có live Qualtrics / OpenAI embeddings / pgvector / conjoint / por
 
 - [ ] Bước 1–6 pass staging
 
+## Walkthrough UAT P47 — Portal reports API stale_only (≈8 phút)
+
+**Mục tiêu:** *«Bật filter P46 → refetch API stale_only → JSON + UI khớp; tắt filter → full list.»*
+
+**Tiền đề:** 2 report portal-visible — một stale, một fresh
+
+| # | Actor | Thao tác | Kỳ vọng |
+|---|-------|----------|---------|
+| 1 | AN | Seed 2 report portal — 1 stale, 1 fresh | `/research` |
+| 2 | CL | Bật filter | Chỉ card stale |
+| 3 | QA | GET reports `stale_only=1` | JSON 1 item, `has_stale_insights: true` |
+| 4 | CL | Tắt filter | 2 card; refetch full list |
+| 5 | CL | Detail stale card | Banner P24 OK |
+| 6 | QA | Prod deploy P47 | api + portal-web; flags off |
+
+- [ ] Bước 1–6 pass staging
+
 ## Walkthrough UAT P46 — Portal report list stale filter (≈6 phút)
 
 **Mục tiêu:** *«Khách bật filter → chỉ thấy báo cáo stale; tắt filter → cả list; detail P24 không regress.»*

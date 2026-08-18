@@ -18,6 +18,7 @@ import { normalizeReportExec } from '../market-research/report-exec.util';
 import {
   PORTAL_RAG_CORPUS_STATUSES,
   type PortalRagSearchInput,
+  type PortalReportsListInput,
   type PortalResearchHealth,
   type PortalResearchReportCard,
   type PortalResearchReportDetail,
@@ -186,7 +187,10 @@ export class PortalResearchService implements OnModuleInit {
     };
   }
 
-  async listReports(user: PortalJwtPayload): Promise<{ items: PortalResearchReportCard[] }> {
+  async listReports(
+    user: PortalJwtPayload,
+    input: PortalReportsListInput = {},
+  ): Promise<{ items: PortalResearchReportCard[] }> {
     const rows = await this.repo.listPortalVisibleVersions(user.client_id);
     const now = new Date();
     const watermark = watermarkFor(user, now);
@@ -221,7 +225,10 @@ export class PortalResearchService implements OnModuleInit {
         reportSnapshotHasStaleInsights(row.content_snapshot, validToById, now),
       ),
     );
-    return { items };
+    const staleOnly = parseRagStaleOnlyFlag(input.stale_only);
+    return {
+      items: staleOnly ? items.filter((item) => item.has_stale_insights) : items,
+    };
   }
 
   async getConjoint(user: PortalJwtPayload): Promise<{ summary: PortalCjSummary | null }> {

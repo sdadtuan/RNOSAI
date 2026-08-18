@@ -249,6 +249,94 @@ describe('PortalResearchService', () => {
     expect(items[0].has_stale_insights).toBe(false);
   });
 
+  it('P47 listReports stale_only returns only stale cards', async () => {
+    repo.listPortalVisibleVersions.mockResolvedValue([
+      acmeVersion({
+        id: 40,
+        content_snapshot: {
+          exec: { vi: 'Fresh', en: null, en_status: 'approved' },
+          findings: [{ insight_id: 20, statement: 'Still good' }],
+          recs: [],
+          methodology: {},
+          evidence_index: [],
+        },
+      }),
+      acmeVersion({
+        id: 41,
+        content_snapshot: {
+          exec: { vi: 'Stale', en: null, en_status: 'approved' },
+          findings: [{ insight_id: 11, statement: 'Old claim' }],
+          recs: [],
+          methodology: {},
+          evidence_index: [],
+        },
+      }),
+    ]);
+    repo.listPublishedInsightValidTo.mockResolvedValue(
+      new Map([
+        [11, '2020-01-01'],
+        [20, new Date().toISOString().slice(0, 10)],
+      ]),
+    );
+    const { items } = await makeService().listReports(acmeUser, { stale_only: '1' });
+    expect(items).toHaveLength(1);
+    expect(items[0].version_id).toBe(41);
+    expect(items[0].has_stale_insights).toBe(true);
+  });
+
+  it('P47 listReports without stale_only returns all cards', async () => {
+    repo.listPortalVisibleVersions.mockResolvedValue([
+      acmeVersion({
+        id: 40,
+        content_snapshot: {
+          exec: { vi: 'Fresh', en: null, en_status: 'approved' },
+          findings: [{ insight_id: 20, statement: 'Still good' }],
+          recs: [],
+          methodology: {},
+          evidence_index: [],
+        },
+      }),
+      acmeVersion({
+        id: 41,
+        content_snapshot: {
+          exec: { vi: 'Stale', en: null, en_status: 'approved' },
+          findings: [{ insight_id: 11, statement: 'Old claim' }],
+          recs: [],
+          methodology: {},
+          evidence_index: [],
+        },
+      }),
+    ]);
+    repo.listPublishedInsightValidTo.mockResolvedValue(
+      new Map([
+        [11, '2020-01-01'],
+        [20, new Date().toISOString().slice(0, 10)],
+      ]),
+    );
+    const { items } = await makeService().listReports(acmeUser, {});
+    expect(items).toHaveLength(2);
+  });
+
+  it('P47 listReports stale_only empty when none stale', async () => {
+    repo.listPortalVisibleVersions.mockResolvedValue([
+      acmeVersion({
+        id: 40,
+        content_snapshot: {
+          exec: { vi: 'Fresh', en: null, en_status: 'approved' },
+          findings: [{ insight_id: 20, statement: 'Still good' }],
+          recs: [],
+          methodology: {},
+          evidence_index: [],
+        },
+      }),
+    ]);
+    repo.listPublishedInsightValidTo.mockResolvedValue(
+      new Map([[20, new Date().toISOString().slice(0, 10)]]),
+    );
+    const { items } = await makeService().listReports(acmeUser, { stale_only: '1' });
+    expect(items).toEqual([]);
+  });
+
   it('getReport happy path: watermark, exec.en null when not approved, no project/title', async () => {
     repo.getPortalReportVersion.mockResolvedValue(
       acmeVersion({

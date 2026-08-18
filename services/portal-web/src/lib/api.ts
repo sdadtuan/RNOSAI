@@ -1248,8 +1248,12 @@ export type PortalResearchReportDetail = PortalResearchReportCard & {
 
 export async function portalResearchReports(
   token: string,
+  input?: { stale_only?: boolean },
 ): Promise<{ items: PortalResearchReportCard[] }> {
-  const res = await fetch(`${API_BASE}/api/v1/portal/research/reports`, {
+  const qs = new URLSearchParams();
+  if (input?.stale_only) qs.set('stale_only', '1');
+  const suffix = qs.size ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/portal/research/reports${suffix}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });

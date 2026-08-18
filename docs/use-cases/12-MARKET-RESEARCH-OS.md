@@ -781,6 +781,18 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P47 — RES-UC-109
+
+| UC | Tóm tắt |
+|----|---------|
+| 109 | Portal `GET …/reports?stale_only=1` lọc server-side card stale; portal-web refetch khi bật filter P46. |
+
+**API:** `listReports` + `parseRagStaleOnlyFlag`  
+**UI:** `portalResearchReports({ stale_only })` refetch  
+**Gates:** api + portal-web; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

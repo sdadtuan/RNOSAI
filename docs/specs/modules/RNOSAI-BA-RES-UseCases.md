@@ -139,6 +139,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-106 | Staff reports API has_stale_insights | P44 | P44 | Spec ready | RES-UC-104 · RES-UC-105 |
 | RES-UC-107 | Staff report version stale filter | P45 | P45 | Spec ready | RES-UC-105 · RES-UC-106 |
 | RES-UC-108 | Portal report list stale filter | P46 | P46 | Spec ready | RES-UC-103 · RES-UC-107 |
+| RES-UC-109 | Portal reports API stale_only filter | P47 | P47 | Spec ready | RES-UC-108 · RES-UC-103 |
 
 ---
 
@@ -1035,6 +1036,14 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Rule:** filter chỉ UI list báo cáo; theme analytics · RAG · conjoint không đổi; P41 badge · P24 detail giữ nguyên
 - **Reuse:** `filterPortalReportCardsByStale` · `shouldShowReportListStaleBadge`
 - **Cấm** endpoint mới; không DDL; không ops-web
+
+### RES-UC-109 — Portal reports API stale_only filter
+
+- **Actor chính:** Client portal user trên `/research`
+- **API:** mở rộng `GET /api/v1/portal/research/reports` — query `stale_only=1` chỉ trả card `has_stale_insights: true` (live tại GET)
+- **Rule:** filter sau batch annotate P41; `parseRagStaleOnlyFlag`; portal-web refetch khi bật checkbox P46; client util fallback
+- **Reuse:** `reportSnapshotHasStaleInsights` · `filterPortalReportCardsByStale`
+- **Cấm** DDL; không ops-web; không ẩn card khỏi export/detail
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 

@@ -1072,6 +1072,10 @@ export type PortalRagSearchInput = {
   stale_only?: string | boolean;
 };
 
+export type PortalReportsListInput = {
+  stale_only?: string | boolean;
+};
+
 export type PortalThemeQuarterAnalyticsPayload = {
   ok: true;
   year: number;

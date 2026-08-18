@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { HubPageLayout } from '@/components/layout';
 import { PortalConjointLite } from '@/components/PortalConjointLite';
 import { PortalPageShell } from '@/components/PortalPageShell';
@@ -40,6 +40,7 @@ export default function PortalResearchListPage() {
 }
 
 function ResearchListContent({ token }: { token: string }) {
+  const [allItems, setAllItems] = useState<PortalResearchReportCard[]>([]);
   const [items, setItems] = useState<PortalResearchReportCard[]>([]);
   const [themeData, setThemeData] = useState<PortalThemeQuarterAnalyticsPayload | null>(null);
   const [conjoint, setConjoint] = useState<PortalCjSummary | null>(null);
@@ -49,13 +50,32 @@ function ResearchListContent({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [staleOnly, setStaleOnly] = useState(false);
 
-  const staleCount = countPortalReportCardsWithStaleInsights(items);
-  const visibleItems = filterPortalReportCardsByStale(items, staleOnly);
+  const staleCount = countPortalReportCardsWithStaleInsights(allItems);
+  const visibleItems = items;
 
   const yearOptions = useMemo(() => {
     const current = new Date().getUTCFullYear();
     return [current, current - 1, current - 2];
   }, []);
+
+  const loadReports = useCallback(
+    async (nextStaleOnly: boolean) => {
+      const full = await portalResearchReports(token);
+      const fullItems = full.items ?? [];
+      setAllItems(fullItems);
+      if (!nextStaleOnly) {
+        setItems(fullItems);
+        return;
+      }
+      try {
+        const filtered = await portalResearchReports(token, { stale_only: true });
+        setItems(filtered.items ?? filterPortalReportCardsByStale(fullItems, true));
+      } catch {
+        setItems(filterPortalReportCardsByStale(fullItems, true));
+      }
+    },
+    [token],
+  );
 
   useEffect(() => {
     if (!isMarketResearchPortalFeEnabled()) {
@@ -66,12 +86,11 @@ function ResearchListContent({ token }: { token: string }) {
       setLoading(true);
       setError('');
       try {
-        const [reports, themes, cj] = await Promise.all([
-          portalResearchReports(token),
+        await loadReports(staleOnly);
+        const [themes, cj] = await Promise.all([
           portalResearchThemeQuarterAnalytics(token, { year }),
           portalResearchConjoint(token),
         ]);
-        setItems(reports.items ?? []);
         setThemeData(themes);
         setConjoint(cj.summary ?? null);
       } catch (err) {
@@ -80,7 +99,7 @@ function ResearchListContent({ token }: { token: string }) {
         setLoading(false);
       }
     })();
-  }, [token, year]);
+  }, [token, year, staleOnly, loadReports]);
 
   if (!isMarketResearchPortalFeEnabled()) {
     return (
@@ -128,11 +147,11 @@ function ResearchListContent({ token }: { token: string }) {
       {error ? <p className="error">{error}</p> : null}
       {loading ? (
         <p className="muted">Đang tải…</p>
-      ) : items.length === 0 ? (
+      ) : allItems.length === 0 ? (
         <p className="muted">Chưa có báo cáo được công bố.</p>
       ) : (
         <>
-          {(staleCount > 0 || staleOnly) && items.length > 0 ? (
+          {(staleCount > 0 || staleOnly) && allItems.length > 0 ? (
             <label
               data-testid="portal-report-stale-only-filter"
               style={{
@@ -152,7 +171,7 @@ function ResearchListContent({ token }: { token: string }) {
               {PORTAL_REPORT_STALE_ONLY_LABEL} ({staleOnly ? visibleItems.length : staleCount})
             </label>
           ) : null}
-          {staleOnly && visibleItems.length === 0 && items.length > 0 ? (
+          {staleOnly && visibleItems.length === 0 && allItems.length > 0 ? (
             <p className="muted" data-testid="portal-report-stale-only-empty">
               {PORTAL_REPORT_STALE_ONLY_EMPTY}
             </p>
