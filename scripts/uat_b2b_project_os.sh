@@ -41,17 +41,17 @@ else
   fi
 fi
 
-# B2B-02: GET outsider → 404, body must not contain Secret
+# B2B-02: GET outsider → 404 not_found, no full_name/phone in body
 if [[ -z "$API" || -z "$OUTSIDER_TOKEN" || -z "$DENIED_LEAD_ID" ]]; then
   skip_case "B2B-02" "missing API_URL and/or OUTSIDER_TOKEN and/or DENIED_LEAD_ID"
 else
   code=$(curl -s -o /tmp/b2b404.json -w '%{http_code}' \
     -H "Authorization: Bearer $OUTSIDER_TOKEN" \
     "$API/api/v1/leads/$DENIED_LEAD_ID")
-  if [[ "$code" == "404" ]] && grep -v Secret /tmp/b2b404.json >/dev/null && ! grep -q Secret /tmp/b2b404.json; then
+  if [[ "$code" == "404" ]] && grep -q not_found /tmp/b2b404.json && ! grep -E 'full_name|phone' /tmp/b2b404.json; then
     pass_case "B2B-02"
   else
-    fail_case "B2B-02" "expected 404 without Secret, got HTTP $code body=$(cat /tmp/b2b404.json 2>/dev/null || true)"
+    fail_case "B2B-02" "expected 404 not_found without full_name/phone, got HTTP $code body=$(cat /tmp/b2b404.json 2>/dev/null || true)"
   fi
 fi
 
