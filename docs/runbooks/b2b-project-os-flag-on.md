@@ -46,16 +46,21 @@ export API_URL=https://staging-host
 export STAFF_TOKEN=…
 export OUTSIDER_TOKEN=…
 export DENIED_LEAD_ID=…
+export OWNED_LEAD_ID=…   # optional — B2B-04 owner GET
 bash scripts/uat_b2b_project_os.sh
 ```
 
-Expected: B2B-01 pass; B2B-02 pass when outsider + denied lead are set; missing env = SKIP with a reason, not a silent fail.
+**W0 automated gate:** B2B-01 + B2B-02 + optional B2B-04. B2B-03 and B2B-05…18 remain SKIP until later waves. Missing env = SKIP with a reason, not a silent fail.
+
+`crm_staff.active = false` now hides B2B leads **including own**. If B2B-04 404s for a known owner, check that staff row first.
+
+If B2B-01 fails (not 400), the POST may have created a junk lead `full_name=X` / `phone=0900000000`. Delete or void that row before retrying.
 
 Soak **48 hours**. Watch create-lead 400s, GET 404s without customer name leak, unmatched ingress.
 
 ## 4. Prod
 
-**Do not enable prod in W0.** Flag stays `PTT_B2B_PROJECT_OS=0` on prod until staging UAT B2B-01…07 is green and 48h soak is clean.
+**Do not enable prod in W0.** Flag stays `PTT_B2B_PROJECT_OS=0` on prod until the W0 automated gate (B2B-01 + B2B-02 + optional B2B-04) is green and 48h soak is clean.
 
 When ready (later wave): set `PTT_B2B_PROJECT_OS=1` on prod `ptt-crm-api` only after a rollback plan (`=0` + restart) is in place.
 

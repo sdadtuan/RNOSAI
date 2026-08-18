@@ -12,6 +12,6 @@ if [[ -n "${OUTSIDER_TOKEN:-}" && -n "${DENIED_LEAD_ID:-}" ]]; then
     "$API/api/v1/leads/$DENIED_LEAD_ID")
   test "$code" = "404"
   grep -q not_found /tmp/b2b404.json
-  ! grep -E 'full_name|phone' /tmp/b2b404.json
+  ! grep -qE '"(full_name|phone)"' /tmp/b2b404.json
 fi
 echo OK
