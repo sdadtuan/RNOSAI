@@ -28,8 +28,10 @@ run_local() {
 
   echo "== 1/2 ptt-crm-api build + b2b tests =="
   cd "$ROOT/services/ptt-crm-api"
+  npm ci
+  export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
   npm run build
-  npx jest src/b2b-projects src/leads-funnel/lead-flow-list-filter.util.spec.ts --no-coverage
+  npm test -- --testPathPattern='b2b-projects|lead-flow-list-filter.util' --no-coverage
 
   echo "== 2/2 restart ptt-crm-api =="
   sudo -n /usr/bin/systemctl restart ptt-crm-api 2>/dev/null || true
