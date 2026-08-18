@@ -770,6 +770,17 @@ Backoff poll; retry failed; rời trang job tiếp. Fail ≠ fail project.
 
 ---
 
+## P46 — RES-UC-108
+
+| UC | Tóm tắt |
+|----|---------|
+| 108 | Checkbox «Chỉ báo cáo hết hạn (N)» lọc client-side danh sách card stale trên portal `/research`. |
+
+**UI:** `portal-report-stale-only-filter` · `filterPortalReportCardsByStale`  
+**Gates:** portal-web only; flags prod không đổi.
+
+---
+
 ## Guards & flags
 
 | Biến / cap | Hành vi |

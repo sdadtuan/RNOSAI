@@ -19,6 +19,10 @@ import { isMarketResearchPortalFeEnabled } from '@/lib/market-research-portal-fl
 import { portalResearchErrorVi } from '@/lib/portal-research-errors';
 import {
   PORTAL_REPORT_LIST_STALE_BADGE,
+  PORTAL_REPORT_STALE_ONLY_EMPTY,
+  PORTAL_REPORT_STALE_ONLY_LABEL,
+  countPortalReportCardsWithStaleInsights,
+  filterPortalReportCardsByStale,
   shouldShowReportListStaleBadge,
 } from '@/lib/portal-report-list.util';
 
@@ -43,6 +47,10 @@ function ResearchListContent({ token }: { token: string }) {
   const [year, setYear] = useState(() => new Date().getUTCFullYear());
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [staleOnly, setStaleOnly] = useState(false);
+
+  const staleCount = countPortalReportCardsWithStaleInsights(items);
+  const visibleItems = filterPortalReportCardsByStale(items, staleOnly);
 
   const yearOptions = useMemo(() => {
     const current = new Date().getUTCFullYear();
@@ -123,8 +131,35 @@ function ResearchListContent({ token }: { token: string }) {
       ) : items.length === 0 ? (
         <p className="muted">Chưa có báo cáo được công bố.</p>
       ) : (
+        <>
+          {(staleCount > 0 || staleOnly) && items.length > 0 ? (
+            <label
+              data-testid="portal-report-stale-only-filter"
+              style={{
+                display: 'inline-flex',
+                gap: 6,
+                alignItems: 'center',
+                marginBottom: '0.65rem',
+                fontSize: '0.85rem',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={staleOnly}
+                disabled={loading}
+                onChange={(e) => setStaleOnly(e.target.checked)}
+              />
+              {PORTAL_REPORT_STALE_ONLY_LABEL} ({staleOnly ? visibleItems.length : staleCount})
+            </label>
+          ) : null}
+          {staleOnly && visibleItems.length === 0 && items.length > 0 ? (
+            <p className="muted" data-testid="portal-report-stale-only-empty">
+              {PORTAL_REPORT_STALE_ONLY_EMPTY}
+            </p>
+          ) : null}
+          {visibleItems.length > 0 ? (
         <ul className="portal-content-list">
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <li
               key={item.version_id}
               className="portal-content-list__item"
@@ -157,6 +192,8 @@ function ResearchListContent({ token }: { token: string }) {
             </li>
           ))}
         </ul>
+          ) : null}
+        </>
       )}
     </HubPageLayout>
   );

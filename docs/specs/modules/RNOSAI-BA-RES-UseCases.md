@@ -138,6 +138,7 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 | RES-UC-105 | Staff report version list stale badge | P43 | P43 | Spec ready | RES-UC-103 · RES-UC-104 |
 | RES-UC-106 | Staff reports API has_stale_insights | P44 | P44 | Spec ready | RES-UC-104 · RES-UC-105 |
 | RES-UC-107 | Staff report version stale filter | P45 | P45 | Spec ready | RES-UC-105 · RES-UC-106 |
+| RES-UC-108 | Portal report list stale filter | P46 | P46 | Spec ready | RES-UC-103 · RES-UC-107 |
 
 ---
 
@@ -1026,6 +1027,14 @@ AI = copilot (Tavily desk, Deep Research nguồn nháp, Claude soạn). Không a
 - **Rule:** filter chỉ UI list; form tạo version luôn hiện; P42/P43 trên row còn visible
 - **Reuse:** `filterStaffReportVersionsByStale` · `countStaffReportVersionsWithStaleInsights`
 - **Cấm** endpoint mới; không DDL; không portal-web
+
+### RES-UC-108 — Portal report list stale filter
+
+- **Actor chính:** Client portal user trên `/research`
+- **UI:** checkbox «Chỉ báo cáo hết hạn (N)» — lọc client-side danh sách card; predicate `has_stale_insights` từ P41
+- **Rule:** filter chỉ UI list báo cáo; theme analytics · RAG · conjoint không đổi; P41 badge · P24 detail giữ nguyên
+- **Reuse:** `filterPortalReportCardsByStale` · `shouldShowReportListStaleBadge`
+- **Cấm** endpoint mới; không DDL; không ops-web
 
 ### RES-UC-072 — Inject RAG vào insight copilot
 
