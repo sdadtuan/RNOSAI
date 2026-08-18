@@ -353,6 +353,24 @@ def sync_super_admin_missing_caps(
 
 GDKD_ACTIONS: tuple[str, ...] = ("override", "assign", "review_queue", "view_all_leads")
 
+B2B_PROJECTS_CAPS: tuple[tuple[str, str], ...] = (
+    ("crm_b2b_projects", "view"),
+    ("crm_b2b_projects", "manage"),
+)
+
+
+def migrate_b2b_projects_caps(cur, *, dry_run: bool = False) -> int:
+    """Seed crm_b2b_projects.view for KD-01; view+manage for SUPER-ADMIN."""
+    total = 0
+    kd_pid = fetch_position_id(cur, "KD-01")
+    if kd_pid is not None:
+        total += upsert_grants(cur, kd_pid, [("crm_b2b_projects", "view")], dry_run=dry_run)
+        print(f"{'DRY  ' if dry_run else 'OK   '} KD-01 crm_b2b_projects.view")
+    super_pid = fetch_position_id(cur, "SUPER-ADMIN") or PG_SUPER_ADMIN_POSITION_ID
+    total += upsert_grants(cur, super_pid, list(B2B_PROJECTS_CAPS), dry_run=dry_run)
+    print(f"{'DRY  ' if dry_run else 'OK   '} SUPER-ADMIN crm_b2b_projects view+manage")
+    return total
+
 
 def migrate_r2_gdkd(cur, *, dry_run: bool = False) -> int:
     """Map legacy crm_leads.assign → crm_gdkd.assign; seed full crm_gdkd.* for SUPER-ADMIN."""

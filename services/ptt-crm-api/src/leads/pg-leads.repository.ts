@@ -2,7 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { pgRowToV1 } from './lead-v1.mapper';
-import { buildLeadFlowKindListFilter } from '../leads-funnel/lead-flow-list-filter.util';
+import { buildLeadFlowKindListFilter, buildB2bProspectListFilter } from '../leads-funnel/lead-flow-list-filter.util';
 import { LeadV1, ListLeadsQuery, PgLeadRow } from './leads.types';
 
 interface PgWhereClause {
@@ -44,6 +44,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
       `SELECT l.sqlite_lead_id, l.full_name, l.phone, l.email, l.status, l.source,
               l.owner_id, l.is_duplicate, l.agency_client_id, l.channel,
               l.external_lead_id, l.campaign_id, l.received_at, l.created_at,
+              l.b2b_project_id::text, l.owner_company_id::text, l.assign_strategy,
               l.meta_json::text AS meta_json,
               COALESCE(l.first_assigned_at::text, (
                 SELECT al.created_at::text FROM crm_lead_assignment_log al
@@ -68,6 +69,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
       `SELECT l.sqlite_lead_id, l.full_name, l.phone, l.email, l.status, l.source,
               l.owner_id, l.is_duplicate, l.agency_client_id, l.channel,
               l.external_lead_id, l.campaign_id, l.received_at, l.created_at,
+              l.b2b_project_id::text, l.owner_company_id::text, l.assign_strategy,
               l.meta_json::text AS meta_json,
               COALESCE(l.first_assigned_at::text, (
                 SELECT al.created_at::text FROM crm_lead_assignment_log al
@@ -122,6 +124,22 @@ export class PgLeadsRepository implements OnModuleDestroy {
     }
     if (query.lead_flow_kind) {
       clauses.push(buildLeadFlowKindListFilter(query.lead_flow_kind, 'postgres', 'l'));
+    }
+    if (query.b2b_list_scope && !query.b2b_list_scope.viewAll && !query.b2b_list_scope.isDirector) {
+      const base = params.length;
+      const staffParam = `$${base + 1}`;
+      clauses.push(`(
+        NOT (${buildB2bProspectListFilter('postgres', 'l')}) OR
+        l.owner_id = ${staffParam} OR
+        (
+          l.b2b_project_id IN (
+            SELECT project_id FROM crm_b2b_project_staff
+            WHERE staff_id = ${staffParam} AND assign_enabled
+          )
+          AND (l.owner_id IS NULL OR l.owner_id <> ${staffParam})
+        )
+      )`);
+      params.push(query.b2b_list_scope.staffId);
     }
     if (query.review_queue_filter === 'only') {
       const ids = query.review_queue_ids ?? [];

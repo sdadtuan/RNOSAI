@@ -1,5 +1,7 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, BadRequestException } from '@nestjs/common';
+import { AppConfigService } from '../../config/app-config.service';
 import { CreateLeadV1Body } from '../leads.types';
+import { PTT_OPERATING_COMPANY_ID } from '../../b2b-projects/b2b-projects.constants';
 import { LeadAutoAssignService } from './lead-auto-assign.service';
 import { LeadDedupRepository } from './lead-dedup.repository';
 import { normalizeEmail, normalizePhone } from './lead-contact.util';
@@ -8,6 +10,7 @@ import { LeadIngestRulesRepository } from './lead-ingest-rules.repository';
 export interface EnrichedCreateLeadBody extends CreateLeadV1Body {
   is_duplicate?: boolean;
   meta?: Record<string, unknown>;
+  owner_company_id?: string | null;
 }
 
 @Injectable()
@@ -16,6 +19,7 @@ export class LeadCreateEnrichmentService {
     private readonly dedup: LeadDedupRepository,
     private readonly rulesRepo: LeadIngestRulesRepository,
     private readonly autoAssign: LeadAutoAssignService,
+    private readonly appConfig: AppConfigService,
   ) {}
 
   async enrich(body: CreateLeadV1Body): Promise<EnrichedCreateLeadBody> {
@@ -27,8 +31,24 @@ export class LeadCreateEnrichmentService {
       ingest_path: 'nest_manual',
     };
 
+    const isB2bFlow =
+      body.lead_flow_kind === 'b2b_prospect' ||
+      (!body.lead_flow_kind && !String(body.client_id ?? '').trim());
+
+    let clientId = body.client_id ?? null;
+    let b2bProjectId = body.b2b_project_id ?? null;
+    let ownerCompanyId: string | null = body.owner_company_id ?? null;
+
+    if (this.appConfig.b2bProjectOs && isB2bFlow) {
+      if (!String(b2bProjectId ?? '').trim()) {
+        throw new BadRequestException({ error: 'b2b_project_required' });
+      }
+      ownerCompanyId = PTT_OPERATING_COMPANY_ID;
+      clientId = null;
+    }
+
     const existingExternal = await this.dedup.findByExternalId({
-      clientId: body.client_id,
+      clientId: clientId ?? undefined,
       channel: body.channel,
       externalLeadId: body.external_lead_id,
     });
@@ -53,8 +73,8 @@ export class LeadCreateEnrichmentService {
     const explicitOwner = ownerId != null && Number(ownerId) > 0;
 
     if (!explicitOwner && !isDuplicate) {
-      const industrySlug = body.client_id
-        ? await this.rulesRepo.fetchClientIndustry(body.client_id)
+      const industrySlug = clientId
+        ? await this.rulesRepo.fetchClientIndustry(clientId)
         : null;
       meta.industry_slug = industrySlug ?? null;
       const assign = await this.autoAssign.assignOwner({
@@ -86,6 +106,9 @@ export class LeadCreateEnrichmentService {
       ...body,
       phone: phone || body.phone,
       email: email || body.email,
+      client_id: clientId,
+      b2b_project_id: b2bProjectId,
+      owner_company_id: ownerCompanyId,
       owner_id: ownerId,
       status: body.status?.trim() || 'moi',
       is_duplicate: isDuplicate,

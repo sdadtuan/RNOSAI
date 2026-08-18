@@ -1,6 +1,7 @@
 import { LeadRow, LeadV1, PgLeadRow } from './leads.types';
 import { formatLeadTs } from './lead-ts.format';
 import { reviewQueuePublicState } from '../leads-funnel/review-queue.util';
+import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
 
 function parseMeta(raw: string | null | undefined): Record<string, unknown> {
   if (!raw) {
@@ -104,6 +105,14 @@ export function pgRowToV1(row: PgLeadRow): LeadV1 {
       ? formatLeadTs(row.first_assigned_at)
       : String(metaString(meta, 'assigned_at') || '');
 
+  const flowKind = resolveLeadFlowKind({
+    clientId: row.agency_client_id,
+    channel: row.channel,
+    source: row.source,
+    status: row.status,
+    metaJson: meta,
+  });
+
   return {
     id: Number(row.sqlite_lead_id),
     full_name: row.full_name ?? '',
@@ -119,6 +128,10 @@ export function pgRowToV1(row: PgLeadRow): LeadV1 {
     created_at: formatLeadTs(row.created_at),
     received_at: formatLeadTs(row.received_at),
     is_duplicate: Boolean(row.is_duplicate),
+    b2b_project_id: row.b2b_project_id ? String(row.b2b_project_id) : null,
+    owner_company_id: row.owner_company_id ? String(row.owner_company_id) : null,
+    assign_strategy: row.assign_strategy ? String(row.assign_strategy) : null,
+    lead_flow_kind: flowKind,
     ...leadFinancialFields(meta),
     review_queue: reviewQueuePublicState(meta, assignedAt),
   };

@@ -28,6 +28,8 @@ import { hasGdkdAssign, hasGdkdViewAllLeads } from '../staff-permissions/staff-g
 import { StaffRbacAuditRepository } from '../staff-permissions/staff-rbac-audit.repository';
 import { PiiAccessAuditService } from '../admin-audit/admin-config-snapshot.service';
 import { StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
+import { AppConfigService } from '../config/app-config.service';
+import { B2bLeadScopeService } from '../b2b-projects/b2b-lead-scope.service';
 import {
   assertLeadPatchFieldsAllowed,
   serializeLeadForCaps,
@@ -51,6 +53,7 @@ import {
   CreateLeadV1Body,
   LeadV1,
   LeadsListResponseV1,
+  ListLeadsQuery,
   PatchLeadV1Body,
   BulkAssignLeadsBody,
   BulkAssignLeadsResult,
@@ -72,6 +75,8 @@ export class LeadsController {
     private readonly rbacAudit: StaffRbacAuditRepository,
     private readonly clientScope: StaffClientScopeService,
     private readonly piiAudit: PiiAccessAuditService,
+    private readonly appConfig: AppConfigService,
+    private readonly b2bLeadScope: B2bLeadScopeService,
   ) {}
 
   @Get('lookup-options')
@@ -242,10 +247,20 @@ export class LeadsController {
         : undefined;
 
     let resolvedOwnerId = ownerId ? Number(ownerId) : undefined;
+    let b2bListScope: ListLeadsQuery['b2b_list_scope'];
     if (req.staffAuthVia !== 'internal' && req.staffUser) {
       const me = await this.staffAuth.me(req.staffUser);
-      if (!hasGdkdViewAllLeads(me.caps)) {
-        const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (this.appConfig.b2bProjectOs && flowKind === 'b2b_prospect' && staffId != null) {
+        b2bListScope = this.b2bLeadScope.buildListScope({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+        });
+        if (!b2bListScope.viewAll && !b2bListScope.isDirector) {
+          resolvedOwnerId = undefined;
+        }
+      } else if (!hasGdkdViewAllLeads(me.caps)) {
         if (staffId != null && resolvedOwnerId == null && !truthy(unassignedOnly)) {
           resolvedOwnerId = staffId;
         }
@@ -269,6 +284,7 @@ export class LeadsController {
       unassigned_only: truthy(unassignedOnly),
       lead_flow_kind: flowKind,
       allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
+      b2b_list_scope: b2bListScope,
     }).then(async (result) => {
       if (req.staffAuthVia === 'internal' || !req.staffUser) return result;
       const caps = await this.resolveCaps(req);
@@ -353,6 +369,26 @@ export class LeadsController {
     }
     const scope = await this.clientScope.resolveForRequest(req);
     this.clientScope.assertLeadAccessible(scope, lead.client_id);
+    if (this.appConfig.b2bProjectOs && req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (staffId != null) {
+        await this.b2bLeadScope.assertLeadVisible({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+          lead: {
+            owner_id: lead.owner_id,
+            client_id: lead.client_id,
+            channel: lead.channel,
+            source: lead.source,
+            status: lead.status,
+            b2b_project_id: lead.b2b_project_id,
+            meta_json: { lead_flow_kind: lead.lead_flow_kind },
+          },
+        });
+      }
+    }
     if (req.staffAuthVia === 'internal' || !req.staffUser) return lead;
     const caps = await this.resolveCaps(req);
     const serialized = serializeLeadForCaps(lead, caps, (c, s, a) => this.staffAuth.hasCap(c, s, a));

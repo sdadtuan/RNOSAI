@@ -92,6 +92,7 @@ export class AppConfigService {
   readonly crmSvcFinancePg: boolean;
   readonly crmSopPg: boolean;
   readonly presalesOnLead: boolean;
+  readonly b2bProjectOs: boolean;
   readonly dealRoomEnabled: boolean;
   readonly dealRoomPackPdf: boolean;
   readonly dealRoomGateStrict: boolean;
@@ -364,6 +365,9 @@ export class AppConfigService {
     );
     this.presalesOnLead = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_PRESALES_ON_LEAD ?? '1').trim().toLowerCase(),
+    );
+    this.b2bProjectOs = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_B2B_PROJECT_OS ?? '0').trim().toLowerCase(),
     );
     this.dealRoomEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_DEAL_ROOM_ENABLED ?? '0').trim().toLowerCase(),

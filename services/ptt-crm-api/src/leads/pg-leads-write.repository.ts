@@ -100,11 +100,13 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
         `INSERT INTO crm_leads (
            sqlite_lead_id, full_name, phone, email, status, source, owner_id,
            is_duplicate, meta_json, agency_client_id, channel, external_lead_id,
-           campaign_id, received_at, created_at, updated_at, write_source, sync_version
+           campaign_id, received_at, created_at, updated_at, write_source, sync_version,
+           owner_company_id, b2b_project_id
          ) VALUES (
            $1, $2, $3, $4, $5, $6, $7,
-           $15, $8::jsonb, $9::uuid, $10, $11,
-           $12, $13::timestamptz, $13::timestamptz, $13::timestamptz, $14, 1
+           $16, $8::jsonb, $9::uuid, $10, $11,
+           $12, $13::timestamptz, $13::timestamptz, $13::timestamptz, $14, 1,
+           $17::uuid, $18::uuid
          )`,
         [
           leadId,
@@ -122,6 +124,8 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
           now,
           opts.writeSource,
           Boolean(opts.isDuplicate),
+          body.owner_company_id ?? null,
+          body.b2b_project_id ?? null,
         ],
       );
       await client.query('COMMIT');
@@ -241,7 +245,9 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
     const result = await this.db.query(
       `SELECT l.sqlite_lead_id, l.full_name, l.phone, l.email, l.status, l.source,
               l.owner_id, l.is_duplicate, l.agency_client_id, l.channel,
-              l.external_lead_id, l.campaign_id, l.received_at, l.created_at
+              l.external_lead_id, l.campaign_id, l.received_at, l.created_at,
+              l.b2b_project_id::text, l.owner_company_id::text, l.assign_strategy,
+              l.meta_json::text AS meta_json
        FROM crm_leads l WHERE l.sqlite_lead_id = $1`,
       [leadId],
     );

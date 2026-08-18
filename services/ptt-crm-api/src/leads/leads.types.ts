@@ -13,6 +13,11 @@ export interface LeadV1 {
   created_at: string;
   received_at: string;
   is_duplicate: boolean;
+  /** B2B Project OS */
+  b2b_project_id?: string | null;
+  owner_company_id?: string | null;
+  assign_strategy?: string | null;
+  lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
   /** WIN-4-B — financial ABAC pilot (from meta_json.financial). */
   expected_value?: number | null;
   margin_pct?: number | null;
@@ -60,6 +65,9 @@ export interface PgLeadRow {
   created_at: Date | string | null;
   meta_json?: string | Record<string, unknown> | null;
   first_assigned_at?: Date | string | null;
+  b2b_project_id?: string | null;
+  owner_company_id?: string | null;
+  assign_strategy?: string | null;
 }
 
 export type ReviewQueueListFilter = 'only' | 'hide';
@@ -84,6 +92,12 @@ export interface ListLeadsQuery {
   lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
   /** WIN-3-C — restrict list to assigned agency clients. */
   allowed_client_ids?: string[];
+  /** B2B Project OS — project-scoped list visibility (flag on + B2B flow). */
+  b2b_list_scope?: {
+    staffId: number;
+    viewAll: boolean;
+    isDirector: boolean;
+  };
 }
 
 export interface CreateLeadV1Body {
@@ -98,6 +112,8 @@ export interface CreateLeadV1Body {
   external_lead_id?: string | null;
   owner_id?: number | null;
   lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
+  b2b_project_id?: string | null;
+  owner_company_id?: string | null;
 }
 
 export interface PatchLeadV1Body {

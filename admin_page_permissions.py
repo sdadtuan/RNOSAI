@@ -388,6 +388,13 @@ ADMIN_CRM_SECTIONS: tuple[dict[str, Any], ...] = (
         "description": "Doanh thu, chi phí, lợi nhuận kế hoạch vs thực tế.",
     },
     {
+        "id": "crm_b2b_projects",
+        "label": "Dự án PTT (Lead B2B)",
+        "group": "CRM — Kinh doanh",
+        "page": "/crm/b2b-projects",
+        "description": "Dự án PTT, kênh ingest, nhân sự nhận lead B2B.",
+    },
+    {
         "id": "crm_agency",
         "label": "Agency Ops",
         "group": "CRM · Agency Ops",
@@ -475,6 +482,7 @@ SIDEBAR_CRM_NAV_SECTIONS: tuple[str, ...] = (
     "crm_sop_runs",
     "crm_sales_overview",
     "crm_re_projects",
+    "crm_b2b_projects",
     "crm_staff_roster",
     "crm_daily_work_report",
     "crm_kpi_records",
@@ -537,6 +545,7 @@ _POSITION_DEFAULT: dict[str, dict[str, frozenset[str]]] = {
         "crm_seo_aeo_settings": frozenset({"view", "edit", "configure"}),
         "crm_seo_aeo_reports": frozenset({"view", "export"}),
         "crm_research": frozenset({"view", "create", "edit", "export"}),
+        "crm_b2b_projects": frozenset({"view"}),
     },
     "MKT-01": {
         "crm_hub_campaigns": frozenset({"view", "edit", "create", "delete"}),
