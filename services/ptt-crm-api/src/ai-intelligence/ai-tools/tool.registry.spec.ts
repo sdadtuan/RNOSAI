@@ -16,6 +16,10 @@ describe('ToolRegistry', () => {
   };
   const agents = { get: jest.fn() };
   const leads = { listLeads: jest.fn(), getLeadById: jest.fn() };
+  const b2bAi = {
+    resolveListScope: jest.fn(),
+    assertLeadVisible: jest.fn(),
+  };
   const forecast = { getDashboard: jest.fn() };
   const orchestrator = { run: jest.fn(), list: jest.fn() };
 
@@ -27,6 +31,7 @@ describe('ToolRegistry', () => {
       audit as never,
       agents as never,
       leads as never,
+      b2bAi as never,
       forecast as never,
       orchestrator as never,
     );

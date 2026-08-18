@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { B2bLeadAiFilterService } from '../../../b2b-projects/b2b-lead-ai-filter.service';
 import { LeadsRepository } from '../../../leads/leads.repository';
 import { LeadV1, ListLeadsQuery } from '../../../leads/leads.types';
 import { AiToolDefinition, AiToolExecutionContext } from '../ai-tools.types';
@@ -27,7 +28,10 @@ function scopedClientId(
   return context.clientId ?? optionalString(input.client_id);
 }
 
-export function createLeadQueryTools(leads: LeadsRepository): AiToolDefinition[] {
+export function createLeadQueryTools(
+  leads: LeadsRepository,
+  b2bAi: B2bLeadAiFilterService,
+): AiToolDefinition[] {
   return [
     {
       name: 'list_leads',
@@ -57,6 +61,7 @@ export function createLeadQueryTools(leads: LeadsRepository): AiToolDefinition[]
           channel: optionalString(input.channel),
           limit,
           offset,
+          b2b_list_scope: b2bAi.resolveListScope(context.actorId),
         };
         const result = await leads.listLeads(query);
         return {
@@ -93,6 +98,7 @@ export function createLeadQueryTools(leads: LeadsRepository): AiToolDefinition[]
         if (!lead || (context.clientId && lead.client_id !== context.clientId)) {
           throw new NotFoundException({ error: 'lead_not_found', lead_id: leadId });
         }
+        await b2bAi.assertLeadVisible(lead, context.actorId);
         return safeLead(lead);
       },
     },

@@ -82,6 +82,7 @@ import {
   extractLmpConsultMergeFields,
   mergeLmpIntoConsultBrief,
 } from '../lead-meeting-prep/lmp-consult-merge.util';
+import { B2bLeadScopeService, type B2bListScope } from '../b2b-projects/b2b-lead-scope.service';
 
 @Injectable()
 export class LeadsFunnelService {
@@ -100,6 +101,7 @@ export class LeadsFunnelService {
     private readonly mktAiOrchestrator: MarketingAiOrchestratorService,
     private readonly lmpEnqueue: LeadMeetingPrepEnqueueService,
     private readonly lmpRepo: LeadMeetingPrepRepository,
+    private readonly b2bLeadScope: B2bLeadScopeService,
   ) {}
 
   private get usePgFunnel(): boolean {
@@ -243,24 +245,36 @@ export class LeadsFunnelService {
     return { ok: true, funnel: await this.getFunnel(leadId) };
   }
 
-  async reviewQueueCount(): Promise<{ count: number }> {
+  async reviewQueueCount(b2bListScope?: B2bListScope): Promise<{ count: number }> {
     const count = this.usePgFunnel
-      ? await this.pgRepo.countReviewQueue()
+      ? await this.pgRepo.countReviewQueue(b2bListScope)
       : this.sqliteRepo.countReviewQueue();
     return { count };
   }
 
-  async reviewQueueMetrics(limit = 500) {
-    const listed = await this.listReviewQueue(limit);
+  async reviewQueueMetrics(limit = 500, b2bListScope?: B2bListScope) {
+    const listed = await this.listReviewQueue(limit, b2bListScope);
     return buildReviewQueueMetrics(
       listed.leads.map((row) => ({ hours_waiting: row.review_queue.hours_waiting })),
     );
   }
 
-  async listReviewQueue(limit?: number) {
-    const rows = this.usePgFunnel
-      ? await this.pgRepo.listReviewQueue(limit)
+  async listReviewQueue(limit?: number, b2bListScope?: B2bListScope) {
+    let rows = this.usePgFunnel
+      ? await this.pgRepo.listReviewQueue(limit, b2bListScope)
       : this.sqliteRepo.listReviewQueue(limit);
+    if (
+      !this.usePgFunnel &&
+      b2bListScope &&
+      this.config.b2bProjectOs &&
+      !b2bListScope.viewAll &&
+      !b2bListScope.isDirector
+    ) {
+      rows = await this.b2bLeadScope.filterFunnelRows(rows, {
+        staffId: b2bListScope.staffId,
+        caps: [],
+      });
+    }
     return {
       leads: rows.map((row) => ({
         id: row.id,
@@ -274,10 +288,26 @@ export class LeadsFunnelService {
   }
 
   /** Phase 2 — AI summary line + suggested owner per review-queue lead. */
-  async listReviewQueueAiSummaries(limit?: number, mode?: 'rules' | 'llm') {
-    const rows = this.usePgFunnel
-      ? await this.pgRepo.listReviewQueue(limit)
+  async listReviewQueueAiSummaries(
+    limit?: number,
+    mode?: 'rules' | 'llm',
+    b2bListScope?: B2bListScope,
+  ) {
+    let rows = this.usePgFunnel
+      ? await this.pgRepo.listReviewQueue(limit, b2bListScope)
       : this.sqliteRepo.listReviewQueue(limit);
+    if (
+      !this.usePgFunnel &&
+      b2bListScope &&
+      this.config.b2bProjectOs &&
+      !b2bListScope.viewAll &&
+      !b2bListScope.isDirector
+    ) {
+      rows = await this.b2bLeadScope.filterFunnelRows(rows, {
+        staffId: b2bListScope.staffId,
+        caps: [],
+      });
+    }
     const ids = rows.map((r) => Number(r.id));
     const firstCalls = this.leadSqlite.firstCallAtByLeadIds(ids);
     const ownerIds = rows.map((r) => Number(r.owner_id ?? 0)).filter((id) => id > 0);

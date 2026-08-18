@@ -11,6 +11,7 @@ import { LeadMeetingPrepAsyncModule } from '../lead-meeting-prep/lead-meeting-pr
 import { CustomerTimelineModule } from '../customer-timeline/customer-timeline.module';
 import { EventsModule } from '../events/events.module';
 import { LeadsModule } from '../leads/leads.module';
+import { B2bProjectsModule } from '../b2b-projects/b2b-projects.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { AiAgentRunsRepository } from './ai-agent-runs.repository';
 import { AiAgentRunsService } from './ai-agent-runs.service';
@@ -99,6 +100,7 @@ import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope
     forwardRef(() => CustomerTimelineModule),
     EventsModule,
     forwardRef(() => LeadsModule),
+    B2bProjectsModule,
     CrmConfigModule,
     CasesModule,
     forwardRef(() => CskhBoardModule),

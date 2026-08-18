@@ -4,6 +4,7 @@ import { B2bAlertsController } from './b2b-alerts.controller';
 import { B2bAlertsRepository } from './b2b-alerts.repository';
 import { B2bAlertsService } from './b2b-alerts.service';
 import { B2bLeadScopeService } from './b2b-lead-scope.service';
+import { B2bLeadAiFilterService } from './b2b-lead-ai-filter.service';
 import { B2bIngestService } from './b2b-ingest.service';
 import { B2bProjectsController } from './b2b-projects.controller';
 import { B2bProjectsRepository } from './b2b-projects.repository';
@@ -30,6 +31,7 @@ import { B2bStaffPushSender } from './b2b-staff-push.sender';
     B2bProjectsService,
     B2bProjectsRepository,
     B2bLeadScopeService,
+    B2bLeadAiFilterService,
     B2bIngestService,
     B2bSlaRepository,
     B2bFirstAssignMlAdapter,
@@ -48,6 +50,7 @@ import { B2bStaffPushSender } from './b2b-staff-push.sender';
     B2bProjectsService,
     B2bProjectsRepository,
     B2bLeadScopeService,
+    B2bLeadAiFilterService,
     B2bIngestService,
     B2bFirstAssignService,
     B2bSlaTickService,

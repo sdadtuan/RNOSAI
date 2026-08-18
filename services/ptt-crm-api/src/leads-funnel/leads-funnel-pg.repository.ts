@@ -20,6 +20,8 @@ import {
   serializeStagesDone,
 } from './care-pipeline.util';
 import { resolveLeadFlowKindFromFunnelRow } from './lead-flow-kind.util';
+import { buildB2bListScopeClause } from './lead-flow-list-filter.util';
+import type { B2bListScope } from '../b2b-projects/b2b-lead-scope.service';
 import {
   CompleteCareStageBody,
   LeadFunnelRow,
@@ -433,17 +435,31 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return updated;
   }
 
-  async countReviewQueue(): Promise<number> {
+  async countReviewQueue(b2bListScope?: B2bListScope): Promise<number> {
+    const scopeParts = this.reviewQueueB2bScopeSql(b2bListScope, 1);
     const result = await this.db.query(
       `SELECT COUNT(*)::int AS c FROM crm_leads l
        WHERE COALESCE(l.meta_json->'review_queue'->>'active', '') = 'true'
-         AND l.is_duplicate IS NOT TRUE`,
+         AND l.is_duplicate IS NOT TRUE${scopeParts.sql}`,
+      scopeParts.params,
     );
     return Number(result.rows[0]?.c ?? 0);
   }
 
-  async listReviewQueue(limit = 50): Promise<LeadFunnelRow[]> {
+  private reviewQueueB2bScopeSql(
+    b2bListScope: B2bListScope | undefined,
+    paramStart: number,
+  ): { sql: string; params: unknown[] } {
+    if (!b2bListScope) return { sql: '', params: [] };
+    const staffParam = `$${paramStart}`;
+    const clause = buildB2bListScopeClause('postgres', 'l', b2bListScope, staffParam);
+    if (!clause) return { sql: '', params: [] };
+    return { sql: ` AND ${clause}`, params: [b2bListScope.staffId] };
+  }
+
+  async listReviewQueue(limit = 50, b2bListScope?: B2bListScope): Promise<LeadFunnelRow[]> {
     const lim = Math.max(1, Math.min(limit, 200));
+    const scopeParts = this.reviewQueueB2bScopeSql(b2bListScope, 2);
     const result = await this.db.query(
       `SELECT l.sqlite_lead_id AS id, l.full_name, l.phone, l.email, l.status, l.owner_id,
               l.meta_json::text AS meta_json,
@@ -454,10 +470,10 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
               COALESCE(l.meta_json->'review_queue'->>'assigned_at', '') AS first_assigned_at
        FROM crm_leads l
        WHERE COALESCE(l.meta_json->'review_queue'->>'active', '') = 'true'
-         AND l.is_duplicate IS NOT TRUE
+         AND l.is_duplicate IS NOT TRUE${scopeParts.sql}
        ORDER BY l.meta_json->'review_queue'->>'queued_at' DESC NULLS LAST, l.sqlite_lead_id DESC
        LIMIT $1`,
-      [lim],
+      [lim, ...scopeParts.params],
     );
     return result.rows as LeadFunnelRow[];
   }

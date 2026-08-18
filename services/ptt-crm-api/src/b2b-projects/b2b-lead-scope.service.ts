@@ -80,4 +80,49 @@ export class B2bLeadScopeService {
       projectId: lead.b2b_project_id ? String(lead.b2b_project_id) : null,
     };
   }
+
+  async filterFunnelRows<T extends {
+    id: number;
+    owner_id: number | null;
+    status?: string | null;
+    meta_json?: string | Record<string, unknown> | null;
+  }>(
+    rows: T[],
+    input: Omit<B2bLeadVisibilityInput, 'lead'>,
+  ): Promise<T[]> {
+    const memberships = await this.loadMemberships(input.staffId);
+    const actor = {
+      staffId: input.staffId,
+      isDirector: isB2bDirectorPosition(input.positionCode),
+      hasViewAllLeads: hasGdkdViewAllLeads(input.caps),
+      isActivePttStaff: true,
+    };
+    if (actor.hasViewAllLeads || actor.isDirector) return rows;
+    return rows.filter((row) => {
+      const meta =
+        typeof row.meta_json === 'string'
+          ? row.meta_json
+          : row.meta_json != null
+            ? row.meta_json
+            : null;
+      const scopeRow = this.toScopeRow({
+        owner_id: row.owner_id,
+        client_id: null,
+        status: row.status,
+        meta_json: meta,
+        b2b_project_id: null,
+      });
+      if (scopeRow.flowKind !== 'b2b_prospect') return true;
+      let projectId = scopeRow.projectId;
+      if (!projectId && meta) {
+        try {
+          const parsed = typeof meta === 'string' ? JSON.parse(meta) : meta;
+          projectId = parsed?.b2b_project_id ? String(parsed.b2b_project_id) : null;
+        } catch {
+          projectId = null;
+        }
+      }
+      return canSeeB2bLead(actor, { ...scopeRow, projectId }, memberships);
+    });
+  }
 }

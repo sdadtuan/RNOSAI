@@ -43,7 +43,7 @@ import { WriteEnabledGuard } from './guards/write-enabled.guard';
 import { StaffLeadsWriteGuard } from './guards/staff-leads-write.guard';
 import { StaffLeadsViewGuard } from './guards/staff-leads-view.guard';
 import { LeadNotInReviewQueueGuard } from '../leads-funnel/guards/lead-not-in-review-queue.guard';
-import { LeadsIoService } from './leads-io.service';
+import { LeadExportQuery, LeadsIoService } from './leads-io.service';
 import { LeadsService } from './leads.service';
 import { LeadsWriteService } from './leads-write.service';
 import { LeadStatusGatePatchOptions, LeadStatusGateService } from './lead-status-gate.service';
@@ -127,6 +127,25 @@ export class LeadsController {
     const scope = await this.clientScope.resolveForRequest(req);
     this.clientScope.assertListClientFilter(scope, clientId);
 
+    let b2bListScope: ListLeadsQuery['b2b_list_scope'];
+    let b2bExportActor: LeadExportQuery['b2b_export_actor'];
+    if (req.staffAuthVia !== 'internal' && req.staffUser && this.appConfig.b2bProjectOs) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (staffId != null) {
+        b2bListScope = this.b2bLeadScope.buildListScope({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+        });
+        b2bExportActor = {
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+        };
+      }
+    }
+
     const caps = await this.resolveCaps(req);
     const { buffer, filename } = await this.leadsIo.exportXlsx(
       {
@@ -138,6 +157,8 @@ export class LeadsController {
         hide_review_queue: hideExplicitFalse ? false : undefined,
         ids: parsedIds?.length ? parsedIds : undefined,
         allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
+        b2b_list_scope: b2bListScope,
+        b2b_export_actor: b2bExportActor,
       },
       caps,
       (c, s, a) => this.staffAuth.hasCap(c, s, a),

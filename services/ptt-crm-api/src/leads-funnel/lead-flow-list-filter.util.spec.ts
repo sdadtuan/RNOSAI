@@ -1,4 +1,5 @@
 import {
+  buildB2bListScopeClause,
   buildB2bProspectListFilter,
   buildLeadFlowKindListFilter,
   buildSpaOperationalListFilter,
@@ -22,6 +23,27 @@ describe('lead-flow-list-filter.util', () => {
   it('builds b2b list filter via kind selector', () => {
     const sql = buildLeadFlowKindListFilter('b2b_prospect', 'postgres', 'l');
     expect(sql).toContain(buildB2bProspectListFilter('postgres', 'l'));
+  });
+
+  it('builds b2b list scope clause for restricted staff', () => {
+    const sql = buildB2bListScopeClause(
+      'postgres',
+      'l',
+      { staffId: 10, viewAll: false, isDirector: false },
+      '$1',
+    );
+    expect(sql).toContain('crm_b2b_project_staff');
+    expect(sql).toContain('l.owner_id = $1');
+  });
+
+  it('skips b2b scope clause for view-all', () => {
+    const sql = buildB2bListScopeClause(
+      'postgres',
+      'l',
+      { staffId: 10, viewAll: true, isDirector: false },
+      '$1',
+    );
+    expect(sql).toBe('');
   });
 
   it('supports sqlite dialect for funnel sqlite reads', () => {

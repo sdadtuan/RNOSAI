@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { LeadsRepository } from '../../leads/leads.repository';
+import { B2bLeadAiFilterService } from '../../b2b-projects/b2b-lead-ai-filter.service';
 import { AI_USE_CASE } from '../ai-audit.constants';
 import { AiAuditService } from '../ai-audit.service';
 import { AiForecastService } from '../ai-forecast.service';
@@ -30,12 +31,13 @@ export class ToolRegistry {
     private readonly audit: AiAuditService,
     agents: AgentRegistry,
     leads: LeadsRepository,
+    b2bAi: B2bLeadAiFilterService,
     forecast: AiForecastService,
     orchestrator: OrchestratorService,
   ) {
     this.definitions = [
       ...createLeadAgentTools(agents),
-      ...createLeadQueryTools(leads),
+      ...createLeadQueryTools(leads, b2bAi),
       ...createForecastTools(forecast),
       ...createAgentInsightTools(agents),
       ...createOrchestrationTools(orchestrator),

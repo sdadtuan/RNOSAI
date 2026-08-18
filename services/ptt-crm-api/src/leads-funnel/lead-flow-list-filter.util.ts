@@ -61,3 +61,35 @@ export function buildLeadFlowKindListFilter(
   if (kind === 'spa_operational') return buildSpaOperationalListFilter(dialect, alias);
   return buildB2bProspectListFilter(dialect, alias);
 }
+
+export interface B2bListScopeInput {
+  staffId: number;
+  viewAll: boolean;
+  isDirector: boolean;
+}
+
+/** B2B Project OS list visibility (Task 7 / 16) — empty when view-all or director. */
+export function buildB2bListScopeClause(
+  dialect: SqlDialect,
+  alias: string,
+  scope: B2bListScopeInput,
+  staffParam: string,
+): string {
+  if (scope.viewAll || scope.isDirector) return '';
+  const b2b = buildB2bProspectListFilter(dialect, alias);
+  const projectCol =
+    dialect === 'postgres'
+      ? `${alias}.b2b_project_id`
+      : `trim(COALESCE(json_extract(${alias}.meta_json, '$.b2b_project_id'), ''))`;
+  return `(
+    NOT (${b2b}) OR
+    ${alias}.owner_id = ${staffParam} OR
+    (
+      ${projectCol} IN (
+        SELECT project_id FROM crm_b2b_project_staff
+        WHERE staff_id = ${staffParam} AND assign_enabled
+      )
+      AND (${alias}.owner_id IS NULL OR ${alias}.owner_id <> ${staffParam})
+    )
+  )`;
+}

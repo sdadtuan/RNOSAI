@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { AiIntelligenceModule } from '../ai-intelligence/ai-intelligence.module';
+import { B2bProjectsModule } from '../b2b-projects/b2b-projects.module';
 import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.module';
 import { CskhBoardModule } from '../cskh-board/cskh-board.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
@@ -26,6 +27,7 @@ import { ReviewQueueLlmService } from './review-queue-llm.service';
 @Module({
   imports: [
     StaffAuthModule,
+    B2bProjectsModule,
     forwardRef(() => LeadsModule),
     forwardRef(() => CrmLeadsLegacyModule),
     forwardRef(() => CskhBoardModule),

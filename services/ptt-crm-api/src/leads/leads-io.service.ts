@@ -9,12 +9,18 @@ import {
 } from './leads-io.util';
 import { LeadsService } from './leads.service';
 import { LeadsWriteService } from './leads-write.service';
+import { B2bLeadScopeService } from '../b2b-projects/b2b-lead-scope.service';
 import { CreateLeadV1Body, LeadV1, ListLeadsQuery } from './leads.types';
 import { StaffSectionCap } from '../staff-auth/staff-auth.types';
 import { CapChecker, serializeLeadsForCaps } from '../staff-permissions/field-level.serializer';
 
 export interface LeadExportQuery extends ListLeadsQuery {
   ids?: number[];
+  b2b_export_actor?: {
+    staffId: number;
+    caps: StaffSectionCap[];
+    positionCode?: string | null;
+  };
 }
 
 export interface LeadImportResult {
@@ -30,6 +36,7 @@ export class LeadsIoService {
   constructor(
     private readonly leadsService: LeadsService,
     private readonly leadsWrite: LeadsWriteService,
+    private readonly b2bScope: B2bLeadScopeService,
   ) {}
 
   async buildTemplate(): Promise<{ buffer: Buffer; filename: string }> {
@@ -119,6 +126,24 @@ export class LeadsIoService {
         if (query.allowed_client_ids?.length) {
           const cid = String(lead.client_id ?? '').trim();
           if (!cid || !query.allowed_client_ids.includes(cid)) continue;
+        }
+        if (query.b2b_export_actor) {
+          try {
+            await this.b2bScope.assertLeadVisible({
+              ...query.b2b_export_actor,
+              lead: {
+                owner_id: lead.owner_id,
+                client_id: lead.client_id,
+                channel: lead.channel,
+                source: lead.source,
+                status: lead.status,
+                b2b_project_id: lead.b2b_project_id,
+                meta_json: { lead_flow_kind: lead.lead_flow_kind },
+              },
+            });
+          } catch {
+            continue;
+          }
         }
         leads.push(lead);
       }

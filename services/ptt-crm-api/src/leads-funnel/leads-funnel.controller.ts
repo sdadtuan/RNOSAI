@@ -46,6 +46,8 @@ import {
 import { StaffMarketingAiPlannerGenerateGuard } from '../marketing-ai-planner/guards/staff-marketing-ai-planner.guard';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { LeadsFunnelService } from './leads-funnel.service';
+import { AppConfigService } from '../config/app-config.service';
+import { B2bLeadScopeService, type B2bListScope } from '../b2b-projects/b2b-lead-scope.service';
 
 @Controller('api/v1/leads')
 @UseGuards(LeadsFunnelEnabledGuard)
@@ -53,6 +55,8 @@ export class LeadsFunnelController {
   constructor(
     private readonly funnel: LeadsFunnelService,
     private readonly staffAuth: StaffAuthService,
+    private readonly appConfig: AppConfigService,
+    private readonly b2bLeadScope: B2bLeadScopeService,
   ) {}
 
   private actor(req: Request & { staffUser?: StaffJwtPayload }): string {
@@ -63,6 +67,22 @@ export class LeadsFunnelController {
     return this.staffAuth.resolveCrmStaffUserId(req.staffUser);
   }
 
+  private async b2bReviewQueueScope(
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ): Promise<B2bListScope | undefined> {
+    if (req.staffAuthVia === 'internal' || !req.staffUser || !this.appConfig.b2bProjectOs) {
+      return undefined;
+    }
+    const me = await this.staffAuth.me(req.staffUser);
+    const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    if (staffId == null) return undefined;
+    return this.b2bLeadScope.buildListScope({
+      staffId,
+      caps: me.caps,
+      positionCode: me.position_code,
+    });
+  }
+
   private badRequest(err: unknown): never {
     if (err instanceof ForbiddenException) throw err;
     const msg = err instanceof Error ? err.message : String(err);
@@ -71,33 +91,49 @@ export class LeadsFunnelController {
 
   @Get('review-queue/count')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, StaffLeadsGdkdGuard)
-  reviewQueueCount() {
-    return this.funnel.reviewQueueCount();
+  async reviewQueueCount(
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    return this.funnel.reviewQueueCount(await this.b2bReviewQueueScope(req));
   }
 
   @Get('review-queue/metrics')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, StaffLeadsGdkdGuard)
-  reviewQueueMetrics(@Query('limit') limit?: string) {
-    return this.funnel.reviewQueueMetrics(limit ? Number(limit) : undefined);
+  async reviewQueueMetrics(
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Query('limit') limit?: string,
+  ) {
+    const scope = await this.b2bReviewQueueScope(req);
+    return this.funnel.reviewQueueMetrics(limit ? Number(limit) : undefined, scope);
   }
 
   @Get('review-queue')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, StaffLeadsGdkdGuard)
-  listReviewQueue(@Query('limit') limit?: string) {
+  async listReviewQueue(
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Query('limit') limit?: string,
+  ) {
     const lim = limit ? Number(limit) : 50;
-    return this.funnel.listReviewQueue(Number.isFinite(lim) ? lim : 50);
+    const scope = await this.b2bReviewQueueScope(req);
+    return this.funnel.listReviewQueue(Number.isFinite(lim) ? lim : 50, scope);
   }
 
   /** Phase 2 — review queue AI summary + suggested owner (rules, BR-AI-018). */
   @Get('review-queue/ai-summaries')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, StaffLeadsGdkdGuard)
-  listReviewQueueAiSummaries(
+  async listReviewQueueAiSummaries(
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
     @Query('limit') limit?: string,
     @Query('mode') mode?: string,
   ) {
     const lim = limit ? Number(limit) : 50;
     const triageMode = mode === 'llm' ? 'llm' : 'rules';
-    return this.funnel.listReviewQueueAiSummaries(Number.isFinite(lim) ? lim : 50, triageMode);
+    const scope = await this.b2bReviewQueueScope(req);
+    return this.funnel.listReviewQueueAiSummaries(
+      Number.isFinite(lim) ? lim : 50,
+      triageMode,
+      scope,
+    );
   }
 
   @Post('review-queue/sync')
