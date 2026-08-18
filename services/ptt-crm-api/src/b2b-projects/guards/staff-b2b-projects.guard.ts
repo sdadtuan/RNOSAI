@@ -6,8 +6,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { StaffAuthService } from '../staff-auth/staff-auth.service';
-import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+import { StaffAuthService } from '../../staff-auth/staff-auth.service';
+import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
 
 type ReqWithStaff = Request & {
   staffUser?: StaffJwtPayload;
