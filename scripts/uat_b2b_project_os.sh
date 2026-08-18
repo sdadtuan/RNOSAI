@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# W0 UAT — B2B Lead Project OS (B2B-01, B2B-02).
+# W0 UAT — B2B Lead Project OS (B2B-01…18).
 # Cases missing env SKIP with a reason; do not fail silently.
 set -euo pipefail
 
@@ -54,6 +54,12 @@ else
     fail_case "B2B-02" "expected 404 without Secret, got HTTP $code body=$(cat /tmp/b2b404.json 2>/dev/null || true)"
   fi
 fi
+
+# B2B-03 … B2B-18: not automated in W0 shell UAT (unit tests only)
+for i in $(seq 3 18); do
+  id=$(printf 'B2B-%02d' "$i")
+  skip_case "$id" "W0: not automated in shell UAT (unit tests only)"
+done
 
 echo "UAT summary: pass=$pass skip=$skip fail=$fail"
 if [[ "$fail" -gt 0 ]]; then
