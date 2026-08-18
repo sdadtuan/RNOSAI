@@ -93,6 +93,7 @@ export class AppConfigService {
   readonly crmSopPg: boolean;
   readonly presalesOnLead: boolean;
   readonly b2bProjectOs: boolean;
+  readonly b2bCpaas: string;
   readonly dealRoomEnabled: boolean;
   readonly dealRoomPackPdf: boolean;
   readonly dealRoomGateStrict: boolean;
@@ -369,6 +370,7 @@ export class AppConfigService {
     this.b2bProjectOs = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_B2B_PROJECT_OS ?? '0').trim().toLowerCase(),
     );
+    this.b2bCpaas = (process.env.PTT_B2B_CPAAS ?? 'mock').trim().toLowerCase();
     this.dealRoomEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_DEAL_ROOM_ENABLED ?? '0').trim().toLowerCase(),
     );

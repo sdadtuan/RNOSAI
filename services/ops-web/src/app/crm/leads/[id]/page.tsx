@@ -845,7 +845,12 @@ export default function CrmLeadDetailPage() {
             {showOverviewMain ? (
               <>
             {lead.phone ? (
-              <LeadContactActions phone={lead.phone} onCopy={onCopyContact} />
+              <LeadContactActions
+                phone={lead.phone}
+                onCopy={onCopyContact}
+                leadId={lead.id}
+                accessToken={accessToken}
+              />
             ) : null}
 
             {accessToken ? (

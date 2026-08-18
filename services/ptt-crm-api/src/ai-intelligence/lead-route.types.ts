@@ -16,6 +16,7 @@ export interface LeadRouteContext {
   clientId: string | null;
   ownerId: number | null;
   reProjectId: number | null;
+  b2bProjectId?: string | null;
   channel: string | null;
   source: string | null;
   status: string | null;

@@ -14,6 +14,7 @@ import { PerformanceService } from '../performance/performance.service';
 import { PgLeadsWriteRepository } from './pg-leads-write.repository';
 import { CreateLeadV1Body, LeadV1, PatchLeadV1Body } from './leads.types';
 import { LeadCreateEnrichmentService } from './ingest/lead-create-enrichment.service';
+import { B2bFirstAssignService } from '../b2b-projects/b2b-first-assign.service';
 import {
   LeadStatusGatePatchOptions,
   LeadStatusGateService,
@@ -32,6 +33,7 @@ export class LeadsWriteService {
     private readonly scoreAsync: AiScoreAsyncService,
     private readonly meetingPrepEnqueue: LeadMeetingPrepEnqueueService,
     private readonly statusGate: LeadStatusGateService,
+    private readonly b2bFirstAssign: B2bFirstAssignService,
   ) {}
 
   async createLead(body: CreateLeadV1Body): Promise<LeadV1> {
@@ -41,6 +43,23 @@ export class LeadsWriteService {
     try {
       const enriched = await this.enrichment.enrich(body);
       const lead = await this.writeRepo.createLead(enriched);
+      if (
+        enriched.b2b_first_assign &&
+        lead.owner_id != null &&
+        !enriched.is_duplicate
+      ) {
+        await this.b2bFirstAssign.recordFirstAssignHop({
+          leadId: lead.id,
+          projectId: enriched.b2b_first_assign.projectId,
+          toOwnerId: Number(lead.owner_id),
+          assign: {
+            ownerId: Number(lead.owner_id),
+            strategy: enriched.b2b_first_assign.strategy as 'ai_analytics' | 'hybrid' | 'hybrid_timeout',
+            reason: enriched.b2b_first_assign.reason,
+            confidence: enriched.b2b_first_assign.confidence,
+          },
+        });
+      }
       const correlationId = await this.events.emit(
         'LeadCreated',
         'lead',

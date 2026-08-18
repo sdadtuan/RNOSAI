@@ -12,6 +12,7 @@ describe('LeadCreateEnrichmentService B2B gate', () => {
     fetchSnapshot: jest.fn(async () => null),
   };
   const autoAssign = { assignOwner: jest.fn(async () => null) };
+  const b2bFirstAssign = { assign: jest.fn(async () => ({ ownerId: null, strategy: 'hybrid', reason: 'empty', confidence: null })) };
 
   it('B2B-01 missing project when flag on', async () => {
     const appConfig = { b2bProjectOs: true } as AppConfigService;
@@ -19,6 +20,7 @@ describe('LeadCreateEnrichmentService B2B gate', () => {
       dedup as never,
       rulesRepo as never,
       autoAssign as never,
+      b2bFirstAssign as never,
       appConfig,
     );
     await expect(svc.enrich({ full_name: 'Test', lead_flow_kind: 'b2b_prospect' })).rejects.toEqual(
@@ -32,6 +34,7 @@ describe('LeadCreateEnrichmentService B2B gate', () => {
       dedup as never,
       rulesRepo as never,
       autoAssign as never,
+      b2bFirstAssign as never,
       appConfig,
     );
     const out = await svc.enrich({

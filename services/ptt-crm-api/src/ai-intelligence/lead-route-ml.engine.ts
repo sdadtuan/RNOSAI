@@ -31,7 +31,7 @@ function scoreCandidate(
   const load = loadScore(candidate.open_leads);
   const scoreNorm =
     ctx.leadScore != null ? Math.min(1, Math.max(0, ctx.leadScore / 100)) : 0.45;
-  const projectBonus = ctx.reProjectId ? 0.08 : 0;
+  const projectBonus = ctx.reProjectId || ctx.b2bProjectId ? 0.08 : 0;
   const bandBonus =
     ctx.scoreBand === 'hot' ? 0.06 : ctx.scoreBand === 'warm' ? 0.03 : 0;
   return role * 0.35 + load * 0.35 + scoreNorm * 0.2 + projectBonus + bandBonus;
@@ -69,7 +69,12 @@ export function computeLeadRouteMlV1(ctx: LeadRouteContext): LeadRouteEngineResu
     ctx.leadScore != null
       ? ` · điểm ${Math.round(ctx.leadScore)}/100 (${ctx.scoreBand ?? '—'})`
       : '';
-  const projectPart = ctx.reProjectId ? ` · pool dự án #${ctx.reProjectId}` : ' · pool toàn team';
+  const projectPart =
+    ctx.reProjectId
+      ? ` · pool dự án #${ctx.reProjectId}`
+      : ctx.b2bProjectId
+        ? ` · pool dự án B2B`
+        : ' · pool toàn team';
 
   const reason = `[ML v1] Phân cho ${picked.staff_name} (${picked.staff_code || picked.role}) — nguồn ${channelLabel}${scorePart}${projectPart}. Load ${picked.open_leads} lead · score ML ${(mlScore * 100).toFixed(0)}.`;
 

@@ -2,6 +2,7 @@ import { ConflictException, Injectable, BadRequestException } from '@nestjs/comm
 import { AppConfigService } from '../../config/app-config.service';
 import { CreateLeadV1Body } from '../leads.types';
 import { PTT_OPERATING_COMPANY_ID } from '../../b2b-projects/b2b-projects.constants';
+import { B2bFirstAssignService } from '../../b2b-projects/b2b-first-assign.service';
 import { LeadAutoAssignService } from './lead-auto-assign.service';
 import { LeadDedupRepository } from './lead-dedup.repository';
 import { normalizeEmail, normalizePhone } from './lead-contact.util';
@@ -11,6 +12,12 @@ export interface EnrichedCreateLeadBody extends CreateLeadV1Body {
   is_duplicate?: boolean;
   meta?: Record<string, unknown>;
   owner_company_id?: string | null;
+  b2b_first_assign?: {
+    projectId: string;
+    strategy: string;
+    reason: string;
+    confidence: number | null;
+  };
 }
 
 @Injectable()
@@ -19,6 +26,7 @@ export class LeadCreateEnrichmentService {
     private readonly dedup: LeadDedupRepository,
     private readonly rulesRepo: LeadIngestRulesRepository,
     private readonly autoAssign: LeadAutoAssignService,
+    private readonly b2bFirstAssign: B2bFirstAssignService,
     private readonly appConfig: AppConfigService,
   ) {}
 
@@ -74,9 +82,49 @@ export class LeadCreateEnrichmentService {
 
     let ownerId = body.owner_id ?? null;
     let assignStrategy = '';
+    let b2bFirstAssignMeta: EnrichedCreateLeadBody['b2b_first_assign'];
     const explicitOwner = ownerId != null && Number(ownerId) > 0;
 
-    if (!explicitOwner && !isDuplicate) {
+    if (
+      !explicitOwner &&
+      !isDuplicate &&
+      this.appConfig.b2bProjectOs &&
+      isB2bFlow &&
+      b2bProjectId
+    ) {
+      const scoreRaw = (body as CreateLeadV1Body & { meta?: Record<string, unknown> }).meta
+        ?.lead_score;
+      const score =
+        typeof scoreRaw === 'number'
+          ? scoreRaw
+          : typeof scoreRaw === 'string' && scoreRaw.trim()
+            ? Number(scoreRaw)
+            : null;
+      const assign = await this.b2bFirstAssign.assign({
+        projectId: b2bProjectId,
+        score: Number.isFinite(score) ? score : null,
+        channel: body.channel,
+        source: body.source,
+      });
+      if (assign.ownerId) {
+        ownerId = assign.ownerId;
+        assignStrategy = assign.strategy;
+        meta.assign_strategy = assign.strategy;
+        meta.assign_reason = assign.reason;
+        if (assign.confidence != null) meta.assign_confidence = assign.confidence;
+        meta.auto_assigned_at = new Date().toISOString();
+        b2bFirstAssignMeta = {
+          projectId: b2bProjectId,
+          strategy: assign.strategy,
+          reason: assign.reason,
+          confidence: assign.confidence,
+        };
+      } else {
+        meta.assign_failed = true;
+        meta.assign_failed_at = new Date().toISOString();
+        meta.assign_failed_reason = assign.reason || 'empty_pool';
+      }
+    } else if (!explicitOwner && !isDuplicate) {
       const industrySlug = clientId
         ? await this.rulesRepo.fetchClientIndustry(clientId)
         : null;
@@ -117,6 +165,7 @@ export class LeadCreateEnrichmentService {
       status: body.status?.trim() || 'moi',
       is_duplicate: isDuplicate,
       meta,
+      b2b_first_assign: b2bFirstAssignMeta,
     };
   }
 }

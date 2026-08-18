@@ -13,6 +13,7 @@ import {
   Query,
   Req,
   Res,
+  ServiceUnavailableException,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -30,6 +31,8 @@ import { PiiAccessAuditService } from '../admin-audit/admin-config-snapshot.serv
 import { StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
 import { AppConfigService } from '../config/app-config.service';
 import { B2bLeadScopeService } from '../b2b-projects/b2b-lead-scope.service';
+import { B2bCallsService } from '../b2b-projects/b2b-calls.service';
+import { B2bCpaasDownError } from '../b2b-projects/b2b-calls.types';
 import {
   assertLeadPatchFieldsAllowed,
   serializeLeadForCaps,
@@ -77,6 +80,7 @@ export class LeadsController {
     private readonly piiAudit: PiiAccessAuditService,
     private readonly appConfig: AppConfigService,
     private readonly b2bLeadScope: B2bLeadScopeService,
+    private readonly b2bCalls: B2bCallsService,
   ) {}
 
   @Get('lookup-options')
@@ -355,6 +359,57 @@ export class LeadsController {
     const actor = String(req.staffUser?.email ?? req.headers['x-ptt-actor'] ?? 'staff');
     const userId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
     return this.slaAutoTask.createReminder(id, body, actor, userId);
+  }
+
+  /** B2B softphone — mock CPaaS with tel: fallback when down. */
+  @Post(':id/calls')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard)
+  async startLeadCall(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    const lead = await this.leadsService.getLead(id);
+    if (!lead) {
+      throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+    }
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (staffId != null) {
+        await this.b2bLeadScope.assertLeadVisible({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+          lead: {
+            owner_id: lead.owner_id,
+            client_id: lead.client_id,
+            channel: lead.channel,
+            source: lead.source,
+            status: lead.status,
+            b2b_project_id: lead.b2b_project_id,
+            meta_json: { lead_flow_kind: lead.lead_flow_kind },
+          },
+        });
+      }
+    }
+    const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    if (staffId == null) {
+      throw new HttpException({ error: 'staff_required' }, HttpStatus.BAD_REQUEST);
+    }
+    const phone = String(lead.phone ?? '').trim();
+    if (!phone) {
+      throw new HttpException({ error: 'missing_phone' }, HttpStatus.BAD_REQUEST);
+    }
+    try {
+      const out = await this.b2bCalls.startHumanCall({ leadId: id, staffId, phone });
+      return { ok: true, ...out };
+    } catch (err) {
+      if (err instanceof B2bCpaasDownError) {
+        throw new ServiceUnavailableException({ error: 'cpaas_down', tel: phone });
+      }
+      throw err;
+    }
   }
 
   @Get(':id')
