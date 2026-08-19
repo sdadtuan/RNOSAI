@@ -8,6 +8,7 @@ import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { HrEmployeeFileRepository } from './hr-employee-file.repository';
 import { HrDocWalletRepository } from './hr-doc-wallet.repository';
+import { HrInsuranceRepository } from './hr-insurance.repository';
 import { HrLaborContractRepository } from './hr-labor-contract.repository';
 import type {
   HrStaffProfileResponse,
@@ -27,6 +28,7 @@ export class HrEmployeeFileService {
     private readonly repo: HrEmployeeFileRepository,
     private readonly walletRepo: HrDocWalletRepository,
     private readonly contractRepo: HrLaborContractRepository,
+    private readonly insuranceRepo: HrInsuranceRepository,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -60,6 +62,12 @@ export class HrEmployeeFileService {
       canEditContract:
         this.staffAuth.hasCap(me.caps, 'crm_hr_contract', 'edit') ||
         this.staffAuth.hasCap(me.caps, 'crm_staff_roster', 'edit'),
+      canViewInsurance:
+        this.staffAuth.hasCap(me.caps, 'crm_hr_insurance', 'view') ||
+        this.staffAuth.hasCap(me.caps, 'crm_staff_roster', 'view'),
+      canEditInsurance:
+        this.staffAuth.hasCap(me.caps, 'crm_hr_insurance', 'edit') ||
+        this.staffAuth.hasCap(me.caps, 'crm_staff_roster', 'edit'),
     };
   }
 
@@ -90,6 +98,8 @@ export class HrEmployeeFileService {
       canEditDocs,
       canViewContract,
       canEditContract,
+      canViewInsurance,
+      canEditInsurance,
     } = await this.capsFor(payload!);
     const identityRow = await this.repo.getIdentity(staffId);
     const addresses = await this.repo.listAddresses(staffId);
@@ -100,6 +110,8 @@ export class HrEmployeeFileService {
     const completeness_pct = walletReady ? wallet.wallet_pct : profilePct;
     const contractReady = await this.contractRepo.tablesReady();
     const active_contract = contractReady ? await this.contractRepo.getActiveSummary(staffId) : null;
+    const insuranceReady = await this.insuranceRepo.tablesReady();
+    const insurance_summary = insuranceReady ? await this.insuranceRepo.getSummary(staffId) : null;
     return {
       ok: true,
       staff,
@@ -109,6 +121,7 @@ export class HrEmployeeFileService {
       wallet_pct: wallet.wallet_pct,
       expiring_count: wallet.expiring_count,
       active_contract,
+      insurance_summary,
       can_view_pii: canViewPii,
       can_edit_pii: canEditPii,
       can_edit_roster: canEditRoster,
@@ -116,6 +129,8 @@ export class HrEmployeeFileService {
       can_edit_docs: canEditDocs,
       can_view_contract: canViewContract,
       can_edit_contract: canEditContract,
+      can_view_insurance: canViewInsurance,
+      can_edit_insurance: canEditInsurance,
     };
   }
 

@@ -59,7 +59,48 @@ export interface HrStaffProfileDto {
   can_edit_docs: boolean;
   can_view_contract?: boolean;
   can_edit_contract?: boolean;
+  can_view_insurance?: boolean;
+  can_edit_insurance?: boolean;
   active_contract?: HrActiveContractSummaryDto | null;
+  insurance_summary?: HrInsuranceSummaryDto | null;
+}
+
+export interface HrInsuranceSummaryDto {
+  bhyt_valid_to: string | null;
+  bhyt_expiring_soon: boolean;
+}
+
+export interface HrStaffInsuranceDto {
+  staff_id: number;
+  bhxh_book_no: string;
+  bhxh_book_no_masked?: boolean;
+  bhxh_joined_on: string | null;
+  bhxh_status: string;
+  bhxh_document_id: number | null;
+  bhxh_document_title?: string | null;
+  bhyt_card_no: string;
+  bhyt_card_no_masked?: boolean;
+  bhyt_valid_from: string | null;
+  bhyt_valid_to: string | null;
+  bhyt_clinic_name: string;
+  bhyt_document_id: number | null;
+  bhyt_document_title?: string | null;
+  bhtn_joined_on: string | null;
+  bhtn_status: string;
+  bhtn_document_id: number | null;
+  bhtn_document_title?: string | null;
+  notes: string;
+}
+
+export interface HrInsurancePeriodDto {
+  id: number;
+  staff_id: number;
+  kind: string;
+  period_year: number;
+  period_month: number;
+  salary_base: number | null;
+  salary_masked?: boolean;
+  notes: string;
 }
 
 export interface HrActiveContractSummaryDto {
@@ -384,4 +425,66 @@ export async function patchHrLaborAppendix(
   const body = await parseJson<{ ok: true; appendix: HrLaborAppendixDto; error?: string }>(res);
   if (!res.ok) throw new ApiError(body.error ?? 'Cập nhật phụ lục thất bại', res.status);
   return body.appendix;
+}
+
+export async function fetchHrStaffInsurance(
+  token: string,
+  staffId: number,
+): Promise<{
+  register: HrStaffInsuranceDto;
+  periods: HrInsurancePeriodDto[];
+  summary: HrInsuranceSummaryDto | null;
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/insurance`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<{
+    ok: true;
+    register: HrStaffInsuranceDto;
+    periods: HrInsurancePeriodDto[];
+    summary: HrInsuranceSummaryDto | null;
+    error?: string;
+  }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải sổ bảo hiểm', res.status);
+  return {
+    register: body.register,
+    periods: body.periods ?? [],
+    summary: body.summary ?? null,
+  };
+}
+
+export async function putHrStaffInsurance(
+  token: string,
+  staffId: number,
+  payload: Record<string, unknown>,
+): Promise<{ register: HrStaffInsuranceDto; summary: HrInsuranceSummaryDto | null }> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/insurance`, {
+    method: 'PUT',
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+  const body = await parseJson<{
+    ok: true;
+    register: HrStaffInsuranceDto;
+    summary: HrInsuranceSummaryDto | null;
+    error?: string;
+  }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Lưu sổ BH thất bại', res.status);
+  return { register: body.register, summary: body.summary ?? null };
+}
+
+export async function createHrInsurancePeriod(
+  token: string,
+  staffId: number,
+  payload: Record<string, unknown>,
+): Promise<HrInsurancePeriodDto> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/insurance/periods`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+  const body = await parseJson<{ ok: true; period: HrInsurancePeriodDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Thêm kỳ đóng thất bại', res.status);
+  return body.period;
 }

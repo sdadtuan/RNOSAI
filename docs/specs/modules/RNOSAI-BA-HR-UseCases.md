@@ -57,3 +57,23 @@
 - `POST/PATCH .../contracts/:contractId/appendices[/:appendixId]`
 
 **Verify:** `bash scripts/smoke_hr_employee_file_p2.sh`
+
+## HR-UC-003 — Insurance Register P3 (BHXH / BHYT / BHTN)
+
+**Actor:** HR
+
+**Pre:** P1 + P4 deployed, P3 DDL, `PTT_HR_EMPLOYEE_FILE=1`.
+
+**Flow:**
+1. Tab **Bảo hiểm** trên `/crm/staff/:id`.
+2. Sổ register: BHXH (số sổ, ngày tham gia, trạng thái), BHYT (số thẻ, nơi KCB, hạn), BHTN.
+3. Chọn thẻ ví loại bảo hiểm làm scan (BR-HR-140).
+4. Lịch sử đóng BHXH/BHTN theo tháng (mức lương đóng = PII).
+5. Header badge **BHYT sắp hết hạn** khi `valid_to` ≤30 ngày (BR-HR-120).
+6. Số sổ BHXH / số thẻ BHYT mask nếu thiếu `crm_hr_pii.view`.
+
+**API:**
+- `GET/PUT /api/v1/hr/staff/:id/insurance`
+- `POST/PATCH .../insurance/periods[/:periodId]`
+
+**Verify:** `bash scripts/smoke_hr_employee_file_p3.sh`
