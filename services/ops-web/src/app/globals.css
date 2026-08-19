@@ -12213,3 +12213,110 @@ body {
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
+
+.wallet-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wallet-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.wallet-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.wallet-card {
+  aspect-ratio: 1.58;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--wallet-hue) 12%, var(--surface)), var(--surface));
+  padding: 0.85rem 0.95rem;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.wallet-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.wallet-card__type {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--wallet-hue);
+}
+
+.wallet-card__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.wallet-card__meta {
+  margin: 0;
+  font-size: 0.75rem;
+  flex: 1;
+}
+
+.wallet-card__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: auto;
+}
+
+.wallet-card__files {
+  font-size: 0.7rem;
+}
+
+.hr-expiry-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.hr-expiry-chip--expiring {
+  background: rgba(217, 119, 6, 0.15);
+  color: #b45309;
+}
+
+.hr-expiry-chip--expired {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
+
+.hr-expiry-chip--ok {
+  background: rgba(100, 116, 139, 0.12);
+  color: var(--muted);
+}
+
+.hr-expiry-chip--muted {
+  background: rgba(100, 116, 139, 0.08);
+  color: var(--muted);
+}
+
+.wallet-file-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+}

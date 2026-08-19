@@ -23,6 +23,7 @@ import {
   type CrmStaffRow,
   type StaffOrgUserSummary,
 } from '@/lib/api';
+import { fetchHrWalletRosterStats, type HrWalletRosterStatDto } from '@/lib/hr-employee-file-api';
 import { canLinkToOrgAdmin } from '@/lib/admin/staff-bridge';
 import {
   clearSession,
@@ -63,6 +64,7 @@ export function StaffContent() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [walletStats, setWalletStats] = useState<Map<number, HrWalletRosterStatDto>>(new Map());
 
   const rosterItems = useMemo(
     () =>
@@ -121,6 +123,13 @@ export function StaffContent() {
         const out = await fetchCrmStaffList(access, { q: query || undefined });
         setRows(out.staff ?? []);
         setSummary(out.summary ?? {});
+        try {
+          const ids = (out.staff ?? []).map((s) => s.id);
+          const stats = await fetchHrWalletRosterStats(access, ids);
+          setWalletStats(new Map(stats.map((s) => [s.staff_id, s])));
+        } catch {
+          setWalletStats(new Map());
+        }
         if (canLinkToOrgAdmin(getStoredUser())) {
           try {
             const orgUsers = await fetchStaffOrgUsers(access, { includeInactive: true });
@@ -287,6 +296,8 @@ export function StaffContent() {
                   <th>Tên</th>
                   <th>Mã</th>
                   <th>Phòng</th>
+                  <th>Ví %</th>
+                  <th>Hết hạn</th>
                   {showOrgBridge ? <th>Login / RBAC</th> : null}
                   <th />
                 </tr>
@@ -302,6 +313,16 @@ export function StaffContent() {
                     </td>
                     <td>{s.internal_code || '—'}</td>
                     <td>{s.department || '—'}</td>
+                    <td>{walletStats.get(s.id)?.wallet_pct ?? '—'}%</td>
+                    <td>
+                      {(walletStats.get(s.id)?.expiring_count ?? 0) > 0 ? (
+                        <span className="hr-expiry-chip hr-expiry-chip--expiring">
+                          {walletStats.get(s.id)?.expiring_count}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                     {showOrgBridge ? (
                       <td>
                         <StaffLoginRbacCell staff={s} orgUser={orgUser} viewer={user} />

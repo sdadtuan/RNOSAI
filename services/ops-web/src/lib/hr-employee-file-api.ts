@@ -50,9 +50,59 @@ export interface HrStaffProfileDto {
   identity: HrStaffIdentityDto;
   addresses: HrStaffAddressDto[];
   completeness_pct: number;
+  wallet_pct: number;
+  expiring_count: number;
   can_view_pii: boolean;
   can_edit_pii: boolean;
   can_edit_roster: boolean;
+  can_view_docs: boolean;
+  can_edit_docs: boolean;
+}
+
+export interface HrDocTypeDto {
+  type_code: string;
+  label: string;
+  category: string;
+  is_system: boolean;
+  is_required_onboard: boolean;
+}
+
+export interface HrDocWalletFileDto {
+  id: number;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+}
+
+export interface HrDocWalletCardDto {
+  id: number;
+  type_code: string;
+  type_label?: string;
+  type_category?: string;
+  title: string;
+  doc_no: string;
+  issuer: string;
+  issued_on: string | null;
+  expires_on: string | null;
+  status: string;
+  pinned: boolean;
+  file_count: number;
+  files: HrDocWalletFileDto[];
+  education?: {
+    level: string;
+    major: string;
+    school: string;
+    graduated_on: string | null;
+    classification: string;
+    training_form: string;
+  } | null;
+  notes?: string;
+}
+
+export interface HrWalletRosterStatDto {
+  staff_id: number;
+  wallet_pct: number;
+  expiring_count: number;
 }
 
 export async function fetchHrStaffProfile(token: string, staffId: number): Promise<HrStaffProfileDto> {
@@ -100,4 +150,107 @@ export async function putHrStaffAddresses(
   }>(res);
   if (!res.ok) throw new ApiError(body.error ?? 'Lưu địa chỉ thất bại', res.status);
   return body;
+}
+
+export async function fetchHrDocTypes(token: string): Promise<{ types: HrDocTypeDto[] }> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/doc-types`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<{ ok: true; types: HrDocTypeDto[]; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải catalog giấy tờ', res.status);
+  return { types: body.types ?? [] };
+}
+
+export async function fetchHrStaffWallet(
+  token: string,
+  staffId: number,
+  query?: { category?: string; expiring_only?: boolean; education_only?: boolean; missing_files?: boolean },
+): Promise<{ cards: HrDocWalletCardDto[]; wallet_pct: number; expiring_count: number }> {
+  const qs = new URLSearchParams();
+  if (query?.category) qs.set('category', query.category);
+  if (query?.expiring_only) qs.set('expiring_only', '1');
+  if (query?.education_only) qs.set('education_only', '1');
+  if (query?.missing_files) qs.set('missing_files', '1');
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/wallet${suffix}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<{
+    ok: true;
+    cards: HrDocWalletCardDto[];
+    wallet_pct: number;
+    expiring_count: number;
+    error?: string;
+  }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải ví giấy tờ', res.status);
+  return { cards: body.cards ?? [], wallet_pct: body.wallet_pct ?? 0, expiring_count: body.expiring_count ?? 0 };
+}
+
+export async function createHrWalletCard(
+  token: string,
+  staffId: number,
+  payload: Record<string, unknown>,
+): Promise<HrDocWalletCardDto> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/wallet`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+  const body = await parseJson<{ ok: true; card: HrDocWalletCardDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Tạo thẻ thất bại', res.status);
+  return body.card;
+}
+
+export async function patchHrWalletCard(
+  token: string,
+  staffId: number,
+  cardId: number,
+  payload: Record<string, unknown>,
+): Promise<HrDocWalletCardDto | null> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/wallet/${cardId}`, {
+    method: 'PATCH',
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+  const body = await parseJson<{ ok: true; card?: HrDocWalletCardDto; deleted?: boolean; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Cập nhật thẻ thất bại', res.status);
+  return body.card ?? null;
+}
+
+export async function uploadHrWalletFile(
+  token: string,
+  staffId: number,
+  cardId: number,
+  file: File,
+): Promise<HrDocWalletFileDto> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/wallet/${cardId}/files`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  const body = await parseJson<{ ok: true; file: HrDocWalletFileDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Upload thất bại', res.status);
+  return body.file;
+}
+
+export function hrWalletFileUrl(staffId: number, cardId: number, fileId: number): string {
+  return `${API_BASE}/api/v1/hr/staff/${staffId}/wallet/${cardId}/files/${fileId}`;
+}
+
+export async function fetchHrWalletRosterStats(
+  token: string,
+  staffIds: number[],
+): Promise<HrWalletRosterStatDto[]> {
+  if (!staffIds.length) return [];
+  const res = await fetch(
+    `${API_BASE}/api/v1/hr/staff/wallet-roster-stats?ids=${staffIds.join(',')}`,
+    { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' },
+  );
+  const body = await parseJson<{ ok: true; items: HrWalletRosterStatDto[]; error?: string }>(res);
+  if (!res.ok) return [];
+  return body.items ?? [];
 }

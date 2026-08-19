@@ -19,3 +19,20 @@
 - `PUT /api/v1/hr/staff/:id/addresses`
 
 **Verify:** `bash scripts/smoke_hr_employee_file_p1.sh`
+
+## HR-UC-004 — Document Wallet P4
+
+**Actor:** HR
+
+**Pre:** P1 deployed + P4 DDL + `PTT_HR_EMPLOYEE_FILE=1`.
+
+**Flow:**
+1. Tab **Ví giấy tờ** (default) trên `/crm/staff/:id`.
+2. Thêm thẻ (CCCD, bằng, chứng chỉ…) → upload PDF/JPG.
+3. Lọc: Sắp hết hạn · Bằng cấp · Thiếu file.
+4. Roster `/crm/staff`: cột **Ví %** + chip hết hạn.
+5. Header: vòng **Ví %** thay cho hồ sơ cơ bản khi P4 sẵn sàng.
+
+**API:** `GET/POST/PATCH wallet`, `POST .../files`, `GET doc-types`, `GET wallet-roster-stats`.
+
+**Verify:** `bash scripts/smoke_hr_employee_file_p4.sh`

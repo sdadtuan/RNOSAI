@@ -8,6 +8,7 @@ import {
   pickAddress,
 } from '@/components/hr/AddressPairFields';
 import { IdentityHeader, type EmployeeFileTab } from '@/components/hr/IdentityHeader';
+import { WalletPanel } from '@/components/hr/WalletPanel';
 import type { StoredStaffUser } from '@/lib/auth';
 import {
   fetchHrStaffProfile,
@@ -31,7 +32,9 @@ type DirtyState = { identity: boolean; addresses: boolean };
 export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileError }: Props) {
   const [profile, setProfile] = useState<HrStaffProfileDto | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<EmployeeFileTab>('profile');
+  const [activeTab, setActiveTab] = useState<EmployeeFileTab>('wallet');
+  const [walletPct, setWalletPct] = useState(0);
+  const [expiringCount, setExpiringCount] = useState(0);
   const [pendingTab, setPendingTab] = useState<EmployeeFileTab | null>(null);
   const [identityDraft, setIdentityDraft] = useState<HrStaffIdentityDto>({});
   const [permanentDraft, setPermanentDraft] = useState<HrStaffAddressDto>(emptyAddress('permanent'));
@@ -46,6 +49,8 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
     try {
       const data = await fetchHrStaffProfile(token, staffId);
       setProfile(data);
+      setWalletPct(data.wallet_pct ?? data.completeness_pct ?? 0);
+      setExpiringCount(data.expiring_count ?? 0);
       setIdentityDraft(data.identity);
       setPermanentDraft(pickAddress(data.addresses, 'permanent'));
       setTemporaryDraft(pickAddress(data.addresses, 'temporary'));
@@ -78,7 +83,7 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
 
   function requestTab(tab: EmployeeFileTab) {
     if (tab === activeTab) return;
-    if (dirty.identity || dirty.addresses) {
+    if (activeTab === 'profile' && tab !== 'profile' && (dirty.identity || dirty.addresses)) {
       setPendingTab(tab);
       return;
     }
@@ -166,7 +171,13 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
 
   return (
     <div className="employee-file-shell">
-      <IdentityHeader profile={profile} activeTab={activeTab} onTabChange={requestTab} />
+      <IdentityHeader
+        profile={profile}
+        activeTab={activeTab}
+        onTabChange={requestTab}
+        walletPct={walletPct}
+        expiringCount={expiringCount}
+      />
       {saveMsg ? (
         <p className="muted" style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
           {saveMsg}
@@ -180,6 +191,21 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
               Bỏ thay đổi
             </button>
           </div>
+        </div>
+      ) : null}
+
+      {activeTab === 'wallet' ? (
+        <div className="employee-file-canvas employee-file-canvas--full">
+          <WalletPanel
+            staffId={staffId}
+            token={token}
+            canEdit={Boolean(profile.can_edit_docs)}
+            onWalletChange={(pct, exp) => {
+              setWalletPct(pct);
+              setExpiringCount(exp);
+              setProfile((prev) => (prev ? { ...prev, wallet_pct: pct, completeness_pct: pct, expiring_count: exp } : prev));
+            }}
+          />
         </div>
       ) : null}
 

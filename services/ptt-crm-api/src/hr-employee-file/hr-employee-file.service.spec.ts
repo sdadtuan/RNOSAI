@@ -12,6 +12,11 @@ describe('HrEmployeeFileService', () => {
     putAddresses: jest.fn(),
     logPiiAudit: jest.fn(),
   };
+  const walletRepo = {
+    walletTablesReady: jest.fn(),
+    listRequiredTypes: jest.fn(),
+    listCards: jest.fn(),
+  };
   const staffAuth = {
     me: jest.fn(),
     hasCap: jest.fn(),
@@ -23,11 +28,12 @@ describe('HrEmployeeFileService', () => {
     repo.assertStaffExists.mockResolvedValue({ id: 5, name: 'A' });
     repo.getIdentity.mockResolvedValue(null);
     repo.listAddresses.mockResolvedValue([]);
+    walletRepo.walletTablesReady.mockResolvedValue(false);
     staffAuth.me.mockResolvedValue({ caps: {} });
   });
 
   function svc(): HrEmployeeFileService {
-    return new HrEmployeeFileService(repo as never, staffAuth as never);
+    return new HrEmployeeFileService(repo as never, walletRepo as never, staffAuth as never);
   }
 
   const user = {

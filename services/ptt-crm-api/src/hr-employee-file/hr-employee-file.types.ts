@@ -78,9 +78,13 @@ export interface HrStaffProfileResponse {
   identity: Partial<HrStaffIdentityRow> & { cccd_masked?: boolean; pii_masked?: boolean };
   addresses: HrStaffAddressRow[];
   completeness_pct: number;
+  wallet_pct: number;
+  expiring_count: number;
   can_view_pii: boolean;
   can_edit_pii: boolean;
   can_edit_roster: boolean;
+  can_view_docs: boolean;
+  can_edit_docs: boolean;
 }
 
 export const HR_PII_IDENTITY_FIELDS = [
