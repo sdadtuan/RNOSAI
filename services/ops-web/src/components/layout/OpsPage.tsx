@@ -9,9 +9,11 @@ type OpsPageProps = {
 
 export function OpsPage({ breadcrumb, children, width = 'wide' }: OpsPageProps) {
   return (
-    <main className={`ops-page ops-page--${width}`}>
-      {breadcrumb?.length ? <Breadcrumb items={breadcrumb} /> : null}
-      {children}
+    <main className={`ops-page ops-page--${width} bitrix-crm-page`}>
+      <div className="bitrix-crm-page__inner">
+        {breadcrumb?.length ? <Breadcrumb items={breadcrumb} /> : null}
+        {children}
+      </div>
     </main>
   );
 }

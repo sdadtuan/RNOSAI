@@ -48,7 +48,7 @@ export function HubPageLayout<T extends string>({
           onChange={onTabChange}
         />
       ) : null}
-      <div className="page-card stack-gap">{children}</div>
+      <div className="page-card page-card--flat-top stack-gap">{children}</div>
     </>
   );
 }

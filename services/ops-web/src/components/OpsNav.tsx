@@ -654,7 +654,7 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
           <span className="ops-sidebar-brand-mark">PTT</span>
           <div className="ops-sidebar-brand-text">
             <strong>PTT CRM</strong>
-            <span>Staff console</span>
+            <span>RNOSAI · Bitrix-style</span>
           </div>
         </div>
         <nav className={`ops-sidebar-nav${showExpandedNav ? ' is-expanded' : ' is-collapsed-rail'}`}>

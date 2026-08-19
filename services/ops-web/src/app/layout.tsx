@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import './bitrix-theme.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
@@ -26,7 +27,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="vi" className="ops-shell-collapsed">
+    <html lang="vi" className="ops-shell-collapsed ops-shell-bitrix">
       <head>
         <link rel="apple-touch-icon" href="/icons/icon.svg" />
       </head>

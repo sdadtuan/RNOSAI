@@ -328,28 +328,33 @@ export function SalesPipelineFunnelPanel({
         ) : null}
       </div>
       {message ? <p className="sales-pipeline-panel__message">{message}</p> : null}
-      <div className="sales-pipeline-kanban">
+      <div className="sales-pipeline-kanban crm-kanban">
         {columns.map((stage) => {
           const cards = cardsByStage.get(stage) ?? [];
           return (
-            <div key={stage} className="sales-pipeline-column">
-              <h4>{stageLabels[stage] ?? stage}</h4>
-              <ul className="sales-pipeline-cards">
-                {cards.map((row) => (
-                  <li key={row.id}>
-                    <button
-                      type="button"
-                      className={`sales-pipeline-card${selectedId === row.id ? ' is-selected' : ''}`}
-                      onClick={() => void openDeal(row.id)}
-                    >
-                      <strong>{row.title}</strong>
-                      <span className="muted">{row.customer_name || `#${row.id}`}</span>
-                      <DealScoreMiniBar summary={scoreMap[String(row.id)]} />
-                      {nba && selectedId === row.id ? <span className="nba-card__badge">NBA</span> : null}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+            <div key={stage} className="sales-pipeline-column crm-kanban-column">
+              <div className="crm-kanban-column__head">
+                <span className="crm-kanban-column__title">{stageLabels[stage] ?? stage}</span>
+                <span className="crm-kanban-column__count">{cards.length}</span>
+              </div>
+              <div className="crm-kanban-column__body">
+                <ul className="sales-pipeline-cards" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                  {cards.map((row) => (
+                    <li key={row.id}>
+                      <button
+                        type="button"
+                        className={`sales-pipeline-card crm-kanban-card${selectedId === row.id ? ' is-selected' : ''}`}
+                        onClick={() => void openDeal(row.id)}
+                      >
+                        <strong className="crm-kanban-card__title">{row.title}</strong>
+                        <span className="muted">{row.customer_name || `#${row.id}`}</span>
+                        <DealScoreMiniBar summary={scoreMap[String(row.id)]} />
+                        {nba && selectedId === row.id ? <span className="nba-card__badge">NBA</span> : null}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           );
         })}

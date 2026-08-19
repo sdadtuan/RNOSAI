@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { CrmLeadsImportExport } from '@/components/crm/CrmLeadsImportExport';
 import { LeadsColumnPicker } from '@/components/crm/LeadsColumnPicker';
 import { CrmLeadsList } from '@/components/crm/CrmLeadsList';
+import { LeadKanbanBoard } from '@/components/crm/LeadKanbanBoard';
 import { PullToRefresh } from '@/components/mobile/PullToRefresh';
 import { WinFilterChips } from '@/components/win';
 import {
@@ -44,7 +45,7 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
-import { statusOptionsForFlowKind } from '@/lib/crm/lead-flow-kind';
+import { statusOptionsForFlowKind, type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
 import {
   leadFlowKindQuery,
   leadsListHref,
@@ -65,6 +66,15 @@ import { readLeadsVisibleColumns, defaultB2bLeadsVisibleColumns, type LeadsColum
 import { fetchB2bProjects, type B2bProjectListItem } from '@/lib/b2b-projects-api';
 
 const PAGE_SIZE = 50;
+const PAGE_SIZE_KANBAN = 300;
+const LEADS_VIEW_STORAGE_KEY = 'crm-leads-view-mode';
+
+type LeadsViewMode = 'list' | 'kanban';
+
+function readLeadsViewMode(): LeadsViewMode {
+  if (typeof window === 'undefined') return 'list';
+  return window.localStorage.getItem(LEADS_VIEW_STORAGE_KEY) === 'kanban' ? 'kanban' : 'list';
+}
 
 type LeadKindFilter = 'pipeline' | 'review' | 'all';
 
@@ -99,6 +109,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const [visibleColumns, setVisibleColumns] = useState<Set<LeadsColumnId>>(() =>
     flowScope === 'b2b_prospect' ? defaultB2bLeadsVisibleColumns() : readLeadsVisibleColumns(false),
   );
+  const [viewMode, setViewMode] = useState<LeadsViewMode>('list');
   const urlReadyRef = useRef(false);
 
   const listHref = leadsListHref(flowScope);
@@ -155,11 +166,12 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   }, [router]);
 
   const loadLeads = useCallback(
-    async (accessToken: string, nextOffset: number, search: string) => {
+    async (accessToken: string, nextOffset: number, search: string, mode: LeadsViewMode = viewMode) => {
       setLoading(true);
       setError('');
       try {
         const ownerId = listTab === 'mine' && user?.id ? Number(user.id) : undefined;
+        const kanban = mode === 'kanban';
         const data = await fetchLeads(accessToken, {
           q: search || undefined,
           status: filterStatus || undefined,
@@ -171,8 +183,8 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           hide_review_queue:
             flowScope === 'b2b_prospect' || leadKind === 'all' ? false : undefined,
           lead_flow_kind: flowKindFilter,
-          limit: PAGE_SIZE,
-          offset: nextOffset,
+          limit: kanban ? PAGE_SIZE_KANBAN : PAGE_SIZE,
+          offset: kanban ? 0 : nextOffset,
         });
         setRows(data.leads);
         setTotal(data.total);
@@ -183,8 +195,12 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         setLoading(false);
       }
     },
-    [filterChannel, filterSource, filterStatus, flowKindFilter, flowScope, leadKind, listTab, user?.id],
+    [filterChannel, filterSource, filterStatus, flowKindFilter, flowScope, leadKind, listTab, user?.id, viewMode],
   );
+
+  useEffect(() => {
+    setViewMode(readLeadsViewMode());
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -477,7 +493,42 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         }
       />
 
-      <div className="page-card stack-gap">
+      <div className="bitrix-view-tabs" role="tablist" aria-label="Chế độ xem lead">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={viewMode === 'kanban'}
+          className={`bitrix-view-tab${viewMode === 'kanban' ? ' is-active' : ''}`}
+          onClick={() => {
+            setViewMode('kanban');
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem(LEADS_VIEW_STORAGE_KEY, 'kanban');
+            }
+            setOffset(0);
+            if (token) void loadLeads(token, 0, query, 'kanban');
+          }}
+        >
+          Kanban
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={viewMode === 'list'}
+          className={`bitrix-view-tab${viewMode === 'list' ? ' is-active' : ''}`}
+          onClick={() => {
+            setViewMode('list');
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem(LEADS_VIEW_STORAGE_KEY, 'list');
+            }
+            setOffset(0);
+            if (token) void loadLeads(token, 0, query, 'list');
+          }}
+        >
+          Danh sách
+        </button>
+      </div>
+
+      <div className="page-card page-card--flat-top stack-gap">
         {flowScope === 'b2b_prospect' && slaSummary ? (
           <PresalesConsultSlaSummaryCard summary={slaSummary} />
         ) : null}
@@ -661,47 +712,60 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         ) : null}
 
         <PullToRefresh
-          disabled={loading || !token}
+          disabled={loading || !token || viewMode === 'kanban'}
           onRefresh={async () => {
             if (!token) return;
             await loadLeads(token, offset, query);
           }}
         >
-          <CrmLeadsList
-            rows={rows}
-            loading={loading}
-            selectedIds={selectedIds}
-            onToggleSelect={toggleSelect}
-            onToggleAll={toggleAll}
-            ownerNameById={ownerNameById}
-            projectLabelById={projectLabelById}
-            visibleColumns={visibleColumns}
-            showScores={showScores}
-            scoreMap={scoreMap}
-            scoresPending={scoresPending}
-            showLeadKindTags={showLeadKindTags}
-            emptyActions={emptyActions}
-          />
+          {viewMode === 'kanban' ? (
+            <LeadKanbanBoard
+              rows={rows}
+              flowKind={(flowKindFilter ?? 'b2b_prospect') as LeadFlowKind}
+            />
+          ) : (
+            <CrmLeadsList
+              rows={rows}
+              loading={loading}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+              onToggleAll={toggleAll}
+              ownerNameById={ownerNameById}
+              projectLabelById={projectLabelById}
+              visibleColumns={visibleColumns}
+              showScores={showScores}
+              scoreMap={scoreMap}
+              scoresPending={scoresPending}
+              showLeadKindTags={showLeadKindTags}
+              emptyActions={emptyActions}
+            />
+          )}
         </PullToRefresh>
 
-        <PageFooter meta={`Hiển thị ${rows.length} / ${total.toLocaleString('vi-VN')} leads`}>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={loading || offset <= 0}
-            onClick={() => void goPage(Math.max(0, offset - PAGE_SIZE))}
-          >
-            ← Trước
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={loading || offset + PAGE_SIZE >= total}
-            onClick={() => void goPage(offset + PAGE_SIZE)}
-          >
-            Sau →
-          </button>
-        </PageFooter>
+        {viewMode === 'list' ? (
+          <PageFooter meta={`Hiển thị ${rows.length} / ${total.toLocaleString('vi-VN')} leads`}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={loading || offset <= 0}
+              onClick={() => void goPage(Math.max(0, offset - PAGE_SIZE))}
+            >
+              ← Trước
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={loading || offset + PAGE_SIZE >= total}
+              onClick={() => void goPage(offset + PAGE_SIZE)}
+            >
+              Sau →
+            </button>
+          </PageFooter>
+        ) : (
+          <PageFooter
+            meta={`Kanban · ${rows.length} / ${total.toLocaleString('vi-VN')} leads (tối đa ${PAGE_SIZE_KANBAN})`}
+          />
+        )}
       </div>
     </StaffPageShell>
   );
