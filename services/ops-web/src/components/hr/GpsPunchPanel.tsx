@@ -11,13 +11,15 @@ type Props = {
   token: string;
 };
 
-type GeoState = {
+type GeoCoords = {
   lat: number;
   lng: number;
   accuracy: number;
-} | null;
+};
 
-function readGeolocation(): Promise<GeoState> {
+type GeoState = GeoCoords | null;
+
+function readGeolocation(): Promise<GeoCoords> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('Trình duyệt không hỗ trợ GPS'));
