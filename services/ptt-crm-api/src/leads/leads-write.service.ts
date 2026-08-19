@@ -15,11 +15,13 @@ import { PgLeadsWriteRepository } from './pg-leads-write.repository';
 import { CreateLeadV1Body, LeadV1, PatchLeadV1Body } from './leads.types';
 import { LeadCreateEnrichmentService } from './ingest/lead-create-enrichment.service';
 import { B2bFirstAssignService } from '../b2b-projects/b2b-first-assign.service';
+import { B2bManualReassignService } from '../b2b-projects/b2b-manual-reassign.service';
 import {
   LeadStatusGatePatchOptions,
   LeadStatusGateService,
 } from './lead-status-gate.service';
 import { LeadStatusGateError } from './lead-status-gate.util';
+import { LeadsRepository } from './leads.repository';
 
 @Injectable()
 export class LeadsWriteService {
@@ -34,6 +36,8 @@ export class LeadsWriteService {
     private readonly meetingPrepEnqueue: LeadMeetingPrepEnqueueService,
     private readonly statusGate: LeadStatusGateService,
     private readonly b2bFirstAssign: B2bFirstAssignService,
+    private readonly b2bManualReassign: B2bManualReassignService,
+    private readonly leadsRepo: LeadsRepository,
   ) {}
 
   async createLead(body: CreateLeadV1Body): Promise<LeadV1> {
@@ -132,11 +136,65 @@ export class LeadsWriteService {
     }
     try {
       await this.statusGate.assertPatchAllowed(leadId, body, gateOpts);
-      const result = await this.writeRepo.patchLead(leadId, body);
+      const existing = await this.leadsRepo.getLeadById(leadId);
+      if (!existing) {
+        throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+      }
+
+      const ownerChanging =
+        body.owner_id !== undefined &&
+        body.owner_id != null &&
+        Number(body.owner_id) !== Number(existing.owner_id ?? 0);
+      const b2bManual =
+        ownerChanging && this.b2bManualReassign.requiresSplitChoice(existing);
+
+      if (b2bManual) {
+        if (!body.split) {
+          throw new BadRequestException({ error: 'split_required' });
+        }
+        await this.b2bManualReassign.applyManualOwnerChange({
+          leadId,
+          projectId: String(existing.b2b_project_id),
+          fromOwnerId: existing.owner_id != null ? Number(existing.owner_id) : null,
+          toOwnerId: Number(body.owner_id),
+          split: body.split,
+          reason: body.assigned_by?.trim() || actor || 'manual_reassign',
+        });
+      }
+
+      const patchBody = b2bManual
+        ? {
+            ...body,
+            owner_id: undefined,
+            split: undefined,
+          }
+        : body;
+      const hasPatchFields =
+        patchBody.owner_id !== undefined ||
+        patchBody.status !== undefined ||
+        patchBody.score !== undefined ||
+        patchBody.expected_value !== undefined ||
+        patchBody.margin_pct !== undefined;
+
+      let result;
+      if (hasPatchFields) {
+        result = await this.writeRepo.patchLead(leadId, patchBody);
+      } else if (b2bManual) {
+        result = {
+          lead: (await this.leadsRepo.getLeadById(leadId))!,
+          assigned: true,
+          scored: false,
+          status_changed: false,
+          previous_status: existing.status?.trim() || null,
+        };
+      } else {
+        throw new BadRequestException({ error: 'At least one patch field required' });
+      }
+
       if (!result) {
         throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
       }
-      if (result.assigned && body.owner_id != null) {
+      if ((result.assigned || b2bManual) && body.owner_id != null) {
         await this.events.emit('LeadAssigned', 'lead', String(leadId), {
           lead_id: leadId,
           owner_id: body.owner_id,

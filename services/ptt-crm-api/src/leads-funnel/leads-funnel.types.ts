@@ -241,6 +241,8 @@ export interface ReleaseReviewQueueBody {
   mode: 'auto' | 'manual';
   owner_id?: number;
   note?: string;
+  /** B2B manual reassign split choice when PTT_B2B_PROJECT_OS=1. */
+  split?: 'keep_first_touch' | 'reset_closer' | 'no_split';
 }
 
 export interface EnsurePresalesBody {

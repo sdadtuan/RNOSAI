@@ -359,6 +359,7 @@ function buildSections(
   if (hasCap(user, 'crm_b2b_projects', 'view')) {
     salesContract.push({ href: '/crm/b2b-projects', label: 'Dự án PTT' });
     salesContract.push({ href: '/crm/b2b-speed', label: 'Speed-to-lead' });
+    salesContract.push({ href: '/crm/b2b-gdkd', label: 'GDKD command center' });
   }
   if (hasCap(user, 'crm_b2b_projects', 'manage')) {
     salesContract.push({ href: '/crm/b2b-unmatched', label: 'Ingress chưa map' });

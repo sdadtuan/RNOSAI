@@ -33,6 +33,12 @@ import { B2bSpeedRepository } from './b2b-speed.repository';
 import { B2bSpeedService } from './b2b-speed.service';
 import { B2bSpeedController } from './b2b-speed.controller';
 import { B2bStringeeTokenService } from './b2b-stringee-token.service';
+import { B2bManualReassignService } from './b2b-manual-reassign.service';
+import { B2bCommissionLedgerRepository } from './b2b-commission-ledger.repository';
+import { B2bCommissionLedgerService } from './b2b-commission-ledger.service';
+import { B2bOpsSummaryRepository } from './b2b-ops-summary.repository';
+import { B2bOpsSummaryService } from './b2b-ops-summary.service';
+import { B2bOpsSummaryController } from './b2b-ops-summary.controller';
 
 @Module({
   imports: [StaffAuthModule],
@@ -43,6 +49,7 @@ import { B2bStringeeTokenService } from './b2b-stringee-token.service';
     B2bUnmatchedController,
     B2bCallsController,
     B2bSpeedController,
+    B2bOpsSummaryController,
   ],
   providers: [
     B2bProjectsService,
@@ -60,6 +67,11 @@ import { B2bStringeeTokenService } from './b2b-stringee-token.service';
     B2bStringeeTokenService,
     B2bSpeedRepository,
     B2bSpeedService,
+    B2bManualReassignService,
+    B2bCommissionLedgerRepository,
+    B2bCommissionLedgerService,
+    B2bOpsSummaryRepository,
+    B2bOpsSummaryService,
     B2bAlertsRepository,
     B2bAlertsService,
     B2bAlertStreamService,
@@ -79,6 +91,8 @@ import { B2bStringeeTokenService } from './b2b-stringee-token.service';
     B2bSlaTickService,
     B2bCallsService,
     B2bStringeeTokenService,
+    B2bManualReassignService,
+    B2bCommissionLedgerService,
     B2bAlertsService,
   ],
 })

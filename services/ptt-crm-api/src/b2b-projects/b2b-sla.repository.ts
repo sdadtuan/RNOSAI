@@ -24,13 +24,15 @@ export interface ApplyHopInput {
   leadId: number;
   fromOwnerId: number | null;
   toOwnerId: number;
-  hopKind: 'first_assign' | 'sla_reassign' | 'ai_call';
+  hopKind: 'first_assign' | 'sla_reassign' | 'ai_call' | 'manual';
   projectId: string;
   assignStrategy?: string;
   assignReason?: string;
   assignConfidence?: number | null;
   firstTouchPct?: number;
   closerPct?: number;
+  skipOwnerUpdate?: boolean;
+  updateCommissionSplit?: boolean;
 }
 
 const IN_CALL_STATES = ['queued', 'ringing', 'answered'];
@@ -154,27 +156,30 @@ export class B2bSlaRepository implements OnModuleDestroy {
     const client = await this.db.connect();
     const firstTouchPct = input.firstTouchPct ?? 30;
     const closerPct = input.closerPct ?? 70;
+    const updateSplit = input.updateCommissionSplit !== false;
     try {
       await client.query('BEGIN');
-      await client.query(
-        `UPDATE crm_leads
-         SET owner_id = $2,
-             assign_strategy = COALESCE($3, assign_strategy),
-             meta_json = COALESCE(meta_json, '{}'::jsonb) || jsonb_build_object(
-               'assign_reason', COALESCE($4, meta_json->>'assign_reason'),
-               'assign_confidence', COALESCE($5::text, meta_json->>'assign_confidence'),
-               'auto_assigned_at', to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
-             ),
-             updated_at = NOW()
-         WHERE sqlite_lead_id = $1`,
-        [
-          input.leadId,
-          input.toOwnerId,
-          input.assignStrategy ?? null,
-          input.assignReason ?? null,
-          input.assignConfidence != null ? String(input.assignConfidence) : null,
-        ],
-      );
+      if (!input.skipOwnerUpdate) {
+        await client.query(
+          `UPDATE crm_leads
+           SET owner_id = $2,
+               assign_strategy = COALESCE($3, assign_strategy),
+               meta_json = COALESCE(meta_json, '{}'::jsonb) || jsonb_build_object(
+                 'assign_reason', COALESCE($4, meta_json->>'assign_reason'),
+                 'assign_confidence', COALESCE($5::text, meta_json->>'assign_confidence'),
+                 'auto_assigned_at', to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+               ),
+               updated_at = NOW()
+           WHERE sqlite_lead_id = $1`,
+          [
+            input.leadId,
+            input.toOwnerId,
+            input.assignStrategy ?? null,
+            input.assignReason ?? null,
+            input.assignConfidence != null ? String(input.assignConfidence) : null,
+          ],
+        );
+      }
       await client.query(
         `INSERT INTO crm_b2b_lead_hops (lead_id, from_owner_id, to_owner_id, hop_kind, reason)
          VALUES ($1, $2, $3, $4, $5)`,
@@ -187,34 +192,37 @@ export class B2bSlaRepository implements OnModuleDestroy {
         ],
       );
 
-      const firstTouchRow = await client.query(
-        `SELECT first_touch_staff_id FROM crm_b2b_lead_commission_split WHERE lead_id = $1`,
-        [input.leadId],
-      );
-      let firstTouchStaffId = firstTouchRow.rows[0]?.first_touch_staff_id as number | undefined;
-      if (!firstTouchStaffId) {
-        const hopRow = await client.query(
-          `SELECT to_owner_id FROM crm_b2b_lead_hops
-           WHERE lead_id = $1 AND hop_kind = 'first_assign'
-           ORDER BY created_at ASC LIMIT 1`,
+      if (updateSplit) {
+        const firstTouchRow = await client.query(
+          `SELECT first_touch_staff_id, first_touch_pct, closer_pct
+           FROM crm_b2b_lead_commission_split WHERE lead_id = $1`,
           [input.leadId],
         );
-        firstTouchStaffId =
-          hopRow.rows[0]?.to_owner_id != null
-            ? Number(hopRow.rows[0].to_owner_id)
-            : input.fromOwnerId ?? input.toOwnerId;
-      }
+        let firstTouchStaffId = firstTouchRow.rows[0]?.first_touch_staff_id as number | undefined;
+        if (!firstTouchStaffId) {
+          const hopRow = await client.query(
+            `SELECT to_owner_id FROM crm_b2b_lead_hops
+             WHERE lead_id = $1 AND hop_kind = 'first_assign'
+             ORDER BY created_at ASC LIMIT 1`,
+            [input.leadId],
+          );
+          firstTouchStaffId =
+            hopRow.rows[0]?.to_owner_id != null
+              ? Number(hopRow.rows[0].to_owner_id)
+              : input.fromOwnerId ?? input.toOwnerId;
+        }
 
-      await client.query(
-        `INSERT INTO crm_b2b_lead_commission_split
-           (lead_id, first_touch_staff_id, closer_staff_id, first_touch_pct, closer_pct)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (lead_id) DO UPDATE SET
-           closer_staff_id = EXCLUDED.closer_staff_id,
-           first_touch_pct = EXCLUDED.first_touch_pct,
-           closer_pct = EXCLUDED.closer_pct`,
-        [input.leadId, firstTouchStaffId, input.toOwnerId, firstTouchPct, closerPct],
-      );
+        await client.query(
+          `INSERT INTO crm_b2b_lead_commission_split
+             (lead_id, first_touch_staff_id, closer_staff_id, first_touch_pct, closer_pct)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (lead_id) DO UPDATE SET
+             closer_staff_id = EXCLUDED.closer_staff_id,
+             first_touch_pct = EXCLUDED.first_touch_pct,
+             closer_pct = EXCLUDED.closer_pct`,
+          [input.leadId, firstTouchStaffId, input.toOwnerId, firstTouchPct, closerPct],
+        );
+      }
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
@@ -270,6 +278,23 @@ export class B2bSlaRepository implements OnModuleDestroy {
     return {
       firstTouchPct: Number(raw?.first_touch_pct ?? 30),
       closerPct: Number(raw?.closer_pct ?? 70),
+    };
+  }
+
+  async getCommissionSplit(leadId: number): Promise<{
+    first_touch_pct: number;
+    closer_pct: number;
+  } | null> {
+    const result = await this.db.query(
+      `SELECT first_touch_pct, closer_pct
+       FROM crm_b2b_lead_commission_split WHERE lead_id = $1 LIMIT 1`,
+      [leadId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      first_touch_pct: Number(row.first_touch_pct),
+      closer_pct: Number(row.closer_pct),
     };
   }
 }

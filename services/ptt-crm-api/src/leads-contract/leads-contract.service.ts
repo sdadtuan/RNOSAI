@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
+import { B2bCommissionLedgerService } from '../b2b-projects/b2b-commission-ledger.service';
 import { SopAutoStartService } from '../sop/sop-auto-start.service';
 import { LeadsContractPgRepository } from './leads-contract-pg.repository';
 import { LeadsContractSqliteRepository } from './leads-contract-sqlite.repository';
@@ -18,6 +19,7 @@ export class LeadsContractService {
     private readonly pgRepo: LeadsContractPgRepository,
     private readonly config: AppConfigService,
     private readonly sopAutoStart: SopAutoStartService,
+    private readonly b2bCommissionLedger: B2bCommissionLedgerService,
   ) {}
 
   private get usePgContract(): boolean {
@@ -74,6 +76,11 @@ export class LeadsContractService {
     const result = this.usePgContract
       ? await this.pgRepo.approveAndPromote(approvalId, actor)
       : await this.sqliteRepo.approveAndPromote(approvalId, actor);
+    await this.b2bCommissionLedger.postOnContractActive({
+      leadId: Number(result.contract.lead_id),
+      contractId: Number(result.contract.id),
+      amountVnd: Number(result.contract.amount_vnd ?? 0),
+    });
     const sop = await this.sopAutoStart.maybeStartOnLifecyclePromote({
       lifecycleId: result.lifecycle_id,
       contractId: result.contract.id,

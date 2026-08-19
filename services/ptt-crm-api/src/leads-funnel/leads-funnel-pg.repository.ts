@@ -587,9 +587,10 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     leadId: number,
     body: ReleaseReviewQueueBody,
     actor: string,
-  ): Promise<LeadFunnelRow> {
+  ): Promise<{ row: LeadFunnelRow; targetOwner: number; fromOwnerId: number | null }> {
     const row = await this.fetchLeadRow(leadId);
     if (!row) throw new Error('Không tìm thấy lead.');
+    const fromOwnerId = row.owner_id != null ? Number(row.owner_id) : null;
     const meta = parseLeadMeta(row.meta_json);
     const rq = meta.review_queue as Record<string, unknown> | undefined;
     if (!rq?.active) throw new Error('Lead không ở danh mục Phải tra soát.');
@@ -635,7 +636,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
 
     const updated = await this.fetchLeadRow(leadId);
     if (!updated) throw new Error('Không tìm thấy lead.');
-    return updated;
+    return { row: updated, targetOwner, fromOwnerId };
   }
 
   async getPresalesRowByLeadId(leadId: number): Promise<PresalesRow | null> {

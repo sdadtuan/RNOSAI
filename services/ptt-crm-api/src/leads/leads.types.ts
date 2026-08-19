@@ -133,6 +133,8 @@ export interface CreateLeadV1Body {
 
 export interface PatchLeadV1Body {
   owner_id?: number | null;
+  /** B2B manual owner change — required when PTT_B2B_PROJECT_OS=1 + b2b_prospect. */
+  split?: 'keep_first_touch' | 'reset_closer' | 'no_split';
   status?: string;
   score?: number;
   assigned_by?: string;

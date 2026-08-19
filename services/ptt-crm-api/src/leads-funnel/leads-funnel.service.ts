@@ -83,6 +83,8 @@ import {
   mergeLmpIntoConsultBrief,
 } from '../lead-meeting-prep/lmp-consult-merge.util';
 import { B2bLeadScopeService, type B2bListScope } from '../b2b-projects/b2b-lead-scope.service';
+import { B2bManualReassignService } from '../b2b-projects/b2b-manual-reassign.service';
+import { LeadsRepository } from '../leads/leads.repository';
 
 @Injectable()
 export class LeadsFunnelService {
@@ -102,6 +104,8 @@ export class LeadsFunnelService {
     private readonly lmpEnqueue: LeadMeetingPrepEnqueueService,
     private readonly lmpRepo: LeadMeetingPrepRepository,
     private readonly b2bLeadScope: B2bLeadScopeService,
+    private readonly b2bManualReassign: B2bManualReassignService,
+    private readonly leadsRepo: LeadsRepository,
   ) {}
 
   private get usePgFunnel(): boolean {
@@ -122,7 +126,13 @@ export class LeadsFunnelService {
   }
 
   private funnelError(err: unknown): never {
-    if (err instanceof NotFoundException || err instanceof ForbiddenException) throw err;
+    if (
+      err instanceof NotFoundException ||
+      err instanceof ForbiddenException ||
+      err instanceof BadRequestException
+    ) {
+      throw err;
+    }
     const msg = err instanceof Error ? err.message : String(err);
     throw new BadRequestException({ error: msg, message: msg });
   }
@@ -379,10 +389,36 @@ export class LeadsFunnelService {
 
   async releaseReviewQueue(leadId: number, body: ReleaseReviewQueueBody, actor: string) {
     try {
+      const existing = await this.leadsRepo.getLeadById(leadId);
+      const b2bManual = existing && this.b2bManualReassign.requiresSplitChoice(existing);
+      if (b2bManual && !body.split) {
+        throw new BadRequestException({ error: 'split_required' });
+      }
+
+      let releaseMeta: { targetOwner: number; fromOwnerId: number | null } | null = null;
       if (this.usePgFunnel) {
-        await this.pgRepo.releaseFromReviewQueue(leadId, body, actor);
+        releaseMeta = await this.pgRepo.releaseFromReviewQueue(leadId, body, actor);
       } else {
         this.sqliteRepo.releaseFromReviewQueue(leadId, body, actor);
+      }
+
+      if (b2bManual && existing?.b2b_project_id) {
+        const toOwnerId =
+          releaseMeta?.targetOwner ??
+          (body.mode === 'manual' && body.owner_id ? Number(body.owner_id) : Number(existing.owner_id));
+        if (toOwnerId) {
+          await this.b2bManualReassign.applyManualOwnerChange({
+            leadId,
+            projectId: String(existing.b2b_project_id),
+            fromOwnerId:
+              releaseMeta?.fromOwnerId ??
+              (existing.owner_id != null ? Number(existing.owner_id) : null),
+            toOwnerId,
+            split: body.split!,
+            reason: body.note?.trim() || 'gdkd_release',
+            skipOwnerUpdate: true,
+          });
+        }
       }
     } catch (err) {
       this.funnelError(err);
