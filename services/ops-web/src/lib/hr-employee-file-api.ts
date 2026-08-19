@@ -61,13 +61,53 @@ export interface HrStaffProfileDto {
   can_edit_contract?: boolean;
   can_view_insurance?: boolean;
   can_edit_insurance?: boolean;
+  can_view_dependents?: boolean;
+  can_edit_dependents?: boolean;
   active_contract?: HrActiveContractSummaryDto | null;
   insurance_summary?: HrInsuranceSummaryDto | null;
+  lifecycle_summary?: HrStaffLifecycleSummaryDto | null;
 }
 
 export interface HrInsuranceSummaryDto {
   bhyt_valid_to: string | null;
   bhyt_expiring_soon: boolean;
+}
+
+export interface HrStaffLifecycleSummaryDto {
+  stage: string;
+  stage_label: string;
+  stage_changed_on: string | null;
+}
+
+export interface HrStaffLifecycleDto extends HrStaffLifecycleSummaryDto {
+  staff_id?: number;
+  notes?: string;
+}
+
+export interface HrStaffDependentDto {
+  id: number;
+  staff_id: number;
+  name: string;
+  relation: string;
+  dob: string | null;
+  tax_dependent: boolean;
+  cccd: string;
+  cccd_masked?: boolean;
+  notes: string;
+}
+
+export interface HrHubExpirySummaryDto {
+  wallet_expiring_staff: number;
+  wallet_low_pct_staff: number;
+  contract_expiring_staff: number;
+  bhyt_expiring_staff: number;
+  samples: Array<{
+    staff_id: number;
+    name: string;
+    internal_code: string;
+    kind: string;
+    detail: string;
+  }>;
 }
 
 export interface HrStaffInsuranceDto {
@@ -487,4 +527,107 @@ export async function createHrInsurancePeriod(
   const body = await parseJson<{ ok: true; period: HrInsurancePeriodDto; error?: string }>(res);
   if (!res.ok) throw new ApiError(body.error ?? 'Thêm kỳ đóng thất bại', res.status);
   return body.period;
+}
+
+export async function fetchHrStaffDependents(
+  token: string,
+  staffId: number,
+): Promise<{ dependents: HrStaffDependentDto[] }> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/dependents`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<{ ok: true; dependents: HrStaffDependentDto[]; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải người phụ thuộc', res.status);
+  return { dependents: body.dependents ?? [] };
+}
+
+export async function createHrStaffDependent(
+  token: string,
+  staffId: number,
+  payload: Record<string, unknown>,
+): Promise<{ dependent: HrStaffDependentDto }> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/dependents`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+  const body = await parseJson<{ ok: true; dependent: HrStaffDependentDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Thêm người phụ thuộc thất bại', res.status);
+  return { dependent: body.dependent };
+}
+
+export async function patchHrStaffDependent(
+  token: string,
+  staffId: number,
+  depId: number,
+  payload: Record<string, unknown>,
+): Promise<{ dependent: HrStaffDependentDto }> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/dependents/${depId}`, {
+    method: 'PATCH',
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+  const body = await parseJson<{ ok: true; dependent: HrStaffDependentDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Cập nhật người phụ thuộc thất bại', res.status);
+  return { dependent: body.dependent };
+}
+
+export async function deleteHrStaffDependent(
+  token: string,
+  staffId: number,
+  depId: number,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/dependents/${depId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const body = await parseJson<{ ok?: boolean; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Xóa người phụ thuộc thất bại', res.status);
+}
+
+export async function fetchHrStaffLifecycle(
+  token: string,
+  staffId: number,
+): Promise<{
+  lifecycle: HrStaffLifecycleDto;
+  official_gate: { ok: boolean; missing: string[] };
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/lifecycle`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<{
+    ok: true;
+    lifecycle: HrStaffLifecycleDto;
+    official_gate: { ok: boolean; missing: string[] };
+    error?: string;
+  }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải lifecycle', res.status);
+  return { lifecycle: body.lifecycle, official_gate: body.official_gate };
+}
+
+export async function patchHrStaffLifecycle(
+  token: string,
+  staffId: number,
+  payload: Record<string, unknown>,
+): Promise<{ lifecycle: HrStaffLifecycleDto }> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/lifecycle`, {
+    method: 'PATCH',
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+  const body = await parseJson<{ ok: true; lifecycle: HrStaffLifecycleDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Cập nhật lifecycle thất bại', res.status);
+  return { lifecycle: body.lifecycle };
+}
+
+export async function fetchHrHubExpirySummary(token: string): Promise<HrHubExpirySummaryDto> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/hub/expiry-summary`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<{ ok: true; summary: HrHubExpirySummaryDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải cảnh báo hết hạn', res.status);
+  return body.summary;
 }

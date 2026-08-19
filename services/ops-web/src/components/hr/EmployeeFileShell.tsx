@@ -8,6 +8,8 @@ import {
   pickAddress,
 } from '@/components/hr/AddressPairFields';
 import { InsurancePanel } from '@/components/hr/InsurancePanel';
+import { DependentsPanel } from '@/components/hr/DependentsPanel';
+import { LifecycleSection } from '@/components/hr/LifecycleSection';
 import { ContractPanel } from '@/components/hr/ContractPanel';
 import { IdentityHeader, type EmployeeFileTab } from '@/components/hr/IdentityHeader';
 import { WalletPanel } from '@/components/hr/WalletPanel';
@@ -185,6 +187,7 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
         expiringCount={expiringCount}
         contractExpiring={contractExpiring}
         insuranceExpiring={insuranceExpiring}
+        showFamilyTab={Boolean(profile.can_view_dependents)}
       />
       {saveMsg ? (
         <p className="muted" style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
@@ -249,6 +252,17 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
         </div>
       ) : null}
 
+      {activeTab === 'family' && profile.can_view_dependents ? (
+        <div className="employee-file-canvas employee-file-canvas--full">
+          <DependentsPanel
+            staffId={staffId}
+            token={token}
+            canEdit={Boolean(profile.can_edit_dependents)}
+            canViewPii={Boolean(profile.can_view_pii)}
+          />
+        </div>
+      ) : null}
+
       {activeTab === 'profile' ? (
         <div className="employee-file-body">
           <aside className="employee-file-rail page-card">
@@ -266,6 +280,27 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
             )}
           </aside>
           <div className="employee-file-canvas stack-gap">
+            <LifecycleSection
+              staffId={staffId}
+              token={token}
+              canEdit={canEditIdentity}
+              initial={profile.lifecycle_summary ?? null}
+              onLifecycleChange={(lc) => {
+                if (!lc) return;
+                setProfile((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        lifecycle_summary: {
+                          stage: lc.stage,
+                          stage_label: lc.stage_label,
+                          stage_changed_on: lc.stage_changed_on ?? null,
+                        },
+                      }
+                    : prev,
+                );
+              }}
+            />
             <section className="page-card">
               <h2 style={{ margin: '0 0 0.75rem', fontSize: '1rem' }}>Định danh</h2>
               <div className="form-grid form-grid--2">

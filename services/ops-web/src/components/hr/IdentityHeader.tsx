@@ -3,7 +3,7 @@
 import { HrCompletenessRing } from '@/components/hr/HrCompletenessRing';
 import type { HrStaffProfileDto } from '@/lib/hr-employee-file-api';
 
-export type EmployeeFileTab = 'profile' | 'wallet' | 'contracts' | 'insurance' | 'crm';
+export type EmployeeFileTab = 'profile' | 'wallet' | 'contracts' | 'insurance' | 'family' | 'crm';
 
 type Props = {
   profile: HrStaffProfileDto;
@@ -13,6 +13,7 @@ type Props = {
   expiringCount?: number;
   contractExpiring?: boolean;
   insuranceExpiring?: boolean;
+  showFamilyTab?: boolean;
 };
 
 export function IdentityHeader({
@@ -23,6 +24,7 @@ export function IdentityHeader({
   expiringCount,
   contractExpiring,
   insuranceExpiring,
+  showFamilyTab,
 }: Props) {
   const { staff, identity } = profile;
   const displayName = identity.legal_name?.trim() || staff.name;
@@ -55,6 +57,11 @@ export function IdentityHeader({
                 BHYT sắp hết hạn
               </span>
             ) : null}
+            {profile.lifecycle_summary?.stage_label ? (
+              <span className="hr-expiry-chip hr-expiry-chip--muted" style={{ marginLeft: '0.5rem' }}>
+                {profile.lifecycle_summary.stage_label}
+              </span>
+            ) : null}
           </p>
         </div>
         <div className="employee-file-header__ring">
@@ -70,6 +77,7 @@ export function IdentityHeader({
             ['wallet', 'Ví giấy tờ'],
             ['contracts', 'Hợp đồng'],
             ['insurance', 'Bảo hiểm'],
+            ...(showFamilyTab ? ([['family', 'Gia đình']] as const) : []),
             ['profile', 'Hồ sơ'],
             ['crm', 'CRM / Case'],
           ] as const

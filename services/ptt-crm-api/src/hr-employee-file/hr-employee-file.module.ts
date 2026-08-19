@@ -18,33 +18,52 @@ import {
   StaffHrEmployeeFileViewGuard,
   StaffHrEmployeeFileWriteGuard,
 } from './guards/staff-hr-employee-file.guard';
-import { HrDocWalletController } from './hr-doc-wallet.controller';
+import {
+  StaffHrDependentEditGuard,
+  StaffHrDependentViewGuard,
+} from './guards/staff-hr-dependent.guard';
+import { HrDependentController } from './hr-dependent.controller';
+import { HrHubController } from './hr-hub.controller';
+import { HrLifecycleController } from './hr-lifecycle.controller';
 import { HrInsuranceController } from './hr-insurance.controller';
 import { HrInsuranceRepository } from './hr-insurance.repository';
 import { HrInsuranceService } from './hr-insurance.service';
 import { HrLaborContractController } from './hr-labor-contract.controller';
 import { HrLaborContractRepository } from './hr-labor-contract.repository';
 import { HrLaborContractService } from './hr-labor-contract.service';
+import { HrDocWalletController } from './hr-doc-wallet.controller';
 import { HrDocWalletRepository } from './hr-doc-wallet.repository';
 import { HrDocWalletService } from './hr-doc-wallet.service';
 import { HrDocWalletStorageService } from './hr-doc-wallet.storage';
 import { HrEmployeeFileController } from './hr-employee-file.controller';
 import { HrEmployeeFileRepository } from './hr-employee-file.repository';
 import { HrEmployeeFileService } from './hr-employee-file.service';
+import { HrStaffP5Repository } from './hr-staff-p5.repository';
+import { HrStaffP5Service } from './hr-staff-p5.service';
 
 @Module({
   imports: [StaffAuthModule],
-  controllers: [HrEmployeeFileController, HrDocWalletController, HrLaborContractController, HrInsuranceController],
+  controllers: [
+    HrEmployeeFileController,
+    HrDocWalletController,
+    HrLaborContractController,
+    HrInsuranceController,
+    HrDependentController,
+    HrLifecycleController,
+    HrHubController,
+  ],
   providers: [
     HrEmployeeFileRepository,
     HrDocWalletRepository,
     HrDocWalletStorageService,
     HrLaborContractRepository,
     HrInsuranceRepository,
+    HrStaffP5Repository,
     HrEmployeeFileService,
     HrDocWalletService,
     HrLaborContractService,
     HrInsuranceService,
+    HrStaffP5Service,
     HrEmployeeFileEnabledGuard,
     StaffHrEmployeeFileViewGuard,
     StaffHrEmployeeFileWriteGuard,
@@ -55,6 +74,8 @@ import { HrEmployeeFileService } from './hr-employee-file.service';
     StaffHrDocsViewGuard,
     StaffHrDocsEditGuard,
     StaffHrDocsDownloadGuard,
+    StaffHrDependentViewGuard,
+    StaffHrDependentEditGuard,
   ],
   exports: [
     HrEmployeeFileRepository,

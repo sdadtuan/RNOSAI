@@ -25,6 +25,9 @@ describe('HrEmployeeFileService', () => {
     tablesReady: jest.fn(),
     getSummary: jest.fn(),
   };
+  const p5Service = {
+    lifecycleSummaryForProfile: jest.fn(),
+  };
   const staffAuth = {
     me: jest.fn(),
     hasCap: jest.fn(),
@@ -39,6 +42,7 @@ describe('HrEmployeeFileService', () => {
     walletRepo.walletTablesReady.mockResolvedValue(false);
     contractRepo.tablesReady.mockResolvedValue(false);
     insuranceRepo.tablesReady.mockResolvedValue(false);
+    p5Service.lifecycleSummaryForProfile.mockResolvedValue(null);
     staffAuth.me.mockResolvedValue({ caps: {} });
   });
 
@@ -48,6 +52,7 @@ describe('HrEmployeeFileService', () => {
       walletRepo as never,
       contractRepo as never,
       insuranceRepo as never,
+      p5Service as never,
       staffAuth as never,
     );
   }

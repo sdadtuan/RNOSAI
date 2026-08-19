@@ -10,6 +10,7 @@ import { HrEmployeeFileRepository } from './hr-employee-file.repository';
 import { HrDocWalletRepository } from './hr-doc-wallet.repository';
 import { HrInsuranceRepository } from './hr-insurance.repository';
 import { HrLaborContractRepository } from './hr-labor-contract.repository';
+import { HrStaffP5Service } from './hr-staff-p5.service';
 import type {
   HrStaffProfileResponse,
   PatchHrStaffIdentityBody,
@@ -29,6 +30,7 @@ export class HrEmployeeFileService {
     private readonly walletRepo: HrDocWalletRepository,
     private readonly contractRepo: HrLaborContractRepository,
     private readonly insuranceRepo: HrInsuranceRepository,
+    private readonly p5Service: HrStaffP5Service,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -68,6 +70,8 @@ export class HrEmployeeFileService {
       canEditInsurance:
         this.staffAuth.hasCap(me.caps, 'crm_hr_insurance', 'edit') ||
         this.staffAuth.hasCap(me.caps, 'crm_staff_roster', 'edit'),
+      canViewDependents: this.staffAuth.hasCap(me.caps, 'crm_hr_pii', 'view'),
+      canEditDependents: this.staffAuth.hasCap(me.caps, 'crm_hr_pii', 'edit'),
     };
   }
 
@@ -100,6 +104,8 @@ export class HrEmployeeFileService {
       canEditContract,
       canViewInsurance,
       canEditInsurance,
+      canViewDependents,
+      canEditDependents,
     } = await this.capsFor(payload!);
     const identityRow = await this.repo.getIdentity(staffId);
     const addresses = await this.repo.listAddresses(staffId);
@@ -112,6 +118,7 @@ export class HrEmployeeFileService {
     const active_contract = contractReady ? await this.contractRepo.getActiveSummary(staffId) : null;
     const insuranceReady = await this.insuranceRepo.tablesReady();
     const insurance_summary = insuranceReady ? await this.insuranceRepo.getSummary(staffId) : null;
+    const lifecycle_summary = await this.p5Service.lifecycleSummaryForProfile(staffId);
     return {
       ok: true,
       staff,
@@ -122,6 +129,7 @@ export class HrEmployeeFileService {
       expiring_count: wallet.expiring_count,
       active_contract,
       insurance_summary,
+      lifecycle_summary,
       can_view_pii: canViewPii,
       can_edit_pii: canEditPii,
       can_edit_roster: canEditRoster,
@@ -131,6 +139,8 @@ export class HrEmployeeFileService {
       can_edit_contract: canEditContract,
       can_view_insurance: canViewInsurance,
       can_edit_insurance: canEditInsurance,
+      can_view_dependents: canViewDependents,
+      can_edit_dependents: canEditDependents,
     };
   }
 

@@ -87,6 +87,12 @@ export interface HrStaffInsuranceSummary {
   bhyt_expiring_soon: boolean;
 }
 
+export interface HrStaffLifecycleSummary {
+  stage: string;
+  stage_label: string;
+  stage_changed_on: string | null;
+}
+
 export interface HrStaffProfileResponse {
   ok: true;
   staff: HrStaffProfileStaffSummary;
@@ -97,6 +103,7 @@ export interface HrStaffProfileResponse {
   expiring_count: number;
   active_contract?: HrStaffActiveContractSummary | null;
   insurance_summary?: HrStaffInsuranceSummary | null;
+  lifecycle_summary?: HrStaffLifecycleSummary | null;
   can_view_pii: boolean;
   can_edit_pii: boolean;
   can_edit_roster: boolean;
@@ -106,6 +113,8 @@ export interface HrStaffProfileResponse {
   can_edit_contract?: boolean;
   can_view_insurance?: boolean;
   can_edit_insurance?: boolean;
+  can_view_dependents?: boolean;
+  can_edit_dependents?: boolean;
 }
 
 export const HR_PII_IDENTITY_FIELDS = [

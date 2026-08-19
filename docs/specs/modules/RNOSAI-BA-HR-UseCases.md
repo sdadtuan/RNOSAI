@@ -77,3 +77,24 @@
 - `POST/PATCH .../insurance/periods[/:periodId]`
 
 **Verify:** `bash scripts/smoke_hr_employee_file_p3.sh`
+
+## HR-UC-005 — Dependents + Lifecycle + Hub expiry P5
+
+**Actor:** HR
+
+**Pre:** P1–P4 deployed, P5 DDL, `PTT_HR_EMPLOYEE_FILE=1`.
+
+**Flow:**
+1. Tab **Gia đình** trên `/crm/staff/:id` — người phụ thuộc (PT TNCN, CCCD mask).
+2. Tab **Hồ sơ** — timeline lifecycle 8 stage; chuyển **Chính thức** bị chặn nếu thiếu HĐ active + CCCD + địa chỉ thường trú (BR-HR-130).
+3. Header chip lifecycle stage + chip hết hạn (giữ P2/P3/P4).
+4. HR Hub `/crm/hr` — widget **Ví sắp hết hạn**, **% ví thấp**, **HĐ/BHYT sắp hết hạn** (≤30 ngày).
+
+**API:**
+- `GET/POST/PATCH/DELETE /api/v1/hr/staff/:id/dependents[/:depId]`
+- `GET/PATCH /api/v1/hr/staff/:id/lifecycle`
+- `GET /api/v1/hr/hub/expiry-summary`
+
+**Caps:** Gia đình = `crm_hr_pii.view/edit`; lifecycle = `crm_staff_roster`.
+
+**Verify:** `bash scripts/smoke_hr_employee_file_p5.sh`

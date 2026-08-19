@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CrmHrPageShell } from '@/components/crm/CrmHrPageShell';
+import { HrHubExpiryWidgets } from '@/components/hr/HrHubExpiryWidgets';
 import { buildHrHubGroups, canViewHrHub } from '@/lib/crm/hr-hub';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
@@ -19,6 +20,7 @@ import {
 export default function CrmHrHubPage() {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
+  const [token, setToken] = useState('');
   const [error, setError] = useState('');
 
   const ensureAuth = useCallback(async (): Promise<StoredStaffUser | null> => {
@@ -27,6 +29,7 @@ export default function CrmHrHubPage() {
       router.replace('/login');
       return null;
     }
+    setToken(access);
     const cached = getStoredUser();
     if (cached) setUser(cached);
     try {
@@ -48,6 +51,7 @@ export default function CrmHrHubPage() {
       const out = await staffRefresh(refresh);
       updateAccessToken(out.access_token);
       access = out.access_token;
+      setToken(access);
       const me = await staffMe(access);
       setUser(me);
       updateStoredUser(me);
@@ -80,6 +84,7 @@ export default function CrmHrHubPage() {
     >
       <div className="page-card stack-gap">
         {error ? <p className="error">{error}</p> : null}
+        {token && user && !error ? <HrHubExpiryWidgets token={token} /> : null}
         {!error && groups.length === 0 && user ? (
           <p className="muted">Chưa có workspace HR nào khả dụng với quyền hiện tại.</p>
         ) : null}
