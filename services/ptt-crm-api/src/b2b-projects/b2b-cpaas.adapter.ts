@@ -1,4 +1,6 @@
 import { B2bCpaasDownError } from './b2b-calls.types';
+import { StringeeB2bCpaasAdapter } from './b2b-cpaas-stringee.adapter';
+import type { AppConfigService } from '../config/app-config.service';
 
 export interface CpaasStartCallInput {
   phone: string;
@@ -27,8 +29,15 @@ export class DownB2bCpaasAdapter implements B2bCpaasAdapter {
   }
 }
 
-export function createB2bCpaasAdapter(mode: string): B2bCpaasAdapter {
-  const m = (mode || 'mock').trim().toLowerCase();
+export function createB2bCpaasAdapter(config: AppConfigService): B2bCpaasAdapter {
+  const m = (config.b2bCpaas || 'mock').trim().toLowerCase();
   if (m === 'down' || m === 'off') return new DownB2bCpaasAdapter();
+  if (m === 'stringee') {
+    return new StringeeB2bCpaasAdapter({
+      apiKeySid: config.stringeeApiKeySid ?? '',
+      apiKeySecret: config.stringeeApiKeySecret ?? '',
+      fromNumber: config.stringeeFromNumber ?? '',
+    });
+  }
   return new MockB2bCpaasAdapter();
 }

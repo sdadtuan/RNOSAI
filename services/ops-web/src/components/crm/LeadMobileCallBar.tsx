@@ -1,12 +1,7 @@
 'use client';
 
-import { ApiError } from '@/lib/api';
-import { startLeadB2bCall } from '@/lib/b2b-calls-api';
-
-function phoneTelHref(phone: string): string {
-  const normalized = phone.replace(/[^\d+]/g, '');
-  return normalized ? `tel:${normalized}` : '#';
-}
+import { placeB2bSoftphoneCall } from '@/components/crm/B2bSoftphone';
+import { phoneTelHref, shouldTelFallbackOnCallError } from '@/lib/lead-contact-call.util';
 
 export function LeadMobileCallBar({
   phone,
@@ -25,9 +20,9 @@ export function LeadMobileCallBar({
     if (!accessToken) return;
     event.preventDefault();
     try {
-      await startLeadB2bCall(accessToken, leadId);
+      await placeB2bSoftphoneCall({ accessToken, leadId, phone });
     } catch (err) {
-      if (err instanceof ApiError && err.status === 503) {
+      if (shouldTelFallbackOnCallError(err)) {
         window.location.href = phoneTelHref(phone);
         return;
       }

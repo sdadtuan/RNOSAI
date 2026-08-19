@@ -96,6 +96,9 @@ export class AppConfigService {
   readonly b2bCpaas: string;
   readonly b2bSse: boolean;
   readonly b2bPush: boolean;
+  readonly stringeeApiKeySid: string;
+  readonly stringeeApiKeySecret: string;
+  readonly stringeeFromNumber: string;
   readonly dealRoomEnabled: boolean;
   readonly dealRoomPackPdf: boolean;
   readonly dealRoomGateStrict: boolean;
@@ -380,6 +383,9 @@ export class AppConfigService {
     this.b2bPush = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_B2B_PUSH ?? '0').trim().toLowerCase(),
     );
+    this.stringeeApiKeySid = (process.env.PTT_STRINGEE_API_KEY_SID ?? '').trim();
+    this.stringeeApiKeySecret = (process.env.PTT_STRINGEE_API_KEY_SECRET ?? '').trim();
+    this.stringeeFromNumber = (process.env.PTT_STRINGEE_FROM_NUMBER ?? '').trim();
     this.dealRoomEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_DEAL_ROOM_ENABLED ?? '0').trim().toLowerCase(),
     );

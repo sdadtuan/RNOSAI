@@ -383,5 +383,5 @@ export async function patchHrLaborAppendix(
   );
   const body = await parseJson<{ ok: true; appendix: HrLaborAppendixDto; error?: string }>(res);
   if (!res.ok) throw new ApiError(body.error ?? 'Cập nhật phụ lục thất bại', res.status);
-  return body.apendix;
+  return body.appendix;
 }

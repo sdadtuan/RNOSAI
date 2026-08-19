@@ -33,6 +33,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { B2bLeadScopeService } from '../b2b-projects/b2b-lead-scope.service';
 import { B2bCallsService } from '../b2b-projects/b2b-calls.service';
 import { B2bCpaasDownError } from '../b2b-projects/b2b-calls.types';
+import { B2bStringeeTokenService } from '../b2b-projects/b2b-stringee-token.service';
 import {
   assertLeadPatchFieldsAllowed,
   serializeLeadForCaps,
@@ -81,6 +82,7 @@ export class LeadsController {
     private readonly appConfig: AppConfigService,
     private readonly b2bLeadScope: B2bLeadScopeService,
     private readonly b2bCalls: B2bCallsService,
+    private readonly b2bStringeeToken: B2bStringeeTokenService,
   ) {}
 
   @Get('lookup-options')
@@ -431,6 +433,61 @@ export class LeadsController {
       }
       throw err;
     }
+  }
+
+  /** Stringee WebRTC access token for in-browser softphone. */
+  @Post(':id/calls/token')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard)
+  async leadCallToken(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    const lead = await this.leadsService.getLead(id);
+    if (!lead) {
+      throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+    }
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (staffId != null) {
+        await this.b2bLeadScope.assertLeadVisible({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+          lead: {
+            owner_id: lead.owner_id,
+            client_id: lead.client_id,
+            channel: lead.channel,
+            source: lead.source,
+            status: lead.status,
+            b2b_project_id: lead.b2b_project_id,
+            meta_json: { lead_flow_kind: lead.lead_flow_kind },
+          },
+        });
+      }
+    }
+    const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    if (staffId == null) {
+      throw new HttpException({ error: 'staff_required' }, HttpStatus.BAD_REQUEST);
+    }
+    const phone = String(lead.phone ?? '').trim();
+    if (!phone) {
+      throw new HttpException({ error: 'missing_phone' }, HttpStatus.BAD_REQUEST);
+    }
+    if (!this.b2bStringeeToken.isConfigured()) {
+      throw new ServiceUnavailableException({ error: 'cpaas_down', tel: phone });
+    }
+    const token = this.b2bStringeeToken.createStaffUserToken(staffId);
+    if (!token) {
+      throw new ServiceUnavailableException({ error: 'cpaas_down', tel: phone });
+    }
+    return {
+      ...token,
+      from_number: this.appConfig.stringeeFromNumber,
+      to_number: phone,
+      lead_id: id,
+    };
   }
 
   @Get(':id')

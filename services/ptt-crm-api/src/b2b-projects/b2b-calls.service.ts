@@ -15,7 +15,7 @@ export class B2bCallsService {
     private readonly alertsRepo: B2bAlertsRepository,
     private readonly config: AppConfigService,
   ) {
-    this.adapter = createB2bCpaasAdapter(this.config.b2bCpaas);
+    this.adapter = createB2bCpaasAdapter(this.config);
   }
 
   async startHumanCall(input: {
@@ -74,6 +74,22 @@ export class B2bCallsService {
   async applyWebhook(input: { providerCallId: string; state: 'answered' | 'no_answer' | 'ended' | 'ringing' }): Promise<void> {
     const session = await this.repo.findByProviderCallId(input.providerCallId);
     if (!session) return;
+    await this.repo.updateState({ sessionId: session.id, state: input.state });
+    if (input.state === 'answered') {
+      await this.repo.markLeadAnswered(session.leadId);
+    }
+  }
+
+  async applyWebhookBySessionId(input: {
+    sessionId: string;
+    state: 'answered' | 'no_answer' | 'ended' | 'ringing';
+    providerCallId?: string;
+  }): Promise<void> {
+    const session = await this.repo.findBySessionId(input.sessionId);
+    if (!session) return;
+    if (input.providerCallId) {
+      await this.repo.attachProviderCallId(session.id, input.providerCallId);
+    }
     await this.repo.updateState({ sessionId: session.id, state: input.state });
     if (input.state === 'answered') {
       await this.repo.markLeadAnswered(session.leadId);

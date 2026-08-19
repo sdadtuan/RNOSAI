@@ -27,7 +27,12 @@ import { B2bSlaTickService } from './b2b-sla-tick.service';
 import { B2bSlaTickJob } from './b2b-sla-tick.job';
 import { B2bCallsRepository } from './b2b-calls.repository';
 import { B2bCallsService } from './b2b-calls.service';
+import { B2bCallsController } from './b2b-calls.controller';
 import { B2bStaffPushSender } from './b2b-staff-push.sender';
+import { B2bSpeedRepository } from './b2b-speed.repository';
+import { B2bSpeedService } from './b2b-speed.service';
+import { B2bSpeedController } from './b2b-speed.controller';
+import { B2bStringeeTokenService } from './b2b-stringee-token.service';
 
 @Module({
   imports: [StaffAuthModule],
@@ -36,6 +41,8 @@ import { B2bStaffPushSender } from './b2b-staff-push.sender';
     B2bAlertsController,
     B2bStaffPushController,
     B2bUnmatchedController,
+    B2bCallsController,
+    B2bSpeedController,
   ],
   providers: [
     B2bProjectsService,
@@ -50,6 +57,9 @@ import { B2bStaffPushSender } from './b2b-staff-push.sender';
     B2bSlaTickJob,
     B2bCallsRepository,
     B2bCallsService,
+    B2bStringeeTokenService,
+    B2bSpeedRepository,
+    B2bSpeedService,
     B2bAlertsRepository,
     B2bAlertsService,
     B2bAlertStreamService,
@@ -68,6 +78,7 @@ import { B2bStaffPushSender } from './b2b-staff-push.sender';
     B2bFirstAssignService,
     B2bSlaTickService,
     B2bCallsService,
+    B2bStringeeTokenService,
     B2bAlertsService,
   ],
 })

@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
+import { resolveSessionIdFromProviderRef } from './b2b-cpaas-stringee.util';
 import type { B2bCallKind, B2bCallSessionRow, B2bCallState } from './b2b-calls.types';
 
 @Injectable()
@@ -65,9 +66,11 @@ export class B2bCallsRepository implements OnModuleDestroy {
   }
 
   async findByProviderCallId(providerCallId: string): Promise<B2bCallSessionRow | null> {
-    const sessionId = providerCallId.startsWith('mock-')
-      ? providerCallId.slice('mock-'.length)
-      : providerCallId;
+    const sessionId = resolveSessionIdFromProviderRef(providerCallId);
+    return this.findBySessionId(sessionId);
+  }
+
+  async findBySessionId(sessionId: string): Promise<B2bCallSessionRow | null> {
     const result = await this.db.query(
       `SELECT id::text, lead_id, staff_id, provider, state, kind
        FROM crm_b2b_call_sessions
@@ -84,7 +87,7 @@ export class B2bCallsRepository implements OnModuleDestroy {
       provider: String(row.provider),
       state: String(row.state) as B2bCallState,
       kind: String(row.kind) as B2bCallKind,
-      providerCallId,
+      providerCallId: null,
     };
   }
 

@@ -1,7 +1,29 @@
 import { B2bCallsService } from './b2b-calls.service';
-import { B2bCpaasDownError } from './b2b-calls.types';
 
 describe('B2bCallsService', () => {
+  it('applyWebhookBySessionId marks answered', async () => {
+    const repo = {
+      insertSession: jest.fn(),
+      attachProviderCallId: jest.fn(),
+      updateState: jest.fn(),
+      findBySessionId: jest.fn(async () => ({
+        id: 's2',
+        leadId: 2,
+        staffId: 11,
+        state: 'ringing',
+        kind: 'human',
+        provider: 'stringee',
+        providerCallId: null,
+      })),
+      markLeadAnswered: jest.fn(),
+    };
+    const alertsRepo = { markAlertsHandled: jest.fn() };
+    const svc = new B2bCallsService(repo as never, alertsRepo as never, { b2bCpaas: 'mock' } as never);
+    await svc.applyWebhookBySessionId({ sessionId: 's2', state: 'answered', providerCallId: 'call-1' });
+    expect(repo.attachProviderCallId).toHaveBeenCalledWith('s2', 'call-1');
+    expect(repo.markLeadAnswered).toHaveBeenCalledWith(2);
+  });
+
   it('answered marks first-touch via repository', async () => {
     const repo = {
       insertSession: jest.fn(async () => ({ id: 's1', leadId: 1, staffId: 10, state: 'queued', kind: 'human', provider: 'mock', providerCallId: null })),
