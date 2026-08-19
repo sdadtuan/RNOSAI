@@ -91,6 +91,7 @@ import { StaffClientScopeModule } from './staff-client-scope/staff-client-scope.
 import { StaffBreakGlassModule } from './staff-break-glass/staff-break-glass.module';
 import { PolicyModule } from './policy/policy.module';
 import { HrLeaveModule } from './hr-leave/hr-leave.module';
+import { HrEmployeeFileModule } from './hr-employee-file/hr-employee-file.module';
 import { StaffNotificationsModule } from './staff-notifications/staff-notifications.module';
 import { StaffOrgModule } from './staff-org/staff-org.module';
 import { AdminAuditModule } from './admin-audit/admin-audit.module';
@@ -131,6 +132,7 @@ import { GtmCmsModule } from './gtm-cms/cms.module';
     InvoicesModule,
     PayrollModule,
     HrLeaveModule,
+    HrEmployeeFileModule,
     StaffNotificationsModule,
     FinanceModule,
     OwnerWeeklyModule,

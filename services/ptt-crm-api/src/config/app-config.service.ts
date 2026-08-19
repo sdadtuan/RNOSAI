@@ -103,6 +103,7 @@ export class AppConfigService {
   readonly dealRoomTeaserTtlDays: number;
   readonly leadMeetingPrepEnabled: boolean;
   readonly marketResearchEnabled: boolean;
+  readonly hrEmployeeFileEnabled: boolean;
   readonly maxTavilyCreditsPerResearch: number;
   readonly researchDeepProvider: string;
   readonly researchDeepTimeoutSec: number;
@@ -400,6 +401,9 @@ export class AppConfigService {
     );
     this.marketResearchEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_MARKET_RESEARCH_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.hrEmployeeFileEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_HR_EMPLOYEE_FILE ?? '0').trim().toLowerCase(),
     );
     this.maxTavilyCreditsPerResearch = Math.max(
       1,

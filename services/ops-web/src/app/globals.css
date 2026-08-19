@@ -12074,3 +12074,142 @@ body {
     display: none;
   }
 }
+
+/* HR Employee File Shell (P1) */
+.employee-file-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.employee-file-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+}
+
+.employee-file-header__main {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.employee-file-header__avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--brand-soft, rgba(23, 105, 47, 0.12));
+  color: var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.employee-file-header__meta {
+  flex: 1;
+  min-width: 180px;
+}
+
+.employee-file-header__title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.employee-file-header__sub {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+}
+
+.employee-file-header__ring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.employee-file-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.employee-file-tabs__btn {
+  border: 1px solid var(--surface-border);
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.employee-file-tabs__btn--active {
+  border-color: var(--brand);
+  background: var(--brand-soft, rgba(23, 105, 47, 0.08));
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.employee-file-body {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.employee-file-rail {
+  position: sticky;
+  top: 7.5rem;
+}
+
+.employee-file-rail__list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.employee-file-canvas {
+  min-width: 0;
+}
+
+.employee-file-canvas--full {
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 959px) {
+  .employee-file-body {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-file-rail {
+    position: static;
+  }
+}
+
+.form-grid--2 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@media (min-width: 960px) {
+  .form-grid--2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.hr-address-block + .hr-address-block {
+  margin-top: 0.5rem;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
