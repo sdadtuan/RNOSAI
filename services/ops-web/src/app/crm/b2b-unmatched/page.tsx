@@ -96,6 +96,11 @@ export default function B2bUnmatchedPage() {
     })();
   }, [ensureAuth, reload]);
 
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
+
   async function handleMap(row: B2bUnmatchedRow) {
     const access = getAccessToken();
     const projectId = projectByRow[row.id];
@@ -120,7 +125,7 @@ export default function B2bUnmatchedPage() {
   }
 
   return (
-    <StaffPageShell user={user}>
+    <StaffPageShell user={user} onLogout={logout} loading={!user}>
       <HubPageLayout
         title="Ingress chưa map"
         subtitle="Form/OA/webform chưa gắn dự án — không hiển thị payload (PII)."
