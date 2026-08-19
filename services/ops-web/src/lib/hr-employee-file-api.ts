@@ -57,6 +57,52 @@ export interface HrStaffProfileDto {
   can_edit_roster: boolean;
   can_view_docs: boolean;
   can_edit_docs: boolean;
+  can_view_contract?: boolean;
+  can_edit_contract?: boolean;
+  active_contract?: HrActiveContractSummaryDto | null;
+}
+
+export interface HrActiveContractSummaryDto {
+  id: number;
+  contract_no: string;
+  kind: string;
+  status: string;
+  effective_on: string | null;
+  expires_on: string | null;
+  expiring_soon: boolean;
+}
+
+export interface HrLaborAppendixDto {
+  id: number;
+  contract_id: number;
+  appendix_no: string;
+  signed_on: string | null;
+  effective_on: string | null;
+  summary: string;
+  salary_gross: number | null;
+  salary_masked?: boolean;
+  document_id: number | null;
+  document_title?: string | null;
+}
+
+export interface HrLaborContractDto {
+  id: number;
+  staff_id: number;
+  contract_no: string;
+  kind: string;
+  signed_on: string | null;
+  effective_on: string | null;
+  expires_on: string | null;
+  salary_gross: number | null;
+  salary_masked?: boolean;
+  currency: string;
+  work_place: string;
+  job_title_legal: string;
+  status: string;
+  document_id: number | null;
+  document_title?: string | null;
+  notes: string;
+  appendices: HrLaborAppendixDto[];
 }
 
 export interface HrDocTypeDto {
@@ -253,4 +299,89 @@ export async function fetchHrWalletRosterStats(
   const body = await parseJson<{ ok: true; items: HrWalletRosterStatDto[]; error?: string }>(res);
   if (!res.ok) return [];
   return body.items ?? [];
+}
+
+export async function fetchHrLaborContracts(
+  token: string,
+  staffId: number,
+): Promise<{ contracts: HrLaborContractDto[]; active_contract: HrActiveContractSummaryDto | null }> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/contracts`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<{
+    ok: true;
+    contracts: HrLaborContractDto[];
+    active_contract: HrActiveContractSummaryDto | null;
+    error?: string;
+  }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải hợp đồng', res.status);
+  return { contracts: body.contracts ?? [], active_contract: body.active_contract ?? null };
+}
+
+export async function createHrLaborContract(
+  token: string,
+  staffId: number,
+  payload: Record<string, unknown>,
+): Promise<HrLaborContractDto> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/contracts`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+  const body = await parseJson<{ ok: true; contract: HrLaborContractDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Tạo hợp đồng thất bại', res.status);
+  return body.contract;
+}
+
+export async function patchHrLaborContract(
+  token: string,
+  staffId: number,
+  contractId: number,
+  payload: Record<string, unknown>,
+): Promise<HrLaborContractDto> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/contracts/${contractId}`, {
+    method: 'PATCH',
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+  const body = await parseJson<{ ok: true; contract: HrLaborContractDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Cập nhật hợp đồng thất bại', res.status);
+  return body.contract;
+}
+
+export async function createHrLaborAppendix(
+  token: string,
+  staffId: number,
+  contractId: number,
+  payload: Record<string, unknown>,
+): Promise<HrLaborAppendixDto> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/contracts/${contractId}/appendices`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+  const body = await parseJson<{ ok: true; appendix: HrLaborAppendixDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Tạo phụ lục thất bại', res.status);
+  return body.appendix;
+}
+
+export async function patchHrLaborAppendix(
+  token: string,
+  staffId: number,
+  contractId: number,
+  appendixId: number,
+  payload: Record<string, unknown>,
+): Promise<HrLaborAppendixDto> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/hr/staff/${staffId}/contracts/${contractId}/appendices/${appendixId}`,
+    {
+      method: 'PATCH',
+      headers: authHeaders(token),
+      body: JSON.stringify(payload),
+    },
+  );
+  const body = await parseJson<{ ok: true; appendix: HrLaborAppendixDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Cập nhật phụ lục thất bại', res.status);
+  return body.apendix;
 }

@@ -12320,3 +12320,61 @@ body {
   padding-left: 1.1rem;
   font-size: 0.85rem;
 }
+
+.contract-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.contract-timeline__item {
+  border-left: 3px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.contract-timeline__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.contract-timeline__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.contract-timeline__meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+}
+
+.contract-timeline__badges {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.contract-timeline__body {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.65rem;
+  font-size: 0.85rem;
+}
+
+.contract-timeline__facts {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  color: var(--muted);
+}
+
+.contract-appendix-list {
+  margin: 0.75rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.65rem;
+}

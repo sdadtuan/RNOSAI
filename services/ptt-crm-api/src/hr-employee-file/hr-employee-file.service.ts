@@ -8,6 +8,7 @@ import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { HrEmployeeFileRepository } from './hr-employee-file.repository';
 import { HrDocWalletRepository } from './hr-doc-wallet.repository';
+import { HrLaborContractRepository } from './hr-labor-contract.repository';
 import type {
   HrStaffProfileResponse,
   PatchHrStaffIdentityBody,
@@ -25,6 +26,7 @@ export class HrEmployeeFileService {
   constructor(
     private readonly repo: HrEmployeeFileRepository,
     private readonly walletRepo: HrDocWalletRepository,
+    private readonly contractRepo: HrLaborContractRepository,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -52,6 +54,12 @@ export class HrEmployeeFileService {
       canEditDocs:
         this.staffAuth.hasCap(me.caps, 'crm_hr_docs', 'edit') ||
         this.staffAuth.hasCap(me.caps, 'crm_staff_roster', 'edit'),
+      canViewContract:
+        this.staffAuth.hasCap(me.caps, 'crm_hr_contract', 'view') ||
+        this.staffAuth.hasCap(me.caps, 'crm_staff_roster', 'view'),
+      canEditContract:
+        this.staffAuth.hasCap(me.caps, 'crm_hr_contract', 'edit') ||
+        this.staffAuth.hasCap(me.caps, 'crm_staff_roster', 'edit'),
     };
   }
 
@@ -74,7 +82,15 @@ export class HrEmployeeFileService {
     this.requireUser(payload);
     await this.ensureReady();
     const staff = await this.repo.assertStaffExists(staffId);
-    const { canViewPii, canEditPii, canEditRoster, canViewDocs, canEditDocs } = await this.capsFor(payload!);
+    const {
+      canViewPii,
+      canEditPii,
+      canEditRoster,
+      canViewDocs,
+      canEditDocs,
+      canViewContract,
+      canEditContract,
+    } = await this.capsFor(payload!);
     const identityRow = await this.repo.getIdentity(staffId);
     const addresses = await this.repo.listAddresses(staffId);
     const identity = maskIdentityForApi(identityRow, canViewPii);
@@ -82,6 +98,8 @@ export class HrEmployeeFileService {
     const walletReady = await this.walletRepo.walletTablesReady();
     const wallet = walletReady ? await this.walletSummary(staffId) : { wallet_pct: 0, expiring_count: 0 };
     const completeness_pct = walletReady ? wallet.wallet_pct : profilePct;
+    const contractReady = await this.contractRepo.tablesReady();
+    const active_contract = contractReady ? await this.contractRepo.getActiveSummary(staffId) : null;
     return {
       ok: true,
       staff,
@@ -90,11 +108,14 @@ export class HrEmployeeFileService {
       completeness_pct,
       wallet_pct: wallet.wallet_pct,
       expiring_count: wallet.expiring_count,
+      active_contract,
       can_view_pii: canViewPii,
       can_edit_pii: canEditPii,
       can_edit_roster: canEditRoster,
       can_view_docs: canViewDocs,
       can_edit_docs: canEditDocs,
+      can_view_contract: canViewContract,
+      can_edit_contract: canEditContract,
     };
   }
 

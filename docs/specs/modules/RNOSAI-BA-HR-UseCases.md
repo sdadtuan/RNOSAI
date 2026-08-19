@@ -36,3 +36,24 @@
 **API:** `GET/POST/PATCH wallet`, `POST .../files`, `GET doc-types`, `GET wallet-roster-stats`.
 
 **Verify:** `bash scripts/smoke_hr_employee_file_p4.sh`
+
+## HR-UC-002 — Labor Contracts P2 (HĐLĐ)
+
+**Actor:** HR
+
+**Pre:** P1 + P4 deployed, P2 DDL, `PTT_HR_EMPLOYEE_FILE=1`.
+
+**Flow:**
+1. Tab **Hợp đồng** trên `/crm/staff/:id`.
+2. Timeline HĐLĐ — tạo/sửa hợp đồng, thêm phụ lục trên cùng HĐ (BR-HR-112).
+3. Chọn thẻ ví loại hợp đồng làm scan (BR-HR-140) — không upload riêng.
+4. Kích hoạt HĐ mới → HĐ active cũ chuyển `superseded` (BR-HR-110).
+5. Header badge **HĐ sắp hết hạn** khi còn ≤30 ngày (BR-HR-111).
+6. Lương gross mask nếu thiếu `crm_hr_pii.view`.
+
+**API:**
+- `GET/POST /api/v1/hr/staff/:id/contracts`
+- `PATCH .../contracts/:contractId`
+- `POST/PATCH .../contracts/:contractId/appendices[/:appendixId]`
+
+**Verify:** `bash scripts/smoke_hr_employee_file_p2.sh`

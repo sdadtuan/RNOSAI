@@ -7,6 +7,7 @@ import {
   emptyAddress,
   pickAddress,
 } from '@/components/hr/AddressPairFields';
+import { ContractPanel } from '@/components/hr/ContractPanel';
 import { IdentityHeader, type EmployeeFileTab } from '@/components/hr/IdentityHeader';
 import { WalletPanel } from '@/components/hr/WalletPanel';
 import type { StoredStaffUser } from '@/lib/auth';
@@ -35,6 +36,7 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
   const [activeTab, setActiveTab] = useState<EmployeeFileTab>('wallet');
   const [walletPct, setWalletPct] = useState(0);
   const [expiringCount, setExpiringCount] = useState(0);
+  const [contractExpiring, setContractExpiring] = useState(false);
   const [pendingTab, setPendingTab] = useState<EmployeeFileTab | null>(null);
   const [identityDraft, setIdentityDraft] = useState<HrStaffIdentityDto>({});
   const [permanentDraft, setPermanentDraft] = useState<HrStaffAddressDto>(emptyAddress('permanent'));
@@ -51,6 +53,7 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
       setProfile(data);
       setWalletPct(data.wallet_pct ?? data.completeness_pct ?? 0);
       setExpiringCount(data.expiring_count ?? 0);
+      setContractExpiring(Boolean(data.active_contract?.expiring_soon));
       setIdentityDraft(data.identity);
       setPermanentDraft(pickAddress(data.addresses, 'permanent'));
       setTemporaryDraft(pickAddress(data.addresses, 'temporary'));
@@ -177,6 +180,7 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
         onTabChange={requestTab}
         walletPct={walletPct}
         expiringCount={expiringCount}
+        contractExpiring={contractExpiring}
       />
       {saveMsg ? (
         <p className="muted" style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
@@ -204,6 +208,22 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
               setWalletPct(pct);
               setExpiringCount(exp);
               setProfile((prev) => (prev ? { ...prev, wallet_pct: pct, completeness_pct: pct, expiring_count: exp } : prev));
+            }}
+          />
+        </div>
+      ) : null}
+
+      {activeTab === 'contracts' ? (
+        <div className="employee-file-canvas employee-file-canvas--full">
+          <ContractPanel
+            staffId={staffId}
+            token={token}
+            canEdit={Boolean(profile.can_edit_contract)}
+            canViewPii={Boolean(profile.can_view_pii)}
+            canEditPii={Boolean(profile.can_edit_pii)}
+            onActiveContractChange={(active) => {
+              setContractExpiring(Boolean(active?.expiring_soon));
+              setProfile((prev) => (prev ? { ...prev, active_contract: active } : prev));
             }}
           />
         </div>
@@ -375,9 +395,9 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
             </section>
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'crm' ? (
         <div className="employee-file-canvas employee-file-canvas--full">{crmPanel}</div>
-      )}
+      ) : null}
     </div>
   );
 }

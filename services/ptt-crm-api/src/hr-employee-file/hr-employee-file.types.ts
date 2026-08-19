@@ -72,6 +72,16 @@ export interface HrStaffProfileStaffSummary {
   started_on: string;
 }
 
+export interface HrStaffActiveContractSummary {
+  id: number;
+  contract_no: string;
+  kind: string;
+  status: string;
+  effective_on: string | null;
+  expires_on: string | null;
+  expiring_soon: boolean;
+}
+
 export interface HrStaffProfileResponse {
   ok: true;
   staff: HrStaffProfileStaffSummary;
@@ -80,11 +90,14 @@ export interface HrStaffProfileResponse {
   completeness_pct: number;
   wallet_pct: number;
   expiring_count: number;
+  active_contract?: HrStaffActiveContractSummary | null;
   can_view_pii: boolean;
   can_edit_pii: boolean;
   can_edit_roster: boolean;
   can_view_docs: boolean;
   can_edit_docs: boolean;
+  can_view_contract?: boolean;
+  can_edit_contract?: boolean;
 }
 
 export const HR_PII_IDENTITY_FIELDS = [

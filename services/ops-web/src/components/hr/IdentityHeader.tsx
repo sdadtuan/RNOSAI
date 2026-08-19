@@ -3,7 +3,7 @@
 import { HrCompletenessRing } from '@/components/hr/HrCompletenessRing';
 import type { HrStaffProfileDto } from '@/lib/hr-employee-file-api';
 
-export type EmployeeFileTab = 'profile' | 'wallet' | 'crm';
+export type EmployeeFileTab = 'profile' | 'wallet' | 'contracts' | 'crm';
 
 type Props = {
   profile: HrStaffProfileDto;
@@ -11,9 +11,17 @@ type Props = {
   onTabChange: (tab: EmployeeFileTab) => void;
   walletPct?: number;
   expiringCount?: number;
+  contractExpiring?: boolean;
 };
 
-export function IdentityHeader({ profile, activeTab, onTabChange, walletPct, expiringCount }: Props) {
+export function IdentityHeader({
+  profile,
+  activeTab,
+  onTabChange,
+  walletPct,
+  expiringCount,
+  contractExpiring,
+}: Props) {
   const { staff, identity } = profile;
   const displayName = identity.legal_name?.trim() || staff.name;
   const ringPct = walletPct ?? profile.wallet_pct ?? profile.completeness_pct;
@@ -35,6 +43,11 @@ export function IdentityHeader({ profile, activeTab, onTabChange, walletPct, exp
                 {(expiringCount ?? profile.expiring_count) ?? 0} hết hạn
               </span>
             ) : null}
+            {contractExpiring || profile.active_contract?.expiring_soon ? (
+              <span className="hr-expiry-chip hr-expiry-chip--expiring" style={{ marginLeft: '0.5rem' }}>
+                HĐ sắp hết hạn
+              </span>
+            ) : null}
           </p>
         </div>
         <div className="employee-file-header__ring">
@@ -48,6 +61,7 @@ export function IdentityHeader({ profile, activeTab, onTabChange, walletPct, exp
         {(
           [
             ['wallet', 'Ví giấy tờ'],
+            ['contracts', 'Hợp đồng'],
             ['profile', 'Hồ sơ'],
             ['crm', 'CRM / Case'],
           ] as const
