@@ -10,6 +10,7 @@ import {
   putHrStaffInsurance,
   type HrDocWalletCardDto,
   type HrInsurancePeriodDto,
+  type HrInsuranceSummaryDto,
   type HrStaffInsuranceDto,
 } from '@/lib/hr-employee-file-api';
 
@@ -19,7 +20,7 @@ type Props = {
   canEdit: boolean;
   canViewPii: boolean;
   canEditPii: boolean;
-  onInsuranceChange?: (summary: { bhyt_expiring_soon: boolean } | null) => void;
+  onInsuranceChange?: (summary: HrInsuranceSummaryDto | null) => void;
 };
 
 const STATUS_OPTIONS = [
