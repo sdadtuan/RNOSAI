@@ -132,7 +132,15 @@ export default function B2bUnmatchedPage() {
       >
         <FilterBar>
           <FilterBarActions>
-            <button type="button" className="btn btn-secondary" onClick={() => void ensureAuth().then((t) => t && reload(t))}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                void ensureAuth().then((t) => {
+                  if (t) void reload(t);
+                });
+              }}
+            >
               Làm mới
             </button>
           </FilterBarActions>
