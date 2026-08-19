@@ -13,9 +13,12 @@ export interface B2bLeadScopeRow {
   projectId: string | null;
 }
 
+export type B2bProjectStaffRole = 'sales' | 'project_manager';
+
 export interface B2bProjectMembership {
   projectId: string;
   assignEnabled: boolean;
+  role?: B2bProjectStaffRole;
 }
 
 export function canSeeB2bLead(
@@ -28,7 +31,11 @@ export function canSeeB2bLead(
   if (!actor.isActivePttStaff) return false;
   if (lead.ownerId != null && Number(lead.ownerId) === Number(actor.staffId)) return true;
   if (!lead.projectId) return false;
-  return memberships.some((m) => m.projectId === lead.projectId && m.assignEnabled);
+  return memberships.some((m) => {
+    if (m.projectId !== lead.projectId) return false;
+    if (m.role === 'project_manager') return true;
+    return m.assignEnabled;
+  });
 }
 
 export function redactLeadIfDenied<T extends { full_name?: unknown; phone?: unknown }>(

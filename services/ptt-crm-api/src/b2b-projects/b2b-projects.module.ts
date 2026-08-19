@@ -45,6 +45,11 @@ import { B2bRoutingAbController } from './b2b-routing-ab.controller';
 import { B2bRoutingAbReportJob } from './b2b-routing-ab.job';
 import { B2bIntelligenceRepository } from './b2b-intelligence.repository';
 import { B2bIntelligenceService } from './b2b-intelligence.service';
+import { B2bDncRepository, B2bDncService } from './b2b-dnc.repository';
+import { B2bAdsCapiRepository } from './b2b-ads-capi.repository';
+import { B2bAdsCapiService } from './b2b-ads-capi.service';
+import { B2bConversationsRepository } from './b2b-conversations.repository';
+import { B2bConversationsService } from './b2b-conversations.service';
 
 @Module({
   imports: [StaffAuthModule],
@@ -84,6 +89,12 @@ import { B2bIntelligenceService } from './b2b-intelligence.service';
     B2bRoutingAbReportJob,
     B2bIntelligenceRepository,
     B2bIntelligenceService,
+    B2bDncRepository,
+    B2bDncService,
+    B2bAdsCapiRepository,
+    B2bAdsCapiService,
+    B2bConversationsRepository,
+    B2bConversationsService,
     B2bAlertsRepository,
     B2bAlertsService,
     B2bAlertStreamService,
@@ -107,6 +118,8 @@ import { B2bIntelligenceService } from './b2b-intelligence.service';
     B2bCommissionLedgerService,
     B2bRoutingAbService,
     B2bIntelligenceService,
+    B2bAdsCapiService,
+    B2bConversationsService,
     B2bAlertsService,
   ],
 })

@@ -96,6 +96,7 @@ export class AppConfigService {
   readonly b2bCpaas: string;
   readonly b2bSse: boolean;
   readonly b2bPush: boolean;
+  readonly b2bAdsCapi: boolean;
   readonly stringeeApiKeySid: string;
   readonly stringeeApiKeySecret: string;
   readonly stringeeFromNumber: string;
@@ -382,6 +383,9 @@ export class AppConfigService {
     );
     this.b2bPush = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_B2B_PUSH ?? '0').trim().toLowerCase(),
+    );
+    this.b2bAdsCapi = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_B2B_ADS_CAPI ?? '0').trim().toLowerCase(),
     );
     this.stringeeApiKeySid = (process.env.PTT_STRINGEE_API_KEY_SID ?? '').trim();
     this.stringeeApiKeySecret = (process.env.PTT_STRINGEE_API_KEY_SECRET ?? '').trim();

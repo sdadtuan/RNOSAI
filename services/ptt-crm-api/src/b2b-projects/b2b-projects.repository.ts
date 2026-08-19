@@ -227,27 +227,33 @@ export class B2bProjectsRepository implements OnModuleDestroy {
     await this.db.query(`DELETE FROM crm_b2b_project_staff WHERE project_id = $1::uuid`, [projectId]);
     for (const row of staff) {
       await this.db.query(
-        `INSERT INTO crm_b2b_project_staff (project_id, staff_id, assign_enabled, sales_level)
-         VALUES ($1::uuid, $2, $3, $4)`,
+        `INSERT INTO crm_b2b_project_staff (project_id, staff_id, assign_enabled, sales_level, role)
+         VALUES ($1::uuid, $2, $3, $4, $5)`,
         [
           projectId,
           Number(row.staff_id),
           row.assign_enabled !== false,
           (row.sales_level ?? 'b').trim().toLowerCase(),
+          (row.role ?? 'sales').trim().toLowerCase() === 'project_manager'
+            ? 'project_manager'
+            : 'sales',
         ],
       );
     }
   }
 
-  async listStaffMemberships(staffId: number): Promise<Array<{ projectId: string; assignEnabled: boolean }>> {
+  async listStaffMemberships(
+    staffId: number,
+  ): Promise<Array<{ projectId: string; assignEnabled: boolean; role: 'sales' | 'project_manager' }>> {
     const result = await this.db.query(
-      `SELECT project_id::text AS project_id, assign_enabled
+      `SELECT project_id::text AS project_id, assign_enabled, COALESCE(role, 'sales') AS role
        FROM crm_b2b_project_staff WHERE staff_id = $1`,
       [staffId],
     );
     return result.rows.map((row) => ({
       projectId: String(row.project_id),
       assignEnabled: Boolean(row.assign_enabled),
+      role: String(row.role ?? 'sales') === 'project_manager' ? 'project_manager' : 'sales',
     }));
   }
 
@@ -463,7 +469,7 @@ export class B2bProjectsRepository implements OnModuleDestroy {
 
   async listProjectStaff(projectId: string) {
     const result = await this.db.query(
-      `SELECT staff_id, assign_enabled, sales_level
+      `SELECT staff_id, assign_enabled, sales_level, COALESCE(role, 'sales') AS role
        FROM crm_b2b_project_staff
        WHERE project_id = $1::uuid
        ORDER BY staff_id`,

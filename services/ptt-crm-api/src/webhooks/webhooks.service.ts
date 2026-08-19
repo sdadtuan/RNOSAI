@@ -12,6 +12,7 @@ import { extractMetaLeadgenContext } from './meta-webhook-context';
 import { MetaWebhookRepository } from './meta-webhook.repository';
 import { MetaOpsWebhookService } from './meta-ops-webhook.service';
 import { B2bIngestService } from '../b2b-projects/b2b-ingest.service';
+import { B2bConversationsService } from '../b2b-projects/b2b-conversations.service';
 import { parseEmailWebhook } from './email-webhook.parser';
 import { parseGoogleWebhook } from './google-webhook.parser';
 import { parseZaloWebhook } from './zalo-webhook.parser';
@@ -33,6 +34,7 @@ export class WebhooksService {
     private readonly metaWebhookRepo: MetaWebhookRepository,
     private readonly metaOpsWebhookService: MetaOpsWebhookService,
     private readonly b2bIngest: B2bIngestService,
+    private readonly b2bConversations: B2bConversationsService,
   ) {}
 
   listChannels(): Record<string, unknown> {
@@ -285,6 +287,11 @@ export class WebhooksService {
       });
     }
 
+    const conversationCount = await this.b2bConversations.ingestZaloWebhook({
+      rawBody,
+      projectSlug,
+    });
+
     const response: Record<string, unknown> = {
       verified: true,
       channel: 'zalo',
@@ -292,6 +299,7 @@ export class WebhooksService {
       lead_count: parsed.leads.length,
       events: parsed.events,
       handler: 'nest',
+      conversation_persisted: conversationCount,
     };
 
     if (!parsed.leads.length) {

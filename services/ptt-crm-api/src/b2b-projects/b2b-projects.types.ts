@@ -48,4 +48,5 @@ export interface B2bProjectStaffInput {
   staff_id: number;
   assign_enabled?: boolean;
   sales_level?: string;
+  role?: 'sales' | 'project_manager';
 }

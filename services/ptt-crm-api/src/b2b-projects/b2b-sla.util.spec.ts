@@ -99,4 +99,16 @@ describe('shouldStartAiCall', () => {
       shouldStartAiCall({ action: 'ai_call', hasStaffDialed: true, alreadyAiCalled: false, aiCallEnabled: true }),
     ).toBe(false);
   });
+
+  it('no AI if DNC blocked', () => {
+    expect(
+      shouldStartAiCall({
+        action: 'ai_call',
+        hasStaffDialed: false,
+        alreadyAiCalled: false,
+        aiCallEnabled: true,
+        dncBlocked: true,
+      }),
+    ).toBe(false);
+  });
 });

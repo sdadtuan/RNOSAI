@@ -98,6 +98,34 @@ describe('canSeeB2bLead', () => {
     ).toBe(true);
   });
 
+  it('project manager sees teammate on same project only', () => {
+    const pmMem = [{ projectId: 'p1', assignEnabled: true, role: 'project_manager' as const }];
+    expect(
+      canSeeB2bLead(
+        memberOn,
+        { flowKind: 'b2b_prospect', ownerId: 99, projectId: 'p1' },
+        pmMem,
+      ),
+    ).toBe(true);
+    expect(
+      canSeeB2bLead(
+        memberOn,
+        { flowKind: 'b2b_prospect', ownerId: 99, projectId: 'p2' },
+        pmMem,
+      ),
+    ).toBe(false);
+  });
+
+  it('sales does not see teammate when assign disabled', () => {
+    expect(
+      canSeeB2bLead(
+        memberOn,
+        { flowKind: 'b2b_prospect', ownerId: 99, projectId: project },
+        [{ projectId: project, assignEnabled: false, role: 'sales' }],
+      ),
+    ).toBe(false);
+  });
+
   it('spa leads are out of this rule (false)', () => {
     expect(
       canSeeB2bLead(

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { decideFirstAssign } from './b2b-assign.util';
 import { B2bCallsService } from './b2b-calls.service';
+import { B2bDncService } from './b2b-dnc.repository';
 import { isWithinBusinessHours, resolveSlaAction, shouldStartAiCall } from './b2b-sla.util';
 import { B2bSlaRepository } from './b2b-sla.repository';
 
@@ -11,6 +12,7 @@ export class B2bSlaTickService {
     private readonly repo: B2bSlaRepository,
     private readonly config: AppConfigService,
     private readonly calls: B2bCallsService,
+    private readonly dnc: B2bDncService,
   ) {}
 
   async tick(now: Date): Promise<{ processed: number; hopped: number; queued: number; aiStarted: number }> {
@@ -46,15 +48,17 @@ export class B2bSlaTickService {
       if (action === 'ai_call') {
         const hasStaffDialed = await this.calls.hasHumanDial(lead.leadId);
         const alreadyAiCalled = await this.calls.hasAiCall(lead.leadId);
+        const phone = String(lead.phone ?? '').trim();
+        const dncBlocked = phone ? await this.dnc.isBlocked(phone) : false;
         if (
           shouldStartAiCall({
             action,
             hasStaffDialed,
             alreadyAiCalled,
             aiCallEnabled: lead.aiCallEnabled,
+            dncBlocked,
           })
         ) {
-          const phone = String(lead.phone ?? '').trim();
           if (phone) {
             try {
               await this.calls.startAiCall({ leadId: lead.leadId, phone });

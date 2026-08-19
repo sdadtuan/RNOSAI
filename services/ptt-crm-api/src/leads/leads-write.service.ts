@@ -17,6 +17,7 @@ import { LeadCreateEnrichmentService } from './ingest/lead-create-enrichment.ser
 import { B2bFirstAssignService } from '../b2b-projects/b2b-first-assign.service';
 import { B2bManualReassignService } from '../b2b-projects/b2b-manual-reassign.service';
 import { B2bRoutingAbService } from '../b2b-projects/b2b-routing-ab.service';
+import { B2bAdsCapiService } from '../b2b-projects/b2b-ads-capi.service';
 import {
   LeadStatusGatePatchOptions,
   LeadStatusGateService,
@@ -39,6 +40,7 @@ export class LeadsWriteService {
     private readonly b2bFirstAssign: B2bFirstAssignService,
     private readonly b2bManualReassign: B2bManualReassignService,
     private readonly b2bRoutingAb: B2bRoutingAbService,
+    private readonly b2bAdsCapi: B2bAdsCapiService,
     private readonly leadsRepo: LeadsRepository,
   ) {}
 
@@ -226,6 +228,10 @@ export class LeadsWriteService {
           clientId: result.lead.client_id,
         });
         await this.b2bRoutingAb.recordStatusOutcome({
+          leadId,
+          status: body.status,
+        });
+        void this.b2bAdsCapi.recordStatusOutcome({
           leadId,
           status: body.status,
         });

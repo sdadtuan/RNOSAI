@@ -62,7 +62,9 @@ export function shouldStartAiCall(input: {
   hasStaffDialed: boolean;
   alreadyAiCalled: boolean;
   aiCallEnabled: boolean;
+  dncBlocked?: boolean;
 }): boolean {
+  if (input.dncBlocked) return false;
   return (
     input.aiCallEnabled &&
     input.action === 'ai_call' &&

@@ -2,6 +2,7 @@
 
 import { placeB2bSoftphoneCall } from '@/components/crm/B2bSoftphone';
 import { phoneTelHref, shouldTelFallbackOnCallError } from '@/lib/lead-contact-call.util';
+import { useState } from 'react';
 
 export function LeadContactActions({
   phone,
@@ -14,10 +15,16 @@ export function LeadContactActions({
   leadId?: number;
   accessToken?: string | null;
 }) {
+  const [callConsent, setCallConsent] = useState(false);
+
   if (!phone.trim()) return null;
 
   async function handleSoftphoneCall(event: React.MouseEvent<HTMLAnchorElement>) {
     if (!leadId || !accessToken) return;
+    if (!callConsent) {
+      event.preventDefault();
+      return;
+    }
     event.preventDefault();
     try {
       await placeB2bSoftphoneCall({ accessToken, leadId, phone });
@@ -32,10 +39,19 @@ export function LeadContactActions({
 
   return (
     <div className="lead-contact-actions" id="lead-contact-actions" data-testid="lead-contact-copy">
+      <label className="lead-contact-actions__consent" data-testid="lead-call-consent">
+        <input
+          type="checkbox"
+          checked={callConsent}
+          onChange={(e) => setCallConsent(e.target.checked)}
+        />
+        KH đồng ý ghi âm
+      </label>
       <a
         href={phoneTelHref(phone)}
-        className="lead-contact-actions__btn lead-contact-actions__btn--primary"
+        className={`lead-contact-actions__btn lead-contact-actions__btn--primary${callConsent ? '' : ' lead-contact-actions__btn--disabled'}`}
         data-testid="lead-contact-call"
+        aria-disabled={!callConsent}
         onClick={(e) => void handleSoftphoneCall(e)}
       >
         Gọi ngay

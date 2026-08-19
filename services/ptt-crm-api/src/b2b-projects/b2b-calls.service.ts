@@ -4,7 +4,8 @@ import { shouldResolveArrivalAlert } from './b2b-alert-resolve.util';
 import { B2bAlertsRepository } from './b2b-alerts.repository';
 import { createB2bCpaasAdapter, type B2bCpaasAdapter } from './b2b-cpaas.adapter';
 import { B2bCallsRepository } from './b2b-calls.repository';
-import { B2bCpaasDownError, type StartCallResult } from './b2b-calls.types';
+import { B2bDncService } from './b2b-dnc.repository';
+import { B2bCpaasDownError, B2bDncBlockedError, type StartCallResult } from './b2b-calls.types';
 
 @Injectable()
 export class B2bCallsService {
@@ -14,8 +15,16 @@ export class B2bCallsService {
     private readonly repo: B2bCallsRepository,
     private readonly alertsRepo: B2bAlertsRepository,
     private readonly config: AppConfigService,
+    private readonly dnc: B2bDncService,
   ) {
     this.adapter = createB2bCpaasAdapter(this.config);
+  }
+
+  private async assertCallAllowed(phone: string): Promise<void> {
+    if (!this.config.b2bProjectOs) return;
+    if (await this.dnc.isBlocked(phone)) {
+      throw new B2bDncBlockedError();
+    }
   }
 
   async startHumanCall(input: {
@@ -23,6 +32,7 @@ export class B2bCallsService {
     staffId: number;
     phone: string;
   }): Promise<StartCallResult> {
+    await this.assertCallAllowed(input.phone);
     const session = await this.repo.insertSession({
       leadId: input.leadId,
       staffId: input.staffId,
@@ -54,6 +64,7 @@ export class B2bCallsService {
   }
 
   async startAiCall(input: { leadId: number; phone: string }): Promise<StartCallResult> {
+    await this.assertCallAllowed(input.phone);
     const session = await this.repo.insertSession({
       leadId: input.leadId,
       staffId: null,

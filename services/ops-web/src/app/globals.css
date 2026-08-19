@@ -12031,6 +12031,74 @@ body {
   cursor: pointer;
 }
 
+.lead-contact-actions__consent {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  width: 100%;
+  margin-bottom: 0.15rem;
+}
+
+.lead-contact-actions__btn--disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.b2b-thread-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.b2b-thread-messages {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.b2b-thread-msg {
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--surface-border);
+  background: #fff;
+}
+
+.b2b-thread-msg--inbound {
+  margin-right: 2rem;
+  background: rgba(23, 105, 47, 0.06);
+}
+
+.b2b-thread-msg--outbound {
+  margin-left: 2rem;
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.b2b-thread-msg__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  margin-bottom: 0.25rem;
+}
+
+.b2b-thread-msg__body {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.b2b-thread-compose {
+  display: grid;
+  gap: 0.5rem;
+}
+
 .lead-b2b-call-sticky {
   position: sticky;
   bottom: 0;

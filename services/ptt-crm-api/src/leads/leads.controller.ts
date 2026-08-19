@@ -14,6 +14,7 @@ import {
   Req,
   Res,
   ServiceUnavailableException,
+  ForbiddenException,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -32,9 +33,10 @@ import { StaffClientScopeService } from '../staff-client-scope/staff-client-scop
 import { AppConfigService } from '../config/app-config.service';
 import { B2bLeadScopeService } from '../b2b-projects/b2b-lead-scope.service';
 import { B2bCallsService } from '../b2b-projects/b2b-calls.service';
-import { B2bCpaasDownError } from '../b2b-projects/b2b-calls.types';
+import { B2bCpaasDownError, B2bDncBlockedError } from '../b2b-projects/b2b-calls.types';
 import { B2bStringeeTokenService } from '../b2b-projects/b2b-stringee-token.service';
 import { B2bIntelligenceService } from '../b2b-projects/b2b-intelligence.service';
+import { B2bConversationsService } from '../b2b-projects/b2b-conversations.service';
 import {
   assertLeadPatchFieldsAllowed,
   serializeLeadForCaps,
@@ -85,6 +87,7 @@ export class LeadsController {
     private readonly b2bCalls: B2bCallsService,
     private readonly b2bStringeeToken: B2bStringeeTokenService,
     private readonly b2bIntelligence: B2bIntelligenceService,
+    private readonly b2bConversations: B2bConversationsService,
   ) {}
 
   @Get('lookup-options')
@@ -385,6 +388,79 @@ export class LeadsController {
     return this.b2bIntelligence.getLeadIntelligence(id);
   }
 
+  /** W5 — Zalo OA conversation thread on lead. */
+  @Get(':id/b2b-conversation')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async getB2bConversation(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    const lead = await this.leadsService.getLead(id);
+    if (!lead) {
+      throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+    }
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (staffId != null) {
+        await this.b2bLeadScope.assertLeadVisible({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+          lead: {
+            owner_id: lead.owner_id,
+            client_id: lead.client_id,
+            channel: lead.channel,
+            source: lead.source,
+            status: lead.status,
+            b2b_project_id: lead.b2b_project_id,
+            meta_json: { lead_flow_kind: lead.lead_flow_kind },
+          },
+        });
+      }
+    }
+    return this.b2bConversations.getLeadThread(id);
+  }
+
+  @Post(':id/b2b-conversation/messages')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard)
+  async postB2bConversationMessage(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { body?: string },
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    const text = String(body?.body ?? '').trim();
+    if (!text) {
+      throw new HttpException({ error: 'body_required' }, HttpStatus.BAD_REQUEST);
+    }
+    const lead = await this.leadsService.getLead(id);
+    if (!lead) {
+      throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+    }
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (staffId != null) {
+        await this.b2bLeadScope.assertLeadVisible({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+          lead: {
+            owner_id: lead.owner_id,
+            client_id: lead.client_id,
+            channel: lead.channel,
+            source: lead.source,
+            status: lead.status,
+            b2b_project_id: lead.b2b_project_id,
+            meta_json: { lead_flow_kind: lead.lead_flow_kind },
+          },
+        });
+      }
+    }
+    return this.b2bConversations.appendOutboundMessage({ leadId: id, body: text });
+  }
+
   /** Phase 3 — Track SCI/talk-track copy for playbook A/B. */
   @Post(':id/closed-loop/script-copy')
   @HttpCode(HttpStatus.OK)
@@ -464,6 +540,9 @@ export class LeadsController {
       const out = await this.b2bCalls.startHumanCall({ leadId: id, staffId, phone });
       return { ok: true, ...out };
     } catch (err) {
+      if (err instanceof B2bDncBlockedError) {
+        throw new ForbiddenException({ error: 'dnc_blocked' });
+      }
       if (err instanceof B2bCpaasDownError) {
         throw new ServiceUnavailableException({ error: 'cpaas_down', tel: phone });
       }

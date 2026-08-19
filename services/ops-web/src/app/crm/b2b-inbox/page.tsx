@@ -191,6 +191,9 @@ export default function CrmB2bInboxPage() {
                   <Link href={`/crm/leads/${row.lead_id}`} className="btn btn-sm btn-secondary">
                     Mở lead
                   </Link>
+                  <Link href={`/crm/b2b-inbox/thread/${row.lead_id}`} className="btn btn-sm btn-ghost">
+                    Zalo thread
+                  </Link>
                 </li>
               );
             })}

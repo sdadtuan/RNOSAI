@@ -24,3 +24,12 @@ export class B2bCpaasDownError extends Error {
     this.name = 'B2bCpaasDownError';
   }
 }
+
+export class B2bDncBlockedError extends Error {
+  readonly code = 'dnc_blocked';
+
+  constructor(message = 'Phone is on do-not-call list') {
+    super(message);
+    this.name = 'B2bDncBlockedError';
+  }
+}
