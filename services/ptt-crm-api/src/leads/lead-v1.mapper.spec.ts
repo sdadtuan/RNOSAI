@@ -35,6 +35,9 @@ describe('leadRowToV1', () => {
       created_at: '2026-07-17',
       received_at: '2026-07-17',
       is_duplicate: false,
+      expected_value: null,
+      margin_pct: null,
+      review_queue: { active: false },
     });
   });
 });
@@ -73,6 +76,14 @@ describe('pgRowToV1', () => {
       created_at: '2026-07-17',
       received_at: '2026-07-17',
       is_duplicate: false,
+      assign_confidence: null,
+      assign_strategy: null,
+      b2b_project_id: null,
+      expected_value: null,
+      lead_flow_kind: 'spa_operational',
+      margin_pct: null,
+      owner_company_id: null,
+      review_queue: { active: false },
     });
   });
 
