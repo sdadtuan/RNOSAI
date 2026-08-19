@@ -26,7 +26,7 @@ import {
 
 const SELF_CATEGORIES = new Set(['education', 'cert', 'license', 'medical', 'family', 'other']);
 
-export function MyWalletPanel({ token }: { token: string }) {
+function MyWalletPanel({ token }: { token: string }) {
   const [cards, setCards] = useState<HrDocWalletCardDto[]>([]);
   const [types, setTypes] = useState<HrDocTypeDto[]>([]);
   const [walletPct, setWalletPct] = useState(0);

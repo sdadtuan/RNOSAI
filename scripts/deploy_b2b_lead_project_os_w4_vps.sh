@@ -33,11 +33,17 @@ run_local() {
   bash "$ROOT/scripts/apply_pg_ddl_b2b_routing_ab.sh"
 
   echo "== 2/5 ptt-crm-api build + b2b tests (W4) =="
-  cd "$ROOT/services/ptt-crm-api"
+  BUILD="$ROOT/.build-ptt-crm-api-w4"
+  rm -rf "$BUILD"
+  mkdir -p "$BUILD"
+  rsync -a --exclude node_modules "$ROOT/services/ptt-crm-api/" "$BUILD/"
+  cd "$BUILD"
   npm ci
   export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=6144}"
-  npm run build
+  npx nest build
   npm test -- --testPathPattern='b2b-nba|b2b-routing-ab|lead-score.engine' --no-coverage
+  rsync -a dist/ "$ROOT/services/ptt-crm-api/dist/"
+  rm -rf "$BUILD"
 
   echo "== 3/5 ops-web build =="
   cd "$ROOT"
