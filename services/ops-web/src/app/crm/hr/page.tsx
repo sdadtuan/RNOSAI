@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CrmHrPageShell } from '@/components/crm/CrmHrPageShell';
 import { HrHubExpiryWidgets } from '@/components/hr/HrHubExpiryWidgets';
+import { HrAttendanceHubWidgets } from '@/components/hr/HrAttendanceHubWidgets';
+import { HrGpsPendingQueue } from '@/components/hr/HrGpsPendingQueue';
 import { HrPendingWalletQueue } from '@/components/hr/HrPendingWalletQueue';
 import { buildHrHubGroups, canViewHrHub } from '@/lib/crm/hr-hub';
 import { downloadHrWalletAccountingXlsx } from '@/lib/hr-employee-file-api';
@@ -88,6 +90,8 @@ export default function CrmHrHubPage() {
       <div className="page-card stack-gap">
         {error ? <p className="error">{error}</p> : null}
         {token && user && !error ? <HrHubExpiryWidgets token={token} /> : null}
+        {token && user && !error ? <HrAttendanceHubWidgets token={token} /> : null}
+        {token && user && !error ? <HrGpsPendingQueue token={token} user={user} /> : null}
         {token && user && !error ? <HrPendingWalletQueue token={token} user={user} /> : null}
         {token && user && hasCap(user, 'crm_hr_docs', 'view') ? (
           <p>

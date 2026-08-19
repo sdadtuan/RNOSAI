@@ -89,6 +89,15 @@ export function buildHrHubGroups(user: StoredStaffUser | null): HrHubGroup[] {
     badge: 'Self',
   });
 
+  cards.push({
+    id: 'gps-punch-me',
+    group: 'timepay',
+    label: 'Chấm công GPS',
+    description: 'Vào/Ra ca qua geofence — trên Phiếu lương của tôi',
+    href: '/crm/payroll/me',
+    badge: 'P8',
+  });
+
   if (
     hasCap(user, 'crm_hr_leave', 'request') ||
     hasCap(user, 'crm_hr_leave', 'approve') ||
@@ -141,6 +150,21 @@ export function buildHrHubGroups(user: StoredStaffUser | null): HrHubGroup[] {
       label: 'Chấm công & lương',
       description: 'Policy ca, attendance, tính lương tháng',
       href: '/crm/payroll',
+    });
+  }
+
+  if (
+    hasCap(user, 'crm_hr_attendance', 'device') ||
+    hasCap(user, 'crm_payroll_attendance', 'view') ||
+    hasCap(user, 'crm_staff_roster', 'edit')
+  ) {
+    cards.push({
+      id: 'attendance-device',
+      group: 'timepay',
+      label: 'Chấm công máy',
+      description: 'Import CSV, thiết bị ADMS, site GPS, PIN chưa map',
+      href: '/crm/hr/attendance',
+      badge: 'P7+P8',
     });
   }
 

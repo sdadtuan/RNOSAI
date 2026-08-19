@@ -63,6 +63,8 @@ export interface HrStaffProfileDto {
   can_edit_insurance?: boolean;
   can_view_dependents?: boolean;
   can_edit_dependents?: boolean;
+  can_view_attendance?: boolean;
+  can_manage_attendance_device?: boolean;
   active_contract?: HrActiveContractSummaryDto | null;
   insurance_summary?: HrInsuranceSummaryDto | null;
   lifecycle_summary?: HrStaffLifecycleSummaryDto | null;
@@ -788,4 +790,266 @@ export async function downloadHrWalletAccountingXlsx(token: string): Promise<voi
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+export interface HrAttendancePunchDto {
+  id: number;
+  staff_id: number | null;
+  staff_name: string | null;
+  punched_at: string;
+  direction: 'in' | 'out' | 'auto';
+  source: 'device' | 'gps' | 'manual';
+  device_id: number | null;
+  device_name: string | null;
+  site_id: number | null;
+  site_name: string | null;
+  pin: string;
+  lat: number | null;
+  lng: number | null;
+  accuracy_m: number | null;
+  outside_geofence: boolean;
+  status: 'accepted' | 'pending_review' | 'rejected' | 'duplicate';
+  note: string;
+  created_at: string;
+}
+
+export interface HrAttendanceDayDto {
+  work_date: string;
+  check_in: string;
+  check_out: string;
+  break_minutes: number;
+  note: string;
+  punch_count: number;
+  sources: string[];
+}
+
+export interface HrAttendanceDeviceDto {
+  id: number;
+  name: string;
+  serial: string;
+  site_name: string;
+  timezone: string;
+  last_seen_at: string | null;
+  is_active: boolean;
+}
+
+export async function fetchHrStaffAttendance(
+  token: string,
+  staffId: number,
+  from?: string,
+  to?: string,
+): Promise<{ punches: HrAttendancePunchDto[]; days: HrAttendanceDayDto[]; today: string }> {
+  const qs = new URLSearchParams();
+  if (from) qs.set('from', from);
+  if (to) qs.set('to', to);
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/attendance?${qs}`, {
+    headers: authHeaders(token),
+  });
+  const body = await parseJson<{
+    ok: true;
+    punches: HrAttendancePunchDto[];
+    days: HrAttendanceDayDto[];
+    today: string;
+    error?: string;
+  }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải chấm công', res.status);
+  return { punches: body.punches, days: body.days, today: body.today };
+}
+
+export async function fetchHrAttendanceDevices(token: string): Promise<HrAttendanceDeviceDto[]> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/attendance/devices`, {
+    headers: authHeaders(token),
+  });
+  const body = await parseJson<{ ok: true; devices: HrAttendanceDeviceDto[]; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải thiết bị', res.status);
+  return body.devices;
+}
+
+export async function createHrAttendanceDevice(
+  token: string,
+  input: { name: string; serial?: string; site_name?: string },
+): Promise<{ device: HrAttendanceDeviceDto; device_key: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/attendance/devices`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(input),
+  });
+  const body = await parseJson<{
+    ok: true;
+    device: HrAttendanceDeviceDto;
+    device_key: string;
+    error?: string;
+  }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Tạo thiết bị thất bại', res.status);
+  return { device: body.device, device_key: body.device_key };
+}
+
+export async function importHrAttendanceCsv(
+  token: string,
+  csv: string,
+  deviceId?: number,
+): Promise<{ imported: number; accepted: number; duplicate: number; pending_review: number }> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/attendance/device/import.csv`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ csv, device_id: deviceId }),
+  });
+  const body = await parseJson<{
+    ok: true;
+    imported: number;
+    accepted: number;
+    duplicate: number;
+    pending_review: number;
+    error?: string;
+  }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Import CSV thất bại', res.status);
+  return body;
+}
+
+export async function fetchHrUnmappedAttendancePins(token: string): Promise<HrAttendancePunchDto[]> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/attendance/unmapped`, {
+    headers: authHeaders(token),
+  });
+  const body = await parseJson<{ ok: true; punches: HrAttendancePunchDto[]; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải PIN lỗi', res.status);
+  return body.punches;
+}
+
+export async function fetchHrAttendanceHubSummary(token: string): Promise<{
+  unmapped_pins: number;
+  devices_offline: number;
+  missing_checkin_today: number;
+  gps_pending_review: number;
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/attendance/hub-summary`, {
+    headers: authHeaders(token),
+  });
+  const body = await parseJson<{
+    ok: true;
+    unmapped_pins: number;
+    devices_offline: number;
+    missing_checkin_today: number;
+    gps_pending_review: number;
+    error?: string;
+  }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải tóm tắt chấm công', res.status);
+  return body;
+}
+
+export interface HrAttendanceSiteDto {
+  id: number;
+  name: string;
+  lat: number;
+  lng: number;
+  radius_m: number;
+  is_active: boolean;
+  staff_count: number;
+}
+
+export async function fetchHrAttendanceSites(token: string): Promise<HrAttendanceSiteDto[]> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/attendance/sites`, {
+    headers: authHeaders(token),
+  });
+  const body = await parseJson<{ ok: true; sites: HrAttendanceSiteDto[]; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải site', res.status);
+  return body.sites;
+}
+
+export async function createHrAttendanceSite(
+  token: string,
+  input: { name: string; lat: number; lng: number; radius_m?: number },
+): Promise<HrAttendanceSiteDto> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/attendance/sites`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(input),
+  });
+  const body = await parseJson<{ ok: true; site: HrAttendanceSiteDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Tạo site thất bại', res.status);
+  return body.site;
+}
+
+export async function assignHrAttendanceSiteStaff(
+  token: string,
+  siteId: number,
+  staffIds: number[],
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/attendance/sites/${siteId}/staff`, {
+    method: 'PUT',
+    headers: authHeaders(token),
+    body: JSON.stringify({ staff_ids: staffIds }),
+  });
+  const body = await parseJson<{ ok: true; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Gán NV thất bại', res.status);
+}
+
+export async function fetchMyAttendanceSites(token: string): Promise<{ staff_id: number; sites: HrAttendanceSiteDto[] }> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/me/attendance/sites`, {
+    headers: authHeaders(token),
+  });
+  const body = await parseJson<{
+    ok: true;
+    staff_id: number;
+    sites: HrAttendanceSiteDto[];
+    error?: string;
+  }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải site của tôi', res.status);
+  return { staff_id: body.staff_id, sites: body.sites };
+}
+
+export async function submitGpsPunch(
+  token: string,
+  input: {
+    direction: 'in' | 'out';
+    lat: number;
+    lng: number;
+    accuracy_m?: number;
+    punched_at?: string;
+  },
+): Promise<{
+  punch: HrAttendancePunchDto;
+  pending_review: boolean;
+  matched_site: HrAttendanceSiteDto | null;
+  distance_m: number | null;
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/attendance/gps/punch`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(input),
+  });
+  const body = await parseJson<{
+    ok: true;
+    punch: HrAttendancePunchDto;
+    pending_review: boolean;
+    matched_site: HrAttendanceSiteDto | null;
+    distance_m: number | null;
+    error?: string;
+  }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Chấm GPS thất bại', res.status);
+  return body;
+}
+
+export async function fetchHrGpsPendingReview(token: string): Promise<HrAttendancePunchDto[]> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/attendance/gps/pending-review`, {
+    headers: authHeaders(token),
+  });
+  const body = await parseJson<{ ok: true; punches: HrAttendancePunchDto[]; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải hàng chờ GPS', res.status);
+  return body.punches;
+}
+
+export async function reviewHrAttendancePunch(
+  token: string,
+  punchId: number,
+  action: 'accept' | 'reject',
+  note?: string,
+): Promise<HrAttendancePunchDto> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/attendance/punches/${punchId}/review`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ action, note: note ?? '' }),
+  });
+  const body = await parseJson<{ ok: true; punch: HrAttendancePunchDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Duyệt punch thất bại', res.status);
+  return body.punch;
 }

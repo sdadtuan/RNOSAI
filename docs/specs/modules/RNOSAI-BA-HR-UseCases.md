@@ -119,3 +119,55 @@
 - `GET /api/v1/hr/wallet/export/accounting.xlsx`
 
 **Verify:** `bash scripts/smoke_hr_employee_file_p6.sh`
+
+## HR-UC-007 — Device attendance P7
+
+**Actor:** HR (device admin) · Máy ZK/ADMS (push)
+
+**Pre:** P1–P6 deployed, P7 DDL, `PTT_HR_EMPLOYEE_FILE=1`.
+
+**Flow:**
+1. HR tạo thiết bị tại `/crm/hr/attendance` → nhận `device_key` (1 lần).
+2. Gán `timeclock_pin` trên tab **Hồ sơ** NV = mã PIN trên máy.
+3. Import CSV (pin, datetime, direction) hoặc máy push `POST /api/v1/hr/attendance/device/ingest` + `X-Device-Key`.
+4. Punch map NV → `accepted`; PIN lạ → `pending_review` (treo, không nuốt silent).
+5. Rollup ngày vào `crm_attendance` (check_in sớm nhất / check_out muộn nhất, TZ `Asia/Ho_Chi_Minh`).
+6. Tab **Chấm công** trên `/crm/staff/:id` — timeline punch + bảng ngày.
+7. HR Hub widget: PIN chưa map · máy offline · chưa chấm hôm nay.
+
+**API:**
+- `POST /api/v1/hr/attendance/device/ingest` (header `X-Device-Key`)
+- `POST /api/v1/hr/attendance/device/import.csv`
+- `GET/POST /api/v1/hr/attendance/devices`
+- `GET /api/v1/hr/staff/:id/attendance?from=&to=`
+- `GET /api/v1/hr/attendance/unmapped` · `GET /api/v1/hr/attendance/hub-summary`
+
+**Caps:** `crm_hr_attendance.device` · view tab = `crm_payroll_attendance.view`
+
+**Verify:** `bash scripts/smoke_hr_employee_file_p7.sh`
+
+## HR-UC-008 — GPS attendance P8
+
+**Actor:** NV (self GPS) · HR (site admin / duyệt ngoại lệ)
+
+**Pre:** P7 deployed, P8 DDL, `PTT_HR_EMPLOYEE_FILE=1`.
+
+**Flow:**
+1. HR tạo **site geofence** tại `/crm/hr/attendance` (lat/lng, radius 150m) và gán NV.
+2. NV mở `/crm/payroll/me` → **Vào ca / Ra ca** (GPS PWA).
+3. Trong vùng + accuracy OK → punch `accepted`, rollup ngày.
+4. Ngoài geofence hoặc accuracy > radius → `pending_review` (BR-HR-153).
+5. HR Hub — hàng **GPS chờ duyệt**; duyệt/từ chối (`crm_hr_attendance.review`).
+6. Tab **Chấm công** NV: timeline chip **GPS** + badge «ngoài vùng».
+7. Rollup: **máy thắng** in/out; GPS chỉ bổ sung nếu thiếu máy (BR-HR-154).
+
+**API:**
+- `GET/POST /api/v1/hr/attendance/sites` · `PUT .../sites/:id/staff`
+- `GET /api/v1/hr/me/attendance/sites`
+- `POST /api/v1/hr/attendance/gps/punch`
+- `GET /api/v1/hr/attendance/gps/pending-review`
+- `POST /api/v1/hr/attendance/punches/:id/review`
+
+**Caps:** `crm_hr_attendance.gps` (self) · `.review` (duyệt) · `.device` (site admin)
+
+**Verify:** `bash scripts/smoke_hr_employee_file_p8.sh`

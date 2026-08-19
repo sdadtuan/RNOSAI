@@ -3,7 +3,7 @@
 import { HrCompletenessRing } from '@/components/hr/HrCompletenessRing';
 import type { HrStaffProfileDto } from '@/lib/hr-employee-file-api';
 
-export type EmployeeFileTab = 'profile' | 'wallet' | 'contracts' | 'insurance' | 'family' | 'crm';
+export type EmployeeFileTab = 'profile' | 'wallet' | 'contracts' | 'insurance' | 'family' | 'attendance' | 'crm';
 
 type Props = {
   profile: HrStaffProfileDto;
@@ -14,6 +14,7 @@ type Props = {
   contractExpiring?: boolean;
   insuranceExpiring?: boolean;
   showFamilyTab?: boolean;
+  showAttendanceTab?: boolean;
 };
 
 export function IdentityHeader({
@@ -25,6 +26,7 @@ export function IdentityHeader({
   contractExpiring,
   insuranceExpiring,
   showFamilyTab,
+  showAttendanceTab,
 }: Props) {
   const { staff, identity } = profile;
   const displayName = identity.legal_name?.trim() || staff.name;
@@ -78,6 +80,7 @@ export function IdentityHeader({
             ['contracts', 'Hợp đồng'],
             ['insurance', 'Bảo hiểm'],
             ...(showFamilyTab ? ([['family', 'Gia đình']] as const) : []),
+            ...(showAttendanceTab ? ([['attendance', 'Chấm công']] as const) : []),
             ['profile', 'Hồ sơ'],
             ['crm', 'CRM / Case'],
           ] as const

@@ -13,6 +13,7 @@ import { LifecycleSection } from '@/components/hr/LifecycleSection';
 import { ContractPanel } from '@/components/hr/ContractPanel';
 import { IdentityHeader, type EmployeeFileTab } from '@/components/hr/IdentityHeader';
 import { WalletPanel } from '@/components/hr/WalletPanel';
+import { AttendancePanel } from '@/components/hr/AttendancePanel';
 import type { StoredStaffUser } from '@/lib/auth';
 import {
   fetchHrStaffProfile,
@@ -188,6 +189,7 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
         contractExpiring={contractExpiring}
         insuranceExpiring={insuranceExpiring}
         showFamilyTab={Boolean(profile.can_view_dependents)}
+        showAttendanceTab={Boolean(profile.can_view_attendance)}
       />
       {saveMsg ? (
         <p className="muted" style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
@@ -260,6 +262,12 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
             canEdit={Boolean(profile.can_edit_dependents)}
             canViewPii={Boolean(profile.can_view_pii)}
           />
+        </div>
+      ) : null}
+
+      {activeTab === 'attendance' && profile.can_view_attendance ? (
+        <div className="employee-file-canvas employee-file-canvas--full">
+          <AttendancePanel staffId={staffId} token={token} />
         </div>
       ) : null}
 
@@ -372,6 +380,19 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                       }}
                     />
                   )}
+                </label>
+                <label className="form-field">
+                  <span className="form-label">PIN máy chấm công</span>
+                  <input
+                    className="form-input mono"
+                    value={identityDraft.timeclock_pin ?? ''}
+                    disabled={!canEditIdentity}
+                    onChange={(e) => {
+                      setIdentityDraft((d) => ({ ...d, timeclock_pin: e.target.value }));
+                      setDirty((x) => ({ ...x, identity: true }));
+                    }}
+                    placeholder="Trùng mã trên máy ZK/ADMS"
+                  />
                 </label>
                 <label className="form-field">
                   <span className="form-label">Ngân hàng</span>

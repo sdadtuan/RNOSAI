@@ -46,6 +46,16 @@ import { HrEmployeeFileRepository } from './hr-employee-file.repository';
 import { HrEmployeeFileService } from './hr-employee-file.service';
 import { HrStaffP5Repository } from './hr-staff-p5.repository';
 import { HrStaffP5Service } from './hr-staff-p5.service';
+import { HrAttendanceController } from './hr-attendance.controller';
+import { HrAttendanceDeviceIngestController } from './hr-attendance-device-ingest.controller';
+import { HrAttendanceRepository } from './hr-attendance.repository';
+import { HrAttendanceService } from './hr-attendance.service';
+import {
+  StaffHrAttendanceDeviceGuard,
+  StaffHrAttendanceGpsGuard,
+  StaffHrAttendanceReviewGuard,
+  StaffHrAttendanceViewGuard,
+} from './guards/staff-hr-attendance.guard';
 
 @Module({
   imports: [StaffAuthModule],
@@ -58,6 +68,8 @@ import { HrStaffP5Service } from './hr-staff-p5.service';
     HrLifecycleController,
     HrHubController,
     HrDocWalletMeController,
+    HrAttendanceController,
+    HrAttendanceDeviceIngestController,
   ],
   providers: [
     HrEmployeeFileRepository,
@@ -66,12 +78,14 @@ import { HrStaffP5Service } from './hr-staff-p5.service';
     HrLaborContractRepository,
     HrInsuranceRepository,
     HrStaffP5Repository,
+    HrAttendanceRepository,
     HrEmployeeFileService,
     HrDocWalletService,
     HrDocWalletMeService,
     HrLaborContractService,
     HrInsuranceService,
     HrStaffP5Service,
+    HrAttendanceService,
     HrEmployeeFileEnabledGuard,
     StaffHrEmployeeFileViewGuard,
     StaffHrEmployeeFileWriteGuard,
@@ -86,6 +100,10 @@ import { HrStaffP5Service } from './hr-staff-p5.service';
     StaffHrDependentEditGuard,
     StaffHrDocsApproveGuard,
     StaffHrWalletSelfGuard,
+    StaffHrAttendanceViewGuard,
+    StaffHrAttendanceDeviceGuard,
+    StaffHrAttendanceGpsGuard,
+    StaffHrAttendanceReviewGuard,
   ],
   exports: [
     HrEmployeeFileRepository,

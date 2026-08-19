@@ -115,6 +115,8 @@ export interface HrStaffProfileResponse {
   can_edit_insurance?: boolean;
   can_view_dependents?: boolean;
   can_edit_dependents?: boolean;
+  can_view_attendance?: boolean;
+  can_manage_attendance_device?: boolean;
 }
 
 export const HR_PII_IDENTITY_FIELDS = [

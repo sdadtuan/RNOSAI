@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CrmHrPageShell } from '@/components/crm/CrmHrPageShell';
+import { GpsPunchPanel } from '@/components/hr/GpsPunchPanel';
 import { fetchMyPayslips, downloadMyPayslipXlsx, type PayslipRow } from '@/lib/hr-api';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
@@ -101,6 +102,7 @@ export default function PayslipMePage() {
         {' · '}
         <Link href="/crm/payroll">Bảng lương phòng HR</Link>.
       </p>
+      {token ? <GpsPunchPanel token={token} /> : null}
       <div className="table-wrap">
         <table className="data-table">
           <thead>

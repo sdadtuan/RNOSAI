@@ -72,6 +72,13 @@ export class HrEmployeeFileService {
         this.staffAuth.hasCap(me.caps, 'crm_staff_roster', 'edit'),
       canViewDependents: this.staffAuth.hasCap(me.caps, 'crm_hr_pii', 'view'),
       canEditDependents: this.staffAuth.hasCap(me.caps, 'crm_hr_pii', 'edit'),
+      canViewAttendance:
+        this.staffAuth.hasCap(me.caps, 'crm_payroll_attendance', 'view') ||
+        this.staffAuth.hasCap(me.caps, 'crm_hr_attendance', 'device') ||
+        this.staffAuth.hasCap(me.caps, 'crm_staff_roster', 'view'),
+      canManageAttendanceDevice:
+        this.staffAuth.hasCap(me.caps, 'crm_hr_attendance', 'device') ||
+        this.staffAuth.hasCap(me.caps, 'crm_staff_roster', 'edit'),
     };
   }
 
@@ -106,6 +113,8 @@ export class HrEmployeeFileService {
       canEditInsurance,
       canViewDependents,
       canEditDependents,
+      canViewAttendance,
+      canManageAttendanceDevice,
     } = await this.capsFor(payload!);
     const identityRow = await this.repo.getIdentity(staffId);
     const addresses = await this.repo.listAddresses(staffId);
@@ -141,6 +150,8 @@ export class HrEmployeeFileService {
       can_edit_insurance: canEditInsurance,
       can_view_dependents: canViewDependents,
       can_edit_dependents: canEditDependents,
+      can_view_attendance: canViewAttendance,
+      can_manage_attendance_device: canManageAttendanceDevice,
     };
   }
 
