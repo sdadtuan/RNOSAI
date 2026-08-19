@@ -3,11 +3,12 @@ import { computeLeadRouteMlV1 } from '../ai-intelligence/lead-route-ml.engine';
 import { LeadRouteContext } from '../ai-intelligence/lead-route.types';
 import type { ScoreBand } from '../ai-intelligence/lead-score.types';
 import { B2B_ANALYTICS_TIMEOUT_MS } from './b2b-projects.constants';
+import type { AssignPoolMember, DecideFirstAssignResult } from './b2b-assign.util';
 import {
-  decideFirstAssign,
-  type AssignPoolMember,
-  type DecideFirstAssignResult,
-} from './b2b-assign.util';
+  decideFirstAssignWithAb,
+  assignAbBucketForIngest,
+} from './b2b-routing-ab.util';
+import { B2bRoutingAbService } from './b2b-routing-ab.service';
 import { B2bAlertsService } from './b2b-alerts.service';
 import { B2bProjectsRepository } from './b2b-projects.repository';
 import { isWithinBusinessHours } from './b2b-sla.util';
@@ -19,6 +20,7 @@ export interface B2bFirstAssignInput {
   score: number | null;
   channel?: string | null;
   source?: string | null;
+  phone?: string | null;
   now?: number;
 }
 
@@ -67,6 +69,7 @@ export class B2bFirstAssignService {
     private readonly ml: B2bFirstAssignMlAdapter,
     private readonly alerts: B2bAlertsService,
     private readonly projectsRepo: B2bProjectsRepository,
+    private readonly routingAb: B2bRoutingAbService,
   ) {}
 
   async assign(input: B2bFirstAssignInput): Promise<DecideFirstAssignResult> {
@@ -104,7 +107,12 @@ export class B2bFirstAssignService {
       }
     }
 
-    return decideFirstAssign({ timedOut, ml, pool, score: input.score });
+    const abBucket = assignAbBucketForIngest(
+      input.projectId,
+      String(input.phone ?? '').trim() || String(input.channel ?? 'unknown'),
+    );
+
+    return decideFirstAssignWithAb({ timedOut, ml, pool, score: input.score, abBucket });
   }
 
   async recordFirstAssignHop(input: {
@@ -126,6 +134,10 @@ export class B2bFirstAssignService {
       assignConfidence: input.assign.confidence,
       firstTouchPct: commission.firstTouchPct,
       closerPct: commission.closerPct,
+    });
+    await this.routingAb.recordFirstAssign({
+      leadId: input.leadId,
+      strategy: input.assign.strategy,
     });
   }
 

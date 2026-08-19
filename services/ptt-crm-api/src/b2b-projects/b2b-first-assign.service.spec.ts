@@ -13,6 +13,7 @@ describe('B2bFirstAssignService', () => {
       } as never,
       { fanoutArrival: jest.fn() } as never,
       { listProjectStaff: jest.fn() } as never,
+      { recordFirstAssign: jest.fn() } as never,
     );
     const r = await svc.assign({ projectId: 'p', score: 80, now: Date.now() });
     expect(r.strategy).toBe('hybrid_timeout');
@@ -31,6 +32,7 @@ describe('B2bFirstAssignService', () => {
       } as never,
       { fanoutArrival: jest.fn() } as never,
       { listProjectStaff: jest.fn() } as never,
+      { recordFirstAssign: jest.fn() } as never,
     );
     const r = await svc.assign({ projectId: 'p', score: 80 });
     expect(r.strategy).toBe('ai_analytics');

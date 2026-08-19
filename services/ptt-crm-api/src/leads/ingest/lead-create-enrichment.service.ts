@@ -105,6 +105,7 @@ export class LeadCreateEnrichmentService {
         score: Number.isFinite(score) ? score : null,
         channel: body.channel,
         source: body.source,
+        phone: phone || body.phone,
       });
       if (assign.ownerId) {
         ownerId = assign.ownerId;

@@ -35,7 +35,7 @@ run_local() {
   echo "== 2/6 ptt-crm-api build + b2b tests (W3) =="
   cd "$ROOT/services/ptt-crm-api"
   npm ci
-  export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"
+  export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=6144}"
   npm run build
   npm test -- --testPathPattern='b2b-manual-reassign|b2b-commission-ledger|b2b-projects' --no-coverage
 

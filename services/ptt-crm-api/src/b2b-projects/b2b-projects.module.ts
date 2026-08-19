@@ -39,6 +39,12 @@ import { B2bCommissionLedgerService } from './b2b-commission-ledger.service';
 import { B2bOpsSummaryRepository } from './b2b-ops-summary.repository';
 import { B2bOpsSummaryService } from './b2b-ops-summary.service';
 import { B2bOpsSummaryController } from './b2b-ops-summary.controller';
+import { B2bRoutingAbRepository } from './b2b-routing-ab.repository';
+import { B2bRoutingAbService } from './b2b-routing-ab.service';
+import { B2bRoutingAbController } from './b2b-routing-ab.controller';
+import { B2bRoutingAbReportJob } from './b2b-routing-ab.job';
+import { B2bIntelligenceRepository } from './b2b-intelligence.repository';
+import { B2bIntelligenceService } from './b2b-intelligence.service';
 
 @Module({
   imports: [StaffAuthModule],
@@ -50,6 +56,7 @@ import { B2bOpsSummaryController } from './b2b-ops-summary.controller';
     B2bCallsController,
     B2bSpeedController,
     B2bOpsSummaryController,
+    B2bRoutingAbController,
   ],
   providers: [
     B2bProjectsService,
@@ -72,6 +79,11 @@ import { B2bOpsSummaryController } from './b2b-ops-summary.controller';
     B2bCommissionLedgerService,
     B2bOpsSummaryRepository,
     B2bOpsSummaryService,
+    B2bRoutingAbRepository,
+    B2bRoutingAbService,
+    B2bRoutingAbReportJob,
+    B2bIntelligenceRepository,
+    B2bIntelligenceService,
     B2bAlertsRepository,
     B2bAlertsService,
     B2bAlertStreamService,
@@ -93,6 +105,8 @@ import { B2bOpsSummaryController } from './b2b-ops-summary.controller';
     B2bStringeeTokenService,
     B2bManualReassignService,
     B2bCommissionLedgerService,
+    B2bRoutingAbService,
+    B2bIntelligenceService,
     B2bAlertsService,
   ],
 })

@@ -21,7 +21,7 @@ export interface DecideFirstAssignResult {
   confidence: number | null;
 }
 
-function hybridPick(pool: AssignPoolMember[], score: number | null): AssignPoolMember | null {
+export function hybridPick(pool: AssignPoolMember[], score: number | null): AssignPoolMember | null {
   const free = pool.filter((p) => !p.inCall);
   if (!free.length) return null;
   const band = score != null && score >= 70 ? 'hot' : score != null && score >= 40 ? 'warm' : 'cold';

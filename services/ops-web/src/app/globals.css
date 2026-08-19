@@ -12401,3 +12401,84 @@ body {
 .insurance-card__head .insurance-card__title {
   margin: 0;
 }
+
+.b2b-intelligence-panel {
+  margin-top: 0.75rem;
+}
+
+.b2b-intelligence-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.b2b-score-card,
+.b2b-nba-card {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: var(--surface, #fff);
+}
+
+.b2b-score-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.b2b-score-card__header h3,
+.b2b-nba-card h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.b2b-score-card__value {
+  margin: 0.35rem 0 0.75rem;
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.b2b-why-hot h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.b2b-why-hot__list {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.b2b-why-hot__chip {
+  display: inline-block;
+  min-width: 2rem;
+  margin-right: 0.35rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.b2b-why-hot__chip--plus {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.b2b-why-hot__chip--minus {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.b2b-nba-card__action {
+  margin: 0.35rem 0;
+  font-weight: 600;
+}
+
+.b2b-nba-card__due {
+  margin: 0 0 0.65rem;
+  font-size: 0.85rem;
+}

@@ -15,7 +15,7 @@ import { AiScoreRecord } from './lead-score.types';
 import { AiScoresRepository } from './ai-scores.repository';
 import { AiScoreFeedbackRepository } from './ai-score-feedback.repository';
 import { AiScoreFeedbackService } from './ai-score-feedback.service';
-import { computeLeadScoreV1, computeLeadScoreV2 } from './lead-score.engine';
+import { computeLeadScoreV1, computeLeadScoreV2, buildTopFeatures } from './lead-score.engine';
 import { LeadScoreContextRepository } from './lead-score-context.repository';
 import {
   AiScoresBatchResponse,
@@ -374,6 +374,7 @@ export class AiLeadScoreService {
         confidence: row.confidence ?? 0,
         score_band: row.explainability_json.score_band,
         explainability: row.explainability_json,
+        top_features: buildTopFeatures(row.explainability_json),
         model_name: row.model_name ?? LEAD_SCORE_MODEL,
         model_version: row.model_version,
         agent_run_id: agentRunId,

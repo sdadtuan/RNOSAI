@@ -8,6 +8,7 @@ import {
   StaffPageShell,
 } from '@/components/layout';
 import { fetchB2bOpsSummary, type B2bOpsSummary } from '@/lib/b2b-ops-summary-api';
+import { fetchB2bRoutingAbReport, type B2bRoutingAbReport } from '@/lib/b2b-intelligence-api';
 import { fetchB2bProjects, type B2bProjectListItem } from '@/lib/b2b-projects-api';
 import {
   clearSession,
@@ -27,6 +28,7 @@ export default function B2bGdkdPage() {
   const [projects, setProjects] = useState<B2bProjectListItem[]>([]);
   const [projectId, setProjectId] = useState('');
   const [summary, setSummary] = useState<B2bOpsSummary | null>(null);
+  const [routingAb, setRoutingAb] = useState<B2bRoutingAbReport | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -68,8 +70,12 @@ export default function B2bGdkdPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await fetchB2bOpsSummary(access, pid || undefined);
+      const [data, ab] = await Promise.all([
+        fetchB2bOpsSummary(access, pid || undefined),
+        fetchB2bRoutingAbReport(access, 30),
+      ]);
       setSummary(data);
+      setRoutingAb(ab);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Không tải ops summary');
     } finally {
@@ -148,6 +154,26 @@ export default function B2bGdkdPage() {
                 <span className="b2b-speed-card__label">CPaaS fail 24h</span>
                 <strong>{summary.cpaas_fail_24h}</strong>
               </div>
+              {routingAb && routingAb.n > 0 ? (
+                <>
+                  <div className="b2b-speed-card">
+                    <span className="b2b-speed-card__label">AI win rate 30d</span>
+                    <strong>
+                      {routingAb.ai_win_rate != null
+                        ? `${Math.round(routingAb.ai_win_rate * 100)}%`
+                        : '—'}
+                    </strong>
+                  </div>
+                  <div className="b2b-speed-card">
+                    <span className="b2b-speed-card__label">Hybrid win rate 30d</span>
+                    <strong>
+                      {routingAb.hybrid_win_rate != null
+                        ? `${Math.round(routingAb.hybrid_win_rate * 100)}%`
+                        : '—'}
+                    </strong>
+                  </div>
+                </>
+              ) : null}
             </div>
             <nav className="b2b-gdkd-links">
               <Link href="/crm/b2b-unmatched">Ingress chưa map</Link>

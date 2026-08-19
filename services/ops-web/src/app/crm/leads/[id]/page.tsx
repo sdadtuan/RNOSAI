@@ -11,6 +11,7 @@ import { LeadB2bSalesFlowBar, type LeadContractFlowSummary } from '@/components/
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
 import { LeadAuditPanel } from '@/components/crm/LeadAuditPanel';
 import { LeadContactActions } from '@/components/crm/LeadContactActions';
+import { B2bIntelligencePanel } from '@/components/crm/B2bIntelligencePanel';
 import { LeadMobileCallBar } from '@/components/crm/LeadMobileCallBar';
 import { LeadContractPanel } from '@/components/LeadContractPanel';
 import { LeadDetailHero } from '@/components/crm/LeadDetailHero';
@@ -770,7 +771,12 @@ export default function CrmLeadDetailPage() {
             <LeadAttributionChips attribution={attribution} />
 
             {showB2bFlow ? (
-              <LeadB2bSalesFlowBar leadId={leadId} funnel={funnelSnap} contract={contractSummary} />
+              <>
+                <LeadB2bSalesFlowBar leadId={leadId} funnel={funnelSnap} contract={contractSummary} />
+                {accessToken ? (
+                  <B2bIntelligencePanel token={accessToken} leadId={leadId} />
+                ) : null}
+              </>
             ) : (
               <div className="banner banner-info lead-spa-flow-banner" style={{ marginTop: '0.75rem' }}>
                 <strong>Luồng CSKH vận hành 24h</strong>

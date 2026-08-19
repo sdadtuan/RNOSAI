@@ -5,7 +5,32 @@ import {
   LeadScoreFactor,
   ScoreBand,
   type ScoreFeedbackAggregate,
+  type ScoreReason,
 } from './lead-score.types';
+
+const RAW_PHONE_RE = /(\+?84|0)\d{8,10}/;
+
+export function buildTopFeatures(
+  explainability: LeadScoreExplainability,
+  max = 5,
+): ScoreReason[] {
+  return sanitizeScoreReasons(
+    [...explainability.factors]
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+      .slice(0, max)
+      .map((factor) => ({
+        feature: factor.label.replace(/^[+\−-]\s*/, '').trim(),
+        direction: factor.sign,
+        weight: factor.delta,
+      })),
+  );
+}
+
+export function sanitizeScoreReasons(reasons: ScoreReason[]): ScoreReason[] {
+  return reasons.filter(
+    (reason) => !RAW_PHONE_RE.test(reason.feature) && !RAW_PHONE_RE.test(String(reason.weight)),
+  );
+}
 
 function clamp(min: number, max: number, value: number): number {
   return Math.min(max, Math.max(min, value));
@@ -208,6 +233,7 @@ export function computeLeadScoreV1(
     score,
     confidence: computeConfidence(ctx, flags),
     explainability,
+    top_features: buildTopFeatures(explainability),
     features: {
       channel: ctx.channel,
       source: ctx.source,
@@ -267,14 +293,17 @@ export function computeLeadScoreV2(
     },
   ];
 
+  const explainability = {
+    factors,
+    flags: [...v1.explainability.flags, 'score_v2_feedback'],
+    score_band: scoreBand(score),
+  };
+
   return {
     score,
     confidence: v1.confidence,
-    explainability: {
-      factors,
-      flags: [...v1.explainability.flags, 'score_v2_feedback'],
-      score_band: scoreBand(score),
-    },
+    explainability,
+    top_features: buildTopFeatures(explainability),
     features: {
       ...v1.features,
       feedback_override_count: feedback.override_count,

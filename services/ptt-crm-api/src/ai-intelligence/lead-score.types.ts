@@ -7,6 +7,12 @@ export interface LeadScoreFactor {
   sign: '+' | '-';
 }
 
+export interface ScoreReason {
+  feature: string;
+  direction: '+' | '-';
+  weight: number;
+}
+
 export interface LeadScoreExplainability {
   factors: LeadScoreFactor[];
   flags: string[];
@@ -38,6 +44,7 @@ export interface LeadScoreEngineResult {
   score: number;
   confidence: number;
   explainability: LeadScoreExplainability;
+  top_features: ScoreReason[];
   features: Record<string, unknown>;
 }
 
@@ -76,6 +83,7 @@ export interface ScoreLeadResponseData {
   confidence: number;
   score_band: ScoreBand;
   explainability: LeadScoreExplainability;
+  top_features: ScoreReason[];
   model_name: string;
   model_version: string;
   agent_run_id: string;

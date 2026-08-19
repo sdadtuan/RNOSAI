@@ -1,4 +1,4 @@
-import { computeLeadScoreV1 } from './lead-score.engine';
+import { buildTopFeatures, computeLeadScoreV1, sanitizeScoreReasons } from './lead-score.engine';
 import { LeadScoreContext } from './lead-score.types';
 
 describe('computeLeadScoreV1', () => {
@@ -23,7 +23,18 @@ describe('computeLeadScoreV1', () => {
     const result = computeLeadScoreV1(baseCtx, new Date('2026-07-26T09:00:00Z'));
     expect(result.score).toBeGreaterThanOrEqual(70);
     expect(result.explainability.score_band).toBe('hot');
+    expect(result.top_features.length).toBeGreaterThan(0);
+    expect(result.top_features.length).toBeLessThanOrEqual(5);
     expect(result.explainability.factors.some((f) => f.sign === '+')).toBe(true);
+  });
+
+  it('top_features omit raw phone numbers', () => {
+    const result = computeLeadScoreV1(baseCtx, new Date('2026-07-26T09:00:00Z'));
+    const poisoned = sanitizeScoreReasons([
+      ...result.top_features,
+      { feature: 'Gọi 0901234567', direction: '+', weight: 1 },
+    ]);
+    expect(poisoned.some((r) => /0901234567/.test(r.feature))).toBe(false);
   });
 
   it('flags attribution incomplete without campaign', () => {

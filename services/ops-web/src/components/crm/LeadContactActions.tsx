@@ -31,7 +31,7 @@ export function LeadContactActions({
   }
 
   return (
-    <div className="lead-contact-actions" data-testid="lead-contact-copy">
+    <div className="lead-contact-actions" id="lead-contact-actions" data-testid="lead-contact-copy">
       <a
         href={phoneTelHref(phone)}
         className="lead-contact-actions__btn lead-contact-actions__btn--primary"

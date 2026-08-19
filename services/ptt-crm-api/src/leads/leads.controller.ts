@@ -34,6 +34,7 @@ import { B2bLeadScopeService } from '../b2b-projects/b2b-lead-scope.service';
 import { B2bCallsService } from '../b2b-projects/b2b-calls.service';
 import { B2bCpaasDownError } from '../b2b-projects/b2b-calls.types';
 import { B2bStringeeTokenService } from '../b2b-projects/b2b-stringee-token.service';
+import { B2bIntelligenceService } from '../b2b-projects/b2b-intelligence.service';
 import {
   assertLeadPatchFieldsAllowed,
   serializeLeadForCaps,
@@ -83,6 +84,7 @@ export class LeadsController {
     private readonly b2bLeadScope: B2bLeadScopeService,
     private readonly b2bCalls: B2bCallsService,
     private readonly b2bStringeeToken: B2bStringeeTokenService,
+    private readonly b2bIntelligence: B2bIntelligenceService,
   ) {}
 
   @Get('lookup-options')
@@ -347,6 +349,40 @@ export class LeadsController {
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
   getLeadCopilotContext(@Param('id', ParseIntPipe) id: number) {
     return this.copilotContext.getContext(id);
+  }
+
+  /** W4 — explainable score + B2B next-best-action for lead detail. */
+  @Get(':id/b2b-intelligence')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async getB2bIntelligence(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    const lead = await this.leadsService.getLead(id);
+    if (!lead) {
+      throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+    }
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (staffId != null) {
+        await this.b2bLeadScope.assertLeadVisible({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+          lead: {
+            owner_id: lead.owner_id,
+            client_id: lead.client_id,
+            channel: lead.channel,
+            source: lead.source,
+            status: lead.status,
+            b2b_project_id: lead.b2b_project_id,
+            meta_json: { lead_flow_kind: lead.lead_flow_kind },
+          },
+        });
+      }
+    }
+    return this.b2bIntelligence.getLeadIntelligence(id);
   }
 
   /** Phase 3 — Track SCI/talk-track copy for playbook A/B. */
