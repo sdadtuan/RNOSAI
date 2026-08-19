@@ -43,6 +43,7 @@ run_local() {
   npx nest build
   npm test -- --testPathPattern='b2b-nba|b2b-routing-ab|lead-score.engine' --no-coverage
   rsync -a dist/ "$ROOT/services/ptt-crm-api/dist/"
+  rsync -a node_modules/ "$ROOT/services/ptt-crm-api/node_modules/"
   rm -rf "$BUILD"
 
   echo "== 3/5 ops-web build =="
