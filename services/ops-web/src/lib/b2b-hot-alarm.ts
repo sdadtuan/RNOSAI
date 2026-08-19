@@ -1,3 +1,5 @@
+import { API_BASE } from './api';
+
 export function shouldRingHotAlarm(input: {
   severity: string;
   inHours: boolean;
@@ -37,4 +39,57 @@ export function alertSeverityLabel(severity: string, kind: string): string {
   if (kind === 'unassigned') return 'Chờ nhận';
   if (severity === 'inbox') return 'Inbox';
   return 'Thường';
+}
+
+export function b2bSlaStateLabel(state: string | null | undefined): string {
+  if (state === 'breach') return 'Breach';
+  if (state === 'warning') return 'Cảnh báo';
+  if (state === 'ok') return 'OK';
+  return '—';
+}
+
+export function b2bAiBandLabel(band: string | null | undefined): string {
+  if (band === 'hot') return 'Hot';
+  if (band === 'warm') return 'Warm';
+  if (band === 'cold') return 'Cold';
+  return '—';
+}
+
+export async function registerB2bStaffPush(token: string): Promise<void> {
+  if (typeof window === 'undefined' || !isB2bHotSoundEnabled()) return;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+  const vapidRes = await fetch(`${API_BASE}/api/v1/b2b-staff-push/vapid`, {
+    headers: { Authorization: `Bearer ${token}` },
+  }).catch(() => null);
+  if (!vapidRes?.ok) return;
+  const vapid = (await vapidRes.json()) as { enabled?: boolean; publicKey?: string | null };
+  if (!vapid.enabled || !vapid.publicKey) return;
+
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    const key = vapid.publicKey.replace(/-/g, '+').replace(/_/g, '/');
+    const raw = window.atob(key);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: bytes,
+    });
+  }
+  const json = sub.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return;
+
+  await fetch(`${API_BASE}/api/v1/b2b-staff-push/subscribe`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      endpoint: json.endpoint,
+      keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
+    }),
+  }).catch(() => undefined);
 }

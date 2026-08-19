@@ -44,6 +44,23 @@ export class B2bAlertsRepository implements OnModuleDestroy {
     }
   }
 
+  async markAlertsHandled(input: {
+    leadId: number;
+    staffId: number;
+    handledAt?: Date;
+  }): Promise<number> {
+    const at = input.handledAt ?? new Date();
+    const result = await this.db.query(
+      `UPDATE crm_b2b_lead_alerts
+       SET read_at = $3
+       WHERE lead_id = $1
+         AND staff_id = $2
+         AND read_at IS NULL`,
+      [input.leadId, input.staffId, at],
+    );
+    return result.rowCount ?? 0;
+  }
+
   async listAlerts(input: { staffId?: number; limit?: number }): Promise<B2bLeadAlertRow[]> {
     const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
     const params: unknown[] = [];

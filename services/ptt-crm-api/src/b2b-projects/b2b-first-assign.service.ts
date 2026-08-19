@@ -11,6 +11,7 @@ import {
 import { B2bAlertsService } from './b2b-alerts.service';
 import { B2bProjectsRepository } from './b2b-projects.repository';
 import { isWithinBusinessHours } from './b2b-sla.util';
+import { resolveIsActivePttStaff } from './b2b-staff-active.util';
 import { B2bSlaRepository } from './b2b-sla.repository';
 
 export interface B2bFirstAssignInput {
@@ -138,13 +139,18 @@ export class B2bFirstAssignService {
     const hours = this.repo.resolveBusinessHours(project);
     const inHours = isWithinBusinessHours(hours, new Date());
     const staffRows = await this.projectsRepo.listProjectStaff(input.projectId);
-    const receivers = staffRows.map((row) => ({
-      staffId: Number(row.staff_id),
-      assignEnabled: Boolean(row.assign_enabled),
-      isDirector: false,
-      hasViewAllLeads: false,
-      isActivePttStaff: true,
-    }));
+    const receivers = await Promise.all(
+      staffRows.map(async (row) => {
+        const active = await this.projectsRepo.findStaffActive(Number(row.staff_id));
+        return {
+          staffId: Number(row.staff_id),
+          assignEnabled: Boolean(row.assign_enabled),
+          isDirector: false,
+          hasViewAllLeads: false,
+          isActivePttStaff: resolveIsActivePttStaff(active),
+        };
+      }),
+    );
     await this.alerts.fanoutArrival({
       lead: {
         flowKind: 'b2b_prospect',

@@ -8,6 +8,7 @@ import { WinScopeBadge } from '@/components/rbac/WinScopeBadge';
 import { LeadsMobileCardList } from '@/app/crm/leads/LeadsMobileCardList';
 import { WinEmptyState } from '@/components/win';
 import type { LeadsColumnId } from '@/lib/crm/leads-columns';
+import { b2bAiBandLabel, b2bSlaStateLabel } from '@/lib/b2b-hot-alarm';
 
 interface Props {
   rows: LeadRow[];
@@ -33,6 +34,9 @@ function colSpan(visible: Set<LeadsColumnId>, showLeadKindTags: boolean, showSco
   if (visible.has('status')) n += 1;
   if (showLeadKindTags && visible.has('kind')) n += 1;
   if (visible.has('project')) n += 1;
+  if (visible.has('ai_band')) n += 1;
+  if (visible.has('sla')) n += 1;
+  if (visible.has('in_call')) n += 1;
   if (visible.has('source')) n += 1;
   if (visible.has('channel')) n += 1;
   if (showScores && visible.has('score')) n += 1;
@@ -94,6 +98,9 @@ export function CrmLeadsList({
               {visibleColumns.has('status') ? <th>Trạng thái</th> : null}
               {showLeadKindTags && visibleColumns.has('kind') ? <th>Loại</th> : null}
               {visibleColumns.has('project') ? <th>Dự án</th> : null}
+              {visibleColumns.has('ai_band') ? <th>AI</th> : null}
+              {visibleColumns.has('sla') ? <th>SLA</th> : null}
+              {visibleColumns.has('in_call') ? <th>Gọi</th> : null}
               {visibleColumns.has('source') ? <th>Nguồn</th> : null}
               {visibleColumns.has('channel') ? <th>Kênh</th> : null}
               {showScores && visibleColumns.has('score') ? <th>AI Score</th> : null}
@@ -141,10 +148,24 @@ export function CrmLeadsList({
                 ) : null}
                 {visibleColumns.has('project') ? (
                   <td>
-                    {lead.b2b_project_id
-                      ? projectLabelById[lead.b2b_project_id] ?? lead.b2b_project_id.slice(0, 8)
-                      : '—'}
+                    {lead.project_code ||
+                      (lead.b2b_project_id
+                        ? projectLabelById[lead.b2b_project_id] ?? lead.b2b_project_id.slice(0, 8)
+                        : '—')}
                   </td>
+                ) : null}
+                {visibleColumns.has('ai_band') ? (
+                  <td>{b2bAiBandLabel(lead.ai_band ?? null)}</td>
+                ) : null}
+                {visibleColumns.has('sla') ? (
+                  <td>
+                    <span className={`b2b-sla-pill b2b-sla-pill--${lead.sla_state ?? 'na'}`}>
+                      {b2bSlaStateLabel(lead.sla_state ?? null)}
+                    </span>
+                  </td>
+                ) : null}
+                {visibleColumns.has('in_call') ? (
+                  <td>{lead.in_call ? '📞' : '—'}</td>
                 ) : null}
                 {visibleColumns.has('source') ? <td>{lead.source}</td> : null}
                 {visibleColumns.has('channel') ? <td>{lead.channel || '—'}</td> : null}

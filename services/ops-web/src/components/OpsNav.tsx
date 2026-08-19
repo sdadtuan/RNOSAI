@@ -359,6 +359,9 @@ function buildSections(
   if (hasCap(user, 'crm_b2b_projects', 'view')) {
     salesContract.push({ href: '/crm/b2b-projects', label: 'Dự án PTT' });
   }
+  if (hasCap(user, 'crm_b2b_projects', 'manage')) {
+    salesContract.push({ href: '/crm/b2b-unmatched', label: 'Ingress chưa map' });
+  }
   if (salesContract.length) {
     sections.push({ label: 'CRM · Bán hàng & Hợp đồng', links: salesContract, defaultOpen: true });
   }

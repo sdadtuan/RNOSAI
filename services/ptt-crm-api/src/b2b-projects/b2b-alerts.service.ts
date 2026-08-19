@@ -46,6 +46,7 @@ export class B2bAlertsService {
         staffId: p.staffId,
         title: alertTitle(p.kind, input.lead.score),
         severity: p.severity as AlertSeverity,
+        leadId: input.lead.leadId,
       });
     }
   }

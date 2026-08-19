@@ -31,6 +31,10 @@ export interface LeadRow {
   is_duplicate: boolean;
   b2b_project_id?: string | null;
   lead_flow_kind?: 'spa_operational' | 'b2b_prospect' | string | null;
+  project_code?: string | null;
+  ai_band?: 'hot' | 'warm' | 'cold' | null;
+  sla_state?: 'na' | 'ok' | 'warning' | 'breach' | null;
+  in_call?: boolean;
   expected_value?: number | null;
   margin_pct?: number | null;
   review_queue?: {

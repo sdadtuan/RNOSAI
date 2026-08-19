@@ -17,7 +17,13 @@ export interface LeadV1 {
   b2b_project_id?: string | null;
   owner_company_id?: string | null;
   assign_strategy?: string | null;
+  assign_confidence?: number | null;
   lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
+  /** B2B list enrichments (W1) */
+  project_code?: string | null;
+  ai_band?: 'hot' | 'warm' | 'cold' | null;
+  sla_state?: 'na' | 'ok' | 'warning' | 'breach' | null;
+  in_call?: boolean;
   /** WIN-4-B — financial ABAC pilot (from meta_json.financial). */
   expected_value?: number | null;
   margin_pct?: number | null;
@@ -68,6 +74,15 @@ export interface PgLeadRow {
   b2b_project_id?: string | null;
   owner_company_id?: string | null;
   assign_strategy?: string | null;
+  assign_confidence?: number | null;
+  /** B2B list enrichment (from PG joins) */
+  project_code?: string | null;
+  lead_score?: number | null;
+  b2b_call_state?: string | null;
+  b2b_has_call?: boolean | null;
+  b2b_call_answered?: boolean | null;
+  b2b_assigned_at?: Date | string | null;
+  b2b_hop_count?: number | null;
 }
 
 export type ReviewQueueListFilter = 'only' | 'hide';

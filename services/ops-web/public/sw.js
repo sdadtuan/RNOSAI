@@ -2,7 +2,7 @@
  * RNOS-41 / WIN-1 — PWA service worker (app shell + lead list fallback).
  * Do not cache /_next/static — hashed assets use immutable cache; SW cache caused ChunkLoadError after deploy.
  */
-const CACHE = 'ptt-ops-pwa-v3';
+const CACHE = 'ptt-ops-pwa-v4';
 const SHELL_URLS = ['/', '/crm/leads', '/login'];
 
 self.addEventListener('install', (event) => {
@@ -21,6 +21,39 @@ self.addEventListener('activate', (event) => {
     ),
   );
   self.clients.claim();
+});
+
+self.addEventListener('push', (event) => {
+  const payload = (() => {
+    try {
+      return event.data?.json() ?? {};
+    } catch {
+      return { title: 'PTT CRM', body: event.data?.text() ?? 'Lead B2B mới' };
+    }
+  })();
+  const title = payload.title ?? 'PTT CRM';
+  const options = {
+    body: payload.body ?? 'Lead B2B mới',
+    data: payload.data ?? {},
+    icon: '/icons/icon-192.png',
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = event.notification.data?.url ?? '/crm/b2b/leads';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ('focus' in client) {
+          client.navigate(target);
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(target);
+    }),
+  );
 });
 
 self.addEventListener('fetch', (event) => {

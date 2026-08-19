@@ -75,4 +75,35 @@ describe('pgRowToV1', () => {
       is_duplicate: false,
     });
   });
+
+  it('sets in_call when human session is ringing', () => {
+    const row: PgLeadRow = {
+      sqlite_lead_id: 2,
+      full_name: 'B2B',
+      phone: '090',
+      email: '',
+      status: 'moi',
+      source: 'facebook',
+      owner_id: 1,
+      is_duplicate: false,
+      agency_client_id: null,
+      channel: 'meta',
+      external_lead_id: null,
+      campaign_id: null,
+      received_at: new Date('2026-08-19T08:00:00.000Z'),
+      created_at: new Date('2026-08-19T08:00:00.000Z'),
+      b2b_project_id: 'p1',
+      meta_json: { lead_flow_kind: 'b2b_prospect', lead_score: 80 },
+      project_code: 'demo',
+      lead_score: 80,
+      b2b_call_state: 'ringing',
+      b2b_has_call: true,
+      b2b_call_answered: false,
+      b2b_assigned_at: new Date('2026-08-19T08:00:00.000Z'),
+    };
+    const out = pgRowToV1(row);
+    expect(out.in_call).toBe(true);
+    expect(out.ai_band).toBe('hot');
+    expect(out.project_code).toBe('demo');
+  });
 });

@@ -1,10 +1,23 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  NotFoundException,
+  Query,
+  Req,
+  Sse,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
+import { MessageEvent } from '@nestjs/common/interfaces';
+import { Observable } from 'rxjs';
 import { Request } from 'express';
+import { AppConfigService } from '../config/app-config.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { hasGdkdViewAllLeads } from '../staff-permissions/staff-gdkd.util';
 import { StaffLeadsViewGuard } from '../leads/guards/staff-leads-view.guard';
+import { B2bAlertStreamService } from './b2b-alert-stream.service';
 import { B2bAlertsService } from './b2b-alerts.service';
 
 type ReqWithStaff = Request & {
@@ -17,7 +30,9 @@ type ReqWithStaff = Request & {
 export class B2bAlertsController {
   constructor(
     private readonly alerts: B2bAlertsService,
+    private readonly stream: B2bAlertStreamService,
     private readonly staffAuth: StaffAuthService,
+    private readonly config: AppConfigService,
   ) {}
 
   @Get()
@@ -38,5 +53,19 @@ export class B2bAlertsController {
       limit: Number.isFinite(limit) ? limit : undefined,
     });
     return { items };
+  }
+
+  @Get('stream')
+  @Sse()
+  alertStream(
+    @Req() req: ReqWithStaff,
+  ): Observable<MessageEvent> {
+    if (!this.config.b2bSse) {
+      throw new NotFoundException({ error: 'sse_disabled' });
+    }
+    if (!req.staffUser) {
+      throw new UnauthorizedException({ error: 'staff_required' });
+    }
+    return this.stream.streamForStaff(req.staffUser);
   }
 }

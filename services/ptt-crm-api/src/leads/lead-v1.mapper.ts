@@ -2,6 +2,12 @@ import { LeadRow, LeadV1, PgLeadRow } from './leads.types';
 import { formatLeadTs } from './lead-ts.format';
 import { reviewQueuePublicState } from '../leads-funnel/review-queue.util';
 import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
+import {
+  computeB2bAiBand,
+  computeB2bSlaState,
+  isB2bInHoursNow,
+  isB2bLeadInCall,
+} from '../b2b-projects/b2b-lead-list.util';
 
 function parseMeta(raw: string | null | undefined): Record<string, unknown> {
   if (!raw) {
@@ -113,6 +119,17 @@ export function pgRowToV1(row: PgLeadRow): LeadV1 {
     metaJson: meta,
   });
 
+  const score =
+    row.lead_score != null
+      ? Number(row.lead_score)
+      : metaNumber(meta, 'lead_score');
+  const assignConfidenceRaw = row.assign_confidence ?? metaNumber(meta, 'assign_confidence');
+
+  const b2bExtras =
+    row.b2b_project_id || flowKind === 'b2b_prospect'
+      ? buildB2bListExtras(row, meta, score)
+      : {};
+
   return {
     id: Number(row.sqlite_lead_id),
     full_name: row.full_name ?? '',
@@ -131,8 +148,43 @@ export function pgRowToV1(row: PgLeadRow): LeadV1 {
     b2b_project_id: row.b2b_project_id ? String(row.b2b_project_id) : null,
     owner_company_id: row.owner_company_id ? String(row.owner_company_id) : null,
     assign_strategy: row.assign_strategy ? String(row.assign_strategy) : null,
+    assign_confidence: assignConfidenceRaw,
     lead_flow_kind: flowKind,
+    ...b2bExtras,
     ...leadFinancialFields(meta),
     review_queue: reviewQueuePublicState(meta, assignedAt),
+  };
+}
+
+function buildB2bListExtras(
+  row: PgLeadRow,
+  meta: Record<string, unknown>,
+  score: number | null,
+): Pick<LeadV1, 'project_code' | 'ai_band' | 'sla_state' | 'in_call'> {
+  const assignedRaw =
+    row.b2b_assigned_at ??
+    (metaString(meta, 'auto_assigned_at') ? metaString(meta, 'auto_assigned_at') : null) ??
+    row.first_assigned_at ??
+    row.received_at ??
+    row.created_at;
+  const assignedDt = assignedRaw ? new Date(String(assignedRaw)) : null;
+  const elapsedMin =
+    assignedDt && !Number.isNaN(assignedDt.getTime())
+      ? Math.max(0, (Date.now() - assignedDt.getTime()) / 60_000)
+      : 0;
+  const hasCall = Boolean(row.b2b_has_call);
+  const answered = Boolean(row.b2b_call_answered ?? metaString(meta, 'b2b_call_answered') === 'true');
+
+  return {
+    project_code: row.project_code ? String(row.project_code) : null,
+    ai_band: computeB2bAiBand(score),
+    sla_state: computeB2bSlaState({
+      score,
+      elapsedMin,
+      hasCallActivity: hasCall,
+      answered,
+      inHours: isB2bInHoursNow(),
+    }),
+    in_call: isB2bLeadInCall(row.b2b_call_state ? String(row.b2b_call_state) : null),
   };
 }

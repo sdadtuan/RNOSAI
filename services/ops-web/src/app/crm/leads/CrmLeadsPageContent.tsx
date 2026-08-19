@@ -61,7 +61,7 @@ import {
   ownerParamToListTab,
   parseLeadsListUrl,
 } from '@/lib/crm/leads-list-url';
-import { readLeadsVisibleColumns, type LeadsColumnId } from '@/lib/crm/leads-columns';
+import { readLeadsVisibleColumns, defaultB2bLeadsVisibleColumns, type LeadsColumnId } from '@/lib/crm/leads-columns';
 import { fetchB2bProjects, type B2bProjectListItem } from '@/lib/b2b-projects-api';
 
 const PAGE_SIZE = 50;
@@ -97,7 +97,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const [slaSummary, setSlaSummary] = useState<PresalesConsultSlaSummary | null>(null);
   const [funnelMetrics, setFunnelMetrics] = useState<PresalesFunnelMetricsResponse | null>(null);
   const [visibleColumns, setVisibleColumns] = useState<Set<LeadsColumnId>>(() =>
-    readLeadsVisibleColumns(false),
+    flowScope === 'b2b_prospect' ? defaultB2bLeadsVisibleColumns() : readLeadsVisibleColumns(false),
   );
   const urlReadyRef = useRef(false);
 

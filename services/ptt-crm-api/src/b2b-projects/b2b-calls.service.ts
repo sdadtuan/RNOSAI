@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
+import { shouldResolveArrivalAlert } from './b2b-alert-resolve.util';
+import { B2bAlertsRepository } from './b2b-alerts.repository';
 import { createB2bCpaasAdapter, type B2bCpaasAdapter } from './b2b-cpaas.adapter';
 import { B2bCallsRepository } from './b2b-calls.repository';
 import { B2bCpaasDownError, type StartCallResult } from './b2b-calls.types';
@@ -10,6 +12,7 @@ export class B2bCallsService {
 
   constructor(
     private readonly repo: B2bCallsRepository,
+    private readonly alertsRepo: B2bAlertsRepository,
     private readonly config: AppConfigService,
   ) {
     this.adapter = createB2bCpaasAdapter(this.config.b2bCpaas);
@@ -27,6 +30,12 @@ export class B2bCallsService {
       provider: this.config.b2bCpaas || 'mock',
       state: 'queued',
     });
+    if (shouldResolveArrivalAlert('human')) {
+      await this.alertsRepo.markAlertsHandled({
+        leadId: input.leadId,
+        staffId: input.staffId,
+      });
+    }
     try {
       const out = await this.adapter.startCall({
         phone: input.phone,

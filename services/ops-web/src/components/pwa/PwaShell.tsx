@@ -30,7 +30,7 @@ export function PwaShell() {
     window.addEventListener('beforeinstallprompt', onBeforeInstall);
 
     if ('serviceWorker' in navigator) {
-      void navigator.serviceWorker.register('/sw.js?v=3', { scope: '/' }).catch(() => {
+      void navigator.serviceWorker.register('/sw.js?v=4', { scope: '/' }).catch(() => {
         /* dev or unsupported — non-fatal */
       });
     }

@@ -312,6 +312,121 @@ export class B2bProjectsRepository implements OnModuleDestroy {
     );
   }
 
+  async listUnmatched(input: { limit?: number; since?: string }): Promise<
+    Array<{
+      id: string;
+      channel: string;
+      project_slug: string | null;
+      external_key: string;
+      created_at: string;
+    }>
+  > {
+    const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
+    const params: unknown[] = [];
+    let where = '';
+    if (input.since?.trim()) {
+      params.push(input.since.trim());
+      where = ` WHERE created_at >= $${params.length}::timestamptz`;
+    }
+    params.push(limit);
+    const result = await this.db.query(
+      `SELECT id::text, channel, project_slug, external_key, created_at::text
+       FROM crm_b2b_unmatched_ingress${where}
+       ORDER BY created_at DESC
+       LIMIT $${params.length}`,
+      params,
+    );
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      channel: String(row.channel),
+      project_slug: row.project_slug ? String(row.project_slug) : null,
+      external_key: String(row.external_key),
+      created_at: String(row.created_at),
+    }));
+  }
+
+  async getUnmatchedById(id: string): Promise<{
+    id: string;
+    channel: string;
+    project_slug: string | null;
+    external_key: string;
+    created_at: string;
+  } | null> {
+    const result = await this.db.query(
+      `SELECT id::text, channel, project_slug, external_key, created_at::text
+       FROM crm_b2b_unmatched_ingress WHERE id = $1::uuid LIMIT 1`,
+      [id],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      id: String(row.id),
+      channel: String(row.channel),
+      project_slug: row.project_slug ? String(row.project_slug) : null,
+      external_key: String(row.external_key),
+      created_at: String(row.created_at),
+    };
+  }
+
+  async deleteUnmatched(id: string): Promise<void> {
+    await this.db.query(`DELETE FROM crm_b2b_unmatched_ingress WHERE id = $1::uuid`, [id]);
+  }
+
+  async attachFormToProject(input: {
+    projectId: string;
+    pageId: string;
+    formId: string;
+  }): Promise<void> {
+    let pageRow = await this.db.query(
+      `SELECT id FROM crm_b2b_project_pages
+       WHERE project_id = $1::uuid AND page_id = $2 LIMIT 1`,
+      [input.projectId, input.pageId],
+    );
+    let pageRowId = pageRow.rows[0]?.id as string | undefined;
+    if (!pageRowId) {
+      const inserted = await this.db.query(
+        `INSERT INTO crm_b2b_project_pages (project_id, page_id, name, active)
+         VALUES ($1::uuid, $2, $3, TRUE)
+         RETURNING id`,
+        [input.projectId, input.pageId, input.pageId],
+      );
+      pageRowId = String(inserted.rows[0].id);
+    }
+    const existingForm = await this.db.query(
+      `SELECT 1 FROM crm_b2b_project_page_forms f
+       JOIN crm_b2b_project_pages p ON p.id = f.page_row_id
+       WHERE p.project_id = $1::uuid AND f.form_id = $2 AND f.active LIMIT 1`,
+      [input.projectId, input.formId.trim()],
+    );
+    if ((existingForm.rowCount ?? 0) === 0) {
+      await this.db.query(
+        `INSERT INTO crm_b2b_project_page_forms (page_row_id, form_id, name, active)
+         VALUES ($1::uuid, $2, $3, TRUE)`,
+        [pageRowId, input.formId.trim(), input.formId.trim()],
+      );
+    }
+  }
+
+  async attachChannelAccount(input: {
+    projectId: string;
+    channelType: 'zalo' | 'webform' | 'api';
+    externalKey: string;
+    label?: string;
+  }): Promise<void> {
+    const existing = await this.db.query(
+      `SELECT 1 FROM crm_b2b_project_channel_accounts
+       WHERE channel_type = $1 AND external_key = $2 AND active LIMIT 1`,
+      [input.channelType, input.externalKey.trim()],
+    );
+    if ((existing.rowCount ?? 0) > 0) return;
+    await this.db.query(
+      `INSERT INTO crm_b2b_project_channel_accounts
+         (project_id, channel_type, external_key, label, active)
+       VALUES ($1::uuid, $2, $3, $4, TRUE)`,
+      [input.projectId, input.channelType, input.externalKey.trim(), input.label ?? ''],
+    );
+  }
+
   async listProjectPages(projectId: string) {
     const result = await this.db.query(
       `SELECT p.id::text, p.page_id, p.name, p.token_ref, p.active,

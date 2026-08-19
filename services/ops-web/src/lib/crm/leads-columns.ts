@@ -5,6 +5,9 @@ export type LeadsColumnId =
   | 'status'
   | 'kind'
   | 'project'
+  | 'ai_band'
+  | 'sla'
+  | 'in_call'
   | 'source'
   | 'channel'
   | 'score'
@@ -24,6 +27,9 @@ export const LEADS_COLUMN_DEFS: Array<{
   { id: 'status', label: 'Trạng thái', defaultVisible: true },
   { id: 'kind', label: 'Loại', defaultVisible: true },
   { id: 'project', label: 'Dự án', defaultVisible: true },
+  { id: 'ai_band', label: 'AI band', defaultVisible: false },
+  { id: 'sla', label: 'SLA', defaultVisible: false },
+  { id: 'in_call', label: 'Đang gọi', defaultVisible: false },
   { id: 'source', label: 'Nguồn', defaultVisible: true },
   { id: 'channel', label: 'Kênh', defaultVisible: true },
   { id: 'score', label: 'AI Score', defaultVisible: true, scoreOnly: true },
@@ -36,6 +42,20 @@ export function defaultLeadsVisibleColumns(showScores: boolean): Set<LeadsColumn
       (col) => col.id,
     ),
   );
+}
+
+export function defaultB2bLeadsVisibleColumns(): Set<LeadsColumnId> {
+  return new Set([
+    'id',
+    'name',
+    'phone',
+    'status',
+    'project',
+    'ai_band',
+    'sla',
+    'in_call',
+    'date',
+  ]);
 }
 
 export function readLeadsVisibleColumns(showScores: boolean): Set<LeadsColumnId> {

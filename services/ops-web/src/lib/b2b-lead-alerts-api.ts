@@ -51,3 +51,8 @@ export async function fetchB2bLeadAlerts(
   }
   return parseB2bLeadAlerts(body);
 }
+
+export function b2bLeadAlertsStreamUrl(token: string): string {
+  const qs = new URLSearchParams({ access_token: token });
+  return `${API_BASE}/api/v1/b2b-lead-alerts/stream?${qs.toString()}`;
+}

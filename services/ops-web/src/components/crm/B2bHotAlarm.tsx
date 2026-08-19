@@ -3,10 +3,16 @@
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useRef } from 'react';
 import { getAccessToken, hasCap, type StoredStaffUser } from '@/lib/auth';
-import { fetchB2bLeadAlerts, type B2bLeadAlertRow } from '@/lib/b2b-lead-alerts-api';
+import {
+  b2bLeadAlertsStreamUrl,
+  fetchB2bLeadAlerts,
+  parseB2bLeadAlerts,
+  type B2bLeadAlertRow,
+} from '@/lib/b2b-lead-alerts-api';
 import {
   isB2bHotSoundEnabled,
   isB2bSalesInHours,
+  registerB2bStaffPush,
   shouldRingHotAlarm,
 } from '@/lib/b2b-hot-alarm';
 
@@ -14,6 +20,15 @@ const POLL_MS = 15_000;
 
 function leadDetailOpen(pathname: string, leadId: number): boolean {
   return pathname === `/crm/leads/${leadId}` || pathname.startsWith(`/crm/leads/${leadId}/`);
+}
+
+function pickUrgent(items: B2bLeadAlertRow[], pathname: string): B2bLeadAlertRow | null {
+  return (
+    items.find(
+      (row) =>
+        row.severity === 'urgent' && !row.read_at && !leadDetailOpen(pathname, row.lead_id),
+    ) ?? null
+  );
 }
 
 export function B2bHotAlarm({ user }: { user: StoredStaffUser | null }) {
@@ -88,10 +103,21 @@ export function B2bHotAlarm({ user }: { user: StoredStaffUser | null }) {
     [pathname, startTone, stopTone],
   );
 
+  const applyItems = useCallback(
+    (items: B2bLeadAlertRow[]) => {
+      const urgent = pickUrgent(items, pathname);
+      urgentRef.current = urgent;
+      if (!urgent) ringStartRef.current = null;
+      syncRing(urgent);
+    },
+    [pathname, syncRing],
+  );
+
   useEffect(() => {
     if (!user || !hasCap(user, 'crm_leads', 'view')) return;
 
     let cancelled = false;
+    let eventSource: EventSource | null = null;
     let pollTimer: number | undefined;
 
     async function poll() {
@@ -100,17 +126,39 @@ export function B2bHotAlarm({ user }: { user: StoredStaffUser | null }) {
       try {
         const items = await fetchB2bLeadAlerts(token, { limit: 30 });
         if (cancelled) return;
-        const urgent = items.find(
-          (row) =>
-            row.severity === 'urgent' &&
-            !row.read_at &&
-            !leadDetailOpen(pathname, row.lead_id),
-        );
-        urgentRef.current = urgent ?? null;
-        if (!urgent) ringStartRef.current = null;
-        syncRing(urgent ?? null);
+        applyItems(items);
       } catch {
         // ignore transient errors
+      }
+    }
+
+    const token = getAccessToken();
+    if (token) {
+      void registerB2bStaffPush(token);
+    }
+
+    if (token && typeof EventSource !== 'undefined') {
+      try {
+        eventSource = new EventSource(b2bLeadAlertsStreamUrl(token));
+        eventSource.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data) as {
+              changed?: boolean;
+              items?: unknown;
+            };
+            if (payload.changed && payload.items) {
+              applyItems(parseB2bLeadAlerts(payload.items));
+            }
+          } catch {
+            // ignore malformed SSE payload
+          }
+        };
+        eventSource.onerror = () => {
+          eventSource?.close();
+          eventSource = null;
+        };
+      } catch {
+        eventSource = null;
       }
     }
 
@@ -119,10 +167,11 @@ export function B2bHotAlarm({ user }: { user: StoredStaffUser | null }) {
 
     return () => {
       cancelled = true;
+      eventSource?.close();
       if (pollTimer) window.clearInterval(pollTimer);
       stopTone();
     };
-  }, [user, pathname, syncRing, stopTone]);
+  }, [user, applyItems, stopTone]);
 
   useEffect(() => {
     syncRing(urgentRef.current);

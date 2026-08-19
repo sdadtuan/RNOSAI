@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
+import { B2bAlertStreamService } from './b2b-alert-stream.service';
 import { B2bAlertsController } from './b2b-alerts.controller';
 import { B2bAlertsRepository } from './b2b-alerts.repository';
 import { B2bAlertsService } from './b2b-alerts.service';
@@ -9,6 +10,10 @@ import { B2bIngestService } from './b2b-ingest.service';
 import { B2bProjectsController } from './b2b-projects.controller';
 import { B2bProjectsRepository } from './b2b-projects.repository';
 import { B2bProjectsService } from './b2b-projects.service';
+import { B2bStaffPushController } from './b2b-staff-push.controller';
+import { B2bStaffPushRepository } from './b2b-staff-push.repository';
+import { B2bUnmatchedController } from './b2b-unmatched.controller';
+import { B2bUnmatchedService } from './b2b-unmatched.service';
 import {
   StaffB2bProjectsManageGuard,
   StaffB2bProjectsViewGuard,
@@ -26,7 +31,12 @@ import { B2bStaffPushSender } from './b2b-staff-push.sender';
 
 @Module({
   imports: [StaffAuthModule],
-  controllers: [B2bProjectsController, B2bAlertsController],
+  controllers: [
+    B2bProjectsController,
+    B2bAlertsController,
+    B2bStaffPushController,
+    B2bUnmatchedController,
+  ],
   providers: [
     B2bProjectsService,
     B2bProjectsRepository,
@@ -42,7 +52,10 @@ import { B2bStaffPushSender } from './b2b-staff-push.sender';
     B2bCallsService,
     B2bAlertsRepository,
     B2bAlertsService,
+    B2bAlertStreamService,
+    B2bStaffPushRepository,
     B2bStaffPushSender,
+    B2bUnmatchedService,
     StaffB2bProjectsViewGuard,
     StaffB2bProjectsManageGuard,
   ],

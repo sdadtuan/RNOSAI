@@ -13,6 +13,41 @@ interface PgWhereClause {
   params: unknown[];
 }
 
+function b2bListEnrichmentSql(): string {
+  return `,
+              bp.code AS project_code,
+              COALESCE((l.meta_json->>'lead_score')::numeric, NULL) AS lead_score,
+              l.assign_confidence,
+              active_call.state AS b2b_call_state,
+              EXISTS (
+                SELECT 1 FROM crm_b2b_call_sessions c
+                WHERE c.lead_id = l.sqlite_lead_id AND c.kind = 'human'
+              ) AS b2b_has_call,
+              COALESCE((l.meta_json->>'b2b_call_answered')::boolean, FALSE) AS b2b_call_answered,
+              COALESCE(
+                NULLIF(l.meta_json->>'auto_assigned_at', '')::timestamptz,
+                l.received_at,
+                l.created_at
+              ) AS b2b_assigned_at,
+              (
+                SELECT COUNT(*)::int FROM crm_b2b_lead_hops h
+                WHERE h.lead_id = l.sqlite_lead_id AND h.hop_kind = 'sla_reassign'
+              ) AS b2b_hop_count`;
+}
+
+function b2bListJoinSql(): string {
+  return `
+       LEFT JOIN crm_b2b_projects bp ON bp.id = l.b2b_project_id
+       LEFT JOIN LATERAL (
+         SELECT c.state FROM crm_b2b_call_sessions c
+         WHERE c.lead_id = l.sqlite_lead_id
+           AND c.kind = 'human'
+           AND c.state IN ('ringing', 'answered')
+         ORDER BY c.created_at DESC
+         LIMIT 1
+       ) active_call ON TRUE`;
+}
+
 @Injectable()
 export class PgLeadsRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
@@ -43,6 +78,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
     const total = Number(countResult.rows[0]?.c ?? 0);
 
     const listParams = [...where.params, limit, offset];
+    const b2bList = query.lead_flow_kind === 'b2b_prospect' || Boolean(query.b2b_list_scope);
     const listResult = await this.db.query(
       `SELECT l.sqlite_lead_id, l.full_name, l.phone, l.email, l.status, l.source,
               l.owner_id, l.is_duplicate, l.agency_client_id, l.channel,
@@ -53,8 +89,8 @@ export class PgLeadsRepository implements OnModuleDestroy {
                 SELECT al.created_at::text FROM crm_lead_assignment_log al
                 WHERE al.sqlite_lead_id = l.sqlite_lead_id AND al.to_owner_id IS NOT NULL
                 ORDER BY al.created_at ASC LIMIT 1
-              ), '') AS first_assigned_at
-       FROM crm_leads l
+              ), '') AS first_assigned_at${b2bList ? b2bListEnrichmentSql() : ''}
+       FROM crm_leads l${b2bList ? b2bListJoinSql() : ''}
        ${where.sql}
        ORDER BY l.sqlite_lead_id DESC
        LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,

@@ -18,7 +18,8 @@ describe('B2bCallsService', () => {
       })),
       markLeadAnswered: jest.fn(),
     };
-    const svc = new B2bCallsService(repo as never, { b2bCpaas: 'mock' } as never);
+    const alertsRepo = { markAlertsHandled: jest.fn() };
+    const svc = new B2bCallsService(repo as never, alertsRepo as never, { b2bCpaas: 'mock' } as never);
     await svc.applyWebhook({ providerCallId: 'mock-s1', state: 'answered' });
     expect(repo.updateState).toHaveBeenCalledWith(expect.objectContaining({ state: 'answered' }));
     expect(repo.markLeadAnswered).toHaveBeenCalledWith(1);
@@ -29,7 +30,8 @@ describe('B2bCallsService', () => {
       insertSession: jest.fn(async () => ({ id: 's1', leadId: 1, staffId: 10, state: 'queued', kind: 'human', provider: 'down', providerCallId: null })),
       attachProviderCallId: jest.fn(),
     };
-    const svc = new B2bCallsService(repo as never, { b2bCpaas: 'down' } as never);
+    const alertsRepo = { markAlertsHandled: jest.fn() };
+    const svc = new B2bCallsService(repo as never, alertsRepo as never, { b2bCpaas: 'down' } as never);
     await expect(
       svc.startHumanCall({ leadId: 1, staffId: 10, phone: '090' }),
     ).rejects.toMatchObject({ code: 'cpaas_down' });
