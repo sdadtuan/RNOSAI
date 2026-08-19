@@ -80,6 +80,15 @@ export function buildHrHubGroups(user: StoredStaffUser | null): HrHubGroup[] {
     badge: 'Self',
   });
 
+  cards.push({
+    id: 'my-wallet',
+    group: 'timepay',
+    label: 'Ví giấy tờ của tôi',
+    description: 'Nộp bằng cấp / chứng chỉ chờ HR duyệt',
+    href: '/crm/hr/my-wallet',
+    badge: 'Self',
+  });
+
   if (
     hasCap(user, 'crm_hr_leave', 'request') ||
     hasCap(user, 'crm_hr_leave', 'approve') ||

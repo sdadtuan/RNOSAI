@@ -22,7 +22,11 @@ import { computeDocCardStatus, computeWalletCompleteness, countExpiringCards, is
 const CARD_SELECT = `
   w.id::int, w.staff_id::int, w.type_code, t.label AS type_label, t.category AS type_category,
   w.title, w.doc_no, w.issuer, w.issued_on::text, w.expires_on::text, w.status, w.visibility,
-  w.pinned, w.linked_entity, w.notes, w.created_at::text, w.updated_at::text,
+  w.pinned, w.linked_entity, w.notes,
+  COALESCE(w.submitted_by, '') AS submitted_by,
+  COALESCE(w.reviewed_by, '') AS reviewed_by,
+  w.reviewed_at::text AS reviewed_at,
+  w.created_at::text, w.updated_at::text,
   COALESCE(f.cnt, 0)::int AS file_count
 `;
 
@@ -113,6 +117,9 @@ export class HrDocWalletRepository implements OnModuleDestroy {
       pinned: Boolean(row.pinned),
       linked_entity: String(row.linked_entity ?? ''),
       notes: String(row.notes ?? ''),
+      submitted_by: String(row.submitted_by ?? ''),
+      reviewed_by: String(row.reviewed_by ?? ''),
+      reviewed_at: row.reviewed_at ? String(row.reviewed_at) : null,
       file_count: Number(row.file_count ?? files.length),
       education,
       files,
@@ -168,6 +175,12 @@ export class HrDocWalletRepository implements OnModuleDestroy {
     if (query.education_only) {
       clauses.push(`t.category IN ('education', 'cert')`);
     }
+    if (query.pending_review_only) {
+      clauses.push(`w.status = 'pending_review'`);
+    }
+    if (query.self_visible_only) {
+      clauses.push(`(w.visibility = 'self' OR w.status = 'pending_review')`);
+    }
     const result = await this.db.query(
       `SELECT ${CARD_SELECT}
        FROM hr_doc_wallet w
@@ -214,19 +227,25 @@ export class HrDocWalletRepository implements OnModuleDestroy {
     return this.mapCard(row as Record<string, unknown>, edu, files);
   }
 
-  async createCard(staffId: number, body: CreateHrDocWalletCardBody): Promise<HrDocWalletCardRow> {
+  async createCard(
+    staffId: number,
+    body: CreateHrDocWalletCardBody,
+    meta?: { submittedBy?: string; forcePending?: boolean },
+  ): Promise<HrDocWalletCardRow> {
     const typeCode = String(body.type_code ?? '').trim();
     if (!typeCode) throw new BadRequestException({ error: 'type_code_required' });
     const typeCheck = await this.db.query(`SELECT category FROM hr_doc_types WHERE type_code = $1`, [typeCode]);
     if (!typeCheck.rows[0]) throw new BadRequestException({ error: 'unknown_type_code', type_code: typeCode });
     const category = String((typeCheck.rows[0] as Record<string, unknown>).category ?? '');
-    const status = computeDocCardStatus(body.expires_on ?? null);
+    const status = meta?.forcePending ? 'pending_review' : computeDocCardStatus(body.expires_on ?? null);
+    const visibility = meta?.forcePending ? 'self' : (body.visibility ?? 'hr_only');
     const result = await this.db.query(
       `INSERT INTO hr_doc_wallet
-         (staff_id, type_code, title, doc_no, issuer, issued_on, expires_on, status, visibility, pinned, linked_entity, notes)
-       VALUES ($1, $2, $3, $4, $5, $6::date, $7::date, $8, $9, $10, $11, $12)
+         (staff_id, type_code, title, doc_no, issuer, issued_on, expires_on, status, visibility, pinned, linked_entity, notes, submitted_by)
+       VALUES ($1, $2, $3, $4, $5, $6::date, $7::date, $8, $9, $10, $11, $12, $13)
        RETURNING id::int, staff_id::int, type_code, title, doc_no, issuer, issued_on::text, expires_on::text,
-                 status, visibility, pinned, linked_entity, notes, created_at::text, updated_at::text`,
+                 status, visibility, pinned, linked_entity, notes, submitted_by, reviewed_by, reviewed_at::text,
+                 created_at::text, updated_at::text`,
       [
         staffId,
         typeCode,
@@ -236,10 +255,11 @@ export class HrDocWalletRepository implements OnModuleDestroy {
         body.issued_on || null,
         body.expires_on || null,
         status,
-        body.visibility ?? 'hr_only',
-        Boolean(body.pinned),
+        visibility,
+        meta?.forcePending ? false : Boolean(body.pinned),
         String(body.linked_entity ?? '').trim(),
         String(body.notes ?? '').trim(),
+        String(meta?.submittedBy ?? ''),
       ],
     );
     const row = result.rows[0] as Record<string, unknown>;
@@ -374,6 +394,145 @@ export class HrDocWalletRepository implements OnModuleDestroy {
   async listRequiredTypes(): Promise<HrDocTypeRow[]> {
     const all = await this.listDocTypes();
     return all.filter((t) => t.is_required_onboard);
+  }
+
+  async listPendingReview(limit = 50): Promise<Array<HrDocWalletCardRow & { staff_name: string; internal_code: string }>> {
+    const result = await this.db.query(
+      `SELECT ${CARD_SELECT}, s.name AS staff_name, s.internal_code
+       FROM hr_doc_wallet w
+       JOIN hr_doc_types t ON t.type_code = w.type_code
+       JOIN crm_staff s ON s.id = w.staff_id
+       LEFT JOIN (
+         SELECT card_id, COUNT(*)::int AS cnt FROM hr_doc_wallet_files WHERE deleted_at IS NULL GROUP BY card_id
+       ) f ON f.card_id = w.id
+       WHERE w.deleted_at IS NULL AND w.status = 'pending_review'
+       ORDER BY w.created_at ASC
+       LIMIT $1`,
+      [limit],
+    );
+    const out: Array<HrDocWalletCardRow & { staff_name: string; internal_code: string }> = [];
+    for (const row of result.rows) {
+      const id = Number((row as Record<string, unknown>).id);
+      const files = await this.listFiles(id);
+      const edu = await this.getEducation(id);
+      const card = this.mapCard(row as Record<string, unknown>, edu, files);
+      out.push({
+        ...card,
+        staff_name: String((row as Record<string, unknown>).staff_name ?? ''),
+        internal_code: String((row as Record<string, unknown>).internal_code ?? ''),
+      });
+    }
+    return out;
+  }
+
+  async reviewCard(
+    staffId: number,
+    cardId: number,
+    input: { approve: boolean; reviewedBy: string; notes?: string },
+  ): Promise<HrDocWalletCardRow> {
+    const existing = await this.getCard(staffId, cardId);
+    if (!existing) throw new NotFoundException({ error: 'card_not_found', id: cardId });
+    if (existing.status !== 'pending_review') {
+      throw new BadRequestException({ error: 'card_not_pending', status: existing.status });
+    }
+    const nextStatus = input.approve ? computeDocCardStatus(existing.expires_on, 'valid') : 'revoked';
+    await this.db.query(
+      `UPDATE hr_doc_wallet SET
+         status = $3,
+         notes = COALESCE($4, notes),
+         reviewed_by = $5,
+         reviewed_at = NOW(),
+         updated_at = NOW()
+       WHERE id = $1 AND staff_id = $2 AND deleted_at IS NULL`,
+      [cardId, staffId, nextStatus, input.notes ?? null, input.reviewedBy],
+    );
+    const updated = await this.getCard(staffId, cardId);
+    if (!updated) throw new NotFoundException({ error: 'card_not_found', id: cardId });
+    return updated;
+  }
+
+  async listWalletExportRows(): Promise<
+    Array<{
+      staff_id: number;
+      name: string;
+      internal_code: string;
+      dept_name: string;
+      wallet_pct: number;
+      expiring_count: number;
+      pending_count: number;
+    }>
+  > {
+    const staffResult = await this.db.query(
+      `SELECT s.id::int, s.name, s.internal_code, COALESCE(d.name, '') AS dept_name
+       FROM crm_staff s
+       LEFT JOIN crm_departments d ON d.id = s.department
+       WHERE s.active = 1
+       ORDER BY s.name ASC
+       LIMIT 2000`,
+    );
+    const types = await this.listRequiredTypes();
+    const out: Array<{
+      staff_id: number;
+      name: string;
+      internal_code: string;
+      dept_name: string;
+      wallet_pct: number;
+      expiring_count: number;
+      pending_count: number;
+    }> = [];
+    for (const row of staffResult.rows) {
+      const staffId = Number((row as Record<string, unknown>).id);
+      const cards = await this.listCards(staffId);
+      out.push({
+        staff_id: staffId,
+        name: String((row as Record<string, unknown>).name ?? ''),
+        internal_code: String((row as Record<string, unknown>).internal_code ?? ''),
+        dept_name: String((row as Record<string, unknown>).dept_name ?? ''),
+        wallet_pct: computeWalletCompleteness(types, cards),
+        expiring_count: countExpiringCards(cards),
+        pending_count: cards.filter((c) => c.status === 'pending_review').length,
+      });
+    }
+    return out;
+  }
+
+  async listDependentsExportRows(): Promise<
+    Array<{
+      staff_id: number;
+      staff_name: string;
+      internal_code: string;
+      dependent_name: string;
+      relation: string;
+      dob: string | null;
+      tax_dependent: boolean;
+      cccd: string;
+    }>
+  > {
+    try {
+      const result = await this.db.query(
+        `SELECT d.staff_id::int, s.name AS staff_name, s.internal_code,
+                d.name AS dependent_name, d.relation, d.dob::text, d.tax_dependent, d.cccd
+         FROM hr_staff_dependents d
+         JOIN crm_staff s ON s.id = d.staff_id
+         WHERE s.active = 1
+         ORDER BY s.name ASC, d.name ASC`,
+      );
+      return result.rows.map((r) => {
+        const row = r as Record<string, unknown>;
+        return {
+          staff_id: Number(row.staff_id),
+          staff_name: String(row.staff_name ?? ''),
+          internal_code: String(row.internal_code ?? ''),
+          dependent_name: String(row.dependent_name ?? ''),
+          relation: String(row.relation ?? ''),
+          dob: row.dob ? String(row.dob).slice(0, 10) : null,
+          tax_dependent: Boolean(row.tax_dependent),
+          cccd: String(row.cccd ?? ''),
+        };
+      });
+    } catch {
+      return [];
+    }
   }
 
   async rosterWalletStats(staffIds: number[]): Promise<HrWalletRosterStatRow[]> {

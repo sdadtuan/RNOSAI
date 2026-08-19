@@ -10,6 +10,12 @@ export function HrExpiryChip({ status, expiresOn }: Props) {
   if (s === 'expired') {
     return <span className="hr-expiry-chip hr-expiry-chip--expired">Hết hạn</span>;
   }
+  if (s === 'pending_review') {
+    return <span className="hr-expiry-chip hr-expiry-chip--expiring">Chờ HR duyệt</span>;
+  }
+  if (s === 'revoked') {
+    return <span className="hr-expiry-chip hr-expiry-chip--expired">Từ chối</span>;
+  }
   if (s === 'expiring') {
     return (
       <span className="hr-expiry-chip hr-expiry-chip--expiring">

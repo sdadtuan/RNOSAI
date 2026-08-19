@@ -98,3 +98,24 @@
 **Caps:** Gia đình = `crm_hr_pii.view/edit`; lifecycle = `crm_staff_roster`.
 
 **Verify:** `bash scripts/smoke_hr_employee_file_p5.sh`
+
+## HR-UC-006 — Self-submit wallet + Excel export P6
+
+**Actor:** NV (self) · HR (duyệt / export)
+
+**Pre:** P1–P5 deployed, P6 DDL, `PTT_HR_EMPLOYEE_FILE=1`.
+
+**Flow:**
+1. NV mở `/crm/hr/my-wallet` — nộp thẻ bằng cấp/chứng chỉ (loại `education|cert|license|medical|family|other`).
+2. Thẻ tạo với `status=pending_review`, `visibility=self` — upload file scan.
+3. HR Hub `/crm/hr` — hàng **Chờ duyệt**; duyệt/từ chối (`crm_hr_docs.approve`).
+4. Sau duyệt → `valid`; `% ví` roster chỉ tính thẻ đã duyệt + có file.
+5. HR export **Excel ví + người phụ thuộc** cho kế toán (2 sheet).
+
+**API:**
+- `GET/POST /api/v1/hr/me/wallet` · `POST .../files` · `GET .../files/:id`
+- `GET /api/v1/hr/wallet/pending-review`
+- `PATCH /api/v1/hr/staff/:id/wallet/:cardId/approve|reject`
+- `GET /api/v1/hr/wallet/export/accounting.xlsx`
+
+**Verify:** `bash scripts/smoke_hr_employee_file_p6.sh`

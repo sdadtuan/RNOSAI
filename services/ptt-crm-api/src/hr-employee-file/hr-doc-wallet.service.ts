@@ -11,11 +11,14 @@ import { HrEmployeeFileRepository } from './hr-employee-file.repository';
 import { HrDocWalletRepository } from './hr-doc-wallet.repository';
 import { HrDocWalletStorageService } from './hr-doc-wallet.storage';
 import type {
+  ApproveHrDocWalletCardBody,
   CreateHrDocTypeBody,
   CreateHrDocWalletCardBody,
   HrWalletListQuery,
   PatchHrDocWalletCardBody,
+  RejectHrDocWalletCardBody,
 } from './hr-doc-wallet.types';
+import { buildHrWalletAccountingXlsx } from './hr-doc-wallet-export.util';
 import { HR_DOC_WALLET_MAX_FILES_PER_CARD, HR_DOC_WALLET_MAX_FILE_BYTES, HR_DOC_WALLET_MIME } from './hr-doc-wallet.types';
 import { computeWalletCompleteness, countExpiringCards } from './hr-doc-wallet.util';
 
@@ -50,7 +53,8 @@ export class HrDocWalletService {
     const canDownload =
       this.staffAuth.hasCap(me.caps, 'crm_hr_docs', 'download') ||
       canViewDocs;
-    return { me, canViewDocs, canEditDocs, canDownload };
+    const canApprove = this.staffAuth.hasCap(me.caps, 'crm_hr_docs', 'approve');
+    return { me, canViewDocs, canEditDocs, canDownload, canApprove };
   }
 
   async listDocTypes(payload: StaffJwtPayload | undefined) {
@@ -192,5 +196,78 @@ export class HrDocWalletService {
     const types = await this.walletRepo.listRequiredTypes();
     const cards = await this.walletRepo.listCards(staffId);
     return computeWalletCompleteness(types, cards);
+  }
+
+  async listPendingReview(payload: StaffJwtPayload | undefined, limit = 50) {
+    this.requireUser(payload);
+    await this.ensureReady();
+    const { canViewDocs, canApprove } = await this.caps(payload!);
+    if (!canViewDocs && !canApprove) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_hr_docs' });
+    }
+    const items = await this.walletRepo.listPendingReview(limit);
+    return { ok: true, items, pending_count: items.length };
+  }
+
+  async approveCard(
+    payload: StaffJwtPayload | undefined,
+    staffId: number,
+    cardId: number,
+    body: ApproveHrDocWalletCardBody,
+  ) {
+    const user = this.requireUser(payload);
+    await this.ensureReady();
+    await this.staffRepo.assertStaffExists(staffId);
+    const { canApprove } = await this.caps(user);
+    if (!canApprove) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_hr_docs', action: 'approve' });
+    }
+    const card = await this.walletRepo.reviewCard(staffId, cardId, {
+      approve: true,
+      reviewedBy: user.email ?? user.sub,
+      notes: body.notes,
+    });
+    await this.staffRepo.logPiiAudit({
+      staffId,
+      actorUserId: user.sub,
+      actorEmail: user.email ?? '',
+      action: 'wallet_card_approved',
+      section: 'wallet',
+      meta: { card_id: cardId },
+    });
+    return { ok: true, card };
+  }
+
+  async rejectCard(
+    payload: StaffJwtPayload | undefined,
+    staffId: number,
+    cardId: number,
+    body: RejectHrDocWalletCardBody,
+  ) {
+    const user = this.requireUser(payload);
+    await this.ensureReady();
+    await this.staffRepo.assertStaffExists(staffId);
+    const { canApprove } = await this.caps(user);
+    if (!canApprove) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_hr_docs', action: 'approve' });
+    }
+    const card = await this.walletRepo.reviewCard(staffId, cardId, {
+      approve: false,
+      reviewedBy: user.email ?? user.sub,
+      notes: body.notes,
+    });
+    return { ok: true, card };
+  }
+
+  async exportAccountingXlsx(payload: StaffJwtPayload | undefined) {
+    this.requireUser(payload);
+    await this.ensureReady();
+    const { canViewDocs } = await this.caps(payload!);
+    if (!canViewDocs) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_hr_docs' });
+    }
+    const walletRows = await this.walletRepo.listWalletExportRows();
+    const dependentRows = await this.walletRepo.listDependentsExportRows();
+    return buildHrWalletAccountingXlsx({ walletRows, dependentRows });
   }
 }

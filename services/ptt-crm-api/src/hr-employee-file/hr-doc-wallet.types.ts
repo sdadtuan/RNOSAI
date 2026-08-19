@@ -65,6 +65,9 @@ export interface HrDocWalletCardRow {
   pinned: boolean;
   linked_entity: string;
   notes: string;
+  submitted_by?: string;
+  reviewed_by?: string;
+  reviewed_at?: string | null;
   file_count: number;
   education: HrDocWalletEducationRow | null;
   files: HrDocWalletFileRow[];
@@ -114,6 +117,16 @@ export interface HrWalletListQuery {
   expiring_only?: boolean;
   education_only?: boolean;
   missing_files?: boolean;
+  pending_review_only?: boolean;
+  self_visible_only?: boolean;
+}
+
+export interface ApproveHrDocWalletCardBody {
+  notes?: string;
+}
+
+export interface RejectHrDocWalletCardBody {
+  notes?: string;
 }
 
 export interface HrWalletRosterStatRow {
@@ -124,6 +137,15 @@ export interface HrWalletRosterStatRow {
 
 export const HR_DOC_WALLET_MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const HR_DOC_WALLET_MAX_FILES_PER_CARD = 20;
+
+export const HR_SELF_SUBMIT_CATEGORIES = new Set<HrDocCategory>([
+  'education',
+  'cert',
+  'license',
+  'medical',
+  'family',
+  'other',
+]);
 
 export const HR_DOC_WALLET_MIME = new Set([
   'application/pdf',

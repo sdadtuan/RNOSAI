@@ -23,12 +23,18 @@ import {
   StaffHrDocsEditGuard,
   StaffHrDocsViewGuard,
 } from './guards/staff-hr-docs.guard';
+import {
+  StaffHrDocsApproveGuard,
+  StaffHrWalletSelfGuard,
+} from './guards/staff-hr-docs-approve.guard';
 import { StaffHrEmployeeFileViewGuard } from './guards/staff-hr-employee-file.guard';
 import { HrDocWalletService } from './hr-doc-wallet.service';
 import type {
+  ApproveHrDocWalletCardBody,
   CreateHrDocTypeBody,
   CreateHrDocWalletCardBody,
   PatchHrDocWalletCardBody,
+  RejectHrDocWalletCardBody,
 } from './hr-doc-wallet.types';
 import { HR_DOC_WALLET_MAX_FILE_BYTES } from './hr-doc-wallet.types';
 
@@ -50,6 +56,24 @@ export class HrDocWalletController {
     @Body() body: CreateHrDocTypeBody,
   ) {
     return this.wallet.createDocType(req.staffUser, body);
+  }
+
+  @Get('wallet/pending-review')
+  @UseGuards(StaffHrDocsViewGuard)
+  pendingReview(@Req() req: Request & { staffUser?: StaffJwtPayload }) {
+    return this.wallet.listPendingReview(req.staffUser);
+  }
+
+  @Get('wallet/export/accounting.xlsx')
+  @UseGuards(StaffHrDocsViewGuard)
+  async exportAccounting(
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } = await this.wallet.exportAccountingXlsx(req.staffUser);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
   }
 
   @Get('staff/wallet-roster-stats')
@@ -102,6 +126,28 @@ export class HrDocWalletController {
     @Body() body: PatchHrDocWalletCardBody,
   ) {
     return this.wallet.patchCard(req.staffUser, Number(id), Number(cardId), body);
+  }
+
+  @Patch('staff/:id/wallet/:cardId/approve')
+  @UseGuards(StaffHrDocsApproveGuard)
+  approveCard(
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+    @Param('id') id: string,
+    @Param('cardId') cardId: string,
+    @Body() body: ApproveHrDocWalletCardBody,
+  ) {
+    return this.wallet.approveCard(req.staffUser, Number(id), Number(cardId), body);
+  }
+
+  @Patch('staff/:id/wallet/:cardId/reject')
+  @UseGuards(StaffHrDocsApproveGuard)
+  rejectCard(
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+    @Param('id') id: string,
+    @Param('cardId') cardId: string,
+    @Body() body: RejectHrDocWalletCardBody,
+  ) {
+    return this.wallet.rejectCard(req.staffUser, Number(id), Number(cardId), body);
   }
 
   @Post('staff/:id/wallet/:cardId/files')

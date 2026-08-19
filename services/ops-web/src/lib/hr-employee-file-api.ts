@@ -212,7 +212,11 @@ export interface HrDocWalletCardDto {
   issued_on: string | null;
   expires_on: string | null;
   status: string;
-  pinned: boolean;
+  visibility?: string;
+  pinned?: boolean;
+  submitted_by?: string;
+  reviewed_by?: string;
+  reviewed_at?: string | null;
   file_count: number;
   files: HrDocWalletFileDto[];
   education?: {
@@ -630,4 +634,158 @@ export async function fetchHrHubExpirySummary(token: string): Promise<HrHubExpir
   const body = await parseJson<{ ok: true; summary: HrHubExpirySummaryDto; error?: string }>(res);
   if (!res.ok) throw new ApiError(body.error ?? 'Không tải cảnh báo hết hạn', res.status);
   return body.summary;
+}
+
+export interface HrPendingWalletItemDto extends HrDocWalletCardDto {
+  staff_id: number;
+  staff_name: string;
+  internal_code: string;
+}
+
+export async function fetchHrMyWalletSubmitTypes(token: string): Promise<{ types: HrDocTypeDto[] }> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/me/wallet/types`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<{ ok: true; types: HrDocTypeDto[]; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải loại giấy tờ', res.status);
+  return { types: body.types ?? [] };
+}
+
+export async function fetchHrMyWallet(token: string): Promise<{
+  staff_id: number;
+  cards: HrDocWalletCardDto[];
+  wallet_pct: number;
+  expiring_count: number;
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/me/wallet`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<{
+    ok: true;
+    staff_id: number;
+    cards: HrDocWalletCardDto[];
+    wallet_pct: number;
+    expiring_count: number;
+    error?: string;
+  }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải ví của tôi', res.status);
+  return {
+    staff_id: body.staff_id,
+    cards: body.cards ?? [],
+    wallet_pct: body.wallet_pct ?? 0,
+    expiring_count: body.expiring_count ?? 0,
+  };
+}
+
+export async function submitHrMyWalletCard(
+  token: string,
+  payload: Record<string, unknown>,
+): Promise<HrDocWalletCardDto> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/me/wallet`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+  const body = await parseJson<{ ok: true; card: HrDocWalletCardDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Nộp thẻ thất bại', res.status);
+  return body.card;
+}
+
+export async function uploadHrMyWalletFile(token: string, cardId: number, file: File): Promise<HrDocWalletFileDto> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${API_BASE}/api/v1/hr/me/wallet/${cardId}/files`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  const body = await parseJson<{ ok: true; file: HrDocWalletFileDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Upload thất bại', res.status);
+  return body.file;
+}
+
+export function hrMyWalletFileUrl(cardId: number, fileId: number): string {
+  return `${API_BASE}/api/v1/hr/me/wallet/${cardId}/files/${fileId}`;
+}
+
+export async function openHrMyWalletFile(token: string, cardId: number, fileId: number): Promise<void> {
+  const res = await fetch(hrMyWalletFileUrl(cardId, fileId), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new ApiError('Không mở được file', res.status);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank', 'noopener,noreferrer');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export async function fetchHrPendingWalletReview(token: string): Promise<{
+  items: HrPendingWalletItemDto[];
+  pending_count: number;
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/wallet/pending-review`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<{
+    ok: true;
+    items: HrPendingWalletItemDto[];
+    pending_count: number;
+    error?: string;
+  }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải hàng chờ duyệt', res.status);
+  return { items: body.items ?? [], pending_count: body.pending_count ?? 0 };
+}
+
+export async function approveHrWalletCard(
+  token: string,
+  staffId: number,
+  cardId: number,
+  notes?: string,
+): Promise<HrDocWalletCardDto> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/wallet/${cardId}/approve`, {
+    method: 'PATCH',
+    headers: authHeaders(token),
+    body: JSON.stringify({ notes: notes ?? '' }),
+  });
+  const body = await parseJson<{ ok: true; card: HrDocWalletCardDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Duyệt thẻ thất bại', res.status);
+  return body.card;
+}
+
+export async function rejectHrWalletCard(
+  token: string,
+  staffId: number,
+  cardId: number,
+  notes?: string,
+): Promise<HrDocWalletCardDto> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/staff/${staffId}/wallet/${cardId}/reject`, {
+    method: 'PATCH',
+    headers: authHeaders(token),
+    body: JSON.stringify({ notes: notes ?? '' }),
+  });
+  const body = await parseJson<{ ok: true; card: HrDocWalletCardDto; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Từ chối thẻ thất bại', res.status);
+  return body.card;
+}
+
+export async function downloadHrWalletAccountingXlsx(token: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/hr/wallet/export/accounting.xlsx`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string }>(res);
+    throw new ApiError(body.error ?? 'Export thất bại', res.status);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `hr-wallet-accounting-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

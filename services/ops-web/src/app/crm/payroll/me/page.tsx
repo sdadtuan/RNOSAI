@@ -96,7 +96,9 @@ export default function PayslipMePage() {
     >
       {error ? <p className="form-error">{error}</p> : null}
       <p className="muted">
-        Dữ liệu gắn hồ sơ CRM staff của bạn. Cần hỗ trợ kế toán?{' '}
+        Dữ liệu gắn hồ sơ CRM staff của bạn.{' '}
+        <Link href="/crm/hr/my-wallet">Ví giấy tờ của tôi</Link>
+        {' · '}
         <Link href="/crm/payroll">Bảng lương phòng HR</Link>.
       </p>
       <div className="table-wrap">

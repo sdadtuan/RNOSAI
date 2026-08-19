@@ -34,7 +34,7 @@ export function computeWalletCompleteness(
       (c) =>
         c.type_code === type.type_code &&
         c.file_count > 0 &&
-        !['revoked', 'replaced', 'expired'].includes(String(c.status)),
+        !['revoked', 'replaced', 'expired', 'pending_review'].includes(String(c.status)),
     );
     if (has) ok += 1;
   }

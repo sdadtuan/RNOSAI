@@ -5,7 +5,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CrmHrPageShell } from '@/components/crm/CrmHrPageShell';
 import { HrHubExpiryWidgets } from '@/components/hr/HrHubExpiryWidgets';
+import { HrPendingWalletQueue } from '@/components/hr/HrPendingWalletQueue';
 import { buildHrHubGroups, canViewHrHub } from '@/lib/crm/hr-hub';
+import { downloadHrWalletAccountingXlsx } from '@/lib/hr-employee-file-api';
+import { hasCap } from '@/lib/auth';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -85,6 +88,22 @@ export default function CrmHrHubPage() {
       <div className="page-card stack-gap">
         {error ? <p className="error">{error}</p> : null}
         {token && user && !error ? <HrHubExpiryWidgets token={token} /> : null}
+        {token && user && !error ? <HrPendingWalletQueue token={token} user={user} /> : null}
+        {token && user && hasCap(user, 'crm_hr_docs', 'view') ? (
+          <p>
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              onClick={() =>
+                void downloadHrWalletAccountingXlsx(token).catch((err) =>
+                  setError(err instanceof Error ? err.message : 'Export thất bại'),
+                )
+              }
+            >
+              Export Excel ví + NPT (kế toán)
+            </button>
+          </p>
+        ) : null}
         {!error && groups.length === 0 && user ? (
           <p className="muted">Chưa có workspace HR nào khả dụng với quyền hiện tại.</p>
         ) : null}

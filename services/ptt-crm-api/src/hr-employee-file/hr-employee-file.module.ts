@@ -31,6 +31,12 @@ import { HrInsuranceService } from './hr-insurance.service';
 import { HrLaborContractController } from './hr-labor-contract.controller';
 import { HrLaborContractRepository } from './hr-labor-contract.repository';
 import { HrLaborContractService } from './hr-labor-contract.service';
+import {
+  StaffHrDocsApproveGuard,
+  StaffHrWalletSelfGuard,
+} from './guards/staff-hr-docs-approve.guard';
+import { HrDocWalletMeController } from './hr-doc-wallet-me.controller';
+import { HrDocWalletMeService } from './hr-doc-wallet-me.service';
 import { HrDocWalletController } from './hr-doc-wallet.controller';
 import { HrDocWalletRepository } from './hr-doc-wallet.repository';
 import { HrDocWalletService } from './hr-doc-wallet.service';
@@ -51,6 +57,7 @@ import { HrStaffP5Service } from './hr-staff-p5.service';
     HrDependentController,
     HrLifecycleController,
     HrHubController,
+    HrDocWalletMeController,
   ],
   providers: [
     HrEmployeeFileRepository,
@@ -61,6 +68,7 @@ import { HrStaffP5Service } from './hr-staff-p5.service';
     HrStaffP5Repository,
     HrEmployeeFileService,
     HrDocWalletService,
+    HrDocWalletMeService,
     HrLaborContractService,
     HrInsuranceService,
     HrStaffP5Service,
@@ -76,6 +84,8 @@ import { HrStaffP5Service } from './hr-staff-p5.service';
     StaffHrDocsDownloadGuard,
     StaffHrDependentViewGuard,
     StaffHrDependentEditGuard,
+    StaffHrDocsApproveGuard,
+    StaffHrWalletSelfGuard,
   ],
   exports: [
     HrEmployeeFileRepository,
