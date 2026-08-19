@@ -8,6 +8,7 @@ import {
   createHrLaborContract,
   fetchHrLaborContracts,
   fetchHrStaffWallet,
+  patchHrLaborContract,
   type HrActiveContractSummaryDto,
   type HrDocWalletCardDto,
   type HrLaborAppendixDto,
