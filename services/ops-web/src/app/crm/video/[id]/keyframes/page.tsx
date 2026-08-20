@@ -23,9 +23,9 @@ import {
   type VdShotRow,
 } from '@/lib/video-sop-api';
 
-const S4_BANNER = 'S4 — Keyframe thử theo shot. Gate 2 vẫn S5.';
+const S5_BANNER = 'S5 — Keyframe thử theo shot. Gate 2 review SC-10.';
 const EMPTY_KEYFRAMES = 'Chưa có keyframe — tạo job thử (S4).';
-const GATE_LABEL = 'Gate 2 — S5';
+const GATE_LABEL = 'Gate 2 — SC-10';
 const ENQUEUE_LABEL = 'Tạo keyframe cho shot';
 
 function canViewVideoSop(user: StoredStaffUser | null): boolean {
@@ -224,7 +224,7 @@ export default function CrmVideoSopKeyframesPage() {
             background: 'rgba(15, 23, 42, 0.04)',
           }}
         >
-          {S4_BANNER}
+          {S5_BANNER}
         </p>
         <p style={{ margin: 0 }}>
           <Link href={`/crm/video/${projectId}`} className="nav-link">
@@ -316,6 +316,9 @@ export default function CrmVideoSopKeyframesPage() {
 
           <section>
             <p style={{ marginTop: 0, fontWeight: 600 }}>{GATE_LABEL}</p>
+            <Link href={`/crm/video/${projectId}/gates/2`} className="nav-link">
+              Mở Gate 2 review →
+            </Link>
           </section>
         </div>
       </div>

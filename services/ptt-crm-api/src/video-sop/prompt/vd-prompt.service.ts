@@ -147,4 +147,16 @@ export class VdPromptService {
 
     return { id: row.id, status: 'queued' };
   }
+
+  async approveKeyframe(shotId: number): Promise<VdShotRow> {
+    assertCinematicEnabled(this.config);
+    const shot = await this.requireShot(shotId);
+    if (shot.status !== 'keyframe_pending' && shot.status !== 'prompts_ready') {
+      throw new Error('invalid_body');
+    }
+    await this.shots.updateStatus(shotId, 'keyframe_approved');
+    const updated = await this.shots.getById(shotId);
+    if (!updated) throw new Error('vd_shot_not_found');
+    return updated;
+  }
 }

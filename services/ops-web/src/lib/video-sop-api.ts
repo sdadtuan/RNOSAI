@@ -38,6 +38,30 @@ export function canEditVdKeyframe(user: StoredStaffUser | null): boolean {
   );
 }
 
+/** Same cap as API POST gate 1 approve/reject/override. */
+export function canApproveGate1(user: StoredStaffUser | null): boolean {
+  return (
+    hasCap(user, 'crm_vd.gate1', 'approve') ||
+    hasCap(user, 'crm_vd.project', 'edit') ||
+    hasCap(user, 'crm_content', 'write')
+  );
+}
+
+/** Same cap as API POST gate 2 approve/reject/override. */
+export function canApproveGate2(user: StoredStaffUser | null): boolean {
+  return (
+    hasCap(user, 'crm_vd.gate2', 'approve') ||
+    hasCap(user, 'crm_vd.project', 'edit') ||
+    hasCap(user, 'crm_content', 'write')
+  );
+}
+
+export function canApproveVdGate(user: StoredStaffUser | null, gateNo: number): boolean {
+  if (gateNo === 1) return canApproveGate1(user);
+  if (gateNo === 2) return canApproveGate2(user);
+  return false;
+}
+
 export type VdProjectRow = {
   id: number;
   lifecycle_id: number;
@@ -123,6 +147,30 @@ export function vdProjectShotsPath(projectId: number | string): string {
 
 export function vdProjectKeyframesPath(projectId: number | string): string {
   return `/api/v1/vd/projects/${encodeURIComponent(String(projectId))}/keyframes`;
+}
+
+export function vdProjectGatePath(projectId: number | string, gateNo: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(projectId))}/gates/${encodeURIComponent(String(gateNo))}`;
+}
+
+export function vdProjectGateApprovePath(projectId: number | string, gateNo: number | string): string {
+  return `${vdProjectGatePath(projectId, gateNo)}/approve`;
+}
+
+export function vdProjectGateRejectPath(projectId: number | string, gateNo: number | string): string {
+  return `${vdProjectGatePath(projectId, gateNo)}/reject`;
+}
+
+export function vdProjectShotlistReadyPath(projectId: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(projectId))}/shotlist/ready`;
+}
+
+export function vdProjectStagePath(projectId: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(projectId))}/stage`;
+}
+
+export function vdShotApproveKeyframePath(shotId: number | string): string {
+  return `/api/v1/vd/shots/${encodeURIComponent(String(shotId))}/approve-keyframe`;
 }
 
 export function vdProjectListPath(lifecycleId: number | string): string {
@@ -241,6 +289,20 @@ export type VdKeyframeAssetRow = {
   height: number | null;
   duration_ms: number | null;
   created_at: string;
+};
+
+export type VdGateChecklistItem = {
+  id: string;
+  label: string;
+  ok: boolean;
+};
+
+export type VdGateView = {
+  project_id: number;
+  gate_no: number;
+  status: string;
+  stage: string;
+  checklist: VdGateChecklistItem[];
 };
 
 export type AddVdShotBody = {
@@ -557,6 +619,69 @@ export async function createVdAdminModel(
   });
 }
 
+export async function getVdGate(
+  token: string,
+  projectId: number | string,
+  gateNo: number,
+): Promise<VdGateView> {
+  return vdFetch<VdGateView>(token, vdProjectGatePath(projectId, gateNo));
+}
+
+export async function approveVdGate(
+  token: string,
+  projectId: number | string,
+  gateNo: number,
+  body: { override?: boolean; override_reason?: string } = {},
+): Promise<VdGateView> {
+  return vdFetch<VdGateView>(token, vdProjectGateApprovePath(projectId, gateNo), {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function rejectVdGate(
+  token: string,
+  projectId: number | string,
+  gateNo: number,
+  body: { reason: string },
+): Promise<VdGateView> {
+  return vdFetch<VdGateView>(token, vdProjectGateRejectPath(projectId, gateNo), {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function markVdShotlistReady(
+  token: string,
+  projectId: number | string,
+): Promise<VdProjectRow> {
+  return vdFetch<VdProjectRow>(token, vdProjectShotlistReadyPath(projectId), {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function advanceVdStage(
+  token: string,
+  projectId: number | string,
+  stage: string,
+): Promise<VdProjectRow> {
+  return vdFetch<VdProjectRow>(token, vdProjectStagePath(projectId), {
+    method: 'POST',
+    body: JSON.stringify({ stage }),
+  });
+}
+
+export async function approveVdShotKeyframe(
+  token: string,
+  shotId: number | string,
+): Promise<VdShotRow> {
+  return vdFetch<VdShotRow>(token, vdShotApproveKeyframePath(shotId), {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export const VIDEO_SOP_API = {
   createProject: createVdProject,
   listProjects: listVdProjects,
@@ -586,4 +711,10 @@ export const VIDEO_SOP_API = {
   createAdminProvider: createVdAdminProvider,
   listAdminModels: listVdAdminModels,
   createAdminModel: createVdAdminModel,
+  getGate: getVdGate,
+  approveGate: approveVdGate,
+  rejectGate: rejectVdGate,
+  markShotlistReady: markVdShotlistReady,
+  advanceStage: advanceVdStage,
+  approveShotKeyframe: approveVdShotKeyframe,
 };

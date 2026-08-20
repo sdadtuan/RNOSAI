@@ -79,4 +79,15 @@ export class VdPromptController {
       mapKnownError(err);
     }
   }
+
+  @Post('shots/:id/approve-keyframe')
+  @HttpCode(200)
+  @UseGuards(StaffVdKeyframeEditGuard)
+  async approveKeyframe(@Param('id', ParseIntPipe) id: number) {
+    try {
+      return await this.prompts.approveKeyframe(id);
+    } catch (err) {
+      mapKnownError(err);
+    }
+  }
 }

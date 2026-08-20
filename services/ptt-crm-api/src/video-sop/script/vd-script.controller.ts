@@ -24,6 +24,7 @@ const HTTP_400 = new Set([
   'invalid_body',
   'idempotency_key_required',
   'feasibility_blocked',
+  'shotlist_immutable',
 ]);
 
 function mapKnownError(err: unknown): never {

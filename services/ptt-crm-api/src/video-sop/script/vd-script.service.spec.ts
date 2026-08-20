@@ -16,10 +16,19 @@ function makeScriptService(opts?: { cinematic?: boolean }) {
   const shots = new VdShotRepository(config as never);
   jest.spyOn(shots, 'ensurePgReady').mockResolvedValue(false);
   const dispatcher = { enqueue: jest.fn() };
+  const gateService = { isShotlistImmutable: jest.fn().mockResolvedValue(false) };
   return {
-    service: new VdScriptService(config as never, projects, ideas, shots, dispatcher as never),
+    service: new VdScriptService(
+      config as never,
+      projects,
+      ideas,
+      shots,
+      dispatcher as never,
+      gateService as never,
+    ),
     projects,
     shots,
+    gateService,
   };
 }
 

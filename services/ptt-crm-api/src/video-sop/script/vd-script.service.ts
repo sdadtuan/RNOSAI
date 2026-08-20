@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AppConfigService } from '../../config/app-config.service';
+import { VdGateService } from '../gate/vd-gate.service';
 import { parseIdeaSummaries, selectTextGen, STUB_IDEAS } from '../adapters/i-text-gen';
 import { VdDispatcherService } from '../orchestration/vd-dispatcher.service';
 import type { VdScriptRow } from '../project/vd-project.repository';
@@ -100,6 +101,7 @@ export class VdScriptService {
     private readonly ideas: VdIdeaRepository,
     private readonly shots: VdShotRepository,
     private readonly dispatcher: VdDispatcherService,
+    private readonly gateService: VdGateService,
   ) {}
 
   private async requireProject(id: number) {
@@ -219,6 +221,10 @@ export class VdScriptService {
     assertCinematicEnabled(this.config);
     if (body == null || typeof body !== 'object' || Array.isArray(body)) {
       throw new Error('invalid_body');
+    }
+    const script = await this.requireScript(scriptId);
+    if (await this.gateService.isShotlistImmutable(script.project_id)) {
+      throw new Error('shotlist_immutable');
     }
     if (Array.isArray(body.shots)) {
       const script = await this.requireScript(scriptId);

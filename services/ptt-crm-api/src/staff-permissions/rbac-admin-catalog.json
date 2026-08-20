@@ -224,6 +224,14 @@
       "view",
       "edit"
     ],
+    "crm_vd.gate1": [
+      "view",
+      "approve"
+    ],
+    "crm_vd.gate2": [
+      "view",
+      "approve"
+    ],
     "crm_vd.admin": [
       "view",
       "create"
@@ -946,6 +954,20 @@
       "group": "CRM — Triển khai dịch vụ",
       "page": "/crm/video",
       "description": "Keyframe workbench SC-06 (Module 7 S4)."
+    },
+    {
+      "id": "crm_vd.gate1",
+      "label": "Video SOP — Gate 1",
+      "group": "CRM — Triển khai dịch vụ",
+      "page": "/crm/video",
+      "description": "Gate 1 shotlist review SC-10 (Module 7 S5)."
+    },
+    {
+      "id": "crm_vd.gate2",
+      "label": "Video SOP — Gate 2",
+      "group": "CRM — Triển khai dịch vụ",
+      "page": "/crm/video",
+      "description": "Gate 2 keyframe review SC-10 (Module 7 S5)."
     },
     {
       "id": "crm_vd.admin",
@@ -1739,6 +1761,8 @@
     "crm_vd.script",
     "crm_vd.bible",
     "crm_vd.keyframe",
+    "crm_vd.gate1",
+    "crm_vd.gate2",
     "crm_vd.admin",
     "crm_research",
     "crm_owner_weekly_dashboard",

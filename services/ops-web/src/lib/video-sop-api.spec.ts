@@ -6,6 +6,9 @@ import {
   canEditVdKeyframe,
   canEditVdScript,
   canEnqueueVdJob,
+  canApproveGate1,
+  canApproveGate2,
+  canApproveVdGate,
   saveVdScript,
   vdAdminModelsPath,
   vdAdminProvidersPath,
@@ -16,14 +19,20 @@ import {
   vdProjectBriefReadyPath,
   vdProjectCreatePath,
   vdProjectGetPath,
+  vdProjectGateApprovePath,
+  vdProjectGatePath,
+  vdProjectGateRejectPath,
   vdProjectIdeasGeneratePath,
   vdProjectIdeasPath,
   vdProjectJobsPath,
   vdProjectKeyframesPath,
   vdProjectScriptsPath,
   vdProjectShotsPath,
+  vdProjectShotlistReadyPath,
+  vdProjectStagePath,
   vdPromptTemplatesPath,
   vdScriptShotsPath,
+  vdShotApproveKeyframePath,
   vdShotJobsPath,
   sc04AddShotPayload,
 } from './video-sop-api';
@@ -110,6 +119,30 @@ describe('video-sop-api path helpers', () => {
   it('vdProjectKeyframesPath interpolates id', () => {
     expect(vdProjectKeyframesPath(7)).toBe('/api/v1/vd/projects/7/keyframes');
   });
+
+  it('vdProjectGatePath interpolates id and gate', () => {
+    expect(vdProjectGatePath(7, 1)).toBe('/api/v1/vd/projects/7/gates/1');
+  });
+
+  it('vdProjectGateApprovePath interpolates id and gate', () => {
+    expect(vdProjectGateApprovePath(7, 2)).toBe('/api/v1/vd/projects/7/gates/2/approve');
+  });
+
+  it('vdProjectGateRejectPath interpolates id and gate', () => {
+    expect(vdProjectGateRejectPath(7, 1)).toBe('/api/v1/vd/projects/7/gates/1/reject');
+  });
+
+  it('vdProjectShotlistReadyPath interpolates id', () => {
+    expect(vdProjectShotlistReadyPath(7)).toBe('/api/v1/vd/projects/7/shotlist/ready');
+  });
+
+  it('vdProjectStagePath interpolates id', () => {
+    expect(vdProjectStagePath(7)).toBe('/api/v1/vd/projects/7/stage');
+  });
+
+  it('vdShotApproveKeyframePath interpolates id', () => {
+    expect(vdShotApproveKeyframePath(5)).toBe('/api/v1/vd/shots/5/approve-keyframe');
+  });
 });
 
 describe('canEditVdBrief (same as API PUT/ready)', () => {
@@ -181,6 +214,50 @@ describe('canEditVdBible (same as API PUT bibles)', () => {
 
   it('denies null user', () => {
     expect(canEditVdBible(null)).toBe(false);
+  });
+});
+
+describe('canApproveGate1 (same as API gate 1 approve)', () => {
+  it('allows crm_vd.gate1 approve', () => {
+    expect(canApproveGate1(staff([{ section: 'crm_vd.gate1', action: 'approve' }]))).toBe(true);
+  });
+
+  it('allows crm_vd.project edit', () => {
+    expect(canApproveGate1(staff([{ section: 'crm_vd.project', action: 'edit' }]))).toBe(true);
+  });
+
+  it('denies null user', () => {
+    expect(canApproveGate1(null)).toBe(false);
+  });
+});
+
+describe('canApproveGate2 (same as API gate 2 approve)', () => {
+  it('allows crm_vd.gate2 approve', () => {
+    expect(canApproveGate2(staff([{ section: 'crm_vd.gate2', action: 'approve' }]))).toBe(true);
+  });
+
+  it('denies gate1 approve only', () => {
+    expect(canApproveGate2(staff([{ section: 'crm_vd.gate1', action: 'approve' }]))).toBe(false);
+  });
+});
+
+describe('canApproveVdGate', () => {
+  it('routes gate 1 to gate1 cap', () => {
+    expect(
+      canApproveVdGate(staff([{ section: 'crm_vd.gate1', action: 'approve' }]), 1),
+    ).toBe(true);
+  });
+
+  it('routes gate 2 to gate2 cap', () => {
+    expect(
+      canApproveVdGate(staff([{ section: 'crm_vd.gate2', action: 'approve' }]), 2),
+    ).toBe(true);
+  });
+
+  it('denies unknown gate', () => {
+    expect(canApproveVdGate(staff([{ section: 'crm_vd.gate1', action: 'approve' }]), 3)).toBe(
+      false,
+    );
   });
 });
 
