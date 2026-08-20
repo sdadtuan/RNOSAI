@@ -363,7 +363,11 @@ ALTER TABLE cmkt_content_jobs ADD CONSTRAINT cmkt_content_jobs_type_check CHECK 
         'image_generate',
         'carousel_slides_generate',
         'video_short_generate',
-        'visual_qa_score'
+        'visual_qa_score',
+        'social_storyboard',
+        'social_render',
+        'social_transcode',
+        'social_qa'
     )
 );
 

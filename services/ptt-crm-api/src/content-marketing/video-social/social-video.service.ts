@@ -9,7 +9,7 @@ import {
 import { spawnSync } from 'child_process';
 import { copyFile, mkdir, readFile, rm, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { AppConfigService } from '../../config/app-config.service';
 import { ContentJobWorkerService } from '../content-job-worker.service';
 import { ContentMediaStockProvider } from '../content-media-stock.provider';
@@ -44,6 +44,8 @@ import {
   lockVideoStudio,
 } from './social-studio.util';
 import { scoreMaster } from './social-video-qa.service';
+
+const LOCAL_MEDIA_ROOT = '/tmp/cmkt-media';
 
 const SOCIAL_STEPS: CmktVideoGenerationProgress['steps'] = {
   script: 'pending',
@@ -245,6 +247,7 @@ export class SocialVideoService {
       contentType: 'audio/mpeg',
       fileExt: 'mp3',
     });
+    await this.persistLocalAsset(ttsUpload.storageKey, ttsResult.audioBuffer);
     await this.safeInsertLicense({
       lifecycleId: job.lifecycle_id,
       itemId: item.id,
@@ -341,7 +344,7 @@ export class SocialVideoService {
 
     try {
       const voicePath = join(workDir, 'voice.mp3');
-      await this.materializeFile(storyboard.tts.url, voicePath);
+      await this.materializeVoice(storyboard, voicePath);
 
       const clipPaths: string[] = [];
       for (let i = 0; i < storyboard.beats.length; i++) {
@@ -371,14 +374,16 @@ export class SocialVideoService {
         height: spec.height,
       });
 
+      const masterBuffer = await readFile(masterPath);
       const masterUpload = await this.storage.uploadAsset({
         lifecycleId: job.lifecycle_id,
         itemId: item.id,
         assetId: `master-${job.id}`,
-        buffer: await readFile(masterPath),
+        buffer: masterBuffer,
         contentType: 'video/mp4',
         fileExt: 'mp4',
       });
+      await this.persistLocalAsset(masterUpload.storageKey, masterBuffer);
       const posterExt = posterPath.toLowerCase().endsWith('.jpg') ? 'jpg' : 'webp';
       const posterUpload = await this.storage.uploadAsset({
         lifecycleId: job.lifecycle_id,
@@ -656,7 +661,7 @@ export class SocialVideoService {
 
     try {
       const voicePath = join(workDir, 'voice.mp3');
-      await this.materializeFile(storyboard.tts.url, voicePath);
+      await this.materializeVoice(storyboard, voicePath);
 
       const clipPaths: string[] = [];
       for (let i = 0; i < storyboard.beats.length; i++) {
@@ -756,7 +761,52 @@ export class SocialVideoService {
     return finished ?? job;
   }
 
-  private async materializeFile(url: string, dest: string): Promise<void> {
+  private async persistLocalAsset(storageKey: string, buffer: Buffer): Promise<void> {
+    const dest = join(LOCAL_MEDIA_ROOT, storageKey);
+    await mkdir(dirname(dest), { recursive: true });
+    await writeFile(dest, buffer);
+  }
+
+  private async materializeVoice(
+    storyboard: CmktVideoStoryboard,
+    dest: string,
+  ): Promise<void> {
+    try {
+      await this.materializeFile(storyboard.tts.url, dest, storyboard.tts.storage_key);
+      return;
+    } catch (err) {
+      this.logger.warn(
+        `voice download failed, synthesizing fallback: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    const duration = Math.max(2, Math.min(60, Number(storyboard.tts.duration_sec) || 8));
+    const result = spawnSync(
+      this.config.contentMarketingFfmpegBin,
+      [
+        '-y',
+        '-f',
+        'lavfi',
+        '-i',
+        `sine=frequency=440:duration=${duration}`,
+        '-ac',
+        '1',
+        dest,
+      ],
+      { encoding: 'utf8', timeout: 30_000 },
+    );
+    if (result.error || result.status !== 0 || !existsSync(dest)) {
+      throw new Error('voice_missing');
+    }
+  }
+
+  private async materializeFile(url: string, dest: string, storageKey?: string): Promise<void> {
+    if (storageKey) {
+      const cached = join(LOCAL_MEDIA_ROOT, storageKey);
+      if (existsSync(cached)) {
+        await copyFile(cached, dest);
+        return;
+      }
+    }
     if (!url) {
       throw new Error('download_url_missing');
     }
@@ -765,11 +815,25 @@ export class SocialVideoService {
       await copyFile(local, dest);
       return;
     }
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`download_failed:${res.status}`);
+    try {
+      const pathname = new URL(url).pathname.replace(/^\//, '');
+      const cachedFromUrl = join(LOCAL_MEDIA_ROOT, pathname);
+      if (existsSync(cachedFromUrl)) {
+        await copyFile(cachedFromUrl, dest);
+        return;
+      }
+    } catch {
+      /* not a URL */
     }
-    await writeFile(dest, Buffer.from(await res.arrayBuffer()));
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`download_failed:${res.status}`);
+      }
+      await writeFile(dest, Buffer.from(await res.arrayBuffer()));
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : 'fetch failed');
+    }
   }
 
   private async safeInsertLicense(
