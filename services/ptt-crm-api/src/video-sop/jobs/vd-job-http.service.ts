@@ -51,6 +51,10 @@ export class VdJobHttpService {
       mapKnownError(err);
     }
 
+    if (body == null || typeof body !== 'object' || Array.isArray(body)) {
+      throw new BadRequestException({ error: 'invalid_body', message: 'invalid_body' });
+    }
+
     const jobType = body.job_type;
     if (!isVdQueue(body.queue) || typeof jobType !== 'string' || !jobType.trim()) {
       throw new BadRequestException({ error: 'invalid_body', message: 'invalid_body' });
