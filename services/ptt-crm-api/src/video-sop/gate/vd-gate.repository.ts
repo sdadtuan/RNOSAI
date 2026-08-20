@@ -199,4 +199,53 @@ export class VdGateRepository implements OnModuleDestroy {
       created_at: new Date().toISOString(),
     });
   }
+
+  async countReworks(projectId: number): Promise<number> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT COUNT(*)::int AS c FROM vd_rework_items WHERE project_id = $1`,
+        [projectId],
+      );
+      return Number((res.rows[0] as { c?: unknown }).c ?? 0);
+    }
+    return this.memory.reworks.filter((row) => row.project_id === projectId).length;
+  }
+
+  async countOverrides(projectId: number): Promise<number> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT COUNT(*)::int AS c
+         FROM vd_approvals a
+         INNER JOIN vd_gates g ON g.id = a.gate_id
+         WHERE g.project_id = $1 AND a.action = 'override'`,
+        [projectId],
+      );
+      return Number((res.rows[0] as { c?: unknown }).c ?? 0);
+    }
+    const gateIds = new Set(
+      this.memory.gates.filter((g) => g.project_id === projectId).map((g) => g.id),
+    );
+    return this.memory.approvals.filter(
+      (row) => gateIds.has(row.gate_id) && row.action === 'override',
+    ).length;
+  }
+
+  async countApprovals(projectId: number): Promise<number> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT COUNT(*)::int AS c
+         FROM vd_approvals a
+         INNER JOIN vd_gates g ON g.id = a.gate_id
+         WHERE g.project_id = $1 AND a.action IN ('approve', 'override')`,
+        [projectId],
+      );
+      return Number((res.rows[0] as { c?: unknown }).c ?? 0);
+    }
+    const gateIds = new Set(
+      this.memory.gates.filter((g) => g.project_id === projectId).map((g) => g.id),
+    );
+    return this.memory.approvals.filter(
+      (row) => gateIds.has(row.gate_id) && (row.action === 'approve' || row.action === 'override'),
+    ).length;
+  }
 }

@@ -42,6 +42,9 @@ import { VdReviewController } from './review/vd-review.controller';
 import { VdReviewService } from './review/vd-review.service';
 import { VdReviewRepository } from './review/vd-review.repository';
 import { VdPublicReviewController } from './review/vd-public-review.controller';
+import { VdReportController } from './report/vd-report.controller';
+import { VdReportService } from './report/vd-report.service';
+import { VdBenchmarkRepository } from './report/vd-benchmark.repository';
 import { VdPromptController } from './prompt/vd-prompt.controller';
 import { VdPromptRepository } from './prompt/vd-prompt.repository';
 import { VdPromptService } from './prompt/vd-prompt.service';
@@ -76,6 +79,7 @@ import { VdShotRepository } from './script/vd-shot.repository';
     VdDeliveryController,
     VdReviewController,
     VdPublicReviewController,
+    VdReportController,
   ],
   providers: [
     VdProjectRepository,
@@ -102,6 +106,8 @@ import { VdShotRepository } from './script/vd-shot.repository';
     VdDeliveryService,
     VdReviewRepository,
     VdReviewService,
+    VdReportService,
+    VdBenchmarkRepository,
     VdDispatcherService,
     VdPollerService,
     VdJobHttpService,

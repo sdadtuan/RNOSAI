@@ -155,6 +155,13 @@ function CrmVideoSopListContent() {
       subtitle="Dự án video chiến dịch (SC-01)"
     >
       <div className="page-card stack-gap">
+        {hasLifecycle ? (
+          <p style={{ margin: 0 }}>
+            <Link href={`/crm/video/dashboard?lifecycle_id=${lifecycleId}`} className="nav-link">
+              Production dashboard (SC-16)
+            </Link>
+          </p>
+        ) : null}
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
 

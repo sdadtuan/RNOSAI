@@ -270,6 +270,10 @@ export function vdReviewLinksPath(): string {
   return '/api/v1/vd/review-links';
 }
 
+export function vdProductionReportPath(lifecycleId: number | string): string {
+  return `/api/v1/vd/reports/production?lifecycle_id=${encodeURIComponent(String(lifecycleId))}`;
+}
+
 export function vdShotTakeScorePath(shotId: number | string): string {
   return `/api/v1/vd/shots/${encodeURIComponent(String(shotId))}/take-score`;
 }
@@ -509,6 +513,19 @@ export type VdReviewLinkView = {
   expires_at: string;
   watermark_label: string;
   portal_path: string;
+};
+
+export type VdProductionMetricRow = {
+  metric: string;
+  value: number;
+  target: { label: string; direction: 'min' | 'max'; threshold: number };
+  on_track: boolean;
+};
+
+export type VdProductionReport = {
+  lifecycle_id: number;
+  project_count: number;
+  metrics: VdProductionMetricRow[];
 };
 
 export type AddVdShotBody = {
@@ -944,6 +961,13 @@ export async function createVdReviewLink(
   });
 }
 
+export async function getVdProductionReport(
+  token: string,
+  lifecycleId: number | string,
+): Promise<VdProductionReport> {
+  return vdFetch<VdProductionReport>(token, vdProductionReportPath(lifecycleId));
+}
+
 export async function enqueueVdJob(
   token: string,
   projectId: number | string,
@@ -1095,6 +1119,7 @@ export const VIDEO_SOP_API = {
   getDelivery: getVdDelivery,
   createDeliveryPackage: createVdDeliveryPackage,
   createReviewLink: createVdReviewLink,
+  getProductionReport: getVdProductionReport,
   listPromptTemplates: listVdPromptTemplates,
   listJobs: listVdJobs,
   enqueueJob: enqueueVdJob,

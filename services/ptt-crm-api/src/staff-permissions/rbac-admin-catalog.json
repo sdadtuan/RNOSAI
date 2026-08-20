@@ -256,6 +256,9 @@
       "view",
       "edit"
     ],
+    "crm_vd.report": [
+      "view"
+    ],
     "crm_vd.admin": [
       "view",
       "create"
@@ -1034,6 +1037,13 @@
       "group": "CRM — Triển khai dịch vụ",
       "page": "/crm/video",
       "description": "Editor package SC-13 (Module 7 S9)."
+    },
+    {
+      "id": "crm_vd.report",
+      "label": "Video SOP — Production report",
+      "group": "CRM — Triển khai dịch vụ",
+      "page": "/crm/video/dashboard",
+      "description": "Production dashboard SC-16 (Module 7 S10)."
     },
     {
       "id": "crm_vd.admin",
@@ -1835,6 +1845,7 @@
     "crm_vd.post",
     "crm_vd.qc",
     "crm_vd.delivery",
+    "crm_vd.report",
     "crm_vd.admin",
     "crm_research",
     "crm_owner_weekly_dashboard",

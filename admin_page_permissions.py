@@ -236,6 +236,13 @@ ADMIN_CRM_SECTIONS: tuple[dict[str, Any], ...] = (
         "description": "Editor package SC-13 (Module 7 S9).",
     },
     {
+        "id": "crm_vd.report",
+        "label": "Video SOP — Production report",
+        "group": "CRM — Triển khai dịch vụ",
+        "page": "/crm/video/dashboard",
+        "description": "Production dashboard SC-16 (Module 7 S10).",
+    },
+    {
         "id": "crm_vd.admin",
         "label": "Video SOP — Providers",
         "group": "CRM — Admin",
@@ -693,6 +700,7 @@ _POSITION_DEFAULT: dict[str, dict[str, frozenset[str]]] = {
         "crm_vd.post": frozenset({"view", "edit"}),
         "crm_vd.qc": frozenset({"view", "edit"}),
         "crm_vd.delivery": frozenset({"view", "edit"}),
+        "crm_vd.report": frozenset({"view"}),
         "crm_vd.admin": frozenset({"view", "create"}),
     },
     "MKT-02": {
