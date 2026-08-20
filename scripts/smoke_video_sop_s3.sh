@@ -117,86 +117,6 @@ print(pid)
   )"
 fi
 
-INCOMPLETE_BODY='{"objective":"hi","audience":"khách hàng phổ thông A","offer":"gói retainer content","duration_sec":30,"platform":"reels","tone":"rõ ràng","constraints":"không mặt người","insight_ids":[]}'
-COMPLETE_BODY='{"objective":"tăng nhận biết","audience":"khách hàng phổ thông A","offer":"gói retainer content","duration_sec":30,"platform":"reels","tone":"rõ ràng","constraints":"không mặt người","insight_ids":[]}'
-
-PUT_INC_BODY="/tmp/vd-sop-s3-brief-incomplete.json"
-PUT_INC_CODE="$(
-  curl -sS -o "$PUT_INC_BODY" -w '%{http_code}' "${AUTH[@]}" \
-    -H 'Content-Type: application/json' \
-    -d "$INCOMPLETE_BODY" \
-    -X PUT "$API_BASE/api/v1/vd/projects/$PROJ_ID/brief"
-)"
-if [[ "$PUT_INC_CODE" != "200" && "$PUT_INC_CODE" != "201" ]]; then
-  echo "FAIL PUT /brief incomplete HTTP $PUT_INC_CODE"
-  exit 1
-fi
-
-READY_INC_BODY="/tmp/vd-sop-s3-brief-ready-inc.json"
-READY_INC_CODE="$(
-  curl -sS -o "$READY_INC_BODY" -w '%{http_code}' "${AUTH[@]}" \
-    -X POST "$API_BASE/api/v1/vd/projects/$PROJ_ID/brief/ready"
-)"
-if [[ "$READY_INC_CODE" != "400" ]]; then
-  echo "FAIL POST /brief/ready incomplete expected 400 got $READY_INC_CODE"
-  exit 1
-fi
-if ! grep -q 'brief_incomplete' "$READY_INC_BODY"; then
-  echo "FAIL POST /brief/ready incomplete missing brief_incomplete"
-  exit 1
-fi
-
-PUT_OK_BODY="/tmp/vd-sop-s3-brief-complete.json"
-PUT_OK_CODE="$(
-  curl -sS -o "$PUT_OK_BODY" -w '%{http_code}' "${AUTH[@]}" \
-    -H 'Content-Type: application/json' \
-    -d "$COMPLETE_BODY" \
-    -X PUT "$API_BASE/api/v1/vd/projects/$PROJ_ID/brief"
-)"
-if [[ "$PUT_OK_CODE" != "200" && "$PUT_OK_CODE" != "201" ]]; then
-  echo "FAIL PUT /brief complete HTTP $PUT_OK_CODE"
-  exit 1
-fi
-
-READY_OK_BODY="/tmp/vd-sop-s3-brief-ready.json"
-READY_OK_CODE="$(
-  curl -sS -o "$READY_OK_BODY" -w '%{http_code}' "${AUTH[@]}" \
-    -X POST "$API_BASE/api/v1/vd/projects/$PROJ_ID/brief/ready"
-)"
-if [[ "$READY_OK_CODE" != "200" ]]; then
-  echo "FAIL POST /brief/ready complete HTTP $READY_OK_CODE"
-  exit 1
-fi
-python3 -c "
-import json, sys
-p = json.load(open(sys.argv[1], encoding='utf-8'))
-stage = p.get('stage')
-if stage != 'brief_ready':
-    raise SystemExit(f'FAIL stage={stage!r} expected brief_ready')
-" "$READY_OK_BODY"
-
-SCRIPT_BODY="/tmp/vd-sop-s3-script.json"
-SCRIPT_CODE="$(
-  curl -sS -o "$SCRIPT_BODY" -w '%{http_code}' "${AUTH[@]}" \
-    -H 'Content-Type: application/json' \
-    -d '{"markdown":"S3 smoke"}' \
-    -X POST "$API_BASE/api/v1/vd/projects/$PROJ_ID/scripts"
-)"
-if [[ "$SCRIPT_CODE" != "201" && "$SCRIPT_CODE" != "200" ]]; then
-  echo "FAIL POST /scripts HTTP $SCRIPT_CODE"
-  exit 1
-fi
-SCRIPT_ID="$(
-  python3 -c "
-import json, sys
-p = json.load(open(sys.argv[1], encoding='utf-8'))
-sid = p.get('id')
-if not isinstance(sid, int) or sid <= 0:
-    raise SystemExit(f'FAIL script id not a number got={sid!r}')
-print(sid)
-" "$SCRIPT_BODY"
-)"
-
 GET_PROJ_BODY="/tmp/vd-sop-s3-project-get.json"
 GET_PROJ_CODE="$(
   curl -sS -o "$GET_PROJ_BODY" -w '%{http_code}' "${AUTH[@]}" \
@@ -206,13 +126,147 @@ if [[ "$GET_PROJ_CODE" != "200" ]]; then
   echo "FAIL GET /projects/$PROJ_ID HTTP $GET_PROJ_CODE"
   exit 1
 fi
-python3 -c "
+STAGE="$(
+  python3 -c "
+import json, sys
+p = json.load(open(sys.argv[1], encoding='utf-8'))
+stage = p.get('stage')
+if not isinstance(stage, str) or not stage:
+    raise SystemExit(f'FAIL stage missing got={stage!r}')
+print(stage)
+" "$GET_PROJ_BODY"
+)"
+
+INCOMPLETE_BODY='{"objective":"hi","audience":"khách hàng phổ thông A","offer":"gói retainer content","duration_sec":30,"platform":"reels","tone":"rõ ràng","constraints":"không mặt người","insight_ids":[]}'
+COMPLETE_BODY='{"objective":"tăng nhận biết","audience":"khách hàng phổ thông A","offer":"gói retainer content","duration_sec":30,"platform":"reels","tone":"rõ ràng","constraints":"không mặt người","insight_ids":[]}'
+
+# Reuse is not idempotent if we POST /brief/ready after brief_ready (stage_guard).
+# brief_draft: full flow. brief_ready: skip ready. scripting+: skip ready + reuse script.
+if [[ "$STAGE" == "brief_draft" ]]; then
+  PUT_INC_BODY="/tmp/vd-sop-s3-brief-incomplete.json"
+  PUT_INC_CODE="$(
+    curl -sS -o "$PUT_INC_BODY" -w '%{http_code}' "${AUTH[@]}" \
+      -H 'Content-Type: application/json' \
+      -d "$INCOMPLETE_BODY" \
+      -X PUT "$API_BASE/api/v1/vd/projects/$PROJ_ID/brief"
+  )"
+  if [[ "$PUT_INC_CODE" != "200" && "$PUT_INC_CODE" != "201" ]]; then
+    echo "FAIL PUT /brief incomplete HTTP $PUT_INC_CODE"
+    exit 1
+  fi
+
+  READY_INC_BODY="/tmp/vd-sop-s3-brief-ready-inc.json"
+  READY_INC_CODE="$(
+    curl -sS -o "$READY_INC_BODY" -w '%{http_code}' "${AUTH[@]}" \
+      -X POST "$API_BASE/api/v1/vd/projects/$PROJ_ID/brief/ready"
+  )"
+  if [[ "$READY_INC_CODE" != "400" ]]; then
+    echo "FAIL POST /brief/ready incomplete expected 400 got $READY_INC_CODE"
+    exit 1
+  fi
+  if ! grep -q 'brief_incomplete' "$READY_INC_BODY"; then
+    echo "FAIL POST /brief/ready incomplete missing brief_incomplete"
+    exit 1
+  fi
+
+  PUT_OK_BODY="/tmp/vd-sop-s3-brief-complete.json"
+  PUT_OK_CODE="$(
+    curl -sS -o "$PUT_OK_BODY" -w '%{http_code}' "${AUTH[@]}" \
+      -H 'Content-Type: application/json' \
+      -d "$COMPLETE_BODY" \
+      -X PUT "$API_BASE/api/v1/vd/projects/$PROJ_ID/brief"
+  )"
+  if [[ "$PUT_OK_CODE" != "200" && "$PUT_OK_CODE" != "201" ]]; then
+    echo "FAIL PUT /brief complete HTTP $PUT_OK_CODE"
+    exit 1
+  fi
+
+  READY_OK_BODY="/tmp/vd-sop-s3-brief-ready.json"
+  READY_OK_CODE="$(
+    curl -sS -o "$READY_OK_BODY" -w '%{http_code}' "${AUTH[@]}" \
+      -X POST "$API_BASE/api/v1/vd/projects/$PROJ_ID/brief/ready"
+  )"
+  if [[ "$READY_OK_CODE" != "200" ]]; then
+    echo "FAIL POST /brief/ready complete HTTP $READY_OK_CODE"
+    exit 1
+  fi
+  python3 -c "
+import json, sys
+p = json.load(open(sys.argv[1], encoding='utf-8'))
+stage = p.get('stage')
+if stage != 'brief_ready':
+    raise SystemExit(f'FAIL stage={stage!r} expected brief_ready')
+" "$READY_OK_BODY"
+  STAGE=brief_ready
+fi
+
+SCRIPT_LIST_BODY="/tmp/vd-sop-s3-scripts.json"
+SCRIPT_LIST_CODE="$(
+  curl -sS -o "$SCRIPT_LIST_BODY" -w '%{http_code}' "${AUTH[@]}" \
+    "$API_BASE/api/v1/vd/projects/$PROJ_ID/scripts"
+)"
+if [[ "$SCRIPT_LIST_CODE" != "200" ]]; then
+  echo "FAIL GET /projects/$PROJ_ID/scripts HTTP $SCRIPT_LIST_CODE"
+  exit 1
+fi
+SCRIPT_ID="$(
+  python3 -c "
+import json, sys
+p = json.load(open(sys.argv[1], encoding='utf-8'))
+items = p if isinstance(p, list) else (p.get('items') or [])
+ids = [it['id'] for it in items if isinstance(it, dict) and isinstance(it.get('id'), int) and it['id'] > 0]
+if ids:
+    print(max(ids))
+" "$SCRIPT_LIST_BODY"
+)"
+
+CREATED_SCRIPT=0
+if [[ -z "$SCRIPT_ID" ]]; then
+  if [[ "$STAGE" != "brief_ready" && "$STAGE" != "ideation" && "$STAGE" != "scripting" ]]; then
+    echo "FAIL GET /projects/$PROJ_ID/scripts empty at stage=$STAGE"
+    exit 1
+  fi
+  SCRIPT_BODY="/tmp/vd-sop-s3-script.json"
+  SCRIPT_CODE="$(
+    curl -sS -o "$SCRIPT_BODY" -w '%{http_code}' "${AUTH[@]}" \
+      -H 'Content-Type: application/json' \
+      -d '{"markdown":"S3 smoke"}' \
+      -X POST "$API_BASE/api/v1/vd/projects/$PROJ_ID/scripts"
+  )"
+  if [[ "$SCRIPT_CODE" != "201" && "$SCRIPT_CODE" != "200" ]]; then
+    echo "FAIL POST /scripts HTTP $SCRIPT_CODE"
+    exit 1
+  fi
+  SCRIPT_ID="$(
+    python3 -c "
+import json, sys
+p = json.load(open(sys.argv[1], encoding='utf-8'))
+sid = p.get('id')
+if not isinstance(sid, int) or sid <= 0:
+    raise SystemExit(f'FAIL script id not a number got={sid!r}')
+print(sid)
+" "$SCRIPT_BODY"
+  )"
+  CREATED_SCRIPT=1
+fi
+
+GET_PROJ_CODE="$(
+  curl -sS -o "$GET_PROJ_BODY" -w '%{http_code}' "${AUTH[@]}" \
+    "$API_BASE/api/v1/vd/projects/$PROJ_ID"
+)"
+if [[ "$GET_PROJ_CODE" != "200" ]]; then
+  echo "FAIL GET /projects/$PROJ_ID HTTP $GET_PROJ_CODE"
+  exit 1
+fi
+if [[ "$CREATED_SCRIPT" == "1" ]]; then
+  python3 -c "
 import json, sys
 p = json.load(open(sys.argv[1], encoding='utf-8'))
 stage = p.get('stage')
 if stage != 'scripting':
     raise SystemExit(f'FAIL stage={stage!r} expected scripting')
 " "$GET_PROJ_BODY"
+fi
 
 BLOCKED_SHOT='{"duration_ms":20000,"camera":"push in","action":"walk","aspect":"9:16","contains_human":false}'
 SHOT_BAD_BODY="/tmp/vd-sop-s3-shot-blocked.json"
