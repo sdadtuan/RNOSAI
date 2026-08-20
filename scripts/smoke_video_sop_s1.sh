@@ -62,6 +62,10 @@ if grep -q 'cmkt_cinematic_disabled' "$PROJ_BODY"; then
   echo "SKIP cinematic off"
   exit 0
 fi
+if grep -q 'video_cinematic_daily_cap' "$PROJ_BODY"; then
+  echo "SKIP video_cinematic_daily_cap"
+  exit 0
+fi
 if [[ "$PROJ_CODE" != "201" && "$PROJ_CODE" != "200" ]]; then
   echo "FAIL POST /api/v1/vd/projects HTTP $PROJ_CODE $(cat "$PROJ_BODY")"
   exit 1
