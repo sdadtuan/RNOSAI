@@ -348,6 +348,24 @@ export class VdProjectRepository implements VdProjectRepo, OnModuleDestroy {
     return row;
   }
 
+  async updateScriptMarkdown(id: number, markdown: string): Promise<VdScriptRow> {
+    if (await this.ensurePgReady()) {
+      const res = await this.querier().query(
+        `UPDATE vd_scripts SET markdown = $2 WHERE id = $1
+         RETURNING id, project_id, version, markdown`,
+        [id, markdown],
+      );
+      const row = res.rows[0] as Record<string, unknown> | undefined;
+      if (!row) throw new Error('vd_script_not_found');
+      return this.mapScriptRow(row);
+    }
+    this.assertWritableOrThrow();
+    const row = this.memory.scripts.find((s) => s.id === id);
+    if (!row) throw new Error('vd_script_not_found');
+    row.markdown = markdown;
+    return { ...row };
+  }
+
   async insertAudit(
     projectId: number,
     actorEmail: string,

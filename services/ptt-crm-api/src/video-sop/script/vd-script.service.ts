@@ -185,6 +185,27 @@ export class VdScriptService {
     return this.projects.insertScriptRow(projectId, version, markdown);
   }
 
+  async saveScript(projectId: number, body: Record<string, unknown>): Promise<VdScriptRow> {
+    assertCinematicEnabled(this.config);
+    if (body == null || typeof body !== 'object' || Array.isArray(body)) {
+      throw new Error('invalid_body');
+    }
+    const markdown = typeof body.markdown === 'string' ? body.markdown : '';
+    const project = await this.requireProject(projectId);
+    if (project.stage === 'brief_ready' || project.stage === 'ideation') {
+      assertStageTransition(project.stage, 'scripting');
+      await this.projects.updateStage(projectId, 'scripting');
+    } else if (project.stage !== 'scripting') {
+      throw new Error('stage_guard');
+    }
+    const existing = await this.projects.listScripts(projectId);
+    if (existing.length === 0) {
+      return this.projects.insertScriptRow(projectId, 1, markdown);
+    }
+    const latest = existing.reduce((acc, row) => (row.version > acc.version ? row : acc));
+    return this.projects.updateScriptMarkdown(latest.id, markdown);
+  }
+
   async listShots(scriptId: number): Promise<Array<VdShotRow & { feasibility: { id: string; ok: boolean }[] }>> {
     await this.requireScript(scriptId);
     const rows = await this.shots.listByScriptId(scriptId);

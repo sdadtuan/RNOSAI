@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { type StoredStaffUser } from './auth';
 import {
   canEditVdBrief,
   canEditVdScript,
   canEnqueueVdJob,
+  saveVdScript,
   vdAdminModelsPath,
   vdAdminProvidersPath,
   vdProjectBriefInsightsPath,
@@ -166,5 +167,29 @@ describe('sc04AddShotPayload', () => {
     expect(payload.camera).toBe('wide');
     expect(payload.action).toBe('pan left');
     expect(payload.aspect).toBe('9:16');
+  });
+});
+
+describe('saveVdScript', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('PUTs markdown to project scripts path', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({ id: 10, project_id: 7, version: 1, markdown: 'hi' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await saveVdScript('tok', 7, 'hi');
+
+    expect(fetchMock).toHaveBeenCalled();
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(String(url)).toContain('/api/v1/vd/projects/7/scripts');
+    expect(init.method).toBe('PUT');
+    expect(init.body).toBe(JSON.stringify({ markdown: 'hi' }));
   });
 });

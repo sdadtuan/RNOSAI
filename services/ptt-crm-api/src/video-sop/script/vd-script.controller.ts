@@ -10,6 +10,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { StaffOrInternalKeyGuard } from '../../staff-auth/staff-or-internal-key.guard';
@@ -99,6 +100,19 @@ export class VdScriptController {
   ) {
     try {
       return await this.scripts.createScript(id, body ?? {});
+    } catch (err) {
+      mapKnownError(err);
+    }
+  }
+
+  @Put('projects/:id/scripts')
+  @UseGuards(StaffVdScriptEditGuard)
+  async saveScript(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: Record<string, unknown>,
+  ) {
+    try {
+      return await this.scripts.saveScript(id, body ?? {});
     } catch (err) {
       mapKnownError(err);
     }

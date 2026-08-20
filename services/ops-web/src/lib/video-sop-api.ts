@@ -343,7 +343,7 @@ export async function saveVdScript(
   markdown: string,
 ): Promise<VdScriptRow> {
   return vdFetch<VdScriptRow>(token, vdProjectScriptsPath(projectId), {
-    method: 'POST',
+    method: 'PUT',
     body: JSON.stringify({ markdown }),
   });
 }
