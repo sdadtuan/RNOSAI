@@ -1,4 +1,5 @@
 import type { IImageGen, VdImageGenInput, VdImageGenResult } from './i-image-gen';
+import { providerFetch } from './provider-http';
 
 const REPLICATE_API = 'https://api.replicate.com/v1';
 const FLUX_MODEL = 'black-forest-labs/flux-schnell';
@@ -28,39 +29,41 @@ export class FluxReplicateImageGen implements IImageGen {
     input: VdImageGenInput,
     seed: number,
   ): Promise<{ id: string; outputUrl: string | null }> {
-    const res = await fetch(`${REPLICATE_API}/models/${FLUX_MODEL}/predictions`, {
-      method: 'POST',
-      headers: this.headers(),
-      body: JSON.stringify({
-        input: {
-          prompt: input.prompt,
-          width: input.width,
-          height: input.height,
-          seed,
-          num_outputs: 1,
-          ...(input.negativePrompt ? { negative_prompt: input.negativePrompt } : {}),
-        },
-      }),
-    });
+    const res = await providerFetch(
+      `${REPLICATE_API}/models/${FLUX_MODEL}/predictions`,
+      {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify({
+          input: {
+            prompt: input.prompt,
+            width: input.width,
+            height: input.height,
+            seed,
+            num_outputs: 1,
+            ...(input.negativePrompt ? { negative_prompt: input.negativePrompt } : {}),
+          },
+        }),
+      },
+      'flux_create_failed',
+    );
     const body = (await res.json()) as { id?: string; error?: string; output?: unknown };
-    if (res.status === 401 || res.status === 403) throw new Error('auth');
-    if (!res.ok) throw Object.assign(new Error(body.error ?? `flux_create_failed:${res.status}`), { error_class: 'provider' });
     if (!body.id) throw Object.assign(new Error('flux_missing_prediction_id'), { error_class: 'provider' });
     return { id: body.id, outputUrl: firstUrl(body.output) };
   }
 
   private async pollOutputUrl(predictionId: string): Promise<string> {
     for (let attempt = 0; attempt < 30; attempt += 1) {
-      const res = await fetch(`${REPLICATE_API}/predictions/${predictionId}`, {
-        headers: { Authorization: `Bearer ${this.token}` },
-      });
+      const res = await providerFetch(
+        `${REPLICATE_API}/predictions/${predictionId}`,
+        { headers: { Authorization: `Bearer ${this.token}` } },
+        'flux_poll_failed',
+      );
       const body = (await res.json()) as {
         status?: string;
         output?: unknown;
         error?: string;
       };
-      if (res.status === 401 || res.status === 403) throw new Error('auth');
-      if (!res.ok) throw Object.assign(new Error(body.error ?? `flux_poll_failed:${res.status}`), { error_class: 'provider' });
       if (body.status === 'succeeded') {
         const url = firstUrl(body.output);
         if (!url) throw Object.assign(new Error('flux_missing_output_url'), { error_class: 'provider' });
@@ -82,8 +85,7 @@ function firstUrl(output: unknown): string | null {
 }
 
 async function downloadBuffer(url: string): Promise<Buffer> {
-  const res = await fetch(url);
-  if (!res.ok) throw Object.assign(new Error(`flux_download_failed:${res.status}`), { error_class: 'provider' });
+  const res = await providerFetch(url, undefined, 'flux_download_failed');
   return Buffer.from(await res.arrayBuffer());
 }
 

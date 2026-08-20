@@ -1,4 +1,5 @@
 import type { IImageGen, VdImageGenInput, VdImageGenResult } from './i-image-gen';
+import { providerFetch } from './provider-http';
 
 const LEONARDO_API = 'https://cloud.leonardo.ai/api/rest/v1';
 
@@ -24,24 +25,26 @@ export class LeonardoImageGen implements IImageGen {
   }
 
   private async createGeneration(input: VdImageGenInput, seed: number): Promise<string> {
-    const res = await fetch(`${LEONARDO_API}/generations`, {
-      method: 'POST',
-      headers: this.headers(),
-      body: JSON.stringify({
-        prompt: input.prompt,
-        width: input.width,
-        height: input.height,
-        num_images: 1,
-        seed,
-        ...(input.negativePrompt ? { negative_prompt: input.negativePrompt } : {}),
-      }),
-    });
+    const res = await providerFetch(
+      `${LEONARDO_API}/generations`,
+      {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify({
+          prompt: input.prompt,
+          width: input.width,
+          height: input.height,
+          num_images: 1,
+          seed,
+          ...(input.negativePrompt ? { negative_prompt: input.negativePrompt } : {}),
+        }),
+      },
+      'leonardo_create_failed',
+    );
     const body = (await res.json()) as {
       sdGenerationJob?: { generationId?: string };
       error?: string;
     };
-    if (res.status === 401 || res.status === 403) throw new Error('auth');
-    if (!res.ok) throw Object.assign(new Error(body.error ?? `leonardo_create_failed:${res.status}`), { error_class: 'provider' });
     const id = body.sdGenerationJob?.generationId;
     if (!id) throw Object.assign(new Error('leonardo_missing_generation_id'), { error_class: 'provider' });
     return id;
@@ -49,7 +52,11 @@ export class LeonardoImageGen implements IImageGen {
 
   private async pollImageUrl(generationId: string): Promise<string> {
     for (let attempt = 0; attempt < 30; attempt += 1) {
-      const res = await fetch(`${LEONARDO_API}/generations/${generationId}`, { headers: this.headers() });
+      const res = await providerFetch(
+        `${LEONARDO_API}/generations/${generationId}`,
+        { headers: this.headers() },
+        'leonardo_poll_failed',
+      );
       const body = (await res.json()) as {
         generations_by_pk?: {
           status?: string;
@@ -57,8 +64,6 @@ export class LeonardoImageGen implements IImageGen {
         };
         error?: string;
       };
-      if (res.status === 401 || res.status === 403) throw new Error('auth');
-      if (!res.ok) throw Object.assign(new Error(body.error ?? `leonardo_poll_failed:${res.status}`), { error_class: 'provider' });
       const row = body.generations_by_pk;
       if (row?.status === 'COMPLETE') {
         const url = row.generated_images?.[0]?.url;
@@ -75,8 +80,7 @@ export class LeonardoImageGen implements IImageGen {
 }
 
 async function downloadBuffer(url: string): Promise<Buffer> {
-  const res = await fetch(url);
-  if (!res.ok) throw Object.assign(new Error(`leonardo_download_failed:${res.status}`), { error_class: 'provider' });
+  const res = await providerFetch(url, undefined, 'leonardo_download_failed');
   return Buffer.from(await res.arrayBuffer());
 }
 

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { AppConfigService } from '../../config/app-config.service';
 import { assertCinematicEnabled } from '../video-sop-flags';
 import { VdDispatcherService } from '../orchestration/vd-dispatcher.service';
@@ -17,6 +17,9 @@ function mapKnownError(err: unknown): never {
   const msg = err instanceof Error ? err.message : 'unknown';
   if (msg === 'vd_job_not_found') {
     throw new NotFoundException({ error: msg, message: msg });
+  }
+  if (msg === 'idempotency_key_conflict') {
+    throw new ConflictException({ error: msg, message: msg });
   }
   if (HTTP_400.has(msg)) {
     throw new BadRequestException({ error: msg, message: msg });

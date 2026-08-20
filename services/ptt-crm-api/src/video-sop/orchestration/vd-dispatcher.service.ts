@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'crypto';
 import type { VdImageGenInput } from '../adapters/i-image-gen';
 import { VdAssetRepository } from '../assets/vd-asset.repository';
@@ -18,7 +18,7 @@ function isUniqueViolation(err: unknown): boolean {
 function errorClassOf(err: unknown): string {
   if (err && typeof err === 'object' && 'error_class' in err) {
     const value = (err as { error_class?: unknown }).error_class;
-    if (typeof value === 'string' && value) return value;
+    if (typeof value === 'string' && KNOWN_ERROR_CLASS.has(value)) return value;
   }
   if (err instanceof Error && KNOWN_ERROR_CLASS.has(err.message)) {
     return err.message;
@@ -48,6 +48,7 @@ function imageInputFrom(payload: Record<string, unknown>): VdImageGenInput {
 @Injectable()
 export class VdDispatcherService {
   private readonly handlers = new Map<string, VdJobHandler>();
+  private readonly logger = new Logger(VdDispatcherService.name);
 
   constructor(
     private readonly jobs: VdJobRepository,
@@ -64,7 +65,7 @@ export class VdDispatcherService {
     const input = imageInputFrom(job.input_json);
     const result = await gen.generate(input);
     if (!result?.buffer || !Buffer.isBuffer(result.buffer) || result.buffer.length === 0) {
-      return {};
+      throw Object.assign(new Error('empty_image_buffer'), { error_class: 'provider' });
     }
     const sha256 = createHash('sha256').update(result.buffer).digest('hex');
     const asset = await this.assets.insert({
@@ -90,8 +91,10 @@ export class VdDispatcherService {
   }
 
   async enqueue(input: EnqueueVdJobInput): Promise<VdJobRow> {
+    const scoped = await this.jobs.findByIdempotencyKey(input.idempotencyKey, input.projectId);
+    if (scoped) return scoped;
     const existing = await this.jobs.findByIdempotencyKey(input.idempotencyKey);
-    if (existing) return existing;
+    if (existing) throw new Error('idempotency_key_conflict');
 
     try {
       const row = await this.jobs.insert({
@@ -107,8 +110,10 @@ export class VdDispatcherService {
       return row;
     } catch (err) {
       if (isUniqueViolation(err)) {
+        const foundScoped = await this.jobs.findByIdempotencyKey(input.idempotencyKey, input.projectId);
+        if (foundScoped) return foundScoped;
         const found = await this.jobs.findByIdempotencyKey(input.idempotencyKey);
-        if (found) return found;
+        if (found) throw new Error('idempotency_key_conflict');
       }
       throw err;
     }
@@ -131,39 +136,53 @@ export class VdDispatcherService {
 
   private schedule(id: number): void {
     setImmediate(() => {
-      void this.run(id);
+      void this.run(id).catch((err) => {
+        this.logger.error(
+          `vd job ${id} uncaught: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
     });
   }
 
+  private logUncaught(id: number, err: unknown): void {
+    this.logger.error(
+      `vd job ${id} uncaught: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
   private async run(id: number): Promise<void> {
-    const job = await this.jobs.getById(id);
-    if (!job || TERMINAL.has(job.status)) return;
-
-    const handler = this.handlers.get(job.job_type);
-    const attempt = job.attempt + 1;
-    await this.jobs.update(id, { status: 'running', attempt });
-
-    if (!handler) {
-      await this.jobs.update(id, { status: 'failed', error_class: 'validation', attempt });
-      return;
-    }
-
     try {
-      const output = await handler({ ...job, attempt, status: 'running' });
-      await this.jobs.update(id, {
-        status: 'succeeded',
-        error_class: null,
-        attempt,
-        output_json: output ?? {},
-      });
-    } catch (err) {
-      const errorClass = errorClassOf(err);
-      if (RETRYABLE.has(errorClass) && attempt < MAX_ATTEMPTS) {
-        await this.jobs.update(id, { status: 'queued', error_class: errorClass, attempt });
-        this.schedule(id);
+      const job = await this.jobs.getById(id);
+      if (!job || TERMINAL.has(job.status)) return;
+
+      const handler = this.handlers.get(job.job_type);
+      const attempt = job.attempt + 1;
+      await this.jobs.update(id, { status: 'running', attempt });
+
+      if (!handler) {
+        await this.jobs.update(id, { status: 'failed', error_class: 'validation', attempt });
         return;
       }
-      await this.jobs.update(id, { status: 'failed', error_class: errorClass, attempt });
+
+      try {
+        const output = await handler({ ...job, attempt, status: 'running' });
+        await this.jobs.update(id, {
+          status: 'succeeded',
+          error_class: null,
+          attempt,
+          output_json: output ?? {},
+        });
+      } catch (err) {
+        const errorClass = errorClassOf(err);
+        if (RETRYABLE.has(errorClass) && attempt < MAX_ATTEMPTS) {
+          await this.jobs.update(id, { status: 'queued', error_class: errorClass, attempt });
+          this.schedule(id);
+          return;
+        }
+        await this.jobs.update(id, { status: 'failed', error_class: errorClass, attempt });
+      }
+    } catch (err) {
+      this.logUncaught(id, err);
     }
   }
 }

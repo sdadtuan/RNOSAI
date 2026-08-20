@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { VdJobHttpService } from './vd-job-http.service';
 
 function makeService() {
@@ -27,5 +27,24 @@ describe('VdJobHttpService', () => {
     }
 
     expect(dispatcher.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('maps idempotency_key_conflict to 409', async () => {
+    const { svc, dispatcher } = makeService();
+    dispatcher.enqueue.mockRejectedValue(new Error('idempotency_key_conflict'));
+
+    await expect(
+      svc.enqueue(2, { queue: 'q.image', job_type: 'cine_keyframe' }, 'job-shared'),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    try {
+      await svc.enqueue(2, { queue: 'q.image', job_type: 'cine_keyframe' }, 'job-shared');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConflictException);
+      expect((err as ConflictException).getStatus()).toBe(409);
+      expect((err as ConflictException).getResponse()).toEqual(
+        expect.objectContaining({ error: 'idempotency_key_conflict' }),
+      );
+    }
   });
 });

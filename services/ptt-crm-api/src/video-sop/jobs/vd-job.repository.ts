@@ -86,20 +86,34 @@ export class VdJobRepository implements OnModuleDestroy {
     };
   }
 
-  async findByIdempotencyKey(key: string): Promise<VdJobRow | null> {
+  async findByIdempotencyKey(key: string, projectId?: number): Promise<VdJobRow | null> {
     if (await this.ensurePgReady()) {
-      const res = await this.db.query(
-        `SELECT id, project_id, shot_id, queue, job_type, status, error_class, attempt,
-                idempotency_key, input_json, output_json, created_at, updated_at
-         FROM vd_jobs
-         WHERE idempotency_key = $1
-         LIMIT 1`,
-        [key],
-      );
+      const res =
+        projectId != null
+          ? await this.db.query(
+              `SELECT id, project_id, shot_id, queue, job_type, status, error_class, attempt,
+                      idempotency_key, input_json, output_json, created_at, updated_at
+               FROM vd_jobs
+               WHERE project_id = $1 AND idempotency_key = $2
+               LIMIT 1`,
+              [projectId, key],
+            )
+          : await this.db.query(
+              `SELECT id, project_id, shot_id, queue, job_type, status, error_class, attempt,
+                      idempotency_key, input_json, output_json, created_at, updated_at
+               FROM vd_jobs
+               WHERE idempotency_key = $1
+               LIMIT 1`,
+              [key],
+            );
       const row = res.rows[0] as Record<string, unknown> | undefined;
       return row ? this.mapRow(row) : null;
     }
-    return this.memory.jobs.find((j) => j.idempotency_key === key) ?? null;
+    return (
+      this.memory.jobs.find(
+        (j) => j.idempotency_key === key && (projectId == null || j.project_id === projectId),
+      ) ?? null
+    );
   }
 
   async getById(id: number): Promise<VdJobRow | null> {
