@@ -43,6 +43,38 @@ fi
 BASE="$API_BASE/api/crm/service-lifecycle/$LIFECYCLE_ID/content-marketing"
 echo "==> Video SOP dual-studio smoke lifecycle #$LIFECYCLE_ID"
 
+find_cinematic_item() {
+  local url="${DATABASE_URL:-}"
+  [[ -n "$url" ]] || return 0
+  psql "$url" -Atqc "
+    SELECT i.id
+    FROM cmkt_content_items i
+    WHERE i.lifecycle_id = $LIFECYCLE_ID
+      AND i.media_json->>'video_studio' = 'cinematic'
+      AND i.media_json->>'vd_project_id' IS NOT NULL
+    ORDER BY i.id DESC
+    LIMIT 1;
+  " 2>/dev/null || true
+}
+
+assert_cinematic_item() {
+  local item_id="$1"
+  local item
+  item="$(curl -sf "${AUTH[@]}" "$BASE/items/$item_id")"
+  echo "$item" | python3 -c "
+import json, sys
+item = json.load(sys.stdin)
+media = item.get('media_json') or {}
+studio = media.get('video_studio')
+vd_id = media.get('vd_project_id')
+if studio != 'cinematic':
+    raise SystemExit(f'FAIL media_json.video_studio={studio!r} expected cinematic')
+if not isinstance(vd_id, int) or vd_id <= 0:
+    raise SystemExit(f'FAIL media_json.vd_project_id={vd_id!r} expected positive int')
+print(vd_id)
+"
+}
+
 ITEM_JSON="$(curl -sf "${AUTH[@]}" -H 'Content-Type: application/json' \
   -d '{"title":"Dual studio cinematic","channel":"short_video","format":"video_script","body_json":{"markdown":"Dual smoke"}}' \
   -X POST "$BASE/items")"
@@ -50,13 +82,32 @@ ITEM_ID="$(echo "$ITEM_JSON" | python3 -c "import sys,json; print(json.load(sys.
 curl -sf "${AUTH[@]}" -X POST "$BASE/items/$ITEM_ID/submit-review" >/dev/null
 curl -sf "${AUTH[@]}" -X POST "$BASE/items/$ITEM_ID/approve" >/dev/null
 
-PROJ_BODY="$(curl -sf "${AUTH[@]}" -H 'Content-Type: application/json' \
-  -d "{\"lifecycle_id\":$LIFECYCLE_ID,\"cmkt_item_id\":$ITEM_ID}" \
-  -X POST "$API_BASE/api/v1/vd/projects")"
-PROJ_ID="$(echo "$PROJ_BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")"
-
-ITEM="$(curl -sf "${AUTH[@]}" "$BASE/items/$ITEM_ID")"
-echo "$ITEM" | python3 -c "
+PROJ_BODY="/tmp/vd-dual-project.json"
+PROJ_CODE="$(
+  curl -sS -o "$PROJ_BODY" -w '%{http_code}' "${AUTH[@]}" \
+    -H 'Content-Type: application/json' \
+    -d "{\"lifecycle_id\":$LIFECYCLE_ID,\"cmkt_item_id\":$ITEM_ID}" \
+    -X POST "$API_BASE/api/v1/vd/projects"
+)"
+if grep -q 'cmkt_cinematic_disabled' "$PROJ_BODY"; then
+  echo "SKIP cinematic off"
+  exit 0
+fi
+if grep -q 'video_cinematic_daily_cap' "$PROJ_BODY"; then
+  REUSE_ID="$(find_cinematic_item)"
+  if [[ -z "$REUSE_ID" ]]; then
+    echo "SKIP video_cinematic_daily_cap (no existing cinematic item)"
+    exit 0
+  fi
+  echo "Reuse cinematic item #$REUSE_ID (video_cinematic_daily_cap)"
+  ITEM_ID="$REUSE_ID"
+elif [[ "$PROJ_CODE" != "201" && "$PROJ_CODE" != "200" ]]; then
+  echo "FAIL POST /api/v1/vd/projects HTTP $PROJ_CODE $(cat "$PROJ_BODY")"
+  exit 1
+else
+  PROJ_ID="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1], encoding='utf-8'))['id'])" "$PROJ_BODY")"
+  ITEM="$(curl -sf "${AUTH[@]}" "$BASE/items/$ITEM_ID")"
+  echo "$ITEM" | python3 -c "
 import json, sys
 item = json.load(sys.stdin)
 media = item.get('media_json') or {}
@@ -68,6 +119,9 @@ if studio != 'cinematic':
 if vd_id != want:
     raise SystemExit(f'FAIL media_json.vd_project_id={vd_id!r} expected {want}')
 " "$PROJ_ID"
+fi
+
+assert_cinematic_item "$ITEM_ID" >/dev/null
 
 STORY_BODY="/tmp/vd-dual-storyboard.json"
 STORY_CODE="$(
