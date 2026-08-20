@@ -17,7 +17,7 @@ import {
 } from '@/lib/auth';
 import { canEnqueueVdJob, VIDEO_SOP_API, type VdJobRow, type VdProjectRow } from '@/lib/video-sop-api';
 
-const S2_BANNER = 'S2 — Job engine. Brief/Gate 1 vẫn S3/S5.';
+const S3_BANNER = 'S3 — Brief + Script. Gate 1 vẫn S5.';
 const ENQUEUE_LABEL = 'Tạo job keyframe thử';
 const EMPTY_JOBS = 'Chưa có job — tạo keyframe thử (S2).';
 const AUTH_FAIL_NOTE = 'Thiếu Leonardo/Flux key — job failed auth là đúng S2.';
@@ -200,7 +200,16 @@ export default function CrmVideoSopDetailPage() {
             background: 'rgba(15, 23, 42, 0.04)',
           }}
         >
-          {S2_BANNER}
+          {S3_BANNER}
+        </p>
+        <p style={{ margin: 0 }}>
+          <Link href={`/crm/video/${projectId}/brief`} className="nav-link">
+            Brief (SC-03)
+          </Link>
+          {' · '}
+          <Link href={`/crm/video/${projectId}/script`} className="nav-link">
+            Script (SC-04)
+          </Link>
         </p>
         <p style={{ margin: 0 }}>
           <Link href="/admin/video/providers" className="nav-link">

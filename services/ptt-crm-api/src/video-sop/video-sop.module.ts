@@ -3,6 +3,7 @@ import { ContentMarketingModule } from '../content-marketing/content-marketing.m
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import {
   StaffVdProjectCreateGuard,
+  StaffVdProjectEditGuard,
   StaffVdProjectViewGuard,
 } from './guards/staff-vd-project.guard';
 import { VdAssetRepository } from './assets/vd-asset.repository';
@@ -11,6 +12,8 @@ import { VdJobHttpService } from './jobs/vd-job-http.service';
 import { VdJobRepository } from './jobs/vd-job.repository';
 import { VdDispatcherService } from './orchestration/vd-dispatcher.service';
 import { VdPollerService } from './orchestration/vd-poller.service';
+import { VdBriefController } from './project/vd-brief.controller';
+import { VdBriefService } from './project/vd-brief.service';
 import { VdProjectController } from './project/vd-project.controller';
 import { VdProjectHttpService } from './project/vd-project-http.service';
 import { VdProjectRepository } from './project/vd-project.repository';
@@ -21,11 +24,12 @@ import { VdAdminService } from './admin/vd-admin.service';
 
 @Module({
   imports: [StaffAuthModule, ContentMarketingModule],
-  controllers: [VdProjectController, VdJobController, VdAdminController],
+  controllers: [VdProjectController, VdBriefController, VdJobController, VdAdminController],
   providers: [
     VdProjectRepository,
     VdProjectService,
     VdProjectHttpService,
+    VdBriefService,
     VdJobRepository,
     VdAssetRepository,
     VdDispatcherService,
@@ -33,6 +37,7 @@ import { VdAdminService } from './admin/vd-admin.service';
     VdJobHttpService,
     VdAdminService,
     StaffVdProjectCreateGuard,
+    StaffVdProjectEditGuard,
     StaffVdProjectViewGuard,
     StaffVdAdminViewGuard,
     StaffVdAdminCreateGuard,

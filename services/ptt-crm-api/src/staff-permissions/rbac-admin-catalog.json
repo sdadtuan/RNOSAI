@@ -212,6 +212,10 @@
       "edit",
       "create"
     ],
+    "crm_vd.script": [
+      "view",
+      "edit"
+    ],
     "crm_vd.admin": [
       "view",
       "create"
@@ -913,6 +917,13 @@
       "group": "CRM — Triển khai dịch vụ",
       "page": "/crm/video",
       "description": "Hub /crm/video: list + tạo project chiến dịch (Module 7 S1)."
+    },
+    {
+      "id": "crm_vd.script",
+      "label": "Video SOP — Script",
+      "group": "CRM — Triển khai dịch vụ",
+      "page": "/crm/video",
+      "description": "Script Studio: ý tưởng + shotlist (Module 7 S3)."
     },
     {
       "id": "crm_vd.admin",
@@ -1703,6 +1714,7 @@
     "crm_mkt_ai",
     "crm_content",
     "crm_vd.project",
+    "crm_vd.script",
     "crm_vd.admin",
     "crm_research",
     "crm_owner_weekly_dashboard",

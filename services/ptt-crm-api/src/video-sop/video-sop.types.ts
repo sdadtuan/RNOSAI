@@ -42,6 +42,9 @@ export interface VdProjectRepository {
   withTransaction<T>(fn: () => Promise<T>): Promise<T>;
   insertProject(input: InsertVdProjectInput): Promise<VdProjectRow>;
   insertBrief(projectId: number, bodyJson: Record<string, unknown>): Promise<void>;
+  getBrief(projectId: number): Promise<Record<string, unknown> | null>;
+  upsertBrief(projectId: number, bodyJson: Record<string, unknown>): Promise<void>;
+  updateStage(projectId: number, stage: VdProjectStage): Promise<void>;
   insertScript(projectId: number, version: number, markdown: string): Promise<void>;
   insertAudit(
     projectId: number,

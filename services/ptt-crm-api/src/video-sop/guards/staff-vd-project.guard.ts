@@ -61,3 +61,27 @@ export class StaffVdProjectViewGuard implements CanActivate {
     });
   }
 }
+
+@Injectable()
+export class StaffVdProjectEditGuard implements CanActivate {
+  constructor(private readonly staffAuth: StaffAuthService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<StaffReq>();
+    if (req.staffAuthVia === 'internal') return true;
+    if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
+
+    const me = await this.staffAuth.me(req.staffUser);
+    if (
+      this.staffAuth.hasCap(me.caps, 'crm_vd.project', 'edit') ||
+      this.staffAuth.hasCap(me.caps, 'crm_content', 'write')
+    ) {
+      return true;
+    }
+    throw new ForbiddenException({
+      error: 'missing_cap',
+      section: 'crm_vd.project',
+      action: 'edit',
+    });
+  }
+}

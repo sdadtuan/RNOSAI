@@ -27,6 +27,23 @@ function startOfUtcDay(d = new Date()): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
+function asJsonObject(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  return {};
+}
+
 const txClient = new AsyncLocalStorage<PoolClient>();
 
 @Injectable()
@@ -202,6 +219,64 @@ export class VdProjectRepository implements VdProjectRepo, OnModuleDestroy {
     }
     this.assertWritableOrThrow();
     this.memory.briefs.push({ project_id: projectId, body_json: bodyJson });
+  }
+
+  async getBrief(projectId: number): Promise<Record<string, unknown> | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(`SELECT body_json FROM vd_briefs WHERE project_id = $1`, [projectId]);
+      const row = res.rows[0] as { body_json?: unknown } | undefined;
+      if (!row) return null;
+      return asJsonObject(row.body_json);
+    }
+    return this.memory.briefs.find((b) => b.project_id === projectId)?.body_json ?? null;
+  }
+
+  async upsertBrief(projectId: number, bodyJson: Record<string, unknown>): Promise<void> {
+    if (await this.ensurePgReady()) {
+      await this.querier().query(
+        `INSERT INTO vd_briefs (project_id, body_json) VALUES ($1, $2::jsonb)
+         ON CONFLICT (project_id) DO UPDATE SET body_json = EXCLUDED.body_json, updated_at = now()`,
+        [projectId, JSON.stringify(bodyJson)],
+      );
+      return;
+    }
+    this.assertWritableOrThrow();
+    const existing = this.memory.briefs.find((b) => b.project_id === projectId);
+    if (existing) {
+      existing.body_json = bodyJson;
+      return;
+    }
+    this.memory.briefs.push({ project_id: projectId, body_json: bodyJson });
+  }
+
+  async updateStage(projectId: number, stage: VdProjectStage): Promise<void> {
+    if (await this.ensurePgReady()) {
+      await this.querier().query(
+        `UPDATE vd_projects SET stage = $2, updated_at = now() WHERE id = $1 AND deleted_at IS NULL`,
+        [projectId, stage],
+      );
+      return;
+    }
+    this.assertWritableOrThrow();
+    const row = this.memory.projects.find((p) => p.id === projectId);
+    if (row) {
+      row.stage = stage;
+      row.updated_at = new Date().toISOString();
+    }
+  }
+
+  async listApprovedInsights(): Promise<Array<{ id: number; title: string }>> {
+    try {
+      const res = await this.db.query(
+        `SELECT i.id, left(i.statement, 120) AS title FROM crm_research_insights i WHERE i.status IN ('approved_internal','approved_client_facing','published') ORDER BY i.id DESC LIMIT 50`,
+      );
+      return (res.rows as Array<{ id: unknown; title: unknown }>).map((row) => ({
+        id: Number(row.id),
+        title: String(row.title ?? ''),
+      }));
+    } catch {
+      return [];
+    }
   }
 
   async insertScript(projectId: number, version: number, markdown: string): Promise<void> {

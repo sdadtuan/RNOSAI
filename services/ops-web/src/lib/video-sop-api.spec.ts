@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { type StoredStaffUser } from './auth';
 import {
+  canEditVdBrief,
   canEnqueueVdJob,
   vdAdminModelsPath,
   vdAdminProvidersPath,
+  vdProjectBriefInsightsPath,
+  vdProjectBriefPath,
+  vdProjectBriefReadyPath,
   vdProjectCreatePath,
   vdProjectGetPath,
   vdProjectJobsPath,
@@ -38,6 +42,40 @@ describe('video-sop-api path helpers', () => {
 
   it('vdAdminModelsPath is admin collection', () => {
     expect(vdAdminModelsPath()).toBe('/api/v1/vd/admin/models');
+  });
+
+  it('vdProjectBriefPath interpolates id', () => {
+    expect(vdProjectBriefPath(7)).toBe('/api/v1/vd/projects/7/brief');
+  });
+
+  it('vdProjectBriefReadyPath interpolates id', () => {
+    expect(vdProjectBriefReadyPath(7)).toBe('/api/v1/vd/projects/7/brief/ready');
+  });
+
+  it('vdProjectBriefInsightsPath interpolates id', () => {
+    expect(vdProjectBriefInsightsPath(7)).toBe('/api/v1/vd/projects/7/brief/insights');
+  });
+});
+
+describe('canEditVdBrief (same as API PUT/ready)', () => {
+  it('allows crm_vd.project edit', () => {
+    expect(canEditVdBrief(staff([{ section: 'crm_vd.project', action: 'edit' }]))).toBe(true);
+  });
+
+  it('allows crm_content write', () => {
+    expect(canEditVdBrief(staff([{ section: 'crm_content', action: 'write' }]))).toBe(true);
+  });
+
+  it('denies view-only crm_vd.project', () => {
+    expect(canEditVdBrief(staff([{ section: 'crm_vd.project', action: 'view' }]))).toBe(false);
+  });
+
+  it('denies create-only crm_vd.project', () => {
+    expect(canEditVdBrief(staff([{ section: 'crm_vd.project', action: 'create' }]))).toBe(false);
+  });
+
+  it('denies null user', () => {
+    expect(canEditVdBrief(null)).toBe(false);
   });
 });
 

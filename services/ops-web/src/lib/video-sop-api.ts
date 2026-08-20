@@ -6,6 +6,11 @@ export function canEnqueueVdJob(user: StoredStaffUser | null): boolean {
   return hasCap(user, 'crm_vd.project', 'create') || hasCap(user, 'crm_content', 'write');
 }
 
+/** Same cap as API PUT/POST brief (project edit or content write). */
+export function canEditVdBrief(user: StoredStaffUser | null): boolean {
+  return hasCap(user, 'crm_vd.project', 'edit') || hasCap(user, 'crm_content', 'write');
+}
+
 export type VdProjectRow = {
   id: number;
   lifecycle_id: number;
@@ -35,6 +40,18 @@ export function vdProjectGetPath(id: number | string): string {
 
 export function vdProjectJobsPath(id: number | string): string {
   return `/api/v1/vd/projects/${encodeURIComponent(String(id))}/jobs`;
+}
+
+export function vdProjectBriefPath(id: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(id))}/brief`;
+}
+
+export function vdProjectBriefReadyPath(id: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(id))}/brief/ready`;
+}
+
+export function vdProjectBriefInsightsPath(id: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(id))}/brief/insights`;
 }
 
 export function vdProjectListPath(lifecycleId: number | string): string {
@@ -74,6 +91,17 @@ export type EnqueueVdJobBody = {
 export type EnqueueVdJobResult = {
   id: number;
   status: string;
+};
+
+export type VdBriefRow = {
+  project_id: number;
+  body_json: Record<string, unknown>;
+  stage: string;
+};
+
+export type VdBriefInsight = {
+  id: number;
+  title: string;
 };
 
 export type VdProviderRow = {
@@ -139,6 +167,36 @@ export async function listVdJobs(token: string, projectId: number | string): Pro
   return asItems(body);
 }
 
+export async function getVdBrief(token: string, id: number | string): Promise<VdBriefRow> {
+  return vdFetch<VdBriefRow>(token, vdProjectBriefPath(id));
+}
+
+export async function saveVdBrief(
+  token: string,
+  id: number | string,
+  body: Record<string, unknown>,
+): Promise<VdBriefRow> {
+  return vdFetch<VdBriefRow>(token, vdProjectBriefPath(id), {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function markVdBriefReady(token: string, id: number | string): Promise<VdBriefRow> {
+  return vdFetch<VdBriefRow>(token, vdProjectBriefReadyPath(id), { method: 'POST' });
+}
+
+export async function listVdBriefInsights(
+  token: string,
+  id: number | string,
+): Promise<VdBriefInsight[]> {
+  const body = await vdFetch<VdBriefInsight[] | { items?: VdBriefInsight[] }>(
+    token,
+    vdProjectBriefInsightsPath(id),
+  );
+  return asItems(body);
+}
+
 export async function enqueueVdJob(
   token: string,
   projectId: number | string,
@@ -194,6 +252,10 @@ export const VIDEO_SOP_API = {
   createProject: createVdProject,
   listProjects: listVdProjects,
   getProject: getVdProject,
+  getBrief: getVdBrief,
+  saveBrief: saveVdBrief,
+  markBriefReady: markVdBriefReady,
+  listBriefInsights: listVdBriefInsights,
   listJobs: listVdJobs,
   enqueueJob: enqueueVdJob,
   listAdminProviders: listVdAdminProviders,
