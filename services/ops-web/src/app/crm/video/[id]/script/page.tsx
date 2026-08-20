@@ -49,6 +49,16 @@ function latestScript(rows: VdScriptRow[]): VdScriptRow | null {
   return rows.slice().sort((a, b) => b.version - a.version)[0] ?? null;
 }
 
+function shotFeasibilityLabel(shot: VdShotRow): string {
+  const rows = shot.feasibility;
+  if (Array.isArray(rows)) {
+    const fail = rows.find((row) => !row.ok);
+    return fail ? fail.id : 'OK';
+  }
+  if (typeof rows === 'string' && rows.trim()) return rows;
+  return '—';
+}
+
 export default function CrmVideoSopScriptPage() {
   const router = useRouter();
   const params = useParams();
@@ -453,7 +463,7 @@ export default function CrmVideoSopScriptPage() {
                         <td>{shot.action}</td>
                         <td>{shot.aspect}</td>
                         <td>{shot.status}</td>
-                        <td>{shot.feasibility ?? '—'}</td>
+                        <td>{shotFeasibilityLabel(shot)}</td>
                       </tr>
                     ))}
                   </tbody>

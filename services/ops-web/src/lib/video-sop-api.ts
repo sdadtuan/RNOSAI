@@ -165,7 +165,7 @@ export type VdShotRow = {
   text_in_frame?: boolean;
   logo_in_ai_frame?: boolean;
   seed?: number | null;
-  feasibility?: string | null;
+  feasibility?: Array<{ id: string; ok: boolean }> | string | null;
 };
 
 export type VdPromptTemplateRow = {

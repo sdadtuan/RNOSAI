@@ -161,4 +161,18 @@ export class VdShotRepository implements OnModuleDestroy {
     this.memory.shots.push(row);
     return row;
   }
+
+  async replaceForScript(scriptId: number, inputs: InsertVdShotInput[]): Promise<VdShotRow[]> {
+    if (await this.ensurePgReady()) {
+      await this.db.query(`DELETE FROM vd_shots WHERE script_id = $1`, [scriptId]);
+    } else {
+      this.assertWritableOrThrow();
+      this.memory.shots = this.memory.shots.filter((row) => row.script_id !== scriptId);
+    }
+    const rows: VdShotRow[] = [];
+    for (const input of inputs) {
+      rows.push(await this.insert({ ...input, script_id: scriptId }));
+    }
+    return rows;
+  }
 }

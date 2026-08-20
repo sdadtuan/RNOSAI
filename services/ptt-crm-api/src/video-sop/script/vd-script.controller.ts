@@ -22,6 +22,7 @@ const HTTP_400 = new Set([
   'vd_tables_missing',
   'invalid_body',
   'idempotency_key_required',
+  'feasibility_blocked',
 ]);
 
 function mapKnownError(err: unknown): never {

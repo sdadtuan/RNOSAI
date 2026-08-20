@@ -4,6 +4,13 @@ import { parseIdeaSummaries, selectTextGen, STUB_IDEAS } from '../adapters/i-tex
 import { VdDispatcherService } from '../orchestration/vd-dispatcher.service';
 import type { VdScriptRow } from '../project/vd-project.repository';
 import { VdProjectRepository } from '../project/vd-project.repository';
+import {
+  assertFeasibilityPass,
+  assertShotFeasibility,
+  evaluateFeasibility,
+  PER_SHOT_RULE_IDS,
+  type VdShotDraft,
+} from '../rules/vd-feasibility.rules';
 import { assertStageTransition } from '../rules/vd-stage.guard';
 import { assertCinematicEnabled } from '../video-sop-flags';
 import { VdIdeaRepository, type VdIdeaRow, type VdPromptTemplateRow } from './vd-idea.repository';
@@ -13,6 +20,76 @@ export type { VdIdeaRow, VdPromptTemplateRow, VdScriptRow, VdShotRow };
 
 function asBool(value: unknown, fallback = false): boolean {
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function parseShotDraft(body: Record<string, unknown>): VdShotDraft {
+  const duration = Number(body.duration_ms);
+  if (!Number.isFinite(duration)) {
+    throw new Error('invalid_body');
+  }
+  const seedRaw = body.seed;
+  const seed =
+    seedRaw == null || seedRaw === ''
+      ? null
+      : Number.isFinite(Number(seedRaw))
+        ? Number(seedRaw)
+        : null;
+  return {
+    duration_ms: Math.floor(duration),
+    text_in_frame: body.text_in_frame === true,
+    contains_human: body.contains_human,
+    aspect: typeof body.aspect === 'string' ? body.aspect : '',
+    camera: typeof body.camera === 'string' ? body.camera : '',
+    action: typeof body.action === 'string' ? body.action : '',
+    logo_in_ai_frame: body.logo_in_ai_frame === true,
+    seed,
+    status: typeof body.status === 'string' && body.status.trim() ? body.status : 'draft',
+  };
+}
+
+function projectFromBrief(brief: Record<string, unknown> | null): {
+  duration_sec: number;
+  platform: string;
+} {
+  const duration =
+    brief && typeof brief.duration_sec === 'number' && Number.isFinite(brief.duration_sec)
+      ? brief.duration_sec
+      : 30;
+  const platform =
+    brief && typeof brief.platform === 'string' && brief.platform.trim()
+      ? brief.platform
+      : 'reels';
+  return { duration_sec: duration, platform };
+}
+
+function toInsertInput(scriptId: number, draft: VdShotDraft) {
+  return {
+    script_id: scriptId,
+    duration_ms: draft.duration_ms,
+    camera: draft.camera,
+    action: draft.action,
+    aspect: draft.aspect || undefined,
+    contains_human: asBool(draft.contains_human),
+    text_in_frame: draft.text_in_frame,
+    logo_in_ai_frame: draft.logo_in_ai_frame,
+    seed: draft.seed,
+  };
+}
+
+function perShotFeasibility(shot: VdShotRow) {
+  return evaluateFeasibility({ duration_sec: 30, platform: 'reels' }, [
+    {
+      duration_ms: shot.duration_ms,
+      text_in_frame: shot.text_in_frame,
+      contains_human: shot.contains_human,
+      aspect: shot.aspect,
+      camera: shot.camera,
+      action: shot.action,
+      logo_in_ai_frame: shot.logo_in_ai_frame,
+      seed: shot.seed,
+      status: shot.status,
+    },
+  ]).filter((row) => PER_SHOT_RULE_IDS.has(row.id));
 }
 
 @Injectable()
@@ -108,39 +185,39 @@ export class VdScriptService {
     return this.projects.insertScriptRow(projectId, version, markdown);
   }
 
-  async listShots(scriptId: number): Promise<VdShotRow[]> {
+  async listShots(scriptId: number): Promise<Array<VdShotRow & { feasibility: { id: string; ok: boolean }[] }>> {
     await this.requireScript(scriptId);
-    return this.shots.listByScriptId(scriptId);
+    const rows = await this.shots.listByScriptId(scriptId);
+    return rows.map((row) => ({ ...row, feasibility: perShotFeasibility(row) }));
   }
 
-  async addShot(scriptId: number, body: Record<string, unknown>): Promise<VdShotRow> {
+  async addShot(
+    scriptId: number,
+    body: Record<string, unknown>,
+  ): Promise<VdShotRow | VdShotRow[]> {
     assertCinematicEnabled(this.config);
     if (body == null || typeof body !== 'object' || Array.isArray(body)) {
       throw new Error('invalid_body');
     }
-    await this.requireScript(scriptId);
-    const duration = Number(body.duration_ms);
-    if (!Number.isFinite(duration)) {
-      throw new Error('invalid_body');
+    if (Array.isArray(body.shots)) {
+      const script = await this.requireScript(scriptId);
+      const drafts = body.shots.map((item) => {
+        if (item == null || typeof item !== 'object' || Array.isArray(item)) {
+          throw new Error('invalid_body');
+        }
+        return parseShotDraft(item as Record<string, unknown>);
+      });
+      const brief = await this.projects.getBrief(script.project_id);
+      assertFeasibilityPass(projectFromBrief(brief), drafts);
+      return this.shots.replaceForScript(
+        scriptId,
+        drafts.map((draft) => toInsertInput(scriptId, draft)),
+      );
     }
-    const seedRaw = body.seed;
-    const seed =
-      seedRaw == null || seedRaw === ''
-        ? null
-        : Number.isFinite(Number(seedRaw))
-          ? Number(seedRaw)
-          : null;
-    return this.shots.insert({
-      script_id: scriptId,
-      duration_ms: Math.floor(duration),
-      camera: typeof body.camera === 'string' ? body.camera : '',
-      action: typeof body.action === 'string' ? body.action : '',
-      aspect: typeof body.aspect === 'string' ? body.aspect : undefined,
-      contains_human: asBool(body.contains_human),
-      text_in_frame: asBool(body.text_in_frame),
-      logo_in_ai_frame: asBool(body.logo_in_ai_frame),
-      seed,
-    });
+    await this.requireScript(scriptId);
+    const draft = parseShotDraft(body);
+    assertShotFeasibility(draft);
+    return this.shots.insert(toInsertInput(scriptId, draft));
   }
 
   listTemplates(): Promise<VdPromptTemplateRow[]> {
