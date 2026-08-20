@@ -558,7 +558,9 @@ export class ContentJobWorkerService {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await this.repo.patchItem(claimed.lifecycle_id, item.id, { visual_status: 'rejected' });
+      if (claimed.job_type === 'social_storyboard' || claimed.job_type === 'social_render') {
+        await this.repo.patchItem(claimed.lifecycle_id, item.id, { visual_status: 'rejected' });
+      }
       return this.repo.finishContentJob(jobId, { status: 'failed', error_text: message });
     }
   }

@@ -118,4 +118,37 @@ describe('ContentJobWorkerService', () => {
     );
     expect(out?.status).toBe('succeeded');
   });
+
+  it('does not reject visual_status when social_transcode fails after master exists', async () => {
+    repo.claimContentJob.mockResolvedValue({
+      id: 20,
+      lifecycle_id: 1,
+      item_id: 5,
+      job_type: 'social_transcode',
+      input_json: {},
+      created_by: 'w@test.vn',
+    });
+    repo.getItemById.mockResolvedValue({
+      id: 5,
+      channel: 'short_video',
+      format: 'video_script',
+      title: 'Hook',
+      body_json: { markdown: 'hook' },
+      media_json: { video_short: { url: 'https://cdn.pttads.vn/cmkt/1/5/master.mp4' } },
+    });
+    social.executeTranscode.mockRejectedValue(new Error('ffmpeg_missing'));
+    repo.finishContentJob.mockImplementation((_id, patch) => ({
+      id: 20,
+      status: patch.status,
+      error_text: patch.error_text,
+    }));
+
+    const out = await worker.processJob(20);
+    expect(out?.status).toBe('failed');
+    expect(repo.patchItem).not.toHaveBeenCalledWith(
+      1,
+      5,
+      expect.objectContaining({ visual_status: 'rejected' }),
+    );
+  });
 });

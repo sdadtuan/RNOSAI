@@ -141,4 +141,25 @@ describe('SocialVideoService', () => {
     expect(media.video_short.url).toBe('https://cdn.pttads.vn/cmkt/1/2/master-9.mp4');
     expect(media.video_short.url).not.toMatch(/-manifest\.json/);
   });
+
+  it('does not enqueue social_render after failed storyboard', async () => {
+    repo.getItemById.mockResolvedValue({
+      format: 'video_script',
+      channel: 'short_video',
+      status: 'approved_internal',
+      media_json: { video_studio: 'social' },
+    });
+    repo.createContentJob.mockResolvedValue({ id: 11, job_type: 'social_storyboard' });
+    worker.processJob.mockResolvedValue({ status: 'failed' });
+
+    try {
+      await svc.startOneShot(1, 2, { pack_default: 'reels' }, 'a@b.c');
+    } catch {
+      /* throw is acceptable; must not enqueue render */
+    }
+
+    expect(repo.createContentJob).not.toHaveBeenCalledWith(
+      expect.objectContaining({ job_type: 'social_render' }),
+    );
+  });
 });

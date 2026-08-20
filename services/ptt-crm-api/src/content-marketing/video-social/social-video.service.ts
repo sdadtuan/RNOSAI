@@ -206,7 +206,15 @@ export class SocialVideoService {
       input_json: input,
       created_by: email,
     });
-    await this.worker.processJob(storyboardJob.id);
+    const storyboardResult = await this.worker.processJob(storyboardJob.id);
+    if (!storyboardResult || storyboardResult.status !== 'succeeded') {
+      if (storyboardResult) return storyboardResult;
+      throw new BadRequestException({
+        error: 'storyboard_failed',
+        message: 'storyboard_failed',
+        job_id: storyboardJob.id,
+      });
+    }
     return this.enqueueJob(lifecycleId, itemId, 'social_render', input, email);
   }
 
