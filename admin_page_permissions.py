@@ -194,6 +194,20 @@ ADMIN_CRM_SECTIONS: tuple[dict[str, Any], ...] = (
         "description": "Gate 2 keyframe review SC-10 (Module 7 S5).",
     },
     {
+        "id": "crm_vd.motion",
+        "label": "Video SOP — Motion",
+        "group": "CRM — Triển khai dịch vụ",
+        "page": "/crm/video",
+        "description": "Motion render SC-07 + takes SC-08 (Module 7 S6).",
+    },
+    {
+        "id": "crm_vd.gate3",
+        "label": "Video SOP — Gate 3",
+        "group": "CRM — Triển khai dịch vụ",
+        "page": "/crm/video",
+        "description": "Gate 3 take review SC-10 (Module 7 S6).",
+    },
+    {
         "id": "crm_vd.admin",
         "label": "Video SOP — Providers",
         "group": "CRM — Admin",
@@ -645,6 +659,8 @@ _POSITION_DEFAULT: dict[str, dict[str, frozenset[str]]] = {
         "crm_vd.keyframe": frozenset({"view", "edit"}),
         "crm_vd.gate1": frozenset({"view", "approve"}),
         "crm_vd.gate2": frozenset({"view", "approve"}),
+        "crm_vd.motion": frozenset({"view", "edit"}),
+        "crm_vd.gate3": frozenset({"view", "approve"}),
         "crm_vd.admin": frozenset({"view", "create"}),
     },
     "MKT-02": {

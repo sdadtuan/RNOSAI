@@ -15,8 +15,11 @@ import {
 import { StaffOrInternalKeyGuard } from '../../staff-auth/staff-or-internal-key.guard';
 import {
   StaffVdKeyframeEditGuard,
+  StaffVdMotionEditGuard,
   StaffVdProjectViewGuard,
+  StaffVdShotJobEnqueueGuard,
 } from '../guards/staff-vd-project.guard';
+import { VdMotionService } from '../render/vd-motion.service';
 import { VdPromptService } from './vd-prompt.service';
 
 const HTTP_400 = new Set([
@@ -24,6 +27,8 @@ const HTTP_400 = new Set([
   'vd_tables_missing',
   'invalid_body',
   'idempotency_key_required',
+  'stage_guard',
+  'take_draft_required',
 ]);
 
 function mapKnownError(err: unknown): never {
@@ -43,7 +48,10 @@ function mapKnownError(err: unknown): never {
 @Controller('api/v1/vd')
 @UseGuards(StaffOrInternalKeyGuard)
 export class VdPromptController {
-  constructor(private readonly prompts: VdPromptService) {}
+  constructor(
+    private readonly prompts: VdPromptService,
+    private readonly motion: VdMotionService,
+  ) {}
 
   @Get('projects/:id/shots')
   @UseGuards(StaffVdProjectViewGuard)
@@ -67,13 +75,20 @@ export class VdPromptController {
 
   @Post('shots/:id/jobs')
   @HttpCode(201)
-  @UseGuards(StaffVdKeyframeEditGuard)
-  async enqueueKeyframe(
+  @UseGuards(StaffVdShotJobEnqueueGuard)
+  async enqueueShotJob(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: Record<string, unknown>,
     @Headers('idempotency-key') idempotencyKey?: string,
   ) {
+    const jobType = typeof body?.job_type === 'string' ? body.job_type.trim() : '';
     try {
+      if (jobType === 'cine_motion_draft') {
+        return await this.motion.enqueueDraft(id, body ?? {}, idempotencyKey ?? '');
+      }
+      if (jobType === 'cine_motion_final') {
+        return await this.motion.enqueueFinal(id, idempotencyKey ?? '');
+      }
       return await this.prompts.enqueueKeyframe(id, body ?? {}, idempotencyKey);
     } catch (err) {
       mapKnownError(err);

@@ -8,6 +8,8 @@ import {
   canEnqueueVdJob,
   canApproveGate1,
   canApproveGate2,
+  canApproveGate3,
+  canEditVdMotion,
   canApproveVdGate,
   saveVdScript,
   vdAdminModelsPath,
@@ -241,6 +243,26 @@ describe('canApproveGate2 (same as API gate 2 approve)', () => {
   });
 });
 
+describe('canApproveGate3 (same as API gate 3 approve)', () => {
+  it('allows crm_vd.gate3 approve', () => {
+    expect(canApproveGate3(staff([{ section: 'crm_vd.gate3', action: 'approve' }]))).toBe(true);
+  });
+
+  it('denies gate2 approve only', () => {
+    expect(canApproveGate3(staff([{ section: 'crm_vd.gate2', action: 'approve' }]))).toBe(false);
+  });
+});
+
+describe('canEditVdMotion (same as API motion jobs)', () => {
+  it('allows crm_vd.motion edit', () => {
+    expect(canEditVdMotion(staff([{ section: 'crm_vd.motion', action: 'edit' }]))).toBe(true);
+  });
+
+  it('denies view only', () => {
+    expect(canEditVdMotion(staff([{ section: 'crm_vd.motion', action: 'view' }]))).toBe(false);
+  });
+});
+
 describe('canApproveVdGate', () => {
   it('routes gate 1 to gate1 cap', () => {
     expect(
@@ -254,8 +276,14 @@ describe('canApproveVdGate', () => {
     ).toBe(true);
   });
 
+  it('routes gate 3 to gate3 cap', () => {
+    expect(
+      canApproveVdGate(staff([{ section: 'crm_vd.gate3', action: 'approve' }]), 3),
+    ).toBe(true);
+  });
+
   it('denies unknown gate', () => {
-    expect(canApproveVdGate(staff([{ section: 'crm_vd.gate1', action: 'approve' }]), 3)).toBe(
+    expect(canApproveVdGate(staff([{ section: 'crm_vd.gate1', action: 'approve' }]), 4)).toBe(
       false,
     );
   });

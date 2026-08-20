@@ -1,6 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { createHash } from 'crypto';
 import type { VdImageGenInput } from '../adapters/i-image-gen';
+import type { VdVideoGenInput, VdVideoProvider } from '../adapters/i-video-gen';
 import { parseIdeaSummaries, selectTextGen } from '../adapters/i-text-gen';
 import { VdAssetRepository } from '../assets/vd-asset.repository';
 import { VdJobRepository } from '../jobs/vd-job.repository';
@@ -8,7 +9,7 @@ import type { EnqueueVdJobInput, VdJobHandler, VdJobRow, VdJobStatus } from '../
 import { VdIdeaRepository } from '../script/vd-idea.repository';
 import { VdShotRepository } from '../script/vd-shot.repository';
 import { VdPromptRepository } from '../prompt/vd-prompt.repository';
-import { selectImageGen } from './vd-model-router';
+import { selectImageGen, selectVideoGen } from './vd-model-router';
 
 const RETRYABLE = new Set(['transient', 'rate_limit']);
 const TERMINAL = new Set<VdJobStatus>(['succeeded', 'failed', 'cancelled', 'stale']);
@@ -49,6 +50,22 @@ function imageInputFrom(payload: Record<string, unknown>): VdImageGenInput {
   };
 }
 
+function videoInputFrom(payload: Record<string, unknown>): VdVideoGenInput {
+  const durationSec = Number(payload.durationSec);
+  const hintRaw = payload.providerHint;
+  const providerHint =
+    hintRaw === 'runway' || hintRaw === 'kling' ? (hintRaw as VdVideoProvider) : undefined;
+  return {
+    imageUrl:
+      typeof payload.imageUrl === 'string' && payload.imageUrl.trim()
+        ? payload.imageUrl.trim()
+        : 'shot://unknown',
+    prompt: typeof payload.prompt === 'string' ? payload.prompt : '',
+    durationSec: Number.isFinite(durationSec) && durationSec > 0 ? Math.floor(durationSec) : 5,
+    ...(providerHint ? { providerHint } : {}),
+  };
+}
+
 @Injectable()
 export class VdDispatcherService {
   private readonly handlers = new Map<string, VdJobHandler>();
@@ -63,6 +80,8 @@ export class VdDispatcherService {
   ) {
     this.registerHandler('cine_keyframe', (job) => this.handleCineKeyframe(job));
     this.registerHandler('cine_director', (job) => this.handleCineDirector(job));
+    this.registerHandler('cine_motion_draft', (job) => this.handleCineMotion(job));
+    this.registerHandler('cine_motion_final', (job) => this.handleCineMotion(job));
   }
 
   private async handleCineDirector(job: VdJobRow): Promise<Record<string, unknown>> {
@@ -129,6 +148,48 @@ export class VdDispatcherService {
       provider: result.provider,
       providerId: result.providerId,
       seed: result.seed,
+      asset_id: asset.id,
+    };
+  }
+
+  private async handleCineMotion(job: VdJobRow): Promise<Record<string, unknown>> {
+    const gen = selectVideoGen({
+      PTT_VD_KLING_API_KEY: (process.env.PTT_VD_KLING_API_KEY ?? '').trim(),
+      PTT_VD_RUNWAY_API_KEY: (process.env.PTT_VD_RUNWAY_API_KEY ?? '').trim(),
+    }, videoInputFrom(job.input_json).providerHint);
+
+    const input = videoInputFrom(job.input_json);
+    const enqueued = await gen.enqueue(input);
+    const polled = await gen.poll(enqueued.providerJobId);
+    if (polled === 'running') {
+      throw Object.assign(new Error('transient'), { error_class: 'transient' });
+    }
+    if (!polled?.buffer || !Buffer.isBuffer(polled.buffer) || polled.buffer.length === 0) {
+      throw Object.assign(new Error('empty_video_buffer'), { error_class: 'provider' });
+    }
+
+    const sha256 = createHash('sha256').update(polled.buffer).digest('hex');
+    const durationMs = input.durationSec * 1000;
+    const asset = await this.assets.insert({
+      project_id: job.project_id,
+      job_id: job.id,
+      kind: 'take',
+      storage_key: '',
+      url: '',
+      sha256,
+      width: null,
+      height: null,
+      duration_ms: durationMs,
+    });
+
+    if (job.shot_id && this.shots) {
+      const status = job.job_type === 'cine_motion_final' ? 'clip_final' : 'clip_draft';
+      await this.shots.updateStatus(job.shot_id, status);
+    }
+
+    return {
+      provider: polled.provider,
+      providerId: polled.providerId,
       asset_id: asset.id,
     };
   }

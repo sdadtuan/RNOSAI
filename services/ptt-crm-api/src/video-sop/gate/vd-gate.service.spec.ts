@@ -91,4 +91,25 @@ describe('VdGateService', () => {
   it('blocks stage advance to animating when gate2 pending', async () => {
     await expect(service.advanceStage(7, 'animating')).rejects.toThrow('stage_guard');
   });
+
+  it('blocks gate3 approve when no clip_selected', async () => {
+    projects.getById.mockResolvedValue({ id: 7, stage: 'animating' });
+    shots.listByProjectId.mockResolvedValue([
+      {
+        id: 1,
+        duration_ms: 3000,
+        text_in_frame: false,
+        contains_human: false,
+        aspect: '9:16',
+        camera: 'wide',
+        action: 'walk',
+        logo_in_ai_frame: false,
+        seed: null,
+        status: 'clip_draft',
+      },
+    ]);
+    await expect(
+      service.approve(7, 3, { override: false }, 'u@pttads.vn'),
+    ).rejects.toThrow('gate3_incomplete');
+  });
 });

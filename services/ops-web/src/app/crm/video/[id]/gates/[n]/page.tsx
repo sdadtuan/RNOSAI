@@ -24,6 +24,7 @@ import {
 const BANNER: Record<number, string> = {
   1: 'S5 — Gate 1 shotlist. BR-04 immutable sau approve.',
   2: 'S5 — Gate 2 keyframe. AC-R3 animating.',
+  3: 'S6 — Gate 3 takes. Cần ≥1 shot clip_selected.',
 };
 
 function canViewVideoSop(user: StoredStaffUser | null): boolean {
@@ -36,7 +37,7 @@ function isVideoSopEnabled(): boolean {
 
 function parseGateNo(raw: string): number | null {
   const n = Number(raw);
-  if (n === 1 || n === 2) return n;
+  if (n === 1 || n === 2 || n === 3) return n;
   return null;
 }
 

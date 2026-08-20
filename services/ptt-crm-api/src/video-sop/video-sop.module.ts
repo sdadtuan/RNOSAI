@@ -5,10 +5,12 @@ import {
   StaffVdBibleEditGuard,
   StaffVdGateApproveGuard,
   StaffVdKeyframeEditGuard,
+  StaffVdMotionEditGuard,
   StaffVdProjectCreateGuard,
   StaffVdProjectEditGuard,
   StaffVdProjectViewGuard,
   StaffVdScriptEditGuard,
+  StaffVdShotJobEnqueueGuard,
 } from './guards/staff-vd-project.guard';
 import { VdAssetRepository } from './assets/vd-asset.repository';
 import { VdBibleController } from './bible/vd-bible.controller';
@@ -22,6 +24,9 @@ import { VdPollerService } from './orchestration/vd-poller.service';
 import { VdGateController } from './gate/vd-gate.controller';
 import { VdGateRepository } from './gate/vd-gate.repository';
 import { VdGateService } from './gate/vd-gate.service';
+import { VdMotionController } from './render/vd-motion.controller';
+import { VdMotionService } from './render/vd-motion.service';
+import { VdTakeRepository } from './render/vd-take.repository';
 import { VdPromptController } from './prompt/vd-prompt.controller';
 import { VdPromptRepository } from './prompt/vd-prompt.repository';
 import { VdPromptService } from './prompt/vd-prompt.service';
@@ -50,6 +55,7 @@ import { VdShotRepository } from './script/vd-shot.repository';
     VdBibleController,
     VdPromptController,
     VdGateController,
+    VdMotionController,
   ],
   providers: [
     VdProjectRepository,
@@ -67,6 +73,8 @@ import { VdShotRepository } from './script/vd-shot.repository';
     VdPromptService,
     VdGateRepository,
     VdGateService,
+    VdTakeRepository,
+    VdMotionService,
     VdDispatcherService,
     VdPollerService,
     VdJobHttpService,
@@ -78,6 +86,8 @@ import { VdShotRepository } from './script/vd-shot.repository';
     StaffVdBibleEditGuard,
     StaffVdGateApproveGuard,
     StaffVdKeyframeEditGuard,
+    StaffVdMotionEditGuard,
+    StaffVdShotJobEnqueueGuard,
     StaffVdAdminViewGuard,
     StaffVdAdminCreateGuard,
   ],

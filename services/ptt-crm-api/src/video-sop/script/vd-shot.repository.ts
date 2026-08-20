@@ -114,6 +114,16 @@ export class VdShotRepository implements OnModuleDestroy {
     if (row) row.status = status;
   }
 
+  async incrementTakeFailCount(id: number, count: number): Promise<void> {
+    if (await this.ensurePgReady()) {
+      await this.db.query(`UPDATE vd_shots SET take_fail_count = $2 WHERE id = $1`, [id, count]);
+      return;
+    }
+    this.assertWritableOrThrow();
+    const row = this.memory.shots.find((s) => s.id === id);
+    if (row) row.take_fail_count = count;
+  }
+
   async listByProjectId(projectId: number): Promise<VdShotRow[]> {
     if (await this.ensurePgReady()) {
       const res = await this.db.query(

@@ -144,6 +144,43 @@ export class VdAssetRepository implements OnModuleDestroy {
     return this.remember(row);
   }
 
+  async getById(id: number): Promise<VdAssetRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, project_id, job_id, kind, storage_key, url, sha256, width, height, duration_ms, created_at
+         FROM vd_assets WHERE id = $1`,
+        [id],
+      );
+      const row = res.rows[0] as Record<string, unknown> | undefined;
+      return row ? this.mapRow(row) : null;
+    }
+    return this.memory.assets.find((row) => row.id === id) ?? null;
+  }
+
+  async listByProjectIdAndKind(
+    projectId: number,
+    kind: VdAssetKind,
+    limit = 50,
+  ): Promise<VdAssetRow[]> {
+    const cap = Math.max(1, Math.min(limit, 50));
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, project_id, job_id, kind, storage_key, url, sha256, width, height, duration_ms, created_at
+         FROM vd_assets
+         WHERE project_id = $1 AND kind = $2
+         ORDER BY created_at DESC
+         LIMIT $3`,
+        [projectId, kind, cap],
+      );
+      return (res.rows as Record<string, unknown>[]).map((row) => this.mapRow(row));
+    }
+    return this.memory.assets
+      .filter((row) => row.project_id === projectId && row.kind === kind)
+      .slice()
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .slice(0, cap);
+  }
+
   async listKeyframesByProjectId(projectId: number, limit = 50): Promise<VdAssetRow[]> {
     const cap = Math.max(1, Math.min(limit, 50));
     if (await this.ensurePgReady()) {

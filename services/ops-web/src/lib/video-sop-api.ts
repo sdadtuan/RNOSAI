@@ -56,9 +56,28 @@ export function canApproveGate2(user: StoredStaffUser | null): boolean {
   );
 }
 
+/** Same cap as API POST gate 3 approve/reject/override. */
+export function canApproveGate3(user: StoredStaffUser | null): boolean {
+  return (
+    hasCap(user, 'crm_vd.gate3', 'approve') ||
+    hasCap(user, 'crm_vd.project', 'edit') ||
+    hasCap(user, 'crm_content', 'write')
+  );
+}
+
+/** Same cap as API motion draft/final + take score. */
+export function canEditVdMotion(user: StoredStaffUser | null): boolean {
+  return (
+    hasCap(user, 'crm_vd.motion', 'edit') ||
+    hasCap(user, 'crm_vd.project', 'edit') ||
+    hasCap(user, 'crm_content', 'write')
+  );
+}
+
 export function canApproveVdGate(user: StoredStaffUser | null, gateNo: number): boolean {
   if (gateNo === 1) return canApproveGate1(user);
   if (gateNo === 2) return canApproveGate2(user);
+  if (gateNo === 3) return canApproveGate3(user);
   return false;
 }
 
@@ -171,6 +190,38 @@ export function vdProjectStagePath(projectId: number | string): string {
 
 export function vdShotApproveKeyframePath(shotId: number | string): string {
   return `/api/v1/vd/shots/${encodeURIComponent(String(shotId))}/approve-keyframe`;
+}
+
+export function vdProjectRenderEstimatePath(
+  projectId: number | string,
+  shotId: number | string,
+  jobType: string,
+): string {
+  const q = new URLSearchParams({
+    shot_id: String(shotId),
+    job_type: jobType,
+  });
+  return `/api/v1/vd/projects/${encodeURIComponent(String(projectId))}/render-estimate?${q}`;
+}
+
+export function vdProjectTakesPath(projectId: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(projectId))}/takes`;
+}
+
+export function vdShotTakeScorePath(shotId: number | string): string {
+  return `/api/v1/vd/shots/${encodeURIComponent(String(shotId))}/take-score`;
+}
+
+export function vdShotSelectTakePath(shotId: number | string): string {
+  return `/api/v1/vd/shots/${encodeURIComponent(String(shotId))}/select-take`;
+}
+
+export function vdShotMotionDraftPath(shotId: number | string): string {
+  return `/api/v1/vd/shots/${encodeURIComponent(String(shotId))}/motion/draft`;
+}
+
+export function vdShotMotionFinalPath(shotId: number | string): string {
+  return `/api/v1/vd/shots/${encodeURIComponent(String(shotId))}/motion/final`;
 }
 
 export function vdProjectListPath(lifecycleId: number | string): string {
@@ -303,6 +354,24 @@ export type VdGateView = {
   status: string;
   stage: string;
   checklist: VdGateChecklistItem[];
+};
+
+export type VdRenderEstimate = {
+  shot_id: number;
+  job_type: string;
+  credit_estimate: number;
+  alert_threshold: number;
+  needs_confirm: boolean;
+};
+
+export type VdTakeView = {
+  asset_id: number;
+  shot_id: number;
+  url: string;
+  sha256: string | null;
+  duration_ms: number | null;
+  verdict: string | null;
+  artifact_json: Record<string, unknown>;
 };
 
 export type AddVdShotBody = {
@@ -558,13 +627,83 @@ export async function listVdProjectKeyframes(
 export async function enqueueVdShotKeyframe(
   token: string,
   shotId: number | string,
-  body: { prompt?: string; width?: number; height?: number; seed?: number },
+  body: { prompt?: string; width?: number; height?: number; seed?: number; job_type?: string },
   idempotencyKey: string,
 ): Promise<EnqueueVdJobResult> {
   return vdFetch<EnqueueVdJobResult>(token, vdShotJobsPath(shotId), {
     method: 'POST',
     headers: { 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify(body),
+  });
+}
+
+export async function enqueueVdShotMotionDraft(
+  token: string,
+  shotId: number | string,
+  body: Record<string, unknown>,
+  idempotencyKey: string,
+): Promise<EnqueueVdJobResult> {
+  return vdFetch<EnqueueVdJobResult>(token, vdShotJobsPath(shotId), {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({ ...body, job_type: 'cine_motion_draft' }),
+  });
+}
+
+export async function enqueueVdShotMotionFinal(
+  token: string,
+  shotId: number | string,
+  idempotencyKey: string,
+): Promise<EnqueueVdJobResult> {
+  return vdFetch<EnqueueVdJobResult>(token, vdShotJobsPath(shotId), {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({ job_type: 'cine_motion_final' }),
+  });
+}
+
+export async function getVdRenderEstimate(
+  token: string,
+  projectId: number | string,
+  shotId: number | string,
+  jobType: string,
+): Promise<VdRenderEstimate> {
+  return vdFetch<VdRenderEstimate>(
+    token,
+    vdProjectRenderEstimatePath(projectId, shotId, jobType),
+  );
+}
+
+export async function listVdProjectTakes(
+  token: string,
+  projectId: number | string,
+): Promise<VdTakeView[]> {
+  const body = await vdFetch<VdTakeView[] | { items?: VdTakeView[] }>(
+    token,
+    vdProjectTakesPath(projectId),
+  );
+  return asItems(body);
+}
+
+export async function recordVdTakeScore(
+  token: string,
+  shotId: number | string,
+  body: { asset_id: number; verdict: 'passed' | 'failed'; artifact_json?: Record<string, unknown> },
+): Promise<unknown> {
+  return vdFetch(token, vdShotTakeScorePath(shotId), {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function selectVdTake(
+  token: string,
+  shotId: number | string,
+  assetId: number,
+): Promise<VdShotRow> {
+  return vdFetch<VdShotRow>(token, vdShotSelectTakePath(shotId), {
+    method: 'POST',
+    body: JSON.stringify({ asset_id: assetId }),
   });
 }
 
@@ -704,6 +843,12 @@ export const VIDEO_SOP_API = {
   listProjectShots: listVdProjectShots,
   listProjectKeyframes: listVdProjectKeyframes,
   enqueueShotKeyframe: enqueueVdShotKeyframe,
+  enqueueShotMotionDraft: enqueueVdShotMotionDraft,
+  enqueueShotMotionFinal: enqueueVdShotMotionFinal,
+  getRenderEstimate: getVdRenderEstimate,
+  listProjectTakes: listVdProjectTakes,
+  recordTakeScore: recordVdTakeScore,
+  selectTake: selectVdTake,
   listPromptTemplates: listVdPromptTemplates,
   listJobs: listVdJobs,
   enqueueJob: enqueueVdJob,

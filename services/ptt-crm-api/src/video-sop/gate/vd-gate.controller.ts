@@ -29,6 +29,7 @@ const HTTP_400 = new Set([
   'invalid_body',
   'stage_guard',
   'gate_checklist_failed',
+  'gate3_incomplete',
   'override_reason',
   'shotlist_immutable',
 ]);

@@ -103,14 +103,16 @@ export class VdGateService {
 
   async getGate(projectId: number, gateNo: number): Promise<VdGateView> {
     const project = await this.requireProject(projectId);
-    if (gateNo !== 1 && gateNo !== 2) {
+    if (gateNo !== 1 && gateNo !== 2 && gateNo !== 3) {
       throw new Error('invalid_body');
     }
     const row = await this.gates.getOrCreate(projectId, gateNo);
     const checklist =
       gateNo === 1
         ? await this.buildGate1Checklist(projectId)
-        : await this.buildGate2Checklist(projectId);
+        : gateNo === 2
+          ? await this.buildGate2Checklist(projectId)
+          : await this.buildGate3Checklist(projectId);
     return {
       project_id: projectId,
       gate_no: gateNo,
@@ -158,6 +160,18 @@ export class VdGateService {
     ];
   }
 
+  private async buildGate3Checklist(projectId: number): Promise<VdGateChecklistItem[]> {
+    const shotRows = await this.latestShots(projectId);
+    const hasSelected = shotRows.some((row) => row.status === 'clip_selected');
+    return [
+      {
+        id: 'clip_selected',
+        label: 'Có ít nhất 1 shot clip_selected',
+        ok: hasSelected,
+      },
+    ];
+  }
+
   async markShotlistReady(projectId: number) {
     assertCinematicEnabled(this.config);
     const project = await this.requireProject(projectId);
@@ -200,13 +214,14 @@ export class VdGateService {
     actorEmail: string,
   ) {
     assertCinematicEnabled(this.config);
-    if (gateNo !== 1 && gateNo !== 2) {
+    if (gateNo !== 1 && gateNo !== 2 && gateNo !== 3) {
       throw new Error('invalid_body');
     }
     const override = body.override === true;
     this.assertOverrideReason(body.override_reason, override);
     const view = await this.getGate(projectId, gateNo);
     if (!override && view.checklist.some((item) => !item.ok)) {
+      if (gateNo === 3) throw new Error('gate3_incomplete');
       throw new Error('gate_checklist_failed');
     }
     const project = await this.requireProject(projectId);
@@ -232,7 +247,7 @@ export class VdGateService {
         reason: typeof body.override_reason === 'string' ? body.override_reason : '',
       });
       await this.projects.updateStage(projectId, 'keyframing');
-    } else {
+    } else if (gateNo === 2) {
       if (project.stage !== 'keyframing') {
         throw new Error('stage_guard');
       }
@@ -245,6 +260,19 @@ export class VdGateService {
         reason: typeof body.override_reason === 'string' ? body.override_reason : '',
       });
       await this.projects.updateStage(projectId, 'animating');
+    } else {
+      if (project.stage !== 'animating') {
+        throw new Error('stage_guard');
+      }
+      assertStageTransition('animating', 'post_production', { ...ctx, gate3: 'approved' });
+      const gate = await this.gates.updateStatus(projectId, 3, 'approved');
+      await this.gates.insertApproval({
+        gate_id: gate.id,
+        actor_email: actorEmail,
+        action: override ? 'override' : 'approve',
+        reason: typeof body.override_reason === 'string' ? body.override_reason : '',
+      });
+      await this.projects.updateStage(projectId, 'post_production');
     }
     return this.getGate(projectId, gateNo);
   }
@@ -256,7 +284,7 @@ export class VdGateService {
     actorEmail: string,
   ) {
     assertCinematicEnabled(this.config);
-    if (gateNo !== 1 && gateNo !== 2) {
+    if (gateNo !== 1 && gateNo !== 2 && gateNo !== 3) {
       throw new Error('invalid_body');
     }
     const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
