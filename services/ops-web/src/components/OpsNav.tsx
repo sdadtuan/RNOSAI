@@ -55,6 +55,7 @@ import { metaAdsOpsEnabled, metaIntelligenceEnabled, metaTrackingEnabled } from 
 import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
 import { shouldShowTaxonomyNav } from '@/components/research/taxonomy-pane.util';
 import { canViewGtmCms, canViewGtmDemos } from '@/lib/gtm/caps';
+import { shouldShowVideoSopNav } from '@/components/ops-nav-video-sop';
 
 interface OpsNavProps {
   user: StoredStaffUser | null;
@@ -407,6 +408,9 @@ function buildSections(
       delivery.push({ href: '/crm/ops/my-tasks', label: 'Ops tasks' });
       delivery.push({ href: '/crm/ops/alerts', label: 'Ops alerts' });
     }
+  }
+  if (shouldShowVideoSopNav(user)) {
+    delivery.push({ href: '/crm/video', label: 'Video SOP' });
   }
   if (delivery.length) sections.push({ label: 'CRM · Triển khai dịch vụ', links: delivery, defaultOpen: true });
 

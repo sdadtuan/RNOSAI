@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { lockVideoStudio, parseCmktGateError } from '@/lib/content-os-api';
+import { VIDEO_SOP_API, type CreateVdProjectBody, type VdProjectRow } from '@/lib/video-sop-api';
 
 export const VIDEO_STUDIO_SOCIAL_LABEL = 'Video tuần (FFmpeg)';
 export const VIDEO_STUDIO_CINEMATIC_LABEL = 'Video chiến dịch (SOP)';
@@ -15,6 +17,24 @@ export function isCinematicVideoStudioEnabled(
 }
 
 type StudioChoice = 'social' | 'cinematic';
+
+export type PickCinematicStudioArgs = {
+  token: string;
+  lifecycleId: number;
+  itemId: number;
+  createProject: (token: string, body: CreateVdProjectBody) => Promise<Pick<VdProjectRow, 'id'>>;
+  onSelect: (studio: 'cinematic') => void | Promise<void>;
+  navigate: (href: string) => void;
+};
+
+export async function pickCinematicStudio(args: PickCinematicStudioArgs): Promise<void> {
+  const project = await args.createProject(args.token, {
+    lifecycle_id: args.lifecycleId,
+    cmkt_item_id: args.itemId,
+  });
+  await args.onSelect('cinematic');
+  args.navigate(`/crm/video/${project.id}`);
+}
 
 interface Props {
   token: string;
@@ -35,6 +55,7 @@ export function ContentOsVideoStudioPicker({
   onError,
   onMessage,
 }: Props) {
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const cinematicEnabled = isCinematicVideoStudioEnabled();
 
@@ -53,9 +74,26 @@ export function ContentOsVideoStudioPicker({
     }
   }
 
-  function pickCinematic() {
+  async function pickCinematic() {
     if (!cinematicEnabled || disabled || busy) return;
-    void onSelect('cinematic');
+    setBusy(true);
+    onError('');
+    try {
+      await pickCinematicStudio({
+        token,
+        lifecycleId,
+        itemId,
+        createProject: VIDEO_SOP_API.createProject,
+        onSelect,
+        navigate: (href) => {
+          router.push(href);
+        },
+      });
+    } catch (err) {
+      onError(parseCmktGateError(err));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -89,7 +127,7 @@ export function ContentOsVideoStudioPicker({
         <button
           type="button"
           disabled={!cinematicEnabled || disabled || busy}
-          onClick={pickCinematic}
+          onClick={() => void pickCinematic()}
           title={
             cinematicEnabled
               ? 'Mở hub Video SOP'
