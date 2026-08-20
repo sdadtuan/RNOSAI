@@ -46,7 +46,16 @@ run_local() {
 
   echo "== 3/5 Build + restart Nest API =="
   if [[ -d "$ROOT/services/ptt-crm-api" ]]; then
-    (cd "$ROOT/services/ptt-crm-api" && npm ci && npm run build)
+    BUILD="$ROOT/.build-ptt-crm-api-vd-s5"
+    rm -rf "$BUILD"
+    mkdir -p "$BUILD"
+    rsync -a --exclude node_modules "$ROOT/services/ptt-crm-api/" "$BUILD/"
+    cd "$BUILD"
+    npm ci
+    export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=6144}"
+    npx nest build
+    rsync -a dist/ "$ROOT/services/ptt-crm-api/dist/"
+    rm -rf "$BUILD"
   fi
   if sudo -n /usr/bin/systemctl restart ptt-crm-api 2>/dev/null; then
     sleep 3
@@ -58,6 +67,7 @@ run_local() {
 
   echo "== 4/5 Build + publish ops-web (SC-10 gates UI) =="
   if [[ -x "$ROOT/scripts/deploy_ops_web.sh" ]]; then
+    export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"
     NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC=1 bash "$ROOT/scripts/deploy_ops_web.sh" build
     if sudo -n "$ROOT/scripts/deploy_ops_web.sh" --restart 2>/dev/null; then
       echo "ops-web restarted"
