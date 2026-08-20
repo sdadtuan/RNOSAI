@@ -12,32 +12,52 @@ function user(caps: Array<{ section: string; action: string }>): StoredStaffUser
   };
 }
 
+function restoreCinematicFlag(prev: string | undefined) {
+  if (prev === undefined) {
+    delete process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC;
+  } else {
+    process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC = prev;
+  }
+}
+
 describe('shouldShowVideoSopNav', () => {
   it('shows when user has crm_vd.project view', () => {
     const prev = process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC;
-    delete process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC;
-    expect(shouldShowVideoSopNav(user([{ section: 'crm_vd.project', action: 'view' }]))).toBe(true);
-    process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC = prev;
+    try {
+      delete process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC;
+      expect(shouldShowVideoSopNav(user([{ section: 'crm_vd.project', action: 'view' }]))).toBe(true);
+    } finally {
+      restoreCinematicFlag(prev);
+    }
   });
 
   it('shows when cinematic flag is 1 and user has crm_content view', () => {
     const prev = process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC;
-    process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC = '1';
-    expect(shouldShowVideoSopNav(user([{ section: 'crm_content', action: 'view' }]))).toBe(true);
-    process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC = prev;
+    try {
+      process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC = '1';
+      expect(shouldShowVideoSopNav(user([{ section: 'crm_content', action: 'view' }]))).toBe(true);
+    } finally {
+      restoreCinematicFlag(prev);
+    }
   });
 
   it('hides when cinematic flag is off and user only has crm_content view', () => {
     const prev = process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC;
-    process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC = '0';
-    expect(shouldShowVideoSopNav(user([{ section: 'crm_content', action: 'view' }]))).toBe(false);
-    process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC = prev;
+    try {
+      process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC = '0';
+      expect(shouldShowVideoSopNav(user([{ section: 'crm_content', action: 'view' }]))).toBe(false);
+    } finally {
+      restoreCinematicFlag(prev);
+    }
   });
 
   it('hides for crm_board view alone even when flag is 1', () => {
     const prev = process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC;
-    process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC = '1';
-    expect(shouldShowVideoSopNav(user([{ section: 'crm_board', action: 'view' }]))).toBe(false);
-    process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC = prev;
+    try {
+      process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC = '1';
+      expect(shouldShowVideoSopNav(user([{ section: 'crm_board', action: 'view' }]))).toBe(false);
+    } finally {
+      restoreCinematicFlag(prev);
+    }
   });
 });

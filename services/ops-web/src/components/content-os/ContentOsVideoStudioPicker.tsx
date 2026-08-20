@@ -28,6 +28,7 @@ export type PickCinematicStudioArgs = {
 };
 
 export async function pickCinematicStudio(args: PickCinematicStudioArgs): Promise<void> {
+  if (!isCinematicVideoStudioEnabled()) return;
   const project = await args.createProject(args.token, {
     lifecycle_id: args.lifecycleId,
     cmkt_item_id: args.itemId,
