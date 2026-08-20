@@ -2,13 +2,19 @@
 
 import { useState } from 'react';
 import {
+  VIDEO_STUDIO_SOP_HUB,
+  ContentOsVideoStudioPicker,
+} from '@/components/content-os/ContentOsVideoStudioPicker';
+import { ContentOsSocialVideoStudio } from '@/components/content-os/social/ContentOsSocialVideoStudio';
+import {
   fetchContentOsJob,
+  isVideoMediaAsset,
+  itemIsVideoStudioEligible,
   itemNeedsVisualApproval,
   patchContentOsMediaSelect,
   postContentOsCarouselSlidesJob,
   postContentOsEscalateHuman,
   postContentOsImageGenerateJob,
-  postContentOsVideoShortJob,
   postContentOsVisualApprove,
   postContentOsVisualQaJob,
   postContentOsVisualReject,
@@ -17,6 +23,7 @@ import {
   type ContentOsItem,
   type ContentOsJob,
   type ContentOsMediaAsset,
+  type ContentOsVideoStudio,
 } from '@/lib/content-os-api';
 
 const STYLE_PRESETS = ['corporate', 'bold', 'minimal', 'playful'] as const;
@@ -62,10 +69,10 @@ export function ContentOsMediaStudio({
   const [approveComment, setApproveComment] = useState('');
   const [escalateNotes, setEscalateNotes] = useState('');
   const [showReject, setShowReject] = useState(false);
-  const [videoProgress, setVideoProgress] = useState<number | null>(null);
+  const [studioOverride, setStudioOverride] = useState<ContentOsVideoStudio | null>(null);
 
   const needsVisual = itemNeedsVisualApproval(item);
-  const isVideoItem = item.format === 'video_script' || item.channel === 'short_video';
+  const isVideoItem = itemIsVideoStudioEligible(item);
   const media = item.media_json ?? {};
   const assets: ContentOsMediaAsset[] = [
     ...(media.ai_assets ?? []),
@@ -75,20 +82,14 @@ export function ContentOsMediaStudio({
   const qa = media.visual_qa;
   const copyReady = ['approved_internal', 'scheduled', 'client_approved'].includes(item.status);
 
-  async function runJob(
-    fn: () => Promise<ContentOsJob>,
-    okMsg: string,
-    opts?: { trackVideo?: boolean },
-  ): Promise<void> {
+  async function runJob(fn: () => Promise<ContentOsJob>, okMsg: string): Promise<void> {
     if (!canGenerate || !mediaEnabled || !imageGenEnabled) return;
     setBusy(true);
     onError('');
-    if (opts?.trackVideo) setVideoProgress(8);
     try {
       let job = await fn();
       if (job.status === 'queued' || job.status === 'running') {
         for (let attempt = 0; attempt < 60; attempt++) {
-          if (opts?.trackVideo) setVideoProgress(Math.min(92, 12 + attempt * 12));
           job = await fetchContentOsJob(token, lifecycleId, job.id);
           if (job.status === 'succeeded' || job.status === 'failed') break;
           await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -97,15 +98,12 @@ export function ContentOsMediaStudio({
       setLastJob(job);
       if (job.status === 'failed') {
         onError(job.error_text ?? 'Media job failed');
-        if (opts?.trackVideo) setVideoProgress(null);
       } else {
-        if (opts?.trackVideo) setVideoProgress(100);
         onMessage(okMsg);
         await onChanged();
       }
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Media job thất bại');
-      if (opts?.trackVideo) setVideoProgress(null);
     } finally {
       setBusy(false);
     }
@@ -133,7 +131,70 @@ export function ContentOsMediaStudio({
     );
   }
 
-  if (!mediaEnabled || !imageGenEnabled) {
+  if (!mediaEnabled) {
+    return (
+      <p className="muted" style={{ fontSize: '0.85rem', marginTop: '0.75rem' }}>
+        Media AI tắt — bật PTT_CONTENT_MARKETING_MEDIA_ENABLED=1.
+      </p>
+    );
+  }
+
+  if (isVideoItem) {
+    const videoStudio = media.video_studio ?? studioOverride;
+    if (!videoStudio) {
+      return (
+        <div style={{ display: 'grid', gap: '0.65rem', marginTop: '0.75rem' }}>
+          <strong style={{ fontSize: '0.9rem' }}>Media AI Studio</strong>
+          <ContentOsVideoStudioPicker
+            token={token}
+            lifecycleId={lifecycleId}
+            itemId={item.id}
+            disabled={!canGenerate}
+            onSelect={async (studio) => {
+              if (studio === 'cinematic') {
+                setStudioOverride('cinematic');
+                return;
+              }
+              await onChanged();
+            }}
+            onError={onError}
+            onMessage={onMessage}
+          />
+        </div>
+      );
+    }
+    if (videoStudio === 'social') {
+      return (
+        <ContentOsSocialVideoStudio
+          token={token}
+          lifecycleId={lifecycleId}
+          item={item}
+          mediaEnabled={mediaEnabled}
+          videoGenEnabled={videoGenEnabled}
+          canGenerate={canGenerate}
+          canWrite={canWrite}
+          canApprove={canApprove}
+          canProduction={canProduction}
+          onChanged={onChanged}
+          onMessage={onMessage}
+          onError={onError}
+        />
+      );
+    }
+    return (
+      <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.75rem' }}>
+        <strong style={{ fontSize: '0.9rem' }}>Media AI Studio</strong>
+        <p style={{ fontSize: '0.85rem', margin: 0 }}>
+          Mở Video SOP <code>{VIDEO_STUDIO_SOP_HUB}</code> (Module 7 — chưa ship thì disabled + link spec)
+        </p>
+        <p className="muted" style={{ fontSize: '0.78rem', margin: 0 }}>
+          Spec: docs/superpowers/specs/2026-08-20-video-sop-module-7-design.md — không mở form beat tại đây.
+        </p>
+      </div>
+    );
+  }
+
+  if (!imageGenEnabled) {
     return (
       <p className="muted" style={{ fontSize: '0.85rem', marginTop: '0.75rem' }}>
         Media AI tắt — bật PTT_CONTENT_MARKETING_MEDIA_ENABLED=1 và PTT_CMKT_IMAGE_GEN=1.
@@ -241,32 +302,6 @@ export function ContentOsMediaStudio({
               Generate carousel slides
             </button>
           ) : null}
-          {isVideoItem ? (
-            <button
-              type="button"
-              className="btn btn-sm btn-secondary"
-              disabled={busy || !videoGenEnabled || (!copyReady && item.status !== 'draft')}
-              title={
-                videoGenEnabled
-                  ? 'Generate short video từ script'
-                  : 'Bật PTT_CMKT_VIDEO_GEN=1'
-              }
-              onClick={() =>
-                void runJob(
-                  () =>
-                    postContentOsVideoShortJob(token, lifecycleId, item.id, {
-                      aspect_ratio: aspectRatio,
-                      style_preset: stylePreset,
-                      allow_draft_watermark: item.status === 'draft',
-                    }),
-                  'Đã generate short video',
-                  { trackVideo: true },
-                )
-              }
-            >
-              Generate short video
-            </button>
-          ) : null}
           {assets.length ? (
             <button
               type="button"
@@ -313,12 +348,23 @@ export function ContentOsMediaStudio({
                 textAlign: 'left',
               }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={asset.url}
-                alt={asset.type}
-                style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 6 }}
-              />
+              {isVideoMediaAsset(asset) ? (
+                <video
+                  controls
+                  playsInline
+                  poster={asset.poster_url}
+                  src={asset.url}
+                  style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 6, background: '#111' }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={asset.url}
+                  alt={asset.type}
+                  style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 6 }}
+                />
+              )}
               <div className="muted" style={{ fontSize: '0.72rem', marginTop: 4 }}>
                 {asset.draft_watermark ? 'DRAFT' : asset.type}
                 {asset.visual_qa_score != null ? ` · ${asset.visual_qa_score}` : ''}
@@ -330,44 +376,21 @@ export function ContentOsMediaStudio({
         <p className="muted" style={{ fontSize: '0.82rem' }}>Chưa có preview — generate image hoặc carousel slides.</p>
       )}
 
-      {videoProgress != null ? (
-        <div style={{ display: 'grid', gap: '0.35rem' }}>
-          <div style={{ fontSize: '0.82rem' }}>Generating short video · {videoProgress}%</div>
-          <div
-            style={{
-              height: 8,
-              borderRadius: 999,
-              background: 'var(--border)',
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                width: `${videoProgress}%`,
-                height: '100%',
-                background: 'var(--accent)',
-                transition: 'width 0.4s ease',
-              }}
-            />
-          </div>
-          <p className="muted" style={{ fontSize: '0.75rem', margin: 0 }}>
-            Steps: Script ✓ · TTS ✓ · Clips {videoProgress >= 100 ? '✓' : '⟳'} · Stitch{' '}
-            {videoProgress >= 100 ? '✓' : '○'}
-          </p>
-        </div>
-      ) : null}
-
       {media.video_short?.url ? (
-        <div style={{ fontSize: '0.82rem' }}>
+        <div style={{ display: 'grid', gap: '0.35rem', fontSize: '0.82rem' }}>
           <strong>Short video preview</strong>
           <div className="muted" style={{ fontSize: '0.75rem' }}>
             {media.video_short.duration_sec ?? 45}s · {media.video_short.provider}
           </div>
-          <a href={media.video_short.url} target="_blank" rel="noreferrer">
-            Mở video preview
-          </a>
+          <video
+            controls
+            playsInline
+            poster={media.video_short.poster_url}
+            src={media.video_short.url}
+            style={{ width: '100%', maxHeight: 280, borderRadius: 8, background: '#111' }}
+          />
           {media.video_short.draft_watermark ? (
-            <span className="muted" style={{ marginLeft: 8, fontSize: '0.75rem' }}>
+            <span className="muted" style={{ fontSize: '0.75rem' }}>
               DRAFT watermark — clean sau visual approve
             </span>
           ) : null}

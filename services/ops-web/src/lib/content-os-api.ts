@@ -64,6 +64,14 @@ export function parseCmktGateError(err: unknown): string {
         return 'Brief thiếu audience hoặc goal — bổ sung trước khi generate.';
       case 'regenerate_body_required':
         return 'Cần nội dung draft trước khi regenerate.';
+      case 'studio_locked':
+        return 'Studio đã khóa — tạo item video mới (clone script) nếu cần đổi.';
+      case 'studio_mismatch':
+        return 'Studio không khớp — item này không dùng pipeline đang gọi.';
+      case 'video_daily_cap':
+        return 'Hết quota video trong ngày cho lifecycle này.';
+      case 'storyboard_required':
+        return 'Cần tạo storyboard trước khi render.';
       default:
         break;
     }
@@ -806,10 +814,47 @@ export type ContentOsMediaAsset = {
   brand_delta_e?: number;
 };
 
+export type ContentOsVideoStudio = 'social' | 'cinematic';
+
+export type ContentOsVideoBeat = {
+  id: 'hook' | 'pain' | 'proof' | 'cta';
+  start_ms?: number;
+  end_ms?: number;
+  script_excerpt: string;
+  keywords?: string[];
+  clip_id: string | null;
+  clip_url?: string;
+  license?: string;
+  on_screen_text?: string;
+  locked?: boolean;
+};
+
+export type ContentOsVideoStoryboard = {
+  version?: 1;
+  pack_default: string;
+  requested_packs?: string[];
+  style_preset?: string;
+  voice?: { provider: string; voice_id: string; lang: 'vi' | 'en' };
+  beats: ContentOsVideoBeat[];
+  tts?: { storage_key: string; duration_sec: number; url: string };
+};
+
+export type ContentOsVideoQa = {
+  score: number;
+  blocked: boolean;
+  checks: Record<string, boolean>;
+  notes?: string;
+};
+
 export type ContentOsMediaJson = {
   ai_assets?: ContentOsMediaAsset[];
   carousel_slides?: ContentOsMediaAsset[];
   video_short?: ContentOsMediaAsset | null;
+  video_studio?: ContentOsVideoStudio;
+  studio_locked_at?: string;
+  storyboard?: ContentOsVideoStoryboard;
+  video_packs?: Record<string, ContentOsMediaAsset>;
+  video_qa?: ContentOsVideoQa;
   video_generation?: {
     progress_pct: number;
     steps: Record<string, 'pending' | 'running' | 'done' | 'failed'>;
@@ -828,6 +873,23 @@ export type ContentOsMediaJson = {
   aspect_ratio?: string;
   selected_asset_id?: string | null;
 };
+
+export const CONTENT_OS_VIDEO_API_PATHS = {
+  lockStudio: (itemId: number) => `/items/${itemId}/video/lock-studio`,
+  storyboard: (itemId: number) => `/items/${itemId}/jobs/video-storyboard`,
+  patchStoryboard: (itemId: number) => `/items/${itemId}/video/storyboard`,
+  render: (itemId: number) => `/items/${itemId}/jobs/video-render`,
+} as const;
+
+export function isVideoMediaAsset(asset: Pick<ContentOsMediaAsset, 'type' | 'url'>): boolean {
+  if (asset.type === 'video') return true;
+  const path = asset.url.split('?')[0]?.toLowerCase() ?? '';
+  return path.endsWith('.mp4');
+}
+
+export function itemIsVideoStudioEligible(item: Pick<ContentOsItem, 'format' | 'channel'>): boolean {
+  return item.format === 'video_script' || item.channel === 'short_video';
+}
 
 export type ContentOsVisualReviewItem = ContentOsItem & {
   visual_qa_score?: number | null;
@@ -898,6 +960,65 @@ export function postContentOsVideoShortJob(
   },
 ): Promise<ContentOsJob> {
   return cmktFetch(token, lifecycleId, `/items/${itemId}/jobs/video-short`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function lockVideoStudio(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  studio: ContentOsVideoStudio,
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, CONTENT_OS_VIDEO_API_PATHS.lockStudio(itemId), {
+    method: 'POST',
+    body: JSON.stringify({ studio }),
+  });
+}
+
+export function postSocialStoryboard(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body?: {
+    pack_default?: string;
+    requested_packs?: string[];
+    style_preset?: string;
+    voice?: { provider?: string; voice_id?: string; lang?: 'vi' | 'en' };
+    allow_draft_watermark?: boolean;
+  },
+): Promise<ContentOsJob> {
+  return cmktFetch(token, lifecycleId, CONTENT_OS_VIDEO_API_PATHS.storyboard(itemId), {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function patchSocialStoryboard(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body: { beats: Array<Partial<ContentOsVideoBeat> & { id: ContentOsVideoBeat['id'] }> },
+): Promise<ContentOsItem> {
+  return cmktFetch(token, lifecycleId, CONTENT_OS_VIDEO_API_PATHS.patchStoryboard(itemId), {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export function postSocialRender(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+  body?: {
+    pack_default?: string;
+    requested_packs?: string[];
+    style_preset?: string;
+    allow_draft_watermark?: boolean;
+  },
+): Promise<ContentOsJob> {
+  return cmktFetch(token, lifecycleId, CONTENT_OS_VIDEO_API_PATHS.render(itemId), {
     method: 'POST',
     body: JSON.stringify(body ?? {}),
   });
