@@ -11,6 +11,15 @@ export function canEditVdBrief(user: StoredStaffUser | null): boolean {
   return hasCap(user, 'crm_vd.project', 'edit') || hasCap(user, 'crm_content', 'write');
 }
 
+/** Same cap as API ideas/script/shots (script edit or project edit or content write). */
+export function canEditVdScript(user: StoredStaffUser | null): boolean {
+  return (
+    hasCap(user, 'crm_vd.script', 'edit') ||
+    hasCap(user, 'crm_vd.project', 'edit') ||
+    hasCap(user, 'crm_content', 'write')
+  );
+}
+
 export type VdProjectRow = {
   id: number;
   lifecycle_id: number;
@@ -52,6 +61,30 @@ export function vdProjectBriefReadyPath(id: number | string): string {
 
 export function vdProjectBriefInsightsPath(id: number | string): string {
   return `/api/v1/vd/projects/${encodeURIComponent(String(id))}/brief/insights`;
+}
+
+export function vdProjectIdeasPath(id: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(id))}/ideas`;
+}
+
+export function vdProjectIdeasGeneratePath(id: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(id))}/ideas/generate`;
+}
+
+export function vdProjectIdeaSelectPath(projectId: number | string, ideaId: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(projectId))}/ideas/${encodeURIComponent(String(ideaId))}/select`;
+}
+
+export function vdProjectScriptsPath(id: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(id))}/scripts`;
+}
+
+export function vdScriptShotsPath(id: number | string): string {
+  return `/api/v1/vd/scripts/${encodeURIComponent(String(id))}/shots`;
+}
+
+export function vdPromptTemplatesPath(): string {
+  return '/api/v1/vd/prompt-templates';
 }
 
 export function vdProjectListPath(lifecycleId: number | string): string {
@@ -102,6 +135,54 @@ export type VdBriefRow = {
 export type VdBriefInsight = {
   id: number;
   title: string;
+};
+
+export type VdIdeaRow = {
+  id: number;
+  project_id: number;
+  ordinal: number;
+  summary: string;
+  selected: boolean;
+};
+
+export type VdScriptRow = {
+  id: number;
+  project_id: number;
+  version: number;
+  markdown: string;
+};
+
+export type VdShotRow = {
+  id: number;
+  script_id: number;
+  ordinal: number;
+  status: string;
+  duration_ms: number;
+  camera: string;
+  action: string;
+  aspect: string;
+  contains_human?: boolean;
+  text_in_frame?: boolean;
+  logo_in_ai_frame?: boolean;
+  seed?: number | null;
+  feasibility?: string | null;
+};
+
+export type VdPromptTemplateRow = {
+  code: string;
+  kind: string;
+  body: string;
+};
+
+export type AddVdShotBody = {
+  duration_ms: number;
+  camera: string;
+  action: string;
+  aspect?: string;
+  contains_human?: boolean;
+  text_in_frame?: boolean;
+  logo_in_ai_frame?: boolean;
+  seed?: number | null;
 };
 
 export type VdProviderRow = {
@@ -197,6 +278,82 @@ export async function listVdBriefInsights(
   return asItems(body);
 }
 
+export async function listVdIdeas(token: string, projectId: number | string): Promise<VdIdeaRow[]> {
+  const body = await vdFetch<VdIdeaRow[] | { items?: VdIdeaRow[] }>(
+    token,
+    vdProjectIdeasPath(projectId),
+  );
+  return asItems(body);
+}
+
+export async function generateVdIdeas(
+  token: string,
+  projectId: number | string,
+  idempotencyKey: string,
+): Promise<EnqueueVdJobResult> {
+  return vdFetch<EnqueueVdJobResult>(token, vdProjectIdeasGeneratePath(projectId), {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({}),
+  });
+}
+
+export async function selectVdIdea(
+  token: string,
+  projectId: number | string,
+  ideaId: number | string,
+): Promise<VdIdeaRow[]> {
+  const body = await vdFetch<VdIdeaRow[] | { items?: VdIdeaRow[] }>(
+    token,
+    vdProjectIdeaSelectPath(projectId, ideaId),
+    { method: 'POST' },
+  );
+  return asItems(body);
+}
+
+export async function listVdScripts(token: string, projectId: number | string): Promise<VdScriptRow[]> {
+  const body = await vdFetch<VdScriptRow[] | { items?: VdScriptRow[] }>(
+    token,
+    vdProjectScriptsPath(projectId),
+  );
+  return asItems(body);
+}
+
+export async function saveVdScript(
+  token: string,
+  projectId: number | string,
+  markdown: string,
+): Promise<VdScriptRow> {
+  return vdFetch<VdScriptRow>(token, vdProjectScriptsPath(projectId), {
+    method: 'POST',
+    body: JSON.stringify({ markdown }),
+  });
+}
+
+export async function listVdShots(token: string, scriptId: number | string): Promise<VdShotRow[]> {
+  const body = await vdFetch<VdShotRow[] | { items?: VdShotRow[] }>(token, vdScriptShotsPath(scriptId));
+  return asItems(body);
+}
+
+export async function addVdShot(
+  token: string,
+  scriptId: number | string,
+  body: AddVdShotBody,
+): Promise<VdShotRow> {
+  return vdFetch<VdShotRow>(token, vdScriptShotsPath(scriptId), {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function listVdPromptTemplates(token: string): Promise<VdPromptTemplateRow[]> {
+  const body = await vdFetch<VdPromptTemplateRow[] | { items?: VdPromptTemplateRow[] }>(
+    token,
+    vdPromptTemplatesPath(),
+  );
+  return asItems(body);
+}
+
 export async function enqueueVdJob(
   token: string,
   projectId: number | string,
@@ -256,6 +413,14 @@ export const VIDEO_SOP_API = {
   saveBrief: saveVdBrief,
   markBriefReady: markVdBriefReady,
   listBriefInsights: listVdBriefInsights,
+  listIdeas: listVdIdeas,
+  generateIdeas: generateVdIdeas,
+  selectIdea: selectVdIdea,
+  listScripts: listVdScripts,
+  saveScript: saveVdScript,
+  listShots: listVdShots,
+  addShot: addVdShot,
+  listPromptTemplates: listVdPromptTemplates,
   listJobs: listVdJobs,
   enqueueJob: enqueueVdJob,
   listAdminProviders: listVdAdminProviders,

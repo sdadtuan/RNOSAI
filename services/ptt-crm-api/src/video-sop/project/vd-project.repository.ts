@@ -10,10 +10,17 @@ import type {
   VdProjectStatus,
 } from '../video-sop.types';
 
+export type VdScriptRow = {
+  id: number;
+  project_id: number;
+  version: number;
+  markdown: string;
+};
+
 type MemoryStore = {
   projects: VdProjectRow[];
   briefs: Array<{ project_id: number; body_json: Record<string, unknown> }>;
-  scripts: Array<{ project_id: number; version: number; markdown: string }>;
+  scripts: VdScriptRow[];
   audits: Array<{
     project_id: number;
     actor_email: string;
@@ -21,6 +28,7 @@ type MemoryStore = {
     payload_json: Record<string, unknown>;
   }>;
   nextId: number;
+  nextScriptId: number;
 };
 
 function startOfUtcDay(d = new Date()): Date {
@@ -56,6 +64,7 @@ export class VdProjectRepository implements VdProjectRepo, OnModuleDestroy {
     scripts: [],
     audits: [],
     nextId: 1,
+    nextScriptId: 1,
   };
 
   constructor(private readonly config: AppConfigService) {}
@@ -279,17 +288,64 @@ export class VdProjectRepository implements VdProjectRepo, OnModuleDestroy {
     }
   }
 
-  async insertScript(projectId: number, version: number, markdown: string): Promise<void> {
+  private mapScriptRow(row: Record<string, unknown>): VdScriptRow {
+    return {
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      version: Number(row.version),
+      markdown: String(row.markdown ?? ''),
+    };
+  }
+
+  async listScripts(projectId: number): Promise<VdScriptRow[]> {
     if (await this.ensurePgReady()) {
-      await this.querier().query(`INSERT INTO vd_scripts (project_id, version, markdown) VALUES ($1, $2, $3)`, [
-        projectId,
-        version,
-        markdown,
-      ]);
-      return;
+      const res = await this.db.query(
+        `SELECT id, project_id, version, markdown FROM vd_scripts WHERE project_id = $1 ORDER BY version ASC`,
+        [projectId],
+      );
+      return (res.rows as Record<string, unknown>[]).map((row) => this.mapScriptRow(row));
+    }
+    return this.memory.scripts
+      .filter((row) => row.project_id === projectId)
+      .slice()
+      .sort((a, b) => a.version - b.version);
+  }
+
+  async getScriptById(id: number): Promise<VdScriptRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, project_id, version, markdown FROM vd_scripts WHERE id = $1`,
+        [id],
+      );
+      const row = res.rows[0] as Record<string, unknown> | undefined;
+      return row ? this.mapScriptRow(row) : null;
+    }
+    return this.memory.scripts.find((row) => row.id === id) ?? null;
+  }
+
+  async insertScript(projectId: number, version: number, markdown: string): Promise<void> {
+    await this.insertScriptRow(projectId, version, markdown);
+  }
+
+  async insertScriptRow(projectId: number, version: number, markdown: string): Promise<VdScriptRow> {
+    if (await this.ensurePgReady()) {
+      const res = await this.querier().query(
+        `INSERT INTO vd_scripts (project_id, version, markdown)
+         VALUES ($1, $2, $3)
+         RETURNING id, project_id, version, markdown`,
+        [projectId, version, markdown],
+      );
+      return this.mapScriptRow(res.rows[0] as Record<string, unknown>);
     }
     this.assertWritableOrThrow();
-    this.memory.scripts.push({ project_id: projectId, version, markdown });
+    const row: VdScriptRow = {
+      id: this.memory.nextScriptId++,
+      project_id: projectId,
+      version,
+      markdown,
+    };
+    this.memory.scripts.push(row);
+    return row;
   }
 
   async insertAudit(

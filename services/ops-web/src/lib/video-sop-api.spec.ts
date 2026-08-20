@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { type StoredStaffUser } from './auth';
 import {
   canEditVdBrief,
+  canEditVdScript,
   canEnqueueVdJob,
   vdAdminModelsPath,
   vdAdminProvidersPath,
@@ -10,7 +11,12 @@ import {
   vdProjectBriefReadyPath,
   vdProjectCreatePath,
   vdProjectGetPath,
+  vdProjectIdeasGeneratePath,
+  vdProjectIdeasPath,
   vdProjectJobsPath,
+  vdProjectScriptsPath,
+  vdPromptTemplatesPath,
+  vdScriptShotsPath,
 } from './video-sop-api';
 
 function staff(caps: Array<{ section: string; action: string }>): StoredStaffUser {
@@ -55,6 +61,26 @@ describe('video-sop-api path helpers', () => {
   it('vdProjectBriefInsightsPath interpolates id', () => {
     expect(vdProjectBriefInsightsPath(7)).toBe('/api/v1/vd/projects/7/brief/insights');
   });
+
+  it('vdProjectIdeasPath interpolates id', () => {
+    expect(vdProjectIdeasPath(7)).toBe('/api/v1/vd/projects/7/ideas');
+  });
+
+  it('vdProjectIdeasGeneratePath interpolates id', () => {
+    expect(vdProjectIdeasGeneratePath(7)).toBe('/api/v1/vd/projects/7/ideas/generate');
+  });
+
+  it('vdProjectScriptsPath interpolates id', () => {
+    expect(vdProjectScriptsPath(7)).toBe('/api/v1/vd/projects/7/scripts');
+  });
+
+  it('vdScriptShotsPath interpolates id', () => {
+    expect(vdScriptShotsPath(3)).toBe('/api/v1/vd/scripts/3/shots');
+  });
+
+  it('vdPromptTemplatesPath is collection', () => {
+    expect(vdPromptTemplatesPath()).toBe('/api/v1/vd/prompt-templates');
+  });
 });
 
 describe('canEditVdBrief (same as API PUT/ready)', () => {
@@ -76,6 +102,28 @@ describe('canEditVdBrief (same as API PUT/ready)', () => {
 
   it('denies null user', () => {
     expect(canEditVdBrief(null)).toBe(false);
+  });
+});
+
+describe('canEditVdScript (same as API ideas/script/shots)', () => {
+  it('allows crm_vd.script edit', () => {
+    expect(canEditVdScript(staff([{ section: 'crm_vd.script', action: 'edit' }]))).toBe(true);
+  });
+
+  it('allows crm_vd.project edit', () => {
+    expect(canEditVdScript(staff([{ section: 'crm_vd.project', action: 'edit' }]))).toBe(true);
+  });
+
+  it('allows crm_content write', () => {
+    expect(canEditVdScript(staff([{ section: 'crm_content', action: 'write' }]))).toBe(true);
+  });
+
+  it('denies view-only crm_vd.script', () => {
+    expect(canEditVdScript(staff([{ section: 'crm_vd.script', action: 'view' }]))).toBe(false);
+  });
+
+  it('denies null user', () => {
+    expect(canEditVdScript(null)).toBe(false);
   });
 });
 

@@ -1,9 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { createHash } from 'crypto';
 import type { VdImageGenInput } from '../adapters/i-image-gen';
+import { parseIdeaSummaries, selectTextGen } from '../adapters/i-text-gen';
 import { VdAssetRepository } from '../assets/vd-asset.repository';
 import { VdJobRepository } from '../jobs/vd-job.repository';
 import type { EnqueueVdJobInput, VdJobHandler, VdJobRow, VdJobStatus } from '../jobs/vd-job.types';
+import { VdIdeaRepository } from '../script/vd-idea.repository';
 import { selectImageGen } from './vd-model-router';
 
 const RETRYABLE = new Set(['transient', 'rate_limit']);
@@ -53,8 +55,34 @@ export class VdDispatcherService {
   constructor(
     private readonly jobs: VdJobRepository,
     private readonly assets: VdAssetRepository,
+    @Optional() private readonly ideas?: VdIdeaRepository,
   ) {
     this.registerHandler('cine_keyframe', (job) => this.handleCineKeyframe(job));
+    this.registerHandler('cine_director', (job) => this.handleCineDirector(job));
+  }
+
+  private async handleCineDirector(job: VdJobRow): Promise<Record<string, unknown>> {
+    if (!this.ideas) {
+      throw Object.assign(new Error('validation'), { error_class: 'validation' });
+    }
+    const gen = selectTextGen({ OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? '' });
+    const result = await gen.complete({
+      system: 'Return JSON { "ideas": [{ "summary": string }, { "summary": string }, { "summary": string }] }.',
+      user:
+        typeof job.input_json.prompt === 'string' && job.input_json.prompt.trim()
+          ? job.input_json.prompt
+          : 'Sinh 3 ý tưởng video 15–60s',
+    });
+    let summaries: string[];
+    try {
+      summaries = parseIdeaSummaries(result);
+    } catch {
+      throw Object.assign(new Error('validation'), { error_class: 'validation' });
+    }
+    const rows = await this.ideas.replaceForProject(job.project_id, summaries);
+    return {
+      ideas: rows.map((row) => ({ ordinal: row.ordinal, summary: row.summary })),
+    };
   }
 
   private async handleCineKeyframe(job: VdJobRow): Promise<Record<string, unknown>> {
