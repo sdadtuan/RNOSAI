@@ -185,6 +185,24 @@ export type AddVdShotBody = {
   seed?: number | null;
 };
 
+/** SC-04 form defaults: send explicit booleans so FR-R03 does not fail. */
+export function sc04AddShotPayload(input: {
+  duration_ms: number;
+  camera: string;
+  action: string;
+  aspect?: string;
+}): AddVdShotBody {
+  return {
+    duration_ms: input.duration_ms,
+    camera: input.camera,
+    action: input.action,
+    aspect: input.aspect,
+    contains_human: false,
+    text_in_frame: false,
+    logo_in_ai_frame: false,
+  };
+}
+
 export type VdProviderRow = {
   id: number;
   code: string;

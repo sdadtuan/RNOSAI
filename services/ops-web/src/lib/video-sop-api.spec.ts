@@ -17,6 +17,7 @@ import {
   vdProjectScriptsPath,
   vdPromptTemplatesPath,
   vdScriptShotsPath,
+  sc04AddShotPayload,
 } from './video-sop-api';
 
 function staff(caps: Array<{ section: string; action: string }>): StoredStaffUser {
@@ -146,5 +147,24 @@ describe('canEnqueueVdJob (same as API POST)', () => {
 
   it('denies null user', () => {
     expect(canEnqueueVdJob(null)).toBe(false);
+  });
+});
+
+describe('sc04AddShotPayload', () => {
+  it('includes contains_human as boolean false so FR-R03 can pass', () => {
+    const payload = sc04AddShotPayload({
+      duration_ms: 3000,
+      camera: 'wide',
+      action: 'pan left',
+      aspect: '9:16',
+    });
+    expect(typeof payload.contains_human).toBe('boolean');
+    expect(payload.contains_human).toBe(false);
+    expect(payload.text_in_frame).toBe(false);
+    expect(payload.logo_in_ai_frame).toBe(false);
+    expect(payload.duration_ms).toBe(3000);
+    expect(payload.camera).toBe('wide');
+    expect(payload.action).toBe('pan left');
+    expect(payload.aspect).toBe('9:16');
   });
 });

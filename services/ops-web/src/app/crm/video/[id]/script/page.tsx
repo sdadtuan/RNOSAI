@@ -17,6 +17,7 @@ import {
 } from '@/lib/auth';
 import {
   canEditVdScript,
+  sc04AddShotPayload,
   VIDEO_SOP_API,
   type VdIdeaRow,
   type VdPromptTemplateRow,
@@ -258,12 +259,16 @@ export default function CrmVideoSopScriptPage() {
     setAddingShot(true);
     setError('');
     try {
-      await VIDEO_SOP_API.addShot(access, current.id, {
-        duration_ms: duration,
-        camera,
-        action,
-        aspect,
-      });
+      await VIDEO_SOP_API.addShot(
+        access,
+        current.id,
+        sc04AddShotPayload({
+          duration_ms: duration,
+          camera,
+          action,
+          aspect,
+        }),
+      );
       setShots(await VIDEO_SOP_API.listShots(access, current.id));
       setDurationMs('');
       setCamera('');
