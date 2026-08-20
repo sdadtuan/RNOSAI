@@ -39,6 +39,7 @@ export type InsertVdProjectInput = {
 export interface VdProjectRepository {
   findByCmktItemId(itemId: number): Promise<VdProjectRow | null>;
   countCreatedToday(lifecycleId: number): Promise<number>;
+  withTransaction<T>(fn: () => Promise<T>): Promise<T>;
   insertProject(input: InsertVdProjectInput): Promise<VdProjectRow>;
   insertBrief(projectId: number, bodyJson: Record<string, unknown>): Promise<void>;
   insertScript(projectId: number, version: number, markdown: string): Promise<void>;

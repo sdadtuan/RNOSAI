@@ -1,5 +1,6 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import { AppConfigService } from '../../config/app-config.service';
 import type {
   InsertVdProjectInput,
@@ -26,6 +27,8 @@ function startOfUtcDay(d = new Date()): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
+const txClient = new AsyncLocalStorage<PoolClient>();
+
 @Injectable()
 export class VdProjectRepository implements VdProjectRepo, OnModuleDestroy {
   private pool: Pool | null = null;
@@ -45,6 +48,32 @@ export class VdProjectRepository implements VdProjectRepo, OnModuleDestroy {
       this.pool = new Pool({ connectionString: this.config.databaseUrl });
     }
     return this.pool;
+  }
+
+  private querier(): Pool | PoolClient {
+    return txClient.getStore() ?? this.db;
+  }
+
+  async withTransaction<T>(fn: () => Promise<T>): Promise<T> {
+    if (!(await this.ensurePgReady())) {
+      return fn();
+    }
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await txClient.run(client, fn);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* keep original err (e.g. unique 23505) */
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -117,7 +146,7 @@ export class VdProjectRepository implements VdProjectRepo, OnModuleDestroy {
 
   async insertProject(input: InsertVdProjectInput): Promise<VdProjectRow> {
     if (await this.ensurePgReady()) {
-      const res = await this.db.query(
+      const res = await this.querier().query(
         `INSERT INTO vd_projects (lifecycle_id, client_id, cmkt_item_id, title, stage, status, created_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING id, lifecycle_id, client_id, cmkt_item_id, title, stage, status, created_by, created_at, updated_at`,
@@ -132,6 +161,12 @@ export class VdProjectRepository implements VdProjectRepo, OnModuleDestroy {
         ],
       );
       return this.mapRow(res.rows[0] as Record<string, unknown>);
+    }
+    if (
+      input.cmkt_item_id != null &&
+      this.memory.projects.some((p) => p.cmkt_item_id === input.cmkt_item_id)
+    ) {
+      throw Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
     }
     const now = new Date().toISOString();
     const row: VdProjectRow = {
@@ -152,7 +187,7 @@ export class VdProjectRepository implements VdProjectRepo, OnModuleDestroy {
 
   async insertBrief(projectId: number, bodyJson: Record<string, unknown>): Promise<void> {
     if (await this.ensurePgReady()) {
-      await this.db.query(`INSERT INTO vd_briefs (project_id, body_json) VALUES ($1, $2::jsonb)`, [
+      await this.querier().query(`INSERT INTO vd_briefs (project_id, body_json) VALUES ($1, $2::jsonb)`, [
         projectId,
         JSON.stringify(bodyJson),
       ]);
@@ -163,7 +198,7 @@ export class VdProjectRepository implements VdProjectRepo, OnModuleDestroy {
 
   async insertScript(projectId: number, version: number, markdown: string): Promise<void> {
     if (await this.ensurePgReady()) {
-      await this.db.query(`INSERT INTO vd_scripts (project_id, version, markdown) VALUES ($1, $2, $3)`, [
+      await this.querier().query(`INSERT INTO vd_scripts (project_id, version, markdown) VALUES ($1, $2, $3)`, [
         projectId,
         version,
         markdown,
@@ -180,7 +215,7 @@ export class VdProjectRepository implements VdProjectRepo, OnModuleDestroy {
     payload: Record<string, unknown> = {},
   ): Promise<void> {
     if (await this.ensurePgReady()) {
-      await this.db.query(
+      await this.querier().query(
         `INSERT INTO vd_audit_logs (project_id, actor_email, action, payload_json)
          VALUES ($1, $2, $3, $4::jsonb)`,
         [projectId, actorEmail, action, JSON.stringify(payload)],

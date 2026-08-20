@@ -12,6 +12,7 @@ function makeSvc(opts: MakeSvcOpts) {
   const repo: jest.Mocked<VdProjectRepository> = {
     findByCmktItemId: jest.fn().mockResolvedValue((opts.existing ?? null) as VdProjectRow | null),
     countCreatedToday: jest.fn().mockResolvedValue(opts.today),
+    withTransaction: jest.fn(async (fn) => fn()) as jest.Mocked<VdProjectRepository>['withTransaction'],
     insertProject: jest.fn(),
     insertBrief: jest.fn(),
     insertScript: jest.fn(),
@@ -54,5 +55,42 @@ describe('VdProjectService', () => {
     });
     expect(row.id).toBe(7);
     expect(svc.repo.insertProject).not.toHaveBeenCalled();
+    expect(svc.repo.countCreatedToday).not.toHaveBeenCalled();
+  });
+
+  it('inserts project brief script and audit when cap allows', async () => {
+    const created = { id: 3, cmkt_item_id: 12, stage: 'brief_draft' };
+    const svc = makeSvc({ enabled: true, cap: 1, today: 0 });
+    svc.repo.insertProject.mockResolvedValue(created as VdProjectRow);
+    const row = await svc.createFromContentItem({
+      lifecycleId: 3, itemId: 12, title: 'Chiến dịch', scriptMarkdown: 'Hook', email: 'a@b.c',
+    });
+    expect(row.id).toBe(3);
+    expect(svc.repo.insertProject).toHaveBeenCalled();
+    expect(svc.repo.insertBrief).toHaveBeenCalledWith(3, {});
+    expect(svc.repo.insertScript).toHaveBeenCalledWith(3, 1, 'Hook');
+    expect(svc.repo.insertAudit).toHaveBeenCalledWith(
+      3,
+      'a@b.c',
+      'project.created',
+      expect.objectContaining({ cmkt_item_id: 12, lifecycle_id: 3 }),
+    );
+  });
+
+  it('returns existing project when insert hits unique cmkt_item_id', async () => {
+    const existing = { id: 9, cmkt_item_id: 12, stage: 'brief_draft' };
+    const svc = makeSvc({ enabled: true, cap: 1, today: 0 });
+    svc.repo.findByCmktItemId
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(existing as VdProjectRow);
+    svc.repo.insertProject.mockRejectedValue(
+      Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' }),
+    );
+    const row = await svc.createFromContentItem({
+      lifecycleId: 3, itemId: 12, title: 'Chiến dịch', scriptMarkdown: 'Hook', email: 'a@b.c',
+    });
+    expect(row.id).toBe(9);
+    expect(svc.repo.countCreatedToday).toHaveBeenCalled();
+    expect(svc.repo.insertBrief).not.toHaveBeenCalled();
   });
 });
