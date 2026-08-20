@@ -9,8 +9,8 @@
 | Ngày xuất | 2026-08-09 |
 | Module | MOD-CONTENT-MARKETING |
 | Nest module | `ContentMarketingModule` |
-| Số UC | 38 |
-| Spec thủ công | 38/38 (P0–P2 target) |
+| Số UC | 46 |
+| Spec thủ công | 46/46 (P0–P2 + Video OS V1–V3) |
 | Master index | [RNOSAI-BA-Master-Spec.md](../RNOSAI-BA-Master-Spec.md) |
 | Design spec | [`2026-08-09-content-marketing-os-design.md`](../superpowers/specs/2026-08-09-content-marketing-os-design.md) |
 | UX/UI spec | [`2026-08-09-content-marketing-integration-spec.md`](../specs/2026-08-09-content-marketing-integration-spec.md) |
@@ -79,9 +79,24 @@ Module **Content Marketing OS** (EXECUTE) nhúng tab **`content-os`** trên **Tr
 | CMKT-UC-033 | Production phase | P1 | P1 | Spec ready | §23 |
 | CMKT-UC-034 | Link Creatives | P1 | P1 | Spec ready | — |
 | CMKT-UC-035 | AI image/carousel | P1 | P1 | Spec ready | §24 |
-| CMKT-UC-036 | AI short video | P2 | P2 | Spec ready | §24 |
+| CMKT-UC-036 | AI short video (umbrella) | P2 | P2 | Spec ready | §24 + Video OS 2026-08-20 |
 | CMKT-UC-037 | Visual QA + approve | P1 | P1 | Spec ready | §24 |
 | CMKT-UC-038 | Escalate human polish | P1 | P1 | Spec ready | §23–24 |
+| CMKT-UC-039 | Video storyboard (beats + TTS + clip) | P2 | V1 | Spec ready | Video OS |
+| CMKT-UC-040 | Sửa storyboard / upload B-roll | P2 | V1 | Spec ready | Video OS |
+| CMKT-UC-041 | Render master MP4 (FFmpeg) | P2 | V1 | Spec ready | Video OS |
+| CMKT-UC-042 | Transcode channel pack | P2 | V1 | Spec ready | Video OS |
+| CMKT-UC-043 | Video QA score | P2 | V1 | Spec ready | Video OS |
+| CMKT-UC-044 | Clean render gỡ DRAFT | P2 | V1 | Spec ready | Video OS |
+| CMKT-UC-045 | Beat restock + music ducking | P3 | V2 | Spec ready | Video OS |
+| CMKT-UC-046 | Generative B-roll / avatar / long-form | P3 | V3 | Backlog | Video Social |
+| CMKT-UC-047 | Chọn studio Social vs SOP | P2 | Dual | Spec ready | Dual Studio |
+| CMKT-UC-048 | Clone item sang studio kia | P2 | Dual | Spec ready | Dual Studio |
+| CMKT-UC-049 | SOP G1 director + Gate 1 | P2 | Cine A | Spec ready | Dual Studio |
+| CMKT-UC-050 | SOP G2 keyframe + Gate 2 | P2 | Cine B | Spec ready | Dual Studio |
+| CMKT-UC-051 | SOP G3 motion + Gate 3 | P2 | Cine C | Spec ready | Dual Studio |
+| CMKT-UC-052 | SOP G4 compose + Gate 4 | P2 | Cine D | Spec ready | Dual Studio |
+| CMKT-UC-053 | Escalate master 4K | P3 | Cine D | Spec ready | Dual Studio |
 
 ---
 

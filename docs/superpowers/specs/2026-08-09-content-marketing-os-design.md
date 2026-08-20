@@ -2092,7 +2092,7 @@ Dashboard Leader: cost estimate từ `ai_agent_runs` token + provider billing ho
 | Phase | Deliverable |
 |-------|-------------|
 | **P1** | Image gen + carousel slides + visual QA + visual approve gate |
-| **P2** | Short video ≤60s (script+TTS+clips) + thumb auto |
+| **P2** | Short video ≤60s (script+TTS+clips) + thumb auto — **khung job**; file MP4 thật xem [`2026-08-20-cmkt-professional-video-os-design.md`](./2026-08-20-cmkt-professional-video-os-design.md) |
 | **P3** | YouTube draft ≤3min; A/B variant test; multi-provider fallback |
 
 **Flags rollout:** pilot lifecycle `tiep-thi-noi-dung` → GA multi-slug.

@@ -1,9 +1,10 @@
-# Hướng dẫn — Content Marketing OS
+# Hướng dẫn — Content Marketing OS (tóm tắt)
 
 > **Module:** MOD-CMKT  
 > **Đối tượng:** SP Content, Lead SP, QA, AM  
 > **Route chính:** `/crm/service-delivery/[id]?tab=content-os`  
-> **Flags:** `PTT_CONTENT_MARKETING_ENABLED=1`, `NEXT_PUBLIC_CONTENT_MARKETING=1`
+> **Flags:** `PTT_CONTENT_MARKETING_ENABLED=1`, `NEXT_PUBLIC_CONTENT_MARKETING=1`  
+> **Bản đầy đủ (mọi kênh, ảnh, video, thiết lập môi trường):** [`18-content-marketing-os.md`](./18-content-marketing-os.md)
 
 ---
 

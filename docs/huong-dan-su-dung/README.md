@@ -21,10 +21,13 @@ Tài liệu này mô tả **cách sử dụng từng chức năng** theo domain 
 | 7 | Google Ads | [07-google-ads.md](./07-google-ads.md) | Buyer, AM |
 | 8 | SEO / AEO | [08-seo-aeo.md](./08-seo-aeo.md) | SEO Strategist, Writer |
 | 9 | Email Marketing | [09-email-marketing.md](./09-email-marketing.md) | Email Strategist, AM |
-| 10 | Content Marketing OS | [10-content-marketing.md](./10-content-marketing.md) | SP Content, QA |
+| 10 | Content Marketing OS (tóm tắt) | [10-content-marketing.md](./10-content-marketing.md) | SP Content, QA |
+| 18 | **Content Marketing OS (đầy đủ — kênh, ảnh, video)** | [18-content-marketing-os.md](./18-content-marketing-os.md) | SP Content, QA, IT |
+| 19 | **Video SOP Studio (Module 7)** | spec: [video-sop-module-7-design.md](../superpowers/specs/2026-08-20-video-sop-module-7-design.md) | AM, Copy, Art, Motion, Editor |
 | 11 | Marketing AI Planner | [11-marketing-ai-planner.md](./11-marketing-ai-planner.md) | SP, MKT Lead |
 | 12 | AI Revenue OS | [12-ai-revenue-os.md](./12-ai-revenue-os.md) | CSKH, Manager, GDKD |
 | 13 | HR & Payroll | [13-hr-payroll.md](./13-hr-payroll.md) | HR, NV |
+| 17 | **HR Employee File OS (P1–P8)** | [17-hr-employee-file-os.md](./17-hr-employee-file-os.md) | HR, NV, IT |
 | 14 | Client Portal | [14-client-portal.md](./14-client-portal.md) | Khách hàng |
 | 15 | Mobile (PWA / App) | [15-mobile.md](./15-mobile.md) | Khách hàng, AM |
 | 16 | **SOP chốt deal Sales/Solution** | [16-sales-solution-chot-deal-sop.md](./16-sales-solution-chot-deal-sop.md) | Sales, AM, Solution, GDKD |

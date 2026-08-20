@@ -2,6 +2,7 @@
 
 > **Prefix:** CMKT · **Phiên bản:** 1.0 · **Ngày:** 2026-08-09  
 > **Design spec:** [`superpowers/specs/2026-08-09-content-marketing-os-design.md`](../superpowers/specs/2026-08-09-content-marketing-os-design.md)  
+> **Video OS (đa kênh, FFmpeg):** [`superpowers/specs/2026-08-20-cmkt-professional-video-os-design.md`](../superpowers/specs/2026-08-20-cmkt-professional-video-os-design.md)  
 > **UX/UI spec:** [`2026-08-09-content-marketing-integration-spec.md`](../specs/2026-08-09-content-marketing-integration-spec.md)  
 > **BA module:** [`specs/modules/RNOSAI-BA-CMKT-UseCases.md`](../specs/modules/RNOSAI-BA-CMKT-UseCases.md)  
 > **Actions:** [`actions/11-CMKT-ACTIONS.md`](actions/11-CMKT-ACTIONS.md)  
@@ -27,6 +28,7 @@
 | SEO/EM bridge | CMKT-UC-019, 020 | P1 |
 | Production §23 | CMKT-UC-031…034 | P1 |
 | AI Media §24 | CMKT-UC-035…038 | P1–P2 |
+| **Video OS đa kênh** | CMKT-UC-036, 039…046 | V1–V3 |
 | Intelligence | CMKT-UC-022…026 | P1–P2 |
 | Portal | CMKT-UC-030 | P2 |
 
