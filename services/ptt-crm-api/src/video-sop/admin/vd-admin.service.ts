@@ -77,14 +77,14 @@ export class VdAdminService implements OnModuleDestroy {
   }
 
   async ensurePgReady(): Promise<boolean> {
-    if (this.pgReady != null) return this.pgReady;
+    if (this.pgReady === true) return true;
     try {
       await this.db.query(`SELECT 1 FROM vd_providers LIMIT 1`);
       this.pgReady = true;
+      return true;
     } catch {
-      this.pgReady = false;
+      return false;
     }
-    return this.pgReady;
   }
 
   private assertWritableOrThrow(): void {

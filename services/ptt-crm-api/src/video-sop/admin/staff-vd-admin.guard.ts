@@ -12,7 +12,7 @@ import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
 
 @Injectable()
-export class StaffVdAdminGuard implements CanActivate {
+export class StaffVdAdminViewGuard implements CanActivate {
   constructor(private readonly staffAuth: StaffAuthService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -32,6 +32,30 @@ export class StaffVdAdminGuard implements CanActivate {
       error: 'missing_cap',
       section: 'crm_vd.admin',
       action: 'view',
+    });
+  }
+}
+
+@Injectable()
+export class StaffVdAdminCreateGuard implements CanActivate {
+  constructor(private readonly staffAuth: StaffAuthService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<StaffReq>();
+    if (req.staffAuthVia === 'internal') return true;
+    if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
+
+    const me = await this.staffAuth.me(req.staffUser);
+    if (
+      this.staffAuth.hasCap(me.caps, 'crm_vd.admin', 'create') ||
+      this.staffAuth.hasCap(me.caps, 'ai_admin', 'view')
+    ) {
+      return true;
+    }
+    throw new ForbiddenException({
+      error: 'missing_cap',
+      section: 'crm_vd.admin',
+      action: 'create',
     });
   }
 }

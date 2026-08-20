@@ -8,7 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { StaffOrInternalKeyGuard } from '../../staff-auth/staff-or-internal-key.guard';
-import { StaffVdAdminGuard } from './staff-vd-admin.guard';
+import { StaffVdAdminCreateGuard, StaffVdAdminViewGuard } from './staff-vd-admin.guard';
 import { VdAdminService } from './vd-admin.service';
 
 const SECRET_KEYS = new Set(['api_key', 'secret']);
@@ -31,29 +31,33 @@ function assertNoSecrets(body: Record<string, unknown>): void {
 }
 
 @Controller('api/v1/vd/admin')
-@UseGuards(StaffOrInternalKeyGuard, StaffVdAdminGuard)
+@UseGuards(StaffOrInternalKeyGuard)
 export class VdAdminController {
   constructor(private readonly admin: VdAdminService) {}
 
   @Get('providers')
+  @UseGuards(StaffVdAdminViewGuard)
   listProviders() {
     return this.admin.listProviders();
   }
 
   @Post('providers')
   @HttpCode(201)
+  @UseGuards(StaffVdAdminCreateGuard)
   createProvider(@Body() body: Record<string, unknown>) {
     assertNoSecrets(body ?? {});
     return this.admin.createProvider(body ?? {});
   }
 
   @Get('models')
+  @UseGuards(StaffVdAdminViewGuard)
   listModels() {
     return this.admin.listModels();
   }
 
   @Post('models')
   @HttpCode(201)
+  @UseGuards(StaffVdAdminCreateGuard)
   createModel(@Body() body: Record<string, unknown>) {
     assertNoSecrets(body ?? {});
     return this.admin.createModel(body ?? {});

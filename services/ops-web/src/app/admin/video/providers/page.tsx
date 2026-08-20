@@ -22,6 +22,11 @@ function canViewVdProviders(user: StoredStaffUser | null): boolean {
   );
 }
 
+function canCreateVdProviders(user: StoredStaffUser | null): boolean {
+  if (!user) return false;
+  return hasCap(user, 'crm_vd.admin', 'create') || hasCap(user, 'ai_admin', 'view');
+}
+
 function isVideoSopEnabled(): boolean {
   return process.env.NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC === '1';
 }
@@ -37,6 +42,7 @@ function capabilityText(value: VdModelRow['capability_json']): string {
 
 export default function AdminVideoProvidersPage() {
   const { user, token, error, loading, logout } = useAdminCrmAuth(canViewVdProviders);
+  const canCreate = canCreateVdProviders(user);
   const [providers, setProviders] = useState<VdProviderRow[]>([]);
   const [models, setModels] = useState<VdModelRow[]>([]);
   const [loadError, setLoadError] = useState('');
@@ -158,32 +164,34 @@ export default function AdminVideoProvidersPage() {
             </table>
             {providers.length === 0 ? <p className="muted">Chưa có provider — seed ffmpeg từ DDL S2</p> : null}
 
-            <div className="kpi-page__filters">
-              <input
-                type="text"
-                className="kpi-input"
-                placeholder="code"
-                value={providerCode}
-                onChange={(e) => setProviderCode(e.target.value)}
-                disabled={busy}
-              />
-              <input
-                type="text"
-                className="kpi-input"
-                placeholder="label"
-                value={providerLabel}
-                onChange={(e) => setProviderLabel(e.target.value)}
-                disabled={busy}
-              />
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={busy || !providerCode.trim() || !providerLabel.trim()}
-                onClick={() => void runCreateProvider()}
-              >
-                Thêm provider
-              </button>
-            </div>
+            {canCreate ? (
+              <div className="kpi-page__filters">
+                <input
+                  type="text"
+                  className="kpi-input"
+                  placeholder="code"
+                  value={providerCode}
+                  onChange={(e) => setProviderCode(e.target.value)}
+                  disabled={busy}
+                />
+                <input
+                  type="text"
+                  className="kpi-input"
+                  placeholder="label"
+                  value={providerLabel}
+                  onChange={(e) => setProviderLabel(e.target.value)}
+                  disabled={busy}
+                />
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={busy || !providerCode.trim() || !providerLabel.trim()}
+                  onClick={() => void runCreateProvider()}
+                >
+                  Thêm provider
+                </button>
+              </div>
+            ) : null}
 
             <h2>Models</h2>
             <table className="table">
@@ -205,40 +213,42 @@ export default function AdminVideoProvidersPage() {
               </tbody>
             </table>
 
-            <div className="kpi-page__filters">
-              <input
-                type="text"
-                className="kpi-input"
-                placeholder="provider_code"
-                value={modelProviderCode}
-                onChange={(e) => setModelProviderCode(e.target.value)}
-                disabled={busy}
-              />
-              <input
-                type="text"
-                className="kpi-input"
-                placeholder="code"
-                value={modelCode}
-                onChange={(e) => setModelCode(e.target.value)}
-                disabled={busy}
-              />
-              <textarea
-                className="kpi-input"
-                placeholder="capability_json"
-                value={capabilityJson}
-                onChange={(e) => setCapabilityJson(e.target.value)}
-                disabled={busy}
-                rows={3}
-              />
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={busy || !modelProviderCode.trim() || !modelCode.trim()}
-                onClick={() => void runCreateModel()}
-              >
-                Thêm model
-              </button>
-            </div>
+            {canCreate ? (
+              <div className="kpi-page__filters">
+                <input
+                  type="text"
+                  className="kpi-input"
+                  placeholder="provider_code"
+                  value={modelProviderCode}
+                  onChange={(e) => setModelProviderCode(e.target.value)}
+                  disabled={busy}
+                />
+                <input
+                  type="text"
+                  className="kpi-input"
+                  placeholder="code"
+                  value={modelCode}
+                  onChange={(e) => setModelCode(e.target.value)}
+                  disabled={busy}
+                />
+                <textarea
+                  className="kpi-input"
+                  placeholder="capability_json"
+                  value={capabilityJson}
+                  onChange={(e) => setCapabilityJson(e.target.value)}
+                  disabled={busy}
+                  rows={3}
+                />
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={busy || !modelProviderCode.trim() || !modelCode.trim()}
+                  onClick={() => void runCreateModel()}
+                >
+                  Thêm model
+                </button>
+              </div>
+            ) : null}
           </>
         )}
       </div>

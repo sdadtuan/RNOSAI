@@ -15,7 +15,7 @@ import { VdProjectController } from './project/vd-project.controller';
 import { VdProjectHttpService } from './project/vd-project-http.service';
 import { VdProjectRepository } from './project/vd-project.repository';
 import { VdProjectService } from './project/vd-project.service';
-import { StaffVdAdminGuard } from './admin/staff-vd-admin.guard';
+import { StaffVdAdminCreateGuard, StaffVdAdminViewGuard } from './admin/staff-vd-admin.guard';
 import { VdAdminController } from './admin/vd-admin.controller';
 import { VdAdminService } from './admin/vd-admin.service';
 
@@ -34,7 +34,8 @@ import { VdAdminService } from './admin/vd-admin.service';
     VdAdminService,
     StaffVdProjectCreateGuard,
     StaffVdProjectViewGuard,
-    StaffVdAdminGuard,
+    StaffVdAdminViewGuard,
+    StaffVdAdminCreateGuard,
   ],
 })
 export class VideoSopModule {}
