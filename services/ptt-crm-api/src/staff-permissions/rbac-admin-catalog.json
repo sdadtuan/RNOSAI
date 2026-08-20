@@ -207,6 +207,11 @@
       "view",
       "write"
     ],
+    "crm_vd.project": [
+      "view",
+      "edit",
+      "create"
+    ],
     "crm_research": [
       "approve",
       "configure",
@@ -897,6 +902,13 @@
       "group": "CRM — Triển khai dịch vụ",
       "page": "/crm/service-delivery",
       "description": "Tab Content OS: ideas, items, workflow duyệt, calendar, publish."
+    },
+    {
+      "id": "crm_vd.project",
+      "label": "Video SOP — Project",
+      "group": "CRM — Triển khai dịch vụ",
+      "page": "/crm/video",
+      "description": "Hub /crm/video: list + tạo project chiến dịch (Module 7 S1)."
     },
     {
       "id": "crm_research",
@@ -1679,6 +1691,7 @@
     "crm_mktplan",
     "crm_mkt_ai",
     "crm_content",
+    "crm_vd.project",
     "crm_research",
     "crm_owner_weekly_dashboard",
     "crm_payroll_attendance",
