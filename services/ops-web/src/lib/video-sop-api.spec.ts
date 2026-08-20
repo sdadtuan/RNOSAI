@@ -11,6 +11,7 @@ import {
   canApproveGate3,
   canEditVdMotion,
   canEditVdBudget,
+  canEditVdPost,
   canApproveVdGate,
   saveVdScript,
   vdAdminModelsPath,
@@ -271,6 +272,16 @@ describe('canEditVdBudget (same as API PUT budget)', () => {
 
   it('denies view only', () => {
     expect(canEditVdBudget(staff([{ section: 'crm_vd.budget', action: 'view' }]))).toBe(false);
+  });
+});
+
+describe('canEditVdPost (same as API POST post/compose)', () => {
+  it('allows crm_vd.post edit', () => {
+    expect(canEditVdPost(staff([{ section: 'crm_vd.post', action: 'edit' }]))).toBe(true);
+  });
+
+  it('denies view only', () => {
+    expect(canEditVdPost(staff([{ section: 'crm_vd.post', action: 'view' }]))).toBe(false);
   });
 });
 

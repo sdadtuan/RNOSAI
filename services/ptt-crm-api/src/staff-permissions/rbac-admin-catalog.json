@@ -244,6 +244,14 @@
       "view",
       "edit"
     ],
+    "crm_vd.post": [
+      "view",
+      "edit"
+    ],
+    "crm_vd.qc": [
+      "view",
+      "edit"
+    ],
     "crm_vd.admin": [
       "view",
       "create"
@@ -1001,6 +1009,20 @@
       "group": "CRM — Triển khai dịch vụ",
       "page": "/crm/video",
       "description": "Cost ledger SC-11 (Module 7 S7)."
+    },
+    {
+      "id": "crm_vd.post",
+      "label": "Video SOP — Post",
+      "group": "CRM — Triển khai dịch vụ",
+      "page": "/crm/video",
+      "description": "Post pipeline SC-09 (Module 7 S8)."
+    },
+    {
+      "id": "crm_vd.qc",
+      "label": "Video SOP — QC",
+      "group": "CRM — Triển khai dịch vụ",
+      "page": "/crm/video",
+      "description": "Gate 4 QC auto (Module 7 S8/S9)."
     },
     {
       "id": "crm_vd.admin",
@@ -1799,6 +1821,8 @@
     "crm_vd.motion",
     "crm_vd.gate3",
     "crm_vd.budget",
+    "crm_vd.post",
+    "crm_vd.qc",
     "crm_vd.admin",
     "crm_research",
     "crm_owner_weekly_dashboard",

@@ -74,6 +74,15 @@ export function canEditVdMotion(user: StoredStaffUser | null): boolean {
   );
 }
 
+/** Same cap as API POST post/compose. */
+export function canEditVdPost(user: StoredStaffUser | null): boolean {
+  return (
+    hasCap(user, 'crm_vd.post', 'edit') ||
+    hasCap(user, 'crm_vd.project', 'edit') ||
+    hasCap(user, 'crm_content', 'write')
+  );
+}
+
 /** Same cap as API PUT budget (budget edit or project edit or content write). */
 export function canEditVdBudget(user: StoredStaffUser | null): boolean {
   return (
@@ -228,6 +237,14 @@ export function vdProjectCostsPath(projectId: number | string): string {
 export function vdProjectCostsExportPath(projectId: number | string, close = false): string {
   const base = `${vdProjectCostsPath(projectId)}/export.xlsx`;
   return close ? `${base}?close=1` : base;
+}
+
+export function vdProjectPostPath(projectId: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(projectId))}/post`;
+}
+
+export function vdProjectPostComposePath(projectId: number | string): string {
+  return `${vdProjectPostPath(projectId)}/compose`;
 }
 
 export function vdShotTakeScorePath(shotId: number | string): string {
@@ -429,6 +446,20 @@ export type VdCostsView = {
   project_id: number;
   budget: VdBudgetView;
   items: VdCostLedgerRow[];
+};
+
+export type VdPostNodeView = {
+  id: string;
+  label: string;
+  status: string;
+  job_id: number | null;
+};
+
+export type VdPostPipelineView = {
+  project_id: number;
+  nodes: VdPostNodeView[];
+  next_node: string;
+  gate4_auto: { ok: boolean; blocked: boolean; reasons: string[] } | null;
 };
 
 export type AddVdShotBody = {
@@ -812,6 +843,25 @@ export async function exportVdCostsXlsx(
   return res.blob();
 }
 
+export async function getVdPostPipeline(
+  token: string,
+  projectId: number | string,
+): Promise<VdPostPipelineView> {
+  return vdFetch<VdPostPipelineView>(token, vdProjectPostPath(projectId));
+}
+
+export async function enqueueVdPostCompose(
+  token: string,
+  projectId: number | string,
+  idempotencyKey: string,
+): Promise<EnqueueVdJobResult> {
+  return vdFetch<EnqueueVdJobResult>(token, vdProjectPostComposePath(projectId), {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({}),
+  });
+}
+
 export async function enqueueVdJob(
   token: string,
   projectId: number | string,
@@ -958,6 +1008,8 @@ export const VIDEO_SOP_API = {
   saveBudget: saveVdBudget,
   listCosts: listVdCosts,
   exportCostsXlsx: exportVdCostsXlsx,
+  getPostPipeline: getVdPostPipeline,
+  enqueuePostCompose: enqueueVdPostCompose,
   listPromptTemplates: listVdPromptTemplates,
   listJobs: listVdJobs,
   enqueueJob: enqueueVdJob,

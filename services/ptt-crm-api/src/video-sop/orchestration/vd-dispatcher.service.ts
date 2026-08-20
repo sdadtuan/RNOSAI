@@ -4,12 +4,16 @@ import type { VdImageGenInput } from '../adapters/i-image-gen';
 import type { VdVideoGenInput, VdVideoProvider } from '../adapters/i-video-gen';
 import { parseIdeaSummaries, selectTextGen } from '../adapters/i-text-gen';
 import { VdAssetRepository } from '../assets/vd-asset.repository';
+import { selectMediaOps } from '../adapters/i-media-ops';
+import { selectEnhance } from '../adapters/i-enhance';
 import { VdCostService } from '../cost/vd-cost.service';
 import { VdJobRepository } from '../jobs/vd-job.repository';
 import type { EnqueueVdJobInput, VdJobHandler, VdJobRow, VdJobStatus } from '../jobs/vd-job.types';
 import { VdIdeaRepository } from '../script/vd-idea.repository';
 import { VdShotRepository } from '../script/vd-shot.repository';
 import { VdPromptRepository } from '../prompt/vd-prompt.repository';
+import { evaluateGate4Auto } from '../rules/vd-qc-auto';
+import { nextPostNode, POST_DAG_NODES } from './vd-dag';
 import { selectImageGen, selectVideoGen } from './vd-model-router';
 
 const RETRYABLE = new Set(['transient', 'rate_limit']);
@@ -84,6 +88,8 @@ export class VdDispatcherService {
     this.registerHandler('cine_director', (job) => this.handleCineDirector(job));
     this.registerHandler('cine_motion_draft', (job) => this.handleCineMotion(job));
     this.registerHandler('cine_motion_final', (job) => this.handleCineMotion(job));
+    this.registerHandler('cine_compose', (job) => this.handleCineCompose(job));
+    this.registerHandler('cine_enhance', (job) => this.handleCineEnhance(job));
   }
 
   private async handleCineDirector(job: VdJobRow): Promise<Record<string, unknown>> {
@@ -193,6 +199,87 @@ export class VdDispatcherService {
       provider: polled.provider,
       providerId: polled.providerId,
       asset_id: asset.id,
+    };
+  }
+
+  private async handleCineCompose(job: VdJobRow): Promise<Record<string, unknown>> {
+    const media = selectMediaOps();
+    const completed: string[] = [];
+    const skipped: string[] = [];
+    const proxyPath = `/tmp/vd-${job.project_id}-proxy.mp4`;
+    const zipPath = `/tmp/vd-${job.project_id}-package.zip`;
+
+    let node = nextPostNode(completed);
+    while (node !== 'complete') {
+      if (node === 'optional_topaz') {
+        const topazKey = (process.env.PTT_VD_TOPAZ_API_KEY ?? '').trim();
+        if (!topazKey) {
+          skipped.push(node);
+          completed.push(node);
+          node = nextPostNode(completed);
+          continue;
+        }
+        try {
+          const enhance = selectEnhance();
+          await enhance.enhance(proxyPath);
+        } catch (err) {
+          const cls = errorClassOf(err);
+          if (cls === 'auth') {
+            skipped.push(node);
+            completed.push(node);
+            node = nextPostNode(completed);
+            continue;
+          }
+          throw err;
+        }
+      } else if (node === 'proxy') {
+        await media.proxy(proxyPath, proxyPath);
+      } else if (node === 'package_zip') {
+        await media.zipEditorPackage([proxyPath], zipPath);
+      }
+
+      completed.push(node);
+      node = nextPostNode(completed);
+    }
+
+    const probe = media.probe(proxyPath);
+    const gate4_auto = evaluateGate4Auto(probe);
+    const master = await this.assets.insert({
+      project_id: job.project_id,
+      job_id: job.id,
+      kind: 'master',
+      storage_key: proxyPath,
+      url: '',
+      sha256: null,
+      width: null,
+      height: null,
+      duration_ms: Math.round(probe.durationSec * 1000),
+    });
+
+    return {
+      completed_nodes: completed,
+      skipped_nodes: skipped,
+      nodes: [...POST_DAG_NODES],
+      gate4_probe: probe,
+      gate4_auto,
+      asset_id: master.id,
+      skipped: skipped.includes('optional_topaz'),
+    };
+  }
+
+  private async handleCineEnhance(job: VdJobRow): Promise<Record<string, unknown>> {
+    const topazKey = (process.env.PTT_VD_TOPAZ_API_KEY ?? '').trim();
+    if (!topazKey) {
+      return { skipped: true, provider: 'topaz' };
+    }
+    const enhance = selectEnhance();
+    const result = await enhance.enhance(
+      typeof job.input_json.input_path === 'string' ? job.input_json.input_path : 'stub',
+    );
+    return {
+      provider: result.provider,
+      providerId: result.providerId,
+      skipped: false,
     };
   }
 

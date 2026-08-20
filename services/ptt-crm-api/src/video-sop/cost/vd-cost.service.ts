@@ -29,7 +29,7 @@ const FINAL_CREDIT_PER_SEC = 5;
 const ENHANCE_CREDIT = 10;
 
 function reserveQueues(): Set<string> {
-  return new Set(['q.image', 'q.video.kling', 'q.video.runway', 'q.enhance']);
+  return new Set(['q.image', 'q.video.kling', 'q.video.runway', 'q.enhance', 'q.media']);
 }
 
 @Injectable()
@@ -57,6 +57,7 @@ export class VdCostService {
       return sec * rate;
     }
     if (queue === 'q.enhance') return ENHANCE_CREDIT;
+    if (queue === 'q.media') return 8;
     return IMAGE_CREDIT;
   }
 
