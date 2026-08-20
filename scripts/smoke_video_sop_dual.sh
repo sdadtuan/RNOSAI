@@ -49,12 +49,25 @@ ITEM_JSON="$(curl -sf "${AUTH[@]}" -H 'Content-Type: application/json' \
 ITEM_ID="$(echo "$ITEM_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")"
 curl -sf "${AUTH[@]}" -X POST "$BASE/items/$ITEM_ID/submit-review" >/dev/null
 curl -sf "${AUTH[@]}" -X POST "$BASE/items/$ITEM_ID/approve" >/dev/null
-curl -sf "${AUTH[@]}" -H 'Content-Type: application/json' \
+
+PROJ_BODY="$(curl -sf "${AUTH[@]}" -H 'Content-Type: application/json' \
   -d "{\"lifecycle_id\":$LIFECYCLE_ID,\"cmkt_item_id\":$ITEM_ID}" \
-  -X POST "$API_BASE/api/v1/vd/projects" >/dev/null || true
-curl -sf "${AUTH[@]}" -H 'Content-Type: application/json' \
-  -d '{"studio":"cinematic"}' \
-  -X POST "$BASE/items/$ITEM_ID/video/lock-studio" >/dev/null || true
+  -X POST "$API_BASE/api/v1/vd/projects")"
+PROJ_ID="$(echo "$PROJ_BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")"
+
+ITEM="$(curl -sf "${AUTH[@]}" "$BASE/items/$ITEM_ID")"
+echo "$ITEM" | python3 -c "
+import json, sys
+item = json.load(sys.stdin)
+media = item.get('media_json') or {}
+studio = media.get('video_studio')
+vd_id = media.get('vd_project_id')
+want = int(sys.argv[1])
+if studio != 'cinematic':
+    raise SystemExit(f'FAIL media_json.video_studio={studio!r} expected cinematic')
+if vd_id != want:
+    raise SystemExit(f'FAIL media_json.vd_project_id={vd_id!r} expected {want}')
+" "$PROJ_ID"
 
 STORY_BODY="/tmp/vd-dual-storyboard.json"
 STORY_CODE="$(
