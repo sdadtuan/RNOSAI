@@ -42,6 +42,9 @@ run_local() {
     "PTT_CONTENT_MARKETING_MEDIA_ENABLED=1" \
     "PTT_CMKT_IMAGE_GEN=1" \
     "PTT_CMKT_VIDEO_GEN=1" \
+    "PTT_CMKT_VIDEO_PROVIDER=ffmpeg" \
+    "PTT_CMKT_VIDEO_SOCIAL=1" \
+    "PTT_CMKT_VIDEO_SOCIAL_DAILY_CAP=3" \
     "PTT_CONTENT_MARKETING_CLIENT_GATE=1" \
     "PTT_CMKT_PORTAL_SUMMARY=1" \
     "NEXT_PUBLIC_CMKT_PORTAL_SUMMARY=1" \
@@ -87,7 +90,8 @@ run_local() {
   fi
 
   echo "== Content Marketing M6 staging complete =="
-  echo "Flags: PTT_CONTENT_MARKETING_MEDIA_ENABLED=1 PTT_CMKT_IMAGE_GEN=1"
+  echo "Flags: PTT_CONTENT_MARKETING_MEDIA_ENABLED=1 PTT_CMKT_IMAGE_GEN=1 PTT_CMKT_VIDEO_GEN=1"
+  echo "Video V1: PTT_CMKT_VIDEO_PROVIDER=ffmpeg PTT_CMKT_VIDEO_SOCIAL=1 cap=3 (ensure ffmpeg on VPS)"
   echo "Next: grant crm_content caps via Admin → Permission Sets; then M1 FE tab"
 }
 
