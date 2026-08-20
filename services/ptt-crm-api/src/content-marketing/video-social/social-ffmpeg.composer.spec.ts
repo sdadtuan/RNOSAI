@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { probeFile } from '../video-kernel/video-ffprobe.util';
-import { SocialFfmpegComposer } from './social-ffmpeg.composer';
+import { SocialFfmpegComposer, draftWatermarkDrawtextFilter } from './social-ffmpeg.composer';
 import type { CmktVideoBeat } from '../content-marketing.types';
 
 const ffmpegWhich = spawnSync('which', ['ffmpeg'], { encoding: 'utf8' });
@@ -11,6 +11,16 @@ const hasFfmpeg = ffmpegWhich.status === 0 && Boolean(ffmpegWhich.stdout.trim())
 const ffmpegBin = hasFfmpeg ? ffmpegWhich.stdout.trim() : 'ffmpeg';
 
 describe('SocialFfmpegComposer', () => {
+  it('omits drawtext angle so FFmpeg 8 can render the DRAFT watermark', () => {
+    const expr = draftWatermarkDrawtextFilter({
+      videoLabel: 'vhook',
+      fontOpt: '',
+      fontsize: 48,
+    });
+    expect(expr).toContain("text='DRAFT'");
+    expect(expr).not.toMatch(/angle=/);
+  });
+
   it('throws voice_missing when voice file is absent', async () => {
     const workDir = mkdtempSync(join(tmpdir(), 'cmkt-social-voice-missing-'));
     try {

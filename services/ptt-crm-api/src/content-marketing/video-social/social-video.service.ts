@@ -41,6 +41,7 @@ import {
   assertScriptFitsPack,
   assertStudioWritable,
   defaultSocialTranscodePacks,
+  isLikelyPlayableAudio,
   lockVideoStudio,
 } from './social-studio.util';
 import { scoreMaster } from './social-video-qa.service';
@@ -343,7 +344,7 @@ export class SocialVideoService {
     await mkdir(workDir, { recursive: true });
 
     try {
-      const voicePath = join(workDir, 'voice.mp3');
+      const voicePath = join(workDir, 'voice.wav');
       await this.materializeVoice(storyboard, voicePath);
 
       const clipPaths: string[] = [];
@@ -660,7 +661,7 @@ export class SocialVideoService {
     await mkdir(workDir, { recursive: true });
 
     try {
-      const voicePath = join(workDir, 'voice.mp3');
+      const voicePath = join(workDir, 'voice.wav');
       await this.materializeVoice(storyboard, voicePath);
 
       const clipPaths: string[] = [];
@@ -773,7 +774,11 @@ export class SocialVideoService {
   ): Promise<void> {
     try {
       await this.materializeFile(storyboard.tts.url, dest, storyboard.tts.storage_key);
-      return;
+      const cached = await readFile(dest);
+      if (isLikelyPlayableAudio(cached)) {
+        return;
+      }
+      this.logger.warn('voice cache is stub/non-audio, synthesizing fallback');
     } catch (err) {
       this.logger.warn(
         `voice download failed, synthesizing fallback: ${err instanceof Error ? err.message : String(err)}`,
@@ -790,6 +795,12 @@ export class SocialVideoService {
         `sine=frequency=440:duration=${duration}`,
         '-ac',
         '1',
+        '-ar',
+        '44100',
+        '-c:a',
+        'pcm_s16le',
+        '-f',
+        'wav',
         dest,
       ],
       { encoding: 'utf8', timeout: 30_000 },

@@ -104,6 +104,15 @@ function escapeFilterPath(p: string): string {
   return p.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "\\'");
 }
 
+/** FFmpeg 8 drawtext dropped `angle`; keep DRAFT readable without rotating. */
+export function draftWatermarkDrawtextFilter(opts: {
+  videoLabel: string;
+  fontOpt: string;
+  fontsize: number;
+}): string {
+  return `[${opts.videoLabel}]drawtext=${opts.fontOpt}text='DRAFT':fontcolor=white@0.22:fontsize=${opts.fontsize}:x=(w-text_w)/2:y=(h-text_h)/2[vdraft]`;
+}
+
 function escapeDrawtext(text: string): string {
   return text
     .replace(/\\/g, '\\\\')
@@ -265,9 +274,7 @@ function buildComposeArgs(
     }
     if (draftWatermark) {
       const fontsize = Math.max(48, Math.round(height * 0.12));
-      filters.push(
-        `[${videoLabel}]drawtext=${fontOpt}text='DRAFT':fontcolor=white@0.22:fontsize=${fontsize}:x=(w-text_w)/2:y=(h-text_h)/2:angle=0.785[vdraft]`,
-      );
+      filters.push(draftWatermarkDrawtextFilter({ videoLabel, fontOpt, fontsize }));
       videoLabel = 'vdraft';
     }
   }

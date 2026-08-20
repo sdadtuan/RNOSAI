@@ -51,6 +51,11 @@ export function assertStudioWritable(
   }
 }
 
+/** Stub TTS writes ~11 ASCII bytes (`ID3` + hash). Real MP3/WAV is much larger. */
+export function isLikelyPlayableAudio(buf: Buffer): boolean {
+  return buf.length >= 256;
+}
+
 /** Default transcode / requested_packs for social video (V1). */
 export function defaultSocialTranscodePacks(
   channel: string | undefined,
