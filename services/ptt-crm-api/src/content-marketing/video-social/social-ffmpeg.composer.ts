@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { spawn, spawnSync } from 'child_process';
 import { existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -38,6 +39,7 @@ export type ComposeSocialMasterInput = {
 
 type OverlayAsset = { path: string; startSec: number; endSec: number };
 
+@Injectable()
 export class SocialFfmpegComposer {
   async composeSocialMaster(
     input: ComposeSocialMasterInput,

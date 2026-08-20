@@ -57,6 +57,12 @@ describe('ContentMarketingController', () => {
     startCarouselSlidesJob: jest.fn(),
     startVisualQaJob: jest.fn(),
     startVideoShortJob: jest.fn(),
+    startStoryboard: jest.fn(),
+    patchStoryboard: jest.fn(),
+    startRender: jest.fn(),
+    startTranscode: jest.fn(),
+    startVideoQa: jest.fn(),
+    lockStudio: jest.fn(),
     selectMediaAsset: jest.fn(),
   };
   const visual = {
@@ -231,5 +237,32 @@ describe('ContentMarketingController', () => {
       { aspect_ratio: '9:16' },
       'writer@test.vn',
     );
+  });
+
+  it('POST jobs/video-storyboard delegates to media service', async () => {
+    media.startStoryboard.mockResolvedValue({ id: 91, status: 'queued', job_type: 'social_storyboard' });
+    const req = { staffUser: { email: 'writer@test.vn' } } as never;
+    await expect(controller.startStoryboard(123, 42, { pack_default: 'reels' }, req)).resolves.toEqual({
+      id: 91,
+      status: 'queued',
+      job_type: 'social_storyboard',
+    });
+    expect(media.startStoryboard).toHaveBeenCalledWith(
+      123,
+      42,
+      { pack_default: 'reels' },
+      'writer@test.vn',
+    );
+  });
+
+  it('POST jobs/video-render delegates to media service', async () => {
+    media.startRender.mockResolvedValue({ id: 92, status: 'queued', job_type: 'social_render' });
+    const req = { staffUser: { email: 'writer@test.vn' } } as never;
+    await expect(controller.startRender(123, 42, {}, req)).resolves.toEqual({
+      id: 92,
+      status: 'queued',
+      job_type: 'social_render',
+    });
+    expect(media.startRender).toHaveBeenCalledWith(123, 42, {}, 'writer@test.vn');
   });
 });

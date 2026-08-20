@@ -1637,6 +1637,30 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     return count;
   }
 
+  async countSocialJobsToday(lifecycleId: number): Promise<number> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT COUNT(*)::int AS c FROM cmkt_content_jobs
+         WHERE lifecycle_id = $1
+           AND (job_type LIKE 'social_%' OR job_type = 'video_short_generate')
+           AND created_at >= date_trunc('day', NOW())`,
+        [lifecycleId],
+      );
+      return Number(res.rows[0]?.c ?? 0);
+    }
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    let count = 0;
+    for (const job of this.memory.jobs.values()) {
+      if (job.lifecycle_id !== lifecycleId) continue;
+      if (!(job.job_type.startsWith('social_') || job.job_type === 'video_short_generate')) {
+        continue;
+      }
+      if (new Date(job.created_at).getTime() >= start.getTime()) count++;
+    }
+    return count;
+  }
+
   async listVisualReviewQueue(lifecycleId: number): Promise<CmktVisualReviewItem[]> {
     const items = await this.listItems(lifecycleId, {});
     return items

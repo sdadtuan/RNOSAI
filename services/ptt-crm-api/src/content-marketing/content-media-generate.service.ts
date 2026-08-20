@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { ContentJobWorkerService } from './content-job-worker.service';
 import { ContentMediaImageProvider } from './content-media-image.provider';
@@ -11,12 +11,17 @@ import { itemEligibleForVideoShort } from './content-media-video.util';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import { ContentMarketingService } from './content-marketing.service';
 import type { CmktItemRow, CmktJobRow } from './content-marketing.types';
+import { SocialVideoService } from './video-social/social-video.service';
 
 const MEDIA_JOB_TYPES = new Set([
   'image_generate',
   'carousel_slides_generate',
   'visual_qa_score',
   'video_short_generate',
+  'social_storyboard',
+  'social_render',
+  'social_transcode',
+  'social_qa',
 ]);
 
 @Injectable()
@@ -27,6 +32,8 @@ export class ContentMediaGenerateService {
     private readonly repo: ContentMarketingRepository,
     private readonly worker: ContentJobWorkerService,
     private readonly images: ContentMediaImageProvider,
+    @Inject(forwardRef(() => SocialVideoService))
+    private readonly social: SocialVideoService,
   ) {}
 
   private ensureMediaEnabled(): void {
@@ -95,7 +102,6 @@ export class ContentMediaGenerateService {
   ): Promise<CmktJobRow> {
     this.ensureVideoEnabled();
     await this.core.ensureLifecycleEnabled(lifecycleId);
-    await this.assertDailyCap(lifecycleId);
 
     const item = await this.repo.getItemById(lifecycleId, itemId);
     if (!item) throw new NotFoundException({ error: 'item_not_found', id: itemId });
@@ -105,31 +111,69 @@ export class ContentMediaGenerateService {
         message: 'Short video chỉ cho format video_script hoặc channel short_video.',
       });
     }
+    if (item.media_json?.video_studio === 'cinematic') {
+      throw new BadRequestException({ error: 'studio_mismatch', message: 'studio_mismatch' });
+    }
     assertMediaJobEligible(item, body.allow_draft_watermark === true);
 
-    await this.repo.patchItem(lifecycleId, itemId, { visual_status: 'ai_pending' });
-
-    const job = await this.repo.createContentJob({
-      lifecycle_id: lifecycleId,
-      item_id: itemId,
-      job_type: 'video_short_generate',
-      input_json: {
-        aspect_ratio: resolveAspectRatio(body.aspect_ratio, item.channel, item.format),
-        style_preset: String(body.style_preset ?? 'corporate'),
-        allow_draft_watermark: body.allow_draft_watermark === true,
-      },
-      created_by: actorEmail,
-    });
-
-    if (this.config.contentMarketingMediaAsync) {
-      setImmediate(() => {
-        void this.worker.processJob(job.id).catch(() => undefined);
-      });
-      return job;
+    const studio = item.media_json?.video_studio;
+    const socialOrEmpty = studio == null || studio === 'social';
+    if (this.config.contentMarketingVideoOneShot && socialOrEmpty) {
+      return this.social.startOneShot(lifecycleId, itemId, body, actorEmail);
     }
 
-    const finished = await this.worker.processJob(job.id);
-    return finished ?? job;
+    return this.social.startStoryboard(lifecycleId, itemId, body, actorEmail);
+  }
+
+  startStoryboard(
+    lifecycleId: number,
+    itemId: number,
+    body: Record<string, unknown>,
+    actorEmail: string,
+  ): Promise<CmktJobRow> {
+    return this.social.startStoryboard(lifecycleId, itemId, body, actorEmail);
+  }
+
+  patchStoryboard(
+    lifecycleId: number,
+    itemId: number,
+    beatsPatch: unknown,
+  ): Promise<CmktItemRow> {
+    return this.social.patchStoryboard(lifecycleId, itemId, beatsPatch);
+  }
+
+  startRender(
+    lifecycleId: number,
+    itemId: number,
+    body: Record<string, unknown>,
+    actorEmail: string,
+  ): Promise<CmktJobRow> {
+    return this.social.startRender(lifecycleId, itemId, body, actorEmail);
+  }
+
+  startTranscode(
+    lifecycleId: number,
+    itemId: number,
+    packs: unknown,
+    actorEmail: string,
+  ): Promise<CmktJobRow> {
+    return this.social.startTranscode(lifecycleId, itemId, packs, actorEmail);
+  }
+
+  startVideoQa(
+    lifecycleId: number,
+    itemId: number,
+    actorEmail: string,
+  ): Promise<CmktJobRow> {
+    return this.social.startVideoQa(lifecycleId, itemId, actorEmail);
+  }
+
+  lockStudio(
+    lifecycleId: number,
+    itemId: number,
+    studio: unknown,
+  ): Promise<CmktItemRow> {
+    return this.social.lockStudio(lifecycleId, itemId, studio);
   }
 
   private async startMediaJob(

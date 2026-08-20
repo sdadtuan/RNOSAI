@@ -655,6 +655,74 @@ export class ContentMarketingController {
     return this.media.startVideoShortJob(lifecycleId, itemId, body, actorEmail(req));
   }
 
+  @Post('items/:itemId/jobs/video-storyboard')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  startStoryboard(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.media.startStoryboard(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Patch('items/:itemId/video/storyboard')
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  patchStoryboard(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.media.patchStoryboard(lifecycleId, itemId, body);
+  }
+
+  @Post('items/:itemId/jobs/video-render')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  startRender(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.media.startRender(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Post('items/:itemId/jobs/video-transcode')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  startTranscode(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.media.startTranscode(lifecycleId, itemId, body.packs, actorEmail(req));
+  }
+
+  @Post('items/:itemId/jobs/video-qa')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  startVideoQa(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Req() req: Request,
+  ) {
+    return this.media.startVideoQa(lifecycleId, itemId, actorEmail(req));
+  }
+
+  @Post('items/:itemId/video/lock-studio')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  lockStudio(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.media.lockStudio(lifecycleId, itemId, body.studio);
+  }
+
   @Patch('items/:itemId/media/select')
   @UseGuards(StaffContentMarketingGenerateGuard)
   selectMediaAsset(

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { AiAgentRunsRepository } from '../ai-intelligence/ai-agent-runs.repository';
 import { AiIntelligenceConfigService } from '../ai-intelligence/ai-intelligence.config';
 import { AiLlmClient } from '../ai-intelligence/ai-llm.client';
@@ -46,6 +46,7 @@ import { ContentVisualQaService } from './content-visual-qa.service';
 import { ContentMediaImageProvider } from './content-media-image.provider';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import type { CmktBodyJson, CmktIdeaRow, CmktJobRow, CmktMediaAsset } from './content-marketing.types';
+import { SocialVideoService } from './video-social/social-video.service';
 
 @Injectable()
 export class ContentJobWorkerService {
@@ -62,6 +63,8 @@ export class ContentJobWorkerService {
     private readonly mediaImages: ContentMediaImageProvider,
     private readonly mediaVideo: ContentMediaVideoProvider,
     private readonly visualQa: ContentVisualQaService,
+    @Inject(forwardRef(() => SocialVideoService))
+    private readonly social: SocialVideoService,
   ) {}
 
   get modelName(): string {
@@ -107,7 +110,11 @@ export class ContentJobWorkerService {
         claimed.job_type === 'image_generate' ||
         claimed.job_type === 'carousel_slides_generate' ||
         claimed.job_type === 'visual_qa_score' ||
-        claimed.job_type === 'video_short_generate'
+        claimed.job_type === 'video_short_generate' ||
+        claimed.job_type === 'social_storyboard' ||
+        claimed.job_type === 'social_render' ||
+        claimed.job_type === 'social_transcode' ||
+        claimed.job_type === 'social_qa'
       ) {
         return this.processMediaJob(jobId, claimed, item, started);
       }
@@ -337,45 +344,34 @@ export class ContentJobWorkerService {
     const brandContext = await this.brandContext.resolveForLifecycle(claimed.lifecycle_id);
 
     try {
+      if (
+        claimed.job_type === 'social_storyboard' ||
+        claimed.job_type === 'social_render' ||
+        claimed.job_type === 'social_transcode' ||
+        claimed.job_type === 'social_qa'
+      ) {
+        return this.processSocialJob(jobId, claimed, item, started);
+      }
+
       if (claimed.job_type === 'video_short_generate') {
         const script = approvedCopy;
-        const usePipeline = this.config.contentMarketingVideoProvider !== 'stub';
-        if (usePipeline) {
-          const generated = await this.mediaVideo.generateShortVideo({
-            lifecycleId: claimed.lifecycle_id,
-            itemId: item.id,
-            script,
-            title: item.title,
-          });
-          const { asset, progress, pipeline } = generated;
-          const media = mergeMediaJson(item.media_json, {
-            video_short: asset,
-            video_generation: progress,
-            ai_assets: [asset],
-            selected_asset_id: asset.id,
-            provider: asset.provider,
-            aspect_ratio: resolveAspectRatio(input.aspect_ratio, item.channel, item.format),
-          });
-          const qa = this.visualQa.scoreAssets([asset], {
-            aspectRatio: resolveAspectRatio(input.aspect_ratio, item.channel, item.format),
-          });
-          media.visual_qa = qa;
-          await this.repo.patchItem(claimed.lifecycle_id, item.id, {
-            media_json: media,
-            visual_status: 'ai_ready',
-            production_json: {
-              ...(item.production_json ?? {}),
-              final_video_url: asset.url,
-              subtitle_text: script.slice(0, 200),
-            },
-          });
+        const provider = this.config.contentMarketingVideoProvider;
+        const studio = item.media_json?.video_studio;
+        const oneShotSocial =
+          this.config.contentMarketingVideoOneShot && studio !== 'cinematic';
+        if (provider !== 'stub' && (provider === 'ffmpeg' || oneShotSocial)) {
+          await this.social.executeStoryboard(claimed, item);
+          const latest =
+            (await this.repo.getItemById(claimed.lifecycle_id, item.id)) ?? item;
+          await this.social.executeRender(claimed, latest);
+          const refreshed =
+            (await this.repo.getItemById(claimed.lifecycle_id, item.id)) ?? latest;
           return this.repo.finishContentJob(jobId, {
             status: 'succeeded',
             output_json: {
-              video_short: asset,
-              video_generation: progress,
-              pipeline,
-              visual_qa: qa,
+              video_short: refreshed.media_json?.video_short,
+              video_generation: refreshed.media_json?.video_generation,
+              video_qa: refreshed.media_json?.video_qa,
               latency_ms: Date.now() - started,
             },
           });
@@ -521,6 +517,42 @@ export class ContentJobWorkerService {
         output_json: {
           ai_assets: assets,
           visual_qa: media.visual_qa,
+          latency_ms: Date.now() - started,
+        },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await this.repo.patchItem(claimed.lifecycle_id, item.id, { visual_status: 'rejected' });
+      return this.repo.finishContentJob(jobId, { status: 'failed', error_text: message });
+    }
+  }
+
+  private async processSocialJob(
+    jobId: number,
+    claimed: CmktJobRow,
+    item: NonNullable<Awaited<ReturnType<ContentMarketingRepository['getItemById']>>>,
+    started: number,
+  ): Promise<CmktJobRow | null> {
+    try {
+      if (claimed.job_type === 'social_storyboard') {
+        await this.social.executeStoryboard(claimed, item);
+      } else if (claimed.job_type === 'social_render') {
+        await this.social.executeRender(claimed, item);
+      } else if (claimed.job_type === 'social_transcode') {
+        await this.social.executeTranscode(claimed, item);
+      } else {
+        await this.social.executeQa(claimed, item);
+      }
+      const refreshed =
+        (await this.repo.getItemById(claimed.lifecycle_id, item.id)) ?? item;
+      return this.repo.finishContentJob(jobId, {
+        status: 'succeeded',
+        output_json: {
+          video_short: refreshed.media_json?.video_short,
+          storyboard: refreshed.media_json?.storyboard,
+          video_generation: refreshed.media_json?.video_generation,
+          video_qa: refreshed.media_json?.video_qa,
+          video_packs: refreshed.media_json?.video_packs,
           latency_ms: Date.now() - started,
         },
       });

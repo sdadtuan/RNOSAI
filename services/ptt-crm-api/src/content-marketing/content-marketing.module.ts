@@ -47,6 +47,11 @@ import {
   StaffContentMarketingViewGuard,
   StaffContentMarketingWriteGuard,
 } from './guards/staff-content-marketing.guard';
+import { AppConfigService } from '../config/app-config.service';
+import { Pool } from 'pg';
+import { VideoLicenseRepository } from './video-kernel/video-license.repository';
+import { SocialFfmpegComposer } from './video-social/social-ffmpeg.composer';
+import { SocialVideoService } from './video-social/social-video.service';
 
 @Module({
   imports: [
@@ -86,6 +91,14 @@ import {
     ContentVisualQaService,
     ContentMediaImageProvider,
     ContentMediaGenerateService,
+    SocialFfmpegComposer,
+    SocialVideoService,
+    {
+      provide: VideoLicenseRepository,
+      useFactory: (config: AppConfigService) =>
+        new VideoLicenseRepository(new Pool({ connectionString: config.databaseUrl })),
+      inject: [AppConfigService],
+    },
     ContentVisualService,
     ContentGenerateService,
     ContentJobWorkerService,

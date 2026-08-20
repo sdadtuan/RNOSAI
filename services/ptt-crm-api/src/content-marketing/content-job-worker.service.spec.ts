@@ -62,6 +62,12 @@ describe('ContentJobWorkerService', () => {
       blocked: false,
     }),
   };
+  const social = {
+    executeStoryboard: jest.fn(),
+    executeRender: jest.fn(),
+    executeTranscode: jest.fn(),
+    executeQa: jest.fn(),
+  };
 
   let worker: ContentJobWorkerService;
 
@@ -77,6 +83,7 @@ describe('ContentJobWorkerService', () => {
       mediaImages as never,
       mediaVideo as never,
       visualQa as never,
+      social as never,
     );
   });
 
