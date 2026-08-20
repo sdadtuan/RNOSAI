@@ -240,6 +240,10 @@
       "view",
       "approve"
     ],
+    "crm_vd.budget": [
+      "view",
+      "edit"
+    ],
     "crm_vd.admin": [
       "view",
       "create"
@@ -990,6 +994,13 @@
       "group": "CRM — Triển khai dịch vụ",
       "page": "/crm/video",
       "description": "Gate 3 take review SC-10 (Module 7 S6)."
+    },
+    {
+      "id": "crm_vd.budget",
+      "label": "Video SOP — Budget",
+      "group": "CRM — Triển khai dịch vụ",
+      "page": "/crm/video",
+      "description": "Cost ledger SC-11 (Module 7 S7)."
     },
     {
       "id": "crm_vd.admin",
@@ -1787,6 +1798,7 @@
     "crm_vd.gate2",
     "crm_vd.motion",
     "crm_vd.gate3",
+    "crm_vd.budget",
     "crm_vd.admin",
     "crm_research",
     "crm_owner_weekly_dashboard",

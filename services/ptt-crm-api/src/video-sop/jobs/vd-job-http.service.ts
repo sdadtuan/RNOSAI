@@ -11,6 +11,7 @@ const HTTP_400 = new Set([
   'vd_tables_missing',
   'invalid_body',
   'idempotency_key_required',
+  'budget_exceeded',
 ]);
 
 function mapKnownError(err: unknown): never {

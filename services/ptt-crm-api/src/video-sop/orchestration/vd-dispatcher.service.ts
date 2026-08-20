@@ -4,6 +4,7 @@ import type { VdImageGenInput } from '../adapters/i-image-gen';
 import type { VdVideoGenInput, VdVideoProvider } from '../adapters/i-video-gen';
 import { parseIdeaSummaries, selectTextGen } from '../adapters/i-text-gen';
 import { VdAssetRepository } from '../assets/vd-asset.repository';
+import { VdCostService } from '../cost/vd-cost.service';
 import { VdJobRepository } from '../jobs/vd-job.repository';
 import type { EnqueueVdJobInput, VdJobHandler, VdJobRow, VdJobStatus } from '../jobs/vd-job.types';
 import { VdIdeaRepository } from '../script/vd-idea.repository';
@@ -74,6 +75,7 @@ export class VdDispatcherService {
   constructor(
     private readonly jobs: VdJobRepository,
     private readonly assets: VdAssetRepository,
+    @Optional() private readonly costs?: VdCostService,
     @Optional() private readonly ideas?: VdIdeaRepository,
     @Optional() private readonly shots?: VdShotRepository,
     @Optional() private readonly prompts?: VdPromptRepository,
@@ -203,6 +205,11 @@ export class VdDispatcherService {
     if (scoped) return scoped;
     const existing = await this.jobs.findByIdempotencyKey(input.idempotencyKey);
     if (existing) throw new Error('idempotency_key_conflict');
+
+    if (VdCostService.shouldReserveQueue(input.queue) && this.costs) {
+      const amount = this.costs.estimateForEnqueue(input.queue, input.jobType, input.payload);
+      await this.costs.reserve(input.projectId, amount, { vendor: input.queue });
+    }
 
     try {
       const row = await this.jobs.insert({

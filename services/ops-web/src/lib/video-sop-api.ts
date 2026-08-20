@@ -74,6 +74,15 @@ export function canEditVdMotion(user: StoredStaffUser | null): boolean {
   );
 }
 
+/** Same cap as API PUT budget (budget edit or project edit or content write). */
+export function canEditVdBudget(user: StoredStaffUser | null): boolean {
+  return (
+    hasCap(user, 'crm_vd.budget', 'edit') ||
+    hasCap(user, 'crm_vd.project', 'edit') ||
+    hasCap(user, 'crm_content', 'write')
+  );
+}
+
 export function canApproveVdGate(user: StoredStaffUser | null, gateNo: number): boolean {
   if (gateNo === 1) return canApproveGate1(user);
   if (gateNo === 2) return canApproveGate2(user);
@@ -206,6 +215,19 @@ export function vdProjectRenderEstimatePath(
 
 export function vdProjectTakesPath(projectId: number | string): string {
   return `/api/v1/vd/projects/${encodeURIComponent(String(projectId))}/takes`;
+}
+
+export function vdProjectBudgetPath(projectId: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(projectId))}/budget`;
+}
+
+export function vdProjectCostsPath(projectId: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(projectId))}/costs`;
+}
+
+export function vdProjectCostsExportPath(projectId: number | string, close = false): string {
+  const base = `${vdProjectCostsPath(projectId)}/export.xlsx`;
+  return close ? `${base}?close=1` : base;
 }
 
 export function vdShotTakeScorePath(shotId: number | string): string {
@@ -372,6 +394,41 @@ export type VdTakeView = {
   duration_ms: number | null;
   verdict: string | null;
   artifact_json: Record<string, unknown>;
+};
+
+export type VdCostWarnings = {
+  warn70: boolean;
+  warn90: boolean;
+  warn100: boolean;
+};
+
+export type VdBudgetView = {
+  project_id: number;
+  currency: string;
+  limit_amount: number;
+  buffer_factor: number;
+  overshoot_factor: number;
+  alert_threshold: number;
+  updated_at: string;
+  estimated_total: number;
+  actual_total: number;
+  warnings: VdCostWarnings;
+};
+
+export type VdCostLedgerRow = {
+  id: number;
+  project_id: number;
+  job_id: number | null;
+  kind: string;
+  amount: number;
+  vendor: string;
+  created_at: string;
+};
+
+export type VdCostsView = {
+  project_id: number;
+  budget: VdBudgetView;
+  items: VdCostLedgerRow[];
 };
 
 export type AddVdShotBody = {
@@ -707,6 +764,54 @@ export async function selectVdTake(
   });
 }
 
+export async function getVdBudget(
+  token: string,
+  projectId: number | string,
+): Promise<VdBudgetView> {
+  return vdFetch<VdBudgetView>(token, vdProjectBudgetPath(projectId));
+}
+
+export async function saveVdBudget(
+  token: string,
+  projectId: number | string,
+  body: {
+    limit_amount?: number;
+    buffer_factor?: number;
+    overshoot_factor?: number;
+    alert_threshold?: number;
+    currency?: string;
+  },
+): Promise<VdBudgetView> {
+  return vdFetch<VdBudgetView>(token, vdProjectBudgetPath(projectId), {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function listVdCosts(
+  token: string,
+  projectId: number | string,
+): Promise<VdCostsView> {
+  return vdFetch<VdCostsView>(token, vdProjectCostsPath(projectId));
+}
+
+export async function exportVdCostsXlsx(
+  token: string,
+  projectId: number | string,
+  accountingClose: boolean,
+): Promise<Blob> {
+  const path = vdProjectCostsExportPath(projectId, accountingClose);
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+    throw new ApiError(body.error ?? body.message ?? 'Export failed', res.status);
+  }
+  return res.blob();
+}
+
 export async function enqueueVdJob(
   token: string,
   projectId: number | string,
@@ -849,6 +954,10 @@ export const VIDEO_SOP_API = {
   listProjectTakes: listVdProjectTakes,
   recordTakeScore: recordVdTakeScore,
   selectTake: selectVdTake,
+  getBudget: getVdBudget,
+  saveBudget: saveVdBudget,
+  listCosts: listVdCosts,
+  exportCostsXlsx: exportVdCostsXlsx,
   listPromptTemplates: listVdPromptTemplates,
   listJobs: listVdJobs,
   enqueueJob: enqueueVdJob,

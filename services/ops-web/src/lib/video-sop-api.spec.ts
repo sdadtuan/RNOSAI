@@ -10,6 +10,7 @@ import {
   canApproveGate2,
   canApproveGate3,
   canEditVdMotion,
+  canEditVdBudget,
   canApproveVdGate,
   saveVdScript,
   vdAdminModelsPath,
@@ -260,6 +261,16 @@ describe('canEditVdMotion (same as API motion jobs)', () => {
 
   it('denies view only', () => {
     expect(canEditVdMotion(staff([{ section: 'crm_vd.motion', action: 'view' }]))).toBe(false);
+  });
+});
+
+describe('canEditVdBudget (same as API PUT budget)', () => {
+  it('allows crm_vd.budget edit', () => {
+    expect(canEditVdBudget(staff([{ section: 'crm_vd.budget', action: 'edit' }]))).toBe(true);
+  });
+
+  it('denies view only', () => {
+    expect(canEditVdBudget(staff([{ section: 'crm_vd.budget', action: 'view' }]))).toBe(false);
   });
 });
 

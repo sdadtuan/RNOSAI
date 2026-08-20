@@ -136,6 +136,7 @@ export class VdMotionService {
         prompt,
         durationSec,
         providerHint: gen.providerName,
+        credit_estimate: this.creditEstimateForShot(shot, 'cine_motion_draft'),
       },
       idempotencyKey: key,
     });
@@ -170,6 +171,7 @@ export class VdMotionService {
         prompt: shot.action,
         durationSec: Math.max(1, Math.ceil(shot.duration_ms / 1000)),
         providerHint: gen.providerName,
+        credit_estimate: this.creditEstimateForShot(shot, 'cine_motion_final'),
       },
       idempotencyKey: key,
     });

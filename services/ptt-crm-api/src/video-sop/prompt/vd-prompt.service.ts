@@ -127,6 +127,7 @@ export class VdPromptService {
       prompt: composed,
       width: Number.isFinite(width) && width > 0 ? Math.floor(width) : 1024,
       height: Number.isFinite(height) && height > 0 ? Math.floor(height) : 1024,
+      credit_estimate: 3,
     };
     if (seedRaw != null && Number.isFinite(Number(seedRaw))) {
       payload.seed = Number(seedRaw);

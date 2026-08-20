@@ -29,6 +29,7 @@ const HTTP_400 = new Set([
   'idempotency_key_required',
   'stage_guard',
   'take_draft_required',
+  'budget_exceeded',
 ]);
 
 function mapKnownError(err: unknown): never {
