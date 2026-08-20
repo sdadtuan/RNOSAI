@@ -229,6 +229,31 @@ export class StaffVdBudgetEditGuard implements CanActivate {
 }
 
 @Injectable()
+export class StaffVdQcEditGuard implements CanActivate {
+  constructor(private readonly staffAuth: StaffAuthService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<StaffReq>();
+    if (req.staffAuthVia === 'internal') return true;
+    if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
+
+    const me = await this.staffAuth.me(req.staffUser);
+    if (
+      this.staffAuth.hasCap(me.caps, 'crm_vd.qc', 'edit') ||
+      this.staffAuth.hasCap(me.caps, 'crm_vd.project', 'edit') ||
+      this.staffAuth.hasCap(me.caps, 'crm_content', 'write')
+    ) {
+      return true;
+    }
+    throw new ForbiddenException({
+      error: 'missing_cap',
+      section: 'crm_vd.qc',
+      action: 'edit',
+    });
+  }
+}
+
+@Injectable()
 export class StaffVdGateApproveGuard implements CanActivate {
   constructor(private readonly staffAuth: StaffAuthService) {}
 
@@ -239,11 +264,18 @@ export class StaffVdGateApproveGuard implements CanActivate {
 
     const gateNo = Number(req.params?.n);
     const section =
-      gateNo === 3 ? 'crm_vd.gate3' : gateNo === 2 ? 'crm_vd.gate2' : 'crm_vd.gate1';
+      gateNo === 4
+        ? 'crm_vd.qc'
+        : gateNo === 3
+          ? 'crm_vd.gate3'
+          : gateNo === 2
+            ? 'crm_vd.gate2'
+            : 'crm_vd.gate1';
+    const action = gateNo === 4 ? 'edit' : 'approve';
 
     const me = await this.staffAuth.me(req.staffUser);
     if (
-      this.staffAuth.hasCap(me.caps, section, 'approve') ||
+      this.staffAuth.hasCap(me.caps, section, action) ||
       this.staffAuth.hasCap(me.caps, 'crm_vd.project', 'edit') ||
       this.staffAuth.hasCap(me.caps, 'crm_content', 'write')
     ) {
@@ -252,7 +284,7 @@ export class StaffVdGateApproveGuard implements CanActivate {
     throw new ForbiddenException({
       error: 'missing_cap',
       section,
-      action: 'approve',
+      action,
     });
   }
 }

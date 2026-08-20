@@ -304,8 +304,12 @@ describe('canApproveVdGate', () => {
     ).toBe(true);
   });
 
+  it('allows gate 4 via crm_vd.qc edit', () => {
+    expect(canApproveVdGate(staff([{ section: 'crm_vd.qc', action: 'edit' }]), 4)).toBe(true);
+  });
+
   it('denies unknown gate', () => {
-    expect(canApproveVdGate(staff([{ section: 'crm_vd.gate1', action: 'approve' }]), 4)).toBe(
+    expect(canApproveVdGate(staff([{ section: 'crm_vd.gate1', action: 'approve' }]), 9)).toBe(
       false,
     );
   });

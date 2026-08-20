@@ -30,6 +30,7 @@ const HTTP_400 = new Set([
   'stage_guard',
   'gate_checklist_failed',
   'gate3_incomplete',
+  'gate4_blocked',
   'override_reason',
   'shotlist_immutable',
 ]);

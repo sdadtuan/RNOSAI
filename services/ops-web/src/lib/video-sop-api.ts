@@ -83,6 +83,15 @@ export function canEditVdPost(user: StoredStaffUser | null): boolean {
   );
 }
 
+/** Same cap as API gate 4 approve + review-links. */
+export function canEditVdQc(user: StoredStaffUser | null): boolean {
+  return (
+    hasCap(user, 'crm_vd.qc', 'edit') ||
+    hasCap(user, 'crm_vd.project', 'edit') ||
+    hasCap(user, 'crm_content', 'write')
+  );
+}
+
 /** Same cap as API PUT budget (budget edit or project edit or content write). */
 export function canEditVdBudget(user: StoredStaffUser | null): boolean {
   return (
@@ -92,10 +101,16 @@ export function canEditVdBudget(user: StoredStaffUser | null): boolean {
   );
 }
 
+/** Same cap as API POST gate 4 approve/reject/override. */
+export function canApproveGate4(user: StoredStaffUser | null): boolean {
+  return canEditVdQc(user);
+}
+
 export function canApproveVdGate(user: StoredStaffUser | null, gateNo: number): boolean {
   if (gateNo === 1) return canApproveGate1(user);
   if (gateNo === 2) return canApproveGate2(user);
   if (gateNo === 3) return canApproveGate3(user);
+  if (gateNo === 4) return canApproveGate4(user);
   return false;
 }
 
@@ -245,6 +260,14 @@ export function vdProjectPostPath(projectId: number | string): string {
 
 export function vdProjectPostComposePath(projectId: number | string): string {
   return `${vdProjectPostPath(projectId)}/compose`;
+}
+
+export function vdProjectDeliveryPath(projectId: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(projectId))}/delivery`;
+}
+
+export function vdReviewLinksPath(): string {
+  return '/api/v1/vd/review-links';
 }
 
 export function vdShotTakeScorePath(shotId: number | string): string {
@@ -460,6 +483,32 @@ export type VdPostPipelineView = {
   nodes: VdPostNodeView[];
   next_node: string;
   gate4_auto: { ok: boolean; blocked: boolean; reasons: string[] } | null;
+};
+
+export type VdDeliveryPackageView = {
+  id: number;
+  zip_storage_key: string;
+  file_names_json: string[];
+  meta_json: { contains_human: boolean; ai_disclosure: boolean };
+  created_at: string;
+};
+
+export type VdDeliveryView = {
+  project_id: number;
+  gate4_status: string;
+  qc_auto_pass: boolean;
+  package: VdDeliveryPackageView | null;
+};
+
+export type VdReviewLinkView = {
+  id: number;
+  token: string;
+  project_id: number;
+  gate_no: number;
+  asset_ids: number[];
+  expires_at: string;
+  watermark_label: string;
+  portal_path: string;
 };
 
 export type AddVdShotBody = {
@@ -862,6 +911,39 @@ export async function enqueueVdPostCompose(
   });
 }
 
+export async function getVdDelivery(
+  token: string,
+  projectId: number | string,
+): Promise<VdDeliveryView> {
+  return vdFetch<VdDeliveryView>(token, vdProjectDeliveryPath(projectId));
+}
+
+export async function createVdDeliveryPackage(
+  token: string,
+  projectId: number | string,
+): Promise<{ package: VdDeliveryPackageView }> {
+  return vdFetch<{ package: VdDeliveryPackageView }>(token, vdProjectDeliveryPath(projectId), {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function createVdReviewLink(
+  token: string,
+  body: {
+    project_id: number;
+    gate_no: number;
+    asset_ids: number[];
+    ttl_days?: number;
+    watermark_label?: string;
+  },
+): Promise<VdReviewLinkView> {
+  return vdFetch<VdReviewLinkView>(token, vdReviewLinksPath(), {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function enqueueVdJob(
   token: string,
   projectId: number | string,
@@ -1010,6 +1092,9 @@ export const VIDEO_SOP_API = {
   exportCostsXlsx: exportVdCostsXlsx,
   getPostPipeline: getVdPostPipeline,
   enqueuePostCompose: enqueueVdPostCompose,
+  getDelivery: getVdDelivery,
+  createDeliveryPackage: createVdDeliveryPackage,
+  createReviewLink: createVdReviewLink,
   listPromptTemplates: listVdPromptTemplates,
   listJobs: listVdJobs,
   enqueueJob: enqueueVdJob,

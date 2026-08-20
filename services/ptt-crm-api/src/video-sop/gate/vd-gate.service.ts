@@ -12,6 +12,8 @@ import { VdProjectRepository } from '../project/vd-project.repository';
 import { VdShotRepository } from '../script/vd-shot.repository';
 import { assertCinematicEnabled } from '../video-sop-flags';
 import { VdGateRepository } from './vd-gate.repository';
+import { VdJobRepository } from '../jobs/vd-job.repository';
+import { evaluateGate4Auto } from '../rules/vd-qc-auto';
 
 export type VdGateChecklistItem = {
   id: string;
@@ -74,6 +76,7 @@ export class VdGateService {
     private readonly gates: VdGateRepository,
     private readonly shots: VdShotRepository,
     private readonly bibles: VdBibleRepository,
+    private readonly jobs: VdJobRepository,
   ) {}
 
   private async requireProject(id: number) {
@@ -103,7 +106,7 @@ export class VdGateService {
 
   async getGate(projectId: number, gateNo: number): Promise<VdGateView> {
     const project = await this.requireProject(projectId);
-    if (gateNo !== 1 && gateNo !== 2 && gateNo !== 3) {
+    if (gateNo !== 1 && gateNo !== 2 && gateNo !== 3 && gateNo !== 4) {
       throw new Error('invalid_body');
     }
     const row = await this.gates.getOrCreate(projectId, gateNo);
@@ -112,7 +115,9 @@ export class VdGateService {
         ? await this.buildGate1Checklist(projectId)
         : gateNo === 2
           ? await this.buildGate2Checklist(projectId)
-          : await this.buildGate3Checklist(projectId);
+          : gateNo === 3
+            ? await this.buildGate3Checklist(projectId)
+            : await this.buildGate4Checklist(projectId);
     return {
       project_id: projectId,
       gate_no: gateNo,
@@ -207,6 +212,36 @@ export class VdGateService {
     }
   }
 
+  private async buildGate4Checklist(projectId: number): Promise<VdGateChecklistItem[]> {
+    const auto = await this.loadGate4Auto(projectId);
+    return [
+      { id: 'has_video', label: 'Có video track', ok: !auto.reasons.includes('missing_video') },
+      { id: 'has_audio', label: 'Có audio track', ok: !auto.reasons.includes('missing_audio') },
+      {
+        id: 'duration_min',
+        label: 'Duration ≥ 12s',
+        ok: !auto.reasons.includes('duration_too_short'),
+      },
+    ];
+  }
+
+  private async loadGate4Auto(projectId: number) {
+    const jobs = await this.jobs.listByProjectId(projectId);
+    const latest = jobs
+      .filter((row) => row.job_type === 'cine_compose')
+      .sort((a, b) => b.id - a.id)[0];
+    const probe = latest?.output_json?.gate4_probe;
+    if (probe && typeof probe === 'object' && !Array.isArray(probe)) {
+      return evaluateGate4Auto(probe as never);
+    }
+    return evaluateGate4Auto({
+      hasVideo: false,
+      hasAudio: false,
+      durationSec: 0,
+      lufs: null,
+    });
+  }
+
   async approve(
     projectId: number,
     gateNo: number,
@@ -214,14 +249,19 @@ export class VdGateService {
     actorEmail: string,
   ) {
     assertCinematicEnabled(this.config);
-    if (gateNo !== 1 && gateNo !== 2 && gateNo !== 3) {
+    if (gateNo !== 1 && gateNo !== 2 && gateNo !== 3 && gateNo !== 4) {
       throw new Error('invalid_body');
     }
     const override = body.override === true;
     this.assertOverrideReason(body.override_reason, override);
     const view = await this.getGate(projectId, gateNo);
+    const gate4Auto = gateNo === 4 ? await this.loadGate4Auto(projectId) : null;
+    if (gateNo === 4 && !override && gate4Auto?.blocked) {
+      throw new Error('gate4_blocked');
+    }
     if (!override && view.checklist.some((item) => !item.ok)) {
       if (gateNo === 3) throw new Error('gate3_incomplete');
+      if (gateNo === 4) throw new Error('gate4_blocked');
       throw new Error('gate_checklist_failed');
     }
     const project = await this.requireProject(projectId);
@@ -260,7 +300,7 @@ export class VdGateService {
         reason: typeof body.override_reason === 'string' ? body.override_reason : '',
       });
       await this.projects.updateStage(projectId, 'animating');
-    } else {
+    } else if (gateNo === 3) {
       if (project.stage !== 'animating') {
         throw new Error('stage_guard');
       }
@@ -273,6 +313,19 @@ export class VdGateService {
         reason: typeof body.override_reason === 'string' ? body.override_reason : '',
       });
       await this.projects.updateStage(projectId, 'post_production');
+    } else {
+      if (project.stage !== 'post_production') {
+        throw new Error('stage_guard');
+      }
+      assertStageTransition('post_production', 'delivered', { ...ctx, gate4: 'approved' });
+      const gate = await this.gates.updateStatus(projectId, 4, 'approved');
+      await this.gates.insertApproval({
+        gate_id: gate.id,
+        actor_email: actorEmail,
+        action: override ? 'override' : 'approve',
+        reason: typeof body.override_reason === 'string' ? body.override_reason : '',
+      });
+      await this.projects.updateStage(projectId, 'delivered');
     }
     return this.getGate(projectId, gateNo);
   }
@@ -284,7 +337,7 @@ export class VdGateService {
     actorEmail: string,
   ) {
     assertCinematicEnabled(this.config);
-    if (gateNo !== 1 && gateNo !== 2 && gateNo !== 3) {
+    if (gateNo !== 1 && gateNo !== 2 && gateNo !== 3 && gateNo !== 4) {
       throw new Error('invalid_body');
     }
     const reason = typeof body.reason === 'string' ? body.reason.trim() : '';

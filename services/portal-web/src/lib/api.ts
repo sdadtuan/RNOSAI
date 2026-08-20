@@ -286,6 +286,71 @@ export async function fetchPublicDealTeaser(token: string): Promise<PublicDealTe
   return body;
 }
 
+export interface PublicVideoReview {
+  token: string;
+  project_id: number;
+  gate_no: number;
+  expires_at: string;
+  watermark_label: string;
+  watermark_text: string;
+  video_url: string;
+  asset_ids: number[];
+  comments: Array<{
+    id: number;
+    body: string;
+    timecode_ms: number | null;
+    pin_x: number | null;
+    pin_y: number | null;
+    created_at: string;
+  }>;
+}
+
+async function publicVdReviewFetch<T>(
+  token: string,
+  pathSuffix: string,
+  init?: RequestInit,
+): Promise<T> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/public/vd/review/${encodeURIComponent(token)}${pathSuffix}`,
+    { cache: 'no-store', ...init },
+  );
+  const body = await parseJson<T & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Review unavailable', res.status);
+  }
+  return body;
+}
+
+export async function fetchPublicVideoReview(token: string): Promise<PublicVideoReview> {
+  return publicVdReviewFetch<PublicVideoReview>(token, '');
+}
+
+export async function postPublicVideoReviewComment(
+  token: string,
+  body: { body: string; timecode_ms?: number },
+): Promise<unknown> {
+  return publicVdReviewFetch(token, '/comments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function approvePublicVideoReview(token: string): Promise<unknown> {
+  return publicVdReviewFetch(token, '/approve', { method: 'POST', body: JSON.stringify({}) });
+}
+
+export async function requestPublicVideoReviewChanges(
+  token: string,
+  body: { reason?: string },
+): Promise<unknown> {
+  return publicVdReviewFetch(token, '/request-changes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchPerformance(
   token: string,
   params?: { from?: string; to?: string; group_by?: 'day' | 'campaign'; channel?: PerformanceChannel },

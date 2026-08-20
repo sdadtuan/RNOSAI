@@ -8,6 +8,7 @@ import {
   StaffVdKeyframeEditGuard,
   StaffVdMotionEditGuard,
   StaffVdPostEditGuard,
+  StaffVdQcEditGuard,
   StaffVdProjectCreateGuard,
   StaffVdProjectEditGuard,
   StaffVdProjectViewGuard,
@@ -34,6 +35,13 @@ import { VdMotionService } from './render/vd-motion.service';
 import { VdTakeRepository } from './render/vd-take.repository';
 import { VdPostController } from './post/vd-post.controller';
 import { VdPostService } from './post/vd-post.service';
+import { VdDeliveryController } from './post/vd-delivery.controller';
+import { VdDeliveryService } from './post/vd-delivery.service';
+import { VdDeliveryRepository } from './post/vd-delivery.repository';
+import { VdReviewController } from './review/vd-review.controller';
+import { VdReviewService } from './review/vd-review.service';
+import { VdReviewRepository } from './review/vd-review.repository';
+import { VdPublicReviewController } from './review/vd-public-review.controller';
 import { VdPromptController } from './prompt/vd-prompt.controller';
 import { VdPromptRepository } from './prompt/vd-prompt.repository';
 import { VdPromptService } from './prompt/vd-prompt.service';
@@ -65,6 +73,9 @@ import { VdShotRepository } from './script/vd-shot.repository';
     VdMotionController,
     VdCostController,
     VdPostController,
+    VdDeliveryController,
+    VdReviewController,
+    VdPublicReviewController,
   ],
   providers: [
     VdProjectRepository,
@@ -87,6 +98,10 @@ import { VdShotRepository } from './script/vd-shot.repository';
     VdCostRepository,
     VdCostService,
     VdPostService,
+    VdDeliveryRepository,
+    VdDeliveryService,
+    VdReviewRepository,
+    VdReviewService,
     VdDispatcherService,
     VdPollerService,
     VdJobHttpService,
@@ -102,6 +117,7 @@ import { VdShotRepository } from './script/vd-shot.repository';
     StaffVdShotJobEnqueueGuard,
     StaffVdBudgetEditGuard,
     StaffVdPostEditGuard,
+    StaffVdQcEditGuard,
     StaffVdAdminViewGuard,
     StaffVdAdminCreateGuard,
   ],

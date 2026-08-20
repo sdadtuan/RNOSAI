@@ -16,6 +16,7 @@ describe('VdGateService', () => {
   };
   let shots: { listByProjectId: jest.Mock };
   let bibles: { getStyle: jest.Mock; getCharacters: jest.Mock };
+  let jobs: { listByProjectId: jest.Mock };
   let service: VdGateService;
 
   beforeEach(() => {
@@ -79,7 +80,15 @@ describe('VdGateService', () => {
       getStyle: jest.fn().mockResolvedValue({ palette: ['#000'], lens: '50mm', lighting: '', refs: [] }),
       getCharacters: jest.fn().mockResolvedValue({ items: [{ name: 'Hero', lock_regions: [], notes: '' }] }),
     };
-    service = new VdGateService(config, projects as never, gates as never, shots as never, bibles as never);
+    jobs = { listByProjectId: jest.fn().mockResolvedValue([]) };
+    service = new VdGateService(
+      config,
+      projects as never,
+      gates as never,
+      shots as never,
+      bibles as never,
+      jobs as never,
+    );
   });
 
   it('rejects override with short reason', async () => {
@@ -111,5 +120,21 @@ describe('VdGateService', () => {
     await expect(
       service.approve(7, 3, { override: false }, 'u@pttads.vn'),
     ).rejects.toThrow('gate3_incomplete');
+  });
+
+  it('blocks gate4 approve when QC auto blocked', async () => {
+    projects.getById.mockResolvedValue({ id: 7, stage: 'post_production' });
+    jobs.listByProjectId.mockResolvedValue([
+      {
+        id: 1,
+        job_type: 'cine_compose',
+        output_json: {
+          gate4_probe: { hasVideo: false, hasAudio: false, durationSec: 5, lufs: null },
+        },
+      },
+    ]);
+    await expect(
+      service.approve(7, 4, { override: false }, 'u@pttads.vn'),
+    ).rejects.toThrow('gate4_blocked');
   });
 });
