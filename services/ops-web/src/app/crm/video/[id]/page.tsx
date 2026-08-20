@@ -59,24 +59,37 @@ export default function CrmVideoSopDetailPage() {
         router.replace('/login');
         return null;
       }
-      const out = await staffRefresh(refresh);
-      updateAccessToken(out.access_token);
-      access = out.access_token;
-      const me = await staffMe(access);
-      setUser(me);
-      updateStoredUser(me);
-      if (!canViewVideoSop(me)) {
-        setError('Không có quyền Video SOP');
+      try {
+        const out = await staffRefresh(refresh);
+        updateAccessToken(out.access_token);
+        access = out.access_token;
+        const me = await staffMe(access);
+        setUser(me);
+        updateStoredUser(me);
+        if (!canViewVideoSop(me)) {
+          setError('Không có quyền Video SOP');
+          return null;
+        }
+        return access;
+      } catch {
+        clearSession();
+        router.replace('/login');
         return null;
       }
-      return access;
     }
   }, [router]);
 
   useEffect(() => {
     if (!projectId) return;
     void (async () => {
-      const access = await ensureAuth();
+      let access: string | null = null;
+      try {
+        access = await ensureAuth();
+      } catch {
+        clearSession();
+        router.replace('/login');
+        return;
+      }
       if (!access || !isVideoSopEnabled()) return;
       setLoading(true);
       setError('');
@@ -88,7 +101,7 @@ export default function CrmVideoSopDetailPage() {
         setLoading(false);
       }
     })();
-  }, [ensureAuth, projectId]);
+  }, [ensureAuth, projectId, router]);
 
   function logout() {
     clearSession();
