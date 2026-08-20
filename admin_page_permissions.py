@@ -151,6 +151,13 @@ ADMIN_CRM_SECTIONS: tuple[dict[str, Any], ...] = (
         "page": "/crm/sop",
         "description": "Danh sách task SOP quá hạn.",
     },
+    {
+        "id": "crm_vd.project",
+        "label": "Video SOP — Project",
+        "group": "CRM — Triển khai dịch vụ",
+        "page": "/crm/video",
+        "description": "Hub /crm/video: list + tạo project chiến dịch (Module 7 S1).",
+    },
     # —— Nhân viên ——
     {
         "id": "crm_staff_departments",
@@ -590,6 +597,7 @@ _POSITION_DEFAULT: dict[str, dict[str, frozenset[str]]] = {
         "crm_seo_aeo_reports": frozenset({"view", "export"}),
         "crm_email_mkt": frozenset({"view", "write", "settings", "compliance", "approve", "deliverability", "reports"}),
         "crm_research": frozenset({"view", "create", "edit", "run", "export", "approve"}),
+        "crm_vd.project": frozenset({"view", "edit", "create"}),
     },
     "MKT-02": {
         "crm_hub_campaigns": frozenset({"view", "edit", "create"}),
