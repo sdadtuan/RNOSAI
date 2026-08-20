@@ -15,7 +15,7 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
-import { VIDEO_SOP_API, type VdJobRow, type VdProjectRow } from '@/lib/video-sop-api';
+import { canEnqueueVdJob, VIDEO_SOP_API, type VdJobRow, type VdProjectRow } from '@/lib/video-sop-api';
 
 const S2_BANNER = 'S2 — Job engine. Brief/Gate 1 vẫn S3/S5.';
 const ENQUEUE_LABEL = 'Tạo job keyframe thử';
@@ -132,7 +132,7 @@ export default function CrmVideoSopDetailPage() {
       router.replace('/login');
       return;
     }
-    if (!access) return;
+    if (!access || !canEnqueueVdJob(user)) return;
     setEnqueueing(true);
     setError('');
     try {
@@ -237,16 +237,18 @@ export default function CrmVideoSopDetailPage() {
           </dl>
         ) : null}
 
-        <div>
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={enqueueing || loading || !project}
-            onClick={() => void enqueueKeyframe()}
-          >
-            {ENQUEUE_LABEL}
-          </button>
-        </div>
+        {canEnqueueVdJob(user) ? (
+          <div>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={enqueueing || loading || !project}
+              onClick={() => void enqueueKeyframe()}
+            >
+              {ENQUEUE_LABEL}
+            </button>
+          </div>
+        ) : null}
 
         {!loading && jobs.length === 0 ? <p className="muted">{EMPTY_JOBS}</p> : null}
 

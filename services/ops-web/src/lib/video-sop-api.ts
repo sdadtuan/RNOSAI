@@ -1,4 +1,10 @@
 import { API_BASE, ApiError, parseJson } from './api';
+import { hasCap, type StoredStaffUser } from './auth';
+
+/** Same cap as API POST `/vd/projects/:id/jobs` (create or content write). */
+export function canEnqueueVdJob(user: StoredStaffUser | null): boolean {
+  return hasCap(user, 'crm_vd.project', 'create') || hasCap(user, 'crm_content', 'write');
+}
 
 export type VdProjectRow = {
   id: number;
