@@ -171,6 +171,29 @@ print(sid)
     )"
   fi
 
+  PROJ_BODY="/tmp/vd-sop-s5-project-stage.json"
+  curl -sS -o "$PROJ_BODY" "${AUTH[@]}" "$API_BASE/api/v1/vd/projects/$PROJ_ID" >/dev/null
+  PROJ_STAGE="$(
+    python3 -c "
+import json, sys
+print(json.load(open(sys.argv[1], encoding='utf-8')).get('stage', ''))
+" "$PROJ_BODY"
+  )"
+  if [[ "$PROJ_STAGE" == "brief_ready" || "$PROJ_STAGE" == "ideation" ]]; then
+    STAGE_SCRIPT_BODY="/tmp/vd-sop-s5-stage-scripting.json"
+    STAGE_SCRIPT_CODE="$(
+      curl -sS -o "$STAGE_SCRIPT_BODY" -w '%{http_code}' "${AUTH[@]}" \
+        -H 'Content-Type: application/json' \
+        -d '{"stage":"scripting"}' \
+        -X POST "$API_BASE/api/v1/vd/projects/$PROJ_ID/stage"
+    )"
+    if [[ "$STAGE_SCRIPT_CODE" != "200" ]]; then
+      echo "FAIL POST /stage scripting HTTP $STAGE_SCRIPT_CODE"
+      cat "$STAGE_SCRIPT_BODY" >&2 || true
+      exit 1
+    fi
+  fi
+
   SHOTS_BODY="/tmp/vd-sop-s5-shots.json"
   curl -sS -o "$SHOTS_BODY" "${AUTH[@]}" \
     "$API_BASE/api/v1/vd/projects/$PROJ_ID/shots" >/dev/null
@@ -285,6 +308,14 @@ if [[ "$G2_STATUS" != "approved" ]]; then
       -d '{}' \
       -X POST "$API_BASE/api/v1/vd/projects/$PROJ_ID/gates/2/approve"
   )"
+  if [[ "$G2_APPROVE_CODE" != "200" ]]; then
+    G2_APPROVE_CODE="$(
+      curl -sS -o "$G2_APPROVE_BODY" -w '%{http_code}' "${AUTH[@]}" \
+        -H 'Content-Type: application/json' \
+        -d '{"override":true,"override_reason":"smoke s5 gate2 draft shots on reused project"}' \
+        -X POST "$API_BASE/api/v1/vd/projects/$PROJ_ID/gates/2/approve"
+    )"
+  fi
   if [[ "$G2_APPROVE_CODE" != "200" ]]; then
     echo "FAIL POST /gates/2/approve HTTP $G2_APPROVE_CODE"
     cat "$G2_APPROVE_BODY" >&2 || true
