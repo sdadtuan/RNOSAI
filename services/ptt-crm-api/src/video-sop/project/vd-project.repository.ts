@@ -92,6 +92,12 @@ export class VdProjectRepository implements VdProjectRepo, OnModuleDestroy {
     return this.pgReady;
   }
 
+  private assertWritableOrThrow(): void {
+    if (this.config.contentMarketingVideoCinematicEnabled) {
+      throw new Error('vd_tables_missing');
+    }
+  }
+
   private mapRow(row: Record<string, unknown>): VdProjectRow {
     return {
       id: Number(row.id),
@@ -162,6 +168,7 @@ export class VdProjectRepository implements VdProjectRepo, OnModuleDestroy {
       );
       return this.mapRow(res.rows[0] as Record<string, unknown>);
     }
+    this.assertWritableOrThrow();
     if (
       input.cmkt_item_id != null &&
       this.memory.projects.some((p) => p.cmkt_item_id === input.cmkt_item_id)
@@ -193,6 +200,7 @@ export class VdProjectRepository implements VdProjectRepo, OnModuleDestroy {
       ]);
       return;
     }
+    this.assertWritableOrThrow();
     this.memory.briefs.push({ project_id: projectId, body_json: bodyJson });
   }
 
@@ -205,6 +213,7 @@ export class VdProjectRepository implements VdProjectRepo, OnModuleDestroy {
       ]);
       return;
     }
+    this.assertWritableOrThrow();
     this.memory.scripts.push({ project_id: projectId, version, markdown });
   }
 
@@ -222,6 +231,7 @@ export class VdProjectRepository implements VdProjectRepo, OnModuleDestroy {
       );
       return;
     }
+    this.assertWritableOrThrow();
     this.memory.audits.push({
       project_id: projectId,
       actor_email: actorEmail,

@@ -16,6 +16,7 @@ const HTTP_400 = new Set([
   'studio_locked',
   'cmkt_cinematic_disabled',
   'video_cinematic_daily_cap',
+  'vd_tables_missing',
   'stage_guard',
   'invalid_body',
 ]);
