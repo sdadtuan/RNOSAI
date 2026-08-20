@@ -1,13 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { ContentMediaAssetCacheService } from './content-media-asset-cache.service';
 import { ContentMediaStorageService } from './content-media-storage.service';
 import type { CmktMediaAsset, CmktMediaJson } from './content-marketing.types';
+import { SocialVideoService } from './video-social/social-video.service';
 
 @Injectable()
 export class ContentMediaCleanService {
   constructor(
     private readonly storage: ContentMediaStorageService,
     private readonly cache: ContentMediaAssetCacheService,
+    @Inject(forwardRef(() => SocialVideoService))
+    private readonly socialVideo: SocialVideoService,
   ) {}
 
   promoteAsset(asset: CmktMediaAsset, lifecycleId: number, itemId: number): CmktMediaAsset {
@@ -26,14 +29,20 @@ export class ContentMediaCleanService {
     };
   }
 
-  promoteMediaJson(media: CmktMediaJson, lifecycleId: number, itemId: number): CmktMediaJson {
+  async promoteMediaJson(
+    media: CmktMediaJson,
+    lifecycleId: number,
+    itemId: number,
+  ): Promise<CmktMediaJson> {
     const promoteList = (assets?: CmktMediaAsset[]) =>
       assets?.map((a) => this.promoteAsset(a, lifecycleId, itemId));
 
     const next: CmktMediaJson = { ...media };
     if (media.ai_assets?.length) next.ai_assets = promoteList(media.ai_assets);
     if (media.carousel_slides?.length) next.carousel_slides = promoteList(media.carousel_slides);
-    if (media.video_short) next.video_short = this.promoteAsset(media.video_short, lifecycleId, itemId);
+    if (media.video_short) {
+      next.video_short = await this.promoteVideoShort(media.video_short, media, lifecycleId, itemId);
+    }
 
     const selectedId = next.selected_asset_id;
     if (selectedId) {
@@ -43,5 +52,32 @@ export class ContentMediaCleanService {
       if (selected) next.selected_asset_id = selected.id;
     }
     return next;
+  }
+
+  private async promoteVideoShort(
+    asset: CmktMediaAsset,
+    media: CmktMediaJson,
+    lifecycleId: number,
+    itemId: number,
+  ): Promise<CmktMediaAsset> {
+    if (!asset.draft_watermark && !asset.clean_storage_key) return asset;
+
+    const isSocialVideo =
+      asset.type === 'video' && (media.video_studio === 'social' || Boolean(media.storyboard));
+
+    if (isSocialVideo && media.storyboard) {
+      const recomposed = await this.socialVideo.composeCleanMaster(
+        lifecycleId,
+        itemId,
+        media.storyboard,
+        asset,
+      );
+      if (recomposed) {
+        this.cache.deleteCleanBuffer(lifecycleId, itemId, asset.id);
+        return recomposed;
+      }
+    }
+
+    return this.promoteAsset(asset, lifecycleId, itemId);
   }
 }

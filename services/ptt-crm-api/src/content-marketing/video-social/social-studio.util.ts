@@ -50,3 +50,24 @@ export function assertStudioWritable(
     throw new Error('studio_locked');
   }
 }
+
+/** Default transcode / requested_packs for social video (V1). */
+export function defaultSocialTranscodePacks(
+  channel: string | undefined,
+  packDefault?: string,
+  explicit?: unknown,
+): string[] {
+  if (channel === 'youtube') return ['shorts'];
+  if (channel === 'facebook') {
+    if (Array.isArray(explicit) && explicit.some((p) => String(p) === 'feed_square')) {
+      return ['feed_square'];
+    }
+    if (packDefault === 'feed_square') return ['feed_square'];
+    return [];
+  }
+  if (Array.isArray(explicit) && explicit.length) {
+    return explicit.map((p) => String(p));
+  }
+  if (packDefault === 'feed_square') return ['feed_square'];
+  return ['reels'];
+}

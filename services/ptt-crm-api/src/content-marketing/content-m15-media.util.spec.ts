@@ -73,7 +73,10 @@ describe('ContentMediaCleanService', () => {
   const cache = {
     deleteCleanBuffer: jest.fn(),
   };
-  const svc = new ContentMediaCleanService(storage as never, cache as never);
+  const socialVideo = {
+    composeCleanMaster: jest.fn().mockResolvedValue(null),
+  };
+  const svc = new ContentMediaCleanService(storage as never, cache as never, socialVideo as never);
 
   it('promotes clean asset url on approve', () => {
     const asset: CmktMediaAsset = {
@@ -90,5 +93,21 @@ describe('ContentMediaCleanService', () => {
     expect(promoted.url).toContain('a1-clean.webp');
     expect(promoted.draft_watermark).toBe(false);
     expect(cache.deleteCleanBuffer).toHaveBeenCalledWith(1, 2, 'a1');
+  });
+
+  it('sets draft_watermark false on social video after clean', () => {
+    const videoAsset: CmktMediaAsset = {
+      id: 'video-9',
+      type: 'video',
+      url: 'https://cdn.pttads.vn/cmkt/1/2/master-9.mp4',
+      ai_generated: true,
+      provider: 'ffmpeg',
+      selected: true,
+      draft_watermark: true,
+      storage_key: '1/2/master-9.mp4',
+    };
+    const promoted = svc.promoteAsset(videoAsset, 1, 2);
+    expect(promoted.draft_watermark).toBe(false);
+    expect(promoted.type).toBe('video');
   });
 });

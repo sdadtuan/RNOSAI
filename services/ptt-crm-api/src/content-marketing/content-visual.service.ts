@@ -75,7 +75,7 @@ export class ContentVisualService {
       },
     });
 
-    const promotedMedia = this.mediaClean.promoteMediaJson(media, lifecycleId, itemId);
+    const promotedMedia = await this.mediaClean.promoteMediaJson(media, lifecycleId, itemId);
 
     let production_json = item.production_json;
     if (item.format === 'carousel' || itemNeedsVisualApproval(item)) {

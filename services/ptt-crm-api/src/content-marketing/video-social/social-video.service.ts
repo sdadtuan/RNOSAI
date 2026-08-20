@@ -37,7 +37,7 @@ import {
 import { packSpec, type PackSpec } from '../video-kernel/video-pack.util';
 import { parseBeats } from './social-beat.service';
 import { SocialFfmpegComposer } from './social-ffmpeg.composer';
-import { assertScriptFitsPack, lockVideoStudio } from './social-studio.util';
+import { assertScriptFitsPack, defaultSocialTranscodePacks, lockVideoStudio } from './social-studio.util';
 import { scoreMaster } from './social-video-qa.service';
 
 const SOCIAL_STEPS: CmktVideoGenerationProgress['steps'] = {
@@ -81,7 +81,7 @@ export class SocialVideoService {
     this.assertSocialStudio(item);
     assertMediaJobEligible(item, body.allow_draft_watermark === true);
     await this.repo.patchItem(lifecycleId, itemId, { visual_status: 'ai_pending' });
-    return this.enqueueJob(lifecycleId, itemId, 'social_storyboard', this.storyboardInput(body), email);
+    return this.enqueueJob(lifecycleId, itemId, 'social_storyboard', this.storyboardInput(body, item.channel), email);
   }
 
   async patchStoryboard(
@@ -131,7 +131,7 @@ export class SocialVideoService {
     this.assertSocialStudio(item);
     assertMediaJobEligible(item, body.allow_draft_watermark === true);
     await this.repo.patchItem(lifecycleId, itemId, { visual_status: 'ai_pending' });
-    return this.enqueueJob(lifecycleId, itemId, 'social_render', this.storyboardInput(body), email);
+    return this.enqueueJob(lifecycleId, itemId, 'social_render', this.storyboardInput(body, item.channel), email);
   }
 
   async startTranscode(
@@ -198,7 +198,7 @@ export class SocialVideoService {
     this.assertSocialStudio(item);
     assertMediaJobEligible(item, body.allow_draft_watermark === true);
     await this.repo.patchItem(lifecycleId, itemId, { visual_status: 'ai_pending' });
-    const input = this.storyboardInput(body);
+    const input = this.storyboardInput(body, item.channel);
     const storyboardJob = await this.repo.createContentJob({
       lifecycle_id: lifecycleId,
       item_id: itemId,
@@ -273,9 +273,11 @@ export class SocialVideoService {
     }
 
     const stylePreset = String(job.input_json?.style_preset ?? 'corporate');
-    const requested = Array.isArray(job.input_json?.requested_packs)
-      ? (job.input_json.requested_packs as unknown[]).map((p) => String(p))
-      : [packId];
+    const requested = defaultSocialTranscodePacks(
+      item.channel,
+      packId,
+      job.input_json?.requested_packs,
+    );
     const storyboard: CmktVideoStoryboard = {
       version: 1,
       pack_default: packId,
@@ -449,6 +451,21 @@ export class SocialVideoService {
           subtitle_text: scriptExcerpt(item),
         },
       });
+
+      const transcodePacks = defaultSocialTranscodePacks(
+        item.channel,
+        packId,
+        storyboard.requested_packs,
+      );
+      if (transcodePacks.length) {
+        await this.enqueueJob(
+          job.lifecycle_id,
+          item.id,
+          'social_transcode',
+          { packs: transcodePacks },
+          job.created_by,
+        );
+      }
     } finally {
       await rm(workDir, { recursive: true, force: true });
     }
@@ -460,7 +477,11 @@ export class SocialVideoService {
     if (!masterUrl) {
       throw new Error('master_required');
     }
-    const packs = resolvePacks(job.input_json?.packs, item.media_json?.storyboard?.requested_packs);
+    const packs = resolvePacks(
+      job.input_json?.packs,
+      item.media_json?.storyboard?.requested_packs,
+      item.channel,
+    );
     const workDir = join('/tmp', 'cmkt-video', String(job.id));
     await mkdir(workDir, { recursive: true });
     try {
@@ -585,13 +606,97 @@ export class SocialVideoService {
     return item;
   }
 
-  private storyboardInput(body: Record<string, unknown>): Record<string, unknown> {
+  async composeCleanMaster(
+    lifecycleId: number,
+    itemId: number,
+    storyboard: CmktVideoStoryboard,
+    sourceAsset: CmktMediaAsset,
+  ): Promise<CmktMediaAsset | null> {
+    try {
+      assertFfmpegAvailable(this.config.contentMarketingFfmpegBin);
+    } catch {
+      return null;
+    }
+
+    const packId = String(storyboard.pack_default ?? 'reels');
+    const spec = packSpec(packId);
+    const workDir = join('/tmp', 'cmkt-video-clean', `${lifecycleId}-${itemId}-${sourceAsset.id}`);
+    await mkdir(workDir, { recursive: true });
+
+    try {
+      const voicePath = join(workDir, 'voice.mp3');
+      await this.materializeFile(storyboard.tts.url, voicePath);
+
+      const clipPaths: string[] = [];
+      for (let i = 0; i < storyboard.beats.length; i++) {
+        const url = storyboard.beats[i]?.clip_url;
+        if (!url) continue;
+        const dest = join(workDir, `clip-${i}.mp4`);
+        try {
+          await this.materializeFile(url, dest);
+          clipPaths.push(dest);
+        } catch (err) {
+          this.logger.warn(
+            `clean skip clip ${i}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+
+      const captionsAssPath = join(workDir, 'captions.ass');
+      const { masterPath, posterPath } = await this.composer.composeSocialMaster({
+        workDir,
+        ffmpegBin: this.config.contentMarketingFfmpegBin,
+        beats: storyboard.beats,
+        voicePath,
+        clipPaths,
+        captionsAssPath,
+        draftWatermark: false,
+        width: spec.width,
+        height: spec.height,
+      });
+
+      const cleanUpload = await this.storage.uploadAsset({
+        lifecycleId,
+        itemId,
+        assetId: `${sourceAsset.id}-clean`,
+        buffer: await readFile(masterPath),
+        contentType: 'video/mp4',
+        fileExt: 'mp4',
+      });
+      const posterExt = posterPath.toLowerCase().endsWith('.jpg') ? 'jpg' : 'webp';
+      const posterUpload = await this.storage.uploadAsset({
+        lifecycleId,
+        itemId,
+        assetId: `${sourceAsset.id}-clean-poster`,
+        buffer: await readFile(posterPath),
+        contentType: posterExt === 'jpg' ? 'image/jpeg' : 'image/webp',
+        fileExt: posterExt,
+      });
+
+      return {
+        ...sourceAsset,
+        url: cleanUpload.url,
+        poster_url: posterUpload.url,
+        draft_watermark: false,
+        storage_key: cleanUpload.storageKey,
+        clean_storage_key: cleanUpload.storageKey,
+      };
+    } catch (err) {
+      this.logger.warn(
+        `clean compose skipped: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return null;
+    } finally {
+      await rm(workDir, { recursive: true, force: true });
+    }
+  }
+
+  private storyboardInput(body: Record<string, unknown>, channel?: string): Record<string, unknown> {
+    const packDefault = String(body.pack_default ?? 'reels');
     return {
-      pack_default: String(body.pack_default ?? 'reels'),
+      pack_default: packDefault,
       style_preset: String(body.style_preset ?? 'corporate'),
-      requested_packs: Array.isArray(body.requested_packs)
-        ? body.requested_packs.map((p) => String(p))
-        : [String(body.pack_default ?? 'reels')],
+      requested_packs: defaultSocialTranscodePacks(channel, packDefault, body.requested_packs),
       allow_draft_watermark: body.allow_draft_watermark === true,
     };
   }
@@ -660,12 +765,14 @@ function scriptExcerpt(item: CmktItemRow): string {
   return String(item.body_json?.markdown ?? item.title ?? '').trim().slice(0, 200);
 }
 
-function resolvePacks(jobPacks: unknown, requested: string[] | undefined): string[] {
+function resolvePacks(jobPacks: unknown, requested: string[] | undefined, channel?: string): string[] {
   if (Array.isArray(jobPacks) && jobPacks.length) {
     return jobPacks.map((p) => String(p));
   }
-  if (requested?.length) return requested;
-  return ['reels'];
+  if (requested?.length) {
+    return defaultSocialTranscodePacks(channel, requested[0], requested);
+  }
+  return defaultSocialTranscodePacks(channel);
 }
 
 function pad(n: number, width: number): string {

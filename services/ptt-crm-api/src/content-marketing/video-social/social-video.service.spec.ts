@@ -99,11 +99,14 @@ describe('SocialVideoService', () => {
       },
     );
     licenses.listByItem.mockResolvedValue([{ id: 1 }]);
+    repo.createContentJob.mockResolvedValue({ id: 12, job_type: 'social_transcode' });
+    worker.processJob.mockResolvedValue({ status: 'succeeded' });
 
     await svc.executeRender(
-      { id: 9, lifecycle_id: 1, item_id: 2, job_type: 'social_render', input_json: {} } as never,
+      { id: 9, lifecycle_id: 1, item_id: 2, job_type: 'social_render', input_json: {}, created_by: 'a@b.c' } as never,
       {
         id: 2,
+        channel: 'short_video',
         title: 'Hook',
         body_json: { markdown: 'hook pain proof cta' },
         visual_status: 'ai_pending',
@@ -140,6 +143,117 @@ describe('SocialVideoService', () => {
     const media = repo.patchItem.mock.calls[0][2].media_json as { video_short: { url: string } };
     expect(media.video_short.url).toBe('https://cdn.pttads.vn/cmkt/1/2/master-9.mp4');
     expect(media.video_short.url).not.toMatch(/-manifest\.json/);
+    expect(repo.createContentJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        job_type: 'social_transcode',
+        input_json: { packs: ['reels'] },
+      }),
+    );
+  });
+
+  it('enqueues shorts transcode for youtube channel after render', async () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'cmkt-social-'));
+    const masterPath = join(tmp, 'master.mp4');
+    const posterPath = join(tmp, 'poster.webp');
+    const voicePath = join(tmp, 'voice.mp3');
+    writeFileSync(masterPath, 'mp4');
+    writeFileSync(posterPath, 'webp');
+    writeFileSync(voicePath, 'mp3');
+
+    composer.composeSocialMaster.mockResolvedValue({ masterPath, posterPath });
+    storage.uploadAsset.mockImplementation(
+      async (input: { assetId: string; fileExt?: string; contentType: string }) => {
+        const ext =
+          input.fileExt ?? (input.contentType.includes('mp4') ? 'mp4' : 'webp');
+        return {
+          url: `https://cdn.pttads.vn/cmkt/1/2/${input.assetId}.${ext}`,
+          storageKey: `1/2/${input.assetId}.${ext}`,
+        };
+      },
+    );
+    repo.createContentJob.mockResolvedValue({ id: 12, job_type: 'social_transcode' });
+    worker.processJob.mockResolvedValue({ status: 'succeeded' });
+
+    await svc.executeRender(
+      { id: 10, lifecycle_id: 1, item_id: 2, job_type: 'social_render', input_json: {}, created_by: 'a@b.c' } as never,
+      {
+        id: 2,
+        channel: 'youtube',
+        title: 'Hook',
+        body_json: { markdown: 'hook pain proof cta' },
+        visual_status: 'ai_pending',
+        production_json: {},
+        media_json: {
+          video_studio: 'social',
+          storyboard: {
+            version: 1,
+            pack_default: 'reels',
+            requested_packs: ['reels'],
+            style_preset: 'corporate',
+            voice: { provider: 'stub', voice_id: 'stub', lang: 'vi' },
+            beats: [{ id: 'hook', start_ms: 0, end_ms: 3000, script_excerpt: 'hook', keywords: [], clip_id: null, locked: false }],
+            tts: { storage_key: 'tts', duration_sec: 20, url: voicePath },
+          },
+        },
+      } as never,
+    );
+
+    expect(repo.createContentJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        job_type: 'social_transcode',
+        input_json: { packs: ['shorts'] },
+      }),
+    );
+  });
+
+  it('skips auto transcode for facebook feed after render', async () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'cmkt-social-'));
+    const masterPath = join(tmp, 'master.mp4');
+    const posterPath = join(tmp, 'poster.webp');
+    const voicePath = join(tmp, 'voice.mp3');
+    writeFileSync(masterPath, 'mp4');
+    writeFileSync(posterPath, 'webp');
+    writeFileSync(voicePath, 'mp3');
+
+    composer.composeSocialMaster.mockResolvedValue({ masterPath, posterPath });
+    storage.uploadAsset.mockImplementation(
+      async (input: { assetId: string; fileExt?: string; contentType: string }) => {
+        const ext =
+          input.fileExt ?? (input.contentType.includes('mp4') ? 'mp4' : 'webp');
+        return {
+          url: `https://cdn.pttads.vn/cmkt/1/2/${input.assetId}.${ext}`,
+          storageKey: `1/2/${input.assetId}.${ext}`,
+        };
+      },
+    );
+
+    await svc.executeRender(
+      { id: 11, lifecycle_id: 1, item_id: 2, job_type: 'social_render', input_json: {}, created_by: 'a@b.c' } as never,
+      {
+        id: 2,
+        channel: 'facebook',
+        title: 'Hook',
+        body_json: { markdown: 'hook pain proof cta' },
+        visual_status: 'ai_pending',
+        production_json: {},
+        media_json: {
+          video_studio: 'social',
+          storyboard: {
+            version: 1,
+            pack_default: 'reels',
+            requested_packs: ['reels'],
+            style_preset: 'corporate',
+            voice: { provider: 'stub', voice_id: 'stub', lang: 'vi' },
+            beats: [{ id: 'hook', start_ms: 0, end_ms: 3000, script_excerpt: 'hook', keywords: [], clip_id: null, locked: false }],
+            tts: { storage_key: 'tts', duration_sec: 20, url: voicePath },
+          },
+        },
+      } as never,
+    );
+
+    expect(repo.createContentJob).not.toHaveBeenCalledWith(
+      expect.objectContaining({ job_type: 'social_transcode' }),
+    );
   });
 
   it('does not enqueue social_render after failed storyboard', async () => {
