@@ -20,7 +20,7 @@ fi
 DDL="$ROOT/docs/specs/postgresql-ddl-vd-sop-s1.sql"
 
 echo "==> Apply Video SOP S1 DDL"
-echo "    DATABASE_URL=${URL%%@*}@***"
+echo "    DATABASE_URL=set"
 echo "    DDL=$DDL"
 psql "$URL" -v ON_ERROR_STOP=1 -f "$DDL"
 echo "OK  Video SOP S1 DDL applied (vd_projects, vd_briefs, vd_scripts, vd_audit_logs)"
