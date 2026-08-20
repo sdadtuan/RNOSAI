@@ -29,6 +29,7 @@ import { ZaloAdsOpsModule } from './zalo-ads-ops/zalo-ads-ops.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { MarketingAiPlannerModule } from './marketing-ai-planner/marketing-ai-planner.module';
 import { ContentMarketingModule } from './content-marketing/content-marketing.module';
+import { VideoSopModule } from './video-sop/video-sop.module';
 import { OpsModule } from './ops/ops.module';
 import { SpcModule } from './spc/spc.module';
 import { MarketingPlansModule } from './marketing-plans/marketing-plans.module';
@@ -141,6 +142,7 @@ import { GtmCmsModule } from './gtm-cms/cms.module';
     MarketingPlansModule,
     MarketingAiPlannerModule,
     ContentMarketingModule,
+    VideoSopModule,
     OpsModule,
     SpcModule,
     ServiceLifecycleModule,

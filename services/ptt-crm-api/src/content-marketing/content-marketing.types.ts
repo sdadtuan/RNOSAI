@@ -109,6 +109,7 @@ export type CmktMediaJson = {
   video_short?: CmktMediaAsset | null;
   video_studio?: 'social' | 'cinematic';
   studio_locked_at?: string;
+  vd_project_id?: number;
   storyboard?: CmktVideoStoryboard;
   video_packs?: Record<string, CmktMediaAsset>;
   video_qa?: CmktVideoQaResult;
