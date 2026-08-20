@@ -15,10 +15,13 @@ import { VdProjectController } from './project/vd-project.controller';
 import { VdProjectHttpService } from './project/vd-project-http.service';
 import { VdProjectRepository } from './project/vd-project.repository';
 import { VdProjectService } from './project/vd-project.service';
+import { StaffVdAdminGuard } from './admin/staff-vd-admin.guard';
+import { VdAdminController } from './admin/vd-admin.controller';
+import { VdAdminService } from './admin/vd-admin.service';
 
 @Module({
   imports: [StaffAuthModule, ContentMarketingModule],
-  controllers: [VdProjectController, VdJobController],
+  controllers: [VdProjectController, VdJobController, VdAdminController],
   providers: [
     VdProjectRepository,
     VdProjectService,
@@ -28,8 +31,10 @@ import { VdProjectService } from './project/vd-project.service';
     VdDispatcherService,
     VdPollerService,
     VdJobHttpService,
+    VdAdminService,
     StaffVdProjectCreateGuard,
     StaffVdProjectViewGuard,
+    StaffVdAdminGuard,
   ],
 })
 export class VideoSopModule {}

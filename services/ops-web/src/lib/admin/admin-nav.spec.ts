@@ -56,6 +56,19 @@ describe('admin-nav', () => {
     expect(workspaces.some((w) => w.id === 'ai')).toBe(true);
   });
 
+  it('shows Video SOP providers when crm_vd.admin or ai_admin view', () => {
+    const href = '/admin/video/providers';
+    const ai = adminUser({ caps: [{ section: 'ai_admin', action: 'view' }] });
+    const vd = adminUser({ caps: [{ section: 'crm_vd.admin', action: 'view' }] });
+    expect(buildAdminNavGroups(ai).find((g) => g.id === 'ai')?.links.some((l) => l.href === href)).toBe(
+      true,
+    );
+    expect(buildAdminNavGroups(vd).find((g) => g.id === 'ai')?.links.some((l) => l.href === href)).toBe(
+      true,
+    );
+    expect(canViewAdminSection(vd)).toBe(true);
+  });
+
   it('empty for user without admin caps', () => {
     const user = adminUser({
       caps: [{ section: 'crm_leads', action: 'view' }],

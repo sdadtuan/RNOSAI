@@ -552,6 +552,7 @@ export const LINK_ICONS: Record<string, string> = {
   '/admin/ai/agents': 'agent',
   '/admin/ai/runs': 'run',
   '/admin/ai/tools': 'tool',
+  '/admin/video/providers': 'run',
   '/admin/crm/custom-fields': 'fields',
   '/admin/crm/pipeline': 'pipeline',
 };

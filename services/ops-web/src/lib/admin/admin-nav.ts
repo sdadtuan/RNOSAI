@@ -42,7 +42,17 @@ export function canViewAdminSection(user: StoredStaffUser | null): boolean {
     hasCap(user, 'crm_staff_departments', 'view') ||
     hasCap(user, 'crm_staff_roster', 'view') ||
     hasCap(user, 'ai_admin', 'view') ||
+    hasCap(user, 'crm_vd.admin', 'view') ||
+    hasCap(user, 'crm_vd.admin', 'create') ||
     hasCap(user, 'spc', 'view')
+  );
+}
+
+function canViewVdProviders(user: StoredStaffUser): boolean {
+  return (
+    hasCap(user, 'crm_vd.admin', 'view') ||
+    hasCap(user, 'crm_vd.admin', 'create') ||
+    hasCap(user, 'ai_admin', 'view')
   );
 }
 
@@ -147,14 +157,19 @@ function buildServicesLinks(user: StoredStaffUser): AdminNavLink[] {
 }
 
 function buildAiLinks(user: StoredStaffUser): AdminNavLink[] {
-  if (!hasCap(user, 'ai_admin', 'view')) return [];
-  const links: AdminNavLink[] = [
-    { href: '/admin/ai/agents', label: 'AI Agents' },
-    { href: '/admin/ai/tools', label: 'AI Tools' },
-    { href: '/admin/ai/runs', label: 'AI Runs' },
-  ];
-  if (canViewPolicyAdmin(user)) {
-    links.push({ href: '/admin/ai/policies', label: 'AI governance' });
+  const links: AdminNavLink[] = [];
+  if (hasCap(user, 'ai_admin', 'view')) {
+    links.push(
+      { href: '/admin/ai/agents', label: 'AI Agents' },
+      { href: '/admin/ai/tools', label: 'AI Tools' },
+      { href: '/admin/ai/runs', label: 'AI Runs' },
+    );
+    if (canViewPolicyAdmin(user)) {
+      links.push({ href: '/admin/ai/policies', label: 'AI governance' });
+    }
+  }
+  if (canViewVdProviders(user)) {
+    links.push({ href: '/admin/video/providers', label: 'Video SOP providers' });
   }
   return links;
 }

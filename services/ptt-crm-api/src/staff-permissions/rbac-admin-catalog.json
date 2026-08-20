@@ -212,6 +212,10 @@
       "edit",
       "create"
     ],
+    "crm_vd.admin": [
+      "view",
+      "create"
+    ],
     "crm_research": [
       "approve",
       "configure",
@@ -909,6 +913,13 @@
       "group": "CRM — Triển khai dịch vụ",
       "page": "/crm/video",
       "description": "Hub /crm/video: list + tạo project chiến dịch (Module 7 S1)."
+    },
+    {
+      "id": "crm_vd.admin",
+      "label": "Video SOP — Providers",
+      "group": "CRM — Admin",
+      "page": "/admin/video/providers",
+      "description": "Admin SC-15: providers/models — không secret (Module 7 S2)."
     },
     {
       "id": "crm_research",
@@ -1692,6 +1703,7 @@
     "crm_mkt_ai",
     "crm_content",
     "crm_vd.project",
+    "crm_vd.admin",
     "crm_research",
     "crm_owner_weekly_dashboard",
     "crm_payroll_attendance",

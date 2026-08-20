@@ -31,6 +31,29 @@ export function vdProjectListPath(lifecycleId: number | string): string {
   return `/api/v1/vd/projects?lifecycle_id=${encodeURIComponent(String(lifecycleId))}`;
 }
 
+export function vdAdminProvidersPath(): string {
+  return '/api/v1/vd/admin/providers';
+}
+
+export function vdAdminModelsPath(): string {
+  return '/api/v1/vd/admin/models';
+}
+
+export type VdProviderRow = {
+  id: number;
+  code: string;
+  label: string;
+  created_at?: string;
+};
+
+export type VdModelRow = {
+  id: number;
+  provider: string;
+  code: string;
+  capability_json: Record<string, unknown> | string;
+  created_at?: string;
+};
+
 function authHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}` };
 }
@@ -71,8 +94,50 @@ export async function getVdProject(token: string, id: number | string): Promise<
   return vdFetch<VdProjectRow>(token, vdProjectGetPath(id));
 }
 
+function asItems<T>(body: T[] | { items?: T[] }): T[] {
+  if (Array.isArray(body)) return body;
+  return Array.isArray(body.items) ? body.items : [];
+}
+
+export async function listVdAdminProviders(token: string): Promise<VdProviderRow[]> {
+  const body = await vdFetch<VdProviderRow[] | { items?: VdProviderRow[] }>(
+    token,
+    vdAdminProvidersPath(),
+  );
+  return asItems(body);
+}
+
+export async function createVdAdminProvider(
+  token: string,
+  body: { code: string; label: string },
+): Promise<VdProviderRow> {
+  return vdFetch<VdProviderRow>(token, vdAdminProvidersPath(), {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function listVdAdminModels(token: string): Promise<VdModelRow[]> {
+  const body = await vdFetch<VdModelRow[] | { items?: VdModelRow[] }>(token, vdAdminModelsPath());
+  return asItems(body);
+}
+
+export async function createVdAdminModel(
+  token: string,
+  body: { provider_code: string; code: string; capability_json: Record<string, unknown> | string },
+): Promise<VdModelRow> {
+  return vdFetch<VdModelRow>(token, vdAdminModelsPath(), {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export const VIDEO_SOP_API = {
   createProject: createVdProject,
   listProjects: listVdProjects,
   getProject: getVdProject,
+  listAdminProviders: listVdAdminProviders,
+  createAdminProvider: createVdAdminProvider,
+  listAdminModels: listVdAdminModels,
+  createAdminModel: createVdAdminModel,
 };
