@@ -65,6 +65,13 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
     ],
   },
   {
+    prefix: '/crm/video',
+    anyOf: [
+      { section: 'crm_vd.project', action: 'view' },
+      { section: 'crm_content', action: 'view' },
+    ],
+  },
+  {
     prefix: '/crm',
     anyOf: [
       { section: 'crm_leads', action: 'view' },

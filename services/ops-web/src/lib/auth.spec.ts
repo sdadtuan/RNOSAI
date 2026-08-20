@@ -81,6 +81,20 @@ describe('rbac-routes', () => {
     expect(reqs.some((r) => r.section === 'crm_presales_solution')).toBe(true);
   });
 
+  it('/crm/video requires crm_vd.project or crm_content view', () => {
+    const vd = user([{ section: 'crm_vd.project', action: 'view' }]);
+    const content = user([{ section: 'crm_content', action: 'view' }]);
+    const leadsOnly = user([{ section: 'crm_leads', action: 'view' }]);
+    expect(canAccessPath('/crm/video', vd, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/video/7', content, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/video', leadsOnly, 'crm')).toBe(false);
+    const reqs = resolvePathCapRequirements('/crm/video/7', 'crm');
+    expect(reqs).toEqual([
+      { section: 'crm_vd.project', action: 'view' },
+      { section: 'crm_content', action: 'view' },
+    ]);
+  });
+
   it('hasAnyCap aggregates requirements', () => {
     expect(
       hasAnyCap(user([{ section: 'crm_agency', action: 'view' }]), [
