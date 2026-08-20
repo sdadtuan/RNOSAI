@@ -15,7 +15,20 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
-import { VIDEO_SOP_API, type VdProjectRow } from '@/lib/video-sop-api';
+import { VIDEO_SOP_API, type VdJobRow, type VdProjectRow } from '@/lib/video-sop-api';
+
+const S2_BANNER = 'S2 — Job engine. Brief/Gate 1 vẫn S3/S5.';
+const ENQUEUE_LABEL = 'Tạo job keyframe thử';
+const EMPTY_JOBS = 'Chưa có job — tạo keyframe thử (S2).';
+const AUTH_FAIL_NOTE = 'Thiếu Leonardo/Flux key — job failed auth là đúng S2.';
+
+function jobAssetLine(job: VdJobRow): string | null {
+  const out = job.output_json;
+  if (!out || out.asset_id == null || out.asset_id === '') return null;
+  const provider = out.provider != null ? String(out.provider) : '';
+  const seed = out.seed != null ? String(out.seed) : '';
+  return `asset #${out.asset_id} · ${provider} · ${seed}`;
+}
 
 function canViewVideoSop(user: StoredStaffUser | null): boolean {
   return hasCap(user, 'crm_vd.project', 'view') || hasCap(user, 'crm_content', 'view');
@@ -32,8 +45,10 @@ export default function CrmVideoSopDetailPage() {
 
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [project, setProject] = useState<VdProjectRow | null>(null);
+  const [jobs, setJobs] = useState<VdJobRow[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [enqueueing, setEnqueueing] = useState(false);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -94,7 +109,12 @@ export default function CrmVideoSopDetailPage() {
       setLoading(true);
       setError('');
       try {
-        setProject(await VIDEO_SOP_API.getProject(access, projectId));
+        const [row, jobRows] = await Promise.all([
+          VIDEO_SOP_API.getProject(access, projectId),
+          VIDEO_SOP_API.listJobs(access, projectId),
+        ]);
+        setProject(row);
+        setJobs(jobRows);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải Video SOP thất bại');
       } finally {
@@ -103,10 +123,43 @@ export default function CrmVideoSopDetailPage() {
     })();
   }, [ensureAuth, projectId, router]);
 
+  async function enqueueKeyframe() {
+    let access: string | null = null;
+    try {
+      access = await ensureAuth();
+    } catch {
+      clearSession();
+      router.replace('/login');
+      return;
+    }
+    if (!access) return;
+    setEnqueueing(true);
+    setError('');
+    try {
+      await VIDEO_SOP_API.enqueueJob(
+        access,
+        projectId,
+        {
+          queue: 'q.image',
+          job_type: 'cine_keyframe',
+          payload: { prompt: 'S2 smoke keyframe', width: 1024, height: 1024 },
+        },
+        `ui-s2-${projectId}-${Date.now()}`,
+      );
+      setJobs(await VIDEO_SOP_API.listJobs(access, projectId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tạo job thất bại');
+    } finally {
+      setEnqueueing(false);
+    }
+  }
+
   function logout() {
     clearSession();
     router.push('/login');
   }
+
+  const hasAuthFail = jobs.some((job) => job.status === 'failed' && job.error_class === 'auth');
 
   if (!user) {
     return (
@@ -147,7 +200,12 @@ export default function CrmVideoSopDetailPage() {
             background: 'rgba(15, 23, 42, 0.04)',
           }}
         >
-          S1 — Brief/Gate 1 chưa mở (S3/S5)
+          {S2_BANNER}
+        </p>
+        <p style={{ margin: 0 }}>
+          <Link href="/admin/video/providers" className="nav-link">
+            Admin providers
+          </Link>
         </p>
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
@@ -178,6 +236,63 @@ export default function CrmVideoSopDetailPage() {
             </div>
           </dl>
         ) : null}
+
+        <div>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={enqueueing || loading || !project}
+            onClick={() => void enqueueKeyframe()}
+          >
+            {ENQUEUE_LABEL}
+          </button>
+        </div>
+
+        {!loading && jobs.length === 0 ? <p className="muted">{EMPTY_JOBS}</p> : null}
+
+        {jobs.length > 0 ? (
+          <div className="data-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>id</th>
+                  <th>queue</th>
+                  <th>job_type</th>
+                  <th>status</th>
+                  <th>error_class</th>
+                  <th>attempt</th>
+                  <th>updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jobs.map((job) => {
+                  const assetLine = jobAssetLine(job);
+                  return (
+                    <tr key={job.id}>
+                      <td>{job.id}</td>
+                      <td>{job.queue}</td>
+                      <td>{job.job_type}</td>
+                      <td>
+                        {job.status}
+                        {assetLine ? (
+                          <>
+                            <br />
+                            <span className="muted">{assetLine}</span>
+                          </>
+                        ) : null}
+                      </td>
+                      <td>{job.error_class ?? '—'}</td>
+                      <td>{job.attempt}</td>
+                      <td>{job.updated_at ? String(job.updated_at) : '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+
+        {hasAuthFail ? <p className="muted">{AUTH_FAIL_NOTE}</p> : null}
       </div>
     </CrmDeliveryPageShell>
   );

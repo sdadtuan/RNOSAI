@@ -27,6 +27,10 @@ export function vdProjectGetPath(id: number | string): string {
   return `/api/v1/vd/projects/${encodeURIComponent(String(id))}`;
 }
 
+export function vdProjectJobsPath(id: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(id))}/jobs`;
+}
+
 export function vdProjectListPath(lifecycleId: number | string): string {
   return `/api/v1/vd/projects?lifecycle_id=${encodeURIComponent(String(lifecycleId))}`;
 }
@@ -38,6 +42,33 @@ export function vdAdminProvidersPath(): string {
 export function vdAdminModelsPath(): string {
   return '/api/v1/vd/admin/models';
 }
+
+export type VdJobRow = {
+  id: number;
+  project_id: number;
+  shot_id: number | null;
+  queue: string;
+  job_type: string;
+  status: string;
+  error_class: string | null;
+  attempt: number;
+  idempotency_key?: string;
+  input_json?: Record<string, unknown>;
+  output_json?: Record<string, unknown>;
+  created_at?: string;
+  updated_at: string;
+};
+
+export type EnqueueVdJobBody = {
+  queue: string;
+  job_type: string;
+  payload?: Record<string, unknown>;
+};
+
+export type EnqueueVdJobResult = {
+  id: number;
+  status: string;
+};
 
 export type VdProviderRow = {
   id: number;
@@ -94,6 +125,27 @@ export async function getVdProject(token: string, id: number | string): Promise<
   return vdFetch<VdProjectRow>(token, vdProjectGetPath(id));
 }
 
+export async function listVdJobs(token: string, projectId: number | string): Promise<VdJobRow[]> {
+  const body = await vdFetch<VdJobRow[] | { items?: VdJobRow[] }>(
+    token,
+    vdProjectJobsPath(projectId),
+  );
+  return asItems(body);
+}
+
+export async function enqueueVdJob(
+  token: string,
+  projectId: number | string,
+  body: EnqueueVdJobBody,
+  idempotencyKey: string,
+): Promise<EnqueueVdJobResult> {
+  return vdFetch<EnqueueVdJobResult>(token, vdProjectJobsPath(projectId), {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(body),
+  });
+}
+
 function asItems<T>(body: T[] | { items?: T[] }): T[] {
   if (Array.isArray(body)) return body;
   return Array.isArray(body.items) ? body.items : [];
@@ -136,6 +188,8 @@ export const VIDEO_SOP_API = {
   createProject: createVdProject,
   listProjects: listVdProjects,
   getProject: getVdProject,
+  listJobs: listVdJobs,
+  enqueueJob: enqueueVdJob,
   listAdminProviders: listVdAdminProviders,
   createAdminProvider: createVdAdminProvider,
   listAdminModels: listVdAdminModels,

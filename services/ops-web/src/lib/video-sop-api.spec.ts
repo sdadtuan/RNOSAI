@@ -4,6 +4,7 @@ import {
   vdAdminProvidersPath,
   vdProjectCreatePath,
   vdProjectGetPath,
+  vdProjectJobsPath,
 } from './video-sop-api';
 
 describe('video-sop-api path helpers', () => {
@@ -13,6 +14,10 @@ describe('video-sop-api path helpers', () => {
 
   it('vdProjectGetPath interpolates id', () => {
     expect(vdProjectGetPath(7)).toBe('/api/v1/vd/projects/7');
+  });
+
+  it('vdProjectJobsPath interpolates id', () => {
+    expect(vdProjectJobsPath(7)).toBe('/api/v1/vd/projects/7/jobs');
   });
 
   it('vdAdminProvidersPath is admin collection', () => {
