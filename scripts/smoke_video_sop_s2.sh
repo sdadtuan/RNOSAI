@@ -171,11 +171,16 @@ if elapsed >= 2:
     raise SystemExit(f'FAIL GET job took {elapsed:.3f}s (>=2s)')
 p = json.load(open(sys.argv[1], encoding='utf-8'))
 status = p.get('status')
-allowed = ('queued', 'running', 'succeeded', 'failed')
-if status not in allowed:
-    raise SystemExit(f'FAIL job status={status!r} expected one of {allowed}')
-# failed + error_class=auth is OK when Leonardo/Flux keys are missing
-print(f'GET job #{p.get(\"id\")} status={status} error_class={p.get(\"error_class\")!r} {elapsed:.3f}s')
+error_class = p.get('error_class')
+ok = ('queued', 'running', 'succeeded')
+if status in ok:
+    pass
+elif status == 'failed':
+    if error_class != 'auth':
+        raise SystemExit(f'FAIL job status=failed error_class={error_class!r} expected auth')
+else:
+    raise SystemExit(f'FAIL job status={status!r} expected queued|running|succeeded|failed(auth)')
+print(f'GET job #{p.get(\"id\")} status={status} error_class={error_class!r} {elapsed:.3f}s')
 " "$GET_BODY" "$GET_TIME"
 
 PROV_AUTH=("${AUTH[@]}")
@@ -188,11 +193,11 @@ PROV_CODE="$(
     "$API_BASE/api/v1/vd/admin/providers"
 )"
 if [[ "$PROV_CODE" != "200" ]]; then
-  echo "FAIL GET /api/v1/vd/admin/providers HTTP $PROV_CODE $(cat "$PROV_BODY")"
+  echo "FAIL GET /api/v1/vd/admin/providers HTTP $PROV_CODE"
   exit 1
 fi
 if grep -q '"api_key"' "$PROV_BODY"; then
-  echo "FAIL admin providers leaked api_key $(cat "$PROV_BODY")"
+  echo "FAIL admin providers leaked api_key"
   exit 1
 fi
 
