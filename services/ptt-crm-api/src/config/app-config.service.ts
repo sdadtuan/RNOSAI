@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
+import { parseCinematicDailyCap } from '../video-sop/video-sop-flags';
 
 export type LeadsReadSource = 'sqlite' | 'pg';
 export type LeadsCreateIdMode = 'staging' | 'prod';
@@ -660,9 +661,9 @@ export class AppConfigService {
     this.contentMarketingVideoCinematicEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CMKT_VIDEO_CINEMATIC ?? '0').trim().toLowerCase(),
     );
-    const cineCapRaw = Number(process.env.PTT_CMKT_VIDEO_CINEMATIC_DAILY_CAP ?? 1);
-    this.contentMarketingVideoCinematicDailyCap =
-      Number.isFinite(cineCapRaw) && cineCapRaw > 0 ? Math.floor(cineCapRaw) : 1;
+    this.contentMarketingVideoCinematicDailyCap = parseCinematicDailyCap(
+      process.env.PTT_CMKT_VIDEO_CINEMATIC_DAILY_CAP,
+    );
     this.contentMarketingVideoOneShot = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CMKT_VIDEO_ONE_SHOT ?? '1').trim().toLowerCase(),
     );
