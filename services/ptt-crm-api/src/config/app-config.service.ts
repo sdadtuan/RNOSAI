@@ -184,6 +184,11 @@ export class AppConfigService {
   readonly awsRegion: string;
   readonly contentMarketingClientGate: boolean;
   readonly contentMarketingVideoGenEnabled: boolean;
+  readonly contentMarketingVideoSocialEnabled: boolean;
+  readonly contentMarketingVideoSocialDailyCap: number;
+  readonly contentMarketingVideoOneShot: boolean;
+  readonly contentMarketingVideoMusic: boolean;
+  readonly contentMarketingFfmpegBin: string;
   readonly contentMarketingPortalSummaryEnabled: boolean;
   readonly contentMarketingVideoProvider: string;
   readonly contentMarketingTtsProvider: string;
@@ -643,10 +648,24 @@ export class AppConfigService {
     this.contentMarketingVideoGenEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CMKT_VIDEO_GEN ?? '0').trim().toLowerCase(),
     );
+    const videoSocialRaw = process.env.PTT_CMKT_VIDEO_SOCIAL?.trim();
+    this.contentMarketingVideoSocialEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (videoSocialRaw ?? process.env.PTT_CMKT_VIDEO_GEN ?? '0').trim().toLowerCase(),
+    );
+    const socialCapRaw = Number(process.env.PTT_CMKT_VIDEO_SOCIAL_DAILY_CAP ?? 3);
+    this.contentMarketingVideoSocialDailyCap =
+      Number.isFinite(socialCapRaw) && socialCapRaw > 0 ? Math.floor(socialCapRaw) : 3;
+    this.contentMarketingVideoOneShot = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CMKT_VIDEO_ONE_SHOT ?? '1').trim().toLowerCase(),
+    );
+    this.contentMarketingVideoMusic = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CMKT_VIDEO_MUSIC ?? '1').trim().toLowerCase(),
+    );
+    this.contentMarketingFfmpegBin = (process.env.PTT_CMKT_FFMPEG_BIN ?? 'ffmpeg').trim() || 'ffmpeg';
     this.contentMarketingPortalSummaryEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CMKT_PORTAL_SUMMARY ?? '0').trim().toLowerCase(),
     );
-    this.contentMarketingVideoProvider = (process.env.PTT_CMKT_VIDEO_PROVIDER ?? 'stub').trim() || 'stub';
+    this.contentMarketingVideoProvider = (process.env.PTT_CMKT_VIDEO_PROVIDER ?? 'ffmpeg').trim() || 'ffmpeg';
     this.contentMarketingTtsProvider = (process.env.PTT_CMKT_TTS_PROVIDER ?? 'stub').trim() || 'stub';
     this.contentMarketingTtsVoice = (process.env.PTT_CMKT_TTS_VOICE ?? 'alloy').trim() || 'alloy';
     this.contentMarketingStockProvider = (process.env.PTT_CMKT_STOCK_PROVIDER ?? 'stub').trim() || 'stub';

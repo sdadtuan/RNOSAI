@@ -73,10 +73,45 @@ export type CmktVideoGenerationProgress = {
   eta_sec?: number;
 };
 
+export type CmktVideoBeat = {
+  id: 'hook' | 'pain' | 'proof' | 'cta';
+  start_ms: number;
+  end_ms: number;
+  script_excerpt: string;
+  keywords: string[];
+  clip_id: string | null;
+  clip_url?: string;
+  license?: 'pexels' | 'storyblocks' | 'upload' | 'generated';
+  on_screen_text: string;
+  locked: boolean;
+};
+
+export type CmktVideoStoryboard = {
+  version: 1;
+  pack_default: string;
+  requested_packs: string[];
+  style_preset: 'corporate' | 'bold' | 'minimal' | 'playful';
+  voice: { provider: string; voice_id: string; lang: 'vi' | 'en' };
+  beats: CmktVideoBeat[];
+  tts: { storage_key: string; duration_sec: number; url: string };
+};
+
+export type CmktVideoQaResult = {
+  score: number;
+  blocked: boolean;
+  checks: Record<string, boolean>;
+  notes?: string;
+};
+
 export type CmktMediaJson = {
   ai_assets?: CmktMediaAsset[];
   carousel_slides?: CmktMediaAsset[];
   video_short?: CmktMediaAsset | null;
+  video_studio?: 'social' | 'cinematic';
+  studio_locked_at?: string;
+  storyboard?: CmktVideoStoryboard;
+  video_packs?: Record<string, CmktMediaAsset>;
+  video_qa?: CmktVideoQaResult;
   video_generation?: CmktVideoGenerationProgress;
   visual_qa?: {
     score: number;
