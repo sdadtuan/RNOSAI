@@ -78,17 +78,13 @@ export class ContentMediaVideoProvider {
     let posterUrl = `${this.storage.cdnBase}/video/${input.lifecycleId}/${input.itemId}/${hash}-poster.webp`;
 
     if (this.providerName !== 'stub') {
-      const uploaded = await this.storage.uploadAsset({
+      await this.storage.uploadAsset({
         lifecycleId: input.lifecycleId,
         itemId: input.itemId,
         assetId: `${assetId}-manifest`,
         buffer: Buffer.from(JSON.stringify(manifest)),
         contentType: 'application/json',
       });
-      videoUrl = uploaded.url.replace('-manifest.json', '.mp4').replace('.webp', '.mp4');
-      if (!videoUrl.endsWith('.mp4')) {
-        videoUrl = `${this.storage.cdnBase}/video/${input.lifecycleId}/${input.itemId}/${hash}.mp4`;
-      }
       posterUrl = clips[0]?.poster_url ?? posterUrl;
     }
 
