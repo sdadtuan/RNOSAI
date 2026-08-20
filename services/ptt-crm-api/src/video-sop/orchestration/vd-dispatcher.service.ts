@@ -1,10 +1,15 @@
 import { Injectable } from '@nestjs/common';
+import { createHash } from 'crypto';
+import type { VdImageGenInput } from '../adapters/i-image-gen';
+import { VdAssetRepository } from '../assets/vd-asset.repository';
 import { VdJobRepository } from '../jobs/vd-job.repository';
 import type { EnqueueVdJobInput, VdJobHandler, VdJobRow, VdJobStatus } from '../jobs/vd-job.types';
+import { selectImageGen } from './vd-model-router';
 
 const RETRYABLE = new Set(['transient', 'rate_limit']);
 const TERMINAL = new Set<VdJobStatus>(['succeeded', 'failed', 'cancelled', 'stale']);
 const MAX_ATTEMPTS = 3;
+const KNOWN_ERROR_CLASS = new Set(['auth', 'transient', 'rate_limit', 'validation', 'provider', 'unknown']);
 
 function isUniqueViolation(err: unknown): boolean {
   return Boolean(err && typeof err === 'object' && (err as { code?: string }).code === '23505');
@@ -15,6 +20,9 @@ function errorClassOf(err: unknown): string {
     const value = (err as { error_class?: unknown }).error_class;
     if (typeof value === 'string' && value) return value;
   }
+  if (err instanceof Error && KNOWN_ERROR_CLASS.has(err.message)) {
+    return err.message;
+  }
   return 'unknown';
 }
 
@@ -24,12 +32,57 @@ function shotIdFrom(payload: Record<string, unknown>): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+function imageInputFrom(payload: Record<string, unknown>): VdImageGenInput {
+  const width = Number(payload.width);
+  const height = Number(payload.height);
+  const seed = payload.seed != null ? Number(payload.seed) : undefined;
+  return {
+    prompt: typeof payload.prompt === 'string' ? payload.prompt : '',
+    width: Number.isFinite(width) && width > 0 ? Math.floor(width) : 1024,
+    height: Number.isFinite(height) && height > 0 ? Math.floor(height) : 1024,
+    ...(Number.isFinite(seed) ? { seed } : {}),
+    ...(typeof payload.negativePrompt === 'string' ? { negativePrompt: payload.negativePrompt } : {}),
+  };
+}
+
 @Injectable()
 export class VdDispatcherService {
   private readonly handlers = new Map<string, VdJobHandler>();
 
-  constructor(private readonly jobs: VdJobRepository) {
-    this.registerHandler('cine_keyframe', async () => ({}));
+  constructor(
+    private readonly jobs: VdJobRepository,
+    private readonly assets: VdAssetRepository,
+  ) {
+    this.registerHandler('cine_keyframe', (job) => this.handleCineKeyframe(job));
+  }
+
+  private async handleCineKeyframe(job: VdJobRow): Promise<Record<string, unknown>> {
+    const gen = selectImageGen({
+      PTT_VD_LEONARDO_API_KEY: (process.env.PTT_VD_LEONARDO_API_KEY ?? '').trim(),
+      REPLICATE_API_TOKEN: (process.env.REPLICATE_API_TOKEN ?? '').trim(),
+    });
+    const input = imageInputFrom(job.input_json);
+    const result = await gen.generate(input);
+    if (!result?.buffer || !Buffer.isBuffer(result.buffer) || result.buffer.length === 0) {
+      return {};
+    }
+    const sha256 = createHash('sha256').update(result.buffer).digest('hex');
+    const asset = await this.assets.insert({
+      project_id: job.project_id,
+      job_id: job.id,
+      kind: 'keyframe',
+      storage_key: '',
+      url: '',
+      sha256,
+      width: input.width,
+      height: input.height,
+    });
+    return {
+      provider: result.provider,
+      providerId: result.providerId,
+      seed: result.seed,
+      asset_id: asset.id,
+    };
   }
 
   registerHandler(jobType: string, handler: VdJobHandler): void {

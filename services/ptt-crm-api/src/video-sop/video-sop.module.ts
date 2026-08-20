@@ -5,6 +5,7 @@ import {
   StaffVdProjectCreateGuard,
   StaffVdProjectViewGuard,
 } from './guards/staff-vd-project.guard';
+import { VdAssetRepository } from './assets/vd-asset.repository';
 import { VdJobController } from './jobs/vd-job.controller';
 import { VdJobHttpService } from './jobs/vd-job-http.service';
 import { VdJobRepository } from './jobs/vd-job.repository';
@@ -23,6 +24,7 @@ import { VdProjectService } from './project/vd-project.service';
     VdProjectService,
     VdProjectHttpService,
     VdJobRepository,
+    VdAssetRepository,
     VdDispatcherService,
     VdPollerService,
     VdJobHttpService,
