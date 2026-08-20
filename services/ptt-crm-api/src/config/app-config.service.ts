@@ -186,6 +186,8 @@ export class AppConfigService {
   readonly contentMarketingVideoGenEnabled: boolean;
   readonly contentMarketingVideoSocialEnabled: boolean;
   readonly contentMarketingVideoSocialDailyCap: number;
+  readonly contentMarketingVideoCinematicEnabled: boolean;
+  readonly contentMarketingVideoCinematicDailyCap: number;
   readonly contentMarketingVideoOneShot: boolean;
   readonly contentMarketingVideoMusic: boolean;
   readonly contentMarketingFfmpegBin: string;
@@ -655,6 +657,12 @@ export class AppConfigService {
     const socialCapRaw = Number(process.env.PTT_CMKT_VIDEO_SOCIAL_DAILY_CAP ?? 3);
     this.contentMarketingVideoSocialDailyCap =
       Number.isFinite(socialCapRaw) && socialCapRaw > 0 ? Math.floor(socialCapRaw) : 3;
+    this.contentMarketingVideoCinematicEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_CMKT_VIDEO_CINEMATIC ?? '0').trim().toLowerCase(),
+    );
+    const cineCapRaw = Number(process.env.PTT_CMKT_VIDEO_CINEMATIC_DAILY_CAP ?? 1);
+    this.contentMarketingVideoCinematicDailyCap =
+      Number.isFinite(cineCapRaw) && cineCapRaw > 0 ? Math.floor(cineCapRaw) : 1;
     this.contentMarketingVideoOneShot = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CMKT_VIDEO_ONE_SHOT ?? '1').trim().toLowerCase(),
     );
