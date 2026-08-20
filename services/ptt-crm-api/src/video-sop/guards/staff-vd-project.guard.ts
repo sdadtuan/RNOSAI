@@ -87,6 +87,56 @@ export class StaffVdProjectEditGuard implements CanActivate {
 }
 
 @Injectable()
+export class StaffVdBibleEditGuard implements CanActivate {
+  constructor(private readonly staffAuth: StaffAuthService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<StaffReq>();
+    if (req.staffAuthVia === 'internal') return true;
+    if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
+
+    const me = await this.staffAuth.me(req.staffUser);
+    if (
+      this.staffAuth.hasCap(me.caps, 'crm_vd.bible', 'edit') ||
+      this.staffAuth.hasCap(me.caps, 'crm_vd.project', 'edit') ||
+      this.staffAuth.hasCap(me.caps, 'crm_content', 'write')
+    ) {
+      return true;
+    }
+    throw new ForbiddenException({
+      error: 'missing_cap',
+      section: 'crm_vd.bible',
+      action: 'edit',
+    });
+  }
+}
+
+@Injectable()
+export class StaffVdKeyframeEditGuard implements CanActivate {
+  constructor(private readonly staffAuth: StaffAuthService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<StaffReq>();
+    if (req.staffAuthVia === 'internal') return true;
+    if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
+
+    const me = await this.staffAuth.me(req.staffUser);
+    if (
+      this.staffAuth.hasCap(me.caps, 'crm_vd.keyframe', 'edit') ||
+      this.staffAuth.hasCap(me.caps, 'crm_vd.project', 'edit') ||
+      this.staffAuth.hasCap(me.caps, 'crm_content', 'write')
+    ) {
+      return true;
+    }
+    throw new ForbiddenException({
+      error: 'missing_cap',
+      section: 'crm_vd.keyframe',
+      action: 'edit',
+    });
+  }
+}
+
+@Injectable()
 export class StaffVdScriptEditGuard implements CanActivate {
   constructor(private readonly staffAuth: StaffAuthService) {}
 

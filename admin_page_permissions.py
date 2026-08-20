@@ -166,6 +166,20 @@ ADMIN_CRM_SECTIONS: tuple[dict[str, Any], ...] = (
         "description": "Script Studio: ý tưởng + shotlist (Module 7 S3).",
     },
     {
+        "id": "crm_vd.bible",
+        "label": "Video SOP — Bible",
+        "group": "CRM — Triển khai dịch vụ",
+        "page": "/crm/video",
+        "description": "Style + Character bible SC-05 (Module 7 S4).",
+    },
+    {
+        "id": "crm_vd.keyframe",
+        "label": "Video SOP — Keyframe",
+        "group": "CRM — Triển khai dịch vụ",
+        "page": "/crm/video",
+        "description": "Keyframe workbench SC-06 (Module 7 S4).",
+    },
+    {
         "id": "crm_vd.admin",
         "label": "Video SOP — Providers",
         "group": "CRM — Admin",
@@ -613,6 +627,8 @@ _POSITION_DEFAULT: dict[str, dict[str, frozenset[str]]] = {
         "crm_research": frozenset({"view", "create", "edit", "run", "export", "approve"}),
         "crm_vd.project": frozenset({"view", "edit", "create"}),
         "crm_vd.script": frozenset({"view", "edit"}),
+        "crm_vd.bible": frozenset({"view", "edit"}),
+        "crm_vd.keyframe": frozenset({"view", "edit"}),
         "crm_vd.admin": frozenset({"view", "create"}),
     },
     "MKT-02": {

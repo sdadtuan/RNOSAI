@@ -90,6 +90,49 @@ export class VdShotRepository implements OnModuleDestroy {
     };
   }
 
+  async getById(id: number): Promise<VdShotRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, script_id, ordinal, status, duration_ms, camera, action, aspect,
+                contains_human, text_in_frame, logo_in_ai_frame, seed, take_fail_count
+         FROM vd_shots WHERE id = $1`,
+        [id],
+      );
+      const row = res.rows[0] as Record<string, unknown> | undefined;
+      return row ? this.mapRow(row) : null;
+    }
+    return this.memory.shots.find((row) => row.id === id) ?? null;
+  }
+
+  async updateStatus(id: number, status: string): Promise<void> {
+    if (await this.ensurePgReady()) {
+      await this.db.query(`UPDATE vd_shots SET status = $2 WHERE id = $1`, [id, status]);
+      return;
+    }
+    this.assertWritableOrThrow();
+    const row = this.memory.shots.find((s) => s.id === id);
+    if (row) row.status = status;
+  }
+
+  async listByProjectId(projectId: number): Promise<VdShotRow[]> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT s.id, s.script_id, s.ordinal, s.status, s.duration_ms, s.camera, s.action, s.aspect,
+                s.contains_human, s.text_in_frame, s.logo_in_ai_frame, s.seed, s.take_fail_count
+         FROM vd_shots s
+         INNER JOIN vd_scripts sc ON sc.id = s.script_id
+         WHERE sc.project_id = $1
+           AND sc.version = (
+             SELECT MAX(version) FROM vd_scripts WHERE project_id = $1
+           )
+         ORDER BY s.ordinal ASC`,
+        [projectId],
+      );
+      return (res.rows as Record<string, unknown>[]).map((row) => this.mapRow(row));
+    }
+    return [];
+  }
+
   async listByScriptId(scriptId: number): Promise<VdShotRow[]> {
     if (await this.ensurePgReady()) {
       const res = await this.db.query(

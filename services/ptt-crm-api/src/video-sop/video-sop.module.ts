@@ -2,17 +2,25 @@ import { Module } from '@nestjs/common';
 import { ContentMarketingModule } from '../content-marketing/content-marketing.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import {
+  StaffVdBibleEditGuard,
+  StaffVdKeyframeEditGuard,
   StaffVdProjectCreateGuard,
   StaffVdProjectEditGuard,
   StaffVdProjectViewGuard,
   StaffVdScriptEditGuard,
 } from './guards/staff-vd-project.guard';
 import { VdAssetRepository } from './assets/vd-asset.repository';
+import { VdBibleController } from './bible/vd-bible.controller';
+import { VdBibleRepository } from './bible/vd-bible.repository';
+import { VdBibleService } from './bible/vd-bible.service';
 import { VdJobController } from './jobs/vd-job.controller';
 import { VdJobHttpService } from './jobs/vd-job-http.service';
 import { VdJobRepository } from './jobs/vd-job.repository';
 import { VdDispatcherService } from './orchestration/vd-dispatcher.service';
 import { VdPollerService } from './orchestration/vd-poller.service';
+import { VdPromptController } from './prompt/vd-prompt.controller';
+import { VdPromptRepository } from './prompt/vd-prompt.repository';
+import { VdPromptService } from './prompt/vd-prompt.service';
 import { VdBriefController } from './project/vd-brief.controller';
 import { VdBriefService } from './project/vd-brief.service';
 import { VdProjectController } from './project/vd-project.controller';
@@ -29,7 +37,15 @@ import { VdShotRepository } from './script/vd-shot.repository';
 
 @Module({
   imports: [StaffAuthModule, ContentMarketingModule],
-  controllers: [VdProjectController, VdBriefController, VdScriptController, VdJobController, VdAdminController],
+  controllers: [
+    VdProjectController,
+    VdBriefController,
+    VdScriptController,
+    VdJobController,
+    VdAdminController,
+    VdBibleController,
+    VdPromptController,
+  ],
   providers: [
     VdProjectRepository,
     VdProjectService,
@@ -40,6 +56,10 @@ import { VdShotRepository } from './script/vd-shot.repository';
     VdScriptService,
     VdJobRepository,
     VdAssetRepository,
+    VdBibleRepository,
+    VdBibleService,
+    VdPromptRepository,
+    VdPromptService,
     VdDispatcherService,
     VdPollerService,
     VdJobHttpService,
@@ -48,6 +68,8 @@ import { VdShotRepository } from './script/vd-shot.repository';
     StaffVdProjectEditGuard,
     StaffVdProjectViewGuard,
     StaffVdScriptEditGuard,
+    StaffVdBibleEditGuard,
+    StaffVdKeyframeEditGuard,
     StaffVdAdminViewGuard,
     StaffVdAdminCreateGuard,
   ],

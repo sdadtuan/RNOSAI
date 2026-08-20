@@ -2,11 +2,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { type StoredStaffUser } from './auth';
 import {
   canEditVdBrief,
+  canEditVdBible,
+  canEditVdKeyframe,
   canEditVdScript,
   canEnqueueVdJob,
   saveVdScript,
   vdAdminModelsPath,
   vdAdminProvidersPath,
+  vdProjectBibleCharactersPath,
+  vdProjectBibleStylePath,
   vdProjectBriefInsightsPath,
   vdProjectBriefPath,
   vdProjectBriefReadyPath,
@@ -15,9 +19,12 @@ import {
   vdProjectIdeasGeneratePath,
   vdProjectIdeasPath,
   vdProjectJobsPath,
+  vdProjectKeyframesPath,
   vdProjectScriptsPath,
+  vdProjectShotsPath,
   vdPromptTemplatesPath,
   vdScriptShotsPath,
+  vdShotJobsPath,
   sc04AddShotPayload,
 } from './video-sop-api';
 
@@ -83,6 +90,26 @@ describe('video-sop-api path helpers', () => {
   it('vdPromptTemplatesPath is collection', () => {
     expect(vdPromptTemplatesPath()).toBe('/api/v1/vd/prompt-templates');
   });
+
+  it('vdProjectBibleStylePath interpolates id', () => {
+    expect(vdProjectBibleStylePath(7)).toBe('/api/v1/vd/projects/7/bibles/style');
+  });
+
+  it('vdProjectBibleCharactersPath interpolates id', () => {
+    expect(vdProjectBibleCharactersPath(7)).toBe('/api/v1/vd/projects/7/bibles/characters');
+  });
+
+  it('vdShotJobsPath interpolates id', () => {
+    expect(vdShotJobsPath(5)).toBe('/api/v1/vd/shots/5/jobs');
+  });
+
+  it('vdProjectShotsPath interpolates id', () => {
+    expect(vdProjectShotsPath(7)).toBe('/api/v1/vd/projects/7/shots');
+  });
+
+  it('vdProjectKeyframesPath interpolates id', () => {
+    expect(vdProjectKeyframesPath(7)).toBe('/api/v1/vd/projects/7/keyframes');
+  });
 });
 
 describe('canEditVdBrief (same as API PUT/ready)', () => {
@@ -126,6 +153,34 @@ describe('canEditVdScript (same as API ideas/script/shots)', () => {
 
   it('denies null user', () => {
     expect(canEditVdScript(null)).toBe(false);
+  });
+});
+
+describe('canEditVdKeyframe (same as API POST shot jobs)', () => {
+  it('allows crm_vd.keyframe edit', () => {
+    expect(canEditVdKeyframe(staff([{ section: 'crm_vd.keyframe', action: 'edit' }]))).toBe(true);
+  });
+
+  it('allows crm_vd.project edit', () => {
+    expect(canEditVdKeyframe(staff([{ section: 'crm_vd.project', action: 'edit' }]))).toBe(true);
+  });
+
+  it('denies null user', () => {
+    expect(canEditVdKeyframe(null)).toBe(false);
+  });
+});
+
+describe('canEditVdBible (same as API PUT bibles)', () => {
+  it('allows crm_vd.bible edit', () => {
+    expect(canEditVdBible(staff([{ section: 'crm_vd.bible', action: 'edit' }]))).toBe(true);
+  });
+
+  it('allows crm_content write', () => {
+    expect(canEditVdBible(staff([{ section: 'crm_content', action: 'write' }]))).toBe(true);
+  });
+
+  it('denies null user', () => {
+    expect(canEditVdBible(null)).toBe(false);
   });
 });
 

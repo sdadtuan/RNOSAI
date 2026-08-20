@@ -1,12 +1,12 @@
 # Hướng dẫn — Video SOP Studio (Module 7)
 
-> **Module:** MOD-VD · S3 (Brief + Script)  
+> **Module:** MOD-VD · S4 (Brief + Script + Bible + Keyframes)  
 > **Đối tượng:** AM, Copy, Art, Motion, Editor  
 > **Hub:** `/crm/video` · **Overview:** `/crm/video/[id]`  
 > **Spec:** [`2026-08-20-video-sop-module-7-design.md`](../superpowers/specs/2026-08-20-video-sop-module-7-design.md)  
 > **Flags:** `PTT_CMKT_VIDEO_CINEMATIC=1`, `NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC=1`
 
-Studio **Video chiến dịch (SOP)** — brief 8 nhóm → ý tưởng / script → shotlist. **S3 chưa có Gate 1** (cổng duyệt sang keyframe thuộc S5).
+Studio **Video chiến dịch (SOP)** — brief 8 nhóm → ý tưởng / script → shotlist → bible → keyframe thử. **S4 chưa có Gate 2** (duyệt keyframe thuộc S5).
 
 ---
 
@@ -28,8 +28,8 @@ Hub trống: *Chọn Video chiến dịch từ Content Board*.
 ## 2. Hub & overview
 
 1. Mở `/crm/video?lifecycle_id=…` — danh sách project SOP.
-2. Click project → `/crm/video/[id]` (SC-02). Banner: *S3 — Brief + Script. Gate 1 vẫn S5.*
-3. Link **Brief (SC-03)** → `/crm/video/[id]/brief` · **Script (SC-04)** → `/crm/video/[id]/script`.
+2. Click project → `/crm/video/[id]` (SC-02). Banner: *S4 — Bible + Keyframes. Gate 2 vẫn S5.*
+3. Link **Brief (SC-03)** · **Script (SC-04)** · **Bible (SC-05)** · **Keyframes (SC-06)**.
 
 Cần cap `crm_vd.project` view/edit (hoặc `crm_content.view` để thấy menu). Flag tắt → hub ẩn / *Module tắt*.
 
@@ -74,10 +74,35 @@ Sinh ý tưởng tùy chọn trên S3 — có thể **Lưu script** thẳng từ
 
 ---
 
-## 5. Flag, cap, Gate
+## 5. SC-05 — Style + Character bible
+
+Route: `/crm/video/[id]/bible`. Banner: *S4 — Style + Character bible. BR-03 lock region.*
+
+| Phần | Field | Ghi chú |
+|------|--------|---------|
+| Style | `palette` · `lens` · `lighting` · `refs` | Comma-separated cho palette/refs |
+| Character | `name` · `lock_regions` · `notes` | **Thêm nhân vật** — lock region giữ token `{{lock:face}}` trong shot action |
+
+**Lưu style** · **Lưu characters** (cap `crm_vd.bible` edit hoặc `crm_vd.project` edit).
+
+---
+
+## 6. SC-06 — Keyframe Workbench
+
+Route: `/crm/video/[id]/keyframes`. Banner: *S4 — Keyframe thử theo shot. Gate 2 vẫn S5.*
+
+Layout 3 cột: **Shots** (trái) · **Keyframes** (giữa, tối đa 4 tile) · **Gate 2 — S5** (phải).
+
+**Tạo keyframe cho shot** — enqueue `cine_keyframe` theo shot (`POST /api/v1/vd/shots/:id/jobs`). Shot: `draft` → `prompts_ready` → `keyframe_pending`. Không set `keyframe_approved` (S5).
+
+Cap: `crm_vd.keyframe` edit hoặc `crm_vd.project` edit.
+
+---
+
+## 7. Flag, cap, Gate
 
 - API: `PTT_CMKT_VIDEO_CINEMATIC=1`. UI: `NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC=1`.
 - Cap project: `PTT_CMKT_VIDEO_CINEMATIC_DAILY_CAP` (mặc định 1). Hết cap → đợi ngày mới hoặc tăng env.
-- **S3 chưa có Gate 1.** Không duyệt sang keyframe / Kling trên sprint này.
+- **S4 chưa có Gate 2.** Không duyệt keyframe / Kling trên sprint này.
 
-Cap: `crm_vd.script` edit để sửa script/shot; `crm_vd.project` view để đọc hub.
+Cap: `crm_vd.script` edit (script/shot); `crm_vd.bible` / `crm_vd.keyframe` edit (bible/keyframes); `crm_vd.project` view (hub).

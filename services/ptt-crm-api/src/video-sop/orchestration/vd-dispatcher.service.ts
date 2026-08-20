@@ -6,6 +6,8 @@ import { VdAssetRepository } from '../assets/vd-asset.repository';
 import { VdJobRepository } from '../jobs/vd-job.repository';
 import type { EnqueueVdJobInput, VdJobHandler, VdJobRow, VdJobStatus } from '../jobs/vd-job.types';
 import { VdIdeaRepository } from '../script/vd-idea.repository';
+import { VdShotRepository } from '../script/vd-shot.repository';
+import { VdPromptRepository } from '../prompt/vd-prompt.repository';
 import { selectImageGen } from './vd-model-router';
 
 const RETRYABLE = new Set(['transient', 'rate_limit']);
@@ -56,6 +58,8 @@ export class VdDispatcherService {
     private readonly jobs: VdJobRepository,
     private readonly assets: VdAssetRepository,
     @Optional() private readonly ideas?: VdIdeaRepository,
+    @Optional() private readonly shots?: VdShotRepository,
+    @Optional() private readonly prompts?: VdPromptRepository,
   ) {
     this.registerHandler('cine_keyframe', (job) => this.handleCineKeyframe(job));
     this.registerHandler('cine_director', (job) => this.handleCineDirector(job));
@@ -106,6 +110,21 @@ export class VdDispatcherService {
       width: input.width,
       height: input.height,
     });
+
+    if (job.shot_id && this.shots) {
+      await this.shots.updateStatus(job.shot_id, 'keyframe_pending');
+      if (this.prompts) {
+        const promptRow = await this.prompts.getByShotId(job.shot_id);
+        if (promptRow) {
+          await this.assets.insertLineage({
+            parent_asset_id: asset.id,
+            child_asset_id: asset.id,
+            edge: 'prompt',
+          });
+        }
+      }
+    }
+
     return {
       provider: result.provider,
       providerId: result.providerId,

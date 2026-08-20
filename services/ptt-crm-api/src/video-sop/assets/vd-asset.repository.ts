@@ -30,16 +30,26 @@ export type VdAssetRow = {
   created_at: string;
 };
 
+export type VdAssetLineageRow = {
+  id: number;
+  parent_asset_id: number;
+  child_asset_id: number;
+  edge: string;
+  created_at: string;
+};
+
 type MemoryStore = {
   assets: VdAssetRow[];
+  lineage: VdAssetLineageRow[];
   nextId: number;
+  nextLineageId: number;
 };
 
 @Injectable()
 export class VdAssetRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
   private pgReady: boolean | null = null;
-  private readonly memory: MemoryStore = { assets: [], nextId: 1 };
+  private readonly memory: MemoryStore = { assets: [], lineage: [], nextId: 1, nextLineageId: 1 };
   last: VdAssetRow = undefined as unknown as VdAssetRow;
 
   constructor(private readonly config: AppConfigService) {}
@@ -132,5 +142,75 @@ export class VdAssetRepository implements OnModuleDestroy {
     };
     this.memory.assets.push(row);
     return this.remember(row);
+  }
+
+  async listKeyframesByProjectId(projectId: number, limit = 50): Promise<VdAssetRow[]> {
+    const cap = Math.max(1, Math.min(limit, 50));
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, project_id, job_id, kind, storage_key, url, sha256, width, height, duration_ms, created_at
+         FROM vd_assets
+         WHERE project_id = $1 AND kind = 'keyframe'
+         ORDER BY created_at DESC
+         LIMIT $2`,
+        [projectId, cap],
+      );
+      return (res.rows as Record<string, unknown>[]).map((row) => this.mapRow(row));
+    }
+    return this.memory.assets
+      .filter((row) => row.project_id === projectId && row.kind === 'keyframe')
+      .slice()
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .slice(0, cap);
+  }
+
+  async insertLineage(input: {
+    parent_asset_id: number;
+    child_asset_id: number;
+    edge: string;
+  }): Promise<VdAssetLineageRow> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `INSERT INTO vd_asset_lineage (parent_asset_id, child_asset_id, edge)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (parent_asset_id, child_asset_id, edge) DO NOTHING
+         RETURNING id, parent_asset_id, child_asset_id, edge, created_at`,
+        [input.parent_asset_id, input.child_asset_id, input.edge],
+      );
+      if (res.rows[0]) {
+        const row = res.rows[0] as Record<string, unknown>;
+        return {
+          id: Number(row.id),
+          parent_asset_id: Number(row.parent_asset_id),
+          child_asset_id: Number(row.child_asset_id),
+          edge: String(row.edge),
+          created_at: new Date(String(row.created_at)).toISOString(),
+        };
+      }
+      return {
+        id: 0,
+        parent_asset_id: input.parent_asset_id,
+        child_asset_id: input.child_asset_id,
+        edge: input.edge,
+        created_at: new Date().toISOString(),
+      };
+    }
+    this.assertWritableOrThrow();
+    const existing = this.memory.lineage.find(
+      (row) =>
+        row.parent_asset_id === input.parent_asset_id &&
+        row.child_asset_id === input.child_asset_id &&
+        row.edge === input.edge,
+    );
+    if (existing) return existing;
+    const row: VdAssetLineageRow = {
+      id: this.memory.nextLineageId++,
+      parent_asset_id: input.parent_asset_id,
+      child_asset_id: input.child_asset_id,
+      edge: input.edge,
+      created_at: new Date().toISOString(),
+    };
+    this.memory.lineage.push(row);
+    return row;
   }
 }

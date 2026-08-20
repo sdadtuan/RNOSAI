@@ -216,6 +216,14 @@
       "view",
       "edit"
     ],
+    "crm_vd.bible": [
+      "view",
+      "edit"
+    ],
+    "crm_vd.keyframe": [
+      "view",
+      "edit"
+    ],
     "crm_vd.admin": [
       "view",
       "create"
@@ -924,6 +932,20 @@
       "group": "CRM — Triển khai dịch vụ",
       "page": "/crm/video",
       "description": "Script Studio: ý tưởng + shotlist (Module 7 S3)."
+    },
+    {
+      "id": "crm_vd.bible",
+      "label": "Video SOP — Bible",
+      "group": "CRM — Triển khai dịch vụ",
+      "page": "/crm/video",
+      "description": "Style + Character bible SC-05 (Module 7 S4)."
+    },
+    {
+      "id": "crm_vd.keyframe",
+      "label": "Video SOP — Keyframe",
+      "group": "CRM — Triển khai dịch vụ",
+      "page": "/crm/video",
+      "description": "Keyframe workbench SC-06 (Module 7 S4)."
     },
     {
       "id": "crm_vd.admin",
@@ -1715,6 +1737,8 @@
     "crm_content",
     "crm_vd.project",
     "crm_vd.script",
+    "crm_vd.bible",
+    "crm_vd.keyframe",
     "crm_vd.admin",
     "crm_research",
     "crm_owner_weekly_dashboard",

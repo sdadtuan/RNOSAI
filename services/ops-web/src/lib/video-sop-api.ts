@@ -20,6 +20,24 @@ export function canEditVdScript(user: StoredStaffUser | null): boolean {
   );
 }
 
+/** Same cap as API PUT bibles (bible edit or project edit or content write). */
+export function canEditVdBible(user: StoredStaffUser | null): boolean {
+  return (
+    hasCap(user, 'crm_vd.bible', 'edit') ||
+    hasCap(user, 'crm_vd.project', 'edit') ||
+    hasCap(user, 'crm_content', 'write')
+  );
+}
+
+/** Same cap as API POST shot keyframe jobs (keyframe edit or project edit or content write). */
+export function canEditVdKeyframe(user: StoredStaffUser | null): boolean {
+  return (
+    hasCap(user, 'crm_vd.keyframe', 'edit') ||
+    hasCap(user, 'crm_vd.project', 'edit') ||
+    hasCap(user, 'crm_content', 'write')
+  );
+}
+
 export type VdProjectRow = {
   id: number;
   lifecycle_id: number;
@@ -85,6 +103,26 @@ export function vdScriptShotsPath(id: number | string): string {
 
 export function vdPromptTemplatesPath(): string {
   return '/api/v1/vd/prompt-templates';
+}
+
+export function vdProjectBibleStylePath(id: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(id))}/bibles/style`;
+}
+
+export function vdProjectBibleCharactersPath(id: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(id))}/bibles/characters`;
+}
+
+export function vdShotJobsPath(shotId: number | string): string {
+  return `/api/v1/vd/shots/${encodeURIComponent(String(shotId))}/jobs`;
+}
+
+export function vdProjectShotsPath(projectId: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(projectId))}/shots`;
+}
+
+export function vdProjectKeyframesPath(projectId: number | string): string {
+  return `/api/v1/vd/projects/${encodeURIComponent(String(projectId))}/keyframes`;
 }
 
 export function vdProjectListPath(lifecycleId: number | string): string {
@@ -172,6 +210,37 @@ export type VdPromptTemplateRow = {
   code: string;
   kind: string;
   body: string;
+};
+
+export type VdStyleBibleBody = {
+  palette: string[];
+  lens: string;
+  lighting: string;
+  refs: string[];
+};
+
+export type VdCharacterBibleItem = {
+  name: string;
+  lock_regions: string[];
+  notes: string;
+};
+
+export type VdCharacterBibleBody = {
+  items: VdCharacterBibleItem[];
+};
+
+export type VdKeyframeAssetRow = {
+  id: number;
+  project_id: number;
+  job_id: number | null;
+  kind: string;
+  storage_key: string;
+  url: string;
+  sha256: string | null;
+  width: number | null;
+  height: number | null;
+  duration_ms: number | null;
+  created_at: string;
 };
 
 export type AddVdShotBody = {
@@ -372,6 +441,71 @@ export async function listVdPromptTemplates(token: string): Promise<VdPromptTemp
   return asItems(body);
 }
 
+export async function getVdStyleBible(
+  token: string,
+  projectId: number | string,
+): Promise<{ project_id: number; body_json: VdStyleBibleBody }> {
+  return vdFetch(token, vdProjectBibleStylePath(projectId));
+}
+
+export async function saveVdStyleBible(
+  token: string,
+  projectId: number | string,
+  body: VdStyleBibleBody,
+): Promise<{ project_id: number; body_json: VdStyleBibleBody }> {
+  return vdFetch(token, vdProjectBibleStylePath(projectId), {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function getVdCharacterBible(
+  token: string,
+  projectId: number | string,
+): Promise<{ project_id: number; body_json: VdCharacterBibleBody }> {
+  return vdFetch(token, vdProjectBibleCharactersPath(projectId));
+}
+
+export async function saveVdCharacterBible(
+  token: string,
+  projectId: number | string,
+  body: VdCharacterBibleBody,
+): Promise<{ project_id: number; body_json: VdCharacterBibleBody }> {
+  return vdFetch(token, vdProjectBibleCharactersPath(projectId), {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function listVdProjectShots(token: string, projectId: number | string): Promise<VdShotRow[]> {
+  const body = await vdFetch<VdShotRow[] | { items?: VdShotRow[] }>(token, vdProjectShotsPath(projectId));
+  return asItems(body);
+}
+
+export async function listVdProjectKeyframes(
+  token: string,
+  projectId: number | string,
+): Promise<VdKeyframeAssetRow[]> {
+  const body = await vdFetch<VdKeyframeAssetRow[] | { items?: VdKeyframeAssetRow[] }>(
+    token,
+    vdProjectKeyframesPath(projectId),
+  );
+  return asItems(body);
+}
+
+export async function enqueueVdShotKeyframe(
+  token: string,
+  shotId: number | string,
+  body: { prompt?: string; width?: number; height?: number; seed?: number },
+  idempotencyKey: string,
+): Promise<EnqueueVdJobResult> {
+  return vdFetch<EnqueueVdJobResult>(token, vdShotJobsPath(shotId), {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function enqueueVdJob(
   token: string,
   projectId: number | string,
@@ -438,6 +572,13 @@ export const VIDEO_SOP_API = {
   saveScript: saveVdScript,
   listShots: listVdShots,
   addShot: addVdShot,
+  getStyleBible: getVdStyleBible,
+  saveStyleBible: saveVdStyleBible,
+  getCharacterBible: getVdCharacterBible,
+  saveCharacterBible: saveVdCharacterBible,
+  listProjectShots: listVdProjectShots,
+  listProjectKeyframes: listVdProjectKeyframes,
+  enqueueShotKeyframe: enqueueVdShotKeyframe,
   listPromptTemplates: listVdPromptTemplates,
   listJobs: listVdJobs,
   enqueueJob: enqueueVdJob,
