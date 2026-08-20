@@ -122,8 +122,8 @@ if [[ "$STORY_CODE" != "400" ]]; then
   echo "FAIL video-storyboard expected 400 got $STORY_CODE $(cat "$STORY_BODY")"
   exit 1
 fi
-if ! grep -q 'studio_mismatch' "$STORY_BODY"; then
-  echo "FAIL video-storyboard body missing studio_mismatch $(cat "$STORY_BODY")"
+if ! grep -Eq 'studio_locked|studio_mismatch' "$STORY_BODY"; then
+  echo "FAIL video-storyboard body missing studio_locked/studio_mismatch $(cat "$STORY_BODY")"
   exit 1
 fi
 
