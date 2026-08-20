@@ -23,7 +23,7 @@ Tài liệu này mô tả **cách sử dụng từng chức năng** theo domain 
 | 9 | Email Marketing | [09-email-marketing.md](./09-email-marketing.md) | Email Strategist, AM |
 | 10 | Content Marketing OS (tóm tắt) | [10-content-marketing.md](./10-content-marketing.md) | SP Content, QA |
 | 18 | **Content Marketing OS (đầy đủ — kênh, ảnh, video)** | [18-content-marketing-os.md](./18-content-marketing-os.md) | SP Content, QA, IT |
-| 19 | **Video SOP Studio (Module 7)** | spec: [video-sop-module-7-design.md](../superpowers/specs/2026-08-20-video-sop-module-7-design.md) | AM, Copy, Art, Motion, Editor |
+| 19 | **Video SOP Studio (Module 7)** | [19-video-sop.md](./19-video-sop.md) | AM, Copy, Art, Motion, Editor |
 | 11 | Marketing AI Planner | [11-marketing-ai-planner.md](./11-marketing-ai-planner.md) | SP, MKT Lead |
 | 12 | AI Revenue OS | [12-ai-revenue-os.md](./12-ai-revenue-os.md) | CSKH, Manager, GDKD |
 | 13 | HR & Payroll | [13-hr-payroll.md](./13-hr-payroll.md) | HR, NV |
