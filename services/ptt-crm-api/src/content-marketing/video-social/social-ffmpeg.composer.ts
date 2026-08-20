@@ -44,6 +44,10 @@ export class SocialFfmpegComposer {
   ): Promise<{ masterPath: string; posterPath: string }> {
     assertFfmpegAvailable(input.ffmpegBin);
 
+    if (!input.voicePath || !existsSync(input.voicePath)) {
+      throw new Error('voice_missing');
+    }
+
     const durationSec = masterDurationSec(input.beats);
     writeFileSync(input.captionsAssPath, buildAss(input.beats, input.width, input.height));
 
@@ -204,14 +208,8 @@ function buildComposeArgs(
     clipIndexes.push(nextIndex++);
   }
 
-  let voiceIndex: number;
-  if (existsSync(voicePath)) {
-    args.push('-i', voicePath);
-    voiceIndex = nextIndex++;
-  } else {
-    args.push('-f', 'lavfi', '-i', `sine=frequency=440:duration=${durationSec}`);
-    voiceIndex = nextIndex++;
-  }
+  args.push('-i', voicePath);
+  const voiceIndex = nextIndex++;
 
   let bedIndex: number | undefined;
   if (bedPath && existsSync(bedPath)) {

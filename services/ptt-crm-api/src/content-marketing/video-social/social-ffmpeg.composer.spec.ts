@@ -11,6 +11,28 @@ const hasFfmpeg = ffmpegWhich.status === 0 && Boolean(ffmpegWhich.stdout.trim())
 const ffmpegBin = hasFfmpeg ? ffmpegWhich.stdout.trim() : 'ffmpeg';
 
 describe('SocialFfmpegComposer', () => {
+  it('throws voice_missing when voice file is absent', async () => {
+    const workDir = mkdtempSync(join(tmpdir(), 'cmkt-social-voice-missing-'));
+    try {
+      const composer = new SocialFfmpegComposer();
+      await expect(
+        composer.composeSocialMaster({
+          workDir,
+          ffmpegBin: hasFfmpeg ? ffmpegBin : '/bin/no-such-ffmpeg-rnosai',
+          beats: [],
+          voicePath: '/tmp/no-such-voice-rnosai.wav',
+          clipPaths: [],
+          captionsAssPath: join(workDir, 'captions.ass'),
+          draftWatermark: false,
+          width: 1080,
+          height: 1920,
+        }),
+      ).rejects.toThrow(hasFfmpeg ? /voice_missing/ : /voice_missing|ffmpeg_missing/);
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+
   it('refuses to return a fabricated mp4 url', async () => {
     const composer = new SocialFfmpegComposer();
     await expect(
