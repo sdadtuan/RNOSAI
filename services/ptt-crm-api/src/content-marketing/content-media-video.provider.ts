@@ -41,6 +41,10 @@ export class ContentMediaVideoProvider {
   }
 
   async generateShortVideo(input: CmktVideoGenerateInput): Promise<CmktVideoGenerateResult> {
+    if (this.providerName !== 'stub') {
+      throw new Error('use_social_pipeline');
+    }
+
     const progress = initialVideoProgress();
     const emit = (patch: Partial<CmktVideoGenerationProgress>) => {
       Object.assign(progress, patch);

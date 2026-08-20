@@ -8,7 +8,7 @@ import {
 } from './content-visual-qa.util';
 import { extractClipKeywords } from './content-media-stock.provider';
 import { ContentMediaCleanService } from './content-media-clean.service';
-import { ContentMediaStorageService } from './content-media-storage.service';
+import { ContentMediaGenerateService } from './content-media-generate.service';
 import type { CmktMediaAsset } from './content-marketing.types';
 
 describe('content-visual-qa.util', () => {
@@ -109,5 +109,48 @@ describe('ContentMediaCleanService', () => {
     const promoted = svc.promoteAsset(videoAsset, 1, 2);
     expect(promoted.draft_watermark).toBe(false);
     expect(promoted.type).toBe('video');
+  });
+});
+
+describe('selectMediaAsset pack tiles', () => {
+  it('selects a video_packs thumbnail without asset_not_found', async () => {
+    const core = { ensureLifecycleEnabled: jest.fn().mockResolvedValue(undefined) };
+    const repo = {
+      getItemById: jest.fn().mockResolvedValue({
+        id: 2,
+        media_json: {
+          video_short: {
+            id: 'video-9',
+            type: 'video',
+            url: 'https://cdn.pttads.vn/cmkt/1/2/master.mp4',
+          },
+          video_packs: {
+            reels: {
+              id: 'pack-reels',
+              type: 'video',
+              url: 'https://cdn.pttads.vn/cmkt/1/2/reels.mp4',
+            },
+          },
+        },
+      }),
+      patchItem: jest.fn(async (_lc: number, _id: number, patch: { media_json: unknown }) => ({
+        id: 2,
+        body_json: {},
+        media_json: patch.media_json,
+      })),
+      insertItemVersion: jest.fn(),
+    };
+    const svc = new ContentMediaGenerateService(
+      {} as never,
+      core as never,
+      repo as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    const updated = await svc.selectMediaAsset(1, 2, { asset_id: 'pack-reels' }, 'a@b.c');
+    expect(updated.media_json?.selected_asset_id).toBe('pack-reels');
+    expect(repo.insertItemVersion).toHaveBeenCalled();
   });
 });

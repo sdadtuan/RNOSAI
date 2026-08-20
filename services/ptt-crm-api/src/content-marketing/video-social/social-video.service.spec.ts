@@ -78,6 +78,22 @@ describe('SocialVideoService', () => {
     await expect(svc.startStoryboard(1, 2, { pack_default: 'reels' }, 'a@b.c')).rejects.toThrow(/video_daily_cap/);
   });
 
+  it('rejects too-long script before createContentJob', async () => {
+    const long = Array.from({ length: 200 }, () => 'từ').join(' ');
+    repo.getItemById.mockResolvedValue({
+      format: 'video_script',
+      channel: 'short_video',
+      status: 'approved_internal',
+      title: 'Hook',
+      body_json: { markdown: long },
+      media_json: { video_studio: 'social' },
+    });
+    await expect(svc.startStoryboard(1, 2, { pack_default: 'reels' }, 'a@b.c')).rejects.toThrow(
+      /script_too_long/,
+    );
+    expect(repo.createContentJob).not.toHaveBeenCalled();
+  });
+
   it('persists uploaded CDN url without manifest rewrite', async () => {
     const tmp = mkdtempSync(join(tmpdir(), 'cmkt-social-'));
     const masterPath = join(tmp, 'master.mp4');

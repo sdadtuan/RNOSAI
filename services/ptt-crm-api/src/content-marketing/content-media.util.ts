@@ -104,6 +104,9 @@ export function mergeMediaJson(
   if (patch.video_short !== undefined) {
     next.video_short = patch.video_short as CmktMediaAsset | null;
   }
+  if (patch.video_packs != null && typeof patch.video_packs === 'object') {
+    next.video_packs = patch.video_packs as NonNullable<CmktMediaJson['video_packs']>;
+  }
   if (patch.video_generation != null && typeof patch.video_generation === 'object') {
     next.video_generation = patch.video_generation as CmktMediaJson['video_generation'];
   }

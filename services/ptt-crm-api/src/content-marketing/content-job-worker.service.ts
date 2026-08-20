@@ -356,10 +356,7 @@ export class ContentJobWorkerService {
       if (claimed.job_type === 'video_short_generate') {
         const script = approvedCopy;
         const provider = this.config.contentMarketingVideoProvider;
-        const studio = item.media_json?.video_studio;
-        const oneShotSocial =
-          this.config.contentMarketingVideoOneShot && studio !== 'cinematic';
-        if (provider !== 'stub' && (provider === 'ffmpeg' || oneShotSocial)) {
+        if (provider !== 'stub') {
           await this.social.executeStoryboard(claimed, item);
           const latest =
             (await this.repo.getItemById(claimed.lifecycle_id, item.id)) ?? item;

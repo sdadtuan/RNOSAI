@@ -28,6 +28,7 @@ run_local() {
 
   echo "== 1/4 Apply Content Marketing DDL =="
   bash "$ROOT/scripts/apply_pg_ddl_content_marketing.sh"
+  bash "$ROOT/scripts/apply_pg_ddl_cmkt_video_social_v1.sh"
 
   echo "== 2/4 Enable API flags =="
   RUNTIME_ENV="$ROOT/deploy/runtime.env"

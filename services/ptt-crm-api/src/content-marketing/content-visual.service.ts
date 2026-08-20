@@ -59,15 +59,27 @@ export class ContentVisualService {
         visual_status: item.visual_status,
       });
     }
-    const score = item.media_json?.visual_qa?.score;
-    if (score != null && score < 50 && body.override !== true) {
-      throw new BadRequestException({
-        error: 'visual_qa_blocked',
-        score,
-        message: 'Visual QA score <50 — cần override=true hoặc regenerate.',
-      });
+    const isSocialVideo =
+      item.media_json?.video_studio === 'social' || item.media_json?.video_qa != null;
+    if (isSocialVideo) {
+      if (item.media_json?.video_qa?.blocked === true && body.override !== true) {
+        throw new BadRequestException({
+          error: 'video_qa_blocked',
+          message: 'video_qa_blocked',
+        });
+      }
+    } else {
+      const score = item.media_json?.visual_qa?.score;
+      if (score != null && score < 50 && body.override !== true) {
+        throw new BadRequestException({
+          error: 'visual_qa_blocked',
+          score,
+          message: 'Visual QA score <50 — cần override=true hoặc regenerate.',
+        });
+      }
     }
 
+    const score = item.media_json?.visual_qa?.score;
     const media = mergeMediaJson(item.media_json, {
       visual_qa: {
         ...(item.media_json?.visual_qa ?? { score: score ?? 0 }),
@@ -91,6 +103,12 @@ export class ContentVisualService {
     if (selected?.url) {
       production_json = mergeProductionJson(production_json, {
         asset_urls: [...(production_json.asset_urls ?? []), selected.url],
+      });
+    }
+
+    if (promotedMedia.video_short?.url) {
+      production_json = mergeProductionJson(production_json, {
+        final_video_url: promotedMedia.video_short.url,
       });
     }
 

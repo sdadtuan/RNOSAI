@@ -1642,7 +1642,7 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       const res = await this.db.query(
         `SELECT COUNT(*)::int AS c FROM cmkt_content_jobs
          WHERE lifecycle_id = $1
-           AND (job_type LIKE 'social_%' OR job_type = 'video_short_generate')
+           AND job_type IN ('social_storyboard', 'social_render', 'video_short_generate')
            AND created_at >= date_trunc('day', NOW())`,
         [lifecycleId],
       );
@@ -1653,7 +1653,7 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     let count = 0;
     for (const job of this.memory.jobs.values()) {
       if (job.lifecycle_id !== lifecycleId) continue;
-      if (!(job.job_type.startsWith('social_') || job.job_type === 'video_short_generate')) {
+      if (!['social_storyboard', 'social_render', 'video_short_generate'].includes(job.job_type)) {
         continue;
       }
       if (new Date(job.created_at).getTime() >= start.getTime()) count++;

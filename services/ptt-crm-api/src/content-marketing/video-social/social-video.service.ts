@@ -37,7 +37,12 @@ import {
 import { packSpec, type PackSpec } from '../video-kernel/video-pack.util';
 import { parseBeats } from './social-beat.service';
 import { SocialFfmpegComposer } from './social-ffmpeg.composer';
-import { assertScriptFitsPack, defaultSocialTranscodePacks, lockVideoStudio } from './social-studio.util';
+import {
+  assertScriptFitsPack,
+  assertStudioWritable,
+  defaultSocialTranscodePacks,
+  lockVideoStudio,
+} from './social-studio.util';
 import { scoreMaster } from './social-video-qa.service';
 
 const SOCIAL_STEPS: CmktVideoGenerationProgress['steps'] = {
@@ -78,8 +83,9 @@ export class SocialVideoService {
     await this.core.ensureLifecycleEnabled(lifecycleId);
     await this.assertSocialDailyCap(lifecycleId);
     const item = await this.requireVideoItem(lifecycleId, itemId);
-    this.assertSocialStudio(item);
+    this.assertSocialWritable(item);
     assertMediaJobEligible(item, body.allow_draft_watermark === true);
+    this.assertScriptFitsPackOr400(item, body);
     await this.repo.patchItem(lifecycleId, itemId, { visual_status: 'ai_pending' });
     return this.enqueueJob(lifecycleId, itemId, 'social_storyboard', this.storyboardInput(body, item.channel), email);
   }
@@ -128,8 +134,9 @@ export class SocialVideoService {
     await this.core.ensureLifecycleEnabled(lifecycleId);
     await this.assertSocialDailyCap(lifecycleId);
     const item = await this.requireVideoItem(lifecycleId, itemId);
-    this.assertSocialStudio(item);
+    this.assertSocialWritable(item);
     assertMediaJobEligible(item, body.allow_draft_watermark === true);
+    this.assertScriptFitsPackOr400(item, body);
     await this.repo.patchItem(lifecycleId, itemId, { visual_status: 'ai_pending' });
     return this.enqueueJob(lifecycleId, itemId, 'social_render', this.storyboardInput(body, item.channel), email);
   }
@@ -172,7 +179,7 @@ export class SocialVideoService {
     }
     await this.core.ensureLifecycleEnabled(lifecycleId);
     const item = await this.requireVideoItem(lifecycleId, itemId);
-    this.assertSocialStudio(item);
+    this.assertSocialWritable(item);
     const media = lockVideoStudio(item.media_json ?? {}, 'social');
     return this.repo.patchItem(lifecycleId, itemId, { media_json: media });
   }
@@ -195,8 +202,9 @@ export class SocialVideoService {
       });
     }
     const item = await this.requireVideoItem(lifecycleId, itemId);
-    this.assertSocialStudio(item);
+    this.assertSocialWritable(item);
     assertMediaJobEligible(item, body.allow_draft_watermark === true);
+    this.assertScriptFitsPackOr400(item, body);
     await this.repo.patchItem(lifecycleId, itemId, { visual_status: 'ai_pending' });
     const input = this.storyboardInput(body, item.channel);
     const storyboardJob = await this.repo.createContentJob({
@@ -589,6 +597,29 @@ export class SocialVideoService {
   private assertSocialStudio(item: { media_json?: CmktMediaJson | null }): void {
     if (item.media_json?.video_studio === 'cinematic') {
       throw new BadRequestException({ error: 'studio_mismatch', message: 'studio_mismatch' });
+    }
+  }
+
+  private assertSocialWritable(item: { media_json?: CmktMediaJson | null }): void {
+    try {
+      assertStudioWritable(item.media_json ?? {}, 'social');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'studio_locked';
+      throw new BadRequestException({ error: msg, message: msg });
+    }
+    this.assertSocialStudio(item);
+  }
+
+  private assertScriptFitsPackOr400(item: CmktItemRow, body: Record<string, unknown>): void {
+    const packId = String(
+      body.pack_default ?? item.media_json?.storyboard?.pack_default ?? 'reels',
+    );
+    const script = String(item.body_json?.markdown ?? item.title ?? '').trim();
+    try {
+      assertScriptFitsPack(script, packId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'script_too_long';
+      throw new BadRequestException({ error: msg, message: msg });
     }
   }
 

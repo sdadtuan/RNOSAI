@@ -236,7 +236,13 @@ export class ContentMediaGenerateService {
     const assetId = String(body.asset_id ?? '').trim();
     if (!assetId) throw new BadRequestException({ error: 'asset_id_required' });
 
-    const assets = item.media_json?.ai_assets ?? item.media_json?.carousel_slides ?? [];
+    const packAssets = Object.values(item.media_json?.video_packs ?? {});
+    const assets = [
+      ...(item.media_json?.ai_assets ?? []),
+      ...(item.media_json?.carousel_slides ?? []),
+      ...(item.media_json?.video_short ? [item.media_json.video_short] : []),
+      ...packAssets,
+    ];
     if (!assets.some((a) => a.id === assetId)) {
       throw new BadRequestException({ error: 'asset_not_found', asset_id: assetId });
     }
@@ -249,6 +255,17 @@ export class ContentMediaGenerateService {
       ai_assets: item.media_json?.ai_assets ? markSelected(item.media_json.ai_assets) : undefined,
       carousel_slides: item.media_json?.carousel_slides
         ? markSelected(item.media_json.carousel_slides)
+        : undefined,
+      video_short: item.media_json?.video_short
+        ? { ...item.media_json.video_short, selected: item.media_json.video_short.id === assetId }
+        : undefined,
+      video_packs: item.media_json?.video_packs
+        ? Object.fromEntries(
+            Object.entries(item.media_json.video_packs).map(([key, asset]) => [
+              key,
+              { ...asset, selected: asset.id === assetId },
+            ]),
+          )
         : undefined,
     });
 

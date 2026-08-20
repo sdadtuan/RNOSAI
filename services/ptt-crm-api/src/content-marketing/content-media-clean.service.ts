@@ -42,6 +42,21 @@ export class ContentMediaCleanService {
     if (media.carousel_slides?.length) next.carousel_slides = promoteList(media.carousel_slides);
     if (media.video_short) {
       next.video_short = await this.promoteVideoShort(media.video_short, media, lifecycleId, itemId);
+      if (next.video_short && next.ai_assets?.length) {
+        const clean = next.video_short;
+        next.ai_assets = next.ai_assets.map((a) =>
+          a.id === clean.id
+            ? {
+                ...a,
+                url: clean.url,
+                storage_key: clean.storage_key,
+                clean_storage_key: clean.clean_storage_key,
+                draft_watermark: clean.draft_watermark,
+                poster_url: clean.poster_url,
+              }
+            : a,
+        );
+      }
     }
 
     const selectedId = next.selected_asset_id;
@@ -65,17 +80,20 @@ export class ContentMediaCleanService {
     const isSocialVideo =
       asset.type === 'video' && (media.video_studio === 'social' || Boolean(media.storyboard));
 
-    if (isSocialVideo && media.storyboard) {
-      const recomposed = await this.socialVideo.composeCleanMaster(
-        lifecycleId,
-        itemId,
-        media.storyboard,
-        asset,
-      );
-      if (recomposed) {
-        this.cache.deleteCleanBuffer(lifecycleId, itemId, asset.id);
-        return recomposed;
+    if (isSocialVideo) {
+      if (media.storyboard) {
+        const recomposed = await this.socialVideo.composeCleanMaster(
+          lifecycleId,
+          itemId,
+          media.storyboard,
+          asset,
+        );
+        if (recomposed) {
+          this.cache.deleteCleanBuffer(lifecycleId, itemId, asset.id);
+          return recomposed;
+        }
       }
+      return asset;
     }
 
     return this.promoteAsset(asset, lifecycleId, itemId);

@@ -957,6 +957,8 @@ export function postContentOsVideoShortJob(
     aspect_ratio?: string;
     style_preset?: string;
     allow_draft_watermark?: boolean;
+    pack_default?: string;
+    requested_packs?: string[];
   },
 ): Promise<ContentOsJob> {
   return cmktFetch(token, lifecycleId, `/items/${itemId}/jobs/video-short`, {

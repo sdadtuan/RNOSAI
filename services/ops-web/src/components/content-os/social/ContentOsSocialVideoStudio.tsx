@@ -241,6 +241,8 @@ export function ContentOsSocialVideoStudio({
               void runJob(
                 () =>
                   postContentOsVideoShortJob(token, lifecycleId, item.id, {
+                    pack_default: packDefault,
+                    requested_packs: [packDefault],
                     aspect_ratio: packDefault === 'feed_square' ? '1:1' : '9:16',
                     style_preset: stylePreset,
                     allow_draft_watermark: draftWatermark,

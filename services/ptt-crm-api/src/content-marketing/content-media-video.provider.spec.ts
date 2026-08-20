@@ -48,18 +48,16 @@ describe('ContentMediaVideoProvider', () => {
     );
   });
 
-  it('runs TTS + stock + stitch pipeline', async () => {
-    const out = await provider.generateShortVideo({
-      lifecycleId: 1,
-      itemId: 5,
-      script: 'Hook nhanh về content marketing educational',
-      title: 'Reels test',
-    });
-    expect(tts.synthesize).toHaveBeenCalled();
-    expect(stock.fetchClips).toHaveBeenCalled();
-    expect(out.progress.steps.stitch).toBe('done');
-    expect(out.asset.type).toBe('video');
-    expect(out.pipeline.clip_count).toBe(1);
+  it('throws on non-stub provider instead of inventing a CDN mp4', async () => {
+    await expect(
+      provider.generateShortVideo({
+        lifecycleId: 1,
+        itemId: 5,
+        script: 'Hook nhanh về content marketing educational',
+        title: 'Reels test',
+      }),
+    ).rejects.toThrow(/use_social_pipeline|ffmpeg_missing/);
+    expect(storage.uploadAsset).not.toHaveBeenCalled();
   });
 });
 
