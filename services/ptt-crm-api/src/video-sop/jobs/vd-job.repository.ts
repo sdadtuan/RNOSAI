@@ -350,4 +350,17 @@ export class VdJobRepository implements OnModuleDestroy {
     if (stored) return { provider_task_id: stored.provider_task_id };
     return { provider_task_id: result.provider_task_id };
   }
+
+  async saveSaga(
+    jobId: number,
+    saga: Record<string, unknown>,
+  ): Promise<VdJobRow> {
+    const current = await this.getById(jobId);
+    if (!current) throw new Error('vd_job_not_found');
+    const output_json = {
+      ...current.output_json,
+      saga,
+    };
+    return this.update(jobId, { output_json });
+  }
 }

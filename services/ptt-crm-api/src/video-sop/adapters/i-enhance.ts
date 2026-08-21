@@ -1,4 +1,5 @@
 import { TopazEnhance } from './topaz.enhance';
+import type { CanonicalRequest } from './i-provider';
 
 export type VdEnhanceResult = {
   buffer: Buffer;
@@ -10,6 +11,7 @@ export type VdEnhanceResult = {
 export interface IEnhance {
   readonly providerName: 'topaz';
   enhance(inputPath: string): Promise<VdEnhanceResult>;
+  enhanceRequest?(req: CanonicalRequest): Promise<{ provider_task_id: string }>;
 }
 
 export function selectEnhance(): IEnhance {

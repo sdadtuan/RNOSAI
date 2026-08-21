@@ -23,6 +23,46 @@ export type VdCostsView = {
   items: VdCostLedgerRow[];
 };
 
+export type ProviderJobState = {
+  provider_code: string;
+  status?: string;
+  apiCreditCost?: number;
+  cost?: { credits?: number };
+  estimatedCost?: { credits?: number };
+  credits?: number;
+  estimates?: { cost?: number };
+};
+
+export function actualFromJobState(state: ProviderJobState): number | null {
+  switch (state.provider_code) {
+    case 'leonardo':
+      return typeof state.apiCreditCost === 'number' ? state.apiCreditCost : null;
+    case 'runway':
+      if (state.status === 'SUCCEEDED' && typeof state.cost?.credits === 'number') {
+        return state.cost.credits;
+      }
+      if (typeof state.estimatedCost?.credits === 'number') {
+        return state.estimatedCost.credits;
+      }
+      return null;
+    case 'topaz':
+      if (typeof state.credits === 'number') return state.credits;
+      if (typeof state.estimates?.cost === 'number') return state.estimates.cost;
+      return null;
+    default:
+      return null;
+  }
+}
+
+export function reconcileWithinTolerance(
+  estimated: number,
+  actual: number,
+  toleranceRatio = 0.02,
+): boolean {
+  if (estimated <= 0) return actual <= 0;
+  return Math.abs(actual - estimated) / estimated <= toleranceRatio;
+}
+
 const IMAGE_CREDIT = 3;
 const DRAFT_CREDIT_PER_SEC = 2;
 const FINAL_CREDIT_PER_SEC = 5;
@@ -166,10 +206,6 @@ export class VdCostService {
     });
   }
 
-  private isProjectClosed(status: string, stage: string): boolean {
-    return status === 'cancelled' || stage === 'archived';
-  }
-
   async exportXlsx(projectId: number, accountingClose: boolean): Promise<Buffer> {
     assertCinematicEnabled(this.config);
     const project = await this.projects.getById(projectId);
@@ -188,5 +224,25 @@ export class VdCostService {
     }
     const buf = await wb.xlsx.writeBuffer();
     return Buffer.from(buf);
+  }
+
+  actualFromJobState(state: ProviderJobState): number | null {
+    return actualFromJobState(state);
+  }
+
+  reconcileProviderUsage(
+    fixtures: Array<{ estimated: number; state: ProviderJobState }>,
+  ): { ok: boolean; rows: Array<{ estimated: number; actual: number | null; within: boolean }> } {
+    const rows = fixtures.map(({ estimated, state }) => {
+      const actual = actualFromJobState(state);
+      const within =
+        actual == null ? false : reconcileWithinTolerance(estimated, actual);
+      return { estimated, actual, within };
+    });
+    return { ok: rows.every((row) => row.within), rows };
+  }
+
+  private isProjectClosed(status: string, stage: string): boolean {
+    return status === 'cancelled' || stage === 'archived';
   }
 }
