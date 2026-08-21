@@ -1,4 +1,49 @@
-import { VdCostService } from './vd-cost.service';
+import {
+  actualFromJobState,
+  reconcileWithinTolerance,
+  VdCostService,
+} from './vd-cost.service';
+
+describe('actualFromJobState', () => {
+  it('reads Leonardo apiCreditCost', () => {
+    expect(actualFromJobState({ provider_code: 'leonardo', apiCreditCost: 12 })).toBe(12);
+  });
+
+  it('reads Runway cost.credits when SUCCEEDED', () => {
+    expect(
+      actualFromJobState({
+        provider_code: 'runway',
+        status: 'SUCCEEDED',
+        cost: { credits: 56 },
+        estimatedCost: { credits: 50 },
+      }),
+    ).toBe(56);
+  });
+
+  it('falls back to Runway estimatedCost before complete', () => {
+    expect(
+      actualFromJobState({
+        provider_code: 'runway',
+        estimatedCost: { credits: 50 },
+      }),
+    ).toBe(50);
+  });
+
+  it('reads Topaz credits or estimates.cost', () => {
+    expect(actualFromJobState({ provider_code: 'topaz', credits: 8 })).toBe(8);
+    expect(actualFromJobState({ provider_code: 'topaz', estimates: { cost: 7.5 } })).toBe(7.5);
+  });
+});
+
+describe('reconcileWithinTolerance', () => {
+  it('passes when within 2%', () => {
+    expect(reconcileWithinTolerance(100, 101)).toBe(true);
+  });
+
+  it('fails when beyond 2%', () => {
+    expect(reconcileWithinTolerance(100, 110)).toBe(false);
+  });
+});
 
 describe('VdCostService', () => {
   const config = { contentMarketingVideoCinematicEnabled: true } as never;
@@ -85,5 +130,15 @@ describe('VdCostService', () => {
     const view = await service.getBudget(1);
     expect(view.warnings.warn90).toBe(true);
     expect(view.warnings.warn70).toBe(true);
+  });
+
+  it('reconcileProviderUsage passes fixture within 2%', () => {
+    const result = service.reconcileProviderUsage([
+      {
+        estimated: 100,
+        state: { provider_code: 'runway', status: 'SUCCEEDED', cost: { credits: 101 } },
+      },
+    ]);
+    expect(result.ok).toBe(true);
   });
 });

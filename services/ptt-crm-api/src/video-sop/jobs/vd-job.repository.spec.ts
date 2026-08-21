@@ -109,3 +109,32 @@ describe('VdJobRepository provider ref (CT-04)', () => {
     expect(submit).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('VdJobRepository saveSaga (CT-17)', () => {
+  it('persists saga under output_json.saga', async () => {
+    const repo = makeRepo();
+    const job = await repo.insert({
+      project_id: 1,
+      shot_id: null,
+      queue: 'q.enhance',
+      job_type: 'cine_enhance',
+      status: 'running',
+      idempotency_key: 'saga-a',
+      input_json: {},
+      output_json: { provider: 'topaz' },
+    });
+
+    const updated = await repo.saveSaga(job.id, {
+      step: 3,
+      request_id: 'req-1',
+      parts: [{ partNum: 1, eTag: 'e1' }],
+    });
+
+    expect(updated.output_json.saga).toEqual({
+      step: 3,
+      request_id: 'req-1',
+      parts: [{ partNum: 1, eTag: 'e1' }],
+    });
+    expect(updated.output_json.provider).toBe('topaz');
+  });
+});
