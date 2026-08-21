@@ -89,6 +89,13 @@ export class VdDispatcherService {
   private readonly handlers = new Map<string, VdJobHandler>();
   private readonly logger = new Logger(VdDispatcherService.name);
 
+  /** Injectable for tests — real backoff uses wall clock; specs mock to resolve immediately. */
+  sleep: (ms: number) => Promise<void> = (ms) =>
+    new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
+  random: () => number = Math.random;
+
   constructor(
     private readonly jobs: VdJobRepository,
     private readonly assets: VdAssetRepository,
@@ -305,7 +312,10 @@ export class VdDispatcherService {
     provider_code: string,
     submit: () => Promise<{ provider_task_id: string }>,
   ): Promise<{ provider_task_id: string }> {
-    return this.jobs.rememberRefIfAbsent(jobId, provider_code, submit);
+    const result = await this.jobs.rememberRefIfAbsent(jobId, provider_code, submit);
+    await this.jobs.update(jobId, { status: 'submitted' });
+    await this.jobs.update(jobId, { status: 'running' });
+    return result;
   }
 
   async enqueue(input: EnqueueVdJobInput): Promise<VdJobRow> {
@@ -397,8 +407,24 @@ export class VdDispatcherService {
         });
       } catch (err) {
         const errorClass = errorClassOf(err);
+        if (errorClass === 'not_ready') {
+          const cappedAttempt = Math.min(attempt, MAX_ATTEMPTS);
+          await this.jobs.update(id, {
+            status: 'running',
+            error_class: errorClass,
+            attempt: cappedAttempt,
+          });
+          this.schedule(id);
+          return;
+        }
+        if (errorClass === 'moderation') {
+          await this.jobs.update(id, { status: 'failed', error_class: errorClass, attempt });
+          return;
+        }
         if (RETRYABLE.has(errorClass) && attempt < MAX_ATTEMPTS) {
           await this.jobs.update(id, { status: 'queued', error_class: errorClass, attempt });
+          const delayMs = 1000 * 2 ** attempt * (1 + this.random() * 0.5);
+          await this.sleep(delayMs);
           this.schedule(id);
           return;
         }
