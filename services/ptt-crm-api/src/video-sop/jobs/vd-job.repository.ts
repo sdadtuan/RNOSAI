@@ -3,9 +3,16 @@ import { Pool } from 'pg';
 import { AppConfigService } from '../../config/app-config.service';
 import type { InsertVdJobInput, PatchVdJobInput, VdJobRow, VdJobStatus, VdQueue } from './vd-job.types';
 
+type ProviderRefRow = {
+  job_id: number;
+  provider_code: string;
+  provider_task_id: string;
+};
+
 type MemoryStore = {
   jobs: VdJobRow[];
   nextId: number;
+  providerRefs: ProviderRefRow[];
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -29,7 +36,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 export class VdJobRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
   private pgReady: boolean | null = null;
-  private readonly memory: MemoryStore = { jobs: [], nextId: 1 };
+  private readonly memory: MemoryStore = { jobs: [], nextId: 1, providerRefs: [] };
   last: VdJobRow = undefined as unknown as VdJobRow;
 
   constructor(private readonly config: AppConfigService) {}
@@ -238,5 +245,90 @@ export class VdJobRepository implements OnModuleDestroy {
     };
     this.memory.jobs[idx] = next;
     return this.remember(next);
+  }
+
+  private async findProviderRefByJobId(jobId: number): Promise<ProviderRefRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT job_id, provider_code, provider_task_id
+         FROM vd_job_provider_ref
+         WHERE job_id = $1
+         LIMIT 1`,
+        [jobId],
+      );
+      const row = res.rows[0] as Record<string, unknown> | undefined;
+      if (!row) return null;
+      return {
+        job_id: Number(row.job_id),
+        provider_code: String(row.provider_code),
+        provider_task_id: String(row.provider_task_id),
+      };
+    }
+    return this.memory.providerRefs.find((r) => r.job_id === jobId) ?? null;
+  }
+
+  async saveProviderRef(
+    jobId: number,
+    provider_code: string,
+    provider_task_id: string,
+  ): Promise<void> {
+    if (await this.ensurePgReady()) {
+      await this.db.query(
+        `INSERT INTO vd_job_provider_ref (job_id, provider_code, provider_task_id)
+         VALUES ($1, $2, $3)`,
+        [jobId, provider_code, provider_task_id],
+      );
+      return;
+    }
+    this.assertWritableOrThrow();
+    if (this.memory.providerRefs.some((r) => r.job_id === jobId)) {
+      throw Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
+    }
+    if (
+      this.memory.providerRefs.some(
+        (r) => r.provider_code === provider_code && r.provider_task_id === provider_task_id,
+      )
+    ) {
+      throw Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
+    }
+    this.memory.providerRefs.push({ job_id: jobId, provider_code, provider_task_id });
+  }
+
+  async findByProviderTask(
+    provider_code: string,
+    provider_task_id: string,
+  ): Promise<VdJobRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT j.id, j.project_id, j.shot_id, j.queue, j.job_type, j.status, j.error_class, j.attempt,
+                j.idempotency_key, j.input_json, j.output_json, j.created_at, j.updated_at
+         FROM vd_job_provider_ref r
+         JOIN vd_jobs j ON j.id = r.job_id
+         WHERE r.provider_code = $1 AND r.provider_task_id = $2
+         LIMIT 1`,
+        [provider_code, provider_task_id],
+      );
+      const row = res.rows[0] as Record<string, unknown> | undefined;
+      return row ? this.mapRow(row) : null;
+    }
+    const ref = this.memory.providerRefs.find(
+      (r) => r.provider_code === provider_code && r.provider_task_id === provider_task_id,
+    );
+    if (!ref) return null;
+    return this.memory.jobs.find((j) => j.id === ref.job_id) ?? null;
+  }
+
+  async rememberRefIfAbsent(
+    jobId: number,
+    provider_code: string,
+    submit: () => Promise<{ provider_task_id: string }>,
+  ): Promise<{ provider_task_id: string }> {
+    const existing = await this.findProviderRefByJobId(jobId);
+    if (existing) {
+      return { provider_task_id: existing.provider_task_id };
+    }
+    const result = await submit();
+    await this.saveProviderRef(jobId, provider_code, result.provider_task_id);
+    return { provider_task_id: result.provider_task_id };
   }
 }

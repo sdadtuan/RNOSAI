@@ -300,6 +300,14 @@ export class VdDispatcherService {
     this.handlers.set(jobType, handler);
   }
 
+  async submitProvider(
+    jobId: number,
+    provider_code: string,
+    submit: () => Promise<{ provider_task_id: string }>,
+  ): Promise<{ provider_task_id: string }> {
+    return this.jobs.rememberRefIfAbsent(jobId, provider_code, submit);
+  }
+
   async enqueue(input: EnqueueVdJobInput): Promise<VdJobRow> {
     const scoped = await this.jobs.findByIdempotencyKey(input.idempotencyKey, input.projectId);
     if (scoped) return scoped;

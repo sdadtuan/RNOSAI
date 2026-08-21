@@ -50,6 +50,32 @@ describe('VdDispatcherService', () => {
     expect(b.id).toBe(a.id);
   });
 
+  it('second provider submit for same job_id does not call adapter.submit again (CT-04)', async () => {
+    const job = await dispatcher.enqueue({
+      projectId: 1,
+      queue: 'q.video.runway',
+      jobType: 'cine_keyframe',
+      payload: {},
+      idempotencyKey: 'job-ct04',
+    });
+    const submit = jest.fn().mockResolvedValue({ provider_task_id: 'prov-1' });
+
+    const first = await dispatcher.submitProvider(job.id, 'runway', submit);
+    const again = await dispatcher.enqueue({
+      projectId: 1,
+      queue: 'q.video.runway',
+      jobType: 'cine_keyframe',
+      payload: {},
+      idempotencyKey: 'job-ct04',
+    });
+    const second = await dispatcher.submitProvider(again.id, 'runway', submit);
+
+    expect(again.id).toBe(job.id);
+    expect(first.provider_task_id).toBe('prov-1');
+    expect(second.provider_task_id).toBe('prov-1');
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
+
   it('retries transient up to 3 then failed', async () => {
     handler.mockRejectedValue(Object.assign(new Error('up'), { error_class: 'transient' }));
     const job = await dispatcher.enqueue({
