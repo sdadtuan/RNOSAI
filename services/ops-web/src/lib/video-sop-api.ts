@@ -572,6 +572,32 @@ export type VdModelRow = {
   created_at?: string;
 };
 
+/** SC-15: model_key is vd_models.code (ADR-L5-02). */
+export function vdModelKey(row: Pick<VdModelRow, 'code'>): string {
+  return row.code;
+}
+
+/** SC-15: verified_at from capability_json when object (or JSON string). */
+export function vdModelVerifiedAt(
+  capability_json: VdModelRow['capability_json'],
+): string {
+  let cap: unknown = capability_json;
+  if (typeof cap === 'string') {
+    const trimmed = cap.trim();
+    if (!trimmed) return '';
+    try {
+      cap = JSON.parse(trimmed) as unknown;
+    } catch {
+      return '';
+    }
+  }
+  if (!cap || typeof cap !== 'object' || Array.isArray(cap)) return '';
+  const value = (cap as Record<string, unknown>).verified_at;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return '';
+}
+
 function authHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}` };
 }
@@ -1127,6 +1153,8 @@ export const VIDEO_SOP_API = {
   createAdminProvider: createVdAdminProvider,
   listAdminModels: listVdAdminModels,
   createAdminModel: createVdAdminModel,
+  modelKey: vdModelKey,
+  modelVerifiedAt: vdModelVerifiedAt,
   getGate: getVdGate,
   approveGate: approveVdGate,
   rejectGate: rejectVdGate,

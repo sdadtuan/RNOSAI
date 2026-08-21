@@ -34,6 +34,8 @@ describe('VdDispatcherService', () => {
     handler = jest.fn().mockResolvedValue({});
     dispatcher = new VdDispatcherService(jobRepo, assetRepo);
     dispatcher.registerHandler('cine_keyframe', handler);
+    dispatcher.sleep = jest.fn(async () => undefined);
+    dispatcher.random = () => 0;
   });
 
   afterEach(() => {
@@ -50,6 +52,32 @@ describe('VdDispatcherService', () => {
     expect(b.id).toBe(a.id);
   });
 
+  it('second provider submit for same job_id does not call adapter.submit again (CT-04)', async () => {
+    const job = await dispatcher.enqueue({
+      projectId: 1,
+      queue: 'q.video.runway',
+      jobType: 'cine_keyframe',
+      payload: {},
+      idempotencyKey: 'job-ct04',
+    });
+    const submit = jest.fn().mockResolvedValue({ provider_task_id: 'prov-1' });
+
+    const first = await dispatcher.submitProvider(job.id, 'runway', submit);
+    const again = await dispatcher.enqueue({
+      projectId: 1,
+      queue: 'q.video.runway',
+      jobType: 'cine_keyframe',
+      payload: {},
+      idempotencyKey: 'job-ct04',
+    });
+    const second = await dispatcher.submitProvider(again.id, 'runway', submit);
+
+    expect(again.id).toBe(job.id);
+    expect(first.provider_task_id).toBe('prov-1');
+    expect(second.provider_task_id).toBe('prov-1');
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
+
   it('retries transient up to 3 then failed', async () => {
     handler.mockRejectedValue(Object.assign(new Error('up'), { error_class: 'transient' }));
     const job = await dispatcher.enqueue({
@@ -58,6 +86,95 @@ describe('VdDispatcherService', () => {
     await dispatcher.drainForTest(job.id);
     expect(jobRepo.last.status).toBe('failed');
     expect(jobRepo.last.attempt).toBe(3);
+  });
+
+  it('does not retry moderation — fails immediately', async () => {
+    handler.mockRejectedValue(Object.assign(new Error('blocked'), { error_class: 'moderation' }));
+    const job = await dispatcher.enqueue({
+      projectId: 1, queue: 'q.image', jobType: 'cine_keyframe', payload: {}, idempotencyKey: 'job-mod',
+    });
+    await dispatcher.drainForTest(job.id);
+    expect(jobRepo.last.status).toBe('failed');
+    expect(jobRepo.last.error_class).toBe('moderation');
+    expect(jobRepo.last.attempt).toBe(1);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(dispatcher.sleep).not.toHaveBeenCalled();
+  });
+
+  it('keeps not_ready as running and reschedules without failing', async () => {
+    const patches: Array<{ status?: string; error_class?: string | null }> = [];
+    const realUpdate = jobRepo.update.bind(jobRepo);
+    jest.spyOn(jobRepo, 'update').mockImplementation(async (id, patch) => {
+      patches.push({ status: patch.status, error_class: patch.error_class });
+      return realUpdate(id, patch);
+    });
+    handler
+      .mockRejectedValueOnce(Object.assign(new Error('wait'), { error_class: 'not_ready' }))
+      .mockResolvedValueOnce({});
+    const job = await dispatcher.enqueue({
+      projectId: 1, queue: 'q.image', jobType: 'cine_keyframe', payload: {}, idempotencyKey: 'job-nr',
+    });
+    await dispatcher.drainForTest(job.id);
+    expect(jobRepo.last.status).toBe('succeeded');
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect(
+      patches.some((p) => p.status === 'running' && p.error_class === 'not_ready'),
+    ).toBe(true);
+    expect(
+      patches.some((p) => p.status === 'failed' && p.error_class === 'not_ready'),
+    ).toBe(false);
+    expect(dispatcher.sleep).toHaveBeenCalled();
+    const sleepMs = (dispatcher.sleep as jest.Mock).mock.calls[0][0] as number;
+    expect(sleepMs).toBeGreaterThan(0);
+  });
+
+  it('stops polling persistently not_ready and lands terminal stale', async () => {
+    handler.mockRejectedValue(Object.assign(new Error('wait'), { error_class: 'not_ready' }));
+    const job = await dispatcher.enqueue({
+      projectId: 1, queue: 'q.image', jobType: 'cine_keyframe', payload: {}, idempotencyKey: 'job-nr-cap',
+    });
+    await dispatcher.drainForTest(job.id);
+    expect(jobRepo.last.status).toBe('stale');
+    expect(jobRepo.last.error_class).toBe('not_ready');
+    expect(jobRepo.last.attempt).toBe(3);
+    expect(handler).toHaveBeenCalledTimes(3);
+    expect(dispatcher.sleep).toHaveBeenCalled();
+    for (const [ms] of (dispatcher.sleep as jest.Mock).mock.calls) {
+      expect(ms).toBeGreaterThan(0);
+    }
+  });
+
+  it('sleeps exponential backoff on transient retry when random=0', async () => {
+    handler
+      .mockRejectedValueOnce(Object.assign(new Error('up'), { error_class: 'transient' }))
+      .mockResolvedValueOnce({});
+    const job = await dispatcher.enqueue({
+      projectId: 1, queue: 'q.image', jobType: 'cine_keyframe', payload: {}, idempotencyKey: 'job-backoff',
+    });
+    await dispatcher.drainForTest(job.id);
+    expect(dispatcher.sleep).toHaveBeenCalledWith(1000 * 2 ** 1);
+    expect(jobRepo.last.status).toBe('succeeded');
+  });
+
+  it('patches status submitted then running when submitProvider returns provider_task_id', async () => {
+    const statuses: string[] = [];
+    const realUpdate = jobRepo.update.bind(jobRepo);
+    jest.spyOn(jobRepo, 'update').mockImplementation(async (id, patch) => {
+      const row = await realUpdate(id, patch);
+      if (patch.status) statuses.push(patch.status);
+      return row;
+    });
+    const job = await dispatcher.enqueue({
+      projectId: 1,
+      queue: 'q.video.runway',
+      jobType: 'cine_keyframe',
+      payload: {},
+      idempotencyKey: 'job-submitted',
+    });
+    await dispatcher.submitProvider(job.id, 'runway', async () => ({ provider_task_id: 'prov-sub' }));
+    const submittedIdx = statuses.indexOf('submitted');
+    expect(submittedIdx).toBeGreaterThanOrEqual(0);
+    expect(statuses[submittedIdx + 1]).toBe('running');
   });
 
   it('marks job failed auth when handler throws Error(auth)', async () => {

@@ -17,9 +17,22 @@ import { nextPostNode, POST_DAG_NODES } from './vd-dag';
 import { selectImageGen, selectVideoGen } from './vd-model-router';
 
 const RETRYABLE = new Set(['transient', 'rate_limit']);
-const TERMINAL = new Set<VdJobStatus>(['succeeded', 'failed', 'cancelled', 'stale']);
+const TERMINAL = new Set<VdJobStatus>(['succeeded', 'failed', 'cancelled', 'stale', 'expired']);
 const MAX_ATTEMPTS = 3;
-const KNOWN_ERROR_CLASS = new Set(['auth', 'transient', 'rate_limit', 'validation', 'provider', 'unknown']);
+const KNOWN_ERROR_CLASS = new Set([
+  'auth',
+  'validation',
+  'budget',
+  'rate_limit',
+  'moderation',
+  'input_asset',
+  'capability',
+  'transient',
+  'timeout',
+  'not_ready',
+  'provider',
+  'unknown',
+]);
 
 function isUniqueViolation(err: unknown): boolean {
   return Boolean(err && typeof err === 'object' && (err as { code?: string }).code === '23505');
@@ -75,6 +88,13 @@ function videoInputFrom(payload: Record<string, unknown>): VdVideoGenInput {
 export class VdDispatcherService {
   private readonly handlers = new Map<string, VdJobHandler>();
   private readonly logger = new Logger(VdDispatcherService.name);
+
+  /** Injectable for tests — real backoff uses wall clock; specs mock to resolve immediately. */
+  sleep: (ms: number) => Promise<void> = (ms) =>
+    new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
+  random: () => number = Math.random;
 
   constructor(
     private readonly jobs: VdJobRepository,
@@ -287,6 +307,17 @@ export class VdDispatcherService {
     this.handlers.set(jobType, handler);
   }
 
+  async submitProvider(
+    jobId: number,
+    provider_code: string,
+    submit: () => Promise<{ provider_task_id: string }>,
+  ): Promise<{ provider_task_id: string }> {
+    const result = await this.jobs.rememberRefIfAbsent(jobId, provider_code, submit);
+    await this.jobs.update(jobId, { status: 'submitted' });
+    await this.jobs.update(jobId, { status: 'running' });
+    return result;
+  }
+
   async enqueue(input: EnqueueVdJobInput): Promise<VdJobRow> {
     const scoped = await this.jobs.findByIdempotencyKey(input.idempotencyKey, input.projectId);
     if (scoped) return scoped;
@@ -376,8 +407,33 @@ export class VdDispatcherService {
         });
       } catch (err) {
         const errorClass = errorClassOf(err);
+        if (errorClass === 'not_ready') {
+          if (attempt < MAX_ATTEMPTS) {
+            await this.jobs.update(id, {
+              status: 'running',
+              error_class: errorClass,
+              attempt,
+            });
+            const delayMs = 1000 * 2 ** attempt * (1 + this.random() * 0.5);
+            await this.sleep(delayMs);
+            this.schedule(id);
+            return;
+          }
+          await this.jobs.update(id, {
+            status: 'stale',
+            error_class: 'not_ready',
+            attempt,
+          });
+          return;
+        }
+        if (errorClass === 'moderation') {
+          await this.jobs.update(id, { status: 'failed', error_class: errorClass, attempt });
+          return;
+        }
         if (RETRYABLE.has(errorClass) && attempt < MAX_ATTEMPTS) {
           await this.jobs.update(id, { status: 'queued', error_class: errorClass, attempt });
+          const delayMs = 1000 * 2 ** attempt * (1 + this.random() * 0.5);
+          await this.sleep(delayMs);
           this.schedule(id);
           return;
         }
