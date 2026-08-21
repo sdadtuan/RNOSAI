@@ -11,8 +11,11 @@ export class VdWebhookService {
     event_id: string,
     headers: Record<string, string>,
     _body: unknown,
+    options?: { skipAuth?: boolean },
   ): Promise<{ duplicate: boolean }> {
-    this.assertAuthorized(headers);
+    if (!options?.skipAuth) {
+      this.assertAuthorized(headers);
+    }
 
     const result = await this.events.recordEvent(provider_code, event_id);
     return { duplicate: !result.inserted };

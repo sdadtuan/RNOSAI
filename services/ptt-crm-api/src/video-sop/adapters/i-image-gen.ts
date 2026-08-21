@@ -7,6 +7,12 @@ export type VdImageGenInput = {
   height: number;
   seed?: number;
   negativePrompt?: string;
+  route?: 'DIRECT' | 'VIA_V1_CONTROLNETS';
+  model?: string;
+  guidances?: {
+    character_id?: string;
+    character_strength?: 'LOW' | 'MEDIUM' | 'HIGH' | 'ULTRA' | 'MAX';
+  };
 };
 
 export type VdImageGenResult = {
@@ -14,6 +20,7 @@ export type VdImageGenResult = {
   provider: 'leonardo' | 'flux';
   providerId: string;
   seed: number;
+  request_snapshot?: { warnings?: string[] };
 };
 
 export type VdImageGenEnv = {

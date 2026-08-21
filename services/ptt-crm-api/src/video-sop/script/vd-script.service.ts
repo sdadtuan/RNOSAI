@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AppConfigService } from '../../config/app-config.service';
 import { VdGateService } from '../gate/vd-gate.service';
 import { parseIdeaSummaries, selectTextGen, STUB_IDEAS } from '../adapters/i-text-gen';
+import { parseVideoScript, type VideoScript } from '../adapters/video-script.schema';
 import { VdDispatcherService } from '../orchestration/vd-dispatcher.service';
 import type { VdScriptRow } from '../project/vd-project.repository';
 import { VdProjectRepository } from '../project/vd-project.repository';
@@ -126,6 +127,32 @@ export class VdScriptService {
   async applyDirectorResult(projectId: number, result: unknown): Promise<VdIdeaRow[]> {
     const summaries = parseIdeaSummaries(result);
     return this.ideas.replaceForProject(projectId, summaries);
+  }
+
+  parseStructuredScript(result: unknown): VideoScript {
+    return parseVideoScript(result);
+  }
+
+  async applyVideoScriptShots(scriptId: number, result: unknown): Promise<VdShotRow[]> {
+    const script = await this.requireScript(scriptId);
+    const parsed = parseVideoScript(result);
+    const drafts: VdShotDraft[] = parsed.shots.map((shot) => ({
+      duration_ms: Math.max(1, Math.round(shot.duration_sec * 1000)),
+      text_in_frame: Boolean(shot.onscreen_text.trim()),
+      contains_human: shot.risk_flags.includes('human'),
+      aspect: '',
+      camera: shot.camera,
+      action: shot.motion_prompt || shot.scene_desc,
+      logo_in_ai_frame: shot.risk_flags.includes('logo'),
+      seed: null,
+      status: 'draft',
+    }));
+    const brief = await this.projects.getBrief(script.project_id);
+    assertFeasibilityPass(projectFromBrief(brief), drafts);
+    return this.shots.replaceForScript(
+      scriptId,
+      drafts.map((draft) => toInsertInput(scriptId, draft)),
+    );
   }
 
   async generateIdeas(
