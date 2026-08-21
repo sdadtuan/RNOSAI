@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AppConfigService } from '../../config/app-config.service';
 import type { IVideoGen, VdVideoProvider } from '../adapters/i-video-gen';
-import { selectVideoGen, videoQueueForProvider } from '../orchestration/vd-model-router';
+import { selectVideoGen, videoQueueForProvider, modelKeyForIntent, providerHintForIntent } from '../orchestration/vd-model-router';
 import { VdAssetRepository } from '../assets/vd-asset.repository';
 import { VdDispatcherService } from '../orchestration/vd-dispatcher.service';
 import { VdProjectRepository } from '../project/vd-project.repository';
@@ -45,6 +45,7 @@ export class VdMotionService {
     return {
       PTT_VD_KLING_API_KEY: (process.env.PTT_VD_KLING_API_KEY ?? '').trim(),
       PTT_VD_RUNWAY_API_KEY: (process.env.PTT_VD_RUNWAY_API_KEY ?? '').trim(),
+      PTT_VD_LEONARDO_API_KEY: (process.env.PTT_VD_LEONARDO_API_KEY ?? '').trim(),
     };
   }
 
@@ -112,8 +113,8 @@ export class VdMotionService {
     }
 
     const projectId = await this.projectIdForShot(shot);
-    const hint = body.provider === 'runway' ? 'runway' : body.provider === 'kling' ? 'kling' : undefined;
-    const gen = this.selectVideoGen(hint);
+    const intent = 'DRAFT' as const;
+    const gen = this.selectVideoGen(providerHintForIntent(intent));
     const queue = videoQueueForProvider(gen.providerName);
 
     const keyframes = await this.assets.listKeyframesByProjectId(projectId, 20);
@@ -135,6 +136,8 @@ export class VdMotionService {
         imageUrl,
         prompt,
         durationSec,
+        intent,
+        model_key: modelKeyForIntent(intent),
         providerHint: gen.providerName,
         credit_estimate: this.creditEstimateForShot(shot, 'cine_motion_draft'),
       },
@@ -156,7 +159,8 @@ export class VdMotionService {
     if (!hasPassed) throw new Error('take_draft_required');
 
     const projectId = await this.projectIdForShot(shot);
-    const gen = this.selectVideoGen();
+    const intent = 'FINAL' as const;
+    const gen = this.selectVideoGen(providerHintForIntent(intent));
     const queue = videoQueueForProvider(gen.providerName);
     const keyframes = await this.assets.listKeyframesByProjectId(projectId, 20);
     const imageUrl = keyframes[0]?.url || keyframes[0]?.storage_key || `shot://${shotId}`;
@@ -170,6 +174,8 @@ export class VdMotionService {
         imageUrl,
         prompt: shot.action,
         durationSec: Math.max(1, Math.ceil(shot.duration_ms / 1000)),
+        intent,
+        model_key: modelKeyForIntent(intent),
         providerHint: gen.providerName,
         credit_estimate: this.creditEstimateForShot(shot, 'cine_motion_final'),
       },

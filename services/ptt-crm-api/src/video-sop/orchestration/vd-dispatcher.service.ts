@@ -14,7 +14,8 @@ import { VdShotRepository } from '../script/vd-shot.repository';
 import { VdPromptRepository } from '../prompt/vd-prompt.repository';
 import { evaluateGate4Auto } from '../rules/vd-qc-auto';
 import { nextPostNode, POST_DAG_NODES } from './vd-dag';
-import { selectImageGen, selectVideoGen } from './vd-model-router';
+import { selectImageGen, selectVideoGen, modelKeyForIntent, providerHintForIntent } from './vd-model-router';
+import { pollSecFor, jitteredPollDelayMs } from './vd-poller.service';
 
 const RETRYABLE = new Set(['transient', 'rate_limit']);
 const TERMINAL = new Set<VdJobStatus>(['succeeded', 'failed', 'cancelled', 'stale', 'expired']);
@@ -68,11 +69,15 @@ function imageInputFrom(payload: Record<string, unknown>): VdImageGenInput {
   };
 }
 
-function videoInputFrom(payload: Record<string, unknown>): VdVideoGenInput {
+function videoInputFrom(payload: Record<string, unknown>, intent: 'DRAFT' | 'FINAL'): VdVideoGenInput {
   const durationSec = Number(payload.durationSec);
   const hintRaw = payload.providerHint;
   const providerHint =
-    hintRaw === 'runway' || hintRaw === 'kling' ? (hintRaw as VdVideoProvider) : undefined;
+    hintRaw === 'runway' || hintRaw === 'kling' ? (hintRaw as VdVideoProvider) : providerHintForIntent(intent);
+  const model_key =
+    typeof payload.model_key === 'string' && payload.model_key.trim()
+      ? payload.model_key.trim()
+      : modelKeyForIntent(intent);
   return {
     imageUrl:
       typeof payload.imageUrl === 'string' && payload.imageUrl.trim()
@@ -80,7 +85,12 @@ function videoInputFrom(payload: Record<string, unknown>): VdVideoGenInput {
         : 'shot://unknown',
     prompt: typeof payload.prompt === 'string' ? payload.prompt : '',
     durationSec: Number.isFinite(durationSec) && durationSec > 0 ? Math.floor(durationSec) : 5,
-    ...(providerHint ? { providerHint } : {}),
+    providerHint,
+    model_key,
+    intent,
+    ...(typeof payload.aspect_ratio === 'string' ? { aspect_ratio: payload.aspect_ratio } : {}),
+    ...(typeof payload.resolution_tier === 'string' ? { resolution_tier: payload.resolution_tier } : {}),
+    ...(payload.audio_enabled === true ? { audio_enabled: true } : {}),
   };
 }
 
@@ -181,16 +191,22 @@ export class VdDispatcherService {
   }
 
   private async handleCineMotion(job: VdJobRow): Promise<Record<string, unknown>> {
-    const gen = selectVideoGen({
-      PTT_VD_KLING_API_KEY: (process.env.PTT_VD_KLING_API_KEY ?? '').trim(),
-      PTT_VD_RUNWAY_API_KEY: (process.env.PTT_VD_RUNWAY_API_KEY ?? '').trim(),
-    }, videoInputFrom(job.input_json).providerHint);
+    const intent = job.job_type === 'cine_motion_final' ? 'FINAL' : 'DRAFT';
+    const hint = providerHintForIntent(intent);
+    const gen = selectVideoGen(
+      {
+        PTT_VD_KLING_API_KEY: (process.env.PTT_VD_KLING_API_KEY ?? '').trim(),
+        PTT_VD_RUNWAY_API_KEY: (process.env.PTT_VD_RUNWAY_API_KEY ?? '').trim(),
+        PTT_VD_LEONARDO_API_KEY: (process.env.PTT_VD_LEONARDO_API_KEY ?? '').trim(),
+      },
+      hint,
+    );
 
-    const input = videoInputFrom(job.input_json);
+    const input = videoInputFrom(job.input_json, intent);
     const enqueued = await gen.enqueue(input);
     const polled = await gen.poll(enqueued.providerJobId);
     if (polled === 'running') {
-      throw Object.assign(new Error('transient'), { error_class: 'transient' });
+      throw Object.assign(new Error('not_ready'), { error_class: 'not_ready' });
     }
     if (!polled?.buffer || !Buffer.isBuffer(polled.buffer) || polled.buffer.length === 0) {
       throw Object.assign(new Error('empty_video_buffer'), { error_class: 'provider' });
@@ -414,7 +430,12 @@ export class VdDispatcherService {
               error_class: errorClass,
               attempt,
             });
-            const delayMs = 1000 * 2 ** attempt * (1 + this.random() * 0.5);
+            const modelKey =
+              typeof job.input_json.model_key === 'string'
+                ? job.input_json.model_key
+                : modelKeyForIntent(job.job_type === 'cine_motion_final' ? 'FINAL' : 'DRAFT');
+            const pollSec = pollSecFor(modelKey);
+            const delayMs = jitteredPollDelayMs(pollSec, () => this.random());
             await this.sleep(delayMs);
             this.schedule(id);
             return;
