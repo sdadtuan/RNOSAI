@@ -10,17 +10,25 @@ export type VdQueue =
 export type VdJobStatus =
   | 'created'
   | 'queued'
+  | 'submitted'
   | 'running'
   | 'succeeded'
   | 'failed'
   | 'cancelled'
-  | 'stale';
+  | 'stale'
+  | 'expired';
 
 export type VdErrorClass =
   | 'auth'
-  | 'transient'
-  | 'rate_limit'
   | 'validation'
+  | 'budget'
+  | 'rate_limit'
+  | 'moderation'
+  | 'input_asset'
+  | 'capability'
+  | 'transient'
+  | 'timeout'
+  | 'not_ready'
   | 'provider'
   | 'unknown';
 

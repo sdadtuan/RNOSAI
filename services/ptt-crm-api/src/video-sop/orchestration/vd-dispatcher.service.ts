@@ -19,7 +19,20 @@ import { selectImageGen, selectVideoGen } from './vd-model-router';
 const RETRYABLE = new Set(['transient', 'rate_limit']);
 const TERMINAL = new Set<VdJobStatus>(['succeeded', 'failed', 'cancelled', 'stale']);
 const MAX_ATTEMPTS = 3;
-const KNOWN_ERROR_CLASS = new Set(['auth', 'transient', 'rate_limit', 'validation', 'provider', 'unknown']);
+const KNOWN_ERROR_CLASS = new Set([
+  'auth',
+  'validation',
+  'budget',
+  'rate_limit',
+  'moderation',
+  'input_asset',
+  'capability',
+  'transient',
+  'timeout',
+  'not_ready',
+  'provider',
+  'unknown',
+]);
 
 function isUniqueViolation(err: unknown): boolean {
   return Boolean(err && typeof err === 'object' && (err as { code?: string }).code === '23505');
