@@ -24,6 +24,7 @@ import { VdJobHttpService } from './jobs/vd-job-http.service';
 import { VdJobRepository } from './jobs/vd-job.repository';
 import { VdDispatcherService } from './orchestration/vd-dispatcher.service';
 import { VdPollerService } from './orchestration/vd-poller.service';
+import { VdWebhookController } from './orchestration/vd-webhook.controller';
 import { VdWebhookEventRepository } from './orchestration/vd-webhook-event.repository';
 import { VdWebhookService } from './orchestration/vd-webhook.service';
 import { VdCostController } from './cost/vd-cost.controller';
@@ -82,6 +83,7 @@ import { VdShotRepository } from './script/vd-shot.repository';
     VdReviewController,
     VdPublicReviewController,
     VdReportController,
+    VdWebhookController,
   ],
   providers: [
     VdProjectRepository,

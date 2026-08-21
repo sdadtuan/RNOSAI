@@ -8,7 +8,11 @@ export const STUB_IDEAS = [
 
 export interface ITextGen {
   readonly providerName: 'openai' | 'stub';
-  complete(input: { system: string; user: string }): Promise<unknown>;
+  complete(input: {
+    system: string;
+    user: string;
+    mode?: 'ideas' | 'video_script';
+  }): Promise<unknown>;
 }
 
 export type VdIdeaRow = {
@@ -22,7 +26,11 @@ export type VdIdeaRow = {
 class StubTextGen implements ITextGen {
   readonly providerName = 'stub' as const;
 
-  complete(_input: { system: string; user: string }): Promise<unknown> {
+  complete(_input: {
+    system: string;
+    user: string;
+    mode?: 'ideas' | 'video_script';
+  }): Promise<unknown> {
     return Promise.resolve({
       ideas: [
         { summary: STUB_IDEAS[0] },
