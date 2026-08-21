@@ -1,13 +1,28 @@
 import {
+  modelKeyForIntent,
+  providerHintForIntent,
   selectVideoGen,
   videoQueueForProvider,
   type VdVideoGenEnv,
 } from './i-video-gen';
 
+describe('modelKeyForIntent', () => {
+  it('maps DRAFT to gen4 turbo draft', () => {
+    expect(modelKeyForIntent('DRAFT')).toBe('video.runway.gen4_turbo_draft');
+    expect(providerHintForIntent('DRAFT')).toBe('runway');
+  });
+
+  it('maps FINAL to kling v3 pro', () => {
+    expect(modelKeyForIntent('FINAL')).toBe('video.kling.v3.pro');
+    expect(providerHintForIntent('FINAL')).toBe('kling');
+  });
+});
+
 describe('selectVideoGen', () => {
   const env: VdVideoGenEnv = {
     PTT_VD_KLING_API_KEY: 'kling-key',
     PTT_VD_RUNWAY_API_KEY: 'runway-key',
+    PTT_VD_LEONARDO_API_KEY: 'leonardo-key',
   };
 
   it('selects runway queue when hint is runway', () => {
