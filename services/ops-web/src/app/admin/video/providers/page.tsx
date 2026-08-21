@@ -9,6 +9,8 @@ import {
   createVdAdminProvider,
   listVdAdminModels,
   listVdAdminProviders,
+  vdModelKey,
+  vdModelVerifiedAt,
   type VdModelRow,
   type VdProviderRow,
 } from '@/lib/video-sop-api';
@@ -199,6 +201,8 @@ export default function AdminVideoProvidersPage() {
                 <tr>
                   <th>provider</th>
                   <th>code</th>
+                  <th>model_key</th>
+                  <th>verified_at</th>
                   <th>capability_json</th>
                 </tr>
               </thead>
@@ -207,6 +211,8 @@ export default function AdminVideoProvidersPage() {
                   <tr key={row.id ?? `${row.provider}:${row.code}`}>
                     <td>{row.provider}</td>
                     <td>{row.code}</td>
+                    <td>{vdModelKey(row)}</td>
+                    <td>{vdModelVerifiedAt(row.capability_json)}</td>
                     <td className="muted">{capabilityText(row.capability_json)}</td>
                   </tr>
                 ))}

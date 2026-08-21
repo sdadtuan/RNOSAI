@@ -16,6 +16,8 @@ import {
   saveVdScript,
   vdAdminModelsPath,
   vdAdminProvidersPath,
+  vdModelKey,
+  vdModelVerifiedAt,
   vdProjectBibleCharactersPath,
   vdProjectBibleStylePath,
   vdProjectBriefInsightsPath,
@@ -70,6 +72,19 @@ describe('video-sop-api path helpers', () => {
 
   it('vdAdminModelsPath is admin collection', () => {
     expect(vdAdminModelsPath()).toBe('/api/v1/vd/admin/models');
+  });
+
+  it('vdModelKey equals row.code', () => {
+    expect(vdModelKey({ code: 'video.kling.v3.pro' })).toBe('video.kling.v3.pro');
+  });
+
+  it('vdModelVerifiedAt reads capability_json.verified_at', () => {
+    expect(vdModelVerifiedAt({ verified_at: '2026-08-20', route: 'VIA_LEONARDO' })).toBe(
+      '2026-08-20',
+    );
+    expect(vdModelVerifiedAt('{"verified_at":"2026-08-20"}')).toBe('2026-08-20');
+    expect(vdModelVerifiedAt({})).toBe('');
+    expect(vdModelVerifiedAt('not-json')).toBe('');
   });
 
   it('vdProjectBriefPath interpolates id', () => {
