@@ -58,4 +58,54 @@ describe('VdJobRepository provider ref (CT-04)', () => {
     const found = await repo.findByProviderTask('runway', 'task-new');
     expect(found?.id).toBe(job.id);
   });
+
+  it('saveProviderRef keeps first ref when job_id already has one', async () => {
+    const repo = makeRepo();
+    const job = await repo.insert({
+      project_id: 1,
+      shot_id: null,
+      queue: 'q.image',
+      job_type: 'cine_keyframe',
+      status: 'queued',
+      idempotency_key: 'ref-c',
+      input_json: {},
+    });
+
+    await repo.saveProviderRef(job.id, 'leonardo', 'task-first');
+    await expect(repo.saveProviderRef(job.id, 'leonardo', 'task-second')).resolves.toBeUndefined();
+    const found = await repo.findByProviderTask('leonardo', 'task-first');
+    expect(found?.id).toBe(job.id);
+    expect(await repo.findByProviderTask('leonardo', 'task-second')).toBeNull();
+  });
+
+  it('rememberRefIfAbsent returns existing ref after unique violation', async () => {
+    const repo = makeRepo();
+    const job = await repo.insert({
+      project_id: 1,
+      shot_id: null,
+      queue: 'q.video.runway',
+      job_type: 'cine_motion_draft',
+      status: 'queued',
+      idempotency_key: 'ref-d',
+      input_json: {},
+    });
+
+    await repo.saveProviderRef(job.id, 'runway', 'task-winner');
+    jest
+      .spyOn(repo as unknown as { findProviderRefByJobId: (id: number) => Promise<unknown> }, 'findProviderRefByJobId')
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue({
+        job_id: job.id,
+        provider_code: 'runway',
+        provider_task_id: 'task-winner',
+      });
+    jest.spyOn(repo, 'saveProviderRef').mockRejectedValue(
+      Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' }),
+    );
+
+    const submit = jest.fn().mockResolvedValue({ provider_task_id: 'task-loser' });
+    const result = await repo.rememberRefIfAbsent(job.id, 'runway', submit);
+    expect(result.provider_task_id).toBe('task-winner');
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
 });

@@ -32,6 +32,10 @@ function asRecord(value: unknown): Record<string, unknown> {
   return {};
 }
 
+function isUniqueViolation(err: unknown): boolean {
+  return Boolean(err && typeof err === 'object' && (err as { code?: string }).code === '23505');
+}
+
 @Injectable()
 export class VdJobRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
@@ -273,16 +277,21 @@ export class VdJobRepository implements OnModuleDestroy {
     provider_task_id: string,
   ): Promise<void> {
     if (await this.ensurePgReady()) {
-      await this.db.query(
+      const res = await this.db.query(
         `INSERT INTO vd_job_provider_ref (job_id, provider_code, provider_task_id)
-         VALUES ($1, $2, $3)`,
+         VALUES ($1, $2, $3)
+         ON CONFLICT (job_id) DO NOTHING
+         RETURNING job_id, provider_code, provider_task_id`,
         [jobId, provider_code, provider_task_id],
       );
+      if (!res.rows[0]) {
+        await this.findProviderRefByJobId(jobId);
+      }
       return;
     }
     this.assertWritableOrThrow();
     if (this.memory.providerRefs.some((r) => r.job_id === jobId)) {
-      throw Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
+      return;
     }
     if (
       this.memory.providerRefs.some(
@@ -328,7 +337,17 @@ export class VdJobRepository implements OnModuleDestroy {
       return { provider_task_id: existing.provider_task_id };
     }
     const result = await submit();
-    await this.saveProviderRef(jobId, provider_code, result.provider_task_id);
+    try {
+      await this.saveProviderRef(jobId, provider_code, result.provider_task_id);
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        const raced = await this.findProviderRefByJobId(jobId);
+        if (raced) return { provider_task_id: raced.provider_task_id };
+      }
+      throw err;
+    }
+    const stored = await this.findProviderRefByJobId(jobId);
+    if (stored) return { provider_task_id: stored.provider_task_id };
     return { provider_task_id: result.provider_task_id };
   }
 }

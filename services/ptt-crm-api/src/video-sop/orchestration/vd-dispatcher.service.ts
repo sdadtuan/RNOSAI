@@ -17,7 +17,7 @@ import { nextPostNode, POST_DAG_NODES } from './vd-dag';
 import { selectImageGen, selectVideoGen } from './vd-model-router';
 
 const RETRYABLE = new Set(['transient', 'rate_limit']);
-const TERMINAL = new Set<VdJobStatus>(['succeeded', 'failed', 'cancelled', 'stale']);
+const TERMINAL = new Set<VdJobStatus>(['succeeded', 'failed', 'cancelled', 'stale', 'expired']);
 const MAX_ATTEMPTS = 3;
 const KNOWN_ERROR_CLASS = new Set([
   'auth',
@@ -408,13 +408,22 @@ export class VdDispatcherService {
       } catch (err) {
         const errorClass = errorClassOf(err);
         if (errorClass === 'not_ready') {
-          const cappedAttempt = Math.min(attempt, MAX_ATTEMPTS);
+          if (attempt < MAX_ATTEMPTS) {
+            await this.jobs.update(id, {
+              status: 'running',
+              error_class: errorClass,
+              attempt,
+            });
+            const delayMs = 1000 * 2 ** attempt * (1 + this.random() * 0.5);
+            await this.sleep(delayMs);
+            this.schedule(id);
+            return;
+          }
           await this.jobs.update(id, {
-            status: 'running',
-            error_class: errorClass,
-            attempt: cappedAttempt,
+            status: 'stale',
+            error_class: 'not_ready',
+            attempt,
           });
-          this.schedule(id);
           return;
         }
         if (errorClass === 'moderation') {

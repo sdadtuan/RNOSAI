@@ -42,14 +42,6 @@ describe('VdDispatcherService', () => {
     jest.restoreAllMocks();
   });
 
-  async function flushMicrotasks(times = 8): Promise<void> {
-    for (let i = 0; i < times; i += 1) {
-      await new Promise<void>((resolve) => {
-        setImmediate(resolve);
-      });
-    }
-  }
-
   it('returns existing row when idempotency_key repeats', async () => {
     const a = await dispatcher.enqueue({
       projectId: 1, queue: 'q.image', jobType: 'cine_keyframe', payload: {}, idempotencyKey: 'job-aaa',
@@ -131,22 +123,25 @@ describe('VdDispatcherService', () => {
     expect(
       patches.some((p) => p.status === 'failed' && p.error_class === 'not_ready'),
     ).toBe(false);
+    expect(dispatcher.sleep).toHaveBeenCalled();
+    const sleepMs = (dispatcher.sleep as jest.Mock).mock.calls[0][0] as number;
+    expect(sleepMs).toBeGreaterThan(0);
   });
 
-  it('caps not_ready attempt at MAX and never marks failed', async () => {
+  it('stops polling persistently not_ready and lands terminal stale', async () => {
     handler.mockRejectedValue(Object.assign(new Error('wait'), { error_class: 'not_ready' }));
     const job = await dispatcher.enqueue({
       projectId: 1, queue: 'q.image', jobType: 'cine_keyframe', payload: {}, idempotencyKey: 'job-nr-cap',
     });
-    await flushMicrotasks(24);
-    const row = await jobRepo.getById(job.id);
-    expect(row?.status).toBe('running');
-    expect(row?.error_class).toBe('not_ready');
-    expect(row?.attempt).toBe(3);
-    expect(row?.status).not.toBe('failed');
-    handler.mockResolvedValue({});
     await dispatcher.drainForTest(job.id);
-    expect(jobRepo.last.status).toBe('succeeded');
+    expect(jobRepo.last.status).toBe('stale');
+    expect(jobRepo.last.error_class).toBe('not_ready');
+    expect(jobRepo.last.attempt).toBe(3);
+    expect(handler).toHaveBeenCalledTimes(3);
+    expect(dispatcher.sleep).toHaveBeenCalled();
+    for (const [ms] of (dispatcher.sleep as jest.Mock).mock.calls) {
+      expect(ms).toBeGreaterThan(0);
+    }
   });
 
   it('sleeps exponential backoff on transient retry when random=0', async () => {
