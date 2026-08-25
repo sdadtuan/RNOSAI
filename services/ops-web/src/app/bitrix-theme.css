@@ -13,6 +13,8 @@ html.ops-shell-bitrix body {
 html.ops-shell-bitrix {
   --forest: #0d3a22;
   --ptt: #17692f;
+  --ptt-deep: #114d24;
+  --ptt-soft: #4a7c5c;
   --leaf: #2a7a3d;
   --cream: #f3efe6;
   --paper: #fffdf8;
@@ -52,78 +54,172 @@ html.ops-shell-bitrix {
   --bitrix-stage-lost: #8a918c;
 }
 
-/* —— Sidebar (Bitrix left menu) —— */
+/* —— Sidebar (Bitrix glass + sage) —— */
 html.ops-shell-bitrix .ops-sidebar {
-  background: var(--surface-soft);
-  border-right: 1px solid var(--border);
+  color: #f6f3ec;
+  border-right: 0;
   box-shadow: none;
+  background:
+    radial-gradient(circle at 12% -8%, rgba(243, 239, 230, 0.38), transparent 42%),
+    radial-gradient(circle at 100% 100%, rgba(17, 77, 36, 0.28), transparent 46%),
+    linear-gradient(168deg, #5c8a6c 0%, #4a7c5c 46%, #3a6850 100%);
 }
 
 html.ops-shell-bitrix .ops-sidebar-brand {
-  padding: 0.85rem 0.75rem;
-  border-bottom: 1px solid var(--border);
+  padding: 0.7rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   min-height: var(--topbar-height);
+  gap: 0.65rem;
+}
+
+html.ops-shell-bitrix .ops-sidebar-burger {
+  display: grid;
+  gap: 3.5px;
+  width: 20px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+html.ops-shell-bitrix .ops-sidebar-burger i {
+  display: block;
+  height: 1.5px;
+  background: #fff;
+  border-radius: 2px;
 }
 
 html.ops-shell-bitrix .ops-sidebar-brand-mark {
-  border-radius: 8px;
-  width: 2.25rem;
-  height: 2.25rem;
-  font-size: 0.72rem;
-  background: var(--primary);
+  display: none;
 }
 
 html.ops-shell-bitrix .ops-sidebar-brand strong {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  color: var(--text-strong);
+  color: #f6f3ec;
 }
 
 html.ops-shell-bitrix .ops-sidebar-brand span {
-  font-size: 0.7rem;
-  color: var(--muted);
+  font-size: 0.68rem;
+  color: rgba(246, 243, 236, 0.7);
+}
+
+html.ops-shell-bitrix .ops-sidebar-nav {
+  padding: 0.55rem 0.5rem 1rem;
+}
+
+html.ops-shell-bitrix .ops-nav-group + .ops-nav-group {
+  margin-top: 0.45rem;
+  padding-top: 0;
+  border-top: 0;
+}
+
+html.ops-shell-bitrix .ops-nav-group--boxed {
+  margin-top: 0.65rem;
+  padding: 0.35rem;
+  border-radius: 16px;
+  background: rgba(17, 77, 36, 0.22);
+}
+
+html.ops-shell-bitrix .ops-nav-group-header {
+  color: rgba(246, 243, 236, 0.78);
+}
+
+html.ops-shell-bitrix .ops-nav-group-header:hover,
+html.ops-shell-bitrix .ops-nav-group.has-active .ops-nav-group-header {
+  color: #fff;
+}
+
+html.ops-shell-bitrix .ops-nav-group-icon,
+html.ops-shell-bitrix .ops-nav-link-icon,
+html.ops-shell-bitrix .ops-nav-rail-btn,
+html.ops-shell-bitrix .ops-sidebar-toggle {
+  color: #fff;
+}
+
+html.ops-shell-bitrix .ops-nav-group:not(.ops-nav-group--boxed) .ops-nav-group-header {
+  display: none;
+}
+
+html.ops-shell-bitrix .ops-sidebar-brand-text span {
+  display: none;
 }
 
 html.ops-shell-bitrix .ops-nav-group-label {
-  color: var(--muted);
-  font-size: 0.65rem;
-  letter-spacing: 0.04em;
+  color: inherit;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
 }
 
-html.ops-shell-bitrix .ops-nav-link {
-  border-radius: 0;
-  border-left: 3px solid transparent;
-  padding: 0.5rem 0.65rem 0.5rem 0.55rem;
-  font-size: 0.8125rem;
+html.ops-shell-bitrix .ops-nav-link,
+html.ops-shell-bitrix .ops-nav-link--text {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 12px;
+  border: 0;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.84rem;
+  color: #f6f3ec;
+  background: transparent;
 }
 
 html.ops-shell-bitrix .ops-nav-link:hover {
-  background: var(--surface-soft);
+  background: rgba(255, 255, 255, 0.14);
   border-color: transparent;
-  border-left-color: transparent;
+  transform: none;
 }
 
 html.ops-shell-bitrix .ops-nav-link.is-active {
-  background: var(--accent-hover);
+  background: rgba(255, 255, 255, 0.24);
   border-color: transparent;
-  border-left-color: var(--primary);
-  color: var(--primary-800);
+  color: #fff;
   font-weight: 600;
 }
 
+html.ops-shell-bitrix .ops-nav-link.is-active .ops-nav-link-icon {
+  color: #fff;
+}
+
+html.ops-shell-bitrix .ops-sidebar-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+html.ops-shell-bitrix .ops-sidebar-toggle {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
 html.ops-shell-bitrix .ops-nav-rail-btn {
-  border-radius: 8px;
+  border-radius: 10px;
+  color: #fff;
 }
 
 html.ops-shell-bitrix .ops-nav-rail-item.is-active .ops-nav-rail-btn {
-  background: var(--accent-hover);
-  color: var(--primary);
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
 }
 
 html.ops-shell-bitrix .ops-nav-drawer {
   background: var(--paper);
   border-right: 1px solid var(--border);
   box-shadow: 4px 0 24px rgba(13, 58, 34, 0.08);
+}
+
+html.ops-shell-bitrix .ops-sidebar--rail .ops-sidebar-burger {
+  display: none;
+}
+
+html.ops-shell-bitrix .ops-sidebar--rail .ops-sidebar-brand-mark {
+  display: grid;
+  background: #fff;
+  color: var(--ptt);
+  width: 2rem;
+  height: 2rem;
+  font-size: 0.62rem;
 }
 
 /* —— Topbar —— */
@@ -325,7 +421,7 @@ html.ops-shell-bitrix button.btn {
 
 html.ops-shell-bitrix .btn:hover,
 html.ops-shell-bitrix .btn-primary:hover {
-  background: var(--forest);
+  background: var(--ptt-deep);
   color: #fff;
 }
 
@@ -790,8 +886,10 @@ html.ops-shell-bitrix .login-page {
 }
 
 html.ops-shell-bitrix .login-brand {
-  background: var(--forest);
-  color: #f3efe6;
+  background:
+    radial-gradient(circle at 18% 16%, rgba(23, 105, 47, 0.12), transparent 42%),
+    linear-gradient(165deg, #e9efe6, #f3efe6 72%);
+  color: #1c221d;
   padding: 3.5rem 2.75rem;
   display: flex;
   flex-direction: column;
@@ -818,7 +916,7 @@ html.ops-shell-bitrix .login-brand__title {
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.03em;
-  color: #fffdf8;
+  color: #1c221d;
   max-width: 14ch;
 }
 
@@ -827,13 +925,13 @@ html.ops-shell-bitrix .login-brand__lead {
   max-width: 36ch;
   font-size: 0.95rem;
   line-height: 1.5;
-  color: #c9d6cc;
+  color: #4a544c;
 }
 
 html.ops-shell-bitrix .login-brand__foot {
   margin: 1.5rem 0 0;
   font-size: 0.75rem;
-  color: #9db5a4;
+  color: #5a675e;
 }
 
 html.ops-shell-bitrix .login-page > .login-card,
@@ -854,12 +952,12 @@ html.ops-shell-bitrix .login-card {
 html.ops-shell-bitrix .canopy-next-action {
   margin: 0;
   padding: 0.4rem 1.25rem;
-  background: var(--mist);
-  color: var(--forest);
+  background: #eef2ea;
+  color: var(--ptt);
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1.35;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid #d8e0d4;
 }
 
 html.ops-shell-bitrix body:has(.canopy-next-action) .lead-detail-tabs {

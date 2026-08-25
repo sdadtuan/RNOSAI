@@ -589,6 +589,11 @@ function sectionHasActive(pathname: string, section: NavSection): boolean {
   return section.links.some((link) => isActive(pathname, link.href));
 }
 
+function isBoxedNavSection(fullLabel: string): boolean {
+  const short = sectionShortLabel(fullLabel);
+  return short !== 'Bán hàng' && short !== 'Tổng quan';
+}
+
 function userInitials(user: StoredStaffUser | null): string {
   const name = user?.display_name?.trim() || user?.email?.trim() || '?';
   const parts = name.split(/\s+/).filter(Boolean);
@@ -683,6 +688,14 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
         aria-label="Điều hướng chính"
       >
         <div className="ops-sidebar-brand">
+          <button
+            type="button"
+            className="ops-sidebar-burger"
+            onClick={toggleSidebar}
+            aria-label={sidebarExpanded ? 'Thu gọn menu' : 'Mở rộng menu'}
+          >
+            <i /><i /><i />
+          </button>
           <span className="ops-sidebar-brand-mark">PTT</span>
           <div className="ops-sidebar-brand-text">
             <strong>PTT CRM</strong>
@@ -696,7 +709,7 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
               return (
                 <div
                   key={section.label}
-                  className={`ops-nav-group is-open${sectionHasActive(pathname, section) ? ' has-active' : ''}`}
+                  className={`ops-nav-group is-open${isBoxedNavSection(section.label) ? ' ops-nav-group--boxed' : ''}${sectionHasActive(pathname, section) ? ' has-active' : ''}`}
                 >
                   <div className="ops-nav-group-header ops-nav-group-header--static">
                     <span className="ops-nav-group-icon">
@@ -712,7 +725,10 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
                         className={`ops-nav-link ops-nav-link--text ops-nav-link--button${isActive(pathname, link.href) ? ' is-active' : ''}`}
                         onClick={() => navigateTo(link.href)}
                       >
-                        {link.label}
+                        <span className="ops-nav-link-icon">
+                          <NavIcon name={iconForHref(link.href)} />
+                        </span>
+                        <span>{link.label}</span>
                       </button>
                     ))}
                   </div>
