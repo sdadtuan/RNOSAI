@@ -14,6 +14,34 @@ VPS_USER="${PTT_VPS_USER:-deploy}"
 VPS_ROOT="${PTT_VPS_ROOT:-/var/www/rnosai}"
 APPLY="${APPLY:-0}"
 
+sync_to_vps() {
+  echo "== Rsync sources to ${VPS_USER}@${VPS_HOST} =="
+  rsync -av \
+    "$ROOT/services/ptt-crm-api/src/staff-org/" \
+    "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/services/ptt-crm-api/src/staff-org/"
+  rsync -av \
+    "$ROOT/services/ptt-crm-api/src/leads/pg-leads-write.repository.ts" \
+    "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/services/ptt-crm-api/src/leads/pg-leads-write.repository.ts"
+  rsync -av \
+    "$ROOT/services/ops-web/src/app/admin/crm/org/departments/page.tsx" \
+    "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/services/ops-web/src/app/admin/crm/org/departments/page.tsx"
+  rsync -av \
+    "$ROOT/services/ops-web/src/app/admin/crm/org/teams/page.tsx" \
+    "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/services/ops-web/src/app/admin/crm/org/teams/page.tsx"
+  rsync -av \
+    "$ROOT/services/ops-web/src/app/admin/crm/org/positions/page.tsx" \
+    "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/services/ops-web/src/app/admin/crm/org/positions/page.tsx"
+  rsync -av \
+    "$ROOT/services/ops-web/src/components/rbac/OrgStructureRowActions.tsx" \
+    "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/services/ops-web/src/components/rbac/OrgStructureRowActions.tsx"
+  rsync -av \
+    "$ROOT/services/ops-web/src/lib/api.ts" \
+    "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/services/ops-web/src/lib/api.ts"
+  rsync -av \
+    "$ROOT/scripts/deploy_staff_org_crud_vps.sh" \
+    "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/scripts/deploy_staff_org_crud_vps.sh"
+}
+
 run_local() {
   cd "$ROOT"
   echo "== Staff org CRUD deploy @ $(git rev-parse --short HEAD) =="
@@ -50,7 +78,8 @@ run_local() {
 if [[ "${1:-}" == "--local" ]]; then
   run_local
 elif [[ "$APPLY" == "1" ]]; then
-  ssh "${VPS_USER}@${VPS_HOST}" "cd ${VPS_ROOT} && git pull --ff-only origin main && bash scripts/deploy_staff_org_crud_vps.sh --local"
+  sync_to_vps
+  ssh "${VPS_USER}@${VPS_HOST}" "chmod +x ${VPS_ROOT}/scripts/deploy_staff_org_crud_vps.sh && bash ${VPS_ROOT}/scripts/deploy_staff_org_crud_vps.sh --local"
 else
   echo "Dry-run. Set APPLY=1 to deploy to ${VPS_USER}@${VPS_HOST}:${VPS_ROOT}"
   echo "Or on VPS: bash scripts/deploy_staff_org_crud_vps.sh --local"
