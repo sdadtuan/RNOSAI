@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { staffMe, staffOidcExchange, ApiError } from '@/lib/api';
 import { saveSession, updateStoredUser } from '@/lib/auth';
 import { clearPkceSession, readPkceState, readPkceVerifier } from '@/lib/auth/keycloak-pkce';
+import { LoginBrandPanel } from '@/components/login/LoginBrandPanel';
 
 function CallbackContent() {
   const router = useRouter();
@@ -53,6 +54,7 @@ function CallbackContent() {
 
   return (
     <main className="login-page">
+      <LoginBrandPanel />
       <div className="card login-card">
         <h1 style={{ margin: 0, fontSize: '1.25rem' }}>Đang hoàn tất SSO…</h1>
         {error ? <p className="error">{error}</p> : <p className="muted">Vui lòng đợi.</p>}
@@ -66,6 +68,7 @@ export default function LoginCallbackPage() {
     <Suspense
       fallback={
         <main className="login-page">
+          <LoginBrandPanel />
           <p className="muted">Đang tải…</p>
         </main>
       }

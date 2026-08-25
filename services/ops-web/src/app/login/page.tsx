@@ -3,6 +3,7 @@
 import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { KeycloakRedirect } from '@/components/login/KeycloakRedirect';
+import { LoginBrandPanel } from '@/components/login/LoginBrandPanel';
 import { WinSsoMigrationBanner } from '@/components/rbac/WinSsoMigrationBanner';
 import { fetchStaffSsoConfig, sandboxLogin, staffLogin, staffMe } from '@/lib/api';
 import { saveSession, updateStoredUser } from '@/lib/auth';
@@ -59,6 +60,7 @@ function LoginPageContent() {
 
   return (
     <main className="login-page">
+      <LoginBrandPanel />
       <div className="card login-card">
         <p className="badge" style={{ marginBottom: '0.75rem' }}>
           PTT CRM
@@ -117,6 +119,7 @@ export default function LoginPage() {
     <Suspense
       fallback={
         <main className="login-page">
+          <LoginBrandPanel />
           <p className="muted">Đang tải…</p>
         </main>
       }

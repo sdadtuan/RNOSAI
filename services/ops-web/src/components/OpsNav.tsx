@@ -56,6 +56,7 @@ import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
 import { shouldShowTaxonomyNav } from '@/components/research/taxonomy-pane.util';
 import { canViewGtmCms, canViewGtmDemos } from '@/lib/gtm/caps';
 import { shouldShowVideoSopNav } from '@/components/ops-nav-video-sop';
+import { nextActionFor } from '@/lib/crm/canopy-next-action';
 
 interface OpsNavProps {
   user: StoredStaffUser | null;
@@ -303,15 +304,11 @@ function buildSections(
       operationalCskh.push({ href: '/crm/operational/leads/new', label: 'Tạo lead vận hành' });
     }
   }
-  if (operationalCskh.length) {
-    sections.push({ label: 'CRM · CSKH vận hành', links: operationalCskh, defaultOpen: true });
-  }
 
   const b2bSales: NavLink[] = [];
   if (hasCap(user, 'crm_leads', 'view')) {
     b2bSales.push({ href: '/crm/b2b/leads', label: 'Lead B2B' });
     b2bSales.push({ href: '/crm/b2b-inbox', label: 'Inbox B2B' });
-    b2bSales.push({ href: '/crm/intake', label: 'Lead Intake' });
     if (hasCap(user, 'crm_presales_solution', 'view') || hasCap(user, 'crm_leads', 'view')) {
       b2bSales.push({ href: '/crm/solution/queue', label: 'Solution queue' });
     }
@@ -332,7 +329,23 @@ function buildSections(
     b2bSales.push({ href: '/crm/hub', label: 'Hub · Hợp đồng' });
   }
   if (b2bSales.length) {
-    sections.push({ label: 'CRM · B2B Sales', links: b2bSales, defaultOpen: true });
+    sections.push({ label: 'Bán hàng', links: b2bSales, defaultOpen: true });
+  }
+
+  const prepare: NavLink[] = [];
+  if (hasCap(user, 'crm_leads', 'view')) {
+    prepare.push({ href: '/crm/intake', label: 'Lead Intake' });
+  }
+  if (hasCap(user, 'crm_b2b_projects', 'view')) {
+    prepare.push({ href: '/crm/b2b-projects', label: 'Dự án PTT' });
+    prepare.push({ href: '/crm/b2b-speed', label: 'Speed-to-lead' });
+  }
+  if (prepare.length) {
+    sections.push({ label: 'Chuẩn bị', links: prepare, defaultOpen: true });
+  }
+
+  if (operationalCskh.length) {
+    sections.push({ label: 'Vận hành', links: operationalCskh, defaultOpen: true });
   }
 
   const sharedCrm: NavLink[] = [];
@@ -358,8 +371,6 @@ function buildSections(
     salesContract.push({ href: '/crm/re-projects', label: 'Dự án BĐS' });
   }
   if (hasCap(user, 'crm_b2b_projects', 'view')) {
-    salesContract.push({ href: '/crm/b2b-projects', label: 'Dự án PTT' });
-    salesContract.push({ href: '/crm/b2b-speed', label: 'Speed-to-lead' });
     salesContract.push({ href: '/crm/b2b-gdkd', label: 'GDKD command center' });
   }
   if (hasCap(user, 'crm_b2b_projects', 'manage')) {
@@ -622,6 +633,7 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   }, [user, pathname]);
 
   const sections = buildSections(user, emailPendingApprovals, agencyUnread, reviewQueueCount);
+  const nextAction = nextActionFor(pathname);
 
   const showExpandedNav = sidebarExpanded || isMobileNav;
 
@@ -658,7 +670,7 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
           <span className="ops-sidebar-brand-mark">PTT</span>
           <div className="ops-sidebar-brand-text">
             <strong>PTT CRM</strong>
-            <span>RNOSAI · Bitrix-style</span>
+            <span>Theo việc, không theo module</span>
           </div>
         </div>
         <nav className={`ops-sidebar-nav${showExpandedNav ? ' is-expanded' : ' is-collapsed-rail'}`}>
@@ -767,6 +779,11 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
 
       <header className="ops-topbar">
         <div className="ops-topbar-strip" aria-hidden="true" />
+        {nextAction ? (
+          <p className="canopy-next-action" role="status">
+            {nextAction}
+          </p>
+        ) : null}
         <div className="ops-topbar-inner">
           <div className="ops-topbar-app">
             <button

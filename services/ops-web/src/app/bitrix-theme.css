@@ -680,16 +680,90 @@ html.ops-shell-bitrix .sales-pipeline-card.is-selected {
   box-shadow: 0 0 0 2px rgba(23, 105, 47, 0.15);
 }
 
-/* Login — P1 token only (split layout = P2) */
+/* Login — P2 split */
 html.ops-shell-bitrix .login-page {
+  display: grid;
+  grid-template-columns: minmax(260px, 42%) 1fr;
+  place-items: stretch;
+  min-height: 100vh;
+  padding: 0;
   background: var(--cream);
 }
 
+html.ops-shell-bitrix .login-brand {
+  background: var(--forest);
+  color: #f3efe6;
+  padding: 3.5rem 2.75rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.85rem;
+}
+
+html.ops-shell-bitrix .login-brand__mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: var(--ptt);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+html.ops-shell-bitrix .login-brand__title {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  color: #fffdf8;
+  max-width: 14ch;
+}
+
+html.ops-shell-bitrix .login-brand__lead {
+  margin: 0;
+  max-width: 36ch;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #c9d6cc;
+}
+
+html.ops-shell-bitrix .login-brand__foot {
+  margin: 1.5rem 0 0;
+  font-size: 0.75rem;
+  color: #9db5a4;
+}
+
+html.ops-shell-bitrix .login-page > .login-card,
+html.ops-shell-bitrix .login-page > .muted {
+  align-self: center;
+  justify-self: center;
+  margin: 2rem 1.5rem;
+}
+
 html.ops-shell-bitrix .login-card {
+  width: min(400px, 100%);
   border-radius: var(--radius-lg);
   background: var(--paper);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-green-md);
+}
+
+html.ops-shell-bitrix .canopy-next-action {
+  margin: 0;
+  padding: 0.4rem 1.25rem;
+  background: var(--mist);
+  color: var(--forest);
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+
+html.ops-shell-bitrix body:has(.ops-sidebar):has(.canopy-next-action) main {
+  padding-top: calc(var(--topbar-height) + 2rem) !important;
 }
 
 /* Lead detail — Bitrix entity card */
@@ -723,6 +797,20 @@ html.ops-shell-bitrix .breadcrumb {
 }
 
 @media (max-width: 960px) {
+  html.ops-shell-bitrix .login-page {
+    grid-template-columns: 1fr;
+  }
+
+  html.ops-shell-bitrix .login-brand {
+    min-height: 220px;
+    padding: 2rem 1.5rem;
+  }
+
+  html.ops-shell-bitrix .login-brand__title {
+    font-size: 1.5rem;
+    max-width: none;
+  }
+
   html.ops-shell-bitrix body:has(.ops-sidebar) main {
     padding-left: 0.65rem !important;
     padding-right: 0.65rem !important;

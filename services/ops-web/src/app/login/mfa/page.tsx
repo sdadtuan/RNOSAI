@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 import { KeycloakRedirect } from '@/components/login/KeycloakRedirect';
+import { LoginBrandPanel } from '@/components/login/LoginBrandPanel';
 import { WinSsoMigrationBanner } from '@/components/rbac/WinSsoMigrationBanner';
 
 export default function StaffMfaLoginPage() {
   return (
     <main className="login-page">
+      <LoginBrandPanel />
       <div className="card login-card">
         <p className="badge" style={{ marginBottom: '0.75rem' }}>
           MFA bắt buộc
