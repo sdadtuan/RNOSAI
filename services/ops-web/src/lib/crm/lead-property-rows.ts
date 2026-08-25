@@ -4,6 +4,7 @@ export type LeadPropertyRow = {
   key: string;
   label: string;
   value: string;
+  tone?: 'hot' | 'warm' | 'cold';
 };
 
 function bandLabel(band: LeadRow['ai_band']): string | null {
@@ -30,6 +31,8 @@ export function leadPropertyRows(
     { key: 'project', label: 'Dự án', value: lead.project_code?.trim() || '—' },
     { key: 'owner', label: 'Owner', value: ownerLabel?.trim() || 'Chưa phân' },
     { key: 'created', label: 'Ngày tạo', value: created },
-    ...(band ? [{ key: 'band', label: 'Band', value: band }] : []),
+    ...(band
+      ? [{ key: 'band', label: 'Band', value: band, tone: lead.ai_band ?? undefined }]
+      : []),
   ];
 }

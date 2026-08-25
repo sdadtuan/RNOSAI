@@ -763,6 +763,18 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
           )}
         </nav>
         <div className="ops-sidebar-footer">
+          {sidebarExpanded && canViewAdminSection(user) ? (
+            <button
+              type="button"
+              className={`ops-nav-link ops-nav-link--text ops-nav-link--button${isActive(pathname, '/admin') ? ' is-active' : ''}`}
+              onClick={() => navigateTo('/admin')}
+            >
+              <span className="ops-nav-link-icon">
+                <NavIcon name="settings" />
+              </span>
+              <span>Cài đặt</span>
+            </button>
+          ) : null}
           <button
             type="button"
             className="ops-sidebar-toggle"

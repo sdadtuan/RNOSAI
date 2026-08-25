@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { kanbanCardCta } from './kanban-card-cta';
+import { kanbanCardCta, kanbanStageAccent, KANBAN_STAGE_SETS } from './kanban-card-cta';
+import { WORK_SIGNALS } from './work-signals';
 
 describe('kanbanCardCta', () => {
   it('asks to call hot new leads', () => {
@@ -39,8 +40,32 @@ describe('kanbanCardCta', () => {
 
   it('sends quote-stage leads to the proposal record', () => {
     const cta = kanbanCardCta({ id: 5, phone: '0900', status: 'bao_gia' });
-    expect(cta.label).toBe('Đề xuất');
-    expect(cta.href).toBe('/crm/leads/5');
+    expect(cta).toEqual({
+      href: '/crm/leads/5',
+      label: 'Đề xuất',
+      kind: 'quote',
+    });
+  });
+
+  it('marks quote-stage CTA as quote kind', () => {
+    expect(kanbanCardCta({ id: 5, phone: '0900', status: 'bao_gia' })).toEqual({
+      href: '/crm/leads/5',
+      label: 'Đề xuất',
+      kind: 'quote',
+    });
+  });
+
+  it('maps stage accents to work signals', () => {
+    expect(kanbanStageAccent('moi')).toBe(WORK_SIGNALS.ptt);
+    expect(kanbanStageAccent('dang_tu_van')).toBe(WORK_SIGNALS.sky);
+    expect(kanbanStageAccent('bao_gia')).toBe(WORK_SIGNALS.gold);
+    expect(kanbanStageAccent('won')).toBe(WORK_SIGNALS.won);
+    expect(kanbanStageAccent('lost')).toBe(WORK_SIGNALS.cold);
+  });
+
+  it('exposes shared stage sets', () => {
+    expect(KANBAN_STAGE_SETS.consult.has('hen_gap')).toBe(true);
+    expect(KANBAN_STAGE_SETS.quote.has('proposal')).toBe(true);
   });
 
   it('sends won leads to the contract hub', () => {

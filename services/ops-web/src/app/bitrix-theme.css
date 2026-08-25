@@ -19,7 +19,13 @@ html.ops-shell-bitrix {
   --cream: #f3efe6;
   --paper: #fffdf8;
   --mist: #e7f0e8;
-  --gold: #a67c1a;
+  --gold: #ca8a04;
+  --hot: #e11d48;
+  --warm: #ea580c;
+  --sky: #0284c7;
+  --iris: #7c3aed;
+  --won: #059669;
+  --cold: #94a3b8;
   --page-bg: #f3efe6;
   --bg: #f3efe6;
   --surface: #fffdf8;
@@ -63,6 +69,10 @@ html.ops-shell-bitrix .ops-sidebar {
     radial-gradient(circle at 12% -8%, rgba(243, 239, 230, 0.38), transparent 42%),
     radial-gradient(circle at 100% 100%, rgba(17, 77, 36, 0.28), transparent 46%),
     linear-gradient(168deg, #5c8a6c 0%, #4a7c5c 46%, #3a6850 100%);
+}
+
+html.ops-shell-bitrix .ops-sidebar svg {
+  stroke-width: 1.65;
 }
 
 html.ops-shell-bitrix .ops-sidebar-brand {
@@ -185,6 +195,9 @@ html.ops-shell-bitrix .ops-nav-link.is-active .ops-nav-link-icon {
 
 html.ops-shell-bitrix .ops-sidebar-footer {
   border-top: 1px solid rgba(255, 255, 255, 0.16);
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: stretch;
 }
 
 html.ops-shell-bitrix .ops-sidebar-toggle {
@@ -341,6 +354,48 @@ html.ops-shell-bitrix .page-toolbar__actions .btn {
   min-height: 28px;
   padding: 0 0.55rem;
   font-size: 0.72rem;
+}
+
+html.ops-shell-bitrix .lead-signal-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 10px;
+}
+html.ops-shell-bitrix .lead-signal-kpi {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  border-top: 3px solid var(--ptt);
+}
+html.ops-shell-bitrix .lead-signal-kpi b {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+html.ops-shell-bitrix .lead-signal-kpi span {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+html.ops-shell-bitrix .lead-signal-kpi--hot { border-top-color: var(--hot); }
+html.ops-shell-bitrix .lead-signal-kpi--consult { border-top-color: var(--sky); }
+html.ops-shell-bitrix .lead-signal-kpi--ai { border-top-color: var(--iris); }
+html.ops-shell-bitrix .lead-signal-kpi--won { border-top-color: var(--won); }
+html.ops-shell-bitrix .lead-signal-kpis__caption {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+@media (max-width: 900px) {
+  html.ops-shell-bitrix .lead-signal-kpis {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 /* View switcher — Kanban | Danh sách */
@@ -738,23 +793,21 @@ html.ops-shell-bitrix .badge {
   transition: border-color 0.12s ease;
 }
 
-.crm-kanban-card--hot,
-html.ops-shell-bitrix .crm-kanban-card--hot {
-  border-left-color: #17692f;
+html.ops-shell-bitrix .crm-kanban-card {
+  transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
 }
 
-.crm-kanban-card--warm,
-html.ops-shell-bitrix .crm-kanban-card--warm {
-  border-left-color: #a67c1a;
-}
-
-.crm-kanban-card--cold,
-html.ops-shell-bitrix .crm-kanban-card--cold {
-  border-left-color: #8a918c;
-}
+html.ops-shell-bitrix .crm-kanban-card--hot { border-left-color: var(--hot); }
+html.ops-shell-bitrix .crm-kanban-card--warm { border-left-color: var(--warm); }
+html.ops-shell-bitrix .crm-kanban-card--cold { border-left-color: var(--cold); }
 
 .crm-kanban-card:hover {
   border-color: rgba(23, 105, 47, 0.35);
+}
+
+html.ops-shell-bitrix .crm-kanban-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(28, 34, 29, 0.08);
 }
 
 button.crm-kanban-card {
@@ -808,29 +861,80 @@ button.crm-kanban-card {
   letter-spacing: 0.02em;
 }
 
-.crm-kanban-card__chip--hot {
-  background: #17692f;
+html.ops-shell-bitrix .crm-kanban-card__chip--hot {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+html.ops-shell-bitrix .crm-kanban-card__chip--warm {
+  background: #ffedd5;
+  color: #9a3412;
+}
+html.ops-shell-bitrix .crm-kanban-card__chip--cold {
+  background: #f1f5f9;
+  color: #475569;
+}
+html.ops-shell-bitrix .crm-kanban-card__chip--ai {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+html.ops-shell-bitrix .crm-kanban-card__chip--sla {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+
+html.ops-shell-bitrix .crm-kanban-card__cta--call {
+  background: var(--hot);
+  border-color: var(--hot);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--intake {
+  background: var(--sky);
+  border-color: var(--sky);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--quote {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--hub {
+  background: var(--won);
+  border-color: var(--won);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--lead {
+  background: var(--ptt);
+  border-color: var(--ptt);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--lead:hover {
+  background: var(--ptt-deep);
+  border-color: var(--ptt-deep);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--call:hover {
+  background: #be123c;
+  border-color: #be123c;
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--intake:hover {
+  background: #0369a1;
+  border-color: #0369a1;
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--quote:hover {
+  background: #a16207;
+  border-color: #a16207;
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--hub:hover {
+  background: #047857;
+  border-color: #047857;
   color: #fff;
 }
 
-.crm-kanban-card__chip--warm {
-  background: #f6edd2;
-  color: #7a5a10;
-}
-
-.crm-kanban-card__chip--cold {
-  background: #eeeae2;
-  color: #5c635e;
-}
-
-.crm-kanban-card__chip--ai {
-  background: var(--mist, #e7f0e8);
-  color: var(--forest, #0d3a22);
-}
-
-.crm-kanban-card__chip--sla {
-  background: #fde7c7;
-  color: #8a4b08;
+html.ops-shell-bitrix .crm-kanban-column__head {
+  background: color-mix(in srgb, var(--kanban-accent, var(--ptt)) 12%, #fffdf8);
 }
 
 .crm-kanban-card__footer {

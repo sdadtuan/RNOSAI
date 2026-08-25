@@ -26,7 +26,15 @@ export function LeadPropertyRail({
         {rows.map((row) => (
           <div key={row.key} className="lead-property-rail__row">
             <dt>{row.label}</dt>
-            <dd>{row.value}</dd>
+            <dd>
+              {row.tone ? (
+                <span className={`crm-kanban-card__chip crm-kanban-card__chip--${row.tone}`}>
+                  {row.value}
+                </span>
+              ) : (
+                row.value
+              )}
+            </dd>
           </div>
         ))}
       </dl>

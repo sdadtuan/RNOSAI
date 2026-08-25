@@ -7,6 +7,7 @@ import { CrmLeadsImportExport } from '@/components/crm/CrmLeadsImportExport';
 import { LeadsColumnPicker } from '@/components/crm/LeadsColumnPicker';
 import { CrmLeadsList } from '@/components/crm/CrmLeadsList';
 import { LeadKanbanBoard } from '@/components/crm/LeadKanbanBoard';
+import { LeadSignalKpiStrip } from '@/components/crm/LeadSignalKpiStrip';
 import { PullToRefresh } from '@/components/mobile/PullToRefresh';
 import { WinFilterChips } from '@/components/win';
 import {
@@ -46,6 +47,7 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 import { statusOptionsForFlowKind, type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
+import { leadSignalKpis } from '@/lib/crm/lead-signal-kpis';
 import {
   leadFlowKindQuery,
   leadsListHref,
@@ -356,6 +358,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
 
   const selectedList = useMemo(() => [...selectedIds], [selectedIds]);
   const leadIds = useMemo(() => rows.map((row) => row.id), [rows]);
+  const signalKpis = useMemo(() => leadSignalKpis(rows), [rows]);
   const ownerNameById = useMemo(() => {
     const map: Record<number, string> = {};
     for (const staff of staffOptions) {
@@ -492,6 +495,8 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           </>
         }
       />
+
+      <LeadSignalKpiStrip items={signalKpis} />
 
       <div className="bitrix-view-tabs" role="tablist" aria-label="Chế độ xem lead">
         <button

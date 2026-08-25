@@ -2,23 +2,9 @@
 
 import Link from 'next/link';
 import type { LeadRow } from '@/lib/api';
-import { kanbanCardCta } from '@/lib/crm/kanban-card-cta';
+import { kanbanCardCta, kanbanStageAccent } from '@/lib/crm/kanban-card-cta';
 import { leadStatusLabel } from '@/lib/crm/lead-status';
 import { statusOptionsForFlowKind, type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
-
-const STAGE_ACCENT: Record<string, string> = {
-  moi: '#17692f',
-  da_lien_he: '#2a7a3d',
-  dang_tu_van: '#3d9970',
-  hen_gap: '#4a9e6a',
-  bao_gia: '#a67c1a',
-  dam_phan: '#a67c1a',
-  proposal: '#17692f',
-  won: '#17692f',
-  chot: '#17692f',
-  lost: '#8a918c',
-  pending_cleanup: '#8a918c',
-};
 
 function formatWhen(iso: string): string {
   const d = new Date(iso);
@@ -63,7 +49,7 @@ export function LeadKanbanBoard({
           <div
             key={stage}
             className="crm-kanban-column"
-            style={{ ['--kanban-accent' as string]: STAGE_ACCENT[stage] ?? '#17692f' }}
+            style={{ ['--kanban-accent' as string]: kanbanStageAccent(stage) }}
           >
             <div className="crm-kanban-column__head">
               <span className="crm-kanban-column__title">{leadStatusLabel(stage)}</span>
@@ -78,7 +64,7 @@ export function LeadKanbanBoard({
                   const cta = kanbanCardCta(lead);
                   const sla = slaLabel(lead.sla_state);
                   const bandText = bandLabel(band);
-                  const ctaClass = 'btn btn-sm crm-kanban-card__cta';
+                  const ctaClass = `btn btn-sm crm-kanban-card__cta crm-kanban-card__cta--${cta.kind}`;
                   return (
                     <article
                       key={lead.id}
