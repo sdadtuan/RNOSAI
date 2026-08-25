@@ -5,7 +5,7 @@ import { GlobalSearchBar } from '@/components/search/GlobalSearchBar';
 import { WinRbacBadge } from '@/components/win';
 import { iconForHref, NavIcon, sectionIcon, sectionShortLabel } from '@/components/layout/nav-icons';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { StoredStaffUser } from '@/lib/auth';
 import { getAccessToken, hasCap } from '@/lib/auth';
 import { fetchReviewQueueCount } from '@/lib/api';
@@ -603,6 +603,7 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [flyoutSection, setFlyoutSection] = useState<string | null>(null);
   const [isMobileNav, setIsMobileNav] = useState(false);
+  const chromeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -634,6 +635,21 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
 
   const sections = buildSections(user, emailPendingApprovals, agencyUnread, reviewQueueCount);
   const nextAction = nextActionFor(pathname);
+
+  useLayoutEffect(() => {
+    const el = chromeRef.current;
+    if (!el) return;
+    const apply = () => {
+      document.documentElement.style.setProperty('--ops-chrome-h', `${el.offsetHeight}px`);
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty('--ops-chrome-h');
+    };
+  }, [nextAction]);
 
   const showExpandedNav = sidebarExpanded || isMobileNav;
 
@@ -777,45 +793,47 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
         </>
       ) : null}
 
-      <header className="ops-topbar">
-        <div className="ops-topbar-strip" aria-hidden="true" />
-        <div className="ops-topbar-inner">
-          <div className="ops-topbar-app">
-            <button
-              type="button"
-              className="ops-sidebar-toggle ops-sidebar-toggle--topbar"
-              onClick={toggleSidebar}
-              aria-label={sidebarExpanded ? 'Thu gọn menu' : 'Mở rộng menu'}
-            >
-              ☰
-            </button>
-            <span className="ops-topbar-app-name">PTT CRM</span>
-          </div>
-          <GlobalSearchBar />
-          <div className="ops-topbar-user">
-            {user && (winPayslipPortalEnabled() || winLeaveLiteEnabled()) ? (
-              <StaffNotificationBell />
-            ) : null}
-            <div className="ops-topbar-user-meta">
-              <strong>{user?.display_name ?? user?.email ?? 'Staff'}</strong>
-              <WinRbacBadge user={user} />
-              <WinRbacBadge user={user} className="win-badge-rbac--mobile" />
-              <span>{pageTitleFor(pathname)}</span>
+      <div className="ops-chrome-head" ref={chromeRef}>
+        <header className="ops-topbar">
+          <div className="ops-topbar-strip" aria-hidden="true" />
+          <div className="ops-topbar-inner">
+            <div className="ops-topbar-app">
+              <button
+                type="button"
+                className="ops-sidebar-toggle ops-sidebar-toggle--topbar"
+                onClick={toggleSidebar}
+                aria-label={sidebarExpanded ? 'Thu gọn menu' : 'Mở rộng menu'}
+              >
+                ☰
+              </button>
+              <span className="ops-topbar-app-name">PTT CRM</span>
             </div>
-            <span className="ops-topbar-avatar" aria-hidden="true">
-              {userInitials(user)}
-            </span>
-            <button type="button" className="btn btn-sm btn-secondary btn-topbar-logout" onClick={onLogout}>
-              Đăng xuất
-            </button>
+            <GlobalSearchBar />
+            <div className="ops-topbar-user">
+              {user && (winPayslipPortalEnabled() || winLeaveLiteEnabled()) ? (
+                <StaffNotificationBell />
+              ) : null}
+              <div className="ops-topbar-user-meta">
+                <strong>{user?.display_name ?? user?.email ?? 'Staff'}</strong>
+                <WinRbacBadge user={user} />
+                <WinRbacBadge user={user} className="win-badge-rbac--mobile" />
+                <span>{pageTitleFor(pathname)}</span>
+              </div>
+              <span className="ops-topbar-avatar" aria-hidden="true">
+                {userInitials(user)}
+              </span>
+              <button type="button" className="btn btn-sm btn-secondary btn-topbar-logout" onClick={onLogout}>
+                Đăng xuất
+              </button>
+            </div>
           </div>
-        </div>
-      </header>
-      {nextAction ? (
-        <p className="canopy-next-action" role="status">
-          {nextAction}
-        </p>
-      ) : null}
+        </header>
+        {nextAction ? (
+          <p className="canopy-next-action" role="status">
+            {nextAction}
+          </p>
+        ) : null}
+      </div>
     </>
   );
 }

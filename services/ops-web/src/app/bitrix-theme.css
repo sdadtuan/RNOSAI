@@ -39,7 +39,7 @@ html.ops-shell-bitrix {
   --shadow-green-sm: 0 1px 2px rgba(13, 58, 34, 0.06);
   --shadow-green-md: 0 8px 24px rgba(13, 58, 34, 0.08);
   --topbar-height: 56px;
-  --canopy-next-h: 2.25rem;
+  --ops-chrome-h: var(--topbar-height);
   --sidebar-width-collapsed: 64px;
   --sidebar-width-expanded: 240px;
   --radius-sm: 6px;
@@ -156,9 +156,25 @@ html.ops-shell-bitrix .ops-topbar-avatar {
   font-weight: 700;
 }
 
+html.ops-shell-bitrix .ops-chrome-head {
+  position: fixed;
+  top: 0;
+  left: var(--sidebar-width);
+  right: 0;
+  z-index: 30;
+}
+
+html.ops-shell-bitrix .ops-chrome-head .ops-topbar {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  z-index: auto;
+}
+
 html.ops-shell-bitrix body:has(.ops-sidebar) main {
   background: var(--page-bg);
-  padding: calc(var(--topbar-height) + 0.75rem) 1.25rem 2rem !important;
+  padding: calc(var(--ops-chrome-h) + 0.75rem) 1.25rem 2rem !important;
 }
 
 /* —— Page shell (Bitrix CRM section) —— */
@@ -805,11 +821,6 @@ html.ops-shell-bitrix .login-card {
 }
 
 html.ops-shell-bitrix .canopy-next-action {
-  position: fixed;
-  top: var(--topbar-height);
-  left: var(--sidebar-width);
-  right: 0;
-  z-index: 29;
   margin: 0;
   padding: 0.4rem 1.25rem;
   background: var(--mist);
@@ -820,12 +831,8 @@ html.ops-shell-bitrix .canopy-next-action {
   border-bottom: 1px solid var(--border);
 }
 
-html.ops-shell-bitrix body:has(.ops-sidebar):has(.canopy-next-action) main {
-  padding-top: calc(var(--topbar-height) + var(--canopy-next-h) + 0.75rem) !important;
-}
-
 html.ops-shell-bitrix body:has(.canopy-next-action) .lead-detail-tabs {
-  top: calc(var(--topbar-height) + var(--canopy-next-h) + env(safe-area-inset-top, 0px));
+  top: var(--ops-chrome-h);
 }
 
 /* Lead detail — Bitrix entity card */
@@ -958,17 +965,10 @@ html.ops-shell-bitrix .breadcrumb {
     max-width: none;
   }
 
-  html.ops-shell-bitrix .canopy-next-action {
-    top: calc(var(--topbar-height) + env(safe-area-inset-top, 0px));
-  }
-
   html.ops-shell-bitrix body:has(.ops-sidebar) main {
     padding-left: 0.65rem !important;
     padding-right: 0.65rem !important;
-  }
-
-  html.ops-shell-bitrix body:has(.ops-sidebar):has(.canopy-next-action) main {
-    padding-top: calc(var(--topbar-height) + var(--canopy-next-h) + env(safe-area-inset-top, 0px) + 0.75rem) !important;
+    padding-top: calc(var(--ops-chrome-h) + 0.75rem) !important;
   }
 
   .crm-kanban-column {
