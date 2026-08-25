@@ -174,7 +174,7 @@ html.ops-shell-bitrix .ops-chrome-head .ops-topbar {
 
 html.ops-shell-bitrix body:has(.ops-sidebar) main {
   background: var(--page-bg);
-  padding: calc(var(--ops-chrome-h) + 0.75rem) 1.25rem 2rem !important;
+  padding: calc(var(--ops-chrome-h) + 0.4rem) 1rem 1.5rem !important;
 }
 
 /* —— Page shell (Bitrix CRM section) —— */
@@ -186,38 +186,65 @@ html.ops-shell-bitrix .bitrix-crm-page {
 html.ops-shell-bitrix .bitrix-crm-page__inner {
   max-width: none;
   margin: 0;
-  padding: 0 1.25rem 1.5rem;
+  padding: 0 0 1rem;
+}
+
+html.ops-shell-bitrix .ops-breadcrumb {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-bottom: 0.15rem;
+  gap: 0.15rem;
+}
+
+html.ops-shell-bitrix .ops-breadcrumb__current {
+  font-weight: 500;
 }
 
 html.ops-shell-bitrix .page-toolbar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 0 0.5rem;
-  margin-bottom: 0;
+  gap: 0.5rem 1rem;
+  padding: 0 0 0.35rem;
+  margin-bottom: 0.1rem;
   border-bottom: none;
   background: transparent;
 }
 
+html.ops-shell-bitrix .page-toolbar__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.65rem;
+  min-width: 0;
+}
+
 html.ops-shell-bitrix .page-toolbar__title {
   margin: 0;
-  font-size: 1.5rem;
-  font-weight: 400;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.25;
   color: var(--text-strong);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 html.ops-shell-bitrix .page-toolbar__subtitle {
-  margin: 0.2rem 0 0;
-  font-size: 0.8125rem;
+  margin: 0;
+  font-size: 0.72rem;
 }
 
 html.ops-shell-bitrix .page-toolbar__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
+  justify-content: flex-end;
+  gap: 0.3rem;
+}
+
+html.ops-shell-bitrix .page-toolbar__actions .btn {
+  min-height: 28px;
+  padding: 0 0.55rem;
+  font-size: 0.72rem;
 }
 
 /* View switcher — Kanban | Danh sách */
@@ -225,19 +252,19 @@ html.ops-shell-bitrix .bitrix-view-tabs {
   display: flex;
   align-items: center;
   gap: 0;
-  margin: 0 0 0.75rem;
+  margin: 0;
   border-bottom: 1px solid var(--border);
   background: var(--paper);
   border-radius: var(--radius-md) var(--radius-md) 0 0;
-  padding: 0 0.5rem;
+  padding: 0 0.35rem;
 }
 
 html.ops-shell-bitrix .bitrix-view-tab {
   appearance: none;
   border: none;
   background: transparent;
-  padding: 0.65rem 1rem;
-  font-size: 0.8125rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--muted);
   cursor: pointer;
@@ -261,12 +288,16 @@ html.ops-shell-bitrix .page-card {
   border: 1px solid var(--border);
   border-radius: 0 0 var(--radius-md) var(--radius-md);
   box-shadow: none;
-  padding: 1rem 1.15rem 1.25rem;
+  padding: 0.75rem 1rem 1rem;
 }
 
 html.ops-shell-bitrix .page-card--flat-top {
   border-radius: 0 0 var(--radius-md) var(--radius-md);
   border-top: none;
+}
+
+html.ops-shell-bitrix .stack-gap {
+  gap: 0.55rem;
 }
 
 html.ops-shell-bitrix .card {
@@ -945,9 +976,9 @@ html.ops-shell-bitrix .b2b-inbox-list {
 }
 
 html.ops-shell-bitrix .breadcrumb {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--muted);
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.15rem;
 }
 
 @media (max-width: 960px) {
@@ -968,7 +999,16 @@ html.ops-shell-bitrix .breadcrumb {
   html.ops-shell-bitrix body:has(.ops-sidebar) main {
     padding-left: 0.65rem !important;
     padding-right: 0.65rem !important;
-    padding-top: calc(var(--ops-chrome-h) + 0.75rem) !important;
+    padding-top: calc(var(--ops-chrome-h) + 0.4rem) !important;
+  }
+
+  html.ops-shell-bitrix .page-toolbar {
+    align-items: stretch;
+    gap: 0.4rem;
+  }
+
+  html.ops-shell-bitrix .page-toolbar__actions {
+    justify-content: flex-start;
   }
 
   .crm-kanban-column {
