@@ -339,20 +339,38 @@ export function SalesPipelineFunnelPanel({
               </div>
               <div className="crm-kanban-column__body">
                 <ul className="sales-pipeline-cards" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                  {cards.map((row) => (
-                    <li key={row.id}>
-                      <button
-                        type="button"
-                        className={`sales-pipeline-card crm-kanban-card${selectedId === row.id ? ' is-selected' : ''}`}
-                        onClick={() => void openDeal(row.id)}
-                      >
-                        <strong className="crm-kanban-card__title">{row.title}</strong>
-                        <span className="muted">{row.customer_name || `#${row.id}`}</span>
-                        <DealScoreMiniBar summary={scoreMap[String(row.id)]} />
-                        {nba && selectedId === row.id ? <span className="nba-card__badge">NBA</span> : null}
-                      </button>
-                    </li>
-                  ))}
+                  {cards.map((row) => {
+                    const score = scoreMap[String(row.id)];
+                    const band =
+                      score?.score_band === 'hot' ||
+                      score?.score_band === 'warm' ||
+                      score?.score_band === 'cold'
+                        ? score.score_band
+                        : null;
+                    return (
+                      <li key={row.id}>
+                        <button
+                          type="button"
+                          className={`sales-pipeline-card crm-kanban-card${band ? ` crm-kanban-card--${band}` : ''}${selectedId === row.id ? ' is-selected' : ''}`}
+                          onClick={() => void openDeal(row.id)}
+                        >
+                          <span className="crm-kanban-card__chips">
+                            {band ? (
+                              <span className={`crm-kanban-card__chip crm-kanban-card__chip--${band}`}>
+                                {band === 'hot' ? 'Nóng' : band === 'warm' ? 'Ấm' : 'Lạnh'}
+                              </span>
+                            ) : (
+                              <span className="crm-kanban-card__chip crm-kanban-card__chip--ai">AI</span>
+                            )}
+                          </span>
+                          <strong className="crm-kanban-card__title">{row.title}</strong>
+                          <span className="muted">{row.customer_name || `#${row.id}`}</span>
+                          <DealScoreMiniBar summary={score} />
+                          <span className="btn btn-sm crm-kanban-card__cta">Mở deal</span>
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             </div>

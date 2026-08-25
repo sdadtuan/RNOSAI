@@ -577,8 +577,13 @@ html.ops-shell-bitrix .badge {
 }
 
 .crm-kanban-card {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
   text-decoration: none;
+  text-align: left;
+  width: 100%;
   color: inherit;
   background: var(--paper, #fffdf8);
   border: 1px solid var(--border);
@@ -587,20 +592,57 @@ html.ops-shell-bitrix .badge {
   padding: 0.65rem 0.7rem;
   box-shadow: none;
   transition: border-color 0.12s ease;
-  cursor: pointer;
+}
+
+.crm-kanban-card--hot,
+html.ops-shell-bitrix .crm-kanban-card--hot {
+  border-left-color: #17692f;
+}
+
+.crm-kanban-card--warm,
+html.ops-shell-bitrix .crm-kanban-card--warm {
+  border-left-color: #a67c1a;
+}
+
+.crm-kanban-card--cold,
+html.ops-shell-bitrix .crm-kanban-card--cold {
+  border-left-color: #8a918c;
 }
 
 .crm-kanban-card:hover {
   border-color: rgba(23, 105, 47, 0.35);
-  box-shadow: 0 2px 8px rgba(23, 105, 47, 0.1);
+}
+
+button.crm-kanban-card {
+  cursor: pointer;
+  font: inherit;
+}
+
+.crm-kanban-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  width: 100%;
 }
 
 .crm-kanban-card__title {
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text-strong);
-  margin: 0 0 0.35rem;
+  margin: 0;
   line-height: 1.35;
+  text-decoration: none;
+}
+
+.crm-kanban-card__title:hover {
+  color: var(--ptt, #17692f);
+}
+
+.crm-kanban-card__cta {
+  margin-top: 0.15rem;
+  min-height: 28px;
+  padding: 0 0.65rem;
+  font-size: 0.72rem;
 }
 
 .crm-kanban-card__meta {
@@ -637,11 +679,22 @@ html.ops-shell-bitrix .badge {
   color: #5c635e;
 }
 
+.crm-kanban-card__chip--ai {
+  background: var(--mist, #e7f0e8);
+  color: var(--forest, #0d3a22);
+}
+
+.crm-kanban-card__chip--sla {
+  background: #fde7c7;
+  color: #8a4b08;
+}
+
 .crm-kanban-card__footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 0.45rem;
+  width: 100%;
+  margin-top: 0.1rem;
   padding-top: 0.4rem;
   border-top: 1px solid #f0f2f1;
   font-size: 0.72rem;
@@ -671,12 +724,10 @@ html.ops-shell-bitrix .sales-pipeline-column {
 
 html.ops-shell-bitrix .sales-pipeline-card {
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
   background: var(--paper);
 }
 
 html.ops-shell-bitrix .sales-pipeline-card.is-selected {
-  border-color: var(--primary);
   box-shadow: 0 0 0 2px rgba(23, 105, 47, 0.15);
 }
 

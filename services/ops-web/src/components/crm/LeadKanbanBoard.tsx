@@ -2,27 +2,41 @@
 
 import Link from 'next/link';
 import type { LeadRow } from '@/lib/api';
+import { kanbanCardCta } from '@/lib/crm/kanban-card-cta';
 import { leadStatusLabel } from '@/lib/crm/lead-status';
 import { statusOptionsForFlowKind, type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
 
 const STAGE_ACCENT: Record<string, string> = {
   moi: '#17692f',
-  da_lien_he: '#2d8a44',
+  da_lien_he: '#2a7a3d',
   dang_tu_van: '#3d9970',
   hen_gap: '#4a9e6a',
-  bao_gia: '#c9a227',
-  dam_phan: '#d97706',
-  proposal: '#2563eb',
-  won: '#16a34a',
-  chot: '#16a34a',
-  lost: '#9ca3af',
-  pending_cleanup: '#6b7280',
+  bao_gia: '#a67c1a',
+  dam_phan: '#a67c1a',
+  proposal: '#17692f',
+  won: '#17692f',
+  chot: '#17692f',
+  lost: '#8a918c',
+  pending_cleanup: '#8a918c',
 };
 
 function formatWhen(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+}
+
+function bandLabel(band: LeadRow['ai_band']): string | null {
+  if (band === 'hot') return 'Nóng';
+  if (band === 'warm') return 'Ấm';
+  if (band === 'cold') return 'Lạnh';
+  return null;
+}
+
+function slaLabel(sla: LeadRow['sla_state']): string | null {
+  if (sla === 'breach') return 'SLA trễ';
+  if (sla === 'warning') return 'SLA gần';
+  return null;
 }
 
 export function LeadKanbanBoard({
@@ -59,29 +73,53 @@ export function LeadKanbanBoard({
               {items.length === 0 ? (
                 <p className="crm-kanban-empty">Trống</p>
               ) : (
-                items.map((lead) => (
-                  <Link
-                    key={lead.id}
-                    href={`/crm/leads/${lead.id}`}
-                    className="crm-kanban-card"
-                    data-testid={`kanban-card-${lead.id}`}
-                  >
-                    <p className="crm-kanban-card__title">{lead.full_name || `Lead #${lead.id}`}</p>
-                    <div className="crm-kanban-card__meta">
-                      {lead.phone ? <span>{lead.phone}</span> : null}
-                      {lead.project_code ? <span>· {lead.project_code}</span> : null}
-                      {lead.ai_band ? (
-                        <span className={`crm-kanban-card__chip crm-kanban-card__chip--${lead.ai_band}`}>
-                          {lead.ai_band === 'hot' ? 'NÓNG' : lead.ai_band === 'warm' ? 'ẤM' : 'LẠNH'}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="crm-kanban-card__footer">
-                      <span>#{lead.id}</span>
-                      <span>{formatWhen(lead.received_at || lead.created_at)}</span>
-                    </div>
-                  </Link>
-                ))
+                items.map((lead) => {
+                  const band = lead.ai_band ?? null;
+                  const cta = kanbanCardCta(lead);
+                  const sla = slaLabel(lead.sla_state);
+                  const bandText = bandLabel(band);
+                  const ctaClass = 'btn btn-sm crm-kanban-card__cta';
+                  return (
+                    <article
+                      key={lead.id}
+                      className={`crm-kanban-card${band ? ` crm-kanban-card--${band}` : ''}`}
+                      data-testid={`kanban-card-${lead.id}`}
+                    >
+                      <div className="crm-kanban-card__chips">
+                        {bandText ? (
+                          <span className={`crm-kanban-card__chip crm-kanban-card__chip--${band}`}>
+                            {bandText}
+                          </span>
+                        ) : (
+                          <span className="crm-kanban-card__chip crm-kanban-card__chip--ai">AI</span>
+                        )}
+                        {sla ? (
+                          <span className="crm-kanban-card__chip crm-kanban-card__chip--sla">{sla}</span>
+                        ) : null}
+                      </div>
+                      <Link href={`/crm/leads/${lead.id}`} className="crm-kanban-card__title">
+                        {lead.full_name || `Lead #${lead.id}`}
+                      </Link>
+                      <div className="crm-kanban-card__meta">
+                        {lead.phone ? <span>{lead.phone}</span> : null}
+                        {lead.project_code ? <span>· {lead.project_code}</span> : null}
+                      </div>
+                      {cta.href.startsWith('tel:') ? (
+                        <a href={cta.href} className={ctaClass}>
+                          {cta.label}
+                        </a>
+                      ) : (
+                        <Link href={cta.href} className={ctaClass}>
+                          {cta.label}
+                        </Link>
+                      )}
+                      <div className="crm-kanban-card__footer">
+                        <span>#{lead.id}</span>
+                        <span>{formatWhen(lead.received_at || lead.created_at)}</span>
+                      </div>
+                    </article>
+                  );
+                })
               )}
             </div>
           </div>
