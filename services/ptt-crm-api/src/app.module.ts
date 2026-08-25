@@ -67,6 +67,7 @@ import { ProposalsModule } from './proposals/proposals.module';
 import { OrdersModule } from './orders/orders.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { ReProjectsModule } from './re-projects/re-projects.module';
+import { BrandModule } from './brand/brand.module';
 import { B2bProjectsModule } from './b2b-projects/b2b-projects.module';
 import { EmailGateAModule } from './email-gate-a/email-gate-a.module';
 import { EmailMarketingModule } from './email-marketing/email-marketing.module';
@@ -139,6 +140,7 @@ import { GtmCmsModule } from './gtm-cms/cms.module';
     OwnerWeeklyModule,
     ReProjectsModule,
     B2bProjectsModule,
+    BrandModule,
     MarketingPlansModule,
     MarketingAiPlannerModule,
     ContentMarketingModule,

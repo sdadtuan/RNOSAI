@@ -90,6 +90,7 @@ function buildRbacLinks(user: StoredStaffUser): AdminNavLink[] {
 function buildDataLinks(user: StoredStaffUser): AdminNavLink[] {
   if (!hasCap(user, 'crm_data_config', 'view')) return [];
   return [
+    { href: '/admin/brand', label: 'Hình ảnh & logo' },
     { href: '/admin/crm/custom-fields', label: 'Custom fields' },
     { href: '/admin/crm/pipeline', label: 'Pipeline sales' },
     { href: '/admin/crm/lead-lookups', label: 'Nguồn & Kênh' },

@@ -228,11 +228,18 @@ html.ops-shell-bitrix .ops-sidebar--rail .ops-sidebar-burger {
 
 html.ops-shell-bitrix .ops-sidebar--rail .ops-sidebar-brand-mark {
   display: grid;
+  place-items: center;
   background: #fff;
-  color: var(--ptt);
   width: 2rem;
   height: 2rem;
-  font-size: 0.62rem;
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+html.ops-shell-bitrix .ops-sidebar--rail .ops-sidebar-brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 /* —— Topbar —— */
@@ -990,52 +997,26 @@ html.ops-shell-bitrix .login-page {
 }
 
 html.ops-shell-bitrix .login-brand {
-  background:
-    radial-gradient(circle at 18% 16%, rgba(23, 105, 47, 0.12), transparent 42%),
-    linear-gradient(165deg, #e9efe6, #f3efe6 72%);
-  color: #1c221d;
-  padding: 3.5rem 2.75rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.85rem;
-}
-
-html.ops-shell-bitrix .login-brand__mark {
-  width: 48px;
-  height: 48px;
-  border-radius: 10px;
-  background: var(--ptt);
-  color: #fff;
+  position: relative;
+  background-size: cover;
+  background-position: center;
   display: grid;
   place-items: center;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  min-height: 100%;
+  padding: 0;
 }
 
-html.ops-shell-bitrix .login-brand__title {
-  margin: 0;
-  font-size: 2rem;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.03em;
-  color: #1c221d;
-  max-width: 14ch;
+html.ops-shell-bitrix .login-brand__veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.18);
 }
 
-html.ops-shell-bitrix .login-brand__lead {
-  margin: 0;
-  max-width: 36ch;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  color: #4a544c;
-}
-
-html.ops-shell-bitrix .login-brand__foot {
-  margin: 1.5rem 0 0;
-  font-size: 0.75rem;
-  color: #5a675e;
+html.ops-shell-bitrix .login-brand__logo {
+  position: relative;
+  z-index: 1;
+  width: min(160px, 46%);
+  height: auto;
 }
 
 html.ops-shell-bitrix .login-page > .login-card,
@@ -1189,13 +1170,7 @@ html.ops-shell-bitrix .breadcrumb {
   }
 
   html.ops-shell-bitrix .login-brand {
-    min-height: 220px;
-    padding: 2rem 1.5rem;
-  }
-
-  html.ops-shell-bitrix .login-brand__title {
-    font-size: 1.5rem;
-    max-width: none;
+    min-height: 36vh;
   }
 
   html.ops-shell-bitrix body:has(.ops-sidebar) main {

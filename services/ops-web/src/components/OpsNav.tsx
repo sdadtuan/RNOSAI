@@ -13,6 +13,7 @@ import { isOpsDvFeEnabled } from '@/lib/ops-dv-flags';
 import { emailGateAEnabled, emailJourneysEnabled, emailModuleEnabled } from '@/lib/email-flags';
 import { winKpiSolutionEnabled, winLeaveLiteEnabled, winPayslipPortalEnabled } from '@/lib/win/flags';
 import { StaffNotificationBell } from '@/components/staff/StaffNotificationBell';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 import { canViewEmailGateA } from '@/lib/email/caps';
 import { canViewMetaAdsOps, canViewMetaIntelligence, canViewMetaTracking } from '@/lib/meta/caps';
 import {
@@ -696,7 +697,9 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
           >
             <i /><i /><i />
           </button>
-          <span className="ops-sidebar-brand-mark">PTT</span>
+          <span className="ops-sidebar-brand-mark">
+            <BrandLogo size={32} />
+          </span>
           <div className="ops-sidebar-brand-text">
             <strong>PTT CRM</strong>
             <span>Theo việc, không theo module</span>

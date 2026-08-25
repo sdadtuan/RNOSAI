@@ -69,6 +69,14 @@ describe('admin-nav', () => {
     expect(canViewAdminSection(vd)).toBe(true);
   });
 
+  it('data group includes brand page', () => {
+    const groups = buildAdminNavGroups(adminUser());
+    const data = groups.find((g) => g.id === 'data');
+    expect(data?.links.some((l) => l.href === '/admin/brand' && l.label === 'Hình ảnh & logo')).toBe(
+      true,
+    );
+  });
+
   it('empty for user without admin caps', () => {
     const user = adminUser({
       caps: [{ section: 'crm_leads', action: 'view' }],

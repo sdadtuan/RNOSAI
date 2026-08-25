@@ -7639,6 +7639,57 @@ export async function deleteCrmCustomField(
   return crmFetch(token, `/api/crm/config/custom-fields/${id}`, { method: 'DELETE' });
 }
 
+export type AdminBrandResponse = {
+  logo_url: string;
+  hero_url: string;
+  updated_at: string;
+  heroes: Array<{
+    id: string;
+    filename: string;
+    url: string;
+    active: boolean;
+  }>;
+};
+
+export async function fetchPublicBrandFromApi(): Promise<AdminBrandResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/public/brand`, { cache: 'no-store' });
+  const body = await parseJson<AdminBrandResponse & { error?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? 'Brand fetch failed', res.status);
+  }
+  return body;
+}
+
+export async function fetchAdminBrand(token: string): Promise<AdminBrandResponse> {
+  return crmFetch(token, '/api/v1/admin/brand');
+}
+
+export async function uploadBrandLogo(token: string, file: File): Promise<AdminBrandResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  return crmFetch(token, '/api/v1/admin/brand/logo', { method: 'POST', body: form });
+}
+
+export async function uploadBrandHero(token: string, file: File): Promise<{ id: string }> {
+  const form = new FormData();
+  form.append('file', file);
+  return crmFetch(token, '/api/v1/admin/brand/heroes', { method: 'POST', body: form });
+}
+
+export async function activateBrandHero(token: string, id: string): Promise<AdminBrandResponse> {
+  return crmFetch(token, `/api/v1/admin/brand/heroes/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ active: true }),
+  });
+}
+
+export async function deleteBrandHero(token: string, id: string): Promise<void> {
+  await crmFetch(token, `/api/v1/admin/brand/heroes/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function fetchCrmSalesPipelineStages(
   token: string,
   params?: { include_inactive?: boolean },
