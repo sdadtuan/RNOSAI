@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RNOSAI Canopy — đề xuất giao diện</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --forest: #0d3a22;
+      --ptt: #17692f;
+      --leaf: #2a7a3d;
+      --mist: #e7f0e8;
+      --cream: #f3efe6;
+      --paper: #fffdf8;
+      --ink: #1c221d;
+      --ink-soft: #4a544c;
+      --line: #d8d2c6;
+      --gold: #a67c1a;
+      --warn: #b45309;
+      --danger: #b42318;
+      --ok: #17692f;
+      --space: 8px;
+      --font: "Be Vietnam Pro", system-ui, sans-serif;
+      --display: "Fraunces", Georgia, serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: var(--font);
+      color: var(--ink);
+      background: var(--cream);
+      line-height: 1.5;
+    }
+
+    /* —— Demo chrome —— */
+    .deck-bar {
+      position: sticky; top: 0; z-index: 40;
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+      padding: 12px 24px;
+      background: var(--forest);
+      color: #f3efe6;
+    }
+    .deck-bar strong { font-family: var(--display); font-weight: 600; letter-spacing: -0.02em; }
+    .deck-bar span { font-size: 12px; opacity: 0.72; }
+    .deck-nav { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+    .deck-nav label {
+      cursor: pointer;
+      font-size: 12px; font-weight: 600;
+      padding: 6px 12px;
+      border: 1px solid rgba(243,239,230,0.28);
+      border-radius: 999px;
+      color: #f3efe6;
+    }
+    .deck-nav input { position: absolute; opacity: 0; pointer-events: none; }
+    #s-login:checked ~ .deck-bar label[for="s-login"],
+    #s-work:checked ~ .deck-bar label[for="s-work"],
+    #s-sys:checked ~ .deck-bar label[for="s-sys"],
+    #s-why:checked ~ .deck-bar label[for="s-why"] {
+      background: #fffdf8; color: var(--forest);
+    }
+
+    .screen { display: none; min-height: calc(100vh - 56px); }
+    #s-login:checked ~ .screen-login,
+    #s-work:checked ~ .screen-work,
+    #s-sys:checked ~ .screen-sys,
+    #s-why:checked ~ .screen-why { display: block; }
+
+    /* —— Type & primitives —— */
+    h1, h2, h3 { font-family: var(--display); font-weight: 600; letter-spacing: -0.03em; margin: 0; }
+    .eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ptt); }
+    .muted { color: var(--ink-soft); font-size: 13px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      min-height: 40px; padding: 0 16px;
+      border-radius: 6px; border: 1px solid transparent;
+      font: 600 13px/1 var(--font);
+      cursor: pointer;
+    }
+    .btn-primary { background: var(--ptt); color: #fff; }
+    .btn-primary:hover { background: var(--forest); }
+    .btn-ghost { background: transparent; border-color: var(--line); color: var(--ink); }
+    .btn-ghost:hover { background: var(--mist); border-color: var(--ptt); }
+    .btn-danger { background: #fff; border-color: #f0c4c0; color: var(--danger); }
+    .btn-text { background: none; border: 0; color: var(--ptt); min-height: 32px; padding: 0 8px; }
+    .btn-sm { min-height: 32px; padding: 0 12px; font-size: 12px; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+    .field input, .field select, .field textarea {
+      min-height: 40px; padding: 8px 12px;
+      border: 1px solid var(--line); border-radius: 6px;
+      background: var(--paper); color: var(--ink);
+      font: 400 14px/1.4 var(--font);
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      outline: 2px solid var(--ptt); outline-offset: 1px; border-color: var(--ptt);
+    }
+    .field .hint { font-size: 11px; color: var(--ink-soft); }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 24px; padding: 0 10px;
+      border-radius: 999px; font-size: 11px; font-weight: 600;
+      background: var(--mist); color: var(--ptt);
+    }
+    .chip-gold { background: #f6edd2; color: #7a5a10; }
+    .chip-warn { background: #fde7c7; color: #8a4b08; }
+    .chip-mute { background: #eeeae2; color: #5c635e; }
+    .chip-hot { background: #17692f; color: #fff; }
+
+    /* —— Login —— */
+    .login {
+      display: grid;
+      grid-template-columns: minmax(280px, 42%) 1fr;
+      min-height: calc(100vh - 56px);
+    }
+    .login-brand {
+      background: var(--forest);
+      color: #f3efe6;
+      padding: 56px 48px;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .login-brand .mark {
+      width: 48px; height: 48px; border-radius: 10px;
+      background: var(--ptt); color: #fff;
+      display: grid; place-items: center;
+      font-weight: 700; letter-spacing: 0.04em;
+    }
+    .login-brand h1 { font-size: 40px; line-height: 1.15; margin: 24px 0 12px; color: #fffdf8; max-width: 14ch; }
+    .login-brand p { max-width: 36ch; color: #c9d6cc; font-size: 15px; }
+    .login-form-wrap { display: grid; place-items: center; padding: 48px 24px; }
+    .login-card { width: min(400px, 100%); }
+    .login-card h2 { font-size: 28px; margin: 8px 0 8px; }
+    .login-card form { display: grid; gap: 16px; margin-top: 28px; }
+    .login-card .btn-primary { width: 100%; }
+    .login-split { display: flex; align-items: center; gap: 12px; color: var(--ink-soft); font-size: 12px; }
+    .login-split::before, .login-split::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+    /* —— Workspace —— */
+    .shell {
+      display: grid;
+      grid-template-columns: 232px 1fr;
+      min-height: calc(100vh - 56px);
+    }
+    .side {
+      background: #efeae0;
+      border-right: 1px solid var(--line);
+      padding: 20px 14px;
+    }
+    .side-brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 20px; }
+    .side-brand .mark {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: var(--ptt); color: #fff; display: grid; place-items: center;
+      font-size: 10px; font-weight: 700;
+    }
+    .side-brand b { display: block; font-size: 13px; }
+    .side-brand small { color: var(--ink-soft); font-size: 11px; }
+    .nav-g { margin: 16px 8px 6px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; }
+    .nav-a {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 10px; border-radius: 6px;
+      font-size: 13px; font-weight: 500; color: var(--ink);
+      text-decoration: none;
+    }
+    .nav-a:hover { background: rgba(23,105,47,0.06); }
+    .nav-a.is-on { background: var(--mist); color: var(--ptt); font-weight: 600; }
+    .nav-a em { font-style: normal; font-size: 11px; background: var(--ptt); color: #fff; border-radius: 999px; padding: 0 6px; }
+
+    .main { background: var(--cream); }
+    .top {
+      display: flex; align-items: center; gap: 16px;
+      height: 56px; padding: 0 24px;
+      background: var(--paper);
+      border-bottom: 1px solid var(--line);
+    }
+    .top h1 { font-size: 20px; flex: 1; }
+    .workspace { padding: 24px; display: grid; gap: 16px; }
+    .path { font-size: 12px; color: var(--ink-soft); }
+    .path b { color: var(--ink); font-weight: 600; }
+
+    .toolbar {
+      display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    }
+    .search {
+      flex: 1; min-width: 200px; min-height: 40px;
+      border: 1px solid var(--line); border-radius: 6px;
+      padding: 0 12px; background: var(--paper); font: 400 13px var(--font);
+    }
+
+    .board { display: grid; grid-template-columns: repeat(4, minmax(180px, 1fr)); gap: 12px; }
+    .col { background: rgba(255,253,248,0.55); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+    .col-h { display: flex; justify-content: space-between; align-items: center; padding: 6px 4px 10px; }
+    .col-h strong { font-size: 13px; }
+    .entity {
+      display: grid; gap: 6px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--ptt);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+    .entity.warm { border-left-color: var(--gold); }
+    .entity.cold { border-left-color: #9aa39b; }
+    .entity b { font-size: 13px; }
+    .entity .meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-soft); }
+
+    /* —— System page —— */
+    .sys { padding: 32px 40px 64px; max-width: 1080px; }
+    .sys h1 { font-size: 36px; margin: 8px 0 8px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 24px; }
+    .panel {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .panel h3 { font-size: 18px; margin-bottom: 16px; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+    .swatch { width: 44px; height: 44px; border-radius: 8px; border: 1px solid var(--line); }
+    .token { display: flex; align-items: center; gap: 10px; font-size: 12px; margin-bottom: 8px; }
+    .ladder { display: grid; gap: 10px; }
+    .entity-row { display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: start; font-size: 13px; padding: 10px 0; border-top: 1px solid var(--line); }
+    .entity-row:first-of-type { border-top: 0; }
+
+    .why { padding: 40px; max-width: 800px; }
+    .why h1 { font-size: 36px; margin: 8px 0 16px; }
+    .why ol { padding-left: 20px; }
+    .why li { margin: 12px 0; }
+    .note {
+      margin-top: 28px; padding: 16px 18px;
+      background: var(--mist); border-radius: 10px; font-size: 13px;
+    }
+
+    @media (max-width: 880px) {
+      .login, .shell, .board, .grid-2 { grid-template-columns: 1fr; }
+      .login-brand { min-height: 240px; padding: 32px; }
+    }
+  </style>
+</head>
+<body>
+  <input type="radio" name="screen" id="s-login" checked />
+  <input type="radio" name="screen" id="s-work" />
+  <input type="radio" name="screen" id="s-sys" />
+  <input type="radio" name="screen" id="s-why" />
+
+  <header class="deck-bar">
+    <strong>RNOSAI Canopy</strong>
+    <span>Đề xuất giao diện · không phải app thật · mở file này trong trình duyệt</span>
+    <nav class="deck-nav">
+      <label for="s-login">1. Đăng nhập</label>
+      <label for="s-work">2. Làm việc</label>
+      <label for="s-sys">3. Hệ thống</label>
+      <label for="s-why">4. Vì sao</label>
+    </nav>
+  </header>
+
+  <section class="screen screen-login">
+    <div class="login">
+      <aside class="login-brand">
+        <div>
+          <div class="mark">PTT</div>
+          <h1>Vào việc trong một hơi thở.</h1>
+          <p>RNOSAI dẫn AM từ lead vừa vào → cuộc gọi → tư vấn → đề xuất. Một hành động chính mỗi màn hình.</p>
+        </div>
+        <p class="muted" style="color:#9db5a4">Tổ chức độc lập · Phong Lan · #17692f</p>
+      </aside>
+      <div class="login-form-wrap">
+        <div class="login-card">
+          <p class="eyebrow">Staff console</p>
+          <h2>Đăng nhập</h2>
+          <p class="muted">Dùng email PTT. SSO nếu công ty đã bật Keycloak.</p>
+          <form onsubmit="return false">
+            <div class="field">
+              <label for="em">Email</label>
+              <input id="em" type="email" placeholder="am@pttads.vn" />
+              <span class="hint">Không dùng placeholder thay nhãn — nhãn luôn hiện.</span>
+            </div>
+            <div class="field">
+              <label for="pw">Mật khẩu</label>
+              <input id="pw" type="password" value="••••••••" />
+            </div>
+            <button class="btn btn-primary" type="button">Vào workspace</button>
+            <div class="login-split">hoặc</div>
+            <button class="btn btn-ghost" type="button" style="width:100%">Tiếp tục với SSO</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen screen-work">
+    <div class="shell">
+      <aside class="side">
+        <div class="side-brand">
+          <div class="mark">PTT</div>
+          <div><b>PTT CRM</b><small>Theo việc, không theo module</small></div>
+        </div>
+        <div class="nav-g">Bán hàng</div>
+        <a class="nav-a is-on" href="#">Lead B2B <em>12</em></a>
+        <a class="nav-a" href="#">Inbox</a>
+        <a class="nav-a" href="#">Đề xuất</a>
+        <a class="nav-a" href="#">Hợp đồng</a>
+        <div class="nav-g">Chuẩn bị</div>
+        <a class="nav-a" href="#">Intake BANT</a>
+        <a class="nav-a" href="#">Dự án PTT</a>
+        <div class="nav-g">Vận hành</div>
+        <a class="nav-a" href="#">Lead CSKH</a>
+        <a class="nav-a" href="#">KPI GDKD</a>
+      </aside>
+      <div class="main">
+        <header class="top">
+          <h1>Lead B2B</h1>
+          <span class="chip">Dự án SEO HCM</span>
+          <button class="btn btn-ghost btn-sm" type="button">Danh sách</button>
+          <button class="btn btn-primary btn-sm" type="button">+ Lead</button>
+        </header>
+        <div class="workspace">
+          <div class="path">Bán hàng / <b>Lead B2B</b> / Kanban — bước tiếp: gọi lead Nóng trong 15 phút</div>
+          <div class="toolbar">
+            <input class="search" placeholder="Tên, SĐT, dự án…" />
+            <button class="btn btn-ghost btn-sm" type="button">Nguồn</button>
+            <button class="btn btn-ghost btn-sm" type="button">Trạng thái</button>
+            <button class="btn btn-primary btn-sm" type="button">Lọc</button>
+          </div>
+          <div class="board">
+            <div class="col">
+              <div class="col-h"><strong>Mới</strong><span class="chip-hot chip">3</span></div>
+              <article class="entity">
+                <span class="chip-hot chip">Nóng</span>
+                <b>Ánh Dương Clinic</b>
+                <div class="meta"><span>Facebook · SEO</span><span>4 phút</span></div>
+              </article>
+              <article class="entity warm">
+                <span class="chip-gold chip">Ấm</span>
+                <b>GreenHome Nội thất</b>
+                <div class="meta"><span>Zalo · Ads</span><span>1 giờ</span></div>
+              </article>
+            </div>
+            <div class="col">
+              <div class="col-h"><strong>Đang tư vấn</strong><span class="chip chip-mute">2</span></div>
+              <article class="entity">
+                <span class="chip">BANT 26/30</span>
+                <b>Minh Phú Logistics</b>
+                <div class="meta"><span>Consult</span><span>Thiếu GSC</span></div>
+              </article>
+            </div>
+            <div class="col">
+              <div class="col-h"><strong>Đề xuất</strong><span class="chip chip-mute">1</span></div>
+              <article class="entity warm">
+                <span class="chip-gold chip">Chờ duyệt</span>
+                <b>Sakura Dental</b>
+                <div class="meta"><span>Proposal</span><span>12tr/th</span></div>
+              </article>
+            </div>
+            <div class="col">
+              <div class="col-h"><strong>Won / Lost</strong><span class="chip chip-mute">1</span></div>
+              <article class="entity cold">
+                <span class="chip chip-mute">Lost</span>
+                <b>Nova Retail</b>
+                <div class="meta"><span>Ngân sách</span><span>—</span></div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen screen-sys">
+    <div class="sys">
+      <p class="eyebrow">Design system</p>
+      <h1>Bốn tầng — không phải một đống class.</h1>
+      <p class="muted">Mọi màn hình RNOSAI map vào 4 tầng này. App thật chỉ cần overlay CSS lên class đã có.</p>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Tầng 1 · Ý định</h3>
+          <p class="muted">Người dùng luôn biết nút nào là bước tiếp theo.</p>
+          <div class="row">
+            <button class="btn btn-primary" type="button">Hành động chính</button>
+            <button class="btn btn-ghost" type="button">Phụ</button>
+            <button class="btn btn-text" type="button">Huỷ</button>
+            <button class="btn btn-danger btn-sm" type="button">Xoá</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Tầng 2 · Trường nhập</h3>
+          <div class="field">
+            <label>Ngân sách / tháng</label>
+            <input value="25.000.000" />
+            <span class="hint">Nhãn trên, gợi ý dưới — không giấu trong placeholder.</span>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Tầng 3 · Tín hiệu</h3>
+          <div class="row">
+            <span class="chip-hot chip">Nóng</span>
+            <span class="chip-gold chip">Ấm</span>
+            <span class="chip chip-mute">Lạnh</span>
+            <span class="chip">Go 24+</span>
+            <span class="chip-warn chip">Nurture</span>
+            <span class="chip chip-mute">No-Go</span>
+          </div>
+          <p class="muted">Màu + chữ. Không dựa một mình vào màu.</p>
+        </div>
+        <div class="panel">
+          <h3>Tầng 4 · Token PTT</h3>
+          <div class="token"><i class="swatch" style="background:#0d3a22"></i> Forest · chrome, sidebar ink</div>
+          <div class="token"><i class="swatch" style="background:#17692f"></i> PTT · CTA, focus, lead nóng</div>
+          <div class="token"><i class="swatch" style="background:#f3efe6"></i> Cream · nền làm việc</div>
+          <div class="token"><i class="swatch" style="background:#fffdf8"></i> Paper · card, form</div>
+          <div class="token"><i class="swatch" style="background:#a67c1a"></i> Gold · giá trị / chờ duyệt — sparingly</div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:20px">
+        <h3>Thực thể — một ngôn ngữ, khác dấu hiệu</h3>
+        <div class="entity-row"><b>Lead</b><span>Viền trái xanh. Band Nóng/Ấm/Lạnh. CTA mặc định: Gọi / Mở intake.</span></div>
+        <div class="entity-row"><b>Inbox</b><span>Dòng hội thoại. Unread = chấm PTT. Không dùng card nặng.</span></div>
+        <div class="entity-row"><b>Dự án PTT</b><span>Index kênh + pool NV. Status draft/active = chip, không badge cầu kỳ.</span></div>
+        <div class="entity-row"><b>Intake</b><span>Wizard 4 bước. BANT là thanh tổng, không 6 ô rời không ngữ cảnh.</span></div>
+        <div class="entity-row"><b>Deal / HĐ</b><span>Gold chỉ khi có số tiền. Won = chữ + chip xanh, không confetti.</span></div>
+        <div class="entity-row"><b>Form mọi module</b><span>Cùng .field / .btn. Không skin riêng từng phòng ban.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen screen-why">
+    <div class="why">
+      <p class="eyebrow">Khác Bitrix</p>
+      <h1>Khoa học trước. Ấn tượng sau.</h1>
+      <ol>
+        <li><b>Theo việc, không theo module.</b> Menu nhóm Bán / Chuẩn bị / Vận hành — AM không phải nhớ “Lead nằm menu nào”.</li>
+        <li><b>Một CTA mỗi khung.</b> Xanh PTT = bước tiếp. Ghost = tuỳ chọn. Đỏ hiếm.</li>
+        <li><b>Giấy + rừng.</b> Nền cream, card giấy, chữ serif cho tiêu đề — nhận diện PTT, không clone CRM xám.</li>
+        <li><b>Lưới 8px, 4 tầng.</b> Ý định → Trường → Tín hiệu → Token. Dễ overlay CSS, dễ đào tạo.</li>
+        <li><b>Dẫn đường.</b> Breadcrumb nói bước tiếp (“gọi lead Nóng trong 15 phút”), không chỉ đường dẫn file.</li>
+      </ol>
+      <div class="note">
+        Demo này là file tĩnh — không đụng code RNOSAI. Nếu duyệt, phase sau chỉ viết overlay CSS
+        trong <code>bitrix-theme.css</code> (đổi tên lớp thành Canopy) map lên class đã có:
+        <code>.login-page</code>, <code>.btn</code>, <code>.field</code>, <code>.ops-sidebar</code>,
+        <code>.crm-kanban</code>, <code>.page-card</code>. Markup không đổi.
+      </div>
+    </div>
+  </section>
+</body>
+</html>

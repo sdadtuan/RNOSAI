@@ -1,22 +1,43 @@
 /**
- * Bitrix24 CRM–inspired shell for RNOSAI / PTT Ops
- * Primary brand: #17692f (PTT green)
+ * RNOSAI Canopy P1 — tokens + controls (button / field / table)
+ * Overlay only. Selector stays html.ops-shell-bitrix (no TSX change).
+ * Brand: PTT #17692f · Forest #0d3a22 · Cream #f3efe6 · Paper #fffdf8
  */
 
+html.ops-shell-bitrix,
+html.ops-shell-bitrix body {
+  background: #f3efe6;
+  color: #1c221d;
+}
+
 html.ops-shell-bitrix {
-  --page-bg: #e8ebe9;
-  --surface: #ffffff;
-  --surface-soft: #f5f7f6;
-  --surface-column: #eef1f0;
-  --card: #ffffff;
-  --border: #dfe3e1;
-  --surface-border: #dfe3e1;
-  --text: #333333;
-  --text-strong: #1a1a1a;
-  --muted: #6a7370;
-  --accent-hover: #e4f0e7;
-  --shadow-green-sm: 0 1px 3px rgba(23, 105, 47, 0.06);
-  --shadow-green-md: 0 4px 16px rgba(23, 105, 47, 0.08);
+  --forest: #0d3a22;
+  --ptt: #17692f;
+  --leaf: #2a7a3d;
+  --cream: #f3efe6;
+  --paper: #fffdf8;
+  --mist: #e7f0e8;
+  --gold: #a67c1a;
+  --page-bg: #f3efe6;
+  --bg: #f3efe6;
+  --surface: #fffdf8;
+  --surface-soft: #efeae0;
+  --surface-column: #ebe6dc;
+  --card: #fffdf8;
+  --border: #d8d2c6;
+  --surface-border: #d8d2c6;
+  --text: #1c221d;
+  --text-strong: #1c221d;
+  --muted: #4a544c;
+  --primary: #17692f;
+  --primary-700: #125a28;
+  --primary-800: #0d3a22;
+  --accent: #17692f;
+  --accent-hover: #e7f0e8;
+  --link: #17692f;
+  --color-primary: #17692f;
+  --shadow-green-sm: 0 1px 2px rgba(13, 58, 34, 0.06);
+  --shadow-green-md: 0 8px 24px rgba(13, 58, 34, 0.08);
   --topbar-height: 56px;
   --sidebar-width-collapsed: 64px;
   --sidebar-width-expanded: 240px;
@@ -24,15 +45,15 @@ html.ops-shell-bitrix {
   --radius-md: 8px;
   --radius-lg: 10px;
   --bitrix-stage-new: #17692f;
-  --bitrix-stage-active: #2d8a44;
-  --bitrix-stage-quote: #c9a227;
-  --bitrix-stage-won: #16a34a;
-  --bitrix-stage-lost: #9ca3af;
+  --bitrix-stage-active: #2a7a3d;
+  --bitrix-stage-quote: #a67c1a;
+  --bitrix-stage-won: #17692f;
+  --bitrix-stage-lost: #8a918c;
 }
 
 /* —— Sidebar (Bitrix left menu) —— */
 html.ops-shell-bitrix .ops-sidebar {
-  background: #ffffff;
+  background: var(--surface-soft);
   border-right: 1px solid var(--border);
   box-shadow: none;
 }
@@ -99,14 +120,14 @@ html.ops-shell-bitrix .ops-nav-rail-item.is-active .ops-nav-rail-btn {
 }
 
 html.ops-shell-bitrix .ops-nav-drawer {
-  background: #fff;
+  background: var(--paper);
   border-right: 1px solid var(--border);
-  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.08);
+  box-shadow: 4px 0 24px rgba(13, 58, 34, 0.08);
 }
 
 /* —— Topbar —— */
 html.ops-shell-bitrix .ops-topbar {
-  background: #ffffff;
+  background: var(--paper);
   border-bottom: 1px solid var(--border);
   box-shadow: none;
 }
@@ -189,7 +210,7 @@ html.ops-shell-bitrix .bitrix-view-tabs {
   gap: 0;
   margin: 0 0 0.75rem;
   border-bottom: 1px solid var(--border);
-  background: #fff;
+  background: var(--paper);
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   padding: 0 0.5rem;
 }
@@ -219,7 +240,7 @@ html.ops-shell-bitrix .bitrix-view-tab.is-active {
 }
 
 html.ops-shell-bitrix .page-card {
-  background: #ffffff;
+  background: var(--paper);
   border: 1px solid var(--border);
   border-radius: 0 0 var(--radius-md) var(--radius-md);
   box-shadow: none;
@@ -235,53 +256,196 @@ html.ops-shell-bitrix .card {
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   box-shadow: none;
+  background: var(--paper);
 }
 
-/* Buttons — Bitrix flat primary */
-html.ops-shell-bitrix .btn {
+/* —— P1 Controls: button · field · table —— */
+html.ops-shell-bitrix .btn,
+html.ops-shell-bitrix .btn-primary,
+html.ops-shell-bitrix button.btn {
   border-radius: var(--radius-sm);
-  min-height: 36px;
-  padding: 0.4rem 0.9rem;
+  min-height: 40px;
+  padding: 0 1rem;
   font-size: 0.8125rem;
   font-weight: 600;
+  letter-spacing: 0;
+  box-shadow: none;
+  background: var(--ptt);
+  color: #fff;
+  border: 1px solid transparent;
+}
+
+html.ops-shell-bitrix .btn:hover,
+html.ops-shell-bitrix .btn-primary:hover {
+  background: var(--forest);
+  color: #fff;
+}
+
+html.ops-shell-bitrix .btn:focus-visible,
+html.ops-shell-bitrix .btn-primary:focus-visible,
+html.ops-shell-bitrix .btn-secondary:focus-visible,
+html.ops-shell-bitrix .btn-ghost:focus-visible {
+  outline: 2px solid var(--ptt);
+  outline-offset: 2px;
+}
+
+html.ops-shell-bitrix .btn:disabled,
+html.ops-shell-bitrix .btn-primary:disabled,
+html.ops-shell-bitrix .btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
   box-shadow: none;
 }
 
+html.ops-shell-bitrix .btn-sm {
+  min-height: 32px;
+  padding: 0 0.75rem;
+  font-size: 0.75rem;
+}
+
 html.ops-shell-bitrix .btn-secondary {
-  background: #fff;
+  background: var(--paper);
   color: var(--text);
   border: 1px solid var(--border);
 }
 
 html.ops-shell-bitrix .btn-secondary:hover {
-  background: var(--surface-soft);
-  border-color: #c5cbc8;
+  background: var(--mist);
+  border-color: var(--ptt);
+  color: var(--forest);
 }
 
 html.ops-shell-bitrix .btn-ghost {
   background: transparent;
-  color: var(--primary);
+  color: var(--ptt);
   border: 1px solid transparent;
 }
 
 html.ops-shell-bitrix .btn-ghost:hover {
-  background: var(--accent-hover);
+  background: var(--mist);
+  border-color: transparent;
 }
 
-/* Filter bar */
+html.ops-shell-bitrix .btn-danger {
+  background: var(--paper);
+  color: #b42318;
+  border: 1px solid #f0c4c0;
+}
+
+html.ops-shell-bitrix .btn-danger:hover {
+  background: #fdf2f1;
+  border-color: #e8a8a2;
+  color: #b42318;
+}
+
+html.ops-shell-bitrix .btn-topbar-logout {
+  border-radius: var(--radius-sm);
+  border-color: var(--border);
+  background: var(--paper);
+  color: var(--text);
+}
+
+html.ops-shell-bitrix .btn-topbar-logout:hover {
+  background: var(--mist);
+  border-color: var(--ptt);
+}
+
+/* Fields */
+html.ops-shell-bitrix .field {
+  gap: 6px;
+  margin-bottom: 1rem;
+}
+
+html.ops-shell-bitrix .field label,
+html.ops-shell-bitrix label.field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+html.ops-shell-bitrix .field input,
+html.ops-shell-bitrix .field select,
+html.ops-shell-bitrix .field textarea,
+html.ops-shell-bitrix .field-textarea,
+html.ops-shell-bitrix .kpi-input,
+html.ops-shell-bitrix .kpi-select,
+html.ops-shell-bitrix .lead-select,
+html.ops-shell-bitrix .search-input,
+html.ops-shell-bitrix input[type='text'],
+html.ops-shell-bitrix input[type='email'],
+html.ops-shell-bitrix input[type='password'],
+html.ops-shell-bitrix input[type='number'],
+html.ops-shell-bitrix input[type='search'],
+html.ops-shell-bitrix input[type='tel'],
+html.ops-shell-bitrix input[type='url'],
+html.ops-shell-bitrix input[type='date'],
+html.ops-shell-bitrix select,
+html.ops-shell-bitrix textarea {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--text);
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+}
+
+html.ops-shell-bitrix .field textarea,
+html.ops-shell-bitrix .field-textarea,
+html.ops-shell-bitrix textarea {
+  min-height: 88px;
+}
+
+html.ops-shell-bitrix .field input:focus,
+html.ops-shell-bitrix .field select:focus,
+html.ops-shell-bitrix .field textarea:focus,
+html.ops-shell-bitrix .field-textarea:focus,
+html.ops-shell-bitrix .kpi-input:focus,
+html.ops-shell-bitrix .kpi-select:focus,
+html.ops-shell-bitrix input:focus,
+html.ops-shell-bitrix select:focus,
+html.ops-shell-bitrix textarea:focus {
+  outline: 2px solid var(--ptt);
+  outline-offset: 1px;
+  border-color: var(--ptt);
+}
+
+html.ops-shell-bitrix input[type='checkbox'],
+html.ops-shell-bitrix input[type='radio'] {
+  accent-color: var(--ptt);
+  width: 1rem;
+  height: 1rem;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+html.ops-shell-bitrix input[type='hidden'],
+html.ops-shell-bitrix input[type='file'],
+html.ops-shell-bitrix input[type='range'] {
+  min-height: unset;
+  padding: initial;
+  border: initial;
+  background: initial;
+}
+
+html.ops-shell-bitrix .field .hint,
+html.ops-shell-bitrix .field-hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+html.ops-shell-bitrix .error {
+  color: #b42318;
+}
+
+/* Filter bar + segmented */
 html.ops-shell-bitrix .filter-bar {
   background: var(--surface-soft);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 0.5rem 0.65rem;
-}
-
-html.ops-shell-bitrix .kpi-input,
-html.ops-shell-bitrix .kpi-select {
-  border-radius: var(--radius-sm);
-  border-color: var(--border);
-  font-size: 0.8125rem;
-  min-height: 34px;
 }
 
 html.ops-shell-bitrix .segmented-control {
@@ -293,21 +457,26 @@ html.ops-shell-bitrix .segmented-control {
 
 html.ops-shell-bitrix .segmented-control button[aria-pressed='true'],
 html.ops-shell-bitrix .segmented-control .is-selected {
-  background: #fff;
-  color: var(--primary-800);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  background: var(--paper);
+  color: var(--forest);
+  box-shadow: none;
 }
 
-/* Tables */
+/* Tables — every common list surface */
+html.ops-shell-bitrix table,
 html.ops-shell-bitrix table.data-table,
+html.ops-shell-bitrix table.table,
 html.ops-shell-bitrix .crm-leads-table {
   border-collapse: separate;
   border-spacing: 0;
   width: 100%;
   font-size: 0.8125rem;
+  background: var(--paper);
 }
 
+html.ops-shell-bitrix table thead th,
 html.ops-shell-bitrix table.data-table thead th,
+html.ops-shell-bitrix table.table thead th,
 html.ops-shell-bitrix .crm-leads-table thead th {
   background: var(--surface-soft);
   border-bottom: 1px solid var(--border);
@@ -315,19 +484,38 @@ html.ops-shell-bitrix .crm-leads-table thead th {
   font-weight: 600;
   font-size: 0.75rem;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  padding: 0.55rem 0.65rem;
+  letter-spacing: 0.04em;
+  padding: 0.55rem 0.75rem;
 }
 
+html.ops-shell-bitrix table tbody td,
+html.ops-shell-bitrix table.data-table tbody td,
+html.ops-shell-bitrix table.table tbody td,
+html.ops-shell-bitrix .crm-leads-table tbody td {
+  border-bottom: 1px solid #efeae0;
+  padding: 0.6rem 0.75rem;
+  color: var(--text);
+  vertical-align: middle;
+}
+
+html.ops-shell-bitrix table tbody tr:hover,
 html.ops-shell-bitrix table.data-table tbody tr:hover,
 html.ops-shell-bitrix .crm-leads-table tbody tr:hover {
-  background: var(--accent-hover);
+  background: var(--mist);
 }
 
-html.ops-shell-bitrix table.data-table tbody td,
-html.ops-shell-bitrix .crm-leads-table tbody td {
-  border-bottom: 1px solid #eef0ef;
-  padding: 0.55rem 0.65rem;
+html.ops-shell-bitrix .data-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+
+html.ops-shell-bitrix .badge {
+  background: var(--mist);
+  color: var(--forest);
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
 }
 
 /* —— CRM Kanban (Bitrix deal kanban) —— */
@@ -392,12 +580,13 @@ html.ops-shell-bitrix .crm-leads-table tbody td {
   display: block;
   text-decoration: none;
   color: inherit;
-  background: #ffffff;
+  background: var(--paper, #fffdf8);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--ptt, #17692f);
   border-radius: var(--radius-sm);
   padding: 0.65rem 0.7rem;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: box-shadow 0.12s ease, border-color 0.12s ease;
+  box-shadow: none;
+  transition: border-color 0.12s ease;
   cursor: pointer;
 }
 
@@ -434,18 +623,18 @@ html.ops-shell-bitrix .crm-leads-table tbody td {
 }
 
 .crm-kanban-card__chip--hot {
-  background: #fef2f2;
-  color: #b91c1c;
+  background: #17692f;
+  color: #fff;
 }
 
 .crm-kanban-card__chip--warm {
-  background: #fffbeb;
-  color: #b45309;
+  background: #f6edd2;
+  color: #7a5a10;
 }
 
 .crm-kanban-card__chip--cold {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #eeeae2;
+  color: #5c635e;
 }
 
 .crm-kanban-card__footer {
@@ -483,7 +672,7 @@ html.ops-shell-bitrix .sales-pipeline-column {
 html.ops-shell-bitrix .sales-pipeline-card {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--paper);
 }
 
 html.ops-shell-bitrix .sales-pipeline-card.is-selected {
@@ -491,9 +680,15 @@ html.ops-shell-bitrix .sales-pipeline-card.is-selected {
   box-shadow: 0 0 0 2px rgba(23, 105, 47, 0.15);
 }
 
-/* Login page */
+/* Login — P1 token only (split layout = P2) */
+html.ops-shell-bitrix .login-page {
+  background: var(--cream);
+}
+
 html.ops-shell-bitrix .login-card {
   border-radius: var(--radius-lg);
+  background: var(--paper);
+  border: 1px solid var(--border);
   box-shadow: var(--shadow-green-md);
 }
 
@@ -502,19 +697,19 @@ html.ops-shell-bitrix .lead-panel {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: none;
-  background: #fff;
+  background: var(--paper);
 }
 
 html.ops-shell-bitrix .lead-detail-hero {
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--paper);
 }
 
 html.ops-shell-bitrix .b2b-inbox-item {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--paper);
 }
 
 html.ops-shell-bitrix .b2b-inbox-list {
