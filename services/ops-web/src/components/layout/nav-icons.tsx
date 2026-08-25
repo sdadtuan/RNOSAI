@@ -586,7 +586,7 @@ export const SECTION_ICONS: Record<string, string> = {
 export const SECTION_LABELS: Record<string, string> = {
   'Tổng quan': 'Tổng quan',
   'CRM · CSKH vận hành': 'Vận hành',
-  Vận hành: 'Vận hành',
+  'Vận hành': 'Vận hành',
   'CRM · B2B Sales': 'Bán hàng',
   'Bán hàng': 'Bán hàng',
   'Chuẩn bị': 'Chuẩn bị',
