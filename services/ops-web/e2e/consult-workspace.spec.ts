@@ -26,9 +26,9 @@ test.describe('P2 Consult workspace tab', () => {
     if (!advanced.ok) test.skip(true, advanced.reason);
 
     await page.goto(`/crm/leads/${leadId}`);
-    const consultTab = page.getByRole('tab', { name: 'Tư vấn' });
-    await expect(consultTab).toBeVisible({ timeout: 20_000 });
-    await consultTab.click();
+    const consultOpen = page.getByRole('button', { name: 'Tư vấn' });
+    await expect(consultOpen).toBeVisible({ timeout: 20_000 });
+    await consultOpen.click();
     await expect(page.getByTestId('lead-consult-workspace')).toBeVisible();
     await expect(page.locator('#funnel-presales')).toBeVisible();
   });
