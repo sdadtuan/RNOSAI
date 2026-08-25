@@ -779,11 +779,6 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
 
       <header className="ops-topbar">
         <div className="ops-topbar-strip" aria-hidden="true" />
-        {nextAction ? (
-          <p className="canopy-next-action" role="status">
-            {nextAction}
-          </p>
-        ) : null}
         <div className="ops-topbar-inner">
           <div className="ops-topbar-app">
             <button
@@ -816,6 +811,11 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
           </div>
         </div>
       </header>
+      {nextAction ? (
+        <p className="canopy-next-action" role="status">
+          {nextAction}
+        </p>
+      ) : null}
     </>
   );
 }
