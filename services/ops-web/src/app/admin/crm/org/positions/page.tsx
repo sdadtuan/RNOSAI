@@ -6,6 +6,10 @@ import { AdminPageShell } from '@/components/admin';
 import { AdminOrgSubNav } from '@/components/rbac/AdminOrgSubNav';
 import { OrgStructureRowActions } from '@/components/rbac/OrgStructureRowActions';
 import {
+  OrgStructureDescriptionField,
+  orgDescriptionPreview,
+} from '@/components/rbac/OrgStructureDescriptionField';
+import {
   createStaffOrgPosition,
   deleteStaffOrgPosition,
   fetchStaffOrgDepartments,
@@ -31,6 +35,7 @@ export default function AdminOrgPositionsPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [departmentId, setDepartmentId] = useState<number | ''>('');
 
   const canConfigure = canConfigureOrgStructure(user) || canConfigureData(user);
@@ -58,6 +63,7 @@ export default function AdminOrgPositionsPage() {
     setEditId(null);
     setCode('');
     setName('');
+    setDescription('');
     setDepartmentId('');
     setFormError('');
     setModalOpen(true);
@@ -67,6 +73,7 @@ export default function AdminOrgPositionsPage() {
     setEditId(row.id);
     setCode(row.code);
     setName(row.name);
+    setDescription(row.description ?? '');
     setDepartmentId(row.department_id ?? '');
     setFormError('');
     setModalOpen(true);
@@ -79,9 +86,18 @@ export default function AdminOrgPositionsPage() {
     try {
       const dept = departmentId === '' ? null : Number(departmentId);
       if (editId == null) {
-        await createStaffOrgPosition(token, { code: code.trim(), name: name.trim(), department_id: dept });
+        await createStaffOrgPosition(token, {
+          code: code.trim(),
+          name: name.trim(),
+          description,
+          department_id: dept,
+        });
       } else {
-        await patchStaffOrgPosition(token, editId, { name: name.trim(), department_id: dept });
+        await patchStaffOrgPosition(token, editId, {
+          name: name.trim(),
+          description,
+          department_id: dept,
+        });
       }
       await reload(token);
       setModalOpen(false);
@@ -151,6 +167,7 @@ export default function AdminOrgPositionsPage() {
             <tr>
               <th>Mã</th>
               <th>Tên</th>
+              <th>Mô tả</th>
               <th>Phòng</th>
               <th>Trạng thái</th>
               <th />
@@ -161,6 +178,9 @@ export default function AdminOrgPositionsPage() {
               <tr key={row.id}>
                 <td>{row.code}</td>
                 <td>{row.name}</td>
+                <td className="muted" title={row.description || undefined}>
+                  {orgDescriptionPreview(row.description)}
+                </td>
                 <td>{row.department_code ?? deptLabel[row.department_id ?? -1] ?? '—'}</td>
                 <td>{row.active ? 'Hoạt động' : 'Ngưng'}</td>
                 <td>
@@ -199,6 +219,7 @@ export default function AdminOrgPositionsPage() {
               Tên *
               <input value={name} onChange={(e) => setName(e.target.value)} />
             </label>
+            <OrgStructureDescriptionField value={description} onChange={setDescription} />
             <label>
               Phòng ban
               <select

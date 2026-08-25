@@ -5,6 +5,10 @@ import { AdminPageShell } from '@/components/admin';
 import { AdminOrgSubNav } from '@/components/rbac/AdminOrgSubNav';
 import { OrgStructureRowActions } from '@/components/rbac/OrgStructureRowActions';
 import {
+  OrgStructureDescriptionField,
+  orgDescriptionPreview,
+} from '@/components/rbac/OrgStructureDescriptionField';
+import {
   createStaffOrgTeam,
   deleteStaffOrgTeam,
   fetchStaffOrgDepartments,
@@ -30,6 +34,7 @@ export default function AdminOrgTeamsPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [departmentId, setDepartmentId] = useState<number | ''>('');
 
   const canConfigure = canConfigureOrgStructure(user);
@@ -63,6 +68,7 @@ export default function AdminOrgTeamsPage() {
     setEditId(null);
     setCode('');
     setName('');
+    setDescription('');
     setDepartmentId(deptFilter === '' ? '' : deptFilter);
     setFormError('');
     setModalOpen(true);
@@ -72,6 +78,7 @@ export default function AdminOrgTeamsPage() {
     setEditId(row.id);
     setCode(row.code);
     setName(row.name);
+    setDescription(row.description ?? '');
     setDepartmentId(row.department_id ?? '');
     setFormError('');
     setModalOpen(true);
@@ -85,6 +92,7 @@ export default function AdminOrgTeamsPage() {
       const payload = {
         code,
         name,
+        description,
         department_id: departmentId === '' ? null : Number(departmentId),
       };
       if (editId == null) {
@@ -180,6 +188,7 @@ export default function AdminOrgTeamsPage() {
             <tr>
               <th>Mã</th>
               <th>Tên</th>
+              <th>Mô tả</th>
               <th>Phòng</th>
               <th>Trạng thái</th>
               <th />
@@ -190,6 +199,9 @@ export default function AdminOrgTeamsPage() {
               <tr key={row.id}>
                 <td>{row.code}</td>
                 <td>{row.name}</td>
+                <td className="muted" title={row.description || undefined}>
+                  {orgDescriptionPreview(row.description)}
+                </td>
                 <td>{row.department_code ?? deptLabel[row.department_id ?? -1] ?? '—'}</td>
                 <td>{row.active ? 'Hoạt động' : 'Ngưng'}</td>
                 <td>
@@ -222,6 +234,7 @@ export default function AdminOrgTeamsPage() {
               Tên
               <input value={name} onChange={(e) => setName(e.target.value)} />
             </label>
+            <OrgStructureDescriptionField value={description} onChange={setDescription} />
             <label>
               Phòng ban
               <select

@@ -6,6 +6,10 @@ import { AdminPageShell } from '@/components/admin';
 import { AdminOrgSubNav } from '@/components/rbac/AdminOrgSubNav';
 import { OrgStructureRowActions } from '@/components/rbac/OrgStructureRowActions';
 import {
+  OrgStructureDescriptionField,
+  orgDescriptionPreview,
+} from '@/components/rbac/OrgStructureDescriptionField';
+import {
   createStaffOrgDepartment,
   deleteStaffOrgDepartment,
   fetchStaffOrgDepartments,
@@ -27,6 +31,7 @@ export default function AdminOrgDepartmentsPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
 
   const canConfigure = canConfigureOrgStructure(user);
 
@@ -43,6 +48,7 @@ export default function AdminOrgDepartmentsPage() {
     setEditId(null);
     setCode('');
     setName('');
+    setDescription('');
     setFormError('');
     setModalOpen(true);
   }
@@ -51,6 +57,7 @@ export default function AdminOrgDepartmentsPage() {
     setEditId(row.id);
     setCode(row.code);
     setName(row.name);
+    setDescription(row.description ?? '');
     setFormError('');
     setModalOpen(true);
   }
@@ -61,9 +68,9 @@ export default function AdminOrgDepartmentsPage() {
     setFormError('');
     try {
       if (editId == null) {
-        await createStaffOrgDepartment(token, { code, name });
+        await createStaffOrgDepartment(token, { code, name, description });
       } else {
-        await patchStaffOrgDepartment(token, editId, { code, name });
+        await patchStaffOrgDepartment(token, editId, { code, name, description });
       }
       await reload(token);
       setModalOpen(false);
@@ -132,6 +139,7 @@ export default function AdminOrgDepartmentsPage() {
             <tr>
               <th>Mã</th>
               <th>Tên</th>
+              <th>Mô tả</th>
               <th>Trạng thái</th>
               <th />
             </tr>
@@ -141,6 +149,9 @@ export default function AdminOrgDepartmentsPage() {
               <tr key={row.id}>
                 <td>{row.code}</td>
                 <td>{row.name}</td>
+                <td className="muted" title={row.description || undefined}>
+                  {orgDescriptionPreview(row.description)}
+                </td>
                 <td>{row.active ? 'Hoạt động' : 'Ngưng'}</td>
                 <td>
                   {canConfigure ? (
@@ -177,6 +188,7 @@ export default function AdminOrgDepartmentsPage() {
               Tên
               <input value={name} onChange={(e) => setName(e.target.value)} />
             </label>
+            <OrgStructureDescriptionField value={description} onChange={setDescription} />
             <div className="modal-actions">
               <button type="button" className="btn btn-ghost" onClick={() => setModalOpen(false)}>
                 Hủy

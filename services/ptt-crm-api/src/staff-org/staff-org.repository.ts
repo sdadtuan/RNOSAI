@@ -19,10 +19,15 @@ function trimCode(code: string): string {
   return code.trim();
 }
 
+function normalizeDescription(value: string | undefined | null): string {
+  return String(value ?? '').trim();
+}
+
 function mapDepartment(row: {
   id: string | number;
   code: string;
   name: string;
+  description?: string | null;
   parent_id: string | number | null;
   active: boolean;
 }): StaffDepartmentRow {
@@ -30,6 +35,7 @@ function mapDepartment(row: {
     id: Number(row.id),
     code: String(row.code ?? ''),
     name: String(row.name ?? ''),
+    description: String(row.description ?? ''),
     parent_id: row.parent_id == null ? null : Number(row.parent_id),
     active: Boolean(row.active),
   };
@@ -39,6 +45,7 @@ function mapTeam(row: {
   id: string | number;
   code: string;
   name: string;
+  description?: string | null;
   department_id: string | number | null;
   department_code?: string | null;
   department_name?: string | null;
@@ -48,6 +55,7 @@ function mapTeam(row: {
     id: Number(row.id),
     code: String(row.code ?? ''),
     name: String(row.name ?? ''),
+    description: String(row.description ?? ''),
     department_id: row.department_id == null ? null : Number(row.department_id),
     department_code: row.department_code ? String(row.department_code) : undefined,
     department_name: row.department_name ? String(row.department_name) : undefined,
@@ -59,6 +67,7 @@ function mapPosition(row: {
   id: string | number;
   code: string;
   name: string;
+  description?: string | null;
   parent_id: string | number | null;
   department_id: string | number | null;
   department_code?: string | null;
@@ -68,6 +77,7 @@ function mapPosition(row: {
     id: Number(row.id),
     code: String(row.code ?? ''),
     name: String(row.name ?? ''),
+    description: String(row.description ?? ''),
     parent_id: row.parent_id == null ? null : Number(row.parent_id),
     department_id: row.department_id == null ? null : Number(row.department_id),
     department_code: row.department_code ? String(row.department_code) : undefined,
@@ -100,7 +110,7 @@ export class StaffOrgRepository {
       parent_id: string | null;
       active: boolean;
     }>(
-      `SELECT id, code, name, parent_id, active
+      `SELECT id, code, name, description, parent_id, active
        FROM crm_departments
        ORDER BY active DESC, name, code`,
     );
@@ -117,13 +127,14 @@ export class StaffOrgRepository {
       id: string;
       code: string;
       name: string;
+      description: string;
       parent_id: string | null;
       active: boolean;
     }>(
-      `INSERT INTO crm_departments (code, name, parent_id, active, updated_at)
-       VALUES ($1, $2, $3, TRUE, NOW())
-       RETURNING id, code, name, parent_id, active`,
-      [code, name, body.parent_id ?? null],
+      `INSERT INTO crm_departments (code, name, description, parent_id, active, updated_at)
+       VALUES ($1, $2, $3, $4, TRUE, NOW())
+       RETURNING id, code, name, description, parent_id, active`,
+      [code, name, normalizeDescription(body.description), body.parent_id ?? null],
     );
     const row = mapDepartment(result.rows[0]);
     await this.writeAudit({
@@ -153,6 +164,10 @@ export class StaffOrgRepository {
       sets.push(`name = $${idx++}`);
       params.push(String(body.name).trim());
     }
+    if (body.description !== undefined) {
+      sets.push(`description = $${idx++}`);
+      params.push(normalizeDescription(body.description));
+    }
     if (body.parent_id !== undefined) {
       sets.push(`parent_id = $${idx++}`);
       params.push(body.parent_id);
@@ -168,11 +183,12 @@ export class StaffOrgRepository {
       id: string;
       code: string;
       name: string;
+      description: string;
       parent_id: string | null;
       active: boolean;
     }>(
       `UPDATE crm_departments SET ${sets.join(', ')} WHERE id = $${idx}
-       RETURNING id, code, name, parent_id, active`,
+       RETURNING id, code, name, description, parent_id, active`,
       params,
     );
     if (!result.rows[0]) throw new NotFoundException({ error: 'department_not_found', id });
@@ -236,10 +252,11 @@ export class StaffOrgRepository {
       id: string;
       code: string;
       name: string;
+      description: string;
       parent_id: string | null;
       active: boolean;
     }>(
-      `SELECT id, code, name, parent_id, active FROM crm_departments WHERE id = $1 LIMIT 1`,
+      `SELECT id, code, name, description, parent_id, active FROM crm_departments WHERE id = $1 LIMIT 1`,
       [id],
     );
     if (!result.rows[0]) throw new NotFoundException({ error: 'department_not_found', id });
@@ -257,12 +274,13 @@ export class StaffOrgRepository {
       id: string;
       code: string;
       name: string;
+      description: string;
       department_id: string | null;
       department_code: string | null;
       department_name: string | null;
       active: boolean;
     }>(
-      `SELECT t.id, t.code, t.name, t.department_id, d.code AS department_code, d.name AS department_name, t.active
+      `SELECT t.id, t.code, t.name, t.description, t.department_id, d.code AS department_code, d.name AS department_name, t.active
        FROM staff_teams t
        LEFT JOIN crm_departments d ON d.id = t.department_id
        ${where}
@@ -279,10 +297,10 @@ export class StaffOrgRepository {
       throw new BadRequestException({ error: 'invalid_team', message: 'code and name required' });
     }
     const result = await this.db.query<{ id: string }>(
-      `INSERT INTO staff_teams (code, name, department_id, active, updated_at)
-       VALUES ($1, $2, $3, TRUE, NOW())
+      `INSERT INTO staff_teams (code, name, description, department_id, active, updated_at)
+       VALUES ($1, $2, $3, $4, TRUE, NOW())
        RETURNING id`,
-      [code, name, body.department_id ?? null],
+      [code, name, normalizeDescription(body.description), body.department_id ?? null],
     );
     const id = Number(result.rows[0]?.id);
     const row = (await this.listTeams()).find((t) => t.id === id);
@@ -308,6 +326,10 @@ export class StaffOrgRepository {
     if (body.name !== undefined) {
       sets.push(`name = $${idx++}`);
       params.push(String(body.name).trim());
+    }
+    if (body.description !== undefined) {
+      sets.push(`description = $${idx++}`);
+      params.push(normalizeDescription(body.description));
     }
     if (body.department_id !== undefined) {
       sets.push(`department_id = $${idx++}`);
@@ -373,12 +395,13 @@ export class StaffOrgRepository {
       id: string;
       code: string;
       name: string;
+      description: string;
       parent_id: string | null;
       department_id: string | null;
       department_code: string | null;
       active: boolean;
     }>(
-      `SELECT p.id, p.code, p.name, p.parent_id, p.department_id, d.code AS department_code, p.active
+      `SELECT p.id, p.code, p.name, p.description, p.parent_id, p.department_id, d.code AS department_code, p.active
        FROM crm_positions p
        LEFT JOIN crm_departments d ON d.id = p.department_id
        ORDER BY p.active DESC, p.name, p.code`,
@@ -393,10 +416,10 @@ export class StaffOrgRepository {
       throw new BadRequestException({ error: 'invalid_position', message: 'code and name required' });
     }
     const result = await this.db.query<{ id: string }>(
-      `INSERT INTO crm_positions (code, name, parent_id, department_id, active, updated_at)
-       VALUES ($1, $2, $3, $4, TRUE, NOW())
+      `INSERT INTO crm_positions (code, name, description, parent_id, department_id, active, updated_at)
+       VALUES ($1, $2, $3, $4, $5, TRUE, NOW())
        RETURNING id`,
-      [code, name, body.parent_id ?? null, body.department_id ?? null],
+      [code, name, normalizeDescription(body.description), body.parent_id ?? null, body.department_id ?? null],
     );
     const rowId = Number(result.rows[0]?.id);
     const row = (await this.listPositions()).find((p) => p.id === rowId);
@@ -422,6 +445,10 @@ export class StaffOrgRepository {
     if (body.name !== undefined) {
       sets.push(`name = $${idx++}`);
       params.push(String(body.name).trim());
+    }
+    if (body.description !== undefined) {
+      sets.push(`description = $${idx++}`);
+      params.push(normalizeDescription(body.description));
     }
     if (body.parent_id !== undefined) {
       sets.push(`parent_id = $${idx++}`);

@@ -120,6 +120,7 @@ export type StaffDepartmentRow = {
   id: number;
   code: string;
   name: string;
+  description: string;
   parent_id: number | null;
   active: boolean;
 };
@@ -128,6 +129,7 @@ export type StaffTeamRow = {
   id: number;
   code: string;
   name: string;
+  description: string;
   department_id: number | null;
   department_code?: string;
   department_name?: string;
@@ -138,6 +140,7 @@ export type StaffOrgPositionRow = {
   id: number;
   code: string;
   name: string;
+  description: string;
   parent_id: number | null;
   department_id: number | null;
   department_code?: string;
@@ -147,12 +150,14 @@ export type StaffOrgPositionRow = {
 export type CreateStaffDepartmentBody = {
   code: string;
   name: string;
+  description?: string;
   parent_id?: number | null;
 };
 
 export type PatchStaffDepartmentBody = {
   code?: string;
   name?: string;
+  description?: string;
   parent_id?: number | null;
   active?: boolean;
 };
@@ -160,12 +165,14 @@ export type PatchStaffDepartmentBody = {
 export type CreateStaffTeamBody = {
   code: string;
   name: string;
+  description?: string;
   department_id?: number | null;
 };
 
 export type PatchStaffTeamBody = {
   code?: string;
   name?: string;
+  description?: string;
   department_id?: number | null;
   active?: boolean;
 };
@@ -173,12 +180,14 @@ export type PatchStaffTeamBody = {
 export type CreateStaffOrgPositionBody = {
   code: string;
   name: string;
+  description?: string;
   parent_id?: number | null;
   department_id?: number | null;
 };
 
 export type PatchStaffOrgPositionBody = {
   name?: string;
+  description?: string;
   parent_id?: number | null;
   department_id?: number | null;
   active?: boolean;

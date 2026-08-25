@@ -8308,6 +8308,7 @@ export interface StaffDepartmentRow {
   id: number;
   code: string;
   name: string;
+  description: string;
   parent_id: number | null;
   active: boolean;
 }
@@ -8316,6 +8317,7 @@ export interface StaffTeamRow {
   id: number;
   code: string;
   name: string;
+  description: string;
   department_id: number | null;
   department_code?: string;
   department_name?: string;
@@ -8326,6 +8328,7 @@ export interface StaffOrgPositionRow {
   id: number;
   code: string;
   name: string;
+  description: string;
   parent_id: number | null;
   department_id: number | null;
   department_code?: string;
@@ -8339,7 +8342,7 @@ export async function fetchStaffOrgDepartments(token: string): Promise<StaffDepa
 
 export async function createStaffOrgDepartment(
   token: string,
-  body: { code: string; name: string; parent_id?: number | null },
+  body: { code: string; name: string; description?: string; parent_id?: number | null },
 ): Promise<StaffDepartmentRow> {
   return crmFetch(token, '/api/v1/staff/org/departments', {
     method: 'POST',
@@ -8351,7 +8354,7 @@ export async function createStaffOrgDepartment(
 export async function patchStaffOrgDepartment(
   token: string,
   id: number,
-  body: Partial<{ code: string; name: string; parent_id: number | null; active: boolean }>,
+  body: Partial<{ code: string; name: string; description: string; parent_id: number | null; active: boolean }>,
 ): Promise<StaffDepartmentRow> {
   return crmFetch(token, `/api/v1/staff/org/departments/${id}`, {
     method: 'PATCH',
@@ -8378,7 +8381,7 @@ export async function fetchStaffOrgTeams(
 
 export async function createStaffOrgTeam(
   token: string,
-  body: { code: string; name: string; department_id?: number | null },
+  body: { code: string; name: string; description?: string; department_id?: number | null },
 ): Promise<StaffTeamRow> {
   return crmFetch(token, '/api/v1/staff/org/teams', {
     method: 'POST',
@@ -8390,7 +8393,7 @@ export async function createStaffOrgTeam(
 export async function patchStaffOrgTeam(
   token: string,
   id: number,
-  body: Partial<{ code: string; name: string; department_id: number | null; active: boolean }>,
+  body: Partial<{ code: string; name: string; description: string; department_id: number | null; active: boolean }>,
 ): Promise<StaffTeamRow> {
   return crmFetch(token, `/api/v1/staff/org/teams/${id}`, {
     method: 'PATCH',
@@ -8419,7 +8422,7 @@ export async function fetchStaffOrgPositions(token: string): Promise<StaffOrgPos
 
 export async function createStaffOrgPosition(
   token: string,
-  body: { code: string; name: string; department_id?: number | null; parent_id?: number | null },
+  body: { code: string; name: string; description?: string; department_id?: number | null; parent_id?: number | null },
 ): Promise<StaffOrgPositionRow> {
   return crmFetch(token, '/api/v1/staff/org/positions', {
     method: 'POST',
@@ -8431,7 +8434,7 @@ export async function createStaffOrgPosition(
 export async function patchStaffOrgPosition(
   token: string,
   id: number,
-  body: Partial<{ name: string; parent_id: number | null; department_id: number | null; active: boolean }>,
+  body: Partial<{ name: string; description: string; parent_id: number | null; department_id: number | null; active: boolean }>,
 ): Promise<StaffOrgPositionRow> {
   return crmFetch(token, `/api/v1/staff/org/positions/${id}`, {
     method: 'PATCH',

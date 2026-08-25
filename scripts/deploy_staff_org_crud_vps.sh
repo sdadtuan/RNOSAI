@@ -35,8 +35,17 @@ sync_to_vps() {
     "$ROOT/services/ops-web/src/components/rbac/OrgStructureRowActions.tsx" \
     "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/services/ops-web/src/components/rbac/OrgStructureRowActions.tsx"
   rsync -av \
+    "$ROOT/services/ops-web/src/components/rbac/OrgStructureDescriptionField.tsx" \
+    "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/services/ops-web/src/components/rbac/OrgStructureDescriptionField.tsx"
+  rsync -av \
     "$ROOT/services/ops-web/src/lib/api.ts" \
     "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/services/ops-web/src/lib/api.ts"
+  rsync -av \
+    "$ROOT/docs/specs/postgresql-ddl-staff-org-description.sql" \
+    "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/docs/specs/postgresql-ddl-staff-org-description.sql"
+  rsync -av \
+    "$ROOT/scripts/apply_pg_ddl_staff_org_description.sh" \
+    "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/scripts/apply_pg_ddl_staff_org_description.sh"
   rsync -av \
     "$ROOT/scripts/deploy_staff_org_crud_vps.sh" \
     "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/scripts/deploy_staff_org_crud_vps.sh"
@@ -52,6 +61,9 @@ run_local() {
     source "$ROOT/.env"
     set +a
   fi
+
+  echo "== Apply staff org description DDL =="
+  bash "$ROOT/scripts/apply_pg_ddl_staff_org_description.sh"
 
   echo "== Build ptt-crm-api =="
   cd "$ROOT/services/ptt-crm-api"
