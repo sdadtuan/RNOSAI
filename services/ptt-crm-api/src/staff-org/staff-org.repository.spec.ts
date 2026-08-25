@@ -20,4 +20,10 @@ describe('StaffOrgRepository validation', () => {
       BadRequestException,
     );
   });
+
+  it('rejects empty position code', async () => {
+    await expect(repo.createPosition({ code: '  ', name: 'Sales' }, 'admin@test')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
 });

@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AdminPageShell } from '@/components/admin';
 import { AdminOrgSubNav } from '@/components/rbac/AdminOrgSubNav';
+import { OrgStructureRowActions } from '@/components/rbac/OrgStructureRowActions';
 import {
   createStaffOrgDepartment,
+  deleteStaffOrgDepartment,
   fetchStaffOrgDepartments,
   patchStaffOrgDepartment,
   type StaffDepartmentRow,
@@ -75,11 +77,26 @@ export default function AdminOrgDepartmentsPage() {
   async function toggleActive(row: StaffDepartmentRow) {
     if (!token || !canConfigure) return;
     setBusy(true);
+    setFormError('');
     try {
       await patchStaffOrgDepartment(token, row.id, { active: !row.active });
       await reload(token);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Cập nhật thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(row: StaffDepartmentRow) {
+    if (!token || !canConfigure) return;
+    setBusy(true);
+    setFormError('');
+    try {
+      await deleteStaffOrgDepartment(token, row.id);
+      await reload(token);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Xóa thất bại');
     } finally {
       setBusy(false);
     }
@@ -127,14 +144,14 @@ export default function AdminOrgDepartmentsPage() {
                 <td>{row.active ? 'Hoạt động' : 'Ngưng'}</td>
                 <td>
                   {canConfigure ? (
-                    <>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => openEdit(row)}>
-                        Sửa
-                      </button>{' '}
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => toggleActive(row)}>
-                        {row.active ? 'Ngưng' : 'Bật'}
-                      </button>
-                    </>
+                    <OrgStructureRowActions
+                      active={row.active}
+                      busy={busy}
+                      entityLabel={`phòng ban ${row.code}`}
+                      onEdit={() => openEdit(row)}
+                      onToggleActive={() => void toggleActive(row)}
+                      onDelete={() => void remove(row)}
+                    />
                   ) : null}
                 </td>
               </tr>

@@ -170,11 +170,28 @@ export type PatchStaffTeamBody = {
   active?: boolean;
 };
 
+export type CreateStaffOrgPositionBody = {
+  code: string;
+  name: string;
+  parent_id?: number | null;
+  department_id?: number | null;
+};
+
 export type PatchStaffOrgPositionBody = {
   name?: string;
   parent_id?: number | null;
   department_id?: number | null;
   active?: boolean;
+};
+
+export type StaffOrgDeleteBlockedReason = {
+  entity: string;
+  count: number;
+};
+
+export type StaffOrgDeleteResponse = {
+  ok: true;
+  id: number;
 };
 
 export type StaffOrgAuditInput = {

@@ -22,6 +22,7 @@ import type {
   CreateStaffDepartmentBody,
   CreateStaffOrgUserBody,
   CreateStaffOrgUserResponse,
+  CreateStaffOrgPositionBody,
   CreateStaffTeamBody,
   OffboardStaffOrgUserBody,
   OffboardStaffOrgUserResponse,
@@ -105,6 +106,10 @@ export class StaffOrgService implements OnModuleDestroy {
     return this.repository.patchDepartment(id, body, actorEmail);
   }
 
+  deleteDepartment(id: number, actorEmail: string) {
+    return this.repository.deleteDepartment(id, actorEmail);
+  }
+
   listTeams(departmentId?: number) {
     return this.repository.listTeams(departmentId);
   }
@@ -117,6 +122,10 @@ export class StaffOrgService implements OnModuleDestroy {
     return this.repository.patchTeam(id, body, actorEmail);
   }
 
+  deleteTeam(id: number, actorEmail: string) {
+    return this.repository.deleteTeam(id, actorEmail);
+  }
+
   listPositions() {
     return this.repository.listPositions();
   }
@@ -125,8 +134,16 @@ export class StaffOrgService implements OnModuleDestroy {
     return this.repository.listOrgChart(Boolean(includeInactive));
   }
 
+  createPosition(body: CreateStaffOrgPositionBody, actorEmail: string) {
+    return this.repository.createPosition(body, actorEmail);
+  }
+
   patchPosition(id: number, body: PatchStaffOrgPositionBody, actorEmail: string) {
     return this.repository.patchPosition(id, body, actorEmail);
+  }
+
+  deletePosition(id: number, actorEmail: string) {
+    return this.repository.deletePosition(id, actorEmail);
   }
 
   listJobFunctionCatalog() {

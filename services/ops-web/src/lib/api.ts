@@ -8360,6 +8360,13 @@ export async function patchStaffOrgDepartment(
   });
 }
 
+export async function deleteStaffOrgDepartment(
+  token: string,
+  id: number,
+): Promise<{ ok: true; id: number }> {
+  return crmFetch(token, `/api/v1/staff/org/departments/${id}`, { method: 'DELETE' });
+}
+
 export async function fetchStaffOrgTeams(
   token: string,
   departmentId?: number,
@@ -8392,6 +8399,13 @@ export async function patchStaffOrgTeam(
   });
 }
 
+export async function deleteStaffOrgTeam(
+  token: string,
+  id: number,
+): Promise<{ ok: true; id: number }> {
+  return crmFetch(token, `/api/v1/staff/org/teams/${id}`, { method: 'DELETE' });
+}
+
 export async function fetchStaffOrgNextInternalCode(
   token: string,
 ): Promise<{ internal_code: string }> {
@@ -8401,6 +8415,17 @@ export async function fetchStaffOrgNextInternalCode(
 export async function fetchStaffOrgPositions(token: string): Promise<StaffOrgPositionRow[]> {
   const data = await crmFetch<{ positions: StaffOrgPositionRow[] }>(token, '/api/v1/staff/org/positions');
   return data.positions ?? [];
+}
+
+export async function createStaffOrgPosition(
+  token: string,
+  body: { code: string; name: string; department_id?: number | null; parent_id?: number | null },
+): Promise<StaffOrgPositionRow> {
+  return crmFetch(token, '/api/v1/staff/org/positions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 }
 
 export async function patchStaffOrgPosition(
@@ -8413,6 +8438,13 @@ export async function patchStaffOrgPosition(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+}
+
+export async function deleteStaffOrgPosition(
+  token: string,
+  id: number,
+): Promise<{ ok: true; id: number }> {
+  return crmFetch(token, `/api/v1/staff/org/positions/${id}`, { method: 'DELETE' });
 }
 
 export type StaffOrgChartNode = {

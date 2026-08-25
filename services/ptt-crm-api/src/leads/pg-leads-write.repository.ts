@@ -104,9 +104,9 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
            owner_company_id, b2b_project_id
          ) VALUES (
            $1, $2, $3, $4, $5, $6, $7,
-           $16, $8::jsonb, $9::uuid, $10, $11,
-           $12, $13::timestamptz, $13::timestamptz, $13::timestamptz, $14, 1,
-           $17::uuid, $18::uuid
+           $8, $9::jsonb, $10::uuid, $11, $12,
+           $13, $14::timestamptz, $14::timestamptz, $14::timestamptz, $15, 1,
+           $16::uuid, $17::uuid
          )`,
         [
           leadId,
@@ -116,6 +116,7 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
           body.status?.trim() || 'new',
           body.source?.trim() || opts.defaultSource,
           body.owner_id ?? null,
+          Boolean(opts.isDuplicate),
           JSON.stringify(opts.meta),
           body.client_id ?? null,
           body.channel?.trim() || '',
@@ -123,7 +124,6 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
           body.campaign_id ?? null,
           now,
           opts.writeSource,
-          Boolean(opts.isDuplicate),
           body.owner_company_id ?? null,
           body.b2b_project_id ?? null,
         ],

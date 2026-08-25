@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -25,6 +26,7 @@ import { StaffOrgService } from './staff-org.service';
 import type {
   CreateStaffDepartmentBody,
   CreateStaffOrgUserBody,
+  CreateStaffOrgPositionBody,
   CreateStaffTeamBody,
   OffboardStaffOrgUserBody,
   PatchStaffDepartmentBody,
@@ -65,6 +67,12 @@ export class StaffOrgController {
     return this.org.patchDepartment(id, body, staffUser?.email ?? '');
   }
 
+  @Delete('departments/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgDepartmentsConfigureGuard)
+  deleteDepartment(@Param('id', ParseIntPipe) id: number, @StaffUser() staffUser?: StaffJwtPayload) {
+    return this.org.deleteDepartment(id, staffUser?.email ?? '');
+  }
+
   @Get('teams')
   @UseGuards(StaffOrInternalKeyGuard, StaffOrgDepartmentsViewGuard)
   listTeams(@Query('department_id') departmentId?: string) {
@@ -89,6 +97,12 @@ export class StaffOrgController {
     return this.org.patchTeam(id, body, staffUser?.email ?? '');
   }
 
+  @Delete('teams/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgDepartmentsConfigureGuard)
+  deleteTeam(@Param('id', ParseIntPipe) id: number, @StaffUser() staffUser?: StaffJwtPayload) {
+    return this.org.deleteTeam(id, staffUser?.email ?? '');
+  }
+
   @Get('positions')
   @UseGuards(StaffOrInternalKeyGuard, StaffOrgDepartmentsViewGuard)
   listPositions() {
@@ -102,6 +116,15 @@ export class StaffOrgController {
     return this.org.listOrgChart(include).then((nodes) => ({ nodes }));
   }
 
+  @Post('positions')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgConfigureGuard)
+  createPosition(
+    @Body() body: CreateStaffOrgPositionBody,
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.org.createPosition(body, staffUser?.email ?? '');
+  }
+
   @Patch('positions/:id')
   @UseGuards(StaffOrInternalKeyGuard, StaffOrgConfigureGuard)
   patchPosition(
@@ -110,6 +133,12 @@ export class StaffOrgController {
     @StaffUser() staffUser?: StaffJwtPayload,
   ) {
     return this.org.patchPosition(id, body, staffUser?.email ?? '');
+  }
+
+  @Delete('positions/:id')
+  @UseGuards(StaffOrInternalKeyGuard, StaffOrgConfigureGuard)
+  deletePosition(@Param('id', ParseIntPipe) id: number, @StaffUser() staffUser?: StaffJwtPayload) {
+    return this.org.deletePosition(id, staffUser?.email ?? '');
   }
 
   @Get('job-functions/catalog')

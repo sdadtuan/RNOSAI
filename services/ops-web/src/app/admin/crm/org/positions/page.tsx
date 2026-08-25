@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AdminPageShell } from '@/components/admin';
 import { AdminOrgSubNav } from '@/components/rbac/AdminOrgSubNav';
+import { OrgStructureRowActions } from '@/components/rbac/OrgStructureRowActions';
 import {
+  createStaffOrgPosition,
+  deleteStaffOrgPosition,
   fetchStaffOrgDepartments,
   fetchStaffOrgPositions,
   patchStaffOrgPosition,
@@ -13,6 +16,7 @@ import {
 } from '@/lib/api';
 import {
   canConfigureData,
+  canConfigureOrgStructure,
   canViewOrgAdmin,
   useAdminCrmAuth,
 } from '@/lib/admin/use-admin-crm-auth';
@@ -23,11 +27,13 @@ export default function AdminOrgPositionsPage() {
   const [rows, setRows] = useState<StaffOrgPositionRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
-  const [editRow, setEditRow] = useState<StaffOrgPositionRow | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [departmentId, setDepartmentId] = useState<number | ''>('');
 
-  const canConfigure = canConfigureData(user);
+  const canConfigure = canConfigureOrgStructure(user) || canConfigureData(user);
 
   const reload = useCallback(async (access: string) => {
     setRows(await fetchStaffOrgPositions(access));
@@ -48,25 +54,67 @@ export default function AdminOrgPositionsPage() {
     [departments],
   );
 
+  function openCreate() {
+    setEditId(null);
+    setCode('');
+    setName('');
+    setDepartmentId('');
+    setFormError('');
+    setModalOpen(true);
+  }
+
   function openEdit(row: StaffOrgPositionRow) {
-    setEditRow(row);
+    setEditId(row.id);
+    setCode(row.code);
     setName(row.name);
     setDepartmentId(row.department_id ?? '');
     setFormError('');
+    setModalOpen(true);
   }
 
   async function save() {
-    if (!token || !canConfigure || !editRow) return;
+    if (!token || !canConfigure) return;
     setBusy(true);
+    setFormError('');
     try {
-      await patchStaffOrgPosition(token, editRow.id, {
-        name,
-        department_id: departmentId === '' ? null : Number(departmentId),
-      });
+      const dept = departmentId === '' ? null : Number(departmentId);
+      if (editId == null) {
+        await createStaffOrgPosition(token, { code: code.trim(), name: name.trim(), department_id: dept });
+      } else {
+        await patchStaffOrgPosition(token, editId, { name: name.trim(), department_id: dept });
+      }
       await reload(token);
-      setEditRow(null);
+      setModalOpen(false);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Lưu thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleActive(row: StaffOrgPositionRow) {
+    if (!token || !canConfigure) return;
+    setBusy(true);
+    setFormError('');
+    try {
+      await patchStaffOrgPosition(token, row.id, { active: !row.active });
+      await reload(token);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Cập nhật thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(row: StaffOrgPositionRow) {
+    if (!token || !canConfigure) return;
+    setBusy(true);
+    setFormError('');
+    try {
+      await deleteStaffOrgPosition(token, row.id);
+      await reload(token);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Xóa thất bại');
     } finally {
       setBusy(false);
     }
@@ -85,6 +133,13 @@ export default function AdminOrgPositionsPage() {
         { label: 'Chức vụ' },
       ]}
       loading={loading}
+      actions={
+        canConfigure ? (
+          <button type="button" className="btn btn-primary" onClick={openCreate} disabled={busy}>
+            + Chức vụ
+          </button>
+        ) : null
+      }
     >
       <AdminOrgSubNav />
       {error ? <p className="form-error">{error}</p> : null}
@@ -110,9 +165,14 @@ export default function AdminOrgPositionsPage() {
                 <td>{row.active ? 'Hoạt động' : 'Ngưng'}</td>
                 <td>
                   {canConfigure ? (
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => openEdit(row)}>
-                      Sửa
-                    </button>
+                    <OrgStructureRowActions
+                      active={row.active}
+                      busy={busy}
+                      entityLabel={`chức vụ ${row.code}`}
+                      onEdit={() => openEdit(row)}
+                      onToggleActive={() => void toggleActive(row)}
+                      onDelete={() => void remove(row)}
+                    />
                   ) : null}
                 </td>
               </tr>
@@ -121,12 +181,22 @@ export default function AdminOrgPositionsPage() {
         </table>
       </div>
 
-      {editRow ? (
-        <div className="modal-backdrop" role="presentation" onClick={() => setEditRow(null)}>
+      {modalOpen ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setModalOpen(false)}>
           <div className="modal-card" role="dialog" onClick={(e) => e.stopPropagation()}>
-            <h3>Sửa chức vụ {editRow.code}</h3>
+            <h3>{editId == null ? 'Thêm chức vụ' : `Sửa chức vụ ${code}`}</h3>
+            {editId == null ? (
+              <label>
+                Mã *
+                <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="VD: KD-01" />
+              </label>
+            ) : (
+              <p className="muted" style={{ marginTop: 0 }}>
+                Mã: <code>{code}</code> (không đổi sau khi tạo)
+              </p>
+            )}
             <label>
-              Tên
+              Tên *
               <input value={name} onChange={(e) => setName(e.target.value)} />
             </label>
             <label>
@@ -144,10 +214,10 @@ export default function AdminOrgPositionsPage() {
               </select>
             </label>
             <div className="modal-actions">
-              <button type="button" className="btn btn-ghost" onClick={() => setEditRow(null)}>
+              <button type="button" className="btn btn-ghost" onClick={() => setModalOpen(false)}>
                 Hủy
               </button>
-              <button type="button" className="btn btn-primary" onClick={save} disabled={busy}>
+              <button type="button" className="btn btn-primary" onClick={() => void save()} disabled={busy}>
                 Lưu
               </button>
             </div>

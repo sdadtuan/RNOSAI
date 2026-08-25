@@ -1,7 +1,8 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import type { Pool } from 'pg';
 import type {
   CreateStaffDepartmentBody,
+  CreateStaffOrgPositionBody,
   CreateStaffTeamBody,
   PatchStaffDepartmentBody,
   PatchStaffOrgPositionBody,
@@ -9,6 +10,7 @@ import type {
   StaffDepartmentRow,
   StaffOrgAuditInput,
   StaffOrgChartNode,
+  StaffOrgDeleteResponse,
   StaffOrgPositionRow,
   StaffTeamRow,
 } from './staff-org.types';
@@ -185,6 +187,50 @@ export class StaffOrgRepository {
     return row;
   }
 
+  async deleteDepartment(id: number, actorEmail: string): Promise<StaffOrgDeleteResponse> {
+    await this.getDepartment(id);
+    const blockers: Array<{ entity: string; count: number }> = [];
+    const checks = await Promise.all([
+      this.db.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM crm_departments WHERE parent_id = $1`,
+        [id],
+      ),
+      this.db.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM staff_teams WHERE department_id = $1`,
+        [id],
+      ),
+      this.db.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM crm_positions WHERE department_id = $1`,
+        [id],
+      ),
+      this.db.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM crm_staff WHERE department_id = $1`,
+        [id],
+      ),
+    ]);
+    const labels = ['child_departments', 'teams', 'positions', 'staff'];
+    checks.forEach((result, index) => {
+      const count = Number(result.rows[0]?.count ?? 0);
+      if (count > 0) blockers.push({ entity: labels[index]!, count });
+    });
+    if (blockers.length) {
+      throw new ConflictException({
+        error: 'department_in_use',
+        message: 'Phòng ban đang được sử dụng — ngưng thay vì xóa',
+        blockers,
+      });
+    }
+    const result = await this.db.query(`DELETE FROM crm_departments WHERE id = $1`, [id]);
+    if ((result.rowCount ?? 0) === 0) throw new NotFoundException({ error: 'department_not_found', id });
+    await this.writeAudit({
+      actor_email: actorEmail,
+      entity_type: 'department',
+      entity_id: String(id),
+      action: 'delete',
+    });
+    return { ok: true, id };
+  }
+
   async getDepartment(id: number): Promise<StaffDepartmentRow> {
     const result = await this.db.query<{
       id: string;
@@ -296,6 +342,32 @@ export class StaffOrgRepository {
     return row;
   }
 
+  async deleteTeam(id: number, actorEmail: string): Promise<StaffOrgDeleteResponse> {
+    const rows = await this.listTeams();
+    if (!rows.some((t) => t.id === id)) throw new NotFoundException({ error: 'team_not_found', id });
+    const usage = await this.db.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM staff_user_teams WHERE team_id = $1`,
+      [id],
+    );
+    const userCount = Number(usage.rows[0]?.count ?? 0);
+    if (userCount > 0) {
+      throw new ConflictException({
+        error: 'team_in_use',
+        message: 'Team đang có nhân viên gán — gỡ gán hoặc ngưng thay vì xóa',
+        blockers: [{ entity: 'users', count: userCount }],
+      });
+    }
+    const result = await this.db.query(`DELETE FROM staff_teams WHERE id = $1`, [id]);
+    if ((result.rowCount ?? 0) === 0) throw new NotFoundException({ error: 'team_not_found', id });
+    await this.writeAudit({
+      actor_email: actorEmail,
+      entity_type: 'team',
+      entity_id: String(id),
+      action: 'delete',
+    });
+    return { ok: true, id };
+  }
+
   async listPositions(): Promise<StaffOrgPositionRow[]> {
     const result = await this.db.query<{
       id: string;
@@ -312,6 +384,31 @@ export class StaffOrgRepository {
        ORDER BY p.active DESC, p.name, p.code`,
     );
     return result.rows.map(mapPosition);
+  }
+
+  async createPosition(body: CreateStaffOrgPositionBody, actorEmail: string): Promise<StaffOrgPositionRow> {
+    const code = trimCode(body.code);
+    const name = String(body.name ?? '').trim();
+    if (!code || !name) {
+      throw new BadRequestException({ error: 'invalid_position', message: 'code and name required' });
+    }
+    const result = await this.db.query<{ id: string }>(
+      `INSERT INTO crm_positions (code, name, parent_id, department_id, active, updated_at)
+       VALUES ($1, $2, $3, $4, TRUE, NOW())
+       RETURNING id`,
+      [code, name, body.parent_id ?? null, body.department_id ?? null],
+    );
+    const rowId = Number(result.rows[0]?.id);
+    const row = (await this.listPositions()).find((p) => p.id === rowId);
+    if (!row) throw new NotFoundException({ error: 'position_not_found', id: rowId });
+    await this.writeAudit({
+      actor_email: actorEmail,
+      entity_type: 'position',
+      entity_id: String(row.id),
+      action: 'create',
+      diff_json: { code: row.code, name: row.name, department_id: row.department_id },
+    });
+    return row;
   }
 
   async patchPosition(
@@ -361,6 +458,47 @@ export class StaffOrgRepository {
       diff_json: body as Record<string, unknown>,
     });
     return row;
+  }
+
+  async deletePosition(id: number, actorEmail: string): Promise<StaffOrgDeleteResponse> {
+    const rows = await this.listPositions();
+    if (!rows.some((p) => p.id === id)) throw new NotFoundException({ error: 'position_not_found', id });
+    const blockers: Array<{ entity: string; count: number }> = [];
+    const checks = await Promise.all([
+      this.db.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM staff_users WHERE position_id = $1`,
+        [id],
+      ),
+      this.db.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM crm_staff WHERE position_id = $1`,
+        [id],
+      ),
+      this.db.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM crm_positions WHERE parent_id = $1`,
+        [id],
+      ),
+    ]);
+    const labels = ['users', 'staff', 'child_positions'];
+    checks.forEach((result, index) => {
+      const count = Number(result.rows[0]?.count ?? 0);
+      if (count > 0) blockers.push({ entity: labels[index]!, count });
+    });
+    if (blockers.length) {
+      throw new ConflictException({
+        error: 'position_in_use',
+        message: 'Chức vụ đang được sử dụng — ngưng thay vì xóa',
+        blockers,
+      });
+    }
+    const result = await this.db.query(`DELETE FROM crm_positions WHERE id = $1`, [id]);
+    if ((result.rowCount ?? 0) === 0) throw new NotFoundException({ error: 'position_not_found', id });
+    await this.writeAudit({
+      actor_email: actorEmail,
+      entity_type: 'position',
+      entity_id: String(id),
+      action: 'delete',
+    });
+    return { ok: true, id };
   }
 
   async listOrgChart(includeInactive = false): Promise<StaffOrgChartNode[]> {

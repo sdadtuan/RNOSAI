@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminPageShell } from '@/components/admin';
 import { AdminOrgSubNav } from '@/components/rbac/AdminOrgSubNav';
+import { OrgStructureRowActions } from '@/components/rbac/OrgStructureRowActions';
 import {
   createStaffOrgTeam,
+  deleteStaffOrgTeam,
   fetchStaffOrgDepartments,
   fetchStaffOrgTeams,
   patchStaffOrgTeam,
@@ -99,6 +101,34 @@ export default function AdminOrgTeamsPage() {
     }
   }
 
+  async function toggleActive(row: StaffTeamRow) {
+    if (!token || !canConfigure) return;
+    setBusy(true);
+    setFormError('');
+    try {
+      await patchStaffOrgTeam(token, row.id, { active: !row.active });
+      await reload(token);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Cập nhật thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(row: StaffTeamRow) {
+    if (!token || !canConfigure) return;
+    setBusy(true);
+    setFormError('');
+    try {
+      await deleteStaffOrgTeam(token, row.id);
+      await reload(token);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Xóa thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <AdminPageShell
       user={user}
@@ -164,9 +194,14 @@ export default function AdminOrgTeamsPage() {
                 <td>{row.active ? 'Hoạt động' : 'Ngưng'}</td>
                 <td>
                   {canConfigure ? (
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => openEdit(row)}>
-                      Sửa
-                    </button>
+                    <OrgStructureRowActions
+                      active={row.active}
+                      busy={busy}
+                      entityLabel={`team ${row.code}`}
+                      onEdit={() => openEdit(row)}
+                      onToggleActive={() => void toggleActive(row)}
+                      onDelete={() => void remove(row)}
+                    />
                   ) : null}
                 </td>
               </tr>
