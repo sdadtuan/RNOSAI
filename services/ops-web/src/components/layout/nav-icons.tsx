@@ -562,6 +562,7 @@ export const SECTION_ICONS: Record<string, string> = {
   'Tổng quan': 'home',
   'CSKH vận hành': 'sla',
   'Vận hành': 'sla',
+  'Vận hành CSKH': 'sla',
   'B2B Sales': 'sales',
   'Lead chung': 'leads',
   'Lead & CSKH': 'leads',
@@ -586,6 +587,7 @@ export const SECTION_ICONS: Record<string, string> = {
 export const SECTION_LABELS: Record<string, string> = {
   'Tổng quan': 'Tổng quan',
   'CRM · CSKH vận hành': 'Vận hành',
+  'Vận hành CSKH': 'Vận hành CSKH',
   'Vận hành': 'Vận hành',
   'CRM · B2B Sales': 'Bán hàng',
   'Bán hàng': 'Bán hàng',

@@ -5,7 +5,7 @@ import { GlobalSearchBar } from '@/components/search/GlobalSearchBar';
 import { WinRbacBadge } from '@/components/win';
 import { iconForHref, NavIcon, sectionIcon, sectionShortLabel } from '@/components/layout/nav-icons';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { StoredStaffUser } from '@/lib/auth';
 import { getAccessToken, hasCap } from '@/lib/auth';
 import { fetchReviewQueueCount } from '@/lib/api';
@@ -70,6 +70,23 @@ type NavLink = { href: string; label: string };
 type NavSection = { label: string; links: NavLink[]; defaultOpen?: boolean };
 
 const SIDEBAR_STORAGE_KEY = 'ops-sidebar-expanded';
+const NAV_SECTIONS_COLLAPSED_KEY = 'ops-nav-sections-collapsed';
+
+function readCollapsedNavSections(): Set<string> | null {
+  if (typeof window === 'undefined') return null;
+  const raw = window.localStorage.getItem(NAV_SECTIONS_COLLAPSED_KEY);
+  if (!raw) return null;
+  try {
+    return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    return null;
+  }
+}
+
+function writeCollapsedNavSections(collapsed: Set<string>) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(NAV_SECTIONS_COLLAPSED_KEY, JSON.stringify([...collapsed]));
+}
 
 function readSidebarExpanded(): boolean {
   if (typeof window === 'undefined') return false;
@@ -333,6 +350,10 @@ function buildSections(
     sections.push({ label: 'Bán hàng', links: b2bSales, defaultOpen: true });
   }
 
+  if (operationalCskh.length) {
+    sections.push({ label: 'Vận hành CSKH', links: operationalCskh, defaultOpen: true });
+  }
+
   const prepare: NavLink[] = [];
   if (hasCap(user, 'crm_leads', 'view')) {
     prepare.push({ href: '/crm/intake', label: 'Lead Intake' });
@@ -342,11 +363,7 @@ function buildSections(
     prepare.push({ href: '/crm/b2b-speed', label: 'Speed-to-lead' });
   }
   if (prepare.length) {
-    sections.push({ label: 'Chuẩn bị', links: prepare, defaultOpen: true });
-  }
-
-  if (operationalCskh.length) {
-    sections.push({ label: 'Vận hành', links: operationalCskh, defaultOpen: true });
+    sections.push({ label: 'Chuẩn bị', links: prepare });
   }
 
   const sharedCrm: NavLink[] = [];
@@ -361,7 +378,7 @@ function buildSections(
     sharedCrm.push({ href: '/crm/customers', label: 'Khách hàng' });
   }
   if (sharedCrm.length) {
-    sections.push({ label: 'CRM · Lead chung', links: sharedCrm, defaultOpen: true });
+    sections.push({ label: 'CRM · Lead chung', links: sharedCrm });
   }
 
   const salesContract: NavLink[] = [];
@@ -378,7 +395,7 @@ function buildSections(
     salesContract.push({ href: '/crm/b2b-unmatched', label: 'Ingress chưa map' });
   }
   if (salesContract.length) {
-    sections.push({ label: 'CRM · Bán hàng & Hợp đồng', links: salesContract, defaultOpen: true });
+    sections.push({ label: 'CRM · Bán hàng & Hợp đồng', links: salesContract });
   }
 
   const plan: NavLink[] = [];
@@ -393,7 +410,7 @@ function buildSections(
     plan.push({ href: '/crm/marketing-plan', label: 'Kế hoạch marketing' });
   }
   if (plan.length) {
-    sections.push({ label: 'Lên kế hoạch', links: plan, defaultOpen: true });
+    sections.push({ label: 'Lên kế hoạch', links: plan });
   }
 
   const gtm: NavLink[] = [];
@@ -404,7 +421,7 @@ function buildSections(
     gtm.push({ href: '/crm/gtm/cms', label: 'CMS marketing' });
   }
   if (gtm.length) {
-    sections.push({ label: 'GTM', links: gtm, defaultOpen: true });
+    sections.push({ label: 'GTM', links: gtm });
   }
 
   const delivery: NavLink[] = [];
@@ -424,7 +441,7 @@ function buildSections(
   if (shouldShowVideoSopNav(user)) {
     delivery.push({ href: '/crm/video', label: 'Video SOP' });
   }
-  if (delivery.length) sections.push({ label: 'CRM · Triển khai dịch vụ', links: delivery, defaultOpen: true });
+  if (delivery.length) sections.push({ label: 'CRM · Triển khai dịch vụ', links: delivery });
 
   const hr: NavLink[] = [];
   const canHrHub =
@@ -460,7 +477,7 @@ function buildSections(
   ) {
     hr.push({ href: '/crm/payroll', label: 'Chấm công & lương' });
   }
-  if (hr.length) sections.push({ label: 'Nhân sự & Hiệu suất', links: hr, defaultOpen: true });
+  if (hr.length) sections.push({ label: 'Nhân sự & Hiệu suất', links: hr });
 
   const finance: NavLink[] = [];
   if (hasCap(user, 'crm_business_dashboard', 'view')) {
@@ -478,7 +495,7 @@ function buildSections(
   if (hasCap(user, 'crm_owner_weekly_dashboard', 'view')) {
     finance.push({ href: '/crm/owner-weekly', label: 'BC tuần chủ DN' });
   }
-  if (finance.length) sections.push({ label: 'Quản trị & Tài chính', links: finance, defaultOpen: true });
+  if (finance.length) sections.push({ label: 'Quản trị & Tài chính', links: finance });
 
   const agencyClient: NavLink[] = [];
   if (hasCap(user, 'crm_agency', 'view')) {
@@ -490,7 +507,7 @@ function buildSections(
     });
     agencyClient.push({ href: '/agency/kpi-definitions', label: 'KPI definitions' });
   }
-  if (agencyClient.length) sections.push({ label: 'Agency & Client', links: agencyClient, defaultOpen: true });
+  if (agencyClient.length) sections.push({ label: 'Agency & Client', links: agencyClient });
 
   const ads: NavLink[] = [];
   const canMetaAds =
@@ -590,9 +607,13 @@ function sectionHasActive(pathname: string, section: NavSection): boolean {
   return section.links.some((link) => isActive(pathname, link.href));
 }
 
-function isBoxedNavSection(fullLabel: string): boolean {
-  const short = sectionShortLabel(fullLabel);
-  return short !== 'Bán hàng' && short !== 'Tổng quan';
+function initialCollapsedSections(sections: NavSection[], pathname: string): Set<string> {
+  const collapsed = new Set<string>();
+  for (const section of sections) {
+    if (section.defaultOpen || sectionHasActive(pathname, section)) continue;
+    collapsed.add(section.label);
+  }
+  return collapsed;
 }
 
 function userInitials(user: StoredStaffUser | null): string {
@@ -609,6 +630,8 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [flyoutSection, setFlyoutSection] = useState<string | null>(null);
   const [isMobileNav, setIsMobileNav] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set());
+  const [navSectionsReady, setNavSectionsReady] = useState(false);
   const chromeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -639,8 +662,36 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
       .catch(() => setReviewQueueCount(undefined));
   }, [user, pathname]);
 
-  const sections = buildSections(user, emailPendingApprovals, agencyUnread, reviewQueueCount);
+  const sections = useMemo(
+    () => buildSections(user, emailPendingApprovals, agencyUnread, reviewQueueCount),
+    [user, emailPendingApprovals, agencyUnread, reviewQueueCount],
+  );
   const nextAction = nextActionFor(pathname);
+
+  useEffect(() => {
+    const stored = readCollapsedNavSections();
+    if (stored) {
+      setCollapsedSections(stored);
+    } else {
+      setCollapsedSections(initialCollapsedSections(sections, pathname));
+    }
+    setNavSectionsReady(true);
+  }, [sections]);
+
+  useEffect(() => {
+    setCollapsedSections((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const section of sections) {
+        if (sectionHasActive(pathname, section) && next.has(section.label)) {
+          next.delete(section.label);
+          changed = true;
+        }
+      }
+      if (changed) writeCollapsedNavSections(next);
+      return changed ? next : prev;
+    });
+  }, [pathname, sections]);
 
   useLayoutEffect(() => {
     const el = chromeRef.current;
@@ -678,6 +729,20 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
     }
   }
 
+  function toggleNavSection(label: string) {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      writeCollapsedNavSections(next);
+      return next;
+    });
+  }
+
+  function isNavSectionOpen(label: string): boolean {
+    return !collapsedSections.has(label);
+  }
+
   const drawerSection = flyoutSection
     ? sections.find((section) => section.label === flyoutSection) ?? null
     : null;
@@ -709,18 +774,27 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
           {showExpandedNav ? (
             sections.map((section) => {
               const shortLabel = sectionShortLabel(section.label);
+              const open = navSectionsReady ? isNavSectionOpen(section.label) : section.defaultOpen !== false;
               return (
                 <div
                   key={section.label}
-                  className={`ops-nav-group is-open${isBoxedNavSection(section.label) ? ' ops-nav-group--boxed' : ''}${sectionHasActive(pathname, section) ? ' has-active' : ''}`}
+                  className={`ops-nav-group${open ? ' is-open' : ''}${sectionHasActive(pathname, section) ? ' has-active' : ''}`}
                 >
-                  <div className="ops-nav-group-header ops-nav-group-header--static">
+                  <button
+                    type="button"
+                    className="ops-nav-group-header"
+                    aria-expanded={open}
+                    onClick={() => toggleNavSection(section.label)}
+                  >
                     <span className="ops-nav-group-icon">
                       <NavIcon name={sectionIcon(section.label)} />
                     </span>
                     <span className="ops-nav-group-label">{shortLabel}</span>
-                  </div>
-                  <div className="ops-nav-group-links">
+                    <span className="ops-nav-group-toggle" aria-hidden="true">
+                      {open ? '▲' : '▼'}
+                    </span>
+                  </button>
+                  <div className={`ops-nav-group-links${open ? '' : ' is-collapsed'}`}>
                     {section.links.map((link) => (
                       <button
                         key={link.href}

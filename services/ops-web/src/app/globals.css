@@ -7718,12 +7718,14 @@ html.ops-shell-collapsed .ops-nav-group-links {
 
 .ops-nav-group-toggle {
   margin-left: auto;
-  font-size: 0.65rem;
-  transition: transform 0.15s ease;
+  font-size: 0.62rem;
+  line-height: 1;
+  opacity: 0.75;
+  flex-shrink: 0;
 }
 
 .ops-nav-group.is-open .ops-nav-group-toggle {
-  transform: rotate(90deg);
+  transform: none;
 }
 
 .ops-nav-group-links.is-collapsed {

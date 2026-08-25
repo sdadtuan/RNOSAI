@@ -60,15 +60,12 @@ html.ops-shell-bitrix {
   --bitrix-stage-lost: #8a918c;
 }
 
-/* —— Sidebar (Bitrix glass + sage) —— */
+/* —— Sidebar (Bitrix sage, flat) —— */
 html.ops-shell-bitrix .ops-sidebar {
   color: #f6f3ec;
   border-right: 0;
   box-shadow: none;
-  background:
-    radial-gradient(circle at 12% -8%, rgba(243, 239, 230, 0.38), transparent 42%),
-    radial-gradient(circle at 100% 100%, rgba(17, 77, 36, 0.28), transparent 46%),
-    linear-gradient(168deg, #5c8a6c 0%, #4a7c5c 46%, #3a6850 100%);
+  background: #4a7c5c;
 }
 
 html.ops-shell-bitrix .ops-sidebar svg {
@@ -120,25 +117,51 @@ html.ops-shell-bitrix .ops-sidebar-nav {
 }
 
 html.ops-shell-bitrix .ops-nav-group + .ops-nav-group {
-  margin-top: 0.45rem;
+  margin-top: 0.2rem;
   padding-top: 0;
   border-top: 0;
 }
 
-html.ops-shell-bitrix .ops-nav-group--boxed {
-  margin-top: 0.65rem;
-  padding: 0.35rem;
-  border-radius: 16px;
-  background: rgba(17, 77, 36, 0.22);
-}
-
 html.ops-shell-bitrix .ops-nav-group-header {
-  color: rgba(246, 243, 236, 0.78);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(246, 243, 236, 0.88);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  cursor: pointer;
 }
 
 html.ops-shell-bitrix .ops-nav-group-header:hover,
 html.ops-shell-bitrix .ops-nav-group.has-active .ops-nav-group-header {
   color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+html.ops-shell-bitrix .ops-nav-group-toggle {
+  margin-left: auto;
+  font-size: 0.62rem;
+  line-height: 1;
+  opacity: 0.85;
+  transform: none;
+}
+
+html.ops-shell-bitrix .ops-nav-group-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.1rem 0 0.35rem 0.35rem;
+}
+
+html.ops-shell-bitrix .ops-nav-group-links.is-collapsed {
+  display: none;
 }
 
 html.ops-shell-bitrix .ops-nav-group-icon,
@@ -148,19 +171,21 @@ html.ops-shell-bitrix .ops-sidebar-toggle {
   color: #fff;
 }
 
-html.ops-shell-bitrix .ops-nav-group:not(.ops-nav-group--boxed) .ops-nav-group-header {
-  display: none;
+html.ops-shell-bitrix .ops-nav-group-label {
+  color: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  text-transform: none;
+  flex: 1;
+  text-align: left;
 }
 
 html.ops-shell-bitrix .ops-sidebar-brand-text span {
   display: none;
 }
 
-html.ops-shell-bitrix .ops-nav-group-label {
-  color: inherit;
-  font-size: 0.72rem;
-  letter-spacing: 0.02em;
-  text-transform: none;
+html.ops-shell-bitrix .ops-nav-link--text {
+  padding-left: 1.85rem;
 }
 
 html.ops-shell-bitrix .ops-nav-link,
