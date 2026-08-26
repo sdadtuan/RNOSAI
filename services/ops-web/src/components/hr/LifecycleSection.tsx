@@ -107,9 +107,9 @@ export function LifecycleSection({ staffId, token, canEdit, initial, onLifecycle
 
   return (
     <section className="page-card">
-      <h2 style={{ margin: '0 0 0.75rem', fontSize: '1rem' }}>Lifecycle nhân sự</h2>
+      <h2 className="employee-file-section-title">Lifecycle nhân sự</h2>
       {error ? <p className="error">{error}</p> : null}
-      <div className="hr-lifecycle-track" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+      <div className="hr-lifecycle-track">
         {STAGES.map(([stage, label]) => {
           const active = stage === currentStage;
           const passed = STAGES.findIndex(([s]) => s === stage) <= STAGES.findIndex(([s]) => s === currentStage);
@@ -139,18 +139,18 @@ export function LifecycleSection({ staffId, token, canEdit, initial, onLifecycle
           {gateMissing.map((k) => GATE_LABELS[k] ?? k).join(' · ')}
         </p>
       ) : null}
-      <label className="form-field" style={{ marginTop: '0.75rem' }}>
+      <label className="form-field form-field--full hr-lifecycle-notes">
         <span className="form-label">Ghi chú lifecycle</span>
         <textarea
           className="form-input"
-          rows={2}
+          rows={3}
           value={notes}
           disabled={!canEdit}
           onChange={(e) => setNotes(e.target.value)}
         />
       </label>
       {canEdit ? (
-        <footer style={{ marginTop: '0.5rem' }}>
+        <footer className="employee-file-form-footer">
           <button
             type="button"
             className="btn btn-sm btn-secondary"

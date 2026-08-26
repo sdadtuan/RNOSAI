@@ -310,7 +310,7 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
               }}
             />
             <section className="page-card">
-              <h2 style={{ margin: '0 0 0.75rem', fontSize: '1rem' }}>Định danh</h2>
+              <h2 className="employee-file-section-title">Định danh</h2>
               <div className="form-grid form-grid--2">
                 <label className="form-field">
                   <span className="form-label">Họ tên pháp lý</span>
@@ -431,7 +431,7 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                   />
                 </label>
               </div>
-              <footer style={{ display: 'flex', gap: '0.5rem', marginTop: '0.85rem' }}>
+              <footer className="employee-file-form-footer">
                 <button
                   type="button"
                   className="btn btn-sm btn-primary"
@@ -444,7 +444,7 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
             </section>
 
             <section className="page-card">
-              <h2 style={{ margin: '0 0 0.75rem', fontSize: '1rem' }}>Địa chỉ</h2>
+              <h2 className="employee-file-section-title">Địa chỉ</h2>
               <AddressPairFields
                 permanent={permanentDraft}
                 temporary={temporaryDraft}
@@ -458,7 +458,7 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                   setDirty((x) => ({ ...x, addresses: true }));
                 }}
               />
-              <footer style={{ display: 'flex', gap: '0.5rem', marginTop: '0.85rem' }}>
+              <footer className="employee-file-form-footer">
                 <button
                   type="button"
                   className="btn btn-sm btn-primary"

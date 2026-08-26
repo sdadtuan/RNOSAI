@@ -12264,16 +12264,127 @@ body {
   }
 }
 
-.form-grid--2 {
+.form-grid {
   display: grid;
+  gap: 1rem 1.25rem;
+  align-items: start;
+}
+
+.form-grid--2 {
   grid-template-columns: 1fr;
-  gap: 0.75rem;
 }
 
 @media (min-width: 960px) {
   .form-grid--2 {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.form-grid--2 .form-field--full {
+  grid-column: 1 / -1;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  line-height: 1.25;
+}
+
+.form-input,
+.form-field textarea.form-input,
+.form-field select.form-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 2.625rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface, #fff);
+  font: inherit;
+  font-size: 0.9375rem;
+  color: var(--text);
+  line-height: 1.35;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.form-field textarea.form-input {
+  min-height: 5rem;
+  padding-top: 0.6rem;
+  resize: vertical;
+}
+
+.form-input:focus,
+.form-field textarea.form-input:focus,
+.form-field select.form-input:focus {
+  outline: none;
+  border-color: var(--brand, var(--primary));
+  box-shadow: 0 0 0 3px var(--brand-soft, rgba(23, 105, 47, 0.12));
+}
+
+.form-input:disabled,
+.form-field textarea.form-input:disabled,
+.form-field select.form-input:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.form-input[type='date'],
+.form-input[type='datetime-local'],
+.form-input[type='time'] {
+  min-height: 2.625rem;
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}
+
+.form-field .win-field-mask {
+  display: flex;
+  align-items: center;
+  min-height: 2.625rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.02);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9375rem;
+}
+
+.form-field .win-field-mask--masked {
+  letter-spacing: 0.12em;
+}
+
+.employee-file-form-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.employee-file-section-title {
+  margin: 0 0 0.85rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.hr-lifecycle-track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.hr-lifecycle-notes {
+  margin-top: 0.85rem;
 }
 
 .hr-address-block + .hr-address-block {
