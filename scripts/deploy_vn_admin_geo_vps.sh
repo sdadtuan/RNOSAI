@@ -47,6 +47,13 @@ sync_to_vps() {
     "$ROOT/services/ops-web/src/components/hr/EmployeeFileShell.tsx" \
     "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/services/ops-web/src/components/hr/"
   rsync -av \
+    "$ROOT/services/ops-web/src/components/form/FormCombobox.tsx" \
+    "$ROOT/services/ops-web/src/components/form/index.ts" \
+    "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/services/ops-web/src/components/form/"
+  rsync -av \
+    "$ROOT/services/ops-web/src/app/globals.css" \
+    "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/services/ops-web/src/app/globals.css"
+  rsync -av \
     "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/services/ptt-crm-api/src/app.module.ts"
 }
 

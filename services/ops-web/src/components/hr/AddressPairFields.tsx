@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { FormCheck, FormField, FormGrid, FormInput, FormSelect } from '@/components/form';
+import { FormCheck, FormCombobox, FormField, FormGrid, FormInput } from '@/components/form';
 import type { HrStaffAddressDto } from '@/lib/hr-employee-file-api';
 import { useVnGeo } from '@/lib/hr/use-vn-geo';
 import type { VnWardOption } from '@/lib/vn-geo-api';
@@ -57,7 +57,7 @@ function AddressFields({
   const provinceOptions = useMemo(() => {
     const opts = provinces.map((p) => ({ value: p.code, label: p.name }));
     if (provinceCode && !opts.some((o) => o.value === provinceCode)) {
-      opts.unshift({ value: provinceCode, label: `${provinceCode} (mã cũ — chọn lại)` });
+      opts.unshift({ value: provinceCode, label: provinceCode });
     }
     return opts;
   }, [provinces, provinceCode]);
@@ -65,7 +65,7 @@ function AddressFields({
   const wardOptions = useMemo(() => {
     const opts = wards.map((w) => ({ value: w.code, label: w.name }));
     if (wardCode && !opts.some((o) => o.value === wardCode)) {
-      opts.unshift({ value: wardCode, label: `${wardCode} (mã cũ — chọn lại)` });
+      opts.unshift({ value: wardCode, label: wardCode });
     }
     return opts;
   }, [wards, wardCode]);
@@ -84,46 +84,33 @@ function AddressFields({
           />
         </FormField>
         <FormField label="Tỉnh/Thành phố">
-          <FormSelect
+          <FormCombobox
             value={provinceCode}
-            disabled={disabled || loadingProvinces}
-            onChange={(e) => {
-              const nextProvince = e.target.value;
+            disabled={disabled}
+            loading={loadingProvinces}
+            options={provinceOptions}
+            placeholder="Gõ tên tỉnh/TP hoặc mã…"
+            onChange={(nextProvince) => {
               onChange({
                 ...value,
                 province_code: nextProvince,
-                ward_code: '',
+                ward_code: nextProvince === provinceCode ? wardCode : '',
                 district_code: '',
               });
             }}
-          >
-            <option value="">{loadingProvinces ? 'Đang tải…' : '— Chọn Tỉnh/TP —'}</option>
-            {provinceOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </FormSelect>
+          />
         </FormField>
         <FormField label="Phường/Xã">
-          <FormSelect
+          <FormCombobox
             value={wardCode}
-            disabled={disabled || !provinceCode || loadingWards}
-            onChange={(e) => onChange({ ...value, ward_code: e.target.value, district_code: '' })}
-          >
-            <option value="">
-              {!provinceCode
-                ? 'Chọn Tỉnh/TP trước'
-                : loadingWards
-                  ? 'Đang tải…'
-                  : '— Chọn Phường/Xã —'}
-            </option>
-            {wardOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </FormSelect>
+            disabled={disabled}
+            loading={Boolean(provinceCode) && loadingWards}
+            options={wardOptions}
+            placeholder={
+              provinceCode ? 'Gõ tên phường/xã hoặc mã…' : 'Gõ phường/xã (chọn Tỉnh/TP để gợi ý)'
+            }
+            onChange={(nextWard) => onChange({ ...value, ward_code: nextWard, district_code: '' })}
+          />
         </FormField>
       </FormGrid>
     </div>
