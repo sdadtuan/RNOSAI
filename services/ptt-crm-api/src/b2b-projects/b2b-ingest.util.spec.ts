@@ -24,6 +24,12 @@ describe('resolveIngressProject', () => {
     });
   });
 
+  it('empty slug maps by form id (Meta App global webhook)', () => {
+    expect(resolveIngressProject({ channel: 'facebook', formId: 'F1', projectSlug: '' }, { forms, pages })).toEqual({
+      projectId: 'p1',
+    });
+  });
+
   it('maps zalo oa', () => {
     expect(
       resolveIngressProject(

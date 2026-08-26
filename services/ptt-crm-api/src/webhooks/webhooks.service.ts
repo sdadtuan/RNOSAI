@@ -91,14 +91,15 @@ export class WebhooksService {
     const rawBody = Buffer.isBuffer(req.rawBody)
       ? req.rawBody
       : Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {}));
-    const query = req.query as Record<string, string>;
+    const query = flattenQuery(req.query as Record<string, unknown>);
     const headerClientId = String(req.headers['x-ptt-client-id'] ?? query.client_id ?? '');
     const correlationId = String(req.headers['x-correlation-id'] ?? cryptoRandomUuid());
 
     const mode = query['hub.mode'] ?? query.hub_mode;
+    const hasHubHandshake = Boolean(query['hub.verify_token'] || query.hub_verify_token || query['hub.challenge']);
     // Meta (and some App Dashboard probes) GET the callback URL with no hub.* query
     // before the subscribe handshake. Treat that as a health check, not a signed POST.
-    if (req.method === 'GET' && mode !== 'subscribe') {
+    if (req.method === 'GET' && mode !== 'subscribe' && !hasHubHandshake) {
       return {
         kind: 'challenge',
         status: 200,
@@ -410,6 +411,21 @@ export class WebhooksService {
 
     return { kind: 'json', status: 200, body: response };
   }
+}
+
+function firstQueryValue(value: unknown): string {
+  if (Array.isArray(value)) return firstQueryValue(value[0]);
+  if (value == null) return '';
+  if (typeof value === 'object') return '';
+  return String(value);
+}
+
+function flattenQuery(raw: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw ?? {})) {
+    out[key] = firstQueryValue(value);
+  }
+  return out;
 }
 
 function cryptoRandomUuid(): string {

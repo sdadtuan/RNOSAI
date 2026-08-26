@@ -38,7 +38,7 @@ export class B2bIngestService {
     projectSlug?: string;
     leads: NormalizedLeadPayload[];
   }): Promise<PrepareWebhookLeadsResult> {
-    if (!this.config.b2bProjectOs || !input.projectSlug?.trim()) {
+    if (!this.config.b2bProjectOs) {
       return {
         toEnqueue: input.leads,
         unmatchedCount: 0,
@@ -56,7 +56,7 @@ export class B2bIngestService {
     }
 
     const catalog = await this.repo.loadIngressCatalog();
-    const projectSlug = input.projectSlug.trim().toLowerCase();
+    const projectSlug = input.projectSlug?.trim().toLowerCase() ?? '';
     const toEnqueue: B2bPreparedLead[] = [];
     let unmatchedCount = 0;
 
@@ -78,7 +78,7 @@ export class B2bIngestService {
         unmatchedCount += 1;
         await this.repo.insertUnmatchedIngress({
           channel: ingressChannel,
-          projectSlug,
+          projectSlug: projectSlug || undefined,
           externalKey: keys.formId ?? keys.oaId ?? keys.webformSlug ?? lead.external_lead_id,
           payload: {
             reason: resolved.reason,

@@ -34,7 +34,7 @@ export function resolveIngressProject(
   if (input.channel === 'facebook') {
     const form = catalog.forms.find((f) => f.active && f.formId === String(input.formId ?? '').trim());
     if (!form) return { unmatched: true, reason: 'form_unmapped' };
-    if (form.projectSlug !== slug) return { unmatched: true, reason: 'slug_mismatch' };
+    if (slug && form.projectSlug !== slug) return { unmatched: true, reason: 'slug_mismatch' };
     return { projectId: form.projectId };
   }
   const key =
@@ -47,7 +47,7 @@ export function resolveIngressProject(
     (a) => a.active && a.channel === input.channel && a.externalKey === key,
   );
   if (!row) return { unmatched: true, reason: 'account_unmapped' };
-  if (row.projectSlug !== slug) return { unmatched: true, reason: 'slug_mismatch' };
+  if (slug && row.projectSlug !== slug) return { unmatched: true, reason: 'slug_mismatch' };
   return { projectId: row.projectId };
 }
 
