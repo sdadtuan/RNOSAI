@@ -96,6 +96,16 @@ export class WebhooksService {
     const correlationId = String(req.headers['x-correlation-id'] ?? cryptoRandomUuid());
 
     const mode = query['hub.mode'] ?? query.hub_mode;
+    // Meta (and some App Dashboard probes) GET the callback URL with no hub.* query
+    // before the subscribe handshake. Treat that as a health check, not a signed POST.
+    if (req.method === 'GET' && mode !== 'subscribe') {
+      return {
+        kind: 'challenge',
+        status: 200,
+        body: 'ok',
+        contentType: 'text/plain',
+      };
+    }
     if (mode === 'subscribe') {
       const parsed = await parseMetaWebhook({
         headers,

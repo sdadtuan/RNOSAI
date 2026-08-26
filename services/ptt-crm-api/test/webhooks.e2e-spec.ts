@@ -86,6 +86,14 @@ describe('Webhooks v1 (Phase 0 P0-4)', () => {
     expect(res.body.channel).toBe('google');
   });
 
+  it('GET /api/v1/webhooks/meta without hub params returns 200', async () => {
+    if (!app) return;
+    await request(app.getHttpServer())
+      .get('/api/v1/webhooks/meta')
+      .expect(200)
+      .expect('ok');
+  });
+
   it('GET /api/v1/webhooks/meta hub challenge', async () => {
     if (!app) return;
     await request(app.getHttpServer())
