@@ -22,7 +22,7 @@ WHERE s.can_receive_leads = FALSE
 
 INSERT INTO schema_migrations (version, description)
 VALUES (
-    '2026-08-27-crm-staff-can-receive-leads',
+    '2026-08-27-staff-leads',
     'crm_staff.can_receive_leads for B2B project staff picker'
 )
 ON CONFLICT (version) DO NOTHING;
