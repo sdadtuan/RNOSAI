@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { WinDrawer } from '@/components/win';
 import { HrExpiryChip } from '@/components/hr/HrExpiryChip';
 import {
@@ -66,11 +66,11 @@ export function ContractPanel({
   const [activeContract, setActiveContract] = useState<HrLaborContractDto | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const onActiveContractChangeRef = useRef(onActiveContractChange);
 
-  const contractWalletCards = useMemo(
-    () => walletCards.filter((c) => c.type_category === 'contract' || c.type_code === 'labor_contract'),
-    [walletCards],
-  );
+  useEffect(() => {
+    onActiveContractChangeRef.current = onActiveContractChange;
+  }, [onActiveContractChange]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,17 +82,22 @@ export function ContractPanel({
       ]);
       setContracts(contractOut.contracts);
       setWalletCards(walletOut.cards);
-      onActiveContractChange?.(contractOut.active_contract ?? null);
+      onActiveContractChangeRef.current?.(contractOut.active_contract ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không tải hợp đồng');
     } finally {
       setLoading(false);
     }
-  }, [onActiveContractChange, staffId, token]);
+  }, [staffId, token]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const contractWalletCards = useMemo(
+    () => walletCards.filter((c) => c.type_category === 'contract' || c.type_code === 'labor_contract'),
+    [walletCards],
+  );
 
   function openCreate() {
     setDrawerMode('create');

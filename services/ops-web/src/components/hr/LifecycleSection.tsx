@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   fetchHrStaffLifecycle,
   patchHrStaffLifecycle,
@@ -40,6 +40,11 @@ export function LifecycleSection({ staffId, token, canEdit, initial, onLifecycle
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const onLifecycleChangeRef = useRef(onLifecycleChange);
+
+  useEffect(() => {
+    onLifecycleChangeRef.current = onLifecycleChange;
+  }, [onLifecycleChange]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,13 +54,13 @@ export function LifecycleSection({ staffId, token, canEdit, initial, onLifecycle
       setLifecycle(out.lifecycle);
       setGateMissing(out.official_gate?.missing ?? []);
       setNotes(out.lifecycle.notes ?? '');
-      onLifecycleChange?.(out.lifecycle);
+      onLifecycleChangeRef.current?.(out.lifecycle);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không tải lifecycle');
     } finally {
       setLoading(false);
     }
-  }, [onLifecycleChange, staffId, token]);
+  }, [staffId, token]);
 
   useEffect(() => {
     void load();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { WinDrawer } from '@/components/win';
 import { HrExpiryChip } from '@/components/hr/HrExpiryChip';
 import {
@@ -55,6 +55,11 @@ export function InsurancePanel({
   const [error, setError] = useState('');
   const [periodDrawer, setPeriodDrawer] = useState(false);
   const [periodDraft, setPeriodDraft] = useState<Record<string, string>>({});
+  const onInsuranceChangeRef = useRef(onInsuranceChange);
+
+  useEffect(() => {
+    onInsuranceChangeRef.current = onInsuranceChange;
+  }, [onInsuranceChange]);
 
   const insuranceWalletCards = useMemo(
     () =>
@@ -75,7 +80,7 @@ export function InsurancePanel({
       setRegister(insOut.register);
       setPeriods(insOut.periods);
       setWalletCards(walletOut.cards);
-      onInsuranceChange?.(insOut.summary);
+      onInsuranceChangeRef.current?.(insOut.summary);
       setDraft({
         bhxh_book_no: insOut.register.bhxh_book_no ?? '',
         bhxh_joined_on: insOut.register.bhxh_joined_on ?? '',
@@ -96,7 +101,7 @@ export function InsurancePanel({
     } finally {
       setLoading(false);
     }
-  }, [onInsuranceChange, staffId, token]);
+  }, [staffId, token]);
 
   useEffect(() => {
     void load();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { WinDrawer } from '@/components/win';
 import { WalletCard } from '@/components/hr/WalletCard';
 import {
@@ -35,6 +35,11 @@ export function WalletPanel({ staffId, token, canEdit, onWalletChange }: Props) 
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const onWalletChangeRef = useRef(onWalletChange);
+
+  useEffect(() => {
+    onWalletChangeRef.current = onWalletChange;
+  }, [onWalletChange]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -50,13 +55,13 @@ export function WalletPanel({ staffId, token, canEdit, onWalletChange }: Props) 
       ]);
       setTypes(typeOut.types);
       setCards(walletOut.cards);
-      onWalletChange?.(walletOut.wallet_pct, walletOut.expiring_count);
+      onWalletChangeRef.current?.(walletOut.wallet_pct, walletOut.expiring_count);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không tải ví');
     } finally {
       setLoading(false);
     }
-  }, [filter, onWalletChange, staffId, token]);
+  }, [filter, staffId, token]);
 
   useEffect(() => {
     void load();
