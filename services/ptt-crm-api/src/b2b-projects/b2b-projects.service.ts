@@ -30,18 +30,36 @@ export class B2bProjectsService {
     if (!code || !body.name.trim()) {
       throw new BadRequestException({ error: 'invalid_project' });
     }
+    const status = body.status?.trim() as B2bProjectRow['status'] | undefined;
+    if (status && !['draft', 'active', 'paused', 'archived'].includes(status)) {
+      throw new BadRequestException({ error: 'invalid_status' });
+    }
     return this.repo.insertProject({
       owner_company_id: PTT_OPERATING_COMPANY_ID,
       code,
       name: body.name.trim(),
+      status,
+      ai_call_enabled: body.ai_call_enabled,
+      manual_ingest_enabled: body.manual_ingest_enabled,
     });
   }
 
   async patch(id: string, body: PatchB2bProjectBody): Promise<B2bProjectRow> {
     await this.get(id);
+    if (body.status && !['draft', 'active', 'paused', 'archived'].includes(body.status)) {
+      throw new BadRequestException({ error: 'invalid_status' });
+    }
     const row = await this.repo.patchProject(id, body as Record<string, unknown>);
     if (!row) throw new NotFoundException({ error: 'not_found' });
     return row;
+  }
+
+  async delete(id: string): Promise<{ ok: true; detached_leads: number }> {
+    await this.get(id);
+    const detached = await this.repo.detachLeadsFromProject(id);
+    const removed = await this.repo.deleteProject(id);
+    if (!removed) throw new NotFoundException({ error: 'not_found' });
+    return { ok: true, detached_leads: detached };
   }
 
   async replacePages(id: string, pages: B2bProjectPageInput[]): Promise<{ ok: true }> {

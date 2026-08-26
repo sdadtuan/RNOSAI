@@ -23,11 +23,16 @@ Tài liệu này mô tả **cách sử dụng từng chức năng** theo domain 
 | 9 | Email Marketing | [09-email-marketing.md](./09-email-marketing.md) | Email Strategist, AM |
 | 10 | Content Marketing OS (tóm tắt) | [10-content-marketing.md](./10-content-marketing.md) | SP Content, QA |
 | 18 | **Content Marketing OS (đầy đủ — kênh, ảnh, video)** | [18-content-marketing-os.md](./18-content-marketing-os.md) | SP Content, QA, IT |
-| 19 | **Video SOP Studio (Module 7)** | [19-video-sop.md](./19-video-sop.md) | AM, Copy, Art, Motion, Editor |
+| 19 | **Video SOP Studio (Module 7 — tóm tắt S4)** | [19-video-sop.md](./19-video-sop.md) | AM, Copy, Art, Motion, Editor |
+| 20 | **Video SOP Studio (đầy đủ — env, image/video, UI từng bước + wireframe)** | [20-video-sop-huong-dan-day-du.md](./20-video-sop-huong-dan-day-du.md) | AM, Copy, Art, Motion, Editor, IT |
+| 21 | **Video SOP — Checklist onboarding (AM / Motion / IT)** | [21-video-sop-onboarding-checklist.md](./21-video-sop-onboarding-checklist.md) | AM, Motion, IT, Admin |
 | 11 | Marketing AI Planner | [11-marketing-ai-planner.md](./11-marketing-ai-planner.md) | SP, MKT Lead |
 | 12 | AI Revenue OS | [12-ai-revenue-os.md](./12-ai-revenue-os.md) | CSKH, Manager, GDKD |
 | 13 | HR & Payroll | [13-hr-payroll.md](./13-hr-payroll.md) | HR, NV |
 | 17 | **HR Employee File OS (P1–P8)** | [17-hr-employee-file-os.md](./17-hr-employee-file-os.md) | HR, NV, IT |
+| 22 | **HR — Sơ đồ luồng & khung bàn giao KH** | [22-hr-handover-flow-and-guides.md](./22-hr-handover-flow-and-guides.md) · **[Slide PPTX](./HR_Ban_Giao_Luu_Do.pptx)** | HR, IT, Kế toán, Khách hàng |
+| 23 | **Leads — Sơ đồ luồng & khung bàn giao KH** | [23-leads-handover-flow-and-guides.md](./23-leads-handover-flow-and-guides.md) · **[Slide PPTX](./Leads_Ban_Giao_Luu_Do.pptx)** | AM, CSKH, GDKD, Marketing, Khách hàng |
+| 24 | **B2B E2E — Hướng dẫn UI từng bước (DA PTT → Lead → Agency → MKT Plan)** | [24-b2b-e2e-handover-ui-guide.md](./24-b2b-e2e-handover-ui-guide.md) | GDKD, AM, Solution, Marketing, Khách hàng |
 | 14 | Client Portal | [14-client-portal.md](./14-client-portal.md) | Khách hàng |
 | 15 | Mobile (PWA / App) | [15-mobile.md](./15-mobile.md) | Khách hàng, AM |
 | 16 | **SOP chốt deal Sales/Solution** | [16-sales-solution-chot-deal-sop.md](./16-sales-solution-chot-deal-sop.md) | Sales, AM, Solution, GDKD |

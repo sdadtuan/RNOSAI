@@ -73,15 +73,25 @@ export class B2bProjectsRepository implements OnModuleDestroy {
     owner_company_id: string;
     code: string;
     name: string;
+    status?: B2bProjectRow['status'];
+    ai_call_enabled?: boolean;
+    manual_ingest_enabled?: boolean;
   }): Promise<B2bProjectRow> {
     const result = await this.db.query(
-      `INSERT INTO crm_b2b_projects (owner_company_id, code, name)
-       VALUES ($1::uuid, $2, $3)
+      `INSERT INTO crm_b2b_projects (owner_company_id, code, name, status, ai_call_enabled, manual_ingest_enabled)
+       VALUES ($1::uuid, $2, $3, COALESCE($4, 'draft'), COALESCE($5, FALSE), COALESCE($6, TRUE))
        RETURNING id::text, owner_company_id::text, code, name, status,
                  business_hours_json, sla_json, commission_json,
                  ai_call_enabled, manual_ingest_enabled,
                  created_at::text, updated_at::text`,
-      [row.owner_company_id, row.code, row.name],
+      [
+        row.owner_company_id,
+        row.code,
+        row.name,
+        row.status ?? null,
+        row.ai_call_enabled ?? null,
+        row.manual_ingest_enabled ?? null,
+      ],
     );
     return result.rows[0] as B2bProjectRow;
   }
@@ -117,6 +127,27 @@ export class B2bProjectsRepository implements OnModuleDestroy {
       params,
     );
     return (result.rows[0] as B2bProjectRow | undefined) ?? null;
+  }
+
+  async countLeadsForProject(projectId: string): Promise<number> {
+    const result = await this.db.query(
+      `SELECT COUNT(*)::int AS n FROM crm_leads WHERE b2b_project_id = $1::uuid`,
+      [projectId],
+    );
+    return Number((result.rows[0] as { n: number }).n ?? 0);
+  }
+
+  async detachLeadsFromProject(projectId: string): Promise<number> {
+    const result = await this.db.query(
+      `UPDATE crm_leads SET b2b_project_id = NULL WHERE b2b_project_id = $1::uuid`,
+      [projectId],
+    );
+    return result.rowCount ?? 0;
+  }
+
+  async deleteProject(projectId: string): Promise<boolean> {
+    const result = await this.db.query(`DELETE FROM crm_b2b_projects WHERE id = $1::uuid`, [projectId]);
+    return (result.rowCount ?? 0) > 0;
   }
 
   async listActiveChannelKeys(): Promise<ChannelKeyRow[]> {

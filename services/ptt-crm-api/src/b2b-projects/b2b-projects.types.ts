@@ -16,6 +16,9 @@ export interface B2bProjectRow {
 export interface CreateB2bProjectBody {
   code: string;
   name: string;
+  status?: B2bProjectRow['status'];
+  ai_call_enabled?: boolean;
+  manual_ingest_enabled?: boolean;
 }
 
 export interface PatchB2bProjectBody {

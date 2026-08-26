@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -50,6 +51,12 @@ export class B2bProjectsController {
   @UseGuards(StaffB2bProjectsManageGuard)
   patch(@Param('id') id: string, @Body() body: PatchB2bProjectBody) {
     return this.projects.patch(id, body);
+  }
+
+  @Delete(':id')
+  @UseGuards(StaffB2bProjectsManageGuard)
+  delete(@Param('id') id: string) {
+    return this.projects.delete(id);
   }
 
   @Put(':id/pages')

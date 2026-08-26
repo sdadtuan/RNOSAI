@@ -86,7 +86,13 @@ export async function fetchB2bProject(token: string, id: string): Promise<B2bPro
 
 export async function createB2bProject(
   token: string,
-  body: { code: string; name: string },
+  body: {
+    code: string;
+    name: string;
+    status?: string;
+    ai_call_enabled?: boolean;
+    manual_ingest_enabled?: boolean;
+  },
 ): Promise<B2bProjectDetail> {
   return b2bFetch(token, '/api/v1/b2b-projects', {
     method: 'POST',
@@ -109,6 +115,15 @@ export async function patchB2bProject(
   return b2bFetch(token, `/api/v1/b2b-projects/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(body),
+  });
+}
+
+export async function deleteB2bProject(
+  token: string,
+  id: string,
+): Promise<{ ok: true; detached_leads: number }> {
+  return b2bFetch(token, `/api/v1/b2b-projects/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
   });
 }
 
