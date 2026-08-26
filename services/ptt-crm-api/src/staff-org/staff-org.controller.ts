@@ -143,8 +143,8 @@ export class StaffOrgController {
 
   @Get('job-functions/catalog')
   @UseGuards(StaffOrInternalKeyGuard, StaffOrgRosterViewGuard)
-  jobFunctionCatalog() {
-    return { functions: this.org.listJobFunctionCatalog() };
+  async jobFunctionCatalog() {
+    return { functions: await this.org.listJobFunctionCatalog() };
   }
 
   @Get('users/next-internal-code')

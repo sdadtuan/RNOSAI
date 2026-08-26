@@ -8265,7 +8265,7 @@ export async function fetchStaffOrgJobFunctionCatalog(
     token,
     '/api/v1/staff/org/job-functions/catalog',
   );
-  return data.functions ?? [];
+  return Array.isArray(data.functions) ? data.functions : [];
 }
 
 export async function fetchStaffUserJobFunctions(
