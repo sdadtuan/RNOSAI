@@ -11,7 +11,6 @@ import { StaffJobFunctionsRepository } from '../staff-permissions/staff-job-func
 import { StaffBreakGlassRepository } from '../staff-break-glass/staff-break-glass.repository';
 import { StaffUserClientsRepository } from '../staff-client-scope/staff-user-clients.repository';
 import { StaffPermissionSetsRepository } from '../staff-permission-sets/staff-permission-sets.repository';
-import { JOB_FUNCTION_CATALOG } from '../staff-permissions/staff-job-functions.catalog';
 import {
   normalizeFunctionCodes,
   validateJobFunctionAssignment,
@@ -146,13 +145,8 @@ export class StaffOrgService implements OnModuleDestroy {
     return this.repository.deletePosition(id, actorEmail);
   }
 
-  listJobFunctionCatalog() {
-    return JOB_FUNCTION_CATALOG.map((fn) => ({
-      code: fn.code,
-      label: fn.label,
-      description: fn.description,
-      department_scope: fn.department_scope,
-    }));
+  async listJobFunctionCatalog() {
+    return this.jobFunctions.listActiveCatalog();
   }
 
   async listUsers(opts?: { q?: string; includeInactive?: boolean }): Promise<StaffOrgUserSummary[]> {
@@ -210,7 +204,8 @@ export class StaffOrgService implements OnModuleDestroy {
     body: CreateStaffOrgUserBody,
     actorEmail: string,
   ): Promise<CreateStaffOrgUserResponse> {
-    const functions = normalizeFunctionCodes(body.functions ?? []);
+    const validCodes = await this.jobFunctions.listFunctionCodes(true);
+    const functions = normalizeFunctionCodes(body.functions ?? [], validCodes);
     const sod = validateJobFunctionAssignment(functions);
     if (sod) {
       throw new ConflictException({ error: 'sod_violation', sod_id: sod.id, message: sod.message });
@@ -271,7 +266,8 @@ export class StaffOrgService implements OnModuleDestroy {
     actorEmail: string,
   ): Promise<StaffUserJobFunctionsResponse> {
     const user = await this.resolveUser(userRef);
-    const functions = normalizeFunctionCodes(body.functions ?? []);
+    const validCodes = await this.jobFunctions.listFunctionCodes(true);
+    const functions = normalizeFunctionCodes(body.functions ?? [], validCodes);
     const sod = validateJobFunctionAssignment(functions);
     if (sod) {
       throw new ConflictException({ error: 'sod_violation', sod_id: sod.id, message: sod.message });

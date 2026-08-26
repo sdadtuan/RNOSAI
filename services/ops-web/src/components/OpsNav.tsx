@@ -156,6 +156,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/crm/lead-lookups': 'Nguồn & Kênh',
   '/admin/crm/permissions': 'Ma trận chức vụ',
   '/admin/crm/permissions/functions': 'Job function',
+  '/admin/crm/permissions/functions/catalog': 'Catalog job function',
   '/admin/crm/permissions/users': 'Gán user',
   '/admin/crm/permissions/simulator': 'Simulator',
   '/admin/crm/permissions/fields': 'Field ABAC',

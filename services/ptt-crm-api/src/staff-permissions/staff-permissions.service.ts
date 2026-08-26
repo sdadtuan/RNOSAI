@@ -7,7 +7,9 @@ import {
 } from './staff-permissions.catalog';
 import { StaffPermissionsRepository } from './staff-permissions.repository';
 import type {
+  CreateStaffJobFunctionBody,
   PatchStaffJobFunctionGrantsBody,
+  PatchStaffJobFunctionMetaBody,
   PatchStaffPositionGrantsBody,
   StaffJobFunctionDetail,
   StaffJobFunctionSummary,
@@ -116,8 +118,22 @@ export class StaffPermissionsService {
     };
   }
 
-  listJobFunctions(): StaffJobFunctionSummary[] {
+  async listJobFunctions(): Promise<StaffJobFunctionSummary[]> {
     return this.jobFunctions.listFunctions();
+  }
+
+  async createJobFunction(body: CreateStaffJobFunctionBody, actorEmail: string) {
+    const created = await this.jobFunctions.createFunction(body, actorEmail);
+    return { ok: true, function: created };
+  }
+
+  async patchJobFunctionMeta(code: string, body: PatchStaffJobFunctionMetaBody, actorEmail: string) {
+    const updated = await this.jobFunctions.updateFunctionMetadata(code, body, actorEmail);
+    return { ok: true, function: updated };
+  }
+
+  async deleteJobFunction(code: string, actorEmail: string) {
+    return this.jobFunctions.deleteFunction(code, actorEmail);
   }
 
   async getJobFunction(code: string): Promise<StaffJobFunctionDetail> {
@@ -129,6 +145,7 @@ export class StaffPermissionsService {
       description: detail.description,
       department_scope: detail.department_scope,
       sort_order: detail.sort_order,
+      active: detail.active,
       grants_customized: detail.grants_customized,
       grants: detail.grants,
       matrix: detail.matrix,

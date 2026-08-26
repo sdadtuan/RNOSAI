@@ -70,6 +70,7 @@ function buildRbacLinks(user: StoredStaffUser): AdminNavLink[] {
   const links: AdminNavLink[] = [
     { href: '/admin/crm/permissions', label: 'Ma trận chức vụ' },
     { href: '/admin/crm/permissions/functions', label: 'Job function' },
+    { href: '/admin/crm/permissions/functions/catalog', label: 'Catalog job function' },
     { href: '/admin/crm/permissions/users', label: 'Gán user' },
   ];
   if (winPermissionSetsEnabled()) {

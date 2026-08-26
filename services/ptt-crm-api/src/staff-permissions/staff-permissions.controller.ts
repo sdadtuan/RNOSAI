@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { StaffUser } from '../staff-auth/staff-jwt.guard';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
@@ -12,7 +12,12 @@ import { StaffPermissionsSimulatorService } from './staff-permissions-simulator.
 import type { SimulatePermissionsBody } from './staff-permissions-simulator.service';
 import { StaffPermissionsAccessReviewService } from './staff-permissions-access-review.service';
 import type { AccessReviewCsvRow } from './staff-permissions-access-review.service';
-import type { PatchStaffJobFunctionGrantsBody, PatchStaffPositionGrantsBody } from './staff-permissions.types';
+import type {
+  CreateStaffJobFunctionBody,
+  PatchStaffJobFunctionGrantsBody,
+  PatchStaffJobFunctionMetaBody,
+  PatchStaffPositionGrantsBody,
+} from './staff-permissions.types';
 
 @Controller('api/v1/staff/permissions')
 export class StaffPermissionsController {
@@ -75,6 +80,31 @@ export class StaffPermissionsController {
   @UseGuards(StaffOrInternalKeyGuard, StaffPermissionsViewGuard)
   listJobFunctions() {
     return this.permissions.listJobFunctions();
+  }
+
+  @Post('job-functions')
+  @UseGuards(StaffOrInternalKeyGuard, StaffPermissionsConfigureGuard)
+  createJobFunction(
+    @Body() body: CreateStaffJobFunctionBody,
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.permissions.createJobFunction(body, staffUser?.email ?? '');
+  }
+
+  @Put('job-functions/:code')
+  @UseGuards(StaffOrInternalKeyGuard, StaffPermissionsConfigureGuard)
+  patchJobFunctionMeta(
+    @Param('code') code: string,
+    @Body() body: PatchStaffJobFunctionMetaBody,
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.permissions.patchJobFunctionMeta(code, body, staffUser?.email ?? '');
+  }
+
+  @Delete('job-functions/:code')
+  @UseGuards(StaffOrInternalKeyGuard, StaffPermissionsConfigureGuard)
+  deleteJobFunction(@Param('code') code: string, @StaffUser() staffUser?: StaffJwtPayload) {
+    return this.permissions.deleteJobFunction(code, staffUser?.email ?? '');
   }
 
   @Get('job-functions/:code')

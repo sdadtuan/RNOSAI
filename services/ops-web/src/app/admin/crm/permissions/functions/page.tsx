@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AdminPageShell } from '@/components/admin';
 import { AdminPermissionsSubNav } from '@/components/rbac/AdminPermissionsSubNav';
 import { PermissionMatrixTable } from '@/components/rbac/PermissionMatrixTable';
@@ -34,7 +35,23 @@ function grantsFromDetail(grants: Record<string, string[]>): Record<string, stri
 }
 
 export default function AdminCrmPermissionFunctionsPage() {
+  return (
+    <Suspense
+      fallback={
+        <AdminPageShell user={null} onLogout={() => undefined} section="crm-config" title="Ma trận job function" loading>
+          <span />
+        </AdminPageShell>
+      }
+    >
+      <AdminCrmPermissionFunctionsPageContent />
+    </Suspense>
+  );
+}
+
+function AdminCrmPermissionFunctionsPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fnParam = searchParams.get('fn')?.trim() ?? '';
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [functions, setFunctions] = useState<StaffJobFunctionSummary[]>([]);
   const [selectedCode, setSelectedCode] = useState('');
@@ -103,15 +120,16 @@ export default function AdminCrmPermissionFunctionsPage() {
       try {
         const rows = await fetchStaffJobFunctions(access);
         setFunctions(rows);
-        if (rows.length) {
-          setSelectedCode(rows[0].code);
-          await loadFunction(access, rows[0].code);
+        const initial = fnParam && rows.some((r) => r.code === fnParam) ? fnParam : rows[0]?.code ?? '';
+        if (initial) {
+          setSelectedCode(initial);
+          await loadFunction(access, initial);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải job functions thất bại');
       }
     })();
-  }, [ensureAuth, loadFunction]);
+  }, [ensureAuth, fnParam, loadFunction]);
 
   const groupedRows = useMemo(() => {
     const groups = new Map<string, StaffPermissionMatrixRow[]>();
@@ -198,6 +216,9 @@ export default function AdminCrmPermissionFunctionsPage() {
       subtitle="Add-on caps union vào chức vụ gốc — R1.5"
       actions={
         <div className="toolbar-actions">
+          <Link href="/admin/crm/permissions/functions/catalog" className="btn btn-ghost">
+            Catalog
+          </Link>
           <WinDiffChip added={diff.added} removed={diff.removed} />
           <button type="button" className="btn btn--secondary" disabled={busy || !selectedCode} onClick={() => void handleExport()}>
             Xuất MD
@@ -233,6 +254,7 @@ export default function AdminCrmPermissionFunctionsPage() {
               {functions.map((fn) => (
                 <option key={fn.code} value={fn.code}>
                   {fn.code} — {fn.label}
+                  {!fn.active ? ' (ngưng)' : ''}
                   {fn.grants_customized ? ' (đã tùy chỉnh)' : ''}
                 </option>
               ))}

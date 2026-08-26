@@ -77,6 +77,7 @@ export type StaffJobFunctionSummary = {
   description: string;
   department_scope: string;
   sort_order: number;
+  active: boolean;
   grants_customized: boolean;
 };
 
@@ -87,6 +88,22 @@ export type StaffJobFunctionDetail = StaffJobFunctionSummary & {
 
 export type PatchStaffJobFunctionGrantsBody = {
   grants: Record<string, string[]>;
+};
+
+export type CreateStaffJobFunctionBody = {
+  code: string;
+  label: string;
+  description?: string;
+  department_scope?: string;
+  sort_order?: number;
+};
+
+export type PatchStaffJobFunctionMetaBody = {
+  label?: string;
+  description?: string;
+  department_scope?: string;
+  sort_order?: number;
+  active?: boolean;
 };
 
 export type StaffPermissionCap = {

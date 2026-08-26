@@ -129,6 +129,13 @@ export function buildHrHubGroups(user: StoredStaffUser | null): HrHubGroup[] {
       href: '/admin/crm/permissions/functions',
     });
     cards.push({
+      id: 'permissions-functions-catalog',
+      group: 'identity',
+      label: 'Catalog job function',
+      description: 'Thêm/sửa/xóa vai trò chuyên môn',
+      href: '/admin/crm/permissions/functions/catalog',
+    });
+    cards.push({
       id: 'org-users',
       group: 'identity',
       label: 'Người dùng & quyền',

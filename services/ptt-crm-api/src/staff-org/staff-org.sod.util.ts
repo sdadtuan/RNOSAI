@@ -5,14 +5,15 @@ export type SodViolation = {
   message: string;
 };
 
-const VALID_CODES = new Set(JOB_FUNCTION_CATALOG.map((f) => f.code));
+const DEFAULT_VALID_CODES = new Set(JOB_FUNCTION_CATALOG.map((f) => f.code));
 
-export function normalizeFunctionCodes(raw: unknown): string[] {
+export function normalizeFunctionCodes(raw: unknown, validCodes?: Iterable<string>): string[] {
   if (!Array.isArray(raw)) return [];
+  const valid = validCodes ? new Set(validCodes) : DEFAULT_VALID_CODES;
   const out: string[] = [];
   for (const item of raw) {
     const code = String(item ?? '').trim();
-    if (!code || !VALID_CODES.has(code)) continue;
+    if (!code || !valid.has(code)) continue;
     if (!out.includes(code)) out.push(code);
   }
   return out.sort();

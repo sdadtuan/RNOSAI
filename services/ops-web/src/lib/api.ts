@@ -8052,6 +8052,7 @@ export interface StaffJobFunctionSummary {
   description: string;
   department_scope: string;
   sort_order: number;
+  active: boolean;
   grants_customized: boolean;
 }
 
@@ -8062,6 +8063,50 @@ export interface StaffJobFunctionDetail extends StaffJobFunctionSummary {
 
 export async function fetchStaffJobFunctions(token: string): Promise<StaffJobFunctionSummary[]> {
   return crmFetch(token, '/api/v1/staff/permissions/job-functions');
+}
+
+export async function createStaffJobFunction(
+  token: string,
+  body: {
+    code: string;
+    label: string;
+    description?: string;
+    department_scope?: string;
+    sort_order?: number;
+  },
+): Promise<{ ok: boolean; function: StaffJobFunctionSummary }> {
+  return crmFetch(token, '/api/v1/staff/permissions/job-functions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchStaffJobFunctionMeta(
+  token: string,
+  code: string,
+  body: Partial<{
+    label: string;
+    description: string;
+    department_scope: string;
+    sort_order: number;
+    active: boolean;
+  }>,
+): Promise<{ ok: boolean; function: StaffJobFunctionSummary }> {
+  return crmFetch(token, `/api/v1/staff/permissions/job-functions/${encodeURIComponent(code)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteStaffJobFunction(
+  token: string,
+  code: string,
+): Promise<{ ok: true; code: string }> {
+  return crmFetch(token, `/api/v1/staff/permissions/job-functions/${encodeURIComponent(code)}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function fetchStaffJobFunction(
