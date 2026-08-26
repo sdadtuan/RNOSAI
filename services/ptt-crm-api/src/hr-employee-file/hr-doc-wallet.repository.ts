@@ -466,7 +466,7 @@ export class HrDocWalletRepository implements OnModuleDestroy {
       `SELECT s.id::int, s.name, s.internal_code, COALESCE(d.name, '') AS dept_name
        FROM crm_staff s
        LEFT JOIN crm_departments d ON d.id = s.department
-       WHERE s.active = 1
+       WHERE s.active IS TRUE
        ORDER BY s.name ASC
        LIMIT 2000`,
     );
@@ -514,7 +514,7 @@ export class HrDocWalletRepository implements OnModuleDestroy {
                 d.name AS dependent_name, d.relation, d.dob::text, d.tax_dependent, d.cccd
          FROM hr_staff_dependents d
          JOIN crm_staff s ON s.id = d.staff_id
-         WHERE s.active = 1
+         WHERE s.active IS TRUE
          ORDER BY s.name ASC, d.name ASC`,
       );
       return result.rows.map((r) => {

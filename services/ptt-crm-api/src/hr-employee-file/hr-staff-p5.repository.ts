@@ -212,7 +212,7 @@ export class HrStaffP5Repository implements OnModuleDestroy {
     const walletExp = await this.db.query(
       `SELECT COUNT(DISTINCT w.staff_id)::int AS cnt
        FROM hr_doc_wallet w
-       JOIN crm_staff s ON s.id = w.staff_id AND s.active = 1
+       JOIN crm_staff s ON s.id = w.staff_id AND s.active IS TRUE
        WHERE w.deleted_at IS NULL
          AND w.expires_on IS NOT NULL
          AND w.expires_on <= (CURRENT_DATE + INTERVAL '30 days')
@@ -221,7 +221,7 @@ export class HrStaffP5Repository implements OnModuleDestroy {
     const contractExp = await this.db.query(
       `SELECT COUNT(DISTINCT c.staff_id)::int AS cnt
        FROM hr_labor_contracts c
-       JOIN crm_staff s ON s.id = c.staff_id AND s.active = 1
+       JOIN crm_staff s ON s.id = c.staff_id AND s.active IS TRUE
        WHERE c.status = 'active'
          AND c.expires_on IS NOT NULL
          AND c.expires_on <= (CURRENT_DATE + INTERVAL '30 days')
@@ -230,7 +230,7 @@ export class HrStaffP5Repository implements OnModuleDestroy {
     const bhytExp = await this.db.query(
       `SELECT COUNT(DISTINCT i.staff_id)::int AS cnt
        FROM hr_staff_insurance i
-       JOIN crm_staff s ON s.id = i.staff_id AND s.active = 1
+       JOIN crm_staff s ON s.id = i.staff_id AND s.active IS TRUE
        WHERE i.bhyt_valid_to IS NOT NULL
          AND i.bhyt_valid_to <= (CURRENT_DATE + INTERVAL '30 days')
          AND i.bhyt_valid_to >= CURRENT_DATE`,
@@ -242,7 +242,7 @@ export class HrStaffP5Repository implements OnModuleDestroy {
       `SELECT DISTINCT ON (w.staff_id) w.staff_id::int, s.name, s.internal_code,
               w.title, w.expires_on::text
        FROM hr_doc_wallet w
-       JOIN crm_staff s ON s.id = w.staff_id AND s.active = 1
+       JOIN crm_staff s ON s.id = w.staff_id AND s.active IS TRUE
        WHERE w.deleted_at IS NULL
          AND w.expires_on IS NOT NULL
          AND w.expires_on <= (CURRENT_DATE + INTERVAL '30 days')
@@ -265,7 +265,7 @@ export class HrStaffP5Repository implements OnModuleDestroy {
     const contractSamples = await this.db.query(
       `SELECT c.staff_id::int, s.name, s.internal_code, c.contract_no, c.expires_on::text
        FROM hr_labor_contracts c
-       JOIN crm_staff s ON s.id = c.staff_id AND s.active = 1
+       JOIN crm_staff s ON s.id = c.staff_id AND s.active IS TRUE
        WHERE c.status = 'active'
          AND c.expires_on IS NOT NULL
          AND c.expires_on <= (CURRENT_DATE + INTERVAL '30 days')
@@ -307,7 +307,7 @@ export class HrStaffP5Repository implements OnModuleDestroy {
 
   private async countLowWalletStaff(): Promise<number> {
     const staffResult = await this.db.query(
-      `SELECT id::int FROM crm_staff WHERE active = 1 ORDER BY id ASC LIMIT 500`,
+      `SELECT id::int FROM crm_staff WHERE active IS TRUE ORDER BY id ASC LIMIT 500`,
     );
     const requiredResult = await this.db.query(
       `SELECT type_code FROM hr_doc_types WHERE is_required_onboard = TRUE`,
