@@ -18,6 +18,7 @@ import {
   type StaffOrgPositionRow,
   type StaffTeamRow,
 } from '@/lib/api';
+import { Form, FormError, FormField, FormFooter, FormInput, FormSelect } from '@/components/form';
 import {
   canConfigureData,
   canConfigureOrgStructure,
@@ -158,8 +159,8 @@ export default function AdminOrgPositionsPage() {
       }
     >
       <AdminOrgSubNav />
-      {error ? <p className="form-error">{error}</p> : null}
-      {formError ? <p className="form-error">{formError}</p> : null}
+      <FormError>{error}</FormError>
+      <FormError>{formError}</FormError>
 
       <div className="table-wrap">
         <table className="data-table">
@@ -205,44 +206,49 @@ export default function AdminOrgPositionsPage() {
         <div className="modal-backdrop" role="presentation" onClick={() => setModalOpen(false)}>
           <div className="modal-card" role="dialog" onClick={(e) => e.stopPropagation()}>
             <h3>{editId == null ? 'Thêm chức vụ' : `Sửa chức vụ ${code}`}</h3>
-            {editId == null ? (
-              <label>
-                Mã *
-                <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="VD: KD-01" />
-              </label>
-            ) : (
-              <p className="muted" style={{ marginTop: 0 }}>
-                Mã: <code>{code}</code> (không đổi sau khi tạo)
-              </p>
-            )}
-            <label>
-              Tên *
-              <input value={name} onChange={(e) => setName(e.target.value)} />
-            </label>
-            <OrgStructureDescriptionField value={description} onChange={setDescription} />
-            <label>
-              Team
-              <select
-                value={teamId === '' ? '' : String(teamId)}
-                onChange={(e) => setTeamId(e.target.value ? Number(e.target.value) : '')}
-              >
-                <option value="">—</option>
-                {teams.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.code} — {t.name}
-                    {t.department_code ? ` (${t.department_code})` : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="modal-actions">
+            <Form asDiv>
+              {editId == null ? (
+                <FormField label="Mã" htmlFor="pos-code" required hint="VD: KD-01">
+                  <FormInput
+                    id="pos-code"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    placeholder="VD: KD-01"
+                  />
+                </FormField>
+              ) : (
+                <p className="muted form-hint" style={{ margin: 0 }}>
+                  Mã: <code>{code}</code> (không đổi sau khi tạo)
+                </p>
+              )}
+              <FormField label="Tên" htmlFor="pos-name" required>
+                <FormInput id="pos-name" value={name} onChange={(e) => setName(e.target.value)} />
+              </FormField>
+              <OrgStructureDescriptionField value={description} onChange={setDescription} />
+              <FormField label="Team" htmlFor="pos-team">
+                <FormSelect
+                  id="pos-team"
+                  value={teamId === '' ? '' : String(teamId)}
+                  onChange={(e) => setTeamId(e.target.value ? Number(e.target.value) : '')}
+                >
+                  <option value="">—</option>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.code} — {t.name}
+                      {t.department_code ? ` (${t.department_code})` : ''}
+                    </option>
+                  ))}
+                </FormSelect>
+              </FormField>
+            </Form>
+            <FormFooter className="modal-actions">
               <button type="button" className="btn btn-ghost" onClick={() => setModalOpen(false)}>
                 Hủy
               </button>
               <button type="button" className="btn btn-primary" onClick={() => void save()} disabled={busy}>
                 Lưu
               </button>
-            </div>
+            </FormFooter>
           </div>
         </div>
       ) : null}

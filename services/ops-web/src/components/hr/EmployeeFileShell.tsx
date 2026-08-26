@@ -15,6 +15,7 @@ import { IdentityHeader, type EmployeeFileTab } from '@/components/hr/IdentityHe
 import { WalletPanel } from '@/components/hr/WalletPanel';
 import { AttendancePanel } from '@/components/hr/AttendancePanel';
 import type { StoredStaffUser } from '@/lib/auth';
+import { FormField, FormFooter, FormGrid, FormInput, FormSection } from '@/components/form';
 import {
   fetchHrStaffProfile,
   patchHrStaffIdentity,
@@ -309,13 +310,10 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                 );
               }}
             />
-            <section className="page-card">
-              <h2 className="employee-file-section-title">Định danh</h2>
-              <div className="form-grid form-grid--2">
-                <label className="form-field">
-                  <span className="form-label">Họ tên pháp lý</span>
-                  <input
-                    className="form-input"
+            <FormSection as="section" className="page-card" title="Định danh">
+              <FormGrid cols={2}>
+                <FormField label="Họ tên pháp lý">
+                  <FormInput
                     value={identityDraft.legal_name ?? ''}
                     disabled={!canEditIdentity}
                     onChange={(e) => {
@@ -323,12 +321,10 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                       setDirty((x) => ({ ...x, identity: true }));
                     }}
                   />
-                </label>
-                <label className="form-field">
-                  <span className="form-label">Ngày sinh</span>
-                  <input
+                </FormField>
+                <FormField label="Ngày sinh">
+                  <FormInput
                     type="date"
-                    className="form-input"
                     value={identityDraft.dob ?? ''}
                     disabled={!canEditIdentity}
                     onChange={(e) => {
@@ -336,9 +332,8 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                       setDirty((x) => ({ ...x, identity: true }));
                     }}
                   />
-                </label>
-                <label className="form-field">
-                  <span className="form-label">CCCD</span>
+                </FormField>
+                <FormField label="CCCD">
                   {profile.identity.pii_masked && !canEditPii ? (
                     <WinFieldMask
                       user={user}
@@ -348,8 +343,8 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                       variant="pii"
                     />
                   ) : (
-                    <input
-                      className="form-input mono"
+                    <FormInput
+                      className="mono"
                       value={identityDraft.cccd ?? ''}
                       disabled={!canEditIdentity || !canEditPii}
                       onChange={(e) => {
@@ -358,9 +353,8 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                       }}
                     />
                   )}
-                </label>
-                <label className="form-field">
-                  <span className="form-label">MST</span>
+                </FormField>
+                <FormField label="MST">
                   {profile.identity.pii_masked && !canEditPii ? (
                     <WinFieldMask
                       user={user}
@@ -370,8 +364,8 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                       variant="pii"
                     />
                   ) : (
-                    <input
-                      className="form-input mono"
+                    <FormInput
+                      className="mono"
                       value={identityDraft.tax_code ?? ''}
                       disabled={!canEditIdentity || !canEditPii}
                       onChange={(e) => {
@@ -380,24 +374,20 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                       }}
                     />
                   )}
-                </label>
-                <label className="form-field">
-                  <span className="form-label">PIN máy chấm công</span>
-                  <input
-                    className="form-input mono"
+                </FormField>
+                <FormField label="PIN máy chấm công" hint="Trùng mã trên máy ZK/ADMS">
+                  <FormInput
+                    className="mono"
                     value={identityDraft.timeclock_pin ?? ''}
                     disabled={!canEditIdentity}
                     onChange={(e) => {
                       setIdentityDraft((d) => ({ ...d, timeclock_pin: e.target.value }));
                       setDirty((x) => ({ ...x, identity: true }));
                     }}
-                    placeholder="Trùng mã trên máy ZK/ADMS"
                   />
-                </label>
-                <label className="form-field">
-                  <span className="form-label">Ngân hàng</span>
-                  <input
-                    className="form-input"
+                </FormField>
+                <FormField label="Ngân hàng">
+                  <FormInput
                     value={identityDraft.bank_name ?? ''}
                     disabled={!canEditIdentity || !canEditPii}
                     onChange={(e) => {
@@ -405,11 +395,10 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                       setDirty((x) => ({ ...x, identity: true }));
                     }}
                   />
-                </label>
-                <label className="form-field">
-                  <span className="form-label">Số TK</span>
-                  <input
-                    className="form-input mono"
+                </FormField>
+                <FormField label="Số TK">
+                  <FormInput
+                    className="mono"
                     value={identityDraft.bank_account ?? ''}
                     disabled={!canEditIdentity || !canEditPii}
                     onChange={(e) => {
@@ -417,11 +406,9 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                       setDirty((x) => ({ ...x, identity: true }));
                     }}
                   />
-                </label>
-                <label className="form-field">
-                  <span className="form-label">Chủ TK</span>
-                  <input
-                    className="form-input"
+                </FormField>
+                <FormField label="Chủ TK">
+                  <FormInput
                     value={identityDraft.bank_holder ?? ''}
                     disabled={!canEditIdentity || !canEditPii}
                     onChange={(e) => {
@@ -429,9 +416,9 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                       setDirty((x) => ({ ...x, identity: true }));
                     }}
                   />
-                </label>
-              </div>
-              <footer className="employee-file-form-footer">
+                </FormField>
+              </FormGrid>
+              <FormFooter>
                 <button
                   type="button"
                   className="btn btn-sm btn-primary"
@@ -440,11 +427,10 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                 >
                   {savingIdentity ? 'Đang lưu…' : 'Lưu định danh'}
                 </button>
-              </footer>
-            </section>
+              </FormFooter>
+            </FormSection>
 
-            <section className="page-card">
-              <h2 className="employee-file-section-title">Địa chỉ</h2>
+            <FormSection as="section" className="page-card" title="Địa chỉ">
               <AddressPairFields
                 permanent={permanentDraft}
                 temporary={temporaryDraft}
@@ -458,7 +444,7 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                   setDirty((x) => ({ ...x, addresses: true }));
                 }}
               />
-              <footer className="employee-file-form-footer">
+              <FormFooter>
                 <button
                   type="button"
                   className="btn btn-sm btn-primary"
@@ -467,8 +453,8 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                 >
                   {savingAddresses ? 'Đang lưu…' : 'Lưu địa chỉ'}
                 </button>
-              </footer>
-            </section>
+              </FormFooter>
+            </FormSection>
           </div>
         </div>
       ) : activeTab === 'crm' ? (

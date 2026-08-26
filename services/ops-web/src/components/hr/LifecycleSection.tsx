@@ -6,6 +6,7 @@ import {
   patchHrStaffLifecycle,
   type HrStaffLifecycleDto,
 } from '@/lib/hr-employee-file-api';
+import { FormError, FormField, FormFooter, FormSection, FormTextarea } from '@/components/form';
 
 const STAGES = [
   ['offer', 'Offer'],
@@ -106,9 +107,8 @@ export function LifecycleSection({ staffId, token, canEdit, initial, onLifecycle
   const currentStage = lifecycle?.stage ?? 'offer';
 
   return (
-    <section className="page-card">
-      <h2 className="employee-file-section-title">Lifecycle nhân sự</h2>
-      {error ? <p className="error">{error}</p> : null}
+    <FormSection as="section" className="page-card" title="Lifecycle nhân sự">
+      <FormError>{error}</FormError>
       <div className="hr-lifecycle-track">
         {STAGES.map(([stage, label]) => {
           const active = stage === currentStage;
@@ -139,18 +139,16 @@ export function LifecycleSection({ staffId, token, canEdit, initial, onLifecycle
           {gateMissing.map((k) => GATE_LABELS[k] ?? k).join(' · ')}
         </p>
       ) : null}
-      <label className="form-field form-field--full hr-lifecycle-notes">
-        <span className="form-label">Ghi chú lifecycle</span>
-        <textarea
-          className="form-input"
+      <FormField label="Ghi chú lifecycle" className="hr-lifecycle-notes">
+        <FormTextarea
           rows={3}
           value={notes}
           disabled={!canEdit}
           onChange={(e) => setNotes(e.target.value)}
         />
-      </label>
+      </FormField>
       {canEdit ? (
-        <footer className="employee-file-form-footer">
+        <FormFooter>
           <button
             type="button"
             className="btn btn-sm btn-secondary"
@@ -159,8 +157,8 @@ export function LifecycleSection({ staffId, token, canEdit, initial, onLifecycle
           >
             Lưu ghi chú
           </button>
-        </footer>
+        </FormFooter>
       ) : null}
-    </section>
+    </FormSection>
   );
 }

@@ -16,6 +16,7 @@ import {
   patchStaffOrgDepartment,
   type StaffDepartmentRow,
 } from '@/lib/api';
+import { Form, FormError, FormField, FormFooter, FormInput } from '@/components/form';
 import {
   canConfigureOrgStructure,
   canViewOrgAdmin,
@@ -131,8 +132,8 @@ export default function AdminOrgDepartmentsPage() {
       }
     >
       <AdminOrgSubNav />
-      {error ? <p className="form-error">{error}</p> : null}
-      {formError ? <p className="form-error">{formError}</p> : null}
+      <FormError>{error}</FormError>
+      <FormError>{formError}</FormError>
       <div className="table-wrap">
         <table className="data-table">
           <thead>
@@ -180,23 +181,23 @@ export default function AdminOrgDepartmentsPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 id="dept-modal-title">{editId == null ? 'Thêm phòng ban' : 'Sửa phòng ban'}</h3>
-            <label>
-              Mã
-              <input value={code} onChange={(e) => setCode(e.target.value)} />
-            </label>
-            <label>
-              Tên
-              <input value={name} onChange={(e) => setName(e.target.value)} />
-            </label>
-            <OrgStructureDescriptionField value={description} onChange={setDescription} />
-            <div className="modal-actions">
+            <Form asDiv>
+              <FormField label="Mã" htmlFor="dept-code">
+                <FormInput id="dept-code" value={code} onChange={(e) => setCode(e.target.value)} />
+              </FormField>
+              <FormField label="Tên" htmlFor="dept-name">
+                <FormInput id="dept-name" value={name} onChange={(e) => setName(e.target.value)} />
+              </FormField>
+              <OrgStructureDescriptionField value={description} onChange={setDescription} />
+            </Form>
+            <FormFooter className="modal-actions">
               <button type="button" className="btn btn-ghost" onClick={() => setModalOpen(false)}>
                 Hủy
               </button>
               <button type="button" className="btn btn-primary" onClick={save} disabled={busy}>
                 Lưu
               </button>
-            </div>
+            </FormFooter>
           </div>
         </div>
       ) : null}

@@ -1,5 +1,6 @@
 'use client';
 
+import { FormCheck, FormField, FormGrid, FormInput } from '@/components/form';
 import type { HrStaffAddressDto } from '@/lib/hr-employee-file-api';
 
 type Props = {
@@ -23,45 +24,39 @@ function AddressFields({
 }) {
   return (
     <div className="hr-address-block">
-      <h4 style={{ margin: '0 0 0.65rem', fontSize: '0.9rem' }}>{title}</h4>
-      <div className="form-grid form-grid--2">
-        <label className="form-field">
-          <span className="form-label">Số nhà, đường</span>
-          <input
-            className="form-input"
+      <h4 className="form-section-title" style={{ fontSize: '0.9rem' }}>
+        {title}
+      </h4>
+      <FormGrid cols={2}>
+        <FormField label="Số nhà, đường">
+          <FormInput
             value={value.line1 ?? ''}
             disabled={disabled}
             onChange={(e) => onChange({ ...value, line1: e.target.value })}
           />
-        </label>
-        <label className="form-field">
-          <span className="form-label">Mã tỉnh/TP</span>
-          <input
-            className="form-input"
+        </FormField>
+        <FormField label="Mã tỉnh/TP">
+          <FormInput
             value={value.province_code ?? ''}
             disabled={disabled}
             onChange={(e) => onChange({ ...value, province_code: e.target.value })}
           />
-        </label>
-        <label className="form-field">
-          <span className="form-label">Mã quận/huyện</span>
-          <input
-            className="form-input"
+        </FormField>
+        <FormField label="Mã quận/huyện">
+          <FormInput
             value={value.district_code ?? ''}
             disabled={disabled}
             onChange={(e) => onChange({ ...value, district_code: e.target.value })}
           />
-        </label>
-        <label className="form-field">
-          <span className="form-label">Mã phường/xã</span>
-          <input
-            className="form-input"
+        </FormField>
+        <FormField label="Mã phường/xã">
+          <FormInput
             value={value.ward_code ?? ''}
             disabled={disabled}
             onChange={(e) => onChange({ ...value, ward_code: e.target.value })}
           />
-        </label>
-      </div>
+        </FormField>
+      </FormGrid>
     </div>
   );
 }
@@ -78,7 +73,7 @@ export function AddressPairFields({
   return (
     <div className="stack-gap">
       <AddressFields title="Thường trú" value={permanent} disabled={!canEdit} onChange={onPermanentChange} />
-      <label className="form-check" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+      <FormCheck label="Giống thường trú">
         <input
           type="checkbox"
           checked={sameAsPermanent}
@@ -99,8 +94,7 @@ export function AddressPairFields({
             });
           }}
         />
-        <span>Giống thường trú</span>
-      </label>
+      </FormCheck>
       <AddressFields
         title="Tạm trú"
         value={temporary}

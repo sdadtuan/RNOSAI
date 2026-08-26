@@ -17,6 +17,7 @@ import {
   type StaffDepartmentRow,
   type StaffTeamRow,
 } from '@/lib/api';
+import { Form, FormError, FormField, FormFooter, FormInput, FormSelect } from '@/components/form';
 import {
   canConfigureOrgStructure,
   canViewOrgAdmin,
@@ -159,8 +160,8 @@ export default function AdminOrgTeamsPage() {
       }
     >
       <AdminOrgSubNav />
-      {error ? <p className="form-error">{error}</p> : null}
-      {formError ? <p className="form-error">{formError}</p> : null}
+      <FormError>{error}</FormError>
+      <FormError>{formError}</FormError>
 
       <div className="win-filter-chips" style={{ marginBottom: '0.75rem' }}>
         <button
@@ -226,37 +227,37 @@ export default function AdminOrgTeamsPage() {
         <div className="modal-backdrop" role="presentation" onClick={() => setModalOpen(false)}>
           <div className="modal-card" role="dialog" onClick={(e) => e.stopPropagation()}>
             <h3>{editId == null ? 'Thêm team' : 'Sửa team'}</h3>
-            <label>
-              Mã
-              <input value={code} onChange={(e) => setCode(e.target.value)} />
-            </label>
-            <label>
-              Tên
-              <input value={name} onChange={(e) => setName(e.target.value)} />
-            </label>
-            <OrgStructureDescriptionField value={description} onChange={setDescription} />
-            <label>
-              Phòng ban
-              <select
-                value={departmentId === '' ? '' : String(departmentId)}
-                onChange={(e) => setDepartmentId(e.target.value ? Number(e.target.value) : '')}
-              >
-                <option value="">—</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.code} — {d.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="modal-actions">
+            <Form asDiv>
+              <FormField label="Mã" htmlFor="team-code">
+                <FormInput id="team-code" value={code} onChange={(e) => setCode(e.target.value)} />
+              </FormField>
+              <FormField label="Tên" htmlFor="team-name">
+                <FormInput id="team-name" value={name} onChange={(e) => setName(e.target.value)} />
+              </FormField>
+              <OrgStructureDescriptionField value={description} onChange={setDescription} />
+              <FormField label="Phòng ban" htmlFor="team-dept">
+                <FormSelect
+                  id="team-dept"
+                  value={departmentId === '' ? '' : String(departmentId)}
+                  onChange={(e) => setDepartmentId(e.target.value ? Number(e.target.value) : '')}
+                >
+                  <option value="">—</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.code} — {d.name}
+                    </option>
+                  ))}
+                </FormSelect>
+              </FormField>
+            </Form>
+            <FormFooter className="modal-actions">
               <button type="button" className="btn btn-ghost" onClick={() => setModalOpen(false)}>
                 Hủy
               </button>
               <button type="button" className="btn btn-primary" onClick={save} disabled={busy}>
                 Lưu
               </button>
-            </div>
+            </FormFooter>
           </div>
         </div>
       ) : null}
