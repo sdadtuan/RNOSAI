@@ -95,6 +95,7 @@ function buildDataLinks(user: StoredStaffUser): AdminNavLink[] {
     { href: '/admin/crm/custom-fields', label: 'Custom fields' },
     { href: '/admin/crm/pipeline', label: 'Pipeline sales' },
     { href: '/admin/crm/lead-lookups', label: 'Nguồn & Kênh' },
+    { href: '/admin/crm/vn-geo', label: 'Tỉnh/TP & Phường/Xã' },
   ];
 }
 

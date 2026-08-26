@@ -435,6 +435,7 @@ export function EmployeeFileShell({ staffId, token, user, crmPanel, onProfileErr
                 permanent={permanentDraft}
                 temporary={temporaryDraft}
                 canEdit={canEditIdentity}
+                token={token}
                 onPermanentChange={(next) => {
                   setPermanentDraft(next);
                   setDirty((x) => ({ ...x, addresses: true }));

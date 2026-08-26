@@ -1,12 +1,16 @@
 'use client';
 
-import { FormCheck, FormField, FormGrid, FormInput } from '@/components/form';
+import { useEffect, useMemo, useState } from 'react';
+import { FormCheck, FormField, FormGrid, FormInput, FormSelect } from '@/components/form';
 import type { HrStaffAddressDto } from '@/lib/hr-employee-file-api';
+import { useVnGeo } from '@/lib/hr/use-vn-geo';
+import type { VnWardOption } from '@/lib/vn-geo-api';
 
 type Props = {
   permanent: HrStaffAddressDto;
   temporary: HrStaffAddressDto;
   canEdit: boolean;
+  token: string;
   onPermanentChange: (next: HrStaffAddressDto) => void;
   onTemporaryChange: (next: HrStaffAddressDto) => void;
 };
@@ -15,13 +19,57 @@ function AddressFields({
   title,
   value,
   disabled,
+  token,
   onChange,
 }: {
   title: string;
   value: HrStaffAddressDto;
   disabled?: boolean;
+  token: string;
   onChange: (next: HrStaffAddressDto) => void;
 }) {
+  const { provinces, loadingProvinces, loadWards } = useVnGeo(token);
+  const [wards, setWards] = useState<VnWardOption[]>([]);
+  const [loadingWards, setLoadingWards] = useState(false);
+
+  const provinceCode = value.province_code?.trim() ?? '';
+  const wardCode = value.ward_code?.trim() ?? '';
+
+  useEffect(() => {
+    if (!provinceCode) {
+      setWards([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingWards(true);
+    void loadWards(provinceCode)
+      .then((rows) => {
+        if (!cancelled) setWards(rows);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingWards(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [provinceCode, loadWards]);
+
+  const provinceOptions = useMemo(() => {
+    const opts = provinces.map((p) => ({ value: p.code, label: p.name }));
+    if (provinceCode && !opts.some((o) => o.value === provinceCode)) {
+      opts.unshift({ value: provinceCode, label: `${provinceCode} (mã cũ — chọn lại)` });
+    }
+    return opts;
+  }, [provinces, provinceCode]);
+
+  const wardOptions = useMemo(() => {
+    const opts = wards.map((w) => ({ value: w.code, label: w.name }));
+    if (wardCode && !opts.some((o) => o.value === wardCode)) {
+      opts.unshift({ value: wardCode, label: `${wardCode} (mã cũ — chọn lại)` });
+    }
+    return opts;
+  }, [wards, wardCode]);
+
   return (
     <div className="hr-address-block">
       <h4 className="form-section-title" style={{ fontSize: '0.9rem' }}>
@@ -35,26 +83,47 @@ function AddressFields({
             onChange={(e) => onChange({ ...value, line1: e.target.value })}
           />
         </FormField>
-        <FormField label="Mã tỉnh/TP">
-          <FormInput
-            value={value.province_code ?? ''}
-            disabled={disabled}
-            onChange={(e) => onChange({ ...value, province_code: e.target.value })}
-          />
+        <FormField label="Tỉnh/Thành phố">
+          <FormSelect
+            value={provinceCode}
+            disabled={disabled || loadingProvinces}
+            onChange={(e) => {
+              const nextProvince = e.target.value;
+              onChange({
+                ...value,
+                province_code: nextProvince,
+                ward_code: '',
+                district_code: '',
+              });
+            }}
+          >
+            <option value="">{loadingProvinces ? 'Đang tải…' : '— Chọn Tỉnh/TP —'}</option>
+            {provinceOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </FormSelect>
         </FormField>
-        <FormField label="Mã quận/huyện">
-          <FormInput
-            value={value.district_code ?? ''}
-            disabled={disabled}
-            onChange={(e) => onChange({ ...value, district_code: e.target.value })}
-          />
-        </FormField>
-        <FormField label="Mã phường/xã">
-          <FormInput
-            value={value.ward_code ?? ''}
-            disabled={disabled}
-            onChange={(e) => onChange({ ...value, ward_code: e.target.value })}
-          />
+        <FormField label="Phường/Xã">
+          <FormSelect
+            value={wardCode}
+            disabled={disabled || !provinceCode || loadingWards}
+            onChange={(e) => onChange({ ...value, ward_code: e.target.value, district_code: '' })}
+          >
+            <option value="">
+              {!provinceCode
+                ? 'Chọn Tỉnh/TP trước'
+                : loadingWards
+                  ? 'Đang tải…'
+                  : '— Chọn Phường/Xã —'}
+            </option>
+            {wardOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </FormSelect>
         </FormField>
       </FormGrid>
     </div>
@@ -65,6 +134,7 @@ export function AddressPairFields({
   permanent,
   temporary,
   canEdit,
+  token,
   onPermanentChange,
   onTemporaryChange,
 }: Props) {
@@ -72,7 +142,13 @@ export function AddressPairFields({
 
   return (
     <div className="stack-gap">
-      <AddressFields title="Thường trú" value={permanent} disabled={!canEdit} onChange={onPermanentChange} />
+      <AddressFields
+        title="Thường trú"
+        value={permanent}
+        disabled={!canEdit}
+        token={token}
+        onChange={onPermanentChange}
+      />
       <FormCheck label="Giống thường trú">
         <input
           type="checkbox"
@@ -87,8 +163,8 @@ export function AddressPairFields({
                 ? {
                     line1: permanent.line1,
                     province_code: permanent.province_code,
-                    district_code: permanent.district_code,
                     ward_code: permanent.ward_code,
+                    district_code: '',
                   }
                 : {}),
             });
@@ -99,6 +175,7 @@ export function AddressPairFields({
         title="Tạm trú"
         value={temporary}
         disabled={!canEdit || sameAsPermanent}
+        token={token}
         onChange={onTemporaryChange}
       />
     </div>

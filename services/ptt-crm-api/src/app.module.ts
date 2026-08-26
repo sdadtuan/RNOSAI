@@ -96,6 +96,7 @@ import { HrLeaveModule } from './hr-leave/hr-leave.module';
 import { HrEmployeeFileModule } from './hr-employee-file/hr-employee-file.module';
 import { StaffNotificationsModule } from './staff-notifications/staff-notifications.module';
 import { StaffOrgModule } from './staff-org/staff-org.module';
+import { VnAdminGeoModule } from './vn-admin-geo/vn-admin-geo.module';
 import { AdminAuditModule } from './admin-audit/admin-audit.module';
 import { AdminGovernanceModule } from './admin-governance/admin-governance.module';
 import { AdminIntelligenceModule } from './admin-intelligence/admin-intelligence.module';
@@ -166,6 +167,7 @@ import { GtmCmsModule } from './gtm-cms/cms.module';
     PolicyModule,
     StaffClientScopeModule,
     StaffOrgModule,
+    VnAdminGeoModule,
     AdminAuditModule,
     AdminGovernanceModule,
     AdminIntelligenceModule,
