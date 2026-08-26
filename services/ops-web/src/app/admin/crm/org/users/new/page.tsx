@@ -59,6 +59,7 @@ function AdminOrgUserOnboardPageContent() {
   const [internalCode, setInternalCode] = useState('');
   const [internalCodeLocked, setInternalCodeLocked] = useState(false);
   const [jobTitle, setJobTitle] = useState('');
+  const [canReceiveLeads, setCanReceiveLeads] = useState(false);
 
   const [positionId, setPositionId] = useState<number | ''>('');
   const [functions, setFunctions] = useState<string[]>([]);
@@ -232,6 +233,7 @@ function AdminOrgUserOnboardPageContent() {
           phone: phone.trim(),
           internal_code: internalCode.trim(),
           job_title: jobTitle.trim() || selectedPosition?.name || '',
+          can_receive_leads: canReceiveLeads,
         },
       });
       setTempPasswordShown(out.temp_password ?? password);
@@ -345,6 +347,19 @@ function AdminOrgUserOnboardPageContent() {
                   <Link href="/admin/crm/org/positions" className="onboard-wizard__link">
                     Admin → Chức vụ (HR)
                   </Link>
+                </span>
+              </label>
+              <label className="onboard-wizard__field onboard-wizard__field--wide">
+                <span className="onboard-wizard__label">
+                  <input
+                    type="checkbox"
+                    checked={canReceiveLeads}
+                    onChange={(e) => setCanReceiveLeads(e.target.checked)}
+                  />{' '}
+                  Cho phép nhận lead
+                </span>
+                <span className="onboard-wizard__hint">
+                  Chỉ NV có tick này mới hiện khi gán pool dự án PTT.
                 </span>
               </label>
             </div>

@@ -38,6 +38,7 @@ export function StaffEditDrawer({
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [jobTitle, setJobTitle] = useState('');
+  const [canReceiveLeads, setCanReceiveLeads] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -50,6 +51,7 @@ export function StaffEditDrawer({
     setPhone(staff.phone ?? '');
     setEmail(staff.email ?? '');
     setJobTitle(staff.job_title ?? '');
+    setCanReceiveLeads(Boolean(staff.can_receive_leads));
     setError('');
   }, [staff]);
 
@@ -63,6 +65,7 @@ export function StaffEditDrawer({
         phone: phone.trim(),
         email: email.trim(),
         job_title: jobTitle.trim(),
+        can_receive_leads: canReceiveLeads,
       });
       onSaved(updated);
       onClose();
@@ -158,6 +161,15 @@ export function StaffEditDrawer({
       <label>
         Chức danh
         <input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} readOnly={!canEdit} />
+      </label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <input
+          type="checkbox"
+          checked={canReceiveLeads}
+          disabled={!canEdit}
+          onChange={(e) => setCanReceiveLeads(e.target.checked)}
+        />
+        Cho phép nhận lead (hiện trong pool dự án PTT)
       </label>
     </WinDrawer>
   );

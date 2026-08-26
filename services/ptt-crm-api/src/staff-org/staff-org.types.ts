@@ -34,6 +34,7 @@ export type CreateStaffOrgUserBody = {
     job_title?: string;
     internal_code?: string;
     department_id?: number | null;
+    can_receive_leads?: boolean;
   };
 };
 

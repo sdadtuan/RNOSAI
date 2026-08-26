@@ -508,4 +508,29 @@ export class B2bProjectsRepository implements OnModuleDestroy {
     );
     return result.rows;
   }
+
+  async listLeadEligibleStaff(): Promise<
+    Array<{ id: number; name: string; email: string; internal_code: string; job_title: string }>
+  > {
+    const result = await this.db.query(
+      `SELECT id, name, email, COALESCE(internal_code, '') AS internal_code, COALESCE(job_title, '') AS job_title
+       FROM crm_staff
+       WHERE active IS TRUE AND COALESCE(can_receive_leads, FALSE) IS TRUE
+       ORDER BY lower(name), id`,
+    );
+    return result.rows.map((row) => ({
+      id: Number(row.id),
+      name: String(row.name ?? ''),
+      email: String(row.email ?? ''),
+      internal_code: String(row.internal_code ?? ''),
+      job_title: String(row.job_title ?? ''),
+    }));
+  }
+
+  async listLeadEligibleStaffIds(): Promise<number[]> {
+    const result = await this.db.query(
+      `SELECT id FROM crm_staff WHERE active IS TRUE AND COALESCE(can_receive_leads, FALSE) IS TRUE`,
+    );
+    return result.rows.map((row) => Number(row.id));
+  }
 }

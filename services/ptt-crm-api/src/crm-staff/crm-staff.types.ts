@@ -24,6 +24,7 @@ export interface CrmStaffRow {
   position_catalog_name: string;
   position_catalog_code: string;
   has_login?: boolean;
+  can_receive_leads?: boolean;
 }
 
 export interface CrmStaffSummaryMeta {
@@ -38,6 +39,7 @@ export interface PatchCrmStaffBody {
   phone?: string;
   email?: string;
   job_title?: string;
+  can_receive_leads?: boolean;
 }
 
 export interface StaffImportRow {
@@ -124,5 +126,6 @@ export function staffRowForApi(row: Record<string, unknown>): CrmStaffRow {
     position_catalog_name: String(row.position_catalog_name ?? ''),
     position_catalog_code: String(row.position_catalog_code ?? ''),
     has_login: loginEnabled === 1 && loginUsername.length > 0,
+    can_receive_leads: Boolean(row.can_receive_leads === true || row.can_receive_leads === 1),
   };
 }

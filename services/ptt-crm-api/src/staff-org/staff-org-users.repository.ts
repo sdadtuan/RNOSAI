@@ -233,6 +233,7 @@ export class StaffOrgUsersRepository {
          SET name = $1, phone = COALESCE($2, phone), job_title = COALESCE($3, job_title),
              internal_code = COALESCE(NULLIF($4, ''), internal_code),
              department_id = COALESCE($5, department_id), position_id = $6,
+             can_receive_leads = COALESCE($8, can_receive_leads),
              active = TRUE, updated_at = NOW()
          WHERE id = $7`,
         [
@@ -243,6 +244,7 @@ export class StaffOrgUsersRepository {
           departmentId,
           positionId,
           id,
+          typeof profile.can_receive_leads === 'boolean' ? profile.can_receive_leads : null,
         ],
       );
       return id;
@@ -251,8 +253,8 @@ export class StaffOrgUsersRepository {
     const inserted = await client.query<{ id: string }>(
       `INSERT INTO crm_staff (
          name, phone, email, job_title, internal_code, department_id, position_id,
-         active, created_at, updated_at, started_on
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, NOW(), NOW(), CURRENT_DATE)
+         can_receive_leads, active, created_at, updated_at, started_on
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, NOW(), NOW(), CURRENT_DATE)
        RETURNING id`,
       [
         name,
@@ -262,6 +264,7 @@ export class StaffOrgUsersRepository {
         internalCode,
         departmentId,
         positionId,
+        Boolean(profile.can_receive_leads),
       ],
     );
     return Number(inserted.rows[0]!.id);

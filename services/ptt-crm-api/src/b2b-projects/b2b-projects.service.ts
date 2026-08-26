@@ -78,8 +78,13 @@ export class B2bProjectsService {
 
   async replaceStaff(id: string, staff: B2bProjectStaffInput[]): Promise<{ ok: true }> {
     await this.get(id);
+    await this.assertStaffLeadEligible(id, staff);
     await this.repo.replaceStaff(id, staff);
     return { ok: true };
+  }
+
+  listLeadEligibleStaff() {
+    return this.repo.listLeadEligibleStaff();
   }
 
   listPages(id: string) {
@@ -137,6 +142,26 @@ export class B2bProjectsService {
       active: ch.active !== false,
     }));
     this.assertKeys(existing, nextKeys);
+  }
+
+  private async assertStaffLeadEligible(
+    projectId: string,
+    staff: B2bProjectStaffInput[],
+  ): Promise<void> {
+    const ids = [...new Set(staff.map((row) => Number(row.staff_id)).filter((id) => id > 0))];
+    if (!ids.length) return;
+    const [eligible, existing] = await Promise.all([
+      this.repo.listLeadEligibleStaffIds(),
+      this.repo.listProjectStaff(projectId),
+    ]);
+    const allowed = new Set<number>([...eligible, ...existing.map((row) => Number(row.staff_id))]);
+    const blocked = ids.filter((id) => !allowed.has(id));
+    if (blocked.length) {
+      throw new BadRequestException({
+        error: 'staff_not_lead_eligible',
+        staff_ids: blocked,
+      });
+    }
   }
 
   private assertKeys(existing: ChannelKeyRow[], nextKeys: ChannelKeyRow[]): void {

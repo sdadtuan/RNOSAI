@@ -35,6 +35,12 @@ export class B2bProjectsController {
     return this.projects.list(status);
   }
 
+  @Get('lead-eligible-staff')
+  @UseGuards(StaffB2bProjectsViewGuard)
+  listLeadEligibleStaff() {
+    return this.projects.listLeadEligibleStaff().then((staff) => ({ staff }));
+  }
+
   @Post()
   @UseGuards(StaffB2bProjectsManageGuard)
   create(@Body() body: CreateB2bProjectBody) {

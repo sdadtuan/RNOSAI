@@ -40,6 +40,14 @@ export interface B2bProjectStaffRow {
   sales_level: string;
 }
 
+export interface B2bLeadEligibleStaffRow {
+  id: number;
+  name: string;
+  email?: string | null;
+  internal_code?: string | null;
+  job_title?: string | null;
+}
+
 export function parseB2bProjectList(body: unknown): B2bProjectListItem[] {
   const items = Array.isArray(body) ? body : (body as { items?: unknown })?.items;
   if (!Array.isArray(items)) return [];
@@ -185,6 +193,14 @@ export async function replaceB2bProjectChannels(
     method: 'PUT',
     body: JSON.stringify({ channels }),
   });
+}
+
+export async function fetchB2bLeadEligibleStaff(token: string): Promise<B2bLeadEligibleStaffRow[]> {
+  const body = await b2bFetch<{ staff?: B2bLeadEligibleStaffRow[] }>(
+    token,
+    '/api/v1/b2b-projects/lead-eligible-staff',
+  );
+  return Array.isArray(body.staff) ? body.staff : [];
 }
 
 export async function replaceB2bProjectStaff(

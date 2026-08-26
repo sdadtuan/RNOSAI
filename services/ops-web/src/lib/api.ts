@@ -3068,6 +3068,7 @@ export interface CrmStaffRow {
   job_title: string;
   department: string;
   active: number;
+  can_receive_leads?: boolean;
 }
 
 export interface KpiMetricRow {
@@ -4086,7 +4087,13 @@ export async function fetchCrmStaffList(
 export async function patchCrmStaff(
   token: string,
   staffId: number,
-  body: Partial<{ name: string; phone: string; email: string; job_title: string }>,
+  body: Partial<{
+    name: string;
+    phone: string;
+    email: string;
+    job_title: string;
+    can_receive_leads: boolean;
+  }>,
 ): Promise<CrmStaffRow> {
   return crmFetch(token, `/api/crm/staff/${staffId}`, {
     method: 'PATCH',
@@ -8180,6 +8187,7 @@ export interface CreateStaffOrgUserInput {
     job_title?: string;
     internal_code?: string;
     department_id?: number | null;
+    can_receive_leads?: boolean;
   };
 }
 

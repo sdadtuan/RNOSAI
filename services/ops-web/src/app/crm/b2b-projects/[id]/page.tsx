@@ -8,6 +8,7 @@ import { DetailPageLayout, StaffPageShell } from '@/components/layout';
 import {
   Form,
   FormCheck,
+  FormCombobox,
   FormField,
   FormFooter,
   FormGrid,
@@ -15,17 +16,20 @@ import {
   FormSelect,
 } from '@/components/form';
 import {
+  fetchB2bLeadEligibleStaff,
   fetchB2bProject,
   fetchB2bProjectChannels,
   fetchB2bProjectPages,
   fetchB2bProjectStaff,
   patchB2bProject,
   replaceB2bProjectStaff,
+  type B2bLeadEligibleStaffRow,
   type B2bProjectChannelRow,
   type B2bProjectDetail,
   type B2bProjectPageRow,
   type B2bProjectStaffRow,
 } from '@/lib/b2b-projects-api';
+import { b2bStaffPickerOptions } from '@/lib/b2b-staff-picker.util';
 import {
   B2B_PROJECT_STATUSES,
   B2B_PROJECT_STATUS_LABELS,
@@ -69,6 +73,7 @@ export default function CrmB2bProjectDetailPage() {
   const [pages, setPages] = useState<B2bProjectPageRow[]>([]);
   const [channels, setChannels] = useState<B2bProjectChannelRow[]>([]);
   const [staff, setStaff] = useState<B2bProjectStaffRow[]>([]);
+  const [eligibleStaff, setEligibleStaff] = useState<B2bLeadEligibleStaffRow[]>([]);
   const [staffDraft, setStaffDraft] = useState<StaffDraft[]>([]);
   const [tab, setTab] = useState<DetailTab>('overview');
   const [error, setError] = useState('');
@@ -87,16 +92,18 @@ export default function CrmB2bProjectDetailPage() {
   const canManage = Boolean(user && hasCap(user, 'crm_b2b_projects', 'manage'));
 
   const loadProject = useCallback(async (access: string) => {
-    const [detail, pageRows, channelRows, staffRows] = await Promise.all([
+    const [detail, pageRows, channelRows, staffRows, eligible] = await Promise.all([
       fetchB2bProject(access, projectId),
       fetchB2bProjectPages(access, projectId),
       fetchB2bProjectChannels(access, projectId),
       fetchB2bProjectStaff(access, projectId),
+      fetchB2bLeadEligibleStaff(access).catch(() => [] as B2bLeadEligibleStaffRow[]),
     ]);
     setProject(detail);
     setPages(pageRows);
     setChannels(channelRows);
     setStaff(staffRows);
+    setEligibleStaff(eligible);
     setStaffDraft(
       staffRows.map((s) => ({
         staff_id: String(s.staff_id),
@@ -417,15 +424,33 @@ export default function CrmB2bProjectDetailPage() {
 
             {tab === 'staff' ? (
               <Form className="stack-gap" onSubmit={(e) => void saveStaff(e)}>
-                <p className="muted">Pool nhân viên nhận lead tự động cho dự án này.</p>
+                <p className="muted">
+                  Pool nhân viên nhận lead tự động. Chỉ hiện NV đã bật <strong>Cho phép nhận lead</strong> trên hồ
+                  sơ nhân viên — gõ tên, mã hoặc email để tìm.
+                </p>
+                {eligibleStaff.length === 0 ? (
+                  <p className="muted">
+                    Chưa có NV được phép nhận lead.{' '}
+                    <Link href="/crm/staff">Mở danh sách nhân viên</Link> → sửa hồ sơ → tick{' '}
+                    <strong>Cho phép nhận lead</strong>.
+                  </p>
+                ) : null}
                 {staffDraft.map((row, idx) => (
                   <FormGrid cols={3} key={`staff-${idx}`}>
-                    <FormField label="Staff ID">
-                      <FormInput
+                    <FormField label="Nhân viên">
+                      <FormCombobox
                         value={row.staff_id}
                         disabled={!canManage || saving}
-                        onChange={(e) =>
-                          setStaffDraft((prev) => prev.map((r, i) => (i === idx ? { ...r, staff_id: e.target.value } : r)))
+                        allowCustom={false}
+                        showCode={false}
+                        placeholder="Tìm tên / mã NV / email…"
+                        emptyMessage="Không có NV phù hợp — chỉ hiện người được phép nhận lead"
+                        options={b2bStaffPickerOptions(
+                          eligibleStaff,
+                          staffDraft.map((s) => s.staff_id),
+                        )}
+                        onChange={(value) =>
+                          setStaffDraft((prev) => prev.map((r, i) => (i === idx ? { ...r, staff_id: value } : r)))
                         }
                       />
                     </FormField>
