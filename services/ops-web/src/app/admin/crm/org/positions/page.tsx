@@ -12,11 +12,11 @@ import {
 import {
   createStaffOrgPosition,
   deleteStaffOrgPosition,
-  fetchStaffOrgDepartments,
   fetchStaffOrgPositions,
+  fetchStaffOrgTeams,
   patchStaffOrgPosition,
-  type StaffDepartmentRow,
   type StaffOrgPositionRow,
+  type StaffTeamRow,
 } from '@/lib/api';
 import {
   canConfigureData,
@@ -27,7 +27,7 @@ import {
 
 export default function AdminOrgPositionsPage() {
   const { user, token, error, loading, logout } = useAdminCrmAuth(canViewOrgAdmin);
-  const [departments, setDepartments] = useState<StaffDepartmentRow[]>([]);
+  const [teams, setTeams] = useState<StaffTeamRow[]>([]);
   const [rows, setRows] = useState<StaffOrgPositionRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
@@ -36,7 +36,7 @@ export default function AdminOrgPositionsPage() {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [departmentId, setDepartmentId] = useState<number | ''>('');
+  const [teamId, setTeamId] = useState<number | ''>('');
 
   const canConfigure = canConfigureOrgStructure(user) || canConfigureData(user);
 
@@ -46,17 +46,17 @@ export default function AdminOrgPositionsPage() {
 
   useEffect(() => {
     if (!token) return;
-    void Promise.all([fetchStaffOrgPositions(token), fetchStaffOrgDepartments(token)])
-      .then(([positions, depts]) => {
+    void Promise.all([fetchStaffOrgPositions(token), fetchStaffOrgTeams(token)])
+      .then(([positions, teamRows]) => {
         setRows(positions);
-        setDepartments(depts);
+        setTeams(teamRows);
       })
       .catch((err) => setFormError(err instanceof Error ? err.message : 'Tải thất bại'));
   }, [token]);
 
-  const deptLabel = useMemo(
-    () => Object.fromEntries(departments.map((d) => [d.id, `${d.code} — ${d.name}`])),
-    [departments],
+  const teamLabel = useMemo(
+    () => Object.fromEntries(teams.map((t) => [t.id, `${t.code} — ${t.name}`])),
+    [teams],
   );
 
   function openCreate() {
@@ -64,7 +64,7 @@ export default function AdminOrgPositionsPage() {
     setCode('');
     setName('');
     setDescription('');
-    setDepartmentId('');
+    setTeamId('');
     setFormError('');
     setModalOpen(true);
   }
@@ -74,7 +74,7 @@ export default function AdminOrgPositionsPage() {
     setCode(row.code);
     setName(row.name);
     setDescription(row.description ?? '');
-    setDepartmentId(row.department_id ?? '');
+    setTeamId(row.team_id ?? '');
     setFormError('');
     setModalOpen(true);
   }
@@ -84,19 +84,19 @@ export default function AdminOrgPositionsPage() {
     setBusy(true);
     setFormError('');
     try {
-      const dept = departmentId === '' ? null : Number(departmentId);
+      const team = teamId === '' ? null : Number(teamId);
       if (editId == null) {
         await createStaffOrgPosition(token, {
           code: code.trim(),
           name: name.trim(),
           description,
-          department_id: dept,
+          team_id: team,
         });
       } else {
         await patchStaffOrgPosition(token, editId, {
           name: name.trim(),
           description,
-          department_id: dept,
+          team_id: team,
         });
       }
       await reload(token);
@@ -142,7 +142,7 @@ export default function AdminOrgPositionsPage() {
       onLogout={logout}
       section="crm-config"
       title="Chức vụ"
-      subtitle="Metadata chức vụ — ma trận quyền tại Phân quyền → Chức vụ"
+      subtitle="Metadata chức vụ — gắn với Team; ma trận quyền tại Phân quyền → Chức vụ"
       breadcrumb={[
         { label: 'Cấu hình CRM', href: '/admin/crm/custom-fields' },
         { label: 'Tổ chức', href: '/admin/crm/org/positions' },
@@ -168,7 +168,7 @@ export default function AdminOrgPositionsPage() {
               <th>Mã</th>
               <th>Tên</th>
               <th>Mô tả</th>
-              <th>Phòng</th>
+              <th>Team</th>
               <th>Trạng thái</th>
               <th />
             </tr>
@@ -181,7 +181,7 @@ export default function AdminOrgPositionsPage() {
                 <td className="muted" title={row.description || undefined}>
                   {orgDescriptionPreview(row.description)}
                 </td>
-                <td>{row.department_code ?? deptLabel[row.department_id ?? -1] ?? '—'}</td>
+                <td>{row.team_code ?? teamLabel[row.team_id ?? -1] ?? '—'}</td>
                 <td>{row.active ? 'Hoạt động' : 'Ngưng'}</td>
                 <td>
                   {canConfigure ? (
@@ -221,15 +221,16 @@ export default function AdminOrgPositionsPage() {
             </label>
             <OrgStructureDescriptionField value={description} onChange={setDescription} />
             <label>
-              Phòng ban
+              Team
               <select
-                value={departmentId === '' ? '' : String(departmentId)}
-                onChange={(e) => setDepartmentId(e.target.value ? Number(e.target.value) : '')}
+                value={teamId === '' ? '' : String(teamId)}
+                onChange={(e) => setTeamId(e.target.value ? Number(e.target.value) : '')}
               >
                 <option value="">—</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.code} — {d.name}
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.code} — {t.name}
+                    {t.department_code ? ` (${t.department_code})` : ''}
                   </option>
                 ))}
               </select>

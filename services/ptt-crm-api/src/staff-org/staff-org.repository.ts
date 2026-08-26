@@ -69,8 +69,9 @@ function mapPosition(row: {
   name: string;
   description?: string | null;
   parent_id: string | number | null;
-  department_id: string | number | null;
-  department_code?: string | null;
+  team_id: string | number | null;
+  team_code?: string | null;
+  team_name?: string | null;
   active: boolean;
 }): StaffOrgPositionRow {
   return {
@@ -79,8 +80,9 @@ function mapPosition(row: {
     name: String(row.name ?? ''),
     description: String(row.description ?? ''),
     parent_id: row.parent_id == null ? null : Number(row.parent_id),
-    department_id: row.department_id == null ? null : Number(row.department_id),
-    department_code: row.department_code ? String(row.department_code) : undefined,
+    team_id: row.team_id == null ? null : Number(row.team_id),
+    team_code: row.team_code ? String(row.team_code) : undefined,
+    team_name: row.team_name ? String(row.team_name) : undefined,
     active: Boolean(row.active),
   };
 }
@@ -216,15 +218,11 @@ export class StaffOrgRepository {
         [id],
       ),
       this.db.query<{ count: string }>(
-        `SELECT COUNT(*)::text AS count FROM crm_positions WHERE department_id = $1`,
-        [id],
-      ),
-      this.db.query<{ count: string }>(
         `SELECT COUNT(*)::text AS count FROM crm_staff WHERE department_id = $1`,
         [id],
       ),
     ]);
-    const labels = ['child_departments', 'teams', 'positions', 'staff'];
+    const labels = ['child_departments', 'teams', 'staff'];
     checks.forEach((result, index) => {
       const count = Number(result.rows[0]?.count ?? 0);
       if (count > 0) blockers.push({ entity: labels[index]!, count });
@@ -367,16 +365,27 @@ export class StaffOrgRepository {
   async deleteTeam(id: number, actorEmail: string): Promise<StaffOrgDeleteResponse> {
     const rows = await this.listTeams();
     if (!rows.some((t) => t.id === id)) throw new NotFoundException({ error: 'team_not_found', id });
-    const usage = await this.db.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM staff_user_teams WHERE team_id = $1`,
-      [id],
-    );
-    const userCount = Number(usage.rows[0]?.count ?? 0);
-    if (userCount > 0) {
+    const usage = await Promise.all([
+      this.db.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM staff_user_teams WHERE team_id = $1`,
+        [id],
+      ),
+      this.db.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM crm_positions WHERE team_id = $1`,
+        [id],
+      ),
+    ]);
+    const blockers: Array<{ entity: string; count: number }> = [];
+    const labels = ['users', 'positions'];
+    usage.forEach((result, index) => {
+      const count = Number(result.rows[0]?.count ?? 0);
+      if (count > 0) blockers.push({ entity: labels[index]!, count });
+    });
+    if (blockers.length) {
       throw new ConflictException({
         error: 'team_in_use',
-        message: 'Team đang có nhân viên gán — gỡ gán hoặc ngưng thay vì xóa',
-        blockers: [{ entity: 'users', count: userCount }],
+        message: 'Team đang được sử dụng — gỡ gán chức vụ/nhân viên hoặc ngưng thay vì xóa',
+        blockers,
       });
     }
     const result = await this.db.query(`DELETE FROM staff_teams WHERE id = $1`, [id]);
@@ -397,13 +406,15 @@ export class StaffOrgRepository {
       name: string;
       description: string;
       parent_id: string | null;
-      department_id: string | null;
-      department_code: string | null;
+      team_id: string | null;
+      team_code: string | null;
+      team_name: string | null;
       active: boolean;
     }>(
-      `SELECT p.id, p.code, p.name, p.description, p.parent_id, p.department_id, d.code AS department_code, p.active
+      `SELECT p.id, p.code, p.name, p.description, p.parent_id, p.team_id,
+              t.code AS team_code, t.name AS team_name, p.active
        FROM crm_positions p
-       LEFT JOIN crm_departments d ON d.id = p.department_id
+       LEFT JOIN staff_teams t ON t.id = p.team_id
        ORDER BY p.active DESC, p.name, p.code`,
     );
     return result.rows.map(mapPosition);
@@ -416,10 +427,10 @@ export class StaffOrgRepository {
       throw new BadRequestException({ error: 'invalid_position', message: 'code and name required' });
     }
     const result = await this.db.query<{ id: string }>(
-      `INSERT INTO crm_positions (code, name, description, parent_id, department_id, active, updated_at)
+      `INSERT INTO crm_positions (code, name, description, parent_id, team_id, active, updated_at)
        VALUES ($1, $2, $3, $4, $5, TRUE, NOW())
        RETURNING id`,
-      [code, name, normalizeDescription(body.description), body.parent_id ?? null, body.department_id ?? null],
+      [code, name, normalizeDescription(body.description), body.parent_id ?? null, body.team_id ?? null],
     );
     const rowId = Number(result.rows[0]?.id);
     const row = (await this.listPositions()).find((p) => p.id === rowId);
@@ -429,7 +440,7 @@ export class StaffOrgRepository {
       entity_type: 'position',
       entity_id: String(row.id),
       action: 'create',
-      diff_json: { code: row.code, name: row.name, department_id: row.department_id },
+      diff_json: { code: row.code, name: row.name, team_id: row.team_id },
     });
     return row;
   }
@@ -454,9 +465,9 @@ export class StaffOrgRepository {
       sets.push(`parent_id = $${idx++}`);
       params.push(body.parent_id);
     }
-    if (body.department_id !== undefined) {
-      sets.push(`department_id = $${idx++}`);
-      params.push(body.department_id);
+    if (body.team_id !== undefined) {
+      sets.push(`team_id = $${idx++}`);
+      params.push(body.team_id);
     }
     if (body.active !== undefined) {
       sets.push(`active = $${idx++}`);

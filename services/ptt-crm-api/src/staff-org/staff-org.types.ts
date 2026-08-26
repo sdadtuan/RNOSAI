@@ -142,8 +142,9 @@ export type StaffOrgPositionRow = {
   name: string;
   description: string;
   parent_id: number | null;
-  department_id: number | null;
-  department_code?: string;
+  team_id: number | null;
+  team_code?: string;
+  team_name?: string;
   active: boolean;
 };
 
@@ -182,14 +183,14 @@ export type CreateStaffOrgPositionBody = {
   name: string;
   description?: string;
   parent_id?: number | null;
-  department_id?: number | null;
+  team_id?: number | null;
 };
 
 export type PatchStaffOrgPositionBody = {
   name?: string;
   description?: string;
   parent_id?: number | null;
-  department_id?: number | null;
+  team_id?: number | null;
   active?: boolean;
 };
 

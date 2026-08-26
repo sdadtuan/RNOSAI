@@ -211,7 +211,11 @@ export class StaffOrgUsersRepository {
     if (!name) throw new BadRequestException({ error: 'crm_staff_name_required' });
 
     const posDept = await client.query<{ department_id: number | null }>(
-      `SELECT department_id FROM crm_positions WHERE id = $1 LIMIT 1`,
+      `SELECT t.department_id
+       FROM crm_positions p
+       LEFT JOIN staff_teams t ON t.id = p.team_id
+       WHERE p.id = $1
+       LIMIT 1`,
       [positionId],
     );
     const departmentId =

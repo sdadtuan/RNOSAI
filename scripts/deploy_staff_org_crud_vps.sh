@@ -44,8 +44,14 @@ sync_to_vps() {
     "$ROOT/docs/specs/postgresql-ddl-staff-org-description.sql" \
     "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/docs/specs/postgresql-ddl-staff-org-description.sql"
   rsync -av \
+    "$ROOT/docs/specs/postgresql-ddl-staff-org-position-team.sql" \
+    "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/docs/specs/postgresql-ddl-staff-org-position-team.sql"
+  rsync -av \
     "$ROOT/scripts/apply_pg_ddl_staff_org_description.sh" \
     "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/scripts/apply_pg_ddl_staff_org_description.sh"
+  rsync -av \
+    "$ROOT/scripts/apply_pg_ddl_staff_org_position_team.sh" \
+    "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/scripts/apply_pg_ddl_staff_org_position_team.sh"
   rsync -av \
     "$ROOT/scripts/deploy_staff_org_crud_vps.sh" \
     "${VPS_USER}@${VPS_HOST}:${VPS_ROOT}/scripts/deploy_staff_org_crud_vps.sh"
@@ -64,6 +70,9 @@ run_local() {
 
   echo "== Apply staff org description DDL =="
   bash "$ROOT/scripts/apply_pg_ddl_staff_org_description.sh"
+
+  echo "== Apply staff org position-team DDL =="
+  bash "$ROOT/scripts/apply_pg_ddl_staff_org_position_team.sh"
 
   echo "== Build ptt-crm-api =="
   cd "$ROOT/services/ptt-crm-api"

@@ -8330,8 +8330,9 @@ export interface StaffOrgPositionRow {
   name: string;
   description: string;
   parent_id: number | null;
-  department_id: number | null;
-  department_code?: string;
+  team_id: number | null;
+  team_code?: string;
+  team_name?: string;
   active: boolean;
 }
 
@@ -8422,7 +8423,7 @@ export async function fetchStaffOrgPositions(token: string): Promise<StaffOrgPos
 
 export async function createStaffOrgPosition(
   token: string,
-  body: { code: string; name: string; description?: string; department_id?: number | null; parent_id?: number | null },
+  body: { code: string; name: string; description?: string; team_id?: number | null; parent_id?: number | null },
 ): Promise<StaffOrgPositionRow> {
   return crmFetch(token, '/api/v1/staff/org/positions', {
     method: 'POST',
@@ -8434,7 +8435,7 @@ export async function createStaffOrgPosition(
 export async function patchStaffOrgPosition(
   token: string,
   id: number,
-  body: Partial<{ name: string; description: string; parent_id: number | null; department_id: number | null; active: boolean }>,
+  body: Partial<{ name: string; description: string; parent_id: number | null; team_id: number | null; active: boolean }>,
 ): Promise<StaffOrgPositionRow> {
   return crmFetch(token, `/api/v1/staff/org/positions/${id}`, {
     method: 'PATCH',
