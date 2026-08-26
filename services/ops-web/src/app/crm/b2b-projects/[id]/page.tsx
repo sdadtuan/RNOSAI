@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { B2bProjectChannelsPanel } from '@/components/b2b/B2bProjectChannelsPanel';
 import { DetailPageLayout, StaffPageShell } from '@/components/layout';
 import {
   Form,
@@ -399,41 +400,19 @@ export default function CrmB2bProjectDetailPage() {
             ) : null}
 
             {tab === 'channels' ? (
-              <div style={{ display: 'grid', gap: '1rem' }}>
-                <section>
-                  <h3 style={{ marginTop: 0 }}>Facebook pages & forms</h3>
-                  {pages.length === 0 ? (
-                    <p className="muted">Chưa cấu hình page/form.</p>
-                  ) : (
-                    <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-                      {pages.map((p) => (
-                        <li key={p.id}>
-                          <strong>{p.page_id}</strong>
-                          {p.name ? ` — ${p.name}` : ''}{' '}
-                          <span className="muted">{p.active ? 'active' : 'inactive'}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
-                <section>
-                  <h3>Zalo / Webform / API</h3>
-                  {channels.length === 0 ? (
-                    <p className="muted">Chưa cấu hình kênh.</p>
-                  ) : (
-                    <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-                      {channels.map((c) => (
-                        <li key={c.id}>
-                          {c.channel_type}: <code>{c.external_key}</code>
-                          {c.label ? ` — ${c.label}` : ''}{' '}
-                          <span className="muted">{c.active ? 'active' : 'inactive'}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
-                <p className="muted">Cấu hình kênh chi tiết qua API hoặc liên hệ IT (UI kênh sẽ bổ sung sau).</p>
-              </div>
+              <B2bProjectChannelsPanel
+                projectId={projectId}
+                projectCode={project.code}
+                pages={pages}
+                channels={channels}
+                canManage={canManage}
+                onMessage={setMsg}
+                onError={setError}
+                onSaved={() => {
+                  const access = getAccessToken();
+                  if (access) void loadProject(access);
+                }}
+              />
             ) : null}
 
             {tab === 'staff' ? (
