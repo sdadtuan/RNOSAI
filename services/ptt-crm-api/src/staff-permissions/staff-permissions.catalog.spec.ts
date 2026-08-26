@@ -10,10 +10,12 @@ describe('staff-permissions.catalog', () => {
     const grants = normalizeGrantPayload({
       crm_leads: ['view', 'edit', 'invalid'],
       crm_email_mkt: ['view', 'write', 'reports'],
+      crm_hr_pii: ['view', 'edit'],
       unknown_section: ['view'],
     });
     expect(grants.crm_leads).toEqual(['edit', 'view']);
     expect(grants.crm_email_mkt).toEqual(['reports', 'view', 'write']);
+    expect(grants.crm_hr_pii).toEqual(['edit', 'view']);
     expect(grants.unknown_section).toBeUndefined();
   });
 

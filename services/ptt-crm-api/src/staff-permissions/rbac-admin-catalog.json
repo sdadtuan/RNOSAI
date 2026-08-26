@@ -338,6 +338,10 @@
       "request",
       "view"
     ],
+    "crm_hr_pii": [
+      "view",
+      "edit"
+    ],
     "automation_workflows": [
       "approve",
       "claim",
@@ -1165,6 +1169,13 @@
       "description": "Bảng nhân viên, import/export, tài khoản đăng nhập."
     },
     {
+      "id": "crm_hr_pii",
+      "label": "HR — Dữ liệu nhạy cảm (PII)",
+      "group": "CRM — Nhân sự",
+      "page": "/crm/staff",
+      "description": "Xem/sửa CCCD, MST, lương HĐ, số BHXH/BHYT, tài khoản ngân hàng trên hồ sơ nhân viên."
+    },
+    {
       "id": "crm_leads",
       "label": "Quản lý Lead",
       "group": "CRM — Bảng CSKH",
@@ -1779,6 +1790,7 @@
     "spc",
     "crm_ai_insights",
     "crm_hr_leave",
+    "crm_hr_pii",
     "automation_workflows",
     "crm_agency",
     "crm_assistant",
