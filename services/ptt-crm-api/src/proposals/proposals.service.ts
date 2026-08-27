@@ -12,7 +12,7 @@ import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.
 import { LeadsFunnelService } from '../leads-funnel/leads-funnel.service';
 import { SpcService } from '../spc/spc.service';
 import { skuFromDvTier } from '../spc/spc-sku.util';
-import { ProposalsSqliteRepository } from './proposals-sqlite.repository';
+import { ProposalsPgRepository } from './proposals-pg.repository';
 import {
   normalizeQuoteTier,
   quoteExportFilename,
@@ -38,7 +38,7 @@ import {
 @Injectable()
 export class ProposalsService {
   constructor(
-    private readonly sqlite: ProposalsSqliteRepository,
+    private readonly repo: ProposalsPgRepository,
     private readonly routeMap: OpsRouteMapLoader,
     private readonly profiles: OpsProfilePgRepository,
     private readonly lifecycle: ServiceLifecycleService,
@@ -61,41 +61,47 @@ export class ProposalsService {
     }
   }
 
-  list(customerIdRaw?: string, leadIdRaw?: string) {
+  async list(customerIdRaw?: string, leadIdRaw?: string) {
     const leadId = Number(leadIdRaw ?? 0);
     if (Number.isFinite(leadId) && leadId > 0) {
-      const proposals = this.sqlite.listByLeadId(leadId).map((p) => ({
-        ...p,
-        line_count: this.sqlite.listLines(p.id).length,
-      }));
+      const rows = await this.repo.listByLeadId(leadId);
+      const proposals = await Promise.all(
+        rows.map(async (proposal) => ({
+          ...proposal,
+          line_count: (await this.repo.listLines(proposal.id)).length,
+        })),
+      );
       return { proposals };
     }
     const customerId = Number(customerIdRaw ?? 0);
     if (!Number.isFinite(customerId) || customerId <= 0) {
       throw new BadRequestException({ error: 'Cần customer_id hoặc lead_id' });
     }
-    const proposals = this.sqlite.listByCustomer(customerId).map((p) => ({
-      ...p,
-      line_count: this.sqlite.listLines(p.id).length,
-    }));
+    const rows = await this.repo.listByCustomer(customerId);
+    const proposals = await Promise.all(
+      rows.map(async (proposal) => ({
+        ...proposal,
+        line_count: (await this.repo.listLines(proposal.id)).length,
+      })),
+    );
     return { proposals };
   }
 
-  detail(proposalId: number) {
-    const proposal = this.sqlite.getById(proposalId);
+  async detail(proposalId: number) {
+    const proposal = await this.repo.getById(proposalId);
     if (!proposal) {
       throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
     }
     return {
       ...proposal,
-      lines: this.sqlite.listLines(proposalId),
+      lines: await this.repo.listLines(proposalId),
     };
   }
 
-  getLines(proposalId: number) {
-    const proposal = this.sqlite.getById(proposalId);
+  async getLines(proposalId: number) {
+    const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
-    return { proposal_id: proposalId, lines: this.sqlite.listLines(proposalId) };
+    return { proposal_id: proposalId, lines: await this.repo.listLines(proposalId) };
   }
 
   private resolveDvEntry(dvCode: string) {
@@ -207,7 +213,7 @@ export class ProposalsService {
       slugs.push(serviceSlug);
     }
 
-    const created = this.sqlite.create({
+    const created = await this.repo.create({
       ...body,
       customer_id: customerId,
       lead_id: leadId > 0 ? leadId : undefined,
@@ -216,9 +222,9 @@ export class ProposalsService {
     });
     if (lines.length) {
       const resolved = await Promise.all(lines.map((line) => this.resolveLinePricing(line)));
-      this.sqlite.replaceLines(created.id, resolved);
+      await this.repo.replaceLines(created.id, resolved);
     }
-    return this.detail(created.id);
+    return await this.detail(created.id);
   }
 
   private async buildAutoLines(serviceSlug: string, tier: QuotePackageTier) {
@@ -236,7 +242,7 @@ export class ProposalsService {
   }
 
   async putLines(proposalId: number, body: PutQuoteLinesBody) {
-    const proposal = this.sqlite.getById(proposalId);
+    const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
     if (proposal.status === 'accepted') {
       throw new BadRequestException({ error: 'proposal_already_accepted' });
@@ -245,12 +251,16 @@ export class ProposalsService {
       throw new BadRequestException({ error: 'lines_required' });
     }
     const resolved = await Promise.all(body.lines.map((line) => this.resolveLinePricing(line)));
-    const items = this.sqlite.replaceLines(proposalId, resolved, body.price_adjustment_reason);
+    const items = await this.repo.replaceLines(
+      proposalId,
+      resolved,
+      body.price_adjustment_reason,
+    );
     return { proposal_id: proposalId, lines: items, total_vnd: items.reduce((s, l) => s + l.final_price_vnd, 0) };
   }
 
-  patchStatus(proposalId: number, body: PatchProposalStatusBody, actorEmail = 'staff') {
-    const proposal = this.sqlite.getById(proposalId);
+  async patchStatus(proposalId: number, body: PatchProposalStatusBody, actorEmail = 'staff') {
+    const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
     const next = body.status;
     const allowed = PROPOSAL_STATUS_FLOW[proposal.status] ?? [];
@@ -264,8 +274,8 @@ export class ProposalsService {
     if (next === 'accepted') {
       return this.acceptProposal(proposalId, Boolean(body.spawn_week), actorEmail, body.price_adjustment_reason);
     }
-    const updated = this.sqlite.patchStatus(proposalId, next, body.price_adjustment_reason);
-    return { proposal: updated, lines: this.sqlite.listLines(proposalId) };
+    const updated = await this.repo.patchStatus(proposalId, next, body.price_adjustment_reason);
+    return { proposal: updated, lines: await this.repo.listLines(proposalId) };
   }
 
   private async acceptProposal(
@@ -274,9 +284,9 @@ export class ProposalsService {
     actorEmail: string,
     priceAdjustmentReason?: string,
   ) {
-    const proposal = this.sqlite.getById(proposalId);
+    const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
-    const lines = this.sqlite.listLines(proposalId);
+    const lines = await this.repo.listLines(proposalId);
     if (!lines.length) {
       throw new BadRequestException({ error: 'quote_lines_required_for_accept' });
     }
@@ -292,15 +302,15 @@ export class ProposalsService {
         customer_id: proposal.customer_id,
         service_slug: line.service_slug,
       });
-      this.sqlite.activateLifecycle(created.id, 'onboard', note);
-      this.sqlite.setLineLifecycle(line.id, created.id);
+      await this.repo.activateLifecycle(created.id, 'onboard', note);
+      await this.repo.setLineLifecycle(line.id, created.id);
       const skuCode =
         line.sku_code?.trim() ||
         skuFromDvTier(line.dv_code, normalizeQuoteTier(line.package_tier) ?? 'standard');
       try {
         await this.lifecycle.setCommercialSku(created.id, skuCode);
       } catch {
-        this.sqlite.setLifecycleSkuCode(created.id, skuCode);
+        await this.repo.setLifecycleSkuCode(created.id, skuCode);
       }
       lifecycles.push({ line_id: line.id, lifecycle_id: created.id, dv_code: line.dv_code });
 
@@ -314,21 +324,21 @@ export class ProposalsService {
     }
 
     if (lifecycles.length === 1) {
-      this.sqlite.setProposalLifecycle(proposalId, lifecycles[0].lifecycle_id);
+      await this.repo.setProposalLifecycle(proposalId, lifecycles[0].lifecycle_id);
     }
 
-    const updated = this.sqlite.patchStatus(proposalId, 'accepted', priceAdjustmentReason);
+    const updated = await this.repo.patchStatus(proposalId, 'accepted', priceAdjustmentReason);
     return {
       proposal: updated,
-      lines: this.sqlite.listLines(proposalId),
+      lines: await this.repo.listLines(proposalId),
       lifecycles,
     };
   }
 
   async exportQuote(proposalId: number, format: 'pdf' | 'docx' = 'pdf') {
-    const proposal = this.sqlite.getById(proposalId);
+    const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
-    const lines = this.sqlite.listLines(proposalId);
+    const lines = await this.repo.listLines(proposalId);
     const map = this.routeMap.getMap();
     const exportLines = lines.map((line) => {
       const entry = map.services.find((s) => s.code === line.dv_code);
@@ -347,7 +357,7 @@ export class ProposalsService {
             `${l.dv_code} ${l.dv_name} (${l.package_tier}): ${l.final_price_vnd.toLocaleString('vi-VN')} VND`,
         )
         .join('\n');
-      const body = `PTT Quote #${proposalId}\n${this.sqlite.getCustomerName(proposal.customer_id)}\n\n${text}\n\nTotal: ${proposal.total_vnd.toLocaleString('vi-VN')} VND`;
+      const body = `PTT Quote #${proposalId}\n${await this.repo.getCustomerName(proposal.customer_id)}\n\n${text}\n\nTotal: ${proposal.total_vnd.toLocaleString('vi-VN')} VND`;
       return new StreamableFile(Buffer.from(body, 'utf8'), {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         disposition: `attachment; filename="${quoteExportFilename(proposalId, 'docx')}"`,
@@ -356,7 +366,7 @@ export class ProposalsService {
 
     const pdf = quotePdfBuffer({
       proposalId,
-      customerName: this.sqlite.getCustomerName(proposal.customer_id),
+      customerName: await this.repo.getCustomerName(proposal.customer_id),
       lines: exportLines,
       total_vnd: proposal.total_vnd,
       status: proposal.status,
@@ -406,8 +416,8 @@ export class ProposalsService {
     };
   }
 
-  generate(proposalId: number) {
-    const proposal = this.sqlite.getById(proposalId);
+  async generate(proposalId: number) {
+    const proposal = await this.repo.getById(proposalId);
     if (!proposal) {
       throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
     }
@@ -420,8 +430,8 @@ export class ProposalsService {
     };
   }
 
-  remove(proposalId: number) {
-    const ok = this.sqlite.delete(proposalId);
+  async remove(proposalId: number) {
+    const ok = await this.repo.delete(proposalId);
     if (!ok) {
       throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
     }

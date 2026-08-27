@@ -9,7 +9,7 @@ import {
   StaffProposalsWriteGuard,
 } from './guards/staff-proposals.guard';
 import { ProposalsController } from './proposals.controller';
-import { ProposalsSqliteRepository } from './proposals-sqlite.repository';
+import { ProposalsPgRepository } from './proposals-pg.repository';
 import { ProposalsService } from './proposals.service';
 
 @Module({
@@ -23,10 +23,10 @@ import { ProposalsService } from './proposals.service';
   controllers: [ProposalsController],
   providers: [
     ProposalsService,
-    ProposalsSqliteRepository,
+    ProposalsPgRepository,
     StaffProposalsViewGuard,
     StaffProposalsWriteGuard,
   ],
-  exports: [ProposalsService, ProposalsSqliteRepository],
+  exports: [ProposalsService, ProposalsPgRepository],
 })
 export class ProposalsModule {}
