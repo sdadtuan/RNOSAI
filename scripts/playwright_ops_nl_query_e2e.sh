@@ -19,8 +19,7 @@ if ! curl -sf "${OPS_E2E_API_URL}/api/v1/ai/health" >/dev/null 2>&1; then
   (
     cd "$ROOT/services/ptt-crm-api"
     npm run build
-    export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5433/rnosaidb}"
-    export PTT_SQLITE_PATH="${PTT_SQLITE_PATH:-$ROOT/ptt.db}"
+    source "$ROOT/scripts/lib/pg_e2e_env.sh"
     export NODE_ENV=development PORT=3000
     export PTT_STAFF_ALLOW_STUB=1
     export PTT_STAFF_STUB_USERS="${OPS_E2E_STAFF_EMAIL:-staff@demo.local}:${OPS_E2E_STAFF_PASSWORD:-demo12345}:1:1:E2E RNOS-22"

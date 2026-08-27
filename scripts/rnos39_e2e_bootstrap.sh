@@ -75,35 +75,23 @@ if [[ "${LEAD_COUNT:-0}" -lt 5 ]]; then
   SEED_LOCAL=1 MIN_SAMPLE=10 bash "$ROOT/scripts/rnos_phase0_gate.sh" || true
 fi
 
-echo "==> Ensure lead ${LEAD_ID} owned by stub staff (owner_id=1)"
-psql "$DATABASE_URL" -q -c \
-  "UPDATE crm_leads SET owner_id = 1 WHERE sqlite_lead_id = ${LEAD_ID};" 2>/dev/null || true
-
-# Activity notes still write to SQLite (crm_lead_activities FK → crm_leads.id)
-SQLITE="${PTT_SQLITE_PATH:-$ROOT/ptt.db}"
-if [[ -f "$SQLITE" ]]; then
-  echo "==> Ensure SQLite crm_leads row for lead ${LEAD_ID} (follow-up accept FK)"
-  sqlite3 "$SQLITE" <<SQL
-INSERT OR IGNORE INTO crm_leads (
-  id, full_name, phone, phone_norm, email, email_norm, source, status,
-  owner_id, created_at, updated_at, created_by, updated_by
+echo "==> Seed PostgreSQL lead ${LEAD_ID} for stub staff (owner_id=1)"
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q <<SQL
+INSERT INTO crm_leads (
+  sqlite_lead_id, full_name, phone, email, source, status, owner_id, created_at
 ) VALUES (
   ${LEAD_ID},
   'Gate Sample ${LEAD_ID}',
   '0900000050',
-  '0900000050',
-  'gate${LEAD_ID}@example.invalid',
   'gate${LEAD_ID}@example.invalid',
   'meta',
   'new',
   1,
-  datetime('now'),
-  datetime('now'),
-  'rnos39-e2e',
-  'rnos39-e2e'
-);
-UPDATE crm_leads SET owner_id = 1 WHERE id = ${LEAD_ID};
+  NOW()
+)
+ON CONFLICT (sqlite_lead_id) DO UPDATE
+SET owner_id = EXCLUDED.owner_id,
+    synced_at = NOW();
 SQL
-fi
 
 echo "OK  RNOS-39 bootstrap complete (lead_id=${LEAD_ID})"

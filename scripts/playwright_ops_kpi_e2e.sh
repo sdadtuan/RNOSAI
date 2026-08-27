@@ -67,9 +67,7 @@ if ! curl -sf "${OPS_E2E_API_URL}/api/v1/ai/health" >/dev/null 2>&1; then
     cd "$ROOT/services/ptt-crm-api"
     if [[ ! -d node_modules ]]; then npm ci; fi
     npm run build
-    export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5433/rnosaidb}"
-    export PTT_LEADS_READ_SOURCE="${PTT_LEADS_READ_SOURCE:-pg}"
-    export PTT_SQLITE_PATH="${PTT_SQLITE_PATH:-$ROOT/ptt.db}"
+    source "$ROOT/scripts/lib/pg_e2e_env.sh"
     export NODE_ENV=development PORT=3000
     export PTT_AI_COPILOT_ENABLED=1
     export PTT_STAFF_ALLOW_STUB=1

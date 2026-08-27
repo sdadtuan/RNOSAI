@@ -11,7 +11,7 @@ export OPS_E2E_USE_DEV="${OPS_E2E_USE_DEV:-1}"
 export NEXT_PUBLIC_PTT_API_URL="${NEXT_PUBLIC_PTT_API_URL:-$OPS_E2E_API_URL}"
 export OPS_E2E_STAFF_EMAIL="${OPS_E2E_STAFF_EMAIL:-staff@demo.local}"
 export OPS_E2E_STAFF_PASSWORD="${OPS_E2E_STAFF_PASSWORD:-demo12345}"
-export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5433/rnosaidb}"
+source "$ROOT/scripts/lib/pg_e2e_env.sh"
 
 echo "==> Apply revenue-os-ai DDL (ai_playbooks §7)"
 bash "$ROOT/scripts/apply_pg_ddl_revenue_os_ai.sh" 2>/dev/null || true

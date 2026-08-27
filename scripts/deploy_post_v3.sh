@@ -12,7 +12,7 @@
 #   --backup          pg_dump before mutations
 #   --skip-fk         skip orphan cleanup + VALIDATE CONSTRAINT
 #   --skip-idempotency  skip apply_pg_ddl_v3_events_idempotency.sh
-#   --skip-hub        skip sync_hub_campaign_map.sh
+#   --skip-hub        legacy no-op (SQLite hub sync retired)
 #   --skip-rnos01     skip RNOS-01 (Timeline DDL)
 #   --with-modules    apply extra v3/v4/v5 DDL scripts (creatives, hub_sop, …)
 #   --dry-run         print plan + orphan count only
@@ -207,11 +207,7 @@ else
 fi
 
 if [[ "$SKIP_HUB" != "1" ]]; then
-  if [[ -f "${PTT_SQLITE_PATH:-$ROOT/ptt.db}" ]]; then
-    run_script "hub_campaign_map sync" "$ROOT/scripts/sync_hub_campaign_map.sh"
-  else
-    step_skip "hub sync — SQLite not found (${PTT_SQLITE_PATH:-$ROOT/ptt.db})"
-  fi
+  step_skip "hub_campaign_map sync retired with SQLite; PostgreSQL is authoritative"
 else
   step_skip "hub sync (--skip-hub)"
 fi

@@ -7,7 +7,7 @@ if [[ -x "$ROOT/.venv/bin/python" ]]; then
   PYTHON="$ROOT/.venv/bin/python"
 fi
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
-export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5432/ptt_agency}"
+source "$ROOT/scripts/lib/pg_e2e_env.sh"
 export SEO_AEO_DB="${SEO_AEO_DB:-pg}"
 export OPS_E2E_URL="${OPS_E2E_URL:-http://127.0.0.1:3200}"
 export OPS_E2E_API_URL="${OPS_E2E_API_URL:-http://127.0.0.1:3000}"

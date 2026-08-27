@@ -16,6 +16,7 @@ if [[ -f "$ENV_FILE" ]]; then
   source "$ENV_FILE" 2>/dev/null || true
   set +a
 fi
+source "$ROOT/scripts/lib/pg_e2e_env.sh"
 
 export OPS_E2E_URL="${OPS_E2E_URL:-http://127.0.0.1:3200}"
 export OPS_E2E_API_URL="${OPS_E2E_API_URL:-http://127.0.0.1:3000}"
@@ -51,33 +52,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-_ensure_sqlite_e2e_lead() {
-  local lead_id="${OPS_E2E_AI_LEAD_ID:-9000050}"
-  local sqlite="${PTT_SQLITE_PATH:-$ROOT/ptt.db}"
-  [[ -f "$sqlite" ]] || return 0
-  sqlite3 "$sqlite" <<SQL
-INSERT OR IGNORE INTO crm_leads (
-  id, full_name, phone, phone_norm, email, email_norm, source, status,
-  owner_id, created_at, updated_at, created_by, updated_by
-) VALUES (
-  ${lead_id},
-  'Gate Sample ${lead_id}',
-  '0900000050',
-  '0900000050',
-  'gate${lead_id}@example.invalid',
-  'gate${lead_id}@example.invalid',
-  'meta',
-  'new',
-  1,
-  datetime('now'),
-  datetime('now'),
-  'rnos39-e2e',
-  'rnos39-e2e'
-);
-UPDATE crm_leads SET owner_id = 1 WHERE id = ${lead_id};
-SQL
-}
-
 if [[ "${RNOS39_SKIP_BOOTSTRAP:-0}" != "1" ]]; then
   bash "$ROOT/scripts/rnos39_e2e_bootstrap.sh"
 fi
@@ -95,7 +69,6 @@ if ! curl -sf "${OPS_E2E_API_URL}/api/v1/ai/health" >/dev/null 2>&1; then
     cd "$ROOT/services/ptt-crm-api"
     export DATABASE_URL="${DATABASE_URL:?DATABASE_URL required}"
     export PTT_LEADS_READ_SOURCE="${PTT_LEADS_READ_SOURCE:-pg}"
-    export PTT_SQLITE_PATH="${PTT_SQLITE_PATH:-$ROOT/ptt.db}"
     export NODE_ENV=development PORT=3000
     export PTT_AI_COPILOT_ENABLED=1
     export PTT_STAFF_ALLOW_STUB=1
@@ -115,8 +88,6 @@ if [[ -n "${DATABASE_URL:-}" ]]; then
   psql "$DATABASE_URL" -q -c \
     "UPDATE crm_leads SET owner_id = 1 WHERE sqlite_lead_id = ${OPS_E2E_AI_LEAD_ID};" 2>/dev/null || true
 fi
-
-_ensure_sqlite_e2e_lead
 
 if [[ "${OPS_E2E_SKIP_SERVER:-0}" != "1" ]]; then
   if ! curl -sf "${OPS_E2E_URL}/login" >/dev/null 2>&1; then

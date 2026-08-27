@@ -79,7 +79,7 @@ if [[ "${NEED_API_START:-0}" == "1" ]]; then
     cd "$ROOT/services/ptt-crm-api"
     if [[ ! -d node_modules ]]; then npm ci; fi
     npm run build
-    export DATABASE_URL="${DATABASE_URL:-postgresql://ptt:ptt_dev@127.0.0.1:5433/rnosaidb}"
+    source "$ROOT/scripts/lib/pg_e2e_env.sh"
     export OPENSEARCH_URL="${OPENSEARCH_URL}"
     export NODE_ENV=development PORT=3000
     export PTT_STAFF_ALLOW_STUB=1
