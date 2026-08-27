@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { parseCinematicDailyCap } from '../video-sop/video-sop-flags';
 
-export type LeadsReadSource = 'sqlite' | 'pg';
+export type LeadsReadSource = 'pg';
 export type LeadsCreateIdMode = 'staging' | 'prod';
 export type PortalAuthMode = 'nest-jwt' | 'keycloak' | 'dual';
 export type StaffAuthMode = 'nest' | 'keycloak' | 'dual';
@@ -232,7 +232,7 @@ export class AppConfigService {
       process.env.PTT_DATABASE_URL ??
       'postgresql://ptt:ptt_dev@127.0.0.1:5432/ptt_agency'
     ).trim();
-    this.leadsReadSource = this.resolveLeadsReadSource();
+    this.leadsReadSource = 'pg';
     this.internalKey = (process.env.PTT_CRM_INTERNAL_KEY ?? '').trim() || null;
     this.authDisabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CRM_API_AUTH_DISABLED ?? '0').trim().toLowerCase(),
@@ -804,14 +804,6 @@ export class AppConfigService {
       return path.isAbsolute(fromEnv) ? fromEnv : path.resolve(process.cwd(), fromEnv);
     }
     return path.resolve(__dirname, '..', '..', '..', 'ptt.db');
-  }
-
-  private resolveLeadsReadSource(): LeadsReadSource {
-    const explicit = (process.env.PTT_LEADS_READ_SOURCE ?? '').trim().toLowerCase();
-    if (explicit === 'sqlite' || explicit === 'pg') {
-      return explicit;
-    }
-    return 'pg';
   }
 
   private resolvePortalAuthMode(): PortalAuthMode {
