@@ -2,12 +2,12 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  OnModuleDestroy,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { DatabaseSync } from 'node:sqlite';
+import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { CrmConfigService } from '../crm-config/crm-config.service';
-import { sumReceivedRevenueForRange } from '../sqlite-compat/finance.util';
 import { AI_USE_CASE } from './ai-audit.constants';
 import { AiAuditService } from './ai-audit.service';
 import { DealScoreContextRepository } from './deal-score-context.repository';
@@ -56,8 +56,8 @@ function monthRange(year: number, month: number): { start: string; end: string }
 }
 
 @Injectable()
-export class AiForecastService {
-  private sqlite: DatabaseSync | null = null;
+export class AiForecastService implements OnModuleDestroy {
+  private pool: Pool | null = null;
 
   constructor(
     private readonly config: AppConfigService,
@@ -67,12 +67,28 @@ export class AiForecastService {
     private readonly snapshots: RevenueForecastRepository,
   ) {}
 
-  private get database(): DatabaseSync {
-    if (!this.sqlite) {
-      this.sqlite = new DatabaseSync(this.config.sqlitePath);
-      this.sqlite.exec('PRAGMA foreign_keys = ON');
+  private get db(): Pool {
+    if (!this.pool) this.pool = new Pool({ connectionString: this.config.databaseUrl });
+    return this.pool;
+  }
+
+  onModuleDestroy(): void {
+    void this.pool?.end();
+    this.pool = null;
+  }
+
+  private async sumReceivedRevenueForRange(start: string, end: string): Promise<number> {
+    try {
+      const result = await this.db.query(
+        `SELECT COALESCE(SUM(amount_vnd), 0)::float8 AS amount
+         FROM crm_svc_payments
+         WHERE status = 'received' AND received_on::date BETWEEN $1::date AND $2::date`,
+        [start, end],
+      );
+      return Number(result.rows[0]?.amount ?? 0);
+    } catch {
+      return 0;
     }
-    return this.sqlite;
   }
 
   async generateSnapshot(input: ForecastSnapshotRequest = {}): Promise<ForecastSnapshotResponse> {
@@ -111,12 +127,10 @@ export class AiForecastService {
       await this.snapshots.deleteUncommittedOrgSnapshotForDate(snapshotDate);
     }
 
-    const dealIds = this.dealContext.listOpenDealIds(500);
+    const dealIds = await this.dealContext.listOpenDealIds(500);
     const runtime = this.crmConfig.toPipelineRuntime();
-    const deals = dealIds
-      .map((id) => this.dealContext.loadDealScoreContext(id))
-      .filter((ctx) => ctx && !ctx.isTerminal)
-      .map((ctx) => buildForecastDealRow(ctx!));
+    const dealContexts = await Promise.all(dealIds.map((id) => this.dealContext.loadDealScoreContext(id)));
+    const deals = dealContexts.filter((ctx) => ctx && !ctx.isTerminal).map((ctx) => buildForecastDealRow(ctx!));
 
     const computed = computeRevenueForecastV1({
       deals,
@@ -200,7 +214,7 @@ export class AiForecastService {
     const snapshot = await this.snapshots.findLatestInMonth(y, m);
     const prior = priorMonth(y, m);
     const priorRange = monthRange(prior.year, prior.month);
-    const actualPrior = sumReceivedRevenueForRange(this.database, priorRange.start, priorRange.end);
+    const actualPrior = await this.sumReceivedRevenueForRange(priorRange.start, priorRange.end);
     const mapePrior = await this.buildMapePriorMonth(prior.year, prior.month, actualPrior);
 
     const metadata = snapshot?.metadata ?? {};
@@ -348,7 +362,7 @@ export class AiForecastService {
     for (let i = 0; i < cappedMonths; i += 1) {
       const prior = priorMonth(y, m);
       const range = monthRange(prior.year, prior.month);
-      const actual = sumReceivedRevenueForRange(this.database, range.start, range.end);
+      const actual = await this.sumReceivedRevenueForRange(range.start, range.end);
       const mapeRow = await this.buildMapePriorMonth(prior.year, prior.month, actual);
       const committed = await this.snapshots.findCommittedForMonth(prior.year, prior.month);
       const committedVnd = mapeRow?.committed_vnd ?? 0;
