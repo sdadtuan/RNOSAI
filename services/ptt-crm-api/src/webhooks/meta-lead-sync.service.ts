@@ -10,10 +10,12 @@ import {
 } from './meta-webhook.parser';
 import { MetaWebhookRepository } from './meta-webhook.repository';
 import type { LegacyLeadRow } from './webhook-lead.types';
+import { exchangeForPageAccessToken } from './meta-page-token';
 import {
   clampFacebookSyncLimit,
   classifyFetchedLead,
   facebookFormLeadsUrl,
+  isMissingFormPermissionError,
   parseFacebookFormLeadsPage,
   selectActiveFormsToSync,
 } from './meta-lead-sync.util';
@@ -107,7 +109,15 @@ export class MetaLeadSyncService {
       });
     }
 
-    const config = { ...metaConfigFromEnv(), pageAccessToken: token };
+    const baseConfig = { ...metaConfigFromEnv(), pageAccessToken: token };
+    const tokenByPage = new Map<string, string>();
+    for (const pageId of new Set(targets.map((t) => t.pageId))) {
+      tokenByPage.set(
+        pageId,
+        await exchangeForPageAccessToken(token, pageId, baseConfig.graphApiVersion),
+      );
+    }
+
     const limit = clampFacebookSyncLimit(opts.limit);
     const remainingPerForm = Math.max(1, Math.ceil(limit / targets.length));
 
@@ -118,14 +128,19 @@ export class MetaLeadSyncService {
     const formErrors: string[] = [];
 
     for (const target of targets) {
+      const pageToken = tokenByPage.get(target.pageId) || token;
+      const config = { ...baseConfig, pageAccessToken: pageToken };
       const listed = await this.graph.listFormLeadIds(
         target.formId,
-        token,
+        pageToken,
         config.graphApiVersion,
         remainingPerForm,
       );
       if (listed.errorMessage) {
-        formErrors.push(`${target.formId}: ${listed.errorMessage}`);
+        const hint = isMissingFormPermissionError(listed.errorMessage)
+          ? ' Token phải là Page Access Token của đúng Page này (Graph Explorer → chọn Page, quyền leads_retrieval) — không dùng User token.'
+          : '';
+        formErrors.push(`${target.formId}: ${listed.errorMessage}${hint}`);
         graphErrors += 1;
         continue;
       }

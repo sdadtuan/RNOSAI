@@ -74,6 +74,15 @@ export function classifyFetchedLead(row: {
   return 'ok';
 }
 
+export function isMissingFormPermissionError(message: string): boolean {
+  const s = String(message ?? '').toLowerCase();
+  return (
+    s.includes('does not exist') ||
+    s.includes('missing permissions') ||
+    s.includes('unsupported get request')
+  );
+}
+
 export function facebookFormLeadsUrl(
   formId: string,
   token: string,

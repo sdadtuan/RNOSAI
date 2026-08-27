@@ -9,6 +9,7 @@ import {
   parseFacebookWebhookJson,
 } from './meta-webhook.parser';
 import { extractMetaLeadgenContext } from './meta-webhook-context';
+import { exchangeForPageAccessToken } from './meta-page-token';
 import { MetaWebhookRepository } from './meta-webhook.repository';
 import { MetaOpsWebhookService } from './meta-ops-webhook.service';
 import { B2bIngestService } from '../b2b-projects/b2b-ingest.service';
@@ -136,7 +137,14 @@ export class WebhooksService {
       pageIds: ctx.pageIds,
       formIds: ctx.formIds,
     });
-    const pageToken = await this.metaWebhookRepo.resolvePageAccessToken(resolvedClientId, ctx.pageIds);
+    const rawPageToken = await this.metaWebhookRepo.resolvePageAccessToken(resolvedClientId, ctx.pageIds);
+    const pageToken = rawPageToken
+      ? await exchangeForPageAccessToken(
+          rawPageToken,
+          ctx.pageIds[0] ?? '',
+          metaConfigFromEnv().graphApiVersion,
+        )
+      : rawPageToken;
     const effectiveClientId =
       resolvedClientId ??
       this.metaWebhookRepo.normalizeClientUuid(headerClientId) ??

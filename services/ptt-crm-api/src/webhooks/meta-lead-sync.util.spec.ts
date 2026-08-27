@@ -1,6 +1,7 @@
 import {
   clampFacebookSyncLimit,
   classifyFetchedLead,
+  isMissingFormPermissionError,
   parseFacebookFormLeadsPage,
   selectActiveFormsToSync,
 } from './meta-lead-sync.util';
@@ -56,6 +57,17 @@ describe('parseFacebookFormLeadsPage', () => {
     expect(out.ids).toEqual([]);
     expect(out.nextUrl).toBeNull();
     expect(out.errorMessage).toMatch(/nope/);
+  });
+});
+
+describe('isMissingFormPermissionError', () => {
+  it('detects Meta unsupported-object errors', () => {
+    expect(
+      isMissingFormPermissionError(
+        "Unsupported get request. Object with ID '1' does not exist, cannot be loaded due to missing permissions",
+      ),
+    ).toBe(true);
+    expect(isMissingFormPermissionError('rate limit')).toBe(false);
   });
 });
 
