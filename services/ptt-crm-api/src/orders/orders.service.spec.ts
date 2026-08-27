@@ -20,17 +20,17 @@ describe('OrdersService', () => {
     service = new OrdersService(repo as never);
   });
 
-  it('creates order for valid customer', () => {
-    repo.customerExists.mockReturnValue(true);
-    repo.create.mockReturnValue({ id: 1, reference_code: 'SO-2026-00001', status: 'draft' });
-    const out = service.create({ customer_id: 10 });
+  it('creates order for valid customer', async () => {
+    repo.customerExists.mockResolvedValue(true);
+    repo.create.mockResolvedValue({ id: 1, reference_code: 'SO-2026-00001', status: 'draft' });
+    const out = await service.create({ customer_id: 10 });
     expect(out.order.id).toBe(1);
     expect(repo.create).toHaveBeenCalled();
   });
 
-  it('converts proposal to order', () => {
-    repo.createFromProposal.mockReturnValue({ id: 2, proposal_id: 5, status: 'draft' });
-    const out = service.convertFromProposal(5);
+  it('converts proposal to order', async () => {
+    repo.createFromProposal.mockResolvedValue({ id: 2, proposal_id: 5, status: 'draft' });
+    const out = await service.convertFromProposal(5);
     expect(out.order.proposal_id).toBe(5);
   });
 });

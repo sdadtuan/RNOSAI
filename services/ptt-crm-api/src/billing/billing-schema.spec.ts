@@ -40,9 +40,9 @@ describe('billing schema RNOS-25', () => {
     expect(order.total_vnd).toBe(1_000_000);
 
     const invoices = new InvoicesSqliteRepositoryCore(db);
-    const invoice = invoices.createFromOrder(orders.getById(order.id, true)!, '2026-08-01');
+    const invoice = invoices.createFromOrder(orders.getById(order.id, true)!, '2099-08-01');
     expect(invoice.invoice_number).toMatch(/^INV-/);
-    invoices.issue(invoice.id, '2026-07-27', '2026-08-01');
+    invoices.issue(invoice.id, '2026-07-27', '2099-08-01');
     const issued = invoices.getById(invoice.id)!;
     expect(issued.status).toBe('issued');
   });
