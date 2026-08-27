@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RBAC-R1 — fail if RBAC scripts use SQLite (policy: PostgreSQL-only permissions)
+# RBAC-R1 — fail if RBAC scripts use SQLite; Nest runtime is covered by crm_no_sqlite_gate.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

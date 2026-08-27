@@ -1,10 +1,18 @@
 import type { PoolClient } from 'pg';
 import { PRESALES_STAGES } from '../leads-funnel/leads-funnel.types';
 import { validatePreliminaryPlan } from '../leads-funnel/presales-marketing-plan.util';
-import type { PresalesPromoteSource } from './contract-promote.util';
 import { seedPostOnboardLifecycleTasks } from './lifecycle-tasks-seed-pg.util';
 
-export type { PresalesPromoteSource };
+export interface PresalesPromoteSource {
+  presalesId: number;
+  leadId: number;
+  serviceSlug: string;
+  assignedAm: number | null;
+  tasks: Array<Record<string, unknown>>;
+  plan: Record<string, unknown>;
+  alreadyConverted?: { lifecycle_id: number };
+  skipSqlitePresalesUpdate?: boolean;
+}
 
 function asJsonb(val: unknown, fallback: string): string {
   if (val == null) return fallback;
