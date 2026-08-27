@@ -29,8 +29,12 @@ export function StaffRouteGuard({ children, zone }: StaffRouteGuardProps) {
 
   useEffect(() => {
     const token = getAccessToken();
+    const next =
+      typeof window !== 'undefined'
+        ? `${window.location.pathname}${window.location.search}`
+        : pathname;
     if (!token) {
-      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+      router.replace(`/login?next=${encodeURIComponent(next)}`);
       return;
     }
 
@@ -38,7 +42,7 @@ export function StaffRouteGuard({ children, zone }: StaffRouteGuardProps) {
 
     const stored = getStoredUser();
     if (!stored) {
-      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+      router.replace(`/login?next=${encodeURIComponent(next)}`);
       return;
     }
 

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { IntakeAiSummaryPanel } from '@/components/crm/intake/IntakeAiSummaryPanel';
 import { IntakeFormActions } from '@/components/crm/intake/IntakeFormActions';
 import { IntakeBantSection } from '@/components/crm/intake/IntakeBantSection';
@@ -101,11 +101,16 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 
-export function IntakeContent() {
+export function IntakeContent({
+  initialLeadId = 0,
+  initialLifecycleId = 0,
+}: {
+  initialLeadId?: number;
+  initialLifecycleId?: number;
+}) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const leadId = Number(searchParams.get('lead_id') || 0);
-  const lifecycleId = Number(searchParams.get('lifecycle_id') || 0);
+  const leadId = initialLeadId;
+  const lifecycleId = initialLifecycleId;
 
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [sessions, setSessions] = useState<IntakeSessionRow[]>([]);
@@ -331,7 +336,10 @@ export function IntakeContent() {
     }
     void (async () => {
       const access = await ensureAuth();
-      if (!access) return;
+      if (!access) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError('');
       try {
