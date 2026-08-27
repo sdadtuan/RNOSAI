@@ -1,78 +1,32 @@
-# Task 11 Report — Worker/Python PG-only form ingest
+# Task 11 Report — SOP PostgreSQL-only
 
 ## Status
 
-Completed Task 11 only.
+Completed Wave 2 Task 11 only.
 
-- `ptt_jobs.handlers.form_ingest.process_form_ingest_payload` now routes directly to the PostgreSQL-primary ingest pipeline when `PTT_LEADS_WRITE_SOURCE=pg`.
-- The PostgreSQL route does not open a SQLite connection.
-- The existing SQLite form ingest path remains available when the write source is `sqlite`.
-- `open_ingest_rules_conn()` already avoided `_open_sqlite_readonly()` for PostgreSQL rules, and shadow sync entry points already no-op when `PTT_LEAD_SHADOW_SYNC=0`; no changes were needed there.
+- `SopService` delegates templates, runs, run creation, and overdue tasks directly to `SopPgRepository`.
+- `SopAutoStartService` uses PostgreSQL for lifecycle linkage, campaign lookup, template lookup, and run creation.
+- `SopModule` registers and exports only `SopPgRepository`.
+- The service-lifecycle SOP detail integration now reads runs and tasks from `SopPgRepository`.
+- `sop-sqlite.repository.ts` was deleted and active source imports were removed.
+- Added template/run service smoke coverage proving PostgreSQL delegation without the legacy feature flag.
 
-## Test evidence
+## Verification
 
-The new regression test first failed with `AssertionError: SQLite forbidden` at the existing `sqlite3.connect` call.
+- `npm test -- --runInBand src/sop`
+  - 2 suites passed
+  - 5 tests passed
+- `npm run build`
+  - Passed (`nest build`)
+- Source search for `SopSqliteRepository` and `sop-sqlite.repository`
+  - No matches
 
-After implementation:
+## Commit
 
-```text
-python3 -m unittest tests.test_form_ingest_pg tests.test_lead_ingest_config -v
+`Serve CRM SOP from PostgreSQL only.`
 
-Ran 6 tests in 0.037s
-OK
-```
+## Notes
 
-## Files changed
-
-- `ptt_jobs/handlers/form_ingest.py`
-- `tests/test_form_ingest_pg.py`
-- `.superpowers/sdd/task-11-report.md`
-
-The VPS worker was not restarted from this local implementation session.
-
-## Review gap fix (form_lead_ingest fail-closed)
-
-Added defense-in-depth PG guard to `ptt_crm/form_lead_ingest.py`:
-
-- When `leads_write_source_pg()` is true, `ingest_lead_from_form` delegates to `_ingest_lead_from_form_pg` via `process_ingest_lead_payload_pg` and never touches the SQLite connection argument.
-- SQLite OLTP path remains unchanged when write source is `sqlite`.
-
-Test evidence after guard:
-
-```text
-python3 -m unittest tests.test_form_ingest_pg tests.test_lead_ingest_config -v
-
-Ran 7 tests in 0.031s
-OK
-```
-
-Additional files changed:
-
-- `ptt_crm/form_lead_ingest.py`
-- `tests/test_form_ingest_pg.py` — `test_form_lead_ingest_module_pg_does_not_use_sqlite_conn`
-
-Commit: `Fail closed form_lead_ingest when write source is pg.`
-
-## Final Wave 1 review blocker fix
-
-- PG form ingest now resolves RE-project attribution against the PostgreSQL
-  `crm_re_projects` / website-route configuration with the same precedence as
-  the former SQLite form path.
-- The resolved `re_project_id`, submitted `re_project_code`, and `ingest_site`
-  are retained in `crm_leads.meta_json` instead of being dropped while mapping
-  the form payload to the PG lead record.
-- Failed PG-authoritative form ingest may queue or use the PG sync fallback,
-  but it now fails closed after those options are exhausted and never writes
-  the SQLite spillover table.
-- Retry payloads retain region, product, UTM, and RE-project attribution fields.
-
-Test command:
-
-```text
-python3 -m unittest tests.test_form_ingest_pg tests.test_lead_ingest_config -v
-
-Ran 10 tests
-OK
-```
-
-Commit: `Fix PG form ingest RE project attribution and failure spillover.`
+- No live PostgreSQL/API session was available; template and run smoke coverage uses service-level repository mocks.
+- npm prints the pre-existing warning: `Unknown env config "devdir"`.
+- Task 12 was not started.

@@ -3,7 +3,6 @@ import { AppConfigService } from '../config/app-config.service';
 import { OpsService } from '../ops/ops.service';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { SopPgRepository } from '../sop/sop-pg.repository';
-import { SopSqliteRepository } from '../sop/sop-sqlite.repository';
 import { SvcFinanceService } from '../svc-finance/svc-finance.service';
 import { LifecycleConsultService } from './lifecycle-consult.service';
 import { LifecycleFinanceConfirmRepository } from './lifecycle-finance-confirm.repository';
@@ -40,7 +39,6 @@ export class ServiceLifecycleService {
     private readonly tasksPg: LifecycleTasksPgRepository,
     private readonly svcFinance: SvcFinanceService,
     private readonly consult: LifecycleConsultService,
-    private readonly sopSqlite: SopSqliteRepository,
     private readonly sopPg: SopPgRepository,
     private readonly config: AppConfigService,
     private readonly lifecycleLaunchQa: LifecycleLaunchQaService,
@@ -484,14 +482,8 @@ export class ServiceLifecycleService {
           : 'PTT_SOP_AUTO_START_ON_LAUNCH đang tắt.',
       };
     }
-    const run = this.config.crmSopPg
-      ? await this.sopPg.getRunById(lc.sop_run_id)
-      : this.sopSqlite.getRunById(lc.sop_run_id);
-    const tasks = run
-      ? this.config.crmSopPg
-        ? await this.sopPg.listRunTasks(lc.sop_run_id)
-        : this.sopSqlite.listRunTasks(lc.sop_run_id)
-      : [];
+    const run = await this.sopPg.getRunById(lc.sop_run_id);
+    const tasks = run ? await this.sopPg.listRunTasks(lc.sop_run_id) : [];
     return {
       lifecycle_id: id,
       sop_run_id: lc.sop_run_id,
