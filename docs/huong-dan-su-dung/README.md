@@ -33,6 +33,7 @@ Tài liệu này mô tả **cách sử dụng từng chức năng** theo domain 
 | 22 | **HR — Sơ đồ luồng & khung bàn giao KH** | [22-hr-handover-flow-and-guides.md](./22-hr-handover-flow-and-guides.md) · **[Slide PPTX](./HR_Ban_Giao_Luu_Do.pptx)** | HR, IT, Kế toán, Khách hàng |
 | 23 | **Leads — Sơ đồ luồng & khung bàn giao KH** | [23-leads-handover-flow-and-guides.md](./23-leads-handover-flow-and-guides.md) · **[Slide PPTX](./Leads_Ban_Giao_Luu_Do.pptx)** | AM, CSKH, GDKD, Marketing, Khách hàng |
 | 24 | **B2B E2E — Hướng dẫn UI từng bước (DA PTT → Lead → Agency → MKT Plan)** | [24-b2b-e2e-handover-ui-guide.md](./24-b2b-e2e-handover-ui-guide.md) | GDKD, AM, Solution, Marketing, Khách hàng |
+| 25 | **Lead Meeting Prep (LMP) — Sales Cockpit UI từng bước** | [25-lead-meeting-prep-ui-guide.md](./25-lead-meeting-prep-ui-guide.md) | AM, Sales, Solution, GDKD, CSKH |
 | 14 | Client Portal | [14-client-portal.md](./14-client-portal.md) | Khách hàng |
 | 15 | Mobile (PWA / App) | [15-mobile.md](./15-mobile.md) | Khách hàng, AM |
 | 16 | **SOP chốt deal Sales/Solution** | [16-sales-solution-chot-deal-sop.md](./16-sales-solution-chot-deal-sop.md) | Sales, AM, Solution, GDKD |
