@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import { DatabaseSync } from 'node:sqlite';
+import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 
 export interface LifecycleFinanceConfirmRow {
@@ -17,46 +17,53 @@ export interface LifecycleFinanceConfirmRow {
 
 @Injectable()
 export class LifecycleFinanceConfirmRepository implements OnModuleDestroy {
-  private db: DatabaseSync | null = null;
+  private pool: Pool | null = null;
+  private tableReady: Promise<void> | null = null;
 
   constructor(private readonly config: AppConfigService) {}
 
-  private get database(): DatabaseSync {
-    if (!this.db) {
-      this.db = new DatabaseSync(this.config.sqlitePath);
-      this.db.exec('PRAGMA foreign_keys = ON');
-      this.ensureTable();
+  private get db(): Pool {
+    if (!this.pool) {
+      this.pool = new Pool({ connectionString: this.config.databaseUrl });
     }
-    return this.db;
+    return this.pool;
   }
 
   onModuleDestroy(): void {
-    if (this.db) {
-      this.db.close();
-      this.db = null;
+    void this.pool?.end();
+    this.pool = null;
+    this.tableReady = null;
+  }
+
+  private ensureTable(): Promise<void> {
+    if (!this.tableReady) {
+      this.tableReady = this.db
+        .query(`
+          CREATE TABLE IF NOT EXISTS lifecycle_finance_confirm (
+            id BIGSERIAL PRIMARY KEY,
+            lifecycle_id BIGINT NOT NULL,
+            staff_id BIGINT,
+            staff_email TEXT NOT NULL DEFAULT '',
+            outstanding_vnd BIGINT NOT NULL DEFAULT 0,
+            ar_pending_vnd BIGINT NOT NULL DEFAULT 0,
+            ar_overdue_vnd BIGINT NOT NULL DEFAULT 0,
+            strict_mode BOOLEAN NOT NULL DEFAULT FALSE,
+            note TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+          CREATE INDEX IF NOT EXISTS idx_lifecycle_finance_confirm_lc
+            ON lifecycle_finance_confirm (lifecycle_id, created_at DESC);
+        `)
+        .then(() => undefined)
+        .catch((error: unknown) => {
+          this.tableReady = null;
+          throw error;
+        });
     }
+    return this.tableReady;
   }
 
-  private ensureTable(): void {
-    this.db!.exec(`
-      CREATE TABLE IF NOT EXISTS lifecycle_finance_confirm (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        lifecycle_id INTEGER NOT NULL,
-        staff_id INTEGER,
-        staff_email TEXT NOT NULL DEFAULT '',
-        outstanding_vnd INTEGER NOT NULL DEFAULT 0,
-        ar_pending_vnd INTEGER NOT NULL DEFAULT 0,
-        ar_overdue_vnd INTEGER NOT NULL DEFAULT 0,
-        strict_mode INTEGER NOT NULL DEFAULT 0,
-        note TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-      CREATE INDEX IF NOT EXISTS idx_lifecycle_finance_confirm_lc
-        ON lifecycle_finance_confirm (lifecycle_id, created_at DESC);
-    `);
-  }
-
-  insertConfirm(input: {
+  async insertConfirm(input: {
     lifecycleId: number;
     staffId?: number | null;
     staffEmail: string;
@@ -65,39 +72,40 @@ export class LifecycleFinanceConfirmRepository implements OnModuleDestroy {
     arOverdueVnd: number;
     strictMode: boolean;
     note?: string | null;
-  }): LifecycleFinanceConfirmRow {
-    const result = this.database
-      .prepare(
-        `INSERT INTO lifecycle_finance_confirm
-         (lifecycle_id, staff_id, staff_email, outstanding_vnd, ar_pending_vnd, ar_overdue_vnd, strict_mode, note)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
+  }): Promise<LifecycleFinanceConfirmRow> {
+    await this.ensureTable();
+    const result = await this.db.query(
+      `INSERT INTO lifecycle_finance_confirm
+       (lifecycle_id, staff_id, staff_email, outstanding_vnd, ar_pending_vnd, ar_overdue_vnd, strict_mode, note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [
         input.lifecycleId,
         input.staffId ?? null,
         input.staffEmail,
         input.outstandingVnd,
         input.arPendingVnd,
         input.arOverdueVnd,
-        input.strictMode ? 1 : 0,
+        input.strictMode,
         input.note ?? null,
-      );
-    const row = this.database
-      .prepare(`SELECT * FROM lifecycle_finance_confirm WHERE id = ?`)
-      .get(Number(result.lastInsertRowid)) as Record<string, unknown>;
-    return this.mapRow(row);
+      ],
+    );
+    return this.mapRow(result.rows[0] as Record<string, unknown>);
   }
 
-  listForLifecycle(lifecycleId: number, limit = 20): LifecycleFinanceConfirmRow[] {
-    const rows = this.database
-      .prepare(
-        `SELECT * FROM lifecycle_finance_confirm
-         WHERE lifecycle_id = ?
-         ORDER BY created_at DESC, id DESC
-         LIMIT ?`,
-      )
-      .all(lifecycleId, limit) as Array<Record<string, unknown>>;
-    return rows.map((row) => this.mapRow(row));
+  async listForLifecycle(
+    lifecycleId: number,
+    limit = 20,
+  ): Promise<LifecycleFinanceConfirmRow[]> {
+    await this.ensureTable();
+    const result = await this.db.query(
+      `SELECT * FROM lifecycle_finance_confirm
+       WHERE lifecycle_id = $1
+       ORDER BY created_at DESC, id DESC
+       LIMIT $2`,
+      [lifecycleId, limit],
+    );
+    return (result.rows as Array<Record<string, unknown>>).map((row) => this.mapRow(row));
   }
 
   private mapRow(row: Record<string, unknown>): LifecycleFinanceConfirmRow {
@@ -109,7 +117,7 @@ export class LifecycleFinanceConfirmRepository implements OnModuleDestroy {
       outstanding_vnd: Number(row.outstanding_vnd ?? 0),
       ar_pending_vnd: Number(row.ar_pending_vnd ?? 0),
       ar_overdue_vnd: Number(row.ar_overdue_vnd ?? 0),
-      strict_mode: Boolean(row.strict_mode),
+      strict_mode: row.strict_mode === true,
       note: row.note != null ? String(row.note) : null,
       created_at: String(row.created_at ?? ''),
     };

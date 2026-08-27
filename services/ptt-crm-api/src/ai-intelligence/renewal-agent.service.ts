@@ -266,7 +266,7 @@ export class RenewalAgentService {
     let followUpTaskId: number | null = null;
     const lifecycleId = meta.lifecycle_id != null ? Number(meta.lifecycle_id) : null;
     if (lifecycleId && Number.isFinite(lifecycleId)) {
-      const task = this.lifecycleTasks.createCustomTask(
+      const task = await this.lifecycleTasks.createCustomTask(
         lifecycleId,
         'retain',
         'Renewal follow-up (AM duyệt)',

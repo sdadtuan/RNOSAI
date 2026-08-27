@@ -23,10 +23,8 @@ import { LifecycleLaunchQaService } from './lifecycle-launch-qa.service';
 import { LifecycleFinanceConfirmRepository } from './lifecycle-finance-confirm.repository';
 import { LifecycleOnboardingService } from './lifecycle-onboarding.service';
 import { LifecycleTasksPgRepository } from './lifecycle-tasks-pg.repository';
-import { LifecycleTasksRepository } from './lifecycle-tasks.repository';
 import { ServiceLifecycleController } from './service-lifecycle.controller';
 import { ServiceLifecyclePgRepository } from './service-lifecycle-pg.repository';
-import { ServiceLifecycleSqliteRepository } from './service-lifecycle-sqlite.repository';
 import { ServiceLifecycleService } from './service-lifecycle.service';
 
 @Module({
@@ -48,9 +46,7 @@ import { ServiceLifecycleService } from './service-lifecycle.service';
   controllers: [ServiceLifecycleController],
   providers: [
     ServiceLifecycleService,
-    ServiceLifecycleSqliteRepository,
     ServiceLifecyclePgRepository,
-    LifecycleTasksRepository,
     LifecycleTasksPgRepository,
     LifecycleConsultService,
     LifecycleLaunchQaService,
@@ -61,6 +57,6 @@ import { ServiceLifecycleService } from './service-lifecycle.service';
     StaffServiceLifecycleViewGuard,
     StaffServiceLifecycleWriteGuard,
   ],
-  exports: [ServiceLifecycleService, LifecycleTasksRepository],
+  exports: [ServiceLifecycleService, LifecycleTasksPgRepository],
 })
 export class ServiceLifecycleModule {}

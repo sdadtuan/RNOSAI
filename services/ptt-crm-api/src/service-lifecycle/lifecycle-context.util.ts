@@ -1,5 +1,3 @@
-import type { ServiceLifecycleSqliteRepository } from './service-lifecycle-sqlite.repository';
-
 export interface LifecycleContextDto {
   lifecycle_id: number;
   lead_id: number | null;
@@ -39,9 +37,13 @@ export interface LifecycleContextDto {
   };
 }
 
-export function buildLifecycleContext(
-  repo: ServiceLifecycleSqliteRepository,
+export interface LifecycleContextRepository {
+  getLifecycleContext(lifecycleId: number): Promise<LifecycleContextDto | null>;
+}
+
+export async function buildLifecycleContext(
+  repo: LifecycleContextRepository,
   lifecycleId: number,
-): LifecycleContextDto | null {
+): Promise<LifecycleContextDto | null> {
   return repo.getLifecycleContext(lifecycleId);
 }

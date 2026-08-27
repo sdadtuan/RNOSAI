@@ -136,7 +136,7 @@ export class UpsellAgentService {
     let followUpTaskId: number | null = null;
     if (lifecycleId && Number.isFinite(lifecycleId)) {
       const target = String(rec.action_json?.target_service_label ?? 'Upsell');
-      const task = this.lifecycleTasks.createCustomTask(
+      const task = await this.lifecycleTasks.createCustomTask(
         lifecycleId,
         'retain',
         `Upsell: ${target}`,

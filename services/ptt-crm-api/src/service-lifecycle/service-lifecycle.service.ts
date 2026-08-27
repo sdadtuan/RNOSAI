@@ -19,9 +19,7 @@ import { paymentGateFromSummary } from './lifecycle-payment-gate.util';
 import type { LaunchQaHandoverGateResult } from './lifecycle-launch-handover-gate.util';
 import { getStageAdvanceInfo, StageAdvanceError, validateStageAdvance } from './lifecycle-stage.util';
 import { LifecycleTasksPgRepository } from './lifecycle-tasks-pg.repository';
-import { LifecycleTasksRepository } from './lifecycle-tasks.repository';
 import { ServiceLifecyclePgRepository } from './service-lifecycle-pg.repository';
-import { ServiceLifecycleSqliteRepository } from './service-lifecycle-sqlite.repository';
 import {
   CreateServiceLifecycleBody,
   isValidSlug,
@@ -33,9 +31,7 @@ import {
 @Injectable()
 export class ServiceLifecycleService {
   constructor(
-    private readonly sqlite: ServiceLifecycleSqliteRepository,
     private readonly pg: ServiceLifecyclePgRepository,
-    private readonly tasks: LifecycleTasksRepository,
     private readonly tasksPg: LifecycleTasksPgRepository,
     private readonly svcFinance: SvcFinanceService,
     private readonly consult: LifecycleConsultService,
@@ -48,24 +44,16 @@ export class ServiceLifecycleService {
     @Inject(forwardRef(() => OpsService)) private readonly ops: OpsService,
   ) {}
 
-  private get usePg(): boolean {
-    return this.config.crmServiceLifecyclePg;
-  }
-
   private async getLifecycleById(id: number): Promise<ServiceLifecycleRow | null> {
-    return this.usePg ? this.pg.getLifecycleById(id) : this.sqlite.getLifecycleById(id);
+    return this.pg.getLifecycleById(id);
   }
 
   private async isStageComplete(lifecycleId: number, stage: string): Promise<boolean> {
-    return this.usePg
-      ? this.tasksPg.isStageComplete(lifecycleId, stage)
-      : this.tasks.isStageComplete(lifecycleId, stage);
+    return this.tasksPg.isStageComplete(lifecycleId, stage);
   }
 
   private async getOfficialMarketingPlan(lifecycleId: number): Promise<Record<string, unknown> | null> {
-    return this.usePg
-      ? this.pg.getOfficialMarketingPlan(lifecycleId)
-      : this.sqlite.getOfficialMarketingPlan(lifecycleId);
+    return this.pg.getOfficialMarketingPlan(lifecycleId);
   }
 
   async list(serviceSlug?: string, amId?: string, includeDraft?: string) {
@@ -75,12 +63,8 @@ export class ServiceLifecycleService {
       amId: am && Number.isFinite(am) && am > 0 ? am : undefined,
       includeDraft: includeDraft === '1',
     };
-    const lifecycles = this.usePg
-      ? await this.pg.listLifecycles(opts)
-      : this.sqlite.listLifecycles(opts);
-    const funnel_stats = this.usePg
-      ? await this.pg.funnelStats()
-      : this.sqlite.funnelStats();
+    const lifecycles = await this.pg.listLifecycles(opts);
+    const funnel_stats = await this.pg.funnelStats();
     return { lifecycles, funnel_stats };
   }
 
@@ -89,16 +73,14 @@ export class ServiceLifecycleService {
     if (!lifecycle) {
       throw new NotFoundException({ error: 'Không tìm thấy lifecycle' });
     }
-    const events = this.usePg
-      ? await this.pg.listEvents(id)
-      : this.sqlite.listEvents(id);
+    const events = await this.pg.listEvents(id);
     return { ...lifecycle, events };
   }
 
   async events(id: number) {
     await this.requireLifecycle(id);
     return {
-      events: this.usePg ? await this.pg.listEvents(id) : this.sqlite.listEvents(id),
+      events: await this.pg.listEvents(id),
     };
   }
 
@@ -110,17 +92,13 @@ export class ServiceLifecycleService {
     if (!isValidSlug(serviceSlug)) {
       throw new BadRequestException({ error: 'service_slug không hợp lệ' });
     }
-    return this.usePg ? this.pg.createDraft(body) : this.sqlite.createDraft(body);
+    return this.pg.createDraft(body);
   }
 
   async setCommercialSku(lifecycleId: number, skuCode: string): Promise<void> {
     const sku = String(skuCode ?? '').trim().toUpperCase();
     if (!sku) return;
-    if (this.usePg) {
-      await this.pg.setCommercialSku(lifecycleId, sku);
-      return;
-    }
-    this.sqlite.setCommercialSku(lifecycleId, sku);
+    await this.pg.setCommercialSku(lifecycleId, sku);
   }
 
   async patch(
@@ -168,16 +146,14 @@ export class ServiceLifecycleService {
         'notes' in body && typeof body.notes === 'string'
           ? body.notes.trim().slice(0, 2000)
           : existing.notes;
-      const advanced = this.usePg
-        ? await this.pg.advanceStage(id, toStage, notes)
-        : this.sqlite.advanceStage(id, toStage, notes);
+      const advanced = await this.pg.advanceStage(id, toStage, notes);
       if (existing.stage === 'handover' && toStage === 'retain' && financeConfirm && advanced) {
         const summary = this.svcFinance.summary(id) as {
           outstanding_vnd?: number;
           ar_pending_vnd?: number;
           ar_overdue_vnd?: number;
         };
-        this.financeConfirmRepo.insertConfirm({
+        await this.financeConfirmRepo.insertConfirm({
           lifecycleId: id,
           staffId: actor?.staffId ?? null,
           staffEmail: actor?.email ?? 'staff',
@@ -224,9 +200,7 @@ export class ServiceLifecycleService {
       }
     }
 
-    const updated = this.usePg
-      ? await this.pg.patchLifecycle(id, body)
-      : this.sqlite.patchLifecycle(id, body);
+    const updated = await this.pg.patchLifecycle(id, body);
     if (!updated) {
       throw new NotFoundException({ error: 'Không tìm thấy lifecycle' });
     }
@@ -235,9 +209,7 @@ export class ServiceLifecycleService {
 
   async advanceInfo(id: number, actorPositionId?: number) {
     const lc = await this.requireLifecycle(id);
-    const prog = this.usePg
-      ? (await this.tasksPg.getProgress(id))[lc.stage] ?? { done: 0, total: 0 }
-      : this.tasks.getProgress(id)[lc.stage] ?? { done: 0, total: 0 };
+    const prog = (await this.tasksPg.getProgress(id))[lc.stage] ?? { done: 0, total: 0 };
     const complete = await this.isStageComplete(id, lc.stage);
     const plan = await this.getOfficialMarketingPlan(id);
     const tmmtGate = lc.stage === 'onboard' ? validateOfficialTmmt(plan) : undefined;
@@ -276,7 +248,7 @@ export class ServiceLifecycleService {
 
   async listFinanceConfirms(id: number) {
     await this.requireLifecycle(id);
-    return { rows: this.financeConfirmRepo.listForLifecycle(id) };
+    return { rows: await this.financeConfirmRepo.listForLifecycle(id) };
   }
 
   async autoAdvanceOnboardIfEligible(clientId: string): Promise<{
@@ -287,9 +259,7 @@ export class ServiceLifecycleService {
     if (!this.config.onboardAutoAdvanceLifecycle) {
       return { advanced: false, lifecycle_id: null, reason: 'auto_advance_disabled' };
     }
-    const ctx = this.usePg
-      ? await this.pg.findOnboardLifecycleByAgencyClientId(clientId)
-      : this.sqlite.findOnboardLifecycleByAgencyClientId(clientId);
+    const ctx = await this.pg.findOnboardLifecycleByAgencyClientId(clientId);
     if (!ctx) {
       return { advanced: false, lifecycle_id: null, reason: 'no_onboard_lifecycle' };
     }
@@ -305,9 +275,11 @@ export class ServiceLifecycleService {
     if (!tmmtGate.ok) {
       return { advanced: false, lifecycle_id: lifecycleId, reason: 'tmmt_incomplete' };
     }
-    const advanced = this.usePg
-      ? await this.pg.advanceStage(lifecycleId, 'deliver', 'Auto-advance orchestrator 100%')
-      : this.sqlite.advanceStage(lifecycleId, 'deliver', 'Auto-advance orchestrator 100%');
+    const advanced = await this.pg.advanceStage(
+      lifecycleId,
+      'deliver',
+      'Auto-advance orchestrator 100%',
+    );
     if (advanced) {
       try {
         await this.lifecycleLaunchQa.maybeAutoStartOnDeliver(lifecycleId);
@@ -324,15 +296,13 @@ export class ServiceLifecycleService {
 
   async listTasks(id: number) {
     await this.requireLifecycle(id);
-    const tasks = this.usePg
-      ? await this.tasksPg.listTasksGrouped(id)
-      : this.tasks.listTasksGrouped(id);
+    const tasks = await this.tasksPg.listTasksGrouped(id);
     return { tasks };
   }
 
   async progress(id: number) {
     await this.requireLifecycle(id);
-    const progress = this.usePg ? await this.tasksPg.getProgress(id) : this.tasks.getProgress(id);
+    const progress = await this.tasksPg.getProgress(id);
     return { progress };
   }
 
@@ -343,15 +313,11 @@ export class ServiceLifecycleService {
     doneBy?: number | null,
   ) {
     await this.requireLifecycle(lifecycleId);
-    const task = this.usePg
-      ? await this.tasksPg.getTask(taskId)
-      : this.tasks.getTask(taskId);
+    const task = await this.tasksPg.getTask(taskId);
     if (!task || task.lifecycle_id !== lifecycleId) {
       throw new NotFoundException({ error: 'Không tìm thấy task' });
     }
-    const updated = this.usePg
-      ? await this.tasksPg.updateTask(taskId, { ...body, done_by: doneBy ?? null })
-      : this.tasks.updateTask(taskId, { ...body, done_by: doneBy ?? null });
+    const updated = await this.tasksPg.updateTask(taskId, { ...body, done_by: doneBy ?? null });
     if (!updated) {
       throw new NotFoundException({ error: 'Không tìm thấy task' });
     }
@@ -371,14 +337,12 @@ export class ServiceLifecycleService {
     if (!title) {
       throw new BadRequestException({ error: 'Cần title' });
     }
-    const task = this.usePg
-      ? await this.tasksPg.createCustomTask(
-          lifecycleId,
-          stage,
-          title,
-          String(body.description ?? ''),
-        )
-      : this.tasks.createCustomTask(lifecycleId, stage, title, String(body.description ?? ''));
+    const task = await this.tasksPg.createCustomTask(
+      lifecycleId,
+      stage,
+      title,
+      String(body.description ?? ''),
+    );
     return { task };
   }
 
@@ -409,9 +373,7 @@ export class ServiceLifecycleService {
       );
       delete patch.target_market_prof;
     }
-    const plan = this.usePg
-      ? await this.pg.updateOfficialMarketingPlan(lc.marketing_plan_id, patch)
-      : this.sqlite.updateOfficialMarketingPlan(lc.marketing_plan_id, patch);
+    const plan = await this.pg.updateOfficialMarketingPlan(lc.marketing_plan_id, patch);
     if (!plan) {
       throw new NotFoundException({ error: 'Không tìm thấy plan' });
     }
@@ -426,12 +388,12 @@ export class ServiceLifecycleService {
 
   async presalesSummary(id: number) {
     await this.requireLifecycle(id);
-    return this.usePg ? this.pg.presalesSummary(id) : this.sqlite.presalesSummary(id);
+    return this.pg.presalesSummary(id);
   }
 
   async createExpense(id: number, body: Record<string, unknown>) {
     await this.requireLifecycle(id);
-    return this.usePg ? this.pg.createExpense(id, body) : this.sqlite.createExpense(id, body);
+    return this.pg.createExpense(id, body);
   }
 
   financeSummary(id: number) {
@@ -444,9 +406,7 @@ export class ServiceLifecycleService {
   }
 
   async context(id: number) {
-    const ctx = this.usePg
-      ? await this.pg.getLifecycleContext(id)
-      : this.sqlite.getLifecycleContext(id);
+    const ctx = await this.pg.getLifecycleContext(id);
     if (!ctx) {
       throw new NotFoundException({ error: 'Không tìm thấy lifecycle' });
     }
@@ -460,9 +420,7 @@ export class ServiceLifecycleService {
   } | null> {
     const trimmed = String(clientId ?? '').trim();
     if (!trimmed) return null;
-    return this.usePg
-      ? this.pg.findPrimaryLifecycleByAgencyClientId(trimmed)
-      : this.sqlite.findPrimaryLifecycleByAgencyClientId(trimmed);
+    return this.pg.findPrimaryLifecycleByAgencyClientId(trimmed);
   }
 
   async sop(id: number) {
