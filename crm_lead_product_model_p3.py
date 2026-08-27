@@ -99,6 +99,27 @@ def product_model_v1_enabled(conn: sqlite3.Connection | None = None) -> bool:
         return True
 
 
+def _active_facebook_industry_fallback(conn: sqlite3.Connection) -> str:
+    from crm_lead_catalog import ensure_lead_catalog_schema, validate_industry_slug
+
+    ensure_lead_catalog_schema(conn)
+    try:
+        return validate_industry_slug(conn, "khac")
+    except ValueError:
+        pass
+    row = conn.execute(
+        """
+        SELECT slug FROM crm_catalog_industries
+        WHERE active = 1
+        ORDER BY sort_order, slug
+        LIMIT 1
+        """
+    ).fetchone()
+    if not row:
+        return ""
+    return str(row["slug"] if isinstance(row, sqlite3.Row) else row[0])
+
+
 def resolve_facebook_industry_slug(
     conn: sqlite3.Connection,
     item: dict[str, Any],
@@ -129,4 +150,4 @@ def resolve_facebook_industry_slug(
                 return validate_industry_slug(conn, guess)
             except ValueError:
                 pass
-    return "khac"
+    return _active_facebook_industry_fallback(conn)

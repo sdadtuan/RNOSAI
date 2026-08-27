@@ -100,6 +100,19 @@ class CrmP3Test(unittest.TestCase):
         slug = resolve_facebook_industry_slug(self.conn, {"full_name": "FB"})
         self.assertEqual(slug, "khac")
 
+    def test_facebook_industry_falls_back_when_khac_inactive(self) -> None:
+        ensure_p3_schema(self.conn)
+        self.conn.execute("UPDATE crm_catalog_industries SET active = 0 WHERE slug = 'khac'")
+        self.conn.commit()
+        slug = resolve_facebook_industry_slug(self.conn, {"full_name": "FB"})
+        self.assertTrue(slug)
+        self.assertNotEqual(slug, "khac")
+        row = self.conn.execute(
+            "SELECT active FROM crm_catalog_industries WHERE slug = ?",
+            (slug,),
+        ).fetchone()
+        self.assertEqual(int(row["active"]), 1)
+
     def test_create_lead_without_re_project(self) -> None:
         ensure_p3_schema(self.conn)
         row, _, _ = create_lead(
