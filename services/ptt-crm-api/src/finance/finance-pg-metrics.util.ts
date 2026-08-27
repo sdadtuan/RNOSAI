@@ -73,7 +73,7 @@ function formatVndShort(value: number): string {
   return `${value.toLocaleString('vi-VN')} ₫`;
 }
 
-async function tableExists(pool: Pool, name: string): Promise<boolean> {
+export async function tableExists(pool: Pool, name: string): Promise<boolean> {
   const result = await pool.query(
     `SELECT EXISTS (
        SELECT 1 FROM information_schema.tables
@@ -1036,7 +1036,7 @@ async function countLeadsCreated(pool: Pool, start: string, end: string): Promis
   return Number(result.rows[0]?.v ?? 0);
 }
 
-async function getExecutiveWeeklyTrends(
+export async function getExecutiveWeeklyTrends(
   pool: Pool,
   year: number,
   month: number,
@@ -1071,7 +1071,7 @@ function leadCampaignPgSql(): string {
   )`;
 }
 
-async function getAttributionDrillPaths(
+export async function getAttributionDrillPaths(
   pool: Pool,
   year: number,
   month: number,

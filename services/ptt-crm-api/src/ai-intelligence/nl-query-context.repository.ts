@@ -5,8 +5,10 @@ import { AppConfigService } from '../config/app-config.service';
 import {
   getAttributionDrillPaths,
   getExecutiveWeeklyTrends,
-} from '../finance/business-dashboard.util';
-import { getMarketingSpendVnd, tableExists, todayYmd } from '../finance/finance-metrics.util';
+  getMarketingSpendVnd,
+  tableExists,
+} from '../sqlite-compat/finance.util';
+import { todayYmd } from '../finance/finance-metrics.util';
 import { DealScoreContextRepository } from './deal-score-context.repository';
 import { NlQueryExecutionResult } from './nl-query.types';
 import { RenewalContractContextRepository } from './renewal-contract-context.repository';

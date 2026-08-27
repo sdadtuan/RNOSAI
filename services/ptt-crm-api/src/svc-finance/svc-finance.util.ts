@@ -2,8 +2,8 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import {
   COST_PHASE_DELIVERY,
   COST_PHASE_PRESALES,
-  getSummary as getFinanceSummary,
 } from '../finance/finance-metrics.util';
+import { getSummary as getFinanceSummary } from '../sqlite-compat/finance.util';
 
 export { getFinanceSummary as getSummary };
 

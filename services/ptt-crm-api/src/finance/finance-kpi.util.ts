@@ -1,17 +1,4 @@
-import { DatabaseSync } from 'node:sqlite';
-import {
-  getArAging,
-  getCacMetrics,
-  getConcentrationMetrics,
-  getExecMetrics,
-  getLeadKpiSummary,
-  getMrrArrMetrics,
-  getPortfolioMetrics,
-  getRetentionMetrics,
-  getRecurringRevenueSummary,
-  getServicePackageRollup,
-  tableExists,
-} from './finance-metrics.util';
+import { Pool } from 'pg';
 
 export const ALERT_CRITICAL = 'critical';
 export const ALERT_WARNING = 'warning';
@@ -50,137 +37,14 @@ export const THRESHOLD_ENV_KEYS: Record<string, string> = {
   capacity_warn_util_pct: 'PTT_KPI_ALERT_CAPACITY_WARN_PCT',
 };
 
-const INT_THRESHOLD_KEYS = new Set([
-  'ontime_min_decided',
-  'customer_churn_min_prev',
-  'close_rate_min_qualified',
-  'ar_overdue_critical_vnd',
-]);
-
-function envNumber(name: string, defaultVal: number): number {
-  const raw = String(process.env[name] ?? '').trim();
-  if (!raw) return defaultVal;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : defaultVal;
-}
-
-export function ensureKpiConfigSchema(db: DatabaseSync): void {
-  db.exec(`
+export async function ensureKpiConfigSchema(pool: Pool): Promise<void> {
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_finance_kpi_config (
       config_key TEXT PRIMARY KEY,
-      config_value TEXT NOT NULL,
-      updated_at TEXT NOT NULL DEFAULT ''
+      thresholds_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
-}
-
-export function getAlertThresholds(db: DatabaseSync): Record<string, number> {
-  ensureKpiConfigSchema(db);
-  const dbRows = db.prepare('SELECT config_key, config_value FROM crm_finance_kpi_config').all() as Array<
-    Record<string, unknown>
-  >;
-  const dbMap: Record<string, string> = {};
-  for (const r of dbRows) dbMap[String(r.config_key)] = String(r.config_value);
-
-  const out: Record<string, number> = {};
-  for (const [key, defaultVal] of Object.entries(THRESHOLD_DEFAULTS)) {
-    if (key in dbMap) {
-      const raw = dbMap[key]!.trim();
-      const parsed = INT_THRESHOLD_KEYS.has(key) ? parseInt(raw, 10) : parseFloat(raw);
-      if (Number.isFinite(parsed)) {
-        out[key] = parsed;
-        continue;
-      }
-    }
-    const envKey = THRESHOLD_ENV_KEYS[key];
-    out[key] = envKey ? envNumber(envKey, defaultVal) : defaultVal;
-  }
-  return out;
-}
-
-export function setAlertThresholds(db: DatabaseSync, updates: Record<string, unknown>): Record<string, number> {
-  ensureKpiConfigSchema(db);
-  const ts = new Date().toISOString().replace('T', ' ').slice(0, 19);
-  for (const [key, value] of Object.entries(updates)) {
-    if (!(key in THRESHOLD_DEFAULTS)) continue;
-    const val = INT_THRESHOLD_KEYS.has(key)
-      ? Math.max(0, Math.trunc(Number(value)))
-      : Number(value);
-    db.prepare(
-      `
-      INSERT INTO crm_finance_kpi_config (config_key, config_value, updated_at)
-      VALUES (?, ?, ?)
-      ON CONFLICT(config_key) DO UPDATE SET
-        config_value = excluded.config_value,
-        updated_at = excluded.updated_at
-    `,
-    ).run(key, String(val), ts);
-  }
-  return getAlertThresholds(db);
-}
-
-function prevMonth(year: number, month: number): [number, number] {
-  if (month === 1) return [year - 1, 12];
-  return [year, month - 1];
-}
-
-function monthPoints(endYear: number, endMonth: number, count: number): Array<[number, number]> {
-  const points: Array<[number, number]> = [];
-  let y = endYear;
-  let m = endMonth;
-  for (let i = 0; i < Math.max(1, count); i++) {
-    points.push([y, m]);
-    [y, m] = prevMonth(y, m);
-  }
-  return points.reverse();
-}
-
-export function getFinanceKpiTrends(
-  db: DatabaseSync,
-  year: number,
-  month: number,
-  months = 6,
-): Record<string, unknown> {
-  const count = Math.max(2, Math.min(months, 12));
-  const points = monthPoints(year, month, count);
-  const labels: string[] = [];
-  const mrrSeries: number[] = [];
-  const concSeries: number[] = [];
-  const cacSeries: number[] = [];
-
-  for (const [y, m] of points) {
-    labels.push(`${String(m).padStart(2, '0')}/${y}`);
-    const mrr = getMrrArrMetrics(db, y, m);
-    const conc = getConcentrationMetrics(db, y, m);
-    const cac = getCacMetrics(db, y, m);
-    mrrSeries.push(Number(mrr.mrr_bookings_vnd ?? 0));
-    concSeries.push(Number(conc.top2_concentration_pct ?? 0));
-    cacSeries.push(Number(cac.cac_vnd ?? 0));
-  }
-
-  return {
-    year,
-    month,
-    months: count,
-    labels,
-    mrr_bookings_vnd: mrrSeries,
-    top2_concentration_pct: concSeries,
-    cac_vnd: cacSeries,
-  };
-}
-
-export function loadFinanceKpiBundle(db: DatabaseSync, year: number, month: number): Record<string, unknown> {
-  return {
-    year,
-    month,
-    ar_aging: getArAging(db),
-    recurring_summary: getRecurringRevenueSummary(db, year, month),
-    package_rollup: getServicePackageRollup(db, year, month),
-    retention_metrics: getRetentionMetrics(db, year, month),
-    lead_kpi: getLeadKpiSummary(db, year, month),
-    portfolio_metrics: getPortfolioMetrics(db, year, month),
-    exec_metrics: getExecMetrics(db, year, month),
-  };
 }
 
 function alertRow(opts: {
@@ -409,17 +273,6 @@ export function buildFinanceKpiAlerts(
   };
 }
 
-export function collectFinanceKpiAlerts(
-  db: DatabaseSync,
-  year: number,
-  month: number,
-  bundle?: Record<string, unknown>,
-): Record<string, unknown> {
-  const data = bundle ?? loadFinanceKpiBundle(db, year, month);
-  const thresholds = getAlertThresholds(db);
-  return buildFinanceKpiAlerts(year, month, data, thresholds);
-}
-
 function kvRows(pairs: Array<[string, unknown]>): unknown[][] {
   return pairs.map(([k, v]) => [k, v]);
 }
@@ -516,30 +369,11 @@ export function financeKpiExportFilename(year: number, month: number): string {
   return `crm-finance-kpi-${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${stamp}.json`;
 }
 
-export function syncFinanceKpiInboxStub(
-  db: DatabaseSync,
-  year: number,
-  month: number,
-): Record<string, unknown> {
-  if (!tableExists(db, 'crm_reminders')) {
-    return {
-      year,
-      month,
-      period_ref: year * 100 + month,
-      synced: 0,
-      removed: 0,
-      alert_count: 0,
-      stub: true,
-    };
-  }
-  const alerts = collectFinanceKpiAlerts(db, year, month);
-  return {
-    year,
-    month,
-    period_ref: year * 100 + month,
-    synced: Number(alerts.alert_count ?? 0),
-    removed: 0,
-    alert_count: Number(alerts.alert_count ?? 0),
-    stub: true,
-  };
-}
+export {
+  collectFinanceKpiAlerts,
+  getAlertThresholds,
+  getFinanceKpiTrends,
+  loadFinanceKpiBundle,
+  setAlertThresholds,
+  syncFinanceKpiInboxStub,
+} from './finance-pg-metrics.util';

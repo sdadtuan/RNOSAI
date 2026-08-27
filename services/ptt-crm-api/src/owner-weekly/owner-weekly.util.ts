@@ -1,13 +1,15 @@
 import { DatabaseSync } from 'node:sqlite';
-import { ensureKpiConfigSchema } from '../finance/finance-kpi.util';
 import {
   COST_PHASE_DELIVERY,
   COST_PHASE_PRESALES,
-  getArAging,
   parseYmd,
-  tableExists,
   todayYmd,
 } from '../finance/finance-metrics.util';
+import {
+  ensureKpiConfigSchema,
+  getArAging,
+  tableExists,
+} from '../sqlite-compat/finance.util';
 
 export const RAG_GREEN = 'green';
 export const RAG_YELLOW = 'yellow';

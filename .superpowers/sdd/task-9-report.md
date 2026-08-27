@@ -1,3 +1,35 @@
+# Task 9 Report — Finance PostgreSQL-only
+
+## Status
+
+Completed Wave 2 Task 9 only.
+
+- `FinanceService` now delegates every operation directly to `FinancePgRepository`.
+- `FinanceModule` no longer registers the SQLite repository.
+- The five named finance utility files no longer import or accept `DatabaseSync`; PostgreSQL operations use `Pool` or delegate to `finance-pg-metrics.util.ts`.
+- `finance-sqlite.repository.ts` was deleted.
+- Existing SQLite callers owned by later tasks were redirected to a temporary `sqlite-compat/finance.util.ts`, keeping this task buildable without starting Task 10.
+- Added PostgreSQL finance wiring, dashboard, and forecast utility coverage.
+
+## Verification
+
+- `npm test -- --runInBand src/finance`
+  - 3 suites passed
+  - 8 tests passed
+- `npm run build`
+  - Passed (`nest build`)
+- Scoped `git diff --check`
+  - Passed
+
+## Commit
+
+`Serve CRM finance from PostgreSQL only.`
+
+## Concerns
+
+- No live PostgreSQL instance was available for an HTTP/database smoke test. The `/crm/financials` and business-dashboard paths are covered through repository delegation and mocked `Pool` tests.
+- `sqlite-compat/finance.util.ts` is intentionally temporary for AI context, owner-weekly, and service-finance callers assigned to later migration tasks. Task 10 was not started.
+- npm prints the pre-existing warning: `Unknown env config "devdir"`.
 # Task 9 Report — Owner weekly PostgreSQL cutover
 
 ## Status
