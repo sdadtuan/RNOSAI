@@ -1,8 +1,5 @@
 /** Chính sách chấm công / lương theo giờ — ported from crm_payroll_engine.py */
 
-import { DatabaseSync } from 'node:sqlite';
-import { catalogTs } from '../catalog/catalog-slug.util';
-
 export const DEFAULT_POLICY: Record<string, unknown> = {
   work_weekdays: '0,1,2,3,4',
   shift_start: '08:30',
@@ -179,162 +176,6 @@ export function countWorkdaysInMonth(year: number, month: number, weekdays: Set<
   return Math.max(n, 1);
 }
 
-function tableColumns(db: DatabaseSync, table: string): Set<string> {
-  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
-  return new Set(rows.map((r) => r.name));
-}
-
-function seedPositionPayrollDefaults(db: DatabaseSync): void {
-  const rows = db
-    .prepare('SELECT id, code, sort_order FROM crm_positions WHERE active = 1 ORDER BY sort_order')
-    .all() as Array<{ id: number; code: string; sort_order: number }>;
-  if (rows.length === 0) return;
-  const ts = catalogTs();
-  const defaultsByCode: Record<string, [number, number, number]> = {
-    'CSKH-01': [1, 500_000, 0.0],
-    'KD-01': [2, 1_000_000, 5.0],
-    'VH-01': [3, 1_500_000, 8.0],
-  };
-  rows.forEach((r, i) => {
-    const pid = Number(r.id);
-    const exists = db.prepare('SELECT 1 FROM crm_position_payroll WHERE position_id = ?').get(pid);
-    if (exists) return;
-    const code = String(r.code ?? '');
-    const [rank, allow, bp] =
-      code in defaultsByCode ? defaultsByCode[code]! : [i + 1, Math.max(0, (4 - i) * 300_000), 0.0];
-    db.prepare(
-      `INSERT INTO crm_position_payroll (position_id, rank_level, allowance_vnd, bonus_pct, updated_at)
-       VALUES (?, ?, ?, ?, ?)`,
-    ).run(pid, rank, allow, bp, ts);
-  });
-}
-
-function migrateWeekdayShiftsColumn(db: DatabaseSync): void {
-  const cols = tableColumns(db, 'crm_payroll_policy');
-  if (!cols.has('weekday_shifts')) {
-    try {
-      db.exec(
-        "ALTER TABLE crm_payroll_policy ADD COLUMN weekday_shifts TEXT NOT NULL DEFAULT ''",
-      );
-    } catch {
-      /* column may exist */
-    }
-  }
-  const row = db
-    .prepare(
-      `SELECT work_weekdays, shift_start, shift_end, break_minutes_default,
-              standard_hours_per_day, weekday_shifts FROM crm_payroll_policy WHERE id = 1`,
-    )
-    .get() as PolicyRecord | undefined;
-  if (!row) return;
-  if (String(row.weekday_shifts ?? '').trim()) return;
-  const shifts = parseWeekdayShifts(row);
-  const ts = catalogTs();
-  db.prepare('UPDATE crm_payroll_policy SET weekday_shifts = ?, updated_at = ? WHERE id = 1').run(
-    weekdayShiftsJson(shifts),
-    ts,
-  );
-}
-
-export function ensurePayrollPolicySchema(db: DatabaseSync): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS crm_payroll_policy (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      work_weekdays TEXT NOT NULL DEFAULT '0,1,2,3,4',
-      shift_start TEXT NOT NULL DEFAULT '08:30',
-      shift_end TEXT NOT NULL DEFAULT '17:30',
-      break_minutes_default INTEGER NOT NULL DEFAULT 60,
-      late_grace_minutes INTEGER NOT NULL DEFAULT 5,
-      late_penalty_vnd_per_min INTEGER NOT NULL DEFAULT 5000,
-      late_penalty_max_vnd INTEGER NOT NULL DEFAULT 200000,
-      standard_hours_per_day REAL NOT NULL DEFAULT 8,
-      bonus_mode TEXT NOT NULL DEFAULT 'attendance',
-      bonus_pct REAL NOT NULL DEFAULT 5,
-      bonus_min_days INTEGER NOT NULL DEFAULT 20,
-      overtime_multiplier REAL NOT NULL DEFAULT 1.5,
-      updated_at TEXT NOT NULL DEFAULT ''
-    )
-  `);
-  const exists = db.prepare('SELECT id FROM crm_payroll_policy WHERE id = 1').get();
-  if (!exists) {
-    const ts = catalogTs();
-    const p = DEFAULT_POLICY;
-    db.prepare(
-      `INSERT INTO crm_payroll_policy (
-         id, work_weekdays, shift_start, shift_end, break_minutes_default,
-         late_grace_minutes, late_penalty_vnd_per_min, late_penalty_max_vnd,
-         standard_hours_per_day, bonus_mode, bonus_pct, bonus_min_days,
-         overtime_multiplier, updated_at
-       ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
-      String(p.work_weekdays),
-      String(p.shift_start),
-      String(p.shift_end),
-      Number(p.break_minutes_default),
-      Number(p.late_grace_minutes),
-      Number(p.late_penalty_vnd_per_min),
-      Number(p.late_penalty_max_vnd),
-      Number(p.standard_hours_per_day),
-      String(p.bonus_mode),
-      Number(p.bonus_pct),
-      Number(p.bonus_min_days),
-      Number(p.overtime_multiplier),
-      ts,
-    );
-  }
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS crm_position_payroll (
-      position_id INTEGER PRIMARY KEY REFERENCES crm_positions(id) ON DELETE CASCADE,
-      rank_level INTEGER NOT NULL DEFAULT 1,
-      allowance_vnd INTEGER NOT NULL DEFAULT 0,
-      bonus_pct REAL NOT NULL DEFAULT 0,
-      updated_at TEXT NOT NULL DEFAULT ''
-    )
-  `);
-  const plCols = tableColumns(db, 'crm_payroll_line');
-  for (const [col, ddl] of [
-    ['hours_worked_total', 'REAL NOT NULL DEFAULT 0'],
-    ['late_minutes_total', 'INTEGER NOT NULL DEFAULT 0'],
-    ['late_deduction_vnd', 'INTEGER NOT NULL DEFAULT 0'],
-    ['position_allowance_vnd', 'INTEGER NOT NULL DEFAULT 0'],
-    ['bonus_vnd', 'INTEGER NOT NULL DEFAULT 0'],
-  ] as const) {
-    if (!plCols.has(col)) {
-      try {
-        db.exec(`ALTER TABLE crm_payroll_line ADD COLUMN ${col} ${ddl}`);
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-  seedPositionPayrollDefaults(db);
-  migrateWeekdayShiftsColumn(db);
-}
-
-export function loadPolicy(db: DatabaseSync): PolicyRecord {
-  ensurePayrollPolicySchema(db);
-  const row = db.prepare('SELECT * FROM crm_payroll_policy WHERE id = 1').get() as
-    | PolicyRecord
-    | undefined;
-  return row ? { ...row } : { ...DEFAULT_POLICY };
-}
-
-export function loadPositionPayrollMap(db: DatabaseSync): Record<number, PositionPayrollRow> {
-  ensurePayrollPolicySchema(db);
-  const rows = db
-    .prepare(
-      `SELECT pp.*, p.code AS position_code, p.name AS position_name
-       FROM crm_position_payroll pp
-       JOIN crm_positions p ON p.id = pp.position_id
-       WHERE p.active = 1
-       ORDER BY pp.rank_level ASC, p.sort_order ASC`,
-    )
-    .all() as PositionPayrollRow[];
-  const out: Record<number, PositionPayrollRow> = {};
-  for (const r of rows) out[Number(r.position_id)] = { ...r };
-  return out;
-}
-
 export function policyForApi(policy: PolicyRecord): PolicyRecord {
   const shifts = parseWeekdayShifts(policy);
   const weekdays = new Set(
@@ -422,7 +263,6 @@ export function hourlyRateVnd(
 }
 
 export function computeStaffPayroll(
-  db: DatabaseSync,
   opts: {
     staffId: number;
     baseSalaryVnd: number;
@@ -431,25 +271,15 @@ export function computeStaffPayroll(
     month: number;
     policy: PolicyRecord;
     positionMap: Record<number, PositionPayrollRow>;
+    attendanceRows: Array<Record<string, unknown>>;
   },
 ): Record<string, unknown> {
-  const d0 = `${opts.year.toString().padStart(4, '0')}-${String(opts.month).padStart(2, '0')}-01`;
-  const last = monthLastDay(opts.year, opts.month);
-  const d1 = `${opts.year.toString().padStart(4, '0')}-${String(opts.month).padStart(2, '0')}-${String(last).padStart(2, '0')}`;
-  const rows = db
-    .prepare(
-      `SELECT work_date, check_in, check_out, break_minutes
-       FROM crm_attendance
-       WHERE staff_id = ? AND work_date >= ? AND work_date <= ?
-       ORDER BY work_date ASC`,
-    )
-    .all(opts.staffId, d0, d1) as Array<Record<string, unknown>>;
   const rate = hourlyRateVnd(opts.baseSalaryVnd, opts.year, opts.month, opts.policy);
   let totalHours = 0;
   let lateMinutesTotal = 0;
   let lateDeduction = 0;
   let daysPresent = 0;
-  for (const r of rows) {
+  for (const r of opts.attendanceRows) {
     const day = analyzeAttendanceDay({
       workDate: String(r.work_date),
       checkIn: String(r.check_in ?? ''),
@@ -504,39 +334,18 @@ export function enrichAttendanceRow(row: Record<string, unknown>, policy: Policy
   return { ...row, ...day };
 }
 
-export function dashboardSummary(
-  db: DatabaseSync,
-  opts: { year: number; month: number; policy: PolicyRecord },
-): Record<string, unknown> {
-  const d0 = `${opts.year.toString().padStart(4, '0')}-${String(opts.month).padStart(2, '0')}-01`;
-  const last = monthLastDay(opts.year, opts.month);
-  const d1 = `${opts.year.toString().padStart(4, '0')}-${String(opts.month).padStart(2, '0')}-${String(last).padStart(2, '0')}`;
-  const today = new Date().toISOString().slice(0, 10);
-  const staffN = db.prepare('SELECT COUNT(*) AS n FROM crm_staff WHERE active = 1').get() as
-    | { n: number }
-    | undefined;
-  const attMonth = db
-    .prepare(
-      `SELECT COUNT(*) AS n FROM crm_attendance
-       WHERE work_date >= ? AND work_date <= ?
-         AND trim(check_in) != '' AND trim(check_out) != ''`,
-    )
-    .get(d0, d1) as { n: number } | undefined;
-  const attToday = db
-    .prepare(
-      `SELECT COUNT(*) AS n FROM crm_attendance
-       WHERE work_date = ? AND trim(check_in) != ''`,
-    )
-    .get(today) as { n: number } | undefined;
+export function dashboardSummary(opts: {
+  year: number;
+  month: number;
+  policy: PolicyRecord;
+  staffActive: number;
+  attendanceRows: Array<Record<string, unknown>>;
+  checkedInToday: number;
+}): Record<string, unknown> {
   let lateCount = 0;
   let totalHours = 0;
-  const attRows = db
-    .prepare(
-      `SELECT work_date, check_in, check_out, break_minutes
-       FROM crm_attendance WHERE work_date >= ? AND work_date <= ?`,
-    )
-    .all(d0, d1) as Array<Record<string, unknown>>;
-  for (const r of attRows) {
+  let completeAttendance = 0;
+  for (const r of opts.attendanceRows) {
     const day = analyzeAttendanceDay({
       workDate: String(r.work_date),
       checkIn: String(r.check_in ?? ''),
@@ -544,6 +353,7 @@ export function dashboardSummary(
       breakMinutes: Number(r.break_minutes ?? 0),
       policy: opts.policy,
     });
+    if (String(r.check_in ?? '').trim() && String(r.check_out ?? '').trim()) completeAttendance++;
     if (Number(day.late_minutes) > 0) lateCount++;
     totalHours += Number(day.worked_hours);
   }
@@ -555,9 +365,9 @@ export function dashboardSummary(
   return {
     year: opts.year,
     month: opts.month,
-    staff_active: Number(staffN?.n ?? 0),
-    attendance_records_month: Number(attMonth?.n ?? 0),
-    checked_in_today: Number(attToday?.n ?? 0),
+    staff_active: opts.staffActive,
+    attendance_records_month: completeAttendance,
+    checked_in_today: opts.checkedInToday,
     late_incidents_month: lateCount,
     total_hours_month: Math.round(totalHours * 10) / 10,
     workdays_standard: stdDays,
@@ -566,8 +376,7 @@ export function dashboardSummary(
   };
 }
 
-export function weekdaysInMonth(db: DatabaseSync, year: number, month: number): number {
-  const policy = loadPolicy(db);
+export function weekdaysInMonth(policy: PolicyRecord, year: number, month: number): number {
   const weekdays = parseWorkWeekdays(String(policy.work_weekdays ?? ''));
   return countWorkdaysInMonth(year, month, weekdays);
 }

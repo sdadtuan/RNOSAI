@@ -31,7 +31,7 @@ export class PayrollMeService {
     const staffId = await this.resolveStaffId(payload);
     const { year, month } = this.payroll.parseYearMonthPublic(yearRaw, monthRaw);
     try {
-      return this.payroll.exportMyPayslipXlsx(staffId, year, month);
+      return await this.payroll.exportMyPayslipXlsx(staffId, year, month);
     } catch (err) {
       if (err instanceof Error && err.message === 'PAYSLIP_NOT_FOUND') {
         throw new NotFoundException({ error: 'payslip_not_found' });
