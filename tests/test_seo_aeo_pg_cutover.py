@@ -118,12 +118,12 @@ class TestPgCutoverOptional(unittest.TestCase):
 
 
 class TestModeEnv(unittest.TestCase):
-    def test_default_mode_sqlite(self) -> None:
+    def test_default_mode_postgresql(self) -> None:
         prev = os.environ.pop("SEO_AEO_DB", None)
         try:
-            self.assertEqual(seo_db_mode(), "sqlite")
+            self.assertEqual(seo_db_mode(), "pg")
         finally:
-            if prev:
+            if prev is not None:
                 os.environ["SEO_AEO_DB"] = prev
 
 

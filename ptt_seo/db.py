@@ -21,7 +21,7 @@ _DATETIME_NOW = re.compile(
 
 
 def seo_db_mode() -> str:
-    return os.environ.get("SEO_AEO_DB", "sqlite").strip().lower() or "sqlite"
+    return os.environ.get("SEO_AEO_DB", "pg").strip().lower() or "pg"
 
 
 def seo_uses_pg() -> bool:
