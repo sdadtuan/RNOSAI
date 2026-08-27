@@ -1,62 +1,36 @@
-# Task 6 Report: Proposals PostgreSQL Cutover
+# Task 6 report — Leads funnel PostgreSQL-only cutover
 
-**Status:** Complete
-**Branch:** `feat/wave1-sqlite-to-pg`
+## Status
 
-## Summary
+Implemented Wave 2 Task 6 only.
 
-- Added `ProposalsPgRepository` with the full `crm_proposals` and
-  `crm_quote_line_item` column sets from the SQLite schema.
-- Preserved proposal, quote-line, lifecycle-linking, status, delete, and
-  customer-name repository operations using parameterized PostgreSQL queries.
-- Made quote-line replacement atomic with a PostgreSQL transaction.
-- Rewired `ProposalsService`, `ProposalsModule`, `LeadMeetingPrepService`, and
-  `DealRoomService` from `ProposalsSqliteRepository` to `ProposalsPgRepository`.
-- Preserved the existing proposal and quote response shapes and PDF/DOCX export
-  behavior.
-- Left the legacy SQLite repository in the tree but disconnected from runtime
-  wiring.
-
-## TDD
-
-RED:
-
-```text
-FAIL src/proposals/proposals-pg.repository.spec.ts
-TS2307: Cannot find module './proposals-pg.repository'
-```
-
-GREEN:
-
-```text
-PASS src/proposals/proposals-pg.repository.spec.ts
-3 tests passed
-```
-
-Coverage includes PostgreSQL-only wiring across all three consumers, complete
-schema bootstrap, proposal row mapping, and parameterized proposal creation.
+- `LeadsFunnelService` now delegates all funnel, review-queue, care, presales, marketing-plan, solution-handoff, AI-assist, and workflow-upgrade operations to `LeadsFunnelPgRepository`.
+- Removed every `usePgFunnel` branch and the SQLite funnel repository injection.
+- `LeadsFunnelModule` now provides and exports PostgreSQL funnel dependencies only.
+- Updated the review-queue guard and leads repository integration to use the PostgreSQL funnel repository exclusively.
+- Removed the unused SQLite funnel injection from `SqliteLeadsRepository`.
+- Deleted `leads-funnel-sqlite.repository.ts` and `presales-funnel-metrics-load.sqlite.util.ts`; funnel metrics already use the PostgreSQL loader.
+- `chot-closed-loop.service.ts`, `lead-sla-care.service.ts`, and `lead-status-gate.service.ts` did not inject the SQLite funnel repository, so no Task 6 changes were required there.
+- Confirmed no deleted repository imports, `LeadsFunnelSqliteRepository`, `usePgFunnel`, or SQLite funnel metrics loader references remain under `src`.
+- Task 7 was not started.
 
 ## Verification
 
-```text
-cd services/ptt-crm-api
-npx jest src/proposals src/lead-meeting-prep src/deal-room --no-coverage
-11 suites passed, 33 tests passed
+- `npm --prefix services/ptt-crm-api test -- src/leads-funnel src/leads --testPathPattern='funnel|presales' --runInBand`
+  - 36 suites passed.
+  - 131 tests passed.
+- `npm --prefix services/ptt-crm-api run build`
+  - Passed.
 
-npm run build
-exit 0
-```
+## Smoke coverage
+
+The selected Jest suites cover funnel/presales utilities and the successful Nest build verifies PostgreSQL-only module wiring. No live PostgreSQL-backed funnel board, presales metrics, or review queue smoke was run because this task did not start a configured authenticated CRM environment.
 
 ## Concerns
 
-- No live PostgreSQL/UI smoke was run; repository tests mock the PostgreSQL
-  pool. The `/crm` proposal and quote creation smoke remains for an environment
-  with PostgreSQL and staff authentication.
-- Existing SQLite proposal and quote-line records require the separate
-  migration/backfill process before production cutover.
-- The npm commands emit the existing unsupported `devdir` configuration
-  warning.
+- Production cutover requires PostgreSQL funnel data and schema migrations to be complete because the SQLite fallback has been removed.
+- The npm commands emit the existing unsupported `devdir` configuration warning.
 
 ## Commit
 
-`Serve CRM proposals from PostgreSQL only.`
+`Serve leads funnel from PostgreSQL only.`
