@@ -6,7 +6,7 @@ import {
   StaffOwnerWeeklyViewGuard,
 } from './guards/staff-owner-weekly.guard';
 import { OwnerWeeklyController } from './owner-weekly.controller';
-import { OwnerWeeklySqliteRepository } from './owner-weekly-sqlite.repository';
+import { OwnerWeeklyPgRepository } from './owner-weekly-pg.repository';
 import { OwnerWeeklyService } from './owner-weekly.service';
 
 @Module({
@@ -14,7 +14,7 @@ import { OwnerWeeklyService } from './owner-weekly.service';
   controllers: [OwnerWeeklyController],
   providers: [
     OwnerWeeklyService,
-    OwnerWeeklySqliteRepository,
+    OwnerWeeklyPgRepository,
     StaffOwnerWeeklyViewGuard,
     StaffOwnerWeeklyExportGuard,
     StaffOwnerWeeklyConfigureGuard,

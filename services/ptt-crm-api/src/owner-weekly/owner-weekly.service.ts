@@ -1,12 +1,12 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { OwnerWeeklySqliteRepository } from './owner-weekly-sqlite.repository';
+import { OwnerWeeklyPgRepository } from './owner-weekly-pg.repository';
 
 @Injectable()
 export class OwnerWeeklyService {
-  constructor(private readonly sqlite: OwnerWeeklySqliteRepository) {}
+  constructor(private readonly pg: OwnerWeeklyPgRepository) {}
 
   dashboard(query: Record<string, string | undefined>) {
-    return this.sqlite.dashboard({
+    return this.pg.dashboard({
       weekEnd: this.parseWeekEnd(query.week_end),
       year: this.optPosInt(query.year),
       isoWeek: this.optPosInt(query.week),
@@ -15,7 +15,7 @@ export class OwnerWeeklyService {
   }
 
   configGet() {
-    return this.sqlite.configGet();
+    return this.pg.configGet();
   }
 
   configPatch(body: Record<string, unknown>) {
@@ -23,15 +23,15 @@ export class OwnerWeeklyService {
     if (!updates || typeof updates !== 'object' || Array.isArray(updates)) {
       throw new BadRequestException({ error: 'targets phải là object.' });
     }
-    return this.sqlite.configPatch(updates);
+    return this.pg.configPatch(updates);
   }
 
   listCashSnapshots(limitRaw?: string) {
     const limit = this.optPosInt(limitRaw) ?? 24;
-    return this.sqlite.listCashSnapshots(limit);
+    return this.pg.listCashSnapshots(limit);
   }
 
-  upsertCashSnapshot(body: Record<string, unknown>) {
+  async upsertCashSnapshot(body: Record<string, unknown>) {
     const snapRaw = String(body.snapshot_on ?? '').trim().slice(0, 10);
     if (!snapRaw) throw new BadRequestException({ error: 'snapshot_on bắt buộc (YYYY-MM-DD).' });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(snapRaw)) {
@@ -47,7 +47,7 @@ export class OwnerWeeklyService {
     const source = String(body.source ?? 'manual').trim().toLowerCase();
     const notes = String(body.notes ?? '').trim();
     try {
-      return this.sqlite.upsertCashSnapshot(snapRaw, balance, source, notes);
+      return await this.pg.upsertCashSnapshot(snapRaw, balance, source, notes);
     } catch (err) {
       if (err instanceof Error && err.message.includes('snapshot_on')) {
         throw new BadRequestException({ error: err.message });
@@ -56,7 +56,10 @@ export class OwnerWeeklyService {
     }
   }
 
-  deleteCashSnapshot(query: Record<string, string | undefined>, body?: Record<string, unknown>) {
+  async deleteCashSnapshot(
+    query: Record<string, string | undefined>,
+    body?: Record<string, unknown>,
+  ) {
     let snapRaw = String(query.snapshot_on ?? '').trim().slice(0, 10);
     if (!snapRaw && body) snapRaw = String(body.snapshot_on ?? '').trim().slice(0, 10);
     if (!snapRaw) throw new BadRequestException({ error: 'snapshot_on bắt buộc.' });
@@ -64,7 +67,7 @@ export class OwnerWeeklyService {
       throw new BadRequestException({ error: 'snapshot_on không hợp lệ.' });
     }
     try {
-      return this.sqlite.deleteCashSnapshot(snapRaw);
+      return await this.pg.deleteCashSnapshot(snapRaw);
     } catch (err) {
       if (err instanceof Error && err.message.includes('snapshot_on')) {
         throw new BadRequestException({ error: err.message });
@@ -74,7 +77,7 @@ export class OwnerWeeklyService {
   }
 
   export(query: Record<string, string | undefined>) {
-    return this.sqlite.export({
+    return this.pg.export({
       weekEnd: this.parseWeekEnd(query.week_end),
       year: this.optPosInt(query.year),
       isoWeek: this.optPosInt(query.week),
@@ -86,17 +89,17 @@ export class OwnerWeeklyService {
     const week = this.optPosInt(
       String(body.week ?? body.iso_week ?? query.iso_week ?? query.week ?? ''),
     );
-    return this.sqlite.alertCron(year, week);
+    return this.pg.alertCron(year, week);
   }
 
   inboxSync(body: Record<string, unknown>, query: Record<string, string | undefined>) {
     const year = this.optPosInt(String(body.year ?? query.year ?? ''));
     const week = this.optPosInt(String(body.week ?? query.week ?? ''));
-    return this.sqlite.inboxSync(year, week);
+    return this.pg.inboxSync(year, week);
   }
 
   inboxSummary() {
-    return this.sqlite.inboxSummary();
+    return this.pg.inboxSummary();
   }
 
   private parseWeekEnd(raw?: string): string | null {
