@@ -1,4 +1,4 @@
-import { hashApiKey, resolveIngressProject } from './b2b-ingest.util';
+import { extractIngressKeysFromLead, hashApiKey, resolveIngressProject } from './b2b-ingest.util';
 
 describe('resolveIngressProject', () => {
   const forms = [{ formId: 'F1', pageId: 'PG1', projectId: 'p1', projectSlug: 'seo', active: true }];
@@ -41,6 +41,16 @@ describe('resolveIngressProject', () => {
         },
       ),
     ).toEqual({ projectId: 'p1' });
+  });
+});
+
+describe('extractIngressKeysFromLead', () => {
+  it('reads facebook_form_id and facebook_page_id from meta', () => {
+    expect(
+      extractIngressKeysFromLead('meta', {
+        raw: { meta: { facebook_form_id: 'F9', facebook_page_id: 'PG9' } },
+      }),
+    ).toEqual({ formId: 'F9', pageId: 'PG9' });
   });
 });
 

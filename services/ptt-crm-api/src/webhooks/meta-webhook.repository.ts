@@ -174,7 +174,31 @@ export class MetaWebhookRepository implements OnModuleDestroy {
     return { ok: true, created: false, dedupe_key: params.dedupeKey, idempotent: true };
   }
 
-  async resolvePageAccessToken(clientId: string | null): Promise<string | null> {
+  async resolvePageAccessToken(
+    clientId: string | null,
+    pageIds: string[] = [],
+  ): Promise<string | null> {
+    const ids = pageIds.map((id) => String(id ?? '').trim()).filter(Boolean);
+    if (ids.length) {
+      try {
+        const result = await this.db.query(
+          `SELECT token_ref
+           FROM crm_b2b_project_pages
+           WHERE active IS TRUE
+             AND page_id = ANY($1::text[])
+             AND token_ref IS NOT NULL
+             AND btrim(token_ref) <> ''
+           ORDER BY created_at DESC
+           LIMIT 1`,
+          [ids],
+        );
+        const ref = cleanEnv(String(result.rows[0]?.token_ref ?? ''));
+        if (ref) return ref;
+      } catch {
+        /* fall through */
+      }
+    }
+
     const global = cleanEnv(
       process.env.CRM_FACEBOOK_PAGE_ACCESS_TOKEN ?? process.env.FACEBOOK_PAGE_ACCESS_TOKEN,
     );

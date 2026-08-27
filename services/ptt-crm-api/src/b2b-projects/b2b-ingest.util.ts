@@ -73,9 +73,16 @@ export function extractIngressKeysFromLead(
   const rawMeta =
     raw.meta && typeof raw.meta === 'object' ? (raw.meta as Record<string, unknown>) : {};
   const formId = String(
-    lead.external_form_id ?? fields.form_id ?? rawMeta.form_id ?? raw.form_id ?? '',
+    lead.external_form_id ??
+      fields.form_id ??
+      rawMeta.form_id ??
+      rawMeta.facebook_form_id ??
+      raw.form_id ??
+      '',
   ).trim();
-  const pageId = String(fields.page_id ?? rawMeta.page_id ?? raw.page_id ?? raw.oa_id ?? '').trim();
+  const pageId = String(
+    fields.page_id ?? rawMeta.page_id ?? rawMeta.facebook_page_id ?? raw.page_id ?? raw.oa_id ?? '',
+  ).trim();
   const oaId = String(fields.oa_id ?? raw.oa_id ?? raw.app_id ?? rawMeta.oa_id ?? '').trim();
   const webformSlug = String(fields.webform_slug ?? fields.slug ?? raw.slug ?? '').trim();
   if (channel === 'meta' || channel === 'facebook') {

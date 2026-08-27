@@ -12,6 +12,7 @@ import {
 import {
   replaceB2bProjectChannels,
   replaceB2bProjectPages,
+  syncB2bProjectFacebookLeads,
   type B2bProjectChannelRow,
   type B2bProjectPageRow,
 } from '@/lib/b2b-projects-api';
@@ -92,6 +93,7 @@ export function B2bProjectChannelsPanel({
   const [channelsDraft, setChannelsDraft] = useState<ChannelDraft[]>([]);
   const [savingPages, setSavingPages] = useState(false);
   const [savingChannels, setSavingChannels] = useState(false);
+  const [syncingFacebook, setSyncingFacebook] = useState(false);
 
   useEffect(() => {
     setPagesDraft(pagesToDraft(pages));
@@ -105,6 +107,12 @@ export function B2bProjectChannelsPanel({
     if (err instanceof Error) {
       if (err.message.includes('channel_key_taken')) {
         return 'Page/Form hoặc kênh đã được map ở dự án PTT khác — kiểm tra /crm/b2b-unmatched.';
+      }
+      if (err.message.includes('missing_page_token')) {
+        return 'Thiếu Page Access Token. Lưu token ở tab Kênh hoặc CRM_FACEBOOK_PAGE_ACCESS_TOKEN rồi thử lại.';
+      }
+      if (err.message.includes('no_active_forms')) {
+        return 'Dự án chưa có Form Facebook active để đồng bộ.';
       }
       return err.message;
     }
@@ -168,6 +176,21 @@ export function B2bProjectChannelsPanel({
     }
   }
 
+  async function syncFacebookLeads() {
+    const access = getAccessToken();
+    if (!access || !canManage) return;
+    setSyncingFacebook(true);
+    onError?.('');
+    try {
+      const out = await syncB2bProjectFacebookLeads(access, projectId);
+      onMessage?.(out.message || 'Đã đồng bộ lead Facebook.');
+    } catch (err) {
+      onError?.(apiErrorMessage(err, 'Đồng bộ Facebook thất bại'));
+    } finally {
+      setSyncingFacebook(false);
+    }
+  }
+
   function updatePage(idx: number, patch: Partial<PageDraft>) {
     setPagesDraft((prev) => prev.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
   }
@@ -199,6 +222,10 @@ export function B2bProjectChannelsPanel({
         <h3 className="form-section-title" style={{ margin: 0 }}>
           Facebook pages & Lead forms
         </h3>
+        <p className="muted" style={{ margin: 0 }}>
+          Nút <strong>Đồng bộ lead Facebook</strong> kéo lead đã có trên Instant Form (tối đa 50 / lần) vào inbox dự
+          án. Lead trùng <code>leadgen_id</code> không tạo lại.
+        </p>
         {pagesDraft.length === 0 ? (
           <p className="muted">Chưa có page. Bấm &quot;+ Thêm Page&quot; để map Page ID và Form ID từ Meta.</p>
         ) : null}
@@ -224,11 +251,16 @@ export function B2bProjectChannelsPanel({
                   onChange={(e) => updatePage(pageIdx, { name: e.target.value })}
                 />
               </FormField>
-              <FormField label="Token ref (tuỳ chọn)" hint="Tham chiếu token vault, không nhập token thô">
+              <FormField
+                label="Page Access Token"
+                hint="Token Page (leads_retrieval). Dùng để Graph lấy SĐT/tên từ leadgen_id."
+              >
                 <FormInput
+                  type="password"
+                  autoComplete="off"
                   value={page.token_ref}
                   disabled={!canManage || savingPages}
-                  placeholder="meta/page-token-ref"
+                  placeholder="EAAx…"
                   onChange={(e) => updatePage(pageIdx, { token_ref: e.target.value })}
                 />
               </FormField>
@@ -339,7 +371,15 @@ export function B2bProjectChannelsPanel({
             >
               + Thêm Page
             </button>
-            <button type="submit" className="btn btn-primary btn-sm" disabled={savingPages}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={savingPages || syncingFacebook}
+              onClick={() => void syncFacebookLeads()}
+            >
+              {syncingFacebook ? 'Đang kéo lead…' : 'Đồng bộ lead Facebook'}
+            </button>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={savingPages || syncingFacebook}>
               {savingPages ? 'Đang lưu…' : 'Lưu Meta pages'}
             </button>
           </FormFooter>

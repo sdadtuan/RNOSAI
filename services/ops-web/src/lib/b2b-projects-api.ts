@@ -203,6 +203,30 @@ export async function fetchB2bLeadEligibleStaff(token: string): Promise<B2bLeadE
   return Array.isArray(body.staff) ? body.staff : [];
 }
 
+export type B2bFacebookSyncResult = {
+  ok: true;
+  scanned: number;
+  enqueued: number;
+  created: number;
+  already_queued: number;
+  skipped_empty: number;
+  graph_errors: number;
+  unmatched: number;
+  form_ids: string[];
+  message: string;
+};
+
+export async function syncB2bProjectFacebookLeads(
+  token: string,
+  id: string,
+  body?: { form_id?: string; limit?: number },
+): Promise<B2bFacebookSyncResult> {
+  return b2bFetch(token, `/api/v1/b2b-projects/${encodeURIComponent(id)}/sync-facebook-leads`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
 export async function replaceB2bProjectStaff(
   token: string,
   id: string,

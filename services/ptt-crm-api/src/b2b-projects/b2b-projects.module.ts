@@ -107,6 +107,8 @@ import { B2bConversationsService } from './b2b-conversations.service';
   exports: [
     B2bProjectsService,
     B2bProjectsRepository,
+    StaffB2bProjectsViewGuard,
+    StaffB2bProjectsManageGuard,
     B2bLeadScopeService,
     B2bLeadAiFilterService,
     B2bIngestService,

@@ -136,7 +136,7 @@ export class WebhooksService {
       pageIds: ctx.pageIds,
       formIds: ctx.formIds,
     });
-    const pageToken = await this.metaWebhookRepo.resolvePageAccessToken(resolvedClientId);
+    const pageToken = await this.metaWebhookRepo.resolvePageAccessToken(resolvedClientId, ctx.pageIds);
     const effectiveClientId =
       resolvedClientId ??
       this.metaWebhookRepo.normalizeClientUuid(headerClientId) ??
