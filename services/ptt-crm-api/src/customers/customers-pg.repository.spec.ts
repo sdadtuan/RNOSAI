@@ -60,6 +60,9 @@ describe('CustomersPgRepository', () => {
     expect(query.mock.calls[0][0]).toContain('CREATE TABLE IF NOT EXISTS crm_customer_purchases');
     expect(query.mock.calls[0][0]).toContain('CREATE TABLE IF NOT EXISTS crm_customer_issues');
     expect(query.mock.calls[0][0]).toContain('CREATE TABLE IF NOT EXISTS crm_customer_brief_scans');
+    expect(query.mock.calls[0][0]).toContain('contract_id INTEGER REFERENCES crm_contracts(id)');
+    expect(query.mock.calls[0][0]).toContain('case_id INTEGER REFERENCES crm_cases(id)');
+    expect(query.mock.calls[0][0]).toContain('assigned_staff_id INTEGER REFERENCES crm_staff(id)');
     expect(query.mock.calls[1][0]).toContain('ILIKE $1');
     expect(query.mock.calls[1][1]).toEqual(['%Khách%', 500]);
     expect(rows[0]).toMatchObject({
@@ -68,6 +71,19 @@ describe('CustomersPgRepository', () => {
       lead_source_label: 'Khác',
       created_at: '2026-08-27T00:00:00.000Z',
     });
+  });
+
+  it('sorts purchases without casting untrusted order dates', async () => {
+    query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
+
+    await repo.fetchPurchases(7);
+
+    const sql = query.mock.calls[1][0] as string;
+    expect(sql).not.toContain('order_date, \'\')::date');
+    expect(sql).toContain("WHEN BTRIM(order_date) = '' THEN");
+    expect(sql).toContain("WHEN order_date ~ '^\\d{4}-\\d{2}-\\d{2}' THEN order_date");
+    expect(sql).toContain('ELSE NULL');
+    expect(query.mock.calls[1][1]).toEqual([7]);
   });
 
   it('normalizes profile values when creating a customer', async () => {

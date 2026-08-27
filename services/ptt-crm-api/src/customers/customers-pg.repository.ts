@@ -104,21 +104,21 @@ export class CustomersPgRepository implements OnModuleDestroy {
         status VARCHAR(64) NOT NULL DEFAULT 'completed',
         reference_code VARCHAR(120) NOT NULL DEFAULT '',
         notes TEXT NOT NULL DEFAULT '',
-        contract_id INTEGER,
+        contract_id INTEGER REFERENCES crm_contracts(id),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS crm_customer_issues (
         id SERIAL PRIMARY KEY,
         customer_id INTEGER NOT NULL REFERENCES crm_customers(id) ON DELETE CASCADE,
-        case_id INTEGER,
+        case_id INTEGER REFERENCES crm_cases(id),
         issue_type VARCHAR(64) NOT NULL DEFAULT 'phan_anh',
         priority VARCHAR(64) NOT NULL DEFAULT 'binh_thuong',
         status VARCHAR(64) NOT NULL DEFAULT 'moi',
         title VARCHAR(400) NOT NULL DEFAULT '',
         description TEXT NOT NULL DEFAULT '',
         resolution TEXT NOT NULL DEFAULT '',
-        assigned_staff_id INTEGER,
+        assigned_staff_id INTEGER REFERENCES crm_staff(id),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         resolved_at TIMESTAMPTZ
@@ -325,7 +325,12 @@ export class CustomersPgRepository implements OnModuleDestroy {
     const result = await this.db.query(
       `SELECT * FROM crm_customer_purchases
        WHERE customer_id = $1
-       ORDER BY COALESCE(NULLIF(order_date, '')::date, created_at::date) DESC, id DESC`,
+       ORDER BY CASE
+                  WHEN BTRIM(order_date) = '' THEN TO_CHAR(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS.US')
+                  WHEN order_date ~ '^\\d{4}-\\d{2}-\\d{2}' THEN order_date
+                  ELSE NULL
+                END DESC NULLS LAST,
+                id DESC`,
       [customerId],
     );
     return result.rows.map((row) => this.mapPurchaseRow(row));
