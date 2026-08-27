@@ -5,7 +5,35 @@ import sqlite3
 from typing import Any
 
 
+def _process_form_ingest_payload_pg(payload: dict[str, Any]) -> dict[str, Any]:
+    from ptt_crm.lead_ingest_pg import process_ingest_lead_payload_pg
+
+    outcome = process_ingest_lead_payload_pg(
+        {
+            "channel": "website",
+            "lead": {
+                "channel": "website",
+                "raw": dict(payload),
+            },
+        }
+    )
+    if not outcome.get("ok"):
+        return {
+            "ok": False,
+            "error": outcome.get("error") or "PG form ingest failed",
+        }
+    created_ids = list(outcome.get("created_ids") or [])
+    if created_ids:
+        return {"ok": True, "lead_id": int(created_ids[0])}
+    return {"ok": False, "error": payload.get("error") or "ingest returned none"}
+
+
 def process_form_ingest_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    from ptt_crm.config import leads_write_source_pg
+
+    if leads_write_source_pg():
+        return _process_form_ingest_payload_pg(payload)
+
     from ptt_jobs.config import sqlite_db_path
 
     conn = sqlite3.connect(sqlite_db_path())
