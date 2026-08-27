@@ -63,6 +63,59 @@ def _pg_phone_norm_expr(column: str = "phone") -> str:
     """
 
 
+def resolve_project_for_lead_ingest_pg(
+    *,
+    re_project_id: int | None = None,
+    re_project_code: str | None = None,
+    utm_campaign: str | None = None,
+    ingest_site: str | None = None,
+) -> int | None:
+    """Resolve website/form RE attribution using the PostgreSQL project tables."""
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            if re_project_id is not None:
+                try:
+                    candidate = int(re_project_id)
+                except (TypeError, ValueError):
+                    candidate = 0
+                if candidate > 0:
+                    cur.execute("SELECT id FROM crm_re_projects WHERE id = %s", (candidate,))
+                    row = cur.fetchone()
+                    if row:
+                        return int(row[0])
+
+            code = str(re_project_code or "").strip()
+            if code:
+                cur.execute(
+                    "SELECT id FROM crm_re_projects WHERE lower(trim(code)) = lower(%s)",
+                    (code,),
+                )
+                row = cur.fetchone()
+                if row:
+                    return int(row[0])
+
+            for raw_route in (utm_campaign, ingest_site):
+                route_key = str(raw_route or "").strip()
+                if not route_key:
+                    continue
+                cur.execute(
+                    """
+                    SELECT w.project_id
+                    FROM crm_re_project_website_routes w
+                    JOIN crm_re_project_lead_config c ON c.project_id = w.project_id
+                    WHERE w.route_key = %s
+                      AND w.active = 1
+                      AND c.enabled = 1
+                      AND c.webhook_enabled = 1
+                    """,
+                    (route_key,),
+                )
+                row = cur.fetchone()
+                if row:
+                    return int(row[0])
+    return None
+
+
 def fetch_pg_lead_by_id(lead_id: int) -> dict[str, Any] | None:
     with pg_connection() as conn:
         with conn.cursor() as cur:
@@ -236,6 +289,12 @@ def legacy_item_to_pg_record(
     ts: str,
 ) -> dict[str, Any]:
     meta = dict(item.get("meta") if isinstance(item.get("meta"), dict) else {})
+    if item.get("re_project_id") not in (None, ""):
+        meta["re_project_id"] = int(item["re_project_id"])
+    if item.get("re_project_code"):
+        meta["re_project_code"] = str(item["re_project_code"]).strip()[:120]
+    if item.get("ingest_site"):
+        meta["ingest_site"] = str(item["ingest_site"]).strip()[:120]
     if client_id:
         meta.setdefault("agency_client_id", client_id)
     if item.get("lead_flow_kind"):
@@ -418,6 +477,23 @@ def process_ingest_lead_payload_pg(
     from ptt_channel.mappers import normalized_lead_to_legacy
 
     legacy_item = normalized_lead_to_legacy(lead_dict)
+    project_hints = (
+        legacy_item.get("re_project_id"),
+        legacy_item.get("re_project_code"),
+        legacy_item.get("utm_campaign"),
+        legacy_item.get("ingest_site"),
+    )
+    if any(value not in (None, "") for value in project_hints):
+        resolved_re_project_id = resolve_project_for_lead_ingest_pg(
+            re_project_id=legacy_item.get("re_project_id"),
+            re_project_code=legacy_item.get("re_project_code"),
+            utm_campaign=legacy_item.get("utm_campaign"),
+            ingest_site=legacy_item.get("ingest_site"),
+        )
+        if resolved_re_project_id is not None:
+            legacy_item["re_project_id"] = resolved_re_project_id
+        else:
+            legacy_item.pop("re_project_id", None)
     if client_id_norm:
         meta = legacy_item.setdefault("meta", {})
         if isinstance(meta, dict):

@@ -124,6 +124,21 @@ def enqueue_form_ingest_failure(**fields: Any) -> dict[str, Any]:
             error = str(exc)
             logger.exception("form ingest sync fallback failed: %s", exc)
 
+    from ptt_crm.config import leads_write_source_pg
+
+    if leads_write_source_pg():
+        logger.error("form ingest failed closed idem=%s error=%s", idem, error)
+        try:
+            notify_form_ingest_dead(job_id=f"failed-closed:{idem}", payload=payload, error=error)
+        except Exception as exc:
+            logger.warning("form ingest dead notify failed: %s", exc)
+        return {
+            "mode": "failed_closed",
+            "ok": False,
+            "idempotency_key": idem,
+            "error": error,
+        }
+
     spill_id = record_form_ingest_spillover(fields=payload, error=error)
     logger.error(
         "form ingest spillover id=%s idem=%s error=%s",

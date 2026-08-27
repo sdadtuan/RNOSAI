@@ -54,6 +54,13 @@ def process_form_ingest_payload(payload: dict[str, Any]) -> dict[str, Any]:
             region=str(payload.get("region") or ""),
             product_interest=str(payload.get("product_interest") or ""),
             utm_campaign=str(payload.get("utm_campaign") or ""),
+            re_project_id=(
+                int(payload["re_project_id"])
+                if payload.get("re_project_id") not in (None, "")
+                else None
+            ),
+            re_project_code=str(payload.get("re_project_code") or "") or None,
+            ingest_site=str(payload.get("ingest_site") or ""),
             ts=ts,
             _from_worker=True,
         )

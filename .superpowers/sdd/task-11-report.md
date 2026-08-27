@@ -52,3 +52,27 @@ Additional files changed:
 - `tests/test_form_ingest_pg.py` — `test_form_lead_ingest_module_pg_does_not_use_sqlite_conn`
 
 Commit: `Fail closed form_lead_ingest when write source is pg.`
+
+## Final Wave 1 review blocker fix
+
+- PG form ingest now resolves RE-project attribution against the PostgreSQL
+  `crm_re_projects` / website-route configuration with the same precedence as
+  the former SQLite form path.
+- The resolved `re_project_id`, submitted `re_project_code`, and `ingest_site`
+  are retained in `crm_leads.meta_json` instead of being dropped while mapping
+  the form payload to the PG lead record.
+- Failed PG-authoritative form ingest may queue or use the PG sync fallback,
+  but it now fails closed after those options are exhausted and never writes
+  the SQLite spillover table.
+- Retry payloads retain region, product, UTM, and RE-project attribution fields.
+
+Test command:
+
+```text
+python3 -m unittest tests.test_form_ingest_pg tests.test_lead_ingest_config -v
+
+Ran 10 tests
+OK
+```
+
+Commit: `Fix PG form ingest RE project attribution and failure spillover.`

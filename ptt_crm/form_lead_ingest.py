@@ -104,6 +104,12 @@ def ingest_lead_from_form(
                     email=email,
                     need=need,
                     source=source,
+                    region=region,
+                    product_interest=product_interest,
+                    utm_campaign=utm_campaign,
+                    re_project_id=re_project_id,
+                    re_project_code=re_project_code,
+                    ingest_site=ingest_site,
                     error=str(exc),
                 )
             return None
@@ -116,6 +122,12 @@ def ingest_lead_from_form(
                     email=email,
                     need=need,
                     source=source,
+                    region=region,
+                    product_interest=product_interest,
+                    utm_campaign=utm_campaign,
+                    re_project_id=re_project_id,
+                    re_project_code=re_project_code,
+                    ingest_site=ingest_site,
                     error=str(exc),
                 )
             return None
@@ -181,6 +193,12 @@ def ingest_lead_from_form(
                 email=email,
                 need=need,
                 source=source,
+                region=region,
+                product_interest=product_interest,
+                utm_campaign=utm_campaign,
+                re_project_id=re_project_id,
+                re_project_code=re_project_code,
+                ingest_site=ingest_site,
                 error=str(exc),
             )
         return None
@@ -193,6 +211,12 @@ def ingest_lead_from_form(
                 email=email,
                 need=need,
                 source=source,
+                region=region,
+                product_interest=product_interest,
+                utm_campaign=utm_campaign,
+                re_project_id=re_project_id,
+                re_project_code=re_project_code,
+                ingest_site=ingest_site,
                 error=str(exc),
             )
         return None
