@@ -3,7 +3,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { parseCinematicDailyCap } from '../video-sop/video-sop-flags';
 
-export type LeadsReadSource = 'pg';
 export type LeadsCreateIdMode = 'staging' | 'prod';
 export type PortalAuthMode = 'nest-jwt' | 'keycloak' | 'dual';
 export type StaffAuthMode = 'nest' | 'keycloak' | 'dual';
@@ -26,10 +25,7 @@ export interface StaffStubUser {
 @Injectable()
 export class AppConfigService {
   readonly port: number;
-  /** Legacy SQLite file path for modules not yet cut over. Wave 1 modules in WAVE1_PG_MODULES use databaseUrl only — no sqlitePath on the request path. */
-  readonly sqlitePath: string;
   readonly databaseUrl: string;
-  readonly leadsReadSource: LeadsReadSource;
   readonly internalKey: string | null;
   readonly authDisabled: boolean;
   readonly leadsWriteEnabled: boolean;
@@ -82,17 +78,6 @@ export class AppConfigService {
   readonly temporalNamespace: string;
   readonly temporalTaskQueue: string;
   readonly crmLeadsFunnelNest: boolean;
-  readonly crmLeadsFunnelPg: boolean;
-  readonly crmIntakePg: boolean;
-  readonly crmContractPg: boolean;
-  readonly crmStaffPg: boolean;
-  readonly crmPayrollPg: boolean;
-  readonly crmKpiPg: boolean;
-  readonly crmLeadsLegacyPg: boolean;
-  readonly crmServiceLifecyclePg: boolean;
-  readonly crmFinancePg: boolean;
-  readonly crmSvcFinancePg: boolean;
-  readonly crmSopPg: boolean;
   readonly presalesOnLead: boolean;
   readonly b2bProjectOs: boolean;
   readonly b2bCpaas: string;
@@ -226,13 +211,11 @@ export class AppConfigService {
   constructor() {
     this.applyRuntimeEnvOverrides();
     this.port = Number(process.env.PORT ?? process.env.CRM_API_PORT ?? 3000);
-    this.sqlitePath = this.resolveSqlitePath();
     this.databaseUrl = (
       process.env.DATABASE_URL ??
       process.env.PTT_DATABASE_URL ??
       'postgresql://ptt:ptt_dev@127.0.0.1:5432/ptt_agency'
     ).trim();
-    this.leadsReadSource = 'pg';
     this.internalKey = (process.env.PTT_CRM_INTERNAL_KEY ?? '').trim() || null;
     this.authDisabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CRM_API_AUTH_DISABLED ?? '0').trim().toLowerCase(),
@@ -344,41 +327,6 @@ export class AppConfigService {
     this.temporalTaskQueue = (process.env.PTT_TEMPORAL_TASK_QUEUE ?? 'ptt-agency').trim();
     this.crmLeadsFunnelNest = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CRM_LEADS_FUNNEL_NEST ?? '1').trim().toLowerCase(),
-    );
-    this.crmLeadsFunnelPg = ['1', 'true', 'yes', 'on'].includes(
-      (process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
-    );
-    this.crmIntakePg = ['1', 'true', 'yes', 'on'].includes(
-      (process.env.PTT_CRM_INTAKE_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
-    );
-    this.crmContractPg = ['1', 'true', 'yes', 'on'].includes(
-      (process.env.PTT_CRM_CONTRACT_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
-    );
-    this.crmStaffPg = ['1', 'true', 'yes', 'on'].includes(
-      (process.env.PTT_CRM_STAFF_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
-    );
-    this.crmPayrollPg = ['1', 'true', 'yes', 'on'].includes(
-      (process.env.PTT_CRM_PAYROLL_PG ?? '0').trim().toLowerCase(),
-    );
-    this.crmKpiPg = ['1', 'true', 'yes', 'on'].includes(
-      (process.env.PTT_CRM_KPI_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
-    );
-    this.crmLeadsLegacyPg = ['1', 'true', 'yes', 'on'].includes(
-      (process.env.PTT_CRM_LEADS_LEGACY_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
-    );
-    this.crmServiceLifecyclePg = ['1', 'true', 'yes', 'on'].includes(
-      (process.env.PTT_CRM_SERVICE_LIFECYCLE_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
-    );
-    this.crmFinancePg = ['1', 'true', 'yes', 'on'].includes(
-      (process.env.PTT_CRM_FINANCE_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
-    );
-    this.crmSvcFinancePg = ['1', 'true', 'yes', 'on'].includes(
-      (process.env.PTT_CRM_SVC_FINANCE_PG ?? process.env.PTT_CRM_FINANCE_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1')
-        .trim()
-        .toLowerCase(),
-    );
-    this.crmSopPg = ['1', 'true', 'yes', 'on'].includes(
-      (process.env.PTT_CRM_SOP_PG ?? process.env.PTT_CRM_LEADS_FUNNEL_PG ?? '1').trim().toLowerCase(),
     );
     this.presalesOnLead = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_PRESALES_ON_LEAD ?? '1').trim().toLowerCase(),
@@ -798,14 +746,6 @@ export class AppConfigService {
     return out;
   }
 
-  private resolveSqlitePath(): string {
-    const fromEnv = (process.env.PTT_SQLITE_PATH ?? '').trim();
-    if (fromEnv) {
-      return path.isAbsolute(fromEnv) ? fromEnv : path.resolve(process.cwd(), fromEnv);
-    }
-    return path.resolve(__dirname, '..', '..', '..', 'ptt.db');
-  }
-
   private resolvePortalAuthMode(): PortalAuthMode {
     const raw = (process.env.PTT_PORTAL_AUTH_MODE ?? 'nest-jwt').trim().toLowerCase();
     if (raw === 'keycloak' || raw === 'dual') {
@@ -961,11 +901,4 @@ export class AppConfigService {
     );
   }
 
-  sqliteAvailable(): boolean {
-    try {
-      return fs.existsSync(this.sqlitePath);
-    } catch {
-      return false;
-    }
-  }
 }

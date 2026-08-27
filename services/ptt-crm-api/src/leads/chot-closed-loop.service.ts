@@ -147,13 +147,10 @@ export class ChotClosedLoopService implements OnModuleDestroy {
       merged.call_script_source = meta.call_script_source;
     }
 
-    if (this.config.crmLeadsLegacyPg) {
-      await this.pgWrite.mergeLeadMeta(input.leadId, merged);
-    }
+    await this.pgWrite.mergeLeadMeta(input.leadId, merged);
   }
 
   async trackCallScriptCopy(leadId: number, actor: string, source: CallScriptSource = 'sci'): Promise<void> {
-    if (!this.config.crmLeadsLegacyPg) return;
     await this.pgWrite.mergeLeadMeta(leadId, {
       call_script_source: source,
       call_script_copied_at: new Date().toISOString(),
@@ -220,22 +217,6 @@ export class ChotClosedLoopService implements OnModuleDestroy {
   async getClosedLoopDashboard(windowDays = 30, sampleLimit = 20): Promise<ClosedLoopDashboardResponse> {
     const days = Math.max(1, Math.min(windowDays, 90));
     const limit = Math.max(1, Math.min(sampleLimit, 100));
-
-    if (!this.config.crmLeadsLegacyPg) {
-      return {
-        ok: true,
-        generated_at: new Date().toISOString(),
-        window_days: days,
-        summary: buildClosedLoopDashboardSummary({
-          chotTotal: 0,
-          withDealValue: 0,
-          qaFlagged: 0,
-          dealValueSum: 0,
-        }),
-        qa_flag_labels: CHOT_QA_FLAG_LABELS,
-        qa_samples: [],
-      };
-    }
 
     const result = await this.db.query(
       `SELECT l.sqlite_lead_id, l.full_name, l.owner_id, l.meta_json, l.updated_at::text AS updated_at
@@ -311,10 +292,6 @@ export class ChotClosedLoopService implements OnModuleDestroy {
   async getPlaybookAbMetrics(windowDays = 30) {
     const days = Math.max(1, Math.min(windowDays, 90));
 
-    if (!this.config.crmLeadsLegacyPg) {
-      return { ok: true, ...buildPlaybookAbMetrics([], days) };
-    }
-
     const result = await this.db.query(
       `SELECT l.sqlite_lead_id, l.meta_json,
               l.received_at::text AS received_at,
@@ -377,26 +354,21 @@ export class ChotClosedLoopService implements OnModuleDestroy {
     meta_json: string | null;
     care_stages_done_json: string | null;
   } | null> {
-    if (this.config.crmLeadsLegacyPg) {
-      const result = await this.db.query(
-        `SELECT status, source,
-                COALESCE(agency_client_id::text, '') AS client_id,
-                COALESCE(channel, '') AS channel,
-                meta_json::text AS meta_json,
-                COALESCE(care_stages_done_json, '{}'::jsonb)::text AS care_stages_done_json
-         FROM crm_leads
-         WHERE sqlite_lead_id = $1
-         LIMIT 1`,
-        [leadId],
-      );
-      return (result.rows[0] as typeof result.rows[0] | undefined) ?? null;
-    }
-
-    return null;
+    const result = await this.db.query(
+      `SELECT status, source,
+              COALESCE(agency_client_id::text, '') AS client_id,
+              COALESCE(channel, '') AS channel,
+              meta_json::text AS meta_json,
+              COALESCE(care_stages_done_json, '{}'::jsonb)::text AS care_stages_done_json
+       FROM crm_leads
+       WHERE sqlite_lead_id = $1
+       LIMIT 1`,
+      [leadId],
+    );
+    return (result.rows[0] as typeof result.rows[0] | undefined) ?? null;
   }
 
   private async hasPresales(leadId: number): Promise<boolean> {
-    if (!this.config.crmLeadsLegacyPg) return false;
     const result = await this.db.query(
       `SELECT 1 FROM crm_lead_presales WHERE lead_id = $1 LIMIT 1`,
       [leadId],

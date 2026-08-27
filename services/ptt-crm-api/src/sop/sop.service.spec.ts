@@ -3,13 +3,11 @@ import { SopPgRepository } from './sop-pg.repository';
 import { SopService } from './sop.service';
 
 describe('SopService', () => {
-  it('lists templates from PostgreSQL regardless of the legacy feature flag', async () => {
+  it('lists templates from PostgreSQL', async () => {
     const pg = {
       listTemplates: jest.fn().mockResolvedValue([{ id: 1, name: 'Launch' }]),
     } as unknown as SopPgRepository;
-    const config = {
-      crmSopPg: false,
-    } as AppConfigService;
+    const config = {} as AppConfigService;
     const service = new SopService(pg, config);
 
     await expect(service.listTemplates()).resolves.toEqual({

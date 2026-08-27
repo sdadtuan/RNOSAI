@@ -15,7 +15,7 @@ describe('AiForecastService', () => {
       return { ...result, runId: 'run-forecast-1' };
     }),
   };
-  const config = { sqlitePath: ':memory:' };
+  const config = { databaseUrl: 'postgresql://test:test@localhost/test' };
   const crmConfig = { toPipelineRuntime: jest.fn().mockReturnValue({ labels: {} }) };
   const dealContext = {
     listOpenDealIds: jest.fn().mockReturnValue([]),

@@ -27,7 +27,7 @@ export class HealthController {
     return {
       ok: true,
       service: 'ptt-crm-api',
-      leads_read_source: this.config.leadsReadSource,
+      leads_read_source: 'pg',
       leads_write_enabled: this.config.leadsWriteEnabled,
       leads_create_id_mode: this.config.leadsCreateIdMode,
       portal_auth_stub_users: this.config.portalStubUsers.length,
@@ -37,8 +37,8 @@ export class HealthController {
       policy_bundle_version: this.config.staffPolicyOpaEnabled
         ? this.policy.loadManifestVersion()
         : null,
-      sqlite: this.config.sqliteAvailable(),
-      postgres: Boolean(this.config.databaseUrl),
+      sqlite: false,
+      postgres: true,
     };
   }
 }

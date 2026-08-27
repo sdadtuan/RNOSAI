@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException, OnModuleDestroy } from '@nestjs/common';
-import { DatabaseSync } from 'node:sqlite';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import {
@@ -96,7 +95,6 @@ function computeHealthScore(params: {
 @Injectable()
 export class SeoAdminRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
-  private sqlite: DatabaseSync | null = null;
 
   constructor(private readonly config: AppConfigService) {}
 
@@ -107,22 +105,9 @@ export class SeoAdminRepository implements OnModuleDestroy {
     return this.pool;
   }
 
-  private get sqliteDb(): DatabaseSync | null {
-    if (!this.config.sqliteAvailable()) return null;
-    if (!this.sqlite) {
-      this.sqlite = new DatabaseSync(this.config.sqlitePath);
-      this.sqlite.exec('PRAGMA foreign_keys = ON');
-    }
-    return this.sqlite;
-  }
-
   onModuleDestroy(): void {
     void this.pool?.end();
     this.pool = null;
-    if (this.sqlite) {
-      this.sqlite.close();
-      this.sqlite = null;
-    }
   }
 
   async hubSummary(params: {
@@ -459,14 +444,16 @@ export class SeoAdminRepository implements OnModuleDestroy {
     limit: number,
   ): Promise<SeoCriticalIssueRow[]> {
     const params: unknown[] = [];
-    let sql = `SELECT id, customer_id, url, issue_type, severity, status
-               FROM ${SCHEMA}.seo_technical_issues
-               WHERE severity = 'critical' AND status NOT IN ('closed', 'verified')`;
+    let sql = `SELECT i.id, i.customer_id, i.url, i.issue_type, i.severity, i.status,
+                      c.name AS customer_name
+               FROM ${SCHEMA}.seo_technical_issues i
+               LEFT JOIN crm_customers c ON c.id = i.customer_id
+               WHERE i.severity = 'critical' AND i.status NOT IN ('closed', 'verified')`;
     if (customerId != null) {
-      sql += ' AND customer_id = $1';
+      sql += ' AND i.customer_id = $1';
       params.push(customerId);
     }
-    sql += ` ORDER BY id DESC LIMIT $${params.length + 1}`;
+    sql += ` ORDER BY i.id DESC LIMIT $${params.length + 1}`;
     params.push(limit);
     const result = await this.db.query<{
       id: number;
@@ -475,6 +462,7 @@ export class SeoAdminRepository implements OnModuleDestroy {
       issue_type: string;
       severity: string;
       status: string;
+      customer_name: string | null;
     }>(sql, params);
     return result.rows.map((row) => ({
       id: row.id,
@@ -483,21 +471,8 @@ export class SeoAdminRepository implements OnModuleDestroy {
       issue_type: row.issue_type ?? '',
       severity: row.severity ?? '',
       status: row.status ?? '',
-      customer_name: this.customerNameFromSqlite(row.customer_id),
+      customer_name: row.customer_name ?? '',
     }));
-  }
-
-  private customerNameFromSqlite(customerId: number): string {
-    const db = this.sqliteDb;
-    if (!db || customerId <= 0) return '';
-    try {
-      const row = db
-        .prepare('SELECT name FROM crm_customers WHERE id = ?')
-        .get(customerId) as { name?: string } | undefined;
-      return String(row?.name ?? '').trim();
-    } catch {
-      return '';
-    }
   }
 
   async patchIntegrations(
@@ -719,7 +694,7 @@ export class SeoAdminRepository implements OnModuleDestroy {
   }
 
   async listClientTasks(customerId: number): Promise<SeoClientTasksResponse> {
-    const serviceTasks = this.listServiceTasksFromSqlite(customerId);
+    const serviceTasks = await this.listServiceTasks(customerId);
     const technicalIssues = await this.listTechnicalIssues(customerId);
     return {
       ok: true,
@@ -730,59 +705,34 @@ export class SeoAdminRepository implements OnModuleDestroy {
     };
   }
 
-  private listServiceTasksFromSqlite(customerId: number): SeoClientTaskServiceRow[] {
-    const db = this.sqliteDb;
-    if (!db) return [];
-    try {
-      const table = db
-        .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='crm_service_lifecycle'")
-        .get();
-      if (!table) return [];
-      const placeholders = SEO_AEO_SERVICE_SLUGS.map(() => '?').join(',');
-      const lifecycles = db
-        .prepare(
-          `SELECT id, service_slug FROM crm_service_lifecycle
-           WHERE customer_id = ? AND service_slug IN (${placeholders})
-           ORDER BY id DESC`,
-        )
-        .all(customerId, ...SEO_AEO_SERVICE_SLUGS) as Array<{ id: number; service_slug: string }>;
-      const tasks: SeoClientTaskServiceRow[] = [];
-      for (const lc of lifecycles) {
-        const taskTable = db
-          .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='crm_svc_tasks'")
-          .get();
-        if (!taskTable) continue;
-        const rows = db
-          .prepare(
-            `SELECT id, lifecycle_id, stage, title, due_on, is_done
-             FROM crm_svc_tasks WHERE lifecycle_id = ? AND is_done = 0
-             ORDER BY stage, step_index ASC, id ASC`,
-          )
-          .all(lc.id) as Array<{
-          id: number;
-          lifecycle_id: number;
-          stage: string;
-          title: string;
-          due_on: string | null;
-          is_done: number;
-        }>;
-        for (const row of rows) {
-          tasks.push({
-            kind: 'service',
-            task_id: row.id,
-            lifecycle_id: row.lifecycle_id,
-            service_slug: lc.service_slug,
-            stage: row.stage,
-            title: row.title || `Task #${row.id}`,
-            due_on: row.due_on ?? '',
-            url: `/crm/service-delivery/${row.lifecycle_id}#task-card-${row.id}`,
-          });
-        }
-      }
-      return tasks;
-    } catch {
-      return [];
-    }
+  private async listServiceTasks(customerId: number): Promise<SeoClientTaskServiceRow[]> {
+    const result = await this.db.query<{
+      id: number;
+      lifecycle_id: number;
+      service_slug: string;
+      stage: string;
+      title: string;
+      due_on: string | null;
+    }>(
+      `SELECT t.id, t.lifecycle_id, lc.service_slug, t.stage, t.title, t.due_on::text AS due_on
+       FROM crm_svc_tasks t
+       INNER JOIN crm_service_lifecycle lc ON lc.id = t.lifecycle_id
+       WHERE lc.customer_id = $1
+         AND lc.service_slug = ANY($2::text[])
+         AND t.is_done = FALSE
+       ORDER BY lc.id DESC, t.stage, t.step_index ASC, t.id ASC`,
+      [customerId, SEO_AEO_SERVICE_SLUGS],
+    );
+    return result.rows.map((row) => ({
+      kind: 'service',
+      task_id: row.id,
+      lifecycle_id: row.lifecycle_id,
+      service_slug: row.service_slug,
+      stage: row.stage,
+      title: row.title || `Task #${row.id}`,
+      due_on: row.due_on ?? '',
+      url: `/crm/service-delivery/${row.lifecycle_id}#task-card-${row.id}`,
+    }));
   }
 
   private async listTechnicalIssues(customerId: number): Promise<SeoClientTaskTechnicalRow[]> {
