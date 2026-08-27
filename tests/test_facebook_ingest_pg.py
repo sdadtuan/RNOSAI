@@ -302,6 +302,31 @@ class TestFacebookPgWebhookBatch(unittest.TestCase):
         )
         self.assertEqual(out["created_count"], 1)
         mock_process.assert_called_once()
+        self.assertFalse(mock_process.call_args.kwargs.get("skip_source_filter"))
+
+    @patch("ptt_crm.facebook_ingest_pg.process_facebook_lead_item_pg")
+    def test_ingest_webhook_skips_source_filter_when_b2b_mapped(self, mock_process) -> None:
+        from ptt_crm.lead_ingest_pg import ingest_webhook_leads_pg
+
+        mock_process.return_value = {"status": "created_unassigned", "lead_id": 880_001_002}
+        out = ingest_webhook_leads_pg(
+            [
+                {
+                    "full_name": "B2B FB",
+                    "phone": "0901",
+                    "b2b_project_id": "da5de896-1721-47e9-b645-e6b499b5dc04",
+                    "lead_flow_kind": "b2b_prospect",
+                    "meta": {"facebook_leadgen_id": "y", "facebook_form_id": "1062082956684532"},
+                }
+            ],
+            channel="meta",
+            client_id=None,
+            default_source="facebook",
+            created_by="worker",
+            ts=TS,
+        )
+        self.assertEqual(out["created_count"], 1)
+        self.assertTrue(mock_process.call_args.kwargs.get("skip_source_filter"))
 
 
 if __name__ == "__main__":
