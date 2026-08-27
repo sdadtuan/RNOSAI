@@ -10,7 +10,7 @@ import {
   StaffSalesWriteGuard,
 } from './guards/staff-sales.guard';
 import { SalesController } from './sales.controller';
-import { SalesSqliteRepository } from './sales-sqlite.repository';
+import { SalesPgRepository } from './sales-pg.repository';
 import { SalesService } from './sales.service';
 
 @Module({
@@ -18,7 +18,7 @@ import { SalesService } from './sales.service';
   controllers: [SalesController],
   providers: [
     SalesService,
-    SalesSqliteRepository,
+    SalesPgRepository,
     StaffSalesViewGuard,
     StaffSalesFunnelViewGuard,
     StaffSalesWriteGuard,
@@ -26,6 +26,6 @@ import { SalesService } from './sales.service';
     StaffSalesTrainingWriteGuard,
     StaffSalesMarketWriteGuard,
   ],
-  exports: [SalesService],
+  exports: [SalesService, SalesPgRepository],
 })
 export class SalesModule {}
