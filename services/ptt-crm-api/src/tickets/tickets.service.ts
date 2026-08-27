@@ -1,39 +1,37 @@
 import { Injectable } from '@nestjs/common';
-import { TicketsSqliteRepository } from './tickets-sqlite.repository';
+import { TicketsPgRepository } from './tickets-pg.repository';
 import type {
   CreateTicketBody,
   CreateTicketMessageBody,
   ListTicketsQuery,
   PatchTicketBody,
-  TicketMessageRow,
-  TicketRow,
 } from './tickets.types';
 
 @Injectable()
 export class TicketsService {
-  constructor(private readonly repo: TicketsSqliteRepository) {}
+  constructor(private readonly repo: TicketsPgRepository) {}
 
   list(query: ListTicketsQuery) {
     return this.repo.list(query);
   }
 
-  getById(id: number): TicketRow | null {
+  getById(id: number) {
     return this.repo.getById(id);
   }
 
-  create(body: CreateTicketBody): TicketRow {
+  create(body: CreateTicketBody) {
     return this.repo.create(body);
   }
 
-  patch(id: number, body: PatchTicketBody): TicketRow {
+  patch(id: number, body: PatchTicketBody) {
     return this.repo.patch(id, body);
   }
 
-  listMessages(ticketId: number): TicketMessageRow[] {
+  listMessages(ticketId: number) {
     return this.repo.listMessages(ticketId);
   }
 
-  addMessage(ticketId: number, body: CreateTicketMessageBody): TicketMessageRow {
+  addMessage(ticketId: number, body: CreateTicketMessageBody) {
     return this.repo.addMessage(ticketId, body);
   }
 }

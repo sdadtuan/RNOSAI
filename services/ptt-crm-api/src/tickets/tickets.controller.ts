@@ -45,8 +45,8 @@ export class TicketsController {
   }
 
   @Get(':id/messages')
-  listMessages(@Param('id', ParseIntPipe) id: number) {
-    return { messages: this.tickets.listMessages(id) };
+  async listMessages(@Param('id', ParseIntPipe) id: number) {
+    return { messages: await this.tickets.listMessages(id) };
   }
 
   @Get(':id')
