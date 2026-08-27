@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { MarketingPlansSqliteRepository } from './marketing-plans-sqlite.repository';
+import { MarketingPlansPgRepository } from './marketing-plans-pg.repository';
 import {
   CreateMarketingPlanBody,
   CRM_MARKETING_PLAN_STATUSES,
@@ -12,15 +12,15 @@ import {
 
 @Injectable()
 export class MarketingPlansService {
-  constructor(private readonly sqlite: MarketingPlansSqliteRepository) {}
+  constructor(private readonly pg: MarketingPlansPgRepository) {}
 
-  list(fiscalYear?: number, status?: string, q?: string) {
+  async list(fiscalYear?: number, status?: string, q?: string) {
     const qRaw = String(q ?? '').trim().toLowerCase();
     let st = String(status ?? 'all').trim().toLowerCase();
     if (!CRM_MARKETING_PLAN_STATUSES.includes(st as (typeof CRM_MARKETING_PLAN_STATUSES)[number]) && st !== 'all') {
       st = 'all';
     }
-    const plans = this.sqlite.listPlans({
+    const plans = await this.pg.listPlans({
       fiscalYear,
       status: st,
       q: qRaw || undefined,
@@ -28,25 +28,25 @@ export class MarketingPlansService {
     return { plans };
   }
 
-  detail(id: number) {
-    const plan = this.sqlite.getPlanById(id);
+  async detail(id: number) {
+    const plan = await this.pg.getPlanById(id);
     if (!plan) {
       throw new NotFoundException({ error: 'Không tìm thấy kế hoạch' });
     }
-    const milestones = this.sqlite.listMilestones(id);
-    const campaigns = this.sqlite.listCampaigns(id);
+    const milestones = await this.pg.listMilestones(id);
+    const campaigns = await this.pg.listCampaigns(id);
     return { ...plan, milestones, campaigns };
   }
 
-  create(body: CreateMarketingPlanBody) {
+  async create(body: CreateMarketingPlanBody) {
     const name = String(body.name ?? '').trim();
     if (!name) {
       throw new BadRequestException({ error: 'Thiếu tên kế hoạch' });
     }
-    return this.sqlite.createPlan({ ...body, name });
+    return this.pg.createPlan({ ...body, name });
   }
 
-  patch(id: number, body: PatchMarketingPlanBody) {
+  async patch(id: number, body: PatchMarketingPlanBody) {
     if ('name' in body && body.name != null) {
       const nm = String(body.name).trim();
       if (!nm) {
@@ -54,15 +54,15 @@ export class MarketingPlansService {
       }
     }
     const { khtn_market_research_json: _ignored, ...safe } = body;
-    const updated = this.sqlite.patchPlan(id, safe);
+    const updated = await this.pg.patchPlan(id, safe);
     if (!updated) {
       throw new NotFoundException({ error: 'Không tìm thấy kế hoạch' });
     }
     return updated;
   }
 
-  segmentRefs(id: number) {
-    const plan = this.sqlite.getPlanById(id);
+  async segmentRefs(id: number) {
+    const plan = await this.pg.getPlanById(id);
     if (!plan) {
       throw new NotFoundException({ error: 'Không tìm thấy kế hoạch' });
     }
