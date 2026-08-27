@@ -26,6 +26,7 @@ export interface StaffStubUser {
 @Injectable()
 export class AppConfigService {
   readonly port: number;
+  /** Legacy SQLite file path for modules not yet cut over. Wave 1 modules in WAVE1_PG_MODULES use databaseUrl only — no sqlitePath on the request path. */
   readonly sqlitePath: string;
   readonly databaseUrl: string;
   readonly leadsReadSource: LeadsReadSource;
