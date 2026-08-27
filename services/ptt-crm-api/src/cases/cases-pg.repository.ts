@@ -236,13 +236,12 @@ export class CasesPgRepository implements OnModuleDestroy {
 
   async listCareReports(caseId: number, limit = 50): Promise<CareReportRow[]> {
     await this.ensureSchema();
-    const capped = Math.max(1, Math.min(Number(limit) || 50, 200));
     const result = await this.db.query(
       `SELECT * FROM crm_care_reports
        WHERE case_id = $1
        ORDER BY id DESC
        LIMIT $2`,
-      [caseId, capped],
+      [caseId, limit],
     );
     return result.rows.map((row) => this.mapCareReportRow(row));
   }
