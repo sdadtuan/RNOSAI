@@ -13,3 +13,5 @@ export default function CrmIntakePage({ searchParams }: CrmIntakePageProps) {
 
   return <IntakeContent initialLeadId={leadId} initialLifecycleId={lifecycleId} />;
 }
+
+export const dynamic = 'force-dynamic';

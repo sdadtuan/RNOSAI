@@ -427,7 +427,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           + Tạo lead
         </Link>
       ) : null}
-      <Link href="/crm/intake" className="btn btn-sm btn-ghost">
+      <Link href="/crm/leads" className="btn btn-sm btn-ghost">
         Lead Intake
       </Link>
     </>

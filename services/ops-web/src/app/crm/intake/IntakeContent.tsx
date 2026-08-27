@@ -109,10 +109,11 @@ export function IntakeContent({
   initialLifecycleId?: number;
 }) {
   const router = useRouter();
-  const leadId = initialLeadId;
-  const lifecycleId = initialLifecycleId;
+  const [leadId, setLeadId] = useState(initialLeadId);
+  const [lifecycleId, setLifecycleId] = useState(initialLifecycleId);
 
-  const [user, setUser] = useState<StoredStaffUser | null>(null);
+  const [user, setUser] = useState<StoredStaffUser | null>(() => getStoredUser());
+  const [authReady, setAuthReady] = useState(false);
   const [sessions, setSessions] = useState<IntakeSessionRow[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [bant, setBant] = useState<Record<string, number>>({});
@@ -142,6 +143,21 @@ export function IntakeContent({
   const [completeWarnings, setCompleteWarnings] = useState<IntakeValidationIssue[]>([]);
   const [validationErrors, setValidationErrors] = useState<IntakeValidationIssue[]>([]);
   const saveInFlightRef = useRef(false);
+
+  useEffect(() => {
+    setLeadId(initialLeadId);
+    setLifecycleId(initialLifecycleId);
+  }, [initialLeadId, initialLifecycleId]);
+
+  useEffect(() => {
+    if (leadId > 0 || lifecycleId > 0) return;
+    if (typeof window === 'undefined') return;
+    const sp = new URLSearchParams(window.location.search);
+    const lid = Number(sp.get('lead_id') || 0);
+    const lcid = Number(sp.get('lifecycle_id') || 0);
+    if (lid > 0) setLeadId(lid);
+    if (lcid > 0) setLifecycleId(lcid);
+  }, [leadId, lifecycleId]);
 
   const contextOk = useMemo(
     () => (Number.isFinite(leadId) && leadId > 0) || (Number.isFinite(lifecycleId) && lifecycleId > 0),
@@ -329,19 +345,20 @@ export function IntakeContent({
   );
 
   useEffect(() => {
-    if (!contextOk) {
-      setError('Cần lead_id hoặc lifecycle_id trong URL');
-      setLoading(false);
-      return;
-    }
     void (async () => {
+      setLoading(true);
+      setError('');
       const access = await ensureAuth();
+      setAuthReady(true);
       if (!access) {
         setLoading(false);
         return;
       }
-      setLoading(true);
-      setError('');
+      if (!contextOk) {
+        setError('Chọn lead từ danh sách hoặc mở từ trang chi tiết lead (cần ?lead_id= trong URL).');
+        setLoading(false);
+        return;
+      }
       try {
         await fetchIntakeDefinitions(access);
         const definition = await fetchIntakeDefinitionBySlug(access, '_common');
@@ -748,9 +765,9 @@ export function IntakeContent({
   const systemSessionCount =
     stats && typeof stats.total_sessions === 'number' ? stats.total_sessions : null;
 
-  if (!user) {
+  if (!authReady) {
     return (
-      <StaffPageShell user={null} onLogout={logout} loading>
+      <StaffPageShell user={user} onLogout={logout} loading>
         <span />
       </StaffPageShell>
     );
@@ -784,6 +801,15 @@ export function IntakeContent({
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
         {message ? <p className="intake-page__message">{message}</p> : null}
+
+        {!loading && !contextOk ? (
+          <p className="muted">
+            <Link href="/crm/leads" className="nav-link">
+              ← Mở danh sách leads
+            </Link>
+            {' '}để chọn lead và bắt đầu khảo sát BANT.
+          </p>
+        ) : null}
 
         {!loading && contextOk ? (
           <div className={`intake-layout${sidebarOpen ? ' intake-layout--sidebar-open' : ''}`}>

@@ -357,7 +357,7 @@ function buildSections(
 
   const prepare: NavLink[] = [];
   if (hasCap(user, 'crm_leads', 'view')) {
-    prepare.push({ href: '/crm/intake', label: 'Lead Intake' });
+    prepare.push({ href: '/crm/leads', label: 'Lead Intake' });
   }
   if (hasCap(user, 'crm_b2b_projects', 'view')) {
     prepare.push({ href: '/crm/b2b-projects', label: 'Dự án PTT' });
