@@ -44,7 +44,7 @@ export class ReProjectsChannelsPgRepository implements OnModuleDestroy {
       CREATE TABLE IF NOT EXISTS crm_re_project_types (
         id BIGSERIAL PRIMARY KEY, code TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '', sort_order INTEGER NOT NULL DEFAULT 0,
-        active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT '',
+        active BOOLEAN NOT NULL DEFAULT TRUE, created_at TEXT NOT NULL DEFAULT '',
         updated_at TEXT NOT NULL DEFAULT ''
       );
       CREATE TABLE IF NOT EXISTS crm_re_projects (
@@ -153,7 +153,7 @@ export class ReProjectsChannelsPgRepository implements OnModuleDestroy {
         sort += 10;
         await this.db.query(
           `INSERT INTO crm_re_project_types(code,name,description,sort_order,active,created_at,updated_at)
-           VALUES($1,$2,'',$3,1,$4,$4) ON CONFLICT(code) DO NOTHING`,
+           VALUES($1,$2,'',$3,TRUE,$4,$4) ON CONFLICT(code) DO NOTHING`,
           [code, name, sort, ts],
         );
       }
@@ -220,7 +220,7 @@ export class ReProjectsChannelsPgRepository implements OnModuleDestroy {
   }): Promise<ReProjectStaffRow> {
     await this.validateProjectExists(projectId);
     const sid = Number(payload.staff_id);
-    const staff = await this.query('SELECT id FROM crm_staff WHERE id=$1 AND COALESCE(active,1)=1', [sid]);
+    const staff = await this.query('SELECT id FROM crm_staff WHERE id=$1 AND active IS NOT FALSE', [sid]);
     if (!staff.rows[0]) throw new Error('Nhân viên không hợp lệ hoặc đã ngưng.');
     const ts = catalogTs();
     const saved = await this.query(

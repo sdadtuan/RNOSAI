@@ -57,7 +57,7 @@ export class ReProjectsPgRepository extends ReProjectsChannelsPgRepository {
   async listProjectTypes(includeInactive = false): Promise<ReProjectTypeRow[]> {
     const result = await this.query(
       `SELECT t.*,(SELECT COUNT(*)::int FROM crm_re_projects p WHERE lower(p.project_type)=lower(t.code)) project_count
-       FROM crm_re_project_types t ${includeInactive ? '' : 'WHERE t.active=1'}
+       FROM crm_re_project_types t ${includeInactive ? '' : 'WHERE t.active IS TRUE'}
        ORDER BY t.sort_order,lower(t.name),t.id`,
     );
     return result.rows.map((r) => ({
@@ -90,8 +90,8 @@ export class ReProjectsPgRepository extends ReProjectsChannelsPgRepository {
           `UPDATE crm_re_project_types SET code=$1,name=$2,description=$3,sort_order=$4,
            active=$5,updated_at=$6 WHERE id=$7`,
           [code.slice(0, 40), name.slice(0, 120), text(payload.description).slice(0, 2000),
-            Number(payload.sort_order ?? 0), payload.active == null ? Number(row.active) :
-              payload.active === false || payload.active === 0 || payload.active === '0' ? 0 : 1, ts, typeId],
+            Number(payload.sort_order ?? 0), payload.active == null ? Boolean(row.active) :
+              !(payload.active === false || payload.active === 0 || payload.active === '0'), ts, typeId],
         );
       } catch (e) {
         if ((e as { code?: string }).code === '23505') throw new Error('Mã loại BĐS đã tồn tại.');
@@ -106,7 +106,8 @@ export class ReProjectsPgRepository extends ReProjectsChannelsPgRepository {
           `INSERT INTO crm_re_project_types(code,name,description,sort_order,active,created_at,updated_at)
            VALUES($1,$2,$3,$4,$5,$6,$6) RETURNING id`,
           [code.slice(0, 40), name.slice(0, 120), text(payload.description).slice(0, 2000),
-            Number(payload.sort_order ?? 0), payload.active === false || payload.active === 0 || payload.active === '0' ? 0 : 1, ts],
+            Number(payload.sort_order ?? 0),
+            !(payload.active === false || payload.active === 0 || payload.active === '0'), ts],
         );
         id = Number(inserted.rows[0].id);
       } catch (e) {
@@ -317,13 +318,13 @@ export class ReProjectsPgRepository extends ReProjectsChannelsPgRepository {
   private async resolveMetric(payload: Record<string, unknown>, name: string, unit: string) {
     const id = Number(payload.metric_id ?? 0);
     if (id > 0) {
-      const found = await this.query('SELECT id,code,name,unit FROM crm_kpi_metrics WHERE id=$1 AND active=1', [id]);
+      const found = await this.query('SELECT id,code,name,unit FROM crm_kpi_metrics WHERE id=$1 AND active IS TRUE', [id]);
       if (found.rows[0]) return found.rows[0];
     }
     const codes = [text(payload.metric_code), ...KPI_METRIC_TEMPLATES
       .filter((t) => t.code === payload.metric_code || t.metric_name === name).map((t) => t.crm_code)].filter(Boolean);
     for (const code of codes) {
-      const found = await this.query('SELECT id,code,name,unit FROM crm_kpi_metrics WHERE lower(trim(code))=lower($1) AND active=1', [code]);
+      const found = await this.query('SELECT id,code,name,unit FROM crm_kpi_metrics WHERE lower(trim(code))=lower($1) AND active IS TRUE', [code]);
       if (found.rows[0]) return found.rows[0];
     }
     return { id: null, code: text(payload.metric_code).slice(0, 40), name, unit };
@@ -339,10 +340,10 @@ export class ReProjectsPgRepository extends ReProjectsChannelsPgRepository {
     const note = `[Dự án BĐS: ${project?.name ?? ''} (#${projectId})] ${text(row.notes).trim()}`.trim().slice(0, 2000);
     try {
       const saved = await this.query(
-        `INSERT INTO crm_staff_kpi(staff_id,metric_id,year,month,target_value,actual_value,status,note,created_at,updated_at)
+        `INSERT INTO crm_staff_kpi(staff_id,metric_id,year,month,target_value,actual_value,status,notes,created_at,updated_at)
          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          ON CONFLICT(staff_id,metric_id,year,month) DO UPDATE SET target_value=EXCLUDED.target_value,
-         actual_value=EXCLUDED.actual_value,status=EXCLUDED.status,note=EXCLUDED.note,updated_at=EXCLUDED.updated_at
+         actual_value=EXCLUDED.actual_value,status=EXCLUDED.status,notes=EXCLUDED.notes,updated_at=EXCLUDED.updated_at
          RETURNING id`,
         [Number(row.owner_staff_id), Number(row.metric_id), year, month, Number(row.target_value ?? 0),
           Number(row.actual_value ?? 0), mapReTrackToStaffStatus(text(row.track_status)), note,
@@ -400,7 +401,7 @@ export class ReProjectsPgRepository extends ReProjectsChannelsPgRepository {
 
   async listCrmKpiMetrics(reOnly = false): Promise<Array<Record<string, unknown>>> {
     try {
-      const result = await this.query(`SELECT * FROM crm_kpi_metrics WHERE active=1 ${reOnly ? "AND code LIKE 'RE_%'" : ''} ORDER BY sort_order,lower(name)`);
+      const result = await this.query(`SELECT * FROM crm_kpi_metrics WHERE active IS TRUE ${reOnly ? "AND code LIKE 'RE_%'" : ''} ORDER BY sort_order,lower(name)`);
       return result.rows;
     } catch { return []; }
   }
@@ -429,7 +430,7 @@ export class ReProjectsPgRepository extends ReProjectsChannelsPgRepository {
     const period = text(options.periodMonth).slice(0, 7) || currentPeriodMonth();
     const ts = options.ts ?? catalogTs();
     const count = await this.query(
-      `SELECT COUNT(*)::int c FROM crm_leads WHERE re_project_id=$1 AND COALESCE(is_duplicate,0)=0
+      `SELECT COUNT(*)::int c FROM crm_leads WHERE re_project_id=$1 AND is_duplicate IS NOT TRUE
        AND NOT (status = ANY($2::text[])) AND substring(COALESCE(created_at::text,''),1,7)=$3`,
       [projectId, [...RE_LEADS_NEW_EXCLUDED_STATUSES], period],
     ).catch(() => ({ rows: [{ c: 0 }] } as any));

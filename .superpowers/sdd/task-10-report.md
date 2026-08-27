@@ -56,3 +56,18 @@ Skipped `/health` ffmpeg boolean — smoke step 0 preferred per brief.
 1. Smoke assumes API reachable; local dev without server will fail at curl (expected).
 2. `18-content-marketing-os.md` committed as new tracked file (was untracked in workspace).
 3. VPS must have `ffmpeg` binary installed separately — deploy script sets flags only.
+
+## Important review findings follow-up — 2026-08-27
+
+- Replaced SQLite integer boolean predicates in the RE projects PostgreSQL repositories with native PostgreSQL boolean predicates:
+  - Active project types and KPI metrics use `active IS TRUE`.
+  - Nullable staff activity uses `active IS NOT FALSE`.
+  - Duplicate lead exclusion uses `is_duplicate IS NOT TRUE`.
+- Aligned the RE project type bootstrap schema and write parameters with PostgreSQL `BOOLEAN`.
+- Corrected staff KPI synchronization to write `crm_staff_kpi.notes` and update from `EXCLUDED.notes`.
+- Added `re-projects-pg.repository.spec.ts` with regression checks for the PostgreSQL SQL strings.
+
+### Follow-up verification
+
+- `npx jest src/re-projects --no-coverage` — PASS (2 suites, 5 tests).
+- `npm run build` — PASS.
