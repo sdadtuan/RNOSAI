@@ -15,7 +15,7 @@ import {
 } from '../playbooks/playbook-closed-loop.util';
 import { cosineSimilarity, embedPlaybookText, keywordScore } from '../playbooks/playbooks.types';
 import { CskhBoardService } from '../cskh-board/cskh-board.service';
-import { CasesSqliteRepository } from '../cases/cases-sqlite.repository';
+import { CasesPgRepository } from '../cases/cases-pg.repository';
 import { AI_USE_CASE } from './ai-audit.constants';
 import { AiAuditService } from './ai-audit.service';
 import { AiRecommendationsRepository } from './ai-recommendations.repository';
@@ -91,7 +91,7 @@ export class AiNbaService {
     private readonly leadSqlite: CrmLeadsSqliteRepository,
     private readonly scores: AiScoresRepository,
     private readonly recommendations: AiRecommendationsRepository,
-    private readonly cases: CasesSqliteRepository,
+    private readonly cases: CasesPgRepository,
     private readonly playbooks: PlaybooksRepository,
     private readonly crmLegacy: CrmLeadsLegacyService,
     private readonly slaCare: LeadSlaCareService,
@@ -142,7 +142,7 @@ export class AiNbaService {
     if (!Number.isFinite(dealId)) return null;
     const template = String(rec.action_json?.task_template ?? rec.recommendation_text);
     const body = `[NBA accepted${actorName ? ` · ${actorName}` : ''}] ${template}`;
-    const event = this.cases.createEvent(dealId, body);
+    const event = await this.cases.createEvent(dealId, body);
     return event.id;
   }
 
