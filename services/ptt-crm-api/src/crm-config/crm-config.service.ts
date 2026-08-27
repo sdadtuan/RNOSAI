@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { pipelineRuntimeFromKeys } from '../sales/sales-pipeline.util';
-import { CrmConfigSqliteRepository } from './crm-config-sqlite.repository';
+import { CrmConfigPgRepository } from './crm-config-pg.repository';
 import type {
   CreateCustomFieldBody,
   CreateLeadLookupBody,
@@ -19,47 +19,51 @@ import { DEFAULT_SALES_PIPELINE_KEY } from './crm-config.defaults';
 
 @Injectable()
 export class CrmConfigService {
-  constructor(private readonly repo: CrmConfigSqliteRepository) {}
+  constructor(private readonly repo: CrmConfigPgRepository) {}
 
-  listCustomFields(entityType?: string): { fields: CustomFieldDef[] } {
-    return { fields: this.repo.listCustomFields(entityType) };
+  async listCustomFields(entityType?: string): Promise<{ fields: CustomFieldDef[] }> {
+    return { fields: await this.repo.listCustomFields(entityType) };
   }
 
-  getCustomField(id: number): CustomFieldDef {
+  getCustomField(id: number): Promise<CustomFieldDef> {
     return this.repo.getCustomField(id);
   }
 
-  createCustomField(body: CreateCustomFieldBody): CustomFieldDef {
+  createCustomField(body: CreateCustomFieldBody): Promise<CustomFieldDef> {
     return this.repo.createCustomField(body);
   }
 
-  updateCustomField(id: number, body: UpdateCustomFieldBody): CustomFieldDef {
+  updateCustomField(id: number, body: UpdateCustomFieldBody): Promise<CustomFieldDef> {
     return this.repo.updateCustomField(id, body);
   }
 
-  deleteCustomField(id: number): { ok: true; id: number } {
+  deleteCustomField(id: number): Promise<{ ok: true; id: number }> {
     return this.repo.deleteCustomField(id);
   }
 
-  listSalesPipelineStages(includeInactive?: boolean): { pipeline_key: string; stages: PipelineStageDef[] } {
-    const stages = this.repo.listPipelineStages(DEFAULT_SALES_PIPELINE_KEY, includeInactive);
+  async listSalesPipelineStages(
+    includeInactive?: boolean,
+  ): Promise<{ pipeline_key: string; stages: PipelineStageDef[] }> {
+    const stages = await this.repo.listPipelineStages(DEFAULT_SALES_PIPELINE_KEY, includeInactive);
     return { pipeline_key: DEFAULT_SALES_PIPELINE_KEY, stages };
   }
 
-  createSalesPipelineStage(body: CreatePipelineStageBody): PipelineStageDef {
+  createSalesPipelineStage(body: CreatePipelineStageBody): Promise<PipelineStageDef> {
     return this.repo.createPipelineStage(DEFAULT_SALES_PIPELINE_KEY, body);
   }
 
-  patchSalesPipelineStage(stageKey: string, body: PatchPipelineStageBody): PipelineStageDef {
+  patchSalesPipelineStage(stageKey: string, body: PatchPipelineStageBody): Promise<PipelineStageDef> {
     return this.repo.patchPipelineStage(DEFAULT_SALES_PIPELINE_KEY, stageKey, body);
   }
 
-  deleteSalesPipelineStage(stageKey: string): { ok: true; stage_key: string } {
+  deleteSalesPipelineStage(stageKey: string): Promise<{ ok: true; stage_key: string }> {
     return this.repo.deletePipelineStage(DEFAULT_SALES_PIPELINE_KEY, stageKey);
   }
 
-  replaceSalesPipelineStages(body: UpdatePipelineStagesBody): { pipeline_key: string; stages: PipelineStageDef[] } {
-    const stages = this.repo.replacePipelineStages(DEFAULT_SALES_PIPELINE_KEY, body);
+  async replaceSalesPipelineStages(
+    body: UpdatePipelineStagesBody,
+  ): Promise<{ pipeline_key: string; stages: PipelineStageDef[] }> {
+    const stages = await this.repo.replacePipelineStages(DEFAULT_SALES_PIPELINE_KEY, body);
     return { pipeline_key: DEFAULT_SALES_PIPELINE_KEY, stages };
   }
 
@@ -77,19 +81,22 @@ export class CrmConfigService {
     );
   }
 
-  listLeadLookups(kind?: LeadLookupKind, activeOnly = false): { options: LeadLookupOption[] } {
-    return { options: this.repo.listLeadLookups(kind, activeOnly) };
+  async listLeadLookups(
+    kind?: LeadLookupKind,
+    activeOnly = false,
+  ): Promise<{ options: LeadLookupOption[] }> {
+    return { options: await this.repo.listLeadLookups(kind, activeOnly) };
   }
 
-  createLeadLookup(body: CreateLeadLookupBody): LeadLookupOption {
+  createLeadLookup(body: CreateLeadLookupBody): Promise<LeadLookupOption> {
     return this.repo.createLeadLookup(body);
   }
 
-  updateLeadLookup(id: number, body: UpdateLeadLookupBody): LeadLookupOption {
+  updateLeadLookup(id: number, body: UpdateLeadLookupBody): Promise<LeadLookupOption> {
     return this.repo.updateLeadLookup(id, body);
   }
 
-  deleteLeadLookup(id: number): { ok: true; id: number } {
+  deleteLeadLookup(id: number): Promise<{ ok: true; id: number }> {
     return this.repo.deleteLeadLookup(id);
   }
 }

@@ -1,5 +1,5 @@
 import { CrmConfigService } from './crm-config.service';
-import { CrmConfigSqliteRepository } from './crm-config-sqlite.repository';
+import { CrmConfigPgRepository } from './crm-config-pg.repository';
 
 describe('CrmConfigService', () => {
   const repo = {
@@ -18,7 +18,7 @@ describe('CrmConfigService', () => {
     createLeadLookup: jest.fn(),
     updateLeadLookup: jest.fn(),
     deleteLeadLookup: jest.fn(),
-  } as unknown as CrmConfigSqliteRepository;
+  } as unknown as CrmConfigPgRepository;
 
   const service = new CrmConfigService(repo);
 
@@ -26,24 +26,24 @@ describe('CrmConfigService', () => {
     jest.clearAllMocks();
   });
 
-  it('returns custom field by id', () => {
+  it('returns custom field by id', async () => {
     const field = { id: 1, field_key: 'budget', label: 'Ngân sách' };
-    (repo.getCustomField as jest.Mock).mockReturnValue(field);
-    expect(service.getCustomField(1)).toEqual(field);
+    (repo.getCustomField as jest.Mock).mockResolvedValue(field);
+    await expect(service.getCustomField(1)).resolves.toEqual(field);
     expect(repo.getCustomField).toHaveBeenCalledWith(1);
   });
 
-  it('creates pipeline stage via repository', () => {
+  it('creates pipeline stage via repository', async () => {
     const stage = { stage_key: 'sql', label: 'SQL' };
-    (repo.createPipelineStage as jest.Mock).mockReturnValue(stage);
-    expect(service.createSalesPipelineStage({ label: 'SQL' })).toEqual(stage);
+    (repo.createPipelineStage as jest.Mock).mockResolvedValue(stage);
+    await expect(service.createSalesPipelineStage({ label: 'SQL' })).resolves.toEqual(stage);
     expect(repo.createPipelineStage).toHaveBeenCalledWith('sales', { label: 'SQL' });
   });
 
-  it('patches pipeline stage by key', () => {
+  it('patches pipeline stage by key', async () => {
     const stage = { stage_key: 'sql', label: 'SQL qualified' };
-    (repo.patchPipelineStage as jest.Mock).mockReturnValue(stage);
-    expect(service.patchSalesPipelineStage('sql', { label: 'SQL qualified' })).toEqual(stage);
+    (repo.patchPipelineStage as jest.Mock).mockResolvedValue(stage);
+    await expect(service.patchSalesPipelineStage('sql', { label: 'SQL qualified' })).resolves.toEqual(stage);
     expect(repo.patchPipelineStage).toHaveBeenCalledWith('sales', 'sql', { label: 'SQL qualified' });
   });
 });
