@@ -15,7 +15,6 @@ from crm_lead_store import (
     LEAD_LEVEL_LABELS,
     assign_lead_owner,
     classify_level,
-    find_duplicate_matches,
     lead_needs_cleanup,
     normalize_email,
     normalize_phone,
@@ -184,8 +183,6 @@ def _build_fb_pg_record(
 
     b2b_project_id = _normalize_uuid(item.get("b2b_project_id"))
     dup_matches = find_pg_contact_duplicates(phone=phone, email=email, b2b_project_id=b2b_project_id)
-    if not dup_matches:
-        dup_matches = find_duplicate_matches(config_conn, phone=phone, email=email)
 
     dup_of: int | None = None
     is_dup = False

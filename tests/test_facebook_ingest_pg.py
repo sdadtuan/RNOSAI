@@ -78,7 +78,14 @@ class FakePgStore:
             return lid
         return None
 
-    def find_contacts(self, *, phone: str = "", email: str = "", exclude_id: int | None = None) -> list[dict[str, Any]]:
+    def find_contacts(
+        self,
+        *,
+        phone: str = "",
+        email: str = "",
+        exclude_id: int | None = None,
+        b2b_project_id: str | None = None,
+    ) -> list[dict[str, Any]]:
         from crm_lead_store import normalize_email, normalize_phone
 
         ph = normalize_phone(phone)
@@ -284,6 +291,21 @@ class TestFacebookPgPipeline(FacebookPgIngestTestBase):
         item["meta"].pop("facebook_leadgen_id", None)
         result = self._process(item)
         self.assertEqual(result["status"], "skipped")
+
+    @patch("ptt_crm.facebook_ingest_pg.find_duplicate_matches")
+    def test_pg_ingest_does_not_query_sqlite_leads_for_duplicates(self, mock_sqlite_dup) -> None:
+        mock_sqlite_dup.side_effect = sqlite3.OperationalError("no such column: re_project_id")
+        item = build_facebook_lead_item(
+            full_name="PG Only",
+            phone="0908887770",
+            email="pgonly@test.com",
+            leadgen_id="fb_pg_no_sqlite_dup",
+            form_id="form_abc",
+            page_id="page_123",
+        )
+        result = self._process(item)
+        self.assertIn(result["status"], ("created_assigned", "created_unassigned"))
+        mock_sqlite_dup.assert_not_called()
 
 
 class TestFacebookPgWebhookBatch(unittest.TestCase):
