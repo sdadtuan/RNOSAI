@@ -23,11 +23,12 @@ class TestFormIngestFailure(unittest.TestCase):
         self.assertEqual(k1, k2)
         self.assertTrue(k1.startswith("form:"))
 
+    @patch("ptt_crm.config.leads_write_source_pg", return_value=False)
     @patch("ptt_jobs.form_ingest_failure.notify_form_ingest_dead")
     @patch("ptt_jobs.form_ingest_failure.jobs_sync_fallback", return_value=False)
     @patch("ptt_jobs.form_ingest_failure.jobs_enabled", return_value=False)
     @patch("ptt_jobs.form_ingest_failure.pg_available", return_value=False)
-    def test_spillover_when_queue_unavailable(self, _pg, _jobs, _sync, _notify) -> None:
+    def test_spillover_when_queue_unavailable(self, _pg, _jobs, _sync, _notify, _pg_write) -> None:
         with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
             conn = sqlite3.connect(tmp.name)
             ensure_spillover_table(conn)

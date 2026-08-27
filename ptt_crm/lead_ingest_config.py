@@ -87,6 +87,10 @@ def snapshot_has_rules(data: dict[str, Any] | None) -> bool:
 
 
 def _collect_sqlite_rules_snapshot(*, sqlite_path: str | None = None) -> dict[str, Any]:
+    if sqlite_path is None:
+        from ptt_crm.sqlite_guard import assert_sqlite_file_allowed
+
+        assert_sqlite_file_allowed(purpose="sync_ingest_rules_from_sqlite")
     path = sqlite_path or sqlite_db_path()
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
@@ -241,6 +245,9 @@ def sync_ingest_rules_from_sqlite(*, sqlite_path: str | None = None) -> dict[str
 
 
 def _open_sqlite_readonly() -> sqlite3.Connection:
+    from ptt_crm.sqlite_guard import assert_sqlite_file_allowed
+
+    assert_sqlite_file_allowed(purpose="open_ingest_rules_sqlite")
     path = sqlite_db_path()
     try:
         conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)

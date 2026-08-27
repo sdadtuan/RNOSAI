@@ -161,6 +161,11 @@ def upsert_pg_lead(record: dict[str, Any], *, write_source: str = "sync") -> Non
 
 
 def _fetch_sqlite_rows(*, after_id: int = 0, lead_ids: list[int] | None = None, limit: int = 200) -> list[sqlite3.Row]:
+    if _sync_disabled():
+        return []
+    from ptt_crm.sqlite_guard import assert_sqlite_file_allowed
+
+    assert_sqlite_file_allowed(purpose="lead_replica_sync")
     conn = sqlite3.connect(sqlite_db_path())
     conn.row_factory = sqlite3.Row
     try:

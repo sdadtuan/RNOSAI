@@ -21,7 +21,12 @@ _DATETIME_NOW = re.compile(
 
 
 def seo_db_mode() -> str:
-    return os.environ.get("SEO_AEO_DB", "pg").strip().lower() or "pg"
+    mode = os.environ.get("SEO_AEO_DB", "pg").strip().lower() or "pg"
+    if mode == "sqlite":
+        from ptt_crm.sqlite_guard import assert_sqlite_file_allowed
+
+        assert_sqlite_file_allowed(purpose="SEO_AEO_DB=sqlite")
+    return mode
 
 
 def seo_uses_pg() -> bool:
@@ -33,6 +38,9 @@ def seo_write_dual() -> bool:
 
 
 def _sqlite_path() -> Path:
+    from ptt_crm.sqlite_guard import assert_sqlite_file_allowed
+
+    assert_sqlite_file_allowed(purpose="seo_aeo_sqlite")
     raw = os.environ.get("PTT_SQLITE_PATH", "ptt.db").strip()
     p = Path(raw)
     if p.is_absolute():

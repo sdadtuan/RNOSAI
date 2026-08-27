@@ -35,6 +35,9 @@ def jobs_sync_fallback() -> bool:
 def sqlite_db_path() -> str:
     from pathlib import Path
 
+    from ptt_crm.sqlite_guard import assert_sqlite_file_allowed
+
+    assert_sqlite_file_allowed(purpose="sqlite_db_path")
     base = Path(__file__).resolve().parents[1]
     return os.environ.get("PTT_SQLITE_PATH", str(base / "ptt.db"))
 

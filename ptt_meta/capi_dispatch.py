@@ -286,7 +286,14 @@ def load_pg_lead(lead_id: int) -> dict[str, Any] | None:
 
 
 def load_lead_for_capi(lead_id: int) -> dict[str, Any] | None:
-    """SQLite shadow first, then PG OLTP fallback."""
+    """PG OLTP first; SQLite legacy only when explicitly allowed."""
+    from ptt_crm.config import leads_read_source_pg
+
+    if leads_read_source_pg():
+        lead = load_pg_lead(lead_id)
+        if lead:
+            return lead
+        return None
     lead = load_sqlite_lead(lead_id)
     if lead:
         return lead
