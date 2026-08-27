@@ -54,6 +54,77 @@ export class CrmLeadsPgRepository implements OnModuleDestroy {
     return String(result.rows[0]?.status ?? 'new');
   }
 
+  async getLeadRoutingSnapshot(leadId: number): Promise<{
+    ownerId: number | null;
+    reProjectId: number | null;
+  } | null> {
+    const result = await this.db.query(
+      `SELECT owner_id, re_project_id
+       FROM crm_leads
+       WHERE sqlite_lead_id = $1
+       LIMIT 1`,
+      [leadId],
+    );
+    const row = result.rows[0] as
+      | { owner_id: string | number | null; re_project_id: string | number | null }
+      | undefined;
+    if (!row) return null;
+    return {
+      ownerId: row.owner_id != null ? Number(row.owner_id) : null,
+      reProjectId: row.re_project_id != null ? Number(row.re_project_id) : null,
+    };
+  }
+
+  async listAssignableStaff(limit = 40): Promise<Array<{
+    staff_id: number;
+    staff_name: string;
+    staff_code: string;
+    role: string;
+    sort_order: number;
+  }>> {
+    const lim = Math.max(1, Math.min(limit, 100));
+    const result = await this.db.query(
+      `SELECT id AS staff_id, name AS staff_name,
+              COALESCE(internal_code, '') AS staff_code,
+              'sales' AS role, id AS sort_order
+       FROM crm_staff
+       WHERE COALESCE(active, TRUE) = TRUE
+       ORDER BY id ASC
+       LIMIT $1`,
+      [lim],
+    );
+    return (result.rows as Array<Record<string, unknown>>).map((row) => ({
+      staff_id: Number(row.staff_id),
+      staff_name: String(row.staff_name ?? ''),
+      staff_code: String(row.staff_code ?? ''),
+      role: String(row.role ?? 'sales'),
+      sort_order: Number(row.sort_order ?? 0),
+    }));
+  }
+
+  async countOpenLeadsByOwners(
+    staffIds: number[],
+    reProjectId: number | null,
+  ): Promise<Map<number, number>> {
+    const out = new Map<number, number>();
+    const ids = [...new Set(staffIds.filter((id) => Number.isFinite(id) && id > 0))];
+    if (!ids.length) return out;
+    const result = await this.db.query(
+      `SELECT owner_id, COUNT(*)::int AS open_count
+       FROM crm_leads
+       WHERE owner_id = ANY($1::bigint[])
+         AND COALESCE(status, 'new') NOT IN ('won', 'lost', 'converted', 'closed')
+         AND ($2::bigint IS NULL OR re_project_id = $2)
+         AND is_duplicate IS NOT TRUE
+       GROUP BY owner_id`,
+      [ids, reProjectId],
+    );
+    for (const row of result.rows as Array<{ owner_id: string; open_count: number }>) {
+      out.set(Number(row.owner_id), Number(row.open_count));
+    }
+    return out;
+  }
+
   async listActivities(leadId: number, limit = 100): Promise<LeadActivityRow[]> {
     const lim = Math.max(1, Math.min(limit, 500));
     const result = await this.db.query(
@@ -185,6 +256,14 @@ export class CrmLeadsPgRepository implements OnModuleDestroy {
     return out;
   }
 
+  async getFirstStaffContactAt(leadId: number): Promise<Date | null> {
+    return this.getStaffActivityAt(leadId, 'MIN');
+  }
+
+  async getLastStaffActivityAt(leadId: number): Promise<Date | null> {
+    return this.getStaffActivityAt(leadId, 'MAX');
+  }
+
   async listAssignmentLogs(leadId: number, limit = 100): Promise<LeadAssignmentLogRow[]> {
     const lim = Math.max(1, Math.min(limit, 200));
     const result = await this.db.query(
@@ -213,6 +292,19 @@ export class CrmLeadsPgRepository implements OnModuleDestroy {
       });
     }
     return out;
+  }
+
+  private async getStaffActivityAt(leadId: number, aggregate: 'MIN' | 'MAX'): Promise<Date | null> {
+    const result = await this.db.query(
+      `SELECT ${aggregate}(created_at) AS activity_at
+       FROM crm_lead_activities
+       WHERE lead_id = $1 AND activity_type != 'system'`,
+      [leadId],
+    );
+    const value = result.rows[0]?.activity_at;
+    if (!value) return null;
+    const parsed = new Date(String(value));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
   private mapActivity(d: Record<string, unknown>, userName: string): LeadActivityRow {

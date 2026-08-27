@@ -11,7 +11,7 @@ import { LeadsRepository } from '../leads/leads.repository';
 import { planContentFromRow } from '../leads-funnel/presales-marketing-plan.util';
 import { LeadsFunnelService } from '../leads-funnel/leads-funnel.service';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
-import { CrmLeadsSqliteRepository } from '../crm-leads-legacy/crm-leads-sqlite.repository';
+import { CrmLeadsPgRepository } from '../crm-leads-legacy/crm-leads-pg.repository';
 import { AppConfigService } from '../config/app-config.service';
 import { OpsProfilePgRepository } from '../ops/ops-profile-pg.repository';
 import { OpsRouteMapLoader } from '../ops/ops-route-map.loader';
@@ -62,7 +62,7 @@ export class DealRoomService {
   constructor(
     private readonly funnel: LeadsFunnelService,
     private readonly leads: LeadsRepository,
-    private readonly leadSqlite: CrmLeadsSqliteRepository,
+    private readonly leadPg: CrmLeadsPgRepository,
     private readonly legacy: CrmLeadsLegacyService,
     private readonly proposals: ProposalsPgRepository,
     private readonly routeMap: OpsRouteMapLoader,
@@ -117,7 +117,7 @@ export class DealRoomService {
     const ownerId = lead.owner_id;
     let ownerName: string | null = null;
     if (ownerId) {
-      ownerName = this.leadSqlite.staffNamesByIds([ownerId]).get(ownerId) ?? null;
+      ownerName = (await this.leadPg.staffNamesByIds([ownerId])).get(ownerId) ?? null;
     }
 
     let sciSlice = buildLmpDealRoomSciSlice(null, leadId);
@@ -406,7 +406,7 @@ export class DealRoomService {
     const ownerId = lead.owner_id;
     let ownerName: string | null = null;
     if (ownerId) {
-      ownerName = this.leadSqlite.staffNamesByIds([ownerId]).get(ownerId) ?? null;
+      ownerName = (await this.leadPg.staffNamesByIds([ownerId])).get(ownerId) ?? null;
     }
 
     const projectName = planContent.name || lead.full_name || `Lead #${leadId}`;

@@ -7,7 +7,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
-import { CrmLeadsSqliteRepository } from '../crm-leads-legacy/crm-leads-sqlite.repository';
+import { CrmLeadsPgRepository } from '../crm-leads-legacy/crm-leads-pg.repository';
 import { PlaybooksRepository } from '../playbooks/playbooks.repository';
 import {
   playbookRankBoostMap,
@@ -88,7 +88,7 @@ export class AiNbaService {
     private readonly audit: AiAuditService,
     private readonly dealContext: DealScoreContextRepository,
     private readonly leadContext: LeadScoreContextRepository,
-    private readonly leadSqlite: CrmLeadsSqliteRepository,
+    private readonly leadPg: CrmLeadsPgRepository,
     private readonly scores: AiScoresRepository,
     private readonly recommendations: AiRecommendationsRepository,
     private readonly cases: CasesPgRepository,
@@ -292,7 +292,7 @@ export class AiNbaService {
     }
 
     const latestScore = await this.scores.getLatest('lead', String(leadId));
-    const lastActivityAt = this.leadSqlite.getLastStaffActivityAt(leadId);
+    const lastActivityAt = await this.leadPg.getLastStaffActivityAt(leadId);
     const evaluated = computeLeadNbaV1(ctx, {
       lastActivityAt,
       leadScore: latestScore?.score_value ?? null,

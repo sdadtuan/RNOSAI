@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
-import { CrmLeadsSqliteRepository } from '../crm-leads-legacy/crm-leads-sqlite.repository';
+import { CrmLeadsPgRepository } from '../crm-leads-legacy/crm-leads-pg.repository';
 import {
   computeSpaMeta24hSlas,
   isSpaClosedStatus,
@@ -58,7 +58,7 @@ export class LeadSlaCareService implements OnModuleDestroy {
   constructor(
     private readonly config: AppConfigService,
     private readonly legacy: CrmLeadsLegacyService,
-    private readonly leadSqlite: CrmLeadsSqliteRepository,
+    private readonly leadPg: CrmLeadsPgRepository,
     private readonly lmpRepo: LeadMeetingPrepRepository,
   ) {}
 
@@ -120,7 +120,7 @@ export class LeadSlaCareService implements OnModuleDestroy {
       };
     }
 
-    const firstCallMap = this.leadSqlite.firstCallAtByLeadIds([leadId]);
+    const firstCallMap = await this.leadPg.firstCallAtByLeadIds([leadId]);
     const firstCallAt = firstCallMap.get(leadId) ?? null;
     const b2CompletedAt = parseB2CompletedAt(row.care_stages_done_json);
     const closedAt = isSpaClosedStatus(row.status) ? row.updated_at : null;
