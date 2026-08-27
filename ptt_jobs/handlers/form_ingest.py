@@ -1,7 +1,6 @@
 """Form landing ingest via job queue."""
 from __future__ import annotations
 
-import sqlite3
 from typing import Any
 
 
@@ -29,50 +28,7 @@ def _process_form_ingest_payload_pg(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def process_form_ingest_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    from ptt_crm.config import leads_write_source_pg
-
-    if leads_write_source_pg():
-        return _process_form_ingest_payload_pg(payload)
-
-    from ptt_jobs.config import sqlite_db_path
-
-    conn = sqlite3.connect(sqlite_db_path())
-    conn.row_factory = sqlite3.Row
-    try:
-        from datetime import datetime, timezone
-
-        from ptt_crm.form_lead_ingest import ingest_lead_from_form
-
-        ts = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-        lead_id = ingest_lead_from_form(
-            conn,
-            full_name=str(payload.get("full_name") or ""),
-            phone=str(payload.get("phone") or ""),
-            email=str(payload.get("email") or ""),
-            need=str(payload.get("need") or ""),
-            source=str(payload.get("source") or "website"),
-            region=str(payload.get("region") or ""),
-            product_interest=str(payload.get("product_interest") or ""),
-            utm_campaign=str(payload.get("utm_campaign") or ""),
-            re_project_id=(
-                int(payload["re_project_id"])
-                if payload.get("re_project_id") not in (None, "")
-                else None
-            ),
-            re_project_code=str(payload.get("re_project_code") or "") or None,
-            ingest_site=str(payload.get("ingest_site") or ""),
-            ts=ts,
-            _from_worker=True,
-        )
-        conn.commit()
-        if lead_id:
-            return {"ok": True, "lead_id": lead_id}
-        return {"ok": False, "error": payload.get("error") or "ingest returned none"}
-    except Exception as exc:
-        conn.rollback()
-        return {"ok": False, "error": str(exc)}
-    finally:
-        conn.close()
+    return _process_form_ingest_payload_pg(payload)
 
 
 def run_form_ingest_job(job: dict[str, Any]) -> None:

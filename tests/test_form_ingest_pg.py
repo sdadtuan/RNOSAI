@@ -138,6 +138,30 @@ class TestFormIngestPg(unittest.TestCase):
         self.assertEqual(pg_payload["channel"], "website")
         self.assertEqual(pg_payload["lead"]["raw"]["full_name"], "PG Form Lead")
 
+    @patch.dict(os.environ, {"PTT_LEADS_WRITE_SOURCE": "sqlite"}, clear=False)
+    @patch("ptt_crm.lead_ingest_pg.process_ingest_lead_payload_pg")
+    @patch("sqlite3.connect", side_effect=AssertionError("SQLite forbidden"))
+    def test_form_ingest_handler_has_no_sqlite_fallback(
+        self,
+        mock_connect: unittest.mock.MagicMock,
+        mock_pg_ingest: unittest.mock.MagicMock,
+    ) -> None:
+        from ptt_jobs.handlers.form_ingest import process_form_ingest_payload
+
+        mock_pg_ingest.return_value = {
+            "ok": True,
+            "created_ids": [43],
+            "created_count": 1,
+        }
+
+        result = process_form_ingest_payload(
+            {"full_name": "Always PG Form Lead", "phone": "0901234568"}
+        )
+
+        self.assertEqual(result, {"ok": True, "lead_id": 43})
+        mock_connect.assert_not_called()
+        mock_pg_ingest.assert_called_once()
+
     @patch.dict(os.environ, {"PTT_LEADS_WRITE_SOURCE": "pg"}, clear=False)
     @patch("ptt_crm.lead_ingest_pg.process_ingest_lead_payload_pg")
     def test_form_lead_ingest_module_pg_does_not_use_sqlite_conn(
@@ -174,6 +198,64 @@ class TestFormIngestPg(unittest.TestCase):
         mock_pg_ingest.assert_called_once()
         pg_payload = mock_pg_ingest.call_args.args[0]
         self.assertEqual(pg_payload["lead"]["raw"]["full_name"], "Direct PG Form Lead")
+
+    @patch.dict(os.environ, {"PTT_LEADS_WRITE_SOURCE": "sqlite"}, clear=False)
+    @patch("ptt_crm.lead_ingest_pg.process_ingest_lead_payload_pg")
+    def test_form_lead_ingest_has_no_sqlite_fallback(
+        self,
+        mock_pg_ingest: unittest.mock.MagicMock,
+    ) -> None:
+        from ptt_crm.form_lead_ingest import ingest_lead_from_form
+
+        mock_pg_ingest.return_value = {
+            "ok": True,
+            "created_ids": [78],
+            "created_count": 1,
+        }
+        mock_conn = unittest.mock.MagicMock()
+        mock_conn.execute.side_effect = AssertionError("SQLite conn must not be used")
+
+        lead_id = ingest_lead_from_form(
+            mock_conn,
+            full_name="PG-only Form Lead",
+            phone="0907654322",
+            email="pg-only@example.com",
+            need="Consult",
+            source="website",
+            ts="2026-08-27T09:00:00+00:00",
+            _from_worker=True,
+        )
+
+        self.assertEqual(lead_id, 78)
+        mock_conn.execute.assert_not_called()
+        mock_pg_ingest.assert_called_once()
+
+    @patch.dict(os.environ, {"PTT_LEADS_WRITE_SOURCE": "sqlite"}, clear=False)
+    @patch("ptt_crm.lead_ingest_pg.process_ingest_lead_payload_pg")
+    @patch("sqlite3.connect", side_effect=AssertionError("SQLite forbidden"))
+    def test_ingest_lead_handler_has_no_sqlite_fallback(
+        self,
+        mock_connect: unittest.mock.MagicMock,
+        mock_pg_ingest: unittest.mock.MagicMock,
+    ) -> None:
+        from ptt_jobs.handlers.ingest_lead import process_ingest_lead_payload
+
+        mock_pg_ingest.return_value = {
+            "ok": True,
+            "created_ids": [79],
+            "created_count": 1,
+        }
+
+        result = process_ingest_lead_payload(
+            {
+                "channel": "website",
+                "lead": {"channel": "website", "raw": {"full_name": "Worker PG-only Lead"}},
+            }
+        )
+
+        self.assertTrue(result["ok"])
+        mock_connect.assert_not_called()
+        mock_pg_ingest.assert_called_once()
 
     @patch.dict(os.environ, {"PTT_LEADS_WRITE_SOURCE": "pg"}, clear=False)
     @patch("ptt_jobs.form_ingest_failure.notify_form_ingest_dead")

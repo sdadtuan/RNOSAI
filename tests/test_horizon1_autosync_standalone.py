@@ -11,6 +11,11 @@ from unittest.mock import patch
 from ptt_crm.crm_sqlite import crm_connection, crm_ts, db_path, get_connection
 
 
+@patch.dict(
+    os.environ,
+    {"PTT_ALLOW_SQLITE_TESTS": "1", "PTT_LEADS_WRITE_SOURCE": "sqlite"},
+    clear=False,
+)
 class CrmSqliteTests(unittest.TestCase):
     def test_crm_ts_format(self) -> None:
         ts = crm_ts()

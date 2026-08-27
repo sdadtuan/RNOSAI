@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import tempfile
 import unittest
@@ -187,6 +188,56 @@ class TestIngestRulesSnapshot(unittest.TestCase):
             self.assertTrue(out.get("ok"))
             cfg = json.loads(captured["lead_config"])
             self.assertTrue(cfg.get("facebook_config", {}).get("enabled"))
+
+
+class TestPgOnlyWorkerGuards(unittest.TestCase):
+    @patch.dict(
+        os.environ,
+        {"PTT_LEADS_WRITE_SOURCE": "pg", "PTT_ALLOW_SQLITE_TESTS": "0"},
+        clear=False,
+    )
+    @patch("sqlite3.connect", side_effect=AssertionError("SQLite forbidden"))
+    def test_crm_sqlite_connection_rejected_for_pg_writes(
+        self,
+        mock_connect: unittest.mock.MagicMock,
+    ) -> None:
+        from ptt_crm.crm_sqlite import get_connection
+
+        with self.assertRaisesRegex(RuntimeError, "PostgreSQL"):
+            get_connection()
+        mock_connect.assert_not_called()
+
+    @patch.dict(os.environ, {"PTT_LEAD_SHADOW_SYNC": "0"}, clear=False)
+    @patch("ptt_crm.lead_sync.pg_leads_replica_ready")
+    def test_lead_sync_worker_noops_when_shadow_disabled(
+        self,
+        mock_ready: unittest.mock.MagicMock,
+    ) -> None:
+        from ptt_crm.lead_sync import sync_lead_ids_worker
+
+        outcome = sync_lead_ids_worker([101])
+
+        self.assertEqual(
+            outcome,
+            {"ok": True, "synced": 0, "skipped": True, "reason": "disabled"},
+        )
+        mock_ready.assert_not_called()
+
+    @patch.dict(os.environ, {"PTT_LEAD_SHADOW_SYNC": "0"}, clear=False)
+    @patch("ptt_crm.lead_shadow_sync.pg_shadow_ready")
+    def test_shadow_repair_noops_when_shadow_disabled(
+        self,
+        mock_ready: unittest.mock.MagicMock,
+    ) -> None:
+        from ptt_crm.lead_shadow_sync import sync_shadow_repair_gaps
+
+        outcome = sync_shadow_repair_gaps()
+
+        self.assertEqual(
+            outcome,
+            {"ok": True, "synced": 0, "skipped": True, "reason": "disabled"},
+        )
+        mock_ready.assert_not_called()
 
 
 if __name__ == "__main__":

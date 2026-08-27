@@ -319,8 +319,8 @@ def sync_shadow_repair_gaps(*, limit: int = 500) -> dict[str, Any]:
     Sync PG nest/staging rows missing from SQLite or with write-field drift.
     Used by Phase 2 gate pack before dual-run checks.
     """
-    import sqlite3
-
+    if not lead_shadow_sync_enabled():
+        return {"ok": True, "synced": 0, "skipped": True, "reason": "disabled"}
     if not pg_shadow_ready():
         return {"ok": False, "error": "pg_shadow_not_ready", "repaired": 0}
 
@@ -450,6 +450,8 @@ def get_pg_lead_v1(lead_id: int) -> dict[str, Any] | None:
 
 def reconcile_leads_pg_primary(*, sample_size: int = 50) -> dict[str, Any]:
     """Compare PG (authoritative) vs SQLite shadow — Phase 2 W2."""
+    if not lead_shadow_sync_enabled():
+        return {"ok": True, "synced": 0, "skipped": True, "reason": "disabled"}
     if not pg_shadow_ready():
         return {"ok": False, "error": "pg_shadow_not_ready"}
 

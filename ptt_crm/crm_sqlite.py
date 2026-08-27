@@ -11,7 +11,20 @@ from typing import Iterator
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _sqlite_tests_enabled() -> bool:
+    return (os.environ.get("PTT_ALLOW_SQLITE_TESTS") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def db_path() -> Path:
+    if not _sqlite_tests_enabled():
+        raise RuntimeError(
+            "CRM SQLite path is test-only; set PTT_ALLOW_SQLITE_TESTS=1 explicitly"
+        )
     raw = (os.environ.get("PTT_DB_PATH") or os.environ.get("SQLITE_PATH") or "").strip()
     if raw:
         p = Path(raw)
@@ -24,6 +37,10 @@ def crm_ts() -> str:
 
 
 def get_connection() -> sqlite3.Connection:
+    from ptt_crm.config import leads_write_source_pg
+
+    if leads_write_source_pg():
+        raise RuntimeError("CRM SQLite connection is disabled when PostgreSQL is the write source")
     conn = sqlite3.connect(db_path())
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import unittest
+from unittest.mock import patch
 
 from crm_lead_intake import (
     build_recap_from_session,
@@ -25,6 +27,7 @@ from crm_lead_intake import (
     save_intake_ai_result,
     suggest_decision,
     update_session,
+    trigger_intake_summary_async,
 )
 from crm_lead_intake_definitions import COMMON_FORM_SLUG, get_ui_definition
 from crm_ai_qualify import map_product_interest_to_slug
@@ -374,6 +377,15 @@ class TestPrefillAndRecap(unittest.TestCase):
 
 
 class TestIntakeAiAndStats(unittest.TestCase):
+    @patch.dict(os.environ, {"PTT_LEADS_WRITE_SOURCE": "pg"}, clear=False)
+    @patch("sqlite3.connect", side_effect=AssertionError("SQLite forbidden"))
+    def test_async_summary_does_not_open_sqlite_in_pg_mode(
+        self,
+        mock_connect: unittest.mock.MagicMock,
+    ) -> None:
+        trigger_intake_summary_async(10, db_path="/tmp/legacy.db")
+        mock_connect.assert_not_called()
+
     def test_save_intake_ai_result(self):
         conn = _setup_conn()
         sid = create_session(

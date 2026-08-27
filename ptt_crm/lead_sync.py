@@ -8,7 +8,7 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
-from ptt_crm.config import lead_replica_sync_enabled
+from ptt_crm.config import lead_replica_sync_enabled, lead_shadow_sync_enabled
 from ptt_crm.leads_read import get_lead_v1, lead_row_to_v1
 from ptt_crm.pg_schema import pg_leads_replica_ready, pg_row_to_v1
 from ptt_jobs.config import sqlite_db_path
@@ -20,6 +20,14 @@ _UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
     re.I,
 )
+
+
+def _sync_disabled() -> bool:
+    return not lead_shadow_sync_enabled()
+
+
+def _disabled_result() -> dict[str, Any]:
+    return {"ok": True, "synced": 0, "skipped": True, "reason": "disabled"}
 
 
 def _utc_now() -> datetime:
@@ -212,6 +220,8 @@ def _update_sync_state(*, last_sqlite_id: int, full: bool = False) -> None:
 
 def sync_lead_ids(lead_ids: list[int]) -> dict[str, Any]:
     """Upsert specific SQLite lead ids to PG."""
+    if _sync_disabled():
+        return _disabled_result()
     if not lead_ids:
         return {"ok": True, "synced": 0, "skipped": True, "reason": "no_ids"}
     if not lead_replica_sync_enabled():
@@ -233,6 +243,8 @@ def sync_lead_ids(lead_ids: list[int]) -> dict[str, Any]:
 
 def sync_lead_ids_worker(lead_ids: list[int]) -> dict[str, Any]:
     """Upsert ingest leads to PG with write_source=worker (Sprint 0 PG-primary path)."""
+    if _sync_disabled():
+        return _disabled_result()
     if not lead_ids:
         return {"ok": True, "synced": 0, "skipped": True, "reason": "no_ids"}
     if not pg_leads_replica_ready():
@@ -256,6 +268,8 @@ def sync_lead_ids_worker(lead_ids: list[int]) -> dict[str, Any]:
 
 def sync_incremental(*, batch_size: int = 200) -> dict[str, Any]:
     """Sync rows with id > watermark."""
+    if _sync_disabled():
+        return _disabled_result()
     if not lead_replica_sync_enabled():
         return {"ok": True, "synced": 0, "skipped": True, "reason": "disabled"}
     if not pg_leads_replica_ready():
@@ -281,6 +295,8 @@ def sync_incremental(*, batch_size: int = 200) -> dict[str, Any]:
 
 def sync_full_backfill(*, batch_size: int = 500, max_batches: int = 100) -> dict[str, Any]:
     """Backfill all SQLite leads into PG (idempotent upsert)."""
+    if _sync_disabled():
+        return _disabled_result()
     if not lead_replica_sync_enabled():
         return {"ok": True, "synced": 0, "skipped": True, "reason": "disabled"}
     if not pg_leads_replica_ready():
@@ -326,6 +342,8 @@ def _pg_lead_v1(lead_id: int) -> dict[str, Any] | None:
 
 def reconcile_leads(*, sample_size: int = 50) -> dict[str, Any]:
     """Compare SQLite vs PG counts + sample LeadV1 fingerprints."""
+    if _sync_disabled():
+        return _disabled_result()
     if not pg_leads_replica_ready():
         return {"ok": False, "error": "pg_replica_not_ready"}
 
@@ -381,7 +399,7 @@ def reconcile_leads(*, sample_size: int = 50) -> dict[str, Any]:
 
 def sync_after_ingest(created_ids: list[int]) -> None:
     """Fast path after ingest_lead — sync new leads immediately."""
-    if not created_ids:
+    if _sync_disabled() or not created_ids:
         return
     try:
         from ptt_crm.config import leads_write_source_pg

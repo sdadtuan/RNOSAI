@@ -979,6 +979,10 @@ def save_intake_ai_result(
 
 def trigger_intake_summary_async(session_id: int, *, db_path: str) -> None:
     """Chạy AI summary nền sau khi complete intake."""
+    from ptt_crm.config import leads_write_source_pg
+
+    if leads_write_source_pg():
+        return
 
     def _run() -> None:
         try:
