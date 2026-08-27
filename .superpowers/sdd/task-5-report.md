@@ -1,60 +1,29 @@
-# Task 5 Report: Sales PostgreSQL Cutover
+# Task 5 report — Leads contract PostgreSQL-only cutover
 
-**Status:** Complete
-**Branch:** `feat/wave1-sqlite-to-pg`
+## Status
 
-## Summary
+Implemented Wave 2 Task 5 only.
 
-- Added `SalesPgRepository` and ported every public method from `SalesSqliteRepository`.
-- Rewired `SalesService` and `SalesModule` to PostgreSQL only.
-- Preserved the existing Sales API JSON shapes and validation behavior.
-- Added idempotent PostgreSQL DDL for plans, targets, partners, trainings, market research, and transactions.
-- Continued to aggregate funnel, customer, staff, and case data from their existing PostgreSQL tables.
-- Left the legacy SQLite repository in the tree but disconnected from runtime wiring.
-
-## Scope decision
-
-Sales is not aggregation-only. The existing repository owns six Sales-specific data sets in addition to reading `crm_cases`, `crm_customers`, and `crm_staff`, so the PostgreSQL repository retains those tables rather than reducing Sales to leads/customers/orders.
-
-## TDD
-
-RED:
-
-```text
-FAIL src/sales/sales-pg.repository.spec.ts
-TS2307: Cannot find module './sales-pg.repository'
-```
-
-GREEN:
-
-```text
-PASS src/sales/sales-pg.repository.spec.ts
-3 tests passed
-```
-
-Coverage includes PostgreSQL-only wiring, Sales schema bootstrap, API row mapping, and parameterized partner search.
+- `LeadsContractService` now delegates every contract operation to `LeadsContractPgRepository`.
+- Removed the `usePgContract` runtime branch, configuration dependency, and SQLite dependency.
+- `LeadsContractModule` now provides and exports only the PostgreSQL repository.
+- Updated the agency onboarding summary dependency to use the asynchronous PostgreSQL lifecycle lookup required after deleting the SQLite repository.
+- Deleted `leads-contract-sqlite.repository.ts`.
+- Confirmed no `usePgContract`, `LeadsContractSqliteRepository`, or deleted repository imports remain under `src`.
+- Task 6 was not started.
 
 ## Verification
 
-```text
-npm --prefix services/ptt-crm-api test -- src/sales --no-coverage
-1 suite passed, 3 tests passed
+- `npm --prefix services/ptt-crm-api test -- src/leads-contract --runInBand`
+  - 1 suite passed.
+  - 1 test passed.
+- `npm --prefix services/ptt-crm-api run build`
+  - Passed.
 
-npm --prefix services/ptt-crm-api run build
-exit 0
+## Readiness / promote smoke
 
-git diff --check -- services/ptt-crm-api/src/sales
-exit 0
-```
-
-The requested command is equivalent to `cd services/ptt-crm-api && npx jest src/sales --no-coverage`; the package-prefixed form was used from the repository root.
-
-## Concerns
-
-- No live PostgreSQL smoke was run; repository tests mock the PostgreSQL pool.
-- Existing Sales-specific SQLite records require the separate migration/backfill process before production cutover.
-- The npm command emits the existing unsupported `devdir` configuration warning.
+The selected Jest suite exercised contract readiness. The successful Nest build verified the PostgreSQL promote path and its module wiring compile. No live PostgreSQL-backed promote was run because this task did not start a configured authenticated CRM environment.
 
 ## Commit
 
-`Serve CRM sales views from PostgreSQL only.`
+`Serve leads contract from PostgreSQL only.`
