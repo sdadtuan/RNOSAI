@@ -292,45 +292,22 @@ class TestFacebookPgPipeline(FacebookPgIngestTestBase):
         result = self._process(item)
         self.assertEqual(result["status"], "skipped")
 
-    @patch("ptt_crm.facebook_ingest_pg.find_duplicate_matches")
-    def test_pg_ingest_does_not_query_sqlite_leads_for_duplicates(self, mock_sqlite_dup) -> None:
-        mock_sqlite_dup.side_effect = sqlite3.OperationalError("no such column: re_project_id")
-        item = build_facebook_lead_item(
-            full_name="PG Only",
-            phone="0908887770",
-            email="pgonly@test.com",
-            leadgen_id="fb_pg_no_sqlite_dup",
-            form_id="form_abc",
-            page_id="page_123",
-        )
-        result = self._process(item)
-        self.assertIn(result["status"], ("created_assigned", "created_unassigned"))
-        mock_sqlite_dup.assert_not_called()
-
 
 class TestFacebookPgWebhookBatch(unittest.TestCase):
+    @patch("ptt_crm.lead_ingest_config.open_ingest_rules_conn")
     @patch("ptt_crm.facebook_ingest_pg.process_facebook_lead_item_pg")
-    def test_ingest_webhook_routes_facebook(self, mock_process) -> None:
+    @patch("ptt_crm.lead_ingest_pg.ingest_legacy_item_pg")
+    def test_ingest_webhook_facebook_is_pg_only(
+        self,
+        mock_legacy,
+        mock_fb,
+        mock_sqlite_rules,
+    ) -> None:
         from ptt_crm.lead_ingest_pg import ingest_webhook_leads_pg
 
-        mock_process.return_value = {"status": "created_assigned", "lead_id": 880_001_001}
-        out = ingest_webhook_leads_pg(
-            [{"full_name": "A", "phone": "0901", "meta": {"facebook_leadgen_id": "x"}}],
-            channel="meta",
-            client_id=None,
-            default_source="facebook",
-            created_by="worker",
-            ts=TS,
-        )
-        self.assertEqual(out["created_count"], 1)
-        mock_process.assert_called_once()
-        self.assertFalse(mock_process.call_args.kwargs.get("skip_source_filter"))
-
-    @patch("ptt_crm.facebook_ingest_pg.process_facebook_lead_item_pg")
-    def test_ingest_webhook_skips_source_filter_when_b2b_mapped(self, mock_process) -> None:
-        from ptt_crm.lead_ingest_pg import ingest_webhook_leads_pg
-
-        mock_process.return_value = {"status": "created_unassigned", "lead_id": 880_001_002}
+        mock_legacy.return_value = {"status": "created_unassigned", "lead_id": 880_001_001}
+        mock_sqlite_rules.side_effect = AssertionError("SQLite ingest rules must not be opened")
+        mock_fb.side_effect = AssertionError("Facebook SQLite pipeline must not run")
         out = ingest_webhook_leads_pg(
             [
                 {
@@ -348,7 +325,9 @@ class TestFacebookPgWebhookBatch(unittest.TestCase):
             ts=TS,
         )
         self.assertEqual(out["created_count"], 1)
-        self.assertTrue(mock_process.call_args.kwargs.get("skip_source_filter"))
+        mock_legacy.assert_called_once()
+        mock_fb.assert_not_called()
+        mock_sqlite_rules.assert_not_called()
 
 
 if __name__ == "__main__":

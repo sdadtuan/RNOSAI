@@ -127,6 +127,22 @@ class TestIngestRulesSnapshot(unittest.TestCase):
         finally:
             conn.close()
 
+    @patch("ptt_crm.lead_ingest_config._open_sqlite_readonly")
+    @patch("ptt_crm.lead_ingest_config.pg_ingest_rules_ready", return_value=False)
+    @patch("ptt_crm.config.ingest_rules_source", return_value="pg")
+    def test_open_ingest_rules_conn_pg_never_opens_sqlite_file(
+        self,
+        _src: unittest.mock.MagicMock,
+        _ready: unittest.mock.MagicMock,
+        mock_sqlite: unittest.mock.MagicMock,
+    ) -> None:
+        mock_sqlite.side_effect = AssertionError("SQLite file must not be opened")
+        conn = open_ingest_rules_conn()
+        try:
+            mock_sqlite.assert_not_called()
+        finally:
+            conn.close()
+
     @patch("ptt_crm.lead_ingest_config.pg_connection")
     @patch("ptt_crm.lead_ingest_config.pg_ingest_rules_ready", return_value=True)
     @patch("ptt_crm.lead_ingest_config._collect_staff_workload_from_pg", return_value={})

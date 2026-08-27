@@ -426,11 +426,13 @@ def open_ingest_rules_conn(*, prefer_pg: bool | None = None) -> sqlite3.Connecti
     PG snapshot when enabled; falls back to SQLite read-only.
     """
     use_pg = ingest_rules_from_pg() if prefer_pg is None else bool(prefer_pg)
-    if use_pg and pg_ingest_rules_ready():
-        snap = fetch_pg_ingest_rules_snapshot()
-        if snapshot_has_rules(snap):
-            return _hydrate_rules_conn_from_snapshot(snap or _EMPTY_SNAPSHOT)
-        logger.warning("PG ingest rules snapshot empty — falling back to SQLite read-only")
+    if use_pg:
+        if pg_ingest_rules_ready():
+            snap = fetch_pg_ingest_rules_snapshot()
+            if snapshot_has_rules(snap):
+                return _hydrate_rules_conn_from_snapshot(snap or _EMPTY_SNAPSHOT)
+            logger.warning("PG ingest rules snapshot empty — not opening SQLite")
+        return _hydrate_rules_conn_from_snapshot(_EMPTY_SNAPSHOT)
     return _open_sqlite_readonly()
 
 

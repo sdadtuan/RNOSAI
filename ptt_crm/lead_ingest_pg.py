@@ -30,14 +30,6 @@ def _default_source(channel: str) -> str:
     return ch or "webhook"
 
 
-def _skip_facebook_source_filter(item: dict[str, Any]) -> bool:
-    """B2B-mapped ingest already authorized the form — do not require legacy facebook_config."""
-    if item.get("b2b_project_id"):
-        return True
-    kind = str(item.get("lead_flow_kind") or "").strip().lower()
-    return kind in {"b2b_prospect", "b2b"}
-
-
 def _external_lead_id(item: dict[str, Any], channel: str) -> str | None:
     meta = item.get("meta") if isinstance(item.get("meta"), dict) else {}
     ch = (channel or "").lower()
@@ -368,26 +360,13 @@ def ingest_webhook_leads_pg(
             if isinstance(meta, dict):
                 meta.setdefault("agency_client_id", client_id)
         try:
-            if source == "facebook":
-                from ptt_crm.facebook_ingest_pg import process_facebook_lead_item_pg
-
-                out = process_facebook_lead_item_pg(
-                    item,
-                    channel=channel,
-                    client_id=client_id,
-                    created_by=created_by,
-                    ts=ts,
-                    webhook_slug=webhook_slug,
-                    skip_source_filter=_skip_facebook_source_filter(item),
-                )
-            else:
-                out = ingest_legacy_item_pg(
-                    item,
-                    channel=channel,
-                    client_id=client_id,
-                    default_source=source,
-                    ts=ts,
-                )
+            out = ingest_legacy_item_pg(
+                item,
+                channel=channel,
+                client_id=client_id,
+                default_source=source,
+                ts=ts,
+            )
             results.append(out)
         except Exception as exc:
             logger.exception("pg ingest item failed: %s", exc)
