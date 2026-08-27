@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { catalogTs } from '../catalog/catalog-slug.util';
 import { computeKpiBoardStats } from './re-projects-inventory.util';
-import { ReProjectsSqliteRepository } from './re-projects-sqlite.repository';
+import { ReProjectsPgRepository } from './re-projects-pg.repository';
 import {
   RefreshLeadsNewKpiBody,
   SaveBudgetLineBody,
@@ -11,109 +11,109 @@ import {
 
 @Injectable()
 export class ReProjectsKpiBudgetService {
-  constructor(private readonly sqlite: ReProjectsSqliteRepository) {}
+  constructor(private readonly pg: ReProjectsPgRepository) {}
 
-  private assertProject(id: number): void {
-    if (!this.sqlite.fetchProject(id)) {
+  private async assertProject(id: number): Promise<void> {
+    if (!await this.pg.fetchProject(id)) {
       throw new NotFoundException({ error: 'Không tìm thấy dự án.' });
     }
   }
 
-  listKpiMetrics(reOnly = true) {
-    return { metrics: this.sqlite.listCrmKpiMetrics(reOnly) };
+  async listKpiMetrics(reOnly = true) {
+    return { metrics: await this.pg.listCrmKpiMetrics(reOnly) };
   }
 
-  listKpis(projectId: number) {
-    const kpis = this.sqlite.listKpis(projectId);
+  async listKpis(projectId: number) {
+    const kpis = await this.pg.listKpis(projectId);
     return { kpis, board: computeKpiBoardStats(kpis) };
   }
 
-  createKpi(projectId: number, body: SaveKpiBody) {
+  async createKpi(projectId: number, body: SaveKpiBody) {
     try {
-      return this.sqlite.saveKpi(projectId, body as Record<string, unknown>, undefined, catalogTs());
+      return await this.pg.saveKpi(projectId, body as Record<string, unknown>, undefined, catalogTs());
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
-  updateKpi(projectId: number, kpiId: number, body: SaveKpiBody) {
+  async updateKpi(projectId: number, kpiId: number, body: SaveKpiBody) {
     try {
-      return this.sqlite.saveKpi(projectId, body as Record<string, unknown>, kpiId, catalogTs());
+      return await this.pg.saveKpi(projectId, body as Record<string, unknown>, kpiId, catalogTs());
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
-  deleteKpi(projectId: number, kpiId: number) {
-    this.sqlite.deleteKpi(projectId, kpiId);
+  async deleteKpi(projectId: number, kpiId: number) {
+    await this.pg.deleteKpi(projectId, kpiId);
     return { ok: true };
   }
 
-  syncKpisToStaff(projectId: number) {
-    this.assertProject(projectId);
-    return this.sqlite.syncProjectKpisToStaff(projectId, catalogTs());
+  async syncKpisToStaff(projectId: number) {
+    await this.assertProject(projectId);
+    return this.pg.syncProjectKpisToStaff(projectId, catalogTs());
   }
 
-  pullKpisFromStaff(projectId: number) {
-    this.assertProject(projectId);
-    return this.sqlite.pullProjectKpisFromStaff(projectId, catalogTs());
+  async pullKpisFromStaff(projectId: number) {
+    await this.assertProject(projectId);
+    return this.pg.pullProjectKpisFromStaff(projectId, catalogTs());
   }
 
-  refreshLeadsNewKpi(projectId: number, body: RefreshLeadsNewKpiBody = {}) {
-    this.assertProject(projectId);
-    return this.sqlite.refreshProjectReLeadsNewKpi(projectId, {
+  async refreshLeadsNewKpi(projectId: number, body: RefreshLeadsNewKpiBody = {}) {
+    await this.assertProject(projectId);
+    return this.pg.refreshProjectReLeadsNewKpi(projectId, {
       periodMonth: body.period_month,
       ts: catalogTs(),
     });
   }
 
-  listRisks(projectId: number) {
-    return { risks: this.sqlite.listRisks(projectId) };
+  async listRisks(projectId: number) {
+    return { risks: await this.pg.listRisks(projectId) };
   }
 
-  createRisk(projectId: number, body: SaveRiskBody) {
+  async createRisk(projectId: number, body: SaveRiskBody) {
     try {
-      return this.sqlite.saveRisk(projectId, body as Record<string, unknown>, undefined, catalogTs());
+      return await this.pg.saveRisk(projectId, body as Record<string, unknown>, undefined, catalogTs());
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
-  updateRisk(projectId: number, riskId: number, body: SaveRiskBody) {
+  async updateRisk(projectId: number, riskId: number, body: SaveRiskBody) {
     try {
-      return this.sqlite.saveRisk(projectId, body as Record<string, unknown>, riskId, catalogTs());
+      return await this.pg.saveRisk(projectId, body as Record<string, unknown>, riskId, catalogTs());
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
-  deleteRisk(projectId: number, riskId: number) {
-    this.sqlite.deleteRisk(projectId, riskId);
+  async deleteRisk(projectId: number, riskId: number) {
+    await this.pg.deleteRisk(projectId, riskId);
     return { ok: true };
   }
 
-  listBudget(projectId: number) {
-    return { lines: this.sqlite.listBudgetLines(projectId) };
+  async listBudget(projectId: number) {
+    return { lines: await this.pg.listBudgetLines(projectId) };
   }
 
-  createBudgetLine(projectId: number, body: SaveBudgetLineBody) {
+  async createBudgetLine(projectId: number, body: SaveBudgetLineBody) {
     try {
-      return this.sqlite.saveBudgetLine(projectId, body as Record<string, unknown>, undefined, catalogTs());
+      return await this.pg.saveBudgetLine(projectId, body as Record<string, unknown>, undefined, catalogTs());
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
-  updateBudgetLine(projectId: number, lineId: number, body: SaveBudgetLineBody) {
+  async updateBudgetLine(projectId: number, lineId: number, body: SaveBudgetLineBody) {
     try {
-      return this.sqlite.saveBudgetLine(projectId, body as Record<string, unknown>, lineId, catalogTs());
+      return await this.pg.saveBudgetLine(projectId, body as Record<string, unknown>, lineId, catalogTs());
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
-  deleteBudgetLine(projectId: number, lineId: number) {
-    this.sqlite.deleteBudgetLine(projectId, lineId);
+  async deleteBudgetLine(projectId: number, lineId: number) {
+    await this.pg.deleteBudgetLine(projectId, lineId);
     return { ok: true };
   }
 }

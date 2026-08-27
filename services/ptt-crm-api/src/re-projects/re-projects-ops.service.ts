@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { buildExportJsonBundle, ExportReportType } from './re-projects-export.util';
-import { ReProjectsSqliteRepository } from './re-projects-sqlite.repository';
+import { ReProjectsPgRepository } from './re-projects-pg.repository';
 import {
   AddProjectStaffBody,
   SaveProjectLeadConfigBody,
@@ -9,11 +9,11 @@ import {
 
 @Injectable()
 export class ReProjectsOpsService {
-  constructor(private readonly sqlite: ReProjectsSqliteRepository) {}
+  constructor(private readonly pg: ReProjectsPgRepository) {}
 
-  listStaff(projectId: number) {
+  async listStaff(projectId: number) {
     try {
-      const staff = this.sqlite.listProjectStaff(projectId, true);
+      const staff = await this.pg.listProjectStaff(projectId, true);
       return { project_id: projectId, staff };
     } catch (e) {
       const msg = String((e as Error).message);
@@ -22,13 +22,13 @@ export class ReProjectsOpsService {
     }
   }
 
-  addStaff(projectId: number, body: AddProjectStaffBody) {
+  async addStaff(projectId: number, body: AddProjectStaffBody) {
     const staffId = Number(body.staff_id ?? 0);
     if (!Number.isFinite(staffId) || staffId <= 0) {
       throw new BadRequestException({ error: 'Thiếu staff_id.' });
     }
     try {
-      const staff = this.sqlite.addProjectStaff(projectId, {
+      const staff = await this.pg.addProjectStaff(projectId, {
         staff_id: staffId,
         role: String(body.role ?? 'sales'),
         assign_enabled: body.assign_enabled ?? true,
@@ -42,27 +42,27 @@ export class ReProjectsOpsService {
     }
   }
 
-  updateStaff(projectId: number, staffId: number, body: UpdateProjectStaffBody) {
+  async updateStaff(projectId: number, staffId: number, body: UpdateProjectStaffBody) {
     try {
-      const staff = this.sqlite.updateProjectStaff(projectId, staffId, body);
+      const staff = await this.pg.updateProjectStaff(projectId, staffId, body);
       return { staff };
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
-  removeStaff(projectId: number, staffId: number) {
+  async removeStaff(projectId: number, staffId: number) {
     try {
-      this.sqlite.removeProjectStaff(projectId, staffId);
+      await this.pg.removeProjectStaff(projectId, staffId);
       return { ok: true };
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
-  getLeadConfig(projectId: number) {
+  async getLeadConfig(projectId: number) {
     try {
-      const config = this.sqlite.getProjectLeadConfig(projectId);
+      const config = await this.pg.getProjectLeadConfig(projectId);
       return { config };
     } catch (e) {
       const msg = String((e as Error).message);
@@ -71,26 +71,26 @@ export class ReProjectsOpsService {
     }
   }
 
-  saveLeadConfig(projectId: number, body: SaveProjectLeadConfigBody, updatedBy = '') {
+  async saveLeadConfig(projectId: number, body: SaveProjectLeadConfigBody, updatedBy = '') {
     try {
-      const config = this.sqlite.saveProjectLeadConfig(projectId, body, updatedBy);
+      const config = await this.pg.saveProjectLeadConfig(projectId, body, updatedBy);
       return { config };
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
-  webhookTest(projectId: number) {
-    const proj = this.sqlite.fetchProject(projectId);
+  async webhookTest(projectId: number) {
+    const proj = await this.pg.fetchProject(projectId);
     if (!proj) {
       throw new NotFoundException({ error: 'Không tìm thấy dự án.' });
     }
     return { ok: true, stub: true };
   }
 
-  workflow(projectId: number) {
+  async workflow(projectId: number) {
     try {
-      return this.sqlite.computeProjectWorkflow(projectId);
+      return await this.pg.computeProjectWorkflow(projectId);
     } catch (e) {
       const msg = String((e as Error).message);
       if (msg.includes('Không tìm thấy')) throw new NotFoundException({ error: msg });
@@ -98,7 +98,7 @@ export class ReProjectsOpsService {
     }
   }
 
-  exportBundle(projectId: number, reportRaw?: string) {
+  async exportBundle(projectId: number, reportRaw?: string) {
     const report = (String(reportRaw ?? 'full').trim().toLowerCase() || 'full') as ExportReportType;
     const allowed: ExportReportType[] = [
       'full',
@@ -112,7 +112,7 @@ export class ReProjectsOpsService {
     ];
     const reportType = allowed.includes(report) ? report : 'full';
     try {
-      const pack = this.sqlite.fetchProjectExportData(projectId);
+      const pack = await this.pg.fetchProjectExportData(projectId);
       return buildExportJsonBundle(reportType, {
         project: pack.project,
         summary: pack.summary,

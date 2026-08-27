@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { computeProductInventoryStats } from './re-projects-inventory.util';
-import { ReProjectsSqliteRepository } from './re-projects-sqlite.repository';
+import { ReProjectsPgRepository } from './re-projects-pg.repository';
 import {
   CreateReProjectBody,
   SavePriceListBody,
@@ -10,61 +10,61 @@ import {
 
 @Injectable()
 export class ReProjectsService {
-  constructor(private readonly sqlite: ReProjectsSqliteRepository) {}
+  constructor(private readonly pg: ReProjectsPgRepository) {}
 
-  listTypes(includeInactive = false) {
-    const types = this.sqlite.listProjectTypes(includeInactive);
+  async listTypes(includeInactive = false) {
+    const types = await this.pg.listProjectTypes(includeInactive);
     const labels: Record<string, string> = {};
     for (const t of types) labels[t.code] = t.name;
     return { types, labels };
   }
 
-  createType(body: SaveProjectTypeBody) {
+  async createType(body: SaveProjectTypeBody) {
     try {
-      return this.sqlite.saveProjectType(body);
+      return await this.pg.saveProjectType(body);
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
-  updateType(typeId: number, body: SaveProjectTypeBody) {
+  async updateType(typeId: number, body: SaveProjectTypeBody) {
     try {
-      return this.sqlite.saveProjectType(body, typeId);
+      return await this.pg.saveProjectType(body, typeId);
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
-  deleteType(typeId: number) {
+  async deleteType(typeId: number) {
     try {
-      this.sqlite.deleteProjectType(typeId);
+      await this.pg.deleteProjectType(typeId);
       return { ok: true };
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
-  listProjects(q?: string) {
-    return { projects: this.sqlite.listProjects(q) };
+  async listProjects(q?: string) {
+    return { projects: await this.pg.listProjects(q) };
   }
 
-  createProject(body: CreateReProjectBody) {
+  async createProject(body: CreateReProjectBody) {
     try {
-      return this.sqlite.createProject(body);
+      return await this.pg.createProject(body);
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
-  getProject(id: number) {
-    const proj = this.sqlite.fetchProject(id);
+  async getProject(id: number) {
+    const proj = await this.pg.fetchProject(id);
     if (!proj) throw new NotFoundException({ error: 'Không tìm thấy dự án.' });
     return proj;
   }
 
-  updateProject(id: number, body: CreateReProjectBody) {
+  async updateProject(id: number, body: CreateReProjectBody) {
     try {
-      return this.sqlite.updateProject(id, body);
+      return await this.pg.updateProject(id, body);
     } catch (e) {
       const msg = String((e as Error).message);
       if (msg.includes('Không tìm thấy')) throw new NotFoundException({ error: msg });
@@ -72,89 +72,88 @@ export class ReProjectsService {
     }
   }
 
-  deleteProject(id: number) {
-    this.sqlite.deleteProject(id);
+  async deleteProject(id: number) {
+    await this.pg.deleteProject(id);
     return { ok: true };
   }
 
-  projectSummary(id: number) {
+  async projectSummary(id: number) {
     try {
-      return this.sqlite.fetchProjectSummary(id);
+      return await this.pg.fetchProjectSummary(id);
     } catch (e) {
       throw new NotFoundException({ error: String((e as Error).message) });
     }
   }
 
-  listProducts(projectId: number) {
-    const products = this.sqlite.listProducts(projectId);
+  async listProducts(projectId: number) {
+    const products = await this.pg.listProducts(projectId);
     return { products, inventory: computeProductInventoryStats(products) };
   }
 
-  createProduct(projectId: number, body: SaveProductBody) {
+  async createProduct(projectId: number, body: SaveProductBody) {
     try {
-      return this.sqlite.saveProduct(projectId, body);
+      return await this.pg.saveProduct(projectId, body);
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
   updateProduct(projectId: number, productId: number, body: SaveProductBody) {
-    return this.sqlite.saveProduct(projectId, body, productId);
+    return this.pg.saveProduct(projectId, body, productId);
   }
 
   deleteProduct(projectId: number, productId: number) {
-    this.sqlite.deleteProduct(projectId, productId);
-    return { ok: true };
+    return this.pg.deleteProduct(projectId, productId).then(() => ({ ok: true }));
   }
 
-  listZones(projectId: number) {
-    return { zones: this.sqlite.listProjectZones(projectId) };
+  async listZones(projectId: number) {
+    return { zones: await this.pg.listProjectZones(projectId) };
   }
 
-  inventoryByZone(projectId: number) {
-    return { zones: this.sqlite.inventoryByZoneSummary(projectId) };
+  async inventoryByZone(projectId: number) {
+    return { zones: await this.pg.inventoryByZoneSummary(projectId) };
   }
 
-  priceBatches(projectId: number) {
+  async priceBatches(projectId: number) {
     return {
-      batches: this.sqlite.listPriceBatches(projectId),
-      summary: this.sqlite.inventoryByPriceBatchSummary(projectId),
+      batches: await this.pg.listPriceBatches(projectId),
+      summary: await this.pg.inventoryByPriceBatchSummary(projectId),
     };
   }
 
-  listPriceLists(projectId: number) {
+  async listPriceLists(projectId: number) {
     return {
-      price_lists: this.sqlite.listPriceLists(projectId),
-      version_codes: this.sqlite.listAllVersionCodes(projectId),
+      price_lists: await this.pg.listPriceLists(projectId),
+      version_codes: await this.pg.listAllVersionCodes(projectId),
     };
   }
 
-  createPriceList(projectId: number, body: SavePriceListBody, createdBy = '') {
+  async createPriceList(projectId: number, body: SavePriceListBody, createdBy = '') {
     try {
-      return this.sqlite.savePriceList(projectId, body, undefined, createdBy);
+      return await this.pg.savePriceList(projectId, body, undefined, createdBy);
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
-  getPriceList(projectId: number, listId: number) {
-    const row = this.sqlite.fetchPriceList(projectId, listId);
+  async getPriceList(projectId: number, listId: number) {
+    const row = await this.pg.fetchPriceList(projectId, listId);
     if (!row) throw new NotFoundException({ error: 'Không tìm thấy bảng giá.' });
-    const { items, total } = this.sqlite.listPriceListItems(listId, 500);
+    const { items, total } = await this.pg.listPriceListItems(listId, 500);
     return { price_list: row, items, items_total: total };
   }
 
-  updatePriceList(projectId: number, listId: number, body: SavePriceListBody, createdBy = '') {
+  async updatePriceList(projectId: number, listId: number, body: SavePriceListBody, createdBy = '') {
     try {
-      return this.sqlite.savePriceList(projectId, body, listId, createdBy);
+      return await this.pg.savePriceList(projectId, body, listId, createdBy);
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
-  deletePriceList(projectId: number, listId: number) {
+  async deletePriceList(projectId: number, listId: number) {
     try {
-      this.sqlite.deletePriceList(projectId, listId);
+      await this.pg.deletePriceList(projectId, listId);
       return { ok: true };
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });

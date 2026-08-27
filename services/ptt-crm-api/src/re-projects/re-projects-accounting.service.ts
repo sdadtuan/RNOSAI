@@ -20,7 +20,7 @@ import {
   syncBudgetFromPlans,
   syncRevenueFromInventory,
 } from './re-projects-accounting.util';
-import { ReProjectsSqliteRepository } from './re-projects-sqlite.repository';
+import { ReProjectsPgRepository } from './re-projects-pg.repository';
 import {
   AccountingAiAskBody,
   ApplyPredictedRisksBody,
@@ -34,43 +34,43 @@ export class ReProjectsAccountingService {
 
   constructor(
     private readonly accounting: ReProjectsAccountingRepository,
-    private readonly projects: ReProjectsSqliteRepository,
+    private readonly projects: ReProjectsPgRepository,
   ) {
     this.deps = { accounting, projects };
   }
 
-  private ensureProject(projectId: number): void {
-    if (!this.projects.fetchProject(projectId)) {
+  private async ensureProject(projectId: number): Promise<void> {
+    if (!await this.projects.fetchProject(projectId)) {
       throw new NotFoundException({ error: 'Không tìm thấy dự án.' });
     }
   }
 
-  dashboard(projectId: number) {
-    this.ensureProject(projectId);
+  async dashboard(projectId: number) {
+    await this.ensureProject(projectId);
     return computeAccountingDashboard(this.deps, projectId);
   }
 
-  listCashFlow(
+  async listCashFlow(
     projectId: number,
     filters: { flow_type?: string; category?: string; status?: string },
   ) {
-    this.ensureProject(projectId);
-    return { lines: listCashFlowLines(this.deps, projectId, filters) };
+    await this.ensureProject(projectId);
+    return { lines: await listCashFlowLines(this.deps, projectId, filters) };
   }
 
-  createCashFlow(projectId: number, body: SaveCashFlowBody, createdBy = '') {
-    this.ensureProject(projectId);
+  async createCashFlow(projectId: number, body: SaveCashFlowBody, createdBy = '') {
+    await this.ensureProject(projectId);
     try {
-      return saveCashFlowLine(this.deps, projectId, body, { createdBy, ts: this.accounting.nowTs() });
+      return await saveCashFlowLine(this.deps, projectId, body, { createdBy, ts: this.accounting.nowTs() });
     } catch (e) {
       throw new BadRequestException({ error: String((e as Error).message) });
     }
   }
 
-  updateCashFlow(projectId: number, lineId: number, body: SaveCashFlowBody, createdBy = '') {
-    this.ensureProject(projectId);
+  async updateCashFlow(projectId: number, lineId: number, body: SaveCashFlowBody, createdBy = '') {
+    await this.ensureProject(projectId);
     try {
-      return saveCashFlowLine(this.deps, projectId, body, {
+      return await saveCashFlowLine(this.deps, projectId, body, {
         lineId,
         createdBy,
         ts: this.accounting.nowTs(),
@@ -80,14 +80,14 @@ export class ReProjectsAccountingService {
     }
   }
 
-  removeCashFlow(projectId: number, lineId: number) {
-    this.ensureProject(projectId);
-    deleteCashFlowLine(this.deps, projectId, lineId);
+  async removeCashFlow(projectId: number, lineId: number) {
+    await this.ensureProject(projectId);
+    await deleteCashFlowLine(this.deps, projectId, lineId);
     return { ok: true };
   }
 
-  importCashFlow(projectId: number, body: ImportCashFlowBody, createdBy = '') {
-    this.ensureProject(projectId);
+  async importCashFlow(projectId: number, body: ImportCashFlowBody, createdBy = '') {
+    await this.ensureProject(projectId);
     const csvText = String(body.csv ?? '');
     if (!csvText.trim()) {
       throw new BadRequestException({ error: 'Thiếu nội dung CSV.' });
@@ -98,9 +98,9 @@ export class ReProjectsAccountingService {
     });
   }
 
-  syncFromPlans(projectId: number) {
+  async syncFromPlans(projectId: number) {
     try {
-      return syncBudgetFromPlans(this.deps, projectId, this.accounting.nowTs());
+      return await syncBudgetFromPlans(this.deps, projectId, this.accounting.nowTs());
     } catch (e) {
       const msg = String((e as Error).message);
       if (msg.includes('Không tìm thấy')) throw new NotFoundException({ error: msg });
@@ -108,9 +108,9 @@ export class ReProjectsAccountingService {
     }
   }
 
-  syncInventoryRevenue(projectId: number, createdBy = '') {
+  async syncInventoryRevenue(projectId: number, createdBy = '') {
     try {
-      return syncRevenueFromInventory(this.deps, projectId, {
+      return await syncRevenueFromInventory(this.deps, projectId, {
         ts: this.accounting.nowTs(),
         createdBy,
       });
@@ -121,8 +121,8 @@ export class ReProjectsAccountingService {
     }
   }
 
-  aiAsk(projectId: number, body: AccountingAiAskBody) {
-    this.ensureProject(projectId);
+  async aiAsk(projectId: number, body: AccountingAiAskBody) {
+    await this.ensureProject(projectId);
     const question = String(body.question ?? body.q ?? '').trim();
     if (!question) {
       throw new BadRequestException({ error: 'Thiếu câu hỏi.' });
@@ -138,10 +138,10 @@ export class ReProjectsAccountingService {
     }
   }
 
-  exportBundle(projectId: number) {
+  async exportBundle(projectId: number) {
     try {
-      const sheets = buildAccountingExportSheets(this.deps, projectId);
-      const proj = this.projects.fetchProject(projectId);
+      const sheets = await buildAccountingExportSheets(this.deps, projectId);
+      const proj = await this.projects.fetchProject(projectId);
       const code = String(proj?.code ?? `du-an-${projectId}`).trim() || `du-an-${projectId}`;
       const stamp = new Date().toISOString().slice(0, 10);
       return {
@@ -156,9 +156,9 @@ export class ReProjectsAccountingService {
     }
   }
 
-  riskPredictions(projectId: number) {
+  async riskPredictions(projectId: number) {
     try {
-      return predictFinancialRisks(this.deps, projectId);
+      return await predictFinancialRisks(this.deps, projectId);
     } catch (e) {
       const msg = String((e as Error).message);
       if (msg.includes('Không tìm thấy')) throw new NotFoundException({ error: msg });
@@ -166,7 +166,7 @@ export class ReProjectsAccountingService {
     }
   }
 
-  forecast(projectId: number, monthsAheadRaw?: string) {
+  async forecast(projectId: number, monthsAheadRaw?: string) {
     let monthsAhead = 3;
     if (monthsAheadRaw != null) {
       const parsed = Number(monthsAheadRaw);
@@ -175,7 +175,7 @@ export class ReProjectsAccountingService {
       }
     }
     try {
-      return forecastFinancialOutlook(this.deps, projectId, { monthsAhead });
+      return await forecastFinancialOutlook(this.deps, projectId, { monthsAhead });
     } catch (e) {
       const msg = String((e as Error).message);
       if (msg.includes('Không tìm thấy')) throw new NotFoundException({ error: msg });
@@ -183,10 +183,10 @@ export class ReProjectsAccountingService {
     }
   }
 
-  applyRiskPredictions(projectId: number, body: ApplyPredictedRisksBody) {
+  async applyRiskPredictions(projectId: number, body: ApplyPredictedRisksBody) {
     try {
       const codes = Array.isArray(body.codes) ? body.codes.map(String) : undefined;
-      return applyPredictedRisksToRegister(this.deps, projectId, {
+      return await applyPredictedRisksToRegister(this.deps, projectId, {
         codes,
         ts: this.accounting.nowTs(),
       });

@@ -25,7 +25,7 @@ import { ReProjectsAccountingService } from './re-projects-accounting.service';
 import { ReProjectsController } from './re-projects.controller';
 import { ReProjectsKpiBudgetService } from './re-projects-kpi-budget.service';
 import { ReProjectsOpsService } from './re-projects-ops.service';
-import { ReProjectsSqliteRepository } from './re-projects-sqlite.repository';
+import { ReProjectsPgRepository } from './re-projects-pg.repository';
 import { ReProjectsService } from './re-projects.service';
 
 @Module({
@@ -36,7 +36,7 @@ import { ReProjectsService } from './re-projects.service';
     ReProjectsOpsService,
     ReProjectsKpiBudgetService,
     ReProjectsAccountingService,
-    ReProjectsSqliteRepository,
+    ReProjectsPgRepository,
     ReProjectsAccountingRepository,
     StaffReProjectsViewGuard,
     StaffReProjectsWriteGuard,
