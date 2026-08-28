@@ -6,7 +6,8 @@
 > **Route:** `/crm/leads/{id}` (ops-web)  
 > **Quyết định:** **B + khung C nhẹ** — Next Best Action + một hành trình + SCI inline; cột Việc ~70% / Timeline+rail ~30%  
 > **Không làm đợt này:** command palette, clone HubSpot 3-pane, redesign Deal Room / Intake / CSKH board  
-> **Parent UI:** [25-lead-meeting-prep-ui-guide.md](../../huong-dan-su-dung/25-lead-meeting-prep-ui-guide.md) · [26-sales-cockpit-huong-dan-day-du.md](../../huong-dan-su-dung/26-sales-cockpit-huong-dan-day-du.md)
+> **Parent UI:** [25-lead-meeting-prep-ui-guide.md](../../huong-dan-su-dung/25-lead-meeting-prep-ui-guide.md) · [26-sales-cockpit-huong-dan-day-du.md](../../huong-dan-su-dung/26-sales-cockpit-huong-dan-day-du.md)  
+> **Chương trình lớn:** [LIFE-WIN-20260828](./2026-08-28-lifecycle-absolute-win-design.md) — hai nhà máy, ẩn panel theo stage, promote→Client
 
 ---
 
