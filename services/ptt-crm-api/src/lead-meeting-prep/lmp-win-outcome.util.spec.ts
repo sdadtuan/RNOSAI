@@ -4,7 +4,10 @@ describe('lmp-win-outcome.util', () => {
   it('builds win outcome from debrief', () => {
     const out = buildWinOutcomeFromDebrief({
       leadStatus: 'chot',
-      metaJson: { deal_value_vnd: 15_000_000 },
+      metaJson: {
+        deal_value_vnd: 15_000_000,
+        lmp_discover: { discover_source: 'am_manual', confirmed_by_am: true },
+      },
       debrief: {
         closed_tier: 'TC',
         objection_faced: 'Đắt quá',
@@ -18,6 +21,8 @@ describe('lmp-win-outcome.util', () => {
     expect(out.closed_tier).toBe('TC');
     expect(out.deal_value_vnd).toBe(15_000_000);
     expect(out.submitted_by).toBe('am@test.vn');
+    expect(out.discover_source).toBe('am_manual');
+    expect(out.identity_confirmed_by_am).toBe(true);
   });
 
   it('detects debrief presence', () => {

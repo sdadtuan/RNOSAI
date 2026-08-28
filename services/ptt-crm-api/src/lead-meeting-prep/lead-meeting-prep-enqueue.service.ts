@@ -142,6 +142,15 @@ export class LeadMeetingPrepEnqueueService {
           inputSnapshot: snapshot,
           selectedEntityId: input.selectedEntityId ?? null,
         });
+        if (!this.config.lmpIdentityDiscoverEnabled) {
+          await this.repo.markAwaitingAmInput(
+            leadId,
+            resolved.skip_reason ?? 'missing_company_name',
+            snapshot,
+          );
+          this.logger.debug(`lead_meeting_prep awaiting AM input (discover off) lead=${leadId}`);
+          return null;
+        }
         const job = await this.jobQueue.enqueueLeadMeetingPrepJob({
           leadId,
           clientId: input.clientId ?? ctx.client_id,

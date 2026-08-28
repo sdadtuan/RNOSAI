@@ -26,6 +26,8 @@ export interface WinOutcomeJson {
   submitted_at: string;
   submitted_by: string;
   prep_stage_at_close: string | null;
+  discover_source?: 'auto' | 'am_manual' | 'am_confirmed' | 'ingest' | null;
+  identity_confirmed_by_am?: boolean | null;
   learn_processed_at?: string | null;
   recommended_dv_codes?: string[];
   industry_slug?: string | null;

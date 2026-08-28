@@ -345,20 +345,58 @@ def apply_candidate_to_input(inp: dict[str, Any], discover_result: dict[str, Any
     return out
 
 
-def discover_meta_patch(discover_result: dict[str, Any], candidate_id: str) -> dict[str, Any]:
+def discover_meta_patch(
+    discover_result: dict[str, Any],
+    candidate_id: str,
+    *,
+    confirmed_by_am: bool = False,
+    discover_source: str = "auto",
+    confirmed_by: str | None = None,
+) -> dict[str, Any]:
     cand = candidate_by_id(discover_result, candidate_id)
     if not cand:
         return {}
+    lmp_discover: dict[str, Any] = {
+        "candidate_id": candidate_id,
+        "source_url": cand.get("source_url") or cand.get("website_url"),
+        "discovered_at": (discover_result.get("meta") or {}).get("discovered_at"),
+        "discover_status": discover_result.get("discover_status"),
+        "discover_source": "am_confirmed" if confirmed_by_am else discover_source,
+        "confirmed_by_am": confirmed_by_am,
+    }
+    if confirmed_by:
+        lmp_discover["confirmed_by"] = confirmed_by
     return {
         "company_name": cand.get("company_name"),
         "website_url": cand.get("website_url"),
-        "lmp_discover": {
-            "candidate_id": candidate_id,
-            "source_url": cand.get("source_url"),
-            "discovered_at": (discover_result.get("meta") or {}).get("discovered_at"),
-            "discover_status": discover_result.get("discover_status"),
-        },
+        "lmp_discover": lmp_discover,
     }
+
+
+def am_manual_meta_patch(
+    company_name: str,
+    website_url: str | None = None,
+    *,
+    confirmed_by: str | None = None,
+) -> dict[str, Any]:
+    now = datetime.now(timezone.utc).isoformat()
+    lmp_discover: dict[str, Any] = {
+        "candidate_id": None,
+        "source_url": website_url,
+        "discovered_at": now,
+        "discover_status": "am_manual",
+        "discover_source": "am_manual",
+        "confirmed_by_am": True,
+    }
+    if confirmed_by:
+        lmp_discover["confirmed_by"] = confirmed_by
+    patch: dict[str, Any] = {
+        "company_name": company_name,
+        "lmp_discover": lmp_discover,
+    }
+    if website_url:
+        patch["website_url"] = website_url
+    return patch
 
 
 def to_entity_candidates(discover_result: dict[str, Any]) -> list[dict[str, Any]]:

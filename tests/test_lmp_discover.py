@@ -92,6 +92,34 @@ def test_build_tavily_queries_never_uses_full_name():
     assert all("Nguyen" not in q for q in queries)
 
 
+def test_discover_meta_patch_auto_and_am_manual():
+    discover_result = {
+        "discover_status": "found_single",
+        "meta": {"discovered_at": "2026-08-28T10:00:00Z"},
+        "candidates": [
+            {
+                "candidate_id": "c1",
+                "company_name": "Cty XYZ",
+                "website_url": "https://xyz.vn",
+                "source_url": "https://masothue.com/1",
+            }
+        ],
+    }
+    auto_patch = discover.discover_meta_patch(discover_result, "c1", confirmed_by_am=False)
+    assert auto_patch["lmp_discover"]["discover_source"] == "auto"
+    assert auto_patch["lmp_discover"]["confirmed_by_am"] is False
+
+    confirmed_patch = discover.discover_meta_patch(
+        discover_result, "c1", confirmed_by_am=True, confirmed_by="am@test.vn"
+    )
+    assert confirmed_patch["lmp_discover"]["discover_source"] == "am_confirmed"
+    assert confirmed_patch["lmp_discover"]["confirmed_by_am"] is True
+
+    manual_patch = discover.am_manual_meta_patch("Cty AM", "https://am.vn", confirmed_by="am@test.vn")
+    assert manual_patch["company_name"] == "Cty AM"
+    assert manual_patch["lmp_discover"]["discover_source"] == "am_manual"
+
+
 def test_apply_candidate_to_input():
     discover_result = {
         "candidates": [

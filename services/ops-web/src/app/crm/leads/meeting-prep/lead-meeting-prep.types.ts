@@ -13,6 +13,17 @@ export type PrepStage = 'm1_first_strike' | 'm2_qualify_win' | 'm3_pre_close' | 
 
 export type WinOutcomeTier = 'CB' | 'TC' | 'CS';
 
+export type LmpDiscoverSource = 'auto' | 'am_manual' | 'am_confirmed' | 'ingest';
+
+export type LmpLeadIdentity = {
+  company_name: string | null;
+  website_url: string | null;
+  discover_source: LmpDiscoverSource | null;
+  confirmed_by_am: boolean | null;
+  source_url: string | null;
+  candidate_id: string | null;
+};
+
 export type WinOutcomeJson = {
   outcome: 'won' | 'lost';
   deal_value_vnd: number | null;
@@ -23,6 +34,8 @@ export type WinOutcomeJson = {
   submitted_at: string;
   submitted_by: string;
   prep_stage_at_close: string | null;
+  discover_source?: LmpDiscoverSource | null;
+  identity_confirmed_by_am?: boolean | null;
 };
 
 export type EntityCandidate = {
@@ -147,6 +160,7 @@ export type LeadMeetingPrepResponse = {
   updated_at: string | null;
   win_outcome?: WinOutcomeJson | null;
   debrief_pending?: boolean;
+  lead_identity?: LmpLeadIdentity | null;
 };
 
 export type LeadMeetingPrepFeedbackBody = {

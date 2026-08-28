@@ -27,8 +27,12 @@ export class LeadMeetingPrepController {
 
   @Post(':id/meeting-prep/run')
   @UseGuards(StaffOrInternalKeyGuard, StaffLmpRunGuard)
-  runMeetingPrep(@Param('id', ParseIntPipe) id: number, @Body() body: RunLeadMeetingPrepBody) {
-    return this.prep.runMeetingPrep(id, body ?? {});
+  runMeetingPrep(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: RunLeadMeetingPrepBody,
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.prep.runMeetingPrep(id, body ?? {}, staffUser?.email ?? '');
   }
 
   @Post(':id/meeting-prep/prepare-close')
@@ -39,8 +43,12 @@ export class LeadMeetingPrepController {
 
   @Post(':id/meeting-prep/select-entity')
   @UseGuards(StaffOrInternalKeyGuard, StaffLmpRunGuard)
-  selectEntity(@Param('id', ParseIntPipe) id: number, @Body() body: SelectEntityBody) {
-    return this.prep.selectEntity(id, body);
+  selectEntity(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: SelectEntityBody,
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.prep.selectEntity(id, body, staffUser?.email ?? '');
   }
 
   @Post(':id/meeting-prep/feedback')

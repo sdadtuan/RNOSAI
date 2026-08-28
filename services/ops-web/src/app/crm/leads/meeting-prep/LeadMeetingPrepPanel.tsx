@@ -13,6 +13,7 @@ import { LeadMeetingPrepProgress } from './LeadMeetingPrepProgress';
 import { SalesCockpitPanel } from './SalesCockpitPanel';
 import { PostCallDebriefModal } from './PostCallDebriefModal';
 import { lmpSkipReasonMessageVi, showAmInputForm, showDiscoverEntityPicker } from './lmp-skip-reason-labels';
+import { discoverSourceLabelVi } from './lmp-identity-labels';
 import type { LeadMeetingPrepResponse } from './lead-meeting-prep.types';
 
 type Props = {
@@ -126,7 +127,7 @@ export function LeadMeetingPrepPanel({
       });
       setPrep(out.prep);
       onStatusChange?.(out.prep.status);
-      onMessage?.(out.enqueued ? 'Đã xếp hàng prep' : 'Prep không enqueue (xem trạng thái)');
+      onMessage?.(out.enqueued ? 'Đã lưu lên lead và xếp hàng prep' : 'Đã lưu — prep không enqueue (xem trạng thái)');
     } catch (err) {
       onError?.(err instanceof Error ? err.message : 'Chạy prep thất bại');
     } finally {
@@ -248,6 +249,21 @@ export function LeadMeetingPrepPanel({
         ) : null}
       </header>
 
+      {prep?.lead_identity?.company_name ? (
+        <div className="banner banner-info" style={{ marginBottom: '0.75rem' }}>
+          <strong>Doanh nghiệp trên lead:</strong> {prep.lead_identity.company_name}
+          {prep.lead_identity.website_url ? (
+            <span className="muted"> · {prep.lead_identity.website_url}</span>
+          ) : null}
+          {prep.lead_identity.discover_source ? (
+            <span className="lmp-badge lmp-badge--inferred" style={{ marginLeft: '0.5rem' }}>
+              {discoverSourceLabelVi(prep.lead_identity.discover_source)}
+              {prep.lead_identity.confirmed_by_am ? ' · AM xác nhận' : ''}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
       <LeadMeetingPrepProgress
         status={status}
         stepsCompleted={prep?.progress?.steps_completed}
@@ -288,7 +304,7 @@ export function LeadMeetingPrepPanel({
               disabled={busy || !companyName.trim()}
               onClick={() => void onRun(false)}
             >
-              Chạy prep
+              Lưu lên lead & chạy prep
             </button>
           ) : null}
         </div>

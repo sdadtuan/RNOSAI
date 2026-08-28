@@ -45,6 +45,15 @@ def _tavily_required() -> bool:
     return os.environ.get("LMP_REQUIRE_TAVILY", "0").strip().lower() in {"1", "true", "yes"}
 
 
+def _discover_enabled() -> bool:
+    return os.environ.get("LMP_IDENTITY_DISCOVER_ENABLED", "1").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def _discover_collect_shell(discover_result: dict[str, Any], credits: int) -> dict[str, Any]:
     return {
         "discover": discover_result,
@@ -65,9 +74,16 @@ def _apply_discover_selection(
     inp: dict[str, Any],
     discover_result: dict[str, Any],
     candidate_id: str,
+    *,
+    confirmed_by_am: bool = False,
 ) -> dict[str, Any]:
     out = discover.apply_candidate_to_input(inp, discover_result, candidate_id)
-    patch = discover.discover_meta_patch(discover_result, candidate_id)
+    patch = discover.discover_meta_patch(
+        discover_result,
+        candidate_id,
+        confirmed_by_am=confirmed_by_am,
+        discover_source="am_confirmed" if confirmed_by_am else "auto",
+    )
     if patch:
         repository.merge_lead_meta(lead_id, patch)
     return out
@@ -99,7 +115,13 @@ def _handle_discover_phase(
                 "error": "discover_context_missing",
                 "lead_id": lead_id,
             }
-        inp = _apply_discover_selection(lead_id, inp, discover_result, str(mode_selected))
+        inp = _apply_discover_selection(
+            lead_id,
+            inp,
+            discover_result,
+            str(mode_selected),
+            confirmed_by_am=True,
+        )
         snapshot = {**snapshot, "input": inp}
         collect_json = {**existing_collect, "discover": discover_result}
         return inp, collect_json, str(mode_selected)
@@ -241,6 +263,15 @@ def process_lead_meeting_prep_payload(
         snapshot = {**snapshot, "input": inp}
         needs_discover = False
     elif needs_discover and mode in {"discover", "full"}:
+        if not _discover_enabled():
+            repository.set_status(
+                lead_id,
+                status="awaiting_am_input",
+                skip_reason=am_input,
+                input_snapshot=snapshot,
+                prep_stage=prep_stage,
+            )
+            return {"ok": True, "awaiting_am_input": True, "reason": am_input, "lead_id": lead_id}
         discover_out = _handle_discover_phase(
             lead_id,
             inp,

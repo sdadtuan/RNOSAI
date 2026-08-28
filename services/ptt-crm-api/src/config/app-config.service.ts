@@ -93,6 +93,7 @@ export class AppConfigService {
   readonly dealRoomPortalTeaser: boolean;
   readonly dealRoomTeaserTtlDays: number;
   readonly leadMeetingPrepEnabled: boolean;
+  readonly lmpIdentityDiscoverEnabled: boolean;
   readonly marketResearchEnabled: boolean;
   readonly hrEmployeeFileEnabled: boolean;
   readonly maxTavilyCreditsPerResearch: number;
@@ -365,6 +366,9 @@ export class AppConfigService {
     );
     this.leadMeetingPrepEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_LEAD_MEETING_PREP_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.lmpIdentityDiscoverEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.LMP_IDENTITY_DISCOVER_ENABLED ?? '1').trim().toLowerCase(),
     );
     this.marketResearchEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_MARKET_RESEARCH_ENABLED ?? '0').trim().toLowerCase(),

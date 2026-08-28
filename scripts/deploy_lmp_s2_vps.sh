@@ -24,6 +24,7 @@ patch_runtime_env() {
   for kv in \
     "PTT_LEAD_MEETING_PREP_ENABLED=1" \
     "PTT_JOBS_ENABLED=1" \
+    "LMP_IDENTITY_DISCOVER_ENABLED=1" \
     "NEXT_PUBLIC_LEAD_MEETING_PREP=1"; do
     key="${kv%%=*}"
     if grep -q "^${key}=" "$env_file" 2>/dev/null; then

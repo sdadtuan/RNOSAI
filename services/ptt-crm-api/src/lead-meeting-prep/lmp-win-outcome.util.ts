@@ -1,3 +1,4 @@
+import { extractLmpDiscoverMeta } from './lmp-identity-writeback.util';
 import { parseDealValueVnd } from '../performance/performance-conversion.util';
 import type { LeadMeetingPrepDebriefBody, WinOutcomeJson } from './lead-meeting-prep.types';
 
@@ -16,6 +17,8 @@ export function buildWinOutcomeFromDebrief(input: {
     dealValue = parseDealValueVnd(input.metaJson);
   }
 
+  const discover = extractLmpDiscoverMeta(input.metaJson);
+
   return {
     outcome,
     deal_value_vnd: dealValue > 0 ? dealValue : null,
@@ -27,6 +30,9 @@ export function buildWinOutcomeFromDebrief(input: {
     submitted_at: new Date().toISOString(),
     submitted_by: input.actorEmail || 'unknown',
     prep_stage_at_close: input.prepStage ?? null,
+    discover_source: discover?.discover_source ?? null,
+    identity_confirmed_by_am:
+      discover?.confirmed_by_am === undefined ? null : Boolean(discover.confirmed_by_am),
   };
 }
 

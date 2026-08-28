@@ -9,6 +9,11 @@ import { extractReadinessBreakdown } from './close-readiness.util';
 import { buildQuoteLinesFromOfferLadder, type LmpOfferLadderRow } from './lmp-offer-ladder-quote.util';
 import { buildLmpDealRoomSciSlice } from './lmp-sci-slice.util';
 import { buildSciRedFlagBlockInfo } from './lmp-red-flag-block.util';
+import {
+  buildAmManualIdentityMetaPatch,
+  buildDiscoverSelectionMetaPatch,
+  extractLmpLeadIdentity,
+} from './lmp-identity-writeback.util';
 import { buildWinOutcomeFromDebrief, winOutcomeHasDebrief } from './lmp-win-outcome.util';
 import { lmpStatusLabelVi, lmpStatusMessageVi } from './lmp-skip-reason-labels.util';
 import type {
@@ -77,6 +82,7 @@ export class LeadMeetingPrepService {
         updated_at: null,
         win_outcome: null,
         debrief_pending: terminal,
+        lead_identity: extractLmpLeadIdentity(ctx.meta_json),
       };
     }
 
@@ -133,6 +139,7 @@ export class LeadMeetingPrepService {
       updated_at: row.updated_at,
       win_outcome: row.win_outcome_json as unknown as WinOutcomeJson,
       debrief_pending: terminal && !winOutcomeHasDebrief(row.win_outcome_json),
+      lead_identity: extractLmpLeadIdentity(ctx.meta_json),
     };
   }
 
@@ -306,7 +313,7 @@ export class LeadMeetingPrepService {
     };
   }
 
-  async runMeetingPrep(leadId: number, body: RunLeadMeetingPrepBody = {}) {
+  async runMeetingPrep(leadId: number, body: RunLeadMeetingPrepBody = {}, actorEmail?: string) {
     let ctx = await this.repo.getLeadContext(leadId);
     if (!ctx) {
       throw new NotFoundException({ error: 'Lead not found' });
@@ -314,9 +321,15 @@ export class LeadMeetingPrepService {
 
     const metaPatch: Record<string, unknown> = {};
     if (body.company_name?.trim()) {
-      metaPatch.company_name = body.company_name.trim();
-    }
-    if (body.website_url?.trim()) {
+      Object.assign(
+        metaPatch,
+        buildAmManualIdentityMetaPatch({
+          companyName: body.company_name.trim(),
+          websiteUrl: body.website_url?.trim() || null,
+          actorEmail: actorEmail ?? null,
+        }),
+      );
+    } else if (body.website_url?.trim()) {
       metaPatch.website_url = body.website_url.trim();
     }
     if (Object.keys(metaPatch).length > 0) {
@@ -413,10 +426,24 @@ export class LeadMeetingPrepService {
     };
   }
 
-  async selectEntity(leadId: number, body: SelectEntityBody) {
+  async selectEntity(leadId: number, body: SelectEntityBody, actorEmail?: string) {
     const entityId = String(body.entity_id ?? '').trim();
     if (!entityId) {
       throw new NotFoundException({ error: 'entity_id required' });
+    }
+
+    const prepRow = await this.repo.getByLeadId(leadId);
+    const collectJson = prepRow?.collect_json as Record<string, unknown> | undefined;
+    const discover = collectJson?.discover;
+    if (discover && typeof discover === 'object') {
+      const patch = buildDiscoverSelectionMetaPatch(
+        discover as Record<string, unknown>,
+        entityId,
+        { confirmedByAm: true, actorEmail: actorEmail ?? null },
+      );
+      if (Object.keys(patch).length > 0) {
+        await this.repo.mergeLeadMeta(leadId, patch);
+      }
     }
 
     const job = await this.enqueue.enqueueAfterLeadCreated({
