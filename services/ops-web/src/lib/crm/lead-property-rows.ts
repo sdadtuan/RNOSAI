@@ -24,8 +24,6 @@ export function leadPropertyRows(
   const created = lead.created_at?.slice(0, 10) || '—';
   const band = bandLabel(lead.ai_band);
   return [
-    { key: 'phone', label: 'SĐT', value: lead.phone?.trim() || '—' },
-    { key: 'email', label: 'Email', value: lead.email?.trim() || '—' },
     { key: 'source', label: 'Nguồn', value: lead.source?.trim() || '—' },
     { key: 'channel', label: 'Kênh', value: lead.channel?.trim() || '—' },
     { key: 'project', label: 'Dự án', value: lead.project_code?.trim() || '—' },

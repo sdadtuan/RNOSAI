@@ -1,0 +1,72 @@
+'use client';
+
+import Link from 'next/link';
+import type { LeadFunnelSnapshot } from '@/lib/api';
+import type { LeadContractFlowSummary } from '@/components/LeadB2bSalesFlowBar';
+import { resolveLeadJourney } from '@/lib/crm/lead-journey';
+
+type Props = {
+  leadId: number;
+  funnel: LeadFunnelSnapshot | null;
+  contract?: LeadContractFlowSummary | null;
+  onOpenConsult?: () => void;
+};
+
+export function LeadJourneyStepper({ leadId, funnel, contract, onOpenConsult }: Props) {
+  const steps = resolveLeadJourney({
+    reviewActive: Boolean(funnel?.review_queue.active),
+    b2Complete: Boolean(funnel?.care_pipeline.all_complete),
+    presalesStage: funnel?.presales?.presales.stage ?? null,
+    hasContract: Boolean(contract?.hasContract || contract?.pendingApproval),
+    contractActive: contract?.contractStatus === 'active',
+    lifecycleId: contract?.lifecycleId ?? null,
+    leadId,
+    serviceSlug: funnel?.presales?.presales.service_slug ?? null,
+  });
+
+  return (
+    <nav aria-label="Hành trình B2B" className="lead-journey" data-testid="lead-journey">
+      <div className="lead-journey__head">
+        <h3 className="lead-journey__title">Hành trình</h3>
+        <p className="lead-journey__desc">B2 → Pre-sales → Intake → Tư vấn → Báo giá → HĐ</p>
+      </div>
+      <ol className="lead-journey__track">
+        {steps.map((step, idx) => {
+          const inner = (
+            <>
+              <span className="lead-journey__dot" aria-hidden>
+                {step.state === 'done' ? '✓' : idx + 1}
+              </span>
+              <span className="lead-journey__label">{step.label_vi}</span>
+            </>
+          );
+          return (
+            <li key={step.key} className={`lead-journey__step lead-journey__step--${step.state}`}>
+              {step.key === 'consult' && onOpenConsult ? (
+                <button type="button" className="lead-journey__link" onClick={onOpenConsult}>
+                  {inner}
+                </button>
+              ) : step.href ? (
+                <Link href={step.href} className="lead-journey__link">
+                  {inner}
+                </Link>
+              ) : step.anchor ? (
+                <a href={step.anchor} className="lead-journey__link">
+                  {inner}
+                </a>
+              ) : (
+                <span className="lead-journey__link">{inner}</span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+      {funnel?.review_queue.active ? (
+        <p className="lead-journey__alert">
+          Lead đang phải tra soát.{' '}
+          <Link href="/crm/leads/review-queue">Mở inbox</Link>
+        </p>
+      ) : null}
+    </nav>
+  );
+}

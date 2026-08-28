@@ -1218,3 +1218,137 @@ html.ops-shell-bitrix .breadcrumb {
     max-width: 260px;
   }
 }
+
+html.ops-shell-bitrix .lead-nba {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e2da);
+  border-radius: 10px;
+  padding: 1rem 1.15rem;
+  margin: 0.75rem 0 1rem;
+}
+html.ops-shell-bitrix .lead-nba__kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted, #6b6b6b);
+}
+html.ops-shell-bitrix .lead-nba__title {
+  margin: 0.25rem 0;
+  font-size: 1.25rem;
+}
+html.ops-shell-bitrix .lead-nba__actions .btn-primary {
+  background: #17692f;
+  border-color: #17692f;
+}
+html.ops-shell-bitrix .lead-nba__actions .btn-primary:hover {
+  background: #114d24;
+  border-color: #114d24;
+}
+html.ops-shell-bitrix .lead-journey {
+  margin: 0 0 1rem;
+}
+html.ops-shell-bitrix .lead-journey__track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+html.ops-shell-bitrix .lead-journey__step--current .lead-journey__dot {
+  background: #17692f;
+  color: #fff;
+}
+html.ops-shell-bitrix .lead-detail-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.65rem;
+}
+html.ops-shell-bitrix .lead-detail-hero__nba {
+  font-size: 0.85rem;
+  color: #17692f;
+  font-weight: 600;
+}
+html.ops-shell-bitrix .lead-journey__head {
+  margin-bottom: 0.75rem;
+}
+html.ops-shell-bitrix .lead-journey__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+html.ops-shell-bitrix .lead-journey__desc {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted, #6b6b6b);
+}
+html.ops-shell-bitrix .lead-journey__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+html.ops-shell-bitrix .lead-journey__dot {
+  display: inline-grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #e5e7eb;
+  color: #6b7280;
+}
+html.ops-shell-bitrix .lead-journey__step--done .lead-journey__dot {
+  background: #16a34a;
+  color: #fff;
+}
+html.ops-shell-bitrix .lead-journey__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: inherit;
+}
+html.ops-shell-bitrix .lead-journey__step--current .lead-journey__link {
+  border-color: #17692f;
+  background: #e8f5ec;
+  font-weight: 600;
+}
+html.ops-shell-bitrix .lead-journey__alert {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+}
+html.ops-shell-bitrix .lead-nba__body {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: var(--muted, #6b6b6b);
+}
+html.ops-shell-bitrix .lead-nba__form {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+html.ops-shell-bitrix .lead-nba__form input {
+  width: 100%;
+}
+html.ops-shell-bitrix .lead-nba__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+html.ops-shell-bitrix .lead-nba__script {
+  margin: 0.75rem 0;
+  padding: 0.65rem 0.85rem;
+  border-left: 3px solid #17692f;
+  background: #f6faf7;
+  font-size: 0.88rem;
+}

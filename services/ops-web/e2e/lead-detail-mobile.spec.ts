@@ -27,7 +27,7 @@ async function clickAiTab(page: import('@playwright/test').Page) {
 }
 
 test.describe('SCR-MOB-003 Lead detail mobile', () => {
-  test('mobile tabs Chi tiết / Hoạt động / AI @390px', async ({ page, request }) => {
+  test('mobile tabs Việc / Nhật ký / AI @390px', async ({ page, request }) => {
     test.skip(!(await nestApiReachable(request)), 'Nest API not reachable');
 
     const leadId = await resolveLeadId(request);
@@ -41,8 +41,8 @@ test.describe('SCR-MOB-003 Lead detail mobile', () => {
       test.skip(true, 'Copilot disabled — tab bar hidden');
     }
     await expect(tabs).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'Chi tiết' })).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'Hoạt động' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Việc' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Nhật ký' })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'AI' })).toBeVisible();
   });
 

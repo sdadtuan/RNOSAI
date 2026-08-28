@@ -16,8 +16,6 @@ describe('leadPropertyRows', () => {
       'Lan',
     );
     expect(rows.map((r) => r.key)).toEqual([
-      'phone',
-      'email',
       'source',
       'channel',
       'project',
@@ -43,7 +41,6 @@ describe('leadPropertyRows', () => {
       channel: '',
       created_at: '',
     });
-    expect(rows.find((r) => r.key === 'phone')?.value).toBe('—');
     expect(rows.find((r) => r.key === 'owner')?.value).toBe('Chưa phân');
     expect(rows.some((r) => r.key === 'band')).toBe(false);
   });
