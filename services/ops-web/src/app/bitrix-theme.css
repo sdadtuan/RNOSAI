@@ -1411,3 +1411,61 @@ html.ops-shell-bitrix .lead-detail-hero__nba {
   background: #dff3e5;
   font-weight: 700;
 }
+
+html.ops-shell-bitrix .lead-cockpit-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 48;
+  background: rgba(18, 24, 20, 0.38);
+}
+
+html.ops-shell-bitrix .lead-cockpit-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 49;
+  width: min(48vw, 560px);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-left: 1px solid #d7ddd8;
+  box-shadow: -16px 0 40px rgba(18, 54, 28, 0.14);
+}
+
+html.ops-shell-bitrix .lead-cockpit-drawer__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.95rem 1.1rem 0.8rem;
+  border-bottom: 1px solid #e8ebe9;
+}
+
+html.ops-shell-bitrix .lead-cockpit-drawer__kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #17692f;
+}
+
+html.ops-shell-bitrix .lead-cockpit-drawer__title {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #12361c;
+}
+
+html.ops-shell-bitrix .lead-cockpit-drawer__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.85rem 1.1rem 1.4rem;
+}
+
+@media (max-width: 1023px) {
+  html.ops-shell-bitrix .lead-cockpit-drawer {
+    width: min(100vw, 100%);
+  }
+}

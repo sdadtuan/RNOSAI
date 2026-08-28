@@ -83,8 +83,8 @@ Trên trang lead detail, khối **Việc tiếp theo** (NBA) là block đầu c�
 
 | # | Màn hình | Route | Thành phần LMP |
 |---|----------|-------|----------------|
-| 1 | **Lead detail** | `/crm/leads/{id}` | Nút **Sales Cockpit**, card M1/M2, panel full |
-| 2 | Deep link | `/crm/leads/{id}?prep=1` | Mở thẳng Sales Cockpit |
+| 1 | **Lead detail** | `/crm/leads/{id}` | Nút **Sales Cockpit** mở drawer phải — hero + NBA vẫn thấy |
+| 2 | Deep link | `/crm/leads/{id}?prep=1` | Mở thẳng drawer Sales Cockpit |
 | 3 | **Intake BANT** | `/crm/intake?lead_id={id}` | Card **SCI · Qualify (M2)** |
 | 4 | **Deal Room** | `/crm/leads/{id}/deal-room` | Panel **SCI — Buổi chốt 45 phút** |
 | 5 | **CSKH board** | `/crm/cskh-board` | Panel **SLA + SCI · Gọi đầu** (M1) |
@@ -154,7 +154,7 @@ Prep M1 thường **tự enqueue** khi lead B2B mới tạo. Trên UI có 3 tr�
 
 **Vị trí B — Sales Cockpit full:**
 
-1. Bấm **Sales Cockpit** (góc workspace, cạnh **Tư vấn**).
+1. Bấm **Sales Cockpit** trên hero (drawer phải; Esc hoặc **Đóng**).
 2. Tab **Talk Track** — đọc các phase SPIN, dùng **Timer** 15:00.
 3. Bấm **Copy toàn bộ talk track**.
 4. Tab **Intel** — đọc chân dung DN, pain/ROI, urgency trước khi gọi.

@@ -12,6 +12,7 @@ import { LeadAuditPanel } from '@/components/crm/LeadAuditPanel';
 import { LeadContactActions } from '@/components/crm/LeadContactActions';
 import { LeadJourneyStepper } from '@/components/crm/LeadJourneyStepper';
 import { LeadNextActionCard } from '@/components/crm/LeadNextActionCard';
+import { SalesCockpitDrawer } from '@/components/crm/SalesCockpitDrawer';
 import { LeadMobileCallBar } from '@/components/crm/LeadMobileCallBar';
 import { LeadContractPanel } from '@/components/LeadContractPanel';
 import { LeadDetailHero } from '@/components/crm/LeadDetailHero';
@@ -97,7 +98,7 @@ const ACTIVITY_TYPES = [
 ];
 
 type LeadDetailTab = 'detail' | 'activity' | 'ai';
-type B2bOverviewTab = 'overview' | 'consult' | 'meeting-prep';
+type B2bOverviewTab = 'overview' | 'consult';
 
 async function copyLeadContact(value: string, label: string, onDone: (msg: string) => void) {
   const trimmed = value.trim();
@@ -202,6 +203,7 @@ export default function CrmLeadDetailPage() {
   const [companyName, setCompanyName] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [nbaBusy, setNbaBusy] = useState(false);
+  const [cockpitOpen, setCockpitOpen] = useState(false);
   const prepPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const layout = useLeadDetailLayout();
   const online = useNetworkOnline();
@@ -293,11 +295,24 @@ export default function CrmLeadDetailPage() {
   }, []);
 
   const openMeetingPrepTab = useCallback(() => {
-    setB2bPane('meeting-prep');
+    setCockpitOpen(true);
     setMobileTab('detail');
-    requestAnimationFrame(() => {
-      document.getElementById('lmp-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('prep') !== '1') {
+      url.searchParams.set('prep', '1');
+      window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+  }, []);
+
+  const closeCockpit = useCallback(() => {
+    setCockpitOpen(false);
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('prep') === '1') {
+      url.searchParams.delete('prep');
+      window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    }
   }, []);
 
   const openOverviewTab = useCallback(() => {
@@ -664,8 +679,8 @@ export default function CrmLeadDetailPage() {
     if (!showConsultTab && b2bPane === 'consult') {
       setB2bPane('overview');
     }
-    if (!showLmpTab && b2bPane === 'meeting-prep') {
-      setB2bPane('overview');
+    if (!showLmpTab) {
+      setCockpitOpen(false);
     }
   }, [showConsultTab, showLmpTab, b2bPane]);
 
@@ -844,12 +859,10 @@ export default function CrmLeadDetailPage() {
     copilotOn && !!lead && !loading && !!accessToken && !!user && layout.tablet && copilotDrawerOpen;
   const hideTimelinePane = useMobileTabs && mobileTab !== 'activity';
   const hidePropertyRail = useMobileTabs && mobileTab !== 'detail';
-  const hideOverviewContent =
-    (showConsultTab && b2bPane === 'consult') || (showLmpTab && b2bPane === 'meeting-prep');
+  const hideOverviewContent = showConsultTab && b2bPane === 'consult';
   const showWorkPane = !useMobileTabs || mobileTab === 'detail';
   const showOverviewMain = showWorkPane && !hideOverviewContent;
   const showConsultMain = showConsultTab && showWorkPane && b2bPane === 'consult';
-  const showMeetingPrepMain = showLmpTab && showWorkPane && b2bPane === 'meeting-prep';
   const hideMainPane = useMobileTabs && mobileTab !== 'detail';
 
   function renderCopilotPanel(variant: 'column' | 'drawer' | 'sheet', onCloseDrawer?: () => void) {
@@ -1059,14 +1072,12 @@ export default function CrmLeadDetailPage() {
               </div>
             ) : null}
 
-            {b2bPane !== 'overview' && showWorkPane ? (
+            {b2bPane === 'consult' && showWorkPane ? (
               <div className="lead-workspace-bar">
                 <button type="button" className="btn btn-ghost btn-sm" onClick={openOverviewTab}>
                   ← Việc
                 </button>
-                <span className="muted">
-                  {b2bPane === 'consult' ? 'Tư vấn' : 'Sales Cockpit'}
-                </span>
+                <span className="muted">Tư vấn</span>
               </div>
             ) : null}
 
@@ -1126,17 +1137,6 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {showMeetingPrepMain && accessToken ? (
-              <LeadMeetingPrepPanel
-                token={accessToken}
-                leadId={leadId}
-                user={user}
-                leadStatus={lead?.status}
-                autoFocus={prepDeepLink}
-                onMessage={setMessage}
-                onError={setError}
-              />
-            ) : null}
           </div>
 
           <aside
@@ -1363,6 +1363,23 @@ export default function CrmLeadDetailPage() {
           />
           {renderCopilotPanel('sheet', () => setMobileTab('detail'))}
         </>
+      ) : null}
+
+      {showLmpTab && cockpitOpen && accessToken ? (
+        <SalesCockpitDrawer open onClose={closeCockpit}>
+          <LeadMeetingPrepPanel
+            token={accessToken}
+            leadId={leadId}
+            user={user}
+            leadStatus={lead?.status}
+            autoFocus={prepDeepLink}
+            onMessage={setMessage}
+            onError={setError}
+            onStatusChange={() => {
+              void loadPrep();
+            }}
+          />
+        </SalesCockpitDrawer>
       ) : null}
 
       {showCopilotDrawer ? (
