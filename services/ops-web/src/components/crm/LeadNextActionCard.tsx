@@ -35,8 +35,10 @@ export function LeadNextActionCard({
 
   return (
     <section className="lead-nba" data-testid="lead-next-action" data-rule={action.rule}>
-      <p className="lead-nba__kicker">Việc tiếp theo</p>
-      <h2 className="lead-nba__title">{action.title_vi}</h2>
+      <div className="lead-nba__head">
+        <p className="lead-nba__kicker">Việc tiếp theo</p>
+        <h2 className="lead-nba__title">{action.title_vi}</h2>
+      </div>
       <p className="lead-nba__body">{action.body_vi}</p>
       {action.rule === 4 && prep ? (
         <LeadMeetingPrepProgress

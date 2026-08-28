@@ -833,11 +833,8 @@ export default function CrmLeadDetailPage() {
   }
 
   const accessToken = getAccessToken();
-  const b2StageDone = Boolean(funnelSnap?.care_pipeline.stages[0]?.done);
   const showSlaSciUnifiedPanel =
-    Boolean(accessToken) &&
-    (leadFlowKind === 'spa_operational' ||
-      (showB2bFlow && Boolean(funnelSnap?.presales_on_lead_enabled) && !b2StageDone));
+    Boolean(accessToken) && leadFlowKind === 'spa_operational';
   const useMobileTabs = layout.mobile;
   const showCopilotInline =
     copilotOn && !!lead && !loading && !!accessToken && !!user && layout.desktop;
@@ -981,6 +978,28 @@ export default function CrmLeadDetailPage() {
             }
           />
 
+          {showB2bFlow && nba ? (
+            <div className="lead-workspace-stage">
+              <LeadNextActionCard
+                action={nba}
+                prep={prep}
+                busy={nbaBusy}
+                companyName={companyName}
+                websiteUrl={websiteUrl}
+                onCompanyName={setCompanyName}
+                onWebsiteUrl={setWebsiteUrl}
+                onPickEntity={(id) => void onNbaSelectEntity(id)}
+                onAction={onNbaAction}
+              />
+              <LeadJourneyStepper
+                leadId={leadId}
+                funnel={funnelSnap}
+                contract={contractSummary}
+                onOpenConsult={showConsultTab ? openConsultTab : undefined}
+              />
+            </div>
+          ) : null}
+
           {showSlaSciUnifiedPanel ? (
             <LeadSlaCarePanel
               token={accessToken!}
@@ -1051,45 +1070,8 @@ export default function CrmLeadDetailPage() {
               </div>
             ) : null}
 
-            {showOverviewMain && (showConsultTab || showLmpTab) ? (
-              <div className="lead-workspace-links">
-                {showConsultTab ? (
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={openConsultTab}>
-                    Tư vấn
-                  </button>
-                ) : null}
-                {showLmpTab ? (
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={openMeetingPrepTab}>
-                    Sales Cockpit
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-
             {showOverviewMain ? (
               <>
-
-            {showB2bFlow && nba ? (
-              <>
-                <LeadNextActionCard
-                  action={nba}
-                  prep={prep}
-                  busy={nbaBusy}
-                  companyName={companyName}
-                  websiteUrl={websiteUrl}
-                  onCompanyName={setCompanyName}
-                  onWebsiteUrl={setWebsiteUrl}
-                  onPickEntity={(id) => void onNbaSelectEntity(id)}
-                  onAction={onNbaAction}
-                />
-                <LeadJourneyStepper
-                  leadId={leadId}
-                  funnel={funnelSnap}
-                  contract={contractSummary}
-                  onOpenConsult={showConsultTab ? openConsultTab : undefined}
-                />
-              </>
-            ) : null}
 
             {accessToken ? (
               <LeadFunnelPanel
@@ -1112,7 +1094,7 @@ export default function CrmLeadDetailPage() {
                   const access = getAccessToken();
                   if (access) void reloadTimeline(access);
                 }}
-                hideM1Card={showSlaSciUnifiedPanel && leadMeetingPrepEnabled()}
+                hideM1Card={showLmpTab}
               />
             ) : null}
 

@@ -57,6 +57,7 @@ export function LeadJourneyStepper({ leadId, funnel, contract, onOpenConsult }: 
               ) : (
                 <span className="lead-journey__link">{inner}</span>
               )}
+              {idx < steps.length - 1 ? <span className="lead-journey__line" aria-hidden /> : null}
             </li>
           );
         })}

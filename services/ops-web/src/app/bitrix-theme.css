@@ -1219,118 +1219,65 @@ html.ops-shell-bitrix .breadcrumb {
   }
 }
 
+html.ops-shell-bitrix .lead-workspace-stage {
+  display: grid;
+  gap: 0.75rem;
+}
+
 html.ops-shell-bitrix .lead-nba {
-  background: var(--surface, #fff);
-  border: 1px solid var(--border, #e5e2da);
-  border-radius: 10px;
-  padding: 1rem 1.15rem;
-  margin: 0.75rem 0 1rem;
+  background: linear-gradient(180deg, #f3faf5 0%, #fff 42%);
+  border: 1px solid #c8e0cf;
+  border-left: 5px solid #17692f;
+  border-radius: 12px;
+  padding: 1.15rem 1.25rem 1.2rem;
+  box-shadow: 0 8px 24px rgba(17, 77, 36, 0.07);
+}
+html.ops-shell-bitrix .lead-nba__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.45rem;
 }
 html.ops-shell-bitrix .lead-nba__kicker {
   margin: 0;
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
+  width: fit-content;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted, #6b6b6b);
+  font-weight: 700;
+  color: #17692f;
+  background: #dff3e5;
 }
 html.ops-shell-bitrix .lead-nba__title {
-  margin: 0.25rem 0;
-  font-size: 1.25rem;
+  margin: 0;
+  font-size: 1.45rem;
+  line-height: 1.25;
+  color: #12361c;
+}
+html.ops-shell-bitrix .lead-nba__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.15rem;
 }
 html.ops-shell-bitrix .lead-nba__actions .btn-primary {
   background: #17692f;
   border-color: #17692f;
+  min-height: 2.15rem;
+  padding: 0.4rem 1rem;
+  font-weight: 700;
 }
 html.ops-shell-bitrix .lead-nba__actions .btn-primary:hover {
   background: #114d24;
   border-color: #114d24;
 }
-html.ops-shell-bitrix .lead-journey {
-  margin: 0 0 1rem;
-}
-html.ops-shell-bitrix .lead-journey__track {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-html.ops-shell-bitrix .lead-journey__step--current .lead-journey__dot {
-  background: #17692f;
-  color: #fff;
-}
-html.ops-shell-bitrix .lead-detail-hero__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-  margin-top: 0.65rem;
-}
-html.ops-shell-bitrix .lead-detail-hero__nba {
-  font-size: 0.85rem;
-  color: #17692f;
-  font-weight: 600;
-}
-html.ops-shell-bitrix .lead-journey__head {
-  margin-bottom: 0.75rem;
-}
-html.ops-shell-bitrix .lead-journey__title {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-html.ops-shell-bitrix .lead-journey__desc {
-  margin: 0.25rem 0 0;
-  font-size: 0.8rem;
-  color: var(--muted, #6b6b6b);
-}
-html.ops-shell-bitrix .lead-journey__step {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-html.ops-shell-bitrix .lead-journey__dot {
-  display: inline-grid;
-  place-items: center;
-  width: 1.25rem;
-  height: 1.25rem;
-  border-radius: 999px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  background: #e5e7eb;
-  color: #6b7280;
-}
-html.ops-shell-bitrix .lead-journey__step--done .lead-journey__dot {
-  background: #16a34a;
-  color: #fff;
-}
-html.ops-shell-bitrix .lead-journey__link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.35rem 0.65rem;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 500;
-  text-decoration: none;
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
-  color: inherit;
-}
-html.ops-shell-bitrix .lead-journey__step--current .lead-journey__link {
-  border-color: #17692f;
-  background: #e8f5ec;
-  font-weight: 600;
-}
-html.ops-shell-bitrix .lead-journey__alert {
-  margin: 0.75rem 0 0;
-  font-size: 0.8rem;
-}
 html.ops-shell-bitrix .lead-nba__body {
-  margin: 0 0 0.75rem;
-  font-size: 0.9rem;
-  color: var(--muted, #6b6b6b);
+  margin: 0 0 0.85rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: #4b5563;
 }
 html.ops-shell-bitrix .lead-nba__form {
   display: grid;
@@ -1340,15 +1287,127 @@ html.ops-shell-bitrix .lead-nba__form {
 html.ops-shell-bitrix .lead-nba__form input {
   width: 100%;
 }
-html.ops-shell-bitrix .lead-nba__actions {
+html.ops-shell-bitrix .lead-nba__script {
+  margin: 0.75rem 0;
+  padding: 0.75rem 0.95rem;
+  border-left: 3px solid #17692f;
+  background: #f6faf7;
+  font-size: 0.9rem;
+}
+
+html.ops-shell-bitrix .lead-journey {
+  margin: 0;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--border, #e5e2da);
+  border-radius: 12px;
+  background: var(--paper, #fff);
+}
+html.ops-shell-bitrix .lead-journey__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 1rem;
+  margin-bottom: 0.7rem;
+}
+html.ops-shell-bitrix .lead-journey__title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b6b6b;
+}
+html.ops-shell-bitrix .lead-journey__desc {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted, #6b6b6b);
+}
+html.ops-shell-bitrix .lead-journey__track {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-x: auto;
+}
+html.ops-shell-bitrix .lead-journey__step {
+  display: inline-flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+html.ops-shell-bitrix .lead-journey__line {
+  flex: 1 1 0.75rem;
+  height: 2px;
+  min-width: 0.55rem;
+  margin: 0 0.2rem;
+  background: #d7ddd8;
+}
+html.ops-shell-bitrix .lead-journey__step--done .lead-journey__line,
+html.ops-shell-bitrix .lead-journey__step--current .lead-journey__line {
+  background: #17692f;
+}
+html.ops-shell-bitrix .lead-journey__dot {
+  display: inline-grid;
+  place-items: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: #e8ebe9;
+  color: #6b7280;
+}
+html.ops-shell-bitrix .lead-journey__step--current .lead-journey__dot {
+  background: #17692f;
+  color: #fff;
+  box-shadow: 0 0 0 4px #dff3e5;
+}
+html.ops-shell-bitrix .lead-journey__step--done .lead-journey__dot {
+  background: #17692f;
+  color: #fff;
+}
+html.ops-shell-bitrix .lead-journey__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  white-space: nowrap;
+}
+html.ops-shell-bitrix .lead-journey__step--current .lead-journey__link {
+  border-color: #c8e0cf;
+  background: #e8f5ec;
+  font-weight: 700;
+  color: #12361c;
+}
+html.ops-shell-bitrix .lead-journey__alert {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+}
+
+html.ops-shell-bitrix .lead-detail-hero__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.65rem;
 }
-html.ops-shell-bitrix .lead-nba__script {
-  margin: 0.75rem 0;
-  padding: 0.65rem 0.85rem;
-  border-left: 3px solid #17692f;
-  background: #f6faf7;
-  font-size: 0.88rem;
+html.ops-shell-bitrix .lead-detail-hero__nba {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  color: #17692f;
+  background: #dff3e5;
+  font-weight: 700;
 }
