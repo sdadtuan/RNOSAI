@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import type { LeadRow } from '@/lib/api';
 import type { LeadFlowKind } from '@/lib/crm/lead-flow-kind';
 import { leadStatusLabel, leadStatusTone } from '@/lib/crm/lead-status';
@@ -20,14 +21,23 @@ export function LeadDetailHero({
   ownerLabel,
   flowKind,
   flowLabel,
+  nbaTitle,
+  showCockpit,
+  onOpenCockpit,
+  contactActions,
 }: {
   lead: LeadRow;
   ownerLabel?: string | null;
   flowKind?: LeadFlowKind;
   flowLabel?: string;
+  nbaTitle?: string | null;
+  showCockpit?: boolean;
+  onOpenCockpit?: () => void;
+  contactActions?: ReactNode;
 }) {
   const tone = leadStatusTone(lead.status);
   const created = lead.created_at?.slice(0, 10) ?? '—';
+  const showActions = Boolean(contactActions) || Boolean(showCockpit);
 
   return (
     <header className="lead-detail-hero" data-testid="lead-detail-hero">
@@ -57,7 +67,25 @@ export function LeadDetailHero({
             <span className={`lead-status-badge lead-status-badge--${tone}`}>
               {leadStatusLabel(lead.status)}
             </span>
+            {nbaTitle ? (
+              <span className="lead-detail-hero__nba">{nbaTitle}</span>
+            ) : null}
           </div>
+
+          {showActions ? (
+            <div className="lead-detail-hero__actions">
+              {contactActions}
+              {showCockpit ? (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  onClick={onOpenCockpit}
+                >
+                  Sales Cockpit
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="lead-detail-hero__meta">
             {lead.phone ? (
