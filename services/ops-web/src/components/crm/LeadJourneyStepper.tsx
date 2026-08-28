@@ -38,6 +38,9 @@ export function LeadJourneyStepper({ leadId, funnel, contract, onOpenConsult }: 
                 {step.state === 'done' ? '✓' : idx + 1}
               </span>
               <span className="lead-journey__label">{step.label_vi}</span>
+              <span className="lead-journey__label-short" title={step.label_vi}>
+                {step.short_vi}
+              </span>
             </>
           );
           return (
