@@ -312,6 +312,84 @@ export class LeadMeetingPrepRepository implements OnModuleDestroy {
     };
   }
 
+  async aggregateDiscoverMetrics(windowDays: number) {
+    const days = Math.max(1, Math.min(windowDays, 90));
+    const result = await this.db.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE p.collect_json ? 'discover') AS discover_attempts,
+         COUNT(*) FILTER (
+           WHERE COALESCE(p.collect_json->'discover'->>'discover_status', '') IN ('found_single', 'found_multiple')
+         ) AS discover_hits,
+         COUNT(*) FILTER (
+           WHERE p.collect_json->'discover'->>'discover_status' = 'found_single'
+         ) AS found_single_count,
+         COUNT(*) FILTER (
+           WHERE p.collect_json->'discover'->>'discover_status' = 'found_multiple'
+         ) AS found_multiple_count,
+         COUNT(*) FILTER (
+           WHERE p.collect_json->'discover'->>'discover_status' = 'not_found'
+         ) AS not_found_count,
+         COUNT(*) FILTER (
+           WHERE p.collect_json->'discover'->>'discover_status' = 'tier1_only'
+         ) AS tier1_only_count,
+         COUNT(*) FILTER (
+           WHERE COALESCE(p.collect_json->'discover'->'meta'->>'cache_hit', '') = 'true'
+         ) AS cache_hit_count,
+         COUNT(*) FILTER (
+           WHERE p.status = 'ready' AND p.prep_stage = 'm1_first_strike'
+         ) AS m1_ready_count,
+         PERCENTILE_CONT(0.95) WITHIN GROUP (
+           ORDER BY EXTRACT(EPOCH FROM (p.updated_at - p.created_at))
+         ) FILTER (
+           WHERE p.status = 'ready' AND p.collect_json ? 'discover'
+         ) AS time_to_ready_p95_sec
+       FROM crm_lead_meeting_prep p
+       WHERE p.updated_at >= NOW() - ($1::int * INTERVAL '1 day')`,
+      [days],
+    );
+
+    const identityResult = await this.db.query(
+      `SELECT
+         COUNT(*) FILTER (
+           WHERE COALESCE(l.meta_json->'lmp_discover'->>'discover_source', '') IN ('am_manual', 'am_confirmed')
+         ) AS am_override_count,
+         COUNT(*) FILTER (
+           WHERE l.meta_json ? 'lmp_discover'
+         ) AS identity_total_count
+       FROM crm_leads l
+       JOIN crm_lead_meeting_prep p ON p.lead_id = l.sqlite_lead_id
+       WHERE p.updated_at >= NOW() - ($1::int * INTERVAL '1 day')`,
+      [days],
+    );
+
+    const row = result.rows[0] as Record<string, unknown>;
+    const idRow = identityResult.rows[0] as Record<string, unknown>;
+    const attempts = Number(row.discover_attempts ?? 0);
+    const hits = Number(row.discover_hits ?? 0);
+    const amOverride = Number(idRow.am_override_count ?? 0);
+    const identityTotal = Number(idRow.identity_total_count ?? 0);
+
+    return {
+      window_days: days,
+      discover_attempts: attempts,
+      discover_hits: hits,
+      discover_hit_rate_pct:
+        attempts > 0 ? Math.round((hits / attempts) * 1000) / 10 : null,
+      found_single_count: Number(row.found_single_count ?? 0),
+      found_multiple_count: Number(row.found_multiple_count ?? 0),
+      not_found_count: Number(row.not_found_count ?? 0),
+      tier1_only_count: Number(row.tier1_only_count ?? 0),
+      cache_hit_count: Number(row.cache_hit_count ?? 0),
+      am_override_count: amOverride,
+      identity_total_count: identityTotal,
+      am_override_rate_pct:
+        identityTotal > 0 ? Math.round((amOverride / identityTotal) * 1000) / 10 : null,
+      m1_ready_count: Number(row.m1_ready_count ?? 0),
+      time_to_ready_p95_sec:
+        row.time_to_ready_p95_sec != null ? Math.round(Number(row.time_to_ready_p95_sec)) : null,
+    };
+  }
+
   private mapRow(row: Record<string, unknown>): LeadMeetingPrepRow {
     return {
       id: Number(row.id),

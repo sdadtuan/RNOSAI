@@ -17,6 +17,7 @@ import { ManagerCoachService } from './manager-coach.service';
 import { AnomalyDigestService } from './anomaly-digest.service';
 import { AiLeadRouteService } from './ai-lead-route.service';
 import { LmpSciAnalyticsService } from '../lead-meeting-prep/lmp-sci-analytics.service';
+import { LmpDiscoverAnalyticsService } from '../lead-meeting-prep/lmp-discover-analytics.service';
 import { AiNlQueryService } from './ai-nl-query.service';
 import { AiTicketSentimentService } from './ai-ticket-sentiment.service';
 import {
@@ -196,6 +197,7 @@ export class AiIntelligenceController {
     private readonly orchestratorCron: OrchestratorCronService,
     private readonly staffAuth: StaffAuthService,
     private readonly lmpSciAnalytics: LmpSciAnalyticsService,
+    private readonly lmpDiscoverAnalytics: LmpDiscoverAnalyticsService,
   ) {}
 
   /** RNOS-02 — public smoke; records ai_agent_runs when schema ready (RNOS-05). */
@@ -583,6 +585,25 @@ export class AiIntelligenceController {
   ) {
     const windowDays = days ? Number(days) : 30;
     const data = await this.lmpSciAnalytics.getMetrics(
+      Number.isFinite(windowDays) ? windowDays : 30,
+    );
+    return {
+      data,
+      meta: { request_id: correlationId?.trim() || requestId?.trim() || '' },
+      errors: [],
+    };
+  }
+
+  /** Discover Phase 3 — identity discovery KPI dashboard. */
+  @Get('analytics/discover')
+  @UseGuards(StaffOrInternalKeyGuard)
+  async getDiscoverAnalytics(
+    @Query('days') days?: string,
+    @Headers('x-request-id') requestId?: string,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    const windowDays = days ? Number(days) : 30;
+    const data = await this.lmpDiscoverAnalytics.getMetrics(
       Number.isFinite(windowDays) ? windowDays : 30,
     );
     return {

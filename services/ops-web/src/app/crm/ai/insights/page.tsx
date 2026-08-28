@@ -9,15 +9,18 @@ import { PipelineRiskPanel } from '@/components/ai/PipelineRiskPanel';
 import { DashboardShell } from '@/components/kpi/DashboardShell';
 import { KpiTileGrid, type KpiTileProps } from '@/components/kpi/KpiDashboardUi';
 import { SciInsightsPanel } from '@/components/ai/SciInsightsPanel';
+import { DiscoverInsightsPanel } from '@/components/ai/DiscoverInsightsPanel';
 import {
   fetchAiAcceptanceMetrics,
   fetchAiRecommendationsInbox,
+  fetchLmpDiscoverAnalytics,
   fetchLmpSciAnalytics,
   fetchPipelineRiskAtRisk,
   patchPipelineRiskAssign,
   postPipelineRiskActivity,
   type AiAcceptanceMetrics,
   type AiRecommendationInboxItem,
+  type LmpDiscoverAnalyticsMetrics,
   type LmpSciAnalyticsMetrics,
   type PipelineRiskDealRow,
   type RecommendationStatus,
@@ -51,6 +54,7 @@ function CrmAiInsightsContent() {
   const [status, setStatus] = useState(() => searchParams.get('status') ?? '');
   const activeTab = searchParams.get('tab') === 'sci' ? 'sci' : 'feedback';
   const [sciMetrics, setSciMetrics] = useState<LmpSciAnalyticsMetrics | null>(null);
+  const [discoverMetrics, setDiscoverMetrics] = useState<LmpDiscoverAnalyticsMetrics | null>(null);
   const [metrics, setMetrics] = useState<AiAcceptanceMetrics | null>(null);
   const [rows, setRows] = useState<AiRecommendationInboxItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -100,7 +104,7 @@ function CrmAiInsightsContent() {
       setLoading(true);
       setError('');
       try {
-        const [metricsOut, inboxOut, riskOut, staffOut, sciOut] = await Promise.all([
+        const [metricsOut, inboxOut, riskOut, staffOut, sciOut, discoverOut] = await Promise.all([
           fetchAiAcceptanceMetrics(access, { days }),
           fetchAiRecommendationsInbox(access, {
             days,
@@ -114,9 +118,11 @@ function CrmAiInsightsContent() {
           })),
           fetchCrmStaffList(access).catch(() => ({ staff: [], summary: {} })),
           fetchLmpSciAnalytics(access, { days }).catch(() => null),
+          fetchLmpDiscoverAnalytics(access, { days }).catch(() => null),
         ]);
         setMetrics(metricsOut.data);
         setSciMetrics(sciOut?.data ?? null);
+        setDiscoverMetrics(discoverOut?.data ?? null);
         setRows(inboxOut.data.recommendations);
         setTotal(inboxOut.data.total);
         setAtRiskDeals(riskOut.data.deals);
@@ -198,7 +204,7 @@ function CrmAiInsightsContent() {
     <DashboardShell
       user={user}
       onLogout={logout}
-      title={activeTab === 'sci' ? 'AI Insights · SCI Win Loop' : 'AI Insights · Feedback loop'}
+      title={activeTab === 'sci' ? 'AI Insights · SCI & Discover' : 'AI Insights · Feedback loop'}
       periodHint={`${days} ngày gần nhất`}
       loading={loading}
       error={error || undefined}
@@ -265,7 +271,10 @@ function CrmAiInsightsContent() {
       }
     >
       {activeTab === 'sci' ? (
-        <SciInsightsPanel metrics={sciMetrics} days={days} loading={loading} />
+        <>
+          <SciInsightsPanel metrics={sciMetrics} days={days} loading={loading} />
+          <DiscoverInsightsPanel metrics={discoverMetrics} days={days} loading={loading} />
+        </>
       ) : (
         <>
           <KpiTileGrid tiles={tiles} />

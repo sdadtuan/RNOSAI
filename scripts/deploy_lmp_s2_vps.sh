@@ -25,6 +25,8 @@ patch_runtime_env() {
     "PTT_LEAD_MEETING_PREP_ENABLED=1" \
     "PTT_JOBS_ENABLED=1" \
     "LMP_IDENTITY_DISCOVER_ENABLED=1" \
+    "LMP_DISCOVER_CACHE_ENABLED=1" \
+    "LMP_DISCOVER_CACHE_TTL_DAYS=7" \
     "NEXT_PUBLIC_LEAD_MEETING_PREP=1"; do
     key="${kv%%=*}"
     if grep -q "^${key}=" "$env_file" 2>/dev/null; then
@@ -112,12 +114,13 @@ run_local() {
   sudo -n /usr/bin/systemctl restart ptt-worker && sleep 2 && systemctl is-active ptt-worker && echo " worker OK" \
     || echo "WARN  ptt-worker restart failed — check DATABASE_URL in /var/www/rnosai/.env"
 
-  echo "== gate (unit, no Tavily) =="
-  bash "$ROOT/scripts/lead_meeting_prep_gate.sh"
+echo "== gate (unit, no Tavily) =="
+bash "$ROOT/scripts/lmp_discover_gate.sh" || true
+bash "$ROOT/scripts/lead_meeting_prep_gate.sh"
 
   echo "== S-LMP-2 deploy complete =="
   echo "Enable E2E on VPS: LMP_E2E=1 TAVILY_API_KEY=... bash scripts/lead_meeting_prep_gate.sh"
-  echo "UAT: docs/runbooks/lmp-uat-p0.md"
+  echo "UAT: docs/runbooks/lmp-uat-p0.md · docs/runbooks/lmp-uat-discover-p3.md"
 }
 
 if [[ "${1:-}" == "--local" ]]; then

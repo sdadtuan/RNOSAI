@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from ptt_crm.lead_meeting_prep import collect, discover_schema
+from ptt_crm.lead_meeting_prep import collect, discover_schema, repository
 from ptt_crm.lead_meeting_prep.tier1_hints import company_hint_from_email
 from ptt_crm.lead_meeting_prep.verify import normalize_email, normalize_phone
 from ptt_crm import lmp_llm_client
@@ -21,6 +21,58 @@ PROMPT_VERSION = "lmp-discover-v1"
 ROOT = Path(__file__).resolve().parents[2]
 MAX_DOCS = 8
 MAX_CONTENT = 4000
+CACHEABLE_STATUSES = frozenset({"found_single", "found_multiple", "tier1_only"})
+
+
+def discover_cache_enabled() -> bool:
+    return os.environ.get("LMP_DISCOVER_CACHE_ENABLED", "1").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def discover_cache_ttl_days() -> int:
+    try:
+        return max(1, int(os.environ.get("LMP_DISCOVER_CACHE_TTL_DAYS", "7") or "7"))
+    except ValueError:
+        return 7
+
+
+def discover_cache_key(inp: dict[str, Any]) -> str | None:
+    phone = normalize_phone(str(inp.get("phone") or ""))
+    if len(phone) >= 9:
+        return f"discover:phone:{phone}"
+    email = normalize_email(str(inp.get("email") or ""))
+    if email and "@" in email:
+        return f"discover:email:{email}"
+    return None
+
+
+def load_discover_cache(cache_key: str) -> tuple[dict[str, Any], int] | None:
+    cached = repository.get_domain_cache(cache_key)
+    if not cached:
+        return None
+    result = cached.get("discover_result")
+    if not isinstance(result, dict):
+        return None
+    credits = int(cached.get("credits_used") or 0)
+    meta = dict(result.get("meta") or {})
+    meta["cache_hit"] = True
+    result = {**result, "meta": meta}
+    return result, credits
+
+
+def store_discover_cache(cache_key: str, discover_result: dict[str, Any], credits: int) -> None:
+    status = str(discover_result.get("discover_status") or "")
+    if status not in CACHEABLE_STATUSES:
+        return
+    repository.upsert_domain_cache(
+        cache_key,
+        {"discover_result": discover_result, "credits_used": credits},
+        ttl_days=discover_cache_ttl_days(),
+    )
 
 _FREE_EMAIL_DOMAINS = frozenset(
     {
@@ -288,6 +340,13 @@ def run_discover(
     *,
     correlation_id: str | None = None,
 ) -> tuple[dict[str, Any], int]:
+    cache_key = discover_cache_key(inp)
+    if discover_cache_enabled() and cache_key:
+        cached = load_discover_cache(cache_key)
+        if cached:
+            logger.debug("discover cache hit key=%s", cache_key)
+            return cached
+
     tier1_hints = build_tier1_hints(inp, meta)
     docs, queries, credits = search_identity(inp)
 
@@ -306,6 +365,8 @@ def run_discover(
             lead_email=str(inp.get("email") or ""),
             full_name=str(inp.get("full_name") or ""),
         )
+        if discover_cache_enabled() and cache_key:
+            store_discover_cache(cache_key, validated, credits)
         return validated, credits
 
     result = parse_discover_llm(
@@ -316,6 +377,8 @@ def run_discover(
         correlation_id=correlation_id,
     )
     result["meta"]["sources_parsed"] = len(docs)
+    if discover_cache_enabled() and cache_key:
+        store_discover_cache(cache_key, result, credits)
     return result, credits
 
 

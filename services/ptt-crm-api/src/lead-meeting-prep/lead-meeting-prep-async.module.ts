@@ -4,6 +4,7 @@ import { LeadMeetingPrepEnqueueService } from './lead-meeting-prep-enqueue.servi
 import { LeadMeetingPrepInputResolver } from './lead-meeting-prep-input.resolver';
 import { LeadMeetingPrepRepository } from './lead-meeting-prep.repository';
 import { LmpSciAnalyticsService } from './lmp-sci-analytics.service';
+import { LmpDiscoverAnalyticsService } from './lmp-discover-analytics.service';
 
 /** Minimal LMP surface for modules that must not import full LeadMeetingPrepModule. */
 @Module({
@@ -13,7 +14,13 @@ import { LmpSciAnalyticsService } from './lmp-sci-analytics.service';
     LeadMeetingPrepInputResolver,
     LeadMeetingPrepEnqueueService,
     LmpSciAnalyticsService,
+    LmpDiscoverAnalyticsService,
   ],
-  exports: [LeadMeetingPrepEnqueueService, LeadMeetingPrepRepository, LmpSciAnalyticsService],
+  exports: [
+    LeadMeetingPrepEnqueueService,
+    LeadMeetingPrepRepository,
+    LmpSciAnalyticsService,
+    LmpDiscoverAnalyticsService,
+  ],
 })
 export class LeadMeetingPrepAsyncModule {}

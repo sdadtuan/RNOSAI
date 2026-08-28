@@ -577,6 +577,29 @@ export interface LmpSciAnalyticsResponse {
   errors: unknown[];
 }
 
+export interface LmpDiscoverAnalyticsMetrics {
+  window_days: number;
+  discover_attempts: number;
+  discover_hits: number;
+  discover_hit_rate_pct: number | null;
+  found_single_count: number;
+  found_multiple_count: number;
+  not_found_count: number;
+  tier1_only_count: number;
+  cache_hit_count: number;
+  am_override_count: number;
+  identity_total_count: number;
+  am_override_rate_pct: number | null;
+  m1_ready_count: number;
+  time_to_ready_p95_sec: number | null;
+}
+
+export interface LmpDiscoverAnalyticsResponse {
+  data: LmpDiscoverAnalyticsMetrics;
+  meta: { request_id: string };
+  errors: unknown[];
+}
+
 export async function fetchLmpSciAnalytics(
   token: string,
   params?: { days?: number },
@@ -591,6 +614,24 @@ export async function fetchLmpSciAnalytics(
   const body = await parseJson<LmpSciAnalyticsResponse & { error?: string; message?: string }>(res);
   if (!res.ok) {
     throw new ApiError(body.message ?? body.error ?? 'Fetch SCI analytics failed', res.status);
+  }
+  return body;
+}
+
+export async function fetchLmpDiscoverAnalytics(
+  token: string,
+  params?: { days?: number },
+): Promise<LmpDiscoverAnalyticsResponse> {
+  const qs = new URLSearchParams();
+  if (params?.days != null) qs.set('days', String(params.days));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/v1/ai/analytics/discover${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<LmpDiscoverAnalyticsResponse & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Fetch Discover analytics failed', res.status);
   }
   return body;
 }
