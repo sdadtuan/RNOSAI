@@ -123,8 +123,8 @@ export function resolveLeadNextAction(input: LeadNextActionInput): LeadNextActio
 
   if (input.b2Complete && stage === 'consult') {
     const handoff = (input.handoffStatus ?? '').trim().toLowerCase();
-    const briefSecondary =
-      prep === 'ready' ? [{ label_vi: 'Copy brief M2', action: 'copy_m2_brief' as const }] : [];
+    const briefSecondary: LeadNextAction['secondary'] =
+      prep === 'ready' ? [{ label_vi: 'Copy brief M2', action: 'copy_m2_brief' }] : [];
     if (handoff === 'pending') {
       return {
         rule: 7,
@@ -157,7 +157,12 @@ export function resolveLeadNextAction(input: LeadNextActionInput): LeadNextActio
       title_vi: 'Giao Solution/MKT',
       body_vi: 'Intake đã Go. Giao queue Solution — Tư vấn là chỗ làm việc, không thay nút giao.',
       primary: { label_vi: 'Giao Solution/MKT', action: 'handoff_solution' },
-      secondary: [{ label_vi: 'Mở Tư vấn', action: 'open_consult' }, ...briefSecondary].slice(0, 2),
+      secondary: (
+        [
+          { label_vi: 'Mở Tư vấn', action: 'open_consult' },
+          ...briefSecondary,
+        ] satisfies LeadNextAction['secondary']
+      ).slice(0, 2),
     };
   }
 
