@@ -50,6 +50,7 @@ html.ops-shell-bitrix {
   --ops-chrome-h: var(--topbar-height);
   --sidebar-width-collapsed: 64px;
   --sidebar-width-expanded: 240px;
+  --lead-page-gutter: 3.5rem;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 10px;
@@ -1190,6 +1191,10 @@ html.ops-shell-bitrix .breadcrumb {
 }
 
 @media (max-width: 960px) {
+  html.ops-shell-bitrix {
+    --lead-page-gutter: 1.3rem;
+  }
+
   html.ops-shell-bitrix .login-page {
     grid-template-columns: 1fr;
   }
@@ -1230,9 +1235,23 @@ html.ops-shell-bitrix .lead-detail-page,
 html.ops-shell-bitrix .lead-detail-layout,
 html.ops-shell-bitrix .lead-detail-grid--record,
 html.ops-shell-bitrix .lead-detail-hero,
-html.ops-shell-bitrix .lead-nba {
+html.ops-shell-bitrix .lead-nba,
+html.ops-shell-bitrix .lead-funnel-panel,
+html.ops-shell-bitrix .lead-funnel-panel .card-inner,
+html.ops-shell-bitrix .lead-b2-workflow {
   min-width: 0;
   max-width: 100%;
+}
+
+html.ops-shell-bitrix:has(.lead-detail-page) {
+  overflow-x: clip;
+}
+
+/* Leftover viewport after the fixed sidebar — not 100% of a growing parent. */
+html.ops-shell-bitrix .lead-detail-page {
+  width: calc(100vw - var(--sidebar-width) - var(--lead-page-gutter));
+  max-width: calc(100vw - var(--sidebar-width) - var(--lead-page-gutter));
+  box-sizing: border-box;
 }
 
 html.ops-shell-bitrix .lead-detail-layout {
@@ -1255,6 +1274,43 @@ html.ops-shell-bitrix .lead-detail-page .crm-funnel-stepper__track {
 html.ops-shell-bitrix .lead-detail-page .crm-funnel-stepper__track {
   flex-wrap: wrap;
   overflow: hidden;
+}
+
+html.ops-shell-bitrix .lead-funnel-panel {
+  overflow: hidden;
+}
+
+html.ops-shell-bitrix .lead-funnel-panel textarea,
+html.ops-shell-bitrix .lead-funnel-panel input,
+html.ops-shell-bitrix .lead-funnel-panel .btn {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+html.ops-shell-bitrix .lead-funnel-panel .btn {
+  white-space: normal;
+  height: auto;
+  text-align: center;
+}
+
+html.ops-shell-expanded.ops-shell-bitrix .lead-detail-grid--record {
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 240px);
+}
+
+html.ops-shell-expanded.ops-shell-bitrix .lead-detail-grid--record.lead-detail-grid--with-copilot {
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 240px) minmax(0, 0.55fr);
+}
+
+html.ops-shell-expanded.ops-shell-bitrix .lead-funnel-panel {
+  padding: 0.9rem 1rem;
+}
+
+html.ops-shell-expanded.ops-shell-bitrix .lead-journey__label {
+  display: none;
+}
+
+html.ops-shell-expanded.ops-shell-bitrix .lead-journey__label-short {
+  display: inline;
 }
 
 html.ops-shell-bitrix .lead-nba {
