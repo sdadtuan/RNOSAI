@@ -25,8 +25,11 @@ import {
   leadFlowKindLabel,
   resolveLeadFlowKindFromLead,
   showB2bSalesFlowBar,
-  showContractForFlow,
 } from '@/lib/crm/lead-flow-kind';
+import {
+  deriveS0IntakeGo,
+  resolveLeadStageVisibility,
+} from '@/lib/crm/lead-stage-visibility';
 import {
   LEAD_CONSULT_TAB_HASH,
   showLeadConsultTab,
@@ -53,6 +56,7 @@ import {
   createLeadActivity,
   fetchCatalogBundle,
   fetchLead,
+  fetchLeadContractReadiness,
   fetchLeadFunnel,
   fetchLeadActivities,
   fetchLeadAttribution,
@@ -218,7 +222,21 @@ export default function CrmLeadDetailPage() {
   const statusDropdownOptions = statusOptionsApi?.allowed_next ?? [];
   const statusHints = statusOptionsApi?.hints ?? [];
   const showB2bFlow = showB2bSalesFlowBar(leadFlowKind);
-  const showContractPanel = showContractForFlow(leadFlowKind);
+  const presalesStage = funnelSnap?.presales?.presales.stage ?? null;
+  const intakeGo = deriveS0IntakeGo(presalesStage);
+  const stageVis = useMemo(
+    () =>
+      resolveLeadStageVisibility({
+        flowKind: leadFlowKind,
+        b2Complete: Boolean(funnelSnap?.care_pipeline.all_complete),
+        presalesStage,
+        intakeGo,
+        hasContract: Boolean(contractSummary?.hasContract),
+        contractStatus: contractSummary?.contractStatus ?? null,
+        dealRoomEnabled: dealRoomEnabled(),
+      }),
+    [leadFlowKind, funnelSnap, intakeGo, presalesStage, contractSummary],
+  );
   const showConsultTab = showB2bFlow && showLeadConsultTab(funnelSnap);
   const showLmpTab = leadMeetingPrepEnabled() && showB2bFlow;
   const prepDeepLink = searchParams.get('prep') === '1';
@@ -658,6 +676,38 @@ export default function CrmLeadDetailPage() {
   }, [ensureAuth, leadId, reloadCopilotContext, reloadFunnel, reloadTimeline, reloadStatusOptions]);
 
   useEffect(() => {
+    setContractSummary(null);
+  }, [leadId]);
+
+  useEffect(() => {
+    const token = getAccessToken();
+    if (!token || !showB2bFlow) return;
+    let cancelled = false;
+    void fetchLeadContractReadiness(token, leadId)
+      .then((data) => {
+        if (cancelled) return;
+        setContractSummary({
+          hasContract: Boolean(data.contract),
+          contractStatus: data.contract?.status ?? null,
+          pendingApproval: data.approval?.status === 'pending',
+          lifecycleId: data.lifecycle_id ?? null,
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setContractSummary({
+          hasContract: false,
+          contractStatus: null,
+          pendingApproval: false,
+          lifecycleId: null,
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [leadId, showB2bFlow, contractRefresh]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     const syncHash = () => {
       if (window.location.hash === LEAD_CONSULT_TAB_HASH && showLeadConsultTab(funnelSnap)) {
@@ -991,7 +1041,7 @@ export default function CrmLeadDetailPage() {
             }
           />
 
-          {showB2bFlow && nba ? (
+          {stageVis.showNbaB2b && stageVis.showJourney && nba ? (
             <div className="lead-workspace-stage">
               <LeadNextActionCard
                 action={nba}
@@ -1058,7 +1108,7 @@ export default function CrmLeadDetailPage() {
               </div>
             )}
 
-            {accessToken && showB2bFlow && dealRoomEnabled() && funnelSnap?.presales && funnelSnap?.care_pipeline.all_complete ? (
+            {accessToken && stageVis.showDealRoomBanner ? (
               <div className="deal-room-entry-banner">
                 <div>
                   <strong>Deal Room</strong>
@@ -1106,10 +1156,11 @@ export default function CrmLeadDetailPage() {
                   if (access) void reloadTimeline(access);
                 }}
                 hideM1Card={showLmpTab}
+                showPresalesBlock={stageVis.showPresalesBlock}
               />
             ) : null}
 
-            {accessToken && showContractPanel ? (
+            {accessToken && stageVis.showContractPanel ? (
               <LeadContractPanel
                 token={accessToken}
                 leadId={leadId}

@@ -45,6 +45,8 @@ interface Props {
   onFunnelUpdated?: () => void;
   /** Hero SLA+SCI panel đã gộp — ẩn thẻ M1 trùng trong funnel */
   hideM1Card?: boolean;
+  /** S0: B2B + B2 xong. Khi false, không render #funnel-presales. */
+  showPresalesBlock?: boolean;
 }
 
 const DEFAULT_PRESALES_SERVICES: Array<{ slug: string; name: string }> = [
@@ -86,6 +88,7 @@ export function LeadFunnelPanel({
   onFunnelChange,
   onFunnelUpdated,
   hideM1Card = false,
+  showPresalesBlock = true,
 }: Props) {
   const [funnel, setFunnel] = useState<LeadFunnelSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -238,8 +241,6 @@ export function LeadFunnelPanel({
   }`;
 
   const presalesStage = funnel?.presales?.presales.stage;
-  const useConsultWorkspaceTab =
-    presalesStage === 'consult' || presalesStage === 'proposal';
 
   async function applyMarketingPlanResponse(plan: Record<string, unknown>, validationMessages: string[]) {
     setPlanName(String(plan.name ?? ''));
@@ -496,7 +497,11 @@ export function LeadFunnelPanel({
         ) : null}
       </div>
 
-      {showPresales && funnel.presales_on_lead_enabled && funnel.presales_care_gate.complete && !inReview && (
+      {showPresalesBlock &&
+        showPresales &&
+        funnel.presales_on_lead_enabled &&
+        funnel.presales_care_gate.complete &&
+        !inReview && (
         <div className="card-inner" id="funnel-presales">
           <h3 style={{ marginTop: 0 }}>Pre-sales</h3>
           {!funnel.presales && canEdit && (
@@ -540,7 +545,7 @@ export function LeadFunnelPanel({
                 Giai đoạn: <strong>{funnel.presales.presales.stage}</strong> · Dịch vụ:{' '}
                 {funnel.presales.presales.service_slug || '—'}
               </p>
-              {useConsultWorkspaceTab ? (
+              {presalesStage === 'consult' || presalesStage === 'proposal' ? (
                 <div className="banner banner-info stack-gap" style={{ marginTop: '0.5rem' }}>
                   <p style={{ margin: 0 }}>
                     Workspace <strong>Tư vấn / Báo giá</strong> nằm trên tab{' '}
@@ -555,13 +560,14 @@ export function LeadFunnelPanel({
                 </div>
               ) : (
                 <>
-                  {renderPresalesTasks()}
-                  {funnel.presales.presales.stage === 'lead' && (
+                  {funnel.presales.presales.stage === 'lead' || !String(funnel.presales.presales.stage ?? '').trim() ? (
                     <p style={{ margin: '0.5rem 0' }}>
                       <Link href={intakeHref} className="nav-link">
                         Mở Lead Intake (BANT) →
                       </Link>
                     </p>
+                  ) : (
+                    renderPresalesTasks()
                   )}
                 </>
               )}
