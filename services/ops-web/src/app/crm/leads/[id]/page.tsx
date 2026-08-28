@@ -58,6 +58,8 @@ import {
   fetchLeadAudit,
   fetchLeadCopilotContext,
   fetchLeadStatusOptions,
+  handoffLeadToSolution,
+  advanceLeadPresales,
   patchLeadLegacy,
   staffMe,
   staffRefresh,
@@ -232,6 +234,7 @@ export default function CrmLeadDetailPage() {
       prepStatus: prep?.status ?? null,
       prepStage: prep?.prep_stage ?? null,
       debriefPending: Boolean(prep?.debrief_pending),
+      handoffStatus: funnelSnap?.presales?.handoff?.status ?? null,
     });
   }, [lead, showLmpTab, funnelSnap, prep]);
 
@@ -403,6 +406,78 @@ export default function CrmLeadDetailPage() {
       case 'open_consult':
         openConsultTab();
         break;
+      case 'wait_handoff':
+        break;
+      case 'handoff_solution': {
+        if (!token) return;
+        if (typeof window !== 'undefined' && !window.confirm('Xác nhận giao Solution/MKT?')) return;
+        setNbaBusy(true);
+        setError('');
+        try {
+          const first = await handoffLeadToSolution(token, leadId, { confirm: true });
+          setFunnelSnap(first.funnel);
+          setMessage('Đã giao Solution/MKT');
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Giao Solution thất bại';
+          if (/override/i.test(msg) && typeof window !== 'undefined') {
+            const reason = window.prompt('Director override — nhập lý do:');
+            if (!reason?.trim()) {
+              setError('Cần lý do override');
+              break;
+            }
+            try {
+              const retry = await handoffLeadToSolution(token, leadId, {
+                confirm: true,
+                override_reason: reason.trim(),
+              });
+              setFunnelSnap(retry.funnel);
+              setMessage('Đã giao Solution/MKT (override)');
+            } catch (retryErr) {
+              setError(retryErr instanceof Error ? retryErr.message : 'Giao Solution thất bại');
+            }
+          } else {
+            setError(msg);
+          }
+        } finally {
+          setNbaBusy(false);
+        }
+        break;
+      }
+      case 'advance_presales': {
+        if (!token) return;
+        if (typeof window !== 'undefined' && !window.confirm('Xác nhận chuyển → Báo giá?')) return;
+        setNbaBusy(true);
+        setError('');
+        try {
+          const out = await advanceLeadPresales(token, leadId, { confirm: true });
+          setFunnelSnap(out.funnel);
+          setMessage('Đã chuyển giai đoạn pre-sales');
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Chuyển giai đoạn thất bại';
+          if (/override/i.test(msg) && typeof window !== 'undefined') {
+            const reason = window.prompt('Director override — nhập lý do:');
+            if (!reason?.trim()) {
+              setError('Cần lý do override');
+              break;
+            }
+            try {
+              const retry = await advanceLeadPresales(token, leadId, {
+                confirm: true,
+                override_reason: reason.trim(),
+              });
+              setFunnelSnap(retry.funnel);
+              setMessage('Đã chuyển giai đoạn pre-sales (override)');
+            } catch (retryErr) {
+              setError(retryErr instanceof Error ? retryErr.message : 'Chuyển giai đoạn thất bại');
+            }
+          } else {
+            setError(msg);
+          }
+        } finally {
+          setNbaBusy(false);
+        }
+        break;
+      }
       case 'open_deal_room':
         router.push(`/crm/leads/${leadId}/deal-room`);
         break;
@@ -424,7 +499,10 @@ export default function CrmLeadDetailPage() {
         setTerminalDebriefOpen(true);
         break;
       case 'add_activity':
-        document.getElementById('lead-activity-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setMobileTab('activity');
+        requestAnimationFrame(() => {
+          document.getElementById('lead-activity-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
         break;
       default:
         break;

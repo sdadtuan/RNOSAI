@@ -10,6 +10,9 @@ export type NextActionKind =
   | 'open_intake'
   | 'copy_m2_brief'
   | 'open_consult'
+  | 'handoff_solution'
+  | 'wait_handoff'
+  | 'advance_presales'
   | 'open_deal_room'
   | 'apply_offer_ladder'
   | 'submit_debrief'
@@ -34,6 +37,7 @@ export type LeadNextActionInput = {
   prepStatus: string | null;
   prepStage: string | null;
   debriefPending: boolean;
+  handoffStatus: string | null;
 };
 
 function hasContact(input: LeadNextActionInput): boolean {
@@ -118,12 +122,42 @@ export function resolveLeadNextAction(input: LeadNextActionInput): LeadNextActio
   }
 
   if (input.b2Complete && stage === 'consult') {
+    const handoff = (input.handoffStatus ?? '').trim().toLowerCase();
+    const briefSecondary =
+      prep === 'ready' ? [{ label_vi: 'Copy brief M2', action: 'copy_m2_brief' as const }] : [];
+    if (handoff === 'pending') {
+      return {
+        rule: 7,
+        title_vi: 'Chờ Solution nhận case',
+        body_vi: 'Đã giao queue. Không giao lại — Solution sẽ claim trên /crm/solution/queue.',
+        primary: { label_vi: 'Đang chờ nhận…', action: 'wait_handoff' },
+        secondary: [{ label_vi: 'Mở Tư vấn', action: 'open_consult' }],
+      };
+    }
+    if (handoff === 'with_solution') {
+      return {
+        rule: 7,
+        title_vi: 'Solution đang tư vấn',
+        body_vi: 'Case đã có owner Solution. Mở workspace Tư vấn.',
+        primary: { label_vi: 'Mở Tư vấn', action: 'open_consult' },
+        secondary: briefSecondary,
+      };
+    }
+    if (handoff === 'released') {
+      return {
+        rule: 7,
+        title_vi: 'Chuyển → Báo giá',
+        body_vi: 'Solution đã trả Sales. Chuyển giai đoạn pre-sales sang báo giá.',
+        primary: { label_vi: 'Chuyển → Báo giá', action: 'advance_presales' },
+        secondary: [{ label_vi: 'Mở Tư vấn', action: 'open_consult' }],
+      };
+    }
     return {
       rule: 7,
-      title_vi: 'Handoff Solution',
-      body_vi: 'Intake đã Go. Đẩy brief sang Tư vấn / Solution.',
-      primary: { label_vi: 'Mở Tư vấn', action: 'open_consult' },
-      secondary: [{ label_vi: 'Copy brief M2', action: 'copy_m2_brief' }],
+      title_vi: 'Giao Solution/MKT',
+      body_vi: 'Intake đã Go. Giao queue Solution — Tư vấn là chỗ làm việc, không thay nút giao.',
+      primary: { label_vi: 'Giao Solution/MKT', action: 'handoff_solution' },
+      secondary: [{ label_vi: 'Mở Tư vấn', action: 'open_consult' }, ...briefSecondary].slice(0, 2),
     };
   }
 
@@ -143,9 +177,10 @@ export function resolveLeadNextAction(input: LeadNextActionInput): LeadNextActio
       rule: 5,
       title_vi: 'Gọi đầu trong 15 phút',
       body_vi: 'Hero đã có Gọi ngay. Copy script rồi gọi; sau cuộc gọi hoàn thành B2.',
-      primary: input.lmpEnabled
-        ? { label_vi: 'Copy script', action: 'copy_script' }
-        : { label_vi: 'Thêm hoạt động', action: 'add_activity' },
+      primary:
+        input.lmpEnabled && prep === 'ready'
+          ? { label_vi: 'Copy script', action: 'copy_script' }
+          : { label_vi: 'Thêm hoạt động', action: 'add_activity' },
       secondary: [{ label_vi: 'Hoàn thành B2', action: 'complete_b2' }],
     };
   }

@@ -46,6 +46,9 @@ export function LeadNextActionCard({
         />
       ) : null}
       {opening ? <blockquote className="lead-nba__script">{opening}</blockquote> : null}
+      {action.rule === 5 && prep != null && prep.status !== 'ready' ? (
+        <p className="lead-nba__body">SCI đang chạy / chưa có — vẫn gọi được từ hero.</p>
+      ) : null}
       {action.rule === 2 ? (
         <div className="lead-nba__form">
           <p>{lmpSkipReasonMessageVi(prep?.skip_reason ?? 'missing_company_name')}</p>
@@ -72,7 +75,12 @@ export function LeadNextActionCard({
           <button
             type="button"
             className="btn btn-sm btn-primary"
-            disabled={busy || action.primary.action === 'wait_prep' || (action.rule === 2 && !companyName.trim())}
+            disabled={
+              busy ||
+              action.primary.action === 'wait_prep' ||
+              action.primary.action === 'wait_handoff' ||
+              (action.rule === 2 && !companyName.trim())
+            }
             onClick={() => onAction(action.primary.action)}
           >
             {action.primary.label_vi}

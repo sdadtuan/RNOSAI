@@ -12,15 +12,22 @@ const base = {
   prepStatus: null as string | null,
   prepStage: null as string | null,
   debriefPending: false,
+  handoffStatus: null as string | null,
 };
 
 describe('resolveLeadNextAction', () => {
-  it('lead #5 fixture → rule 5 Gọi đầu', () => {
+  it('lead #5 fixture → rule 5 Gọi đầu, no fake script', () => {
     const out = resolveLeadNextAction(base);
     expect(out.rule).toBe(5);
     expect(out.title_vi).toBe('Gọi đầu trong 15 phút');
-    expect(out.primary.action).toBe('copy_script');
+    expect(out.primary.action).toBe('add_activity');
     expect(out.secondary.map((s) => s.action)).toEqual(['complete_b2']);
+  });
+
+  it('rule 5 + prep ready → copy_script', () => {
+    const out = resolveLeadNextAction({ ...base, prepStatus: 'ready' });
+    expect(out.rule).toBe(5);
+    expect(out.primary.action).toBe('copy_script');
   });
 
   it('missing contact → rule 1', () => {
@@ -57,7 +64,7 @@ describe('resolveLeadNextAction', () => {
     expect(out.primary.action).toBe('open_intake');
   });
 
-  it('Intake Go (consult) → rule 7', () => {
+  it('Intake Go (consult) → giao Solution', () => {
     const out = resolveLeadNextAction({
       ...base,
       b2Complete: true,
@@ -65,7 +72,42 @@ describe('resolveLeadNextAction', () => {
       prepStatus: 'ready',
     });
     expect(out.rule).toBe(7);
+    expect(out.primary.action).toBe('handoff_solution');
+    expect(out.secondary.map((s) => s.action)).toEqual(['open_consult', 'copy_m2_brief']);
+  });
+
+  it('consult + pending handoff → wait', () => {
+    const out = resolveLeadNextAction({
+      ...base,
+      b2Complete: true,
+      presalesStage: 'consult',
+      handoffStatus: 'pending',
+    });
+    expect(out.rule).toBe(7);
+    expect(out.primary.action).toBe('wait_handoff');
+    expect(out.secondary.map((s) => s.action)).toEqual(['open_consult']);
+  });
+
+  it('consult + with_solution → mở Tư vấn', () => {
+    const out = resolveLeadNextAction({
+      ...base,
+      b2Complete: true,
+      presalesStage: 'consult',
+      handoffStatus: 'with_solution',
+    });
+    expect(out.rule).toBe(7);
     expect(out.primary.action).toBe('open_consult');
+  });
+
+  it('consult + released → chuyển Báo giá', () => {
+    const out = resolveLeadNextAction({
+      ...base,
+      b2Complete: true,
+      presalesStage: 'consult',
+      handoffStatus: 'released',
+    });
+    expect(out.rule).toBe(7);
+    expect(out.primary.action).toBe('advance_presales');
   });
 
   it('proposal + deal room → rule 8', () => {
