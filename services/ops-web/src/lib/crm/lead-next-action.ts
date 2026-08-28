@@ -186,7 +186,7 @@ export function resolveLeadNextAction(input: LeadNextActionInput): LeadNextActio
         input.lmpEnabled && prep === 'ready'
           ? { label_vi: 'Copy script', action: 'copy_script' }
           : { label_vi: 'Thêm hoạt động', action: 'add_activity' },
-      secondary: [{ label_vi: 'Hoàn thành B2', action: 'complete_b2' }],
+      secondary: [{ label_vi: 'Xong B2', action: 'complete_b2' }],
     };
   }
 

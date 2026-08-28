@@ -1293,6 +1293,69 @@ html.ops-shell-bitrix .lead-funnel-panel .btn {
   text-align: center;
 }
 
+html.ops-shell-bitrix .lead-b2-outcome {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.45rem;
+  min-width: 0;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__chip {
+  border: 1px solid #d7ddd8;
+  background: #fff;
+  color: #3f4a42;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__chip.is-active {
+  border-color: #17692f;
+  background: #e8f5ec;
+  color: #12361c;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__note {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #6b6b6b;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__note input {
+  width: 100%;
+  font-weight: 500;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__hint {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__hint--warn {
+  color: #b45309;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__submit {
+  justify-self: start;
+}
+
+html.ops-shell-bitrix .lead-b2-outcome__done {
+  margin: 0.35rem 0 0;
+  color: #17692f;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
 html.ops-shell-expanded.ops-shell-bitrix .lead-detail-grid--record {
   grid-template-columns: minmax(0, 1fr) minmax(200px, 240px);
 }

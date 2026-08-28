@@ -19,14 +19,9 @@ import {
   submitLeadCareReport,
   type LeadFunnelSnapshot,
 } from '@/lib/api';
+import { LeadB2OutcomeCard } from '@/components/crm/LeadB2OutcomeCard';
 import { showPresalesForFlow } from '@/lib/crm/lead-flow-kind';
-import {
-  B2_NEGATIVE_CARE_OPTIONS,
-  CRM_CARE_CONTACT_OPTIONS,
-  b2NegativeCareHint,
-  b2NegativeCareSuggestLost,
-  type B2NegativeCareStatus,
-} from '@/lib/crm/care-status';
+import type { B2OutcomePlan } from '@/lib/crm/lead-b2-outcome';
 import { hasCap, canGenerateMktAiPlanner, canViewLmp, type StoredStaffUser } from '@/lib/auth';
 import { leadMeetingPrepEnabled } from '@/lib/crm/lmp-flags';
 import { fetchLeadMeetingPrep, prepStatusChipLabel } from '@/lib/lead-meeting-prep-api';
@@ -94,11 +89,6 @@ export function LeadFunnelPanel({
 }: Props) {
   const [funnel, setFunnel] = useState<LeadFunnelSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
-  const [careNote, setCareNote] = useState('');
-  const [careReport, setCareReport] = useState('Đã liên hệ KH — xác nhận nhu cầu');
-  const [negativeCareStatus, setNegativeCareStatus] = useState<B2NegativeCareStatus>('khong_nghe_may');
-  const [negativeCareReport, setNegativeCareReport] = useState('');
-  const [negativeContactType, setNegativeContactType] = useState('goi_dien');
   const [busy, setBusy] = useState(false);
   const [panelError, setPanelError] = useState('');
   const [panelMessage, setPanelMessage] = useState('');
@@ -213,24 +203,30 @@ export function LeadFunnelPanel({
     }
   }
 
-  async function finishB2Stage() {
-    const note = careNote.trim();
-    if (note.length < 3) {
-      setPanelError('Ghi chú hoàn thành B2 cần ≥ 3 ký tự.');
-      return;
-    }
+  async function submitB2Outcome(plan: B2OutcomePlan) {
     await run(async () => {
-      const reportContent = careReport.trim() || 'Đã liên hệ KH — xác nhận nhu cầu';
-      await submitLeadCareReport(token, leadId, { content: reportContent });
-      const out = await completeLeadCareStage(token, leadId, note);
+      if (plan.kind === 'complete_b2') {
+        await submitLeadCareReport(token, leadId, plan.report);
+        const out = await completeLeadCareStage(token, leadId, plan.completeNote);
+        setFunnel(out.funnel);
+        onFunnelChange?.(out.funnel);
+        const spaDone = out.funnel.lead_flow_kind === 'spa_operational';
+        setPanelMessage(spaDone ? 'Đã xong B2' : 'Đã xong B2 — pre-sales đã mở.');
+        onMessage?.('Đã xong B2');
+        await reload();
+        return;
+      }
+      const out = await submitLeadCareReport(token, leadId, plan.report);
       setFunnel(out.funnel);
       onFunnelChange?.(out.funnel);
-      setCareNote('');
-      const spaDone = out.funnel.lead_flow_kind === 'spa_operational';
-      setPanelMessage(spaDone ? 'Đã hoàn thành B2' : 'Đã hoàn thành B2 — pre-sales đã mở.');
-      onMessage?.('Đã hoàn thành B2');
+      const msg =
+        plan.kind === 'wrong_number'
+          ? 'Đã ghi số sai — chưa mở Pre-sales'
+          : 'Đã ghi nhận không nghe — gọi lại';
+      setPanelMessage(msg);
+      onMessage?.(msg);
       await reload();
-    }, true);
+    }, plan.kind === 'complete_b2');
   }
 
   const intakeHref = `/crm/intake?lead_id=${leadId}${
@@ -394,12 +390,7 @@ export function LeadFunnelPanel({
     leadMeetingPrepEnabled() &&
     canViewLmp(user);
   const inReview = funnel.review_queue.active;
-  const b2ContactOkReported = Boolean(funnel.care_pipeline.contact_ok_reported);
-  const canCompleteB2 = b2ContactOkReported && careNote.trim().length >= 3;
   const negativeReportCount = funnel.care_pipeline.b2_negative_report_count ?? 0;
-  const negativeStatusHint = b2NegativeCareHint(negativeCareStatus);
-  const negativeSuggestLost = b2NegativeCareSuggestLost(negativeCareStatus);
-  const canSubmitNegativeReport = negativeCareReport.trim().length >= 3;
 
   return (
     <section className="card stack-gap lead-funnel-panel" id="lead-funnel-panel" style={{ marginTop: '1rem' }}>
@@ -491,198 +482,18 @@ export function LeadFunnelPanel({
 
       <div className="card-inner" id="funnel-b2">
         <h3 style={{ marginTop: 0 }}>B2 — {b2Stage?.label ?? 'Liên hệ lần đầu'}</h3>
-        <p className="muted" style={{ fontSize: '0.9rem' }}>{b2Stage?.hint}</p>
-        <p>
-          {showPresales ? (
-            <>
-              Gate pre-sales:{' '}
-              <strong>{funnel.presales_care_gate.complete ? '✓ Mở' : '🔒 Chưa hoàn thành B2'}</strong>
-            </>
-          ) : (
-            <>
-              Luồng CSKH vận hành: hoàn thành B2 rồi chốt trạng thái lead (không Pre-sales).
-            </>
-          )}
-          {!funnel.care_pipeline.all_complete && canEdit && !inReview ? (
-            <span className="muted" style={{ display: 'block', fontSize: '0.85rem', marginTop: '0.35rem' }}>
-              Bước 1 — Liên hệ OK:{' '}
-              <strong style={{ color: b2ContactOkReported ? '#15803d' : '#b45309' }}>
-                {b2ContactOkReported ? '✓ Đã gửi báo cáo' : 'Chưa gửi'}
-              </strong>
-            </span>
-          ) : null}
-        </p>
-        {!funnel.care_pipeline.all_complete && canEdit && !inReview && (
-          <div className="stack-gap lead-b2-workflow" style={{ marginTop: '0.75rem' }}>
-            <p className="muted" style={{ margin: 0, fontSize: '0.88rem' }}>
-              <strong>Bước 1:</strong> Gửi báo cáo 「Liên hệ OK」 · <strong>Bước 2:</strong> Hoàn thành B2 (ghi chú ≥ 3 ký tự).
-              Nút bên dưới thực hiện cả hai bước tự động.
-            </p>
-            <label>
-              Báo cáo chăm sóc (Liên hệ OK)
-              <textarea
-                rows={2}
-                value={careReport}
-                onChange={(e) => setCareReport(e.target.value)}
-                style={{ width: '100%', marginTop: '0.25rem' }}
-              />
-            </label>
-            <button
-              type="button"
-              className="btn btn-sm btn-secondary"
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  const out = await submitLeadCareReport(token, leadId, { content: careReport });
-                  setFunnel(out.funnel);
-                  onFunnelChange?.(out.funnel);
-                  setPanelMessage('Đã gửi báo cáo Liên hệ OK');
-                  onMessage?.('Đã gửi báo cáo Liên hệ OK');
-                  await reload();
-                })
-              }
-            >
-              Chỉ gửi báo cáo (bước 1)
-            </button>
-            <label>
-              Ghi chú hoàn thành B2 (≥ 3 ký tự)
-              <input
-                type="text"
-                value={careNote}
-                onChange={(e) => setCareNote(e.target.value)}
-                style={{ width: '100%', marginTop: '0.25rem' }}
-              />
-            </label>
-            {!b2ContactOkReported ? (
-              <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                Cần gửi báo cáo 「Liên hệ OK」(bước 1) trước khi bấm hoàn thành B2.
-              </p>
-            ) : null}
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              disabled={busy || !canCompleteB2}
-              title={
-                !b2ContactOkReported
-                  ? 'Gửi báo cáo Liên hệ OK (bước 1) trước'
-                  : careNote.trim().length < 3
-                    ? 'Ghi chú hoàn thành B2 cần ≥ 3 ký tự'
-                    : undefined
-              }
-              onClick={() => void finishB2Stage()}
-            >
-              Hoàn thành B2 (bước 1 + 2)
-            </button>
-
-            <div
-              className="lead-b2-workflow lead-b2-workflow--negative stack-gap"
-              style={{
-                marginTop: '1rem',
-                padding: '0.85rem',
-                borderRadius: 8,
-                border: '1px solid #fcd34d',
-                background: '#fffbeb',
-              }}
-            >
-              <h4 style={{ margin: 0, fontSize: '0.95rem' }}>Liên hệ không OK</h4>
-              <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                Dùng khi chưa nói chuyện được với KH. Báo cáo này <strong>không</strong> hoàn thành B2 — tiếp
-                tục gọi lại hoặc chuyển trạng thái <code>lost</code> khi đủ điều kiện.
-              </p>
-              {negativeReportCount > 0 ? (
-                <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                  Đã gửi <strong>{negativeReportCount}</strong> báo cáo không OK
-                  {funnel.care_pipeline.last_b2_care_status_label
-                    ? ` · gần nhất: ${funnel.care_pipeline.last_b2_care_status_label}`
-                    : ''}
-                  .
-                </p>
-              ) : null}
-              <label>
-                Trạng thái chăm sóc
-                <select
-                  value={negativeCareStatus}
-                  disabled={busy}
-                  onChange={(e) => setNegativeCareStatus(e.target.value as B2NegativeCareStatus)}
-                  style={{ width: '100%', marginTop: '0.25rem' }}
-                >
-                  {B2_NEGATIVE_CARE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Kênh liên hệ
-                <select
-                  value={negativeContactType}
-                  disabled={busy}
-                  onChange={(e) => setNegativeContactType(e.target.value)}
-                  style={{ width: '100%', marginTop: '0.25rem' }}
-                >
-                  {CRM_CARE_CONTACT_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Báo cáo chăm sóc (≥ 3 ký tự)
-                <textarea
-                  rows={2}
-                  value={negativeCareReport}
-                  onChange={(e) => setNegativeCareReport(e.target.value)}
-                  placeholder="VD: Gọi 2 lần — không nghe máy, để lại Zalo"
-                  style={{ width: '100%', marginTop: '0.25rem' }}
-                />
-              </label>
-              {negativeStatusHint ? (
-                <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                  <strong>Gợi ý:</strong> {negativeStatusHint}
-                </p>
-              ) : null}
-              {negativeSuggestLost ? (
-                <p style={{ margin: 0, fontSize: '0.85rem', color: '#b45309' }}>
-                  Cân nhắc cập nhật form <strong>Trạng thái → lost</strong> + audit note lý do.
-                </p>
-              ) : null}
-              <button
-                type="button"
-                className="btn btn-sm btn-secondary"
-                disabled={busy || !canSubmitNegativeReport}
-                title={
-                  !canSubmitNegativeReport ? 'Báo cáo cần ≥ 3 ký tự' : undefined
-                }
-                onClick={() =>
-                  void run(async () => {
-                    const content = negativeCareReport.trim();
-                    const out = await submitLeadCareReport(token, leadId, {
-                      content,
-                      care_status: negativeCareStatus,
-                      care_contact_type: negativeContactType,
-                    });
-                    setFunnel(out.funnel);
-                    onFunnelChange?.(out.funnel);
-                    setNegativeCareReport('');
-                    const label =
-                      B2_NEGATIVE_CARE_OPTIONS.find((o) => o.value === negativeCareStatus)?.label ??
-                      negativeCareStatus;
-                    setPanelMessage(`Đã gửi báo cáo không OK: ${label}`);
-                    onMessage?.(`Đã gửi báo cáo không OK: ${label}`);
-                    await reload();
-                  })
-                }
-              >
-                Gửi báo cáo không OK
-              </button>
-            </div>
-          </div>
-        )}
-        {funnel.care_pipeline.all_complete && (
-          <p style={{ color: '#15803d', marginBottom: 0 }}>✓ B2 đã hoàn thành</p>
-        )}
+        {!funnel.care_pipeline.all_complete && canEdit && !inReview ? (
+          <LeadB2OutcomeCard
+            busy={busy}
+            retryCount={negativeReportCount}
+            lastNegativeLabel={funnel.care_pipeline.last_b2_care_status_label}
+            onSubmit={(plan) => submitB2Outcome(plan)}
+            onError={setPanelError}
+          />
+        ) : null}
+        {funnel.care_pipeline.all_complete ? (
+          <p className="lead-b2-outcome__done">B2 đã xong</p>
+        ) : null}
       </div>
 
       {showPresales && funnel.presales_on_lead_enabled && funnel.presales_care_gate.complete && !inReview && (
