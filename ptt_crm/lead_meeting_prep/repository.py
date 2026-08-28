@@ -258,3 +258,23 @@ def ensure_row(lead_id: int, prep_stage: str = "m1_first_strike") -> None:
                 (lead_id, prep_stage),
             )
         conn.commit()
+
+
+def merge_lead_meta(lead_id: int, patch: dict[str, Any]) -> None:
+    if not patch:
+        return
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE crm_leads
+                SET meta_json = meta_json || %s::jsonb,
+                    updated_at = NOW(),
+                    synced_at = NOW(),
+                    write_source = 'worker',
+                    sync_version = sync_version + 1
+                WHERE sqlite_lead_id = %s
+                """,
+                (json.dumps(patch), lead_id),
+            )
+        conn.commit()

@@ -113,3 +113,90 @@ def complete_synthesize(
             "stub_mode": True,
             "error": str(exc),
         }
+
+
+def complete_discover(
+    *,
+    lead_id: int,
+    client_id: str | None,
+    system_prompt: str,
+    user_prompt: str,
+    prompt_version: str,
+    prep_stage: str,
+    stub_json: Callable[[], dict[str, Any]],
+    correlation_id: str | None = None,
+    timeout_sec: float = 90.0,
+) -> dict[str, Any]:
+    """POST /api/v1/internal/lmp/llm-discover"""
+    key = _internal_key()
+    if not key:
+        logger.warning("lmp_llm_client: missing PTT_CRM_INTERNAL_KEY — discover stub")
+        return {
+            "ok": True,
+            "parsed": stub_json(),
+            "ai_run_id": None,
+            "model_name": "local-stub",
+            "stub_mode": True,
+        }
+
+    body = {
+        "lead_id": int(lead_id),
+        "client_id": client_id,
+        "system_prompt": system_prompt,
+        "user_prompt": user_prompt,
+        "prompt_version": prompt_version,
+        "prep_stage": prep_stage,
+        "stub_fallback": stub_json(),
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "x-ptt-internal-key": key,
+    }
+    if correlation_id:
+        headers["x-correlation-id"] = correlation_id
+
+    req = urllib.request.Request(
+        f"{_crm_api_base_url()}/api/v1/internal/lmp/llm-discover",
+        data=json.dumps(body).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+            raw = resp.read().decode("utf-8")
+            parsed = json.loads(raw) if raw else {}
+            if parsed.get("ok") and isinstance(parsed.get("result"), dict):
+                return {
+                    "ok": True,
+                    "parsed": parsed["result"],
+                    "ai_run_id": parsed.get("ai_run_id"),
+                    "model_name": parsed.get("model_name"),
+                    "stub_mode": bool(parsed.get("stub_mode")),
+                }
+            return {
+                "ok": False,
+                "error": parsed.get("error") or "invalid_response",
+                "detail": parsed,
+            }
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        logger.warning("lmp llm-discover HTTP %s: %s", exc.code, detail[:500])
+        return {
+            "ok": True,
+            "parsed": stub_json(),
+            "ai_run_id": None,
+            "model_name": "stub-http-error",
+            "stub_mode": True,
+            "error": f"http_{exc.code}",
+        }
+    except Exception as exc:
+        logger.warning("lmp llm-discover failed: %s", exc)
+        return {
+            "ok": True,
+            "parsed": stub_json(),
+            "ai_run_id": None,
+            "model_name": "stub-exception",
+            "stub_mode": True,
+            "error": str(exc),
+        }

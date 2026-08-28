@@ -12,7 +12,7 @@ import { LeadMeetingPrepEntityPicker } from './LeadMeetingPrepEntityPicker';
 import { LeadMeetingPrepProgress } from './LeadMeetingPrepProgress';
 import { SalesCockpitPanel } from './SalesCockpitPanel';
 import { PostCallDebriefModal } from './PostCallDebriefModal';
-import { lmpSkipReasonMessageVi, showAmInputForm } from './lmp-skip-reason-labels';
+import { lmpSkipReasonMessageVi, showAmInputForm, showDiscoverEntityPicker } from './lmp-skip-reason-labels';
 import type { LeadMeetingPrepResponse } from './lead-meeting-prep.types';
 
 type Props = {
@@ -162,7 +162,9 @@ export function LeadMeetingPrepPanel({
 
   const status = prep?.status ?? 'none';
   const result = prep?.result;
-  const amInputForm = showAmInputForm(status, prep?.skip_reason);
+  const candidateCount = prep?.entity_candidates?.length ?? 0;
+  const amInputForm = showAmInputForm(status, prep?.skip_reason) && candidateCount === 0;
+  const showEntityPicker = showDiscoverEntityPicker(status, candidateCount);
 
   async function onPrepareClose() {
     if (!canRun) {
@@ -252,12 +254,15 @@ export function LeadMeetingPrepPanel({
         message={prep?.progress?.message_vi}
       />
 
-      {status === 'awaiting_entity_choice' && prep?.entity_candidates?.length ? (
+      {status === 'awaiting_entity_choice' || showEntityPicker ? (
+        prep?.entity_candidates?.length ? (
         <LeadMeetingPrepEntityPicker
           candidates={prep.entity_candidates}
           busy={busy}
           onSelect={onPickEntity}
+          discoverMode={status === 'awaiting_am_input' || prep?.skip_reason?.startsWith('discover')}
         />
+        ) : null
       ) : null}
 
       {amInputForm ? (

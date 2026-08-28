@@ -47,6 +47,7 @@ TABLE=$(psql "$DATABASE_URL" -tAc "SELECT COUNT(*) FROM information_schema.table
 
 ensure_pytest
 "$PYTHON" -m pytest "$ROOT/tests/test_lmp_input_resolver.py" -q && ok "python input resolver tests" || bad "python input resolver tests"
+"$PYTHON" -m pytest "$ROOT/tests/test_lmp_discover.py" -q && ok "python discover tests" || bad "python discover tests"
 "$PYTHON" -m pytest "$ROOT/tests/test_lmp_verify.py" -q && ok "python verify tests" || bad "python verify tests"
 "$PYTHON" -m pytest "$ROOT/tests/test_lmp_schema.py" -q && ok "python schema tests" || bad "python schema tests"
 

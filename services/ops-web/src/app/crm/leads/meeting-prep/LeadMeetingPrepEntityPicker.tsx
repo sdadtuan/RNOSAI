@@ -7,16 +7,21 @@ type Props = {
   candidates: EntityCandidate[];
   busy?: boolean;
   onSelect: (entityId: string) => void | Promise<void>;
+  discoverMode?: boolean;
 };
 
-export function LeadMeetingPrepEntityPicker({ candidates, busy, onSelect }: Props) {
+export function LeadMeetingPrepEntityPicker({ candidates, busy, onSelect, discoverMode }: Props) {
   const [selected, setSelected] = useState(candidates[0]?.id ?? '');
 
   return (
     <div className="lmp-entity-picker">
-      <h3 className="lmp-panel__section-title">Chọn doanh nghiệp đúng</h3>
+      <h3 className="lmp-panel__section-title">
+        {discoverMode ? 'Chọn doanh nghiệp từ kết quả tìm kiếm' : 'Chọn doanh nghiệp đúng'}
+      </h3>
       <p className="muted" style={{ fontSize: '0.9rem' }}>
-        Nhiều ứng viên trùng tên — chọn pháp nhân khớp lead trước khi phân tích tiếp.
+        {discoverMode
+          ? 'Hệ thống tìm thấy nhiều pháp nhân khớp SĐT/email — chọn đúng công ty trước khi research SCI.'
+          : 'Nhiều ứng viên trùng tên — chọn pháp nhân khớp lead trước khi phân tích tiếp.'}
       </p>
       <ul className="lmp-entity-list">
         {candidates.map((c) => (

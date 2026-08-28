@@ -88,7 +88,7 @@ export interface EnqueueLeadMeetingPrepInput {
   clientId?: string | null;
   correlationId?: string | null;
   prepStage?: LeadMeetingPrepStage;
-  mode?: 'full' | 'resume_entity' | 'strategize_arm' | 'learn';
+  mode?: 'full' | 'discover' | 'resume_entity' | 'strategize_arm' | 'learn';
   selectedEntityId?: string | null;
   force?: boolean;
   terminalStatus?: 'chot' | 'lost';

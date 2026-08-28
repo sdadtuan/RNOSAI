@@ -5,6 +5,7 @@ import { AiAgentRunsRepository } from '../ai-intelligence/ai-agent-runs.reposito
 import { AiIntelligenceConfigService } from '../ai-intelligence/ai-intelligence.config';
 import { AiLlmClient } from '../ai-intelligence/ai-llm.client';
 import { enforceContactPolicy, validatePrepResultShape } from './lead-meeting-prep-llm.util';
+import { validateDiscoverResultShape } from './lmp-discover-llm.util';
 
 export interface LmpLlmCompleteBody {
   lead_id: number;
@@ -16,6 +17,8 @@ export interface LmpLlmCompleteBody {
   stub_fallback?: Record<string, unknown>;
   correlation_id?: string | null;
 }
+
+export type LmpLlmDiscoverBody = LmpLlmCompleteBody;
 
 @Injectable()
 export class LeadMeetingPrepLlmService {
@@ -119,6 +122,114 @@ export class LeadMeetingPrepLlmService {
 
       const fallback = enforceContactPolicy(stubFallback);
       validatePrepResultShape(fallback);
+      return {
+        ok: true,
+        result: fallback,
+        ai_run_id: runId,
+        model_name: `${this.aiConfig.llmModel}-fallback`,
+        stub_mode: true,
+        error: message,
+      };
+    }
+  }
+
+  async completeDiscover(body: LmpLlmDiscoverBody, correlationId?: string | null) {
+    const started = Date.now();
+    const leadId = Number(body.lead_id);
+    const prepStage = body.prep_stage ?? 'm1_first_strike';
+    const promptVersion = body.prompt_version ?? 'lmp-discover-v1';
+    const stubFallback =
+      body.stub_fallback && typeof body.stub_fallback === 'object' ? body.stub_fallback : {};
+
+    const promptHash = createHash('sha256')
+      .update(`${body.system_prompt}\n---\n${body.user_prompt}`)
+      .digest('hex')
+      .slice(0, 16);
+
+    let runId: string | null = null;
+    try {
+      const { parsed, tokenUsage, modelName, stubMode } = await this.llm.completeJson({
+        systemPrompt: body.system_prompt,
+        userContent: body.user_prompt,
+        model: this.aiConfig.llmModel,
+        stubJson: () => stubFallback,
+      });
+
+      const normalized = { ...(parsed as Record<string, unknown>) };
+      validateDiscoverResultShape(normalized);
+
+      if (await this.agentRuns.tableReady()) {
+        const run = await this.agentRuns.insertRun({
+          agentName: 'lead-meeting-prep-discover',
+          useCase: AI_USE_CASE.LEAD_MEETING_PREP,
+          clientId: body.client_id ?? null,
+          modelName,
+          promptHash,
+          inputJson: {
+            lead_id: leadId,
+            prep_stage: prepStage,
+            prompt_version: promptVersion,
+          },
+          outputJson: {
+            discover_status: normalized.discover_status,
+            candidate_count: Array.isArray(normalized.candidates)
+              ? normalized.candidates.length
+              : 0,
+          },
+          status: 'succeeded',
+          latencyMs: Date.now() - started,
+          tokenUsage,
+          correlationId: correlationId ?? body.correlation_id ?? null,
+        });
+        runId = run.id;
+      }
+
+      const meta =
+        normalized.meta && typeof normalized.meta === 'object'
+          ? (normalized.meta as Record<string, unknown>)
+          : {};
+      meta.prompt_version = promptVersion;
+      meta.model = modelName;
+      if (!meta.discovered_at) {
+        meta.discovered_at = new Date().toISOString();
+      }
+      normalized.meta = meta;
+
+      return {
+        ok: true,
+        result: normalized,
+        ai_run_id: runId,
+        model_name: modelName,
+        stub_mode: stubMode,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`LMP discover LLM failed lead=${leadId}: ${message}`);
+
+      const fallback = { ...stubFallback };
+      try {
+        validateDiscoverResultShape(fallback);
+      } catch {
+        fallback.discover_status = 'not_found';
+        fallback.discover_message_vi =
+          'Không tìm thấy DN công khai từ SĐT/email. Nhập tên công ty để tiếp tục.';
+        fallback.candidates = [];
+        fallback.recommended_candidate_id = null;
+        fallback.am_action = 'enter_company_manual';
+        fallback.meta = {
+          discovered_at: new Date().toISOString(),
+          sources_parsed: 0,
+          model: 'fallback',
+          prompt_version: promptVersion,
+        };
+        fallback.query_context = fallback.query_context ?? {
+          lead_phone_normalized: null,
+          lead_email_normalized: null,
+          tavily_queries: [],
+          tier1_hints_used: [],
+        };
+      }
+
       return {
         ok: true,
         result: fallback,

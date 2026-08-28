@@ -131,6 +131,7 @@ export type LeadMeetingPrepResponse = {
   status: LeadMeetingPrepStatus;
   status_label_vi: string;
   skip_reason?: string | null;
+  discover_message_vi?: string | null;
   progress: {
     step: string;
     steps_completed: string[];

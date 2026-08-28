@@ -1,6 +1,6 @@
 import { Body, Controller, Headers, Post, UseGuards } from '@nestjs/common';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
-import { LeadMeetingPrepLlmService, type LmpLlmCompleteBody } from './lead-meeting-prep-llm.service';
+import { LeadMeetingPrepLlmService, type LmpLlmCompleteBody, type LmpLlmDiscoverBody } from './lead-meeting-prep-llm.service';
 
 @Controller('api/v1/internal/lmp')
 @UseGuards(StaffOrInternalKeyGuard)
@@ -13,5 +13,13 @@ export class LeadMeetingPrepInternalController {
     @Headers('x-correlation-id') correlationId?: string,
   ) {
     return this.llm.completeSynthesize(body, correlationId ?? null);
+  }
+
+  @Post('llm-discover')
+  llmDiscover(
+    @Body() body: LmpLlmDiscoverBody,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    return this.llm.completeDiscover(body, correlationId ?? null);
   }
 }

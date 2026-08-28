@@ -90,6 +90,25 @@ export class LeadMeetingPrepService {
     const result =
       row.status === 'ready' ? (row.result_json as Record<string, unknown>) : null;
     const readinessBreakdown = extractReadinessBreakdown(result);
+    const collectJson = row.collect_json as Record<string, unknown>;
+    const discoverBlock = collectJson?.discover as Record<string, unknown> | undefined;
+    const discoverMessage =
+      typeof discoverBlock?.discover_message_vi === 'string'
+        ? discoverBlock.discover_message_vi
+        : typeof collectJson?.discover_message_vi === 'string'
+          ? collectJson.discover_message_vi
+          : null;
+
+    let progressMessage = lmpStatusMessageVi(row.status, row.skip_reason);
+    if (discoverMessage) {
+      progressMessage = discoverMessage;
+    }
+
+    const showEntityCandidates =
+      row.status === 'awaiting_entity_choice' ||
+      (row.status === 'awaiting_am_input' &&
+        Array.isArray(row.entity_candidates_json) &&
+        row.entity_candidates_json.length > 0);
 
     return {
       ok: true,
@@ -97,17 +116,17 @@ export class LeadMeetingPrepService {
       status: row.status,
       status_label_vi: lmpStatusLabelVi(row.status),
       skip_reason: row.skip_reason,
+      discover_message_vi: discoverMessage,
       progress: {
         step: row.status === 'ready' ? 'done' : row.status,
         steps_completed: stepsCompleted,
-        message_vi: lmpStatusMessageVi(row.status, row.skip_reason),
+        message_vi: progressMessage,
       },
       prep_stage: row.prep_stage,
       close_readiness_score: row.close_readiness_score,
       readiness_breakdown: readinessBreakdown,
       input_snapshot: row.input_snapshot_json,
-      entity_candidates:
-        row.status === 'awaiting_entity_choice' ? row.entity_candidates_json : null,
+      entity_candidates: showEntityCandidates ? row.entity_candidates_json : null,
       result,
       error: row.error_message,
       prep_version: row.prep_version,

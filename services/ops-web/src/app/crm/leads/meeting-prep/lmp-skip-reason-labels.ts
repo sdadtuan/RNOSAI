@@ -14,6 +14,13 @@ export function lmpSkipReasonMessageVi(reason: string | null | undefined): strin
 }
 
 export function showAmInputForm(status: string, skipReason?: string | null): boolean {
-  if (status === 'awaiting_am_input') return true;
+  if (status === 'awaiting_am_input') {
+    return skipReason !== 'discover_multiple';
+  }
   return status === 'skipped' && skipReason === 'missing_company_name';
+}
+
+export function showDiscoverEntityPicker(status: string, candidateCount: number): boolean {
+  if (candidateCount <= 0) return false;
+  return status === 'awaiting_entity_choice' || status === 'awaiting_am_input';
 }

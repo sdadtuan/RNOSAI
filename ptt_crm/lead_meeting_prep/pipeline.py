@@ -11,6 +11,7 @@ from ptt_crm.lead_meeting_prep import (
     apify_facebook,
     close_intelligence,
     collect,
+    discover,
     input_resolver,
     repository,
     synthesize,
@@ -42,6 +43,139 @@ def _collect_is_fresh(collect_json: dict[str, Any], updated_at: str | None) -> b
 
 def _tavily_required() -> bool:
     return os.environ.get("LMP_REQUIRE_TAVILY", "0").strip().lower() in {"1", "true", "yes"}
+
+
+def _discover_collect_shell(discover_result: dict[str, Any], credits: int) -> dict[str, Any]:
+    return {
+        "discover": discover_result,
+        "discover_status": discover_result.get("discover_status"),
+        "discover_message_vi": discover_result.get("discover_message_vi"),
+        "credits_used": credits,
+        "researched_at": (discover_result.get("meta") or {}).get("discovered_at"),
+        "company_sources": [],
+        "company_found": False,
+        "partial": True,
+        "stub": False,
+        "queries": (discover_result.get("query_context") or {}).get("tavily_queries") or [],
+    }
+
+
+def _apply_discover_selection(
+    lead_id: int,
+    inp: dict[str, Any],
+    discover_result: dict[str, Any],
+    candidate_id: str,
+) -> dict[str, Any]:
+    out = discover.apply_candidate_to_input(inp, discover_result, candidate_id)
+    patch = discover.discover_meta_patch(discover_result, candidate_id)
+    if patch:
+        repository.merge_lead_meta(lead_id, patch)
+    return out
+
+
+def _handle_discover_phase(
+    lead_id: int,
+    inp: dict[str, Any],
+    row: dict[str, Any],
+    *,
+    prep_stage: str,
+    snapshot: dict[str, Any],
+    correlation_id: str | None,
+    selected_entity_id: str | None = None,
+) -> tuple[dict[str, Any], dict[str, Any], str | None] | dict[str, Any]:
+    """
+    Run Discover when company_name missing.
+    Returns early response dict, or (inp, collect_json, selected_id) to continue pipeline.
+    """
+    meta = row.get("meta_json") if isinstance(row.get("meta_json"), dict) else {}
+    existing_collect = repository.get_collect_json(lead_id) or {}
+    existing_discover = existing_collect.get("discover") if isinstance(existing_collect.get("discover"), dict) else None
+
+    if mode_selected := selected_entity_id:
+        discover_result = existing_discover
+        if not discover_result:
+            return {
+                "ok": False,
+                "error": "discover_context_missing",
+                "lead_id": lead_id,
+            }
+        inp = _apply_discover_selection(lead_id, inp, discover_result, str(mode_selected))
+        snapshot = {**snapshot, "input": inp}
+        collect_json = {**existing_collect, "discover": discover_result}
+        return inp, collect_json, str(mode_selected)
+
+    repository.set_status(lead_id, status="running", input_snapshot=snapshot, prep_stage=prep_stage)
+    discover_result, credits = discover.run_discover(inp, meta, correlation_id=correlation_id)
+    collect_json = _discover_collect_shell(discover_result, credits)
+    status = str(discover_result.get("discover_status") or "not_found")
+
+    if status == "found_single":
+        cand_id = str(
+            discover_result.get("recommended_candidate_id")
+            or (discover_result.get("candidates") or [{}])[0].get("candidate_id")
+            or ""
+        )
+        if cand_id:
+            inp = _apply_discover_selection(lead_id, inp, discover_result, cand_id)
+            snapshot = {**snapshot, "input": inp, "sources_map": {**snapshot.get("sources_map", {}), "company_name": f"discover:{cand_id}"}}
+            collect_json["company_name_resolved"] = inp.get("company_name")
+            return inp, collect_json, cand_id
+
+    if status == "found_multiple":
+        entity_candidates = discover.to_entity_candidates(discover_result)
+        repository.set_status(
+            lead_id,
+            status="awaiting_entity_choice",
+            skip_reason="discover_multiple",
+            collect_json=collect_json,
+            entity_candidates=entity_candidates,
+            input_snapshot=snapshot,
+            prep_stage=prep_stage,
+            tavily_credits=credits,
+        )
+        return {
+            "ok": True,
+            "lead_id": lead_id,
+            "status": "awaiting_entity_choice",
+            "discover_status": status,
+        }
+
+    if status == "tier1_only" and discover_result.get("candidates"):
+        entity_candidates = discover.to_entity_candidates(discover_result)
+        repository.set_status(
+            lead_id,
+            status="awaiting_am_input",
+            skip_reason="discover_tier1_only",
+            collect_json=collect_json,
+            entity_candidates=entity_candidates,
+            input_snapshot=snapshot,
+            prep_stage=prep_stage,
+            tavily_credits=credits,
+        )
+        return {
+            "ok": True,
+            "lead_id": lead_id,
+            "status": "awaiting_am_input",
+            "discover_status": status,
+            "awaiting_am_input": True,
+        }
+
+    repository.set_status(
+        lead_id,
+        status="awaiting_am_input",
+        skip_reason="discover_not_found",
+        collect_json=collect_json,
+        input_snapshot=snapshot,
+        prep_stage=prep_stage,
+        tavily_credits=credits,
+    )
+    return {
+        "ok": True,
+        "lead_id": lead_id,
+        "status": "awaiting_am_input",
+        "discover_status": status,
+        "awaiting_am_input": True,
+    }
 
 
 def process_lead_meeting_prep_payload(
@@ -86,7 +220,41 @@ def process_lead_meeting_prep_payload(
         return {"ok": True, "skipped": True, "reason": reason, "lead_id": lead_id}
 
     am_input = input_resolver.needs_am_input(inp)
-    if am_input and prep_stage == "m1_first_strike":
+    needs_discover = bool(am_input and prep_stage == "m1_first_strike")
+    discover_selected_collect: dict[str, Any] | None = None
+
+    if needs_discover and mode == "resume_entity" and selected_entity_id:
+        discover_out = _handle_discover_phase(
+            lead_id,
+            inp,
+            row,
+            prep_stage=prep_stage,
+            snapshot=snapshot,
+            correlation_id=correlation_id,
+            selected_entity_id=str(selected_entity_id),
+        )
+        if isinstance(discover_out, dict):
+            if not discover_out.get("ok"):
+                repository.set_status(lead_id, status="failed", error_message=str(discover_out.get("error")))
+            return discover_out
+        inp, discover_selected_collect, selected_entity_id = discover_out
+        snapshot = {**snapshot, "input": inp}
+        needs_discover = False
+    elif needs_discover and mode in {"discover", "full"}:
+        discover_out = _handle_discover_phase(
+            lead_id,
+            inp,
+            row,
+            prep_stage=prep_stage,
+            snapshot=snapshot,
+            correlation_id=correlation_id,
+        )
+        if isinstance(discover_out, dict):
+            return discover_out
+        inp, discover_selected_collect, selected_entity_id = discover_out
+        snapshot = {**snapshot, "input": inp}
+        needs_discover = False
+    elif needs_discover:
         repository.set_status(
             lead_id,
             status="awaiting_am_input",
@@ -127,9 +295,12 @@ def process_lead_meeting_prep_payload(
                     apify_runs=0,
                 )
         elif mode == "resume_entity" and selected_entity_id:
-            collect_json = repository.get_collect_json(lead_id) or {}
-            if not collect_json:
-                collect_json = collect.collect_company(inp)
+            collect_json = discover_selected_collect or repository.get_collect_json(lead_id) or {}
+            if not collect_json.get("company_sources"):
+                collect_json = {**collect_json, **collect.collect_company(inp)}
+            elif discover_selected_collect:
+                merged = collect.collect_company(inp)
+                collect_json = {**collect_json, **merged, "discover": collect_json.get("discover")}
         elif mode in {"full", "refresh", "resume_entity"}:
             if _tavily_required() and not os.environ.get("TAVILY_API_KEY"):
                 raise RuntimeError("TAVILY_API_KEY missing")

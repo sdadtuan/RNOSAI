@@ -13,6 +13,9 @@ const SKIP_REASON_MESSAGE_VI: Record<string, string> = {
   duplicate_lead: 'Lead trùng — prep không chạy tự động.',
   spa_operational: 'Lead vận hành spa — không thuộc phạm vi Sales Cockpit.',
   pilot_client_mismatch: 'Lead không thuộc client pilot LMP.',
+  discover_not_found: 'Không tìm thấy doanh nghiệp công khai từ SĐT/email.',
+  discover_tier1_only: 'Có gợi ý từ email/trang Meta — xác nhận tên công ty.',
+  discover_multiple: 'Tìm thấy nhiều doanh nghiệp khớp — chọn đúng pháp nhân.',
 };
 
 const STATUS_MESSAGE_VI: Record<string, string> = {

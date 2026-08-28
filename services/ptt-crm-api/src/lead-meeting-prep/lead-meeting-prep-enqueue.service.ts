@@ -136,11 +136,26 @@ export class LeadMeetingPrepEnqueueService {
       }
 
       if (resolved.needs_am_input && prepStage === 'm1_first_strike') {
-        await this.repo.markAwaitingAmInput(leadId, resolved.needs_am_input, snapshot);
-        this.logger.debug(
-          `lead_meeting_prep awaiting AM input lead=${leadId} reason=${resolved.needs_am_input}`,
-        );
-        return null;
+        await this.repo.upsertPending({
+          leadId,
+          prepStage,
+          inputSnapshot: snapshot,
+          selectedEntityId: input.selectedEntityId ?? null,
+        });
+        const job = await this.jobQueue.enqueueLeadMeetingPrepJob({
+          leadId,
+          clientId: input.clientId ?? ctx.client_id,
+          correlationId: input.correlationId ?? undefined,
+          prepStage,
+          mode: 'discover',
+          selectedEntityId: input.selectedEntityId ?? null,
+          idempotencyKey: buildLmpIdempotencyKey(leadId, prepStage, Boolean(input.force)),
+          terminalStatus: input.terminalStatus,
+        });
+        if (job?.created) {
+          this.logger.debug(`lead_meeting_prep discover enqueued lead=${leadId}`);
+        }
+        return job;
       }
 
       const existing = await this.repo.getByLeadId(leadId);
