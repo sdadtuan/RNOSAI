@@ -47,4 +47,55 @@ describe('resolveLeadJourney', () => {
     });
     expect(steps.every((s) => s.state === 'blocked')).toBe(true);
   });
+
+  it('proposal without contract → HĐ pending, proposal current', () => {
+    const steps = resolveLeadJourney({
+      reviewActive: false,
+      b2Complete: true,
+      presalesStage: 'proposal',
+      hasContract: false,
+      contractActive: false,
+      lifecycleId: null,
+    });
+    expect(steps.find((s) => s.key === 'proposal')?.state).toBe('current');
+    expect(steps.find((s) => s.key === 'contract')?.state).toBe('pending');
+  });
+
+  it('proposal + draft HĐ → HĐ current', () => {
+    const steps = resolveLeadJourney({
+      reviewActive: false,
+      b2Complete: true,
+      presalesStage: 'proposal',
+      hasContract: true,
+      contractActive: false,
+      lifecycleId: null,
+    });
+    expect(steps.find((s) => s.key === 'contract')?.state).toBe('current');
+  });
+
+  it('active HĐ + lifecycle → HĐ done + service-delivery href', () => {
+    const steps = resolveLeadJourney({
+      reviewActive: false,
+      b2Complete: true,
+      presalesStage: 'proposal',
+      hasContract: true,
+      contractActive: true,
+      lifecycleId: 88,
+    });
+    const contract = steps.find((s) => s.key === 'contract');
+    expect(contract?.state).toBe('done');
+    expect(contract?.href).toBe('/crm/service-delivery/88');
+  });
+
+  it('draft HĐ ở stage lead → HĐ vẫn pending trên journey', () => {
+    const steps = resolveLeadJourney({
+      reviewActive: false,
+      b2Complete: true,
+      presalesStage: 'lead',
+      hasContract: true,
+      contractActive: false,
+      lifecycleId: null,
+    });
+    expect(steps.find((s) => s.key === 'contract')?.state).toBe('pending');
+  });
 });

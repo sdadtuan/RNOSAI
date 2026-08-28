@@ -58,13 +58,11 @@ export function resolveLeadJourney(input: LeadJourneyInput): LeadJourneyStep[] {
     consult: stage === 'consult' ? 'current' : idx >= 1 ? 'done' : 'pending',
     proposal: stage === 'proposal' ? 'current' : idx >= 2 ? 'done' : 'pending',
     contract:
-      stage === 'proposal'
-        ? input.contractActive
-          ? 'done'
-          : input.hasContract
-            ? 'current'
-            : 'current'
-        : 'pending',
+      input.contractActive && input.lifecycleId != null
+        ? 'done'
+        : stage === 'proposal' && input.hasContract
+          ? 'current'
+          : 'pending',
   };
 
   const leadId = input.leadId;
