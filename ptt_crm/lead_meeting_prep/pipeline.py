@@ -85,6 +85,17 @@ def process_lead_meeting_prep_payload(
         )
         return {"ok": True, "skipped": True, "reason": reason, "lead_id": lead_id}
 
+    am_input = input_resolver.needs_am_input(inp)
+    if am_input and prep_stage == "m1_first_strike":
+        repository.set_status(
+            lead_id,
+            status="awaiting_am_input",
+            skip_reason=am_input,
+            input_snapshot=snapshot,
+            prep_stage=prep_stage,
+        )
+        return {"ok": True, "awaiting_am_input": True, "reason": am_input, "lead_id": lead_id}
+
     repository.set_status(lead_id, status="running", input_snapshot=snapshot, prep_stage=prep_stage)
 
     try:

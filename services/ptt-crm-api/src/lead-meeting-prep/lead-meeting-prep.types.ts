@@ -2,6 +2,7 @@ export type LeadMeetingPrepStatus =
   | 'pending'
   | 'running'
   | 'awaiting_entity_choice'
+  | 'awaiting_am_input'
   | 'ready'
   | 'failed'
   | 'skipped'
@@ -95,6 +96,7 @@ export interface EnqueueLeadMeetingPrepInput {
 
 export interface RunLeadMeetingPrepBody {
   force?: boolean;
+  company_name?: string;
   website_url?: string;
   social_urls?: string;
   prep_stage?: LeadMeetingPrepStage;

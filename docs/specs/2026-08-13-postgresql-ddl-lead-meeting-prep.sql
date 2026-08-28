@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS crm_lead_meeting_prep (
                                 'pending',
                                 'running',
                                 'awaiting_entity_choice',
+                                'awaiting_am_input',
                                 'ready',
                                 'failed',
                                 'skipped',

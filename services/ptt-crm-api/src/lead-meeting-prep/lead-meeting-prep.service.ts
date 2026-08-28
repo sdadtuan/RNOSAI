@@ -10,6 +10,7 @@ import { buildQuoteLinesFromOfferLadder, type LmpOfferLadderRow } from './lmp-of
 import { buildLmpDealRoomSciSlice } from './lmp-sci-slice.util';
 import { buildSciRedFlagBlockInfo } from './lmp-red-flag-block.util';
 import { buildWinOutcomeFromDebrief, winOutcomeHasDebrief } from './lmp-win-outcome.util';
+import { lmpStatusLabelVi, lmpStatusMessageVi } from './lmp-skip-reason-labels.util';
 import type {
   ApplyOfferLadderResponse,
   LeadMeetingPrepDebriefBody,
@@ -26,6 +27,7 @@ const STATUS_LABEL_VI: Record<LeadMeetingPrepStatus, string> = {
   pending: 'Đang xếp hàng',
   running: 'Đang xử lý',
   awaiting_entity_choice: 'Cần chọn doanh nghiệp',
+  awaiting_am_input: 'Chờ AM bổ sung',
   ready: 'Sẵn sàng',
   failed: 'Lỗi',
   skipped: 'Bỏ qua',
@@ -93,11 +95,12 @@ export class LeadMeetingPrepService {
       ok: true,
       lead_id: leadId,
       status: row.status,
-      status_label_vi: STATUS_LABEL_VI[row.status],
+      status_label_vi: lmpStatusLabelVi(row.status),
+      skip_reason: row.skip_reason,
       progress: {
         step: row.status === 'ready' ? 'done' : row.status,
         steps_completed: stepsCompleted,
-        message_vi: STATUS_LABEL_VI[row.status],
+        message_vi: lmpStatusMessageVi(row.status, row.skip_reason),
       },
       prep_stage: row.prep_stage,
       close_readiness_score: row.close_readiness_score,
@@ -285,9 +288,21 @@ export class LeadMeetingPrepService {
   }
 
   async runMeetingPrep(leadId: number, body: RunLeadMeetingPrepBody = {}) {
-    const ctx = await this.repo.getLeadContext(leadId);
+    let ctx = await this.repo.getLeadContext(leadId);
     if (!ctx) {
       throw new NotFoundException({ error: 'Lead not found' });
+    }
+
+    const metaPatch: Record<string, unknown> = {};
+    if (body.company_name?.trim()) {
+      metaPatch.company_name = body.company_name.trim();
+    }
+    if (body.website_url?.trim()) {
+      metaPatch.website_url = body.website_url.trim();
+    }
+    if (Object.keys(metaPatch).length > 0) {
+      await this.repo.mergeLeadMeta(leadId, metaPatch);
+      ctx = (await this.repo.getLeadContext(leadId))!;
     }
 
     const resolved = this.inputResolver.resolve(ctx);

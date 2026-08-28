@@ -2,6 +2,7 @@ export type LeadMeetingPrepStatus =
   | 'pending'
   | 'running'
   | 'awaiting_entity_choice'
+  | 'awaiting_am_input'
   | 'ready'
   | 'failed'
   | 'skipped'
@@ -129,6 +130,7 @@ export type LeadMeetingPrepResponse = {
   lead_id: number;
   status: LeadMeetingPrepStatus;
   status_label_vi: string;
+  skip_reason?: string | null;
   progress: {
     step: string;
     steps_completed: string[];

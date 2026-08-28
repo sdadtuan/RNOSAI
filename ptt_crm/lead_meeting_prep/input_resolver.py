@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ptt_crm.lead_meeting_prep.tier1_hints import company_hint_from_email
+
 
 def _pick(meta: dict[str, Any], *keys: str) -> str:
     for key in keys:
@@ -23,33 +25,60 @@ def resolve_input(row: dict[str, Any]) -> tuple[dict[str, Any], dict[str, str], 
             meta = {}
 
     sources: dict[str, str] = {}
-    company = _pick(meta, "company_name", "company")
-    if company:
-        sources["company_name"] = "meta_json"
-
     form_data = meta.get("form_data") if isinstance(meta.get("form_data"), dict) else {}
+
+    company = (
+        _pick(meta, "company_name", "company", "business_name", "page_name")
+        or _pick(form_data, "company_name", "company", "business_name", "ten_cong_ty", "cong_ty")
+    )
+    if company:
+        sources["company_name"] = "meta_json" if _pick(meta, "company_name", "company") else "form_data"
+
+    website = (
+        _pick(meta, "website_url", "domain", "website")
+        or _pick(form_data, "website_url", "website", "domain", "trang_web")
+    )
+    if website:
+        sources["website_url"] = "meta_json" if _pick(meta, "website_url", "domain", "website") else "form_data"
+        if not website.startswith(("http://", "https://")):
+            website = f"https://{website.lstrip('/')}"
+
+    email = str(row.get("email") or "").strip().lower()
+    if (len(company) < 2) and email:
+        hints = company_hint_from_email(email)
+        if hints.get("company_name") and len(company) < 2:
+            company = hints["company_name"]
+            sources["company_name"] = "email_domain"
+        if hints.get("website_url") and not website:
+            website = hints["website_url"]
+            sources["website_url"] = "email_domain"
 
     inp = {
         "lead_id": int(row["lead_id"]),
         "full_name": str(row.get("full_name") or "").strip(),
         "phone": str(row.get("phone") or "").strip(),
-        "email": str(row.get("email") or "").strip(),
+        "email": email,
         "company_name": company,
         "industry": _pick(meta, "industry", "industry_slug"),
         "marketing_budget": _pick(meta, "budget", "marketing_budget") or _pick(form_data, "budget"),
         "problem": _pick(meta, "notes", "need", "problem") or _pick(form_data, "need"),
-        "website_url": _pick(meta, "website_url", "domain", "website") or None,
+        "website_url": website or None,
         "social_urls": _pick(meta, "social_urls", "facebook_page_url", "page_url") or None,
         "client_id": row.get("client_id"),
         "channel": row.get("channel"),
         "source": row.get("source"),
     }
 
-    if len(company) < 2:
-        return inp, sources, "missing_company_name"
     if not inp["phone"] and not inp["email"]:
         return inp, sources, "missing_contact"
     return inp, sources, None
+
+
+def needs_am_input(inp: dict[str, Any]) -> str | None:
+    company = str(inp.get("company_name") or "").strip()
+    if len(company) < 2:
+        return "missing_company_name"
+    return None
 
 
 def should_skip_auto(row: dict[str, Any]) -> str | None:

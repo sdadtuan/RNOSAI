@@ -12,6 +12,7 @@ const STEPS = [
 function stepIndex(status: LeadMeetingPrepStatus, completed: string[]): number {
   if (status === 'ready' || status === 'failed') return 4;
   if (status === 'awaiting_entity_choice') return 2;
+  if (status === 'awaiting_am_input') return 0;
   if (completed.includes('arm')) return 4;
   if (completed.includes('strategize')) return 3;
   if (completed.includes('verify')) return 2;
@@ -29,7 +30,7 @@ type Props = {
 export function LeadMeetingPrepProgress({ status, stepsCompleted = [], message }: Props) {
   const active = stepIndex(status, stepsCompleted);
 
-  if (status === 'skipped' || status === 'none') {
+  if (status === 'skipped' || status === 'none' || status === 'awaiting_am_input') {
     return (
       <div className="lmp-progress lmp-progress--muted">
         <span>{message || 'Chưa chạy prep'}</span>

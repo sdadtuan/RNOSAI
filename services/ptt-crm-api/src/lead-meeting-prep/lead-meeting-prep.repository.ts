@@ -164,6 +164,37 @@ export class LeadMeetingPrepRepository implements OnModuleDestroy {
     );
   }
 
+  async markAwaitingAmInput(
+    leadId: number,
+    reason: string,
+    inputSnapshot: Record<string, unknown>,
+  ): Promise<void> {
+    await this.db.query(
+      `INSERT INTO crm_lead_meeting_prep (lead_id, status, skip_reason, input_snapshot_json)
+       VALUES ($1, 'awaiting_am_input', $2, $3::jsonb)
+       ON CONFLICT (lead_id) DO UPDATE SET
+         status = 'awaiting_am_input',
+         skip_reason = EXCLUDED.skip_reason,
+         input_snapshot_json = EXCLUDED.input_snapshot_json,
+         error_message = NULL,
+         updated_at = NOW()`,
+      [leadId, reason, JSON.stringify(inputSnapshot)],
+    );
+  }
+
+  async mergeLeadMeta(leadId: number, patch: Record<string, unknown>): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_leads
+       SET meta_json = meta_json || $1::jsonb,
+           updated_at = NOW(),
+           synced_at = NOW(),
+           write_source = 'nest',
+           sync_version = sync_version + 1
+       WHERE sqlite_lead_id = $2`,
+      [JSON.stringify(patch), leadId],
+    );
+  }
+
   async insertFeedback(input: {
     leadId: number;
     prepId: number;

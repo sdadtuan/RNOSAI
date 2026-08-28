@@ -523,6 +523,17 @@ _FB_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "product_interest": ("product", "san_pham", "sản_phẩm", "loai_bds", "loại_bđs", "product_interest"),
     "region": ("city", "region", "khu_vuc", "khu_vực", "quan", "quận", "tinh", "tỉnh", "dia_chi", "địa_chỉ"),
     "utm_campaign": ("campaign_id", "campaign_name", "utm_campaign", "ad_id", "adset_id"),
+    "company": (
+        "company_name",
+        "company",
+        "ten_cong_ty",
+        "tên_công_ty",
+        "cong_ty",
+        "công_ty",
+        "business_name",
+        "organization",
+    ),
+    "website": ("website", "website_url", "domain", "trang_web", "trang_web_cong_ty"),
 }
 
 
@@ -646,6 +657,10 @@ def build_facebook_lead_item(
             pass
     if extra_meta:
         meta.update(extra_meta)
+    if mapped.get("company"):
+        meta["company_name"] = mapped["company"]
+    if mapped.get("website"):
+        meta["website_url"] = mapped["website"]
 
     item = {
         "full_name": str(full_name or mapped.get("full_name") or "").strip(),

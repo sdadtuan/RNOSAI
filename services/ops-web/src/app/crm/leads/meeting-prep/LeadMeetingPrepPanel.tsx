@@ -12,6 +12,7 @@ import { LeadMeetingPrepEntityPicker } from './LeadMeetingPrepEntityPicker';
 import { LeadMeetingPrepProgress } from './LeadMeetingPrepProgress';
 import { SalesCockpitPanel } from './SalesCockpitPanel';
 import { PostCallDebriefModal } from './PostCallDebriefModal';
+import { lmpSkipReasonMessageVi, showAmInputForm } from './lmp-skip-reason-labels';
 import type { LeadMeetingPrepResponse } from './lead-meeting-prep.types';
 
 type Props = {
@@ -54,6 +55,7 @@ export function LeadMeetingPrepPanel({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [websiteUrl, setWebsiteUrl] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const [debriefOpen, setDebriefOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -119,6 +121,7 @@ export function LeadMeetingPrepPanel({
     try {
       const out = await runLeadMeetingPrep(token, leadId, {
         force,
+        company_name: companyName.trim() || undefined,
         website_url: websiteUrl.trim() || undefined,
       });
       setPrep(out.prep);
@@ -159,6 +162,7 @@ export function LeadMeetingPrepPanel({
 
   const status = prep?.status ?? 'none';
   const result = prep?.result;
+  const amInputForm = showAmInputForm(status, prep?.skip_reason);
 
   async function onPrepareClose() {
     if (!canRun) {
@@ -256,16 +260,41 @@ export function LeadMeetingPrepPanel({
         />
       ) : null}
 
-      {status === 'skipped' ? (
+      {amInputForm ? (
         <div className="banner banner-info">
-          <p>Prep bỏ qua — bổ sung thông tin công ty rồi chạy lại.</p>
+          <p>{lmpSkipReasonMessageVi(prep?.skip_reason ?? 'missing_company_name')}</p>
+          <label className="form-field" style={{ marginTop: '0.75rem' }}>
+            Tên công ty *
+            <input
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              placeholder="VD: Công ty TNHH ABC"
+              required
+            />
+          </label>
           <label className="form-field" style={{ marginTop: '0.75rem' }}>
             Website (tuỳ chọn)
             <input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} placeholder="https://..." />
           </label>
           {canRun ? (
-            <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void onRun(false)}>
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              disabled={busy || !companyName.trim()}
+              onClick={() => void onRun(false)}
+            >
               Chạy prep
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {status === 'skipped' && !amInputForm ? (
+        <div className="banner banner-info">
+          <p>{lmpSkipReasonMessageVi(prep?.skip_reason)}</p>
+          {canRun ? (
+            <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void onRun(false)}>
+              Thử lại
             </button>
           ) : null}
         </div>

@@ -19,6 +19,11 @@ if [[ -z "$URL" ]]; then
 fi
 
 DDL="$ROOT/docs/specs/2026-08-13-postgresql-ddl-lead-meeting-prep.sql"
+MIGRATION="$ROOT/docs/specs/2026-08-28-lmp-awaiting-am-input-migration.sql"
 echo "Applying Lead Meeting Prep DDL..."
 psql "$URL" -v ON_ERROR_STOP=1 -f "$DDL"
+if [[ -f "$MIGRATION" ]]; then
+  echo "Applying LMP Phase 0 migration (awaiting_am_input)..."
+  psql "$URL" -v ON_ERROR_STOP=1 -f "$MIGRATION"
+fi
 echo "OK  crm_lead_meeting_prep DDL applied"

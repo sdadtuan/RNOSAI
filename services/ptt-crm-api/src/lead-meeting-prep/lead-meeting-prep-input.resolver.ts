@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
+import {
+  companyHintFromEmailDomain,
+  normalizeWebsiteUrl,
+} from './lmp-tier1-hints.util';
 import type { LeadMeetingPrepInput, LeadPrepContextRow } from './lead-meeting-prep.types';
 
 function pickString(meta: Record<string, unknown>, ...keys: string[]): string {
@@ -15,7 +19,10 @@ function pickString(meta: Record<string, unknown>, ...keys: string[]): string {
 export interface ResolvedPrepInput {
   input: LeadMeetingPrepInput;
   sources_map: Record<string, string>;
-  skip_reason?: string;
+  /** Hard block — missing phone and email. */
+  skip_reason?: 'missing_contact';
+  /** Soft block — pipeline/UI waits for AM to supply company. */
+  needs_am_input?: 'missing_company_name';
 }
 
 @Injectable()
@@ -26,27 +33,53 @@ export class LeadMeetingPrepInputResolver {
 
     const fullName = String(row.full_name ?? '').trim();
     const phone = String(row.phone ?? '').trim();
-    const email = String(row.email ?? '').trim();
+    const email = String(row.email ?? '').trim().toLowerCase();
 
-    let companyName = pickString(meta, 'company_name', 'company');
-    if (companyName) sources.company_name = 'meta_json';
+    const formData =
+      typeof meta.form_data === 'object' && meta.form_data !== null
+        ? (meta.form_data as Record<string, unknown>)
+        : {};
+
+    let companyName =
+      pickString(meta, 'company_name', 'company', 'business_name', 'page_name') ||
+      pickString(formData, 'company_name', 'company', 'business_name', 'ten_cong_ty', 'cong_ty');
+    if (companyName) {
+      sources.company_name = pickString(meta, 'company_name', 'company')
+        ? 'meta_json'
+        : 'form_data';
+    }
 
     const industry = pickString(meta, 'industry', 'industry_slug');
     if (industry) sources.industry = 'meta_json';
 
     const marketingBudget = pickString(meta, 'budget', 'marketing_budget');
-    const formData =
-      typeof meta.form_data === 'object' && meta.form_data !== null
-        ? (meta.form_data as Record<string, unknown>)
-        : {};
     const budgetFromForm = pickString(formData, 'budget');
     const budget = marketingBudget || budgetFromForm;
 
     const problem =
       pickString(meta, 'notes', 'need', 'problem') || pickString(formData, 'need');
 
-    let websiteUrl = pickString(meta, 'website_url', 'domain', 'website');
-    if (websiteUrl) sources.website_url = 'meta_json';
+    let websiteUrl =
+      pickString(meta, 'website_url', 'domain', 'website') ||
+      pickString(formData, 'website_url', 'website', 'domain', 'trang_web');
+    if (websiteUrl) {
+      sources.website_url = pickString(meta, 'website_url', 'domain', 'website')
+        ? 'meta_json'
+        : 'form_data';
+      websiteUrl = normalizeWebsiteUrl(websiteUrl);
+    }
+
+    if ((!companyName || companyName.length < 2) && email) {
+      const hints = companyHintFromEmailDomain(email);
+      if (hints.company_name && !companyName) {
+        companyName = hints.company_name;
+        sources.company_name = 'email_domain';
+      }
+      if (hints.website_url && !websiteUrl) {
+        websiteUrl = hints.website_url;
+        sources.website_url = 'email_domain';
+      }
+    }
 
     const socialUrls = pickString(meta, 'social_urls', 'facebook_page_url', 'page_url');
 
@@ -66,14 +99,14 @@ export class LeadMeetingPrepInputResolver {
       source: row.source,
     };
 
-    if (!companyName || companyName.length < 2) {
-      return { input, sources_map: sources, skip_reason: 'missing_company_name' };
-    }
     if (!phone && !email) {
       return { input, sources_map: sources, skip_reason: 'missing_contact' };
     }
 
-    return { input, sources_map: sources };
+    const needsAmInput =
+      !companyName || companyName.length < 2 ? ('missing_company_name' as const) : undefined;
+
+    return { input, sources_map: sources, needs_am_input: needsAmInput };
   }
 
   isEligibleForAutoEnqueue(

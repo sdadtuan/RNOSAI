@@ -36,6 +36,7 @@ export async function runLeadMeetingPrep(
   leadId: number,
   body: {
     force?: boolean;
+    company_name?: string;
     website_url?: string;
     social_urls?: string;
     prep_stage?: 'm1_first_strike' | 'm2_qualify_win' | 'm3_pre_close';
@@ -143,6 +144,8 @@ export function prepStatusChipLabel(status: LeadMeetingPrepResponse['status']): 
       return 'Prep sẵn sàng';
     case 'awaiting_entity_choice':
       return 'Cần chọn DN';
+    case 'awaiting_am_input':
+      return 'Chờ AM bổ sung';
     case 'running':
     case 'pending':
       return 'Đang prep…';

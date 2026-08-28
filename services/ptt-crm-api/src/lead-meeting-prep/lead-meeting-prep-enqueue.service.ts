@@ -119,17 +119,27 @@ export class LeadMeetingPrepEnqueueService {
         sources_map: resolved.sources_map,
       };
 
-      if (skipReason || (prepStage !== 'm4_learn' && resolved.skip_reason)) {
+      const hardInputSkip = resolved.skip_reason ?? null;
+
+      if (skipReason || hardInputSkip) {
         if (prepStage === 'm1_first_strike') {
           await this.repo.markSkipped(
             leadId,
-            skipReason ?? resolved.skip_reason ?? 'skipped',
+            skipReason ?? hardInputSkip ?? 'skipped',
             snapshot,
           );
         }
         if (prepStage === 'm4_learn') {
-          this.logger.debug(`M4 learn skipped lead=${leadId}: ${skipReason ?? resolved.skip_reason}`);
+          this.logger.debug(`M4 learn skipped lead=${leadId}: ${skipReason ?? hardInputSkip}`);
         }
+        return null;
+      }
+
+      if (resolved.needs_am_input && prepStage === 'm1_first_strike') {
+        await this.repo.markAwaitingAmInput(leadId, resolved.needs_am_input, snapshot);
+        this.logger.debug(
+          `lead_meeting_prep awaiting AM input lead=${leadId} reason=${resolved.needs_am_input}`,
+        );
         return null;
       }
 

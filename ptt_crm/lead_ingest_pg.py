@@ -302,6 +302,12 @@ def legacy_item_to_pg_record(
     name = str(item.get("full_name") or "").strip() or str(item.get("phone") or item.get("email") or "Lead")
     phone = str(item.get("phone") or "").strip()
     email = str(item.get("email") or "").strip()
+    try:
+        from ptt_crm.lead_meeting_prep.tier1_hints import enrich_lead_meta_for_lmp
+
+        meta = enrich_lead_meta_for_lmp(meta, phone=phone, email=email, item=item)
+    except Exception:
+        pass
     ext = _external_lead_id(item, channel)
     campaign_id = str(item.get("campaign_id") or meta.get("campaign_id") or "").strip() or None
     parsed_ts = _parse_ts(ts) or _parse_ts(_utc_ts())
