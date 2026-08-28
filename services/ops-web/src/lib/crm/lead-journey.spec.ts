@@ -87,6 +87,20 @@ describe('resolveLeadJourney', () => {
     expect(contract?.href).toBe('/crm/service-delivery/88');
   });
 
+  it('contractActive + lifecycleId at consult → HĐ done + service-delivery href', () => {
+    const steps = resolveLeadJourney({
+      reviewActive: false,
+      b2Complete: true,
+      presalesStage: 'consult',
+      hasContract: true,
+      contractActive: true,
+      lifecycleId: 42,
+    });
+    const contract = steps.find((s) => s.key === 'contract');
+    expect(contract?.state).toBe('done');
+    expect(contract?.href).toBe('/crm/service-delivery/42');
+  });
+
   it('draft HĐ ở stage lead → HĐ vẫn pending trên journey', () => {
     const steps = resolveLeadJourney({
       reviewActive: false,

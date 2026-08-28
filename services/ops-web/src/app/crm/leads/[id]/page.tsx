@@ -675,22 +675,24 @@ export default function CrmLeadDetailPage() {
     })();
   }, [ensureAuth, leadId, reloadCopilotContext, reloadFunnel, reloadTimeline, reloadStatusOptions]);
 
+  const accessToken = getAccessToken();
+
   useEffect(() => {
     setContractSummary(null);
   }, [leadId]);
 
   useEffect(() => {
-    const token = getAccessToken();
-    if (!token || !showB2bFlow) return;
+    if (!accessToken || !showB2bFlow) return;
     let cancelled = false;
-    void fetchLeadContractReadiness(token, leadId)
+    void fetchLeadContractReadiness(accessToken, leadId)
       .then((data) => {
         if (cancelled) return;
         setContractSummary({
           hasContract: Boolean(data.contract),
           contractStatus: data.contract?.status ?? null,
           pendingApproval: data.approval?.status === 'pending',
-          lifecycleId: data.lifecycle_id ?? null,
+          lifecycleId:
+            data.lifecycle_id != null && data.lifecycle_id > 0 ? data.lifecycle_id : null,
         });
       })
       .catch(() => {
@@ -705,7 +707,7 @@ export default function CrmLeadDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [leadId, showB2bFlow, contractRefresh]);
+  }, [leadId, showB2bFlow, contractRefresh, accessToken]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -897,7 +899,6 @@ export default function CrmLeadDetailPage() {
     );
   }
 
-  const accessToken = getAccessToken();
   const showSlaSciUnifiedPanel =
     Boolean(accessToken) && leadFlowKind === 'spa_operational';
   const useMobileTabs = layout.mobile;
