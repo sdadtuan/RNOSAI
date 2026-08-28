@@ -1,17 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { StaffPageShell } from '@/components/layout';
 import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
 import { LeadConsultWorkspace } from '@/components/LeadConsultWorkspace';
-import { LeadPresalesFunnelStepper } from '@/components/crm/funnel-stepper';
-import { LeadB2bSalesFlowBar, type LeadContractFlowSummary } from '@/components/LeadB2bSalesFlowBar';
+import { type LeadContractFlowSummary } from '@/components/LeadB2bSalesFlowBar';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
 import { LeadAuditPanel } from '@/components/crm/LeadAuditPanel';
 import { LeadContactActions } from '@/components/crm/LeadContactActions';
-import { B2bIntelligencePanel } from '@/components/crm/B2bIntelligencePanel';
+import { LeadJourneyStepper } from '@/components/crm/LeadJourneyStepper';
+import { LeadNextActionCard } from '@/components/crm/LeadNextActionCard';
 import { LeadMobileCallBar } from '@/components/crm/LeadMobileCallBar';
 import { LeadContractPanel } from '@/components/LeadContractPanel';
 import { LeadDetailHero } from '@/components/crm/LeadDetailHero';
@@ -32,7 +32,17 @@ import {
 } from '@/lib/crm/lead-consult-tab.util';
 import { aiCopilotEnabled } from '@/lib/ai-flags';
 import { dealRoomEnabled } from '@/lib/crm/deal-room-flags';
+import { resolveLeadNextAction, type NextActionKind } from '@/lib/crm/lead-next-action';
 import { leadMeetingPrepEnabled } from '@/lib/crm/lmp-flags';
+import {
+  applyLeadMeetingPrepOfferLadder,
+  fetchLeadMeetingPrep,
+  runLeadMeetingPrep,
+  selectLeadMeetingPrepEntity,
+} from '@/lib/lead-meeting-prep-api';
+import { buildM1Script } from '@/app/crm/leads/meeting-prep/m1-script.util';
+import { buildM2HandoffBrief } from '@/app/crm/leads/meeting-prep/m2-handoff.util';
+import type { LeadMeetingPrepResponse } from '@/app/crm/leads/meeting-prep/lead-meeting-prep.types';
 import { LeadMeetingPrepPanel } from '@/app/crm/leads/meeting-prep/LeadMeetingPrepPanel';
 import { PostCallDebriefModal } from '@/app/crm/leads/meeting-prep/PostCallDebriefModal';
 import { ShortCallDebriefModal } from '@/app/crm/leads/meeting-prep/ShortCallDebriefModal';
@@ -186,6 +196,11 @@ export default function CrmLeadDetailPage() {
   const [callDebriefOpen, setCallDebriefOpen] = useState(false);
   const [callDebriefActivityId, setCallDebriefActivityId] = useState<number | null>(null);
   const [terminalDebriefOpen, setTerminalDebriefOpen] = useState(false);
+  const [prep, setPrep] = useState<LeadMeetingPrepResponse | null>(null);
+  const [companyName, setCompanyName] = useState('');
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [nbaBusy, setNbaBusy] = useState(false);
+  const prepPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const layout = useLeadDetailLayout();
   const online = useNetworkOnline();
   const copilotOn = aiCopilotEnabled();
@@ -203,6 +218,54 @@ export default function CrmLeadDetailPage() {
   const showConsultTab = showB2bFlow && showLeadConsultTab(funnelSnap);
   const showLmpTab = leadMeetingPrepEnabled() && showB2bFlow;
   const prepDeepLink = searchParams.get('prep') === '1';
+
+  const nba = useMemo(() => {
+    if (!lead) return null;
+    return resolveLeadNextAction({
+      lmpEnabled: showLmpTab,
+      dealRoomEnabled: dealRoomEnabled(),
+      phone: lead.phone ?? '',
+      email: lead.email ?? '',
+      leadStatus: lead.status ?? '',
+      b2Complete: Boolean(funnelSnap?.care_pipeline.all_complete),
+      presalesStage: funnelSnap?.presales?.presales.stage ?? null,
+      prepStatus: prep?.status ?? null,
+      prepStage: prep?.prep_stage ?? null,
+      debriefPending: Boolean(prep?.debrief_pending),
+    });
+  }, [lead, showLmpTab, funnelSnap, prep]);
+
+  const loadPrep = useCallback(async () => {
+    const token = getAccessToken();
+    if (!showLmpTab || !token) return;
+    try {
+      const row = await fetchLeadMeetingPrep(token, leadId);
+      setPrep(row);
+    } catch {
+      /* prep is optional on overview */
+    }
+  }, [showLmpTab, leadId]);
+
+  useEffect(() => {
+    if (!showLmpTab || !getAccessToken()) return;
+    void loadPrep();
+  }, [showLmpTab, loadPrep]);
+
+  useEffect(() => {
+    if (prepPollRef.current) {
+      clearInterval(prepPollRef.current);
+      prepPollRef.current = null;
+    }
+    const status = prep?.status;
+    if (showLmpTab && (status === 'running' || status === 'pending')) {
+      prepPollRef.current = setInterval(() => {
+        void loadPrep();
+      }, 5000);
+    }
+    return () => {
+      if (prepPollRef.current) clearInterval(prepPollRef.current);
+    };
+  }, [prep?.status, showLmpTab, loadPrep]);
 
   const reloadFunnel = useCallback(async (access: string) => {
     if (!showB2bFlow) return;
@@ -245,6 +308,137 @@ export default function CrmLeadDetailPage() {
       document.getElementById('funnel-presales-r5')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }, [openOverviewTab]);
+
+  const onNbaSelectEntity = useCallback(async (entityId: string) => {
+    const token = getAccessToken();
+    if (!token) return;
+    setNbaBusy(true);
+    setError('');
+    try {
+      const out = await selectLeadMeetingPrepEntity(token, leadId, entityId);
+      setPrep(out.prep);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Chọn pháp nhân thất bại');
+    } finally {
+      setNbaBusy(false);
+    }
+  }, [leadId]);
+
+  const onNbaAction = useCallback(async (kind: NextActionKind) => {
+    const token = getAccessToken();
+    switch (kind) {
+      case 'edit_contact': {
+        const el =
+          document.getElementById('lead-contact-actions') ??
+          document.querySelector('.lead-detail-hero');
+        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        break;
+      }
+      case 'save_company_run_prep': {
+        if (!token) return;
+        setNbaBusy(true);
+        setError('');
+        try {
+          const out = await runLeadMeetingPrep(token, leadId, {
+            company_name: companyName.trim(),
+            website_url: websiteUrl.trim() || undefined,
+          });
+          setPrep(out.prep);
+          await loadPrep();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Chạy prep thất bại');
+        } finally {
+          setNbaBusy(false);
+        }
+        break;
+      }
+      case 'select_entity':
+      case 'wait_prep':
+        break;
+      case 'open_cockpit':
+        openMeetingPrepTab();
+        break;
+      case 'copy_script': {
+        if (prep?.status === 'ready') {
+          const script = buildM1Script(prep);
+          const text = script.fullTalkTrack || script.opening;
+          if (!text.trim()) {
+            setError('SCI chưa sẵn sàng');
+            break;
+          }
+          try {
+            await navigator.clipboard.writeText(text);
+            setMessage('Đã copy script vào clipboard.');
+          } catch {
+            setError('Không copy được script.');
+          }
+        } else {
+          setError('SCI chưa sẵn sàng');
+        }
+        break;
+      }
+      case 'complete_b2':
+        document.getElementById('funnel-b2')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        break;
+      case 'open_intake':
+        router.push(`/crm/intake?lead_id=${leadId}`);
+        break;
+      case 'copy_m2_brief': {
+        if (prep) {
+          const brief = buildM2HandoffBrief(prep);
+          const text = brief.fullTalkTrack || brief.opening;
+          if (text.trim()) {
+            try {
+              await navigator.clipboard.writeText(text);
+              setMessage('Đã copy brief M2 vào clipboard.');
+            } catch {
+              openConsultTab();
+            }
+            break;
+          }
+        }
+        openConsultTab();
+        break;
+      }
+      case 'open_consult':
+        openConsultTab();
+        break;
+      case 'open_deal_room':
+        router.push(`/crm/leads/${leadId}/deal-room`);
+        break;
+      case 'apply_offer_ladder': {
+        if (!token) return;
+        setNbaBusy(true);
+        setError('');
+        try {
+          const out = await applyLeadMeetingPrepOfferLadder(token, leadId);
+          setMessage(`Proposal #${out.proposal_id} — mở editor để chỉnh`);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Tạo báo giá thất bại');
+        } finally {
+          setNbaBusy(false);
+        }
+        break;
+      }
+      case 'submit_debrief':
+        setTerminalDebriefOpen(true);
+        break;
+      case 'add_activity':
+        document.getElementById('lead-activity-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        break;
+      default:
+        break;
+    }
+  }, [
+    companyName,
+    websiteUrl,
+    leadId,
+    loadPrep,
+    openMeetingPrepTab,
+    openConsultTab,
+    prep,
+    router,
+  ]);
 
   const reloadStatusOptions = useCallback(async (access: string) => {
     setStatusOptionsLoading(true);
@@ -649,7 +843,7 @@ export default function CrmLeadDetailPage() {
               setMobileTab('detail');
             }}
           >
-            Chi tiết
+            Việc
           </button>
           <button
             type="button"
@@ -658,7 +852,7 @@ export default function CrmLeadDetailPage() {
             className={mobileTab === 'activity' ? 'is-active' : ''}
             onClick={() => setMobileTab('activity')}
           >
-            Hoạt động
+            Nhật ký
           </button>
           {copilotOn ? (
             <button
@@ -694,6 +888,19 @@ export default function CrmLeadDetailPage() {
             ownerLabel={ownerLabel}
             flowKind={leadFlowKind}
             flowLabel={leadFlowKindLabel(leadFlowKind)}
+            nbaTitle={showB2bFlow ? nba?.title_vi ?? null : null}
+            showCockpit={showLmpTab}
+            onOpenCockpit={openMeetingPrepTab}
+            contactActions={
+              lead.phone ? (
+                <LeadContactActions
+                  phone={lead.phone}
+                  leadId={lead.id}
+                  accessToken={accessToken}
+                  onCopy={onCopyContact}
+                />
+              ) : null
+            }
           />
 
           {showSlaSciUnifiedPanel ? (
@@ -732,14 +939,7 @@ export default function CrmLeadDetailPage() {
           <div className={hideMainPane ? 'lead-detail-pane--hidden' : ''}>
             <LeadAttributionChips attribution={attribution} />
 
-            {showB2bFlow ? (
-              <>
-                <LeadB2bSalesFlowBar leadId={leadId} funnel={funnelSnap} contract={contractSummary} />
-                {accessToken ? (
-                  <B2bIntelligencePanel token={accessToken} leadId={leadId} />
-                ) : null}
-              </>
-            ) : (
+            {showB2bFlow ? null : (
               <div className="banner banner-info lead-spa-flow-banner" style={{ marginTop: '0.75rem' }}>
                 <strong>Luồng CSKH vận hành 24h</strong>
                 <p style={{ margin: '0.35rem 0 0', fontSize: '0.9rem' }}>
@@ -748,20 +948,7 @@ export default function CrmLeadDetailPage() {
               </div>
             )}
 
-            {accessToken && showB2bFlow ? (
-              <LeadPresalesFunnelStepper
-                token={accessToken}
-                leadId={leadId}
-                user={user}
-                funnel={funnelSnap}
-                onFunnelChange={setFunnelSnap}
-                onOpenConsultWorkspace={showConsultTab ? openConsultTab : undefined}
-                onMessage={setMessage}
-                onError={setError}
-              />
-            ) : null}
-
-            {accessToken && showB2bFlow && dealRoomEnabled() && funnelSnap?.presales ? (
+            {accessToken && showB2bFlow && dealRoomEnabled() && funnelSnap?.presales && funnelSnap?.care_pipeline.all_complete ? (
               <div className="deal-room-entry-banner">
                 <div>
                   <strong>Deal Room</strong>
@@ -803,6 +990,28 @@ export default function CrmLeadDetailPage() {
 
             {showOverviewMain ? (
               <>
+
+            {showB2bFlow && nba ? (
+              <>
+                <LeadNextActionCard
+                  action={nba}
+                  prep={prep}
+                  busy={nbaBusy}
+                  companyName={companyName}
+                  websiteUrl={websiteUrl}
+                  onCompanyName={setCompanyName}
+                  onWebsiteUrl={setWebsiteUrl}
+                  onPickEntity={(id) => void onNbaSelectEntity(id)}
+                  onAction={onNbaAction}
+                />
+                <LeadJourneyStepper
+                  leadId={leadId}
+                  funnel={funnelSnap}
+                  contract={contractSummary}
+                  onOpenConsult={showConsultTab ? openConsultTab : undefined}
+                />
+              </>
+            ) : null}
 
             {accessToken ? (
               <LeadFunnelPanel
@@ -868,8 +1077,11 @@ export default function CrmLeadDetailPage() {
                 onError={setError}
               />
             ) : null}
+          </div>
 
-            {showWorkPane ? (
+          <aside
+            className={`lead-detail-sidebar ${hideTimelinePane ? 'lead-detail-pane--hidden' : ''}`}
+          >
               <div className="lead-panel lead-panel--action">
                 <div className="lead-panel__head">
                   <h3 className="lead-panel__title">Thêm hoạt động</h3>
@@ -909,12 +1121,6 @@ export default function CrmLeadDetailPage() {
                   </button>
                 </form>
               </div>
-            ) : null}
-          </div>
-
-          <aside
-            className={`lead-detail-sidebar ${hideTimelinePane ? 'lead-detail-pane--hidden' : ''}`}
-          >
             <div className="lead-panel lead-panel--activity">
               <div className="lead-panel__head">
                 <h3 className="lead-panel__title">Timeline hoạt động</h3>
@@ -961,16 +1167,7 @@ export default function CrmLeadDetailPage() {
             <LeadPropertyRail
               lead={lead}
               ownerLabel={ownerLabel}
-              contact={
-                lead.phone ? (
-                  <LeadContactActions
-                    phone={lead.phone}
-                    onCopy={onCopyContact}
-                    leadId={lead.id}
-                    accessToken={accessToken}
-                  />
-                ) : null
-              }
+              contact={undefined}
               statusForm={
                 <div className="lead-panel lead-panel--action">
                   <div className="lead-panel__head">

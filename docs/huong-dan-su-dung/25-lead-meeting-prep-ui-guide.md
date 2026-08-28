@@ -11,6 +11,7 @@ Tài liệu này mô tả **thao tác trên giao diện** — bấm gì, ở đ�
 
 | Chủ đề | File |
 |--------|------|
+| **Hướng dẫn đầy đủ (env, API key, UI, kết quả)** | [26-sales-cockpit-huong-dan-day-du.md](./26-sales-cockpit-huong-dan-day-du.md) |
 | B2B E2E (Lead → chốt deal) | [24-b2b-e2e-handover-ui-guide.md](./24-b2b-e2e-handover-ui-guide.md) |
 | SOP chốt deal Sales/Solution | [16-sales-solution-chot-deal-sop.md](./16-sales-solution-chot-deal-sop.md) |
 | Leads — sơ đồ bàn giao | [23-leads-handover-flow-and-guides.md](./23-leads-handover-flow-and-guides.md) |
@@ -77,6 +78,8 @@ flowchart LR
 ---
 
 ## 2. Bản đồ vị trí UI
+
+Trên trang lead detail, khối **Việc tiếp theo** (NBA) là block đầu của cột Việc. AM đọc việc cần làm ngay tại đó trước khi mở Funnel hay Sales Cockpit.
 
 | # | Màn hình | Route | Thành phần LMP |
 |---|----------|-------|----------------|
