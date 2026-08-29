@@ -2446,6 +2446,60 @@ export async function postIntakeSalesKit(
   });
 }
 
+export type IntakeSalesKitFileRow = {
+  id: string;
+  playbook_id: string | null;
+  lead_id: number | null;
+  session_id: number | null;
+  folder_key: string;
+  original_name: string;
+  mime: string;
+  parse_status: string;
+  parse_error: string | null;
+  created_at: string;
+};
+
+export async function listIntakeSalesKitFiles(
+  token: string,
+  query: { folder_key?: string; session_id?: number },
+): Promise<{ files: IntakeSalesKitFileRow[] }> {
+  const qs = new URLSearchParams();
+  if (query.folder_key) qs.set('folder_key', query.folder_key);
+  if (query.session_id != null) qs.set('session_id', String(query.session_id));
+  return crmFetch<{ files: IntakeSalesKitFileRow[] }>(
+    token,
+    `/api/crm/intake/sales-kit/files?${qs.toString()}`,
+  );
+}
+
+export async function uploadIntakeSalesKitFile(
+  token: string,
+  input: { file: File; folder_key: string; lead_id?: number; session_id?: number },
+): Promise<IntakeSalesKitFileRow> {
+  const form = new FormData();
+  form.append('file', input.file);
+  form.append('folder_key', input.folder_key);
+  if (input.lead_id != null) form.append('lead_id', String(input.lead_id));
+  if (input.session_id != null) form.append('session_id', String(input.session_id));
+  return crmFetch<IntakeSalesKitFileRow>(token, '/api/crm/intake/sales-kit/files', {
+    method: 'POST',
+    body: form,
+  });
+}
+
+export async function approveIntakeSalesKitFile(
+  token: string,
+  id: string,
+): Promise<IntakeSalesKitFileRow> {
+  return crmFetch<IntakeSalesKitFileRow>(token, `/api/crm/intake/sales-kit/files/${id}/approve`, {
+    method: 'POST',
+  });
+}
+
+export async function downloadIntakeSalesKitSample(token: string): Promise<void> {
+  await downloadBinary(token, '/api/crm/intake/sales-kit/sample.xlsx', 'mau-qa-seo.xlsx');
+}
+
 export async function createCustomerRelation(
   token: string,
   customerId: number,

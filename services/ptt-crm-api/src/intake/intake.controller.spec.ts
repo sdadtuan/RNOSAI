@@ -24,5 +24,6 @@ describe('IntakeController sales-kit org routes', () => {
       IntakeController.prototype.salesKit,
     ) ?? []) as unknown[];
     expect(turnGuards).toContain(StaffIntakeWriteGuard);
+    expect(typeof IntakeController.prototype.downloadSalesKitSample).toBe('function');
   });
 });

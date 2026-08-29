@@ -12,6 +12,7 @@ import {
   Post,
   Query,
   Req,
+  StreamableFile,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -27,6 +28,7 @@ import { IntakeStaffActor } from './intake-b2b-visibility.service';
 import { IntakeService } from './intake.service';
 import { CreateIntakeSessionBody, PatchIntakeSessionBody } from './intake.types';
 import { SalesKitLibraryService } from './sales-kit-library.service';
+import { buildSalesKitSampleXlsx } from './sales-kit-sample.util';
 
 type IntakeRequest = Request & {
   staffUser?: StaffJwtPayload;
@@ -164,6 +166,15 @@ export class IntakeController {
   @UseGuards(StaffIntakeWriteGuard)
   async deleteSession(@Req() req: IntakeRequest, @Param('id', ParseIntPipe) id: number) {
     return this.intake.deleteSession(id, await this.actorContext(req));
+  }
+
+  @Get('sales-kit/sample.xlsx')
+  async downloadSalesKitSample(): Promise<StreamableFile> {
+    const buffer = await buildSalesKitSampleXlsx();
+    return new StreamableFile(buffer, {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: 'attachment; filename="mau-qa-seo.xlsx"',
+    });
   }
 
   @Post('sales-kit/files')

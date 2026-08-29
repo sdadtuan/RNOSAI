@@ -98,4 +98,8 @@ describe('intakeServiceLabel', () => {
     expect(intakeServiceLabel('thiet-ke-website')).toBe('Thiết kế website');
     expect(intakeServiceLabel('_common')).toBe('Chưa chọn dịch vụ');
   });
+
+  it('labels dich-vu-aeo as AEO', () => {
+    expect(intakeServiceLabel('dich-vu-aeo')).toBe('AEO');
+  });
 });

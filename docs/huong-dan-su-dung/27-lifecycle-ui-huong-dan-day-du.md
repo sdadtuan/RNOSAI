@@ -222,7 +222,19 @@ Trang Intake là **workspace qualify** — không còn stack card ngữ cảnh /
 | **Còn thiếu để Go** | Gap điểm tới 24 (BANT 0 → hiện **24**) |
 | **Win intel** / **Deep-dive dịch vụ** | Gợi ý theo slug |
 | **Tóm tắt 30s** / **Red flag** | Tóm tắt / cảnh báo |
-| **Hỏi kho / Q&A** · **Bảng giá / band** | Cần file kho; chưa có → *Chưa có file trong thư mục kho.* |
+| **Hỏi kho / Q&A** · **Bảng giá / band** | Cần file kho; chưa có → *Chưa có file trong thư mục kho.* Chip **không cần LLM**. Ô **KH vừa nói…** hiện khi chọn chip này — gõ *KH nói đắt* để lấy đáp + citation. |
+
+**Kho Sales Kit** (GDKD / người có `playbooks.configure` hoặc `crm_leads.configure`):
+
+| | |
+|---|---|
+| **Route** | `/crm/intake/sales-kit?folder=dich-vu-seo-tong-the/qa` — menu **Bán hàng → Kho Sales Kit** |
+| **Folder** | 3 dịch vụ pilot + `_common` × `qa` / `battle-cards` / `cases` / `pricing` |
+| **Upload** | xlsx / pdf / ảnh. Org file ở `pending` đến khi bấm **Duyệt** (`ready`) |
+| **Tải mẫu** | Excel 5 hàng Q&A SEO — gồm *KH nói đắt* / *Neo gói TC 3 tháng, không giảm dưới band* |
+| **Túi phiên** | Nút **Kho** trên Intake: AM kéo file vào phiên (chỉ lead đó). Kho org **chỉ xem**, không xóa |
+
+S4: upload mẫu SEO → **Duyệt** → chip Hỏi kho *KH nói đắt* → citation. Folder pricing trống → empty-state, **không** bịa số.
 
 Tick **Áp dụng vào form** rồi bấm **Áp dụng** (BANT hints mặc định **tắt**). Kit không Complete / Reopen / chuyển funnel.
 

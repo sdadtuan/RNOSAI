@@ -98,7 +98,10 @@ export function IntakeSalesKitPanel({
     Boolean(apply?.ai_summary?.trim()) ||
     Boolean(apply?.bant_hints && Object.keys(apply.bant_hints).length);
   const canRun = Boolean(sessionId) && canEdit && !busy && !applying;
-  const chatPlaceholder = activeIntent === 'ask_library' ? 'KH vừa nói…' : 'Hỏi kit…';
+  const libraryChat =
+    activeIntent === 'ask_library' || activeIntent === 'pricing_band';
+  const showChat = llmEnabled || libraryChat;
+  const chatPlaceholder = libraryChat ? 'KH vừa nói…' : 'Hỏi kit…';
 
   async function runIntent(intent: string, text?: string) {
     if (!sessionId || !canEdit) return;
@@ -141,9 +144,13 @@ export function IntakeSalesKitPanel({
 
   function onSubmitChat(event: FormEvent) {
     event.preventDefault();
-    if (!llmEnabled) return;
     const text = message.trim();
     if (!text) return;
+    if (libraryChat) {
+      void runIntent(activeIntent ?? 'ask_library', text);
+      return;
+    }
+    if (!llmEnabled) return;
     void runIntent('freeform', text);
   }
 
@@ -267,18 +274,29 @@ export function IntakeSalesKitPanel({
         </div>
       ) : null}
 
-      {llmEnabled ? (
+      {showChat ? (
         <form className="intake-kit__chat" onSubmit={onSubmitChat}>
           <label className="intake-field">
-            <span className="muted">Chat</span>
-            <textarea
-              className="intake-kit__chat-input"
-              rows={2}
-              value={message}
-              placeholder={chatPlaceholder}
-              disabled={!canRun}
-              onChange={(e) => setMessage(e.target.value)}
-            />
+            <span className="muted">{libraryChat ? 'Hỏi kho' : 'Chat'}</span>
+            {libraryChat ? (
+              <input
+                className="intake-kit__chat-input"
+                type="text"
+                value={message}
+                placeholder={chatPlaceholder}
+                disabled={!canRun}
+                onChange={(e) => setMessage(e.target.value)}
+              />
+            ) : (
+              <textarea
+                className="intake-kit__chat-input"
+                rows={2}
+                value={message}
+                placeholder={chatPlaceholder}
+                disabled={!canRun}
+                onChange={(e) => setMessage(e.target.value)}
+              />
+            )}
           </label>
           <button type="submit" className="btn btn-secondary btn-sm" disabled={!canRun || !message.trim()}>
             Gửi

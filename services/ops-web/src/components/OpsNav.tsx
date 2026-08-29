@@ -347,6 +347,9 @@ function buildSections(
   if (hasCap(user, 'crm_agency', 'view')) {
     b2bSales.push({ href: '/crm/hub', label: 'Hub · Hợp đồng' });
   }
+  if (hasCap(user, 'playbooks', 'configure') || hasCap(user, 'crm_leads', 'configure')) {
+    b2bSales.push({ href: '/crm/intake/sales-kit', label: 'Kho Sales Kit' });
+  }
   if (b2bSales.length) {
     sections.push({ label: 'Bán hàng', links: b2bSales, defaultOpen: true });
   }

@@ -10,6 +10,7 @@ import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
 import { IntakeDealBar } from '@/components/crm/intake/IntakeDealBar';
 import { IntakeHandoffTab } from '@/components/crm/intake/IntakeHandoffTab';
 import { IntakeQualifyTab } from '@/components/crm/intake/IntakeQualifyTab';
+import { IntakeSalesKitLibrarySheet } from '@/components/crm/intake/IntakeSalesKitLibrarySheet';
 import { IntakeSalesKitPanel } from '@/components/crm/intake/IntakeSalesKitPanel';
 import { IntakeSessionSidebar } from '@/components/crm/intake/IntakeSessionSidebar';
 import { IntakeWinIntelSection } from '@/components/crm/intake/IntakeWinIntelSection';
@@ -157,6 +158,7 @@ export function IntakeContent({
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [kitOpen, setKitOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [lead, setLead] = useState<LeadRow | null>(null);
   const [funnelSnap, setFunnelSnap] = useState<LeadFunnelSnapshot | null>(null);
   const [consultGate, setConsultGate] = useState<ConsultGateState | null>(null);
@@ -207,6 +209,10 @@ export function IntakeContent({
   );
 
   const canCreate = useMemo(() => hasCap(user, 'crm_leads', 'edit'), [user]);
+  const canBrowseOrg = useMemo(
+    () => hasCap(user, 'playbooks', 'configure') || hasCap(user, 'crm_leads', 'configure'),
+    [user],
+  );
   const formDisabled = active?.status === 'completed' || saving;
   const sessionMode = normalizeIntakeMode(active?.mode);
   const discoveryQuestionItems = useMemo(
@@ -1116,15 +1122,26 @@ export function IntakeContent({
               className={`intake-layout__main stack-gap${leadId > 0 ? ' intake-layout__main--stepper' : ''}`}
             >
               {kitEnabled ? (
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm intake-layout__kit-toggle"
-                  onClick={() => setKitOpen(true)}
-                  aria-expanded={kitOpen}
-                  aria-controls="intake-sales-kit"
-                >
-                  Sales Kit
-                </button>
+                <div className="intake-layout__kit-toggles">
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm intake-layout__kit-toggle"
+                    onClick={() => setKitOpen(true)}
+                    aria-expanded={kitOpen}
+                    aria-controls="intake-sales-kit"
+                  >
+                    Sales Kit
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm intake-layout__kho-toggle"
+                    onClick={() => setLibraryOpen(true)}
+                    aria-expanded={libraryOpen}
+                    aria-controls="intake-sales-kit-library"
+                  >
+                    Kho
+                  </button>
+                </div>
               ) : null}
 
               <IntakeDealBar
@@ -1333,6 +1350,16 @@ export function IntakeContent({
           </div>
         ) : null}
       </div>
+
+      <IntakeSalesKitLibrarySheet
+        open={kitEnabled && libraryOpen}
+        sessionId={active?.id ?? null}
+        leadId={leadId}
+        serviceSlug={resolvedSlug}
+        canEdit={canCreate && active?.status !== 'completed'}
+        canBrowseOrg={canBrowseOrg}
+        onClose={() => setLibraryOpen(false)}
+      />
 
       <IntakeCompleteConfirmModal
         open={completeModalOpen}

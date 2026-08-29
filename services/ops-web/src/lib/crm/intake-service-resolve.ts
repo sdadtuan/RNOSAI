@@ -21,6 +21,7 @@ export const PILOT_SERVICE_SLUGS = [
 
 const LABELS: Record<string, string> = {
   'dich-vu-seo-tong-the': 'SEO tổng thể',
+  'dich-vu-aeo': 'AEO',
   'quang-cao-google': 'Quảng cáo Google',
   'thiet-ke-website': 'Thiết kế website',
   _common: 'Chưa chọn dịch vụ',
