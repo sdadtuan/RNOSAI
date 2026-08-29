@@ -469,6 +469,7 @@ export function IntakeContent({
           schema_version: definition.schema_version,
         });
         setBantRows(bantRowsFromDefinition(definition.bant_rows));
+        setError('');
       } catch (err) {
         if (cancelled) return;
         if (!intakeDefinitionRef.current) {
