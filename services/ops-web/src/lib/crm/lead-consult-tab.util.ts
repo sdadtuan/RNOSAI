@@ -1,10 +1,11 @@
 import type { LeadFunnelSnapshot } from '@/lib/api';
+import { funnelPresalesStage } from '@/lib/crm/funnel-snapshot.util';
 
 export const LEAD_CONSULT_TAB_HASH = '#funnel-presales';
 
 /** PO Q1 — tab Tư vấn khi presales exists && stage ∈ {consult, proposal}. */
 export function showLeadConsultTab(funnel: LeadFunnelSnapshot | null | undefined): boolean {
-  const stage = funnel?.presales?.presales.stage;
+  const stage = funnelPresalesStage(funnel);
   if (!funnel?.presales || !stage) return false;
   return stage === 'consult' || stage === 'proposal';
 }

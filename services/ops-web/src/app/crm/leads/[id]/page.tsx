@@ -38,6 +38,11 @@ import { aiCopilotEnabled } from '@/lib/ai-flags';
 import { dealRoomEnabled } from '@/lib/crm/deal-room-flags';
 import { resolveLeadNextAction, type NextActionKind } from '@/lib/crm/lead-next-action';
 import { contractCreateReady, contractSubmitReady } from '@/lib/crm/lead-contract-ready';
+import {
+  funnelB2Complete,
+  funnelPresalesStage,
+  normalizeAgencyClientId,
+} from '@/lib/crm/funnel-snapshot.util';
 import { leadMeetingPrepEnabled } from '@/lib/crm/lmp-flags';
 import {
   applyLeadMeetingPrepOfferLadder,
@@ -225,20 +230,21 @@ export default function CrmLeadDetailPage() {
   const statusDropdownOptions = statusOptionsApi?.allowed_next ?? [];
   const statusHints = statusOptionsApi?.hints ?? [];
   const showB2bFlow = showB2bSalesFlowBar(leadFlowKind);
-  const presalesStage = funnelSnap?.presales?.presales.stage ?? null;
+  const presalesStage = funnelPresalesStage(funnelSnap);
+  const b2Complete = funnelB2Complete(funnelSnap);
   const intakeGo = deriveS0IntakeGo(presalesStage);
   const stageVis = useMemo(
     () =>
       resolveLeadStageVisibility({
         flowKind: leadFlowKind,
-        b2Complete: Boolean(funnelSnap?.care_pipeline.all_complete),
+        b2Complete,
         presalesStage,
         intakeGo,
         hasContract: Boolean(contractSummary?.hasContract),
         contractStatus: contractSummary?.contractStatus ?? null,
         dealRoomEnabled: dealRoomEnabled(),
       }),
-    [leadFlowKind, funnelSnap, intakeGo, presalesStage, contractSummary],
+    [leadFlowKind, b2Complete, intakeGo, presalesStage, contractSummary],
   );
   const showConsultTab = showB2bFlow && showLeadConsultTab(funnelSnap);
   const showLmpTab = leadMeetingPrepEnabled() && showB2bFlow;
@@ -252,8 +258,8 @@ export default function CrmLeadDetailPage() {
       phone: lead.phone ?? '',
       email: lead.email ?? '',
       leadStatus: lead.status ?? '',
-      b2Complete: Boolean(funnelSnap?.care_pipeline.all_complete),
-      presalesStage: funnelSnap?.presales?.presales.stage ?? null,
+      b2Complete,
+      presalesStage,
       prepStatus: prep?.status ?? null,
       prepStage: prep?.prep_stage ?? null,
       debriefPending: Boolean(prep?.debrief_pending),
@@ -264,7 +270,7 @@ export default function CrmLeadDetailPage() {
       submitReady: contractSubmitReady(contractChecks),
       createReady: contractCreateReady(contractChecks),
     });
-  }, [lead, showLmpTab, funnelSnap, prep, contractSummary, contractChecks]);
+  }, [lead, showLmpTab, b2Complete, presalesStage, prep, contractSummary, contractChecks]);
 
   const loadPrep = useCallback(async () => {
     const token = getAccessToken();
@@ -719,7 +725,7 @@ export default function CrmLeadDetailPage() {
           lifecycleId:
             data.lifecycle_id != null && data.lifecycle_id > 0 ? data.lifecycle_id : null,
           lifecycleStage: data.lifecycle_stage ?? null,
-          agencyClientId: data.contract?.agency_client_id?.trim() || null,
+          agencyClientId: normalizeAgencyClientId(data.contract?.agency_client_id),
         });
         setContractChecks(data.checks ?? []);
       })
@@ -769,7 +775,7 @@ export default function CrmLeadDetailPage() {
     const access = getAccessToken();
     if (!access || !lead) return;
     void reloadStatusOptions(access);
-  }, [lead?.status, lead?.id, funnelSnap?.care_pipeline.all_complete, reloadStatusOptions]);
+  }, [lead?.status, lead?.id, b2Complete, reloadStatusOptions]);
 
   async function onSaveStatus(e: React.FormEvent) {
     e.preventDefault();
@@ -988,7 +994,7 @@ export default function CrmLeadDetailPage() {
   }
 
   const onSoftphonePlaced = useCallback(() => {
-    if (funnelSnap?.care_pipeline.all_complete) return;
+    if (funnelB2Complete(funnelSnap)) return;
     setB2CallJustPlaced(true);
     document.getElementById('funnel-b2')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [funnelSnap]);

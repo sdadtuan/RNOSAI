@@ -1,5 +1,6 @@
 import type { LeadFunnelSnapshot } from '@/lib/api';
 import { showPresalesForFlow } from '@/lib/crm/lead-flow-kind';
+import { funnelB2Complete, funnelPresalesStage, funnelServiceSlug } from '@/lib/crm/funnel-snapshot.util';
 import type { PresalesSolutionCaps } from '@/lib/crm/presales-solution-caps';
 import type {
   ConsultGateState,
@@ -42,7 +43,7 @@ function inReview(funnel: LeadFunnelSnapshot | null): boolean {
 }
 
 function b2Done(funnel: LeadFunnelSnapshot | null): boolean {
-  return Boolean(funnel?.care_pipeline.all_complete);
+  return funnelB2Complete(funnel);
 }
 
 function presalesStarted(funnel: LeadFunnelSnapshot | null): boolean {
@@ -50,7 +51,7 @@ function presalesStarted(funnel: LeadFunnelSnapshot | null): boolean {
 }
 
 function presalesStage(funnel: LeadFunnelSnapshot | null): string {
-  return String(funnel?.presales?.presales.stage ?? '');
+  return funnelPresalesStage(funnel) ?? '';
 }
 
 function hasCompletedIntake(intakeSummary?: IntakeStepSummary | null): boolean {
@@ -299,7 +300,7 @@ export function resolvePrimaryAction(input: {
     return { kind: 'none', label: '', disabled: true };
   }
 
-  const serviceSlug = funnel?.presales?.presales.service_slug;
+  const serviceSlug = funnelServiceSlug(funnel);
   const intakeLink = intakeHref(leadId, serviceSlug);
 
   if (activeStep === 'b2') {
@@ -540,7 +541,7 @@ export function resolveFunnelStepper(input: FunnelStepperInput): FunnelStepperVi
   });
   const states = applyActiveStepHighlight(rawStates, activeStep);
 
-  const serviceSlug = funnel?.presales?.presales.service_slug;
+  const serviceSlug = funnelServiceSlug(funnel);
   const intakeLink = intakeHref(input.leadId, serviceSlug);
 
   const steps = PRESALES_FUNNEL_STEPS.map((def) => {

@@ -54,7 +54,7 @@ export function LeadAttributionChips({
         </span>
       ) : null}
 
-      {hasCampaign ? (
+      {hasCampaign && attribution.hub_href ? (
         <Link href={attribution.hub_href} className="lead-attribution-chip lead-attribution-chip--hub">
           Hub map
         </Link>

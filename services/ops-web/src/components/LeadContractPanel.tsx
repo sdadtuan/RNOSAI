@@ -18,6 +18,7 @@ import {
 } from '@/lib/crm/lead-contract-ready';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
 import type { LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
+import { normalizeAgencyClientId } from '@/lib/crm/funnel-snapshot.util';
 
 interface Props {
   token: string;
@@ -68,6 +69,8 @@ export function LeadContractPanel({
           contractStatus: data.contract?.status ?? null,
           pendingApproval: data.approval?.status === 'pending',
           lifecycleId: lifecycle,
+          lifecycleStage: data.lifecycle_stage ?? null,
+          agencyClientId: normalizeAgencyClientId(data.contract?.agency_client_id),
         },
         data.checks ?? [],
       );

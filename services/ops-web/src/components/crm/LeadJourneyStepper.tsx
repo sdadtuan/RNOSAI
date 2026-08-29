@@ -3,6 +3,11 @@
 import Link from 'next/link';
 import type { LeadFunnelSnapshot } from '@/lib/api';
 import type { LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
+import {
+  funnelB2Complete,
+  funnelPresalesStage,
+  funnelServiceSlug,
+} from '@/lib/crm/funnel-snapshot.util';
 import { resolveLeadJourney, showDeliverySpine } from '@/lib/crm/lead-journey';
 
 type Props = {
@@ -17,16 +22,16 @@ const DESC_POST_WON = 'B2 → … → HĐ → OB → Giao → CL → Ret';
 
 export function LeadJourneyStepper({ leadId, funnel, contract, onOpenConsult }: Props) {
   const journeyInput = {
-    reviewActive: Boolean(funnel?.review_queue.active),
-    b2Complete: Boolean(funnel?.care_pipeline.all_complete),
-    presalesStage: funnel?.presales?.presales.stage ?? null,
+    reviewActive: Boolean(funnel?.review_queue?.active),
+    b2Complete: funnelB2Complete(funnel),
+    presalesStage: funnelPresalesStage(funnel),
     hasContract: Boolean(contract?.hasContract || contract?.pendingApproval),
     contractActive: contract?.contractStatus === 'active',
     lifecycleId: contract?.lifecycleId ?? null,
     lifecycleStage: contract?.lifecycleStage ?? null,
     agencyClientId: contract?.agencyClientId ?? null,
     leadId,
-    serviceSlug: funnel?.presales?.presales.service_slug ?? null,
+    serviceSlug: funnelServiceSlug(funnel),
   };
   const steps = resolveLeadJourney(journeyInput);
   const extended = showDeliverySpine(journeyInput);
