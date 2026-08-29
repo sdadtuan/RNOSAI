@@ -10,9 +10,9 @@ import { IntakeCompleteConfirmModal } from '@/components/crm/intake/IntakeComple
 import { IntakeDiscoverySection } from '@/components/crm/intake/IntakeDiscoverySection';
 import { IntakeValidationErrors } from '@/components/crm/intake/IntakeValidationErrors';
 import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
-import { IntakeLeadContextCard } from '@/components/crm/intake/IntakeLeadContextCard';
-import { IntakePrepSummaryCard } from '@/components/crm/intake/IntakePrepSummaryCard';
+import { IntakeDealBar } from '@/components/crm/intake/IntakeDealBar';
 import { IntakeSessionSidebar } from '@/components/crm/intake/IntakeSessionSidebar';
+import { IntakeWorkspaceTabs } from '@/components/crm/intake/IntakeWorkspaceTabs';
 import { IntakeCommitmentsSection } from '@/components/crm/intake/IntakeCommitmentsSection';
 import { IntakeRedFlagsSection } from '@/components/crm/intake/IntakeRedFlagsSection';
 import { IntakeStakeholderMatrix } from '@/components/crm/intake/IntakeStakeholderMatrix';
@@ -22,6 +22,7 @@ import {
   completeIntakeSession,
   createIntakeSession,
   deleteIntakeSession,
+  fetchIntakeContext,
   fetchIntakeDefinitionBySlug,
   fetchIntakeDefinitions,
   fetchIntakeSessions,
@@ -34,11 +35,22 @@ import {
   reopenIntakeSession,
   staffMe,
   staffRefresh,
+  type IntakeLeadContext,
   type IntakeSessionRow,
   type LeadFunnelSnapshot,
   type LeadRow,
 } from '@/lib/api';
 import type { ConsultGateState, FunnelPrimaryAction, IntakeStepSummary } from '@/lib/crm/funnel-stepper.types';
+import { funnelPresalesStage, funnelServiceSlug } from '@/lib/crm/funnel-snapshot.util';
+import {
+  gapToGo,
+  intakeServiceLabel,
+  resolveIntakeServiceSlug,
+} from '@/lib/crm/intake-service-resolve';
+import {
+  pickDefaultIntakeTab,
+  type IntakeWorkspaceTab,
+} from '@/lib/crm/intake-workspace-tab';
 import {
   INTAKE_DECISION_OPTIONS,
   intakeModeLabel,
@@ -142,6 +154,12 @@ export function IntakeContent({
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
   const [completeWarnings, setCompleteWarnings] = useState<IntakeValidationIssue[]>([]);
   const [validationErrors, setValidationErrors] = useState<IntakeValidationIssue[]>([]);
+  const [urlServiceSlug, setUrlServiceSlug] = useState<string | null>(null);
+  const [intakeContext, setIntakeContext] = useState<IntakeLeadContext | null>(null);
+  const [activeTab, setActiveTab] = useState<IntakeWorkspaceTab>('qualify');
+  const [funnelCollapsed, setFunnelCollapsed] = useState(true);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [serviceOverride, setServiceOverride] = useState<string | null>(null);
   const saveInFlightRef = useRef(false);
 
   useEffect(() => {
@@ -155,6 +173,7 @@ export function IntakeContent({
     const sp = new URLSearchParams(window.location.search);
     const lid = Number(sp.get('lead_id') || 0);
     const lcid = Number(sp.get('lifecycle_id') || 0);
+    setUrlServiceSlug(sp.get('service_slug'));
     if (lid > 0) setLeadId(lid);
     if (lcid > 0) setLifecycleId(lcid);
   }, [leadId, lifecycleId]);
@@ -198,6 +217,38 @@ export function IntakeContent({
     [activeId, bant, decision, decisionReason, contactName, need, discovery, stakeholders, commitments, redFlags],
   );
   const liveBantTotal = useMemo(() => computeBantTotal(bant), [bant]);
+
+  const resolvedSlug = useMemo(
+    () =>
+      resolveIntakeServiceSlug({
+        urlSlug: serviceOverride ?? urlServiceSlug,
+        sessionSlug: active?.service_slug,
+        funnelSlug: funnelServiceSlug(funnelSnap),
+      }),
+    [active?.service_slug, funnelSnap, serviceOverride, urlServiceSlug],
+  );
+
+  const slugMismatch = useMemo(() => {
+    const sessionSlug = String(active?.service_slug ?? '').trim();
+    const funnelSlug = String(funnelServiceSlug(funnelSnap) ?? '').trim();
+    return Boolean(sessionSlug && funnelSlug && sessionSlug !== funnelSlug);
+  }, [active?.service_slug, funnelSnap]);
+
+  const dealLeadName =
+    intakeContext?.full_name?.trim() ||
+    lead?.full_name?.trim() ||
+    contactName.trim() ||
+    '—';
+  const dealCompany =
+    intakeContext?.company_name?.trim() ||
+    (active?.company_name?.trim() ? active.company_name.trim() : null) ||
+    null;
+  const dealIndustry = intakeContext?.industry?.trim() || null;
+  const dealStage =
+    intakeContext?.presales_stage?.trim() || funnelPresalesStage(funnelSnap) || null;
+  const sciExcerpt = intakeContext?.prep?.pain_excerpt?.trim() || null;
+  const leadHref = leadId > 0 ? `/crm/leads/${leadId}` : '/crm/leads';
+  const cockpitHref = leadId > 0 ? `/crm/leads/${leadId}` : '/crm/leads';
 
   const intakeSummary = useMemo((): IntakeStepSummary => {
     const hasDraft = sessions.some((s) => s.status === 'draft');
@@ -330,6 +381,19 @@ export function IntakeContent({
     }
   }, [leadId]);
 
+  const loadIntakeDealContext = useCallback(async (access: string) => {
+    if (leadId <= 0) {
+      setIntakeContext(null);
+      return;
+    }
+    try {
+      const ctx = await fetchIntakeContext(access, leadId);
+      setIntakeContext(ctx);
+    } catch {
+      setIntakeContext(null);
+    }
+  }, [leadId]);
+
   const loadSessions = useCallback(
     async (access: string, preferredId?: number | null) => {
       const rows = await fetchIntakeSessions(access, {
@@ -361,7 +425,32 @@ export function IntakeContent({
       }
       try {
         await fetchIntakeDefinitions(access);
-        const definition = await fetchIntakeDefinitionBySlug(access, '_common');
+        const statsOut = await fetchIntakeStats(access);
+        setStats(statsOut);
+        await Promise.all([
+          loadLeadContext(access),
+          loadIntakeDealContext(access),
+          refreshStepperData(access),
+          loadSessions(access, null),
+        ]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Tải trang khảo sát thất bại');
+      } finally {
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
+  }, [contextOk, ensureAuth, leadId, lifecycleId]);
+
+  useEffect(() => {
+    if (!authReady || !contextOk) return;
+    const access = getAccessToken();
+    if (!access) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const definition = await fetchIntakeDefinitionBySlug(access, resolvedSlug);
+        if (cancelled) return;
         setIntakeDefinition({
           slug: definition.slug,
           title: definition.title,
@@ -374,21 +463,25 @@ export function IntakeContent({
           schema_version: definition.schema_version,
         });
         setBantRows(bantRowsFromDefinition(definition.bant_rows));
-        const statsOut = await fetchIntakeStats(access);
-        setStats(statsOut);
-        await Promise.all([
-          loadLeadContext(access),
-          refreshStepperData(access),
-          loadSessions(access, null),
-        ]);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Tải trang khảo sát thất bại');
-      } finally {
-        setLoading(false);
+      } catch {
+        /* keep prior definition; page load already surfaces fatal errors */
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
-  }, [contextOk, ensureAuth, leadId, lifecycleId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [authReady, contextOk, resolvedSlug]);
+
+  useEffect(() => {
+    setServiceOverride(null);
+    setActiveTab(
+      pickDefaultIntakeTab({
+        sessionStatus: active?.status,
+        bantTotal: Number(active?.bant_total ?? liveBantTotal),
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed tab when session identity changes
+  }, [activeId, active?.status]);
 
   function onSelectSession(session: IntakeSessionRow) {
     applySession(session);
@@ -546,7 +639,7 @@ export function IntakeContent({
     setCommitments(form.commitments);
     setRedFlags(form.redFlags);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rehydrate structured answers when definition loads
-  }, [intakeDefinition?.schema_version, active?.id]);
+  }, [intakeDefinition?.schema_version, intakeDefinition?.slug, active?.id]);
 
   useEffect(() => {
     autosave.syncSnapshot(formSnapshot);
@@ -784,7 +877,18 @@ export function IntakeContent({
     >
       <PageToolbar
         title='Khảo sát BANT "BANT Intake"'
-        subtitle='Phiên qualify lead B2B — Ngân sách, Thẩm quyền, Nhu cầu, Thời hạn ("Budget, Authority, Need, Timeline")'
+        subtitle="Phiên qualify theo dịch vụ"
+        actions={
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm intake-help-toggle"
+            aria-expanded={helpOpen}
+            aria-controls="intake-help-drawer"
+            onClick={() => setHelpOpen((open) => !open)}
+          >
+            ?
+          </button>
+        }
       />
 
       <div className="page-card intake-page">
@@ -850,15 +954,47 @@ export function IntakeContent({
             <div
               className={`intake-layout__main stack-gap${leadId > 0 ? ' intake-layout__main--stepper' : ''}`}
             >
-              {leadId > 0 && lead ? (
-                <IntakeLeadContextCard lead={lead} leadHref={`/crm/leads/${leadId}`} />
+              <IntakeDealBar
+                leadName={dealLeadName}
+                companyName={dealCompany}
+                industry={dealIndustry}
+                serviceSlug={resolvedSlug}
+                serviceLabel={intakeServiceLabel(resolvedSlug)}
+                bantTotal={liveBantTotal}
+                gap={gapToGo(liveBantTotal)}
+                stage={dealStage}
+                sciExcerpt={sciExcerpt}
+                leadHref={leadHref}
+                cockpitHref={cockpitHref}
+                canEdit={canCreate && active?.status !== 'completed'}
+                slugMismatch={slugMismatch}
+                funnelCollapsed={funnelCollapsed}
+                onToggleFunnel={() => setFunnelCollapsed((collapsed) => !collapsed)}
+                onServiceChange={setServiceOverride}
+              />
+
+              {helpOpen ? (
+                <div id="intake-help-drawer" className="intake-help intake-help--drawer">
+                  <ol>
+                    <li>
+                      Chọn phiên ở cột trái, hoặc tạo <strong>+ Gọi điện</strong> /{' '}
+                      <strong>+ Gặp trực tiếp</strong>.
+                    </li>
+                    <li>
+                      Tab Discovery: hỏi critical. Tab Qualify: chấm BANT 1–5 và quyết định.
+                    </li>
+                    <li>
+                      Chọn <strong>Quyết định</strong> + <strong>Lý do</strong>, rồi{' '}
+                      <strong>Hoàn thành phiên</strong>.
+                    </li>
+                    <li>
+                      Mở Funnel trên Deal Bar; khi gate OK bấm <strong>Chuyển → Tư vấn</strong>.
+                    </li>
+                  </ol>
+                </div>
               ) : null}
 
-              {leadId > 0 ? (
-                <IntakePrepSummaryCard token={getAccessToken() ?? ''} leadId={leadId} />
-              ) : null}
-
-              {leadId > 0 ? (
+              {leadId > 0 && !funnelCollapsed ? (
                 <CrmFunnelStepper
                   leadId={leadId}
                   funnel={funnelSnap}
@@ -875,38 +1011,6 @@ export function IntakeContent({
                 />
               ) : null}
 
-              <details className="intake-help">
-                <summary>Hướng dẫn sử dụng trang này</summary>
-                <ol>
-                  <li>
-                    Chọn phiên ở cột trái (hoặc nút <strong>Chọn phiên</strong> trên mobile), hoặc tạo{' '}
-                    <strong>+ Gọi điện</strong> / <strong>+ Gặp trực tiếp</strong>.
-                  </li>
-                  <li>
-                    Tick câu hỏi và điền <strong>câu trả lời ngắn</strong> (câu quan trọng gợi ý bắt buộc trước Complete).
-                  </li>
-                  <li>
-                    Ghi <strong>Red flags</strong>, <strong>Stakeholder matrix</strong>,{' '}
-                    <strong>Cam kết KH</strong> khi đủ thông tin.
-                  </li>
-                  <li>Chấm 6 tiêu chí BANT (radio 1–5, tổng /30) — tự lưu sau 30s hoặc khi rời khỏi mục BANT.</li>
-                  <li>
-                    Xem <strong>D. AI tóm tắt</strong> sau khi lưu discovery/BANT (nút Tóm tắt AI trên phiên nháp).
-                  </li>
-                  <li>
-                    Chọn <strong>Quyết định &quot;Decision&quot;</strong> và{' '}
-                    <strong>Lý do &quot;Reason&quot;</strong>, rồi <strong>Hoàn thành phiên</strong>.
-                  </li>
-                  <li>
-                    Khi gate OK trên <strong>Tiến trình Pre-sales</strong>, bấm{' '}
-                    <strong>Chuyển → Tư vấn</strong> (vẫn hiện khi còn phiên nháp nếu đã có phiên Go hoàn thành).
-                  </li>
-                  <li>
-                    Phiên nháp tạo nhầm: bấm <strong>Xóa</strong> ở cột trái (chỉ phiên Nháp).
-                  </li>
-                </ol>
-              </details>
-
               {active ? (
                 <div className="intake-form stack-gap">
                   <header className="intake-form__head">
@@ -920,106 +1024,138 @@ export function IntakeContent({
                     </p>
                   </header>
 
-                  <IntakeDiscoverySection
-                    mode={sessionMode}
-                    questionItems={discoveryQuestionItems}
-                    checked={discovery.checked}
-                    responses={discovery.responses}
-                    notes={discovery.notes}
-                    contactName={contactName}
-                    need={need}
-                    disabled={formDisabled}
-                    canChangeMode={active.status === 'draft' && canCreate}
-                    onModeChange={(mode) => void onChangeSessionMode(mode)}
-                    onContactNameChange={setContactName}
-                    onNeedChange={setNeed}
-                    onToggleQuestion={onToggleDiscoveryQuestion}
-                    onResponseChange={onDiscoveryResponseChange}
-                    onNotesChange={(value) =>
-                      setDiscovery((prev) => ({ ...prev, mode: sessionMode, notes: value }))
+                  <IntakeWorkspaceTabs
+                    activeTab={activeTab}
+                    onChange={setActiveTab}
+                    qualify={
+                      <>
+                        <section className="intake-bant-section stack-gap" aria-label='Chấm BANT "BANT scoring"'>
+                          <header className="intake-form__head">
+                            <h2 className="intake-form__title">C. BANT + Quyết định</h2>
+                          </header>
+
+                          <div className="intake-bant-decision-pane" onBlur={onBantDecisionBlur}>
+                            <IntakeBantSection
+                              bant={bant}
+                              bantRows={bantRows}
+                              decision={decision}
+                              disabled={formDisabled}
+                              onBantChange={(key: BantKey, value: number) =>
+                                setBant((prev) => ({ ...prev, [key]: value }))
+                              }
+                            />
+
+                            <IntakeValidationErrors issues={validationErrors} />
+
+                            <label className="intake-field">
+                              <span className="muted">Quyết định &quot;Decision&quot;</span>
+                              <select
+                                className="kpi-select"
+                                value={decision}
+                                onChange={(e) => setDecision(e.target.value)}
+                                disabled={formDisabled}
+                              >
+                                {INTAKE_DECISION_OPTIONS.map((d) => (
+                                  <option key={d.value || 'empty'} value={d.value}>
+                                    {d.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+
+                            <label className="intake-field">
+                              <span className="muted">Lý do &quot;Reason&quot;</span>
+                              <input
+                                className="kpi-input"
+                                value={decisionReason}
+                                onChange={(e) => setDecisionReason(e.target.value)}
+                                disabled={formDisabled}
+                              />
+                            </label>
+                          </div>
+                        </section>
+
+                        <IntakeRedFlagsSection
+                          items={redFlagItems}
+                          state={redFlags}
+                          disabled={formDisabled}
+                          onToggle={onToggleRedFlag}
+                          onNotesChange={(value) => setRedFlags((prev) => ({ ...prev, notes: value }))}
+                        />
+                      </>
                     }
-                  />
-
-                  <IntakeRedFlagsSection
-                    items={redFlagItems}
-                    state={redFlags}
-                    disabled={formDisabled}
-                    onToggle={onToggleRedFlag}
-                    onNotesChange={(value) => setRedFlags((prev) => ({ ...prev, notes: value }))}
-                  />
-
-                  <section className="intake-bant-section stack-gap" aria-label='Chấm BANT "BANT scoring"'>
-                    <header className="intake-form__head">
-                      <h2 className="intake-form__title">C. BANT + Quyết định</h2>
-                    </header>
-
-                    <div className="intake-bant-decision-pane" onBlur={onBantDecisionBlur}>
-                      <IntakeBantSection
-                        bant={bant}
-                        bantRows={bantRows}
-                        decision={decision}
+                    discovery={
+                      <IntakeDiscoverySection
+                        mode={sessionMode}
+                        questionItems={discoveryQuestionItems}
+                        checked={discovery.checked}
+                        responses={discovery.responses}
+                        notes={discovery.notes}
+                        contactName={contactName}
+                        need={need}
                         disabled={formDisabled}
-                        onBantChange={(key: BantKey, value: number) =>
-                          setBant((prev) => ({ ...prev, [key]: value }))
+                        canChangeMode={active.status === 'draft' && canCreate}
+                        onModeChange={(mode) => void onChangeSessionMode(mode)}
+                        onContactNameChange={setContactName}
+                        onNeedChange={setNeed}
+                        onToggleQuestion={onToggleDiscoveryQuestion}
+                        onResponseChange={onDiscoveryResponseChange}
+                        onNotesChange={(value) =>
+                          setDiscovery((prev) => ({ ...prev, mode: sessionMode, notes: value }))
                         }
                       />
-
-                      <IntakeValidationErrors issues={validationErrors} />
-
-                      <label className="intake-field">
-                        <span className="muted">Quyết định &quot;Decision&quot;</span>
-                        <select
-                          className="kpi-select"
-                          value={decision}
-                          onChange={(e) => setDecision(e.target.value)}
+                    }
+                    winIntel={
+                      <p className="muted intake-workspace-tabs__placeholder">Sẽ mở ở S1</p>
+                    }
+                    handoff={
+                      <>
+                        <IntakeStakeholderMatrix
+                          rows={stakeholders}
                           disabled={formDisabled}
-                        >
-                          {INTAKE_DECISION_OPTIONS.map((d) => (
-                            <option key={d.value || 'empty'} value={d.value}>
-                              {d.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="intake-field">
-                        <span className="muted">Lý do &quot;Reason&quot;</span>
-                        <input
-                          className="kpi-input"
-                          value={decisionReason}
-                          onChange={(e) => setDecisionReason(e.target.value)}
-                          disabled={formDisabled}
+                          onChange={(index, patch) =>
+                            setStakeholders((prev) =>
+                              prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+                            )
+                          }
                         />
-                      </label>
-                    </div>
-                  </section>
-
-                  <IntakeStakeholderMatrix
-                    rows={stakeholders}
-                    disabled={formDisabled}
-                    onChange={(index, patch) =>
-                      setStakeholders((prev) =>
-                        prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-                      )
+                        <IntakeCommitmentsSection
+                          rows={commitments}
+                          disabled={formDisabled}
+                          onChange={(index, patch) =>
+                            setCommitments((prev) =>
+                              prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+                            )
+                          }
+                        />
+                        <IntakeAiSummaryPanel
+                          summary={active.ai_summary ?? ''}
+                          disabled={formDisabled || aiSummaryBusy}
+                          busy={aiSummaryBusy}
+                          canGenerate={active.status === 'draft' && canCreate}
+                          onGenerate={() => void onAiSummary()}
+                        />
+                        {leadId > 0 && funnelCollapsed ? (
+                          <details className="intake-handoff-stepper">
+                            <summary>Funnel stepper</summary>
+                            <CrmFunnelStepper
+                              leadId={leadId}
+                              funnel={funnelSnap}
+                              consultGate={consultGate}
+                              intakeSummary={intakeSummary}
+                              context="intake"
+                              gateLoading={gateLoading}
+                              actionBusy={stepperBusy || saving}
+                              onRefreshGate={() => {
+                                const access = getAccessToken();
+                                if (access) void refreshStepperData(access);
+                              }}
+                              onPrimaryAction={(action) => void onStepperPrimaryAction(action)}
+                            />
+                          </details>
+                        ) : null}
+                      </>
                     }
-                  />
-
-                  <IntakeCommitmentsSection
-                    rows={commitments}
-                    disabled={formDisabled}
-                    onChange={(index, patch) =>
-                      setCommitments((prev) =>
-                        prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-                      )
-                    }
-                  />
-
-                  <IntakeAiSummaryPanel
-                    summary={active.ai_summary ?? ''}
-                    disabled={formDisabled || aiSummaryBusy}
-                    busy={aiSummaryBusy}
-                    canGenerate={active.status === 'draft' && canCreate}
-                    onGenerate={() => void onAiSummary()}
                   />
 
                   <IntakeFormActions
