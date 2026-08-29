@@ -223,6 +223,15 @@ describe('SalesKitLibraryService', () => {
     expect(repo.approveFile).toHaveBeenCalledWith('f1');
   });
 
+  it('rate-limits unresolved JWT separately from internal', () => {
+    svc().assertTurnRate({ staffId: 0, caps: [] });
+    expect(rateLimit.check).toHaveBeenCalledWith('intake-kit:unresolved', 20);
+    svc().assertTurnRate(null);
+    expect(rateLimit.check).toHaveBeenCalledWith('intake-kit:internal', 20);
+    svc().assertTurnRate({ staffId: 7, caps: [{ section: 'crm_leads', action: 'edit' }] });
+    expect(rateLimit.check).toHaveBeenCalledWith('intake-kit:7', 20);
+  });
+
   it('passes visibility filter and kindHint into retrieve', async () => {
     repo.listReadyChunks.mockResolvedValue([
       readyRow({ folder_path: 'dich-vu-seo-tong-the/qa' }),

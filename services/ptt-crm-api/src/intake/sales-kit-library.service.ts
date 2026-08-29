@@ -71,6 +71,11 @@ const DEFAULT_FS: SalesKitFs = {
   createReadStream,
 };
 
+function kitRateActorId(actor?: IntakeStaffActor | null): string {
+  if (actor == null) return 'internal';
+  return actor.staffId > 0 ? String(actor.staffId) : 'unresolved';
+}
+
 function actorHasCap(actor: IntakeStaffActor | null | undefined, section: string, action: string): boolean {
   if (actor === undefined || actor === null) return true;
   return (actor.caps ?? []).some((c) => c.section === section && c.action === action);
@@ -153,7 +158,7 @@ export class SalesKitLibraryService {
   }
 
   assertTurnRate(actor?: IntakeStaffActor | null): void {
-    const actorId = actor?.staffId != null && actor.staffId > 0 ? String(actor.staffId) : 'internal';
+    const actorId = kitRateActorId(actor);
     this.rateLimit.check(`intake-kit:${actorId}`, this.aiConfig.summarizeRateLimitPerMin);
   }
 
@@ -178,7 +183,7 @@ export class SalesKitLibraryService {
     sessionId?: number;
     actor?: IntakeStaffActor | null;
   }): Promise<SalesKitFileRow> {
-    const actorId = input.actor?.staffId ?? 'internal';
+    const actorId = kitRateActorId(input.actor);
     this.rateLimit.check(`intake-kit:${actorId}`, this.aiConfig.summarizeRateLimitPerMin);
 
     const file = input.file;

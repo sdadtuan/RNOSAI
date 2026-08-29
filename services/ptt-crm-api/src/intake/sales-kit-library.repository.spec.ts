@@ -72,7 +72,7 @@ describe('SalesKitLibraryRepository', () => {
     await repo.listReadyChunks({ serviceSlug: 'dich-vu-seo-tong-the', leadId: 5, sessionId: 12 });
     const select = calls.find((c) => c.sql.includes('FROM sales_kit_files'));
     expect(select?.sql).toMatch(/embedding_json/);
-    expect(select?.sql).toMatch(/_common/);
+    expect(select?.sql).toContain("/_common/%' ESCAPE '/'");
     expect(select?.params).toEqual(['dich-vu-seo-tong-the', 5, 12]);
   });
 });

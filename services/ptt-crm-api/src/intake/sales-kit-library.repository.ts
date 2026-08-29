@@ -131,7 +131,7 @@ export class SalesKitLibraryRepository implements OnModuleDestroy {
         f.folder_key = $1
         OR f.folder_key LIKE $1 || '/%'
         OR f.folder_key = '_common'
-        OR f.folder_key LIKE '_common/%'`;
+        OR f.folder_key LIKE '/_common/%' ESCAPE '/'`;
       if (filter.leadId != null && filter.sessionId != null) {
         params.push(filter.leadId, filter.sessionId);
         extra += ` OR (f.lead_id = $2 AND f.session_id = $3)`;
