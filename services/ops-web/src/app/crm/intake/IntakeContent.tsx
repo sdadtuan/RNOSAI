@@ -161,6 +161,8 @@ export function IntakeContent({
   const [helpOpen, setHelpOpen] = useState(false);
   const [serviceOverride, setServiceOverride] = useState<string | null>(null);
   const saveInFlightRef = useRef(false);
+  const intakeDefinitionRef = useRef<IntakeDefinitionUi | null>(null);
+  intakeDefinitionRef.current = intakeDefinition;
 
   useEffect(() => {
     setLeadId(initialLeadId);
@@ -168,12 +170,16 @@ export function IntakeContent({
   }, [initialLeadId, initialLifecycleId]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setUrlServiceSlug(new URLSearchParams(window.location.search).get('service_slug'));
+  }, []);
+
+  useEffect(() => {
     if (leadId > 0 || lifecycleId > 0) return;
     if (typeof window === 'undefined') return;
     const sp = new URLSearchParams(window.location.search);
     const lid = Number(sp.get('lead_id') || 0);
     const lcid = Number(sp.get('lifecycle_id') || 0);
-    setUrlServiceSlug(sp.get('service_slug'));
     if (lid > 0) setLeadId(lid);
     if (lcid > 0) setLifecycleId(lcid);
   }, [leadId, lifecycleId]);
@@ -463,8 +469,11 @@ export function IntakeContent({
           schema_version: definition.schema_version,
         });
         setBantRows(bantRowsFromDefinition(definition.bant_rows));
-      } catch {
-        /* keep prior definition; page load already surfaces fatal errors */
+      } catch (err) {
+        if (cancelled) return;
+        if (!intakeDefinitionRef.current) {
+          setError(err instanceof Error ? err.message : 'Tải form khảo sát thất bại');
+        }
       }
     })();
     return () => {

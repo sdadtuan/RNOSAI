@@ -16,6 +16,15 @@ describe('resolveIntakeServiceSlug', () => {
     ).toBe('quang-cao-google');
   });
 
+  it('url slug wins over funnel', () => {
+    expect(
+      resolveIntakeServiceSlug({
+        urlSlug: 'quang-cao-google',
+        funnelSlug: 'thiet-ke-website',
+      }),
+    ).toBe('quang-cao-google');
+  });
+
   it('skips session _common and uses funnel', () => {
     expect(
       resolveIntakeServiceSlug({
