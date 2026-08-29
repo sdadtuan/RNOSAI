@@ -19,7 +19,7 @@ export class IntakeB2bVisibilityService {
   ) {}
 
   async assertLeadVisible(leadId: number, actor: IntakeStaffActor | null | undefined): Promise<void> {
-    if (!this.config.b2bProjectOs || !actor) return;
+    if (!this.config.b2bProjectOs || !actor || actor.staffId <= 0) return;
     const lead = await this.leads.getLeadById(leadId);
     if (!lead) {
       throw new NotFoundException({ error: 'not_found' });
