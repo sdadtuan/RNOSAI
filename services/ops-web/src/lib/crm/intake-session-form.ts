@@ -10,6 +10,11 @@ import { plainTextToRichHtml } from '@/lib/crm/intake-labels';
 import { parseRedFlags, type IntakeRedFlagsState } from '@/lib/crm/intake-red-flags';
 import { normalizeIntakeSlug } from '@/lib/crm/intake-service-resolve';
 import { normalizeStakeholders, type IntakeStakeholderRow } from '@/lib/crm/intake-stakeholders';
+import {
+  parseQualifyChecked,
+  parseWinIntel,
+  type WinIntelState,
+} from '@/lib/crm/intake-win-intel';
 
 export interface IntakeSessionFormState {
   bant: Record<string, number>;
@@ -21,6 +26,8 @@ export interface IntakeSessionFormState {
   stakeholders: IntakeStakeholderRow[];
   commitments: IntakeCommitmentRow[];
   redFlags: IntakeRedFlagsState;
+  winIntel: WinIntelState;
+  qualifyChecked: Record<string, boolean>;
 }
 
 export function intakeFormFromSession(
@@ -39,6 +46,8 @@ export function intakeFormFromSession(
     stakeholders: normalizeStakeholders(session.stakeholders_json),
     commitments: normalizeCommitments(session.commitments_json),
     redFlags: parseRedFlags(session.answers_json),
+    winIntel: parseWinIntel(session.answers_json),
+    qualifyChecked: parseQualifyChecked(session.answers_json),
   };
 }
 

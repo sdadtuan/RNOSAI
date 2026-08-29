@@ -3,19 +3,16 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { IntakeAiSummaryPanel } from '@/components/crm/intake/IntakeAiSummaryPanel';
 import { IntakeFormActions } from '@/components/crm/intake/IntakeFormActions';
-import { IntakeBantSection } from '@/components/crm/intake/IntakeBantSection';
 import { IntakeCompleteConfirmModal } from '@/components/crm/intake/IntakeCompleteConfirmModal';
 import { IntakeDiscoverySection } from '@/components/crm/intake/IntakeDiscoverySection';
-import { IntakeValidationErrors } from '@/components/crm/intake/IntakeValidationErrors';
 import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
 import { IntakeDealBar } from '@/components/crm/intake/IntakeDealBar';
+import { IntakeHandoffTab } from '@/components/crm/intake/IntakeHandoffTab';
+import { IntakeQualifyTab } from '@/components/crm/intake/IntakeQualifyTab';
 import { IntakeSessionSidebar } from '@/components/crm/intake/IntakeSessionSidebar';
+import { IntakeWinIntelSection } from '@/components/crm/intake/IntakeWinIntelSection';
 import { IntakeWorkspaceTabs } from '@/components/crm/intake/IntakeWorkspaceTabs';
-import { IntakeCommitmentsSection } from '@/components/crm/intake/IntakeCommitmentsSection';
-import { IntakeRedFlagsSection } from '@/components/crm/intake/IntakeRedFlagsSection';
-import { IntakeStakeholderMatrix } from '@/components/crm/intake/IntakeStakeholderMatrix';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
 import {
   advanceLeadPresales,
@@ -52,7 +49,6 @@ import {
   type IntakeWorkspaceTab,
 } from '@/lib/crm/intake-workspace-tab';
 import {
-  INTAKE_DECISION_OPTIONS,
   intakeModeLabel,
   intakeStatusLabel,
 } from '@/lib/crm/intake-labels';
@@ -69,6 +65,11 @@ import {
   type BantRowUi,
 } from '@/lib/crm/intake-bant';
 import { buildIntakeAnswersPatch } from '@/lib/crm/intake-answers';
+import {
+  emptyWinIntel,
+  type WinIntelKey,
+  type WinIntelState,
+} from '@/lib/crm/intake-win-intel';
 import {
   commitmentsToPatch,
   defaultCommitments,
@@ -137,6 +138,8 @@ export function IntakeContent({
   const [stakeholders, setStakeholders] = useState<IntakeStakeholderRow[]>(defaultStakeholders());
   const [commitments, setCommitments] = useState<IntakeCommitmentRow[]>(defaultCommitments());
   const [redFlags, setRedFlags] = useState<IntakeRedFlagsState>(emptyRedFlags());
+  const [winIntel, setWinIntel] = useState<WinIntelState>(emptyWinIntel);
+  const [qualifyChecked, setQualifyChecked] = useState<Record<string, boolean>>({});
   const [intakeDefinition, setIntakeDefinition] = useState<IntakeDefinitionUi | null>(null);
   const [bantRows, setBantRows] = useState<BantRowUi[]>([]);
   const [error, setError] = useState('');
@@ -219,8 +222,23 @@ export function IntakeContent({
         stakeholders,
         commitments,
         redFlags,
+        winIntel,
+        qualifyChecked,
       }),
-    [activeId, bant, decision, decisionReason, contactName, need, discovery, stakeholders, commitments, redFlags],
+    [
+      activeId,
+      bant,
+      decision,
+      decisionReason,
+      contactName,
+      need,
+      discovery,
+      stakeholders,
+      commitments,
+      redFlags,
+      winIntel,
+      qualifyChecked,
+    ],
   );
   const liveBantTotal = useMemo(() => computeBantTotal(bant), [bant]);
 
@@ -287,6 +305,8 @@ export function IntakeContent({
         setStakeholders(defaultStakeholders());
         setCommitments(defaultCommitments());
         setRedFlags(emptyRedFlags());
+        setWinIntel(emptyWinIntel());
+        setQualifyChecked({});
         return;
       }
       setActiveId(session.id);
@@ -300,6 +320,8 @@ export function IntakeContent({
       setStakeholders(form.stakeholders);
       setCommitments(form.commitments);
       setRedFlags(form.redFlags);
+      setWinIntel(form.winIntel);
+      setQualifyChecked(form.qualifyChecked);
     },
     [intakeDefinition],
   );
@@ -457,16 +479,21 @@ export function IntakeContent({
       try {
         const definition = await fetchIntakeDefinitionBySlug(access, resolvedSlug);
         if (cancelled) return;
+        const raw = definition as IntakeDefinitionUi;
         setIntakeDefinition({
-          slug: definition.slug,
-          title: definition.title,
-          phone_questions: definition.phone_questions ?? [],
-          inperson_questions: definition.inperson_questions ?? [],
-          phone_question_items: definition.phone_question_items,
-          inperson_question_items: definition.inperson_question_items,
-          red_flags: definition.red_flags,
-          red_flag_items: definition.red_flag_items,
-          schema_version: definition.schema_version,
+          slug: raw.slug,
+          title: raw.title,
+          phone_questions: raw.phone_questions ?? [],
+          inperson_questions: raw.inperson_questions ?? [],
+          phone_question_items: raw.phone_question_items,
+          inperson_question_items: raw.inperson_question_items,
+          red_flags: raw.red_flags,
+          red_flag_items: raw.red_flag_items,
+          schema_version: raw.schema_version,
+          qualify_items: raw.qualify_items,
+          win_intel_prompts: raw.win_intel_prompts,
+          l2_preview_keys: raw.l2_preview_keys,
+          is_pilot_form: raw.is_pilot_form,
         });
         setBantRows(bantRowsFromDefinition(definition.bant_rows));
         setError('');
@@ -614,6 +641,8 @@ export function IntakeContent({
             need,
             discovery: { ...discovery, mode: sessionMode },
             redFlags,
+            winIntel,
+            qualifyChecked,
           }),
           stakeholders_json: stakeholdersToPatch(stakeholders),
           commitments_json: commitmentsToPatch(commitments),
@@ -647,6 +676,8 @@ export function IntakeContent({
       sessionMode,
       stakeholders,
       commitments,
+      winIntel,
+      qualifyChecked,
       user,
     ],
   );
@@ -670,6 +701,8 @@ export function IntakeContent({
     setStakeholders(form.stakeholders);
     setCommitments(form.commitments);
     setRedFlags(form.redFlags);
+    setWinIntel(form.winIntel);
+    setQualifyChecked(form.qualifyChecked);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rehydrate structured answers when definition loads
   }, [intakeDefinition?.schema_version, intakeDefinition?.slug, active?.id]);
 
@@ -838,6 +871,8 @@ export function IntakeContent({
           need,
           discovery: nextDiscovery,
           redFlags,
+          winIntel,
+          qualifyChecked,
         }),
       });
       await loadSessions(access, active.id);
@@ -862,6 +897,22 @@ export function IntakeContent({
 
   function onToggleRedFlag(key: string, next: boolean) {
     setRedFlags((prev) => toggleRedFlag(prev, key, next));
+  }
+
+  function onToggleQualify(key: string, next: boolean) {
+    setQualifyChecked((prev) => {
+      const checked = { ...prev };
+      if (next) checked[key] = true;
+      else delete checked[key];
+      return checked;
+    });
+  }
+
+  function onWinIntelChange(key: WinIntelKey, patch: { answer?: string; confidence?: string }) {
+    setWinIntel((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], ...patch },
+    }));
   }
 
   async function onAiSummary() {
@@ -1060,61 +1111,29 @@ export function IntakeContent({
                     activeTab={activeTab}
                     onChange={setActiveTab}
                     qualify={
-                      <>
-                        <section className="intake-bant-section stack-gap" aria-label='Chấm BANT "BANT scoring"'>
-                          <header className="intake-form__head">
-                            <h2 className="intake-form__title">C. BANT + Quyết định</h2>
-                          </header>
-
-                          <div className="intake-bant-decision-pane" onBlur={onBantDecisionBlur}>
-                            <IntakeBantSection
-                              bant={bant}
-                              bantRows={bantRows}
-                              decision={decision}
-                              disabled={formDisabled}
-                              onBantChange={(key: BantKey, value: number) =>
-                                setBant((prev) => ({ ...prev, [key]: value }))
-                              }
-                            />
-
-                            <IntakeValidationErrors issues={validationErrors} />
-
-                            <label className="intake-field">
-                              <span className="muted">Quyết định &quot;Decision&quot;</span>
-                              <select
-                                className="kpi-select"
-                                value={decision}
-                                onChange={(e) => setDecision(e.target.value)}
-                                disabled={formDisabled}
-                              >
-                                {INTAKE_DECISION_OPTIONS.map((d) => (
-                                  <option key={d.value || 'empty'} value={d.value}>
-                                    {d.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-
-                            <label className="intake-field">
-                              <span className="muted">Lý do &quot;Reason&quot;</span>
-                              <input
-                                className="kpi-input"
-                                value={decisionReason}
-                                onChange={(e) => setDecisionReason(e.target.value)}
-                                disabled={formDisabled}
-                              />
-                            </label>
-                          </div>
-                        </section>
-
-                        <IntakeRedFlagsSection
-                          items={redFlagItems}
-                          state={redFlags}
-                          disabled={formDisabled}
-                          onToggle={onToggleRedFlag}
-                          onNotesChange={(value) => setRedFlags((prev) => ({ ...prev, notes: value }))}
-                        />
-                      </>
+                      <IntakeQualifyTab
+                        bant={bant}
+                        bantRows={bantRows}
+                        decision={decision}
+                        decisionReason={decisionReason}
+                        disabled={formDisabled}
+                        validationErrors={validationErrors}
+                        redFlagItems={redFlagItems}
+                        redFlags={redFlags}
+                        qualifyItems={intakeDefinition?.qualify_items ?? []}
+                        qualifyChecked={qualifyChecked}
+                        onBantChange={(key: BantKey, value: number) =>
+                          setBant((prev) => ({ ...prev, [key]: value }))
+                        }
+                        onDecisionChange={setDecision}
+                        onDecisionReasonChange={setDecisionReason}
+                        onBantDecisionBlur={onBantDecisionBlur}
+                        onToggleRedFlag={onToggleRedFlag}
+                        onRedFlagNotesChange={(value) =>
+                          setRedFlags((prev) => ({ ...prev, notes: value }))
+                        }
+                        onToggleQualify={onToggleQualify}
+                      />
                     }
                     discovery={
                       <IntakeDiscoverySection
@@ -1138,55 +1157,47 @@ export function IntakeContent({
                       />
                     }
                     winIntel={
-                      <p className="muted intake-workspace-tabs__placeholder">Sẽ mở ở S1</p>
+                      <IntakeWinIntelSection
+                        state={winIntel}
+                        prompts={intakeDefinition?.win_intel_prompts}
+                        disabled={formDisabled}
+                        onChange={onWinIntelChange}
+                      />
                     }
                     handoff={
-                      <>
-                        <IntakeStakeholderMatrix
-                          rows={stakeholders}
-                          disabled={formDisabled}
-                          onChange={(index, patch) =>
-                            setStakeholders((prev) =>
-                              prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-                            )
-                          }
-                        />
-                        <IntakeCommitmentsSection
-                          rows={commitments}
-                          disabled={formDisabled}
-                          onChange={(index, patch) =>
-                            setCommitments((prev) =>
-                              prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-                            )
-                          }
-                        />
-                        <IntakeAiSummaryPanel
-                          summary={active.ai_summary ?? ''}
-                          disabled={formDisabled || aiSummaryBusy}
-                          busy={aiSummaryBusy}
-                          canGenerate={active.status === 'draft' && canCreate}
-                          onGenerate={() => void onAiSummary()}
-                        />
-                        {leadId > 0 && funnelCollapsed ? (
-                          <details className="intake-handoff-stepper">
-                            <summary>Funnel stepper</summary>
-                            <CrmFunnelStepper
-                              leadId={leadId}
-                              funnel={funnelSnap}
-                              consultGate={consultGate}
-                              intakeSummary={intakeSummary}
-                              context="intake"
-                              gateLoading={gateLoading}
-                              actionBusy={stepperBusy || saving}
-                              onRefreshGate={() => {
-                                const access = getAccessToken();
-                                if (access) void refreshStepperData(access);
-                              }}
-                              onPrimaryAction={(action) => void onStepperPrimaryAction(action)}
-                            />
-                          </details>
-                        ) : null}
-                      </>
+                      <IntakeHandoffTab
+                        stakeholders={stakeholders}
+                        commitments={commitments}
+                        liveBantTotal={liveBantTotal}
+                        disabled={formDisabled}
+                        aiSummary={active.ai_summary ?? ''}
+                        aiBusy={aiSummaryBusy}
+                        canGenerateAi={active.status === 'draft' && canCreate}
+                        l2Docs={intakeContext?.l2_docs}
+                        leadId={leadId}
+                        funnelCollapsed={funnelCollapsed}
+                        funnel={funnelSnap}
+                        consultGate={consultGate}
+                        intakeSummary={intakeSummary}
+                        gateLoading={gateLoading}
+                        actionBusy={stepperBusy || saving}
+                        onStakeholderChange={(index, patch) =>
+                          setStakeholders((prev) =>
+                            prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+                          )
+                        }
+                        onCommitmentChange={(index, patch) =>
+                          setCommitments((prev) =>
+                            prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+                          )
+                        }
+                        onAiGenerate={() => void onAiSummary()}
+                        onRefreshGate={() => {
+                          const access = getAccessToken();
+                          if (access) void refreshStepperData(access);
+                        }}
+                        onPrimaryAction={(action) => void onStepperPrimaryAction(action)}
+                      />
                     }
                   />
 

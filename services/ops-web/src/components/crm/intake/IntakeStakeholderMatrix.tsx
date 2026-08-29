@@ -8,12 +8,18 @@ import {
 interface Props {
   rows: IntakeStakeholderRow[];
   disabled?: boolean;
+  defaultOpen?: boolean;
   onChange: (index: number, patch: Partial<IntakeStakeholderRow>) => void;
 }
 
-export function IntakeStakeholderMatrix({ rows, disabled, onChange }: Props) {
+export function IntakeStakeholderMatrix({
+  rows,
+  disabled,
+  defaultOpen = true,
+  onChange,
+}: Props) {
   return (
-    <details className="intake-stakeholder-section" open>
+    <details className="intake-stakeholder-section" defaultOpen={defaultOpen}>
       <summary className="intake-stakeholder-section__summary">
         <span>E. Ma trận stakeholder &quot;Stakeholder matrix&quot;</span>
         <span className="muted">Decision Maker · Influencer · Gatekeeper · User</span>
