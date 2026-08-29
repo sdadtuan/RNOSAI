@@ -1,5 +1,9 @@
 import ExcelJS from 'exceljs';
-import { parseSalesKitXlsx } from './sales-kit-ingest.util';
+import {
+  imageParseStatus,
+  parseSalesKitPdf,
+  parseSalesKitXlsx,
+} from './sales-kit-ingest.util';
 
 async function xlsx(rows: unknown[][]): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
@@ -34,5 +38,15 @@ describe('sales-kit-ingest.util', () => {
     const out = await parseSalesKitXlsx(buf, 'pricing');
     expect(out.chunks[0].body).toMatch(/15/);
     expect(out.chunks[0].kind).toBe('pricing');
+  });
+
+  it('image stays needs_ocr when LLM off', () => {
+    expect(imageParseStatus(false)).toBe('needs_ocr');
+    expect(imageParseStatus(true)).toBe('pending_vision');
+  });
+
+  it('empty PDF extract is needs_ocr', async () => {
+    const out = await parseSalesKitPdf(Buffer.from('%PDF-1.4 empty'));
+    expect(out.error).toBe('pdf_needs_ocr');
   });
 });

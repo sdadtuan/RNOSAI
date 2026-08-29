@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { PDFParse } from 'pdf-parse';
 
 export type IngestChunk = {
   chunk_key: string;
@@ -8,6 +9,8 @@ export type IngestChunk = {
 };
 
 export const SALES_KIT_XLSX_ROW_CAP = 200;
+export const SALES_KIT_PDF_CHUNK_SIZE = 800;
+export const SALES_KIT_PDF_CHUNK_OVERLAP = 80;
 
 const QA_QUESTION_ALIASES = new Set(['question', 'cau_hoi', 'q']);
 const QA_ANSWER_ALIASES = new Set(['answer', 'cau_tra_loi', 'a']);
@@ -138,6 +141,60 @@ export async function parseSalesKitXlsx(
   const chunks = resolved === 'qa' ? parseQaRows(ws, map) : parsePricingRows(ws, map);
   if (chunks.length === 0) {
     return { chunks: [], error: 'xlsx_empty' };
+  }
+  return { chunks };
+}
+
+export function imageParseStatus(llmOn: boolean): 'pending_vision' | 'needs_ocr' {
+  return llmOn ? 'pending_vision' : 'needs_ocr';
+}
+
+function chunkPageText(text: string, page: number): IngestChunk[] {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return [];
+
+  const chunks: IngestChunk[] = [];
+  const step = SALES_KIT_PDF_CHUNK_SIZE - SALES_KIT_PDF_CHUNK_OVERLAP;
+  let start = 0;
+  let i = 0;
+  while (start < cleaned.length) {
+    const end = Math.min(start + SALES_KIT_PDF_CHUNK_SIZE, cleaned.length);
+    const body = cleaned.slice(start, end);
+    chunks.push({
+      chunk_key: `p${page}:${i}`,
+      title: [...body].slice(0, 80).join(''),
+      body,
+      kind: 'other',
+    });
+    i += 1;
+    if (end >= cleaned.length) break;
+    start += step;
+  }
+  return chunks;
+}
+
+export async function parseSalesKitPdf(
+  buf: Buffer,
+): Promise<{ chunks: IngestChunk[]; error?: 'pdf_needs_ocr' }> {
+  let pages: Array<{ num: number; text: string }> = [];
+  try {
+    const parser = new PDFParse({ data: Buffer.from(buf) });
+    try {
+      const result = await parser.getText();
+      pages = result.pages ?? [];
+    } finally {
+      await parser.destroy();
+    }
+  } catch {
+    return { chunks: [], error: 'pdf_needs_ocr' };
+  }
+
+  const chunks: IngestChunk[] = [];
+  for (const page of pages) {
+    chunks.push(...chunkPageText(page.text ?? '', page.num));
+  }
+  if (chunks.length === 0) {
+    return { chunks: [], error: 'pdf_needs_ocr' };
   }
   return { chunks };
 }
