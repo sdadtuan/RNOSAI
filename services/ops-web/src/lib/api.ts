@@ -2377,6 +2377,26 @@ export async function fetchIntakeStats(
   return crmFetch(token, `/api/crm/intake/stats${suffix}`);
 }
 
+export type IntakeLeadContext = {
+  lead_id: number;
+  full_name: string;
+  company_name: string | null;
+  industry: string | null;
+  industry_slug: string | null;
+  funnel_service_slug: string | null;
+  presales_stage: string | null;
+  l2_docs: unknown[];
+  prep: { status: string; prep_stage: string; pain_excerpt: string } | null;
+};
+
+export async function fetchIntakeContext(
+  token: string,
+  leadId: number,
+): Promise<IntakeLeadContext> {
+  const qs = new URLSearchParams({ lead_id: String(leadId) });
+  return crmFetch<IntakeLeadContext>(token, `/api/crm/intake/context?${qs.toString()}`);
+}
+
 export async function reopenIntakeSession(token: string, id: number): Promise<IntakeSessionRow> {
   return crmFetch<IntakeSessionRow>(token, `/api/crm/intake/sessions/${id}/reopen`, {
     method: 'POST',

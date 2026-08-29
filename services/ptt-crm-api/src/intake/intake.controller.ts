@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -61,6 +62,15 @@ export class IntakeController {
       aid && Number.isFinite(aid) ? aid : undefined,
       byAmFlag,
     );
+  }
+
+  @Get('context')
+  async context(@Req() req: IntakeRequest, @Query('lead_id') leadId?: string) {
+    const lid = Number(leadId || 0);
+    if (!Number.isFinite(lid) || lid <= 0) {
+      throw new BadRequestException({ error: 'lead_id_required' });
+    }
+    return this.intake.getLeadContext(lid, await this.actorContext(req));
   }
 
   @Get('entry')

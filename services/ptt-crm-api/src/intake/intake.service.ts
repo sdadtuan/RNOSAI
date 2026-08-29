@@ -3,13 +3,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AppConfigService } from '../config/app-config.service';
+import { LeadsFunnelPgRepository } from '../leads-funnel/leads-funnel-pg.repository';
+import { LeadMeetingPrepEnqueueService } from '../lead-meeting-prep/lead-meeting-prep-enqueue.service';
+import { LeadMeetingPrepRepository } from '../lead-meeting-prep/lead-meeting-prep.repository';
+import { extractLmpConsultMergeFields } from '../lead-meeting-prep/lmp-consult-merge.util';
+import { parseLeadMetaIndustry, type IntakeLeadContextDto } from './intake-context.util';
 import {
   definitionsPayload,
   getUiDefinition,
 } from './intake-definitions.util';
 import { IntakePgRepository } from './intake-pg.repository';
 import { CreateIntakeSessionBody, PatchIntakeSessionBody } from './intake.types';
-import { LeadMeetingPrepEnqueueService } from '../lead-meeting-prep/lead-meeting-prep-enqueue.service';
 import { IntakeB2bVisibilityService, IntakeStaffActor } from './intake-b2b-visibility.service';
 
 @Injectable()
@@ -18,6 +23,9 @@ export class IntakeService {
     private readonly pg: IntakePgRepository,
     private readonly lmpEnqueue: LeadMeetingPrepEnqueueService,
     private readonly b2bVisibility: IntakeB2bVisibilityService,
+    private readonly funnelPg: LeadsFunnelPgRepository,
+    private readonly config: AppConfigService,
+    private readonly lmpRepo: LeadMeetingPrepRepository,
   ) {}
 
   getDefinitions() {
@@ -30,6 +38,64 @@ export class IntakeService {
 
   getStats(amId?: number, byAm?: boolean) {
     return this.pg.getIntakeStats(amId, byAm);
+  }
+
+  async getLeadContext(
+    leadId: number,
+    actor?: IntakeStaffActor | null,
+  ): Promise<IntakeLeadContextDto> {
+    await this.b2bVisibility.assertLeadVisible(leadId, actor);
+    const lead = await this.lmpRepo.getLeadContext(leadId);
+    if (!lead) {
+      throw new NotFoundException({ error: 'not_found' });
+    }
+    const meta = parseLeadMetaIndustry(lead.meta_json);
+
+    let funnel_service_slug: string | null = null;
+    let presales_stage: string | null = null;
+    let l2_docs: unknown[] = [];
+    try {
+      const snap = await this.funnelPg.buildSnapshot(leadId, this.config.presalesOnLead);
+      const slug = String(snap?.presales?.presales?.service_slug ?? '').trim();
+      const stage = String(snap?.presales?.presales?.stage ?? '').trim();
+      funnel_service_slug = slug || null;
+      presales_stage = stage || null;
+      const items = snap?.presales?.l2_docs?.items;
+      l2_docs = Array.isArray(items) ? items : [];
+    } catch {
+      l2_docs = [];
+    }
+
+    let prep: IntakeLeadContextDto['prep'] = null;
+    try {
+      if (await this.lmpRepo.tableReady()) {
+        const row = await this.lmpRepo.getByLeadId(leadId);
+        if (row) {
+          const lmp = extractLmpConsultMergeFields(row);
+          prep = {
+            status: row.status,
+            prep_stage: row.prep_stage,
+            pain_excerpt: String(lmp.close_brief || lmp.external_research_summary || '')
+              .trim()
+              .slice(0, 120),
+          };
+        }
+      }
+    } catch {
+      prep = null;
+    }
+
+    return {
+      lead_id: leadId,
+      full_name: String(lead.full_name ?? '').trim(),
+      company_name: meta.company_name,
+      industry: meta.industry,
+      industry_slug: meta.industry_slug,
+      funnel_service_slug,
+      presales_stage,
+      l2_docs,
+      prep,
+    };
   }
 
   async resolveEntry(
