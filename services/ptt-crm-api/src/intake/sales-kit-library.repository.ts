@@ -241,8 +241,16 @@ export class SalesKitLibraryRepository implements OnModuleDestroy {
       [input.slug],
     );
     if (existing.rows[0]) {
+      const id = String(existing.rows[0].id);
+      if (input.status === 'active') {
+        await this.db.query(
+          `UPDATE ai_playbooks SET status = 'active', updated_at = NOW() WHERE id = $1::uuid`,
+          [id],
+        );
+        return { id, status: 'active' };
+      }
       return {
-        id: String(existing.rows[0].id),
+        id,
         status: String(existing.rows[0].status ?? ''),
       };
     }
@@ -287,16 +295,19 @@ export class SalesKitLibraryRepository implements OnModuleDestroy {
   async approveFile(id: string): Promise<SalesKitFileRow | null> {
     const file = await this.findFileById(id);
     if (!file) return null;
-    await this.db.query(
-      `UPDATE sales_kit_files SET parse_status = 'ready', parse_error = NULL WHERE id = $1`,
+    const updated = await this.db.query(
+      `UPDATE sales_kit_files SET parse_status = 'ready', parse_error = NULL
+       WHERE id = $1 AND parse_status = 'pending'
+       RETURNING ${FILE_SELECT}`,
       [id],
     );
+    if (!updated.rows[0]) return null;
     if (file.playbook_id) {
       await this.db.query(
         `UPDATE ai_playbooks SET status = 'active', updated_at = NOW() WHERE id = $1::uuid`,
         [file.playbook_id],
       );
     }
-    return this.findFileById(id);
+    return mapFile(updated.rows[0]);
   }
 }

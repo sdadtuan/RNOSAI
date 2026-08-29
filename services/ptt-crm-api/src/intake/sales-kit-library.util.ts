@@ -23,6 +23,7 @@ export function folderKeyOk(key: string): boolean {
   if (parts.length < 2 || parts.length > 3) return false;
   return parts.every((p, i) => {
     if (i === 0 && p === '_common') return true;
+    if (i === 0 && p === 'session') return false;
     return /^[a-z0-9][a-z0-9-_]*$/.test(p);
   });
 }

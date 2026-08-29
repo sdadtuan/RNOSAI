@@ -23,6 +23,13 @@ describe('sales-kit-library.util', () => {
     expect(folderKeyOk('SEO/qa')).toBe(false);
   });
 
+  it('rejects org folder_key whose first segment is session', () => {
+    expect(folderKeyOk('session/qa')).toBe(false);
+    expect(folderKeyOk('session/5/12')).toBe(false);
+    expect(folderKeyOk('_common/qa')).toBe(true);
+    expect(folderKeyOk('dich-vu-seo-tong-the/qa')).toBe(true);
+  });
+
   it('maps folder and session slugs', () => {
     expect(playbookSlugForFolder('dich-vu-seo-tong-the/qa')).toBe('sk-dich-vu-seo-tong-the-qa');
     expect(sessionFolderKey(5, 12)).toBe('session/5/12');

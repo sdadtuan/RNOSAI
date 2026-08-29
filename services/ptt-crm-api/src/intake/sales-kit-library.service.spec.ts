@@ -1,4 +1,5 @@
 import { SalesKitLibraryService } from './sales-kit-library.service';
+import type { SalesKitFileRow } from './sales-kit-library.repository';
 
 function readyRow(overrides: Record<string, unknown>) {
   return {
@@ -18,6 +19,7 @@ function readyRow(overrides: Record<string, unknown>) {
 
 describe('SalesKitLibraryService', () => {
   const repo = {
+    tableReady: jest.fn().mockResolvedValue(true),
     listReadyChunks: jest.fn(),
     countFilesByFolder: jest.fn(),
     countFilesBySession: jest.fn(),
@@ -132,5 +134,71 @@ describe('SalesKitLibraryService', () => {
       }),
     ).rejects.toMatchObject({ response: { error: 'unsupported_type' } });
     expect(repo.insertFile).not.toHaveBeenCalled();
+  });
+
+  it('rejects org upload whose folder_key starts with session', async () => {
+    await expect(
+      svc().uploadFile({
+        file: {
+          originalname: 'qa.xlsx',
+          mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          size: 100,
+          buffer: Buffer.from('x'),
+        } as Express.Multer.File,
+        folderKey: 'session/5/12',
+        actor: { staffId: 1, caps: [{ section: 'playbooks', action: 'configure' }] },
+      }),
+    ).rejects.toMatchObject({ response: { error: 'invalid_folder_key' } });
+    expect(repo.ensurePlaybook).not.toHaveBeenCalled();
+    expect(repo.insertFile).not.toHaveBeenCalled();
+  });
+
+  it('refuses to approve files that are not pending parse', async () => {
+    const actor = { staffId: 1, caps: [{ section: 'playbooks', action: 'configure' }] };
+    for (const parse_status of ['failed', 'needs_ocr', 'pending_vision']) {
+      repo.findFileById.mockResolvedValueOnce({
+        id: 'f1',
+        playbook_id: 'pb1',
+        lead_id: null,
+        session_id: null,
+        folder_key: 'dich-vu-seo-tong-the/qa',
+        original_name: 'qa.xlsx',
+        mime: 'application/pdf',
+        storage_key: 'k',
+        parse_status,
+        parse_error: null,
+        uploaded_by: 1,
+        created_at: '2026-01-01',
+      } satisfies SalesKitFileRow);
+      await expect(svc().approveFile('f1', actor)).rejects.toMatchObject({
+        response: { error: 'not_approvable' },
+      });
+    }
+    expect(repo.approveFile).not.toHaveBeenCalled();
+  });
+
+  it('approves pending org files with configure and no crm_leads.edit', async () => {
+    const pending = {
+      id: 'f1',
+      playbook_id: 'pb1',
+      lead_id: null,
+      session_id: null,
+      folder_key: 'dich-vu-seo-tong-the/qa',
+      original_name: 'qa.xlsx',
+      mime: 'application/pdf',
+      storage_key: 'k',
+      parse_status: 'pending',
+      parse_error: null,
+      uploaded_by: 1,
+      created_at: '2026-01-01',
+    } satisfies SalesKitFileRow;
+    repo.findFileById.mockResolvedValue(pending);
+    repo.approveFile.mockResolvedValue({ ...pending, parse_status: 'ready' });
+    const out = await svc().approveFile('f1', {
+      staffId: 1,
+      caps: [{ section: 'playbooks', action: 'configure' }],
+    });
+    expect(out.parse_status).toBe('ready');
+    expect(repo.approveFile).toHaveBeenCalledWith('f1');
   });
 });

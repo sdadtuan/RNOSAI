@@ -168,7 +168,6 @@ export class IntakeController {
 
   @Post('sales-kit/files')
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(StaffIntakeWriteGuard)
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -204,7 +203,6 @@ export class IntakeController {
   }
 
   @Post('sales-kit/files/:id/approve')
-  @UseGuards(StaffIntakeWriteGuard)
   async approveSalesKitFile(@Req() req: IntakeRequest, @Param('id') id: string) {
     return this.library.approveFile(id, await this.actorContext(req));
   }

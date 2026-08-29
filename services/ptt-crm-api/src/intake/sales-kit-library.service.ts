@@ -336,9 +336,14 @@ export class SalesKitLibraryService {
     if (!hasConfigure(actor)) {
       throw new ForbiddenException({ error: 'missing_cap', section: 'playbooks' });
     }
-    const file = await this.repo.approveFile(id);
+    const file = await this.repo.findFileById(id);
     if (!file) throw new NotFoundException({ error: 'not_found' });
-    return file;
+    if (file.parse_status !== 'pending') {
+      throw new BadRequestException({ error: 'not_approvable' });
+    }
+    const approved = await this.repo.approveFile(id);
+    if (!approved) throw new NotFoundException({ error: 'not_found' });
+    return approved;
   }
 
   async downloadFile(id: string, actor?: IntakeStaffActor | null): Promise<StreamableFile> {
