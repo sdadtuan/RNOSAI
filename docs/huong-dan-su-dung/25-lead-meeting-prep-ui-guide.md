@@ -1,6 +1,6 @@
 # Lead Meeting Prep (LMP) — Hướng dẫn UI từng bước
 
-> **Phiên bản:** 1.0 · **Cập nhật:** 2026-08-28  
+> **Phiên bản:** 1.1 · **Cập nhật:** 2026-08-29  
 > **Đối tượng:** AM/Sales, Solution, GDKD, CSKH (luồng B2B)  
 > **URL:** https://rs.pttads.vn  
 > **Phạm vi:** Sales Close Intelligence (SCI) — từ cuộc gọi đầu (M1) → Qualify (M2) → Chuẩn bị chốt (M3) → Debrief (M4)
@@ -85,7 +85,7 @@ Trên trang lead detail, khối **Việc tiếp theo** (NBA) là block đầu c�
 |---|----------|-------|----------------|
 | 1 | **Lead detail** | `/crm/leads/{id}` | Nút **Sales Cockpit** mở drawer phải — hero + NBA vẫn thấy |
 | 2 | Deep link | `/crm/leads/{id}?prep=1` | Mở thẳng drawer Sales Cockpit |
-| 3 | **Intake BANT** | `/crm/intake?lead_id={id}` | Card **SCI · Qualify (M2)** |
+| 3 | **Intake BANT** | `/crm/intake?lead_id={id}` | Deal Bar chip SCI (1 dòng pain) + **Cockpit** — không còn card SCI · Qualify (M2) |
 | 4 | **Deal Room** | `/crm/leads/{id}/deal-room` | Panel **SCI — Buổi chốt 45 phút** |
 | 5 | **CSKH board** | `/crm/cskh-board` | Panel **SLA + SCI · Gọi đầu** (M1) |
 | 6 | Debrief modal | (popup trên lead detail) | Sau log hoạt động **Gọi điện** |
@@ -191,12 +191,12 @@ Prep M1 thường **tự enqueue** khi lead B2B mới tạo. Trên UI có 3 tr�
 **Thao tác:**
 
 1. Từ lead detail → link Intake **hoặc** sidebar **Lead Intake**.
-2. Điền BANT (Budget, Authority, Need, Timeline, Fit, History).
-3. Card bên phải **SCI · Qualify (M2)**:
-   - Xem checklist **BANT qualify** (tick local — 6 mục).
-   - Đọc tóm tắt pain/SCI khi prep **ready**.
-   - Bấm **Sales Cockpit** nếu cần chi tiết.
-4. Quyết định **Go** → prep M2 **tự refresh** (1–3 phút).
+2. Điền BANT trên tab **Qualify** (Budget, Authority, Need, Timeline, Fit, History).
+3. **Deal Bar** (dòng SCI) — không còn card **SCI · Qualify (M2)** bên phải:
+   - 1 dòng pain (≤120 ký tự) hoặc **SCI chưa sẵn**.
+   - Bấm **Cockpit** trên Deal Bar nếu cần panel SCI đầy đủ.
+   - Sales Kit (nếu mở): khối **Góc từ cuộc gọi đầu** khi M1 ready — context qualify, không dump talk track M1.
+4. Quyết định **Go** → prep M2 **tự refresh** (1–3 phút). SCI M2 vẫn **sau Go**, không enqueue trước.
 
 ---
 
@@ -434,7 +434,7 @@ Cap tối thiểu AM: `crm_leads.view` + `crm_leads.edit`. Solution nên có th�
 - [ ] **Offer Ladder** — 3 cột CB / **TC** / CS
 - [ ] **Objections** — mở ≥1 rebuttal
 - [ ] Hoàn thành B2 → thấy card **M2**
-- [ ] Intake Go → card **SCI · Qualify** trên Intake
+- [ ] Intake Go → Deal Bar chip SCI trên Intake (1 dòng; mở **Cockpit** nếu cần)
 - [ ] **Chuẩn bị chốt** → tab **Deal Ready**
 - [ ] Deal Room → **Tạo báo giá 3 gói**
 - [ ] Log **Gọi điện** → debrief nhanh
