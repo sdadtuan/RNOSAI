@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import type { LeadFunnelSnapshot } from '@/lib/api';
 import type { LeadContractFlowSummary } from '@/components/LeadB2bSalesFlowBar';
-import { resolveLeadJourney } from '@/lib/crm/lead-journey';
+import { resolveLeadJourney, showDeliverySpine } from '@/lib/crm/lead-journey';
 
 type Props = {
   leadId: number;
@@ -12,25 +12,32 @@ type Props = {
   onOpenConsult?: () => void;
 };
 
+const DESC_PRE_WON = 'B2 → Pre-sales → Intake → Tư vấn → Báo giá → HĐ';
+const DESC_POST_WON = 'B2 → … → HĐ → OB → Giao → CL → Ret';
+
 export function LeadJourneyStepper({ leadId, funnel, contract, onOpenConsult }: Props) {
-  const steps = resolveLeadJourney({
+  const journeyInput = {
     reviewActive: Boolean(funnel?.review_queue.active),
     b2Complete: Boolean(funnel?.care_pipeline.all_complete),
     presalesStage: funnel?.presales?.presales.stage ?? null,
     hasContract: Boolean(contract?.hasContract || contract?.pendingApproval),
     contractActive: contract?.contractStatus === 'active',
     lifecycleId: contract?.lifecycleId ?? null,
+    lifecycleStage: contract?.lifecycleStage ?? null,
+    agencyClientId: contract?.agencyClientId ?? null,
     leadId,
     serviceSlug: funnel?.presales?.presales.service_slug ?? null,
-  });
+  };
+  const steps = resolveLeadJourney(journeyInput);
+  const extended = showDeliverySpine(journeyInput);
 
   return (
     <nav aria-label="Hành trình B2B" className="lead-journey" data-testid="lead-journey">
       <div className="lead-journey__head">
         <h3 className="lead-journey__title">Hành trình</h3>
-        <p className="lead-journey__desc">B2 → Pre-sales → Intake → Tư vấn → Báo giá → HĐ</p>
+        <p className="lead-journey__desc">{extended ? DESC_POST_WON : DESC_PRE_WON}</p>
       </div>
-      <ol className="lead-journey__track">
+      <ol className={`lead-journey__track${extended ? ' lead-journey__track--extended' : ''}`}>
         {steps.map((step, idx) => {
           const inner = (
             <>
@@ -58,7 +65,7 @@ export function LeadJourneyStepper({ leadId, funnel, contract, onOpenConsult }: 
                   {inner}
                 </a>
               ) : (
-                <span className="lead-journey__link">{inner}</span>
+                <span className="lead-journey__link lead-journey__link--muted">{inner}</span>
               )}
               {idx < steps.length - 1 ? <span className="lead-journey__line" aria-hidden /> : null}
             </li>

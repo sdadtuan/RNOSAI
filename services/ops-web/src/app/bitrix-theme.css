@@ -1596,6 +1596,64 @@ html.ops-shell-bitrix .lead-journey__alert {
   }
 }
 
+html.ops-shell-bitrix .lead-journey__track--extended {
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  gap: 0;
+  padding-bottom: 0.15rem;
+  scrollbar-width: thin;
+}
+html.ops-shell-bitrix .lead-journey__track--extended .lead-journey__step {
+  flex: 0 0 auto;
+  min-width: 3.4rem;
+}
+html.ops-shell-bitrix .lead-journey__link--muted {
+  opacity: 0.55;
+  cursor: default;
+}
+html.ops-shell-bitrix .lifecycle-delivery-nba {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border, #d7ddd8);
+  border-radius: 10px;
+  background: rgba(23, 105, 47, 0.04);
+}
+html.ops-shell-bitrix .lifecycle-delivery-nba__body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+html.ops-shell-bitrix .lifecycle-delivery-nba__title {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+html.ops-shell-bitrix .lifecycle-delivery-nba__subtitle {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted, #6b6b6b);
+  line-height: 1.35;
+}
+html.ops-shell-bitrix .lifecycle-delivery-nba__primary {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  html.ops-shell-bitrix .lead-journey__track--extended {
+    display: flex;
+    grid-template-columns: unset;
+  }
+  html.ops-shell-bitrix .lifecycle-delivery-nba {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
 html.ops-shell-bitrix .lead-detail-hero__actions {
   display: flex;
   flex-wrap: wrap;

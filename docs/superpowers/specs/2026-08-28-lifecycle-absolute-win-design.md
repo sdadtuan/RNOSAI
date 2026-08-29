@@ -243,6 +243,8 @@ Nếu `placeB2bSoftphoneCall` success: set local `b2Outcome=talked` + focus `#fu
 
 ### WS3 — Delivery spine (S3 tuần 9–10)
 
+> Spec chi tiết: [2026-08-29-lifecycle-ws3-delivery-spine-design.md](./2026-08-29-lifecycle-ws3-delivery-spine-design.md)
+
 Mở rộng `LeadJourneyStep['key']` **chỉ khi** `contractActive || lifecycleId`:
 
 `onboard | deliver | agency | retain` (nhãn ngắn: OB / Giao / CL / Ret).
@@ -337,9 +339,9 @@ Debrief B2B: kích hoạt rule 9 khi `won`/`lost` + `debrief_pending` (đã có 
 ## 13. Next step
 
 1. PO duyệt file này (đặc biệt §4 và §12).  
-2. S0 + S1 đã ship (`a2614cac`). Spec WS2: [2026-08-29-lifecycle-ws2-promote-agency-client-design.md](./2026-08-29-lifecycle-ws2-promote-agency-client-design.md).  
-3. Spec con 2 trang **Promote → Agency Client** — **đã viết (WS2 spec)**; plan + code sau PO tick §12 WS2.  
-4. Không gộp WS2/WS3/WS4 trong PR S1.
+2. S0 + S1 + WS2 đã ship (`9c60e9fc`). Spec WS3: [2026-08-29-lifecycle-ws3-delivery-spine-design.md](./2026-08-29-lifecycle-ws3-delivery-spine-design.md).  
+3. WS2 **Promote → Agency Client** đã ship; WS3 plan + code sau PO tick §13 WS3.  
+4. Không gộp WS3/WS4 trong PR WS2 hoặc PR không liên quan.
 
 ---
 

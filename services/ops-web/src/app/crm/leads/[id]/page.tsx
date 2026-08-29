@@ -718,6 +718,8 @@ export default function CrmLeadDetailPage() {
           pendingApproval: data.approval?.status === 'pending',
           lifecycleId:
             data.lifecycle_id != null && data.lifecycle_id > 0 ? data.lifecycle_id : null,
+          lifecycleStage: data.lifecycle_stage ?? null,
+          agencyClientId: data.contract?.agency_client_id?.trim() || null,
         });
         setContractChecks(data.checks ?? []);
       })

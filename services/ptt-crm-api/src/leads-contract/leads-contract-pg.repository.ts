@@ -119,12 +119,24 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
       pendingApproval: approval,
     });
 
+    const lifecycleId = presalesCtx?.lifecycleId ?? null;
+    let lifecycleStage: string | null = null;
+    if (lifecycleId != null && lifecycleId > 0) {
+      const lcResult = await this.db.query(
+        `SELECT stage FROM crm_service_lifecycle WHERE id = $1 LIMIT 1`,
+        [lifecycleId],
+      );
+      const lcRow = lcResult.rows[0] as { stage: string } | undefined;
+      lifecycleStage = lcRow ? String(lcRow.stage ?? '') : null;
+    }
+
     return {
       ok: checks.every((c) => c.ok) && approval?.status !== 'pending',
       checks,
       contract,
       approval,
-      lifecycle_id: presalesCtx?.lifecycleId ?? null,
+      lifecycle_id: lifecycleId,
+      lifecycle_stage: lifecycleStage,
     };
   }
 

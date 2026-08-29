@@ -8,6 +8,8 @@ export interface LeadContractFlowSummary {
   contractStatus: string | null;
   pendingApproval: boolean;
   lifecycleId: number | null;
+  lifecycleStage?: string | null;
+  agencyClientId?: string | null;
 }
 
 interface Props {

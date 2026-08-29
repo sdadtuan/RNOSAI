@@ -2026,6 +2026,7 @@ export async function fetchLeadContractReadiness(token: string, leadId: number) 
     contract: LeadContractRow | null;
     approval: ContractApprovalRow | null;
     lifecycle_id?: number | null;
+    lifecycle_stage?: string | null;
   }>(token, `/api/v1/leads/${leadId}/contract/readiness`, { method: 'GET' });
 }
 

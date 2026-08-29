@@ -15,13 +15,16 @@ import { OpsServiceHubPanel } from '@/components/ops/OpsServiceHubPanel';
 import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
 import { DetailPageLayout } from '@/components/layout';
 import { ServiceDeliveryWorkflowPanel } from '@/components/ServiceDeliveryWorkflowPanel';
+import { LifecycleDeliveryNextActionCard } from '@/components/LifecycleDeliveryNextActionCard';
 import {
+  fetchServiceLifecycleAdvanceInfo,
   fetchServiceLifecycleContext,
   fetchServiceLifecycleDetail,
   patchServiceLifecycle,
   staffMe,
   staffRefresh,
 } from '@/lib/api';
+import type { LifecycleAdvanceInfo } from '@/lib/crm/lifecycle-delivery-next-action';
 import {
   canViewMktAiPlanner,
   canViewContentOs,
@@ -65,6 +68,8 @@ export default function CrmServiceDeliveryDetailPage() {
   const [researchProjectLookup, setResearchProjectLookup] =
     useState<ResearchProjectLookup>('pending');
   const [researchLookupError, setResearchLookupError] = useState('');
+  const [advanceInfo, setAdvanceInfo] = useState<LifecycleAdvanceInfo | null>(null);
+  const [advanceLoading, setAdvanceLoading] = useState(true);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -113,6 +118,18 @@ export default function CrmServiceDeliveryDetailPage() {
     setNotes(String(data.notes ?? ''));
   }, [lifecycleId]);
 
+  const reloadAdvanceInfo = useCallback(async (access: string) => {
+    setAdvanceLoading(true);
+    try {
+      const adv = await fetchServiceLifecycleAdvanceInfo(access, lifecycleId);
+      setAdvanceInfo(adv as LifecycleAdvanceInfo);
+    } catch {
+      setAdvanceInfo(null);
+    } finally {
+      setAdvanceLoading(false);
+    }
+  }, [lifecycleId]);
+
   useEffect(() => {
     if (!Number.isFinite(lifecycleId) || lifecycleId <= 0) {
       setError('ID không hợp lệ');
@@ -124,14 +141,14 @@ export default function CrmServiceDeliveryDetailPage() {
       if (!access) return;
       setLoading(true);
       try {
-        await reloadDetail(access);
+        await Promise.all([reloadDetail(access), reloadAdvanceInfo(access)]);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải thất bại');
       } finally {
         setLoading(false);
       }
     })();
-  }, [ensureAuth, lifecycleId, reloadDetail]);
+  }, [ensureAuth, lifecycleId, reloadDetail, reloadAdvanceInfo]);
 
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -190,11 +207,36 @@ export default function CrmServiceDeliveryDetailPage() {
       await patchServiceLifecycle(token, lifecycleId, { stage: backStage, notes: notes.trim() });
       setStage(backStage);
       setMessage(`Đã lùi → ${backStage}`);
-      await reloadDetail(token);
+      await Promise.all([reloadDetail(token), reloadAdvanceInfo(token)]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lùi stage thất bại');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onAdvanceFromHero() {
+    if (!user || !token || !advanceInfo?.next_stage || !advanceInfo.can_advance_forward) return;
+    const nxt = advanceInfo.next_stage;
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      await patchServiceLifecycle(token, lifecycleId, { stage: nxt });
+      setStage(nxt);
+      setMessage(`Đã chuyển → ${nxt}`);
+      await Promise.all([reloadDetail(token), reloadAdvanceInfo(token)]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Chuyển stage thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function onWorkflowStageChanged(next: string) {
+    setStage(next);
+    if (token) {
+      void reloadAdvanceInfo(token);
     }
   }
 
@@ -356,6 +398,19 @@ export default function CrmServiceDeliveryDetailPage() {
             onError={setError}
           />
 
+          <LifecycleDeliveryNextActionCard
+            user={user}
+            advance={advanceInfo}
+            loading={advanceLoading}
+            saving={saving}
+            canEdit={hasCap(user, 'crm_board', 'edit')}
+            onOpenWorkflow={() => switchTab('workflow')}
+            onOpenTmmtTab={() => switchTab('tmmt')}
+            onOpenLaunchQaTab={() => switchTab('launch_qa')}
+            onOpenFinanceTab={() => switchTab('finance')}
+            onAdvanceStage={() => void onAdvanceFromHero()}
+          />
+
           <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
             <button
               type="button"
@@ -427,7 +482,7 @@ export default function CrmServiceDeliveryDetailPage() {
               user={user}
               lifecycleId={lifecycleId}
               initialStage={stage}
-              onStageChanged={setStage}
+              onStageChanged={onWorkflowStageChanged}
               onFinanceRefresh={() => void reloadDetail(token)}
               onOpenTmmtTab={() => switchTab('tmmt')}
               onOpenAiPlannerTab={showAiPlannerTab ? () => switchTab('ai-planner') : undefined}
