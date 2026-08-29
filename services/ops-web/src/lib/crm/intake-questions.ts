@@ -19,6 +19,10 @@ export interface IntakeDefinitionUi {
   red_flag_items?: IntakeRedFlagItem[];
   red_flags?: string[];
   schema_version?: number;
+  qualify_items?: Array<{ key: string; text: string; critical?: boolean }>;
+  win_intel_prompts?: Array<{ key: string; hint: string }>;
+  l2_preview_keys?: string[];
+  is_pilot_form?: boolean;
 }
 
 export type IntakeSessionMode = 'phone' | 'in_person';
