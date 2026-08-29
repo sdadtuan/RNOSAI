@@ -2437,7 +2437,7 @@ export type IntakeSalesKitOutput = {
 export async function postIntakeSalesKit(
   token: string,
   id: number,
-  body: { intent: string; message?: string },
+  body: { intent: string; message?: string; service_slug?: string },
 ): Promise<IntakeSalesKitOutput> {
   return crmFetch<IntakeSalesKitOutput>(token, `/api/crm/intake/sessions/${id}/sales-kit`, {
     method: 'POST',

@@ -62,6 +62,7 @@ function parseCitations(raw: unknown): KitCitation[] {
 
 export type IntakeSalesKitPanelProps = {
   sessionId: number | null;
+  serviceSlug?: string | null;
   canEdit: boolean;
   llmEnabled: boolean;
   sciExcerpt?: string | null;
@@ -74,6 +75,7 @@ export type IntakeSalesKitPanelProps = {
 
 export function IntakeSalesKitPanel({
   sessionId,
+  serviceSlug,
   canEdit,
   llmEnabled,
   sciExcerpt,
@@ -112,6 +114,7 @@ export function IntakeSalesKitPanel({
       const out = await postIntakeSalesKit(token, sessionId, {
         intent,
         message: text?.trim() || undefined,
+        service_slug: serviceSlug?.trim() || undefined,
       });
       setReply(out);
       setSelected({ ...DEFAULT_SELECTED });

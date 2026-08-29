@@ -251,7 +251,7 @@ export class IntakeService {
 
   async salesKitTurn(
     id: number,
-    body: { intent?: string; message?: string },
+    body: { intent?: string; message?: string; service_slug?: string },
     actor?: IntakeStaffActor | null,
   ) {
     const session = await this.pg.getSession(id);
@@ -268,6 +268,7 @@ export class IntakeService {
       buildRulesInputFromSession({
         intent: body.intent,
         message: body.message,
+        serviceSlug: body.service_slug,
         session,
       }),
     );

@@ -123,7 +123,7 @@ export class IntakeController {
   @HttpCode(HttpStatus.OK)
   async salesKit(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { intent?: string; message?: string },
+    @Body() body: { intent?: string; message?: string; service_slug?: string },
     @Req() req: IntakeRequest,
   ) {
     return this.intake.salesKitTurn(id, body, await this.actorContext(req));

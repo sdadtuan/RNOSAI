@@ -3,6 +3,7 @@ import {
   gapToGo,
   intakeServiceLabel,
   resolveIntakeServiceSlug,
+  shouldSyncDraftServiceSlug,
 } from './intake-service-resolve';
 
 describe('resolveIntakeServiceSlug', () => {
@@ -51,6 +52,42 @@ describe('gapToGo', () => {
     expect(gapToGo(8)).toBe(16);
     expect(gapToGo(24)).toBe(0);
     expect(gapToGo(30)).toBe(0);
+  });
+});
+
+describe('shouldSyncDraftServiceSlug', () => {
+  it('syncs draft _common to resolved pilot', () => {
+    expect(
+      shouldSyncDraftServiceSlug({
+        status: 'draft',
+        sessionSlug: '_common',
+        resolvedSlug: 'dich-vu-seo-tong-the',
+      }),
+    ).toBe(true);
+  });
+
+  it('does not sync completed or already-matching slugs', () => {
+    expect(
+      shouldSyncDraftServiceSlug({
+        status: 'completed',
+        sessionSlug: '_common',
+        resolvedSlug: 'dich-vu-seo-tong-the',
+      }),
+    ).toBe(false);
+    expect(
+      shouldSyncDraftServiceSlug({
+        status: 'draft',
+        sessionSlug: 'dich-vu-seo-tong-the',
+        resolvedSlug: 'dich-vu-seo-tong-the',
+      }),
+    ).toBe(false);
+    expect(
+      shouldSyncDraftServiceSlug({
+        status: 'draft',
+        sessionSlug: '_common',
+        resolvedSlug: '_common',
+      }),
+    ).toBe(false);
   });
 });
 

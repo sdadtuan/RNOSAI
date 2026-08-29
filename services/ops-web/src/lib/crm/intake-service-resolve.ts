@@ -67,3 +67,14 @@ export function gapToGo(bantTotal: number, goThreshold = 24): number {
 export function isPilotServiceSlug(slug: string): boolean {
   return (PILOT_SERVICE_SLUGS as readonly string[]).includes(normalizeIntakeSlug(slug));
 }
+
+export function shouldSyncDraftServiceSlug(input: {
+  status?: string | null;
+  sessionSlug?: string | null;
+  resolvedSlug: string;
+}): boolean {
+  if (String(input.status ?? '').trim() !== 'draft') return false;
+  const resolved = normalizeIntakeSlug(input.resolvedSlug);
+  if (!resolved || resolved === '_common' || !KNOWN.has(resolved)) return false;
+  return normalizeIntakeSlug(input.sessionSlug) !== resolved;
+}

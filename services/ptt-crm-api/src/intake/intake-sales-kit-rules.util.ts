@@ -2,6 +2,7 @@ import {
   BANT_KEYS,
   GO_THRESHOLDS,
   getUiDefinition,
+  normalizeIntakeSlug,
 } from './intake-definitions.util';
 import type { IntakeSessionRow } from './intake.types';
 
@@ -24,6 +25,9 @@ export type SalesKitRulesInput = {
   discoveryAnswers: Record<string, { answer?: string }>;
   criticalKeys: string[];
   qualifyItems: Array<{ key: string; text: string }>;
+  questionItems: Array<{ key: string; text: string }>;
+  qualifyChecked: Record<string, boolean>;
+  winIntel: Record<string, string>;
   serviceSlug: string;
   isPilot: boolean;
 };
@@ -58,6 +62,13 @@ const SALES_KIT_INTENTS: readonly SalesKitIntent[] = [
 
 const WIN_INTEL_KEYS = ['incumbent', 'competitor', 'selection_criteria', 'switch_risk'] as const;
 
+const WIN_INTEL_PROMPTS: Record<(typeof WIN_INTEL_KEYS)[number], string> = {
+  incumbent: 'Agency / freelancer đang làm?',
+  competitor: 'Đối thủ đang so sánh?',
+  selection_criteria: 'Tiêu chí chọn agency?',
+  switch_risk: 'Rủi ro nếu đổi agency?',
+};
+
 export function isSalesKitIntent(value: unknown): value is SalesKitIntent {
   return typeof value === 'string' && (SALES_KIT_INTENTS as readonly string[]).includes(value);
 }
@@ -87,12 +98,53 @@ function parseDiscoveryAnswers(
   return out;
 }
 
+function parseQualifyChecked(
+  answersJson: Record<string, unknown> | undefined,
+): Record<string, boolean> {
+  const raw = answersJson?.qualify_checked;
+  if (!raw || typeof raw !== 'object') return {};
+  const checked: Record<string, boolean> = {};
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    if (val === true || val === 'true' || val === 1) checked[key] = true;
+  }
+  return checked;
+}
+
+function parseWinIntelAnswers(
+  answersJson: Record<string, unknown> | undefined,
+): Record<string, string> {
+  const raw = answersJson?.win_intel;
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, string> = {};
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof val === 'string') {
+      out[key] = val;
+      continue;
+    }
+    if (val && typeof val === 'object') {
+      out[key] = String((val as Record<string, unknown>).answer ?? '');
+    }
+  }
+  return out;
+}
+
+function questionItemsFromDef(
+  items: Array<{ key: string; text: string; critical?: boolean }> | undefined,
+): Array<{ key: string; text: string }> {
+  return (items ?? [])
+    .filter((q) => Boolean(q && typeof q === 'object' && q.key))
+    .map((q) => ({ key: String(q.key), text: String(q.text ?? '') }));
+}
+
 export function buildRulesInputFromSession(opts: {
   intent: SalesKitIntent;
   message?: string;
+  serviceSlug?: string;
   session: Pick<IntakeSessionRow, 'service_slug' | 'mode' | 'bant_json' | 'answers_json'>;
 }): SalesKitRulesInput {
-  const slug = String(opts.session.service_slug ?? '').trim() || '_common';
+  const override = normalizeIntakeSlug(String(opts.serviceSlug ?? '').trim());
+  const sessionSlug = normalizeIntakeSlug(String(opts.session.service_slug ?? '').trim()) || '_common';
+  const slug = override || sessionSlug;
   const def = getUiDefinition(slug);
   const mode = String(opts.session.mode ?? 'phone').trim() === 'in_person' ? 'in_person' : 'phone';
   const items = (
@@ -108,6 +160,9 @@ export function buildRulesInputFromSession(opts: {
     qualifyItems: qualifyRaw
       .filter((q): q is { key: string; text: string } => Boolean(q && typeof q === 'object'))
       .map((q) => ({ key: String(q.key ?? ''), text: String(q.text ?? '') })),
+    questionItems: questionItemsFromDef(items),
+    qualifyChecked: parseQualifyChecked(opts.session.answers_json),
+    winIntel: parseWinIntelAnswers(opts.session.answers_json),
     serviceSlug: slug,
     isPilot: Boolean(def.is_pilot_form),
   };
@@ -149,7 +204,11 @@ function computeGap(bant: Record<string, number>): SalesKitRulesOutput['gap'] {
 }
 
 function questionText(input: SalesKitRulesInput, key: string): string {
-  return input.qualifyItems.find((q) => q.key === key)?.text ?? key;
+  return (
+    (input.questionItems ?? []).find((q) => q.key === key)?.text ||
+    input.qualifyItems.find((q) => q.key === key)?.text ||
+    key
+  );
 }
 
 function firstUnansweredCritical(input: SalesKitRulesInput) {
@@ -159,7 +218,15 @@ function firstUnansweredCritical(input: SalesKitRulesInput) {
 }
 
 function unansweredQualify(input: SalesKitRulesInput, limit = 3) {
-  return input.qualifyItems.filter((q) => isBlank(input.discoveryAnswers[q.key]?.answer)).slice(0, limit);
+  const checked = input.qualifyChecked ?? {};
+  return input.qualifyItems
+    .filter((q) => !checked[q.key] && isBlank(input.discoveryAnswers[q.key]?.answer))
+    .slice(0, limit);
+}
+
+function emptyWinIntelKeys(input: SalesKitRulesInput): Array<(typeof WIN_INTEL_KEYS)[number]> {
+  const filled = input.winIntel ?? {};
+  return WIN_INTEL_KEYS.filter((key) => isBlank(filled[key]));
 }
 
 function discoverySnippets(input: SalesKitRulesInput, limit = 3): string[] {
@@ -228,12 +295,22 @@ function replyForIntent(input: SalesKitRulesInput, gap: SalesKitRulesOutput['gap
       const reply_vi = parts.join(' · ');
       return { reply_vi, apply: { ai_summary: reply_vi } };
     }
-    case 'win_intel':
+    case 'win_intel': {
+      const empty = emptyWinIntelKeys(input);
+      if (!empty.length) {
+        return { reply_vi: 'Win intel đã đủ 4 ô.', apply };
+      }
+      const nextKey = empty[0];
       return {
-        reply_vi: `Win intel còn trống: ${WIN_INTEL_KEYS.join(', ')}. Hỏi agency cũ / tiêu chí chọn.`,
-        next_question: { key: 'incumbent', text: 'Agency / freelancer đang làm?', tab: 'win_intel' },
+        reply_vi: `Win intel còn trống: ${empty.join(', ')}. Hỏi agency cũ / tiêu chí chọn.`,
+        next_question: {
+          key: nextKey,
+          text: WIN_INTEL_PROMPTS[nextKey],
+          tab: 'win_intel',
+        },
         apply,
       };
+    }
     case 'red_flag':
       return {
         reply_vi: 'Đối chiếu red flag với pain / ngân sách / DM trên phiên. Không tự tick.',

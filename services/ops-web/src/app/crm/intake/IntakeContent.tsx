@@ -45,6 +45,7 @@ import {
   gapToGo,
   intakeServiceLabel,
   resolveIntakeServiceSlug,
+  shouldSyncDraftServiceSlug,
 } from '@/lib/crm/intake-service-resolve';
 import {
   pickDefaultIntakeTab,
@@ -606,26 +607,29 @@ export function IntakeContent({
     }
   }
 
-  async function onServiceChange(slug: string) {
-    if (active?.status === 'completed') {
-      setMessage('Reopen hoặc tạo phiên mới để đổi dịch vụ.');
-      return;
-    }
-    const previousOverride = serviceOverride;
-    setServiceOverride(slug);
-    if (active?.status !== 'draft' || !canCreate) return;
-    const access = getAccessToken();
-    if (!access) return;
-    try {
-      await patchIntakeSession(access, active.id, { service_slug: slug });
-      setSessions((rows) =>
-        rows.map((row) => (row.id === active.id ? { ...row, service_slug: slug } : row)),
-      );
-    } catch (err) {
-      setServiceOverride(previousOverride);
-      setError(err instanceof Error ? err.message : 'Đổi dịch vụ thất bại');
-    }
-  }
+  const onServiceChange = useCallback(
+    async (slug: string) => {
+      if (active?.status === 'completed') {
+        setMessage('Reopen hoặc tạo phiên mới để đổi dịch vụ.');
+        return;
+      }
+      const previousOverride = serviceOverride;
+      setServiceOverride(slug);
+      if (active?.status !== 'draft' || !canCreate) return;
+      const access = getAccessToken();
+      if (!access) return;
+      try {
+        await patchIntakeSession(access, active.id, { service_slug: slug });
+        setSessions((rows) =>
+          rows.map((row) => (row.id === active.id ? { ...row, service_slug: slug } : row)),
+        );
+      } catch (err) {
+        setServiceOverride(previousOverride);
+        setError(err instanceof Error ? err.message : 'Đổi dịch vụ thất bại');
+      }
+    },
+    [active, canCreate, serviceOverride],
+  );
 
   const performSave = useCallback(
     async (options?: {
@@ -738,6 +742,24 @@ export function IntakeContent({
     setValidationErrors([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- clear blocking errors after edits
   }, [formSnapshot]);
+
+  const slugSyncKeyRef = useRef('');
+  useEffect(() => {
+    if (!authReady || !canCreate || !active) return;
+    if (
+      !shouldSyncDraftServiceSlug({
+        status: active.status,
+        sessionSlug: active.service_slug,
+        resolvedSlug,
+      })
+    ) {
+      return;
+    }
+    const key = `${active.id}:${resolvedSlug}`;
+    if (slugSyncKeyRef.current === key) return;
+    slugSyncKeyRef.current = key;
+    void onServiceChange(resolvedSlug);
+  }, [active, authReady, canCreate, onServiceChange, resolvedSlug]);
 
   function buildValidationInput() {
     return {
@@ -1299,6 +1321,7 @@ export function IntakeContent({
                 </button>
                 <IntakeSalesKitPanel
                   sessionId={active?.id ?? null}
+                  serviceSlug={resolvedSlug}
                   canEdit={canCreate && active?.status !== 'completed'}
                   llmEnabled={kitLlmEnabled}
                   sciExcerpt={sciExcerpt}
