@@ -17,6 +17,7 @@ import {
 import { IntakePgRepository } from './intake-pg.repository';
 import {
   buildRulesInputFromSession,
+  emptyAskLibraryQueryReply,
   emptyLibraryReply,
   isSalesKitIntent,
   runSalesKitRules,
@@ -272,6 +273,7 @@ export class IntakeService {
     if (!isSalesKitIntent(body.intent)) {
       throw new BadRequestException({ error: 'intent_required' });
     }
+    this.library.assertTurnRate(actor);
     const input = buildRulesInputFromSession({
       intent: body.intent,
       message: body.message,
@@ -295,6 +297,9 @@ export class IntakeService {
       body.intent === 'pricing_band'
         ? `pricing ${input.serviceSlug}`
         : String(body.message ?? '').trim();
+    if (!query) {
+      return { ...rules, citations: [], reply_vi: emptyAskLibraryQueryReply(), stub_mode: true };
+    }
     const hits = await this.library.retrieveForSession(
       { id: session.id, lead_id: session.lead_id, service_slug: input.serviceSlug },
       query,

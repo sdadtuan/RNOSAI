@@ -72,7 +72,7 @@ const DEFAULT_FS: SalesKitFs = {
 };
 
 function actorHasCap(actor: IntakeStaffActor | null | undefined, section: string, action: string): boolean {
-  if (!actor) return true;
+  if (actor === undefined || actor === null) return true;
   return (actor.caps ?? []).some((c) => c.section === section && c.action === action);
 }
 
@@ -152,14 +152,23 @@ export class SalesKitLibraryService {
     this.fs = fsApi ?? DEFAULT_FS;
   }
 
+  assertTurnRate(actor?: IntakeStaffActor | null): void {
+    const actorId = actor?.staffId != null && actor.staffId > 0 ? String(actor.staffId) : 'internal';
+    this.rateLimit.check(`intake-kit:${actorId}`, this.aiConfig.summarizeRateLimitPerMin);
+  }
+
   async retrieveForSession(
     session: SalesKitSessionRef,
     query: string,
-    _kindHint?: string,
+    kindHint?: string,
   ): Promise<SalesKitHit[]> {
-    const rows = await this.repo.listReadyChunks();
+    const rows = await this.repo.listReadyChunks({
+      serviceSlug: session.service_slug,
+      leadId: session.lead_id,
+      sessionId: session.id,
+    });
     const allowed = rows.filter((row) => rowVisibleToSession(session, row));
-    return scoreSalesKitChunks({ query, rows: allowed });
+    return scoreSalesKitChunks({ query, rows: allowed, kindHint });
   }
 
   async uploadFile(input: {
@@ -217,6 +226,8 @@ export class SalesKitLibraryService {
       if (!hasConfigure(input.actor)) {
         throw new ForbiddenException({ error: 'missing_cap', section: 'playbooks' });
       }
+      leadId = null;
+      sessionId = null;
       if (!folderKeyOk(folderKey)) {
         throw new BadRequestException({ error: 'invalid_folder_key' });
       }

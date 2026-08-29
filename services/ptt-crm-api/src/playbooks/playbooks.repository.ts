@@ -152,14 +152,15 @@ export class PlaybooksRepository implements OnModuleDestroy {
   async list(args: { limit: number; offset: number }): Promise<{ rows: PlaybookRecord[]; total: number }> {
     const limit = Math.min(Math.max(args.limit, 1), 100);
     const offset = Math.max(args.offset, 0);
-    const totalRow = await this.db.query(`SELECT COUNT(*)::int AS n FROM ai_playbooks WHERE status = 'active'`);
+    const notKit = `status = 'active' AND COALESCE(category, 'sales') <> 'sales_kit'`;
+    const totalRow = await this.db.query(`SELECT COUNT(*)::int AS n FROM ai_playbooks WHERE ${notKit}`);
     const total = Number(totalRow.rows[0]?.n ?? 0);
     const result = await this.db.query(
       `SELECT p.id::text, p.client_id::text, p.slug, p.title, p.category, p.summary, p.status, p.tags,
               p.created_by, p.created_at, p.updated_at,
               (SELECT COUNT(*)::int FROM ai_playbook_chunks c WHERE c.playbook_id = p.id) AS chunk_count
        FROM ai_playbooks p
-       WHERE p.status = 'active'
+       WHERE p.status = 'active' AND COALESCE(p.category, 'sales') <> 'sales_kit'
        ORDER BY p.updated_at DESC
        LIMIT $1 OFFSET $2`,
       [limit, offset],
@@ -191,7 +192,7 @@ export class PlaybooksRepository implements OnModuleDestroy {
 
   async listAllChunks(playbookId?: string): Promise<Array<PlaybookChunkRecord & { playbook_title: string }>> {
     const params: string[] = [];
-    let filter = `WHERE p.status = 'active'`;
+    let filter = `WHERE p.status = 'active' AND COALESCE(p.category, 'sales') <> 'sales_kit'`;
     if (playbookId) {
       params.push(playbookId);
       filter += ` AND p.id = $1::uuid`;

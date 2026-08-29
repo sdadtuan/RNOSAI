@@ -67,7 +67,8 @@ describe('IntakeSalesKitLlmService', () => {
     });
     expect(llm.completeJson).toHaveBeenCalled();
     expect(out.reply_vi).not.toMatch(/20\s*triệu/i);
-    expect(out.reply_vi).toMatch(/số đã ẩn|Còn 24 điểm/i);
+    expect(out.reply_vi).toMatch(/số đã ẩn/);
+    expect(out.reply_vi).not.toMatch(/iểm để Go/);
   });
 
   it('returns rules payload when completeJson times out', async () => {
@@ -113,7 +114,8 @@ describe('IntakeSalesKitLlmService', () => {
     });
     expect(out.reply_vi).not.toMatch(/20\s*triệu/i);
     expect(out.next_question?.text).not.toMatch(/20\s*triệu/i);
-    expect(out.next_question?.text).toMatch(/số đã ẩn|Ngân sách dự kiến/i);
+    expect(out.next_question?.text).toMatch(/số đã ẩn/);
+    expect(out.reply_vi).toBe('Còn 24 điểm để Go. Ưu tiên hỏi ngân sách.');
   });
 
   it('does not call LLM for ask_library without citations', async () => {

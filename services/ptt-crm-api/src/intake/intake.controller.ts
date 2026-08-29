@@ -45,10 +45,11 @@ export class IntakeController {
   ) {}
 
   private async actorContext(req: IntakeRequest): Promise<IntakeStaffActor | null> {
-    if (req.staffAuthVia === 'internal' || !req.staffUser) return null;
+    if (req.staffAuthVia === 'internal') return null;
+    if (!req.staffUser) return { staffId: 0, caps: [] };
     const me = await this.staffAuth.me(req.staffUser);
     const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
-    if (staffId == null) return null;
+    if (staffId == null) return { staffId: 0, caps: [] };
     return { staffId, caps: me.caps, positionCode: me.position_code };
   }
 

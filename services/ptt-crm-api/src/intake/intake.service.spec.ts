@@ -12,7 +12,7 @@ describe('IntakeService salesKitTurn library', () => {
 
   const pg = { getSession: jest.fn().mockResolvedValue(session) };
   const visibility = { assertLeadVisible: jest.fn().mockResolvedValue(undefined) };
-  const library = { retrieveForSession: jest.fn() };
+  const library = { retrieveForSession: jest.fn(), assertTurnRate: jest.fn() };
   const salesKitLlm = {
     polish: jest.fn(async ({ rules }: { rules: { reply_vi: string } }) => rules),
   };
@@ -63,5 +63,14 @@ describe('IntakeService salesKitTurn library', () => {
     expect(out.citations).toHaveLength(1);
     expect(out.citations[0]?.file_name).toBe('qa.xlsx');
     expect(out.stub_mode).toBe(true);
+    expect(library.assertTurnRate).toHaveBeenCalled();
+  });
+
+  it('skips retrieve when ask_library has no question text', async () => {
+    const out = await svc().salesKitTurn(12, { intent: 'ask_library' });
+    expect(library.retrieveForSession).not.toHaveBeenCalled();
+    expect(out.citations).toEqual([]);
+    expect(out.reply_vi).toMatch(/Gõ câu hỏi/i);
+    expect(library.assertTurnRate).toHaveBeenCalled();
   });
 });

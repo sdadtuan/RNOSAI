@@ -1,4 +1,5 @@
-const MONEY_PATTERN = /\d+\s*(tr|triệu|vnd|đ)/gi;
+const MONEY_PATTERN =
+  /(?<![\p{L}\d])\d[\d.,]*\s*(?:tr|triệu|tỉ|tỷ|k|vnđ|vnd|đồng|đ)(?![\p{L}])/giu;
 
 const ALLOWED_MONEY_CITATION_KINDS = new Set(['pricing', 'qa', 'case']);
 

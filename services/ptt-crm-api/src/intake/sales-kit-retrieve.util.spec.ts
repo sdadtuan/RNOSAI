@@ -44,4 +44,35 @@ describe('sales-kit-retrieve.util', () => {
   it('qaAnswerFromBody returns A line', () => {
     expect(qaAnswerFromBody('Q: x\nA: Neo gói TC')).toBe('Neo gói TC');
   });
+
+  it('filters by kindHint so pricing_band does not return qa', () => {
+    const hits = scoreSalesKitChunks({
+      query: 'pricing dich-vu-seo-tong-the',
+      kindHint: 'pricing_band',
+      rows: [
+        {
+          body: 'Q: đắt\nA: Neo gói',
+          title: 'đắt',
+          file_id: '1',
+          file_name: 'qa.xlsx',
+          folder_path: 'dich-vu-seo-tong-the/qa',
+          kind: 'qa',
+          is_session: false,
+          parse_status: 'ready',
+        },
+        {
+          body: 'Gói SEO TC: 15000000–25000000 VND',
+          title: 'band',
+          file_id: '2',
+          file_name: 'gia.xlsx',
+          folder_path: 'dich-vu-seo-tong-the/pricing',
+          kind: 'pricing',
+          is_session: false,
+          parse_status: 'ready',
+        },
+      ],
+    });
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.file_id).toBe('2');
+  });
 });

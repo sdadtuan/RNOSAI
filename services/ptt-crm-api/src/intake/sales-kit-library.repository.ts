@@ -16,6 +16,13 @@ export type SalesKitReadyChunkRow = {
   parse_status: string;
   lead_id: number | null;
   session_id: number | null;
+  embedding?: number[] | null;
+};
+
+export type SalesKitReadyChunkFilter = {
+  serviceSlug: string;
+  leadId?: number | null;
+  sessionId?: number | null;
 };
 
 export type SalesKitFileRow = {
@@ -62,9 +69,27 @@ function mapFile(row: Record<string, unknown>): SalesKitFileRow {
 const FILE_SELECT = `id::text, playbook_id::text, lead_id, session_id, folder_key,
   original_name, mime, storage_key, parse_status, parse_error, uploaded_by, created_at`;
 
+function parseEmbedding(raw: unknown): number[] | null {
+  if (Array.isArray(raw) && raw.every((n) => typeof n === 'number')) {
+    return raw as number[];
+  }
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed) && parsed.every((n) => typeof n === 'number')) {
+        return parsed as number[];
+      }
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 @Injectable()
 export class SalesKitLibraryRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
+  private tableReadyCached: boolean | null = null;
 
   constructor(private readonly config: AppConfigService) {}
 
@@ -81,20 +106,38 @@ export class SalesKitLibraryRepository implements OnModuleDestroy {
   }
 
   async tableReady(): Promise<boolean> {
+    if (this.tableReadyCached) return true;
     try {
       const result = await this.db.query(
         `SELECT 1 FROM information_schema.tables
          WHERE table_schema = 'public' AND table_name = 'sales_kit_files'
          LIMIT 1`,
       );
-      return (result.rowCount ?? 0) > 0;
+      const ok = (result.rowCount ?? result.rows.length) > 0;
+      if (ok) this.tableReadyCached = true;
+      return ok;
     } catch {
       return false;
     }
   }
 
-  async listReadyChunks(): Promise<SalesKitReadyChunkRow[]> {
+  async listReadyChunks(filter?: SalesKitReadyChunkFilter): Promise<SalesKitReadyChunkRow[]> {
     if (!(await this.tableReady())) return [];
+    const params: unknown[] = [];
+    let extra = '';
+    if (filter) {
+      params.push(filter.serviceSlug);
+      extra += ` AND (
+        f.folder_key = $1
+        OR f.folder_key LIKE $1 || '/%'
+        OR f.folder_key = '_common'
+        OR f.folder_key LIKE '_common/%'`;
+      if (filter.leadId != null && filter.sessionId != null) {
+        params.push(filter.leadId, filter.sessionId);
+        extra += ` OR (f.lead_id = $2 AND f.session_id = $3)`;
+      }
+      extra += `)`;
+    }
     const result = await this.db.query(
       `SELECT f.id::text AS file_id,
               f.original_name AS file_name,
@@ -103,14 +146,16 @@ export class SalesKitLibraryRepository implements OnModuleDestroy {
               f.session_id,
               f.parse_status,
               c.title,
-              c.body
+              c.body,
+              c.embedding_json
        FROM sales_kit_files f
        JOIN ai_playbooks p ON p.id = f.playbook_id
        JOIN ai_playbook_chunks c ON c.playbook_id = p.id
          AND c.chunk_key LIKE ('file:' || f.id::text || ':%')
        WHERE f.parse_status = 'ready'
          AND p.status = 'active'
-         AND p.category = 'sales_kit'`,
+         AND p.category = 'sales_kit'${extra}`,
+      params,
     );
     return result.rows.map((row) => {
       const leadId = row.lead_id != null ? Number(row.lead_id) : null;
@@ -128,6 +173,7 @@ export class SalesKitLibraryRepository implements OnModuleDestroy {
         parse_status: String(row.parse_status ?? ''),
         lead_id: leadId,
         session_id: sessionId,
+        embedding: parseEmbedding(row.embedding_json),
       };
     });
   }

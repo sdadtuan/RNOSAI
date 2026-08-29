@@ -59,4 +59,20 @@ describe('SalesKitLibraryRepository', () => {
     const readyUpdate = calls.find((c) => c.sql.includes("parse_status = 'ready'"));
     expect(readyUpdate?.sql).toMatch(/parse_status = 'pending'/);
   });
+
+  it('listReadyChunks scopes by service/_common/session and selects embedding_json', async () => {
+    const calls: { sql: string; params?: unknown[] }[] = [];
+    const repo = repoWithQuery(async (sql, params) => {
+      calls.push({ sql, params });
+      if (sql.includes('information_schema')) {
+        return { rows: [{ '?column?': 1 }] };
+      }
+      return { rows: [] };
+    });
+    await repo.listReadyChunks({ serviceSlug: 'dich-vu-seo-tong-the', leadId: 5, sessionId: 12 });
+    const select = calls.find((c) => c.sql.includes('FROM sales_kit_files'));
+    expect(select?.sql).toMatch(/embedding_json/);
+    expect(select?.sql).toMatch(/_common/);
+    expect(select?.params).toEqual(['dich-vu-seo-tong-the', 5, 12]);
+  });
 });

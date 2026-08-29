@@ -1,5 +1,26 @@
 import { SalesKitLibraryService } from './sales-kit-library.service';
 import type { SalesKitFileRow } from './sales-kit-library.repository';
+import { buildSalesKitSampleXlsx } from './sales-kit-sample.util';
+
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+function fileRow(overrides: Partial<SalesKitFileRow> = {}): SalesKitFileRow {
+  return {
+    id: 'f1',
+    playbook_id: 'pb1',
+    lead_id: null,
+    session_id: null,
+    folder_key: 'dich-vu-seo-tong-the/qa',
+    original_name: 'mau.xlsx',
+    mime: XLSX_MIME,
+    storage_key: 'k',
+    parse_status: 'pending',
+    parse_error: null,
+    uploaded_by: 1,
+    created_at: '2026-01-01',
+    ...overrides,
+  };
+}
 
 function readyRow(overrides: Record<string, unknown>) {
   return {
@@ -200,5 +221,149 @@ describe('SalesKitLibraryService', () => {
     });
     expect(out.parse_status).toBe('ready');
     expect(repo.approveFile).toHaveBeenCalledWith('f1');
+  });
+
+  it('passes visibility filter and kindHint into retrieve', async () => {
+    repo.listReadyChunks.mockResolvedValue([
+      readyRow({ folder_path: 'dich-vu-seo-tong-the/qa' }),
+    ]);
+    await svc().retrieveForSession(session, 'đắt', 'ask_library');
+    expect(repo.listReadyChunks).toHaveBeenCalledWith({
+      serviceSlug: 'dich-vu-seo-tong-the',
+      leadId: 5,
+      sessionId: 12,
+    });
+  });
+
+  it('rejects org upload when actor caps are empty (unresolved JWT)', async () => {
+    await expect(
+      svc().uploadFile({
+        file: {
+          originalname: 'qa.xlsx',
+          mimetype: XLSX_MIME,
+          size: 100,
+          buffer: Buffer.from('x'),
+        } as Express.Multer.File,
+        folderKey: 'dich-vu-seo-tong-the/qa',
+        actor: { staffId: 0, caps: [] },
+      }),
+    ).rejects.toMatchObject({ response: { error: 'missing_cap' } });
+    expect(repo.insertFile).not.toHaveBeenCalled();
+  });
+
+  it('rejects oversize and missing schema before write', async () => {
+    await expect(
+      svc().uploadFile({
+        file: {
+          originalname: 'big.pdf',
+          mimetype: 'application/pdf',
+          size: 8 * 1024 * 1024 + 1,
+          buffer: Buffer.alloc(8 * 1024 * 1024 + 1),
+        } as Express.Multer.File,
+        folderKey: 'dich-vu-seo-tong-the/qa',
+        actor: { staffId: 1, caps: [{ section: 'playbooks', action: 'configure' }] },
+      }),
+    ).rejects.toMatchObject({ response: { error: 'file_too_large' } });
+
+    repo.tableReady.mockResolvedValueOnce(false);
+    await expect(
+      svc().uploadFile({
+        file: {
+          originalname: 'qa.xlsx',
+          mimetype: XLSX_MIME,
+          size: 100,
+          buffer: Buffer.from('x'),
+        } as Express.Multer.File,
+        folderKey: 'dich-vu-seo-tong-the/qa',
+        actor: { staffId: 1, caps: [{ section: 'playbooks', action: 'configure' }] },
+      }),
+    ).rejects.toMatchObject({ response: { error: 'schema_not_ready' } });
+    expect(repo.insertFile).not.toHaveBeenCalled();
+  });
+
+  it('enforces folder and session caps', async () => {
+    repo.countFilesByFolder.mockResolvedValue(40);
+    await expect(
+      svc().uploadFile({
+        file: {
+          originalname: 'qa.xlsx',
+          mimetype: XLSX_MIME,
+          size: 100,
+          buffer: Buffer.from('x'),
+        } as Express.Multer.File,
+        folderKey: 'dich-vu-seo-tong-the/qa',
+        actor: { staffId: 1, caps: [{ section: 'playbooks', action: 'configure' }] },
+      }),
+    ).rejects.toMatchObject({ response: { error: 'folder_limit' } });
+
+    repo.countFilesBySession.mockResolvedValue(10);
+    intakePg.getSession.mockResolvedValue({ id: 12, lead_id: 5 });
+    await expect(
+      svc().uploadFile({
+        file: {
+          originalname: 'qa.xlsx',
+          mimetype: XLSX_MIME,
+          size: 100,
+          buffer: Buffer.from('x'),
+        } as Express.Multer.File,
+        leadId: 5,
+        sessionId: 12,
+        actor: { staffId: 1, caps: [{ section: 'crm_leads', action: 'edit' }] },
+      }),
+    ).rejects.toMatchObject({ response: { error: 'session_limit' } });
+  });
+
+  it('org xlsx upload inserts chunks and stays pending', async () => {
+    const buf = await buildSalesKitSampleXlsx();
+    repo.countFilesByFolder.mockResolvedValue(0);
+    repo.ensurePlaybook.mockResolvedValue({ id: 'pb1', status: 'draft' });
+    repo.insertFile.mockResolvedValue(fileRow());
+    repo.findFileById.mockResolvedValue(fileRow({ storage_key: 'dich-vu-seo-tong-the/qa/f1-mau.xlsx' }));
+    const out = await svc().uploadFile({
+      file: {
+        originalname: 'mau.xlsx',
+        mimetype: XLSX_MIME,
+        size: buf.length,
+        buffer: buf,
+      } as Express.Multer.File,
+      folderKey: 'dich-vu-seo-tong-the/qa',
+      actor: { staffId: 1, caps: [{ section: 'playbooks', action: 'configure' }] },
+    });
+    expect(fsApi.writeFileSync).toHaveBeenCalled();
+    expect(fsApi.renameSync).toHaveBeenCalled();
+    expect(repo.insertChunks).toHaveBeenCalled();
+    expect(repo.updateFileParse).toHaveBeenCalledWith('f1', 'pending', null);
+    expect(out.parse_status).toBe('pending');
+  });
+
+  it('session bag xlsx is ready without approve', async () => {
+    const buf = await buildSalesKitSampleXlsx();
+    intakePg.getSession.mockResolvedValue({ id: 12, lead_id: 5 });
+    repo.countFilesBySession.mockResolvedValue(0);
+    repo.ensurePlaybook.mockResolvedValue({ id: 'pb1', status: 'active' });
+    repo.insertFile.mockResolvedValue(
+      fileRow({ lead_id: 5, session_id: 12, folder_key: 'session/5/12' }),
+    );
+    repo.findFileById.mockResolvedValue(
+      fileRow({
+        lead_id: 5,
+        session_id: 12,
+        folder_key: 'session/5/12',
+        parse_status: 'ready',
+      }),
+    );
+    const out = await svc().uploadFile({
+      file: {
+        originalname: 'mau.xlsx',
+        mimetype: XLSX_MIME,
+        size: buf.length,
+        buffer: buf,
+      } as Express.Multer.File,
+      leadId: 5,
+      sessionId: 12,
+      actor: { staffId: 1, caps: [{ section: 'crm_leads', action: 'edit' }] },
+    });
+    expect(repo.updateFileParse).toHaveBeenCalledWith('f1', 'ready', null);
+    expect(out.parse_status).toBe('ready');
   });
 });

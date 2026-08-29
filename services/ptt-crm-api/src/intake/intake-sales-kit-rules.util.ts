@@ -255,6 +255,10 @@ export function emptyLibraryReply(kind: 'ask_library' | 'pricing_band' | 'battle
   return 'Chưa có file trong kho. Không bịa giá/case.';
 }
 
+export function emptyAskLibraryQueryReply(): string {
+  return 'Gõ câu hỏi để hỏi kho. Ví dụ: KH nói đắt.';
+}
+
 function replyForIntent(input: SalesKitRulesInput, gap: SalesKitRulesOutput['gap']): {
   reply_vi: string;
   next_question?: SalesKitRulesOutput['next_question'];
