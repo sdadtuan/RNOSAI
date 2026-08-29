@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   STAKEHOLDER_INFLUENCE_OPTIONS,
   type IntakeStakeholderRow,
@@ -18,8 +19,13 @@ export function IntakeStakeholderMatrix({
   defaultOpen = true,
   onChange,
 }: Props) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
-    <details className="intake-stakeholder-section" defaultOpen={defaultOpen}>
+    <details
+      className="intake-stakeholder-section"
+      open={open}
+      onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
+    >
       <summary className="intake-stakeholder-section__summary">
         <span>E. Ma trận stakeholder &quot;Stakeholder matrix&quot;</span>
         <span className="muted">Decision Maker · Influencer · Gatekeeper · User</span>
