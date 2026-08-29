@@ -10,6 +10,7 @@ import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
 import { IntakeDealBar } from '@/components/crm/intake/IntakeDealBar';
 import { IntakeHandoffTab } from '@/components/crm/intake/IntakeHandoffTab';
 import { IntakeQualifyTab } from '@/components/crm/intake/IntakeQualifyTab';
+import { IntakeSalesKitPanel } from '@/components/crm/intake/IntakeSalesKitPanel';
 import { IntakeSessionSidebar } from '@/components/crm/intake/IntakeSessionSidebar';
 import { IntakeWinIntelSection } from '@/components/crm/intake/IntakeWinIntelSection';
 import { IntakeWorkspaceTabs } from '@/components/crm/intake/IntakeWorkspaceTabs';
@@ -33,6 +34,7 @@ import {
   staffMe,
   staffRefresh,
   type IntakeLeadContext,
+  type IntakeSalesKitOutput,
   type IntakeSessionRow,
   type LeadFunnelSnapshot,
   type LeadRow,
@@ -65,6 +67,11 @@ import {
   type BantRowUi,
 } from '@/lib/crm/intake-bant';
 import { buildIntakeAnswersPatch } from '@/lib/crm/intake-answers';
+import {
+  applySalesKitToForm,
+  type SalesKitApplySelected,
+} from '@/lib/crm/intake-sales-kit-apply';
+import { intakeSalesKitEnabled, intakeSalesKitLlmEnabled } from '@/lib/crm/intake-sales-kit-flags';
 import {
   emptyWinIntel,
   type WinIntelKey,
@@ -148,6 +155,7 @@ export function IntakeContent({
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [kitOpen, setKitOpen] = useState(false);
   const [lead, setLead] = useState<LeadRow | null>(null);
   const [funnelSnap, setFunnelSnap] = useState<LeadFunnelSnapshot | null>(null);
   const [consultGate, setConsultGate] = useState<ConsultGateState | null>(null);
@@ -241,6 +249,8 @@ export function IntakeContent({
     ],
   );
   const liveBantTotal = useMemo(() => computeBantTotal(bant), [bant]);
+  const kitEnabled = intakeSalesKitEnabled();
+  const kitLlmEnabled = intakeSalesKitLlmEnabled();
 
   const resolvedSlug = useMemo(
     () =>
@@ -618,10 +628,21 @@ export function IntakeContent({
   }
 
   const performSave = useCallback(
-    async (options?: { silent?: boolean }) => {
+    async (options?: {
+      silent?: boolean;
+      overrides?: {
+        bant?: Record<string, number>;
+        discovery?: DiscoveryChecklistState;
+        winIntel?: WinIntelState;
+      };
+    }) => {
       if (!active || !user || saveInFlightRef.current) return false;
       const access = getAccessToken();
       if (!access) return false;
+
+      const nextBant = options?.overrides?.bant ?? bant;
+      const nextDiscovery = options?.overrides?.discovery ?? discovery;
+      const nextWinIntel = options?.overrides?.winIntel ?? winIntel;
 
       saveInFlightRef.current = true;
       if (!options?.silent) {
@@ -632,16 +653,16 @@ export function IntakeContent({
 
       try {
         await patchIntakeSession(access, active.id, {
-          bant_json: bant,
+          bant_json: nextBant,
           decision,
           decision_reason: decisionReason,
           contact_name: contactName,
           answers_json: buildIntakeAnswersPatch({
             existing: active.answers_json,
             need,
-            discovery: { ...discovery, mode: sessionMode },
+            discovery: { ...nextDiscovery, mode: sessionMode },
             redFlags,
-            winIntel,
+            winIntel: nextWinIntel,
             qualifyChecked,
           }),
           stakeholders_json: stakeholdersToPatch(stakeholders),
@@ -933,6 +954,28 @@ export function IntakeContent({
     }
   }
 
+  async function onApplySalesKit(
+    apply: IntakeSalesKitOutput['apply'],
+    selected: SalesKitApplySelected & { summary: boolean },
+  ) {
+    if (!active || !canCreate || active.status === 'completed') return;
+    const next = applySalesKitToForm({ discovery, winIntel, bant }, apply, selected);
+    setDiscovery(next.discovery);
+    setWinIntel(next.winIntel);
+    setBant(next.bant);
+    try {
+      await performSave({ silent: true, overrides: next });
+      if (selected.summary && apply.ai_summary?.trim()) {
+        await onAiSummary();
+      } else {
+        setMessage('Đã áp dụng Sales Kit vào form');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Áp dụng Sales Kit thất bại');
+      throw err;
+    }
+  }
+
   function logout() {
     clearSession();
     router.push('/login');
@@ -999,7 +1042,11 @@ export function IntakeContent({
         ) : null}
 
         {!loading && contextOk ? (
-          <div className={`intake-layout${sidebarOpen ? ' intake-layout--sidebar-open' : ''}`}>
+          <div
+            className={`intake-layout${sidebarOpen ? ' intake-layout--sidebar-open' : ''}${
+              kitEnabled ? ' intake-layout--with-kit' : ''
+            }${kitEnabled && kitOpen ? ' intake-layout--kit-open' : ''}`}
+          >
             <button
               type="button"
               className="btn btn-secondary btn-sm intake-layout__sidebar-toggle"
@@ -1015,6 +1062,15 @@ export function IntakeContent({
                 className="intake-layout__backdrop"
                 aria-label="Đóng danh sách phiên"
                 onClick={() => setSidebarOpen(false)}
+              />
+            ) : null}
+
+            {kitEnabled && kitOpen ? (
+              <button
+                type="button"
+                className="intake-layout__kit-backdrop"
+                aria-label="Đóng Sales Kit"
+                onClick={() => setKitOpen(false)}
               />
             ) : null}
 
@@ -1037,6 +1093,18 @@ export function IntakeContent({
             <div
               className={`intake-layout__main stack-gap${leadId > 0 ? ' intake-layout__main--stepper' : ''}`}
             >
+              {kitEnabled ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm intake-layout__kit-toggle"
+                  onClick={() => setKitOpen(true)}
+                  aria-expanded={kitOpen}
+                  aria-controls="intake-sales-kit"
+                >
+                  Sales Kit
+                </button>
+              ) : null}
+
               <IntakeDealBar
                 leadName={dealLeadName}
                 companyName={dealCompany}
@@ -1216,6 +1284,29 @@ export function IntakeContent({
                 <p className="muted">Chưa có phiên — tạo phiên mới ở cột trái.</p>
               )}
             </div>
+
+            {kitEnabled ? (
+              <aside
+                id="intake-sales-kit"
+                className={`intake-layout__kit${kitOpen ? ' intake-layout__kit--open' : ''}`}
+              >
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm intake-layout__kit-close"
+                  onClick={() => setKitOpen(false)}
+                >
+                  Đóng
+                </button>
+                <IntakeSalesKitPanel
+                  sessionId={active?.id ?? null}
+                  canEdit={canCreate && active?.status !== 'completed'}
+                  llmEnabled={kitLlmEnabled}
+                  sciExcerpt={sciExcerpt}
+                  onApply={(apply, selected) => void onApplySalesKit(apply, selected)}
+                  onFocusTab={setActiveTab}
+                />
+              </aside>
+            ) : null}
           </div>
         ) : null}
       </div>
