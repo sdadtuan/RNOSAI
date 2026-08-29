@@ -60,4 +60,12 @@ describe('AiIntelligenceConfigService', () => {
     process.env.PTT_AI_TOOLS_API_ENABLED = '1';
     expect(new AiIntelligenceConfigService().toolsApiEnabled).toBe(true);
   });
+
+  it('defaults intake sales kit LLM off and parses its feature flag', () => {
+    delete process.env.PTT_INTAKE_SALES_KIT_LLM;
+    expect(new AiIntelligenceConfigService().intakeSalesKitLlmEnabled).toBe(false);
+
+    process.env.PTT_INTAKE_SALES_KIT_LLM = '1';
+    expect(new AiIntelligenceConfigService().intakeSalesKitLlmEnabled).toBe(true);
+  });
 });

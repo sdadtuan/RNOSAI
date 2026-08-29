@@ -35,6 +35,8 @@ export const AI_USE_CASE = {
   ORCHESTRATION_STEP: 'orchestration_step',
   TOOL_CALL: 'tool_call',
   INTAKE_SALES_KIT_INGEST: 'intake_sales_kit_ingest',
+  INTAKE_SALES_KIT: 'intake_sales_kit',
+  INTAKE_AI_SUMMARY: 'intake_ai_summary',
 } as const;
 
 export type AiUseCase = (typeof AI_USE_CASE)[keyof typeof AI_USE_CASE];

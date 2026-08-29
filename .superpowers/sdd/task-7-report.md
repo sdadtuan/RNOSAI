@@ -1,34 +1,40 @@
-# Task 7 report — Leads repository PostgreSQL-only cutover
+# Task 7 Report: LLM safety util + flag
 
-## Status
+**Status:** Done
 
-Implemented Wave 2 Task 7 only.
+**Branch:** `feat/intake-sales-kit-s3-s4`
 
-- `LeadsRepository` now serves list and detail reads exclusively through `PgLeadsRepository`.
-- Removed the SQLite repository injection, read-source branches, and SQLite database-path override.
-- `LeadsModule` now provides PostgreSQL leads repositories only.
-- `AppConfigService.leadsReadSource` is fixed to `'pg'`; `PTT_LEADS_READ_SOURCE` no longer selects SQLite.
-- Deleted `sqlite-leads.repository.ts`.
-- Added a repository test covering PostgreSQL-only list and detail delegation.
-- Task 8 was not started.
+## Deliverables
 
-## Verification
+| File | Action |
+|------|--------|
+| `services/ptt-crm-api/src/intake/intake-sales-kit-llm.util.ts` | Created |
+| `services/ptt-crm-api/src/intake/intake-sales-kit-llm.util.spec.ts` | Created |
+| `services/ptt-crm-api/src/ai-intelligence/ai-intelligence.config.ts` | Added `intakeSalesKitLlmEnabled` via `envFlag('PTT_INTAKE_SALES_KIT_LLM', false)` |
+| `services/ptt-crm-api/src/ai-intelligence/ai-intelligence.config.spec.ts` | Flag default/parse test |
+| `services/ptt-crm-api/src/ai-intelligence/ai-audit.constants.ts` | Added `INTAKE_SALES_KIT`, `INTAKE_AI_SUMMARY` (kept existing `INTAKE_SALES_KIT_INGEST`) |
 
-- `npm --prefix services/ptt-crm-api test -- --runInBand src/leads`
-  - 36 suites passed.
-  - 131 tests passed.
-- `npm --prefix services/ptt-crm-api run build`
-  - Passed.
+## Implementation
 
-## Smoke coverage
+- **`assertNoInventedMoney`**: returns `false` when reply matches `/\d+\s*(tr|triệu|vnd|đ)/i` and no citation kind in `pricing|qa|case`.
+- **`stripInventedMoney`**: replaces money phrases with `[số đã ẩn]`.
+- **`buildKitLlmSystemPrompt`**: Vietnamese system prompt — no invented numbers/KPI/case, one idea per reply, no outbound drafts, mask phone, excerpt-only citations.
+- **Flag default:** `PTT_INTAKE_SALES_KIT_LLM` defaults **off** (`false`).
 
-The repository delegation test covers the leads API read path, and the successful Nest build verifies module wiring. No live PostgreSQL-backed `/crm/leads` smoke was run because this task did not start a configured authenticated CRM environment.
+## Tests
+
+```
+PASS intake-sales-kit-llm.util.spec.ts (4 tests)
+PASS ai-intelligence.config.spec.ts (+1 intakeSalesKitLlmEnabled test)
+```
+
+TDD: money-guard spec written before util implementation.
+
+## Out of scope (Task 8)
+
+- No LLM wiring in `intake.service.ts` yet.
+- `sales-kit-library.service.ts` still reads env directly; can migrate to config in Task 8.
 
 ## Concerns
 
-- Deployments must have PostgreSQL connectivity and the leads schema/data ready because the SQLite fallback has been removed.
-- The npm commands emit the existing unsupported `devdir` configuration warning.
-
-## Commit
-
-`Serve leads API read path from PostgreSQL only.`
+- None blocking. Regex may need tuning for edge cases (e.g. `20tr` without space) in later UAT.
