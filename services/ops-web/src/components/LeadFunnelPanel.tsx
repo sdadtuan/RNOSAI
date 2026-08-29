@@ -47,6 +47,8 @@ interface Props {
   hideM1Card?: boolean;
   /** S0: B2B + B2 xong. Khi false, không render #funnel-presales. */
   showPresalesBlock?: boolean;
+  /** S1: softphone vừa gọi — nhắc AM chọn outcome. */
+  highlightAfterCall?: boolean;
 }
 
 const DEFAULT_PRESALES_SERVICES: Array<{ slug: string; name: string }> = [
@@ -89,6 +91,7 @@ export function LeadFunnelPanel({
   onFunnelUpdated,
   hideM1Card = false,
   showPresalesBlock = true,
+  highlightAfterCall = false,
 }: Props) {
   const [funnel, setFunnel] = useState<LeadFunnelSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -488,6 +491,7 @@ export function LeadFunnelPanel({
             busy={busy}
             retryCount={negativeReportCount}
             lastNegativeLabel={funnel.care_pipeline.last_b2_care_status_label}
+            highlightAfterCall={highlightAfterCall}
             onSubmit={(plan) => submitB2Outcome(plan)}
             onError={setPanelError}
           />

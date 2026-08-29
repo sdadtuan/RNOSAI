@@ -11,6 +11,11 @@ import {
   type ContractReadinessCheck,
   type LeadContractRow,
 } from '@/lib/api';
+import {
+  contractCreateReady,
+  contractSubmitReady,
+  readinessCheckHref,
+} from '@/lib/crm/lead-contract-ready';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
 import type { LeadContractFlowSummary } from '@/components/LeadB2bSalesFlowBar';
 
@@ -21,7 +26,7 @@ interface Props {
   refreshToken?: number;
   onMessage?: (msg: string) => void;
   onError?: (msg: string) => void;
-  onLoaded?: (summary: LeadContractFlowSummary) => void;
+  onLoaded?: (summary: LeadContractFlowSummary, checks: ContractReadinessCheck[]) => void;
 }
 
 export function LeadContractPanel({
@@ -57,12 +62,15 @@ export function LeadContractPanel({
         data.lifecycle_id != null && data.lifecycle_id > 0 ? data.lifecycle_id : null;
       setLifecycleId(lifecycle);
       if (data.contract?.amount_vnd) setAmount(String(data.contract.amount_vnd));
-      onLoaded?.({
-        hasContract: Boolean(data.contract),
-        contractStatus: data.contract?.status ?? null,
-        pendingApproval: data.approval?.status === 'pending',
-        lifecycleId: lifecycle,
-      });
+      onLoaded?.(
+        {
+          hasContract: Boolean(data.contract),
+          contractStatus: data.contract?.status ?? null,
+          pendingApproval: data.approval?.status === 'pending',
+          lifecycleId: lifecycle,
+        },
+        data.checks ?? [],
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Tải HĐ thất bại';
       setPanelError(msg);
@@ -125,7 +133,8 @@ export function LeadContractPanel({
 
   if (loading) return <p className="muted">Đang tải hợp đồng…</p>;
 
-  const submitReady = checks.filter((c) => c.key !== 'no_pending_approval').every((c) => c.ok);
+  const submitReady = contractSubmitReady(checks);
+  const createReady = contractCreateReady(checks);
   const pending = approval?.status === 'pending';
 
   return (
@@ -150,12 +159,22 @@ export function LeadContractPanel({
       </p>
 
       <ul style={{ margin: '0 0 1rem', paddingLeft: '1.1rem', fontSize: '0.9rem' }}>
-        {checks.map((c) => (
-          <li key={c.key} style={{ color: c.ok ? 'var(--success, #16a34a)' : 'var(--error, #dc2626)' }}>
-            {c.ok ? '✓' : '○'} {c.label}
-            {c.message && !c.ok ? ` — ${c.message}` : ''}
-          </li>
-        ))}
+        {checks.map((c) => {
+          const href = !c.ok ? readinessCheckHref(c.key, leadId) : null;
+          return (
+            <li key={c.key} style={{ color: c.ok ? 'var(--success, #16a34a)' : 'var(--error, #dc2626)' }}>
+              {c.ok ? '✓' : '○'}{' '}
+              {href ? (
+                <Link href={href} className="nav-link">
+                  {c.label}
+                </Link>
+              ) : (
+                c.label
+              )}
+              {c.message && !c.ok ? ` — ${c.message}` : ''}
+            </li>
+          );
+        })}
       </ul>
 
       {contract ? (
@@ -173,13 +192,19 @@ export function LeadContractPanel({
           <label style={{ display: 'grid', gap: '0.25rem' }}>
             <span className="muted">Giá trị HĐ (VND)</span>
             <input
+              id="lead-contract-amount"
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               style={{ padding: '0.45rem 0.6rem', borderRadius: 8, border: '1px solid var(--border)' }}
             />
           </label>
-          <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void onCreateDraft()}>
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            disabled={busy || !createReady}
+            onClick={() => void onCreateDraft()}
+          >
             Tạo HĐ draft
           </button>
         </div>
@@ -190,6 +215,7 @@ export function LeadContractPanel({
           <label style={{ display: 'grid', gap: '0.25rem' }}>
             <span className="muted">Giá trị HĐ (VND)</span>
             <input
+              id="lead-contract-amount"
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
@@ -209,6 +235,7 @@ export function LeadContractPanel({
             />
           </label>
           <button
+            id="lead-contract-submit"
             type="button"
             className="btn btn-sm btn-primary"
             disabled={busy || !submitReady}

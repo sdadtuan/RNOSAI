@@ -182,6 +182,8 @@ Khi `contractActive` + `lifecycleId`: `done` + `href` `/crm/service-delivery/{id
 
 ## 5. NBA — mở rộng (S1)
 
+**Spec con (source of truth S1):** [LIFE-S1-20260829](./2026-08-29-lifecycle-s1-nba-contract-design.md).
+
 File: `lead-next-action.ts`. **Không** phá rule 1–7, 9–10 đã lock LEAD-WS.
 
 ### 5.1. Kind mới
@@ -333,9 +335,9 @@ Debrief B2B: kích hoạt rule 9 khi `won`/`lost` + `debrief_pending` (đã có 
 ## 13. Next step
 
 1. PO duyệt file này (đặc biệt §4 và §12).  
-2. Plan S0: [2026-08-28-lifecycle-s0-stage-visibility.md](../plans/2026-08-28-lifecycle-s0-stage-visibility.md).  
+2. S0 đã ship (`cb7abdbb`). Spec S1: [2026-08-29-lifecycle-s1-nba-contract-design.md](./2026-08-29-lifecycle-s1-nba-contract-design.md).  
 3. Spec con 2 trang **Promote → Agency Client** trước WS2.  
-4. Không implement WS2/WS3 trong cùng PR với S0.
+4. Không gộp WS2/WS3/WS4 trong PR S1.
 
 ---
 

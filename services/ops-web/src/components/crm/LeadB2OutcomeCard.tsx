@@ -20,6 +20,7 @@ type Props = {
   busy: boolean;
   retryCount?: number;
   lastNegativeLabel?: string | null;
+  highlightAfterCall?: boolean;
   onSubmit: (plan: B2OutcomePlan) => Promise<void>;
   onError: (msg: string) => void;
 };
@@ -28,6 +29,7 @@ export function LeadB2OutcomeCard({
   busy,
   retryCount = 0,
   lastNegativeLabel,
+  highlightAfterCall = false,
   onSubmit,
   onError,
 }: Props) {
@@ -61,6 +63,12 @@ export function LeadB2OutcomeCard({
           </button>
         ))}
       </div>
+
+      {highlightAfterCall ? (
+        <p className="lead-b2-outcome__hint lead-b2-outcome__hint--after-call">
+          Vừa gọi. Chọn kết quả rồi bấm Xong B2.
+        </p>
+      ) : null}
 
       <label className="lead-b2-outcome__note">
         Ghi chú

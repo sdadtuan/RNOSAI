@@ -16,7 +16,11 @@ export type NextActionKind =
   | 'open_deal_room'
   | 'apply_offer_ladder'
   | 'submit_debrief'
-  | 'add_activity';
+  | 'add_activity'
+  | 'create_contract'
+  | 'submit_contract'
+  | 'wait_contract_approval'
+  | 'open_contract_hub';
 
 export type LeadNextAction = {
   rule: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
@@ -38,6 +42,11 @@ export type LeadNextActionInput = {
   prepStage: string | null;
   debriefPending: boolean;
   handoffStatus: string | null;
+  hasContract: boolean;
+  contractStatus: string | null;
+  pendingApproval: boolean;
+  submitReady: boolean;
+  createReady: boolean;
 };
 
 function hasContact(input: LeadNextActionInput): boolean {
@@ -104,20 +113,55 @@ export function resolveLeadNextAction(input: LeadNextActionInput): LeadNextActio
     };
   }
 
+  const contractStatus = (input.contractStatus ?? '').trim().toLowerCase();
+
+  if (input.pendingApproval) {
+    return {
+      rule: 8,
+      title_vi: 'Chờ GDKD duyệt',
+      body_vi: 'Đã gửi — không submit lại.',
+      primary: { label_vi: 'Chờ GDKD duyệt', action: 'wait_contract_approval' },
+      secondary: [{ label_vi: 'Hub · HĐ chờ duyệt', action: 'open_contract_hub' }],
+    };
+  }
+
+  if (input.hasContract && contractStatus === 'draft' && input.submitReady) {
+    return {
+      rule: 8,
+      title_vi: 'Gửi GDKD duyệt',
+      body_vi: 'Gate đủ — gửi HĐ, GDKD duyệt trên Hub.',
+      primary: { label_vi: 'Gửi GDKD duyệt', action: 'submit_contract' },
+      secondary: [{ label_vi: 'Hub · HĐ chờ duyệt', action: 'open_contract_hub' }],
+    };
+  }
+
   const m3 =
     input.dealRoomEnabled &&
     input.b2Complete &&
     (prepStage === 'm3_pre_close' || stage === 'proposal');
   if (m3) {
+    const secondary: LeadNextAction['secondary'] =
+      stage === 'proposal' && !input.hasContract
+        ? [{ label_vi: 'Tạo HĐ draft', action: 'create_contract' }]
+        : prep === 'ready'
+          ? [{ label_vi: 'Tạo báo giá 3 gói', action: 'apply_offer_ladder' }]
+          : [];
     return {
       rule: 8,
       title_vi: 'Chuẩn bị buổi chốt',
       body_vi: 'Mở Deal Room — narrative, 3 gói, close ask.',
       primary: { label_vi: 'Mở Deal Room', action: 'open_deal_room' },
-      secondary:
-        prep === 'ready'
-          ? [{ label_vi: 'Tạo báo giá 3 gói', action: 'apply_offer_ladder' }]
-          : [],
+      secondary,
+    };
+  }
+
+  if (stage === 'proposal' && !input.hasContract && !input.dealRoomEnabled && input.createReady) {
+    return {
+      rule: 8,
+      title_vi: 'Tạo HĐ draft',
+      body_vi: 'Deal Room tắt — tạo draft trên panel HĐ.',
+      primary: { label_vi: 'Tạo HĐ draft', action: 'create_contract' },
+      secondary: [],
     };
   }
 

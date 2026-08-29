@@ -8,11 +8,13 @@ export function LeadMobileCallBar({
   leadId,
   accessToken,
   onCopy,
+  onCallPlaced,
 }: {
   phone: string;
   leadId: number;
   accessToken?: string | null;
   onCopy?: (value: string, label: string) => void;
+  onCallPlaced?: (mode: 'webrtc' | 'server' | 'tel') => void;
 }) {
   if (!phone.trim()) return null;
 
@@ -20,7 +22,8 @@ export function LeadMobileCallBar({
     if (!accessToken) return;
     event.preventDefault();
     try {
-      await placeB2bSoftphoneCall({ accessToken, leadId, phone });
+      const mode = await placeB2bSoftphoneCall({ accessToken, leadId, phone });
+      onCallPlaced?.(mode);
     } catch (err) {
       if (shouldTelFallbackOnCallError(err)) {
         window.location.href = phoneTelHref(phone);

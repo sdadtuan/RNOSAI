@@ -37,6 +37,7 @@ import {
 import { aiCopilotEnabled } from '@/lib/ai-flags';
 import { dealRoomEnabled } from '@/lib/crm/deal-room-flags';
 import { resolveLeadNextAction, type NextActionKind } from '@/lib/crm/lead-next-action';
+import { contractCreateReady, contractSubmitReady } from '@/lib/crm/lead-contract-ready';
 import { leadMeetingPrepEnabled } from '@/lib/crm/lmp-flags';
 import {
   applyLeadMeetingPrepOfferLadder,
@@ -195,6 +196,7 @@ export default function CrmLeadDetailPage() {
   const [copilotMessage, setCopilotMessage] = useState('');
   const [funnelSnap, setFunnelSnap] = useState<LeadFunnelSnapshot | null>(null);
   const [contractSummary, setContractSummary] = useState<LeadContractFlowSummary | null>(null);
+  const [contractChecks, setContractChecks] = useState<Array<{ key: string; ok: boolean }>>([]);
   const [contractRefresh, setContractRefresh] = useState(0);
   const [statusOptionsApi, setStatusOptionsApi] = useState<LeadStatusOptionsResponse | null>(null);
   const [statusOptionsLoading, setStatusOptionsLoading] = useState(false);
@@ -207,6 +209,7 @@ export default function CrmLeadDetailPage() {
   const [companyName, setCompanyName] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [nbaBusy, setNbaBusy] = useState(false);
+  const [b2CallJustPlaced, setB2CallJustPlaced] = useState(false);
   const [cockpitOpen, setCockpitOpen] = useState(false);
   const prepPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const layout = useLeadDetailLayout();
@@ -255,8 +258,13 @@ export default function CrmLeadDetailPage() {
       prepStage: prep?.prep_stage ?? null,
       debriefPending: Boolean(prep?.debrief_pending),
       handoffStatus: funnelSnap?.presales?.handoff?.status ?? null,
+      hasContract: Boolean(contractSummary?.hasContract),
+      contractStatus: contractSummary?.contractStatus ?? null,
+      pendingApproval: Boolean(contractSummary?.pendingApproval),
+      submitReady: contractSubmitReady(contractChecks),
+      createReady: contractCreateReady(contractChecks),
     });
-  }, [lead, showLmpTab, funnelSnap, prep]);
+  }, [lead, showLmpTab, funnelSnap, prep, contractSummary, contractChecks]);
 
   const loadPrep = useCallback(async () => {
     const token = getAccessToken();
@@ -537,6 +545,21 @@ export default function CrmLeadDetailPage() {
           document.getElementById('lead-activity-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
         break;
+      case 'create_contract': {
+        document.getElementById('lead-contract')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.getElementById('lead-contract-amount')?.focus();
+        break;
+      }
+      case 'submit_contract': {
+        document.getElementById('lead-contract')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.getElementById('lead-contract-submit')?.focus();
+        break;
+      }
+      case 'wait_contract_approval':
+        break;
+      case 'open_contract_hub':
+        router.push('/crm/hub');
+        break;
       default:
         break;
     }
@@ -679,6 +702,8 @@ export default function CrmLeadDetailPage() {
 
   useEffect(() => {
     setContractSummary(null);
+    setContractChecks([]);
+    setB2CallJustPlaced(false);
   }, [leadId]);
 
   useEffect(() => {
@@ -694,6 +719,7 @@ export default function CrmLeadDetailPage() {
           lifecycleId:
             data.lifecycle_id != null && data.lifecycle_id > 0 ? data.lifecycle_id : null,
         });
+        setContractChecks(data.checks ?? []);
       })
       .catch(() => {
         if (cancelled) return;
@@ -703,6 +729,7 @@ export default function CrmLeadDetailPage() {
           pendingApproval: false,
           lifecycleId: null,
         });
+        setContractChecks([]);
       });
     return () => {
       cancelled = true;
@@ -958,6 +985,12 @@ export default function CrmLeadDetailPage() {
     void copyLeadContact(value, label, setMessage);
   }
 
+  const onSoftphonePlaced = useCallback(() => {
+    if (funnelSnap?.care_pipeline.all_complete) return;
+    setB2CallJustPlaced(true);
+    document.getElementById('funnel-b2')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [funnelSnap]);
+
   return (
     <StaffPageShell
       user={user}
@@ -1037,6 +1070,7 @@ export default function CrmLeadDetailPage() {
                   leadId={lead.id}
                   accessToken={accessToken}
                   onCopy={onCopyContact}
+                  onCallPlaced={onSoftphonePlaced}
                 />
               ) : null
             }
@@ -1158,6 +1192,7 @@ export default function CrmLeadDetailPage() {
                 }}
                 hideM1Card={showLmpTab}
                 showPresalesBlock={stageVis.showPresalesBlock}
+                highlightAfterCall={b2CallJustPlaced}
               />
             ) : null}
 
@@ -1168,7 +1203,10 @@ export default function CrmLeadDetailPage() {
                 user={user}
                 refreshToken={contractRefresh}
                 onMessage={setMessage}
-                onLoaded={setContractSummary}
+                onLoaded={(summary, checks) => {
+                  setContractSummary(summary);
+                  setContractChecks(checks.map((c) => ({ key: c.key, ok: c.ok })));
+                }}
               />
             ) : null}
               </>
@@ -1403,6 +1441,7 @@ export default function CrmLeadDetailPage() {
           leadId={lead.id}
           accessToken={accessToken}
           onCopy={onCopyContact}
+          onCallPlaced={onSoftphonePlaced}
         />
       ) : null}
 

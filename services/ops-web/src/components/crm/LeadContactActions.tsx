@@ -9,11 +9,13 @@ export function LeadContactActions({
   onCopy,
   leadId,
   accessToken,
+  onCallPlaced,
 }: {
   phone: string;
   onCopy: (value: string, label: string) => void;
   leadId?: number;
   accessToken?: string | null;
+  onCallPlaced?: (mode: 'webrtc' | 'server' | 'tel') => void;
 }) {
   const [callConsent, setCallConsent] = useState(false);
 
@@ -27,7 +29,8 @@ export function LeadContactActions({
     }
     event.preventDefault();
     try {
-      await placeB2bSoftphoneCall({ accessToken, leadId, phone });
+      const mode = await placeB2bSoftphoneCall({ accessToken, leadId, phone });
+      onCallPlaced?.(mode);
     } catch (err) {
       if (shouldTelFallbackOnCallError(err)) {
         window.location.href = phoneTelHref(phone);

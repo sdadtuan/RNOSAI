@@ -81,6 +81,7 @@ export function LeadNextActionCard({
               busy ||
               action.primary.action === 'wait_prep' ||
               action.primary.action === 'wait_handoff' ||
+              action.primary.action === 'wait_contract_approval' ||
               (action.rule === 2 && !companyName.trim())
             }
             onClick={() => onAction(action.primary.action)}

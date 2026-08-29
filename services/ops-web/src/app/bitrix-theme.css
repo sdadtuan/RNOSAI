@@ -1345,6 +1345,11 @@ html.ops-shell-bitrix .lead-b2-outcome__hint--warn {
   color: #b45309;
 }
 
+html.ops-shell-bitrix .lead-b2-outcome__hint--after-call {
+  color: #17692f;
+  font-weight: 600;
+}
+
 html.ops-shell-bitrix .lead-b2-outcome__submit {
   justify-self: start;
 }

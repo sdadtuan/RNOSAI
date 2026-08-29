@@ -13,6 +13,11 @@ const base = {
   prepStage: null as string | null,
   debriefPending: false,
   handoffStatus: null as string | null,
+  hasContract: false,
+  contractStatus: null as string | null,
+  pendingApproval: false,
+  submitReady: false,
+  createReady: false,
 };
 
 describe('resolveLeadNextAction', () => {
@@ -110,7 +115,7 @@ describe('resolveLeadNextAction', () => {
     expect(out.primary.action).toBe('advance_presales');
   });
 
-  it('proposal + deal room → rule 8', () => {
+  it('S1-N1 proposal + deal room + no HĐ → Deal Room primary, Tạo HĐ secondary', () => {
     const out = resolveLeadNextAction({
       ...base,
       b2Complete: true,
@@ -119,7 +124,9 @@ describe('resolveLeadNextAction', () => {
       prepStage: 'm2_qualify_win',
     });
     expect(out.rule).toBe(8);
+    expect(out.title_vi).toBe('Chuẩn bị buổi chốt');
     expect(out.primary.action).toBe('open_deal_room');
+    expect(out.secondary.map((s) => s.action)).toEqual(['create_contract']);
   });
 
   it('prep_stage m3 also triggers rule 8', () => {
@@ -131,6 +138,80 @@ describe('resolveLeadNextAction', () => {
       prepStatus: 'ready',
     });
     expect(out.rule).toBe(8);
+  });
+
+  it('m3 at consult does not add Tạo HĐ', () => {
+    const out = resolveLeadNextAction({
+      ...base,
+      b2Complete: true,
+      presalesStage: 'consult',
+      prepStage: 'm3_pre_close',
+      prepStatus: 'ready',
+    });
+    expect(out.primary.action).toBe('open_deal_room');
+    expect(out.secondary.map((s) => s.action)).toEqual(['apply_offer_ladder']);
+  });
+
+  it('S1-N2 proposal + Deal Room off + createReady → Tạo HĐ primary', () => {
+    const out = resolveLeadNextAction({
+      ...base,
+      dealRoomEnabled: false,
+      b2Complete: true,
+      presalesStage: 'proposal',
+      createReady: true,
+    });
+    expect(out.rule).toBe(8);
+    expect(out.title_vi).toBe('Tạo HĐ draft');
+    expect(out.primary.action).toBe('create_contract');
+    expect(out.secondary).toEqual([]);
+  });
+
+  it('S1-N2 without createReady does not invent HĐ primary', () => {
+    const out = resolveLeadNextAction({
+      ...base,
+      dealRoomEnabled: false,
+      b2Complete: true,
+      presalesStage: 'proposal',
+      createReady: false,
+    });
+    expect(out.primary.action).not.toBe('create_contract');
+  });
+
+  it('S1-N3 draft + submitReady → Gửi GDKD', () => {
+    const out = resolveLeadNextAction({
+      ...base,
+      b2Complete: true,
+      presalesStage: 'proposal',
+      hasContract: true,
+      contractStatus: 'draft',
+      submitReady: true,
+    });
+    expect(out.rule).toBe(8);
+    expect(out.title_vi).toBe('Gửi GDKD duyệt');
+    expect(out.primary).toEqual({ label_vi: 'Gửi GDKD duyệt', action: 'submit_contract' });
+    expect(out.secondary.map((s) => s.action)).toEqual(['open_contract_hub']);
+  });
+
+  it('S1-N4 pending approval beats Deal Room and submit', () => {
+    const out = resolveLeadNextAction({
+      ...base,
+      b2Complete: true,
+      presalesStage: 'proposal',
+      hasContract: true,
+      contractStatus: 'draft',
+      pendingApproval: true,
+      submitReady: true,
+    });
+    expect(out.title_vi).toBe('Chờ GDKD duyệt');
+    expect(out.primary.action).toBe('wait_contract_approval');
+    expect(out.secondary.map((s) => s.action)).toEqual(['open_contract_hub']);
+  });
+
+  it('S1-N5 rule 5 title/action unchanged', () => {
+    const out = resolveLeadNextAction(base);
+    expect(out.rule).toBe(5);
+    expect(out.title_vi).toBe('Gọi đầu trong 15 phút');
+    expect(out.primary.action).toBe('add_activity');
   });
 
   it('chot + debrief_pending → rule 9', () => {
