@@ -43,6 +43,7 @@ export interface CreateIntakeSessionBody {
 
 export interface PatchIntakeSessionBody {
   mode?: string;
+  service_slug?: string;
   contact_name?: string;
   contact_role?: string;
   company_name?: string;

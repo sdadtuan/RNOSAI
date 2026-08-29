@@ -555,6 +555,7 @@ export function IntakeContent({
           lifecycleId,
           mode,
           lead,
+          serviceSlug: resolvedSlug,
         }),
       );
       await loadSessions(access, created.id);
@@ -565,6 +566,25 @@ export function IntakeContent({
       setError(err instanceof Error ? err.message : 'Tạo phiên thất bại');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onServiceChange(slug: string) {
+    if (active?.status === 'completed') {
+      setMessage('Reopen hoặc tạo phiên mới để đổi dịch vụ.');
+      return;
+    }
+    setServiceOverride(slug);
+    if (active?.status !== 'draft' || !canCreate) return;
+    const access = getAccessToken();
+    if (!access) return;
+    try {
+      await patchIntakeSession(access, active.id, { service_slug: slug });
+      setSessions((rows) =>
+        rows.map((row) => (row.id === active.id ? { ...row, service_slug: slug } : row)),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Đổi dịch vụ thất bại');
     }
   }
 
@@ -980,7 +1000,7 @@ export function IntakeContent({
                 slugMismatch={slugMismatch}
                 funnelCollapsed={funnelCollapsed}
                 onToggleFunnel={() => setFunnelCollapsed((collapsed) => !collapsed)}
-                onServiceChange={setServiceOverride}
+                onServiceChange={(slug) => void onServiceChange(slug)}
               />
 
               {helpOpen ? (

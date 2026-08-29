@@ -8,6 +8,7 @@ import {
 } from '@/lib/crm/intake-discovery';
 import { plainTextToRichHtml } from '@/lib/crm/intake-labels';
 import { parseRedFlags, type IntakeRedFlagsState } from '@/lib/crm/intake-red-flags';
+import { normalizeIntakeSlug } from '@/lib/crm/intake-service-resolve';
 import { normalizeStakeholders, type IntakeStakeholderRow } from '@/lib/crm/intake-stakeholders';
 
 export interface IntakeSessionFormState {
@@ -72,6 +73,7 @@ export function buildCreateIntakeSessionBody(input: {
   lifecycleId: number;
   mode: 'phone' | 'in_person';
   lead?: Pick<LeadRow, 'full_name' | 'source'> | null;
+  serviceSlug?: string;
 }): {
   lead_id?: number;
   lifecycle_id?: number;
@@ -89,7 +91,7 @@ export function buildCreateIntakeSessionBody(input: {
     source?: string;
   } = {
     mode: input.mode,
-    service_slug: '_common',
+    service_slug: normalizeIntakeSlug(input.serviceSlug) || '_common',
   };
   if (input.leadId > 0) body.lead_id = input.leadId;
   if (input.lifecycleId > 0) body.lifecycle_id = input.lifecycleId;

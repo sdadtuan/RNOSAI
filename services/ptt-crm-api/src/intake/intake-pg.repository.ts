@@ -274,6 +274,7 @@ export class IntakePgRepository implements OnModuleDestroy {
 
     const scalarFields = [
       'mode',
+      'service_slug',
       'contact_name',
       'contact_role',
       'company_name',
@@ -298,6 +299,9 @@ export class IntakePgRepository implements OnModuleDestroy {
       switch (field) {
         case 'mode':
           merged.mode = String(nextVal);
+          break;
+        case 'service_slug':
+          merged.service_slug = normalizeIntakeSlug(String(nextVal ?? '')) || COMMON_FORM_SLUG;
           break;
         case 'contact_name':
           merged.contact_name = String(nextVal);
@@ -357,7 +361,7 @@ export class IntakePgRepository implements OnModuleDestroy {
          decision_reason = $11,
          answers_json = $12::jsonb, stakeholders_json = $13::jsonb, commitments_json = $14::jsonb,
          next_meeting_at = $15, next_meeting_note = $16, proposal_date = $17,
-         status = $18, updated_at = NOW()
+         status = $18, service_slug = $19, updated_at = NOW()
        WHERE id = $1`,
       [
         pgSessionId,
@@ -378,6 +382,7 @@ export class IntakePgRepository implements OnModuleDestroy {
         String(merged.next_meeting_note ?? '').slice(0, 4000),
         String(merged.proposal_date ?? '').slice(0, 50),
         String(merged.status ?? 'draft').slice(0, 20),
+        String(merged.service_slug ?? COMMON_FORM_SLUG).slice(0, 200),
       ],
     );
 
