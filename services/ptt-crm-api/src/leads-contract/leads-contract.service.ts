@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { AgencySideEffectsService } from '../agency/agency-side-effects.service';
 import { B2bCommissionLedgerService } from '../b2b-projects/b2b-commission-ledger.service';
 import { SopAutoStartService } from '../sop/sop-auto-start.service';
 import { LeadsContractPgRepository } from './leads-contract-pg.repository';
@@ -16,6 +17,7 @@ export class LeadsContractService {
     private readonly pgRepo: LeadsContractPgRepository,
     private readonly sopAutoStart: SopAutoStartService,
     private readonly b2bCommissionLedger: B2bCommissionLedgerService,
+    @Optional() private readonly agencySideEffects?: AgencySideEffectsService,
   ) {}
 
   getReadiness(leadId: number): Promise<ContractReadiness> {
@@ -64,6 +66,15 @@ export class LeadsContractService {
       contractId: result.contract.id,
       serviceSlug: result.contract.service_slug ?? '',
     });
+    if (
+      result.agency_client_link_mode === 'created' &&
+      result.agency_client_id &&
+      this.agencySideEffects
+    ) {
+      void this.agencySideEffects
+        .onClientCreated(result.agency_client_id, actor)
+        .catch(() => undefined);
+    }
     return { ...result, sop_auto_start: sop };
   }
 }

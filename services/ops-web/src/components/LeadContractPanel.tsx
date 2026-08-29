@@ -272,10 +272,27 @@ export function LeadContractPanel({
               <Link href={`/crm/service-delivery/${lifecycleId}`} className="nav-link">
                 Mở workflow triển khai →
               </Link>
-              {' · '}
-              <Link href="/agency/clients/new" className="nav-link">
-                Tạo Agency Client →
-              </Link>
+              {contract.agency_client_id?.trim() ? (
+                <>
+                  {' · '}
+                  <Link
+                    href={`/agency/clients/${encodeURIComponent(contract.agency_client_id.trim())}`}
+                    className="nav-link"
+                  >
+                    Mở Agency Client →
+                  </Link>
+                </>
+              ) : (
+                <>
+                  {' · '}
+                  <Link href="/agency/clients/new" className="nav-link">
+                    Tạo Agency Client →
+                  </Link>
+                  <span className="muted" style={{ display: 'block', marginTop: '0.25rem' }}>
+                    HĐ promote trước WS2 — tạo client thủ công nếu chưa có link tự động.
+                  </span>
+                </>
+              )}
             </p>
           ) : (
             <p className="muted" style={{ margin: '0.35rem 0 0' }}>
@@ -285,6 +302,11 @@ export function LeadContractPanel({
               </Link>
             </p>
           )}
+          {contract.notes?.includes('[needs_merge]') ? (
+            <p className="muted" style={{ marginTop: '0.35rem', color: 'var(--warning, #ca8a04)' }}>
+              Trùng tên client — Ops review merge trên Agency Client.
+            </p>
+          ) : null}
         </div>
       ) : null}
     </section>

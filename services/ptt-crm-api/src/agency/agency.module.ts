@@ -40,7 +40,7 @@ import { InternalKeyGuard } from '../auth/internal-key.guard';
     EventsModule,
     WebhooksModule,
     WorkflowsModule,
-    LeadsContractModule,
+    forwardRef(() => LeadsContractModule),
     forwardRef(() => ServiceLifecycleModule),
   ],
   controllers: [ClientsController, AgencyOpsController, AgencyCampaignWriteInternalController],

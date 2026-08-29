@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { AgencyModule } from '../agency/agency.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { LeadsModule } from '../leads/leads.module';
 import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
@@ -15,6 +16,7 @@ import { ServiceDeliveryNestGuard } from './guards/service-delivery-nest.guard';
 
 @Module({
   imports: [
+    forwardRef(() => AgencyModule),
     StaffAuthModule,
     SopModule,
     B2bProjectsModule,

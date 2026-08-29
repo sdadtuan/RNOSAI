@@ -1,6 +1,27 @@
 export type ContractStatus = 'draft' | 'active' | 'cancelled';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
+export type AgencyClientLinkMode =
+  | 'created'
+  | 'link_preexisting'
+  | 'link_lead'
+  | 'link_dedup_name'
+  | 'link_ambiguous';
+
+export interface PromoteAgencyClientResult {
+  agency_client_id: string;
+  agency_client_link_mode: AgencyClientLinkMode;
+}
+
+export interface ContractPromoteResult {
+  lifecycle_id: number;
+  customer_id: number;
+  case_id: number | null;
+  presales_id: number;
+  agency_client_id: string;
+  agency_client_link_mode: AgencyClientLinkMode;
+}
+
 export interface ContractRow {
   id: number;
   customer_id: number;

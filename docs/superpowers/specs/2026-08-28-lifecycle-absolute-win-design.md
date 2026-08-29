@@ -220,7 +220,9 @@ Nếu `placeB2bSoftphoneCall` success: set local `b2Outcome=talked` + focus `#fu
 **Không:** đổi copy status DB.  
 **UAT:** VIS-01…05 + NBA HĐ trên lead proposal.
 
-### WS2 — Cầu Agency Client (S2) — **cần PO spec 2 trang trước code**
+### WS2 — Cầu Agency Client (S2) — **spec con đã viết; chờ PO tick §12**
+
+**Spec con (source of truth WS2):** [LIFE-WS2-20260829](./2026-08-29-lifecycle-ws2-promote-agency-client-design.md).
 
 **Mục tiêu:** `ContractPromotePgUtil.run` (cùng transaction approve) tạo hoặc gắn Agency Client **draft**.
 
@@ -335,8 +337,8 @@ Debrief B2B: kích hoạt rule 9 khi `won`/`lost` + `debrief_pending` (đã có 
 ## 13. Next step
 
 1. PO duyệt file này (đặc biệt §4 và §12).  
-2. S0 đã ship (`cb7abdbb`). Spec S1: [2026-08-29-lifecycle-s1-nba-contract-design.md](./2026-08-29-lifecycle-s1-nba-contract-design.md).  
-3. Spec con 2 trang **Promote → Agency Client** trước WS2.  
+2. S0 + S1 đã ship (`a2614cac`). Spec WS2: [2026-08-29-lifecycle-ws2-promote-agency-client-design.md](./2026-08-29-lifecycle-ws2-promote-agency-client-design.md).  
+3. Spec con 2 trang **Promote → Agency Client** — **đã viết (WS2 spec)**; plan + code sau PO tick §12 WS2.  
 4. Không gộp WS2/WS3/WS4 trong PR S1.
 
 ---

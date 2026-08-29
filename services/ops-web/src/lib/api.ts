@@ -2001,6 +2001,7 @@ export interface LeadContractRow {
   service_slug: string;
   signed_on: string;
   notes: string;
+  agency_client_id?: string;
 }
 
 export interface ContractApprovalRow {
@@ -2084,6 +2085,8 @@ export async function approveContractApproval(token: string, approvalId: number)
   return leadFunnelMutate<{
     lifecycle_id: number;
     customer_id: number;
+    agency_client_id?: string;
+    agency_client_link_mode?: string;
     contract: LeadContractRow;
     sop_auto_start?: {
       started: boolean;

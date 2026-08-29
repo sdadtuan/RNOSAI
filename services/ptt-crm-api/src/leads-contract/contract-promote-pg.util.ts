@@ -1,6 +1,8 @@
 import type { PoolClient } from 'pg';
 import { PRESALES_STAGES } from '../leads-funnel/leads-funnel.types';
 import { validatePreliminaryPlan } from '../leads-funnel/presales-marketing-plan.util';
+import { ensureAgencyClientOnPromote } from './contract-promote-client-pg.util';
+import type { ContractPromoteResult } from './contract.types';
 import { seedPostOnboardLifecycleTasks } from './lifecycle-tasks-seed-pg.util';
 
 export interface PresalesPromoteSource {
@@ -36,7 +38,7 @@ export class ContractPromotePgUtil {
     ts: string,
     presalesSource?: PresalesPromoteSource,
     opts?: { manageTransaction?: boolean },
-  ): Promise<{ lifecycle_id: number; customer_id: number; case_id: number | null; presales_id: number }> {
+  ): Promise<ContractPromoteResult> {
     const manageTx = opts?.manageTransaction !== false;
     if (manageTx) await client.query('BEGIN');
     try {
@@ -65,13 +67,22 @@ export class ContractPromotePgUtil {
       }
 
       if (String(ps.status) === 'converted' && ps.lifecycle_id) {
+        const lifecycleId = Number(ps.lifecycle_id);
+        const assignedAm = ps.assigned_am != null ? Number(ps.assigned_am) : null;
+        const withClient = await this.finalizeWithAgencyClient(
+          client,
+          contract,
+          contractId,
+          leadId,
+          lifecycleId,
+          presalesId,
+          assignedAm,
+          actor,
+          Number(contract.customer_id),
+          contract.case_id != null ? Number(contract.case_id) : null,
+        );
         if (manageTx) await client.query('COMMIT');
-        return {
-          lifecycle_id: Number(ps.lifecycle_id),
-          customer_id: Number(contract.customer_id),
-          case_id: contract.case_id != null ? Number(contract.case_id) : null,
-          presales_id: presalesId,
-        };
+        return withClient;
       }
 
       if (presalesSource) {
@@ -143,17 +154,91 @@ export class ContractPromotePgUtil {
         await this.deletePlaceholderIfOrphan(client, placeholderId);
       }
 
+      const assignedAm =
+        ps.assigned_am != null
+          ? Number(ps.assigned_am)
+          : presalesSource?.assignedAm != null
+            ? Number(presalesSource.assignedAm)
+            : null;
+
+      const withClient = await this.finalizeWithAgencyClient(
+        client,
+        contract,
+        contractId,
+        leadId,
+        lifecycleId,
+        presalesId,
+        assignedAm,
+        actor,
+        convert.customer_id,
+        convert.case_id,
+      );
+
       if (manageTx) await client.query('COMMIT');
-      return {
-        lifecycle_id: lifecycleId,
-        customer_id: convert.customer_id,
-        case_id: convert.case_id,
-        presales_id: presalesId,
-      };
+      return withClient;
     } catch (err) {
       if (manageTx) await client.query('ROLLBACK');
       throw err;
     }
+  }
+
+  private async loadLeadPromoteContext(
+    client: PoolClient,
+    leadId: number,
+  ): Promise<{
+    full_name: string;
+    meta_json: string | null;
+    agency_client_id: string;
+    owner_id: number | null;
+  }> {
+    const result = await client.query(
+      `SELECT full_name, meta_json::text AS meta_json, agency_client_id::text AS agency_client_id, owner_id
+       FROM crm_leads WHERE sqlite_lead_id = $1`,
+      [leadId],
+    );
+    const row = result.rows[0] as Record<string, unknown> | undefined;
+    if (!row) throw new Error('Không tìm thấy lead');
+    return {
+      full_name: String(row.full_name ?? ''),
+      meta_json: row.meta_json != null ? String(row.meta_json) : null,
+      agency_client_id: String(row.agency_client_id ?? ''),
+      owner_id: row.owner_id != null ? Number(row.owner_id) : null,
+    };
+  }
+
+  private async finalizeWithAgencyClient(
+    client: PoolClient,
+    contract: Record<string, unknown>,
+    contractId: number,
+    leadId: number,
+    lifecycleId: number,
+    presalesId: number,
+    assignedAmStaffId: number | null,
+    actorEmail: string,
+    customerId: number,
+    caseId: number | null,
+  ): Promise<ContractPromoteResult> {
+    const leadCtx = await this.loadLeadPromoteContext(client, leadId);
+    const clientResult = await ensureAgencyClientOnPromote(client, {
+      contractId,
+      leadId,
+      lifecycleId,
+      contractAgencyClientId: String(contract.agency_client_id ?? ''),
+      leadAgencyClientId: leadCtx.agency_client_id,
+      leadMetaJson: leadCtx.meta_json,
+      leadFullName: leadCtx.full_name,
+      assignedAmStaffId,
+      leadOwnerStaffId: leadCtx.owner_id,
+      actorEmail,
+    });
+    return {
+      lifecycle_id: lifecycleId,
+      customer_id: customerId,
+      case_id: caseId,
+      presales_id: presalesId,
+      agency_client_id: clientResult.agency_client_id,
+      agency_client_link_mode: clientResult.agency_client_link_mode,
+    };
   }
 
   private async convertLeadToCrm(

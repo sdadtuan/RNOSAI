@@ -11,6 +11,7 @@ import type {
   ContractApprovalRow,
   ContractReadiness,
   ContractRow,
+  AgencyClientLinkMode,
   CreateContractBody,
   PatchContractBody,
 } from './contract.types';
@@ -426,6 +427,8 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
     lifecycle_id: number;
     customer_id: number;
     case_id: number | null;
+    agency_client_id: string;
+    agency_client_link_mode: AgencyClientLinkMode;
   }> {
     const client = await this.db.connect();
     try {
@@ -485,6 +488,8 @@ export class LeadsContractPgRepository implements OnModuleDestroy {
         lifecycle_id: promote.lifecycle_id,
         customer_id: promote.customer_id,
         case_id: promote.case_id,
+        agency_client_id: promote.agency_client_id,
+        agency_client_link_mode: promote.agency_client_link_mode,
       };
     } catch (err) {
       await client.query('ROLLBACK');
