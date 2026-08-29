@@ -12,9 +12,13 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
+import { memoryStorage } from 'multer';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
@@ -22,6 +26,7 @@ import { StaffIntakeViewGuard, StaffIntakeWriteGuard } from './guards/staff-inta
 import { IntakeStaffActor } from './intake-b2b-visibility.service';
 import { IntakeService } from './intake.service';
 import { CreateIntakeSessionBody, PatchIntakeSessionBody } from './intake.types';
+import { SalesKitLibraryService } from './sales-kit-library.service';
 
 type IntakeRequest = Request & {
   staffUser?: StaffJwtPayload;
@@ -34,6 +39,7 @@ export class IntakeController {
   constructor(
     private readonly intake: IntakeService,
     private readonly staffAuth: StaffAuthService,
+    private readonly library: SalesKitLibraryService,
   ) {}
 
   private async actorContext(req: IntakeRequest): Promise<IntakeStaffActor | null> {
@@ -158,5 +164,53 @@ export class IntakeController {
   @UseGuards(StaffIntakeWriteGuard)
   async deleteSession(@Req() req: IntakeRequest, @Param('id', ParseIntPipe) id: number) {
     return this.intake.deleteSession(id, await this.actorContext(req));
+  }
+
+  @Post('sales-kit/files')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffIntakeWriteGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 8 * 1024 * 1024 },
+    }),
+  )
+  async uploadSalesKitFile(
+    @Req() req: IntakeRequest,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { folder_key?: string; lead_id?: string; session_id?: string },
+  ) {
+    const leadId = body.lead_id ? Number(body.lead_id) : undefined;
+    const sessionId = body.session_id ? Number(body.session_id) : undefined;
+    return this.library.uploadFile({
+      file,
+      folderKey: body.folder_key,
+      leadId: leadId && Number.isFinite(leadId) ? leadId : undefined,
+      sessionId: sessionId && Number.isFinite(sessionId) ? sessionId : undefined,
+      actor: await this.actorContext(req),
+    });
+  }
+
+  @Get('sales-kit/files')
+  async listSalesKitFiles(
+    @Req() req: IntakeRequest,
+    @Query('folder_key') folderKey?: string,
+    @Query('session_id') sessionId?: string,
+  ) {
+    return this.library.listFiles(
+      { folder_key: folderKey, session_id: sessionId },
+      await this.actorContext(req),
+    );
+  }
+
+  @Post('sales-kit/files/:id/approve')
+  @UseGuards(StaffIntakeWriteGuard)
+  async approveSalesKitFile(@Req() req: IntakeRequest, @Param('id') id: string) {
+    return this.library.approveFile(id, await this.actorContext(req));
+  }
+
+  @Get('sales-kit/files/:id/download')
+  async downloadSalesKitFile(@Req() req: IntakeRequest, @Param('id') id: string) {
+    return this.library.downloadFile(id, await this.actorContext(req));
   }
 }

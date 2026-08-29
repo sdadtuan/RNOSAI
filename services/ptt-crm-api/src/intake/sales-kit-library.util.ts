@@ -21,7 +21,10 @@ export function folderKeyOk(key: string): boolean {
     .split('/')
     .filter(Boolean);
   if (parts.length < 2 || parts.length > 3) return false;
-  return parts.every((p) => /^[a-z0-9][a-z0-9-_]*$/.test(p));
+  return parts.every((p, i) => {
+    if (i === 0 && p === '_common') return true;
+    return /^[a-z0-9][a-z0-9-_]*$/.test(p);
+  });
 }
 
 export function playbookSlugForFolder(folderKey: string): string {

@@ -14,6 +14,15 @@ describe('sales-kit-library.util', () => {
     expect(folderKeyOk('a/b/c/d')).toBe(false);
   });
 
+  it('allows _common as first segment only', () => {
+    expect(folderKeyOk('_common/qa')).toBe(true);
+    expect(folderKeyOk('_common/battle-cards')).toBe(true);
+    expect(folderKeyOk('_common/qa/bds')).toBe(true);
+    expect(folderKeyOk('_other/qa')).toBe(false);
+    expect(folderKeyOk('../etc')).toBe(false);
+    expect(folderKeyOk('SEO/qa')).toBe(false);
+  });
+
   it('maps folder and session slugs', () => {
     expect(playbookSlugForFolder('dich-vu-seo-tong-the/qa')).toBe('sk-dich-vu-seo-tong-the-qa');
     expect(sessionFolderKey(5, 12)).toBe('session/5/12');

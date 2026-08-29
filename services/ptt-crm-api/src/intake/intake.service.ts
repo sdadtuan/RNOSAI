@@ -16,11 +16,15 @@ import {
 import { IntakePgRepository } from './intake-pg.repository';
 import {
   buildRulesInputFromSession,
+  emptyLibraryReply,
   isSalesKitIntent,
   runSalesKitRules,
+  type SalesKitCitation,
 } from './intake-sales-kit-rules.util';
 import { CreateIntakeSessionBody, PatchIntakeSessionBody } from './intake.types';
 import { IntakeB2bVisibilityService, IntakeStaffActor } from './intake-b2b-visibility.service';
+import { SalesKitLibraryService } from './sales-kit-library.service';
+import { qaAnswerFromBody, type SalesKitHit } from './sales-kit-retrieve.util';
 
 @Injectable()
 export class IntakeService {
@@ -31,6 +35,7 @@ export class IntakeService {
     private readonly funnelPg: LeadsFunnelPgRepository,
     private readonly config: AppConfigService,
     private readonly lmpRepo: LeadMeetingPrepRepository,
+    private readonly library: SalesKitLibraryService,
   ) {}
 
   getDefinitions() {
@@ -264,14 +269,39 @@ export class IntakeService {
     if (!isSalesKitIntent(body.intent)) {
       throw new BadRequestException({ error: 'intent_required' });
     }
-    return runSalesKitRules(
-      buildRulesInputFromSession({
-        intent: body.intent,
-        message: body.message,
-        serviceSlug: body.service_slug,
-        session,
-      }),
+    const input = buildRulesInputFromSession({
+      intent: body.intent,
+      message: body.message,
+      serviceSlug: body.service_slug,
+      session,
+    });
+    const rules = runSalesKitRules(input);
+    if (!needsLibrary(body.intent, body.message)) {
+      return rules;
+    }
+    const query =
+      body.intent === 'pricing_band'
+        ? `pricing ${input.serviceSlug}`
+        : String(body.message ?? '').trim();
+    const hits = await this.library.retrieveForSession(
+      { id: session.id, lead_id: session.lead_id, service_slug: input.serviceSlug },
+      query,
+      body.intent,
     );
+    if (!hits.length) {
+      const emptyKind =
+        body.intent === 'pricing_band' || body.intent === 'battle_card'
+          ? body.intent
+          : 'ask_library';
+      return { ...rules, citations: [], reply_vi: emptyLibraryReply(emptyKind) };
+    }
+    const top = hits[0]!;
+    return {
+      ...rules,
+      reply_vi: body.intent === 'pricing_band' ? top.body : qaAnswerFromBody(top.body),
+      citations: hits.map(toCitation),
+      stub_mode: true,
+    };
   }
 
   async generateAiSummary(id: number, actor?: IntakeStaffActor | null) {
@@ -291,4 +321,22 @@ export class IntakeService {
     }
     return updated;
   }
+}
+
+function needsLibrary(intent: string, message?: string): boolean {
+  if (intent === 'ask_library' || intent === 'pricing_band' || intent === 'battle_card') {
+    return true;
+  }
+  return intent === 'freeform' && /(đắt|giá|case|báo giá|band)/i.test(String(message ?? ''));
+}
+
+function toCitation(hit: SalesKitHit): SalesKitCitation {
+  return {
+    file_id: hit.file_id,
+    file_name: hit.file_name,
+    folder_path: hit.folder_path,
+    excerpt: hit.excerpt,
+    score: hit.score,
+    kind: hit.kind,
+  };
 }

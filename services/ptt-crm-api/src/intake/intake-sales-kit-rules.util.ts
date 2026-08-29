@@ -32,6 +32,15 @@ export type SalesKitRulesInput = {
   isPilot: boolean;
 };
 
+export type SalesKitCitation = {
+  file_id: string;
+  file_name: string;
+  folder_path: string;
+  excerpt: string;
+  score: number;
+  kind: string;
+};
+
 export type SalesKitRulesOutput = {
   reply_vi: string;
   next_question?: { key: string; text: string; tab: 'discovery' | 'qualify' | 'win_intel' };
@@ -43,7 +52,7 @@ export type SalesKitRulesOutput = {
     red_flags?: string[];
   };
   gap: { total: number; to_go: number; weakest: string[] };
-  citations: [];
+  citations: SalesKitCitation[];
   stub_mode: true;
 };
 
@@ -240,7 +249,7 @@ function discoverySnippets(input: SalesKitRulesInput, limit = 3): string[] {
   return out;
 }
 
-function emptyLibraryReply(kind: 'ask_library' | 'pricing_band' | 'battle_card'): string {
+export function emptyLibraryReply(kind: 'ask_library' | 'pricing_band' | 'battle_card'): string {
   if (kind === 'pricing_band') return 'Chưa có bảng giá trong kho. Không bịa số.';
   if (kind === 'battle_card') return 'Chưa có file battle-card trong kho.';
   return 'Chưa có file trong kho. Không bịa giá/case.';
