@@ -926,6 +926,12 @@ export default function CrmLeadDetailPage() {
     return staff ? staff.name : `#${lead.owner_id}`;
   }, [lead?.owner_id, staffOptions]);
 
+  const onSoftphonePlaced = useCallback(() => {
+    if (funnelB2Complete(funnelSnap)) return;
+    setB2CallJustPlaced(true);
+    document.getElementById('funnel-b2')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [funnelSnap]);
+
   if (!user) {
     return (
       <main style={{ padding: '2rem' }}>
@@ -992,12 +998,6 @@ export default function CrmLeadDetailPage() {
   function onCopyContact(value: string, label: string) {
     void copyLeadContact(value, label, setMessage);
   }
-
-  const onSoftphonePlaced = useCallback(() => {
-    if (funnelB2Complete(funnelSnap)) return;
-    setB2CallJustPlaced(true);
-    document.getElementById('funnel-b2')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [funnelSnap]);
 
   return (
     <StaffPageShell
