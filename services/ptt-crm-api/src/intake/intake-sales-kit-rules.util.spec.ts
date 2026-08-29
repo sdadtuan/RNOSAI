@@ -40,4 +40,9 @@ describe('runSalesKitRules', () => {
     expect(out.citations).toEqual([]);
     expect(out.reply_vi).toMatch(/Chưa có file|kho/i);
   });
+
+  it('summary text never contains [stub]', () => {
+    const out = runSalesKitRules({ ...base, intent: 'summary_30s' });
+    expect(out.reply_vi.includes('[stub]')).toBe(false);
+  });
 });

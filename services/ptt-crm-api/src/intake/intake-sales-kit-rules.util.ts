@@ -1,4 +1,9 @@
-import { BANT_KEYS, GO_THRESHOLDS } from './intake-definitions.util';
+import {
+  BANT_KEYS,
+  GO_THRESHOLDS,
+  getUiDefinition,
+} from './intake-definitions.util';
+import type { IntakeSessionRow } from './intake.types';
 
 export type SalesKitIntent =
   | 'next_question'
@@ -38,7 +43,75 @@ export type SalesKitRulesOutput = {
   stub_mode: true;
 };
 
+const SALES_KIT_INTENTS: readonly SalesKitIntent[] = [
+  'next_question',
+  'gap_to_go',
+  'win_intel',
+  'service_dive',
+  'summary_30s',
+  'red_flag',
+  'freeform',
+  'ask_library',
+  'battle_card',
+  'pricing_band',
+];
+
 const WIN_INTEL_KEYS = ['incumbent', 'competitor', 'selection_criteria', 'switch_risk'] as const;
+
+export function isSalesKitIntent(value: unknown): value is SalesKitIntent {
+  return typeof value === 'string' && (SALES_KIT_INTENTS as readonly string[]).includes(value);
+}
+
+function parseBantFromJson(raw: Record<string, unknown> | undefined): Record<string, number> {
+  const bant: Record<string, number> = {};
+  for (const key of BANT_KEYS) {
+    const n = Number(raw?.[key] ?? 0);
+    bant[key] = Number.isFinite(n) ? n : 0;
+  }
+  return bant;
+}
+
+function parseDiscoveryAnswers(
+  answersJson: Record<string, unknown> | undefined,
+): Record<string, { answer?: string }> {
+  const raw = answersJson?.discovery_responses;
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, { answer?: string }> = {};
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    if (val && typeof val === 'object') {
+      out[key] = { answer: String((val as Record<string, unknown>).answer ?? '') };
+    } else if (typeof val === 'string') {
+      out[key] = { answer: val };
+    }
+  }
+  return out;
+}
+
+export function buildRulesInputFromSession(opts: {
+  intent: SalesKitIntent;
+  message?: string;
+  session: Pick<IntakeSessionRow, 'service_slug' | 'mode' | 'bant_json' | 'answers_json'>;
+}): SalesKitRulesInput {
+  const slug = String(opts.session.service_slug ?? '').trim() || '_common';
+  const def = getUiDefinition(slug);
+  const mode = String(opts.session.mode ?? 'phone').trim() === 'in_person' ? 'in_person' : 'phone';
+  const items = (
+    mode === 'in_person' ? def.inperson_question_items : def.phone_question_items
+  ) as Array<{ key: string; text: string; critical?: boolean }> | undefined;
+  const qualifyRaw = Array.isArray(def.qualify_items) ? def.qualify_items : [];
+  return {
+    intent: opts.intent,
+    ...(opts.message !== undefined ? { message: opts.message } : {}),
+    bant: parseBantFromJson(opts.session.bant_json),
+    discoveryAnswers: parseDiscoveryAnswers(opts.session.answers_json),
+    criticalKeys: (items ?? []).filter((q) => q.critical).map((q) => q.key),
+    qualifyItems: qualifyRaw
+      .filter((q): q is { key: string; text: string } => Boolean(q && typeof q === 'object'))
+      .map((q) => ({ key: String(q.key ?? ''), text: String(q.text ?? '') })),
+    serviceSlug: slug,
+    isPilot: Boolean(def.is_pilot_form),
+  };
+}
 
 function isBlank(value?: string): boolean {
   return !String(value ?? '').trim();

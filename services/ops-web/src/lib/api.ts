@@ -2418,6 +2418,34 @@ export async function generateIntakeAiSummary(token: string, id: number): Promis
   });
 }
 
+export type IntakeSalesKitOutput = {
+  reply_vi: string;
+  next_question?: { key: string; text: string; tab: 'discovery' | 'qualify' | 'win_intel' };
+  apply: {
+    discovery?: Array<{ key: string; answer: string }>;
+    win_intel?: Partial<Record<string, string>>;
+    ai_summary?: string;
+    bant_hints?: Partial<Record<string, number>>;
+    red_flags?: string[];
+  };
+  gap: { total: number; to_go: number; weakest: string[] };
+  citations: unknown[];
+  stub_mode: boolean;
+  run_id?: string;
+};
+
+export async function postIntakeSalesKit(
+  token: string,
+  id: number,
+  body: { intent: string; message?: string },
+): Promise<IntakeSalesKitOutput> {
+  return crmFetch<IntakeSalesKitOutput>(token, `/api/crm/intake/sessions/${id}/sales-kit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function createCustomerRelation(
   token: string,
   customerId: number,

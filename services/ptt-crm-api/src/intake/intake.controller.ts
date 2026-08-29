@@ -118,6 +118,17 @@ export class IntakeController {
     return this.intake.generateAiSummary(id, await this.actorContext(req));
   }
 
+  @Post('sessions/:id/sales-kit')
+  @UseGuards(StaffIntakeWriteGuard)
+  @HttpCode(HttpStatus.OK)
+  async salesKit(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { intent?: string; message?: string },
+    @Req() req: IntakeRequest,
+  ) {
+    return this.intake.salesKitTurn(id, body, await this.actorContext(req));
+  }
+
   @Get('sessions/:id')
   async getSession(@Req() req: IntakeRequest, @Param('id', ParseIntPipe) id: number) {
     return this.intake.getSession(id, await this.actorContext(req));

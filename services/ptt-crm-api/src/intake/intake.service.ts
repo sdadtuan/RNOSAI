@@ -14,6 +14,11 @@ import {
   getUiDefinition,
 } from './intake-definitions.util';
 import { IntakePgRepository } from './intake-pg.repository';
+import {
+  buildRulesInputFromSession,
+  isSalesKitIntent,
+  runSalesKitRules,
+} from './intake-sales-kit-rules.util';
 import { CreateIntakeSessionBody, PatchIntakeSessionBody } from './intake.types';
 import { IntakeB2bVisibilityService, IntakeStaffActor } from './intake-b2b-visibility.service';
 
@@ -244,6 +249,30 @@ export class IntakeService {
     }
   }
 
+  async salesKitTurn(
+    id: number,
+    body: { intent?: string; message?: string },
+    actor?: IntakeStaffActor | null,
+  ) {
+    const session = await this.pg.getSession(id);
+    if (!session) {
+      throw new NotFoundException({ error: 'Không tìm thấy phiên' });
+    }
+    if (session.lead_id) {
+      await this.b2bVisibility.assertLeadVisible(session.lead_id, actor);
+    }
+    if (!isSalesKitIntent(body.intent)) {
+      throw new BadRequestException({ error: 'intent_required' });
+    }
+    return runSalesKitRules(
+      buildRulesInputFromSession({
+        intent: body.intent,
+        message: body.message,
+        session,
+      }),
+    );
+  }
+
   async generateAiSummary(id: number, actor?: IntakeStaffActor | null) {
     const session = await this.pg.getSession(id);
     if (!session) {
@@ -252,15 +281,10 @@ export class IntakeService {
     if (session.lead_id) {
       await this.b2bVisibility.assertLeadVisible(session.lead_id, actor);
     }
-    const hasKey = Boolean(String(process.env.ANTHROPIC_API_KEY ?? '').trim());
-    if (!hasKey) {
-      return {
-        ...session,
-        ai_summary: `[stub] Intake #${id} — configure ANTHROPIC_API_KEY for AI summary`,
-        stub: true,
-      };
-    }
-    const updated = await this.pg.saveAiSummaryStub(id);
+    const out = runSalesKitRules(
+      buildRulesInputFromSession({ intent: 'summary_30s', session }),
+    );
+    const updated = await this.pg.saveAiSummary(id, out.reply_vi);
     if (!updated) {
       throw new NotFoundException({ error: 'Không tìm thấy phiên' });
     }

@@ -630,26 +630,15 @@ export class IntakePgRepository implements OnModuleDestroy {
     return true;
   }
 
-  async saveAiSummaryStub(sessionId: number): Promise<IntakeSessionRow | null> {
+  async saveAiSummary(sessionId: number, summary: string): Promise<IntakeSessionRow | null> {
     const pgSessionId = await this.resolvePgSessionId(sessionId);
     if (!pgSessionId) return null;
 
-    const session = await this.getSession(sessionId);
-    if (!session) return null;
-    const parts = [
-      `Intake #${session.id}`,
-      session.contact_name ? `Liên hệ: ${session.contact_name}` : '',
-      session.company_name ? `Công ty: ${session.company_name}` : '',
-      `BANT ${session.bant_total ?? 0}/30`,
-      session.decision ? `Quyết định: ${session.decision}` : '',
-      session.decision_reason ? `Lý do: ${session.decision_reason.slice(0, 500)}` : '',
-    ].filter(Boolean);
-    const summary = parts.join(' · ').slice(0, 4000);
     await this.db.query(
       `UPDATE crm_lead_intake_sessions
        SET ai_summary = $2, updated_at = NOW()
        WHERE id = $1`,
-      [pgSessionId, summary],
+      [pgSessionId, String(summary ?? '').slice(0, 4000)],
     );
     return this.getSession(sessionId);
   }
