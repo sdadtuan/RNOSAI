@@ -151,7 +151,12 @@ export class IntakeSalesKitLlmService {
           ? String((parsed.next_question as { text: string }).text)
           : '');
       if (fromParsed) {
-        next.text = fromParsed;
+        let nextText = fromParsed;
+        if (!assertNoInventedMoney(nextText, citations)) {
+          const stripped = stripInventedMoney(nextText);
+          nextText = stripped || rules.next_question!.text;
+        }
+        next.text = nextText;
       }
     }
 

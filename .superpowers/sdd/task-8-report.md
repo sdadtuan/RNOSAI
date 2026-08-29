@@ -65,3 +65,22 @@ PASS sales-kit-library.service.spec.ts
 - Auto-enable LLM in deploy script
 - Merge `bant_hints` into `bant_json`
 - Dual-write S3 storage
+
+## Fix: gate next_question.text for invented money
+
+```
+cd services/ptt-crm-api && npx jest src/intake/intake-sales-kit-llm.service.spec.ts --no-coverage
+```
+
+```
+PASS src/intake/intake-sales-kit-llm.service.spec.ts
+  IntakeSalesKitLlmService
+    ✓ does not call completeJson when flag is off
+    ✓ strips invented money when flag is on and no citation
+    ✓ returns rules payload when completeJson times out
+    ✓ strips invented money from next_question.text when flag is on and no citation
+    ✓ does not call LLM for ask_library without citations
+
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+```

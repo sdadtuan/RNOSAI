@@ -90,6 +90,32 @@ describe('IntakeSalesKitLlmService', () => {
     expect(out.next_question?.key).toBe('seo_domain');
   });
 
+  it('strips invented money from next_question.text when flag is on and no citation', async () => {
+    aiConfig.intakeSalesKitLlmEnabled = true;
+    llm.completeJson.mockResolvedValue({
+      parsed: {
+        reply_vi: 'Còn 24 điểm để Go. Ưu tiên hỏi ngân sách.',
+        next_question_text: 'Ngân sách khoảng 20 triệu/tháng có phù hợp không?',
+      },
+      tokenUsage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      modelName: 'gpt-4o-mini',
+      stubMode: false,
+    });
+    const rules = rulesPayload({
+      next_question: { key: 'budget', text: 'Ngân sách dự kiến?', tab: 'discovery' },
+    });
+    const out = await svc().polish({
+      intent: 'next_question',
+      rules,
+      citations: [],
+      industry: '',
+      service_slug: 'dich-vu-seo-tong-the',
+    });
+    expect(out.reply_vi).not.toMatch(/20\s*triệu/i);
+    expect(out.next_question?.text).not.toMatch(/20\s*triệu/i);
+    expect(out.next_question?.text).toMatch(/số đã ẩn|Ngân sách dự kiến/i);
+  });
+
   it('does not call LLM for ask_library without citations', async () => {
     aiConfig.intakeSalesKitLlmEnabled = true;
     const out = await svc().polish({
