@@ -53,7 +53,7 @@ export type SalesKitRulesOutput = {
   };
   gap: { total: number; to_go: number; weakest: string[] };
   citations: SalesKitCitation[];
-  stub_mode: true;
+  stub_mode: boolean;
 };
 
 const SALES_KIT_INTENTS: readonly SalesKitIntent[] = [

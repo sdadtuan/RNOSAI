@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AI_USE_CASE } from '../ai-intelligence/ai-audit.constants';
 import { AppConfigService } from '../config/app-config.service';
 import { LeadsFunnelPgRepository } from '../leads-funnel/leads-funnel-pg.repository';
 import { LeadMeetingPrepEnqueueService } from '../lead-meeting-prep/lead-meeting-prep-enqueue.service';
@@ -23,6 +24,7 @@ import {
 } from './intake-sales-kit-rules.util';
 import { CreateIntakeSessionBody, PatchIntakeSessionBody } from './intake.types';
 import { IntakeB2bVisibilityService, IntakeStaffActor } from './intake-b2b-visibility.service';
+import { IntakeSalesKitLlmService } from './intake-sales-kit-llm.service';
 import { SalesKitLibraryService } from './sales-kit-library.service';
 import { qaAnswerFromBody, type SalesKitHit } from './sales-kit-retrieve.util';
 
@@ -36,6 +38,7 @@ export class IntakeService {
     private readonly config: AppConfigService,
     private readonly lmpRepo: LeadMeetingPrepRepository,
     private readonly library: SalesKitLibraryService,
+    private readonly salesKitLlm: IntakeSalesKitLlmService,
   ) {}
 
   getDefinitions() {
@@ -276,8 +279,17 @@ export class IntakeService {
       session,
     });
     const rules = runSalesKitRules(input);
+    const industry = industryFromSession(session);
     if (!needsLibrary(body.intent, body.message)) {
-      return rules;
+      return this.salesKitLlm.polish({
+        intent: body.intent,
+        rules,
+        citations: rules.citations,
+        industry,
+        service_slug: input.serviceSlug,
+        session_id: session.id,
+        useCase: AI_USE_CASE.INTAKE_SALES_KIT,
+      });
     }
     const query =
       body.intent === 'pricing_band'
@@ -293,15 +305,24 @@ export class IntakeService {
         body.intent === 'pricing_band' || body.intent === 'battle_card'
           ? body.intent
           : 'ask_library';
-      return { ...rules, citations: [], reply_vi: emptyLibraryReply(emptyKind) };
+      return { ...rules, citations: [], reply_vi: emptyLibraryReply(emptyKind), stub_mode: true };
     }
     const top = hits[0]!;
-    return {
+    const withHits = {
       ...rules,
       reply_vi: body.intent === 'pricing_band' ? top.body : qaAnswerFromBody(top.body),
       citations: hits.map(toCitation),
       stub_mode: true,
     };
+    return this.salesKitLlm.polish({
+      intent: body.intent,
+      rules: withHits,
+      citations: withHits.citations,
+      industry,
+      service_slug: input.serviceSlug,
+      session_id: session.id,
+      useCase: AI_USE_CASE.INTAKE_SALES_KIT,
+    });
   }
 
   async generateAiSummary(id: number, actor?: IntakeStaffActor | null) {
@@ -312,15 +333,39 @@ export class IntakeService {
     if (session.lead_id) {
       await this.b2bVisibility.assertLeadVisible(session.lead_id, actor);
     }
-    const out = runSalesKitRules(
-      buildRulesInputFromSession({ intent: 'summary_30s', session }),
-    );
-    const updated = await this.pg.saveAiSummary(id, out.reply_vi);
+    const input = buildRulesInputFromSession({ intent: 'summary_30s', session });
+    const out = runSalesKitRules(input);
+    const polished = await this.salesKitLlm.polish({
+      intent: 'summary_30s',
+      rules: out,
+      citations: out.citations,
+      industry: industryFromSession(session),
+      service_slug: input.serviceSlug,
+      session_id: session.id,
+      useCase: AI_USE_CASE.INTAKE_AI_SUMMARY,
+    });
+    const updated = await this.pg.saveAiSummary(id, polished.reply_vi);
     if (!updated) {
       throw new NotFoundException({ error: 'Không tìm thấy phiên' });
     }
     return updated;
   }
+}
+
+function industryFromSession(session: {
+  company_name?: string;
+  answers_json?: Record<string, unknown>;
+}): string {
+  const answers = session.answers_json ?? {};
+  const direct = String(answers.industry ?? answers.phone_industry ?? '').trim();
+  if (direct) return direct;
+  const discovery = answers.discovery_responses;
+  if (discovery && typeof discovery === 'object') {
+    const row = (discovery as Record<string, { answer?: string }>).phone_industry;
+    const answer = String(row?.answer ?? '').trim();
+    if (answer) return answer;
+  }
+  return String(session.company_name ?? '').trim();
 }
 
 function needsLibrary(intent: string, message?: string): boolean {

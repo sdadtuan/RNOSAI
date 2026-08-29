@@ -4,11 +4,14 @@ import { LeadsModule } from '../leads/leads.module';
 import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
 import { LeadMeetingPrepAsyncModule } from '../lead-meeting-prep/lead-meeting-prep-async.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
+import { AiAgentRunsRepository } from '../ai-intelligence/ai-agent-runs.repository';
 import { AiIntelligenceConfigService } from '../ai-intelligence/ai-intelligence.config';
+import { AiLlmClient } from '../ai-intelligence/ai-llm.client';
 import { AiSummarizeRateLimitService } from '../ai-intelligence/ai-summarize-rate-limit.service';
 import { StaffIntakeViewGuard, StaffIntakeWriteGuard } from './guards/staff-intake.guard';
 import { IntakeB2bVisibilityService } from './intake-b2b-visibility.service';
 import { IntakeController } from './intake.controller';
+import { IntakeSalesKitLlmService } from './intake-sales-kit-llm.service';
 import { IntakeService } from './intake.service';
 import { IntakePgRepository } from './intake-pg.repository';
 import { SalesKitLibraryRepository } from './sales-kit-library.repository';
@@ -31,8 +34,11 @@ import { SalesKitLibraryService } from './sales-kit-library.service';
     StaffIntakeWriteGuard,
     SalesKitLibraryRepository,
     SalesKitLibraryService,
+    IntakeSalesKitLlmService,
     AiSummarizeRateLimitService,
     AiIntelligenceConfigService,
+    AiLlmClient,
+    AiAgentRunsRepository,
   ],
   exports: [IntakeService, IntakePgRepository, SalesKitLibraryService],
 })

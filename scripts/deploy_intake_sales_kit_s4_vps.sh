@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 # Deploy Intake Sales Kit S4 (DDL + ptt-crm-api + ops-web).
 # Applies sales_kit_files schema, then builds API/ops-web.
-# LLM stays off unless NEXT_PUBLIC_PTT_INTAKE_SALES_KIT_LLM=1.
+#
+# S3 (LLM wording + Tóm tắt 30s): do NOT auto-patch runtime here.
+# Default stays off. To enable on VPS after this script, set by hand then
+# rebuild ops-web + restart API — never export these to 1 in this script:
+#   PTT_INTAKE_SALES_KIT_LLM=1
+#   NEXT_PUBLIC_PTT_INTAKE_SALES_KIT_LLM=1
+#   AI_LLM_API_KEY / PTT_AI_LLM_API_KEY=<key>
+# LLM stays off unless those env vars are already present on the host.
 #
 # From laptop:
 #   APPLY=1 ./scripts/deploy_intake_sales_kit_s4_vps.sh
@@ -35,7 +42,7 @@ run_local() {
   npm ci
   export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
   npm run build
-  npm test -- --testPathPattern='src/intake/intake-definitions.util.spec|src/intake/intake-context.util.spec|src/intake/intake-sales-kit-rules.util.spec|src/intake/sales-kit-ingest|src/intake/sales-kit-retrieve|src/intake/sales-kit-library|src/intake/sales-kit-sample' --no-coverage
+  npm test -- --testPathPattern='src/intake/intake-definitions.util.spec|src/intake/intake-context.util.spec|src/intake/intake-sales-kit-rules.util.spec|src/intake/intake-sales-kit-llm|src/intake/sales-kit-ingest|src/intake/sales-kit-retrieve|src/intake/sales-kit-library|src/intake/sales-kit-sample' --no-coverage
 
   echo "== 2/4 ops-web build =="
   cd "$ROOT"
@@ -62,7 +69,8 @@ run_local() {
   echo "== Intake Sales Kit S4 deploy complete =="
   echo "UAT: https://rs.pttads.vn/crm/intake/sales-kit?folder=dich-vu-seo-tong-the/qa"
   echo "Intake: https://rs.pttads.vn/crm/intake?lead_id=5"
-  echo "LLM kit stays off unless NEXT_PUBLIC_PTT_INTAKE_SALES_KIT_LLM=1"
+  echo "S3 LLM stays off (script does not set PTT_INTAKE_SALES_KIT_LLM=1)."
+  echo "To enable: set PTT_INTAKE_SALES_KIT_LLM=1 + NEXT_PUBLIC_PTT_INTAKE_SALES_KIT_LLM=1 + API key, rebuild ops-web, restart API."
 }
 
 if [[ "${1:-}" == "--local" ]]; then

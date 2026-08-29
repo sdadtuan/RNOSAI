@@ -196,6 +196,7 @@ Prep M1 thường **tự enqueue** khi lead B2B mới tạo. Trên UI có 3 tr�
    - 1 dòng pain (≤120 ký tự) hoặc **SCI chưa sẵn**.
    - Bấm **Cockpit** trên Deal Bar nếu cần panel SCI đầy đủ.
    - Sales Kit (nếu mở): khối **Góc từ cuộc gọi đầu** khi M1 ready — context qualify, không dump talk track M1.
+   - LLM kit **tắt mặc định**. Chip rules vẫn dùng. Để bật wording + Tóm tắt 30s trên VPS: `PTT_INTAKE_SALES_KIT_LLM=1` + `NEXT_PUBLIC_PTT_INTAKE_SALES_KIT_LLM=1` + `AI_LLM_API_KEY` (hoặc `PTT_AI_LLM_API_KEY`), rồi rebuild ops-web và restart API. Script deploy **không** tự bật. Thiếu key / timeout → giữ câu rules (`stub_mode`). Chi tiết: [27-lifecycle-ui-huong-dan-day-du.md](./27-lifecycle-ui-huong-dan-day-du.md).
 4. Quyết định **Go** → prep M2 **tự refresh** (1–3 phút). SCI M2 vẫn **sau Go**, không enqueue trước.
 
 ---

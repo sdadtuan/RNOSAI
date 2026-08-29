@@ -13,6 +13,9 @@ describe('IntakeService salesKitTurn library', () => {
   const pg = { getSession: jest.fn().mockResolvedValue(session) };
   const visibility = { assertLeadVisible: jest.fn().mockResolvedValue(undefined) };
   const library = { retrieveForSession: jest.fn() };
+  const salesKitLlm = {
+    polish: jest.fn(async ({ rules }: { rules: { reply_vi: string } }) => rules),
+  };
 
   function svc() {
     return new IntakeService(
@@ -23,12 +26,14 @@ describe('IntakeService salesKitTurn library', () => {
       {} as never,
       {} as never,
       library as never,
+      salesKitLlm as never,
     );
   }
 
   beforeEach(() => {
     jest.clearAllMocks();
     pg.getSession.mockResolvedValue(session);
+    salesKitLlm.polish.mockImplementation(async ({ rules }: { rules: { reply_vi: string } }) => rules);
   });
 
   it('keeps empty-state when library has no hits', async () => {
@@ -37,6 +42,7 @@ describe('IntakeService salesKitTurn library', () => {
     expect(out.citations).toEqual([]);
     expect(out.reply_vi).toMatch(/Chưa có file|kho/i);
     expect(library.retrieveForSession).toHaveBeenCalled();
+    expect(salesKitLlm.polish).not.toHaveBeenCalled();
   });
 
   it('overrides reply_vi and citations from top hit', async () => {

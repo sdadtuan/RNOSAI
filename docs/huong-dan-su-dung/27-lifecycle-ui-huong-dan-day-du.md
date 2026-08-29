@@ -236,6 +236,16 @@ Trang Intake là **workspace qualify** — không còn stack card ngữ cảnh /
 
 S4: upload mẫu SEO → **Duyệt** → chip Hỏi kho *KH nói đắt* → citation. Folder pricing trống → empty-state, **không** bịa số.
 
+**S3 — bật LLM wording / Tóm tắt 30s (mặc định tắt):** chip rules vẫn chạy khi flag off. Deploy script **không** tự set flag. Trên VPS, set tay rồi rebuild ops-web + restart API:
+
+| Env | Default | Ý nghĩa |
+|-----|---------|---------|
+| `PTT_INTAKE_SALES_KIT_LLM=1` | `0` | API gọi model cho wording + summary |
+| `NEXT_PUBLIC_PTT_INTAKE_SALES_KIT_LLM=1` | `0` | Ô chat / chip cần model trên Intake |
+| `AI_LLM_API_KEY` hoặc `PTT_AI_LLM_API_KEY` | — | Bắt buộc khi flag on; thiếu key → `stub_mode`, giữ câu rules |
+
+Flag off / timeout / không key → payload rules, `stub_mode: true`. LLM chỉ diễn đạt `reply_vi` / `apply.ai_summary` / `next_question.text` — không đổi key câu hỏi, không ghi `bant_json`. Hỏi kho không citation → không gọi LLM.
+
 Tick **Áp dụng vào form** rồi bấm **Áp dụng** (BANT hints mặc định **tắt**). Kit không Complete / Reopen / chuyển funnel.
 
 **Thao tác:**
