@@ -161,6 +161,14 @@ export class IntakeService {
     if (existing.lead_id) {
       await this.b2bVisibility.assertLeadVisible(existing.lead_id, actor);
     }
+    if (
+      String(existing.status ?? '').trim() === 'completed' &&
+      body.service_slug !== undefined
+    ) {
+      throw new BadRequestException({
+        error: 'Không thể đổi dịch vụ khi phiên đã hoàn thành. Reopen hoặc tạo phiên mới.',
+      });
+    }
     const updated = await this.pg.updateSession(id, body);
     if (!updated) {
       throw new NotFoundException({ error: 'Không tìm thấy phiên' });

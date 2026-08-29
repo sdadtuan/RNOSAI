@@ -574,6 +574,7 @@ export function IntakeContent({
       setMessage('Reopen hoặc tạo phiên mới để đổi dịch vụ.');
       return;
     }
+    const previousOverride = serviceOverride;
     setServiceOverride(slug);
     if (active?.status !== 'draft' || !canCreate) return;
     const access = getAccessToken();
@@ -584,6 +585,7 @@ export function IntakeContent({
         rows.map((row) => (row.id === active.id ? { ...row, service_slug: slug } : row)),
       );
     } catch (err) {
+      setServiceOverride(previousOverride);
       setError(err instanceof Error ? err.message : 'Đổi dịch vụ thất bại');
     }
   }
