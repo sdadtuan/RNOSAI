@@ -28,6 +28,7 @@ export function formatOwnerMetric(value: unknown, fmt: unknown): string {
   if (format === 'pct') return formatPct(value);
   if (format === 'ratio') return `${formatNumber(value)}×`;
   if (format === 'days') return `${formatNumber(value)} ngày`;
+  if (format === 'minutes') return `${formatNumber(value)} phút`;
   return formatNumber(value);
 }
 

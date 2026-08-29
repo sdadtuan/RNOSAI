@@ -55,7 +55,7 @@ function hasContact(input: LeadNextActionInput): boolean {
 
 function terminal(status: string): boolean {
   const s = status.trim().toLowerCase();
-  return s === 'chot' || s === 'lost';
+  return s === 'chot' || s === 'lost' || s === 'won';
 }
 
 export function resolveLeadNextAction(input: LeadNextActionInput): LeadNextAction {
@@ -107,7 +107,7 @@ export function resolveLeadNextAction(input: LeadNextActionInput): LeadNextActio
     return {
       rule: 9,
       title_vi: 'Học từ cuộc chốt',
-      body_vi: 'Lead đã Chốt/Lost — gửi debrief để win loop học objection.',
+      body_vi: 'Lead đã Won/Chốt/Lost — gửi debrief để win loop học objection.',
       primary: { label_vi: 'Gửi debrief', action: 'submit_debrief' },
       secondary: [],
     };

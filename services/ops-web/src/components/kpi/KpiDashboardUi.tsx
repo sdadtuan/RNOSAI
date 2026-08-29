@@ -353,6 +353,39 @@ export function ownerWeeklySummaryTiles(dashboard: Record<string, unknown> | nul
   ];
 }
 
+export function OwnerWeeklyLifecycleStrip({ dashboard }: { dashboard: Record<string, unknown> | null }) {
+  const block = (dashboard?.blocks as Record<string, Record<string, unknown>> | undefined)?.lifecycle;
+  const metrics = (block?.metrics as Record<string, unknown>[]) ?? [];
+  if (!metrics.length) return null;
+  return (
+    <section className="owner-weekly-lifecycle card" style={{ padding: '0.85rem' }} aria-label="Lifecycle KPIs">
+      <h3 className="kpi-section-title">{String(block?.label ?? 'Lifecycle (Factory A/B)')}</h3>
+      <ul className="owner-weekly-lifecycle__metrics">
+        {metrics.map((metric) => {
+          const metricKey = String(metric.key ?? metric.label ?? 'metric');
+          return (
+            <li key={metricKey} className={`owner-weekly-metric owner-weekly-lifecycle__metric ${ownerRagClass(metric.status)}`}>
+              <div className="owner-weekly-metric__head">
+                <span>{String(metric.label ?? metricKey)}</span>
+                <span className={`kpi-rag-badge ${ownerRagClass(metric.status)}`}>
+                  {String(metric.status_label ?? metric.status ?? '—')}
+                </span>
+              </div>
+              <div className="owner-weekly-metric__values">
+                <strong>{formatOwnerMetric(metric.value, metric.format ?? metric.fmt)}</strong>
+                <span className="muted">
+                  Target: {ownerMetricTargetLabel(metric.target, metric.format ?? metric.fmt)}
+                </span>
+              </div>
+              {metric.note ? <p className="muted owner-weekly-metric__note">{String(metric.note)}</p> : null}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 export function OwnerWeeklyBlockGrid({ dashboard }: { dashboard: Record<string, unknown> | null }) {
   const blocks = (dashboard?.blocks ?? {}) as Record<string, Record<string, unknown>>;
   return (

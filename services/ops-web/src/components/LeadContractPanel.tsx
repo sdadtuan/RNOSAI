@@ -17,7 +17,7 @@ import {
   readinessCheckHref,
 } from '@/lib/crm/lead-contract-ready';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
-import type { LeadContractFlowSummary } from '@/components/LeadB2bSalesFlowBar';
+import type { LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 
 interface Props {
   token: string;

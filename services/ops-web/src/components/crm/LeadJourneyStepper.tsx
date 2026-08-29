@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { LeadFunnelSnapshot } from '@/lib/api';
-import type { LeadContractFlowSummary } from '@/components/LeadB2bSalesFlowBar';
+import type { LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 import { resolveLeadJourney, showDeliverySpine } from '@/lib/crm/lead-journey';
 
 type Props = {

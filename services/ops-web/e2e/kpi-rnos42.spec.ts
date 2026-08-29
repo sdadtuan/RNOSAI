@@ -34,9 +34,10 @@ test.describe('RNOS-42 KPI UX', () => {
     await expect(page.locator('pre')).toHaveCount(0);
   });
 
-  test('/crm/owner-weekly shows 4-block grid and actions', async ({ page }) => {
+  test('/crm/owner-weekly shows lifecycle strip and 4-block grid', async ({ page }) => {
     await page.goto('/crm/owner-weekly');
     await expect(page.locator('.kpi-tile-grid')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('.owner-weekly-lifecycle .owner-weekly-metric')).toHaveCount(4);
     await expect(page.locator('.owner-weekly-grid .owner-weekly-block')).toHaveCount(4);
     await expect(page.getByRole('heading', { name: /4 khối báo cáo/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /hành động ưu tiên/i })).toBeVisible();

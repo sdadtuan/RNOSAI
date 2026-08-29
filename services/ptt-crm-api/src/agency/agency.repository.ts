@@ -24,6 +24,7 @@ import {
   resolveFacebookHubDateWindow,
 } from './facebook-hub.util';
 import { channelAccountMetaPatch, readFormIdsFromMeta } from './channel-meta.util';
+import { recordLifecycleMilestone } from '../lifecycle-milestone/lifecycle-milestone.pg.util';
 
 function iso(value: unknown): string | null {
   if (value == null) return null;
@@ -1097,6 +1098,34 @@ export class AgencyRepository implements OnModuleDestroy {
       code.trim().toUpperCase(),
     ]);
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async findSqliteLeadIdByAgencyClientId(clientId: string): Promise<number | null> {
+    try {
+      const result = await this.db.query(
+        `SELECT sqlite_lead_id FROM crm_leads
+         WHERE agency_client_id = $1::uuid
+         ORDER BY updated_at DESC NULLS LAST
+         LIMIT 1`,
+        [clientId],
+      );
+      const leadId = result.rows[0]?.sqlite_lead_id;
+      return leadId != null && Number.isFinite(Number(leadId)) ? Number(leadId) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async recordClientActiveMilestone(clientId: string): Promise<void> {
+    const leadId = await this.findSqliteLeadIdByAgencyClientId(clientId);
+    if (!leadId) return;
+    await recordLifecycleMilestone(this.db, {
+      leadId,
+      key: 'client_active',
+      occurredAt: new Date(),
+      source: 'agency_client',
+      refId: clientId,
+    });
   }
 
   async listClientLeads(clientId: string, limit = 50): Promise<

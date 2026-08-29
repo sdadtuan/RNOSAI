@@ -19,6 +19,7 @@ import {
   presalesCareGateState,
   serializeStagesDone,
 } from './care-pipeline.util';
+import { recordLifecycleMilestone } from '../lifecycle-milestone/lifecycle-milestone.pg.util';
 import { resolveLeadFlowKindFromFunnelRow } from './lead-flow-kind.util';
 import { buildB2bListScopeClause } from './lead-flow-list-filter.util';
 import type { B2bListScope } from '../b2b-projects/b2b-lead-scope.service';
@@ -432,6 +433,23 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
 
     const updated = await this.fetchLeadRow(leadId);
     if (!updated) throw new Error('Không tìm thấy lead.');
+
+    if (key === 'first_contact') {
+      const pipeline = carePipelineState(
+        updated.status,
+        updated.care_stage_current,
+        updated.care_stages_done_json,
+      );
+      if (pipeline.all_complete) {
+        await recordLifecycleMilestone(this.db, {
+          leadId,
+          key: 'b2_done',
+          occurredAt: done[key] ?? new Date(),
+          source: 'care_pipeline',
+        });
+      }
+    }
+
     return updated;
   }
 

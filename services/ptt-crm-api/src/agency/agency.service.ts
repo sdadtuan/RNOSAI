@@ -1359,6 +1359,7 @@ export class AgencyService {
     if (!row) {
       throw new NotFoundException({ error: 'Not found' });
     }
+    await this.repo.recordClientActiveMilestone(clientId);
     const effects = await this.sideEffects.onClientActivated(clientId, client.code);
     const detail = await this.getClient(clientId);
     return {

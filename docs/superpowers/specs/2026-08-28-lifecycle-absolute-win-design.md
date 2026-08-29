@@ -255,6 +255,8 @@ CTA trên `/crm/service-delivery/{id}`: một việc = task cổng `validateStag
 
 ### WS4 — Đo (song song tuần 1)
 
+> Spec chi tiết: [2026-08-29-lifecycle-ws4-measure-design.md](./2026-08-29-lifecycle-ws4-measure-design.md)
+
 Bốn số mục 1.2 trên `/crm/owner-weekly` (block nhỏ, không dashboard mới).  
 Event tối thiểu: `stage_entered` (b2_done, intake_go, contract_active, client_active) — dùng bảng hiện có nếu đủ timestamp; thiếu thì 1 bảng `crm_lifecycle_milestones` (S2+).
 
@@ -339,9 +341,9 @@ Debrief B2B: kích hoạt rule 9 khi `won`/`lost` + `debrief_pending` (đã có 
 ## 13. Next step
 
 1. PO duyệt file này (đặc biệt §4 và §12).  
-2. S0 + S1 + WS2 đã ship (`9c60e9fc`). Spec WS3: [2026-08-29-lifecycle-ws3-delivery-spine-design.md](./2026-08-29-lifecycle-ws3-delivery-spine-design.md).  
-3. WS2 **Promote → Agency Client** đã ship; WS3 plan + code sau PO tick §13 WS3.  
-4. Không gộp WS3/WS4 trong PR WS2 hoặc PR không liên quan.
+2. S0 + S1 + WS2 + WS3 đã ship (`2a06affa`). Spec WS4: [2026-08-29-lifecycle-ws4-measure-design.md](./2026-08-29-lifecycle-ws4-measure-design.md). Plan: [2026-08-29-lifecycle-ws4-measure.md](../plans/2026-08-29-lifecycle-ws4-measure.md).  
+3. WS4 code sau PO tick §13 WS4.  
+4. Không gộp WS4 với feature CRM không liên quan.
 
 ---
 

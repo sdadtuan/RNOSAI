@@ -1,17 +1,26 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
+import {
+  computeSpaMeta24hSlas,
+  parseB2CompletedAt,
+} from '../cskh-board/cskh-board-sla.util';
+import { computeK1, computeK2, computeK3, computeK4Compliance } from '../lifecycle-milestone/lifecycle-kpi.util';
+import { LIFECYCLE_MILESTONE_DDL } from '../lifecycle-milestone/lifecycle-milestone.pg.util';
 
 const RAG_GREEN = 'green';
 const RAG_YELLOW = 'yellow';
 const RAG_RED = 'red';
 const BLOCK_KEYS = ['cash', 'sales', 'efficiency', 'risk'] as const;
+const DASHBOARD_BLOCK_KEYS = [...BLOCK_KEYS, 'lifecycle'] as const;
+const LIFECYCLE_MIN_SAMPLE = 3;
 const CASH_SOURCES = new Set(['manual', 'bank']);
 
 const RAG_LABELS: Record<string, string> = {
   [RAG_GREEN]: 'Đạt / vượt target',
   [RAG_YELLOW]: 'Lệch nhẹ — theo dõi sát',
   [RAG_RED]: 'Cần xử lý trong 7 ngày',
+  neutral: 'Chưa đủ mẫu / neutral',
 };
 
 const BLOCK_LABELS: Record<string, string> = {
@@ -48,6 +57,10 @@ export const OWNER_WEEKLY_TARGET_DEFAULTS: Record<string, number> = {
   churn_max_pct: 10,
   win_rate_drop_warn_pct: 15,
   win_rate_drop_critical_pct: 20,
+  k1_b2_median_max_minutes: 480,
+  k2_intake_median_max_days: 5,
+  k3_client_active_max_days: 14,
+  k4_first_call_min_pct: 85,
 };
 
 export const OWNER_WEEKLY_ENV_KEYS: Record<string, string> = Object.fromEntries(
@@ -84,6 +97,10 @@ export const OWNER_WEEKLY_TARGET_LABELS: Record<string, string> = {
   churn_max_pct: 'Churn tối đa (%)',
   win_rate_drop_warn_pct: 'Win rate giảm — cảnh báo (%)',
   win_rate_drop_critical_pct: 'Win rate giảm — nghiêm trọng (%)',
+  k1_b2_median_max_minutes: 'K1 B2 median tối đa (phút)',
+  k2_intake_median_max_days: 'K2 Intake Go median tối đa (ngày)',
+  k3_client_active_max_days: 'K3 Client active median tối đa (ngày)',
+  k4_first_call_min_pct: 'K4 First call 15p compliance tối thiểu (%)',
 };
 
 export const OWNER_WEEKLY_TARGET_GROUPS: Array<[string, string, string[]]> = [
@@ -91,6 +108,7 @@ export const OWNER_WEEKLY_TARGET_GROUPS: Array<[string, string, string[]]> = [
   ['sales', 'Kinh doanh', ['lead_new_target', 'lead_qualified_target', 'proposals_target', 'deals_closed_target', 'pipeline_next_min_vnd', 'close_rate_target_pct']],
   ['efficiency', 'Hiệu quả', ['gross_margin_target_pct', 'net_margin_target_pct', 'cac_max_vnd', 'roas_min', 'cycle_time_max_days', 'ontime_target_pct']],
   ['risk', 'Rủi ro', ['bad_debt_min_vnd', 'bad_debt_min_days', 'late_projects_max', 'stuck_work_max', 'capacity_max_util_pct', 'top_deal_share_max_pct', 'top1_share_max_pct', 'churn_max_pct', 'win_rate_drop_warn_pct', 'win_rate_drop_critical_pct']],
+  ['lifecycle', 'Lifecycle', ['k1_b2_median_max_minutes', 'k2_intake_median_max_days', 'k3_client_active_max_days', 'k4_first_call_min_pct']],
 ];
 
 type WeekOptions = {
@@ -188,7 +206,7 @@ function metric(opts: Record<string, unknown>): Record<string, unknown> {
 
 function preExecution(blocks: Record<string, Record<string, unknown>>): Record<string, unknown> {
   const actions: Record<string, unknown>[] = [];
-  for (const blockKey of BLOCK_KEYS) {
+  for (const blockKey of DASHBOARD_BLOCK_KEYS) {
     const block = blocks[blockKey];
     for (const item of (block?.metrics as Record<string, unknown>[]) ?? []) {
       const status = String(item.status ?? RAG_GREEN);
@@ -253,6 +271,7 @@ export class OwnerWeeklyPgRepository implements OnModuleDestroy {
         thresholds_json JSONB NOT NULL DEFAULT '{}'::jsonb,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      ${LIFECYCLE_MILESTONE_DDL}
     `);
   }
 
@@ -331,9 +350,9 @@ export class OwnerWeeklyPgRepository implements OnModuleDestroy {
 
   async dashboard(opts: WeekOptions): Promise<Record<string, unknown>> {
     const bounds = resolveWeekBounds(opts);
-    const [targets, cashPosition, cashIn, cashOut, delivery, presales, arOverdue, snapshots] =
+    const targets = await this.getTargets();
+    const [cashPosition, cashIn, cashOut, delivery, presales, arOverdue, snapshots, lifecycleMetrics] =
       await Promise.all([
-        this.getTargets(),
         this.getCashPosition(bounds.end),
         this.sumPayments(bounds.start, bounds.end),
         this.sumExpenses(bounds.start, bounds.end),
@@ -341,6 +360,7 @@ export class OwnerWeeklyPgRepository implements OnModuleDestroy {
         this.sumExpenses(bounds.start, bounds.end, 'presales'),
         this.sumArOverdue(bounds.end),
         this.snapshotRows(8),
+        this.loadLifecycleKpis(bounds.end, targets),
       ]);
     const grossMargin = cashIn > 0 ? Math.round(((cashIn - delivery) / cashIn) * 1000) / 10 : 0;
     const netMargin = cashIn > 0
@@ -379,8 +399,13 @@ export class OwnerWeeklyPgRepository implements OnModuleDestroy {
           metric({ key: 'top_customer_share', label: 'Tỷ trọng DT khách lớn nhất', value: 0, fmt: 'pct', status: RAG_GREEN, target: targets.top1_share_max_pct, note: 'MVP — simplified' }),
         ],
       },
+      lifecycle: {
+        key: 'lifecycle',
+        label: 'Lifecycle (Factory A/B)',
+        metrics: lifecycleMetrics,
+      },
     };
-    const allMetrics = BLOCK_KEYS.flatMap(
+    const allMetrics = DASHBOARD_BLOCK_KEYS.flatMap(
       (key) => (blocks[key]?.metrics as Record<string, unknown>[]) ?? [],
     );
     const dashboard: Record<string, unknown> = {
@@ -635,6 +660,175 @@ export class OwnerWeeklyPgRepository implements OnModuleDestroy {
     }
   }
 
+  private async loadLifecycleKpis(
+    windowEnd: string,
+    targets: Record<string, number>,
+  ): Promise<Record<string, unknown>[]> {
+    await this.ensureSchema();
+    const windowStart = addDays(windowEnd, -89);
+
+    const lifecycleMetric = (
+      key: string,
+      label: string,
+      value: number | null,
+      fmt: string,
+      target: number,
+      n: number,
+      lowerIsBetter: boolean,
+    ): Record<string, unknown> => {
+      if (n < LIFECYCLE_MIN_SAMPLE) {
+        return metric({
+          key,
+          label,
+          value: null,
+          fmt,
+          status: 'neutral',
+          target,
+          note: `Chưa đủ mẫu (n=${n})`,
+        });
+      }
+      if (value == null) {
+        return metric({ key, label, value: null, fmt, status: 'neutral', target, note: 'Chưa có dữ liệu' });
+      }
+      const status = lowerIsBetter ? ragLowerBetter(value, target) : ragHigherBetter(value, target);
+      return metric({ key, label, value, fmt, status, target, note: `n=${n}` });
+    };
+
+    try {
+      const [k1Result, k2Result, k3Result, k4Counts] = await Promise.all([
+        this.db.query(
+          `SELECT l.created_at::text AS created_at, b.occurred_at::text AS b2_at
+           FROM crm_lifecycle_milestones b
+           JOIN crm_leads l ON l.sqlite_lead_id = b.lead_id
+           WHERE b.milestone_key = 'b2_done'
+             AND b.occurred_at::date BETWEEN $1::date AND $2::date
+             AND EXISTS (SELECT 1 FROM crm_lead_presales ps WHERE ps.lead_id = b.lead_id)`,
+          [windowStart, windowEnd],
+        ),
+        this.db.query(
+          `SELECT b2.occurred_at::text AS b2_at, ig.occurred_at::text AS intake_at
+           FROM crm_lifecycle_milestones b2
+           JOIN crm_lifecycle_milestones ig
+             ON ig.lead_id = b2.lead_id AND ig.milestone_key = 'intake_go'
+           WHERE b2.milestone_key = 'b2_done'
+             AND ig.occurred_at::date BETWEEN $1::date AND $2::date`,
+          [windowStart, windowEnd],
+        ),
+        this.db.query(
+          `SELECT ca.occurred_at::text AS contract_at, cl.occurred_at::text AS client_at
+           FROM crm_lifecycle_milestones ca
+           JOIN crm_lifecycle_milestones cl
+             ON cl.lead_id = ca.lead_id AND cl.milestone_key = 'client_active'
+           WHERE ca.milestone_key = 'contract_active'
+             AND cl.occurred_at::date BETWEEN $1::date AND $2::date`,
+          [windowStart, windowEnd],
+        ),
+        this.loadFirstCallComplianceCounts(windowStart, windowEnd),
+      ]);
+
+      const k1 = computeK1(k1Result.rows as Array<{ created_at: string; b2_at: string }>);
+      const k2 = computeK2(k2Result.rows as Array<{ b2_at: string; intake_at: string }>);
+      const k3 = computeK3(k3Result.rows as Array<{ contract_at: string; client_at: string }>);
+      const k4 = computeK4Compliance(k4Counts);
+
+      return [
+        lifecycleMetric(
+          'k1_b2_minutes',
+          'K1 B2 median (phút)',
+          k1.median_minutes,
+          'minutes',
+          targets.k1_b2_median_max_minutes!,
+          k1.n,
+          true,
+        ),
+        lifecycleMetric(
+          'k2_intake_days',
+          'K2 Intake Go median (ngày)',
+          k2.median_days,
+          'days',
+          targets.k2_intake_median_max_days!,
+          k2.n,
+          true,
+        ),
+        lifecycleMetric(
+          'k3_client_active_days',
+          'K3 Client active median (ngày)',
+          k3.median_days,
+          'days',
+          targets.k3_client_active_max_days!,
+          k3.n,
+          true,
+        ),
+        lifecycleMetric(
+          'k4_first_call_pct',
+          'K4 First call 15p (%)',
+          k4.pct,
+          'pct',
+          targets.k4_first_call_min_pct!,
+          k4.n,
+          false,
+        ),
+      ];
+    } catch {
+      return [
+        metric({ key: 'k1_b2_minutes', label: 'K1 B2 median (phút)', value: null, fmt: 'minutes', status: 'neutral', target: targets.k1_b2_median_max_minutes }),
+        metric({ key: 'k2_intake_days', label: 'K2 Intake Go median (ngày)', value: null, fmt: 'days', status: 'neutral', target: targets.k2_intake_median_max_days }),
+        metric({ key: 'k3_client_active_days', label: 'K3 Client active median (ngày)', value: null, fmt: 'days', status: 'neutral', target: targets.k3_client_active_max_days }),
+        metric({ key: 'k4_first_call_pct', label: 'K4 First call 15p (%)', value: null, fmt: 'pct', status: 'neutral', target: targets.k4_first_call_min_pct }),
+      ];
+    }
+  }
+
+  private async loadFirstCallComplianceCounts(
+    windowStart: string,
+    windowEnd: string,
+  ): Promise<{ ok: number; breach: number }> {
+    const leadsResult = await this.db.query(
+      `SELECT sqlite_lead_id, status, received_at::text AS received_at, created_at::text AS created_at,
+              care_stages_done_json::text AS care_stages_done_json, updated_at::text AS updated_at
+       FROM crm_leads
+       WHERE created_at::date BETWEEN $1::date AND $2::date
+         AND lower(COALESCE(channel, '')) IN ('spa_meta', 'facebook', 'meta')`,
+      [windowStart, windowEnd],
+    );
+    const rows = leadsResult.rows as Array<Record<string, unknown>>;
+    if (!rows.length) return { ok: 0, breach: 0 };
+
+    const ids = rows.map((row) => Number(row.sqlite_lead_id)).filter((id) => id > 0);
+    const firstCallsResult = await this.db.query(
+      `SELECT lead_id, MIN(created_at)::text AS first_call_at
+       FROM crm_lead_activities
+       WHERE lead_id = ANY($1::bigint[]) AND activity_type = 'call'
+       GROUP BY lead_id`,
+      [ids],
+    );
+    const firstCalls = new Map<number, string>();
+    for (const row of firstCallsResult.rows as Array<{ lead_id: string; first_call_at: string }>) {
+      if (row.first_call_at) firstCalls.set(Number(row.lead_id), String(row.first_call_at));
+    }
+
+    let ok = 0;
+    let breach = 0;
+    for (const row of rows) {
+      const leadId = Number(row.sqlite_lead_id);
+      const careJson = row.care_stages_done_json != null ? String(row.care_stages_done_json) : null;
+      const sla = computeSpaMeta24hSlas({
+        status: String(row.status ?? ''),
+        receivedAt: row.received_at != null ? String(row.received_at) : null,
+        createdAt: String(row.created_at ?? ''),
+        firstCallAt: firstCalls.get(leadId) ?? null,
+        careStagesDoneJson: careJson,
+        b2CompletedAt: parseB2CompletedAt(careJson),
+        closedAt: null,
+      });
+      const tier = sla.tiers.find((item) => item.tier === 'first_call_15m');
+      if (!tier || tier.sla_state === 'na') continue;
+      if (tier.sla_state === 'ok') ok += 1;
+      else if (tier.sla_state === 'breach') breach += 1;
+    }
+    return { ok, breach };
+  }
+
   private formatDdMm(iso: string): string {
     const [, month, day] = iso.split('-');
     return `${day}/${month}`;
@@ -698,6 +892,7 @@ export class OwnerWeeklyPgRepository implements OnModuleDestroy {
     if (format === 'pct') return `${value}%`;
     if (format === 'ratio') return `${value}×`;
     if (format === 'days') return `${value} ngày`;
+    if (format === 'minutes') return `${value} phút`;
     return String(value ?? '');
   }
 }

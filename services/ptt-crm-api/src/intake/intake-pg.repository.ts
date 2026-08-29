@@ -12,6 +12,7 @@ import {
 } from './intake-definitions.util';
 import { extractDiscoveryResponseSnippets } from './intake-answers.util';
 import { syncPresalesLeadTasksFromIntake } from './intake-presales-sync.util';
+import { recordLifecycleMilestone } from '../lifecycle-milestone/lifecycle-milestone.pg.util';
 import {
   CreateIntakeSessionBody,
   IntakeEntryResult,
@@ -409,6 +410,17 @@ export class IntakePgRepository implements OnModuleDestroy {
     await this.syncCommonIntakeToLead(completed);
     await this.logIntakeActivity(completed, actorId);
     await syncPresalesLeadTasksFromIntake(this.db, completed, actorId);
+
+    if (String(completed.decision ?? '').trim().toLowerCase() === 'go' && completed.lead_id) {
+      await recordLifecycleMilestone(this.db, {
+        leadId: Number(completed.lead_id),
+        key: 'intake_go',
+        occurredAt: completed.completed_at ?? new Date(),
+        source: 'intake_session',
+        refId: String(sessionId),
+      });
+    }
+
     return this.getSession(sessionId);
   }
 

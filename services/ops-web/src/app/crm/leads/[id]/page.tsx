@@ -6,7 +6,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { StaffPageShell } from '@/components/layout';
 import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
 import { LeadConsultWorkspace } from '@/components/LeadConsultWorkspace';
-import { type LeadContractFlowSummary } from '@/components/LeadB2bSalesFlowBar';
+import { type LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
 import { LeadAuditPanel } from '@/components/crm/LeadAuditPanel';
 import { LeadContactActions } from '@/components/crm/LeadContactActions';

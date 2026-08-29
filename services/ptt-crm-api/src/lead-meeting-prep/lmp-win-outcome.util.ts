@@ -10,7 +10,8 @@ export function buildWinOutcomeFromDebrief(input: {
   prepStage?: string | null;
 }): WinOutcomeJson {
   const status = String(input.leadStatus ?? '').trim().toLowerCase();
-  const outcome: WinOutcomeJson['outcome'] = status === 'chot' ? 'won' : 'lost';
+  const outcome: WinOutcomeJson['outcome'] =
+    status === 'chot' || status === 'won' ? 'won' : 'lost';
 
   let dealValue = Number(input.debrief.deal_value_vnd ?? 0);
   if (!Number.isFinite(dealValue) || dealValue <= 0) {

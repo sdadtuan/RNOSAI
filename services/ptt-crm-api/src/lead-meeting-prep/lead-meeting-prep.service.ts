@@ -59,7 +59,7 @@ export class LeadMeetingPrepService {
     }
 
     let row = await this.repo.getByLeadId(leadId);
-    const terminal = ['chot', 'lost'].includes(String(ctx.status ?? '').trim().toLowerCase());
+    const terminal = ['chot', 'lost', 'won'].includes(String(ctx.status ?? '').trim().toLowerCase());
     if (!row) {
       const resolved = this.inputResolver.resolve(ctx);
       return {
@@ -264,7 +264,7 @@ export class LeadMeetingPrepService {
     }
 
     const status = String(ctx.status ?? '').trim().toLowerCase();
-    if (status === 'chot' || status === 'lost') {
+    if (status === 'chot' || status === 'lost' || status === 'won') {
       throw new BadRequestException({
         error: 'terminal_status_use_debrief',
         message: 'Lead đã chốt/lost — dùng debrief chốt.',
@@ -390,10 +390,10 @@ export class LeadMeetingPrepService {
     }
 
     const status = String(ctx.status ?? '').trim().toLowerCase();
-    if (status !== 'chot' && status !== 'lost') {
+    if (status !== 'chot' && status !== 'lost' && status !== 'won') {
       throw new BadRequestException({
         error: 'terminal_status_required',
-        message: 'Debrief chỉ khả dụng khi lead ở trạng thái chot hoặc lost.',
+        message: 'Debrief chỉ khả dụng khi lead ở trạng thái won, chot hoặc lost.',
       });
     }
 

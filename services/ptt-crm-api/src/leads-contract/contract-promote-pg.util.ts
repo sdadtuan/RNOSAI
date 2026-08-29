@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { recordLifecycleMilestone } from '../lifecycle-milestone/lifecycle-milestone.pg.util';
 import { PRESALES_STAGES } from '../leads-funnel/leads-funnel.types';
 import { validatePreliminaryPlan } from '../leads-funnel/presales-marketing-plan.util';
 import { ensureAgencyClientOnPromote } from './contract-promote-client-pg.util';
@@ -81,6 +82,16 @@ export class ContractPromotePgUtil {
           Number(contract.customer_id),
           contract.case_id != null ? Number(contract.case_id) : null,
         );
+        if (String(contract.status ?? '').trim().toLowerCase() === 'active') {
+          await recordLifecycleMilestone(client, {
+            leadId,
+            key: 'contract_active',
+            occurredAt: ts,
+            source: 'contract_promote',
+            refId: String(contractId),
+            payload: { lifecycle_id: lifecycleId },
+          });
+        }
         if (manageTx) await client.query('COMMIT');
         return withClient;
       }
@@ -142,6 +153,15 @@ export class ContractPromotePgUtil {
         ts,
         presalesSource,
       );
+
+      await recordLifecycleMilestone(client, {
+        leadId,
+        key: 'contract_active',
+        occurredAt: ts,
+        source: 'contract_promote',
+        refId: String(contractId),
+        payload: { lifecycle_id: lifecycleId },
+      });
 
       await client.query(
         `UPDATE crm_leads SET status = 'won', updated_at = $2::timestamptz, updated_by = $3

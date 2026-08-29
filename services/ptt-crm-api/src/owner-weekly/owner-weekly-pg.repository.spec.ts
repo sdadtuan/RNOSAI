@@ -116,4 +116,61 @@ describe('OwnerWeeklyPgRepository', () => {
       response: { error: 'snapshot_on không hợp lệ (YYYY-MM-DD).' },
     });
   });
+
+  it('dashboard includes lifecycle block with K1–K4 metrics', async () => {
+    query.mockImplementation(async (sql: string) => {
+      const normalized = String(sql);
+      if (normalized.includes('crm_owner_cash_snapshots') && normalized.includes('CREATE TABLE')) {
+        return { rows: [] };
+      }
+      if (normalized.includes('thresholds_json')) return { rows: [] };
+      if (normalized.includes("milestone_key = 'b2_done'") && normalized.includes('created_at')) {
+        return {
+          rows: [
+            { created_at: '2026-08-01T08:00:00Z', b2_at: '2026-08-01T09:00:00Z' },
+            { created_at: '2026-08-02T08:00:00Z', b2_at: '2026-08-02T09:30:00Z' },
+            { created_at: '2026-08-03T08:00:00Z', b2_at: '2026-08-03T10:00:00Z' },
+          ],
+        };
+      }
+      if (normalized.includes("milestone_key = 'b2_done'") && normalized.includes('intake_go')) {
+        return {
+          rows: [
+            { b2_at: '2026-08-01T08:00:00Z', intake_at: '2026-08-03T08:00:00Z' },
+            { b2_at: '2026-08-02T08:00:00Z', intake_at: '2026-08-04T08:00:00Z' },
+            { b2_at: '2026-08-03T08:00:00Z', intake_at: '2026-08-05T08:00:00Z' },
+          ],
+        };
+      }
+      if (normalized.includes("milestone_key = 'contract_active'")) {
+        return {
+          rows: [
+            { contract_at: '2026-08-01T08:00:00Z', client_at: '2026-08-08T08:00:00Z' },
+            { contract_at: '2026-08-02T08:00:00Z', client_at: '2026-08-10T08:00:00Z' },
+            { contract_at: '2026-08-03T08:00:00Z', client_at: '2026-08-12T08:00:00Z' },
+          ],
+        };
+      }
+      if (normalized.includes('FROM crm_leads') && normalized.includes('spa_meta')) {
+        return { rows: [] };
+      }
+      if (normalized.includes('crm_svc_payments') || normalized.includes('crm_svc_expenses') || normalized.includes('crm_invoices')) {
+        return { rows: [{ value: '0' }] };
+      }
+      if (normalized.includes('LIMIT $1') && normalized.includes('crm_owner_cash_snapshots')) {
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+
+    const dashboard = await repo.dashboard({ weekEnd: '2026-08-24' });
+    const lifecycle = (dashboard.blocks as Record<string, Record<string, unknown>>).lifecycle;
+    const keys = ((lifecycle.metrics as Record<string, unknown>[]) ?? []).map((m) => m.key);
+    expect(keys).toEqual([
+      'k1_b2_minutes',
+      'k2_intake_days',
+      'k3_client_active_days',
+      'k4_first_call_pct',
+    ]);
+  });
 });

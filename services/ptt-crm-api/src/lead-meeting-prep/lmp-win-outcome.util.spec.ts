@@ -25,6 +25,16 @@ describe('lmp-win-outcome.util', () => {
     expect(out.identity_confirmed_by_am).toBe(true);
   });
 
+  it('maps won status to won outcome', () => {
+    const out = buildWinOutcomeFromDebrief({
+      leadStatus: 'won',
+      metaJson: {},
+      debrief: { closed_tier: 'TC', objection_faced: 'Giá', am_feedback: 'OK' },
+      actorEmail: 'am@test.vn',
+    });
+    expect(out.outcome).toBe('won');
+  });
+
   it('detects debrief presence', () => {
     expect(winOutcomeHasDebrief({ submitted_at: 'x', closed_tier: 'CB' })).toBe(true);
     expect(winOutcomeHasDebrief({})).toBe(false);

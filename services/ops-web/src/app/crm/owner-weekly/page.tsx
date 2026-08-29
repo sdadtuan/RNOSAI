@@ -8,6 +8,7 @@ import {
   OwnerWeeklyActionList,
   OwnerWeeklyBlockGrid,
   OwnerWeeklyConfigForm,
+  OwnerWeeklyLifecycleStrip,
   ownerWeeklySummaryTiles,
 } from '@/components/kpi/KpiDashboardUi';
 import {
@@ -194,6 +195,8 @@ export default function CrmOwnerWeeklyPage() {
       }
     >
       <KpiTileGrid tiles={tiles} />
+
+      <OwnerWeeklyLifecycleStrip dashboard={dashboard} />
 
       <section className="kpi-page__section">
         <h3 className="kpi-section-title">4 khối báo cáo</h3>

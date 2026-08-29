@@ -214,6 +214,18 @@ describe('resolveLeadNextAction', () => {
     expect(out.primary.action).toBe('add_activity');
   });
 
+  it('won + debrief_pending → rule 9', () => {
+    const out = resolveLeadNextAction({
+      ...base,
+      leadStatus: 'won',
+      b2Complete: true,
+      presalesStage: 'proposal',
+      debriefPending: true,
+    });
+    expect(out.rule).toBe(9);
+    expect(out.primary.action).toBe('submit_debrief');
+  });
+
   it('chot + debrief_pending → rule 9', () => {
     const out = resolveLeadNextAction({
       ...base,
