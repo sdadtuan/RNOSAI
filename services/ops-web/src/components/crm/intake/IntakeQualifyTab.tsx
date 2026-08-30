@@ -48,7 +48,7 @@ export function IntakeQualifyTab({
 }: IntakeQualifyTabProps) {
   return (
     <>
-      <section className="intake-bant-section stack-gap" aria-label='Chấm BANT "BANT scoring"'>
+      <section className="intake-bant-section stack-gap" aria-label="Quyết định">
         <header className="intake-form__head">
           <h2 className="intake-form__title">C. Quyết định</h2>
         </header>

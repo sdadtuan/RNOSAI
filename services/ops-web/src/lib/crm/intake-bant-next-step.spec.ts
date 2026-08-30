@@ -30,6 +30,17 @@ describe('nextBantStep', () => {
     expect(out.cta).toBe('discovery');
   });
 
+  it('incomplete cta is null when an unscored mapped group has evidence', () => {
+    const out = nextBantStep({
+      checklist: { budget: 4 },
+      questionItems: [{ key: 'phone_auth', text: 'Ai', bant_key: 'authority' as const }],
+      checked: { phone_auth: true },
+      responses: {},
+    });
+    expect(out.code).toBe('incomplete');
+    expect(out.cta).toBeNull();
+  });
+
   it('no_go under 18 when all scored', () => {
     const out = nextBantStep({
       checklist: { budget: 2, authority: 2, need: 2, timeline: 2, fit: 2, history: 2 },

@@ -2,7 +2,7 @@
 
 > **Document ID:** INT-BANT-CL-P1-20260830  
 > **Phiên bản:** 1.0 · **Ngày:** 2026-08-30  
-> **Trạng thái:** Implemented  
+> **Trạng thái:** Code complete — live Playwright U1–U5 pending  
 > **Route:** `/crm/intake?lead_id=` · `/crm/intake?lifecycle_id=` (ops-web)  
 > **Quyết định:** Discovery = sự thật từ KH · drawer **BANT** = AM tick 1 dòng/mục · máy ghi `bant_json` · Qualify **không** còn radio 1–5 · copy **Đủ Tư vấn** (không “Đủ chốt / Đủ Go”)  
 > **Parent:** [INT-P1](../../specs/2026-08-04-intake-bant-phase1-professional-ui-design.md) · [INT-P2](../../specs/2026-08-04-intake-bant-phase2-structured-discovery-design.md) · [INT-SK](./2026-08-29-intake-deal-bar-sales-kit-design.md) · [Checklist presales](../../crm/checklist-presales-thu-thap-yeu-cau-khach-hang.md)  

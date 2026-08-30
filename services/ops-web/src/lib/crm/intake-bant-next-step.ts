@@ -43,7 +43,7 @@ export function nextBantStep(input: {
     return {
       code: 'incomplete',
       title_vi: 'Còn mục chưa chấm',
-      body_vi: unscoredKeys.map((key) => BANT_FIELD_LABELS[key].label).join(', '),
+      body_vi: `${unscoredKeys.map((key) => BANT_FIELD_LABELS[key].label).join(', ')}. Tick nốt các mục còn lại hoặc hỏi trên Discovery.`,
       cta: needsDiscovery ? 'discovery' : null,
     };
   }
@@ -54,7 +54,7 @@ export function nextBantStep(input: {
     return {
       code: 'no_go',
       title_vi: 'Gợi ý: Từ chối / dừng Tư vấn',
-      body_vi: `BANT ${total}/30 dưới Nurture.`,
+      body_vi: `BANT ${total}/30 dưới Nurture. Hỏi thêm mục thấp nhất hoặc chọn No-Go + lý do`,
       cta: 'qualify',
     };
   }

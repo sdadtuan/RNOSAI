@@ -57,11 +57,15 @@ export async function tickDiscoveryChecklist(page: Page, count: number): Promise
 }
 
 export async function scoreBant(page: Page, score: number): Promise<void> {
-  const bantSection = page.getByRole('region', { name: /Chấm BANT/i });
-  await bantSection.scrollIntoViewIfNeeded();
-  await expect(bantSection).toBeVisible({ timeout: 15_000 });
+  const drawer = page.getByTestId('intake-bant-drawer');
+  const checklist = page.locator('#intake-bant-checklist');
+  const alreadyOpen = (await drawer.isVisible()) || (await checklist.isVisible());
 
-  const totalBar = bantSection.locator('.intake-bant-total-bar');
+  if (!alreadyOpen) {
+    await page.getByRole('button', { name: 'BANT', exact: true }).click();
+    await expect(drawer).toBeVisible({ timeout: 15_000 });
+  }
+
   const expectedTotal = score * BANT_KEYS.length;
 
   await expect
@@ -70,7 +74,7 @@ export async function scoreBant(page: Page, score: number): Promise<void> {
         ({ keys, scoreValue }) => {
           for (const key of keys) {
             const input = document.getElementById(
-              `intake-bant-${key}-${scoreValue}`,
+              `bant-check-${key}-${scoreValue}`,
             ) as HTMLInputElement | null;
             if (!input || input.checked) continue;
             input.click();
@@ -78,11 +82,20 @@ export async function scoreBant(page: Page, score: number): Promise<void> {
         },
         { keys: [...BANT_KEYS], scoreValue: score },
       );
-      const text = await totalBar.innerText();
-      const match = text.match(/(\d+)\/30/);
+      const dealBar = page.locator('.intake-deal-bar__score');
+      const drawerTotal = page.locator('#intake-bant-checklist .intake-kit__footer');
+      const dealText = (await dealBar.count()) > 0 ? await dealBar.innerText() : '';
+      const drawerText = (await drawerTotal.count()) > 0 ? await drawerTotal.innerText() : '';
+      const text = `${dealText}\n${drawerText}`;
+      const match = text.match(/(\d+)\s*\/\s*30/);
       return match ? Number(match[1]) : 0;
     }, { timeout: 20_000 })
     .toBe(expectedTotal);
+
+  if (await drawer.isVisible()) {
+    await drawer.getByRole('button', { name: 'Đóng' }).click();
+    await expect(drawer).toBeHidden({ timeout: 10_000 });
+  }
 }
 
 export async function selectDecision(page: Page, value: 'go' | 'nurture' | 'no_go'): Promise<void> {

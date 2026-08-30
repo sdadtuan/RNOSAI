@@ -1153,7 +1153,8 @@ export function IntakeContent({
                       <strong>+ Gặp trực tiếp</strong>.
                     </li>
                     <li>
-                      Tab Discovery: hỏi critical. Tab Qualify: chấm BANT 1–5 và quyết định.
+                      Tab Discovery: hỏi critical. Bấm BANT trên Deal Bar, tick câu KH vừa
+                      nói; Qualify chỉ chọn Quyết định.
                     </li>
                     <li>
                       Chọn <strong>Quyết định</strong> + <strong>Lý do</strong>, rồi{' '}
