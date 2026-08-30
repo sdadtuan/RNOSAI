@@ -12952,24 +12952,6 @@ body {
   font-weight: 600;
 }
 
-.intake-layout__kit-toggle,
-.intake-layout__kit-close,
-.intake-layout__kit-backdrop {
-  display: none;
-}
-
-.intake-layout__kit-toggles {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  width: fit-content;
-}
-
-.intake-layout__kho-toggle {
-  display: inline-flex;
-  width: fit-content;
-}
-
 /* Sales Kit — cockpit-style panel (INT-SK) */
 .intake-kit.lmp-panel {
   margin-top: 0;
@@ -13153,110 +13135,22 @@ body {
   font-size: 0.75rem;
 }
 
-@media (min-width: 1280px) {
-  .intake-layout--with-kit {
-    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(300px, 360px);
-  }
-
-  .intake-layout__kit {
-    position: sticky;
-    top: 0.75rem;
-    z-index: 4;
-  }
+.intake-kit--embedded.lmp-panel {
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+  background: transparent;
+  min-height: 100%;
+  height: 100%;
 }
 
-@media (max-width: 1279px) {
-  .intake-layout__kit-toggles {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    width: fit-content;
-  }
-
-  .intake-layout__kit-toggle,
-  .intake-layout__kho-toggle {
-    display: inline-flex;
-    width: fit-content;
-  }
-
-  .intake-layout__kit-close {
-    display: inline-flex;
-    width: fit-content;
-    margin-bottom: 0.5rem;
-  }
-
-  .intake-layout__kit {
-    position: fixed;
-    z-index: 120;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: min(92vw, 360px);
-    padding: 0.75rem;
-    background: var(--surface);
-    border-left: 1px solid var(--surface-border);
-    box-shadow: -8px 0 24px rgba(15, 36, 24, 0.12);
-    transform: translateX(105%);
-    transition: transform 0.2s ease;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .intake-layout__kit--open {
-    transform: translateX(0);
-  }
-
-  .intake-layout--kit-open .intake-layout__kit-backdrop {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 110;
-    border: 0;
-    padding: 0;
-    background: rgba(15, 23, 42, 0.35);
-    cursor: pointer;
-  }
-
-  .intake-layout__kit .intake-kit {
-    flex: 1;
-    min-height: 0;
-    height: 100%;
-    border: 0;
-    padding: 0;
-    box-shadow: none;
-  }
-
-  .intake-layout__kit .intake-kit__thread {
-    max-height: none;
-  }
+.intake-kit--embedded .intake-kit__thread {
+  max-height: none;
+  flex: 1;
 }
 
-@media (max-width: 1023px) {
-  .intake-layout__kit-toggles {
-    position: fixed;
-    left: 0.85rem;
-    bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
-    z-index: 125;
-  }
-
-  .intake-layout__kit {
-    top: auto;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    max-height: min(78vh, 36rem);
-    border-left: 0;
-    border-top: 1px solid var(--surface-border);
-    border-radius: var(--radius-md) var(--radius-md) 0 0;
-    box-shadow: 0 -8px 24px rgba(15, 36, 24, 0.12);
-    transform: translateY(105%);
-  }
-
-  .intake-layout__kit--open {
-    transform: translateY(0);
-  }
+.intake-kit__subtitle--embedded {
+  margin: 0 0 0.65rem;
 }
 
 .sales-kit-admin {

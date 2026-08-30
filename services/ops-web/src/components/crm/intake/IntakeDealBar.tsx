@@ -20,6 +20,10 @@ export type IntakeDealBarProps = {
   funnelCollapsed: boolean;
   onToggleFunnel: () => void;
   onServiceChange: (slug: string) => void;
+  showSalesKit?: boolean;
+  salesKitOpen?: boolean;
+  onOpenSalesKit?: () => void;
+  onOpenKho?: () => void;
 };
 
 function sciLine(excerpt: string | null): string {
@@ -45,6 +49,10 @@ export function IntakeDealBar({
   funnelCollapsed,
   onToggleFunnel,
   onServiceChange,
+  showSalesKit = false,
+  salesKitOpen = false,
+  onOpenSalesKit,
+  onOpenKho,
 }: IntakeDealBarProps) {
   const gapLabel = gap <= 0 ? 'Đủ Go' : `Còn ${gap} để Go`;
 
@@ -101,6 +109,22 @@ export function IntakeDealBar({
         <Link href={cockpitHref} className="btn btn-secondary btn-sm">
           Cockpit
         </Link>
+        {showSalesKit ? (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            aria-expanded={salesKitOpen}
+            aria-controls="intake-sales-kit"
+            onClick={onOpenSalesKit}
+          >
+            Sales Kit
+          </button>
+        ) : null}
+        {showSalesKit && onOpenKho ? (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenKho}>
+            Kho
+          </button>
+        ) : null}
         <button
           type="button"
           className="btn btn-secondary btn-sm"

@@ -1745,9 +1745,16 @@ html.ops-shell-bitrix .intake-kit__chip.is-active {
   background: #114d24;
 }
 
-html.ops-shell-bitrix .intake-layout__kit {
-  border-left-color: #d7ddd8;
-  box-shadow: -16px 0 40px rgba(18, 54, 28, 0.14);
+html.ops-shell-bitrix .lead-cockpit-drawer__body .intake-kit--embedded {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 5.5rem);
+}
+
+html.ops-shell-bitrix .lead-cockpit-drawer__body #intake-sales-kit {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
 }
 
 html.ops-shell-bitrix .intake-kit__bubble--assistant {

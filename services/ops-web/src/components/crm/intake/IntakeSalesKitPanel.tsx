@@ -85,6 +85,7 @@ export type IntakeSalesKitPanelProps = {
     selected: SalesKitApplySelected & { summary: boolean },
   ) => void | Promise<void>;
   onFocusTab?: (tab: 'discovery' | 'qualify' | 'win_intel') => void;
+  embedded?: boolean;
 };
 
 export function IntakeSalesKitPanel({
@@ -94,6 +95,7 @@ export function IntakeSalesKitPanel({
   sciExcerpt,
   onApply,
   onFocusTab,
+  embedded = false,
 }: IntakeSalesKitPanelProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -237,16 +239,28 @@ export function IntakeSalesKitPanel({
   if (runtime?.hint_vi) subtitleParts.push(runtime.hint_vi);
 
   return (
-    <section className="lmp-panel lmp-cockpit intake-kit" aria-label="Sales Kit">
-      <header className="lmp-panel__head intake-kit__head">
-        <div>
-          <h2 className="lmp-panel__title">Sales Kit</h2>
-          <p className="muted intake-kit__subtitle">
-            {subtitleParts.join(' · ')}
-            {!sessionId ? ' · Tạo phiên để dùng kit.' : ''}
-          </p>
-        </div>
-      </header>
+    <section
+      className={`lmp-panel lmp-cockpit intake-kit${embedded ? ' intake-kit--embedded' : ''}`}
+      aria-label="Sales Kit"
+    >
+      {!embedded ? (
+        <header className="lmp-panel__head intake-kit__head">
+          <div>
+            <h2 className="lmp-panel__title">Sales Kit</h2>
+            <p className="muted intake-kit__subtitle">
+              {subtitleParts.join(' · ')}
+              {!sessionId ? ' · Tạo phiên để dùng kit.' : ''}
+            </p>
+          </div>
+        </header>
+      ) : null}
+
+      {embedded ? (
+        <p className="muted intake-kit__subtitle intake-kit__subtitle--embedded">
+          {subtitleParts.join(' · ')}
+          {!sessionId ? ' · Tạo phiên để dùng kit.' : ''}
+        </p>
+      ) : null}
 
       {sciLine ? (
         <p className="intake-kit__sci">

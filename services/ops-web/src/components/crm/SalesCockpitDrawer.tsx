@@ -6,9 +6,19 @@ type Props = {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
+  kicker?: string;
+  title?: string;
+  testId?: string;
 };
 
-export function SalesCockpitDrawer({ open, onClose, children }: Props) {
+export function SalesCockpitDrawer({
+  open,
+  onClose,
+  children,
+  kicker = 'SCI',
+  title = 'Sales Cockpit',
+  testId = 'lead-cockpit-drawer',
+}: Props) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -32,13 +42,13 @@ export function SalesCockpitDrawer({ open, onClose, children }: Props) {
         className="lead-cockpit-drawer"
         role="dialog"
         aria-modal="true"
-        aria-label="Sales Cockpit"
-        data-testid="lead-cockpit-drawer"
+        aria-label={title}
+        data-testid={testId}
       >
         <header className="lead-cockpit-drawer__head">
           <div>
-            <p className="lead-cockpit-drawer__kicker">SCI</p>
-            <h2 className="lead-cockpit-drawer__title">Sales Cockpit</h2>
+            <p className="lead-cockpit-drawer__kicker">{kicker}</p>
+            <h2 className="lead-cockpit-drawer__title">{title}</h2>
           </div>
           <button type="button" className="btn btn-sm btn-secondary" onClick={onClose}>
             Đóng

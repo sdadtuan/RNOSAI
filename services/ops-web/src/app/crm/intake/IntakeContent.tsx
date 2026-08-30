@@ -13,6 +13,7 @@ import { IntakeQualifyTab } from '@/components/crm/intake/IntakeQualifyTab';
 import { IntakeSalesKitLibrarySheet } from '@/components/crm/intake/IntakeSalesKitLibrarySheet';
 import { IntakeSalesKitPanel } from '@/components/crm/intake/IntakeSalesKitPanel';
 import { IntakeSessionSidebar } from '@/components/crm/intake/IntakeSessionSidebar';
+import { SalesCockpitDrawer } from '@/components/crm/SalesCockpitDrawer';
 import { IntakeWinIntelSection } from '@/components/crm/intake/IntakeWinIntelSection';
 import { IntakeWorkspaceTabs } from '@/components/crm/intake/IntakeWorkspaceTabs';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
@@ -1069,9 +1070,7 @@ export function IntakeContent({
 
         {!loading && contextOk ? (
           <div
-            className={`intake-layout${sidebarOpen ? ' intake-layout--sidebar-open' : ''}${
-              kitEnabled ? ' intake-layout--with-kit' : ''
-            }${kitEnabled && kitOpen ? ' intake-layout--kit-open' : ''}`}
+            className={`intake-layout${sidebarOpen ? ' intake-layout--sidebar-open' : ''}`}
           >
             <button
               type="button"
@@ -1088,15 +1087,6 @@ export function IntakeContent({
                 className="intake-layout__backdrop"
                 aria-label="Đóng danh sách phiên"
                 onClick={() => setSidebarOpen(false)}
-              />
-            ) : null}
-
-            {kitEnabled && kitOpen ? (
-              <button
-                type="button"
-                className="intake-layout__kit-backdrop"
-                aria-label="Đóng Sales Kit"
-                onClick={() => setKitOpen(false)}
               />
             ) : null}
 
@@ -1119,29 +1109,6 @@ export function IntakeContent({
             <div
               className={`intake-layout__main stack-gap${leadId > 0 ? ' intake-layout__main--stepper' : ''}`}
             >
-              {kitEnabled ? (
-                <div className="intake-layout__kit-toggles">
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm intake-layout__kit-toggle"
-                    onClick={() => setKitOpen(true)}
-                    aria-expanded={kitOpen}
-                    aria-controls="intake-sales-kit"
-                  >
-                    Sales Kit
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm intake-layout__kho-toggle"
-                    onClick={() => setLibraryOpen(true)}
-                    aria-expanded={libraryOpen}
-                    aria-controls="intake-sales-kit-library"
-                  >
-                    Kho
-                  </button>
-                </div>
-              ) : null}
-
               <IntakeDealBar
                 leadName={dealLeadName}
                 companyName={dealCompany}
@@ -1159,6 +1126,10 @@ export function IntakeContent({
                 funnelCollapsed={funnelCollapsed}
                 onToggleFunnel={() => setFunnelCollapsed((collapsed) => !collapsed)}
                 onServiceChange={(slug) => void onServiceChange(slug)}
+                showSalesKit={kitEnabled}
+                salesKitOpen={kitOpen}
+                onOpenSalesKit={() => setKitOpen(true)}
+                onOpenKho={() => setLibraryOpen(true)}
               />
 
               {helpOpen ? (
@@ -1321,32 +1292,31 @@ export function IntakeContent({
                 <p className="muted">Chưa có phiên — tạo phiên mới ở cột trái.</p>
               )}
             </div>
-
-            {kitEnabled ? (
-              <aside
-                id="intake-sales-kit"
-                className={`intake-layout__kit${kitOpen ? ' intake-layout__kit--open' : ''}`}
-              >
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm intake-layout__kit-close"
-                  onClick={() => setKitOpen(false)}
-                >
-                  Đóng
-                </button>
-                <IntakeSalesKitPanel
-                  sessionId={active?.id ?? null}
-                  serviceSlug={resolvedSlug}
-                  canEdit={canCreate && active?.status !== 'completed'}
-                  sciExcerpt={sciExcerpt}
-                  onApply={(apply, selected) => void onApplySalesKit(apply, selected)}
-                  onFocusTab={setActiveTab}
-                />
-              </aside>
-            ) : null}
           </div>
         ) : null}
       </div>
+
+      {kitEnabled ? (
+        <SalesCockpitDrawer
+          open={kitOpen}
+          onClose={() => setKitOpen(false)}
+          kicker="INT-SK"
+          title="Sales Kit"
+          testId="intake-sales-kit-drawer"
+        >
+          <div id="intake-sales-kit">
+            <IntakeSalesKitPanel
+              embedded
+              sessionId={active?.id ?? null}
+              serviceSlug={resolvedSlug}
+              canEdit={canCreate && active?.status !== 'completed'}
+              sciExcerpt={sciExcerpt}
+              onApply={(apply, selected) => void onApplySalesKit(apply, selected)}
+              onFocusTab={setActiveTab}
+            />
+          </div>
+        </SalesCockpitDrawer>
+      ) : null}
 
       <IntakeSalesKitLibrarySheet
         open={kitEnabled && libraryOpen}
