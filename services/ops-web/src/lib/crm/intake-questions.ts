@@ -1,7 +1,10 @@
+import type { BantKey } from '@/lib/crm/intake-bant';
+
 export interface IntakeQuestionItem {
   key: string;
   text: string;
   critical?: boolean;
+  bant_key?: BantKey;
 }
 
 export interface IntakeRedFlagItem {
