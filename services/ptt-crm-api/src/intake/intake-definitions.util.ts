@@ -15,7 +15,35 @@ export interface IntakeQuestionItem {
   key: string;
   text: string;
   critical?: boolean;
+  bant_key?: (typeof BANT_KEYS)[number];
 }
+
+export const BANT_KEY_BY_QUESTION_KEY: Record<string, (typeof BANT_KEYS)[number]> = {
+  phone_pain_point: 'need',
+  phone_budget: 'budget',
+  phone_timeline: 'timeline',
+  phone_deadline: 'timeline',
+  phone_decision_maker: 'authority',
+  phone_prior_attempts: 'history',
+  phone_industry: 'fit',
+  phone_expectation: 'fit',
+  phone_priority_service: 'fit',
+  phone_service_interest: 'fit',
+  phone_kpi: 'need',
+  ip_pain_solutions: 'need',
+  ip_budget_approved: 'budget',
+  ip_timeline: 'timeline',
+  ip_approval_process: 'authority',
+  ip_icp: 'fit',
+  ip_agency_criteria: 'fit',
+  ip_partner_risk: 'fit',
+  ip_competitors: 'history',
+  ip_business_goals: 'need',
+  seo_history: 'history',
+  seo_competitors: 'history',
+  gads_history: 'history',
+  web_deadline: 'timeline',
+};
 
 export interface IntakeRedFlagItem {
   key: string;
@@ -78,11 +106,15 @@ function buildQuestionItems(
   keys: readonly string[],
   criticalKeys: Set<string>,
 ): IntakeQuestionItem[] {
-  return texts.map((text, index) => ({
-    key: keys[index] ?? `q_${String(index).padStart(2, '0')}`,
-    text,
-    critical: criticalKeys.has(keys[index] ?? ''),
-  }));
+  return texts.map((text, index) => {
+    const key = keys[index] ?? `q_${String(index).padStart(2, '0')}`;
+    return {
+      key,
+      text,
+      critical: criticalKeys.has(keys[index] ?? ''),
+      ...(BANT_KEY_BY_QUESTION_KEY[key] ? { bant_key: BANT_KEY_BY_QUESTION_KEY[key] } : {}),
+    };
+  });
 }
 
 function buildRedFlagItems(texts: string[], keys: readonly string[]): IntakeRedFlagItem[] {
@@ -474,7 +506,7 @@ export function getUiDefinition(slug: string): Record<string, unknown> {
     win_intel_prompts: 'win_intel_prompts' in svc ? svc.win_intel_prompts : [],
     l2_preview_keys: 'l2_preview_keys' in svc ? svc.l2_preview_keys : [],
     is_pilot_form: Boolean(PILOT[defSlug]),
-    schema_version: 3,
+    schema_version: 4,
   };
 }
 
