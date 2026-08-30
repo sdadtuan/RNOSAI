@@ -1729,3 +1729,37 @@ html.ops-shell-bitrix .lead-cockpit-drawer__body {
     width: min(100vw, 100%);
   }
 }
+
+/* Intake Sales Kit — align with Sales Cockpit drawer */
+html.ops-shell-bitrix .intake-kit.lmp-panel {
+  border-color: #e8ebe9;
+  box-shadow: 0 1px 2px rgba(18, 54, 28, 0.06);
+}
+
+html.ops-shell-bitrix .intake-kit__chip {
+  background: #17692f;
+}
+
+html.ops-shell-bitrix .intake-kit__chip:hover:not(:disabled),
+html.ops-shell-bitrix .intake-kit__chip.is-active {
+  background: #114d24;
+}
+
+html.ops-shell-bitrix .intake-layout__kit {
+  border-left-color: #d7ddd8;
+  box-shadow: -16px 0 40px rgba(18, 54, 28, 0.14);
+}
+
+html.ops-shell-bitrix .intake-kit__bubble--assistant {
+  background: #f6f8f7;
+  border-color: #e8ebe9;
+}
+
+html.ops-shell-bitrix .intake-kit__chat-input {
+  border-color: #d7ddd8;
+}
+
+html.ops-shell-bitrix .intake-kit__chat-input:focus {
+  outline: 2px solid rgba(23, 105, 47, 0.25);
+  border-color: #17692f;
+}

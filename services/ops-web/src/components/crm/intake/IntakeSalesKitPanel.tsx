@@ -233,13 +233,19 @@ export function IntakeSalesKitPanel({
 
   const sciLine = sciExcerpt?.trim() ?? '';
 
+  const subtitleParts = [badge];
+  if (runtime?.hint_vi) subtitleParts.push(runtime.hint_vi);
+
   return (
-    <section className="intake-kit" aria-label="Sales Kit">
-      <header className="intake-kit__head">
-        <strong>Sales Kit</strong>
-        <span className="intake-kit__badge muted">{badge}</span>
-        {runtime?.hint_vi ? <span className="muted intake-kit__hint">{runtime.hint_vi}</span> : null}
-        {!sessionId ? <p className="muted">Tạo phiên để dùng kit.</p> : null}
+    <section className="lmp-panel lmp-cockpit intake-kit" aria-label="Sales Kit">
+      <header className="lmp-panel__head intake-kit__head">
+        <div>
+          <h2 className="lmp-panel__title">Sales Kit</h2>
+          <p className="muted intake-kit__subtitle">
+            {subtitleParts.join(' · ')}
+            {!sessionId ? ' · Tạo phiên để dùng kit.' : ''}
+          </p>
+        </div>
       </header>
 
       {sciLine ? (
@@ -249,152 +255,150 @@ export function IntakeSalesKitPanel({
         </p>
       ) : null}
 
-      <div className="intake-kit__chips" role="group" aria-label="Chip Sales Kit">
+      <nav className="intake-kit__chips" aria-label="Chip Sales Kit">
         {CHIPS.map((chip) => (
           <button
             key={chip.intent}
             type="button"
-            className={`btn btn-secondary btn-sm intake-kit__chip${
-              activeIntent === chip.intent ? ' is-active' : ''
-            }`}
+            className={`intake-kit__chip${activeIntent === chip.intent ? ' is-active' : ''}`}
             disabled={!canRun}
             onClick={() => void runIntent(chip.intent)}
           >
             {chip.label}
           </button>
         ))}
-      </div>
+      </nav>
 
-      <div className="intake-kit__thread" aria-live="polite">
-        {turns.length === 0 && !busy ? (
-          <p className="muted">Chọn chip hoặc gõ câu hỏi để bắt đầu.</p>
-        ) : null}
-        {turns.map((turn) => {
-          const userLabel = chipUserLabel(turn.intent, turn.user_text);
-          const turnCitations = parseCitations(turn.citations_json);
-          return (
-            <div key={turn.id} className="intake-kit__turn">
-              <div className="intake-kit__bubble intake-kit__bubble--user">
-                <span className="muted">{userLabel}</span>
-              </div>
-              <div className="intake-kit__bubble intake-kit__bubble--assistant">
-                <p>{turn.reply_vi}</p>
-                {turnCitations.length > 0 ? (
-                  <ul className="intake-kit__citations">
-                    {turnCitations.map((cite, index) => (
-                      <li key={`${cite.file_name}-${index}`}>
-                        <strong>Nguồn:</strong> {cite.file_name}
-                        {cite.folder_path ? ` · ${cite.folder_path}` : ''}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-                <div className="intake-kit__rate">
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    disabled={!canEdit || turn.rating != null || ratingBusy === turn.id}
-                    onClick={() => void onRate(turn.id, 'up')}
-                    aria-label="Hữu ích"
-                  >
-                    👍
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    disabled={!canEdit || turn.rating != null || ratingBusy === turn.id}
-                    onClick={() => void onRate(turn.id, 'down')}
-                    aria-label="Chưa ổn"
-                  >
-                    👎
-                  </button>
-                  {turn.rating ? <span className="muted">Đã đánh giá</span> : null}
+      <div className="lmp-cockpit-body intake-kit__body">
+        <div className="intake-kit__thread" aria-live="polite">
+          {turns.length === 0 && !busy ? (
+            <p className="muted intake-kit__empty">Chọn chip hoặc gõ câu hỏi để bắt đầu.</p>
+          ) : null}
+          {turns.map((turn) => {
+            const userLabel = chipUserLabel(turn.intent, turn.user_text);
+            const turnCitations = parseCitations(turn.citations_json);
+            return (
+              <div key={turn.id} className="intake-kit__turn">
+                <div className="intake-kit__bubble intake-kit__bubble--user">
+                  <span className="muted">{userLabel}</span>
+                </div>
+                <div className="intake-kit__bubble intake-kit__bubble--assistant">
+                  <p className="intake-kit__reply-text">{turn.reply_vi}</p>
+                  {turnCitations.length > 0 ? (
+                    <ul className="intake-kit__citations">
+                      {turnCitations.map((cite, index) => (
+                        <li key={`${cite.file_name}-${index}`}>
+                          <strong>Nguồn:</strong> {cite.file_name}
+                          {cite.folder_path ? ` · ${cite.folder_path}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  <div className="intake-kit__rate">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={!canEdit || turn.rating != null || ratingBusy === turn.id}
+                      onClick={() => void onRate(turn.id, 'up')}
+                      aria-label="Hữu ích"
+                    >
+                      👍
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={!canEdit || turn.rating != null || ratingBusy === turn.id}
+                      onClick={() => void onRate(turn.id, 'down')}
+                      aria-label="Chưa ổn"
+                    >
+                      👎
+                    </button>
+                    {turn.rating ? <span className="muted">Đã đánh giá</span> : null}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
-        {busy ? <p className="muted">Đang hỏi kit…</p> : null}
+            );
+          })}
+          {busy ? <p className="muted">Đang hỏi kit…</p> : null}
+        </div>
+
+        {error ? <p className="error">{error}</p> : null}
+
+        {hasApply && lastTurn ? (
+          <fieldset className="intake-kit__apply" disabled={applying || !canEdit}>
+            <legend className="muted">Áp dụng vào form (lượt cuối)</legend>
+            {apply?.discovery?.length ? (
+              <label className="intake-kit__check">
+                <input
+                  type="checkbox"
+                  checked={selected.discovery}
+                  onChange={(e) => setSelected((prev) => ({ ...prev, discovery: e.target.checked }))}
+                />
+                Discovery ({apply.discovery.length})
+              </label>
+            ) : null}
+            {apply?.win_intel && Object.keys(apply.win_intel).length > 0 ? (
+              <label className="intake-kit__check">
+                <input
+                  type="checkbox"
+                  checked={selected.winIntel}
+                  onChange={(e) => setSelected((prev) => ({ ...prev, winIntel: e.target.checked }))}
+                />
+                Win intel
+              </label>
+            ) : null}
+            {apply?.ai_summary?.trim() ? (
+              <label className="intake-kit__check">
+                <input
+                  type="checkbox"
+                  checked={selected.summary}
+                  onChange={(e) => setSelected((prev) => ({ ...prev, summary: e.target.checked }))}
+                />
+                Tóm tắt
+              </label>
+            ) : null}
+            {apply?.bant_hints && Object.keys(apply.bant_hints).length > 0 ? (
+              <label className="intake-kit__check">
+                <input
+                  type="checkbox"
+                  checked={selected.bantHints}
+                  onChange={(e) => setSelected((prev) => ({ ...prev, bantHints: e.target.checked }))}
+                />
+                {Object.entries(apply.bant_hints)
+                  .filter(([, value]) => Number.isFinite(Number(value)))
+                  .map(([key, value]) => `Bot đề xuất ${BANT_HINT_LABELS[key] ?? key} ${value}/5 — Áp dụng?`)
+                  .join(' · ')}
+              </label>
+            ) : null}
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={applying || !canEdit}
+              onClick={() => void onConfirmApply()}
+            >
+              Áp dụng
+            </button>
+          </fieldset>
+        ) : null}
       </div>
 
-      {error ? <p className="error">{error}</p> : null}
-
-      {hasApply && lastTurn ? (
-        <fieldset className="intake-kit__apply" disabled={applying || !canEdit}>
-          <legend className="muted">Áp dụng vào form (lượt cuối)</legend>
-          {apply?.discovery?.length ? (
-            <label className="intake-kit__check">
-              <input
-                type="checkbox"
-                checked={selected.discovery}
-                onChange={(e) => setSelected((prev) => ({ ...prev, discovery: e.target.checked }))}
-              />
-              Discovery ({apply.discovery.length})
-            </label>
-          ) : null}
-          {apply?.win_intel && Object.keys(apply.win_intel).length > 0 ? (
-            <label className="intake-kit__check">
-              <input
-                type="checkbox"
-                checked={selected.winIntel}
-                onChange={(e) => setSelected((prev) => ({ ...prev, winIntel: e.target.checked }))}
-              />
-              Win intel
-            </label>
-          ) : null}
-          {apply?.ai_summary?.trim() ? (
-            <label className="intake-kit__check">
-              <input
-                type="checkbox"
-                checked={selected.summary}
-                onChange={(e) => setSelected((prev) => ({ ...prev, summary: e.target.checked }))}
-              />
-              Tóm tắt
-            </label>
-          ) : null}
-          {apply?.bant_hints && Object.keys(apply.bant_hints).length > 0 ? (
-            <label className="intake-kit__check">
-              <input
-                type="checkbox"
-                checked={selected.bantHints}
-                onChange={(e) => setSelected((prev) => ({ ...prev, bantHints: e.target.checked }))}
-              />
-              {Object.entries(apply.bant_hints)
-                .filter(([, value]) => Number.isFinite(Number(value)))
-                .map(([key, value]) => `Bot đề xuất ${BANT_HINT_LABELS[key] ?? key} ${value}/5 — Áp dụng?`)
-                .join(' · ')}
-            </label>
-          ) : null}
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            disabled={applying || !canEdit}
-            onClick={() => void onConfirmApply()}
-          >
-            Áp dụng
-          </button>
-        </fieldset>
-      ) : null}
-
-      <form className="intake-kit__chat" onSubmit={onSubmitChat}>
-        <label className="intake-field">
-          <span className="muted">Chat</span>
-          <textarea
-            className="intake-kit__chat-input"
-            rows={2}
-            value={message}
-            placeholder="Hỏi kit hoặc gõ điều KH vừa nói…"
-            disabled={!canRun}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={onComposerKeyDown}
-          />
-        </label>
-        <button type="submit" className="btn btn-secondary btn-sm" disabled={!canRun || !message.trim()}>
-          Gửi
-        </button>
-      </form>
-
-      <p className="muted intake-kit__footer">Nội bộ — không gửi khách</p>
+      <footer className="lmp-cockpit-foot intake-kit__foot">
+        <form className="intake-kit__chat" onSubmit={onSubmitChat}>
+          <label className="intake-field">
+            <span className="muted">Chat</span>
+            <textarea
+              className="intake-kit__chat-input"
+              rows={3}
+              value={message}
+              placeholder="Hỏi kit hoặc gõ điều KH vừa nói…"
+              disabled={!canRun}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={onComposerKeyDown}
+            />
+          </label>
+        </form>
+        <p className="muted intake-kit__footer">Nội bộ — không gửi khách</p>
+      </footer>
     </section>
   );
 }
