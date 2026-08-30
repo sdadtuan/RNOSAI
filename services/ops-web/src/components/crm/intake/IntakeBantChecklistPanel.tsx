@@ -8,19 +8,32 @@ import {
   bantChecklistTotal,
   type BantChecklistState,
 } from '@/lib/crm/intake-bant-checklist';
+import { groupHasMappedQuestions, hasBantDiscoveryEvidence } from '@/lib/crm/intake-bant-evidence';
+import { nextBantStep } from '@/lib/crm/intake-bant-next-step';
+import type { DiscoveryResponseEntry, IntakeQuestionItem } from '@/lib/crm/intake-questions';
+import { gapToConsultLabel, gapToGo } from '@/lib/crm/intake-service-resolve';
 
 export type IntakeBantChecklistPanelProps = {
   checklist: BantChecklistState;
   canEdit: boolean;
+  questionItems: IntakeQuestionItem[];
+  checked: Record<string, boolean>;
+  responses: Record<string, DiscoveryResponseEntry>;
   onToggle: (key: BantKey, score: number) => void;
+  onFocusTab?: (tab: 'discovery' | 'qualify' | 'win_intel') => void;
 };
 
 export function IntakeBantChecklistPanel({
   checklist,
   canEdit,
+  questionItems,
+  checked,
+  responses,
   onToggle,
+  onFocusTab,
 }: IntakeBantChecklistPanelProps) {
   const total = bantChecklistTotal(checklist);
+  const step = nextBantStep({ checklist, questionItems, checked, responses });
 
   return (
     <section className="lmp-panel lmp-cockpit intake-kit intake-kit--embedded intake-bant-drawer">
@@ -29,10 +42,34 @@ export function IntakeBantChecklistPanel({
       </p>
       <IntakeBantTotalBar total={total} />
 
+      <article className="intake-bant-drawer__next">
+        <h3>{step.title_vi}</h3>
+        <p>{step.body_vi}</p>
+        {step.cta === 'discovery' ? (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onFocusTab?.('discovery')}>
+            Mở Discovery
+          </button>
+        ) : null}
+        {step.cta === 'qualify' ? (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onFocusTab?.('qualify')}>
+            Mở Qualify
+          </button>
+        ) : null}
+      </article>
+
       <div className="intake-bant-drawer__list">
         {BANT_KEYS.map((key) => {
           const block = BANT_CHECKLIST[key];
           const selected = Number(checklist[key] ?? 0);
+          const showWarn =
+            selected >= 1 &&
+            groupHasMappedQuestions(key, questionItems) &&
+            !hasBantDiscoveryEvidence({
+              bantKey: key,
+              questionItems,
+              checked,
+              responses,
+            });
           return (
             <section key={key} className="intake-bant-drawer__block">
               <header className="intake-bant-drawer__block-head">
@@ -45,14 +82,14 @@ export function IntakeBantChecklistPanel({
               <ul className="intake-bant-drawer__items">
                 {block.items.map((item) => {
                   const id = `bant-check-${key}-${item.score}`;
-                  const checked = selected === item.score;
+                  const itemChecked = selected === item.score;
                   return (
                     <li key={item.score}>
-                      <label className={`intake-bant-drawer__item${checked ? ' is-checked' : ''}`} htmlFor={id}>
+                      <label className={`intake-bant-drawer__item${itemChecked ? ' is-checked' : ''}`} htmlFor={id}>
                         <input
                           id={id}
                           type="checkbox"
-                          checked={checked}
+                          checked={itemChecked}
                           disabled={!canEdit}
                           onChange={() => onToggle(key, item.score)}
                         />
@@ -63,11 +100,18 @@ export function IntakeBantChecklistPanel({
                   );
                 })}
               </ul>
+              {showWarn ? (
+                <p className="intake-bant-drawer__warn" role="status">
+                  Chưa có ghi chú Discovery cho mục này. Nên mở Discovery và ghi lời KH trước khi tin điểm.
+                </p>
+              ) : null}
             </section>
           );
         })}
       </div>
-      <p className="muted intake-kit__footer">Nội bộ — không gửi khách</p>
+      <p className="muted intake-kit__footer">
+        BANT {total}/30 · {gapToConsultLabel(gapToGo(total))}
+      </p>
     </section>
   );
 }

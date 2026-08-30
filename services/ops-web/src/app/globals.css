@@ -13233,6 +13233,34 @@ body {
   color: var(--ptt, #17692f);
 }
 
+.intake-bant-drawer__warn {
+  margin: 0.45rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #92600a;
+}
+
+.intake-bant-drawer__next {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.75rem 0 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.intake-bant-drawer__next h3 {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.intake-bant-drawer__next p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
 .sales-kit-admin {
   display: grid;
   grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);

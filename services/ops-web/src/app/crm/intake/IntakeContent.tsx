@@ -1317,10 +1317,17 @@ export function IntakeContent({
           <IntakeBantChecklistPanel
             checklist={bantChecklist}
             canEdit={canCreate && active?.status !== 'completed'}
+            questionItems={discoveryQuestionItems}
+            checked={discovery.checked}
+            responses={discovery.responses}
             onToggle={(key, score) => {
               const next = toggleBantChecklistScore(bantChecklist, key, score);
               setBantChecklist(next);
               setBant(scoreBantFromChecklist(next));
+            }}
+            onFocusTab={(tab) => {
+              setActiveTab(tab);
+              setBantOpen(false);
             }}
           />
         </div>
