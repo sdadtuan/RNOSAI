@@ -28,6 +28,8 @@ import { IntakeStaffActor } from './intake-b2b-visibility.service';
 import { IntakeService } from './intake.service';
 import { CreateIntakeSessionBody, PatchIntakeSessionBody } from './intake.types';
 import { SalesKitLibraryService } from './sales-kit-library.service';
+import { SalesKitLearnService } from './sales-kit-learn.service';
+import { SalesKitRuntimeService } from './sales-kit-runtime.service';
 import { buildSalesKitSampleXlsx } from './sales-kit-sample.util';
 
 type IntakeRequest = Request & {
@@ -42,6 +44,8 @@ export class IntakeController {
     private readonly intake: IntakeService,
     private readonly staffAuth: StaffAuthService,
     private readonly library: SalesKitLibraryService,
+    private readonly runtime: SalesKitRuntimeService,
+    private readonly learn: SalesKitLearnService,
   ) {}
 
   private async actorContext(req: IntakeRequest): Promise<IntakeStaffActor | null> {
@@ -136,6 +140,101 @@ export class IntakeController {
     @Req() req: IntakeRequest,
   ) {
     return this.intake.salesKitTurn(id, body, await this.actorContext(req));
+  }
+
+  @Get('sessions/:id/sales-kit/turns')
+  async listSalesKitTurns(@Req() req: IntakeRequest, @Param('id', ParseIntPipe) id: number) {
+    return this.intake.listSalesKitTurns(id, await this.actorContext(req));
+  }
+
+  @Post('sales-kit/turns/:id/rating')
+  @UseGuards(StaffIntakeWriteGuard)
+  @HttpCode(HttpStatus.OK)
+  async rateSalesKitTurn(
+    @Req() req: IntakeRequest,
+    @Param('id') id: string,
+    @Body() body: { rating?: string; reason?: string },
+  ) {
+    return this.intake.rateSalesKitTurn(id, body, await this.actorContext(req));
+  }
+
+  @Get('sales-kit/runtime')
+  async getSalesKitRuntime(@Req() req: IntakeRequest) {
+    await this.actorContext(req);
+    return this.runtime.getRuntime();
+  }
+
+  @Patch('sales-kit/runtime')
+  @UseGuards(StaffIntakeWriteGuard)
+  async patchSalesKitRuntime(
+    @Req() req: IntakeRequest,
+    @Body() body: { mode?: string },
+  ) {
+    return this.runtime.patchMode(String(body.mode ?? ''), await this.actorContext(req));
+  }
+
+  @Get('sales-kit/learn/candidates')
+  async listLearnCandidates(
+    @Req() req: IntakeRequest,
+    @Query('status') status?: string,
+  ) {
+    return this.learn.listCandidates({ status }, await this.actorContext(req));
+  }
+
+  @Get('sales-kit/learn/turns')
+  async listLearnDownTurns(
+    @Req() req: IntakeRequest,
+    @Query('rating') rating?: string,
+    @Query('days') days?: string,
+  ) {
+    if (rating !== 'down') {
+      throw new BadRequestException({ error: 'rating_required' });
+    }
+    const d = days ? Number(days) : 30;
+    return this.learn.listDownTurns(Number.isFinite(d) ? d : 30, await this.actorContext(req));
+  }
+
+  @Post('sales-kit/learn/turns/:id/propose')
+  @UseGuards(StaffIntakeWriteGuard)
+  @HttpCode(HttpStatus.OK)
+  async proposeLearnFromTurn(@Req() req: IntakeRequest, @Param('id') id: string) {
+    return this.learn.proposeFromTurn(id, await this.actorContext(req));
+  }
+
+  @Post('sales-kit/learn/candidates/:id/approve')
+  @UseGuards(StaffIntakeWriteGuard)
+  @HttpCode(HttpStatus.OK)
+  async approveLearnCandidate(
+    @Req() req: IntakeRequest,
+    @Param('id') id: string,
+    @Body() body: { question?: string; answer?: string; folder_key?: string },
+  ) {
+    return this.learn.approveCandidate(id, body, await this.actorContext(req));
+  }
+
+  @Post('sales-kit/learn/candidates/:id/reject')
+  @UseGuards(StaffIntakeWriteGuard)
+  @HttpCode(HttpStatus.OK)
+  async rejectLearnCandidate(
+    @Req() req: IntakeRequest,
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.learn.rejectCandidate(id, body, await this.actorContext(req));
+  }
+
+  @Get('sales-kit/learn/metrics')
+  async learnMetrics(@Req() req: IntakeRequest) {
+    return this.learn.metrics(await this.actorContext(req));
+  }
+
+  @Get('sales-kit/learn/export.jsonl')
+  async learnExportJsonl(@Req() req: IntakeRequest) {
+    const body = await this.learn.exportJsonl(await this.actorContext(req));
+    return new StreamableFile(Buffer.from(body, 'utf8'), {
+      type: 'application/x-ndjson',
+      disposition: 'attachment; filename="sales-kit-lora.jsonl"',
+    });
   }
 
   @Get('sessions/:id')

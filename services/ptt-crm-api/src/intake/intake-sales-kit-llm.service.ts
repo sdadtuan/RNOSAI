@@ -9,6 +9,7 @@ import {
   buildKitLlmSystemPrompt,
   stripInventedMoney,
 } from './intake-sales-kit-llm.util';
+import { SalesKitRuntimeService } from './sales-kit-runtime.service';
 import type { SalesKitCitation, SalesKitRulesOutput } from './intake-sales-kit-rules.util';
 
 const LLM_WORDING_INTENTS = new Set(['summary_30s', 'next_question', 'freeform', 'ask_library']);
@@ -35,13 +36,14 @@ export class IntakeSalesKitLlmService {
     private readonly llm: AiLlmClient,
     private readonly aiConfig: AiIntelligenceConfigService,
     private readonly agentRuns: AiAgentRunsRepository,
+    private readonly runtime: SalesKitRuntimeService,
   ) {}
 
   async polish(input: IntakeSalesKitLlmInput): Promise<SalesKitRulesOutput> {
     const rules = { ...input.rules, apply: { ...input.rules.apply } };
     const citations = input.citations ?? rules.citations ?? [];
 
-    if (!this.shouldCallLlm(input.intent, citations)) {
+    if (!(await this.shouldCallLlm(input.intent, citations))) {
       return { ...rules, stub_mode: true };
     }
 
@@ -61,10 +63,18 @@ export class IntakeSalesKitLlmService {
       .slice(0, 16);
 
     try {
+      await this.runtime.loadDbMode();
+      const mode = this.runtime.resolveMode();
+      const callOpts = this.runtime.llmCallOptions(mode);
+      const model = callOpts?.model ?? this.aiConfig.llmModel;
+
       const { parsed, tokenUsage, modelName, stubMode } = await this.llm.completeJson({
         systemPrompt,
         userContent,
-        model: this.aiConfig.llmModel,
+        model,
+        apiKey: callOpts?.apiKey,
+        baseUrl: callOpts?.baseUrl,
+        timeoutMs: callOpts?.timeoutMs,
         stubJson: () => ({ reply_vi: rules.reply_vi }),
       });
 
@@ -102,12 +112,15 @@ export class IntakeSalesKitLlmService {
     }
   }
 
-  private shouldCallLlm(
+  private async shouldCallLlm(
     intent: string,
     citations: Array<Pick<SalesKitCitation, 'kind'>>,
-  ): boolean {
-    if (!this.aiConfig.intakeSalesKitLlmEnabled) return false;
-    if (!this.aiConfig.llmApiKey) return false;
+  ): Promise<boolean> {
+    await this.runtime.loadDbMode();
+    const mode = this.runtime.resolveMode();
+    if (mode === 'off') return false;
+    const opts = this.runtime.llmCallOptions(mode);
+    if (!opts?.apiKey) return false;
     if (!LLM_WORDING_INTENTS.has(intent)) return false;
     if (intent === 'ask_library' && citations.length === 0) return false;
     return true;

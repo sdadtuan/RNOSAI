@@ -73,7 +73,7 @@ import {
   applySalesKitToForm,
   type SalesKitApplySelected,
 } from '@/lib/crm/intake-sales-kit-apply';
-import { intakeSalesKitEnabled, intakeSalesKitLlmEnabled } from '@/lib/crm/intake-sales-kit-flags';
+import { intakeSalesKitEnabled } from '@/lib/crm/intake-sales-kit-flags';
 import {
   emptyWinIntel,
   type WinIntelKey,
@@ -257,8 +257,6 @@ export function IntakeContent({
   );
   const liveBantTotal = useMemo(() => computeBantTotal(bant), [bant]);
   const kitEnabled = intakeSalesKitEnabled();
-  const kitLlmEnabled = intakeSalesKitLlmEnabled();
-
   const resolvedSlug = useMemo(
     () =>
       resolveIntakeServiceSlug({
@@ -1340,7 +1338,6 @@ export function IntakeContent({
                   sessionId={active?.id ?? null}
                   serviceSlug={resolvedSlug}
                   canEdit={canCreate && active?.status !== 'completed'}
-                  llmEnabled={kitLlmEnabled}
                   sciExcerpt={sciExcerpt}
                   onApply={(apply, selected) => void onApplySalesKit(apply, selected)}
                   onFocusTab={setActiveTab}

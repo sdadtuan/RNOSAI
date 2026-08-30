@@ -37,6 +37,16 @@ export class AiIntelligenceConfigService {
   readonly orchestratorCronEnabled: boolean;
   readonly toolsApiEnabled: boolean;
   readonly intakeSalesKitLlmEnabled: boolean;
+  readonly intakeSalesKitModeLocked: boolean;
+  readonly intakeSalesKitModeEnv: string | null;
+  readonly intakeSalesKitLlmTimeoutMs: number;
+  readonly intakeSalesKitOpenAiKey: string | null;
+  readonly intakeSalesKitOpenAiModel: string;
+  readonly intakeSalesKitOllamaBaseUrl: string | null;
+  readonly intakeSalesKitOllamaApiKey: string | null;
+  readonly intakeSalesKitOllamaModel: string;
+  readonly salesKitLoraMinPairs: number;
+  readonly salesKitLoraEnabled: boolean;
 
   constructor() {
     this.copilotEnabled = envFlag('PTT_AI_COPILOT_ENABLED', false);
@@ -79,6 +89,33 @@ export class AiIntelligenceConfigService {
     this.orchestratorCronEnabled = envFlag('PTT_AI_ORCHESTRATOR_CRON_ENABLED', false);
     this.toolsApiEnabled = envFlag('PTT_AI_TOOLS_API_ENABLED', false);
     this.intakeSalesKitLlmEnabled = envFlag('PTT_INTAKE_SALES_KIT_LLM', false);
+    this.intakeSalesKitModeLocked = envFlag('PTT_INTAKE_SALES_KIT_LLM_MODE_LOCK', false);
+    const modeEnv = (process.env.PTT_INTAKE_SALES_KIT_LLM_MODE ?? '').trim().toLowerCase();
+    this.intakeSalesKitModeEnv = modeEnv || null;
+    const kitTimeout = Number(process.env.PTT_INTAKE_SALES_KIT_LLM_TIMEOUT_MS ?? 0);
+    this.intakeSalesKitLlmTimeoutMs = Math.max(
+      1000,
+      kitTimeout > 0 ? kitTimeout : this.llmTimeoutMs,
+    );
+    this.intakeSalesKitOpenAiKey = this.llmApiKey;
+    this.intakeSalesKitOpenAiModel = (
+      process.env.PTT_INTAKE_SALES_KIT_LLM_MODEL ?? this.llmModel
+    ).trim();
+    const globalBase = (process.env.PTT_AI_LLM_BASE_URL ?? '').trim();
+    const kitBase = (process.env.PTT_INTAKE_SALES_KIT_LLM_BASE_URL ?? '').trim();
+    this.intakeSalesKitOllamaBaseUrl =
+      kitBase || globalBase || 'http://127.0.0.1:11434/v1';
+    this.intakeSalesKitOllamaApiKey =
+      (process.env.PTT_INTAKE_SALES_KIT_LLM_API_KEY ?? '').trim() ||
+      (globalBase || kitBase ? 'ollama' : null);
+    this.intakeSalesKitOllamaModel = (
+      process.env.PTT_INTAKE_SALES_KIT_LLM_MODEL ?? 'qwen2.5:7b-instruct'
+    ).trim();
+    this.salesKitLoraMinPairs = Math.max(
+      1,
+      Number(process.env.PTT_SALES_KIT_LORA_MIN_PAIRS ?? 200) || 200,
+    );
+    this.salesKitLoraEnabled = envFlag('PTT_SALES_KIT_LORA_ENABLED', false);
   }
 
   isPilotUser(staffId: string | undefined | null): boolean {

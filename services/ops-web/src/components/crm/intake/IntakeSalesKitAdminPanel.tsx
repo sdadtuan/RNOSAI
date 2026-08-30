@@ -6,9 +6,12 @@ import { useSearchParams } from 'next/navigation';
 import {
   approveIntakeSalesKitFile,
   downloadIntakeSalesKitSample,
+  fetchSalesKitRuntime,
   listIntakeSalesKitFiles,
+  patchSalesKitRuntime,
   uploadIntakeSalesKitFile,
   type IntakeSalesKitFileRow,
+  type SalesKitRuntimeDto,
 } from '@/lib/api';
 import { intakeServiceLabel, PILOT_SERVICE_SLUGS } from '@/lib/crm/intake-service-resolve';
 
@@ -36,6 +39,8 @@ export function IntakeSalesKitAdminPanel({ token }: IntakeSalesKitAdminPanelProp
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [runtime, setRuntime] = useState<SalesKitRuntimeDto | null>(null);
+  const [modeBusy, setModeBusy] = useState(false);
 
   const reload = useCallback(async () => {
     setBusy(true);
@@ -54,6 +59,35 @@ export function IntakeSalesKitAdminPanel({ token }: IntakeSalesKitAdminPanelProp
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const loadRuntime = useCallback(async () => {
+    try {
+      const out = await fetchSalesKitRuntime(token);
+      setRuntime(out);
+    } catch (err) {
+      setRuntime(null);
+      setError(err instanceof Error ? err.message : 'Không tải chế độ AI');
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void loadRuntime();
+  }, [loadRuntime]);
+
+  async function onModeChange(mode: SalesKitRuntimeDto['mode']) {
+    if (runtime?.locked) return;
+    setModeBusy(true);
+    setError('');
+    try {
+      const out = await patchSalesKitRuntime(token, mode);
+      setRuntime(out);
+      if (out.warning) setError(out.warning);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Đổi chế độ thất bại');
+    } finally {
+      setModeBusy(false);
+    }
+  }
 
   async function onUpload(file: File) {
     setBusy(true);
@@ -131,10 +165,32 @@ export function IntakeSalesKitAdminPanel({ token }: IntakeSalesKitAdminPanelProp
           <p>
             Folder <code>{folder}</code>
           </p>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => void onDownloadSample()}>
-            Tải mẫu
-          </button>
+          <div className="sales-kit-admin__actions">
+            <Link href="/crm/intake/sales-kit/learn" className="btn btn-secondary btn-sm">
+              Vòng nuôi
+            </Link>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => void onDownloadSample()}>
+              Tải mẫu
+            </button>
+          </div>
         </header>
+
+        <fieldset className="sales-kit-admin__mode" disabled={modeBusy || runtime?.locked}>
+          <legend>Chế độ AI</legend>
+          {(['off', 'openai', 'ollama'] as const).map((mode) => (
+            <label key={mode} className="sales-kit-admin__mode-opt">
+              <input
+                type="radio"
+                name="sales-kit-mode"
+                checked={runtime?.mode === mode}
+                onChange={() => void onModeChange(mode)}
+              />
+              {mode === 'off' ? 'Không LLM' : mode === 'openai' ? 'LLM (OpenAI)' : 'Ollama'}
+            </label>
+          ))}
+          {runtime?.locked ? <p className="muted">IT đã khóa chế độ trên server.</p> : null}
+          {runtime?.hint_vi ? <p className="muted">{runtime.hint_vi}</p> : null}
+        </fieldset>
 
         {error ? <p className="error">{error}</p> : null}
 

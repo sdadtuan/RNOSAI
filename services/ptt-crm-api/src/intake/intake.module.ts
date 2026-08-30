@@ -14,8 +14,13 @@ import { IntakeController } from './intake.controller';
 import { IntakeSalesKitLlmService } from './intake-sales-kit-llm.service';
 import { IntakeService } from './intake.service';
 import { IntakePgRepository } from './intake-pg.repository';
+import { SalesKitLearnRepository } from './sales-kit-learn.repository';
+import { SalesKitLearnService } from './sales-kit-learn.service';
 import { SalesKitLibraryRepository } from './sales-kit-library.repository';
 import { SalesKitLibraryService } from './sales-kit-library.service';
+import { SalesKitRuntimeRepository } from './sales-kit-runtime.repository';
+import { SalesKitRuntimeService } from './sales-kit-runtime.service';
+import { SalesKitTurnsRepository } from './sales-kit-turns.repository';
 
 @Module({
   imports: [
@@ -35,6 +40,11 @@ import { SalesKitLibraryService } from './sales-kit-library.service';
     SalesKitLibraryRepository,
     SalesKitLibraryService,
     IntakeSalesKitLlmService,
+    SalesKitTurnsRepository,
+    SalesKitRuntimeRepository,
+    SalesKitRuntimeService,
+    SalesKitLearnRepository,
+    SalesKitLearnService,
     AiSummarizeRateLimitService,
     AiIntelligenceConfigService,
     AiLlmClient,

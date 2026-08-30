@@ -24,8 +24,19 @@ describe('IntakeSalesKitLlmService', () => {
     llmModel: 'gpt-4o-mini',
   };
 
+  const runtime = {
+    loadDbMode: jest.fn().mockResolvedValue(null),
+    resolveMode: jest.fn().mockReturnValue('off'),
+    llmCallOptions: jest.fn().mockReturnValue(null),
+  };
+
   function svc() {
-    return new IntakeSalesKitLlmService(llm as never, aiConfig as never, agentRuns as never);
+    return new IntakeSalesKitLlmService(
+      llm as never,
+      aiConfig as never,
+      agentRuns as never,
+      runtime as never,
+    );
   }
 
   beforeEach(() => {
@@ -33,6 +44,8 @@ describe('IntakeSalesKitLlmService', () => {
     aiConfig.intakeSalesKitLlmEnabled = false;
     aiConfig.llmApiKey = 'sk-test';
     agentRuns.tableReady.mockResolvedValue(false);
+    runtime.resolveMode.mockReturnValue('off');
+    runtime.llmCallOptions.mockReturnValue(null);
   });
 
   it('does not call completeJson when flag is off', async () => {
@@ -51,7 +64,12 @@ describe('IntakeSalesKitLlmService', () => {
   });
 
   it('strips invented money when flag is on and no citation', async () => {
-    aiConfig.intakeSalesKitLlmEnabled = true;
+    runtime.resolveMode.mockReturnValue('openai');
+    runtime.llmCallOptions.mockReturnValue({
+      model: 'gpt-4o-mini',
+      apiKey: 'sk-test',
+      timeoutMs: 8000,
+    });
     llm.completeJson.mockResolvedValue({
       parsed: { reply_vi: 'Gói 20 triệu/tháng, chốt luôn.' },
       tokenUsage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
@@ -72,6 +90,12 @@ describe('IntakeSalesKitLlmService', () => {
   });
 
   it('returns rules payload when completeJson times out', async () => {
+    runtime.resolveMode.mockReturnValue('openai');
+    runtime.llmCallOptions.mockReturnValue({
+      model: 'gpt-4o-mini',
+      apiKey: 'sk-test',
+      timeoutMs: 8000,
+    });
     aiConfig.intakeSalesKitLlmEnabled = true;
     llm.completeJson.mockRejectedValue(
       new ServiceUnavailableException({ error: 'llm_timeout', message: 'LLM timeout' }),
@@ -92,6 +116,12 @@ describe('IntakeSalesKitLlmService', () => {
   });
 
   it('strips invented money from next_question.text when flag is on and no citation', async () => {
+    runtime.resolveMode.mockReturnValue('openai');
+    runtime.llmCallOptions.mockReturnValue({
+      model: 'gpt-4o-mini',
+      apiKey: 'sk-test',
+      timeoutMs: 8000,
+    });
     aiConfig.intakeSalesKitLlmEnabled = true;
     llm.completeJson.mockResolvedValue({
       parsed: {
@@ -119,6 +149,12 @@ describe('IntakeSalesKitLlmService', () => {
   });
 
   it('does not call LLM for ask_library without citations', async () => {
+    runtime.resolveMode.mockReturnValue('openai');
+    runtime.llmCallOptions.mockReturnValue({
+      model: 'gpt-4o-mini',
+      apiKey: 'sk-test',
+      timeoutMs: 8000,
+    });
     aiConfig.intakeSalesKitLlmEnabled = true;
     const out = await svc().polish({
       intent: 'ask_library',

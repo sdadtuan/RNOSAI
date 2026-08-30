@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { AI_USE_CASE } from '../ai-intelligence/ai-audit.constants';
@@ -22,15 +23,21 @@ import {
   isSalesKitIntent,
   runSalesKitRules,
   type SalesKitCitation,
+  type SalesKitRulesOutput,
 } from './intake-sales-kit-rules.util';
 import { CreateIntakeSessionBody, PatchIntakeSessionBody } from './intake.types';
 import { IntakeB2bVisibilityService, IntakeStaffActor } from './intake-b2b-visibility.service';
 import { IntakeSalesKitLlmService } from './intake-sales-kit-llm.service';
+import { maskSalesKitPii } from './sales-kit-pii.util';
+import { SalesKitLearnService } from './sales-kit-learn.service';
 import { SalesKitLibraryService } from './sales-kit-library.service';
+import { SalesKitTurnsRepository } from './sales-kit-turns.repository';
 import { qaAnswerFromBody, type SalesKitHit } from './sales-kit-retrieve.util';
 
 @Injectable()
 export class IntakeService {
+  private readonly logger = new Logger(IntakeService.name);
+
   constructor(
     private readonly pg: IntakePgRepository,
     private readonly lmpEnqueue: LeadMeetingPrepEnqueueService,
@@ -40,6 +47,8 @@ export class IntakeService {
     private readonly lmpRepo: LeadMeetingPrepRepository,
     private readonly library: SalesKitLibraryService,
     private readonly salesKitLlm: IntakeSalesKitLlmService,
+    private readonly turns: SalesKitTurnsRepository,
+    private readonly learn: SalesKitLearnService,
   ) {}
 
   getDefinitions() {
@@ -210,6 +219,11 @@ export class IntakeService {
       if (String(updated.decision ?? '').trim() === 'go' && updated.lead_id) {
         void this.lmpEnqueue.enqueueAfterIntakeGo(updated.lead_id);
       }
+      void this.learn.enqueueFromCompletedSession(updated).catch((err) => {
+        this.logger.warn(
+          `sales_kit_learn skipped session=${updated.id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
       return updated;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -283,7 +297,7 @@ export class IntakeService {
     const rules = runSalesKitRules(input);
     const industry = industryFromSession(session);
     if (!needsLibrary(body.intent, body.message)) {
-      return this.salesKitLlm.polish({
+      const polished = await this.salesKitLlm.polish({
         intent: body.intent,
         rules,
         citations: rules.citations,
@@ -292,13 +306,20 @@ export class IntakeService {
         session_id: session.id,
         useCase: AI_USE_CASE.INTAKE_SALES_KIT,
       });
+      return this.finishTurn(session, body, actor, polished);
     }
     const query =
       body.intent === 'pricing_band'
         ? `pricing ${input.serviceSlug}`
         : String(body.message ?? '').trim();
     if (!query) {
-      return { ...rules, citations: [], reply_vi: emptyAskLibraryQueryReply(), stub_mode: true };
+      const empty = {
+        ...rules,
+        citations: [],
+        reply_vi: emptyAskLibraryQueryReply(),
+        stub_mode: true,
+      };
+      return this.finishTurn(session, body, actor, empty);
     }
     const hits = await this.library.retrieveForSession(
       { id: session.id, lead_id: session.lead_id, service_slug: input.serviceSlug },
@@ -310,7 +331,13 @@ export class IntakeService {
         body.intent === 'pricing_band' || body.intent === 'battle_card'
           ? body.intent
           : 'ask_library';
-      return { ...rules, citations: [], reply_vi: emptyLibraryReply(emptyKind), stub_mode: true };
+      const empty = {
+        ...rules,
+        citations: [],
+        reply_vi: emptyLibraryReply(emptyKind),
+        stub_mode: true,
+      };
+      return this.finishTurn(session, body, actor, empty);
     }
     const top = hits[0]!;
     const withHits = {
@@ -319,7 +346,7 @@ export class IntakeService {
       citations: hits.map(toCitation),
       stub_mode: true,
     };
-    return this.salesKitLlm.polish({
+    const polished = await this.salesKitLlm.polish({
       intent: body.intent,
       rules: withHits,
       citations: withHits.citations,
@@ -328,6 +355,66 @@ export class IntakeService {
       session_id: session.id,
       useCase: AI_USE_CASE.INTAKE_SALES_KIT,
     });
+    return this.finishTurn(session, body, actor, polished);
+  }
+
+  async listSalesKitTurns(id: number, actor?: IntakeStaffActor | null) {
+    const session = await this.pg.getSession(id);
+    if (!session) {
+      throw new NotFoundException({ error: 'Không tìm thấy phiên' });
+    }
+    if (session.lead_id) {
+      await this.b2bVisibility.assertLeadVisible(session.lead_id, actor);
+    }
+    const turns = await this.turns.listBySession(id);
+    return { turns };
+  }
+
+  async rateSalesKitTurn(
+    turnId: string,
+    body: { rating?: string; reason?: string },
+    actor?: IntakeStaffActor | null,
+  ) {
+    const rating = String(body.rating ?? '').trim();
+    if (rating !== 'up' && rating !== 'down') {
+      throw new BadRequestException({ error: 'invalid_rating' });
+    }
+    const existing = await this.turns.findById(turnId);
+    if (!existing) {
+      throw new NotFoundException({ error: 'not_found' });
+    }
+    const session = await this.pg.getSession(existing.session_id);
+    if (!session) {
+      throw new NotFoundException({ error: 'session_not_found' });
+    }
+    if (session.lead_id) {
+      await this.b2bVisibility.assertLeadVisible(session.lead_id, actor);
+    }
+    const updated = await this.turns.rate(turnId, rating, body.reason);
+    if (!updated) {
+      throw new NotFoundException({ error: 'not_found' });
+    }
+    return updated;
+  }
+
+  private async finishTurn(
+    session: { id: number },
+    body: { intent?: string; message?: string },
+    actor: IntakeStaffActor | null | undefined,
+    out: SalesKitRulesOutput & { stub_mode?: boolean },
+  ) {
+    const persisted = await this.turns.insert({
+      session_id: session.id,
+      actor_staff_id: actor && actor.staffId > 0 ? actor.staffId : null,
+      intent: String(body.intent ?? ''),
+      user_text: maskSalesKitPii(String(body.message ?? '').trim()),
+      reply_vi: out.reply_vi,
+      stub_mode: Boolean(out.stub_mode),
+      model_name: out.stub_mode ? 'rules' : 'llm',
+      citations_json: out.citations ?? [],
+      apply_json: out.apply ?? {},
+    });
+    return { ...out, stub_mode: Boolean(out.stub_mode), turn_id: persisted?.id ?? null };
   }
 
   async generateAiSummary(id: number, actor?: IntakeStaffActor | null) {

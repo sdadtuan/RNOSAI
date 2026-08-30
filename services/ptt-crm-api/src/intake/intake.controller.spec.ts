@@ -8,7 +8,7 @@ describe('IntakeController actorContext', () => {
       me: jest.fn().mockResolvedValue({ caps: [], position_code: null }),
       resolveCrmStaffUserId: jest.fn().mockResolvedValue(null),
     };
-    const ctrl = new IntakeController({} as never, staffAuth as never, {} as never);
+    const ctrl = new IntakeController({} as never, staffAuth as never, {} as never, {} as never, {} as never);
     const actor = await (
       ctrl as unknown as {
         actorContext: (req: { staffAuthVia?: string; staffUser?: { sub: string } }) => Promise<unknown>;
@@ -18,7 +18,7 @@ describe('IntakeController actorContext', () => {
   });
 
   it('keeps internal key as trusted null actor', async () => {
-    const ctrl = new IntakeController({} as never, {} as never, {} as never);
+    const ctrl = new IntakeController({} as never, {} as never, {} as never, {} as never, {} as never);
     const actor = await (
       ctrl as unknown as { actorContext: (req: { staffAuthVia?: string }) => Promise<unknown> }
     ).actorContext({ staffAuthVia: 'internal' });

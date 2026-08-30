@@ -2431,8 +2431,135 @@ export type IntakeSalesKitOutput = {
   gap: { total: number; to_go: number; weakest: string[] };
   citations: unknown[];
   stub_mode: boolean;
+  turn_id?: string | null;
   run_id?: string;
 };
+
+export type IntakeSalesKitTurnRow = {
+  id: string;
+  intent: string;
+  user_text: string;
+  reply_vi: string;
+  stub_mode: boolean;
+  model_name: string;
+  citations_json: unknown;
+  apply_json: unknown;
+  rating: 'up' | 'down' | null;
+  rating_reason?: string | null;
+  created_at: string;
+};
+
+export type SalesKitRuntimeDto = {
+  mode: 'off' | 'openai' | 'ollama';
+  locked: boolean;
+  healthy: boolean;
+  hint_vi: string;
+  warning?: string;
+};
+
+export type SalesKitLearnCandidateRow = {
+  id: string;
+  folder_key: string;
+  kind: string;
+  question: string;
+  answer: string;
+  status: string;
+  created_at: string;
+};
+
+export async function fetchIntakeSalesKitTurns(token: string, sessionId: number) {
+  return crmFetch<{ turns: IntakeSalesKitTurnRow[] }>(
+    token,
+    `/api/crm/intake/sessions/${sessionId}/sales-kit/turns`,
+  );
+}
+
+export async function rateIntakeSalesKitTurn(
+  token: string,
+  turnId: string,
+  body: { rating: 'up' | 'down'; reason?: string },
+) {
+  return crmFetch<IntakeSalesKitTurnRow>(
+    token,
+    `/api/crm/intake/sales-kit/turns/${turnId}/rating`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function fetchSalesKitRuntime(token: string) {
+  return crmFetch<SalesKitRuntimeDto>(token, '/api/crm/intake/sales-kit/runtime');
+}
+
+export async function patchSalesKitRuntime(token: string, mode: SalesKitRuntimeDto['mode']) {
+  return crmFetch<SalesKitRuntimeDto>(token, '/api/crm/intake/sales-kit/runtime', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
+  });
+}
+
+export async function fetchSalesKitLearnCandidates(token: string, status?: string) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  return crmFetch<{ candidates: SalesKitLearnCandidateRow[] }>(
+    token,
+    `/api/crm/intake/sales-kit/learn/candidates${qs}`,
+  );
+}
+
+export async function fetchSalesKitDownTurns(token: string, days = 30) {
+  return crmFetch<{ turns: IntakeSalesKitTurnRow[] }>(
+    token,
+    `/api/crm/intake/sales-kit/learn/turns?rating=down&days=${days}`,
+  );
+}
+
+export async function proposeSalesKitLearnFromTurn(token: string, turnId: string) {
+  return crmFetch<SalesKitLearnCandidateRow>(
+    token,
+    `/api/crm/intake/sales-kit/learn/turns/${turnId}/propose`,
+    { method: 'POST' },
+  );
+}
+
+export async function approveSalesKitLearnCandidate(
+  token: string,
+  id: string,
+  body?: { question?: string; answer?: string; folder_key?: string },
+) {
+  return crmFetch<{ candidate: SalesKitLearnCandidateRow; file: IntakeSalesKitFileRow }>(
+    token,
+    `/api/crm/intake/sales-kit/learn/candidates/${id}/approve`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body ?? {}),
+    },
+  );
+}
+
+export async function rejectSalesKitLearnCandidate(
+  token: string,
+  id: string,
+  reason: string,
+) {
+  return crmFetch<SalesKitLearnCandidateRow>(
+    token,
+    `/api/crm/intake/sales-kit/learn/candidates/${id}/reject`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    },
+  );
+}
+
+export async function fetchSalesKitLearnMetrics(token: string) {
+  return crmFetch<Record<string, number>>(token, '/api/crm/intake/sales-kit/learn/metrics');
+}
 
 export async function postIntakeSalesKit(
   token: string,

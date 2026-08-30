@@ -34,17 +34,18 @@ run_local() {
     set +a
   fi
 
-  echo "== 0/4 apply sales_kit_files DDL =="
+  echo "== 0/5 apply sales_kit_files + learn DDL =="
   bash "$ROOT/scripts/apply_pg_ddl_sales_kit_files.sh"
+  bash "$ROOT/scripts/apply_pg_ddl_sales_kit_learn.sh"
 
-  echo "== 1/4 ptt-crm-api build + intake/library tests =="
+  echo "== 1/5 ptt-crm-api build + intake/library tests =="
   cd "$ROOT/services/ptt-crm-api"
   npm ci
   export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
   npm run build
-  npm test -- --testPathPattern='src/intake/intake-definitions.util.spec|src/intake/intake-context.util.spec|src/intake/intake-sales-kit-rules.util.spec|src/intake/intake-sales-kit-llm|src/intake/sales-kit-ingest|src/intake/sales-kit-retrieve|src/intake/sales-kit-library|src/intake/sales-kit-sample' --no-coverage
+  npm test -- --testPathPattern='src/intake/intake-definitions.util.spec|src/intake/intake-context.util.spec|src/intake/intake-sales-kit-rules.util.spec|src/intake/intake-sales-kit-llm|src/intake/sales-kit-ingest|src/intake/sales-kit-retrieve|src/intake/sales-kit-library|src/intake/sales-kit-sample|src/intake/sales-kit-pii|src/intake/sales-kit-turns|src/intake/sales-kit-runtime|src/intake/sales-kit-learn|src/intake/intake.service.spec' --no-coverage
 
-  echo "== 2/4 ops-web build =="
+  echo "== 2/5 ops-web build =="
   cd "$ROOT"
   export NEXT_PUBLIC_PTT_API_URL="${NEXT_PUBLIC_PTT_API_URL:-https://rs.pttads.vn}"
   export NEXT_PUBLIC_PTT_INTAKE_SALES_KIT="${NEXT_PUBLIC_PTT_INTAKE_SALES_KIT:-1}"
@@ -55,9 +56,10 @@ run_local() {
     src/lib/crm/intake-workspace-tab.spec.ts \
     src/lib/crm/intake-session-form.spec.ts \
     src/lib/crm/intake-win-intel.spec.ts \
-    src/lib/crm/intake-sales-kit-apply.spec.ts
+    src/lib/crm/intake-sales-kit-apply.spec.ts \
+    src/lib/crm/intake-sales-kit-thread.util.spec.ts
 
-  echo "== 3/4 restart services =="
+  echo "== 3/5 restart services =="
   sudo -n /usr/bin/systemctl restart ptt-crm-api 2>/dev/null || true
   sleep 3
   curl -sf http://127.0.0.1:3000/health -o /dev/null && echo " api OK" || echo "WARN  api health check failed"
@@ -68,9 +70,9 @@ run_local() {
 
   echo "== Intake Sales Kit S4 deploy complete =="
   echo "UAT: https://rs.pttads.vn/crm/intake/sales-kit?folder=dich-vu-seo-tong-the/qa"
+  echo "Learn: https://rs.pttads.vn/crm/intake/sales-kit/learn"
   echo "Intake: https://rs.pttads.vn/crm/intake?lead_id=5"
-  echo "S3 LLM stays off (script does not set PTT_INTAKE_SALES_KIT_LLM=1)."
-  echo "To enable: set PTT_INTAKE_SALES_KIT_LLM=1 + NEXT_PUBLIC_PTT_INTAKE_SALES_KIT_LLM=1 + API key, rebuild ops-web, restart API."
+  echo "LLM mode default off (runtime table). GDKD switches on /crm/intake/sales-kit."
 }
 
 if [[ "${1:-}" == "--local" ]]; then

@@ -16,6 +16,11 @@ describe('IntakeService salesKitTurn library', () => {
   const salesKitLlm = {
     polish: jest.fn(async ({ rules }: { rules: { reply_vi: string } }) => rules),
   };
+  const turns = {
+    insert: jest.fn().mockResolvedValue({ id: 'turn-1' }),
+    listBySession: jest.fn().mockResolvedValue([]),
+  };
+  const learn = { enqueueFromCompletedSession: jest.fn().mockResolvedValue(0) };
 
   function svc() {
     return new IntakeService(
@@ -27,6 +32,8 @@ describe('IntakeService salesKitTurn library', () => {
       {} as never,
       library as never,
       salesKitLlm as never,
+      turns as never,
+      learn as never,
     );
   }
 
@@ -72,5 +79,7 @@ describe('IntakeService salesKitTurn library', () => {
     expect(out.citations).toEqual([]);
     expect(out.reply_vi).toMatch(/Gõ câu hỏi/i);
     expect(library.assertTurnRate).toHaveBeenCalled();
+    expect(turns.insert).toHaveBeenCalled();
+    expect(out.turn_id).toBe('turn-1');
   });
 });

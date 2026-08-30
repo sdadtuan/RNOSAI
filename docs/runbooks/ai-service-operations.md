@@ -618,6 +618,36 @@ Target Phase 0: **≥70%**.
 
 ---
 
+## 12.1 Sales Kit ChatBox — 3 mode LLM
+
+| Mode | Env / DB | Ghi chú |
+|------|----------|---------|
+| `off` | Default prod | Rules-only; không gọi LLM |
+| `openai` | GDKD chọn trên `/crm/intake/sales-kit` | Cần `PTT_AI_LLM_API_KEY` |
+| `ollama` | GDKD chọn + `PTT_INTAKE_SALES_KIT_LLM_BASE_URL` | **Không** cài Ollama 7B trên VPS 3.3 GiB |
+
+- Khóa UI: `PTT_INTAKE_SALES_KIT_LLM_MODE_LOCK=1`
+- Apply DDL: `./scripts/apply_pg_ddl_sales_kit_learn.sh`
+- LoRA export: `GET /api/crm/intake/sales-kit/learn/export.jsonl` → `./scripts/sales_kit_lora_train.sh`
+- **Không** set `PTT_INTAKE_SALES_KIT_LLM=1` trong deploy script prod mặc định
+
+---
+
+## 12.1 Sales Kit ChatBox — 3 mode LLM
+
+| Mode | Env / DB | Ghi chú |
+|------|----------|---------|
+| `off` | Default prod | Rules-only; không gọi LLM |
+| `openai` | GDKD chọn trên `/crm/intake/sales-kit` | Cần `PTT_AI_LLM_API_KEY` |
+| `ollama` | GDKD chọn + `PTT_INTAKE_SALES_KIT_LLM_BASE_URL` | **Không** cài Ollama 7B trên VPS 3.3 GiB |
+
+- Khóa UI: `PTT_INTAKE_SALES_KIT_LLM_MODE_LOCK=1`
+- Apply DDL: `./scripts/apply_pg_ddl_sales_kit_learn.sh`
+- LoRA export: `GET /api/crm/intake/sales-kit/learn/export.jsonl` → `./scripts/sales_kit_lora_train.sh`
+- **Không** set `PTT_INTAKE_SALES_KIT_LLM=1` trong deploy script prod mặc định
+
+---
+
 ## 13. Tài liệu liên quan
 
 | Tài liệu | Mục đích |

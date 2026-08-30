@@ -1,8 +1,8 @@
 # SRS — Sales Kit ChatBox + Open Source AI + Vòng nuôi dưỡng / huấn luyện
 
 > **Document ID:** INT-SK-OSS-20260829  
-> **Phiên bản:** 1.0 · **Ngày:** 2026-08-29  
-> **Trạng thái:** Design — chờ PO duyệt trước implementation plan  
+> **Phiên bản:** 1.1 · **Ngày:** 2026-08-30  
+> **Trạng thái:** Design — plan ready; v1.1 thêm 3 mode + UI đổi mode  
 > **Route:** `/crm/intake?lead_id=` (dock ChatBox) · `/crm/intake/sales-kit` (kho + vòng nuôi) · `/crm/intake/sales-kit/learn` (dataset, không public AM)  
 > **Parent:** [Intake Deal Bar + Sales Kit v1.1](./2026-08-29-intake-deal-bar-sales-kit-design.md)  
 > **Đã ship (không làm lại):** S0–S2 Deal Bar/tabs/rules · S4 kho `sales_kit_files` · S3 flag LLM wording (mặc định tắt) · isolation `category=sales_kit` khỏi CSKH RAG  
@@ -45,7 +45,7 @@ Ba lớp, không gộp một lần:
 | # | Mục tiêu | Đo |
 |---|----------|-----|
 | T1 | `AiLlmClient` gọi được base URL OpenAI-compatible | Unit: mock server `/v1/chat/completions` |
-| T2 | Kit dùng model/flag riêng, không kéo Copilot prod | `PTT_INTAKE_SALES_KIT_LLM=1` không đòi `PTT_AI_COPILOT_ENABLED=1` |
+| T2 | Kit dùng mode riêng, không kéo Copilot prod | Mode `openai` / `ollama` không đòi `PTT_AI_COPILOT_ENABLED=1` |
 | T3 | Thread kit không ghi `bant_json` / Complete | Giữ S2: Áp dụng confirm |
 | T4 | Chunk kit không vào CSKH `ragQuery` | Giữ filter `category <> sales_kit` trên `listAllChunks` / `list` |
 
@@ -56,6 +56,7 @@ Ba lớp, không gộp một lần:
 ### 2.1. In scope
 
 - UI ChatBox: lịch sử lượt, composer, chip-as-shortcut, citation, Áp dụng, trạng thái `stub_mode`.  
+- **3 mode runtime** + UI đổi mode (mục 7.0): `off` / `openai` / `ollama`.  
 - Adapter OSS: `PTT_AI_LLM_BASE_URL` + provider `ollama` \| `vllm` \| `openai_compat`.  
 - Prompt kit + money gate trên `reply_vi` **và** `next_question.text` (đã có — giữ).  
 - Feedback 👍/👎 + lý do ngắn trên mỗi lượt kit.  
@@ -192,7 +193,80 @@ TTL: giữ 180 ngày hoặc xóa cùng túi phiên 90 ngày sau Complete (cùng 
 
 ---
 
-## 7. Runtime open source (SK-AI-1)
+## 7. Runtime — 3 mode + open source (SK-AI-1)
+
+### 7.0. Ba mode (tuỳ chỉnh)
+
+Kit **luôn** chạy rules + kho S4. Mode chỉ quyết định có `polish` hay không, và **engine nào**.
+
+| Mode | `mode` | Badge ChatBox | Gọi model? | Khi nào dùng |
+|------|--------|---------------|------------|--------------|
+| **Không LLM** | `off` | `Rules` | Không | Mặc định prod; VPS 3.3 GiB |
+| **LLM** | `openai` | `LLM` | Có — luôn `https://api.openai.com/v1` + `AI_LLM_API_KEY` / `PTT_AI_LLM_API_KEY` | Có key cloud, muốn wording tốt |
+| **Ollama** | `ollama` | `Ollama` | Có — `PTT_INTAKE_SALES_KIT_LLM_BASE_URL` \|\| `PTT_AI_LLM_BASE_URL` \|\| `http://127.0.0.1:11434/v1` | Máy ≥16 GiB hoặc host GPU riêng |
+
+`stub_mode=true` (engine down / timeout / thiếu key / parse fail) → badge **`Stub`**, reply rules. ChatBox và chip **không** chết.
+
+**Không** mode thứ tư trên UI (vLLM gộp vào `ollama` nếu `BASE_URL` trỏ vLLM — nhãn vẫn “Ollama / OSS”).
+
+#### 7.0.1. Ai đổi mode
+
+| Việc | Cap | Chỗ |
+|------|-----|-----|
+| Đổi mode | `playbooks.configure` **hoặc** `crm_leads.configure` | `/crm/intake/sales-kit` — khối **Chế độ AI** (3 radio) |
+| Xem mode + badge | `crm_leads.edit` (AM) | ChatBox header; GET runtime |
+| Khóa không cho UI đổi | IT | `PTT_INTAKE_SALES_KIT_LLM_MODE_LOCK=1` — radio disable, hint “IT khóa trên server” |
+
+AM **không** tự bật Ollama trên phiên của mình. Một org = một mode.
+
+#### 7.0.2. Lưu trữ
+
+Bảng 1 hàng `sales_kit_runtime` (DDL cùng file learn):
+
+| Cột | Ý nghĩa |
+|-----|---------|
+| `id` | luôn `1` |
+| `mode` | `off` \| `openai` \| `ollama` |
+| `updated_by` | staff_id |
+| `updated_at` | timestamptz |
+
+**Thứ tự thắng:**
+
+1. Nếu `MODE_LOCK=1` → chỉ env `PTT_INTAKE_SALES_KIT_LLM_MODE` (default `off`).  
+2. Else hàng DB nếu có.  
+3. Else env `PTT_INTAKE_SALES_KIT_LLM_MODE`.  
+4. Else legacy: `PTT_INTAKE_SALES_KIT_LLM=1` → `openai`; không set → `off`.
+
+Đổi mode **không** rebuild ops-web. `NEXT_PUBLIC_PTT_INTAKE_SALES_KIT_LLM` **bỏ vai trò** bật/tắt (chỉ backlog compat: nếu còn `1` và DB trống, đọc như hint `openai` trên lần GET đầu — server vẫn source of truth).
+
+#### 7.0.3. API
+
+| Method | Path | Cap | Body / out |
+|--------|------|-----|------------|
+| GET | `/api/crm/intake/sales-kit/runtime` | edit hoặc configure | `{ mode, locked, healthy, hint_vi }` |
+| PATCH | `/api/crm/intake/sales-kit/runtime` | configure | `{ mode }` |
+
+`healthy`:
+
+- `off` → `true`
+- `openai` → `true` nếu có `AI_LLM_API_KEY` / `PTT_AI_LLM_API_KEY`; else `false` + hint “Thiếu API key — vẫn chạy Rules”
+- `ollama` → `GET {base}/models` (timeout 1.5s) thành công; else `false` + hint “Ollama không sẵn sàng (VPS 3.3 GiB không chạy 7B). Kit giữ Rules.”
+
+PATCH `ollama` khi `healthy=false`: **vẫn lưu mode** (GDKD chọn trước khi host sống) + response `warning`. Không 400.
+
+PATCH mode lạ → 400 `invalid_mode`.
+
+Audit: `ai_agent_runs` hoặc log kit `use_case=intake_sales_kit_runtime` mỗi lần PATCH.
+
+#### 7.0.4. Hành vi `polish`
+
+```
+mode === off        → không gọi completeJson
+mode === openai     → baseUrl api.openai.com, key cloud, model PTT_INTAKE_SALES_KIT_LLM_MODEL || gpt-4o-mini
+mode === ollama     → baseUrl kit/global/11434, key ollama, model kit || qwen2.5:7b-instruct
+```
+
+`shouldCallLlm` thêm: `resolveKitMode() !== 'off'` (thay boolean `intakeSalesKitLlmEnabled` thuần env).
 
 ### 7.1. Quyết định
 
@@ -208,8 +282,10 @@ TTL: giữ 180 ngày hoặc xóa cùng túi phiên 90 ngày sau Complete (cùng 
 
 | Biến | Default | Ý nghĩa |
 |------|---------|---------|
-| `PTT_INTAKE_SALES_KIT_LLM` | `0` | Bật polish |
-| `NEXT_PUBLIC_PTT_INTAKE_SALES_KIT_LLM` | `0` | Badge OSS + hint composer |
+| `PTT_INTAKE_SALES_KIT_LLM_MODE` | `off` | Default khi chưa có hàng DB: `off` \| `openai` \| `ollama` |
+| `PTT_INTAKE_SALES_KIT_LLM_MODE_LOCK` | `0` | `1` = UI không đổi được mode |
+| `PTT_INTAKE_SALES_KIT_LLM` | `0` | Legacy: `1` ≡ mode `openai` nếu MODE + DB trống |
+| `NEXT_PUBLIC_PTT_INTAKE_SALES_KIT_LLM` | `0` | Deprecated — badge lấy GET `/runtime` |
 | `PTT_AI_LLM_PROVIDER` | `openai` | Audit: `ollama` \| `vllm` \| `openai` \| `openai_compat` |
 | `PTT_AI_LLM_BASE_URL` | *(rỗng = api.openai.com)* | VD. `http://127.0.0.1:11434/v1` |
 | `PTT_AI_LLM_MODEL` | `gpt-4o-mini` | Kit OSS: `qwen2.5:7b-instruct` |
@@ -219,7 +295,7 @@ TTL: giữ 180 ngày hoặc xóa cùng túi phiên 90 ngày sau Complete (cùng 
 | `PTT_INTAKE_SALES_KIT_LLM_MODEL` | rỗng | Override chỉ kit |
 | `PTT_INTAKE_SALES_KIT_LLM_TIMEOUT_MS` | rỗng | Override chỉ kit |
 
-Deploy script kit **không** tự set LLM=1 (giữ S3). Runbook L1: cài Ollama trên VPS, `ollama pull`, set env, restart API, **không** rebuild ops-web trừ khi bật `NEXT_PUBLIC_*`.
+Deploy script kit **không** set mode=`openai`/`ollama` và **không** set `PTT_INTAKE_SALES_KIT_LLM=1`. Prod VPS 3.3 GiB: default `off`; nên `MODE_LOCK=1` cho đến khi có host Ollama. Đổi mode trên UI **không** cần rebuild ops-web.
 
 ### 7.3. Hợp đồng `completeJson`
 
@@ -373,10 +449,15 @@ Mục 6.3. Index `(session_id, created_at desc)`, `(rating, created_at)`.
 
 Không FK cứng sang `ai_playbooks` (tránh orphan khi xóa playbook — giống `sales_kit_files`).
 
-### 11.3. DDL
+### 11.3. `sales_kit_runtime`
+
+Một hàng `id=1`. Cột `mode` / `updated_by` / `updated_at` (mục 7.0.2).
+
+### 11.4. DDL
 
 File mới: `docs/specs/2026-08-29-sales-kit-learn-ddl.sql` + `scripts/apply_pg_ddl_sales_kit_learn.sh`.  
-Deploy L0 có thể **chưa** cần bảng nếu thread chỉ memory phiên (không khuyến nghị). **Bắt buộc** từ SK-AI-0 persist thread để L2 có nguồn.
+Gồm `sales_kit_turns`, `sales_kit_learn_candidates`, `sales_kit_runtime`.  
+**Bắt buộc** từ SK-AI-0 persist thread. `sales_kit_runtime` seed `mode='off'`.
 
 ---
 
@@ -387,6 +468,8 @@ Giữ `POST /api/crm/intake/sessions/:id/sales-kit`. Thêm:
 | Method | Path | Cap | Mô tả |
 |--------|------|-----|--------|
 | GET | `/api/crm/intake/sessions/:id/sales-kit/turns` | view + visibility | Thread |
+| GET | `/api/crm/intake/sales-kit/runtime` | edit hoặc configure | Mode + healthy + locked |
+| PATCH | `/api/crm/intake/sales-kit/runtime` | configure | Đổi `off` \| `openai` \| `ollama` |
 | POST | `/api/crm/intake/sales-kit/turns/:id/rating` | edit + visibility | 👍/👎 |
 | GET | `/api/crm/intake/sales-kit/learn/candidates` | configure | List |
 | POST | `/api/crm/intake/sales-kit/learn/candidates/:id/approve` | configure | → ingest pending file |
@@ -403,11 +486,12 @@ Response turn giữ schema S2 + `turn_id` + `thread` optional.
 |------|-----|
 | Chat + rating | `crm_leads.edit` + lead visible |
 | Browse kho org | `playbooks.configure` **hoặc** `crm_leads.configure` (giữ S4) |
+| Đổi mode AI | cùng configure; LOCK=1 thì chỉ đọc |
 | Duyệt candidate / export | cùng configure |
 | Túi phiên | `crm_leads.edit` + visible |
 
 Flag UI kit: `NEXT_PUBLIC_PTT_INTAKE_SALES_KIT=1` (đã default on).  
-ChatBox L0 **không** chờ `NEXT_PUBLIC_PTT_INTAKE_SALES_KIT_LLM`. LLM chỉ đổi badge + chất lượng câu.
+ChatBox L0 **không** chờ public LLM flag. Badge + polish theo GET `/runtime` (`off` / `openai` / `ollama`).
 
 ---
 
@@ -428,7 +512,11 @@ ChatBox L0 **không** chờ `NEXT_PUBLIC_PTT_INTAKE_SALES_KIT_LLM`. LLM chỉ đ
 
 | ID | Bước | Pass |
 |----|------|------|
-| OSS-1 | Flag on, Ollama up, chip Câu tiếp theo | `stub_mode=false`, wording khác rules nhưng **cùng key** câu |
+| MODE-1 | Admin chọn **Không LLM**, chip Gap-to-Go | Không gọi OpenAI/Ollama; badge `Rules` |
+| MODE-2 | Admin chọn **LLM**, có key, chip Câu tiếp theo | `stub_mode=false`, badge `LLM`; mode `off` ngay sau → lượt mới rules |
+| MODE-3 | Admin chọn **Ollama**, host down | Mode lưu được; lượt `stub_mode=true`, hint unhealthy; không 500 |
+| MODE-4 | `MODE_LOCK=1`, PATCH ollama | 403; radio disable |
+| OSS-1 | Mode Ollama, host up, chip Câu tiếp theo | `stub_mode=false`, wording khác rules, **cùng key** câu |
 | OSS-2 | `ollama stop` giữa lượt | Rules, `stub_mode=true`, không 500 |
 | OSS-3 | Model bịa “20 triệu” không citation | Strip / fallback rules |
 | OSS-4 | “Còn 24 điểm” | Không thành “iểm” |
@@ -470,12 +558,13 @@ ChatBox L0 **không** chờ `NEXT_PUBLIC_PTT_INTAKE_SALES_KIT_LLM`. LLM chỉ đ
 | # | Quyết định | Giá trị |
 |---|------------|---------|
 | E1 | UI | ChatBox thread; chip = shortcut |
-| E2 | Engine | OpenAI-compatible OSS (Ollama trước) |
+| E2 | Engine | 3 mode `off` / `openai` / `ollama`; UI GDKD + env lock |
 | E3 | Nuôi chính | Kho + candidate từ Complete + rating |
 | E4 | Fine-tune | Cổng 200 cặp, opt-in, ngoài Nest |
 | E5 | Không Copilot | Giữ D2 parent |
 | E6 | Không OpenAI bắt buộc | Kit sống khi OSS/local down nhờ rules+S4 |
 | E7 | Isolation CSKH | Giữ filter `sales_kit` |
+| E8 | 3 mode | `off` / `openai` / `ollama`; UI configure + `MODE_LOCK` |
 
 ---
 
@@ -491,7 +580,7 @@ ChatBox L0 **không** chờ `NEXT_PUBLIC_PTT_INTAKE_SALES_KIT_LLM`. LLM chỉ đ
 
 ## 18. Tài liệu liên quan sau khi duyệt
 
-- Plan implementation: `docs/superpowers/plans/YYYY-MM-DD-sales-kit-oss-chatbox.md` (một plan, 5 slice SK-AI-0…4).  
+- Plan implementation: `docs/superpowers/plans/2026-08-30-sales-kit-oss-chatbox.md` (SK-AI-0…4 + Task mode).  
 - Runbook Ollama: bổ sung `docs/runbooks/ai-service-operations.md`.  
 - Guide AM: cập nhật [27-lifecycle](../../huong-dan-su-dung/27-lifecycle-ui-huong-dan-day-du.md) mục Sales Kit → ChatBox.
 

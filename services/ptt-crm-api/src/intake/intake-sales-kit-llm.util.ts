@@ -1,5 +1,7 @@
-const MONEY_PATTERN =
+export const KIT_MONEY_PATTERN =
   /(?<![\p{L}\d])\d[\d.,]*\s*(?:tr|triệu|tỉ|tỷ|k|vnđ|vnd|đồng|đ)(?![\p{L}])/giu;
+
+const MONEY_PATTERN = KIT_MONEY_PATTERN;
 
 const ALLOWED_MONEY_CITATION_KINDS = new Set(['pricing', 'qa', 'case']);
 
@@ -26,6 +28,7 @@ Quy tắc bắt buộc:
 - Mỗi câu trả lời một ý rõ ràng; không lan man.
 - Không draft tin nhắn/email outbound gửi khách — chỉ gợi ý nội bộ cho rep.
 - Mask SĐT / số điện thoại khách (ví dụ ***1234); không lặp lại PII đầy đủ.
+- Bạn chạy on-prem khi được cấu hình; không được bịa giá ngoài excerpt.
 - Chỉ dùng thông tin từ excerpt citation được cung cấp; không suy diễn ngoài excerpt.
 - Nếu thiếu giá/case trong citation, nói "hỏi kho" hoặc hỏi ngân sách — không tự đưa mức giá.
 Trả JSON theo schema user message.`;

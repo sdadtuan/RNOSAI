@@ -73,6 +73,9 @@ export interface LlmJsonCompletionInput {
   userContent: string;
   model?: string;
   stubJson: () => Record<string, unknown>;
+  baseUrl?: string;
+  apiKey?: string;
+  timeoutMs?: number;
 }
 
 export interface LlmJsonCompletionResult {
@@ -221,8 +224,9 @@ export class AiLlmClient {
 
   /** Generic JSON completion for modules that supply their own stub (e.g. MKT-AI planner). */
   async completeJson(input: LlmJsonCompletionInput): Promise<LlmJsonCompletionResult> {
-    const apiKey = this.aiConfig.llmApiKey;
+    const apiKey = input.apiKey ?? this.aiConfig.llmApiKey;
     const model = input.model ?? this.aiConfig.llmModel;
+    const timeoutMs = input.timeoutMs ?? this.aiConfig.llmTimeoutMs;
 
     if (!apiKey) {
       return {
@@ -234,12 +238,13 @@ export class AiLlmClient {
     }
 
     try {
-      const raw = await this.callOpenAiChat({
+      const raw = await this.callChatCompletions({
         apiKey,
         model,
         systemPrompt: input.systemPrompt,
         userContent: input.userContent,
-        timeoutMs: this.aiConfig.llmTimeoutMs,
+        timeoutMs,
+        baseUrl: input.baseUrl,
       });
       const tokenUsage = raw.tokenUsage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
       const { tokenUsage: _tu, ...parsed } = raw;
@@ -302,17 +307,20 @@ export class AiLlmClient {
     }
   }
 
-  private async callOpenAiChat(args: {
+  private async callChatCompletions(args: {
     apiKey: string;
     model: string;
     systemPrompt: string;
     userContent: string;
     timeoutMs: number;
+    baseUrl?: string;
   }): Promise<Record<string, unknown> & { tokenUsage?: AiTokenUsage }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), args.timeoutMs);
+    const root = (args.baseUrl ?? 'https://api.openai.com/v1').replace(/\/+$/, '');
+    const url = `${root}/chat/completions`;
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${args.apiKey}`,
@@ -332,7 +340,7 @@ export class AiLlmClient {
 
       if (!response.ok) {
         const detail = await response.text();
-        throw new Error(`OpenAI HTTP ${response.status}: ${detail.slice(0, 300)}`);
+        throw new Error(`LLM HTTP ${response.status}: ${detail.slice(0, 300)}`);
       }
 
       const payload = (await response.json()) as {
@@ -352,6 +360,17 @@ export class AiLlmClient {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  /** @deprecated use callChatCompletions */
+  private async callOpenAiChat(args: {
+    apiKey: string;
+    model: string;
+    systemPrompt: string;
+    userContent: string;
+    timeoutMs: number;
+  }): Promise<Record<string, unknown> & { tokenUsage?: AiTokenUsage }> {
+    return this.callChatCompletions(args);
   }
 
   /** Plain-text completion (presales consult AI assist, etc.). */
