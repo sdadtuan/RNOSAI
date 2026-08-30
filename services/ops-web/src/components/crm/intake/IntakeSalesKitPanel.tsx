@@ -233,7 +233,7 @@ export function IntakeSalesKitPanel({
 
   const sciLine = sciExcerpt?.trim() ?? '';
 
-  const subtitleParts = [badge];
+  const subtitleParts: string[] = [badge];
   if (runtime?.hint_vi) subtitleParts.push(runtime.hint_vi);
 
   return (
