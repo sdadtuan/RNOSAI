@@ -85,7 +85,7 @@ export default function CrmIntakeSalesKitPage() {
       user={user}
       onLogout={logout}
       breadcrumb={[
-        { label: 'CRM', href: '/crm/leads' },
+        { label: 'Quản trị hệ thống', href: '/admin' },
         { label: 'Kho Sales Kit' },
       ]}
     >

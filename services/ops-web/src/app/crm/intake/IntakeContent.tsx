@@ -1129,7 +1129,6 @@ export function IntakeContent({
                 showSalesKit={kitEnabled}
                 salesKitOpen={kitOpen}
                 onOpenSalesKit={() => setKitOpen(true)}
-                showKhoAdmin={canBrowseOrg}
               />
 
               {helpOpen ? (

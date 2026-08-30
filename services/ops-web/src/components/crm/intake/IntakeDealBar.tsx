@@ -23,8 +23,6 @@ export type IntakeDealBarProps = {
   showSalesKit?: boolean;
   salesKitOpen?: boolean;
   onOpenSalesKit?: () => void;
-  /** GDKD/admin — cap configure; opens /crm/intake/sales-kit */
-  showKhoAdmin?: boolean;
 };
 
 function sciLine(excerpt: string | null): string {
@@ -53,7 +51,6 @@ export function IntakeDealBar({
   showSalesKit = false,
   salesKitOpen = false,
   onOpenSalesKit,
-  showKhoAdmin = false,
 }: IntakeDealBarProps) {
   const gapLabel = gap <= 0 ? 'Đủ Go' : `Còn ${gap} để Go`;
 
@@ -120,11 +117,6 @@ export function IntakeDealBar({
           >
             Sales Kit
           </button>
-        ) : null}
-        {showKhoAdmin ? (
-          <Link href="/crm/intake/sales-kit" className="btn btn-secondary btn-sm">
-            Kho
-          </Link>
         ) : null}
         <button
           type="button"

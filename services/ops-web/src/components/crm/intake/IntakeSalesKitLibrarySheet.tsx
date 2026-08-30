@@ -181,7 +181,7 @@ export function IntakeSalesKitLibrarySheet({
                 Mở admin
               </Link>
             ) : (
-              <span className="muted">Chỉ xem — GDKD quản lý tại Kho Sales Kit</span>
+              <span className="muted">Chỉ xem — quản lý tại Quản trị hệ thống → Kho Sales Kit</span>
             )}
           </header>
           {canBrowseOrg ? (

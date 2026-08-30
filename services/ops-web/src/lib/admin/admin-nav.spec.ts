@@ -85,4 +85,25 @@ describe('admin-nav', () => {
     expect(buildAdminSidebarLinks(user)).toEqual([]);
     expect(buildAdminNavGroups(user)).toEqual([]);
   });
+
+  it('sidebar includes Kho Sales Kit for configure cap without full admin', () => {
+    const gdkd = adminUser({
+      caps: [{ section: 'crm_leads', action: 'configure' }],
+    });
+    expect(canViewAdminSection(gdkd)).toBe(false);
+    expect(buildAdminSidebarLinks(gdkd)).toEqual([
+      { href: '/crm/intake/sales-kit', label: 'Kho Sales Kit' },
+    ]);
+  });
+
+  it('ai nav group includes Kho Sales Kit when configure cap', () => {
+    const user = adminUser({
+      caps: [
+        { section: 'crm_data_config', action: 'view' },
+        { section: 'playbooks', action: 'configure' },
+      ],
+    });
+    const ai = buildAdminNavGroups(user).find((g) => g.id === 'ai');
+    expect(ai?.links.some((l) => l.href === '/crm/intake/sales-kit')).toBe(true);
+  });
 });

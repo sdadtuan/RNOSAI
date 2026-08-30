@@ -161,6 +161,12 @@ function buildServicesLinks(user: StoredStaffUser): AdminNavLink[] {
 
 function buildAiLinks(user: StoredStaffUser): AdminNavLink[] {
   const links: AdminNavLink[] = [];
+  if (hasCap(user, 'playbooks', 'configure') || hasCap(user, 'crm_leads', 'configure')) {
+    links.push(
+      { href: '/crm/intake/sales-kit', label: 'Kho Sales Kit' },
+      { href: '/crm/intake/sales-kit/learn', label: 'Vòng nuôi Sales Kit' },
+    );
+  }
   if (hasCap(user, 'ai_admin', 'view')) {
     links.push(
       { href: '/admin/ai/agents', label: 'AI Agents' },
@@ -287,10 +293,17 @@ export function buildAdminHubWorkspaces(
   });
 }
 
-/** Sidebar site nav — one hub entry (HubSpot Settings pattern). */
+/** Sidebar site nav — hub + Sales Kit kho for configure cap. */
 export function buildAdminSidebarLinks(user: StoredStaffUser | null): ModuleNavLink[] {
-  if (!canViewAdminSection(user)) return [];
-  return [{ href: '/admin', label: 'Trung tâm quản trị' }];
+  if (!user) return [];
+  const links: ModuleNavLink[] = [];
+  if (canViewAdminSection(user)) {
+    links.push({ href: '/admin', label: 'Trung tâm quản trị' });
+  }
+  if (hasCap(user, 'playbooks', 'configure') || hasCap(user, 'crm_leads', 'configure')) {
+    links.push({ href: '/crm/intake/sales-kit', label: 'Kho Sales Kit' });
+  }
+  return links;
 }
 
 export function buildAdminSidebarLinksFlat(user: StoredStaffUser | null): ModuleNavLink[] {
