@@ -16,6 +16,8 @@ import { StaffNotificationBell } from '@/components/staff/StaffNotificationBell'
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { canViewEmailGateA } from '@/lib/email/caps';
 import { canViewMetaAdsOps, canViewMetaIntelligence, canViewMetaTracking } from '@/lib/meta/caps';
+import { ceoCommandEnabled } from '@/lib/crm/ceo-command-flags';
+import { canSeeCeoNav } from '@/lib/crm/ceo-command-thread.util';
 import {
   canViewSeoAeo,
   canViewSeoAuthority,
@@ -484,6 +486,9 @@ function buildSections(
   if (hr.length) sections.push({ label: 'Nhân sự & Hiệu suất', links: hr });
 
   const finance: NavLink[] = [];
+  if (ceoCommandEnabled() && canSeeCeoNav(user)) {
+    finance.push({ href: '/crm/ceo', label: 'Điều hành CEO' });
+  }
   if (hasCap(user, 'crm_business_dashboard', 'view')) {
     finance.push({ href: '/crm/business-dashboard', label: 'Dashboard KD' });
     finance.push({ href: '/crm/forecast', label: 'Forecast' });

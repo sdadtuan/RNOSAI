@@ -39,6 +39,7 @@
     }
   ],
   "extra_actions": [
+    "act",
     "assign",
     "compliance",
     "deliverability",
@@ -54,6 +55,7 @@
     "run"
   ],
   "extra_action_labels": {
+    "act": "Điều hành (Xác nhận)",
     "assign": "Phân công (GDKD)",
     "compliance": "Tuân thủ",
     "deliverability": "Deliverability",
@@ -314,6 +316,11 @@
       "edit",
       "export",
       "release",
+      "view"
+    ],
+    "ceo_command": [
+      "act",
+      "configure",
       "view"
     ],
     "spc": [
@@ -1092,6 +1099,13 @@
       "description": "Bảng ai_agent_runs — filter date/status/use case (RNOS-05)."
     },
     {
+      "id": "ceo_command",
+      "label": "CEO Command",
+      "group": "CRM — Admin",
+      "page": "/crm/ceo",
+      "description": "ChatBox điều hành A+B+C."
+    },
+    {
       "id": "spc",
       "label": "SPC — Service Product Catalog",
       "group": "CRM — Admin",
@@ -1787,6 +1801,7 @@
   ],
   "permission_ids": [
     "ai_admin",
+    "ceo_command",
     "spc",
     "crm_ai_insights",
     "crm_hr_leave",

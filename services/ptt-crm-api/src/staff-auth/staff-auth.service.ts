@@ -75,6 +75,10 @@ const DEFAULT_STUB_CAPS: StaffSectionCap[] = [
   { section: 'crm_data_config', action: 'view' },
   { section: 'crm_data_config', action: 'configure' },
   { section: 'ai_admin', action: 'view' },
+  { section: 'ai_admin', action: 'configure' },
+  { section: 'ceo_command', action: 'view' },
+  { section: 'ceo_command', action: 'act' },
+  { section: 'ceo_command', action: 'configure' },
   { section: 'automation_workflows', action: 'view' },
   { section: 'automation_workflows', action: 'configure' },
   { section: 'automation_workflows', action: 'simulate' },
@@ -335,6 +339,13 @@ export class StaffAuthService {
     ]);
     const permission_sets = await this.permissionSets.loadUserSetCodes(accessPayload.sub);
     const position_code = await this.loadPositionCode(accessPayload.position_id);
+    const mergedCaps = isSuperAdminPositionCode(position_code)
+      ? this.mergeCaps(caps, [
+          { section_id: 'ceo_command', action: 'view' },
+          { section_id: 'ceo_command', action: 'act' },
+          { section_id: 'ceo_command', action: 'configure' },
+        ])
+      : caps;
     const client_ids = await this.resolveJwtClientIds(accessPayload.sub, position_code);
     return {
       id: accessPayload.sub,
@@ -345,7 +356,7 @@ export class StaffAuthService {
       job_functions: jobFunctions.length ? jobFunctions : undefined,
       permission_sets: permission_sets.length ? permission_sets : undefined,
       client_ids,
-      caps,
+      caps: mergedCaps,
     };
   }
 

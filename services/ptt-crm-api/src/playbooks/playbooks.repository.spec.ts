@@ -16,7 +16,7 @@ describe('PlaybooksRepository sales_kit isolation', () => {
       return { rows: [] };
     });
     await repo.listAllChunks('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
-    expect(calls[0]?.sql).toMatch(/COALESCE\(p\.category, 'sales'\) <> 'sales_kit'/);
+    expect(calls[0]?.sql).toMatch(/NOT IN \('sales_kit', 'ceo_os'\)/);
   });
 
   it('list excludes sales_kit from admin total and rows', async () => {

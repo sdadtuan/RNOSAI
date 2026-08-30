@@ -33,6 +33,7 @@ import { OpsWeeklyPgRepository } from './ops-weekly-pg.repository';
   ],
   exports: [
     OpsService,
+    OpsDashboardService,
     OpsRouteMapLoader,
     OpsProfilePgRepository,
     OpsAlertPgRepository,

@@ -47,6 +47,14 @@ export class AiIntelligenceConfigService {
   readonly intakeSalesKitOllamaModel: string;
   readonly salesKitLoraMinPairs: number;
   readonly salesKitLoraEnabled: boolean;
+  readonly ceoCommandEnabled: boolean;
+  readonly ceoCommandLlmEnabled: boolean;
+  readonly ceoCommandLlmModel: string;
+  readonly ceoCommandLlmBaseUrl: string | null;
+  readonly ceoCommandLlmApiKey: string | null;
+  readonly ceoCommandLlmTimeoutMs: number;
+  readonly ceoCommandLoraMinPairs: number;
+  readonly ceoCommandLoraEnabled: boolean;
 
   constructor() {
     this.copilotEnabled = envFlag('PTT_AI_COPILOT_ENABLED', false);
@@ -116,6 +124,28 @@ export class AiIntelligenceConfigService {
       Number(process.env.PTT_SALES_KIT_LORA_MIN_PAIRS ?? 200) || 200,
     );
     this.salesKitLoraEnabled = envFlag('PTT_SALES_KIT_LORA_ENABLED', false);
+    this.ceoCommandEnabled = envFlag('PTT_CEO_COMMAND', true);
+    this.ceoCommandLlmEnabled = envFlag('PTT_CEO_COMMAND_LLM', false);
+    const ceoBase = (process.env.PTT_CEO_COMMAND_LLM_BASE_URL ?? '').trim();
+    const globalBaseCeo = (process.env.PTT_AI_LLM_BASE_URL ?? '').trim();
+    this.ceoCommandLlmBaseUrl = ceoBase || globalBaseCeo || null;
+    this.ceoCommandLlmApiKey =
+      (process.env.PTT_CEO_COMMAND_LLM_API_KEY ?? '').trim() ||
+      this.llmApiKey ||
+      (this.ceoCommandLlmBaseUrl ? 'ollama' : null);
+    this.ceoCommandLlmModel = (
+      process.env.PTT_CEO_COMMAND_LLM_MODEL ?? this.llmModel
+    ).trim();
+    const ceoTimeout = Number(process.env.PTT_CEO_COMMAND_LLM_TIMEOUT_MS ?? 0);
+    this.ceoCommandLlmTimeoutMs = Math.max(
+      1000,
+      ceoTimeout > 0 ? ceoTimeout : 12000,
+    );
+    this.ceoCommandLoraMinPairs = Math.max(
+      1,
+      Number(process.env.PTT_CEO_COMMAND_LORA_MIN_PAIRS ?? 200) || 200,
+    );
+    this.ceoCommandLoraEnabled = envFlag('PTT_CEO_COMMAND_LORA_ENABLED', false);
   }
 
   isPilotUser(staffId: string | undefined | null): boolean {

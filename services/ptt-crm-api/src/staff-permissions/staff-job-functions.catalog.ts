@@ -13,6 +13,7 @@ export const DEFAULT_JOB_FUNCTION_GRANTS: Record<string, Record<string, string[]
     crm_kpi_records: ['export', 'configure'],
     crm_staff_kpi_am_sp: ['view'],
     crm_presales_solution: ['release'],
+    ceo_command: ['view', 'act', 'configure'],
   },
   sales: {},
   content: {

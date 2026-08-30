@@ -2627,6 +2627,153 @@ export async function downloadIntakeSalesKitSample(token: string): Promise<void>
   await downloadBinary(token, '/api/crm/intake/sales-kit/sample.xlsx', 'mau-qa-seo.xlsx');
 }
 
+export type CeoTurnOutput = {
+  turn_id: string | null;
+  thread_id: string;
+  intent: string;
+  reply_vi: string;
+  stub_mode: boolean;
+  model_name: string;
+  facts_json: Record<string, unknown>;
+  citations: unknown[];
+  cards: unknown[];
+  degraded: Array<{ source: string; reason: string }>;
+  proposed_action: {
+    action_id: string;
+    params: Record<string, unknown>;
+    preview_vi: string;
+    required_caps: Array<{ section: string; action: string }>;
+    can_confirm: boolean;
+  } | null;
+  rows?: unknown[];
+  result_kind?: 'table' | 'chart';
+  drill_href?: string;
+};
+
+export type CeoTurnRow = {
+  id: string;
+  thread_id: string;
+  actor_staff_id: number;
+  intent: string;
+  user_text: string;
+  reply_vi: string;
+  stub_mode: boolean;
+  model_name: string;
+  facts_json: Record<string, unknown>;
+  citations_json: unknown[];
+  proposed_action_json: unknown;
+  cards_json: unknown[];
+  degraded_json: Array<{ source: string; reason: string }>;
+  rating: string | null;
+  created_at: string;
+};
+
+export type CeoContextDto = {
+  staff_id: number;
+  can_act: boolean;
+  can_configure: boolean;
+  chips_a: string[];
+  chips_b: string[];
+  actions: string[];
+  llm_enabled: boolean;
+  ceo_command_enabled: boolean;
+};
+
+export type CeoLearnCandidateRow = {
+  id: string;
+  folder_key: string;
+  kind: string;
+  question: string;
+  answer: string;
+  status: string;
+  created_at: string;
+};
+
+export async function fetchCeoContext(token: string) {
+  return crmFetch<CeoContextDto>(token, '/api/crm/ceo/context');
+}
+
+export async function fetchCeoTurns(token: string, threadId: string) {
+  const q = encodeURIComponent(threadId);
+  return crmFetch<{ turns: CeoTurnRow[] }>(token, `/api/crm/ceo/turns?thread_id=${q}`);
+}
+
+export async function postCeoTurn(
+  token: string,
+  body: {
+    intent: string;
+    message?: string;
+    intent_id?: string;
+    action_id?: string;
+    params?: Record<string, unknown>;
+    thread_id?: string;
+  },
+): Promise<CeoTurnOutput> {
+  return crmFetch<CeoTurnOutput>(token, '/api/crm/ceo/turns', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function commitCeoAction(
+  token: string,
+  body: { turn_id: string; idempotency_key: string },
+) {
+  return crmFetch<{ status: string; result_json: unknown; reused: boolean }>(
+    token,
+    '/api/crm/ceo/actions/commit',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function rateCeoTurn(token: string, turnId: string, rating: 'up' | 'down', reason?: string) {
+  return crmFetch<CeoTurnRow>(token, `/api/crm/ceo/turns/${turnId}/rating`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rating, reason }),
+  });
+}
+
+export async function fetchCeoLearnCandidates(token: string, status?: string) {
+  const q = status ? `?status=${encodeURIComponent(status)}` : '';
+  return crmFetch<{ candidates: CeoLearnCandidateRow[] }>(token, `/api/crm/ceo/learn/candidates${q}`);
+}
+
+export async function fetchCeoLearnDownTurns(token: string, days = 30) {
+  return crmFetch<{ turns: CeoTurnRow[] }>(token, `/api/crm/ceo/learn/down-turns?days=${days}`);
+}
+
+export async function proposeCeoLearnFromTurn(token: string, turnId: string) {
+  return crmFetch<CeoLearnCandidateRow>(token, `/api/crm/ceo/learn/propose/${turnId}`, {
+    method: 'POST',
+  });
+}
+
+export async function approveCeoLearnCandidate(
+  token: string,
+  id: string,
+  body: { question?: string; answer?: string; folder_key?: string },
+) {
+  return crmFetch(token, `/api/crm/ceo/learn/candidates/${id}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function rejectCeoLearnCandidate(token: string, id: string, reason: string) {
+  return crmFetch(token, `/api/crm/ceo/learn/candidates/${id}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  });
+}
+
 export async function createCustomerRelation(
   token: string,
   customerId: number,

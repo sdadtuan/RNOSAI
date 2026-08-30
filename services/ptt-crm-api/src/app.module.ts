@@ -14,6 +14,7 @@ import { KpiModule } from './kpi/kpi.module';
 import { SalesModule } from './sales/sales.module';
 import { CustomersModule } from './customers/customers.module';
 import { IntakeModule } from './intake/intake.module';
+import { CeoCommandModule } from './ceo-command/ceo-command.module';
 import { MetaTrackingModule } from './meta-tracking/meta-tracking.module';
 import { MetaAlertsModule } from './meta-alerts/meta-alerts.module';
 import { AiIntelligenceModule } from './ai-intelligence/ai-intelligence.module';
@@ -125,6 +126,7 @@ import { GtmCmsModule } from './gtm-cms/cms.module';
     CrmLeadsLegacyModule,
     CustomersModule,
     IntakeModule,
+    CeoCommandModule,
     CasesModule,
     TicketsModule,
     SalesModule,

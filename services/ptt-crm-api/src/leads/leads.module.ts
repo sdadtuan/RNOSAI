@@ -85,6 +85,7 @@ import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.modul
     LeadSlaCareService,
     ChotClosedLoopService,
     CopilotContextService,
+    SlaAutoTaskService,
   ],
 })
 export class LeadsModule {}

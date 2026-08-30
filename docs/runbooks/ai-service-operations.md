@@ -633,18 +633,18 @@ Target Phase 0: **≥70%**.
 
 ---
 
-## 12.1 Sales Kit ChatBox — 3 mode LLM
+## 12.2 CEO Command ChatBox — flag LLM
 
-| Mode | Env / DB | Ghi chú |
-|------|----------|---------|
-| `off` | Default prod | Rules-only; không gọi LLM |
-| `openai` | GDKD chọn trên `/crm/intake/sales-kit` | Cần `PTT_AI_LLM_API_KEY` |
-| `ollama` | GDKD chọn + `PTT_INTAKE_SALES_KIT_LLM_BASE_URL` | **Không** cài Ollama 7B trên VPS 3.3 GiB |
+| Flag | Default prod | Ghi chú |
+|------|--------------|---------|
+| `PTT_CEO_COMMAND` | `1` | Tắt route `/crm/ceo` khi `0` |
+| `PTT_CEO_COMMAND_LLM` | `0` | OSS polish — **không** bật trên VPS 3.3 GiB |
+| `NEXT_PUBLIC_PTT_CEO_COMMAND` | `1` | Nav ops-web |
 
-- Khóa UI: `PTT_INTAKE_SALES_KIT_LLM_MODE_LOCK=1`
-- Apply DDL: `./scripts/apply_pg_ddl_sales_kit_learn.sh`
-- LoRA export: `GET /api/crm/intake/sales-kit/learn/export.jsonl` → `./scripts/sales_kit_lora_train.sh`
-- **Không** set `PTT_INTAKE_SALES_KIT_LLM=1` trong deploy script prod mặc định
+- Apply DDL: `./scripts/apply_pg_ddl_ceo_command.sh`
+- Deploy: `./scripts/deploy_ceo_command_vps.sh` (không export `PTT_CEO_COMMAND_LLM=1`)
+- LoRA: `GET /api/crm/ceo/learn/export` → `./scripts/ceo_command_lora_train.sh`
+- Isolation: `ceo_os` + `sales_kit` excluded from CSKH RAG `list` / `listAllChunks`
 
 ---
 
