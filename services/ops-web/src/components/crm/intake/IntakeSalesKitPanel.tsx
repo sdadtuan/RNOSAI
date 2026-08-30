@@ -86,6 +86,7 @@ export type IntakeSalesKitPanelProps = {
   ) => void | Promise<void>;
   onFocusTab?: (tab: 'discovery' | 'qualify' | 'win_intel') => void;
   embedded?: boolean;
+  onOpenSessionBag?: () => void;
 };
 
 export function IntakeSalesKitPanel({
@@ -96,6 +97,7 @@ export function IntakeSalesKitPanel({
   onApply,
   onFocusTab,
   embedded = false,
+  onOpenSessionBag,
 }: IntakeSalesKitPanelProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -411,7 +413,14 @@ export function IntakeSalesKitPanel({
             />
           </label>
         </form>
-        <p className="muted intake-kit__footer">Nội bộ — không gửi khách</p>
+        <div className="intake-kit__footer-row">
+          {onOpenSessionBag && canEdit ? (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenSessionBag}>
+              Túi phiên
+            </button>
+          ) : null}
+          <p className="muted intake-kit__footer">Nội bộ — không gửi khách</p>
+        </div>
       </footer>
     </section>
   );

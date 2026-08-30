@@ -1129,7 +1129,7 @@ export function IntakeContent({
                 showSalesKit={kitEnabled}
                 salesKitOpen={kitOpen}
                 onOpenSalesKit={() => setKitOpen(true)}
-                onOpenKho={() => setLibraryOpen(true)}
+                showKhoAdmin={canBrowseOrg}
               />
 
               {helpOpen ? (
@@ -1313,6 +1313,7 @@ export function IntakeContent({
               sciExcerpt={sciExcerpt}
               onApply={(apply, selected) => void onApplySalesKit(apply, selected)}
               onFocusTab={setActiveTab}
+              onOpenSessionBag={() => setLibraryOpen(true)}
             />
           </div>
         </SalesCockpitDrawer>
