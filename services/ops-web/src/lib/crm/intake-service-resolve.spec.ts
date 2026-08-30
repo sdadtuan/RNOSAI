@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  gapToConsultLabel,
   gapToGo,
   intakeServiceLabel,
   resolveIntakeServiceSlug,
@@ -52,6 +53,14 @@ describe('gapToGo', () => {
     expect(gapToGo(8)).toBe(16);
     expect(gapToGo(24)).toBe(0);
     expect(gapToGo(30)).toBe(0);
+  });
+});
+
+describe('gapToConsultLabel', () => {
+  it('uses Tư vấn not Go', () => {
+    expect(gapToConsultLabel(0)).toBe('Đủ Tư vấn');
+    expect(gapToConsultLabel(16)).toBe('Còn 16 để Tư vấn');
+    expect(gapToConsultLabel(gapToGo(8))).toBe('Còn 16 để Tư vấn');
   });
 });
 

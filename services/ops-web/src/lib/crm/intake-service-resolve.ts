@@ -65,6 +65,11 @@ export function gapToGo(bantTotal: number, goThreshold = 24): number {
   return Math.max(0, goThreshold - t);
 }
 
+export function gapToConsultLabel(gap: number): string {
+  const n = Number(gap) || 0;
+  return n <= 0 ? 'Đủ Tư vấn' : `Còn ${n} để Tư vấn`;
+}
+
 export function isPilotServiceSlug(slug: string): boolean {
   return (PILOT_SERVICE_SLUGS as readonly string[]).includes(normalizeIntakeSlug(slug));
 }

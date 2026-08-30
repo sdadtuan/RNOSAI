@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { CATALOG_SERVICE_SLUGS, intakeServiceLabel } from '@/lib/crm/intake-service-resolve';
+import { CATALOG_SERVICE_SLUGS, gapToConsultLabel, intakeServiceLabel } from '@/lib/crm/intake-service-resolve';
 
 export type IntakeDealBarProps = {
   leadName: string;
@@ -56,7 +56,7 @@ export function IntakeDealBar({
   bantOpen = false,
   onOpenBant,
 }: IntakeDealBarProps) {
-  const gapLabel = gap <= 0 ? 'Đủ Go' : `Còn ${gap} để Go`;
+  const gapLabel = gapToConsultLabel(gap);
 
   return (
     <section className="intake-deal-bar" aria-label="Deal Bar">
