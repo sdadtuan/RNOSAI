@@ -1,4 +1,9 @@
 import type { IntakeSessionRow, LeadRow } from '@/lib/api';
+import {
+  checklistFromBant,
+  parseBantChecklist,
+  type BantChecklistState,
+} from '@/lib/crm/intake-bant-checklist';
 import { normalizeCommitments, type IntakeCommitmentRow } from '@/lib/crm/intake-commitments';
 import {
   discoveryFromDefinition,
@@ -28,6 +33,7 @@ export interface IntakeSessionFormState {
   redFlags: IntakeRedFlagsState;
   winIntel: WinIntelState;
   qualifyChecked: Record<string, boolean>;
+  bantChecklist: BantChecklistState;
 }
 
 export function intakeFormFromSession(
@@ -48,6 +54,16 @@ export function intakeFormFromSession(
     redFlags: parseRedFlags(session.answers_json),
     winIntel: parseWinIntel(session.answers_json),
     qualifyChecked: parseQualifyChecked(session.answers_json),
+    bantChecklist: (() => {
+      const saved = parseBantChecklist(session.answers_json);
+      return Object.keys(saved).length
+        ? saved
+        : checklistFromBant(
+            Object.fromEntries(
+              Object.entries(session.bant_json || {}).map(([k, v]) => [k, Number(v)]),
+            ),
+          );
+    })(),
   };
 }
 

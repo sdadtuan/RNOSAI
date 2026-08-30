@@ -38,4 +38,23 @@ describe('buildIntakeAnswersPatch', () => {
     expect((out.qualify_checked as { nganh: boolean }).nganh).toBe(true);
     expect((out.win_intel as { incumbent: { answer: string } }).incumbent.answer).toBe('A');
   });
+
+  it('persists bant_checklist scores', () => {
+    const out = buildIntakeAnswersPatch({
+      existing: {},
+      need: 'x',
+      discovery: emptyDiscoveryForMode('phone'),
+      redFlags: emptyRedFlags(),
+      winIntel: emptyWinIntel(),
+      bantChecklist: { budget: 4, need: 5 },
+    });
+    expect(out.bant_checklist).toEqual({
+      budget: 4,
+      authority: 0,
+      need: 5,
+      timeline: 0,
+      fit: 0,
+      history: 0,
+    });
+  });
 });

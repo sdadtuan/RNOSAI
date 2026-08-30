@@ -7,6 +7,7 @@ import { IntakeFormActions } from '@/components/crm/intake/IntakeFormActions';
 import { IntakeCompleteConfirmModal } from '@/components/crm/intake/IntakeCompleteConfirmModal';
 import { IntakeDiscoverySection } from '@/components/crm/intake/IntakeDiscoverySection';
 import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
+import { IntakeBantChecklistPanel } from '@/components/crm/intake/IntakeBantChecklistPanel';
 import { IntakeDealBar } from '@/components/crm/intake/IntakeDealBar';
 import { IntakeHandoffTab } from '@/components/crm/intake/IntakeHandoffTab';
 import { IntakeQualifyTab } from '@/components/crm/intake/IntakeQualifyTab';
@@ -70,6 +71,13 @@ import {
   type BantRowUi,
 } from '@/lib/crm/intake-bant';
 import { buildIntakeAnswersPatch } from '@/lib/crm/intake-answers';
+import {
+  checklistFromBant,
+  emptyBantChecklist,
+  scoreBantFromChecklist,
+  toggleBantChecklistScore,
+  type BantChecklistState,
+} from '@/lib/crm/intake-bant-checklist';
 import {
   applySalesKitToForm,
   type SalesKitApplySelected,
@@ -159,7 +167,9 @@ export function IntakeContent({
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [kitOpen, setKitOpen] = useState(false);
+  const [bantOpen, setBantOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [bantChecklist, setBantChecklist] = useState<BantChecklistState>({});
   const [lead, setLead] = useState<LeadRow | null>(null);
   const [funnelSnap, setFunnelSnap] = useState<LeadFunnelSnapshot | null>(null);
   const [consultGate, setConsultGate] = useState<ConsultGateState | null>(null);
@@ -240,6 +250,7 @@ export function IntakeContent({
         redFlags,
         winIntel,
         qualifyChecked,
+        bantChecklist,
       }),
     [
       activeId,
@@ -254,6 +265,7 @@ export function IntakeContent({
       redFlags,
       winIntel,
       qualifyChecked,
+      bantChecklist,
     ],
   );
   const liveBantTotal = useMemo(() => computeBantTotal(bant), [bant]);
@@ -323,6 +335,7 @@ export function IntakeContent({
         setRedFlags(emptyRedFlags());
         setWinIntel(emptyWinIntel());
         setQualifyChecked({});
+        setBantChecklist(emptyBantChecklist());
         return;
       }
       setActiveId(session.id);
@@ -338,6 +351,7 @@ export function IntakeContent({
       setRedFlags(form.redFlags);
       setWinIntel(form.winIntel);
       setQualifyChecked(form.qualifyChecked);
+      setBantChecklist(form.bantChecklist);
     },
     [intakeDefinition],
   );
@@ -673,6 +687,7 @@ export function IntakeContent({
             redFlags,
             winIntel: nextWinIntel,
             qualifyChecked,
+            bantChecklist,
           }),
           stakeholders_json: stakeholdersToPatch(stakeholders),
           commitments_json: commitmentsToPatch(commitments),
@@ -708,6 +723,7 @@ export function IntakeContent({
       commitments,
       winIntel,
       qualifyChecked,
+      bantChecklist,
       user,
     ],
   );
@@ -733,6 +749,7 @@ export function IntakeContent({
     setRedFlags(form.redFlags);
     setWinIntel(form.winIntel);
     setQualifyChecked(form.qualifyChecked);
+    setBantChecklist(form.bantChecklist);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rehydrate structured answers when definition loads
   }, [intakeDefinition?.schema_version, intakeDefinition?.slug, active?.id]);
 
@@ -921,6 +938,7 @@ export function IntakeContent({
           redFlags,
           winIntel,
           qualifyChecked,
+          bantChecklist,
         }),
       });
       await loadSessions(access, active.id);
@@ -990,6 +1008,7 @@ export function IntakeContent({
     setDiscovery(next.discovery);
     setWinIntel(next.winIntel);
     setBant(next.bant);
+    setBantChecklist(checklistFromBant(next.bant));
     try {
       await performSave({ silent: true, overrides: next });
       if (selected.summary && apply.ai_summary?.trim()) {
@@ -1129,6 +1148,8 @@ export function IntakeContent({
                 showSalesKit={kitEnabled}
                 salesKitOpen={kitOpen}
                 onOpenSalesKit={() => setKitOpen(true)}
+                bantOpen={bantOpen}
+                onOpenBant={() => setBantOpen(true)}
               />
 
               {helpOpen ? (
@@ -1197,9 +1218,10 @@ export function IntakeContent({
                         redFlags={redFlags}
                         qualifyItems={intakeDefinition?.qualify_items ?? []}
                         qualifyChecked={qualifyChecked}
-                        onBantChange={(key: BantKey, value: number) =>
-                          setBant((prev) => ({ ...prev, [key]: value }))
-                        }
+                        onBantChange={(key: BantKey, value: number) => {
+                          setBant((prev) => ({ ...prev, [key]: value }));
+                          setBantChecklist((prev) => ({ ...prev, [key]: value }));
+                        }}
                         onDecisionChange={setDecision}
                         onDecisionReasonChange={setDecisionReason}
                         onBantDecisionBlur={onBantDecisionBlur}
@@ -1294,6 +1316,26 @@ export function IntakeContent({
           </div>
         ) : null}
       </div>
+
+      <SalesCockpitDrawer
+        open={bantOpen}
+        onClose={() => setBantOpen(false)}
+        kicker="BANT+"
+        title="Chấm BANT"
+        testId="intake-bant-drawer"
+      >
+        <div id="intake-bant-checklist">
+          <IntakeBantChecklistPanel
+            checklist={bantChecklist}
+            canEdit={canCreate && active?.status !== 'completed'}
+            onToggle={(key, score) => {
+              const next = toggleBantChecklistScore(bantChecklist, key, score);
+              setBantChecklist(next);
+              setBant(scoreBantFromChecklist(next));
+            }}
+          />
+        </div>
+      </SalesCockpitDrawer>
 
       {kitEnabled ? (
         <SalesCockpitDrawer

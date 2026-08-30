@@ -13162,6 +13162,66 @@ body {
   margin: 0 0 0.65rem;
 }
 
+.intake-bant-drawer__list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.intake-bant-drawer__block {
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.intake-bant-drawer__block-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.intake-bant-drawer__score {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ptt, #17692f);
+}
+
+.intake-bant-drawer__hint {
+  margin: 0.2rem 0 0.45rem;
+  font-size: 0.8rem;
+}
+
+.intake-bant-drawer__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.intake-bant-drawer__item {
+  display: grid;
+  grid-template-columns: auto 1.4rem minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: flex-start;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.intake-bant-drawer__item.is-checked {
+  border-color: color-mix(in srgb, var(--ptt, #17692f) 45%, var(--surface-border));
+  background: color-mix(in srgb, var(--ptt, #17692f) 8%, var(--surface));
+}
+
+.intake-bant-drawer__item-score {
+  font-weight: 700;
+  color: var(--ptt, #17692f);
+}
+
 .sales-kit-admin {
   display: grid;
   grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);

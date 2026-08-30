@@ -23,6 +23,8 @@ export type IntakeDealBarProps = {
   showSalesKit?: boolean;
   salesKitOpen?: boolean;
   onOpenSalesKit?: () => void;
+  bantOpen?: boolean;
+  onOpenBant?: () => void;
 };
 
 function sciLine(excerpt: string | null): string {
@@ -51,6 +53,8 @@ export function IntakeDealBar({
   showSalesKit = false,
   salesKitOpen = false,
   onOpenSalesKit,
+  bantOpen = false,
+  onOpenBant,
 }: IntakeDealBarProps) {
   const gapLabel = gap <= 0 ? 'Đủ Go' : `Còn ${gap} để Go`;
 
@@ -107,6 +111,15 @@ export function IntakeDealBar({
         <Link href={cockpitHref} className="btn btn-secondary btn-sm">
           Cockpit
         </Link>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          aria-expanded={bantOpen}
+          aria-controls="intake-bant-checklist"
+          onClick={onOpenBant}
+        >
+          BANT
+        </button>
         {showSalesKit ? (
           <button
             type="button"
