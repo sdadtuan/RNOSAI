@@ -200,17 +200,17 @@ Trang Intake là **workspace qualify** — không còn stack card ngữ cảnh /
 |---|---------|
 | Liên hệ · công ty · ngành | Tên lead; chip ngành hoặc **Chưa có ngành** |
 | Dịch vụ | Select: SEO tổng thể / Quảng cáo Google / Thiết kế website / Chưa chọn dịch vụ |
-| BANT live | `BANT x/30 · Còn y để Go` (hoặc **Đủ Go** khi ≥24) |
+| BANT live | `BANT x/30 · Còn y để Tư vấn` (hoặc **Đủ Tư vấn** khi ≥24) |
 | Stage | Pre-sales stage (`lead` / `consult` / …) |
 | SCI | 1 dòng pain (≤120 ký tự) hoặc **SCI chưa sẵn** — không còn card SCI M2 |
-| CTA | **← Lead** · **Cockpit** · **Funnel ▾** (stepper thu gọn mặc định) |
+| CTA | **← Lead** · **Cockpit** · **BANT** · **Sales Kit** · **Funnel ▾** (stepper thu gọn mặc định) |
 
 **4 tab** (cùng một phiên, không phải 4 form):
 
 | Tab | Việc AM |
 |-----|---------|
-| **Qualify** | Chấm BANT 1–5, quyết định Go / Nurture / No-Go, red flags, checklist qualify theo dịch vụ |
-| **Discovery** | Hỏi câu critical trên call (SEO: domain / `seo_domain`; Google Ads / Website: form pilot) |
+| **Qualify** | Xem tổng (chỉ đọc), **Mở checklist BANT**, quyết định, RF |
+| **Discovery** | Hỏi + chip nhóm BANT |
 | **Win intel** | Agency cũ, đối thủ, tiêu chí chọn |
 | **Handoff** | Stakeholder, cam kết, tóm tắt, stepper nếu Funnel đang đóng |
 
@@ -252,7 +252,7 @@ Tick **Áp dụng vào form** rồi bấm **Áp dụng** (BANT hints mặc đị
 
 1. Tạo phiên **+ Gọi điện** / **+ Gặp trực tiếp** (cột trái).
 2. Tab **Discovery**: hỏi critical (SEO: website/domain).
-3. Tab **Qualify**: chấm BANT; chọn **Go** / Nurture / No-Go + lý do.
+3. Bấm **BANT** trên Deal Bar, tick câu KH vừa nói; Qualify chỉ chọn Quyết định.
 4. (Tuỳ chọn) chip **Còn thiếu để Go** / **Câu tiếp theo** — xác nhận Áp dụng nếu ghi form.
 5. Bấm **Hoàn thành phiên**.
 6. Mở **Funnel** trên Deal Bar; khi gate OK bấm **Chuyển → Tư vấn**.
