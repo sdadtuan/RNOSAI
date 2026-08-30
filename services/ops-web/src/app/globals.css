@@ -8997,6 +8997,17 @@ body {
   font-weight: 600;
 }
 
+.intake-discovery-checklist__bant {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #17692f;
+  background: #dff3e5;
+}
+
 .intake-discovery-checklist__answer {
   display: grid;
   gap: 0.35rem;

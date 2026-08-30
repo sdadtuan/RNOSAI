@@ -7,7 +7,7 @@ import {
   type IntakeQuestionItem,
   type IntakeSessionMode,
 } from '@/lib/crm/intake-discovery';
-import { intakeModeLabel } from '@/lib/crm/intake-labels';
+import { BANT_FIELD_LABELS, intakeModeLabel } from '@/lib/crm/intake-labels';
 
 const CONFIDENCE_OPTIONS: Array<{ value: DiscoveryConfidence; label: string }> = [
   { value: '', label: '— Độ chắc —' },
@@ -73,6 +73,9 @@ export function IntakeDiscoveryChecklist({
                     {item.text}
                     {item.critical ? (
                       <span className="intake-discovery-checklist__critical"> · Quan trọng</span>
+                    ) : null}
+                    {item.bant_key ? (
+                      <span className="intake-discovery-checklist__bant">{BANT_FIELD_LABELS[item.bant_key].label}</span>
                     ) : null}
                   </span>
                 </label>
