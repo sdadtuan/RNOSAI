@@ -5,14 +5,12 @@ import { IntakeBantSection } from '@/components/crm/intake/IntakeBantSection';
 import { IntakeRedFlagsSection } from '@/components/crm/intake/IntakeRedFlagsSection';
 import { IntakeValidationErrors } from '@/components/crm/intake/IntakeValidationErrors';
 import { INTAKE_DECISION_OPTIONS } from '@/lib/crm/intake-labels';
-import type { BantKey, BantRowUi } from '@/lib/crm/intake-bant';
 import type { IntakeQuestionItem, IntakeRedFlagItem } from '@/lib/crm/intake-questions';
 import type { IntakeRedFlagsState } from '@/lib/crm/intake-red-flags';
 import type { IntakeValidationIssue } from '@/lib/crm/intake-validation';
 
 export type IntakeQualifyTabProps = {
   bant: Record<string, number>;
-  bantRows: BantRowUi[];
   decision: string;
   decisionReason: string;
   disabled: boolean;
@@ -21,7 +19,7 @@ export type IntakeQualifyTabProps = {
   redFlags: IntakeRedFlagsState;
   qualifyItems: IntakeQuestionItem[];
   qualifyChecked: Record<string, boolean>;
-  onBantChange: (key: BantKey, value: number) => void;
+  onOpenBant: () => void;
   onDecisionChange: (value: string) => void;
   onDecisionReasonChange: (value: string) => void;
   onBantDecisionBlur: (event: FocusEvent<HTMLDivElement>) => void;
@@ -32,7 +30,6 @@ export type IntakeQualifyTabProps = {
 
 export function IntakeQualifyTab({
   bant,
-  bantRows,
   decision,
   decisionReason,
   disabled,
@@ -41,7 +38,7 @@ export function IntakeQualifyTab({
   redFlags,
   qualifyItems,
   qualifyChecked,
-  onBantChange,
+  onOpenBant,
   onDecisionChange,
   onDecisionReasonChange,
   onBantDecisionBlur,
@@ -53,17 +50,11 @@ export function IntakeQualifyTab({
     <>
       <section className="intake-bant-section stack-gap" aria-label='Chấm BANT "BANT scoring"'>
         <header className="intake-form__head">
-          <h2 className="intake-form__title">C. BANT + Quyết định</h2>
+          <h2 className="intake-form__title">C. Quyết định</h2>
         </header>
 
         <div className="intake-bant-decision-pane" onBlur={onBantDecisionBlur}>
-          <IntakeBantSection
-            bant={bant}
-            bantRows={bantRows}
-            decision={decision}
-            disabled={disabled}
-            onBantChange={onBantChange}
-          />
+          <IntakeBantSection bant={bant} decision={decision} onOpenBant={onOpenBant} />
 
           <IntakeValidationErrors issues={validationErrors} />
 

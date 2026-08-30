@@ -64,12 +64,7 @@ import {
   intakeFormFromSession,
   pickInitialSessionId,
 } from '@/lib/crm/intake-session-form';
-import {
-  bantRowsFromDefinition,
-  computeBantTotal,
-  type BantKey,
-  type BantRowUi,
-} from '@/lib/crm/intake-bant';
+import { computeBantTotal } from '@/lib/crm/intake-bant';
 import { buildIntakeAnswersPatch } from '@/lib/crm/intake-answers';
 import {
   checklistFromBant,
@@ -159,7 +154,6 @@ export function IntakeContent({
   const [winIntel, setWinIntel] = useState<WinIntelState>(emptyWinIntel);
   const [qualifyChecked, setQualifyChecked] = useState<Record<string, boolean>>({});
   const [intakeDefinition, setIntakeDefinition] = useState<IntakeDefinitionUi | null>(null);
-  const [bantRows, setBantRows] = useState<BantRowUi[]>([]);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -525,7 +519,6 @@ export function IntakeContent({
           l2_preview_keys: raw.l2_preview_keys,
           is_pilot_form: raw.is_pilot_form,
         });
-        setBantRows(bantRowsFromDefinition(definition.bant_rows));
         setError('');
       } catch (err) {
         if (cancelled) return;
@@ -1209,7 +1202,6 @@ export function IntakeContent({
                     qualify={
                       <IntakeQualifyTab
                         bant={bant}
-                        bantRows={bantRows}
                         decision={decision}
                         decisionReason={decisionReason}
                         disabled={formDisabled}
@@ -1218,10 +1210,7 @@ export function IntakeContent({
                         redFlags={redFlags}
                         qualifyItems={intakeDefinition?.qualify_items ?? []}
                         qualifyChecked={qualifyChecked}
-                        onBantChange={(key: BantKey, value: number) => {
-                          setBant((prev) => ({ ...prev, [key]: value }));
-                          setBantChecklist((prev) => ({ ...prev, [key]: value }));
-                        }}
+                        onOpenBant={() => setBantOpen(true)}
                         onDecisionChange={setDecision}
                         onDecisionReasonChange={setDecisionReason}
                         onBantDecisionBlur={onBantDecisionBlur}

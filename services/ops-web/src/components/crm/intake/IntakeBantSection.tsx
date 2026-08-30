@@ -1,31 +1,15 @@
 'use client';
 
-import { IntakeBantScoreRow } from '@/components/crm/intake/IntakeBantScoreRow';
 import { IntakeBantTotalBar } from '@/components/crm/intake/IntakeBantTotalBar';
-import {
-  BANT_KEYS,
-  computeBantTotal,
-  getDecisionMismatchMessage,
-  type BantKey,
-  type BantRowUi,
-} from '@/lib/crm/intake-bant';
+import { computeBantTotal, getDecisionMismatchMessage } from '@/lib/crm/intake-bant';
 
 interface Props {
   bant: Record<string, number>;
-  bantRows: BantRowUi[];
   decision: string;
-  disabled?: boolean;
-  onBantChange: (key: BantKey, value: number) => void;
+  onOpenBant: () => void;
 }
 
-export function IntakeBantSection({
-  bant,
-  bantRows,
-  decision,
-  disabled,
-  onBantChange,
-}: Props) {
-  const rowsByKey = new Map(bantRows.map((row) => [row.key, row]));
+export function IntakeBantSection({ bant, decision, onOpenBant }: Props) {
   const liveTotal = computeBantTotal(bant);
   const mismatch = getDecisionMismatchMessage(decision, liveTotal);
 
@@ -33,21 +17,10 @@ export function IntakeBantSection({
     <div className="intake-bant-section__body stack-gap">
       <IntakeBantTotalBar total={liveTotal} />
 
-      <div className="intake-bant-score-grid">
-        {BANT_KEYS.map((key) => {
-          const row = rowsByKey.get(key);
-          return (
-            <IntakeBantScoreRow
-              key={key}
-              bantKey={key}
-              hint={row?.hint ?? ''}
-              value={Number(bant[key] ?? 0)}
-              disabled={disabled}
-              onChange={(value) => onBantChange(key, value)}
-            />
-          );
-        })}
-      </div>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenBant}>
+        Mở checklist BANT
+      </button>
+      <p className="muted">Điểm từ checklist BANT trên Deal Bar.</p>
 
       {mismatch ? (
         <p className="intake-bant-decision-warn" role="status">
