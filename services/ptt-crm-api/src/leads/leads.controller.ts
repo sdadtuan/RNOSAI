@@ -57,6 +57,7 @@ import { ChotClosedLoopService } from './chot-closed-loop.service';
 import { CopilotContextService } from './copilot-context.service';
 import { SlaAutoTaskService } from './sla-auto-task.service';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
+import { LeadPatchFinalizeService } from './lead-patch-finalize.service';
 import {
   AssignLeadBody,
   CreateLeadActivityBody,
@@ -98,6 +99,7 @@ export class LeadsController {
     private readonly b2bConversations: B2bConversationsService,
     private readonly crmLegacy: CrmLeadsLegacyService,
     private readonly leadAttribution: LeadAttributionService,
+    private readonly leadPatchFinalize: LeadPatchFinalizeService,
   ) {}
 
   private leadActor(
@@ -246,7 +248,7 @@ export class LeadsController {
     const gateOpts = await this.statusGateOpts(req, body);
     const actorId = this.leadActor(req, actor);
     const lead = await this.leadsWriteService.patchLead(id, body, actorId, gateOpts);
-    await this.crmLegacy.finalizeLeadPatch({
+    await this.leadPatchFinalize.finalize({
       leadId: id,
       prev,
       next: lead,

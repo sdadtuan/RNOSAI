@@ -25,6 +25,7 @@ import { LeadsWriteService } from '../leads/leads-write.service';
 import { LeadStatusGatePatchOptions } from '../leads/lead-status-gate.service';
 import { PatchLeadV1Body } from '../leads/leads.types';
 import { CrmLeadsLegacyService } from './crm-leads-legacy.service';
+import { LeadPatchFinalizeService } from '../leads/lead-patch-finalize.service';
 import { LeadAttributionService } from '../leads/lead-attribution.service';
 import { LeadAttributionResponse } from '../leads/lead-attribution.types';
 import { AssignLeadBody, CreateLeadActivityBody } from './crm-leads-legacy.types';
@@ -38,6 +39,7 @@ export class CrmLeadsLegacyController {
     private readonly leadsWrite: LeadsWriteService,
     private readonly attribution: LeadAttributionService,
     private readonly staffAuth: StaffAuthService,
+    private readonly leadPatchFinalize: LeadPatchFinalizeService,
   ) {}
 
   private actor(req: Request & { staffUser?: StaffJwtPayload }): string {
@@ -119,7 +121,7 @@ export class CrmLeadsLegacyController {
     }
     const gateOpts = await this.statusGateOpts(req, body);
     const lead = await this.leadsWrite.patchLead(id, body, this.actor(req), gateOpts);
-    await this.legacy.finalizeLeadPatch({
+    await this.leadPatchFinalize.finalize({
       leadId: id,
       prev,
       next: lead,

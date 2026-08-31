@@ -33,6 +33,7 @@ import { LeadSlaCareService } from './lead-sla-care.service';
 import { ChotClosedLoopService } from './chot-closed-loop.service';
 import { CopilotContextService } from './copilot-context.service';
 import { SlaAutoTaskService } from './sla-auto-task.service';
+import { LeadPatchFinalizeService } from './lead-patch-finalize.service';
 import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.module';
 
 @Module({
@@ -69,6 +70,7 @@ import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.modul
     LeadStatusGateService,
     LeadSlaCareService,
     ChotClosedLoopService,
+    LeadPatchFinalizeService,
     CopilotContextService,
     SlaAutoTaskService,
     WriteEnabledGuard,
@@ -84,6 +86,7 @@ import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.modul
     StaffLeadsWriteGuard,
     LeadSlaCareService,
     ChotClosedLoopService,
+    LeadPatchFinalizeService,
     CopilotContextService,
     SlaAutoTaskService,
   ],
