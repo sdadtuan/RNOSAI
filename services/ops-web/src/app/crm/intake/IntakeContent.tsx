@@ -9,6 +9,7 @@ import { IntakeDiscoverySection } from '@/components/crm/intake/IntakeDiscoveryS
 import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
 import { IntakeBantChecklistPanel } from '@/components/crm/intake/IntakeBantChecklistPanel';
 import { IntakeDealBar } from '@/components/crm/intake/IntakeDealBar';
+import { IntakeWinChecklistPanel } from '@/components/crm/intake/IntakeWinChecklistPanel';
 import { IntakeHandoffTab } from '@/components/crm/intake/IntakeHandoffTab';
 import { IntakeQualifyTab } from '@/components/crm/intake/IntakeQualifyTab';
 import { IntakeSalesKitLibrarySheet } from '@/components/crm/intake/IntakeSalesKitLibrarySheet';
@@ -73,6 +74,11 @@ import {
   toggleBantChecklistScore,
   type BantChecklistState,
 } from '@/lib/crm/intake-bant-checklist';
+import {
+  toggleWinChecklistScore,
+  winChecklistTotal,
+  type WinChecklistState,
+} from '@/lib/crm/intake-win-checklist';
 import {
   applySalesKitToForm,
   type SalesKitApplySelected,
@@ -162,8 +168,10 @@ export function IntakeContent({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [kitOpen, setKitOpen] = useState(false);
   const [bantOpen, setBantOpen] = useState(false);
+  const [winOpen, setWinOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [bantChecklist, setBantChecklist] = useState<BantChecklistState>({});
+  const [winChecklist, setWinChecklist] = useState<WinChecklistState>({});
   const [lead, setLead] = useState<LeadRow | null>(null);
   const [funnelSnap, setFunnelSnap] = useState<LeadFunnelSnapshot | null>(null);
   const [consultGate, setConsultGate] = useState<ConsultGateState | null>(null);
@@ -245,6 +253,7 @@ export function IntakeContent({
         winIntel,
         qualifyChecked,
         bantChecklist,
+        winChecklist,
       }),
     [
       activeId,
@@ -260,9 +269,11 @@ export function IntakeContent({
       winIntel,
       qualifyChecked,
       bantChecklist,
+      winChecklist,
     ],
   );
   const liveBantTotal = useMemo(() => computeBantTotal(bant), [bant]);
+  const liveWinTotal = useMemo(() => winChecklistTotal(winChecklist), [winChecklist]);
   const kitEnabled = intakeSalesKitEnabled();
   const resolvedSlug = useMemo(
     () =>
@@ -330,6 +341,7 @@ export function IntakeContent({
         setWinIntel(emptyWinIntel());
         setQualifyChecked({});
         setBantChecklist(emptyBantChecklist());
+        setWinChecklist({});
         return;
       }
       setActiveId(session.id);
@@ -346,6 +358,7 @@ export function IntakeContent({
       setWinIntel(form.winIntel);
       setQualifyChecked(form.qualifyChecked);
       setBantChecklist(form.bantChecklist);
+      setWinChecklist(form.winChecklist);
     },
     [intakeDefinition],
   );
@@ -681,6 +694,7 @@ export function IntakeContent({
             winIntel: nextWinIntel,
             qualifyChecked,
             bantChecklist,
+            winChecklist,
           }),
           stakeholders_json: stakeholdersToPatch(stakeholders),
           commitments_json: commitmentsToPatch(commitments),
@@ -717,6 +731,7 @@ export function IntakeContent({
       winIntel,
       qualifyChecked,
       bantChecklist,
+      winChecklist,
       user,
     ],
   );
@@ -743,6 +758,7 @@ export function IntakeContent({
     setWinIntel(form.winIntel);
     setQualifyChecked(form.qualifyChecked);
     setBantChecklist(form.bantChecklist);
+    setWinChecklist(form.winChecklist);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rehydrate structured answers when definition loads
   }, [intakeDefinition?.schema_version, intakeDefinition?.slug, active?.id]);
 
@@ -932,6 +948,7 @@ export function IntakeContent({
           winIntel,
           qualifyChecked,
           bantChecklist,
+          winChecklist,
         }),
       });
       await loadSessions(access, active.id);
@@ -1128,6 +1145,7 @@ export function IntakeContent({
                 serviceSlug={resolvedSlug}
                 serviceLabel={intakeServiceLabel(resolvedSlug)}
                 bantTotal={liveBantTotal}
+                winTotal={liveWinTotal}
                 gap={gapToGo(liveBantTotal)}
                 stage={dealStage}
                 sciExcerpt={sciExcerpt}
@@ -1143,6 +1161,8 @@ export function IntakeContent({
                 onOpenSalesKit={() => setKitOpen(true)}
                 bantOpen={bantOpen}
                 onOpenBant={() => setBantOpen(true)}
+                winOpen={winOpen}
+                onOpenWin={() => setWinOpen(true)}
               />
 
               {helpOpen ? (
@@ -1329,6 +1349,24 @@ export function IntakeContent({
             onFocusTab={(tab) => {
               setActiveTab(tab);
               setBantOpen(false);
+            }}
+          />
+        </div>
+      </SalesCockpitDrawer>
+
+      <SalesCockpitDrawer
+        open={winOpen}
+        onClose={() => setWinOpen(false)}
+        kicker="WIN+"
+        title="Chấm Win"
+        testId="intake-win-drawer"
+      >
+        <div id="intake-win-checklist">
+          <IntakeWinChecklistPanel
+            checklist={winChecklist}
+            canEdit={canCreate && active?.status !== 'completed'}
+            onToggle={(key, score) => {
+              setWinChecklist(toggleWinChecklistScore(winChecklist, key, score));
             }}
           />
         </div>

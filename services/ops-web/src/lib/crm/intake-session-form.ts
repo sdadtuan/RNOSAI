@@ -15,6 +15,7 @@ import { plainTextToRichHtml } from '@/lib/crm/intake-labels';
 import { parseRedFlags, type IntakeRedFlagsState } from '@/lib/crm/intake-red-flags';
 import { normalizeIntakeSlug } from '@/lib/crm/intake-service-resolve';
 import { normalizeStakeholders, type IntakeStakeholderRow } from '@/lib/crm/intake-stakeholders';
+import { parseWinChecklist, type WinChecklistState } from '@/lib/crm/intake-win-checklist';
 import {
   parseQualifyChecked,
   parseWinIntel,
@@ -34,6 +35,7 @@ export interface IntakeSessionFormState {
   winIntel: WinIntelState;
   qualifyChecked: Record<string, boolean>;
   bantChecklist: BantChecklistState;
+  winChecklist: WinChecklistState;
 }
 
 export function intakeFormFromSession(
@@ -64,6 +66,7 @@ export function intakeFormFromSession(
             ),
           );
     })(),
+    winChecklist: parseWinChecklist(session.answers_json),
   };
 }
 

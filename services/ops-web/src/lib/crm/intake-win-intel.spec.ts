@@ -57,4 +57,24 @@ describe('buildIntakeAnswersPatch', () => {
       history: 0,
     });
   });
+
+  it('persists win_checklist and win_score_json', () => {
+    const out = buildIntakeAnswersPatch({
+      existing: {},
+      need: 'x',
+      discovery: emptyDiscoveryForMode('phone'),
+      redFlags: emptyRedFlags(),
+      winIntel: emptyWinIntel(),
+      winChecklist: { incumbent: 4 },
+    });
+    expect(out.win_checklist).toEqual({
+      incumbent: 4,
+      competitor: 0,
+      selection_criteria: 0,
+      switch_risk: 0,
+      champion: 0,
+      next_step: 0,
+    });
+    expect(out.win_score_json).toEqual(out.win_checklist);
+  });
 });

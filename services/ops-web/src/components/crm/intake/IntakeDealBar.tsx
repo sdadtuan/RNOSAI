@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { CATALOG_SERVICE_SLUGS, gapToConsultLabel, intakeServiceLabel } from '@/lib/crm/intake-service-resolve';
+import { winConsultLabel } from '@/lib/crm/intake-win-coverage';
 
 export type IntakeDealBarProps = {
   leadName: string;
@@ -10,6 +11,7 @@ export type IntakeDealBarProps = {
   serviceSlug: string;
   serviceLabel: string;
   bantTotal: number;
+  winTotal: number;
   gap: number;
   stage: string | null;
   sciExcerpt: string | null;
@@ -25,6 +27,8 @@ export type IntakeDealBarProps = {
   onOpenSalesKit?: () => void;
   bantOpen?: boolean;
   onOpenBant?: () => void;
+  winOpen?: boolean;
+  onOpenWin?: () => void;
 };
 
 function sciLine(excerpt: string | null): string {
@@ -40,6 +44,7 @@ export function IntakeDealBar({
   serviceSlug,
   serviceLabel,
   bantTotal,
+  winTotal,
   gap,
   stage,
   sciExcerpt,
@@ -55,6 +60,8 @@ export function IntakeDealBar({
   onOpenSalesKit,
   bantOpen = false,
   onOpenBant,
+  winOpen = false,
+  onOpenWin,
 }: IntakeDealBarProps) {
   const gapLabel = gapToConsultLabel(gap);
 
@@ -85,8 +92,13 @@ export function IntakeDealBar({
             ))}
           </select>
         </label>
-        <span className="intake-deal-bar__score">
-          BANT {bantTotal}/30 · {gapLabel}
+        <span className="intake-deal-bar__scores">
+          <span className="intake-deal-bar__score">
+            BANT {bantTotal}/30 · {gapLabel}
+          </span>
+          <span className="intake-deal-bar__score">
+            Win {winTotal}/30 · {winConsultLabel(winTotal)}
+          </span>
         </span>
         <span className="intake-deal-bar__chip intake-deal-bar__chip--muted">
           {stage?.trim() || '—'}
@@ -119,6 +131,15 @@ export function IntakeDealBar({
           onClick={onOpenBant}
         >
           BANT
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          aria-expanded={winOpen}
+          aria-controls="intake-win-checklist"
+          onClick={onOpenWin}
+        >
+          WIN
         </button>
         {showSalesKit ? (
           <button
