@@ -15,6 +15,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
+import { extractHttpErrorMessage } from '../common/http-error.util';
 import { InternalKeyGuard } from '../auth/internal-key.guard';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
@@ -85,7 +86,8 @@ export class LeadsFunnelController {
 
   private badRequest(err: unknown): never {
     if (err instanceof ForbiddenException) throw err;
-    const msg = err instanceof Error ? err.message : String(err);
+    if (err instanceof HttpException) throw err;
+    const msg = extractHttpErrorMessage(err);
     throw new HttpException({ error: msg, message: msg }, HttpStatus.BAD_REQUEST);
   }
 

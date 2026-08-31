@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { extractHttpErrorMessage } from '../common/http-error.util';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
 import { AppConfigService } from '../config/app-config.service';
 import { CrmLeadsPgRepository } from '../crm-leads-legacy/crm-leads-pg.repository';
@@ -124,8 +125,8 @@ export class LeadsFunnelService {
     ) {
       throw err;
     }
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new BadRequestException({ error: msg, message: msg });
+    const msg = extractHttpErrorMessage(err);
+    throw new BadRequestException(msg);
   }
 
   private async staffCapContext(staffUser?: StaffJwtPayload) {
@@ -473,7 +474,14 @@ export class LeadsFunnelService {
     actor: string,
     staffUser?: StaffJwtPayload,
   ) {
-    if (!staffId) throw new BadRequestException({ error: 'Thiếu staff id' });
+    if (!staffId) {
+      const email = staffUser?.email?.trim() || '';
+      throw new BadRequestException(
+        email
+          ? `Tài khoản ${email} chưa có hồ sơ CRM (crm_staff) — liên hệ Admin HR để thêm nhân sự.`
+          : 'Thiếu staff id — đăng nhập lại.',
+      );
+    }
     try {
       await this.pgRepo.handoffToSolution(leadId, staffId, {
         confirm: Boolean(body.confirm),
