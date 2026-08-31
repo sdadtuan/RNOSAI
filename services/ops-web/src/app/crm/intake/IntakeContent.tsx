@@ -21,6 +21,7 @@ import { IntakeWorkspaceTabs } from '@/components/crm/intake/IntakeWorkspaceTabs
 import { PageToolbar, StaffPageShell } from '@/components/layout';
 import {
   advanceLeadPresales,
+  handoffLeadToSolution,
   completeIntakeSession,
   createIntakeSession,
   deleteIntakeSession,
@@ -879,6 +880,56 @@ export function IntakeContent({
       return;
     }
 
+    if (action.kind === 'handoff_solution') {
+      setStepperBusy(true);
+      setError('');
+      setMessage('');
+      try {
+        let overrideReason: string | undefined;
+        if (action.requiresOverride) {
+          const reason = window.prompt('Director override — nhập lý do giao Solution:');
+          if (!reason?.trim()) {
+            setError('Cần lý do override để giao Solution');
+            return;
+          }
+          overrideReason = reason.trim();
+        }
+
+        try {
+          const out = await handoffLeadToSolution(access, leadId, {
+            confirm: true,
+            override_reason: overrideReason,
+          });
+          setFunnelSnap(out.funnel);
+          await refreshStepperData(access);
+          router.push(`/crm/leads/${leadId}#funnel-presales`);
+          setMessage('Đã giao Solution/MKT — Solution claim trên /crm/solution/queue');
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Giao Solution thất bại';
+          if (/override/i.test(msg)) {
+            const reason = window.prompt('Director override — nhập lý do:');
+            if (!reason?.trim()) {
+              setError('Cần lý do override');
+              return;
+            }
+            const retry = await handoffLeadToSolution(access, leadId, {
+              confirm: true,
+              override_reason: reason.trim(),
+            });
+            setFunnelSnap(retry.funnel);
+            await refreshStepperData(access);
+            router.push(`/crm/leads/${leadId}#funnel-presales`);
+            setMessage('Đã giao Solution/MKT (override)');
+          } else {
+            setError(msg);
+          }
+        }
+      } finally {
+        setStepperBusy(false);
+      }
+      return;
+    }
+
     if (action.kind !== 'advance_presales') return;
 
     setStepperBusy(true);
@@ -1209,7 +1260,8 @@ export function IntakeContent({
                       <strong>Hoàn thành phiên</strong>.
                     </li>
                     <li>
-                      Mở Funnel trên Deal Bar; khi gate OK bấm <strong>Chuyển → Tư vấn</strong>.
+                      Hoàn thành phiên xong, khi gate OK bấm <strong>Giao Solution/MKT</strong> trên
+                      stepper (không bấm khi stage đã Tư vấn — dùng queue Solution).
                     </li>
                   </ol>
                 </div>

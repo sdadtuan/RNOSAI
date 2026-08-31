@@ -1434,11 +1434,13 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
   ): Promise<PresalesRow> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');
-    if (snap.presales.stage !== 'lead') {
-      throw new Error('Chỉ giao Solution khi đang ở giai đoạn Lead.');
-    }
-    if (snap.presales.handoff_status === 'pending' || snap.presales.handoff_status === 'with_solution') {
+    const stage = snap.presales.stage;
+    const handoff = snap.presales.handoff_status;
+    if (handoff === 'pending' || handoff === 'with_solution') {
       throw new Error('Lead đã được giao Solution.');
+    }
+    if (stage !== 'lead' && !(stage === 'consult' && handoff === '')) {
+      throw new Error('Chỉ giao Solution khi đang ở giai đoạn Lead (hoặc Tư vấn chưa giao queue).');
     }
     const gate = await this.buildConsultAdvanceGate(leadId, snap.presales.id);
     const block = consultAdvanceBlockReason(gate, Boolean(opts.confirm));
