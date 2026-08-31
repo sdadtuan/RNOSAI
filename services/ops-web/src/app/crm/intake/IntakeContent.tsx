@@ -806,6 +806,8 @@ export function IntakeContent({
       questionItems: discoveryQuestionItems,
       redFlagsChecked: redFlags.checked,
       stakeholders,
+      winIntel,
+      winChecklist,
     };
   }
 

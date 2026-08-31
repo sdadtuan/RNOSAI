@@ -8,6 +8,9 @@ import {
 } from '@/lib/crm/intake-discovery';
 import { hasDecisionMakerName, type IntakeStakeholderRow } from '@/lib/crm/intake-stakeholders';
 import { countRedFlagsChecked } from '@/lib/crm/intake-red-flags';
+import { missingRequiredWinKeys } from '@/lib/crm/intake-win-coverage';
+import { winChecklistTotal, type WinChecklistState } from '@/lib/crm/intake-win-checklist';
+import { type WinIntelState } from '@/lib/crm/intake-win-intel';
 
 export type IntakeValidationLevel = 'error' | 'warn';
 
@@ -30,6 +33,8 @@ export interface IntakeCompleteValidationInput {
   questionItems: IntakeQuestionItem[];
   redFlagsChecked: Record<string, boolean>;
   stakeholders: IntakeStakeholderRow[];
+  winIntel: WinIntelState;
+  winChecklist: WinChecklistState;
 }
 
 export function isRichTextEmpty(html: string): boolean {
@@ -137,6 +142,22 @@ export function validateIntakeComplete(input: IntakeCompleteValidationInput): In
       level: 'warn',
       code: 'stakeholder_dm_missing',
       message: 'Go nhưng chưa ghi tên Decision Maker trong ma trận stakeholder.',
+    });
+  }
+
+  if (
+    input.decision === 'go' &&
+    (missingRequiredWinKeys({
+      winIntel: input.winIntel,
+      winChecklist: input.winChecklist,
+    }).length > 0 ||
+      winChecklistTotal(input.winChecklist) < 18)
+  ) {
+    issues.push({
+      level: 'warn',
+      code: 'win_thin',
+      message:
+        'Go nhưng Win intel / Win-score chưa đủ để chuyển Tư vấn (cần 3 mục bắt buộc + Win ≥18).',
     });
   }
 
