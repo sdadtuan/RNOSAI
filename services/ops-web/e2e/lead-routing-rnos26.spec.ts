@@ -24,7 +24,7 @@ test.describe('RNOS-26 lead routing', () => {
     const token = loginBody.access_token as string;
 
     const leadsRes = await request.get(
-      `${process.env.OPS_E2E_API_URL ?? 'http://127.0.0.1:3000'}/api/crm/leads?limit=5&owner_id=0`,
+      `${process.env.OPS_E2E_API_URL ?? 'http://127.0.0.1:3000'}/api/v1/leads?limit=5&owner_id=0`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     test.skip(!leadsRes.ok(), 'Leads list failed');
@@ -65,7 +65,7 @@ test.describe('RNOS-26 lead routing', () => {
     test.skip(!token, 'No staff token after login');
 
     const leadsRes = await request.get(
-      `${process.env.OPS_E2E_API_URL ?? 'http://127.0.0.1:3000'}/api/crm/leads?limit=10`,
+      `${process.env.OPS_E2E_API_URL ?? 'http://127.0.0.1:3000'}/api/v1/leads?limit=10`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     test.skip(!leadsRes.ok(), 'Leads list failed');

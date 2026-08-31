@@ -71,7 +71,7 @@ import {
   fetchLeadStatusOptions,
   handoffLeadToSolution,
   advanceLeadPresales,
-  patchLeadLegacy,
+  patchLead,
   staffMe,
   staffRefresh,
   type CatalogStaffOption,
@@ -803,14 +803,14 @@ export default function CrmLeadDetailPage() {
     setError('');
     setMessage('');
     try {
-      const updated = await patchLeadLegacy(access, leadId, {
+      const updated = await patchLead(access, leadId, {
         status: status.trim(),
         audit_note: auditNote.trim(),
       });
       setLead(updated);
       setStatus(updated.status || status);
       setAuditNote('');
-      setMessage('Đã lưu trạng thái + audit SQLite');
+      setMessage('Đã lưu trạng thái + audit');
       await reloadTimeline(access);
       await reloadStatusOptions(access);
       await reloadCopilotContext(access);

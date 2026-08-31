@@ -142,12 +142,66 @@ class PresalesMarketingPlanR5Tests(unittest.TestCase):
         conn.row_factory = sqlite3.Row
         return conn
 
-    def _complete_all_presales_tasks(self, conn: sqlite3.Connection, pid: int) -> None:
+    def _tick_l2_docs(self, conn: sqlite3.Connection, pid: int, service_slug: str) -> None:
+        import json
+
+        from crm_lead_presales_l2 import list_presales_l2_catalog
+
+        conn.execute(
+            "UPDATE crm_lead_presales SET l2_docs_json = ? WHERE id = ?",
+            (
+                json.dumps({item["key"]: True for item in list_presales_l2_catalog(service_slug)}),
+                pid,
+            ),
+        )
+        conn.commit()
+
+    def _complete_consult_tasks(self, conn: sqlite3.Connection, pid: int, service_slug: str) -> None:
         from crm_lead_presales import list_presales_tasks, update_presales_task
 
-        for stage_tasks in list_presales_tasks(conn, pid).values():
+        self._tick_l2_docs(conn, pid, service_slug)
+        for task in list_presales_tasks(conn, pid).get("consult", []):
+            tid = int(task["id"])
+            form_data = {
+                str(f["key"]): "test"
+                for f in (task.get("form_fields") or [])
+                if f.get("key")
+            }
+            if task.get("ai_prompt_key"):
+                conn.execute(
+                    "UPDATE crm_lead_presales_tasks SET ai_output = ? WHERE id = ?",
+                    ("AI stub", tid),
+                )
+            update_presales_task(conn, tid, form_data=form_data, is_done=True)
+
+    def _complete_all_presales_tasks(
+        self,
+        conn: sqlite3.Connection,
+        pid: int,
+        service_slug: str = "dich-vu-aeo",
+    ) -> None:
+        from crm_lead_presales import list_presales_tasks, update_presales_task
+
+        self._tick_l2_docs(conn, pid, service_slug)
+        for stage, stage_tasks in list_presales_tasks(conn, pid).items():
             for task in stage_tasks:
-                update_presales_task(conn, int(task["id"]), is_done=True)
+                tid = int(task["id"])
+                form_data: dict | None = None
+                if stage == "consult":
+                    form_data = {
+                        str(f["key"]): "test"
+                        for f in (task.get("form_fields") or [])
+                        if f.get("key")
+                    }
+                    if task.get("ai_prompt_key"):
+                        conn.execute(
+                            "UPDATE crm_lead_presales_tasks SET ai_output = ? WHERE id = ?",
+                            ("AI stub", tid),
+                        )
+                if form_data is not None:
+                    update_presales_task(conn, tid, form_data=form_data, is_done=True)
+                else:
+                    update_presales_task(conn, tid, is_done=True)
 
     def test_preliminary_plan_blocks_proposal_advance(self) -> None:
         from crm_lead_presales import (
@@ -183,8 +237,7 @@ class PresalesMarketingPlanR5Tests(unittest.TestCase):
             )
             conn.commit()
             advance_presales_stage(conn, pid, "consult")
-            for task in list_presales_tasks(conn, pid).get("consult", []):
-                update_presales_task(conn, int(task["id"]), is_done=True)
+            self._complete_consult_tasks(conn, pid, "dich-vu-aeo")
             conn.commit()
             with self.assertRaises(PresalesAdvanceError) as ctx:
                 advance_presales_stage(conn, pid, "proposal")
@@ -226,6 +279,9 @@ class PresalesMarketingPlanR5Tests(unittest.TestCase):
                     )
                     conn.commit()
                     advance_presales_stage(conn, pid, "consult")
+                elif stage == "consult":
+                    self._complete_consult_tasks(conn, pid, "dich-vu-aeo")
+                    continue
                 for task in list_presales_tasks(conn, pid).get(stage, []):
                     update_presales_task(conn, int(task["id"]), is_done=True)
             _fill_preliminary(conn, pid)

@@ -15,6 +15,7 @@ import {
   Res,
   ServiceUnavailableException,
   ForbiddenException,
+  NotFoundException,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -55,6 +56,13 @@ import { LeadSlaCareService } from './lead-sla-care.service';
 import { ChotClosedLoopService } from './chot-closed-loop.service';
 import { CopilotContextService } from './copilot-context.service';
 import { SlaAutoTaskService } from './sla-auto-task.service';
+import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
+import {
+  AssignLeadBody,
+  CreateLeadActivityBody,
+} from '../crm-leads-legacy/crm-leads-legacy.types';
+import { LeadAttributionService } from './lead-attribution.service';
+import { LeadAttributionResponse } from './lead-attribution.types';
 import { CrmConfigService } from '../crm-config/crm-config.service';
 import {
   CreateLeadV1Body,
@@ -88,7 +96,16 @@ export class LeadsController {
     private readonly b2bStringeeToken: B2bStringeeTokenService,
     private readonly b2bIntelligence: B2bIntelligenceService,
     private readonly b2bConversations: B2bConversationsService,
+    private readonly crmLegacy: CrmLeadsLegacyService,
+    private readonly leadAttribution: LeadAttributionService,
   ) {}
+
+  private leadActor(
+    req: Request & { staffUser?: StaffJwtPayload },
+    actorHeader?: string,
+  ): string {
+    return String(actorHeader ?? req.staffUser?.email ?? 'staff');
+  }
 
   @Get('lookup-options')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
@@ -216,6 +233,10 @@ export class LeadsController {
     @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
     @Headers('x-ptt-actor') actor?: string,
   ): Promise<LeadV1> {
+    const prev = await this.leadsService.getLead(id);
+    if (!prev) {
+      throw new NotFoundException({ error: 'Not found' });
+    }
     if (req.staffAuthVia !== 'internal' && req.staffUser) {
       const caps = await this.resolveCaps(req);
       assertLeadPatchFieldsAllowed(body as Record<string, unknown>, caps, (c, s, a) =>
@@ -223,7 +244,15 @@ export class LeadsController {
       );
     }
     const gateOpts = await this.statusGateOpts(req, body);
-    const lead = await this.leadsWriteService.patchLead(id, body, actor, gateOpts);
+    const actorId = this.leadActor(req, actor);
+    const lead = await this.leadsWriteService.patchLead(id, body, actorId, gateOpts);
+    await this.crmLegacy.finalizeLeadPatch({
+      leadId: id,
+      prev,
+      next: lead,
+      actor: actorId,
+      auditNote: body.audit_note ?? '',
+    });
     if (body.allow_status_override && req.staffUser) {
       void this.rbacAudit.log({
         event_type: 'gdkd_status_override',
@@ -331,6 +360,57 @@ export class LeadsController {
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
   getLeadStatusOptions(@Param('id', ParseIntPipe) id: number) {
     return this.statusGate.getStatusOptions(id);
+  }
+
+  @Get(':id/attribution')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async getLeadAttribution(@Param('id', ParseIntPipe) id: number): Promise<LeadAttributionResponse> {
+    const data = await this.leadAttribution.getLeadAttribution(id);
+    return {
+      data,
+      meta: { request_id: this.leadAttribution.newRequestId() },
+      errors: [],
+    };
+  }
+
+  @Get(':id/activities')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async listLeadActivities(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('limit') limit?: string,
+  ) {
+    const lim = limit ? Number(limit) : 100;
+    const activities = await this.crmLegacy.listActivities(id, Number.isFinite(lim) ? lim : 100);
+    return { activities };
+  }
+
+  @Post(':id/activities')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard, LeadNotInReviewQueueGuard)
+  async createLeadActivity(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: CreateLeadActivityBody,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    const userId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    return this.crmLegacy.createActivity(id, body, this.leadActor(req), userId);
+  }
+
+  @Get(':id/audit')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  getLeadAudit(@Param('id', ParseIntPipe) id: number) {
+    return this.crmLegacy.auditLogs(id);
+  }
+
+  @Post(':id/assign')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard, LeadNotInReviewQueueGuard)
+  async assignLead(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: AssignLeadBody,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ): Promise<LeadV1> {
+    const out = await this.crmLegacy.assignLead(id, body, this.leadActor(req));
+    return out.lead;
   }
 
   /** Phase 1 — SLA-aware care context (Spa Meta 24h): banner, NBA, drafts. */

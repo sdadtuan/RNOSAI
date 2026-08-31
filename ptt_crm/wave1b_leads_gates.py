@@ -27,24 +27,26 @@ def _truthy(name: str, default: str = "0") -> bool:
 
 
 def _check_nest_leads_legacy_module() -> dict[str, Any]:
-    ctrl = ROOT / "services" / "ptt-crm-api" / "src" / "crm-leads-legacy" / "crm-leads-legacy.controller.ts"
-    mod = ROOT / "services" / "ptt-crm-api" / "src" / "crm-leads-legacy" / "crm-leads-legacy.module.ts"
+    ctrl = ROOT / "services" / "ptt-crm-api" / "src" / "leads" / "leads.controller.ts"
+    legacy_ctrl = ROOT / "services" / "ptt-crm-api" / "src" / "crm-leads-legacy" / "crm-leads-legacy.controller.ts"
     app = ROOT / "services" / "ptt-crm-api" / "src" / "app.module.ts"
     text = ctrl.read_text(encoding="utf-8") if ctrl.is_file() else ""
+    legacy_text = legacy_ctrl.read_text(encoding="utf-8") if legacy_ctrl.is_file() else ""
     app_text = app.read_text(encoding="utf-8") if app.is_file() else ""
     ok = (
         ctrl.is_file()
-        and mod.is_file()
-        and "api/crm/leads" in text
-        and "/activities" in text
-        and "/assign" in text
-        and "/audit" in text
+        and "api/v1/leads" in text
+        and ":id/activities" in text
+        and ":id/assign" in text
+        and ":id/audit" in text
+        and legacy_ctrl.is_file()
+        and "api/crm/leads" in legacy_text
         and "CrmLeadsLegacyModule" in app_text
     )
     return {
         "id": "W1B-G01",
         "ok": ok,
-        "label": "Nest crm-leads-legacy module",
+        "label": "Nest leads v1 + legacy shim module",
         "path": str(ctrl.relative_to(ROOT)) if ctrl.is_file() else None,
     }
 
@@ -59,7 +61,10 @@ def _check_ops_web_lead_detail() -> dict[str, Any]:
         and "fetchLeadActivities" in page_text
         and "assignLead" in page_text
         and "fetchLeadAudit" in api_text
-        and "patchLeadLegacy" in api_text
+        and "patchLead" in api_text
+        and "/api/v1/leads/" in api_text
+        and "leadLegacyFetch" not in api_text
+        and "patchLeadLegacy" not in api_text
     )
     return {
         "id": "W1B-G02",

@@ -7,11 +7,11 @@ test.describe('P1 CRM parity — lead attribution chips', () => {
     await loginAsStaff(page);
   });
 
-  test('API — GET /api/crm/leads/:id/attribution', async ({ request }) => {
+  test('API — GET /api/v1/leads/:id/attribution', async ({ request }) => {
     const token = await staffToken(request);
     const leadId = await resolveLeadId(request);
 
-    const res = await request.get(`${API_URL}/api/crm/leads/${leadId}/attribution`, {
+    const res = await request.get(`${API_URL}/api/v1/leads/${leadId}/attribution`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.ok(), `attribution: ${res.status()} ${await res.text()}`).toBeTruthy();

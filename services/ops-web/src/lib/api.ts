@@ -1107,7 +1107,7 @@ export async function fetchLeadAttribution(
   token: string,
   leadId: number,
 ): Promise<LeadAttributionData> {
-  const res = await fetch(`${API_BASE}/api/crm/leads/${leadId}/attribution`, {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/attribution`, {
     headers: authHeaders(token),
     cache: 'no-store',
   });
@@ -1122,6 +1122,7 @@ export interface PatchLeadBody {
   owner_id?: number | null;
   status?: string;
   assigned_by?: string;
+  audit_note?: string;
 }
 
 export async function patchLead(
@@ -1186,30 +1187,19 @@ export interface LeadAuditBundle {
   assignment_logs: LeadAssignmentLogRow[];
 }
 
-async function leadLegacyFetch<T>(token: string, path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      ...authHeaders(token),
-      ...(init?.headers ?? {}),
-    },
-  });
-  const body = await parseJson<T & { error?: string; message?: string }>(res);
-  if (!res.ok) {
-    throw new ApiError(body.message ?? body.error ?? 'Lead legacy request failed', res.status);
-  }
-  return body;
-}
-
 export async function fetchLeadActivities(
   token: string,
   leadId: number,
   limit = 50,
 ): Promise<LeadActivityRow[]> {
-  const out = await leadLegacyFetch<{ activities: LeadActivityRow[] }>(
-    token,
-    `/api/crm/leads/${leadId}/activities?limit=${limit}`,
-  );
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/activities?limit=${limit}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const out = await parseJson<{ activities: LeadActivityRow[]; error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(out.error ?? out.message ?? 'Lead activities fetch failed', res.status);
+  }
   return out.activities ?? [];
 }
 
@@ -1224,20 +1214,31 @@ export async function createLeadActivity(
     next_action_at?: string;
   },
 ): Promise<LeadActivityRow> {
-  const out = await leadLegacyFetch<{ activity: LeadActivityRow }>(
-    token,
-    `/api/crm/leads/${leadId}/activities`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/activities`, {
+    method: 'POST',
+    headers: {
+      ...authHeaders(token),
+      'Content-Type': 'application/json',
     },
-  );
+    body: JSON.stringify(body),
+  });
+  const out = await parseJson<{ activity: LeadActivityRow; error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(out.error ?? out.message ?? 'Lead activity create failed', res.status);
+  }
   return out.activity;
 }
 
 export async function fetchLeadAudit(token: string, leadId: number): Promise<LeadAuditBundle> {
-  return leadLegacyFetch<LeadAuditBundle>(token, `/api/crm/leads/${leadId}/audit`);
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/audit`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const out = await parseJson<LeadAuditBundle & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(out.error ?? out.message ?? 'Lead audit fetch failed', res.status);
+  }
+  return out;
 }
 
 export async function assignLead(
@@ -1245,12 +1246,19 @@ export async function assignLead(
   leadId: number,
   body: { to_user_id: number; reason: string },
 ): Promise<LeadRow> {
-  const out = await leadLegacyFetch<{ lead: LeadRow }>(token, `/api/crm/leads/${leadId}/assign`, {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/assign`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      ...authHeaders(token),
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify(body),
   });
-  return out.lead;
+  const out = await parseJson<LeadRow & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(out.error ?? out.message ?? 'Lead assign failed', res.status);
+  }
+  return out;
 }
 
 // --- Wave B4: Lead funnel (care / review queue / presales) ---
@@ -2127,19 +2135,6 @@ export async function fetchAgencyClientContracts(token: string, clientId: string
     `/api/v1/agency/clients/${encodeURIComponent(clientId)}/contracts`,
     { method: 'GET' },
   );
-}
-
-export async function patchLeadLegacy(
-  token: string,
-  id: number,
-  body: PatchLeadBody & { audit_note?: string },
-): Promise<LeadRow> {
-  const out = await leadLegacyFetch<{ lead: LeadRow }>(token, `/api/crm/leads/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  return out.lead;
 }
 
 export interface CustomerRow {

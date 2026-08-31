@@ -27,9 +27,6 @@ import { PatchLeadV1Body } from '../leads/leads.types';
 import { CrmLeadsLegacyService } from './crm-leads-legacy.service';
 import { LeadAttributionService } from '../leads/lead-attribution.service';
 import { LeadAttributionResponse } from '../leads/lead-attribution.types';
-import { ChotClosedLoopService } from '../leads/chot-closed-loop.service';
-import { AiScoreFeedbackService } from '../ai-intelligence/ai-score-feedback.service';
-import { LeadMeetingPrepEnqueueService } from '../lead-meeting-prep/lead-meeting-prep-enqueue.service';
 import { AssignLeadBody, CreateLeadActivityBody } from './crm-leads-legacy.types';
 
 @Controller('api/crm/leads')
@@ -41,9 +38,6 @@ export class CrmLeadsLegacyController {
     private readonly leadsWrite: LeadsWriteService,
     private readonly attribution: LeadAttributionService,
     private readonly staffAuth: StaffAuthService,
-    private readonly closedLoop: ChotClosedLoopService,
-    private readonly scoreFeedback: AiScoreFeedbackService,
-    private readonly lmpEnqueue: LeadMeetingPrepEnqueueService,
   ) {}
 
   private actor(req: Request & { staffUser?: StaffJwtPayload }): string {
@@ -125,37 +119,13 @@ export class CrmLeadsLegacyController {
     }
     const gateOpts = await this.statusGateOpts(req, body);
     const lead = await this.leadsWrite.patchLead(id, body, this.actor(req), gateOpts);
-    await this.legacy.mirrorPatchAudit(id, prev, lead, this.actor(req), body.audit_note ?? '');
-    await this.closedLoop.processAfterPatch({
+    await this.legacy.finalizeLeadPatch({
       leadId: id,
-      prevStatus: prev.status,
-      nextStatus: lead.status,
-      auditNote: body.audit_note ?? '',
+      prev,
+      next: lead,
       actor: this.actor(req),
+      auditNote: body.audit_note ?? '',
     });
-    await this.scoreFeedback.onLeadTerminalStatus(id, String(lead.status ?? ''));
-    await this.maybeEnqueueM4Learn(id, prev.status, lead.status, lead);
     return { lead };
-  }
-
-  private async maybeEnqueueM4Learn(
-    leadId: number,
-    prevStatus: string | null | undefined,
-    nextStatus: string | null | undefined,
-    lead: { status?: string | null; client_id?: string | null; agency_client_id?: string | null },
-  ): Promise<void> {
-    const next = String(nextStatus ?? '').trim().toLowerCase();
-    const prev = String(prevStatus ?? '').trim().toLowerCase();
-    if (next !== 'chot' && next !== 'lost') return;
-    if (prev === next) return;
-    const clientId =
-      (lead as { client_id?: string | null }).client_id ??
-      (lead as { agency_client_id?: string | null }).agency_client_id ??
-      null;
-    void this.lmpEnqueue.enqueueAfterTerminalStatus(
-      leadId,
-      next as 'chot' | 'lost',
-      clientId,
-    );
   }
 }
