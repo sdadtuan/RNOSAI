@@ -13,11 +13,15 @@ import {
 } from './helpers/funnel-stepper-helpers';
 
 /**
- * INT-WIN-P2 Task 8 — U1–U3: Deal Bar WIN + BANT Tư vấn copy; tick incumbent 4; live Consult-gate.
+ * INT-WIN-P2 Task 8 — U1–U2 e2e: Deal Bar WIN + BANT Tư vấn copy; tick incumbent 4.
+ * Optional live block-on-thin-Win when PTT_INTAKE_WIN_GATE=1 (see test below).
+ *
+ * Spec U3 happy path (3 required intel + Win ≥18 + Consult ok) is unit-covered by Task 4:
+ * services/ptt-crm-api/src/leads-funnel/presales-consult-gate.util.spec.ts
  *
  * Run: cd services/ops-web && npx playwright test e2e/intake-win-score-phase2.spec.ts
  * Skip if Nest API is down or presales setup fails.
- * U3 skips unless PTT_INTAKE_WIN_GATE=1 (health/env). Do not enable that flag on prod.
+ * Live gate test skips unless PTT_INTAKE_WIN_GATE=1 (health/env). Do not enable on prod.
  */
 
 async function openDraftIntake(page: Page, request: APIRequestContext): Promise<void> {
@@ -52,7 +56,7 @@ async function openFunnelIfNeeded(page: Page): Promise<void> {
   await expect(stepper).toBeVisible({ timeout: 15_000 });
 }
 
-test.describe('Intake Win-score Phase 2 (U1–U3)', () => {
+test.describe('Intake Win-score Phase 2 (U1–U2 + live gate block)', () => {
   test.beforeEach(async ({ page, request }) => {
     test.skip(!(await nestApiReachable(request)), 'Nest API not reachable');
     await loginAsStaff(page);
@@ -72,7 +76,11 @@ test.describe('Intake Win-score Phase 2 (U1–U3)', () => {
     await expect(page.getByText(/Win [4-9]/).first()).toBeVisible();
   });
 
-  test('U3 live Consult-gate blocks Go when Win thin', async ({ page, request }) => {
+  // Spec U3 happy path: presales-consult-gate.util.spec.ts (flag ON + filled keys + total 18).
+  test('Consult-gate blocks advance when Win thin — skipped unless WIN_GATE=1', async ({
+    page,
+    request,
+  }) => {
     test.skip(!(await intakeWinGateEnabled(request)), 'PTT_INTAKE_WIN_GATE is not 1');
 
     const leadId = await resolveIntakeLeadId(request);
