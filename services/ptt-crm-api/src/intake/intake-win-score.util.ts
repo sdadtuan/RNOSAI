@@ -28,6 +28,10 @@ export const WIN_INTEL_KEYS: WinIntelKey[] = [
   'switch_risk',
 ];
 
+export function intakeWinGateEnabled(): boolean {
+  return process.env.PTT_INTAKE_WIN_GATE === '1';
+}
+
 const FILLED_CONFIDENCE = new Set(['heard', 'confirmed']);
 
 export function computeWinTotal(win: Record<string, number>): number {

@@ -774,7 +774,8 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
 
   async buildConsultAdvanceGate(leadId: number, presalesId: number) {
     const sessionResult = await this.db.query(
-      `SELECT status, mode, decision, bant_total FROM crm_lead_intake_sessions
+      `SELECT status, mode, decision, bant_total, answers_json
+       FROM crm_lead_intake_sessions
        WHERE lead_id = $1
        ORDER BY updated_at DESC, id DESC
        LIMIT 20`,
@@ -785,6 +786,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       mode: string;
       decision: string;
       bant_total: number;
+      answers_json?: Record<string, unknown>;
     }>;
     const taskResult = await this.db.query(
       `SELECT COUNT(*)::int AS total,

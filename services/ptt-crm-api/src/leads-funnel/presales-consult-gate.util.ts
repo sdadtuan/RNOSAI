@@ -1,10 +1,20 @@
 import { GO_THRESHOLDS } from '../intake/intake-definitions.util';
+import {
+  computeWinTotal,
+  intakeWinGateEnabled,
+  missingRequiredWinKeys,
+  parseWinChecklist,
+  parseWinIntel,
+  scoreWinFromChecklist,
+  WIN_THRESHOLDS,
+} from '../intake/intake-win-score.util';
 
 export interface IntakeSessionGateRow {
   status?: string | null;
   mode?: string | null;
   decision?: string | null;
   bant_total?: number | null;
+  answers_json?: Record<string, unknown>;
 }
 
 export interface ConsultAdvanceGateInput {
@@ -26,6 +36,28 @@ export interface ConsultAdvanceGateResult {
 }
 
 export function validatePresalesConsultAdvance(input: ConsultAdvanceGateInput): ConsultAdvanceGateResult {
+  const base = validatePresalesConsultAdvancePhase1(input);
+  const decision = String(base.decision || '');
+  if (!intakeWinGateEnabled() || decision !== 'go') {
+    return base;
+  }
+
+  const latestCompleted = input.sessions.find((s) => String(s.status || '') === 'completed');
+  const bantTotal = Number(latestCompleted?.bant_total ?? base.bant_total ?? 0);
+  const answers = latestCompleted?.answers_json ?? {};
+  const checklist = parseWinChecklist(answers);
+  const winTotal = computeWinTotal(scoreWinFromChecklist(checklist));
+  const missing = missingRequiredWinKeys({ winIntel: parseWinIntel(answers), winChecklist: checklist });
+  if (missing.length) {
+    return block([`Thiếu Win intel: ${missing.join(', ')}. Ghi tab Win intel rồi mở WIN.`], decision, bantTotal);
+  }
+  if (winTotal < WIN_THRESHOLDS.consult) {
+    return block([`Win ${winTotal}/30 dưới ngưỡng Tư vấn (${WIN_THRESHOLDS.consult}).`], decision, bantTotal);
+  }
+  return base;
+}
+
+function validatePresalesConsultAdvancePhase1(input: ConsultAdvanceGateInput): ConsultAdvanceGateResult {
   const messages: string[] = [];
   const decision = String(
     [...input.sessions]
