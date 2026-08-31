@@ -37,6 +37,7 @@ export interface ConsultAdvanceGateResult {
 
 export function validatePresalesConsultAdvance(input: ConsultAdvanceGateInput): ConsultAdvanceGateResult {
   const base = validatePresalesConsultAdvancePhase1(input);
+  if (!base.ok) return base;
   const decision = String(base.decision || '');
   if (!intakeWinGateEnabled() || decision !== 'go') {
     return base;

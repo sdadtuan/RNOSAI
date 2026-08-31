@@ -66,6 +66,17 @@ describe('validatePresalesConsultAdvance', () => {
     expect(gate.requires_confirm).toBe(false);
   });
 
+  it('keeps Phase 1 lead-task block when Win gate on and answers empty', () => {
+    process.env[WIN_GATE_ENV] = '1';
+    const gate = validatePresalesConsultAdvance({
+      leadTaskDone: false,
+      sessions: [{ status: 'completed', decision: 'go', bant_total: 26, answers_json: {} }],
+    });
+    expect(gate.ok).toBe(false);
+    expect(gate.messages.join(' ')).toContain('task Lead');
+    expect(gate.messages.join(' ')).not.toMatch(/Win intel|Win /);
+  });
+
   it('blocks go when Win gate on and answers empty', () => {
     process.env[WIN_GATE_ENV] = '1';
     const gate = validatePresalesConsultAdvance({
