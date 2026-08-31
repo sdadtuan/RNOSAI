@@ -68,4 +68,12 @@ describe('AiIntelligenceConfigService', () => {
     process.env.PTT_INTAKE_SALES_KIT_LLM = '1';
     expect(new AiIntelligenceConfigService().intakeSalesKitLlmEnabled).toBe(true);
   });
+
+  it('defaults intake LLM score off and parses its feature flag', () => {
+    delete process.env.PTT_INTAKE_LLM_SCORE;
+    expect(new AiIntelligenceConfigService().intakeLlmScoreEnabled).toBe(false);
+
+    process.env.PTT_INTAKE_LLM_SCORE = '1';
+    expect(new AiIntelligenceConfigService().intakeLlmScoreEnabled).toBe(true);
+  });
 });

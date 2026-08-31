@@ -37,6 +37,7 @@ export class AiIntelligenceConfigService {
   readonly orchestratorCronEnabled: boolean;
   readonly toolsApiEnabled: boolean;
   readonly intakeSalesKitLlmEnabled: boolean;
+  readonly intakeLlmScoreEnabled: boolean;
   readonly intakeSalesKitModeLocked: boolean;
   readonly intakeSalesKitModeEnv: string | null;
   readonly intakeSalesKitLlmTimeoutMs: number;
@@ -97,6 +98,7 @@ export class AiIntelligenceConfigService {
     this.orchestratorCronEnabled = envFlag('PTT_AI_ORCHESTRATOR_CRON_ENABLED', false);
     this.toolsApiEnabled = envFlag('PTT_AI_TOOLS_API_ENABLED', false);
     this.intakeSalesKitLlmEnabled = envFlag('PTT_INTAKE_SALES_KIT_LLM', false);
+    this.intakeLlmScoreEnabled = envFlag('PTT_INTAKE_LLM_SCORE', false);
     this.intakeSalesKitModeLocked = envFlag('PTT_INTAKE_SALES_KIT_LLM_MODE_LOCK', false);
     const modeEnv = (process.env.PTT_INTAKE_SALES_KIT_LLM_MODE ?? '').trim().toLowerCase();
     this.intakeSalesKitModeEnv = modeEnv || null;

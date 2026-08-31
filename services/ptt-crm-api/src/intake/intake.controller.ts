@@ -30,6 +30,7 @@ import { CreateIntakeSessionBody, PatchIntakeSessionBody } from './intake.types'
 import { SalesKitLibraryService } from './sales-kit-library.service';
 import { SalesKitLearnService } from './sales-kit-learn.service';
 import { SalesKitRuntimeService } from './sales-kit-runtime.service';
+import { IntakeScoreSuggestService } from './intake-score-suggest.service';
 import { buildSalesKitSampleXlsx } from './sales-kit-sample.util';
 
 type IntakeRequest = Request & {
@@ -46,6 +47,7 @@ export class IntakeController {
     private readonly library: SalesKitLibraryService,
     private readonly runtime: SalesKitRuntimeService,
     private readonly learn: SalesKitLearnService,
+    private readonly scoreSuggest: IntakeScoreSuggestService,
   ) {}
 
   private async actorContext(req: IntakeRequest): Promise<IntakeStaffActor | null> {
@@ -129,6 +131,13 @@ export class IntakeController {
   @UseGuards(StaffIntakeWriteGuard)
   async aiSummary(@Req() req: IntakeRequest, @Param('id', ParseIntPipe) id: number) {
     return this.intake.generateAiSummary(id, await this.actorContext(req));
+  }
+
+  @Post('sessions/:id/suggest-scores')
+  @UseGuards(StaffIntakeWriteGuard)
+  @HttpCode(HttpStatus.OK)
+  async suggestScores(@Req() req: IntakeRequest, @Param('id', ParseIntPipe) id: number) {
+    return this.scoreSuggest.suggestScores(id, await this.actorContext(req));
   }
 
   @Post('sessions/:id/sales-kit')

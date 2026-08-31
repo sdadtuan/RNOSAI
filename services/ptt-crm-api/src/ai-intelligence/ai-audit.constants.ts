@@ -37,6 +37,7 @@ export const AI_USE_CASE = {
   INTAKE_SALES_KIT_INGEST: 'intake_sales_kit_ingest',
   INTAKE_SALES_KIT: 'intake_sales_kit',
   INTAKE_AI_SUMMARY: 'intake_ai_summary',
+  INTAKE_SCORE_SUGGEST: 'intake_score_suggest',
   CEO_COMMAND: 'ceo_command',
   CEO_COMMAND_ACT: 'ceo_command_act',
 } as const;

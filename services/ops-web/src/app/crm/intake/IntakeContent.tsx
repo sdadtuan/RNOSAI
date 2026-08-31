@@ -37,8 +37,10 @@ import {
   reopenIntakeSession,
   staffMe,
   staffRefresh,
+  suggestIntakeScores,
   type IntakeLeadContext,
   type IntakeSalesKitOutput,
+  type IntakeScoreSuggestResult,
   type IntakeSessionRow,
   type LeadFunnelSnapshot,
   type LeadRow,
@@ -172,6 +174,8 @@ export function IntakeContent({
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [bantChecklist, setBantChecklist] = useState<BantChecklistState>({});
   const [winChecklist, setWinChecklist] = useState<WinChecklistState>({});
+  const [scoreSuggest, setScoreSuggest] = useState<IntakeScoreSuggestResult | null>(null);
+  const [scoreSuggestBusy, setScoreSuggestBusy] = useState(false);
   const [lead, setLead] = useState<LeadRow | null>(null);
   const [funnelSnap, setFunnelSnap] = useState<LeadFunnelSnapshot | null>(null);
   const [consultGate, setConsultGate] = useState<ConsultGateState | null>(null);
@@ -763,6 +767,11 @@ export function IntakeContent({
   }, [intakeDefinition?.schema_version, intakeDefinition?.slug, active?.id]);
 
   useEffect(() => {
+    setScoreSuggest(null);
+    setScoreSuggestBusy(false);
+  }, [activeId]);
+
+  useEffect(() => {
     autosave.syncSnapshot(formSnapshot);
     setValidationErrors([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset autosave baseline when switching session
@@ -991,6 +1000,23 @@ export function IntakeContent({
       ...prev,
       [key]: { ...prev[key], ...patch },
     }));
+  }
+
+  async function onSuggestScores() {
+    if (!active || active.status !== 'draft') return;
+    const access = getAccessToken();
+    if (!access) return;
+    setScoreSuggestBusy(true);
+    setError('');
+    try {
+      const out = await suggestIntakeScores(access, active.id);
+      setScoreSuggest(out);
+    } catch (err) {
+      setScoreSuggest({ stub_mode: true, suggestions: {}, rejected: [] });
+      setError(err instanceof Error ? err.message : 'Gợi ý chấm thất bại');
+    } finally {
+      setScoreSuggestBusy(false);
+    }
   }
 
   async function onAiSummary() {
@@ -1344,14 +1370,31 @@ export function IntakeContent({
             checked={discovery.checked}
             responses={discovery.responses}
             onToggle={(key, score) => {
-              const next = toggleBantChecklistScore(bantChecklist, key, score);
-              setBantChecklist(next);
-              setBant(scoreBantFromChecklist(next));
+              setBantChecklist((prev) => {
+                const next = toggleBantChecklistScore(prev, key, score);
+                setBant(scoreBantFromChecklist(next));
+                return next;
+              });
             }}
             onFocusTab={(tab) => {
               setActiveTab(tab);
               setBantOpen(false);
             }}
+            suggestEnabled={
+              process.env.NEXT_PUBLIC_PTT_INTAKE_LLM_SCORE === '1' && active?.status === 'draft'
+            }
+            suggestBusy={scoreSuggestBusy}
+            suggestions={scoreSuggest?.suggestions.bant}
+            onRequestSuggest={() => void onSuggestScores()}
+            onClearSuggest={() =>
+              setScoreSuggest((prev) => {
+                if (!prev) return null;
+                const suggestions = { ...prev.suggestions };
+                delete suggestions.bant;
+                if (!suggestions.bant && !suggestions.win) return null;
+                return { ...prev, suggestions };
+              })
+            }
           />
         </div>
       </SalesCockpitDrawer>
@@ -1368,8 +1411,23 @@ export function IntakeContent({
             checklist={winChecklist}
             canEdit={canCreate && active?.status !== 'completed'}
             onToggle={(key, score) => {
-              setWinChecklist(toggleWinChecklistScore(winChecklist, key, score));
+              setWinChecklist((prev) => toggleWinChecklistScore(prev, key, score));
             }}
+            suggestEnabled={
+              process.env.NEXT_PUBLIC_PTT_INTAKE_LLM_SCORE === '1' && active?.status === 'draft'
+            }
+            suggestBusy={scoreSuggestBusy}
+            suggestions={scoreSuggest?.suggestions.win}
+            onRequestSuggest={() => void onSuggestScores()}
+            onClearSuggest={() =>
+              setScoreSuggest((prev) => {
+                if (!prev) return null;
+                const suggestions = { ...prev.suggestions };
+                delete suggestions.win;
+                if (!suggestions.bant && !suggestions.win) return null;
+                return { ...prev, suggestions };
+              })
+            }
           />
         </div>
       </SalesCockpitDrawer>

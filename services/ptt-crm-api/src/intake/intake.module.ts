@@ -12,6 +12,7 @@ import { StaffIntakeViewGuard, StaffIntakeWriteGuard } from './guards/staff-inta
 import { IntakeB2bVisibilityService } from './intake-b2b-visibility.service';
 import { IntakeController } from './intake.controller';
 import { IntakeSalesKitLlmService } from './intake-sales-kit-llm.service';
+import { IntakeScoreSuggestService } from './intake-score-suggest.service';
 import { IntakeService } from './intake.service';
 import { IntakePgRepository } from './intake-pg.repository';
 import { SalesKitLearnRepository } from './sales-kit-learn.repository';
@@ -40,6 +41,7 @@ import { SalesKitTurnsRepository } from './sales-kit-turns.repository';
     SalesKitLibraryRepository,
     SalesKitLibraryService,
     IntakeSalesKitLlmService,
+    IntakeScoreSuggestService,
     SalesKitTurnsRepository,
     SalesKitRuntimeRepository,
     SalesKitRuntimeService,

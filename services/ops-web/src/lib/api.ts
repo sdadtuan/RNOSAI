@@ -2418,6 +2418,32 @@ export async function generateIntakeAiSummary(token: string, id: number): Promis
   });
 }
 
+export type IntakeScoreSuggestion = { score: 1 | 2 | 3 | 4 | 5; quote: string };
+
+export type IntakeScoreSuggestResult = {
+  stub_mode: boolean;
+  suggestions: {
+    bant?: Partial<Record<string, IntakeScoreSuggestion>>;
+    win?: Partial<Record<string, IntakeScoreSuggestion>>;
+  };
+  rejected: Array<{ layer: 'bant' | 'win'; key: string; reason: string }>;
+};
+
+export async function suggestIntakeScores(
+  token: string,
+  sessionId: number,
+): Promise<IntakeScoreSuggestResult> {
+  return crmFetch<IntakeScoreSuggestResult>(
+    token,
+    `/api/crm/intake/sessions/${sessionId}/suggest-scores`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    },
+  );
+}
+
 export type IntakeSalesKitOutput = {
   reply_vi: string;
   next_question?: { key: string; text: string; tab: 'discovery' | 'qualify' | 'win_intel' };
