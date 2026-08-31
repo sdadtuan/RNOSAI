@@ -1363,18 +1363,30 @@ export interface LeadFunnelSnapshot {
   } | null;
 }
 
+function nestApiErrorMessage(body: {
+  error?: string | string[] | Record<string, unknown>;
+  message?: string | string[] | Record<string, unknown>;
+}): string | undefined {
+  const pick = (v: string | string[] | Record<string, unknown> | undefined): string | undefined => {
+    if (v == null) return undefined;
+    if (Array.isArray(v)) return v[0];
+    if (typeof v === 'string') return v;
+    if (typeof v.message === 'string') return v.message;
+    if (typeof v.error === 'string') return v.error;
+    return undefined;
+  };
+  return pick(body.message) ?? pick(body.error);
+}
+
 async function leadFunnelMutate<T>(token: string, path: string, init: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: { ...authHeaders(token), 'Content-Type': 'application/json', ...(init.headers ?? {}) },
   });
-  const body = await parseJson<T & { error?: string | string[]; message?: string | string[] }>(res);
+  const body = await parseJson<T & { error?: string | string[] | Record<string, unknown>; message?: string | string[] | Record<string, unknown> }>(res);
   if (!res.ok) {
-    const pick = (v: string | string[] | undefined) =>
-      Array.isArray(v) ? v[0] : v;
     const msg =
-      pick(body.message) ??
-      pick(body.error) ??
+      nestApiErrorMessage(body) ??
       (res.status === 500 ? 'Lỗi server — kiểm tra log ptt-crm-api' : 'Lead funnel API failed');
     throw new ApiError(String(msg), res.status);
   }

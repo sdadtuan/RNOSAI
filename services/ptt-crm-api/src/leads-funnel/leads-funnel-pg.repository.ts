@@ -1261,7 +1261,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            stage_entered_at = NOW(),
            updated_at = NOW(),
            consult_entered_at = CASE
-             WHEN $2 = 'consult' AND (consult_entered_at IS NULL OR consult_entered_at = '')
+             WHEN $2 = 'consult' AND consult_entered_at IS NULL
              THEN NOW()
              ELSE consult_entered_at
            END,
@@ -1459,7 +1459,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            stage_entered_at = NOW(),
            updated_at = NOW(),
            consult_entered_at = CASE
-             WHEN consult_entered_at IS NULL OR consult_entered_at = '' THEN NOW()
+             WHEN consult_entered_at IS NULL THEN NOW()
              ELSE consult_entered_at
            END,
            handoff_status = 'pending',
@@ -1527,7 +1527,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
            handoff_status = 'released',
            solution_released_at = NOW(),
            consult_entered_at = CASE
-             WHEN consult_entered_at IS NULL OR consult_entered_at = ''
+             WHEN consult_entered_at IS NULL
              THEN COALESCE(stage_entered_at, NOW())
              ELSE consult_entered_at
            END
