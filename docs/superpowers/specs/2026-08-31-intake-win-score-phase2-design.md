@@ -2,7 +2,7 @@
 
 > **Document ID:** INT-WIN-P2-20260831  
 > **Phiên bản:** 1.0 · **Ngày:** 2026-08-31  
-> **Trạng thái:** Draft — chờ duyệt rồi implement  
+> **Trạng thái:** Implemented  
 > **Route:** `/crm/intake?lead_id=` · Funnel Consult advance  
 > **Parent:** [INT-BANT-CL-P1](./2026-08-30-intake-bant-checklist-phase1-design.md) · [INT-SK](./2026-08-29-intake-deal-bar-sales-kit-design.md)  
 > **Quyết định:** BANT = đủ **Tư vấn**. Win-score = đủ **đạn thắng deal**. Consult gate (khi flag bật) bắt Win intel + Win ≥18. LLM chỉ **gợi ý** chấm, AM confirm. Không MEDDPICC brand. Không DDL.
@@ -183,12 +183,14 @@ Complete phiên: thêm warn `win_thin` nếu `decision=go` và (thiếu required
 | U6 | LLM ON + quote giả | `rejected`, không apply |
 | U7 | Complete Go + Win mỏng | Warn, vẫn Complete được |
 
+e2e Task 8 (`intake-win-score-phase2.spec.ts`): Deal Bar **WIN** + copy **Đủ Tư vấn**; tick incumbent 4 → `Win 4–9`; live Consult-gate **skip** nếu `PTT_INTAKE_WIN_GATE` ≠ `1` (health không expose flag). U1–U3 gate unit: Task 4. **Không tick U4–U7** — LLM / flag prod tắt.
+
 ---
 
 ## 8. Tiêu chí xong
 
-- [ ] Win `/30` persist + Deal Bar + drawer.
-- [ ] Gate OFF = Phase 1; ON = block Go thiếu Win.
-- [ ] LLM không ghi điểm không confirm; quote phải nằm trong form.
-- [ ] BANT 24/18 + schema 6 key không đổi.
-- [ ] Unit gate + suggest-validate + Complete warn; e2e U1–U3 (U4–U6 nếu API LLM).
+- [x] Win `/30` persist + Deal Bar + drawer.
+- [x] Gate OFF = Phase 1; ON = block Go thiếu Win.
+- [x] LLM không ghi điểm không confirm; quote phải nằm trong form.
+- [x] BANT 24/18 + schema 6 key không đổi.
+- [x] Unit gate + suggest-validate + Complete warn; e2e U1–U3 (U4–U6 nếu API LLM).

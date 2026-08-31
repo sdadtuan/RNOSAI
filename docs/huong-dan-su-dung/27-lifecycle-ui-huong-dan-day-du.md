@@ -201,9 +201,10 @@ Trang Intake là **workspace qualify** — không còn stack card ngữ cảnh /
 | Liên hệ · công ty · ngành | Tên lead; chip ngành hoặc **Chưa có ngành** |
 | Dịch vụ | Select: SEO tổng thể / Quảng cáo Google / Thiết kế website / Chưa chọn dịch vụ |
 | BANT live | `BANT x/30 · Còn y để Tư vấn` (hoặc **Đủ Tư vấn** khi ≥24) |
+| Win live | `Win x/30 · Còn n để thắng` (hoặc **Đủ đạn Tư vấn** khi ≥18). Không nói “Đủ chốt / Đủ HĐ”. |
 | Stage | Pre-sales stage (`lead` / `consult` / …) |
 | SCI | 1 dòng pain (≤120 ký tự) hoặc **SCI chưa sẵn** — không còn card SCI M2 |
-| CTA | **← Lead** · **Cockpit** · **BANT** · **Sales Kit** · **Funnel ▾** (stepper thu gọn mặc định) |
+| CTA | **← Lead** · **Cockpit** · **BANT** · **WIN** · **Sales Kit** · **Funnel ▾** (stepper thu gọn mặc định) |
 
 **4 tab** (cùng một phiên, không phải 4 form):
 
@@ -211,7 +212,7 @@ Trang Intake là **workspace qualify** — không còn stack card ngữ cảnh /
 |-----|---------|
 | **Qualify** | Xem tổng (chỉ đọc), **Mở checklist BANT**, quyết định, RF |
 | **Discovery** | Hỏi + chip nhóm BANT |
-| **Win intel** | Agency cũ, đối thủ, tiêu chí chọn |
+| **Win intel** | Agency cũ, đối thủ, tiêu chí chọn, rủi ro đổi — 3 mục bắt buộc Consult khi flag Win bật: incumbent / selection_criteria / switch_risk |
 | **Handoff** | Stakeholder, cam kết, tóm tắt, stepper nếu Funnel đang đóng |
 
 **Sales Kit** (cột phải desktop ≥1280; nút **Sales Kit** trên mobile) — chip rules, **không cần LLM**:
@@ -252,10 +253,19 @@ Tick **Áp dụng vào form** rồi bấm **Áp dụng** (BANT hints mặc đị
 
 1. Tạo phiên **+ Gọi điện** / **+ Gặp trực tiếp** (cột trái).
 2. Tab **Discovery**: hỏi critical (SEO: website/domain).
-3. Bấm **BANT** trên Deal Bar, tick câu KH vừa nói; Qualify chỉ chọn Quyết định.
-4. (Tuỳ chọn) chip **Còn thiếu để Go** / **Câu tiếp theo** — xác nhận Áp dụng nếu ghi form.
-5. Bấm **Hoàn thành phiên**.
-6. Mở **Funnel** trên Deal Bar; khi gate OK bấm **Chuyển → Tư vấn**.
+3. Bấm **BANT** trên Deal Bar, tick câu KH vừa nói; Qualify chỉ chọn Quyết định. Copy BANT vẫn **Đủ Tư vấn** / **Còn n để Tư vấn**.
+4. Bấm **WIN** trên Deal Bar, tick checklist (incumbent 4 = *Tên + lỗ hổng cụ thể*). Tab **Win intel**: ghi agency cũ, tiêu chí chọn, rủi ro đổi.
+5. (Tuỳ chọn) chip **Còn thiếu để Go** / **Câu tiếp theo** — xác nhận Áp dụng nếu ghi form.
+6. Bấm **Hoàn thành phiên**. Go + Win mỏng → **cảnh báo**, vẫn Complete được.
+7. Mở **Funnel** trên Deal Bar; khi gate OK bấm **Chuyển → Tư vấn**.
+
+**Consult cần Win khi flag:** `PTT_INTAKE_WIN_GATE` mặc định **tắt** (giữ Phase 1). Khi `=1`, Go + thiếu 3 Win intel bắt buộc hoặc Win <18 → Funnel **block** (*Thiếu Win intel…* / *Win n/30 dưới ngưỡng Tư vấn (18)*). Không bật flag này trên prod trừ khi chủ đích rollout.
+
+| Env | Default | Ý nghĩa |
+|-----|---------|---------|
+| `PTT_INTAKE_WIN_GATE=1` | `0` | Consult bắt 3 Win intel + Win ≥18 |
+| `PTT_INTAKE_LLM_SCORE=1` | `0` | API `suggest-scores` (gợi ý, không tự ghi điểm) |
+| `NEXT_PUBLIC_PTT_INTAKE_LLM_SCORE=1` | `0` | Nút **Gợi ý chấm** trên drawer BANT/WIN |
 
 Sau **Go:** banner Deal Room (nếu bật); NBA hướng **Giao Solution** hoặc **Mở Intake** tùy stage.
 
@@ -269,6 +279,8 @@ Sau **Go:** banner Deal Room (nếu bật); NBA hướng **Giao Solution** hoặ
 |---|---|
 | **Route** | Tab **Tư vấn** trên lead detail |
 | **Ai** | AM giao → Solution claim trên `/crm/solution/queue` |
+
+**Gate từ Intake:** Funnel **Chuyển → Tư vấn** cần Lead task ✓ + Intake Go. Khi `PTT_INTAKE_WIN_GATE=1` còn cần 3 Win intel bắt buộc + Win ≥18 (xem Bước 3). Flag mặc định tắt.
 
 **Thao tác:**
 
