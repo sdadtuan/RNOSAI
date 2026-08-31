@@ -224,6 +224,8 @@ export function resolveGateStrip(
   consultGate: ConsultGateState | null,
   proposalGate?: ProposalGateState | null,
   consultProposalSla?: PresalesConsultProposalSla | null,
+  funnel?: LeadFunnelSnapshot | null,
+  context?: FunnelStepperContext,
 ): FunnelGateStripViewModel | null {
   if (
     activeStep === 'consult' &&
@@ -256,7 +258,42 @@ export function resolveGateStrip(
     };
   }
 
-  if (activeStep !== 'intake_bant' || !consultGate) return null;
+  if (activeStep !== 'intake_bant') return null;
+
+  if (
+    context === 'intake' &&
+    funnel &&
+    presalesStageIndex(presalesStage(funnel)) >= 1
+  ) {
+    const status = handoffStatus(funnel);
+    if (status === 'pending') {
+      return {
+        tone: 'ok',
+        gateKind: 'consult',
+        title: 'Đã giao Solution/MKT',
+        messages: ['Lead đang chờ Solution nhận case — theo dõi queue hoặc Lead detail.'],
+        scrollAnchor: '#funnel-presales',
+      };
+    }
+    if (status === 'with_solution') {
+      return {
+        tone: 'ok',
+        gateKind: 'consult',
+        title: 'Solution đang tư vấn',
+        messages: ['Case đã có owner Solution — mở workspace Tư vấn trên Lead.'],
+        scrollAnchor: '#funnel-presales',
+      };
+    }
+    return {
+      tone: 'ok',
+      gateKind: 'consult',
+      title: 'Đã chuyển Tư vấn',
+      messages: ['Lead đã qua Khảo sát BANT — tiếp tục trên Lead detail.'],
+      scrollAnchor: '#funnel-presales',
+    };
+  }
+
+  if (!consultGate) return null;
 
   const tone =
     consultGate.level === 'warn'
@@ -333,7 +370,41 @@ export function resolvePrimaryAction(input: {
 
   if (activeStep === 'intake_bant') {
     const stageIdx = presalesStageIndex(presalesStage(funnel));
-    if (stageIdx >= 1) return null;
+    if (stageIdx >= 1) {
+      const status = handoffStatus(funnel);
+      if (status === 'pending') {
+        return {
+          kind: 'link',
+          label: 'Solution queue →',
+          disabled: false,
+          href: '/crm/solution/queue',
+        };
+      }
+      if (status === 'with_solution') {
+        return {
+          kind: 'link',
+          label: 'Mở Lead — Tư vấn →',
+          disabled: false,
+          href: `/crm/leads/${leadId}#funnel-presales`,
+        };
+      }
+      if (status === '' && stageIdx === 1) {
+        const handoff = resolveHandoffSolutionAction(consultGate);
+        if (
+          handoff.kind === 'handoff_solution' &&
+          !handoff.disabled &&
+          (solutionCaps?.canHandoff ?? true)
+        ) {
+          return handoff;
+        }
+      }
+      return {
+        kind: 'link',
+        label: 'Mở Lead →',
+        disabled: false,
+        href: `/crm/leads/${leadId}#funnel-presales`,
+      };
+    }
 
     if (!hasCompletedIntake(intakeSummary) && !intakeSummary?.has_draft) {
       if (context === 'intake') {
@@ -565,6 +636,8 @@ export function resolveFunnelStepper(input: FunnelStepperInput): FunnelStepperVi
       input.consultGate,
       input.proposalGate,
       input.consultProposalSla,
+      funnel,
+      input.context,
     ),
     primaryAction: resolvePrimaryAction({
       leadId: input.leadId,

@@ -421,6 +421,41 @@ describe('resolvePrimaryAction', () => {
     });
     expect(action?.kind).toBe('create_intake_session');
   });
+
+  it('shows solution queue link on intake when already handoff pending', () => {
+    const funnel = mockFunnel({
+      presales: {
+        presales: { id: 1, stage: 'consult', service_slug: 'dich-vu-seo-tong-the', status: 'active' },
+        tasks: { lead: [{ id: 10, title: 'Lead task', is_done: true }] },
+        handoff: { status: 'pending' },
+        advance: { can_advance_forward: false, block_reason: '', next_stage: 'proposal' },
+      },
+    });
+    const action = resolvePrimaryAction({
+      leadId: 5,
+      funnel,
+      consultGate: mockGate(),
+      intakeSummary: mockIntake(),
+      activeStep: 'intake_bant',
+      context: 'intake',
+    });
+    expect(action?.kind).toBe('link');
+    expect(action?.label).toContain('Solution queue');
+    expect(action?.href).toBe('/crm/solution/queue');
+  });
+
+  it('shows handoff CTA on intake when gate ok and still at lead stage', () => {
+    const action = resolvePrimaryAction({
+      leadId: 5,
+      funnel: mockFunnel(),
+      consultGate: mockGate(),
+      intakeSummary: mockIntake(),
+      activeStep: 'intake_bant',
+      context: 'intake',
+    });
+    expect(action?.kind).toBe('handoff_solution');
+    expect(action?.label).toContain('Giao Solution');
+  });
 });
 
 describe('resolveGateStrip', () => {
@@ -432,6 +467,19 @@ describe('resolveGateStrip', () => {
     expect(resolveGateStrip('intake_bant', mockGate())?.tone).toBe('ok');
     expect(resolveGateStrip('intake_bant', mockGate({ level: 'warn', requires_confirm: true }))?.tone).toBe('warn');
     expect(resolveGateStrip('intake_bant', mockGate({ ok: false, level: 'block' }))?.tone).toBe('block');
+  });
+
+  it('shows post-handoff strip on intake when stage already consult', () => {
+    const funnel = mockFunnel({
+      presales: {
+        presales: { id: 1, stage: 'consult', service_slug: 'dich-vu-seo-tong-the', status: 'active' },
+        tasks: { lead: [{ id: 10, title: 'Lead task', is_done: true }] },
+        handoff: { status: 'pending' },
+        advance: { can_advance_forward: false, block_reason: '', next_stage: 'proposal' },
+      },
+    });
+    const strip = resolveGateStrip('intake_bant', mockGate(), undefined, undefined, funnel, 'intake');
+    expect(strip?.title).toContain('Đã giao Solution');
   });
 });
 

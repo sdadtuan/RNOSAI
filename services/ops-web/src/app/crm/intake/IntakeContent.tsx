@@ -54,10 +54,7 @@ import {
   resolveIntakeServiceSlug,
   shouldSyncDraftServiceSlug,
 } from '@/lib/crm/intake-service-resolve';
-import {
-  pickDefaultIntakeTab,
-  type IntakeWorkspaceTab,
-} from '@/lib/crm/intake-workspace-tab';
+import { resolvePresalesSolutionCaps } from '@/lib/crm/presales-solution-caps';
 import {
   intakeModeLabel,
   intakeStatusLabel,
@@ -329,6 +326,8 @@ export function IntakeContent({
         : undefined,
     };
   }, [sessions]);
+
+  const solutionCaps = useMemo(() => resolvePresalesSolutionCaps(user), [user]);
 
   const applySession = useCallback(
     (session: IntakeSessionRow | null) => {
@@ -1273,6 +1272,7 @@ export function IntakeContent({
                   funnel={funnelSnap}
                   consultGate={consultGate}
                   intakeSummary={intakeSummary}
+                  solutionCaps={solutionCaps}
                   context="intake"
                   gateLoading={gateLoading}
                   actionBusy={stepperBusy || saving}
