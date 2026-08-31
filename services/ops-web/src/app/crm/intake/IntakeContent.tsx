@@ -56,6 +56,10 @@ import {
 } from '@/lib/crm/intake-service-resolve';
 import { resolvePresalesSolutionCaps } from '@/lib/crm/presales-solution-caps';
 import {
+  pickDefaultIntakeTab,
+  type IntakeWorkspaceTab,
+} from '@/lib/crm/intake-workspace-tab';
+import {
   intakeModeLabel,
   intakeStatusLabel,
 } from '@/lib/crm/intake-labels';
