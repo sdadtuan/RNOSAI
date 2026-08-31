@@ -193,4 +193,4 @@ e2e Task 8 (`intake-win-score-phase2.spec.ts`): Deal Bar **WIN** + copy **Đủ 
 - [x] Gate OFF = Phase 1; ON = block Go thiếu Win.
 - [x] LLM không ghi điểm không confirm; quote phải nằm trong form.
 - [x] BANT 24/18 + schema 6 key không đổi.
-- [x] Unit gate + suggest-validate + Complete warn; e2e U1–U3 (U4–U6 nếu API LLM).
+- [x] Unit gate + suggest-validate + Complete warn; e2e U1–U2 (U3 Consult happy path = unit Task 4; U4–U6 nếu API LLM).
