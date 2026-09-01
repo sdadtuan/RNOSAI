@@ -16,6 +16,7 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { resolveStaffPostLoginPath } from '@/lib/auth/post-login-path.util';
 
 const HOME_SUMMARY_POLL_MS = 60_000;
 
@@ -44,6 +45,10 @@ export default function DashboardPage() {
       .then((me) => {
         setUser(me);
         updateStoredUser(me);
+        const dest = resolveStaffPostLoginPath(me);
+        if (dest !== '/') {
+          router.replace(dest);
+        }
       })
       .catch(async () => {
         const refresh = getRefreshToken();
@@ -59,6 +64,10 @@ export default function DashboardPage() {
           const me = await staffMe(out.access_token);
           setUser(me);
           updateStoredUser(me);
+          const dest = resolveStaffPostLoginPath(me);
+          if (dest !== '/') {
+            router.replace(dest);
+          }
         } catch {
           clearSession();
           router.replace('/login');

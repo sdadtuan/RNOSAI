@@ -7,6 +7,7 @@ import { LoginBrandPanel } from '@/components/login/LoginBrandPanel';
 import { WinSsoMigrationBanner } from '@/components/rbac/WinSsoMigrationBanner';
 import { fetchStaffSsoConfig, sandboxLogin, staffLogin, staffMe } from '@/lib/api';
 import { saveSession, updateStoredUser } from '@/lib/auth';
+import { resolveStaffPostLoginPath } from '@/lib/auth/post-login-path.util';
 import { winSsoEnabled } from '@/lib/win/flags';
 
 function LoginPageContent() {
@@ -47,7 +48,7 @@ function LoginPageContent() {
       const me = await staffMe(out.access_token);
       updateStoredUser(me);
       const next = new URLSearchParams(window.location.search).get('next');
-      router.push(next && next.startsWith('/') ? next : '/');
+      router.push(resolveStaffPostLoginPath(me, next));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Đăng nhập thất bại');
     } finally {

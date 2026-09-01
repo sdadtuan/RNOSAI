@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { staffMe, staffOidcExchange, ApiError } from '@/lib/api';
 import { saveSession, updateStoredUser } from '@/lib/auth';
+import { resolveStaffPostLoginPath } from '@/lib/auth/post-login-path.util';
 import { clearPkceSession, readPkceState, readPkceVerifier } from '@/lib/auth/keycloak-pkce';
 import { LoginBrandPanel } from '@/components/login/LoginBrandPanel';
 
@@ -40,7 +41,7 @@ function CallbackContent() {
         const me = await staffMe(out.access_token);
         updateStoredUser(me);
         const next = new URLSearchParams(window.location.search).get('next');
-        router.replace(next && next.startsWith('/') ? next : '/');
+        router.replace(resolveStaffPostLoginPath(me, next));
       } catch (err) {
         clearPkceSession();
         if (err instanceof ApiError && err.status === 403 && err.message === 'mfa_required') {
