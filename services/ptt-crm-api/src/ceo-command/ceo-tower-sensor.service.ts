@@ -1,5 +1,6 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { AiNlQueryService } from '../ai-intelligence/ai-nl-query.service';
+import { CrmStaffPgRepository } from '../crm-staff/crm-staff-pg.repository';
 import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
 import { OwnerWeeklyPgRepository } from '../owner-weekly/owner-weekly-pg.repository';
 import { withTimeout } from './ceo-command-briefing.util';
@@ -21,6 +22,8 @@ import {
   isS11Fail,
 } from './ceo-tower-finance.util';
 import { buildOrgRollup, exceptionMatchesOrgFilters } from './ceo-tower-org.util';
+import { buildCapacityTop } from './ceo-tower-capacity.util';
+import type { TowerRosterEntry } from './ceo-tower-capacity.util';
 import { CeoTowerRepository } from './ceo-tower.repository';
 import { classifyTowerRow } from './ceo-tower-sensors.util';
 import type {
@@ -69,6 +72,7 @@ type CachedBundle = {
   rows: ClassifiedRow[];
   k_strip: TowerPayload['k_strip'];
   finance_strip?: TowerFinanceStrip;
+  roster: TowerRosterEntry[];
   s11Fail: boolean;
   financeMetricsOk: boolean;
   degraded: TowerPayload['degraded'];
@@ -88,6 +92,7 @@ export class CeoTowerSensorService {
     private readonly ownerWeekly: OwnerWeeklyPgRepository,
     @Optional() private readonly nlQuery?: AiNlQueryService,
     @Optional() clock?: CeoTowerClock,
+    @Optional() private readonly crmStaff?: CrmStaffPgRepository,
   ) {
     this.fixedNowMs = clock?.nowMs;
   }
@@ -148,6 +153,7 @@ export class CeoTowerSensorService {
     const page = afterCursor.slice(0, limit);
     const next = afterCursor[limit];
     const columns = buildColumns(filteredRows, bundle.columnDegraded);
+    const capacityTop = buildCapacityTop(rollupSource, bundle.roster);
 
     return {
       ok: true,
@@ -155,6 +161,7 @@ export class CeoTowerSensorService {
       window_exception_days: 7,
       k_strip: bundle.k_strip,
       ...(bundle.finance_strip ? { finance_strip: bundle.finance_strip } : {}),
+      ...(capacityTop.length ? { capacity_top: capacityTop } : {}),
       columns,
       exceptions: page,
       org_rollup: buildOrgRollup(rollupSource, { factoryFilter }),
@@ -309,6 +316,7 @@ export class CeoTowerSensorService {
 
     const k_strip = await this.loadKStrip(hasKStrip, hasCskh, degraded);
     const financeResult = await this.loadFinanceStrip(actor, hasKStrip, hasFinance, degraded);
+    const roster = await this.loadRoster(degraded);
     const sensors_ok = buildSensorsOk(rows, {
       candidatesOk,
       hasOps,
@@ -324,12 +332,32 @@ export class CeoTowerSensorService {
       rows,
       k_strip,
       finance_strip: financeResult.strip,
+      roster,
       s11Fail: financeResult.s11Fail,
       financeMetricsOk: financeResult.financeMetricsOk,
       degraded,
       sensors_ok,
       columnDegraded,
     };
+  }
+
+  private async loadRoster(degraded: TowerPayload['degraded']): Promise<TowerRosterEntry[]> {
+    if (!this.crmStaff) return [];
+    try {
+      const bundle = await withTimeout(this.crmStaff.listStaff(500), SOURCE_TIMEOUT_MS);
+      return bundle.staff.map((row) => ({
+        staff_id: row.id,
+        name: row.name,
+        department_code: row.dept_code || null,
+        position_code: row.position_catalog_code || null,
+      }));
+    } catch (e) {
+      degraded.push({
+        source: 'capacity',
+        reason: String((e as Error)?.message ?? 'failed'),
+      });
+      return [];
+    }
   }
 
   private async loadKStrip(
@@ -565,6 +593,7 @@ function toException(row: ClassifiedRow, _nowMs: number): TowerException {
     title_vi: titleVi(row),
     entity_type,
     entity_id,
+    owner_staff_id: row.candidate.ownerId,
     owner_name: row.candidate.ownerName,
     age_label: ageLabel(row.ageMs),
     value_vnd: row.candidate.valueVnd,

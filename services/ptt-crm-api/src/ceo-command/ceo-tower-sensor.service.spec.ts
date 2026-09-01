@@ -128,6 +128,8 @@ function makeSvc(opts?: {
   financeMetrics?: Record<string, number>;
   loadFinanceMetrics?: jest.Mock;
   nlQuery?: { runQuery: jest.Mock } | false;
+  roster?: Array<{ id: number; name: string; dept_code: string; position_catalog_code: string }>;
+  listStaff?: jest.Mock;
   nowMs?: number;
 }) {
   const repo = {
@@ -160,13 +162,24 @@ function makeSvc(opts?: {
         data: { rows: [{ amount_vnd: 15_000_000 }] },
       }),
     });
+  const crmStaff = {
+    listStaff: opts?.listStaff
+      ?? jest.fn().mockResolvedValue({
+        staff: opts?.roster ?? [
+          { id: 1, name: 'AM An', dept_code: 'DEPT-SALES', position_catalog_code: 'KD-01' },
+        ],
+        summary: {},
+        meta: {},
+      }),
+  };
   const svc = new CeoTowerSensorService(
     repo as unknown as CeoTowerRepository,
     ownerWeekly as unknown as OwnerWeeklyPgRepository,
     nlQuery as never,
     { nowMs: opts?.nowMs ?? NOW },
+    crmStaff as never,
   );
-  return { svc, repo, ownerWeekly, nlQuery };
+  return { svc, repo, ownerWeekly, nlQuery, crmStaff };
 }
 
 describe('CeoTowerSensorService.buildPayload', () => {
@@ -636,6 +649,30 @@ describe('CeoTowerSensorService.buildPayload', () => {
     const { svc } = makeSvc({ candidates: [oldRed] });
     const out = await svc.buildPayload(actor(OPS_AND_K), {});
     expect(out.exceptions.some((row) => row.entity_id === 99)).toBe(true);
+  });
+
+  it('capacity_top top 5 quá tải theo owner_staff_id', async () => {
+    const overloaded = Array.from({ length: 8 }, (_, i) =>
+      candidate({
+        leadId: 100 + i,
+        ownerId: 1,
+        createdAtMs: NOW - 10 * H,
+        lastActivityMs: NOW - 10 * H,
+      }),
+    );
+    const { svc } = makeSvc({ candidates: [...overloaded, s1NoOwner] });
+    const out = await svc.buildPayload(actor(OPS_AND_K), {});
+
+    expect(out.capacity_top).toEqual([
+      expect.objectContaining({
+        staff_id: 1,
+        name: 'AM An',
+        red_owned: 8,
+        amber_owned: 0,
+        flag: 'red',
+      }),
+    ]);
+    expect(out.exceptions.some((row) => row.owner_staff_id === 1)).toBe(true);
   });
 
   it('thiếu finance cap → không finance_strip + degraded finance', async () => {

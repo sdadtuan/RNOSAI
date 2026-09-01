@@ -17,6 +17,7 @@ function ex(partial: Partial<TowerException> & Pick<TowerException, 'sensor_ids'
     title_vi: 'Test',
     entity_type: 'lead',
     entity_id: 1,
+    owner_staff_id: null,
     owner_name: 'AM',
     age_label: '1h',
     value_vnd: null,

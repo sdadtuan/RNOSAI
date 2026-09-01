@@ -47,6 +47,7 @@ function bump(counts: { red: number; amber: number }, severity: TowerException['
 }
 
 function staffIdOf(ex: TowerException): string | null {
+  if (ex.owner_staff_id != null && ex.owner_staff_id > 0) return String(ex.owner_staff_id);
   const raw = ex.suggest_params?.staff_id ?? ex.suggest_params?.owner_staff_id;
   if (raw == null || raw === '') return null;
   return String(raw);

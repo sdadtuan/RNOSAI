@@ -55,6 +55,7 @@ export function buildS11Exception(top1Pct: number): TowerException {
     title_vi: 'Top-1 khách > 40% DT',
     entity_type: 'lead',
     entity_id: 0,
+    owner_staff_id: null,
     owner_name: '',
     age_label: '',
     value_vnd: null,

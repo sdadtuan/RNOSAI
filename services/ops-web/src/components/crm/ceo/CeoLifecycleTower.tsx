@@ -200,6 +200,14 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
     });
   }
 
+  function onCapacityStaff(id: number) {
+    patchQuery({
+      staff_id: staffId === String(id) ? null : String(id),
+      team: null,
+      position_code: null,
+    });
+  }
+
   const breadcrumb = buildTowerBreadcrumb({
     factory,
     department: department || null,
@@ -337,6 +345,44 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
               {item.value != null ? ` ${formatFinanceValue(item.key, item.value)}` : ''}
             </Link>
           ))}
+        </div>
+      ) : null}
+
+      {payload?.capacity_top?.length ? (
+        <div data-testid="ceo-tower-capacity" aria-label="Quá tải">
+          <h3 className="text-base font-semibold">Quá tải</h3>
+          <div className="data-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Nhân sự</th>
+                  <th>Phòng</th>
+                  <th>Đỏ</th>
+                  <th>Vàng</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payload.capacity_top.slice(0, 5).map((row) => (
+                  <tr key={row.staff_id}>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-xs btn-ghost"
+                        data-testid={`ceo-tower-capacity-${row.staff_id}`}
+                        onClick={() => onCapacityStaff(row.staff_id)}
+                      >
+                        {row.name}
+                        <span className={`ml-2 ${headerBadgeClass(row.flag)}`}>{row.flag}</span>
+                      </button>
+                    </td>
+                    <td>{row.department_code || '—'}</td>
+                    <td>{row.red_owned}</td>
+                    <td>{row.amber_owned}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : null}
 

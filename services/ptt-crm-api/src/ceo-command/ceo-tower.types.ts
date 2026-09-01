@@ -22,6 +22,16 @@ export type TowerEntityInput = {
 
 export type TowerColumnOpts = { factoryFilter?: 'A' | 'B' | 'both' };
 
+export type TowerCapacityRow = {
+  staff_id: number;
+  name: string;
+  department_code: string | null;
+  position_code: string | null;
+  red_owned: number;
+  amber_owned: number;
+  flag: 'amber' | 'red';
+};
+
 export type TowerException = {
   factory: TowerFactory;
   column_id: TowerColumnId;
@@ -30,6 +40,7 @@ export type TowerException = {
   title_vi: string;
   entity_type: 'lead' | 'lifecycle';
   entity_id: number;
+  owner_staff_id: number | null;
   owner_name: string;
   age_label: string;
   value_vnd: number | null;
@@ -86,7 +97,7 @@ export type TowerPayload = {
   degraded: Array<{ source: string; reason: string }>;
   sensors_ok: Record<TowerSensorId, 'ok' | 'fail' | 'degraded'>;
   finance_strip?: TowerFinanceStrip;
-  capacity_top?: unknown;
+  capacity_top?: TowerCapacityRow[];
   legal_entity_id?: string | null;
 };
 
