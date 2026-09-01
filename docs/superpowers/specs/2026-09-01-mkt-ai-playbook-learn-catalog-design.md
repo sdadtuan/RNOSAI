@@ -2,7 +2,7 @@
 
 > **Document ID:** MKTP-PB-LEARN-20260901  
 > **Phiên bản:** 1.1 · **Ngày:** 2026-09-01  
-> **Trạng thái:** Plan ready — [`2026-09-01-mkt-ai-playbook-learn-catalog.md`](../plans/2026-09-01-mkt-ai-playbook-learn-catalog.md)  
+> **Trạng thái:** Implemented — [`2026-09-01-mkt-ai-playbook-learn-catalog.md`](../plans/2026-09-01-mkt-ai-playbook-learn-catalog.md)  
 > **1.1:** Bổ sung §7.0 — cụ thể hoá tầng 3 (map tab/artifact), RACI bộ phận vs AI, hai vòng giải pain, ví dụ tuần 0–4  
 > **Module:** MOD-MKTP (Marketing AI Planner)  
 > **Route UI:** `/crm/admin/mkt-ai/playbooks` (mới) · tab AI Planner giữ `AiPlaybookSelector`  
