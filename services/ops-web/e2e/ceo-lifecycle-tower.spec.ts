@@ -315,7 +315,7 @@ test.describe('CEO Lifecycle Tower T4', () => {
 
     await page.getByTestId('ceo-tower-dept-DEPT-SALES').click();
     await expect(page).toHaveURL(/department=DEPT-SALES/);
-    await expect(page.getByTestId('ceo-tower-drill-banner')).toContainText('Kinh doanh');
+    await expect(page.getByTestId('ceo-tower-queue')).toContainText('Hàng chờ — Kinh doanh');
     await expect(page.getByTestId('ceo-tower-breadcrumb')).toContainText('Kinh doanh');
     await expect(page.getByText('Lead #70 ops quá hạn')).toHaveCount(0);
 

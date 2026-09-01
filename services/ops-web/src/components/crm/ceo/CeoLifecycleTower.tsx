@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CeoActionConfirmDialog } from '@/components/crm/ceo/CeoActionConfirmDialog';
 import { CeoTowerDeptDonut } from '@/components/crm/ceo/CeoTowerDeptDonut';
@@ -76,7 +76,6 @@ function deptLabel(code: string, orgRollup: TowerOrgRollupEntry[] | undefined): 
 export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const queueRef = useRef<HTMLDivElement>(null);
 
   const factory = parseTowerFactory(searchParams.get('factory'));
   const severityFilter = parseTowerSeverityFilter(searchParams.get('severity'));
@@ -179,12 +178,6 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
     });
   }
 
-  function scrollToQueue() {
-    requestAnimationFrame(() => {
-      queueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  }
-
   function onFactory(next: TowerFactoryFilter) {
     patchQuery({ factory: next });
   }
@@ -198,15 +191,17 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
     patchQuery({ column_id: next || null });
   }
 
-  function onDepartment(code: string, outsideCycle?: boolean) {
-    const selecting = drill.department !== code;
+  function onDepartment(code: string) {
+    if (!code) {
+      patchDrill({ department: '', team: '', positionCode: '', staffId: '' });
+      return;
+    }
     patchDrill({
       department: code,
       team: '',
       positionCode: '',
       staffId: '',
     });
-    if (selecting || outsideCycle) scrollToQueue();
   }
 
   function onOrgLensSelect(level: TowerOrgRollupEntry['level'], code: string) {
@@ -216,7 +211,6 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
         positionCode: '',
         staffId: '',
       });
-      scrollToQueue();
       return;
     }
     if (level === 'position') {
@@ -224,12 +218,10 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
         positionCode: drill.positionCode === code ? '' : code,
         staffId: '',
       });
-      scrollToQueue();
       return;
     }
     if (level === 'staff') {
       patchDrill({ staffId: drill.staffId === code ? '' : code });
-      scrollToQueue();
     }
   }
 
@@ -243,7 +235,6 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
       team: '',
       positionCode: '',
     });
-    scrollToQueue();
   }
 
   async function onSuggest(row: TowerException) {
@@ -320,7 +311,7 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
       <header className="ceo-tower-header">
         <div className="ceo-tower-header__intro">
           <h2 className="ceo-tower-header__title">Tháp chu trình</h2>
-          <p className="ceo-tower-header__subtitle">Nhìn toàn công ty → chọn phòng → drill tiếp → xử lý hàng chờ</p>
+          <p className="ceo-tower-header__subtitle">Ống dẫn toàn công ty. Chọn phòng để lọc hàng chờ bên cạnh — không nhảy trang.</p>
         </div>
         <div className={healthSummaryClass(healthTone)} data-testid="ceo-tower-health">
           <div className="ceo-tower-health__stat">
@@ -371,65 +362,6 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
           </Link>
         </div>
       </header>
-
-      <CeoTowerDeptPicker
-        orgRollup={payload?.org_rollup}
-        activeDepartment={drill.department}
-        onDepartment={onDepartment}
-      />
-
-      {drill.department ? (
-        <div className="ceo-tower-drill-banner" data-testid="ceo-tower-drill-banner">
-          <div>
-            <strong>Đang drill: {deptLabel(drill.department, payload?.org_rollup)}</strong>
-            <span className="ceo-tower-drill-banner__meta">
-              {filteredRed} đỏ · {filteredAmber} vàng · {exceptions.length} việc trong hàng chờ
-            </span>
-          </div>
-          <button type="button" className="btn btn-xs btn-secondary" onClick={clearOrgFilters}>
-            Xóa lọc phòng
-          </button>
-        </div>
-      ) : null}
-
-      <nav className="ceo-tower-breadcrumb" data-testid="ceo-tower-breadcrumb" aria-label="Lăng kính tổ chức">
-        {breadcrumb.map((segment, index) => (
-          <span key={segment.key} className="ceo-tower-breadcrumb__segment">
-            {index > 0 ? <span className="ceo-tower-breadcrumb__sep">›</span> : null}
-            {segment.clearTo ? (
-              <button
-                type="button"
-                className="btn btn-xs btn-ghost"
-                onClick={() => patchQuery(segment.clearTo!)}
-              >
-                {segment.label}
-              </button>
-            ) : (
-              <span>{segment.label}</span>
-            )}
-          </span>
-        ))}
-        {drill.department || drill.team || drill.positionCode || drill.staffId ? (
-          <button
-            type="button"
-            className="btn btn-xs btn-ghost"
-            aria-label="Xóa lọc tổ chức"
-            data-testid="ceo-tower-breadcrumb-clear"
-            onClick={clearOrgFilters}
-          >
-            ×
-          </button>
-        ) : null}
-      </nav>
-
-      {drill.department ? (
-        <CeoTowerOrgLens
-          orgRollup={payload?.org_rollup}
-          scopeExceptions={deptScopedExceptions}
-          drill={drillFilters}
-          onSelect={onOrgLensSelect}
-        />
-      ) : null}
 
       <div className="ceo-tower-dashboard">
         <div className="ceo-tower-dashboard__main">
@@ -523,32 +455,88 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
       {error ? <p className="error">{error}</p> : null}
       {loading && !payload ? <p className="muted">Đang tải tháp…</p> : null}
 
-      <div
-        ref={queueRef}
-        className="ceo-tower-queue-section"
-        data-testid="ceo-tower-queue"
-        data-can-act={canAct == null ? 'pending' : canAct ? 'yes' : 'no'}
-      >
-        <div className="ceo-tower-queue-section__head">
-          <h3 className="ceo-tower-section-title">
-            {drill.department ? `Hàng chờ — ${deptLabel(drill.department, payload?.org_rollup)}` : 'Hàng chờ sót'}
-          </h3>
-          <span className="ceo-tower-queue-section__count">{exceptions.length} việc</span>
-        </div>
-        <CeoTowerExceptionQueue
-          exceptions={exceptions}
-          canAct={canAct}
-          busy={busy}
-          outsideCycleActive={outsideCycleActive}
-          emptyCopy={
-            drill.department
-              ? `Không có sót trong phòng này với bộ lọc hiện tại — thử bỏ lọc cột/mức độ.`
-              : TOWER_EMPTY_STATE_COPY
-          }
-          outsideCycleCopy={TOWER_OUTSIDE_CYCLE_COPY}
-          onOwnerFilter={onOwnerFilter}
-          onSuggest={(row) => void onSuggest(row)}
+      <div className="ceo-tower-workbench">
+        <CeoTowerDeptPicker
+          orgRollup={payload?.org_rollup}
+          activeDepartment={drill.department}
+          onDepartment={onDepartment}
         />
+
+        <div
+          className="ceo-tower-queue-section"
+          data-testid="ceo-tower-queue"
+          data-can-act={canAct == null ? 'pending' : canAct ? 'yes' : 'no'}
+        >
+          <div className="ceo-tower-queue-section__head">
+            <div>
+              <h3 className="ceo-tower-section-title">
+                {drill.department ? `Hàng chờ — ${deptLabel(drill.department, payload?.org_rollup)}` : 'Hàng chờ sót'}
+              </h3>
+              <p className="ceo-tower-queue-section__meta">
+                {filteredRed} đỏ · {filteredAmber} vàng · {exceptions.length} việc
+              </p>
+            </div>
+            {drill.department ? (
+              <button type="button" className="btn btn-xs btn-secondary" onClick={clearOrgFilters}>
+                Tất cả phòng
+              </button>
+            ) : null}
+          </div>
+
+          <nav className="ceo-tower-breadcrumb" data-testid="ceo-tower-breadcrumb" aria-label="Lăng kính tổ chức">
+            {breadcrumb.map((segment, index) => (
+              <span key={segment.key} className="ceo-tower-breadcrumb__segment">
+                {index > 0 ? <span className="ceo-tower-breadcrumb__sep">›</span> : null}
+                {segment.clearTo ? (
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-ghost"
+                    onClick={() => patchQuery(segment.clearTo!)}
+                  >
+                    {segment.label}
+                  </button>
+                ) : (
+                  <span>{segment.label}</span>
+                )}
+              </span>
+            ))}
+            {drill.department || drill.team || drill.positionCode || drill.staffId ? (
+              <button
+                type="button"
+                className="btn btn-xs btn-ghost"
+                aria-label="Xóa lọc tổ chức"
+                data-testid="ceo-tower-breadcrumb-clear"
+                onClick={clearOrgFilters}
+              >
+                ×
+              </button>
+            ) : null}
+          </nav>
+
+          {drill.department ? (
+            <CeoTowerOrgLens
+              orgRollup={payload?.org_rollup}
+              scopeExceptions={deptScopedExceptions}
+              drill={drillFilters}
+              onSelect={onOrgLensSelect}
+            />
+          ) : null}
+
+          <CeoTowerExceptionQueue
+            exceptions={exceptions}
+            canAct={canAct}
+            busy={busy}
+            outsideCycleActive={outsideCycleActive}
+            emptyCopy={
+              drill.department
+                ? `Không có sót trong phòng này với bộ lọc hiện tại — thử bỏ lọc cột/mức độ.`
+                : TOWER_EMPTY_STATE_COPY
+            }
+            outsideCycleCopy={TOWER_OUTSIDE_CYCLE_COPY}
+            onOwnerFilter={onOwnerFilter}
+            onSuggest={(row) => void onSuggest(row)}
+          />
+        </div>
       </div>
 
       {confirmTurn?.proposed_action ? (
