@@ -53,6 +53,54 @@ describe('mapTowerSuggestAction', () => {
     });
   });
 
+  it('ownerless remind_staff is not ready', () => {
+    const out = mapTowerSuggestAction({
+      suggest_action: 'remind_staff',
+      suggest_params: { lead_id: 70, staff_id: null },
+      href: '/crm/hub/70',
+      title_vi: 'Lead #70 ops quá hạn',
+    });
+    expect(out.kind).not.toBe('ready');
+    expect(out).toEqual({ kind: 'hidden' });
+  });
+
+  it('hides sla_remind_lead when lead_id, tier, or suggested_action is missing', () => {
+    const base = {
+      suggest_action: 'sla_remind_lead',
+      href: '/crm/cskh-board?lead=200',
+      title_vi: 'Lead #200 vỡ SLA CSKH 2h',
+    };
+    expect(
+      mapTowerSuggestAction({
+        ...base,
+        suggest_params: { tier: 'first_call_15m', suggested_action: 'log_call' },
+      }),
+    ).toEqual({ kind: 'hidden' });
+    expect(
+      mapTowerSuggestAction({
+        ...base,
+        suggest_params: { lead_id: 200, suggested_action: 'log_call' },
+      }),
+    ).toEqual({ kind: 'hidden' });
+    expect(
+      mapTowerSuggestAction({
+        ...base,
+        suggest_params: { lead_id: 200, tier: 'first_call_15m' },
+      }),
+    ).toEqual({ kind: 'hidden' });
+  });
+
+  it('hides ack_ops_alert when alert_id is missing', () => {
+    expect(
+      mapTowerSuggestAction({
+        suggest_action: 'ack_ops_alert',
+        suggest_params: { lead_id: 70 },
+        href: '/crm/ops?alert=88',
+        title_vi: 'Lead #70 ops quá hạn',
+      }),
+    ).toEqual({ kind: 'hidden' });
+  });
+
   it('maps sla_remind_lead from S9 params', () => {
     const out = mapTowerSuggestAction({
       suggest_action: 'sla_remind_lead',

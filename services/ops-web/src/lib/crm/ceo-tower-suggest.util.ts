@@ -54,6 +54,7 @@ export function mapTowerSuggestAction(
     }
     case 'remind_staff': {
       const staff_id = asPositiveInt(base.staff_id ?? base.owner_staff_id);
+      if (staff_id == null) return { kind: 'hidden' };
       return {
         kind: 'ready',
         action_id: 'remind_staff',
@@ -66,21 +67,27 @@ export function mapTowerSuggestAction(
       };
     }
     case 'sla_remind_lead': {
+      const lead_id = asPositiveInt(base.lead_id);
+      const tier = String(base.tier ?? '').trim();
+      const suggested_action = String(base.suggested_action ?? '').trim();
+      if (lead_id == null || !tier || !suggested_action) return { kind: 'hidden' };
       return {
         kind: 'ready',
         action_id: 'sla_remind_lead',
         params: {
-          lead_id: asPositiveInt(base.lead_id),
-          tier: String(base.tier ?? '').trim(),
-          suggested_action: String(base.suggested_action ?? '').trim(),
+          lead_id,
+          tier,
+          suggested_action,
         },
       };
     }
     case 'ack_ops_alert': {
+      const alert_id = asPositiveInt(base.alert_id);
+      if (alert_id == null) return { kind: 'hidden' };
       return {
         kind: 'ready',
         action_id: 'ack_ops_alert',
-        params: { alert_id: asPositiveInt(base.alert_id) },
+        params: { alert_id },
       };
     }
     default:
