@@ -179,6 +179,8 @@ describe('MktAiPlaybookLearnService', () => {
   it('runJob writes draft when AI output passes validation', async () => {
     await service.runJob(101);
     expect(orchestrator.generateLearnedPlaybook).toHaveBeenCalled();
+    const learnInput = orchestrator.generateLearnedPlaybook.mock.calls[0][0];
+    expect(learnInput.payload.week_hints).toEqual([]);
     expect(versionsRepo.insertVersion).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'draft',
@@ -207,6 +209,50 @@ describe('MktAiPlaybookLearnService', () => {
         error: expect.stringContaining('brand_name must be empty'),
       }),
     );
+  });
+
+  it('runJob omits week hints when depth is shallow', async () => {
+    jest.spyOn(service, 'loadCorpusRows').mockResolvedValue(
+      [1, 2, 3, 4, 5].map((id) =>
+        candidate(id, {
+          closedLoopWin: id <= 3,
+          hasTier3Artifact: false,
+          doneOpsTasks: [
+            {
+              lifecycleId: id,
+              weekNo: 1,
+              taskName: 'Launch QA pixel',
+              status: 'Done',
+            },
+          ],
+        }),
+      ),
+    );
+    await service.runJob(101);
+    const learnInput = orchestrator.generateLearnedPlaybook.mock.calls[0][0];
+    expect(learnInput.payload.depth).toBe('shallow');
+    expect(learnInput.payload.week_hints).toEqual([]);
+  });
+
+  it('runJob includes week hints when depth is deep and ≥3 Done same week', async () => {
+    const sharedTask = {
+      weekNo: 1,
+      taskName: 'Launch QA pixel',
+      status: 'Done',
+    };
+    jest.spyOn(service, 'loadCorpusRows').mockResolvedValue(
+      [1, 2, 3, 4, 5].map((id) =>
+        candidate(id, {
+          closedLoopWin: id <= 3,
+          hasTier3Artifact: id <= 3,
+          doneOpsTasks: id <= 3 ? [{ lifecycleId: id, ...sharedTask }] : [],
+        }),
+      ),
+    );
+    await service.runJob(101);
+    const learnInput = orchestrator.generateLearnedPlaybook.mock.calls[0][0];
+    expect(learnInput.payload.depth).toBe('deep');
+    expect(learnInput.payload.week_hints).toEqual(['Tuần 1: Launch QA pixel']);
   });
 
   it('never inserts active status from learn job', async () => {

@@ -48,6 +48,25 @@ describe('classifyCorpus', () => {
     expect(r.remaining).toBe(0);
   });
 
+  it('5 candidates + 3 winners without tier-3 artifacts → shallow', () => {
+    const rows = Array.from({ length: 3 }, (_, i) =>
+      baseRow({
+        lifecycleId: i + 1,
+        closedLoopWin: true,
+        hasTier3Artifact: false,
+      }),
+    ).concat(
+      Array.from({ length: 2 }, (_, i) =>
+        baseRow({ lifecycleId: i + 4, closedLoopWin: false }),
+      ),
+    );
+    const r = classifyCorpus(SLUG, rows);
+    expect(r.canLearn).toBe(true);
+    expect(r.depth).toBe('shallow');
+    expect(r.winners).toHaveLength(3);
+    expect(r.winners.every((w) => !w.hasTier3Artifact)).toBe(true);
+  });
+
   it('5 candidates + 3 winners + 3 tier-3 artifacts → deep', () => {
     const rows = Array.from({ length: 3 }, (_, i) =>
       baseRow({

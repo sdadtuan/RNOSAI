@@ -10,6 +10,10 @@ import {
   classifyCorpus,
   type CorpusLifecycleInput,
 } from './mkt-ai-playbook-corpus.util';
+import {
+  buildPlaybookWeekHints,
+  type DoneOpsTaskInput,
+} from './mkt-ai-playbook-week-hints.util';
 import { rejectLearnedPlaybook } from './mkt-ai-playbook-learn-validate.util';
 import {
   MktAiPlaybookVersionsRepository,
@@ -122,11 +126,17 @@ export class MktAiPlaybookLearnService {
       const currentPlaybook = resolvePlaybookForSlug(serviceSlug, catalog);
       const stubPlaybook = this.buildStubPlaybook(serviceSlug, currentPlaybook, corpus.depth);
 
+      const weekHints =
+        corpus.depth === 'deep'
+          ? buildPlaybookWeekHints(this.collectDoneOpsTasks(corpusRows))
+          : [];
+
       const payload = {
         service_slug: serviceSlug,
         depth: corpus.depth,
         candidate_count: corpus.candidates.length,
         winner_count: corpus.winners.length,
+        week_hints: weekHints,
         winner_excerpts: excerptRows.map((row) => ({
           lifecycle_id_hash: `lc-${row.lifecycleId}`,
           strategy_bullets: [`Applied lifecycle ${row.lifecycleId}`, `Stage ${row.stage}`],
@@ -222,6 +232,10 @@ export class MktAiPlaybookLearnService {
       ...candidates.filter((c) => !winnerIds.has(c.lifecycleId)),
     ];
     return ordered.slice(0, MAX_PROMPT_LIFECYCLES);
+  }
+
+  private collectDoneOpsTasks(rows: CorpusLifecycleInput[]): DoneOpsTaskInput[] {
+    return rows.flatMap((row) => row.doneOpsTasks ?? []);
   }
 
   private extractClientNames(rows: CorpusLifecycleInput[]): string[] {

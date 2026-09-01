@@ -1,3 +1,5 @@
+import type { DoneOpsTaskInput } from './mkt-ai-playbook-week-hints.util';
+
 export type CorpusLifecycleInput = {
   lifecycleId: number;
   serviceSlug: string;
@@ -8,7 +10,9 @@ export type CorpusLifecycleInput = {
   sqliteLeadId?: number;
   stage: string;
   closedLoopWin: boolean; // W1
-  hasTier3Artifact: boolean; // Ops Done | QA pass | content approved
+  /** Ops Done | Launch QA pass | Content approved_internal (§7.0.5). */
+  hasTier3Artifact: boolean;
+  doneOpsTasks?: DoneOpsTaskInput[];
 };
 
 export function classifyCorpus(slug: string, rows: CorpusLifecycleInput[]) {
