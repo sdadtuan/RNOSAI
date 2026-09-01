@@ -7,7 +7,8 @@ import { iconForHref, NavIcon, sectionIcon, sectionShortLabel } from '@/componen
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { StoredStaffUser } from '@/lib/auth';
-import { getAccessToken, hasCap, canGenerateMktAiPlanner, canApproveMktAiPlanner } from '@/lib/auth';
+import { getAccessToken, hasCap, canGenerateMktAiPlanner, canApproveMktAiPlanner, updateStoredUser } from '@/lib/auth';
+import { staffMe } from '@/lib/api';
 import { fetchReviewQueueCount } from '@/lib/api';
 import { isOpsDvFeEnabled } from '@/lib/ops-dv-flags';
 import { emailGateAEnabled, emailJourneysEnabled, emailModuleEnabled } from '@/lib/email-flags';
@@ -18,6 +19,7 @@ import { BrandLogo } from '@/components/brand/BrandLogo';
 import { canViewEmailGateA } from '@/lib/email/caps';
 import { canViewMetaAdsOps, canViewMetaIntelligence, canViewMetaTracking } from '@/lib/meta/caps';
 import { ceoCommandEnabled } from '@/lib/crm/ceo-command-flags';
+import { canSeeCsdNav } from '@/lib/crm/csd-nav.util';
 import { canSeeCeoNav } from '@/lib/crm/ceo-command-thread.util';
 import {
   canViewSeoAeo,
@@ -393,7 +395,7 @@ function buildSections(
   }
 
   const serviceDesk: NavLink[] = [];
-  if (hasCap(user, 'csd', 'view')) {
+  if (canSeeCsdNav(user)) {
     serviceDesk.push({ href: '/crm/csd', label: 'Tổng quan SD' });
     serviceDesk.push({ href: '/crm/csd/tickets', label: 'Ticket SD' });
     serviceDesk.push({ href: '/crm/csd/chat', label: 'Chat' });
@@ -401,7 +403,7 @@ function buildSections(
     serviceDesk.push({ href: '/crm/csd/reports', label: 'Báo cáo' });
   }
   if (serviceDesk.length) {
-    sections.push({ label: 'Service Desk', links: serviceDesk });
+    sections.push({ label: 'Service Desk', links: serviceDesk, defaultOpen: true });
   }
 
   const salesContract: NavLink[] = [];
@@ -653,6 +655,7 @@ function userInitials(user: StoredStaffUser | null): string {
 export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: OpsNavProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [navUser, setNavUser] = useState<StoredStaffUser | null>(user);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [reviewQueueCount, setReviewQueueCount] = useState<number | undefined>();
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
@@ -663,8 +666,27 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   const chromeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setNavUser(user);
+  }, [user]);
+
+  useEffect(() => {
+    const token = getAccessToken();
+    if (!token) return;
+    void staffMe(token)
+      .then((me) => {
+        setNavUser(me);
+        updateStoredUser(me);
+      })
+      .catch(() => {
+        /* keep cached navUser */
+      });
+  }, []);
+
+  useEffect(() => {
     setAccessToken(getAccessToken());
-  }, [user, pathname]);
+  }, [user, pathname, navUser]);
+
+  const sidebarUser = navUser ?? user;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -695,8 +717,8 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   }, [user, pathname]);
 
   const sections = useMemo(
-    () => buildSections(user, emailPendingApprovals, agencyUnread, reviewQueueCount),
-    [user, emailPendingApprovals, agencyUnread, reviewQueueCount],
+    () => buildSections(sidebarUser, emailPendingApprovals, agencyUnread, reviewQueueCount),
+    [sidebarUser, emailPendingApprovals, agencyUnread, reviewQueueCount],
   );
   const nextAction = nextActionFor(pathname);
 

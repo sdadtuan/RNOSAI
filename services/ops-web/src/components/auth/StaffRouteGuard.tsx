@@ -44,13 +44,20 @@ export function StaffRouteGuard({ children, zone }: StaffRouteGuardProps) {
 
     void (async () => {
       let userForCap: StoredStaffUser | null = getStoredUser();
-      if (pathname.startsWith('/crm/ceo')) {
+      if (pathname.startsWith('/crm/ceo') || pathname.startsWith('/crm/csd')) {
         try {
           userForCap = await staffMe(token);
           updateStoredUser(userForCap);
         } catch {
           router.replace(`/login?next=${encodeURIComponent(next)}`);
           return;
+        }
+      } else if (!userForCap?.caps?.length) {
+        try {
+          userForCap = await staffMe(token);
+          updateStoredUser(userForCap);
+        } catch {
+          /* keep cached user */
         }
       }
 
