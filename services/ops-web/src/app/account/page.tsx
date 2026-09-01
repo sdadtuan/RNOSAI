@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { StaffPageShell } from '@/components/layout/StaffPageShell';
+import { WinDrawer } from '@/components/win';
 import { useStaffAvatarBlob } from '@/components/account/useStaffAvatarBlob';
 import {
   deleteStaffAvatar,
@@ -58,6 +59,8 @@ export default function AccountPage() {
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
+  const [passwordDrawerOpen, setPasswordDrawerOpen] = useState(false);
+  const [drawerError, setDrawerError] = useState('');
 
   const profile = bundle?.profile ?? null;
   const avatarUrl = useStaffAvatarBlob(token, Boolean(profile?.has_avatar), profile?.avatar_updated_at);
@@ -144,15 +147,26 @@ export default function AccountPage() {
     }
   }
 
+  function openPasswordDrawer() {
+    setDrawerError('');
+    setPasswordDrawerOpen(true);
+  }
+
+  function closePasswordDrawer() {
+    setDrawerError('');
+    setPasswordDrawerOpen(false);
+  }
+
   async function onPasswordSubmit(e: FormEvent) {
     e.preventDefault();
     if (!token) return;
     const check = validatePasswordForm({ current: currentPw, next: newPw, confirm: confirmPw });
     if (!check.ok) {
-      setError(check.error);
+      setDrawerError(check.error);
       return;
     }
     setBusy(true);
+    setDrawerError('');
     setError('');
     setMsg('');
     try {
@@ -161,9 +175,10 @@ export default function AccountPage() {
       setCurrentPw('');
       setNewPw('');
       setConfirmPw('');
+      closePasswordDrawer();
     } catch (err) {
       const code = err instanceof ApiError ? err.message : '';
-      setError(staffAccountErrorVi(code) || 'Đổi mật khẩu thất bại');
+      setDrawerError(staffAccountErrorVi(code) || 'Đổi mật khẩu thất bại');
     } finally {
       setBusy(false);
     }
@@ -281,6 +296,16 @@ export default function AccountPage() {
                     >
                       Đổi ảnh
                     </button>
+                    {profile.password_login_enabled || (profile.sso_enabled && profile.keycloak_account_url) ? (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        disabled={busy}
+                        onClick={openPasswordDrawer}
+                      >
+                        Đổi mật khẩu
+                      </button>
+                    ) : null}
                     {profile.has_avatar ? (
                       <button
                         type="button"
@@ -299,7 +324,51 @@ export default function AccountPage() {
             <section className="card account-card">
               <h2>Mật khẩu</h2>
               {profile.password_login_enabled ? (
-                <form className="settings-form" onSubmit={onPasswordSubmit}>
+                <p className="muted">Bấm <strong>Đổi mật khẩu</strong> ở khối Hồ sơ để cập nhật mật khẩu Nest.</p>
+              ) : profile.sso_enabled ? (
+                <p className="muted">Tài khoản này đổi mật khẩu trên Keycloak.</p>
+              ) : (
+                <p className="muted">Tài khoản này không dùng mật khẩu Nest.</p>
+              )}
+              {profile.sso_enabled && profile.keycloak_account_url ? (
+                <p style={{ marginTop: '0.75rem' }}>
+                  <a
+                    href={profile.keycloak_account_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-secondary btn-sm"
+                  >
+                    Mở tài khoản Keycloak
+                  </a>
+                </p>
+              ) : null}
+              {profile.password_login_enabled && profile.sso_enabled ? (
+                <p className="muted" style={{ marginTop: '0.75rem' }}>
+                  SSO và mật khẩu Nest là hai nguồn riêng; đổi một bên không đổi bên kia.
+                </p>
+              ) : null}
+            </section>
+
+            <WinDrawer
+              open={passwordDrawerOpen}
+              title="Đổi mật khẩu"
+              onClose={closePasswordDrawer}
+              footer={
+                profile?.password_login_enabled ? (
+                  <>
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={closePasswordDrawer}>
+                      Hủy
+                    </button>
+                    <button type="submit" form="account-password-form" className="btn btn-sm" disabled={busy}>
+                      {busy ? 'Đang lưu…' : 'Lưu mật khẩu'}
+                    </button>
+                  </>
+                ) : null
+              }
+            >
+              {drawerError ? <p className="error">{drawerError}</p> : null}
+              {profile.password_login_enabled ? (
+                <form id="account-password-form" className="settings-form" onSubmit={onPasswordSubmit}>
                   <div className="field">
                     <label htmlFor="current_pw">Mật khẩu hiện tại</label>
                     <input
@@ -335,13 +404,15 @@ export default function AccountPage() {
                       minLength={8}
                     />
                   </div>
-                  <button type="submit" className="btn" disabled={busy}>
-                    {busy ? 'Đang lưu…' : 'Đổi mật khẩu'}
-                  </button>
                 </form>
               ) : null}
               {profile.sso_enabled && profile.keycloak_account_url ? (
-                <p style={{ marginTop: profile.password_login_enabled ? '1rem' : 0 }}>
+                <div style={{ marginTop: profile.password_login_enabled ? '0.5rem' : 0 }}>
+                  <p className="muted">
+                    {profile.password_login_enabled
+                      ? 'Hoặc đổi mật khẩu SSO trên Keycloak:'
+                      : 'Tài khoản SSO — đổi mật khẩu trên Keycloak:'}
+                  </p>
                   <a
                     href={profile.keycloak_account_url}
                     target="_blank"
@@ -350,14 +421,12 @@ export default function AccountPage() {
                   >
                     Đổi mật khẩu trên Keycloak
                   </a>
-                </p>
+                </div>
               ) : null}
               {profile.password_login_enabled && profile.sso_enabled ? (
-                <p className="muted" style={{ marginTop: '0.75rem' }}>
-                  SSO và mật khẩu Nest là hai nguồn riêng; đổi một bên không đổi bên kia.
-                </p>
+                <p className="muted">SSO và mật khẩu Nest là hai nguồn riêng; đổi một bên không đổi bên kia.</p>
               ) : null}
-            </section>
+            </WinDrawer>
 
             <section className="card account-card">
               <h2>Bảo mật (MFA)</h2>
