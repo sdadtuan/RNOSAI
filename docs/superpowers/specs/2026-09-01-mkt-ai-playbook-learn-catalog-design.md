@@ -1,8 +1,9 @@
 # Marketing AI — Catalog dịch vụ, playbook `_common`, và huấn luyện playbook từ thực chiến
 
 > **Document ID:** MKTP-PB-LEARN-20260901  
-> **Phiên bản:** 1.0 · **Ngày:** 2026-09-01  
+> **Phiên bản:** 1.1 · **Ngày:** 2026-09-01  
 > **Trạng thái:** Draft — chờ PO / Solution Lead review trước khi lập plan implement  
+> **1.1:** Bổ sung §7.0 — cụ thể hoá tầng 3 (map tab/artifact), RACI bộ phận vs AI, hai vòng giải pain, ví dụ tuần 0–4  
 > **Module:** MOD-MKTP (Marketing AI Planner)  
 > **Route UI:** `/crm/admin/mkt-ai/playbooks` (mới) · tab AI Planner giữ `AiPlaybookSelector`  
 > **Quyết định đã chốt:** Hệ thống **chọn mẫu thắng** → AI **sinh nháp** playbook → SP/MKT Lead **Duyệt / Active**. Không fine-tune model. Không auto-active.  
@@ -257,6 +258,91 @@ AI **cấm** copy `brand_name` / tên 1 khách vào `brief_defaults` (validator 
 
 Không có tầng 3 phong phú → vẫn sinh được (`shallow`) từ tầng 2.
 
+### 7.0. Tầng 3 — Cụ thể hoá bước, RACI, hai vòng giải pain
+
+**Quyết định:** Tầng 3 **không** phải quy trình mới do AI nghĩ ra, cũng không phải AI triển khai hộ khách. Đó là **nhật ký việc đội PTT đã làm trên HĐ thật** (tab đã ship). Bộ phận chuyên môn làm việc; hệ thống ghi artifact; **sau khi đủ ngưỡng §6** MKT Lead bấm Sinh — AI **chỉ đọc** HĐ đã lọc để viết gợi ý playbook. Playbook giúp HĐ **sau** khỏi bắt đầu từ zero. HĐ **đang chạy** vẫn do người giải pain.
+
+#### 7.0.1. Cụ thể hoá = map tab + người + artifact
+
+Mỗi dòng tầng 3 phải truy được **màn hình + owner + bản ghi máy đọc**. Không invent SOP song song. Chỉ học việc **Done / Apply / approved / pass** — không học ý định trên slide hay draft AI chưa duyệt.
+
+| Nguồn §7 Tầng 3 | Route / tab | Owner trên HĐ đang chạy | Artifact đưa vào corpus học |
+|-----------------|-------------|-------------------------|-----------------------------|
+| TMMT official | `/crm/service-delivery/[id]` tab **TMMT** + Apply Planner | **SP** soạn, **AM** xác nhận gate | Plan đã Apply: positioning, kênh, KPI |
+| Campaign cards | Planner bước Campaign → Apply | **SP** đề xuất, **Media Buyer** chỉnh số chạy | ≥2 campaign, % budget, KPI text |
+| Content | Tab **Content OS** / calendar 30 ngày | **SP Content + QA** (`approved_internal`) | Format, nhịp, kênh đã duyệt — không raw AI |
+| Launch QA | Tab **Launch QA** | **Buyer + Tracking** | Pass/fail + mục hay fail (pixel, UTM, form) |
+| Ops tuần 1–4 | Tab **Ops Hub** checklist tuần · `/crm/ops/my-tasks` | **Specialist** Done/Skip, **AM** theo dõi | Tên task tuần 1–4 đã Done (template DV) |
+| Brand KB | Planner sub-tab Brand KB | **SP / AM** upload | Chunk indexed — thuật ngữ ngành; cite `doc_id`; cấm tên khách |
+
+**Rule học:** task `Skipped` không đưa vào “tuần 1 luôn làm X”. Task `Pending` không học. Content chưa `approved_internal` không học.
+
+#### 7.0.2. Ví dụ tuần 0–4 — slug `quang-cao-facebook`
+
+Việc **người** làm trên hệ (không phải AI). Cột phải = pain khách. Cột cuối = *sau này* playbook được phép nhắc (generic).
+
+| Tuần | Việc trên hệ | Pain khách thường gặp | Playbook học (nếu HĐ vào túi thắng) |
+|------|----------------|------------------------|-------------------------------------|
+| 0 | SP Apply TMMT; Tracking setup pixel/CAPI | “Không biết lead từ đâu” | Hint: UTM + CAPI trước khi scale |
+| 1 | Buyer Launch QA; Specialist spawn checklist “campaign / form” | Form dài, CPL ảo | `governance_notes`: tuần 1 QA + form ngắn |
+| 2 | Content duyệt 8–12 posts; Buyer tối ưu ads | Message lệch USP | Nhịp content + góc pain đã thắng |
+| 3–4 | AM nhập KPI tháng Ops Hub; closed-loop Planner | CPL cao | Chỉ HĐ **đạt** (tầng 4 / W1) vào túi thắng |
+
+HĐ **này** hết pain khi task **Done** và KPI tháng **Đạt**. Playbook **không** bấm Launch QA, không tạo campaign ads, không tick Ops hộ.
+
+#### 7.0.3. Hai vòng giải quyết vấn đề khách
+
+**Vòng A — HĐ đang chạy (tầng 3 “sống”)**  
+Consult / BANT / L1 nói pain (tầng 2). AM điều phối; SP / Buyer / Tracking / Content / Specialist làm trên tab §7.0.1. Pain được giải khi việc hoàn thành + số liệu tháng đạt. **AI Planner và job `playbook_learn` không thay vòng A.**
+
+**Vòng B — HĐ sau (playbook)**  
+Đủ 5 ứng viên + (muốn `deep`) 3 thắng. MKT Lead **Sinh**. AI gom pain lặp (tầng 2) + việc lặp đã Done (tầng 3) + số thắng (tầng 4) → `strategy_prompt_hints` / `governance_notes_vi` kiểu: *“Tuần 1: pixel + form ngắn trước scale; cổng KPI dùng CPL, không dùng organic.”*  
+HĐ mới: SP ~30 phút áp dụng playbook — plan **nhắc việc hay quên**; team **lặp lại vòng A**.
+
+Không có tầng 3 (chưa Deliver, chưa tick Ops/QA/Content) → chỉ `depth=shallow` (tầng 2). Máy **cấm** bịa “tuần 1 làm X” khi chưa có ≥3 HĐ cùng slug có task Done tương ứng (§7 bảng “Không — nếu ≥3 HĐ…”).
+
+#### 7.0.4. RACI — bộ phận triển khai tầng 3 vs AI
+
+| Việc | Responsible | Accountable | AI được phép |
+|------|-------------|-------------|--------------|
+| Soạn / Apply TMMT | SP | AM (gate) / MKT Lead nếu approval | Nháp strategy/campaign/content — **không** Apply |
+| Chạy ads, bid, form | Media Buyer | AM | Không |
+| Pixel, CAPI, UTM | Tracking | AM | Không |
+| Bài, lịch, duyệt xuất bản | SP Content | QA / Lead Content | Nháp calendar — chỉ học bản đã duyệt |
+| Checklist tuần, KPI tháng | Specialist | AM | Không tick task, không nhập KPI hộ |
+| Quan hệ khách, chuyển Deliver/Retain | AM | GDKD | Không |
+| Bấm **Sinh playbook** | MKT Lead (`crm_mkt_ai.generate`) | MKT Lead | Đọc corpus đã lọc → JSON `draft` |
+| **Duyệt / Active / Rollback** | MKT Lead hoặc GDKD (`crm_mkt_ai.approve`) | Cùng | **Cấm** Active |
+| Kill-switch module | DevOps | PO | — |
+
+```text
+HĐ 1…n:   AM điều phối · SP · Buyer · Tracking · Content · Specialist
+                ↓ làm trên tab đã có (vòng A)
+           Hệ thống lưu TMMT Apply, task Done, QA pass, content duyệt, KPI tháng
+                ↓ đủ ngưỡng §6
+MKT Lead:  [Sinh playbook]
+                ↓
+           AI: tóm tắt việc lặp + KPI thắng → nháp JSON (vòng B, chưa active)
+                ↓
+MKT Lead:  sửa câu / số → Duyệt → Active
+                ↓
+HĐ n+1:    SP áp dụng playbook → team lại vòng A
+```
+
+**AI không triển khai tầng 3.** Tầng 3 = giao vận hành. AI = thư ký học việc **sau**, khi đã có bằng chứng thắng.
+
+Specialist **không** có việc “bảo AI viết SOP tuần”. Họ tick Ops. MKT Lead mới quyết định học.
+
+#### 7.0.5. Điều kiện tầng 3 được tính là “có nghĩa”
+
+`depth=deep` chỉ khi **đồng thời**:
+
+1. Đủ túi thắng W1 (§6.1) — không dùng W2 (`delivery_outcome=met` tay) cho bản gắn `deep`.  
+2. Trong túi thắng, ≥ **3** lifecycle có **ít nhất một** artifact tầng 3 ngoài TMMT+campaign: Ops task Done tuần 1–4 **hoặc** Launch QA pass **hoặc** Content `approved_internal`.  
+3. Team thật sự dùng Ops Hub / Launch QA / Content trên HĐ đó — không chỉ Apply TMMT rồi bỏ.
+
+Thiếu (2) → job vẫn chạy nếu đủ 5 ứng viên, nhưng `depth=shallow` + banner vàng §6.3 / §9.3. Hint `governance_notes` **không** được chứa câu “Tuần N: …” trừ khi ≥3 HĐ có task Done cùng nhóm tuần (normalize tên task theo template DV).
+
 ### Tầng 4 — Kết quả (lọc thắng)
 
 | Nguồn | Việc |
@@ -457,7 +543,7 @@ Xóa dần 2 mã cũ sau 1 release (map alias để FE cũ không trắng).
 | **P0 — dọn nợ** | Một hàm `assertPlannerAllowed(slug)` đọc policy **hoặc** (nếu chưa migrate) gộp 2 env; 403 VI; seed policy từ 13 slug default + 3 planner slugs = `pilot` | Hết nhầm 2 mã lỗi; `quang-cao-facebook` bật được bằng 1 hàng policy / hoặc tạm thêm env một lần |
 | **P1 — `_common` + import** | JSON `_common`; import 3 file → version `active` `depth=shipped`; resolve §5.4 | Mọi slug `pilot` sinh TMMT được |
 | **P2 — Học + màn Sinh/Duyệt/Active** | DDL §10, job học, Admin UI §9, validator §8 | 1 slug đủ 5 HĐ sinh draft → duyệt → active trên staging |
-| **P3 — Deep** | Tầng 3–4 đầy đủ (Ops + closed-loop W1); cờ `depth`; thử trên lifecycle | Bản `deep` chỉ khi thắng ≥3 |
+| **P3 — Deep** | Tầng 3–4 + §7.0 (Ops/QA/Content artifact, cấm bịa “Tuần N”); cờ `depth`; thử trên lifecycle | Bản `deep` chỉ khi W1 ≥3 **và** §7.0.5 |
 
 P0 có thể ship độc lập (hotfix whitelist). P2 là giá trị “huấn luyện”. Không gộp P0+P2 một PR.
 
@@ -524,9 +610,10 @@ Giữ BR-MKTP-01 (Apply TMMT thủ công), BR-MKTP-03 (audit job), BR-AI-01 (kh�
 
 - Không TBD: ngưỡng 5 / 3 / 15 / 7 ngày / quality 70 đã chốt.  
 - Không mâu thuẫn: AI không Active; `_common` không thay active riêng; env cũ chỉ AND khẩn.  
+- §7.0: AI không triển khai tầng 3; `deep` cần W1 + ≥3 HĐ có artifact Ops/QA/Content; không bịa “Tuần N” khi thiếu task Done.  
 - Một spec — implement tách P0 / P1 / P2 / P3 (plan sau khi PO duyệt).  
 - “Huấn luyện” = học playbook JSON, không fine-tune.
 
 ---
 
-*Spec v1.0 — tổng hợp thảo luận 2026-09-01: whitelist → catalog, ý nghĩa playbook, 4 tầng dữ liệu, Sinh / Duyệt / Active.*
+*Spec v1.1 — tổng hợp thảo luận 2026-09-01 + cụ thể hoá tầng 3 / RACI / hai vòng pain.*
