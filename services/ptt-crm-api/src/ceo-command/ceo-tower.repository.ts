@@ -40,7 +40,7 @@ SELECT
   ct.amount_vnd,
   ct.created_at AS contract_created_at,
   ct.updated_at AS contract_updated_at,
-  ct.ends_on,
+  ct.ends_on::text AS ends_on,
   ct.agency_client_id AS contract_client_id,
   ap.created_at AS approval_submitted_at,
   ap.status AS approval_status,
@@ -166,8 +166,9 @@ export class CeoTowerRepository implements OnModuleDestroy {
     const firstCall = sla.tiers.find((t) => t.tier === 'first_call_15m');
     const b2Tier = sla.tiers.find((t) => t.tier === 'b2_complete_4h');
     const closeTier = sla.tiers.find((t) => t.tier === 'close_24h');
-    const endsOn = row.ends_on != null ? String(row.ends_on).slice(0, 10) : '';
-    const contractEndInDays = endsOn ? daysUntil(endsOn, nowMs) : null;
+    const endsOnMs = row.ends_on != null && row.ends_on !== '' ? toMs(row.ends_on) : null;
+    const contractEndInDays =
+      endsOnMs != null ? Math.ceil((endsOnMs - nowMs) / 86_400_000) : null;
     const valueRaw = row.amount_vnd;
     const valueVnd = valueRaw == null || valueRaw === '' ? null : Number(valueRaw);
     const lastActivityMs = Math.max(
@@ -263,10 +264,4 @@ function toMs(value: unknown): number | null {
   if (value == null || value === '') return null;
   const ms = value instanceof Date ? value.getTime() : Date.parse(String(value));
   return Number.isFinite(ms) ? ms : null;
-}
-
-function daysUntil(ymd: string, nowMs: number): number | null {
-  const end = Date.parse(`${ymd}T00:00:00Z`);
-  if (!Number.isFinite(end)) return null;
-  return Math.ceil((end - nowMs) / 86_400_000);
 }

@@ -25,7 +25,7 @@ describe('CeoTowerRepository', () => {
     expect(sql).toContain('FROM crm_leads');
     expect(sql).toContain('crm_lifecycle_milestones');
     expect(sql).toContain('crm_contracts');
-    expect(sql).toContain('ends_on');
+    expect(sql).toContain('ends_on::text');
     expect(sql).toContain("INTERVAL '90 days'");
     expect(sql).toContain('crm_service_lifecycle');
   });
@@ -45,6 +45,15 @@ describe('CeoTowerRepository', () => {
     const [row] = await repo.loadCandidates(Date.UTC(2026, 8, 1));
     expect(row.contractEndInDays).toBeGreaterThanOrEqual(0);
     expect(row.contractEndInDays).toBeLessThanOrEqual(30);
+  });
+
+  it('ends_on as node-pg Date → finite contractEndInDays', async () => {
+    query.mockResolvedValueOnce({
+      rows: [dbRow({ signed_on: '2025-01-15', ends_on: new Date(2026, 8, 20) })],
+    });
+    const [row] = await repo.loadCandidates(Date.UTC(2026, 8, 1));
+    expect(row.contractEndInDays).not.toBeNull();
+    expect(Number.isFinite(row.contractEndInDays)).toBe(true);
   });
 });
 
