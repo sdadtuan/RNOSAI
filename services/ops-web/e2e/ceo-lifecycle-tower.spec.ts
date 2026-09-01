@@ -237,6 +237,7 @@ test.describe('CEO Lifecycle Tower T1', () => {
     await expect(page.getByTestId('ceo-tower-trends')).toBeVisible();
     await expect(page.getByTestId('ceo-tower-wow')).toContainText('+2');
     await expect(page.getByTestId('ceo-tower-health-wow')).toContainText('+2');
+    await expect(page.getByTestId('ceo-tower-dept-donut')).toBeVisible();
 
     await page.getByTestId('ceo-tower-column-contract').click();
     await expect(page).toHaveURL(/\/crm\/ceo/);

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CeoActionConfirmDialog } from '@/components/crm/ceo/CeoActionConfirmDialog';
+import { CeoTowerDeptDonut } from '@/components/crm/ceo/CeoTowerDeptDonut';
 import { CeoTowerDeptHeatmap } from '@/components/crm/ceo/CeoTowerDeptHeatmap';
 import { CeoTowerFunnelChart } from '@/components/crm/ceo/CeoTowerFunnelChart';
 import { CeoTowerMetricStrip } from '@/components/crm/ceo/CeoTowerMetricStrip';
@@ -318,11 +319,18 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
       </nav>
 
       {deptRows.length ? (
-        <CeoTowerDeptHeatmap
-          orgRollup={payload?.org_rollup}
-          activeDepartment={department}
-          onDepartment={onDepartment}
-        />
+        <div className="ceo-tower-dept-grid">
+          <CeoTowerDeptHeatmap
+            orgRollup={payload?.org_rollup}
+            activeDepartment={department}
+            onDepartment={onDepartment}
+          />
+          <CeoTowerDeptDonut
+            orgRollup={payload?.org_rollup}
+            activeDepartment={department}
+            onDepartment={onDepartment}
+          />
+        </div>
       ) : null}
 
       {payload?.legal_entity_filter_enabled && payload.legal_entity_options?.length ? (

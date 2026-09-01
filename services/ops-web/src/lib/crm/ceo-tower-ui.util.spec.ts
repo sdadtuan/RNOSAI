@@ -6,6 +6,7 @@ import {
   TOWER_OUTSIDE_CYCLE_COPY,
   buildTowerBreadcrumb,
   buildTowerFunnelBars,
+  buildDeptRedDonutSegments,
   deptRollupSummary,
   formatTowerWowDelta,
   towerColumnUnusedLabel,
@@ -111,5 +112,17 @@ describe('ceo-tower-ui.util', () => {
     expect(formatTowerWowDelta({ delta: 0, direction: 'flat' })).toBe('±0');
     expect(formatTowerWowDelta({ delta: 2, direction: 'up' })).toBe('+2');
     expect(formatTowerWowDelta({ delta: -1, direction: 'down' })).toBe('-1');
+  });
+
+  it('buildDeptRedDonutSegments shares red counts by department', () => {
+    const segments = buildDeptRedDonutSegments([
+      { level: 'department', code: 'DEPT-SALES', label_vi: 'Sales', red_count: 2, amber_count: 1 },
+      { level: 'department', code: 'DEPT-AGENCY', label_vi: 'Agency', red_count: 1, amber_count: 0 },
+      { level: 'department', code: 'DEPT-HR', label_vi: 'HR', red_count: 0, amber_count: 0, outside_cycle: true },
+    ]);
+    expect(segments).toHaveLength(2);
+    expect(segments[0]?.value).toBe(2);
+    expect(segments[1]?.value).toBe(1);
+    expect(segments.reduce((sum, seg) => sum + seg.pct, 0)).toBe(100);
   });
 });

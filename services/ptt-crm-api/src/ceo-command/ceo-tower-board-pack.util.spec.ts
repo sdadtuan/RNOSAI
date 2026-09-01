@@ -1,6 +1,7 @@
 import type { TowerPayload } from './ceo-tower.types';
 import {
   buildBoardPackFacts,
+  buildBoardPackDeptRedDonut,
   defaultBoardPackWeekLabel,
   isoWeekPartsFromYmd,
   resolveBoardPackWeek,
@@ -193,6 +194,27 @@ function samplePayload(over: Partial<TowerPayload> = {}): TowerPayload {
         flag: 'red',
       },
     ],
+    trends: {
+      series: {
+        labels: ['T3', 'T4', 'T5', 'T6', 'T7', 'CN', 'T2'],
+        total_issues: [2, 3, 3, 4, 5, 6, 7],
+        red_issues: [1, 1, 2, 2, 3, 3, 3],
+        by_column: {
+          lead_b2: [1, 1, 1, 1, 1, 1, 1],
+          intake: [0, 0, 0, 0, 0, 0, 0],
+          consult: [0, 0, 0, 0, 0, 0, 0],
+          contract: [1, 1, 1, 2, 2, 2, 2],
+          tmmt_deliver: [0, 1, 1, 1, 2, 2, 2],
+          care: [0, 0, 0, 0, 0, 0, 0],
+        },
+      },
+      wow: {
+        current_total: 7,
+        prev_week_total: 2,
+        delta: 5,
+        direction: 'up',
+      },
+    },
     ...over,
   };
 }
@@ -226,6 +248,21 @@ describe('ceo-tower-board-pack.util', () => {
     expect(facts.s12_fail).toBe(false);
     expect(facts.degraded).toEqual([{ source: 'finance', reason: 'timeout' }]);
     expect(facts.decisions_blank).toEqual(['', '', '']);
+    expect(facts.trends).toEqual({
+      labels: ['T3', 'T4', 'T5', 'T6', 'T7', 'CN', 'T2'],
+      total_issues: [2, 3, 3, 4, 5, 6, 7],
+      red_issues: [1, 1, 2, 2, 3, 3, 3],
+      wow: {
+        current_total: 7,
+        prev_week_total: 2,
+        delta: 5,
+        direction: 'up',
+      },
+    });
+    expect(facts.dept_red_donut).toEqual([
+      expect.objectContaining({ code: 'DEPT-SALES', value: 2 }),
+      expect.objectContaining({ code: 'DEPT-AGENCY', value: 1 }),
+    ]);
 
     const requiredKeys = [
       'week',
@@ -248,6 +285,15 @@ describe('ceo-tower-board-pack.util', () => {
   it('omits finance when finance_strip absent', () => {
     const facts = buildBoardPackFacts(samplePayload({ finance_strip: undefined }), '2026-W36');
     expect(facts.finance).toBeUndefined();
+  });
+
+  it('buildBoardPackDeptRedDonut skips outside-cycle departments', () => {
+    const segments = buildBoardPackDeptRedDonut([
+      { code: 'DEPT-SALES', label_vi: 'Sales', red_count: 2 },
+      { code: 'DEPT-HR', label_vi: 'HR', red_count: 5, outside_cycle: true },
+    ]);
+    expect(segments).toHaveLength(1);
+    expect(segments[0]?.pct).toBe(100);
   });
 
   // Optional e2e: open /crm/ceo/board-pack, verify print layout and numbers match facts_json.

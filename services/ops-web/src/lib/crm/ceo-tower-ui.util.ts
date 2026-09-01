@@ -265,3 +265,60 @@ export function formatTowerWowDelta(wow: {
   const sign = wow.direction === 'up' ? '+' : '';
   return `${sign}${wow.delta}`;
 }
+
+export type DeptRedDonutSegment = {
+  code: string;
+  label: string;
+  value: number;
+  pct: number;
+  color: string;
+};
+
+const DEPT_DONUT_COLORS = [
+  '#dc2626',
+  '#b45309',
+  '#17692f',
+  '#2563eb',
+  '#7c3aed',
+  '#0891b2',
+  '#be123c',
+  '#ca8a04',
+] as const;
+
+/** Red-only share by in-cycle department — for donut chart. */
+export function buildDeptRedDonutSegments(
+  orgRollup: TowerOrgRollupEntry[] | undefined,
+): DeptRedDonutSegment[] {
+  const rows = departmentRollupEntries(orgRollup).filter(
+    (row) => !row.outside_cycle && row.red_count > 0,
+  );
+  const total = rows.reduce((sum, row) => sum + row.red_count, 0);
+  if (total === 0) return [];
+
+  let assigned = 0;
+  return rows.map((row, index) => {
+    const pct =
+      index === rows.length - 1
+        ? Math.max(0, 100 - assigned)
+        : Math.round((row.red_count / total) * 100);
+    assigned += pct;
+    return {
+      code: row.code,
+      label: row.label_vi,
+      value: row.red_count,
+      pct,
+      color: DEPT_DONUT_COLORS[index % DEPT_DONUT_COLORS.length],
+    };
+  });
+}
+
+export function deptRedDonutConicGradient(segments: DeptRedDonutSegment[]): string | null {
+  if (!segments.length) return null;
+  let cursor = 0;
+  const stops = segments.map((seg) => {
+    const start = cursor;
+    cursor += seg.pct;
+    return `${seg.color} ${start}% ${cursor}%`;
+  });
+  return `conic-gradient(${stops.join(', ')})`;
+}

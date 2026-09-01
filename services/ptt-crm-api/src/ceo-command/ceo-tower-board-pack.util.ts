@@ -1,6 +1,52 @@
 import { TOWER_DEPT_CATALOG } from './ceo-tower-org.util';
 import type { TowerPayload } from './ceo-tower.types';
 
+const DEPT_DONUT_COLORS = [
+  '#dc2626',
+  '#b45309',
+  '#17692f',
+  '#2563eb',
+  '#7c3aed',
+  '#0891b2',
+] as const;
+
+export type BoardPackDeptRedSegment = {
+  code: string;
+  label: string;
+  value: number;
+  pct: number;
+  color: string;
+};
+
+export function buildBoardPackDeptRedDonut(
+  departments: Array<{
+    code: string;
+    label_vi: string;
+    red_count: number;
+    outside_cycle?: boolean;
+  }>,
+): BoardPackDeptRedSegment[] {
+  const rows = departments.filter((row) => !row.outside_cycle && row.red_count > 0);
+  const total = rows.reduce((sum, row) => sum + row.red_count, 0);
+  if (total === 0) return [];
+
+  let assigned = 0;
+  return rows.map((row, index) => {
+    const pct =
+      index === rows.length - 1
+        ? Math.max(0, 100 - assigned)
+        : Math.round((row.red_count / total) * 100);
+    assigned += pct;
+    return {
+      code: row.code,
+      label: row.label_vi,
+      value: row.red_count,
+      pct,
+      color: DEPT_DONUT_COLORS[index % DEPT_DONUT_COLORS.length],
+    };
+  });
+}
+
 const ICT_TZ = 'Asia/Ho_Chi_Minh';
 const BOARD_PACK_WEEK_RE = /^(\d{4})-W(\d{2})$/;
 
@@ -75,6 +121,8 @@ export function buildBoardPackFacts(
     };
   });
 
+  const deptRedDonut = buildBoardPackDeptRedDonut(departments);
+
   const facts: Record<string, unknown> = {
     week: weekLabel,
     k_strip: payload.k_strip,
@@ -86,6 +134,7 @@ export function buildBoardPackFacts(
       ...(col.degraded ? { degraded: col.degraded } : {}),
     })),
     departments,
+    ...(deptRedDonut.length ? { dept_red_donut: deptRedDonut } : {}),
     top_exceptions: payload.exceptions.slice(0, 10),
     capacity_top: payload.capacity_top ?? [],
     s11_fail: payload.sensors_ok.S11 === 'fail',
@@ -93,6 +142,15 @@ export function buildBoardPackFacts(
     degraded: payload.degraded ?? [],
     decisions_blank: ['', '', ''],
   };
+
+  if (payload.trends) {
+    facts.trends = {
+      labels: payload.trends.series.labels,
+      total_issues: payload.trends.series.total_issues,
+      red_issues: payload.trends.series.red_issues,
+      wow: payload.trends.wow,
+    };
+  }
 
   if (payload.finance_strip?.length) {
     facts.finance = payload.finance_strip;

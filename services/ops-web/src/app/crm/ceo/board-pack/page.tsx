@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { BoardPackDeptDonutSection } from '@/components/crm/ceo/BoardPackDeptDonutSection';
+import { BoardPackTrendSection, type BoardPackTrendFacts } from '@/components/crm/ceo/BoardPackTrendSection';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
 import { staffMe, staffRefresh } from '@/lib/api';
 import { ceoCommandEnabled } from '@/lib/crm/ceo-command-flags';
@@ -13,7 +15,7 @@ import {
   type TowerException,
   type TowerFinanceCell,
 } from '@/lib/crm/ceo-tower-api';
-import { TOWER_COLUMN_DEFS } from '@/lib/crm/ceo-tower-ui.util';
+import { TOWER_COLUMN_DEFS, type DeptRedDonutSegment } from '@/lib/crm/ceo-tower-ui.util';
 import {
   clearSession,
   getAccessToken,
@@ -57,6 +59,8 @@ type BoardPackFacts = {
   s12_fail?: boolean;
   degraded?: Array<{ source: string; reason: string }>;
   decisions_blank?: string[];
+  trends?: BoardPackTrendFacts;
+  dept_red_donut?: DeptRedDonutSegment[];
 };
 
 function formatFinanceValue(key: string, value: number | null): string {
@@ -129,6 +133,10 @@ function BoardPackPrintBody({ facts, week, generatedAt }: {
           </tbody>
         </table>
       </section>
+
+      <BoardPackTrendSection trends={facts.trends} />
+
+      <BoardPackDeptDonutSection segments={facts.dept_red_donut} />
 
       {facts.departments?.length ? (
         <section className="board-pack-section">
@@ -449,6 +457,56 @@ export default function CeoBoardPackPage() {
           margin: 0.35rem 0;
           border-bottom: 1px solid #ccc;
           min-height: 1.4rem;
+        }
+        .board-pack-trend-wow {
+          margin: 0 0 0.35rem;
+        }
+        .board-pack-trend-charts {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 0.5rem;
+          margin-bottom: 0.35rem;
+        }
+        .board-pack-trend-label {
+          margin: 0 0 0.15rem;
+          font-size: 0.75rem;
+          color: var(--muted, #666);
+        }
+        .board-pack-trend-sparkline {
+          color: var(--primary, #17692f);
+        }
+        .board-pack-trend-sparkline--red {
+          color: #dc2626;
+        }
+        .board-pack-donut-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.75rem;
+          align-items: center;
+        }
+        .board-pack-donut-ring {
+          width: 96px;
+          height: 96px;
+          border-radius: 50%;
+          display: grid;
+          place-items: center;
+        }
+        .board-pack-donut-hole {
+          width: 58px;
+          height: 58px;
+          border-radius: 50%;
+          background: #fff;
+          display: grid;
+          place-items: center;
+          font-size: 1.1rem;
+        }
+        .board-pack-donut-swatch {
+          display: inline-block;
+          width: 0.55rem;
+          height: 0.55rem;
+          border-radius: 999px;
+          margin-right: 0.25rem;
+          vertical-align: middle;
         }
         @media print {
           @page {
