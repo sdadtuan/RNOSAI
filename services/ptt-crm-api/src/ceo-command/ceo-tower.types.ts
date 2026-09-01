@@ -51,6 +51,7 @@ export type TowerException = {
   href: string;
   suggest_action: string | null;
   suggest_params: Record<string, unknown> | null;
+  legal_entity_id?: string | null;
 };
 
 export type TowerFinanceCellKey = 'cash' | 'ar' | 'dt30' | 'top1' | 'gm';
@@ -99,6 +100,8 @@ export type TowerPayload = {
   finance_strip?: TowerFinanceStrip;
   capacity_top?: TowerCapacityRow[];
   legal_entity_id?: string | null;
+  legal_entity_filter_enabled?: boolean;
+  legal_entity_options?: Array<{ id: string; label_vi: string }>;
 };
 
 export type TowerQuery = {
@@ -108,6 +111,7 @@ export type TowerQuery = {
   team?: string;
   position_code?: string;
   staff_id?: string;
+  legal_entity_id?: string;
   severity?: string;
   limit?: string;
   cursor?: string;
@@ -164,4 +168,5 @@ export type TowerCandidate = {
   valueVnd: number | null;
   opsAlertId: number | null;
   clientUuid: string | null;
+  legalEntityId?: string | null;
 };

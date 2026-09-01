@@ -112,6 +112,7 @@ WHERE l.is_duplicate IS NOT TRUE
 @Injectable()
 export class CeoTowerRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
+  private contractsLegalEntityColumn: boolean | null = null;
 
   constructor(private readonly config: AppConfigService) {}
 
@@ -240,6 +241,53 @@ export class CeoTowerRepository implements OnModuleDestroy {
         ? String(row.contract_client_id)
         : (row.client_id ? String(row.client_id) : null),
     };
+  }
+
+  async hasContractsLegalEntityColumn(): Promise<boolean> {
+    if (this.contractsLegalEntityColumn !== null) return this.contractsLegalEntityColumn;
+    try {
+      const result = await this.db.query(
+        `SELECT 1 FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'crm_contracts' AND column_name = 'legal_entity_id'
+         LIMIT 1`,
+      );
+      this.contractsLegalEntityColumn = (result.rowCount ?? 0) > 0;
+    } catch {
+      this.contractsLegalEntityColumn = false;
+    }
+    return this.contractsLegalEntityColumn;
+  }
+
+  async loadLegalEntityByLeadIds(leadIds: number[]): Promise<Map<number, string>> {
+    if (!leadIds.length) return new Map();
+    const result = await this.db.query(
+      `SELECT DISTINCT ON (lead_id) lead_id, legal_entity_id::text AS legal_entity_id
+       FROM crm_contracts
+       WHERE lead_id = ANY($1::int[]) AND legal_entity_id IS NOT NULL
+       ORDER BY lead_id, updated_at DESC NULLS LAST`,
+      [leadIds],
+    );
+    const map = new Map<number, string>();
+    for (const row of result.rows as Array<Record<string, unknown>>) {
+      map.set(Number(row.lead_id), String(row.legal_entity_id));
+    }
+    return map;
+  }
+
+  async listLegalEntitiesForTower(): Promise<Array<{ id: string; label_vi: string }>> {
+    try {
+      const result = await this.db.query(
+        `SELECT id::text AS id, code, name FROM legal_entities
+         WHERE COALESCE(active, TRUE) IS TRUE
+         ORDER BY code`,
+      );
+      return (result.rows as Array<Record<string, unknown>>).map((row) => ({
+        id: String(row.id),
+        label_vi: String(row.code ?? row.name ?? row.id),
+      }));
+    } catch {
+      return [];
+    }
   }
 }
 

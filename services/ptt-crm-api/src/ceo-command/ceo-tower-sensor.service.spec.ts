@@ -131,10 +131,20 @@ function makeSvc(opts?: {
   roster?: Array<{ id: number; name: string; dept_code: string; position_catalog_code: string }>;
   listStaff?: jest.Mock;
   nowMs?: number;
+  ceoTowerLegalEntityEnabled?: boolean;
+  hasContractsLegalEntityColumn?: jest.Mock;
+  loadLegalEntityByLeadIds?: jest.Mock;
+  listLegalEntitiesForTower?: jest.Mock;
 }) {
   const repo = {
     loadCandidates: opts?.loadCandidates
       ?? jest.fn().mockResolvedValue(opts?.candidates ?? [s1NoOwner]),
+    hasContractsLegalEntityColumn: opts?.hasContractsLegalEntityColumn
+      ?? jest.fn().mockResolvedValue(false),
+    loadLegalEntityByLeadIds: opts?.loadLegalEntityByLeadIds
+      ?? jest.fn().mockResolvedValue(new Map()),
+    listLegalEntitiesForTower: opts?.listLegalEntitiesForTower
+      ?? jest.fn().mockResolvedValue([]),
   };
   const ownerWeekly = {
     loadLifecycleKpiStrip: jest.fn().mockResolvedValue(opts?.kStrip ?? [
@@ -178,6 +188,7 @@ function makeSvc(opts?: {
     nlQuery as never,
     { nowMs: opts?.nowMs ?? NOW },
     crmStaff as never,
+    { ceoTowerLegalEntityEnabled: opts?.ceoTowerLegalEntityEnabled ?? false } as never,
   );
   return { svc, repo, ownerWeekly, nlQuery, crmStaff };
 }
@@ -706,5 +717,37 @@ describe('CeoTowerSensorService.buildPayload', () => {
     expect(out.sensors_ok.S11).toBe('fail');
     expect(out.exceptions[0]?.sensor_ids).toContain('S11');
     expect(out.exceptions[0]?.title_vi).toBe('Top-1 khách > 40% DT');
+  });
+
+  it('flag off → legal_entity_id null, không query entity schema', async () => {
+    const { svc, repo } = makeSvc({
+      candidates: [s1NoOwner],
+      ceoTowerLegalEntityEnabled: false,
+    });
+    const out = await svc.buildPayload(actor(OPS_AND_K), {});
+
+    expect(out.legal_entity_id).toBeNull();
+    expect(out.legal_entity_filter_enabled).toBeUndefined();
+    expect(repo.hasContractsLegalEntityColumn).not.toHaveBeenCalled();
+    expect(repo.loadLegalEntityByLeadIds).not.toHaveBeenCalled();
+  });
+
+  it('flag on + schema missing → degraded legal_entity_schema_missing, không bật filter', async () => {
+    const { svc, repo } = makeSvc({
+      candidates: [s1NoOwner],
+      ceoTowerLegalEntityEnabled: true,
+      hasContractsLegalEntityColumn: jest.fn().mockResolvedValue(false),
+    });
+    const out = await svc.buildPayload(actor(OPS_AND_K), {});
+
+    expect(out.legal_entity_id).toBeNull();
+    expect(out.legal_entity_filter_enabled).toBeUndefined();
+    expect(out.degraded).toEqual(
+      expect.arrayContaining([
+        { source: 'legal_entity', reason: 'legal_entity_schema_missing' },
+      ]),
+    );
+    expect(repo.hasContractsLegalEntityColumn).toHaveBeenCalledTimes(1);
+    expect(repo.loadLegalEntityByLeadIds).not.toHaveBeenCalled();
   });
 });

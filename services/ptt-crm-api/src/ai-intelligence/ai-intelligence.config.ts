@@ -56,6 +56,8 @@ export class AiIntelligenceConfigService {
   readonly ceoCommandLlmTimeoutMs: number;
   readonly ceoCommandLoraMinPairs: number;
   readonly ceoCommandLoraEnabled: boolean;
+  /** §23 CEO Lifecycle Tower — đa pháp nhân filter (default off). */
+  readonly ceoTowerLegalEntityEnabled: boolean;
 
   constructor() {
     this.copilotEnabled = envFlag('PTT_AI_COPILOT_ENABLED', false);
@@ -148,6 +150,7 @@ export class AiIntelligenceConfigService {
       Number(process.env.PTT_CEO_COMMAND_LORA_MIN_PAIRS ?? 200) || 200,
     );
     this.ceoCommandLoraEnabled = envFlag('PTT_CEO_COMMAND_LORA_ENABLED', false);
+    this.ceoTowerLegalEntityEnabled = envFlag('PTT_CEO_TOWER_LEGAL_ENTITY', false);
   }
 
   isPilotUser(staffId: string | undefined | null): boolean {

@@ -60,6 +60,7 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
   const team = searchParams.get('team') ?? '';
   const positionCode = searchParams.get('position_code') ?? '';
   const staffId = searchParams.get('staff_id') ?? '';
+  const legalEntityId = searchParams.get('legal_entity_id') ?? '';
 
   const [payload, setPayload] = useState<TowerPayload | null>(null);
   const [error, setError] = useState('');
@@ -79,8 +80,9 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
     if (team) q.team = team;
     if (positionCode) q.position_code = positionCode;
     if (staffId) q.staff_id = staffId;
+    if (legalEntityId) q.legal_entity_id = legalEntityId;
     return q;
-  }, [factory, columnId, department, team, positionCode, staffId, searchParams]);
+  }, [factory, columnId, department, team, positionCode, staffId, legalEntityId, searchParams]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -208,6 +210,12 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
     });
   }
 
+  function onLegalEntity(id: string) {
+    patchQuery({
+      legal_entity_id: legalEntityId === id ? null : id,
+    });
+  }
+
   const breadcrumb = buildTowerBreadcrumb({
     factory,
     department: department || null,
@@ -306,6 +314,23 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
               onClick={() => onDepartment(row.code, row.outside_cycle)}
             >
               {row.label_vi} {deptRollupSummary(row)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {payload?.legal_entity_filter_enabled && payload.legal_entity_options?.length ? (
+        <div data-testid="ceo-tower-entity-panel" className="flex flex-wrap gap-2 items-center">
+          <span className="text-sm font-medium">Pháp nhân:</span>
+          {payload.legal_entity_options.map((row) => (
+            <button
+              key={row.id}
+              type="button"
+              data-testid={`ceo-tower-entity-${row.id}`}
+              className={`btn btn-xs ${legalEntityId === row.id ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => onLegalEntity(row.id)}
+            >
+              {row.label_vi}
             </button>
           ))}
         </div>

@@ -1,4 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common';
+import { AiIntelligenceConfigService } from '../ai-intelligence/ai-intelligence.config';
 import { AiNlQueryService } from '../ai-intelligence/ai-nl-query.service';
 import { CrmStaffPgRepository } from '../crm-staff/crm-staff-pg.repository';
 import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
@@ -66,6 +67,7 @@ type ClassifiedRow = {
   sensor_ids: TowerSensorId[];
   suggest_action: string | null;
   ageMs: number;
+  legalEntityId: string | null;
 };
 
 type CachedBundle = {
@@ -78,6 +80,8 @@ type CachedBundle = {
   degraded: TowerPayload['degraded'];
   sensors_ok: TowerPayload['sensors_ok'];
   columnDegraded: Partial<Record<TowerColumnId, string>>;
+  legalEntityFilterEnabled: boolean;
+  legalEntityOptions?: TowerPayload['legal_entity_options'];
 };
 
 export type CeoTowerClock = { nowMs?: number };
@@ -93,6 +97,7 @@ export class CeoTowerSensorService {
     @Optional() private readonly nlQuery?: AiNlQueryService,
     @Optional() clock?: CeoTowerClock,
     @Optional() private readonly crmStaff?: CrmStaffPgRepository,
+    @Optional() private readonly aiConfig?: AiIntelligenceConfigService,
   ) {
     this.fixedNowMs = clock?.nowMs;
   }
@@ -134,9 +139,12 @@ export class CeoTowerSensorService {
       staff_id: query.staff_id,
     };
     const baseRows = bundle.rows.filter((row) => !bundle.columnDegraded[row.column_id]);
-    const filteredRows = baseRows.filter((row) =>
-      exceptionMatchesOrgFilters(toException(row, nowMs), orgFilters),
-    );
+    const legalEntityFilter = bundle.legalEntityFilterEnabled
+      ? parseLegalEntityId(query.legal_entity_id)
+      : null;
+    const filteredRows = baseRows
+      .filter((row) => exceptionMatchesOrgFilters(toException(row, nowMs), orgFilters))
+      .filter((row) => legalEntityFilter == null || row.legalEntityId === legalEntityFilter);
     const rollupSource = filteredRows.map((row) => toException(row, nowMs));
     const exceptionsAll = filteredRows
       .filter((row) => inExceptionWindow(row, nowMs))
@@ -168,6 +176,15 @@ export class CeoTowerSensorService {
       next_cursor: next ? `${next.entity_type}:${next.entity_id}` : null,
       degraded: bundle.degraded,
       sensors_ok: bundle.sensors_ok,
+      legal_entity_id: bundle.legalEntityFilterEnabled ? legalEntityFilter : null,
+      ...(bundle.legalEntityFilterEnabled
+        ? {
+            legal_entity_filter_enabled: true,
+            ...(bundle.legalEntityOptions?.length
+              ? { legal_entity_options: bundle.legalEntityOptions }
+              : {}),
+          }
+        : {}),
     };
   }
 
@@ -256,6 +273,33 @@ export class CeoTowerSensorService {
     }
 
     const collapsed = collapsePostWonA(raw.filter((c) => !isTowerUatSeed(c.leadId, c.tags)));
+    let legalEntityFilterEnabled = false;
+    let legalEntityOptions: TowerPayload['legal_entity_options'];
+    let legalEntityByLead = new Map<number, string>();
+    if (this.aiConfig?.ceoTowerLegalEntityEnabled) {
+      try {
+        const hasCol = await withTimeout(this.repo.hasContractsLegalEntityColumn(), SOURCE_TIMEOUT_MS);
+        if (!hasCol) {
+          degraded.push({ source: 'legal_entity', reason: 'legal_entity_schema_missing' });
+        } else {
+          legalEntityFilterEnabled = true;
+          const leadIds = [...new Set(collapsed.map((c) => c.leadId))];
+          legalEntityByLead = await withTimeout(
+            this.repo.loadLegalEntityByLeadIds(leadIds),
+            SOURCE_TIMEOUT_MS,
+          );
+          legalEntityOptions = await withTimeout(
+            this.repo.listLegalEntitiesForTower(),
+            SOURCE_TIMEOUT_MS,
+          );
+        }
+      } catch (e) {
+        degraded.push({
+          source: 'legal_entity',
+          reason: String((e as Error)?.message ?? 'failed'),
+        });
+      }
+    }
     const rows: ClassifiedRow[] = [];
     for (const candidate of collapsed) {
       const factory = factoryOf(candidate);
@@ -311,6 +355,7 @@ export class CeoTowerSensorService {
         sensor_ids: classified.sensor_ids,
         suggest_action: classified.suggest_action,
         ageMs: clockAgeMs(candidate, classified.column_id, opts.nowMs),
+        legalEntityId: legalEntityByLead.get(candidate.leadId) ?? null,
       });
     }
 
@@ -338,6 +383,8 @@ export class CeoTowerSensorService {
       degraded,
       sensors_ok,
       columnDegraded,
+      legalEntityFilterEnabled,
+      legalEntityOptions,
     };
   }
 
@@ -434,6 +481,11 @@ export class CeoTowerSensorService {
       return { s11Fail: false, financeMetricsOk: false };
     }
   }
+}
+
+function parseLegalEntityId(raw?: string): string | null {
+  const v = String(raw ?? '').trim();
+  return v || null;
 }
 
 function parseFactory(raw?: string): 'A' | 'B' | 'both' {
@@ -604,6 +656,7 @@ function toException(row: ClassifiedRow, _nowMs: number): TowerException {
     href,
     suggest_action: row.suggest_action,
     suggest_params,
+    legal_entity_id: row.legalEntityId,
   };
 }
 
