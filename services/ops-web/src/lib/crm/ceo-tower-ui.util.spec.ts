@@ -4,6 +4,11 @@ import {
   TOWER_EMPTY_STATE_COPY,
   TOWER_FACTORY_B_UNUSED_LABEL,
   TOWER_OUTSIDE_CYCLE_COPY,
+  activeOrgLensLevel,
+  orgLensLevelLabel,
+  orgRollupByLevel,
+  parseTowerSeverityFilter,
+  towerColumnLabel,
   buildTowerBreadcrumb,
   buildTowerFunnelBars,
   buildDeptRedDonutSegments,
@@ -124,5 +129,23 @@ describe('ceo-tower-ui.util', () => {
     expect(segments[0]?.value).toBe(2);
     expect(segments[1]?.value).toBe(1);
     expect(segments.reduce((sum, seg) => sum + seg.pct, 0)).toBe(100);
+  });
+
+  it('activeOrgLensLevel advances drill depth', () => {
+    expect(activeOrgLensLevel({})).toBe('department');
+    expect(activeOrgLensLevel({ department: 'DEPT-SALES' })).toBe('team');
+    expect(activeOrgLensLevel({ department: 'DEPT-SALES', team: 'TEAM-1' })).toBe('position');
+    expect(activeOrgLensLevel({ department: 'D', team: 'T', position_code: 'P' })).toBe('staff');
+    expect(activeOrgLensLevel({ department: 'D', team: 'T', position_code: 'P', staff_id: '3' })).toBeNull();
+  });
+
+  it('towerColumnLabel maps column ids', () => {
+    expect(towerColumnLabel('contract')).toBe('HĐ');
+    expect(towerColumnLabel('unknown')).toBe('unknown');
+  });
+
+  it('parseTowerSeverityFilter defaults to red and amber', () => {
+    expect(parseTowerSeverityFilter(null)).toBe('red,amber');
+    expect(parseTowerSeverityFilter('red')).toBe('red');
   });
 });

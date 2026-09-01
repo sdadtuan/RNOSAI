@@ -32,6 +32,51 @@ export function departmentRollupEntries(
   return (orgRollup ?? []).filter((row) => row.level === 'department');
 }
 
+export function orgRollupByLevel(
+  orgRollup: TowerOrgRollupEntry[] | undefined,
+  level: TowerOrgRollupEntry['level'],
+): TowerOrgRollupEntry[] {
+  return (orgRollup ?? []).filter((row) => row.level === level);
+}
+
+/** Next org drill level shown as chip bar (5-layer lens). */
+export function activeOrgLensLevel(filters: {
+  department?: string;
+  team?: string;
+  position_code?: string;
+  staff_id?: string;
+}): TowerOrgRollupEntry['level'] | null {
+  if (filters.staff_id) return null;
+  if (filters.position_code) return 'staff';
+  if (filters.team) return 'position';
+  if (filters.department) return 'team';
+  return 'department';
+}
+
+export function orgLensLevelLabel(level: TowerOrgRollupEntry['level']): string {
+  switch (level) {
+    case 'department':
+      return 'Phòng';
+    case 'team':
+      return 'Bộ phận';
+    case 'position':
+      return 'Chức vụ';
+    case 'staff':
+      return 'Nhân sự';
+    default:
+      return level;
+  }
+}
+
+export function towerColumnLabel(columnId: string): string {
+  return TOWER_COLUMN_DEFS.find((col) => col.id === columnId)?.label ?? columnId;
+}
+
+export function parseTowerSeverityFilter(raw: string | null | undefined): 'red,amber' | 'red' | 'amber' {
+  if (raw === 'red' || raw === 'amber') return raw;
+  return 'red,amber';
+}
+
 export function deptRollupSummary(row: TowerOrgRollupEntry): string {
   if (row.outside_cycle) return 'ngoài chu trình';
   const parts: string[] = [];

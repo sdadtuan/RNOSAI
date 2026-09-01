@@ -321,8 +321,8 @@ test.describe('CEO Lifecycle Tower T4', () => {
 
     await page.goto('/crm/ceo?department=DEPT-SALES&team=TEAM-SALES-AM');
     await expect(page.getByTestId('ceo-tower-breadcrumb')).toContainText('TEAM-SALES-AM');
-    await expect(page.getByRole('cell', { name: 'HĐ #42 chờ duyệt 36h' })).toBeVisible();
-    await expect(page.getByRole('cell', { name: 'Lead #70 ops quá hạn' })).toHaveCount(0);
+    await expect(page.getByText('HĐ #42 chờ duyệt 36h')).toBeVisible();
+    await expect(page.getByText('Lead #70 ops quá hạn')).toHaveCount(0);
 
     await page.goto('/crm/ceo?department=DEPT-HR');
     await expect(page.getByTestId('ceo-tower-outside-cycle-empty')).toContainText(
