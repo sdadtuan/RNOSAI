@@ -5,8 +5,10 @@ import {
   TOWER_FACTORY_B_UNUSED_LABEL,
   TOWER_OUTSIDE_CYCLE_COPY,
   buildTowerBreadcrumb,
+  buildTowerFunnelBars,
   deptRollupSummary,
   towerColumnUnusedLabel,
+  towerHealthTone,
 } from './ceo-tower-ui.util';
 
 describe('ceo-tower-ui.util', () => {
@@ -78,5 +80,29 @@ describe('ceo-tower-ui.util', () => {
   it('deptRollupSummary formats red/amber or outside cycle', () => {
     expect(deptRollupSummary({ level: 'department', code: 'DEPT-SALES', label_vi: 'Sales', red_count: 2, amber_count: 1 })).toBe('2đ · 1v');
     expect(deptRollupSummary({ level: 'department', code: 'DEPT-HR', label_vi: 'HR', red_count: 0, amber_count: 0, outside_cycle: true })).toBe('ngoài chu trình');
+  });
+
+  it('buildTowerFunnelBars marks bottleneck and scales bar height', () => {
+    const bars = buildTowerFunnelBars(
+      [
+        { column_id: 'lead_b2', red_count: 1, amber_count: 0, ok_count: 10, header_severity: 'red' },
+        { column_id: 'intake', red_count: 0, amber_count: 3, ok_count: 8, header_severity: 'amber' },
+        { column_id: 'consult', red_count: 0, amber_count: 0, ok_count: 5, header_severity: 'ok' },
+        { column_id: 'contract', red_count: 2, amber_count: 0, ok_count: 4, header_severity: 'red' },
+        { column_id: 'tmmt_deliver', red_count: 0, amber_count: 1, ok_count: 3, header_severity: 'amber' },
+        { column_id: 'care', red_count: 0, amber_count: 0, ok_count: 2, header_severity: 'ok' },
+      ],
+      'both',
+    );
+    const contract = bars.find((bar) => bar.columnId === 'contract');
+    expect(contract?.isBottleneck).toBe(true);
+    expect(contract?.barHeightPct).toBe(100);
+    expect(bars.find((bar) => bar.columnId === 'consult')?.barHeightPct).toBe(12);
+  });
+
+  it('towerHealthTone reflects red vs amber-only issues', () => {
+    expect(towerHealthTone(0, 0)).toBe('ok');
+    expect(towerHealthTone(2, 0)).toBe('warn');
+    expect(towerHealthTone(3, 1)).toBe('critical');
   });
 });

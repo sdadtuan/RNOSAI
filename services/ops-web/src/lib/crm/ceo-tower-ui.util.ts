@@ -173,3 +173,86 @@ export function exceptionQueueSummary(items: Array<{ severity: string }>): {
   }
   return { total: items.length, red };
 }
+
+export type TowerFunnelBar = {
+  columnId: TowerUiColumnId;
+  label: string;
+  redCount: number;
+  amberCount: number;
+  okCount: number;
+  totalIssues: number;
+  weight: number;
+  barHeightPct: number;
+  isBottleneck: boolean;
+  unusedLabel: string | null;
+  degraded: boolean;
+  headerSeverity: 'red' | 'amber' | 'ok';
+};
+
+export type TowerColumnCounts = {
+  column_id: string;
+  red_count: number;
+  amber_count: number;
+  ok_count: number;
+  header_severity: 'red' | 'amber' | 'ok';
+  degraded?: unknown;
+};
+
+/** Stacked-bar model for the 6-column funnel — bottleneck = highest red×2 + amber weight. */
+export function buildTowerFunnelBars(
+  columns: TowerColumnCounts[] | undefined,
+  factory: TowerFactoryFilter,
+): TowerFunnelBar[] {
+  const byId = new Map((columns ?? []).map((col) => [col.column_id, col]));
+  const bars: TowerFunnelBar[] = TOWER_COLUMN_DEFS.map((def) => {
+    const col = byId.get(def.id);
+    const redCount = col?.red_count ?? 0;
+    const amberCount = col?.amber_count ?? 0;
+    const okCount = col?.ok_count ?? 0;
+    const unusedLabel = towerColumnUnusedLabel(def.id, factory);
+    const headerSeverity = col?.header_severity ?? 'ok';
+    return {
+      columnId: def.id,
+      label: def.label,
+      redCount,
+      amberCount,
+      okCount,
+      totalIssues: redCount + amberCount,
+      weight: unusedLabel ? 0 : redCount * 2 + amberCount,
+      barHeightPct: 0,
+      isBottleneck: false,
+      unusedLabel,
+      degraded: Boolean(col?.degraded),
+      headerSeverity,
+    };
+  });
+
+  const active = bars.filter((bar) => !bar.unusedLabel);
+  const maxWeight = Math.max(1, ...active.map((bar) => bar.weight));
+  let bottleneckId: TowerUiColumnId | null = null;
+  let bottleneckWeight = -1;
+  for (const bar of active) {
+    if (bar.weight > bottleneckWeight) {
+      bottleneckWeight = bar.weight;
+      bottleneckId = bar.columnId;
+    }
+  }
+
+  return bars.map((bar) => ({
+    ...bar,
+    barHeightPct: bar.unusedLabel ? 0 : bar.weight === 0 ? 12 : Math.round((bar.weight / maxWeight) * 100),
+    isBottleneck: bar.columnId === bottleneckId && bar.weight > 0,
+  }));
+}
+
+export function towerHealthTone(totalIssues: number, redCount: number): 'ok' | 'warn' | 'critical' {
+  if (redCount > 0) return 'critical';
+  if (totalIssues > 0) return 'warn';
+  return 'ok';
+}
+
+export function deptHeatPct(row: TowerOrgRollupEntry, maxTotal: number): number {
+  const total = row.red_count + row.amber_count;
+  if (row.outside_cycle || total === 0) return 0;
+  return Math.round((total / Math.max(1, maxTotal)) * 100);
+}

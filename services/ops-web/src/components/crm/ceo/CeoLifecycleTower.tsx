@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CeoActionConfirmDialog } from '@/components/crm/ceo/CeoActionConfirmDialog';
+import { CeoTowerDeptHeatmap } from '@/components/crm/ceo/CeoTowerDeptHeatmap';
+import { CeoTowerFunnelChart } from '@/components/crm/ceo/CeoTowerFunnelChart';
+import { CeoTowerMetricStrip } from '@/components/crm/ceo/CeoTowerMetricStrip';
 import { SegmentedControl } from '@/components/layout';
 import { fetchCeoContext, type CeoTurnOutput } from '@/lib/api';
 import { confirmCopy } from '@/lib/crm/ceo-command-confirm.util';
@@ -14,16 +17,14 @@ import {
   parseOwnerStaffIdInput,
 } from '@/lib/crm/ceo-tower-suggest.util';
 import {
-  TOWER_COLUMN_DEFS,
   TOWER_EMPTY_STATE_COPY,
   TOWER_OUTSIDE_CYCLE_COPY,
   buildTowerBreadcrumb,
   departmentRollupEntries,
-  deptRollupSummary,
   exceptionQueueSummary,
   isOutsideCycleDepartment,
   parseTowerFactory,
-  towerColumnUnusedLabel,
+  towerHealthTone,
   type TowerFactoryFilter,
 } from '@/lib/crm/ceo-tower-ui.util';
 
@@ -37,18 +38,10 @@ function headerBadgeClass(severity: string): string {
   return 'badge badge-success';
 }
 
-function kStatusClass(status: string): string {
-  if (status === 'red') return 'badge badge-error';
-  if (status === 'amber') return 'badge badge-warning';
-  if (status === 'green') return 'badge badge-success';
-  return 'badge';
-}
-
-function formatFinanceValue(key: string, value: number | null): string {
-  if (value == null) return '';
-  if (key === 'top1' || key === 'gm') return `${value}%`;
-  if (value >= 1_000_000) return `${Math.round(value / 1_000_000)}M`;
-  return String(value);
+function healthSummaryClass(tone: 'ok' | 'warn' | 'critical'): string {
+  if (tone === 'critical') return 'ceo-tower-health ceo-tower-health--critical';
+  if (tone === 'warn') return 'ceo-tower-health ceo-tower-health--warn';
+  return 'ceo-tower-health ceo-tower-health--ok';
 }
 
 export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
@@ -227,45 +220,56 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
   const deptRows = departmentRollupEntries(payload?.org_rollup);
   const outsideCycleActive = isOutsideCycleDepartment(department, payload?.org_rollup);
 
-  const columnsById = useMemo(() => {
-    const map = new Map((payload?.columns ?? []).map((col) => [col.column_id, col]));
-    return map;
-  }, [payload]);
-
   const exceptions = payload?.exceptions ?? [];
   const summary = payload
     ? payload.columns.reduce(
         (acc, col) => {
           acc.total += col.red_count + col.amber_count;
           acc.red += col.red_count;
+          acc.amber += col.amber_count;
           return acc;
         },
-        { total: 0, red: 0 },
+        { total: 0, red: 0, amber: 0 },
       )
-    : exceptionQueueSummary(exceptions);
+    : { ...exceptionQueueSummary(exceptions), amber: 0 };
+  const healthTone = towerHealthTone(summary.total, summary.red);
 
   return (
-    <section className="page-card stack-gap" data-testid="ceo-lifecycle-tower" aria-label="Tháp chu trình">
-      <header className="flex flex-wrap items-center gap-2 justify-between">
+    <section className="page-card stack-gap ceo-tower-panel" data-testid="ceo-lifecycle-tower" aria-label="Tháp chu trình">
+      <header className="ceo-tower-header">
         <div>
           <h2 className="text-lg font-semibold">Tháp chu trình</h2>
-          <p className="muted text-sm">
-            {summary.total} sót · {summary.red} đỏ
-          </p>
+          <p className="muted text-sm">Cửa sổ sót 7 ngày · nhìn nút thắt trước khi drill</p>
         </div>
-        <SegmentedControl
-          label="Nhà máy"
-          options={[
-            { id: 'A', label: 'A' },
-            { id: 'B', label: 'B' },
-            { id: 'both', label: 'Cả hai' },
-          ]}
-          value={factory}
-          onChange={onFactory}
-        />
-        <Link href="/crm/ceo/board-pack" className="btn btn-sm btn-secondary">
-          In tuần
-        </Link>
+        <div className={healthSummaryClass(healthTone)} data-testid="ceo-tower-health">
+          <div className="ceo-tower-health__stat">
+            <span className="ceo-tower-health__value">{summary.red}</span>
+            <span className="ceo-tower-health__label">Đỏ</span>
+          </div>
+          <div className="ceo-tower-health__stat">
+            <span className="ceo-tower-health__value">{summary.amber}</span>
+            <span className="ceo-tower-health__label">Vàng</span>
+          </div>
+          <div className="ceo-tower-health__stat">
+            <span className="ceo-tower-health__value">{summary.total}</span>
+            <span className="ceo-tower-health__label">Tổng sót</span>
+          </div>
+        </div>
+        <div className="ceo-tower-header__actions">
+          <SegmentedControl
+            label="Nhà máy"
+            options={[
+              { id: 'A', label: 'A' },
+              { id: 'B', label: 'B' },
+              { id: 'both', label: 'Cả hai' },
+            ]}
+            value={factory}
+            onChange={onFactory}
+          />
+          <Link href="/crm/ceo/board-pack" className="btn btn-sm btn-secondary">
+            In tuần
+          </Link>
+        </div>
       </header>
 
       <nav
@@ -303,20 +307,11 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
       </nav>
 
       {deptRows.length ? (
-        <div data-testid="ceo-tower-dept-panel" className="flex flex-wrap gap-2 items-center">
-          <span className="text-sm font-medium">Theo phòng:</span>
-          {deptRows.map((row) => (
-            <button
-              key={row.code}
-              type="button"
-              data-testid={`ceo-tower-dept-${row.code}`}
-              className={`btn btn-xs ${department === row.code ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => onDepartment(row.code, row.outside_cycle)}
-            >
-              {row.label_vi} {deptRollupSummary(row)}
-            </button>
-          ))}
-        </div>
+        <CeoTowerDeptHeatmap
+          orgRollup={payload?.org_rollup}
+          activeDepartment={department}
+          onDepartment={onDepartment}
+        />
       ) : null}
 
       {payload?.legal_entity_filter_enabled && payload.legal_entity_options?.length ? (
@@ -350,31 +345,7 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
         </div>
       ) : null}
 
-      {payload?.k_strip?.length ? (
-        <div className="flex flex-wrap gap-2" data-testid="ceo-tower-k-strip" aria-label="Chỉ số K">
-          {payload.k_strip.map((item) => (
-            <Link key={item.key} href={item.href} className={kStatusClass(item.status)}>
-              {item.key.toUpperCase()}
-              {item.value != null ? ` ${item.value}` : ''}
-            </Link>
-          ))}
-        </div>
-      ) : null}
-
-      {payload?.finance_strip?.length ? (
-        <div
-          className="flex flex-wrap gap-2"
-          data-testid="ceo-tower-finance-strip"
-          aria-label="Chỉ số tiền"
-        >
-          {payload.finance_strip.map((item) => (
-            <Link key={item.key} href={item.href} className={kStatusClass(item.status)}>
-              {item.label_vi}
-              {item.value != null ? ` ${formatFinanceValue(item.key, item.value)}` : ''}
-            </Link>
-          ))}
-        </div>
-      ) : null}
+      <CeoTowerMetricStrip kStrip={payload?.k_strip} financeStrip={payload?.finance_strip} />
 
       {payload?.capacity_top?.length ? (
         <div data-testid="ceo-tower-capacity" aria-label="Quá tải">
@@ -417,47 +388,14 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
       {error ? <p className="error">{error}</p> : null}
       {loading && !payload ? <p className="muted">Đang tải tháp…</p> : null}
 
-      <div className="data-table-wrap" data-testid="ceo-tower-columns">
-        <div style={{ display: 'flex', gap: '0.65rem', minWidth: 720 }}>
-          {TOWER_COLUMN_DEFS.map((def) => {
-            const col = columnsById.get(def.id);
-            const unused = towerColumnUnusedLabel(def.id, factory);
-            const severity = col?.header_severity ?? 'ok';
-            const degraded = col?.degraded;
-            const active = columnId === def.id;
-            return (
-              <button
-                key={def.id}
-                type="button"
-                data-testid={`ceo-tower-column-${def.id}`}
-                aria-pressed={active}
-                className="page-card stack-gap"
-                style={{
-                  flex: '1 0 140px',
-                  minWidth: 140,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  borderColor: active ? 'var(--primary)' : undefined,
-                }}
-                onClick={() => onColumn(def.id)}
-              >
-                <strong>{def.label}</strong>
-                {degraded ? (
-                  <span className="badge" style={{ background: '#e5e7eb', color: '#4b5563' }}>
-                    degraded
-                  </span>
-                ) : unused ? (
-                  <span className="muted">{unused}</span>
-                ) : (
-                  <span className={headerBadgeClass(severity)}>
-                    {col ? `${col.red_count} đỏ · ${col.amber_count} vàng` : '—'}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {!loading || payload ? (
+        <CeoTowerFunnelChart
+          columns={payload?.columns}
+          factory={factory}
+          activeColumnId={columnId}
+          onColumn={onColumn}
+        />
+      ) : null}
 
       <div
         data-testid="ceo-tower-queue"
@@ -472,7 +410,7 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
           <p className="muted">{TOWER_EMPTY_STATE_COPY}</p>
         ) : (
           <div className="data-table-wrap">
-            <table className="data-table">
+            <table className="data-table ceo-tower-queue">
               <thead>
                 <tr>
                   <th>Nhà máy</th>
@@ -484,7 +422,10 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
               </thead>
               <tbody>
                 {exceptions.map((row) => (
-                  <tr key={`${row.entity_type}-${row.entity_id}-${row.column_id}-${row.title_vi}`}>
+                  <tr
+                    key={`${row.entity_type}-${row.entity_id}-${row.column_id}-${row.title_vi}`}
+                    className={`ceo-tower-queue__row ceo-tower-queue__row--${row.severity}`}
+                  >
                     <td>
                       <span className="badge">{row.factory}</span>
                     </td>
