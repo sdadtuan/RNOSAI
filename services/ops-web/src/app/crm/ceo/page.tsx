@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CeoCommandPanel } from '@/components/crm/ceo/CeoCommandPanel';
+import { CeoLifecycleTower } from '@/components/crm/ceo/CeoLifecycleTower';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
 import { staffMe, staffRefresh } from '@/lib/api';
 import { ceoCommandEnabled } from '@/lib/crm/ceo-command-flags';
@@ -97,12 +98,21 @@ export default function CeoCommandPage() {
         title="Điều hành CEO"
         subtitle="Briefing + hỏi số + hành động có xác nhận — nội bộ, không gửi khách."
       />
-      <div className="page-card stack-gap">
-        {error ? <p className="error">{error}</p> : null}
-        {token && !error ? (
+      {error ? (
+        <div className="page-card stack-gap">
+          <p className="error">{error}</p>
+        </div>
+      ) : null}
+      {token && !error ? (
+        <Suspense fallback={<div className="page-card"><p className="muted">Đang tải tháp…</p></div>}>
+          <CeoLifecycleTower token={token} />
+        </Suspense>
+      ) : null}
+      {token && !error ? (
+        <div className="page-card stack-gap">
           <CeoCommandPanel token={token} staffName={user.display_name ?? user.email} />
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </StaffPageShell>
   );
 }
