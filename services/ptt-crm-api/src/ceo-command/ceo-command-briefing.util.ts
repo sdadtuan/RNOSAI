@@ -1,10 +1,18 @@
+export type CeoTowerSuggestAction =
+  | 'assign_lead'
+  | 'remind_staff'
+  | 'sla_remind_lead'
+  | 'ack_ops_alert'
+  | 'prioritize_solution_queue'
+  | 'remind_contract_approval';
+
 export type CeoBriefingCard = {
   severity: 'red' | 'amber' | 'ok';
   title: string;
   metric?: string;
   href: string;
-  source: 'ops_exec' | 'ops_alerts' | 'pipeline' | 'sla' | 'finance' | 'coach';
-  suggest_action?: 'ack_ops_alert' | 'assign_pipeline_risk' | 'remind_staff' | 'assign_lead';
+  source: 'tower' | 'ops_exec' | 'ops_alerts' | 'pipeline' | 'sla' | 'finance' | 'coach';
+  suggest_action?: CeoTowerSuggestAction | 'assign_pipeline_risk' | (string & {});
   alert_id?: number;
   recommendation_id?: string;
 };
@@ -32,6 +40,7 @@ function severityRank(s: CeoBriefingCard['severity']): number {
 }
 
 export function cardsFromSources(input: {
+  towerRed?: Array<{ title_vi: string; href: string; suggest_action?: string | null }>;
   opsExec?: { alerts_open: number; kpi_dat_pct: number } | null;
   opsAlerts?: Array<{ id: number; title?: string }>;
   pipeline?: Array<{ recommendation_id: string; title: string }>;
@@ -42,6 +51,21 @@ export function cardsFromSources(input: {
 }): { cards: CeoBriefingCard[]; reply_vi: string; facts_json: Record<string, unknown> } {
   const cards: CeoBriefingCard[] = [];
   const facts: Record<string, unknown> = {};
+
+  const towerCards: CeoBriefingCard[] = (input.towerRed ?? []).map((ex) => ({
+    severity: 'red',
+    title: ex.title_vi,
+    href: ex.href,
+    source: 'tower',
+    suggest_action: ex.suggest_action ?? undefined,
+  }));
+  if (input.towerRed?.length) {
+    facts.tower_red = input.towerRed.map((ex) => ({
+      title_vi: ex.title_vi,
+      href: ex.href,
+      suggest_action: ex.suggest_action ?? null,
+    }));
+  }
 
   if (input.opsExec) {
     facts.ops_exec = input.opsExec;
@@ -121,10 +145,10 @@ export function cardsFromSources(input: {
     });
   }
 
-  const sorted = [...cards].sort(
+  const sortedOthers = [...cards].sort(
     (a, b) => severityRank(a.severity) - severityRank(b.severity) || a.title.localeCompare(b.title, 'vi'),
   );
-  const trimmed = sorted.slice(0, 8);
+  const trimmed = [...towerCards, ...sortedOthers].slice(0, 8);
   const bullets = trimmed.map((c) => (c.metric ? `• ${c.title} — ${c.metric}` : `• ${c.title}`));
   let reply_vi = bullets.join('\n');
   if (!reply_vi) reply_vi = 'Không có thẻ cảnh báo — mọi nguồn ổn định.';

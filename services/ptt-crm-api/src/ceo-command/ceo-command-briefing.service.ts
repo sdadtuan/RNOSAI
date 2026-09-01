@@ -4,7 +4,6 @@ import { ManagerCoachService } from '../ai-intelligence/manager-coach.service';
 import { PipelineRiskService } from '../ai-intelligence/pipeline-risk.service';
 import { OpsDashboardService } from '../ops/ops-dashboard.service';
 import { OpsService } from '../ops/ops.service';
-import type { StaffCap } from './ceo-command-caps.util';
 import { hasCeoFinanceView, hasOpsView } from './ceo-command-caps.util';
 import {
   BRIEFING_INTENTS,
@@ -12,6 +11,8 @@ import {
   withTimeout,
 } from './ceo-command-briefing.util';
 import type { CeoBriefingCard } from './ceo-command-briefing.util';
+import { CeoTowerSensorService } from './ceo-tower-sensor.service';
+import type { CeoActor } from './ceo-command.types';
 
 type BriefingResult = {
   cards: CeoBriefingCard[];
@@ -30,9 +31,10 @@ export class CeoCommandBriefingService {
     private readonly pipelineRisk: PipelineRiskService,
     private readonly nlQuery: AiNlQueryService,
     private readonly managerCoach: ManagerCoachService,
+    private readonly tower: CeoTowerSensorService,
   ) {}
 
-  async compose(intent: string, actor: { staffId: number; caps: StaffCap[] }): Promise<BriefingResult> {
+  async compose(intent: string, actor: CeoActor): Promise<BriefingResult> {
     if (!BRIEFING_INTENTS.has(intent)) {
       throw new Error('invalid_briefing_intent');
     }
@@ -58,6 +60,35 @@ export class CeoCommandBriefingService {
     let sla: { breach: number; warning: number } | null = null;
     let finance: { overdue: number; rev7: number; rev30: number } | null = null;
     let coach: { week_key: string; created_at: string } | null = null;
+    let towerRed: Array<{ title_vi: string; href: string; suggest_action?: string | null }> | undefined;
+
+    if (needAll) {
+      try {
+        const payload = await withTimeout(
+          this.tower.buildPayload(actor, {
+            factory: 'both',
+            severity: 'red,amber',
+            limit: '8',
+          }),
+          2500,
+        );
+        towerRed = payload.exceptions
+          .filter((ex) => ex.severity === 'red')
+          .map((ex) => ({
+            title_vi: ex.title_vi,
+            href: ex.href,
+            suggest_action: ex.suggest_action,
+          }));
+        if (payload.degraded?.length) {
+          degraded.push(...payload.degraded);
+        }
+      } catch (e) {
+        degraded.push({
+          source: 'tower',
+          reason: String((e as Error)?.message ?? 'failed'),
+        });
+      }
+    }
 
     if (needOps && hasOps) {
       try {
@@ -173,6 +204,7 @@ export class CeoCommandBriefingService {
     }
 
     const composed = cardsFromSources({
+      towerRed: needAll ? towerRed : undefined,
       opsExec: needOps ? opsExec : null,
       opsAlerts: needOps ? opsAlerts : undefined,
       pipeline: needPipeline ? pipeline : undefined,
