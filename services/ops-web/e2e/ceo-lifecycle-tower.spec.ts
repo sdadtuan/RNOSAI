@@ -42,14 +42,25 @@ const REMIND_SHIPPED = {
   owner_name: 'AM Demo',
   age_label: '2d',
   value_vnd: 20000000,
-  department_code: 'DEPT-SALES',
-  team_code: 'TEAM-SALES-AM',
+  department_code: 'DEPT-AGENCY',
+  team_code: 'TEAM-AGENCY-OPS',
   position_code: 'KD-01',
   job_function: 'am',
   href: '/crm/hub/70',
   suggest_action: 'remind_staff',
   suggest_params: { lead_id: 70, staff_id: 3, owner_staff_id: 3 },
 };
+
+const ORG_ROLLUP = [
+  { level: 'company', code: 'PTT', label_vi: 'PTT', red_count: 2, amber_count: 0 },
+  { level: 'department', code: 'DEPT-SALES', label_vi: 'Kinh doanh', red_count: 2, amber_count: 0 },
+  { level: 'department', code: 'DEPT-SOLUTION', label_vi: 'Solution / MKT', red_count: 0, amber_count: 0 },
+  { level: 'department', code: 'DEPT-CSKH', label_vi: 'CSKH', red_count: 0, amber_count: 0 },
+  { level: 'department', code: 'DEPT-AGENCY', label_vi: 'Agency', red_count: 0, amber_count: 0 },
+  { level: 'department', code: 'DEPT-HR', label_vi: 'Nhân sự', red_count: 0, amber_count: 0, outside_cycle: true },
+  { level: 'department', code: 'DEPT-IT', label_vi: 'IT / Admin', red_count: 0, amber_count: 0, outside_cycle: true },
+  { level: 'team', code: 'TEAM-SALES-AM', label_vi: 'TEAM-SALES-AM', red_count: 2, amber_count: 0 },
+];
 
 const TOWER_FIXTURE = {
   ok: true,
@@ -70,7 +81,7 @@ const TOWER_FIXTURE = {
     { column_id: 'care', red_count: 0, amber_count: 0, ok_count: 1, header_severity: 'ok' },
   ],
   exceptions: [S4_UPCOMING, REMIND_SHIPPED],
-  org_rollup: [],
+  org_rollup: ORG_ROLLUP,
   next_cursor: null,
   degraded: [],
   sensors_ok: {
@@ -91,7 +102,7 @@ const TOWER_FIXTURE = {
 
 async function mockCeoTowerApis(
   page: import('@playwright/test').Page,
-  opts?: { can_act?: boolean },
+  opts?: { can_act?: boolean; filterByQuery?: boolean },
 ) {
   const commitPosts: string[] = [];
   const proposePosts: Array<Record<string, unknown>> = [];
@@ -105,10 +116,22 @@ async function mockCeoTowerApis(
     });
   });
   await page.route('**/api/crm/ceo/tower**', async (route) => {
+    const url = new URL(route.request().url());
+    let exceptions = [...TOWER_FIXTURE.exceptions];
+    if (opts?.filterByQuery) {
+      const department = url.searchParams.get('department');
+      const team = url.searchParams.get('team');
+      if (department) {
+        exceptions = exceptions.filter((row) => row.department_code === department);
+      }
+      if (team) {
+        exceptions = exceptions.filter((row) => row.team_code === team);
+      }
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(TOWER_FIXTURE),
+      body: JSON.stringify({ ...TOWER_FIXTURE, exceptions }),
     });
   });
   await page.route('**/api/crm/ceo/context**', async (route) => {
@@ -252,5 +275,34 @@ test.describe('CEO Lifecycle Tower T2', () => {
     await expect(page.getByRole('link', { name: 'Mở' }).first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Gợi ý' })).toHaveCount(0);
     expect(commitPosts).toHaveLength(0);
+  });
+});
+
+test.describe('CEO Lifecycle Tower T4', () => {
+  test('Sales dept → TEAM-SALES-AM filters queue rows', async ({ page }) => {
+    await mockCeoTowerApis(page, { filterByQuery: true });
+
+    await loginAsStaff(page);
+    await page.goto('/crm/ceo');
+
+    await expect(page.getByTestId('ceo-lifecycle-tower')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('ceo-tower-dept-DEPT-SALES')).toBeVisible();
+
+    await page.getByTestId('ceo-tower-dept-DEPT-SALES').click();
+    await expect(page).toHaveURL(/department=DEPT-SALES/);
+    await expect(page.getByTestId('ceo-tower-breadcrumb')).toContainText('Kinh doanh');
+
+    await page.getByTestId('ceo-tower-breadcrumb-clear').click();
+    await expect(page).not.toHaveURL(/department=/);
+
+    await page.goto('/crm/ceo?department=DEPT-SALES&team=TEAM-SALES-AM');
+    await expect(page.getByTestId('ceo-tower-breadcrumb')).toContainText('TEAM-SALES-AM');
+    await expect(page.getByRole('cell', { name: 'HĐ #42 chờ duyệt 36h' })).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'Lead #70 ops quá hạn' })).toHaveCount(0);
+
+    await page.goto('/crm/ceo?department=DEPT-HR');
+    await expect(page.getByTestId('ceo-tower-outside-cycle-empty')).toContainText(
+      'Không theo dõi trên tháp',
+    );
   });
 });

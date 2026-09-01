@@ -364,11 +364,21 @@ describe('CeoTowerSensorService.buildPayload', () => {
     expect(capped.exceptions).toHaveLength(45);
   });
 
-  it('T1 org_rollup company PTT; omit finance_strip và capacity_top', async () => {
+  it('T1 org_rollup company PTT + 6 departments; omit finance_strip và capacity_top', async () => {
     const { svc } = makeSvc({ candidates: [s1NoOwner] });
     const out = await svc.buildPayload(actor(OPS_AND_K), {});
     expect(out.org_rollup[0]).toMatchObject({ level: 'company', code: 'PTT' });
     expect(out.org_rollup[0].red_count).toBeGreaterThanOrEqual(1);
+    const departments = out.org_rollup.filter((row) => row.level === 'department');
+    expect(departments).toHaveLength(6);
+    expect(departments.map((d) => d.code)).toEqual([
+      'DEPT-SALES',
+      'DEPT-SOLUTION',
+      'DEPT-CSKH',
+      'DEPT-AGENCY',
+      'DEPT-HR',
+      'DEPT-IT',
+    ]);
     expect(out).not.toHaveProperty('finance_strip');
     expect(out).not.toHaveProperty('capacity_top');
     expect(out.window_exception_days).toBe(7);

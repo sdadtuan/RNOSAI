@@ -3,6 +3,9 @@ import {
   TOWER_COLUMN_DEFS,
   TOWER_EMPTY_STATE_COPY,
   TOWER_FACTORY_B_UNUSED_LABEL,
+  TOWER_OUTSIDE_CYCLE_COPY,
+  buildTowerBreadcrumb,
+  deptRollupSummary,
   towerColumnUnusedLabel,
 } from './ceo-tower-ui.util';
 
@@ -43,5 +46,37 @@ describe('ceo-tower-ui.util', () => {
       'TMMT/QA',
       'CSKH',
     ]);
+  });
+
+  it('breadcrumb shows company → factory → org levels from URL', () => {
+    const orgRollup = [
+      { level: 'department' as const, code: 'DEPT-SALES', label_vi: 'Kinh doanh', red_count: 2, amber_count: 0 },
+      { level: 'team' as const, code: 'TEAM-SALES-AM', label_vi: 'TEAM-SALES-AM', red_count: 1, amber_count: 0 },
+      { level: 'staff' as const, code: '3', label_vi: 'Nguyễn V.', red_count: 1, amber_count: 0 },
+    ];
+    const crumbs = buildTowerBreadcrumb({
+      factory: 'A',
+      department: 'DEPT-SALES',
+      team: 'TEAM-SALES-AM',
+      staff_id: '3',
+      orgRollup,
+    });
+    expect(crumbs.map((c) => c.label)).toEqual([
+      'Công ty',
+      'A Agency',
+      'Kinh doanh',
+      'TEAM-SALES-AM',
+      'Nguyễn V.',
+    ]);
+  });
+
+  it('outside-cycle copy points CEO to staff/admin', () => {
+    expect(TOWER_OUTSIDE_CYCLE_COPY).toContain('/crm/staff');
+    expect(TOWER_OUTSIDE_CYCLE_COPY).toContain('/admin');
+  });
+
+  it('deptRollupSummary formats red/amber or outside cycle', () => {
+    expect(deptRollupSummary({ level: 'department', code: 'DEPT-SALES', label_vi: 'Sales', red_count: 2, amber_count: 1 })).toBe('2đ · 1v');
+    expect(deptRollupSummary({ level: 'department', code: 'DEPT-HR', label_vi: 'HR', red_count: 0, amber_count: 0, outside_cycle: true })).toBe('ngoài chu trình');
   });
 });

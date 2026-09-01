@@ -13,6 +13,7 @@ import type { CeoActor } from './ceo-command.types';
 import { hasGdkdViewAllLeads } from '../staff-permissions/staff-gdkd.util';
 import { isTowerUatSeed } from './ceo-tower-column.util';
 import { towerDrillHref } from './ceo-tower-drill.util';
+import { buildOrgRollup, exceptionMatchesOrgFilters } from './ceo-tower-org.util';
 import { CeoTowerRepository } from './ceo-tower.repository';
 import { classifyTowerRow } from './ceo-tower-sensors.util';
 import type {
@@ -109,8 +110,18 @@ export class CeoTowerSensorService {
     const severityWanted = parseSeverity(query.severity);
     const columnFilter = parseColumn(query.column_id);
     const limit = clampLimit(query.limit);
-    const exceptionsAll = bundle.rows
-      .filter((row) => !bundle.columnDegraded[row.column_id])
+    const orgFilters = {
+      department: query.department,
+      team: query.team,
+      position_code: query.position_code,
+      staff_id: query.staff_id,
+    };
+    const baseRows = bundle.rows.filter((row) => !bundle.columnDegraded[row.column_id]);
+    const filteredRows = baseRows.filter((row) =>
+      exceptionMatchesOrgFilters(toException(row, nowMs), orgFilters),
+    );
+    const rollupSource = filteredRows.map((row) => toException(row, nowMs));
+    const exceptionsAll = filteredRows
       .filter((row) => inExceptionWindow(row, nowMs))
       .filter((row) => severityWanted.has(row.severity))
       .filter((row) => !columnFilter || row.column_id === columnFilter)
@@ -120,10 +131,7 @@ export class CeoTowerSensorService {
     const afterCursor = applyCursor(exceptionsAll, query.cursor);
     const page = afterCursor.slice(0, limit);
     const next = afterCursor[limit];
-    const columns = buildColumns(bundle.rows, bundle.columnDegraded);
-    const counted = bundle.rows.filter((row) => !bundle.columnDegraded[row.column_id]);
-    const redCount = counted.filter((r) => r.severity === 'red').length;
-    const amberCount = counted.filter((r) => r.severity === 'amber').length;
+    const columns = buildColumns(filteredRows, bundle.columnDegraded);
 
     return {
       ok: true,
@@ -132,15 +140,7 @@ export class CeoTowerSensorService {
       k_strip: bundle.k_strip,
       columns,
       exceptions: page,
-      org_rollup: [
-        {
-          level: 'company',
-          code: 'PTT',
-          label_vi: 'PTT',
-          red_count: redCount,
-          amber_count: amberCount,
-        },
-      ],
+      org_rollup: buildOrgRollup(rollupSource, { factoryFilter }),
       next_cursor: next ? `${next.entity_type}:${next.entity_id}` : null,
       degraded: bundle.degraded,
       sensors_ok: bundle.sensors_ok,
@@ -235,10 +235,6 @@ export class CeoTowerSensorService {
     for (const candidate of collapsed) {
       const factory = factoryOf(candidate);
       if (opts.factoryFilter !== 'both' && factory !== opts.factoryFilter) continue;
-      if (opts.department && candidate.departmentCode !== opts.department) continue;
-      if (opts.team && candidate.teamCode !== opts.team) continue;
-      if (opts.position_code && candidate.positionCode !== opts.position_code) continue;
-      if (opts.staff_id && String(candidate.ownerId ?? '') !== String(opts.staff_id)) continue;
 
       const classified = classifyTowerRow(
         {

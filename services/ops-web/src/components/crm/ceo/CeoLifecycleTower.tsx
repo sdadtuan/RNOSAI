@@ -16,7 +16,12 @@ import {
 import {
   TOWER_COLUMN_DEFS,
   TOWER_EMPTY_STATE_COPY,
+  TOWER_OUTSIDE_CYCLE_COPY,
+  buildTowerBreadcrumb,
+  departmentRollupEntries,
+  deptRollupSummary,
   exceptionQueueSummary,
+  isOutsideCycleDepartment,
   parseTowerFactory,
   towerColumnUnusedLabel,
   type TowerFactoryFilter,
@@ -44,6 +49,10 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
   const searchParams = useSearchParams();
   const factory = parseTowerFactory(searchParams.get('factory'));
   const columnId = (searchParams.get('column_id') ?? '') as TowerColumnId | '';
+  const department = searchParams.get('department') ?? '';
+  const team = searchParams.get('team') ?? '';
+  const positionCode = searchParams.get('position_code') ?? '';
+  const staffId = searchParams.get('staff_id') ?? '';
 
   const [payload, setPayload] = useState<TowerPayload | null>(null);
   const [error, setError] = useState('');
@@ -59,8 +68,12 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
       severity: searchParams.get('severity') || 'red,amber',
     };
     if (columnId) q.column_id = columnId;
+    if (department) q.department = department;
+    if (team) q.team = team;
+    if (positionCode) q.position_code = positionCode;
+    if (staffId) q.staff_id = staffId;
     return q;
-  }, [factory, columnId, searchParams]);
+  }, [factory, columnId, department, team, positionCode, staffId, searchParams]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -158,6 +171,39 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
     });
   }
 
+  function onDepartment(code: string, outsideCycle?: boolean) {
+    if (outsideCycle) {
+      patchQuery({ department: code, team: null, position_code: null, staff_id: null });
+      return;
+    }
+    patchQuery({
+      department: department === code ? null : code,
+      team: null,
+      position_code: null,
+      staff_id: null,
+    });
+  }
+
+  function clearOrgFilters() {
+    patchQuery({
+      department: null,
+      team: null,
+      position_code: null,
+      staff_id: null,
+    });
+  }
+
+  const breadcrumb = buildTowerBreadcrumb({
+    factory,
+    department: department || null,
+    team: team || null,
+    position_code: positionCode || null,
+    staff_id: staffId || null,
+    orgRollup: payload?.org_rollup,
+  });
+  const deptRows = departmentRollupEntries(payload?.org_rollup);
+  const outsideCycleActive = isOutsideCycleDepartment(department, payload?.org_rollup);
+
   const columnsById = useMemo(() => {
     const map = new Map((payload?.columns ?? []).map((col) => [col.column_id, col]));
     return map;
@@ -195,6 +241,57 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
           onChange={onFactory}
         />
       </header>
+
+      <nav
+        className="flex flex-wrap items-center gap-1 text-sm"
+        data-testid="ceo-tower-breadcrumb"
+        aria-label="Lăng kính tổ chức"
+      >
+        {breadcrumb.map((segment, index) => (
+          <span key={segment.key} className="flex items-center gap-1">
+            {index > 0 ? <span className="muted">›</span> : null}
+            {segment.clearTo ? (
+              <button
+                type="button"
+                className="btn btn-xs btn-ghost"
+                onClick={() => patchQuery(segment.clearTo!)}
+              >
+                {segment.label}
+              </button>
+            ) : (
+              <span>{segment.label}</span>
+            )}
+          </span>
+        ))}
+        {department || team || positionCode || staffId ? (
+          <button
+            type="button"
+            className="btn btn-xs btn-ghost"
+            aria-label="Xóa lọc tổ chức"
+            data-testid="ceo-tower-breadcrumb-clear"
+            onClick={clearOrgFilters}
+          >
+            ×
+          </button>
+        ) : null}
+      </nav>
+
+      {deptRows.length ? (
+        <div data-testid="ceo-tower-dept-panel" className="flex flex-wrap gap-2 items-center">
+          <span className="text-sm font-medium">Theo phòng:</span>
+          {deptRows.map((row) => (
+            <button
+              key={row.code}
+              type="button"
+              data-testid={`ceo-tower-dept-${row.code}`}
+              className={`btn btn-xs ${department === row.code ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => onDepartment(row.code, row.outside_cycle)}
+            >
+              {row.label_vi} {deptRollupSummary(row)}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {payload?.degraded?.length ? (
         <div className="flex flex-wrap gap-2" aria-label="Nguồn degraded">
@@ -271,7 +368,11 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
         data-can-act={canAct == null ? 'pending' : canAct ? 'yes' : 'no'}
       >
         <h3 className="text-base font-semibold">Hàng chờ sót</h3>
-        {exceptions.length === 0 ? (
+        {outsideCycleActive ? (
+          <p className="muted" data-testid="ceo-tower-outside-cycle-empty">
+            {TOWER_OUTSIDE_CYCLE_COPY}
+          </p>
+        ) : exceptions.length === 0 ? (
           <p className="muted">{TOWER_EMPTY_STATE_COPY}</p>
         ) : (
           <div className="data-table-wrap">
