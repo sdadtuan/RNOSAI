@@ -50,7 +50,7 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
     PerformanceModule,
     forwardRef(() => ServiceLifecycleModule),
     forwardRef(() => OpsModule),
-    AiIntelligenceModule,
+    forwardRef(() => AiIntelligenceModule),
     MarketingAiPlaybookModule,
   ],
   controllers: [MarketingAiPlannerController, MarketingAiKpiAlertController, MarketingAiPlaybookAdminController],
