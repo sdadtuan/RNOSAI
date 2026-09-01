@@ -20,6 +20,11 @@ import { hasCeoConfigure } from './ceo-command-caps.util';
 import { CeoCommandLearnService } from './ceo-command-learn.service';
 import { CeoCommandService } from './ceo-command.service';
 import type { CeoActor } from './ceo-command.types';
+import {
+  buildBoardPackFacts,
+  isBoardPackNotifyEnabled,
+  resolveBoardPackWeek,
+} from './ceo-tower-board-pack.util';
 import { CeoTowerSensorService } from './ceo-tower-sensor.service';
 import type { TowerQuery } from './ceo-tower.types';
 import {
@@ -77,6 +82,24 @@ export class CeoCommandController {
       });
     }
     return this.towerSensors.buildPayload(actor, query);
+  }
+
+  @Get('tower/board-pack')
+  async boardPack(@Req() req: AuthedReq, @Query('week') week?: string) {
+    const actor = await this.actor(req);
+    const weekLabel = resolveBoardPackWeek(week);
+    const payload = await this.towerSensors.buildPayload(actor, {
+      factory: 'both',
+      severity: 'red,amber',
+      limit: '10',
+    });
+    void isBoardPackNotifyEnabled();
+    return {
+      ok: true,
+      week: weekLabel,
+      facts_json: buildBoardPackFacts(payload, weekLabel),
+      generated_at: payload.generated_at,
+    };
   }
 
   @Get('threads')

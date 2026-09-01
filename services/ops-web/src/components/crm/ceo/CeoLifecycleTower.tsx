@@ -255,6 +255,9 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
           value={factory}
           onChange={onFactory}
         />
+        <Link href="/crm/ceo/board-pack" className="btn btn-sm btn-secondary">
+          In tuần
+        </Link>
       </header>
 
       <nav

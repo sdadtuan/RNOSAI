@@ -114,3 +114,23 @@ export async function fetchCeoTower(
   if (!res.ok) throw new Error(`tower_${res.status}`);
   return res.json() as Promise<TowerPayload>;
 }
+
+export type TowerBoardPackResponse = {
+  ok: true;
+  week: string;
+  generated_at: string;
+  facts_json: Record<string, unknown>;
+};
+
+export async function fetchCeoTowerBoardPack(
+  token: string,
+  week?: string,
+): Promise<TowerBoardPackResponse> {
+  const qs = week ? `week=${encodeURIComponent(week)}` : '';
+  const res = await fetch(`${API_BASE}/api/crm/ceo/tower/board-pack?${qs}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(`board_pack_${res.status}`);
+  return res.json() as Promise<TowerBoardPackResponse>;
+}

@@ -61,3 +61,51 @@ describe('CeoCommandController GET tower', () => {
     expect(tower.buildPayload).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('CeoCommandController GET tower/board-pack', () => {
+  it('calls buildPayload with tower view query and returns facts_json', async () => {
+    const generatedAt = '2026-09-01T07:00:00.000Z';
+    const tower = {
+      buildPayload: jest.fn().mockResolvedValue({
+        ok: true,
+        generated_at: generatedAt,
+        window_exception_days: 7,
+        k_strip: [{ key: 'k1', value: 1, status: 'green', href: '/crm/owner-weekly' }],
+        columns: [],
+        exceptions: [],
+        org_rollup: [],
+        next_cursor: null,
+        degraded: [],
+        sensors_ok: {
+          S1: 'ok',
+          S2: 'ok',
+          S3: 'ok',
+          S4: 'ok',
+          S5: 'ok',
+          S6: 'ok',
+          S7: 'ok',
+          S8: 'ok',
+          S9: 'ok',
+          S10: 'ok',
+          S11: 'ok',
+          S12: 'ok',
+        },
+      }),
+    };
+    const { ctrl } = makeController({ caps: viewOnly, tower });
+
+    const out = await ctrl.boardPack({ staffUser: { sub: '42' } } as never, '2026-W36');
+
+    expect(tower.buildPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ staffId: 42 }),
+      { factory: 'both', severity: 'red,amber', limit: '10' },
+    );
+    expect(out.ok).toBe(true);
+    expect(out.week).toBe('2026-W36');
+    expect(out.generated_at).toBe(generatedAt);
+    expect(out.facts_json).toMatchObject({
+      week: '2026-W36',
+      decisions_blank: ['', '', ''],
+    });
+  });
+});
