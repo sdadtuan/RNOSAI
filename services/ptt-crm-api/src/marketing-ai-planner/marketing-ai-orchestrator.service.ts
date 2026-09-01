@@ -116,6 +116,36 @@ export class MarketingAiOrchestratorService {
     return normalizeOptimizeRecommendations(parsed, fallback);
   }
 
+  /** MKTP-PB-LEARN — synthesize anonymized industry playbook JSON (never active). */
+  async generateLearnedPlaybook(input: {
+    payload: Record<string, unknown>;
+    currentPlaybook: Record<string, unknown>;
+    stubPlaybook: Record<string, unknown>;
+  }): Promise<Record<string, unknown>> {
+    const systemPrompt = [
+      'You are a marketing playbook author for PTT agency.',
+      'Output JSON matching MktAiIndustryPlaybook schema.',
+      'Set anonymized=true and learned_from metadata.',
+      'Never include brand_name, phone numbers, emails, or client-specific names.',
+      'service_slugs must contain exactly one slug being learned.',
+    ].join(' ');
+    const { parsed } = await this.llm.completeJson({
+      systemPrompt,
+      userContent: JSON.stringify({
+        task: 'generate_playbook_draft',
+        ...input.payload,
+        current_playbook: input.currentPlaybook,
+        schema_instructions:
+          'Return { playbook: MktAiIndustryPlaybook } with slug matching service_slug',
+      }),
+      model: this.modelName,
+      stubJson: () => ({ playbook: input.stubPlaybook }),
+    });
+    const root = parsed as Record<string, unknown> | null;
+    const doc = (root?.playbook ?? root ?? input.stubPlaybook) as Record<string, unknown>;
+    return doc;
+  }
+
   private buildStrategyStub(
     brief: MktAiBrief,
     stubSwotJson?: Record<string, unknown>,

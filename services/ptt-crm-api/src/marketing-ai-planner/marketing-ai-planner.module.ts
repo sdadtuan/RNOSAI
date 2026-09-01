@@ -34,6 +34,8 @@ import { MarketingAiKpiAlertController } from './marketing-ai-kpi-alert.controll
 import { MarketingAiPlaybookAdminController } from './marketing-ai-playbook-admin.controller';
 import { MktAiPlannerAllowService } from './mkt-ai-planner-allow.service';
 import { MktAiServicePolicyRepository } from './mkt-ai-service-policy.repository';
+import { MktAiPlaybookVersionsRepository } from './mkt-ai-playbook-versions.repository';
+import { MktAiPlaybookLearnService } from './mkt-ai-playbook-learn.service';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
 import { MarketingAiPlannerService } from './marketing-ai-planner.service';
 
@@ -50,6 +52,8 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
   controllers: [MarketingAiPlannerController, MarketingAiKpiAlertController, MarketingAiPlaybookAdminController],
   providers: [
     MktAiServicePolicyRepository,
+    MktAiPlaybookVersionsRepository,
+    MktAiPlaybookLearnService,
     MktAiPlannerAllowService,
     MarketingAiPlannerRepository,
     MarketingAiOrchestratorService,
@@ -78,6 +82,8 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
     MarketingAiPlannerService,
     MarketingAiPlannerRepository,
     MktAiPlannerAllowService,
+    MktAiPlaybookLearnService,
+    MktAiPlaybookVersionsRepository,
     MarketingAiPlaybookModule,
   ],
 })

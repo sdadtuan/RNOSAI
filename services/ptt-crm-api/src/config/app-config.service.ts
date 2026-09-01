@@ -139,6 +139,7 @@ export class AppConfigService {
   readonly mktAiKpiAlertRoasPct: number;
   readonly mktAiKpiAlertCooldownDays: number;
   readonly mktAiPlaybooksEnabled: boolean;
+  readonly mktAiPlaybookLearnEnabled: boolean;
   readonly mktAiLaunchQaQualityGate: boolean;
   readonly mktAiGovernanceBanner: boolean;
   readonly mktAiMultiAgentEnabled: boolean;
@@ -493,6 +494,9 @@ export class AppConfigService {
     );
     this.mktAiPlaybooksEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_MKT_AI_PLAYBOOKS_ENABLED ?? '0').trim().toLowerCase(),
+    );
+    this.mktAiPlaybookLearnEnabled = ['1', 'true', 'yes', 'on'].includes(
+      (process.env.PTT_MKT_AI_PLAYBOOK_LEARN_ENABLED ?? '0').trim().toLowerCase(),
     );
     this.mktAiLaunchQaQualityGate = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_MKT_AI_LAUNCH_QA_QUALITY_GATE ?? '0').trim().toLowerCase(),
