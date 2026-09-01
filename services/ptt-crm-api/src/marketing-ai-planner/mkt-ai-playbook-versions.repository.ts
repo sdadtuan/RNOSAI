@@ -330,7 +330,7 @@ export class MktAiPlaybookVersionsRepository implements OnModuleDestroy {
       }
       await client.query(
         `INSERT INTO mkt_ai_service_policy (service_slug, rollout, enabled, active_version_id, updated_by)
-         VALUES ($1, 'off', TRUE, $2, $3)
+         VALUES ($1, 'pilot', TRUE, $2, $3)
          ON CONFLICT (service_slug) DO UPDATE SET
            active_version_id = EXCLUDED.active_version_id,
            updated_at = now(),

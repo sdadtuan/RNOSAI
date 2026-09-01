@@ -61,6 +61,9 @@ describe('MktAiPlaybookLearnService', () => {
     insertRun: jest.fn(),
     updateRun: jest.fn(),
   };
+  const corpusRepo = {
+    loadCorpusRows: jest.fn().mockResolvedValue([]),
+  };
 
   let service: MktAiPlaybookLearnService;
 
@@ -69,6 +72,7 @@ describe('MktAiPlaybookLearnService', () => {
     service = new MktAiPlaybookLearnService(
       config as never,
       versionsRepo as never,
+      corpusRepo as never,
       orchestrator as never,
       agentRuns as never,
     );
@@ -121,6 +125,7 @@ describe('MktAiPlaybookLearnService', () => {
     const off = new MktAiPlaybookLearnService(
       { mktAiPlaybookLearnEnabled: false } as never,
       versionsRepo as never,
+      corpusRepo as never,
       orchestrator as never,
       agentRuns as never,
     );

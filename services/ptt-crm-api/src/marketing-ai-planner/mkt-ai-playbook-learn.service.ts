@@ -15,6 +15,7 @@ import {
   type DoneOpsTaskInput,
 } from './mkt-ai-playbook-week-hints.util';
 import { rejectLearnedPlaybook } from './mkt-ai-playbook-learn-validate.util';
+import { MktAiPlaybookCorpusRepository } from './mkt-ai-playbook-corpus.repository';
 import {
   MktAiPlaybookVersionsRepository,
   type MktAiPlaybookLearnJobRow,
@@ -41,6 +42,7 @@ export class MktAiPlaybookLearnService {
   constructor(
     private readonly config: AppConfigService,
     private readonly versionsRepo: MktAiPlaybookVersionsRepository,
+    private readonly corpusRepo: MktAiPlaybookCorpusRepository,
     private readonly orchestrator: MarketingAiOrchestratorService,
     private readonly agentRuns: AiAgentRunsRepository,
   ) {}
@@ -214,12 +216,11 @@ export class MktAiPlaybookLearnService {
     }
   }
 
-  /** Stub until Task 12 wires real lifecycle corpus SQL. */
   async loadCorpusRows(
-    _serviceSlug: string,
-    _excludeLifecycleIds: number[],
+    serviceSlug: string,
+    excludeLifecycleIds: number[],
   ): Promise<CorpusLifecycleInput[]> {
-    return [];
+    return this.corpusRepo.loadCorpusRows(serviceSlug, excludeLifecycleIds);
   }
 
   private pickPromptLifecycles(
