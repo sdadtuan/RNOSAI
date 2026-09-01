@@ -1,86 +1,70 @@
-# Task 8 Report: Wire LLM wording + summary + deploy S3
+# Task 8 Report: Import disk playbooks → version active shipped (P1/P2)
 
-**Status:** DONE  
-**Branch:** `feat/intake-sales-kit-s3-s4`
+**Status:** DONE_WITH_CONCERNS  
+**Branch:** `feat/mkt-ai-playbook-learn`  
+**Commit:** (pending) — feat(mkt-ai): import shipped playbooks into version table  
+**Pushed:** no
 
-## Summary
+## What shipped
 
-Optional LLM polish on Intake Sales Kit. TDD first: `IntakeSalesKitLlmService` spec failed (`Cannot find module`), then GREEN. Flag off / no API key / `ask_library` without citations never call `completeJson` and keep the rules payload with `stub_mode: true`. Timeout (`ServiceUnavailableException`) rolls back to rules. Invented money without `pricing|qa|case` citation is stripped via `stripInventedMoney`. LLM may rewrite `reply_vi`, `apply.ai_summary`, `next_question.text` only — `next_question.key` and `bant_json` stay untouched; LLM `bant_hints` land in `apply.bant_hints` (panel still default off). Audit `ai_agent_runs` use_case `intake_sales_kit` | `intake_ai_summary`. Deploy script comments S3 flags and does **not** set them to 1.
+Idempotent seed script imports `_common.json` + 3 industry playbooks into `mkt_ai_playbook_versions` as `active` / `shipped`, links `mkt_ai_service_policy.active_version_id` for pilot slugs and `_common`.
 
-## Files
+| File | Role |
+|------|------|
+| `scripts/seed_mkt_ai_playbook_versions.ts` | Read 4 JSON from `playbooks/`; INSERT active v1 when none exists; skip if active present; upsert `_common` policy (`rollout=ga`); UPDATE pilot `active_version_id` |
 
-| File | Action |
-|------|--------|
-| `services/ptt-crm-api/src/intake/intake-sales-kit-llm.service.ts` | Created — `polish()` clone of LMP `completeSynthesize` |
-| `services/ptt-crm-api/src/intake/intake-sales-kit-llm.service.spec.ts` | Created — flag off / money strip / timeout / empty library |
-| `services/ptt-crm-api/src/intake/intake.service.ts` | Modified — `salesKitTurn` + `generateAiSummary` call `polish` |
-| `services/ptt-crm-api/src/intake/intake.service.spec.ts` | Modified — inject LLM mock; empty-state skips polish |
-| `services/ptt-crm-api/src/intake/intake.module.ts` | Modified — LLM service + `AiLlmClient` + `AiAgentRunsRepository` |
-| `services/ptt-crm-api/src/intake/intake-sales-kit-rules.util.ts` | Modified — `stub_mode: boolean` |
-| `scripts/deploy_intake_sales_kit_s4_vps.sh` | Modified — S3 flag comments; include LLM jest; no auto `=1` |
-| `docs/huong-dan-su-dung/27-lifecycle-ui-huong-dan-day-du.md` | Modified — VPS flag table |
-| `docs/huong-dan-su-dung/25-lead-meeting-prep-ui-guide.md` | Modified — how to enable kit LLM |
+## Step checklist
 
-## Tests
+- [x] Script reads `_common.json` + `meta-lead-gen`, `bds-lead-gen`, `seo-retainer`
+- [x] INSERT `status=active`, `depth=shipped`, `source=common|disk`, `version_no` = next (1 on fresh DB)
+- [x] Idempotent skip when active version already exists for slug
+- [x] Set `active_version_id` on 3 pilot slugs + `_common` policy row
+- [ ] **Apply seed on live DB** — blocked: Postgres at `127.0.0.1:5433` not running (`ECONNREFUSED`)
+- [x] **Commit** `feat(mkt-ai): import shipped playbooks into version table`
 
-TDD RED:
+## Seed behavior
 
-```
-FAIL Cannot find module './intake-sales-kit-llm.service'
-```
+1. Validates all 4 JSON files (slug matches filename) before DB work.
+2. Per slug: if `status='active'` row exists → skip insert, reuse id for policy link.
+3. Else: `INSERT` with `version_no = MAX(version_no)+1` (typically `1` on empty table).
+4. Transaction with `SET CONSTRAINTS mkt_ai_service_policy_active_fk DEFERRED` so FK checks run at COMMIT.
+5. `_common` policy: `INSERT … ON CONFLICT DO UPDATE` with `rollout='ga'`, `enabled=true`, `active_version_id`.
+6. Pilot slugs (`meta-lead-gen`, `bds-lead-gen`, `seo-retainer`): `UPDATE mkt_ai_service_policy SET active_version_id`.
 
-After implement:
+## Run commands
 
-```
-PASS intake-sales-kit-llm.service.spec.ts — 4/4
-  ✓ does not call completeJson when flag is off
-  ✓ strips invented money when flag is on and no citation
-  ✓ returns rules payload when completeJson times out
-  ✓ does not call LLM for ask_library without citations
-PASS intake-sales-kit-llm.util.spec.ts — 4/4
-PASS intake.service.spec.ts — 2/2 (empty-state skips polish)
-PASS intake-sales-kit-rules.util.spec.ts
-PASS sales-kit-library.service.spec.ts
+Prerequisites: Task 7 DDL applied + `scripts/seed_mkt_ai_service_policy.sql` (pilot policy rows).
+
+```bash
+bash scripts/apply_pg_ddl_mkt_ai_planner.sh
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/seed_mkt_ai_service_policy.sql
+cd services/ptt-crm-api && NODE_PATH=./node_modules npx tsx ../../scripts/seed_mkt_ai_playbook_versions.ts
 ```
 
-26/26 in the related intake sales-kit pattern.
+Dry-run (still connects to DB to detect existing actives):
 
-## Self-review
+```bash
+cd services/ptt-crm-api && NODE_PATH=./node_modules npx tsx ../../scripts/seed_mkt_ai_playbook_versions.ts --dry-run
+```
 
-- Intents that may call LLM: `summary_30s`, `next_question`, `freeform`, `ask_library` (citations required).
-- `pricing_band` / `battle_card` / chips without wording stay rules after library retrieve.
-- Empty library returns empty-state **before** `polish`.
-- `generateAiSummary` uses `AI_USE_CASE.INTAKE_AI_SUMMARY` then `saveAiSummary`.
-- Local providers (not `AiIntelligenceModule` import) avoid Intake ↔ ServiceLifecycle ↔ AI cycle.
+## What I tested
+
+```bash
+cd services/ptt-crm-api && NODE_PATH=./node_modules npx tsx ../../scripts/seed_mkt_ai_playbook_versions.ts --dry-run
+```
+
+```
+== seed_mkt_ai_playbook_versions ==
+playbooks=.../playbooks
+dry_run=true
+validated 4 playbook JSON file(s)
+Error: connect ECONNREFUSED 127.0.0.1:5433
+```
+
+JSON validation passed; DB connection refused (same as Task 7 local apply).
 
 ## Concerns
 
-1. **Vision backlog** — image parse still `needs_ocr` when LLM off (UAT-17). No 1-page vision call in Task 8.
-2. **No live VPS enable** — S3 flags stay 0; UAT-8 (flag on, summary not `[stub]`) needs a manual env + rebuild after deploy.
-3. **Worker leak warning** on `sales-kit-library.service.spec` is pre-existing (PG pool), not from this task.
-
-## Out of scope
-
-- Image vision / Tesseract
-- Auto-enable LLM in deploy script
-- Merge `bant_hints` into `bant_json`
-- Dual-write S3 storage
-
-## Fix: gate next_question.text for invented money
-
-```
-cd services/ptt-crm-api && npx jest src/intake/intake-sales-kit-llm.service.spec.ts --no-coverage
-```
-
-```
-PASS src/intake/intake-sales-kit-llm.service.spec.ts
-  IntakeSalesKitLlmService
-    ✓ does not call completeJson when flag is off
-    ✓ strips invented money when flag is on and no citation
-    ✓ returns rules payload when completeJson times out
-    ✓ strips invented money from next_question.text when flag is on and no citation
-    ✓ does not call LLM for ask_library without citations
-
-Test Suites: 1 passed, 1 total
-Tests:       5 passed, 5 total
-```
+1. **Local seed not verified end-to-end** — dev Postgres not listening on port 5433. Re-run seed when DB is up before Task 14 planner resolve.
+2. **Run from `services/ptt-crm-api`** — `pg` is not hoisted to repo root; use `NODE_PATH=./node_modules` with `tsx` (ts-node fails on Node 26 in this env).
+3. **Pilot policy rows required** — script warns if `mkt_ai_service_policy` row missing for a pilot slug; run policy seed first.
