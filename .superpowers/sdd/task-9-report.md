@@ -1,109 +1,60 @@
-# Task 9 Report — Finance PostgreSQL-only
+# Task 9 Report: Corpus filter C1–C5 + W1 + seed exclude (P2)
 
-## Status
+**Status:** DONE  
+**Branch:** `feat/mkt-ai-playbook-learn`  
+**Commit:** (pending) — feat(mkt-ai): corpus gates 5/3/deep for playbook learn  
+**Pushed:** no
 
-Completed Wave 2 Task 9 only.
+## What shipped
 
-- `FinanceService` now delegates every operation directly to `FinancePgRepository`.
-- `FinanceModule` no longer registers the SQLite repository.
-- The five named finance utility files no longer import or accept `DatabaseSync`; PostgreSQL operations use `Pool` or delegate to `finance-pg-metrics.util.ts`.
-- `finance-sqlite.repository.ts` was deleted.
-- Existing SQLite callers owned by later tasks were redirected to a temporary `sqlite-compat/finance.util.ts`, keeping this task buildable without starting Task 10.
-- Added PostgreSQL finance wiring, dashboard, and forecast utility coverage.
+Pure util `classifyCorpus` gates playbook learn corpus: C1–C5 candidate filters (slug match, applied, quality ≥70, human-edited, seed exclude), W1 winners (`closedLoopWin`), depth `shallow` vs `deep` (≥3 winners with tier-3 artifacts), `canLearn` at 5 candidates, `remaining` countdown.
 
-## Verification
+| File | Role |
+|------|------|
+| `services/ptt-crm-api/src/marketing-ai-planner/mkt-ai-playbook-corpus.util.ts` | `CorpusLifecycleInput`, `classifyCorpus` |
+| `services/ptt-crm-api/src/marketing-ai-planner/mkt-ai-playbook-corpus.util.spec.ts` | Jest: 4 HĐ, 5/2 shallow, 5/3/deep, seed exclude, filter edge cases |
 
-- `npm test -- --runInBand src/finance`
-  - 3 suites passed
-  - 8 tests passed
-- `npm run build`
-  - Passed (`nest build`)
-- Scoped `git diff --check`
-  - Passed
+## Step checklist
 
-## Commit
+- [x] TDD: failing tests first (module not found)
+- [x] `classifyCorpus` verbatim from plan Task 9
+- [x] Tests: 4 HĐ → `canLearn=false`; 5 candidates 2 winners → `shallow` + `canLearn`; 5/3 winners + 3 artifacts → `deep`; seed id ≥900000901 + `isUatSeed` excluded
+- [x] Jest spec PASS (5 tests)
+- [x] **Commit** `feat(mkt-ai): corpus gates 5/3/deep for playbook learn`
 
-`Serve CRM finance from PostgreSQL only.`
+## Gate logic summary
 
-## Concerns
+| Gate | Rule |
+|------|------|
+| C1 | `serviceSlug === slug` |
+| C2 | `applied === true` |
+| C3 | `qualityScore >= 70` |
+| C4 | `humanEditedAfterGenerate === true` |
+| C5 | `!isUatSeed` and (`sqliteLeadId == null` or `< 900000901`) |
+| W1 | `closedLoopWin === true` (among candidates) |
+| Learn | `candidates.length >= 5` → `canLearn` |
+| Deep | `winners.length >= 3` **and** ≥3 winners with `hasTier3Artifact` |
+| Remaining | `max(0, 5 - candidates.length)` |
 
-- No live PostgreSQL instance was available for an HTTP/database smoke test. The `/crm/financials` and business-dashboard paths are covered through repository delegation and mocked `Pool` tests.
-- `sqlite-compat/finance.util.ts` is intentionally temporary for AI context, owner-weekly, and service-finance callers assigned to later migration tasks. Task 10 was not started.
-- npm prints the pre-existing warning: `Unknown env config "devdir"`.
-# Task 9 Report — Owner weekly PostgreSQL cutover
+## What I tested
 
-## Status
+```bash
+cd services/ptt-crm-api && npx jest src/marketing-ai-planner/mkt-ai-playbook-corpus.util.spec.ts --no-coverage
+```
 
-Completed Task 9 only. Owner weekly now injects its own `OwnerWeeklyPgRepository`; it does not import the SQLite repository or the ops-weekly PostgreSQL repository.
+```
+PASS src/marketing-ai-planner/mkt-ai-playbook-corpus.util.spec.ts
+  classifyCorpus
+    ✓ 4 HĐ → canLearn=false, remaining=1
+    ✓ 5 candidates + 2 winners → shallow + canLearn
+    ✓ 5 candidates + 3 winners + 3 tier-3 artifacts → deep
+    ✓ excludes UAT seed and sqliteLeadId >= 900000901
+    ✓ filters wrong slug, not applied, low quality, not human-edited
 
-## Changes
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+```
 
-- Added PostgreSQL schema/bootstrap and CRUD for `crm_owner_cash_snapshots`.
-- Preserved owner-weekly config, dashboard, export, alert, inbox sync, and inbox summary response shapes using PostgreSQL queries.
-- Rewired `OwnerWeeklyService` and `OwnerWeeklyModule` exclusively to the PostgreSQL repository.
-- Added tests for hard-cutover wiring, domain separation, schema creation, snapshot listing, upsert, and deletion.
+## Next
 
-## Verification
-
-- `npx jest src/owner-weekly --no-coverage`
-  - 1 suite passed
-  - 5 tests passed
-- `npm run build`
-  - Passed
-- Cutover grep across the service, module, and PG repository found no `DatabaseSync`, `sqlitePath`, SQLite repository, or ops-weekly PG references.
-
-## Scope
-
-Task 10 was not started.
-# Task 9 Report — Smoke S11 + SC-15 registry fields
-
-**Branch:** `feat/vd-sop-s11`  
-**Date:** 2026-08-21  
-**Status:** DONE_WITH_CONCERNS
-
-## Summary
-
-SC-15 Models table now shows `model_key` (= `code`) and `verified_at` (from `capability_json`). Added S11 smoke script that asserts registry seed `video.kling.v3.pro` / `VIA_LEONARDO` and reuses S10 production-report 7-metric check. No vendor HTTP POSTs.
-
-## Deliverables
-
-| File | Action |
-|------|--------|
-| `scripts/smoke_video_sop_s11.sh` | **Created** — cinematic gate, admin models assert, SC-16 report |
-| `services/ops-web/src/app/admin/video/providers/page.tsx` | **Modified** — `model_key` + `verified_at` columns |
-| `services/ops-web/src/lib/video-sop-api.ts` | **Modified** — `vdModelKey`, `vdModelVerifiedAt` helpers |
-| `services/ops-web/src/lib/video-sop-api.spec.ts` | **Modified** — helper unit tests |
-
-## Smoke behavior
-
-1. `PTT_CMKT_VIDEO_CINEMATIC!=1` → `SKIP cinematic off` exit 0
-2. `GET /api/v1/vd/admin/models`:
-   - 200 + items → require `video.kling.v3.pro` with `capability_json.route === VIA_LEONARDO`
-   - 404/empty + no `DATABASE_URL` → SKIP (DDL may be unapplied)
-   - 404/empty with `DATABASE_URL` → FAIL clearly
-3. `GET /api/v1/vd/reports/production?lifecycle_id=3` → 200 + exact 7 S10 metrics
-4. No Leonardo/Runway/Kling/Topaz/OpenAI HTTP; no vendor POST
-
-## Verification
-
-| Step | Result |
-|------|--------|
-| `bash -n scripts/smoke_video_sop_s11.sh` | **PASS** |
-| `PTT_CMKT_VIDEO_CINEMATIC=0 bash scripts/smoke_video_sop_s11.sh` | **SKIP** exit 0 |
-| `./node_modules/.bin/jest src/video-sop --no-coverage` (ptt-crm-api) | **PASS** 37 suites / 171 tests |
-| `./node_modules/.bin/vitest run src/lib/video-sop-api.spec.ts` (ops-web) | **PASS** 67 tests |
-
-## Intentionally out of scope
-
-- No vendor adapter live calls
-- No VPS deploy / DDL apply
-- No page component vitest (no existing page spec; API helper tests updated instead)
-
-## Commit
-
-`feat(vd): S11 registry smoke and SC-15 verified_at`
-
-## Concerns
-
-- Live smoke against API not exercised here (cinematic off / no auth in this environment); registry assert only runs when cinematic on and models endpoint returns seeded rows.
-- Empty models without `DATABASE_URL` SKIP means local CI without DB will not prove S11 seed presence.
+Task 10: `rejectLearnedPlaybook` PII + schema validator. Task 11: learn service calls `classifyCorpus` for `playbook_learn_need_more` / depth.
