@@ -1,68 +1,78 @@
-# Task 13 Report: Admin UI Sinh / Duyệt / Active (P2)
+# Task 13 Report: Capacity top 5 (T6) — CEO Lifecycle Tower
 
 **Status:** DONE  
-**Branch:** `feat/mkt-ai-playbook-learn`  
-**Commit:** (pending) — feat(mkt-ai): admin UI playbook learn review activate  
-**Pushed:** no
+**Branch:** `feat/ceo-lifecycle-tower-t6-t8`  
+**Base:** Task 12 commit `cf201164`  
+**Spec:** §21 — Năng lực & quá tải
 
-## What shipped
+## Summary
 
-Admin UI at `/crm/admin/mkt-ai/playbooks` for MKT Lead to review corpus, generate learned playbooks, approve, and activate versions — Vietnamese copy per spec §9.
+Implemented `capacity_top[]` (max 5 overloaded owners) on tower payload and a "Quá tải" UI panel. Counts red/amber exceptions by `owner_staff_id`, applies §21 thresholds, omits ok staff, sorts by `red_owned` desc.
 
-| File | Role |
-|------|------|
-| `services/ops-web/src/lib/mkt-ai-playbook-admin-api.ts` | REST client for Task 12 admin API (list, detail, policy, learn, version lifecycle) |
-| `services/ops-web/src/app/crm/admin/mkt-ai/playbooks/page.tsx` | List table + detail `?slug=` — 3 columns Corpus / Playbook / Hành động |
-| `services/ops-web/src/components/OpsNav.tsx` | Nav link "Playbook DV" under AI & Automation when generate or approve cap |
-| `services/ops-web/src/lib/rbac-routes.ts` | Prefix `/crm/admin/mkt-ai` — view / approve / ai_admin.view |
-| `services/ops-web/src/lib/auth.spec.ts` | RBAC test for playbook admin route |
+## Backend
 
-## UI (spec §9)
+### New: `ceo-tower-capacity.util.ts`
 
-### Danh sách
+- `CapacityRow`, `TowerRosterEntry`, `buildCapacityTop(exceptions, roster)`
+- Owner resolution: `owner_staff_id` → `suggest_params.staff_id` / `owner_staff_id`
+- Flags: amber if `red≥5` or `red+amber≥10`; red if `red≥8` or `red+amber≥15`
 
-- Cột: Dịch vụ (label + slug), rollout chip, playbook active (version + depth), mẫu `n/5 · m/3`, CTA **Mở**
+### `ceo-tower-sensor.service.ts`
 
-### Chi tiết (`?slug=`)
+- Loads roster via `CrmStaffPgRepository.listStaff(500)` (cached in bundle)
+- Adds `capacity_top` to payload when non-empty (from org-filtered exception rollup)
+- `TowerException.owner_staff_id` from `candidate.ownerId`
+- Degraded `{ source: 'capacity' }` when roster load fails
 
-| Cột | Nội dung |
-|-----|----------|
-| Corpus | Thanh ứng viên/thắng, danh sách HĐ, checkbox loại khỏi lần Sinh |
-| Playbook | Dropdown version, form field schema (không raw JSON dump), Lưu nháp |
-| Hành động | Sinh (disabled `Còn N HĐ…`), Gửi duyệt, Duyệt, Yêu cầu sửa, **Active chỉ khi approved**, Rollback, rollout toggle |
+### Types
 
-- Không nút **Active** trên bản `draft` / `pending_review`
-- Job panel theo dõi learn job (poll 3s)
+- `ceo-tower.types.ts`: `TowerCapacityRow`, typed `capacity_top`
 
-## Step checklist
+## Frontend
 
-- [x] `mkt-ai-playbook-admin-api.ts` client
-- [x] List + detail page (query `?slug=`)
-- [x] OpsNav link "Playbook DV"
-- [x] `rbac-routes` prefix
-- [x] UI Vietnamese
-- [x] Sinh disabled + `Còn N HĐ…` when `!canLearn`
-- [x] **Commit** `feat(mkt-ai): admin UI playbook learn review activate`
+### `CeoLifecycleTower.tsx`
 
-## What I tested
+- Panel **Quá tải** (`data-testid="ceo-tower-capacity"`) — max 5 rows
+- Click name → sets L5 `staff_id=` in URL (toggle off if same)
+
+### `ceo-tower-api.ts`
+
+- Mirrored `TowerCapacityRow` + `owner_staff_id` on `TowerException`
+
+## Tests
+
+| Suite | Result |
+|-------|--------|
+| `ceo-tower-capacity.util.spec.ts` | PASS — 5 tests |
+| `ceo-tower-sensor.service.spec.ts` | PASS — 28 tests (incl. capacity_top integration) |
 
 ```bash
-cd services/ops-web && npx vitest run src/lib/auth.spec.ts
+cd services/ptt-crm-api && npx jest \
+  src/ceo-command/ceo-tower-capacity.util.spec.ts \
+  src/ceo-command/ceo-tower-sensor.service.spec.ts --no-coverage
+# 33 passed
 ```
 
-```
-✓ src/lib/auth.spec.ts (14 tests)
-  ✓ /crm/admin/mkt-ai requires mkt_ai view, approve, or ai_admin view
-```
+## Concerns
 
-## Notes
+1. **Roster optional** — without `CrmStaffPgRepository` (tests) or on DB failure, names fall back to exception `owner_name`; degraded badge on `capacity` source.
+2. **No dedicated cap** — unlike finance strip, capacity always computes when overloaded owners exist; empty → property omitted (T1 test unchanged).
+3. **Owner-less S1** — exceptions with `owner_staff_id=null` are excluded from capacity counts (by design §21).
+4. **E2E** — no Playwright coverage for capacity panel click → `staff_id=` yet.
 
-- Detail uses `StaffPageShell` + staff fetch pattern (same as CEO learn / CRM playbooks).
-- `crm/layout.tsx` `StaffRouteGuard` enforces RBAC via new prefix rule.
-- Nav visible only for `crm_mkt_ai.generate` or `crm_mkt_ai.approve`; page view also allows `crm_mkt_ai.view` and `ai_admin.view`.
-- Preview / channel_mix warning (§9.3) deferred — optional P2 stretch.
-- E2e Playwright spec planned in Task 16.
+## Commit
 
-## Next
+`feat(ceo-tower): capacity top 5 overloaded owners`
 
-Task 14: Planner resolve from `active_version_id` in `marketing-ai-playbook.service.ts`.
+## Files touched
+
+- `services/ptt-crm-api/src/ceo-command/ceo-tower-capacity.util.ts` (new)
+- `services/ptt-crm-api/src/ceo-command/ceo-tower-capacity.util.spec.ts` (new)
+- `services/ptt-crm-api/src/ceo-command/ceo-tower-sensor.service.ts`
+- `services/ptt-crm-api/src/ceo-command/ceo-tower-sensor.service.spec.ts`
+- `services/ptt-crm-api/src/ceo-command/ceo-tower.types.ts`
+- `services/ptt-crm-api/src/ceo-command/ceo-tower-finance.util.ts`
+- `services/ptt-crm-api/src/ceo-command/ceo-tower-org.util.ts`
+- `services/ptt-crm-api/src/ceo-command/ceo-tower-org.util.spec.ts`
+- `services/ops-web/src/components/crm/ceo/CeoLifecycleTower.tsx`
+- `services/ops-web/src/lib/crm/ceo-tower-api.ts`
