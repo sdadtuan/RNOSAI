@@ -27,7 +27,16 @@ run_local() {
   fi
 
   echo "== 1/7 Apply DDL (planner + policy + versions) =="
-  bash "$ROOT/scripts/apply_pg_ddl_mkt_ai_planner.sh"
+  bash "$ROOT/scripts/apply_pg_ddl_mkt_ai_planner.sh" \
+    || echo "WARN base MKT-AI DDL partial failure (P4 constraint) — continuing policy/versions"
+  if [[ -f "$ROOT/docs/specs/2026-09-01-postgresql-ddl-mkt-ai-playbook-policy.sql" ]]; then
+    psql "${DATABASE_URL:?DATABASE_URL required}" -v ON_ERROR_STOP=1 \
+      -f "$ROOT/docs/specs/2026-09-01-postgresql-ddl-mkt-ai-playbook-policy.sql"
+  fi
+  if [[ -f "$ROOT/docs/specs/2026-09-01-postgresql-ddl-mkt-ai-playbook-versions.sql" ]]; then
+    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+      -f "$ROOT/docs/specs/2026-09-01-postgresql-ddl-mkt-ai-playbook-versions.sql"
+  fi
   bash "$ROOT/scripts/verify_mkt_ai_ddl.sh" || echo "WARN verify_mkt_ai_ddl failed"
 
   echo "== 2/7 Seed service policy =="
