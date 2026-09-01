@@ -87,6 +87,7 @@ function AccountPageContent() {
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
   const [passwordDrawerOpen, setPasswordDrawerOpen] = useState(false);
+  const [passwordFormKey, setPasswordFormKey] = useState(0);
   const [drawerError, setDrawerError] = useState('');
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AccountTab>('profile');
@@ -176,15 +177,24 @@ function AccountPageContent() {
     }
   }
 
+  function resetPasswordFields() {
+    setCurrentPw('');
+    setNewPw('');
+    setConfirmPw('');
+  }
+
   function openPasswordDrawer() {
     setDrawerError('');
     setTurnstileToken(null);
+    resetPasswordFields();
+    setPasswordFormKey((k) => k + 1);
     setPasswordDrawerOpen(true);
   }
 
   function closePasswordDrawer() {
     setDrawerError('');
     setTurnstileToken(null);
+    resetPasswordFields();
     setPasswordDrawerOpen(false);
   }
 
@@ -597,44 +607,76 @@ function AccountPageContent() {
                 </div>
               ) : null}
               {profile.password_login_enabled && (!stepUpRequired || stepUpActive) ? (
-                <form id="account-password-form" className="settings-form" onSubmit={onPasswordSubmit}>
-                  <div className="field">
-                    <label htmlFor="current_pw">Mật khẩu hiện tại</label>
+                <>
+                  <form
+                    key={passwordFormKey}
+                    id="account-password-form"
+                    className="settings-form"
+                    autoComplete="off"
+                    onSubmit={onPasswordSubmit}
+                  >
                     <input
-                      id="current_pw"
-                      type="password"
-                      autoComplete="current-password"
-                      value={currentPw}
-                      onChange={(e) => setCurrentPw(e.target.value)}
-                      required
+                      type="text"
+                      name="username"
+                      autoComplete="username"
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      className="account-password-decoy"
+                      readOnly
                     />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="new_pw">Mật khẩu mới</label>
-                    <input
-                      id="new_pw"
-                      type="password"
-                      autoComplete="new-password"
-                      value={newPw}
-                      onChange={(e) => setNewPw(e.target.value)}
-                      required
-                      minLength={8}
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="confirm_pw">Xác nhận mật khẩu mới</label>
-                    <input
-                      id="confirm_pw"
-                      type="password"
-                      autoComplete="new-password"
-                      value={confirmPw}
-                      onChange={(e) => setConfirmPw(e.target.value)}
-                      required
-                      minLength={8}
-                    />
-                  </div>
+                    <div className="field">
+                      <label htmlFor="current_pw">Mật khẩu hiện tại</label>
+                      <input
+                        id="current_pw"
+                        name="nest-current-password"
+                        type="password"
+                        autoComplete="current-password"
+                        value={currentPw}
+                        onChange={(e) => setCurrentPw(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="new_pw">Mật khẩu mới</label>
+                      <input
+                        id="new_pw"
+                        name="nest-new-password"
+                        type="password"
+                        autoComplete="new-password"
+                        value={newPw}
+                        onChange={(e) => setNewPw(e.target.value)}
+                        onFocus={(e) => {
+                          e.currentTarget.readOnly = false;
+                        }}
+                        readOnly
+                        required
+                        minLength={8}
+                        data-1p-ignore
+                        data-lpignore="true"
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="confirm_pw">Xác nhận mật khẩu mới</label>
+                      <input
+                        id="confirm_pw"
+                        name="nest-confirm-password"
+                        type="password"
+                        autoComplete="off"
+                        value={confirmPw}
+                        onChange={(e) => setConfirmPw(e.target.value)}
+                        onFocus={(e) => {
+                          e.currentTarget.readOnly = false;
+                        }}
+                        readOnly
+                        required
+                        minLength={8}
+                        data-1p-ignore
+                        data-lpignore="true"
+                      />
+                    </div>
+                  </form>
                   <StaffTurnstile active={passwordDrawerOpen} onToken={setTurnstileToken} />
-                </form>
+                </>
               ) : null}
               {profile.password_login_enabled && profile.sso_enabled ? (
                 <p className="muted">SSO và mật khẩu Nest là hai nguồn riêng; đổi một bên không đổi bên kia.</p>

@@ -7946,9 +7946,23 @@ html.ops-shell-collapsed .ops-nav-group-links {
   margin-bottom: 0.75rem;
 }
 
+.account-password-decoy {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .account-turnstile {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 0;
   height: 0;
   overflow: hidden;
+  visibility: hidden;
 }
 
 .account-card h2 {
