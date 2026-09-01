@@ -13,6 +13,8 @@ type WinDrawerProps = {
 export function WinDrawer({ open, title, onClose, children, footer }: WinDrawerProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -20,14 +22,14 @@ export function WinDrawer({ open, title, onClose, children, footer }: WinDrawerP
     panelRef.current?.focus();
 
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     }
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
       prev?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

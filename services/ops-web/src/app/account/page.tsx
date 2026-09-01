@@ -88,6 +88,8 @@ function AccountPageContent() {
   const [confirmPw, setConfirmPw] = useState('');
   const [passwordDrawerOpen, setPasswordDrawerOpen] = useState(false);
   const [passwordFormKey, setPasswordFormKey] = useState(0);
+  const [newPwUnlocked, setNewPwUnlocked] = useState(false);
+  const [confirmPwUnlocked, setConfirmPwUnlocked] = useState(false);
   const [drawerError, setDrawerError] = useState('');
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AccountTab>('profile');
@@ -181,6 +183,8 @@ function AccountPageContent() {
     setCurrentPw('');
     setNewPw('');
     setConfirmPw('');
+    setNewPwUnlocked(false);
+    setConfirmPwUnlocked(false);
   }
 
   function openPasswordDrawer() {
@@ -645,10 +649,8 @@ function AccountPageContent() {
                         autoComplete="new-password"
                         value={newPw}
                         onChange={(e) => setNewPw(e.target.value)}
-                        onFocus={(e) => {
-                          e.currentTarget.readOnly = false;
-                        }}
-                        readOnly
+                        onFocus={() => setNewPwUnlocked(true)}
+                        readOnly={!newPwUnlocked}
                         required
                         minLength={8}
                         data-1p-ignore
@@ -664,10 +666,8 @@ function AccountPageContent() {
                         autoComplete="off"
                         value={confirmPw}
                         onChange={(e) => setConfirmPw(e.target.value)}
-                        onFocus={(e) => {
-                          e.currentTarget.readOnly = false;
-                        }}
-                        readOnly
+                        onFocus={() => setConfirmPwUnlocked(true)}
+                        readOnly={!confirmPwUnlocked}
                         required
                         minLength={8}
                         data-1p-ignore
