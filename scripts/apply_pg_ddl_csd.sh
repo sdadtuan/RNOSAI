@@ -23,3 +23,6 @@ echo "Applying CSD DDL..."
 echo "    DATABASE_URL=${URL%%@*}@…"
 psql "$URL" -v ON_ERROR_STOP=1 -f "$DDL"
 echo "OK  CSD DDL applied (csd_* tables; crm_tickets / ceo_command_* untouched)"
+
+echo "== seed csd RBAC caps =="
+bash "$ROOT/scripts/seed_csd_rbac.sh" --apply

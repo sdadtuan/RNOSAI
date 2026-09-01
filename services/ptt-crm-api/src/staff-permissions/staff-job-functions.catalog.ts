@@ -13,25 +13,34 @@ export const DEFAULT_JOB_FUNCTION_GRANTS: Record<string, Record<string, string[]
     crm_kpi_records: ['export', 'configure'],
     crm_staff_kpi_am_sp: ['view'],
     crm_presales_solution: ['release'],
+    csd: ['view', 'write', 'assign', 'manage'],
   },
-  sales: {},
+  sales: {
+    csd: ['view', 'write'],
+  },
   content: {
     crm_seo_aeo_write: ['create', 'edit'],
     crm_email_mkt: ['write', 'reports'],
+    csd: ['view', 'write'],
   },
   design: {
     crm_facebook_ads: ['edit'],
     meta_campaign_write: ['view'],
+    csd: ['view', 'write'],
   },
   analyst: {
     crm_business_dashboard: ['export'],
     crm_sales_funnel: ['export'],
     crm_kpi_chart: ['export'],
+    csd: ['view'],
   },
-  ops: {},
+  ops: {
+    csd: ['view'],
+  },
   technical: {
     crm_seo_aeo_technical: ['view', 'configure'],
     crm_seo_aeo_settings: ['configure'],
+    csd: ['view', 'write'],
   },
   compliance: {
     crm_email_mkt: ['compliance', 'deliverability'],

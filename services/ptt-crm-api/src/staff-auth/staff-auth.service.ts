@@ -88,6 +88,11 @@ const DEFAULT_STUB_CAPS: StaffSectionCap[] = [
   { section: 'ceo_command', action: 'view' },
   { section: 'ceo_command', action: 'act' },
   { section: 'ceo_command', action: 'configure' },
+  { section: 'csd', action: 'view' },
+  { section: 'csd', action: 'write' },
+  { section: 'csd', action: 'assign' },
+  { section: 'csd', action: 'manage' },
+  { section: 'csd', action: 'admin' },
   { section: 'automation_workflows', action: 'view' },
   { section: 'automation_workflows', action: 'configure' },
   { section: 'automation_workflows', action: 'simulate' },
@@ -406,6 +411,11 @@ export class StaffAuthService {
           { section_id: 'ceo_command', action: 'view' },
           { section_id: 'ceo_command', action: 'act' },
           { section_id: 'ceo_command', action: 'configure' },
+          { section_id: 'csd', action: 'view' },
+          { section_id: 'csd', action: 'write' },
+          { section_id: 'csd', action: 'assign' },
+          { section_id: 'csd', action: 'manage' },
+          { section_id: 'csd', action: 'admin' },
         ])
       : caps;
     const client_ids = await this.resolveJwtClientIds(accessPayload.sub, position_code);
