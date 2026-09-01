@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Grant csd.* caps for Agency Service Desk (CSD-20260902).
 #
-# Positions:
-#   SUPER-ADMIN — all csd actions
-#   GDKD        — view, write, assign, manage
-#   KD-01 (AM)  — view, write
-#   MKT-01      — view, write
-#   Any position with crm_agency.view — view, write (agency staff)
+# Positions (staging codes + production PTT codes):
+#   SUPER-ADMIN, CEO, GD — all csd actions
+#   MD, PD — view, write, assign, manage
+#   ACM, AE, CE, MEP — view, write (AM / delivery)
+#   All active positions — view (menu visible; API still enforces write)
+#   Legacy: kd-01, gdkd, mkt-01 when present
 #
 # Job functions (additive via staff_job_function_grants):
 #   leader    — view, write, assign, manage
@@ -50,7 +50,52 @@ CROSS JOIN (VALUES
 WHERE lower(trim(p.code)) = 'super-admin'
 ON CONFLICT (position_id, section_id, action) DO NOTHING;
 
--- GDKD — PM / leader tier
+-- CEO / GD — leadership
+INSERT INTO staff_section_permissions (position_id, section_id, action)
+SELECT p.id, g.section_id, g.action
+FROM crm_positions p
+CROSS JOIN (VALUES
+  ('csd', 'view'),
+  ('csd', 'write'),
+  ('csd', 'assign'),
+  ('csd', 'manage'),
+  ('csd', 'admin')
+) AS g(section_id, action)
+WHERE lower(trim(p.code)) IN ('ceo', 'gd')
+ON CONFLICT (position_id, section_id, action) DO NOTHING;
+
+-- MD / PD — PM tier
+INSERT INTO staff_section_permissions (position_id, section_id, action)
+SELECT p.id, g.section_id, g.action
+FROM crm_positions p
+CROSS JOIN (VALUES
+  ('csd', 'view'),
+  ('csd', 'write'),
+  ('csd', 'assign'),
+  ('csd', 'manage')
+) AS g(section_id, action)
+WHERE lower(trim(p.code)) IN ('md', 'pd')
+ON CONFLICT (position_id, section_id, action) DO NOTHING;
+
+-- ACM / AE / CE / MEP — AM & delivery
+INSERT INTO staff_section_permissions (position_id, section_id, action)
+SELECT p.id, g.section_id, g.action
+FROM crm_positions p
+CROSS JOIN (VALUES
+  ('csd', 'view'),
+  ('csd', 'write')
+) AS g(section_id, action)
+WHERE lower(trim(p.code)) IN ('acm', 'ae', 'ce', 'mep')
+ON CONFLICT (position_id, section_id, action) DO NOTHING;
+
+-- Every active position — at least see Service Desk in nav
+INSERT INTO staff_section_permissions (position_id, section_id, action)
+SELECT p.id, 'csd', 'view'
+FROM crm_positions p
+WHERE p.active = TRUE
+ON CONFLICT (position_id, section_id, action) DO NOTHING;
+
+-- GDKD — PM / leader tier (staging)
 INSERT INTO staff_section_permissions (position_id, section_id, action)
 SELECT p.id, g.section_id, g.action
 FROM crm_positions p
