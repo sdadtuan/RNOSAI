@@ -108,11 +108,7 @@ export default function CeoCommandPage() {
           <CeoLifecycleTower token={token} />
         </Suspense>
       ) : null}
-      {token && !error ? (
-        <div className="page-card stack-gap">
-          <CeoCommandPanel token={token} staffName={user.display_name ?? user.email} />
-        </div>
-      ) : null}
+      {token && !error ? <CeoCommandPanel token={token} staffName={user.display_name ?? user.email} /> : null}
     </StaffPageShell>
   );
 }

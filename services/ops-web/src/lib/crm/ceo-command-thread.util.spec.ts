@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canSeeCeoNav, ceoBadge, parseCards } from './ceo-command-thread.util';
+import { canSeeCeoNav, ceoBadge, isBriefingIntent, parseCards } from './ceo-command-thread.util';
 
 describe('ceo-command-thread.util', () => {
   it('AM cannot see nav', () => {
@@ -24,5 +24,10 @@ describe('ceo-command-thread.util', () => {
 
   it('parseCards skips malformed', () => {
     expect(parseCards([{ title: 'x' }, { title: 'ok', href: '/a', severity: 'red' }])).toHaveLength(1);
+  });
+
+  it('isBriefingIntent recognizes briefing chips', () => {
+    expect(isBriefingIntent('briefing_today')).toBe(true);
+    expect(isBriefingIntent('nl_query')).toBe(false);
   });
 });

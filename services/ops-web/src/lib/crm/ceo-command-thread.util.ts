@@ -53,6 +53,39 @@ export function parseCards(raw: unknown): CeoBriefingCard[] {
   return out;
 }
 
+export const BRIEFING_INTENTS = new Set([
+  'briefing_today',
+  'briefing_pipeline',
+  'briefing_sla',
+  'briefing_ops',
+  'briefing_finance',
+  'briefing_coach',
+]);
+
+export function isBriefingIntent(intent: string | undefined): boolean {
+  return Boolean(intent && BRIEFING_INTENTS.has(intent));
+}
+
+const BRIEFING_SOURCE_VI: Record<string, string> = {
+  tower: 'Tháp chu trình',
+  ops_exec: 'Ops executive',
+  ops_alerts: 'Ops alert',
+  pipeline: 'Pipeline rủi ro',
+  sla: 'CSKH SLA',
+  finance: 'Tài chính',
+  coach: 'Coach tuần',
+};
+
+export function briefingSourceLabel(source?: string): string {
+  if (!source) return 'Briefing';
+  return BRIEFING_SOURCE_VI[source] ?? source;
+}
+
+export function briefingIntentLabel(intent: string | undefined): string {
+  const chip = CHIPS_A.find((c) => c.intent === intent);
+  return chip?.label ?? 'Briefing';
+}
+
 export const CHIPS_A: Array<{ intent: string; label: string }> = [
   { intent: 'briefing_today', label: 'Hôm nay' },
   { intent: 'briefing_pipeline', label: 'Pipeline rủi ro' },

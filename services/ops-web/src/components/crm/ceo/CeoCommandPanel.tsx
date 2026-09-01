@@ -20,6 +20,7 @@ import {
   type CeoTurnRow,
 } from '@/lib/api';
 import { CeoActionConfirmDialog } from '@/components/crm/ceo/CeoActionConfirmDialog';
+import { CeoBriefingInbox } from '@/components/crm/ceo/CeoBriefingInbox';
 import { confirmCopy } from '@/lib/crm/ceo-command-confirm.util';
 import { rowsToTable, sparkPoints } from '@/lib/crm/ceo-command-nl-render.util';
 import {
@@ -27,8 +28,8 @@ import {
   CHIPS_B,
   ceoBadge,
   ceoCommandErrorMessage,
+  isBriefingIntent,
   parseCards,
-  type CeoBriefingCard,
 } from '@/lib/crm/ceo-command-thread.util';
 
 type TurnBubble = {
@@ -37,12 +38,6 @@ type TurnBubble = {
   turnId?: string | null;
   output?: CeoTurnOutput;
 };
-
-function severityClass(sev: CeoBriefingCard['severity']): string {
-  if (sev === 'red') return 'badge badge-error';
-  if (sev === 'amber') return 'badge badge-warning';
-  return 'badge badge-success';
-}
 
 export type CeoCommandPanelProps = {
   token: string;
@@ -164,6 +159,21 @@ export function CeoCommandPanel({ token, staffName }: CeoCommandPanelProps) {
     stubMode: lastStub,
   });
 
+  const latestBriefing = useMemo(() => {
+    for (let i = bubbles.length - 1; i >= 0; i -= 1) {
+      const b = bubbles[i];
+      if (b?.role !== 'assistant' || !b.output) continue;
+      if (!isBriefingIntent(b.output.intent)) continue;
+      return {
+        intent: b.output.intent,
+        summary: b.text,
+        cards: parseCards(b.output.cards),
+        turnId: b.turnId,
+      };
+    }
+    return null;
+  }, [bubbles]);
+
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     const text = message.trim();
@@ -211,140 +221,143 @@ export function CeoCommandPanel({ token, staffName }: CeoCommandPanelProps) {
     setIdempotencyKey(crypto.randomUUID());
   }
 
+  const chatBubbles = useMemo(
+    () =>
+      bubbles.filter((b) => {
+        if (b.role !== 'assistant' || !b.output) return true;
+        return !isBriefingIntent(b.output.intent);
+      }),
+    [bubbles],
+  );
+
   return (
     <div className="ceo-command-panel stack-gap">
-      <header className="flex flex-wrap items-center gap-2 justify-between">
+      <header className="ceo-command-header">
         <div>
-          <h2 className="text-lg font-semibold">Điều hành RNOSAI</h2>
-          <p className="muted text-sm">{staffName ?? 'GDKD'} · badge {badge}</p>
+          <h2 className="ceo-command-header__title">Điều hành RNOSAI</h2>
+          <p className="ceo-command-header__meta">
+            {staffName ?? 'GDKD'} · nguồn <span className="ceo-command-badge">{badge}</span>
+            {badge === 'Stub' ? (
+              <span className="ceo-command-header__hint">
+                {' '}
+                — số liệu thật từ DB, chưa có LLM tóm tắt
+              </span>
+            ) : null}
+          </p>
         </div>
-        <Link href="/crm/ceo/learn" className="btn btn-sm btn-ghost">
+        <Link href="/crm/ceo/learn" className="btn btn-sm btn-secondary">
           Kho Learn
         </Link>
       </header>
 
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-        <div className="xl:col-span-3 page-card p-4 min-h-[420px] flex flex-col">
-          <div className="flex-1 overflow-y-auto space-y-3 mb-3">
-            {bubbles.map((b, idx) => (
-              <div
-                key={`${b.turnId ?? idx}-${b.role}`}
-                className={b.role === 'user' ? 'text-right' : 'text-left'}
-              >
+      {latestBriefing ? (
+        <CeoBriefingInbox
+          intent={latestBriefing.intent}
+          summary={latestBriefing.summary}
+          cards={latestBriefing.cards}
+          turnId={latestBriefing.turnId}
+          ratingBusy={ratingBusy}
+          onRate={(turnId, rating) => void onRate(turnId, rating)}
+        />
+      ) : null}
+
+      <div className="ceo-command-layout">
+        <div className="ceo-command-chat page-card">
+          <h3 className="ceo-command-chat__title">Hỏi số &amp; hành động</h3>
+          <div className="ceo-command-chat__thread">
+            {chatBubbles.length === 0 ? (
+              <p className="muted">Gõ câu hỏi hoặc bấm chip bên phải để tra số.</p>
+            ) : (
+              chatBubbles.map((b, idx) => (
                 <div
-                  className={`inline-block max-w-[95%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
-                    b.role === 'user' ? 'bg-primary/10' : 'bg-base-200'
-                  }`}
+                  key={`${b.turnId ?? idx}-${b.role}`}
+                  className={`ceo-command-bubble ceo-command-bubble--${b.role}`}
                 >
-                  {b.text}
-                  {b.role === 'assistant' && b.output ? (
-                    <>
-                      {parseCards(b.output.cards).map((card) => (
-                        <div key={`${card.title}-${card.href}`} className="mt-2 p-2 border rounded text-left">
-                          <span className={severityClass(card.severity)}>{card.severity}</span>{' '}
-                          <Link href={card.href} className="link link-primary">
-                            {card.title}
-                          </Link>
-                          {card.metric ? <div className="muted text-xs">{card.metric}</div> : null}
-                        </div>
-                      ))}
-                      {b.output.rows?.length ? (
-                        <div className="mt-2 overflow-x-auto">
-                          <table className="table table-xs">
-                            <tbody>
-                              {rowsToTable(b.output.rows).map((row, ri) => (
-                                <tr key={ri}>
-                                  {Object.entries(row).map(([k, v]) => (
-                                    <td key={k}>
-                                      <span className="muted">{k}: </span>
-                                      {v}
-                                    </td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                          {b.output.drill_href ? (
-                            <Link href={b.output.drill_href} className="link text-xs">
-                              Xem đầy đủ
-                            </Link>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      {b.output.result_kind === 'chart' &&
-                      Array.isArray((b.output.facts_json as { chart?: { series?: Array<{ values?: number[] }> } })?.chart?.series) ? (
-                        <svg width={120} height={32} className="mt-2">
-                          <polyline
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                            points={sparkPoints(
-                              ((b.output.facts_json as { chart?: { series?: Array<{ values?: number[] }> } })
-                                .chart?.series?.[0]?.values ?? []) as number[],
-                            )}
-                          />
-                        </svg>
-                      ) : null}
-                      {b.output.proposed_action?.can_confirm ? (
-                        <button
-                          type="button"
-                          className="btn btn-xs btn-primary mt-2"
-                          onClick={() => openConfirm(b.output!)}
-                        >
-                          Xác nhận
-                        </button>
-                      ) : null}
-                      {b.turnId ? (
-                        <div className="mt-2 flex gap-1">
+                  <div className="ceo-command-bubble__body">
+                    {b.text}
+                    {b.role === 'assistant' && b.output ? (
+                      <>
+                        {b.output.rows?.length ? (
+                          <div className="ceo-command-table-wrap">
+                            <table className="data-table data-table--compact">
+                              <tbody>
+                                {rowsToTable(b.output.rows).map((row, ri) => (
+                                  <tr key={ri}>
+                                    {Object.entries(row).map(([k, v]) => (
+                                      <td key={k}>
+                                        <span className="muted">{k}: </span>
+                                        {v}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            {b.output.drill_href ? (
+                              <Link href={b.output.drill_href} className="ceo-command-drill">
+                                Xem đầy đủ →
+                              </Link>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {b.output.result_kind === 'chart' &&
+                        Array.isArray(
+                          (b.output.facts_json as { chart?: { series?: Array<{ values?: number[] }> } })
+                            ?.chart?.series,
+                        ) ? (
+                          <svg width={120} height={32} className="ceo-command-spark">
+                            <polyline
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                              points={sparkPoints(
+                                ((b.output.facts_json as { chart?: { series?: Array<{ values?: number[] }> } })
+                                  .chart?.series?.[0]?.values ?? []) as number[],
+                              )}
+                            />
+                          </svg>
+                        ) : null}
+                        {b.output.proposed_action?.can_confirm ? (
                           <button
                             type="button"
-                            className="btn btn-xs btn-ghost"
-                            disabled={ratingBusy === b.turnId}
-                            onClick={() => void onRate(b.turnId!, 'up')}
+                            className="btn btn-xs btn-primary"
+                            onClick={() => openConfirm(b.output!)}
                           >
-                            👍
+                            Xác nhận
                           </button>
-                          <button
-                            type="button"
-                            className="btn btn-xs btn-ghost"
-                            disabled={ratingBusy === b.turnId}
-                            onClick={() => void onRate(b.turnId!, 'down')}
-                          >
-                            👎
-                          </button>
-                        </div>
-                      ) : null}
-                    </>
-                  ) : null}
+                        ) : null}
+                      </>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
 
-          <form onSubmit={onSubmit} className="border-t pt-3">
+          <form onSubmit={onSubmit} className="ceo-command-compose">
             <textarea
-              className="textarea textarea-bordered w-full text-sm"
+              className="ceo-command-compose__input"
               rows={2}
-              placeholder="Hỏi số, gõ việc cần làm, hoặc bấm Hôm nay…"
+              placeholder="Hỏi số, gõ việc cần làm, hoặc bấm chip bên phải…"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={onKeyDown}
               disabled={busy}
             />
-            <p className="muted text-xs mt-1">Nội bộ — không gửi khách</p>
+            <p className="ceo-command-compose__hint">Nội bộ — không gửi khách</p>
           </form>
-          {error ? <p className="error text-sm mt-2">{error}</p> : null}
+          {error ? <p className="error">{error}</p> : null}
         </div>
 
-        <div className="xl:col-span-2 space-y-3">
-          <div className="page-card p-3">
-            <h3 className="font-medium text-sm mb-2">Briefing</h3>
-            <div className="flex flex-wrap gap-1">
+        <aside className="ceo-command-sidebar">
+          <div className="page-card ceo-command-chip-panel">
+            <h3 className="ceo-command-chip-panel__title">Briefing</h3>
+            <div className="ceo-command-chips">
               {CHIPS_A.map((c) => (
                 <button
                   key={c.intent}
                   type="button"
-                  className="btn btn-xs btn-outline"
+                  className="btn btn-xs btn-secondary"
                   disabled={busy}
                   onClick={() => void sendTurn({ intent: c.intent })}
                 >
@@ -353,25 +366,23 @@ export function CeoCommandPanel({ token, staffName }: CeoCommandPanelProps) {
               ))}
             </div>
           </div>
-          <div className="page-card p-3">
-            <h3 className="font-medium text-sm mb-2">Số liệu</h3>
-            <div className="flex flex-wrap gap-1">
+          <div className="page-card ceo-command-chip-panel">
+            <h3 className="ceo-command-chip-panel__title">Số liệu</h3>
+            <div className="ceo-command-chips">
               {CHIPS_B.map((c) => (
                 <button
                   key={c.intent_id}
                   type="button"
                   className="btn btn-xs btn-ghost"
                   disabled={busy}
-                  onClick={() =>
-                    void sendTurn({ intent: 'nl_query', intent_id: c.intent_id })
-                  }
+                  onClick={() => void sendTurn({ intent: 'nl_query', intent_id: c.intent_id })}
                 >
                   {c.label}
                 </button>
               ))}
             </div>
           </div>
-        </div>
+        </aside>
       </div>
 
       {confirmTurn?.proposed_action ? (
