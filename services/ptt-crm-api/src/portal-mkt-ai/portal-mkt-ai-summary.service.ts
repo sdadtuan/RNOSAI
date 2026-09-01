@@ -152,7 +152,7 @@ export class PortalMktAiSummaryService {
     });
     const playbookCtx =
       this.playbooks.isEnabled() && briefRow
-        ? this.playbooks.buildContextFromDraft({
+        ? await this.playbooks.buildContextFromDraft({
             brief: briefRow.brief_json,
             draft: draft ?? ({} as never),
             serviceSlug,

@@ -267,7 +267,7 @@ export class MarketingAiPlannerService {
       await this.versions.listVersions(lifecycleId, 20),
     );
     const playbookCtx = this.playbooks.isEnabled()
-      ? this.playbooks.buildContextFromDraft({
+      ? await this.playbooks.buildContextFromDraft({
           brief: briefRow.brief_json,
           draft,
           serviceSlug,
@@ -406,9 +406,9 @@ export class MarketingAiPlannerService {
     });
   }
 
-  private loadPlaybookPromptHints(brief: MktAiBrief, serviceSlug: string) {
+  private async loadPlaybookPromptHints(brief: MktAiBrief, serviceSlug: string) {
     if (!this.playbooks.isEnabled()) return {};
-    const playbook = this.playbooks.resolvePlaybook(brief._playbook_slug, serviceSlug);
+    const playbook = await this.playbooks.resolvePlaybook(brief._playbook_slug, serviceSlug);
     return this.playbooks.buildPromptHints(playbook);
   }
 
@@ -644,7 +644,7 @@ export class MarketingAiPlannerService {
       const ragCitations = ragCtx.enabled
         ? this.rag.attachCitations(ragCtx.chunks)
         : undefined;
-      const playbookHints = this.loadPlaybookPromptHints(brief, String(lc.service_slug ?? ''));
+      const playbookHints = await this.loadPlaybookPromptHints(brief, String(lc.service_slug ?? ''));
       const out = await this.orchestrator.generateStrategy(brief, {
         ragPromptBlock: ragCtx.promptBlock,
         ragCitations,
@@ -680,7 +680,7 @@ export class MarketingAiPlannerService {
     const brief = await this.requireBrief(lifecycleId);
 
     return this.runJob(lifecycleId, 'campaign_generate', actorEmail, async () => {
-      const playbookHints = this.loadPlaybookPromptHints(brief, String(lc.service_slug ?? ''));
+      const playbookHints = await this.loadPlaybookPromptHints(brief, String(lc.service_slug ?? ''));
       const campaigns = await this.orchestrator.generateCampaigns(brief, {
         playbookPromptBlock: playbookHints.campaignBlock,
       });

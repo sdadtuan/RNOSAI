@@ -154,11 +154,12 @@ function assignBriefField(brief: MktAiBrief, key: string, value: unknown): void 
   (brief as Record<string, unknown>)[key] = value;
 }
 
-export function readPlaybookFile(slug: string, dir = PLAYBOOKS_DIR): MktAiIndustryPlaybook {
-  const filePath = path.join(dir, `${slug}.json`);
-  const raw = fs.readFileSync(filePath, 'utf8');
-  const parsed = JSON.parse(raw) as MktAiIndustryPlaybook;
-  if (!parsed.slug) parsed.slug = slug;
+export function parsePlaybookDocument(
+  doc: Record<string, unknown>,
+  fallbackSlug: string,
+): MktAiIndustryPlaybook {
+  const parsed = doc as unknown as MktAiIndustryPlaybook;
+  if (!parsed.slug) parsed.slug = fallbackSlug;
   if (!parsed.quality_gate) {
     parsed.quality_gate = { min_score_launch_qa: 70, require_campaign_count: 2 };
   }
@@ -169,6 +170,13 @@ export function readPlaybookFile(slug: string, dir = PLAYBOOKS_DIR): MktAiIndust
     parsed.quality_gate.require_campaign_count = 2;
   }
   return parsed;
+}
+
+export function readPlaybookFile(slug: string, dir = PLAYBOOKS_DIR): MktAiIndustryPlaybook {
+  const filePath = path.join(dir, `${slug}.json`);
+  const raw = fs.readFileSync(filePath, 'utf8');
+  const parsed = JSON.parse(raw) as MktAiIndustryPlaybook;
+  return parsePlaybookDocument(parsed as unknown as Record<string, unknown>, slug);
 }
 
 export function listPlaybookCatalog(dir = PLAYBOOKS_DIR): MktAiIndustryPlaybook[] {

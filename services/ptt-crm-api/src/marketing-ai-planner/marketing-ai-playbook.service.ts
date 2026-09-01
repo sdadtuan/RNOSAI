@@ -5,6 +5,11 @@ import { validateMktAiBrief } from './marketing-ai-brief.util';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
 import type { MktAiBrief, MktAiDraft } from './marketing-ai-planner.types';
 import {
+  MktAiPlaybookVersionsRepository,
+  type MktAiPlaybookVersionRow,
+} from './mkt-ai-playbook-versions.repository';
+import { MktAiServicePolicyRepository } from './mkt-ai-service-policy.repository';
+import {
   buildCampaignPlaybookBlock,
   buildStrategyPlaybookBlock,
   evaluateLaunchQaQualityGate,
@@ -15,6 +20,7 @@ import {
   resolveActivePlaybookSlug,
   discoverPlaybookJsonSlugs,
   validateMktAiPlaybookDocument,
+  parsePlaybookDocument,
   MKT_AI_PLAYBOOK_SLUGS,
   type MktAiIndustryPlaybook,
   type MktAiLaunchQaQualityGate,
@@ -71,6 +77,8 @@ export class MarketingAiPlaybookService {
   constructor(
     private readonly config: AppConfigService,
     private readonly repo: MarketingAiPlannerRepository,
+    private readonly policyRepo: MktAiServicePolicyRepository,
+    private readonly versionsRepo: MktAiPlaybookVersionsRepository,
   ) {}
 
   isEnabled(): boolean {
@@ -92,23 +100,72 @@ export class MarketingAiPlaybookService {
     return this.catalogCache;
   }
 
-  getPlaybook(slug: string): MktAiIndustryPlaybook {
+  private playbookFromVersion(
+    version: MktAiPlaybookVersionRow,
+    fallbackSlug: string,
+  ): MktAiIndustryPlaybook | null {
+    const doc = version.document_json;
+    if (!doc || typeof doc !== 'object' || !Object.keys(doc).length) return null;
+    return parsePlaybookDocument(doc, fallbackSlug);
+  }
+
+  /** Spec §5.4 step 1 — active or approved version for a playbook slug */
+  private async resolveBriefSlugVersion(playbookSlug: string): Promise<MktAiIndustryPlaybook | null> {
+    const slug = playbookSlug.trim();
+    if (!slug) return null;
+
+    const active = await this.versionsRepo.getActiveVersion(slug);
+    if (active && (active.status === 'active' || active.status === 'approved')) {
+      const pb = this.playbookFromVersion(active, slug);
+      if (pb) return pb;
+    }
+
+    const versions = await this.versionsRepo.listVersionsBySlug(slug, 20);
+    const approved = versions.find((v) => v.status === 'approved');
+    if (approved) {
+      const pb = this.playbookFromVersion(approved, slug);
+      if (pb) return pb;
+    }
+
+    return null;
+  }
+
+  /** Spec §5.4 — brief slug → policy active → _common active → disk */
+  async resolvePlaybook(
+    briefSlug: string | null | undefined,
+    serviceSlug: string,
+  ): Promise<MktAiIndustryPlaybook> {
+    const fromBrief = String(briefSlug ?? '').trim();
+    if (fromBrief) {
+      const briefPlaybook = await this.resolveBriefSlugVersion(fromBrief);
+      if (briefPlaybook) return briefPlaybook;
+    }
+
+    const policy = await this.policyRepo.getPolicyRow(serviceSlug);
+    if (policy?.active_version_id) {
+      const version = await this.versionsRepo.getVersion(policy.active_version_id);
+      const pb = version ? this.playbookFromVersion(version, serviceSlug) : null;
+      if (pb) return pb;
+    }
+
+    const commonActive = await this.versionsRepo.getActiveVersion('_common');
+    if (commonActive) {
+      const pb = this.playbookFromVersion(commonActive, '_common');
+      if (pb) return pb;
+    }
+
+    return resolvePlaybookForSlug(serviceSlug, this.getCatalog());
+  }
+
+  async getPlaybook(slug: string): Promise<MktAiIndustryPlaybook> {
+    const fromDb = await this.resolveBriefSlugVersion(slug);
+    if (fromDb) return fromDb;
+
     try {
       return readPlaybookFile(slug);
     } catch {
       throw new NotFoundException({ error: 'mkt_ai_playbook_not_found', slug });
     }
-  }
-
-  resolvePlaybook(slug: string | null | undefined, serviceSlug: string): MktAiIndustryPlaybook {
-    if (slug) {
-      try {
-        return this.getPlaybook(slug);
-      } catch {
-        /* fall through */
-      }
-    }
-    return resolvePlaybookForSlug(serviceSlug, this.getCatalog());
   }
 
   listForLifecycle(serviceSlug: string, brief: MktAiBrief | null): MktAiPlaybookListResult {
@@ -181,17 +238,19 @@ export class MarketingAiPlaybookService {
     };
   }
 
-  buildContextFromDraft(args: {
+  async buildContextFromDraft(args: {
     brief: MktAiBrief | null;
     draft: MktAiDraft;
     serviceSlug: string;
     qualityScore: number;
-  }): {
+  }): Promise<{
     playbook: MktAiPlaybookContext;
     launch_qa_quality_gate: MktAiLaunchQaQualityGate;
-  } {
+  }> {
     const activeSlug = resolveActivePlaybookSlug(args.brief, args.serviceSlug, this.getCatalog());
-    const playbookRow = activeSlug ? this.resolvePlaybook(activeSlug, args.serviceSlug) : null;
+    const playbookRow = activeSlug
+      ? await this.resolvePlaybook(args.brief?._playbook_slug ?? activeSlug, args.serviceSlug)
+      : null;
     const minScore = playbookRow?.quality_gate.min_score_launch_qa ?? 70;
     const launch_qa_quality_gate = evaluateLaunchQaQualityGate({
       enabled: this.isLaunchQaQualityGateEnabled(),
@@ -236,7 +295,10 @@ export class MarketingAiPlaybookService {
       serviceSlug,
       this.getCatalog(),
     );
-    const playbook = this.resolvePlaybook(activeSlug, serviceSlug);
+    const playbook = await this.resolvePlaybook(
+      briefRow?.brief_json?._playbook_slug ?? activeSlug,
+      serviceSlug,
+    );
     const minScore = playbook?.quality_gate.min_score_launch_qa ?? 70;
     return evaluateLaunchQaQualityGate({
       enabled: true,
@@ -245,7 +307,7 @@ export class MarketingAiPlaybookService {
     });
   }
 
-  mergeAndPersistPlaybook(args: {
+  async mergeAndPersistPlaybook(args: {
     lifecycleId: number;
     slug: string;
     serviceSlug: string;
@@ -259,7 +321,7 @@ export class MarketingAiPlaybookService {
     playbook_slug: string;
     messages: string[];
   }> {
-    const playbook = this.getPlaybook(args.slug);
+    const playbook = await this.getPlaybook(args.slug);
     const { brief, messages } = mergeBriefWithPlaybook(args.existingBrief, playbook, {
       confirmOverwrite: args.confirmOverwrite,
       serviceSlug: args.serviceSlug,
