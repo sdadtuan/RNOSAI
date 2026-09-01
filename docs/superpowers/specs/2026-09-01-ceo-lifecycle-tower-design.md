@@ -2,7 +2,7 @@
 
 > **Document ID:** CEO-TOWER-20260901  
 > **Phiên bản:** 1.3 · **Ngày:** 2026-09-01  
-> **Trạng thái:** Draft — chờ PO / CEO review trước implementation plan  
+> **Trạng thái:** Plan ready — [`2026-09-01-ceo-lifecycle-tower.md`](../plans/2026-09-01-ceo-lifecycle-tower.md)  
 > **Route:** `/crm/ceo` (cùng trang ChatBox — **panel trên**, chat **dưới**)  
 > **Sibling:** [CEO Command ChatBox SRS](./2026-08-30-ceo-command-oss-chatbox-srs.md) · [Lifecycle UI](../../huong-dan-su-dung/27-lifecycle-ui-huong-dan-day-du.md) · [RBAC org](../../specs/2026-08-07-rbac-hr-org-job-function-design.md) · [Playbook learn](./2026-09-01-mkt-ai-playbook-learn-catalog-design.md)  
 > **Quyết định đã chốt:** Một **cột sống 6 cột** + **hàng chờ sót** (chỉ vàng/đỏ). CEO quan sát ngoại lệ, không inventory. Không trộn Factory A (agency) và Factory B (CSKH spa) trên cùng hàng.  
