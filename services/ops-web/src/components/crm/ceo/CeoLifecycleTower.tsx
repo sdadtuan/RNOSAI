@@ -3,8 +3,16 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { CeoActionConfirmDialog } from '@/components/crm/ceo/CeoActionConfirmDialog';
 import { SegmentedControl } from '@/components/layout';
-import { fetchCeoTower, type TowerColumnId, type TowerPayload } from '@/lib/crm/ceo-tower-api';
+import { fetchCeoContext, type CeoTurnOutput } from '@/lib/api';
+import { confirmCopy } from '@/lib/crm/ceo-command-confirm.util';
+import { commitProposedCeoAction, proposeCeoAction } from '@/lib/crm/ceo-command-propose';
+import { fetchCeoTower, type TowerColumnId, type TowerException, type TowerPayload } from '@/lib/crm/ceo-tower-api';
+import {
+  mapTowerSuggestAction,
+  parseOwnerStaffIdInput,
+} from '@/lib/crm/ceo-tower-suggest.util';
 import {
   TOWER_COLUMN_DEFS,
   TOWER_EMPTY_STATE_COPY,
@@ -40,6 +48,10 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
   const [payload, setPayload] = useState<TowerPayload | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [canAct, setCanAct] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [confirmTurn, setConfirmTurn] = useState<CeoTurnOutput | null>(null);
+  const [idempotencyKey, setIdempotencyKey] = useState('');
 
   const query = useMemo(() => {
     const q: Record<string, string> = {
@@ -66,6 +78,63 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchCeoContext(token)
+      .then((out) => {
+        if (!cancelled) setCanAct(Boolean(out.can_act));
+      })
+      .catch(() => {
+        if (!cancelled) setCanAct(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  async function onSuggest(row: TowerException) {
+    const mapped = mapTowerSuggestAction(row, { can_act: canAct !== false });
+    if (mapped.kind === 'hidden' || mapped.kind === 'upcoming') return;
+    let params = { ...mapped.params };
+    if (mapped.kind === 'needs_owner') {
+      const owner = parseOwnerStaffIdInput(window.prompt('Nhập owner_staff_id'));
+      if (owner == null) return;
+      params.owner_staff_id = owner;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const out = await proposeCeoAction(token, { action_id: mapped.action_id, params });
+      if (!out.proposed_action) {
+        setError(out.reply_vi || 'Không đề xuất được hành động');
+        return;
+      }
+      setConfirmTurn(out);
+      setIdempotencyKey(crypto.randomUUID());
+    } catch (e) {
+      setError(String((e as Error).message ?? 'Gợi ý thất bại'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onConfirm() {
+    if (!confirmTurn?.turn_id || !idempotencyKey) return;
+    setBusy(true);
+    setError('');
+    try {
+      await commitProposedCeoAction(token, {
+        turn_id: confirmTurn.turn_id,
+        idempotency_key: idempotencyKey,
+      });
+      setConfirmTurn(null);
+    } catch (e) {
+      setError(String((e as Error).message ?? 'Commit thất bại'));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function patchQuery(next: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -197,7 +266,10 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
         </div>
       </div>
 
-      <div data-testid="ceo-tower-queue">
+      <div
+        data-testid="ceo-tower-queue"
+        data-can-act={canAct == null ? 'pending' : canAct ? 'yes' : 'no'}
+      >
         <h3 className="text-base font-semibold">Hàng chờ sót</h3>
         {exceptions.length === 0 ? (
           <p className="muted">{TOWER_EMPTY_STATE_COPY}</p>
@@ -227,9 +299,12 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
                         <Link href={row.href} className="btn btn-sm btn-secondary">
                           Mở
                         </Link>
-                        <button type="button" className="btn btn-sm btn-ghost">
-                          Gợi ý
-                        </button>
+                        <SuggestChip
+                          row={row}
+                          canAct={canAct}
+                          busy={busy}
+                          onSuggest={() => void onSuggest(row)}
+                        />
                       </div>
                     </td>
                   </tr>
@@ -239,6 +314,53 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
           </div>
         )}
       </div>
+
+      {confirmTurn?.proposed_action ? (
+        <CeoActionConfirmDialog
+          copy={confirmCopy(confirmTurn.proposed_action)}
+          busy={busy}
+          onCancel={() => setConfirmTurn(null)}
+          onConfirm={() => void onConfirm()}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function SuggestChip({
+  row,
+  canAct,
+  busy,
+  onSuggest,
+}: {
+  row: TowerException;
+  canAct: boolean | null;
+  busy: boolean;
+  onSuggest: () => void;
+}) {
+  if (canAct == null) return null;
+  const mapped = mapTowerSuggestAction(row, { can_act: canAct });
+  if (mapped.kind === 'hidden') return null;
+  if (mapped.kind === 'upcoming') {
+    return (
+      <button
+        type="button"
+        className="btn btn-sm btn-ghost"
+        disabled
+        title={mapped.tooltip}
+      >
+        Gợi ý
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="btn btn-sm btn-ghost"
+      disabled={busy}
+      onClick={onSuggest}
+    >
+      Gợi ý
+    </button>
   );
 }

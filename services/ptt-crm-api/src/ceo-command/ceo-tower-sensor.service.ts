@@ -438,6 +438,22 @@ function titleVi(row: ClassifiedRow): string {
   return `${prefix} #${entity_id} ${COLUMN_LABEL_VI[row.column_id]} ${age}`;
 }
 
+function slaSuggestFields(row: ClassifiedRow): Record<string, string> {
+  if (row.suggest_action !== 'sla_remind_lead' && !row.sensor_ids.includes('S9')) {
+    return {};
+  }
+  if (row.candidate.spaFirstCallBreach) {
+    return { tier: 'first_call_15m', suggested_action: 'log_call' };
+  }
+  if (row.candidate.spaB2Breach) {
+    return { tier: 'b2_complete_4h', suggested_action: 'complete_b2' };
+  }
+  if (row.candidate.spaCloseBreach) {
+    return { tier: 'close_24h', suggested_action: 'set_chot_audit' };
+  }
+  return { tier: 'first_call_15m', suggested_action: 'log_call' };
+}
+
 function toException(row: ClassifiedRow, _nowMs: number): TowerException {
   const { entity_type, entity_id } = entityOf(row);
   const href = towerDrillHref({
@@ -453,6 +469,10 @@ function toException(row: ClassifiedRow, _nowMs: number): TowerException {
         lead_id: row.candidate.leadId,
         ...(row.candidate.lifecycleId != null ? { lifecycle_id: row.candidate.lifecycleId } : {}),
         ...(row.candidate.opsAlertId != null ? { alert_id: row.candidate.opsAlertId } : {}),
+        ...(row.candidate.ownerId != null
+          ? { owner_staff_id: row.candidate.ownerId, staff_id: row.candidate.ownerId }
+          : {}),
+        ...slaSuggestFields(row),
       }
     : null;
   return {

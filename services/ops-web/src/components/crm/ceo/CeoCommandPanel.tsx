@@ -19,6 +19,7 @@ import {
   type CeoTurnOutput,
   type CeoTurnRow,
 } from '@/lib/api';
+import { CeoActionConfirmDialog } from '@/components/crm/ceo/CeoActionConfirmDialog';
 import { confirmCopy } from '@/lib/crm/ceo-command-confirm.util';
 import { rowsToTable, sparkPoints } from '@/lib/crm/ceo-command-nl-render.util';
 import {
@@ -373,20 +374,12 @@ export function CeoCommandPanel({ token, staffName }: CeoCommandPanelProps) {
       </div>
 
       {confirmTurn?.proposed_action ? (
-        <dialog open className="modal modal-open">
-          <div className="modal-box">
-            <h3 className="font-bold text-lg">Xác nhận hành động</h3>
-            <p className="py-4">{confirmCopy(confirmTurn.proposed_action)}</p>
-            <div className="modal-action">
-              <button type="button" className="btn" onClick={() => setConfirmTurn(null)}>
-                Hủy
-              </button>
-              <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void onConfirm()}>
-                Xác nhận
-              </button>
-            </div>
-          </div>
-        </dialog>
+        <CeoActionConfirmDialog
+          copy={confirmCopy(confirmTurn.proposed_action)}
+          busy={busy}
+          onCancel={() => setConfirmTurn(null)}
+          onConfirm={() => void onConfirm()}
+        />
       ) : null}
     </div>
   );

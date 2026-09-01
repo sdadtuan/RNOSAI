@@ -506,6 +506,43 @@ describe('CeoTowerSensorService.buildPayload', () => {
     expect(row!.severity).toBe('ok');
   });
 
+  it('suggest_params includes owner_staff_id/staff_id when owner exists', async () => {
+    const { svc } = makeSvc({ candidates: [s1NoOwner, s7OpsOverdue, spaB] });
+    const out = await svc.buildPayload(actor(OPS_AND_K), { factory: 'both' });
+
+    const s1 = out.exceptions.find((row) => row.entity_id === 1);
+    expect(s1?.suggest_action).toBe('assign_lead');
+    expect(s1?.suggest_params).toEqual(
+      expect.objectContaining({ lead_id: 1 }),
+    );
+    expect(s1?.suggest_params).not.toHaveProperty('owner_staff_id');
+    expect(s1?.suggest_params).not.toHaveProperty('staff_id');
+
+    const s7 = out.exceptions.find((row) => row.sensor_ids.includes('S7'));
+    expect(s7?.suggest_action).toBe('ack_ops_alert');
+    expect(s7?.suggest_params).toEqual(
+      expect.objectContaining({
+        lead_id: 70,
+        lifecycle_id: 700,
+        alert_id: 88,
+        owner_staff_id: 1,
+        staff_id: 1,
+      }),
+    );
+
+    const s9 = out.exceptions.find((row) => row.entity_id === 200);
+    expect(s9?.suggest_action).toBe('sla_remind_lead');
+    expect(s9?.suggest_params).toEqual(
+      expect.objectContaining({
+        lead_id: 200,
+        owner_staff_id: 1,
+        staff_id: 1,
+        tier: 'first_call_15m',
+        suggested_action: 'log_call',
+      }),
+    );
+  });
+
   it('red/amber cũ hơn 7 ngày vẫn vào hàng chờ', async () => {
     const oldRed = candidate({
       leadId: 99,
