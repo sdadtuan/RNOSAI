@@ -7,7 +7,8 @@ export function canSeeCeoNav(user: StoredStaffUser | null | undefined): boolean 
     hasCap(user, 'ceo_command', 'view') ||
     hasCap(user, 'ai_analytics', 'query') ||
     hasCap(user, 'crm_business_dashboard', 'view') ||
-    hasCap(user, 'ai_admin', 'view')
+    hasCap(user, 'ai_admin', 'view') ||
+    hasCap(user, 'crm_owner_weekly_dashboard', 'view')
   );
 }
 

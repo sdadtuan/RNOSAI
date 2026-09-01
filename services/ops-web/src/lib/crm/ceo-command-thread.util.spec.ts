@@ -10,6 +10,14 @@ describe('ceo-command-thread.util', () => {
     ).toBe(false);
   });
 
+  it('Owner Weekly only → canSeeCeoNav true', () => {
+    expect(
+      canSeeCeoNav({
+        caps: [{ section: 'crm_owner_weekly_dashboard', action: 'view' }],
+      } as never),
+    ).toBe(true);
+  });
+
   it('ceoBadge OSS when llm on and not stub', () => {
     expect(ceoBadge({ llmEnabled: true, stubMode: false })).toBe('OSS');
   });

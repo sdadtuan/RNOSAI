@@ -9,6 +9,10 @@ describe('ceo-command-caps.util', () => {
     expect(hasCeoView([{ section: 'crm_leads', action: 'edit' }])).toBe(false);
   });
 
+  it('Owner Weekly only → hasCeoView true', () => {
+    expect(hasCeoView([{ section: 'crm_owner_weekly_dashboard', action: 'view' }])).toBe(true);
+  });
+
   it('NL query can view but not act', () => {
     expect(hasCeoView([{ section: 'ai_analytics', action: 'query' }])).toBe(true);
     expect(hasCeoAct([{ section: 'ai_analytics', action: 'query' }])).toBe(false);

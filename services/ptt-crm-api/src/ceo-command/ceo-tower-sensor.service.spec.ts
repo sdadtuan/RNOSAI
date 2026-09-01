@@ -102,14 +102,15 @@ const spaB = candidate({
   valueVnd: null,
 });
 
-function actor(caps: Array<{ section: string; action: string }>): CeoActor {
-  return { staffId: 9, staffLabel: 'ceo', caps };
+function actor(caps: Array<{ section: string; action: string }>, staffId = 9): CeoActor {
+  return { staffId, staffLabel: staffId <= 0 ? 'system' : 'ceo', caps };
 }
 
 const CEO_VIEW = [{ section: 'ceo_command', action: 'view' }];
 const OPS_AND_K = [
   ...CEO_VIEW,
   { section: 'crm_leads', action: 'view' },
+  { section: 'crm_board', action: 'view' },
   { section: 'crm_owner_weekly_dashboard', action: 'view' },
 ];
 
@@ -140,15 +141,55 @@ function makeSvc(opts?: {
 }
 
 describe('CeoTowerSensorService.buildPayload', () => {
-  it('thiếu ops cap → S7 degraded, S1 vẫn fail', async () => {
+  it('thiếu crm_leads.view → lead_b2/intake/consult degraded, tower vẫn ok', async () => {
+    const intakeRow = candidate({
+      leadId: 30,
+      b2Done: true,
+      b2DoneAtMs: NOW - 6 * H,
+      lastActivityMs: NOW - 6 * H,
+    });
+    const consultRow = candidate({
+      leadId: 31,
+      b2Done: true,
+      intakeGo: true,
+      intakeGoAtMs: NOW - 8 * H,
+      lastActivityMs: NOW - 8 * H,
+    });
+    const { svc } = makeSvc({ candidates: [s1NoOwner, intakeRow, consultRow] });
+    const out = await svc.buildPayload(actor(CEO_VIEW), {});
+
+    expect(out.ok).toBe(true);
+    for (const id of ['lead_b2', 'intake', 'consult'] as const) {
+      const col = out.columns.find((c) => c.column_id === id);
+      expect(col?.degraded).toEqual({ reason: expect.any(String) });
+    }
+    expect(out.exceptions.filter((e) =>
+      e.column_id === 'lead_b2' || e.column_id === 'intake' || e.column_id === 'consult',
+    )).toEqual([]);
+  });
+
+  it('staffId 0 không dump unscoped exceptions', async () => {
+    const loadCandidates = jest.fn().mockResolvedValue([s1NoOwner, s7OpsOverdue, spaB]);
+    const { svc } = makeSvc({ loadCandidates });
+    const out = await svc.buildPayload(actor(OPS_AND_K, 0), {});
+
+    expect(out.ok).toBe(true);
+    expect(out.exceptions).toEqual([]);
+    expect(loadCandidates).not.toHaveBeenCalled();
+    expect(out.degraded.some((d) =>
+      d.source === 'candidates' || /unresolved|staff/i.test(d.reason),
+    )).toBe(true);
+  });
+
+  it('thiếu ops cap → S7 degraded; thiếu crm_leads.view → S1 degraded', async () => {
     const { svc } = makeSvc({ candidates: [s1NoOwner, s7OpsOverdue] });
     const out = await svc.buildPayload(actor(CEO_VIEW), {});
 
     expect(out.ok).toBe(true);
     expect(out.sensors_ok.S7).toBe('degraded');
-    expect(out.sensors_ok.S1).toBe('fail');
+    expect(out.sensors_ok.S1).toBe('degraded');
     expect(out.exceptions.some((row) => row.sensor_ids.includes('S7'))).toBe(false);
-    expect(out.exceptions.some((row) => row.sensor_ids.includes('S1'))).toBe(true);
+    expect(out.exceptions.some((row) => row.sensor_ids.includes('S1'))).toBe(false);
   });
 
   it('có ops cap → S7 fail khi overdue, S1 vẫn fail', async () => {

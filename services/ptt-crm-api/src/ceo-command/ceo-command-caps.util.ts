@@ -9,7 +9,8 @@ export function hasCeoView(caps: StaffCap[]): boolean {
     hasCap(caps, 'ceo_command', 'view') ||
     hasCap(caps, 'ai_analytics', 'query') ||
     hasCap(caps, 'crm_business_dashboard', 'view') ||
-    hasCap(caps, 'ai_admin', 'view')
+    hasCap(caps, 'ai_admin', 'view') ||
+    hasCap(caps, 'crm_owner_weekly_dashboard', 'view')
   );
 }
 
@@ -29,8 +30,26 @@ export function hasCeoFinanceView(caps: StaffCap[]): boolean {
   return hasCap(caps, 'crm_business_dashboard', 'view');
 }
 
-export function hasOpsView(caps: StaffCap[]): boolean {
+export function hasLeadsView(caps: StaffCap[]): boolean {
   return hasCap(caps, 'crm_leads', 'view');
+}
+
+export function hasBoardView(caps: StaffCap[]): boolean {
+  return hasCap(caps, 'crm_board', 'view');
+}
+
+/** Hub contract view — no dedicated contract helper; same as crm_leads.view. */
+export function hasContractView(caps: StaffCap[]): boolean {
+  return hasLeadsView(caps);
+}
+
+/** CSKH board view — StaffLeadsViewGuard / crm_leads.view. */
+export function hasCskhView(caps: StaffCap[]): boolean {
+  return hasLeadsView(caps);
+}
+
+export function hasOpsView(caps: StaffCap[]): boolean {
+  return hasLeadsView(caps);
 }
 
 export function hasOpsWrite(caps: StaffCap[]): boolean {

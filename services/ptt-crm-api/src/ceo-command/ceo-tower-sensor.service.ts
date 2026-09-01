@@ -2,7 +2,13 @@ import { Injectable, Optional } from '@nestjs/common';
 import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
 import { OwnerWeeklyPgRepository } from '../owner-weekly/owner-weekly-pg.repository';
 import { withTimeout } from './ceo-command-briefing.util';
-import { hasOpsView } from './ceo-command-caps.util';
+import {
+  hasBoardView,
+  hasContractView,
+  hasCskhView,
+  hasLeadsView,
+  hasOpsView,
+} from './ceo-command-caps.util';
 import type { CeoActor } from './ceo-command.types';
 import { isTowerUatSeed } from './ceo-tower-column.util';
 import { towerDrillHref } from './ceo-tower-drill.util';
@@ -54,6 +60,7 @@ type CachedBundle = {
   k_strip: TowerPayload['k_strip'];
   degraded: TowerPayload['degraded'];
   sensors_ok: TowerPayload['sensors_ok'];
+  columnDegraded: Partial<Record<TowerColumnId, string>>;
 };
 
 export type CeoTowerClock = { nowMs?: number };
@@ -100,6 +107,7 @@ export class CeoTowerSensorService {
     const columnFilter = parseColumn(query.column_id);
     const limit = clampLimit(query.limit);
     const exceptionsAll = bundle.rows
+      .filter((row) => !bundle.columnDegraded[row.column_id])
       .filter((row) => inExceptionWindow(row, nowMs))
       .filter((row) => severityWanted.has(row.severity))
       .filter((row) => !columnFilter || row.column_id === columnFilter)
@@ -109,7 +117,7 @@ export class CeoTowerSensorService {
     const afterCursor = applyCursor(exceptionsAll, query.cursor);
     const page = afterCursor.slice(0, limit);
     const next = afterCursor[limit];
-    const columns = buildColumns(bundle.rows);
+    const columns = buildColumns(bundle.rows, bundle.columnDegraded);
     const redCount = bundle.rows.filter((r) => r.severity === 'red').length;
     const amberCount = bundle.rows.filter((r) => r.severity === 'amber').length;
 
@@ -157,24 +165,59 @@ export class CeoTowerSensorService {
   ): Promise<CachedBundle> {
     const degraded: TowerPayload['degraded'] = [];
     const hasOps = hasOpsView(actor.caps);
+    const hasLeads = hasLeadsView(actor.caps);
+    const hasBoard = hasBoardView(actor.caps);
+    const hasContract = hasContractView(actor.caps);
+    const hasCskh = hasCskhView(actor.caps);
     const hasKStrip = actor.caps.some(
       (c) => c.section === 'crm_owner_weekly_dashboard' && c.action === 'view',
     );
+    const unresolved = !Number.isFinite(actor.staffId) || actor.staffId <= 0;
+
+    const columnDegraded: Partial<Record<TowerColumnId, string>> = {};
+    if (unresolved) {
+      for (const id of COLUMN_IDS) columnDegraded[id] = 'unresolved_staff';
+    } else {
+      if (!hasLeads) {
+        columnDegraded.lead_b2 = 'missing_leads_cap';
+        columnDegraded.intake = 'missing_leads_cap';
+        columnDegraded.consult = 'missing_leads_cap';
+      }
+      if (!hasContract) columnDegraded.contract = 'missing_contract_cap';
+      if (!hasBoard) columnDegraded.tmmt_deliver = 'missing_board_cap';
+      if (!hasCskh) columnDegraded.care = 'missing_cskh_cap';
+    }
 
     let raw: TowerCandidate[] = [];
     let candidatesOk = false;
-    try {
-      raw = await withTimeout(this.repo.loadCandidates(opts.nowMs), SOURCE_TIMEOUT_MS);
-      candidatesOk = true;
-    } catch (e) {
-      degraded.push({
-        source: 'candidates',
-        reason: String((e as Error)?.message ?? 'failed'),
-      });
+    if (unresolved) {
+      degraded.push({ source: 'candidates', reason: 'unresolved_staff' });
+    } else {
+      try {
+        raw = await withTimeout(this.repo.loadCandidates(opts.nowMs), SOURCE_TIMEOUT_MS);
+        candidatesOk = true;
+      } catch (e) {
+        degraded.push({
+          source: 'candidates',
+          reason: String((e as Error)?.message ?? 'failed'),
+        });
+      }
     }
 
     if (!hasOps) {
       degraded.push({ source: 'ops', reason: 'missing_ops_cap' });
+    }
+    if (!hasLeads) {
+      degraded.push({ source: 'leads', reason: 'missing_leads_cap' });
+    }
+    if (!hasBoard) {
+      degraded.push({ source: 'board', reason: 'missing_board_cap' });
+    }
+    if (!hasContract) {
+      degraded.push({ source: 'contract', reason: 'missing_contract_cap' });
+    }
+    if (!hasCskh) {
+      degraded.push({ source: 'cskh', reason: 'missing_cskh_cap' });
     }
 
     const collapsed = collapsePostWonA(raw.filter((c) => !isTowerUatSeed(c.leadId, c.tags)));
@@ -237,17 +280,22 @@ export class CeoTowerSensorService {
       });
     }
 
-    const k_strip = await this.loadKStrip(hasKStrip, degraded);
+    const k_strip = await this.loadKStrip(hasKStrip, hasCskh, degraded);
     const sensors_ok = buildSensorsOk(rows, {
       candidatesOk,
       hasOps,
+      hasLeads,
+      hasBoard,
+      hasContract,
+      hasCskh,
     });
 
-    return { rows, k_strip, degraded, sensors_ok };
+    return { rows, k_strip, degraded, sensors_ok, columnDegraded };
   }
 
   private async loadKStrip(
     hasCap: boolean,
+    hasCskh: boolean,
     degraded: TowerPayload['degraded'],
   ): Promise<TowerPayload['k_strip']> {
     if (!hasCap) {
@@ -256,12 +304,17 @@ export class CeoTowerSensorService {
     }
     try {
       const metrics = await withTimeout(this.ownerWeekly.loadLifecycleKpiStrip(), SOURCE_TIMEOUT_MS);
-      return metrics.map((m) => ({
+      const strip = metrics.map((m) => ({
         key: m.key,
         value: m.value,
         status: m.status,
         href: '/crm/owner-weekly' as const,
       }));
+      if (!hasCskh) {
+        degraded.push({ source: 'k4', reason: 'missing_cskh_cap' });
+        return strip.filter((m) => m.key !== 'k4');
+      }
+      return strip;
     } catch (e) {
       degraded.push({
         source: 'k_strip',
@@ -436,8 +489,22 @@ function applyCursor(rows: TowerException[], cursor?: string): TowerException[] 
   return rows.slice(idx + 1);
 }
 
-function buildColumns(rows: ClassifiedRow[]): TowerPayload['columns'] {
+function buildColumns(
+  rows: ClassifiedRow[],
+  columnDegraded: Partial<Record<TowerColumnId, string>>,
+): TowerPayload['columns'] {
   return COLUMN_IDS.map((column_id) => {
+    const reason = columnDegraded[column_id];
+    if (reason) {
+      return {
+        column_id,
+        red_count: 0,
+        amber_count: 0,
+        ok_count: 0,
+        header_severity: 'ok' as TowerSeverity,
+        degraded: { reason },
+      };
+    }
     const inCol = rows.filter((r) => r.column_id === column_id);
     const red_count = inCol.filter((r) => r.severity === 'red').length;
     const amber_count = inCol.filter((r) => r.severity === 'amber').length;
@@ -449,7 +516,14 @@ function buildColumns(rows: ClassifiedRow[]): TowerPayload['columns'] {
 
 function buildSensorsOk(
   rows: ClassifiedRow[],
-  flags: { candidatesOk: boolean; hasOps: boolean },
+  flags: {
+    candidatesOk: boolean;
+    hasOps: boolean;
+    hasLeads: boolean;
+    hasBoard: boolean;
+    hasContract: boolean;
+    hasCskh: boolean;
+  },
 ): TowerPayload['sensors_ok'] {
   const out = {} as TowerPayload['sensors_ok'];
   for (const id of SENSOR_IDS) {
@@ -458,6 +532,22 @@ function buildSensorsOk(
       continue;
     }
     if (id === 'S7' && !flags.hasOps) {
+      out[id] = 'degraded';
+      continue;
+    }
+    if ((id === 'S1' || id === 'S2' || id === 'S3') && !flags.hasLeads) {
+      out[id] = 'degraded';
+      continue;
+    }
+    if (id === 'S4' && !flags.hasContract) {
+      out[id] = 'degraded';
+      continue;
+    }
+    if ((id === 'S5' || id === 'S6' || id === 'S8') && !flags.hasBoard) {
+      out[id] = 'degraded';
+      continue;
+    }
+    if ((id === 'S9' || id === 'S10') && !flags.hasCskh) {
       out[id] = 'degraded';
       continue;
     }
