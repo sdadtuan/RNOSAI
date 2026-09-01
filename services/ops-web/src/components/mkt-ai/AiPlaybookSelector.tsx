@@ -8,6 +8,10 @@ import {
   type MktAiBriefValidation,
   type MktAiPlaybookListResult,
 } from '@/lib/mkt-ai-planner-api';
+import {
+  defaultPlaybookSlug,
+  orderPlaybooksForSelector,
+} from '@/lib/mkt-ai-playbook-selector.util';
 
 interface Props {
   token: string;
@@ -45,12 +49,7 @@ export function AiPlaybookSelector({
     try {
       const data = await fetchMktAiPlaybooks(token, lifecycleId);
       setCatalog(data);
-      const next =
-        data.active_slug ??
-        data.playbooks.find((p) => p.slug === serviceSlug)?.slug ??
-        data.playbooks[0]?.slug ??
-        '';
-      setSelectedSlug(next);
+      setSelectedSlug(defaultPlaybookSlug(data, serviceSlug));
     } catch (err) {
       onError?.(err instanceof Error ? err.message : 'Tải playbook thất bại');
     } finally {
@@ -66,9 +65,14 @@ export function AiPlaybookSelector({
     if (activeSlug) setSelectedSlug(activeSlug);
   }, [activeSlug]);
 
+  const displayPlaybooks = useMemo(
+    () => orderPlaybooksForSelector(catalog?.playbooks ?? [], serviceSlug),
+    [catalog, serviceSlug],
+  );
+
   const selected = useMemo(
-    () => catalog?.playbooks.find((p) => p.slug === selectedSlug) ?? null,
-    [catalog, selectedSlug],
+    () => displayPlaybooks.find((p) => p.slug === selectedSlug) ?? null,
+    [displayPlaybooks, selectedSlug],
   );
 
   async function handleApply(confirmOverwrite = false) {
@@ -95,7 +99,7 @@ export function AiPlaybookSelector({
     );
   }
 
-  if (!catalog?.playbooks.length) {
+  if (!catalog || !displayPlaybooks.length) {
     return (
       <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
         Industry template chưa bật hoặc chưa có playbook cho dịch vụ pilot.
@@ -118,7 +122,9 @@ export function AiPlaybookSelector({
         <strong style={{ fontSize: '0.9rem' }}>Industry template (playbook)</strong>
         {catalog.active_slug ? (
           <span className="muted" style={{ fontSize: '0.8rem' }}>
-            Đang dùng: {catalog.playbooks.find((p) => p.slug === catalog.active_slug)?.label_vi ?? catalog.active_slug}
+            Đang dùng:{' '}
+            {displayPlaybooks.find((p) => p.slug === catalog.active_slug)?.label_vi ??
+              catalog.active_slug}
           </span>
         ) : null}
       </div>
@@ -137,7 +143,7 @@ export function AiPlaybookSelector({
             color: 'var(--text)',
           }}
         >
-          {catalog.playbooks.map((p) => (
+          {displayPlaybooks.map((p) => (
             <option key={p.slug} value={p.slug}>
               {p.label_vi}
             </option>
