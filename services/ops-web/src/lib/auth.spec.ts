@@ -95,6 +95,21 @@ describe('rbac-routes', () => {
     ]);
   });
 
+  it('/crm/admin/mkt-ai requires mkt_ai view, approve, or ai_admin view', () => {
+    expect(
+      canAccessPath('/crm/admin/mkt-ai/playbooks', user([{ section: 'crm_mkt_ai', action: 'view' }]), 'crm'),
+    ).toBe(true);
+    expect(
+      canAccessPath('/crm/admin/mkt-ai/playbooks', user([{ section: 'crm_mkt_ai', action: 'approve' }]), 'crm'),
+    ).toBe(true);
+    expect(
+      canAccessPath('/crm/admin/mkt-ai/playbooks', user([{ section: 'ai_admin', action: 'view' }]), 'crm'),
+    ).toBe(true);
+    expect(
+      canAccessPath('/crm/admin/mkt-ai/playbooks', user([{ section: 'crm_mkt_ai', action: 'generate' }]), 'crm'),
+    ).toBe(false);
+  });
+
   it('hasAnyCap aggregates requirements', () => {
     expect(
       hasAnyCap(user([{ section: 'crm_agency', action: 'view' }]), [

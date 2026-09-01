@@ -7,7 +7,7 @@ import { iconForHref, NavIcon, sectionIcon, sectionShortLabel } from '@/componen
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { StoredStaffUser } from '@/lib/auth';
-import { getAccessToken, hasCap } from '@/lib/auth';
+import { getAccessToken, hasCap, canGenerateMktAiPlanner, canApproveMktAiPlanner } from '@/lib/auth';
 import { fetchReviewQueueCount } from '@/lib/api';
 import { isOpsDvFeEnabled } from '@/lib/ops-dv-flags';
 import { emailGateAEnabled, emailJourneysEnabled, emailModuleEnabled } from '@/lib/email-flags';
@@ -135,6 +135,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/ai/query': 'NL Analytics',
   '/crm/automation': 'Workflow automation',
   '/crm/playbooks': 'Playbook library',
+  '/crm/admin/mkt-ai/playbooks': 'Playbook DV',
   '/crm/hr': 'HR Hub',
   '/crm/staff-kpi': 'KPI AM/SP',
   '/crm/staff': 'Nhân viên',
@@ -592,6 +593,9 @@ function buildSections(
   }
   if (hasCap(user, 'playbooks', 'view')) {
     aiAutomation.push({ href: '/crm/playbooks', label: 'Playbooks' });
+  }
+  if (canGenerateMktAiPlanner(user) || canApproveMktAiPlanner(user)) {
+    aiAutomation.push({ href: '/crm/admin/mkt-ai/playbooks', label: 'Playbook DV' });
   }
   if (aiAutomation.length) sections.push({ label: 'AI & Automation', links: aiAutomation });
 

@@ -11,6 +11,14 @@ export interface CapRequirement {
 /** Longest-prefix match wins (more specific rules first). */
 const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
   {
+    prefix: '/crm/admin/mkt-ai',
+    anyOf: [
+      { section: 'crm_mkt_ai', action: 'view' },
+      { section: 'ai_admin', action: 'view' },
+      { section: 'crm_mkt_ai', action: 'approve' },
+    ],
+  },
+  {
     prefix: '/crm/solution',
     anyOf: [
       { section: 'crm_presales_solution', action: 'view' },
