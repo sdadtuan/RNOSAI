@@ -1,0 +1,36 @@
+{
+  "slug": "_common",
+  "label_vi": "Playbook chung",
+  "service_slugs": [],
+  "brief_defaults": {
+    "objective": "awareness",
+    "industry": "Đa ngành",
+    "geo_markets": ["Việt Nam"],
+    "challenges": "Thiếu brief rõ ràng, chưa có KPI baseline, cần human review trước khi chạy",
+    "usp": "Playbook mặc định cho dịch vụ chưa có industry playbook chuyên biệt"
+  },
+  "strategy_prompt_hints": [
+    "Human-in-the-loop: PM/SP phải review và chỉnh sửa draft trước khi gửi khách",
+    "Đặt KPI baseline thực tế theo ngân sách và kênh có sẵn của khách",
+    "Không auto gửi email/campaign — mọi outbound cần phê duyệt thủ công"
+  ],
+  "campaign_kpi_templates": [
+    "Quality score draft ≥70 trước Launch QA",
+    "Tối thiểu 2 campaign có KPI rõ ràng trong draft"
+  ],
+  "quality_gate": {
+    "min_score_launch_qa": 70,
+    "require_campaign_count": 2
+  },
+  "governance_notes_vi": [
+    "Human-in-the-loop bắt buộc — AI chỉ gợi ý draft, không tự publish",
+    "Không auto-mail / auto gửi campaign cho khách (BR-MKTP-01)",
+    "Quality score ≥70 và ≥2 campaign KPI trước khi khởi tạo Launch QA"
+  ],
+  "stub_swot_json": {
+    "strengths": ["Linh hoạt đa ngành", "Governance rõ ràng"],
+    "weaknesses": ["Thiếu template KPI chuyên ngành", "Cần brief bổ sung thủ công"],
+    "opportunities": ["Áp dụng playbook ngành khi có", "Tinh chỉnh KPI theo pilot"],
+    "threats": ["Draft generic nếu brief mỏng", "Rủi ro bỏ qua human review"]
+  }
+}

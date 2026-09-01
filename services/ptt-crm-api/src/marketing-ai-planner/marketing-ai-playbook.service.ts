@@ -9,8 +9,8 @@ import {
   buildStrategyPlaybookBlock,
   evaluateLaunchQaQualityGate,
   listPlaybookCatalog,
-  matchPlaybookForServiceSlug,
   mergeBriefWithPlaybook,
+  resolvePlaybookForSlug,
   readPlaybookFile,
   resolveActivePlaybookSlug,
   discoverPlaybookJsonSlugs,
@@ -100,7 +100,7 @@ export class MarketingAiPlaybookService {
     }
   }
 
-  resolvePlaybook(slug: string | null | undefined, serviceSlug: string): MktAiIndustryPlaybook | null {
+  resolvePlaybook(slug: string | null | undefined, serviceSlug: string): MktAiIndustryPlaybook {
     if (slug) {
       try {
         return this.getPlaybook(slug);
@@ -108,13 +108,16 @@ export class MarketingAiPlaybookService {
         /* fall through */
       }
     }
-    return matchPlaybookForServiceSlug(serviceSlug, this.getCatalog());
+    return resolvePlaybookForSlug(serviceSlug, this.getCatalog());
   }
 
   listForLifecycle(serviceSlug: string, brief: MktAiBrief | null): MktAiPlaybookListResult {
     const pilotSlugs = this.config.mktAiPlannerSlugs;
     const catalog = this.getCatalog().filter(
-      (p) => !pilotSlugs.length || p.service_slugs.some((s) => pilotSlugs.includes(s)),
+      (p) =>
+        p.slug === '_common' ||
+        !pilotSlugs.length ||
+        p.service_slugs.some((s) => pilotSlugs.includes(s)),
     );
     const activeSlug = resolveActivePlaybookSlug(brief, serviceSlug, this.getCatalog());
     return {

@@ -61,7 +61,12 @@ if not str(doc.get("label_vi") or "").strip():
     fail("label_vi is required")
 
 service_slugs = doc.get("service_slugs")
-if not isinstance(service_slugs, list) or not service_slugs:
+if not isinstance(service_slugs, list):
+    fail("service_slugs must be an array")
+elif doc_slug == "_common":
+    if service_slugs:
+        fail("_common service_slugs must be empty (fallback only, no industry match)")
+elif not service_slugs:
     fail("service_slugs must be a non-empty array")
 
 brief_defaults = doc.get("brief_defaults")

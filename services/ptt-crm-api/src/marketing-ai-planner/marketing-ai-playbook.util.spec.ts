@@ -12,6 +12,7 @@ import {
   mergeBriefWithPlaybook,
   readPlaybookFile,
   resolveActivePlaybookSlug,
+  resolvePlaybookForSlug,
   validateMktAiPlaybookDocument,
   validatePlaybookFile,
   discoverPlaybookJsonSlugs,
@@ -49,6 +50,13 @@ describe('marketing-ai-playbook.util', () => {
     const catalog = [pb];
     expect(matchPlaybookForServiceSlug('meta-lead-gen', catalog)?.slug).toBe('meta-lead-gen');
     expect(matchPlaybookForServiceSlug('unknown', catalog)).toBeNull();
+  });
+
+  it('falls back to _common when slug has no industry file', () => {
+    const catalog = listPlaybookCatalog();
+    const pb = matchPlaybookForServiceSlug('quang-cao-facebook', catalog);
+    expect(pb === null || pb.slug === '_common').toBe(true);
+    expect(resolvePlaybookForSlug('quang-cao-facebook', catalog).slug).toBe('_common');
   });
 
   it('mergeBriefWithPlaybook fills empty fields only by default', () => {

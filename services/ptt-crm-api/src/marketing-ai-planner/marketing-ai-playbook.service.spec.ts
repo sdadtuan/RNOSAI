@@ -32,6 +32,18 @@ describe('MarketingAiPlaybookService', () => {
     expect(out.playbooks.some((p) => p.slug === 'seo-retainer')).toBe(false);
   });
 
+  it('listForLifecycle always includes _common fallback', () => {
+    const out = service.listForLifecycle('quang-cao-facebook', null);
+    expect(out.playbooks.some((p) => p.slug === '_common')).toBe(true);
+    expect(out.active_slug).toBe('_common');
+  });
+
+  it('resolvePlaybook falls back to _common for unknown service slug', () => {
+    const pb = service.resolvePlaybook(null, 'quang-cao-facebook');
+    expect(pb.slug).toBe('_common');
+    expect(pb.label_vi).toBe('Playbook chung');
+  });
+
   it('buildPromptHints returns strategy and campaign blocks', () => {
     const pb = service.getPlaybook('meta-lead-gen');
     const hints = service.buildPromptHints(pb);

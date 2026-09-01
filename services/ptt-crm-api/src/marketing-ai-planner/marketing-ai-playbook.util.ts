@@ -18,7 +18,12 @@ export interface MktAiIndustryPlaybook {
   stub_swot_json?: Record<string, unknown>;
 }
 
-export const MKT_AI_PLAYBOOK_SLUGS = ['meta-lead-gen', 'bds-lead-gen', 'seo-retainer'] as const;
+export const MKT_AI_PLAYBOOK_SLUGS = [
+  '_common',
+  'meta-lead-gen',
+  'bds-lead-gen',
+  'seo-retainer',
+] as const;
 
 const PLAYBOOKS_DIR = path.join(__dirname, 'playbooks');
 
@@ -47,7 +52,13 @@ export function validateMktAiPlaybookDocument(doc: unknown, fileSlug: string): s
   if (!String(d.label_vi ?? '').trim()) errors.push('label_vi is required');
 
   const serviceSlugs = d.service_slugs;
-  if (!Array.isArray(serviceSlugs) || serviceSlugs.length === 0) {
+  if (!Array.isArray(serviceSlugs)) {
+    errors.push('service_slugs must be an array');
+  } else if (slug === '_common') {
+    if (serviceSlugs.length > 0) {
+      errors.push('_common service_slugs must be empty (fallback only, no industry match)');
+    }
+  } else if (serviceSlugs.length === 0) {
     errors.push('service_slugs must be a non-empty array');
   } else if (!serviceSlugs.every((s) => typeof s === 'string' && String(s).trim())) {
     errors.push('service_slugs entries must be non-empty strings');
@@ -177,6 +188,17 @@ export function matchPlaybookForServiceSlug(
   );
 }
 
+export function resolvePlaybookForSlug(
+  serviceSlug: string,
+  catalog: MktAiIndustryPlaybook[],
+): MktAiIndustryPlaybook {
+  return (
+    matchPlaybookForServiceSlug(serviceSlug, catalog) ??
+    catalog.find((p) => p.slug === '_common') ??
+    readPlaybookFile('_common')
+  );
+}
+
 export function resolveActivePlaybookSlug(
   brief: MktAiBrief | null | undefined,
   serviceSlug: string,
@@ -184,7 +206,7 @@ export function resolveActivePlaybookSlug(
 ): string | null {
   const fromBrief = String((brief as Record<string, unknown> | null | undefined)?._playbook_slug ?? '').trim();
   if (fromBrief && catalog.some((p) => p.slug === fromBrief)) return fromBrief;
-  return matchPlaybookForServiceSlug(serviceSlug, catalog)?.slug ?? null;
+  return resolvePlaybookForSlug(serviceSlug, catalog).slug;
 }
 
 export function mergeBriefWithPlaybook(
