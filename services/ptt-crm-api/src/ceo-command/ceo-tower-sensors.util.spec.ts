@@ -91,6 +91,7 @@ const fixtureS5 = row({
   hasLifecycle: true,
   clientActive: false,
   tmmtGatePass: false,
+  tmmtGateKnown: true,
   qualityScore: 80,
   createdAtMs: NOW - 20 * D,
   promoteAtMs: NOW - 7 * D,
@@ -105,6 +106,7 @@ const fixtureS6 = row({
   tmmtGatePass: true,
   qualityScore: 90,
   launchQaFail: true,
+  launchQaKnown: true,
   stageDeliver: true,
   createdAtMs: NOW - 10 * D,
   promoteAtMs: NOW - 2 * D,
@@ -204,6 +206,47 @@ describe('classifyTowerRow S1–S10', () => {
     expect(out.sensor_ids).toEqual(expect.arrayContaining(['S5']));
     expect(out.sensor_ids).not.toContain('S8');
     expect(out.suggest_action).toBe('remind_staff');
+  });
+
+  it('S5 does not fire when tmmtGateKnown is false even if promote ≥7d and tmmtGatePass false', () => {
+    const out = classifyTowerRow(row({
+      leadId: 505,
+      lifecycleId: 505,
+      won: true,
+      hasLifecycle: true,
+      clientActive: false,
+      tmmtGatePass: false,
+      tmmtGateKnown: false,
+      qualityScore: 80,
+      createdAtMs: NOW - 20 * D,
+      promoteAtMs: NOW - 7 * D,
+    }));
+    expect(out.column_id).toBe('tmmt_deliver');
+    expect(out.sensor_ids).not.toContain('S5');
+  });
+
+  it('S6 does not fire when launchQaKnown is false even if deliver + QA fail', () => {
+    const out = classifyTowerRow(row({
+      ...fixtureS6,
+      launchQaKnown: false,
+    }));
+    expect(out.column_id).toBe('tmmt_deliver');
+    expect(out.sensor_ids).not.toContain('S6');
+  });
+
+  it('S10 KPI path does not fire when kpiRetainKnown is false', () => {
+    const out = classifyTowerRow(row({
+      leadId: 102,
+      lifecycleId: 102,
+      won: true,
+      hasLifecycle: true,
+      clientActive: true,
+      kpiRetainRed: true,
+      kpiRetainKnown: false,
+      contractEndInDays: 90,
+    }));
+    expect(out.column_id).toBe('care');
+    expect(out.sensor_ids).not.toContain('S10');
   });
 
   it('S6: deliver + QA fail → red', () => {
@@ -307,6 +350,7 @@ describe('classifyTowerRow §5.1 / §5.2 extras', () => {
       hasLifecycle: true,
       clientActive: false,
       tmmtGatePass: true,
+      tmmtGateKnown: true,
       qualityScore: 59,
       stageDeliver: true,
       promoteAtMs: NOW - 2 * D,
@@ -393,6 +437,7 @@ describe('classifyTowerRow §5.1 / §5.2 extras', () => {
       hasLifecycle: true,
       clientActive: true,
       kpiRetainRed: true,
+      kpiRetainKnown: true,
       contractEndInDays: 90,
     }));
     expect(out.column_id).toBe('care');

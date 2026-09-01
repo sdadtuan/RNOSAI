@@ -20,14 +20,17 @@ export type TowerSensorRow = TowerEntityInput & {
   promoteAtMs: number | null;
   nowMs: number;
   tmmtGatePass: boolean;
+  tmmtGateKnown?: boolean;
   qualityScore: number | null;
   launchQaFail: boolean;
+  launchQaKnown?: boolean;
   stageDeliver: boolean;
   opsOverdue: boolean;
   opsDueToday: boolean;
   cplWorse40: boolean;
   contractEndInDays: number | null;
   kpiRetainRed: boolean;
+  kpiRetainKnown?: boolean;
   spaFirstCallBreach: boolean;
   spaB2Breach: boolean;
   spaCloseBreach: boolean;
@@ -163,8 +166,9 @@ export function classifyTowerRow(
   }
 
   // S5 — 7d TMMT gate clock + qualityScore < 60 on deliver
+  // Gate clock only when TMMT module is wired; missing data must not fake fail.
   if (row.factory === 'A' && column_id === 'tmmt_deliver') {
-    const gateClock = !row.tmmtGatePass && promoteAge != null
+    const gateClock = row.tmmtGateKnown && !row.tmmtGatePass && promoteAge != null
       ? clockSeverity({ columnId: 'tmmt_deliver', factory: 'A', elapsedMs: promoteAge })
       : 'ok';
     const qualityRed = row.qualityScore != null && row.qualityScore < 60 && row.stageDeliver;
@@ -174,8 +178,14 @@ export function classifyTowerRow(
     }
   }
 
-  // S6 — stage ≥ deliver + QA fail
-  if (row.factory === 'A' && column_id === 'tmmt_deliver' && row.launchQaFail && row.stageDeliver) {
+  // S6 — stage ≥ deliver + QA fail (skip unless Launch QA module is wired)
+  if (
+    row.factory === 'A'
+    && column_id === 'tmmt_deliver'
+    && row.launchQaKnown
+    && row.launchQaFail
+    && row.stageDeliver
+  ) {
     sensor_ids.push('S6');
     bump('red');
   }
@@ -209,10 +219,11 @@ export function classifyTowerRow(
     bump('red');
   }
 
-  // S10 — end_date ≤30d OR KPI retain red
+  // S10 — end_date ≤30d OR KPI retain red (KPI path only when wired)
   if (row.factory === 'A' && column_id === 'care') {
     const endSoon = row.contractEndInDays != null && row.contractEndInDays <= 30;
-    if (endSoon || row.kpiRetainRed) {
+    const kpiRed = Boolean(row.kpiRetainKnown && row.kpiRetainRed);
+    if (endSoon || kpiRed) {
       sensor_ids.push('S10');
       bump('red');
     }

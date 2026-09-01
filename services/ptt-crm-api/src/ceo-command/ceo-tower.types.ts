@@ -122,14 +122,17 @@ export type TowerCandidate = {
   firstCallDone: boolean;
   promoteAtMs: number | null;
   tmmtGatePass: boolean;
+  tmmtGateKnown?: boolean;
   qualityScore: number | null;
   launchQaFail: boolean;
+  launchQaKnown?: boolean;
   stageDeliver: boolean;
   opsOverdue: boolean;
   opsDueToday: boolean;
   cplWorse40: boolean;
   contractEndInDays: number | null;
   kpiRetainRed: boolean;
+  kpiRetainKnown?: boolean;
   spaFirstCallBreach: boolean;
   spaB2Breach: boolean;
   spaCloseBreach: boolean;

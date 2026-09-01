@@ -41,14 +41,17 @@ function candidate(over: Partial<TowerCandidate> = {}): TowerCandidate {
     firstCallDone: false,
     promoteAtMs: null,
     tmmtGatePass: false,
+    tmmtGateKnown: false,
     qualityScore: null,
     launchQaFail: false,
+    launchQaKnown: false,
     stageDeliver: false,
     opsOverdue: false,
     opsDueToday: false,
     cplWorse40: false,
     contractEndInDays: null,
     kpiRetainRed: false,
+    kpiRetainKnown: false,
     spaFirstCallBreach: false,
     spaB2Breach: false,
     spaCloseBreach: false,
@@ -540,6 +543,50 @@ describe('CeoTowerSensorService.buildPayload', () => {
         tier: 'first_call_15m',
         suggested_action: 'log_call',
       }),
+    );
+  });
+
+  it('S5/S6 sensors_ok degraded when TMMT/QA unwired', async () => {
+    const deliverUnwired = candidate({
+      leadId: 80,
+      lifecycleId: 808,
+      status: 'won',
+      won: true,
+      hasLifecycle: true,
+      clientActive: false,
+      b2Done: true,
+      intakeGo: true,
+      lastActivityMs: NOW - D,
+      promoteAtMs: NOW - 8 * D,
+      tmmtGatePass: false,
+      launchQaFail: false,
+    });
+    const { svc } = makeSvc({ candidates: [s1NoOwner, deliverUnwired] });
+    const out = await svc.buildPayload(actor(OPS_AND_K), {});
+    expect(out.sensors_ok.S5).toBe('degraded');
+    expect(out.sensors_ok.S6).toBe('degraded');
+    expect(out.exceptions.some((row) => row.sensor_ids.includes('S5'))).toBe(false);
+    expect(out.exceptions.some((row) => row.sensor_ids.includes('S6'))).toBe(false);
+  });
+
+  it('passes lead-list visibility + bound to loadCandidates', async () => {
+    const scoped = jest.fn().mockResolvedValue([s1NoOwner]);
+    const { svc } = makeSvc({ loadCandidates: scoped });
+    await svc.buildPayload(actor(OPS_AND_K), {});
+    expect(scoped).toHaveBeenCalledWith(
+      NOW,
+      expect.objectContaining({ staffId: 9, viewAll: false }),
+    );
+
+    const viewAll = jest.fn().mockResolvedValue([s1NoOwner]);
+    const { svc: svcAll } = makeSvc({ loadCandidates: viewAll });
+    await svcAll.buildPayload(actor([
+      ...OPS_AND_K,
+      { section: 'crm_gdkd', action: 'view_all_leads' },
+    ]), {});
+    expect(viewAll).toHaveBeenCalledWith(
+      NOW,
+      expect.objectContaining({ staffId: 9, viewAll: true }),
     );
   });
 

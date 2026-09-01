@@ -7,6 +7,11 @@ import {
 } from '../cskh-board/cskh-board-sla.util';
 import type { TowerCandidate } from './ceo-tower.types';
 
+export type TowerCandidateScope = {
+  staffId: number;
+  viewAll: boolean;
+};
+
 const CANDIDATE_SQL = `
 SELECT
   l.sqlite_lead_id AS lead_id,
@@ -120,8 +125,12 @@ export class CeoTowerRepository implements OnModuleDestroy {
     this.pool = null;
   }
 
-  async loadCandidates(nowMs: number): Promise<TowerCandidate[]> {
-    const result = await this.db.query(CANDIDATE_SQL);
+  async loadCandidates(nowMs: number, scope: TowerCandidateScope): Promise<TowerCandidate[]> {
+    const ownerClause = scope.viewAll ? '' : '\n  AND l.owner_id = $1';
+    const sql = `${CANDIDATE_SQL}${ownerClause}\nLIMIT 400`;
+    const result = scope.viewAll
+      ? await this.db.query(sql)
+      : await this.db.query(sql, [scope.staffId]);
     return (result.rows as Array<Record<string, unknown>>).map((row) => this.mapRow(row, nowMs));
   }
 
@@ -210,14 +219,17 @@ export class CeoTowerRepository implements OnModuleDestroy {
       firstCallDone: Boolean(firstCallAt) || firstCall?.sla_state === 'ok',
       promoteAtMs,
       tmmtGatePass: false,
+      tmmtGateKnown: false,
       qualityScore: null,
       launchQaFail: false,
+      launchQaKnown: false,
       stageDeliver: lifecycleStage === 'deliver' || lifecycleStage === 'handover',
       opsOverdue: row.ops_alert_id != null,
       opsDueToday: false,
       cplWorse40: false,
       contractEndInDays,
       kpiRetainRed: false,
+      kpiRetainKnown: false,
       spaFirstCallBreach: firstCall?.sla_state === 'breach',
       spaB2Breach: b2Tier?.sla_state === 'breach',
       spaCloseBreach: closeTier?.sla_state === 'breach',

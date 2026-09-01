@@ -20,7 +20,7 @@ describe('CeoTowerRepository', () => {
 
   it('loads 90-day candidates from leads/milestones/contracts via Pool', async () => {
     query.mockResolvedValueOnce({ rows: [] });
-    await repo.loadCandidates(Date.UTC(2026, 8, 1));
+    await repo.loadCandidates(Date.UTC(2026, 8, 1), { staffId: 1, viewAll: true });
     const sql = String(query.mock.calls[0][0]);
     expect(sql).toContain('FROM crm_leads');
     expect(sql).toContain('crm_lifecycle_milestones');
@@ -28,30 +28,51 @@ describe('CeoTowerRepository', () => {
     expect(sql).toContain('ends_on::text');
     expect(sql).toContain("INTERVAL '90 days'");
     expect(sql).toContain('crm_service_lifecycle');
+    expect(sql).toMatch(/LIMIT\s+400/i);
   });
 
   it('signed_on in the past without ends_on → contractEndInDays null', async () => {
     query.mockResolvedValueOnce({
       rows: [dbRow({ signed_on: '2025-01-15', ends_on: null })],
     });
-    const [row] = await repo.loadCandidates(Date.UTC(2026, 8, 1));
+    const [row] = await repo.loadCandidates(Date.UTC(2026, 8, 1), { staffId: 1, viewAll: true });
     expect(row.contractEndInDays).toBeNull();
+    expect(row.tmmtGateKnown).toBe(false);
+    expect(row.launchQaKnown).toBe(false);
+    expect(row.kpiRetainKnown).toBe(false);
   });
 
   it('ends_on within 30 days → contractEndInDays ≤ 30', async () => {
     query.mockResolvedValueOnce({
       rows: [dbRow({ signed_on: '2025-01-15', ends_on: '2026-09-20' })],
     });
-    const [row] = await repo.loadCandidates(Date.UTC(2026, 8, 1));
+    const [row] = await repo.loadCandidates(Date.UTC(2026, 8, 1), { staffId: 1, viewAll: true });
     expect(row.contractEndInDays).toBeGreaterThanOrEqual(0);
     expect(row.contractEndInDays).toBeLessThanOrEqual(30);
+  });
+
+  it('!view_all filters owner_id; view_all does not; SQL LIMITs', async () => {
+    query.mockResolvedValue({ rows: [] });
+    await repo.loadCandidates(Date.UTC(2026, 8, 1), { staffId: 42, viewAll: false });
+    const [sqlOwned, paramsOwned] = query.mock.calls[0];
+    expect(String(sqlOwned)).toMatch(/l\.owner_id\s*=\s*\$1/);
+    expect(String(sqlOwned)).toMatch(/LIMIT\s+400/i);
+    expect(paramsOwned).toEqual([42]);
+
+    query.mockClear();
+    await repo.loadCandidates(Date.UTC(2026, 8, 1), { staffId: 42, viewAll: true });
+    const sqlAll = String(query.mock.calls[0][0]);
+    const paramsAll = query.mock.calls[0][1];
+    expect(sqlAll).not.toMatch(/l\.owner_id\s*=\s*\$1/);
+    expect(sqlAll).toMatch(/LIMIT\s+400/i);
+    expect(paramsAll == null || paramsAll.length === 0).toBe(true);
   });
 
   it('ends_on as node-pg Date → finite contractEndInDays', async () => {
     query.mockResolvedValueOnce({
       rows: [dbRow({ signed_on: '2025-01-15', ends_on: new Date(2026, 8, 20) })],
     });
-    const [row] = await repo.loadCandidates(Date.UTC(2026, 8, 1));
+    const [row] = await repo.loadCandidates(Date.UTC(2026, 8, 1), { staffId: 1, viewAll: true });
     expect(row.contractEndInDays).not.toBeNull();
     expect(Number.isFinite(row.contractEndInDays)).toBe(true);
   });

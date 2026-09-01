@@ -10,6 +10,7 @@ import {
   hasOpsView,
 } from './ceo-command-caps.util';
 import type { CeoActor } from './ceo-command.types';
+import { hasGdkdViewAllLeads } from '../staff-permissions/staff-gdkd.util';
 import { isTowerUatSeed } from './ceo-tower-column.util';
 import { towerDrillHref } from './ceo-tower-drill.util';
 import { CeoTowerRepository } from './ceo-tower.repository';
@@ -81,8 +82,10 @@ export class CeoTowerSensorService {
   async buildPayload(actor: CeoActor, query: TowerQuery): Promise<TowerPayload> {
     const nowMs = this.fixedNowMs ?? Date.now();
     const factoryFilter = parseFactory(query.factory);
+    const viewAll = hasGdkdViewAllLeads(actor.caps);
     const cacheKey = [
       actor.staffId,
+      viewAll ? 'all' : 'mine',
       factoryFilter,
       query.department ?? '',
       query.team ?? '',
@@ -195,7 +198,13 @@ export class CeoTowerSensorService {
       degraded.push({ source: 'candidates', reason: 'unresolved_staff' });
     } else {
       try {
-        raw = await withTimeout(this.repo.loadCandidates(opts.nowMs), SOURCE_TIMEOUT_MS);
+        raw = await withTimeout(
+          this.repo.loadCandidates(opts.nowMs, {
+            staffId: actor.staffId,
+            viewAll: hasGdkdViewAllLeads(actor.caps),
+          }),
+          SOURCE_TIMEOUT_MS,
+        );
         candidatesOk = true;
       } catch (e) {
         degraded.push({
@@ -253,14 +262,17 @@ export class CeoTowerSensorService {
           promoteAtMs: candidate.promoteAtMs,
           nowMs: opts.nowMs,
           tmmtGatePass: candidate.tmmtGatePass,
+          tmmtGateKnown: candidate.tmmtGateKnown === true,
           qualityScore: candidate.qualityScore,
           launchQaFail: candidate.launchQaFail,
+          launchQaKnown: candidate.launchQaKnown === true,
           stageDeliver: candidate.stageDeliver,
           opsOverdue: hasOps ? candidate.opsOverdue : false,
           opsDueToday: hasOps ? candidate.opsDueToday : false,
           cplWorse40: hasOps ? candidate.cplWorse40 : false,
           contractEndInDays: candidate.contractEndInDays,
           kpiRetainRed: candidate.kpiRetainRed,
+          kpiRetainKnown: candidate.kpiRetainKnown === true,
           spaFirstCallBreach: candidate.spaFirstCallBreach,
           spaB2Breach: candidate.spaB2Breach,
           spaCloseBreach: candidate.spaCloseBreach,
@@ -565,6 +577,14 @@ function buildSensorsOk(
       continue;
     }
     if ((id === 'S5' || id === 'S6' || id === 'S8') && !flags.hasBoard) {
+      out[id] = 'degraded';
+      continue;
+    }
+    if (id === 'S5' && !rows.some((r) => r.candidate.tmmtGateKnown === true)) {
+      out[id] = 'degraded';
+      continue;
+    }
+    if (id === 'S6' && !rows.some((r) => r.candidate.launchQaKnown === true)) {
       out[id] = 'degraded';
       continue;
     }
