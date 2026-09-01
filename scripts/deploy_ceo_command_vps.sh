@@ -51,7 +51,14 @@ run_local() {
 
   echo "== 3/4 restart services (local systemd if present) =="
   if command -v systemctl >/dev/null 2>&1; then
-    sudo systemctl restart ptt-crm-api ptt-ops-web 2>/dev/null || true
+    if sudo -n systemctl restart ptt-crm-api ptt-ops-web 2>/dev/null; then
+      sleep 2
+      systemctl is-active ptt-crm-api ptt-ops-web
+    else
+      echo "WARN  service restart skipped (sudo required)"
+      echo "      Run: sudo systemctl restart ptt-crm-api ptt-ops-web"
+      echo "      Without restart, ops-web may return 500 until restarted."
+    fi
   fi
 
   echo "OK  CEO Command deployed (LLM flag not enabled)"
