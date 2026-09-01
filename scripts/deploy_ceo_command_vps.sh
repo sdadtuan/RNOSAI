@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Deploy CEO Command ChatBox (DDL + ptt-crm-api + ops-web).
+# Deploy CEO Command ChatBox + Lifecycle Tower T0–T2 (DDL + ptt-crm-api + ops-web).
 # Do NOT export PTT_CEO_COMMAND_LLM=1 — OSS polish stays off on 3.3 GiB VPS.
+# Tower needs no extra env: PTT_CEO_TOWER_LEGAL_ENTITY=0, PTT_CEO_BOARD_PACK_NOTIFY=0.
 #
 # From laptop:
 #   APPLY=1 ./scripts/deploy_ceo_command_vps.sh
@@ -44,7 +45,9 @@ run_local() {
   cd "$ROOT/services/ops-web"
   npx vitest run \
     src/lib/crm/ceo-command-thread.util.spec.ts \
-    src/lib/crm/ceo-command-nl-render.util.spec.ts
+    src/lib/crm/ceo-command-nl-render.util.spec.ts \
+    src/lib/crm/ceo-tower-ui.util.spec.ts \
+    src/lib/crm/ceo-tower-suggest.util.spec.ts
 
   echo "== 3/4 restart services (local systemd if present) =="
   if command -v systemctl >/dev/null 2>&1; then
