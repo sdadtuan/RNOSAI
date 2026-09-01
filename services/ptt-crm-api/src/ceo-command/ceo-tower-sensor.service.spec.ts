@@ -372,6 +372,74 @@ describe('CeoTowerSensorService.buildPayload', () => {
     expect(out.exceptions[0].title_vi).toMatch(/[A-Za-zÀ-ỹ#]/);
   });
 
+  it('ceo_command.view + crm_leads.view only → lead_b2 fills; tmmt_deliver missing_board_cap; S5/S6/S8 degraded', async () => {
+    const { svc } = makeSvc({ candidates: [s1NoOwner, s7OpsOverdue] });
+    const out = await svc.buildPayload(actor([
+      ...CEO_VIEW,
+      { section: 'crm_leads', action: 'view' },
+    ]), {});
+
+    const leadB2 = out.columns.find((c) => c.column_id === 'lead_b2');
+    expect(leadB2?.degraded).toBeUndefined();
+    expect(leadB2?.red_count).toBeGreaterThanOrEqual(1);
+    expect(out.exceptions.some((e) => e.column_id === 'lead_b2' && e.entity_id === 1)).toBe(true);
+
+    expect(out.columns.find((c) => c.column_id === 'tmmt_deliver')?.degraded?.reason).toBe('missing_board_cap');
+    expect(out.degraded.some((d) => d.source === 'board' && d.reason === 'missing_board_cap')).toBe(true);
+    expect(out.sensors_ok.S5).toBe('degraded');
+    expect(out.sensors_ok.S6).toBe('degraded');
+    expect(out.sensors_ok.S8).toBe('degraded');
+  });
+
+  it('ceo_command.view + crm_board.view only → tmmt_deliver not degraded; lead_b2/intake/consult degraded', async () => {
+    const intakeRow = candidate({
+      leadId: 30,
+      b2Done: true,
+      b2DoneAtMs: NOW - 6 * H,
+      lastActivityMs: NOW - 6 * H,
+    });
+    const consultRow = candidate({
+      leadId: 31,
+      b2Done: true,
+      intakeGo: true,
+      intakeGoAtMs: NOW - 8 * H,
+      lastActivityMs: NOW - 8 * H,
+    });
+    const { svc } = makeSvc({ candidates: [s1NoOwner, intakeRow, consultRow, s7OpsOverdue] });
+    const out = await svc.buildPayload(actor([
+      ...CEO_VIEW,
+      { section: 'crm_board', action: 'view' },
+    ]), {});
+
+    expect(out.columns.find((c) => c.column_id === 'tmmt_deliver')?.degraded).toBeUndefined();
+    for (const id of ['lead_b2', 'intake', 'consult'] as const) {
+      const col = out.columns.find((c) => c.column_id === id);
+      expect(col?.degraded).toEqual({ reason: expect.any(String) });
+    }
+  });
+
+  it('Owner-Weekly-only: org_rollup red/amber = 0 when all columns degraded', async () => {
+    const amberLead = candidate({
+      leadId: 14,
+      ownerId: null,
+      createdAtMs: NOW - 3 * H,
+      lastActivityMs: NOW - 3 * H,
+      valueVnd: 9_000_000,
+    });
+    const { svc } = makeSvc({ candidates: [s1NoOwner, amberLead, s7OpsOverdue] });
+    const out = await svc.buildPayload(actor([
+      { section: 'crm_owner_weekly_dashboard', action: 'view' },
+    ]), {});
+
+    expect(out.columns.every((c) => c.degraded)).toBe(true);
+    expect(out.org_rollup[0]).toMatchObject({
+      level: 'company',
+      code: 'PTT',
+      red_count: 0,
+      amber_count: 0,
+    });
+  });
+
   it('cache theo staffId|factory|dept|team|pos|staff TTL 60s', async () => {
     const loadCandidates = jest.fn().mockResolvedValue([s1NoOwner]);
     const { svc } = makeSvc({ loadCandidates });

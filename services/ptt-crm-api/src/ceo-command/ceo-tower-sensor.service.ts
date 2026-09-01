@@ -118,8 +118,9 @@ export class CeoTowerSensorService {
     const page = afterCursor.slice(0, limit);
     const next = afterCursor[limit];
     const columns = buildColumns(bundle.rows, bundle.columnDegraded);
-    const redCount = bundle.rows.filter((r) => r.severity === 'red').length;
-    const amberCount = bundle.rows.filter((r) => r.severity === 'amber').length;
+    const counted = bundle.rows.filter((row) => !bundle.columnDegraded[row.column_id]);
+    const redCount = counted.filter((r) => r.severity === 'red').length;
+    const amberCount = counted.filter((r) => r.severity === 'amber').length;
 
     return {
       ok: true,
