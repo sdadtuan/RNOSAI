@@ -7,6 +7,7 @@ import { CeoActionConfirmDialog } from '@/components/crm/ceo/CeoActionConfirmDia
 import { CeoTowerDeptHeatmap } from '@/components/crm/ceo/CeoTowerDeptHeatmap';
 import { CeoTowerFunnelChart } from '@/components/crm/ceo/CeoTowerFunnelChart';
 import { CeoTowerMetricStrip } from '@/components/crm/ceo/CeoTowerMetricStrip';
+import { CeoTowerTrendPanel } from '@/components/crm/ceo/CeoTowerTrendPanel';
 import { SegmentedControl } from '@/components/layout';
 import { fetchCeoContext, type CeoTurnOutput } from '@/lib/api';
 import { confirmCopy } from '@/lib/crm/ceo-command-confirm.util';
@@ -25,6 +26,7 @@ import {
   isOutsideCycleDepartment,
   parseTowerFactory,
   towerHealthTone,
+  formatTowerWowDelta,
   type TowerFactoryFilter,
 } from '@/lib/crm/ceo-tower-ui.util';
 
@@ -254,6 +256,15 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
             <span className="ceo-tower-health__value">{summary.total}</span>
             <span className="ceo-tower-health__label">Tổng sót</span>
           </div>
+          {payload?.trends ? (
+            <div
+              className={`ceo-tower-health__wow ceo-tower-health__wow--${payload.trends.wow.direction}`}
+              data-testid="ceo-tower-health-wow"
+            >
+              <span className="ceo-tower-health__value">{formatTowerWowDelta(payload.trends.wow)}</span>
+              <span className="ceo-tower-health__label">7 ngày</span>
+            </div>
+          ) : null}
         </div>
         <div className="ceo-tower-header__actions">
           <SegmentedControl
@@ -347,6 +358,8 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
 
       <CeoTowerMetricStrip kStrip={payload?.k_strip} financeStrip={payload?.finance_strip} />
 
+      <CeoTowerTrendPanel trends={payload?.trends} />
+
       {payload?.capacity_top?.length ? (
         <div data-testid="ceo-tower-capacity" aria-label="Quá tải">
           <h3 className="text-base font-semibold">Quá tải</h3>
@@ -393,6 +406,7 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
           columns={payload?.columns}
           factory={factory}
           activeColumnId={columnId}
+          trendByColumn={payload?.trends?.series.by_column}
           onColumn={onColumn}
         />
       ) : null}

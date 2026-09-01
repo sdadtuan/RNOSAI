@@ -27,6 +27,7 @@ import { buildCapacityTop } from './ceo-tower-capacity.util';
 import type { TowerRosterEntry } from './ceo-tower-capacity.util';
 import { CeoTowerRepository } from './ceo-tower.repository';
 import { classifyTowerRow } from './ceo-tower-sensors.util';
+import { buildTowerTrends } from './ceo-tower-trend.util';
 import type {
   TowerCandidate,
   TowerColumnId,
@@ -72,6 +73,7 @@ type ClassifiedRow = {
 
 type CachedBundle = {
   rows: ClassifiedRow[];
+  trendSource: TowerCandidate[];
   k_strip: TowerPayload['k_strip'];
   finance_strip?: TowerFinanceStrip;
   roster: TowerRosterEntry[];
@@ -82,6 +84,7 @@ type CachedBundle = {
   columnDegraded: Partial<Record<TowerColumnId, string>>;
   legalEntityFilterEnabled: boolean;
   legalEntityOptions?: TowerPayload['legal_entity_options'];
+  hasOps: boolean;
 };
 
 export type CeoTowerClock = { nowMs?: number };
@@ -162,6 +165,12 @@ export class CeoTowerSensorService {
     const next = afterCursor[limit];
     const columns = buildColumns(filteredRows, bundle.columnDegraded);
     const capacityTop = buildCapacityTop(rollupSource, bundle.roster);
+    const trends = buildTowerTrends(bundle.trendSource, {
+      factoryFilter,
+      nowMs,
+      hasOps: bundle.hasOps,
+      columnDegraded: bundle.columnDegraded,
+    });
 
     return {
       ok: true,
@@ -176,6 +185,7 @@ export class CeoTowerSensorService {
       next_cursor: next ? `${next.entity_type}:${next.entity_id}` : null,
       degraded: bundle.degraded,
       sensors_ok: bundle.sensors_ok,
+      trends,
       legal_entity_id: bundle.legalEntityFilterEnabled ? legalEntityFilter : null,
       ...(bundle.legalEntityFilterEnabled
         ? {
@@ -375,6 +385,7 @@ export class CeoTowerSensorService {
 
     return {
       rows,
+      trendSource: collapsed,
       k_strip,
       finance_strip: financeResult.strip,
       roster,
@@ -385,6 +396,7 @@ export class CeoTowerSensorService {
       columnDegraded,
       legalEntityFilterEnabled,
       legalEntityOptions,
+      hasOps,
     };
   }
 

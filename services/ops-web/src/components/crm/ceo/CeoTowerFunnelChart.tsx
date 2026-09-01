@@ -1,6 +1,7 @@
 'use client';
 
-import type { TowerColumnId } from '@/lib/crm/ceo-tower-api';
+import type { TowerColumnId, TowerTrendSeries } from '@/lib/crm/ceo-tower-api';
+import { KpiSparkline } from '@/components/kpi/KpiDashboardUi';
 import {
   buildTowerFunnelBars,
   type TowerColumnCounts,
@@ -11,6 +12,7 @@ export type CeoTowerFunnelChartProps = {
   columns: TowerColumnCounts[] | undefined;
   factory: TowerFactoryFilter;
   activeColumnId: TowerColumnId | '';
+  trendByColumn?: TowerTrendSeries['by_column'];
   onColumn: (id: TowerColumnId) => void;
 };
 
@@ -24,6 +26,7 @@ export function CeoTowerFunnelChart({
   columns,
   factory,
   activeColumnId,
+  trendByColumn,
   onColumn,
 }: CeoTowerFunnelChartProps) {
   const bars = buildTowerFunnelBars(columns, factory);
@@ -101,15 +104,26 @@ export function CeoTowerFunnelChart({
                 {bar.unusedLabel ? (
                   <span className="muted ceo-tower-funnel__counts">{bar.unusedLabel}</span>
                 ) : bar.degraded ? null : (
-                  <span className="ceo-tower-funnel__counts">
-                    <span className="ceo-tower-funnel__count ceo-tower-funnel__count--red">
-                      {bar.redCount}
+                  <>
+                    <span className="ceo-tower-funnel__counts">
+                      <span className="ceo-tower-funnel__count ceo-tower-funnel__count--red">
+                        {bar.redCount}
+                      </span>
+                      <span className="ceo-tower-funnel__count-sep">·</span>
+                      <span className="ceo-tower-funnel__count ceo-tower-funnel__count--amber">
+                        {bar.amberCount}
+                      </span>
                     </span>
-                    <span className="ceo-tower-funnel__count-sep">·</span>
-                    <span className="ceo-tower-funnel__count ceo-tower-funnel__count--amber">
-                      {bar.amberCount}
-                    </span>
-                  </span>
+                    {trendByColumn?.[bar.columnId]?.length ? (
+                      <KpiSparkline
+                        data={trendByColumn[bar.columnId]}
+                        width={96}
+                        height={28}
+                        className="ceo-tower-funnel__sparkline"
+                        label={`Xu hướng ${bar.label}`}
+                      />
+                    ) : null}
+                  </>
                 )}
               </div>
             </button>

@@ -67,6 +67,25 @@ export type TowerFinanceCell = {
 
 export type TowerFinanceStrip = TowerFinanceCell[];
 
+export type TowerTrendSeries = {
+  labels: string[];
+  total_issues: number[];
+  red_issues: number[];
+  by_column: Record<TowerColumnId, number[]>;
+};
+
+export type TowerTrendWow = {
+  current_total: number;
+  prev_week_total: number;
+  delta: number;
+  direction: 'up' | 'down' | 'flat';
+};
+
+export type TowerTrendPayload = {
+  series: TowerTrendSeries;
+  wow: TowerTrendWow;
+};
+
 export type TowerPayload = {
   ok: true;
   generated_at: string;
@@ -102,6 +121,7 @@ export type TowerPayload = {
   legal_entity_id?: string | null;
   legal_entity_filter_enabled?: boolean;
   legal_entity_options?: Array<{ id: string; label_vi: string }>;
+  trends?: TowerTrendPayload;
 };
 
 export type TowerQuery = {

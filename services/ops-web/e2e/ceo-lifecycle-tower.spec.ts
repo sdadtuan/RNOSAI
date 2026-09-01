@@ -98,6 +98,27 @@ const TOWER_FIXTURE = {
     S11: 'ok',
     S12: 'ok',
   },
+  trends: {
+    series: {
+      labels: ['T3', 'T4', 'T5', 'T6', 'T7', 'CN', 'T2'],
+      total_issues: [1, 1, 2, 2, 2, 3, 3],
+      red_issues: [0, 1, 1, 2, 2, 2, 2],
+      by_column: {
+        lead_b2: [0, 0, 1, 1, 1, 1, 1],
+        intake: [0, 0, 0, 0, 0, 0, 0],
+        consult: [0, 0, 0, 0, 0, 0, 0],
+        contract: [1, 1, 1, 1, 1, 1, 1],
+        tmmt_deliver: [0, 0, 1, 1, 1, 1, 1],
+        care: [0, 0, 0, 0, 0, 0, 0],
+      },
+    },
+    wow: {
+      current_total: 3,
+      prev_week_total: 1,
+      delta: 2,
+      direction: 'up',
+    },
+  },
 };
 
 async function mockCeoTowerApis(
@@ -213,6 +234,9 @@ test.describe('CEO Lifecycle Tower T1', () => {
     await expect(page.getByRole('button', { name: /HĐ/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /TMMT\/QA/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /CSKH/ })).toBeVisible();
+    await expect(page.getByTestId('ceo-tower-trends')).toBeVisible();
+    await expect(page.getByTestId('ceo-tower-wow')).toContainText('+2');
+    await expect(page.getByTestId('ceo-tower-health-wow')).toContainText('+2');
 
     await page.getByTestId('ceo-tower-column-contract').click();
     await expect(page).toHaveURL(/\/crm\/ceo/);

@@ -7,6 +7,7 @@ import {
   buildTowerBreadcrumb,
   buildTowerFunnelBars,
   deptRollupSummary,
+  formatTowerWowDelta,
   towerColumnUnusedLabel,
   towerHealthTone,
 } from './ceo-tower-ui.util';
@@ -104,5 +105,11 @@ describe('ceo-tower-ui.util', () => {
     expect(towerHealthTone(0, 0)).toBe('ok');
     expect(towerHealthTone(2, 0)).toBe('warn');
     expect(towerHealthTone(3, 1)).toBe('critical');
+  });
+
+  it('formatTowerWowDelta shows signed delta', () => {
+    expect(formatTowerWowDelta({ delta: 0, direction: 'flat' })).toBe('±0');
+    expect(formatTowerWowDelta({ delta: 2, direction: 'up' })).toBe('+2');
+    expect(formatTowerWowDelta({ delta: -1, direction: 'down' })).toBe('-1');
   });
 });

@@ -256,3 +256,12 @@ export function deptHeatPct(row: TowerOrgRollupEntry, maxTotal: number): number 
   if (row.outside_cycle || total === 0) return 0;
   return Math.round((total / Math.max(1, maxTotal)) * 100);
 }
+
+export function formatTowerWowDelta(wow: {
+  delta: number;
+  direction: 'up' | 'down' | 'flat';
+}): string {
+  if (wow.direction === 'flat') return '±0';
+  const sign = wow.direction === 'up' ? '+' : '';
+  return `${sign}${wow.delta}`;
+}
