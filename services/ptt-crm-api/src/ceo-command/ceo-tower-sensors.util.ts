@@ -53,6 +53,7 @@ function ageMs(fromMs: number | null | undefined, nowMs: number): number | null 
 
 function pickSuggestAction(sensorIds: TowerSensorId[], row: TowerSensorRow): string | null {
   if (sensorIds.includes('S1')) return 'assign_lead';
+  if (sensorIds.includes('S12')) return 'assign_lead';
   if (sensorIds.includes('S9')) return 'sla_remind_lead';
   if (sensorIds.includes('S3')) return 'prioritize_solution_queue';
   if (sensorIds.includes('S4')) return 'remind_contract_approval';
@@ -227,6 +228,17 @@ export function classifyTowerRow(
       sensor_ids.push('S10');
       bump('red');
     }
+  }
+
+  // S12 — client_active or retain without AM owner
+  if (
+    row.factory === 'A'
+    && column_id === 'care'
+    && (row.clientActive || row.retain)
+    && row.ownerId == null
+  ) {
+    sensor_ids.push('S12');
+    bump('red');
   }
 
   return {

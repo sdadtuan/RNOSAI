@@ -6,6 +6,7 @@ import {
   parseB2CompletedAt,
 } from '../cskh-board/cskh-board-sla.util';
 import { computeK1, computeK2, computeK3, computeK4Compliance } from '../lifecycle-milestone/lifecycle-kpi.util';
+import { getConcentrationMetrics } from '../finance/finance-pg-metrics.util';
 import { LIFECYCLE_MILESTONE_DDL } from '../lifecycle-milestone/lifecycle-milestone.pg.util';
 
 const RAG_GREEN = 'green';
@@ -389,6 +390,49 @@ export class OwnerWeeklyPgRepository implements OnModuleDestroy {
       });
     }
     return out;
+  }
+
+  /**
+   * Thin wrapper for CEO tower finance strip — same cash/AR/margin as dashboard;
+   * top1_share_pct from finance concentration (not MVP 0 on dashboard risk block).
+   */
+  async loadFinanceMetrics(): Promise<{
+    cash_close: number;
+    ar_overdue: number;
+    gross_margin: number;
+    top1_share_pct: number;
+    cash_safe_min_vnd: number;
+    ar_overdue_max_vnd: number;
+    gross_margin_target_pct: number;
+    top1_share_max_pct: number;
+  }> {
+    const bounds = resolveWeekBounds({});
+    const targets = await this.getTargets();
+    const [cashPosition, cashIn, delivery, arOverdue] = await Promise.all([
+      this.getCashPosition(bounds.end),
+      this.sumPayments(bounds.start, bounds.end),
+      this.sumExpenses(bounds.start, bounds.end, 'delivery'),
+      this.sumArOverdue(bounds.end),
+    ]);
+    const grossMargin = cashIn > 0
+      ? Math.round(((cashIn - delivery) / cashIn) * 1000) / 10
+      : 0;
+    const endDate = new Date(`${bounds.end}T00:00:00Z`);
+    const concentration = await getConcentrationMetrics(
+      this.db,
+      endDate.getUTCFullYear(),
+      endDate.getUTCMonth() + 1,
+    );
+    return {
+      cash_close: Number(cashPosition.position_vnd ?? 0),
+      ar_overdue: arOverdue,
+      gross_margin: grossMargin,
+      top1_share_pct: Number(concentration.top1_share_pct ?? 0),
+      cash_safe_min_vnd: targets.cash_safe_min_vnd!,
+      ar_overdue_max_vnd: targets.ar_overdue_max_vnd!,
+      gross_margin_target_pct: targets.gross_margin_target_pct!,
+      top1_share_max_pct: targets.top1_share_max_pct ?? 40,
+    };
   }
 
   async dashboard(opts: WeekOptions): Promise<Record<string, unknown>> {

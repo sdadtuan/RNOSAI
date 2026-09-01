@@ -42,6 +42,19 @@ export type TowerException = {
   suggest_params: Record<string, unknown> | null;
 };
 
+export type TowerFinanceCellKey = 'cash' | 'ar' | 'dt30' | 'top1' | 'gm';
+
+export type TowerFinanceCell = {
+  key: TowerFinanceCellKey;
+  label_vi: string;
+  value: number | null;
+  status: 'green' | 'amber' | 'red' | 'neutral';
+  target?: number | null;
+  href: string;
+};
+
+export type TowerFinanceStrip = TowerFinanceCell[];
+
 export type TowerPayload = {
   ok: true;
   generated_at: string;
@@ -72,7 +85,7 @@ export type TowerPayload = {
   next_cursor: string | null;
   degraded: Array<{ source: string; reason: string }>;
   sensors_ok: Record<TowerSensorId, 'ok' | 'fail' | 'degraded'>;
-  finance_strip?: unknown;
+  finance_strip?: TowerFinanceStrip;
   capacity_top?: unknown;
   legal_entity_id?: string | null;
 };

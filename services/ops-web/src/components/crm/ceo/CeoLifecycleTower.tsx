@@ -44,6 +44,13 @@ function kStatusClass(status: string): string {
   return 'badge';
 }
 
+function formatFinanceValue(key: string, value: number | null): string {
+  if (value == null) return '';
+  if (key === 'top1' || key === 'gm') return `${value}%`;
+  if (value >= 1_000_000) return `${Math.round(value / 1_000_000)}M`;
+  return String(value);
+}
+
 export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -313,6 +320,21 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
             <Link key={item.key} href={item.href} className={kStatusClass(item.status)}>
               {item.key.toUpperCase()}
               {item.value != null ? ` ${item.value}` : ''}
+            </Link>
+          ))}
+        </div>
+      ) : null}
+
+      {payload?.finance_strip?.length ? (
+        <div
+          className="flex flex-wrap gap-2"
+          data-testid="ceo-tower-finance-strip"
+          aria-label="Chỉ số tiền"
+        >
+          {payload.finance_strip.map((item) => (
+            <Link key={item.key} href={item.href} className={kStatusClass(item.status)}>
+              {item.label_vi}
+              {item.value != null ? ` ${formatFinanceValue(item.key, item.value)}` : ''}
             </Link>
           ))}
         </div>

@@ -290,6 +290,25 @@ describe('classifyTowerRow S1–S10', () => {
     expect(out.suggest_action).toBe('remind_staff');
   });
 
+  it('S12: retain without owner → red assign_lead', () => {
+    const out = classifyTowerRow(row({
+      leadId: 120,
+      lifecycleId: 120,
+      won: true,
+      hasLifecycle: true,
+      clientActive: false,
+      retain: true,
+      ownerId: null,
+      tmmtGatePass: true,
+      createdAtMs: NOW - 60 * D,
+      promoteAtMs: NOW - 20 * D,
+    }));
+    expect(out.column_id).toBe('care');
+    expect(out.severity).toBe('red');
+    expect(out.sensor_ids).toEqual(expect.arrayContaining(['S12']));
+    expect(out.suggest_action).toBe('assign_lead');
+  });
+
   it('every fixture has a column (no null)', () => {
     for (const fixture of FIXTURES) {
       expect(assignTowerColumn(fixture)).toBeTruthy();

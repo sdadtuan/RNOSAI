@@ -1,4 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common';
+import { AiNlQueryService } from '../ai-intelligence/ai-nl-query.service';
 import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
 import { OwnerWeeklyPgRepository } from '../owner-weekly/owner-weekly-pg.repository';
 import { withTimeout } from './ceo-command-briefing.util';
@@ -6,6 +7,7 @@ import {
   hasBoardView,
   hasContractView,
   hasCskhView,
+  hasCeoFinanceView,
   hasLeadsView,
   hasOpsView,
 } from './ceo-command-caps.util';
@@ -13,6 +15,11 @@ import type { CeoActor } from './ceo-command.types';
 import { hasGdkdViewAllLeads } from '../staff-permissions/staff-gdkd.util';
 import { isTowerUatSeed } from './ceo-tower-column.util';
 import { towerDrillHref } from './ceo-tower-drill.util';
+import {
+  buildFinanceStrip,
+  buildS11Exception,
+  isS11Fail,
+} from './ceo-tower-finance.util';
 import { buildOrgRollup, exceptionMatchesOrgFilters } from './ceo-tower-org.util';
 import { CeoTowerRepository } from './ceo-tower.repository';
 import { classifyTowerRow } from './ceo-tower-sensors.util';
@@ -21,6 +28,7 @@ import type {
   TowerColumnId,
   TowerException,
   TowerFactory,
+  TowerFinanceStrip,
   TowerPayload,
   TowerQuery,
   TowerSensorId,
@@ -60,6 +68,9 @@ type ClassifiedRow = {
 type CachedBundle = {
   rows: ClassifiedRow[];
   k_strip: TowerPayload['k_strip'];
+  finance_strip?: TowerFinanceStrip;
+  s11Fail: boolean;
+  financeMetricsOk: boolean;
   degraded: TowerPayload['degraded'];
   sensors_ok: TowerPayload['sensors_ok'];
   columnDegraded: Partial<Record<TowerColumnId, string>>;
@@ -75,6 +86,7 @@ export class CeoTowerSensorService {
   constructor(
     private readonly repo: CeoTowerRepository,
     private readonly ownerWeekly: OwnerWeeklyPgRepository,
+    @Optional() private readonly nlQuery?: AiNlQueryService,
     @Optional() clock?: CeoTowerClock,
   ) {
     this.fixedNowMs = clock?.nowMs;
@@ -128,6 +140,10 @@ export class CeoTowerSensorService {
       .sort(compareExceptions)
       .map((row) => toException(row, nowMs));
 
+    if (bundle.s11Fail) {
+      exceptionsAll.unshift(buildS11Exception(0));
+    }
+
     const afterCursor = applyCursor(exceptionsAll, query.cursor);
     const page = afterCursor.slice(0, limit);
     const next = afterCursor[limit];
@@ -138,6 +154,7 @@ export class CeoTowerSensorService {
       generated_at: new Date(nowMs).toISOString(),
       window_exception_days: 7,
       k_strip: bundle.k_strip,
+      ...(bundle.finance_strip ? { finance_strip: bundle.finance_strip } : {}),
       columns,
       exceptions: page,
       org_rollup: buildOrgRollup(rollupSource, { factoryFilter }),
@@ -176,6 +193,7 @@ export class CeoTowerSensorService {
     const hasKStrip = actor.caps.some(
       (c) => c.section === 'crm_owner_weekly_dashboard' && c.action === 'view',
     );
+    const hasFinance = hasCeoFinanceView(actor.caps);
     const unresolved = !Number.isFinite(actor.staffId) || actor.staffId <= 0;
 
     const columnDegraded: Partial<Record<TowerColumnId, string>> = {};
@@ -290,6 +308,7 @@ export class CeoTowerSensorService {
     }
 
     const k_strip = await this.loadKStrip(hasKStrip, hasCskh, degraded);
+    const financeResult = await this.loadFinanceStrip(actor, hasKStrip, hasFinance, degraded);
     const sensors_ok = buildSensorsOk(rows, {
       candidatesOk,
       hasOps,
@@ -297,9 +316,20 @@ export class CeoTowerSensorService {
       hasBoard,
       hasContract,
       hasCskh,
+      hasFinanceMetrics: financeResult.financeMetricsOk,
+      s11Fail: financeResult.s11Fail,
     });
 
-    return { rows, k_strip, degraded, sensors_ok, columnDegraded };
+    return {
+      rows,
+      k_strip,
+      finance_strip: financeResult.strip,
+      s11Fail: financeResult.s11Fail,
+      financeMetricsOk: financeResult.financeMetricsOk,
+      degraded,
+      sensors_ok,
+      columnDegraded,
+    };
   }
 
   private async loadKStrip(
@@ -330,6 +360,50 @@ export class CeoTowerSensorService {
         reason: String((e as Error)?.message ?? 'failed'),
       });
       return [];
+    }
+  }
+
+  private async loadFinanceStrip(
+    actor: CeoActor,
+    hasOwnerWeeklyCap: boolean,
+    hasFinanceCap: boolean,
+    degraded: TowerPayload['degraded'],
+  ): Promise<{ strip?: TowerFinanceStrip; s11Fail: boolean; financeMetricsOk: boolean }> {
+    if (!hasOwnerWeeklyCap || !hasFinanceCap) {
+      degraded.push({ source: 'finance', reason: 'missing_cap' });
+      return { s11Fail: false, financeMetricsOk: false };
+    }
+    try {
+      const metrics = await withTimeout(this.ownerWeekly.loadFinanceMetrics(), SOURCE_TIMEOUT_MS);
+      let revenue30: number | null = null;
+      if (this.nlQuery) {
+        try {
+          const rev30 = await withTimeout(
+            this.nlQuery.runQuery({
+              intent_id: 'revenue_received_30d',
+              actorId: String(actor.staffId),
+            }),
+            SOURCE_TIMEOUT_MS,
+          );
+          const raw = (rev30.data?.rows?.[0] as Record<string, unknown> | undefined)?.amount_vnd;
+          revenue30 = raw == null ? null : Number(raw);
+          if (revenue30 != null && !Number.isFinite(revenue30)) revenue30 = null;
+        } catch {
+          revenue30 = null;
+        }
+      }
+      const strip = buildFinanceStrip({
+        ...metrics,
+        revenue_received_30d: revenue30,
+      });
+      const s11Fail = isS11Fail(metrics.top1_share_pct, metrics.top1_share_max_pct);
+      return { strip, s11Fail, financeMetricsOk: true };
+    } catch (e) {
+      degraded.push({
+        source: 'finance',
+        reason: String((e as Error)?.message ?? 'failed'),
+      });
+      return { s11Fail: false, financeMetricsOk: false };
     }
   }
 }
@@ -552,11 +626,21 @@ function buildSensorsOk(
     hasBoard: boolean;
     hasContract: boolean;
     hasCskh: boolean;
+    hasFinanceMetrics: boolean;
+    s11Fail: boolean;
   },
 ): TowerPayload['sensors_ok'] {
   const out = {} as TowerPayload['sensors_ok'];
   for (const id of SENSOR_IDS) {
-    if (!flags.candidatesOk && id !== 'S11' && id !== 'S12') {
+    if (id === 'S11') {
+      if (!flags.hasFinanceMetrics) {
+        out[id] = 'degraded';
+        continue;
+      }
+      out[id] = flags.s11Fail ? 'fail' : 'ok';
+      continue;
+    }
+    if (!flags.candidatesOk && id !== 'S12') {
       out[id] = 'degraded';
       continue;
     }

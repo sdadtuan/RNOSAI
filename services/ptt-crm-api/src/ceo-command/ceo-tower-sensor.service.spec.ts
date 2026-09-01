@@ -116,11 +116,18 @@ const OPS_AND_K = [
   { section: 'crm_board', action: 'view' },
   { section: 'crm_owner_weekly_dashboard', action: 'view' },
 ];
+const OPS_AND_K_FINANCE = [
+  ...OPS_AND_K,
+  { section: 'crm_business_dashboard', action: 'view' },
+];
 
 function makeSvc(opts?: {
   candidates?: TowerCandidate[];
   loadCandidates?: jest.Mock;
   kStrip?: Array<{ key: 'k1' | 'k2' | 'k3' | 'k4'; value: number | null; status: 'green' | 'amber' | 'red' | 'neutral' }>;
+  financeMetrics?: Record<string, number>;
+  loadFinanceMetrics?: jest.Mock;
+  nlQuery?: { runQuery: jest.Mock } | false;
   nowMs?: number;
 }) {
   const repo = {
@@ -134,13 +141,32 @@ function makeSvc(opts?: {
       { key: 'k3', value: null, status: 'neutral' },
       { key: 'k4', value: 90, status: 'green' },
     ]),
+    loadFinanceMetrics: opts?.loadFinanceMetrics
+      ?? jest.fn().mockResolvedValue(opts?.financeMetrics ?? {
+        cash_close: 60_000_000,
+        cash_safe_min_vnd: 50_000_000,
+        ar_overdue: 20_000_000,
+        ar_overdue_max_vnd: 30_000_000,
+        gross_margin: 32,
+        gross_margin_target_pct: 30,
+        top1_share_pct: 35,
+        top1_share_max_pct: 40,
+      }),
   };
+  const nlQuery = opts?.nlQuery === false
+    ? undefined
+    : (opts?.nlQuery ?? {
+      runQuery: jest.fn().mockResolvedValue({
+        data: { rows: [{ amount_vnd: 15_000_000 }] },
+      }),
+    });
   const svc = new CeoTowerSensorService(
     repo as unknown as CeoTowerRepository,
     ownerWeekly as unknown as OwnerWeeklyPgRepository,
+    nlQuery as never,
     { nowMs: opts?.nowMs ?? NOW },
   );
-  return { svc, repo, ownerWeekly };
+  return { svc, repo, ownerWeekly, nlQuery };
 }
 
 describe('CeoTowerSensorService.buildPayload', () => {
@@ -610,5 +636,38 @@ describe('CeoTowerSensorService.buildPayload', () => {
     const { svc } = makeSvc({ candidates: [oldRed] });
     const out = await svc.buildPayload(actor(OPS_AND_K), {});
     expect(out.exceptions.some((row) => row.entity_id === 99)).toBe(true);
+  });
+
+  it('thiếu finance cap → không finance_strip + degraded finance', async () => {
+    const { svc, ownerWeekly } = makeSvc({ candidates: [s1NoOwner] });
+    const out = await svc.buildPayload(actor(OPS_AND_K), {});
+
+    expect(out.finance_strip).toBeUndefined();
+    expect(out.degraded.some((d) => d.source === 'finance' && d.reason === 'missing_cap')).toBe(true);
+    expect(out.sensors_ok.S11).toBe('degraded');
+    expect(ownerWeekly.loadFinanceMetrics).not.toHaveBeenCalled();
+  });
+
+  it('có Owner Weekly + finance cap → finance_strip từ metrics, S11 khi top1 > 40', async () => {
+    const { svc } = makeSvc({
+      candidates: [s1NoOwner],
+      financeMetrics: {
+        cash_close: 60_000_000,
+        cash_safe_min_vnd: 50_000_000,
+        ar_overdue: 20_000_000,
+        ar_overdue_max_vnd: 30_000_000,
+        gross_margin: 32,
+        gross_margin_target_pct: 30,
+        top1_share_pct: 55,
+        top1_share_max_pct: 40,
+      },
+    });
+    const out = await svc.buildPayload(actor(OPS_AND_K_FINANCE), {});
+
+    expect(out.finance_strip?.length).toBe(5);
+    expect(out.finance_strip?.[0]?.key).toBe('cash');
+    expect(out.sensors_ok.S11).toBe('fail');
+    expect(out.exceptions[0]?.sensor_ids).toContain('S11');
+    expect(out.exceptions[0]?.title_vi).toBe('Top-1 khách > 40% DT');
   });
 });
