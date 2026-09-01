@@ -11,7 +11,7 @@ import {
 import { AiAgentRunsRepository } from '../ai-intelligence/ai-agent-runs.repository';
 import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
-import { assertPlannerAllowed, throwPlannerAllowResult } from './mkt-ai-planner-allow.util';
+import { MktAiPlannerAllowService } from './mkt-ai-planner-allow.service';
 import { validateMktAiBrief, mergeBrief, emptyDraft } from './marketing-ai-brief.util';
 import { computeBriefReadiness } from './marketing-ai-brief-readiness.util';
 import {
@@ -88,6 +88,7 @@ const RETRY_JOB_TYPES: MktAiJobType[] = [
 export class MarketingAiPlannerService {
   constructor(
     private readonly config: AppConfigService,
+    private readonly allow: MktAiPlannerAllowService,
     private readonly lifecycle: ServiceLifecycleService,
     private readonly repo: MarketingAiPlannerRepository,
     private readonly orchestrator: MarketingAiOrchestratorService,
@@ -110,15 +111,8 @@ export class MarketingAiPlannerService {
     private readonly sectionComments: MarketingAiSectionCommentService,
   ) {}
 
-  private assertEnabled(serviceSlug?: string): void {
-    throwPlannerAllowResult(
-      assertPlannerAllowed(serviceSlug ?? '', null, {
-        plannerEnabled: this.config.mktAiPlannerEnabled,
-        envSlugs: this.config.mktAiPlannerSlugs,
-        pilotOnly: this.config.mktAiPilotOnlyEnabled,
-        pilotSlugs: this.config.mktAiPilotServiceSlugs,
-      }),
-    );
+  private async assertEnabled(serviceSlug?: string): Promise<void> {
+    await this.allow.ensure(serviceSlug ?? '');
   }
 
   private async loadLifecycleRow(id: number): Promise<Record<string, unknown>> {
@@ -201,7 +195,7 @@ export class MarketingAiPlannerService {
   }> {
     const lc = await this.loadLifecycleRow(lifecycleId);
     const serviceSlug = String(lc.service_slug ?? '');
-    this.assertEnabled(serviceSlug);
+    await this.assertEnabled(serviceSlug);
 
     const built = await this.buildPrefillBrief(lifecycleId, serviceSlug);
     const existing = await this.repo.getBrief(lifecycleId);
@@ -228,7 +222,7 @@ export class MarketingAiPlannerService {
   async getContext(lifecycleId: number): Promise<MktAiPlannerContext> {
     const lc = await this.loadLifecycleRow(lifecycleId);
     const serviceSlug = String(lc.service_slug ?? '');
-    this.assertEnabled(serviceSlug);
+    await this.assertEnabled(serviceSlug);
 
     let briefRow = await this.repo.getBrief(lifecycleId);
     if (!briefRow) {
@@ -374,7 +368,7 @@ export class MarketingAiPlannerService {
   async listPlaybooks(lifecycleId: number): Promise<MktAiPlaybookListResult> {
     const lc = await this.loadLifecycleRow(lifecycleId);
     const serviceSlug = String(lc.service_slug ?? '');
-    this.assertEnabled(serviceSlug);
+    await this.assertEnabled(serviceSlug);
     if (!this.playbooks.isEnabled()) {
       return {
         ok: true,
@@ -395,7 +389,7 @@ export class MarketingAiPlannerService {
   ): Promise<MktAiPlaybookApplyResult> {
     const lc = await this.loadLifecycleRow(lifecycleId);
     const serviceSlug = String(lc.service_slug ?? '');
-    this.assertEnabled(serviceSlug);
+    await this.assertEnabled(serviceSlug);
     if (!this.playbooks.isEnabled()) {
       throw new NotFoundException({ error: 'mkt_ai_playbooks_disabled' });
     }
@@ -420,7 +414,7 @@ export class MarketingAiPlannerService {
 
   async listDocuments(lifecycleId: number) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     if (!this.rag.isFeatureEnabled()) {
       return { documents: [] as const, rag_enabled: false };
     }
@@ -435,7 +429,7 @@ export class MarketingAiPlannerService {
     tag?: string,
   ) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     const document = await this.rag.uploadDocument(lifecycleId, file, actorEmail, tag);
     return { document };
   }
@@ -450,7 +444,7 @@ export class MarketingAiPlannerService {
     brief_readiness: ReturnType<typeof computeBriefReadiness>;
   }> {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
 
     const existing = await this.repo.getBrief(lifecycleId);
     const merged = mergeBrief(existing?.brief_json ?? null, patch);
@@ -477,7 +471,7 @@ export class MarketingAiPlannerService {
   ) {
     const lc = await this.loadLifecycleRow(lifecycleId);
     const serviceSlug = String(lc.service_slug ?? '');
-    this.assertEnabled(serviceSlug);
+    await this.assertEnabled(serviceSlug);
 
     const existing = await this.repo.getBrief(lifecycleId);
     const result = this.briefUpload.uploadBriefFile(
@@ -508,7 +502,7 @@ export class MarketingAiPlannerService {
     actorEmail: string,
   ): Promise<MktAiDraft> {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
 
     const current = await this.repo.ensureDraft(lifecycleId, actorEmail);
     const merged: MktAiDraft = {
@@ -642,7 +636,7 @@ export class MarketingAiPlannerService {
 
   async runStrategyJob(lifecycleId: number, actorEmail: string) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     const brief = await this.requireBrief(lifecycleId);
 
     return this.runJob(lifecycleId, 'strategy_generate', actorEmail, async () => {
@@ -682,7 +676,7 @@ export class MarketingAiPlannerService {
 
   async runCampaignJob(lifecycleId: number, actorEmail: string) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     const brief = await this.requireBrief(lifecycleId);
 
     return this.runJob(lifecycleId, 'campaign_generate', actorEmail, async () => {
@@ -706,7 +700,7 @@ export class MarketingAiPlannerService {
 
   async runContentJob(lifecycleId: number, actorEmail: string) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     const brief = await this.requireBrief(lifecycleId);
     const draft = await this.repo.ensureDraft(lifecycleId, actorEmail);
     const campaigns = (draft.campaigns_json ?? []) as MktAiCampaignDraft[];
@@ -725,7 +719,7 @@ export class MarketingAiPlannerService {
 
   async runQualityJob(lifecycleId: number, actorEmail: string) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     const briefRow = await this.repo.getBrief(lifecycleId);
     const draft = await this.repo.ensureDraft(lifecycleId, actorEmail);
     const quality = computeQualityScore(briefRow?.brief_json ?? null, draft, {
@@ -755,7 +749,7 @@ export class MarketingAiPlannerService {
     count = 3,
   ) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     const brief = await this.requireBrief(lifecycleId);
 
     return this.runJob(lifecycleId, 'budget_simulate', actorEmail, async (jobId) => {
@@ -766,7 +760,7 @@ export class MarketingAiPlannerService {
 
   async applyBudgetScenario(lifecycleId: number, scenarioId: number, actorEmail: string) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     const draft = await this.repo.ensureDraft(lifecycleId, actorEmail);
     const campaigns = (draft.campaigns_json ?? []) as MktAiCampaignDraft[];
     const applied = await this.budget.applyScenario(lifecycleId, scenarioId, campaigns, actorEmail);
@@ -775,7 +769,7 @@ export class MarketingAiPlannerService {
 
   async listApprovals(lifecycleId: number) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     const approvals = await this.approval.listApprovals(lifecycleId);
     return { approvals };
   }
@@ -786,7 +780,7 @@ export class MarketingAiPlannerService {
     actorEmail: string,
   ) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     return this.approval.submitForApproval(lifecycleId, actorEmail, {
       label: body.label != null ? String(body.label) : undefined,
       note: body.note != null ? String(body.note) : undefined,
@@ -800,7 +794,7 @@ export class MarketingAiPlannerService {
     actorEmail: string,
   ) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     const decision = String(body.decision ?? '').trim();
     const mapped =
       decision === 'approve'
@@ -825,7 +819,7 @@ export class MarketingAiPlannerService {
 
   async listComments(lifecycleId: number, planVersionId?: number) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     const comments = await this.approval.listComments(lifecycleId, planVersionId);
     return { comments };
   }
@@ -836,7 +830,7 @@ export class MarketingAiPlannerService {
     actorEmail: string,
   ) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     const comment = await this.approval.addComment(lifecycleId, actorEmail, {
       body: String(body.body ?? ''),
       plan_version_id: body.plan_version_id != null ? Number(body.plan_version_id) : undefined,
@@ -848,21 +842,21 @@ export class MarketingAiPlannerService {
 
   async listPlanVersions(lifecycleId: number) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     const versions = await this.versions.listVersions(lifecycleId);
     return { versions };
   }
 
   async getPlanVersion(lifecycleId: number, versionId: number) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     const version = await this.versions.getVersion(lifecycleId, versionId);
     return { version };
   }
 
   async restorePlanVersion(lifecycleId: number, versionId: number, actorEmail: string) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     const restored = await this.versions.restoreVersionToDraft(lifecycleId, versionId, actorEmail);
     return restored;
   }
@@ -891,7 +885,7 @@ export class MarketingAiPlannerService {
     actorEmail: string,
   ) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
 
     if (!body.confirm_overwrite) {
       throw new BadRequestException({ error: 'confirm_overwrite_required' });
@@ -964,7 +958,7 @@ export class MarketingAiPlannerService {
     actorEmail: string,
   ): Promise<MktAiExportFileResult> {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
 
     const fmt = String(format ?? 'pdf').toLowerCase();
     if (!['pdf', 'docx', 'xlsx'].includes(fmt)) {
@@ -1016,7 +1010,7 @@ export class MarketingAiPlannerService {
     actorEmail: string,
   ): Promise<MktAiOptimizeResult> {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
 
     const jobResult = await this.runJob(lifecycleId, 'optimize', actorEmail, async () => {
       const payload = await this.optimize.execute(lifecycleId, body);
@@ -1074,7 +1068,7 @@ export class MarketingAiPlannerService {
   ): Promise<MktAiWeeklyMemoResult> {
     rejectMktAiAutoCustomerEmail(this.config.mktAiAutoCustomerEmailEnabled, opts);
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
 
     const jobResult = await this.runJob(lifecycleId, 'weekly_memo', actorEmail, async () => {
       const memo = await this.weeklyMemo.buildMemoForLifecycle(lifecycleId);
@@ -1099,7 +1093,7 @@ export class MarketingAiPlannerService {
 
   async runCompetitorSnapshotJob(lifecycleId: number, actorEmail: string) {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     if (!this.kpiClosedLoop.isEnabled()) {
       throw new NotFoundException({ error: 'mkt_ai_kpi_closed_loop_disabled' });
     }
@@ -1124,7 +1118,7 @@ export class MarketingAiPlannerService {
     return this.loadLifecycleRow(id);
   }
 
-  assertEnabledPublic(serviceSlug?: string) {
+  async assertEnabledPublic(serviceSlug?: string): Promise<void> {
     return this.assertEnabled(serviceSlug);
   }
 
@@ -1154,7 +1148,7 @@ export class MarketingAiPlannerService {
     count = 3,
   ): Promise<{ job_id: number; status: string; scenarios: MktAiStrategyScenarioRow[] }> {
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
     if (!this.strategyScenarios.isEnabled()) {
       throw new NotFoundException({ error: 'mkt_ai_scenario_compare_disabled' });
     }
@@ -1213,7 +1207,7 @@ export class MarketingAiPlannerService {
       throw new NotFoundException({ error: 'mkt_ai_export_pptx_disabled' });
     }
     const lc = await this.loadLifecycleRow(lifecycleId);
-    this.assertEnabled(String(lc.service_slug ?? ''));
+    await this.assertEnabled(String(lc.service_slug ?? ''));
 
     const ctx = await this.getContext(lifecycleId);
     const score = ctx.quality_score?.score ?? 0;

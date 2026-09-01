@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
-import { assertPlannerAllowed, throwPlannerAllowResult } from './mkt-ai-planner-allow.util';
+import { MktAiPlannerAllowService } from './mkt-ai-planner-allow.service';
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
 import { MarketingAiKpiClosedLoopService } from './marketing-ai-kpi-closed-loop.service';
 import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
@@ -27,6 +27,7 @@ export class MarketingAiWeeklyMemoService implements OnModuleDestroy {
 
   constructor(
     private readonly config: AppConfigService,
+    private readonly allow: MktAiPlannerAllowService,
     private readonly lifecycle: ServiceLifecycleService,
     private readonly dashboard: MarketingAiDashboardService,
     private readonly closedLoop: MarketingAiKpiClosedLoopService,
@@ -60,15 +61,8 @@ export class MarketingAiWeeklyMemoService implements OnModuleDestroy {
     };
   }
 
-  private assertEnabled(serviceSlug?: string): void {
-    throwPlannerAllowResult(
-      assertPlannerAllowed(serviceSlug ?? '', null, {
-        plannerEnabled: this.config.mktAiPlannerEnabled,
-        envSlugs: this.config.mktAiPlannerSlugs,
-        pilotOnly: this.config.mktAiPilotOnlyEnabled,
-        pilotSlugs: this.config.mktAiPilotServiceSlugs,
-      }),
-    );
+  private async assertEnabled(serviceSlug?: string): Promise<void> {
+    await this.allow.ensure(serviceSlug ?? '');
     if (!this.isEnabled()) {
       throw new NotFoundException({ error: 'mkt_ai_kpi_closed_loop_disabled' });
     }
@@ -77,7 +71,7 @@ export class MarketingAiWeeklyMemoService implements OnModuleDestroy {
   async buildMemoForLifecycle(lifecycleId: number): Promise<MktAiWeeklyMemoPayload> {
     const lc = await this.lifecycle.detail(lifecycleId);
     const serviceSlug = String((lc as Record<string, unknown>).service_slug ?? '');
-    this.assertEnabled(serviceSlug);
+    await this.assertEnabled(serviceSlug);
 
     const closedLoop = await this.closedLoop.getClosedLoop(lifecycleId, { weeks: 6, channel: 'meta' });
     const optimizeOut = await this.optimize.execute(lifecycleId, { channel: 'meta' });

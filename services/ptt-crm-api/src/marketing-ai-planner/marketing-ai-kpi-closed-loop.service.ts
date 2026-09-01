@@ -3,7 +3,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { OpsAlertPgRepository } from '../ops/ops-alert-pg.repository';
 import { OpsService } from '../ops/ops.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
-import { assertPlannerAllowed, throwPlannerAllowResult } from './mkt-ai-planner-allow.util';
+import { MktAiPlannerAllowService } from './mkt-ai-planner-allow.service';
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
 import { buildKpiClosedLoopPayload } from './marketing-ai-kpi-closed-loop.util';
@@ -13,6 +13,7 @@ import type { MktAiKpiClosedLoopPayload } from './marketing-ai-planner.types';
 export class MarketingAiKpiClosedLoopService {
   constructor(
     private readonly config: AppConfigService,
+    private readonly allow: MktAiPlannerAllowService,
     private readonly lifecycle: ServiceLifecycleService,
     private readonly dashboard: MarketingAiDashboardService,
     private readonly repo: MarketingAiPlannerRepository,
@@ -36,15 +37,8 @@ export class MarketingAiKpiClosedLoopService {
     };
   }
 
-  private assertEnabled(serviceSlug?: string): void {
-    throwPlannerAllowResult(
-      assertPlannerAllowed(serviceSlug ?? '', null, {
-        plannerEnabled: this.config.mktAiPlannerEnabled,
-        envSlugs: this.config.mktAiPlannerSlugs,
-        pilotOnly: this.config.mktAiPilotOnlyEnabled,
-        pilotSlugs: this.config.mktAiPilotServiceSlugs,
-      }),
-    );
+  private async assertEnabled(serviceSlug?: string): Promise<void> {
+    await this.allow.ensure(serviceSlug ?? '');
     if (!this.isEnabled()) {
       throw new NotFoundException({ error: 'mkt_ai_kpi_closed_loop_disabled' });
     }
@@ -100,7 +94,7 @@ export class MarketingAiKpiClosedLoopService {
   ): Promise<MktAiKpiClosedLoopPayload> {
     const lc = await this.lifecycle.detail(lifecycleId);
     const serviceSlug = String((lc as Record<string, unknown>).service_slug ?? '');
-    this.assertEnabled(serviceSlug);
+    await this.assertEnabled(serviceSlug);
 
     const draft = await this.repo.ensureDraft(lifecycleId, 'kpi-closed-loop');
     const dashboard = await this.dashboard.getDashboard(lifecycleId, {

@@ -6,7 +6,7 @@ import {
 import { AppConfigService } from '../config/app-config.service';
 import { computeQualityScore } from '../marketing-ai-planner/marketing-ai-quality.util';
 import { emptyDraft } from '../marketing-ai-planner/marketing-ai-brief.util';
-import { assertPlannerAllowed, throwPlannerAllowResult } from '../marketing-ai-planner/mkt-ai-planner-allow.util';
+import { MktAiPlannerAllowService } from '../marketing-ai-planner/mkt-ai-planner-allow.service';
 import type { MktAiDraft } from '../marketing-ai-planner/marketing-ai-planner.types';
 import { MarketingAiPlaybookService } from '../marketing-ai-planner/marketing-ai-playbook.service';
 import { MarketingAiPlannerRepository } from '../marketing-ai-planner/marketing-ai-planner.repository';
@@ -24,6 +24,7 @@ import type {
 export class PortalMktAiSummaryService {
   constructor(
     private readonly config: AppConfigService,
+    private readonly allow: MktAiPlannerAllowService,
     private readonly lifecycle: ServiceLifecycleService,
     private readonly repo: MarketingAiPlannerRepository,
     private readonly playbooks: MarketingAiPlaybookService,
@@ -48,15 +49,8 @@ export class PortalMktAiSummaryService {
     return clientId;
   }
 
-  private assertPlannerSlug(serviceSlug: string): void {
-    throwPlannerAllowResult(
-      assertPlannerAllowed(serviceSlug ?? '', null, {
-        plannerEnabled: this.config.mktAiPlannerEnabled,
-        envSlugs: this.config.mktAiPlannerSlugs,
-        pilotOnly: this.config.mktAiPilotOnlyEnabled,
-        pilotSlugs: this.config.mktAiPilotServiceSlugs,
-      }),
-    );
+  private async assertPlannerSlug(serviceSlug: string): Promise<void> {
+    await this.allow.ensure(serviceSlug ?? '');
   }
 
   private async assertPortalLifecycleAccess(
@@ -78,7 +72,7 @@ export class PortalMktAiSummaryService {
       throw new ForbiddenException({ error: 'lifecycle_client_mismatch' });
     }
     const serviceSlug = String(ctx.service_slug ?? '').trim();
-    this.assertPlannerSlug(serviceSlug);
+    await this.assertPlannerSlug(serviceSlug);
     return { serviceSlug, stage: String(ctx.stage ?? '') };
   }
 
@@ -104,7 +98,7 @@ export class PortalMktAiSummaryService {
       };
     }
     try {
-      this.assertPlannerSlug(row.service_slug);
+      await this.assertPlannerSlug(row.service_slug);
     } catch {
       return {
         ok: true,

@@ -1,12 +1,7 @@
 import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
 
 describe('MarketingAiOptimizeService', () => {
-  const config = {
-    mktAiPlannerEnabled: true,
-    mktAiPlannerSlugs: ['meta-lead-gen'] as string[],
-    mktAiPilotOnlyEnabled: false,
-    mktAiPilotServiceSlugs: [] as string[],
-  };
+  const allow = { ensure: jest.fn().mockResolvedValue(undefined) };
   const lifecycle = {
     detail: jest.fn(),
     createCustomTask: jest.fn(),
@@ -54,7 +49,7 @@ describe('MarketingAiOptimizeService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     service = new MarketingAiOptimizeService(
-      config as never,
+      allow as never,
       lifecycle as never,
       dashboard as never,
       orchestrator as never,

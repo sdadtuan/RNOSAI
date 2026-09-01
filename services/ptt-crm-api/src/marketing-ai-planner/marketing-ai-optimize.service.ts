@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
-import { assertPlannerAllowed, throwPlannerAllowResult } from './mkt-ai-planner-allow.util';
+import { MktAiPlannerAllowService } from './mkt-ai-planner-allow.service';
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
@@ -26,22 +25,15 @@ const MAX_TASKS_PER_RUN = 5;
 @Injectable()
 export class MarketingAiOptimizeService {
   constructor(
-    private readonly config: AppConfigService,
+    private readonly allow: MktAiPlannerAllowService,
     private readonly lifecycle: ServiceLifecycleService,
     private readonly dashboard: MarketingAiDashboardService,
     private readonly orchestrator: MarketingAiOrchestratorService,
     private readonly repo: MarketingAiPlannerRepository,
   ) {}
 
-  private assertEnabled(serviceSlug?: string): void {
-    throwPlannerAllowResult(
-      assertPlannerAllowed(serviceSlug ?? '', null, {
-        plannerEnabled: this.config.mktAiPlannerEnabled,
-        envSlugs: this.config.mktAiPlannerSlugs,
-        pilotOnly: this.config.mktAiPilotOnlyEnabled,
-        pilotSlugs: this.config.mktAiPilotServiceSlugs,
-      }),
-    );
+  private async assertEnabled(serviceSlug?: string): Promise<void> {
+    await this.allow.ensure(serviceSlug ?? '');
   }
 
   async execute(
@@ -51,7 +43,7 @@ export class MarketingAiOptimizeService {
     const lc = await this.lifecycle.detail(lifecycleId);
     const stage = String((lc as Record<string, unknown>).stage ?? '');
     const serviceSlug = String((lc as Record<string, unknown>).service_slug ?? '');
-    this.assertEnabled(serviceSlug);
+    await this.assertEnabled(serviceSlug);
 
     const channel = body.channel ?? 'meta';
     const dashboard = await this.dashboard.getDashboard(lifecycleId, { weeks: 6, channel });

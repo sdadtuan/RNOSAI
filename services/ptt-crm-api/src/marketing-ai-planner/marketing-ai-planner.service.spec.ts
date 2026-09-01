@@ -9,6 +9,9 @@ describe('MarketingAiPlannerService', () => {
     mktAiPilotServiceSlugs: [] as string[],
     mktAiRagEnabled: false,
   };
+  const allow = {
+    ensure: jest.fn().mockResolvedValue(undefined),
+  };
   const lifecycle = {
     detail: jest.fn(),
     consultBrief: jest.fn(),
@@ -92,6 +95,7 @@ describe('MarketingAiPlannerService', () => {
     jest.clearAllMocks();
     service = new MarketingAiPlannerService(
       config as never,
+      allow as never,
       lifecycle as never,
       repo as never,
       orchestrator as never,
@@ -134,6 +138,11 @@ describe('MarketingAiPlannerService', () => {
   });
 
   it('getContext throws when planner disabled', async () => {
+    const disabledAllow = {
+      ensure: jest.fn().mockRejectedValue(
+        new NotFoundException({ error: 'mkt_ai_planner_disabled' }),
+      ),
+    };
     const disabled = new MarketingAiPlannerService(
       {
         mktAiPlannerEnabled: false,
@@ -142,6 +151,7 @@ describe('MarketingAiPlannerService', () => {
         mktAiPilotServiceSlugs: [],
         mktAiRagEnabled: false,
       } as never,
+      disabledAllow as never,
       lifecycle as never,
       repo as never,
       orchestrator as never,

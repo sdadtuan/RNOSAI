@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { assertPlannerAllowed, throwPlannerAllowResult } from '../marketing-ai-planner/mkt-ai-planner-allow.util';
+import { MktAiPlannerAllowService } from '../marketing-ai-planner/mkt-ai-planner-allow.service';
 import { extractHttpErrorMessage } from '../common/http-error.util';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
 import { AppConfigService } from '../config/app-config.service';
@@ -101,6 +101,7 @@ export class LeadsFunnelService {
     private readonly legacyLeads: CrmLeadsLegacyService,
     private readonly policy: PolicyService,
     private readonly mktAiOrchestrator: MarketingAiOrchestratorService,
+    private readonly mktAiAllow: MktAiPlannerAllowService,
     private readonly lmpEnqueue: LeadMeetingPrepEnqueueService,
     private readonly lmpRepo: LeadMeetingPrepRepository,
     private readonly b2bManualReassign: B2bManualReassignService,
@@ -704,15 +705,8 @@ export class LeadsFunnelService {
     }
   }
 
-  private assertPresalesMktAiEnabled(serviceSlug: string): void {
-    throwPlannerAllowResult(
-      assertPlannerAllowed(serviceSlug ?? '', null, {
-        plannerEnabled: this.config.mktAiPlannerEnabled,
-        envSlugs: this.config.mktAiPlannerSlugs,
-        pilotOnly: this.config.mktAiPilotOnlyEnabled,
-        pilotSlugs: this.config.mktAiPilotServiceSlugs,
-      }),
-    );
+  private async assertPresalesMktAiEnabled(serviceSlug: string): Promise<void> {
+    await this.mktAiAllow.ensure(serviceSlug ?? '');
   }
 
   async generatePresalesMarketingPlanAiDraft(leadId: number, staffUser?: StaffJwtPayload) {
@@ -722,7 +716,7 @@ export class LeadsFunnelService {
       await this.assertConsultMutationAllowed(leadId, staffUser, 'consult');
       const { snap, intakeSessions, leadName } = await this.loadPresalesContext(leadId);
       const serviceSlug = snap.presales.service_slug;
-      this.assertPresalesMktAiEnabled(serviceSlug);
+      await this.assertPresalesMktAiEnabled(serviceSlug);
 
       const leadTasks = snap.tasks.lead ?? [];
       const leadTaskDone =

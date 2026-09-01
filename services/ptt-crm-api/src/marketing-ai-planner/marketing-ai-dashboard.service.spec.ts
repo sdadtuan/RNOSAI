@@ -2,12 +2,7 @@ import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
 import * as dashboardUtil from './marketing-ai-dashboard.util';
 
 describe('MarketingAiDashboardService', () => {
-  const config = {
-    mktAiPlannerEnabled: true,
-    mktAiPlannerSlugs: ['meta-lead-gen'] as string[],
-    mktAiPilotOnlyEnabled: false,
-    mktAiPilotServiceSlugs: [] as string[],
-  };
+  const allow = { ensure: jest.fn().mockResolvedValue(undefined) };
   const lifecycle = {
     detail: jest.fn(),
     context: jest.fn(),
@@ -20,7 +15,7 @@ describe('MarketingAiDashboardService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new MarketingAiDashboardService(config as never, lifecycle as never, performance as never);
+    service = new MarketingAiDashboardService(allow as never, lifecycle as never, performance as never);
     lifecycle.detail.mockResolvedValue({ id: 1, stage: 'deliver', service_slug: 'meta-lead-gen' });
   });
 

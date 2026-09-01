@@ -246,7 +246,7 @@ export class MarketingAiMultiAgentService {
   ): Promise<PreparedPipeline> {
     const lc = await this.planner.loadLifecyclePublic(lifecycleId);
     const serviceSlug = String(lc.service_slug ?? '');
-    this.planner.assertEnabledPublic(serviceSlug);
+    await this.planner.assertEnabledPublic(serviceSlug);
 
     const steps = resolvePipelineSteps({
       steps: body.steps,

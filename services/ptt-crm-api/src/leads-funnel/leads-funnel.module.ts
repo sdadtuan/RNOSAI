@@ -19,6 +19,7 @@ import {
 import { PolicyModule } from '../policy/policy.module';
 import { IntakeModule } from '../intake/intake.module';
 import { LeadMeetingPrepAsyncModule } from '../lead-meeting-prep/lead-meeting-prep-async.module';
+import { MarketingAiPlannerModule } from '../marketing-ai-planner/marketing-ai-planner.module';
 import { MarketingAiOrchestratorService } from '../marketing-ai-planner/marketing-ai-orchestrator.service';
 import { StaffMarketingAiPlannerGenerateGuard } from '../marketing-ai-planner/guards/staff-marketing-ai-planner.guard';
 import { ReviewQueueLlmService } from './review-queue-llm.service';
@@ -34,6 +35,7 @@ import { ReviewQueueLlmService } from './review-queue-llm.service';
     forwardRef(() => IntakeModule),
     LeadMeetingPrepAsyncModule,
     PolicyModule,
+    forwardRef(() => MarketingAiPlannerModule),
   ],
   controllers: [LeadsFunnelController],
   providers: [

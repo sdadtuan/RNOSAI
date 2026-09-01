@@ -1,8 +1,7 @@
 import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { AppConfigService } from '../config/app-config.service';
 import { PerformanceService } from '../performance/performance.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
-import { assertPlannerAllowed, throwPlannerAllowResult } from './mkt-ai-planner-allow.util';
+import { MktAiPlannerAllowService } from './mkt-ai-planner-allow.service';
 import {
   buildDashboardDeltas,
   buildDashboardTargets,
@@ -15,20 +14,13 @@ import type { MktAiDashboardPayload } from './marketing-ai-planner.types';
 @Injectable()
 export class MarketingAiDashboardService {
   constructor(
-    private readonly config: AppConfigService,
+    private readonly allow: MktAiPlannerAllowService,
     private readonly lifecycle: ServiceLifecycleService,
     private readonly performance: PerformanceService,
   ) {}
 
-  private assertEnabled(serviceSlug?: string): void {
-    throwPlannerAllowResult(
-      assertPlannerAllowed(serviceSlug ?? '', null, {
-        plannerEnabled: this.config.mktAiPlannerEnabled,
-        envSlugs: this.config.mktAiPlannerSlugs,
-        pilotOnly: this.config.mktAiPilotOnlyEnabled,
-        pilotSlugs: this.config.mktAiPilotServiceSlugs,
-      }),
-    );
+  private async assertEnabled(serviceSlug?: string): Promise<void> {
+    await this.allow.ensure(serviceSlug ?? '');
   }
 
   async getDashboard(
@@ -38,7 +30,7 @@ export class MarketingAiDashboardService {
     const lc = await this.lifecycle.detail(lifecycleId);
     const stage = String((lc as Record<string, unknown>).stage ?? '');
     const serviceSlug = String((lc as Record<string, unknown>).service_slug ?? '');
-    this.assertEnabled(serviceSlug);
+    await this.assertEnabled(serviceSlug);
 
     const weeks = Math.min(12, Math.max(1, Number(opts.weeks ?? 6) || 6));
     const { dateFrom, dateTo, monthStart } = resolveDashboardDateWindow(weeks);
