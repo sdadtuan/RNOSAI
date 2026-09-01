@@ -1,60 +1,46 @@
-# Task 9 Report: Corpus filter C1–C5 + W1 + seed exclude (P2)
+# Task 9 Report: Briefing Hôm nay dùng chung sensor (T3)
 
-**Status:** DONE  
-**Branch:** `feat/mkt-ai-playbook-learn`  
-**Commit:** (pending) — feat(mkt-ai): corpus gates 5/3/deep for playbook learn  
-**Pushed:** no
+**Branch:** `feat/ceo-lifecycle-tower-t3-t5`  
+**Date:** 2026-09-01  
+**Commit:** `feat(ceo-tower): briefing today shares tower sensors`
 
-## What shipped
+## Summary
 
-Pure util `classifyCorpus` gates playbook learn corpus: C1–C5 candidate filters (slug match, applied, quality ≥70, human-edited, seed exclude), W1 winners (`closedLoopWin`), depth `shallow` vs `deep` (≥3 winners with tier-3 artifacts), `canLearn` at 5 candidates, `remaining` countdown.
+Wired `briefing_today` to reuse `CeoTowerSensorService.buildPayload` so Hôm nay cards match the Lifecycle Tower red exceptions. Tower red cards are prepended before ops/pipeline sources and capped at 8 total.
 
-| File | Role |
-|------|------|
-| `services/ptt-crm-api/src/marketing-ai-planner/mkt-ai-playbook-corpus.util.ts` | `CorpusLifecycleInput`, `classifyCorpus` |
-| `services/ptt-crm-api/src/marketing-ai-planner/mkt-ai-playbook-corpus.util.spec.ts` | Jest: 4 HĐ, 5/2 shallow, 5/3/deep, seed exclude, filter edge cases |
+## Changes
 
-## Step checklist
+### `ceo-command-briefing.service.ts`
+- Injected `CeoTowerSensorService` (already exported from `ceo-command.module.ts`).
+- For `compose('briefing_today')` only: calls `tower.buildPayload(actor, { factory: 'both', severity: 'red,amber', limit: '8' })`.
+- Maps red exceptions → briefing cards (`source: 'tower'`, `severity: 'red'`, `title`, `href`, `suggest_action`).
+- Merges `payload.degraded` into briefing `degraded`; on failure pushes `{ source: 'tower', reason }`.
+- Updated `compose` actor type to `CeoActor` (matches tower API and caller).
 
-- [x] TDD: failing tests first (module not found)
-- [x] `classifyCorpus` verbatim from plan Task 9
-- [x] Tests: 4 HĐ → `canLearn=false`; 5 candidates 2 winners → `shallow` + `canLearn`; 5/3 winners + 3 artifacts → `deep`; seed id ≥900000901 + `isUatSeed` excluded
-- [x] Jest spec PASS (5 tests)
-- [x] **Commit** `feat(mkt-ai): corpus gates 5/3/deep for playbook learn`
+### `ceo-command-briefing.util.ts`
+- Added `'tower'` to `CeoBriefingCard.source` union.
+- Extended `suggest_action` with tower action ids (`assign_lead`, `remind_staff`, `sla_remind_lead`, `ack_ops_alert`, `prioritize_solution_queue`, `remind_contract_approval`).
+- `cardsFromSources` accepts optional `towerRed`; prepends tower red cards before sorted other sources; trims to max 8.
+- Records `facts_json.tower_red` when tower input present.
 
-## Gate logic summary
+### Tests
+- **`ceo-command-briefing.util.spec.ts`**: invariant (tower card hrefs ⊆ red exception hrefs); priority (5 tower + 6 ops + 4 pipeline → 8 cards, tower first).
+- **`ceo-command-briefing.service.spec.ts`** (new): tower query args, red-only cards, degraded merge on failure/payload, no tower call for `briefing_ops`.
 
-| Gate | Rule |
-|------|------|
-| C1 | `serviceSlug === slug` |
-| C2 | `applied === true` |
-| C3 | `qualityScore >= 70` |
-| C4 | `humanEditedAfterGenerate === true` |
-| C5 | `!isUatSeed` and (`sqliteLeadId == null` or `< 900000901`) |
-| W1 | `closedLoopWin === true` (among candidates) |
-| Learn | `candidates.length >= 5` → `canLearn` |
-| Deep | `winners.length >= 3` **and** ≥3 winners with `hasTier3Artifact` |
-| Remaining | `max(0, 5 - candidates.length)` |
-
-## What I tested
+## Test run
 
 ```bash
-cd services/ptt-crm-api && npx jest src/marketing-ai-planner/mkt-ai-playbook-corpus.util.spec.ts --no-coverage
+cd services/ptt-crm-api && npx jest \
+  src/ceo-command/ceo-command-briefing.util.spec.ts \
+  src/ceo-command/ceo-command-briefing.service.spec.ts \
+  src/ceo-command/ceo-command.service.spec.ts \
+  --no-coverage
 ```
 
-```
-PASS src/marketing-ai-planner/mkt-ai-playbook-corpus.util.spec.ts
-  classifyCorpus
-    ✓ 4 HĐ → canLearn=false, remaining=1
-    ✓ 5 candidates + 2 winners → shallow + canLearn
-    ✓ 5 candidates + 3 winners + 3 tier-3 artifacts → deep
-    ✓ excludes UAT seed and sqliteLeadId >= 900000901
-    ✓ filters wrong slug, not applied, low quality, not human-edited
+**Result:** 3 suites, 10 tests, all passed.
 
-Test Suites: 1 passed, 1 total
-Tests:       5 passed, 5 total
-```
+## Notes / follow-ups
 
-## Next
-
-Task 10: `rejectLearnedPlaybook` PII + schema validator. Task 11: learn service calls `classifyCorpus` for `playbook_learn_need_more` / depth.
+- Amber tower exceptions are fetched (shared query) but not surfaced as cards — only red per spec.
+- Briefing cache (60s per `staffId:intent`) is independent of tower cache; both use 60s TTL.
+- No new KPIs invented; tower cards mirror exception titles/hrefs/actions only.

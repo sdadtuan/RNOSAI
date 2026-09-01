@@ -120,7 +120,6 @@ export function buildTowerBreadcrumb(params: {
   return segments;
 }
 
-export type TowerFactoryFilter = 'A' | 'B' | 'both';
 export type TowerUiColumnId =
   | 'lead_b2'
   | 'intake'
