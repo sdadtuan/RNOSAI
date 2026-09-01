@@ -1,11 +1,12 @@
 # CEO Lifecycle Tower — Tháp chu trình Lead → TMMT → CSKH
 
 > **Document ID:** CEO-TOWER-20260901  
-> **Phiên bản:** 1.0 · **Ngày:** 2026-09-01  
+> **Phiên bản:** 1.2 · **Ngày:** 2026-09-01  
 > **Trạng thái:** Draft — chờ PO / CEO review trước implementation plan  
 > **Route:** `/crm/ceo` (cùng trang ChatBox — **panel trên**, chat **dưới**)  
-> **Sibling:** [CEO Command ChatBox SRS](./2026-08-30-ceo-command-oss-chatbox-srs.md) · [Lifecycle UI](../../huong-dan-su-dung/27-lifecycle-ui-huong-dan-day-du.md) · [Owner Weekly K1–K4](../../huong-dan-su-dung/27-lifecycle-ui-huong-dan-day-du.md) · [Playbook learn](./2026-09-01-mkt-ai-playbook-learn-catalog-design.md)  
-> **Quyết định đã chốt:** Một **cột sống 6 cột** + **hàng chờ sót** (chỉ vàng/đỏ). CEO quan sát ngoại lệ, không inventory. Không trộn Factory A (agency) và Factory B (CSKH spa) trên cùng hàng.
+> **Sibling:** [CEO Command ChatBox SRS](./2026-08-30-ceo-command-oss-chatbox-srs.md) · [Lifecycle UI](../../huong-dan-su-dung/27-lifecycle-ui-huong-dan-day-du.md) · [RBAC org](../../specs/2026-08-07-rbac-hr-org-job-function-design.md) · [Playbook learn](./2026-09-01-mkt-ai-playbook-learn-catalog-design.md)  
+> **Quyết định đã chốt:** Một **cột sống 6 cột** + **hàng chờ sót** (chỉ vàng/đỏ). CEO quan sát ngoại lệ, không inventory. Không trộn Factory A (agency) và Factory B (CSKH spa) trên cùng hàng.  
+> **1.2:** Lăng kính 5 lớp (công ty → nhà máy → phòng → team → chức vụ/người) + sơ đồ / RACI toàn catalog org — không sót phòng ban.
 
 ---
 
@@ -18,9 +19,10 @@ RNOSAI đã có đủ công đoạn Lead → HĐ → TMMT → Deliver → Retain
 - Sáu cột = ống dẫn đã gộp.  
 - Mỗi entity (lead A, lifecycle A, hoặc lead B) thuộc **đúng một cột “việc hiện tại”**. Quá SLA → bắt buộc vào hàng chờ.  
 - Mười cảm biến (§6) = bộ câu “không sót”. Thẻ Chat **Hôm nay** dùng **cùng** cảm biến — không invent KPI.  
-- Bấm dòng → màn chuyên môn đã ship. Can thiệp ghi hệ = catalog C hiện có (confirm 2 bước). **Không** Apply TMMT / tick BANT / gửi khách từ tháp.
+- Bấm dòng → màn chuyên môn đã ship. Can thiệp ghi hệ = catalog C hiện có (confirm 2 bước). **Không** Apply TMMT / tick BANT / gửi khách từ tháp.  
+- **Lăng kính 5 lớp (§18):** cùng một hàng chờ, CEO thu/phóng Công ty → Nhà máy → Phòng → Bộ phận → Chức vụ / người. Mọi phòng trong catalog org có chỗ trên tháp hoặc ô **Ngoài chu trình**.
 
-**Pitch 1 câu:** CEO mở `/crm/ceo` thấy ống dẫn và việc sót; số từ milestone đã có; bấm để vào đúng cửa; không soạn plan hộ team.
+**Pitch 1 câu:** CEO thấy ống dẫn, việc sót, và **đúng phòng / đúng vai** đang kẹt; số từ milestone; bấm vào cửa chuyên môn — không soạn plan hộ team.
 
 ---
 
@@ -36,14 +38,17 @@ RNOSAI đã có đủ công đoạn Lead → HĐ → TMMT → Deliver → Retain
 | G4 | Drill đúng nhà máy | A không mở CSKH board; B không mở TMMT |
 | G5 | Cùng cap / cùng action C | Không API mutate mới ngoài catalog CEO-3; duyệt HĐ = mở Hub |
 | G6 | Không phá ChatBox | Panel tháp **trên** thread; chip Hôm nay vẫn chạy; nguồn fail → cột `degraded`, không 500 cả trang |
+| G7 | Thấu suốt tổ chức | CEO zoom 5 lớp §18; mọi phòng catalog §16 có ≥1 cảm biến hoặc ô **Ngoài chu trình** (không im lặng) |
 
 ### 2.2. In scope
 
 - Panel `CeoLifecycleTower` trên `/crm/ceo`.  
 - API đọc `GET /api/crm/ceo/tower` (facts + exceptions).  
 - Bộ cảm biến S1–S10, SLA cột, severity.  
-- Filter: `factory=A|B|both` (mặc định `both`), cửa sổ `7d` (exception) / K-strip dùng cửa sổ Owner Weekly 90 ngày đến cuối tuần.  
+- Filter: `factory=A|B|both` (mặc định `both`), `department`, `team`, `position_code`, `staff_id` (§18).  
+- Cửa sổ `7d` (exception) / K-strip dùng cửa sổ Owner Weekly 90 ngày đến cuối tuần.  
 - Drill `href` + `suggest_action` (chip C, không auto-commit).  
+- Panel **Theo phòng** + sơ đồ RACI (§16–§17).  
 - Loại seed UAT (`mkt-ai-smoke-seed`, lead id ≥ 900000901).
 
 ### 2.3. Out of scope (cố ý)
@@ -182,6 +187,10 @@ Cửa sổ **exception list:** mặc định entity có activity hoặc đồng 
 | `owner_name` | AM/SP hiện tại |
 | `age_label` | “36h” / “9 ngày” |
 | `value_vnd` | HĐ/pipeline nếu có — sort |
+| `department_code` | `DEPT-*` của **owner chịu trách nhiệm** hàng này (§16) |
+| `team_code` | `TEAM-*` |
+| `position_code` | `KD-01` / `MKT-02` / … |
+| `job_function` | `sales` / `content` / … nếu có |
 | `href` | Drill §8 |
 | `suggest_action` | id C hoặc null |
 | `suggest_params` | id đích đã validate |
@@ -207,6 +216,8 @@ Mọi `href` là route ops-web đã tồn tại. Tháp **không** embed form so�
 | `care` A, S10 | `/crm/service-delivery/{id}?tab=ops-hub` hoặc agency client |
 | K1–K4 strip | `/crm/owner-weekly` |
 | Cột header click | Cùng trang: filter `column_id` + `severity=red,amber` (không điều hướng) |
+| Ô phòng §18 | Cùng trang: `department=` · click team → `team=` · click người → `staff_id=` |
+| Org chart | `/crm/staff` (roster) — không sửa HR từ tháp |
 
 Factory A **cấm** `href` `/crm/cskh-board`. Factory B **cấm** `?tab=ai-planner`.
 
@@ -259,6 +270,10 @@ Query:
 |-------|---------|---------|
 | `factory` | `both` | `A` \| `B` \| `both` |
 | `column_id` | — | Filter một cột |
+| `department` | — | `DEPT-SALES` … — lọc hàng theo owner.dept |
+| `team` | — | `TEAM-SALES-AM` … |
+| `position_code` | — | `KD-01` … |
+| `staff_id` | — | Một người (owner hoặc specialist trên task đỏ) |
 | `severity` | `red,amber` | `red` \| `amber` \| `ok` (ok chỉ khi debug + `ceo_command.configure`) |
 | `limit` | 40 | max 80 |
 | `cursor` | — | Phân trang exception |
@@ -280,13 +295,21 @@ Response (rút gọn):
     degraded?: { reason: string };
   }>;
   exceptions: Array</* §7 */>;
+  org_rollup: Array<{
+    level: 'company'|'factory'|'department'|'team'|'position'|'staff';
+    code: string;
+    label_vi: string;
+    red_count: number;
+    amber_count: number;
+    outside_cycle?: boolean;
+  }>;
   next_cursor: string | null;
   degraded: Array<{ source: string; reason: string }>;
   sensors_ok: Record<'S1'|'S2'|…|'S10', 'ok'|'fail'|'degraded'>;
 }
 ```
 
-Timeout từng nguồn **2.5s** (cùng briefing). Cache 60s per `(staffId, factory)`.
+Timeout từng nguồn **2.5s** (cùng briefing). Cache 60s per `(staffId, factory, department, team, position_code, staff_id)`.
 
 **Không** POST mutate trên `/tower`. Commit vẫn `POST /api/crm/ceo/actions/commit`.
 
@@ -297,18 +320,20 @@ Chat briefing A: `BriefingComposer` **gọi lại** cùng hàm cảm biến (sha
 ## 11. UI `/crm/ceo`
 
 ```
+[ Breadcrumb 5 lớp ]  Công ty › A Agency › DEPT-SALES › TEAM-SALES-AM › KD-01 › Nguyễn V.
 [ Tháp chu trình ]  A | B | Cả hai     28 sót · 6 đỏ
 [ K1 ] [ K2 ] [ K3 ] [ K4 ]
 [ Lead/B2 ][ Intake ][ Tư vấn ][ HĐ ][ TMMT/QA ][ CSKH ]
-     3v        2đ        1v       4đ       2đ         5đ
-[ Hàng chờ sót ………………………………… sort ]
+[ Theo phòng: Sales 8đ | Solution 3đ | CSKH 5đ | Agency 2đ | HR/IT ngoài chu trình ]
+[ Hàng chờ sót — cột org: phòng · team · chức vụ · người ]
 [ ─── ChatBox hiện tại (A/B/C) ─── ]
 ```
 
 - Cột: số đỏ/vàng; click = filter list.  
-- Hàng: badge A/B, title, tuổi, owner, nút **Mở** (`href`), nút **Gợi ý** nếu `suggest_action` (mở confirm C).  
-- `degraded`: chip xám “Ops tắt / thiếu quyền” — không để cột giả 0 sót.  
-- Mobile: K-strip + list sót trước; 6 cột thành horizontal scroll.  
+- Hàng: badge A/B, **phòng/team/chức vụ**, title, tuổi, owner, **Mở**, **Gợi ý** C.  
+- `org_rollup`: click phòng → breadcrumb + filter API.  
+- `degraded`: chip xám — không để cột giả 0 sót.  
+- Mobile: K + list sót + chip phòng; 6 cột scroll ngang.  
 - Học `/crm/ceo/learn` không đổi.
 
 VQ: không JSON thô; không dump 200 lead xanh; empty state “Không sót trong cửa sổ — kiểm tra degraded”.
@@ -323,8 +348,9 @@ VQ: không JSON thô; không dump 200 lead xanh; empty state “Không sót tron
 | **T1** | `GET /tower` + panel 6 cột + queue trên `/crm/ceo` | CEO view: đếm khớp fixture; drill 6 href |
 | **T2** | Gắn `suggest_action` → confirm C hiện có | Assign / remind / SLA / ack từ hàng chờ |
 | **T3** | Briefing Hôm nay dùng chung sensor | Thẻ A ⊆ union exception red (không KPI lạ) |
+| **T4** | `org_rollup` + breadcrumb 5 lớp + filter dept/team/chức vụ | Mọi `DEPT-*` catalog hiện trên panel (kể cả *Ngoài chu trình*); click lọc đúng hàng |
 
-T0–T1 ship được không đợi LLM. T3 sau CEO-1 nếu briefing đã live.
+T0–T1 ship được không đợi LLM. T3 sau CEO-1 nếu briefing đã live. T4 không chặn T1.
 
 ---
 
@@ -341,6 +367,244 @@ T0–T1 ship được không đợi LLM. T3 sau CEO-1 nếu briefing đã live.
 | E2e | Mở `/crm/ceo` — thấy 6 cột; click HĐ → Hub; click TMMT → service-delivery |
 | E2e | Không commit C khi chỉ xem |
 | Invariant nightly (staging) | `COUNT(*) WHERE tower_column IS NULL` trên in-scope = 0 |
+| Unit | Mọi `DEPT-*` §16.1 có `outside_cycle` hoặc ≥1 sensor |
+| E2e | Breadcrumb Sales → TEAM-SALES-AM → chỉ hàng AM |
+
+---
+
+## 16. Tổ chức PTT — sơ đồ & ma trận không sót
+
+Nguồn catalog: [`rbac-hr-org-job-function-design.md`](../../specs/2026-08-07-rbac-hr-org-job-function-design.md) §3. **Không** invent phòng ngoài bảng. Phòng không nằm trên ống Lead→TMMT→CSKH phải hiện **Ngoài chu trình** (HR, IT) — CEO biết “không theo dõi ở đây”, không tưởng là 0 việc.
+
+### 16.1. Sơ đồ tổ chức (công ty)
+
+```mermaid
+flowchart TB
+  CEO[CEO]
+  GDKD[GDKD-01 · DEPT-SALES]
+  MKT1[MKT-01 · Trưởng Solution/MKT]
+  CSKHL[Leader CSKH · DEPT-CSKH]
+  AGL[Leader Agency · DEPT-AGENCY]
+  HR[VH-01 · DEPT-HR]
+  IT[SUPER-ADMIN · DEPT-IT]
+  CEO --> GDKD
+  CEO --> MKT1
+  CEO --> CSKHL
+  CEO --> AGL
+  CEO --> HR
+  CEO --> IT
+  GDKD --> AM[TEAM-SALES-AM · KD-01 AM]
+  MKT1 --> SOL[TEAM-SOLUTION · SP Consult]
+  MKT1 --> CNT[TEAM-MKT-CONTENT · content]
+  MKT1 --> DES[TEAM-MKT-DESIGN · design]
+  CSKHL --> CS[TEAM-CSKH-OPS · CSKH-01]
+  AGL --> BUY[Media Buyer / Meta]
+  AGL --> TRK[Tracking]
+  AGL --> SEO[TEAM-SEO · technical]
+  AGL --> EML[TEAM-EMAIL · compliance]
+  AGL --> SPE[Specialist Ops DV]
+```
+
+### 16.1.1. Phòng · bộ phận · chức vụ · job function
+
+| Phòng `department` | Bộ phận / team | Chức vụ `position` | Job function | Việc trên chu trình |
+|--------------------|----------------|--------------------|--------------|---------------------|
+| `DEPT-SALES` | `TEAM-SALES-GDKD` | `GDKD-01` | `leader` | Duyệt HĐ, K1–K4, override deal lớn |
+| `DEPT-SALES` | `TEAM-SALES-AM` | `KD-01` | `sales` | B2, Intake, quote, HĐ draft, onboard, retain AM |
+| `DEPT-SOLUTION` | `TEAM-SOLUTION` | `MKT-01` / `MKT-02` | `leader` / — | Queue tư vấn, Consult, L1/R5, TMMT Apply, playbook duyệt |
+| `DEPT-SOLUTION` | `TEAM-MKT-CONTENT` | `MKT-02` + `content` | `content` | Content OS, calendar, SEO write |
+| `DEPT-SOLUTION` | `TEAM-MKT-DESIGN` | `MKT-02` + `design` | `design` | Creative, campaign write view |
+| `DEPT-CSKH` | `TEAM-CSKH-OPS` | `CSKH-01` | `ops` | Factory B board 15p/4h/24h, B2 spa |
+| `DEPT-AGENCY` | Buyer / Tracking (ops DV) | (gán roster Agency) | `ops` / `design` | Launch QA, ads, pixel |
+| `DEPT-AGENCY` | `TEAM-SEO` | + `technical` | `technical` | SEO deliver, GSC |
+| `DEPT-AGENCY` | `TEAM-EMAIL` | + `compliance` | `compliance` | Email OS, deliverability |
+| `DEPT-AGENCY` | Specialist checklist | — | `ops` | Ops Hub task tuần |
+| `DEPT-HR` | Roster / org | `VH-01` | `ops` | **Ngoài chu trình** — `/admin/crm/org`, `/crm/staff` |
+| `DEPT-IT` | Admin / flag | `SUPER-ADMIN` | — | **Ngoài chu trình** — flag, kill-switch, quyền |
+
+`analyst` (BI) = **đọc** dashboard / export; không owner hàng chờ trừ khi kiêm AM. Hiện rollup `function=analyst` với `outside_cycle=true` nếu không có lead/lifecycle owner.
+
+### 16.2. Sơ đồ ống dẫn × phòng (không sót cột)
+
+```mermaid
+flowchart LR
+  subgraph C1["Lead/B2"]
+    CSKH1[CSKH-01]
+    AM1[KD-01]
+  end
+  subgraph C2["Intake"]
+    AM2[KD-01]
+  end
+  subgraph C3["Tư vấn"]
+    SP[TEAM-SOLUTION]
+    AM3[KD-01 quote]
+  end
+  subgraph C4["HĐ"]
+    AM4[KD-01]
+    GDKD1[GDKD-01]
+  end
+  subgraph C5["TMMT/QA/Deliver"]
+    SP2[SP Apply]
+    CNT2[Content]
+    DES2[Design]
+    BUY2[Buyer]
+    TRK2[Tracking]
+    SPE2[Specialist]
+    AM5[AM triển khai]
+  end
+  subgraph C6["CSKH/Retain"]
+    CSKH2[CSKH board B]
+    AM6[AM retain A]
+    SEO2[SEO]
+  end
+  C1 --> C2 --> C3 --> C4 --> C5 --> C6
+```
+
+### 16.3. RACI toàn chức vụ × 6 cột
+
+**R** = làm · **A** = chịu trách nhiệm cột với CEO · **C** = consult · **I** = thông tin · **—** = không vào cột.
+
+| Vai / chức vụ | Lead/B2 | Intake | Tư vấn | HĐ | TMMT/Deliver | CSKH/Retain |
+|---------------|---------|--------|--------|----|--------------|-------------|
+| **CEO** | I (S1 đỏ) | I | I | **A** duyệt qua Hub | I (S5–S8) | I (S9–S10) |
+| **GDKD-01** | A K1 | A K2 | C | **A** approve | I K3 | I K4 |
+| **KD-01 AM** | **R/A** B2 | **R/A** | R quote | **R** soạn | **A** gate / onboard | **A** retain A |
+| **MKT-01** Lead Solution | I | C | **A** queue | C | **A** playbook / TMMT chất lượng | C |
+| **MKT-02 SP** | — | C L1 | **R** consult | C | **R** Apply TMMT | — |
+| **content** | — | — | C | — | **R** Content OS | C SEO |
+| **design** | — | — | — | — | **R** creative | — |
+| **CSKH-01** | **R** B nếu spa / A1 nguồn | — | — | — | — | **R/A** Factory B |
+| **Leader CSKH** | A board | — | — | — | — | **A** K4 |
+| **Media Buyer** | — | — | — | — | **R** ads / QA ads | C |
+| **Tracking** | — | — | — | — | **R** pixel CAPI | — |
+| **Specialist Ops** | — | — | — | — | **R** task tuần | **R** KPI tháng |
+| **technical SEO** | — | — | C | — | **R** nếu slug SEO | **R** retainer SEO |
+| **compliance Email** | — | — | — | — | **R** nếu slug email | C |
+| **VH-01 HR** | — | — | — | — | — | Ngoài chu trình |
+| **SUPER-ADMIN** | — | — | — | — | — | Ngoài chu trình |
+| **analyst** | I | I | I | I | I | I |
+
+Owner **mặc định trên hàng chờ** = người **R** của cột hiện tại (nếu nhiều R: ưu tiên AM với Sales; SP với `consult`/`tmmt` khi sensor S3/S5; CSKH với S9; Specialist với S7 task).
+
+### 16.4. Cảm biến × phòng (không sót S)
+
+| Sensor | Phòng chịu (A trên rollup) | Chức vụ nhắc `remind_staff` |
+|--------|----------------------------|-----------------------------|
+| S1 | DEPT-SALES (hoặc CSKH nếu nguồn board) | GDKD / Leader AM |
+| S2 | DEPT-SALES | AM owner |
+| S3 | DEPT-SOLUTION | MKT-01 hoặc SP queue |
+| S4 | DEPT-SALES | GDKD (drill Hub, không C) |
+| S5 | DEPT-SOLUTION | SP / MKT-01 |
+| S6 | DEPT-AGENCY | AM + Buyer |
+| S7 | DEPT-AGENCY | Specialist / AM |
+| S8 | DEPT-SALES | AM Agency |
+| S9 | DEPT-CSKH | CSKH-01 / Leader |
+| S10 | DEPT-SALES + Agency nếu KPI | AM; Specialist KPI |
+
+Mọi S1–S10 map **đúng một phòng A** trên `org_rollup` (S6/S7 = Agency; S10 primary Sales). Không S “mồ côi phòng”.
+
+---
+
+## 17. Sơ đồ từng cột — việc & cổng (chi tiết bộ phận)
+
+Mỗi cột: **ai làm → cổng → sót → CEO zoom**.
+
+### 17.1. Lead / B2
+
+```mermaid
+sequenceDiagram
+  participant Ads as Ads/Form
+  participant CSKH as CSKH-01
+  participant AM as KD-01
+  participant GDKD as GDKD-01
+  Ads->>CSKH: Lead B vào board
+  Ads->>AM: Lead A assign
+  CSKH->>CSKH: Gọi 15p
+  AM->>AM: B2 complete
+  GDKD-->>AM: S1/S2 đỏ → nhắc / gán
+```
+
+### 17.2. Intake
+
+```mermaid
+flowchart LR
+  AM[KD-01 mở Intake] --> BANT[Tick BANT + Discovery]
+  BANT --> GO{Go ≥24}
+  GO -->|Có| SPQ[Handoff TEAM-SOLUTION]
+  GO -->|Không| NU[Nurture — vẫn cột intake đến hạn]
+```
+
+### 17.3. Tư vấn
+
+```mermaid
+flowchart LR
+  Q[solution/queue] --> SP[SP claim]
+  SP --> WS[Consult + L2]
+  WS --> REL[Release Sales]
+  REL --> QU[KD-01 báo giá]
+```
+
+### 17.4. HĐ
+
+```mermaid
+flowchart LR
+  AM[KD-01 draft] --> GDKD[GDKD-01 Hub]
+  GDKD -->|Duyệt| WO[won + lifecycle]
+  GDKD -->|Trả| AM
+```
+
+### 17.5. TMMT / QA / Deliver
+
+```mermaid
+flowchart TB
+  SP[SP Apply TMMT] --> AM[AM gate xanh]
+  AM --> QA[Buyer+Tracking Launch QA]
+  QA --> OPS[Specialist tuần + Content/Design]
+  OPS --> KPI[AM/Specialist KPI tháng]
+```
+
+Khớp playbook §7.0: AI **không** nằm trên sơ đồ triển khai; chỉ hỗ trợ SP trước Apply.
+
+### 17.6. CSKH / Retain
+
+```mermaid
+flowchart TB
+  subgraph B["Factory B"]
+    BD[Board 15p/4h/24h] --> CS[CSKH-01]
+  end
+  subgraph A["Factory A"]
+    CL[Client active] --> RET[KD-01 retain]
+    RET --> SEO[TEAM-SEO nếu retainer]
+  end
+```
+
+---
+
+## 18. Lăng kính CEO — 5 lớp (tổng quát → chi tiết)
+
+CEO **không** đổi công thức cảm biến khi zoom. Chỉ đổi `org_rollup` + filter exception.
+
+```mermaid
+flowchart TB
+  L1[L1 Công ty — 6 cột + K1–K4 + 6 phòng]
+  L2[L2 Nhà máy A hoặc B]
+  L3[L3 Một phòng DEPT-*]
+  L4[L4 Một team TEAM-*]
+  L5[L5 Chức vụ hoặc 1 staff]
+  L1 --> L2 --> L3 --> L4 --> L5
+```
+
+| Lớp | UI | API | CEO thấy | Can thiệp |
+|-----|-----|-----|----------|-----------|
+| **1 Công ty** | Mặc định | `factory=both` | 6 cột, mọi phòng, hàng chờ 40 | Chip C / Hub |
+| **2 Nhà máy** | Toggle A/B | `factory=A\|B` | Ẩn cột không dùng (§3) | Như trên, đúng factory |
+| **3 Phòng** | Click ô phòng | `department=` | Chỉ hàng owner thuộc phòng | Nhắc leader phòng |
+| **4 Bộ phận** | Click team | `team=` | VD. chỉ TEAM-SALES-AM | Gán / nhắc AM |
+| **5 Chức vụ / người** | Click tên / `position_code` | `position_code=` hoặc `staff_id=` | Việc sót của 1 vai hoặc 1 NV | `assign_lead` / `remind_staff` đúng người |
+
+Breadcrumb luôn hiện; **×** về L1. URL query đồng bộ (`?dept=&team=&staff=`) để CEO gửi link GDKD.
+
+**Không sót tổ chức:** `org_rollup` level `department` **bắt buộc đủ 6 code** §16.1.1. HR/IT: `outside_cycle=true`, `red_count=0`, click → empty state *“Không theo dõi trên tháp — mở /crm/staff hoặc /admin”*.
 
 ---
 
@@ -352,17 +616,20 @@ T0–T1 ship được không đợi LLM. T3 sau CEO-1 nếu briefing đã live.
 | Lifecycle UI / K1–K4 | `docs/huong-dan-su-dung/27-lifecycle-ui-huong-dan-day-du.md` |
 | CEO Chat hướng dẫn | `docs/huong-dan-su-dung/28-ceo-command-chatbox.md` |
 | Playbook / TMMT (cột 5) | `docs/superpowers/specs/2026-09-01-mkt-ai-playbook-learn-catalog-design.md` |
+| Catalog phòng / chức vụ | `docs/specs/2026-08-07-rbac-hr-org-job-function-design.md` |
+| BA theo phòng | `docs/specs/2026-08-07-crm-enterprise-business-analysis.md` §5 |
 
 ---
 
 ## 15. Self-review
 
-- Không TBD: SLA 2h/4h/8h, 3/5 ngày, 24/48h, 5/7 ngày TMMT, K3 14 ngày, HĐ 30 ngày, 15p/4h/24h, queue 40.  
+- Không TBD: SLA đã chốt; catalog phòng = 6 `DEPT-*` + team/position đã liệt kê.  
 - K1–K4 reuse Owner Weekly — không KPI song song.  
 - Duyệt HĐ không lách catalog C (drill Hub).  
 - Một cột / một entity; hai factory không trộn hàng.  
+- Mọi phòng có chỗ trên `org_rollup` (HR/IT = ngoài chu trình). Mọi S map một phòng A.  
 - AI/Chat không soạn TMMT từ tháp.
 
 ---
 
-*Spec v1.0 — tháp quan sát chu trình cho CEO trên `/crm/ceo`.*
+*Spec v1.2 — tháp + lăng kính 5 lớp + sơ đồ / RACI toàn tổ chức.*
