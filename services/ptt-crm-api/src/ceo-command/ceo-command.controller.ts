@@ -14,7 +14,6 @@ import { Request } from 'express';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
-import { parseNumericStaffSub } from '../staff-auth/staff-user-id.util';
 import { CeoCommandActionsService } from './ceo-command-actions.service';
 import { hasCeoConfigure } from './ceo-command-caps.util';
 import { CeoCommandLearnService } from './ceo-command-learn.service';
@@ -53,7 +52,7 @@ export class CeoCommandController {
       return { staffId: 0, staffLabel: 'system', caps: [] };
     }
     const me = await this.staffAuth.me(req.staffUser);
-    const staffId = parseNumericStaffSub(req.staffUser.sub) ?? 0;
+    const staffId = (await this.staffAuth.resolveCrmStaffUserId(req.staffUser)) ?? 0;
     return {
       staffId,
       staffLabel: me.display_name || me.email || String(staffId),

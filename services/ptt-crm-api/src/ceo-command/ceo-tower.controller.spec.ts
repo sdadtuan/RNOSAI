@@ -13,6 +13,7 @@ function makeController(opts: {
       email: 'ceo@ptt.vn',
       caps: opts.caps,
     }),
+    resolveCrmStaffUserId: jest.fn().mockResolvedValue(42),
   };
   const ctrl = new CeoCommandController(
     {} as never,
@@ -21,7 +22,7 @@ function makeController(opts: {
     staffAuth as never,
     tower as unknown as CeoTowerSensorService,
   );
-  return { ctrl, tower };
+  return { ctrl, tower, staffAuth };
 }
 
 const viewOnly = [{ section: 'ceo_command', action: 'view' }];
@@ -59,6 +60,19 @@ describe('CeoCommandController GET tower', () => {
     await ctrl.tower({ staffUser: { sub: '42' } } as never, { factory: 'both' });
 
     expect(tower.buildPayload).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves UUID JWT sub via resolveCrmStaffUserId', async () => {
+    const { ctrl, tower, staffAuth } = makeController({ caps: viewOnly });
+    const uuidSub = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+
+    await ctrl.tower(
+      { staffUser: { sub: uuidSub, email: 'ceo@ptt.vn' } } as never,
+      { factory: 'both' },
+    );
+
+    expect(staffAuth.resolveCrmStaffUserId).toHaveBeenCalled();
+    expect(tower.buildPayload.mock.calls[0][0]).toMatchObject({ staffId: 42 });
   });
 });
 

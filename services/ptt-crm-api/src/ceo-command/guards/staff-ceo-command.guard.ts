@@ -8,7 +8,6 @@ import {
 import { Request } from 'express';
 import { StaffAuthService } from '../../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
-import { parseNumericStaffSub } from '../../staff-auth/staff-user-id.util';
 import { hasCeoView } from '../ceo-command-caps.util';
 
 @Injectable()
@@ -22,7 +21,7 @@ export class StaffCeoCommandViewGuard implements CanActivate {
     if (req.staffAuthVia === 'internal') return true;
     if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
 
-    const staffId = parseNumericStaffSub(req.staffUser.sub);
+    const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
     if (staffId == null || staffId <= 0) {
       throw new ForbiddenException({ error: 'ceo_unresolved_staff' });
     }

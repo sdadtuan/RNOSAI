@@ -26,6 +26,7 @@ import {
   CHIPS_A,
   CHIPS_B,
   ceoBadge,
+  ceoCommandErrorMessage,
   parseCards,
   type CeoBriefingCard,
 } from '@/lib/crm/ceo-command-thread.util';
@@ -136,7 +137,7 @@ export function CeoCommandPanel({ token, staffName }: CeoCommandPanelProps) {
           { role: 'assistant', text: out.reply_vi, turnId: out.turn_id, output: out },
         ]);
       } catch (e) {
-        setError(String((e as Error).message ?? 'Lỗi gửi lượt'));
+        setError(ceoCommandErrorMessage(String((e as Error).message ?? 'Lỗi gửi lượt')));
       } finally {
         setBusy(false);
       }
@@ -190,7 +191,7 @@ export function CeoCommandPanel({ token, staffName }: CeoCommandPanelProps) {
       setConfirmTurn(null);
       await loadThread();
     } catch (e) {
-      setError(String((e as Error).message ?? 'Commit thất bại'));
+      setError(ceoCommandErrorMessage(String((e as Error).message ?? 'Commit thất bại')));
     } finally {
       setBusy(false);
     }

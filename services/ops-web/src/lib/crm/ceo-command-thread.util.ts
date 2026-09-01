@@ -76,3 +76,13 @@ export const CHIPS_B: Array<{ intent_id: string; label: string }> = [
   { intent_id: 'roas_overview_30d', label: 'ROAS 30n' },
   { intent_id: 'marketing_spend_current_month', label: 'Chi MKT tháng' },
 ];
+
+const CEO_COMMAND_ERROR_VI: Record<string, string> = {
+  ceo_unresolved_staff:
+    'Không xác định được tài khoản nhân viên CRM. Liên hệ IT để gắn email đăng nhập với crm_staff.',
+  ceo_view_forbidden: 'Bạn không có quyền xem màn Điều hành.',
+};
+
+export function ceoCommandErrorMessage(code: string): string {
+  return CEO_COMMAND_ERROR_VI[code] ?? code;
+}
