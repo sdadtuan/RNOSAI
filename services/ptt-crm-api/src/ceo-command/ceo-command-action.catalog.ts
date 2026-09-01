@@ -5,6 +5,8 @@ export const CEO_ACTION_IDS = [
   'assign_lead',
   'remind_staff',
   'sla_remind_lead',
+  'remind_contract_approval',
+  'prioritize_solution_queue',
 ] as const;
 
 export type CeoActionId = (typeof CEO_ACTION_IDS)[number];
@@ -16,12 +18,15 @@ const FORBIDDEN_PATTERNS: Array<{ re: RegExp; href: string; label: string }> = [
   { re: /ngan sach ads|pause campaign/i, href: '/meta/facebook-ads', label: 'Ads' },
   { re: /gui zalo|gui email khach/i, href: '/crm/leads', label: 'CRM' },
   { re: /spawn week|ghi kpi ops/i, href: '/crm/ops/dashboard', label: 'Ops' },
+  { re: /duyet hop dong|approve contract/i, href: '/crm/hub', label: 'Hub' },
 ];
 
 function stripDiacritics(s: string): string {
   return String(s ?? '')
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
     .toLowerCase();
 }
 
@@ -89,6 +94,20 @@ export function validateActionParams(
       if (!tier || !suggested_action) throw new Error('missing_sla_fields');
       return { lead_id, tier, suggested_action };
     }
+    case 'remind_contract_approval': {
+      const lead_id = Number(params.lead_id);
+      const contract_id = params.contract_id != null ? Number(params.contract_id) : undefined;
+      if (!Number.isFinite(lead_id) || lead_id <= 0) throw new Error('missing_lead_id');
+      return contract_id != null && Number.isFinite(contract_id) && contract_id > 0
+        ? { lead_id, contract_id }
+        : { lead_id };
+    }
+    case 'prioritize_solution_queue': {
+      const lead_id = Number(params.lead_id);
+      const note = String(params.note ?? '').trim().slice(0, 200);
+      if (!Number.isFinite(lead_id) || lead_id <= 0) throw new Error('missing_lead_id');
+      return note ? { lead_id, note } : { lead_id };
+    }
     default:
       throw new Error('unknown_action');
   }
@@ -104,6 +123,8 @@ export function requiredCapsForAction(actionId: string): Array<{ section: string
     case 'assign_lead':
       return [{ section: 'crm_leads', action: 'assign' }];
     case 'remind_staff':
+    case 'remind_contract_approval':
+    case 'prioritize_solution_queue':
       return [{ section: 'ceo_command', action: 'act' }];
     case 'sla_remind_lead':
       return [{ section: 'crm_leads', action: 'edit' }];
@@ -126,6 +147,10 @@ export function previewVi(actionId: string, params: Record<string, unknown>, sta
       return `Nhắc nội bộ: ${params.title}?`;
     case 'sla_remind_lead':
       return `Nhắc SLA lead #${params.lead_id} (${params.tier})?`;
+    case 'remind_contract_approval':
+      return `Nhắc GDKD duyệt HĐ lead #${params.lead_id}?`;
+    case 'prioritize_solution_queue':
+      return `Ưu tiên queue Solution lead #${params.lead_id}?`;
     default:
       return 'Xác nhận hành động?';
   }

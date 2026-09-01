@@ -11,6 +11,8 @@ import { PipelineRiskService } from '../ai-intelligence/pipeline-risk.service';
 import { AppConfigService } from '../config/app-config.service';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
 import { CrmStaffPgRepository } from '../crm-staff/crm-staff-pg.repository';
+import { LeadsContractService } from '../leads-contract/leads-contract.service';
+import { PgLeadsWriteRepository } from '../leads/pg-leads-write.repository';
 import { SlaAutoTaskService } from '../leads/sla-auto-task.service';
 import { OpsService } from '../ops/ops.service';
 import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
@@ -72,6 +74,8 @@ export class CeoCommandActionsService {
     private readonly crmStaffPg: CrmStaffPgRepository,
     private readonly notifications: StaffNotificationsRepository,
     private readonly slaAutoTask: SlaAutoTaskService,
+    private readonly contracts: LeadsContractService,
+    private readonly leadsWrite: PgLeadsWriteRepository,
     private readonly audit: AiAuditService,
   ) {}
 
@@ -276,6 +280,51 @@ export class CeoCommandActionsService {
         );
         return out;
       }
+      case 'remind_contract_approval': {
+        const leadId = Number(params.lead_id);
+        let targetStaffId = await this.resolveContractApprovalStaffId(leadId, params.contract_id);
+        if (!targetStaffId) {
+          targetStaffId = await this.resolveStaffIdByPositionCode('GDKD-01');
+        }
+        if (!targetStaffId) throw new Error('gdkd_staff_not_found');
+        const uuid = await this.resolveStaffUserUuid(targetStaffId);
+        if (!uuid) throw new Error('staff_user_not_found');
+        const linkHref = `/crm/hub?lead_id=${leadId}`;
+        const note = await this.notifications.create({
+          user_id: uuid,
+          kind: 'ceo_remind',
+          title: `CEO nhắc duyệt HĐ lead #${leadId}`,
+          body: `Hợp đồng lead #${leadId} đang chờ GDKD duyệt.`,
+          link_href: linkHref,
+        });
+        return { notification_id: note.id, lead_id: leadId, link_href: linkHref };
+      }
+      case 'prioritize_solution_queue': {
+        const leadId = Number(params.lead_id);
+        const note = String(params.note ?? '').trim();
+        await this.leadsWrite.mergeLeadMeta(leadId, { priority_consult: 'ceo' });
+        const mktStaffId = await this.resolveStaffIdByPositionCode('MKT-01');
+        if (!mktStaffId) throw new Error('mkt_staff_not_found');
+        const uuid = await this.resolveStaffUserUuid(mktStaffId);
+        if (!uuid) throw new Error('staff_user_not_found');
+        const linkHref = `/crm/hub?lead_id=${leadId}`;
+        const body = note
+          ? `CEO ưu tiên queue Solution — ${note}`
+          : `CEO ưu tiên queue Solution cho lead #${leadId}`;
+        const notification = await this.notifications.create({
+          user_id: uuid,
+          kind: 'ceo_remind',
+          title: `Ưu tiên queue Solution lead #${leadId}`,
+          body,
+          link_href: linkHref,
+        });
+        return {
+          notification_id: notification.id,
+          lead_id: leadId,
+          priority_consult: 'ceo',
+          link_href: linkHref,
+        };
+      }
       default:
         throw new BadRequestException({ error: 'unknown_action' });
     }
@@ -291,6 +340,45 @@ export class CeoCommandActionsService {
         [email],
       );
       return result.rows[0]?.id ? String(result.rows[0].id) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async resolveStaffIdByPositionCode(positionCode: string): Promise<number | null> {
+    try {
+      const result = await this.db.query(
+        `SELECT s.id
+         FROM crm_staff s
+         JOIN crm_positions p ON p.id = s.position_id
+         WHERE p.code = $1 AND COALESCE(s.active, TRUE) IS TRUE
+         ORDER BY s.id ASC
+         LIMIT 1`,
+        [positionCode],
+      );
+      const id = Number(result.rows[0]?.id ?? 0);
+      return id > 0 ? id : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async resolveContractApprovalStaffId(
+    leadId: number,
+    contractId?: unknown,
+  ): Promise<number | null> {
+    try {
+      const { approval } = await this.contracts.getContractForLead(leadId);
+      if (!approval) return null;
+      if (contractId != null) {
+        const wanted = Number(contractId);
+        if (Number.isFinite(wanted) && wanted > 0 && approval.contract_id !== wanted) {
+          return null;
+        }
+      }
+      const submitted = (approval as unknown as Record<string, unknown>).submitted_to_staff_id;
+      const staffId = Number(submitted ?? 0);
+      return Number.isFinite(staffId) && staffId > 0 ? staffId : null;
     } catch {
       return null;
     }

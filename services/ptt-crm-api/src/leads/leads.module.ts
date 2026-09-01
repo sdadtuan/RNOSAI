@@ -91,6 +91,7 @@ import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.modul
     LeadPatchFinalizeService,
     CopilotContextService,
     SlaAutoTaskService,
+    PgLeadsWriteRepository,
   ],
 })
 export class LeadsModule {}

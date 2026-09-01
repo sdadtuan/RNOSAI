@@ -1,78 +1,73 @@
-# Task 12 Report: Admin REST (P2)
+# Task 12 Report: Hai lệnh C mới (T6) — CEO Lifecycle Tower
 
 **Status:** DONE  
-**Branch:** `feat/mkt-ai-playbook-learn`  
-**Commit:** (pending) — feat(mkt-ai): admin playbook learn and activate API  
-**Pushed:** no
+**Branch:** `feat/ceo-lifecycle-tower-t6-t8`  
+**Base:** `04c04703` on main  
+**Spec:** §20 — `remind_contract_approval`, `prioritize_solution_queue`
 
-## What shipped
+## Summary
 
-Admin REST for playbook catalog, policy, learn jobs, and version lifecycle (submit / decide / activate / rollback) per spec §9 / §11.
+Added two §20 CEO Command actions: remind GDKD to approve pending contracts (notification only, no status change) and prioritize Solution queue cases (notify MKT-01 + `meta_json.priority_consult='ceo'`). Enabled S3/S4 tower chips on the frontend.
 
-| File | Role |
-|------|------|
-| `marketing-ai-playbook-admin.controller.ts` | Routes §11; guards view/generate/approve; staff-only activate/decide/rollback |
-| `mkt-ai-playbook-admin.service.ts` | list, slug detail, policy patch, learn enqueue/status, version CRUD + activate gates §6.3 |
-| `mkt-ai-playbook-versions.repository.ts` | list/update/activate versions; retire old active; set policy.active_version_id in txn |
-| `mkt-ai-service-policy.repository.ts` | listPolicyRows, getPolicyRow, setActiveVersionId |
-| `guards/staff-marketing-ai-planner.guard.ts` | AdminViewGuard + StaffApproveGuard (blocks internal/AI token on activate) |
-| `marketing-ai-playbook-admin.controller.spec.ts` | Controller + guard: internal token → 403 on activate |
-| `mkt-ai-playbook-admin.service.spec.ts` | Activate gates: approved only, self_approve+note, accept_shallow |
+## Backend
 
-## Routes
+### `ceo-command-action.catalog.ts`
 
-| Method | Path | Cap |
-|--------|------|-----|
-| GET | `/api/v1/admin/mkt-ai/playbooks` | view |
-| GET | `/api/v1/admin/mkt-ai/playbooks/:slug` | view |
-| PATCH | `/api/v1/admin/mkt-ai/playbooks/:slug/policy` | approve |
-| POST | `/api/v1/admin/mkt-ai/playbooks/:slug/learn` | generate |
-| GET | `/api/v1/admin/mkt-ai/playbooks/:slug/learn/:jobId` | view |
-| PATCH | `/api/v1/admin/mkt-ai/playbooks/versions/:id` | generate |
-| POST | `.../versions/:id/submit` | generate |
-| POST | `.../versions/:id/decide` | approve (staff JWT) |
-| POST | `.../versions/:id/activate` | approve (staff JWT) |
-| POST | `.../versions/:id/rollback` | approve (staff JWT) |
+- Added `remind_contract_approval`, `prioritize_solution_queue` to `CEO_ACTION_IDS`
+- `FORBIDDEN_PATTERNS`: `/duyet hop dong|approve contract/i` → `/crm/hub`
+- `validateActionParams`, `requiredCapsForAction` → `ceo_command.act`, `previewVi` per plan
+- Fixed `stripDiacritics` to normalize `đ/Đ` → `d/D` for Vietnamese contract phrases
 
-Legacy disk catalog moved to `GET .../playbooks/catalog-disk` (WS-P4-08 smoke).
+### `ceo-command-actions.service.ts`
 
-## Activate rules (§6.3)
+- **`remind_contract_approval`**: resolves GDKD via `submitted_to_staff_id` on approval (if present) or position `GDKD-01`; sends `staff_notifications` with `link_href=/crm/hub?lead_id=`; **no** contract status mutation
+- **`prioritize_solution_queue`**: `mergeLeadMeta({ priority_consult: 'ceo' })`; notifies `MKT-01`; no owner change
+- Helpers: `resolveStaffIdByPositionCode`, `resolveContractApprovalStaffId`
 
-- Status must be `approved`
-- `reviewed_by !== created_by` **or** `self_approve` + `note` ≥ 20 chars
-- `depth=shallow` requires `accept_shallow=true`
-- Retires prior `active` version; sets `mkt_ai_service_policy.active_version_id`
-- Internal/AI token blocked by `StaffMarketingAiPlaybookStaffApproveGuard`
+### Module wiring
 
-## Step checklist
+- `ceo-command.module.ts`: imports `LeadsContractModule`
+- `leads.module.ts`: exports `PgLeadsWriteRepository`
 
-- [x] Admin service list + policy patch + learn enqueue/status
-- [x] Version submit / decide / activate / rollback
-- [x] Activate gates per spec
-- [x] Uses Task 11 learn service + versions/policy repos
-- [x] Jest: activate from internal token → 403
-- [x] **Commit** `feat(mkt-ai): admin playbook learn and activate API`
+## Frontend
 
-## What I tested
+### `ceo-tower-suggest.util.ts`
+
+- Removed `UPCOMING_ACTIONS` gate for S3/S4
+- Maps `remind_contract_approval` → `{ lead_id, contract_id? }`
+- Maps `prioritize_solution_queue` → `{ lead_id, note? }` (note from `title_vi` when absent)
+
+## Tests
+
+| Suite | Result |
+|-------|--------|
+| `ceo-command-action.catalog.spec.ts` | PASS — 9 tests |
+| `ceo-command-actions.service.spec.ts` | PASS — 2 tests |
+| `ceo-tower-suggest.util.spec.ts` | PASS — 13 tests |
 
 ```bash
 cd services/ptt-crm-api && npx jest \
-  src/marketing-ai-planner/marketing-ai-playbook-admin.controller.spec.ts \
-  src/marketing-ai-planner/mkt-ai-playbook-admin.service.spec.ts \
-  --no-coverage
+  src/ceo-command/ceo-command-action.catalog.spec.ts \
+  src/ceo-command/ceo-command-actions.service.spec.ts --no-coverage
+# 11 passed
+
+cd services/ops-web && npx vitest run src/lib/crm/ceo-tower-suggest.util.spec.ts
+# 13 passed
 ```
 
-```
-PASS marketing-ai-playbook-admin.controller.spec.ts (5 tests)
-PASS mkt-ai-playbook-admin.service.spec.ts (5 tests)
-Test Suites: 2 passed | Tests: 10 passed
-```
+## Concerns
 
-## Notes
+1. **`submitted_to_staff_id`** — not in current `crm_contract_approvals` schema; code reads it opportunistically from approval row, falls back to `GDKD-01` position lookup.
+2. **Position resolution** — requires `crm_staff` + `crm_positions` rows for `GDKD-01` / `MKT-01`; fails with `gdkd_staff_not_found` / `mkt_staff_not_found` if roster empty.
+3. **E2E** — `ceo-lifecycle-tower.spec.ts` still expects S3/S4 chips disabled (`upcoming` tooltip); update in a follow-up when e2e is in scope.
 
-- `loadCorpusRows` still stubbed in learn service; admin list/detail shows corpus counts from stub until lifecycle SQL wired.
-- Smoke script `scripts/smoke_mkt_ai_playbooks_admin.sh` should target `catalog-disk` or be updated in Task 16.
+## Files touched
 
-## Next
-
-Task 13: Admin UI (`ops-web` playbooks page + API client).
+- `services/ptt-crm-api/src/ceo-command/ceo-command-action.catalog.ts`
+- `services/ptt-crm-api/src/ceo-command/ceo-command-action.catalog.spec.ts`
+- `services/ptt-crm-api/src/ceo-command/ceo-command-actions.service.ts`
+- `services/ptt-crm-api/src/ceo-command/ceo-command-actions.service.spec.ts` (new)
+- `services/ptt-crm-api/src/ceo-command/ceo-command.module.ts`
+- `services/ptt-crm-api/src/leads/leads.module.ts`
+- `services/ops-web/src/lib/crm/ceo-tower-suggest.util.ts`
+- `services/ops-web/src/lib/crm/ceo-tower-suggest.util.spec.ts`

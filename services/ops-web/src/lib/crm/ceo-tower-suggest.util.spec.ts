@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  TOWER_UPCOMING_TOOLTIP,
   mapTowerSuggestAction,
   parseOwnerStaffIdInput,
 } from './ceo-tower-suggest.util';
@@ -137,30 +136,51 @@ describe('mapTowerSuggestAction', () => {
     });
   });
 
-  it('treats S3/S4 actions as disabled upcoming', () => {
+  it('maps S3 prioritize_solution_queue to ready action with lead_id + note', () => {
+    const out = mapTowerSuggestAction({
+      suggest_action: 'prioritize_solution_queue',
+      suggest_params: { lead_id: 30 },
+      href: '/crm/leads/30#consult',
+      title_vi: 'Lead #30 Tư vấn 26h',
+    });
+    expect(out).toEqual({
+      kind: 'ready',
+      action_id: 'prioritize_solution_queue',
+      params: { lead_id: 30, note: 'Lead #30 Tư vấn 26h' },
+    });
+  });
+
+  it('maps S4 remind_contract_approval to ready action with lead_id', () => {
+    const out = mapTowerSuggestAction({
+      suggest_action: 'remind_contract_approval',
+      suggest_params: { lead_id: 42, contract_id: 9 },
+      href: '/crm/leads/42#lead-contract',
+      title_vi: 'HĐ #42 chờ duyệt 36h',
+    });
+    expect(out).toEqual({
+      kind: 'ready',
+      action_id: 'remind_contract_approval',
+      params: { lead_id: 42, contract_id: 9 },
+    });
+  });
+
+  it('hides S3/S4 when lead_id is missing', () => {
     expect(
       mapTowerSuggestAction({
         suggest_action: 'prioritize_solution_queue',
-        suggest_params: { lead_id: 30 },
-        href: '/crm/leads/30#consult',
-        title_vi: 'Lead #30 Tư vấn 26h',
+        suggest_params: {},
+        href: '/crm/leads/30',
+        title_vi: 'Lead #30',
       }),
-    ).toEqual({
-      kind: 'upcoming',
-      tooltip: TOWER_UPCOMING_TOOLTIP,
-    });
+    ).toEqual({ kind: 'hidden' });
     expect(
       mapTowerSuggestAction({
         suggest_action: 'remind_contract_approval',
-        suggest_params: { lead_id: 42 },
-        href: '/crm/leads/42#lead-contract',
-        title_vi: 'HĐ #42 chờ duyệt 36h',
+        suggest_params: {},
+        href: '/crm/leads/42',
+        title_vi: 'HĐ #42',
       }),
-    ).toEqual({
-      kind: 'upcoming',
-      tooltip: TOWER_UPCOMING_TOOLTIP,
-    });
-    expect(TOWER_UPCOMING_TOOLTIP).toBe('Sắp có — nhắc duyệt HĐ / ưu tiên queue');
+    ).toEqual({ kind: 'hidden' });
   });
 
   it('hides the chip when CEO cannot act', () => {

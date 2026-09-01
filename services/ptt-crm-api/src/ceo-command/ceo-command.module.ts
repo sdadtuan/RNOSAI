@@ -4,6 +4,7 @@ import { ConfigModule } from '../config/config.module';
 import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.module';
 import { CrmStaffModule } from '../crm-staff/crm-staff.module';
 import { CrmStaffPgRepository } from '../crm-staff/crm-staff-pg.repository';
+import { LeadsContractModule } from '../leads-contract/leads-contract.module';
 import { LeadsModule } from '../leads/leads.module';
 import { OpsModule } from '../ops/ops.module';
 import { OwnerWeeklyModule } from '../owner-weekly/owner-weekly.module';
@@ -36,6 +37,7 @@ import {
     CrmStaffModule,
     CrmLeadsLegacyModule,
     forwardRef(() => LeadsModule),
+    LeadsContractModule,
     forwardRef(() => OpsModule),
     forwardRef(() => AiIntelligenceModule),
     OwnerWeeklyModule,
