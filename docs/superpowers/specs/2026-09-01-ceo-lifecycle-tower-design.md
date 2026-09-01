@@ -1,12 +1,13 @@
 # CEO Lifecycle Tower — Tháp chu trình Lead → TMMT → CSKH
 
 > **Document ID:** CEO-TOWER-20260901  
-> **Phiên bản:** 1.2 · **Ngày:** 2026-09-01  
+> **Phiên bản:** 1.3 · **Ngày:** 2026-09-01  
 > **Trạng thái:** Draft — chờ PO / CEO review trước implementation plan  
 > **Route:** `/crm/ceo` (cùng trang ChatBox — **panel trên**, chat **dưới**)  
 > **Sibling:** [CEO Command ChatBox SRS](./2026-08-30-ceo-command-oss-chatbox-srs.md) · [Lifecycle UI](../../huong-dan-su-dung/27-lifecycle-ui-huong-dan-day-du.md) · [RBAC org](../../specs/2026-08-07-rbac-hr-org-job-function-design.md) · [Playbook learn](./2026-09-01-mkt-ai-playbook-learn-catalog-design.md)  
 > **Quyết định đã chốt:** Một **cột sống 6 cột** + **hàng chờ sót** (chỉ vàng/đỏ). CEO quan sát ngoại lệ, không inventory. Không trộn Factory A (agency) và Factory B (CSKH spa) trên cùng hàng.  
-> **1.2:** Lăng kính 5 lớp (công ty → nhà máy → phòng → team → chức vụ/người) + sơ đồ / RACI toàn catalog org — không sót phòng ban.
+> **1.2:** Lăng kính 5 lớp + sơ đồ / RACI toàn catalog org.  
+> **1.3:** Lớp **CEO công ty lớn** — strip tiền, năng lực/quá tải, S11–S12, 2 lệnh C mới, board pack tuần, đa pháp nhân opt-in (§19–§24).
 
 ---
 
@@ -20,9 +21,10 @@ RNOSAI đã có đủ công đoạn Lead → HĐ → TMMT → Deliver → Retain
 - Mỗi entity (lead A, lifecycle A, hoặc lead B) thuộc **đúng một cột “việc hiện tại”**. Quá SLA → bắt buộc vào hàng chờ.  
 - Mười cảm biến (§6) = bộ câu “không sót”. Thẻ Chat **Hôm nay** dùng **cùng** cảm biến — không invent KPI.  
 - Bấm dòng → màn chuyên môn đã ship. Can thiệp ghi hệ = catalog C hiện có (confirm 2 bước). **Không** Apply TMMT / tick BANT / gửi khách từ tháp.  
-- **Lăng kính 5 lớp (§18):** cùng một hàng chờ, CEO thu/phóng Công ty → Nhà máy → Phòng → Bộ phận → Chức vụ / người. Mọi phòng trong catalog org có chỗ trên tháp hoặc ô **Ngoài chu trình**.
+- **Lăng kính 5 lớp (§18):** cùng một hàng chờ, CEO thu/phóng Công ty → Nhà máy → Phòng → Bộ phận → Chức vụ / người. Mọi phòng trong catalog org có chỗ trên tháp hoặc ô **Ngoài chu trình**.  
+- **CEO công ty lớn (§19–§24):** strip tiền, quá tải người, S11/S12, nhắc duyệt HĐ / ưu tiên SP, board pack 1 trang, pháp nhân opt-in.
 
-**Pitch 1 câu:** CEO thấy ống dẫn, việc sót, và **đúng phòng / đúng vai** đang kẹt; số từ milestone; bấm vào cửa chuyên môn — không soạn plan hộ team.
+**Pitch 1 câu:** CEO thấy ống dẫn, việc sót, **đúng phòng / đúng người**, tiền và quá tải; họp tuần một trang — không soạn plan hộ team.
 
 ---
 
@@ -36,9 +38,10 @@ RNOSAI đã có đủ công đoạn Lead → HĐ → TMMT → Deliver → Retain
 | G2 | Không sót = không “treo không cột” | Mọi entity in-scope 90 ngày có `tower_column` + `severity`; test invariant §14 |
 | G3 | CEO chỉ làm việc đỏ/vàng | Hàng chờ mặc định **ẩn xanh**; sort đỏ → quá hạn → giá trị HĐ giảm dần |
 | G4 | Drill đúng nhà máy | A không mở CSKH board; B không mở TMMT |
-| G5 | Cùng cap / cùng action C | Không API mutate mới ngoài catalog CEO-3; duyệt HĐ = mở Hub |
+| G5 | Catalog C đóng | 6 action CEO-3 + **đúng 2** action §20; duyệt HĐ = Hub; confirm 2 bước |
 | G6 | Không phá ChatBox | Panel tháp **trên** thread; chip Hôm nay vẫn chạy; nguồn fail → cột `degraded`, không 500 cả trang |
 | G7 | Thấu suốt tổ chức | CEO zoom 5 lớp §18; mọi phòng catalog §16 có ≥1 cảm biến hoặc ô **Ngoài chu trình** (không im lặng) |
+| G8 | CEO công ty lớn | Strip tiền 5 ô + capacity 5 người quá tải + S11/S12 + board pack 1 trang; thiếu cap/cột = `degraded`, không bịa số |
 
 ### 2.2. In scope
 
@@ -49,6 +52,7 @@ RNOSAI đã có đủ công đoạn Lead → HĐ → TMMT → Deliver → Retain
 - Cửa sổ `7d` (exception) / K-strip dùng cửa sổ Owner Weekly 90 ngày đến cuối tuần.  
 - Drill `href` + `suggest_action` (chip C, không auto-commit).  
 - Panel **Theo phòng** + sơ đồ RACI (§16–§17).  
+- Lớp công ty lớn §19–§24 (tiền, capacity, S11–S12, C mới, board pack, entity).  
 - Loại seed UAT (`mkt-ai-smoke-seed`, lead id ≥ 900000901).
 
 ### 2.3. Out of scope (cố ý)
@@ -62,7 +66,7 @@ RNOSAI đã có đủ công đoạn Lead → HĐ → TMMT → Deliver → Retain
 
 ### 2.4. Không phá
 
-- Catalog C 6 action, confirm, idempotency.  
+- Catalog C 6 action + 2 action §20, confirm, idempotency.  
 - `NL_QUERY_CATALOG` / number gate.  
 - K1–K4 công thức Owner Weekly (reuse query, không tính KPI thứ hai).  
 - Journey NBA trên lead detail.
@@ -156,16 +160,20 @@ Mỗi cảm biến = query đọc. **Fail → ≥1 hàng** trên queue (trừ kh
 |----|---------|---------|-----|----------|------------------|
 | **S1** | Lead A mới > 4h chưa owner? | A | `lead_b2` | `owner_id` null và tuổi ≥ 4h | `assign_lead` |
 | **S2** | B2 / Intake chậm K1 K2? | A | `lead_b2` / `intake` | Đồng hồ ≥ red §5.1 | `remind_staff` (AM) |
-| **S3** | Go rồi chưa vào queue Solution? | A | `consult` | `intake_go` và không có handoff/consult session và tuổi ≥ 24h | `remind_staff` (SP) |
-| **S4** | HĐ chờ duyệt > 48h? (hoặc won không LC > 24h) | A | `contract` | §5.1 red | *null* — drill Hub (không có C approve) |
+| **S3** | Go rồi chưa vào queue Solution? | A | `consult` | `intake_go` và không có handoff/consult session và tuổi ≥ 24h | `prioritize_solution_queue` (§20) |
+| **S4** | HĐ chờ duyệt > 48h? (hoặc won không LC > 24h) | A | `contract` | §5.1 red | `remind_contract_approval` (§20) — **không** duyệt |
 | **S5** | Won > 7 ngày chưa TMMT xanh? | A | `tmmt_deliver` | Promote ≥7 ngày, gate TMMT không pass | `remind_staff` (SP) |
 | **S6** | Deliver khi Launch QA đỏ? | A | `tmmt_deliver` | Stage ≥ deliver + QA fail | `remind_staff` (AM) |
 | **S7** | Ops overdue / KPI tháng đỏ? | A | `tmmt_deliver` hoặc `care` | Alert open overdue hoặc KPI Không đạt | `ack_ops_alert` nếu có `alert_id` |
 | **S8** | K3 — active chậm > 14 ngày? | A | `tmmt_deliver` | `contract_active` ≥ 14 ngày, chưa `client_active` | `remind_staff` (AM Agency) |
 | **S9** | Factory B vỡ 15p/4h/24h? | B | `care` (hoặc `lead_b2` nếu 15p) | Tier breach | `sla_remind_lead` |
 | **S10** | Retain: HĐ ≤30 ngày hết hạn hoặc KPI retain đỏ? | A | `care` | `end_date` ≤ 30 ngày hoặc KPI đỏ | `remind_staff` |
+| **S11** | Top-1 khách > 40% DT (cửa sổ Owner Weekly)? | A | `care` (rollup công ty, 1 hàng) | `top1_share_pct` > `top1_share_max_pct` (default **40**, cùng Owner Weekly) | *null* — drill `/crm/owner-weekly` + `/crm/business-dashboard` |
+| **S12** | Retain / client active không AM owner? | A | `care` | `client_active` hoặc stage retain và `owner_id` null | `assign_lead` hoặc `remind_staff` GDKD |
 
-**Strip K trên header tháp:** 4 ô K1–K4 (màu RAG Owner Weekly). Click K → `/crm/owner-weekly` + filter metric. K đỏ **không** thay thế S1–S10 (K = median tuần; S = từng entity).
+S11 là **một hàng công ty** (không nhân theo khách). S12 = từng lifecycle/client.
+
+**Strip K trên header tháp:** 4 ô K1–K4 (màu RAG Owner Weekly). Click K → `/crm/owner-weekly` + filter metric. K đỏ **không** thay thế S1–S12 (K = median tuần; S = từng entity / 1 hàng tập trung).
 
 Cửa sổ **exception list:** mặc định entity có activity hoặc đồng hồ còn chạy trong **7 ngày**; **cộng** mọi hàng đang red/amber dù cũ hơn (HĐ pending 10 ngày vẫn hiện). Không cắt red vì ngoài 7 ngày.
 
@@ -179,7 +187,7 @@ Cửa sổ **exception list:** mặc định entity có activity hoặc đồng 
 |-------|---------|
 | `factory` | `A` \| `B` |
 | `column_id` | Một trong 6 |
-| `sensor_ids` | S1–S10 khớp |
+| `sensor_ids` | S1–S12 khớp |
 | `severity` | `red` \| `amber` |
 | `title_vi` | VD. “HĐ #42 chờ duyệt 36h” |
 | `entity_type` | `lead` \| `lifecycle` |
@@ -255,8 +263,10 @@ CEO **không** thấy lead ngoài visibility B2B/CSKH của chính họ — reus
 | Nhắc AM/SP | `remind_staff` + `ceo_command.act` |
 | Nhắc SLA B | `sla_remind_lead` + `crm_leads.edit` |
 | Ack Ops | `ack_ops_alert` + ops write |
+| Nhắc duyệt HĐ | `remind_contract_approval` + `ceo_command.act` — **không** đổi status HĐ |
+| Ưu tiên queue SP | `prioritize_solution_queue` + `ceo_command.act` |
 
-Giữ danh sách cấm CEO-3 §9.4 (lương, RBAC, xóa, ads, mail khách, spawn week, complete Intake).
+Giữ danh sách cấm CEO-3 §9.4 (lương, RBAC, xóa, ads, mail khách, spawn week, complete Intake, **approve HĐ**).
 
 ---
 
@@ -274,6 +284,7 @@ Query:
 | `team` | — | `TEAM-SALES-AM` … |
 | `position_code` | — | `KD-01` … |
 | `staff_id` | — | Một người (owner hoặc specialist trên task đỏ) |
+| `legal_entity_id` | — | Chỉ khi `PTT_CEO_TOWER_LEGAL_ENTITY=1` (§23) |
 | `severity` | `red,amber` | `red` \| `amber` \| `ok` (ok chỉ khi debug + `ceo_command.configure`) |
 | `limit` | 40 | max 80 |
 | `cursor` | — | Phân trang exception |
@@ -305,7 +316,10 @@ Response (rút gọn):
   }>;
   next_cursor: string | null;
   degraded: Array<{ source: string; reason: string }>;
-  sensors_ok: Record<'S1'|'S2'|…|'S10', 'ok'|'fail'|'degraded'>;
+  sensors_ok: Record<'S1'|…|'S12', 'ok'|'fail'|'degraded'>;
+  finance_strip?: /* §19 */;
+  capacity_top?: /* §21 */;
+  legal_entity_id?: string | null;
 }
 ```
 
@@ -323,6 +337,7 @@ Chat briefing A: `BriefingComposer` **gọi lại** cùng hàm cảm biến (sha
 [ Breadcrumb 5 lớp ]  Công ty › A Agency › DEPT-SALES › TEAM-SALES-AM › KD-01 › Nguyễn V.
 [ Tháp chu trình ]  A | B | Cả hai     28 sót · 6 đỏ
 [ K1 ] [ K2 ] [ K3 ] [ K4 ]
+[ Tiền | AR | DT30 | Top-1% | GM% ]     [ Quá tải: 5 người ]
 [ Lead/B2 ][ Intake ][ Tư vấn ][ HĐ ][ TMMT/QA ][ CSKH ]
 [ Theo phòng: Sales 8đ | Solution 3đ | CSKH 5đ | Agency 2đ | HR/IT ngoài chu trình ]
 [ Hàng chờ sót — cột org: phòng · team · chức vụ · người ]
@@ -349,8 +364,12 @@ VQ: không JSON thô; không dump 200 lead xanh; empty state “Không sót tron
 | **T2** | Gắn `suggest_action` → confirm C hiện có | Assign / remind / SLA / ack từ hàng chờ |
 | **T3** | Briefing Hôm nay dùng chung sensor | Thẻ A ⊆ union exception red (không KPI lạ) |
 | **T4** | `org_rollup` + breadcrumb 5 lớp + filter dept/team/chức vụ | Mọi `DEPT-*` catalog hiện trên panel (kể cả *Ngoài chu trình*); click lọc đúng hàng |
+| **T5** | Strip tiền §19 + S11 + S12 | 5 ô; thiếu finance cap = degraded; S11 một hàng công ty |
+| **T6** | Capacity §21 + 2 action C §20 | Top 5 quá tải; remind HĐ / ưu tiên queue confirm |
+| **T7** | Board pack §22 | `GET .../board-pack` in được 1 trang; số = facts |
+| **T8** | Đa pháp nhân §23 | Flag off mặc định; bật mới hiện filter entity |
 
-T0–T1 ship được không đợi LLM. T3 sau CEO-1 nếu briefing đã live. T4 không chặn T1.
+T0–T2 = CEO dùng ống dẫn. T5–T7 = tầm công ty lớn. T8 chỉ khi có >1 MST. T3 sau CEO-1. T4 không chặn T1.
 
 ---
 
@@ -369,6 +388,10 @@ T0–T1 ship được không đợi LLM. T3 sau CEO-1 nếu briefing đã live. 
 | Invariant nightly (staging) | `COUNT(*) WHERE tower_column IS NULL` trên in-scope = 0 |
 | Unit | Mọi `DEPT-*` §16.1 có `outside_cycle` hoặc ≥1 sensor |
 | E2e | Breadcrumb Sales → TEAM-SALES-AM → chỉ hàng AM |
+| Unit | S11 fail khi top1 > 40%; S12 fail khi retain không owner |
+| API | Thiếu finance cap → `finance_strip` absent + degraded, không `0 ₫` |
+| API | `remind_contract_approval` không đổi status HĐ |
+| E2e | Board pack in được; mọi số có trong `facts_json` |
 
 ---
 
@@ -500,8 +523,10 @@ Owner **mặc định trên hàng chờ** = người **R** của cột hiện t�
 | S8 | DEPT-SALES | AM Agency |
 | S9 | DEPT-CSKH | CSKH-01 / Leader |
 | S10 | DEPT-SALES + Agency nếu KPI | AM; Specialist KPI |
+| S11 | Công ty (rollup) | GDKD — chỉ đọc, drill Owner Weekly |
+| S12 | DEPT-SALES | GDKD / assign AM |
 
-Mọi S1–S10 map **đúng một phòng A** trên `org_rollup` (S6/S7 = Agency; S10 primary Sales). Không S “mồ côi phòng”.
+Mọi S1–S10 map **đúng một phòng A** trên `org_rollup` (S6/S7 = Agency; S10 primary Sales). S11 không gắn phòng (hàng công ty). S12 = Sales. Không S “mồ côi”.
 
 ---
 
@@ -608,6 +633,139 @@ Breadcrumb luôn hiện; **×** về L1. URL query đồng bộ (`?dept=&team=&s
 
 ---
 
+## 19. Strip tiền — CEO công ty lớn
+
+**Nguyên tắc:** Chỉ **đọc** số đã có trên Owner Weekly / financials / NL catalog. Không sổ cái mới. Thiếu cap `crm_owner_weekly_dashboard.view` hoặc finance view → cả strip `degraded`, 5 ô ẩn, không hiện `0 ₫`.
+
+### 19.1. Năm ô (cùng target Owner Weekly)
+
+| Ô | Field nguồn (default target) | Đỏ khi | Drill |
+|---|------------------------------|--------|-------|
+| Tiền an toàn | `cash_safe` vs `cash_safe_min_vnd` | Dưới target | `/crm/owner-weekly` khối Tiền |
+| AR quá hạn | `ar_overdue` vs `ar_overdue_max_vnd` | Trên trần | `/crm/financials` |
+| DT 30 ngày | `revenue_received_30d` (NL) | Không so target tuần — chỉ hiện số; amber nếu 0 | `/crm/business-dashboard` |
+| Top-1 DT | `top1_share_pct` vs **40%** (`top1_share_max_pct`) | > 40% → bật S11 | Owner Weekly |
+| Margin | `gross_margin` vs `gross_margin_target_pct` | Dưới target | Owner Weekly |
+
+Công thức **copy** repository Owner Weekly — cấm tính P&L “xấp xỉ” trên tháp.
+
+P&L theo DV / theo phòng: **không** v1. Nếu sau này `financials` có dimension `service_slug`, thêm ô thứ 6 trong revision — không bịa chiều.
+
+### 19.2. UI
+
+Hàng dưới K1–K4: `Tiền | AR | DT30 | Top-1% | GM%`. Click ô = drill. S11 đỏ đồng bộ ô Top-1.
+
+---
+
+## 20. Hai lệnh C mới (catalog đóng)
+
+Mở rộng CEO Command §9.2 — **không** approve HĐ, không đổi stage funnel.
+
+| `action_id` | Việc | Ghi gì | Cap | Cấm |
+|-------------|------|--------|-----|------|
+| `remind_contract_approval` | Nhắc GDKD duyệt HĐ đang pending | `staff_notifications` tới user `GDKD-01` (hoặc `submitted_to_staff_id` trên HĐ) + `link_href=/crm/hub?...` | `ceo_command.act` | Đổi `status` HĐ; gửi khách |
+| `prioritize_solution_queue` | Ưu tiên case trên queue SP | `staff_notifications` tới MKT-01 + note nội bộ trên lead `priority_consult=ceo` trong `meta_json` (hoặc cột `consult_priority` **nếu đã có** — không ADD COLUMN trong T6 nếu chưa có) | `ceo_command.act` | Claim case hộ SP; đổi owner |
+
+Params:
+
+```ts
+remind_contract_approval: { lead_id: number; contract_id?: number }
+prioritize_solution_queue: { lead_id: number; note?: string } // note ≤200, mask
+```
+
+Idempotency 24h như CEO-3. Preview: “Nhắc GDKD duyệt HĐ lead #… ?” / “Ưu tiên queue Solution lead #… ?”
+
+S4 → `remind_contract_approval`. S3 → `prioritize_solution_queue`. CEO vẫn **Mở Hub** để duyệt tay.
+
+---
+
+## 21. Năng lực & quá tải
+
+CEO công ty lớn cần biết **ai đang gãy** — không chỉ việc sót.
+
+`capacity_top[]` tối đa **5** staff, sort `red_owned` giảm dần.
+
+| Field | Ý nghĩa |
+|-------|---------|
+| `staff_id` / `name` / `department_code` / `position_code` | Roster |
+| `red_owned` | Số exception red CEO đang thấy mà họ là owner R |
+| `amber_owned` | Tương tự amber |
+| `flag` | `ok` \| `amber` \| `red` |
+
+| `flag` | Điều kiện |
+|--------|-----------|
+| amber | `red_owned ≥ 5` **hoặc** (`red_owned + amber_owned ≥ 10`) |
+| red | `red_owned ≥ 8` **hoặc** (`red_owned + amber_owned ≥ 15`) |
+| ok | Dưới ngưỡng — **không** vào `capacity_top` |
+
+Click hàng capacity → lăng kính L5 `staff_id=`. Không tính giờ công / HR payroll (ngoài chu trình).
+
+Queue SP: số S3 red của `DEPT-SOLUTION` hiện trên ô phòng — không KPI riêng.
+
+---
+
+## 22. Board pack tuần (1 trang)
+
+**Mục tiêu:** Họp CEO–GDKD 30 phút — một URL/in, không 14 tab.
+
+`GET /api/crm/ceo/tower/board-pack?week=YYYY-Www`  
+`week` mặc định = tuần ISO chứa `now` (ICT). Cap = xem tháp.
+
+Payload `facts_json` (mọi số trên trang phải có trong facts — cùng number gate nếu polish):
+
+1. K1–K4 + status  
+2. Count red/amber theo 6 cột + theo 6 phòng  
+3. Top **10** exception (cùng sort §7)  
+4. Năm ô tiền §19  
+5. `capacity_top` 5 người  
+6. S11/S12 fail?  
+7. `degraded[]`  
+8. `decisions_blank`: 3 dòng trống *“Quyết định tuần: ___”* — **không** AI điền  
+
+FE: trang `/crm/ceo/board-pack` (print CSS A4). **Không** bắt buộc lib PDF T7. Nút **In / PDF trình duyệt**.
+
+Cron: không gửi mail khách; optional `staff_notifications` cho CEO+GDKD thứ 2 08:00 nếu `PTT_CEO_BOARD_PACK_NOTIFY=1` (mặc định **0**).
+
+---
+
+## 23. Đa pháp nhân (opt-in)
+
+Một VPS / một MST PTT: **tắt**. Không hiện filter.
+
+| Env | Default | Việc |
+|-----|---------|------|
+| `PTT_CEO_TOWER_LEGAL_ENTITY` | `0` | `1` mới đọc dimension entity |
+
+Khi `1`: query `legal_entity_id`. Nguồn: `contracts.legal_entity_id` **hoặc** `agency_clients.entity_code` — **chỉ nếu cột đã tồn tại**. Không có cột → filter ẩn, `degraded: legal_entity_schema_missing`, không fail tháp, **không** migration bắt buộc trong T8.
+
+Hàng exception gắn `legal_entity_id` khi resolve được; null = “chưa gán entity” (amber trên strip entity, không red).
+
+---
+
+## 24. Thứ tự ship lớp công ty lớn
+
+```text
+T0–T2  Ống + sót + C cũ
+T4     Zoom phòng
+T5     Tiền + S11 + S12
+T6     Capacity + 2 C mới
+T7     Board pack
+T8     Entity (chỉ khi >1 MST)
+```
+
+Không làm T8 trước T2. Không LoRA / tool-call tự do. Playbook `_common` (spec MKTP) **song song**, không chặn tháp.
+
+```mermaid
+flowchart LR
+  T02[Tháp sót] --> T4[5 lớp]
+  T02 --> T5[Tiền + S11/12]
+  T5 --> T6[Quá tải + C]
+  T6 --> T7[Board pack]
+  T7 -.-> T8[Pháp nhân]
+```
+
+---
+
 ## 14. Liên kết
 
 | Tài liệu | Path |
@@ -628,8 +786,9 @@ Breadcrumb luôn hiện; **×** về L1. URL query đồng bộ (`?dept=&team=&s
 - Duyệt HĐ không lách catalog C (drill Hub).  
 - Một cột / một entity; hai factory không trộn hàng.  
 - Mọi phòng có chỗ trên `org_rollup` (HR/IT = ngoài chu trình). Mọi S map một phòng A.  
-- AI/Chat không soạn TMMT từ tháp.
+- AI/Chat không soạn TMMT từ tháp.  
+- §19–§24: tiền reuse Owner Weekly; 2 C không approve HĐ; capacity đếm exception owned; entity mặc định tắt; board pack không AI điền quyết định.
 
 ---
 
-*Spec v1.2 — tháp + lăng kính 5 lớp + sơ đồ / RACI toàn tổ chức.*
+*Spec v1.3 — tháp + 5 lớp org + lớp CEO công ty lớn (tiền, quá tải, S11–S12, C, board pack, entity).*

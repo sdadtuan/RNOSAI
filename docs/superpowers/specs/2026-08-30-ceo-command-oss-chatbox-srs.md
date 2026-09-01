@@ -61,7 +61,7 @@ Ba việc A+B+C **không** gộp một agent tự do. Một SRS, sáu slice.
 - ChatBox thread + composer + chip A/B/C trên `/crm/ceo`.  
 - Briefing A: ghép nguồn đọc đã có (mục 7).  
 - Hỏi số B: bọc `AiNlQueryService` / `NL_QUERY_CATALOG` (không viết engine SQL mới).  
-- Hành động C: catalog 6 lệnh v1 + confirm + idempotency (mục 9).  
+- Hành động C: catalog 6 lệnh v1 + **2 lệnh Tower** (`remind_contract_approval`, `prioritize_solution_queue`) + confirm + idempotency (mục 9 · [Tower §20](./2026-09-01-ceo-lifecycle-tower-design.md)).  
 - Kho `ceo_os` (playbook category riêng) + retrieve intake-local clone (keyword + cosine).  
 - Rating 👍/👎 + candidate từ lượt `down` / briefing hay dùng.  
 - OSS polish narrative (flag off mặc định).  
@@ -286,6 +286,8 @@ Cron / internal key: **cấm** commit C.
 | `assign_lead` | Phân lead chưa owner | `CrmLeadsLegacyService.assignLead` | `crm_leads.assign` | Assign ngoài visibility B2B |
 | `remind_staff` | Nhắc GDKD / AM nội bộ | `staff_notifications` insert | `ceo_command.act` **hoặc** `crm_leads.assign` | Email/Zalo khách; SMS |
 | `sla_remind_lead` | Nhắc SLA trên lead | `SlaAutoTaskService.createReminder` | `crm_leads.edit` + lead visible | Auto-send khách (service đã ghi note nội bộ) |
+| `remind_contract_approval` | Nhắc GDKD duyệt HĐ | `staff_notifications` + href Hub | `ceo_command.act` | Đổi status HĐ; mail khách — chi tiết [CEO Tower §20](./2026-09-01-ceo-lifecycle-tower-design.md) |
+| `prioritize_solution_queue` | Ưu tiên queue SP | Notify MKT-01 + note lead | `ceo_command.act` | Claim hộ; đổi owner — Tower §20 |
 
 Params bắt buộc (validate server, không tin LLM):
 
