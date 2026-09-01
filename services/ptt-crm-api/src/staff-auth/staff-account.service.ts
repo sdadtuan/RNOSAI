@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -7,11 +8,13 @@ import {
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { hashPortalPassword, verifyPortalPassword } from '../portal/portal-password.util';
-import { positionRequiresMfa } from './staff-keycloak.util';
+import { positionRequiresMfa, staffEmailFromClaims, staffMfaSatisfied, verifyStaffKeycloakAccessToken, exchangeStaffAuthorizationCode } from './staff-keycloak.util';
 import { StaffAuthService } from './staff-auth.service';
 import { StaffAuthAuditRepository } from './staff-auth-audit.repository';
 import { StaffAccountRateLimiter } from './staff-account-rate.util';
+import { StaffAccountStepUpStore } from './staff-account-step-up.util';
 import { staffAuditSummaryVi } from './staff-account-audit.util';
+import { verifyStaffTurnstileToken } from './staff-turnstile.util';
 import { assertStaffAvatarUpload, contentTypeForAvatarExt } from './staff-avatar-image.util';
 import type {
   StaffAccountAuditResponse,
@@ -33,6 +36,7 @@ const AVATAR_MAX = 10;
 export class StaffAccountService {
   private pool: Pool | null = null;
   private readonly rateLimiter = new StaffAccountRateLimiter();
+  private readonly stepUpStore = new StaffAccountStepUpStore();
 
   constructor(
     private readonly config: AppConfigService,
@@ -52,7 +56,17 @@ export class StaffAccountService {
   async buildProfile(user: StaffJwtPayload): Promise<StaffAccountProfile> {
     const base = await this.auth.me(user);
     const extras = await this.loadAccountExtras(user.sub);
-    return { ...base, ...extras };
+    const stepUpRequired = Boolean(extras.mfa_required_for_position && extras.password_login_enabled);
+    const stepUpActive =
+      stepUpRequired && user.sid ? this.stepUpStore.isActive(user.sub, user.sid) : false;
+    return {
+      ...base,
+      ...extras,
+      password_step_up_required: stepUpRequired,
+      password_step_up_active: stepUpActive,
+      password_step_up_active_until:
+        stepUpActive && user.sid ? this.stepUpStore.activeUntilIso(user.sub, user.sid) : null,
+    };
   }
 
   async getBundle(user: StaffJwtPayload): Promise<StaffAccountBundleResponse> {
@@ -66,6 +80,7 @@ export class StaffAccountService {
     user: StaffJwtPayload,
     currentPassword: string,
     newPassword: string,
+    opts?: { turnstileToken?: string; clientIp?: string | null },
   ): Promise<{ ok: true; message: 'password_updated' }> {
     if (!this.config.staffNestLoginAllowed()) {
       throw new BadRequestException({ error: 'password_change_sso_only' });
@@ -73,6 +88,8 @@ export class StaffAccountService {
     if (!isUuidStaffUserId(user.sub)) {
       throw new BadRequestException({ error: 'password_change_not_available' });
     }
+    await this.assertTurnstile(opts?.turnstileToken, opts?.clientIp ?? null);
+    await this.assertPasswordStepUp(user);
     if (!this.rateLimiter.hit('password', user.sub, PASSWORD_WINDOW_MS, PASSWORD_MAX)) {
       throw new BadRequestException({ error: 'rate_limited' });
     }
@@ -104,7 +121,92 @@ export class StaffAccountService {
       await this.sessions.revokeOthers(user.sub, user.sid, 'password_changed', now);
     }
     void this.authAudit.write('password_changed', { userId: user.sub, email: user.email });
+    if (user.sid) {
+      this.stepUpStore.clear(user.sub, user.sid);
+    }
     return { ok: true, message: 'password_updated' };
+  }
+
+  async confirmPasswordStepUp(
+    user: StaffJwtPayload,
+    params: { code: string; redirectUri: string; codeVerifier: string },
+  ): Promise<{ ok: true; step_up_active_until: string }> {
+    if (!isUuidStaffUserId(user.sub)) {
+      throw new BadRequestException({ error: 'password_change_not_available' });
+    }
+    if (!user.sid) {
+      throw new BadRequestException({ error: 'session_binding_required' });
+    }
+    const issuer = this.config.staffKeycloakIssuer;
+    if (!issuer) {
+      throw new BadRequestException({ error: 'step_up_not_available' });
+    }
+
+    const positionCode = await this.auth.loadPositionCodePublic(user.position_id);
+    if (!positionRequiresMfa(positionCode, this.config.staffMfaRequiredPositionCodes)) {
+      throw new BadRequestException({ error: 'step_up_not_required' });
+    }
+
+    let tokenResponse;
+    try {
+      tokenResponse = await exchangeStaffAuthorizationCode({
+        issuer,
+        fetchIssuer: this.config.staffKeycloakFetchIssuer ?? issuer,
+        clientId: this.config.staffKeycloakClientId,
+        code: params.code,
+        redirectUri: params.redirectUri,
+        codeVerifier: params.codeVerifier,
+      });
+    } catch (err) {
+      throw new UnauthorizedException({
+        error: 'step_up_exchange_failed',
+        message: err instanceof Error ? err.message : 'exchange failed',
+      });
+    }
+
+    const claims = await verifyStaffKeycloakAccessToken(tokenResponse.access_token, {
+      issuer,
+      fetchIssuer: this.config.staffKeycloakFetchIssuer ?? issuer,
+      audience: this.config.staffKeycloakAudience,
+    });
+    if (!claims) {
+      throw new UnauthorizedException({ error: 'invalid_keycloak_token' });
+    }
+
+    const email = staffEmailFromClaims(claims);
+    if (!email || email !== user.email.trim().toLowerCase()) {
+      throw new UnauthorizedException({ error: 'step_up_email_mismatch' });
+    }
+    if (!staffMfaSatisfied(claims)) {
+      throw new ForbiddenException({ error: 'step_up_mfa_required' });
+    }
+
+    const untilMs = Date.now() + this.config.staffPasswordStepUpWindowMs;
+    this.stepUpStore.mark(user.sub, user.sid, untilMs);
+    void this.authAudit.write('password_step_up', { userId: user.sub, email: user.email });
+    return { ok: true, step_up_active_until: new Date(untilMs).toISOString() };
+  }
+
+  private async assertTurnstile(token: string | undefined, clientIp: string | null): Promise<void> {
+    const secret = this.config.staffTurnstileSecret;
+    if (!secret) return;
+    if (!token?.trim()) {
+      throw new BadRequestException({ error: 'captcha_required' });
+    }
+    const ok = await verifyStaffTurnstileToken(secret, token, clientIp);
+    if (!ok) {
+      throw new BadRequestException({ error: 'captcha_failed' });
+    }
+  }
+
+  private async assertPasswordStepUp(user: StaffJwtPayload): Promise<void> {
+    const positionCode = await this.auth.loadPositionCodePublic(user.position_id);
+    if (!positionRequiresMfa(positionCode, this.config.staffMfaRequiredPositionCodes)) {
+      return;
+    }
+    if (!user.sid || !this.stepUpStore.isActive(user.sub, user.sid)) {
+      throw new ForbiddenException({ error: 'step_up_required' });
+    }
   }
 
   async listSessions(user: StaffJwtPayload): Promise<StaffAccountSessionsResponse> {

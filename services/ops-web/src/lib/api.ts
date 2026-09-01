@@ -20,6 +20,9 @@ export interface StaffMeResponse extends StoredStaffUser {
   password_login_enabled?: boolean;
   sso_enabled?: boolean;
   mfa_required_for_position?: boolean;
+  password_step_up_required?: boolean;
+  password_step_up_active?: boolean;
+  password_step_up_active_until?: string | null;
   keycloak_account_url?: string | null;
   teams?: Array<{ id: number; name: string }>;
   has_avatar?: boolean;
@@ -261,15 +264,36 @@ export async function staffChangePassword(
   token: string,
   currentPassword: string,
   newPassword: string,
+  turnstileToken?: string,
 ): Promise<{ ok: boolean; message?: string }> {
   const res = await fetch(`${API_BASE}/api/v1/staff/auth/account/password`, {
     method: 'POST',
     headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: newPassword,
+      turnstile_token: turnstileToken,
+    }),
   });
   const body = await parseJson<{ ok?: boolean; error?: string; message?: string }>(res);
   if (!res.ok) throw new ApiError(body.error ?? 'Đổi mật khẩu thất bại', res.status);
   return { ok: true, message: body.message };
+}
+
+export async function staffPasswordStepUp(
+  token: string,
+  code: string,
+  redirectUri: string,
+  codeVerifier: string,
+): Promise<{ ok: boolean; step_up_active_until: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/staff/auth/account/password/step-up`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, redirect_uri: redirectUri, code_verifier: codeVerifier }),
+  });
+  const body = await parseJson<{ ok?: boolean; step_up_active_until?: string; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Xác minh OTP thất bại', res.status);
+  return { ok: true, step_up_active_until: body.step_up_active_until ?? '' };
 }
 
 export async function revokeStaffSession(

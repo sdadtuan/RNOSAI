@@ -7942,6 +7942,15 @@ html.ops-shell-collapsed .ops-nav-group-links {
   min-height: 120px;
 }
 
+.account-step-up {
+  margin-bottom: 0.75rem;
+}
+
+.account-turnstile {
+  height: 0;
+  overflow: hidden;
+}
+
 .account-card h2 {
   margin: 0 0 0.75rem;
   font-size: 1.05rem;

@@ -1,18 +1,21 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { FormEvent, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { StaffPageShell } from '@/components/layout/StaffPageShell';
 import { WinDrawer } from '@/components/win';
+import { StaffTurnstile, TURNSTILE_SITE_KEY } from '@/components/account/StaffTurnstile';
 import { useStaffAvatarBlob } from '@/components/account/useStaffAvatarBlob';
 import {
   deleteStaffAvatar,
   fetchStaffAccount,
+  fetchStaffSsoConfig,
   revokeStaffSession,
   revokeStaffSessionsAll,
   revokeStaffSessionsOthers,
   staffChangePassword,
   staffMe,
+  staffPasswordStepUp,
   staffRefresh,
   uploadStaffAvatar,
   ApiError,
@@ -22,6 +25,12 @@ import {
 import { staffAccountErrorVi } from '@/lib/account/account-error.util';
 import { cropAvatarFileToJpeg } from '@/lib/account/crop-avatar.util';
 import { validatePasswordForm } from '@/lib/account/password-form.util';
+import {
+  buildStaffKeycloakAuthUrl,
+  clearPkceSession,
+  readPkceState,
+  readPkceVerifier,
+} from '@/lib/auth/keycloak-pkce';
 import {
   clearSession,
   getAccessToken,
@@ -57,7 +66,16 @@ const ACCOUNT_TABS: Array<{ id: AccountTab; label: string }> = [
 ];
 
 export default function AccountPage() {
+  return (
+    <Suspense fallback={<p className="muted">Đang tải…</p>}>
+      <AccountPageContent />
+    </Suspense>
+  );
+}
+
+function AccountPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const fileRef = useRef<HTMLInputElement>(null);
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -70,6 +88,7 @@ export default function AccountPage() {
   const [confirmPw, setConfirmPw] = useState('');
   const [passwordDrawerOpen, setPasswordDrawerOpen] = useState(false);
   const [drawerError, setDrawerError] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AccountTab>('profile');
 
   const profile = bundle?.profile ?? null;
@@ -159,17 +178,80 @@ export default function AccountPage() {
 
   function openPasswordDrawer() {
     setDrawerError('');
+    setTurnstileToken(null);
     setPasswordDrawerOpen(true);
   }
 
   function closePasswordDrawer() {
     setDrawerError('');
+    setTurnstileToken(null);
     setPasswordDrawerOpen(false);
   }
+
+  const startPasswordStepUp = useCallback(async () => {
+    setDrawerError('');
+    setBusy(true);
+    try {
+      const cfg = await fetchStaffSsoConfig();
+      if (!cfg.issuer) {
+        setDrawerError(staffAccountErrorVi('step_up_not_available'));
+        return;
+      }
+      const url = await buildStaffKeycloakAuthUrl({
+        issuer: cfg.issuer,
+        clientId: cfg.client_id,
+        redirectUri: `${window.location.origin}/account`,
+        acrValues: 'mfa',
+        prompt: 'login',
+        flow: 'password_step_up',
+      });
+      window.location.href = url;
+    } catch (err) {
+      setDrawerError(err instanceof Error ? err.message : 'Không mở được Keycloak');
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const code = searchParams.get('code');
+    if (!code || !token) return;
+    const verifier = readPkceVerifier('password_step_up');
+    if (!verifier) return;
+    const expectedState = readPkceState('password_step_up');
+    const urlState = searchParams.get('state');
+    if (expectedState && urlState !== expectedState) {
+      setError('State OIDC không khớp.');
+      return;
+    }
+    void (async () => {
+      setBusy(true);
+      setError('');
+      try {
+        await staffPasswordStepUp(token, code, `${window.location.origin}/account`, verifier);
+        clearPkceSession('password_step_up');
+        router.replace('/account');
+        setMsg('Đã xác minh OTP. Có thể đổi mật khẩu Nest.');
+        setPasswordDrawerOpen(true);
+        await reload(token);
+      } catch (err) {
+        clearPkceSession('password_step_up');
+        const codeErr = err instanceof ApiError ? err.message : '';
+        setError(staffAccountErrorVi(codeErr) || 'Xác minh OTP thất bại');
+        router.replace('/account');
+      } finally {
+        setBusy(false);
+      }
+    })();
+  }, [searchParams, token, router, reload]);
 
   async function onPasswordSubmit(e: FormEvent) {
     e.preventDefault();
     if (!token) return;
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      setDrawerError(staffAccountErrorVi('captcha_required'));
+      return;
+    }
     const check = validatePasswordForm({ current: currentPw, next: newPw, confirm: confirmPw });
     if (!check.ok) {
       setDrawerError(check.error);
@@ -180,11 +262,12 @@ export default function AccountPage() {
     setError('');
     setMsg('');
     try {
-      await staffChangePassword(token, currentPw, newPw);
+      await staffChangePassword(token, currentPw, newPw, turnstileToken ?? undefined);
       setMsg('Đã đổi mật khẩu Nest. Các thiết bị khác đã đăng xuất.');
       setCurrentPw('');
       setNewPw('');
       setConfirmPw('');
+      setTurnstileToken(null);
       closePasswordDrawer();
     } catch (err) {
       const code = err instanceof ApiError ? err.message : '';
@@ -241,6 +324,13 @@ export default function AccountPage() {
       setBusy(false);
     }
   }
+
+  const stepUpRequired = Boolean(profile?.password_step_up_required);
+  const stepUpActive = Boolean(profile?.password_step_up_active);
+  const canSubmitPassword =
+    Boolean(profile?.password_login_enabled) &&
+    (!stepUpRequired || stepUpActive) &&
+    (!TURNSTILE_SITE_KEY || Boolean(turnstileToken));
 
   return (
     <StaffPageShell user={user} onLogout={logout} breadcrumb={[{ label: 'Tài khoản' }]} loading={!bundle}>
@@ -322,7 +412,7 @@ export default function AccountPage() {
                         >
                           Đổi ảnh
                         </button>
-                        {profile.password_login_enabled || (profile.sso_enabled && profile.keycloak_account_url) ? (
+                        {profile.password_login_enabled ? (
                           <button
                             type="button"
                             className="btn btn-secondary btn-sm"
@@ -355,14 +445,28 @@ export default function AccountPage() {
                     <strong>{profile.mfa_required_for_position ? 'Có' : 'Không'}</strong>
                   </p>
                   {profile.keycloak_account_url ? (
-                    <a
-                      href={profile.keycloak_account_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn btn-secondary btn-sm"
-                    >
-                      Quản lý OTP trên Keycloak
-                    </a>
+                    <>
+                      <a
+                        href={profile.keycloak_account_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-secondary btn-sm"
+                      >
+                        Quản lý OTP trên Keycloak
+                      </a>
+                      {!profile.password_login_enabled ? (
+                        <p style={{ marginTop: '0.75rem' }}>
+                          <a
+                            href={profile.keycloak_account_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn btn-secondary btn-sm"
+                          >
+                            Đổi mật khẩu trên Keycloak
+                          </a>
+                        </p>
+                      ) : null}
+                    </>
                   ) : (
                     <p className="muted">Chưa cấu hình Keycloak account URL.</p>
                   )}
@@ -459,7 +563,7 @@ export default function AccountPage() {
                     <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={closePasswordDrawer}>
                       Hủy
                     </button>
-                    <button type="submit" form="account-password-form" className="btn btn-sm" disabled={busy}>
+                    <button type="submit" form="account-password-form" className="btn btn-sm" disabled={busy || !canSubmitPassword}>
                       {busy ? 'Đang lưu…' : 'Lưu mật khẩu'}
                     </button>
                   </>
@@ -467,7 +571,32 @@ export default function AccountPage() {
               }
             >
               {drawerError ? <p className="error">{drawerError}</p> : null}
-              {profile.password_login_enabled ? (
+              {stepUpRequired ? (
+                <div className="account-step-up">
+                  {stepUpActive ? (
+                    <p className="settings-form__success">
+                      OTP đã xác minh
+                      {profile.password_step_up_active_until
+                        ? ` — hiệu lực đến ${formatDt(profile.password_step_up_active_until)}`
+                        : ''}
+                      .
+                    </p>
+                  ) : (
+                    <>
+                      <p className="muted">Chức vụ này cần xác minh OTP trên Keycloak trước khi đổi mật khẩu Nest.</p>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        disabled={busy}
+                        onClick={() => void startPasswordStepUp()}
+                      >
+                        Xác minh OTP
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : null}
+              {profile.password_login_enabled && (!stepUpRequired || stepUpActive) ? (
                 <form id="account-password-form" className="settings-form" onSubmit={onPasswordSubmit}>
                   <div className="field">
                     <label htmlFor="current_pw">Mật khẩu hiện tại</label>
@@ -504,24 +633,8 @@ export default function AccountPage() {
                       minLength={8}
                     />
                   </div>
+                  <StaffTurnstile active={passwordDrawerOpen} onToken={setTurnstileToken} />
                 </form>
-              ) : null}
-              {profile.sso_enabled && profile.keycloak_account_url ? (
-                <div style={{ marginTop: profile.password_login_enabled ? '0.5rem' : 0 }}>
-                  <p className="muted">
-                    {profile.password_login_enabled
-                      ? 'Hoặc đổi mật khẩu SSO trên Keycloak:'
-                      : 'Tài khoản SSO — đổi mật khẩu trên Keycloak:'}
-                  </p>
-                  <a
-                    href={profile.keycloak_account_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn btn-secondary btn-sm"
-                  >
-                    Đổi mật khẩu trên Keycloak
-                  </a>
-                </div>
               ) : null}
               {profile.password_login_enabled && profile.sso_enabled ? (
                 <p className="muted">SSO và mật khẩu Nest là hai nguồn riêng; đổi một bên không đổi bên kia.</p>

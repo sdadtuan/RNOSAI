@@ -55,6 +55,9 @@ export interface StaffAccountProfile {
   password_login_enabled?: boolean;
   sso_enabled?: boolean;
   mfa_required_for_position?: boolean;
+  password_step_up_required?: boolean;
+  password_step_up_active?: boolean;
+  password_step_up_active_until?: string | null;
   keycloak_account_url?: string | null;
   teams?: StaffAccountTeam[];
   has_avatar?: boolean;

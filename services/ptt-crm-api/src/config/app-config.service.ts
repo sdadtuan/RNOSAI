@@ -58,6 +58,8 @@ export class AppConfigService {
   readonly staffKeycloakAudience: string;
   readonly staffKeycloakClientId: string;
   readonly staffMfaRequiredPositionCodes: string[];
+  readonly staffTurnstileSecret: string | null;
+  readonly staffPasswordStepUpWindowMs: number;
   readonly staffScopePilotEnabled: boolean;
   readonly staffPolicyOpaEnabled: boolean;
   readonly adminMatrixApprovalRequired: boolean;
@@ -302,6 +304,11 @@ export class AppConfigService {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
+    this.staffTurnstileSecret = (process.env.PTT_STAFF_TURNSTILE_SECRET ?? '').trim() || null;
+    this.staffPasswordStepUpWindowMs = Math.max(
+      60_000,
+      Number(process.env.PTT_STAFF_PASSWORD_STEP_UP_WINDOW_MS ?? 600_000) || 600_000,
+    );
     this.staffScopePilotEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.STAFF_SCOPE_PILOT ?? '0').trim().toLowerCase(),
     );

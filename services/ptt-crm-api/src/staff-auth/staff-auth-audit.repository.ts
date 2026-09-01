@@ -9,6 +9,7 @@ export type StaffAuthAuditEvent =
   | 'mfa_blocked'
   | 'token_revoked'
   | 'password_changed'
+  | 'password_step_up'
   | 'session_revoked'
   | 'sessions_revoked_others'
   | 'sessions_revoked_all'

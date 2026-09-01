@@ -45,6 +45,13 @@ class StaffRefreshBody {
 class StaffChangePasswordBody {
   current_password?: string;
   new_password?: string;
+  turnstile_token?: string;
+}
+
+class StaffPasswordStepUpBody {
+  code?: string;
+  redirect_uri?: string;
+  code_verifier?: string;
 }
 
 @Controller('api/v1/staff/auth')
@@ -114,12 +121,31 @@ export class StaffAuthController {
   @Post('account/password')
   @UseGuards(StaffJwtGuard)
   @HttpCode(HttpStatus.OK)
-  changePassword(@StaffUser() user: StaffJwtPayload, @Body() body: StaffChangePasswordBody) {
+  changePassword(
+    @Req() req: Request,
+    @StaffUser() user: StaffJwtPayload,
+    @Body() body: StaffChangePasswordBody,
+  ) {
     return this.account.changePassword(
       user,
       body.current_password ?? '',
       body.new_password ?? '',
+      {
+        turnstileToken: body.turnstile_token,
+        clientIp: staffClientIp(req),
+      },
     );
+  }
+
+  @Post('account/password/step-up')
+  @UseGuards(StaffJwtGuard)
+  @HttpCode(HttpStatus.OK)
+  passwordStepUp(@StaffUser() user: StaffJwtPayload, @Body() body: StaffPasswordStepUpBody) {
+    return this.account.confirmPasswordStepUp(user, {
+      code: body.code ?? '',
+      redirectUri: body.redirect_uri ?? '',
+      codeVerifier: body.code_verifier ?? '',
+    });
   }
 
   @Get('account/sessions')

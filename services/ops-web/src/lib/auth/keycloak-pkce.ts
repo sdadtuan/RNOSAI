@@ -1,5 +1,16 @@
 const PKCE_VERIFIER_KEY = 'ptt_ops_pkce_verifier';
 const PKCE_STATE_KEY = 'ptt_ops_oidc_state';
+const PKCE_STEPUP_VERIFIER_KEY = 'ptt_ops_pw_stepup_verifier';
+const PKCE_STEPUP_STATE_KEY = 'ptt_ops_pw_stepup_state';
+
+export type PkceFlow = 'login' | 'password_step_up';
+
+function pkceKeys(flow: PkceFlow): { verifierKey: string; stateKey: string } {
+  if (flow === 'password_step_up') {
+    return { verifierKey: PKCE_STEPUP_VERIFIER_KEY, stateKey: PKCE_STEPUP_STATE_KEY };
+  }
+  return { verifierKey: PKCE_VERIFIER_KEY, stateKey: PKCE_STATE_KEY };
+}
 
 function base64UrlEncode(bytes: Uint8Array): string {
   let binary = '';
@@ -21,26 +32,28 @@ export async function pkceChallengeFromVerifier(verifier: string): Promise<strin
   return base64UrlEncode(new Uint8Array(digest));
 }
 
-export function storePkceSession(verifier: string, state: string): void {
+export function storePkceSession(verifier: string, state: string, flow: PkceFlow = 'login'): void {
   if (typeof sessionStorage === 'undefined') return;
-  sessionStorage.setItem(PKCE_VERIFIER_KEY, verifier);
-  sessionStorage.setItem(PKCE_STATE_KEY, state);
+  const keys = pkceKeys(flow);
+  sessionStorage.setItem(keys.verifierKey, verifier);
+  sessionStorage.setItem(keys.stateKey, state);
 }
 
-export function readPkceVerifier(): string | null {
+export function readPkceVerifier(flow: PkceFlow = 'login'): string | null {
   if (typeof sessionStorage === 'undefined') return null;
-  return sessionStorage.getItem(PKCE_VERIFIER_KEY);
+  return sessionStorage.getItem(pkceKeys(flow).verifierKey);
 }
 
-export function readPkceState(): string | null {
+export function readPkceState(flow: PkceFlow = 'login'): string | null {
   if (typeof sessionStorage === 'undefined') return null;
-  return sessionStorage.getItem(PKCE_STATE_KEY);
+  return sessionStorage.getItem(pkceKeys(flow).stateKey);
 }
 
-export function clearPkceSession(): void {
+export function clearPkceSession(flow: PkceFlow = 'login'): void {
   if (typeof sessionStorage === 'undefined') return;
-  sessionStorage.removeItem(PKCE_VERIFIER_KEY);
-  sessionStorage.removeItem(PKCE_STATE_KEY);
+  const keys = pkceKeys(flow);
+  sessionStorage.removeItem(keys.verifierKey);
+  sessionStorage.removeItem(keys.stateKey);
 }
 
 export function randomOidcState(): string {
@@ -55,11 +68,13 @@ export async function buildStaffKeycloakAuthUrl(params: {
   redirectUri: string;
   acrValues?: string;
   prompt?: string;
+  flow?: PkceFlow;
 }): Promise<string> {
+  const flow = params.flow ?? 'login';
   const verifier = generatePkceVerifier();
   const challenge = await pkceChallengeFromVerifier(verifier);
   const state = randomOidcState();
-  storePkceSession(verifier, state);
+  storePkceSession(verifier, state, flow);
 
   const authBase = `${params.issuer.replace(/\/$/, '')}/protocol/openid-connect/auth`;
   const qs = new URLSearchParams({

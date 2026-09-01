@@ -5,6 +5,7 @@ const SUMMARY_VI: Record<string, string> = {
   mfa_blocked: 'Bị chặn vì chưa OTP',
   token_revoked: 'Token bị hủy',
   password_changed: 'Đổi mật khẩu Nest',
+  password_step_up: 'Xác minh OTP trước đổi mật khẩu',
   session_revoked: 'Thu hồi một phiên',
   sessions_revoked_others: 'Đăng xuất các thiết bị khác',
   sessions_revoked_all: 'Đăng xuất mọi thiết bị',
