@@ -47,6 +47,15 @@ function userInitials(user: StoredStaffUser | StaffMeResponse | null): string {
   return name.slice(0, 2).toUpperCase();
 }
 
+type AccountTab = 'profile' | 'security' | 'sessions' | 'audit';
+
+const ACCOUNT_TABS: Array<{ id: AccountTab; label: string }> = [
+  { id: 'profile', label: 'Hồ sơ' },
+  { id: 'security', label: 'Bảo mật' },
+  { id: 'sessions', label: 'Phiên' },
+  { id: 'audit', label: 'Nhật ký' },
+];
+
 export default function AccountPage() {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -61,6 +70,7 @@ export default function AccountPage() {
   const [confirmPw, setConfirmPw] = useState('');
   const [passwordDrawerOpen, setPasswordDrawerOpen] = useState(false);
   const [drawerError, setDrawerError] = useState('');
+  const [activeTab, setActiveTab] = useState<AccountTab>('profile');
 
   const profile = bundle?.profile ?? null;
   const avatarUrl = useStaffAvatarBlob(token, Boolean(profile?.has_avatar), profile?.avatar_updated_at);
@@ -241,111 +251,201 @@ export default function AccountPage() {
         {profile ? (
           <>
             <section className="card account-card">
-              <h2>Hồ sơ</h2>
-              <div className="account-profile-row">
-                <div className="account-avatar-preview" aria-hidden="true">
-                  {avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={avatarUrl} alt="" />
+              <div className="account-tabs" role="tablist" aria-label="Tài khoản">
+                {ACCOUNT_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === tab.id}
+                    className={`account-tab${activeTab === tab.id ? ' account-tab--active' : ''}`}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {activeTab === 'profile' ? (
+                <div className="account-tab-panel" role="tabpanel">
+                  <div className="account-profile-row">
+                    <div className="account-avatar-preview" aria-hidden="true">
+                      {avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={avatarUrl} alt="" />
+                      ) : (
+                        userInitials(profile)
+                      )}
+                    </div>
+                    <div>
+                      <p>
+                        <strong>{profile.display_name}</strong>
+                      </p>
+                      <p className="muted">{profile.email}</p>
+                      <p className="muted">
+                        Chức vụ: {profile.position_code ?? '—'}
+                        {profile.teams?.length
+                          ? ` · Team: ${profile.teams.map((t) => t.name).join(', ')}`
+                          : null}
+                      </p>
+                      <p className="muted">Loại TK: {profile.account_kind ?? 'staff'}</p>
+                      <p className="muted">
+                        Lần đăng nhập gần nhất:{' '}
+                        {profile.last_login_at ? formatDt(profile.last_login_at) : '—'}
+                      </p>
+                      <p>
+                        {profile.oidc_linked ? (
+                          <span className="account-badge">SSO đã liên kết</span>
+                        ) : (
+                          <span className="account-badge">Chưa liên kết SSO</span>
+                        )}
+                        {profile.password_login_enabled ? (
+                          <span className="account-badge">Mật khẩu Nest</span>
+                        ) : null}
+                      </p>
+                      <p className="muted" style={{ marginTop: '0.5rem' }}>
+                        Sửa họ tên / chức vụ: liên hệ HR.
+                      </p>
+                      <div className="account-actions">
+                        <input
+                          ref={fileRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          hidden
+                          onChange={onPickAvatar}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          disabled={busy}
+                          onClick={() => fileRef.current?.click()}
+                        >
+                          Đổi ảnh
+                        </button>
+                        {profile.password_login_enabled || (profile.sso_enabled && profile.keycloak_account_url) ? (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            disabled={busy}
+                            onClick={openPasswordDrawer}
+                          >
+                            Đổi mật khẩu
+                          </button>
+                        ) : null}
+                        {profile.has_avatar ? (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            disabled={busy}
+                            onClick={() => void onDeleteAvatar()}
+                          >
+                            Xóa ảnh
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {activeTab === 'security' ? (
+                <div className="account-tab-panel" role="tabpanel">
+                  <p>
+                    Chức vụ này bắt buộc OTP:{' '}
+                    <strong>{profile.mfa_required_for_position ? 'Có' : 'Không'}</strong>
+                  </p>
+                  {profile.keycloak_account_url ? (
+                    <a
+                      href={profile.keycloak_account_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn btn-secondary btn-sm"
+                    >
+                      Quản lý OTP trên Keycloak
+                    </a>
                   ) : (
-                    userInitials(profile)
+                    <p className="muted">Chưa cấu hình Keycloak account URL.</p>
                   )}
                 </div>
-                <div>
-                  <p>
-                    <strong>{profile.display_name}</strong>
-                  </p>
-                  <p className="muted">{profile.email}</p>
-                  <p className="muted">
-                    Chức vụ: {profile.position_code ?? '—'}
-                    {profile.teams?.length
-                      ? ` · Team: ${profile.teams.map((t) => t.name).join(', ')}`
-                      : null}
-                  </p>
-                  <p className="muted">Loại TK: {profile.account_kind ?? 'staff'}</p>
-                  <p className="muted">
-                    Lần đăng nhập gần nhất:{' '}
-                    {profile.last_login_at ? formatDt(profile.last_login_at) : '—'}
-                  </p>
-                  <p>
-                    {profile.oidc_linked ? (
-                      <span className="account-badge">SSO đã liên kết</span>
-                    ) : (
-                      <span className="account-badge">Chưa liên kết SSO</span>
-                    )}
-                    {profile.password_login_enabled ? (
-                      <span className="account-badge">Mật khẩu Nest</span>
-                    ) : null}
-                  </p>
-                  <p className="muted" style={{ marginTop: '0.5rem' }}>
-                    Sửa họ tên / chức vụ: liên hệ HR.
-                  </p>
+              ) : null}
+
+              {activeTab === 'sessions' ? (
+                <div className="account-tab-panel" role="tabpanel">
+                  <table className="account-table">
+                    <thead>
+                      <tr>
+                        <th>Thiết bị</th>
+                        <th>Phương thức</th>
+                        <th>IP</th>
+                        <th>Hoạt động</th>
+                        <th>Hết hạn</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(bundle?.sessions.items ?? []).map((s) => (
+                        <tr key={s.id}>
+                          <td>
+                            {s.current ? <span className="account-badge">Thiết bị này</span> : null}{' '}
+                            {s.device_label}
+                            {s.revoked_at ? (
+                              <span className="account-badge" style={{ marginLeft: '0.35rem' }}>
+                                Đã thu hồi
+                              </span>
+                            ) : null}
+                          </td>
+                          <td>{s.login_method === 'sso' ? 'SSO' : 'Mật khẩu Nest'}</td>
+                          <td>{s.ip ?? '—'}</td>
+                          <td>{formatDt(s.last_seen_at)}</td>
+                          <td>{formatDt(s.expires_at)}</td>
+                          <td>
+                            {!s.revoked_at ? (
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                disabled={busy}
+                                onClick={() => void onRevokeSession(s.id)}
+                              >
+                                Thu hồi
+                              </button>
+                            ) : null}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                   <div className="account-actions">
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      hidden
-                      onChange={onPickAvatar}
-                    />
                     <button
                       type="button"
                       className="btn btn-secondary btn-sm"
                       disabled={busy}
-                      onClick={() => fileRef.current?.click()}
+                      onClick={() => void onRevokeOthers()}
                     >
-                      Đổi ảnh
+                      Đăng xuất thiết bị khác
                     </button>
-                    {profile.password_login_enabled || (profile.sso_enabled && profile.keycloak_account_url) ? (
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        disabled={busy}
-                        onClick={openPasswordDrawer}
-                      >
-                        Đổi mật khẩu
-                      </button>
-                    ) : null}
-                    {profile.has_avatar ? (
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm"
-                        disabled={busy}
-                        onClick={() => void onDeleteAvatar()}
-                      >
-                        Xóa ảnh
-                      </button>
-                    ) : null}
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={busy}
+                      onClick={() => void onRevokeAll()}
+                    >
+                      Đăng xuất mọi thiết bị
+                    </button>
                   </div>
                 </div>
-              </div>
-            </section>
-
-            <section className="card account-card">
-              <h2>Mật khẩu</h2>
-              {profile.password_login_enabled ? (
-                <p className="muted">Bấm <strong>Đổi mật khẩu</strong> ở khối Hồ sơ để cập nhật mật khẩu Nest.</p>
-              ) : profile.sso_enabled ? (
-                <p className="muted">Tài khoản này đổi mật khẩu trên Keycloak.</p>
-              ) : (
-                <p className="muted">Tài khoản này không dùng mật khẩu Nest.</p>
-              )}
-              {profile.sso_enabled && profile.keycloak_account_url ? (
-                <p style={{ marginTop: '0.75rem' }}>
-                  <a
-                    href={profile.keycloak_account_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn btn-secondary btn-sm"
-                  >
-                    Mở tài khoản Keycloak
-                  </a>
-                </p>
               ) : null}
-              {profile.password_login_enabled && profile.sso_enabled ? (
-                <p className="muted" style={{ marginTop: '0.75rem' }}>
-                  SSO và mật khẩu Nest là hai nguồn riêng; đổi một bên không đổi bên kia.
-                </p>
+
+              {activeTab === 'audit' ? (
+                <div className="account-tab-panel" role="tabpanel">
+                  <ul className="account-audit-list">
+                    {(bundle?.audit.items ?? []).map((item) => (
+                      <li key={item.id}>
+                        <span>{item.summary_vi}</span>
+                        <span className="muted">{formatDt(item.created_at)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ) : null}
             </section>
 
@@ -427,91 +527,6 @@ export default function AccountPage() {
                 <p className="muted">SSO và mật khẩu Nest là hai nguồn riêng; đổi một bên không đổi bên kia.</p>
               ) : null}
             </WinDrawer>
-
-            <section className="card account-card">
-              <h2>Bảo mật (MFA)</h2>
-              <p>
-                Chức vụ này bắt buộc OTP:{' '}
-                <strong>{profile.mfa_required_for_position ? 'Có' : 'Không'}</strong>
-              </p>
-              {profile.keycloak_account_url ? (
-                <a
-                  href={profile.keycloak_account_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn btn-secondary btn-sm"
-                >
-                  Quản lý OTP trên Keycloak
-                </a>
-              ) : null}
-            </section>
-
-            <section className="card account-card">
-              <h2>Phiên đăng nhập</h2>
-              <table className="account-table">
-                <thead>
-                  <tr>
-                    <th>Thiết bị</th>
-                    <th>Phương thức</th>
-                    <th>IP</th>
-                    <th>Hoạt động</th>
-                    <th>Hết hạn</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {(bundle?.sessions.items ?? []).map((s) => (
-                    <tr key={s.id}>
-                      <td>
-                        {s.current ? <span className="account-badge">Thiết bị này</span> : null}{' '}
-                        {s.device_label}
-                        {s.revoked_at ? (
-                          <span className="account-badge" style={{ marginLeft: '0.35rem' }}>
-                            Đã thu hồi
-                          </span>
-                        ) : null}
-                      </td>
-                      <td>{s.login_method === 'sso' ? 'SSO' : 'Mật khẩu Nest'}</td>
-                      <td>{s.ip ?? '—'}</td>
-                      <td>{formatDt(s.last_seen_at)}</td>
-                      <td>{formatDt(s.expires_at)}</td>
-                      <td>
-                        {!s.revoked_at ? (
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-sm"
-                            disabled={busy}
-                            onClick={() => void onRevokeSession(s.id)}
-                          >
-                            Thu hồi
-                          </button>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="account-actions">
-                <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void onRevokeOthers()}>
-                  Đăng xuất thiết bị khác
-                </button>
-                <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void onRevokeAll()}>
-                  Đăng xuất mọi thiết bị
-                </button>
-              </div>
-            </section>
-
-            <section className="card account-card">
-              <h2>Nhật ký</h2>
-              <ul className="account-audit-list">
-                {(bundle?.audit.items ?? []).map((item) => (
-                  <li key={item.id}>
-                    <span>{item.summary_vi}</span>
-                    <span className="muted">{formatDt(item.created_at)}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
           </>
         ) : null}
       </div>

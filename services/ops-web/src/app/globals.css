@@ -7909,6 +7909,39 @@ html.ops-shell-collapsed .ops-nav-group-links {
   padding: 1.25rem;
 }
 
+.account-tabs {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  margin: -0.25rem -0.25rem 1rem;
+}
+
+.account-tab {
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted, #6b7280);
+  cursor: pointer;
+  font: inherit;
+  padding: 0.55rem 0.85rem;
+}
+
+.account-tab:hover {
+  color: var(--text, #111827);
+}
+
+.account-tab--active {
+  border-bottom-color: var(--primary, #17692f);
+  color: var(--text, #111827);
+  font-weight: 600;
+}
+
+.account-tab-panel {
+  min-height: 120px;
+}
+
 .account-card h2 {
   margin: 0 0 0.75rem;
   font-size: 1.05rem;
