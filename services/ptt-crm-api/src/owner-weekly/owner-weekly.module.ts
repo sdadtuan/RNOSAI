@@ -19,5 +19,6 @@ import { OwnerWeeklyService } from './owner-weekly.service';
     StaffOwnerWeeklyExportGuard,
     StaffOwnerWeeklyConfigureGuard,
   ],
+  exports: [OwnerWeeklyPgRepository],
 })
 export class OwnerWeeklyModule {}

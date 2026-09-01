@@ -6,6 +6,7 @@ import { CrmStaffModule } from '../crm-staff/crm-staff.module';
 import { CrmStaffPgRepository } from '../crm-staff/crm-staff-pg.repository';
 import { LeadsModule } from '../leads/leads.module';
 import { OpsModule } from '../ops/ops.module';
+import { OwnerWeeklyModule } from '../owner-weekly/owner-weekly.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { StaffNotificationsModule } from '../staff-notifications/staff-notifications.module';
 import { CeoCommandActionsRepository } from './ceo-command-actions.repository';
@@ -20,6 +21,8 @@ import { CeoCommandNlService } from './ceo-command-nl.service';
 import { CeoCommandRateService } from './ceo-command-rate.service';
 import { CeoCommandService } from './ceo-command.service';
 import { CeoCommandTurnsRepository } from './ceo-command-turns.repository';
+import { CeoTowerRepository } from './ceo-tower.repository';
+import { CeoTowerSensorService } from './ceo-tower-sensor.service';
 import {
   StaffCeoCommandJwtOnlyGuard,
   StaffCeoCommandViewGuard,
@@ -35,6 +38,7 @@ import {
     forwardRef(() => LeadsModule),
     forwardRef(() => OpsModule),
     forwardRef(() => AiIntelligenceModule),
+    OwnerWeeklyModule,
   ],
   controllers: [CeoCommandController],
   providers: [
@@ -49,10 +53,12 @@ import {
     CeoCommandLibraryService,
     CeoCommandLearnRepository,
     CeoCommandLearnService,
+    CeoTowerRepository,
+    CeoTowerSensorService,
     CrmStaffPgRepository,
     StaffCeoCommandViewGuard,
     StaffCeoCommandJwtOnlyGuard,
   ],
-  exports: [CeoCommandService],
+  exports: [CeoCommandService, CeoTowerSensorService],
 })
 export class CeoCommandModule {}

@@ -348,6 +348,49 @@ export class OwnerWeeklyPgRepository implements OnModuleDestroy {
     return { ok: true, deleted: Number(result.rowCount ?? 0) > 0 };
   }
 
+  /**
+   * Thin public wrapper around private loadLifecycleKpis — same computeK1…K4 SQL.
+   * Do not copy KPI queries into CEO tower.
+   */
+  async loadLifecycleKpiStrip(): Promise<Array<{
+    key: 'k1' | 'k2' | 'k3' | 'k4';
+    value: number | null;
+    status: 'green' | 'amber' | 'red' | 'neutral';
+  }>> {
+    const bounds = resolveWeekBounds({});
+    const targets = await this.getTargets();
+    const metrics = await this.loadLifecycleKpis(bounds.end, targets);
+    const keyMap: Record<string, 'k1' | 'k2' | 'k3' | 'k4'> = {
+      k1_b2_minutes: 'k1',
+      k2_intake_days: 'k2',
+      k3_client_active_days: 'k3',
+      k4_first_call_pct: 'k4',
+    };
+    const out: Array<{
+      key: 'k1' | 'k2' | 'k3' | 'k4';
+      value: number | null;
+      status: 'green' | 'amber' | 'red' | 'neutral';
+    }> = [];
+    for (const metric of metrics) {
+      const mapped = keyMap[String(metric.key ?? '')];
+      if (!mapped) continue;
+      const rawStatus = String(metric.status ?? 'neutral');
+      const status =
+        rawStatus === 'yellow' ? 'amber'
+          : rawStatus === 'green' || rawStatus === 'red' || rawStatus === 'amber' || rawStatus === 'neutral'
+            ? rawStatus
+            : 'neutral';
+      const rawValue = metric.value;
+      const value = rawValue == null || rawValue === '' ? null : Number(rawValue);
+      out.push({
+        key: mapped,
+        value: value != null && Number.isFinite(value) ? value : null,
+        status,
+      });
+    }
+    return out;
+  }
+
   async dashboard(opts: WeekOptions): Promise<Record<string, unknown>> {
     const bounds = resolveWeekBounds(opts);
     const targets = await this.getTargets();

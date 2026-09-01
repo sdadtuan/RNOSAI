@@ -10,12 +10,19 @@ export type CeoBriefingCard = {
 };
 
 export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<T>((_, reject) => {
-      setTimeout(() => reject(new Error('timeout')), ms);
-    }),
-  ]);
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms);
+    p.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
 }
 
 function severityRank(s: CeoBriefingCard['severity']): number {

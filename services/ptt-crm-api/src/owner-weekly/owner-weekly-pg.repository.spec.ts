@@ -173,4 +173,30 @@ describe('OwnerWeeklyPgRepository', () => {
       'k4_first_call_pct',
     ]);
   });
+
+  it('loadLifecycleKpiStrip wraps loadLifecycleKpis and maps yellow→amber', async () => {
+    query.mockImplementation(async (sql: string) => {
+      const normalized = String(sql);
+      if (normalized.includes('CREATE TABLE')) return { rows: [] };
+      if (normalized.includes('thresholds_json')) return { rows: [] };
+      if (normalized.includes("milestone_key = 'b2_done'") && normalized.includes('created_at')) {
+        return {
+          rows: [
+            { created_at: '2026-08-01T08:00:00Z', b2_at: '2026-08-01T09:00:00Z' },
+            { created_at: '2026-08-02T08:00:00Z', b2_at: '2026-08-02T09:30:00Z' },
+            { created_at: '2026-08-03T08:00:00Z', b2_at: '2026-08-03T10:00:00Z' },
+          ],
+        };
+      }
+      if (normalized.includes('FROM crm_leads') && normalized.includes('spa_meta')) {
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+
+    const strip = await repo.loadLifecycleKpiStrip();
+    expect(strip.map((item) => item.key)).toEqual(['k1', 'k2', 'k3', 'k4']);
+    expect(strip.every((item) => ['green', 'amber', 'red', 'neutral'].includes(item.status))).toBe(true);
+    expect(strip.find((item) => item.key === 'k1')?.value).not.toBe(0);
+  });
 });

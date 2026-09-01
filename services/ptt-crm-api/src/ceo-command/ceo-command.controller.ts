@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   Patch,
@@ -15,9 +16,12 @@ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.gua
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { parseNumericStaffSub } from '../staff-auth/staff-user-id.util';
 import { CeoCommandActionsService } from './ceo-command-actions.service';
+import { hasCeoConfigure } from './ceo-command-caps.util';
 import { CeoCommandLearnService } from './ceo-command-learn.service';
 import { CeoCommandService } from './ceo-command.service';
 import type { CeoActor } from './ceo-command.types';
+import { CeoTowerSensorService } from './ceo-tower-sensor.service';
+import type { TowerQuery } from './ceo-tower.types';
 import {
   StaffCeoCommandJwtOnlyGuard,
   StaffCeoCommandViewGuard,
@@ -36,6 +40,7 @@ export class CeoCommandController {
     private readonly actions: CeoCommandActionsService,
     private readonly learn: CeoCommandLearnService,
     private readonly staffAuth: StaffAuthService,
+    private readonly towerSensors: CeoTowerSensorService,
   ) {}
 
   private async actor(req: AuthedReq): Promise<CeoActor> {
@@ -55,6 +60,23 @@ export class CeoCommandController {
   async context(@Req() req: AuthedReq) {
     const actor = await this.actor(req);
     return this.ceo.getContext(actor);
+  }
+
+  @Get('tower')
+  async tower(@Req() req: AuthedReq, @Query() query: TowerQuery) {
+    const actor = await this.actor(req);
+    const severityTokens = String(query.severity ?? '')
+      .split(',')
+      .map((token) => token.trim().toLowerCase())
+      .filter(Boolean);
+    if (severityTokens.includes('ok') && !hasCeoConfigure(actor.caps)) {
+      throw new ForbiddenException({
+        error: 'missing_cap',
+        section: 'ceo_command',
+        action: 'configure',
+      });
+    }
+    return this.towerSensors.buildPayload(actor, query);
   }
 
   @Get('threads')
