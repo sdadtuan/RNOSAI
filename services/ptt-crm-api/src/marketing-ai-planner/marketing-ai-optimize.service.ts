@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
+import { assertPlannerAllowed, throwPlannerAllowResult } from './mkt-ai-planner-allow.util';
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
 import { MarketingAiOrchestratorService } from './marketing-ai-orchestrator.service';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
@@ -33,13 +34,14 @@ export class MarketingAiOptimizeService {
   ) {}
 
   private assertEnabled(serviceSlug?: string): void {
-    if (!this.config.mktAiPlannerEnabled) {
-      throw new NotFoundException({ error: 'mkt_ai_planner_disabled' });
-    }
-    const slugs = this.config.mktAiPlannerSlugs;
-    if (slugs.length && serviceSlug && !slugs.includes(serviceSlug)) {
-      throw new NotFoundException({ error: 'mkt_ai_planner_slug_not_pilot', service_slug: serviceSlug });
-    }
+    throwPlannerAllowResult(
+      assertPlannerAllowed(serviceSlug ?? '', null, {
+        plannerEnabled: this.config.mktAiPlannerEnabled,
+        envSlugs: this.config.mktAiPlannerSlugs,
+        pilotOnly: this.config.mktAiPilotOnlyEnabled,
+        pilotSlugs: this.config.mktAiPilotServiceSlugs,
+      }),
+    );
   }
 
   async execute(

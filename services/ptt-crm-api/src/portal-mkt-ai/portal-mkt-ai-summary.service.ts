@@ -6,6 +6,7 @@ import {
 import { AppConfigService } from '../config/app-config.service';
 import { computeQualityScore } from '../marketing-ai-planner/marketing-ai-quality.util';
 import { emptyDraft } from '../marketing-ai-planner/marketing-ai-brief.util';
+import { assertPlannerAllowed, throwPlannerAllowResult } from '../marketing-ai-planner/mkt-ai-planner-allow.util';
 import type { MktAiDraft } from '../marketing-ai-planner/marketing-ai-planner.types';
 import { MarketingAiPlaybookService } from '../marketing-ai-planner/marketing-ai-playbook.service';
 import { MarketingAiPlannerRepository } from '../marketing-ai-planner/marketing-ai-planner.repository';
@@ -48,13 +49,14 @@ export class PortalMktAiSummaryService {
   }
 
   private assertPlannerSlug(serviceSlug: string): void {
-    const slugs = this.config.mktAiPlannerSlugs;
-    if (slugs.length && serviceSlug && !slugs.includes(serviceSlug)) {
-      throw new ForbiddenException({
-        error: 'mkt_ai_planner_slug_not_pilot',
-        service_slug: serviceSlug,
-      });
-    }
+    throwPlannerAllowResult(
+      assertPlannerAllowed(serviceSlug ?? '', null, {
+        plannerEnabled: this.config.mktAiPlannerEnabled,
+        envSlugs: this.config.mktAiPlannerSlugs,
+        pilotOnly: this.config.mktAiPilotOnlyEnabled,
+        pilotSlugs: this.config.mktAiPilotServiceSlugs,
+      }),
+    );
   }
 
   private async assertPortalLifecycleAccess(

@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { assertPlannerAllowed, throwPlannerAllowResult } from '../marketing-ai-planner/mkt-ai-planner-allow.util';
 import { extractHttpErrorMessage } from '../common/http-error.util';
 import { CrmLeadsLegacyService } from '../crm-leads-legacy/crm-leads-legacy.service';
 import { AppConfigService } from '../config/app-config.service';
@@ -704,25 +705,14 @@ export class LeadsFunnelService {
   }
 
   private assertPresalesMktAiEnabled(serviceSlug: string): void {
-    if (!this.config.mktAiPlannerEnabled) {
-      throw new ServiceUnavailableException({ error: 'mkt_ai_planner_disabled' });
-    }
-    if (
-      this.config.mktAiPilotOnlyEnabled &&
-      serviceSlug &&
-      !this.config.mktAiPilotServiceSlugs.includes(serviceSlug)
-    ) {
-      throw new ForbiddenException({
-        error: 'mkt_ai_pilot_slug_required',
-        message: 'Presales AI draft chỉ pilot DV02/DV04/DV05/DV20 (P2-13).',
-        pilot_dv: ['DV02', 'DV04', 'DV05', 'DV20'],
-        service_slug: serviceSlug,
-      });
-    }
-    const slugs = this.config.mktAiPlannerSlugs;
-    if (slugs.length && serviceSlug && !slugs.includes(serviceSlug)) {
-      throw new ForbiddenException({ error: 'mkt_ai_planner_slug_not_pilot', service_slug: serviceSlug });
-    }
+    throwPlannerAllowResult(
+      assertPlannerAllowed(serviceSlug ?? '', null, {
+        plannerEnabled: this.config.mktAiPlannerEnabled,
+        envSlugs: this.config.mktAiPlannerSlugs,
+        pilotOnly: this.config.mktAiPilotOnlyEnabled,
+        pilotSlugs: this.config.mktAiPilotServiceSlugs,
+      }),
+    );
   }
 
   async generatePresalesMarketingPlanAiDraft(leadId: number, staffUser?: StaffJwtPayload) {

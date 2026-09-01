@@ -1,3 +1,5 @@
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+
 export type PlannerPolicySnap = { rollout: 'off' | 'pilot' | 'ga'; enabled: boolean };
 
 export type PlannerAllowEnv = {
@@ -71,4 +73,17 @@ export function assertPlannerAllowed(
     );
   }
   return { ok: true };
+}
+
+export function throwPlannerAllowResult(allowed: PlannerAllowResult): void {
+  if (allowed.ok) return;
+  if (allowed.error === 'mkt_ai_planner_disabled') {
+    throw new NotFoundException({ error: allowed.error, message: allowed.message });
+  }
+  throw new ForbiddenException({
+    error: allowed.error,
+    message: allowed.message,
+    admin_path: allowed.admin_path,
+    service_slug: allowed.service_slug,
+  });
 }

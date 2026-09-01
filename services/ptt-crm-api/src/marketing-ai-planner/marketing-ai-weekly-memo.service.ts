@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
+import { assertPlannerAllowed, throwPlannerAllowResult } from './mkt-ai-planner-allow.util';
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
 import { MarketingAiKpiClosedLoopService } from './marketing-ai-kpi-closed-loop.service';
 import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
@@ -60,13 +61,14 @@ export class MarketingAiWeeklyMemoService implements OnModuleDestroy {
   }
 
   private assertEnabled(serviceSlug?: string): void {
-    if (!this.config.mktAiPlannerEnabled) {
-      throw new NotFoundException({ error: 'mkt_ai_planner_disabled' });
-    }
-    const slugs = this.config.mktAiPlannerSlugs;
-    if (slugs.length && serviceSlug && !slugs.includes(serviceSlug)) {
-      throw new NotFoundException({ error: 'mkt_ai_planner_slug_not_pilot', service_slug: serviceSlug });
-    }
+    throwPlannerAllowResult(
+      assertPlannerAllowed(serviceSlug ?? '', null, {
+        plannerEnabled: this.config.mktAiPlannerEnabled,
+        envSlugs: this.config.mktAiPlannerSlugs,
+        pilotOnly: this.config.mktAiPilotOnlyEnabled,
+        pilotSlugs: this.config.mktAiPilotServiceSlugs,
+      }),
+    );
     if (!this.isEnabled()) {
       throw new NotFoundException({ error: 'mkt_ai_kpi_closed_loop_disabled' });
     }

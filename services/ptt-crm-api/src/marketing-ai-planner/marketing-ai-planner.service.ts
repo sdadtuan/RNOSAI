@@ -11,6 +11,7 @@ import {
 import { AiAgentRunsRepository } from '../ai-intelligence/ai-agent-runs.repository';
 import { AppConfigService } from '../config/app-config.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
+import { assertPlannerAllowed, throwPlannerAllowResult } from './mkt-ai-planner-allow.util';
 import { validateMktAiBrief, mergeBrief, emptyDraft } from './marketing-ai-brief.util';
 import { computeBriefReadiness } from './marketing-ai-brief-readiness.util';
 import {
@@ -110,25 +111,14 @@ export class MarketingAiPlannerService {
   ) {}
 
   private assertEnabled(serviceSlug?: string): void {
-    if (!this.config.mktAiPlannerEnabled) {
-      throw new NotFoundException({ error: 'mkt_ai_planner_disabled' });
-    }
-    if (
-      this.config.mktAiPilotOnlyEnabled &&
-      serviceSlug &&
-      !this.config.mktAiPilotServiceSlugs.includes(serviceSlug)
-    ) {
-      throw new ForbiddenException({
-        error: 'mkt_ai_pilot_slug_required',
-        message: 'AI Marketing chỉ pilot DV02/DV04/DV05/DV20 — tắt PTT_MKT_AI_PILOT_ONLY để GA toàn hệ.',
-        pilot_dv: ['DV02', 'DV04', 'DV05', 'DV20'],
-        service_slug: serviceSlug,
-      });
-    }
-    const slugs = this.config.mktAiPlannerSlugs;
-    if (slugs.length && serviceSlug && !slugs.includes(serviceSlug)) {
-      throw new ForbiddenException({ error: 'mkt_ai_planner_slug_not_pilot', service_slug: serviceSlug });
-    }
+    throwPlannerAllowResult(
+      assertPlannerAllowed(serviceSlug ?? '', null, {
+        plannerEnabled: this.config.mktAiPlannerEnabled,
+        envSlugs: this.config.mktAiPlannerSlugs,
+        pilotOnly: this.config.mktAiPilotOnlyEnabled,
+        pilotSlugs: this.config.mktAiPilotServiceSlugs,
+      }),
+    );
   }
 
   private async loadLifecycleRow(id: number): Promise<Record<string, unknown>> {

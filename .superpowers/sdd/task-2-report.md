@@ -1,54 +1,62 @@
-# Task 2 Report — CRM Staff PostgreSQL Cutover
+# Task 2 Report: Wire Planner + Presales to allow util (P0)
 
-## Status
-
-Complete on branch `feat/wave2-sqlite-removal`.
+**Status:** Complete  
+**Branch:** `feat/mkt-ai-playbook-learn`  
+**Date:** 2026-09-01
 
 ## Summary
 
-- Removed `CrmStaffSqliteRepository` and all `crmStaffPg` runtime branches from `CrmStaffService`.
-- Injected and used `CrmStaffPgRepository` as the sole CRM staff persistence provider.
-- Removed the SQLite provider from `CrmStaffModule`.
-- Deleted `crm-staff-sqlite.repository.ts`.
-- Added a regression spec that rejects SQLite repository imports in the service.
+Wired `assertPlannerAllowed` + `throwPlannerAllowResult` into all MKT AI services that previously duplicated slug/pilot checks. Removed legacy dual throws (`mkt_ai_pilot_slug_required`, `mkt_ai_planner_slug_not_pilot`). Policy remains `null` until Task 4.
 
-Public CRM staff operations remain available for staff listing/detail/workspace,
-patching, KPI access, levels, competencies, and staff import.
+## Changes
 
-## TDD
+### Util (`mkt-ai-planner-allow.util.ts`)
+- Added `throwPlannerAllowResult(allowed)` — maps `mkt_ai_planner_disabled` → `NotFoundException`, all other errors → `ForbiddenException` with `{ error, message, admin_path, service_slug }`.
 
-RED:
+### Services wired
+| File | Method |
+|------|--------|
+| `marketing-ai-planner.service.ts` | `assertEnabled` |
+| `leads-funnel.service.ts` | `assertPresalesMktAiEnabled` |
+| `marketing-ai-dashboard.service.ts` | `assertEnabled` |
+| `marketing-ai-optimize.service.ts` | `assertEnabled` |
+| `marketing-ai-weekly-memo.service.ts` | `assertEnabled` |
+| `marketing-ai-kpi-closed-loop.service.ts` | `assertEnabled` |
+| `portal-mkt-ai-summary.service.ts` | `assertPlannerSlug` |
 
-```text
-FAIL src/crm-staff/crm-staff.service.spec.ts
-Expected service source not to match CrmStaffSqliteRepository, but it did.
+### Error shape (403 slug errors)
+```json
+{
+  "error": "mkt_ai_service_not_enabled",
+  "message": "Dịch vụ này chưa mở AI Planner. MKT Lead bật pilot tại Admin → AI Marketing → Playbooks.",
+  "admin_path": "/crm/admin/mkt-ai/playbooks?slug=<slug>",
+  "service_slug": "<slug>"
+}
 ```
 
-GREEN:
+### Presales behavior change
+- `assertPresalesMktAiEnabled` now throws `NotFoundException` (was `ServiceUnavailableException`) when planner module is off — aligned with planner service.
 
-```text
-PASS src/crm-staff/crm-staff.service.spec.ts
-1 suite passed, 1 test passed
+## Tests
+
+```
+cd services/ptt-crm-api && npx jest --testPathPattern='marketing-ai-planner|leads-funnel' --no-coverage
+→ 58 suites, 225 tests PASS
 ```
 
-## Verification
-
-```text
-npm test -- src/crm-staff --runInBand
-1 suite passed, 1 test passed
-
-npm run build
-exit 0
-```
-
-The npm commands emit the existing unsupported `devdir` configuration warning;
-it does not affect either result.
+Spec updates:
+- Added pilot/env slug config to planner, dashboard, optimize service specs.
+- Fixed planner service spec constructor (20 deps) + disabled-feature stubs.
+- Stabilized dashboard spec date window via `resolveDashboardDateWindow` spy.
 
 ## Commit
 
-`Serve CRM staff from PostgreSQL only.`
+```
+feat(mkt-ai): P0 wire single allow error for planner + presales
+```
 
-## Smoke test
+## Concerns / follow-ups
 
-The VPS `/admin/crm/org/staff` list/detail smoke test was not run in this
-session because no authenticated live target was provided.
+1. **Policy still `null`** — Task 4 will wire DB playbook policy; until then env slugs + pilot flags govern access.
+2. **P0 VPS hotfix** — PO may need `quang-cao-facebook` in `PTT_MKT_AI_PLANNER_SLUGS` if env list is non-empty and slug missing from pilot list.
+3. **Presales 503→404** — clients parsing `ServiceUnavailableException` for disabled planner on presales path should migrate to 404 `mkt_ai_planner_disabled`.

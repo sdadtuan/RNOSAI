@@ -1,7 +1,13 @@
 import { MarketingAiDashboardService } from './marketing-ai-dashboard.service';
+import * as dashboardUtil from './marketing-ai-dashboard.util';
 
 describe('MarketingAiDashboardService', () => {
-  const config = { mktAiPlannerEnabled: true, mktAiPlannerSlugs: [] as string[] };
+  const config = {
+    mktAiPlannerEnabled: true,
+    mktAiPlannerSlugs: ['meta-lead-gen'] as string[],
+    mktAiPilotOnlyEnabled: false,
+    mktAiPilotServiceSlugs: [] as string[],
+  };
   const lifecycle = {
     detail: jest.fn(),
     context: jest.fn(),
@@ -31,13 +37,18 @@ describe('MarketingAiDashboardService', () => {
   });
 
   it('aggregates performance rows when linked', async () => {
+    jest.spyOn(dashboardUtil, 'resolveDashboardDateWindow').mockReturnValue({
+      dateFrom: '2026-08-01',
+      dateTo: '2026-08-31',
+      monthStart: '2026-08-01',
+    });
     lifecycle.context.mockResolvedValue({
       contract: { agency_client_id: 'CLI-001' },
     });
     performance.listForClient.mockResolvedValue({
       rows: [
         {
-          performance_date: '2026-08-01',
+          performance_date: '2026-08-15',
           spend: 2_000_000,
           leads_crm: 20,
           conversion_value: 6_000_000,

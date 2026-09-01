@@ -1,7 +1,12 @@
 import { MarketingAiOptimizeService } from './marketing-ai-optimize.service';
 
 describe('MarketingAiOptimizeService', () => {
-  const config = { mktAiPlannerEnabled: true, mktAiPlannerSlugs: [] as string[] };
+  const config = {
+    mktAiPlannerEnabled: true,
+    mktAiPlannerSlugs: ['meta-lead-gen'] as string[],
+    mktAiPilotOnlyEnabled: false,
+    mktAiPilotServiceSlugs: [] as string[],
+  };
   const lifecycle = {
     detail: jest.fn(),
     createCustomTask: jest.fn(),

@@ -4,7 +4,9 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
 describe('MarketingAiPlannerService', () => {
   const config = {
     mktAiPlannerEnabled: true,
-    mktAiPlannerSlugs: [] as string[],
+    mktAiPlannerSlugs: ['meta-lead-gen'] as string[],
+    mktAiPilotOnlyEnabled: false,
+    mktAiPilotServiceSlugs: [] as string[],
     mktAiRagEnabled: false,
   };
   const lifecycle = {
@@ -67,6 +69,22 @@ describe('MarketingAiPlannerService', () => {
     listVersions: jest.fn().mockResolvedValue([]),
     summarizeVersions: jest.fn().mockReturnValue([]),
   };
+  const stubDeps = {
+    dashboard: {} as never,
+    optimize: {} as never,
+    kpiAlerts: {} as never,
+    kpiClosedLoop: { isEnabled: jest.fn().mockReturnValue(false) } as never,
+    weeklyMemo: { isEnabled: jest.fn().mockReturnValue(false) } as never,
+    playbooks: {
+      isEnabled: jest.fn().mockReturnValue(false),
+      isGovernanceBannerEnabled: jest.fn().mockReturnValue(false),
+      isLaunchQaQualityGateEnabled: jest.fn().mockReturnValue(false),
+    } as never,
+    multiAgent: { isEnabled: jest.fn().mockReturnValue(false) } as never,
+    briefUpload: { isFeatureEnabled: jest.fn().mockReturnValue(false) } as never,
+    strategyScenarios: { isEnabled: jest.fn().mockReturnValue(false) } as never,
+    sectionComments: { isEnabled: jest.fn().mockReturnValue(false) } as never,
+  };
 
   let service: MarketingAiPlannerService;
 
@@ -83,6 +101,16 @@ describe('MarketingAiPlannerService', () => {
       versions as never,
       agentRuns as never,
       exportService as never,
+      stubDeps.dashboard,
+      stubDeps.optimize,
+      stubDeps.kpiAlerts,
+      stubDeps.kpiClosedLoop,
+      stubDeps.weeklyMemo,
+      stubDeps.playbooks,
+      stubDeps.multiAgent,
+      stubDeps.briefUpload,
+      stubDeps.strategyScenarios,
+      stubDeps.sectionComments,
     );
     lifecycle.detail.mockResolvedValue({
       id: 123,
@@ -107,7 +135,13 @@ describe('MarketingAiPlannerService', () => {
 
   it('getContext throws when planner disabled', async () => {
     const disabled = new MarketingAiPlannerService(
-      { mktAiPlannerEnabled: false, mktAiPlannerSlugs: [], mktAiRagEnabled: false } as never,
+      {
+        mktAiPlannerEnabled: false,
+        mktAiPlannerSlugs: [],
+        mktAiPilotOnlyEnabled: false,
+        mktAiPilotServiceSlugs: [],
+        mktAiRagEnabled: false,
+      } as never,
       lifecycle as never,
       repo as never,
       orchestrator as never,
@@ -117,6 +151,16 @@ describe('MarketingAiPlannerService', () => {
       versions as never,
       agentRuns as never,
       exportService as never,
+      stubDeps.dashboard,
+      stubDeps.optimize,
+      stubDeps.kpiAlerts,
+      stubDeps.kpiClosedLoop,
+      stubDeps.weeklyMemo,
+      stubDeps.playbooks,
+      stubDeps.multiAgent,
+      stubDeps.briefUpload,
+      stubDeps.strategyScenarios,
+      stubDeps.sectionComments,
     );
     await expect(disabled.getContext(123)).rejects.toBeInstanceOf(NotFoundException);
   });
