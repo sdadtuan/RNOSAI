@@ -118,4 +118,16 @@ describe('rbac-routes', () => {
       ]),
     ).toBe(true);
   });
+
+  it('/crm/ceo requires CEO tower view caps (not crm_leads alone)', () => {
+    const am = user([{ section: 'crm_leads', action: 'view' }, { section: 'crm_leads', action: 'edit' }]);
+    const gdkd = user([{ section: 'crm_business_dashboard', action: 'view' }]);
+    const ownerWeekly = user([{ section: 'crm_owner_weekly_dashboard', action: 'view' }]);
+    const ceo = user([{ section: 'ceo_command', action: 'view' }]);
+    expect(canAccessPath('/crm/ceo', am, 'crm')).toBe(false);
+    expect(canAccessPath('/crm/ceo/board-pack', am, 'crm')).toBe(false);
+    expect(canAccessPath('/crm/ceo', gdkd, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/ceo', ownerWeekly, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/ceo', ceo, 'crm')).toBe(true);
+  });
 });

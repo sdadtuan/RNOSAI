@@ -292,7 +292,7 @@ export default function CeoBoardPackPage() {
       setUser(me);
       updateStoredUser(me);
       if (!canSeeCeoNav(me)) {
-        setError('Không có quyền mở Board pack (403)');
+        router.replace(`/403?from=${encodeURIComponent('/crm/ceo/board-pack')}`);
         return null;
       }
       setToken(access);
@@ -311,7 +311,7 @@ export default function CeoBoardPackPage() {
       setUser(me);
       updateStoredUser(me);
       if (!canSeeCeoNav(me)) {
-        setError('Không có quyền mở Board pack (403)');
+        router.replace(`/403?from=${encodeURIComponent('/crm/ceo/board-pack')}`);
         return null;
       }
       setToken(access);

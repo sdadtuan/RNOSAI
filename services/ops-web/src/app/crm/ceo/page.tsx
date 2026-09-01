@@ -41,7 +41,7 @@ export default function CeoCommandPage() {
       setUser(me);
       updateStoredUser(me);
       if (!canSeeCeoNav(me)) {
-        setError('Không có quyền mở Điều hành CEO (403)');
+        router.replace(`/403?from=${encodeURIComponent('/crm/ceo')}`);
         return null;
       }
       setToken(access);
@@ -60,7 +60,7 @@ export default function CeoCommandPage() {
       setUser(me);
       updateStoredUser(me);
       if (!canSeeCeoNav(me)) {
-        setError('Không có quyền mở Điều hành CEO (403)');
+        router.replace(`/403?from=${encodeURIComponent('/crm/ceo')}`);
         return null;
       }
       setToken(access);

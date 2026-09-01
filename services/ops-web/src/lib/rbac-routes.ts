@@ -8,6 +8,15 @@ export interface CapRequirement {
   action: string;
 }
 
+/** Tower §9.1 / CEO-3 §15 — nav, route guard, hasCeoView parity. */
+export const CEO_COMMAND_VIEW_CAP_REQUIREMENTS: CapRequirement[] = [
+  { section: 'ceo_command', action: 'view' },
+  { section: 'ai_analytics', action: 'query' },
+  { section: 'crm_business_dashboard', action: 'view' },
+  { section: 'ai_admin', action: 'view' },
+  { section: 'crm_owner_weekly_dashboard', action: 'view' },
+];
+
 /** Longest-prefix match wins (more specific rules first). */
 const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
   {
@@ -81,12 +90,7 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
   },
   {
     prefix: '/crm/ceo',
-    anyOf: [
-      { section: 'ceo_command', action: 'view' },
-      { section: 'ai_analytics', action: 'query' },
-      { section: 'crm_business_dashboard', action: 'view' },
-      { section: 'ai_admin', action: 'view' },
-    ],
+    anyOf: CEO_COMMAND_VIEW_CAP_REQUIREMENTS,
   },
   {
     prefix: '/crm',

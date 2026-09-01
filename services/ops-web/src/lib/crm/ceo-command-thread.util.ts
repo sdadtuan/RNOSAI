@@ -1,15 +1,11 @@
 import type { StoredStaffUser } from '@/lib/auth';
-import { hasCap } from '@/lib/auth';
+import { hasAnyCap, CEO_COMMAND_VIEW_CAP_REQUIREMENTS } from '@/lib/rbac-routes';
+
+export { CEO_COMMAND_VIEW_CAP_REQUIREMENTS };
 
 export function canSeeCeoNav(user: StoredStaffUser | null | undefined): boolean {
   if (!user) return false;
-  return (
-    hasCap(user, 'ceo_command', 'view') ||
-    hasCap(user, 'ai_analytics', 'query') ||
-    hasCap(user, 'crm_business_dashboard', 'view') ||
-    hasCap(user, 'ai_admin', 'view') ||
-    hasCap(user, 'crm_owner_weekly_dashboard', 'view')
-  );
+  return hasAnyCap(user, CEO_COMMAND_VIEW_CAP_REQUIREMENTS);
 }
 
 export function ceoBadge(opts: {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { staffMe } from '@/lib/api';
 import {
   canAccessPath,
   type StaffRouteZone,
@@ -10,6 +11,7 @@ import {
   getAccessToken,
   getStoredUser,
   syncAuthCookie,
+  updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
 
@@ -40,18 +42,30 @@ export function StaffRouteGuard({ children, zone }: StaffRouteGuardProps) {
 
     syncAuthCookie();
 
-    const stored = getStoredUser();
-    if (!stored) {
-      router.replace(`/login?next=${encodeURIComponent(next)}`);
-      return;
-    }
+    void (async () => {
+      let userForCap: StoredStaffUser | null = getStoredUser();
+      if (pathname.startsWith('/crm/ceo')) {
+        try {
+          userForCap = await staffMe(token);
+          updateStoredUser(userForCap);
+        } catch {
+          router.replace(`/login?next=${encodeURIComponent(next)}`);
+          return;
+        }
+      }
 
-    if (!canAccessPath(pathname, stored, zone)) {
-      router.replace(`/403?from=${encodeURIComponent(pathname)}`);
-      return;
-    }
+      if (!userForCap) {
+        router.replace(`/login?next=${encodeURIComponent(next)}`);
+        return;
+      }
 
-    setAllowed(true);
+      if (!canAccessPath(pathname, userForCap, zone)) {
+        router.replace(`/403?from=${encodeURIComponent(pathname)}`);
+        return;
+      }
+
+      setAllowed(true);
+    })();
   }, [pathname, router, zone]);
 
   if (!allowed) {
