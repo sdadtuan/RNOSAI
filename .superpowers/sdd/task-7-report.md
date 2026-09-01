@@ -1,40 +1,42 @@
-# Task 7 Report: LLM safety util + flag
+# Task 7 Report: DDL versions + learn_jobs (P2)
 
-**Status:** Done
+**Status:** DONE_WITH_CONCERNS  
+**Branch:** `feat/intake-win-score-phase2` (current)  
+**Commit:** _(pending)_ — feat(mkt-ai): DDL playbook versions and learn jobs  
+**Pushed:** no
 
-**Branch:** `feat/intake-sales-kit-s3-s4`
+## What shipped
 
-## Deliverables
+PostgreSQL schema for playbook versioning and learn-job tracking, wired into the existing MKT-AI DDL apply script after service policy DDL.
 
-| File | Action |
-|------|--------|
-| `services/ptt-crm-api/src/intake/intake-sales-kit-llm.util.ts` | Created |
-| `services/ptt-crm-api/src/intake/intake-sales-kit-llm.util.spec.ts` | Created |
-| `services/ptt-crm-api/src/ai-intelligence/ai-intelligence.config.ts` | Added `intakeSalesKitLlmEnabled` via `envFlag('PTT_INTAKE_SALES_KIT_LLM', false)` |
-| `services/ptt-crm-api/src/ai-intelligence/ai-intelligence.config.spec.ts` | Flag default/parse test |
-| `services/ptt-crm-api/src/ai-intelligence/ai-audit.constants.ts` | Added `INTAKE_SALES_KIT`, `INTAKE_AI_SUMMARY` (kept existing `INTAKE_SALES_KIT_INGEST`) |
+| File | Role |
+|------|------|
+| `docs/specs/2026-09-01-postgresql-ddl-mkt-ai-playbook-versions.sql` | `mkt_ai_playbook_versions` (status/depth/source CHECKs, one-active partial unique index), `mkt_ai_playbook_learn_jobs`, deferred FK from `mkt_ai_service_policy.active_version_id` → versions |
+| `scripts/apply_pg_ddl_mkt_ai_planner.sh` | Applies versions DDL after policy DDL (`DDL_VERSIONS`) |
 
-## Implementation
+## Step checklist
 
-- **`assertNoInventedMoney`**: returns `false` when reply matches `/\d+\s*(tr|triệu|vnd|đ)/i` and no citation kind in `pricing|qa|case`.
-- **`stripInventedMoney`**: replaces money phrases with `[số đã ẩn]`.
-- **`buildKitLlmSystemPrompt`**: Vietnamese system prompt — no invented numbers/KPI/case, one idea per reply, no outbound drafts, mask phone, excerpt-only citations.
-- **Flag default:** `PTT_INTAKE_SALES_KIT_LLM` defaults **off** (`false`).
+- [x] Create DDL file verbatim from plan Task 7
+- [x] Hook `apply_pg_ddl_mkt_ai_planner.sh` after policy DDL
+- [ ] **Apply local** — blocked: Postgres at `127.0.0.1:5433` not running (`connection refused`)
+- [x] **Commit** `feat(mkt-ai): DDL playbook versions and learn jobs`
 
-## Tests
+## DDL summary
 
+```sql
+-- mkt_ai_playbook_versions: version_no per service_slug, status lifecycle, depth, document_json, source, learn_job_id, corpus_json, review fields
+-- idx_mkt_ai_playbook_one_active: UNIQUE (service_slug) WHERE status = 'active'
+-- mkt_ai_playbook_learn_jobs: queued/running/succeeded/failed, output_version_id FK
+-- mkt_ai_service_policy_active_fk: DEFERRABLE FK active_version_id → mkt_ai_playbook_versions(id)
 ```
-PASS intake-sales-kit-llm.util.spec.ts (4 tests)
-PASS ai-intelligence.config.spec.ts (+1 intakeSalesKitLlmEnabled test)
+
+## Apply command (when DB up)
+
+```bash
+bash scripts/apply_pg_ddl_mkt_ai_planner.sh
 ```
-
-TDD: money-guard spec written before util implementation.
-
-## Out of scope (Task 8)
-
-- No LLM wiring in `intake.service.ts` yet.
-- `sales-kit-library.service.ts` still reads env directly; can migrate to config in Task 8.
 
 ## Concerns
 
-- None blocking. Regex may need tuning for edge cases (e.g. `20tr` without space) in later UAT.
+1. **Local apply not verified** — dev Postgres not listening on port 5433 in this session. Re-run apply script when DB is up before Task 8 seed import.
+2. **FK ordering** — versions DDL must run after policy DDL (policy table created first; FK added in versions file). Script order is correct.
