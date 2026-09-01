@@ -10,6 +10,8 @@ import {
   StaffMarketingAiPlannerExportGuard,
   StaffMarketingAiPlannerGenerateGuard,
   StaffMarketingAiPlannerViewGuard,
+  StaffMarketingAiPlaybookAdminViewGuard,
+  StaffMarketingAiPlaybookStaffApproveGuard,
 } from './guards/staff-marketing-ai-planner.guard';
 import { MarketingAiVersionService } from './marketing-ai-version.service';
 import { MarketingAiApprovalService } from './marketing-ai-approval.service';
@@ -36,6 +38,7 @@ import { MktAiPlannerAllowService } from './mkt-ai-planner-allow.service';
 import { MktAiServicePolicyRepository } from './mkt-ai-service-policy.repository';
 import { MktAiPlaybookVersionsRepository } from './mkt-ai-playbook-versions.repository';
 import { MktAiPlaybookLearnService } from './mkt-ai-playbook-learn.service';
+import { MktAiPlaybookAdminService } from './mkt-ai-playbook-admin.service';
 import { MarketingAiPlannerRepository } from './marketing-ai-planner.repository';
 import { MarketingAiPlannerService } from './marketing-ai-planner.service';
 
@@ -54,6 +57,7 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
     MktAiServicePolicyRepository,
     MktAiPlaybookVersionsRepository,
     MktAiPlaybookLearnService,
+    MktAiPlaybookAdminService,
     MktAiPlannerAllowService,
     MarketingAiPlannerRepository,
     MarketingAiOrchestratorService,
@@ -77,6 +81,8 @@ import { MarketingAiPlannerService } from './marketing-ai-planner.service';
     StaffMarketingAiPlannerGenerateGuard,
     StaffMarketingAiPlannerExportGuard,
     StaffMarketingAiPlannerApproveGuard,
+    StaffMarketingAiPlaybookAdminViewGuard,
+    StaffMarketingAiPlaybookStaffApproveGuard,
   ],
   exports: [
     MarketingAiPlannerService,

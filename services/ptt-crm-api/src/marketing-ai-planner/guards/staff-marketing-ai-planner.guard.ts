@@ -94,3 +94,53 @@ export class StaffMarketingAiPlannerApproveGuard implements CanActivate {
     return true;
   }
 }
+
+/** Admin playbook catalog — crm_mkt_ai.view OR ai_admin.view OR crm_mkt_ai.approve */
+@Injectable()
+export class StaffMarketingAiPlaybookAdminViewGuard implements CanActivate {
+  constructor(private readonly staffAuth: StaffAuthService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<StaffReq>();
+    if (req.staffAuthVia === 'internal') return true;
+    if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
+
+    const me = await this.staffAuth.me(req.staffUser);
+    if (
+      this.staffAuth.hasCap(me.caps, 'crm_mkt_ai', 'view') ||
+      this.staffAuth.hasCap(me.caps, 'crm_mkt_ai', 'approve') ||
+      this.staffAuth.hasCap(me.caps, 'ai_admin', 'view')
+    ) {
+      return true;
+    }
+
+    throw new ForbiddenException({
+      error: 'missing_cap',
+      section: 'crm_mkt_ai',
+      action: 'view_or_approve_or_ai_admin',
+    });
+  }
+}
+
+/** Active / decide / rollback — staff JWT only; AI internal key forbidden (§6.3) */
+@Injectable()
+export class StaffMarketingAiPlaybookStaffApproveGuard implements CanActivate {
+  constructor(private readonly staffAuth: StaffAuthService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<StaffReq>();
+    if (req.staffAuthVia === 'internal') {
+      throw new ForbiddenException({
+        error: 'staff_jwt_required',
+        message: 'Active playbook chỉ dành cho staff JWT, không dùng internal/AI token.',
+      });
+    }
+    if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
+
+    const me = await this.staffAuth.me(req.staffUser);
+    if (!this.staffAuth.hasCap(me.caps, 'crm_mkt_ai', 'approve')) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_mkt_ai', action: 'approve' });
+    }
+    return true;
+  }
+}

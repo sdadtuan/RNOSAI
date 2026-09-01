@@ -36,6 +36,9 @@ export type MktAiPlaybookVersionRow = {
   learn_job_id: number | null;
   corpus_json: Record<string, unknown>;
   created_by: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
   created_at: string;
 };
 
@@ -76,6 +79,9 @@ function mapVersion(row: Record<string, unknown>): MktAiPlaybookVersionRow {
     learn_job_id: row.learn_job_id != null ? Number(row.learn_job_id) : null,
     corpus_json: (row.corpus_json as Record<string, unknown>) ?? {},
     created_by: String(row.created_by ?? ''),
+    reviewed_by: row.reviewed_by != null ? String(row.reviewed_by) : null,
+    reviewed_at: row.reviewed_at != null ? String(row.reviewed_at) : null,
+    review_note: row.review_note != null ? String(row.review_note) : null,
     created_at: String(row.created_at ?? ''),
   };
 }
@@ -220,5 +226,124 @@ export class MktAiPlaybookVersionsRepository implements OnModuleDestroy {
       [versionId],
     );
     return rows[0] ? mapVersion(rows[0]) : null;
+  }
+
+  async listVersionsBySlug(serviceSlug: string, limit = 50): Promise<MktAiPlaybookVersionRow[]> {
+    const { rows } = await this.db.query(
+      `SELECT * FROM mkt_ai_playbook_versions
+       WHERE service_slug = $1
+       ORDER BY version_no DESC
+       LIMIT $2`,
+      [serviceSlug, limit],
+    );
+    return rows.map((row) => mapVersion(row));
+  }
+
+  async getActiveVersion(serviceSlug: string): Promise<MktAiPlaybookVersionRow | null> {
+    const { rows } = await this.db.query(
+      `SELECT * FROM mkt_ai_playbook_versions
+       WHERE service_slug = $1 AND status = 'active'
+       LIMIT 1`,
+      [serviceSlug],
+    );
+    return rows[0] ? mapVersion(rows[0]) : null;
+  }
+
+  async updateVersionDocument(
+    versionId: number,
+    documentJson: Record<string, unknown>,
+  ): Promise<MktAiPlaybookVersionRow | null> {
+    const { rows } = await this.db.query(
+      `UPDATE mkt_ai_playbook_versions
+       SET document_json = $2::jsonb
+       WHERE id = $1 AND status = 'draft'
+       RETURNING *`,
+      [versionId, JSON.stringify(documentJson)],
+    );
+    return rows[0] ? mapVersion(rows[0]) : null;
+  }
+
+  async updateVersionStatus(
+    versionId: number,
+    status: MktAiPlaybookVersionStatus,
+    patch: {
+      reviewedBy?: string | null;
+      reviewedAt?: Date | null;
+      reviewNote?: string | null;
+    } = {},
+  ): Promise<MktAiPlaybookVersionRow | null> {
+    const { rows } = await this.db.query(
+      `UPDATE mkt_ai_playbook_versions
+       SET status = $2,
+           reviewed_by = COALESCE($3, reviewed_by),
+           reviewed_at = COALESCE($4, reviewed_at),
+           review_note = COALESCE($5, review_note)
+       WHERE id = $1
+       RETURNING *`,
+      [
+        versionId,
+        status,
+        patch.reviewedBy ?? null,
+        patch.reviewedAt ?? null,
+        patch.reviewNote ?? null,
+      ],
+    );
+    return rows[0] ? mapVersion(rows[0]) : null;
+  }
+
+  async retireActiveVersion(serviceSlug: string): Promise<void> {
+    await this.db.query(
+      `UPDATE mkt_ai_playbook_versions
+       SET status = 'retired'
+       WHERE service_slug = $1 AND status = 'active'`,
+      [serviceSlug],
+    );
+  }
+
+  async activateVersion(
+    versionId: number,
+    serviceSlug: string,
+    actor: string,
+    reviewNote?: string | null,
+  ): Promise<MktAiPlaybookVersionRow | null> {
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `UPDATE mkt_ai_playbook_versions SET status = 'retired'
+         WHERE service_slug = $1 AND status = 'active'`,
+        [serviceSlug],
+      );
+      const { rows } = await client.query(
+        `UPDATE mkt_ai_playbook_versions
+         SET status = 'active',
+             reviewed_by = COALESCE(reviewed_by, $2),
+             reviewed_at = COALESCE(reviewed_at, NOW()),
+             review_note = COALESCE($3, review_note)
+         WHERE id = $1
+         RETURNING *`,
+        [versionId, actor, reviewNote ?? null],
+      );
+      if (!rows[0]) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+      await client.query(
+        `INSERT INTO mkt_ai_service_policy (service_slug, rollout, enabled, active_version_id, updated_by)
+         VALUES ($1, 'off', TRUE, $2, $3)
+         ON CONFLICT (service_slug) DO UPDATE SET
+           active_version_id = EXCLUDED.active_version_id,
+           updated_at = now(),
+           updated_by = EXCLUDED.updated_by`,
+        [serviceSlug, versionId, actor],
+      );
+      await client.query('COMMIT');
+      return mapVersion(rows[0]);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 }

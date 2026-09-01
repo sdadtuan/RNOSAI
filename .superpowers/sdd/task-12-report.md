@@ -1,35 +1,78 @@
-# Task 12 Report — Service Lifecycle PostgreSQL-only
+# Task 12 Report: Admin REST (P2)
 
-## Status
+**Status:** DONE  
+**Branch:** `feat/mkt-ai-playbook-learn`  
+**Commit:** (pending) — feat(mkt-ai): admin playbook learn and activate API  
+**Pushed:** no
 
-Completed Wave 2 Task 12 only.
+## What shipped
 
-- `ServiceLifecycleService`, lifecycle consult, onboarding, and launch QA now use PostgreSQL repositories directly.
-- Lifecycle task consumers route through `LifecycleTasksPgRepository`; the legacy import path is a compatibility re-export.
-- Finance confirmation audit rows now use a PostgreSQL `Pool` and async parameterized queries.
-- Lifecycle context and finance utilities no longer import `DatabaseSync`.
-- `service-lifecycle-sqlite.repository.ts` was deleted, including stale launch-QA registrations and lookup fallback.
-- Added service smoke coverage for lifecycle detail, tasks, and finance confirmations, plus a PostgreSQL-only boundary regression test.
+Admin REST for playbook catalog, policy, learn jobs, and version lifecycle (submit / decide / activate / rollback) per spec §9 / §11.
 
-## Verification
+| File | Role |
+|------|------|
+| `marketing-ai-playbook-admin.controller.ts` | Routes §11; guards view/generate/approve; staff-only activate/decide/rollback |
+| `mkt-ai-playbook-admin.service.ts` | list, slug detail, policy patch, learn enqueue/status, version CRUD + activate gates §6.3 |
+| `mkt-ai-playbook-versions.repository.ts` | list/update/activate versions; retire old active; set policy.active_version_id in txn |
+| `mkt-ai-service-policy.repository.ts` | listPolicyRows, getPolicyRow, setActiveVersionId |
+| `guards/staff-marketing-ai-planner.guard.ts` | AdminViewGuard + StaffApproveGuard (blocks internal/AI token on activate) |
+| `marketing-ai-playbook-admin.controller.spec.ts` | Controller + guard: internal token → 403 on activate |
+| `mkt-ai-playbook-admin.service.spec.ts` | Activate gates: approved only, self_approve+note, accept_shallow |
 
-- `npm test -- --runInBand src/service-lifecycle`
-  - 10 suites passed
-  - 41 tests passed
-- `npm run build`
-  - Passed (`nest build`)
-- Source search for `DatabaseSync` under `src/service-lifecycle`
-  - No matches
-- Source search for the deleted SQLite repository under `src`
-  - No runtime matches
+## Routes
 
-## Commit
+| Method | Path | Cap |
+|--------|------|-----|
+| GET | `/api/v1/admin/mkt-ai/playbooks` | view |
+| GET | `/api/v1/admin/mkt-ai/playbooks/:slug` | view |
+| PATCH | `/api/v1/admin/mkt-ai/playbooks/:slug/policy` | approve |
+| POST | `/api/v1/admin/mkt-ai/playbooks/:slug/learn` | generate |
+| GET | `/api/v1/admin/mkt-ai/playbooks/:slug/learn/:jobId` | view |
+| PATCH | `/api/v1/admin/mkt-ai/playbooks/versions/:id` | generate |
+| POST | `.../versions/:id/submit` | generate |
+| POST | `.../versions/:id/decide` | approve (staff JWT) |
+| POST | `.../versions/:id/activate` | approve (staff JWT) |
+| POST | `.../versions/:id/rollback` | approve (staff JWT) |
 
-`Serve service lifecycle from PostgreSQL only.`
+Legacy disk catalog moved to `GET .../playbooks/catalog-disk` (WS-P4-08 smoke).
+
+## Activate rules (§6.3)
+
+- Status must be `approved`
+- `reviewed_by !== created_by` **or** `self_approve` + `note` ≥ 20 chars
+- `depth=shallow` requires `accept_shallow=true`
+- Retires prior `active` version; sets `mkt_ai_service_policy.active_version_id`
+- Internal/AI token blocked by `StaffMarketingAiPlaybookStaffApproveGuard`
+
+## Step checklist
+
+- [x] Admin service list + policy patch + learn enqueue/status
+- [x] Version submit / decide / activate / rollback
+- [x] Activate gates per spec
+- [x] Uses Task 11 learn service + versions/policy repos
+- [x] Jest: activate from internal token → 403
+- [x] **Commit** `feat(mkt-ai): admin playbook learn and activate API`
+
+## What I tested
+
+```bash
+cd services/ptt-crm-api && npx jest \
+  src/marketing-ai-planner/marketing-ai-playbook-admin.controller.spec.ts \
+  src/marketing-ai-planner/mkt-ai-playbook-admin.service.spec.ts \
+  --no-coverage
+```
+
+```
+PASS marketing-ai-playbook-admin.controller.spec.ts (5 tests)
+PASS mkt-ai-playbook-admin.service.spec.ts (5 tests)
+Test Suites: 2 passed | Tests: 10 passed
+```
 
 ## Notes
 
-- No live PostgreSQL/API session was available; lifecycle detail, tasks, and finance-confirm smoke coverage uses service-level repository mocks.
-- `lifecycle_finance_confirm` is created idempotently by the PostgreSQL repository on first use.
-- npm prints the pre-existing warning: `Unknown env config "devdir"`.
-- Task 13 was not started.
+- `loadCorpusRows` still stubbed in learn service; admin list/detail shows corpus counts from stub until lifecycle SQL wired.
+- Smoke script `scripts/smoke_mkt_ai_playbooks_admin.sh` should target `catalog-disk` or be updated in Task 16.
+
+## Next
+
+Task 13: Admin UI (`ops-web` playbooks page + API client).

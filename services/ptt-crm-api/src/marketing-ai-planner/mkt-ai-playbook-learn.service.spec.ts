@@ -108,6 +108,9 @@ describe('MktAiPlaybookLearnService', () => {
         learn_job_id: 101,
         corpus_json: {},
         created_by: ACTOR,
+        reviewed_by: null,
+        reviewed_at: null,
+        review_note: null,
         created_at: new Date().toISOString(),
       }),
     );
