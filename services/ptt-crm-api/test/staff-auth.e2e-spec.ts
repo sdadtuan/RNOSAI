@@ -70,4 +70,15 @@ describe('Staff auth (Phase 0)', () => {
     expect(refreshed.body.access_token).toBeTruthy();
     expect(refreshed.body.access_token).not.toBe(login.body.access_token);
   });
+
+  it('login JWT may omit sid for stub users', async () => {
+    if (!app) return;
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/staff/auth/login')
+      .send({ email: 'staff@test.local', password: 'pass123' })
+      .expect(200);
+    const parts = String(res.body.access_token).split('.');
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    expect(payload.sub).toBeTruthy();
+  });
 });

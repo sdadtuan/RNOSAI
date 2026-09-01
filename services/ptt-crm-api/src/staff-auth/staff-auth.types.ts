@@ -26,6 +26,16 @@ export interface StaffMeResponse extends StaffUserProfile {
   caps: StaffSectionCap[];
   permission_sets?: string[];
   client_ids?: string[];
+  account_kind?: string;
+  last_login_at?: string | null;
+  oidc_linked?: boolean;
+  password_login_enabled?: boolean;
+  sso_enabled?: boolean;
+  mfa_required_for_position?: boolean;
+  keycloak_account_url?: string | null;
+  teams?: Array<{ id: number; name: string }>;
+  has_avatar?: boolean;
+  avatar_updated_at?: string | null;
 }
 
 export interface StaffRosterRow {

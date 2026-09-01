@@ -10,6 +10,8 @@ export interface StaffJwtPayload {
   client_ids?: string[];
   /** Incremented on offboard — mismatch revokes refresh/access. */
   tv?: number;
+  /** Session id bound to staff_sessions row. */
+  sid?: string;
   token_type: StaffTokenType;
   iat: number;
   exp: number;

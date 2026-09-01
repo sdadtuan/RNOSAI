@@ -21,6 +21,8 @@ export interface StoredStaffUser {
   job_functions?: string[];
   /** R3 pilot — explicit client workspace bindings (empty = unrestricted) */
   client_ids?: string[];
+  has_avatar?: boolean;
+  avatar_updated_at?: string | null;
   tenant?: string;
   locale?: string;
 }

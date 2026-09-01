@@ -14,6 +14,16 @@ export interface StaffLoginResponse {
 
 export interface StaffMeResponse extends StoredStaffUser {
   caps: StaffSectionCap[];
+  account_kind?: string;
+  last_login_at?: string | null;
+  oidc_linked?: boolean;
+  password_login_enabled?: boolean;
+  sso_enabled?: boolean;
+  mfa_required_for_position?: boolean;
+  keycloak_account_url?: string | null;
+  teams?: Array<{ id: number; name: string }>;
+  has_avatar?: boolean;
+  avatar_updated_at?: string | null;
 }
 
 export interface LeadRow {
@@ -210,6 +220,134 @@ export async function staffMe(token: string): Promise<StaffMeResponse> {
     throw new ApiError(body.error ?? 'Unauthorized', res.status);
   }
   return body;
+}
+
+export interface StaffSessionListItem {
+  id: string;
+  current: boolean;
+  login_method: 'nest_password' | 'sso';
+  device_label: string;
+  ip: string | null;
+  created_at: string;
+  last_seen_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+}
+
+export interface StaffAccountAuditItem {
+  id: string;
+  event_type: string;
+  created_at: string;
+  summary_vi: string;
+}
+
+export interface StaffAccountBundle {
+  profile: StaffMeResponse;
+  sessions: { current_sid: string | null; items: StaffSessionListItem[] };
+  audit: { items: StaffAccountAuditItem[] };
+}
+
+export async function fetchStaffAccount(token: string): Promise<StaffAccountBundle> {
+  const res = await fetch(`${API_BASE}/api/v1/staff/auth/account`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<StaffAccountBundle & { error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Không tải tài khoản', res.status);
+  return body;
+}
+
+export async function staffChangePassword(
+  token: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ ok: boolean; message?: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/staff/auth/account/password`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+  const body = await parseJson<{ ok?: boolean; error?: string; message?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Đổi mật khẩu thất bại', res.status);
+  return { ok: true, message: body.message };
+}
+
+export async function revokeStaffSession(
+  token: string,
+  sessionId: string,
+): Promise<{ ok: boolean; current_revoked?: boolean }> {
+  const res = await fetch(`${API_BASE}/api/v1/staff/auth/account/sessions/${encodeURIComponent(sessionId)}/revoke`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  });
+  const body = await parseJson<{ ok?: boolean; current_revoked?: boolean; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Thu hồi phiên thất bại', res.status);
+  return { ok: true, current_revoked: body.current_revoked };
+}
+
+export async function revokeStaffSessionsOthers(token: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/api/v1/staff/auth/account/sessions/revoke-others`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  });
+  const body = await parseJson<{ ok?: boolean; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Thu hồi phiên thất bại', res.status);
+  return { ok: true };
+}
+
+export async function revokeStaffSessionsAll(token: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/api/v1/staff/auth/account/sessions/revoke-all`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  });
+  const body = await parseJson<{ ok?: boolean; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Thu hồi phiên thất bại', res.status);
+  return { ok: true };
+}
+
+export async function uploadStaffAvatar(
+  token: string,
+  blob: Blob,
+): Promise<{ ok: boolean; has_avatar: boolean; avatar_updated_at: string }> {
+  const form = new FormData();
+  form.append('file', blob, 'avatar.jpg');
+  const res = await fetch(`${API_BASE}/api/v1/staff/auth/account/avatar`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: form,
+  });
+  const body = await parseJson<{ ok?: boolean; has_avatar?: boolean; avatar_updated_at?: string; error?: string }>(
+    res,
+  );
+  if (!res.ok) throw new ApiError(body.error ?? 'Tải ảnh thất bại', res.status);
+  return {
+    ok: true,
+    has_avatar: Boolean(body.has_avatar),
+    avatar_updated_at: body.avatar_updated_at ?? new Date().toISOString(),
+  };
+}
+
+export async function deleteStaffAvatar(token: string): Promise<{ ok: boolean; has_avatar: boolean }> {
+  const res = await fetch(`${API_BASE}/api/v1/staff/auth/account/avatar`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+  const body = await parseJson<{ ok?: boolean; has_avatar?: boolean; error?: string }>(res);
+  if (!res.ok) throw new ApiError(body.error ?? 'Xóa ảnh thất bại', res.status);
+  return { ok: true, has_avatar: Boolean(body.has_avatar) };
+}
+
+export async function fetchStaffAvatarBlob(token: string): Promise<Blob | null> {
+  const res = await fetch(`${API_BASE}/api/v1/staff/auth/account/avatar`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string }>(res);
+    throw new ApiError(body.error ?? 'Không tải ảnh', res.status);
+  }
+  return res.blob();
 }
 
 export interface StaffRosterRow {

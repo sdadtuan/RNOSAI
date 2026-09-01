@@ -1,5 +1,6 @@
-import { Injectable, UnauthorizedException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ForbiddenException, Inject, forwardRef, ServiceUnavailableException } from '@nestjs/common';
 import { Pool } from 'pg';
+import { randomUUID } from 'crypto';
 import { AppConfigService, StaffStubUser } from '../config/app-config.service';
 import { StaffJobFunctionsRepository } from '../staff-permissions/staff-job-functions.repository';
 import { StaffBreakGlassRepository } from '../staff-break-glass/staff-break-glass.repository';
@@ -28,6 +29,14 @@ import {
 } from './staff-keycloak.util';
 import { StaffAuthAuditRepository } from './staff-auth-audit.repository';
 import { StaffKeycloakGroupsRepository } from './staff-keycloak-groups.repository';
+import { StaffSessionsRepository, isUuidStaffUserId } from './staff-sessions.repository';
+import type { StaffLoginMethod } from './staff-account.types';
+
+export type StaffSessionMeta = {
+  ip: string | null;
+  userAgent: string;
+  loginMethod: StaffLoginMethod;
+};
 
 const DEFAULT_STUB_CAPS: StaffSectionCap[] = [
   { section: 'dashboard', action: 'view' },
@@ -162,6 +171,7 @@ export class StaffAuthService {
     private readonly userClients: StaffUserClientsRepository,
     private readonly authAudit: StaffAuthAuditRepository,
     private readonly keycloakGroups: StaffKeycloakGroupsRepository,
+    private readonly sessions: StaffSessionsRepository,
   ) {}
 
   private get db(): Pool {
@@ -192,7 +202,11 @@ export class StaffAuthService {
     }
   }
 
-  async login(email: string, password: string): Promise<StaffLoginResult> {
+  async login(
+    email: string,
+    password: string,
+    meta?: StaffSessionMeta,
+  ): Promise<StaffLoginResult> {
     if (!this.config.staffNestLoginAllowed()) {
       throw new UnauthorizedException({ error: 'password_login_disabled' });
     }
@@ -206,14 +220,19 @@ export class StaffAuthService {
       email: user.email,
       detail: { mode: this.config.staffAuthMode },
     });
-    return this.issueTokens(user);
+    return this.issueTokens(user, {
+      sessionMeta: meta ?? { ip: null, userAgent: '', loginMethod: 'nest_password' },
+    });
   }
 
-  async exchangeOidc(params: {
-    code: string;
-    redirectUri: string;
-    codeVerifier: string;
-  }): Promise<StaffLoginResult> {
+  async exchangeOidc(
+    params: {
+      code: string;
+      redirectUri: string;
+      codeVerifier: string;
+    },
+    meta?: StaffSessionMeta,
+  ): Promise<StaffLoginResult> {
     const issuer = this.config.staffKeycloakIssuer;
     if (!issuer) {
       throw new UnauthorizedException({ error: 'staff_sso_not_configured' });
@@ -282,7 +301,9 @@ export class StaffAuthService {
       detail: { groups, oidc_sub: claims.sub },
     });
 
-    return this.issueTokens(linked);
+    return this.issueTokens(linked, {
+      sessionMeta: meta ?? { ip: null, userAgent: '', loginMethod: 'sso' },
+    });
   }
 
   getSsoConfig(): StaffSsoConfigResponse {
@@ -302,18 +323,42 @@ export class StaffAuthService {
     }
   }
 
-  async refresh(refreshToken: string): Promise<StaffLoginResult> {
+  async refresh(refreshToken: string, meta?: StaffSessionMeta): Promise<StaffLoginResult> {
     const payload = verifyStaffJwt(refreshToken, this.config.staffJwtSecret);
     if (!payload || payload.token_type !== 'refresh') {
       throw new UnauthorizedException({ error: 'Invalid or expired refresh token' });
     }
     await this.assertTokenVersion(payload);
-    return this.issueTokens({
+
+    const userBase = {
       id: payload.sub,
       email: payload.email,
       displayName: payload.display_name,
       positionId: payload.position_id,
       tokenVersion: payload.tv ?? 0,
+    };
+
+    const now = new Date();
+    if (payload.sid && isUuidStaffUserId(payload.sub)) {
+      const row = await this.sessions.findById(payload.sid);
+      if (
+        !row ||
+        row.user_id !== payload.sub ||
+        row.revoked_at ||
+        row.expires_at.getTime() < now.getTime()
+      ) {
+        throw new UnauthorizedException({ error: 'session_revoked' });
+      }
+      const expiresAt = new Date(now.getTime() + this.config.staffRefreshTtlSec * 1000);
+      await this.sessions.touch(payload.sid, expiresAt, now);
+      return this.issueTokens(userBase, { sid: payload.sid });
+    }
+
+    const loginMethod: StaffLoginMethod =
+      meta?.loginMethod ??
+      (this.config.staffAuthMode !== 'nest' ? 'sso' : 'nest_password');
+    return this.issueTokens(userBase, {
+      sessionMeta: meta ?? { ip: null, userAgent: '', loginMethod },
     });
   }
 
@@ -323,7 +368,24 @@ export class StaffAuthService {
       throw new UnauthorizedException({ error: 'Invalid or expired token' });
     }
     await this.assertTokenVersion(payload);
+    await this.assertSession(payload);
     return payload;
+  }
+
+  private async assertSession(payload: StaffJwtPayload): Promise<void> {
+    if (!payload.sid || !isUuidStaffUserId(payload.sub)) {
+      return;
+    }
+    const row = await this.sessions.findById(payload.sid);
+    const now = new Date();
+    if (
+      !row ||
+      row.user_id !== payload.sub ||
+      row.revoked_at ||
+      row.expires_at.getTime() < now.getTime()
+    ) {
+      throw new UnauthorizedException({ error: 'session_revoked' });
+    }
   }
 
   async me(accessPayload: StaffJwtPayload): Promise<StaffMeResponse> {
@@ -425,22 +487,48 @@ export class StaffAuthService {
     return caps.some((c) => c.section === section && c.action === action);
   }
 
-  private async issueTokens(user: {
-    id: string;
-    email: string;
-    displayName: string;
-    positionId: number;
-    tokenVersion?: number;
-  }): Promise<StaffLoginResult> {
+  private async issueTokens(
+    user: {
+      id: string;
+      email: string;
+      displayName: string;
+      positionId: number;
+      tokenVersion?: number;
+    },
+    opts?: { sid?: string; sessionMeta?: StaffSessionMeta },
+  ): Promise<StaffLoginResult> {
     const position_code = await this.loadPositionCode(user.positionId);
     const client_ids = await this.resolveJwtClientIds(user.id, position_code);
     const tv = user.tokenVersion ?? (await this.loadTokenVersion(user.id)) ?? 0;
+
+    let sid = opts?.sid;
+    if (!sid && opts?.sessionMeta && isUuidStaffUserId(user.id)) {
+      sid = randomUUID();
+      const expiresAt = new Date(Date.now() + this.config.staffRefreshTtlSec * 1000);
+      try {
+        await this.sessions.insert({
+          id: sid,
+          userId: user.id,
+          loginMethod: opts.sessionMeta.loginMethod,
+          userAgent: opts.sessionMeta.userAgent,
+          ip: opts.sessionMeta.ip,
+          expiresAt,
+        });
+      } catch {
+        if (process.env.NODE_ENV === 'production') {
+          throw new ServiceUnavailableException({ error: 'sessions_not_ready' });
+        }
+        sid = undefined;
+      }
+    }
+
     const base = {
       sub: user.id,
       email: user.email,
       display_name: user.displayName,
       position_id: user.positionId,
       tv,
+      ...(sid ? { sid } : {}),
       ...(client_ids?.length ? { client_ids } : {}),
     };
     const accessToken = signStaffJwt(

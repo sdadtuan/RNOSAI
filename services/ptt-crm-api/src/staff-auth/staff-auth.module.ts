@@ -6,8 +6,11 @@ import { StaffPermissionSetsModule } from '../staff-permission-sets/staff-permis
 import { StaffAuthController } from './staff-auth.controller';
 import { StaffSsoAdminController } from './staff-sso-admin.controller';
 import { StaffAuthService } from './staff-auth.service';
+import { StaffAccountService } from './staff-account.service';
 import { StaffAuthAuditRepository } from './staff-auth-audit.repository';
 import { StaffKeycloakGroupsRepository } from './staff-keycloak-groups.repository';
+import { StaffSessionsRepository } from './staff-sessions.repository';
+import { StaffAvatarStorage } from './staff-avatar.storage';
 import { StaffJwtGuard } from './staff-jwt.guard';
 import { StaffOrInternalKeyGuard } from './staff-or-internal-key.guard';
 
@@ -21,11 +24,14 @@ import { StaffOrInternalKeyGuard } from './staff-or-internal-key.guard';
   controllers: [StaffAuthController, StaffSsoAdminController],
   providers: [
     StaffAuthService,
+    StaffAccountService,
     StaffAuthAuditRepository,
     StaffKeycloakGroupsRepository,
+    StaffSessionsRepository,
+    StaffAvatarStorage,
     StaffJwtGuard,
     StaffOrInternalKeyGuard,
   ],
-  exports: [StaffAuthService, StaffJwtGuard, StaffOrInternalKeyGuard],
+  exports: [StaffAuthService, StaffAccountService, StaffJwtGuard, StaffOrInternalKeyGuard],
 })
 export class StaffAuthModule {}

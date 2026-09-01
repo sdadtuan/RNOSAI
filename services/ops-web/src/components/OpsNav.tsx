@@ -13,6 +13,7 @@ import { isOpsDvFeEnabled } from '@/lib/ops-dv-flags';
 import { emailGateAEnabled, emailJourneysEnabled, emailModuleEnabled } from '@/lib/email-flags';
 import { winKpiSolutionEnabled, winLeaveLiteEnabled, winPayslipPortalEnabled } from '@/lib/win/flags';
 import { StaffNotificationBell } from '@/components/staff/StaffNotificationBell';
+import { StaffAvatarMenu } from '@/components/account/StaffAvatarMenu';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { canViewEmailGateA } from '@/lib/email/caps';
 import { canViewMetaAdsOps, canViewMetaIntelligence, canViewMetaTracking } from '@/lib/meta/caps';
@@ -219,6 +220,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/email/deliverability': 'Deliverability',
   '/email/reports': 'Reports',
   '/email/gate-a': 'Email Gate A',
+  '/account': 'Tài khoản',
 };
 
 function pageTitleFor(pathname: string): string {
@@ -634,6 +636,7 @@ function userInitials(user: StoredStaffUser | null): string {
 export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: OpsNavProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [reviewQueueCount, setReviewQueueCount] = useState<number | undefined>();
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [flyoutSection, setFlyoutSection] = useState<string | null>(null);
@@ -641,6 +644,10 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set());
   const [navSectionsReady, setNavSectionsReady] = useState(false);
   const chromeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setAccessToken(getAccessToken());
+  }, [user, pathname]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -927,17 +934,16 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
                 <StaffNotificationBell />
               ) : null}
               <div className="ops-topbar-user-meta">
-                <strong>{user?.display_name ?? user?.email ?? 'Staff'}</strong>
                 <WinRbacBadge user={user} />
                 <WinRbacBadge user={user} className="win-badge-rbac--mobile" />
                 <span>{pageTitleFor(pathname)}</span>
               </div>
-              <span className="ops-topbar-avatar" aria-hidden="true">
-                {userInitials(user)}
-              </span>
-              <button type="button" className="btn btn-sm btn-secondary btn-topbar-logout" onClick={onLogout}>
-                Đăng xuất
-              </button>
+              <StaffAvatarMenu
+                user={user}
+                token={accessToken}
+                initials={userInitials(user)}
+                onLogout={onLogout}
+              />
             </div>
           </div>
         </header>

@@ -7,7 +7,13 @@ export type StaffAuthAuditEvent =
   | 'sso_link'
   | 'fallback_password'
   | 'mfa_blocked'
-  | 'token_revoked';
+  | 'token_revoked'
+  | 'password_changed'
+  | 'session_revoked'
+  | 'sessions_revoked_others'
+  | 'sessions_revoked_all'
+  | 'avatar_updated'
+  | 'avatar_removed';
 
 @Injectable()
 export class StaffAuthAuditRepository {
