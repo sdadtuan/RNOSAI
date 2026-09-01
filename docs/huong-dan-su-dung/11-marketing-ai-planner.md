@@ -5,6 +5,8 @@
 > **Route:** `/crm/service-delivery/[id]?tab=ai-planner`  
 > **Flags:** `PTT_MKT_AI_PLANNER_ENABLED=1`, `NEXT_PUBLIC_MKT_AI_PLANNER=1`
 
+**Bản đầy đủ (môi trường, từng chức năng, triển khai thực chiến):** [29-marketing-ai-planner-thuc-chien.md](./29-marketing-ai-planner-thuc-chien.md)
+
 ---
 
 ## 1. Giới thiệu

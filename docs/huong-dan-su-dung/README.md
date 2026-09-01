@@ -1,6 +1,6 @@
 # RNOSAI — Hướng dẫn sử dụng theo domain
 
-> **Phiên bản:** 1.0 · **Cập nhật:** 2026-08-10  
+> **Phiên bản:** 1.1 · **Cập nhật:** 2026-08-31  
 > **Đối tượng:** Nhân viên PTT (ops-web) và khách hàng (portal-web)  
 > **URL staff:** https://rs.pttads.vn · **URL portal:** https://portal.pttads.vn
 
@@ -26,7 +26,11 @@ Tài liệu này mô tả **cách sử dụng từng chức năng** theo domain 
 | 19 | **Video SOP Studio (Module 7 — tóm tắt S4)** | [19-video-sop.md](./19-video-sop.md) | AM, Copy, Art, Motion, Editor |
 | 20 | **Video SOP Studio (đầy đủ — env, image/video, UI từng bước + wireframe)** | [20-video-sop-huong-dan-day-du.md](./20-video-sop-huong-dan-day-du.md) | AM, Copy, Art, Motion, Editor, IT |
 | 21 | **Video SOP — Checklist onboarding (AM / Motion / IT)** | [21-video-sop-onboarding-checklist.md](./21-video-sop-onboarding-checklist.md) | AM, Motion, IT, Admin |
-| 11 | Marketing AI Planner | [11-marketing-ai-planner.md](./11-marketing-ai-planner.md) | SP, MKT Lead |
+| 11 | Marketing AI Planner (tóm tắt 5 bước) | [11-marketing-ai-planner.md](./11-marketing-ai-planner.md) | SP, MKT Lead |
+| 26 | **Sales Cockpit — hướng dẫn đầy đủ (env + UI)** | [26-sales-cockpit-huong-dan-day-du.md](./26-sales-cockpit-huong-dan-day-du.md) | AM, Sales, IT |
+| 27 | **Lifecycle B2B — UI từng bước** | [27-lifecycle-ui-huong-dan-day-du.md](./27-lifecycle-ui-huong-dan-day-du.md) | AM, Solution, GDKD |
+| 28 | **CEO Command chatbox** | [28-ceo-command-chatbox.md](./28-ceo-command-chatbox.md) | GDKD, CEO |
+| 29 | **Marketing AI Planner — thực chiến (env, chức năng, triển khai GA)** | [29-marketing-ai-planner-thuc-chien.md](./29-marketing-ai-planner-thuc-chien.md) | SP, MKT Lead, IT, PO |
 | 12 | AI Revenue OS | [12-ai-revenue-os.md](./12-ai-revenue-os.md) | CSKH, Manager, GDKD |
 | 13 | HR & Payroll | [13-hr-payroll.md](./13-hr-payroll.md) | HR, NV |
 | 17 | **HR Employee File OS (P1–P8)** | [17-hr-employee-file-os.md](./17-hr-employee-file-os.md) | HR, NV, IT |
