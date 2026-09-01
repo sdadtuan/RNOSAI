@@ -107,6 +107,11 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm': 'Bảng CSKH',
   '/crm/cskh-board': 'Bảng CSKH SLA',
   '/crm/tickets': 'Ticket CS',
+  '/crm/csd': 'Service Desk',
+  '/crm/csd/tickets': 'Ticket SD',
+  '/crm/csd/chat': 'Chat SD',
+  '/crm/csd/email': 'Email SD',
+  '/crm/csd/reports': 'Báo cáo SD',
   '/crm/leads': 'Quản lý Lead',
   '/crm/operational/leads': 'Lead CSKH vận hành',
   '/crm/b2b/leads': 'Lead B2B Sales',
@@ -385,6 +390,18 @@ function buildSections(
   }
   if (sharedCrm.length) {
     sections.push({ label: 'CRM · Lead chung', links: sharedCrm });
+  }
+
+  const serviceDesk: NavLink[] = [];
+  if (hasCap(user, 'csd', 'view')) {
+    serviceDesk.push({ href: '/crm/csd', label: 'Tổng quan SD' });
+    serviceDesk.push({ href: '/crm/csd/tickets', label: 'Ticket SD' });
+    serviceDesk.push({ href: '/crm/csd/chat', label: 'Chat' });
+    serviceDesk.push({ href: '/crm/csd/email', label: 'Email' });
+    serviceDesk.push({ href: '/crm/csd/reports', label: 'Báo cáo' });
+  }
+  if (serviceDesk.length) {
+    sections.push({ label: 'Service Desk', links: serviceDesk });
   }
 
   const salesContract: NavLink[] = [];

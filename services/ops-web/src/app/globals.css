@@ -14996,3 +14996,303 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* --- CSD Service Desk --- */
+.csd-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+}
+
+.csd-kpi-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: 0.5rem;
+  text-decoration: none;
+  color: inherit;
+  background: var(--surface-raised, #fff);
+}
+
+.csd-kpi-card:hover {
+  border-color: var(--accent, #2563eb);
+}
+
+.csd-kpi-card__label {
+  font-size: 0.82rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.csd-kpi-card__value {
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.csd-ticket-detail {
+  display: grid;
+  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(260px, 320px);
+  gap: 1rem;
+  align-items: start;
+}
+
+.csd-ticket-detail__code {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.csd-meta-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.csd-meta-list div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.csd-meta-list dt {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.csd-meta-list dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+.csd-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.csd-timeline__item {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: 0.45rem;
+}
+
+.csd-timeline__item--internal {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.csd-timeline__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.csd-timeline__meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+}
+
+.csd-timeline__body {
+  margin: 0.35rem 0 0;
+  white-space: pre-wrap;
+}
+
+.csd-composer__tabs {
+  margin-bottom: 0.65rem;
+}
+
+.csd-composer__textarea {
+  width: 100%;
+  margin-bottom: 0.65rem;
+}
+
+.csd-composer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.csd-composer__msg {
+  margin: 0.5rem 0 0;
+}
+
+.csd-sla {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+}
+
+.csd-sla--on-track {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.csd-sla--at-risk,
+.csd-sla--near-breach {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.csd-sla--breached {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.csd-sla--paused {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.csd-badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.csd-badge--internal {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.csd-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.csd-modal {
+  width: min(100%, 32rem);
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.csd-chat-workspace {
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(200px, 240px);
+  gap: 1rem;
+  align-items: start;
+}
+
+.csd-chat-workspace__list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.csd-chat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.csd-chat-list__item {
+  width: 100%;
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  background: transparent;
+  cursor: pointer;
+}
+
+.csd-chat-list__item.is-active {
+  border-color: var(--accent, #2563eb);
+  background: #eff6ff;
+}
+
+.csd-chat-messages {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+  max-height: 52vh;
+  overflow: auto;
+}
+
+.csd-chat-message__meta {
+  font-size: 0.82rem;
+  margin-bottom: 0.2rem;
+}
+
+.csd-chat-message__actions {
+  margin-top: 0.35rem;
+}
+
+.csd-chat-compose {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.csd-email-inbox__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.csd-report-editor {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) minmax(200px, 240px);
+  gap: 1rem;
+  align-items: start;
+}
+
+.csd-report-outline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.csd-report-outline button {
+  width: 100%;
+  text-align: left;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 0.35rem;
+  background: transparent;
+  cursor: pointer;
+}
+
+.csd-report-outline button.is-active {
+  border-color: var(--accent, #2563eb);
+  background: #eff6ff;
+}
+
+.csd-report-editor__textarea {
+  width: 100%;
+  font-family: inherit;
+}
+
+.csd-report-editor__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+@media (max-width: 960px) {
+  .csd-ticket-detail,
+  .csd-chat-workspace,
+  .csd-report-editor {
+    grid-template-columns: 1fr;
+  }
+}

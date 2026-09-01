@@ -323,6 +323,13 @@
       "configure",
       "view"
     ],
+    "csd": [
+      "view",
+      "write",
+      "assign",
+      "manage",
+      "admin"
+    ],
     "spc": [
       "edit",
       "publish",
@@ -1106,6 +1113,13 @@
       "description": "ChatBox điều hành A+B+C."
     },
     {
+      "id": "csd",
+      "label": "Service Desk",
+      "group": "CRM",
+      "page": "/crm/csd",
+      "description": "Ticket / chat / email / báo cáo agency — không phải ticket CSKH."
+    },
+    {
       "id": "spc",
       "label": "SPC — Service Product Catalog",
       "group": "CRM — Admin",
@@ -1802,6 +1816,7 @@
   "permission_ids": [
     "ai_admin",
     "ceo_command",
+    "csd",
     "spc",
     "crm_ai_insights",
     "crm_hr_leave",

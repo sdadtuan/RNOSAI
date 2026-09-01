@@ -1,0 +1,105 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { Request } from 'express';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
+import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
+import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+import { CsdReportsService } from './csd-reports.service';
+import type { CsdActor, CreateCsdReportInput, SendCsdReportInput } from './csd.types';
+import { RequireCsdAction, StaffCsdGuard } from './guards/staff-csd.guard';
+
+type AuthedReq = Request & {
+  staffUser?: StaffJwtPayload;
+  staffAuthVia?: 'internal' | 'jwt';
+};
+
+@Controller('api/crm/csd/reports')
+@UseGuards(StaffOrInternalKeyGuard, StaffCsdGuard)
+export class CsdReportsController {
+  constructor(
+    private readonly reports: CsdReportsService,
+    private readonly staffAuth: StaffAuthService,
+  ) {}
+
+  private async actor(req: AuthedReq): Promise<CsdActor> {
+    if (!req.staffUser) {
+      return { staffId: 0, staffLabel: 'system', caps: [] };
+    }
+    const me = await this.staffAuth.me(req.staffUser);
+    const staffId = (await this.staffAuth.resolveCrmStaffUserId(req.staffUser)) ?? 0;
+    return {
+      staffId,
+      staffLabel: me.display_name || me.email || String(staffId),
+      caps: me.caps,
+    };
+  }
+
+  @Post()
+  @RequireCsdAction('write')
+  async create(@Req() req: AuthedReq, @Body() body: CreateCsdReportInput) {
+    const actor = await this.actor(req);
+    return this.reports.createReport(actor, body);
+  }
+
+  @Get(':id')
+  @RequireCsdAction('view')
+  async get(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.reports.get(actor, id);
+  }
+
+  @Post(':id/submit-review')
+  @RequireCsdAction('write')
+  async submitReview(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { approver_staff_id?: number },
+  ) {
+    const actor = await this.actor(req);
+    return this.reports.submitReview(actor, id, body.approver_staff_id);
+  }
+
+  @Post(':id/approve')
+  @RequireCsdAction('manage')
+  async approve(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.reports.approve(actor, id);
+  }
+
+  @Post(':id/send')
+  @RequireCsdAction('write')
+  async send(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: SendCsdReportInput,
+  ) {
+    const actor = await this.actor(req);
+    return this.reports.send(actor, id, body);
+  }
+
+  @Patch(':id/sections')
+  @RequireCsdAction('write')
+  async updateSections(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { sections_json: Record<string, unknown> },
+  ) {
+    const actor = await this.actor(req);
+    return this.reports.updateSections(actor, id, body.sections_json ?? {});
+  }
+
+  @Post(':id/revise')
+  @RequireCsdAction('write')
+  async revise(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.reports.createRevisedVersion(actor, id);
+  }
+}

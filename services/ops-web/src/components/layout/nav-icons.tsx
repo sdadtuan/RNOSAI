@@ -468,6 +468,12 @@ export const LINK_ICONS: Record<string, string> = {
   '/crm/leads/review-queue': 'inbox',
   '/crm/solution/queue': 'inbox',
   '/crm/tickets': 'ticket',
+  '/crm/csd': 'sla',
+  '/crm/csd/tickets': 'ticket',
+  '/crm/csd/chat': 'query',
+  '/crm/csd/email': 'email',
+  '/crm/csd/email/unmatched': 'inbox',
+  '/crm/csd/reports': 'report',
   '/crm/customers': 'customers',
   '/crm/catalog': 'catalog',
   '/crm/hub': 'hub',
@@ -581,6 +587,7 @@ export const SECTION_ICONS: Record<string, string> = {
   AI: 'agent',
   'Cấu hình': 'settings',
   GTM: 'inbox',
+  'Service Desk': 'ticket',
 };
 
 /** Shorter labels for sidebar headers. */
@@ -607,6 +614,7 @@ export const SECTION_LABELS: Record<string, string> = {
   'Quản trị hệ thống': 'Hệ thống',
   'Cấu hình CRM': 'Cấu hình',
   GTM: 'inbox',
+  'Service Desk': 'Service Desk',
 };
 
 export function sectionShortLabel(fullLabel: string): string {

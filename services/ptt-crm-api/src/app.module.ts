@@ -15,6 +15,7 @@ import { SalesModule } from './sales/sales.module';
 import { CustomersModule } from './customers/customers.module';
 import { IntakeModule } from './intake/intake.module';
 import { CeoCommandModule } from './ceo-command/ceo-command.module';
+import { CsdModule } from './csd/csd.module';
 import { MetaTrackingModule } from './meta-tracking/meta-tracking.module';
 import { MetaAlertsModule } from './meta-alerts/meta-alerts.module';
 import { AiIntelligenceModule } from './ai-intelligence/ai-intelligence.module';
@@ -127,6 +128,7 @@ import { GtmCmsModule } from './gtm-cms/cms.module';
     CustomersModule,
     IntakeModule,
     CeoCommandModule,
+    CsdModule,
     CasesModule,
     TicketsModule,
     SalesModule,

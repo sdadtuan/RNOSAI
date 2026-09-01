@@ -89,6 +89,10 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
     ],
   },
   {
+    prefix: '/crm/csd',
+    anyOf: [{ section: 'csd', action: 'view' }],
+  },
+  {
     prefix: '/crm/ceo',
     anyOf: CEO_COMMAND_VIEW_CAP_REQUIREMENTS,
   },
