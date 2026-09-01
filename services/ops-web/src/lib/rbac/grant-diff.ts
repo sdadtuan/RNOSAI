@@ -1,3 +1,4 @@
+/** Column order for PermissionMatrixTable — includes catalog extra_actions used by CEO / GDKD / leads. */
 export const PERMISSION_MATRIX_ACTIONS = [
   'view',
   'edit',
@@ -5,6 +6,7 @@ export const PERMISSION_MATRIX_ACTIONS = [
   'delete',
   'export',
   'configure',
+  'act',
   'approve',
   'claim',
   'release',
@@ -14,6 +16,14 @@ export const PERMISSION_MATRIX_ACTIONS = [
   'deliverability',
   'reports',
   'assign',
+  'override',
+  'review_queue',
+  'view_all_leads',
+  'view_financial',
+  'view_pii',
+  'generate',
+  'run',
+  'feedback',
 ] as const;
 
 export type PermissionMatrixAction = (typeof PERMISSION_MATRIX_ACTIONS)[number];
@@ -25,15 +35,24 @@ export const PERMISSION_ACTION_LABELS: Record<string, string> = {
   delete: 'Xóa',
   export: 'Xuất',
   configure: 'Cấu hình',
+  act: 'Điều hành (Xác nhận)',
   approve: 'Duyệt',
   claim: 'Nhận case',
   release: 'Trả Sales',
-  write: 'Ghi',
+  write: 'Ghi / thao tác',
   settings: 'Cài đặt',
   compliance: 'Tuân thủ',
   deliverability: 'Deliverability',
   reports: 'Báo cáo',
-  assign: 'Phân công',
+  assign: 'Phân công (GDKD)',
+  override: 'Override GDKD',
+  review_queue: 'Review queue',
+  view_all_leads: 'Xem toàn bộ lead',
+  view_financial: 'Xem giá trị tài chính lead',
+  view_pii: 'Xem PII (SĐT/email)',
+  generate: 'Sinh nội dung AI',
+  run: 'Chạy job (desk/deep)',
+  feedback: 'Phản hồi LMP',
 };
 
 export function permissionActionLabel(action: string): string {
