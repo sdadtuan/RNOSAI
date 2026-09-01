@@ -11,7 +11,7 @@ async function loginAsStaff(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/\//);
 }
 
-const S4_UPCOMING = {
+const S4_REMIND = {
   factory: 'A',
   column_id: 'contract',
   sensor_ids: ['S4'],
@@ -80,7 +80,7 @@ const TOWER_FIXTURE = {
     { column_id: 'tmmt_deliver', red_count: 1, amber_count: 0, ok_count: 1, header_severity: 'red' },
     { column_id: 'care', red_count: 0, amber_count: 0, ok_count: 1, header_severity: 'ok' },
   ],
-  exceptions: [S4_UPCOMING, REMIND_SHIPPED],
+  exceptions: [S4_REMIND, REMIND_SHIPPED],
   org_rollup: ORG_ROLLUP,
   next_cursor: null,
   degraded: [],
@@ -222,9 +222,8 @@ test.describe('CEO Lifecycle Tower T1', () => {
     const openLink = page.getByRole('link', { name: 'Mở' }).first();
     await expect(openLink).toHaveAttribute('href', /lead-contract|\/crm\/hub/);
 
-    const upcoming = page.getByRole('button', { name: 'Gợi ý' }).first();
-    await expect(upcoming).toBeDisabled();
-    await expect(upcoming).toHaveAttribute('title', 'Sắp có — nhắc duyệt HĐ / ưu tiên queue');
+    const suggestS4 = page.getByRole('button', { name: 'Gợi ý' }).first();
+    await expect(suggestS4).toBeEnabled();
     expect(commitPosts).toHaveLength(0);
 
     await openLink.click();
