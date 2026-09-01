@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CeoActionConfirmDialog } from '@/components/crm/ceo/CeoActionConfirmDialog';
 import { CeoTowerDeptDonut } from '@/components/crm/ceo/CeoTowerDeptDonut';
-import { CeoTowerDeptHeatmap } from '@/components/crm/ceo/CeoTowerDeptHeatmap';
+import { CeoTowerDeptPicker } from '@/components/crm/ceo/CeoTowerDeptPicker';
 import { CeoTowerExceptionQueue } from '@/components/crm/ceo/CeoTowerExceptionQueue';
 import { CeoTowerFunnelChart } from '@/components/crm/ceo/CeoTowerFunnelChart';
 import { CeoTowerMetricStrip } from '@/components/crm/ceo/CeoTowerMetricStrip';
@@ -17,6 +17,10 @@ import { confirmCopy } from '@/lib/crm/ceo-command-confirm.util';
 import { commitProposedCeoAction, proposeCeoAction } from '@/lib/crm/ceo-command-propose';
 import { fetchCeoTower, type TowerColumnId, type TowerException, type TowerPayload } from '@/lib/crm/ceo-tower-api';
 import {
+  filterTowerExceptions,
+  type TowerDrillFilters,
+} from '@/lib/crm/ceo-tower-filter.util';
+import {
   mapTowerSuggestAction,
   parseOwnerStaffIdInput,
 } from '@/lib/crm/ceo-tower-suggest.util';
@@ -25,7 +29,6 @@ import {
   TOWER_OUTSIDE_CYCLE_COPY,
   buildTowerBreadcrumb,
   departmentRollupEntries,
-  exceptionQueueSummary,
   isOutsideCycleDepartment,
   parseTowerFactory,
   parseTowerSeverityFilter,
@@ -39,6 +42,22 @@ export type CeoLifecycleTowerProps = {
   token: string;
 };
 
+type DrillState = {
+  department: string;
+  team: string;
+  positionCode: string;
+  staffId: string;
+};
+
+function drillFromParams(sp: URLSearchParams): DrillState {
+  return {
+    department: sp.get('department') ?? '',
+    team: sp.get('team') ?? '',
+    positionCode: sp.get('position_code') ?? '',
+    staffId: sp.get('staff_id') ?? '',
+  };
+}
+
 function healthSummaryClass(tone: 'ok' | 'warn' | 'critical'): string {
   if (tone === 'critical') return 'ceo-tower-health ceo-tower-health--critical';
   if (tone === 'warn') return 'ceo-tower-health ceo-tower-health--warn';
@@ -50,18 +69,21 @@ function capacityFlagClass(flag: string): string {
   return 'ceo-tower-capacity-flag ceo-tower-capacity-flag--amber';
 }
 
+function deptLabel(code: string, orgRollup: TowerOrgRollupEntry[] | undefined): string {
+  return departmentRollupEntries(orgRollup).find((row) => row.code === code)?.label_vi ?? code;
+}
+
 export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queueRef = useRef<HTMLDivElement>(null);
+
   const factory = parseTowerFactory(searchParams.get('factory'));
   const severityFilter = parseTowerSeverityFilter(searchParams.get('severity'));
   const columnId = (searchParams.get('column_id') ?? '') as TowerColumnId | '';
-  const department = searchParams.get('department') ?? '';
-  const team = searchParams.get('team') ?? '';
-  const positionCode = searchParams.get('position_code') ?? '';
-  const staffId = searchParams.get('staff_id') ?? '';
   const legalEntityId = searchParams.get('legal_entity_id') ?? '';
 
+  const [drill, setDrill] = useState<DrillState>(() => drillFromParams(searchParams));
   const [payload, setPayload] = useState<TowerPayload | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -70,32 +92,33 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
   const [confirmTurn, setConfirmTurn] = useState<CeoTurnOutput | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState('');
 
-  const query = useMemo(() => {
+  useEffect(() => {
+    setDrill(drillFromParams(searchParams));
+  }, [searchParams]);
+
+  const apiQuery = useMemo(() => {
     const q: Record<string, string> = {
       factory,
       severity: severityFilter,
+      limit: '80',
     };
     if (columnId) q.column_id = columnId;
-    if (department) q.department = department;
-    if (team) q.team = team;
-    if (positionCode) q.position_code = positionCode;
-    if (staffId) q.staff_id = staffId;
     if (legalEntityId) q.legal_entity_id = legalEntityId;
     return q;
-  }, [factory, severityFilter, columnId, department, team, positionCode, staffId, legalEntityId]);
+  }, [factory, severityFilter, columnId, legalEntityId]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      setPayload(await fetchCeoTower(token, query));
+      setPayload(await fetchCeoTower(token, apiQuery));
     } catch {
       setError('Không tải được tháp chu trình');
       setPayload(null);
     } finally {
       setLoading(false);
     }
-  }, [token, query]);
+  }, [token, apiQuery]);
 
   useEffect(() => {
     void load();
@@ -114,6 +137,114 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
       cancelled = true;
     };
   }, [token]);
+
+  const drillFilters: TowerDrillFilters = useMemo(
+    () => ({
+      department: drill.department || undefined,
+      team: drill.team || undefined,
+      position_code: drill.positionCode || undefined,
+      staff_id: drill.staffId || undefined,
+    }),
+    [drill],
+  );
+
+  const allExceptions = payload?.exceptions ?? [];
+  const deptScopedExceptions = useMemo(
+    () => filterTowerExceptions(allExceptions, { department: drill.department || undefined }),
+    [allExceptions, drill.department],
+  );
+  const exceptions = useMemo(
+    () => filterTowerExceptions(allExceptions, drillFilters),
+    [allExceptions, drillFilters],
+  );
+
+  function patchQuery(next: Record<string, string | null>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(next)) {
+      if (value == null || value === '') params.delete(key);
+      else params.set(key, value);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `/crm/ceo?${qs}` : '/crm/ceo', { scroll: false });
+  }
+
+  function patchDrill(next: Partial<DrillState>) {
+    const merged = { ...drill, ...next };
+    setDrill(merged);
+    patchQuery({
+      department: merged.department || null,
+      team: merged.team || null,
+      position_code: merged.positionCode || null,
+      staff_id: merged.staffId || null,
+    });
+  }
+
+  function scrollToQueue() {
+    requestAnimationFrame(() => {
+      queueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  function onFactory(next: TowerFactoryFilter) {
+    patchQuery({ factory: next });
+  }
+
+  function onSeverityFilter(next: 'red,amber' | 'red' | 'amber') {
+    patchQuery({ severity: next });
+  }
+
+  function onColumn(id: TowerColumnId) {
+    const next = columnId === id ? '' : id;
+    patchQuery({ column_id: next || null });
+  }
+
+  function onDepartment(code: string, outsideCycle?: boolean) {
+    const selecting = drill.department !== code;
+    patchDrill({
+      department: code,
+      team: '',
+      positionCode: '',
+      staffId: '',
+    });
+    if (selecting || outsideCycle) scrollToQueue();
+  }
+
+  function onOrgLensSelect(level: TowerOrgRollupEntry['level'], code: string) {
+    if (level === 'team') {
+      patchDrill({
+        team: drill.team === code ? '' : code,
+        positionCode: '',
+        staffId: '',
+      });
+      scrollToQueue();
+      return;
+    }
+    if (level === 'position') {
+      patchDrill({
+        positionCode: drill.positionCode === code ? '' : code,
+        staffId: '',
+      });
+      scrollToQueue();
+      return;
+    }
+    if (level === 'staff') {
+      patchDrill({ staffId: drill.staffId === code ? '' : code });
+      scrollToQueue();
+    }
+  }
+
+  function clearOrgFilters() {
+    patchDrill({ department: '', team: '', positionCode: '', staffId: '' });
+  }
+
+  function onOwnerFilter(id: number) {
+    patchDrill({
+      staffId: drill.staffId === String(id) ? '' : String(id),
+      team: '',
+      positionCode: '',
+    });
+    scrollToQueue();
+  }
 
   async function onSuggest(row: TowerException) {
     const mapped = mapTowerSuggestAction(row, { can_act: canAct !== false });
@@ -159,106 +290,16 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
     }
   }
 
-  function patchQuery(next: Record<string, string | null>) {
-    const params = new URLSearchParams(searchParams.toString());
-    for (const [key, value] of Object.entries(next)) {
-      if (value == null || value === '') params.delete(key);
-      else params.set(key, value);
-    }
-    const qs = params.toString();
-    router.replace(qs ? `/crm/ceo?${qs}` : '/crm/ceo', { scroll: false });
-  }
-
-  function onFactory(next: TowerFactoryFilter) {
-    patchQuery({ factory: next });
-  }
-
-  function onSeverityFilter(next: 'red,amber' | 'red' | 'amber') {
-    patchQuery({ severity: next });
-  }
-
-  function onColumn(id: TowerColumnId) {
-    const next = columnId === id ? '' : id;
-    patchQuery({
-      column_id: next || null,
-    });
-  }
-
-  function onDepartment(code: string, outsideCycle?: boolean) {
-    if (outsideCycle) {
-      patchQuery({ department: code, team: null, position_code: null, staff_id: null });
-      return;
-    }
-    patchQuery({
-      department: department === code ? null : code,
-      team: null,
-      position_code: null,
-      staff_id: null,
-    });
-  }
-
-  function onOrgLensSelect(level: TowerOrgRollupEntry['level'], code: string) {
-    if (level === 'team') {
-      patchQuery({
-        team: team === code ? null : code,
-        position_code: null,
-        staff_id: null,
-      });
-      return;
-    }
-    if (level === 'position') {
-      patchQuery({
-        position_code: positionCode === code ? null : code,
-        staff_id: null,
-      });
-      return;
-    }
-    if (level === 'staff') {
-      patchQuery({
-        staff_id: staffId === code ? null : code,
-      });
-    }
-  }
-
-  function clearOrgFilters() {
-    patchQuery({
-      department: null,
-      team: null,
-      position_code: null,
-      staff_id: null,
-    });
-  }
-
-  function onOwnerFilter(id: number) {
-    patchQuery({
-      staff_id: staffId === String(id) ? null : String(id),
-      team: null,
-      position_code: null,
-    });
-  }
-
-  function onCapacityStaff(id: number) {
-    onOwnerFilter(id);
-  }
-
-  function onLegalEntity(id: string) {
-    patchQuery({
-      legal_entity_id: legalEntityId === id ? null : id,
-    });
-  }
-
   const breadcrumb = buildTowerBreadcrumb({
     factory,
-    department: department || null,
-    team: team || null,
-    position_code: positionCode || null,
-    staff_id: staffId || null,
+    department: drill.department || null,
+    team: drill.team || null,
+    position_code: drill.positionCode || null,
+    staff_id: drill.staffId || null,
     orgRollup: payload?.org_rollup,
   });
-  const deptRows = departmentRollupEntries(payload?.org_rollup);
-  const outsideCycleActive = isOutsideCycleDepartment(department, payload?.org_rollup);
+  const outsideCycleActive = isOutsideCycleDepartment(drill.department, payload?.org_rollup);
 
-  const exceptions = payload?.exceptions ?? [];
   const summary = payload
     ? payload.columns.reduce(
         (acc, col) => {
@@ -269,15 +310,17 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
         },
         { total: 0, red: 0, amber: 0 },
       )
-    : { ...exceptionQueueSummary(exceptions), amber: 0 };
+    : { total: 0, red: 0, amber: 0 };
   const healthTone = towerHealthTone(summary.total, summary.red);
+  const filteredRed = exceptions.filter((row) => row.severity === 'red').length;
+  const filteredAmber = exceptions.filter((row) => row.severity === 'amber').length;
 
   return (
     <section className="page-card stack-gap ceo-tower-panel" data-testid="ceo-lifecycle-tower" aria-label="Tháp chu trình">
       <header className="ceo-tower-header">
         <div className="ceo-tower-header__intro">
           <h2 className="ceo-tower-header__title">Tháp chu trình</h2>
-          <p className="ceo-tower-header__subtitle">Quét đỏ/vàng → drill phòng → bộ phận → nhân sự → Mở / Gợi ý</p>
+          <p className="ceo-tower-header__subtitle">Nhìn toàn công ty → chọn phòng → drill tiếp → xử lý hàng chờ</p>
         </div>
         <div className={healthSummaryClass(healthTone)} data-testid="ceo-tower-health">
           <div className="ceo-tower-health__stat">
@@ -329,6 +372,26 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
         </div>
       </header>
 
+      <CeoTowerDeptPicker
+        orgRollup={payload?.org_rollup}
+        activeDepartment={drill.department}
+        onDepartment={onDepartment}
+      />
+
+      {drill.department ? (
+        <div className="ceo-tower-drill-banner" data-testid="ceo-tower-drill-banner">
+          <div>
+            <strong>Đang drill: {deptLabel(drill.department, payload?.org_rollup)}</strong>
+            <span className="ceo-tower-drill-banner__meta">
+              {filteredRed} đỏ · {filteredAmber} vàng · {exceptions.length} việc trong hàng chờ
+            </span>
+          </div>
+          <button type="button" className="btn btn-xs btn-secondary" onClick={clearOrgFilters}>
+            Xóa lọc phòng
+          </button>
+        </div>
+      ) : null}
+
       <nav className="ceo-tower-breadcrumb" data-testid="ceo-tower-breadcrumb" aria-label="Lăng kính tổ chức">
         {breadcrumb.map((segment, index) => (
           <span key={segment.key} className="ceo-tower-breadcrumb__segment">
@@ -346,7 +409,7 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
             )}
           </span>
         ))}
-        {department || team || positionCode || staffId ? (
+        {drill.department || drill.team || drill.positionCode || drill.staffId ? (
           <button
             type="button"
             className="btn btn-xs btn-ghost"
@@ -359,13 +422,11 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
         ) : null}
       </nav>
 
-      {department ? (
+      {drill.department ? (
         <CeoTowerOrgLens
           orgRollup={payload?.org_rollup}
-          department={department}
-          team={team}
-          positionCode={positionCode}
-          staffId={staffId}
+          scopeExceptions={deptScopedExceptions}
+          drill={drillFilters}
           onSelect={onOrgLensSelect}
         />
       ) : null}
@@ -385,22 +446,13 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
           <CeoTowerTrendPanel trends={payload?.trends} />
         </div>
 
-        {deptRows.length ? (
-          <aside className="ceo-tower-dashboard__side">
-            <div className="ceo-tower-dept-grid">
-              <CeoTowerDeptHeatmap
-                orgRollup={payload?.org_rollup}
-                activeDepartment={department}
-                onDepartment={onDepartment}
-              />
-              <CeoTowerDeptDonut
-                orgRollup={payload?.org_rollup}
-                activeDepartment={department}
-                onDepartment={onDepartment}
-              />
-            </div>
-          </aside>
-        ) : null}
+        <aside className="ceo-tower-dashboard__side">
+          <CeoTowerDeptDonut
+            orgRollup={payload?.org_rollup}
+            activeDepartment={drill.department}
+            onDepartment={onDepartment}
+          />
+        </aside>
       </div>
 
       {payload?.legal_entity_filter_enabled && payload.legal_entity_options?.length ? (
@@ -412,7 +464,7 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
               type="button"
               data-testid={`ceo-tower-entity-${row.id}`}
               className={`btn btn-xs ${legalEntityId === row.id ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => onLegalEntity(row.id)}
+              onClick={() => patchQuery({ legal_entity_id: legalEntityId === row.id ? null : row.id })}
             >
               {row.label_vi}
             </button>
@@ -451,7 +503,7 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
                         type="button"
                         className="btn btn-xs btn-ghost"
                         data-testid={`ceo-tower-capacity-${row.staff_id}`}
-                        onClick={() => onCapacityStaff(row.staff_id)}
+                        onClick={() => onOwnerFilter(row.staff_id)}
                       >
                         {row.name}
                         <span className={capacityFlagClass(row.flag)}>{row.flag}</span>
@@ -472,12 +524,15 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
       {loading && !payload ? <p className="muted">Đang tải tháp…</p> : null}
 
       <div
+        ref={queueRef}
         className="ceo-tower-queue-section"
         data-testid="ceo-tower-queue"
         data-can-act={canAct == null ? 'pending' : canAct ? 'yes' : 'no'}
       >
         <div className="ceo-tower-queue-section__head">
-          <h3 className="ceo-tower-section-title">Hàng chờ sót</h3>
+          <h3 className="ceo-tower-section-title">
+            {drill.department ? `Hàng chờ — ${deptLabel(drill.department, payload?.org_rollup)}` : 'Hàng chờ sót'}
+          </h3>
           <span className="ceo-tower-queue-section__count">{exceptions.length} việc</span>
         </div>
         <CeoTowerExceptionQueue
@@ -485,7 +540,11 @@ export function CeoLifecycleTower({ token }: CeoLifecycleTowerProps) {
           canAct={canAct}
           busy={busy}
           outsideCycleActive={outsideCycleActive}
-          emptyCopy={TOWER_EMPTY_STATE_COPY}
+          emptyCopy={
+            drill.department
+              ? `Không có sót trong phòng này với bộ lọc hiện tại — thử bỏ lọc cột/mức độ.`
+              : TOWER_EMPTY_STATE_COPY
+          }
           outsideCycleCopy={TOWER_OUTSIDE_CYCLE_COPY}
           onOwnerFilter={onOwnerFilter}
           onSuggest={(row) => void onSuggest(row)}

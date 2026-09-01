@@ -304,17 +304,20 @@ test.describe('CEO Lifecycle Tower T2', () => {
 
 test.describe('CEO Lifecycle Tower T4', () => {
   test('Sales dept → TEAM-SALES-AM filters queue rows', async ({ page }) => {
-    await mockCeoTowerApis(page, { filterByQuery: true });
+    await mockCeoTowerApis(page);
 
     await loginAsStaff(page);
     await page.goto('/crm/ceo');
 
     await expect(page.getByTestId('ceo-lifecycle-tower')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('ceo-tower-dept-picker')).toBeVisible();
     await expect(page.getByTestId('ceo-tower-dept-DEPT-SALES')).toBeVisible();
 
     await page.getByTestId('ceo-tower-dept-DEPT-SALES').click();
     await expect(page).toHaveURL(/department=DEPT-SALES/);
+    await expect(page.getByTestId('ceo-tower-drill-banner')).toContainText('Kinh doanh');
     await expect(page.getByTestId('ceo-tower-breadcrumb')).toContainText('Kinh doanh');
+    await expect(page.getByText('Lead #70 ops quá hạn')).toHaveCount(0);
 
     await page.getByTestId('ceo-tower-breadcrumb-clear').click();
     await expect(page).not.toHaveURL(/department=/);

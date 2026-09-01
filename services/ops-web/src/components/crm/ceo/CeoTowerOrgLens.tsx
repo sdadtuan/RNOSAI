@@ -7,46 +7,70 @@ import {
   orgRollupByLevel,
   type TowerOrgRollupEntry,
 } from '@/lib/crm/ceo-tower-ui.util';
+import {
+  buildLensEntriesFromExceptions,
+  type TowerDrillFilters,
+} from '@/lib/crm/ceo-tower-filter.util';
+import type { TowerException } from '@/lib/crm/ceo-tower-api';
 
 export type CeoTowerOrgLensProps = {
   orgRollup: TowerOrgRollupEntry[] | undefined;
-  department: string;
-  team: string;
-  positionCode: string;
-  staffId: string;
+  scopeExceptions: TowerException[];
+  drill: TowerDrillFilters;
   onSelect: (level: TowerOrgRollupEntry['level'], code: string) => void;
 };
 
 export function CeoTowerOrgLens({
   orgRollup,
-  department,
-  team,
-  positionCode,
-  staffId,
+  scopeExceptions,
+  drill,
   onSelect,
 }: CeoTowerOrgLensProps) {
   const lensLevel = activeOrgLensLevel({
-    department: department || undefined,
-    team: team || undefined,
-    position_code: positionCode || undefined,
-    staff_id: staffId || undefined,
+    department: drill.department,
+    team: drill.team,
+    position_code: drill.position_code,
+    staff_id: drill.staff_id,
   });
-  if (!lensLevel) return null;
+  if (!lensLevel || lensLevel === 'department') return null;
 
-  const rows = orgRollupByLevel(orgRollup, lensLevel).filter((row) => {
-    if (lensLevel !== 'department') return row.red_count + row.amber_count > 0;
-    return true;
-  });
-  if (!rows.length) return null;
+  const fromRollup = orgRollupByLevel(orgRollup, lensLevel).filter(
+    (row) => row.red_count + row.amber_count > 0,
+  );
+
+  const fromExceptions =
+    lensLevel === 'team' || lensLevel === 'position' || lensLevel === 'staff'
+      ? buildLensEntriesFromExceptions(scopeExceptions, lensLevel)
+      : [];
+
+  const merged = new Map<string, TowerOrgRollupEntry>();
+  for (const row of [...fromRollup, ...fromExceptions]) {
+    const prev = merged.get(row.code);
+    if (!prev || row.red_count + row.amber_count > prev.red_count + prev.amber_count) {
+      merged.set(row.code, row);
+    }
+  }
+  const rows = [...merged.values()].sort(
+    (a, b) => b.red_count - a.red_count || b.amber_count - a.amber_count || a.label_vi.localeCompare(b.label_vi, 'vi'),
+  );
+
+  if (!rows.length) {
+    return (
+      <div className="ceo-tower-org-lens ceo-tower-org-lens--empty" data-testid={`ceo-tower-org-lens-${lensLevel}`}>
+        <span className="ceo-tower-org-lens__label">{orgLensLevelLabel(lensLevel)}</span>
+        <p className="ceo-tower-org-lens__empty">
+          Chưa có {orgLensLevelLabel(lensLevel).toLowerCase()} gắn trên các việc sót — xem hàng chờ bên dưới.
+        </p>
+      </div>
+    );
+  }
 
   const activeCode =
-    lensLevel === 'department'
-      ? department
-      : lensLevel === 'team'
-        ? team
-        : lensLevel === 'position'
-          ? positionCode
-          : staffId;
+    lensLevel === 'team'
+      ? drill.team ?? ''
+      : lensLevel === 'position'
+        ? drill.position_code ?? ''
+        : drill.staff_id ?? '';
 
   return (
     <div className="ceo-tower-org-lens" data-testid={`ceo-tower-org-lens-${lensLevel}`}>
@@ -64,13 +88,7 @@ export function CeoTowerOrgLens({
               onClick={() => onSelect(lensLevel, row.code)}
             >
               <span className="ceo-tower-org-lens__chip-label">{row.label_vi}</span>
-              {row.outside_cycle ? (
-                <span className="ceo-tower-org-lens__chip-meta">ngoài CT</span>
-              ) : total > 0 ? (
-                <span className="ceo-tower-org-lens__chip-meta">{deptRollupSummary(row)}</span>
-              ) : (
-                <span className="ceo-tower-org-lens__chip-meta">0</span>
-              )}
+              <span className="ceo-tower-org-lens__chip-meta">{deptRollupSummary(row) || (total > 0 ? `${total}` : '0')}</span>
             </button>
           );
         })}
