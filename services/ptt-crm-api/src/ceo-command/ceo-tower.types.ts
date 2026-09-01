@@ -26,7 +26,7 @@ export type TowerException = {
   factory: TowerFactory;
   column_id: TowerColumnId;
   sensor_ids: TowerSensorId[];
-  severity: 'red' | 'amber';
+  severity: 'red' | 'amber' | 'ok';
   title_vi: string;
   entity_type: 'lead' | 'lifecycle';
   entity_id: number;

@@ -341,6 +341,62 @@ describe('CeoTowerSensorService.buildPayload', () => {
     expect(loadCandidates).toHaveBeenCalledTimes(2);
   });
 
+  it('care row with only signed_on (contractEndInDays null) does not get S10 red', async () => {
+    const careSignedOnOnly = candidate({
+      leadId: 510,
+      lifecycleId: 5100,
+      status: 'won',
+      won: true,
+      hasLifecycle: true,
+      clientActive: true,
+      retain: true,
+      b2Done: true,
+      intakeGo: true,
+      contractEndInDays: null,
+      lastActivityMs: NOW - D,
+    });
+    const { svc } = makeSvc({ candidates: [careSignedOnOnly] });
+    const out = await svc.buildPayload(actor(OPS_AND_K), {});
+    expect(out.exceptions.some((row) => row.sensor_ids.includes('S10'))).toBe(false);
+    expect(out.sensors_ok.S10).toBe('ok');
+  });
+
+  it('care row with ends_on within 30 days gets S10', async () => {
+    const careEndingSoon = candidate({
+      leadId: 511,
+      lifecycleId: 5110,
+      status: 'won',
+      won: true,
+      hasLifecycle: true,
+      clientActive: true,
+      retain: true,
+      b2Done: true,
+      intakeGo: true,
+      contractEndInDays: 15,
+      lastActivityMs: NOW - D,
+    });
+    const { svc } = makeSvc({ candidates: [careEndingSoon] });
+    const out = await svc.buildPayload(actor(OPS_AND_K), {});
+    const s10 = out.exceptions.find((row) => row.sensor_ids.includes('S10'));
+    expect(s10).toBeDefined();
+    expect(s10!.severity).toBe('red');
+    expect(out.sensors_ok.S10).toBe('fail');
+  });
+
+  it('severity=ok keeps healthy rows as ok, not amber', async () => {
+    const green = candidate({
+      leadId: 50,
+      ownerId: 3,
+      createdAtMs: NOW - 30 * 60_000,
+      lastActivityMs: NOW - 10 * 60_000,
+    });
+    const { svc } = makeSvc({ candidates: [green] });
+    const out = await svc.buildPayload(actor(OPS_AND_K), { severity: 'ok' });
+    const row = out.exceptions.find((r) => r.entity_id === 50);
+    expect(row).toBeDefined();
+    expect(row!.severity).toBe('ok');
+  });
+
   it('red/amber cũ hơn 7 ngày vẫn vào hàng chờ', async () => {
     const oldRed = candidate({
       leadId: 99,

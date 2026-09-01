@@ -40,7 +40,7 @@ SELECT
   ct.amount_vnd,
   ct.created_at AS contract_created_at,
   ct.updated_at AS contract_updated_at,
-  ct.signed_on,
+  ct.ends_on,
   ct.agency_client_id AS contract_client_id,
   ap.created_at AS approval_submitted_at,
   ap.status AS approval_status,
@@ -66,7 +66,7 @@ LEFT JOIN crm_lifecycle_milestones m_ca
 LEFT JOIN crm_lifecycle_milestones m_cl
   ON m_cl.lead_id = l.sqlite_lead_id AND m_cl.milestone_key = 'client_active'
 LEFT JOIN LATERAL (
-  SELECT id, status, amount_vnd, created_at, updated_at, signed_on, agency_client_id
+  SELECT id, status, amount_vnd, created_at, updated_at, ends_on, agency_client_id
   FROM crm_contracts
   WHERE lead_id = l.sqlite_lead_id
   ORDER BY updated_at DESC NULLS LAST
@@ -166,8 +166,8 @@ export class CeoTowerRepository implements OnModuleDestroy {
     const firstCall = sla.tiers.find((t) => t.tier === 'first_call_15m');
     const b2Tier = sla.tiers.find((t) => t.tier === 'b2_complete_4h');
     const closeTier = sla.tiers.find((t) => t.tier === 'close_24h');
-    const signedOn = row.signed_on != null ? String(row.signed_on).slice(0, 10) : '';
-    const contractEndInDays = signedOn ? daysUntil(signedOn, nowMs) : null;
+    const endsOn = row.ends_on != null ? String(row.ends_on).slice(0, 10) : '';
+    const contractEndInDays = endsOn ? daysUntil(endsOn, nowMs) : null;
     const valueRaw = row.amount_vnd;
     const valueVnd = valueRaw == null || valueRaw === '' ? null : Number(valueRaw);
     const lastActivityMs = Math.max(

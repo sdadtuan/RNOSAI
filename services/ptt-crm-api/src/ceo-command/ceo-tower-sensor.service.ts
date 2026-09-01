@@ -405,7 +405,7 @@ function toException(row: ClassifiedRow, _nowMs: number): TowerException {
     factory: row.factory,
     column_id: row.column_id,
     sensor_ids: row.sensor_ids,
-    severity: row.severity === 'ok' ? 'amber' : row.severity,
+    severity: row.severity,
     title_vi: titleVi(row),
     entity_type,
     entity_id,
