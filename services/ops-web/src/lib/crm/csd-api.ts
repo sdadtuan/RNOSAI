@@ -149,6 +149,14 @@ export interface CsdAttachmentRow {
   visibility: 'internal' | 'client' | 'restricted';
 }
 
+export type CsdChatEmotionId = 'like' | 'love' | 'haha' | 'wow' | 'sad' | 'angry';
+
+export interface CsdMessageReactionSummary {
+  emotion: CsdChatEmotionId;
+  count: number;
+  mine: boolean;
+}
+
 export interface CsdMessageRow {
   id: string;
   conversation_id: string;
@@ -164,6 +172,7 @@ export interface CsdMessageRow {
   is_deleted?: boolean;
   delivery_status?: 'sent' | 'delivered' | 'failed';
   attachments?: CsdAttachmentRow[];
+  reactions?: CsdMessageReactionSummary[];
   priority_suggestion?: 'P1' | 'P2' | null;
 }
 
@@ -423,6 +432,17 @@ export async function editCsdMessage(
 export async function deleteCsdMessage(token: string, messageId: string): Promise<CsdMessageRow> {
   return csdFetch(token, `/api/crm/csd/messages/${messageId}`, {
     method: 'DELETE',
+  });
+}
+
+export async function reactCsdMessage(
+  token: string,
+  messageId: string,
+  emotion: CsdChatEmotionId,
+): Promise<{ message_id: string; reactions: CsdMessageReactionSummary[] }> {
+  return csdFetch(token, `/api/crm/csd/messages/${messageId}/reactions`, {
+    method: 'PUT',
+    body: JSON.stringify({ emotion }),
   });
 }
 

@@ -9,7 +9,9 @@ import {
   CsdConversationListItem,
   CsdConversationMemberRow,
   CsdConversationRow,
+  CsdChatEmotionId,
   CsdConversationStatus,
+  CsdMessageReactionSummary,
   CsdMessageRow,
   CsdPriority,
   CsdTicketRow,
@@ -726,6 +728,65 @@ export class CsdChatRepository implements OnModuleDestroy {
           AND id = ANY($4::uuid[])`,
       [CSD_TENANT_ID, conversationId, messageId, attachmentIds],
     );
+  }
+
+  async listReactionsByMessages(
+    messageIds: string[],
+    viewerStaffId: number,
+  ): Promise<Record<string, CsdMessageReactionSummary[]>> {
+    const out: Record<string, CsdMessageReactionSummary[]> = {};
+    if (messageIds.length === 0) return out;
+    const res = await this.db.query(
+      `SELECT message_id::text AS message_id,
+              emotion,
+              COUNT(*)::int AS count,
+              BOOL_OR(staff_id = $2) AS mine
+         FROM csd_message_reactions
+        WHERE message_id = ANY($1::uuid[])
+        GROUP BY message_id, emotion
+        ORDER BY MIN(created_at) ASC`,
+      [messageIds, viewerStaffId],
+    );
+    for (const row of res.rows as Record<string, unknown>[]) {
+      const messageId = text(row.message_id);
+      if (!out[messageId]) out[messageId] = [];
+      out[messageId].push({
+        emotion: text(row.emotion) as CsdChatEmotionId,
+        count: num(row.count) ?? 0,
+        mine: Boolean(row.mine),
+      });
+    }
+    return out;
+  }
+
+  async setMessageReaction(
+    messageId: string,
+    staffId: number,
+    emotion: CsdChatEmotionId,
+  ): Promise<CsdMessageReactionSummary[]> {
+    const existing = await this.db.query(
+      `SELECT emotion FROM csd_message_reactions
+        WHERE message_id = $1 AND staff_id = $2`,
+      [messageId, staffId],
+    );
+    const current = existing.rows[0] ? text(existing.rows[0].emotion) : '';
+    if (current === emotion) {
+      await this.db.query(
+        `DELETE FROM csd_message_reactions
+          WHERE message_id = $1 AND staff_id = $2`,
+        [messageId, staffId],
+      );
+    } else {
+      await this.db.query(
+        `INSERT INTO csd_message_reactions (message_id, staff_id, emotion)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (message_id, staff_id)
+         DO UPDATE SET emotion = EXCLUDED.emotion, created_at = NOW()`,
+        [messageId, staffId, emotion],
+      );
+    }
+    const grouped = await this.listReactionsByMessages([messageId], staffId);
+    return grouped[messageId] ?? [];
   }
 
   async listAttachmentsByMessages(messageIds: string[]): Promise<Record<string, CsdAttachmentRow[]>> {

@@ -272,6 +272,18 @@ CREATE INDEX IF NOT EXISTS csd_messages_ticket_idx
   ON csd_messages (ticket_id)
   WHERE ticket_id IS NOT NULL;
 
+CREATE TABLE IF NOT EXISTS csd_message_reactions (
+  message_id UUID NOT NULL REFERENCES csd_messages (id) ON DELETE CASCADE,
+  staff_id INTEGER NOT NULL,
+  emotion VARCHAR(16) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (message_id, staff_id),
+  CONSTRAINT csd_message_reactions_emotion_chk
+    CHECK (emotion IN ('like', 'love', 'haha', 'wow', 'sad', 'angry'))
+);
+CREATE INDEX IF NOT EXISTS csd_message_reactions_msg_idx
+  ON csd_message_reactions (message_id);
+
 -- ---------------------------------------------------------------------------
 -- Tickets
 -- ---------------------------------------------------------------------------

@@ -15952,6 +15952,119 @@ body {
   gap: 0.25rem;
 }
 
+.csd-chat-bubble-stack {
+  position: relative;
+  max-width: 100%;
+}
+
+.csd-chat-react {
+  position: absolute;
+  right: -4px;
+  bottom: -10px;
+  z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.csd-chat-message.is-mine .csd-chat-react {
+  right: auto;
+  left: -4px;
+}
+
+.csd-chat-message:hover .csd-chat-react,
+.csd-chat-react.is-open,
+.csd-chat-react:hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.csd-chat-react-trigger {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  color: #98a2b3;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.16);
+  cursor: pointer;
+  padding: 0;
+}
+
+.csd-chat-react-trigger:hover,
+.csd-chat-react.is-open .csd-chat-react-trigger {
+  color: var(--zalo-blue, #0068ff);
+}
+
+.csd-chat-react-panel {
+  display: none;
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.28rem 0.4rem;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.16);
+  white-space: nowrap;
+}
+
+.csd-chat-message.is-mine .csd-chat-react-panel {
+  right: auto;
+  left: 0;
+}
+
+.csd-chat-react:hover .csd-chat-react-panel,
+.csd-chat-react.is-open .csd-chat-react-panel {
+  display: flex;
+}
+
+.csd-chat-react-panel button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 1.15rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.csd-chat-react-panel button:hover {
+  transform: scale(1.18);
+  background: #f8fafc;
+}
+
+.csd-chat-react-chips {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0.35rem 0 0;
+  padding: 0;
+}
+
+.csd-chat-react-chip {
+  border: 1px solid #e4e8ee;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.csd-chat-react-chip.is-mine {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
 .csd-chat-message.is-mine .csd-chat-bubble-row {
   flex-direction: row-reverse;
 }

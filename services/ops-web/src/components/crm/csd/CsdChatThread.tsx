@@ -5,6 +5,7 @@ import { CsdChatBubble } from '@/components/crm/csd/CsdChatBubble';
 import {
   fetchCsdTickets,
   type CsdAttachmentRow,
+  type CsdChatEmotionId,
   type CsdConversationMemberRow,
   type CsdConversationRow,
   type CsdMessageRow,
@@ -54,6 +55,7 @@ type CsdChatThreadProps = {
   onDeleteMessage: (message: CsdMessageRow) => void;
   onCopyLink: (message: CsdMessageRow) => void;
   onForward: (message: CsdMessageRow) => void;
+  onReact?: (message: CsdMessageRow, emotion: CsdChatEmotionId) => void;
   onMobileBack?: () => void;
   onShowContext?: () => void;
   onRename?: (aliasVi: string) => Promise<boolean>;
@@ -87,6 +89,7 @@ export function CsdChatThread({
   onDeleteMessage,
   onCopyLink,
   onForward,
+  onReact,
   onMobileBack,
   onShowContext,
   onRename,
@@ -309,6 +312,7 @@ export function CsdChatThread({
                 onDelete={onDeleteMessage}
                 onCopyLink={onCopyLink}
                 onForward={onForward}
+                onReact={onReact}
               />
             </li>
           );

@@ -2,8 +2,8 @@ export const CSD_CHAT_EMOTIONS = [
   { id: 'like', emoji: '👍', label: 'Thích' },
   { id: 'love', emoji: '❤️', label: 'Yêu' },
   { id: 'haha', emoji: '😆', label: 'Haha' },
-  { id: 'wow', emoji: '😮', label: 'Wow' },
-  { id: 'sad', emoji: '😢', label: 'Buồn' },
+  { id: 'wow', emoji: '😲', label: 'Wow' },
+  { id: 'sad', emoji: '😭', label: 'Buồn' },
   { id: 'angry', emoji: '😡', label: 'Giận' },
 ] as const;
 

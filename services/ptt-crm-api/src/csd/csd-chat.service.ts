@@ -21,8 +21,11 @@ import {
   CsdConversationListItem,
   CsdConversationListQuery,
   CsdConversationMemberRow,
+  CsdChatEmotionId,
   CsdConversationRow,
+  CsdMessageReactionSummary,
   CsdMessageRow,
+  CSD_CHAT_EMOTION_IDS,
   CsdTicketFromChatMessage,
   CsdTicketRow,
   SendCsdMessageInput,
@@ -245,11 +248,42 @@ export class CsdChatService {
     const conv = await this.repo.getConversation(conversationId);
     if (!conv) throw new NotFoundException({ error: 'csd_conversation_not_found' });
     const items = await this.repo.listMessages(conversationId, after, q);
-    const grouped = await this.repo.listAttachmentsByMessages(items.map((m) => m.id));
+    const ids = items.map((m) => m.id);
+    const grouped = await this.repo.listAttachmentsByMessages(ids);
+    const reactions = await this.repo.listReactionsByMessages(ids, actor.staffId);
     return {
       me_staff_id: actor.staffId,
-      items: items.map((m) => ({ ...m, attachments: grouped[m.id] ?? [] })),
+      items: items.map((m) => ({
+        ...m,
+        attachments: grouped[m.id] ?? [],
+        reactions: reactions[m.id] ?? [],
+      })),
     };
+  }
+
+  async reactToMessage(
+    actor: CsdActor,
+    messageId: string,
+    emotion: string,
+  ): Promise<{ message_id: string; reactions: CsdMessageReactionSummary[] }> {
+    await this.accounts.assertEnabled(actor);
+    if (!CSD_CHAT_EMOTION_IDS.includes(emotion as CsdChatEmotionId)) {
+      throw new BadRequestException({ error: 'emotion_invalid' });
+    }
+    const message = await this.repo.getMessage(messageId);
+    if (!message) throw new NotFoundException({ error: 'csd_message_not_found' });
+    if (message.is_deleted) throw new ConflictException({ error: 'message_deleted' });
+    const conv = await this.repo.getConversation(message.conversation_id);
+    if (!conv) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+    if (conv.status === 'closed' || conv.status === 'archived') {
+      throw new ConflictException({ error: 'conversation_closed' });
+    }
+    const reactions = await this.repo.setMessageReaction(
+      messageId,
+      actor.staffId,
+      emotion as CsdChatEmotionId,
+    );
+    return { message_id: messageId, reactions };
   }
 
   async listRelatedTickets(

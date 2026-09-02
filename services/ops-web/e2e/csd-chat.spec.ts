@@ -359,6 +359,26 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
       });
       return;
     }
+    if (method === 'PUT' && path.endsWith('/reactions')) {
+      const body = route.request().postDataJSON() as { emotion?: string };
+      const emotion = body.emotion ?? 'like';
+      const current = Array.isArray(message.reactions) ? message.reactions : [];
+      const mine = current.find((row: { emotion?: string; mine?: boolean }) => row.mine);
+      const next =
+        mine && mine.emotion === emotion
+          ? current.filter((row: { mine?: boolean }) => !row.mine)
+          : [
+              ...current.filter((row: { mine?: boolean }) => !row.mine),
+              { emotion, count: 1, mine: true },
+            ];
+      message = { ...message, reactions: next };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ message_id: message.id, reactions: next }),
+      });
+      return;
+    }
     if (method === 'PATCH') {
       const body = route.request().postDataJSON() as { body_text?: string };
       message = { ...message, body_text: body.body_text ?? message.body_text, edited_at: new Date().toISOString() };
@@ -629,6 +649,20 @@ test.describe('CSD chat workspace', () => {
     await expect(page.getByTestId('csd-chat-messages')).toContainText('❤️');
     await page.getByTestId('csd-chat-quick-like').click();
     await expect(page.getByTestId('csd-chat-messages')).toContainText('👍');
+  });
+
+  test('C-react: hover like on a message and pick love', async ({ page }) => {
+    await mockCsdChatApis(page);
+    await loginAsStaff(page);
+    await page.goto('/crm/csd/chat');
+    await unlockCsdChat(page);
+    await expect(page.getByTestId('csd-chat-workspace')).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: /Demo Client Chat/ }).click();
+    await page.locator('.csd-chat-message').first().hover();
+    await page.getByTestId('csd-chat-react-trigger').hover();
+    await expect(page.getByTestId('csd-chat-react-panel')).toBeVisible();
+    await page.getByTestId('csd-chat-react-love').click();
+    await expect(page.getByTestId('csd-chat-react-chips')).toContainText('❤️');
   });
 
   test('C-4: priority hint, duplicate ticket dialog, archive, AI action ticket, deep link', async ({ page }) => {

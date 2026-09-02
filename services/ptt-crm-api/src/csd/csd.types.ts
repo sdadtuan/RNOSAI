@@ -240,6 +240,15 @@ export type CsdAttachmentRow = {
   created_at: string;
 };
 
+export const CSD_CHAT_EMOTION_IDS = ['like', 'love', 'haha', 'wow', 'sad', 'angry'] as const;
+export type CsdChatEmotionId = (typeof CSD_CHAT_EMOTION_IDS)[number];
+
+export type CsdMessageReactionSummary = {
+  emotion: CsdChatEmotionId;
+  count: number;
+  mine: boolean;
+};
+
 export type CsdMessageRow = {
   id: string;
   tenant_id: string;
@@ -255,6 +264,7 @@ export type CsdMessageRow = {
   is_deleted?: boolean;
   delivery_status?: 'sent' | 'delivered' | 'failed';
   attachments?: CsdAttachmentRow[];
+  reactions?: CsdMessageReactionSummary[];
 };
 
 export type CreateCsdConversationInput = {

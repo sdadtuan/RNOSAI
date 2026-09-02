@@ -7,9 +7,10 @@ import {
   formatCsdWhen,
   previewCsdFileObjectUrl,
   type CsdAttachmentRow,
+  type CsdChatEmotionId,
   type CsdMessageRow,
 } from '@/lib/crm/csd-api';
-import { isCsdChatEmotionMessage } from '@/lib/crm/csd-chat-emotions';
+import { CSD_CHAT_EMOTIONS, isCsdChatEmotionMessage } from '@/lib/crm/csd-chat-emotions';
 import { avatarHue, initialsFromName, isCsdChatImageMime } from '@/lib/crm/csd-chat-display';
 
 const EDIT_WINDOW_MS = 15 * 60_000;
@@ -98,6 +99,7 @@ export type CsdChatBubbleProps = {
   onDelete: (m: CsdMessageRow) => void;
   onCopyLink: (m: CsdMessageRow) => void;
   onForward: (m: CsdMessageRow) => void;
+  onReact?: (m: CsdMessageRow, emotion: CsdChatEmotionId) => void;
 };
 
 export function CsdChatBubble({
@@ -120,10 +122,12 @@ export function CsdChatBubble({
   onDelete,
   onCopyLink,
   onForward,
+  onReact,
 }: CsdChatBubbleProps) {
   const [editing, setEditing] = useState(false);
   const [editDraft, setEditDraft] = useState(message.body_text);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [reactOpen, setReactOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const name = message.author_staff_name ?? 'Khách';
   const seed = message.author_staff_id ?? 'KH';
@@ -169,6 +173,7 @@ export function CsdChatBubble({
           </div>
         )}
         <div className="csd-chat-bubble-row">
+          <div className="csd-chat-bubble-stack">
           <div className="csd-chat-bubble">
             {quoted ? (
               <p className="csd-chat-quote muted">
@@ -241,6 +246,66 @@ export function CsdChatBubble({
                 {ticketPill ?? 'Ticket liên kết'}
               </Link>
             ) : null}
+            {(message.reactions ?? []).length > 0 ? (
+              <ul className="csd-chat-react-chips" data-testid="csd-chat-react-chips">
+                {(message.reactions ?? []).map((row) => {
+                  const meta = CSD_CHAT_EMOTIONS.find((item) => item.id === row.emotion);
+                  return (
+                    <li key={row.emotion}>
+                      <button
+                        type="button"
+                        className={`csd-chat-react-chip${row.mine ? ' is-mine' : ''}`}
+                        disabled={!onReact || !canWrite || closed || busy}
+                        onClick={() => onReact?.(message, row.emotion)}
+                      >
+                        {meta?.emoji ?? row.emotion} {row.count}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+          </div>
+          {onReact && canWrite && !closed && !message.is_deleted && !editing ? (
+            <div className={`csd-chat-react${reactOpen ? ' is-open' : ''}`}>
+              <button
+                type="button"
+                className="csd-chat-react-trigger"
+                data-testid="csd-chat-react-trigger"
+                aria-label="Thả emotion"
+                aria-expanded={reactOpen}
+                onClick={() => setReactOpen((v) => !v)}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
+                  <path
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M7.5 11.5v7h-2a1.5 1.5 0 0 1-1.5-1.5v-4A1.5 1.5 0 0 1 5.5 11.5h2Zm0 0 3-6a1.8 1.8 0 0 1 3.4 1.1L13.2 9.5H19a2 2 0 0 1 1.95 2.45l-1.1 6A2 2 0 0 1 17.9 19.5H7.5"
+                  />
+                </svg>
+              </button>
+              <div className="csd-chat-react-panel" data-testid="csd-chat-react-panel" role="menu">
+                {CSD_CHAT_EMOTIONS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="menuitem"
+                    title={item.label}
+                    data-testid={`csd-chat-react-${item.id}`}
+                    onClick={() => {
+                      setReactOpen(false);
+                      onReact(message, item.id);
+                    }}
+                  >
+                    {item.emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
           </div>
           {showMenu ? (
             <div className="csd-chat-msg-menu-wrap" ref={menuRef}>

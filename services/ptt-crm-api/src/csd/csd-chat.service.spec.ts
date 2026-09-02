@@ -30,6 +30,8 @@ describe('CsdChatService', () => {
     findStaffDisplayName: jest.fn(),
     getConversationForMember: jest.fn(),
     setMemberAlias: jest.fn(),
+    listReactionsByMessages: jest.fn(),
+    setMessageReaction: jest.fn(),
   };
 
   const tickets = {
@@ -79,6 +81,7 @@ describe('CsdChatService', () => {
     friends.isAccepted.mockResolvedValue(true);
     repo.findStaffDisplayName.mockResolvedValue('Nguyễn Văn B');
     repo.getConversationForMember.mockResolvedValue(null);
+    repo.listReactionsByMessages.mockResolvedValue({});
   });
 
   it('createConversation direct without friend is 409', async () => {
@@ -152,6 +155,20 @@ describe('CsdChatService', () => {
       status: 400,
     });
     expect(repo.setMemberAlias).not.toHaveBeenCalled();
+  });
+
+  it('sets a message reaction and returns summaries', async () => {
+    repo.getMessage.mockResolvedValue({ id: 'm1', conversation_id: 'c1', is_deleted: false });
+    repo.getConversation.mockResolvedValue({ id: 'c1', status: 'active' });
+    repo.setMessageReaction.mockResolvedValue([{ emotion: 'love', count: 1, mine: true }]);
+    const out = await svc().reactToMessage(actor, 'm1', 'love');
+    expect(repo.setMessageReaction).toHaveBeenCalledWith('m1', 3, 'love');
+    expect(out.reactions[0]).toEqual({ emotion: 'love', count: 1, mine: true });
+  });
+
+  it('rejects unknown message reaction emotion', async () => {
+    await expect(svc().reactToMessage(actor, 'm1', 'fire')).rejects.toMatchObject({ status: 400 });
+    expect(repo.setMessageReaction).not.toHaveBeenCalled();
   });
 
   it('rejects direct without peer', async () => {

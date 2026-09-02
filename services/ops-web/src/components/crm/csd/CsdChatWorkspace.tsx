@@ -125,6 +125,7 @@ export function CsdChatWorkspace({ token, canWrite, initialConversationId }: Csd
           onDeleteMessage={(m) => void s.handleDeleteMessage(m)}
           onCopyLink={s.handleCopyLink}
           onForward={(m) => s.setForwardMessage(m)}
+          onReact={(m, emotion) => void s.handleReactMessage(m, emotion)}
         />
       )}
 

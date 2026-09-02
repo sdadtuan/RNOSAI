@@ -19,6 +19,7 @@ import {
   forwardCsdMessage,
   markCsdConversationRead,
   patchCsdConversationAlias,
+  reactCsdMessage,
   reopenCsdConversation,
   removeCsdConversationMember,
   sendCsdMessage,
@@ -27,6 +28,7 @@ import {
   type CsdConversationListFilter,
   type CsdConversationMemberRow,
   type CsdAttachmentRow,
+  type CsdChatEmotionId,
   type CsdConversationRow,
   type CsdMessageRow,
   type CsdPriority,
@@ -102,6 +104,7 @@ export type CsdChatSession = {
   handleRenameConversation: (aliasVi: string) => Promise<boolean>;
   handleSend: (e?: FormEvent, bodyOverride?: string) => Promise<void>;
   handleSendEmotion: (emoji: string) => Promise<void>;
+  handleReactMessage: (message: CsdMessageRow, emotion: CsdChatEmotionId) => Promise<void>;
   handleCreateTicket: (e: FormEvent) => Promise<void>;
   handleAddMember: () => Promise<void>;
   handleRemoveMember: (staffId: number) => Promise<void>;
@@ -457,6 +460,18 @@ export function useCsdChatSession({
     }
   }
 
+  async function handleReactMessage(message: CsdMessageRow, emotion: CsdChatEmotionId) {
+    if (!canWrite) return;
+    try {
+      const out = await reactCsdMessage(token, message.id, emotion);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === message.id ? { ...m, reactions: out.reactions } : m)),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gửi emotion thất bại');
+    }
+  }
+
   async function handleDeleteMessage(message: CsdMessageRow) {
     setBusy(true);
     try {
@@ -588,6 +603,7 @@ export function useCsdChatSession({
     handleRenameConversation,
     handleSend,
     handleSendEmotion,
+    handleReactMessage,
     handleCreateTicket,
     handleAddMember,
     handleRemoveMember,
