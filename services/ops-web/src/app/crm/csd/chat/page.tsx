@@ -51,11 +51,15 @@ function CsdChatPageInner() {
     <StaffPageShell
       user={user}
       onLogout={logout}
-      breadcrumb={[
-        { label: 'CRM', href: '/crm/leads' },
-        { label: 'Service Desk', href: '/crm/csd' },
-        { label: 'Chat' },
-      ]}
+      breadcrumb={
+        chatAuthed
+          ? undefined
+          : [
+              { label: 'CRM', href: '/crm/leads' },
+              { label: 'Service Desk', href: '/crm/csd' },
+              { label: 'Chat' },
+            ]
+      }
       width="full"
     >
       <div className={token && chatEnabled && chatAuthed ? 'csd-chat-page is-authed' : 'csd-chat-page'}>

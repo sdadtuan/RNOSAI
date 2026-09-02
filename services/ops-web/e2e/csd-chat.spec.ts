@@ -454,24 +454,22 @@ test.describe('CSD chat workspace', () => {
     await expect(page.getByTestId('csd-chat-workspace')).toHaveCount(0);
   });
 
-  test('C-5: dock bubbles, send, hide on chat page', async ({ page }) => {
+  test('C-5: launcher opens full chat page, hide on chat page', async ({ page }) => {
     await mockCsdChatApis(page);
     await loginAsStaff(page);
     await page.goto('/crm/csd');
     await expect(page.getByTestId('csd-chat-launcher')).toBeVisible({ timeout: 15_000 });
     await page.getByTestId('csd-chat-launcher').click();
+    await expect(page).toHaveURL(/\/crm\/csd\/chat/);
     await unlockCsdChat(page);
-    await page.getByTestId('csd-chat-dock').getByTestId('csd-chat-list').locator('button').first().click();
-    await expect(page.getByTestId('csd-chat-dock').locator('.csd-chat-message.is-mine, .csd-chat-message.is-theirs')).toHaveCount(1);
-    await expect(page.getByTestId('csd-chat-dock').getByTestId('csd-chat-date-chip')).toBeVisible();
-    await expect(page.getByTestId('csd-chat-dock').getByTestId('csd-chat-image')).toBeVisible();
-    await expect(page.getByTestId('csd-chat-dock').getByTestId('csd-chat-msg-menu')).toBeVisible();
-    await page.getByTestId('csd-chat-dock').getByTestId('csd-chat-thread-info').click();
-    await expect(page.getByTestId('csd-chat-info-sheet')).toBeVisible();
-    await page.getByTestId('csd-chat-info-sheet').getByRole('button', { name: /Đóng/ }).click();
-    await page.getByTestId('csd-chat-dock').getByTestId('csd-chat-draft').fill('Xin chào');
-    await page.getByTestId('csd-chat-dock').getByRole('button', { name: 'Gửi' }).click();
-    await page.goto('/crm/csd/chat');
+    await expect(page.getByTestId('csd-chat-workspace')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('csd-chat-list').locator('button').first().click();
+    await expect(page.locator('.csd-chat-message.is-mine, .csd-chat-message.is-theirs')).toHaveCount(1);
+    await expect(page.getByTestId('csd-chat-date-chip')).toBeVisible();
+    await expect(page.getByTestId('csd-chat-image')).toBeVisible();
+    await expect(page.getByTestId('csd-chat-msg-menu')).toBeVisible();
+    await page.getByTestId('csd-chat-draft').fill('Xin chào');
+    await page.getByRole('button', { name: 'Gửi' }).click();
     await expect(page.getByTestId('csd-chat-launcher')).toHaveCount(0);
     await expect(page.locator('.csd-chat-message.is-mine, .csd-chat-message.is-theirs')).toHaveCount(1);
   });

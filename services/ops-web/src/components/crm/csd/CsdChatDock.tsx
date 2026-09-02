@@ -44,7 +44,7 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
   const hidden = !user || !canView || pathname === '/crm/csd/chat' || !token || meEnabled !== true;
 
   const initial = readCsdDockPersist();
-  const [open, setOpen] = useState(initial.open);
+  const [open, setOpen] = useState(false);
   const [pane, setPane] = useState<CsdDockPane>(initial.pane);
   const [tab, setTab] = useState<CsdDockTab>(initial.tab);
   const [incomingCount, setIncomingCount] = useState(0);
@@ -169,7 +169,7 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
   }
 
   function expand() {
-    const id = s.activeId;
+    const id = s.activeId ?? readCsdDockPersist().conversationId;
     setOpen(false);
     persist({ open: false, pane, conversationId: id });
     router.push(id ? `/crm/csd/chat?c=${id}` : '/crm/csd/chat');
@@ -184,10 +184,7 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
           data-testid="csd-chat-launcher"
           aria-label="Chat"
           aria-expanded={false}
-          onClick={() => {
-            setOpen(true);
-            persist({ open: true, pane, conversationId: s.activeId ?? initial.conversationId });
-          }}
+          onClick={expand}
         >
           Chat
           {unread > 0 ? (

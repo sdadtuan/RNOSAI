@@ -15181,11 +15181,11 @@ body {
 .csd-chat-page.is-authed {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 8.5rem);
+  min-height: calc(100vh - 5.5rem);
 }
 
 .csd-chat-page.is-authed .page-toolbar {
-  margin-bottom: 0.55rem;
+  margin-bottom: 0.4rem;
 }
 
 .csd-chat-page.is-authed .csd-chat-workspace {
@@ -15208,7 +15208,7 @@ body {
   gap: 0;
   align-items: stretch;
   min-height: 560px;
-  height: calc(100vh - 10.5rem);
+  height: calc(100vh - 7.25rem);
   background: #fff;
   border: 1px solid var(--zalo-line);
   overflow: hidden;
