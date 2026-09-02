@@ -1,9 +1,12 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CSD_REPORT_STATUS_LABELS,
+  normalizeCsdReportSection,
+  type CsdReportBlock,
   type CsdReportDetail,
+  type CsdReportSection,
   type CsdReportStatus,
 } from '@/lib/crm/csd-api';
 
@@ -11,7 +14,7 @@ type CsdReportEditorProps = {
   report: CsdReportDetail;
   canWrite: boolean;
   canManage?: boolean;
-  onSaveSection?: (key: string, value: string) => Promise<void>;
+  onSaveSection?: (key: string, section: CsdReportSection) => Promise<void>;
   onSubmitReview?: () => Promise<void>;
   onApprove?: () => Promise<void>;
   onRequestChanges?: (comment: string) => Promise<void>;
@@ -19,6 +22,8 @@ type CsdReportEditorProps = {
   onSend?: () => void;
   onSnapshot?: (input: { kind: 'minor' | 'major'; changelog: string }) => Promise<void>;
   onRevise?: () => Promise<void>;
+  onRollup?: () => Promise<void>;
+  onUploadFile?: (file: File) => Promise<{ id: string }>;
 };
 
 const SECTION_LABELS: Record<string, string> = {
@@ -40,6 +45,8 @@ const SECTION_LABELS: Record<string, string> = {
   asks: 'Đề xuất / Asks',
 };
 
+const REQUIRED_SECTIONS = new Set(['cover', 'executive_summary']);
+
 const VIEW_ONLY = new Set<CsdReportStatus>([
   'sent',
   'cancelled',
@@ -48,6 +55,14 @@ const VIEW_ONLY = new Set<CsdReportStatus>([
   'acknowledged',
 ]);
 
+const ADD_BLOCK_OPTIONS: { type: CsdReportBlock['type']; label: string }[] = [
+  { type: 'rich_text', label: 'Văn bản' },
+  { type: 'kpi_table', label: 'Bảng KPI' },
+  { type: 'chart', label: 'Biểu đồ' },
+  { type: 'file', label: 'File' },
+  { type: 'ticket_rollup', label: 'Rollup ticket' },
+];
+
 function outlineKeys(report: CsdReportDetail): string[] {
   if (Array.isArray(report.template_sections) && report.template_sections.length > 0) {
     return report.template_sections;
@@ -55,12 +70,26 @@ function outlineKeys(report: CsdReportDetail): string[] {
   return Object.keys(report.sections_json ?? {});
 }
 
-function sectionText(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (value && typeof value === 'object' && 'body' in value) {
-    return String((value as { body: unknown }).body ?? '');
+function draftsFromReport(report: CsdReportDetail): Record<string, CsdReportSection> {
+  const out: Record<string, CsdReportSection> = {};
+  for (const key of outlineKeys(report)) {
+    out[key] = normalizeCsdReportSection(report.sections_json?.[key]);
   }
-  return value == null ? '' : JSON.stringify(value, null, 2);
+  return out;
+}
+
+function sectionHasText(section: CsdReportSection | undefined): boolean {
+  return Boolean(
+    section?.blocks.some((b) => b.type === 'rich_text' && b.body.trim().length >= 10),
+  );
+}
+
+function emptyBlock(type: CsdReportBlock['type']): CsdReportBlock {
+  if (type === 'kpi_table') return { type, rows: [{ metric: '', value: '' }] };
+  if (type === 'chart') return { type, title: '', labels: ['A'], values: [0] };
+  if (type === 'file') return { type, attachment_id: '' };
+  if (type === 'ticket_rollup') return { type, ticket_ids: [], summary: '' };
+  return { type: 'rich_text', body: '' };
 }
 
 function canSendReport(report: CsdReportDetail): boolean {
@@ -85,6 +114,30 @@ function versionWhen(value?: string): string {
   return Number.isNaN(d.getTime()) ? value : d.toLocaleString('vi-VN');
 }
 
+function ChartBars({ title, labels, values }: { title: string; labels: string[]; values: number[] }) {
+  const max = Math.max(...values, 1);
+  return (
+    <div className="csd-report-chart">
+      {title ? <h4 className="csd-report-chart__title">{title}</h4> : null}
+      <div className="csd-report-chart__bars">
+        {labels.map((label, i) => {
+          const value = Number(values[i] ?? 0);
+          const pct = Math.max(0, Math.min(100, (value / max) * 100));
+          return (
+            <div key={`${label}-${i}`} className="csd-report-chart__row">
+              <span className="csd-report-chart__label">{label}</span>
+              <div className="csd-report-chart__track">
+                <div className="csd-report-chart__bar" style={{ width: `${pct}%` }} />
+              </div>
+              <span className="csd-report-chart__value">{value}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function CsdReportEditor({
   report,
   canWrite,
@@ -97,23 +150,51 @@ export function CsdReportEditor({
   onSend,
   onSnapshot,
   onRevise,
+  onRollup,
+  onUploadFile,
 }: CsdReportEditorProps) {
   const keys = useMemo(() => outlineKeys(report), [report]);
   const [activeSection, setActiveSection] = useState(keys[0] ?? '');
   const [tab, setTab] = useState<'content' | 'versions'>('content');
-  const sections = report.sections_json ?? {};
-  const [draft, setDraft] = useState(() => sectionText(sections[keys[0] ?? '']));
+  const [drafts, setDrafts] = useState(() => draftsFromReport(report));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [changeComment, setChangeComment] = useState('');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const readOnly = !canWrite || VIEW_ONLY.has(report.status);
   const showSend = canWrite && Boolean(onSend) && canSendReport(report);
   const versions = report.versions ?? [];
+  const section = drafts[activeSection] ?? { blocks: [{ type: 'rich_text' as const, body: '' }] };
 
-  function selectSection(key: string) {
-    setActiveSection(key);
-    setDraft(sectionText(sections[key]));
+  useEffect(() => {
+    setDrafts(draftsFromReport(report));
+    setActiveSection((current) => {
+      const nextKeys = outlineKeys(report);
+      return nextKeys.includes(current) ? current : (nextKeys[0] ?? '');
+    });
+  }, [report]);
+
+  function patchSection(updater: (current: CsdReportSection) => CsdReportSection) {
+    setDrafts((prev) => ({
+      ...prev,
+      [activeSection]: updater(prev[activeSection] ?? { blocks: [{ type: 'rich_text', body: '' }] }),
+    }));
+  }
+
+  function setBlock(index: number, block: CsdReportBlock) {
+    patchSection((current) => ({
+      blocks: current.blocks.map((b, i) => (i === index ? block : b)),
+    }));
+  }
+
+  function addBlock(type: CsdReportBlock['type']) {
+    patchSection((current) => ({ blocks: [...current.blocks, emptyBlock(type)] }));
+  }
+
+  function removeBlock(index: number) {
+    patchSection((current) => {
+      const next = current.blocks.filter((_, i) => i !== index);
+      return { blocks: next.length ? next : [{ type: 'rich_text', body: '' }] };
+    });
   }
 
   async function run(action: () => Promise<void>, okMsg: string) {
@@ -131,7 +212,7 @@ export function CsdReportEditor({
 
   async function save() {
     if (!onSaveSection || readOnly) return;
-    await run(() => onSaveSection(activeSection, draft), 'Đã lưu mục');
+    await run(() => onSaveSection(activeSection, section), 'Đã lưu mục');
   }
 
   async function snapshot() {
@@ -150,17 +231,23 @@ export function CsdReportEditor({
       <aside className="csd-report-editor__outline page-card">
         <h3 className="kpi-section-title">Mục báo cáo</h3>
         <ul className="csd-report-outline">
-          {keys.map((key) => (
-            <li key={key}>
-              <button
-                type="button"
-                className={activeSection === key ? 'is-active' : undefined}
-                onClick={() => selectSection(key)}
-              >
-                {SECTION_LABELS[key] ?? key}
-              </button>
-            </li>
-          ))}
+          {keys.map((key) => {
+            const missing = REQUIRED_SECTIONS.has(key) && !sectionHasText(drafts[key]);
+            return (
+              <li key={key}>
+                <button
+                  type="button"
+                  className={activeSection === key ? 'is-active' : undefined}
+                  onClick={() => setActiveSection(key)}
+                >
+                  {missing ? (
+                    <span className="csd-report-outline__missing" aria-label="Thiếu dữ liệu" />
+                  ) : null}
+                  {SECTION_LABELS[key] ?? key}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       </aside>
 
@@ -187,14 +274,204 @@ export function CsdReportEditor({
               <h3 className="kpi-section-title">{SECTION_LABELS[activeSection] ?? activeSection}</h3>
               <span className="csd-badge">{CSD_REPORT_STATUS_LABELS[report.status] ?? report.status}</span>
             </div>
-            <textarea
-              ref={textareaRef}
-              className="kpi-input csd-report-editor__textarea"
-              rows={16}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              readOnly={readOnly}
-            />
+            <div className="csd-report-blocks">
+              {section.blocks.map((block, index) => (
+                <article key={`${block.type}-${index}`} className="csd-report-block">
+                  <div className="csd-report-block__head">
+                    <strong>
+                      {ADD_BLOCK_OPTIONS.find((o) => o.type === block.type)?.label ?? block.type}
+                    </strong>
+                    {canWrite && !readOnly ? (
+                      <button type="button" className="btn btn-sm btn-secondary" onClick={() => removeBlock(index)}>
+                        Xóa
+                      </button>
+                    ) : null}
+                  </div>
+                  {block.type === 'rich_text' ? (
+                    <textarea
+                      className="kpi-input csd-report-editor__textarea"
+                      rows={8}
+                      value={block.body}
+                      onChange={(e) => setBlock(index, { type: 'rich_text', body: e.target.value })}
+                      readOnly={readOnly}
+                    />
+                  ) : null}
+                  {block.type === 'kpi_table' ? (
+                    <div className="stack-gap">
+                      <table className="csd-report-kpi">
+                        <thead>
+                          <tr>
+                            <th>Chỉ số</th>
+                            <th>Giá trị</th>
+                            <th>Mục tiêu</th>
+                            <th>Ghi chú</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {block.rows.map((row, rowIndex) => (
+                            <tr key={rowIndex}>
+                              {(['metric', 'value', 'target', 'note'] as const).map((field) => (
+                                <td key={field}>
+                                  <input
+                                    className="kpi-input"
+                                    value={row[field] ?? ''}
+                                    readOnly={readOnly}
+                                    onChange={(e) => {
+                                      const rows = block.rows.map((r, i) =>
+                                        i === rowIndex ? { ...r, [field]: e.target.value } : r,
+                                      );
+                                      setBlock(index, { type: 'kpi_table', rows });
+                                    }}
+                                  />
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {canWrite && !readOnly ? (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          onClick={() =>
+                            setBlock(index, {
+                              type: 'kpi_table',
+                              rows: [...block.rows, { metric: '', value: '' }],
+                            })
+                          }
+                        >
+                          Thêm dòng
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {block.type === 'chart' ? (
+                    <div className="stack-gap">
+                      <input
+                        className="kpi-input"
+                        placeholder="Tiêu đề biểu đồ"
+                        value={block.title}
+                        readOnly={readOnly}
+                        onChange={(e) => setBlock(index, { ...block, title: e.target.value })}
+                      />
+                      <input
+                        className="kpi-input"
+                        placeholder="Nhãn (phẩy)"
+                        value={block.labels.join(', ')}
+                        readOnly={readOnly}
+                        onChange={(e) =>
+                          setBlock(index, {
+                            ...block,
+                            labels: e.target.value.split(',').map((s) => s.trim()),
+                          })
+                        }
+                      />
+                      <input
+                        className="kpi-input"
+                        placeholder="Giá trị (phẩy)"
+                        value={block.values.join(', ')}
+                        readOnly={readOnly}
+                        onChange={(e) =>
+                          setBlock(index, {
+                            ...block,
+                            values: e.target.value.split(',').map((s) => Number(s.trim()) || 0),
+                          })
+                        }
+                      />
+                      <ChartBars title={block.title} labels={block.labels} values={block.values} />
+                    </div>
+                  ) : null}
+                  {block.type === 'file' ? (
+                    <div className="stack-gap">
+                      <input
+                        className="kpi-input"
+                        placeholder="attachment_id"
+                        value={block.attachment_id}
+                        readOnly={readOnly}
+                        onChange={(e) => setBlock(index, { ...block, attachment_id: e.target.value })}
+                      />
+                      <input
+                        className="kpi-input"
+                        placeholder="Chú thích"
+                        value={block.caption ?? ''}
+                        readOnly={readOnly}
+                        onChange={(e) => setBlock(index, { ...block, caption: e.target.value })}
+                      />
+                      {canWrite && !readOnly && onUploadFile ? (
+                        <input
+                          type="file"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            void run(async () => {
+                              const uploaded = await onUploadFile(file);
+                              patchSection((current) => ({
+                                blocks: current.blocks.map((b, i) =>
+                                  i === index && b.type === 'file'
+                                    ? { ...b, attachment_id: uploaded.id }
+                                    : b,
+                                ),
+                              }));
+                            }, 'Đã tải file');
+                          }}
+                        />
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {block.type === 'ticket_rollup' ? (
+                    <div className="stack-gap">
+                      <input
+                        className="kpi-input"
+                        placeholder="ticket_ids (phẩy)"
+                        value={block.ticket_ids.join(', ')}
+                        readOnly={readOnly}
+                        onChange={(e) =>
+                          setBlock(index, {
+                            ...block,
+                            ticket_ids: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+                          })
+                        }
+                      />
+                      <textarea
+                        className="kpi-input"
+                        rows={4}
+                        placeholder="Tóm tắt rollup"
+                        value={block.summary}
+                        readOnly={readOnly}
+                        onChange={(e) => setBlock(index, { ...block, summary: e.target.value })}
+                      />
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+            {canWrite && !readOnly ? (
+              <div className="csd-report-add-block" data-testid="csd-report-add-block">
+                <span>Thêm khối</span>
+                {ADD_BLOCK_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.type}
+                    type="button"
+                    className="btn btn-sm btn-secondary"
+                    disabled={busy}
+                    onClick={() => addBlock(opt.type)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+                {onRollup ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={busy}
+                    data-testid="csd-report-rollup"
+                    onClick={() => void run(onRollup, 'Đã gộp ticket')}
+                  >
+                    Gộp ticket kỳ này
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             {canWrite && !readOnly && onSaveSection ? (
               <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void save()}>
                 Lưu mục
@@ -340,7 +617,7 @@ export function CsdReportEditor({
             <button
               type="button"
               className="btn btn-sm btn-secondary"
-              onClick={() => textareaRef.current?.focus()}
+              onClick={() => setTab('content')}
             >
               Sửa
             </button>

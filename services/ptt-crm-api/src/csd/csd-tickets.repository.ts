@@ -482,6 +482,27 @@ export class CsdTicketsRepository implements OnModuleDestroy {
     return Number(res.rows[0]?.c ?? 0);
   }
 
+  async listForReportPeriod(
+    clientAccountId: string,
+    periodStart: string,
+    periodEnd: string,
+  ): Promise<CsdTicketRow[]> {
+    const res = await this.db.query(
+      `SELECT * FROM csd_tickets
+       WHERE tenant_id = $1
+         AND is_deleted = FALSE
+         AND client_account_id = $2
+         AND (
+           (resolved_at IS NOT NULL AND resolved_at::date BETWEEN $3::date AND $4::date)
+           OR (closed_at IS NOT NULL AND closed_at::date BETWEEN $3::date AND $4::date)
+           OR (created_at::date BETWEEN $3::date AND $4::date)
+         )
+       ORDER BY created_at DESC, id DESC`,
+      [CSD_TENANT_ID, clientAccountId, periodStart, periodEnd],
+    );
+    return res.rows.map(mapTicket);
+  }
+
   async listTopPriority(limit = 8): Promise<CsdTicketRow[]> {
     const res = await this.db.query(
       `SELECT * FROM csd_tickets

@@ -1,3 +1,6 @@
+import { mkdirSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { randomUUID } from 'crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -6,20 +9,49 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { canTransitionReport } from './csd-report-workflow.util';
+import { applyTicketRollup, type CsdTicketRollup } from './csd-report-rollup.util';
 import { bumpReportVersion } from './csd-report-version.util';
 import { CsdReportsRepository } from './csd-reports.repository';
+import { CsdTicketsRepository } from './csd-tickets.repository';
 import {
   CreateCsdReportInput,
   CsdActor,
+  CsdAttachmentRow,
   CsdReportDetail,
   CsdReportListQuery,
   CsdReportRow,
   CsdReportSendLogRow,
   CsdReportStatus,
+  CsdTicketRow,
   SendCsdReportInput,
   SnapshotCsdReportInput,
   TransitionCsdReportInput,
 } from './csd.types';
+
+const FILE_MAX_BYTES = 104857600;
+
+function safeFileName(name: string): string {
+  return String(name || 'file')
+    .replace(/[/\\]+/g, '_')
+    .replace(/[^\w.\-() ]+/g, '_')
+    .slice(0, 120);
+}
+
+function fileDir(): string {
+  return process.env.PTT_CSD_FILE_DIR || join(process.cwd(), 'data/csd-files');
+}
+
+function asRollupItem(row: CsdTicketRow): CsdTicketRollup['closed'][number] {
+  return { id: row.id, code: row.code, title: row.title };
+}
+
+function classifyTickets(rows: CsdTicketRow[]): CsdTicketRollup {
+  return {
+    closed: rows.filter((t) => t.status === 'closed' || t.status === 'resolved').map(asRollupItem),
+    breached: rows.filter((t) => t.sla_status === 'breached').map(asRollupItem),
+    out_of_scope: rows.filter((t) => t.scope_status === 'out_of_scope').map(asRollupItem),
+  };
+}
 
 function emptySections(keys: string[]): Record<string, unknown> {
   return Object.fromEntries(keys.map((k) => [k, { body: '' }]));
@@ -31,7 +63,10 @@ function hasCsdManage(actor: CsdActor): boolean {
 
 @Injectable()
 export class CsdReportsService {
-  constructor(private readonly repo: CsdReportsRepository) {}
+  constructor(
+    private readonly repo: CsdReportsRepository,
+    private readonly tickets: CsdTicketsRepository,
+  ) {}
 
   async createReport(actor: CsdActor, input: CreateCsdReportInput): Promise<CsdReportRow> {
     const template = await this.repo.getTemplateByCode(input.template_code);
@@ -215,6 +250,56 @@ export class CsdReportsService {
 
     const detail = await this.getDetail(actor, id);
     return { ...detail, current_version: nextVersion };
+  }
+
+  async rollupTickets(
+    actor: CsdActor,
+    id: string,
+  ): Promise<{ version: string; sections_json: Record<string, unknown> }> {
+    const report = await this.get(actor, id);
+    if (report.status === 'sent') {
+      throw new ConflictException({ error: 'report_sent_immutable' });
+    }
+
+    const rows = report.client_account_id
+      ? await this.tickets.listForReportPeriod(
+          report.client_account_id,
+          report.period_start,
+          report.period_end,
+        )
+      : [];
+    const current = await this.repo.getCurrentVersion(id);
+    const sections = applyTicketRollup(current?.sections_json ?? {}, classifyTickets(rows));
+    return this.updateSections(actor, id, sections);
+  }
+
+  async uploadFile(actor: CsdActor, id: string, file?: Express.Multer.File): Promise<CsdAttachmentRow> {
+    const report = await this.get(actor, id);
+    if (report.status === 'sent') {
+      throw new ConflictException({ error: 'report_sent_immutable' });
+    }
+    if (!file?.buffer) throw new BadRequestException({ error: 'file_required' });
+    if (file.size <= 0) throw new BadRequestException({ error: 'file_required' });
+    if (file.size > FILE_MAX_BYTES) throw new BadRequestException({ error: 'file_too_large' });
+
+    const attachmentId = randomUUID();
+    const fileName = safeFileName(file.originalname);
+    const storageKey = `report/${id}/${attachmentId}-${fileName}`;
+    const absDir = join(fileDir(), 'report', id);
+    mkdirSync(absDir, { recursive: true });
+    writeFileSync(join(fileDir(), storageKey), file.buffer);
+
+    return this.repo.insertAttachment({
+      id: attachmentId,
+      storage_key: storageKey,
+      file_name: fileName,
+      mime_type: file.mimetype || 'application/octet-stream',
+      byte_size: file.size,
+      visibility: 'internal',
+      entity_type: 'report',
+      entity_id: id,
+      uploaded_by_staff_id: actor.staffId,
+    });
   }
 
   async createRevisedVersion(actor: CsdActor, id: string): Promise<CsdReportRow> {

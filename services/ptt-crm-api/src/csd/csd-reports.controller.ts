@@ -7,8 +7,12 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { Request } from 'express';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
@@ -163,5 +167,29 @@ export class CsdReportsController {
   ) {
     const actor = await this.actor(req);
     return this.reports.snapshotVersion(actor, id, body);
+  }
+
+  @Post(':id/rollup')
+  @RequireCsdAction('write')
+  async rollup(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.reports.rollupTickets(actor, id);
+  }
+
+  @Post(':id/files')
+  @RequireCsdAction('write')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 104857600 },
+    }),
+  )
+  async uploadFile(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    const actor = await this.actor(req);
+    return this.reports.uploadFile(actor, id, file);
   }
 }

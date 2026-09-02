@@ -269,6 +269,25 @@ export interface CsdReportDetail extends CsdReportRow {
   sent_at?: string | null;
 }
 
+export type CsdReportBlock =
+  | { type: 'rich_text'; body: string }
+  | { type: 'kpi_table'; rows: { metric: string; value: string; target?: string; note?: string }[] }
+  | { type: 'chart'; title: string; labels: string[]; values: number[] }
+  | { type: 'file'; attachment_id: string; caption?: string }
+  | { type: 'ticket_rollup'; ticket_ids: string[]; summary: string };
+
+export type CsdReportSection = { blocks: CsdReportBlock[] };
+
+export function normalizeCsdReportSection(raw: unknown): CsdReportSection {
+  if (raw && typeof raw === 'object' && Array.isArray((raw as CsdReportSection).blocks)) {
+    return raw as CsdReportSection;
+  }
+  if (raw && typeof raw === 'object' && 'body' in (raw as { body?: unknown })) {
+    return { blocks: [{ type: 'rich_text', body: String((raw as { body: string }).body ?? '') }] };
+  }
+  return { blocks: [{ type: 'rich_text', body: '' }] };
+}
+
 export interface CreateCsdReportInput {
   template_code: string;
   client_account_id?: string;
@@ -882,6 +901,26 @@ export async function snapshotCsdReportVersion(
 
 export async function reviseCsdReport(token: string, id: string): Promise<CsdReportRow> {
   return csdFetch(token, `/api/crm/csd/reports/${id}/revise`, { method: 'POST', body: '{}' });
+}
+
+export async function rollupCsdReportTickets(
+  token: string,
+  id: string,
+): Promise<{ version: string; sections_json: Record<string, unknown> }> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/rollup`, { method: 'POST', body: '{}' });
+}
+
+export async function uploadCsdReportFile(
+  token: string,
+  reportId: string,
+  file: File,
+): Promise<CsdAttachmentRow> {
+  const form = new FormData();
+  form.append('file', file);
+  return csdFetch(token, `/api/crm/csd/reports/${reportId}/files`, {
+    method: 'POST',
+    body: form,
+  });
 }
 
 export async function draftCsdTicketReply(

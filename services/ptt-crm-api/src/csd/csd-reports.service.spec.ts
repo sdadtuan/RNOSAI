@@ -18,10 +18,15 @@ describe('CsdReportsService', () => {
     listVersions: jest.fn(),
     listSendLogs: jest.fn(),
     insertVersion: jest.fn(),
+    insertAttachment: jest.fn(),
+  };
+
+  const tickets = {
+    listForReportPeriod: jest.fn(),
   };
 
   function svc() {
-    return new CsdReportsService(repo as never);
+    return new CsdReportsService(repo as never, tickets as never);
   }
 
   beforeEach(() => {
@@ -209,6 +214,56 @@ describe('CsdReportsService', () => {
       response: { error: 'use_send_endpoint' },
     });
     expect(repo.updateReportStatus).not.toHaveBeenCalledWith('r1', 'sent', expect.anything());
+  });
+
+  it('rollup is 409 when report is sent', async () => {
+    repo.getReport.mockResolvedValue({
+      id: 'r1',
+      status: 'sent',
+      current_version: 'v1.0',
+      client_account_id: 'acc-1',
+      period_start: '2026-08-01',
+      period_end: '2026-08-31',
+    });
+
+    await expect(svc().rollupTickets(actor, 'r1')).rejects.toMatchObject({
+      status: 409,
+      response: { error: 'report_sent_immutable' },
+    });
+    expect(tickets.listForReportPeriod).not.toHaveBeenCalled();
+    expect(repo.updateSections).not.toHaveBeenCalled();
+  });
+
+  it('rollup writes OOS tickets into risks', async () => {
+    repo.getReport.mockResolvedValue({
+      id: 'r1',
+      status: 'draft',
+      current_version: 'v1.0',
+      client_account_id: 'acc-1',
+      period_start: '2026-08-01',
+      period_end: '2026-08-31',
+    });
+    repo.getCurrentVersion.mockResolvedValue({ sections_json: {} });
+    tickets.listForReportPeriod.mockResolvedValue([
+      { id: 't2', code: 'PTT-2026-000002', title: 'Làm app', status: 'new', sla_status: 'on_track', scope_status: 'out_of_scope' },
+    ]);
+    repo.updateSections.mockResolvedValue({ version: 'v1.0', sections_json: { risks: { blocks: [] } } });
+
+    const out = await svc().rollupTickets(actor, 'r1');
+    expect(tickets.listForReportPeriod).toHaveBeenCalledWith('acc-1', '2026-08-01', '2026-08-31');
+    expect(repo.updateSections).toHaveBeenCalledWith(
+      'r1',
+      'v1.0',
+      expect.objectContaining({
+        risks: expect.objectContaining({
+          blocks: expect.arrayContaining([
+            expect.objectContaining({ type: 'ticket_rollup', ticket_ids: expect.arrayContaining(['t2']) }),
+          ]),
+        }),
+      }),
+      5,
+    );
+    expect(out.version).toBe('v1.0');
   });
 
   it('writer cannot request changes; manage required', async () => {

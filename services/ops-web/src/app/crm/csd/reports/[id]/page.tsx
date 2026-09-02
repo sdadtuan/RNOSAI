@@ -10,11 +10,13 @@ import {
   getCsdReport,
   requestCsdReportChanges,
   reviseCsdReport,
+  rollupCsdReportTickets,
   sendCsdReport,
   snapshotCsdReportVersion,
   submitCsdReportReview,
   transitionCsdReport,
   updateCsdReportSections,
+  uploadCsdReportFile,
   type CsdReportDetail,
   type CsdReportStatus,
 } from '@/lib/crm/csd-api';
@@ -94,13 +96,18 @@ export default function CsdReportDetailPage() {
           report={report}
           canWrite={canWrite}
           canManage={canManage}
-          onSaveSection={async (key, value) => {
+          onSaveSection={async (key, section) => {
             await updateCsdReportSections(token, report.id, {
               ...report.sections_json,
-              [key]: { body: value },
+              [key]: section,
             });
             await reload();
           }}
+          onRollup={async () => {
+            await rollupCsdReportTickets(token, report.id);
+            await reload();
+          }}
+          onUploadFile={async (file) => uploadCsdReportFile(token, report.id, file)}
           onSubmitReview={async () => {
             await submitCsdReportReview(token, report.id);
             await reload();
