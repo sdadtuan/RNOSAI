@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -97,6 +98,9 @@ export class CsdReportsService {
     }
 
     const bypass = hasCsdManage(actor);
+    if (to === 'approved' && report.requires_approval && !bypass) {
+      throw new ForbiddenException({ error: 'csd_manage_required' });
+    }
     if (!canTransitionReport(report.status, to, { requires_approval: report.requires_approval, bypass })) {
       throw new ConflictException({ error: 'invalid_status_transition', from: report.status, to });
     }

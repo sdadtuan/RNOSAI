@@ -151,4 +151,25 @@ describe('CsdReportsService', () => {
       response: { error: 'comment_required' },
     });
   });
+
+  it('writer cannot approve in_review when requires_approval; manage succeeds', async () => {
+    const report = { id: 'r1', status: 'in_review', requires_approval: true };
+    repo.getReport.mockResolvedValue(report);
+    repo.updateReportStatus.mockResolvedValue({ ...report, status: 'approved' });
+
+    await expect(svc().transition(actor, 'r1', { to: 'approved' })).rejects.toMatchObject({
+      status: 403,
+      response: { error: 'csd_manage_required' },
+    });
+    expect(repo.updateReportStatus).not.toHaveBeenCalled();
+
+    const manager: CsdActor = {
+      staffId: 9,
+      staffLabel: 'director@test.vn',
+      caps: [{ section: 'csd', action: 'manage' }],
+    };
+    const out = await svc().transition(manager, 'r1', { to: 'approved' });
+    expect(out.status).toBe('approved');
+    expect(repo.updateReportStatus).toHaveBeenCalledWith('r1', 'approved', expect.any(Object));
+  });
 });
