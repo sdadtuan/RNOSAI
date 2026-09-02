@@ -7,13 +7,14 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
@@ -87,6 +88,26 @@ export class CsdReportsController {
   async get(@Req() req: AuthedReq, @Param('id') id: string) {
     const actor = await this.actor(req);
     return this.reports.getDetail(actor, id);
+  }
+
+  @Get(':id/export.pdf')
+  @RequireCsdAction('view')
+  async exportPdf(@Req() req: AuthedReq, @Param('id') id: string, @Res() res: Response) {
+    const actor = await this.actor(req);
+    const out = await this.reports.exportPdf(actor, id);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
+    res.send(out.buffer);
+  }
+
+  @Get(':id/export.xlsx')
+  @RequireCsdAction('view')
+  async exportXlsx(@Req() req: AuthedReq, @Param('id') id: string, @Res() res: Response) {
+    const actor = await this.actor(req);
+    const out = await this.reports.exportXlsx(actor, id);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
+    res.send(out.buffer);
   }
 
   @Post(':id/submit-review')

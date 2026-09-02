@@ -24,6 +24,8 @@ type CsdReportEditorProps = {
   onRevise?: () => Promise<void>;
   onRollup?: () => Promise<void>;
   onUploadFile?: (file: File) => Promise<{ id: string }>;
+  onExportPdf?: () => Promise<void>;
+  onExportXlsx?: () => Promise<void>;
 };
 
 const SECTION_LABELS: Record<string, string> = {
@@ -152,6 +154,8 @@ export function CsdReportEditor({
   onRevise,
   onRollup,
   onUploadFile,
+  onExportPdf,
+  onExportXlsx,
 }: CsdReportEditorProps) {
   const keys = useMemo(() => outlineKeys(report), [report]);
   const [activeSection, setActiveSection] = useState(keys[0] ?? '');
@@ -635,15 +639,33 @@ export function CsdReportEditor({
           </>
         ) : null}
 
+        {onExportPdf ? (
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary"
+            disabled={busy}
+            data-testid="csd-report-export-pdf"
+            onClick={() => void run(onExportPdf, 'Đã tải PDF')}
+          >
+            Xuất PDF
+          </button>
+        ) : null}
+        {onExportXlsx ? (
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary"
+            disabled={busy}
+            data-testid="csd-report-export-xlsx"
+            onClick={() => void run(onExportXlsx, 'Đã tải Excel')}
+          >
+            Xuất Excel
+          </button>
+        ) : null}
+
         {canWrite && report.status === 'approved' ? (
-          <>
-            <button type="button" className="btn btn-sm btn-secondary" disabled>
-              Xuất PDF
-            </button>
-            <button type="button" className="btn btn-sm btn-secondary" disabled>
-              Lên lịch
-            </button>
-          </>
+          <button type="button" className="btn btn-sm btn-secondary" disabled>
+            Lên lịch
+          </button>
         ) : null}
 
         {canWrite && report.status === 'scheduled' && onTransition ? (

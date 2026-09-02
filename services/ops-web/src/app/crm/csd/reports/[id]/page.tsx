@@ -17,6 +17,8 @@ import {
   transitionCsdReport,
   updateCsdReportSections,
   uploadCsdReportFile,
+  exportCsdReportPdf,
+  exportCsdReportXlsx,
   type CsdReportDetail,
   type CsdReportStatus,
 } from '@/lib/crm/csd-api';
@@ -133,6 +135,12 @@ export default function CsdReportDetailPage() {
           onRevise={async () => {
             await reviseCsdReport(token, report.id);
             await reload();
+          }}
+          onExportPdf={async () => {
+            await exportCsdReportPdf(token, report.id);
+          }}
+          onExportXlsx={async () => {
+            await exportCsdReportXlsx(token, report.id);
           }}
         />
       ) : (

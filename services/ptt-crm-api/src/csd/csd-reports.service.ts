@@ -11,6 +11,12 @@ import {
 import { canTransitionReport } from './csd-report-workflow.util';
 import { applyTicketRollup, type CsdTicketRollup } from './csd-report-rollup.util';
 import { bumpReportVersion } from './csd-report-version.util';
+import { normalizeSection } from './csd-report-blocks';
+import {
+  labelForSection,
+  renderCsdReportPdf,
+  renderCsdReportXlsx,
+} from './csd-report-export.util';
 import { CsdReportsRepository } from './csd-reports.repository';
 import { CsdTicketsRepository } from './csd-tickets.repository';
 import {
@@ -120,6 +126,49 @@ export class CsdReportsService {
       send_logs,
       template_name_vi: template?.name_vi ?? null,
       template_sections: template?.sections_json ?? [],
+    };
+  }
+
+  private async exportDetail(actor: CsdActor, id: string) {
+    const detail = await this.getDetail(actor, id);
+    const keys =
+      detail.template_sections.length > 0
+        ? detail.template_sections
+        : Object.keys(detail.sections_json ?? {});
+    return {
+      title: detail.title,
+      version: detail.current_version,
+      period_start: detail.period_start,
+      period_end: detail.period_end,
+      client_label: detail.client_account_id ?? '',
+      sections: keys.map((key) => ({
+        key,
+        label: labelForSection(key),
+        section: normalizeSection(detail.sections_json?.[key]),
+      })),
+      code: detail.template_code || detail.id,
+    };
+  }
+
+  private exportFilename(code: string, version: string, ext: 'pdf' | 'xlsx'): string {
+    const safeCode = String(code || 'report').replace(/[^\w.-]+/g, '_');
+    const safeVer = String(version || 'v1').replace(/[^\w.-]+/g, '_');
+    return `PTT-${safeCode}-${safeVer}.${ext}`;
+  }
+
+  async exportPdf(actor: CsdActor, id: string): Promise<{ buffer: Buffer; filename: string }> {
+    const detail = await this.exportDetail(actor, id);
+    return {
+      buffer: await renderCsdReportPdf(detail),
+      filename: this.exportFilename(detail.code, detail.version, 'pdf'),
+    };
+  }
+
+  async exportXlsx(actor: CsdActor, id: string): Promise<{ buffer: Buffer; filename: string }> {
+    const detail = await this.exportDetail(actor, id);
+    return {
+      buffer: await renderCsdReportXlsx(detail),
+      filename: this.exportFilename(detail.code, detail.version, 'xlsx'),
     };
   }
 

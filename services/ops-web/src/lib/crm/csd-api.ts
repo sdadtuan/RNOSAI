@@ -923,6 +923,34 @@ export async function uploadCsdReportFile(
   });
 }
 
+async function downloadCsdBinary(token: string, path: string, fallbackFilename: string): Promise<void> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string; message?: string }>(res);
+    throw new ApiError(body.error ?? body.message ?? 'Tải file thất bại', res.status);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  const disposition = res.headers.get('Content-Disposition') ?? '';
+  const match = /filename="([^"]+)"/.exec(disposition);
+  link.download = match?.[1] || fallbackFilename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function exportCsdReportPdf(token: string, id: string): Promise<void> {
+  await downloadCsdBinary(token, `/api/crm/csd/reports/${id}/export.pdf`, `PTT-report.pdf`);
+}
+
+export async function exportCsdReportXlsx(token: string, id: string): Promise<void> {
+  await downloadCsdBinary(token, `/api/crm/csd/reports/${id}/export.xlsx`, `PTT-report.xlsx`);
+}
+
 export async function draftCsdTicketReply(
   token: string,
   ticketId: string,
