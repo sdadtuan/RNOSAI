@@ -1,0 +1,78 @@
+const TZ = 'Asia/Ho_Chi_Minh';
+
+function vnParts(d: Date): { y: number; m: number; day: number; hh: string; mm: string } {
+  const fmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone: TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+  const map = Object.fromEntries(fmt.formatToParts(d).map((p) => [p.type, p.value]));
+  return { y: Number(map.year), m: Number(map.month), day: Number(map.day), hh: map.hour, mm: map.minute };
+}
+
+function dayKey(d: Date): string {
+  const p = vnParts(d);
+  return `${p.y}-${p.m}-${p.day}`;
+}
+
+function vnEpochDay(d: Date): number {
+  const p = vnParts(d);
+  return Date.UTC(p.y, p.m - 1, p.day) / 86_400_000;
+}
+
+export function initialsFromName(name: string | null | undefined, fallback = 'KH'): string {
+  const parts = String(name ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return fallback;
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+export function avatarHue(seed: string | number | null | undefined): number {
+  const s = String(seed ?? 'KH');
+  let h = 0;
+  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h % 360;
+}
+
+export function formatChatListTime(iso: string | null | undefined, now = new Date()): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const a = vnParts(d);
+  if (vnEpochDay(now) === vnEpochDay(d)) return `${a.hh}:${a.mm}`;
+  if (vnEpochDay(now) - vnEpochDay(d) === 1) return 'Hôm qua';
+  return `${String(a.day).padStart(2, '0')}/${String(a.m).padStart(2, '0')}`;
+}
+
+export function formatDateChip(iso: string | null | undefined, now = new Date()): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const a = vnParts(d);
+  const list = formatChatListTime(iso, now);
+  if (list === 'Hôm qua') return 'Hôm qua';
+  if (list.includes(':')) return 'Hôm nay';
+  return `${String(a.day).padStart(2, '0')}/${String(a.m).padStart(2, '0')}/${a.y}`;
+}
+
+export function isCsdChatImageMime(mime: string | null | undefined): boolean {
+  return String(mime ?? '')
+    .trim()
+    .toLowerCase()
+    .startsWith('image/');
+}
+
+export function shouldShowDateChip(prevIso: string | null | undefined, currIso: string): boolean {
+  if (!prevIso) return true;
+  const a = new Date(prevIso);
+  const b = new Date(currIso);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return true;
+  return dayKey(a) !== dayKey(b);
+}

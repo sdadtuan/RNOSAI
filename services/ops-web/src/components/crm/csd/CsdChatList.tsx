@@ -1,11 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import {
-  formatCsdWhen,
-  type CsdConversationListFilter,
-  type CsdConversationRow,
-} from '@/lib/crm/csd-api';
+import { type CsdConversationListFilter, type CsdConversationRow } from '@/lib/crm/csd-api';
+import { avatarHue, formatChatListTime, initialsFromName } from '@/lib/crm/csd-chat-display';
 
 const FILTERS: { id: Exclude<CsdConversationListFilter, 'mentions'>; label: string }[] = [
   { id: 'all', label: 'Tất cả' },
@@ -99,14 +96,21 @@ export function CsdChatList({
                   }`}
                   onClick={() => onSelect(c.id)}
                 >
-                  <span className="csd-chat-list__title">
-                    <strong>{c.name_vi}</strong>
-                    {unread > 0 ? <span className="csd-chat-list__unread">{unread}</span> : null}
+                  <span
+                    className="csd-chat-avatar csd-chat-avatar--list"
+                    style={{ background: `hsl(${avatarHue(c.id)} 55% 42%)` }}
+                    aria-hidden
+                  >
+                    {initialsFromName(c.name_vi)}
                   </span>
-                  {c.preview ? <span className="csd-chat-list__preview muted">{c.preview}</span> : null}
-                  <span className="muted">
-                    {c.status === 'closed' ? 'Đã đóng · ' : ''}
-                    {formatCsdWhen(c.last_message_at)}
+                  <span className="csd-chat-list__body">
+                    <span className="csd-chat-list__title">
+                      <strong>{c.name_vi}</strong>
+                      <span className="csd-chat-list__time muted">{formatChatListTime(c.last_message_at)}</span>
+                      {unread > 0 ? <span className="csd-chat-list__unread">{unread}</span> : null}
+                    </span>
+                    {c.preview ? <span className="csd-chat-list__preview muted">{c.preview}</span> : null}
+                    {c.status === 'closed' ? <span className="muted">Đã đóng</span> : null}
                   </span>
                 </button>
               </li>

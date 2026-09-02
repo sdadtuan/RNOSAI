@@ -166,6 +166,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/crm/custom-fields': 'Custom fields',
   '/admin/crm/pipeline': 'Pipeline sales',
   '/admin/crm/lead-lookups': 'Nguồn & Kênh',
+  '/admin/crm/csd/chat-accounts': 'Tài khoản Chat',
   '/admin/crm/permissions': 'Ma trận chức vụ',
   '/admin/crm/permissions/functions': 'Job function',
   '/admin/crm/permissions/functions/catalog': 'Catalog job function',

@@ -375,7 +375,7 @@ export async function uploadCsdConversationFile(
   });
 }
 
-export async function downloadCsdFile(token: string, fileId: string, fileName: string): Promise<void> {
+export async function previewCsdFileObjectUrl(token: string, fileId: string): Promise<string> {
   const res = await fetch(`${API_BASE}/api/crm/csd/files/${fileId}`, {
     headers: authHeaders(token),
     cache: 'no-store',
@@ -384,8 +384,11 @@ export async function downloadCsdFile(token: string, fileId: string, fileName: s
     const body = await parseJson<{ error?: string; message?: string }>(res);
     throw new ApiError(body.error ?? body.message ?? 'Tải file thất bại', res.status);
   }
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
+  return URL.createObjectURL(await res.blob());
+}
+
+export async function downloadCsdFile(token: string, fileId: string, fileName: string): Promise<void> {
+  const url = await previewCsdFileObjectUrl(token, fileId);
   const link = document.createElement('a');
   link.href = url;
   link.download = fileName;
@@ -423,6 +426,98 @@ export interface CsdNotificationRow {
 
 export async function fetchCsdChatUnreadCount(token: string): Promise<{ count: number }> {
   return csdFetch(token, '/api/crm/csd/chat/unread-count');
+}
+
+export type CsdChatMe = {
+  staff_id: number;
+  enabled: boolean;
+  display_name_vi: string | null;
+};
+
+export type CsdChatAccountAdminRow = {
+  staff_id: number;
+  enabled: boolean;
+  display_name_vi: string | null;
+  staff_name: string;
+  staff_email: string;
+  created_by_staff_id: number;
+};
+
+export async function fetchCsdChatMe(token: string): Promise<CsdChatMe> {
+  return csdFetch(token, '/api/crm/csd/chat/me');
+}
+
+export async function fetchCsdChatAccountsAdmin(
+  token: string,
+  q?: string,
+): Promise<{ items: CsdChatAccountAdminRow[] }> {
+  const suffix = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
+  return csdFetch(token, `/api/crm/csd/admin/chat-accounts${suffix}`);
+}
+
+export async function upsertCsdChatAccount(
+  token: string,
+  body: { staff_id: number; enabled: boolean; display_name_vi?: string },
+): Promise<CsdChatAccountAdminRow> {
+  return csdFetch(token, '/api/crm/csd/admin/chat-accounts', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export type CsdChatFriendshipStatus = 'pending' | 'accepted' | 'blocked';
+
+export type CsdChatFriendshipRow = {
+  id: string;
+  requester_staff_id: number;
+  addressee_staff_id: number;
+  status: CsdChatFriendshipStatus;
+};
+
+export type CsdChatPersonRow = {
+  staff_id: number;
+  display_name_vi: string;
+};
+
+export async function fetchCsdChatPeople(
+  token: string,
+  q: string,
+): Promise<{ items: CsdChatPersonRow[] }> {
+  const suffix = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
+  return csdFetch(token, `/api/crm/csd/chat/people${suffix}`);
+}
+
+export async function fetchCsdChatFriends(token: string): Promise<{ items: CsdChatPersonRow[] }> {
+  return csdFetch(token, '/api/crm/csd/chat/friends');
+}
+
+export async function fetchCsdChatFriendRequests(
+  token: string,
+): Promise<{ incoming: CsdChatFriendshipRow[]; outgoing: CsdChatFriendshipRow[] }> {
+  return csdFetch(token, '/api/crm/csd/chat/friends/requests');
+}
+
+export async function requestCsdChatFriend(token: string, staffId: number): Promise<CsdChatFriendshipRow> {
+  return csdFetch(token, '/api/crm/csd/chat/friends', {
+    method: 'POST',
+    body: JSON.stringify({ staff_id: staffId }),
+  });
+}
+
+export async function acceptCsdChatFriend(token: string, id: string): Promise<CsdChatFriendshipRow> {
+  return csdFetch(token, `/api/crm/csd/chat/friends/${id}/accept`, { method: 'POST', body: '{}' });
+}
+
+export async function rejectCsdChatFriend(token: string, id: string): Promise<{ deleted: true }> {
+  return csdFetch(token, `/api/crm/csd/chat/friends/${id}/reject`, { method: 'POST', body: '{}' });
+}
+
+export async function deleteCsdChatFriend(token: string, id: string): Promise<{ deleted: true }> {
+  return csdFetch(token, `/api/crm/csd/chat/friends/${id}`, { method: 'DELETE' });
+}
+
+export async function blockCsdChatFriend(token: string, id: string): Promise<CsdChatFriendshipRow> {
+  return csdFetch(token, `/api/crm/csd/chat/friends/${id}/block`, { method: 'POST', body: '{}' });
 }
 
 export async function fetchCsdNotifications(

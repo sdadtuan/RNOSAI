@@ -5,6 +5,12 @@ import { CsdAiController } from './csd-ai.controller';
 import { CsdAiRepository } from './csd-ai.repository';
 import { CsdAiService } from './csd-ai.service';
 import { CsdAuditRepository } from './csd-audit.repository';
+import { CsdChatAccountsController } from './csd-chat-accounts.controller';
+import { CsdChatAccountsRepository } from './csd-chat-accounts.repository';
+import { CsdChatAccountsService } from './csd-chat-accounts.service';
+import { CsdChatFriendsController } from './csd-chat-friends.controller';
+import { CsdChatFriendsRepository } from './csd-chat-friends.repository';
+import { CsdChatFriendsService } from './csd-chat-friends.service';
 import { CsdChatController } from './csd-chat.controller';
 import { CsdChatFilesController } from './csd-chat-files.controller';
 import { CsdChatFilesService } from './csd-chat-files.service';
@@ -33,6 +39,8 @@ import { StaffCsdGuard } from './guards/staff-csd.guard';
   controllers: [
     CsdTicketsController,
     CsdChatController,
+    CsdChatAccountsController,
+    CsdChatFriendsController,
     CsdChatFilesController,
     CsdNotificationsController,
     CsdEmailController,
@@ -47,6 +55,10 @@ import { StaffCsdGuard } from './guards/staff-csd.guard';
     CsdTicketsService,
     CsdSlaWorkerService,
     CsdChatRepository,
+    CsdChatAccountsRepository,
+    CsdChatAccountsService,
+    CsdChatFriendsRepository,
+    CsdChatFriendsService,
     CsdChatFilesService,
     CsdChatService,
     CsdNotificationsRepository,

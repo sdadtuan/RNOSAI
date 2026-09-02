@@ -642,3 +642,33 @@ CREATE TABLE IF NOT EXISTS csd_idempotency_keys (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (tenant_id, idempotency_key)
 );
+
+-- ---------------------------------------------------------------------------
+-- Chat accounts + friendships (dock Z1–Z16)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS csd_chat_accounts (
+  staff_id              integer PRIMARY KEY,
+  tenant_id             text NOT NULL DEFAULT 'PTT',
+  enabled               boolean NOT NULL DEFAULT true,
+  display_name_vi       text,
+  created_by_staff_id   integer NOT NULL,
+  created_at            timestamptz NOT NULL DEFAULT now(),
+  updated_at            timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS csd_chat_friendships (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id             text NOT NULL DEFAULT 'PTT',
+  staff_lo              integer NOT NULL,
+  staff_hi              integer NOT NULL,
+  requester_staff_id    integer NOT NULL,
+  addressee_staff_id    integer NOT NULL,
+  status                text NOT NULL CHECK (status IN ('pending','accepted','blocked')),
+  created_at            timestamptz NOT NULL DEFAULT now(),
+  updated_at            timestamptz NOT NULL DEFAULT now(),
+  CHECK (staff_lo < staff_hi),
+  UNIQUE (tenant_id, staff_lo, staff_hi)
+);
+
+CREATE INDEX IF NOT EXISTS csd_chat_friendships_inbox_idx
+  ON csd_chat_friendships (addressee_staff_id, status);

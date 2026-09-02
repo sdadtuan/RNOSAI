@@ -44,7 +44,8 @@ export function canViewAdminSection(user: StoredStaffUser | null): boolean {
     hasCap(user, 'ai_admin', 'view') ||
     hasCap(user, 'crm_vd.admin', 'view') ||
     hasCap(user, 'crm_vd.admin', 'create') ||
-    hasCap(user, 'spc', 'view')
+    hasCap(user, 'spc', 'view') ||
+    hasCap(user, 'csd', 'admin')
   );
 }
 
@@ -302,6 +303,9 @@ export function buildAdminSidebarLinks(user: StoredStaffUser | null): ModuleNavL
   }
   if (hasCap(user, 'playbooks', 'configure') || hasCap(user, 'crm_leads', 'configure')) {
     links.push({ href: '/crm/intake/sales-kit', label: 'Kho Sales Kit' });
+  }
+  if (hasCap(user, 'csd', 'admin')) {
+    links.push({ href: '/admin/crm/csd/chat-accounts', label: 'Tài khoản Chat' });
   }
   return links;
 }

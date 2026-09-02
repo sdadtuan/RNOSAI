@@ -6,6 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CsdAuditRepository } from './csd-audit.repository';
+import { CsdChatAccountsService } from './csd-chat-accounts.service';
+import { CsdChatFriendsService } from './csd-chat-friends.service';
 import { parseMentions } from './csd-chat-search.util';
 import { suggestPriorityFromText } from './csd-chat-keyword.util';
 import { CsdChatFilesService } from './csd-chat-files.service';
@@ -57,12 +59,15 @@ export class CsdChatService {
     private readonly tickets: CsdTicketsService,
     private readonly files: CsdChatFilesService,
     private readonly audit: CsdAuditRepository,
+    private readonly accounts: CsdChatAccountsService,
+    private readonly friends: CsdChatFriendsService,
   ) {}
 
   async createConversation(
     actor: CsdActor,
     input: CreateCsdConversationInput,
   ): Promise<CsdConversationRow> {
+    await this.accounts.assertEnabled(actor);
     if (CSD_KIND_NOT_MVP.includes(input.kind)) {
       throw new BadRequestException({ error: 'kind_not_mvp' });
     }
@@ -78,6 +83,8 @@ export class CsdChatService {
       const peer = extraIds[0];
       const existing = await this.repo.findDirectPair(actor.staffId, peer);
       if (existing) return existing;
+      const ok = await this.friends.isAccepted(actor.staffId, peer);
+      if (!ok) throw new ConflictException({ error: 'not_friends' });
       const name = String(input.name_vi ?? '').trim() || `DM · #${peer}`;
       return this.repo.insertConversation({
         kind: 'direct',
@@ -144,6 +151,7 @@ export class CsdChatService {
     conversationId: string,
     input: SendCsdMessageInput,
   ): Promise<SendCsdMessageResult> {
+    await this.accounts.assertEnabled(actor);
     const conv = await this.repo.getConversation(conversationId);
     if (!conv) throw new NotFoundException({ error: 'csd_conversation_not_found' });
     if (conv.status === 'closed' || conv.status === 'archived') {

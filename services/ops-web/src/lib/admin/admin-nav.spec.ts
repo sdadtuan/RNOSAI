@@ -86,6 +86,15 @@ describe('admin-nav', () => {
     expect(buildAdminNavGroups(user)).toEqual([]);
   });
 
+  it('sidebar includes chat accounts when csd.admin', () => {
+    const user = adminUser({ caps: [{ section: 'csd', action: 'admin' }] });
+    expect(canViewAdminSection(user)).toBe(true);
+    expect(buildAdminSidebarLinks(user)).toEqual([
+      { href: '/admin', label: 'Trung tâm quản trị' },
+      { href: '/admin/crm/csd/chat-accounts', label: 'Tài khoản Chat' },
+    ]);
+  });
+
   it('sidebar includes Kho Sales Kit for configure cap without full admin', () => {
     const gdkd = adminUser({
       caps: [{ section: 'crm_leads', action: 'configure' }],

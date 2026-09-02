@@ -36,6 +36,7 @@ type CsdChatContextProps = {
   onSummarize: () => void;
   showMobileBack?: boolean;
   onMobileBack?: () => void;
+  variant?: 'column' | 'sheet';
 };
 
 type AiSummary = {
@@ -67,15 +68,17 @@ export function CsdChatContext({
   onSummarize,
   showMobileBack,
   onMobileBack,
+  variant = 'column',
 }: CsdChatContextProps) {
+  const isSheet = variant === 'sheet';
   return (
-    <aside className="csd-chat-workspace__context page-card stack-gap">
-      {showMobileBack ? (
+    <aside className={`csd-chat-workspace__context page-card stack-gap${isSheet ? ' is-sheet' : ''}`}>
+      {showMobileBack && !isSheet ? (
         <button type="button" className="btn btn-sm btn-secondary" onClick={onMobileBack}>
           ← Thread
         </button>
       ) : null}
-      <h3 className="kpi-section-title">Ngữ cảnh</h3>
+      <h3 className="kpi-section-title">{isSheet ? 'Thông tin' : 'Ngữ cảnh'}</h3>
       {active ? (
         <>
           <p className="muted">Loại: {CSD_CHAT_KIND_LABELS[active.kind] ?? active.kind}</p>
@@ -86,12 +89,12 @@ export function CsdChatContext({
             </p>
           ) : null}
           <p className="muted">Trạng thái: {archived ? 'Lưu trữ' : closed ? 'Đã đóng' : active.status ?? 'active'}</p>
-          {canWrite && !closed && !archived ? (
+          {!isSheet && canWrite && !closed && !archived ? (
             <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={onClose}>
               Đóng hội thoại
             </button>
           ) : null}
-          {canWrite && !archived ? (
+          {!isSheet && canWrite && !archived ? (
             <button
               type="button"
               className="btn btn-sm btn-secondary"
@@ -141,7 +144,7 @@ export function CsdChatContext({
               ))
             )}
           </ul>
-          {canWrite && !closed && !archived ? (
+          {!isSheet && canWrite && !closed && !archived ? (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -163,7 +166,8 @@ export function CsdChatContext({
             </form>
           ) : null}
 
-          <h4 className="kpi-section-title">Tóm tắt AI</h4>
+          {isSheet ? null : <h4 className="kpi-section-title">Tóm tắt AI</h4>}
+          {isSheet ? null : (
           <div className="csd-chat-ai-period">
             {(['24h', '7d', 'all'] as const).map((p) => (
               <button
@@ -176,6 +180,8 @@ export function CsdChatContext({
               </button>
             ))}
           </div>
+          )}
+          {isSheet ? null : (
           <button
             type="button"
             className="btn btn-sm"
@@ -185,7 +191,8 @@ export function CsdChatContext({
           >
             Tóm tắt AI
           </button>
-          {aiSummary ? (
+          )}
+          {!isSheet && aiSummary ? (
             <div className="csd-chat-ai-output" data-testid="csd-chat-ai-output">
               <p>
                 <strong>Tóm tắt</strong>

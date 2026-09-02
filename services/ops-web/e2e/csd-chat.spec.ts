@@ -39,7 +39,15 @@ const MESSAGE = {
   ticket_id: null,
   created_at: new Date().toISOString(),
   is_deleted: false,
-  attachments: [] as Array<{ id: string; file_name: string; mime_type: string; byte_size: number; visibility: string }>,
+  attachments: [
+    {
+      id: 'img-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      file_name: 'shot.png',
+      mime_type: 'image/png',
+      byte_size: 12,
+      visibility: 'client',
+    },
+  ] as Array<{ id: string; file_name: string; mime_type: string; byte_size: number; visibility: string }>,
 };
 
 async function loginAsStaff(page: import('@playwright/test').Page) {
@@ -233,6 +241,42 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
     await route.continue();
   });
 
+  await page.route('**/api/crm/csd/chat/people**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [{ staff_id: 8, display_name_vi: 'Bạn B' }] }),
+    });
+  });
+
+  await page.route('**/api/crm/csd/chat/friends/requests**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ incoming: [], outgoing: [] }),
+    });
+  });
+
+  await page.route('**/api/crm/csd/chat/friends**', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [{ staff_id: 8, display_name_vi: 'Bạn B' }] }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.route('**/api/crm/csd/chat/me**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ staff_id: 3, enabled: true, display_name_vi: 'Demo AM' }),
+    });
+  });
+
   await page.route('**/api/crm/csd/chat/unread-count**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -353,7 +397,8 @@ test.describe('CSD chat workspace', () => {
     await expect(page.getByTestId('csd-chat-client-banner')).toHaveText(/Bạn đang gửi cho khách hàng/);
     await expect(page.getByTestId('csd-chat-messages')).toContainText('Khách báo Ads không chạy');
 
-    await page.getByRole('button', { name: /Tạo ticket/i }).click();
+    await page.getByTestId('csd-chat-msg-menu').click();
+    await page.getByRole('button', { name: /^Tạo ticket$/ }).click();
     await expect(page.getByTestId('csd-create-ticket-modal')).toBeVisible();
     await page.getByTestId('csd-create-ticket-modal').getByRole('button', { name: /Tạo ticket/i }).click();
     await expect(page.getByTestId('csd-chat-ticket-pill')).toHaveAttribute(
@@ -369,6 +414,53 @@ test.describe('CSD chat workspace', () => {
     await expect(page.getByRole('button', { name: /Mở lại/i })).toBeVisible();
   });
 
+  test('D-4: launcher hidden when chat account disabled', async ({ page }) => {
+    await mockCsdChatApis(page);
+    await page.route('**/api/crm/csd/chat/me**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ staff_id: 3, enabled: false, display_name_vi: null }),
+      }),
+    );
+    await loginAsStaff(page);
+    await page.goto('/crm/csd');
+    await expect(page.getByTestId('csd-chat-launcher')).toHaveCount(0);
+    await page.goto('/crm/csd/chat');
+    await expect(page.getByTestId('csd-chat-disabled')).toBeVisible();
+    await expect(page.getByTestId('csd-chat-workspace')).toHaveCount(0);
+  });
+
+  test('C-5: dock bubbles, send, hide on chat page', async ({ page }) => {
+    await mockCsdChatApis(page);
+    await loginAsStaff(page);
+    await page.goto('/crm/csd');
+    await expect(page.getByTestId('csd-chat-launcher')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('csd-chat-launcher').click();
+    await page.getByTestId('csd-chat-dock').getByTestId('csd-chat-list').locator('button').first().click();
+    await expect(page.getByTestId('csd-chat-dock').locator('.csd-chat-message.is-mine, .csd-chat-message.is-theirs')).toHaveCount(1);
+    await expect(page.getByTestId('csd-chat-dock').getByTestId('csd-chat-date-chip')).toBeVisible();
+    await expect(page.getByTestId('csd-chat-dock').getByTestId('csd-chat-image')).toBeVisible();
+    await expect(page.getByTestId('csd-chat-dock').getByTestId('csd-chat-msg-menu')).toBeVisible();
+    await page.getByTestId('csd-chat-dock').getByTestId('csd-chat-thread-info').click();
+    await expect(page.getByTestId('csd-chat-info-sheet')).toBeVisible();
+    await page.getByTestId('csd-chat-info-sheet').getByRole('button', { name: /Đóng/ }).click();
+    await page.getByTestId('csd-chat-dock').getByTestId('csd-chat-draft').fill('Xin chào');
+    await page.getByTestId('csd-chat-dock').getByRole('button', { name: 'Gửi' }).click();
+    await page.goto('/crm/csd/chat');
+    await expect(page.getByTestId('csd-chat-launcher')).toHaveCount(0);
+    await expect(page.locator('.csd-chat-message.is-mine, .csd-chat-message.is-theirs')).toHaveCount(1);
+  });
+
+  test('D-1: message bubbles use mine/theirs', async ({ page }) => {
+    await mockCsdChatApis(page);
+    await loginAsStaff(page);
+    await page.goto('/crm/csd/chat');
+    await expect(page.getByTestId('csd-chat-workspace')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('csd-chat-list').locator('button').first().click();
+    await expect(page.locator('.csd-chat-message.is-theirs, .csd-chat-message.is-mine')).toHaveCount(1);
+  });
+
   test('C-1: new modal creates DM and Nội bộ chip hides client chats', async ({ page }) => {
     await mockCsdChatApis(page);
     await loginAsStaff(page);
@@ -381,7 +473,7 @@ test.describe('CSD chat workspace', () => {
     await page.getByRole('button', { name: /^Mới$/ }).click();
     await expect(page.getByTestId('csd-chat-new-modal')).toBeVisible();
     await page.getByTestId('csd-chat-new-kind-direct').click();
-    await page.getByTestId('csd-chat-new-peer').fill('8');
+    await page.getByTestId('csd-chat-new-peer').selectOption('8');
     await page.getByTestId('csd-chat-new-submit').click();
     await expect(page.getByTestId('csd-chat-list')).toContainText('DM · #8');
 
@@ -423,11 +515,13 @@ test.describe('CSD chat workspace', () => {
     });
     await expect(page.getByTestId('csd-chat-pending-files')).toContainText('brief.pdf');
 
+    await page.getByTestId('csd-chat-msg-menu').click();
     await page.getByTestId('csd-chat-edit').click();
     await page.getByTestId('csd-chat-edit-draft').fill('Khách báo Ads đã sửa');
     await page.getByRole('button', { name: /^Lưu$/ }).click();
     await expect(page.getByTestId('csd-chat-messages')).toContainText('Khách báo Ads đã sửa');
 
+    await page.getByTestId('csd-chat-msg-menu').click();
     await page.getByTestId('csd-chat-delete').click();
     await expect(page.getByTestId('csd-chat-deleted')).toHaveText(/Đã xóa/);
   });
@@ -446,6 +540,8 @@ test.describe('CSD chat workspace', () => {
 
     await page.getByRole('button', { name: /Tạo ticket/i }).first().click();
     await page.getByTestId('csd-create-ticket-modal').getByRole('button', { name: /Tạo ticket/i }).click();
+    await page.getByTestId('csd-chat-draft').fill('Ads ngưng chạy lần 2');
+    await page.getByRole('button', { name: /^Gửi$/ }).click();
     await page.getByRole('button', { name: /Tạo ticket/i }).first().click();
     await page.getByTestId('csd-create-ticket-modal').getByRole('button', { name: /Tạo ticket/i }).click();
     await expect(page.getByTestId('csd-duplicate-ticket-modal')).toContainText('PTT-2026-000099');
@@ -456,5 +552,78 @@ test.describe('CSD chat workspace', () => {
     await page.getByTestId('csd-chat-ai-summary').click();
     await expect(page.getByTestId('csd-chat-ai-actions')).toBeVisible();
     await page.getByTestId('csd-chat-ai-actions').getByRole('button', { name: /Tạo ticket/i }).click();
+  });
+
+  test('C-6: friend request, accept, not_friends dialog', async ({ page }) => {
+    let friends: Array<{ staff_id: number; display_name_vi: string }> = [];
+    let incoming: Array<Record<string, unknown>> = [];
+    await mockCsdChatApis(page);
+    await page.route('**/api/crm/csd/chat/people**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [{ staff_id: 8, display_name_vi: 'Bạn B' }] }),
+      }),
+    );
+    await page.route('**/api/crm/csd/chat/friends/requests**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ incoming, outgoing: [] }),
+      }),
+    );
+    await page.route('**/api/crm/csd/chat/friends**', async (route) => {
+      if (route.request().method() === 'POST' && !route.request().url().includes('/accept')) {
+        incoming = [{ id: 'f1', requester_staff_id: 3, addressee_staff_id: 8, status: 'pending' }];
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify(incoming[0]),
+        });
+        return;
+      }
+      if (route.request().url().includes('/accept')) {
+        friends = [{ staff_id: 8, display_name_vi: 'Bạn B' }];
+        incoming = [];
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ id: 'f1', status: 'accepted' }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: friends }),
+      });
+    });
+    await loginAsStaff(page);
+    await page.goto('/crm/csd');
+    await page.getByTestId('csd-chat-launcher').click();
+    await page.getByTestId('csd-chat-tab-contacts').click();
+    await page.getByTestId('csd-chat-people-q').fill('Bạn');
+    await page.getByTestId('csd-chat-friend-request').click();
+    await page.getByTestId('csd-chat-tab-requests').click();
+    await expect(page.getByTestId('csd-chat-friend-incoming')).toBeVisible();
+    await page.getByRole('button', { name: /Chấp nhận/ }).click();
+
+    await page.route('**/api/crm/csd/conversations**', async (route) => {
+      if (route.request().method() === 'POST' && /\/conversations$/.test(new URL(route.request().url()).pathname)) {
+        await route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'not_friends' }),
+        });
+        return;
+      }
+      await route.fallback();
+    });
+    await page.getByTestId('csd-chat-tab-messages').click();
+    await page.getByRole('button', { name: /^Mới$/ }).click();
+    await page.getByTestId('csd-chat-new-kind-direct').click();
+    await page.getByTestId('csd-chat-new-peer').selectOption('8');
+    await page.getByTestId('csd-chat-new-submit').click();
+    await expect(page.getByTestId('csd-chat-not-friends')).toBeVisible();
   });
 });

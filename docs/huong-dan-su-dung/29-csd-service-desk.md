@@ -42,6 +42,14 @@ Service Desk là kênh ticket **agency** (PTT-2026-xxxxx), tách biệt **Ticket
 - Copy link `/crm/csd/chat?c={id}&m={mid}` · Chuyển tiếp (quote, không file).
 - Mobile ≤960px: một cột (list / thread / ngữ cảnh). Sidebar **Chat (n)** khi có hội thoại chưa đọc.
 
+## 3b. Hộp thoại Chat (dock)
+
+- Góc phải CRM: nút Chat + badge. Không hiện trên `/crm/csd/chat`.
+- Đăng nhập `/login`. Chỉ NV được Admin bật tại `/admin/crm/csd/chat-accounts`.
+- Tab Tin nhắn / Danh bạ / Lời mời. DM mới cần kết bạn.
+- Nhóm / chat khách / dự án không cần kết bạn.
+- Mở rộng → `/crm/csd/chat?c=`.
+
 ## 4. Email (`/crm/csd/email`)
 
 - Hộp thư dùng chung `support@…` — inbound IMAP → ticket hoặc unmatched.
@@ -69,6 +77,8 @@ Service Desk là kênh ticket **agency** (PTT-2026-xxxxx), tách biệt **Ticket
 2c. Chat C-2: tìm theo nội dung tin; `@8` in đậm trong tin; panel phải list ticket cùng thread.  
 2d. Chat C-3: gửi tin + file trên nhóm; sửa trong 15 phút; xóa hiện “Đã xóa”; ticket từ tin không mang file internal.  
 2e. Chat C-4: tin “ngưng chạy” gợi ý P1; tạo ticket 2 lần → dialog mã cũ; lưu trữ ẩn composer; deep link `?c=`.  
+2f. Dock trên `/crm/leads` hoặc `/crm/csd`, gửi tin, ẩn trên trang Chat.  
+2g. Admin bật 2 NV; A mời B; B chấp nhận; DM gửi được; DM C chưa bạn bị chặn.  
 3. Internal note không SMTP.  
 4. Resolve thiếu note → lỗi 422.  
 5. `/crm/tickets` không list ticket CSD.

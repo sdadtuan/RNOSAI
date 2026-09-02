@@ -44,8 +44,23 @@ describe('CsdChatService', () => {
     insert: jest.fn(),
   };
 
+  const accounts = {
+    assertEnabled: jest.fn(),
+  };
+
+  const friends = {
+    isAccepted: jest.fn(),
+  };
+
   function svc() {
-    return new CsdChatService(repo as never, tickets as never, files as never, audit as never);
+    return new CsdChatService(
+      repo as never,
+      tickets as never,
+      files as never,
+      audit as never,
+      accounts as never,
+      friends as never,
+    );
   }
 
   beforeEach(() => {
@@ -57,6 +72,33 @@ describe('CsdChatService', () => {
     tickets.findBySource.mockResolvedValue(null);
     repo.insertClientChatNotifications.mockResolvedValue(undefined);
     repo.listMembers.mockResolvedValue([]);
+    accounts.assertEnabled.mockResolvedValue(undefined);
+    friends.isAccepted.mockResolvedValue(true);
+  });
+
+  it('createConversation direct without friend is 409', async () => {
+    accounts.assertEnabled.mockResolvedValue(undefined);
+    friends.isAccepted.mockResolvedValue(false);
+    repo.findDirectPair.mockResolvedValue(null);
+    await expect(
+      svc().createConversation(actor, { kind: 'direct', name_vi: '', member_staff_ids: [8] }),
+    ).rejects.toMatchObject({ status: 409, response: { error: 'not_friends' } });
+  });
+
+  it('existing direct pair skips friend check', async () => {
+    repo.findDirectPair.mockResolvedValue({ id: 'd1', kind: 'direct' });
+    const row = await svc().createConversation(actor, { kind: 'direct', name_vi: '', member_staff_ids: [8] });
+    expect(row.id).toBe('d1');
+    expect(friends.isAccepted).not.toHaveBeenCalled();
+  });
+
+  it('does not send when chat account is disabled', async () => {
+    accounts.assertEnabled.mockRejectedValue({ status: 403, response: { error: 'chat_disabled' } });
+    await expect(svc().sendMessage(actor, 'c1', { body_text: 'ping' })).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(repo.insertMessage).not.toHaveBeenCalled();
+    expect(repo.getConversation).not.toHaveBeenCalled();
   });
 
   it('requires client_account_id when kind=client', async () => {

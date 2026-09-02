@@ -66,6 +66,32 @@ export class CsdNotificationsRepository implements OnModuleDestroy {
     return Number(res.rows[0]?.c ?? 0);
   }
 
+  async insert(input: {
+    staff_id: number;
+    event_key: string;
+    title_vi: string;
+    body_vi: string;
+    entity_type: string;
+    entity_id: string;
+    severity?: 'info' | 'warning' | 'critical';
+  }): Promise<void> {
+    await this.db.query(
+      `INSERT INTO csd_notifications (
+         tenant_id, staff_id, event_key, title_vi, body_vi, entity_type, entity_id, severity
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        CSD_TENANT_ID,
+        input.staff_id,
+        input.event_key,
+        input.title_vi,
+        input.body_vi,
+        input.entity_type,
+        input.entity_id,
+        input.severity ?? 'info',
+      ],
+    );
+  }
+
   async markRead(id: string, staffId: number): Promise<boolean> {
     const res = await this.db.query(
       `UPDATE csd_notifications

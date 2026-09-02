@@ -1,40 +1,16 @@
 'use client';
 
 import { KeyboardEvent, useEffect, useState } from 'react';
-import Link from 'next/link';
+import { CsdChatBubble } from '@/components/crm/csd/CsdChatBubble';
 import {
-  downloadCsdFile,
   fetchCsdTickets,
-  formatCsdWhen,
   type CsdAttachmentRow,
   type CsdConversationMemberRow,
   type CsdConversationRow,
   type CsdMessageRow,
   type CsdTicketRow,
 } from '@/lib/crm/csd-api';
-
-const EDIT_WINDOW_MS = 15 * 60_000;
-
-function canEditOwn(message: CsdMessageRow, meStaffId: number | null): boolean {
-  if (!meStaffId || message.is_deleted || message.author_staff_id !== meStaffId) return false;
-  const created = new Date(message.created_at).getTime();
-  return Number.isFinite(created) && Date.now() - created <= EDIT_WINDOW_MS;
-}
-
-function canDeleteOwn(message: CsdMessageRow, meStaffId: number | null): boolean {
-  return Boolean(meStaffId && !message.is_deleted && message.author_staff_id === meStaffId);
-}
-
-function renderMessageBody(text: string) {
-  const parts = String(text).split(/(@\d+|#PTT-\d{4}-\d{6})/gi);
-  return parts.map((part, index) =>
-    /^@\d+$/.test(part) || /^#PTT-\d{4}-\d{6}$/i.test(part) ? (
-      <strong key={`${part}-${index}`}>{part}</strong>
-    ) : (
-      part
-    ),
-  );
-}
+import { formatDateChip, shouldShowDateChip } from '@/lib/crm/csd-chat-display';
 
 function mentionToken(draft: string): string | null {
   const match = draft.match(/(^|[\s])@(\d*)$/);
@@ -60,7 +36,10 @@ type CsdChatThreadProps = {
   busy: boolean;
   closed: boolean;
   priorityHint?: 'P1' | 'P2' | null;
+  density?: 'page' | 'dock';
   showMobileBack?: boolean;
+  onExpand?: () => void;
+  onMinimize?: () => void;
   onDraftChange: (value: string) => void;
   onSend: () => void;
   onReply: (message: CsdMessageRow) => void;
@@ -105,14 +84,16 @@ export function CsdChatThread({
   onCopyLink,
   onForward,
   onMobileBack,
+  onShowContext,
+  onExpand,
+  onMinimize,
   onDismissPriorityHint,
   onApplyPriorityHint,
   priorityHint,
+  density = 'page',
   showMobileBack,
 }: CsdChatThreadProps) {
   const [ticketSuggest, setTicketSuggest] = useState<CsdTicketRow[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState('');
   const mentionQ = mentionToken(draft);
   const hashQ = ticketToken(draft);
   const relatedById = new Map(relatedTickets.map((t) => [t.id, t]));
@@ -178,10 +159,33 @@ export function CsdChatThread({
       <div className="csd-chat-thread-head">
         {showMobileBack ? (
           <button type="button" className="btn btn-sm btn-secondary" onClick={onMobileBack} data-testid="csd-chat-mobile-back">
-            ← Hội thoại
+            ←
           </button>
         ) : null}
         <h3 className="kpi-section-title">{active.name_vi}</h3>
+        <div className="csd-chat-thread-head__actions">
+          {onShowContext ? (
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              data-testid="csd-chat-thread-info"
+              aria-label="Thông tin hội thoại"
+              onClick={onShowContext}
+            >
+              i
+            </button>
+          ) : null}
+          {onExpand ? (
+            <button type="button" className="btn btn-sm btn-secondary" onClick={onExpand}>
+              Mở rộng
+            </button>
+          ) : null}
+          {onMinimize ? (
+            <button type="button" className="btn btn-sm btn-secondary" aria-label="Thu nhỏ" onClick={onMinimize}>
+              —
+            </button>
+          ) : null}
+        </div>
       </div>
       {priorityHint ? (
         <div className="csd-chat-priority-hint" data-testid="csd-chat-priority-hint">
@@ -200,130 +204,43 @@ export function CsdChatThread({
         </p>
       ) : null}
       <ul className="csd-chat-messages" data-testid="csd-chat-messages">
-        {messages.map((m) => {
+        {messages.map((m, index) => {
           const quoted = m.reply_to_id ? messages.find((q) => q.id === m.reply_to_id) : null;
           const linked = m.ticket_id ? relatedById.get(m.ticket_id) : null;
           const pill = linked
             ? `${linked.code} · ${linked.priority} · ${linked.status}`
             : (m.ticket_code ?? 'Ticket liên kết');
-          const editing = editingId === m.id;
+          const isMine = meStaffId != null && m.author_staff_id === meStaffId;
+          const prev = index > 0 ? messages[index - 1] : null;
+          const showChip = shouldShowDateChip(prev?.created_at, m.created_at);
           return (
-            <li key={m.id} className={`csd-chat-message${m.is_deleted ? ' is-deleted' : ''}`}>
-              <div className="csd-chat-message__meta muted">
-                {m.author_staff_name ?? 'Khách'} · {formatCsdWhen(m.created_at)}
-                {m.edited_at && !m.is_deleted ? ' · đã sửa' : ''}
-              </div>
-              {quoted ? (
-                <p className="csd-chat-quote muted">
-                  ↩ {quoted.is_deleted ? 'Đã xóa' : quoted.body_text.slice(0, 120)}
-                </p>
-              ) : null}
-              {m.is_deleted ? (
-                <p className="csd-chat-deleted" data-testid="csd-chat-deleted">
-                  Đã xóa
-                </p>
-              ) : editing ? (
-                <div className="csd-chat-edit">
-                  <textarea
-                    className="kpi-input"
-                    rows={2}
-                    value={editDraft}
-                    onChange={(e) => setEditDraft(e.target.value)}
-                    data-testid="csd-chat-edit-draft"
-                  />
-                  <div className="csd-chat-message__actions">
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-secondary"
-                      onClick={() => {
-                        setEditingId(null);
-                        setEditDraft('');
-                      }}
-                    >
-                      Huỷ
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      disabled={busy || !editDraft.trim()}
-                      onClick={() => {
-                        onEditMessage(m, editDraft.trim());
-                        setEditingId(null);
-                        setEditDraft('');
-                      }}
-                    >
-                      Lưu
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <p>{renderMessageBody(m.body_text)}</p>
-              )}
-              {!m.is_deleted && (m.attachments ?? []).length > 0 ? (
-                <ul className="csd-chat-files">
-                  {(m.attachments ?? []).map((file) => (
-                    <li key={file.id}>
-                      <button
-                        type="button"
-                        className="csd-chat-file-chip"
-                        onClick={() => void downloadCsdFile(token, file.id, file.file_name)}
-                      >
-                        {file.file_name}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {m.ticket_id ? (
-                <Link
-                  href={`/crm/csd/tickets/${m.ticket_id}`}
-                  className="csd-chat-ticket-pill"
-                  data-testid="csd-chat-ticket-pill"
-                >
-                  {pill}
-                </Link>
-              ) : null}
-              {canWrite && !closed && !m.is_deleted && !editing ? (
-                <div className="csd-chat-message__actions">
-                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => onReply(m)}>
-                    Trả lời
-                  </button>
-                  {!m.ticket_id && active.kind !== 'announcement' ? (
-                    <button type="button" className="btn btn-sm btn-secondary" onClick={() => onCreateTicket(m)}>
-                      Tạo ticket
-                    </button>
-                  ) : null}
-                  {canEditOwn(m, meStaffId) ? (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-secondary"
-                      data-testid="csd-chat-edit"
-                      onClick={() => {
-                        setEditingId(m.id);
-                        setEditDraft(m.body_text);
-                      }}
-                    >
-                      Sửa
-                    </button>
-                  ) : null}
-                  {canDeleteOwn(m, meStaffId) ? (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-secondary"
-                      data-testid="csd-chat-delete"
-                      onClick={() => onDeleteMessage(m)}
-                    >
-                      Xóa
-                    </button>
-                  ) : null}
-                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => onCopyLink(m)}>
-                    Copy link
-                  </button>
-                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => onForward(m)}>
-                    Chuyển tiếp
-                  </button>
+            <li key={m.id}>
+              {showChip ? (
+                <div className="csd-chat-date-chip" data-testid="csd-chat-date-chip">
+                  {formatDateChip(m.created_at)}
                 </div>
               ) : null}
+              <CsdChatBubble
+                token={token}
+                message={m}
+                isMine={isMine}
+                quoted={quoted ?? null}
+                ticketPill={m.ticket_id ? pill : null}
+                ticketHref={m.ticket_id ? `/crm/csd/tickets/${m.ticket_id}` : null}
+                closed={closed}
+                canWrite={canWrite}
+                busy={busy}
+                density={density}
+                showName={!isMine}
+                allowCreateTicket={!m.ticket_id && active.kind !== 'announcement'}
+                meStaffId={meStaffId}
+                onReply={onReply}
+                onCreateTicket={onCreateTicket}
+                onEdit={onEditMessage}
+                onDelete={onDeleteMessage}
+                onCopyLink={onCopyLink}
+                onForward={onForward}
+              />
             </li>
           );
         })}

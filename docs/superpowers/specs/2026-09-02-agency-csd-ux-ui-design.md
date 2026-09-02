@@ -300,6 +300,14 @@ Màn 1 list, màn 2 thread. Context = bottom sheet `i`. Long-press action sheet.
 
 Tìm + gửi + tạo ticket ≤ 3 thao tác. Ticket pill hiện ngay. Context CRM không rời chat.
 
+### 5.8. Hộp thoại nổi (dock)
+
+Nút Chat góc phải mọi trang `StaffPageShell` trừ `/crm/csd/chat`. Một thread, poll 15s, persist `sessionStorage`. Chi tiết: [spec dock Zalo](./2026-09-02-csd-chat-dock-zalo-design.md).
+
+### 5.9. Tài khoản + kết bạn
+
+Admin cấp `csd_chat_accounts` tại `/admin/crm/csd/chat-accounts`. Đăng nhập `/login`. DM mới cần bạn `accepted`; hội thoại cũ vẫn đọc (Z16). Group / khách / dự án không cần kết bạn.
+
 ---
 
 ## 6. Email `/crm/csd/email`

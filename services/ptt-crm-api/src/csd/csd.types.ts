@@ -403,3 +403,42 @@ export type SendCsdReportInput = {
   subject: string;
   body: string;
 };
+
+export type CsdChatAccountRow = {
+  staff_id: number;
+  tenant_id: string;
+  enabled: boolean;
+  display_name_vi: string | null;
+  created_by_staff_id: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CsdChatAccountAdminRow = CsdChatAccountRow & {
+  staff_name: string;
+  staff_email: string;
+};
+
+export type CsdChatMe = {
+  staff_id: number;
+  enabled: boolean;
+  display_name_vi: string | null;
+};
+
+export type CsdChatPersonRow = {
+  staff_id: number;
+  display_name_vi: string;
+};
+
+export type CsdChatFriendshipStatus = 'pending' | 'accepted' | 'blocked';
+
+export type CsdChatFriendshipRow = {
+  id: string;
+  staff_lo: number;
+  staff_hi: number;
+  requester_staff_id: number;
+  addressee_staff_id: number;
+  status: CsdChatFriendshipStatus;
+  created_at: string;
+  updated_at: string;
+};

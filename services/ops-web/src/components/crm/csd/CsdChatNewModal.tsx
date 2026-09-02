@@ -1,7 +1,12 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
-import type { CreateCsdConversationInput, CsdConversationKind } from '@/lib/crm/csd-api';
+import { FormEvent, useEffect, useState } from 'react';
+import {
+  fetchCsdChatFriends,
+  type CreateCsdConversationInput,
+  type CsdChatPersonRow,
+  type CsdConversationKind,
+} from '@/lib/crm/csd-api';
 
 export type CsdChatCreateKind = Extract<CsdConversationKind, 'client' | 'group' | 'direct' | 'project'>;
 
@@ -20,13 +25,14 @@ function parseStaffIds(raw: string): number[] {
 }
 
 type CsdChatNewModalProps = {
+  token: string;
   open: boolean;
   busy: boolean;
   onClose: () => void;
   onSubmit: (payload: CreateCsdConversationInput) => Promise<void> | void;
 };
 
-export function CsdChatNewModal({ open, busy, onClose, onSubmit }: CsdChatNewModalProps) {
+export function CsdChatNewModal({ token, open, busy, onClose, onSubmit }: CsdChatNewModalProps) {
   const [kind, setKind] = useState<CsdChatCreateKind>('client');
   const [nameVi, setNameVi] = useState('');
   const [clientAccountId, setClientAccountId] = useState('');
@@ -35,6 +41,22 @@ export function CsdChatNewModal({ open, busy, onClose, onSubmit }: CsdChatNewMod
   const [projectRefKind, setProjectRefKind] = useState('project');
   const [projectRefId, setProjectRefId] = useState('');
   const [error, setError] = useState('');
+  const [friends, setFriends] = useState<CsdChatPersonRow[]>([]);
+
+  useEffect(() => {
+    if (!open || !token) return;
+    let cancelled = false;
+    void fetchCsdChatFriends(token)
+      .then((out) => {
+        if (!cancelled) setFriends(out.items ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setFriends([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, token]);
 
   if (!open) return null;
 
@@ -123,14 +145,23 @@ export function CsdChatNewModal({ open, busy, onClose, onSubmit }: CsdChatNewMod
           />
         ) : null}
         {kind === 'direct' ? (
-          <input
-            className="kpi-input"
-            inputMode="numeric"
-            placeholder="Staff id người nhận"
-            value={peerStaffId}
-            onChange={(e) => setPeerStaffId(e.target.value)}
-            data-testid="csd-chat-new-peer"
-          />
+          friends.length === 0 ? (
+            <p className="muted">Chưa có bạn. Vào tab Danh bạ để gửi lời mời.</p>
+          ) : (
+            <select
+              className="kpi-select"
+              value={peerStaffId}
+              onChange={(e) => setPeerStaffId(e.target.value)}
+              data-testid="csd-chat-new-peer"
+            >
+              <option value="">Chọn bạn</option>
+              {friends.map((f) => (
+                <option key={f.staff_id} value={String(f.staff_id)}>
+                  {f.display_name_vi} (#{f.staff_id})
+                </option>
+              ))}
+            </select>
+          )
         ) : null}
         {kind === 'group' ? (
           <input
