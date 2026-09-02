@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -13,7 +14,13 @@ import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { CsdReportsService } from './csd-reports.service';
-import type { CsdActor, CreateCsdReportInput, SendCsdReportInput } from './csd.types';
+import type {
+  CsdActor,
+  CsdReportListQuery,
+  CreateCsdReportInput,
+  SendCsdReportInput,
+  TransitionCsdReportInput,
+} from './csd.types';
 import { RequireCsdAction, StaffCsdGuard } from './guards/staff-csd.guard';
 
 type AuthedReq = Request & {
@@ -49,11 +56,32 @@ export class CsdReportsController {
     return this.reports.createReport(actor, body);
   }
 
+  @Get()
+  @RequireCsdAction('view')
+  async list(
+    @Req() req: AuthedReq,
+    @Query('status') status?: CsdReportListQuery['status'],
+    @Query('template_code') templateCode?: string,
+    @Query('client_account_id') clientAccountId?: string,
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const actor = await this.actor(req);
+    const parsedLimit = limit != null ? Number(limit) : undefined;
+    return this.reports.list(actor, {
+      status,
+      template_code: templateCode,
+      client_account_id: clientAccountId,
+      q,
+      limit: parsedLimit != null && Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+    });
+  }
+
   @Get(':id')
   @RequireCsdAction('view')
   async get(@Req() req: AuthedReq, @Param('id') id: string) {
     const actor = await this.actor(req);
-    return this.reports.get(actor, id);
+    return this.reports.getDetail(actor, id);
   }
 
   @Post(':id/submit-review')
@@ -72,6 +100,28 @@ export class CsdReportsController {
   async approve(@Req() req: AuthedReq, @Param('id') id: string) {
     const actor = await this.actor(req);
     return this.reports.approve(actor, id);
+  }
+
+  @Post(':id/transition')
+  @RequireCsdAction('write')
+  async transition(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: TransitionCsdReportInput,
+  ) {
+    const actor = await this.actor(req);
+    return this.reports.transition(actor, id, body);
+  }
+
+  @Post(':id/request-changes')
+  @RequireCsdAction('manage')
+  async requestChanges(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { comment?: string },
+  ) {
+    const actor = await this.actor(req);
+    return this.reports.transition(actor, id, { to: 'changes_requested', comment: body.comment });
   }
 
   @Post(':id/send')

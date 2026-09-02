@@ -416,6 +416,28 @@ export type SendCsdReportInput = {
   body: string;
 };
 
+export type CsdReportListQuery = {
+  status?: CsdReportStatus | 'due';
+  template_code?: string;
+  client_account_id?: string;
+  q?: string;
+  limit?: number;
+};
+
+export type CsdReportDetail = CsdReportRow & {
+  sections_json: Record<string, unknown>;
+  versions: CsdReportVersionRow[];
+  send_logs: CsdReportSendLogRow[];
+  template_name_vi: string | null;
+  template_sections: string[];
+};
+
+export type TransitionCsdReportInput = {
+  to: CsdReportStatus;
+  comment?: string;
+  approver_staff_id?: number;
+};
+
 export type CsdChatAccountRow = {
   staff_id: number;
   tenant_id: string;

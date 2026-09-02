@@ -14,6 +14,9 @@ describe('CsdReportsService', () => {
     updateSections: jest.fn(),
     insertSendLog: jest.fn(),
     createRevisedVersion: jest.fn(),
+    listReports: jest.fn(),
+    listVersions: jest.fn(),
+    listSendLogs: jest.fn(),
   };
 
   function svc() {
@@ -122,6 +125,30 @@ describe('CsdReportsService', () => {
     await expect(svc().createRevisedVersion(actor, 'r3')).rejects.toMatchObject({
       status: 409,
       response: { error: 'report_not_sent' },
+    });
+  });
+
+  it('lists reports and due filter uses period_end window', async () => {
+    repo.listReports.mockResolvedValue([{ id: 'r1', status: 'draft', period_end: '2026-09-05' }]);
+    const out = await svc().list(actor, { status: 'due' });
+    expect(repo.listReports).toHaveBeenCalledWith(expect.objectContaining({ status: 'due' }));
+    expect(out.items).toHaveLength(1);
+  });
+
+  it('get returns current sections and version history', async () => {
+    repo.getReport.mockResolvedValue({ id: 'r1', status: 'draft', current_version: 'v1.0' });
+    repo.getCurrentVersion.mockResolvedValue({ version: 'v1.0', sections_json: { cover: { body: 'x' } } });
+    repo.listVersions.mockResolvedValue([{ version: 'v1.0' }]);
+    repo.listSendLogs.mockResolvedValue([]);
+    const d = await svc().getDetail(actor, 'r1');
+    expect(d.sections_json).toEqual({ cover: { body: 'x' } });
+  });
+
+  it('requestChanges without comment is 400', async () => {
+    repo.getReport.mockResolvedValue({ id: 'r1', status: 'in_review', requires_approval: true });
+    await expect(svc().transition(actor, 'r1', { to: 'changes_requested' })).rejects.toMatchObject({
+      status: 400,
+      response: { error: 'comment_required' },
     });
   });
 });

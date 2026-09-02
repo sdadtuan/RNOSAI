@@ -3,11 +3,15 @@ import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import {
   CSD_TENANT_ID,
+  CsdReportListQuery,
   CsdReportRow,
   CsdReportSendLogRow,
   CsdReportStatus,
   CsdReportVersionRow,
 } from './csd.types';
+
+const DUE_STATUSES_SQL =
+  "'draft','data_pending','in_review','changes_requested','approved','scheduled'";
 
 function text(value: unknown): string {
   if (value == null) return '';
@@ -164,6 +168,73 @@ export class CsdReportsRepository implements OnModuleDestroy {
     }
   }
 
+  async listReports(q: CsdReportListQuery): Promise<CsdReportRow[]> {
+    const params: unknown[] = [CSD_TENANT_ID];
+    const where: string[] = ['r.tenant_id = $1', 'r.is_deleted = FALSE'];
+
+    if (q.status === 'due') {
+      where.push(`r.status IN (${DUE_STATUSES_SQL})`);
+      where.push('r.period_end <= CURRENT_DATE + 7');
+    } else if (q.status) {
+      params.push(q.status);
+      where.push(`r.status = $${params.length}`);
+    }
+    if (q.template_code) {
+      params.push(q.template_code);
+      where.push(`t.code = $${params.length}`);
+    }
+    if (q.client_account_id) {
+      params.push(q.client_account_id);
+      where.push(`r.client_account_id = $${params.length}`);
+    }
+    if (q.q?.trim()) {
+      params.push(`%${q.q.trim()}%`);
+      where.push(`r.title ILIKE $${params.length}`);
+    }
+
+    const limit = Math.min(Math.max(Number(q.limit ?? 100) || 100, 1), 100);
+    params.push(limit);
+
+    const res = await this.db.query(
+      `SELECT r.*, t.code AS template_code, t.requires_approval
+       FROM csd_reports r
+       JOIN csd_report_templates t ON t.id = r.template_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY r.period_end ASC, r.updated_at DESC
+       LIMIT $${params.length}`,
+      params,
+    );
+
+    return res.rows.map((row: Record<string, unknown>) =>
+      mapReport(row, {
+        code: row.template_code,
+        requires_approval: row.requires_approval,
+      }),
+    );
+  }
+
+  async listVersions(reportId: string): Promise<CsdReportVersionRow[]> {
+    const res = await this.db.query(
+      `SELECT v.* FROM csd_report_versions v
+       JOIN csd_reports r ON r.id = v.report_id
+       WHERE r.tenant_id = $1 AND r.id = $2 AND r.is_deleted = FALSE
+       ORDER BY v.created_at ASC, v.version ASC`,
+      [CSD_TENANT_ID, reportId],
+    );
+    return res.rows.map(mapVersion);
+  }
+
+  async listSendLogs(reportId: string): Promise<CsdReportSendLogRow[]> {
+    const res = await this.db.query(
+      `SELECT l.* FROM csd_report_send_logs l
+       JOIN csd_reports r ON r.id = l.report_id
+       WHERE r.tenant_id = $1 AND r.id = $2 AND r.is_deleted = FALSE
+       ORDER BY l.created_at DESC`,
+      [CSD_TENANT_ID, reportId],
+    );
+    return res.rows.map(mapSendLog);
+  }
+
   async getReport(id: string): Promise<CsdReportRow | null> {
     const res = await this.db.query(
       `SELECT r.*, t.code AS template_code, t.requires_approval
@@ -310,9 +381,9 @@ export class CsdReportsRepository implements OnModuleDestroy {
   async countDue(): Promise<number> {
     const res = await this.db.query(
       `SELECT COUNT(*)::int AS c FROM csd_reports r
-       JOIN csd_report_versions v ON v.report_id = r.id AND v.version = r.current_version
        WHERE r.tenant_id = $1 AND r.is_deleted = FALSE
-         AND v.status IN ('draft', 'in_review')`,
+         AND r.status IN (${DUE_STATUSES_SQL})
+         AND r.period_end <= CURRENT_DATE + 7`,
       [CSD_TENANT_ID],
     );
     return Number(res.rows[0]?.c ?? 0);

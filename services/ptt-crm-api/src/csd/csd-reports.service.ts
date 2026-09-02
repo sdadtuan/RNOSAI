@@ -4,17 +4,26 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { canTransitionReport } from './csd-report-workflow.util';
 import { bumpReportVersion, CsdReportsRepository } from './csd-reports.repository';
 import {
   CreateCsdReportInput,
   CsdActor,
+  CsdReportDetail,
+  CsdReportListQuery,
   CsdReportRow,
   CsdReportSendLogRow,
+  CsdReportStatus,
   SendCsdReportInput,
+  TransitionCsdReportInput,
 } from './csd.types';
 
 function emptySections(keys: string[]): Record<string, unknown> {
   return Object.fromEntries(keys.map((k) => [k, { body: '' }]));
+}
+
+function hasCsdManage(actor: CsdActor): boolean {
+  return actor.caps.some((c) => c.section === 'csd' && c.action === 'manage');
 }
 
 @Injectable()
@@ -53,42 +62,74 @@ export class CsdReportsService {
     return report;
   }
 
+  async list(_actor: CsdActor, query: CsdReportListQuery): Promise<{ items: CsdReportRow[] }> {
+    const items = await this.repo.listReports(query);
+    return { items };
+  }
+
+  async getDetail(actor: CsdActor, id: string): Promise<CsdReportDetail> {
+    const report = await this.get(actor, id);
+    const [current, versions, send_logs, template] = await Promise.all([
+      this.repo.getCurrentVersion(id),
+      this.repo.listVersions(id),
+      this.repo.listSendLogs(id),
+      report.template_code ? this.repo.getTemplateByCode(report.template_code) : Promise.resolve(null),
+    ]);
+    return {
+      ...report,
+      sections_json: current?.sections_json ?? {},
+      versions,
+      send_logs,
+      template_name_vi: template?.name_vi ?? null,
+      template_sections: template?.sections_json ?? [],
+    };
+  }
+
+  async transition(
+    actor: CsdActor,
+    id: string,
+    input: TransitionCsdReportInput,
+  ): Promise<CsdReportRow> {
+    const report = await this.get(actor, id);
+    const to = input.to;
+    if (to === 'changes_requested' && String(input.comment ?? '').trim().length < 3) {
+      throw new BadRequestException({ error: 'comment_required' });
+    }
+
+    const bypass = hasCsdManage(actor);
+    if (!canTransitionReport(report.status, to, { requires_approval: report.requires_approval, bypass })) {
+      throw new ConflictException({ error: 'invalid_status_transition', from: report.status, to });
+    }
+
+    const patch: { approver_staff_id?: number; updated_by_staff_id: number } = {
+      updated_by_staff_id: actor.staffId,
+    };
+    if (input.approver_staff_id != null) {
+      patch.approver_staff_id = input.approver_staff_id;
+    } else if (to === 'approved') {
+      patch.approver_staff_id = actor.staffId;
+    }
+
+    return this.repo.updateReportStatus(id, to, patch);
+  }
+
   async submitReview(
     actor: CsdActor,
     id: string,
     approverStaffId?: number,
   ): Promise<CsdReportRow> {
     const report = await this.get(actor, id);
-    if (report.status === 'sent') {
-      throw new ConflictException({ error: 'report_sent_immutable' });
-    }
-
-    if (!report.requires_approval) {
-      return this.repo.updateReportStatus(id, 'approved', {
-        approver_staff_id: approverStaffId ?? actor.staffId,
-        updated_by_staff_id: actor.staffId,
-      });
-    }
-
-    return this.repo.updateReportStatus(id, 'in_review', {
-      approver_staff_id: approverStaffId,
-      updated_by_staff_id: actor.staffId,
-    });
+    const bypass = hasCsdManage(actor);
+    const opts = { requires_approval: report.requires_approval, bypass };
+    const to: CsdReportStatus =
+      !report.requires_approval && canTransitionReport(report.status, 'approved', opts)
+        ? 'approved'
+        : 'in_review';
+    return this.transition(actor, id, { to, approver_staff_id: approverStaffId });
   }
 
   async approve(actor: CsdActor, id: string): Promise<CsdReportRow> {
-    const report = await this.get(actor, id);
-    if (report.status === 'sent') {
-      throw new ConflictException({ error: 'report_sent_immutable' });
-    }
-    if (report.requires_approval && !['in_review', 'changes_requested', 'draft'].includes(report.status)) {
-      throw new ConflictException({ error: 'report_not_in_review', status: report.status });
-    }
-
-    return this.repo.updateReportStatus(id, 'approved', {
-      approver_staff_id: actor.staffId,
-      updated_by_staff_id: actor.staffId,
-    });
+    return this.transition(actor, id, { to: 'approved' });
   }
 
   async send(actor: CsdActor, id: string, input: SendCsdReportInput): Promise<CsdReportSendLogRow> {
