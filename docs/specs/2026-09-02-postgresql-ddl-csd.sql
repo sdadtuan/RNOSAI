@@ -242,6 +242,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS csd_conv_members_staff_uidx
   WHERE member_staff_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS csd_conv_members_staff_idx
   ON csd_conversation_members (member_staff_id);
+ALTER TABLE csd_conversation_members ADD COLUMN IF NOT EXISTS alias_vi VARCHAR(191);
 
 CREATE TABLE IF NOT EXISTS csd_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -9,6 +9,7 @@ import {
   type CsdAttachmentRow,
   type CsdMessageRow,
 } from '@/lib/crm/csd-api';
+import { isCsdChatEmotionMessage } from '@/lib/crm/csd-chat-emotions';
 import { avatarHue, initialsFromName, isCsdChatImageMime } from '@/lib/crm/csd-chat-display';
 
 const EDIT_WINDOW_MS = 15 * 60_000;
@@ -212,7 +213,9 @@ export function CsdChatBubble({
                 </div>
               </div>
             ) : (
-              <p>{renderMessageBody(message.body_text)}</p>
+              <p className={isCsdChatEmotionMessage(message.body_text) ? 'csd-chat-emotion-msg' : undefined}>
+                {renderMessageBody(message.body_text)}
+              </p>
             )}
             {!message.is_deleted && (message.attachments ?? []).length > 0 ? (
               <ul className="csd-chat-files">

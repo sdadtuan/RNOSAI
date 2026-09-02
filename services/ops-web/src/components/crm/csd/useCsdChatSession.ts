@@ -18,6 +18,7 @@ import {
   fetchCsdRelatedTickets,
   forwardCsdMessage,
   markCsdConversationRead,
+  patchCsdConversationAlias,
   reopenCsdConversation,
   removeCsdConversationMember,
   sendCsdMessage,
@@ -59,6 +60,8 @@ export type CsdChatSession = {
   setFilter: (f: CsdConversationListFilter) => void;
   showNewModal: boolean;
   setShowNewModal: (v: boolean) => void;
+  showCreateGroupModal: boolean;
+  setShowCreateGroupModal: (v: boolean) => void;
   activeId: string | null;
   active: CsdConversationRow | null;
   messages: CsdMessageRow[];
@@ -96,7 +99,9 @@ export type CsdChatSession = {
   setFriendRequired: (v: boolean) => void;
   handleSelectConversation: (id: string) => Promise<void>;
   handleCreateConversation: (payload: CreateCsdConversationInput) => Promise<boolean>;
-  handleSend: (e?: FormEvent) => Promise<void>;
+  handleRenameConversation: (aliasVi: string) => Promise<boolean>;
+  handleSend: (e?: FormEvent, bodyOverride?: string) => Promise<void>;
+  handleSendEmotion: (emoji: string) => Promise<void>;
   handleCreateTicket: (e: FormEvent) => Promise<void>;
   handleAddMember: () => Promise<void>;
   handleRemoveMember: (staffId: number) => Promise<void>;
@@ -125,6 +130,7 @@ export function useCsdChatSession({
   const [filter, setFilter] = useState<CsdConversationListFilter>('all');
   const [search, setSearch] = useState('');
   const [showNewModal, setShowNewModal] = useState(false);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<CsdMessageRow[]>([]);
   const [meStaffId, setMeStaffId] = useState<number | null>(null);
@@ -250,19 +256,23 @@ export function useCsdChatSession({
     setConversations((prev) => prev.map((c) => (c.id === next.id ? { ...c, ...next } : c)));
   }
 
-  async function handleSend(e?: FormEvent) {
+  async function handleSend(e?: FormEvent, bodyOverride?: string) {
     e?.preventDefault();
-    if (!activeId || !canWrite || (!draft.trim() && pendingFiles.length === 0)) return;
+    const isEmotion = bodyOverride != null;
+    const body = (isEmotion ? bodyOverride : draft).trim();
+    if (!activeId || !canWrite || (!body && (isEmotion || pendingFiles.length === 0))) return;
     setBusy(true);
     try {
       const sent = await sendCsdMessage(token, activeId, {
-        body_text: draft.trim(),
-        reply_to_id: replyTo?.id,
-        attachment_ids: pendingFiles.map((f) => f.id),
+        body_text: body,
+        reply_to_id: isEmotion ? undefined : replyTo?.id,
+        attachment_ids: isEmotion ? [] : pendingFiles.map((f) => f.id),
       });
-      setDraft('');
-      setReplyTo(null);
-      setPendingFiles([]);
+      if (!isEmotion) {
+        setDraft('');
+        setReplyTo(null);
+        setPendingFiles([]);
+      }
       setPriorityHint(sent.priority_suggestion ?? null);
       await loadMessages(activeId);
     } catch (err) {
@@ -270,6 +280,10 @@ export function useCsdChatSession({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleSendEmotion(emoji: string) {
+    await handleSend(undefined, emoji);
   }
 
   async function handleSelectConversation(id: string) {
@@ -284,12 +298,29 @@ export function useCsdChatSession({
     }
   }
 
+  async function handleRenameConversation(aliasVi: string): Promise<boolean> {
+    if (!activeId || !canWrite) return false;
+    setBusy(true);
+    try {
+      const row = await patchCsdConversationAlias(token, activeId, aliasVi);
+      patchConversation(row);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Đổi tên thất bại');
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCreateConversation(payload: CreateCsdConversationInput): Promise<boolean> {
     if (!canWrite) return false;
     setBusy(true);
     try {
       const row = await createCsdConversation(token, payload);
+      setConversations((prev) => [row, ...prev.filter((c) => c.id !== row.id)]);
       setShowNewModal(false);
+      setShowCreateGroupModal(false);
       setActiveId(row.id);
       if (filter !== 'all') {
         setFilter('all');
@@ -515,6 +546,8 @@ export function useCsdChatSession({
     setFilter,
     showNewModal,
     setShowNewModal,
+    showCreateGroupModal,
+    setShowCreateGroupModal,
     activeId,
     active,
     messages,
@@ -552,7 +585,9 @@ export function useCsdChatSession({
     setFriendRequired,
     handleSelectConversation,
     handleCreateConversation,
+    handleRenameConversation,
     handleSend,
+    handleSendEmotion,
     handleCreateTicket,
     handleAddMember,
     handleRemoveMember,

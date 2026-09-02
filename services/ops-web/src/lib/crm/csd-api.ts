@@ -112,6 +112,7 @@ export interface CsdConversationRow {
   kind: CsdConversationKind;
   status?: 'active' | 'archived' | 'closed' | 'reopened';
   name_vi: string;
+  alias_vi?: string | null;
   client_account_id?: string | null;
   project_ref_kind?: string | null;
   project_ref_id?: string | null;
@@ -137,6 +138,7 @@ export interface CsdConversationMemberRow {
   member_staff_id: number;
   role: 'owner' | 'member' | 'viewer';
   created_at: string;
+  display_name_vi?: string | null;
 }
 
 export interface CsdAttachmentRow {
@@ -318,6 +320,17 @@ export async function createCsdConversation(
   return csdFetch(token, '/api/crm/csd/conversations', {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+}
+
+export async function patchCsdConversationAlias(
+  token: string,
+  conversationId: string,
+  aliasVi: string,
+): Promise<CsdConversationRow> {
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/alias`, {
+    method: 'PATCH',
+    body: JSON.stringify({ alias_vi: aliasVi }),
   });
 }
 

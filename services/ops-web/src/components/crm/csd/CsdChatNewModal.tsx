@@ -157,7 +157,7 @@ export function CsdChatNewModal({ token, open, busy, onClose, onSubmit }: CsdCha
               <option value="">Chọn bạn</option>
               {friends.map((f) => (
                 <option key={f.staff_id} value={String(f.staff_id)}>
-                  {f.display_name_vi} (#{f.staff_id})
+                  {f.display_name_vi}
                 </option>
               ))}
             </select>

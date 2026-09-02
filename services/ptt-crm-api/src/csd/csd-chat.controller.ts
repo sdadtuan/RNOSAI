@@ -85,6 +85,17 @@ export class CsdChatController {
     return this.chat.createConversation(actor, body);
   }
 
+  @Patch('conversations/:id/alias')
+  @RequireCsdAction('write')
+  async setConversationAlias(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { alias_vi?: string },
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.setConversationAlias(actor, id, body.alias_vi ?? '');
+  }
+
   @Get('conversations/:id/messages')
   @RequireCsdAction('view')
   async listMessages(

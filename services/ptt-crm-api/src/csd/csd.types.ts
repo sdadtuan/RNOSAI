@@ -207,6 +207,7 @@ export type CsdConversationMemberRow = {
   member_staff_id: number;
   role: 'owner' | 'member' | 'viewer';
   created_at: string;
+  display_name_vi?: string | null;
 };
 
 export type CsdConversationRow = {
@@ -214,6 +215,7 @@ export type CsdConversationRow = {
   tenant_id: string;
   kind: CsdConversationKind;
   name_vi: string;
+  alias_vi?: string | null;
   description: string;
   status: string;
   client_account_id: string | null;

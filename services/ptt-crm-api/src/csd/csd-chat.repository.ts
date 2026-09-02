@@ -42,7 +42,8 @@ function mapConversation(row: Record<string, unknown>): CsdConversationRow {
     id: text(row.id),
     tenant_id: text(row.tenant_id),
     kind: text(row.kind) as CsdConversationKind,
-    name_vi: text(row.name_vi),
+    name_vi: text(row.display_name_vi) || text(row.name_vi),
+    alias_vi: row.alias_vi != null && text(row.alias_vi) ? text(row.alias_vi) : null,
     description: text(row.description),
     status: text(row.status),
     client_account_id: row.client_account_id != null ? text(row.client_account_id) : null,
@@ -63,6 +64,7 @@ function mapMember(row: Record<string, unknown>): CsdConversationMemberRow {
     member_staff_id: num(row.member_staff_id) ?? 0,
     role: text(row.role) as CsdConversationMemberRow['role'],
     created_at: text(row.created_at),
+    display_name_vi: row.display_name_vi != null && text(row.display_name_vi) ? text(row.display_name_vi) : null,
   };
 }
 
@@ -218,16 +220,7 @@ export class CsdChatRepository implements OnModuleDestroy {
     limit?: number;
   }): Promise<CsdConversationListItem[]> {
     const params: unknown[] = [CSD_TENANT_ID, query.staffId];
-    const where = [
-      'c.tenant_id = $1',
-      'c.is_deleted = FALSE',
-      `EXISTS (
-         SELECT 1 FROM csd_conversation_members mem
-          WHERE mem.conversation_id = c.id
-            AND mem.member_type = 'staff'
-            AND mem.member_staff_id = $2
-       )`,
-    ];
+    const where = ['c.tenant_id = $1', 'c.is_deleted = FALSE'];
 
     const filter = query.filter ?? 'all';
     if (filter === 'internal') {
@@ -259,6 +252,17 @@ export class CsdChatRepository implements OnModuleDestroy {
       const ph = `$${params.length}`;
       where.push(`(
         c.name_vi ILIKE ${ph}
+        OR me.alias_vi ILIKE ${ph}
+        OR EXISTS (
+          SELECT 1 FROM csd_conversation_members peer
+          JOIN crm_staff s ON s.id = peer.member_staff_id
+          LEFT JOIN csd_chat_accounts a
+            ON a.staff_id = peer.member_staff_id AND a.tenant_id = c.tenant_id
+           WHERE peer.conversation_id = c.id
+             AND peer.member_type = 'staff'
+             AND peer.member_staff_id IS DISTINCT FROM $2
+             AND COALESCE(NULLIF(a.display_name_vi, ''), s.name, '') ILIKE ${ph}
+        )
         OR EXISTS (
           SELECT 1 FROM csd_messages m
            WHERE m.conversation_id = c.id
@@ -274,6 +278,23 @@ export class CsdChatRepository implements OnModuleDestroy {
 
     const res = await this.db.query(
       `SELECT c.*,
+              COALESCE(
+                NULLIF(me.alias_vi, ''),
+                CASE WHEN c.kind = 'direct' THEN (
+                  SELECT COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''))
+                    FROM csd_conversation_members peer
+                    JOIN crm_staff s ON s.id = peer.member_staff_id
+                    LEFT JOIN csd_chat_accounts a
+                      ON a.staff_id = peer.member_staff_id AND a.tenant_id = c.tenant_id
+                   WHERE peer.conversation_id = c.id
+                     AND peer.member_type = 'staff'
+                     AND peer.member_staff_id IS DISTINCT FROM $2
+                   LIMIT 1
+                ) END,
+                CASE WHEN c.name_vi ~ '^DM [·•] #' THEN NULL ELSE NULLIF(c.name_vi, '') END,
+                'Hội thoại'
+              ) AS display_name_vi,
+              me.alias_vi AS alias_vi,
               (
                 SELECT LEFT(m.body_text, 160)
                   FROM csd_messages m
@@ -284,13 +305,9 @@ export class CsdChatRepository implements OnModuleDestroy {
               (
                 SELECT COUNT(*)::int
                   FROM csd_messages m
-                  JOIN csd_conversation_members mem
-                    ON mem.conversation_id = c.id
-                   AND mem.member_type = 'staff'
-                   AND mem.member_staff_id = $2
                  WHERE m.conversation_id = c.id
                    AND m.is_deleted = FALSE
-                   AND m.created_at > COALESCE(mem.last_read_at, c.created_at)
+                   AND m.created_at > COALESCE(me.last_read_at, c.created_at)
                    AND m.author_staff_id IS DISTINCT FROM $2
               ) AS unread_count,
               EXISTS (
@@ -307,6 +324,10 @@ export class CsdChatRepository implements OnModuleDestroy {
                    )
               ) AS has_p1_or_complaint
          FROM csd_conversations c
+         JOIN csd_conversation_members me
+           ON me.conversation_id = c.id
+          AND me.member_type = 'staff'
+          AND me.member_staff_id = $2
         WHERE ${where.join(' AND ')}
         ORDER BY COALESCE(c.last_message_at, c.created_at) DESC
         LIMIT $${limitIdx}`,
@@ -357,6 +378,71 @@ export class CsdChatRepository implements OnModuleDestroy {
       [CSD_TENANT_ID, id],
     );
     return res.rows[0] ? mapConversation(res.rows[0]) : null;
+  }
+
+  async findStaffDisplayName(staffId: number): Promise<string> {
+    const res = await this.db.query(
+      `SELECT COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''), '') AS name
+         FROM crm_staff s
+         LEFT JOIN csd_chat_accounts a
+           ON a.staff_id = s.id AND a.tenant_id = $1
+        WHERE s.id = $2`,
+      [CSD_TENANT_ID, staffId],
+    );
+    return text(res.rows[0]?.name).trim();
+  }
+
+  async getConversationForMember(
+    conversationId: string,
+    staffId: number,
+  ): Promise<CsdConversationRow | null> {
+    const res = await this.db.query(
+      `SELECT c.*,
+              COALESCE(
+                NULLIF(me.alias_vi, ''),
+                CASE WHEN c.kind = 'direct' THEN (
+                  SELECT COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''))
+                    FROM csd_conversation_members peer
+                    JOIN crm_staff s ON s.id = peer.member_staff_id
+                    LEFT JOIN csd_chat_accounts a
+                      ON a.staff_id = peer.member_staff_id AND a.tenant_id = c.tenant_id
+                   WHERE peer.conversation_id = c.id
+                     AND peer.member_type = 'staff'
+                     AND peer.member_staff_id IS DISTINCT FROM $2
+                   LIMIT 1
+                ) END,
+                CASE WHEN c.name_vi ~ '^DM [·•] #' THEN NULL ELSE NULLIF(c.name_vi, '') END,
+                'Hội thoại'
+              ) AS display_name_vi,
+              me.alias_vi AS alias_vi
+         FROM csd_conversations c
+         JOIN csd_conversation_members me
+           ON me.conversation_id = c.id
+          AND me.member_type = 'staff'
+          AND me.member_staff_id = $2
+        WHERE c.tenant_id = $1
+          AND c.id = $3
+          AND c.is_deleted = FALSE`,
+      [CSD_TENANT_ID, staffId, conversationId],
+    );
+    return res.rows[0] ? mapConversation(res.rows[0]) : null;
+  }
+
+  async setMemberAlias(
+    conversationId: string,
+    staffId: number,
+    aliasVi: string,
+  ): Promise<CsdConversationRow | null> {
+    const res = await this.db.query(
+      `UPDATE csd_conversation_members
+          SET alias_vi = NULLIF(btrim($3), '')
+        WHERE conversation_id = $1
+          AND member_type = 'staff'
+          AND member_staff_id = $2`,
+      [conversationId, staffId, aliasVi],
+    );
+    if ((res.rowCount ?? 0) === 0) return null;
+    return this.getConversationForMember(conversationId, staffId);
   }
 
   async insertMessage(input: {
@@ -686,10 +772,17 @@ export class CsdChatRepository implements OnModuleDestroy {
 
   async listMembers(conversationId: string): Promise<CsdConversationMemberRow[]> {
     const res = await this.db.query(
-      `SELECT * FROM csd_conversation_members
-       WHERE conversation_id = $1 AND member_type = 'staff' AND member_staff_id IS NOT NULL
-       ORDER BY created_at ASC`,
-      [conversationId],
+      `SELECT m.*,
+              COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''), '') AS display_name_vi
+         FROM csd_conversation_members m
+         LEFT JOIN crm_staff s ON s.id = m.member_staff_id
+         LEFT JOIN csd_chat_accounts a
+           ON a.staff_id = m.member_staff_id AND a.tenant_id = $2
+        WHERE m.conversation_id = $1
+          AND m.member_type = 'staff'
+          AND m.member_staff_id IS NOT NULL
+        ORDER BY m.created_at ASC`,
+      [conversationId, CSD_TENANT_ID],
     );
     return res.rows.map(mapMember);
   }

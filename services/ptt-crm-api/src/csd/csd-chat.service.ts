@@ -82,16 +82,22 @@ export class CsdChatService {
       }
       const peer = extraIds[0];
       const existing = await this.repo.findDirectPair(actor.staffId, peer);
-      if (existing) return existing;
+      if (existing) {
+        return (await this.repo.getConversationForMember(existing.id, actor.staffId)) ?? existing;
+      }
       const ok = await this.friends.isAccepted(actor.staffId, peer);
       if (!ok) throw new ConflictException({ error: 'not_friends' });
-      const name = String(input.name_vi ?? '').trim() || `DM · #${peer}`;
-      return this.repo.insertConversation({
+      const name =
+        String(input.name_vi ?? '').trim() ||
+        (await this.repo.findStaffDisplayName(peer)) ||
+        'Đồng nghiệp';
+      const created = await this.repo.insertConversation({
         kind: 'direct',
         name_vi: name,
         created_by_staff_id: actor.staffId,
         extra_members: extraMembers,
       });
+      return (await this.repo.getConversationForMember(created.id, actor.staffId)) ?? created;
     }
 
     const name = String(input.name_vi ?? '').trim();
@@ -132,6 +138,22 @@ export class CsdChatService {
       limit: query.limit,
     });
     return { items };
+  }
+
+  async setConversationAlias(
+    actor: CsdActor,
+    conversationId: string,
+    aliasVi: string,
+  ): Promise<CsdConversationRow> {
+    await this.accounts.assertEnabled(actor);
+    const alias = String(aliasVi ?? '').trim();
+    if (alias.length > 191) {
+      throw new BadRequestException({ error: 'alias_too_long' });
+    }
+    await this.requireConversation(conversationId);
+    const row = await this.repo.setMemberAlias(conversationId, actor.staffId, alias);
+    if (!row) throw new ForbiddenException({ error: 'csd_not_member' });
+    return row;
   }
 
   async markRead(actor: CsdActor, conversationId: string): Promise<{ read: true }> {

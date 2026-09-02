@@ -191,6 +191,23 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
       });
       return;
     }
+    if (method === 'PATCH' && /\/conversations\/[^/]+\/alias$/.test(path)) {
+      const id = path.split('/').at(-2);
+      const body = route.request().postDataJSON() as { alias_vi?: string };
+      const alias = String(body.alias_vi ?? '').trim();
+      conversations = conversations.map((row) =>
+        row.id === id
+          ? { ...row, name_vi: alias || String(row.name_vi ?? 'Hội thoại'), alias_vi: alias || null }
+          : row,
+      );
+      const updated = conversations.find((row) => row.id === id) ?? { id, name_vi: alias };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(updated),
+      });
+      return;
+    }
     if (method === 'POST' && /\/conversations$/.test(path)) {
       const body = route.request().postDataJSON() as {
         kind?: string;
@@ -205,7 +222,7 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
         id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
         kind: body.kind ?? 'direct',
         status: 'active',
-        name_vi: body.name_vi?.trim() || (peer ? `DM · #${peer}` : 'Hội thoại mới'),
+        name_vi: body.name_vi?.trim() || (peer === 8 ? 'Bạn B' : peer ? 'Đồng nghiệp' : 'Hội thoại mới'),
         client_account_id: body.client_account_id ?? null,
         project_ref_kind: body.project_ref_kind ?? null,
         project_ref_id: body.project_ref_id ?? null,
@@ -253,7 +270,12 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ items: [{ staff_id: 8, display_name_vi: 'Bạn B' }] }),
+      body: JSON.stringify({
+        items: [
+          { staff_id: 8, display_name_vi: 'Bạn B' },
+          { staff_id: 9, display_name_vi: 'Bạn C' },
+        ],
+      }),
     });
   });
 
@@ -270,7 +292,12 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ items: [{ staff_id: 8, display_name_vi: 'Bạn B' }] }),
+        body: JSON.stringify({
+          items: [
+            { staff_id: 8, display_name_vi: 'Bạn B' },
+            { staff_id: 9, display_name_vi: 'Bạn C' },
+          ],
+        }),
       });
       return;
     }
@@ -504,13 +531,43 @@ test.describe('CSD chat workspace', () => {
     await page.getByTestId('csd-chat-new-kind-direct').click();
     await page.getByTestId('csd-chat-new-peer').selectOption('8');
     await page.getByTestId('csd-chat-new-submit').click();
-    await expect(page.getByTestId('csd-chat-list')).toContainText('DM · #8');
+    await expect(page.getByTestId('csd-chat-list')).toContainText('Bạn B');
 
     await page.getByTestId('csd-chat-filter-internal').click();
     await expect(page.getByTestId('csd-chat-list')).not.toContainText('Demo Client Chat');
     await expect(page.getByTestId('csd-chat-list')).toContainText('Nhóm AM');
-    await expect(page.getByTestId('csd-chat-list')).toContainText('DM · #8');
+    await expect(page.getByTestId('csd-chat-list')).toContainText('Bạn B');
     await expect(page.getByTestId('csd-chat-client-banner')).toHaveCount(0);
+  });
+
+  test('C-group: create group from member picker', async ({ page }) => {
+    await mockCsdChatApis(page);
+    await loginAsStaff(page);
+    await page.goto('/crm/csd/chat');
+    await unlockCsdChat(page);
+    await expect(page.getByTestId('csd-chat-workspace')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('csd-chat-create-group').click();
+    await expect(page.getByTestId('csd-chat-create-group-modal')).toBeVisible();
+    await page.getByTestId('csd-chat-create-group-name').fill('Nhóm CSKH');
+    await page.getByTestId('csd-chat-create-group-person-8').click();
+    await page.getByTestId('csd-chat-create-group-person-9').click();
+    await expect(page.getByTestId('csd-chat-create-group-selected')).toContainText('Đã chọn 2');
+    await page.getByTestId('csd-chat-create-group-submit').click();
+    await expect(page.getByTestId('csd-chat-list')).toContainText('Nhóm CSKH');
+  });
+
+  test('C-alias: rename conversation to a personal nickname', async ({ page }) => {
+    await mockCsdChatApis(page);
+    await loginAsStaff(page);
+    await page.goto('/crm/csd/chat');
+    await unlockCsdChat(page);
+    await expect(page.getByTestId('csd-chat-workspace')).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: /Demo Client Chat/ }).click();
+    await page.getByTestId('csd-chat-rename').click();
+    await page.getByTestId('csd-chat-rename-input').fill('Khách Ads nhớ tên');
+    await page.getByTestId('csd-chat-rename-save').click();
+    await expect(page.getByTestId('csd-chat-list')).toContainText('Khách Ads nhớ tên');
+    await expect(page.locator('.csd-chat-thread-head__name')).toContainText('Khách Ads nhớ tên');
   });
 
   test('C-2: search list and show related tickets plus # suggest', async ({ page }) => {
@@ -544,6 +601,7 @@ test.describe('CSD chat workspace', () => {
       mimeType: 'application/pdf',
       buffer: Buffer.from('%PDF-1.4'),
     });
+    await expect(page.getByTestId('csd-chat-attach-image')).toHaveCount(1);
     await expect(page.getByTestId('csd-chat-pending-files')).toContainText('brief.pdf');
 
     await page.getByTestId('csd-chat-msg-menu').click();
@@ -555,6 +613,22 @@ test.describe('CSD chat workspace', () => {
     await page.getByTestId('csd-chat-msg-menu').click();
     await page.getByTestId('csd-chat-delete').click();
     await expect(page.getByTestId('csd-chat-deleted')).toHaveText(/Đã xóa/);
+  });
+
+  test('C-compose: send like and love emotions from picker', async ({ page }) => {
+    await mockCsdChatApis(page);
+    await loginAsStaff(page);
+    await page.goto('/crm/csd/chat');
+    await unlockCsdChat(page);
+    await expect(page.getByTestId('csd-chat-workspace')).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: /Demo Client Chat/ }).click();
+    await page.getByTestId('csd-chat-emoji').click();
+    await expect(page.getByTestId('csd-chat-emoji-panel')).toBeVisible();
+    await expect(page.getByTestId('csd-chat-emotion-love')).toBeVisible();
+    await page.getByTestId('csd-chat-emotion-love').click();
+    await expect(page.getByTestId('csd-chat-messages')).toContainText('❤️');
+    await page.getByTestId('csd-chat-quick-like').click();
+    await expect(page.getByTestId('csd-chat-messages')).toContainText('👍');
   });
 
   test('C-4: priority hint, duplicate ticket dialog, archive, AI action ticket, deep link', async ({ page }) => {

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import {
   type CsdConversationMemberRow,
   type CsdConversationRow,
@@ -36,6 +37,7 @@ type CsdChatContextProps = {
   onSummarize: () => void;
   showMobileBack?: boolean;
   onMobileBack?: () => void;
+  onRename?: (aliasVi: string) => Promise<boolean>;
   variant?: 'column' | 'sheet';
 };
 
@@ -68,9 +70,14 @@ export function CsdChatContext({
   onSummarize,
   showMobileBack,
   onMobileBack,
+  onRename,
   variant = 'column',
 }: CsdChatContextProps) {
   const isSheet = variant === 'sheet';
+  const [aliasDraft, setAliasDraft] = useState(active?.alias_vi || active?.name_vi || '');
+  useEffect(() => {
+    setAliasDraft(active?.alias_vi || active?.name_vi || '');
+  }, [active?.id, active?.alias_vi, active?.name_vi]);
   return (
     <aside className={`csd-chat-workspace__context stack-gap${isSheet ? ' is-sheet' : ''}`}>
       {showMobileBack && !isSheet ? (
@@ -82,6 +89,32 @@ export function CsdChatContext({
       {active ? (
         <>
           <p className="muted">Loại: {CSD_CHAT_KIND_LABELS[active.kind] ?? active.kind}</p>
+          <p className="muted">Tên hiển thị: {active.name_vi}</p>
+          {onRename && canWrite ? (
+            <form
+              className="csd-chat-rename csd-chat-rename--stack"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void onRename(aliasDraft.trim());
+              }}
+            >
+              <label className="muted" htmlFor="csd-chat-context-rename">
+                Tên gợi nhớ (chỉ mình bạn thấy)
+              </label>
+              <input
+                id="csd-chat-context-rename"
+                className="kpi-input"
+                value={aliasDraft}
+                maxLength={191}
+                onChange={(e) => setAliasDraft(e.target.value)}
+                placeholder={active.name_vi}
+                data-testid="csd-chat-context-rename-input"
+              />
+              <button type="submit" className="btn btn-sm" disabled={busy} data-testid="csd-chat-context-rename-save">
+                Lưu tên
+              </button>
+            </form>
+          ) : null}
           <p className="muted">Tài khoản: {active.client_account_id ?? '—'}</p>
           {active.kind === 'project' ? (
             <p className="muted">
@@ -129,7 +162,7 @@ export function CsdChatContext({
             ) : (
               members.map((m) => (
                 <li key={`${m.conversation_id}-${m.member_staff_id}`}>
-                  Staff #{m.member_staff_id} · {m.role === 'owner' ? 'Chủ' : m.role}
+                  {m.display_name_vi || 'Thành viên'} · {m.role === 'owner' ? 'Chủ' : m.role}
                   {canWrite && m.role !== 'owner' ? (
                     <button
                       type="button"

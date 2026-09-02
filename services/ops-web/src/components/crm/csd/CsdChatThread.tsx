@@ -10,7 +10,8 @@ import {
   type CsdMessageRow,
   type CsdTicketRow,
 } from '@/lib/crm/csd-api';
-import { avatarHue, formatDateChip, initialsFromName, shouldShowDateChip } from '@/lib/crm/csd-chat-display';
+import { CSD_CHAT_EMOTIONS, CSD_CHAT_INSERT_EMOJIS } from '@/lib/crm/csd-chat-emotions';
+import { avatarHue, formatDateChip, initialsFromName, isCsdChatImageMime, shouldShowDateChip } from '@/lib/crm/csd-chat-display';
 
 function mentionToken(draft: string): string | null {
   const match = draft.match(/(^|[\s])@(\d*)$/);
@@ -42,6 +43,7 @@ type CsdChatThreadProps = {
   onMinimize?: () => void;
   onDraftChange: (value: string) => void;
   onSend: () => void;
+  onSendEmotion: (emoji: string) => void;
   onReply: (message: CsdMessageRow) => void;
   onCancelReply: () => void;
   onCreateTicket: (message: CsdMessageRow) => void;
@@ -54,6 +56,7 @@ type CsdChatThreadProps = {
   onForward: (message: CsdMessageRow) => void;
   onMobileBack?: () => void;
   onShowContext?: () => void;
+  onRename?: (aliasVi: string) => Promise<boolean>;
   onDismissPriorityHint?: () => void;
   onApplyPriorityHint?: () => void;
 };
@@ -73,6 +76,7 @@ export function CsdChatThread({
   closed,
   onDraftChange,
   onSend,
+  onSendEmotion,
   onReply,
   onCancelReply,
   onCreateTicket,
@@ -85,6 +89,7 @@ export function CsdChatThread({
   onForward,
   onMobileBack,
   onShowContext,
+  onRename,
   onExpand,
   onMinimize,
   onDismissPriorityHint,
@@ -94,6 +99,9 @@ export function CsdChatThread({
   showMobileBack,
 }: CsdChatThreadProps) {
   const [ticketSuggest, setTicketSuggest] = useState<CsdTicketRow[]>([]);
+  const [renaming, setRenaming] = useState(false);
+  const [aliasDraft, setAliasDraft] = useState('');
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const mentionQ = mentionToken(draft);
   const hashQ = ticketToken(draft);
   const relatedById = new Map(relatedTickets.map((t) => [t.id, t]));
@@ -120,6 +128,12 @@ export function CsdChatThread({
       cancelled = true;
     };
   }, [hashQ, token]);
+
+  useEffect(() => {
+    setRenaming(false);
+    setEmojiOpen(false);
+    setAliasDraft(active?.alias_vi || active?.name_vi || '');
+  }, [active?.id, active?.alias_vi, active?.name_vi]);
 
   const mentionOptions = members
     .map((m) => m.member_staff_id)
@@ -171,8 +185,54 @@ export function CsdChatThread({
         >
           {initialsFromName(active.name_vi)}
         </span>
-        <h3 className="csd-chat-thread-head__name">{active.name_vi}</h3>
+        {renaming && onRename ? (
+          <form
+            className="csd-chat-rename"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void onRename(aliasDraft.trim()).then((ok) => {
+                if (ok) setRenaming(false);
+              });
+            }}
+          >
+            <input
+              className="kpi-input"
+              value={aliasDraft}
+              maxLength={191}
+              onChange={(e) => setAliasDraft(e.target.value)}
+              placeholder="Tên gợi nhớ"
+              aria-label="Tên gợi nhớ"
+              data-testid="csd-chat-rename-input"
+            />
+            <button type="submit" className="btn btn-sm" disabled={busy} data-testid="csd-chat-rename-save">
+              Lưu
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              onClick={() => setRenaming(false)}
+            >
+              Hủy
+            </button>
+          </form>
+        ) : (
+          <h3 className="csd-chat-thread-head__name">{active.name_vi}</h3>
+        )}
         <div className="csd-chat-thread-head__actions">
+          {onRename && canWrite && !renaming ? (
+            <button
+              type="button"
+              className="csd-chat-icon-btn"
+              data-testid="csd-chat-rename"
+              aria-label="Đổi tên gợi nhớ"
+              onClick={() => {
+                setAliasDraft(active.alias_vi || active.name_vi);
+                setRenaming(true);
+              }}
+            >
+              Đổi tên
+            </button>
+          ) : null}
           {onShowContext ? (
             <button
               type="button"
@@ -283,7 +343,10 @@ export function CsdChatThread({
             <ul className="csd-chat-pending" data-testid="csd-chat-pending-files">
               {pendingFiles.map((file) => (
                 <li key={file.id}>
-                  <span className="csd-chat-file-chip">{file.file_name}</span>
+                  <span className={`csd-chat-file-chip${isCsdChatImageMime(file.mime_type) ? ' is-image' : ''}`}>
+                    {isCsdChatImageMime(file.mime_type) ? 'Ảnh · ' : ''}
+                    {file.file_name}
+                  </span>
                   <button type="button" className="csd-chat-icon-btn" onClick={() => onRemovePending(file.id)}>
                     Bỏ
                   </button>
@@ -292,8 +355,50 @@ export function CsdChatThread({
             </ul>
           ) : null}
           <div className="csd-chat-compose__toolbar">
-            <label className="csd-chat-icon-btn csd-chat-attach" title="Đính file">
-              Đính file
+            <button
+              type="button"
+              className={`csd-chat-tool-btn${emojiOpen ? ' is-active' : ''}`}
+              aria-label="Emotion"
+              title="Emotion"
+              data-testid="csd-chat-emoji"
+              onClick={() => setEmojiOpen((v) => !v)}
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"
+                />
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  d="M8.2 14.2c.9 1.3 2.2 2 3.8 2s2.9-.7 3.8-2M9 10h.01M15 10h.01"
+                />
+              </svg>
+            </button>
+            <label className="csd-chat-tool-btn" title="Gửi hình ảnh">
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                data-testid="csd-chat-attach-image"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) onPickFile(file);
+                  e.target.value = '';
+                }}
+              />
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+                <rect x="3.5" y="5" width="17" height="14" rx="2.2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+                <circle cx="9" cy="10" r="1.6" fill="currentColor" />
+                <path fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" d="m7.5 17 3.6-4.2 2.4 2.7 2.2-2.6 3.3 4.1" />
+              </svg>
+              <span className="sr-only">Hình ảnh</span>
+            </label>
+            <label className="csd-chat-tool-btn csd-chat-attach" title="Đính file">
               <input
                 type="file"
                 hidden
@@ -304,8 +409,52 @@ export function CsdChatThread({
                   e.target.value = '';
                 }}
               />
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  d="M16.5 7.5v7.2a4.5 4.5 0 0 1-9 0V6.8a3.2 3.2 0 1 1 6.4 0v7.4a1.9 1.9 0 1 1-3.8 0V8"
+                />
+              </svg>
+              <span className="sr-only">Đính file</span>
             </label>
           </div>
+          {emojiOpen ? (
+            <div className="csd-chat-emoji-panel" data-testid="csd-chat-emoji-panel">
+              <div className="csd-chat-emoji-panel__row">
+                {CSD_CHAT_EMOTIONS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="csd-chat-emoji-panel__emotion"
+                    title={item.label}
+                    data-testid={`csd-chat-emotion-${item.id}`}
+                    onClick={() => {
+                      setEmojiOpen(false);
+                      onSendEmotion(item.emoji);
+                    }}
+                  >
+                    {item.emoji}
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="csd-chat-emoji-panel__grid">
+                {CSD_CHAT_INSERT_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className="csd-chat-emoji-panel__insert"
+                    onClick={() => onDraftChange(`${draft}${emoji}`)}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div className="csd-chat-compose__row">
             <div className="csd-chat-compose__field">
               <textarea
@@ -343,13 +492,27 @@ export function CsdChatThread({
                 </ul>
               ) : null}
             </div>
-            <button
-              type="submit"
-              className="csd-chat-send"
-              disabled={busy || (!draft.trim() && pendingFiles.length === 0)}
-            >
-              Gửi
-            </button>
+            {draft.trim() || pendingFiles.length > 0 ? (
+              <button
+                type="submit"
+                className="csd-chat-send"
+                disabled={busy || (!draft.trim() && pendingFiles.length === 0)}
+              >
+                Gửi
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="csd-chat-quick-like"
+                disabled={busy}
+                aria-label="Gửi Thích"
+                title="Gửi Thích"
+                data-testid="csd-chat-quick-like"
+                onClick={() => onSendEmotion('👍')}
+              >
+                👍
+              </button>
+            )}
           </div>
         </form>
       ) : null}

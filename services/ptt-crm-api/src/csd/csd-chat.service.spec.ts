@@ -27,6 +27,9 @@ describe('CsdChatService', () => {
     updateMessageBody: jest.fn(),
     softDeleteMessage: jest.fn(),
     listAttachmentsByMessages: jest.fn(),
+    findStaffDisplayName: jest.fn(),
+    getConversationForMember: jest.fn(),
+    setMemberAlias: jest.fn(),
   };
 
   const tickets = {
@@ -74,6 +77,8 @@ describe('CsdChatService', () => {
     repo.listMembers.mockResolvedValue([]);
     accounts.assertEnabled.mockResolvedValue(undefined);
     friends.isAccepted.mockResolvedValue(true);
+    repo.findStaffDisplayName.mockResolvedValue('Nguyễn Văn B');
+    repo.getConversationForMember.mockResolvedValue(null);
   });
 
   it('createConversation direct without friend is 409', async () => {
@@ -116,6 +121,37 @@ describe('CsdChatService', () => {
     repo.findDirectPair.mockResolvedValue({ id: 'd1', kind: 'direct' });
     const again = await svc().createConversation(actor, { kind: 'direct', name_vi: '', member_staff_ids: [8] });
     expect(again.id).toBe('d1');
+  });
+
+  it('creates direct using peer display name instead of staff id', async () => {
+    repo.findDirectPair.mockResolvedValue(null);
+    repo.findStaffDisplayName.mockResolvedValue('Nguyễn Văn B');
+    repo.insertConversation.mockResolvedValue({ id: 'd1', kind: 'direct', name_vi: 'Nguyễn Văn B' });
+    await svc().createConversation(actor, { kind: 'direct', name_vi: '', member_staff_ids: [8] });
+    expect(repo.findStaffDisplayName).toHaveBeenCalledWith(8);
+    expect(repo.insertConversation).toHaveBeenCalledWith(
+      expect.objectContaining({ name_vi: 'Nguyễn Văn B' }),
+    );
+  });
+
+  it('sets a personal conversation alias for the current member', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'direct', name_vi: 'DM · #6' });
+    repo.setMemberAlias.mockResolvedValue({
+      id: 'c1',
+      kind: 'direct',
+      name_vi: 'Anh Tuấn CS',
+      alias_vi: 'Anh Tuấn CS',
+    });
+    const row = await svc().setConversationAlias(actor, 'c1', 'Anh Tuấn CS');
+    expect(repo.setMemberAlias).toHaveBeenCalledWith('c1', 3, 'Anh Tuấn CS');
+    expect(row.name_vi).toBe('Anh Tuấn CS');
+  });
+
+  it('rejects conversation alias longer than 191 characters', async () => {
+    await expect(svc().setConversationAlias(actor, 'c1', 'x'.repeat(192))).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(repo.setMemberAlias).not.toHaveBeenCalled();
   });
 
   it('rejects direct without peer', async () => {
