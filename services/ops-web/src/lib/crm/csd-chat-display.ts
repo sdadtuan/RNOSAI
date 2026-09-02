@@ -69,6 +69,40 @@ export function isCsdChatImageMime(mime: string | null | undefined): boolean {
     .startsWith('image/');
 }
 
+export type ChatFrameBox = { left: number; right: number; top: number; bottom: number };
+
+export function shiftBoxIntoFrame(box: ChatFrameBox, frame: ChatFrameBox, pad = 8): { x: number; y: number } {
+  let x = 0;
+  let y = 0;
+  const minX = frame.left + pad;
+  const maxX = frame.right - pad;
+  const minY = frame.top + pad;
+  const maxY = frame.bottom - pad;
+  if (box.left < minX) x += minX - box.left;
+  if (box.right + x > maxX) x += maxX - (box.right + x);
+  if (box.left + x < minX) x = minX - box.left;
+  if (box.top < minY) y += minY - box.top;
+  if (box.bottom + y > maxY) y += maxY - (box.bottom + y);
+  if (box.top + y < minY) y = minY - box.top;
+  return { x, y };
+}
+
+export function findChatFrame(el: HTMLElement | null): HTMLElement | null {
+  if (!el) return null;
+  const frame = el.closest('.csd-chat-messages') ?? el.closest('.csd-chat-workspace__thread');
+  return frame instanceof HTMLElement ? frame : null;
+}
+
+export function clampElementInChatFrame(el: HTMLElement | null, pad = 8): void {
+  if (!el) return;
+  el.style.transform = '';
+  if (el.getBoundingClientRect().width < 2) return;
+  const frame = findChatFrame(el);
+  if (!frame) return;
+  const { x, y } = shiftBoxIntoFrame(el.getBoundingClientRect(), frame.getBoundingClientRect(), pad);
+  el.style.transform = x || y ? `translate(${Math.round(x)}px, ${Math.round(y)}px)` : '';
+}
+
 export function shouldShowDateChip(prevIso: string | null | undefined, currIso: string): boolean {
   if (!prevIso) return true;
   const a = new Date(prevIso);

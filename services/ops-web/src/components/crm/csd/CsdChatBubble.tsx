@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   downloadCsdFile,
@@ -10,8 +10,14 @@ import {
   type CsdChatEmotionId,
   type CsdMessageRow,
 } from '@/lib/crm/csd-api';
-import { CSD_CHAT_EMOTIONS, isCsdChatEmotionMessage } from '@/lib/crm/csd-chat-emotions';
-import { avatarHue, initialsFromName, isCsdChatImageMime } from '@/lib/crm/csd-chat-display';
+import { CSD_CHAT_EMOTIONS, isCsdChatEmotionMessage, summarizeChatReactions } from '@/lib/crm/csd-chat-emotions';
+import {
+  avatarHue,
+  clampElementInChatFrame,
+  findChatFrame,
+  initialsFromName,
+  isCsdChatImageMime,
+} from '@/lib/crm/csd-chat-display';
 
 const EDIT_WINDOW_MS = 15 * 60_000;
 const PLACEHOLDER_IMG =
@@ -128,12 +134,37 @@ export function CsdChatBubble({
   const [editDraft, setEditDraft] = useState(message.body_text);
   const [menuOpen, setMenuOpen] = useState(false);
   const [reactOpen, setReactOpen] = useState(false);
+  const [reactHover, setReactHover] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const reactWrapRef = useRef<HTMLDivElement | null>(null);
+  const reactPanelRef = useRef<HTMLDivElement | null>(null);
+  const menuListRef = useRef<HTMLDivElement | null>(null);
+  const reactLeaveTimer = useRef<number | null>(null);
   const name = message.author_staff_name ?? 'Khách';
   const seed = message.author_staff_id ?? 'KH';
   const initials = initialsFromName(name);
   const hue = avatarHue(seed);
   const showMenu = canWrite && !closed && !message.is_deleted && !editing;
+  const reactionSummary = summarizeChatReactions(message.reactions);
+  const pickerOpen = reactOpen || reactHover;
+  const canPickReact = Boolean(onReact && canWrite && !closed && !message.is_deleted && !editing);
+
+  function clearReactLeave() {
+    if (reactLeaveTimer.current != null) {
+      window.clearTimeout(reactLeaveTimer.current);
+      reactLeaveTimer.current = null;
+    }
+  }
+
+  function openReactHover() {
+    clearReactLeave();
+    setReactHover(true);
+  }
+
+  function scheduleReactLeave() {
+    clearReactLeave();
+    reactLeaveTimer.current = window.setTimeout(() => setReactHover(false), 240);
+  }
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -148,6 +179,50 @@ export function CsdChatBubble({
     return () => {
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => () => clearReactLeave(), []);
+
+  useEffect(() => {
+    if (!reactOpen) return;
+    function onDoc(e: MouseEvent) {
+      if (reactWrapRef.current && !reactWrapRef.current.contains(e.target as Node)) {
+        setReactOpen(false);
+        setReactHover(false);
+      }
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [reactOpen]);
+
+  useLayoutEffect(() => {
+    if (!reactOpen && !reactHover) return;
+    const panel = reactPanelRef.current;
+    const pin = () => clampElementInChatFrame(panel);
+    const frame = findChatFrame(panel);
+    const id = requestAnimationFrame(pin);
+    window.addEventListener('resize', pin);
+    frame?.addEventListener('scroll', pin, { passive: true });
+    return () => {
+      cancelAnimationFrame(id);
+      window.removeEventListener('resize', pin);
+      frame?.removeEventListener('scroll', pin);
+    };
+  }, [reactOpen, reactHover]);
+
+  useLayoutEffect(() => {
+    if (!menuOpen) return;
+    const list = menuListRef.current;
+    const pin = () => clampElementInChatFrame(list);
+    const frame = findChatFrame(list);
+    const id = requestAnimationFrame(pin);
+    window.addEventListener('resize', pin);
+    frame?.addEventListener('scroll', pin, { passive: true });
+    return () => {
+      cancelAnimationFrame(id);
+      window.removeEventListener('resize', pin);
+      frame?.removeEventListener('scroll', pin);
     };
   }, [menuOpen]);
 
@@ -173,7 +248,7 @@ export function CsdChatBubble({
           </div>
         )}
         <div className="csd-chat-bubble-row">
-          <div className="csd-chat-bubble-stack">
+          <div className={`csd-chat-bubble-stack${reactionSummary.total > 0 ? ' has-reactions' : ''}`}>
           <div className="csd-chat-bubble">
             {quoted ? (
               <p className="csd-chat-quote muted">
@@ -246,64 +321,74 @@ export function CsdChatBubble({
                 {ticketPill ?? 'Ticket liên kết'}
               </Link>
             ) : null}
-            {(message.reactions ?? []).length > 0 ? (
-              <ul className="csd-chat-react-chips" data-testid="csd-chat-react-chips">
-                {(message.reactions ?? []).map((row) => {
-                  const meta = CSD_CHAT_EMOTIONS.find((item) => item.id === row.emotion);
-                  return (
-                    <li key={row.emotion}>
-                      <button
-                        type="button"
-                        className={`csd-chat-react-chip${row.mine ? ' is-mine' : ''}`}
-                        disabled={!onReact || !canWrite || closed || busy}
-                        onClick={() => onReact?.(message, row.emotion)}
-                      >
-                        {meta?.emoji ?? row.emotion} {row.count}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : null}
           </div>
-          {onReact && canWrite && !closed && !message.is_deleted && !editing ? (
-            <div className={`csd-chat-react${reactOpen ? ' is-open' : ''}`}>
-              <button
-                type="button"
-                className="csd-chat-react-trigger"
-                data-testid="csd-chat-react-trigger"
-                aria-label="Thả emotion"
-                aria-expanded={reactOpen}
-                onClick={() => setReactOpen((v) => !v)}
-              >
-                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
-                  <path
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M7.5 11.5v7h-2a1.5 1.5 0 0 1-1.5-1.5v-4A1.5 1.5 0 0 1 5.5 11.5h2Zm0 0 3-6a1.8 1.8 0 0 1 3.4 1.1L13.2 9.5H19a2 2 0 0 1 1.95 2.45l-1.1 6A2 2 0 0 1 17.9 19.5H7.5"
-                  />
-                </svg>
-              </button>
-              <div className="csd-chat-react-panel" data-testid="csd-chat-react-panel" role="menu">
-                {CSD_CHAT_EMOTIONS.map((item) => (
+          {reactionSummary.total > 0 || canPickReact ? (
+            <div
+              ref={reactWrapRef}
+              className={`csd-chat-react-bar${pickerOpen ? ' is-open' : ''}${reactionSummary.total > 0 ? ' has-reactions' : ''}`}
+            >
+              {reactionSummary.total > 0 ? (
+                <button
+                  type="button"
+                  className={`csd-chat-react-pill${reactionSummary.mine ? ' is-mine' : ''}`}
+                  data-testid="csd-chat-react-chips"
+                  disabled={!canPickReact || busy}
+                  onClick={() => {
+                    if (!canPickReact) return;
+                    setReactOpen(true);
+                    setReactHover(true);
+                  }}
+                >
+                  <span className="csd-chat-react-pill__icons">
+                    {reactionSummary.emojis.map((emoji) => (
+                      <span key={emoji}>{emoji}</span>
+                    ))}
+                  </span>
+                  <span className="csd-chat-react-pill__count">{reactionSummary.total}</span>
+                </button>
+              ) : null}
+              {canPickReact ? (
+                <div
+                  className={`csd-chat-react${pickerOpen ? ' is-open' : ''}`}
+                  onMouseEnter={openReactHover}
+                  onMouseLeave={scheduleReactLeave}
+                >
                   <button
-                    key={item.id}
                     type="button"
-                    role="menuitem"
-                    title={item.label}
-                    data-testid={`csd-chat-react-${item.id}`}
-                    onClick={() => {
-                      setReactOpen(false);
-                      onReact(message, item.id);
-                    }}
+                    className="csd-chat-react-trigger"
+                    data-testid="csd-chat-react-trigger"
+                    aria-label="Thả emotion"
+                    aria-expanded={pickerOpen}
+                    onClick={() => setReactOpen((v) => !v)}
                   >
-                    {item.emoji}
+                    <span aria-hidden>👍</span>
                   </button>
-                ))}
-              </div>
+                  <div
+                    ref={reactPanelRef}
+                    className="csd-chat-react-panel"
+                    data-testid="csd-chat-react-panel"
+                    role="menu"
+                  >
+                    {CSD_CHAT_EMOTIONS.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        role="menuitem"
+                        title={item.label}
+                        data-testid={`csd-chat-react-${item.id}`}
+                        className={reactionSummary.mineEmotion === item.id ? 'is-selected' : undefined}
+                        onClick={() => {
+                          setReactOpen(false);
+                          setReactHover(false);
+                          onReact?.(message, item.id);
+                        }}
+                      >
+                        {item.emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : null}
           </div>
@@ -320,7 +405,7 @@ export function CsdChatBubble({
                 ⋯
               </button>
               {menuOpen ? (
-                <div className="csd-chat-msg-menu__list" role="menu">
+                <div ref={menuListRef} className="csd-chat-msg-menu__list" role="menu">
                   <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); onReply(message); }}>
                     Trả lời
                   </button>

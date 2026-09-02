@@ -5,6 +5,7 @@ import {
   formatDateChip,
   initialsFromName,
   isCsdChatImageMime,
+  shiftBoxIntoFrame,
   shouldShowDateChip,
 } from './csd-chat-display';
 
@@ -35,5 +36,21 @@ describe('csd-chat-display', () => {
     expect(isCsdChatImageMime('IMAGE/JPEG')).toBe(true);
     expect(isCsdChatImageMime('application/pdf')).toBe(false);
     expect(isCsdChatImageMime(null)).toBe(false);
+  });
+
+  it('shiftBoxIntoFrame pushes a clipped popover back inside both edges', () => {
+    const frame = { left: 100, right: 400, top: 50, bottom: 500 };
+    expect(shiftBoxIntoFrame({ left: 70, right: 250, top: 80, bottom: 120 }, frame, 8)).toEqual({
+      x: 38,
+      y: 0,
+    });
+    expect(shiftBoxIntoFrame({ left: 280, right: 430, top: 80, bottom: 120 }, frame, 8)).toEqual({
+      x: -38,
+      y: 0,
+    });
+    expect(shiftBoxIntoFrame({ left: 140, right: 260, top: 80, bottom: 120 }, frame, 8)).toEqual({
+      x: 0,
+      y: 0,
+    });
   });
 });
