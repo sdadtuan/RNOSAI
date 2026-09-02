@@ -227,6 +227,29 @@ export type CreateCsdConversationInput = {
   client_account_id?: string;
   project_ref_kind?: string;
   project_ref_id?: string;
+  member_staff_ids?: number[];
+};
+
+export type CsdConversationListFilter =
+  | 'all'
+  | 'unread'
+  | 'clients'
+  | 'projects'
+  | 'internal'
+  | 'mentions';
+
+export type CsdConversationListQuery = {
+  filter?: CsdConversationListFilter;
+  kind?: CsdConversationKind;
+  client_account_id?: string;
+  q?: string;
+  limit?: number;
+};
+
+export type CsdConversationListItem = CsdConversationRow & {
+  preview: string | null;
+  unread_count: number;
+  has_p1_or_complaint: boolean;
 };
 
 export type SendCsdMessageInput = {

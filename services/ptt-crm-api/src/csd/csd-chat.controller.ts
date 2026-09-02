@@ -14,7 +14,14 @@ import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { CsdChatService } from './csd-chat.service';
-import type { CsdActor, CreateCsdConversationInput, CreateCsdTicketInput, SendCsdMessageInput } from './csd.types';
+import type {
+  CsdActor,
+  CsdConversationKind,
+  CsdConversationListFilter,
+  CreateCsdConversationInput,
+  CreateCsdTicketInput,
+  SendCsdMessageInput,
+} from './csd.types';
 import { RequireCsdAction, StaffCsdGuard } from './guards/staff-csd.guard';
 
 type AuthedReq = Request & {
@@ -47,14 +54,18 @@ export class CsdChatController {
   @RequireCsdAction('view')
   async listConversations(
     @Req() req: AuthedReq,
-    @Query('kind') kind?: CreateCsdConversationInput['kind'],
+    @Query('filter') filter?: CsdConversationListFilter,
+    @Query('kind') kind?: CsdConversationKind,
     @Query('client_account_id') clientAccountId?: string,
+    @Query('q') q?: string,
     @Query('limit') limit?: string,
   ) {
     const actor = await this.actor(req);
     return this.chat.listConversations(actor, {
+      filter,
       kind,
       client_account_id: clientAccountId,
+      q,
       limit: limit ? Number(limit) : undefined,
     });
   }
@@ -126,6 +137,13 @@ export class CsdChatController {
   ) {
     const actor = await this.actor(req);
     return this.chat.removeMember(actor, id, Number(staffId));
+  }
+
+  @Post('conversations/:id/read')
+  @RequireCsdAction('view')
+  async markRead(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.markRead(actor, id);
   }
 
   @Post('conversations/:id/close')

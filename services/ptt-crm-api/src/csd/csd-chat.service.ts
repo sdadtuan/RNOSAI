@@ -11,12 +11,27 @@ import {
   CreateCsdConversationInput,
   CreateCsdTicketInput,
   CsdActor,
+  CsdConversationKind,
+  CsdConversationListItem,
+  CsdConversationListQuery,
   CsdConversationMemberRow,
   CsdConversationRow,
   CsdMessageRow,
   CsdTicketRow,
   SendCsdMessageInput,
 } from './csd.types';
+
+const CSD_KIND_NOT_MVP: CsdConversationKind[] = ['ticket', 'campaign', 'ai_assist'];
+
+function uniqueStaffIds(ids: number[] | undefined, exclude: number): number[] {
+  const seen = new Set<number>();
+  for (const raw of ids ?? []) {
+    const id = Number(raw);
+    if (!Number.isInteger(id) || id <= 0 || id === exclude || seen.has(id)) continue;
+    seen.add(id);
+  }
+  return [...seen];
+}
 
 function hasCsdCap(actor: CsdActor, action: string): boolean {
   return actor.caps.some((c) => c.section === 'csd' && c.action === action);
@@ -38,9 +53,36 @@ export class CsdChatService {
     actor: CsdActor,
     input: CreateCsdConversationInput,
   ): Promise<CsdConversationRow> {
+    if (CSD_KIND_NOT_MVP.includes(input.kind)) {
+      throw new BadRequestException({ error: 'kind_not_mvp' });
+    }
+
+    const extraIds = uniqueStaffIds(input.member_staff_ids, actor.staffId);
+    const memberRole = input.kind === 'announcement' ? 'viewer' : 'member';
+    const extraMembers = extraIds.map((staff_id) => ({ staff_id, role: memberRole as 'member' | 'viewer' }));
+
+    if (input.kind === 'direct') {
+      if (extraIds.length !== 1) {
+        throw new BadRequestException({ error: 'peer_required' });
+      }
+      const peer = extraIds[0];
+      const existing = await this.repo.findDirectPair(actor.staffId, peer);
+      if (existing) return existing;
+      const name = String(input.name_vi ?? '').trim() || `DM · #${peer}`;
+      return this.repo.insertConversation({
+        kind: 'direct',
+        name_vi: name,
+        created_by_staff_id: actor.staffId,
+        extra_members: extraMembers,
+      });
+    }
+
     const name = String(input.name_vi ?? '').trim();
     if (!name) {
       throw new BadRequestException({ error: 'name_required' });
+    }
+    if (input.kind === 'group' && extraIds.length < 1) {
+      throw new BadRequestException({ error: 'members_required' });
     }
     if (input.kind === 'client' && !input.client_account_id) {
       throw new BadRequestException({ error: 'client_account_id_required' });
@@ -56,15 +98,30 @@ export class CsdChatService {
       project_ref_kind: input.project_ref_kind ?? null,
       project_ref_id: input.project_ref_id ?? null,
       created_by_staff_id: actor.staffId,
+      extra_members: extraMembers,
     });
   }
 
   async listConversations(
-    _actor: CsdActor,
-    query: { kind?: CreateCsdConversationInput['kind']; client_account_id?: string; limit?: number },
-  ): Promise<{ items: CsdConversationRow[] }> {
-    const items = await this.repo.listConversations(query);
+    actor: CsdActor,
+    query: CsdConversationListQuery,
+  ): Promise<{ items: CsdConversationListItem[] }> {
+    const items = await this.repo.listConversationsForMember({
+      staffId: actor.staffId,
+      filter: query.filter ?? 'all',
+      kind: query.kind,
+      client_account_id: query.client_account_id,
+      q: query.q,
+      limit: query.limit,
+    });
     return { items };
+  }
+
+  async markRead(actor: CsdActor, conversationId: string): Promise<{ read: true }> {
+    await this.requireConversation(conversationId);
+    const ok = await this.repo.markRead(conversationId, actor.staffId);
+    if (!ok) throw new ForbiddenException({ error: 'csd_not_member' });
+    return { read: true };
   }
 
   async sendMessage(
@@ -76,6 +133,9 @@ export class CsdChatService {
     if (!conv) throw new NotFoundException({ error: 'csd_conversation_not_found' });
     if (conv.status === 'closed') {
       throw new ConflictException({ error: 'conversation_closed' });
+    }
+    if (conv.kind === 'announcement' && conv.owner_staff_id !== actor.staffId) {
+      throw new ForbiddenException({ error: 'announcement_owner_only' });
     }
 
     const body = String(input.body_text ?? '').trim();
@@ -114,6 +174,9 @@ export class CsdChatService {
 
     const conv = await this.repo.getConversation(message.conversation_id);
     if (!conv) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+    if (conv.kind === 'announcement') {
+      throw new BadRequestException({ error: 'ticket_not_allowed' });
+    }
 
     const title =
       String(patch.title ?? '').trim() ||

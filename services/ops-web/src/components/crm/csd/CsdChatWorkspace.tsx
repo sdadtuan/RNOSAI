@@ -2,6 +2,8 @@
 
 import { KeyboardEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { CsdChatList } from '@/components/crm/csd/CsdChatList';
+import { CsdChatNewModal } from '@/components/crm/csd/CsdChatNewModal';
 import {
   addCsdConversationMember,
   closeCsdConversation,
@@ -11,17 +13,28 @@ import {
   fetchCsdConversationMembers,
   fetchCsdConversations,
   fetchCsdMessages,
+  markCsdConversationRead,
   reopenCsdConversation,
   removeCsdConversationMember,
   sendCsdMessage,
   formatCsdWhen,
   CSD_PRIORITY_LABELS,
   CSD_TICKET_TYPES,
+  type CreateCsdConversationInput,
+  type CsdConversationListFilter,
   type CsdConversationMemberRow,
   type CsdConversationRow,
   type CsdMessageRow,
   type CsdPriority,
 } from '@/lib/crm/csd-api';
+
+const KIND_LABELS: Record<string, string> = {
+  client: 'Khách hàng',
+  direct: 'DM',
+  group: 'Nội bộ nhóm',
+  project: 'Dự án',
+  announcement: 'Thông báo',
+};
 
 type CsdChatWorkspaceProps = {
   token: string;
@@ -37,6 +50,8 @@ type AiSummary = {
 
 export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
   const [conversations, setConversations] = useState<CsdConversationRow[]>([]);
+  const [filter, setFilter] = useState<CsdConversationListFilter>('all');
+  const [showNewModal, setShowNewModal] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<CsdMessageRow[]>([]);
   const [members, setMembers] = useState<CsdConversationMemberRow[]>([]);
@@ -56,12 +71,12 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
 
   const loadConversations = useCallback(async () => {
     try {
-      const out = await fetchCsdConversations(token);
+      const out = await fetchCsdConversations(token, { filter });
       setConversations(out.items ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tải hội thoại thất bại');
     }
-  }, [token]);
+  }, [token, filter]);
 
   const loadMessages = useCallback(
     async (conversationId: string) => {
@@ -131,17 +146,28 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
     }
   }
 
-  async function handleNewConversation() {
+  async function handleSelectConversation(id: string) {
+    setActiveId(id);
+    try {
+      await markCsdConversationRead(token, id);
+      await loadConversations();
+    } catch {
+      /* keep thread open even if read receipt fails */
+    }
+  }
+
+  async function handleCreateConversation(payload: CreateCsdConversationInput) {
     if (!canWrite) return;
     setBusy(true);
     try {
-      const row = await createCsdConversation(token, {
-        kind: 'client',
-        name_vi: `Hội thoại ${new Date().toLocaleString('vi-VN')}`,
-        client_account_id: 'demo-client',
-      });
-      await loadConversations();
+      const row = await createCsdConversation(token, payload);
+      setShowNewModal(false);
       setActiveId(row.id);
+      if (filter !== 'all') {
+        setFilter('all');
+      } else {
+        await loadConversations();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tạo hội thoại thất bại');
     } finally {
@@ -245,38 +271,17 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
 
   return (
     <div className="csd-chat-workspace" data-testid="csd-chat-workspace">
-      <aside className="csd-chat-workspace__list page-card">
-        <div className="csd-chat-workspace__list-head">
-          <h3 className="kpi-section-title">Hội thoại</h3>
-          {canWrite ? (
-            <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void handleNewConversation()}>
-              Mới
-            </button>
-          ) : null}
-        </div>
-        {error ? <p className="error">{error}</p> : null}
-        <ul className="csd-chat-list">
-          {conversations.length === 0 ? (
-            <li className="muted">Chưa có hội thoại</li>
-          ) : (
-            conversations.map((c) => (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  className={`csd-chat-list__item${activeId === c.id ? ' is-active' : ''}`}
-                  onClick={() => setActiveId(c.id)}
-                >
-                  <strong>{c.name_vi}</strong>
-                  <span className="muted">
-                    {c.status === 'closed' ? 'Đã đóng · ' : ''}
-                    {formatCsdWhen(c.last_message_at)}
-                  </span>
-                </button>
-              </li>
-            ))
-          )}
-        </ul>
-      </aside>
+      <CsdChatList
+        conversations={conversations}
+        activeId={activeId}
+        filter={filter}
+        canWrite={canWrite}
+        busy={busy}
+        error={error}
+        onFilter={setFilter}
+        onSelect={(id) => void handleSelectConversation(id)}
+        onNew={() => setShowNewModal(true)}
+      />
 
       <section className="csd-chat-workspace__thread page-card">
         {!active ? (
@@ -313,7 +318,7 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
                         <button type="button" className="btn btn-sm btn-secondary" onClick={() => setReplyTo(m)}>
                           Trả lời
                         </button>
-                        {!m.ticket_id ? (
+                        {!m.ticket_id && active.kind !== 'announcement' ? (
                           <button
                             type="button"
                             className="btn btn-sm btn-secondary"
@@ -372,8 +377,13 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
         <h3 className="kpi-section-title">Ngữ cảnh</h3>
         {active ? (
           <>
-            <p className="muted">Loại: {isClient ? 'Khách hàng' : 'Nội bộ'}</p>
+            <p className="muted">Loại: {KIND_LABELS[active.kind] ?? active.kind}</p>
             <p className="muted">Tài khoản: {active.client_account_id ?? '—'}</p>
+            {active.kind === 'project' ? (
+              <p className="muted">
+                Dự án: {active.project_ref_kind ?? '—'} / {active.project_ref_id ?? '—'}
+              </p>
+            ) : null}
             <p className="muted">Trạng thái: {closed ? 'Đã đóng' : active.status ?? 'active'}</p>
             {canWrite && !closed ? (
               <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void handleClose()}>
@@ -470,6 +480,15 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
           <p className="muted">Chọn hội thoại để xem ngữ cảnh</p>
         )}
       </aside>
+
+      {showNewModal ? (
+        <CsdChatNewModal
+          open
+          busy={busy}
+          onClose={() => setShowNewModal(false)}
+          onSubmit={(payload) => handleCreateConversation(payload)}
+        />
+      ) : null}
 
       {ticketModal ? (
         <div className="csd-modal-backdrop" role="presentation" onClick={() => setTicketModal(null)}>

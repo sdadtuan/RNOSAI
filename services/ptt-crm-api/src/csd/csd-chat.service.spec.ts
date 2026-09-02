@@ -8,6 +8,9 @@ describe('CsdChatService', () => {
   const repo = {
     insertConversation: jest.fn(),
     listConversations: jest.fn(),
+    listConversationsForMember: jest.fn(),
+    findDirectPair: jest.fn(),
+    markRead: jest.fn(),
     getConversation: jest.fn(),
     insertMessage: jest.fn(),
     listMessages: jest.fn(),
@@ -35,6 +38,48 @@ describe('CsdChatService', () => {
     await expect(
       svc().createConversation(actor, { kind: 'client', name_vi: 'Khách A' }),
     ).rejects.toMatchObject({ status: 400, response: { error: 'client_account_id_required' } });
+    expect(repo.insertConversation).not.toHaveBeenCalled();
+  });
+
+  it('creates direct with exactly two staff and reuses pair', async () => {
+    repo.findDirectPair.mockResolvedValue(null);
+    repo.insertConversation.mockResolvedValue({ id: 'd1', kind: 'direct' });
+    await svc().createConversation(actor, { kind: 'direct', name_vi: '', member_staff_ids: [8] });
+    expect(repo.insertConversation).toHaveBeenCalled();
+    repo.findDirectPair.mockResolvedValue({ id: 'd1', kind: 'direct' });
+    const again = await svc().createConversation(actor, { kind: 'direct', name_vi: '', member_staff_ids: [8] });
+    expect(again.id).toBe('d1');
+  });
+
+  it('rejects direct without peer', async () => {
+    await expect(svc().createConversation(actor, { kind: 'direct', name_vi: 'x' })).rejects.toMatchObject({
+      status: 400,
+    });
+  });
+
+  it('lists only memberships and applies internal filter', async () => {
+    repo.listConversationsForMember.mockResolvedValue([{ id: 'g1', kind: 'group', unread_count: 0 }]);
+    const out = await svc().listConversations(actor, { filter: 'internal' });
+    expect(repo.listConversationsForMember).toHaveBeenCalledWith(
+      expect.objectContaining({ staffId: 3, filter: 'internal' }),
+    );
+    expect(out.items[0].kind).toBe('group');
+  });
+
+  it('rejects ticket campaign and ai_assist kinds in MVP', async () => {
+    await expect(
+      svc().createConversation(actor, { kind: 'ticket', name_vi: 'Từ ticket' }),
+    ).rejects.toMatchObject({ status: 400, response: { error: 'kind_not_mvp' } });
+    expect(repo.insertConversation).not.toHaveBeenCalled();
+  });
+
+  it('requires group name and extra members', async () => {
+    await expect(
+      svc().createConversation(actor, { kind: 'group', name_vi: '', member_staff_ids: [8] }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      svc().createConversation(actor, { kind: 'group', name_vi: 'Nhóm AM' }),
+    ).rejects.toMatchObject({ status: 400 });
     expect(repo.insertConversation).not.toHaveBeenCalled();
   });
 
@@ -98,6 +143,35 @@ describe('CsdChatService', () => {
     await expect(svc().sendMessage(actor, 'c1', { body_text: '  ' })).rejects.toBeInstanceOf(
       BadRequestException,
     );
+  });
+
+  it('rejects announcement send and ticket from non-owner', async () => {
+    repo.getConversation.mockResolvedValue({
+      id: 'a1',
+      kind: 'announcement',
+      status: 'active',
+      owner_staff_id: 9,
+    });
+    await expect(svc().sendMessage(actor, 'a1', { body_text: 'ping' })).rejects.toMatchObject({
+      status: 403,
+    });
+    repo.getMessage.mockResolvedValue({
+      id: 'm1',
+      conversation_id: 'a1',
+      body_text: 'ping',
+    });
+    await expect(svc().createTicketFromMessage(actor, 'm1', {})).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(repo.insertMessage).not.toHaveBeenCalled();
+    expect(tickets.create).not.toHaveBeenCalled();
+  });
+
+  it('marks conversation read for actor', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'group' });
+    repo.markRead.mockResolvedValue(true);
+    await svc().markRead(actor, 'c1');
+    expect(repo.markRead).toHaveBeenCalledWith('c1', 3);
   });
 
   it('rejects sendMessage when conversation is closed', async () => {

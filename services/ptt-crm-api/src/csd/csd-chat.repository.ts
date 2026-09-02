@@ -4,6 +4,8 @@ import { AppConfigService } from '../config/app-config.service';
 import {
   CSD_TENANT_ID,
   CsdConversationKind,
+  CsdConversationListFilter,
+  CsdConversationListItem,
   CsdConversationMemberRow,
   CsdConversationRow,
   CsdConversationStatus,
@@ -20,6 +22,15 @@ function num(value: unknown): number | null {
   if (value == null) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function mapConversationListItem(row: Record<string, unknown>): CsdConversationListItem {
+  return {
+    ...mapConversation(row),
+    preview: row.preview != null && text(row.preview) ? text(row.preview) : null,
+    unread_count: num(row.unread_count) ?? 0,
+    has_p1_or_complaint: Boolean(row.has_p1_or_complaint),
+  };
 }
 
 function mapConversation(row: Record<string, unknown>): CsdConversationRow {
@@ -91,6 +102,7 @@ export class CsdChatRepository implements OnModuleDestroy {
     project_ref_kind?: string | null;
     project_ref_id?: string | null;
     created_by_staff_id: number;
+    extra_members?: { staff_id: number; role: 'member' | 'viewer' }[];
   }): Promise<CsdConversationRow> {
     const client = await this.db.connect();
     try {
@@ -117,6 +129,15 @@ export class CsdChatRepository implements OnModuleDestroy {
          ) VALUES ($1, 'staff', $2, 'owner')`,
         [res.rows[0].id, input.created_by_staff_id],
       );
+      for (const member of input.extra_members ?? []) {
+        if (member.staff_id === input.created_by_staff_id) continue;
+        await client.query(
+          `INSERT INTO csd_conversation_members (
+             conversation_id, member_type, member_staff_id, role
+           ) VALUES ($1, 'staff', $2, $3)`,
+          [res.rows[0].id, member.staff_id, member.role],
+        );
+      }
       await client.query('COMMIT');
       return mapConversation(res.rows[0]);
     } catch (err) {
@@ -125,6 +146,147 @@ export class CsdChatRepository implements OnModuleDestroy {
     } finally {
       client.release();
     }
+  }
+
+  async findDirectPair(staffA: number, staffB: number): Promise<CsdConversationRow | null> {
+    const res = await this.db.query(
+      `SELECT c.*
+         FROM csd_conversations c
+        WHERE c.tenant_id = $1
+          AND c.kind = 'direct'
+          AND c.is_deleted = FALSE
+          AND c.status <> 'closed'
+          AND EXISTS (
+            SELECT 1 FROM csd_conversation_members m
+             WHERE m.conversation_id = c.id AND m.member_staff_id = $2
+          )
+          AND EXISTS (
+            SELECT 1 FROM csd_conversation_members m
+             WHERE m.conversation_id = c.id AND m.member_staff_id = $3
+          )
+          AND (
+            SELECT COUNT(*) FROM csd_conversation_members m
+             WHERE m.conversation_id = c.id AND m.member_type = 'staff'
+          ) = 2
+        ORDER BY c.created_at DESC
+        LIMIT 1`,
+      [CSD_TENANT_ID, staffA, staffB],
+    );
+    return res.rows[0] ? mapConversation(res.rows[0]) : null;
+  }
+
+  async markRead(conversationId: string, staffId: number): Promise<boolean> {
+    const res = await this.db.query(
+      `UPDATE csd_conversation_members
+          SET last_read_at = NOW()
+        WHERE conversation_id = $1
+          AND member_type = 'staff'
+          AND member_staff_id = $2`,
+      [conversationId, staffId],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  async listConversationsForMember(query: {
+    staffId: number;
+    filter?: CsdConversationListFilter;
+    kind?: CsdConversationKind;
+    client_account_id?: string;
+    q?: string;
+    limit?: number;
+  }): Promise<CsdConversationListItem[]> {
+    const params: unknown[] = [CSD_TENANT_ID, query.staffId];
+    const where = [
+      'c.tenant_id = $1',
+      'c.is_deleted = FALSE',
+      `EXISTS (
+         SELECT 1 FROM csd_conversation_members mem
+          WHERE mem.conversation_id = c.id
+            AND mem.member_type = 'staff'
+            AND mem.member_staff_id = $2
+       )`,
+    ];
+
+    const filter = query.filter ?? 'all';
+    if (filter === 'internal') {
+      where.push(`c.kind IN ('direct', 'group')`);
+    } else if (filter === 'clients') {
+      where.push(`c.kind = 'client'`);
+    } else if (filter === 'projects') {
+      where.push(`c.kind = 'project'`);
+    } else if (filter === 'mentions') {
+      where.push(`EXISTS (
+        SELECT 1 FROM csd_messages m
+         WHERE m.conversation_id = c.id
+           AND m.is_deleted = FALSE
+           AND m.body_text ~ ('(^|[[:space:]])@' || $2::text || '([^0-9]|$)')
+      )`);
+    }
+
+    if (query.kind) {
+      params.push(query.kind);
+      where.push(`c.kind = $${params.length}`);
+    }
+    if (query.client_account_id) {
+      params.push(query.client_account_id);
+      where.push(`c.client_account_id = $${params.length}`);
+    }
+    const q = String(query.q ?? '').trim();
+    if (q.length >= 2) {
+      params.push(`%${q}%`);
+      where.push(`c.name_vi ILIKE $${params.length}`);
+    }
+
+    const limit = Math.min(Math.max(Number(query.limit ?? 50) || 50, 1), 200);
+    params.push(limit);
+    const limitIdx = params.length;
+
+    const res = await this.db.query(
+      `SELECT c.*,
+              (
+                SELECT LEFT(m.body_text, 160)
+                  FROM csd_messages m
+                 WHERE m.conversation_id = c.id AND m.is_deleted = FALSE
+                 ORDER BY m.created_at DESC
+                 LIMIT 1
+              ) AS preview,
+              (
+                SELECT COUNT(*)::int
+                  FROM csd_messages m
+                  JOIN csd_conversation_members mem
+                    ON mem.conversation_id = c.id
+                   AND mem.member_type = 'staff'
+                   AND mem.member_staff_id = $2
+                 WHERE m.conversation_id = c.id
+                   AND m.is_deleted = FALSE
+                   AND m.created_at > COALESCE(mem.last_read_at, c.created_at)
+                   AND m.author_staff_id IS DISTINCT FROM $2
+              ) AS unread_count,
+              EXISTS (
+                SELECT 1 FROM csd_tickets t
+                 WHERE t.tenant_id = c.tenant_id
+                   AND t.is_deleted = FALSE
+                   AND (t.priority = 'P1' OR t.ticket_type = 'complaint')
+                   AND (
+                     t.id = c.ticket_id
+                     OR t.id IN (
+                       SELECT m.ticket_id FROM csd_messages m
+                        WHERE m.conversation_id = c.id AND m.ticket_id IS NOT NULL
+                     )
+                   )
+              ) AS has_p1_or_complaint
+         FROM csd_conversations c
+        WHERE ${where.join(' AND ')}
+        ORDER BY COALESCE(c.last_message_at, c.created_at) DESC
+        LIMIT $${limitIdx}`,
+      params,
+    );
+
+    const items = res.rows.map(mapConversationListItem);
+    if (filter === 'unread') {
+      return items.filter((row) => row.unread_count > 0);
+    }
+    return items;
   }
 
   async listConversations(query: {

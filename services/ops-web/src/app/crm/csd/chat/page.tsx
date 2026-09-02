@@ -26,7 +26,7 @@ export default function CsdChatPage() {
       ]}
       width="full"
     >
-      <PageToolbar title="Chat native" subtitle="Hội thoại khách → tạo ticket — không gửi tự động" />
+      <PageToolbar title="Chat native" subtitle="DM, nhóm nội bộ, khách, dự án — tạo ticket từ tin" />
       {error ? (
         <div className="page-card">
           <p className="error">{error}</p>

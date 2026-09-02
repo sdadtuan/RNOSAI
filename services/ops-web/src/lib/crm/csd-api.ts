@@ -86,15 +86,47 @@ export interface CsdDashboardPayload {
   top_tickets: CsdTicketRow[];
 }
 
+export type CsdConversationKind =
+  | 'direct'
+  | 'group'
+  | 'client'
+  | 'project'
+  | 'announcement'
+  | 'campaign'
+  | 'ticket'
+  | 'ai_assist'
+  | 'internal';
+
+export type CsdConversationListFilter =
+  | 'all'
+  | 'unread'
+  | 'clients'
+  | 'projects'
+  | 'internal'
+  | 'mentions';
+
 export interface CsdConversationRow {
   id: string;
-  kind: 'client' | 'internal' | 'direct' | 'group' | 'project' | 'ticket';
+  kind: CsdConversationKind;
   status?: 'active' | 'archived' | 'closed' | 'reopened';
   name_vi: string;
   client_account_id?: string | null;
+  project_ref_kind?: string | null;
+  project_ref_id?: string | null;
   owner_staff_id?: number | null;
   last_message_at?: string | null;
+  preview?: string | null;
   unread_count?: number;
+  has_p1_or_complaint?: boolean;
+}
+
+export interface CreateCsdConversationInput {
+  kind: CsdConversationKind;
+  name_vi: string;
+  client_account_id?: string;
+  project_ref_kind?: string;
+  project_ref_id?: string;
+  member_staff_ids?: number[];
 }
 
 export interface CsdConversationMemberRow {
@@ -254,20 +286,33 @@ export async function fetchCsdDashboard(token: string): Promise<CsdDashboardPayl
 
 export async function fetchCsdConversations(
   token: string,
-  query: Record<string, string> = {},
+  query: { filter?: CsdConversationListFilter; q?: string; kind?: CsdConversationKind } | Record<string, string> = {},
 ): Promise<{ items: CsdConversationRow[] }> {
-  const params = new URLSearchParams(query);
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value) params.set(key, String(value));
+  }
   const suffix = params.toString() ? `?${params.toString()}` : '';
   return csdFetch(token, `/api/crm/csd/conversations${suffix}`);
 }
 
 export async function createCsdConversation(
   token: string,
-  body: { kind: 'client' | 'internal'; name_vi: string; client_account_id?: string; project_ref?: string },
+  body: CreateCsdConversationInput,
 ): Promise<CsdConversationRow> {
   return csdFetch(token, '/api/crm/csd/conversations', {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+}
+
+export async function markCsdConversationRead(
+  token: string,
+  conversationId: string,
+): Promise<{ read: true }> {
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/read`, {
+    method: 'POST',
+    body: '{}',
   });
 }
 
