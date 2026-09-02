@@ -6,7 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { canTransitionReport } from './csd-report-workflow.util';
-import { bumpReportVersion, CsdReportsRepository } from './csd-reports.repository';
+import { bumpReportVersion } from './csd-report-version.util';
+import { CsdReportsRepository } from './csd-reports.repository';
 import {
   CreateCsdReportInput,
   CsdActor,
@@ -16,6 +17,7 @@ import {
   CsdReportSendLogRow,
   CsdReportStatus,
   SendCsdReportInput,
+  SnapshotCsdReportInput,
   TransitionCsdReportInput,
 } from './csd.types';
 
@@ -185,6 +187,36 @@ export class CsdReportsService {
     return { version: version.version, sections_json: version.sections_json };
   }
 
+  async snapshotVersion(
+    actor: CsdActor,
+    id: string,
+    input: SnapshotCsdReportInput,
+  ): Promise<CsdReportDetail> {
+    const report = await this.get(actor, id);
+    const changelog = String(input.changelog ?? '').trim();
+    if (changelog.length < 3) {
+      throw new BadRequestException({ error: 'changelog_required' });
+    }
+    if (report.status === 'sent') {
+      throw new ConflictException({ error: 'report_sent_use_revise' });
+    }
+
+    const kind = input.kind === 'major' ? 'major' : 'minor';
+    const nextVersion = bumpReportVersion(report.current_version, kind);
+    const current = await this.repo.getCurrentVersion(id);
+    await this.repo.insertVersion({
+      report_id: id,
+      version: nextVersion,
+      changelog,
+      sections_json: current?.sections_json ?? {},
+      created_by_staff_id: actor.staffId,
+      status: report.status,
+    });
+
+    const detail = await this.getDetail(actor, id);
+    return { ...detail, current_version: nextVersion };
+  }
+
   async createRevisedVersion(actor: CsdActor, id: string): Promise<CsdReportRow> {
     const report = await this.get(actor, id);
     if (report.status !== 'sent') {
@@ -199,6 +231,7 @@ export class CsdReportsService {
       nextVersion,
       actor.staffId,
       current?.sections_json ?? {},
+      'Tạo bản sửa sau khi gửi',
     );
   }
 }

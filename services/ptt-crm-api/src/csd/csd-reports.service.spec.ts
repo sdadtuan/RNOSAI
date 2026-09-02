@@ -17,6 +17,7 @@ describe('CsdReportsService', () => {
     listReports: jest.fn(),
     listVersions: jest.fn(),
     listSendLogs: jest.fn(),
+    insertVersion: jest.fn(),
   };
 
   function svc() {
@@ -112,6 +113,34 @@ describe('CsdReportsService', () => {
     });
     expect(log.result).toBe('sent');
     expect(repo.updateReportStatus).toHaveBeenCalledWith('r2', 'sent', expect.any(Object));
+  });
+
+  it('snapshots v1.1 with changelog before send', async () => {
+    repo.getReport.mockResolvedValue({ id: 'r1', status: 'draft', current_version: 'v1.0', requires_approval: true });
+    repo.getCurrentVersion.mockResolvedValue({ sections_json: { cover: { body: 'a' } } });
+    repo.insertVersion.mockResolvedValue({ version: 'v1.1', changelog: 'Sửa KPI' });
+    const out = await svc().snapshotVersion(actor, 'r1', { kind: 'minor', changelog: 'Sửa KPI' });
+    expect(repo.insertVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ version: 'v1.1', changelog: 'Sửa KPI' }),
+    );
+    expect(out.current_version).toBe('v1.1');
+  });
+
+  it('snapshotVersion requires changelog of 3+ chars', async () => {
+    repo.getReport.mockResolvedValue({ id: 'r1', status: 'draft', current_version: 'v1.0' });
+    await expect(svc().snapshotVersion(actor, 'r1', { kind: 'minor', changelog: 'ab' })).rejects.toMatchObject({
+      status: 400,
+      response: { error: 'changelog_required' },
+    });
+    expect(repo.insertVersion).not.toHaveBeenCalled();
+  });
+
+  it('revise after sent uses major bump', async () => {
+    repo.getReport.mockResolvedValue({ id: 'r1', status: 'sent', current_version: 'v1.1' });
+    repo.getCurrentVersion.mockResolvedValue({ sections_json: {} });
+    repo.createRevisedVersion.mockResolvedValue({ id: 'r1', status: 'draft', current_version: 'v2.0' });
+    const out = await svc().createRevisedVersion(actor, 'r1');
+    expect(out.current_version).toBe('v2.0');
   });
 
   it('createRevisedVersion requires sent status', async () => {

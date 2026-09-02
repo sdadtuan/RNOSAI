@@ -438,6 +438,11 @@ export type TransitionCsdReportInput = {
   approver_staff_id?: number;
 };
 
+export type SnapshotCsdReportInput = {
+  kind: 'minor' | 'major';
+  changelog: string;
+};
+
 export type CsdChatAccountRow = {
   staff_id: number;
   tenant_id: string;

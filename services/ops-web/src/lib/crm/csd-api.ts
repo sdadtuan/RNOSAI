@@ -869,6 +869,21 @@ export async function sendCsdReport(
   });
 }
 
+export async function snapshotCsdReportVersion(
+  token: string,
+  id: string,
+  body: { kind: 'minor' | 'major'; changelog: string },
+): Promise<CsdReportDetail> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/versions`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function reviseCsdReport(token: string, id: string): Promise<CsdReportRow> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/revise`, { method: 'POST', body: '{}' });
+}
+
 export async function draftCsdTicketReply(
   token: string,
   ticketId: string,

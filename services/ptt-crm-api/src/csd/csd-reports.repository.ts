@@ -218,7 +218,7 @@ export class CsdReportsRepository implements OnModuleDestroy {
       `SELECT v.* FROM csd_report_versions v
        JOIN csd_reports r ON r.id = v.report_id
        WHERE r.tenant_id = $1 AND r.id = $2 AND r.is_deleted = FALSE
-       ORDER BY v.created_at ASC, v.version ASC`,
+       ORDER BY v.created_at DESC, v.version DESC`,
       [CSD_TENANT_ID, reportId],
     );
     return res.rows.map(mapVersion);
@@ -320,6 +320,47 @@ export class CsdReportsRepository implements OnModuleDestroy {
     return mapVersion(res.rows[0]);
   }
 
+  async insertVersion(input: {
+    report_id: string;
+    version: string;
+    changelog: string;
+    sections_json: Record<string, unknown>;
+    created_by_staff_id: number;
+    status?: CsdReportStatus;
+  }): Promise<CsdReportVersionRow> {
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const res = await client.query(
+        `INSERT INTO csd_report_versions (
+           report_id, version, status, sections_json, changelog, created_by_staff_id
+         ) VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [
+          input.report_id,
+          input.version,
+          input.status ?? 'draft',
+          input.sections_json,
+          input.changelog,
+          input.created_by_staff_id,
+        ],
+      );
+      await client.query(
+        `UPDATE csd_reports
+         SET current_version = $3, updated_by_staff_id = $4, updated_at = NOW()
+         WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE`,
+        [CSD_TENANT_ID, input.report_id, input.version, input.created_by_staff_id],
+      );
+      await client.query('COMMIT');
+      return mapVersion(res.rows[0]);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   async insertSendLog(input: {
     report_id: string;
     version: string;
@@ -350,6 +391,7 @@ export class CsdReportsRepository implements OnModuleDestroy {
     nextVersion: string,
     actorStaffId: number,
     sections: Record<string, unknown>,
+    changelog = 'Tạo bản sửa sau khi gửi',
   ): Promise<CsdReportRow> {
     const client = await this.db.connect();
     try {
@@ -363,8 +405,8 @@ export class CsdReportsRepository implements OnModuleDestroy {
       await client.query(
         `INSERT INTO csd_report_versions (
            report_id, version, status, sections_json, changelog, created_by_staff_id
-         ) VALUES ($1, $2, 'draft', $3, 'Revised after send', $4)`,
-        [reportId, nextVersion, sections, actorStaffId],
+         ) VALUES ($1, $2, 'draft', $3, $4, $5)`,
+        [reportId, nextVersion, sections, changelog, actorStaffId],
       );
       await client.query('COMMIT');
     } catch (err) {

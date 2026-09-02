@@ -19,6 +19,7 @@ import type {
   CsdReportListQuery,
   CreateCsdReportInput,
   SendCsdReportInput,
+  SnapshotCsdReportInput,
   TransitionCsdReportInput,
 } from './csd.types';
 import { RequireCsdAction, StaffCsdGuard } from './guards/staff-csd.guard';
@@ -151,5 +152,16 @@ export class CsdReportsController {
   async revise(@Req() req: AuthedReq, @Param('id') id: string) {
     const actor = await this.actor(req);
     return this.reports.createRevisedVersion(actor, id);
+  }
+
+  @Post(':id/versions')
+  @RequireCsdAction('write')
+  async snapshotVersion(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: SnapshotCsdReportInput,
+  ) {
+    const actor = await this.actor(req);
+    return this.reports.snapshotVersion(actor, id, body);
   }
 }

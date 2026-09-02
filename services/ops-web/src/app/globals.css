@@ -16923,6 +16923,40 @@ body {
   gap: 0.5rem;
 }
 
+.csd-report-editor__tabs {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.csd-report-editor__tabs button {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 0.35rem;
+  background: transparent;
+  cursor: pointer;
+}
+
+.csd-report-editor__tabs button.is-active {
+  border-color: var(--accent, #2563eb);
+  background: #eff6ff;
+  font-weight: 600;
+}
+
+.csd-report-version-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.csd-report-version-list li {
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 0.35rem;
+  font-size: 0.9rem;
+}
+
 @media (max-width: 960px) {
   .csd-ticket-detail,
   .csd-report-editor {

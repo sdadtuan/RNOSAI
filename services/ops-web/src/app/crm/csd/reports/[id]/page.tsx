@@ -9,7 +9,9 @@ import {
   approveCsdReport,
   getCsdReport,
   requestCsdReportChanges,
+  reviseCsdReport,
   sendCsdReport,
+  snapshotCsdReportVersion,
   submitCsdReportReview,
   transitionCsdReport,
   updateCsdReportSections,
@@ -117,6 +119,14 @@ export default function CsdReportDetailPage() {
             await reload();
           }}
           onSend={() => setSendOpen(true)}
+          onSnapshot={async ({ kind, changelog }) => {
+            await snapshotCsdReportVersion(token, report.id, { kind, changelog });
+            await reload();
+          }}
+          onRevise={async () => {
+            await reviseCsdReport(token, report.id);
+            await reload();
+          }}
         />
       ) : (
         <div className="page-card">

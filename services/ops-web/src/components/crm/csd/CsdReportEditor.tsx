@@ -17,6 +17,8 @@ type CsdReportEditorProps = {
   onRequestChanges?: (comment: string) => Promise<void>;
   onTransition?: (to: CsdReportStatus) => Promise<void>;
   onSend?: () => void;
+  onSnapshot?: (input: { kind: 'minor' | 'major'; changelog: string }) => Promise<void>;
+  onRevise?: () => Promise<void>;
 };
 
 const SECTION_LABELS: Record<string, string> = {
@@ -73,6 +75,16 @@ function sendLabel(status: CsdReportStatus): string {
   return 'Gửi khách';
 }
 
+function versionAuthor(staffId?: number | null): string {
+  return staffId != null ? `NV ${staffId}` : '—';
+}
+
+function versionWhen(value?: string): string {
+  if (!value) return '—';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleString('vi-VN');
+}
+
 export function CsdReportEditor({
   report,
   canWrite,
@@ -83,9 +95,12 @@ export function CsdReportEditor({
   onRequestChanges,
   onTransition,
   onSend,
+  onSnapshot,
+  onRevise,
 }: CsdReportEditorProps) {
   const keys = useMemo(() => outlineKeys(report), [report]);
   const [activeSection, setActiveSection] = useState(keys[0] ?? '');
+  const [tab, setTab] = useState<'content' | 'versions'>('content');
   const sections = report.sections_json ?? {};
   const [draft, setDraft] = useState(() => sectionText(sections[keys[0] ?? '']));
   const [busy, setBusy] = useState(false);
@@ -94,6 +109,7 @@ export function CsdReportEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const readOnly = !canWrite || VIEW_ONLY.has(report.status);
   const showSend = canWrite && Boolean(onSend) && canSendReport(report);
+  const versions = report.versions ?? [];
 
   function selectSection(key: string) {
     setActiveSection(key);
@@ -118,6 +134,17 @@ export function CsdReportEditor({
     await run(() => onSaveSection(activeSection, draft), 'Đã lưu mục');
   }
 
+  async function snapshot() {
+    if (!onSnapshot || readOnly) return;
+    const changelog = window.prompt('Nhật ký thay đổi (tối thiểu 3 ký tự)');
+    if (changelog == null) return;
+    if (changelog.trim().length < 3) {
+      setMsg('Nhật ký thay đổi cần tối thiểu 3 ký tự');
+      return;
+    }
+    await run(() => onSnapshot({ kind: 'minor', changelog: changelog.trim() }), 'Đã lưu phiên bản');
+  }
+
   return (
     <div className="csd-report-editor" data-testid="csd-report-editor">
       <aside className="csd-report-editor__outline page-card">
@@ -138,23 +165,73 @@ export function CsdReportEditor({
       </aside>
 
       <section className="csd-report-editor__body page-card stack-gap">
-        <div className="csd-report-editor__head">
-          <h3 className="kpi-section-title">{SECTION_LABELS[activeSection] ?? activeSection}</h3>
-          <span className="csd-badge">{CSD_REPORT_STATUS_LABELS[report.status] ?? report.status}</span>
-        </div>
-        <textarea
-          ref={textareaRef}
-          className="kpi-input csd-report-editor__textarea"
-          rows={16}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          readOnly={readOnly}
-        />
-        {canWrite && !readOnly && onSaveSection ? (
-          <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void save()}>
-            Lưu mục
+        <div className="csd-report-editor__tabs">
+          <button
+            type="button"
+            className={tab === 'content' ? 'is-active' : undefined}
+            onClick={() => setTab('content')}
+          >
+            Nội dung
           </button>
-        ) : null}
+          <button
+            type="button"
+            className={tab === 'versions' ? 'is-active' : undefined}
+            onClick={() => setTab('versions')}
+          >
+            Phiên bản
+          </button>
+        </div>
+        {tab === 'content' ? (
+          <>
+            <div className="csd-report-editor__head">
+              <h3 className="kpi-section-title">{SECTION_LABELS[activeSection] ?? activeSection}</h3>
+              <span className="csd-badge">{CSD_REPORT_STATUS_LABELS[report.status] ?? report.status}</span>
+            </div>
+            <textarea
+              ref={textareaRef}
+              className="kpi-input csd-report-editor__textarea"
+              rows={16}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              readOnly={readOnly}
+            />
+            {canWrite && !readOnly && onSaveSection ? (
+              <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void save()}>
+                Lưu mục
+              </button>
+            ) : null}
+          </>
+        ) : (
+          <div className="csd-report-versions stack-gap" data-testid="csd-report-versions">
+            <div className="csd-report-editor__head">
+              <h3 className="kpi-section-title">Phiên bản</h3>
+              <span className="csd-badge">{report.current_version ?? report.version ?? '—'}</span>
+            </div>
+            {versions.length === 0 ? (
+              <p className="muted">Chưa có phiên bản đã lưu.</p>
+            ) : (
+              <ul className="csd-report-version-list">
+                {versions.map((v) => (
+                  <li key={v.id}>
+                    {v.version} · {v.changelog?.trim() || '—'} · {versionAuthor(v.created_by_staff_id)} ·{' '}
+                    {versionWhen(v.created_at)}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {canWrite && !readOnly && onSnapshot ? (
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={busy}
+                data-testid="csd-report-snapshot"
+                onClick={() => void snapshot()}
+              >
+                Lưu phiên bản
+              </button>
+            ) : null}
+          </div>
+        )}
         {msg ? <p className="muted">{msg}</p> : null}
       </section>
 
@@ -312,9 +389,21 @@ export function CsdReportEditor({
         {report.status === 'sent' ? (
           <>
             <p className="muted">Báo cáo đã gửi — không thể sửa.</p>
-            <button type="button" className="btn btn-sm btn-secondary" disabled>
-              Tạo bản sửa
-            </button>
+            {canWrite && onRevise ? (
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                disabled={busy}
+                data-testid="csd-report-revise"
+                onClick={() => void run(onRevise, 'Đã tạo bản sửa')}
+              >
+                Tạo bản sửa
+              </button>
+            ) : (
+              <button type="button" className="btn btn-sm btn-secondary" disabled data-testid="csd-report-revise">
+                Tạo bản sửa
+              </button>
+            )}
             <button type="button" className="btn btn-sm btn-secondary" disabled>
               Xem log
             </button>
