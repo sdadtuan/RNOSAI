@@ -409,14 +409,17 @@ export type CsdChatAccountRow = {
   tenant_id: string;
   enabled: boolean;
   display_name_vi: string | null;
+  username: string | null;
+  password_hash?: string | null;
   created_by_staff_id: number;
   created_at: string;
   updated_at: string;
 };
 
-export type CsdChatAccountAdminRow = CsdChatAccountRow & {
+export type CsdChatAccountAdminRow = Omit<CsdChatAccountRow, 'password_hash'> & {
   staff_name: string;
   staff_email: string;
+  has_password: boolean;
 };
 
 export type CsdChatStaffDirectoryRow = {
@@ -431,6 +434,8 @@ export type CsdChatMe = {
   staff_id: number;
   enabled: boolean;
   display_name_vi: string | null;
+  username: string | null;
+  has_password: boolean;
 };
 
 export type CsdChatPersonRow = {

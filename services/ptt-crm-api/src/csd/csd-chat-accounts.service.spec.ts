@@ -21,7 +21,7 @@ describe('CsdChatAccountsService', () => {
     listAdmin: jest.fn(),
     listDirectory: jest.fn(),
     searchPeople: jest.fn(),
-    setLoginPassword: jest.fn(),
+    findByUsername: jest.fn(),
   };
 
   const audit = {
@@ -43,6 +43,8 @@ describe('CsdChatAccountsService', () => {
       staff_id: 3,
       enabled: false,
       display_name_vi: null,
+      username: null,
+      has_password: false,
     });
   });
 
@@ -70,22 +72,32 @@ describe('CsdChatAccountsService', () => {
     expect(repo.upsert).not.toHaveBeenCalled();
   });
 
-  it('upsert sets /login password for existing staff', async () => {
+  it('upsert stores chat username and password, not staff /login', async () => {
     repo.findCrmStaff.mockResolvedValue({
       staff_id: 8,
       staff_name: 'Lan',
       staff_email: 'lan@ptt.vn',
       position_id: 2,
     });
-    repo.upsert.mockResolvedValue({ staff_id: 8, enabled: true, created_by_staff_id: 1 });
-    repo.setLoginPassword.mockResolvedValue({ created: false });
-    await svc().upsert(admin, { staff_id: 8, enabled: true, login_password: 'Secret12' });
-    expect(repo.setLoginPassword).toHaveBeenCalledWith(
-      expect.objectContaining({ staff_id: 8, login_password: 'Secret12' }),
+    repo.findByUsername.mockResolvedValue(null);
+    repo.upsert.mockResolvedValue({ staff_id: 8, enabled: true, created_by_staff_id: 1, username: 'lan.chat' });
+    await svc().upsert(admin, {
+      staff_id: 8,
+      enabled: true,
+      username: 'lan.chat',
+      chat_password: 'Secret12',
+    });
+    expect(repo.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        staff_id: 8,
+        username: 'lan.chat',
+        chat_password: 'Secret12',
+      }),
     );
+    expect(repo.upsert.mock.calls[0][0].login_password).toBeUndefined();
   });
 
-  it('upsert rejects short login password', async () => {
+  it('upsert rejects short chat password', async () => {
     repo.findCrmStaff.mockResolvedValue({
       staff_id: 8,
       staff_name: 'Lan',
@@ -93,9 +105,36 @@ describe('CsdChatAccountsService', () => {
       position_id: 2,
     });
     await expect(
-      svc().upsert(admin, { staff_id: 8, enabled: true, login_password: '123' }),
+      svc().upsert(admin, { staff_id: 8, enabled: true, username: 'lan.chat', chat_password: '123' }),
     ).rejects.toMatchObject({ status: 400, response: { error: 'password_too_short' } });
-    expect(repo.setLoginPassword).not.toHaveBeenCalled();
+    expect(repo.upsert).not.toHaveBeenCalled();
+  });
+
+  it('login accepts chat username and password for current staff', async () => {
+    repo.findByStaffId.mockResolvedValue({
+      staff_id: 3,
+      enabled: true,
+      username: 'am.chat',
+      password_hash: 'plain:ChatPass1',
+    });
+    await expect(svc().login(actor, { username: 'am.chat', password: 'ChatPass1' })).resolves.toEqual({
+      ok: true,
+      staff_id: 3,
+      username: 'am.chat',
+    });
+  });
+
+  it('login rejects wrong chat password', async () => {
+    repo.findByStaffId.mockResolvedValue({
+      staff_id: 3,
+      enabled: true,
+      username: 'am.chat',
+      password_hash: 'plain:ChatPass1',
+    });
+    await expect(svc().login(actor, { username: 'am.chat', password: 'nope' })).rejects.toMatchObject({
+      status: 401,
+      response: { error: 'invalid_chat_credentials' },
+    });
   });
 
   it('non-admin cannot upsert', async () => {

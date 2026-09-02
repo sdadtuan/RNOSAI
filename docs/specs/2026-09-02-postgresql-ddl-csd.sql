@@ -651,10 +651,19 @@ CREATE TABLE IF NOT EXISTS csd_chat_accounts (
   tenant_id             text NOT NULL DEFAULT 'PTT',
   enabled               boolean NOT NULL DEFAULT true,
   display_name_vi       text,
+  username              text,
+  password_hash         text,
   created_by_staff_id   integer NOT NULL,
   created_at            timestamptz NOT NULL DEFAULT now(),
   updated_at            timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE csd_chat_accounts ADD COLUMN IF NOT EXISTS username text;
+ALTER TABLE csd_chat_accounts ADD COLUMN IF NOT EXISTS password_hash text;
+
+CREATE UNIQUE INDEX IF NOT EXISTS csd_chat_accounts_username_uidx
+  ON csd_chat_accounts (tenant_id, lower(btrim(username)))
+  WHERE username IS NOT NULL AND btrim(username) <> '';
 
 CREATE TABLE IF NOT EXISTS csd_chat_friendships (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),

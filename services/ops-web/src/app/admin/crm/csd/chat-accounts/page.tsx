@@ -15,9 +15,8 @@ import {
 function loginErrorMessage(err: unknown): string {
   const code = err instanceof Error ? err.message : '';
   if (code === 'staff_not_found') return 'Không tìm thấy nhân viên trong hệ thống';
-  if (code === 'password_too_short') return 'Mật khẩu đăng nhập /login tối thiểu 6 ký tự';
-  if (code === 'staff_email_required') return 'NV chưa có email — bổ sung email trước khi tạo /login';
-  if (code === 'staff_position_required') return 'NV chưa có chức vụ — gán chức vụ trước khi tạo tài khoản /login';
+  if (code === 'password_too_short') return 'Mật khẩu chat tối thiểu 6 ký tự';
+  if (code === 'username_taken') return 'Tên đăng nhập chat đã được dùng';
   return err instanceof Error ? err.message : 'Thao tác thất bại';
 }
 
@@ -37,7 +36,8 @@ export default function AdminCsdChatAccountsPage() {
   const [q, setQ] = useState('');
   const [staffId, setStaffId] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [loginPassword, setLoginPassword] = useState(() => generateLoginPassword());
+  const [username, setUsername] = useState('');
+  const [chatPassword, setChatPassword] = useState(() => generateLoginPassword());
   const [msg, setMsg] = useState('');
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -88,9 +88,14 @@ export default function AdminCsdChatAccountsPage() {
       setFormError('Chọn nhân viên trong hệ thống');
       return;
     }
-    const password = loginPassword.trim();
+    const chatUser = username.trim();
+    const password = chatPassword.trim();
+    if (chatUser.length < 3) {
+      setFormError('Nhập tên đăng nhập chat (tối thiểu 3 ký tự)');
+      return;
+    }
     if (password.length < 6) {
-      setFormError('Mật khẩu đăng nhập /login tối thiểu 6 ký tự');
+      setFormError('Mật khẩu chat tối thiểu 6 ký tự');
       return;
     }
     setBusy(true);
@@ -101,15 +106,16 @@ export default function AdminCsdChatAccountsPage() {
         staff_id: selected.staff_id,
         enabled: true,
         display_name_vi: displayName.trim() || selected.staff_name || undefined,
-        login_password: password,
+        username: chatUser,
+        chat_password: password,
       });
       setStaffId('');
       setDisplayName('');
-      const next = generateLoginPassword();
-      setLoginPassword(next);
+      setUsername('');
+      setChatPassword(generateLoginPassword());
       await reload(token, q);
       setMsg(
-        `Đã bật chat cho ${selected.staff_name || selected.staff_email}. Gửi mật khẩu /login cho NV rồi đăng xuất/nhập lại.`,
+        `Đã cấp chat cho ${selected.staff_name || selected.staff_email}. Gửi tên đăng nhập + mật khẩu chat cho NV — chỉ dùng khi mở hộp thoại.`,
       );
     } catch (err) {
       setFormError(loginErrorMessage(err));
@@ -124,7 +130,7 @@ export default function AdminCsdChatAccountsPage() {
       onLogout={logout}
       section="crm-config"
       title="Tài khoản Chat"
-      subtitle="Chọn NV có sẵn. Mật khẩu tạo ở đây là mật khẩu đăng nhập /login — không có mật khẩu chat thứ hai."
+      subtitle="Chọn NV có sẵn. Tên đăng nhập + mật khẩu chỉ để mở hộp thoại Chat — không phải /login hệ thống."
       loading={loading}
     >
       {error ? <p className="error">{error}</p> : null}
@@ -139,7 +145,15 @@ export default function AdminCsdChatAccountsPage() {
             const next = e.target.value;
             setStaffId(next);
             const person = directory.find((row) => String(row.staff_id) === next);
-            if (person && !displayName.trim()) setDisplayName(person.staff_name);
+            if (person) {
+              if (!displayName.trim()) setDisplayName(person.staff_name);
+              if (!username.trim()) {
+                const hint = (person.staff_email.split('@')[0] || person.staff_name || '')
+                  .toLowerCase()
+                  .replace(/[^a-z0-9._-]+/g, '');
+                if (hint) setUsername(hint);
+              }
+            }
           }}
           data-testid="csd-chat-account-staff-id"
           required
@@ -149,7 +163,7 @@ export default function AdminCsdChatAccountsPage() {
             <option key={row.staff_id} value={row.staff_id}>
               {row.staff_name || 'Không tên'}
               {row.staff_email ? ` — ${row.staff_email}` : ''}
-              {row.has_login ? '' : ' (chưa có /login)'}
+              {row.has_login ? '' : ''}
             </option>
           ))}
         </select>
@@ -161,11 +175,20 @@ export default function AdminCsdChatAccountsPage() {
         />
         <input
           className="kpi-input"
+          placeholder="Tên đăng nhập chat"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          data-testid="csd-chat-account-username"
+          required
+          minLength={3}
+        />
+        <input
+          className="kpi-input"
           type="text"
           autoComplete="new-password"
-          placeholder="Mật khẩu đăng nhập /login"
-          value={loginPassword}
-          onChange={(e) => setLoginPassword(e.target.value)}
+          placeholder="Mật khẩu chat"
+          value={chatPassword}
+          onChange={(e) => setChatPassword(e.target.value)}
           data-testid="csd-chat-account-password"
           required
           minLength={6}
@@ -173,7 +196,7 @@ export default function AdminCsdChatAccountsPage() {
         <button
           type="button"
           className="btn btn-sm btn-secondary"
-          onClick={() => setLoginPassword(generateLoginPassword())}
+          onClick={() => setChatPassword(generateLoginPassword())}
         >
           Tạo mật khẩu
         </button>
@@ -183,9 +206,7 @@ export default function AdminCsdChatAccountsPage() {
       </form>
       {selected ? (
         <p className="muted" style={{ marginTop: '0.35rem' }}>
-          {selected.has_login
-            ? `Sẽ đặt lại mật khẩu /login của ${selected.staff_email || selected.staff_name}.`
-            : `Sẽ tạo tài khoản /login cho ${selected.staff_email || selected.staff_name}. NV cần có email và chức vụ.`}
+          Tên + mật khẩu chat chỉ mở hộp thoại. NV vẫn đăng nhập CRM bằng /login như cũ.
         </p>
       ) : null}
 
@@ -202,6 +223,7 @@ export default function AdminCsdChatAccountsPage() {
           <tr>
             <th>Staff</th>
             <th>Tên</th>
+            <th>Tên chat</th>
             <th>Email</th>
             <th>Trạng thái</th>
             <th />
@@ -210,7 +232,7 @@ export default function AdminCsdChatAccountsPage() {
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={5} className="muted">
+              <td colSpan={6} className="muted">
                 Chưa có tài khoản chat
               </td>
             </tr>
@@ -219,6 +241,7 @@ export default function AdminCsdChatAccountsPage() {
               <tr key={row.staff_id}>
                 <td>{row.staff_id}</td>
                 <td>{row.display_name_vi || row.staff_name || '—'}</td>
+                <td>{row.username || '—'}</td>
                 <td>{row.staff_email || '—'}</td>
                 <td>{row.enabled ? 'Bật' : 'Tắt'}</td>
                 <td>

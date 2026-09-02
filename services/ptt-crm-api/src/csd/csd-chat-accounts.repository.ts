@@ -1,7 +1,6 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { hashPortalPassword } from '../portal/portal-password.util';
 import {
   CSD_TENANT_ID,
@@ -23,6 +22,8 @@ function mapAccount(row: Record<string, unknown>): CsdChatAccountRow {
     tenant_id: text(row.tenant_id),
     enabled: Boolean(row.enabled),
     display_name_vi: row.display_name_vi != null ? text(row.display_name_vi) : null,
+    username: row.username != null && text(row.username) ? text(row.username) : null,
+    password_hash: row.password_hash != null ? text(row.password_hash) : null,
     created_by_staff_id: Number(row.created_by_staff_id),
     created_at: text(row.created_at),
     updated_at: text(row.updated_at),
@@ -100,36 +101,15 @@ export class CsdChatAccountsRepository implements OnModuleDestroy {
     }));
   }
 
-  async setLoginPassword(input: { staff_id: number; login_password: string }): Promise<{ created: boolean }> {
-    const staff = await this.findCrmStaff(input.staff_id);
-    if (!staff) {
-      throw new NotFoundException({ error: 'staff_not_found' });
-    }
-    const email = staff.staff_email.trim().toLowerCase();
-    if (!email || !email.includes('@')) {
-      throw new BadRequestException({ error: 'staff_email_required' });
-    }
-    const hash = hashPortalPassword(input.login_password);
-    const existing = await this.db.query(
-      `SELECT id::text FROM staff_users WHERE lower(trim(email)) = $1 LIMIT 1`,
-      [email],
+  async findByUsername(username: string): Promise<CsdChatAccountRow | null> {
+    const name = username.trim().toLowerCase();
+    if (!name) return null;
+    const res = await this.db.query(
+      `SELECT * FROM csd_chat_accounts WHERE tenant_id = $1 AND lower(btrim(username)) = $2 LIMIT 1`,
+      [CSD_TENANT_ID, name],
     );
-    if (existing.rows[0]) {
-      await this.db.query(
-        `UPDATE staff_users SET password_hash = $2, updated_at = NOW() WHERE id = $1::uuid`,
-        [existing.rows[0].id, hash],
-      );
-      return { created: false };
-    }
-    if (!staff.position_id || staff.position_id <= 0) {
-      throw new BadRequestException({ error: 'staff_position_required' });
-    }
-    await this.db.query(
-      `INSERT INTO staff_users (email, password_hash, display_name, position_id, active, account_kind, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, TRUE, 'staff', NOW(), NOW())`,
-      [email, hash, staff.staff_name || email, staff.position_id],
-    );
-    return { created: true };
+    const row = res.rows[0] as Record<string, unknown> | undefined;
+    return row ? mapAccount(row) : null;
   }
 
   async findByStaffId(staffId: number): Promise<CsdChatAccountRow | null> {
@@ -145,15 +125,21 @@ export class CsdChatAccountsRepository implements OnModuleDestroy {
     staff_id: number;
     enabled: boolean;
     display_name_vi?: string | null;
+    username?: string | null;
+    chat_password?: string | null;
     created_by_staff_id: number;
   }): Promise<CsdChatAccountRow> {
+    const username = input.username?.trim() || null;
+    const passwordHash = input.chat_password?.trim() ? hashPortalPassword(input.chat_password.trim()) : null;
     const res = await this.db.query(
       `INSERT INTO csd_chat_accounts (
-         staff_id, tenant_id, enabled, display_name_vi, created_by_staff_id
-       ) VALUES ($1, $2, $3, $4, $5)
+         staff_id, tenant_id, enabled, display_name_vi, username, password_hash, created_by_staff_id
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (staff_id) DO UPDATE SET
          enabled = EXCLUDED.enabled,
          display_name_vi = COALESCE(EXCLUDED.display_name_vi, csd_chat_accounts.display_name_vi),
+         username = COALESCE(EXCLUDED.username, csd_chat_accounts.username),
+         password_hash = COALESCE(EXCLUDED.password_hash, csd_chat_accounts.password_hash),
          updated_at = NOW()
        RETURNING *`,
       [
@@ -161,6 +147,8 @@ export class CsdChatAccountsRepository implements OnModuleDestroy {
         CSD_TENANT_ID,
         input.enabled,
         input.display_name_vi?.trim() || null,
+        username,
+        passwordHash,
         input.created_by_staff_id,
       ],
     );
@@ -183,11 +171,16 @@ export class CsdChatAccountsRepository implements OnModuleDestroy {
         ORDER BY s.name ASC, a.staff_id ASC`,
       params,
     );
-    return res.rows.map((row) => ({
-      ...mapAccount(row as Record<string, unknown>),
-      staff_name: text((row as Record<string, unknown>).staff_name),
-      staff_email: text((row as Record<string, unknown>).staff_email),
-    }));
+    return res.rows.map((row) => {
+      const mapped = mapAccount(row as Record<string, unknown>);
+      const { password_hash: _hash, ...safe } = mapped;
+      return {
+        ...safe,
+        staff_name: text((row as Record<string, unknown>).staff_name),
+        staff_email: text((row as Record<string, unknown>).staff_email),
+        has_password: Boolean(mapped.password_hash),
+      };
+    });
   }
 
   async searchPeople(excludeStaffId: number, q: string): Promise<CsdChatPersonRow[]> {

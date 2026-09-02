@@ -41,9 +41,9 @@ Chat CSD hiện là **trang full 3 cột** (list / thread / context), tin xếp 
 | Z8 | Context / AI | Full page giữ cột phải. Dock: nút **i** mở sheet ngắn (thành viên + ticket liên kết) + **Mở rộng** | Dock hẹp ~380px không nhét 3 cột |
 | Z9 | CEO ChatBox | **Không** dùng chung thread / mount | CSD D8 |
 | Z10 | Âm thanh | **Tắt.** Badge + chấm unread đủ | Không spam khi poll |
-| Z11 | Identity | Tài khoản chat = `staff_users` + hàng `csd_chat_accounts`. **Không** bảng user chat tách, không mật khẩu thứ hai | Một đăng nhập RNOSAI |
-| Z12 | Provision | **Chỉ Admin tạo/bật.** Không trang đăng ký công khai, không invite link tự join | Yêu cầu user |
-| Z13 | Đăng nhập | Cùng `/login` staff (email + mật khẩu / MFA nếu đã bật). Hết phiên → về `/login`. Dock không hiện khi chưa login | Tái dùng session `ptt_ops_access_token` |
+| Z11 | Identity | CRM = `/login` staff. Chat = `username` + `password_hash` trên `csd_chat_accounts` (chỉ mở hộp thoại) | Hai cổng: CRM vs Chat |
+| Z12 | Provision | **Chỉ Admin tạo/bật** username + mật khẩu chat. Không trang đăng ký công khai | Yêu cầu user |
+| Z13 | Đăng nhập | CRM: `/login`. Mở dock/trang Chat: form tên + mật khẩu chat. Hết phiên CRM → `/login` | sessionStorage `csd.chat.login.v1` |
 | Z14 | Kết bạn | Bắt buộc trước **DM** (`kind=direct`). Group / Client / Project **không** cần bạn | Zalo 1-1; chat việc vẫn mở |
 | Z15 | Khách hàng | Client Chat **không** cấp login cho khách (giữ CSD D4) | Portal khách = phase khác |
 | Z16 | DM cũ | Hội thoại `direct` đã có trước wave bạn **vẫn xem/gửi**; **tạo DM mới** phải là bạn accepted | Không cắt lịch sử C-1 |

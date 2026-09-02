@@ -58,6 +58,14 @@ async function loginAsStaff(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/\//);
 }
 
+async function unlockCsdChat(page: import('@playwright/test').Page) {
+  await expect(page.getByTestId('csd-chat-login')).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId('csd-chat-login-username').fill('demo.am');
+  await page.getByTestId('csd-chat-login-password').fill('ChatPass1');
+  await page.getByTestId('csd-chat-login-submit').click();
+  await expect(page.getByTestId('csd-chat-login')).toHaveCount(0);
+}
+
 async function mockCsdChatApis(page: import('@playwright/test').Page) {
   let conversation = { ...CONVERSATION };
   let conversations: Array<Record<string, unknown>> = [{ ...CONVERSATION }, { ...GROUP_CONVERSATION }];
@@ -269,11 +277,25 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
     await route.continue();
   });
 
+  await page.route('**/api/crm/csd/chat/login**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, staff_id: 3, username: 'demo.am' }),
+    });
+  });
+
   await page.route('**/api/crm/csd/chat/me**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ staff_id: 3, enabled: true, display_name_vi: 'Demo AM' }),
+      body: JSON.stringify({
+        staff_id: 3,
+        enabled: true,
+        display_name_vi: 'Demo AM',
+        username: 'demo.am',
+        has_password: true,
+      }),
     });
   });
 
@@ -390,6 +412,7 @@ test.describe('CSD chat workspace', () => {
     await loginAsStaff(page);
 
     await page.goto('/crm/csd/chat');
+    await unlockCsdChat(page);
     await expect(page.getByRole('heading', { name: /Chat native/i })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('csd-chat-workspace')).toBeVisible();
 
@@ -437,6 +460,7 @@ test.describe('CSD chat workspace', () => {
     await page.goto('/crm/csd');
     await expect(page.getByTestId('csd-chat-launcher')).toBeVisible({ timeout: 15_000 });
     await page.getByTestId('csd-chat-launcher').click();
+    await unlockCsdChat(page);
     await page.getByTestId('csd-chat-dock').getByTestId('csd-chat-list').locator('button').first().click();
     await expect(page.getByTestId('csd-chat-dock').locator('.csd-chat-message.is-mine, .csd-chat-message.is-theirs')).toHaveCount(1);
     await expect(page.getByTestId('csd-chat-dock').getByTestId('csd-chat-date-chip')).toBeVisible();
@@ -456,6 +480,7 @@ test.describe('CSD chat workspace', () => {
     await mockCsdChatApis(page);
     await loginAsStaff(page);
     await page.goto('/crm/csd/chat');
+    await unlockCsdChat(page);
     await expect(page.getByTestId('csd-chat-workspace')).toBeVisible({ timeout: 15_000 });
     await page.getByTestId('csd-chat-list').locator('button').first().click();
     await expect(page.locator('.csd-chat-message.is-theirs, .csd-chat-message.is-mine')).toHaveCount(1);
@@ -466,6 +491,7 @@ test.describe('CSD chat workspace', () => {
     await loginAsStaff(page);
 
     await page.goto('/crm/csd/chat');
+    await unlockCsdChat(page);
     await expect(page.getByTestId('csd-chat-workspace')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('csd-chat-list')).toContainText('Demo Client Chat');
     await expect(page.getByTestId('csd-chat-list')).toContainText('Nhóm AM');
@@ -489,6 +515,7 @@ test.describe('CSD chat workspace', () => {
     await loginAsStaff(page);
 
     await page.goto('/crm/csd/chat');
+    await unlockCsdChat(page);
     await expect(page.getByTestId('csd-chat-workspace')).toBeVisible({ timeout: 15_000 });
     await page.getByTestId('csd-chat-search').fill('Ads');
     await expect(page.getByTestId('csd-chat-list')).toContainText('Demo Client Chat');
@@ -505,6 +532,7 @@ test.describe('CSD chat workspace', () => {
     await loginAsStaff(page);
 
     await page.goto('/crm/csd/chat');
+    await unlockCsdChat(page);
     await expect(page.getByTestId('csd-chat-workspace')).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: /Demo Client Chat/ }).click();
 
@@ -531,6 +559,7 @@ test.describe('CSD chat workspace', () => {
     await loginAsStaff(page);
 
     await page.goto(`/crm/csd/chat?c=${CONVERSATION.id}`);
+    await unlockCsdChat(page);
     await expect(page.getByTestId('csd-chat-workspace')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('csd-chat-messages')).toContainText('Khách báo Ads không chạy');
 
@@ -601,6 +630,7 @@ test.describe('CSD chat workspace', () => {
     await loginAsStaff(page);
     await page.goto('/crm/csd');
     await page.getByTestId('csd-chat-launcher').click();
+    await unlockCsdChat(page);
     await page.getByTestId('csd-chat-tab-contacts').click();
     await page.getByTestId('csd-chat-people-q').fill('Bạn');
     await page.getByTestId('csd-chat-friend-request').click();

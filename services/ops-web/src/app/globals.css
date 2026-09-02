@@ -15860,6 +15860,15 @@ body {
   min-width: 16rem;
 }
 
+.csd-chat-login {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.csd-chat-login--dock {
+  padding: 0.85rem 1rem 1rem;
+}
+
 @media (max-width: 960px) {
   .csd-chat-dock {
     inset: 0;

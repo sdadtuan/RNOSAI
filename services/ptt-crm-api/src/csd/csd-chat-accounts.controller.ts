@@ -39,6 +39,12 @@ export class CsdChatAccountsController {
     return this.accounts.getMe(await this.actor(req));
   }
 
+  @Post('chat/login')
+  @RequireCsdAction('view')
+  async login(@Req() req: AuthedReq, @Body() body: { username?: string; password?: string }) {
+    return this.accounts.login(await this.actor(req), body ?? {});
+  }
+
   @Get('admin/chat-accounts')
   @RequireCsdAction('admin')
   async listAdmin(@Req() req: AuthedReq, @Query('q') q?: string) {
@@ -57,7 +63,13 @@ export class CsdChatAccountsController {
   @RequireCsdAction('admin')
   async upsert(
     @Req() req: AuthedReq,
-    @Body() body: { staff_id: number; enabled: boolean; display_name_vi?: string; login_password?: string },
+    @Body() body: {
+      staff_id: number;
+      enabled: boolean;
+      display_name_vi?: string;
+      username?: string;
+      chat_password?: string;
+    },
   ) {
     return this.accounts.upsert(await this.actor(req), body);
   }

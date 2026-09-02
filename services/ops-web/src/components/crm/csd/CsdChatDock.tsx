@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { CsdChatContacts } from '@/components/crm/csd/CsdChatContacts';
 import { CsdChatContext } from '@/components/crm/csd/CsdChatContext';
 import { CsdChatList } from '@/components/crm/csd/CsdChatList';
+import { CsdChatLoginForm } from '@/components/crm/csd/CsdChatLoginForm';
 import { CsdChatNewModal } from '@/components/crm/csd/CsdChatNewModal';
 import { CsdChatTabs } from '@/components/crm/csd/CsdChatTabs';
 import { CsdChatThread } from '@/components/crm/csd/CsdChatThread';
@@ -17,6 +18,7 @@ import {
   fetchCsdChatMe,
   fetchCsdChatUnreadCount,
   formatCsdWhen,
+  loginCsdChat,
   type CsdPriority,
 } from '@/lib/crm/csd-api';
 import {
@@ -25,6 +27,7 @@ import {
   type CsdDockPane,
   type CsdDockTab,
 } from '@/lib/crm/csd-chat-dock-persist';
+import { readCsdChatLogin, writeCsdChatLogin } from '@/lib/crm/csd-chat-login-persist';
 
 export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
   const pathname = usePathname();
@@ -33,6 +36,11 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
   const canWrite = hasCap(user, 'csd', 'write');
   const canView = hasCap(user, 'csd', 'view');
   const [meEnabled, setMeEnabled] = useState<boolean | null>(null);
+  const [meStaffId, setMeStaffId] = useState(0);
+  const [meUsername, setMeUsername] = useState('');
+  const [chatAuthed, setChatAuthed] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [loginBusy, setLoginBusy] = useState(false);
   const hidden = !user || !canView || pathname === '/crm/csd/chat' || !token || meEnabled !== true;
 
   const initial = readCsdDockPersist();
@@ -49,7 +57,7 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
     initialConversationId: initial.conversationId,
     pollMs: 15_000,
     listPollMs: 15_000,
-    enabled: !hidden && open,
+    enabled: !hidden && open && chatAuthed,
   });
 
   const persist = useCallback(
@@ -73,7 +81,11 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
     let cancelled = false;
     void fetchCsdChatMe(token)
       .then((me) => {
-        if (!cancelled) setMeEnabled(me.enabled === true);
+        if (cancelled) return;
+        setMeEnabled(me.enabled === true);
+        setMeStaffId(me.staff_id);
+        setMeUsername(me.username ?? '');
+        setChatAuthed(Boolean(me.enabled && readCsdChatLogin(me.staff_id)));
       })
       .catch(() => {
         if (!cancelled) setMeEnabled(false);
@@ -135,6 +147,22 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
   const closed = s.active?.status === 'closed';
   const composerLocked = Boolean(closed || archived);
 
+  async function handleChatLogin(input: { username: string; password: string }) {
+    setLoginBusy(true);
+    setLoginError('');
+    try {
+      const out = await loginCsdChat(token, input);
+      writeCsdChatLogin({ staff_id: out.staff_id, username: out.username });
+      setChatAuthed(true);
+    } catch (err) {
+      setLoginError(err instanceof Error && err.message === 'invalid_chat_credentials'
+        ? 'Sai tên đăng nhập hoặc mật khẩu chat'
+        : err instanceof Error ? err.message : 'Không đăng nhập được Chat');
+    } finally {
+      setLoginBusy(false);
+    }
+  }
+
   function minimize() {
     setOpen(false);
     persist({ open: false, pane, conversationId: s.activeId });
@@ -190,7 +218,16 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
             </header>
           ) : null}
           <div className="csd-chat-dock__body">
-            {pane === 'list' ? (
+            {!chatAuthed ? (
+              <CsdChatLoginForm
+                key={meUsername}
+                compact
+                defaultUsername={meUsername}
+                busy={loginBusy}
+                error={loginError}
+                onSubmit={handleChatLogin}
+              />
+            ) : pane === 'list' ? (
               <div className="csd-chat-workspace__list-col">
                 <CsdChatTabs
                   tab={tab}

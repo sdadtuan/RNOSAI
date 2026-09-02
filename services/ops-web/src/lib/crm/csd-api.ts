@@ -432,12 +432,16 @@ export type CsdChatMe = {
   staff_id: number;
   enabled: boolean;
   display_name_vi: string | null;
+  username: string | null;
+  has_password: boolean;
 };
 
 export type CsdChatAccountAdminRow = {
   staff_id: number;
   enabled: boolean;
   display_name_vi: string | null;
+  username?: string | null;
+  has_password?: boolean;
   staff_name: string;
   staff_email: string;
   created_by_staff_id: number;
@@ -445,6 +449,16 @@ export type CsdChatAccountAdminRow = {
 
 export async function fetchCsdChatMe(token: string): Promise<CsdChatMe> {
   return csdFetch(token, '/api/crm/csd/chat/me');
+}
+
+export async function loginCsdChat(
+  token: string,
+  body: { username: string; password: string },
+): Promise<{ ok: true; staff_id: number; username: string }> {
+  return csdFetch(token, '/api/crm/csd/chat/login', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }
 
 export type CsdChatStaffDirectoryRow = {
@@ -471,7 +485,13 @@ export async function fetchCsdChatStaffDirectory(
 
 export async function upsertCsdChatAccount(
   token: string,
-  body: { staff_id: number; enabled: boolean; display_name_vi?: string; login_password?: string },
+  body: {
+    staff_id: number;
+    enabled: boolean;
+    display_name_vi?: string;
+    username?: string;
+    chat_password?: string;
+  },
 ): Promise<CsdChatAccountAdminRow> {
   return csdFetch(token, '/api/crm/csd/admin/chat-accounts', {
     method: 'POST',
