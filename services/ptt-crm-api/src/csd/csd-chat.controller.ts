@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -96,5 +97,48 @@ export class CsdChatController {
   ) {
     const actor = await this.actor(req);
     return this.chat.createTicketFromMessage(actor, id, body);
+  }
+
+  @Get('conversations/:id/members')
+  @RequireCsdAction('view')
+  async listMembers(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.listMembers(actor, id);
+  }
+
+  @Post('conversations/:id/members')
+  @RequireCsdAction('write')
+  async addMember(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { member_staff_id: number; role?: 'owner' | 'member' | 'viewer' },
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.addMember(actor, id, body);
+  }
+
+  @Delete('conversations/:id/members/:staffId')
+  @RequireCsdAction('write')
+  async removeMember(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('staffId') staffId: string,
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.removeMember(actor, id, Number(staffId));
+  }
+
+  @Post('conversations/:id/close')
+  @RequireCsdAction('write')
+  async closeConversation(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.closeConversation(actor, id);
+  }
+
+  @Post('conversations/:id/reopen')
+  @RequireCsdAction('write')
+  async reopenConversation(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.reopenConversation(actor, id);
   }
 }

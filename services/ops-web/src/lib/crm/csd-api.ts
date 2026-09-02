@@ -88,11 +88,21 @@ export interface CsdDashboardPayload {
 
 export interface CsdConversationRow {
   id: string;
-  kind: 'client' | 'internal';
+  kind: 'client' | 'internal' | 'direct' | 'group' | 'project' | 'ticket';
+  status?: 'active' | 'archived' | 'closed' | 'reopened';
   name_vi: string;
   client_account_id?: string | null;
+  owner_staff_id?: number | null;
   last_message_at?: string | null;
   unread_count?: number;
+}
+
+export interface CsdConversationMemberRow {
+  conversation_id: string;
+  member_type: 'staff';
+  member_staff_id: number;
+  role: 'owner' | 'member' | 'viewer';
+  created_at: string;
 }
 
 export interface CsdMessageRow {
@@ -102,7 +112,9 @@ export interface CsdMessageRow {
   visibility: 'client' | 'internal';
   author_staff_id: number | null;
   author_staff_name?: string | null;
+  reply_to_id?: string | null;
   ticket_id?: string | null;
+  ticket_code?: string | null;
   created_at: string;
 }
 
@@ -289,6 +301,54 @@ export async function createCsdTicketFromMessage(
   return csdFetch(token, `/api/crm/csd/messages/${messageId}/create-ticket`, {
     method: 'POST',
     body: JSON.stringify(patch),
+  });
+}
+
+export async function fetchCsdConversationMembers(
+  token: string,
+  conversationId: string,
+): Promise<{ items: CsdConversationMemberRow[] }> {
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/members`);
+}
+
+export async function addCsdConversationMember(
+  token: string,
+  conversationId: string,
+  body: { member_staff_id: number; role?: CsdConversationMemberRow['role'] },
+): Promise<CsdConversationMemberRow> {
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/members`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function removeCsdConversationMember(
+  token: string,
+  conversationId: string,
+  staffId: number,
+): Promise<void> {
+  await csdFetch(token, `/api/crm/csd/conversations/${conversationId}/members/${staffId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function closeCsdConversation(
+  token: string,
+  conversationId: string,
+): Promise<CsdConversationRow> {
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/close`, {
+    method: 'POST',
+    body: '{}',
+  });
+}
+
+export async function reopenCsdConversation(
+  token: string,
+  conversationId: string,
+): Promise<CsdConversationRow> {
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/reopen`, {
+    method: 'POST',
+    body: '{}',
   });
 }
 

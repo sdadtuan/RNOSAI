@@ -22,8 +22,11 @@ Service Desk là kênh ticket **agency** (PTT-2026-xxxxx), tách biệt **Ticket
 
 ## 3. Chat (`/crm/csd/chat`)
 
-- Hội thoại khách (bắt buộc gắn client).
-- **Tạo ticket từ tin nhắn** — trùng nguồn chỉ sinh **một** mã ticket.
+- Hội thoại khách (bắt buộc gắn client) — banner **Bạn đang gửi cho khách hàng**.
+- **Tạo ticket từ tin nhắn** — trùng nguồn chỉ sinh **một** mã ticket; pill mở cùng tab.
+- **Trả lời** tin (Enter gửi, Shift+Enter xuống dòng).
+- Thành viên: thêm staff id / xóa (không xóa chủ hội thoại). Đóng / Mở lại khóa composer.
+- **Tóm tắt AI** trên panel phải (24h / 7d / all) — chỉ nháp, không gửi khách.
 - Poll tin nhắn mỗi 5 giây (MVP, không WebSocket).
 
 ## 4. Email (`/crm/csd/email`)

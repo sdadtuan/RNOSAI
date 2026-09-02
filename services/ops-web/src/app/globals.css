@@ -15240,6 +15240,69 @@ body {
   gap: 0.5rem;
 }
 
+.csd-chat-client-banner {
+  margin: 0 0 0.75rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.4rem;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.88rem;
+}
+
+.csd-chat-quote,
+.csd-chat-reply-bar {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.5rem;
+  border-left: 3px solid var(--accent, #2563eb);
+  background: #f8fafc;
+}
+
+.csd-chat-reply-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.csd-chat-ticket-pill {
+  display: inline-block;
+  margin-top: 0.3rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1e3a8a;
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.csd-chat-closed,
+.csd-chat-member-form,
+.csd-chat-ai-period {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.csd-chat-members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.csd-chat-members li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.csd-chat-ai-output {
+  font-size: 0.88rem;
+}
+
 .csd-email-inbox__head {
   display: flex;
   flex-wrap: wrap;

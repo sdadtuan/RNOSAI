@@ -13,6 +13,10 @@ describe('CsdChatService', () => {
     listMessages: jest.fn(),
     getMessage: jest.fn(),
     linkMessageToTicket: jest.fn(),
+    listMembers: jest.fn(),
+    insertMember: jest.fn(),
+    deleteMember: jest.fn(),
+    updateStatus: jest.fn(),
   };
 
   const tickets = {
@@ -52,7 +56,7 @@ describe('CsdChatService', () => {
   });
 
   it('forces visibility=client for client conversations', async () => {
-    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'client' });
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'client', status: 'active' });
     repo.insertMessage.mockResolvedValue({ id: 'm1', visibility: 'client' });
 
     await svc().sendMessage(actor, 'c1', { body_text: 'Xin chào', visibility: 'internal' });
@@ -90,9 +94,45 @@ describe('CsdChatService', () => {
   });
 
   it('rejects empty message body', async () => {
-    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'group' });
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'group', status: 'active' });
     await expect(svc().sendMessage(actor, 'c1', { body_text: '  ' })).rejects.toBeInstanceOf(
       BadRequestException,
     );
+  });
+
+  it('rejects sendMessage when conversation is closed', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'client', status: 'closed' });
+    await expect(svc().sendMessage(actor, 'c1', { body_text: 'hi' })).rejects.toMatchObject({
+      status: 409,
+    });
+    expect(repo.insertMessage).not.toHaveBeenCalled();
+  });
+
+  it('closes when actor is owner', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', status: 'active', owner_staff_id: 3 });
+    repo.updateStatus.mockResolvedValue({ id: 'c1', status: 'closed' });
+    const out = await svc().closeConversation(actor, 'c1');
+    expect(out.status).toBe('closed');
+    expect(repo.updateStatus).toHaveBeenCalledWith('c1', 'closed', 3);
+  });
+
+  it('denies close when not owner and no manage cap', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', status: 'active', owner_staff_id: 9 });
+    await expect(svc().closeConversation(actor, 'c1')).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('adds staff member and rejects owner remove', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', status: 'active', owner_staff_id: 3 });
+    repo.insertMember.mockResolvedValue({
+      conversation_id: 'c1',
+      member_staff_id: 8,
+      role: 'member',
+    });
+    await svc().addMember(actor, 'c1', { member_staff_id: 8 });
+    expect(repo.insertMember).toHaveBeenCalledWith(
+      expect.objectContaining({ conversation_id: 'c1', member_staff_id: 8, role: 'member' }),
+    );
+    await expect(svc().removeMember(actor, 'c1', 3)).rejects.toMatchObject({ status: 400 });
+    expect(repo.deleteMember).not.toHaveBeenCalled();
   });
 });

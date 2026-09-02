@@ -47,9 +47,19 @@ run_local() {
       sleep 2
       systemctl is-active ptt-crm-api ptt-ops-web
     else
-      echo "WARN  service restart skipped (sudo required)"
-      echo "      Run: sudo systemctl restart ptt-crm-api ptt-ops-web"
-      echo "      Without restart, ops-web may return 500 until restarted."
+      echo "WARN  sudo systemctl restart skipped"
+      if systemctl is-active --quiet ptt-ops-web 2>/dev/null; then
+        pid="$(systemctl show ptt-ops-web -p MainPID --value 2>/dev/null || true)"
+        if [[ -n "$pid" && "$pid" != "0" ]] && kill -HUP "$pid" 2>/dev/null; then
+          sleep 3
+          systemctl is-active ptt-ops-web && echo "OK  ptt-ops-web restarted via HUP (deploy user)"
+        else
+          echo "      Run: sudo systemctl restart ptt-crm-api ptt-ops-web"
+        fi
+      else
+        echo "      Run: sudo systemctl restart ptt-crm-api ptt-ops-web"
+      fi
+      echo "      Without restart, ops-web may serve stale sidebar until restarted."
     fi
   fi
 

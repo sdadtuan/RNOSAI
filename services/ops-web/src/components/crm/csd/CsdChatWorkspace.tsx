@@ -1,16 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { KeyboardEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
+  addCsdConversationMember,
+  closeCsdConversation,
   createCsdConversation,
   createCsdTicketFromMessage,
+  draftCsdChatSummary,
+  fetchCsdConversationMembers,
   fetchCsdConversations,
   fetchCsdMessages,
+  reopenCsdConversation,
+  removeCsdConversationMember,
   sendCsdMessage,
   formatCsdWhen,
   CSD_PRIORITY_LABELS,
   CSD_TICKET_TYPES,
+  type CsdConversationMemberRow,
   type CsdConversationRow,
   type CsdMessageRow,
   type CsdPriority,
@@ -21,11 +28,23 @@ type CsdChatWorkspaceProps = {
   canWrite: boolean;
 };
 
+type AiSummary = {
+  summary: string;
+  decisions: string[];
+  actions: string[];
+  risks: string[];
+};
+
 export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
   const [conversations, setConversations] = useState<CsdConversationRow[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<CsdMessageRow[]>([]);
+  const [members, setMembers] = useState<CsdConversationMemberRow[]>([]);
   const [draft, setDraft] = useState('');
+  const [replyTo, setReplyTo] = useState<CsdMessageRow | null>(null);
+  const [memberStaffId, setMemberStaffId] = useState('');
+  const [aiPeriod, setAiPeriod] = useState<'24h' | '7d' | 'all'>('24h');
+  const [aiSummary, setAiSummary] = useState<AiSummary | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [ticketModal, setTicketModal] = useState<CsdMessageRow | null>(null);
@@ -56,29 +75,59 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
     [token],
   );
 
+  const loadMembers = useCallback(
+    async (conversationId: string) => {
+      try {
+        const out = await fetchCsdConversationMembers(token, conversationId);
+        setMembers(out.items ?? []);
+      } catch {
+        setMembers([]);
+      }
+    },
+    [token],
+  );
+
   useEffect(() => {
     void loadConversations();
   }, [loadConversations]);
 
   useEffect(() => {
     if (!activeId) return;
+    setReplyTo(null);
+    setAiSummary(null);
     void loadMessages(activeId);
+    void loadMembers(activeId);
     const timer = window.setInterval(() => void loadMessages(activeId), 5000);
     return () => window.clearInterval(timer);
-  }, [activeId, loadMessages]);
+  }, [activeId, loadMessages, loadMembers]);
 
-  async function handleSend(e: React.FormEvent) {
-    e.preventDefault();
+  function patchConversation(next: CsdConversationRow) {
+    setConversations((prev) => prev.map((c) => (c.id === next.id ? { ...c, ...next } : c)));
+  }
+
+  async function handleSend(e?: React.FormEvent) {
+    e?.preventDefault();
     if (!activeId || !draft.trim() || !canWrite) return;
     setBusy(true);
     try {
-      await sendCsdMessage(token, activeId, { body_text: draft.trim() });
+      await sendCsdMessage(token, activeId, {
+        body_text: draft.trim(),
+        reply_to_id: replyTo?.id,
+      });
       setDraft('');
+      setReplyTo(null);
       await loadMessages(activeId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gửi tin nhắn thất bại');
     } finally {
       setBusy(false);
+    }
+  }
+
+  function onDraftKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void handleSend();
     }
   }
 
@@ -109,7 +158,11 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
       setTicketModal(null);
       setTicketForm({ title: '', ticket_type: 'request', priority: 'P3' });
       if (activeId) await loadMessages(activeId);
-      window.open(`/crm/csd/tickets/${ticket.id}`, '_blank', 'noopener');
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === ticketModal.id ? { ...m, ticket_id: ticket.id, ticket_code: ticket.code } : m,
+        ),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tạo ticket thất bại');
     } finally {
@@ -117,7 +170,78 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
     }
   }
 
+  async function handleAddMember(e: React.FormEvent) {
+    e.preventDefault();
+    if (!activeId) return;
+    const staffId = Number(memberStaffId);
+    if (!Number.isInteger(staffId) || staffId <= 0) return;
+    setBusy(true);
+    try {
+      await addCsdConversationMember(token, activeId, { member_staff_id: staffId });
+      setMemberStaffId('');
+      await loadMembers(activeId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Thêm thành viên thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemoveMember(staffId: number) {
+    if (!activeId) return;
+    setBusy(true);
+    try {
+      await removeCsdConversationMember(token, activeId, staffId);
+      await loadMembers(activeId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Xóa thành viên thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleClose() {
+    if (!activeId) return;
+    setBusy(true);
+    try {
+      const row = await closeCsdConversation(token, activeId);
+      patchConversation(row);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Đóng hội thoại thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReopen() {
+    if (!activeId) return;
+    setBusy(true);
+    try {
+      const row = await reopenCsdConversation(token, activeId);
+      patchConversation(row);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Mở lại hội thoại thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSummarize() {
+    if (!activeId) return;
+    setBusy(true);
+    try {
+      const out = await draftCsdChatSummary(token, activeId, aiPeriod);
+      setAiSummary(out);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tóm tắt AI thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const active = conversations.find((c) => c.id === activeId) ?? null;
+  const closed = active?.status === 'closed';
+  const isClient = active?.kind === 'client';
 
   return (
     <div className="csd-chat-workspace" data-testid="csd-chat-workspace">
@@ -143,7 +267,10 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
                   onClick={() => setActiveId(c.id)}
                 >
                   <strong>{c.name_vi}</strong>
-                  <span className="muted">{formatCsdWhen(c.last_message_at)}</span>
+                  <span className="muted">
+                    {c.status === 'closed' ? 'Đã đóng · ' : ''}
+                    {formatCsdWhen(c.last_message_at)}
+                  </span>
                 </button>
               </li>
             ))
@@ -157,42 +284,79 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
         ) : (
           <>
             <h3 className="kpi-section-title">{active.name_vi}</h3>
+            {isClient ? (
+              <p className="csd-chat-client-banner" data-testid="csd-chat-client-banner">
+                Bạn đang gửi cho khách hàng
+              </p>
+            ) : null}
             <ul className="csd-chat-messages" data-testid="csd-chat-messages">
-              {messages.map((m) => (
-                <li key={m.id} className="csd-chat-message">
-                  <div className="csd-chat-message__meta muted">
-                    {m.author_staff_name ?? 'Khách'} · {formatCsdWhen(m.created_at)}
-                  </div>
-                  <p>{m.body_text}</p>
-                  {canWrite ? (
-                    <div className="csd-chat-message__actions">
-                      {m.ticket_id ? (
-                        <Link href={`/crm/csd/tickets/${m.ticket_id}`}>Ticket liên kết</Link>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-secondary"
-                          onClick={() => {
-                            setTicketModal(m);
-                            setTicketForm((f) => ({ ...f, title: m.body_text.slice(0, 120) }));
-                          }}
-                        >
-                          Tạo ticket
-                        </button>
-                      )}
+              {messages.map((m) => {
+                const quoted = m.reply_to_id ? messages.find((q) => q.id === m.reply_to_id) : null;
+                return (
+                  <li key={m.id} className="csd-chat-message">
+                    <div className="csd-chat-message__meta muted">
+                      {m.author_staff_name ?? 'Khách'} · {formatCsdWhen(m.created_at)}
                     </div>
-                  ) : null}
-                </li>
-              ))}
+                    {quoted ? <p className="csd-chat-quote muted">↩ {quoted.body_text.slice(0, 120)}</p> : null}
+                    <p>{m.body_text}</p>
+                    {m.ticket_id ? (
+                      <Link
+                        href={`/crm/csd/tickets/${m.ticket_id}`}
+                        className="csd-chat-ticket-pill"
+                        data-testid="csd-chat-ticket-pill"
+                      >
+                        {m.ticket_code ?? 'Ticket liên kết'}
+                      </Link>
+                    ) : null}
+                    {canWrite && !closed ? (
+                      <div className="csd-chat-message__actions">
+                        <button type="button" className="btn btn-sm btn-secondary" onClick={() => setReplyTo(m)}>
+                          Trả lời
+                        </button>
+                        {!m.ticket_id ? (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            onClick={() => {
+                              setTicketModal(m);
+                              setTicketForm((f) => ({ ...f, title: m.body_text.slice(0, 80) }));
+                            }}
+                          >
+                            Tạo ticket
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
             </ul>
-            {canWrite ? (
+            {closed ? (
+              <div className="csd-chat-closed">
+                <p className="muted">Hội thoại đã đóng. Composer bị khóa.</p>
+                {canWrite ? (
+                  <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void handleReopen()}>
+                    Mở lại
+                  </button>
+                ) : null}
+              </div>
+            ) : canWrite ? (
               <form onSubmit={(e) => void handleSend(e)} className="csd-chat-compose">
+                {replyTo ? (
+                  <div className="csd-chat-reply-bar">
+                    <span>Trả lời: {replyTo.body_text.slice(0, 80)}</span>
+                    <button type="button" className="btn btn-sm btn-secondary" onClick={() => setReplyTo(null)}>
+                      Huỷ
+                    </button>
+                  </div>
+                ) : null}
                 <textarea
                   className="kpi-input"
                   rows={3}
-                  placeholder="Nhập tin nhắn…"
+                  placeholder="Nhập tin nhắn… (Enter gửi, Shift+Enter xuống dòng)"
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={onDraftKeyDown}
                   data-testid="csd-chat-draft"
                 />
                 <button type="submit" className="btn btn-sm" disabled={busy || !draft.trim()}>
@@ -208,9 +372,99 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
         <h3 className="kpi-section-title">Ngữ cảnh</h3>
         {active ? (
           <>
-            <p className="muted">Loại: {active.kind === 'client' ? 'Khách hàng' : 'Nội bộ'}</p>
+            <p className="muted">Loại: {isClient ? 'Khách hàng' : 'Nội bộ'}</p>
             <p className="muted">Tài khoản: {active.client_account_id ?? '—'}</p>
-            <p className="muted">Poll tin nhắn mỗi 5 giây</p>
+            <p className="muted">Trạng thái: {closed ? 'Đã đóng' : active.status ?? 'active'}</p>
+            {canWrite && !closed ? (
+              <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void handleClose()}>
+                Đóng hội thoại
+              </button>
+            ) : null}
+
+            <h4 className="kpi-section-title">Thành viên</h4>
+            <ul className="csd-chat-members" data-testid="csd-chat-members">
+              {members.length === 0 ? (
+                <li className="muted">Chưa có thành viên</li>
+              ) : (
+                members.map((m) => (
+                  <li key={`${m.conversation_id}-${m.member_staff_id}`}>
+                    Staff #{m.member_staff_id} · {m.role === 'owner' ? 'Chủ' : m.role}
+                    {canWrite && m.role !== 'owner' ? (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-secondary"
+                        disabled={busy}
+                        onClick={() => void handleRemoveMember(m.member_staff_id)}
+                      >
+                        Xóa
+                      </button>
+                    ) : null}
+                  </li>
+                ))
+              )}
+            </ul>
+            {canWrite && !closed ? (
+              <form onSubmit={(e) => void handleAddMember(e)} className="csd-chat-member-form">
+                <input
+                  className="kpi-input"
+                  inputMode="numeric"
+                  placeholder="Staff id"
+                  value={memberStaffId}
+                  onChange={(e) => setMemberStaffId(e.target.value)}
+                  data-testid="csd-chat-member-id"
+                />
+                <button type="submit" className="btn btn-sm" disabled={busy || !memberStaffId.trim()}>
+                  Thêm
+                </button>
+              </form>
+            ) : null}
+
+            <h4 className="kpi-section-title">Tóm tắt AI</h4>
+            <div className="csd-chat-ai-period">
+              {(['24h', '7d', 'all'] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className={`btn btn-sm btn-secondary${aiPeriod === p ? ' is-active' : ''}`}
+                  onClick={() => setAiPeriod(p)}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={busy}
+              onClick={() => void handleSummarize()}
+              data-testid="csd-chat-ai-summary"
+            >
+              Tóm tắt AI
+            </button>
+            {aiSummary ? (
+              <div className="csd-chat-ai-output" data-testid="csd-chat-ai-output">
+                <p>
+                  <strong>Tóm tắt</strong>
+                  <br />
+                  {aiSummary.summary}
+                </p>
+                <p>
+                  <strong>Quyết định</strong>
+                  <br />
+                  {aiSummary.decisions.join(' · ') || '—'}
+                </p>
+                <p>
+                  <strong>Action</strong>
+                  <br />
+                  {aiSummary.actions.join(' · ') || '—'}
+                </p>
+                <p>
+                  <strong>Rủi ro</strong>
+                  <br />
+                  {aiSummary.risks.join(' · ') || '—'}
+                </p>
+              </div>
+            ) : null}
           </>
         ) : (
           <p className="muted">Chọn hội thoại để xem ngữ cảnh</p>
@@ -226,6 +480,9 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
             data-testid="csd-create-ticket-modal"
           >
             <h3 className="kpi-section-title">Tạo ticket từ tin nhắn</h3>
+            <p className="muted">
+              {active?.name_vi ?? 'Hội thoại'} · {formatCsdWhen(ticketModal.created_at)}
+            </p>
             <input
               className="kpi-input"
               required

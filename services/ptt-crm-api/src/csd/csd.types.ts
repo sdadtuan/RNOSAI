@@ -181,6 +181,16 @@ export type CsdConversationKind =
   | 'announcement'
   | 'ai_assist';
 
+export type CsdConversationStatus = 'active' | 'archived' | 'closed' | 'reopened';
+
+export type CsdConversationMemberRow = {
+  conversation_id: string;
+  member_type: 'staff';
+  member_staff_id: number;
+  role: 'owner' | 'member' | 'viewer';
+  created_at: string;
+};
+
 export type CsdConversationRow = {
   id: string;
   tenant_id: string;

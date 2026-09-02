@@ -4,7 +4,9 @@ import { AppConfigService } from '../config/app-config.service';
 import {
   CSD_TENANT_ID,
   CsdConversationKind,
+  CsdConversationMemberRow,
   CsdConversationRow,
+  CsdConversationStatus,
   CsdMessageRow,
 } from './csd.types';
 
@@ -36,6 +38,16 @@ function mapConversation(row: Record<string, unknown>): CsdConversationRow {
     last_message_at: row.last_message_at ? text(row.last_message_at) : null,
     created_at: text(row.created_at),
     created_by_staff_id: num(row.created_by_staff_id),
+  };
+}
+
+function mapMember(row: Record<string, unknown>): CsdConversationMemberRow {
+  return {
+    conversation_id: text(row.conversation_id),
+    member_type: 'staff',
+    member_staff_id: num(row.member_staff_id) ?? 0,
+    role: text(row.role) as CsdConversationMemberRow['role'],
+    created_at: text(row.created_at),
   };
 }
 
@@ -80,23 +92,39 @@ export class CsdChatRepository implements OnModuleDestroy {
     project_ref_id?: string | null;
     created_by_staff_id: number;
   }): Promise<CsdConversationRow> {
-    const res = await this.db.query(
-      `INSERT INTO csd_conversations (
-         tenant_id, kind, name_vi, client_account_id,
-         project_ref_kind, project_ref_id, owner_staff_id, created_by_staff_id, updated_by_staff_id
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $7)
-       RETURNING *`,
-      [
-        CSD_TENANT_ID,
-        input.kind,
-        input.name_vi,
-        input.client_account_id ?? null,
-        input.project_ref_kind ?? null,
-        input.project_ref_id ?? null,
-        input.created_by_staff_id,
-      ],
-    );
-    return mapConversation(res.rows[0]);
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const res = await client.query(
+        `INSERT INTO csd_conversations (
+           tenant_id, kind, name_vi, client_account_id,
+           project_ref_kind, project_ref_id, owner_staff_id, created_by_staff_id, updated_by_staff_id
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $7)
+         RETURNING *`,
+        [
+          CSD_TENANT_ID,
+          input.kind,
+          input.name_vi,
+          input.client_account_id ?? null,
+          input.project_ref_kind ?? null,
+          input.project_ref_id ?? null,
+          input.created_by_staff_id,
+        ],
+      );
+      await client.query(
+        `INSERT INTO csd_conversation_members (
+           conversation_id, member_type, member_staff_id, role
+         ) VALUES ($1, 'staff', $2, 'owner')`,
+        [res.rows[0].id, input.created_by_staff_id],
+      );
+      await client.query('COMMIT');
+      return mapConversation(res.rows[0]);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async listConversations(query: {
@@ -206,6 +234,62 @@ export class CsdChatRepository implements OnModuleDestroy {
       [CSD_TENANT_ID, id],
     );
     return res.rows[0] ? mapMessage(res.rows[0]) : null;
+  }
+
+  async listMembers(conversationId: string): Promise<CsdConversationMemberRow[]> {
+    const res = await this.db.query(
+      `SELECT * FROM csd_conversation_members
+       WHERE conversation_id = $1 AND member_type = 'staff' AND member_staff_id IS NOT NULL
+       ORDER BY created_at ASC`,
+      [conversationId],
+    );
+    return res.rows.map(mapMember);
+  }
+
+  async insertMember(input: {
+    conversation_id: string;
+    member_staff_id: number;
+    role: CsdConversationMemberRow['role'];
+  }): Promise<CsdConversationMemberRow> {
+    const existing = await this.db.query(
+      `SELECT * FROM csd_conversation_members
+       WHERE conversation_id = $1 AND member_staff_id = $2`,
+      [input.conversation_id, input.member_staff_id],
+    );
+    if (existing.rows[0]) return mapMember(existing.rows[0]);
+    const res = await this.db.query(
+      `INSERT INTO csd_conversation_members (
+         conversation_id, member_type, member_staff_id, role
+       ) VALUES ($1, 'staff', $2, $3)
+       RETURNING *`,
+      [input.conversation_id, input.member_staff_id, input.role],
+    );
+    return mapMember(res.rows[0]);
+  }
+
+  async deleteMember(conversationId: string, memberStaffId: number): Promise<boolean> {
+    const res = await this.db.query(
+      `DELETE FROM csd_conversation_members
+       WHERE conversation_id = $1 AND member_staff_id = $2 AND role <> 'owner'`,
+      [conversationId, memberStaffId],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  async updateStatus(
+    conversationId: string,
+    status: CsdConversationStatus,
+    actorStaffId: number,
+  ): Promise<CsdConversationRow> {
+    const res = await this.db.query(
+      `UPDATE csd_conversations
+       SET status = $3, updated_at = NOW(), updated_by_staff_id = $4
+       WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE
+       RETURNING *`,
+      [CSD_TENANT_ID, conversationId, status, actorStaffId],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+    return mapConversation(res.rows[0]);
   }
 
   async linkMessageToTicket(messageId: string, ticketId: string): Promise<CsdMessageRow> {

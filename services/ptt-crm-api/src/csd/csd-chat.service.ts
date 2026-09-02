@@ -1,15 +1,31 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CsdChatRepository } from './csd-chat.repository';
 import { CsdTicketsService } from './csd-tickets.service';
 import {
   CreateCsdConversationInput,
   CreateCsdTicketInput,
   CsdActor,
+  CsdConversationMemberRow,
   CsdConversationRow,
   CsdMessageRow,
   CsdTicketRow,
   SendCsdMessageInput,
 } from './csd.types';
+
+function hasCsdCap(actor: CsdActor, action: string): boolean {
+  return actor.caps.some((c) => c.section === 'csd' && c.action === action);
+}
+
+function canManageConversation(actor: CsdActor, ownerStaffId: number | null): boolean {
+  if (ownerStaffId != null && ownerStaffId === actor.staffId) return true;
+  return hasCsdCap(actor, 'manage') || hasCsdCap(actor, 'admin');
+}
 
 @Injectable()
 export class CsdChatService {
@@ -28,6 +44,9 @@ export class CsdChatService {
     }
     if (input.kind === 'client' && !input.client_account_id) {
       throw new BadRequestException({ error: 'client_account_id_required' });
+    }
+    if (input.kind === 'project' && (!input.project_ref_kind || !input.project_ref_id)) {
+      throw new BadRequestException({ error: 'project_ref_required' });
     }
 
     return this.repo.insertConversation({
@@ -55,6 +74,9 @@ export class CsdChatService {
   ): Promise<CsdMessageRow> {
     const conv = await this.repo.getConversation(conversationId);
     if (!conv) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+    if (conv.status === 'closed') {
+      throw new ConflictException({ error: 'conversation_closed' });
+    }
 
     const body = String(input.body_text ?? '').trim();
     if (!body) throw new BadRequestException({ error: 'body_required' });
@@ -111,5 +133,81 @@ export class CsdChatService {
 
     await this.repo.linkMessageToTicket(messageId, ticket.id);
     return ticket;
+  }
+
+  async listMembers(
+    _actor: CsdActor,
+    conversationId: string,
+  ): Promise<{ items: CsdConversationMemberRow[] }> {
+    const conv = await this.repo.getConversation(conversationId);
+    if (!conv) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+    return { items: await this.repo.listMembers(conversationId) };
+  }
+
+  async addMember(
+    actor: CsdActor,
+    conversationId: string,
+    input: { member_staff_id: number; role?: CsdConversationMemberRow['role'] },
+  ): Promise<CsdConversationMemberRow> {
+    const conv = await this.requireWritableConversation(conversationId);
+    if (!canManageConversation(actor, conv.owner_staff_id)) {
+      throw new ForbiddenException({ error: 'csd_member_forbidden' });
+    }
+    const staffId = Number(input.member_staff_id);
+    if (!Number.isInteger(staffId) || staffId <= 0) {
+      throw new BadRequestException({ error: 'member_staff_id_required' });
+    }
+    return this.repo.insertMember({
+      conversation_id: conversationId,
+      member_staff_id: staffId,
+      role: input.role === 'viewer' ? 'viewer' : 'member',
+    });
+  }
+
+  async removeMember(
+    actor: CsdActor,
+    conversationId: string,
+    memberStaffId: number,
+  ): Promise<{ removed: true }> {
+    const conv = await this.requireWritableConversation(conversationId);
+    if (!canManageConversation(actor, conv.owner_staff_id)) {
+      throw new ForbiddenException({ error: 'csd_member_forbidden' });
+    }
+    if (conv.owner_staff_id === memberStaffId) {
+      throw new BadRequestException({ error: 'cannot_remove_owner' });
+    }
+    const removed = await this.repo.deleteMember(conversationId, memberStaffId);
+    if (!removed) throw new NotFoundException({ error: 'csd_member_not_found' });
+    return { removed: true };
+  }
+
+  async closeConversation(actor: CsdActor, conversationId: string): Promise<CsdConversationRow> {
+    const conv = await this.requireConversation(conversationId);
+    if (!canManageConversation(actor, conv.owner_staff_id)) {
+      throw new ForbiddenException({ error: 'csd_close_forbidden' });
+    }
+    return this.repo.updateStatus(conversationId, 'closed', actor.staffId);
+  }
+
+  async reopenConversation(actor: CsdActor, conversationId: string): Promise<CsdConversationRow> {
+    const conv = await this.requireConversation(conversationId);
+    if (!canManageConversation(actor, conv.owner_staff_id)) {
+      throw new ForbiddenException({ error: 'csd_reopen_forbidden' });
+    }
+    return this.repo.updateStatus(conversationId, 'reopened', actor.staffId);
+  }
+
+  private async requireConversation(conversationId: string): Promise<CsdConversationRow> {
+    const conv = await this.repo.getConversation(conversationId);
+    if (!conv) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+    return conv;
+  }
+
+  private async requireWritableConversation(conversationId: string): Promise<CsdConversationRow> {
+    const conv = await this.requireConversation(conversationId);
+    if (conv.status === 'closed') {
+      throw new ConflictException({ error: 'conversation_closed' });
+    }
+    return conv;
   }
 }
