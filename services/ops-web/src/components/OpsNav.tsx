@@ -20,6 +20,7 @@ import { canViewEmailGateA } from '@/lib/email/caps';
 import { canViewMetaAdsOps, canViewMetaIntelligence, canViewMetaTracking } from '@/lib/meta/caps';
 import { ceoCommandEnabled } from '@/lib/crm/ceo-command-flags';
 import { canSeeCsdNav } from '@/lib/crm/csd-nav.util';
+import { canSeeIwrNav } from '@/lib/crm/iwr-nav.util';
 import { fetchCsdChatUnreadCount } from '@/lib/crm/csd-api';
 import { canSeeCeoNav } from '@/lib/crm/ceo-command-thread.util';
 import {
@@ -116,6 +117,10 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/csd/email': 'Email SD',
   '/crm/csd/reports': 'Báo cáo SD',
   '/crm/csd/reports/templates': 'Mẫu báo cáo',
+  '/crm/internal-reports': 'BC công việc',
+  '/crm/internal-reports/inbox': 'Hộp thư BC',
+  '/crm/internal-reports/team': 'Cây kỳ',
+  '/crm/internal-reports/templates': 'Mẫu BC nội bộ',
   '/crm/leads': 'Quản lý Lead',
   '/crm/operational/leads': 'Lead CSKH vận hành',
   '/crm/b2b/leads': 'Lead B2B Sales',
@@ -510,6 +515,17 @@ function buildSections(
     hr.push({ href: '/crm/payroll', label: 'Chấm công & lương' });
   }
   if (hr.length) sections.push({ label: 'Nhân sự & Hiệu suất', links: hr });
+
+  const toChuc: NavLink[] = [];
+  if (canSeeIwrNav(user)) {
+    toChuc.push({ href: '/crm/internal-reports', label: 'BC công việc' });
+    toChuc.push({ href: '/crm/internal-reports/inbox', label: 'Hộp thư BC' });
+    toChuc.push({ href: '/crm/internal-reports/team', label: 'Cây kỳ' });
+    if (hasCap(user, 'iwr', 'manage')) {
+      toChuc.push({ href: '/crm/internal-reports/templates', label: 'Mẫu BC nội bộ' });
+    }
+  }
+  if (toChuc.length) sections.push({ label: 'Tổ chức', links: toChuc, defaultOpen: true });
 
   const finance: NavLink[] = [];
   if (ceoCommandEnabled() && canSeeCeoNav(user)) {

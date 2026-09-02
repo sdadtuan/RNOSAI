@@ -82,6 +82,8 @@ import { StaffCsdGuard } from './guards/staff-csd.guard';
     CsdReportsService,
     CsdAiService,
     CsdDashboardService,
+    CsdNotificationsRepository,
+    CsdAuditRepository,
   ],
 })
 export class CsdModule {}

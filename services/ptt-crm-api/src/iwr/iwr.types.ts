@@ -1,0 +1,193 @@
+export const IWR_TENANT_ID = 'PTT';
+export const IWR_TZ = 'Asia/Ho_Chi_Minh';
+export const IWR_DAILY_DUE_HOUR = 17;
+
+export const IWR_STATUSES = [
+  'draft',
+  'submitted',
+  'changes_requested',
+  'supplemented',
+  'acknowledged',
+  'waived',
+  'archived',
+] as const;
+export type IwrReportStatus = (typeof IWR_STATUSES)[number];
+
+export const IWR_TEMPLATE_CODES = ['daily_work', 'weekly_work', 'monthly_work'] as const;
+export type IwrTemplateCode = (typeof IWR_TEMPLATE_CODES)[number];
+
+export type IwrRecipientKind = 'to' | 'cc' | 'bcc';
+export type IwrInboxBox = 'action' | 'unread' | 'inbox' | 'sent' | 'draft';
+export type IwrRag = 'green' | 'yellow' | 'red' | 'gray' | null;
+
+export type IwrCapAction =
+  | 'view'
+  | 'write'
+  | 'review'
+  | 'lists'
+  | 'schedule'
+  | 'export'
+  | 'manage'
+  | 'executive'
+  | 'bcc'
+  | 'external';
+
+export type IwrActor = {
+  staffId: number;
+  staffLabel: string;
+  departmentId: number | null;
+  caps: { section: string; action: string }[];
+};
+
+export type IwrPeriod = {
+  period_start: string;
+  period_end: string;
+  due_at: string;
+};
+
+export type IwrStaffNode = {
+  id: number;
+  name: string;
+  email: string | null;
+  department_id: number | null;
+  reports_to_id: number | null;
+  active: boolean;
+};
+
+export const IWR_DAILY_SECTIONS = [
+  'general',
+  'done',
+  'wip',
+  'next',
+  'blocked',
+  'approvals',
+  'notes',
+] as const;
+
+export const IWR_WEEKLY_SECTIONS = [
+  'rag',
+  'priorities',
+  'highlights',
+  'kpi',
+  'deliverables',
+  'wip',
+  'blocked',
+  'plan_vs_actual',
+  'next_week',
+  'decisions',
+] as const;
+
+export const IWR_MONTHLY_SECTIONS = [
+  ...IWR_WEEKLY_SECTIONS,
+  'month_highlights',
+  'people',
+] as const;
+
+export type IwrSectionValue = { body: string; items: unknown[] };
+
+export type IwrTemplateRow = {
+  id: string;
+  code: IwrTemplateCode | string;
+  name_vi: string;
+  kind: string;
+  sections_json: string[];
+  due_rule_json: Record<string, unknown>;
+  active: boolean;
+};
+
+export type IwrRecipientRow = {
+  id: string;
+  report_id: string;
+  staff_id: number;
+  kind: IwrRecipientKind;
+  staff_name?: string;
+};
+
+export type IwrCommentRow = {
+  id: string;
+  report_id: string;
+  section_key: string;
+  body_text: string;
+  created_by_staff_id: number;
+  created_at: string;
+};
+
+export type IwrReportRow = {
+  id: string;
+  template_id: string;
+  template_code: string;
+  template_name_vi: string;
+  title: string;
+  author_staff_id: number;
+  author_name?: string;
+  reviewer_staff_id: number | null;
+  period_start: string;
+  period_end: string;
+  due_at: string;
+  status: IwrReportStatus;
+  version: string;
+  rag: IwrRag;
+  is_late: boolean;
+  late_reason: string | null;
+  first_viewed_at: string | null;
+  submitted_at: string | null;
+  acknowledged_at: string | null;
+  acknowledged_by_staff_id?: number | null;
+  waived_at?: string | null;
+  waived_by_staff_id?: number | null;
+  waive_reason?: string | null;
+  sections_json: Record<string, unknown>;
+  source_report_ids?: string[];
+};
+
+export type IwrReportDetail = IwrReportRow & {
+  recipients: IwrRecipientRow[];
+  comments: IwrCommentRow[];
+  versions: { version: string; status: string; created_at: string }[];
+  viewer_is_author?: boolean;
+  viewer_is_reviewer?: boolean;
+};
+
+export type IwrTeamNode = IwrStaffNode & {
+  report: IwrReportRow | null;
+  derived: 'missing' | 'draft' | 'submitted' | 'late' | 'waived' | 'acked';
+};
+
+export type CreateIwrReportInput = {
+  template_code: IwrTemplateCode;
+  period_start?: string;
+  period_end?: string;
+};
+
+export type PatchIwrReportInput = {
+  title?: string;
+  sections_json?: Record<string, unknown>;
+  rag?: IwrRag;
+  cc_staff_ids?: number[];
+  source_report_ids?: string[];
+};
+
+export type SubmitIwrReportInput = {
+  late_reason?: string;
+  cc_staff_ids?: number[];
+};
+
+export type RequestIwrChangesInput = {
+  body_text: string;
+  section_key?: string;
+};
+
+export type WaiveIwrReportInput = {
+  reason: string;
+};
+
+export type AddIwrCommentInput = {
+  body_text: string;
+  section_key?: string;
+};
+
+export type UpdateIwrTemplateInput = {
+  name_vi?: string;
+  sections_json?: string[];
+  due_rule_json?: Record<string, unknown>;
+};
