@@ -46,11 +46,18 @@ export class CsdChatAccountsController {
     return this.accounts.listAdmin(q);
   }
 
+  @Get('admin/chat-accounts/directory')
+  @RequireCsdAction('admin')
+  async directory(@Req() req: AuthedReq) {
+    await this.actor(req);
+    return this.accounts.listDirectory();
+  }
+
   @Post('admin/chat-accounts')
   @RequireCsdAction('admin')
   async upsert(
     @Req() req: AuthedReq,
-    @Body() body: { staff_id: number; enabled: boolean; display_name_vi?: string },
+    @Body() body: { staff_id: number; enabled: boolean; display_name_vi?: string; login_password?: string },
   ) {
     return this.accounts.upsert(await this.actor(req), body);
   }

@@ -419,6 +419,14 @@ export type CsdChatAccountAdminRow = CsdChatAccountRow & {
   staff_email: string;
 };
 
+export type CsdChatStaffDirectoryRow = {
+  staff_id: number;
+  staff_name: string;
+  staff_email: string;
+  position_id: number | null;
+  has_login: boolean;
+};
+
 export type CsdChatMe = {
   staff_id: number;
   enabled: boolean;

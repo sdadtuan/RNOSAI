@@ -15855,6 +15855,11 @@ body {
   align-items: center;
 }
 
+.csd-chat-account-form .kpi-input,
+.csd-chat-account-form select.kpi-input {
+  min-width: 16rem;
+}
+
 @media (max-width: 960px) {
   .csd-chat-dock {
     inset: 0;

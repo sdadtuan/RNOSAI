@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CsdAuditRepository } from './csd-audit.repository';
 import { CsdChatAccountsRepository } from './csd-chat-accounts.repository';
 import type {
@@ -7,6 +7,7 @@ import type {
   CsdChatAccountRow,
   CsdChatMe,
   CsdChatPersonRow,
+  CsdChatStaffDirectoryRow,
 } from './csd.types';
 
 function hasCsdCap(actor: CsdActor, action: string): boolean {
@@ -53,9 +54,14 @@ export class CsdChatAccountsService {
     return { items };
   }
 
+  async listDirectory(): Promise<{ items: CsdChatStaffDirectoryRow[] }> {
+    const items = await this.repo.listDirectory();
+    return { items };
+  }
+
   async upsert(
     admin: CsdActor,
-    input: { staff_id: number; enabled: boolean; display_name_vi?: string },
+    input: { staff_id: number; enabled: boolean; display_name_vi?: string; login_password?: string },
   ): Promise<CsdChatAccountRow> {
     if (!hasCsdCap(admin, 'admin')) {
       throw new ForbiddenException({ error: 'missing_cap', section: 'csd', action: 'admin' });
@@ -63,6 +69,17 @@ export class CsdChatAccountsService {
     const staffId = Number(input.staff_id);
     if (!Number.isInteger(staffId) || staffId <= 0) {
       throw new BadRequestException({ error: 'staff_id_required' });
+    }
+    const staff = await this.repo.findCrmStaff(staffId);
+    if (!staff) {
+      throw new NotFoundException({ error: 'staff_not_found' });
+    }
+    const password = input.login_password?.trim();
+    if (password !== undefined && password !== '') {
+      if (password.length < 6) {
+        throw new BadRequestException({ error: 'password_too_short' });
+      }
+      await this.repo.setLoginPassword({ staff_id: staffId, login_password: password });
     }
     const enabled = Boolean(input.enabled);
     const row = await this.repo.upsert({
@@ -76,7 +93,12 @@ export class CsdChatAccountsService {
       action: enabled ? 'chat_account.enable' : 'chat_account.disable',
       entity_type: 'csd_chat_account',
       entity_id: String(staffId),
-      after_json: { staff_id: staffId, enabled, created_by_staff_id: admin.staffId },
+      after_json: {
+        staff_id: staffId,
+        enabled,
+        created_by_staff_id: admin.staffId,
+        login_password_set: Boolean(password),
+      },
     });
     return row;
   }

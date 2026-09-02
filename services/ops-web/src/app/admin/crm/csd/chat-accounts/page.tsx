@@ -1,29 +1,60 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminPageShell } from '@/components/admin';
 import { useAdminCrmAuth } from '@/lib/admin/use-admin-crm-auth';
 import { hasCap } from '@/lib/auth';
 import {
   fetchCsdChatAccountsAdmin,
+  fetchCsdChatStaffDirectory,
   upsertCsdChatAccount,
   type CsdChatAccountAdminRow,
+  type CsdChatStaffDirectoryRow,
 } from '@/lib/crm/csd-api';
+
+function loginErrorMessage(err: unknown): string {
+  const code = err instanceof Error ? err.message : '';
+  if (code === 'staff_not_found') return 'Không tìm thấy nhân viên trong hệ thống';
+  if (code === 'password_too_short') return 'Mật khẩu đăng nhập /login tối thiểu 6 ký tự';
+  if (code === 'staff_email_required') return 'NV chưa có email — bổ sung email trước khi tạo /login';
+  if (code === 'staff_position_required') return 'NV chưa có chức vụ — gán chức vụ trước khi tạo tài khoản /login';
+  return err instanceof Error ? err.message : 'Thao tác thất bại';
+}
+
+function generateLoginPassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let out = '';
+  for (let i = 0; i < 12; i += 1) {
+    out += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return out;
+}
 
 export default function AdminCsdChatAccountsPage() {
   const { user, token, error, loading, logout } = useAdminCrmAuth((u) => hasCap(u, 'csd', 'admin'));
   const [rows, setRows] = useState<CsdChatAccountAdminRow[]>([]);
+  const [directory, setDirectory] = useState<CsdChatStaffDirectoryRow[]>([]);
   const [q, setQ] = useState('');
   const [staffId, setStaffId] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [loginPassword, setLoginPassword] = useState(() => generateLoginPassword());
   const [msg, setMsg] = useState('');
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const selected = useMemo(
+    () => directory.find((row) => String(row.staff_id) === staffId) ?? null,
+    [directory, staffId],
+  );
+
   const reload = useCallback(
     async (access: string, query?: string) => {
-      const out = await fetchCsdChatAccountsAdmin(access, query);
-      setRows(out.items ?? []);
+      const [accounts, people] = await Promise.all([
+        fetchCsdChatAccountsAdmin(access, query),
+        fetchCsdChatStaffDirectory(access),
+      ]);
+      setRows(accounts.items ?? []);
+      setDirectory(people.items ?? []);
     },
     [],
   );
@@ -43,9 +74,9 @@ export default function AdminCsdChatAccountsPage() {
     try {
       await upsertCsdChatAccount(token, { staff_id: row.staff_id, enabled: !row.enabled });
       await reload(token, q);
-      setMsg(row.enabled ? `Đã tắt staff #${row.staff_id}` : `Đã bật staff #${row.staff_id}`);
+      setMsg(row.enabled ? `Đã tắt ${row.staff_name || `staff #${row.staff_id}`}` : `Đã bật ${row.staff_name || `staff #${row.staff_id}`}`);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Cập nhật thất bại');
+      setFormError(loginErrorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -53,10 +84,13 @@ export default function AdminCsdChatAccountsPage() {
 
   async function enableNew(e: FormEvent) {
     e.preventDefault();
-    if (!token) return;
-    const id = Number(staffId);
-    if (!Number.isInteger(id) || id <= 0) {
-      setFormError('Nhập staff id hợp lệ');
+    if (!token || !selected) {
+      setFormError('Chọn nhân viên trong hệ thống');
+      return;
+    }
+    const password = loginPassword.trim();
+    if (password.length < 6) {
+      setFormError('Mật khẩu đăng nhập /login tối thiểu 6 ký tự');
       return;
     }
     setBusy(true);
@@ -64,16 +98,21 @@ export default function AdminCsdChatAccountsPage() {
     setMsg('');
     try {
       await upsertCsdChatAccount(token, {
-        staff_id: id,
+        staff_id: selected.staff_id,
         enabled: true,
-        display_name_vi: displayName.trim() || undefined,
+        display_name_vi: displayName.trim() || selected.staff_name || undefined,
+        login_password: password,
       });
       setStaffId('');
       setDisplayName('');
+      const next = generateLoginPassword();
+      setLoginPassword(next);
       await reload(token, q);
-      setMsg(`Đã bật tài khoản chat cho staff #${id}`);
+      setMsg(
+        `Đã bật chat cho ${selected.staff_name || selected.staff_email}. Gửi mật khẩu /login cho NV rồi đăng xuất/nhập lại.`,
+      );
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Bật tài khoản thất bại');
+      setFormError(loginErrorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -85,7 +124,7 @@ export default function AdminCsdChatAccountsPage() {
       onLogout={logout}
       section="crm-config"
       title="Tài khoản Chat"
-      subtitle="Chỉ Admin cấp. Nhân viên đăng nhập /login — không tự đăng ký."
+      subtitle="Chọn NV có sẵn. Mật khẩu tạo ở đây là mật khẩu đăng nhập /login — không có mật khẩu chat thứ hai."
       loading={loading}
     >
       {error ? <p className="error">{error}</p> : null}
@@ -93,24 +132,62 @@ export default function AdminCsdChatAccountsPage() {
       {formError ? <p className="error">{formError}</p> : null}
 
       <form className="csd-chat-account-form" onSubmit={(e) => void enableNew(e)}>
-        <input
+        <select
           className="kpi-input"
-          inputMode="numeric"
-          placeholder="Staff id"
           value={staffId}
-          onChange={(e) => setStaffId(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            setStaffId(next);
+            const person = directory.find((row) => String(row.staff_id) === next);
+            if (person && !displayName.trim()) setDisplayName(person.staff_name);
+          }}
           data-testid="csd-chat-account-staff-id"
-        />
+          required
+        >
+          <option value="">Chọn nhân viên…</option>
+          {directory.map((row) => (
+            <option key={row.staff_id} value={row.staff_id}>
+              {row.staff_name || 'Không tên'}
+              {row.staff_email ? ` — ${row.staff_email}` : ''}
+              {row.has_login ? '' : ' (chưa có /login)'}
+            </option>
+          ))}
+        </select>
         <input
           className="kpi-input"
-          placeholder="Tên hiển thị (tuỳ chọn)"
+          placeholder="Tên hiển thị chat (tuỳ chọn)"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
         />
-        <button type="submit" className="btn btn-sm" disabled={busy || !staffId.trim()} data-testid="csd-chat-account-enable">
+        <input
+          className="kpi-input"
+          type="text"
+          autoComplete="new-password"
+          placeholder="Mật khẩu đăng nhập /login"
+          value={loginPassword}
+          onChange={(e) => setLoginPassword(e.target.value)}
+          data-testid="csd-chat-account-password"
+          required
+          minLength={6}
+        />
+        <button
+          type="button"
+          className="btn btn-sm btn-secondary"
+          onClick={() => setLoginPassword(generateLoginPassword())}
+        >
+          Tạo mật khẩu
+        </button>
+        <button type="submit" className="btn btn-sm" disabled={busy || !staffId} data-testid="csd-chat-account-enable">
           Bật
         </button>
       </form>
+      {selected ? (
+        <p className="muted" style={{ marginTop: '0.35rem' }}>
+          {selected.has_login
+            ? `Sẽ đặt lại mật khẩu /login của ${selected.staff_email || selected.staff_name}.`
+            : `Sẽ tạo tài khoản /login cho ${selected.staff_email || selected.staff_name}. NV cần có email và chức vụ.`}
+        </p>
+      ) : null}
 
       <input
         className="kpi-input"

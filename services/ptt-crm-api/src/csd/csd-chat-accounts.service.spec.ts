@@ -16,9 +16,12 @@ describe('CsdChatAccountsService', () => {
 
   const repo = {
     findByStaffId: jest.fn(),
+    findCrmStaff: jest.fn(),
     upsert: jest.fn(),
     listAdmin: jest.fn(),
+    listDirectory: jest.fn(),
     searchPeople: jest.fn(),
+    setLoginPassword: jest.fn(),
   };
 
   const audit = {
@@ -44,12 +47,55 @@ describe('CsdChatAccountsService', () => {
   });
 
   it('admin upsert writes created_by', async () => {
+    repo.findCrmStaff.mockResolvedValue({
+      staff_id: 8,
+      staff_name: 'Lan',
+      staff_email: 'lan@ptt.vn',
+      position_id: 2,
+    });
     repo.upsert.mockResolvedValue({ staff_id: 8, enabled: true, created_by_staff_id: 1 });
     await svc().upsert(admin, { staff_id: 8, enabled: true });
     expect(repo.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ created_by_staff_id: 1, enabled: true }),
     );
     expect(audit.insert).toHaveBeenCalledWith(expect.objectContaining({ action: 'chat_account.enable' }));
+  });
+
+  it('upsert rejects staff not in crm_staff', async () => {
+    repo.findCrmStaff.mockResolvedValue(null);
+    await expect(svc().upsert(admin, { staff_id: 99, enabled: true })).rejects.toMatchObject({
+      status: 404,
+      response: { error: 'staff_not_found' },
+    });
+    expect(repo.upsert).not.toHaveBeenCalled();
+  });
+
+  it('upsert sets /login password for existing staff', async () => {
+    repo.findCrmStaff.mockResolvedValue({
+      staff_id: 8,
+      staff_name: 'Lan',
+      staff_email: 'lan@ptt.vn',
+      position_id: 2,
+    });
+    repo.upsert.mockResolvedValue({ staff_id: 8, enabled: true, created_by_staff_id: 1 });
+    repo.setLoginPassword.mockResolvedValue({ created: false });
+    await svc().upsert(admin, { staff_id: 8, enabled: true, login_password: 'Secret12' });
+    expect(repo.setLoginPassword).toHaveBeenCalledWith(
+      expect.objectContaining({ staff_id: 8, login_password: 'Secret12' }),
+    );
+  });
+
+  it('upsert rejects short login password', async () => {
+    repo.findCrmStaff.mockResolvedValue({
+      staff_id: 8,
+      staff_name: 'Lan',
+      staff_email: 'lan@ptt.vn',
+      position_id: 2,
+    });
+    await expect(
+      svc().upsert(admin, { staff_id: 8, enabled: true, login_password: '123' }),
+    ).rejects.toMatchObject({ status: 400, response: { error: 'password_too_short' } });
+    expect(repo.setLoginPassword).not.toHaveBeenCalled();
   });
 
   it('non-admin cannot upsert', async () => {
