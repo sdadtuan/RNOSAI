@@ -18,6 +18,8 @@ import {
   renderCsdReportPdf,
   renderCsdReportXlsx,
 } from './csd-report-export.util';
+import { CsdChatRepository } from './csd-chat.repository';
+import { CsdChatService } from './csd-chat.service';
 import { CsdEmailService } from './csd-email.service';
 import { CsdNotificationsRepository } from './csd-notifications.repository';
 import { CsdReportsRepository } from './csd-reports.repository';
@@ -79,6 +81,8 @@ export class CsdReportsService {
     private readonly tickets: CsdTicketsRepository,
     private readonly email: CsdEmailService,
     private readonly notify: CsdNotificationsRepository,
+    private readonly chat: CsdChatService,
+    private readonly chatRepo: CsdChatRepository,
   ) {}
 
   async createReport(actor: CsdActor, input: CreateCsdReportInput): Promise<CsdReportRow> {
@@ -330,6 +334,52 @@ export class CsdReportsService {
       const message = err instanceof Error ? err.message : 'send_failed';
       return this.recordFailedSend(actor, report, to, message);
     }
+  }
+
+  async shareToClientChat(
+    actor: CsdActor,
+    id: string,
+    input: { conversation_id: string },
+  ): Promise<{ message_id: string }> {
+    const report = await this.get(actor, id);
+    if (report.status !== 'sent' && report.status !== 'approved') {
+      throw new ConflictException({ error: 'report_not_shareable', status: report.status });
+    }
+
+    const conversationId = String(input.conversation_id ?? '').trim();
+    if (!conversationId) {
+      throw new BadRequestException({ error: 'conversation_id_required' });
+    }
+
+    const conv = await this.chatRepo.getConversation(conversationId);
+    if (!conv) {
+      throw new NotFoundException({ error: 'client_chat_not_found' });
+    }
+    if (conv.kind !== 'client' || conv.client_account_id !== report.client_account_id) {
+      throw new ConflictException({ error: 'chat_client_mismatch' });
+    }
+
+    const body = [
+      `Báo cáo ${report.title} · ${report.current_version}`,
+      `${report.period_start} → ${report.period_end}`,
+      `Tải PDF: /crm/csd/reports/${id}`,
+    ].join('\n');
+
+    const message = await this.chat.sendMessage(actor, conversationId, {
+      body_text: body,
+      visibility: 'client',
+    });
+
+    await this.repo.insertSendLog({
+      report_id: id,
+      version: report.current_version,
+      channel: 'chat',
+      to_json: [conversationId],
+      result: 'sent',
+      created_by_staff_id: actor.staffId,
+    });
+
+    return { message_id: message.id };
   }
 
   async retrySend(actor: CsdActor, id: string): Promise<CsdReportSendLogRow> {

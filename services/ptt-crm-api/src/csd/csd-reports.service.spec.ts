@@ -36,8 +36,23 @@ describe('CsdReportsService', () => {
     insert: jest.fn(),
   };
 
+  const chat = {
+    sendMessage: jest.fn(),
+  };
+
+  const chatRepo = {
+    getConversation: jest.fn(),
+  };
+
   function svc() {
-    return new CsdReportsService(repo as never, tickets as never, email as never, notify as never);
+    return new CsdReportsService(
+      repo as never,
+      tickets as never,
+      email as never,
+      notify as never,
+      chat as never,
+      chatRepo as never,
+    );
   }
 
   beforeEach(() => {
@@ -395,6 +410,96 @@ describe('CsdReportsService', () => {
       }),
     );
     expect(email.send).not.toHaveBeenCalled();
+  });
+
+  it('shareToClientChat returns 409 when conversation client mismatches', async () => {
+    repo.getReport.mockResolvedValue({
+      id: 'r1',
+      status: 'sent',
+      current_version: 'v1.0',
+      title: 'BC tháng',
+      period_start: '2026-08-01',
+      period_end: '2026-08-31',
+      client_account_id: 'acc-1',
+    });
+    chatRepo.getConversation.mockResolvedValue({
+      id: 'c-other',
+      kind: 'client',
+      client_account_id: 'acc-2',
+      status: 'active',
+    });
+
+    await expect(
+      svc().shareToClientChat(actor, 'r1', { conversation_id: 'c-other' }),
+    ).rejects.toMatchObject({
+      status: 409,
+      response: { error: 'chat_client_mismatch' },
+    });
+    expect(chat.sendMessage).not.toHaveBeenCalled();
+    expect(repo.insertSendLog).not.toHaveBeenCalled();
+    expect(repo.updateReportStatus).not.toHaveBeenCalled();
+  });
+
+  it('shareToClientChat posts client-visible message and logs chat without changing sent status', async () => {
+    repo.getReport.mockResolvedValue({
+      id: 'r1',
+      status: 'sent',
+      current_version: 'v1.2',
+      title: 'BC tháng',
+      period_start: '2026-08-01',
+      period_end: '2026-08-31',
+      client_account_id: 'acc-1',
+    });
+    chatRepo.getConversation.mockResolvedValue({
+      id: 'c1',
+      kind: 'client',
+      client_account_id: 'acc-1',
+      status: 'active',
+    });
+    chat.sendMessage.mockResolvedValue({ id: 'm1', visibility: 'client' });
+    repo.insertSendLog.mockResolvedValue({ id: 'log-chat', channel: 'chat', result: 'sent' });
+
+    const out = await svc().shareToClientChat(actor, 'r1', { conversation_id: 'c1' });
+
+    expect(out).toEqual({ message_id: 'm1' });
+    expect(chat.sendMessage).toHaveBeenCalledWith(
+      actor,
+      'c1',
+      expect.objectContaining({
+        visibility: 'client',
+        body_text: 'Báo cáo BC tháng · v1.2\n2026-08-01 → 2026-08-31\nTải PDF: /crm/csd/reports/r1',
+      }),
+    );
+    expect(repo.insertSendLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        report_id: 'r1',
+        version: 'v1.2',
+        channel: 'chat',
+        result: 'sent',
+      }),
+    );
+    expect(repo.updateReportStatus).not.toHaveBeenCalled();
+  });
+
+  it('shareToClientChat returns 404 when conversation is missing', async () => {
+    repo.getReport.mockResolvedValue({
+      id: 'r1',
+      status: 'approved',
+      current_version: 'v1.0',
+      title: 'BC',
+      period_start: '2026-08-01',
+      period_end: '2026-08-31',
+      client_account_id: 'acc-1',
+    });
+    chatRepo.getConversation.mockResolvedValue(null);
+
+    await expect(
+      svc().shareToClientChat(actor, 'r1', { conversation_id: 'missing' }),
+    ).rejects.toMatchObject({
+      status: 404,
+      response: { error: 'client_chat_not_found' },
+    });
+    expect(chat.sendMessage).not.toHaveBeenCalled();
   });
 
   it('writer cannot request changes; manage required', async () => {

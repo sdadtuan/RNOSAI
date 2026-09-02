@@ -47,6 +47,26 @@ const MONTHLY_DRAFT = {
   template_sections: MONTHLY_SECTIONS,
 };
 
+const SENT_REPORT = {
+  id: 'sent-1',
+  template_code: 'monthly_marketing',
+  template_name_vi: 'Báo cáo marketing tháng',
+  title: 'Báo cáo marketing tháng đã gửi',
+  client_account_id: 'client-a',
+  client_account_name: 'Demo Client',
+  period_start: '2026-08-01',
+  period_end: '2026-08-31',
+  status: 'sent',
+  current_version: 'v1.0',
+  version: 'v1.0',
+  requires_approval: true,
+  updated_at: '2026-09-02T10:00:00.000Z',
+  sections_json: emptySections(MONTHLY_SECTIONS),
+  versions: [],
+  send_logs: [{ channel: 'email', result: 'sent' }],
+  template_sections: MONTHLY_SECTIONS,
+};
+
 const STAFF_USER = {
   id: '3',
   email: STAFF_EMAIL,
@@ -128,10 +148,31 @@ async function mockCsdReportApis(page: import('@playwright/test').Page) {
     template_sections: WEEKLY_SECTIONS,
   };
 
-  let items: Array<Record<string, unknown>> = [{ ...MONTHLY_DRAFT }];
+  let items: Array<Record<string, unknown>> = [{ ...MONTHLY_DRAFT }, { ...SENT_REPORT }];
   const details: Record<string, Record<string, unknown>> = {
     'monthly-1': { ...MONTHLY_DRAFT },
+    'sent-1': { ...SENT_REPORT },
   };
+
+  await page.route('**/api/crm/csd/conversations**', async (route) => {
+    const url = new URL(route.request().url());
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+    const filter = url.searchParams.get('filter');
+    const clientAccountId = url.searchParams.get('client_account_id');
+    const items = [
+      { id: 'conv-client-a', kind: 'client', name_vi: 'Chat Demo Client', client_account_id: 'client-a' },
+      { id: 'conv-client-b', kind: 'client', name_vi: 'Chat Khác', client_account_id: 'client-b' },
+    ].filter((row) => filter !== 'clients' || row.kind === 'client')
+      .filter((row) => !clientAccountId || row.client_account_id === clientAccountId);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items }),
+    });
+  });
 
   await page.route('**/api/crm/csd/reports**', async (route) => {
     const url = route.request().url();
@@ -172,6 +213,15 @@ async function mockCsdReportApis(page: import('@playwright/test').Page) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(next),
+      });
+      return;
+    }
+
+    if (method === 'POST' && /\/reports\/[^/]+\/share-chat$/.test(path)) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ message_id: 'msg-share-1' }),
       });
       return;
     }
@@ -299,5 +349,19 @@ test.describe('CSD reports', () => {
     await page.goto('/crm/csd/reports/monthly-1');
     await expect(page.getByTestId('csd-report-send')).toHaveCount(0);
     await expect(page.getByTestId('csd-report-submit-review')).toBeVisible();
+    await expect(page.getByTestId('csd-report-share-chat')).toHaveCount(0);
+  });
+
+  test('R-4: share sent report into client chat picker', async ({ page }) => {
+    await mockStaffAuth(page);
+    await mockCsdReportApis(page);
+    await loginAsStaff(page);
+    await page.goto('/crm/csd/reports/sent-1');
+    await expect(page.getByTestId('csd-report-share-chat')).toBeVisible();
+    await page.getByTestId('csd-report-share-chat').click();
+    await expect(page.getByTestId('csd-report-share-chat-select')).toBeVisible();
+    await expect(page.getByTestId('csd-report-share-chat-select')).toHaveValue('conv-client-a');
+    await page.getByRole('button', { name: 'Gửi vào chat' }).click();
+    await expect(page.getByText('Đã chia sẻ vào chat khách')).toBeVisible();
   });
 });

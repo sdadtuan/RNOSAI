@@ -400,6 +400,7 @@ export class CsdReportsRepository implements OnModuleDestroy {
     version: string;
     to_json: string[];
     result: string;
+    channel?: string;
     email_id?: string | null;
     error_text?: string | null;
     created_by_staff_id: number;
@@ -407,11 +408,12 @@ export class CsdReportsRepository implements OnModuleDestroy {
     const res = await this.db.query(
       `INSERT INTO csd_report_send_logs (
          report_id, version, channel, to_json, result, email_id, error_text, created_by_staff_id
-       ) VALUES ($1, $2, 'email', $3::jsonb, $4, $5, $6, $7)
+       ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8)
        RETURNING *`,
       [
         input.report_id,
         input.version,
+        input.channel ?? 'email',
         JSON.stringify(input.to_json),
         input.result,
         input.email_id ?? null,

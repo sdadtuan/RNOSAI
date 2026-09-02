@@ -20,6 +20,8 @@ import {
   uploadCsdReportFile,
   exportCsdReportPdf,
   exportCsdReportXlsx,
+  fetchCsdConversations,
+  shareCsdReportToChat,
   type CsdReportDetail,
   type CsdReportStatus,
 } from '@/lib/crm/csd-api';
@@ -182,6 +184,30 @@ export default function CsdReportDetailPage() {
           }}
           onExportXlsx={async () => {
             await exportCsdReportXlsx(token, report.id);
+          }}
+          onLoadClientConversations={async () => {
+            const out = await fetchCsdConversations(token, {
+              filter: 'clients',
+              ...(report.client_account_id ? { client_account_id: report.client_account_id } : {}),
+            });
+            return out.items
+              .filter((c) => c.kind === 'client')
+              .filter((c) => !report.client_account_id || c.client_account_id === report.client_account_id)
+              .map((c) => ({ id: c.id, name_vi: c.alias_vi?.trim() || c.name_vi }));
+          }}
+          onShareChat={async (conversationId) => {
+            try {
+              await shareCsdReportToChat(token, report.id, conversationId);
+            } catch (err) {
+              const code = err instanceof Error ? err.message : '';
+              if (code === 'client_chat_not_found') {
+                throw new Error('Chưa có chat khách. Tạo hội thoại khách trước.');
+              }
+              if (code === 'chat_client_mismatch') {
+                throw new Error('Hội thoại không thuộc cùng tài khoản khách.');
+              }
+              throw err;
+            }
           }}
         />
       ) : (

@@ -26,6 +26,8 @@ type CsdReportEditorProps = {
   onUploadFile?: (file: File) => Promise<{ id: string }>;
   onExportPdf?: () => Promise<void>;
   onExportXlsx?: () => Promise<void>;
+  onLoadClientConversations?: () => Promise<{ id: string; name_vi: string }[]>;
+  onShareChat?: (conversationId: string) => Promise<void>;
 };
 
 const SECTION_LABELS: Record<string, string> = {
@@ -156,6 +158,8 @@ export function CsdReportEditor({
   onUploadFile,
   onExportPdf,
   onExportXlsx,
+  onLoadClientConversations,
+  onShareChat,
 }: CsdReportEditorProps) {
   const keys = useMemo(() => outlineKeys(report), [report]);
   const [activeSection, setActiveSection] = useState(keys[0] ?? '');
@@ -164,6 +168,13 @@ export function CsdReportEditor({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [changeComment, setChangeComment] = useState('');
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareConversations, setShareConversations] = useState<{ id: string; name_vi: string }[]>([]);
+  const [shareConversationId, setShareConversationId] = useState('');
+  const canShareChat =
+    canWrite &&
+    Boolean(onShareChat) &&
+    (report.status === 'sent' || report.status === 'approved');
   const readOnly = !canWrite || VIEW_ONLY.has(report.status);
   const showSend = canWrite && Boolean(onSend) && canSendReport(report);
   const versions = report.versions ?? [];
@@ -217,6 +228,34 @@ export function CsdReportEditor({
   async function save() {
     if (!onSaveSection || readOnly) return;
     await run(() => onSaveSection(activeSection, section), 'Đã lưu mục');
+  }
+
+  async function openShareChat() {
+    if (!canShareChat) return;
+    setShareOpen(true);
+    setMsg('');
+    if (!onLoadClientConversations) return;
+    setBusy(true);
+    try {
+      const items = await onLoadClientConversations();
+      setShareConversations(items);
+      setShareConversationId((current) =>
+        items.some((c) => c.id === current) ? current : (items[0]?.id ?? ''),
+      );
+      if (items.length === 0) {
+        setMsg('Chưa có chat khách. Tạo hội thoại khách trước.');
+      }
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : 'Không tải được hội thoại khách');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmShareChat() {
+    if (!onShareChat || !shareConversationId) return;
+    await run(() => onShareChat(shareConversationId), 'Đã chia sẻ vào chat khách');
+    setShareOpen(false);
   }
 
   async function snapshot() {
@@ -687,6 +726,53 @@ export function CsdReportEditor({
           <button type="button" className="btn btn-sm" disabled={busy} data-testid="csd-report-send" onClick={onSend}>
             {sendLabel(report.status)}
           </button>
+        ) : null}
+
+        {canShareChat ? (
+          <>
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              disabled={busy}
+              data-testid="csd-report-share-chat"
+              onClick={() => void openShareChat()}
+            >
+              Chia sẻ vào chat
+            </button>
+            {shareOpen ? (
+              <div className="stack-gap" data-testid="csd-report-share-chat-picker">
+                {shareConversations.length === 0 ? (
+                  <p className="muted">Chưa có chat khách. Tạo hội thoại khách trước.</p>
+                ) : (
+                  <>
+                    <label className="stack-gap">
+                      Hội thoại khách
+                      <select
+                        className="kpi-input"
+                        data-testid="csd-report-share-chat-select"
+                        value={shareConversationId}
+                        onChange={(e) => setShareConversationId(e.target.value)}
+                      >
+                        {shareConversations.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name_vi}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={busy || !shareConversationId}
+                      onClick={() => void confirmShareChat()}
+                    >
+                      Gửi vào chat
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : null}
+          </>
         ) : null}
 
         {report.status === 'sent' ? (

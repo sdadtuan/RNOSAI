@@ -176,6 +176,17 @@ export class CsdReportsController {
     return this.reports.send(actor, id, body);
   }
 
+  @Post(':id/share-chat')
+  @RequireCsdAction('write')
+  async shareChat(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { conversation_id: string },
+  ) {
+    const actor = await this.actor(req);
+    return this.reports.shareToClientChat(actor, id, body);
+  }
+
   @Post(':id/retry-send')
   @RequireCsdAction('write')
   async retrySend(@Req() req: AuthedReq, @Param('id') id: string) {

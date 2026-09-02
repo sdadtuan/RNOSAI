@@ -406,7 +406,12 @@ export async function fetchCsdDashboard(token: string): Promise<CsdDashboardPayl
 
 export async function fetchCsdConversations(
   token: string,
-  query: { filter?: CsdConversationListFilter; q?: string; kind?: CsdConversationKind } | Record<string, string> = {},
+  query: {
+    filter?: CsdConversationListFilter;
+    q?: string;
+    kind?: CsdConversationKind;
+    client_account_id?: string;
+  } | Record<string, string> = {},
 ): Promise<{ items: CsdConversationRow[] }> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
@@ -892,6 +897,17 @@ export async function retryCsdReportSend(token: string, id: string): Promise<{ s
   return csdFetch(token, `/api/crm/csd/reports/${id}/retry-send`, {
     method: 'POST',
     body: '{}',
+  });
+}
+
+export async function shareCsdReportToChat(
+  token: string,
+  id: string,
+  conversationId: string,
+): Promise<{ message_id: string }> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/share-chat`, {
+    method: 'POST',
+    body: JSON.stringify({ conversation_id: conversationId }),
   });
 }
 
