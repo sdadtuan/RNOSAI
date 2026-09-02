@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { CsdAuditRepository } from './csd-audit.repository';
 import { parseMentions } from './csd-chat-search.util';
+import { suggestPriorityFromText } from './csd-chat-keyword.util';
 import { CsdChatFilesService } from './csd-chat-files.service';
 import { CsdChatRepository } from './csd-chat.repository';
 import { CsdTicketsService } from './csd-tickets.service';
@@ -23,6 +24,7 @@ import {
   CsdTicketFromChatMessage,
   CsdTicketRow,
   SendCsdMessageInput,
+  SendCsdMessageResult,
 } from './csd.types';
 
 const EDIT_WINDOW_MS = 15 * 60_000;
@@ -132,14 +134,19 @@ export class CsdChatService {
     return { read: true };
   }
 
+  async unreadConversationCount(actor: CsdActor): Promise<{ count: number }> {
+    const count = await this.repo.countUnreadConversations(actor.staffId);
+    return { count };
+  }
+
   async sendMessage(
     actor: CsdActor,
     conversationId: string,
     input: SendCsdMessageInput,
-  ): Promise<CsdMessageRow> {
+  ): Promise<SendCsdMessageResult> {
     const conv = await this.repo.getConversation(conversationId);
     if (!conv) throw new NotFoundException({ error: 'csd_conversation_not_found' });
-    if (conv.status === 'closed') {
+    if (conv.status === 'closed' || conv.status === 'archived') {
       throw new ConflictException({ error: 'conversation_closed' });
     }
     if (conv.kind === 'announcement' && conv.owner_staff_id !== actor.staffId) {
@@ -174,11 +181,29 @@ export class CsdChatService {
         messageId: message.id,
         staffIds: mentioned,
         excludeStaffId: actor.staffId,
-        preview: body.slice(0, 160),
+        preview: body.slice(0, 160) || '(file)',
       });
     }
+
+    if (conv.kind === 'client') {
+      const members = await this.repo.listMembers(conversationId);
+      await this.repo.insertClientChatNotifications({
+        conversationId,
+        messageId: message.id,
+        staffIds: members.map((m) => m.member_staff_id),
+        excludeStaffId: actor.staffId,
+        preview: body.slice(0, 160) || '(file)',
+      });
+    }
+
     const attachments = await this.files.listForMessage(message.id);
-    return { ...message, attachments, delivery_status: message.delivery_status ?? 'sent' };
+    const priority_suggestion = suggestPriorityFromText(body);
+    return {
+      ...message,
+      attachments,
+      delivery_status: message.delivery_status ?? 'sent',
+      priority_suggestion,
+    };
   }
 
   async listMessages(
@@ -224,6 +249,12 @@ export class CsdChatService {
       message.body_text.slice(0, 255).trim() ||
       'Ticket từ chat';
 
+    const existing = await this.tickets.findBySource('chat_message', messageId);
+    if (existing) {
+      await this.repo.linkMessageToTicket(messageId, existing.id);
+      return { ...existing, skipped_internal_files: [], already_exists: true };
+    }
+
     const ticket = await this.tickets.create(actor.staffId, {
       title,
       description: patch.description ?? message.body_text,
@@ -240,7 +271,23 @@ export class CsdChatService {
     const skipped_internal_files = attached.filter((f) => f.visibility !== 'client').map((f) => f.id);
     const clientFiles = attached.filter((f) => f.visibility === 'client');
     await this.files.copyClientFilesToTicket(clientFiles, ticket.id);
-    return { ...ticket, skipped_internal_files };
+    return { ...ticket, skipped_internal_files, already_exists: false };
+  }
+
+  async forwardMessage(
+    actor: CsdActor,
+    targetConversationId: string,
+    input: { message_id: string },
+  ): Promise<CsdMessageRow> {
+    const source = await this.repo.getMessage(input.message_id);
+    if (!source || source.is_deleted) {
+      throw new NotFoundException({ error: 'csd_message_not_found' });
+    }
+    const sourceConv = await this.repo.getConversation(source.conversation_id);
+    if (!sourceConv) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+
+    const quote = `↪ Chuyển tiếp từ ${sourceConv.name_vi}:\n${source.body_text}`;
+    return this.sendMessage(actor, targetConversationId, { body_text: quote });
   }
 
   async editMessage(
@@ -255,7 +302,7 @@ export class CsdChatService {
     }
     const conv = await this.repo.getConversation(message.conversation_id);
     if (!conv) throw new NotFoundException({ error: 'csd_conversation_not_found' });
-    if (conv.status === 'closed') {
+    if (conv.status === 'closed' || conv.status === 'archived') {
       throw new ConflictException({ error: 'conversation_closed' });
     }
     const created = new Date(message.created_at).getTime();
@@ -340,6 +387,14 @@ export class CsdChatService {
     return this.repo.updateStatus(conversationId, 'closed', actor.staffId);
   }
 
+  async archiveConversation(actor: CsdActor, conversationId: string): Promise<CsdConversationRow> {
+    const conv = await this.requireConversation(conversationId);
+    if (!canManageConversation(actor, conv.owner_staff_id)) {
+      throw new ForbiddenException({ error: 'csd_archive_forbidden' });
+    }
+    return this.repo.updateStatus(conversationId, 'archived', actor.staffId);
+  }
+
   async reopenConversation(actor: CsdActor, conversationId: string): Promise<CsdConversationRow> {
     const conv = await this.requireConversation(conversationId);
     if (!canManageConversation(actor, conv.owner_staff_id)) {
@@ -356,7 +411,7 @@ export class CsdChatService {
 
   private async requireWritableConversation(conversationId: string): Promise<CsdConversationRow> {
     const conv = await this.requireConversation(conversationId);
-    if (conv.status === 'closed') {
+    if (conv.status === 'closed' || conv.status === 'archived') {
       throw new ConflictException({ error: 'conversation_closed' });
     }
     return conv;

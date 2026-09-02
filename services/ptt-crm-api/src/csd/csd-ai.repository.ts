@@ -30,11 +30,12 @@ export class CsdAiRepository implements OnModuleDestroy {
     this.pool = null;
   }
 
-  async insert(input: CsdAiInteractionInsert): Promise<void> {
-    await this.db.query(
+  async insert(input: CsdAiInteractionInsert): Promise<string> {
+    const res = await this.db.query(
       `INSERT INTO csd_ai_interactions (
          tenant_id, actor_staff_id, feature, prompt_hash, context_json, output_text, user_action
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id`,
       [
         CSD_TENANT_ID,
         input.actor_staff_id,
@@ -45,5 +46,6 @@ export class CsdAiRepository implements OnModuleDestroy {
         input.user_action ?? 'draft',
       ],
     );
+    return String(res.rows[0].id);
   }
 }

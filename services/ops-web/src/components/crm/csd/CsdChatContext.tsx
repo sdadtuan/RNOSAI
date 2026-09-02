@@ -15,13 +15,6 @@ export const CSD_CHAT_KIND_LABELS: Record<string, string> = {
   announcement: 'Thông báo',
 };
 
-type AiSummary = {
-  summary: string;
-  decisions: string[];
-  actions: string[];
-  risks: string[];
-};
-
 type CsdChatContextProps = {
   active: CsdConversationRow | null;
   members: CsdConversationMemberRow[];
@@ -32,12 +25,25 @@ type CsdChatContextProps = {
   canWrite: boolean;
   busy: boolean;
   closed: boolean;
+  archived: boolean;
   onMemberStaffId: (value: string) => void;
   onAddMember: () => void;
   onRemoveMember: (staffId: number) => void;
   onClose: () => void;
+  onArchive: () => void;
+  onCreateAiActionTicket: (index: number, title: string) => void;
   onAiPeriod: (period: '24h' | '7d' | 'all') => void;
   onSummarize: () => void;
+  showMobileBack?: boolean;
+  onMobileBack?: () => void;
+};
+
+type AiSummary = {
+  summary: string;
+  decisions: string[];
+  actions: string[];
+  risks: string[];
+  ai_interaction_id?: string;
 };
 
 export function CsdChatContext({
@@ -50,15 +56,25 @@ export function CsdChatContext({
   canWrite,
   busy,
   closed,
+  archived,
   onMemberStaffId,
   onAddMember,
   onRemoveMember,
   onClose,
+  onArchive,
+  onCreateAiActionTicket,
   onAiPeriod,
   onSummarize,
+  showMobileBack,
+  onMobileBack,
 }: CsdChatContextProps) {
   return (
     <aside className="csd-chat-workspace__context page-card stack-gap">
+      {showMobileBack ? (
+        <button type="button" className="btn btn-sm btn-secondary" onClick={onMobileBack}>
+          ← Thread
+        </button>
+      ) : null}
       <h3 className="kpi-section-title">Ngữ cảnh</h3>
       {active ? (
         <>
@@ -69,10 +85,21 @@ export function CsdChatContext({
               Dự án: {active.project_ref_kind ?? '—'} / {active.project_ref_id ?? '—'}
             </p>
           ) : null}
-          <p className="muted">Trạng thái: {closed ? 'Đã đóng' : active.status ?? 'active'}</p>
-          {canWrite && !closed ? (
+          <p className="muted">Trạng thái: {archived ? 'Lưu trữ' : closed ? 'Đã đóng' : active.status ?? 'active'}</p>
+          {canWrite && !closed && !archived ? (
             <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={onClose}>
               Đóng hội thoại
+            </button>
+          ) : null}
+          {canWrite && !archived ? (
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              disabled={busy}
+              onClick={onArchive}
+              data-testid="csd-chat-archive"
+            >
+              Lưu trữ
             </button>
           ) : null}
 
@@ -114,7 +141,7 @@ export function CsdChatContext({
               ))
             )}
           </ul>
-          {canWrite && !closed ? (
+          {canWrite && !closed && !archived ? (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -172,9 +199,30 @@ export function CsdChatContext({
               </p>
               <p>
                 <strong>Action</strong>
-                <br />
-                {aiSummary.actions.join(' · ') || '—'}
               </p>
+              {aiSummary.actions.length === 0 ? (
+                <p className="muted">—</p>
+              ) : (
+                <ul className="csd-chat-ai-actions" data-testid="csd-chat-ai-actions">
+                  {aiSummary.actions.map((action, index) => (
+                    <li key={`${index}-${action.slice(0, 24)}`}>
+                      <label>
+                        <input type="checkbox" readOnly checked /> {action}
+                      </label>
+                      {canWrite ? (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          disabled={busy || !aiSummary.ai_interaction_id}
+                          onClick={() => onCreateAiActionTicket(index, action.slice(0, 255))}
+                        >
+                          Tạo ticket
+                        </button>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
               <p>
                 <strong>Rủi ro</strong>
                 <br />

@@ -1,14 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { CsdChatContext } from '@/components/crm/csd/CsdChatContext';
 import { CsdChatList } from '@/components/crm/csd/CsdChatList';
 import { CsdChatNewModal } from '@/components/crm/csd/CsdChatNewModal';
 import { CsdChatThread } from '@/components/crm/csd/CsdChatThread';
 import {
   addCsdConversationMember,
+  archiveCsdConversation,
   closeCsdConversation,
   createCsdConversation,
+  createCsdTicketFromAiAction,
   createCsdTicketFromMessage,
   deleteCsdMessage,
   draftCsdChatSummary,
@@ -17,6 +20,7 @@ import {
   fetchCsdConversations,
   fetchCsdMessages,
   fetchCsdRelatedTickets,
+  forwardCsdMessage,
   markCsdConversationRead,
   reopenCsdConversation,
   removeCsdConversationMember,
@@ -38,6 +42,7 @@ import {
 type CsdChatWorkspaceProps = {
   token: string;
   canWrite: boolean;
+  initialConversationId?: string | null;
 };
 
 type AiSummary = {
@@ -45,9 +50,12 @@ type AiSummary = {
   decisions: string[];
   actions: string[];
   risks: string[];
+  ai_interaction_id?: string;
 };
 
-export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
+type MobilePane = 'list' | 'thread' | 'context';
+
+export function CsdChatWorkspace({ token, canWrite, initialConversationId }: CsdChatWorkspaceProps) {
   const [conversations, setConversations] = useState<CsdConversationRow[]>([]);
   const [filter, setFilter] = useState<CsdConversationListFilter>('all');
   const [search, setSearch] = useState('');
@@ -71,6 +79,12 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
     ticket_type: 'request',
     priority: 'P3' as CsdPriority,
   });
+  const [priorityHint, setPriorityHint] = useState<'P1' | 'P2' | null>(null);
+  const [duplicateTicket, setDuplicateTicket] = useState<CsdTicketRow | null>(null);
+  const [forwardMessage, setForwardMessage] = useState<CsdMessageRow | null>(null);
+  const [forwardTargetId, setForwardTargetId] = useState('');
+  const [mobilePane, setMobilePane] = useState<MobilePane>('list');
+  const [isMobile, setIsMobile] = useState(false);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -127,6 +141,21 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
   }, [loadConversations]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 960px)');
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  useEffect(() => {
+    if (!initialConversationId) return;
+    setActiveId(initialConversationId);
+    if (isMobile) setMobilePane('thread');
+  }, [initialConversationId, isMobile]);
+
+  useEffect(() => {
     if (!activeId) return;
     setReplyTo(null);
     setPendingFiles([]);
@@ -148,7 +177,7 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
     if (!activeId || !canWrite || (!draft.trim() && pendingFiles.length === 0)) return;
     setBusy(true);
     try {
-      await sendCsdMessage(token, activeId, {
+      const sent = await sendCsdMessage(token, activeId, {
         body_text: draft.trim(),
         reply_to_id: replyTo?.id,
         attachment_ids: pendingFiles.map((f) => f.id),
@@ -156,6 +185,7 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
       setDraft('');
       setReplyTo(null);
       setPendingFiles([]);
+      setPriorityHint(sent.priority_suggestion ?? null);
       await loadMessages(activeId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gửi tin nhắn thất bại');
@@ -166,6 +196,8 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
 
   async function handleSelectConversation(id: string) {
     setActiveId(id);
+    setPriorityHint(null);
+    if (isMobile) setMobilePane('thread');
     try {
       await markCsdConversationRead(token, id);
       await loadConversations();
@@ -199,6 +231,12 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
     setBusy(true);
     try {
       const ticket = await createCsdTicketFromMessage(token, ticketModal.id, ticketForm);
+      if (ticket.already_exists) {
+        setTicketModal(null);
+        setDuplicateTicket(ticket);
+        setTicketForm({ title: '', ticket_type: 'request', priority: 'P3' });
+        return;
+      }
       if (ticket.skipped_internal_files?.length) {
         setError('Ticket đã tạo. File nội bộ không được copy sang ticket.');
       }
@@ -312,6 +350,56 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
     }
   }
 
+  async function handleArchive() {
+    if (!activeId) return;
+    setBusy(true);
+    try {
+      const row = await archiveCsdConversation(token, activeId);
+      patchConversation(row);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lưu trữ hội thoại thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleForward() {
+    if (!forwardMessage || !forwardTargetId.trim()) return;
+    setBusy(true);
+    try {
+      await forwardCsdMessage(token, forwardTargetId.trim(), forwardMessage.id);
+      setForwardMessage(null);
+      setForwardTargetId('');
+      if (activeId === forwardTargetId.trim()) await loadMessages(activeId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Chuyển tiếp thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCreateAiActionTicket(actionIndex: number, title: string) {
+    if (!aiSummary?.ai_interaction_id || !canWrite) return;
+    setBusy(true);
+    try {
+      const ticket = await createCsdTicketFromAiAction(token, aiSummary.ai_interaction_id, actionIndex, {
+        title,
+        ticket_type: 'request',
+        priority: 'P3',
+        client_account_id: active?.client_account_id ?? undefined,
+      });
+      if (ticket.already_exists) {
+        setDuplicateTicket(ticket);
+        return;
+      }
+      if (activeId) await loadRelatedTickets(activeId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tạo ticket từ AI action thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleSummarize() {
     if (!activeId) return;
     setBusy(true);
@@ -326,10 +414,22 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
   }
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
+  const archived = active?.status === 'archived';
   const closed = active?.status === 'closed';
+  const composerLocked = Boolean(closed || archived);
+
+  const workspaceClass = [
+    'csd-chat-workspace',
+    isMobile && mobilePane === 'list' ? 'is-mobile-list' : '',
+    isMobile && mobilePane === 'thread' ? 'is-mobile-thread' : '',
+    isMobile && mobilePane === 'context' ? 'is-mobile-context' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
-    <div className="csd-chat-workspace" data-testid="csd-chat-workspace">
+    <div className={workspaceClass} data-testid="csd-chat-workspace">
+      {(!isMobile || mobilePane === 'list') && (
       <CsdChatList
         conversations={conversations}
         activeId={activeId}
@@ -343,7 +443,9 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
         onSelect={(id) => void handleSelectConversation(id)}
         onNew={() => setShowNewModal(true)}
       />
+      )}
 
+      {(!isMobile || mobilePane === 'thread') && (
       <CsdChatThread
         token={token}
         active={active}
@@ -356,7 +458,22 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
         meStaffId={meStaffId}
         canWrite={canWrite}
         busy={busy}
-        closed={Boolean(closed)}
+        closed={composerLocked}
+        priorityHint={priorityHint}
+        showMobileBack={isMobile}
+        onMobileBack={() => setMobilePane('list')}
+        onShowContext={() => setMobilePane('context')}
+        onDismissPriorityHint={() => setPriorityHint(null)}
+        onApplyPriorityHint={() => {
+          if (!priorityHint) return;
+          setTicketForm((f) => ({ ...f, priority: priorityHint, ticket_type: 'incident' }));
+          setPriorityHint(null);
+          const last = [...messages].reverse().find((m) => !m.is_deleted && m.body_text.trim());
+          if (last) {
+            setTicketModal(last);
+            setTicketForm((f) => ({ ...f, title: last.body_text.slice(0, 80), priority: priorityHint }));
+          }
+        }}
         onDraftChange={setDraft}
         onSend={() => void handleSend()}
         onReply={setReplyTo}
@@ -370,8 +487,16 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
         onRemovePending={(id) => setPendingFiles((prev) => prev.filter((f) => f.id !== id))}
         onEditMessage={(m, body) => void handleEditMessage(m, body)}
         onDeleteMessage={(m) => void handleDeleteMessage(m)}
+        onCopyLink={(m) => {
+          if (!active) return;
+          const url = `${window.location.origin}/crm/csd/chat?c=${active.id}&m=${m.id}`;
+          void navigator.clipboard.writeText(url);
+        }}
+        onForward={(m) => setForwardMessage(m)}
       />
+      )}
 
+      {(!isMobile || mobilePane === 'context') && (
       <CsdChatContext
         active={active}
         members={members}
@@ -381,14 +506,31 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
         aiSummary={aiSummary}
         canWrite={canWrite}
         busy={busy}
-        closed={Boolean(closed)}
+        closed={composerLocked}
+        archived={Boolean(archived)}
         onMemberStaffId={setMemberStaffId}
         onAddMember={() => void handleAddMember()}
         onRemoveMember={(staffId) => void handleRemoveMember(staffId)}
         onClose={() => void handleClose()}
+        onArchive={() => void handleArchive()}
+        onCreateAiActionTicket={(index, title) => void handleCreateAiActionTicket(index, title)}
         onAiPeriod={setAiPeriod}
         onSummarize={() => void handleSummarize()}
+        showMobileBack={isMobile}
+        onMobileBack={() => setMobilePane('thread')}
       />
+      )}
+
+      {isMobile && mobilePane === 'thread' ? (
+        <button
+          type="button"
+          className="btn btn-sm btn-secondary csd-chat-mobile-info"
+          data-testid="csd-chat-mobile-info"
+          onClick={() => setMobilePane('context')}
+        >
+          i
+        </button>
+      ) : null}
 
       {showNewModal ? (
         <CsdChatNewModal
@@ -397,6 +539,62 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
           onClose={() => setShowNewModal(false)}
           onSubmit={(payload) => handleCreateConversation(payload)}
         />
+      ) : null}
+
+      {duplicateTicket ? (
+        <div className="csd-modal-backdrop" role="presentation" onClick={() => setDuplicateTicket(null)}>
+          <div
+            className="csd-modal page-card stack-gap"
+            onClick={(e) => e.stopPropagation()}
+            data-testid="csd-duplicate-ticket-modal"
+          >
+            <h3 className="kpi-section-title">Đã có ticket từ nguồn này</h3>
+            <p>
+              Mã <strong>{duplicateTicket.code}</strong> — {duplicateTicket.title}
+            </p>
+            <div className="csd-composer__actions">
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setDuplicateTicket(null)}>
+                Đóng
+              </button>
+              <Link href={`/crm/csd/tickets/${duplicateTicket.id}`} className="btn btn-sm">
+                Mở ticket
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {forwardMessage ? (
+        <div className="csd-modal-backdrop" role="presentation" onClick={() => setForwardMessage(null)}>
+          <form
+            className="csd-modal page-card stack-gap"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleForward();
+            }}
+            onClick={(e) => e.stopPropagation()}
+            data-testid="csd-forward-modal"
+          >
+            <h3 className="kpi-section-title">Chuyển tiếp tin nhắn</h3>
+            <p className="muted">{forwardMessage.body_text.slice(0, 120)}</p>
+            <input
+              className="kpi-input"
+              required
+              placeholder="ID hội thoại đích"
+              value={forwardTargetId}
+              onChange={(e) => setForwardTargetId(e.target.value)}
+              data-testid="csd-forward-target"
+            />
+            <div className="csd-composer__actions">
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setForwardMessage(null)}>
+                Huỷ
+              </button>
+              <button type="submit" className="btn btn-sm" disabled={busy}>
+                Chuyển tiếp
+              </button>
+            </div>
+          </form>
+        </div>
       ) : null}
 
       {ticketModal ? (

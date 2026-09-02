@@ -15452,6 +15452,75 @@ body {
   font-size: 0.88rem;
 }
 
+.csd-chat-ai-actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.csd-chat-ai-actions li {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.csd-chat-priority-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.65rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.4rem;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 0.88rem;
+}
+
+.csd-chat-thread-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.csd-chat-mobile-info {
+  position: fixed;
+  right: 1rem;
+  bottom: 5.5rem;
+  z-index: 6;
+  display: none;
+}
+
+@media (max-width: 960px) {
+  .csd-chat-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .csd-chat-workspace.is-mobile-thread .csd-chat-workspace__list,
+  .csd-chat-workspace.is-mobile-context .csd-chat-workspace__list {
+    display: none;
+  }
+
+  .csd-chat-workspace.is-mobile-list .csd-chat-workspace__thread,
+  .csd-chat-workspace.is-mobile-list .csd-chat-workspace__context {
+    display: none;
+  }
+
+  .csd-chat-workspace.is-mobile-thread .csd-chat-workspace__context {
+    display: none;
+  }
+
+  .csd-chat-workspace.is-mobile-context .csd-chat-workspace__thread {
+    display: none;
+  }
+
+  .csd-chat-mobile-info {
+    display: inline-flex;
+  }
+}
+
 .csd-email-inbox__head {
   display: flex;
   flex-wrap: wrap;

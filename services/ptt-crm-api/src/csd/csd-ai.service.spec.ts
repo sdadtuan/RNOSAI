@@ -6,6 +6,10 @@ describe('CsdAiService', () => {
     get: jest.fn(),
     listComments: jest.fn(),
   };
+  const tickets = {
+    create: jest.fn(),
+    findBySource: jest.fn(),
+  };
   const chatRepo = {
     listMessages: jest.fn(),
   };
@@ -16,7 +20,8 @@ describe('CsdAiService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.PTT_CSD_LLM = '0';
-    svc = new CsdAiService(aiRepo as never, ticketsRepo as never, chatRepo as never);
+    aiRepo.insert.mockResolvedValue('ai-1');
+    svc = new CsdAiService(aiRepo as never, ticketsRepo as never, chatRepo as never, tickets as never);
   });
 
   it('draftReply does not call email service (AT-AI-01)', async () => {
@@ -46,6 +51,7 @@ describe('CsdAiService', () => {
     const out = await svc.summarizeChat(3, 'c1', '24h');
 
     expect(out.summary).toMatch(/ads/i);
+    expect(out.ai_interaction_id).toBe('ai-1');
     expect(aiRepo.insert).toHaveBeenCalled();
   });
 });

@@ -35,6 +35,12 @@ Service Desk là kênh ticket **agency** (PTT-2026-xxxxx), tách biệt **Ticket
 - Thành viên: thêm staff id / xóa (không xóa chủ hội thoại). Đóng / Mở lại khóa composer.
 - **Tóm tắt AI** trên panel phải (24h / 7d / all) — chỉ nháp, không gửi khách.
 - Poll tin nhắn mỗi 5 giây (MVP, không WebSocket).
+- **Gợi ý P1/P2** từ keyword (vd. “ngưng chạy”) — chip gợi ý tạo ticket, **không** tự sinh mã.
+- Tạo ticket trùng nguồn → dialog **Đã có {code} [Mở]** (không tạo ticket con).
+- **Lưu trữ** hội thoại — ẩn composer (khác đóng: reopen được).
+- **Tóm tắt AI** → từng action có nút **Tạo ticket** (`source_type=ai_draft`).
+- Copy link `/crm/csd/chat?c={id}&m={mid}` · Chuyển tiếp (quote, không file).
+- Mobile ≤960px: một cột (list / thread / ngữ cảnh). Sidebar **Chat (n)** khi có hội thoại chưa đọc.
 
 ## 4. Email (`/crm/csd/email`)
 
@@ -62,6 +68,7 @@ Service Desk là kênh ticket **agency** (PTT-2026-xxxxx), tách biệt **Ticket
 2b. Chat C-1: tạo DM hai staff → 1 thread khi tạo lại; chip Nội bộ ẩn hội thoại khách.  
 2c. Chat C-2: tìm theo nội dung tin; `@8` in đậm trong tin; panel phải list ticket cùng thread.  
 2d. Chat C-3: gửi tin + file trên nhóm; sửa trong 15 phút; xóa hiện “Đã xóa”; ticket từ tin không mang file internal.  
+2e. Chat C-4: tin “ngưng chạy” gợi ý P1; tạo ticket 2 lần → dialog mã cũ; lưu trữ ẩn composer; deep link `?c=`.  
 3. Internal note không SMTP.  
 4. Resolve thiếu note → lỗi 422.  
 5. `/crm/tickets` không list ticket CSD.

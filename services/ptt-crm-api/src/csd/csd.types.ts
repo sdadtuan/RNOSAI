@@ -81,6 +81,20 @@ export type CsdTicketRow = {
 
 export type CsdTicketFromChatMessage = CsdTicketRow & {
   skipped_internal_files: string[];
+  already_exists?: boolean;
+};
+
+export type CsdNotificationRow = {
+  id: string;
+  staff_id: number;
+  event_key: string;
+  title_vi: string;
+  body_vi: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  severity: 'info' | 'warning' | 'critical';
+  read_at: string | null;
+  created_at: string;
 };
 
 export type CsdTicketCommentRow = {
@@ -277,6 +291,10 @@ export type SendCsdMessageInput = {
   reply_to_id?: string;
   visibility?: 'internal' | 'client';
   attachment_ids?: string[];
+};
+
+export type SendCsdMessageResult = CsdMessageRow & {
+  priority_suggestion?: 'P1' | 'P2' | null;
 };
 
 export type CsdEmailRow = {

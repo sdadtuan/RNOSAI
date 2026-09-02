@@ -21,6 +21,8 @@ describe('CsdChatService', () => {
     deleteMember: jest.fn(),
     updateStatus: jest.fn(),
     insertMentionNotifications: jest.fn(),
+    insertClientChatNotifications: jest.fn(),
+    countUnreadConversations: jest.fn(),
     listRelatedTickets: jest.fn(),
     updateMessageBody: jest.fn(),
     softDeleteMessage: jest.fn(),
@@ -29,6 +31,7 @@ describe('CsdChatService', () => {
 
   const tickets = {
     create: jest.fn(),
+    findBySource: jest.fn(),
   };
 
   const files = {
@@ -51,6 +54,9 @@ describe('CsdChatService', () => {
     files.attachToMessage.mockResolvedValue(undefined);
     files.copyClientFilesToTicket.mockResolvedValue([]);
     audit.insert.mockResolvedValue(undefined);
+    tickets.findBySource.mockResolvedValue(null);
+    repo.insertClientChatNotifications.mockResolvedValue(undefined);
+    repo.listMembers.mockResolvedValue([]);
   });
 
   it('requires client_account_id when kind=client', async () => {
@@ -141,6 +147,9 @@ describe('CsdChatService', () => {
       kind: 'client',
       client_account_id: 'CLI-1',
     });
+    tickets.findBySource
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 't1', code: 'PTT-2026-000001' });
     tickets.create.mockResolvedValue({ id: 't1', code: 'PTT-2026-000001' });
     repo.linkMessageToTicket.mockResolvedValue({ id: 'm1', ticket_id: 't1' });
 
@@ -149,12 +158,22 @@ describe('CsdChatService', () => {
 
     expect(first.code).toBe('PTT-2026-000001');
     expect(second.code).toBe('PTT-2026-000001');
-    expect(tickets.create).toHaveBeenCalledTimes(2);
+    expect(second.already_exists).toBe(true);
+    expect(tickets.create).toHaveBeenCalledTimes(1);
     expect(tickets.create).toHaveBeenCalledWith(
       3,
       expect.objectContaining({ source_type: 'chat_message', source_id: 'm1' }),
     );
     expect(repo.linkMessageToTicket).toHaveBeenCalledWith('m1', 't1');
+  });
+
+  it('suggests P1 priority on urgent client message', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'client', status: 'active', owner_staff_id: 9 });
+    repo.insertMessage.mockResolvedValue({ id: 'm1', body_text: 'Ads ngưng chạy' });
+    repo.listMembers.mockResolvedValue([{ member_staff_id: 9, role: 'owner' }]);
+    const out = await svc().sendMessage(actor, 'c1', { body_text: 'Ads ngưng chạy' });
+    expect(out.priority_suggestion).toBe('P1');
+    expect(repo.insertClientChatNotifications).toHaveBeenCalled();
   });
 
   it('notifies mentioned staff except the sender', async () => {

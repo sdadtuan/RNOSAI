@@ -1,10 +1,14 @@
 'use client';
 
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
 import { CsdChatWorkspace } from '@/components/crm/csd/CsdChatWorkspace';
 import { useCsdPageAuth } from '@/components/crm/csd/useCsdPageAuth';
 
-export default function CsdChatPage() {
+function CsdChatPageInner() {
+  const searchParams = useSearchParams();
+  const initialConversationId = searchParams.get('c');
   const { user, token, error, logout, canWrite } = useCsdPageAuth('view');
 
   if (!user) {
@@ -32,7 +36,17 @@ export default function CsdChatPage() {
           <p className="error">{error}</p>
         </div>
       ) : null}
-      {token ? <CsdChatWorkspace token={token} canWrite={canWrite} /> : null}
+      {token ? (
+        <CsdChatWorkspace token={token} canWrite={canWrite} initialConversationId={initialConversationId} />
+      ) : null}
     </StaffPageShell>
+  );
+}
+
+export default function CsdChatPage() {
+  return (
+    <Suspense fallback={<StaffPageShell user={null} onLogout={() => {}} loading><span /></StaffPageShell>}>
+      <CsdChatPageInner />
+    </Suspense>
   );
 }

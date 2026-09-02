@@ -32,6 +32,10 @@ export class CsdTicketsService {
     private readonly audit: CsdAuditRepository,
   ) {}
 
+  async findBySource(sourceType: string, sourceId: string): Promise<CsdTicketRow | null> {
+    return this.repo.findBySource(sourceType, sourceId);
+  }
+
   async create(actorStaffId: number, input: CreateCsdTicketInput): Promise<CsdTicketRow> {
     const title = String(input.title ?? '').trim();
     if (!title) {

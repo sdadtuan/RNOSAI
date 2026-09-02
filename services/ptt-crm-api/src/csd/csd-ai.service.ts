@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { CsdAiRepository } from './csd-ai.repository';
 import { CsdChatRepository } from './csd-chat.repository';
 import { CsdTicketsRepository } from './csd-tickets.repository';
+import { CsdTicketsService } from './csd-tickets.service';
+import type { CsdPriority, CsdTicketRow } from './csd.types';
 
 function llmEnabled(): boolean {
   return process.env.PTT_CSD_LLM === '1';
@@ -13,13 +15,20 @@ export class CsdAiService {
     private readonly aiRepo: CsdAiRepository,
     private readonly ticketsRepo: CsdTicketsRepository,
     private readonly chatRepo: CsdChatRepository,
+    private readonly tickets: CsdTicketsService,
   ) {}
 
   async summarizeChat(
     actorStaffId: number,
     conversationId: string,
     period: '24h' | '7d' | 'all' = '24h',
-  ): Promise<{ summary: string; decisions: string[]; actions: string[]; risks: string[] }> {
+  ): Promise<{
+    summary: string;
+    decisions: string[];
+    actions: string[];
+    risks: string[];
+    ai_interaction_id: string;
+  }> {
     const messages = await this.chatRepo.listMessages(conversationId);
     const snippet = messages
       .slice(-8)
@@ -43,14 +52,46 @@ export class CsdAiService {
           risks: snippet.includes('khiếu nại') ? ['Có dấu hiệu khiếu nại — cần PM/AM xem xét.'] : [],
         };
 
-    await this.aiRepo.insert({
+    const aiInteractionId = await this.aiRepo.insert({
       actor_staff_id: actorStaffId,
       feature: 'chat_summarize',
       context_json: { conversation_id: conversationId, period },
       output_text: output.summary,
     });
 
-    return output;
+    return { ...output, ai_interaction_id: aiInteractionId };
+  }
+
+  async createTicketFromAiAction(
+    actorStaffId: number,
+    aiInteractionId: string,
+    actionIndex: number,
+    patch: { title?: string; ticket_type?: string; priority?: string; client_account_id?: string },
+  ): Promise<CsdTicketRow & { already_exists?: boolean }> {
+    const sourceId = `${aiInteractionId}:${actionIndex}`;
+    const existing = await this.tickets.findBySource('ai_draft', sourceId);
+    if (existing) return { ...existing, already_exists: true };
+
+    const title = String(patch.title ?? '').trim() || `Action từ AI #${actionIndex + 1}`;
+    const ticket = await this.tickets.create(actorStaffId, {
+      title,
+      description: title,
+      ticket_type: patch.ticket_type ?? 'request',
+      priority: (patch.priority as CsdPriority) ?? 'P3',
+      source_type: 'ai_draft',
+      source_id: sourceId,
+      client_account_id: patch.client_account_id,
+    });
+
+    await this.aiRepo.insert({
+      actor_staff_id: actorStaffId,
+      feature: 'chat_action_ticket',
+      context_json: { ai_interaction_id: aiInteractionId, action_index: actionIndex, ticket_id: ticket.id },
+      output_text: ticket.code,
+      user_action: 'apply',
+    });
+
+    return ticket;
   }
 
   async classifyTicket(

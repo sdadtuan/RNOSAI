@@ -46,6 +46,7 @@ export interface CsdTicketRow {
   created_at: string;
   updated_at: string;
   skipped_internal_files?: string[];
+  already_exists?: boolean;
 }
 
 export interface CsdTicketCommentRow {
@@ -161,6 +162,7 @@ export interface CsdMessageRow {
   is_deleted?: boolean;
   delivery_status?: 'sent' | 'delivered' | 'failed';
   attachments?: CsdAttachmentRow[];
+  priority_suggestion?: 'P1' | 'P2' | null;
 }
 
 export interface CsdEmailRow {
@@ -408,11 +410,72 @@ export async function deleteCsdMessage(token: string, messageId: string): Promis
   });
 }
 
+export interface CsdNotificationRow {
+  id: string;
+  event_key: string;
+  title_vi: string;
+  body_vi: string;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  read_at?: string | null;
+  created_at: string;
+}
+
+export async function fetchCsdChatUnreadCount(token: string): Promise<{ count: number }> {
+  return csdFetch(token, '/api/crm/csd/chat/unread-count');
+}
+
+export async function fetchCsdNotifications(
+  token: string,
+  unreadOnly = false,
+): Promise<{ items: CsdNotificationRow[] }> {
+  const suffix = unreadOnly ? '?unread=1' : '';
+  return csdFetch(token, `/api/crm/csd/notifications${suffix}`);
+}
+
+export async function markCsdNotificationRead(token: string, id: string): Promise<{ read: true }> {
+  return csdFetch(token, `/api/crm/csd/notifications/${id}/read`, { method: 'POST', body: '{}' });
+}
+
+export async function archiveCsdConversation(
+  token: string,
+  conversationId: string,
+): Promise<CsdConversationRow> {
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/archive`, {
+    method: 'POST',
+    body: '{}',
+  });
+}
+
+export async function forwardCsdMessage(
+  token: string,
+  targetConversationId: string,
+  messageId: string,
+): Promise<CsdMessageRow> {
+  return csdFetch(token, `/api/crm/csd/conversations/${targetConversationId}/forward`, {
+    method: 'POST',
+    body: JSON.stringify({ message_id: messageId }),
+  });
+}
+
+export async function createCsdTicketFromAiAction(
+  token: string,
+  aiInteractionId: string,
+  actionIndex: number,
+  patch: Partial<CreateCsdTicketInput>,
+): Promise<CsdTicketRow & { already_exists?: boolean }> {
+  return csdFetch(
+    token,
+    `/api/crm/csd/ai/interactions/${aiInteractionId}/actions/${actionIndex}/create-ticket`,
+    { method: 'POST', body: JSON.stringify(patch) },
+  );
+}
+
 export async function createCsdTicketFromMessage(
   token: string,
   messageId: string,
   patch: Partial<CreateCsdTicketInput>,
-): Promise<CsdTicketRow> {
+): Promise<CsdTicketRow & { skipped_internal_files?: string[]; already_exists?: boolean }> {
   return csdFetch(token, `/api/crm/csd/messages/${messageId}/create-ticket`, {
     method: 'POST',
     body: JSON.stringify(patch),
@@ -540,7 +603,13 @@ export async function draftCsdChatSummary(
   token: string,
   conversationId: string,
   period: '24h' | '7d' | 'all' = '24h',
-): Promise<{ summary: string; decisions: string[]; actions: string[]; risks: string[] }> {
+): Promise<{
+  summary: string;
+  decisions: string[];
+  actions: string[];
+  risks: string[];
+  ai_interaction_id?: string;
+}> {
   return csdFetch(token, `/api/crm/csd/ai/conversations/${conversationId}/summarize`, {
     method: 'POST',
     body: JSON.stringify({ period }),

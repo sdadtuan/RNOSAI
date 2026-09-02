@@ -511,6 +511,35 @@ export class CsdChatRepository implements OnModuleDestroy {
     }
   }
 
+  async insertClientChatNotifications(input: {
+    conversationId: string;
+    messageId: string;
+    staffIds: number[];
+    excludeStaffId: number;
+    preview: string;
+  }): Promise<void> {
+    const ids = [...new Set(input.staffIds)].filter((id) => id > 0 && id !== input.excludeStaffId);
+    for (const staffId of ids) {
+      await this.db.query(
+        `INSERT INTO csd_notifications (
+           tenant_id, staff_id, event_key, title_vi, body_vi, entity_type, entity_id, severity
+         ) VALUES ($1, $2, 'client_chat_message', $3, $4, 'csd_message', $5, 'info')`,
+        [
+          CSD_TENANT_ID,
+          staffId,
+          'Tin nhắn chat khách',
+          input.preview,
+          input.messageId,
+        ],
+      );
+    }
+  }
+
+  async countUnreadConversations(staffId: number): Promise<number> {
+    const items = await this.listConversationsForMember({ staffId, filter: 'unread' });
+    return items.length;
+  }
+
   async getMessage(id: string): Promise<CsdMessageRow | null> {
     const res = await this.db.query(
       `SELECT * FROM csd_messages

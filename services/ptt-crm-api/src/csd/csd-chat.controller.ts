@@ -51,6 +51,13 @@ export class CsdChatController {
     };
   }
 
+  @Get('chat/unread-count')
+  @RequireCsdAction('view')
+  async unreadConversationCount(@Req() req: AuthedReq) {
+    const actor = await this.actor(req);
+    return this.chat.unreadConversationCount(actor);
+  }
+
   @Get('conversations')
   @RequireCsdAction('view')
   async listConversations(
@@ -178,6 +185,24 @@ export class CsdChatController {
   async closeConversation(@Req() req: AuthedReq, @Param('id') id: string) {
     const actor = await this.actor(req);
     return this.chat.closeConversation(actor, id);
+  }
+
+  @Post('conversations/:id/archive')
+  @RequireCsdAction('write')
+  async archiveConversation(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.archiveConversation(actor, id);
+  }
+
+  @Post('conversations/:id/forward')
+  @RequireCsdAction('write')
+  async forwardMessage(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { message_id: string },
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.forwardMessage(actor, id, body);
   }
 
   @Post('conversations/:id/reopen')

@@ -16,6 +16,9 @@ import { CsdEmailController } from './csd-email.controller';
 import { CsdEmailRepository } from './csd-email.repository';
 import { CsdEmailService } from './csd-email.service';
 import { CsdEmailSyncWorker } from './csd-email-sync.worker';
+import { CsdNotificationsController } from './csd-notifications.controller';
+import { CsdNotificationsRepository } from './csd-notifications.repository';
+import { CsdNotificationsService } from './csd-notifications.service';
 import { CsdReportsController } from './csd-reports.controller';
 import { CsdReportsRepository } from './csd-reports.repository';
 import { CsdReportsService } from './csd-reports.service';
@@ -31,6 +34,7 @@ import { StaffCsdGuard } from './guards/staff-csd.guard';
     CsdTicketsController,
     CsdChatController,
     CsdChatFilesController,
+    CsdNotificationsController,
     CsdEmailController,
     CsdReportsController,
     CsdAiController,
@@ -45,6 +49,8 @@ import { StaffCsdGuard } from './guards/staff-csd.guard';
     CsdChatRepository,
     CsdChatFilesService,
     CsdChatService,
+    CsdNotificationsRepository,
+    CsdNotificationsService,
     CsdEmailRepository,
     CsdEmailService,
     CsdEmailSyncWorker,

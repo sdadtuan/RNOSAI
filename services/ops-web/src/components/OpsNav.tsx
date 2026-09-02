@@ -20,6 +20,7 @@ import { canViewEmailGateA } from '@/lib/email/caps';
 import { canViewMetaAdsOps, canViewMetaIntelligence, canViewMetaTracking } from '@/lib/meta/caps';
 import { ceoCommandEnabled } from '@/lib/crm/ceo-command-flags';
 import { canSeeCsdNav } from '@/lib/crm/csd-nav.util';
+import { fetchCsdChatUnreadCount } from '@/lib/crm/csd-api';
 import { canSeeCeoNav } from '@/lib/crm/ceo-command-thread.util';
 import {
   canViewSeoAeo,
@@ -309,6 +310,7 @@ function buildSections(
   emailPendingApprovals?: number,
   agencyUnread?: number,
   reviewQueueCount?: number,
+  csdChatUnread?: number,
 ): NavSection[] {
   const sections: NavSection[] = [];
 
@@ -398,7 +400,7 @@ function buildSections(
   if (canSeeCsdNav(user)) {
     serviceDesk.push({ href: '/crm/csd', label: 'Tổng quan SD' });
     serviceDesk.push({ href: '/crm/csd/tickets', label: 'Ticket SD' });
-    serviceDesk.push({ href: '/crm/csd/chat', label: 'Chat' });
+    serviceDesk.push({ href: '/crm/csd/chat', label: `Chat${navBadge(csdChatUnread)}` });
     serviceDesk.push({ href: '/crm/csd/email', label: 'Email' });
     serviceDesk.push({ href: '/crm/csd/reports', label: 'Báo cáo' });
   }
@@ -658,6 +660,7 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   const [navUser, setNavUser] = useState<StoredStaffUser | null>(user);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [reviewQueueCount, setReviewQueueCount] = useState<number | undefined>();
+  const [csdChatUnread, setCsdChatUnread] = useState<number | undefined>();
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [flyoutSection, setFlyoutSection] = useState<string | null>(null);
   const [isMobileNav, setIsMobileNav] = useState(false);
@@ -716,9 +719,18 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
       .catch(() => setReviewQueueCount(undefined));
   }, [user, pathname]);
 
+  useEffect(() => {
+    if (!sidebarUser || !canSeeCsdNav(sidebarUser)) return;
+    const token = getAccessToken();
+    if (!token) return;
+    void fetchCsdChatUnreadCount(token)
+      .then((out) => setCsdChatUnread(out.count))
+      .catch(() => setCsdChatUnread(undefined));
+  }, [sidebarUser, pathname]);
+
   const sections = useMemo(
-    () => buildSections(sidebarUser, emailPendingApprovals, agencyUnread, reviewQueueCount),
-    [sidebarUser, emailPendingApprovals, agencyUnread, reviewQueueCount],
+    () => buildSections(sidebarUser, emailPendingApprovals, agencyUnread, reviewQueueCount, csdChatUnread),
+    [sidebarUser, emailPendingApprovals, agencyUnread, reviewQueueCount, csdChatUnread],
   );
   const nextAction = nextActionFor(pathname);
 

@@ -54,6 +54,7 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
   let conversation = { ...CONVERSATION };
   let conversations: Array<Record<string, unknown>> = [{ ...CONVERSATION }, { ...GROUP_CONVERSATION }];
   let message = { ...MESSAGE };
+  let ticketCreateCount = 0;
 
   await page.route('**/api/crm/csd/conversations**', async (route) => {
     const url = route.request().url();
@@ -122,6 +123,32 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
             },
           ],
         }),
+      });
+      return;
+    }
+    if (method === 'POST' && url.includes('/archive')) {
+      conversation = { ...conversation, status: 'archived' };
+      conversations = conversations.map((row) =>
+        row.id === conversation.id ? { ...row, status: 'archived' } : row,
+      );
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(conversation),
+      });
+      return;
+    }
+    if (method === 'POST' && url.includes('/messages')) {
+      const body = route.request().postDataJSON() as { body_text?: string };
+      message = {
+        ...message,
+        body_text: body.body_text ?? message.body_text,
+        priority_suggestion: String(body.body_text ?? '').includes('ngưng chạy') ? 'P1' : null,
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(message),
       });
       return;
     }
@@ -206,10 +233,19 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
     await route.continue();
   });
 
+  await page.route('**/api/crm/csd/chat/unread-count**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ count: 1 }),
+    });
+  });
+
   await page.route('**/api/crm/csd/messages/**', async (route) => {
     const method = route.request().method();
     const path = new URL(route.request().url()).pathname;
     if (method === 'POST' && path.endsWith('/create-ticket')) {
+      ticketCreateCount += 1;
       message = {
         ...message,
         ticket_id: '11111111-1111-1111-1111-111111111111',
@@ -225,6 +261,7 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
           status: 'new',
           priority: 'P3',
           sla_status: 'on_track',
+          already_exists: ticketCreateCount > 1,
         }),
       });
       return;
@@ -281,8 +318,23 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
       body: JSON.stringify({
         summary: 'Khách báo Ads không chạy trong 24h.',
         decisions: [],
-        actions: ['Xác nhận lại yêu cầu với khách trước khi cam kết.'],
+        actions: ['Gọi khách xác nhận campaign'],
         risks: [],
+        ai_interaction_id: 'aiiiiiii-iiii-iiii-iiii-iiiiiiiiiiii',
+      }),
+    });
+  });
+
+  await page.route('**/api/crm/csd/ai/interactions/*/actions/*/create-ticket**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: '22222222-2222-2222-2222-222222222222',
+        code: 'PTT-2026-000050',
+        title: 'Gọi khách xác nhận campaign',
+        status: 'new',
+        priority: 'P3',
       }),
     });
   });
@@ -378,5 +430,31 @@ test.describe('CSD chat workspace', () => {
 
     await page.getByTestId('csd-chat-delete').click();
     await expect(page.getByTestId('csd-chat-deleted')).toHaveText(/Đã xóa/);
+  });
+
+  test('C-4: priority hint, duplicate ticket dialog, archive, AI action ticket, deep link', async ({ page }) => {
+    await mockCsdChatApis(page);
+    await loginAsStaff(page);
+
+    await page.goto(`/crm/csd/chat?c=${CONVERSATION.id}`);
+    await expect(page.getByTestId('csd-chat-workspace')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('csd-chat-messages')).toContainText('Khách báo Ads không chạy');
+
+    await page.getByTestId('csd-chat-draft').fill('Ads ngưng chạy');
+    await page.getByRole('button', { name: /^Gửi$/ }).click();
+    await expect(page.getByTestId('csd-chat-priority-hint')).toContainText('P1');
+
+    await page.getByRole('button', { name: /Tạo ticket/i }).first().click();
+    await page.getByTestId('csd-create-ticket-modal').getByRole('button', { name: /Tạo ticket/i }).click();
+    await page.getByRole('button', { name: /Tạo ticket/i }).first().click();
+    await page.getByTestId('csd-create-ticket-modal').getByRole('button', { name: /Tạo ticket/i }).click();
+    await expect(page.getByTestId('csd-duplicate-ticket-modal')).toContainText('PTT-2026-000099');
+
+    await page.getByTestId('csd-chat-archive').click();
+    await expect(page.getByRole('button', { name: /^Gửi$/ })).toHaveCount(0);
+
+    await page.getByTestId('csd-chat-ai-summary').click();
+    await expect(page.getByTestId('csd-chat-ai-actions')).toBeVisible();
+    await page.getByTestId('csd-chat-ai-actions').getByRole('button', { name: /Tạo ticket/i }).click();
   });
 });

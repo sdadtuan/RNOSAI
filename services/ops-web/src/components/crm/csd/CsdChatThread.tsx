@@ -59,6 +59,8 @@ type CsdChatThreadProps = {
   canWrite: boolean;
   busy: boolean;
   closed: boolean;
+  priorityHint?: 'P1' | 'P2' | null;
+  showMobileBack?: boolean;
   onDraftChange: (value: string) => void;
   onSend: () => void;
   onReply: (message: CsdMessageRow) => void;
@@ -69,6 +71,12 @@ type CsdChatThreadProps = {
   onRemovePending: (fileId: string) => void;
   onEditMessage: (message: CsdMessageRow, bodyText: string) => void;
   onDeleteMessage: (message: CsdMessageRow) => void;
+  onCopyLink: (message: CsdMessageRow) => void;
+  onForward: (message: CsdMessageRow) => void;
+  onMobileBack?: () => void;
+  onShowContext?: () => void;
+  onDismissPriorityHint?: () => void;
+  onApplyPriorityHint?: () => void;
 };
 
 export function CsdChatThread({
@@ -94,6 +102,13 @@ export function CsdChatThread({
   onRemovePending,
   onEditMessage,
   onDeleteMessage,
+  onCopyLink,
+  onForward,
+  onMobileBack,
+  onDismissPriorityHint,
+  onApplyPriorityHint,
+  priorityHint,
+  showMobileBack,
 }: CsdChatThreadProps) {
   const [ticketSuggest, setTicketSuggest] = useState<CsdTicketRow[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -160,7 +175,25 @@ export function CsdChatThread({
 
   return (
     <section className="csd-chat-workspace__thread page-card">
-      <h3 className="kpi-section-title">{active.name_vi}</h3>
+      <div className="csd-chat-thread-head">
+        {showMobileBack ? (
+          <button type="button" className="btn btn-sm btn-secondary" onClick={onMobileBack} data-testid="csd-chat-mobile-back">
+            ← Hội thoại
+          </button>
+        ) : null}
+        <h3 className="kpi-section-title">{active.name_vi}</h3>
+      </div>
+      {priorityHint ? (
+        <div className="csd-chat-priority-hint" data-testid="csd-chat-priority-hint">
+          <span>Gợi ý tạo ticket {priorityHint}</span>
+          <button type="button" className="btn btn-sm" onClick={onApplyPriorityHint}>
+            Tạo ticket {priorityHint}
+          </button>
+          <button type="button" className="btn btn-sm btn-secondary" onClick={onDismissPriorityHint}>
+            Bỏ qua
+          </button>
+        </div>
+      ) : null}
       {isClient ? (
         <p className="csd-chat-client-banner" data-testid="csd-chat-client-banner">
           Bạn đang gửi cho khách hàng
@@ -283,6 +316,12 @@ export function CsdChatThread({
                       Xóa
                     </button>
                   ) : null}
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => onCopyLink(m)}>
+                    Copy link
+                  </button>
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => onForward(m)}>
+                    Chuyển tiếp
+                  </button>
                 </div>
               ) : null}
             </li>
@@ -291,7 +330,7 @@ export function CsdChatThread({
       </ul>
       {closed ? (
         <div className="csd-chat-closed">
-          <p className="muted">Hội thoại đã đóng. Composer bị khóa.</p>
+          <p className="muted">Hội thoại đã đóng hoặc lưu trữ. Composer bị khóa.</p>
           {canWrite ? (
             <button type="button" className="btn btn-sm" disabled={busy} onClick={onReopen}>
               Mở lại

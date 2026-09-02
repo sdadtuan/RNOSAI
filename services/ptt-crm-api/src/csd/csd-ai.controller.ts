@@ -34,6 +34,22 @@ export class CsdAiController {
     return this.ai.summarizeChat(await this.actorStaffId(req), id, body.period ?? '24h');
   }
 
+  @Post('interactions/:id/actions/:index/create-ticket')
+  @RequireCsdAction('write')
+  async createTicketFromAiAction(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('index') index: string,
+    @Body() body: { title?: string; ticket_type?: string; priority?: string; client_account_id?: string },
+  ) {
+    return this.ai.createTicketFromAiAction(
+      await this.actorStaffId(req),
+      id,
+      Number(index),
+      body,
+    );
+  }
+
   @Post('tickets/:id/classify')
   @RequireCsdAction('write')
   async classify(@Req() req: AuthedReq, @Param('id') id: string) {
