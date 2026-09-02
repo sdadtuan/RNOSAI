@@ -164,7 +164,9 @@ export function CsdChatWorkspace({ token, canWrite, initialConversationId }: Csd
           open
           busy={s.busy}
           onClose={() => s.setShowNewModal(false)}
-          onSubmit={(payload) => s.handleCreateConversation(payload)}
+          onSubmit={async (payload) => {
+            await s.handleCreateConversation(payload);
+          }}
         />
       ) : null}
 
