@@ -72,7 +72,7 @@ export function CsdChatContext({
 }: CsdChatContextProps) {
   const isSheet = variant === 'sheet';
   return (
-    <aside className={`csd-chat-workspace__context page-card stack-gap${isSheet ? ' is-sheet' : ''}`}>
+    <aside className={`csd-chat-workspace__context stack-gap${isSheet ? ' is-sheet' : ''}`}>
       {showMobileBack && !isSheet ? (
         <button type="button" className="btn btn-sm btn-secondary" onClick={onMobileBack}>
           ← Thread

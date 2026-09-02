@@ -58,47 +58,49 @@ function CsdChatPageInner() {
       ]}
       width="full"
     >
-      <PageToolbar title="Chat native" subtitle="Hộp thoại — DM, nhóm, khách, dự án" />
-      {error ? (
-        <div className="page-card">
-          <p className="error">{error}</p>
-        </div>
-      ) : null}
-      {disabled ? (
-        <div className="page-card" data-testid="csd-chat-disabled">
-          <p>Tài khoản chat chưa được Admin cấp — liên hệ quản trị.</p>
-        </div>
-      ) : null}
-      {token && chatEnabled && !chatAuthed ? (
-        <CsdChatLoginForm
-          key={meUsername}
-          defaultUsername={meUsername}
-          busy={loginBusy}
-          error={loginError}
-          onSubmit={async (input) => {
-            setLoginBusy(true);
-            setLoginError('');
-            try {
-              const out = await loginCsdChat(token, input);
-              writeCsdChatLogin({ staff_id: out.staff_id, username: out.username });
-              setChatAuthed(true);
-            } catch (err) {
-              setLoginError(
-                err instanceof Error && err.message === 'invalid_chat_credentials'
-                  ? 'Sai tên đăng nhập hoặc mật khẩu chat'
-                  : err instanceof Error
-                    ? err.message
-                    : 'Không đăng nhập được Chat',
-              );
-            } finally {
-              setLoginBusy(false);
-            }
-          }}
-        />
-      ) : null}
-      {token && chatEnabled && chatAuthed ? (
-        <CsdChatWorkspace token={token} canWrite={canWrite} initialConversationId={initialConversationId} />
-      ) : null}
+      <div className={token && chatEnabled && chatAuthed ? 'csd-chat-page is-authed' : 'csd-chat-page'}>
+        <PageToolbar title="Chat native" subtitle={chatAuthed ? undefined : 'Hộp thoại — DM, nhóm, khách, dự án'} />
+        {error ? (
+          <div className="page-card">
+            <p className="error">{error}</p>
+          </div>
+        ) : null}
+        {disabled ? (
+          <div className="page-card" data-testid="csd-chat-disabled">
+            <p>Tài khoản chat chưa được Admin cấp — liên hệ quản trị.</p>
+          </div>
+        ) : null}
+        {token && chatEnabled && !chatAuthed ? (
+          <CsdChatLoginForm
+            key={meUsername}
+            defaultUsername={meUsername}
+            busy={loginBusy}
+            error={loginError}
+            onSubmit={async (input) => {
+              setLoginBusy(true);
+              setLoginError('');
+              try {
+                const out = await loginCsdChat(token, input);
+                writeCsdChatLogin({ staff_id: out.staff_id, username: out.username });
+                setChatAuthed(true);
+              } catch (err) {
+                setLoginError(
+                  err instanceof Error && err.message === 'invalid_chat_credentials'
+                    ? 'Sai tên đăng nhập hoặc mật khẩu chat'
+                    : err instanceof Error
+                      ? err.message
+                      : 'Không đăng nhập được Chat',
+                );
+              } finally {
+                setLoginBusy(false);
+              }
+            }}
+          />
+        ) : null}
+        {token && chatEnabled && chatAuthed ? (
+          <CsdChatWorkspace token={token} canWrite={canWrite} initialConversationId={initialConversationId} />
+        ) : null}
+      </div>
     </StaffPageShell>
   );
 }

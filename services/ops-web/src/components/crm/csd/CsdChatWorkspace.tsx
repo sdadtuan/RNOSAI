@@ -38,8 +38,9 @@ export function CsdChatWorkspace({ token, canWrite, initialConversationId }: Csd
   return (
     <div className={workspaceClass} data-testid="csd-chat-workspace">
       {(!s.isMobile || s.mobilePane === 'list') && (
+        <>
+        <CsdChatTabs variant="rail" tab={tab} incomingCount={incomingCount} onChange={setTab} />
         <div className="csd-chat-workspace__list-col">
-          <CsdChatTabs tab={tab} incomingCount={incomingCount} onChange={setTab} />
           {tab === 'messages' ? (
             <CsdChatList
               conversations={s.conversations}
@@ -67,6 +68,7 @@ export function CsdChatWorkspace({ token, canWrite, initialConversationId }: Csd
             />
           )}
         </div>
+        </>
       )}
 
       {(!s.isMobile || s.mobilePane === 'thread') && (

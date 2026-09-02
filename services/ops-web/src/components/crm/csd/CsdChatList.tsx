@@ -4,9 +4,12 @@ import { useEffect, useState } from 'react';
 import { type CsdConversationListFilter, type CsdConversationRow } from '@/lib/crm/csd-api';
 import { avatarHue, formatChatListTime, initialsFromName } from '@/lib/crm/csd-chat-display';
 
-const FILTERS: { id: Exclude<CsdConversationListFilter, 'mentions'>; label: string }[] = [
+const PRIMARY_FILTERS: { id: Exclude<CsdConversationListFilter, 'mentions'>; label: string }[] = [
   { id: 'all', label: 'Tất cả' },
   { id: 'unread', label: 'Chưa đọc' },
+];
+
+const KIND_FILTERS: { id: Exclude<CsdConversationListFilter, 'mentions'>; label: string }[] = [
   { id: 'clients', label: 'Khách' },
   { id: 'projects', label: 'Dự án' },
   { id: 'internal', label: 'Nội bộ' },
@@ -51,34 +54,53 @@ export function CsdChatList({
   }, [localSearch, onSearch]);
 
   return (
-    <aside className="csd-chat-workspace__list page-card">
+    <aside className="csd-chat-workspace__list">
       <div className="csd-chat-workspace__list-head">
-        <h3 className="kpi-section-title">Hội thoại</h3>
+        <label className="csd-chat-search">
+          <span className="csd-chat-search__icon" aria-hidden>
+            ⌕
+          </span>
+          <input
+            placeholder="Tìm kiếm"
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
+            data-testid="csd-chat-search"
+          />
+        </label>
         {canWrite ? (
-          <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={onNew}>
+          <button type="button" className="csd-chat-icon-btn" disabled={busy} onClick={onNew}>
             Mới
           </button>
         ) : null}
       </div>
-      <input
-        className="kpi-input"
-        placeholder="Tìm hội thoại hoặc tin…"
-        value={localSearch}
-        onChange={(e) => setLocalSearch(e.target.value)}
-        data-testid="csd-chat-search"
-      />
       <div className="csd-chat-filters">
-        {FILTERS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={`btn btn-sm btn-secondary${filter === item.id ? ' is-active' : ''}`}
-            data-testid={`csd-chat-filter-${item.id}`}
-            onClick={() => onFilter(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
+        <div className="csd-chat-filters__tabs">
+          {PRIMARY_FILTERS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={filter === item.id ? 'is-active' : ''}
+              data-testid={`csd-chat-filter-${item.id}`}
+              onClick={() => onFilter(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <div className="csd-chat-filters__kinds" aria-label="Phân loại">
+          <span className="csd-chat-filters__kinds-label">Phân loại</span>
+          {KIND_FILTERS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={filter === item.id ? 'is-active' : ''}
+              data-testid={`csd-chat-filter-${item.id}`}
+              onClick={() => onFilter(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
       </div>
       {error ? <p className="error">{error}</p> : null}
       <ul className="csd-chat-list" data-testid="csd-chat-list">
@@ -106,11 +128,13 @@ export function CsdChatList({
                   <span className="csd-chat-list__body">
                     <span className="csd-chat-list__title">
                       <strong>{c.name_vi}</strong>
-                      <span className="csd-chat-list__time muted">{formatChatListTime(c.last_message_at)}</span>
+                      <span className="csd-chat-list__time">{formatChatListTime(c.last_message_at)}</span>
+                    </span>
+                    <span className="csd-chat-list__meta">
+                      {c.preview ? <span className="csd-chat-list__preview">{c.preview}</span> : <span />}
                       {unread > 0 ? <span className="csd-chat-list__unread">{unread}</span> : null}
                     </span>
-                    {c.preview ? <span className="csd-chat-list__preview muted">{c.preview}</span> : null}
-                    {c.status === 'closed' ? <span className="muted">Đã đóng</span> : null}
+                    {c.status === 'closed' ? <span className="csd-chat-list__closed">Đã đóng</span> : null}
                   </span>
                 </button>
               </li>

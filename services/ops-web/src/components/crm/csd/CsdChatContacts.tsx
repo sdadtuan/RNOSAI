@@ -111,7 +111,7 @@ export function CsdChatContacts({
 
   if (mode === 'requests') {
     return (
-      <section className="csd-chat-contacts page-card">
+      <section className="csd-chat-contacts">
         <h3 className="kpi-section-title">Lời mời</h3>
         {error ? <p className="error">{error}</p> : null}
         <h4 className="kpi-section-title">Đến</h4>
@@ -173,7 +173,7 @@ export function CsdChatContacts({
   }
 
   return (
-    <section className="csd-chat-contacts page-card">
+    <section className="csd-chat-contacts">
       <h3 className="kpi-section-title">Danh bạ</h3>
       {error ? <p className="error">{error}</p> : null}
       <input

@@ -10,7 +10,7 @@ import {
   type CsdMessageRow,
   type CsdTicketRow,
 } from '@/lib/crm/csd-api';
-import { formatDateChip, shouldShowDateChip } from '@/lib/crm/csd-chat-display';
+import { avatarHue, formatDateChip, initialsFromName, shouldShowDateChip } from '@/lib/crm/csd-chat-display';
 
 function mentionToken(draft: string): string | null {
   const match = draft.match(/(^|[\s])@(\d*)$/);
@@ -146,8 +146,10 @@ export function CsdChatThread({
 
   if (!active) {
     return (
-      <section className="csd-chat-workspace__thread page-card">
-        <p className="muted">Chọn hội thoại để xem tin nhắn</p>
+      <section className="csd-chat-workspace__thread">
+        <div className="csd-chat-thread-empty">
+          <p>Chọn hội thoại để xem tin nhắn</p>
+        </div>
       </section>
     );
   }
@@ -155,19 +157,26 @@ export function CsdChatThread({
   const isClient = active.kind === 'client';
 
   return (
-    <section className="csd-chat-workspace__thread page-card">
+    <section className="csd-chat-workspace__thread">
       <div className="csd-chat-thread-head">
         {showMobileBack ? (
-          <button type="button" className="btn btn-sm btn-secondary" onClick={onMobileBack} data-testid="csd-chat-mobile-back">
+          <button type="button" className="csd-chat-icon-btn" onClick={onMobileBack} data-testid="csd-chat-mobile-back">
             ←
           </button>
         ) : null}
-        <h3 className="kpi-section-title">{active.name_vi}</h3>
+        <span
+          className="csd-chat-avatar csd-chat-avatar--thread"
+          style={{ background: `hsl(${avatarHue(active.id)} 55% 42%)` }}
+          aria-hidden
+        >
+          {initialsFromName(active.name_vi)}
+        </span>
+        <h3 className="csd-chat-thread-head__name">{active.name_vi}</h3>
         <div className="csd-chat-thread-head__actions">
           {onShowContext ? (
             <button
               type="button"
-              className="btn btn-sm btn-secondary"
+              className="csd-chat-icon-btn"
               data-testid="csd-chat-thread-info"
               aria-label="Thông tin hội thoại"
               onClick={onShowContext}
@@ -176,12 +185,12 @@ export function CsdChatThread({
             </button>
           ) : null}
           {onExpand ? (
-            <button type="button" className="btn btn-sm btn-secondary" onClick={onExpand}>
+            <button type="button" className="csd-chat-icon-btn" onClick={onExpand}>
               Mở rộng
             </button>
           ) : null}
           {onMinimize ? (
-            <button type="button" className="btn btn-sm btn-secondary" aria-label="Thu nhỏ" onClick={onMinimize}>
+            <button type="button" className="csd-chat-icon-btn" aria-label="Thu nhỏ" onClick={onMinimize}>
               —
             </button>
           ) : null}
@@ -265,7 +274,7 @@ export function CsdChatThread({
           {replyTo ? (
             <div className="csd-chat-reply-bar">
               <span>Trả lời: {replyTo.body_text.slice(0, 80)}</span>
-              <button type="button" className="btn btn-sm btn-secondary" onClick={onCancelReply}>
+              <button type="button" className="csd-chat-icon-btn" onClick={onCancelReply}>
                 Huỷ
               </button>
             </div>
@@ -275,52 +284,15 @@ export function CsdChatThread({
               {pendingFiles.map((file) => (
                 <li key={file.id}>
                   <span className="csd-chat-file-chip">{file.file_name}</span>
-                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => onRemovePending(file.id)}>
+                  <button type="button" className="csd-chat-icon-btn" onClick={() => onRemovePending(file.id)}>
                     Bỏ
                   </button>
                 </li>
               ))}
             </ul>
           ) : null}
-          <div className="csd-chat-compose__field">
-            <textarea
-              className="kpi-input"
-              rows={3}
-              placeholder="Nhập tin nhắn… @staff · #ticket · đính file · Enter gửi"
-              value={draft}
-              onChange={(e) => onDraftChange(e.target.value)}
-              onKeyDown={onDraftKeyDown}
-              data-testid="csd-chat-draft"
-            />
-            {mentionQ != null ? (
-              <ul className="csd-chat-suggest" data-testid="csd-chat-mention-suggest">
-                {mentionOptions.length === 0 ? (
-                  <li className="muted">Gõ staff id</li>
-                ) : (
-                  mentionOptions.map((id) => (
-                    <li key={id}>
-                      <button type="button" onClick={() => insertAtToken('@', String(id))}>
-                        @{id}
-                      </button>
-                    </li>
-                  ))
-                )}
-              </ul>
-            ) : null}
-            {hashQ != null && ticketSuggest.length > 0 ? (
-              <ul className="csd-chat-suggest" data-testid="csd-chat-ticket-suggest">
-                {ticketSuggest.map((t) => (
-                  <li key={t.id}>
-                    <button type="button" onClick={() => insertAtToken('#', t.code)}>
-                      #{t.code} · {t.priority} · {t.status}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-          <div className="csd-chat-compose__actions">
-            <label className="btn btn-sm btn-secondary csd-chat-attach">
+          <div className="csd-chat-compose__toolbar">
+            <label className="csd-chat-icon-btn csd-chat-attach" title="Đính file">
               Đính file
               <input
                 type="file"
@@ -333,9 +305,47 @@ export function CsdChatThread({
                 }}
               />
             </label>
+          </div>
+          <div className="csd-chat-compose__row">
+            <div className="csd-chat-compose__field">
+              <textarea
+                rows={1}
+                placeholder={`Nhập @, tin nhắn tới ${active.name_vi}`}
+                value={draft}
+                onChange={(e) => onDraftChange(e.target.value)}
+                onKeyDown={onDraftKeyDown}
+                data-testid="csd-chat-draft"
+              />
+              {mentionQ != null ? (
+                <ul className="csd-chat-suggest" data-testid="csd-chat-mention-suggest">
+                  {mentionOptions.length === 0 ? (
+                    <li className="muted">Gõ staff id</li>
+                  ) : (
+                    mentionOptions.map((id) => (
+                      <li key={id}>
+                        <button type="button" onClick={() => insertAtToken('@', String(id))}>
+                          @{id}
+                        </button>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              ) : null}
+              {hashQ != null && ticketSuggest.length > 0 ? (
+                <ul className="csd-chat-suggest" data-testid="csd-chat-ticket-suggest">
+                  {ticketSuggest.map((t) => (
+                    <li key={t.id}>
+                      <button type="button" onClick={() => insertAtToken('#', t.code)}>
+                        #{t.code} · {t.priority} · {t.status}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
             <button
               type="submit"
-              className="btn btn-sm"
+              className="csd-chat-send"
               disabled={busy || (!draft.trim() && pendingFiles.length === 0)}
             >
               Gửi

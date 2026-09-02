@@ -206,7 +206,7 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
         >
           {pane === 'list' ? (
             <header className="csd-chat-dock__head">
-              <strong>Chat nội bộ</strong>
+              <strong>Chat</strong>
               <div className="csd-chat-dock__head-actions">
                 <button type="button" className="btn btn-sm btn-secondary" onClick={expand}>
                   Mở rộng
