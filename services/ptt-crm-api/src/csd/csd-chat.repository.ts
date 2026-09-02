@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import {
   CSD_TENANT_ID,
+  CsdAttachmentRow,
   CsdConversationKind,
   CsdConversationListFilter,
   CsdConversationListItem,
@@ -65,18 +66,36 @@ function mapMember(row: Record<string, unknown>): CsdConversationMemberRow {
   };
 }
 
+function mapAttachment(row: Record<string, unknown>): CsdAttachmentRow {
+  return {
+    id: text(row.id),
+    file_name: text(row.file_name),
+    mime_type: text(row.mime_type),
+    byte_size: num(row.byte_size) ?? 0,
+    visibility: text(row.visibility) as CsdAttachmentRow['visibility'],
+    entity_type: text(row.entity_type),
+    entity_id: text(row.entity_id),
+    storage_key: text(row.storage_key),
+    created_at: text(row.created_at),
+  };
+}
+
 function mapMessage(row: Record<string, unknown>): CsdMessageRow {
+  const deleted = Boolean(row.is_deleted);
   return {
     id: text(row.id),
     tenant_id: text(row.tenant_id),
     conversation_id: text(row.conversation_id),
     author_type: text(row.author_type),
     author_staff_id: num(row.author_staff_id),
-    body_text: text(row.body_text),
+    body_text: deleted ? '' : text(row.body_text),
     reply_to_id: row.reply_to_id != null ? text(row.reply_to_id) : null,
     visibility: row.visibility as CsdMessageRow['visibility'],
     ticket_id: row.ticket_id != null ? text(row.ticket_id) : null,
     created_at: text(row.created_at),
+    edited_at: row.edited_at ? text(row.edited_at) : null,
+    is_deleted: deleted,
+    delivery_status: (text(row.delivery_status) || 'sent') as CsdMessageRow['delivery_status'],
   };
 }
 
@@ -353,8 +372,8 @@ export class CsdChatRepository implements OnModuleDestroy {
       const res = await client.query(
         `INSERT INTO csd_messages (
            tenant_id, conversation_id, author_type, author_staff_id,
-           body_text, reply_to_id, visibility
-         ) VALUES ($1, $2, 'staff', $3, $4, $5, $6)
+           body_text, reply_to_id, visibility, delivery_status
+         ) VALUES ($1, $2, 'staff', $3, $4, $5, $6, 'sent')
          RETURNING *`,
         [
           CSD_TENANT_ID,
@@ -400,7 +419,7 @@ export class CsdChatRepository implements OnModuleDestroy {
 
     const res = await this.db.query(
       `SELECT * FROM csd_messages
-       WHERE tenant_id = $1 AND conversation_id = $2 AND is_deleted = FALSE ${extra}
+       WHERE tenant_id = $1 AND conversation_id = $2 ${extra}
        ORDER BY created_at ASC`,
       params,
     );
@@ -499,6 +518,141 @@ export class CsdChatRepository implements OnModuleDestroy {
       [CSD_TENANT_ID, id],
     );
     return res.rows[0] ? mapMessage(res.rows[0]) : null;
+  }
+
+  async getMessageAny(id: string): Promise<CsdMessageRow | null> {
+    const res = await this.db.query(
+      `SELECT * FROM csd_messages
+       WHERE tenant_id = $1 AND id = $2`,
+      [CSD_TENANT_ID, id],
+    );
+    return res.rows[0] ? mapMessage(res.rows[0]) : null;
+  }
+
+  async updateMessageBody(id: string, bodyText: string): Promise<CsdMessageRow> {
+    const res = await this.db.query(
+      `UPDATE csd_messages
+          SET body_text = $3, edited_at = NOW()
+        WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE
+        RETURNING *`,
+      [CSD_TENANT_ID, id, bodyText],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_message_not_found' });
+    return mapMessage(res.rows[0]);
+  }
+
+  async softDeleteMessage(id: string): Promise<CsdMessageRow> {
+    const res = await this.db.query(
+      `UPDATE csd_messages
+          SET is_deleted = TRUE, deleted_at = NOW()
+        WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE
+        RETURNING *`,
+      [CSD_TENANT_ID, id],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_message_not_found' });
+    return mapMessage(res.rows[0]);
+  }
+
+  async insertAttachment(input: {
+    id?: string;
+    storage_key: string;
+    file_name: string;
+    mime_type: string;
+    byte_size: number;
+    visibility: CsdAttachmentRow['visibility'];
+    entity_type: string;
+    entity_id: string;
+    uploaded_by_staff_id: number | null;
+  }): Promise<CsdAttachmentRow> {
+    const res = await this.db.query(
+      `INSERT INTO csd_attachments (
+         id, tenant_id, storage_key, file_name, mime_type, byte_size,
+         visibility, entity_type, entity_id, uploaded_by_staff_id
+       ) VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [
+        input.id ?? null,
+        CSD_TENANT_ID,
+        input.storage_key,
+        input.file_name,
+        input.mime_type,
+        input.byte_size,
+        input.visibility,
+        input.entity_type,
+        input.entity_id,
+        input.uploaded_by_staff_id,
+      ],
+    );
+    return mapAttachment(res.rows[0]);
+  }
+
+  async getAttachment(id: string): Promise<CsdAttachmentRow | null> {
+    const res = await this.db.query(
+      `SELECT * FROM csd_attachments
+       WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE`,
+      [CSD_TENANT_ID, id],
+    );
+    return res.rows[0] ? mapAttachment(res.rows[0]) : null;
+  }
+
+  async attachConversationFilesToMessage(
+    conversationId: string,
+    messageId: string,
+    attachmentIds: string[],
+  ): Promise<void> {
+    if (attachmentIds.length === 0) return;
+    await this.db.query(
+      `UPDATE csd_attachments
+          SET entity_type = 'csd_message', entity_id = $3
+        WHERE tenant_id = $1
+          AND entity_type = 'csd_conversation'
+          AND entity_id = $2
+          AND is_deleted = FALSE
+          AND id = ANY($4::uuid[])`,
+      [CSD_TENANT_ID, conversationId, messageId, attachmentIds],
+    );
+  }
+
+  async listAttachmentsByMessages(messageIds: string[]): Promise<Record<string, CsdAttachmentRow[]>> {
+    const out: Record<string, CsdAttachmentRow[]> = {};
+    if (messageIds.length === 0) return out;
+    const res = await this.db.query(
+      `SELECT * FROM csd_attachments
+        WHERE tenant_id = $1
+          AND is_deleted = FALSE
+          AND entity_type = 'csd_message'
+          AND entity_id = ANY($2::text[])
+        ORDER BY created_at ASC`,
+      [CSD_TENANT_ID, messageIds],
+    );
+    for (const row of res.rows as Record<string, unknown>[]) {
+      const mapped = mapAttachment(row);
+      if (!out[mapped.entity_id]) out[mapped.entity_id] = [];
+      out[mapped.entity_id].push(mapped);
+    }
+    return out;
+  }
+
+  async copyAttachmentsToEntity(
+    files: CsdAttachmentRow[],
+    entityType: string,
+    entityId: string,
+  ): Promise<string[]> {
+    const ids: string[] = [];
+    for (const file of files) {
+      const copied = await this.insertAttachment({
+        storage_key: file.storage_key,
+        file_name: file.file_name,
+        mime_type: file.mime_type,
+        byte_size: file.byte_size,
+        visibility: file.visibility,
+        entity_type: entityType,
+        entity_id: entityId,
+        uploaded_by_staff_id: null,
+      });
+      ids.push(copied.id);
+    }
+    return ids;
   }
 
   async listMembers(conversationId: string): Promise<CsdConversationMemberRow[]> {

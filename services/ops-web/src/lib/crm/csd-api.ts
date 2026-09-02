@@ -45,6 +45,7 @@ export interface CsdTicketRow {
   source_id?: string | null;
   created_at: string;
   updated_at: string;
+  skipped_internal_files?: string[];
 }
 
 export interface CsdTicketCommentRow {
@@ -137,6 +138,14 @@ export interface CsdConversationMemberRow {
   created_at: string;
 }
 
+export interface CsdAttachmentRow {
+  id: string;
+  file_name: string;
+  mime_type: string;
+  byte_size: number;
+  visibility: 'internal' | 'client' | 'restricted';
+}
+
 export interface CsdMessageRow {
   id: string;
   conversation_id: string;
@@ -148,6 +157,10 @@ export interface CsdMessageRow {
   ticket_id?: string | null;
   ticket_code?: string | null;
   created_at: string;
+  edited_at?: string | null;
+  is_deleted?: boolean;
+  delivery_status?: 'sent' | 'delivered' | 'failed';
+  attachments?: CsdAttachmentRow[];
 }
 
 export interface CsdEmailRow {
@@ -321,7 +334,7 @@ export async function fetchCsdMessages(
   conversationId: string,
   after?: string,
   q?: string,
-): Promise<{ items: CsdMessageRow[] }> {
+): Promise<{ items: CsdMessageRow[]; me_staff_id?: number }> {
   const params = new URLSearchParams();
   if (after) params.set('after', after);
   if (q && q.trim().length >= 2) params.set('q', q.trim());
@@ -339,11 +352,59 @@ export async function fetchCsdRelatedTickets(
 export async function sendCsdMessage(
   token: string,
   conversationId: string,
-  body: { body_text: string; reply_to_id?: string },
+  body: { body_text: string; reply_to_id?: string; attachment_ids?: string[] },
 ): Promise<CsdMessageRow> {
   return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/messages`, {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+}
+
+export async function uploadCsdConversationFile(
+  token: string,
+  conversationId: string,
+  file: File,
+): Promise<CsdAttachmentRow> {
+  const form = new FormData();
+  form.append('file', file);
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/files`, {
+    method: 'POST',
+    body: form,
+  });
+}
+
+export async function downloadCsdFile(token: string, fileId: string, fileName: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/crm/csd/files/${fileId}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string; message?: string }>(res);
+    throw new ApiError(body.error ?? body.message ?? 'Tải file thất bại', res.status);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function editCsdMessage(
+  token: string,
+  messageId: string,
+  bodyText: string,
+): Promise<CsdMessageRow> {
+  return csdFetch(token, `/api/crm/csd/messages/${messageId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ body_text: bodyText }),
+  });
+}
+
+export async function deleteCsdMessage(token: string, messageId: string): Promise<CsdMessageRow> {
+  return csdFetch(token, `/api/crm/csd/messages/${messageId}`, {
+    method: 'DELETE',
   });
 }
 

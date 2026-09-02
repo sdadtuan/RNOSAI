@@ -1,6 +1,9 @@
 # Brand uploads (runtime — seed from docs/brand/)
 /data/brand/
 
+# CSD chat attachments (runtime — PTT_CSD_FILE_DIR)
+/data/csd-files/
+
 # Local SQLite runtime data (VPS/dev — restore from backup, never commit)
 ptt.db
 ptt.db-wal

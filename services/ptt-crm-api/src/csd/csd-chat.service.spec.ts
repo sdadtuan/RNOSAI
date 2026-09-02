@@ -22,18 +22,35 @@ describe('CsdChatService', () => {
     updateStatus: jest.fn(),
     insertMentionNotifications: jest.fn(),
     listRelatedTickets: jest.fn(),
+    updateMessageBody: jest.fn(),
+    softDeleteMessage: jest.fn(),
+    listAttachmentsByMessages: jest.fn(),
   };
 
   const tickets = {
     create: jest.fn(),
   };
 
+  const files = {
+    listForMessage: jest.fn(),
+    attachToMessage: jest.fn(),
+    copyClientFilesToTicket: jest.fn(),
+  };
+
+  const audit = {
+    insert: jest.fn(),
+  };
+
   function svc() {
-    return new CsdChatService(repo as never, tickets as never);
+    return new CsdChatService(repo as never, tickets as never, files as never, audit as never);
   }
 
   beforeEach(() => {
     jest.clearAllMocks();
+    files.listForMessage.mockResolvedValue([]);
+    files.attachToMessage.mockResolvedValue(undefined);
+    files.copyClientFilesToTicket.mockResolvedValue([]);
+    audit.insert.mockResolvedValue(undefined);
   });
 
   it('requires client_account_id when kind=client', async () => {
@@ -233,5 +250,32 @@ describe('CsdChatService', () => {
     );
     await expect(svc().removeMember(actor, 'c1', 3)).rejects.toMatchObject({ status: 400 });
     expect(repo.deleteMember).not.toHaveBeenCalled();
+  });
+
+  it('rejects edit after 15 minutes', async () => {
+    repo.getMessage.mockResolvedValue({
+      id: 'm1',
+      conversation_id: 'c1',
+      author_staff_id: 3,
+      created_at: new Date(Date.now() - 16 * 60_000).toISOString(),
+    });
+    repo.getConversation.mockResolvedValue({ id: 'c1', status: 'active' });
+    await expect(svc().editMessage(actor, 'm1', { body_text: 'x' })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('skips internal files when creating ticket from message', async () => {
+    repo.getMessage.mockResolvedValue({
+      id: 'm1',
+      conversation_id: 'c1',
+      body_text: 'Ads lỗi',
+    });
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'group', client_account_id: null });
+    tickets.create.mockResolvedValue({ id: 't1', code: 'PTT-2026-000010' });
+    repo.linkMessageToTicket.mockResolvedValue({ id: 'm1', ticket_id: 't1' });
+    files.listForMessage.mockResolvedValue([{ id: 'a1', visibility: 'internal' }]);
+    files.copyClientFilesToTicket.mockResolvedValue([]);
+    const out = await svc().createTicketFromMessage(actor, 'm1', {});
+    expect(out.skipped_internal_files).toEqual(['a1']);
+    expect(files.copyClientFilesToTicket).toHaveBeenCalledWith([], 't1');
   });
 });

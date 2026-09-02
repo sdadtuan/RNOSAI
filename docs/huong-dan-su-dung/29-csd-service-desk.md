@@ -30,6 +30,8 @@ Service Desk là kênh ticket **agency** (PTT-2026-xxxxx), tách biệt **Ticket
 - Hội thoại khách — banner **Bạn đang gửi cho khách hàng**. Nội bộ không có banner vàng.
 - **Tạo ticket từ tin nhắn** — trùng nguồn chỉ sinh **một** mã ticket; pill mở cùng tab. Thông báo (announcement) không tạo ticket.
 - **Trả lời** tin (Enter gửi, Shift+Enter xuống dòng).
+- **Đính file** (tối đa 100MB). Chat khách: file luôn `client`. Chat nội bộ/DM/nhóm: file `internal` — tạo ticket từ tin **không** copy file internal.
+- **Sửa** tin của mình trong 15 phút. **Xóa** tin của mình — timeline hiện **Đã xóa**, không trả lại nội dung.
 - Thành viên: thêm staff id / xóa (không xóa chủ hội thoại). Đóng / Mở lại khóa composer.
 - **Tóm tắt AI** trên panel phải (24h / 7d / all) — chỉ nháp, không gửi khách.
 - Poll tin nhắn mỗi 5 giây (MVP, không WebSocket).
@@ -59,6 +61,7 @@ Service Desk là kênh ticket **agency** (PTT-2026-xxxxx), tách biệt **Ticket
 2. Chat → tạo ticket 2 lần → 1 mã.  
 2b. Chat C-1: tạo DM hai staff → 1 thread khi tạo lại; chip Nội bộ ẩn hội thoại khách.  
 2c. Chat C-2: tìm theo nội dung tin; `@8` in đậm trong tin; panel phải list ticket cùng thread.  
+2d. Chat C-3: gửi tin + file trên nhóm; sửa trong 15 phút; xóa hiện “Đã xóa”; ticket từ tin không mang file internal.  
 3. Internal note không SMTP.  
 4. Resolve thiếu note → lỗi 422.  
 5. `/crm/tickets` không list ticket CSD.

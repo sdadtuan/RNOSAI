@@ -34,9 +34,12 @@ const MESSAGE = {
   conversation_id: CONVERSATION.id,
   body_text: 'Khách báo Ads không chạy',
   visibility: 'client',
+  author_staff_id: 3,
   author_staff_name: null,
   ticket_id: null,
-  created_at: '2026-09-01T10:00:00.000Z',
+  created_at: new Date().toISOString(),
+  is_deleted: false,
+  attachments: [] as Array<{ id: string; file_name: string; mime_type: string; byte_size: number; visibility: string }>,
 };
 
 async function loginAsStaff(page: import('@playwright/test').Page) {
@@ -122,11 +125,26 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
       });
       return;
     }
+    if (method === 'POST' && url.includes('/files')) {
+      const uploaded = {
+        id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        file_name: 'brief.pdf',
+        mime_type: 'application/pdf',
+        byte_size: 12,
+        visibility: conversation.kind === 'client' ? 'client' : 'internal',
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(uploaded),
+      });
+      return;
+    }
     if (method === 'GET' && url.includes('/messages')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ items: [message] }),
+        body: JSON.stringify({ items: [message], me_staff_id: 3 }),
       });
       return;
     }
@@ -188,24 +206,49 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
     await route.continue();
   });
 
-  await page.route('**/api/crm/csd/messages/*/create-ticket**', async (route) => {
-    message = {
-      ...message,
-      ticket_id: '11111111-1111-1111-1111-111111111111',
-      ticket_code: 'PTT-2026-000099',
-    };
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        id: '11111111-1111-1111-1111-111111111111',
-        code: 'PTT-2026-000099',
-        title: 'Khách báo Ads không chạy',
-        status: 'new',
-        priority: 'P3',
-        sla_status: 'on_track',
-      }),
-    });
+  await page.route('**/api/crm/csd/messages/**', async (route) => {
+    const method = route.request().method();
+    const path = new URL(route.request().url()).pathname;
+    if (method === 'POST' && path.endsWith('/create-ticket')) {
+      message = {
+        ...message,
+        ticket_id: '11111111-1111-1111-1111-111111111111',
+        ticket_code: 'PTT-2026-000099',
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: '11111111-1111-1111-1111-111111111111',
+          code: 'PTT-2026-000099',
+          title: 'Khách báo Ads không chạy',
+          status: 'new',
+          priority: 'P3',
+          sla_status: 'on_track',
+        }),
+      });
+      return;
+    }
+    if (method === 'PATCH') {
+      const body = route.request().postDataJSON() as { body_text?: string };
+      message = { ...message, body_text: body.body_text ?? message.body_text, edited_at: new Date().toISOString() };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(message),
+      });
+      return;
+    }
+    if (method === 'DELETE') {
+      message = { ...message, is_deleted: true, body_text: '' };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(message),
+      });
+      return;
+    }
+    await route.continue();
   });
 
   await page.route('**/api/crm/csd/tickets**', async (route) => {
@@ -311,5 +354,29 @@ test.describe('CSD chat workspace', () => {
     await expect(page.getByTestId('csd-chat-related-tickets')).toContainText('PTT-2026-000099');
     await page.getByTestId('csd-chat-draft').fill('#PTT');
     await expect(page.getByTestId('csd-chat-ticket-suggest')).toContainText('PTT-2026-000099');
+  });
+
+  test('C-3: attach file then edit and soft-delete own message', async ({ page }) => {
+    await mockCsdChatApis(page);
+    await loginAsStaff(page);
+
+    await page.goto('/crm/csd/chat');
+    await expect(page.getByTestId('csd-chat-workspace')).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: /Demo Client Chat/ }).click();
+
+    await page.getByTestId('csd-chat-attach').setInputFiles({
+      name: 'brief.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4'),
+    });
+    await expect(page.getByTestId('csd-chat-pending-files')).toContainText('brief.pdf');
+
+    await page.getByTestId('csd-chat-edit').click();
+    await page.getByTestId('csd-chat-edit-draft').fill('Khách báo Ads đã sửa');
+    await page.getByRole('button', { name: /^Lưu$/ }).click();
+    await expect(page.getByTestId('csd-chat-messages')).toContainText('Khách báo Ads đã sửa');
+
+    await page.getByTestId('csd-chat-delete').click();
+    await expect(page.getByTestId('csd-chat-deleted')).toHaveText(/Đã xóa/);
   });
 });

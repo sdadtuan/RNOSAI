@@ -3,13 +3,27 @@
 import { KeyboardEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
+  downloadCsdFile,
   fetchCsdTickets,
   formatCsdWhen,
+  type CsdAttachmentRow,
   type CsdConversationMemberRow,
   type CsdConversationRow,
   type CsdMessageRow,
   type CsdTicketRow,
 } from '@/lib/crm/csd-api';
+
+const EDIT_WINDOW_MS = 15 * 60_000;
+
+function canEditOwn(message: CsdMessageRow, meStaffId: number | null): boolean {
+  if (!meStaffId || message.is_deleted || message.author_staff_id !== meStaffId) return false;
+  const created = new Date(message.created_at).getTime();
+  return Number.isFinite(created) && Date.now() - created <= EDIT_WINDOW_MS;
+}
+
+function canDeleteOwn(message: CsdMessageRow, meStaffId: number | null): boolean {
+  return Boolean(meStaffId && !message.is_deleted && message.author_staff_id === meStaffId);
+}
 
 function renderMessageBody(text: string) {
   const parts = String(text).split(/(@\d+|#PTT-\d{4}-\d{6})/gi);
@@ -40,6 +54,8 @@ type CsdChatThreadProps = {
   relatedTickets: CsdTicketRow[];
   draft: string;
   replyTo: CsdMessageRow | null;
+  pendingFiles: CsdAttachmentRow[];
+  meStaffId: number | null;
   canWrite: boolean;
   busy: boolean;
   closed: boolean;
@@ -49,6 +65,10 @@ type CsdChatThreadProps = {
   onCancelReply: () => void;
   onCreateTicket: (message: CsdMessageRow) => void;
   onReopen: () => void;
+  onPickFile: (file: File) => void;
+  onRemovePending: (fileId: string) => void;
+  onEditMessage: (message: CsdMessageRow, bodyText: string) => void;
+  onDeleteMessage: (message: CsdMessageRow) => void;
 };
 
 export function CsdChatThread({
@@ -59,6 +79,8 @@ export function CsdChatThread({
   relatedTickets,
   draft,
   replyTo,
+  pendingFiles,
+  meStaffId,
   canWrite,
   busy,
   closed,
@@ -68,8 +90,14 @@ export function CsdChatThread({
   onCancelReply,
   onCreateTicket,
   onReopen,
+  onPickFile,
+  onRemovePending,
+  onEditMessage,
+  onDeleteMessage,
 }: CsdChatThreadProps) {
   const [ticketSuggest, setTicketSuggest] = useState<CsdTicketRow[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
   const mentionQ = mentionToken(draft);
   const hashQ = ticketToken(draft);
   const relatedById = new Map(relatedTickets.map((t) => [t.id, t]));
@@ -145,13 +173,74 @@ export function CsdChatThread({
           const pill = linked
             ? `${linked.code} · ${linked.priority} · ${linked.status}`
             : (m.ticket_code ?? 'Ticket liên kết');
+          const editing = editingId === m.id;
           return (
-            <li key={m.id} className="csd-chat-message">
+            <li key={m.id} className={`csd-chat-message${m.is_deleted ? ' is-deleted' : ''}`}>
               <div className="csd-chat-message__meta muted">
                 {m.author_staff_name ?? 'Khách'} · {formatCsdWhen(m.created_at)}
+                {m.edited_at && !m.is_deleted ? ' · đã sửa' : ''}
               </div>
-              {quoted ? <p className="csd-chat-quote muted">↩ {quoted.body_text.slice(0, 120)}</p> : null}
-              <p>{renderMessageBody(m.body_text)}</p>
+              {quoted ? (
+                <p className="csd-chat-quote muted">
+                  ↩ {quoted.is_deleted ? 'Đã xóa' : quoted.body_text.slice(0, 120)}
+                </p>
+              ) : null}
+              {m.is_deleted ? (
+                <p className="csd-chat-deleted" data-testid="csd-chat-deleted">
+                  Đã xóa
+                </p>
+              ) : editing ? (
+                <div className="csd-chat-edit">
+                  <textarea
+                    className="kpi-input"
+                    rows={2}
+                    value={editDraft}
+                    onChange={(e) => setEditDraft(e.target.value)}
+                    data-testid="csd-chat-edit-draft"
+                  />
+                  <div className="csd-chat-message__actions">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => {
+                        setEditingId(null);
+                        setEditDraft('');
+                      }}
+                    >
+                      Huỷ
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={busy || !editDraft.trim()}
+                      onClick={() => {
+                        onEditMessage(m, editDraft.trim());
+                        setEditingId(null);
+                        setEditDraft('');
+                      }}
+                    >
+                      Lưu
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p>{renderMessageBody(m.body_text)}</p>
+              )}
+              {!m.is_deleted && (m.attachments ?? []).length > 0 ? (
+                <ul className="csd-chat-files">
+                  {(m.attachments ?? []).map((file) => (
+                    <li key={file.id}>
+                      <button
+                        type="button"
+                        className="csd-chat-file-chip"
+                        onClick={() => void downloadCsdFile(token, file.id, file.file_name)}
+                      >
+                        {file.file_name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               {m.ticket_id ? (
                 <Link
                   href={`/crm/csd/tickets/${m.ticket_id}`}
@@ -161,7 +250,7 @@ export function CsdChatThread({
                   {pill}
                 </Link>
               ) : null}
-              {canWrite && !closed ? (
+              {canWrite && !closed && !m.is_deleted && !editing ? (
                 <div className="csd-chat-message__actions">
                   <button type="button" className="btn btn-sm btn-secondary" onClick={() => onReply(m)}>
                     Trả lời
@@ -169,6 +258,29 @@ export function CsdChatThread({
                   {!m.ticket_id && active.kind !== 'announcement' ? (
                     <button type="button" className="btn btn-sm btn-secondary" onClick={() => onCreateTicket(m)}>
                       Tạo ticket
+                    </button>
+                  ) : null}
+                  {canEditOwn(m, meStaffId) ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      data-testid="csd-chat-edit"
+                      onClick={() => {
+                        setEditingId(m.id);
+                        setEditDraft(m.body_text);
+                      }}
+                    >
+                      Sửa
+                    </button>
+                  ) : null}
+                  {canDeleteOwn(m, meStaffId) ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      data-testid="csd-chat-delete"
+                      onClick={() => onDeleteMessage(m)}
+                    >
+                      Xóa
                     </button>
                   ) : null}
                 </div>
@@ -202,11 +314,23 @@ export function CsdChatThread({
               </button>
             </div>
           ) : null}
+          {pendingFiles.length > 0 ? (
+            <ul className="csd-chat-pending" data-testid="csd-chat-pending-files">
+              {pendingFiles.map((file) => (
+                <li key={file.id}>
+                  <span className="csd-chat-file-chip">{file.file_name}</span>
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => onRemovePending(file.id)}>
+                    Bỏ
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <div className="csd-chat-compose__field">
             <textarea
               className="kpi-input"
               rows={3}
-              placeholder="Nhập tin nhắn… @staff · #ticket · Enter gửi"
+              placeholder="Nhập tin nhắn… @staff · #ticket · đính file · Enter gửi"
               value={draft}
               onChange={(e) => onDraftChange(e.target.value)}
               onKeyDown={onDraftKeyDown}
@@ -239,9 +363,28 @@ export function CsdChatThread({
               </ul>
             ) : null}
           </div>
-          <button type="submit" className="btn btn-sm" disabled={busy || !draft.trim()}>
-            Gửi
-          </button>
+          <div className="csd-chat-compose__actions">
+            <label className="btn btn-sm btn-secondary csd-chat-attach">
+              Đính file
+              <input
+                type="file"
+                hidden
+                data-testid="csd-chat-attach"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) onPickFile(file);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+            <button
+              type="submit"
+              className="btn btn-sm"
+              disabled={busy || (!draft.trim() && pendingFiles.length === 0)}
+            >
+              Gửi
+            </button>
+          </div>
         </form>
       ) : null}
     </section>

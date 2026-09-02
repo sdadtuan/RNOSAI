@@ -10,7 +10,9 @@ import {
   closeCsdConversation,
   createCsdConversation,
   createCsdTicketFromMessage,
+  deleteCsdMessage,
   draftCsdChatSummary,
+  editCsdMessage,
   fetchCsdConversationMembers,
   fetchCsdConversations,
   fetchCsdMessages,
@@ -19,12 +21,14 @@ import {
   reopenCsdConversation,
   removeCsdConversationMember,
   sendCsdMessage,
+  uploadCsdConversationFile,
   formatCsdWhen,
   CSD_PRIORITY_LABELS,
   CSD_TICKET_TYPES,
   type CreateCsdConversationInput,
   type CsdConversationListFilter,
   type CsdConversationMemberRow,
+  type CsdAttachmentRow,
   type CsdConversationRow,
   type CsdMessageRow,
   type CsdPriority,
@@ -50,6 +54,8 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
   const [showNewModal, setShowNewModal] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<CsdMessageRow[]>([]);
+  const [meStaffId, setMeStaffId] = useState<number | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<CsdAttachmentRow[]>([]);
   const [members, setMembers] = useState<CsdConversationMemberRow[]>([]);
   const [relatedTickets, setRelatedTickets] = useState<CsdTicketRow[]>([]);
   const [draft, setDraft] = useState('');
@@ -84,6 +90,7 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
       try {
         const out = await fetchCsdMessages(token, conversationId);
         setMessages(out.items ?? []);
+        if (typeof out.me_staff_id === 'number') setMeStaffId(out.me_staff_id);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải tin nhắn thất bại');
       }
@@ -122,6 +129,7 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
   useEffect(() => {
     if (!activeId) return;
     setReplyTo(null);
+    setPendingFiles([]);
     setAiSummary(null);
     setRelatedTickets([]);
     void loadMessages(activeId);
@@ -137,15 +145,17 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
 
   async function handleSend(e?: React.FormEvent) {
     e?.preventDefault();
-    if (!activeId || !draft.trim() || !canWrite) return;
+    if (!activeId || !canWrite || (!draft.trim() && pendingFiles.length === 0)) return;
     setBusy(true);
     try {
       await sendCsdMessage(token, activeId, {
         body_text: draft.trim(),
         reply_to_id: replyTo?.id,
+        attachment_ids: pendingFiles.map((f) => f.id),
       });
       setDraft('');
       setReplyTo(null);
+      setPendingFiles([]);
       await loadMessages(activeId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gửi tin nhắn thất bại');
@@ -189,6 +199,9 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
     setBusy(true);
     try {
       const ticket = await createCsdTicketFromMessage(token, ticketModal.id, ticketForm);
+      if (ticket.skipped_internal_files?.length) {
+        setError('Ticket đã tạo. File nội bộ không được copy sang ticket.');
+      }
       setTicketModal(null);
       setTicketForm({ title: '', ticket_type: 'request', priority: 'P3' });
       if (activeId) {
@@ -262,6 +275,43 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
     }
   }
 
+  async function handlePickFile(file: File) {
+    if (!activeId || !canWrite) return;
+    setBusy(true);
+    try {
+      const uploaded = await uploadCsdConversationFile(token, activeId, file);
+      setPendingFiles((prev) => [...prev, uploaded]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tải file thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleEditMessage(message: CsdMessageRow, bodyText: string) {
+    setBusy(true);
+    try {
+      const next = await editCsdMessage(token, message.id, bodyText);
+      setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, ...next } : m)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sửa tin nhắn thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteMessage(message: CsdMessageRow) {
+    setBusy(true);
+    try {
+      const next = await deleteCsdMessage(token, message.id);
+      setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, ...next, is_deleted: true, body_text: '' } : m)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Xóa tin nhắn thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleSummarize() {
     if (!activeId) return;
     setBusy(true);
@@ -302,6 +352,8 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
         relatedTickets={relatedTickets}
         draft={draft}
         replyTo={replyTo}
+        pendingFiles={pendingFiles}
+        meStaffId={meStaffId}
         canWrite={canWrite}
         busy={busy}
         closed={Boolean(closed)}
@@ -314,6 +366,10 @@ export function CsdChatWorkspace({ token, canWrite }: CsdChatWorkspaceProps) {
           setTicketForm((f) => ({ ...f, title: m.body_text.slice(0, 80) }));
         }}
         onReopen={() => void handleReopen()}
+        onPickFile={(file) => void handlePickFile(file)}
+        onRemovePending={(id) => setPendingFiles((prev) => prev.filter((f) => f.id !== id))}
+        onEditMessage={(m, body) => void handleEditMessage(m, body)}
+        onDeleteMessage={(m) => void handleDeleteMessage(m)}
       />
 
       <CsdChatContext

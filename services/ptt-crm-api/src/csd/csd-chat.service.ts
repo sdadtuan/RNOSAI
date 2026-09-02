@@ -5,7 +5,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { CsdAuditRepository } from './csd-audit.repository';
 import { parseMentions } from './csd-chat-search.util';
+import { CsdChatFilesService } from './csd-chat-files.service';
 import { CsdChatRepository } from './csd-chat.repository';
 import { CsdTicketsService } from './csd-tickets.service';
 import {
@@ -18,9 +20,12 @@ import {
   CsdConversationMemberRow,
   CsdConversationRow,
   CsdMessageRow,
+  CsdTicketFromChatMessage,
   CsdTicketRow,
   SendCsdMessageInput,
 } from './csd.types';
+
+const EDIT_WINDOW_MS = 15 * 60_000;
 
 const CSD_KIND_NOT_MVP: CsdConversationKind[] = ['ticket', 'campaign', 'ai_assist'];
 
@@ -48,6 +53,8 @@ export class CsdChatService {
   constructor(
     private readonly repo: CsdChatRepository,
     private readonly tickets: CsdTicketsService,
+    private readonly files: CsdChatFilesService,
+    private readonly audit: CsdAuditRepository,
   ) {}
 
   async createConversation(
@@ -140,7 +147,10 @@ export class CsdChatService {
     }
 
     const body = String(input.body_text ?? '').trim();
-    if (!body) throw new BadRequestException({ error: 'body_required' });
+    const attachmentIds = [...new Set((input.attachment_ids ?? []).map(String).filter(Boolean))];
+    if (!body && attachmentIds.length === 0) {
+      throw new BadRequestException({ error: 'body_required' });
+    }
 
     const visibility =
       conv.kind === 'client' ? 'client' : (input.visibility ?? 'internal');
@@ -153,6 +163,10 @@ export class CsdChatService {
       visibility,
     });
 
+    if (attachmentIds.length > 0) {
+      await this.files.attachToMessage(conversationId, message.id, attachmentIds);
+    }
+
     const mentioned = parseMentions(body).filter((id) => id !== actor.staffId);
     if (mentioned.length > 0) {
       await this.repo.insertMentionNotifications({
@@ -163,19 +177,24 @@ export class CsdChatService {
         preview: body.slice(0, 160),
       });
     }
-    return message;
+    const attachments = await this.files.listForMessage(message.id);
+    return { ...message, attachments, delivery_status: message.delivery_status ?? 'sent' };
   }
 
   async listMessages(
-    _actor: CsdActor,
+    actor: CsdActor,
     conversationId: string,
     after?: string,
     q?: string,
-  ): Promise<{ items: CsdMessageRow[] }> {
+  ): Promise<{ items: CsdMessageRow[]; me_staff_id: number }> {
     const conv = await this.repo.getConversation(conversationId);
     if (!conv) throw new NotFoundException({ error: 'csd_conversation_not_found' });
     const items = await this.repo.listMessages(conversationId, after, q);
-    return { items };
+    const grouped = await this.repo.listAttachmentsByMessages(items.map((m) => m.id));
+    return {
+      me_staff_id: actor.staffId,
+      items: items.map((m) => ({ ...m, attachments: grouped[m.id] ?? [] })),
+    };
   }
 
   async listRelatedTickets(
@@ -190,7 +209,7 @@ export class CsdChatService {
     actor: CsdActor,
     messageId: string,
     patch: Partial<CreateCsdTicketInput> = {},
-  ): Promise<CsdTicketRow> {
+  ): Promise<CsdTicketFromChatMessage> {
     const message = await this.repo.getMessage(messageId);
     if (!message) throw new NotFoundException({ error: 'csd_message_not_found' });
 
@@ -217,7 +236,54 @@ export class CsdChatService {
     });
 
     await this.repo.linkMessageToTicket(messageId, ticket.id);
-    return ticket;
+    const attached = await this.files.listForMessage(messageId);
+    const skipped_internal_files = attached.filter((f) => f.visibility !== 'client').map((f) => f.id);
+    const clientFiles = attached.filter((f) => f.visibility === 'client');
+    await this.files.copyClientFilesToTicket(clientFiles, ticket.id);
+    return { ...ticket, skipped_internal_files };
+  }
+
+  async editMessage(
+    actor: CsdActor,
+    messageId: string,
+    input: { body_text: string },
+  ): Promise<CsdMessageRow> {
+    const message = await this.repo.getMessage(messageId);
+    if (!message) throw new NotFoundException({ error: 'csd_message_not_found' });
+    if (message.author_staff_id !== actor.staffId) {
+      throw new ForbiddenException({ error: 'csd_edit_forbidden' });
+    }
+    const conv = await this.repo.getConversation(message.conversation_id);
+    if (!conv) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+    if (conv.status === 'closed') {
+      throw new ConflictException({ error: 'conversation_closed' });
+    }
+    const created = new Date(message.created_at).getTime();
+    if (!Number.isFinite(created) || Date.now() - created > EDIT_WINDOW_MS) {
+      throw new ConflictException({ error: 'edit_window_closed' });
+    }
+    const body = String(input.body_text ?? '').trim();
+    if (!body) throw new BadRequestException({ error: 'body_required' });
+    return this.repo.updateMessageBody(messageId, body);
+  }
+
+  async deleteMessage(actor: CsdActor, messageId: string): Promise<CsdMessageRow> {
+    const message = await this.repo.getMessage(messageId);
+    if (!message) throw new NotFoundException({ error: 'csd_message_not_found' });
+    const conv = await this.repo.getConversation(message.conversation_id);
+    if (!conv) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+    const own = message.author_staff_id === actor.staffId;
+    if (!own && !canManageConversation(actor, conv.owner_staff_id)) {
+      throw new ForbiddenException({ error: 'csd_delete_forbidden' });
+    }
+    await this.audit.insert({
+      actor_staff_id: actor.staffId,
+      action: 'csd_message_delete',
+      entity_type: 'csd_message',
+      entity_id: messageId,
+      before_json: { body_text: message.body_text, conversation_id: message.conversation_id },
+    });
+    return this.repo.softDeleteMessage(messageId);
   }
 
   async listMembers(

@@ -6,6 +6,8 @@ import { CsdAiRepository } from './csd-ai.repository';
 import { CsdAiService } from './csd-ai.service';
 import { CsdAuditRepository } from './csd-audit.repository';
 import { CsdChatController } from './csd-chat.controller';
+import { CsdChatFilesController } from './csd-chat-files.controller';
+import { CsdChatFilesService } from './csd-chat-files.service';
 import { CsdChatRepository } from './csd-chat.repository';
 import { CsdChatService } from './csd-chat.service';
 import { CsdDashboardController } from './csd-dashboard.controller';
@@ -28,6 +30,7 @@ import { StaffCsdGuard } from './guards/staff-csd.guard';
   controllers: [
     CsdTicketsController,
     CsdChatController,
+    CsdChatFilesController,
     CsdEmailController,
     CsdReportsController,
     CsdAiController,
@@ -40,6 +43,7 @@ import { StaffCsdGuard } from './guards/staff-csd.guard';
     CsdTicketsService,
     CsdSlaWorkerService,
     CsdChatRepository,
+    CsdChatFilesService,
     CsdChatService,
     CsdEmailRepository,
     CsdEmailService,

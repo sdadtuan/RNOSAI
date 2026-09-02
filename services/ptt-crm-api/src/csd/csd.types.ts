@@ -79,6 +79,10 @@ export type CsdTicketRow = {
   first_response_at: string | null;
 };
 
+export type CsdTicketFromChatMessage = CsdTicketRow & {
+  skipped_internal_files: string[];
+};
+
 export type CsdTicketCommentRow = {
   id: string;
   tenant_id: string;
@@ -208,6 +212,18 @@ export type CsdConversationRow = {
   created_by_staff_id: number | null;
 };
 
+export type CsdAttachmentRow = {
+  id: string;
+  file_name: string;
+  mime_type: string;
+  byte_size: number;
+  visibility: 'internal' | 'client' | 'restricted';
+  entity_type: string;
+  entity_id: string;
+  storage_key: string;
+  created_at: string;
+};
+
 export type CsdMessageRow = {
   id: string;
   tenant_id: string;
@@ -219,6 +235,10 @@ export type CsdMessageRow = {
   visibility: 'internal' | 'client';
   ticket_id: string | null;
   created_at: string;
+  edited_at?: string | null;
+  is_deleted?: boolean;
+  delivery_status?: 'sent' | 'delivered' | 'failed';
+  attachments?: CsdAttachmentRow[];
 };
 
 export type CreateCsdConversationInput = {
@@ -256,6 +276,7 @@ export type SendCsdMessageInput = {
   body_text: string;
   reply_to_id?: string;
   visibility?: 'internal' | 'client';
+  attachment_ids?: string[];
 };
 
 export type CsdEmailRow = {

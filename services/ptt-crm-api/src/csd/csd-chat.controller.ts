@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -105,6 +106,24 @@ export class CsdChatController {
   ) {
     const actor = await this.actor(req);
     return this.chat.sendMessage(actor, id, body);
+  }
+
+  @Patch('messages/:id')
+  @RequireCsdAction('write')
+  async editMessage(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { body_text: string },
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.editMessage(actor, id, body);
+  }
+
+  @Delete('messages/:id')
+  @RequireCsdAction('write')
+  async deleteMessage(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.deleteMessage(actor, id);
   }
 
   @Post('messages/:id/create-ticket')
