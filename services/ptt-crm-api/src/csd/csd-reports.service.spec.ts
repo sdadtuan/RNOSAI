@@ -22,6 +22,16 @@ describe('CsdReportsService', () => {
     upsertScheduleNextRun: jest.fn(),
     insertSchedule: jest.fn(),
     listSchedules: jest.fn(),
+    insertComment: jest.fn(),
+    listComments: jest.fn(),
+    resolveComment: jest.fn(),
+    listTemplates: jest.fn(),
+    getTemplateById: jest.fn(),
+    insertTemplate: jest.fn(),
+    updateTemplate: jest.fn(),
+    archiveTemplate: jest.fn(),
+    deleteTemplate: jest.fn(),
+    countReportsForTemplate: jest.fn(),
   };
 
   const tickets = {
@@ -511,5 +521,98 @@ describe('CsdReportsService', () => {
       response: { error: 'csd_manage_required' },
     });
     expect(repo.updateReportStatus).not.toHaveBeenCalled();
+  });
+
+  it('adds comment with section_key risks', async () => {
+    repo.getReport.mockResolvedValue({
+      id: 'r1',
+      status: 'draft',
+      current_version: 'v1.0',
+    });
+    repo.insertComment.mockResolvedValue({
+      id: 'c1',
+      report_id: 'r1',
+      version: 'v1.0',
+      section_key: 'risks',
+      body_text: 'Thiếu upsell',
+      created_by_staff_id: 5,
+      resolved_at: null,
+    });
+
+    const out = await svc().addComment(actor, 'r1', {
+      section_key: 'risks',
+      body_text: 'Thiếu upsell',
+    });
+
+    expect(out.section_key).toBe('risks');
+    expect(repo.insertComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        report_id: 'r1',
+        version: 'v1.0',
+        section_key: 'risks',
+        body_text: 'Thiếu upsell',
+        created_by_staff_id: 5,
+      }),
+    );
+  });
+
+  it('requestChanges inserts a general comment with empty section_key', async () => {
+    const manager: CsdActor = {
+      staffId: 9,
+      staffLabel: 'director@test.vn',
+      caps: [{ section: 'csd', action: 'manage' }],
+    };
+    repo.getReport.mockResolvedValue({
+      id: 'r1',
+      status: 'in_review',
+      current_version: 'v1.0',
+      requires_approval: true,
+    });
+    repo.updateReportStatus.mockResolvedValue({ id: 'r1', status: 'changes_requested' });
+    repo.insertComment.mockResolvedValue({
+      id: 'c1',
+      report_id: 'r1',
+      section_key: '',
+      body_text: 'Cần sửa KPI',
+    });
+
+    await svc().transition(manager, 'r1', { to: 'changes_requested', comment: 'Cần sửa KPI' });
+
+    expect(repo.insertComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        report_id: 'r1',
+        version: 'v1.0',
+        section_key: '',
+        body_text: 'Cần sửa KPI',
+        created_by_staff_id: 9,
+      }),
+    );
+  });
+
+  it('archive template in use does not delete the row', async () => {
+    const manager: CsdActor = {
+      staffId: 9,
+      staffLabel: 'director@test.vn',
+      caps: [{ section: 'csd', action: 'manage' }],
+    };
+    repo.getTemplateById.mockResolvedValue({
+      id: 'tpl1',
+      code: 'weekly_ops',
+      name_vi: 'Báo cáo vận hành tuần',
+      active: true,
+    });
+    repo.countReportsForTemplate.mockResolvedValue(3);
+    repo.archiveTemplate.mockResolvedValue({
+      id: 'tpl1',
+      code: 'weekly_ops',
+      name_vi: 'Báo cáo vận hành tuần',
+      active: false,
+    });
+
+    const out = await svc().archiveTemplate(manager, 'tpl1');
+
+    expect(out.active).toBe(false);
+    expect(repo.archiveTemplate).toHaveBeenCalledWith('tpl1');
+    expect(repo.deleteTemplate).not.toHaveBeenCalled();
   });
 });

@@ -269,6 +269,28 @@ export interface CsdReportDetail extends CsdReportRow {
   sent_at?: string | null;
 }
 
+export interface CsdReportCommentRow {
+  id: string;
+  report_id: string;
+  version: string;
+  section_key: string;
+  body_text: string;
+  created_at: string;
+  created_by_staff_id: number;
+  resolved_at: string | null;
+}
+
+export interface CsdReportTemplateRow {
+  id: string;
+  tenant_id?: string;
+  code: string;
+  name_vi: string;
+  requires_approval: boolean;
+  sections_json: string[];
+  active: boolean;
+  created_at?: string;
+}
+
 export type CsdReportBlock =
   | { type: 'rich_text'; body: string }
   | { type: 'kpi_table'; rows: { metric: string; value: string; target?: string; note?: string }[] }
@@ -964,6 +986,69 @@ async function downloadCsdBinary(token: string, path: string, fallbackFilename: 
   link.download = match?.[1] || fallbackFilename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+export async function fetchCsdReportComments(
+  token: string,
+  id: string,
+  sectionKey?: string,
+): Promise<{ items: CsdReportCommentRow[] }> {
+  const suffix = sectionKey != null ? `?section_key=${encodeURIComponent(sectionKey)}` : '';
+  return csdFetch(token, `/api/crm/csd/reports/${id}/comments${suffix}`);
+}
+
+export async function addCsdReportComment(
+  token: string,
+  id: string,
+  body: { section_key: string; body_text: string },
+): Promise<CsdReportCommentRow> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/comments`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function resolveCsdReportComment(
+  token: string,
+  id: string,
+  commentId: string,
+): Promise<CsdReportCommentRow> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/comments/${commentId}/resolve`, {
+    method: 'POST',
+    body: '{}',
+  });
+}
+
+export async function fetchCsdReportTemplates(token: string): Promise<{ items: CsdReportTemplateRow[] }> {
+  return csdFetch(token, '/api/crm/csd/reports/templates');
+}
+
+export async function createCsdReportTemplate(
+  token: string,
+  body: { code: string; name_vi: string; requires_approval?: boolean; sections_json: string[] },
+): Promise<CsdReportTemplateRow> {
+  return csdFetch(token, '/api/crm/csd/reports/templates', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateCsdReportTemplate(
+  token: string,
+  id: string,
+  body: { name_vi?: string; requires_approval?: boolean; sections_json?: string[] },
+): Promise<CsdReportTemplateRow> {
+  return csdFetch(token, `/api/crm/csd/reports/templates/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function archiveCsdReportTemplate(token: string, id: string): Promise<CsdReportTemplateRow> {
+  return csdFetch(token, `/api/crm/csd/reports/templates/${id}/archive`, {
+    method: 'POST',
+    body: '{}',
+  });
 }
 
 export async function exportCsdReportPdf(token: string, id: string): Promise<void> {

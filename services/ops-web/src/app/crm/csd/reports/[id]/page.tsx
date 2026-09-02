@@ -6,9 +6,12 @@ import { PageToolbar, StaffPageShell } from '@/components/layout';
 import { CsdReportEditor } from '@/components/crm/csd/CsdReportEditor';
 import { useCsdPageAuth } from '@/components/crm/csd/useCsdPageAuth';
 import {
+  addCsdReportComment,
   approveCsdReport,
+  fetchCsdReportComments,
   getCsdReport,
   requestCsdReportChanges,
+  resolveCsdReportComment,
   reviseCsdReport,
   rollupCsdReportTickets,
   retryCsdReportSend,
@@ -43,6 +46,15 @@ export default function CsdReportDetailPage() {
       setError(err instanceof Error ? err.message : 'Tải báo cáo thất bại');
     }
   }, [token, params.id, setError]);
+
+  const loadComments = useCallback(
+    async (sectionKey: string) => {
+      if (!token) return [];
+      const out = await fetchCsdReportComments(token, params.id, sectionKey);
+      return out.items ?? [];
+    },
+    [token, params.id],
+  );
 
   useEffect(() => {
     void reload();
@@ -208,6 +220,13 @@ export default function CsdReportDetailPage() {
               }
               throw err;
             }
+          }}
+          onLoadComments={loadComments}
+          onAddComment={async (sectionKey, body) => {
+            await addCsdReportComment(token, report.id, { section_key: sectionKey, body_text: body });
+          }}
+          onResolveComment={async (commentId) => {
+            await resolveCsdReportComment(token, report.id, commentId);
           }}
         />
       ) : (

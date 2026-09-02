@@ -35,7 +35,7 @@ function defaultPeriod(): { period_start: string; period_end: string } {
 
 export default function CsdReportsPage() {
   const router = useRouter();
-  const { user, token, error, setError, logout, canWrite } = useCsdPageAuth('view');
+  const { user, token, error, setError, logout, canWrite, canManage } = useCsdPageAuth('view');
   const [items, setItems] = useState<CsdReportRow[]>([]);
   const [filter, setFilter] = useState<CsdReportListFilter>('all');
   const [formOpen, setFormOpen] = useState(false);
@@ -105,15 +105,22 @@ export default function CsdReportsPage() {
         title="Báo cáo khách hàng"
         subtitle="Tạo từ mẫu · lọc trạng thái · duyệt · gửi PDF"
         actions={
-          <button
-            type="button"
-            className="btn btn-sm"
-            data-testid="csd-report-new"
-            disabled={!canWrite}
-            onClick={() => canWrite && setFormOpen((open) => !open)}
-          >
-            Tạo báo cáo
-          </button>
+          <>
+            {canManage ? (
+              <Link href="/crm/csd/reports/templates" className="btn btn-sm btn-secondary">
+                Mẫu báo cáo
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              className="btn btn-sm"
+              data-testid="csd-report-new"
+              disabled={!canWrite}
+              onClick={() => canWrite && setFormOpen((open) => !open)}
+            >
+              Tạo báo cáo
+            </button>
+          </>
         }
       />
       <div className="page-card stack-gap" data-testid="csd-reports-list">

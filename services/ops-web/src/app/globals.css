@@ -17052,6 +17052,37 @@ body {
   font-size: 0.9rem;
 }
 
+.csd-report-comments {
+  display: grid;
+  gap: 0.55rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
+.csd-report-comment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.csd-report-comment-list li {
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 0.35rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.csd-report-comment-list li.is-resolved {
+  opacity: 0.7;
+}
+
+.csd-report-comment-list p {
+  margin: 0;
+}
+
 @media (max-width: 960px) {
   .csd-ticket-detail,
   .csd-report-editor {

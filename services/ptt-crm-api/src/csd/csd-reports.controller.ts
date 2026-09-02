@@ -20,13 +20,16 @@ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.gua
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { CsdReportsService } from './csd-reports.service';
 import type {
+  AddCsdReportCommentInput,
   CsdActor,
   CsdReportListQuery,
   CreateCsdReportInput,
   CreateCsdReportScheduleInput,
+  CreateCsdReportTemplateInput,
   SendCsdReportInput,
   SnapshotCsdReportInput,
   TransitionCsdReportInput,
+  UpdateCsdReportTemplateInput,
 } from './csd.types';
 import { RequireCsdAction, StaffCsdGuard } from './guards/staff-csd.guard';
 
@@ -75,6 +78,38 @@ export class CsdReportsController {
   async listSchedules(@Req() req: AuthedReq) {
     const actor = await this.actor(req);
     return this.reports.listSchedules(actor);
+  }
+
+  @Get('templates')
+  @RequireCsdAction('view')
+  async listTemplates(@Req() req: AuthedReq) {
+    const actor = await this.actor(req);
+    return this.reports.listTemplates(actor);
+  }
+
+  @Post('templates')
+  @RequireCsdAction('manage')
+  async createTemplate(@Req() req: AuthedReq, @Body() body: CreateCsdReportTemplateInput) {
+    const actor = await this.actor(req);
+    return this.reports.createTemplate(actor, body);
+  }
+
+  @Patch('templates/:id')
+  @RequireCsdAction('manage')
+  async updateTemplate(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: UpdateCsdReportTemplateInput,
+  ) {
+    const actor = await this.actor(req);
+    return this.reports.updateTemplate(actor, id, body);
+  }
+
+  @Post('templates/:id/archive')
+  @RequireCsdAction('manage')
+  async archiveTemplate(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.reports.archiveTemplate(actor, id);
   }
 
   @Get()
@@ -228,6 +263,39 @@ export class CsdReportsController {
   async rollup(@Req() req: AuthedReq, @Param('id') id: string) {
     const actor = await this.actor(req);
     return this.reports.rollupTickets(actor, id);
+  }
+
+  @Get(':id/comments')
+  @RequireCsdAction('view')
+  async listComments(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('section_key') sectionKey?: string,
+  ) {
+    const actor = await this.actor(req);
+    return this.reports.listComments(actor, id, sectionKey);
+  }
+
+  @Post(':id/comments')
+  @RequireCsdAction('write')
+  async addComment(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: AddCsdReportCommentInput,
+  ) {
+    const actor = await this.actor(req);
+    return this.reports.addComment(actor, id, body);
+  }
+
+  @Post(':id/comments/:cid/resolve')
+  @RequireCsdAction('write')
+  async resolveComment(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('cid') cid: string,
+  ) {
+    const actor = await this.actor(req);
+    return this.reports.resolveComment(actor, id, cid);
   }
 
   @Post(':id/files')

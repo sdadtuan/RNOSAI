@@ -58,17 +58,21 @@ Service Desk là kênh ticket **agency** (PTT-2026-xxxxx), tách biệt **Ticket
 
 ## 5. Báo cáo (`/crm/csd/reports`)
 
+Luồng chuẩn: **Tạo** (4 mẫu) → **Gộp ticket / rollup** → **Gửi duyệt / Duyệt** (tháng/SLA/điều hành) → **Xuất PDF** → **Gửi khách / Lên lịch / Chia sẻ chat**.
+
 - **Tạo báo cáo** — chọn 1 trong 4 mẫu (`weekly_ops`, `monthly_marketing`, `monthly_sla`, `executive`), khách (tuỳ chọn), kỳ `period_start` / `period_end`, tiêu đề tuỳ chọn.
 - Filter chips: **Tất cả · Đến hạn · Chờ duyệt · Đã gửi** (`status=due|in_review|sent`).
 - Outline lấy `template_sections` của mẫu — không cố định 4 mục.
+- **Nhận xét theo mục** — dưới editor mục đang mở (`GET/POST :id/comments`). **Yêu cầu sửa** cũng ghi nhận xét chung (`section_key=''`).
+- **Mẫu báo cáo** (`/crm/csd/reports/templates`, `csd:manage`) — sửa `name_vi` / mục / `requires_approval`. **Lưu trữ** = `active=false`, không xóa seed.
 - CTA theo trạng thái:
   - **Nháp** — Lưu · Chờ dữ liệu · Gửi duyệt · (tuần `weekly_ops`) Gửi PDF.
   - **Chờ dữ liệu** — Đủ dữ liệu · Gửi duyệt.
   - **Chờ duyệt** — Duyệt · Yêu cầu sửa (cần `csd:manage` + nhận xét ≥ 3 ký tự).
   - **Yêu cầu sửa** — Sửa · Gửi lại.
-  - **Đã duyệt** — Xuất PDF (R-3) · Gửi khách · Lên lịch (R-4).
+  - **Đã duyệt** — Xuất PDF · Gửi khách · Lên lịch · Chia sẻ chat.
   - **Đã lên lịch** — Hủy lịch · Gửi ngay.
-  - **Đã gửi** — Tạo bản sửa / Xem log (R-2); editor chỉ xem.
+  - **Đã gửi** — Tạo bản sửa / Xem log; editor chỉ xem; **Chia sẻ chat**.
   - **Huỷ / Lưu trữ** — chỉ xem.
 - Báo cáo tuần gửi thẳng từ nháp qua **Gửi PDF** (`POST :id/send`). Tháng/SLA/điều hành **không** hiện nút gửi khi còn nháp — phải Gửi duyệt → Duyệt rồi mới Gửi khách. Không dùng `POST :id/transition` với `to=sent`.
 

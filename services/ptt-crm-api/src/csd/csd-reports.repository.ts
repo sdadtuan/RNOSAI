@@ -4,12 +4,14 @@ import { AppConfigService } from '../config/app-config.service';
 import {
   CSD_TENANT_ID,
   CsdAttachmentRow,
+  CsdReportCommentRow,
   CsdReportListQuery,
   CsdReportRecurrence,
   CsdReportRow,
   CsdReportScheduleRow,
   CsdReportSendLogRow,
   CsdReportStatus,
+  CsdReportTemplateRow,
   CsdReportVersionRow,
 } from './csd.types';
 
@@ -87,6 +89,32 @@ function mapSchedule(row: Record<string, unknown>): CsdReportScheduleRow {
     next_run_at: row.next_run_at != null ? text(row.next_run_at) : null,
     owner_staff_id: num(row.owner_staff_id),
     approver_staff_id: num(row.approver_staff_id),
+    active: Boolean(row.active),
+    created_at: text(row.created_at),
+  };
+}
+
+function mapComment(row: Record<string, unknown>): CsdReportCommentRow {
+  return {
+    id: text(row.id),
+    report_id: text(row.report_id),
+    version: text(row.version),
+    section_key: text(row.section_key),
+    body_text: text(row.body_text),
+    created_at: text(row.created_at),
+    created_by_staff_id: num(row.created_by_staff_id) ?? 0,
+    resolved_at: row.resolved_at != null ? text(row.resolved_at) : null,
+  };
+}
+
+function mapTemplate(row: Record<string, unknown>): CsdReportTemplateRow {
+  return {
+    id: text(row.id),
+    tenant_id: text(row.tenant_id),
+    code: text(row.code),
+    name_vi: text(row.name_vi),
+    requires_approval: Boolean(row.requires_approval),
+    sections_json: Array.isArray(row.sections_json) ? (row.sections_json as string[]).map(String) : [],
     active: Boolean(row.active),
     created_at: text(row.created_at),
   };
@@ -618,6 +646,147 @@ export class CsdReportsRepository implements OnModuleDestroy {
          AND r.status IN (${DUE_STATUSES_SQL})
          AND r.period_end <= CURRENT_DATE + 7`,
       [CSD_TENANT_ID],
+    );
+    return Number(res.rows[0]?.c ?? 0);
+  }
+
+  async insertComment(input: {
+    report_id: string;
+    version: string;
+    section_key: string;
+    body_text: string;
+    created_by_staff_id: number;
+  }): Promise<CsdReportCommentRow> {
+    const res = await this.db.query(
+      `INSERT INTO csd_report_comments (
+         report_id, version, section_key, body_text, created_by_staff_id
+       ) VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [input.report_id, input.version, input.section_key, input.body_text, input.created_by_staff_id],
+    );
+    return mapComment(res.rows[0]);
+  }
+
+  async listComments(reportId: string, sectionKey?: string): Promise<CsdReportCommentRow[]> {
+    const params: unknown[] = [CSD_TENANT_ID, reportId];
+    let sectionClause = '';
+    if (sectionKey != null) {
+      params.push(sectionKey);
+      sectionClause = `AND c.section_key = $${params.length}`;
+    }
+    const res = await this.db.query(
+      `SELECT c.* FROM csd_report_comments c
+       JOIN csd_reports r ON r.id = c.report_id
+       WHERE r.tenant_id = $1 AND r.id = $2 AND r.is_deleted = FALSE
+         ${sectionClause}
+       ORDER BY c.created_at ASC`,
+      params,
+    );
+    return res.rows.map((row: Record<string, unknown>) => mapComment(row));
+  }
+
+  async resolveComment(reportId: string, commentId: string): Promise<CsdReportCommentRow> {
+    const res = await this.db.query(
+      `UPDATE csd_report_comments c
+       SET resolved_at = NOW()
+       WHERE c.id = $3
+         AND c.report_id = $2
+         AND EXISTS (
+           SELECT 1 FROM csd_reports r
+           WHERE r.id = $2 AND r.tenant_id = $1 AND r.is_deleted = FALSE
+         )
+       RETURNING c.*`,
+      [CSD_TENANT_ID, reportId, commentId],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_report_comment_not_found' });
+    return mapComment(res.rows[0]);
+  }
+
+  async listTemplates(): Promise<CsdReportTemplateRow[]> {
+    const res = await this.db.query(
+      `SELECT * FROM csd_report_templates
+       WHERE tenant_id = $1
+       ORDER BY created_at ASC, code ASC`,
+      [CSD_TENANT_ID],
+    );
+    return res.rows.map((row: Record<string, unknown>) => mapTemplate(row));
+  }
+
+  async getTemplateById(id: string): Promise<CsdReportTemplateRow | null> {
+    const res = await this.db.query(
+      `SELECT * FROM csd_report_templates WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
+      [CSD_TENANT_ID, id],
+    );
+    return res.rows[0] ? mapTemplate(res.rows[0]) : null;
+  }
+
+  async insertTemplate(input: {
+    code: string;
+    name_vi: string;
+    requires_approval: boolean;
+    sections_json: string[];
+  }): Promise<CsdReportTemplateRow> {
+    const res = await this.db.query(
+      `INSERT INTO csd_report_templates (
+         tenant_id, code, name_vi, requires_approval, sections_json
+       ) VALUES ($1, $2, $3, $4, $5::jsonb)
+       RETURNING *`,
+      [CSD_TENANT_ID, input.code, input.name_vi, input.requires_approval, JSON.stringify(input.sections_json)],
+    );
+    return mapTemplate(res.rows[0]);
+  }
+
+  async updateTemplate(
+    id: string,
+    patch: { name_vi?: string; requires_approval?: boolean; sections_json?: string[] },
+  ): Promise<CsdReportTemplateRow> {
+    const sets: string[] = [];
+    const params: unknown[] = [CSD_TENANT_ID, id];
+    if (patch.name_vi != null) {
+      params.push(patch.name_vi);
+      sets.push(`name_vi = $${params.length}`);
+    }
+    if (patch.requires_approval != null) {
+      params.push(patch.requires_approval);
+      sets.push(`requires_approval = $${params.length}`);
+    }
+    if (patch.sections_json != null) {
+      params.push(JSON.stringify(patch.sections_json));
+      sets.push(`sections_json = $${params.length}::jsonb`);
+    }
+    if (sets.length === 0) {
+      const current = await this.getTemplateById(id);
+      if (!current) throw new NotFoundException({ error: 'csd_report_template_not_found' });
+      return current;
+    }
+    const res = await this.db.query(
+      `UPDATE csd_report_templates
+       SET ${sets.join(', ')}
+       WHERE tenant_id = $1 AND id = $2
+       RETURNING *`,
+      params,
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_report_template_not_found' });
+    return mapTemplate(res.rows[0]);
+  }
+
+  async archiveTemplate(id: string): Promise<CsdReportTemplateRow> {
+    const res = await this.db.query(
+      `UPDATE csd_report_templates
+       SET active = FALSE
+       WHERE tenant_id = $1 AND id = $2
+       RETURNING *`,
+      [CSD_TENANT_ID, id],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_report_template_not_found' });
+    return mapTemplate(res.rows[0]);
+  }
+
+  async countReportsForTemplate(templateId: string): Promise<number> {
+    const res = await this.db.query(
+      `SELECT COUNT(*)::int AS c FROM csd_reports
+       WHERE tenant_id = $1 AND template_id = $2 AND is_deleted = FALSE`,
+      [CSD_TENANT_ID, templateId],
     );
     return Number(res.rows[0]?.c ?? 0);
   }

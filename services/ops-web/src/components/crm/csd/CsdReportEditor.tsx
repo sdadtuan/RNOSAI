@@ -5,6 +5,7 @@ import {
   CSD_REPORT_STATUS_LABELS,
   normalizeCsdReportSection,
   type CsdReportBlock,
+  type CsdReportCommentRow,
   type CsdReportDetail,
   type CsdReportSection,
   type CsdReportStatus,
@@ -28,6 +29,9 @@ type CsdReportEditorProps = {
   onExportXlsx?: () => Promise<void>;
   onLoadClientConversations?: () => Promise<{ id: string; name_vi: string }[]>;
   onShareChat?: (conversationId: string) => Promise<void>;
+  onLoadComments?: (sectionKey: string) => Promise<CsdReportCommentRow[]>;
+  onAddComment?: (sectionKey: string, body: string) => Promise<void>;
+  onResolveComment?: (commentId: string) => Promise<void>;
 };
 
 const SECTION_LABELS: Record<string, string> = {
@@ -160,6 +164,9 @@ export function CsdReportEditor({
   onExportXlsx,
   onLoadClientConversations,
   onShareChat,
+  onLoadComments,
+  onAddComment,
+  onResolveComment,
 }: CsdReportEditorProps) {
   const keys = useMemo(() => outlineKeys(report), [report]);
   const [activeSection, setActiveSection] = useState(keys[0] ?? '');
@@ -171,6 +178,8 @@ export function CsdReportEditor({
   const [shareOpen, setShareOpen] = useState(false);
   const [shareConversations, setShareConversations] = useState<{ id: string; name_vi: string }[]>([]);
   const [shareConversationId, setShareConversationId] = useState('');
+  const [comments, setComments] = useState<CsdReportCommentRow[]>([]);
+  const [commentBody, setCommentBody] = useState('');
   const canShareChat =
     canWrite &&
     Boolean(onShareChat) &&
@@ -187,6 +196,24 @@ export function CsdReportEditor({
       return nextKeys.includes(current) ? current : (nextKeys[0] ?? '');
     });
   }, [report]);
+
+  useEffect(() => {
+    if (!onLoadComments || !activeSection) {
+      setComments([]);
+      return;
+    }
+    let cancelled = false;
+    void onLoadComments(activeSection)
+      .then((items) => {
+        if (!cancelled) setComments(items);
+      })
+      .catch(() => {
+        if (!cancelled) setComments([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSection, onLoadComments, report.id, report.current_version]);
 
   function patchSection(updater: (current: CsdReportSection) => CsdReportSection) {
     setDrafts((prev) => ({
@@ -519,6 +546,70 @@ export function CsdReportEditor({
               <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void save()}>
                 Lưu mục
               </button>
+            ) : null}
+            {onLoadComments ? (
+              <div className="csd-report-comments" data-testid="csd-report-comments">
+                <h4 className="kpi-section-title">Nhận xét mục</h4>
+                {comments.length === 0 ? (
+                  <p className="muted">Chưa có nhận xét cho mục này.</p>
+                ) : (
+                  <ul className="csd-report-comment-list">
+                    {comments.map((c) => (
+                      <li key={c.id} className={c.resolved_at ? 'is-resolved' : undefined}>
+                        <p>{c.body_text}</p>
+                        <span className="muted">
+                          NV {c.created_by_staff_id} · {versionWhen(c.created_at)}
+                          {c.resolved_at ? ' · Đã xử lý' : ''}
+                        </span>
+                        {canWrite && !c.resolved_at && onResolveComment ? (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            disabled={busy}
+                            onClick={() =>
+                              void run(async () => {
+                                await onResolveComment(c.id);
+                                const items = onLoadComments ? await onLoadComments(activeSection) : [];
+                                setComments(items);
+                              }, 'Đã xử lý nhận xét')
+                            }
+                          >
+                            Xử lý
+                          </button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {canWrite && onAddComment ? (
+                  <div className="stack-gap">
+                    <textarea
+                      className="kpi-input csd-report-editor__textarea"
+                      rows={3}
+                      placeholder="Nhận xét cho mục đang mở"
+                      value={commentBody}
+                      onChange={(e) => setCommentBody(e.target.value)}
+                      data-testid="csd-report-comment-body"
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      disabled={busy || commentBody.trim().length < 1}
+                      data-testid="csd-report-comment-submit"
+                      onClick={() =>
+                        void run(async () => {
+                          await onAddComment(activeSection, commentBody.trim());
+                          setCommentBody('');
+                          const items = onLoadComments ? await onLoadComments(activeSection) : [];
+                          setComments(items);
+                        }, 'Đã thêm nhận xét')
+                      }
+                    >
+                      Thêm nhận xét
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
           </>
         ) : (

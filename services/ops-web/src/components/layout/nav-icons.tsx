@@ -474,6 +474,7 @@ export const LINK_ICONS: Record<string, string> = {
   '/crm/csd/email': 'email',
   '/crm/csd/email/unmatched': 'inbox',
   '/crm/csd/reports': 'report',
+  '/crm/csd/reports/templates': 'template',
   '/crm/customers': 'customers',
   '/crm/catalog': 'catalog',
   '/crm/hub': 'hub',

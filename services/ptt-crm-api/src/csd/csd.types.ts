@@ -471,6 +471,46 @@ export type SnapshotCsdReportInput = {
   changelog: string;
 };
 
+export type CsdReportCommentRow = {
+  id: string;
+  report_id: string;
+  version: string;
+  section_key: string;
+  body_text: string;
+  created_at: string;
+  created_by_staff_id: number;
+  resolved_at: string | null;
+};
+
+export type AddCsdReportCommentInput = {
+  section_key?: string;
+  body_text: string;
+};
+
+export type CsdReportTemplateRow = {
+  id: string;
+  tenant_id: string;
+  code: string;
+  name_vi: string;
+  requires_approval: boolean;
+  sections_json: string[];
+  active: boolean;
+  created_at: string;
+};
+
+export type CreateCsdReportTemplateInput = {
+  code: string;
+  name_vi: string;
+  requires_approval?: boolean;
+  sections_json: string[];
+};
+
+export type UpdateCsdReportTemplateInput = {
+  name_vi?: string;
+  requires_approval?: boolean;
+  sections_json?: string[];
+};
+
 export type CsdChatAccountRow = {
   staff_id: number;
   tenant_id: string;

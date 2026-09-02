@@ -115,6 +115,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/csd/chat': 'Chat SD',
   '/crm/csd/email': 'Email SD',
   '/crm/csd/reports': 'Báo cáo SD',
+  '/crm/csd/reports/templates': 'Mẫu báo cáo',
   '/crm/leads': 'Quản lý Lead',
   '/crm/operational/leads': 'Lead CSKH vận hành',
   '/crm/b2b/leads': 'Lead B2B Sales',
@@ -404,6 +405,9 @@ function buildSections(
     serviceDesk.push({ href: '/crm/csd/chat', label: `Chat${navBadge(csdChatUnread)}` });
     serviceDesk.push({ href: '/crm/csd/email', label: 'Email' });
     serviceDesk.push({ href: '/crm/csd/reports', label: 'Báo cáo' });
+    if (hasCap(user, 'csd', 'manage')) {
+      serviceDesk.push({ href: '/crm/csd/reports/templates', label: 'Mẫu báo cáo' });
+    }
   }
   if (serviceDesk.length) {
     sections.push({ label: 'Service Desk', links: serviceDesk, defaultOpen: true });

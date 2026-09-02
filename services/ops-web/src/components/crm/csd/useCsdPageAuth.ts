@@ -14,7 +14,7 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 
-export function useCsdPageAuth(requiredAction: 'view' | 'write' = 'view') {
+export function useCsdPageAuth(requiredAction: 'view' | 'write' | 'manage' = 'view') {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [token, setToken] = useState('');

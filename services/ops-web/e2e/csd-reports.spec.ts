@@ -153,6 +153,20 @@ async function mockCsdReportApis(page: import('@playwright/test').Page) {
     'monthly-1': { ...MONTHLY_DRAFT },
     'sent-1': { ...SENT_REPORT },
   };
+  const templateState: Record<string, Record<string, unknown>> = {};
+  const commentsByReport: Record<
+    string,
+    Array<{
+      id: string;
+      report_id: string;
+      version: string;
+      section_key: string;
+      body_text: string;
+      created_at: string;
+      created_by_staff_id: number;
+      resolved_at: string | null;
+    }>
+  > = {};
 
   await page.route('**/api/crm/csd/conversations**', async (route) => {
     const url = new URL(route.request().url());
@@ -213,6 +227,109 @@ async function mockCsdReportApis(page: import('@playwright/test').Page) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(next),
+      });
+      return;
+    }
+
+    if (method === 'GET' && /\/reports\/templates$/.test(path)) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: [
+            {
+              id: 'tpl-weekly',
+              code: 'weekly_ops',
+              name_vi: 'Báo cáo vận hành tuần',
+              requires_approval: false,
+              sections_json: WEEKLY_SECTIONS,
+              active: true,
+            },
+            {
+              id: 'tpl-monthly',
+              code: 'monthly_marketing',
+              name_vi: 'Báo cáo marketing tháng',
+              requires_approval: true,
+              sections_json: MONTHLY_SECTIONS,
+              active: true,
+            },
+            {
+              id: 'tpl-sla',
+              code: 'monthly_sla',
+              name_vi: 'Báo cáo ticket/SLA tháng',
+              requires_approval: true,
+              sections_json: ['cover', 'sla_kpis'],
+              active: true,
+            },
+            {
+              id: 'tpl-exec',
+              code: 'executive',
+              name_vi: 'Báo cáo điều hành',
+              requires_approval: true,
+              sections_json: ['cover', 'executive_summary'],
+              active: true,
+            },
+          ].map((row) => ({ ...row, ...(templateState[row.id] ?? {}) })),
+        }),
+      });
+      return;
+    }
+
+    if (method === 'PATCH' && /\/reports\/templates\/[^/]+$/.test(path)) {
+      const id = path.split('/').pop() ?? '';
+      const body = (route.request().postDataJSON() as Record<string, unknown>) ?? {};
+      templateState[id] = { ...(templateState[id] ?? {}), ...body };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id, ...templateState[id], active: templateState[id]?.active !== false }),
+      });
+      return;
+    }
+
+    if (method === 'POST' && /\/reports\/templates\/[^/]+\/archive$/.test(path)) {
+      const id = path.split('/').at(-2) ?? '';
+      templateState[id] = { ...(templateState[id] ?? {}), active: false };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id, active: false, ...templateState[id] }),
+      });
+      return;
+    }
+
+    if (method === 'GET' && /\/reports\/[^/]+\/comments$/.test(path)) {
+      const id = path.split('/').at(-2) ?? '';
+      const sectionKey = new URL(url).searchParams.get('section_key');
+      const items = (commentsByReport[id] ?? []).filter(
+        (c) => sectionKey == null || c.section_key === sectionKey,
+      );
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items }),
+      });
+      return;
+    }
+
+    if (method === 'POST' && /\/reports\/[^/]+\/comments$/.test(path)) {
+      const id = path.split('/').at(-2) ?? '';
+      const body = (route.request().postDataJSON() as { section_key?: string; body_text?: string }) ?? {};
+      const row = {
+        id: `c-${Date.now()}`,
+        report_id: id,
+        version: 'v1.0',
+        section_key: body.section_key ?? '',
+        body_text: body.body_text ?? '',
+        created_at: '2026-09-02T10:00:00.000Z',
+        created_by_staff_id: 3,
+        resolved_at: null,
+      };
+      commentsByReport[id] = [...(commentsByReport[id] ?? []), row];
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(row),
       });
       return;
     }
@@ -363,5 +480,26 @@ test.describe('CSD reports', () => {
     await expect(page.getByTestId('csd-report-share-chat-select')).toHaveValue('conv-client-a');
     await page.getByRole('button', { name: 'Gửi vào chat' }).click();
     await expect(page.getByText('Đã chia sẻ vào chat khách')).toBeVisible();
+  });
+
+  test('R-4: section comments and template archive stay listed', async ({ page }) => {
+    await mockStaffAuth(page);
+    await mockCsdReportApis(page);
+    await loginAsStaff(page);
+
+    await page.goto('/crm/csd/reports/monthly-1');
+    await expect(page.getByTestId('csd-report-comments')).toBeVisible();
+    await page.getByRole('button', { name: 'Rủi ro & chặn' }).click();
+    await page.getByTestId('csd-report-comment-body').fill('Thiếu upsell trên mục rủi ro');
+    await page.getByTestId('csd-report-comment-submit').click();
+    await expect(page.getByText('Thiếu upsell trên mục rủi ro')).toBeVisible();
+
+    await page.goto('/crm/csd/reports/templates');
+    await expect(page.getByTestId('csd-report-templates')).toBeVisible();
+    await expect(page.getByTestId('csd-report-template-weekly_ops')).toBeVisible();
+    await expect(page.getByTestId('csd-report-template-monthly_marketing')).toBeVisible();
+    await page.getByTestId('csd-report-template-archive-weekly_ops').click();
+    await expect(page.getByTestId('csd-report-template-weekly_ops')).toBeVisible();
+    await expect(page.getByTestId('csd-report-template-weekly_ops')).toContainText('Đã lưu trữ');
   });
 });

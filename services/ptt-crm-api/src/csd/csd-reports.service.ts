@@ -25,20 +25,25 @@ import { CsdNotificationsRepository } from './csd-notifications.repository';
 import { CsdReportsRepository } from './csd-reports.repository';
 import { CsdTicketsRepository } from './csd-tickets.repository';
 import {
+  AddCsdReportCommentInput,
   CreateCsdReportInput,
   CreateCsdReportScheduleInput,
+  CreateCsdReportTemplateInput,
   CsdActor,
   CsdAttachmentRow,
+  CsdReportCommentRow,
   CsdReportDetail,
   CsdReportListQuery,
   CsdReportRow,
   CsdReportScheduleRow,
   CsdReportSendLogRow,
   CsdReportStatus,
+  CsdReportTemplateRow,
   CsdTicketRow,
   SendCsdReportInput,
   SnapshotCsdReportInput,
   TransitionCsdReportInput,
+  UpdateCsdReportTemplateInput,
 } from './csd.types';
 
 const FILE_MAX_BYTES = 104857600;
@@ -72,6 +77,15 @@ function emptySections(keys: string[]): Record<string, unknown> {
 
 function hasCsdManage(actor: CsdActor): boolean {
   return actor.caps.some((c) => c.section === 'csd' && c.action === 'manage');
+}
+
+function normalizeTemplateSections(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((v) => String(v).trim()).filter(Boolean);
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  return Boolean(err && typeof err === 'object' && (err as { code?: string }).code === '23505');
 }
 
 @Injectable()
@@ -254,7 +268,17 @@ export class CsdReportsService {
       patch.approver_staff_id = actor.staffId;
     }
 
-    return this.repo.updateReportStatus(id, to, patch);
+    const updated = await this.repo.updateReportStatus(id, to, patch);
+    if (to === 'changes_requested') {
+      await this.repo.insertComment({
+        report_id: id,
+        version: report.current_version,
+        section_key: '',
+        body_text: String(input.comment).trim(),
+        created_by_staff_id: actor.staffId,
+      });
+    }
+    return updated;
   }
 
   async submitReview(
@@ -576,6 +600,108 @@ export class CsdReportsService {
       entity_id: id,
       uploaded_by_staff_id: actor.staffId,
     });
+  }
+
+  async listComments(
+    actor: CsdActor,
+    id: string,
+    sectionKey?: string,
+  ): Promise<{ items: CsdReportCommentRow[] }> {
+    await this.get(actor, id);
+    const items = await this.repo.listComments(id, sectionKey);
+    return { items };
+  }
+
+  async addComment(
+    actor: CsdActor,
+    id: string,
+    input: AddCsdReportCommentInput,
+  ): Promise<CsdReportCommentRow> {
+    const report = await this.get(actor, id);
+    const body = String(input.body_text ?? '').trim();
+    if (body.length < 1) {
+      throw new BadRequestException({ error: 'comment_required' });
+    }
+    const sectionKey = String(input.section_key ?? '').trim();
+    return this.repo.insertComment({
+      report_id: id,
+      version: report.current_version,
+      section_key: sectionKey,
+      body_text: body,
+      created_by_staff_id: actor.staffId,
+    });
+  }
+
+  async resolveComment(actor: CsdActor, id: string, commentId: string): Promise<CsdReportCommentRow> {
+    await this.get(actor, id);
+    return this.repo.resolveComment(id, commentId);
+  }
+
+  async listTemplates(_actor: CsdActor): Promise<{ items: CsdReportTemplateRow[] }> {
+    const items = await this.repo.listTemplates();
+    return { items };
+  }
+
+  async createTemplate(
+    actor: CsdActor,
+    input: CreateCsdReportTemplateInput,
+  ): Promise<CsdReportTemplateRow> {
+    if (!hasCsdManage(actor)) {
+      throw new ForbiddenException({ error: 'csd_manage_required' });
+    }
+    const code = String(input.code ?? '').trim();
+    const nameVi = String(input.name_vi ?? '').trim();
+    if (!code || !nameVi) {
+      throw new BadRequestException({ error: 'template_code_name_required' });
+    }
+    const sections = normalizeTemplateSections(input.sections_json);
+    try {
+      return await this.repo.insertTemplate({
+        code,
+        name_vi: nameVi,
+        requires_approval: Boolean(input.requires_approval),
+        sections_json: sections,
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new ConflictException({ error: 'template_code_taken', code });
+      }
+      throw err;
+    }
+  }
+
+  async updateTemplate(
+    actor: CsdActor,
+    id: string,
+    input: UpdateCsdReportTemplateInput,
+  ): Promise<CsdReportTemplateRow> {
+    if (!hasCsdManage(actor)) {
+      throw new ForbiddenException({ error: 'csd_manage_required' });
+    }
+    const existing = await this.repo.getTemplateById(id);
+    if (!existing) throw new NotFoundException({ error: 'csd_report_template_not_found' });
+    const patch: UpdateCsdReportTemplateInput = {};
+    if (input.name_vi != null) {
+      const nameVi = String(input.name_vi).trim();
+      if (!nameVi) throw new BadRequestException({ error: 'template_name_required' });
+      patch.name_vi = nameVi;
+    }
+    if (input.requires_approval != null) {
+      patch.requires_approval = Boolean(input.requires_approval);
+    }
+    if (input.sections_json != null) {
+      patch.sections_json = normalizeTemplateSections(input.sections_json);
+    }
+    return this.repo.updateTemplate(id, patch);
+  }
+
+  async archiveTemplate(actor: CsdActor, id: string): Promise<CsdReportTemplateRow> {
+    if (!hasCsdManage(actor)) {
+      throw new ForbiddenException({ error: 'csd_manage_required' });
+    }
+    const existing = await this.repo.getTemplateById(id);
+    if (!existing) throw new NotFoundException({ error: 'csd_report_template_not_found' });
+    return this.repo.archiveTemplate(id);
   }
 
   async createRevisedVersion(actor: CsdActor, id: string): Promise<CsdReportRow> {
