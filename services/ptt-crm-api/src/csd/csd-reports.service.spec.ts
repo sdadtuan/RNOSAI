@@ -19,14 +19,23 @@ describe('CsdReportsService', () => {
     listSendLogs: jest.fn(),
     insertVersion: jest.fn(),
     insertAttachment: jest.fn(),
+    upsertScheduleNextRun: jest.fn(),
   };
 
   const tickets = {
     listForReportPeriod: jest.fn(),
   };
 
+  const email = {
+    send: jest.fn(),
+  };
+
+  const notify = {
+    insert: jest.fn(),
+  };
+
   function svc() {
-    return new CsdReportsService(repo as never, tickets as never);
+    return new CsdReportsService(repo as never, tickets as never, email as never, notify as never);
   }
 
   beforeEach(() => {
@@ -77,21 +86,17 @@ describe('CsdReportsService', () => {
       requires_approval: false,
       template_code: 'weekly_ops',
     });
-    repo.getReport
-      .mockResolvedValueOnce({
-        id: 'r2',
-        status: 'draft',
-        current_version: 'v1.0',
-        requires_approval: false,
-        template_code: 'weekly_ops',
-      })
-      .mockResolvedValueOnce({
-        id: 'r2',
-        status: 'draft',
-        current_version: 'v1.0',
-        requires_approval: false,
-        template_code: 'weekly_ops',
-      });
+    repo.getReport.mockResolvedValue({
+      id: 'r2',
+      status: 'draft',
+      current_version: 'v1.0',
+      requires_approval: false,
+      template_code: 'weekly_ops',
+    });
+    repo.getCurrentVersion.mockResolvedValue({ sections_json: { cover: { body: 'ok' } } });
+    repo.listVersions.mockResolvedValue([]);
+    repo.listSendLogs.mockResolvedValue([]);
+    repo.insertAttachment.mockResolvedValue({ id: 'att1', file_name: 'PTT-weekly_ops-v1.0.pdf' });
     repo.updateReportStatus.mockResolvedValue({
       id: 'r2',
       status: 'sent',
@@ -103,6 +108,7 @@ describe('CsdReportsService', () => {
       version: 'v1.0',
       result: 'sent',
     });
+    email.send.mockResolvedValue({ id: 'e1', send_status: 'sent' });
 
     const created = await svc().createReport(actor, {
       template_code: 'weekly_ops',
@@ -118,6 +124,76 @@ describe('CsdReportsService', () => {
     });
     expect(log.result).toBe('sent');
     expect(repo.updateReportStatus).toHaveBeenCalledWith('r2', 'sent', expect.any(Object));
+  });
+
+  it('does not mark sent when email send fails', async () => {
+    repo.getReport.mockResolvedValue({
+      id: 'r1', status: 'approved', current_version: 'v1.0', requires_approval: true, owner_staff_id: 5,
+    });
+    repo.getCurrentVersion.mockResolvedValue({ sections_json: { cover: { body: 'ok' } } });
+    email.send.mockRejectedValue(new Error('smtp_down'));
+    await expect(svc().send(actor, 'r1', { to: ['a@b.c'], subject: 'BC', body: 'gui' })).rejects.toMatchObject({
+      response: { error: 'report_send_failed' },
+    });
+    expect(repo.updateReportStatus).not.toHaveBeenCalledWith('r1', 'sent', expect.anything());
+    expect(repo.insertSendLog).toHaveBeenCalledWith(expect.objectContaining({ result: 'failed' }));
+    expect(notify.insert).toHaveBeenCalledWith(expect.objectContaining({ event_key: 'report_send_failed', staff_id: 5 }));
+  });
+
+  it('does not mark sent when email stays queued', async () => {
+    repo.getReport.mockResolvedValue({
+      id: 'r1', status: 'approved', current_version: 'v1.0', requires_approval: true, owner_staff_id: 5,
+    });
+    repo.getCurrentVersion.mockResolvedValue({ sections_json: { cover: { body: 'ok' } } });
+    email.send.mockResolvedValue({ id: 'e1', send_status: 'queued' });
+    await expect(svc().send(actor, 'r1', { to: ['a@b.c'], subject: 'BC', body: 'gui' })).rejects.toMatchObject({
+      response: { error: 'report_send_failed' },
+    });
+    expect(repo.updateReportStatus).not.toHaveBeenCalledWith('r1', 'sent', expect.anything());
+    expect(repo.insertSendLog).toHaveBeenCalledWith(expect.objectContaining({ result: 'failed' }));
+  });
+
+  it('schedules future send without SMTP', async () => {
+    const future = new Date(Date.now() + 3_600_000).toISOString();
+    repo.getReport.mockResolvedValue({
+      id: 'r1',
+      status: 'approved',
+      current_version: 'v1.0',
+      requires_approval: true,
+      template_id: 'tpl1',
+      owner_staff_id: 5,
+    });
+    repo.upsertScheduleNextRun.mockResolvedValue(undefined);
+    repo.updateReportStatus.mockResolvedValue({ id: 'r1', status: 'scheduled' });
+    repo.insertSendLog.mockResolvedValue({ id: 'log1', result: 'queued' });
+
+    const log = await svc().send(actor, 'r1', {
+      to: ['a@b.c'],
+      subject: 'BC',
+      body: 'gui',
+      schedule_at: future,
+    });
+
+    expect(log.result).toBe('queued');
+    expect(email.send).not.toHaveBeenCalled();
+    expect(repo.updateReportStatus).toHaveBeenCalledWith('r1', 'scheduled', expect.any(Object));
+    expect(repo.upsertScheduleNextRun).toHaveBeenCalledWith(
+      expect.objectContaining({ template_id: 'tpl1', next_run_at: future }),
+    );
+  });
+
+  it('retrySend requires last log failed and report not sent', async () => {
+    repo.getReport.mockResolvedValue({
+      id: 'r1',
+      status: 'approved',
+      current_version: 'v1.0',
+      requires_approval: true,
+    });
+    repo.listSendLogs.mockResolvedValue([{ result: 'sent', to_json: ['a@b.c'] }]);
+    await expect(svc().retrySend(actor, 'r1')).rejects.toMatchObject({
+      response: { error: 'retry_not_allowed' },
+    });
+    expect(email.send).not.toHaveBeenCalled();
   });
 
   it('snapshots v1.1 with changelog before send', async () => {

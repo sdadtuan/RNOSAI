@@ -335,6 +335,7 @@ export type SendCsdEmailInput = {
   body_html?: string;
   ticket_id?: string;
   client_account_id?: string;
+  attachments?: { filename: string; content_type: string; buffer: Buffer }[];
 };
 
 export type InboundCsdEmailInput = {
@@ -398,6 +399,7 @@ export type CsdReportSendLogRow = {
   to_json: string[];
   result: string;
   email_id: string | null;
+  error_text: string | null;
   created_at: string;
   created_by_staff_id: number | null;
 };
@@ -414,6 +416,7 @@ export type SendCsdReportInput = {
   to: string[];
   subject: string;
   body: string;
+  schedule_at?: string;
 };
 
 export type CsdReportListQuery = {

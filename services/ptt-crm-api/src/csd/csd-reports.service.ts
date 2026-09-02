@@ -5,6 +5,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -17,6 +18,8 @@ import {
   renderCsdReportPdf,
   renderCsdReportXlsx,
 } from './csd-report-export.util';
+import { CsdEmailService } from './csd-email.service';
+import { CsdNotificationsRepository } from './csd-notifications.repository';
 import { CsdReportsRepository } from './csd-reports.repository';
 import { CsdTicketsRepository } from './csd-tickets.repository';
 import {
@@ -72,6 +75,8 @@ export class CsdReportsService {
   constructor(
     private readonly repo: CsdReportsRepository,
     private readonly tickets: CsdTicketsRepository,
+    private readonly email: CsdEmailService,
+    private readonly notify: CsdNotificationsRepository,
   ) {}
 
   async createReport(actor: CsdActor, input: CreateCsdReportInput): Promise<CsdReportRow> {
@@ -229,27 +234,159 @@ export class CsdReportsService {
 
   async send(actor: CsdActor, id: string, input: SendCsdReportInput): Promise<CsdReportSendLogRow> {
     const report = await this.get(actor, id);
-
-    if (report.status === 'sent') {
-      throw new ConflictException({ error: 'report_already_sent' });
-    }
-
-    if (report.requires_approval && report.status !== 'approved' && report.status !== 'scheduled') {
-      throw new ConflictException({ error: 'report_not_approved', status: report.status });
-    }
+    this.assertCanSend(report);
 
     const to = (input.to ?? []).map((v) => String(v).trim()).filter(Boolean);
     if (!to.length) throw new BadRequestException({ error: 'to_required' });
 
-    await this.repo.updateReportStatus(id, 'sent', { updated_by_staff_id: actor.staffId });
+    const scheduled = await this.maybeSchedule(actor, report, input.schedule_at, to);
+    if (scheduled) return scheduled;
 
+    try {
+      const pdf = await this.exportPdf(actor, id);
+      await this.uploadFile(actor, id, {
+        originalname: pdf.filename,
+        mimetype: 'application/pdf',
+        buffer: pdf.buffer,
+        size: pdf.buffer.length,
+      } as Express.Multer.File);
+
+      const subject = String(input.subject ?? '').trim() || report.title;
+      const bodyText = [String(input.body ?? '').trim(), `Tệp: ${pdf.filename}`]
+        .filter(Boolean)
+        .join('\n');
+
+      const outbound = await this.email.send(actor, {
+        to,
+        subject,
+        body_text: bodyText,
+        attachments: [
+          { filename: pdf.filename, content_type: 'application/pdf', buffer: pdf.buffer },
+        ],
+      });
+
+      if (outbound.send_status !== 'sent') {
+        return this.recordFailedSend(
+          actor,
+          report,
+          to,
+          outbound.send_status === 'queued' ? 'email_send_disabled' : `email_status_${outbound.send_status}`,
+          outbound.id,
+        );
+      }
+
+      const log = await this.repo.insertSendLog({
+        report_id: id,
+        version: report.current_version,
+        to_json: to,
+        result: 'sent',
+        email_id: outbound.id,
+        created_by_staff_id: actor.staffId,
+      });
+      await this.repo.updateReportStatus(id, 'sent', { updated_by_staff_id: actor.staffId });
+      return log;
+    } catch (err) {
+      if (this.isReportSendFailed(err)) throw err;
+      const message = err instanceof Error ? err.message : 'send_failed';
+      return this.recordFailedSend(actor, report, to, message);
+    }
+  }
+
+  async retrySend(actor: CsdActor, id: string): Promise<CsdReportSendLogRow> {
+    const report = await this.get(actor, id);
+    if (report.status === 'sent') {
+      throw new ConflictException({ error: 'report_already_sent' });
+    }
+    const logs = await this.repo.listSendLogs(id);
+    const last = logs[0];
+    if (!last || last.result !== 'failed') {
+      throw new ConflictException({ error: 'retry_not_allowed' });
+    }
+    return this.send(actor, id, {
+      to: last.to_json,
+      subject: report.title,
+      body: 'Gửi lại báo cáo',
+    });
+  }
+
+  private assertCanSend(report: CsdReportRow): void {
+    if (report.status === 'sent') {
+      throw new ConflictException({ error: 'report_already_sent' });
+    }
+    if (report.requires_approval && report.status !== 'approved' && report.status !== 'scheduled') {
+      throw new ConflictException({ error: 'report_not_approved', status: report.status });
+    }
+  }
+
+  private async maybeSchedule(
+    actor: CsdActor,
+    report: CsdReportRow,
+    scheduleAt: string | undefined,
+    to: string[],
+  ): Promise<CsdReportSendLogRow | null> {
+    const raw = String(scheduleAt ?? '').trim();
+    if (!raw) return null;
+    const when = new Date(raw);
+    if (Number.isNaN(when.getTime())) {
+      throw new BadRequestException({ error: 'invalid_schedule_at' });
+    }
+    if (when.getTime() <= Date.now()) return null;
+    if (!report.template_id) {
+      throw new BadRequestException({ error: 'template_required' });
+    }
+
+    await this.repo.updateReportStatus(report.id, 'scheduled', {
+      updated_by_staff_id: actor.staffId,
+    });
+    await this.repo.upsertScheduleNextRun({
+      template_id: report.template_id,
+      client_account_id: report.client_account_id,
+      next_run_at: when.toISOString(),
+      owner_staff_id: report.owner_staff_id ?? actor.staffId,
+    });
     return this.repo.insertSendLog({
-      report_id: id,
+      report_id: report.id,
       version: report.current_version,
       to_json: to,
-      result: 'sent',
+      result: 'queued',
       created_by_staff_id: actor.staffId,
     });
+  }
+
+  private async recordFailedSend(
+    actor: CsdActor,
+    report: CsdReportRow,
+    to: string[],
+    errorText: string,
+    emailId?: string | null,
+  ): Promise<never> {
+    await this.repo.insertSendLog({
+      report_id: report.id,
+      version: report.current_version,
+      to_json: to,
+      result: 'failed',
+      email_id: emailId ?? null,
+      error_text: errorText,
+      created_by_staff_id: actor.staffId,
+    });
+    if (report.owner_staff_id != null) {
+      await this.notify.insert({
+        staff_id: report.owner_staff_id,
+        event_key: 'report_send_failed',
+        title_vi: 'Gửi báo cáo thất bại',
+        body_vi: errorText,
+        entity_type: 'report',
+        entity_id: report.id,
+        severity: 'warning',
+      });
+    }
+    throw new BadRequestException({ error: 'report_send_failed' });
+  }
+
+  private isReportSendFailed(err: unknown): boolean {
+    if (!(err instanceof HttpException)) return false;
+    const body = err.getResponse();
+    return typeof body === 'object' && body != null && (body as { error?: string }).error === 'report_send_failed';
   }
 
   async updateSections(

@@ -15178,6 +15178,13 @@ body {
   overflow: auto;
 }
 
+.csd-report-send-pdf,
+.csd-report-send-failed {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
 .csd-chat-page.is-authed {
   display: flex;
   flex-direction: column;

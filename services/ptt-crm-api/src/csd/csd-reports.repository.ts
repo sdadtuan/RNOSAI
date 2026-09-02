@@ -83,6 +83,7 @@ function mapSendLog(row: Record<string, unknown>): CsdReportSendLogRow {
     to_json: (row.to_json as string[]) ?? [],
     result: text(row.result),
     email_id: row.email_id != null ? text(row.email_id) : null,
+    error_text: row.error_text != null ? text(row.error_text) : null,
     created_at: text(row.created_at),
     created_by_staff_id: num(row.created_by_staff_id),
   };
@@ -382,12 +383,13 @@ export class CsdReportsRepository implements OnModuleDestroy {
     to_json: string[];
     result: string;
     email_id?: string | null;
+    error_text?: string | null;
     created_by_staff_id: number;
   }): Promise<CsdReportSendLogRow> {
     const res = await this.db.query(
       `INSERT INTO csd_report_send_logs (
-         report_id, version, channel, to_json, result, email_id, created_by_staff_id
-       ) VALUES ($1, $2, 'email', $3::jsonb, $4, $5, $6)
+         report_id, version, channel, to_json, result, email_id, error_text, created_by_staff_id
+       ) VALUES ($1, $2, 'email', $3::jsonb, $4, $5, $6, $7)
        RETURNING *`,
       [
         input.report_id,
@@ -395,10 +397,49 @@ export class CsdReportsRepository implements OnModuleDestroy {
         JSON.stringify(input.to_json),
         input.result,
         input.email_id ?? null,
+        input.error_text ?? null,
         input.created_by_staff_id,
       ],
     );
     return mapSendLog(res.rows[0]);
+  }
+
+  async upsertScheduleNextRun(input: {
+    template_id: string;
+    client_account_id?: string | null;
+    next_run_at: string;
+    owner_staff_id: number;
+  }): Promise<void> {
+    const updated = await this.db.query(
+      `UPDATE csd_report_schedules
+          SET next_run_at = $4, owner_staff_id = $5
+        WHERE tenant_id = $1
+          AND template_id = $2
+          AND COALESCE(client_account_id, '') = COALESCE($3, '')
+          AND recurrence = 'custom'
+          AND active = TRUE
+        RETURNING id`,
+      [
+        CSD_TENANT_ID,
+        input.template_id,
+        input.client_account_id ?? null,
+        input.next_run_at,
+        input.owner_staff_id,
+      ],
+    );
+    if ((updated.rowCount ?? 0) > 0) return;
+    await this.db.query(
+      `INSERT INTO csd_report_schedules (
+         tenant_id, template_id, client_account_id, recurrence, next_run_at, owner_staff_id
+       ) VALUES ($1, $2, $3, 'custom', $4, $5)`,
+      [
+        CSD_TENANT_ID,
+        input.template_id,
+        input.client_account_id ?? null,
+        input.next_run_at,
+        input.owner_staff_id,
+      ],
+    );
   }
 
   async createRevisedVersion(

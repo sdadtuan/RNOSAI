@@ -880,11 +880,18 @@ export async function requestCsdReportChanges(
 export async function sendCsdReport(
   token: string,
   id: string,
-  body: { to: string[]; subject: string; body: string },
-): Promise<{ status: string }> {
+  body: { to: string[]; subject: string; body: string; schedule_at?: string },
+): Promise<{ status: string; result?: string }> {
   return csdFetch(token, `/api/crm/csd/reports/${id}/send`, {
     method: 'POST',
     body: JSON.stringify(body),
+  });
+}
+
+export async function retryCsdReportSend(token: string, id: string): Promise<{ status: string; result?: string }> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/retry-send`, {
+    method: 'POST',
+    body: '{}',
   });
 }
 

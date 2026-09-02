@@ -161,6 +161,13 @@ export class CsdReportsController {
     return this.reports.send(actor, id, body);
   }
 
+  @Post(':id/retry-send')
+  @RequireCsdAction('write')
+  async retrySend(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.reports.retrySend(actor, id);
+  }
+
   @Patch(':id/sections')
   @RequireCsdAction('write')
   async updateSections(

@@ -11,6 +11,7 @@ import {
   requestCsdReportChanges,
   reviseCsdReport,
   rollupCsdReportTickets,
+  retryCsdReportSend,
   sendCsdReport,
   snapshotCsdReportVersion,
   submitCsdReportReview,
@@ -28,7 +29,7 @@ export default function CsdReportDetailPage() {
   const { user, token, error, setError, logout, canWrite, canManage } = useCsdPageAuth('view');
   const [report, setReport] = useState<CsdReportDetail | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
-  const [sendForm, setSendForm] = useState({ to: '', subject: '', body: '' });
+  const [sendForm, setSendForm] = useState({ to: '', subject: '', body: '', schedule_at: '', attach_pdf: true });
   const [busy, setBusy] = useState(false);
 
   const reload = useCallback(async () => {
@@ -45,15 +46,21 @@ export default function CsdReportDetailPage() {
     void reload();
   }, [reload]);
 
-  async function handleSend(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSend(schedule: boolean) {
     if (!token || !report) return;
+    if (schedule && !sendForm.schedule_at.trim()) {
+      setError('Chọn thời điểm lên lịch');
+      return;
+    }
     setBusy(true);
     try {
       await sendCsdReport(token, report.id, {
         to: sendForm.to.split(',').map((s) => s.trim()).filter(Boolean),
         subject: sendForm.subject,
         body: sendForm.body,
+        ...(schedule && sendForm.schedule_at.trim()
+          ? { schedule_at: new Date(sendForm.schedule_at).toISOString() }
+          : {}),
       });
       setSendOpen(false);
       await reload();
@@ -63,6 +70,24 @@ export default function CsdReportDetailPage() {
       setBusy(false);
     }
   }
+
+  async function handleRetrySend() {
+    if (!token || !report) return;
+    setBusy(true);
+    try {
+      await retryCsdReportSend(token, report.id);
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gửi lại thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const lastSendFailed =
+    report != null &&
+    report.status !== 'sent' &&
+    (report.send_logs?.[0]?.result === 'failed');
 
   if (!user) {
     return (
@@ -91,6 +116,22 @@ export default function CsdReportDetailPage() {
       {error ? (
         <div className="page-card">
           <p className="error">{error}</p>
+        </div>
+      ) : null}
+      {lastSendFailed ? (
+        <div className="page-card csd-report-send-failed" role="alert">
+          <p className="error">Gửi báo cáo thất bại.</p>
+          {canWrite ? (
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={busy}
+              data-testid="csd-report-retry-send"
+              onClick={() => void handleRetrySend()}
+            >
+              Gửi lại
+            </button>
+          ) : null}
         </div>
       ) : null}
       {report ? (
@@ -153,37 +194,74 @@ export default function CsdReportDetailPage() {
         <div className="csd-modal-backdrop" role="presentation" onClick={() => setSendOpen(false)}>
           <form
             className="csd-modal page-card stack-gap"
-            onSubmit={(e) => void handleSend(e)}
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleSend(false);
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="kpi-section-title">Gửi báo cáo PDF</h3>
-            <input
-              className="kpi-input"
-              placeholder="Đến"
-              required
-              value={sendForm.to}
-              onChange={(e) => setSendForm({ ...sendForm, to: e.target.value })}
-            />
-            <input
-              className="kpi-input"
-              placeholder="Tiêu đề"
-              required
-              value={sendForm.subject}
-              onChange={(e) => setSendForm({ ...sendForm, subject: e.target.value })}
-            />
-            <textarea
-              className="kpi-input"
-              rows={4}
-              placeholder="Lời nhắn"
-              value={sendForm.body}
-              onChange={(e) => setSendForm({ ...sendForm, body: e.target.value })}
-            />
+            <label className="stack-gap">
+              Đến *
+              <input
+                className="kpi-input"
+                placeholder="email@khach.vn"
+                required
+                value={sendForm.to}
+                onChange={(e) => setSendForm({ ...sendForm, to: e.target.value })}
+              />
+            </label>
+            <label className="stack-gap">
+              Subject
+              <input
+                className="kpi-input"
+                placeholder="Tiêu đề"
+                required
+                value={sendForm.subject}
+                onChange={(e) => setSendForm({ ...sendForm, subject: e.target.value })}
+              />
+            </label>
+            <label className="stack-gap">
+              Body
+              <textarea
+                className="kpi-input"
+                rows={4}
+                placeholder="Lời nhắn"
+                value={sendForm.body}
+                onChange={(e) => setSendForm({ ...sendForm, body: e.target.value })}
+              />
+            </label>
+            <label className="csd-report-send-pdf">
+              <input
+                type="checkbox"
+                checked={sendForm.attach_pdf}
+                onChange={(e) => setSendForm({ ...sendForm, attach_pdf: e.target.checked })}
+              />
+              Đính kèm PDF
+            </label>
+            <label className="stack-gap">
+              Lên lịch
+              <input
+                className="kpi-input"
+                type="datetime-local"
+                value={sendForm.schedule_at}
+                onChange={(e) => setSendForm({ ...sendForm, schedule_at: e.target.value })}
+              />
+            </label>
             <div className="csd-composer__actions">
               <button type="button" className="btn btn-sm btn-secondary" onClick={() => setSendOpen(false)}>
                 Huỷ
               </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                disabled={busy}
+                onClick={() => void handleSend(true)}
+              >
+                Lên lịch
+              </button>
               <button type="submit" className="btn btn-sm" disabled={busy}>
-                Gửi
+                Gửi ngay
               </button>
             </div>
           </form>

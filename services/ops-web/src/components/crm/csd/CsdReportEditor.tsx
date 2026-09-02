@@ -662,7 +662,11 @@ export function CsdReportEditor({
           </button>
         ) : null}
 
-        {canWrite && report.status === 'approved' ? (
+        {canWrite && report.status === 'approved' && onSend ? (
+          <button type="button" className="btn btn-sm btn-secondary" onClick={onSend}>
+            Lên lịch
+          </button>
+        ) : canWrite && report.status === 'approved' ? (
           <button type="button" className="btn btn-sm btn-secondary" disabled>
             Lên lịch
           </button>
@@ -687,7 +691,7 @@ export function CsdReportEditor({
 
         {report.status === 'sent' ? (
           <>
-            <p className="muted">Báo cáo đã gửi — không thể sửa.</p>
+            <p className="muted">Báo cáo đã gửi — sửa sẽ tạo phiên bản mới.</p>
             {canWrite && onRevise ? (
               <button
                 type="button"
