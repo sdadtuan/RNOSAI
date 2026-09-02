@@ -61,6 +61,15 @@ export function UserIdentityCard({
   const [showRelogin, setShowRelogin] = useState(false);
   const [showOffboard, setShowOffboard] = useState(false);
   const [reassignTo, setReassignTo] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [issuedLoginPassword, setIssuedLoginPassword] = useState('');
+
+  function generateLoginPassword() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    let out = '';
+    for (let i = 0; i < 12; i += 1) out += chars[Math.floor(Math.random() * chars.length)];
+    return out;
+  }
 
   const sodViolations = useMemo(() => detectSodViolations(functions), [functions]);
 
@@ -95,6 +104,8 @@ export function UserIdentityCard({
     setPositionId(user.position_id);
     setFunctions(user.job_functions ?? []);
     setTeamIds(user.team_ids ?? []);
+    setLoginPassword('');
+    setIssuedLoginPassword('');
     void loadDetail();
   }, [user, loadDetail]);
 
@@ -133,6 +144,26 @@ export function UserIdentityCard({
       setShowRelogin(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lưu thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resetLoginPassword() {
+    if (!canEdit || !user.active) return;
+    const next = loginPassword.trim() || generateLoginPassword();
+    if (next.length < 6) {
+      setError('Mật khẩu /login tối thiểu 6 ký tự');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      await patchStaffOrgUser(token, user.id, { password: next });
+      setLoginPassword(next);
+      setIssuedLoginPassword(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Cấp lại mật khẩu thất bại');
     } finally {
       setBusy(false);
     }
@@ -248,6 +279,59 @@ export function UserIdentityCard({
       {sodViolations.map((v) => (
         <WinSodBanner key={v.id} sodId={v.id} message={v.message} />
       ))}
+
+      {canEdit && user.active ? (
+        <section data-testid="staff-org-reset-password">
+          <h3 className="muted" style={{ marginTop: 0, fontSize: '0.8rem' }}>
+            Mật khẩu /login
+          </h3>
+          <p className="muted" style={{ margin: '0 0 0.45rem' }}>
+            Cấp mật khẩu mới cho cổng CRM. Mật khẩu Chat (dock) không đổi.
+          </p>
+          <label>
+            Mật khẩu mới
+            <input
+              type="text"
+              autoComplete="off"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              disabled={busy}
+              placeholder="Tối thiểu 6 ký tự — hoặc bấm Tạo"
+            />
+          </label>
+          <div className="modal-actions" style={{ marginTop: '0.4rem' }}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={busy}
+              onClick={() => setLoginPassword(generateLoginPassword())}
+            >
+              Tạo
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={busy || !loginPassword}
+              onClick={() => void navigator.clipboard.writeText(loginPassword)}
+            >
+              Sao chép
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={busy}
+              onClick={() => void resetLoginPassword()}
+            >
+              Cấp lại mật khẩu
+            </button>
+          </div>
+          {issuedLoginPassword ? (
+            <p data-testid="staff-org-reset-password-issued">
+              Mật khẩu /login mới: <strong>{issuedLoginPassword}</strong> — gửi trực tiếp cho nhân viên, không lưu lại.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <section>
         <p className="muted" style={{ margin: '0 0 0.35rem' }}>

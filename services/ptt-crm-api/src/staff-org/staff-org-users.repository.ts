@@ -398,6 +398,7 @@ export class StaffOrgUsersRepository {
         }
         sets.push(`password_hash = $${idx++}`);
         params.push(hashPortalPassword(plain));
+        sets.push('auth_token_version = auth_token_version + 1');
       }
       if (body.account_kind !== undefined) {
         sets.push(`account_kind = $${idx++}`);
