@@ -16857,6 +16857,30 @@ body {
   margin-bottom: 0.75rem;
 }
 
+.csd-report-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.csd-report-filters button {
+  border: 0;
+  background: #f3f4f6;
+  color: #475569;
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.csd-report-filters button.is-active {
+  background: #e8f3ff;
+  color: #0068ff;
+  font-weight: 600;
+}
+
 .csd-report-editor {
   display: grid;
   grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) minmax(200px, 240px);

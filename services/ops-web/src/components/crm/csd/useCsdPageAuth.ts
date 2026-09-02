@@ -67,5 +67,14 @@ export function useCsdPageAuth(requiredAction: 'view' | 'write' = 'view') {
     router.push('/login');
   }
 
-  return { user, token, error, setError, ensureAuth, logout, canWrite: hasCap(user, 'csd', 'write') };
+  return {
+    user,
+    token,
+    error,
+    setError,
+    ensureAuth,
+    logout,
+    canWrite: hasCap(user, 'csd', 'write'),
+    canManage: hasCap(user, 'csd', 'manage'),
+  };
 }

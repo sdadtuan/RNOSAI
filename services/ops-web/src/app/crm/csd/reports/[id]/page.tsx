@@ -8,14 +8,18 @@ import { useCsdPageAuth } from '@/components/crm/csd/useCsdPageAuth';
 import {
   approveCsdReport,
   getCsdReport,
+  requestCsdReportChanges,
   sendCsdReport,
   submitCsdReportReview,
+  transitionCsdReport,
+  updateCsdReportSections,
   type CsdReportDetail,
+  type CsdReportStatus,
 } from '@/lib/crm/csd-api';
 
 export default function CsdReportDetailPage() {
   const params = useParams<{ id: string }>();
-  const { user, token, error, setError, logout, canWrite } = useCsdPageAuth('view');
+  const { user, token, error, setError, logout, canWrite, canManage } = useCsdPageAuth('view');
   const [report, setReport] = useState<CsdReportDetail | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
   const [sendForm, setSendForm] = useState({ to: '', subject: '', body: '' });
@@ -70,11 +74,14 @@ export default function CsdReportDetailPage() {
         { label: 'CRM', href: '/crm/leads' },
         { label: 'Service Desk', href: '/crm/csd' },
         { label: 'Báo cáo', href: '/crm/csd/reports' },
-        { label: params.id },
+        { label: report?.title ?? params.id },
       ]}
       width="full"
     >
-      <PageToolbar title="Biên tập báo cáo" subtitle="Mục · duyệt · gửi PDF" />
+      <PageToolbar
+        title={report?.title ?? report?.template_name_vi ?? 'Biên tập báo cáo'}
+        subtitle="Mục theo mẫu · duyệt theo trạng thái · gửi PDF"
+      />
       {error ? (
         <div className="page-card">
           <p className="error">{error}</p>
@@ -84,12 +91,29 @@ export default function CsdReportDetailPage() {
         <CsdReportEditor
           report={report}
           canWrite={canWrite}
+          canManage={canManage}
+          onSaveSection={async (key, value) => {
+            await updateCsdReportSections(token, report.id, {
+              ...report.sections_json,
+              [key]: { body: value },
+            });
+            await reload();
+          }}
           onSubmitReview={async () => {
-            await submitCsdReportReview(token, report.id, user.position_id);
+            await submitCsdReportReview(token, report.id);
             await reload();
           }}
           onApprove={async () => {
             await approveCsdReport(token, report.id);
+            await reload();
+          }}
+          onRequestChanges={async (comment) => {
+            await requestCsdReportChanges(token, report.id, comment);
+            await reload();
+          }}
+          onTransition={async (to: CsdReportStatus) => {
+            if (to === 'sent') return;
+            await transitionCsdReport(token, report.id, { to });
             await reload();
           }}
           onSend={() => setSendOpen(true)}
@@ -102,14 +126,40 @@ export default function CsdReportDetailPage() {
 
       {sendOpen && report ? (
         <div className="csd-modal-backdrop" role="presentation" onClick={() => setSendOpen(false)}>
-          <form className="csd-modal page-card stack-gap" onSubmit={(e) => void handleSend(e)} onClick={(e) => e.stopPropagation()}>
+          <form
+            className="csd-modal page-card stack-gap"
+            onSubmit={(e) => void handleSend(e)}
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="kpi-section-title">Gửi báo cáo PDF</h3>
-            <input className="kpi-input" placeholder="Đến" required value={sendForm.to} onChange={(e) => setSendForm({ ...sendForm, to: e.target.value })} />
-            <input className="kpi-input" placeholder="Tiêu đề" required value={sendForm.subject} onChange={(e) => setSendForm({ ...sendForm, subject: e.target.value })} />
-            <textarea className="kpi-input" rows={4} placeholder="Lời nhắn" value={sendForm.body} onChange={(e) => setSendForm({ ...sendForm, body: e.target.value })} />
+            <input
+              className="kpi-input"
+              placeholder="Đến"
+              required
+              value={sendForm.to}
+              onChange={(e) => setSendForm({ ...sendForm, to: e.target.value })}
+            />
+            <input
+              className="kpi-input"
+              placeholder="Tiêu đề"
+              required
+              value={sendForm.subject}
+              onChange={(e) => setSendForm({ ...sendForm, subject: e.target.value })}
+            />
+            <textarea
+              className="kpi-input"
+              rows={4}
+              placeholder="Lời nhắn"
+              value={sendForm.body}
+              onChange={(e) => setSendForm({ ...sendForm, body: e.target.value })}
+            />
             <div className="csd-composer__actions">
-              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setSendOpen(false)}>Huỷ</button>
-              <button type="submit" className="btn btn-sm" disabled={busy}>Gửi</button>
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setSendOpen(false)}>
+                Huỷ
+              </button>
+              <button type="submit" className="btn btn-sm" disabled={busy}>
+                Gửi
+              </button>
             </div>
           </form>
         </div>
