@@ -268,7 +268,6 @@ export class CsdReportsService {
       patch.approver_staff_id = actor.staffId;
     }
 
-    const updated = await this.repo.updateReportStatus(id, to, patch);
     if (to === 'changes_requested') {
       await this.repo.insertComment({
         report_id: id,
@@ -278,7 +277,7 @@ export class CsdReportsService {
         created_by_staff_id: actor.staffId,
       });
     }
-    return updated;
+    return this.repo.updateReportStatus(id, to, patch);
   }
 
   async submitReview(

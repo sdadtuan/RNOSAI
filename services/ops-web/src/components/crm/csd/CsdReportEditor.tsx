@@ -34,6 +34,18 @@ type CsdReportEditorProps = {
   onResolveComment?: (commentId: string) => Promise<void>;
 };
 
+async function loadCommentsForPanel(
+  load: (sectionKey: string) => Promise<CsdReportCommentRow[]>,
+  activeSection: string,
+): Promise<CsdReportCommentRow[]> {
+  if (!activeSection) {
+    return load('');
+  }
+  const [sectionItems, generalItems] = await Promise.all([load(activeSection), load('')]);
+  const seen = new Set(generalItems.map((c) => c.id));
+  return [...generalItems, ...sectionItems.filter((c) => !seen.has(c.id))];
+}
+
 const SECTION_LABELS: Record<string, string> = {
   cover: 'Bìa',
   executive_summary: 'Tóm tắt điều hành',
@@ -198,12 +210,12 @@ export function CsdReportEditor({
   }, [report]);
 
   useEffect(() => {
-    if (!onLoadComments || !activeSection) {
+    if (!onLoadComments) {
       setComments([]);
       return;
     }
     let cancelled = false;
-    void onLoadComments(activeSection)
+    void loadCommentsForPanel(onLoadComments, activeSection)
       .then((items) => {
         if (!cancelled) setComments(items);
       })
@@ -556,6 +568,7 @@ export function CsdReportEditor({
                   <ul className="csd-report-comment-list">
                     {comments.map((c) => (
                       <li key={c.id} className={c.resolved_at ? 'is-resolved' : undefined}>
+                        {c.section_key === '' ? <span className="csd-badge">Chung</span> : null}
                         <p>{c.body_text}</p>
                         <span className="muted">
                           NV {c.created_by_staff_id} · {versionWhen(c.created_at)}
@@ -569,7 +582,9 @@ export function CsdReportEditor({
                             onClick={() =>
                               void run(async () => {
                                 await onResolveComment(c.id);
-                                const items = onLoadComments ? await onLoadComments(activeSection) : [];
+                                const items = onLoadComments
+                                  ? await loadCommentsForPanel(onLoadComments, activeSection)
+                                  : [];
                                 setComments(items);
                               }, 'Đã xử lý nhận xét')
                             }
@@ -600,7 +615,9 @@ export function CsdReportEditor({
                         void run(async () => {
                           await onAddComment(activeSection, commentBody.trim());
                           setCommentBody('');
-                          const items = onLoadComments ? await onLoadComments(activeSection) : [];
+                          const items = onLoadComments
+                            ? await loadCommentsForPanel(onLoadComments, activeSection)
+                            : [];
                           setComments(items);
                         }, 'Đã thêm nhận xét')
                       }

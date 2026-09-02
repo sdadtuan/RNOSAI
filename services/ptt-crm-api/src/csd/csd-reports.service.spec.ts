@@ -589,6 +589,54 @@ describe('CsdReportsService', () => {
     );
   });
 
+  it('requestChanges inserts the required comment before updating status', async () => {
+    const manager: CsdActor = {
+      staffId: 9,
+      staffLabel: 'director@test.vn',
+      caps: [{ section: 'csd', action: 'manage' }],
+    };
+    repo.getReport.mockResolvedValue({
+      id: 'r1',
+      status: 'in_review',
+      current_version: 'v1.0',
+      requires_approval: true,
+    });
+    const order: string[] = [];
+    repo.insertComment.mockImplementation(async () => {
+      order.push('insertComment');
+      return { id: 'c1', section_key: '', body_text: 'Cần sửa KPI' };
+    });
+    repo.updateReportStatus.mockImplementation(async () => {
+      order.push('updateReportStatus');
+      return { id: 'r1', status: 'changes_requested' };
+    });
+
+    await svc().transition(manager, 'r1', { to: 'changes_requested', comment: 'Cần sửa KPI' });
+
+    expect(order).toEqual(['insertComment', 'updateReportStatus']);
+  });
+
+  it('requestChanges does not update status if comment insert fails', async () => {
+    const manager: CsdActor = {
+      staffId: 9,
+      staffLabel: 'director@test.vn',
+      caps: [{ section: 'csd', action: 'manage' }],
+    };
+    repo.getReport.mockResolvedValue({
+      id: 'r1',
+      status: 'in_review',
+      current_version: 'v1.0',
+      requires_approval: true,
+    });
+    repo.insertComment.mockRejectedValue(new Error('comment_insert_failed'));
+    repo.updateReportStatus.mockResolvedValue({ id: 'r1', status: 'changes_requested' });
+
+    await expect(
+      svc().transition(manager, 'r1', { to: 'changes_requested', comment: 'Cần sửa KPI' }),
+    ).rejects.toThrow('comment_insert_failed');
+    expect(repo.updateReportStatus).not.toHaveBeenCalled();
+  });
+
   it('archive template in use does not delete the row', async () => {
     const manager: CsdActor = {
       staffId: 9,
