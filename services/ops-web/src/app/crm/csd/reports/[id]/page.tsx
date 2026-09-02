@@ -98,10 +98,11 @@ export default function CsdReportDetailPage() {
     }
   }
 
+  const lastEmailLog = report?.send_logs?.find((log) => !log.channel || log.channel === 'email');
   const lastSendFailed =
     report != null &&
     report.status !== 'sent' &&
-    (report.send_logs?.[0]?.result === 'failed');
+    lastEmailLog?.result === 'failed';
 
   if (!user) {
     return (

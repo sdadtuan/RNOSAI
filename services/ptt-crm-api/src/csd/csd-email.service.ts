@@ -1,3 +1,6 @@
+import { mkdirSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { randomUUID } from 'crypto';
 import {
   BadRequestException,
   Injectable,
@@ -19,6 +22,17 @@ import {
 } from './csd.types';
 
 const DEFAULT_FROM = 'support@agency.ptt.vn';
+
+function safeFileName(name: string): string {
+  return String(name || 'file')
+    .replace(/[/\\]+/g, '_')
+    .replace(/[^\w.\-() ]+/g, '_')
+    .slice(0, 120);
+}
+
+function fileDir(): string {
+  return process.env.PTT_CSD_FILE_DIR || join(process.cwd(), 'data/csd-files');
+}
 
 function hasCsdManage(caps: { section: string; action: string }[]): boolean {
   const order = ['view', 'write', 'assign', 'manage', 'admin'];
@@ -122,6 +136,8 @@ export class CsdEmailService {
       created_by_staff_id: actor.staffId,
     });
 
+    await this.persistClientAttachments(draft.id, input.attachments ?? [], actor.staffId);
+
     if (requiresApproval && !canBypass) {
       const approval = await this.repo.insertApproval({
         entity_id: draft.id,
@@ -137,5 +153,32 @@ export class CsdEmailService {
     }
 
     return this.repo.markSent(draft.id);
+  }
+
+  private async persistClientAttachments(
+    emailId: string,
+    attachments: { filename: string; content_type: string; buffer: Buffer }[],
+    staffId: number,
+  ): Promise<void> {
+    for (const att of attachments) {
+      if (!att?.buffer?.length) continue;
+      const attachmentId = randomUUID();
+      const fileName = safeFileName(att.filename);
+      const storageKey = `email/${emailId}/${attachmentId}-${fileName}`;
+      const absDir = join(fileDir(), 'email', emailId);
+      mkdirSync(absDir, { recursive: true });
+      writeFileSync(join(fileDir(), storageKey), att.buffer);
+      await this.repo.insertAttachment({
+        id: attachmentId,
+        storage_key: storageKey,
+        file_name: fileName,
+        mime_type: att.content_type || 'application/octet-stream',
+        byte_size: att.buffer.length,
+        visibility: 'client',
+        entity_type: 'email',
+        entity_id: emailId,
+        uploaded_by_staff_id: staffId,
+      });
+    }
   }
 }

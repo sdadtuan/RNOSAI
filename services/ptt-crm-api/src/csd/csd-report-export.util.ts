@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
-import { normalizeSection, type CsdReportSection } from './csd-report-blocks';
+import { normalizeSection, type CsdReportBlock, type CsdReportSection } from './csd-report-blocks';
 
 export type CsdReportExportDetail = {
   title: string;
@@ -30,10 +30,28 @@ const SECTION_LABELS: Record<string, string> = {
   asks: 'Đề xuất / Asks',
 };
 
-function sectionText(section: CsdReportSection): string {
-  return section.blocks
-    .filter((b): b is Extract<typeof b, { type: 'rich_text' }> => b.type === 'rich_text')
-    .map((b) => b.body)
+function blockPlainText(block: CsdReportBlock): string {
+  if (block.type === 'rich_text') return block.body || '';
+  if (block.type === 'ticket_rollup') {
+    const ids = (block.ticket_ids ?? []).filter(Boolean).join(', ');
+    return [block.summary, ids].filter(Boolean).join('\n');
+  }
+  if (block.type === 'file') {
+    return [block.caption, block.attachment_id].filter(Boolean).join(' · ');
+  }
+  if (block.type === 'chart') {
+    const series = (block.labels ?? [])
+      .map((label, i) => `${label}: ${block.values?.[i] ?? ''}`)
+      .join(', ');
+    return [block.title, series].filter(Boolean).join(' — ');
+  }
+  return '';
+}
+
+export function sectionExportText(section: CsdReportSection): string {
+  return normalizeSection(section)
+    .blocks
+    .map(blockPlainText)
     .filter(Boolean)
     .join('\n');
 }
@@ -76,6 +94,12 @@ export function renderCsdReportPdf(detail: {
           if (line) doc.fontSize(10).text(line);
         }
         doc.moveDown(0.4);
+      } else {
+        const text = blockPlainText(block);
+        if (text) {
+          doc.fontSize(11).text(text);
+          doc.moveDown(0.4);
+        }
       }
     }
     doc.moveDown();
@@ -110,7 +134,7 @@ export async function renderCsdReportXlsx(detail: {
         }
       }
     }
-    sections.addRow([item.key, sectionText(section)]);
+    sections.addRow([item.key, sectionExportText(section)]);
   }
 
   const buf = await wb.xlsx.writeBuffer();

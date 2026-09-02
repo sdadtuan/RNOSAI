@@ -204,9 +204,36 @@ describe('CsdReportsService', () => {
     expect(log.result).toBe('queued');
     expect(email.send).not.toHaveBeenCalled();
     expect(repo.updateReportStatus).toHaveBeenCalledWith('r1', 'scheduled', expect.any(Object));
-    expect(repo.upsertScheduleNextRun).toHaveBeenCalledWith(
-      expect.objectContaining({ template_id: 'tpl1', next_run_at: future }),
+    expect(repo.upsertScheduleNextRun).not.toHaveBeenCalled();
+    expect(repo.insertSendLog).toHaveBeenCalledWith(expect.objectContaining({ result: 'queued' }));
+  });
+
+  it('does not record failed send when insertSendLog fails after email sent', async () => {
+    repo.getReport.mockResolvedValue({
+      id: 'r1',
+      status: 'approved',
+      current_version: 'v1.0',
+      requires_approval: true,
+      owner_staff_id: 5,
+      title: 'BC',
+      period_start: '2026-08-01',
+      period_end: '2026-08-31',
+    });
+    repo.getCurrentVersion.mockResolvedValue({ sections_json: { cover: { body: 'ok' } } });
+    repo.listVersions.mockResolvedValue([]);
+    repo.listSendLogs.mockResolvedValue([]);
+    repo.insertAttachment.mockResolvedValue({ id: 'att1', file_name: 'x.pdf' });
+    email.send.mockResolvedValue({ id: 'e1', send_status: 'sent' });
+    repo.insertSendLog.mockRejectedValue(new Error('db_down'));
+
+    await expect(svc().send(actor, 'r1', { to: ['a@b.c'], subject: 'BC', body: 'gui' })).rejects.toThrow(
+      'db_down',
     );
+    expect(repo.insertSendLog).toHaveBeenCalledTimes(1);
+    expect(repo.insertSendLog).toHaveBeenCalledWith(expect.objectContaining({ result: 'sent' }));
+    expect(repo.insertSendLog).not.toHaveBeenCalledWith(expect.objectContaining({ result: 'failed' }));
+    expect(notify.insert).not.toHaveBeenCalled();
+    expect(repo.updateReportStatus).not.toHaveBeenCalledWith('r1', 'sent', expect.anything());
   });
 
   it('retrySend requires last log failed and report not sent', async () => {
@@ -221,6 +248,35 @@ describe('CsdReportsService', () => {
       response: { error: 'retry_not_allowed' },
     });
     expect(email.send).not.toHaveBeenCalled();
+  });
+
+  it('retrySend uses latest email log and ignores later chat sent', async () => {
+    repo.getReport.mockResolvedValue({
+      id: 'r1',
+      status: 'approved',
+      current_version: 'v1.0',
+      requires_approval: true,
+      title: 'BC',
+      period_start: '2026-08-01',
+      period_end: '2026-08-31',
+    });
+    repo.listSendLogs.mockResolvedValue([
+      { channel: 'chat', result: 'sent', to_json: ['c1'] },
+      { channel: 'email', result: 'failed', to_json: ['a@b.c'] },
+    ]);
+    repo.getCurrentVersion.mockResolvedValue({ sections_json: { cover: { body: 'ok' } } });
+    repo.listVersions.mockResolvedValue([]);
+    repo.insertAttachment.mockResolvedValue({ id: 'att1', file_name: 'x.pdf' });
+    email.send.mockResolvedValue({ id: 'e2', send_status: 'sent' });
+    repo.insertSendLog.mockResolvedValue({ id: 'log2', result: 'sent' });
+    repo.updateReportStatus.mockResolvedValue({ id: 'r1', status: 'sent' });
+
+    const out = await svc().retrySend(actor, 'r1');
+    expect(out.result).toBe('sent');
+    expect(email.send).toHaveBeenCalledWith(
+      actor,
+      expect.objectContaining({ to: ['a@b.c'] }),
+    );
   });
 
   it('snapshots v1.1 with changelog before send', async () => {

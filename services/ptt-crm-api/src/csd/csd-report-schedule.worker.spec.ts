@@ -4,20 +4,18 @@ describe('tickCsdReportSchedules', () => {
   it('creates draft and notifies, does not send', async () => {
     const createDraft = jest.fn().mockResolvedValue({ id: 'r9' });
     const notify = jest.fn();
-    const bumpNextRun = jest.fn();
     const claimDue = jest.fn().mockResolvedValue([
       { id: 's1', template_code: 'monthly_marketing', recurrence: 'monthly', owner_staff_id: 5 },
     ]);
-    const out = await tickCsdReportSchedules({ claimDue, createDraft, notify, bumpNextRun });
+    const out = await tickCsdReportSchedules({ claimDue, createDraft, notify });
     expect(out.created).toBe(1);
     expect(createDraft).toHaveBeenCalled();
     expect(notify).toHaveBeenCalled();
   });
 
-  it('notifies owner with report id and bumps next run', async () => {
+  it('notifies owner with report id and does not bump again', async () => {
     const createDraft = jest.fn().mockResolvedValue({ id: 'r9' });
     const notify = jest.fn();
-    const bumpNextRun = jest.fn();
     const schedule = {
       id: 's1',
       template_code: 'monthly_marketing',
@@ -26,25 +24,22 @@ describe('tickCsdReportSchedules', () => {
     };
     const claimDue = jest.fn().mockResolvedValue([schedule]);
 
-    await tickCsdReportSchedules({ claimDue, createDraft, notify, bumpNextRun });
+    await tickCsdReportSchedules({ claimDue, createDraft, notify });
 
     expect(createDraft).toHaveBeenCalledWith(schedule);
     expect(notify).toHaveBeenCalledWith(5, 'r9');
-    expect(bumpNextRun).toHaveBeenCalledWith('s1', 'monthly');
   });
 
   it('returns created 0 when nothing is due', async () => {
     const createDraft = jest.fn();
     const notify = jest.fn();
-    const bumpNextRun = jest.fn();
     const claimDue = jest.fn().mockResolvedValue([]);
 
-    const out = await tickCsdReportSchedules({ claimDue, createDraft, notify, bumpNextRun });
+    const out = await tickCsdReportSchedules({ claimDue, createDraft, notify });
 
     expect(out.created).toBe(0);
     expect(createDraft).not.toHaveBeenCalled();
     expect(notify).not.toHaveBeenCalled();
-    expect(bumpNextRun).not.toHaveBeenCalled();
   });
 });
 

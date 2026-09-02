@@ -75,6 +75,7 @@ Luồng chuẩn: **Tạo** (4 mẫu) → **Gộp ticket / rollup** → **Gửi d
   - **Đã gửi** — Tạo bản sửa / Xem log; editor chỉ xem; **Chia sẻ chat**.
   - **Huỷ / Lưu trữ** — chỉ xem.
 - Báo cáo tuần gửi thẳng từ nháp qua **Gửi PDF** (`POST :id/send`). Tháng/SLA/điều hành **không** hiện nút gửi khi còn nháp — phải Gửi duyệt → Duyệt rồi mới Gửi khách. Không dùng `POST :id/transition` với `to=sent`.
+- **Gửi khách** dùng `CsdEmailService` (`PTT_EMAIL_SEND_ENABLED`). PDF gửi khách được lưu đính kèm `visibility=client` trên dòng email (`entity_type=email`) và ghi trong body (`Tệp: …`). Form gửi giữ checkbox **Đính kèm PDF**.
 
 ## Phân biệt quan trọng
 

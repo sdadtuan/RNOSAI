@@ -50,7 +50,8 @@ export default function CsdReportsPage() {
   const reload = useCallback(async () => {
     if (!token) return;
     try {
-      const query = filter === 'all' ? {} : { status: filter };
+      const query: Record<string, string> = {};
+      if (filter !== 'all') query.status = filter;
       const out = await fetchCsdReports(token, query);
       setItems(out.items ?? []);
     } catch (err) {

@@ -37,7 +37,6 @@ export class CsdReportScheduleWorkerService implements OnModuleInit, OnModuleDes
         claimDue: (limit) => this.repo.claimDueSchedules(limit),
         createDraft: (schedule) => this.createDraft(schedule),
         notify: (staffId, reportId) => this.notifyOwner(staffId, reportId),
-        bumpNextRun: (id, recurrence) => this.repo.bumpScheduleNextRun(id, recurrence),
       });
       if (result.created) {
         this.logger.debug(`Report schedule tick created=${result.created}`);

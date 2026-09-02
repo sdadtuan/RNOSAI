@@ -309,21 +309,27 @@ export class CsdReportsService {
     const scheduled = await this.maybeSchedule(actor, report, input.schedule_at, to);
     if (scheduled) return scheduled;
 
+    let outbound: { id: string; send_status: string };
     try {
       const pdf = await this.exportPdf(actor, id);
-      await this.uploadFile(actor, id, {
-        originalname: pdf.filename,
-        mimetype: 'application/pdf',
-        buffer: pdf.buffer,
-        size: pdf.buffer.length,
-      } as Express.Multer.File);
+      await this.uploadFile(
+        actor,
+        id,
+        {
+          originalname: pdf.filename,
+          mimetype: 'application/pdf',
+          buffer: pdf.buffer,
+          size: pdf.buffer.length,
+        } as Express.Multer.File,
+        'client',
+      );
 
       const subject = String(input.subject ?? '').trim() || report.title;
       const bodyText = [String(input.body ?? '').trim(), `Tệp: ${pdf.filename}`]
         .filter(Boolean)
         .join('\n');
 
-      const outbound = await this.email.send(actor, {
+      outbound = await this.email.send(actor, {
         to,
         subject,
         body_text: bodyText,
@@ -341,22 +347,22 @@ export class CsdReportsService {
           outbound.id,
         );
       }
-
-      const log = await this.repo.insertSendLog({
-        report_id: id,
-        version: report.current_version,
-        to_json: to,
-        result: 'sent',
-        email_id: outbound.id,
-        created_by_staff_id: actor.staffId,
-      });
-      await this.repo.updateReportStatus(id, 'sent', { updated_by_staff_id: actor.staffId });
-      return log;
     } catch (err) {
       if (this.isReportSendFailed(err)) throw err;
       const message = err instanceof Error ? err.message : 'send_failed';
       return this.recordFailedSend(actor, report, to, message);
     }
+
+    const log = await this.repo.insertSendLog({
+      report_id: id,
+      version: report.current_version,
+      to_json: to,
+      result: 'sent',
+      email_id: outbound.id,
+      created_by_staff_id: actor.staffId,
+    });
+    await this.repo.updateReportStatus(id, 'sent', { updated_by_staff_id: actor.staffId });
+    return log;
   }
 
   async shareToClientChat(
@@ -411,7 +417,7 @@ export class CsdReportsService {
       throw new ConflictException({ error: 'report_already_sent' });
     }
     const logs = await this.repo.listSendLogs(id);
-    const last = logs[0];
+    const last = logs.find((log) => !log.channel || log.channel === 'email');
     if (!last || last.result !== 'failed') {
       throw new ConflictException({ error: 'retry_not_allowed' });
     }
@@ -444,18 +450,9 @@ export class CsdReportsService {
       throw new BadRequestException({ error: 'invalid_schedule_at' });
     }
     if (when.getTime() <= Date.now()) return null;
-    if (!report.template_id) {
-      throw new BadRequestException({ error: 'template_required' });
-    }
 
     await this.repo.updateReportStatus(report.id, 'scheduled', {
       updated_by_staff_id: actor.staffId,
-    });
-    await this.repo.upsertScheduleNextRun({
-      template_id: report.template_id,
-      client_account_id: report.client_account_id,
-      next_run_at: when.toISOString(),
-      owner_staff_id: report.owner_staff_id ?? actor.staffId,
     });
     return this.repo.insertSendLog({
       report_id: report.id,
@@ -572,7 +569,12 @@ export class CsdReportsService {
     return this.updateSections(actor, id, sections);
   }
 
-  async uploadFile(actor: CsdActor, id: string, file?: Express.Multer.File): Promise<CsdAttachmentRow> {
+  async uploadFile(
+    actor: CsdActor,
+    id: string,
+    file?: Express.Multer.File,
+    visibility: CsdAttachmentRow['visibility'] = 'internal',
+  ): Promise<CsdAttachmentRow> {
     const report = await this.get(actor, id);
     if (report.status === 'sent') {
       throw new ConflictException({ error: 'report_sent_immutable' });
@@ -594,7 +596,7 @@ export class CsdReportsService {
       file_name: fileName,
       mime_type: file.mimetype || 'application/octet-stream',
       byte_size: file.size,
-      visibility: 'internal',
+      visibility,
       entity_type: 'report',
       entity_id: id,
       uploaded_by_staff_id: actor.staffId,

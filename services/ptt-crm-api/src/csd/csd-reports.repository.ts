@@ -494,11 +494,9 @@ export class CsdReportsRepository implements OnModuleDestroy {
 
   async claimDueSchedules(limit = 50): Promise<CsdReportScheduleRow[]> {
     const capped = Math.min(Math.max(Number(limit) || 50, 1), 100);
-    const client = await this.db.connect();
-    try {
-      await client.query('BEGIN');
-      const res = await client.query(
-        `SELECT s.*, t.code AS template_code
+    const res = await this.db.query(
+      `WITH due AS (
+         SELECT s.*, t.code AS template_code
          FROM csd_report_schedules s
          JOIN csd_report_templates t ON t.id = s.template_id
          WHERE s.tenant_id = $1
@@ -507,17 +505,26 @@ export class CsdReportsRepository implements OnModuleDestroy {
            AND s.recurrence IN ('weekly', 'monthly', 'quarterly')
          ORDER BY s.next_run_at ASC
          FOR UPDATE OF s SKIP LOCKED
-         LIMIT $2`,
-        [CSD_TENANT_ID, capped],
-      );
-      await client.query('COMMIT');
-      return res.rows.map((row: Record<string, unknown>) => mapSchedule(row));
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+         LIMIT $2
+       ),
+       bumped AS (
+         UPDATE csd_report_schedules s
+            SET next_run_at = CASE due.recurrence
+              WHEN 'weekly' THEN due.next_run_at + INTERVAL '7 days'
+              WHEN 'monthly' THEN due.next_run_at + INTERVAL '1 month'
+              WHEN 'quarterly' THEN due.next_run_at + INTERVAL '3 months'
+              ELSE due.next_run_at
+            END
+           FROM due
+          WHERE s.id = due.id AND s.tenant_id = $1
+         RETURNING s.id
+       )
+       SELECT due.*
+       FROM due
+       JOIN bumped ON bumped.id = due.id`,
+      [CSD_TENANT_ID, capped],
+    );
+    return res.rows.map((row: Record<string, unknown>) => mapSchedule(row));
   }
 
   async bumpScheduleNextRun(id: string, recurrence: string): Promise<void> {

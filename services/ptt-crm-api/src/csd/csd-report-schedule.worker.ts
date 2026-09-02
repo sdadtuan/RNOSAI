@@ -59,7 +59,6 @@ export async function tickCsdReportSchedules(deps: {
   claimDue: (limit: number) => Promise<CsdReportScheduleRow[]>;
   createDraft: (s: CsdReportScheduleRow) => Promise<{ id: string }>;
   notify: (staffId: number, reportId: string) => Promise<void>;
-  bumpNextRun: (id: string, recurrence: string) => Promise<void>;
 }): Promise<{ created: number }> {
   const due = await deps.claimDue(50);
   let created = 0;
@@ -68,7 +67,6 @@ export async function tickCsdReportSchedules(deps: {
     if (schedule.owner_staff_id != null) {
       await deps.notify(schedule.owner_staff_id, draft.id);
     }
-    await deps.bumpNextRun(schedule.id, schedule.recurrence);
     created += 1;
   }
   return { created };
