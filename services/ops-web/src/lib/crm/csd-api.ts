@@ -189,23 +189,139 @@ export interface CsdEmailRow {
   received_at: string;
 }
 
+export const CSD_REPORT_STATUSES = [
+  'draft',
+  'data_pending',
+  'in_review',
+  'changes_requested',
+  'approved',
+  'scheduled',
+  'sent',
+  'viewed',
+  'acknowledged',
+  'archived',
+  'cancelled',
+] as const;
+
+export type CsdReportStatus = (typeof CSD_REPORT_STATUSES)[number];
+export type CsdReportListFilter = 'all' | 'due' | 'in_review' | 'sent';
+
+export const CSD_REPORT_TEMPLATES = [
+  { value: 'weekly_ops', label: 'Báo cáo vận hành tuần' },
+  { value: 'monthly_marketing', label: 'Báo cáo marketing tháng' },
+  { value: 'monthly_sla', label: 'Báo cáo ticket/SLA tháng' },
+  { value: 'executive', label: 'Báo cáo điều hành' },
+] as const;
+
+export const CSD_REPORT_STATUS_LABELS: Record<CsdReportStatus, string> = {
+  draft: 'Nháp',
+  data_pending: 'Chờ dữ liệu',
+  in_review: 'Chờ duyệt',
+  changes_requested: 'Yêu cầu sửa',
+  approved: 'Đã duyệt',
+  scheduled: 'Đã lên lịch',
+  sent: 'Đã gửi',
+  viewed: 'Đã xem',
+  acknowledged: 'Đã xác nhận',
+  archived: 'Lưu trữ',
+  cancelled: 'Đã huỷ',
+};
+
 export interface CsdReportRow {
   id: string;
-  template_code: string;
-  template_name_vi?: string;
-  client_account_id: string;
-  client_account_name?: string;
+  template_code: string | null;
+  template_name_vi?: string | null;
+  title?: string;
+  client_account_id: string | null;
+  client_account_name?: string | null;
   period_start: string;
   period_end: string;
-  status: 'draft' | 'in_review' | 'approved' | 'sent' | 'archived';
-  version: string;
+  status: CsdReportStatus;
+  version?: string;
+  current_version?: string;
+  requires_approval?: boolean;
   updated_at: string;
+}
+
+export interface CsdReportVersionRow {
+  id: string;
+  version: string;
+  changelog?: string;
+  created_at: string;
+  created_by_staff_id?: number | null;
+}
+
+export interface CsdReportSendLogRow {
+  id: string;
+  version: string;
+  channel?: string;
+  to_json?: string[];
+  result: string;
+  created_at: string;
 }
 
 export interface CsdReportDetail extends CsdReportRow {
   sections_json: Record<string, unknown>;
+  template_sections?: string[];
+  versions?: CsdReportVersionRow[];
+  send_logs?: CsdReportSendLogRow[];
   approver_staff_id?: number | null;
   sent_at?: string | null;
+}
+
+export interface CsdReportCommentRow {
+  id: string;
+  report_id: string;
+  version: string;
+  section_key: string;
+  body_text: string;
+  created_at: string;
+  created_by_staff_id: number;
+  resolved_at: string | null;
+}
+
+export interface CsdReportTemplateRow {
+  id: string;
+  tenant_id?: string;
+  code: string;
+  name_vi: string;
+  requires_approval: boolean;
+  sections_json: string[];
+  active: boolean;
+  created_at?: string;
+}
+
+export type CsdReportBlock =
+  | { type: 'rich_text'; body: string }
+  | { type: 'kpi_table'; rows: { metric: string; value: string; target?: string; note?: string }[] }
+  | { type: 'chart'; title: string; labels: string[]; values: number[] }
+  | { type: 'file'; attachment_id: string; caption?: string }
+  | { type: 'ticket_rollup'; ticket_ids: string[]; summary: string };
+
+export type CsdReportSection = { blocks: CsdReportBlock[] };
+
+export function normalizeCsdReportSection(raw: unknown): CsdReportSection {
+  if (raw && typeof raw === 'object' && Array.isArray((raw as CsdReportSection).blocks)) {
+    return raw as CsdReportSection;
+  }
+  if (raw && typeof raw === 'object' && 'body' in (raw as { body?: unknown })) {
+    return { blocks: [{ type: 'rich_text', body: String((raw as { body: string }).body ?? '') }] };
+  }
+  return { blocks: [{ type: 'rich_text', body: '' }] };
+}
+
+export interface CreateCsdReportInput {
+  template_code: string;
+  client_account_id?: string;
+  period_start: string;
+  period_end: string;
+  title?: string;
+}
+
+export interface TransitionCsdReportInput {
+  to: CsdReportStatus;
+  comment?: string;
+  approver_staff_id?: number;
 }
 
 function authHeaders(token: string): HeadersInit {
@@ -312,7 +428,12 @@ export async function fetchCsdDashboard(token: string): Promise<CsdDashboardPayl
 
 export async function fetchCsdConversations(
   token: string,
-  query: { filter?: CsdConversationListFilter; q?: string; kind?: CsdConversationKind } | Record<string, string> = {},
+  query: {
+    filter?: CsdConversationListFilter;
+    q?: string;
+    kind?: CsdConversationKind;
+    client_account_id?: string;
+  } | Record<string, string> = {},
 ): Promise<{ items: CsdConversationRow[] }> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
@@ -724,18 +845,47 @@ export async function fetchCsdReports(
   return csdFetch(token, `/api/crm/csd/reports${suffix}`);
 }
 
+export async function createCsdReport(token: string, body: CreateCsdReportInput): Promise<CsdReportRow> {
+  return csdFetch(token, '/api/crm/csd/reports', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function getCsdReport(token: string, id: string): Promise<CsdReportDetail> {
   return csdFetch(token, `/api/crm/csd/reports/${id}`);
+}
+
+export async function transitionCsdReport(
+  token: string,
+  id: string,
+  body: TransitionCsdReportInput,
+): Promise<CsdReportDetail> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/transition`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateCsdReportSections(
+  token: string,
+  id: string,
+  sectionsJson: Record<string, unknown>,
+): Promise<{ version: string; sections_json: Record<string, unknown> }> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/sections`, {
+    method: 'PATCH',
+    body: JSON.stringify({ sections_json: sectionsJson }),
+  });
 }
 
 export async function submitCsdReportReview(
   token: string,
   id: string,
-  approverStaffId: number,
+  approverStaffId?: number,
 ): Promise<CsdReportDetail> {
   return csdFetch(token, `/api/crm/csd/reports/${id}/submit-review`, {
     method: 'POST',
-    body: JSON.stringify({ approver_staff_id: approverStaffId }),
+    body: JSON.stringify(approverStaffId != null ? { approver_staff_id: approverStaffId } : {}),
   });
 }
 
@@ -743,15 +893,170 @@ export async function approveCsdReport(token: string, id: string): Promise<CsdRe
   return csdFetch(token, `/api/crm/csd/reports/${id}/approve`, { method: 'POST', body: '{}' });
 }
 
+export async function requestCsdReportChanges(
+  token: string,
+  id: string,
+  comment: string,
+): Promise<CsdReportDetail> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/request-changes`, {
+    method: 'POST',
+    body: JSON.stringify({ comment }),
+  });
+}
+
 export async function sendCsdReport(
   token: string,
   id: string,
-  body: { to: string[]; subject: string; body: string },
-): Promise<{ status: string }> {
+  body: { to: string[]; subject: string; body: string; schedule_at?: string },
+): Promise<{ status: string; result?: string }> {
   return csdFetch(token, `/api/crm/csd/reports/${id}/send`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
+}
+
+export async function retryCsdReportSend(token: string, id: string): Promise<{ status: string; result?: string }> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/retry-send`, {
+    method: 'POST',
+    body: '{}',
+  });
+}
+
+export async function shareCsdReportToChat(
+  token: string,
+  id: string,
+  conversationId: string,
+): Promise<{ message_id: string }> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/share-chat`, {
+    method: 'POST',
+    body: JSON.stringify({ conversation_id: conversationId }),
+  });
+}
+
+export async function snapshotCsdReportVersion(
+  token: string,
+  id: string,
+  body: { kind: 'minor' | 'major'; changelog: string },
+): Promise<CsdReportDetail> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/versions`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function reviseCsdReport(token: string, id: string): Promise<CsdReportRow> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/revise`, { method: 'POST', body: '{}' });
+}
+
+export async function rollupCsdReportTickets(
+  token: string,
+  id: string,
+): Promise<{ version: string; sections_json: Record<string, unknown> }> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/rollup`, { method: 'POST', body: '{}' });
+}
+
+export async function uploadCsdReportFile(
+  token: string,
+  reportId: string,
+  file: File,
+): Promise<CsdAttachmentRow> {
+  const form = new FormData();
+  form.append('file', file);
+  return csdFetch(token, `/api/crm/csd/reports/${reportId}/files`, {
+    method: 'POST',
+    body: form,
+  });
+}
+
+async function downloadCsdBinary(token: string, path: string, fallbackFilename: string): Promise<void> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string; message?: string }>(res);
+    throw new ApiError(body.error ?? body.message ?? 'Tải file thất bại', res.status);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  const disposition = res.headers.get('Content-Disposition') ?? '';
+  const match = /filename="([^"]+)"/.exec(disposition);
+  link.download = match?.[1] || fallbackFilename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function fetchCsdReportComments(
+  token: string,
+  id: string,
+  sectionKey?: string,
+): Promise<{ items: CsdReportCommentRow[] }> {
+  const suffix = sectionKey != null ? `?section_key=${encodeURIComponent(sectionKey)}` : '';
+  return csdFetch(token, `/api/crm/csd/reports/${id}/comments${suffix}`);
+}
+
+export async function addCsdReportComment(
+  token: string,
+  id: string,
+  body: { section_key: string; body_text: string },
+): Promise<CsdReportCommentRow> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/comments`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function resolveCsdReportComment(
+  token: string,
+  id: string,
+  commentId: string,
+): Promise<CsdReportCommentRow> {
+  return csdFetch(token, `/api/crm/csd/reports/${id}/comments/${commentId}/resolve`, {
+    method: 'POST',
+    body: '{}',
+  });
+}
+
+export async function fetchCsdReportTemplates(token: string): Promise<{ items: CsdReportTemplateRow[] }> {
+  return csdFetch(token, '/api/crm/csd/reports/templates');
+}
+
+export async function createCsdReportTemplate(
+  token: string,
+  body: { code: string; name_vi: string; requires_approval?: boolean; sections_json: string[] },
+): Promise<CsdReportTemplateRow> {
+  return csdFetch(token, '/api/crm/csd/reports/templates', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateCsdReportTemplate(
+  token: string,
+  id: string,
+  body: { name_vi?: string; requires_approval?: boolean; sections_json?: string[] },
+): Promise<CsdReportTemplateRow> {
+  return csdFetch(token, `/api/crm/csd/reports/templates/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function archiveCsdReportTemplate(token: string, id: string): Promise<CsdReportTemplateRow> {
+  return csdFetch(token, `/api/crm/csd/reports/templates/${id}/archive`, {
+    method: 'POST',
+    body: '{}',
+  });
+}
+
+export async function exportCsdReportPdf(token: string, id: string): Promise<void> {
+  await downloadCsdBinary(token, `/api/crm/csd/reports/${id}/export.pdf`, `PTT-report.pdf`);
+}
+
+export async function exportCsdReportXlsx(token: string, id: string): Promise<void> {
+  await downloadCsdBinary(token, `/api/crm/csd/reports/${id}/export.xlsx`, `PTT-report.xlsx`);
 }
 
 export async function draftCsdTicketReply(

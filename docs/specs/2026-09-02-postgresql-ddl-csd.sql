@@ -644,6 +644,19 @@ CREATE TABLE IF NOT EXISTS csd_report_schedules (
   CONSTRAINT csd_report_schedules_rec_chk CHECK (recurrence IN ('weekly', 'monthly', 'quarterly', 'custom'))
 );
 
+CREATE TABLE IF NOT EXISTS csd_report_comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  report_id UUID NOT NULL REFERENCES csd_reports (id) ON DELETE CASCADE,
+  version VARCHAR(16) NOT NULL,
+  section_key VARCHAR(64) NOT NULL DEFAULT '',
+  body_text TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_by_staff_id INTEGER NOT NULL,
+  resolved_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS csd_report_comments_idx
+  ON csd_report_comments (report_id, version, section_key);
+
 -- ---------------------------------------------------------------------------
 -- Idempotency for mutating POSTs
 -- ---------------------------------------------------------------------------

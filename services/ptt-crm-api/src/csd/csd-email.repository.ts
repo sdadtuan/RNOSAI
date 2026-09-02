@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
-import { CSD_TENANT_ID, CsdEmailRow } from './csd.types';
+import { CSD_TENANT_ID, CsdAttachmentRow, CsdEmailRow } from './csd.types';
 
 function text(value: unknown): string {
   if (value == null) return '';
@@ -13,6 +13,20 @@ function num(value: unknown): number | null {
   if (value == null) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function mapAttachment(row: Record<string, unknown>): CsdAttachmentRow {
+  return {
+    id: text(row.id),
+    file_name: text(row.file_name),
+    mime_type: text(row.mime_type),
+    byte_size: num(row.byte_size) ?? 0,
+    visibility: text(row.visibility) as CsdAttachmentRow['visibility'],
+    entity_type: text(row.entity_type),
+    entity_id: text(row.entity_id),
+    storage_key: text(row.storage_key),
+    created_at: text(row.created_at),
+  };
 }
 
 function mapEmail(row: Record<string, unknown>): CsdEmailRow {
@@ -179,6 +193,39 @@ export class CsdEmailRepository implements OnModuleDestroy {
       [CSD_TENANT_ID, id],
     );
     return res.rows[0] ? mapEmail(res.rows[0]) : null;
+  }
+
+  async insertAttachment(input: {
+    id?: string;
+    storage_key: string;
+    file_name: string;
+    mime_type: string;
+    byte_size: number;
+    visibility: CsdAttachmentRow['visibility'];
+    entity_type: string;
+    entity_id: string;
+    uploaded_by_staff_id: number | null;
+  }): Promise<CsdAttachmentRow> {
+    const res = await this.db.query(
+      `INSERT INTO csd_attachments (
+         id, tenant_id, storage_key, file_name, mime_type, byte_size,
+         visibility, entity_type, entity_id, uploaded_by_staff_id
+       ) VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [
+        input.id ?? null,
+        CSD_TENANT_ID,
+        input.storage_key,
+        input.file_name,
+        input.mime_type,
+        input.byte_size,
+        input.visibility,
+        input.entity_type,
+        input.entity_id,
+        input.uploaded_by_staff_id,
+      ],
+    );
+    return mapAttachment(res.rows[0]);
   }
 
   async markSent(id: string): Promise<CsdEmailRow> {

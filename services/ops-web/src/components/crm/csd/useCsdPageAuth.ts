@@ -14,7 +14,7 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 
-export function useCsdPageAuth(requiredAction: 'view' | 'write' = 'view') {
+export function useCsdPageAuth(requiredAction: 'view' | 'write' | 'manage' = 'view') {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [token, setToken] = useState('');
@@ -67,5 +67,14 @@ export function useCsdPageAuth(requiredAction: 'view' | 'write' = 'view') {
     router.push('/login');
   }
 
-  return { user, token, error, setError, ensureAuth, logout, canWrite: hasCap(user, 'csd', 'write') };
+  return {
+    user,
+    token,
+    error,
+    setError,
+    ensureAuth,
+    logout,
+    canWrite: hasCap(user, 'csd', 'write'),
+    canManage: hasCap(user, 'csd', 'manage'),
+  };
 }

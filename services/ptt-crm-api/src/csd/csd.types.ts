@@ -335,6 +335,7 @@ export type SendCsdEmailInput = {
   body_html?: string;
   ticket_id?: string;
   client_account_id?: string;
+  attachments?: { filename: string; content_type: string; buffer: Buffer }[];
 };
 
 export type InboundCsdEmailInput = {
@@ -398,6 +399,7 @@ export type CsdReportSendLogRow = {
   to_json: string[];
   result: string;
   email_id: string | null;
+  error_text: string | null;
   created_at: string;
   created_by_staff_id: number | null;
 };
@@ -410,10 +412,103 @@ export type CreateCsdReportInput = {
   title?: string;
 };
 
+export type CsdReportRecurrence = 'weekly' | 'monthly' | 'quarterly' | 'custom';
+
+export type CsdReportScheduleRow = {
+  id: string;
+  tenant_id: string;
+  template_id: string;
+  template_code: string;
+  client_account_id: string | null;
+  recurrence: CsdReportRecurrence;
+  next_run_at: string | null;
+  owner_staff_id: number | null;
+  approver_staff_id: number | null;
+  active: boolean;
+  created_at: string;
+};
+
+export type CreateCsdReportScheduleInput = {
+  template_code: string;
+  client_account_id?: string;
+  recurrence: 'weekly' | 'monthly' | 'quarterly';
+  next_run_at: string;
+  owner_staff_id: number;
+  approver_staff_id?: number;
+};
+
 export type SendCsdReportInput = {
   to: string[];
   subject: string;
   body: string;
+  schedule_at?: string;
+};
+
+export type CsdReportListQuery = {
+  status?: CsdReportStatus | 'due';
+  template_code?: string;
+  client_account_id?: string;
+  q?: string;
+  limit?: number;
+};
+
+export type CsdReportDetail = CsdReportRow & {
+  sections_json: Record<string, unknown>;
+  versions: CsdReportVersionRow[];
+  send_logs: CsdReportSendLogRow[];
+  template_name_vi: string | null;
+  template_sections: string[];
+};
+
+export type TransitionCsdReportInput = {
+  to: CsdReportStatus;
+  comment?: string;
+  approver_staff_id?: number;
+};
+
+export type SnapshotCsdReportInput = {
+  kind: 'minor' | 'major';
+  changelog: string;
+};
+
+export type CsdReportCommentRow = {
+  id: string;
+  report_id: string;
+  version: string;
+  section_key: string;
+  body_text: string;
+  created_at: string;
+  created_by_staff_id: number;
+  resolved_at: string | null;
+};
+
+export type AddCsdReportCommentInput = {
+  section_key?: string;
+  body_text: string;
+};
+
+export type CsdReportTemplateRow = {
+  id: string;
+  tenant_id: string;
+  code: string;
+  name_vi: string;
+  requires_approval: boolean;
+  sections_json: string[];
+  active: boolean;
+  created_at: string;
+};
+
+export type CreateCsdReportTemplateInput = {
+  code: string;
+  name_vi: string;
+  requires_approval?: boolean;
+  sections_json: string[];
+};
+
+export type UpdateCsdReportTemplateInput = {
+  name_vi?: string;
+  requires_approval?: boolean;
+  sections_json?: string[];
 };
 
 export type CsdChatAccountRow = {
