@@ -20,6 +20,8 @@ describe('CsdReportsService', () => {
     insertVersion: jest.fn(),
     insertAttachment: jest.fn(),
     upsertScheduleNextRun: jest.fn(),
+    insertSchedule: jest.fn(),
+    listSchedules: jest.fn(),
   };
 
   const tickets = {
@@ -340,6 +342,59 @@ describe('CsdReportsService', () => {
       5,
     );
     expect(out.version).toBe('v1.0');
+  });
+
+  it('createSchedule requires manage and does not send', async () => {
+    await expect(
+      svc().createSchedule(actor, {
+        template_code: 'monthly_marketing',
+        recurrence: 'monthly',
+        next_run_at: '2026-10-01T00:00:00.000Z',
+        owner_staff_id: 5,
+      }),
+    ).rejects.toMatchObject({
+      status: 403,
+      response: { error: 'csd_manage_required' },
+    });
+    expect(repo.insertSchedule).not.toHaveBeenCalled();
+    expect(email.send).not.toHaveBeenCalled();
+  });
+
+  it('createSchedule inserts recurring draft schedule', async () => {
+    const manager: CsdActor = {
+      staffId: 9,
+      staffLabel: 'director@test.vn',
+      caps: [{ section: 'csd', action: 'manage' }],
+    };
+    repo.getTemplateByCode.mockResolvedValue({
+      id: 'tpl1',
+      code: 'monthly_marketing',
+      name_vi: 'Báo cáo marketing tháng',
+      requires_approval: true,
+      sections_json: [],
+    });
+    repo.insertSchedule.mockResolvedValue({
+      id: 's1',
+      recurrence: 'monthly',
+      template_code: 'monthly_marketing',
+    });
+
+    const out = await svc().createSchedule(manager, {
+      template_code: 'monthly_marketing',
+      recurrence: 'monthly',
+      next_run_at: '2026-10-01T00:00:00.000Z',
+      owner_staff_id: 5,
+    });
+
+    expect(out.id).toBe('s1');
+    expect(repo.insertSchedule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        template_id: 'tpl1',
+        recurrence: 'monthly',
+        owner_staff_id: 5,
+      }),
+    );
+    expect(email.send).not.toHaveBeenCalled();
   });
 
   it('writer cannot request changes; manage required', async () => {

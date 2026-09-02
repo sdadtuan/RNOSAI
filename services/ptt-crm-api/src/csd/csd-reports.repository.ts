@@ -5,7 +5,9 @@ import {
   CSD_TENANT_ID,
   CsdAttachmentRow,
   CsdReportListQuery,
+  CsdReportRecurrence,
   CsdReportRow,
+  CsdReportScheduleRow,
   CsdReportSendLogRow,
   CsdReportStatus,
   CsdReportVersionRow,
@@ -70,6 +72,22 @@ function mapAttachment(row: Record<string, unknown>): CsdAttachmentRow {
     entity_type: text(row.entity_type),
     entity_id: text(row.entity_id),
     storage_key: text(row.storage_key),
+    created_at: text(row.created_at),
+  };
+}
+
+function mapSchedule(row: Record<string, unknown>): CsdReportScheduleRow {
+  return {
+    id: text(row.id),
+    tenant_id: text(row.tenant_id),
+    template_id: text(row.template_id),
+    template_code: text(row.template_code),
+    client_account_id: row.client_account_id != null ? text(row.client_account_id) : null,
+    recurrence: text(row.recurrence) as CsdReportRecurrence,
+    next_run_at: row.next_run_at != null ? text(row.next_run_at) : null,
+    owner_staff_id: num(row.owner_staff_id),
+    approver_staff_id: num(row.approver_staff_id),
+    active: Boolean(row.active),
     created_at: text(row.created_at),
   };
 }
@@ -402,6 +420,88 @@ export class CsdReportsRepository implements OnModuleDestroy {
       ],
     );
     return mapSendLog(res.rows[0]);
+  }
+
+  async insertSchedule(input: {
+    template_id: string;
+    template_code: string;
+    client_account_id?: string | null;
+    recurrence: 'weekly' | 'monthly' | 'quarterly';
+    next_run_at: string;
+    owner_staff_id: number;
+    approver_staff_id?: number | null;
+  }): Promise<CsdReportScheduleRow> {
+    const res = await this.db.query(
+      `INSERT INTO csd_report_schedules (
+         tenant_id, template_id, client_account_id, recurrence, next_run_at,
+         owner_staff_id, approver_staff_id
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [
+        CSD_TENANT_ID,
+        input.template_id,
+        input.client_account_id ?? null,
+        input.recurrence,
+        input.next_run_at,
+        input.owner_staff_id,
+        input.approver_staff_id ?? null,
+      ],
+    );
+    return mapSchedule({ ...res.rows[0], template_code: input.template_code });
+  }
+
+  async listSchedules(): Promise<CsdReportScheduleRow[]> {
+    const res = await this.db.query(
+      `SELECT s.*, t.code AS template_code
+       FROM csd_report_schedules s
+       JOIN csd_report_templates t ON t.id = s.template_id
+       WHERE s.tenant_id = $1
+       ORDER BY s.next_run_at ASC NULLS LAST, s.created_at DESC`,
+      [CSD_TENANT_ID],
+    );
+    return res.rows.map((row: Record<string, unknown>) => mapSchedule(row));
+  }
+
+  async claimDueSchedules(limit = 50): Promise<CsdReportScheduleRow[]> {
+    const capped = Math.min(Math.max(Number(limit) || 50, 1), 100);
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const res = await client.query(
+        `SELECT s.*, t.code AS template_code
+         FROM csd_report_schedules s
+         JOIN csd_report_templates t ON t.id = s.template_id
+         WHERE s.tenant_id = $1
+           AND s.active = TRUE
+           AND s.next_run_at <= NOW()
+           AND s.recurrence IN ('weekly', 'monthly', 'quarterly')
+         ORDER BY s.next_run_at ASC
+         FOR UPDATE OF s SKIP LOCKED
+         LIMIT $2`,
+        [CSD_TENANT_ID, capped],
+      );
+      await client.query('COMMIT');
+      return res.rows.map((row: Record<string, unknown>) => mapSchedule(row));
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async bumpScheduleNextRun(id: string, recurrence: string): Promise<void> {
+    await this.db.query(
+      `UPDATE csd_report_schedules
+          SET next_run_at = CASE $3
+            WHEN 'weekly' THEN next_run_at + INTERVAL '7 days'
+            WHEN 'monthly' THEN next_run_at + INTERVAL '1 month'
+            WHEN 'quarterly' THEN next_run_at + INTERVAL '3 months'
+            ELSE next_run_at
+          END
+        WHERE tenant_id = $1 AND id = $2 AND active = TRUE`,
+      [CSD_TENANT_ID, id, recurrence],
+    );
   }
 
   async upsertScheduleNextRun(input: {

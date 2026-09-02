@@ -412,6 +412,31 @@ export type CreateCsdReportInput = {
   title?: string;
 };
 
+export type CsdReportRecurrence = 'weekly' | 'monthly' | 'quarterly' | 'custom';
+
+export type CsdReportScheduleRow = {
+  id: string;
+  tenant_id: string;
+  template_id: string;
+  template_code: string;
+  client_account_id: string | null;
+  recurrence: CsdReportRecurrence;
+  next_run_at: string | null;
+  owner_staff_id: number | null;
+  approver_staff_id: number | null;
+  active: boolean;
+  created_at: string;
+};
+
+export type CreateCsdReportScheduleInput = {
+  template_code: string;
+  client_account_id?: string;
+  recurrence: 'weekly' | 'monthly' | 'quarterly';
+  next_run_at: string;
+  owner_staff_id: number;
+  approver_staff_id?: number;
+};
+
 export type SendCsdReportInput = {
   to: string[];
   subject: string;

@@ -24,11 +24,13 @@ import { CsdReportsRepository } from './csd-reports.repository';
 import { CsdTicketsRepository } from './csd-tickets.repository';
 import {
   CreateCsdReportInput,
+  CreateCsdReportScheduleInput,
   CsdActor,
   CsdAttachmentRow,
   CsdReportDetail,
   CsdReportListQuery,
   CsdReportRow,
+  CsdReportScheduleRow,
   CsdReportSendLogRow,
   CsdReportStatus,
   CsdTicketRow,
@@ -103,6 +105,44 @@ export class CsdReportsService {
       created_by_staff_id: actor.staffId,
       sections_json: emptySections(template.sections_json),
     });
+  }
+
+  async createSchedule(
+    actor: CsdActor,
+    input: CreateCsdReportScheduleInput,
+  ): Promise<CsdReportScheduleRow> {
+    if (!hasCsdManage(actor)) {
+      throw new ForbiddenException({ error: 'csd_manage_required' });
+    }
+    const recurrence = input.recurrence;
+    if (recurrence !== 'weekly' && recurrence !== 'monthly' && recurrence !== 'quarterly') {
+      throw new BadRequestException({ error: 'invalid_recurrence' });
+    }
+    const nextRun = new Date(String(input.next_run_at ?? ''));
+    if (Number.isNaN(nextRun.getTime())) {
+      throw new BadRequestException({ error: 'invalid_next_run_at' });
+    }
+    const ownerStaffId = Number(input.owner_staff_id);
+    if (!Number.isFinite(ownerStaffId) || ownerStaffId <= 0) {
+      throw new BadRequestException({ error: 'owner_staff_id_required' });
+    }
+    const template = await this.repo.getTemplateByCode(input.template_code);
+    if (!template) throw new NotFoundException({ error: 'csd_report_template_not_found' });
+
+    return this.repo.insertSchedule({
+      template_id: template.id,
+      template_code: template.code,
+      client_account_id: input.client_account_id ?? null,
+      recurrence,
+      next_run_at: nextRun.toISOString(),
+      owner_staff_id: ownerStaffId,
+      approver_staff_id: input.approver_staff_id ?? null,
+    });
+  }
+
+  async listSchedules(_actor: CsdActor): Promise<{ items: CsdReportScheduleRow[] }> {
+    const items = await this.repo.listSchedules();
+    return { items };
   }
 
   async get(_actor: CsdActor, id: string): Promise<CsdReportRow> {

@@ -23,6 +23,7 @@ import type {
   CsdActor,
   CsdReportListQuery,
   CreateCsdReportInput,
+  CreateCsdReportScheduleInput,
   SendCsdReportInput,
   SnapshotCsdReportInput,
   TransitionCsdReportInput,
@@ -60,6 +61,20 @@ export class CsdReportsController {
   async create(@Req() req: AuthedReq, @Body() body: CreateCsdReportInput) {
     const actor = await this.actor(req);
     return this.reports.createReport(actor, body);
+  }
+
+  @Post('schedules')
+  @RequireCsdAction('manage')
+  async createSchedule(@Req() req: AuthedReq, @Body() body: CreateCsdReportScheduleInput) {
+    const actor = await this.actor(req);
+    return this.reports.createSchedule(actor, body);
+  }
+
+  @Get('schedules')
+  @RequireCsdAction('view')
+  async listSchedules(@Req() req: AuthedReq) {
+    const actor = await this.actor(req);
+    return this.reports.listSchedules(actor);
   }
 
   @Get()
