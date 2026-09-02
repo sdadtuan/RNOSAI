@@ -93,12 +93,17 @@ export class CsdReportsService {
   ): Promise<CsdReportRow> {
     const report = await this.get(actor, id);
     const to = input.to;
+    if (to === 'sent' || to === 'viewed' || to === 'acknowledged') {
+      throw new ConflictException({ error: 'use_send_endpoint' });
+    }
     if (to === 'changes_requested' && String(input.comment ?? '').trim().length < 3) {
       throw new BadRequestException({ error: 'comment_required' });
     }
 
     const bypass = hasCsdManage(actor);
-    if (to === 'approved' && report.requires_approval && !bypass) {
+    const needsManage =
+      (to === 'approved' && report.requires_approval) || to === 'changes_requested';
+    if (needsManage && !bypass) {
       throw new ForbiddenException({ error: 'csd_manage_required' });
     }
     if (!canTransitionReport(report.status, to, { requires_approval: report.requires_approval, bypass })) {

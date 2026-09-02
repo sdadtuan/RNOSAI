@@ -172,4 +172,24 @@ describe('CsdReportsService', () => {
     expect(out.status).toBe('approved');
     expect(repo.updateReportStatus).toHaveBeenCalledWith('r1', 'approved', expect.any(Object));
   });
+
+  it('transition to sent is 409 and does not mark sent', async () => {
+    repo.getReport.mockResolvedValue({ id: 'r1', status: 'approved', requires_approval: true });
+    await expect(svc().transition(actor, 'r1', { to: 'sent' })).rejects.toMatchObject({
+      status: 409,
+      response: { error: 'use_send_endpoint' },
+    });
+    expect(repo.updateReportStatus).not.toHaveBeenCalledWith('r1', 'sent', expect.anything());
+  });
+
+  it('writer cannot request changes; manage required', async () => {
+    repo.getReport.mockResolvedValue({ id: 'r1', status: 'in_review', requires_approval: true });
+    await expect(
+      svc().transition(actor, 'r1', { to: 'changes_requested', comment: 'Cần sửa KPI' }),
+    ).rejects.toMatchObject({
+      status: 403,
+      response: { error: 'csd_manage_required' },
+    });
+    expect(repo.updateReportStatus).not.toHaveBeenCalled();
+  });
 });
