@@ -319,9 +319,4 @@ export class CsdReportsRepository implements OnModuleDestroy {
   }
 }
 
-export function bumpReportVersion(current: string): string {
-  const match = /^v(\d+)\.(\d+)$/.exec(current);
-  if (!match) return 'v2.0';
-  const major = Number(match[1]) + 1;
-  return `v${major}.0`;
-}
+export { bumpReportVersion } from './csd-report-version.util';

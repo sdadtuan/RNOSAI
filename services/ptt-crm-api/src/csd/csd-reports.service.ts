@@ -142,7 +142,7 @@ export class CsdReportsService {
     }
 
     const current = await this.repo.getCurrentVersion(id);
-    const nextVersion = bumpReportVersion(report.current_version);
+    const nextVersion = bumpReportVersion(report.current_version, 'major');
 
     return this.repo.createRevisedVersion(
       id,
