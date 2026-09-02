@@ -10,6 +10,9 @@ import {
   CsdConversationRow,
   CsdConversationStatus,
   CsdMessageRow,
+  CsdPriority,
+  CsdTicketRow,
+  CsdTicketStatus,
 } from './csd.types';
 
 function text(value: unknown): string {
@@ -234,7 +237,16 @@ export class CsdChatRepository implements OnModuleDestroy {
     const q = String(query.q ?? '').trim();
     if (q.length >= 2) {
       params.push(`%${q}%`);
-      where.push(`c.name_vi ILIKE $${params.length}`);
+      const ph = `$${params.length}`;
+      where.push(`(
+        c.name_vi ILIKE ${ph}
+        OR EXISTS (
+          SELECT 1 FROM csd_messages m
+           WHERE m.conversation_id = c.id
+             AND m.is_deleted = FALSE
+             AND m.body_text ILIKE ${ph}
+        )
+      )`);
     }
 
     const limit = Math.min(Math.max(Number(query.limit ?? 50) || 50, 1), 200);
@@ -372,21 +384,112 @@ export class CsdChatRepository implements OnModuleDestroy {
   async listMessages(
     conversationId: string,
     after?: string,
+    q?: string,
   ): Promise<CsdMessageRow[]> {
     const params: unknown[] = [CSD_TENANT_ID, conversationId];
-    let afterClause = '';
+    let extra = '';
     if (after) {
       params.push(after);
-      afterClause = `AND created_at > (SELECT created_at FROM csd_messages WHERE id = $${params.length})`;
+      extra += ` AND created_at > (SELECT created_at FROM csd_messages WHERE id = $${params.length})`;
+    }
+    const needle = String(q ?? '').trim();
+    if (needle.length >= 2) {
+      params.push(`%${needle}%`);
+      extra += ` AND body_text ILIKE $${params.length}`;
     }
 
     const res = await this.db.query(
       `SELECT * FROM csd_messages
-       WHERE tenant_id = $1 AND conversation_id = $2 AND is_deleted = FALSE ${afterClause}
+       WHERE tenant_id = $1 AND conversation_id = $2 AND is_deleted = FALSE ${extra}
        ORDER BY created_at ASC`,
       params,
     );
     return res.rows.map(mapMessage);
+  }
+
+  async listRelatedTickets(conversationId: string): Promise<CsdTicketRow[]> {
+    const res = await this.db.query(
+      `SELECT t.*
+         FROM csd_tickets t
+         JOIN csd_conversations c
+           ON c.tenant_id = t.tenant_id AND c.id = $2
+        WHERE t.tenant_id = $1
+          AND t.is_deleted = FALSE
+          AND (
+            t.id IN (
+              SELECT m.ticket_id FROM csd_messages m
+               WHERE m.conversation_id = $2 AND m.ticket_id IS NOT NULL
+            )
+            OR t.id = c.ticket_id
+            OR (
+              c.client_account_id IS NOT NULL
+              AND t.client_account_id = c.client_account_id
+            )
+          )
+        ORDER BY t.created_at DESC
+        LIMIT 20`,
+      [CSD_TENANT_ID, conversationId],
+    );
+    return res.rows.map((row: Record<string, unknown>) => ({
+      id: text(row.id),
+      tenant_id: text(row.tenant_id),
+      code: text(row.code),
+      factory: text(row.factory),
+      title: text(row.title),
+      description: text(row.description),
+      ticket_type: text(row.ticket_type),
+      category: text(row.category),
+      sub_category: text(row.sub_category),
+      status: text(row.status) as CsdTicketStatus,
+      priority: text(row.priority) as CsdPriority,
+      severity: text(row.severity),
+      scope_status: row.scope_status as CsdTicketRow['scope_status'],
+      source_type: row.source_type as CsdTicketRow['source_type'],
+      source_id: row.source_id != null ? text(row.source_id) : null,
+      client_account_id: row.client_account_id != null ? text(row.client_account_id) : null,
+      customer_id: num(row.customer_id),
+      assignee_staff_id: num(row.assignee_staff_id),
+      owner_staff_id: num(row.owner_staff_id),
+      sla_policy_id: row.sla_policy_id != null ? text(row.sla_policy_id) : null,
+      sla_response_due_at: row.sla_response_due_at ? text(row.sla_response_due_at) : null,
+      sla_resolution_due_at: row.sla_resolution_due_at ? text(row.sla_resolution_due_at) : null,
+      sla_status: row.sla_status as CsdTicketRow['sla_status'],
+      sla_paused: Boolean(row.sla_paused),
+      sla_paused_seconds: Number(row.sla_paused_seconds ?? 0),
+      resolution_note: text(row.resolution_note),
+      created_at: text(row.created_at),
+      created_by_staff_id: num(row.created_by_staff_id),
+      updated_at: text(row.updated_at),
+      updated_by_staff_id: num(row.updated_by_staff_id),
+      assigned_at: row.assigned_at ? text(row.assigned_at) : null,
+      resolved_at: row.resolved_at ? text(row.resolved_at) : null,
+      closed_at: row.closed_at ? text(row.closed_at) : null,
+      first_response_at: row.first_response_at ? text(row.first_response_at) : null,
+    }));
+  }
+
+  async insertMentionNotifications(input: {
+    conversationId: string;
+    messageId: string;
+    staffIds: number[];
+    excludeStaffId: number;
+    preview: string;
+  }): Promise<void> {
+    const ids = [...new Set(input.staffIds)].filter((id) => id > 0 && id !== input.excludeStaffId);
+    for (const staffId of ids) {
+      await this.db.query(
+        `INSERT INTO csd_notifications (
+           tenant_id, staff_id, event_key, title_vi, body_vi, entity_type, entity_id, severity
+         ) VALUES ($1, $2, 'chat_mention', $3, $4, 'csd_message', $5, 'info')`,
+        [
+          CSD_TENANT_ID,
+          staffId,
+          'Được nhắc trong chat',
+          input.preview,
+          input.messageId,
+        ],
+      );
+    }
   }
 
   async getMessage(id: string): Promise<CsdMessageRow | null> {

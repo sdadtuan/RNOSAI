@@ -83,9 +83,17 @@ export class CsdChatController {
     @Req() req: AuthedReq,
     @Param('id') id: string,
     @Query('after') after?: string,
+    @Query('q') q?: string,
   ) {
     const actor = await this.actor(req);
-    return this.chat.listMessages(actor, id, after);
+    return this.chat.listMessages(actor, id, after, q);
+  }
+
+  @Get('conversations/:id/related-tickets')
+  @RequireCsdAction('view')
+  async listRelatedTickets(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.listRelatedTickets(actor, id);
   }
 
   @Post('conversations/:id/messages')

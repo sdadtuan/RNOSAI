@@ -320,11 +320,20 @@ export async function fetchCsdMessages(
   token: string,
   conversationId: string,
   after?: string,
+  q?: string,
 ): Promise<{ items: CsdMessageRow[] }> {
   const params = new URLSearchParams();
   if (after) params.set('after', after);
+  if (q && q.trim().length >= 2) params.set('q', q.trim());
   const suffix = params.toString() ? `?${params.toString()}` : '';
   return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/messages${suffix}`);
+}
+
+export async function fetchCsdRelatedTickets(
+  token: string,
+  conversationId: string,
+): Promise<{ items: CsdTicketRow[] }> {
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/related-tickets`);
 }
 
 export async function sendCsdMessage(

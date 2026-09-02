@@ -15193,6 +15193,10 @@ body {
   margin-bottom: 0.65rem;
 }
 
+.csd-chat-workspace__list .kpi-input {
+  margin-bottom: 0.55rem;
+}
+
 .csd-chat-filters,
 .csd-chat-new-kinds {
   display: flex;
@@ -15285,6 +15289,52 @@ body {
 .csd-chat-compose {
   display: grid;
   gap: 0.5rem;
+}
+
+.csd-chat-compose__field {
+  position: relative;
+}
+
+.csd-chat-suggest {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0.25rem;
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  background: #fff;
+  border: 1px solid #dbeafe;
+  border-radius: 0.4rem;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  max-height: 10rem;
+  overflow: auto;
+}
+
+.csd-chat-suggest button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+}
+
+.csd-chat-suggest button:hover {
+  background: #eff6ff;
+}
+
+.csd-chat-related {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.csd-chat-related li {
+  display: grid;
+  gap: 0.15rem;
 }
 
 .csd-chat-client-banner {

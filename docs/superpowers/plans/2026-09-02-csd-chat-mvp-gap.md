@@ -201,15 +201,15 @@ Rules:
 - `#` code: không tạo ticket; UI chỉ gợi ý / link.
 - Related tickets: `csd_messages.ticket_id` của conversation + ticket `client_account_id` trùng.
 
-- [ ] **Step 1: Util Jest**
+- [x] **Step 1: Util Jest**
 
 ```ts
 expect(parseMentions('cc @8 và @12')).toEqual([8, 12]);
 expect(parseTicketCodes('xem #PTT-2026-000099')).toEqual(['PTT-2026-000099']);
 ```
 
-- [ ] **Step 2: Service + HTTP**
-- [ ] **Step 3: Jest PASS**
+- [x] **Step 2: Service + HTTP**
+- [x] **Step 3: Jest PASS**
 - [ ] **Step 4: Commit** `feat(csd): add chat search mentions and related tickets`
 
 ---
@@ -227,8 +227,8 @@ expect(parseTicketCodes('xem #PTT-2026-000099')).toEqual(['PTT-2026-000099']);
 - Panel phải mục **Ticket liên quan** — link cùng tab.
 - Ticket pill: `{code} · {priority} · {status}` nếu list related/get ticket trả về.
 
-- [ ] **Step 1: E2e** search + related list mock
-- [ ] **Step 2: UI**
+- [x] **Step 1: E2e** search + related list mock
+- [x] **Step 2: UI**
 - [ ] **Step 3: Commit** `feat(csd): add chat search and mention composer UI`
 
 **UAT C-2:** Tìm theo nội dung tin. `@8` hiện trong tin. Panel phải list ticket đã tạo từ thread.

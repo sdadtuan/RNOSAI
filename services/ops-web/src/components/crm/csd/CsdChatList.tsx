@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   formatCsdWhen,
   type CsdConversationListFilter,
@@ -21,6 +22,8 @@ type CsdChatListProps = {
   canWrite: boolean;
   busy: boolean;
   error: string;
+  search: string;
+  onSearch: (value: string) => void;
   onFilter: (filter: CsdConversationListFilter) => void;
   onSelect: (id: string) => void;
   onNew: () => void;
@@ -33,10 +36,23 @@ export function CsdChatList({
   canWrite,
   busy,
   error,
+  search,
+  onSearch,
   onFilter,
   onSelect,
   onNew,
 }: CsdChatListProps) {
+  const [localSearch, setLocalSearch] = useState(search);
+
+  useEffect(() => {
+    setLocalSearch(search);
+  }, [search]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => onSearch(localSearch), 300);
+    return () => window.clearTimeout(timer);
+  }, [localSearch, onSearch]);
+
   return (
     <aside className="csd-chat-workspace__list page-card">
       <div className="csd-chat-workspace__list-head">
@@ -47,6 +63,13 @@ export function CsdChatList({
           </button>
         ) : null}
       </div>
+      <input
+        className="kpi-input"
+        placeholder="Tìm hội thoại hoặc tin…"
+        value={localSearch}
+        onChange={(e) => setLocalSearch(e.target.value)}
+        data-testid="csd-chat-search"
+      />
       <div className="csd-chat-filters">
         {FILTERS.map((item) => (
           <button

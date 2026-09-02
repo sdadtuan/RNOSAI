@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { parseMentions } from './csd-chat-search.util';
 import { CsdChatRepository } from './csd-chat.repository';
 import { CsdTicketsService } from './csd-tickets.service';
 import {
@@ -144,24 +145,45 @@ export class CsdChatService {
     const visibility =
       conv.kind === 'client' ? 'client' : (input.visibility ?? 'internal');
 
-    return this.repo.insertMessage({
+    const message = await this.repo.insertMessage({
       conversation_id: conversationId,
       author_staff_id: actor.staffId,
       body_text: body,
       reply_to_id: input.reply_to_id ?? null,
       visibility,
     });
+
+    const mentioned = parseMentions(body).filter((id) => id !== actor.staffId);
+    if (mentioned.length > 0) {
+      await this.repo.insertMentionNotifications({
+        conversationId,
+        messageId: message.id,
+        staffIds: mentioned,
+        excludeStaffId: actor.staffId,
+        preview: body.slice(0, 160),
+      });
+    }
+    return message;
   }
 
   async listMessages(
     _actor: CsdActor,
     conversationId: string,
     after?: string,
+    q?: string,
   ): Promise<{ items: CsdMessageRow[] }> {
     const conv = await this.repo.getConversation(conversationId);
     if (!conv) throw new NotFoundException({ error: 'csd_conversation_not_found' });
-    const items = await this.repo.listMessages(conversationId, after);
+    const items = await this.repo.listMessages(conversationId, after, q);
     return { items };
+  }
+
+  async listRelatedTickets(
+    _actor: CsdActor,
+    conversationId: string,
+  ): Promise<{ items: CsdTicketRow[] }> {
+    const conv = await this.requireConversation(conversationId);
+    return { items: await this.repo.listRelatedTickets(conv.id) };
   }
 
   async createTicketFromMessage(

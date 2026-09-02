@@ -104,6 +104,24 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
       });
       return;
     }
+    if (method === 'GET' && url.includes('/related-tickets')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: [
+            {
+              id: '11111111-1111-1111-1111-111111111111',
+              code: 'PTT-2026-000099',
+              title: 'Khách báo Ads không chạy',
+              status: 'new',
+              priority: 'P3',
+            },
+          ],
+        }),
+      });
+      return;
+    }
     if (method === 'GET' && url.includes('/messages')) {
       await route.fulfill({
         status: 200,
@@ -145,13 +163,19 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
       return;
     }
     if (method === 'GET') {
-      const filter = new URL(url).searchParams.get('filter') || 'all';
+      const parsed = new URL(url);
+      const filter = parsed.searchParams.get('filter') || 'all';
+      const q = (parsed.searchParams.get('q') || '').trim().toLowerCase();
       const items = conversations.filter((row) => {
         const kind = String(row.kind);
         if (filter === 'internal') return kind === 'direct' || kind === 'group';
         if (filter === 'clients') return kind === 'client';
         if (filter === 'projects') return kind === 'project';
         if (filter === 'unread') return Number(row.unread_count ?? 0) > 0;
+        if (q.length >= 2) {
+          const hay = `${row.name_vi ?? ''} ${row.preview ?? ''}`.toLowerCase();
+          return hay.includes(q);
+        }
         return true;
       });
       await route.fulfill({
@@ -180,6 +204,29 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
         status: 'new',
         priority: 'P3',
         sla_status: 'on_track',
+      }),
+    });
+  });
+
+  await page.route('**/api/crm/csd/tickets**', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        items: [
+          {
+            id: '11111111-1111-1111-1111-111111111111',
+            code: 'PTT-2026-000099',
+            title: 'Khách báo Ads không chạy',
+            status: 'new',
+            priority: 'P3',
+          },
+        ],
+        next_cursor: null,
       }),
     });
   });
@@ -248,5 +295,21 @@ test.describe('CSD chat workspace', () => {
     await expect(page.getByTestId('csd-chat-list')).toContainText('Nhóm AM');
     await expect(page.getByTestId('csd-chat-list')).toContainText('DM · #8');
     await expect(page.getByTestId('csd-chat-client-banner')).toHaveCount(0);
+  });
+
+  test('C-2: search list and show related tickets plus # suggest', async ({ page }) => {
+    await mockCsdChatApis(page);
+    await loginAsStaff(page);
+
+    await page.goto('/crm/csd/chat');
+    await expect(page.getByTestId('csd-chat-workspace')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('csd-chat-search').fill('Ads');
+    await expect(page.getByTestId('csd-chat-list')).toContainText('Demo Client Chat');
+    await expect(page.getByTestId('csd-chat-list')).not.toContainText('Nhóm AM');
+
+    await page.getByRole('button', { name: /Demo Client Chat/ }).click();
+    await expect(page.getByTestId('csd-chat-related-tickets')).toContainText('PTT-2026-000099');
+    await page.getByTestId('csd-chat-draft').fill('#PTT');
+    await expect(page.getByTestId('csd-chat-ticket-suggest')).toContainText('PTT-2026-000099');
   });
 });

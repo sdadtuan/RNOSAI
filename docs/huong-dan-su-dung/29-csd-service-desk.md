@@ -25,6 +25,8 @@ Service Desk là kênh ticket **agency** (PTT-2026-xxxxx), tách biệt **Ticket
 - **Mới** mở dialog: Khách / Nội bộ nhóm / DM / Dự án. Không còn tạo im lặng `demo-client`.
 - **DM** đúng 2 người — tạo lại cùng cặp thì mở thread cũ. **Nhóm** cần tên + ít nhất 1 staff id.
 - Filter chips: Tất cả · Chưa đọc · Khách · Dự án · Nội bộ (DM + nhóm).
+- **Tìm** hội thoại / nội dung tin (≥ 2 ký tự). Gõ `@staffId` để nhắc; `#PTT-YYYY-NNNNNN` gợi ý ticket (không tự tạo).
+- Panel phải **Ticket liên quan** — mở cùng tab. Pill hiện `mã · priority · status`.
 - Hội thoại khách — banner **Bạn đang gửi cho khách hàng**. Nội bộ không có banner vàng.
 - **Tạo ticket từ tin nhắn** — trùng nguồn chỉ sinh **một** mã ticket; pill mở cùng tab. Thông báo (announcement) không tạo ticket.
 - **Trả lời** tin (Enter gửi, Shift+Enter xuống dòng).
@@ -56,6 +58,7 @@ Service Desk là kênh ticket **agency** (PTT-2026-xxxxx), tách biệt **Ticket
 1. Tạo P2 → có mã + SLA due.  
 2. Chat → tạo ticket 2 lần → 1 mã.  
 2b. Chat C-1: tạo DM hai staff → 1 thread khi tạo lại; chip Nội bộ ẩn hội thoại khách.  
+2c. Chat C-2: tìm theo nội dung tin; `@8` in đậm trong tin; panel phải list ticket cùng thread.  
 3. Internal note không SMTP.  
 4. Resolve thiếu note → lỗi 422.  
 5. `/crm/tickets` không list ticket CSD.

@@ -20,6 +20,8 @@ describe('CsdChatService', () => {
     insertMember: jest.fn(),
     deleteMember: jest.fn(),
     updateStatus: jest.fn(),
+    insertMentionNotifications: jest.fn(),
+    listRelatedTickets: jest.fn(),
   };
 
   const tickets = {
@@ -136,6 +138,29 @@ describe('CsdChatService', () => {
       expect.objectContaining({ source_type: 'chat_message', source_id: 'm1' }),
     );
     expect(repo.linkMessageToTicket).toHaveBeenCalledWith('m1', 't1');
+  });
+
+  it('notifies mentioned staff except the sender', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'group', status: 'active' });
+    repo.insertMessage.mockResolvedValue({ id: 'm1', body_text: 'cc @8 và @12' });
+    repo.insertMentionNotifications.mockResolvedValue(undefined);
+    await svc().sendMessage(actor, 'c1', { body_text: 'cc @8 và @12' });
+    expect(repo.insertMentionNotifications).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: 'c1',
+        messageId: 'm1',
+        staffIds: [8, 12],
+        excludeStaffId: 3,
+      }),
+    );
+  });
+
+  it('lists related tickets for a conversation', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'client', client_account_id: 'CLI-1' });
+    repo.listRelatedTickets.mockResolvedValue([{ id: 't1', code: 'PTT-2026-000099' }]);
+    const out = await svc().listRelatedTickets(actor, 'c1');
+    expect(repo.listRelatedTickets).toHaveBeenCalledWith('c1');
+    expect(out.items[0].code).toBe('PTT-2026-000099');
   });
 
   it('rejects empty message body', async () => {
