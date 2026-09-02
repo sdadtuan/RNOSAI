@@ -63,11 +63,16 @@ export async function tickCsdReportSchedules(deps: {
   const due = await deps.claimDue(50);
   let created = 0;
   for (const schedule of due) {
-    const draft = await deps.createDraft(schedule);
-    if (schedule.owner_staff_id != null) {
-      await deps.notify(schedule.owner_staff_id, draft.id);
+    try {
+      const draft = await deps.createDraft(schedule);
+      if (schedule.owner_staff_id != null) {
+        await deps.notify(schedule.owner_staff_id, draft.id);
+      }
+      created += 1;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`CSD report schedule draft failed for ${schedule.id}: ${message}`);
     }
-    created += 1;
   }
   return { created };
 }
