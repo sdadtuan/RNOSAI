@@ -97,10 +97,10 @@ function ProjectBar({
   maxY: number;
   plotHeight: number;
 }) {
-  const segments: Array<{ tone: 'green' | 'yellow' | 'red'; value: number }> = [
-    { tone: 'green', value: row.green },
-    { tone: 'yellow', value: row.yellow },
-    { tone: 'red', value: row.red },
+  const segments = [
+    { tone: 'green' as const, value: row.green },
+    { tone: 'yellow' as const, value: row.yellow },
+    { tone: 'red' as const, value: row.red },
   ].filter((seg) => seg.value > 0);
 
   return (
