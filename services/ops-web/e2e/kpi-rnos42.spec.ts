@@ -12,9 +12,8 @@ test.describe('RNOS-42 KPI UX', () => {
 
   test('/crm/kpi shows KPI tiles and chart section', async ({ page }) => {
     await page.goto('/crm/kpi');
-    await expect(page.locator('.kpi-tile-grid')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByRole('heading', { name: /chỉ tiêu kpi/i })).toBeVisible();
-    await expect(page.locator('.kpi-bar-chart')).toBeVisible();
+    await expect(page.getByRole('heading', { name: /quản lý kpi/i })).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('.kpi-dept-stack')).toBeVisible();
     await expect(page.locator('pre')).toHaveCount(0);
   });
 

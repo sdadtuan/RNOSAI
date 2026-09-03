@@ -16,10 +16,10 @@ test.describe('RNOS-29 AI feedback loop', () => {
     await loginAsStaff(page);
   });
 
-  test('/crm/kpi shows AI acceptance tile (G6)', async ({ page }) => {
+  test('/crm/kpi shows cockpit tiles (G6 AI tile retired)', async ({ page }) => {
     await page.goto('/crm/kpi');
-    await expect(page.locator('.kpi-tile-grid')).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator('.kpi-tile-grid').getByText(/Tỷ lệ chấp nhận AI/i)).toBeVisible();
+    await expect(page.getByRole('heading', { name: /quản lý kpi/i })).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('.kpi-tile-grid').getByText(/đúng tiến độ/i)).toBeVisible();
     await expect(page.locator('pre')).toHaveCount(0);
   });
 

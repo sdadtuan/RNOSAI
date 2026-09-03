@@ -16,8 +16,7 @@ test.describe('RNOS-43A KPI dashboard v2', () => {
     await page.goto('/crm/kpi');
     await expect(page.locator('.dashboard-shell')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('.kpi-page__section--split')).toBeVisible();
-    await expect(page.locator('.kpi-tile-grid').getByText(/Tỷ lệ chấp nhận AI/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /Export Excel/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /xuất báo cáo/i })).toBeVisible();
     await expect(page.locator('pre')).toHaveCount(0);
   });
 
