@@ -96,6 +96,25 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [hidden, open, persist]);
 
+  useEffect(() => {
+    function onOpen(ev: Event) {
+      const id = (ev as CustomEvent<{ conversationId?: string }>).detail?.conversationId;
+      if (!id) return;
+      setFocusId(id);
+      setOpen(true);
+      persist({ open: true, conversationId: id });
+      writeCsdDockPersist({
+        ...readCsdDockPersist(),
+        open: true,
+        tab: 'messages',
+        pane: 'thread',
+        conversationId: id,
+      });
+    }
+    window.addEventListener(CSD_CHAT_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(CSD_CHAT_OPEN_EVENT, onOpen);
+  }, [persist]);
+
   if (hidden) return null;
 
   async function handleChatLogin(input: { username: string; password: string }) {
@@ -128,25 +147,6 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
     persist({ open: true, conversationId: readCsdDockPersist().conversationId });
     void requestCsdChatNotifyPermission();
   }
-
-  useEffect(() => {
-    function onOpen(ev: Event) {
-      const id = (ev as CustomEvent<{ conversationId?: string }>).detail?.conversationId;
-      if (!id) return;
-      setFocusId(id);
-      setOpen(true);
-      persist({ open: true, conversationId: id });
-      writeCsdDockPersist({
-        ...readCsdDockPersist(),
-        open: true,
-        tab: 'messages',
-        pane: 'thread',
-        conversationId: id,
-      });
-    }
-    window.addEventListener(CSD_CHAT_OPEN_EVENT, onOpen);
-    return () => window.removeEventListener(CSD_CHAT_OPEN_EVENT, onOpen);
-  }, [persist]);
 
   function openPage() {
     const id = readCsdDockPersist().conversationId;
