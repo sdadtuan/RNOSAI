@@ -11,16 +11,8 @@ export function iwrInitials(name: string | undefined | null): string {
 }
 
 export function iwrAvatarTone(seed: string | number): string {
-  const tones = [
-    'bg-sky-100 text-sky-800',
-    'bg-violet-100 text-violet-800',
-    'bg-emerald-100 text-emerald-800',
-    'bg-amber-100 text-amber-800',
-    'bg-rose-100 text-rose-800',
-    'bg-indigo-100 text-indigo-800',
-  ];
   const n = typeof seed === 'number' ? seed : Array.from(seed).reduce((a, c) => a + c.charCodeAt(0), 0);
-  return tones[Math.abs(n) % tones.length];
+  return `iwr-face iwr-face--${Math.abs(n) % 6}`;
 }
 
 export function iwrRelativeVi(iso: string | null | undefined): string {
@@ -39,10 +31,10 @@ export function iwrRelativeVi(iso: string | null | undefined): string {
 }
 
 export function iwrRagClass(rag: IwrRag): string {
-  if (rag === 'green') return 'bg-emerald-100 text-emerald-800';
-  if (rag === 'yellow') return 'bg-amber-100 text-amber-800';
-  if (rag === 'red') return 'bg-red-100 text-red-700';
-  return 'bg-slate-100 text-slate-600';
+  if (rag === 'green') return 'iwr-rag iwr-rag--green';
+  if (rag === 'yellow') return 'iwr-rag iwr-rag--yellow';
+  if (rag === 'red') return 'iwr-rag iwr-rag--red';
+  return 'iwr-rag';
 }
 
 export function iwrRagLabel(rag: IwrRag): string {

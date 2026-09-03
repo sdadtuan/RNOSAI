@@ -51,22 +51,20 @@ export default function IwrInboxPage() {
 
   return (
     <IwrAppShell user={user} token={token} onLogout={logout} loading={!user} canWrite={canWrite}>
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-slate-900">Hộp thư báo cáo</h1>
-        <Link href="/crm/internal-reports" className="text-sm text-[#0052CC] hover:underline">
+      <div className="iwr-pagehead">
+        <h1 className="iwr-h1">Hộp thư báo cáo</h1>
+        <Link href="/crm/internal-reports" className="iwr-link">
           Danh sách của tôi
         </Link>
       </div>
-      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
-      <div className="mb-4 flex flex-wrap gap-2">
+      {error && <p className="iwr-err">{error}</p>}
+      <div className="iwr-tabs">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             role="tab"
-            className={`rounded-full px-3 py-1.5 text-sm ${
-              box === t.id ? 'bg-[#0B1F4D] text-white' : 'border border-slate-200 bg-white text-slate-600'
-            }`}
+            className={`iwr-tab${box === t.id ? ' is-active' : ''}`}
             onClick={() => setBox(t.id)}
           >
             {t.label}

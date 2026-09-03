@@ -110,22 +110,21 @@ export function IwrSendDrawer({ open, token, canWrite, onClose }: IwrSendDrawerP
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <button type="button" className="absolute inset-0 bg-slate-900/30" aria-label="Đóng" onClick={onClose} />
-      <aside className="relative z-10 flex h-full w-full max-w-[420px] flex-col bg-white shadow-2xl">
-        <header className="flex items-center justify-between border-b px-5 py-4">
-          <h2 className="text-lg font-semibold text-slate-900">Gửi báo cáo</h2>
-          <button type="button" className="text-slate-400 hover:text-slate-700" onClick={onClose} aria-label="Đóng drawer">
+    <div className="iwr-drawer-mask">
+      <button type="button" aria-label="Đóng" onClick={onClose} />
+      <aside className="iwr-drawer">
+        <header>
+          <h2>Gửi báo cáo</h2>
+          <button type="button" className="iwr-btn" onClick={onClose} aria-label="Đóng drawer">
             ✕
           </button>
         </header>
-        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-          {err && <p className="text-sm text-red-600">{err}</p>}
+        <div className="iwr-drawer__body">
+          {err && <p className="iwr-err">{err}</p>}
           {drafts.length > 0 && (
-            <label className="block text-xs font-medium text-slate-500">
+            <label className="iwr-field">
               Báo cáo nháp
               <select
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800"
                 value={draftId}
                 onChange={(e) => {
                   setDraftId(e.target.value);
@@ -168,31 +167,24 @@ export function IwrSendDrawer({ open, token, canWrite, onClose }: IwrSendDrawerP
             }}
             onRemove={(id) => setCc((prev) => prev.filter((x) => x.id !== id))}
           />
-          <label className="block text-xs font-medium text-slate-500">
+          <label className="iwr-field">
             Tiêu đề
-            <input
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
+            <input value={title} onChange={(e) => setTitle(e.target.value)} />
           </label>
-          <label className="block text-xs font-medium text-slate-500">
+          <label className="iwr-field">
             Nội dung
-            <textarea
-              className="mt-1 min-h-[140px] w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-            />
+            <textarea rows={6} value={body} onChange={(e) => setBody(e.target.value)} />
           </label>
-          <div className="rounded-xl bg-sky-50 px-3 py-2 text-xs text-sky-800">
+          <div className="iwr-hint">
             Quyền truy cập: người nhận To/Cc và quản lý trực tiếp. Nội bộ — không gửi khách.
           </div>
         </div>
-        <footer className="border-t px-5 py-4">
+        <footer>
           <button
             type="button"
             disabled={busy || !canWrite}
-            className="w-full rounded-xl bg-[#0052CC] px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            className="iwr-btn iwr-btn--primary"
+            style={{ width: '100%' }}
             onClick={() => void send()}
           >
             {busy ? 'Đang gửi…' : 'Gửi ngay'}
@@ -222,30 +214,25 @@ function ChipField({
 }) {
   return (
     <div>
-      <div className="mb-1 text-xs font-medium text-slate-500">{label}</div>
-      <div className="flex min-h-[42px] flex-wrap gap-1 rounded-lg border border-slate-200 px-2 py-1.5">
+      <div className="iwr-field">{label}</div>
+      <div className="iwr-chips">
         {chips.map((c) => (
-          <span key={c.id} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+          <span key={c.id} className="iwr-chip-tag">
             {c.name}
-            <button type="button" className="text-slate-400" onClick={() => onRemove(c.id)} aria-label={`Xóa ${c.name}`}>
+            <button type="button" onClick={() => onRemove(c.id)} aria-label={`Xóa ${c.name}`}>
               ×
             </button>
           </span>
         ))}
-        <input
-          className="min-w-[120px] flex-1 px-1 py-0.5 text-sm outline-none"
-          placeholder="Tìm người nhận…"
-          value={q}
-          onChange={(e) => onQ(e.target.value)}
-        />
+        <input placeholder="Tìm người nhận…" value={q} onChange={(e) => onQ(e.target.value)} />
       </div>
       {hits.length > 0 && (
-        <ul className="mt-1 max-h-36 overflow-auto rounded-lg border bg-white text-sm shadow">
+        <ul className="iwr-search__hits" style={{ position: 'relative', marginTop: 4 }}>
           {hits.map((s) => (
             <li key={s.id}>
-              <button type="button" className="w-full px-3 py-2 text-left hover:bg-slate-50" onClick={() => onAdd(s)}>
+              <button type="button" className="iwr-btn" style={{ width: '100%', textAlign: 'left' }} onClick={() => onAdd(s)}>
                 {s.name}
-                {s.email ? <span className="ml-2 text-xs text-slate-400">{s.email}</span> : null}
+                {s.email ? <span className="iwr-muted"> {s.email}</span> : null}
               </button>
             </li>
           ))}

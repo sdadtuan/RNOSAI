@@ -23,10 +23,6 @@ import {
   type IwrTeamNode,
 } from '@/lib/crm/iwr-api';
 
-function todayYmd(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
-}
-
 export default function InternalReportsPage() {
   const router = useRouter();
   const params = useSearchParams();
@@ -156,41 +152,24 @@ export default function InternalReportsPage() {
       sendOpen={sendOpen}
       onSendOpenChange={setSendOpen}
     >
-      <div className="mb-5 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold text-slate-900">
+      <div className="iwr-pagehead">
+        <h1 className="iwr-h1">
           {kind === 'daily' ? 'Báo cáo ngày' : kind === 'weekly' ? 'Báo cáo tuần' : 'Tổng quan báo cáo'}
         </h1>
-        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">
-          {week.label}
-        </span>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <span className="iwr-chip">{week.label}</span>
+        <div className="iwr-pagehead__actions">
           {canWrite && (
             <>
-              <button
-                type="button"
-                disabled={busy}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 disabled:opacity-50"
-                onClick={() => void openToday()}
-              >
+              <button type="button" disabled={busy} className="iwr-btn" onClick={() => void openToday()}>
                 Mở hôm nay
               </button>
-              <button
-                type="button"
-                disabled={busy}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 disabled:opacity-50"
-                onClick={() => void openWeek()}
-              >
+              <button type="button" disabled={busy} className="iwr-btn" onClick={() => void openWeek()}>
                 + Tạo báo cáo
               </button>
-              <button
-                type="button"
-                className="rounded-lg bg-[#0052CC] px-3 py-2 text-sm font-medium text-white"
-                onClick={() => setSendOpen(true)}
-              >
+              <button type="button" className="iwr-btn iwr-btn--primary" onClick={() => setSendOpen(true)}>
                 Gửi báo cáo
               </button>
               <form
-                className="flex items-center gap-2"
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (!token || !backfillYmd) return;
@@ -203,12 +182,12 @@ export default function InternalReportsPage() {
               >
                 <input
                   type="date"
-                  className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                  className="iwr-input"
                   value={backfillYmd}
                   onChange={(e) => setBackfillYmd(e.target.value)}
                   aria-label="Bù ngày"
                 />
-                <button type="submit" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" disabled={busy || !backfillYmd}>
+                <button type="submit" className="iwr-btn" disabled={busy || !backfillYmd}>
                   Bù ngày
                 </button>
               </form>
@@ -217,14 +196,12 @@ export default function InternalReportsPage() {
         </div>
       </div>
 
-      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
-      <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        Nội bộ — không gửi khách trừ khi đã duyệt ngoại
-      </div>
+      {error && <p className="iwr-err">{error}</p>}
+      <div className="iwr-notice">Nội bộ — không gửi khách trừ khi đã duyệt ngoại</div>
 
       {!kind && (
         <>
-          <div className="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="iwr-kpis">
             <Kpi
               title="Đã nộp"
               value={total ? `${submitted}/${total}` : String(submitted)}
@@ -246,145 +223,123 @@ export default function InternalReportsPage() {
             />
           </div>
 
-          <IwrCard className="mb-5">
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-semibold">Báo cáo cần xử lý</h2>
-              <span className="rounded-full bg-[#0052CC] px-2 py-0.5 text-[11px] font-semibold text-white">
-                {filteredAction.length}
-              </span>
-              <div className="ml-auto flex gap-2">
-                <select
-                  className="rounded-lg border border-slate-200 px-2 py-1 text-xs"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                >
-                  <option value="all">Tất cả trạng thái</option>
-                  <option value="submitted">Đã gửi</option>
-                  <option value="supplemented">Đã bổ sung</option>
-                  <option value="changes_requested">Cần bổ sung</option>
-                </select>
-              </div>
+          <IwrCard>
+            <div className="iwr-cardhead">
+              <h2>Báo cáo cần xử lý</h2>
+              <span className="iwr-badge">{filteredAction.length}</span>
+              <select className="iwr-input" style={{ width: 'auto', marginLeft: 'auto' }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                <option value="all">Tất cả trạng thái</option>
+                <option value="submitted">Đã gửi</option>
+                <option value="supplemented">Đã bổ sung</option>
+                <option value="changes_requested">Cần bổ sung</option>
+              </select>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="text-left text-[11px] uppercase tracking-wide text-slate-400">
-                  <tr>
-                    <th className="pb-2 pr-3">Nhân sự</th>
-                    <th className="pb-2 pr-3">Tiêu đề báo cáo</th>
-                    <th className="pb-2 pr-3">Dự án / Kỳ</th>
-                    <th className="pb-2 pr-3">Trạng thái</th>
-                    <th className="pb-2 pr-3">Chưa đọc</th>
-                    <th className="pb-2 pr-3">Thời gian</th>
-                    <th className="pb-2">Thao tác</th>
+            <table className="iwr-table">
+              <thead>
+                <tr>
+                  <th>Nhân sự</th>
+                  <th>Tiêu đề báo cáo</th>
+                  <th>Dự án / Kỳ</th>
+                  <th>Trạng thái</th>
+                  <th>Chưa đọc</th>
+                  <th>Thời gian</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAction.map((row) => (
+                  <tr key={row.id}>
+                    <td>
+                      <div className="iwr-person">
+                        <span className={iwrAvatarTone(row.author_staff_id)}>{iwrInitials(row.author_name)}</span>
+                        <div>
+                          <div>{row.author_name ?? `#${row.author_staff_id}`}</div>
+                          <div className="iwr-muted">{row.template_name_vi}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div>{row.title}</div>
+                      <div className="iwr-muted">{formatIwrWhen(row.submitted_at)}</div>
+                    </td>
+                    <td>
+                      {row.period_start}
+                      {row.period_end !== row.period_start ? ` — ${row.period_end}` : ''}
+                    </td>
+                    <td>
+                      <span className={iwrRagClass(row.rag)}>{iwrRagLabel(row.rag)}</span>
+                    </td>
+                    <td>{!row.first_viewed_at ? <span className="iwr-dot" /> : '—'}</td>
+                    <td className="iwr-muted">{iwrRelativeVi(row.submitted_at)}</td>
+                    <td>
+                      <Link href={`/crm/internal-reports/${row.id}`} className="iwr-link">
+                        Xem
+                      </Link>
+                      {' · '}
+                      <Link href={`/crm/internal-reports/${row.id}`} className="iwr-link">
+                        Phản hồi
+                      </Link>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filteredAction.map((row) => (
-                    <tr key={row.id} className="border-t border-slate-100">
-                      <td className="py-3 pr-3">
-                        <div className="flex items-center gap-2">
-                          <span className={`flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-semibold ${iwrAvatarTone(row.author_staff_id)}`}>
-                            {iwrInitials(row.author_name)}
-                          </span>
-                          <div>
-                            <div className="font-medium">{row.author_name ?? `#${row.author_staff_id}`}</div>
-                            <div className="text-[11px] text-slate-400">{row.template_name_vi}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 pr-3">
-                        <div className="font-medium">{row.title}</div>
-                        <div className="text-[11px] text-slate-400">{formatIwrWhen(row.submitted_at)}</div>
-                      </td>
-                      <td className="py-3 pr-3 text-slate-600">
-                        {row.period_start}
-                        {row.period_end !== row.period_start ? ` — ${row.period_end}` : ''}
-                      </td>
-                      <td className="py-3 pr-3">
-                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${iwrRagClass(row.rag)}`}>
-                          {iwrRagLabel(row.rag)}
-                        </span>
-                      </td>
-                      <td className="py-3 pr-3">
-                        {!row.first_viewed_at ? <span className="inline-block h-2 w-2 rounded-full bg-[#0052CC]" /> : '—'}
-                      </td>
-                      <td className="py-3 pr-3 text-xs text-slate-500">{iwrRelativeVi(row.submitted_at)}</td>
-                      <td className="py-3">
-                        <div className="flex gap-2">
-                          <Link href={`/crm/internal-reports/${row.id}`} className="text-[#0052CC] hover:underline">
-                            Xem
-                          </Link>
-                          <Link href={`/crm/internal-reports/${row.id}`} className="text-slate-500 hover:underline">
-                            Phản hồi
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {!filteredAction.length && (
-                    <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-400">
-                        Không có báo cáo cần xử lý
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <Link href="/crm/internal-reports/inbox" className="mt-4 inline-block text-sm text-[#0052CC] hover:underline">
+                ))}
+                {!filteredAction.length && (
+                  <tr>
+                    <td colSpan={7} className="iwr-empty">
+                      Không có báo cáo cần xử lý
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+            <Link href="/crm/internal-reports/inbox" className="iwr-link">
               Xem tất cả báo cáo →
             </Link>
           </IwrCard>
 
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="iwr-split">
             <IwrCard>
-              <h2 className="mb-4 text-base font-semibold">Tiến độ dự án</h2>
-              <div className="mb-3 flex gap-3 text-[11px] text-slate-500">
-                <span className="inline-flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-sm bg-emerald-500" /> Đúng tiến độ</span>
-                <span className="inline-flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-sm bg-amber-400" /> Chậm</span>
-                <span className="inline-flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-sm bg-red-500" /> Rủi ro</span>
+              <h2>Tiến độ dự án</h2>
+              <div className="iwr-legend">
+                <span><i style={{ background: '#36b37e' }} /> Đúng tiến độ</span>
+                <span><i style={{ background: '#ffab00' }} /> Chậm</span>
+                <span><i style={{ background: '#ff5630' }} /> Rủi ro</span>
               </div>
-              <div className="space-y-3">
-                {progressRows.map(([name, v]) => {
-                  const sum = v.green + v.yellow + v.red || 1;
-                  return (
-                    <div key={name}>
-                      <div className="mb-1 truncate text-xs text-slate-600">{name}</div>
-                      <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
-                        <span className="bg-emerald-500" style={{ width: `${(v.green / sum) * 100}%` }} />
-                        <span className="bg-amber-400" style={{ width: `${(v.yellow / sum) * 100}%` }} />
-                        <span className="bg-red-500" style={{ width: `${(v.red / sum) * 100}%` }} />
-                      </div>
+              {progressRows.map(([name, v]) => {
+                const sum = v.green + v.yellow + v.red || 1;
+                return (
+                  <div key={name} style={{ marginBottom: 12 }}>
+                    <div className="iwr-muted">{name}</div>
+                    <div className="iwr-bar">
+                      <span style={{ width: `${(v.green / sum) * 100}%`, background: '#36b37e' }} />
+                      <span style={{ width: `${(v.yellow / sum) * 100}%`, background: '#ffab00' }} />
+                      <span style={{ width: `${(v.red / sum) * 100}%`, background: '#ff5630' }} />
                     </div>
-                  );
-                })}
-                {!progressRows.length && <p className="text-sm text-slate-400">Chưa có dữ liệu kỳ này</p>}
-              </div>
+                  </div>
+                );
+              })}
+              {!progressRows.length && <p className="iwr-empty">Chưa có dữ liệu kỳ này</p>}
             </IwrCard>
             <IwrCard>
-              <div className="mb-4 flex items-center gap-2">
-                <h2 className="text-base font-semibold">Blocker khẩn cấp</h2>
-                <span className="rounded-full bg-[#FF5630] px-2 py-0.5 text-[11px] font-semibold text-white">{risks.length}</span>
+              <div className="iwr-cardhead">
+                <h2>Blocker khẩn cấp</h2>
+                <span className="iwr-badge iwr-badge--danger">{risks.length}</span>
               </div>
-              <ul className="space-y-3">
+              <ul>
                 {risks.slice(0, 5).map((r) => (
-                  <li key={r.id} className="flex items-start gap-3">
-                    <span className="mt-0.5 text-red-500">⚠</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium">{r.title}</div>
-                      <div className="text-xs text-slate-400">
-                        {r.severity === 'critical' || r.severity === 'high' ? 'Ưu tiên cao' : 'Ưu tiên trung bình'}
-                        {r.due_at ? ` · ${iwrRelativeVi(r.due_at)}` : ''}
-                      </div>
+                  <li key={r.id} style={{ marginBottom: 12 }}>
+                    <strong>{r.title}</strong>
+                    <div className="iwr-muted">
+                      {r.severity === 'critical' || r.severity === 'high' ? 'Ưu tiên cao' : 'Ưu tiên trung bình'}
+                      {r.due_at ? ` · ${iwrRelativeVi(r.due_at)}` : ''}
                     </div>
                     {r.report_id && (
-                      <Link href={`/crm/internal-reports/${r.report_id}`} className="text-xs text-[#0052CC]">
+                      <Link href={`/crm/internal-reports/${r.report_id}`} className="iwr-link">
                         Xem
                       </Link>
                     )}
                   </li>
                 ))}
-                {!risks.length && <li className="text-sm text-slate-400">Không có blocker mở</li>}
+                {!risks.length && <li className="iwr-empty">Không có blocker mở</li>}
               </ul>
             </IwrCard>
           </div>
@@ -397,69 +352,58 @@ export default function InternalReportsPage() {
         </IwrCard>
       )}
 
-      <p className="mt-4 text-xs text-slate-400">Mẫu: {IWR_TEMPLATE_CODES.map((t) => t.label).join(' · ')}</p>
+      <p className="iwr-muted">Mẫu: {IWR_TEMPLATE_CODES.map((t) => t.label).join(' · ')}</p>
     </IwrAppShell>
   );
 }
 
 function Kpi({ title, value, sub, tone }: { title: string; value: string; sub: string; tone: 'green' | 'red' | 'amber' }) {
-  const icon =
-    tone === 'green' ? 'bg-emerald-50 text-emerald-600' : tone === 'red' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600';
   return (
     <IwrCard>
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="text-xs font-medium text-slate-500">{title}</div>
-          <div className={`mt-1 text-2xl font-semibold ${tone === 'red' ? 'text-red-600' : tone === 'amber' ? 'text-amber-600' : 'text-slate-900'}`}>
-            {value}
-          </div>
-          <div className="mt-1 text-xs text-slate-500">{sub}</div>
-        </div>
-        <span className={`flex h-10 w-10 items-center justify-center rounded-full text-lg ${icon}`}>●</span>
-      </div>
+      <div className="iwr-kpi__label">{title}</div>
+      <div className={`iwr-kpi__value${tone === 'red' ? ' is-red' : tone === 'amber' ? ' is-amber' : ''}`}>{value}</div>
+      <div className="iwr-kpi__sub">{sub}</div>
     </IwrCard>
   );
 }
 
 function MyReportsTable({ items, canWrite }: { items: IwrReportRow[]; canWrite: boolean }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full text-sm">
-        <thead className="text-left text-[11px] uppercase tracking-wide text-slate-400">
-          <tr>
-            <th className="pb-2 pr-3">Tiêu đề</th>
-            <th className="pb-2 pr-3">Loại</th>
-            <th className="pb-2 pr-3">Kỳ</th>
-            <th className="pb-2 pr-3">Trạng thái</th>
-            <th className="pb-2">Cập nhật</th>
+    <table className="iwr-table">
+      <thead>
+        <tr>
+          <th>Tiêu đề</th>
+          <th>Loại</th>
+          <th>Kỳ</th>
+          <th>Trạng thái</th>
+          <th>Cập nhật</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((row) => (
+          <tr key={row.id}>
+            <td>
+              <Link href={`/crm/internal-reports/${row.id}`} className="iwr-link">
+                {row.title}
+              </Link>
+            </td>
+            <td>{row.template_name_vi}</td>
+            <td>
+              {row.period_start}
+              {row.period_end !== row.period_start ? ` — ${row.period_end}` : ''}
+            </td>
+            <td>{IWR_STATUS_LABELS[row.status]}</td>
+            <td>{formatIwrWhen(row.submitted_at)}</td>
           </tr>
-        </thead>
-        <tbody>
-          {items.map((row) => (
-            <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50">
-              <td className="py-3 pr-3">
-                <Link href={`/crm/internal-reports/${row.id}`} className="text-[#0052CC] hover:underline">
-                  {row.title}
-                </Link>
-              </td>
-              <td className="py-3 pr-3">{row.template_name_vi}</td>
-              <td className="py-3 pr-3">
-                {row.period_start}
-                {row.period_end !== row.period_start ? ` — ${row.period_end}` : ''}
-              </td>
-              <td className="py-3 pr-3">{IWR_STATUS_LABELS[row.status]}</td>
-              <td className="py-3">{formatIwrWhen(row.submitted_at)}</td>
-            </tr>
-          ))}
-          {!items.length && (
-            <tr>
-              <td colSpan={5} className="py-8 text-center text-slate-400">
-                Chưa có báo cáo. {canWrite ? 'Bấm «Mở hôm nay» để bắt đầu.' : ''}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
+        ))}
+        {!items.length && (
+          <tr>
+            <td colSpan={5} className="iwr-empty">
+              Chưa có báo cáo. {canWrite ? 'Bấm «Mở hôm nay» để bắt đầu.' : ''}
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
   );
 }
