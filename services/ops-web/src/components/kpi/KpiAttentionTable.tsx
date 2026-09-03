@@ -47,7 +47,7 @@ export function KpiAttentionTable({ rows }: { rows: AttentionRow[] }) {
                   <td>{row.staff_name}</td>
                   <td>{row.department}</td>
                   <td>
-                    {formatNumber(row.actual_value)} / {formatNumber(row.target_value)}
+                    {row.actual_value == null ? '—' : formatNumber(row.actual_value)} / {row.target_value == null ? '—' : formatNumber(row.target_value)}
                     {row.unit ? ` ${row.unit}` : ''}
                   </td>
                   <td>

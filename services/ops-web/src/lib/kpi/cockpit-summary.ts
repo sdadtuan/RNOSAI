@@ -56,9 +56,9 @@ export type AttentionRow = {
 export type CockpitInsight = { headline: string; actions: string[] };
 
 export type CockpitDelta = {
-  green: number;
-  yellow: number;
-  red: number;
+  green: number | null;
+  yellow: number | null;
+  red: number | null;
   completion_pct: number | null;
   ontime_pct: number | null;
 };
@@ -183,9 +183,9 @@ export function buildCockpitSummary(
     ontime_count: cur.ontime_count,
     ontime_pct: cur.ontime_pct,
     delta: {
-      green: cur.green - prev.green,
-      yellow: cur.yellow - prev.yellow,
-      red: cur.red - prev.red,
+      green: prevRows.length === 0 ? null : cur.green - prev.green,
+      yellow: prevRows.length === 0 ? null : cur.yellow - prev.yellow,
+      red: prevRows.length === 0 ? null : cur.red - prev.red,
       completion_pct:
         cur.completion_pct == null || prev.completion_pct == null
           ? null

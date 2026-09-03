@@ -22,7 +22,6 @@ import {
 import { formatPct, periodLabel } from '@/lib/kpi/format';
 import {
   downloadStaffKpiXlsx,
-  fetchKpiBoard,
   fetchKpiChart,
   fetchKpiMetricTrend,
   fetchKpiMetrics,
@@ -55,7 +54,6 @@ export default function CrmKpiPage() {
   const [deptFilter, setDeptFilter] = useState('all');
   const [createOpen, setCreateOpen] = useState(false);
   const [metrics, setMetrics] = useState<KpiMetricRow[]>([]);
-  const [, setBoard] = useState<Awaited<ReturnType<typeof fetchKpiBoard>> | null>(null);
   const [chartMetricId, setChartMetricId] = useState('');
   const [chartData, setChartData] = useState<KpiChartData | null>(null);
   const [trendLabels, setTrendLabels] = useState<string[]>([]);
@@ -127,14 +125,12 @@ export default function CrmKpiPage() {
       try {
         const prev = prevYearMonth(year, month);
         const teamParam = team === 'all' ? undefined : team;
-        const [metricRows, boardOut, staffKpiRows, prevKpiRows] = await Promise.all([
+        const [metricRows, staffKpiRows, prevKpiRows] = await Promise.all([
           fetchKpiMetrics(access),
-          fetchKpiBoard(access, { year, month, team: teamParam }),
           fetchStaffKpi(access, { year, month, team: teamParam }).catch(() => []),
           fetchStaffKpi(access, { year: prev.year, month: prev.month, team: teamParam }).catch(() => []),
         ]);
         setMetrics(metricRows);
-        setBoard(boardOut);
         setGridRows(staffKpiRows);
         setPrevRows(prevKpiRows);
         const nextMetricId = chartMetricId || (metricRows[0] ? String(metricRows[0].id) : '');

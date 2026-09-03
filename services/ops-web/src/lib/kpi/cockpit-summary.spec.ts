@@ -50,6 +50,18 @@ describe('buildCockpitSummary', () => {
     expect(prevYearMonth(2026, 1)).toEqual({ year: 2025, month: 12 });
   });
 
+  it('nulls count deltas when prev period is missing', () => {
+    const current = [
+      row({ id: 1, staff_id: 1, actual_value: 100 }),
+      row({ id: 2, staff_id: 2, actual_value: 90 }),
+    ];
+    const out = buildCockpitSummary(current, [], now);
+    expect(out.green).toBe(2);
+    expect(out.delta.green).toBeNull();
+    expect(out.delta.yellow).toBeNull();
+    expect(out.delta.red).toBeNull();
+  });
+
   it('counts lower-is-better (higher=0, target=4, actual=4) as 100 completion_pct', () => {
     const current = [
       row({

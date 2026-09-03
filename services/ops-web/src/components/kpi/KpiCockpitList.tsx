@@ -86,8 +86,8 @@ export function KpiCockpitList({
         <td>{row.staff_name}</td>
         <td>{deptLabel(row.staff_department)}</td>
         <td>Tháng</td>
-        <td>{formatNumber(row.target_value)}</td>
-        <td>{formatNumber(row.actual_value)}</td>
+        <td>{row.target_value == null ? '—' : formatNumber(row.target_value)}</td>
+        <td>{row.actual_value == null ? '—' : formatNumber(row.actual_value)}</td>
         <td>
           <div className="kpi-progress-mini">
             <span
