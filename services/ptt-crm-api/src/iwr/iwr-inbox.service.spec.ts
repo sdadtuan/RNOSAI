@@ -34,6 +34,8 @@ describe('IwrInboxService', () => {
     };
     const out = await inbox.directory(actor, 'a', 'cc');
     expect(out.items.map((x) => x.id).sort((a, b) => a - b)).toEqual([2, 4]);
+    await expect(inbox.directory(actor, '', 'to')).resolves.toEqual({ items: [] });
+    await expect(inbox.directory(actor, '  ', 'cc')).resolves.toEqual({ items: [] });
   });
 
   it('team marks missing when no report in period', async () => {

@@ -6,7 +6,6 @@ import {
   IWR_STATUS_LABELS,
   addIwrItem,
   deleteIwrItem,
-  fetchIwrDirectory,
   fetchIwrItems,
   fetchIwrSuggest,
   patchIwrItem,
@@ -19,7 +18,7 @@ import {
   type IwrReportStatus,
 } from '@/lib/crm/iwr-api';
 import { iwrAvatarTone, iwrInitials } from './iwr-format';
-import { IwrPeoplePicker, type IwrPersonChip } from './IwrPeoplePicker';
+import { IwrPeoplePicker, iwrInitialToChip, type IwrPersonChip } from './IwrPeoplePicker';
 import {
   clampProgress,
   formatViTime,
@@ -103,8 +102,8 @@ export function IwrDailyReportEditor({
     }
     return report.title;
   });
-  const [toPerson, setToPerson] = useState<IwrPersonChip | null>(
-    toRecipient ? { id: toRecipient.staff_id, name: toRecipient.staff_name ?? `#${toRecipient.staff_id}` } : null,
+  const [toPerson, setToPerson] = useState<IwrPersonChip | null>(() =>
+    iwrInitialToChip(report.id, toRecipient, readOnly),
   );
   const [ccPeople, setCcPeople] = useState<IwrPersonChip[]>(
     ccRecipients.map((r) => ({ id: r.staff_id, name: r.staff_name ?? `#${r.staff_id}` })),
@@ -133,20 +132,10 @@ export function IwrDailyReportEditor({
     void fetchIwrSuggest(token, report.id)
       .then((out) => setSuggestHits(out.items ?? []))
       .catch(() => undefined);
-    if (!toRecipient) {
-      void fetchIwrDirectory(token, '', 'to')
-        .then((out) => {
-          const first = out.items?.[0];
-          if (first) setToPerson((cur) => cur ?? { id: first.id, name: first.name });
-        })
-        .catch(() => undefined);
-    }
-  }, [token, report.id, toRecipient]);
+  }, [token, report.id]);
 
   useEffect(() => {
     setTitle(report.title);
-    const nextTo = report.recipients.find((r) => r.kind === 'to');
-    if (nextTo) setToPerson({ id: nextTo.staff_id, name: nextTo.staff_name ?? `#${nextTo.staff_id}` });
     setCcPeople(
       report.recipients
         .filter((r) => r.kind === 'cc')
@@ -203,7 +192,7 @@ export function IwrDailyReportEditor({
         await onPatch({
           title: nextTitle.trim() || report.title,
           sections_json: buildSections(nextItems),
-          to_staff_id: nextTo,
+          to_staff_id: nextTo ?? null,
           cc_staff_ids: nextCc,
         });
         setSavedAt(new Date());
@@ -215,6 +204,13 @@ export function IwrDailyReportEditor({
     },
     [readOnly, onPatch, title, ccPeople, items, toPerson, report.title, buildSections],
   );
+
+  const clearedDefaultTo = useRef(false);
+  useEffect(() => {
+    if (readOnly || clearedDefaultTo.current || toPerson || !toRecipient) return;
+    clearedDefaultTo.current = true;
+    void persistDraft(title, ccPeople.map((p) => p.id), items, null);
+  }, [readOnly, toPerson, toRecipient, persistDraft, title, ccPeople, items]);
 
   const scheduleDraft = useCallback(
     (nextTitle = title, nextCc = ccPeople.map((p) => p.id), nextItems = items, nextTo = toPerson?.id) => {

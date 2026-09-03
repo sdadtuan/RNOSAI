@@ -6,6 +6,24 @@ import { iwrAvatarTone, iwrInitials } from './iwr-format';
 
 export type IwrPersonChip = { id: number; name: string };
 
+/** First editable open of a draft hides the auto-assigned To; later opens keep a user-picked To. */
+export function iwrInitialToChip(
+  reportId: string,
+  toRecipient: { staff_id: number; staff_name?: string | null } | undefined,
+  readOnly: boolean,
+): IwrPersonChip | null {
+  if (!toRecipient) return null;
+  const chip = { id: toRecipient.staff_id, name: toRecipient.staff_name ?? `#${toRecipient.staff_id}` };
+  if (readOnly) return chip;
+  if (typeof window === 'undefined') return null;
+  const key = `iwr-to-cleared:${reportId}`;
+  if (!sessionStorage.getItem(key)) {
+    sessionStorage.setItem(key, '1');
+    return null;
+  }
+  return chip;
+}
+
 type IwrPeoplePickerProps = {
   token: string;
   purpose: 'to' | 'cc' | 'bcc';

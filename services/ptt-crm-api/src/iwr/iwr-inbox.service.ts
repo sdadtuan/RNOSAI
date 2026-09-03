@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { descendantIds } from './iwr-org.util';
-import { defaultToStaffId } from './iwr-recipient.util';
 import { IwrOrgRepository, IwrReportsRepository } from './iwr-reports.repository';
 import { IwrPolicyService } from './iwr-policy.service';
 import type { IwrActor, IwrInboxBox, IwrReportRow, IwrStaffNode, IwrTeamNode } from './iwr.types';
@@ -42,27 +41,14 @@ export class IwrInboxService {
   async directory(
     actor: IwrActor,
     q: string,
-    purpose: 'cc' | 'to' | 'mention' | 'bcc',
+    _purpose: 'cc' | 'to' | 'mention' | 'bcc',
   ): Promise<{ items: IwrStaffNode[] }> {
     const author = await this.org.getStaff(actor.staffId);
     if (!author) return { items: [] };
-    const nodes = await this.org.listActiveStaff();
     const term = q.trim();
-    const hits =
-      term.length > 0
-        ? await this.org.searchDirectory(term, 20)
-        : nodes.filter((n) => n.id !== author.id).slice(0, 20);
-    let items = hits.filter((n) => n.id !== author.id);
-
-    if (purpose === 'to' && !term) {
-      const toId = defaultToStaffId(author);
-      const mgr = toId != null ? nodes.find((n) => n.id === toId) : undefined;
-      if (mgr && !items.some((n) => n.id === mgr.id)) {
-        items = [mgr, ...items];
-      }
-    }
-
-    return { items: items.slice(0, 20) };
+    if (term.length < 1) return { items: [] };
+    const hits = await this.org.searchDirectory(term, 20);
+    return { items: hits.filter((n) => n.id !== author.id).slice(0, 20) };
   }
 
   async team(

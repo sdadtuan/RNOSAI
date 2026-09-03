@@ -8,7 +8,6 @@ import {
   addIwrItem,
   applyIwrSources,
   deleteIwrItem,
-  fetchIwrDirectory,
   fetchIwrFiles,
   fetchIwrItems,
   fetchIwrSources,
@@ -26,7 +25,7 @@ import {
   type IwrReportStatus,
 } from '@/lib/crm/iwr-api';
 import { iwrAvatarTone, iwrInitials, iwrRagClass, iwrRagLabel, iwrWeekHeading } from './iwr-format';
-import { IwrPeoplePicker, type IwrPersonChip } from './IwrPeoplePicker';
+import { IwrPeoplePicker, iwrInitialToChip, type IwrPersonChip } from './IwrPeoplePicker';
 import {
   clampProgress,
   formatKpiNumber,
@@ -116,8 +115,8 @@ export function IwrWeeklyReportEditor({
   const [items, setItems] = useState<IwrItemRow[]>(report.items ?? []);
   const [overview, setOverview] = useState(readOverview(report));
   const [rag, setRag] = useState<IwrRag>(report.rag);
-  const [toPerson, setToPerson] = useState<IwrPersonChip | null>(
-    toRecipient ? { id: toRecipient.staff_id, name: toRecipient.staff_name ?? `#${toRecipient.staff_id}` } : null,
+  const [toPerson, setToPerson] = useState<IwrPersonChip | null>(() =>
+    iwrInitialToChip(report.id, toRecipient, readOnly),
   );
   const [ccPeople, setCcPeople] = useState<IwrPersonChip[]>(
     ccRecipients.map((r) => ({ id: r.staff_id, name: r.staff_name ?? `#${r.staff_id}` })),
@@ -144,21 +143,11 @@ export function IwrWeeklyReportEditor({
     void fetchIwrItems(token, report.id).then((out) => setItems(out.items ?? [])).catch(() => undefined);
     void fetchIwrSources(token, report.id).then((out) => setSources(out.items ?? [])).catch(() => undefined);
     void fetchIwrFiles(token, report.id).then((out) => setFiles(out.items ?? [])).catch(() => undefined);
-    if (!toRecipient) {
-      void fetchIwrDirectory(token, '', 'to')
-        .then((out) => {
-          const first = out.items?.[0];
-          if (first) setToPerson((cur) => cur ?? { id: first.id, name: first.name });
-        })
-        .catch(() => undefined);
-    }
-  }, [token, report.id, toRecipient]);
+  }, [token, report.id]);
 
   useEffect(() => {
     setOverview(readOverview(report));
     setRag(report.rag);
-    const nextTo = report.recipients.find((r) => r.kind === 'to');
-    if (nextTo) setToPerson({ id: nextTo.staff_id, name: nextTo.staff_name ?? `#${nextTo.staff_id}` });
     setCcPeople(
       report.recipients
         .filter((r) => r.kind === 'cc')
@@ -225,12 +214,19 @@ export function IwrWeeklyReportEditor({
         title: iwrWeekHeading(report.period_start, report.period_end),
         sections_json: buildSections(text, nextItems, nextRag),
         rag: nextRag ?? undefined,
-        to_staff_id: nextTo,
+        to_staff_id: nextTo ?? null,
         cc_staff_ids: nextCc,
       });
     },
     [readOnly, onPatch, overview, rag, ccPeople, toPerson, items, report.period_start, report.period_end, buildSections],
   );
+
+  const clearedDefaultTo = useRef(false);
+  useEffect(() => {
+    if (readOnly || clearedDefaultTo.current || toPerson || !toRecipient) return;
+    clearedDefaultTo.current = true;
+    void persistDraft(overview, rag, ccPeople.map((p) => p.id), items, null);
+  }, [readOnly, toPerson, toRecipient, persistDraft, overview, rag, ccPeople, items]);
 
   const scheduleDraft = useCallback(
     (

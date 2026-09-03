@@ -243,7 +243,7 @@ export type PatchIwrReportInput = {
   sections_json?: Record<string, unknown>;
   rag?: IwrRag;
   rag_override_reason?: string;
-  to_staff_id?: number;
+  to_staff_id?: number | null;
   cc_staff_ids?: number[];
   source_report_ids?: string[];
 };

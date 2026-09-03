@@ -23,7 +23,7 @@ import {
   type IwrReportStatus,
   type IwrSuggestHit,
 } from '@/lib/crm/iwr-api';
-import { IwrPeoplePicker } from './IwrPeoplePicker';
+import { IwrPeoplePicker, iwrInitialToChip, type IwrPersonChip } from './IwrPeoplePicker';
 
 type BlockerItem = { title: string; description: string; severity: string };
 
@@ -91,8 +91,15 @@ export function IwrReportEditor({
   onReplyAll,
   comments,
 }: IwrReportEditorProps) {
+  const isAuthor = Boolean(report.viewer_is_author);
+  const isReviewer = Boolean(report.viewer_is_reviewer);
+  const readOnly = IMMUTABLE.has(report.status) || !isAuthor || !EDITABLE.has(report.status);
+  const toRecipient = report.recipients.find((r) => r.kind === 'to');
   const [sections, setSections] = useState(report.sections_json);
   const [rag, setRag] = useState<IwrRag>(report.rag);
+  const [toPerson, setToPerson] = useState<IwrPersonChip | null>(() =>
+    iwrInitialToChip(report.id, toRecipient, readOnly),
+  );
   const [ccIds, setCcIds] = useState<number[]>(
     report.recipients.filter((r) => r.kind === 'cc').map((r) => r.staff_id),
   );
@@ -120,12 +127,15 @@ export function IwrReportEditor({
     }
   }, [token, report.id, report.template_code]);
 
-  const isAuthor = Boolean(report.viewer_is_author);
-  const isReviewer = Boolean(report.viewer_is_reviewer);
-  const readOnly = IMMUTABLE.has(report.status) || !isAuthor || !EDITABLE.has(report.status);
   const keys = useMemo(() => sectionKeys(report), [report]);
   const isWeekly = report.template_code === 'weekly_work' || report.template_code === 'monthly_work';
-  const toRecipient = report.recipients.find((r) => r.kind === 'to');
+
+  const clearedDefaultTo = useRef(false);
+  useEffect(() => {
+    if (readOnly || clearedDefaultTo.current || toPerson || !toRecipient) return;
+    clearedDefaultTo.current = true;
+    void onPatch({ to_staff_id: null });
+  }, [readOnly, toPerson, toRecipient, onPatch]);
 
   useEffect(() => {
     setSections(report.sections_json);
@@ -327,14 +337,11 @@ export function IwrReportEditor({
           purpose="to"
           label="Đến"
           placeholder="Tìm người nhận..."
-          selected={
-            toRecipient
-              ? [{ id: toRecipient.staff_id, name: toRecipient.staff_name ?? `#${toRecipient.staff_id}` }]
-              : []
-          }
+          selected={toPerson ? [toPerson] : []}
           onChange={(next) => {
-            const person = next[0];
-            if (person) void onPatch({ to_staff_id: person.id });
+            const person = next[0] ?? null;
+            setToPerson(person);
+            void onPatch({ to_staff_id: person?.id ?? null });
           }}
           disabled={readOnly}
           multiple={false}
