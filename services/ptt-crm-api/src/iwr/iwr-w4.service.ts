@@ -10,6 +10,7 @@ import { randomUUID } from 'crypto';
 import { CsdEmailService } from '../csd/csd-email.service';
 import { assertInternalEmailRecipients, parseInternalEmailDomains } from './iwr-email.util';
 import { IwrReportsRepository } from './iwr-reports.repository';
+import { IwrDelegationsRepository } from './iwr-w4.repository';
 import type { IwrActor, SendIwrEmailInput } from './iwr.types';
 
 const FILE_MAX_BYTES = 104857600;
@@ -107,7 +108,7 @@ export class IwrEmailService {
 
 @Injectable()
 export class IwrDelegationsService {
-  constructor(private readonly repo: import('./iwr-w4.repository').IwrDelegationsRepository) {}
+  constructor(private readonly repo: IwrDelegationsRepository) {}
 
   async list(_actor: IwrActor) {
     return { items: await this.repo.list() };
