@@ -37,8 +37,9 @@ export class CrmStaffController {
     @Query('year') year?: string,
     @Query('month') month?: string,
     @Query('staff_id') staffId?: string,
+    @Query('team') team?: string,
   ) {
-    return this.crmStaff.listStaffKpi(year, month, staffId);
+    return this.crmStaff.listStaffKpi(year, month, staffId, team);
   }
 
   @Get('levels')

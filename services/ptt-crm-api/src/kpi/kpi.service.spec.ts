@@ -37,4 +37,19 @@ describe('KpiService', () => {
     expect(pg.listStaffKpi).toHaveBeenCalledWith(2026, 8, undefined);
     expect(pg.exportStaffKpi).toHaveBeenCalledWith(2026, 8, undefined);
   });
+
+  it('filters staff KPI list by team when provided', async () => {
+    const pg = {
+      listStaffKpi: jest.fn().mockResolvedValue([
+        { id: 1, staff_id: 10, staff_department: 'Sales' },
+        { id: 2, staff_id: 11, staff_department: 'CSKH' },
+      ]),
+      staffIdsForTeam: jest.fn().mockResolvedValue([10]),
+    } as unknown as KpiPgRepository;
+    const service = new KpiService(pg, undefined as unknown as LeadsFunnelService);
+    await expect(service.listStaffKpi('2026', '9', undefined, 'sales')).resolves.toEqual({
+      staff_kpi: [{ id: 1, staff_id: 10, staff_department: 'Sales' }],
+    });
+    expect(pg.staffIdsForTeam).toHaveBeenCalledWith('sales');
+  });
 });

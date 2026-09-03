@@ -64,7 +64,7 @@ export class KpiService {
     }
   }
 
-  async listStaffKpi(year?: string, month?: string, staffId?: string) {
+  async listStaffKpi(year?: string, month?: string, staffId?: string, team?: string) {
     const parsed = this.parseYearMonth(year, month);
     let sid: number | undefined;
     if (staffId) {
@@ -74,7 +74,11 @@ export class KpiService {
       }
       sid = n;
     }
-    const staffKpi = await this.pg.listStaffKpi(parsed.year, parsed.month, sid);
+    let staffKpi = await this.pg.listStaffKpi(parsed.year, parsed.month, sid);
+    const teamIds = await this.resolveTeamStaffIds(normalizeKpiTeam(team));
+    if (teamIds) {
+      staffKpi = staffKpi.filter((row) => teamIds.has(row.staff_id));
+    }
     return { staff_kpi: staffKpi };
   }
 

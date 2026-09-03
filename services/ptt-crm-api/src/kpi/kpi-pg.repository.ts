@@ -208,7 +208,8 @@ export class KpiPgRepository implements OnModuleDestroy {
               m.name AS metric_name, m.code AS metric_code, m.unit AS metric_unit,
               m.higher_is_better AS metric_higher_is_better,
               m.warn_ratio AS metric_warn_ratio,
-              s.name AS staff_name, s.internal_code AS staff_code
+              s.name AS staff_name, s.internal_code AS staff_code,
+              COALESCE(s.department, '') AS staff_department
        FROM crm_staff_kpi k
        JOIN crm_kpi_metrics m ON m.id = k.metric_id
        JOIN crm_staff s ON s.id = k.staff_id
@@ -546,6 +547,7 @@ export class KpiPgRepository implements OnModuleDestroy {
       metric_warn_ratio: row.metric_warn_ratio != null ? Number(row.metric_warn_ratio) : null,
       staff_name: String(row.staff_name ?? ''),
       staff_code: String(row.staff_code ?? ''),
+      staff_department: String(row.staff_department ?? ''),
     };
   }
 

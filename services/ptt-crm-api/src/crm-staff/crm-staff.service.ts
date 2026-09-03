@@ -61,8 +61,8 @@ export class CrmStaffService {
     return updated;
   }
 
-  listStaffKpi(year?: string, month?: string, staffId?: string) {
-    return this.kpi.listStaffKpi(year, month, staffId);
+  listStaffKpi(year?: string, month?: string, staffId?: string, team?: string) {
+    return this.kpi.listStaffKpi(year, month, staffId, team);
   }
 
   getLevels() {

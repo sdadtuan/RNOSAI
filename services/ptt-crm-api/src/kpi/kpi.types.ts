@@ -52,6 +52,7 @@ export interface StaffKpiEntryRow {
   metric_warn_ratio: number | null;
   staff_name: string;
   staff_code: string;
+  staff_department: string;
 }
 
 export interface StaffKpiMetricItem {
