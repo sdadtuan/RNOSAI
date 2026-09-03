@@ -420,3 +420,17 @@ export type CreateIwrWebhookInput = {
 export type ReopenIwrReportInput = {
   reason: string;
 };
+
+export type IwrAiFeedbackAction = 'accept' | 'dismiss' | 'wrong';
+
+export type IwrExternalShareRow = {
+  id: string;
+  report_id: string;
+  approval_id: string | null;
+  token: string;
+  allow_email: string;
+  expires_at: string;
+  revoked_at: string | null;
+  created_by_staff_id: number;
+  created_at: string;
+};

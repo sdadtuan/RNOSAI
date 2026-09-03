@@ -771,6 +771,33 @@ export class IwrReportsService {
     };
   }
 
+  async exportPublicSnapshot(reportId: string): Promise<Record<string, unknown>> {
+    const report = await this.repo.getReport(reportId);
+    if (!report) throw new NotFoundException({ error: 'iwr_report_not_found' });
+    const fields = await this.w5.listFieldsForReport(reportId);
+    const publicViewer: IwrActor = {
+      staffId: 0,
+      staffLabel: 'public',
+      departmentId: null,
+      caps: [],
+    };
+    const sections_json = maskSections(
+      report.sections_json,
+      fields.map((f) => ({ key: f.field_key, sensitivity: f.sensitivity })),
+      publicViewer,
+    );
+    return {
+      id: report.id,
+      title: report.title,
+      template_code: report.template_code,
+      period_start: report.period_start,
+      period_end: report.period_end,
+      status: report.status,
+      rag: report.rag,
+      sections_json,
+    };
+  }
+
   async reopen(actor: IwrActor, id: string, input: ReopenIwrReportInput): Promise<IwrReportDetail> {
     if (!hasIwrCap(actor, 'manage')) {
       throw new ForbiddenException({ error: 'missing_cap', section: 'iwr', action: 'manage' });

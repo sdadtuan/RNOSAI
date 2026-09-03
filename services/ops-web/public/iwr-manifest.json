@@ -1,0 +1,22 @@
+{
+  "name": "BC nội bộ — Hộp thư",
+  "short_name": "BC nội bộ",
+  "description": "Hộp thư báo cáo công việc nội bộ PTT",
+  "start_url": "/crm/internal-reports/inbox",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "vi",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -514,3 +514,26 @@ UPDATE iwr_reports r
    AND v.template_id = r.template_id
    AND v.version = 'v1.0'
    AND v.tenant_id = r.tenant_id;
+
+-- W6: external secure links + AI (no LLM tables — audit via csd_audit_logs)
+
+CREATE TABLE IF NOT EXISTS iwr_external_shares (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(32) NOT NULL DEFAULT 'PTT',
+  report_id UUID NOT NULL REFERENCES iwr_reports (id) ON DELETE CASCADE,
+  approval_id UUID REFERENCES iwr_approvals (id) ON DELETE SET NULL,
+  token VARCHAR(64) NOT NULL,
+  allow_email VARCHAR(255) NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  created_by_staff_id INTEGER NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (tenant_id, token)
+);
+
+CREATE INDEX IF NOT EXISTS iwr_external_shares_report_idx
+  ON iwr_external_shares (tenant_id, report_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS iwr_external_shares_token_idx
+  ON iwr_external_shares (tenant_id, token)
+  WHERE revoked_at IS NULL;

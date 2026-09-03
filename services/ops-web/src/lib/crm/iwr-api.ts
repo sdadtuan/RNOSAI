@@ -581,6 +581,40 @@ export async function fetchIwrTemplateFields(
   return iwrFetch(token, `/api/crm/iwr/templates/versions/${versionId}/fields`);
 }
 
+export async function fetchIwrAiStatus(token: string): Promise<{ enabled: boolean }> {
+  return iwrFetch(token, '/api/crm/iwr/ai/status');
+}
+
+export async function summarizeIwrReport(
+  token: string,
+  reportId: string,
+): Promise<{ text: string; citations: string[] }> {
+  return iwrFetch(token, '/api/crm/iwr/ai/summaries', {
+    method: 'POST',
+    body: JSON.stringify({ report_id: reportId }),
+  });
+}
+
+export async function fetchIwrAiInsights(
+  token: string,
+  reportId: string,
+): Promise<{ quality: string[]; risks: string[]; citations: string[] }> {
+  return iwrFetch(token, '/api/crm/iwr/ai/insights', {
+    method: 'POST',
+    body: JSON.stringify({ report_id: reportId }),
+  });
+}
+
+export async function requestIwrExternalShare(
+  token: string,
+  body: { report_id: string; email: string; approver_staff_id: number },
+): Promise<{ approval_id: string }> {
+  return iwrFetch(token, '/api/crm/iwr/external/shares/request', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export function formatIwrWhen(iso: string | null | undefined): string {
   if (!iso) return '—';
   try {

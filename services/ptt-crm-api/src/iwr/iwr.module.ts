@@ -39,6 +39,12 @@ import { IwrApprovalsService } from './iwr-approvals.service';
 import { IwrWebhooksController } from './iwr-webhooks.controller';
 import { IwrWebhooksService } from './iwr-webhooks.service';
 import { IwrW5Repository } from './iwr-w5.repository';
+import { IwrAiController } from './iwr-ai.controller';
+import { IwrAiService } from './iwr-ai.service';
+import { IwrExternalController } from './iwr-external.controller';
+import { IwrExternalService } from './iwr-external.service';
+import { IwrPublicController } from './iwr-public.controller';
+import { IwrW6Repository } from './iwr-w6.repository';
 
 @Module({
   imports: [ConfigModule, StaffAuthModule, CsdModule],
@@ -53,6 +59,9 @@ import { IwrW5Repository } from './iwr-w5.repository';
     IwrBuilderController,
     IwrApprovalsController,
     IwrWebhooksController,
+    IwrAiController,
+    IwrExternalController,
+    IwrPublicController,
   ],
   providers: [
     StaffIwrGuard,
@@ -84,6 +93,9 @@ import { IwrW5Repository } from './iwr-w5.repository';
     IwrBuilderService,
     IwrApprovalsService,
     IwrWebhooksService,
+    IwrAiService,
+    IwrW6Repository,
+    IwrExternalService,
   ],
   exports: [IwrReportsService, IwrInboxService, IwrDashboardsService],
 })
